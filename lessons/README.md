@@ -1,23 +1,24 @@
-# RayAgent lessons
+# RayAgent Lessons
 
-This directory will contain English teaching documents for understanding the course exercises and the RayAgent product.
+Study how RayAgent plans tasks, calls tools, manages execution, and delivers results. Each lesson connects a focused example to the corresponding product implementation.
 
-## Prerequisites and sequence
+## Topic map
 
-First run the original product. Then upgrade and validate A2A/MCP before systematically studying the implementation. Write the lessons against that working baseline, recording relevant differences from the original course without requiring two parallel curricula.
+The topic map defines the scope for lesson writing. Individual lessons will be linked here as they become available.
 
-The detailed lesson map will be finalized after those prerequisites. Planned areas include:
+| Area | Topics |
+|---|---|
+| Application flow | Startup, a complete conversation, and component responsibilities |
+| Models and tools | LLM APIs, structured output, tool calling, and the ReAct loop |
+| Planning | Task decomposition, execution, plan updates, and summarization |
+| State and events | Persistence, async HTTP, Redis Streams, SSE, and UI updates |
+| Sandbox | Browser control, shell commands, files, and storage |
+| Protocols | MCP tools, A2A agents, clients, servers, and product integration |
+| Failure behavior | Errors, iteration limits, cancellation, disconnects, and cleanup |
 
-- Product startup and the end-to-end conversation path.
-- LLM calls, structured output, tool calling, and the custom ReAct loop.
-- Planning, execution, state, persistence, and failure handling.
-- Async HTTP, event delivery, Redis Streams, and the UI.
-- Sandbox, browser, shell, file tools, and file storage.
-- MCP and A2A exercises, product integration, and protocol migration notes.
+## Lesson format
 
-## Lesson structure
-
-Each lesson should cover one coherent topic and include:
+Each lesson covers one coherent topic:
 
 1. Learning objectives and prerequisites.
 2. Essential concepts and a runnable example where useful.
@@ -25,13 +26,12 @@ Each lesson should cover one coherent topic and include:
 4. Design rationale, limitations, and relevant failure behavior.
 5. Understanding checks or a focused observation experiment.
 
-Adding new product features is not a requirement for completing a lesson. Completion means being able to explain the behavior, locate its implementation, and identify its boundaries.
+Examples and explanations should match the validated implementation. Explain relevant protocol changes where they affect behavior or API usage.
 
-## Related directories
+A lesson is complete when the learner can explain the behavior, locate its implementation, and identify its boundaries. Developing a new product feature is not required.
 
-- [Product](../ray_agent/README.md): the full application.
-- [Labs](../labs/README.md): runnable course exercises with separate environments.
-- [Plan](../PLAN.md): phase order, acceptance criteria, and current status.
-- [Archive](../archive/): historical reference material, not the curriculum.
+## Related material
 
-`specs/` and `.specify/` will be introduced in the later customization phase.
+- [Labs](../labs/README.md): runnable exercises with separate environments.
+- [Application guide](../ray_agent/README.md): configuration, startup, and verification.
+- [Execution plan](../PLAN.md): project phases and learning completion criteria.

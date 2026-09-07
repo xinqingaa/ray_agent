@@ -1,14 +1,28 @@
-# Course labs
+# RayAgent 实验与练习
 
-这些目录是课程练习，不是统一的 Agent 运行时。当前只调整外层位置，保留脚本名称、资源与原有依赖文件。
+通过独立示例理解模型调用、Agent 执行、工具协议和浏览器操作，并与产品实现对照。
 
-| 目录 | 来源 | 内容 |
-|---|---|---|
-| [foundations/](foundations/README.md) | `mas-study/` | LLM、工具调用、ReAct、异步 HTTP、MCP、浏览器等练习 |
-| [a2a/](a2a/README.md) | `a2a-study/` | A2A SDK 服务端、SDK 客户端和手写 HTTP 客户端 |
+## 内容
 
-`foundations/demo-code/`、`foundations/2-2 code/weather/`、`foundations/2-2 code/ui/` 包含独立依赖文件。运行示例前先确认所属目录的 README、`pyproject.toml` 和锁文件；不要直接在仓库根安装所有练习依赖。
+| 目录 | 主题 |
+|---|---|
+| [foundations/](foundations/README.md) | LLM API、结构化输出、工具调用、ReAct、异步 HTTP、MCP 和浏览器 |
+| [a2a/](a2a/README.md) | A2A SDK 服务端、SDK 客户端和手写 HTTP 客户端 |
 
-`2-2 code/` 中的 A2A 相关示例将在划分 lessons 时再整理。此次不拆分目录，也不修改中文脚本名或升级依赖。
+`foundations/2-2 code/weather/` 提供天气 Agent 示例，`foundations/2-2 code/ui/` 提供配套交互界面。
 
-产品当前作为 MCP/A2A 客户端使用外部服务；练习目录也包含服务端示例。教学文档入口见 [lessons](../lessons/README.md)，整体顺序见 [PLAN.md](../PLAN.md)。
+## 运行方式
+
+1. 选择要运行的示例，阅读所属目录的 README 和脚本入口。
+2. 确认依赖文件所在位置，在对应目录准备环境。
+3. 配置示例需要的模型或外部服务，运行并观察请求和结果。
+4. 按教学文档定位相关产品代码，比较示例与完整流程。
+
+`foundations/`、`a2a/`、`foundations/demo-code/` 及 `foundations/2-2 code/` 下的两个项目分别包含依赖文件。运行时使用对应项目的环境，并保留资源文件所需的相对路径。
+
+这些练习既包含客户端也包含服务端；使用前确认示例的角色、端口和服务依赖。
+
+## 文档入口
+
+- [教学文档](../lessons/README.md)：学习主题、示例与产品代码的关联。
+- [产品运行指南](../ray_agent/README.md)：完整应用的部署和验证。
