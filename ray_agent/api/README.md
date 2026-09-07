@@ -16,11 +16,12 @@ uv sync --locked --group dev
 
 本地 API 从当前目录 `.env` 加载环境变量，字段定义见 [core/config.py](core/config.py)，示例见 [.env.example](.env.example)。模型、Agent 与外部服务配置见 [config.yaml](config.yaml)。后者是已跟踪文件，实际凭据应留在本地。
 
-在宿主机运行 API 前，先准备可访问的 PostgreSQL、Redis、COS，以及沙箱与浏览器连接：
+在宿主机运行 API 前，先准备可访问的 PostgreSQL、Redis、文件存储，以及沙箱与浏览器连接：
 
 - 数据库和 Redis 地址必须从 API 所在环境可达。产品 Compose 没有将这两项服务端口映射到宿主机，不能仅将地址改成 `localhost` 就连接容器服务。
 - 动态沙箱需要 Docker 访问权限；已有沙箱需要可达的服务与浏览器端点。连接方式见 [沙箱指南](../sandbox/README.md#与-api-连接)。
 - 当前浏览器适配连接沙箱中的浏览器，单独在宿主机安装浏览器不能替代沙箱准备。
+- 文件存储由 `FILE_STORAGE_BACKEND` 决定：默认 `local` 写入本地目录；`cos` 才需要腾讯云凭据，启动时会校验必填项。
 
 ## 启动与接口
 
@@ -28,7 +29,7 @@ uv sync --locked --group dev
 uv run --locked uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-启动时会执行数据库迁移，再初始化 Redis、PostgreSQL 和 COS。接口说明由应用生成：启动后访问 [OpenAPI 文档](http://localhost:8000/docs)，无需另外维护完整路由表。
+启动时会执行数据库迁移，再初始化 Redis、PostgreSQL，并按配置初始化本地文件目录或 COS。接口说明由应用生成：启动后访问 [OpenAPI 文档](http://localhost:8000/docs)，无需另外维护完整路由表。
 
 容器部署从产品目录 `ray_agent/` 运行，使用该目录的 `.env`；它与本地 API 目录中的 `.env` 是两个配置位置。
 

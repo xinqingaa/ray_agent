@@ -8,6 +8,7 @@
 import asyncio
 import logging
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 from alembic import command
 from alembic.config import Config
@@ -52,10 +53,14 @@ async def lifespan(app: FastAPI):
     alembic_cfg = Config("alembic.ini")
     command.upgrade(alembic_cfg, "head")
 
-    # 3.初始化Redis/Postgres/Cos客户端
+    # 3.初始化Redis/Postgres，按配置决定是否初始化COS
     await get_redis().init()
     await get_postgres().init()
-    await get_cos().init()
+    if settings.file_storage_backend == "cos":
+        await get_cos().init()
+    else:
+        Path(settings.file_storage_local_dir).mkdir(parents=True, exist_ok=True)
+        logger.info(f"文件存储使用本地磁盘: {settings.file_storage_local_dir}")
 
     try:
         # 4.lifespan分界点
@@ -74,7 +79,8 @@ async def lifespan(app: FastAPI):
         # 6.关闭其他应用
         await get_redis().shutdown()
         await get_postgres().shutdown()
-        await get_cos().shutdown()
+        if settings.file_storage_backend == "cos":
+            await get_cos().shutdown()
 
         logger.info("Manus应用关闭成功")
 

@@ -13,7 +13,7 @@ from app.domain.models.file import File
 
 
 class FileStorage(Protocol):
-    """文件存储桶协议"""
+    """文件存储协议，由本地磁盘或对象存储实现"""
 
     async def upload_file(self, upload_file: UploadFile) -> File:
         """根据传递的文件源上传文件后返回文件信息"""
@@ -21,4 +21,8 @@ class FileStorage(Protocol):
 
     async def download_file(self, file_id: str) -> Tuple[BinaryIO, File]:
         """根据传递的文件id下载文件，并返回文件源+文件信息"""
+        ...
+
+    def get_file_url(self, file: File) -> str:
+        """返回可供页面访问的文件地址"""
         ...

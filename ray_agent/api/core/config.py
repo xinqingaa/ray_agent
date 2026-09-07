@@ -6,8 +6,9 @@
 @File    : config.py
 """
 from functools import lru_cache
-from typing import Optional
+from typing import Literal, Optional
 
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -28,7 +29,11 @@ class Settings(BaseSettings):
     redis_db: int = 0
     redis_password: str | None = None
 
-    # Cos腾讯云对象存储配置
+    # 文件存储：local 写本地磁盘，cos 使用腾讯云对象存储
+    file_storage_backend: Literal["local", "cos"] = "local"
+    file_storage_local_dir: str = "data/files"
+
+    # Cos腾讯云对象存储配置（仅 file_storage_backend=cos 时必填）
     cos_secret_id: str = ""
     cos_secret_key: str = ""
     cos_region: str = ""
@@ -53,6 +58,33 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         extra="ignore",
     )
+
+    @field_validator("file_storage_backend", mode="before")
+    @classmethod
+    def normalize_file_storage_backend(cls, value):
+        """空值回落到本地磁盘，显式取值统一为小写。"""
+        if value is None or (isinstance(value, str) and not value.strip()):
+            return "local"
+        if isinstance(value, str):
+            return value.strip().lower()
+        return value
+
+    @model_validator(mode="after")
+    def validate_file_storage(self):
+        """云端模式必须提供腾讯云 COS 访问配置。"""
+        if self.file_storage_backend == "cos":
+            missing = [
+                name for name, value in (
+                    ("COS_SECRET_ID", self.cos_secret_id),
+                    ("COS_SECRET_KEY", self.cos_secret_key),
+                    ("COS_REGION", self.cos_region),
+                    ("COS_BUCKET", self.cos_bucket),
+                )
+                if not value
+            ]
+            if missing:
+                raise ValueError(f"FILE_STORAGE_BACKEND=cos 时必须配置: {', '.join(missing)}")
+        return self
 
 
 @lru_cache()

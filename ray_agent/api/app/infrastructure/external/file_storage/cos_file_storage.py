@@ -18,6 +18,7 @@ from app.domain.external.file_storage import FileStorage
 from app.domain.models.file import File
 from app.domain.repositories.uow import IUnitOfWork
 from app.infrastructure.storage.cos import Cos
+from core.config import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -97,3 +98,8 @@ class CosFileStorage(FileStorage):
         except Exception as e:
             logger.error(f"下载文件[{file_id}]失败: {str(e)}")
             raise
+
+    def get_file_url(self, file: File) -> str:
+        """返回腾讯云 COS 公网访问地址"""
+        settings = get_settings()
+        return f"https://{self.bucket}.cos.{settings.cos_region}.myqcloud.com/{file.key}"

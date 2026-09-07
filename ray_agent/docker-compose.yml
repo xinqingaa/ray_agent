@@ -63,6 +63,7 @@ services:
     # 如需动态创建沙箱容器，取消以下注释以挂载 Docker Socket
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+      - file_data:/data/files
     depends_on:
       manus-redis:
         condition: service_healthy
@@ -126,6 +127,8 @@ volumes:
   redis_data:
     driver: local
   postgres_data:
+    driver: local
+  file_data:
     driver: local
 
 # ==================== 网络 ====================

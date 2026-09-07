@@ -21,7 +21,7 @@ Nginx → API（FastAPI）
             ├── 沙箱 → Shell / 文件 / 浏览器
             ├── PostgreSQL → 会话与文件元数据
             ├── Redis → 任务与事件传递
-            └── COS → 附件与截图存储
+            └── 文件存储 → 本地磁盘或 COS（附件与截图）
 ```
 
 ## 目录
@@ -35,7 +35,7 @@ Nginx → API（FastAPI）
 
 ## 运行
 
-需要 Docker、Docker Compose、可用的模型服务，以及附件和截图所需的 COS 配置。应用配置与启动步骤见 [运行指南](ray_agent/README.md)。
+需要 Docker、Docker Compose、可用的模型服务。附件和截图默认写入本地磁盘，也可改为腾讯云 COS。应用配置与启动步骤见 [运行指南](ray_agent/README.md)。
 
 完成配置后，在仓库根执行：
 

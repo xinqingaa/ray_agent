@@ -9,7 +9,7 @@
 - Docker Engine 或 Docker Desktop，以及 Docker Compose 插件。
 - 可访问镜像仓库和构建所需的软件源。
 - 支持工具调用的模型服务，其地址、模型名称与 API Key。
-- 腾讯云 COS 存储桶及访问配置，用于附件和浏览器截图。
+- 附件和截图的文件存储：默认本地磁盘；使用腾讯云 COS 时再准备存储桶及访问配置。
 
 采用动态沙箱时，API 通过 Docker Socket 管理容器。部署主机需提供相应访问权限和可用资源；动态与已有沙箱的选择见 [沙箱连接方式](sandbox/README.md#与-api-连接)。
 
@@ -40,12 +40,14 @@ cd ray_agent
 | `SANDBOX_NAME_PREFIX` | 动态容器名称前缀，例如 `rayagent-sandbox` |
 | `SANDBOX_TTL_MINUTES` | 沙箱存活时间，例如 `60` |
 | `SANDBOX_ADDRESS` | 使用动态沙箱时不设置此项 |
-| `COS_SECRET_ID` / `COS_SECRET_KEY` | COS 访问凭据 |
-| `COS_REGION` / `COS_BUCKET` | 存储桶实际地域与名称 |
+| `FILE_STORAGE_BACKEND` | `local`（默认，写本地磁盘）或 `cos`（腾讯云对象存储） |
+| `FILE_STORAGE_LOCAL_DIR` | 本地模式的目录；Compose 部署使用 `/data/files` |
+| `COS_SECRET_ID` / `COS_SECRET_KEY` | 仅 `FILE_STORAGE_BACKEND=cos` 时必填 |
+| `COS_REGION` / `COS_BUCKET` | 仅云端模式需要，填存储桶地域与名称 |
 | `COS_SCHEME` | `https` |
 | `NGINX_PORT` | 对外端口，默认 `8088` |
 
-表中的服务名、镜像名和网络名对应实际 Compose 标识。API 容器连接数据库和 Redis 时使用服务名，不能用指向容器自身的 `localhost`。环境示例中的 Redis 端口、沙箱镜像和网络需按上表调整。
+表中的服务名、镜像名和网络名对应实际 Compose 标识。API 容器连接数据库和 Redis 时使用服务名，不能用指向容器自身的 `localhost`。环境示例中的 Redis 端口、沙箱镜像、网络和本地文件目录需按上表调整。本地模式不需要填写 COS 凭据；Compose 部署请使用 `FILE_STORAGE_LOCAL_DIR=/data/files`，与 API 数据卷对应。选择 `cos` 时缺项会导致 API 无法启动。
 
 `.env` 已被 Git 忽略，各设备分别准备凭据与本地配置。
 
@@ -83,7 +85,7 @@ docker info
 docker compose config --quiet
 ```
 
-最后一条命令需先创建本目录 `.env`，只校验 Compose 配置，不验证模型、COS 或外部服务凭据。检查通过后启动：
+最后一条命令需先创建本目录 `.env`，只校验 Compose 配置，不验证模型、文件存储凭据或外部服务。检查通过后启动：
 
 ```bash
 docker compose up -d --build
@@ -92,7 +94,7 @@ docker compose ps
 
 打开 [http://localhost:8088](http://localhost:8088)。如果设置了 `NGINX_PORT`，使用对应端口。
 
-首次启动会构建 API、UI 和沙箱镜像。API 启动时执行数据库迁移，再初始化 Redis、PostgreSQL 和 COS。API 就绪后，UI 和网关才会按依赖条件启动。
+首次启动会构建 API、UI 和沙箱镜像。API 启动时执行数据库迁移，再初始化 Redis、PostgreSQL，并按 `FILE_STORAGE_BACKEND` 初始化本地目录或 COS。API 就绪后，UI 和网关才会按依赖条件启动。
 
 检查顺序：
 
@@ -119,11 +121,11 @@ docker compose down
 
 | 现象 | 优先检查 |
 |---|---|
-| API 无法启动 | 数据库连接、迁移日志、Redis 和 COS 配置 |
+| API 无法启动 | 数据库连接、迁移日志、Redis；`FILE_STORAGE_BACKEND=cos` 时检查 COS 配置 |
 | UI 或网关等待启动 | API 健康状态与日志 |
 | 创建任务失败 | Docker Socket、沙箱镜像、容器网络和浏览器连接 |
 | 模型调用失败 | API 地址、凭据、模型名称与工具调用支持 |
-| 附件或截图失败 | COS 地域、存储桶、访问权限及沙箱文件操作 |
+| 附件或截图失败 | 本地目录与数据卷，或 COS 地域、存储桶、访问权限，以及沙箱文件操作 |
 
 ## 开发入口
 
