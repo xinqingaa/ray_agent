@@ -30,6 +30,11 @@ cd ray_agent
 | 配置项 | Compose 部署取值或要求 |
 |---|---|
 | `APP_CONFIG_FILEPATH` | `config.yaml` |
+| `LLM_API_KEY` | 模型服务凭据；不要写进已跟踪的 `config.yaml` |
+| `LLM_MODEL_NAME` | 支持工具调用的模型名称，例如 `deepseek-chat` |
+| `LLM_BASE_URL` | 兼容 OpenAI 的接口地址，DeepSeek 为 `https://api.deepseek.com/` |
+| `LLM_TEMPERATURE` | 采样温度，例如 `0.7` |
+| `LLM_MAX_TOKENS` | 单次回复最大输出 token，例如 `8192` |
 | `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | 数据库初始化设置；与下面的连接 URI 一致 |
 | `SQLALCHEMY_DATABASE_URI` | `postgresql+asyncpg://<用户>:<密码>@manus-postgres:5432/<数据库>` |
 | `REDIS_HOST` / `REDIS_PORT` | `manus-redis` / `6379` |
@@ -53,26 +58,9 @@ cd ray_agent
 
 ### 模型与工具
 
-在 [api/config.yaml](api/config.yaml) 的 `llm_config` 中填写：
+模型调用使用 OpenAI 兼容的 Chat Completions 协议。LLM 字段一律写在本目录 `.env` 的 `LLM_*`：`LLM_API_KEY`、`LLM_MODEL_NAME`、`LLM_BASE_URL`、`LLM_TEMPERATURE`、`LLM_MAX_TOKENS`。[api/config.yaml](api/config.yaml) 只保留未填环境变量时的回落默认值。加载时 `.env` 覆盖 yaml；写回时不会把覆盖值落盘。首次验证使用内置工具即可，仓库中的 MCP/A2A 配置已是空集合。后续启用外部服务时，再填写对应配置并确认地址可达。仅启动页面不会验证这些服务，任务执行时才会初始化相关工具。
 
-| 字段 | 内容 |
-|---|---|
-| `base_url` | 模型 API 地址 |
-| `api_key` | 模型服务凭据 |
-| `model_name` | 服务支持的模型名称 |
-
-首次验证先使用内置工具。在 `api/config.yaml` 中将以下两段配置替换为空集合，保留 `llm_config` 和 `agent_config`；这样无需连接外部 MCP/A2A 服务：
-
-```yaml
-mcp_config:
-  mcpServers: {}
-a2a_config:
-  a2a_servers: []
-```
-
-后续启用外部服务时，再填写对应配置并确认地址可达。仅启动页面不会验证这些服务，任务执行时才会初始化相关工具。
-
-此文件由 Git 跟踪，填写真实凭据后需要检查差异，避免将凭据加入提交。容器构建会复制该文件；修改后需要重新构建 API 镜像。
+`config.yaml` 由 Git 跟踪，不要写入真实凭据。修改该文件后需要重新构建 API 镜像；只改 `.env` 后重启 API 容器即可。
 
 ## 启动与验证
 

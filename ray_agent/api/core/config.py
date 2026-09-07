@@ -20,6 +20,13 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     app_config_filepath: str = "config.yaml"
 
+    # LLM：对应 LLM_*，有值则覆盖 config.yaml
+    llm_api_key: str = ""
+    llm_model_name: str = ""
+    llm_base_url: str = ""
+    llm_temperature: Optional[float] = None
+    llm_max_tokens: Optional[int] = None
+
     # 数据库相关配置
     sqlalchemy_database_uri: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/manus"
 
@@ -67,6 +74,14 @@ class Settings(BaseSettings):
             return "local"
         if isinstance(value, str):
             return value.strip().lower()
+        return value
+
+    @field_validator("llm_temperature", "llm_max_tokens", mode="before")
+    @classmethod
+    def empty_llm_number_as_none(cls, value):
+        """未填写的数字项保持为空，回落到 yaml 默认值。"""
+        if value is None or (isinstance(value, str) and not value.strip()):
+            return None
         return value
 
     @model_validator(mode="after")
