@@ -1,310 +1,200 @@
 # RayAgent 计划
 
-> 总纲：调研现状、目标、已拍板的目录、学习与 SDD 阶段。
-> 产品对外名：**RayAgent**。代码目录：`ray_agent/`（由 `mooc-manus` 改名，内部不摊平）。
-> 调研日期：2026-09-07。协议版本以当时 PyPI 为准，升级前再核一次。
-> `lessons/` 里的 md 用英文。本文是工作总纲，可以中文。
+> 更新日期：2026-09-07。
+> 当前目标：先完整学习课程项目，建立稳定理解，再考虑二开。
+> 产品名：RayAgent。产品目录：`ray_agent/`，来源于 `mooc-manus/`。
+> 本文记录当前采用的决策和阶段状态；后续调整以用户确认的方向为准。
 
+## 1. 目标与顺序
 
+我不是这个项目的原作者，是学习者。课程来源：[慕课多智能体 MoocManus](https://coding.imooc.com/class/chapter/955.html#Anchor)。
 
-## 0. 已拍板（不要再改方向）
-1. **先记清楚，再搬家，再跑产品，再升协议。** 不把第一次启动和升级 A2A/MCP 绑在一起。
-2. **不拆 `mooc-manus` 内部。** `api/` / `ui/` / `sandbox/` 以及 API 的 DDD 原样保留。只把外层目录改名为 `ray_agent/`，不把它们抬到 git 根上。
-3. **练习脚本离开根目录。** `mas-study` → `labs/foundations/`（不叫 mas）。`a2a-study` → `labs/a2a/`。
-4. **一篇 lesson 只讲一个主题。** 禁止再用一篇 md 罩完 foundations 里几十个脚本。
-5. **`lessons/` 英文；`specs/` 只放「下一步要做的功能」，和学习笔记分开。**
-6. **主循环是自研 Plan+ReAct，不把 LangGraph 当核心。** 仓库里已有 Agent Loop，只是不叫这个名字。
-7. `cursor-chat-history` 不是教材，进 `archive/`，默认不提交。
+学习终点：能够解释核心逻辑和设计思路，讲清产品闭环，并具备后续定制功能的基础。
 
-## 1. 我是谁，要学到什么
+当前先完成一次范围有限的 Git 初始化和目录整理，随后按以下顺序推进：
 
-我不是这个项目的作者，是学习者。 原始课程大纲和目录：[慕课 955 多智能体 MoocManus](https://coding.imooc.com/class/chapter/955.html#Anchor)。
+1. **跑通原项目。** 这是后续工作的基础。
+2. **跑通后立即升级 A2A/MCP。** 不要求先学完整个项目；升级所需的局部代码阅读属于技术准备。
+3. **划分 lessons、编写教学文档，系统学习。** 以升级并验证后的实现为主要学习基准。
+4. **学习完成后再考虑二开和 SDD。** 不把新增功能作为每个主题的必修作业。
+5. **框架替换优先级最低。** 当前重点是学懂已有自研 Loop，之后再评估 LangChain/LangGraph。
 
-**终点：** 理解核心逻辑和设计思路，能二开、能定制功能，可以自述产品闭环。
+避免学习、功能改造、目录重构交替扩张，使学习阶段长期无法结束。
 
-要做到这一点，至少要：
+## 2. 当前目录与迁移记录
 
-1. 掌握核心链路和逻辑（一次用户对话从 UI 走到工具执行再流回前端）。
-2. 理解核心设计思路（为什么这样分层、为什么 Plan+ReAct、为什么沙箱、为什么 MCP/A2A 是工具而不是主循环）。
+Git 根目录为当前工作目录 `/Users/lrq/work/ray_agent`，不再重命名工作目录。其内部的 `ray_agent/` 是产品子目录。
 
-## 2. 学习原则（已对齐）
-
-1. **先跑起来。** 先用完整产品走一遍流程，这是后面一切的基础。
-2. **再考虑升级协议/库。** 不把「第一次启动」和「升级 A2A/MCP」绑在一起。一直把过时 API 当终态去背，不能接受；但升级必须发生在能讲清当前实现之后。
-3. **文档对照，不改内部目录。** 不重排 `mooc-manus/api` 的 DDD 结构。目标是有一份「从哪开始、学什么」的地图，把现在散落的脚本和课程章节串起来，方便自己复习，也方便别人学。
-4. `cursor-chat-history` 只是历史对话参考，不是学习材料。
-5. 课程**没有因为不用 LangChain/LangGraph 而落伍。** 落伍的是 A2A/MCP 线格式和 SDK 版本，不是「没有框架名」
-
-后续教学文档放 `lessons/`（尚未创建）。本文是总纲，先落在根目录。
-
-## 3. 仓库现状 vs 目标仓库
-
-### 3.1 现在（尚未搬家）
-
-根目录是课程资料盘，没有总 README，也没有学习地图：
-
-```
-imooc-mas/
-├── a2a-study/
-├── mas-study/
-├── mooc-manus/
-├── cursor-chat-history/
-├── 即时设计MoocManus UI URL地址.txt
-└── PLAN.md
-```
-
-| 现在 | 性质 | 说明 |
-|---|---|---|
-| `a2a-study` | 练习 | SDK 当 A2A 服务端；httpx 当客户端 |
-| `mas-study` | 练习 | LLM / ReAct / MCP / 浏览器等单点脚本，**不是**一套 MAS 运行时 |
-| `mooc-manus` | 产品 | 要二开的全栈 |
-| `cursor-chat-history` | 存档 | 不学 |
-
-`a2a-study/client.py` = 官方 SDK。`httpx_a2a.py` = 手写卡片 + `message/send`。产品里的 A2A 几乎是后者的产品化，不是 SDK 那条线。
-
-### 3.2 目标（已选定：产品继续包一层，不摊平）
-
-```
-ray-agent/                          # 以后 git 根；对外 RayAgent
+```text
+ray_agent/                         # Git 根、当前工作目录
 ├── README.md
 ├── AGENTS.md
 ├── .gitignore
 ├── PLAN.md
-│
-├── ray_agent/                      # 原 mooc-manus，内部不动
+├── ray_agent/                     # 原 mooc-manus，内部结构保留
 │   ├── api/
 │   ├── ui/
 │   ├── sandbox/
 │   ├── nginx/
 │   ├── docker-compose.yml
 │   └── README.md
-│
 ├── labs/
 │   ├── README.md
-│   ├── foundations/                # 原 mas-study（不叫 mas）
-│   │   ├── demo/
-│   │   ├── llm/
-│   │   ├── react/
-│   │   ├── http-async/
-│   │   ├── mcp/
-│   │   └── browser/
-│   └── a2a/                        # 原 a2a-study + 原 2-2 code
-│       ├── server/
-│       ├── client-sdk/
-│       ├── client-httpx/
-│       ├── weather-agent/
-│       └── inspector-ui/
-│
-├── lessons/                        # 英文 md，一篇一个主题
+│   ├── foundations/               # 原 mas-study，内部暂时保留
+│   │   ├── demo-code/
+│   │   ├── 2-2 code/
+│   │   └── ...
+│   └── a2a/                       # 原 a2a-study，内部暂时保留
+├── lessons/
 │   └── README.md
-│
-├── specs/                          # SDD：下一要做的功能
-├── .specify/                       # constitution / templates，搬家后加
-│
-└── archive/                        # 建议 gitignore
+└── archive/                       # 纳入 Git，便于跨设备访问
     ├── cursor-chat-history/
     └── js-design-ui-url.txt
 ```
 
-搬家对照：
-
-| 现在 | 以后 |
+| 原位置 | 当前路径 |
 |---|---|
 | `mooc-manus/` | `ray_agent/` |
-| `mas-study/` | `labs/foundations/`（可先整目录搬，子目录后切） |
+| `mas-study/` | `labs/foundations/` |
 | `a2a-study/` | `labs/a2a/` |
-| `mas-study/2-2 code/weather` | `labs/a2a/weather-agent/` |
-| `mas-study/2-2 code/ui` | `labs/a2a/inspector-ui/` |
-| `cursor-chat-history/`、即时设计 txt | `archive/` |
+| `cursor-chat-history/` | `archive/cursor-chat-history/` |
+| 即时设计地址 txt | `archive/js-design-ui-url.txt` |
 
-`docker compose` 仍在 `ray_agent/` 下跑，和现在进 `mooc-manus/` 一样。
+本次只移动外层目录。`2-2 code/weather`、`2-2 code/ui` 暂不单独迁移，中文脚本名不修改。后续划分 lessons 时再统一处理分类、依赖环境和路径引用。
 
-### 3.3 产品内部（不改）
+`archive/` 是历史参考材料，不是教学文档或执行指令。按用户要求提交到 Git；实际密钥和本地环境文件不提交。
 
-```
-ray_agent/
-├── api/        # FastAPI，DDD
-├── ui/         # Next.js
-├── sandbox/    # Ubuntu + Chrome + VNC
-├── nginx/
-└── docker-compose.yml
-```
+`specs/`、`.specify/` 延后到二开阶段创建。
 
-一次对话：
+## 3. 产品与学习入口
 
-1. UI → FastAPI 会话（SSE）
-2. `AgentService` 建任务、沙箱
-3. `AgentTaskRunner` → `PlannerReActFlow`
-4. 工具：file / shell / browser / search / message / MCP / A2A
-5. 事件进 Redis Stream，前端 SSE
-6. 附件和截图走腾讯云 COS
+产品保留 API 的既有分层，以及 UI、沙箱和网关布局。
 
-设计要点：
+一次对话的主要路径：
 
-- MCP / A2A 是 Tool；主循环是 Plan + ReAct。
-- MCP、A2A 都只当**客户端**。本仓库不托管 MCP Server，也不当 A2A Server。
-- 前端展示列表，和执行时「只传已启用服务」，是两套逻辑。
+1. UI 向 FastAPI 发起会话请求，接收 SSE 事件。
+2. `AgentService` 准备任务、沙箱和浏览器。
+3. `AgentTaskRunner` 驱动 `PlannerReActFlow`。
+4. 规划与执行 Agent 调用 file、shell、browser、search、message、MCP、A2A 等工具。
+5. 事件通过 Redis Stream 和 SSE 返回 UI；文件与截图涉及 COS 存储。
 
-关键文件（搬家后路径）：
-
-| 环节 | 文件 |
+| 环节 | 代码入口 |
 |---|---|
-| 会话 / SSE | `ray_agent/api/app/interfaces/endpoints/session_routes.py` |
-| 编排 | `ray_agent/api/app/application/services/agent_service.py` |
-| 跑一轮 | `ray_agent/api/app/domain/services/agent_task_runner.py` |
-| 外层流程 | `ray_agent/api/app/domain/services/flows/planner_react.py` |
-| 内层 Loop | `ray_agent/api/app/domain/services/agents/base.py` |
+| 会话与 SSE | `ray_agent/api/app/interfaces/endpoints/session_routes.py` |
+| 任务编排 | `ray_agent/api/app/application/services/agent_service.py` |
+| 任务执行 | `ray_agent/api/app/domain/services/agent_task_runner.py` |
+| 外层规划执行流 | `ray_agent/api/app/domain/services/flows/planner_react.py` |
+| 内层工具调用循环 | `ray_agent/api/app/domain/services/agents/base.py` |
 | MCP | `ray_agent/api/app/domain/services/tools/mcp.py` |
 | A2A | `ray_agent/api/app/domain/services/tools/a2a.py` |
 
-## 4. Agent Loop 和 LangGraph
+产品当前作为 MCP/A2A 客户端，把外部能力接入工具层；labs 中也包含服务端示例。
 
-**有 Loop，没有框架名。**
+自研 Loop 是重点学习内容：内层执行模型与工具的循环，外层负责规划、执行、更新和总结。保留现有架构以便理解课程，框架迁移后续再评估。
 
-- **内层：** `BaseAgent.invoke` 里 `for max_iterations`：模型 → `tool_calls` → 执行 → 再问模型。这就是 Agent Loop。
-- **外层：** `PlannerReActFlow` 的 `while True`：PLANNING → EXECUTING → UPDATING → SUMMARIZING。
-- `labs/foundations` 里部分演示只跑一轮工具，那是教学简化，不能用来判断产品有没有 Loop。
+## 4. 阶段 0：Git 初始化与最小整理
 
-没有 LangChain / LangGraph 是路线：自研 Loop + OpenAI 兼容 SDK。2024–2026 很多生产系统也这样。
+### 工作与提交边界
 
-| 维度 | 判词 |
+- [x] 检查目录、嵌套仓库、忽略规则和明显凭据。
+- [x] 初始化 `main` 分支，完善根 `.gitignore`。
+- [x] 保存原始代码基线：`094b43d`，`chore: preserve original course baseline`。
+- [x] 单独提交外层目录迁移：`6109cbc`，`chore: organize product and course labs`。
+- [x] 校验 404 个迁移文件均为内容完全一致的重命名。
+- [x] 将历史聊天和设计地址纳入 Git。
+- [x] 补充根 README、AGENTS、labs 和 lessons 入口。
+- [x] 更新本计划，明确后续学习顺序。
+
+文档调整使用独立提交：`docs: define repository layout and learning roadmap`。
+
+### 完成标准
+
+原始基线、纯迁移和文档调整可分别查看；文件完整，依赖保持原状，路径入口有效，实际凭据未进入提交，工作区干净。
+
+这一阶段不启动产品、不升级依赖，也不拆分练习内部目录。原始代码已有的空白格式问题保留在基线中，不扩大为格式化改造。
+
+### 跨设备同步
+
+归档、截图、tokenizer 数据和依赖锁文件随 Git 跟踪；各设备分别准备环境和本地凭据。当前只建立本地提交，远端地址尚未提供，未推送。
+
+## 5. 阶段 1：跑通原项目
+
+- [ ] 阅读产品 README 和实际部署配置。
+- [ ] 准备模型配置、本地 `.env`、数据库、Redis、沙箱及任务所需的存储配置。
+- [ ] 在 `ray_agent/` 执行 `docker compose up -d --build`，处理阻塞运行的问题。
+- [ ] 通过 UI 创建会话，生成计划，执行至少一次真实内置工具，获得最终结果。
+- [ ] 检查刷新后的历史展示，记录可复现启动步骤与必要修复。
+
+首次验证先避开外部 A2A/MCP 服务，但仍需要沙箱链路：当前 `AgentService` 创建任务时会创建或取得沙箱，并获取浏览器。
+
+网关默认端口为 `8088`。Redis 等服务地址、端口以实际 Compose 与本地配置为准。COS 对附件和浏览器截图的影响需要在启动验证中确认，不预设所有路径都必然可用。
+
+依赖沿用原项目基线，不在第一次启动时升级：
+
+| 文件 | 当前作用 |
 |---|---|
-| Agent 主循环、Plan+执行 | 没落伍 |
-| 不用 LangGraph | 不算落伍；缺的是框架履历，不是不会做 Agent |
-| A2A / MCP 版本 | 这里落后，见第 5 节 |
-| 沙箱 / SSE / VNC | 仍有教的价值 |
+| `ray_agent/api/pyproject.toml` | 声明依赖，包括 `mcp>=1.22.0` |
+| `ray_agent/api/uv.lock` | 锁定 MCP `1.22.0` 等依赖 |
+| `ray_agent/api/requirements.txt` | Docker 实际安装的依赖，MCP 为 `1.22.0` |
+| `labs/a2a/pyproject.toml` / `uv.lock` | A2A SDK 声明 `>=0.3.22`，锁定 `0.3.22` |
 
-不把 LangGraph 引进主循环。简历需要再另补 StateGraph，对照「就是外层 `while True` 画成图」。
+完成标准是产品行为跑通，不以页面可见或健康检查成功代替。当前尚未进行运行验证。
 
-## 5. A2A / MCP 差距（2026-09-07）
+## 6. 阶段 2：立即升级 A2A/MCP
 
-概念骨架能学；A2A 字段和 MCP 客户端 API 已经落后。先跑，再按清单升级。
+原项目跑通后立即进入，不要求先完成整套课程学习。
 
-### 5.1 版本
+- [ ] 对照官方规范、SDK 发布说明和迁移文档，确认目标版本并记录来源与日期。
+- [ ] 盘点项目实际使用的传输、请求、响应及状态行为，定义升级范围。
+- [ ] MCP 与 A2A 分开修改、分开验收，保留可回溯提交。
+- [ ] 同步依赖声明、锁文件及 Docker 使用的导出依赖文件。
+- [ ] 核对相关 labs，保证后续教学示例与产品学习基准一致。
+- [ ] 再次验证产品原有流程，以及工具发现、调用、错误处理等实际使用能力。
+- [ ] 记录课程旧写法与升级后写法之间的关键差异。
 
-| | 仓库现状 | 当时官方 |
-|---|---|---|
-| A2A 规范 | 手写 0.3 子集：`agent-card.json` + `message/send` + `kind: text` | 1.0（约 2026-04） |
-| A2A SDK | 产品无；练习钉 `a2a-sdk>=0.3.22` | 1.1.2，实现 spec 1.0 |
-| MCP SDK | 产品 `mcp==1.22.0` | 1.x 维护线 1.29.1；稳定线 2.1.1（spec 2026-07-28） |
+原计划中的外部版本快照不作为安装指令；实施时重新核实。可根据兼容成本采用过渡版本，但需写明最终目标与尚未完成的迁移。
 
-### 5.2 为什么产品没用 `a2a-sdk`
+A2A 不能只验证卡片字段：当前手写客户端在 HTTP 成功、JSON 可解析后直接标记成功，升级时还需验证协议错误与实际使用的任务语义。手写适配或接入官方 SDK 的选择在这一阶段基于需求评估。
 
-1. 课程 14-10 就是「不用官方 SDK，用 httpx」。
-2. 产品只当客户端；SDK 重量在当服务端。
-3. 真正多的是缓存、id、enabled、收成 tool schema。
-4. `a2a.py`（2025-05-09）早于 SDK 第一个 alpha（2025-05-15）。
+完成标准：原有使用范围在选定的新版本上验证通过。不顺带实现所有协议可选功能，也不改造主循环架构。
 
-现在若接 SDK，走 1.x `ClientFactory`，不要钉 0.3 的 `A2AClient`。更对症的是先让手写客户端认 1.0 的 `supportedInterfaces`。`agent_card.get("url")` 对 1.0-only Agent 会空。
+## 7. 阶段 3：lessons 与系统学习
 
-### 5.3 MCP
+以升级并验证后的实现为主要基准，先形成课程地图，再按顺序编写、运行和校验主题文档。`lessons/` 使用英文，原始课程资料和本计划可使用中文。
 
-产品只用：stdio / SSE / Streamable HTTP → `initialize` → `list_tools` → `call_tool`。
+初步主题候选如下，具体拆分在本阶段确定：
 
-- 概念没过时。v1 客户端写法过时。SSE 不建议新代码用。
-- 现网 tools 型 server 仍可能互通。
-- `CVE-2026-52869`、`CVE-2026-59950` 主要打 Server；当前是 client。以后若起 Server，1.22 不能用。
-
-### 5.4 跑通之后再做（现在不做）
-
-1. MCP `1.22` → `1.29.1`，并加 `<2`。
-2. A2A 手写客户端兼容 1.0。
-3. 再评估 `a2a-sdk` 1.x、MCP 2.x。
-
-## 6. `lessons/`（英文，按主题拆）
-
-只放文档，不搬产品代码。一篇课一件事，并写明「先跑哪个脚本 / 再看产品哪个文件」。禁止一篇 md 罩完 foundations 里几十个脚本。
-
-```
-lessons/
-├── README.md                 # map: order, vs labs/specs
-├── 00-overview.md
-├── 01-run-rayagent.md
-├── 02-conversation-loop.md
-├── 10-llm-api.md             # labs/foundations/llm
-├── 11-react-loop.md          # foundations/react + agents/base.py
-├── 12-async-and-http.md
-├── 13-mcp.md                 # foundations/mcp + tools/mcp.py
-├── 14-browser.md
-├── 20-a2a-sdk.md
-├── 21-a2a-httpx.md
-├── 22-a2a-in-rayagent.md
-├── 30-sandbox-and-ui.md
-└── 40-protocol-gap.md
-```
-
-| 课 | 只讲 | 大约挂哪些脚本 |
-|---|---|---|
-| `10-llm-api` | 调模型、流式、JSON、Pydantic | `3_4`–`3_6`、`3_8`、`3_9`、`3_10` |
-| `11-react-loop` | 手写 tool_calls，对上 `BaseAgent.invoke` | `3_7`、`4_3`、`4_4`、`demo-agent.py` |
-| `12-async-and-http` | 异步、FastAPI | `4_5`、`4_6` |
-| `13-mcp` | 传输、list/call | `6_5`–`6_11` |
-| `14-browser` | 浏览器，对上沙箱 | `10-4`、`10-6` |
-| `20` / `21` | SDK 服务端 vs httpx 客户端 | `labs/a2a` 各 1–2 个入口 |
-| `22` | 产品为什么手写、1.0 卡片 | 只挂 `tools/a2a.py` |
-| `02` / `30` | 产品主链路、沙箱前端 | 不挂 foundations 全量 |
-
-`labs/foundations` 里的中文文件名（如 `3_4_DeepSeek API调用.py`）第二步再改，不和搬家绑在一起。
-
-## 7. SDD
-
-| 目录 | 用途 |
+| 主题 | 主要关联 |
 |---|---|
-| `.specify/` + `specs/` | constitution → spec → plan → tasks → 实现 |
-| `lessons/` | 读懂**已有**产品和 labs |
-| `labs/` | 给 lessons 用的可运行小脚本 |
+| 产品总览与启动 | 产品 README、部署配置 |
+| 一次对话的完整过程 | session routes、AgentService、AgentTaskRunner |
+| LLM API 与结构化输出 | foundations 中的模型调用示例 |
+| 工具调用与 ReAct Loop | foundations 中的 ReAct 示例、BaseAgent |
+| 规划与执行 | PlannerReActFlow、PlannerAgent、ReActAgent |
+| 异步 HTTP 与事件传递 | HTTP 示例、Redis Stream、SSE、UI |
+| 沙箱与内置工具 | browser、shell、file、存储 |
+| MCP | labs 的服务端与客户端、产品 tools/mcp.py |
+| A2A | SDK 与手写 HTTP 示例、产品 tools/a2a.py |
+| 状态与失败路径 | 持久化、取消、迭代上限、断连、资源释放 |
 
-constitution 建议写死：根下产品在 `ray_agent/`；MCP/A2A 是 Tool；主循环自研，不引入 LangGraph；先跑再升协议；`lessons/` 英文。
+每篇 lesson 包含学习目标、必要概念、可运行示例、产品代码入口、执行过程、设计理由和理解检查。只讲一个明确主题，不用一篇文档覆盖几十个脚本。
 
-搬家后再 `specify init` 或手建 `.specify/`。不要和学习笔记混在一个目录。
+可以安排调试、观察和小实验，不把新增产品功能作为学习验收条件。涉及升级的内容简短说明旧写法、当前写法和变化原因，避免并行维护两套教程。
 
-## 8. 阶段
+### 学习完成标准
 
-### 阶段 0 — 总纲（当前）
+- [ ] 能讲清 UI → 模型 → 工具/沙箱 → UI 的完整链路。
+- [ ] 能说明主要模块职责、状态归属和数据持久化位置。
+- [ ] 能解释 Plan、ReAct、MCP、A2A 的分工和关键设计理由。
+- [ ] 能定位常见运行问题，说明重要失败路径的行为与限制。
+- [ ] 能指出新增工具、修改执行策略时应该阅读和调整哪些模块。
 
-- [x] 根目录有本文
-- [x] 第 3 节起写入：目录决策、Loop 结论、英文拆课、SDD
-- [ ] 之后改计划只改本文或 `lessons/`，不靠聊天记录
+不要求背下全部代码，也不要求先完成新功能。
 
-### 阶段 0.5 — 搬家 + git（跑产品之前）
+## 8. 阶段 4：学习完成后再二开
 
-1. `mooc-manus` → `ray_agent`
-2. study → `labs/`（按第 3.2 节）
-3. 历史对话 / 即时设计 → `archive/`（gitignore）
-4. 根目录补简短 `README.md`（产品名 RayAgent，启动进 `ray_agent/`）
-5. 建空的 `lessons/`、`specs/`（可先只有 README / .gitkeep）
-6. 在仓库根 `git init`（现在没有必须保留的提交史，先搬家再 init）
-7. 不提交 `.env`、密钥、`archive/`
-
-### 阶段 1 — 先跑起来
-
-在 `ray_agent/`：
-
-1. 读 `ray_agent/README.md`
-2. 配 `.env`、`api/config.yaml`
-3. `docker compose up -d --build`
-4. 打开网关端口（默认 `8088`）
-5. 先走一条不依赖外部 A2A/MCP 的对话
-
-已知坑：`REDIS_PORT` 以 compose 为准；没有 COS / 模型 key，附件和 Agent 会卡。本阶段不升级协议。
-
-### 阶段 2 — 主链路对照
-
-按一次请求精读：会话与 SSE → Planner/ReAct → 内置工具与沙箱 → Redis 到 UI。补 `lessons/01`、`02`。
-
-### 阶段 3 — 协议直觉
-
-`labs/a2a` 起 SDK 服务端，对产品 httpx 客户端。对照 `tools/mcp.py`。写 `lessons/11`、`13`、`20`–`22`。
-
-### 阶段 4 — 评估升级
-
-按第 5.4 节，一项一项做。
-
-### 阶段 5 — 按规格改产品
-
-`.specify` + 第一条 `specs/001-…`，从「学旧课」转到「按规格改 RayAgent」。
+根据届时的真实目标选第一项功能，再引入 `specs/`、`.specify/` 和适当的 SDD 流程。LangChain/LangGraph 可先做独立对照实验，是否迁移产品以具体收益和成本决定，优先级最低。
 
 ## 9. 当前下一步
 
-1. 阶段 0.5：按第 3.2 节搬家，然后 `git init`。
-2. 阶段 1：把 RayAgent 跑起来。
+Git 与目录整理完成后，进入阶段 1：在 `ray_agent/` 跑通原项目。跨设备同步还需用户提供远端仓库地址后配置并推送。
