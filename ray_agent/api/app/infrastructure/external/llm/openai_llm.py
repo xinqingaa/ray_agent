@@ -87,7 +87,7 @@ class OpenAILLM(LLM):
             return response.choices[0].message.model_dump()
         except Exception as e:
             logger.error(f"调用OpenAI客户端发生错误: {str(e)}")
-            raise ServerRequestsError("调用OpenAI客户端向LLM发起请求出错")
+            raise ServerRequestsError(f"调用OpenAI客户端向LLM发起请求出错: {str(e)}")
 
 
 if __name__ == "__main__":

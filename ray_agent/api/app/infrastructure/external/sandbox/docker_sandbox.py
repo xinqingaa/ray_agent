@@ -84,20 +84,22 @@ class DockerSandbox(Sandbox):
 
     @classmethod
     def _get_container_ip(cls, container: Model) -> str:
-        """根据传递的容器获取ip信息"""
-        # 1.获取inspect网络设置
-        network_settings = container.attrs["NetworkSettings"]
-        ip_address = network_settings["IPAddress"]
+        """根据传递的容器获取ip信息。Docker Engine 29 起顶层不再提供 IPAddress。"""
+        network_settings = container.attrs.get("NetworkSettings") or {}
+        ip_address = network_settings.get("IPAddress") or ""
 
-        # 2.判断容器是否存在ip，如果不存在则从networks中获取
-        if not ip_address and "Networks" in network_settings:
-            networks = network_settings["Networks"]
-            # 3.循环遍历每一项网络配置
-            for network_name, network_config in networks.items():
-                if "IPAddress" in network_config and network_config["IPAddress"]:
-                    ip_address = network_config["IPAddress"]
+        if not ip_address:
+            networks = network_settings.get("Networks") or {}
+            for network_config in networks.values():
+                if not isinstance(network_config, dict):
+                    continue
+                candidate = network_config.get("IPAddress") or ""
+                if candidate:
+                    ip_address = candidate
                     break
 
+        if not ip_address:
+            raise Exception("无法从容器网络配置中解析 IP 地址")
         return ip_address
 
     @classmethod
@@ -111,6 +113,7 @@ class DockerSandbox(Sandbox):
         name_prefix = settings.sandbox_name_prefix
         container_name = f"{name_prefix}-{str(uuid.uuid4())[:8]}"
 
+        container = None
         try:
             # 3.创建一个docker客户端
             docker_client = docker.from_env()
@@ -143,6 +146,11 @@ class DockerSandbox(Sandbox):
 
             return DockerSandbox(ip=ip, container_name=container_name)
         except Exception as e:
+            if container is not None:
+                try:
+                    container.remove(force=True)
+                except Exception:
+                    logger.warning(f"创建失败后清理沙箱容器[{container_name}]未成功")
             logger.error(f"创建Docker沙箱容器失败: {str(e)}")
             raise Exception(f"创建Docker沙箱容器失败: {str(e)}")
 
