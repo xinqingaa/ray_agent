@@ -1,28 +1,20 @@
 # RayAgent 实验与练习
 
-通过独立示例理解模型调用、Agent 执行、工具协议和浏览器操作，并与产品实现对照。
+通过独立示例观察模型调用、Agent 执行、工具协议和浏览器操作。教学讲解与产品对照见 [lessons](../lessons/README.md)。
 
-## 内容
+## 选择实验
 
-| 目录 | 主题 |
+| 入口 | 主题 |
 |---|---|
-| [foundations/](foundations/README.md) | LLM API、结构化输出、工具调用、ReAct、异步 HTTP、MCP 和浏览器 |
-| [a2a/](a2a/README.md) | A2A SDK 服务端、SDK 客户端和手写 HTTP 客户端 |
+| [基础实验](foundations/README.md) | LLM、结构化输出、ReAct、异步 HTTP、MCP 和浏览器 |
+| [A2A 实验](a2a/README.md) | SDK 服务端、SDK 客户端与手写 HTTP 客户端 |
 
-`foundations/2-2 code/weather/` 提供天气 Agent 示例，`foundations/2-2 code/ui/` 提供配套交互界面。
+基础实验中还包含综合示例、天气 Agent 和配套交互界面，具体入口由各目录 README 导航。
 
-## 运行方式
+## 使用方式
 
-1. 选择要运行的示例，阅读所属目录的 README 和脚本入口。
-2. 确认依赖文件所在位置，在对应目录准备环境。
-3. 配置示例需要的模型或外部服务，运行并观察请求和结果。
-4. 按教学文档定位相关产品代码，比较示例与完整流程。
+先选择主题，再按对应 README 确认脚本、工作目录、依赖文件和服务配置。各实验及部分子项目使用独立环境，没有统一的仓库根安装命令。
 
-`foundations/`、`a2a/`、`foundations/demo-code/` 及 `foundations/2-2 code/` 下的两个项目分别包含依赖文件。运行时使用对应项目的环境，并保留资源文件所需的相对路径。
+保留示例资源所需的相对路径。协议示例既包含客户端也包含服务端，运行前确认角色、端口和启动顺序。
 
-这些练习既包含客户端也包含服务端；使用前确认示例的角色、端口和服务依赖。
-
-## 文档入口
-
-- [教学文档](../lessons/README.md)：学习主题、示例与产品代码的关联。
-- [产品运行指南](../ray_agent/README.md)：完整应用的部署和验证。
+本目录负责实验导航与运行入口；课程主题和讲解规范见 [教学入口](../lessons/README.md)，完整应用运行见 [产品指南](../ray_agent/README.md)。

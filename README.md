@@ -46,10 +46,11 @@ docker compose up -d --build
 
 默认访问地址：[http://localhost:8088](http://localhost:8088)。
 
-运行指南已按配置文件核对，完整部署和任务执行仍待验证。
+部署前阅读运行指南中的配置条件与验证说明。
 
 ## 项目文档
 
 - [执行计划](PLAN.md)：阶段任务、完成标准与当前进度。
-- [协作规范](AGENTS.md)：修改边界、验证要求和 Git 操作规则。
+- [工作指南](AGENTS.md)：AI 工作定位、文档导航与稳定约定。
+- [架构说明](docs/architecture.md)：系统边界、执行与数据流、关键限制。
 - [学习入口](lessons/README.md)：主题范围与文档组织方式。

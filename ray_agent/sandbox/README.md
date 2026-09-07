@@ -1,75 +1,76 @@
-# MoocManus 沙箱服务
+# RayAgent 沙箱开发指南
 
-基于 Ubuntu 22.04 构建的沙箱环境，提供隔离的代码执行、浏览器自动化和远程桌面访问能力。
+沙箱提供 Shell、文件、浏览器与进程管理能力。完整镜像由 Ubuntu、Python、Chromium、虚拟显示与 VNC 组件构成，Supervisor 负责启动各进程。
 
-## 技术栈
+本文区分完整沙箱与 Python 开发环境。架构边界见 [架构说明](../../docs/architecture.md)，整体部署见 [运行指南](../README.md)。下列配置与命令已静态核对，尚未完成运行验证。
 
-- Ubuntu 22.04
-- Python 3.10 + FastAPI
-- Node.js 24 (LTS)
-- Chromium (浏览器自动化)
-- Xvfb + x11vnc + websockify (虚拟显示 + VNC)
-- Supervisor (进程管理)
+## 完整沙箱
 
-## 架构
+[Dockerfile](Dockerfile) 安装运行组件，[supervisord.conf](supervisord.conf) 定义进程和端点：
 
-沙箱通过 Supervisor 管理多个进程：
+| 端点 | 用途 |
+|---|---|
+| `8080` | FastAPI：Shell、文件与进程管理 |
+| `8222` | Chromium 内部调试端口 |
+| `9222` | CDP 代理，供 API 连接浏览器 |
+| `5900` | VNC RFB |
+| `5901` | WebSocket VNC |
 
-| 进程 | 端口 | 说明 |
-|------|------|------|
-| FastAPI | 8080 | REST API（文件操作、Shell 执行） |
-| Chrome | 8222 (内部) | 浏览器实例 |
-| socat | 9222 | Chrome DevTools Protocol 代理 |
-| Xvfb | - | 虚拟显示器 (:1) |
-| x11vnc | 5900 | VNC 服务 |
-| websockify | 5901 | WebSocket VNC 代理 |
+完整镜像由产品目录的 Compose 构建。上述沙箱端口未在产品 Compose 中映射到宿主机，访问方式取决于 API 与沙箱所在网络。
 
-## API 接口
+## 与 API 连接
 
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| POST | `/api/file/read-file` | 读取文件 |
-| POST | `/api/file/write-file` | 写入文件 |
-| POST | `/api/file/upload-file` | 上传文件 |
-| GET | `/api/file/download-file` | 下载文件 |
-| POST | `/api/shell/exec-command` | 执行命令 |
-| POST | `/api/shell/read-shell-output` | 读取 Shell 输出 |
-| GET | `/api/supervisor/status` | 获取进程状态 |
+连接模式由 API 的环境配置决定，实现见 [DockerSandbox](../api/app/infrastructure/external/sandbox/docker_sandbox.py)。
 
-## 本地开发
+| 模式 | 配置条件 | 资源归属 |
+|---|---|---|
+| 动态沙箱 | 不设置 `SANDBOX_ADDRESS`；配置 `SANDBOX_IMAGE`、`SANDBOX_NETWORK`、`SANDBOX_NAME_PREFIX` | API 创建容器，并在其销毁逻辑中删除所创建的容器 |
+| 已有沙箱 | `SANDBOX_ADDRESS` 设置为可解析的主机名或 IP，如同一 Compose 网络内的 `manus-sandbox` | API 连接已有服务，适配对象的销毁逻辑不删除该外部容器 |
 
-### 使用开发容器
+`SANDBOX_ADDRESS` 使用主机名或 IP，不填完整 URL。API 必须能访问沙箱的服务与浏览器端点；动态模式还需要访问 Docker。
+
+产品 Compose 中存在沙箱服务并不自动决定使用哪种模式，选择由 API 配置决定。具体 Compose 镜像、网络和环境取值统一见 [运行指南](../README.md#服务环境)。
+
+在宿主机运行 API 时，不要假设 Docker 内部 IP 必然从宿主机可达；尤其需要核对 Docker Desktop 下的网络和必要端口映射。
+
+## Python 开发环境
+
+以下命令在 `ray_agent/sandbox/` 执行，需要 Python 3.10+ 和 uv：
 
 ```bash
-cd .devops
-docker compose up -d
+uv sync --locked
+uv run --locked uvicorn app.main:app --host 0.0.0.0 --port 8080 --reload
+```
 
-# SSH 连接到开发容器
+这只启动 Python API，不会自动启动 Chromium、VNC 或 Supervisor。需要验证完整浏览器能力时使用完整沙箱环境。
+
+本地依赖由 [pyproject.toml](pyproject.toml) 和 [uv.lock](uv.lock) 管理，完整 Docker 镜像使用 [requirements.txt](requirements.txt) 安装；调整依赖时核对两条安装路径。
+
+### 开发容器
+
+[.devops/](.devops/) 提供 SSH 与 Python 环境，挂载沙箱源目录。它与完整沙箱镜像用途不同，默认只运行 SSH 服务。
+
+在 `ray_agent/sandbox/` 执行：
+
+```bash
+docker compose -f .devops/docker-compose.yml up -d --build
 ssh root@localhost -p 2222
-# 密码: root
 ```
 
-### 启动服务
-
-在容器内或本地：
+开发镜像内置的登录密码为 `root`。进入容器后显式指定镜像已准备的 `/venv` 环境，避免 SSH 会话环境差异导致使用其他虚拟环境：
 
 ```bash
-# 安装依赖
-pip3 install -r requirements.txt
-
-# 启动 API 服务
-uvicorn app.main:app --host 0.0.0.0 --port 8080 --reload
+cd /sandbox
+UV_PROJECT_ENVIRONMENT=/venv uv run --locked uvicorn app.main:app --host 0.0.0.0 --port 8080 --reload
 ```
 
-## Docker 部署
+开发 Compose 只映射 SSH 和 API 端口，不提供完整浏览器环境。
 
-沙箱服务通过根目录的 `docker-compose.yml` 统一部署。生产环境中沙箱作为固定容器运行，API 服务通过 `SANDBOX_ADDRESS=manus-sandbox` 连接。
+## 开发与验证入口
 
-### 端口说明
+- [app/interfaces/endpoints/](app/interfaces/endpoints/)：API 路由；运行后的接口文档位于服务的 `/docs`。
+- [app/services/](app/services/)：Shell、文件和进程管理实现。
+- [app/core/](app/core/)：环境配置与请求中间件。
+- API 侧调用方：[沙箱适配](../api/app/infrastructure/external/sandbox/docker_sandbox.py)、[浏览器适配](../api/app/infrastructure/external/browser/playwright_browser.py)。
 
-在 Docker Compose 部署中，沙箱端口仅在容器网络内部可访问，不对外暴露：
-
-- `8080` - FastAPI REST API
-- `9222` - Chrome DevTools Protocol
-- `5900` - VNC RFB
-- `5901` - WebSocket VNC（API 服务通过此端口代理 VNC 到前端）
+当前没有独立测试套件。Shell 或文件修改应在临时工作目录验证请求、结果和错误路径；浏览器相关修改需连同 CDP、VNC 和 API 侧调用一起验证。只启动 Python API 不代表完整沙箱可用。

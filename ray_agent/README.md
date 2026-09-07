@@ -1,6 +1,6 @@
 # RayAgent 运行指南
 
-本文说明应用的配置、启动和检查方法。产品能力与整体架构见 [项目首页](../README.md)。
+本文说明完整应用的配置、部署和运行检查。产品能力见 [项目首页](../README.md)，执行与数据流见 [架构说明](../docs/architecture.md)。
 
 以下说明已对照部署配置和启动代码核对，完整部署及任务执行仍待验证。
 
@@ -11,7 +11,7 @@
 - 支持工具调用的模型服务，其地址、模型名称与 API Key。
 - 腾讯云 COS 存储桶及访问配置，用于附件和浏览器截图。
 
-API 通过 Docker Socket 管理动态沙箱。部署主机需要允许 API 容器访问 Docker，并为数据库、浏览器和执行任务提供可用资源。
+采用动态沙箱时，API 通过 Docker Socket 管理容器。部署主机需提供相应访问权限和可用资源；动态与已有沙箱的选择见 [沙箱连接方式](sandbox/README.md#与-api-连接)。
 
 ## 配置
 
@@ -59,13 +59,31 @@ cd ray_agent
 | `api_key` | 模型服务凭据 |
 | `model_name` | 服务支持的模型名称 |
 
-同一文件还包含 Agent、MCP 和 A2A 配置。启用外部服务前，确认其地址和连接配置有效。
+首次验证先使用内置工具。在 `api/config.yaml` 中将以下两段配置替换为空集合，保留 `llm_config` 和 `agent_config`；这样无需连接外部 MCP/A2A 服务：
+
+```yaml
+mcp_config:
+  mcpServers: {}
+a2a_config:
+  a2a_servers: []
+```
+
+后续启用外部服务时，再填写对应配置并确认地址可达。仅启动页面不会验证这些服务，任务执行时才会初始化相关工具。
 
 此文件由 Git 跟踪，填写真实凭据后需要检查差异，避免将凭据加入提交。容器构建会复制该文件；修改后需要重新构建 API 镜像。
 
 ## 启动与验证
 
-完成配置后执行：
+先确认 Docker CLI、Compose 插件和引擎可用，再检查部署配置：
+
+```bash
+docker --version
+docker compose version
+docker info
+docker compose config --quiet
+```
+
+最后一条命令需先创建本目录 `.env`，只校验 Compose 配置，不验证模型、COS 或外部服务凭据。检查通过后启动：
 
 ```bash
 docker compose up -d --build
@@ -80,7 +98,7 @@ docker compose ps
 
 1. 查看服务状态和日志，确认 API 初始化成功。
 2. 访问页面，创建会话并发起任务。
-3. 观察计划、至少一次真实工具调用和最终结果。
+3. 使用不需要外部搜索或协议服务的任务，例如“在沙箱工作目录创建一个文本文件，写入 hello，再读取并告诉我内容”，观察计划、实际工具调用和最终结果。
 4. 刷新页面，检查会话历史。
 5. 使用附件或浏览器功能时，检查文件传输与截图展示。
 
@@ -115,4 +133,4 @@ docker compose down
 - [UI](ui/README.md)：Next.js 前端。
 - [沙箱](sandbox/README.md)：浏览器、终端和文件操作服务。
 
-API 本地依赖由 `pyproject.toml` 与 `uv.lock` 管理，容器通过 `requirements.txt` 安装。修改依赖时需要保持这些文件一致。
+各服务 README 分别维护本地开发、依赖安装和验证命令；本指南只维护完整部署的配置与运行检查。
