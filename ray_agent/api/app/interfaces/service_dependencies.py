@@ -55,7 +55,7 @@ def get_status_service(
     redis_checker = RedisHealthChecker(redis_client)
 
     # 2.创建服务并返回
-    logger.info("加载获取StatusService")
+    logger.debug("加载获取StatusService")
     return StatusService(checkers=[postgres_checker, redis_checker])
 
 

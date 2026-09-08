@@ -32,6 +32,7 @@ from app.domain.models.session import SessionStatus
 from app.domain.models.tool_result import ToolResult
 from app.domain.repositories.uow import IUnitOfWork
 from app.domain.services.flows.planner_react import PlannerReActFlow
+from app.infrastructure.logging import set_log_session_id
 from app.domain.services.tools.a2a import A2ATool
 from app.domain.services.tools.mcp import MCPTool
 
@@ -351,7 +352,8 @@ class AgentTaskRunner(TaskRunner):
         """根据传递的任务处理agent消息队列并运行agent流"""
         try:
             # 1.确保沙箱、mcp、a2a均初始化完成
-            logger.info(f"AgentTaskRunner任务处理开始")
+            set_log_session_id(self._session_id)
+            logger.info(f"会话[{self._session_id}] AgentTaskRunner任务处理开始")
             await self._sandbox.ensure_sandbox()
             await self._mcp_tool.initialize(self._mcp_config)
             await self._a2a_tool.initialize(self._a2a_config)
@@ -366,7 +368,7 @@ class AgentTaskRunner(TaskRunner):
                 if isinstance(event, MessageEvent):
                     message = event.message or ""
                     await self._sync_message_attachments_to_sandbox(event)
-                    logger.info(f"AgentTaskRunner接收到新消息: {message[:50]}...")
+                    logger.info(f"会话[{self._session_id}] AgentTaskRunner接收到新消息: {message[:50]}...")
 
                 # 5.将消息事件转换称消息对象
                 message_obj = Message(
@@ -407,14 +409,14 @@ class AgentTaskRunner(TaskRunner):
                 await self._uow.session.update_status(self._session_id, SessionStatus.COMPLETED)
         except asyncio.CancelledError:
             # 13.异步任务被取消，推送结束事件并跟新状态
-            logger.info(f"AgentTaskRunner任务运行取消")
+            logger.info(f"会话[{self._session_id}] AgentTaskRunner任务运行取消")
             await self._put_and_add_event(task, DoneEvent())
             async with self._uow:
                 await self._uow.session.update_status(self._session_id, SessionStatus.COMPLETED)
             raise
         except Exception as e:
             # 14.记录日志并往任务队列/消息队列中写入异常事件并更新会话状态
-            logger.exception(f"AgentTaskRunner运行出错: {str(e)}")
+            logger.exception(f"会话[{self._session_id}] AgentTaskRunner运行出错: {str(e)}")
             await self._put_and_add_event(task, ErrorEvent(error=f"AgentTaskRunner出错: {str(e)}"))
             async with self._uow:
                 await self._uow.session.update_status(self._session_id, SessionStatus.COMPLETED)

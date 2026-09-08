@@ -14,6 +14,12 @@ def test_file_storage_defaults_to_local():
     settings = Settings(_env_file=None)
     assert settings.file_storage_backend == "local"
     assert settings.file_storage_local_dir == "data/files"
+    assert settings.sqlalchemy_echo is False
+
+
+def test_sqlalchemy_echo_can_be_enabled():
+    settings = Settings(_env_file=None, sqlalchemy_echo=True)
+    assert settings.sqlalchemy_echo is True
 
 
 def test_empty_file_storage_backend_falls_back_to_local():

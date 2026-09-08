@@ -52,6 +52,8 @@ async def lifespan(app: FastAPI):
     # 2.运行数据库迁移(将数据同步到生产环境)
     alembic_cfg = Config("alembic.ini")
     command.upgrade(alembic_cfg, "head")
+    # alembic.ini 的 dictConfig 会把根日志改成 WARNING，迁移后恢复业务日志
+    setup_logging()
 
     # 3.初始化Redis/Postgres，按配置决定是否初始化COS
     await get_redis().init()

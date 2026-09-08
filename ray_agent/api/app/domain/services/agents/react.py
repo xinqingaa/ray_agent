@@ -8,6 +8,8 @@
 import logging
 from typing import AsyncGenerator
 
+from pydantic import ValidationError
+
 from app.domain.models.event import (
     StepEventStatus,
     StepEvent,
@@ -67,21 +69,28 @@ class ReActAgent(BaseAgent):
                     continue
             elif isinstance(event, MessageEvent):
                 # 8.返回消息事件，意味着content有内容，content有内容则代表执行Agent已运行完毕
-                step.status = ExecutionStatus.COMPLETED
-
-                # 9.message中输出的数据结构为json，需要提取并解析
                 parsed_obj = await self._json_parser.invoke(event.message)
-                new_step = Step.model_validate(parsed_obj)
+                try:
+                    if not isinstance(parsed_obj, dict):
+                        raise ValueError(f"步骤结果须为 JSON 对象, 实际为 {type(parsed_obj).__name__}")
+                    new_step = Step.model_validate(parsed_obj)
+                except (ValidationError, ValueError) as e:
+                    logger.warning(f"步骤结果无法解析为 Step: {e}")
+                    step.status = ExecutionStatus.FAILED
+                    step.error = str(e)
+                    yield StepEvent(step=step, status=StepEventStatus.FAILED)
+                    continue
 
-                # 10.更新子步骤的数据
+                # 9.更新子步骤的数据
+                step.status = ExecutionStatus.COMPLETED
                 step.success = new_step.success
                 step.result = new_step.result
                 step.attachments = new_step.attachments
 
-                # 11.返回步骤完成事件
+                # 10.返回步骤完成事件
                 yield StepEvent(step=step, status=StepEventStatus.COMPLETED)
 
-                # 12.如果子步骤拿到了结果，还需要返回一段消息给用户(将结果返回给用户)
+                # 11.如果子步骤拿到了结果，还需要返回一段消息给用户(将结果返回给用户)
                 if step.result:
                     yield MessageEvent(role="assistant", message=step.result)
                 continue
@@ -113,7 +122,14 @@ class ReActAgent(BaseAgent):
                 parsed_obj = await self._json_parser.invoke(event.message)
 
                 # 5.将解析数据转换为Message对象
-                message = Message.model_validate(parsed_obj)
+                try:
+                    if not isinstance(parsed_obj, dict):
+                        raise ValueError(f"汇总结果须为 JSON 对象, 实际为 {type(parsed_obj).__name__}")
+                    message = Message.model_validate(parsed_obj)
+                except (ValidationError, ValueError) as e:
+                    logger.warning(f"汇总结果无法解析为 Message: {e}")
+                    yield ErrorEvent(error=f"汇总结果无法解析: {e}")
+                    continue
 
                 # 6.提取消息中的附件信息
                 attachments = [File(filepath=filepath) for filepath in message.attachments]

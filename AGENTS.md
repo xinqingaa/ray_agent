@@ -19,6 +19,7 @@ AI 协助阅读和讲解代码、排查运行问题、核对技术事实并编�
 | 了解产品与文档入口 | [项目首页](README.md) |
 | 理解模块边界、执行流程和状态 | [架构说明](docs/architecture.md) |
 | 部署完整应用、检查服务连接 | [运行指南](ray_agent/README.md) |
+| 启停 Compose、查看各服务日志 | [Docker 操作说明](ray_agent/DOCKER.md) |
 | 修改后端、处理依赖和测试 | [API 开发指南](ray_agent/api/README.md) |
 | 修改前端、处理请求与展示 | [UI 开发指南](ray_agent/ui/README.md) |
 | 排查沙箱内执行与浏览器 | [沙箱开发指南](ray_agent/sandbox/README.md) |

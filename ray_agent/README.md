@@ -35,6 +35,8 @@ cd ray_agent
 | `LLM_BASE_URL` | 兼容 OpenAI 的接口地址，DeepSeek 为 `https://api.deepseek.com/` |
 | `LLM_TEMPERATURE` | 采样温度，例如 `0.7` |
 | `LLM_MAX_TOKENS` | 单次回复最大输出 token，例如 `8192` |
+| `LOG_LEVEL` | API 日志等级，例如 `INFO` 或 `DEBUG` |
+| `SQLALCHEMY_ECHO` | `1` 时在 API 日志中回显 SQL；默认关闭 |
 | `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | 数据库初始化设置；与下面的连接 URI 一致 |
 | `SQLALCHEMY_DATABASE_URI` | `postgresql+asyncpg://<用户>:<密码>@manus-postgres:5432/<数据库>` |
 | `REDIS_HOST` / `REDIS_PORT` | `manus-redis` / `6379` |
@@ -60,7 +62,7 @@ cd ray_agent
 
 模型调用使用 OpenAI 兼容的 Chat Completions 协议。LLM 字段一律写在本目录 `.env` 的 `LLM_*`：`LLM_API_KEY`、`LLM_MODEL_NAME`、`LLM_BASE_URL`、`LLM_TEMPERATURE`、`LLM_MAX_TOKENS`。[api/config.yaml](api/config.yaml) 只保留未填环境变量时的回落默认值。加载时 `.env` 覆盖 yaml；写回时不会把覆盖值落盘。首次验证使用内置工具即可，仓库中的 MCP/A2A 配置已是空集合。后续启用外部服务时，再填写对应配置并确认地址可达。仅启动页面不会验证这些服务，任务执行时才会初始化相关工具。
 
-`config.yaml` 由 Git 跟踪，不要写入真实凭据。修改该文件后需要重新构建 API 镜像；只改 `.env` 后重启 API 容器即可。
+`config.yaml` 由 Git 跟踪，不要写入真实凭据。修改该文件后需要重新构建 API 镜像。只改 `.env` 时必须重建 API 容器才能读到新值，`docker compose restart` 不会重读环境变量。具体命令见 [Docker 操作说明](DOCKER.md)。
 
 ## 启动与验证
 
@@ -94,16 +96,7 @@ docker compose ps
 
 ## 日常操作
 
-```bash
-# 查看服务日志
-docker compose logs --tail=100
-
-# 持续查看日志
-docker compose logs -f
-
-# 停止应用并保留数据卷
-docker compose down
-```
+启动、停止、重启、查看状态和日志见 [Docker 操作说明](DOCKER.md)。不要在仓库根执行 `docker compose`。
 
 ## 排查入口
 

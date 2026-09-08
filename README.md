@@ -35,9 +35,9 @@ Nginx → API（FastAPI）
 
 ## 运行
 
-需要 Docker、Docker Compose、可用的模型服务。附件和截图默认写入本地磁盘，也可改为腾讯云 COS。应用配置与启动步骤见 [运行指南](ray_agent/README.md)。
+需要 Docker、Docker Compose、可用的模型服务。附件和截图默认写入本地磁盘，也可改为腾讯云 COS。应用配置与启动步骤见 [运行指南](ray_agent/README.md)，启停与日志见 [Docker 操作说明](ray_agent/DOCKER.md)。
 
-完成配置后，在仓库根执行：
+完成配置后，进入产品目录（不要在仓库根执行）：
 
 ```bash
 cd ray_agent

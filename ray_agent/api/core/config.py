@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     # 项目基础配置
     env: str = "development"
     log_level: str = "INFO"
+    sqlalchemy_echo: bool = False  # 对应 SQLALCHEMY_ECHO，默认关闭 SQL 回显
     app_config_filepath: str = "config.yaml"
 
     # LLM：对应 LLM_*，有值则覆盖 config.yaml

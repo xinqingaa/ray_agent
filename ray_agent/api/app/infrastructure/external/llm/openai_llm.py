@@ -13,6 +13,7 @@ from openai import AsyncOpenAI
 from app.application.errors.exceptions import ServerRequestsError
 from app.domain.external.llm import LLM
 from app.domain.models.app_config import LLMConfig
+from app.infrastructure.logging import log_session_prefix
 
 logger = logging.getLogger(__name__)
 
@@ -55,10 +56,15 @@ class OpenAILLM(LLM):
             tool_choice: str = None,
     ) -> Dict[str, Any]:
         """使用异步OpenAI客户端发起块响应（该步骤可以切换成流式响应）"""
+        prefix = log_session_prefix()
+        response_type = (response_format or {}).get("type") if response_format else None
         try:
             # 1.检测是否传递了工具列表
+            logger.info(
+                f"{prefix}LLM请求 model={self._model_name} tools={bool(tools)} "
+                f"tool_choice={tool_choice} response_format={response_type}"
+            )
             if tools:
-                logger.info(f"调用OpenAI客户端向LLM发起请求并携带工具信息: {self._model_name}")
                 response = await self._client.chat.completions.create(
                     model=self._model_name,
                     temperature=self._temperature,
@@ -72,7 +78,6 @@ class OpenAILLM(LLM):
                 )
             else:
                 # 2.为传递工具则删除tools/tool_choice等参数
-                logger.info(f"调用OpenAI客户端向LLM发起请求未携带: {self._model_name}")
                 response = await self._client.chat.completions.create(
                     model=self._model_name,
                     temperature=self._temperature,
@@ -83,10 +88,18 @@ class OpenAILLM(LLM):
                 )
 
             # 3.处理响应数据并返回
-            logger.info(f"OpenAI客户端返回内容: {response.model_dump()}")
-            return response.choices[0].message.model_dump()
+            message = response.choices[0].message
+            logger.info(
+                f"{prefix}LLM响应 model={self._model_name} "
+                f"has_content={bool(message.content)} has_tool_calls={bool(message.tool_calls)}"
+            )
+            logger.debug(f"{prefix}LLM完整响应: {response.model_dump()}")
+            return message.model_dump()
         except Exception as e:
-            logger.error(f"调用OpenAI客户端发生错误: {str(e)}")
+            logger.error(
+                f"{prefix}LLM请求失败 status={getattr(e, 'status_code', None)} "
+                f"code={getattr(e, 'code', None)} error={e}"
+            )
             raise ServerRequestsError(f"调用OpenAI客户端向LLM发起请求出错: {str(e)}")
 
 

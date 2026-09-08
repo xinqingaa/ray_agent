@@ -23,6 +23,7 @@ from app.domain.models.event import BaseEvent, ErrorEvent, MessageEvent, Event, 
 from app.domain.models.session import Session, SessionStatus
 from app.domain.repositories.uow import IUnitOfWork
 from app.domain.services.agent_task_runner import AgentTaskRunner
+from app.infrastructure.logging import set_log_session_id
 
 logger = logging.getLogger(__name__)
 
@@ -135,6 +136,7 @@ class AgentService:
             timestamp: Optional[datetime] = None,
     ) -> AsyncGenerator[BaseEvent, None]:
         """根据传递的信息调用Agent服务发起对话请求"""
+        set_log_session_id(session_id)
         try:
             # 1.检查会话是否存在
             async with self._uow:

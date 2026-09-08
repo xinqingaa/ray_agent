@@ -19,6 +19,7 @@ from app.domain.models.memory import Memory
 from app.domain.models.message import Message
 from app.domain.models.tool_result import ToolResult
 from app.domain.repositories.uow import IUnitOfWork
+from app.domain.services.agents.tool_call_compat import extract_embedded_tool_calls
 from app.domain.services.tools.base import BaseTool
 
 logger = logging.getLogger(__name__)
@@ -93,6 +94,7 @@ class BaseAgent(ABC):
                     response_format=response_format,
                     tool_choice=self._tool_choice,
                 )
+                message = extract_embedded_tool_calls(message)
 
                 # 5.处理AI响应内容避免空回复
                 if message.get("role") == "assistant":
