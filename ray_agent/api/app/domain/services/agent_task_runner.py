@@ -32,6 +32,7 @@ from app.domain.models.session import SessionStatus
 from app.domain.models.tool_result import ToolResult
 from app.domain.repositories.uow import IUnitOfWork
 from app.domain.services.flows.planner_react import PlannerReActFlow
+from app.domain.services.task_error import format_public_error
 from app.infrastructure.logging import set_log_session_id
 from app.domain.services.tools.a2a import A2ATool
 from app.domain.services.tools.mcp import MCPTool
@@ -358,6 +359,7 @@ class AgentTaskRunner(TaskRunner):
             await self._mcp_tool.initialize(self._mcp_config)
             await self._a2a_tool.initialize(self._a2a_config)
 
+            had_error = False
             # 2.循环读取任务中的输入消息队列
             while not await task.input_stream.is_empty():
                 # 3.从输入流中获取数据
@@ -380,6 +382,8 @@ class AgentTaskRunner(TaskRunner):
                 async for event in self._run_flow(message_obj):
                     # 7.将得到的事件添加到消息队列中
                     await self._put_and_add_event(task, event)
+                    if isinstance(event, ErrorEvent):
+                        had_error = True
 
                     # 8.如果事件类型为标题事件则更新会话标题
                     if isinstance(event, TitleEvent):
@@ -404,9 +408,12 @@ class AgentTaskRunner(TaskRunner):
                     if not await task.input_stream.is_empty():
                         break
 
-            # 12.更新会话状态为已完成
+            # 12.有错误事件则标失败，同一会话仍可再发消息重跑
             async with self._uow:
-                await self._uow.session.update_status(self._session_id, SessionStatus.COMPLETED)
+                await self._uow.session.update_status(
+                    self._session_id,
+                    SessionStatus.FAILED if had_error else SessionStatus.COMPLETED,
+                )
         except asyncio.CancelledError:
             # 13.异步任务被取消，推送结束事件并跟新状态
             logger.info(f"会话[{self._session_id}] AgentTaskRunner任务运行取消")
@@ -417,9 +424,9 @@ class AgentTaskRunner(TaskRunner):
         except Exception as e:
             # 14.记录日志并往任务队列/消息队列中写入异常事件并更新会话状态
             logger.exception(f"会话[{self._session_id}] AgentTaskRunner运行出错: {str(e)}")
-            await self._put_and_add_event(task, ErrorEvent(error=f"AgentTaskRunner出错: {str(e)}"))
+            await self._put_and_add_event(task, ErrorEvent(error=format_public_error(e)))
             async with self._uow:
-                await self._uow.session.update_status(self._session_id, SessionStatus.COMPLETED)
+                await self._uow.session.update_status(self._session_id, SessionStatus.FAILED)
         finally:
             # 15.在同一个asyncio Task上下文中清理MCP/A2A工具资源
             # 这是关键：streamablehttp_client内部使用anyio.create_task_group()，

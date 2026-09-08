@@ -15,7 +15,7 @@ from app.domain.external.sandbox import Sandbox
 from app.domain.external.search import SearchEngine
 from app.domain.models.app_config import AgentConfig
 from app.domain.models.event import BaseEvent, PlanEvent, PlanEventStatus, TitleEvent, MessageEvent
-from app.domain.models.event import DoneEvent
+from app.domain.models.event import DoneEvent, ErrorEvent
 from app.domain.models.message import Message
 from app.domain.models.plan import Plan, ExecutionStatus
 from app.domain.models.session import SessionStatus
@@ -176,8 +176,18 @@ class PlannerReActFlow(BaseFlow):
 
                 # 20.调用执行Agent执行对应的步骤
                 logger.info(f"会话[{self._session_id}] Planner&ReAct流开始执行步骤 {step.id}: {step.description[:50]}...")
+                saw_error = False
                 async for event in self.react.execute_step(self.plan, step, message):
+                    if isinstance(event, ErrorEvent):
+                        saw_error = True
                     yield event
+
+                if step.status == ExecutionStatus.FAILED:
+                    logger.warning(f"会话[{self._session_id}] 步骤 {step.id} 失败，结束本轮任务")
+                    self.plan.status = ExecutionStatus.FAILED
+                    if not saw_error:
+                        yield ErrorEvent(error=step.error or "当前步骤执行失败。可直接重试，无需新开任务。")
+                    break
 
                 # 21.压缩执行Agent记忆，避免上下文腐化+消耗大量token
                 logger.info(f"会话[{self._session_id}] 压缩{self.react.name} Agent记忆/上下文")

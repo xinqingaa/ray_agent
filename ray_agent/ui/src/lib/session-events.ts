@@ -307,15 +307,63 @@ export function eventsToTimeline(events: SSEEventData[]): TimelineItem[] {
  */
 export function getLatestPlanFromEvents(events: SSEEventData[]): PlanStep[] {
   let steps: PlanStep[] = [];
-  for (let i = events.length - 1; i >= 0; i--) {
-    const ev = events[i];
+  for (const ev of events) {
     if (ev.type === "plan") {
       const plan = ev.data as PlanEvent;
       if (plan.steps && Array.isArray(plan.steps)) {
-        steps = plan.steps;
+        steps = plan.steps.map((step) => ({ ...step }));
       }
-      break;
+    } else if (ev.type === "step" && steps.length > 0) {
+      const step = ev.data as StepEvent;
+      const idx = steps.findIndex((item) => item.id === step.id);
+      if (idx >= 0) {
+        steps[idx] = {
+          ...steps[idx],
+          status: step.status ?? steps[idx].status,
+          description: step.description || steps[idx].description,
+        };
+      }
     }
   }
   return steps;
+}
+
+/** 把历史里的校验栈收成可展示的失败说明 */
+export function formatTaskError(raw: string): string {
+  const text = (raw || "").trim();
+  if (!text) return "任务执行失败。可在本任务中重试。";
+  const lowered = text.toLowerCase();
+  if (lowered.includes("validation error for step") || lowered.includes("type=model_type")) {
+    return "当前步骤的执行结果无法解析，已停止本轮任务。可直接重试，无需新开任务。";
+  }
+  if (lowered.includes("insufficient_quota")) {
+    return "模型服务额度不足。请检查模型配置后，在本任务中重试。";
+  }
+  const firstLine = text.split("\n")[0]?.trim() ?? text;
+  const visitAt = firstLine.toLowerCase().indexOf("for further information visit");
+  let cleaned = visitAt >= 0 ? firstLine.slice(0, visitAt).trim() : firstLine;
+  if (cleaned.startsWith("AgentTaskRunner出错:")) {
+    cleaned = cleaned.slice("AgentTaskRunner出错:".length).trim();
+  }
+  if (cleaned.length > 160) cleaned = `${cleaned.slice(0, 160)}…`;
+  if (cleaned.includes("重试")) return cleaned;
+  return `${cleaned} 可在本任务中重试。`;
+}
+
+export function findLastUserRetry(timeline: TimelineItem[]): {
+  message: string;
+  attachmentIds: string[];
+} | null {
+  let message: string | null = null;
+  let attachmentIds: string[] = [];
+  for (const item of timeline) {
+    if (item.kind === "user" && item.data.message) {
+      message = item.data.message;
+      attachmentIds = [];
+    }
+    if (item.kind === "attachments" && item.role === "user") {
+      attachmentIds = item.files.map((file) => file.id).filter(Boolean);
+    }
+  }
+  return message ? { message, attachmentIds } : null;
 }

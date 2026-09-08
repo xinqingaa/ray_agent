@@ -2,7 +2,7 @@
 
 import { cn } from '@/lib/utils'
 import { useState } from 'react'
-import { Check, ChevronDown, ChevronUp, Clock } from 'lucide-react'
+import { Check, ChevronDown, ChevronUp, CircleAlert, Clock } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import type { PlanStep } from '@/lib/api/types'
 
@@ -20,7 +20,12 @@ export function PlanPanel({ className, steps: stepsProp = [] }: PlanPanelProps) 
   if (steps.length === 0) return null
 
   const completedCount = steps.filter((s) => s.status === 'completed').length
+  const failedCount = steps.filter((s) => s.status === 'failed').length
+  const interrupted = failedCount > 0
   const totalCount = steps.length
+  const progressLabel = interrupted
+    ? `已中断 ${completedCount} / ${totalCount}`
+    : `${completedCount} / ${totalCount}`
 
   return (
     <div className={cn('bg-white rounded-xl border', className)}>
@@ -44,8 +49,8 @@ export function PlanPanel({ className, steps: stepsProp = [] }: PlanPanelProps) 
         </div>
         {/* 右侧操作按钮&步骤信息 */}
         <div className="flex h-full justify-center gap-2 flex-shrink-0 items-center py-2.5">
-          <span className="text-xs text-gray-500">
-            {completedCount} / {totalCount}
+          <span className={cn('text-xs', interrupted ? 'text-red-600' : 'text-gray-500')}>
+            {progressLabel}
           </span>
           <ChevronUp className="text-gray-700" size={16} />
         </div>
@@ -72,8 +77,8 @@ export function PlanPanel({ className, steps: stepsProp = [] }: PlanPanelProps) 
               <div className="flex justify-between w-full px-4">
                 <span className="text-gray-700 font-bold">任务进度</span>
                 <div className="flex items-center gap-3">
-                  <span className="text-xs text-gray-500">
-                    {completedCount} / {totalCount}
+                  <span className={cn('text-xs', interrupted ? 'text-red-600' : 'text-gray-500')}>
+                    {progressLabel}
                   </span>
                 </div>
               </div>
@@ -85,6 +90,8 @@ export function PlanPanel({ className, steps: stepsProp = [] }: PlanPanelProps) 
                 >
                   {step.status === 'completed' ? (
                     <Check size={16} className="relative top-0.5 flex-shrink-0" />
+                  ) : step.status === 'failed' ? (
+                    <CircleAlert size={16} className="relative top-0.5 flex-shrink-0 text-red-600" />
                   ) : (
                     <Clock size={16} className="relative top-0.5 flex-shrink-0" />
                   )}

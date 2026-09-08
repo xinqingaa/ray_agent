@@ -13,6 +13,7 @@ import { useSessionDetail } from '@/hooks/use-session-detail'
 import { getToolKind } from '@/components/tool-use/utils'
 import {
   eventsToTimeline,
+  findLastUserRetry,
   getLatestPlanFromEvents,
 } from '@/lib/session-events'
 import type { ToolEvent, FileInfo } from '@/lib/api/types'
@@ -64,6 +65,13 @@ export function SessionDetailView({ sessionId, initialMessage, initialAttachment
 
   const timeline = useMemo(() => eventsToTimeline(events), [events])
   const planSteps = useMemo(() => getLatestPlanFromEvents(events), [events])
+  const lastUserRetry = useMemo(() => findLastUserRetry(timeline), [timeline])
+  const lastErrorId = useMemo(() => {
+    for (let i = timeline.length - 1; i >= 0; i--) {
+      if (timeline[i].kind === 'error') return timeline[i].id
+    }
+    return null
+  }, [timeline])
 
   const [fileListOpen, setFileListOpen] = useState(false)
   const [previewFile, setPreviewFile] = useState<AttachmentFile | null>(null)
@@ -139,6 +147,17 @@ export function SessionDetailView({ sessionId, initialMessage, initialAttachment
         })
     }
   }, [initialMessage, initialAttachments, session, loading, streaming, sendMessage, sessionId, router])
+
+  const isBusy = session?.status === 'running' || streaming
+
+  const handleRetry = useCallback(async () => {
+    if (!lastUserRetry || isBusy) return
+    try {
+      await sendMessage(lastUserRetry.message, lastUserRetry.attachmentIds)
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : '重试失败')
+    }
+  }, [lastUserRetry, isBusy, sendMessage])
 
   const handleSend = useCallback(
     async (message: string, uploadedFiles: FileInfo[]) => {
@@ -281,6 +300,8 @@ export function SessionDetailView({ sessionId, initialMessage, initialAttachment
                     onViewAllFiles={handleViewAllFiles}
                     onFileClick={handleFileClick}
                     onToolClick={handleToolClick}
+                    onRetry={item.kind === 'error' && item.id === lastErrorId && lastUserRetry ? handleRetry : undefined}
+                    retryDisabled={isBusy}
                   />
                 ))}
 
@@ -300,7 +321,7 @@ export function SessionDetailView({ sessionId, initialMessage, initialAttachment
               <ChatInput
                 onSend={handleSend}
                 sessionId={sessionId}
-                isRunning={session?.status === 'running'}
+                isRunning={isBusy}
                 onStop={handleStop}
               />
             </div>

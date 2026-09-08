@@ -10,7 +10,12 @@ export type ApiResponse<T = unknown> = {
 /**
  * 会话状态
  */
-export type SessionStatus = "pending" | "running" | "waiting" | "completed";
+export type SessionStatus = "pending" | "running" | "waiting" | "completed" | "failed";
+
+/** 本轮已结束，同一会话仍可再发消息 */
+export function isSessionFinished(status?: SessionStatus | string | null): boolean {
+  return status === "completed" || status === "failed";
+}
 
 /**
  * 执行状态

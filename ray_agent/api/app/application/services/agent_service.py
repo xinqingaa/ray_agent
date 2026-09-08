@@ -23,6 +23,7 @@ from app.domain.models.event import BaseEvent, ErrorEvent, MessageEvent, Event, 
 from app.domain.models.session import Session, SessionStatus
 from app.domain.repositories.uow import IUnitOfWork
 from app.domain.services.agent_task_runner import AgentTaskRunner
+from app.domain.services.task_error import format_public_error
 from app.infrastructure.logging import set_log_session_id
 
 logger = logging.getLogger(__name__)
@@ -221,7 +222,7 @@ class AgentService:
         except Exception as e:
             # 17.记录日志并返回错误事件
             logger.error(f"任务会话[{session_id}]对话出错: {str(e)}")
-            event = ErrorEvent(error=str(e))
+            event = ErrorEvent(error=format_public_error(e))
             try:
                 async with self._uow:
                     await self._uow.session.add_event(session_id, event)

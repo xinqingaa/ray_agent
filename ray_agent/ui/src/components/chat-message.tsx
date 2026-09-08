@@ -8,7 +8,7 @@ import { ToolUse } from '@/components/tool-use'
 import { AttachmentsMessage } from '@/components/attachments-message'
 import { MarkdownContent } from '@/components/markdown-content'
 import type { ToolEvent } from '@/lib/api/types'
-import { type TimelineItem, type AttachmentFile, getToolTimeLabel } from '@/lib/session-events'
+import { type TimelineItem, type AttachmentFile, formatTaskError, getToolTimeLabel } from '@/lib/session-events'
 
 export interface ChatMessageProps {
   className?: string
@@ -16,6 +16,8 @@ export interface ChatMessageProps {
   onViewAllFiles?: () => void
   onFileClick?: (file: AttachmentFile) => void
   onToolClick?: (tool: ToolEvent) => void
+  onRetry?: () => void
+  retryDisabled?: boolean
 }
 
 function ToolRow({
@@ -56,6 +58,8 @@ export function ChatMessage({
   onViewAllFiles,
   onFileClick,
   onToolClick,
+  onRetry,
+  retryDisabled = false,
 }: ChatMessageProps) {
   if (item.kind === 'user') {
     return (
@@ -124,18 +128,21 @@ export function ChatMessage({
 
   if (item.kind === 'error') {
     return (
-      <div
-        className={cn('flex flex-col gap-2 w-full group mt-3', className)}
-      >
-        <div className="flex items-center justify-between h-7 group">
-          <div className="flex items-center justify-center gap-1 text-red-600">
-            <Languages size={18} />
-            <ManusIcon />
-          </div>
-        </div>
-        <div className="max-w-none p-0 m-0 text-red-600">
-          <MarkdownContent content={item.error} />
-        </div>
+      <div className={cn('mt-3 rounded-lg border border-red-200 bg-red-50 p-3', className)}>
+        <p className="text-sm font-medium text-red-700">任务失败</p>
+        <p className="mt-1 text-sm text-red-700 whitespace-pre-wrap">
+          {formatTaskError(item.error)}
+        </p>
+        {onRetry && (
+          <button
+            type="button"
+            onClick={onRetry}
+            disabled={retryDisabled}
+            className="mt-2 text-sm font-medium text-red-700 underline disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            重试
+          </button>
+        )}
       </div>
     )
   }

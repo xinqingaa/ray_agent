@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { sessionApi } from '@/lib/api/session'
 import { normalizeEvent, normalizeEvents } from '@/lib/session-events'
 import type { SessionDetail, SSEEventData, SessionFile } from '@/lib/api/types'
+import { isSessionFinished } from '@/lib/api/types'
 
 export type UseSessionDetailResult = {
   session: SessionDetail | null
@@ -83,14 +84,17 @@ export function useSessionDetail(
       setStreaming(false)
     }
     
-    // done 事件时更新为 completed
+    // done 不能盖掉本轮失败，空流仍可能读到后续 DoneEvent
     if (evToAppend.type === 'done') {
-      setSession((prev) => prev ? { ...prev, status: 'completed' } : null)
+      setSession((prev) => {
+        if (!prev || prev.status === 'failed') return prev
+        return { ...prev, status: 'completed' }
+      })
     }
     
-    // error 事件时也可以认为任务结束
+    // error 事件：本轮失败，同一会话仍可再发
     if (evToAppend.type === 'error') {
-      setSession((prev) => prev ? { ...prev, status: 'completed' } : null)
+      setSession((prev) => prev ? { ...prev, status: 'failed' } : null)
     }
   }, [])
 
@@ -197,9 +201,9 @@ export function useSessionDetail(
   useEffect(() => {
     if (!sessionId || !session) return
     const status = session.status
-    const completed = status === 'completed'
+    const finished = isSessionFinished(status)
     // 如果标记了跳过空流（比如有初始消息待发送），则不启动空流
-    if (!completed && !isSendMessageRef.current && !skipEmptyStream) {
+    if (!finished && !isSendMessageRef.current && !skipEmptyStream) {
       startEmptyStream()
     }
     return () => {
@@ -234,18 +238,19 @@ export function useSessionDetail(
       // 立即更新状态为 running，不等待 SSE 事件
       setSession((prev) => prev ? { ...prev, status: 'running' } : null)
       
+      const finishMessageStream = () => {
+        setStreaming(false)
+        isSendMessageRef.current = false
+        if (messageStreamCleanupRef.current) {
+          messageStreamCleanupRef.current()
+          messageStreamCleanupRef.current = null
+        }
+        startEmptyStream()
+      }
       const onEvent = (ev: SSEEventData) => {
         appendEvent(ev)
-        if (ev.type === 'done') {
-          setStreaming(false)
-          isSendMessageRef.current = false
-          // 清理消息流的 cleanup
-          if (messageStreamCleanupRef.current) {
-            messageStreamCleanupRef.current()
-            messageStreamCleanupRef.current = null
-          }
-          setSession((prev) => prev ? { ...prev } : null)
-          startEmptyStream()
+        if (ev.type === 'done' || ev.type === 'error') {
+          finishMessageStream()
         }
       }
       const messageStreamCleanup = sessionApi.chat(
@@ -273,7 +278,7 @@ export function useSessionDetail(
           setError(err instanceof Error ? err : new Error('流式响应异常'))
           setStreaming(false)
           isSendMessageRef.current = false
-          setSession((prev) => prev ? { ...prev, status: 'completed' } : null)
+          setSession((prev) => prev ? { ...prev, status: 'failed' } : null)
           if (messageStreamCleanupRef.current) {
             messageStreamCleanupRef.current()
             messageStreamCleanupRef.current = null

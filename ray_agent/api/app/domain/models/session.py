@@ -24,6 +24,7 @@ class SessionStatus(str, Enum):
     RUNNING = "running"  # 运行中
     WAITING = "waiting"  # 等待人类响应
     COMPLETED = "completed"  # 已完成
+    FAILED = "failed"  # 本轮失败，同一会话可再发消息重跑
 
 
 class Session(BaseModel):

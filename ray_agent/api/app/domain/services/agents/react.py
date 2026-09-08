@@ -25,6 +25,7 @@ from app.domain.models.message import Message
 from app.domain.models.plan import Plan, Step, ExecutionStatus
 from app.domain.services.prompts.react import REACT_SYSTEM_PROMPT, EXECUTION_PROMPT, SUMMARIZE_PROMPT
 from app.domain.services.prompts.system import SYSTEM_PROMPT
+from app.domain.services.task_error import STEP_PARSE_ERROR, SUMMARIZE_PARSE_ERROR
 from .base import BaseAgent
 
 logger = logging.getLogger(__name__)
@@ -79,7 +80,8 @@ class ReActAgent(BaseAgent):
                     step.status = ExecutionStatus.FAILED
                     step.error = str(e)
                     yield StepEvent(step=step, status=StepEventStatus.FAILED)
-                    continue
+                    yield ErrorEvent(error=STEP_PARSE_ERROR)
+                    return
 
                 # 9.更新子步骤的数据
                 step.status = ExecutionStatus.COMPLETED
@@ -99,14 +101,17 @@ class ReActAgent(BaseAgent):
                 step.status = ExecutionStatus.FAILED
                 step.error = event.error
 
-                # 14.返回子步骤对应事件
+                # 14.返回子步骤对应事件后结束本步，避免把失败写成完成
                 yield StepEvent(step=step, status=StepEventStatus.FAILED)
+                yield event
+                return
 
             # 15.其他场景将事件直接返回
             yield event
 
-        # 16.循环迭代完成后代表子步骤已实现，需要更新状态
-        step.status = ExecutionStatus.COMPLETED
+        # 16.循环结束时若步骤已失败则保持失败，否则标为完成
+        if step.status != ExecutionStatus.FAILED:
+            step.status = ExecutionStatus.COMPLETED
 
     async def summarize(self) -> AsyncGenerator[BaseEvent, None]:
         """调用Agent汇总历史的消息并生成最终回复+附件"""
@@ -128,7 +133,7 @@ class ReActAgent(BaseAgent):
                     message = Message.model_validate(parsed_obj)
                 except (ValidationError, ValueError) as e:
                     logger.warning(f"汇总结果无法解析为 Message: {e}")
-                    yield ErrorEvent(error=f"汇总结果无法解析: {e}")
+                    yield ErrorEvent(error=SUMMARIZE_PARSE_ERROR)
                     continue
 
                 # 6.提取消息中的附件信息
