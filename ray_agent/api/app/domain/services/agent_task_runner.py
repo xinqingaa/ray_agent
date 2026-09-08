@@ -21,9 +21,9 @@ from app.domain.external.llm import LLM
 from app.domain.external.sandbox import Sandbox
 from app.domain.external.search import SearchEngine
 from app.domain.external.task import TaskRunner, Task
-from app.domain.models.app_config import AgentConfig, MCPConfig, A2AConfig
+from app.domain.models.app_config import AgentConfig
 from app.domain.models.event import ErrorEvent, Event, MessageEvent, BaseEvent, ToolEvent, ToolEventStatus, \
-    BrowserToolContent, SearchToolContent, ShellToolContent, FileToolContent, MCPToolContent, A2AToolContent, \
+    BrowserToolContent, SearchToolContent, ShellToolContent, FileToolContent, ProtocolToolContent, \
     TitleEvent, WaitEvent, DoneEvent
 from app.domain.models.file import File
 from app.domain.models.message import Message
@@ -49,8 +49,8 @@ class AgentTaskRunner(TaskRunner):
             uow_factory: Callable[[], IUnitOfWork],  # uow模块
             llm: LLM,  # 大语言模型
             agent_config: AgentConfig,  # 智能体配置
-            mcp_config: MCPConfig,  # mcp配置
-            a2a_config: A2AConfig,  # a2a配置
+            mcp_tool: MCPTool,
+            a2a_tool: A2ATool,
             session_id: str,  # 会话id
             file_storage: FileStorage,  # 文件存储桶
             json_parser: JSONParser,  # json解析器
@@ -63,10 +63,8 @@ class AgentTaskRunner(TaskRunner):
         self._uow = uow_factory()
         self._session_id = session_id
         self._sandbox = sandbox
-        self._mcp_config = mcp_config
-        self._mcp_tool = MCPTool()
-        self._a2a_config = a2a_config
-        self._a2a_tool = A2ATool()
+        self._mcp_tool = mcp_tool
+        self._a2a_tool = a2a_tool
         self._file_storage = file_storage
         self._browser = browser
         self._flow = PlannerReActFlow(
@@ -281,35 +279,8 @@ class AgentTaskRunner(TaskRunner):
                     else:
                         event.tool_content = FileToolContent(content="(No Content)")
                 elif event.tool_name in ["mcp", "a2a"]:
-                    # 6.工具为mcp/a2a则处理调用结果
-                    logger.info(f"处理MCP/A2A工具事件, function_result: {event.function_result}")
-                    if event.function_result:
-                        # 7.如果结果包含data则提取data
-                        if hasattr(event.function_result, "data") and event.function_result.data:
-                            logger.info(f"MCP/A2A工具调用结果: {event.function_result.data}")
-                            event.tool_content = MCPToolContent(result=event.function_result.data) \
-                                if event.tool_name == "mcp" \
-                                else A2AToolContent(a2a_result=event.function_result.data)
-                        elif hasattr(event.function_result, "success") and event.function_result.success:
-                            # 8.mcp/a2a工具调用正常，但是无结果产生
-                            logger.info(f"MCP/A2A工具调用成功返回，但无结果: {event.function_result}")
-                            result_data = event.function_result.model_dump() \
-                                if hasattr(event.function_result, "model_dump") \
-                                else str(event.function_result)
-                            event.tool_content = MCPToolContent(result=result_data) \
-                                if event.tool_name == "mcp" \
-                                else A2AToolContent(a2a_result=result_data)
-                        else:
-                            # 9.其他情况将结果转换成字符串进行传递
-                            logger.info(f"MCP/A2A工具额记过: {event.function_result}")
-                            event.tool_content = MCPToolContent(result=str(event.function_result)) \
-                                if event.tool_name == "mcp" \
-                                else A2AToolContent(a2a_result=str(event.function_result))
-                    else:
-                        logger.warning("MCP/A2A工具调用结果未发现")
-                        event.tool_content = MCPToolContent(result="(MCP工具无可用结果)") \
-                            if event.tool_name == "mcp" \
-                            else A2AToolContent(a2a_result="(A2A智能体无可用结果)")
+                    if event.function_result is not None:
+                        event.tool_content = ProtocolToolContent(outcome=event.function_result)
         except Exception as e:
             logger.exception(f"AgentTaskRunner生成工具内容失败: {str(e)}")
 
@@ -368,11 +339,7 @@ class AgentTaskRunner(TaskRunner):
             logger.warning(f"会话[{self._session_id}] 任务终态持久化失败: {e}")
 
     async def _cleanup_tools(self) -> None:
-        """清理MCP和A2A工具资源，确保在同一任务上下文中释放
-
-        注意：该方法必须在初始化MCP/A2A的同一个asyncio Task中调用，
-        否则anyio的cancel scope会检测到任务上下文切换并抛出RuntimeError。
-        """
+        """关闭外部协议资源；MCP 上下文由各自连接任务负责退出。"""
         try:
             if self._mcp_tool:
                 await self._mcp_tool.cleanup()
@@ -380,7 +347,7 @@ class AgentTaskRunner(TaskRunner):
             logger.warning(f"清理MCP工具资源时出错: {e}")
         try:
             if self._a2a_tool:
-                await self._a2a_tool.manager.cleanup()
+                await self._a2a_tool.cleanup()
         except Exception as e:
             logger.warning(f"清理A2A工具资源时出错: {e}")
 
@@ -391,8 +358,8 @@ class AgentTaskRunner(TaskRunner):
             set_log_session_id(self._session_id)
             logger.info(f"会话[{self._session_id}] AgentTaskRunner任务处理开始")
             await self._sandbox.ensure_sandbox()
-            await self._mcp_tool.initialize(self._mcp_config)
-            await self._a2a_tool.initialize(self._a2a_config)
+            await self._mcp_tool.initialize()
+            await self._a2a_tool.initialize()
 
             had_error = False
             # 2.循环读取任务中的输入消息队列

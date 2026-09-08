@@ -5,6 +5,7 @@ description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
+    "a2a-sdk>=1.1.2,<2",
     "alembic>=1.16.5",
     "async-lru>=2.0.5",
     "asyncpg>=0.30.0",
@@ -14,9 +15,11 @@ dependencies = [
     "fastapi>=0.116.1",
     "filelock>=3.20.0",
     "httpx>=0.28.1",
+    "httpx2>=2.5,<3",
+    "protobuf>=6.33,<7",
     "json-repair>=0.53.0",
     "markdownify>=1.2.2",
-    "mcp>=1.22.0",
+    "mcp>=2.2.0,<3",
     "openai>=1.107.2",
     "playwright>=1.56.0",
     "psycopg2-binary>=2.9.10",
@@ -29,7 +32,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "a2a-sdk[http-server]>=1.1.2,<2",
     "httpx>=0.28.1",
     "pytest>=8.4.2",
 ]
-

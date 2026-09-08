@@ -240,70 +240,24 @@ function FileToolPreview({ tool }: { tool: ToolEvent }) {
   )
 }
 
-function MCPPreview({ tool }: { tool: ToolEvent }) {
-  const content = getToolContent(tool)
-  const result = content?.result
-
+function ProtocolPreview({ tool }: { tool: ToolEvent }) {
+  const outcome = getToolContent(tool)?.outcome as import('@/lib/api/types').ProtocolOutcome | undefined
   return (
     <ScrollArea className="h-full">
       <div className="flex flex-col gap-4 p-4">
-        <div className="flex flex-col gap-1">
-          <div className="text-xs text-gray-500 uppercase tracking-wide">工具信息</div>
-          <div className="rounded-lg border bg-gray-50 p-3 text-sm">
-            <div><span className="text-gray-500">名称：</span><span className="text-gray-800">{tool.name}</span></div>
-            <div><span className="text-gray-500">函数：</span><span className="text-gray-800">{tool.function}</span></div>
-            {Object.keys(tool.args).length > 0 && (
-              <div className="mt-1">
-                <span className="text-gray-500">参数：</span>
-                <pre className="text-xs text-gray-700 mt-1 whitespace-pre-wrap break-words">
-                  {JSON.stringify(tool.args, null, 2)}
-                </pre>
-              </div>
-            )}
-          </div>
+        <div className="rounded-lg border bg-gray-50 p-3 text-sm">
+          <div className="break-all">{tool.function}</div>
+          <pre className="mt-2 whitespace-pre-wrap break-words">{JSON.stringify(tool.args, null, 2)}</pre>
         </div>
-        <div className="flex flex-col gap-1">
-          <div className="text-xs text-gray-500 uppercase tracking-wide">执行结果</div>
-          <div className="rounded-lg border border-gray-700 bg-[#1e1e1e] p-4">
-            <pre className="font-mono text-sm text-gray-300 whitespace-pre-wrap break-words">
-              {result != null
-                ? (typeof result === 'string' ? result : JSON.stringify(result, null, 2))
-                : '等待执行结果...'}
-            </pre>
+        {outcome ? <>
+          <div className={outcome.success ? 'text-green-700' : 'text-red-700'}>
+            <strong>{outcome.success ? '调用成功' : '调用未成功'}</strong>
+            <p className="text-sm whitespace-pre-wrap">{outcome.message}</p>
           </div>
-        </div>
-      </div>
-    </ScrollArea>
-  )
-}
-
-function A2APreview({ tool }: { tool: ToolEvent }) {
-  const content = getToolContent(tool)
-  const result = content?.a2a_result
-
-  const query = getArg(tool.args, 'query', 'message', 'input')
-
-  return (
-    <ScrollArea className="h-full">
-      <div className="flex flex-col gap-4 p-4">
-        <div className="flex flex-col gap-1">
-          <div className="text-xs text-gray-500 uppercase tracking-wide">Agent 调用信息</div>
-          <div className="rounded-lg border bg-gray-50 p-3 text-sm">
-            <div><span className="text-gray-500">工具：</span><span className="text-gray-800">{tool.name}</span></div>
-            <div><span className="text-gray-500">函数：</span><span className="text-gray-800">{tool.function}</span></div>
-            {query && <div><span className="text-gray-500">指令：</span><span className="text-gray-800">{query}</span></div>}
-          </div>
-        </div>
-        <div className="flex flex-col gap-1">
-          <div className="text-xs text-gray-500 uppercase tracking-wide">执行结果</div>
-          <div className="rounded-lg border border-gray-700 bg-[#1e1e1e] p-4">
-            <pre className="font-mono text-sm text-gray-300 whitespace-pre-wrap break-words">
-              {result != null
-                ? (typeof result === 'string' ? result : JSON.stringify(result, null, 2))
-                : '等待执行结果...'}
-            </pre>
-          </div>
-        </div>
+          <pre className="rounded-lg bg-[#1e1e1e] p-4 text-sm text-gray-300 whitespace-pre-wrap break-words">
+            {JSON.stringify(outcome.data, null, 2)}
+          </pre>
+        </> : <div className="text-sm text-gray-500">等待执行结果...</div>}
       </div>
     </ScrollArea>
   )
@@ -362,7 +316,7 @@ export function ToolPreviewPanel({
         </div>
         <div className="flex items-center gap-2 text-sm text-gray-600">
           <Monitor size={14} className="text-gray-500 flex-shrink-0" />
-          <span>MoocManus 正在使用</span>
+          <span>{tool.status === 'called' ? '工具调用记录' : 'MoocManus 正在使用'}</span>
           <span className="font-medium text-gray-800">{toolDesc}</span>
         </div>
         <div className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 border border-gray-200 bg-gray-100 text-gray-700 text-xs w-fit max-w-full">
@@ -377,8 +331,8 @@ export function ToolPreviewPanel({
         {kind === 'browser' && <BrowserPreview tool={tool} onOpenVNC={onOpenVNC} />}
         {kind === 'search' && <SearchPreview tool={tool} />}
         {kind === 'file' && <FileToolPreview tool={tool} />}
-        {kind === 'mcp' && <MCPPreview tool={tool} />}
-        {kind === 'a2a' && <A2APreview tool={tool} />}
+        {kind === 'mcp' && <ProtocolPreview tool={tool} />}
+        {kind === 'a2a' && <ProtocolPreview tool={tool} />}
         {(kind === 'default' || kind === 'message') && <DefaultPreview tool={tool} />}
 
         {/* "跳转实时" overlaid at bottom-center */}

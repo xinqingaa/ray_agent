@@ -281,7 +281,7 @@ function A2ASetting({servers, loading, onToggleEnabled, onDelete, onAdd}: A2ASet
             </Dialog>
           </FieldLegend>
           <FieldDescription className="text-sm">
-            模型上下文协议 (MCP) 通过集成外部工具来增强 MoocManus 的性能，例如私有域搜索、网页浏览、订餐、PPT 生成等任务。
+            通过 A2A 委派任务给远程 Agent，查看执行状态与结果。
           </FieldDescription>
 
           {/* 加载态 */}
@@ -307,7 +307,9 @@ function A2ASetting({servers, loading, onToggleEnabled, onDelete, onAdd}: A2ASet
                     <ItemTitle className="w-full flex justify-between items-center text-md font-bold text-gray-700">
                       <div className="flex gap-2 items-center">
                         {server.name}
-                        {!server.enabled && <Badge>禁用</Badge>}
+                        <Badge variant={server.connection_status === 'unavailable' ? 'destructive' : 'secondary'}>
+                          {{connected: '已连接', disabled: '已禁用', unavailable: '不可用'}[server.connection_status]}
+                        </Badge>
                       </div>
                       <div className="flex items-center justify-center gap-2">
                         <Button
@@ -325,6 +327,7 @@ function A2ASetting({servers, loading, onToggleEnabled, onDelete, onAdd}: A2ASet
                         />
                       </div>
                     </ItemTitle>
+                    {server.error && <ItemDescription className="text-red-600">{server.error}</ItemDescription>}
                     {server.description && (
                       <ItemDescription>{server.description}</ItemDescription>
                     )}
@@ -378,6 +381,7 @@ function MCPSetting({servers, loading, onToggleEnabled, onDelete, onAdd}: MCPSet
   const mcpConfigPlaceholder = `{
   "mcpServers": {
     "qiniu": {
+      "transport": "stdio",
       "command": "uvx",
       "args": [
         "qiniu-mcp-server"
@@ -487,7 +491,9 @@ function MCPSetting({servers, loading, onToggleEnabled, onDelete, onAdd}: MCPSet
                       <div className="flex gap-2 items-center">
                         {server.server_name}
                         <Badge>{server.transport}</Badge>
-                        {!server.enabled && <Badge>禁用</Badge>}
+                        <Badge variant={server.connection_status === 'unavailable' ? 'destructive' : 'secondary'}>
+                          {{connected: '已连接', disabled: '已禁用', unavailable: '不可用'}[server.connection_status]}
+                        </Badge>
                       </div>
                       <div className="flex items-center justify-center gap-2">
                         <Button
@@ -505,6 +511,7 @@ function MCPSetting({servers, loading, onToggleEnabled, onDelete, onAdd}: MCPSet
                         />
                       </div>
                     </ItemTitle>
+                    {server.error && <ItemDescription className="text-red-600">{server.error}</ItemDescription>}
                     {server.tools.length > 0 && (
                       <ItemDescription className="flex flex-wrap items-center gap-x-2 gap-y-1">
                         <Wrench size={12}/>

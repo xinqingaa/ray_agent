@@ -22,6 +22,10 @@ from app.domain.models.app_config import AgentConfig, MCPConfig, A2AConfig
 from app.domain.models.event import BaseEvent, ErrorEvent, MessageEvent, Event, DoneEvent, WaitEvent
 from app.domain.models.session import Session, SessionStatus
 from app.domain.repositories.uow import IUnitOfWork
+from app.domain.services.tools.mcp import MCPTool
+from app.domain.services.tools.a2a import A2ATool
+from app.infrastructure.protocols.mcp import MCPClientManager
+from app.infrastructure.protocols.a2a import A2AClientManager
 from app.domain.services.agent_task_runner import AgentTaskRunner
 from app.domain.services.task_error import format_public_error
 from app.infrastructure.logging import set_log_session_id
@@ -96,8 +100,8 @@ class AgentService:
             uow_factory=self._uow_factory,
             llm=self._llm,
             agent_config=self._agent_config,
-            mcp_config=self._mcp_config,
-            a2a_config=self._a2a_config,
+            mcp_tool=MCPTool(MCPClientManager(self._mcp_config)),
+            a2a_tool=A2ATool(A2AClientManager(self._a2a_config)),
             session_id=session.id,
             file_storage=self._file_storage,
             json_parser=self._json_parser,

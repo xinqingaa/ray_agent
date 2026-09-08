@@ -1,4 +1,4 @@
-import type { ToolEvent } from '@/lib/api/types'
+import type { ProtocolOutcome, ToolEvent } from '@/lib/api/types'
 
 export type ToolKind =
   | 'message'
@@ -65,6 +65,14 @@ export function getFriendlyToolLabel(data: ToolEvent | null | undefined): string
   if (data.function === 'message_notify_user' || data.function === 'message_ask_user') {
     const text = typeof args.text === 'string' ? args.text : ''
     return text || '—'
+  }
+
+  if (name === 'mcp' || name === 'a2a') {
+    const outcome = (data.content as { outcome?: ProtocolOutcome } | undefined)?.outcome
+    const operation = name === 'mcp' ? 'MCP 工具调用' :
+      fn === 'get_remote_agent_cards' ? '远程 Agent 发现' : '远程 Agent 委派'
+    if (data.status !== 'called') return `${operation}中`
+    return `${operation}${outcome?.success ? '成功' : '未成功'}`
   }
 
   const filepath = getArg(args, 'filepath', 'path', 'pathname')
@@ -148,24 +156,6 @@ export function getFriendlyToolLabel(data: ToolEvent | null | undefined): string
   if (name.includes('bash') || fn === 'run' || fn === 'execute' || fn === 'run_command') {
     const cmd = command || (typeof args.input === 'string' ? args.input : '')
     return cmd ? `正在执行命令 ${truncate(cmd, 60)}` : '正在执行命令'
-  }
-
-  if (name === 'a2a') {
-    switch (fn) {
-      case 'get_remote_agent_cards':
-        return '正在获取远程 Agent 列表'
-      case 'call_remote_agent':
-        return query ? `正在调用远程 Agent：${truncate(query, 40)}` : '正在调用远程 Agent'
-      default:
-        return '正在调用 Agent'
-    }
-  }
-
-  if (name === 'mcp' || name.startsWith('mcp_')) {
-    if (fn.includes('search_web') || fn.includes('search')) {
-      return query ? `正在搜索 ${truncate(query, 60)}` : '正在搜索'
-    }
-    return '正在通过 MCP 服务执行操作'
   }
 
   return '正在执行操作'

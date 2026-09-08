@@ -5,14 +5,19 @@
 @Author  : thezehui@gmail.com
 @File    : app_config.py
 """
-from typing import List
+from typing import List, Literal
 
 from pydantic import BaseModel, Field
 
 from app.domain.models.app_config import MCPTransport
 
 
-class ListMCPServerItem(BaseModel):
+class ConnectionState(BaseModel):
+    connection_status: Literal["connected", "disabled", "unavailable"]
+    error: str | None = None
+
+
+class ListMCPServerItem(ConnectionState):
     """MCP服务列表条目选项"""
     server_name: str = ""  # 服务名字
     enabled: bool = True  # 启用状态
@@ -25,7 +30,8 @@ class ListMCPServerResponse(BaseModel):
     mcp_servers: List[ListMCPServerItem] = Field(default_factory=list)  # MCP服务列表
 
 
-class ListA2AServerItem(BaseModel):
+class ListA2AServerItem(ConnectionState):
+    base_url: str
     """A2A服务列表条目选项"""
     id: str = ""  # id
     name: str = ""  # 名字

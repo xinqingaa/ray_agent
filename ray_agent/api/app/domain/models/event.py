@@ -93,14 +93,9 @@ class FileToolContent(BaseModel):
     content: str  # 文件内容
 
 
-class MCPToolContent(BaseModel):
-    """MCP工具内容"""
-    result: Any  # MCP工具结果
-
-
-class A2AToolContent(BaseModel):
-    """A2A智能体工具内容"""
-    a2a_result: Any  # A2A智能体调用结果
+class ProtocolToolContent(BaseModel):
+    """MCP/A2A 的唯一结果契约，实时流与持久化共用。"""
+    outcome: ToolResult
 
 
 ToolContent = Union[
@@ -108,8 +103,7 @@ ToolContent = Union[
     SearchToolContent,
     ShellToolContent,
     FileToolContent,
-    MCPToolContent,
-    A2AToolContent,
+    ProtocolToolContent,
 ]
 
 

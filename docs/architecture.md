@@ -76,11 +76,17 @@ UI 发起聊天请求
 
 Shell 和文件工具通过 API 侧适配访问沙箱服务，浏览器操作通过 Playwright 连接沙箱浏览器。修改时需同时考虑调用端与执行端。
 
-MCP/A2A 适配负责外部协议与产品工具结果之间的转换。HTTP 成功不代表协议请求或远程任务完成；应按实际使用范围处理协议错误、消息和任务状态。
+`domain/services/tools/` 通过协议端口使用 `infrastructure/protocols/`，应用服务负责组装。MCP 使用官方 Client，A2A 使用官方卡片解析器和客户端工厂；版本与支持边界见 [协议升级说明](product-protocol-upgrade.md)。
+
+MCP 的每个连接由独立任务拥有，发现、调用和退出 SDK 上下文均在该任务执行；调用者取消会触发连接关闭。A2A 单次委派收到进行中的 Task 后只查询相同 Task，不重发原 query。远程状态保存在工具结果中，不替代本地 SessionStatus；需要输入或认证返回未完成原因，本次不自动创建主流程 waiting 续接。
+
+设置列表从已保存配置组装，enabled 与连接状态分开。禁用项不探测，离线项仍能禁用或删除；发现和调用使用有界时间预算。
 
 ### 事件与 UI
 
 领域事件经 API schema 映射为 SSE，后端使用 `event` 标识事件类型；UI 将其归一化为 `type`，再构建时间线与计划展示。历史详情和实时流应解释为一致的业务行为。
+
+MCP/A2A 使用同一个 `ProtocolToolContent.outcome`，完整保存 `success/message/data`；其中 data 包含结构化结果、错误类别及远程状态。实时流与历史读取共用这套契约，不增加旧字段回退。`called` 只表示调用结束，页面根据 outcome.success 展示结果是否成功。
 
 事件字段调整涉及领域模型、SSE 映射、前端类型与解析，以及相关展示组件。入口见 [API 开发指南](../ray_agent/api/README.md) 和 [UI 开发指南](../ray_agent/ui/README.md)。
 

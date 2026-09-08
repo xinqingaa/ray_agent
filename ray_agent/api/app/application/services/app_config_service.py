@@ -12,8 +12,8 @@ from typing import List
 from app.application.errors.exceptions import NotFoundError
 from app.domain.models.app_config import AppConfig, LLMConfig, AgentConfig, MCPConfig, A2AConfig, A2AServerConfig
 from app.domain.repositories.app_config_repository import AppConfigRepository
-from app.domain.services.tools.a2a import A2AClientManager
-from app.domain.services.tools.mcp import MCPClientManager
+from app.infrastructure.protocols.a2a import A2AClientManager
+from app.infrastructure.protocols.mcp import MCPClientManager
 from app.interfaces.schemas.app_config import ListMCPServerItem, ListA2AServerItem
 
 logger = logging.getLogger(__name__)
@@ -88,7 +88,10 @@ class AppConfigService:
                     server_name=server_name,
                     enabled=server_config.enabled,
                     transport=server_config.transport,
-                    tools=[tool.name for tool in tools.get(server_name, [])]
+                    tools=[tool.name for tool in tools.get(server_name, [])],
+                    connection_status="disabled" if not server_config.enabled else
+                        "connected" if server_name in tools else "unavailable",
+                    error=mcp_client_manager.errors.get(server_name),
                 ))
         finally:
             # 6.清除MCP客户端管理器的相关资源
@@ -103,6 +106,8 @@ class AppConfigService:
 
         # 2.使用新的mcp_config更新原始的配置
         app_config.mcp_config.mcpServers.update(mcp_config.mcpServers)
+        if "discovery_budget" in mcp_config.model_fields_set:
+            app_config.mcp_config.discovery_budget = mcp_config.discovery_budget
 
         # 3.调用数据仓库完成存储or更新
         self.app_config_repository.save(app_config)
@@ -170,16 +175,19 @@ class AppConfigService:
             agent_cards = a2a_client_manager.agent_cards
 
             # 5.组装响应结构
-            for id, agent_card in agent_cards.items():
+            for config in app_config.a2a_config.a2a_servers:
+                card = agent_cards.get(config.id)
                 a2a_servers.append(ListA2AServerItem(
-                    id=id,
-                    name=agent_card.get("name", ""),
-                    description=agent_card.get("description", ""),
-                    input_modes=agent_card.get("defaultInputModes", []),
-                    output_modes=agent_card.get("defaultOutputModes", []),
-                    streaming=agent_card.get("capabilities", {}).get("streaming", False),
-                    push_notifications=agent_card.get("capabilities", {}).get("push_notifications", False),
-                    enabled=agent_card.get("enabled", False),
+                    id=config.id, base_url=str(config.base_url),
+                    name=card.name if card else str(config.base_url),
+                    description=card.description if card else "",
+                    input_modes=list(card.default_input_modes) if card else [],
+                    output_modes=list(card.default_output_modes) if card else [],
+                    streaming=card.capabilities.streaming if card else False,
+                    push_notifications=card.capabilities.push_notifications if card else False,
+                    enabled=config.enabled,
+                    connection_status="disabled" if not config.enabled else "connected" if card else "unavailable",
+                    error=a2a_client_manager.errors.get(config.id),
                 ))
         finally:
             # 6.清除客户端管理器资源
@@ -204,7 +212,7 @@ class AppConfigService:
         # 3.如果存在则更新数据
         app_config.a2a_config.a2a_servers[idx].enabled = enabled
         self.app_config_repository.save(app_config)
-        return app_config.mcp_config
+        return app_config.a2a_config
 
     async def delete_a2a_server(self, a2a_id: str) -> A2AConfig:
         """根据传递的id删除指定的a2a服务"""
@@ -223,4 +231,4 @@ class AppConfigService:
         # 3.删除a2a服务器
         del app_config.a2a_config.a2a_servers[idx]
         self.app_config_repository.save(app_config)
-        return app_config.mcp_config
+        return app_config.a2a_config

@@ -30,7 +30,7 @@ export type ToolEventStatus = "calling" | "called";
 /**
  * MCP 传输类型
  */
-export type MCPTransport = "stdio" | "sse" | "streamable_http";
+export type MCPTransport = "stdio" | "streamable_http";
 
 // ==================== 配置模块类型 ====================
 
@@ -59,7 +59,18 @@ export type AgentConfig = {
 /**
  * MCP 服务器列表项（GET 响应）
  */
-export type ListMCPServerItem = {
+export type ConnectionState = {
+  connection_status: "connected" | "disabled" | "unavailable";
+  error: string | null;
+};
+
+export type ProtocolOutcome = {
+  success: boolean;
+  message: string | null;
+  data: unknown;
+};
+
+export type ListMCPServerItem = ConnectionState & {
   server_name: string;
   enabled: boolean;
   transport: MCPTransport;
@@ -80,11 +91,14 @@ export type MCPServerConfig = {
   transport?: MCPTransport;
   enabled?: boolean;
   description?: string | null;
-  env?: Record<string, unknown> | null;
+  env?: Record<string, string>;
   command?: string | null;
-  args?: string[] | null;
+  args?: string[];
   url?: string | null;
-  headers?: Record<string, unknown> | null;
+  headers?: Record<string, string>;
+  connect_timeout?: number;
+  discovery_timeout?: number;
+  call_timeout?: number;
   [key: string]: unknown;
 };
 
@@ -99,7 +113,8 @@ export type MCPConfig = {
 /**
  * A2A 服务器列表项（GET 响应）
  */
-export type ListA2AServerItem = {
+export type ListA2AServerItem = ConnectionState & {
+  base_url: string;
   id: string;
   name: string;
   description: string;

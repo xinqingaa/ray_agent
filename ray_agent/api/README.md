@@ -2,7 +2,7 @@
 
 API 使用 FastAPI、Pydantic、SQLAlchemy 和 Alembic，负责会话、Agent 执行及外部能力接入。整体职责与执行流程见 [架构说明](../../docs/architecture.md)，完整应用部署见 [运行指南](../README.md)。
 
-以下命令在 `ray_agent/api/` 执行，依据配置与代码整理，尚未完成运行验证。
+以下命令在 `ray_agent/api/` 执行。各轮实际执行条件与结果见项目验收记录。
 
 ## 依赖与配置
 
@@ -42,7 +42,7 @@ uv run --locked uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 | 应用生命周期与依赖组装 | `main.py`、`interfaces/service_dependencies.py` |
 | 会话请求与任务准备 | `interfaces/endpoints/session_routes.py`、`application/services/agent_service.py` |
 | 规划、模型循环与提示词 | `domain/services/flows/`、`domain/services/agents/`、`domain/services/prompts/` |
-| 工具声明与协议适配 | `domain/services/tools/` |
+| 工具声明与协议适配 | `domain/services/tools/`、`infrastructure/protocols/` |
 | 事件模型与 SSE 映射 | `domain/models/event.py`、`interfaces/schemas/event.py` |
 | 数据访问与工作单元 | `domain/repositories/`、`infrastructure/repositories/`、`infrastructure/models/` |
 | 外部服务与执行资源 | `domain/external/`、`infrastructure/external/` |
@@ -53,7 +53,7 @@ uv run --locked uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 uv run --locked python -m pytest
 ```
 
-测试配置见 [pytest.ini](pytest.ini)。[conftest.py](tests/conftest.py) 使用 `TestClient` 进入应用生命周期，会执行迁移并初始化外部服务；先准备独立的测试数据库和相应配置。当前用例主要检查状态接口，不覆盖 Agent 完整执行和协议兼容性。
+测试配置见 [pytest.ini](pytest.ini)。纯核心与协议用例不会启动应用或连接数据库。只有使用 [conftest.py](tests/conftest.py) 中 `client` fixture 的接口测试会进入应用生命周期、迁移和初始化外部服务，运行它们前需准备独立的测试数据库与 Redis 配置。协议自动测试不能替代真实模型的页面验收。
 
 数据库结构变化时核对领域模型、ORM 转换与迁移文件：
 
@@ -67,3 +67,39 @@ uv run --locked alembic upgrade head
 ## 排查入口
 
 启动失败先查看生命周期日志和服务连接；任务创建失败沿任务准备与沙箱适配追踪；事件展示问题同时检查 SSE 映射和前端解析。Compose 启停与按服务查看日志见 [Docker 操作说明](../DOCKER.md)，整体检查入口见 [运行指南](../README.md#排查入口)。
+
+## MCP/A2A 开发与验收
+
+版本、协议边界和验收条件统一维护在 [协议升级说明](../../docs/product-protocol-upgrade.md)。安装后核对与导出：
+
+```bash
+uv run --locked python -c 'from importlib.metadata import version; print({p: version(p) for p in ["mcp", "a2a-sdk"]})'
+uv export --locked --format requirements-txt --no-dev -o requirements.txt
+uv run --locked python -m pytest tests/protocols tests/core
+```
+
+协议测试会自动启动本地 HTTP/stdio 服务，使用临时目录保存日志，结束后回收子进程，不依赖 labs、模型密钥或日常数据库。确定性 A2A 测试端点使用官方消息类型和 ProtoJSON 序列化，并故意提供错误响应，用于覆盖客户端边界；它不是对外提供的生产 A2A 服务端。
+
+在两个终端启动页面验收服务：
+
+```bash
+RAY_PROTOCOL_LOG=/tmp/ray-protocol-acceptance.jsonl uv run --locked python tests/protocols/fixture_server.py mcp --port 9911
+```
+
+```bash
+RAY_PROTOCOL_LOG=/tmp/ray-protocol-acceptance.jsonl uv run --locked python tests/protocols/fixture_server.py a2a --port 9912 --public-url http://host.docker.internal:9912
+```
+
+以上公布地址供 Docker Desktop 中的产品 API 使用。API 在宿主机运行时，把 A2A `--public-url` 改为 `http://127.0.0.1:9912`。卡片公布的调用端点与获取卡片的地址都必须从 API 可达。
+
+页面 MCP 设置中添加：
+
+```json
+{"mcpServers":{"acceptance":{"transport":"streamable_http","url":"http://host.docker.internal:9911/mcp"}}}
+```
+
+页面 A2A 设置添加 `http://host.docker.internal:9912`。执行验收后删除临时设置并停止两个终端进程。不要覆盖已有服务配置。测试服务仅限本地验收，它们没有生产认证。
+
+MCP stdio 配置必须显式选择 `transport: stdio` 并提供 `command`；省略 `args`、`env` 分别使用 `[]`、`{}`，显式 null 无效。旧 MCP `sse` 传输已移除，页面任务事件 SSE 不受影响。
+
+`config.yaml` 的每个 MCP/A2A 服务可以设置 `connect_timeout`、`discovery_timeout`、`call_timeout`（秒），A2A 另有 `cancel_timeout`。两个协议配置根节点均有 `discovery_budget`。静态认证通过服务 `headers` 配置；stdio 环境通过 `env` 配置。只在本地未跟踪配置中写入真实凭据，勿提交到仓库。
