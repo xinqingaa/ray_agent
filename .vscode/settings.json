@@ -1,0 +1,4 @@
+{
+  "python.defaultInterpreterPath": "${workspaceFolder}/ray_agent/api/.venv/bin/python",
+  "python.analysis.extraPaths": ["${workspaceFolder}/ray_agent/api"]
+}

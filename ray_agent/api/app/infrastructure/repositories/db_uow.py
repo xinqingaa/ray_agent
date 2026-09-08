@@ -45,28 +45,67 @@ class DBUnitOfWork(IUnitOfWork):
 
         return self
 
-    async def __aexit__(self, exc_type, exc_val, exc_tb):
-        """退出上下文时执行的逻辑，如果出现异常则回滚，否则提交
+    def _schedule_close(self, session: AsyncSession) -> None:
+        """在新的 asyncio Task 中归还连接。
 
-        当SSE客户端断开连接时，sse_starlette的cancel scope会取消所有await操作，
-        包括此处的commit/rollback/close。如果不妥善处理CancelledError，
-        会导致连接池中的连接处于异常状态，影响后续使用该池的其他任务。
+        sse_starlette 的 anyio cancel scope 会取消当前 Task 里尚未结束的 await，
+        asyncio.shield 挡不住。连接必须在另一个 Task 里 close，否则会留在
+        checked-out 状态，随后被 GC terminate 并打出 CancelledError。
         """
+        self.db_session = None
+        try:
+            asyncio.get_running_loop().create_task(self._aclose_session(session))
+        except RuntimeError:
+            self._release_session_sync(session)
+
+    @staticmethod
+    async def _aclose_session(session: AsyncSession) -> None:
+        """后台回滚并关闭会话，把连接还回池子。"""
+        try:
+            if session.in_transaction():
+                await session.rollback()
+        except Exception as e:
+            logger.warning(f"UoW后台回滚失败: {e}")
+        try:
+            await session.close()
+        except Exception as e:
+            logger.warning(f"UoW后台关闭数据库会话失败: {e}")
+
+    @staticmethod
+    def _release_session_sync(session: AsyncSession) -> None:
+        """事件循环已关闭时，同步归还连接，避免 GC 再 terminate。"""
+        sync_session = session.sync_session
+        try:
+            if sync_session.in_transaction():
+                sync_session.rollback()
+        except Exception:
+            pass
+        try:
+            sync_session.close()
+        except Exception as e:
+            logger.warning(f"UoW同步释放数据库会话失败: {e}")
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """退出上下文：正常则提交并关闭；取消则转到后台归还连接。
+
+        前端收到 done 后会立刻中止 SSE，sse_starlette 随之取消当前请求 Task。
+        此处若直接 await close，会被一并取消，连接无法 check-in。
+        """
+        session = self.db_session
+        if session is None:
+            return False
         try:
             if exc_type:
-                await self.rollback()
+                await session.rollback()
             else:
-                await self.commit()
+                await session.commit()
+            await session.close()
+            self.db_session = None
         except asyncio.CancelledError:
-            # SSE断连等场景下cancel scope取消了commit/rollback操作，
-            # 记录警告但不让异常传播，避免后续close操作也被跳过
-            logger.warning("UoW提交/回滚操作被取消(可能是客户端断开连接)")
+            logger.warning("UoW提交/关闭被取消，已转到后台归还连接")
+            self._schedule_close(session)
+            raise
         except Exception as e:
-            logger.warning(f"UoW提交/回滚操作失败: {e}")
-        finally:
-            try:
-                await self.db_session.close()
-            except asyncio.CancelledError:
-                logger.warning("UoW关闭数据库会话被取消(可能是客户端断开连接)")
-            except Exception as e:
-                logger.warning(f"UoW关闭数据库会话失败: {e}")
+            logger.warning(f"UoW提交/回滚/关闭失败: {e}")
+            self._schedule_close(session)
+        return False

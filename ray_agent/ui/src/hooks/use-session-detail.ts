@@ -37,6 +37,7 @@ export function useSessionDetail(
   const messageStreamCleanupRef = useRef<(() => void) | null>(null)
   const isSendMessageRef = useRef(false)
   const lastEventIdRef = useRef<string | null>(null)
+  const skipEmptyReconnectRef = useRef(false)
 
   const appendEvent = useCallback((ev: SSEEventData) => {
     let evToAppend = ev
@@ -236,24 +237,31 @@ export function useSessionDetail(
       // 发送消息时，清除跳过空流的标记
       setSkipEmptyStream(false)
       isSendMessageRef.current = true
+      skipEmptyReconnectRef.current = false
       setStreaming(true)
       
       // 立即更新状态为 running，不等待 SSE 事件
       setSession((prev) => prev ? { ...prev, status: 'running' } : null)
       
-      const finishMessageStream = () => {
+      const finishMessageStream = (options?: { abort?: boolean; reconnect?: boolean }) => {
         setStreaming(false)
         isSendMessageRef.current = false
-        if (messageStreamCleanupRef.current) {
+        if (options?.abort !== false && messageStreamCleanupRef.current) {
           messageStreamCleanupRef.current()
           messageStreamCleanupRef.current = null
+        } else {
+          messageStreamCleanupRef.current = null
         }
-        startEmptyStream()
+        if (options?.reconnect !== false) {
+          startEmptyStream()
+        }
       }
       const onEvent = (ev: SSEEventData) => {
         appendEvent(ev)
         if (ev.type === 'done' || ev.type === 'error') {
-          finishMessageStream()
+          // 不要立刻 abort：服务端还要写会话状态并归还数据库连接
+          skipEmptyReconnectRef.current = true
+          finishMessageStream({ abort: false, reconnect: false })
         }
       }
       const messageStreamCleanup = sessionApi.chat(
@@ -270,11 +278,10 @@ export function useSessionDetail(
           if (err.message === 'SSE_STREAM_END') {
             setStreaming(false)
             isSendMessageRef.current = false
-            if (messageStreamCleanupRef.current) {
-              messageStreamCleanupRef.current()
-              messageStreamCleanupRef.current = null
+            messageStreamCleanupRef.current = null
+            if (!skipEmptyReconnectRef.current) {
+              startEmptyStream()
             }
-            startEmptyStream()
             return
           }
           // 实际错误
@@ -286,7 +293,9 @@ export function useSessionDetail(
             messageStreamCleanupRef.current()
             messageStreamCleanupRef.current = null
           }
-          startEmptyStream()
+          if (!skipEmptyReconnectRef.current) {
+            startEmptyStream()
+          }
         }
       )
       // 将消息流的 cleanup 存到独立的 ref，不与 emptyStream 混淆

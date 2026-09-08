@@ -24,6 +24,8 @@ from app.domain.services.tools.base import BaseTool
 
 logger = logging.getLogger(__name__)
 
+_UNSET = object()
+
 
 class BaseAgent(ABC):
     """基础Agent智能体"""
@@ -208,10 +210,10 @@ class BaseAgent(ABC):
         async with self._uow:
             await self._uow.session.save_memory(self._session_id, self.name, self._memory)
 
-    async def invoke(self, query: str, format: Optional[str] = None) -> AsyncGenerator[BaseEvent, None]:
+    async def invoke(self, query: str, format: Optional[str] = _UNSET) -> AsyncGenerator[BaseEvent, None]:
         """传递消息+响应格式调用程序生成异步迭代内容"""
-        # 1.需要判断下是否传递了format
-        format = format if format else self._format
+        # 1.未显式传 format 时用子类默认；传 None 表示不强制 json_object，便于先走 tool_calls
+        format = self._format if format is _UNSET else format
 
         # 2.调用语言模型获取响应内容
         message = await self._invoke_llm(

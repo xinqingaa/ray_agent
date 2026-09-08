@@ -1,0 +1,8 @@
+{
+  "include": ["ray_agent/api"],
+  "extraPaths": ["ray_agent/api"],
+  "venvPath": "ray_agent/api",
+  "venv": ".venv",
+  "pythonVersion": "3.12",
+  "typeCheckingMode": "off"
+}

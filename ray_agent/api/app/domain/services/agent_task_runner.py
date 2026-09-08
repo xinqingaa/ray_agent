@@ -9,7 +9,7 @@ import asyncio
 import io
 import logging
 import uuid
-from typing import List, AsyncGenerator, Callable, BinaryIO
+from typing import List, AsyncGenerator, Callable, BinaryIO, Optional
 
 from fastapi import UploadFile
 from pydantic import TypeAdapter
@@ -32,6 +32,7 @@ from app.domain.models.session import SessionStatus
 from app.domain.models.tool_result import ToolResult
 from app.domain.repositories.uow import IUnitOfWork
 from app.domain.services.flows.planner_react import PlannerReActFlow
+from app.domain.services.agents.step_guard import MISSING_ATTACHMENT_ERROR
 from app.domain.services.task_error import format_public_error
 from app.infrastructure.logging import set_log_session_id
 from app.domain.services.tools.a2a import A2ATool
@@ -92,13 +93,13 @@ class AgentTaskRunner(TaskRunner):
             await self._uow.session.add_event(self._session_id, event)
 
     @classmethod
-    async def _pop_event(cls, task: Task) -> Event:
+    async def _pop_event(cls, task: Task) -> Optional[Event]:
         """从任务的输入流中获取事件信息"""
         # 1.从任务task中读取数据
         event_id, event_str = await task.input_stream.pop()
         if event_str is None:
             logger.warning(f"AgentTaskRunner接收到空消息")
-            return
+            return None
 
         # 2.使用pydantic+type类型将字符串转换成事件
         event = TypeAdapter(Event).validate_json(event_str)
@@ -327,10 +328,44 @@ class AgentTaskRunner(TaskRunner):
                 await self._handle_tool_event(event)
             elif isinstance(event, MessageEvent):
                 # 4.如果是消息事件则将AI消息事件中的附件同步到存储中
+                claimed = [
+                    attachment.filepath
+                    for attachment in (event.attachments or [])
+                    if getattr(attachment, "filepath", None)
+                ]
                 await self._sync_message_attachments_to_storage(event)
+                if claimed and not event.attachments:
+                    yield event
+                    yield ErrorEvent(error=MISSING_ATTACHMENT_ERROR)
+                    continue
 
             # 5.将事件直接返回
             yield event
+
+    def _schedule_detached(self, coro) -> None:
+        """把收尾写库放到新 Task，避开当前 Task 上的 cancel scope。"""
+        try:
+            asyncio.get_running_loop().create_task(coro)
+        except RuntimeError:
+            logger.warning(f"会话[{self._session_id}] 事件循环已关闭，无法后台持久化")
+            coro.close()
+
+    async def _persist_terminal_state(
+            self,
+            task: Task,
+            status: SessionStatus,
+            event: Event,
+    ) -> None:
+        """用全新 UoW 写入终态事件和会话状态，不复用可能已被取消的连接。"""
+        try:
+            event_id = await task.output_stream.put(event.model_dump_json())
+            event.id = event_id
+            uow = self._uow_factory()
+            async with uow:
+                await uow.session.add_event(self._session_id, event)
+                await uow.session.update_status(self._session_id, status)
+        except Exception as e:
+            logger.warning(f"会话[{self._session_id}] 任务终态持久化失败: {e}")
 
     async def _cleanup_tools(self) -> None:
         """清理MCP和A2A工具资源，确保在同一任务上下文中释放
@@ -364,6 +399,8 @@ class AgentTaskRunner(TaskRunner):
             while not await task.input_stream.is_empty():
                 # 3.从输入流中获取数据
                 event = await self._pop_event(task)
+                if event is None:
+                    continue
                 message = ""
 
                 # 4.判断事件类型是否为消息事件，如果是则处理消息并将附件同步到沙箱中
@@ -415,11 +452,12 @@ class AgentTaskRunner(TaskRunner):
                     SessionStatus.FAILED if had_error else SessionStatus.COMPLETED,
                 )
         except asyncio.CancelledError:
-            # 13.异步任务被取消，推送结束事件并跟新状态
+            # 13.当前 Task 已被取消（例如 stop_session），不能再 await 同一条连接。
+            # 终态写入放到新 Task，否则连接无法还回池子。
             logger.info(f"会话[{self._session_id}] AgentTaskRunner任务运行取消")
-            await self._put_and_add_event(task, DoneEvent())
-            async with self._uow:
-                await self._uow.session.update_status(self._session_id, SessionStatus.COMPLETED)
+            self._schedule_detached(
+                self._persist_terminal_state(task, SessionStatus.COMPLETED, DoneEvent())
+            )
             raise
         except Exception as e:
             # 14.记录日志并往任务队列/消息队列中写入异常事件并更新会话状态
