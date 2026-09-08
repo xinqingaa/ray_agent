@@ -6,45 +6,45 @@
 @File    : agent_executor.py
 """
 import uvicorn
-from a2a.server.apps import A2AStarletteApplication
 from a2a.server.request_handlers import DefaultRequestHandler
+from a2a.server.routes import create_agent_card_routes, create_jsonrpc_routes
 from a2a.server.tasks import InMemoryTaskStore
-from a2a.types import AgentSkill, AgentCard, AgentCapabilities
+from a2a.types import a2a_pb2 as types
+from starlette.applications import Starlette
 
-from agent_executor import DeepSeekAgentExecutor
+from agent_executor import LabAgentExecutor
 
 if __name__ == "__main__":
-    # 1.定义技能
-    skill = AgentSkill(
-        id="calculator",
-        name="计算器",
-        description="支持计算各种复杂数学公式",
-        tags=["计算器"],
-        examples=["445*34", "211/34.2+12"]
+    skill = types.AgentSkill(
+        id="deterministic-echo",
+        name="确定性回复",
+        description="返回 A2A_LAB_OK:原文，用于复现协议调用闭环。",
+        tags=["验收", "echo"],
+        examples=["ray-agent-lab"],
     )
 
-    # 2.定义Agent卡片
-    agent_card = AgentCard(
-        name="DeepSeek智能体",
-        description="这是一个可以调用Deepseek模型进行深度思考的智能体，在需要深度思考时可以使用",
-        url="http://localhost:9999",
-        version="1.0.0",
-        default_input_modes=["text"],
-        default_output_modes=["text"],
-        capabilities=AgentCapabilities(streaming=False),
+    agent_card = types.AgentCard(
+        name="RayAgent A2A 1.0 实验 Agent",
+        description="默认返回确定性 A2A_LAB_OK 回复，可选连接 DeepSeek。",
+        version="1.0",
+        supported_interfaces=[types.AgentInterface(
+            url="http://127.0.0.1:9999/",
+            protocol_binding="JSONRPC",
+            protocol_version="1.0",
+        )],
+        default_input_modes=["text/plain"],
+        default_output_modes=["text/plain"],
+        capabilities=types.AgentCapabilities(streaming=False),
         skills=[skill],
-        supports_authenticated_extended_card=False,
     )
 
-    # 3.使用a2a默认的请求处理器(jsonrpc)
     request_handler = DefaultRequestHandler(
-        agent_executor=DeepSeekAgentExecutor(),
-        task_store=InMemoryTaskStore()
-    )
-
-    # 4.创建or启动一个a2a服务器
-    server = A2AStarletteApplication(
+        agent_executor=LabAgentExecutor(),
+        task_store=InMemoryTaskStore(),
         agent_card=agent_card,
-        http_handler=request_handler,
     )
-    uvicorn.run(server.build(), host="0.0.0.0", port=9999)
+    app = Starlette(routes=[
+        *create_agent_card_routes(agent_card),
+        *create_jsonrpc_routes(request_handler, rpc_url="/"),
+    ])
+    uvicorn.run(app, host="127.0.0.1", port=9999)

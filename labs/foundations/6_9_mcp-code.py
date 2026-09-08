@@ -7,18 +7,24 @@
 """
 import os
 import subprocess
+import tempfile
 import uuid
+from pathlib import Path
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server import MCPServer
+from mcp.server.transport_security import TransportSecuritySettings
 
-mcp = FastMCP(name="代码解释器", port=9888)
-BASE_DIR = "D:\Code\imooc-mas\mas-study"
+mcp = MCPServer(name="MCP 2.2 代码解释器", version="1.0")
+BASE_DIR = Path(os.getenv(
+    "MCP_CODE_DIR",
+    str(Path(tempfile.gettempdir()) / "ray-agent-mcp-code"),
+))
 UV_CMD = "uv"
 
 
 @mcp.tool()
 async def run_code(language: str, code: str, timeout: int = 30) -> str:
-    """根据语言运行代码并返回执行结果，Python代码会使用D:\Code\imooc-mas\mas-study中uv创建的Python 3.12版本运行。
+    """根据语言运行代码并返回执行结果，临时文件写入 MCP_CODE_DIR。
 
     Args:
         language: 'python' 或者 'node'
@@ -36,10 +42,10 @@ async def run_code(language: str, code: str, timeout: int = 30) -> str:
     # 2.计算获取临时代码文件名
     suffix = ".py" if language == "python" else ".js"
     name = f"temp_{uuid.uuid4().hex}{suffix}"
-    tmp_path = os.path.join(BASE_DIR, name)
+    tmp_path = BASE_DIR / name
 
     # 3.确保目录存在
-    os.makedirs(BASE_DIR, exist_ok=True)
+    BASE_DIR.mkdir(parents=True, exist_ok=True)
 
     try:
         # 4.写入临时文件
@@ -50,10 +56,10 @@ async def run_code(language: str, code: str, timeout: int = 30) -> str:
         cwd = BASE_DIR
         if language == "python":
             # 6.使用uv来运行对应的文件
-            cmd = [UV_CMD, "--directory", BASE_DIR, "run", name]
+            cmd = [UV_CMD, "--directory", str(BASE_DIR), "run", name]
         else:
             # 7.使用node命令运行脚本
-            cmd = ["node", tmp_path]
+            cmd = ["node", str(tmp_path)]
 
         # 8.调用子线程运行对应命令
         proc = subprocess.run(
@@ -61,7 +67,7 @@ async def run_code(language: str, code: str, timeout: int = 30) -> str:
             capture_output=True,
             text=True,
             timeout=timeout,
-            cwd=cwd,
+            cwd=str(cwd),
         )
 
         # 9.获取输出与错误结果
@@ -89,4 +95,11 @@ async def run_code(language: str, code: str, timeout: int = 30) -> str:
 
 
 if __name__ == "__main__":
-    mcp.run(transport="streamable-http")
+    mcp.run(
+        transport="streamable-http",
+        host="127.0.0.1",
+        port=9888,
+        transport_security=TransportSecuritySettings(
+            enable_dns_rebinding_protection=False
+        ),
+    )

@@ -76,15 +76,23 @@ async def test_a2a_card_sdk_negotiation_and_invalid_interfaces(servers):
 
 @pytest.mark.anyio
 async def test_config_offline_manageable_and_correct_return_type(servers):
-    config=AppConfig.model_validate({'llm_config':{},'agent_config':{},'mcp_config':{},'a2a_config':{
-        'a2a_servers':[{'id':'offline','base_url':servers['a2a']+'/invalid'},
-                       {'id':'disabled','base_url':servers['a2a'], 'enabled':False}]}})
+    config=AppConfig.model_validate({'llm_config':{},'agent_config':{},'mcp_config':{'mcpServers':{
+        'offline':{'url':servers['a2a']+'/mcp-wire/legacy'},
+        'disabled':{'url':servers['a2a']+'/mcp-wire/pages','enabled':False}}},
+        'a2a_config':{'a2a_servers':[{'id':'offline','base_url':servers['a2a']+'/invalid'},
+                                     {'id':'disabled','base_url':servers['a2a'], 'enabled':False}]}})
     repository=Mock()
     repository.load.side_effect=lambda:deepcopy(config)
     repository.save.side_effect=lambda value:config.__dict__.update(deepcopy(value.__dict__))
     service=AppConfigService(repository)
-    rows=await service.get_a2a_servers()
-    assert [(r.id,r.connection_status) for r in rows]==[('offline','unavailable'),('disabled','disabled')]
+    mcp_rows=await service.get_mcp_servers()
+    assert [(r.server_name,r.connection_status) for r in mcp_rows]==[
+        ('offline','unavailable'),('disabled','disabled')]
+    assert isinstance(await service.set_mcp_server_enabled('offline',False),MCPConfig)
+    assert isinstance(await service.delete_mcp_server('offline'),MCPConfig)
+    assert [r.server_name for r in (await service.get_mcp_servers())]==['disabled']
+    a2a_rows=await service.get_a2a_servers()
+    assert [(r.id,r.connection_status) for r in a2a_rows]==[('offline','unavailable'),('disabled','disabled')]
     assert isinstance(await service.set_a2a_server_enabled('offline',False),A2AConfig)
     assert isinstance(await service.delete_a2a_server('offline'),A2AConfig)
     assert [r.id for r in (await service.get_a2a_servers())]==['disabled']

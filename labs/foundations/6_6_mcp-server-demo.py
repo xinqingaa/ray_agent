@@ -7,9 +7,9 @@
 """
 import json
 
-from mcp.server.fastmcp import FastMCP
+from mcp.server import MCPServer
 
-mcp = FastMCP()
+mcp = MCPServer(name="MCP 2.2 stdio calculator", version="1.0")
 
 
 @mcp.tool()

@@ -11,41 +11,56 @@ import httpx
 
 
 async def main() -> None:
-    # 1.定义a2a远程agent-card基础url地址
-    base_url = "http://localhost:9999"
-
-    # 2.创建一个httpx客户端上下文
-    async with httpx.AsyncClient(timeout=600) as httpx_client:
-        # 3.获取agent卡片信息
-        agent_card_response = await httpx_client.get(f"{base_url}/.well-known/agent-card.json")
+    base_url = "http://127.0.0.1:9999"
+    query = "ray-agent-lab"
+    async with httpx.AsyncClient(
+        timeout=30,
+        headers={"A2A-Version": "1.0"},
+    ) as httpx_client:
+        agent_card_response = await httpx_client.get(
+            f"{base_url}/.well-known/agent-card.json"
+        )
         agent_card_response.raise_for_status()
         print("Agent Card:", agent_card_response.json())
 
-        # 4.提取Agent卡片信息+请求端点
         agent_card = agent_card_response.json()
-        url = agent_card.get("url", "")
-        if url == "":
-            return
+        interfaces = agent_card.get("supportedInterfaces") or []
+        jsonrpc = next(
+            (
+                item for item in interfaces
+                if item.get("protocolBinding") == "JSONRPC"
+                and item.get("protocolVersion") == "1.0"
+            ),
+            None,
+        )
+        if jsonrpc is None:
+            raise RuntimeError("Agent Card 未公布 A2A 1.0 JSON-RPC 接口")
 
-        # 5.构建发送消息请求体
         request_body = {
             "id": str(uuid.uuid4()),
             "jsonrpc": "2.0",
-            "method": "message/send",
+            "method": "SendMessage",
             "params": {
                 "message": {
-                    "messageId": uuid.uuid4().hex,
-                    "role": "user",
-                    "parts": [
-                        {"kind": "text", "text": "帮我随机生成10个整数"},
-                    ],
+                    "messageId": str(uuid.uuid4()),
+                    "role": "ROLE_USER",
+                    "parts": [{"text": query}],
                 },
+                "configuration": {},
             },
         }
-        agent_response = await httpx_client.post(f"{url}", json=request_body)
+        agent_response = await httpx_client.post(
+            jsonrpc["url"], json=request_body
+        )
         agent_response.raise_for_status()
-        print(agent_response.json())
-
+        payload = agent_response.json()
+        print("Response:", payload)
+        if "error" in payload:
+            raise RuntimeError(f"A2A JSON-RPC 错误: {payload['error']}")
+        parts = payload.get("result", {}).get("message", {}).get("parts", [])
+        expected = f"A2A_LAB_OK:{query}"
+        if expected not in [part.get("text") for part in parts]:
+            raise RuntimeError(f"未收到确定性回复 {expected}")
 
 if __name__ == "__main__":
     import asyncio

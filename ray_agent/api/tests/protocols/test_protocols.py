@@ -3,6 +3,7 @@ import json
 import os
 import sys
 import time
+from importlib.metadata import version
 from pathlib import Path
 
 import pytest
@@ -28,6 +29,11 @@ def a2a_config(servers, **kwargs):
 
 def events(servers):
     return [json.loads(line) for line in servers['log'].read_text().splitlines()]
+
+
+def test_protocol_versions_are_locked():
+    assert version('mcp') == '2.2.0'
+    assert version('a2a-sdk') == '1.1.2'
 
 
 @pytest.mark.parametrize('field,value', [('env',None),('args',None),('headers',None),('transport','sse'),('env',{'X':3})])

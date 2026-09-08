@@ -8,14 +8,17 @@
 import asyncio
 import json
 import os
+import sys
 from contextlib import AsyncExitStack
+from pathlib import Path
 from typing import Optional
 
 import dotenv
-from mcp import ClientSession, StdioServerParameters
-from mcp.client.stdio import stdio_client
+from mcp import Client, StdioServerParameters
 from openai import AsyncOpenAI
 from openai.types.chat.chat_completion_chunk import ChoiceDeltaToolCall
+
+from mcp_client_2026 import PROTOCOL_VERSION, adopt_protocol
 
 dotenv.load_dotenv()
 
@@ -29,7 +32,7 @@ class ReActAgent:
     def __init__(self):
         """构造函数，完成ReActAgent的初始化，涵盖客户端、生命周期、MCP会话"""
         self.model = "deepseek-chat"
-        self.session: Optional[ClientSession] = None
+        self.mcp_client: Optional[Client] = None
         self.exit_stack = AsyncExitStack()
         self.client = AsyncOpenAI()
         self.messages = [{"role": "system", "content": SYSTEM_PROMPT}]
@@ -37,23 +40,19 @@ class ReActAgent:
 
     async def init_mcp(self) -> None:
         """连接到MCP服务器"""
-        # 1.构建stdio本地连接参数信息
+        server_script = Path(__file__).with_name("6_6_mcp-server-demo.py")
         server_params = StdioServerParameters(
-            command="uv",
-            args=["--directory", "D:\\Code\\imooc-mas\\mas-study", "run", "6_6_mcp-server-demo.py"],
-            env=None,
+            command=sys.executable,
+            args=[str(server_script)],
+            env={},
         )
 
-        # 2.启动标准输入输出客户端
-        stdio_transport = await self.exit_stack.enter_async_context(stdio_client(server_params))
-        stdio, write = stdio_transport
-        self.session = await self.exit_stack.enter_async_context(ClientSession(stdio, write))
+        self.mcp_client = await self.exit_stack.enter_async_context(
+            Client(server_params, mode=PROTOCOL_VERSION, cache=None)
+        )
+        await adopt_protocol(self.mcp_client)
 
-        # 3.初始化客户端
-        await self.session.initialize()
-
-        # 4.获取工具列表数据
-        response = await self.session.list_tools()
+        response = await self.mcp_client.list_tools()
         tools = response.tools
         print("工具列表:", [tool.name for tool in tools])
         self.tools = [{
@@ -61,7 +60,7 @@ class ReActAgent:
             "function": {
                 "name": tool.name,
                 "description": tool.description,
-                "parameters": tool.inputSchema,
+                "parameters": tool.input_schema,
             }
         } for tool in tools]
 
@@ -127,7 +126,9 @@ class ReActAgent:
 
                 # 调用工具
                 try:
-                    result = await self.session.call_tool(tool_name, tool_arguments)
+                    if self.mcp_client is None:
+                        raise RuntimeError("MCP 客户端尚未初始化")
+                    result = await self.mcp_client.session.call_tool(tool_name, tool_arguments)
                     result = result.content[0].text
                 except Exception as e:
                     result = f"工具执行出错, Error: {str(e)}"

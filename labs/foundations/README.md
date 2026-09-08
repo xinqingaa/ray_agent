@@ -11,7 +11,7 @@
 | `3_11` | 语音交互示例 |
 | `4_2`～`4_4` | 上下文与 ReAct 实验 |
 | `4_5`～`4_6` | 同步、异步与 FastAPI |
-| `6_5`～`6_11` | MCP 服务端、客户端与外部工具 |
+| `6_5`～`6_11` | MCP 2.2 服务端、客户端、手写对照与外部工具 |
 | `10-4`、`10-6` | 浏览器操作与 CDP |
 | [demo-code/](demo-code/) | 模型与 Agent 综合示例 |
 | [天气 Agent 入口](<2-2 code/weather/__main__.py>)、[交互界面入口](<2-2 code/ui/main.py>) | A2A 配套示例 |
@@ -29,4 +29,36 @@ uv run --locked python '3_4_DeepSeek API调用.py'
 
 `demo-code/`、`2-2 code/weather/` 和 `2-2 code/ui/` 分别维护独立环境，应在对应目录运行。保留 `resources/` 等资源的相对路径。
 
-命令来自脚本和配置核对，尚未逐一运行验证。本文件提供导航，具体概念与产品对照由 lessons 讲解。
+## MCP 2.2 可复现基线
+
+本目录锁定 `mcp==2.2.0`，客户端显式采用 `2026-07-28` 协议，不回退到旧 `initialize` 握手。
+
+stdio 闭环会由客户端启动本地计算器服务：
+
+```bash
+uv run --locked python 6_7_mcp-client-demo.py
+uv run --locked python 6_7_mcp-client-with-exit-stack.py
+```
+
+两条命令都应发现 `calculator` 并得到结果 `42`。
+
+Streamable HTTP 闭环需要两个终端：
+
+```bash
+uv run --locked python 6_9_mcp-code.py
+```
+
+```bash
+uv run --locked python 6_9_mcp-client.py
+```
+
+客户端应发现 `run_code` 并得到结果 `42`。以上 stdio 与 HTTP 闭环已在 macOS/Python 3.12 下实际验证，不需要模型密钥或外部网络。
+
+## 对照与非基线示例
+
+- `6_5_无MCP SDK调用高德MCP.py` 保留手写请求，用于观察不使用 SDK 时需要自行承担的协议处理。
+- `6_7_ReAct-Agent-with-mcp.py` 已适配 MCP 2.2，但运行还需要模型密钥。
+- `6_8_mcp-bash.py`、`6_10_mcp-external-api.py` 和 `6_11_mcp-client-connect-api.py` 分别依赖本机 Shell 或外部服务，不作为离线验收条件；`6_11` 需要 `BAIDU_MCP_TOKEN`，且对端必须支持目标协议。
+- `demo-code/`、`2-2 code/weather/` 和 `2-2 code/ui/` 是独立历史综合环境，不属于阶段 3 的协议教学基线。其中 UI 示例还依赖仓库未包含的上游模块，不能表述为当前可运行示例。
+
+本文件只声明实际验证过的入口；具体概念与产品对照由 lessons 讲解。

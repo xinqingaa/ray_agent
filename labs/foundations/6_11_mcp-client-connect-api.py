@@ -6,47 +6,38 @@
 @File    : 6_11_mcp-client-connect-api.py
 """
 import asyncio
-from contextlib import AsyncExitStack
+import os
 
-from mcp import ClientSession
-from mcp.client.streamable_http import streamablehttp_client
+import httpx2
+from mcp import Client
+from mcp.client.streamable_http import streamable_http_client
+
+from mcp_client_2026 import PROTOCOL_VERSION, adopt_protocol
 
 
 async def main() -> None:
-    # 1.百度AI搜索配置信息
-    baidu_ai_search_api = "https://qianfan.baidubce.com/v2/ai_search/mcp"
-    headers = {"Authorization": "Bearer xxxx"}
+    api_url = os.getenv(
+        "BAIDU_MCP_URL",
+        "https://qianfan.baidubce.com/v2/ai_search/mcp",
+    )
+    token = os.getenv("BAIDU_MCP_TOKEN")
+    if not token:
+        raise RuntimeError("请先设置 BAIDU_MCP_TOKEN；该外部示例不属于离线验收基线")
 
-    # 2.创建异步上下文管理器
-    exit_stack = AsyncExitStack()
-
-    try:
-        # 3.创建连接客户端
-        transport = await exit_stack.enter_async_context(streamablehttp_client(
-            url=baidu_ai_search_api,
-            headers=headers,
-        ))
-
-        # 4.获取读取、写入流
-        read_stream, write_stream, _ = transport
-
-        # 5.创建客户端会话
-        session: ClientSession = await exit_stack.enter_async_context(ClientSession(read_stream, write_stream))
-
-        # 6.初始化会话
-        await session.initialize()
-
-        # 7.获取工具列表并输出
-        list_tools_result = await session.list_tools()
-        print(list_tools_result)
-
-        # 8.调用指定工具实现百度搜索
-        call_tool_result = await session.call_tool("chatCompletions", {
-            "query": "2025年广州马拉松"
-        })
-        print("工具调用结果:", call_tool_result.content[0].text)
-    finally:
-        await exit_stack.aclose()
+    async with httpx2.AsyncClient(
+        headers={"Authorization": f"Bearer {token}"}
+    ) as http:
+        transport = streamable_http_client(api_url, http_client=http)
+        async with Client(
+            transport, mode=PROTOCOL_VERSION, cache=None
+        ) as client:
+            await adopt_protocol(client)
+            print(await client.list_tools())
+            result = await client.session.call_tool(
+                "chatCompletions",
+                {"query": "2025年广州马拉松"},
+            )
+            print("工具调用结果:", result)
 
 
 if __name__ == "__main__":

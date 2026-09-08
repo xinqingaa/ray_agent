@@ -6,8 +6,8 @@
 
 | 入口 | 主题 |
 |---|---|
-| [基础实验](foundations/README.md) | LLM、结构化输出、ReAct、异步 HTTP、MCP 和浏览器 |
-| [A2A 实验](a2a/README.md) | SDK 服务端、SDK 客户端与手写 HTTP 客户端 |
+| [基础实验](foundations/README.md) | LLM、结构化输出、ReAct、异步 HTTP、MCP 2.2 和浏览器 |
+| [A2A 实验](a2a/README.md) | A2A 1.0 SDK 服务端、SDK 客户端与手写 JSON-RPC 客户端 |
 
 基础实验中还包含综合示例、天气 Agent 和配套交互界面，具体入口由各目录 README 导航。
 
@@ -16,5 +16,14 @@
 先选择主题，再按对应 README 确认脚本、工作目录、依赖文件和服务配置。各实验及部分子项目使用独立环境，没有统一的仓库根安装命令。
 
 保留示例资源所需的相对路径。协议示例既包含客户端也包含服务端，运行前确认角色、端口和启动顺序。
+
+## 阶段 2 协议基线
+
+阶段 3 的协议教学以以下已验证闭环为准：
+
+- `foundations/`：`mcp==2.2.0`，覆盖 MCP `2026-07-28` 的 stdio 和 Streamable HTTP。
+- `a2a/`：`a2a-sdk==1.1.2`，覆盖 A2A 1.0 JSON-RPC 的官方 SDK 客户端与手写客户端。
+
+手写协议示例用于对照 SDK 的职责，不代表产品采用手写协议。需要外部凭据的高德、百度、LLMOPS 和模型示例属于可选扩展；`foundations/2-2 code/` 下依赖旧 SDK 或缺失上游模块的综合示例作为历史参考，不属于已验证基线。
 
 本目录负责实验导航与运行入口；课程主题和讲解规范见 [教学入口](../lessons/README.md)，完整应用运行见 [产品指南](../ray_agent/README.md)。
