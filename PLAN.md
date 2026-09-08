@@ -39,8 +39,6 @@
 
 主产品 `ray_agent/` 与已确认范围内的 `labs/` 已完成升级和验收。
 
-最终实现边界见 [主产品协议升级说明](docs/product-protocol-upgrade.md)，U1–U6、T1–T5、命令和会话证据见 [主产品协议验收记录](docs/product-protocol-acceptance.md)。
-
 ### 2A：主产品升级
 
 - [x] 盘点主产品 MCP/A2A 实现、依赖及验证缺口。

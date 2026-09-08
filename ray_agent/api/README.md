@@ -2,7 +2,7 @@
 
 API 使用 FastAPI、Pydantic、SQLAlchemy 和 Alembic，负责会话、Agent 执行及外部能力接入。整体职责与执行流程见 [架构说明](../../docs/architecture.md)，完整应用部署见 [运行指南](../README.md)。
 
-以下命令在 `ray_agent/api/` 执行。各轮实际执行条件与结果见项目验收记录。
+以下命令在 `ray_agent/api/` 执行。
 
 ## 依赖与配置
 
@@ -68,9 +68,11 @@ uv run --locked alembic upgrade head
 
 启动失败先查看生命周期日志和服务连接；任务创建失败沿任务准备与沙箱适配追踪；事件展示问题同时检查 SSE 映射和前端解析。Compose 启停与按服务查看日志见 [Docker 操作说明](../DOCKER.md)，整体检查入口见 [运行指南](../README.md#排查入口)。
 
-## MCP/A2A 开发与验收
+## MCP/A2A
 
-版本、协议边界和验收条件统一维护在 [协议升级说明](../../docs/product-protocol-upgrade.md)。安装后核对与导出：
+仓库里的 [config.yaml](config.yaml) 保持空集合，供镜像默认值和 Git 使用。
+
+pytest 会自己拉起临时协议服务，不依赖本机 9911/9912，也不能代替页面验收：
 
 ```bash
 uv run --locked python -c 'from importlib.metadata import version; print({p: version(p) for p in ["mcp", "a2a-sdk"]})'
@@ -78,28 +80,34 @@ uv export --locked --format requirements-txt --no-dev -o requirements.txt
 uv run --locked python -m pytest tests/protocols tests/core
 ```
 
-协议测试会自动启动本地 HTTP/stdio 服务，使用临时目录保存日志，结束后回收子进程，不依赖 labs、模型密钥或日常数据库。确定性 A2A 测试端点使用官方消息类型和 ProtoJSON 序列化，并故意提供错误响应，用于覆盖客户端边界；它不是对外提供的生产 A2A 服务端。
+### 怎么接到产品里
 
-在两个终端启动页面验收服务：
+对端必须先在跑，并且协议一致：MCP `2026-07-28`（`stdio` 或 `streamable_http`），A2A 1.0 JSON-RPC。产品只做发现、调用和结果展示；不提供 OAuth、MCP resources、A2A 多轮人工续接。
+
+日常在**首页右上角齿轮**（标题「MoocManus 设置」）添加，不要改仓库 yaml：
+
+1. 打开 http://localhost:8088/ 。会话详情页没有设置按钮。
+2. 「MCP 服务器」或「A2A Agent 配置」→ 添加。
+3. 开关打开后才会探测。对端没起来会显示「不可用」，配置仍会留下。
+4. Compose 里的 API 读写容器内 `/app/config.yaml`，没有挂载仓库文件；手改 `ray_agent/api/config.yaml` 不会立刻生效。查看运行中配置：`docker compose exec -T manus-api cat /app/config.yaml`（在 `ray_agent/` 执行）。
+5. Docker Desktop 中的 API 访问宿主机用 `host.docker.internal`，不要填容器自己的 `127.0.0.1`。API 跑在宿主机时用 `127.0.0.1`。
+6. stdio 的 MCP 必须写 `transport: stdio` 和 `command`；省略 `args`/`env` 分别为 `[]`/`{}`。旧 MCP `sse` 已移除，页面任务事件 SSE 不受影响。
+7. 工具失败可能让当前任务整轮结束；连测时把故意失败的步骤放在最后。
+8. 真实凭据只写运行中配置或未跟踪文件，不要提交进仓库。
+
+线上用法是连接已经部署、协议一致的服务，不需要起下面的验收夹具。
+
+### 本地页面验收
+
+夹具只提供加法、固定回复和固定失败，不是生产服务。产品 Compose 保持运行，然后：
 
 ```bash
-RAY_PROTOCOL_LOG=/tmp/ray-protocol-acceptance.jsonl uv run --locked python tests/protocols/fixture_server.py mcp --port 9911
+./scripts/run-protocol-fixtures.sh start          # API 在 Docker Desktop
+./scripts/run-protocol-fixtures.sh start --local  # API 在宿主机
+./scripts/run-protocol-fixtures.sh status
+./scripts/run-protocol-fixtures.sh stop
 ```
 
-```bash
-RAY_PROTOCOL_LOG=/tmp/ray-protocol-acceptance.jsonl uv run --locked python tests/protocols/fixture_server.py a2a --port 9912 --public-url http://host.docker.internal:9912
-```
+`start` 会打印设置里应粘贴的地址。添加后两项应为「已连接」，MCP 能看到 `add`。新建任务验证调用，不要发在旧会话里。做完：设置里删除临时项，再 `stop`。不要把 `9911`/`9912` 写进仓库 yaml。
 
-以上公布地址供 Docker Desktop 中的产品 API 使用。API 在宿主机运行时，把 A2A `--public-url` 改为 `http://127.0.0.1:9912`。卡片公布的调用端点与获取卡片的地址都必须从 API 可达。
-
-页面 MCP 设置中添加：
-
-```json
-{"mcpServers":{"acceptance":{"transport":"streamable_http","url":"http://host.docker.internal:9911/mcp"}}}
-```
-
-页面 A2A 设置添加 `http://host.docker.internal:9912`。执行验收后删除临时设置并停止两个终端进程。不要覆盖已有服务配置。测试服务仅限本地验收，它们没有生产认证。
-
-MCP stdio 配置必须显式选择 `transport: stdio` 并提供 `command`；省略 `args`、`env` 分别使用 `[]`、`{}`，显式 null 无效。旧 MCP `sse` 传输已移除，页面任务事件 SSE 不受影响。
-
-`config.yaml` 的每个 MCP/A2A 服务可以设置 `connect_timeout`、`discovery_timeout`、`call_timeout`（秒），A2A 另有 `cancel_timeout`。两个协议配置根节点均有 `discovery_budget`。静态认证通过服务 `headers` 配置；stdio 环境通过 `env` 配置。只在本地未跟踪配置中写入真实凭据，勿提交到仓库。
+每个服务可设 `connect_timeout`、`discovery_timeout`、`call_timeout`（秒），A2A 另有 `cancel_timeout`；配置根节点有 `discovery_budget`。静态认证用 `headers`，stdio 环境用 `env`。

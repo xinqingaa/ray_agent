@@ -76,7 +76,7 @@ UI 发起聊天请求
 
 Shell 和文件工具通过 API 侧适配访问沙箱服务，浏览器操作通过 Playwright 连接沙箱浏览器。修改时需同时考虑调用端与执行端。
 
-`domain/services/tools/` 通过协议端口使用 `infrastructure/protocols/`，应用服务负责组装。MCP 使用官方 Client，A2A 使用官方卡片解析器和客户端工厂；版本与支持边界见 [协议升级说明](product-protocol-upgrade.md)。
+`domain/services/tools/` 通过协议端口使用 `infrastructure/protocols/`，应用服务负责组装。MCP 使用官方 Client，A2A 使用官方卡片解析器和客户端工厂。在产品中添加服务、启动本地验收夹具的步骤见 [API 开发指南](../ray_agent/api/README.md#mcpa2a)。
 
 MCP 的每个连接由独立任务拥有，发现、调用和退出 SDK 上下文均在该任务执行；调用者取消会触发连接关闭。A2A 单次委派收到进行中的 Task 后只查询相同 Task，不重发原 query。远程状态保存在工具结果中，不替代本地 SessionStatus；需要输入或认证返回未完成原因，本次不自动创建主流程 waiting 续接。
 
