@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { sessionApi } from '@/lib/api/session'
-import { normalizeEvent, normalizeEvents } from '@/lib/session-events'
+import { normalizeEvent, normalizeEvents, trimToLastUserMessage } from '@/lib/session-events'
 import type { SessionDetail, SSEEventData, SessionFile } from '@/lib/api/types'
 import { isSessionFinished } from '@/lib/api/types'
 
@@ -14,7 +14,7 @@ export type UseSessionDetailResult = {
   error: Error | null
   refresh: () => Promise<void>
   refreshFiles: () => Promise<void>
-  sendMessage: (message: string, attachmentIds: string[]) => Promise<void>
+  sendMessage: (message: string, attachmentIds: string[], options?: { retry?: boolean }) => Promise<void>
   streaming: boolean
 }
 
@@ -222,8 +222,11 @@ export function useSessionDetail(
   }, [])
 
   const sendMessage = useCallback(
-    async (message: string, attachmentIds: string[]) => {
+    async (message: string, attachmentIds: string[], options?: { retry?: boolean }) => {
       if (!sessionId) return
+      if (options?.retry) {
+        setEvents((prev) => trimToLastUserMessage(prev))
+      }
       stopEmptyStream()
       // 清理已有的消息流连接（如 waiting 状态时用户再次发送）
       if (messageStreamCleanupRef.current) {

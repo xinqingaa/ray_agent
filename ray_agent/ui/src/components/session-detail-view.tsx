@@ -12,6 +12,7 @@ import { VNCOverlay } from '@/components/vnc-overlay'
 import { useSessionDetail } from '@/hooks/use-session-detail'
 import { getToolKind } from '@/components/tool-use/utils'
 import {
+  collapseRetriedTurns,
   eventsToTimeline,
   findLastUserRetry,
   getLatestPlanFromEvents,
@@ -63,8 +64,9 @@ export function SessionDetailView({ sessionId, initialMessage, initialAttachment
     streaming,
   } = useSessionDetail(sessionId, hasInitialMessage)
 
-  const timeline = useMemo(() => eventsToTimeline(events), [events])
-  const planSteps = useMemo(() => getLatestPlanFromEvents(events), [events])
+  const visibleEvents = useMemo(() => collapseRetriedTurns(events), [events])
+  const timeline = useMemo(() => eventsToTimeline(visibleEvents), [visibleEvents])
+  const planSteps = useMemo(() => getLatestPlanFromEvents(visibleEvents), [visibleEvents])
   const lastUserRetry = useMemo(() => findLastUserRetry(timeline), [timeline])
   const lastErrorId = useMemo(() => {
     for (let i = timeline.length - 1; i >= 0; i--) {
@@ -153,7 +155,7 @@ export function SessionDetailView({ sessionId, initialMessage, initialAttachment
   const handleRetry = useCallback(async () => {
     if (!lastUserRetry || isBusy) return
     try {
-      await sendMessage(lastUserRetry.message, lastUserRetry.attachmentIds)
+      await sendMessage(lastUserRetry.message, lastUserRetry.attachmentIds, { retry: true })
     } catch (e) {
       toast.error(e instanceof Error ? e.message : '重试失败')
     }
