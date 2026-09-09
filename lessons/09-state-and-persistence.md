@@ -1,15 +1,15 @@
-# State and Persistence
+# 状态与持久化
 
 执行中的信息分别归谁，能够保存多久？
 
-## Narrative
+## 叙述方向
 
 区分上下文、计划、任务状态和会话历史，追踪内存与存储之间的变化，再解释刷新、重连和重启各自意味着什么。
 
-## Material and scope
+## 材料与范围
 
 主要载体：RayAgent：状态模型、存储与历史。材料与实现入口见 [素材索引](map.md#chapter-materials)。
 
 保存历史不等于能够恢复执行；上下文概念承接第 05 章。
 
-[上一章：Task Execution and Control](08-task-execution-and-control.md) · [课程目录](README.md) · [下一章：Events and Streaming](10-events-and-streaming.md)
+[上一章：任务执行与控制](08-task-execution-and-control.md) · [课程目录](README.md) · [下一章：事件与流式传递](10-events-and-streaming.md)

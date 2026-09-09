@@ -6,23 +6,23 @@
 
 | 章节 | 素材与实现入口 | 环境边界 |
 |---|---|---|
-| [01 · The RayAgent System](01-the-rayagent-system.md) | [架构说明](../docs/architecture.md) | 概念阅读，无需启动服务 |
-| [02 · Model Interaction](02-model-interaction.md) | `labs/foundations/3_4` 调用与流式脚本；`3_6` SDK 对照 | foundations 环境 + 模型配置 |
-| [03 · Tools and Actions](03-tools-and-actions.md) | `labs/foundations/3_7`、`3_8`、`3_9` | foundations 环境；按脚本配置模型 |
-| [04 · Agent Loop and ReAct](04-agent-loop-and-react.md) | `labs/foundations/4_3`、`4_4`；核对真实反馈与终止控制 | foundations 环境 + 模型配置 |
-| [05 · Context and Memory](05-context-and-memory.md) | `labs/foundations/4_2` 及循环脚本中的消息构造 | foundations 环境；按脚本配置模型 |
-| [06 · Run RayAgent: One Complete Task](06-run-rayagent-one-complete-task.md) | [应用指南](../ray_agent/README.md)；共同文件任务 | Compose + 模型配置 |
-| [07 · Planning and Nested Loops](07-planning-and-nested-loops.md) | [计划流程](../ray_agent/api/app/domain/services/flows/planner_react.py)、[Agent 基类](../ray_agent/api/app/domain/services/agents/base.py) | 源码；对照第 06 章任务 |
-| [08 · Task Execution and Control](08-task-execution-and-control.md) | [应用协调](../ray_agent/api/app/application/services/agent_service.py)、[运行器](../ray_agent/api/app/domain/services/agent_task_runner.py)、[任务适配](../ray_agent/api/app/infrastructure/external/task/redis_stream_task.py) | 源码；运行观察使用产品环境 |
-| [09 · State and Persistence](09-state-and-persistence.md) | [领域模型](../ray_agent/api/app/domain/models/)、[存储](../ray_agent/api/app/infrastructure/storage/) | 源码；产品历史与状态观察 |
-| [10 · Events and Streaming](10-events-and-streaming.md) | [领域事件](../ray_agent/api/app/domain/models/event.py)、[接口事件](../ray_agent/api/app/interfaces/schemas/event.py)、[前端事件](../ray_agent/ui/src/lib/session-events.ts)；异步 labs | 产品环境；异步实验使用 foundations 环境 |
-| [11 · Sandbox and Execution Environment](11-sandbox-and-execution-environment.md) | [沙箱适配](../ray_agent/api/app/infrastructure/external/sandbox/docker_sandbox.py)、[沙箱指南](../ray_agent/sandbox/README.md) | 产品与沙箱环境 |
-| [12 · Files and Artifacts](12-files-and-artifacts.md) | [工具](../ray_agent/api/app/domain/services/tools/)、[文件存储](../ray_agent/api/app/infrastructure/external/file_storage/) | 产品环境；复用文件任务 |
-| [13 · Browser as a Tool](13-browser-as-a-tool.md) | `labs/foundations/10-6`、`10-4`；[沙箱指南](../ray_agent/sandbox/README.md) | 本机浏览器实验与产品沙箱分别配置 |
-| [14 · External Tools with MCP](14-external-tools-with-mcp.md) | MCP labs；[MCP 适配](../ray_agent/api/app/infrastructure/protocols/mcp.py) | 独立客户端／服务端；产品夹具见 API 指南 |
-| [15 · Agent Collaboration with A2A](15-agent-collaboration-with-a2a.md) | `labs/a2a`；[A2A 适配](../ray_agent/api/app/infrastructure/protocols/a2a.py) | 独立 A2A 环境；产品夹具见 API 指南 |
-| [16 · Reliability and Verification](16-reliability-and-verification.md) | [API 指南](../ray_agent/api/README.md)、任务运行器、Agent 基类与资源适配层 | 按具体故障场景准备产品环境 |
-| [17 · From Sessions to Workspaces](17-from-sessions-to-workspaces.md) | [架构说明](../docs/architecture.md)、[工作区调研](../docs/workspace-harness-research.md) | 先静态核对现状，运行结论另行验证 |
+| [01 · 认识 RayAgent：从一句请求到任务完成](01-the-rayagent-system.md) | [架构说明](../docs/architecture.md) | 概念阅读，无需启动服务 |
+| [02 · 与模型交互](02-model-interaction.md) | `labs/foundations/3_4` 调用与流式脚本；`3_6` SDK 对照 | foundations 环境 + 模型配置 |
+| [03 · 工具与行动](03-tools-and-actions.md) | `labs/foundations/3_7`、`3_8`、`3_9` | foundations 环境；按脚本配置模型 |
+| [04 · Agent Loop 与 ReAct](04-agent-loop-and-react.md) | `labs/foundations/4_3`、`4_4`；核对真实反馈与终止控制 | foundations 环境 + 模型配置 |
+| [05 · 上下文与记忆](05-context-and-memory.md) | `labs/foundations/4_2` 及循环脚本中的消息构造 | foundations 环境；按脚本配置模型 |
+| [06 · 运行 RayAgent：观察一条完整任务](06-run-rayagent-one-complete-task.md) | [应用指南](../ray_agent/README.md)；共同文件任务 | Compose + 模型配置 |
+| [07 · 规划与内外层循环](07-planning-and-nested-loops.md) | [计划流程](../ray_agent/api/app/domain/services/flows/planner_react.py)、[Agent 基类](../ray_agent/api/app/domain/services/agents/base.py) | 源码；对照第 06 章任务 |
+| [08 · 任务执行与控制](08-task-execution-and-control.md) | [应用协调](../ray_agent/api/app/application/services/agent_service.py)、[运行器](../ray_agent/api/app/domain/services/agent_task_runner.py)、[任务适配](../ray_agent/api/app/infrastructure/external/task/redis_stream_task.py) | 源码；运行观察使用产品环境 |
+| [09 · 状态与持久化](09-state-and-persistence.md) | [领域模型](../ray_agent/api/app/domain/models/)、[存储](../ray_agent/api/app/infrastructure/storage/) | 源码；产品历史与状态观察 |
+| [10 · 事件与流式传递](10-events-and-streaming.md) | [领域事件](../ray_agent/api/app/domain/models/event.py)、[接口事件](../ray_agent/api/app/interfaces/schemas/event.py)、[前端事件](../ray_agent/ui/src/lib/session-events.ts)；异步 labs | 产品环境；异步实验使用 foundations 环境 |
+| [11 · 沙箱与执行环境](11-sandbox-and-execution-environment.md) | [沙箱适配](../ray_agent/api/app/infrastructure/external/sandbox/docker_sandbox.py)、[沙箱指南](../ray_agent/sandbox/README.md) | 产品与沙箱环境 |
+| [12 · 文件与任务产物](12-files-and-artifacts.md) | [工具](../ray_agent/api/app/domain/services/tools/)、[文件存储](../ray_agent/api/app/infrastructure/external/file_storage/) | 产品环境；复用文件任务 |
+| [13 · 浏览器如何成为工具](13-browser-as-a-tool.md) | `labs/foundations/10-6`、`10-4`；[沙箱指南](../ray_agent/sandbox/README.md) | 本机浏览器实验与产品沙箱分别配置 |
+| [14 · 通过 MCP 接入外部工具](14-external-tools-with-mcp.md) | MCP labs；[MCP 适配](../ray_agent/api/app/infrastructure/protocols/mcp.py) | 独立客户端／服务端；产品夹具见 API 指南 |
+| [15 · 通过 A2A 协作远程 Agent](15-agent-collaboration-with-a2a.md) | `labs/a2a`；[A2A 适配](../ray_agent/api/app/infrastructure/protocols/a2a.py) | 独立 A2A 环境；产品夹具见 API 指南 |
+| [16 · 可靠性与验证](16-reliability-and-verification.md) | [API 指南](../ray_agent/api/README.md)、任务运行器、Agent 基类与资源适配层 | 按具体故障场景准备产品环境 |
+| [17 · 从会话走向项目工作区](17-from-sessions-to-workspaces.md) | [架构说明](../docs/architecture.md)、[工作区调研](../docs/workspace-harness-research.md) | 先静态核对现状，运行结论另行验证 |
 
 ## Shared product observation
 

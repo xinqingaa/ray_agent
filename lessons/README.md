@@ -8,23 +8,23 @@
 
 | # | Lesson |
 |---|---|
-| 01 | [The RayAgent System](01-the-rayagent-system.md) |
-| 02 | [Model Interaction](02-model-interaction.md) |
-| 03 | [Tools and Actions](03-tools-and-actions.md) |
-| 04 | [Agent Loop and ReAct](04-agent-loop-and-react.md) |
-| 05 | [Context and Memory](05-context-and-memory.md) |
-| 06 | [Run RayAgent: One Complete Task](06-run-rayagent-one-complete-task.md) |
-| 07 | [Planning and Nested Loops](07-planning-and-nested-loops.md) |
-| 08 | [Task Execution and Control](08-task-execution-and-control.md) |
-| 09 | [State and Persistence](09-state-and-persistence.md) |
-| 10 | [Events and Streaming](10-events-and-streaming.md) |
-| 11 | [Sandbox and Execution Environment](11-sandbox-and-execution-environment.md) |
-| 12 | [Files and Artifacts](12-files-and-artifacts.md) |
-| 13 | [Browser as a Tool](13-browser-as-a-tool.md) |
-| 14 | [External Tools with MCP](14-external-tools-with-mcp.md) |
-| 15 | [Agent Collaboration with A2A](15-agent-collaboration-with-a2a.md) |
-| 16 | [Reliability and Verification](16-reliability-and-verification.md) |
-| 17 | [From Sessions to Workspaces](17-from-sessions-to-workspaces.md) |
+| 01 | [认识 RayAgent：从一句请求到任务完成](01-the-rayagent-system.md) |
+| 02 | [与模型交互](02-model-interaction.md) |
+| 03 | [工具与行动](03-tools-and-actions.md) |
+| 04 | [Agent Loop 与 ReAct](04-agent-loop-and-react.md) |
+| 05 | [上下文与记忆](05-context-and-memory.md) |
+| 06 | [运行 RayAgent：观察一条完整任务](06-run-rayagent-one-complete-task.md) |
+| 07 | [规划与内外层循环](07-planning-and-nested-loops.md) |
+| 08 | [任务执行与控制](08-task-execution-and-control.md) |
+| 09 | [状态与持久化](09-state-and-persistence.md) |
+| 10 | [事件与流式传递](10-events-and-streaming.md) |
+| 11 | [沙箱与执行环境](11-sandbox-and-execution-environment.md) |
+| 12 | [文件与任务产物](12-files-and-artifacts.md) |
+| 13 | [浏览器如何成为工具](13-browser-as-a-tool.md) |
+| 14 | [通过 MCP 接入外部工具](14-external-tools-with-mcp.md) |
+| 15 | [通过 A2A 协作远程 Agent](15-agent-collaboration-with-a2a.md) |
+| 16 | [可靠性与验证](16-reliability-and-verification.md) |
+| 17 | [从会话走向项目工作区](17-from-sessions-to-workspaces.md) |
 
 ## Related material
 

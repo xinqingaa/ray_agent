@@ -26,23 +26,23 @@ labs 隔离机制，RayAgent 展示机制组合后的状态、资源与交互契
 
 | 章节 | 核心问题 | 承接与材料 | 向后引出 |
 |---|---|---|---|
-| [01 · The RayAgent System](01-the-rayagent-system.md) | 一条用户请求如何成为完整任务？ | 产品全景与架构说明 | 程序如何请求模型并消费响应？ |
-| [02 · Model Interaction](02-model-interaction.md) | 程序如何请求模型并消费响应？ | labs：模型调用与流式输出 | 模型提出的动作如何真正执行？ |
-| [03 · Tools and Actions](03-tools-and-actions.md) | 模型提出的动作如何真正执行？ | labs：工具调用、结构化数据 | Agent 如何根据工具结果继续决策并停止？ |
-| [04 · Agent Loop and ReAct](04-agent-loop-and-react.md) | Agent 如何根据工具结果继续决策并停止？ | labs：工具反馈循环 | Agent 每一步究竟知道什么？ |
-| [05 · Context and Memory](05-context-and-memory.md) | Agent 每一步究竟知道什么？ | labs：消息上下文与长度观察 | 最小机制组合成完整产品后如何协作？ |
-| [06 · Run RayAgent: One Complete Task](06-run-rayagent-one-complete-task.md) | 最小机制组合成完整产品后如何协作？ | RayAgent：完整任务 | 外层计划与内层工具反馈如何协作？ |
-| [07 · Planning and Nested Loops](07-planning-and-nested-loops.md) | 外层计划与内层工具反馈如何协作？ | RayAgent：Planner、Executor 与流程 | 谁承接任务，谁控制它的运行？ |
-| [08 · Task Execution and Control](08-task-execution-and-control.md) | 谁承接任务，谁控制它的运行？ | RayAgent：任务协调与运行器 | 执行中的信息分别归谁，能够保存多久？ |
-| [09 · State and Persistence](09-state-and-persistence.md) | 执行中的信息分别归谁，能够保存多久？ | RayAgent：状态模型、存储与历史 | 后端持续执行时，前端如何知道发生了什么？ |
-| [10 · Events and Streaming](10-events-and-streaming.md) | 后端持续执行时，前端如何知道发生了什么？ | RayAgent；按需对照异步 labs | 工具在哪里执行，环境由谁管理？ |
-| [11 · Sandbox and Execution Environment](11-sandbox-and-execution-environment.md) | 工具在哪里执行，环境由谁管理？ | RayAgent：沙箱与执行接口 | Agent 产生的文件如何成为用户可访问的结果？ |
-| [12 · Files and Artifacts](12-files-and-artifacts.md) | Agent 产生的文件如何成为用户可访问的结果？ | RayAgent：文件工具与存储 | Agent 怎样观察网页、操作页面并获得反馈？ |
-| [13 · Browser as a Tool](13-browser-as-a-tool.md) | Agent 怎样观察网页、操作页面并获得反馈？ | labs + RayAgent：浏览器 | 进程外的工具如何接入已有执行链？ |
-| [14 · External Tools with MCP](14-external-tools-with-mcp.md) | 进程外的工具如何接入已有执行链？ | labs + RayAgent：MCP | 调用远程 Agent 与调用工具有什么不同？ |
-| [15 · Agent Collaboration with A2A](15-agent-collaboration-with-a2a.md) | 调用远程 Agent 与调用工具有什么不同？ | labs + RayAgent：A2A | 失败发生后系统能保证什么，如何证明任务完成？ |
-| [16 · Reliability and Verification](16-reliability-and-verification.md) | 失败发生后系统能保证什么，如何证明任务完成？ | RayAgent：失败路径与验证实验 | 从会话任务走向项目协作，harness 还需要改变什么？ |
-| [17 · From Sessions to Workspaces](17-from-sessions-to-workspaces.md) | 从会话任务走向项目协作，harness 还需要改变什么？ | RayAgent：架构分析与演进方案 | 结合实际需求选择后续二开范围 |
+| [01 · 认识 RayAgent：从一句请求到任务完成](01-the-rayagent-system.md) | 一条用户请求如何成为完整任务？ | 产品全景与架构说明 | 程序如何请求模型并消费响应？ |
+| [02 · 与模型交互](02-model-interaction.md) | 程序如何请求模型并消费响应？ | labs：模型调用与流式输出 | 模型提出的动作如何真正执行？ |
+| [03 · 工具与行动](03-tools-and-actions.md) | 模型提出的动作如何真正执行？ | labs：工具调用、结构化数据 | Agent 如何根据工具结果继续决策并停止？ |
+| [04 · Agent Loop 与 ReAct](04-agent-loop-and-react.md) | Agent 如何根据工具结果继续决策并停止？ | labs：工具反馈循环 | Agent 每一步究竟知道什么？ |
+| [05 · 上下文与记忆](05-context-and-memory.md) | Agent 每一步究竟知道什么？ | labs：消息上下文与长度观察 | 最小机制组合成完整产品后如何协作？ |
+| [06 · 运行 RayAgent：观察一条完整任务](06-run-rayagent-one-complete-task.md) | 最小机制组合成完整产品后如何协作？ | RayAgent：完整任务 | 外层计划与内层工具反馈如何协作？ |
+| [07 · 规划与内外层循环](07-planning-and-nested-loops.md) | 外层计划与内层工具反馈如何协作？ | RayAgent：Planner、Executor 与流程 | 谁承接任务，谁控制它的运行？ |
+| [08 · 任务执行与控制](08-task-execution-and-control.md) | 谁承接任务，谁控制它的运行？ | RayAgent：任务协调与运行器 | 执行中的信息分别归谁，能够保存多久？ |
+| [09 · 状态与持久化](09-state-and-persistence.md) | 执行中的信息分别归谁，能够保存多久？ | RayAgent：状态模型、存储与历史 | 后端持续执行时，前端如何知道发生了什么？ |
+| [10 · 事件与流式传递](10-events-and-streaming.md) | 后端持续执行时，前端如何知道发生了什么？ | RayAgent；按需对照异步 labs | 工具在哪里执行，环境由谁管理？ |
+| [11 · 沙箱与执行环境](11-sandbox-and-execution-environment.md) | 工具在哪里执行，环境由谁管理？ | RayAgent：沙箱与执行接口 | Agent 产生的文件如何成为用户可访问的结果？ |
+| [12 · 文件与任务产物](12-files-and-artifacts.md) | Agent 产生的文件如何成为用户可访问的结果？ | RayAgent：文件工具与存储 | Agent 怎样观察网页、操作页面并获得反馈？ |
+| [13 · 浏览器如何成为工具](13-browser-as-a-tool.md) | Agent 怎样观察网页、操作页面并获得反馈？ | labs + RayAgent：浏览器 | 进程外的工具如何接入已有执行链？ |
+| [14 · 通过 MCP 接入外部工具](14-external-tools-with-mcp.md) | 进程外的工具如何接入已有执行链？ | labs + RayAgent：MCP | 调用远程 Agent 与调用工具有什么不同？ |
+| [15 · 通过 A2A 协作远程 Agent](15-agent-collaboration-with-a2a.md) | 调用远程 Agent 与调用工具有什么不同？ | labs + RayAgent：A2A | 失败发生后系统能保证什么，如何证明任务完成？ |
+| [16 · 可靠性与验证](16-reliability-and-verification.md) | 失败发生后系统能保证什么，如何证明任务完成？ | RayAgent：失败路径与验证实验 | 从会话任务走向项目协作，harness 还需要改变什么？ |
+| [17 · 从会话走向项目工作区](17-from-sessions-to-workspaces.md) | 从会话任务走向项目协作，harness 还需要改变什么？ | RayAgent：架构分析与演进方案 | 结合实际需求选择后续二开范围 |
 
 第 06 章是正式产品入口：明确服务与配置条件，链接 [应用指南](../ray_agent/README.md)，以“在沙箱写入 hello.txt，再读取并总结”建立共同任务观察。第 07 章沿该任务讲内外层循环，后续尽量复用这个对象，不重复部署或引入无关业务背景。
 
@@ -62,16 +62,16 @@ labs 隔离机制，RayAgent 展示机制组合后的状态、资源与交互契
 
 ## Production conventions
 
-文档标题用英文，正文用中文。作者先研究实现、验证行为，再以机制组织讲解；制作顺序由依赖和证据决定，不强制按课号完稿。读者的正式阅读顺序见 README。
+文件名保留英文，文档标题、小节标题、目录显示名称与正文使用中文。作者先研究实现、验证行为，再以机制组织讲解；制作顺序由依赖和证据决定，不强制按课号完稿。读者的正式阅读顺序见 README。
 
 允许补充与课程直接相关的小范围 labs 脚本及 RayAgent 修复或优化，无需等全面二开后再写课。按相关服务指南验证受影响行为，修改契约时同步架构说明。全局重构、新功能或框架迁移另行确定范围。
 
-正文使用短代码和源码链接，不搬运完整实现。安装命令维护在所属 lab 或服务指南。缺少条件的运行观察标记 `unverified`，不得把静态核对写成运行通过。
+导论先用任务、过程推演和图解建立认识，不要求读者同步打开源码；实现依据集中在文末。伪代码用于精确解释控制流程，真实代码片段仅在实现细节影响行为时加入，不为体现技术深度而放代码。开头只交代本章问题和阅读条件，章节导航集中在结尾，正文减少跨章预告。安装命令维护在所属 lab 或服务指南。缺少条件的运行观察标记 `unverified`，不得把静态核对写成运行通过。
 
 ## Illustration conventions
 
-默认产物为 **SVG、1600×900、Claude 风格**，存放在 `lessons/assets/`，正文用相对路径引用。只有用户明确指定时，才改变对应格式、尺寸或风格；其他默认项保持不变。拥挤时精简或拆图，不自行调整画布。
+默认产物为 **SVG、1600×900、OpenAI 风格**，存放在 `lessons/assets/`，正文用相对路径引用。只有用户明确指定时，才改变对应格式、尺寸或风格；其他默认项保持不变。拥挤时精简或拆图，不自行调整画布。
 
-技术图按需使用 Fireworks Tech Graph（`fireworks-tech-graph`）。定位并读取已安装 skill 及其 Claude 风格参考（Style 6），本课程约定覆盖工具默认导出设置。不可用时说明情况，不声称已经使用。
+技术图按需使用 Fireworks Tech Graph（`fireworks-tech-graph`）。定位并读取已安装 skill 及其 OpenAI 风格参考（Style 7），本课程约定覆盖工具默认导出设置。不可用时说明情况，不声称已经使用。
 
 默认不交付 PNG、GIF 或 HTML。允许临时渲染预览检查中文字体、布局与裁切，但不提交这些预览。SVG 应做结构检查并实际渲染查看。GIF 只在明确指令下制作，先确认工具支持的结构和依赖。
