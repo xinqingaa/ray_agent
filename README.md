@@ -53,4 +53,5 @@ docker compose up -d --build
 - [执行计划](PLAN.md)：阶段任务、完成标准与当前进度。
 - [工作指南](AGENTS.md)：AI 工作定位、文档导航与稳定约定。
 - [架构说明](docs/architecture.md)：系统边界、执行与数据流、关键限制。
+- [工作区与 Harness 调研](docs/workspace-harness-research.md)：面向项目对话的能力差距、框架比较与二开路线建议。
 - [学习入口](lessons/README.md)：主题范围与文档组织方式。
