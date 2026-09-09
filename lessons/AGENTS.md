@@ -1,0 +1,77 @@
+# Lessons Authoring Guide
+
+本文件规定 RayAgent 课程的设计与制作约定。编写或审查课程时，先读取 [write-lessons](../skills/write-lessons/SKILL.md) 的通用写作方法，再结合本文件确定具体内容。
+
+## Document responsibilities
+
+- [根 PLAN](../PLAN.md)：项目阶段、目标与阶段验收。
+- 本文件：课程主线、目标大纲和稳定的创作约定。
+- [progress](progress.md)：当前制作任务、章节状态、验证缺口和下一步。每次相关制作完成后更新，避免记录逐次操作流水账。
+- [README](README.md)：面向读者的课程介绍与实际章节入口。
+- [map](map.md)：主题对应的实验、源码与环境边界，不规定另一套阅读顺序。
+
+不要在多个文件复制详细大纲或章节进度。根 PLAN 只保留阶段级状态并链接 progress。
+
+## Course thread
+
+课程围绕一个问题展开：**一条用户请求，如何经过模型决策、工具执行和持续反馈，最终成为一个可观察、有状态、能够处理失败的任务？**
+
+解释 RayAgent 的现有设计及其取舍，帮助读者理解现代 Agent 工程。课程不默认从零搭建产品，也不以 TS 重写或迁移框架为目标。
+
+labs 隔离机制，RayAgent 展示机制组合后的状态、资源与交互契约。读者自行决定阅读、运行或修改，不设置必需、选做或进阶参与层级；仍须清楚交代每个示例所属环境。
+
+## Course outline
+
+课程共 17 章，按 01–17 递增。读者目录见 [README](README.md)，以下维护各章设计关系，具体素材路径只放在 map。
+
+| 章节 | 核心问题 | 承接与材料 | 向后引出 |
+|---|---|---|---|
+| [01 · The RayAgent System](01-the-rayagent-system.md) | 一条用户请求如何成为完整任务？ | 产品全景与架构说明 | 程序如何请求模型并消费响应？ |
+| [02 · Model Interaction](02-model-interaction.md) | 程序如何请求模型并消费响应？ | labs：模型调用与流式输出 | 模型提出的动作如何真正执行？ |
+| [03 · Tools and Actions](03-tools-and-actions.md) | 模型提出的动作如何真正执行？ | labs：工具调用、结构化数据 | Agent 如何根据工具结果继续决策并停止？ |
+| [04 · Agent Loop and ReAct](04-agent-loop-and-react.md) | Agent 如何根据工具结果继续决策并停止？ | labs：工具反馈循环 | Agent 每一步究竟知道什么？ |
+| [05 · Context and Memory](05-context-and-memory.md) | Agent 每一步究竟知道什么？ | labs：消息上下文与长度观察 | 最小机制组合成完整产品后如何协作？ |
+| [06 · Run RayAgent: One Complete Task](06-run-rayagent-one-complete-task.md) | 最小机制组合成完整产品后如何协作？ | RayAgent：完整任务 | 外层计划与内层工具反馈如何协作？ |
+| [07 · Planning and Nested Loops](07-planning-and-nested-loops.md) | 外层计划与内层工具反馈如何协作？ | RayAgent：Planner、Executor 与流程 | 谁承接任务，谁控制它的运行？ |
+| [08 · Task Execution and Control](08-task-execution-and-control.md) | 谁承接任务，谁控制它的运行？ | RayAgent：任务协调与运行器 | 执行中的信息分别归谁，能够保存多久？ |
+| [09 · State and Persistence](09-state-and-persistence.md) | 执行中的信息分别归谁，能够保存多久？ | RayAgent：状态模型、存储与历史 | 后端持续执行时，前端如何知道发生了什么？ |
+| [10 · Events and Streaming](10-events-and-streaming.md) | 后端持续执行时，前端如何知道发生了什么？ | RayAgent；按需对照异步 labs | 工具在哪里执行，环境由谁管理？ |
+| [11 · Sandbox and Execution Environment](11-sandbox-and-execution-environment.md) | 工具在哪里执行，环境由谁管理？ | RayAgent：沙箱与执行接口 | Agent 产生的文件如何成为用户可访问的结果？ |
+| [12 · Files and Artifacts](12-files-and-artifacts.md) | Agent 产生的文件如何成为用户可访问的结果？ | RayAgent：文件工具与存储 | Agent 怎样观察网页、操作页面并获得反馈？ |
+| [13 · Browser as a Tool](13-browser-as-a-tool.md) | Agent 怎样观察网页、操作页面并获得反馈？ | labs + RayAgent：浏览器 | 进程外的工具如何接入已有执行链？ |
+| [14 · External Tools with MCP](14-external-tools-with-mcp.md) | 进程外的工具如何接入已有执行链？ | labs + RayAgent：MCP | 调用远程 Agent 与调用工具有什么不同？ |
+| [15 · Agent Collaboration with A2A](15-agent-collaboration-with-a2a.md) | 调用远程 Agent 与调用工具有什么不同？ | labs + RayAgent：A2A | 失败发生后系统能保证什么，如何证明任务完成？ |
+| [16 · Reliability and Verification](16-reliability-and-verification.md) | 失败发生后系统能保证什么，如何证明任务完成？ | RayAgent：失败路径与验证实验 | 从会话任务走向项目协作，harness 还需要改变什么？ |
+| [17 · From Sessions to Workspaces](17-from-sessions-to-workspaces.md) | 从会话任务走向项目协作，harness 还需要改变什么？ | RayAgent：架构分析与演进方案 | 结合实际需求选择后续二开范围 |
+
+第 06 章是正式产品入口：明确服务与配置条件，链接 [应用指南](../ray_agent/README.md)，以“在沙箱写入 hello.txt，再读取并总结”建立共同任务观察。第 07 章沿该任务讲内外层循环，后续尽量复用这个对象，不重复部署或引入无关业务背景。
+
+第 04 章讲最小反馈循环，第 07 章讲产品的嵌套循环；第 05 章讲模型可见信息，第 09 章讲系统状态归属与持久化；第 08 章讲执行控制，第 16 章跨模块检查异常与可靠性。保持这些分界，避免重复讲解或能力混淆。
+
+阅读按目录推进；制作先核实第 06、07 章的完整任务和内外层循环，再根据证据与依赖展开各章，不要求作者先写完前五章才研究产品。进入产品后仍可穿插 labs，明确实验隔离了什么、产品多承担什么。
+
+## Mechanism boundaries
+
+- 区分用户交互循环、模型与工具的反馈循环、计划步骤推进循环。核对实际继续条件与停止条件，不能仅凭脚本名称判断它实现了 ReAct。
+- 对照源码解释 RayAgent 外层 Planner 制定／更新计划与 Executor 执行步骤的关系，及内层消费工具结果后继续决策的过程。说明两层交接和结束条件。
+- 区分消息上下文、Agent 状态、会话记录、任务运行状态与持久化数据，不把会话历史直接称为项目记忆。
+- 沙箱、浏览器、MCP、A2A 围绕任务链中的问题讲解；接入能力不自动意味着项目工作区、完整隔离或故障恢复。
+- 区分现状、推断与建议。比较 Plan + ReAct 与其他组织方式时说明场景和代价，不预设自研或框架更优。
+
+具体实现以 [架构说明](../docs/architecture.md) 为入口并核对当前源码；详细脚本和产品路径维护在 map。
+
+## Production conventions
+
+文档标题用英文，正文用中文。作者先研究实现、验证行为，再以机制组织讲解；制作顺序由依赖和证据决定，不强制按课号完稿。读者的正式阅读顺序见 README。
+
+允许补充与课程直接相关的小范围 labs 脚本及 RayAgent 修复或优化，无需等全面二开后再写课。按相关服务指南验证受影响行为，修改契约时同步架构说明。全局重构、新功能或框架迁移另行确定范围。
+
+正文使用短代码和源码链接，不搬运完整实现。安装命令维护在所属 lab 或服务指南。缺少条件的运行观察标记 `unverified`，不得把静态核对写成运行通过。
+
+## Illustration conventions
+
+默认产物为 **SVG、1600×900、Claude 风格**，存放在 `lessons/assets/`，正文用相对路径引用。只有用户明确指定时，才改变对应格式、尺寸或风格；其他默认项保持不变。拥挤时精简或拆图，不自行调整画布。
+
+技术图按需使用 Fireworks Tech Graph（`fireworks-tech-graph`）。定位并读取已安装 skill 及其 Claude 风格参考（Style 6），本课程约定覆盖工具默认导出设置。不可用时说明情况，不声称已经使用。
+
+默认不交付 PNG、GIF 或 HTML。允许临时渲染预览检查中文字体、布局与裁切，但不提交这些预览。SVG 应做结构检查并实际渲染查看。GIF 只在明确指令下制作，先确认工具支持的结构和依赖。

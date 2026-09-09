@@ -1,0 +1,4 @@
+interface:
+  display_name: "技术课程写作"
+  short_description: "先解释机制与原理，再对照实现，组织技术课程、核对证据并审查教学表达"
+  default_prompt: "使用 $write-lessons，结合目标课程的本地约定编写或审查教学文档，先解释机制，再对照实现并说明验证边界。"

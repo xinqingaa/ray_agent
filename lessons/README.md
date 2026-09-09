@@ -1,64 +1,37 @@
 # RayAgent Lessons
 
-通过聚焦示例对照产品行为，理解 RayAgent 如何规划任务、调用工具、管理执行并把结果送回界面。
+一条用户请求，如何经过模型决策、工具执行和持续反馈，最终成为一个可观察、有状态、能够处理失败的任务？本课程沿这条主线理解 RayAgent 与现代 Agent 工程。
 
-阶段进度与完成标准只维护在 [执行计划](../PLAN.md)。学习顺序、labs 与产品模块对照见 [学习地图](map.md)。
+从系统全景和最小机制出发，第 06 章进入完整产品，第 07 章拆解内外层循环，随后展开任务控制、状态、执行环境、外部协作、可靠性与项目工作区演进。labs 用于隔离机制，RayAgent 用于观察机制的组合；读者自行决定阅读、运行或修改。
 
 ## Lesson order
 
-序号从 01 递增。先 Part A（只跑 `labs/`），再 Part B（组合 `ray_agent`）。
-
-### Part A · Labs
-
 | # | Lesson |
 |---|---|
-| 01 | [Model API](01-model-api.md) |
-| 02 | [Streaming output](02-streaming-output.md) |
-| 03 | [Tool calling and structured output](03-tool-calling.md) |
-| 04 | [Context and ReAct](04-context-and-react.md) |
-| 05 | [Async HTTP](05-async-http.md) |
-| 06 | [MCP labs](06-mcp-labs.md) |
-| 07 | [A2A labs](07-a2a-labs.md) |
-| 08 | [Browser and CDP](08-browser-and-cdp.md) |
-
-### Part B · RayAgent
-
-| # | Lesson |
-|---|---|
-| 09 | [Run the application](09-run-the-application.md) |
-| 10 | [Models and tools in the product](10-models-and-tools-in-the-product.md) |
-| 11 | [Plan and ReAct](11-plan-and-react.md) |
-| 12 | [State and events](12-state-and-events.md) |
-| 13 | [Sandbox and storage](13-sandbox-and-storage.md) |
-| 14 | [MCP and A2A in the product](14-mcp-and-a2a-in-the-product.md) |
-| 15 | [Failure and change points](15-failure-and-change-points.md) |
-
-按主题反查（不是学习顺序）见 [学习地图](map.md#index-by-topic)。
-
-## Lesson format
-
-文档标题用英文，正文用中文。每课只覆盖一个连贯主题。不强制统一小节标题。
-
-## Teaching and evidence
-
-从可观察的输入输出出发，再追踪执行与数据变化，最后解释抽象与取舍。不要把 lesson 写成类清单或代码注释译文。
-
-区分代码事实、设计意图的推断和改进建议。注释和历史讨论只作线索；关于行为的判断应对着代码核对，相关处还应对着实际运行。
-
-使用已验证的示例、截图和输出。未执行过的步骤必须标明，并说明复现所需环境。安装步骤链接到对应 lab 或服务指南，不要在 lesson 里再维护一套部署说明。
-
-教学简化必须写明：练习里的一次工具调用不能代表产品主循环；客户端示例不能代表协议的全部能力。Part A 不讲产品主循环；Part B 不重讲脚本，只写「脚本里见过的现象在产品里落在哪里、还多了什么」。
-
-一课完成的标准是：学习者能讲清行为、定位实现、指出边界。不要求借此新增产品功能或迁移框架。
-
-当前各课均为骨架。正文待按 01→15 填写，未运行的观察一律标 `unverified`。
+| 01 | [The RayAgent System](01-the-rayagent-system.md) |
+| 02 | [Model Interaction](02-model-interaction.md) |
+| 03 | [Tools and Actions](03-tools-and-actions.md) |
+| 04 | [Agent Loop and ReAct](04-agent-loop-and-react.md) |
+| 05 | [Context and Memory](05-context-and-memory.md) |
+| 06 | [Run RayAgent: One Complete Task](06-run-rayagent-one-complete-task.md) |
+| 07 | [Planning and Nested Loops](07-planning-and-nested-loops.md) |
+| 08 | [Task Execution and Control](08-task-execution-and-control.md) |
+| 09 | [State and Persistence](09-state-and-persistence.md) |
+| 10 | [Events and Streaming](10-events-and-streaming.md) |
+| 11 | [Sandbox and Execution Environment](11-sandbox-and-execution-environment.md) |
+| 12 | [Files and Artifacts](12-files-and-artifacts.md) |
+| 13 | [Browser as a Tool](13-browser-as-a-tool.md) |
+| 14 | [External Tools with MCP](14-external-tools-with-mcp.md) |
+| 15 | [Agent Collaboration with A2A](15-agent-collaboration-with-a2a.md) |
+| 16 | [Reliability and Verification](16-reliability-and-verification.md) |
+| 17 | [From Sessions to Workspaces](17-from-sessions-to-workspaces.md) |
 
 ## Related material
 
-- [学习地图](map.md)：章节、练习脚本与产品模块对照
-- [Labs](../labs/README.md)：实验选择、环境与运行入口
-- [Architecture](../docs/architecture.md)：系统边界、状态归属与交互契约
-- [Application guide](../ray_agent/README.md)：部署配置与运行检查
-- [Execution plan](../PLAN.md)：阶段顺序与学习完成标准
-
-架构说明是精简的实现对照；lessons 用示例和观察展开讲解。示例或解释过时时更新对应课，不要重复维护全局架构或项目进度。
+- [素材索引](map.md)：章节对应的实验、源码与环境入口。
+- [Labs](../labs/README.md)：实验环境与运行指南。
+- [Application guide](../ray_agent/README.md)：完整产品的部署与运行。
+- [Architecture](../docs/architecture.md)：系统边界与实现概览。
+- [Authoring guide](AGENTS.md)：课程设计与制作约定。
+- [Writing progress](progress.md)：正文制作状态、验证缺口与下一步。
+- [Project plan](../PLAN.md)：项目阶段与完成标准。
