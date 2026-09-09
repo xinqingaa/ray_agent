@@ -1,19 +1,14 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""
-@Time    : 2025/5/24 18:21
-@Author  : thezehui@gmail.com
-@File    : 6_5_无MCP SDK调用高德MCP.py
-"""
 import json
 import os
 
-import dotenv
 import requests
-from openai import OpenAI
 from openai.types.chat.chat_completion_chunk import ChoiceDeltaToolCall
 
-dotenv.load_dotenv()
+from llm_settings import load_env_files, openai_client
+
+load_env_files()
 
 # 定义高德mcp服务基础地址
 GAODE_URL = f"https://mcp.amap.com/mcp?key={os.getenv('GAODE_KEY')}"
@@ -23,9 +18,8 @@ SYSTEM_PROMPT = "你是一个强大的聊天机器人，请根据用户的提问
 
 class ReActAgent:
     def __init__(self):
-        self.client = OpenAI()
+        self.client, self.model = openai_client()
         self.messages = [{"role": "system", "content": SYSTEM_PROMPT}]
-        self.model = "deepseek-chat"
         self.tools = []
         self.headers = {
             "Accept": "application/json, text/event-stream",
@@ -79,7 +73,7 @@ class ReActAgent:
             self.messages.append({"role": "user", "content": query})
         print("Assistant: ", end="", flush=True)
 
-        # 调用deepseek发起请求
+        # 调用模型发起请求
         response = self.client.chat.completions.create(
             model=self.model,
             messages=self.messages,

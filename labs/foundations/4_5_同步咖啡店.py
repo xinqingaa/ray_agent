@@ -1,10 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""
-@Time    : 2025/7/8 12:13
-@Author  : thezehui@gmail.com
-@File    : 4_5_同步咖啡店.py
-"""
 import time
 
 

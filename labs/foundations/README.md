@@ -22,20 +22,20 @@
 
 ```bash
 uv sync --locked
-uv run --locked python '3_4_DeepSeek API调用.py'
+uv run --locked python '3_4_Chat Completions API调用.py'
 ```
 
-该示例从本地环境读取 `DEEPSEEK_API_KEY`。其他脚本的凭据、服务地址、输入设备或浏览器要求需查看各自入口，不能假设全部脚本使用相同配置。
+聊天模型脚本读取 `LLM_API_KEY`、`LLM_MODEL_NAME`、`LLM_BASE_URL`，先看本目录 `.env`，缺项再读 `ray_agent/.env`。字段与产品相同，可写同一组值。高德、浏览器等其他凭据仍看各自入口。
 
 `demo-code/`、`2-2 code/weather/` 和 `2-2 code/ui/` 分别维护独立环境，应在对应目录运行。保留 `resources/` 等资源的相对路径。
 
 ## 模型交互对照
 
-在本目录使用前述依赖环境运行。两个 `3_4` 脚本按 OpenAI 兼容的 Chat Completions 构造请求，默认打到 DeepSeek。配置 `DEEPSEEK_API_KEY`，可从本地 `.env` 加载；不要将密钥提交到仓库。默认模型为 `deepseek-chat`，可通过 `DEEPSEEK_MODEL` 指定当前服务可用的模型；比较时保持该配置一致。
+在本目录使用前述依赖环境运行。两个 `3_4` 脚本按 OpenAI 兼容的 Chat Completions 构造请求，三项都从 `LLM_*` 读取，没有默认厂商地址或模型名。不要将密钥提交到仓库。比较两个脚本时保持同一套配置。
 
 ```bash
-uv run --locked python '3_4_DeepSeek API调用.py'
-uv run --locked python '3_4_DeepSeek API流式调用.py'
+uv run --locked python '3_4_Chat Completions API调用.py'
+uv run --locked python '3_4_Chat Completions API流式调用.py'
 ```
 
 两者询问同一个问题：“请用一句话说明：为什么写入文件后还要读取确认？”普通脚本打印完整 JSON、正文和结束原因；流式脚本逐段打印正文，最后输出拼接结果和结束原因。缺少密钥会在发出请求前退出；HTTP 错误不会作为回答解析。超时参数分别限制连接等待和读取等待，不是整次任务的总时限。

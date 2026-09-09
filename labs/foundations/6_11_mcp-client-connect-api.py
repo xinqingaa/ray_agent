@@ -1,10 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""
-@Time    : 2025/5/28 0:45
-@Author  : thezehui@gmail.com
-@File    : 6_11_mcp-client-connect-api.py
-"""
 import asyncio
 import os
 

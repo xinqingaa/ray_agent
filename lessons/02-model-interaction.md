@@ -2,7 +2,7 @@
 
 上一章中，Agent 会根据目标和工具结果决定下一步。但程序并不能直接把一句话“放进模型脑中”。它需要构造请求，发送给模型服务，再理解返回的数据。
 
-本章用 labs 中的独立脚本观察 **OpenAI 兼容的 Chat Completions**，不必启动 RayAgent。产品使用同一类客户端，不是本章实验脚本。labs 默认调用 DeepSeek，只是现成的兼容落点；换其他兼容模型，通常是换服务地址、密钥和模型名。Anthropic Messages 是另一套接口形状，当前产品不走那条客户端。
+本章用 labs 中的独立脚本观察 **OpenAI 兼容的 Chat Completions**，不必启动 RayAgent。产品使用同一类客户端，不是本章实验脚本。地址、模型和密钥从 `LLM_API_KEY`、`LLM_MODEL_NAME`、`LLM_BASE_URL` 读取，可与 `ray_agent/.env` 使用同一组。Anthropic Messages 是另一套接口形状，当前产品不走那条客户端。
 
 读结构即可跟上；要运行脚本，条件和命令见[基础实验运行指南](../labs/foundations/README.md#模型交互对照)。未配置真实模型密钥时，外部调用为 `unverified`，正文与图中的回答都是示意。
 
@@ -16,11 +16,11 @@
 
 在聊天界面里，我们看到一个输入框；在程序里，一次调用至少需要表达三件事：请求交给哪个服务、使用哪个模型、让模型读取哪些消息。
 
-本章以 OpenAI 兼容的 Chat Completions 为例。下面是一份简化的请求正文，省略了服务地址和鉴权信息。`model` 写成实验默认标识，便于和脚本对照，不表示课程绑定某一家模型：
+本章以 OpenAI 兼容的 Chat Completions 为例。下面是一份简化的请求正文，省略了服务地址和鉴权信息。`model` 写成占位，脚本运行时使用 `.env` 里的 `LLM_MODEL_NAME`：
 
 ```json
 {
-  "model": "deepseek-chat",
+  "model": "your-model",
   "messages": [
     {"role": "user", "content": "请用一句话说明：为什么写入文件后还要读取确认？"}
   ],
@@ -28,7 +28,7 @@
 }
 ```
 
-这里的 `model` 是服务识别的模型标识，不是本地 Python 类。实验默认沿用仓库中的标识，也允许通过环境变量选择可用模型；它不代表课程要求使用某个最新版本。
+这里的 `model` 是服务识别的模型标识，不是本地 Python 类。具体取值由环境变量决定，不代表课程要求使用某个最新版本。
 
 `messages` 是这次交给模型的消息序列。每条消息既有内容，也有角色。`user` 表示用户的输入，`assistant` 表示助手的历史回复，`system` 常用于提供行为说明。角色是请求结构的一部分，不需要在文本前手写“用户说：”来代替。
 
@@ -117,7 +117,7 @@ data: [DONE]
 
 ## 在实验中看清两个 stream
 
-本章使用 `labs/foundations/` 下的两个独立脚本：`3_4_DeepSeek API调用.py` 和 `3_4_DeepSeek API流式调用.py`。它们按 OpenAI 兼容的 Chat Completions 构造请求，默认打到 DeepSeek，使用相同的问题与模型配置，分别展示完整响应和逐段回答。运行条件见开头链接的基础实验指南。
+本章使用 `labs/foundations/` 下的两个独立脚本：`3_4_Chat Completions API调用.py` 和 `3_4_Chat Completions API流式调用.py`。它们按 OpenAI 兼容的 Chat Completions 构造请求，使用相同的问题与 `LLM_*` 配置，分别展示完整响应和逐段回答。运行条件见开头链接的基础实验指南。
 
 本地 HTTP 夹具可以核对请求构造、解析和逐段消费，不能证明模型会生成哪句话。
 

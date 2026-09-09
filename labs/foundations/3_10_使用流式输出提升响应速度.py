@@ -1,17 +1,10 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""
-@Time    : 2025/7/6 2:34
-@Author  : thezehui@gmail.com
-@File    : 3_10_使用流式输出提升响应速度.py
-"""
 import json
 
-import dotenv
-from openai import OpenAI
 from openai.types.chat.chat_completion_chunk import ChoiceDeltaToolCall
 
-dotenv.load_dotenv()
+from llm_settings import openai_client
 
 
 def calculator(expression: str) -> str:
@@ -25,14 +18,13 @@ def calculator(expression: str) -> str:
 
 class ReActAgent:
     def __init__(self):
-        self.client = OpenAI()
+        self.client, self.model = openai_client()
         self.messages = [
             {
                 "role": "system",
                 "content": "你是一个强大的聊天机器人，请根据用户的提问进行答复，如果需要调用工具请直接调用，不知道请直接回复不清楚"
             }
         ]
-        self.model = "deepseek-chat"
         self.available_tools = {"calculator": calculator}
         self.tools = [
             {
@@ -59,7 +51,7 @@ class ReActAgent:
         self.messages.append({"role": "user", "content": query})
         print("Assistant: ", end="", flush=True)
 
-        # 调用deepseek发起请求
+        # 调用模型发起请求
         response = self.client.chat.completions.create(
             model=self.model,
             messages=self.messages,

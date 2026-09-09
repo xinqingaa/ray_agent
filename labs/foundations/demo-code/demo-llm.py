@@ -1,38 +1,27 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""
-@Time    : 2025/7/1 18:59
-@Author  : thezehui@gmail.com
-@File    : demo-mcp.py
-"""
 import asyncio
-import os
+import sys
+from pathlib import Path
 
-import dotenv
-from openai import OpenAI
-
-# 加载本地环境变量
-dotenv.load_dotenv()
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from llm_settings import openai_client
 
 
-class DeepSeekClient:
-    """DeepSeek客户端"""
+class ChatClient:
+    """OpenAI 兼容客户端"""
 
     def __init__(self):
-        """构造函数，完成DeepSeek客户端的初始化"""
-        self.openai = OpenAI(
-            base_url="https://api.deepseek.com/v1",
-            api_key=os.getenv("DEEPSEEK_API_KEY"),
-        )
+        self.openai, self.model = openai_client()
 
     async def process_query(self, query: str) -> str:
-        """使用deepseek处理用户输入+mcp工具"""
+        """使用模型处理用户输入"""
         # 初始化用户消息
         messages = [{"role": "user", "content": query}]
 
-        # 调用deepseek模型获取响应内容
+        # 调用模型获取响应内容
         response = self.openai.chat.completions.create(
-            model="deepseek-chat",
+            model=self.model,
             messages=messages,
         )
 
@@ -58,7 +47,7 @@ class DeepSeekClient:
 
 
 async def main():
-    client = DeepSeekClient()
+    client = ChatClient()
 
     await client.chat_loop()
 

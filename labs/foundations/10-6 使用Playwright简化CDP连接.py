@@ -1,10 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""
-@Time    : 2025/05/04 23:17
-@Author  : thezehui@gmail.com
-@File    : 10-6 使用Playwright简化CDP连接.py
-"""
 import asyncio
 
 from playwright.async_api import async_playwright

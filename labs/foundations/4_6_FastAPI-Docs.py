@@ -1,10 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""
-@Time    : 2025/7/9 20:04
-@Author  : thezehui@gmail.com
-@File    : 4_6_FastAPI-Docs.py
-"""
 from typing import List
 
 from fastapi import FastAPI, APIRouter

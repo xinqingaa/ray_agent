@@ -1,15 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""
-@Time    : 2025/7/6 1:01
-@Author  : thezehui@gmail.com
-@File    : 3_9_DeepSeek JSON Output示例.py
-"""
-import dotenv
-from openai import OpenAI
 from pydantic import BaseModel, Field
 
-dotenv.load_dotenv()
+from llm_settings import openai_client
 
 
 class SplitTask(BaseModel):
@@ -17,7 +10,7 @@ class SplitTask(BaseModel):
     tasks: list[str] = Field(..., description="拆分的任务列表")
 
 
-client = OpenAI()
+client, model = openai_client()
 
 system_prompt = """用户将提问一个问题，请拆解这个问题为多个串联的小任务，拆解的小任务数量不超过10个，你可以使用任何假设的工具、LLM、代码等。
 并以json格式输出，其中task_count字段代表拆分任务的总数，tasks为拆分的任务数组(tasks数组内的每个元素都是一个字符串，有顺序之分)。
@@ -43,7 +36,7 @@ while True:
     ]
 
     response = client.chat.completions.create(
-        model="deepseek-chat",
+        model=model,
         messages=messages,
         response_format={"type": "json_object"}
     )

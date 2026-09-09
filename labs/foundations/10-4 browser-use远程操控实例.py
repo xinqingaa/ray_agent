@@ -1,10 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""
-@Time    : 2025/05/04 0:21
-@Author  : thezehui@gmail.com
-@File    : 10-4 browser-use远程操控实例.py
-"""
 import os
 
 import dotenv

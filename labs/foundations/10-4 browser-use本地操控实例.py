@@ -1,10 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""
-@Time    : 2025/05/03 17:26
-@Author  : thezehui@gmail.com
-@File    : 10-4 browser-use本次操控实例.py
-"""
 import asyncio
 
 import dotenv

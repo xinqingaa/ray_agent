@@ -1,10 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""
-@Time    : 2025/5/26 8:42
-@Author  : thezehui@gmail.com
-@File    : demo.py
-"""
 import asyncio
 import sys
 from pathlib import Path

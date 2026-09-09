@@ -1,10 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""
-@Time    : 2025/7/9 11:25
-@Author  : thezehui@gmail.com
-@File    : 4_6_FastAPI-Demo.py
-"""
 from typing import Union
 
 from fastapi import FastAPI

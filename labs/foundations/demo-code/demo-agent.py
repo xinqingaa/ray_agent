@@ -1,22 +1,16 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""
-@Time    : 2025/7/1 18:23
-@Author  : thezehui@gmail.com
-@File    : demo-agent.py
-"""
 import asyncio
 import json
-import os
+import sys
+from pathlib import Path
 from typing import Optional
 
-import dotenv
 from mcp import ClientSession
 from mcp.client.streamable_http import streamablehttp_client
-from openai import OpenAI
 
-# 加载环境变量
-dotenv.load_dotenv()
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from llm_settings import openai_client
 
 
 class ReActAgent:
@@ -25,10 +19,7 @@ class ReActAgent:
     def __init__(self):
         """构造函数，完成ReACT智能体的初始化"""
         self.session: Optional[ClientSession] = None
-        self.openai = OpenAI(
-            base_url="https://api.deepseek.com/v1",
-            api_key=os.getenv("DEEPSEEK_API_KEY"),
-        )
+        self.openai, self.model = openai_client()
         self.messages = [{
             "role": "system",
             "content": "你是一个乐于助人的AI助手。你可以调用工具来获取实时信息。请优先使用工具回答问题。回答问题尽可能简洁，不要长篇大论，如果不知道或者无法回答请直接告诉用户。"
@@ -52,7 +43,7 @@ class ReActAgent:
             print(f"工具[{tool.name}]: {tool.description}")
 
     async def process_query(self, query: str) -> str:
-        """使用deepseek处理用户输入+mcp工具"""
+        """使用模型处理用户输入并调用 MCP 工具"""
         # 获取mcp工具并组装可用工具列表
         response = await self.session.list_tools()
         available_tools = [
@@ -70,9 +61,9 @@ class ReActAgent:
         # 初始化用户消息
         self.messages.append({"role": "user", "content": query})
 
-        # 调用deepseek模型获取响应内容
+        # 调用模型获取响应内容
         response = self.openai.chat.completions.create(
-            model="deepseek-chat",
+            model=self.model,
             messages=self.messages,
             tools=available_tools,
         )
@@ -105,7 +96,7 @@ class ReActAgent:
 
             # 再次调用模型，让它基于工具返回的结果生成最终回复内容(第二次不携带工具)
             second_response = self.openai.chat.completions.create(
-                model="deepseek-chat",
+                model=self.model,
                 messages=self.messages,
             )
 

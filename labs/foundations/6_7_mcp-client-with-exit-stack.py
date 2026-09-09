@@ -1,10 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""
-@Time    : 2025/5/26 9:01
-@Author  : thezehui@gmail.com
-@File    : demo-2.py
-"""
 import asyncio
 import sys
 from contextlib import AsyncExitStack

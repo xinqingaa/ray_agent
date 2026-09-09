@@ -38,12 +38,13 @@
 
 ## Chapter 02 evidence
 
-作者以两个 `3_4` 脚本研究请求、完整响应与流式消费。正文按需展示结构和关键调用，不附 RayAgent 源码清单。协议基线是 OpenAI 兼容 Chat Completions；产品客户端是 `OpenAILLM`，与本章脚本同类不同套。Anthropic Messages 与 `tool_calls` 分流不在本章展开。
+作者以两个 `3_4` 脚本研究请求、完整响应与流式消费。正文按需展示结构和关键调用，不附 RayAgent 源码清单。协议基线是 OpenAI 兼容 Chat Completions；产品客户端是 `OpenAILLM`，与本章脚本同类不同套。配置使用 `LLM_*`，可与 `ray_agent/.env` 同一组。Anthropic Messages 与 `tool_calls` 分流不在本章展开。
 
 | 依据 | 核对重点 |
 |---|---|
-| `labs/foundations/3_4_DeepSeek API调用.py` 的 `main` | 消息正文、相同模型配置、HTTP 状态、完整 JSON 与结束原因。 |
-| `labs/foundations/3_4_DeepSeek API流式调用.py` 的 `main` | 服务端与客户端两个 stream、正文增量、非正文块、结束标记与部分响应。 |
+| `labs/foundations/llm_settings.py` | `LLM_API_KEY`、`LLM_MODEL_NAME`、`LLM_BASE_URL`；本目录 `.env` 优先，缺项回读产品 `.env`。 |
+| `labs/foundations/3_4_Chat Completions API调用.py` 的 `main` | 消息正文、相同模型配置、HTTP 状态、完整 JSON 与结束原因。 |
+| `labs/foundations/3_4_Chat Completions API流式调用.py` 的 `main` | 服务端与客户端两个 stream、正文增量、非正文块、结束标记与部分响应。 |
 | `labs/foundations/tests/test_model_interaction.py` | 本地 HTTP 夹具；首段显示后才发送其余响应，验证客户端确实边接收边输出。 |
 | [OpenAI Chat Completions](https://platform.openai.com/docs/api-reference/chat/create) | 协议基线：messages、message / delta、finish_reason 与 data: [DONE]。 |
 | [DeepSeek Chat Completions](https://api-docs.deepseek.com/api/create-chat-completion/) | labs 实际调用的兼容服务说明。 |
@@ -67,17 +68,17 @@
 
 | 脚本 | 挂课 | 备注 |
 | --- | --- | --- |
-| `3_4_DeepSeek API调用.py` | 02 | 读 `DEEPSEEK_API_KEY` |
-| `3_4_DeepSeek API流式调用.py` | 02 | 流式输出 |
+| `3_4_Chat Completions API调用.py` | 02 | 读 `LLM_*` |
+| `3_4_Chat Completions API流式调用.py` | 02 | 流式输出；读 `LLM_*` |
 | `3_5_Kimi多模态API测试.py` | — | 对照／范围外；多模态，非产品主路径，第 02 章正文未使用 |
 | `3_6_OpenAI SDK重构代码.py` | — | 对照／范围外；SDK 写法对照，第 02 章正文未使用 |
 | `3_6_OpenAI SDK重构多模态LLM调用.py` | — | 对照／范围外；多模态 SDK，第 02 章正文未使用 |
 | `3_7_为ReAct Agent添加计算工具.py` | 03 | 工具调用 |
 | `3_8_Pydantic解析数据.py` | 03 | 结构化解析 |
 | `3_8_Pydantic结合Tool Calls实现数据提取.py` | 03 | schema + tool calls |
-| `3_9_DeepSeek JSON Output示例.py` | 03 | JSON 输出 |
+| `3_9_JSON Output示例.py` | 03 | JSON 输出 |
 | `3_10_使用流式输出提升响应速度.py` | — | 对照／范围外；另一份流式脚本，第 02 章正文只用 `3_4` |
-| `3_11_DeepSeek语音播报助手.py` | — | 历史或范围外参考；语音，产品主路径不覆盖 |
+| `3_11_语音播报助手.py` | — | 历史或范围外参考；语音，产品主路径不覆盖 |
 
 ### foundations：上下文、ReAct、异步
 

@@ -1,10 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""
-@Time    : 2025/5/26 23:48
-@Author  : thezehui@gmail.com
-@File    : 6_10_mcp-external-api.py
-"""
 import json
 import os
 

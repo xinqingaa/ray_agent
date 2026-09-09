@@ -1,10 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""
-@Time    : 2025/5/26 11:07
-@Author  : thezehui@gmail.com
-@File    : 6_9_mcp-code.py
-"""
 import os
 import subprocess
 import tempfile

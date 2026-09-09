@@ -1,10 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""
-@Time    : 2025/9/5 15:32
-@Author  : thezehui@gmail.com
-@File    : 3_6 OpenAI SDK重构多模态LLM调用.py
-"""
 import base64
 import os
 

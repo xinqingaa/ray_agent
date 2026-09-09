@@ -1,15 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""
-@Time    : 2025/7/5 11:50
-@Author  : thezehui@gmail.com
-@File    : 3_8_Pydantic结合Tool Calls实现数据提取.py
-"""
-import dotenv
-from openai import OpenAI
 from pydantic import BaseModel, Field, EmailStr
 
-dotenv.load_dotenv()
+from llm_settings import openai_client
 
 
 class UserInfo(BaseModel):
@@ -19,10 +12,10 @@ class UserInfo(BaseModel):
     email: EmailStr = Field(..., description="用户的电子邮件")
 
 
-client = OpenAI()
+client, model = openai_client()
 
 response = client.chat.completions.create(
-    model="deepseek-chat",
+    model=model,
     messages=[
         {"role": "user", "content": "我叫泽辉呀，今年18岁，我的联系方式是zehuiya@163.com"}
     ],

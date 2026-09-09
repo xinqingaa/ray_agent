@@ -1,10 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""
-@Time    : 2025/7/5 14:03
-@Author  : thezehui@gmail.com
-@File    : 3_4_Kimi多模态API测试.py
-"""
 import base64
 import os
 

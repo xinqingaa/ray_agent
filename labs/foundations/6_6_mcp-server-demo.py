@@ -1,10 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""
-@Time    : 2025/5/26 0:39
-@Author  : thezehui@gmail.com
-@File    : 6_6_mcp-server-demo.py
-"""
 import json
 
 from mcp.server import MCPServer

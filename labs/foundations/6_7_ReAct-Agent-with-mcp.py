@@ -1,10 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""
-@Time    : 2025/5/26 0:44
-@Author  : thezehui@gmail.com
-@File    : 6_6_mcp-client-demo.py
-"""
 import asyncio
 import json
 import os
@@ -13,14 +8,13 @@ from contextlib import AsyncExitStack
 from pathlib import Path
 from typing import Optional
 
-import dotenv
 from mcp import Client, StdioServerParameters
-from openai import AsyncOpenAI
 from openai.types.chat.chat_completion_chunk import ChoiceDeltaToolCall
 
+from llm_settings import async_openai_client, load_env_files
 from mcp_client_2026 import PROTOCOL_VERSION, adopt_protocol
 
-dotenv.load_dotenv()
+load_env_files()
 
 # 定义高德mcp服务基础地址
 GAODE_URL = f"https://mcp.amap.com/mcp?key={os.getenv('GAODE_KEY')}"
@@ -31,10 +25,9 @@ SYSTEM_PROMPT = "你是一个强大的聊天机器人，请根据用户的提问
 class ReActAgent:
     def __init__(self):
         """构造函数，完成ReActAgent的初始化，涵盖客户端、生命周期、MCP会话"""
-        self.model = "deepseek-chat"
+        self.client, self.model = async_openai_client()
         self.mcp_client: Optional[Client] = None
         self.exit_stack = AsyncExitStack()
-        self.client = AsyncOpenAI()
         self.messages = [{"role": "system", "content": SYSTEM_PROMPT}]
         self.tools = []
 
@@ -70,7 +63,7 @@ class ReActAgent:
             self.messages.append({"role": "user", "content": query})
         print("Assistant: ", end="", flush=True)
 
-        # 调用deepseek发起请求
+        # 调用模型发起请求
         response = await self.client.chat.completions.create(
             model=self.model,
             messages=self.messages,

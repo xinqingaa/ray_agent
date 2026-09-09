@@ -1,10 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""
-@Time    : 2025/7/6 20:28
-@Author  : thezehui@gmail.com
-@File    : 3_8_Pydantic解析数据.py
-"""
 from pydantic import BaseModel, Field, EmailStr
 
 

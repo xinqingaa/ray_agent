@@ -1,28 +1,20 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""
-@Time    : 2025/7/4 10:34
-@Author  : thezehui@gmail.com
-@File    : 3_3_DeepSeek API调用.py
-"""
 import json
-import os
 
-import dotenv
 import requests
+
+from llm_settings import chat_completions_url, llm_settings
 
 
 def main() -> None:
-    dotenv.load_dotenv()
-    api_key = os.getenv("DEEPSEEK_API_KEY")
-    if not api_key:
-        raise SystemExit("请先配置 DEEPSEEK_API_KEY，运行条件见本目录 README。")
+    api_key, model, base_url = llm_settings()
 
     with requests.post(
-        "https://api.deepseek.com/chat/completions",
+        chat_completions_url(base_url),
         headers={"Authorization": f"Bearer {api_key}"},
         json={
-            "model": os.getenv("DEEPSEEK_MODEL", "deepseek-chat"),
+            "model": model,
             "messages": [
                 {"role": "user", "content": "请用一句话说明：为什么写入文件后还要读取确认？"}
             ],

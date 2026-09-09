@@ -1,20 +1,13 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""
-@Time    : 2025/7/8 11:03
-@Author  : thezehui@gmail.com
-@File    : 4_4_ReAct+CoT实现企业业务表单填写.py
-"""
 import json
 from datetime import date
 from typing import Literal
 
-import dotenv
-from openai import OpenAI
 from openai.types.chat.chat_completion_chunk import ChoiceDeltaToolCall
 from pydantic import BaseModel, Field
 
-dotenv.load_dotenv()
+from llm_settings import openai_client
 
 """
 课后挑战:
@@ -91,9 +84,8 @@ SYSTEM_PROMPT = """你是一个智能企业报销助手。你的任务是根据�
 
 class ReActAgent:
     def __init__(self):
-        self.client = OpenAI()
+        self.client, self.model = openai_client()
         self.messages = [{"role": "system", "content": SYSTEM_PROMPT}]
-        self.model = "deepseek-chat"
         self.available_tools = {
             submit_reimbursement.__name__: {"tool": submit_reimbursement, "input": SubmitReimbursementInput},
             get_employee_info.__name__: {"tool": get_employee_info, "input": GetEmployeeInfoInput},
@@ -114,7 +106,7 @@ class ReActAgent:
             self.messages.append({"role": "user", "content": query})
         print("Assistant: ", end="", flush=True)
 
-        # 调用deepseek发起请求
+        # 调用模型发起请求
         response = self.client.chat.completions.create(
             model=self.model,
             messages=self.messages,

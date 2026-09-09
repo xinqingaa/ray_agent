@@ -1,10 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""
-@Time    : 2025/7/7 11:21
-@Author  : thezehui@gmail.com
-@File    : 4_2_计算消息上下文长度.py
-"""
 import transformers
 
 # 创建分词器

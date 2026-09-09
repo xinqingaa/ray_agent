@@ -1,10 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""
-@Time    : 2025/7/15 11:48
-@Author  : thezehui@gmail.com
-@File    : agent_executor.py
-"""
 import os
 
 from a2a.server.agent_execution import AgentExecutor, RequestContext
@@ -13,7 +8,7 @@ from a2a.types import (Part, Task, TextPart, UnsupportedOperationError)
 from a2a.utils import (completed_task, new_artifact)
 from a2a.utils.errors import ServerError
 
-from deepseek_react_agent import ReActAgent
+from react_agent import ReActAgent
 
 
 class WeatherAgentExecutor(AgentExecutor):

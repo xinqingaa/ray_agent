@@ -2,6 +2,7 @@
 import importlib.util
 import io
 import json
+import sys
 import threading
 import unittest
 from contextlib import redirect_stdout
@@ -12,7 +13,10 @@ from unittest.mock import patch
 import requests
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
+import llm_settings as settings
 
 def load_script(filename):
     spec = importlib.util.spec_from_file_location(filename, ROOT / filename)
@@ -21,12 +25,30 @@ def load_script(filename):
     return module
 
 
-NORMAL = load_script("3_4_DeepSeek API调用.py")
-STREAM = load_script("3_4_DeepSeek API流式调用.py")
+NORMAL = load_script("3_4_Chat Completions API调用.py")
+STREAM = load_script("3_4_Chat Completions API流式调用.py")
+
+FIXTURE_ENV = {
+    "LLM_API_KEY": "local-fixture-only",
+    "LLM_MODEL_NAME": "fixture-model",
+    "LLM_BASE_URL": "https://example.test/v1",
+}
+
+
+class LlmSettingsTests(unittest.TestCase):
+    def test_appends_chat_completions(self):
+        self.assertEqual(
+            settings.chat_completions_url("https://example.test/v1"),
+            "https://example.test/v1/chat/completions",
+        )
+        self.assertEqual(
+            settings.chat_completions_url("https://example.test/v1/chat/completions"),
+            "https://example.test/v1/chat/completions",
+        )
 
 
 class ModelInteractionTests(unittest.TestCase):
-    def run_local(self, module, mode="normal", reason="stop"):
+    def run_local(self, module, mode="normal", reason="stop", extra_env=None):
         observed = {}
         first_displayed = threading.Event()
 
@@ -76,11 +98,13 @@ class ModelInteractionTests(unittest.TestCase):
         real_post = requests.post
         output = Output()
 
-        def local_post(_url, **kwargs):
+        def local_post(url, **kwargs):
+            observed["url"] = url
             return real_post(f"http://127.0.0.1:{server.server_port}/chat/completions", **kwargs)
 
+        env = extra_env or FIXTURE_ENV
         try:
-            with patch.dict("os.environ", {"DEEPSEEK_API_KEY": "local-fixture-only", "DEEPSEEK_MODEL": "fixture-model"}), patch.object(module.dotenv, "load_dotenv"), patch.object(module.requests, "post", side_effect=local_post), redirect_stdout(output):
+            with patch.dict("os.environ", env, clear=True), patch.object(settings.dotenv, "load_dotenv"), patch.object(module.requests, "post", side_effect=local_post), redirect_stdout(output):
                 module.main()
         finally:
             server.shutdown()
@@ -95,6 +119,7 @@ class ModelInteractionTests(unittest.TestCase):
         self.assertEqual(normal["body"]["messages"], stream["body"]["messages"])
         self.assertFalse(normal["body"]["stream"])
         self.assertTrue(stream["body"]["stream"])
+        self.assertEqual(normal["url"], "https://example.test/v1/chat/completions")
         self.assertIn("回答： 读取确认。", normal_text)
         self.assertIn("拼接回答： 读取确认。", stream_text)
         self.assertIn("结束原因： stop", stream_text)
@@ -113,10 +138,10 @@ class ModelInteractionTests(unittest.TestCase):
             with self.subTest(module=module.__name__), self.assertRaises(requests.HTTPError):
                 self.run_local(module, mode="http_error")
 
-    def test_missing_key_stops_before_network(self):
+    def test_missing_settings_stop_before_network(self):
         for module in (NORMAL, STREAM):
-            with self.subTest(module=module.__name__), patch.dict("os.environ", {}, clear=True), patch.object(module.dotenv, "load_dotenv"), patch.object(module.requests, "post") as post:
-                with self.assertRaisesRegex(SystemExit, "DEEPSEEK_API_KEY"):
+            with self.subTest(module=module.__name__), patch.dict("os.environ", {}, clear=True), patch.object(settings.dotenv, "load_dotenv"), patch.object(module.requests, "post") as post:
+                with self.assertRaisesRegex(SystemExit, "LLM_API_KEY"):
                     module.main()
                 post.assert_not_called()
 

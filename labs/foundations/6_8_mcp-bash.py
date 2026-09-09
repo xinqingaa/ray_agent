@@ -1,10 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""
-@Time    : 2025/5/26 10:37
-@Author  : thezehui@gmail.com
-@File    : 6_8_mcp-bash.py
-"""
 import subprocess
 
 from mcp.server.fastmcp import FastMCP
