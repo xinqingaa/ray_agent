@@ -2,6 +2,10 @@
 
 上一章中，Agent 会根据目标和工具结果决定下一步。但程序并不能直接把一句话“放进模型脑中”。它需要构造请求，发送给模型服务，再理解返回的数据。
 
+本章用 labs 中的独立脚本观察 **OpenAI 兼容的 Chat Completions**，不必启动 RayAgent。产品使用同一类客户端，不是本章实验脚本。labs 默认调用 DeepSeek，只是现成的兼容落点；换其他兼容模型，通常是换服务地址、密钥和模型名。Anthropic Messages 是另一套接口形状，当前产品不走那条客户端。
+
+读结构即可跟上；要运行脚本，条件和命令见[基础实验运行指南](../labs/foundations/README.md#模型交互对照)。未配置真实模型密钥时，外部调用为 `unverified`，正文与图中的回答都是示意。
+
 先把文件任务缩小成一个问题：
 
 > 请用一句话说明：为什么写入文件后还要读取确认？
@@ -12,7 +16,7 @@
 
 在聊天界面里，我们看到一个输入框；在程序里，一次调用至少需要表达三件事：请求交给哪个服务、使用哪个模型、让模型读取哪些消息。
 
-本章以 labs 中的 Chat Completions 调用为例。下面是一份简化的请求正文，省略了服务地址和鉴权信息：
+本章以 OpenAI 兼容的 Chat Completions 为例。下面是一份简化的请求正文，省略了服务地址和鉴权信息。`model` 写成实验默认标识，便于和脚本对照，不表示课程绑定某一家模型：
 
 ```json
 {
@@ -54,11 +58,13 @@
 
 本章只处理一个候选回答，所以取 `choices[0]`。其中 `message.content` 是要展示的正文，`finish_reason` 说明生成为何结束。打印整个 JSON 适合观察结构，界面展示则需要从中提取需要的字段。
 
-结束原因也不能忽略。对本章的文本回答，`stop` 表示正常停止；`length` 表示触及长度限制，已经收到的文字可能只是一部分。这些字段属于接口契约，具体语义以 [DeepSeek 的 Chat Completions 说明](https://api-docs.deepseek.com/api/create-chat-completion/)为准。
+同一条 `assistant` message 上，正文在 `content`，工具调用在 `tool_calls`，二者是不同字段，不是两种 HTTP 响应。本章只看 `content`。旧文档里的 `function_call` 是更早的单次字段，产品和后续实验使用 `tool_calls`。
+
+结束原因也不能忽略。对本章的文本回答，`stop` 表示正常停止；`length` 表示触及长度限制，已经收到的文字可能只是一部分。这些字段属于 [OpenAI Chat Completions](https://platform.openai.com/docs/api-reference/chat/create) 的契约；labs 实际打到的兼容服务说明见 [DeepSeek Chat Completions](https://api-docs.deepseek.com/api/create-chat-completion/)。
 
 这就有了两层判断：HTTP 请求是否成功，以及返回的模型结果是否完整、可用。网络连接成功，不代表输入一定被接受；收到一段文本，也不代表它已经说完。
 
-还要保留上一章的边界：即使模型解释了“应该读取确认”，也没有真的读取文件。本章拿到的是回答数据，程序怎样把模型提出的操作变成真实行动，是另一个问题。
+还要保留上一章的边界：即使模型解释了“应该读取确认”，也没有真的读取文件。本章拿到的是文本回答，程序怎样读取 `tool_calls` 并执行，是另一个问题。
 
 ## 普通输出与流式输出，改变的是接收方式
 
@@ -78,7 +84,7 @@
 
 普通响应提供完整的 `message`；本章接口的流式响应提供增量 `delta`。可以把增量理解为“在已经收到的内容上，这次又增加了什么”。
 
-例如，下面三个简化事件可以逐步组成一句话：
+例如，下面三段数据事件可以逐步组成一句话；最后一行是流结束标记，不是可解析的 JSON：
 
 ```text
 data: {"choices":[{"delta":{"content":"读取可以"},"finish_reason":null}]}
@@ -90,7 +96,7 @@ data: {"choices":[{"delta":{},"finish_reason":"stop"}]}
 data: [DONE]
 ```
 
-`data:` 是事件传输格式的前缀，后面的 JSON 才是本次数据。最后的 `[DONE]` 是该接口的流结束标记，不是 JSON，也不是回答正文。完整消息、流式增量与结束标记的结构见[接口说明](https://api-docs.deepseek.com/api/create-chat-completion/)。
+`data:` 是事件传输格式的前缀，后面的 JSON 才是本次数据。最后的 `[DONE]` 是该接口的流结束标记，不是 JSON，也不是回答正文。完整消息、流式增量与结束标记见 [OpenAI Chat Completions](https://platform.openai.com/docs/api-reference/chat/create)；labs 所用兼容服务的对应说明见 [DeepSeek](https://api-docs.deepseek.com/api/create-chat-completion/)。
 
 消费它的过程可以用几行伪代码表达：
 
@@ -111,9 +117,9 @@ data: [DONE]
 
 ## 在实验中看清两个 stream
 
-本章使用 `labs/foundations/` 下的两个独立脚本：`3_4_DeepSeek API调用.py` 和 `3_4_DeepSeek API流式调用.py`。它们使用相同的问题与模型配置，分别展示完整响应和逐段回答。依赖、环境变量和启动命令集中在[基础实验运行指南](../labs/foundations/README.md#模型交互对照)，无需启动 RayAgent 产品。
+本章使用 `labs/foundations/` 下的两个独立脚本：`3_4_DeepSeek API调用.py` 和 `3_4_DeepSeek API流式调用.py`。它们按 OpenAI 兼容的 Chat Completions 构造请求，默认打到 DeepSeek，使用相同的问题与模型配置，分别展示完整响应和逐段回答。运行条件见开头链接的基础实验指南。
 
-本次制作已用本地 HTTP 夹具验证客户端行为；环境中没有配置真实模型密钥，因此外部模型调用仍为 `unverified`。本地验证证明的是请求构造、解析和逐段消费，不证明模型会生成哪句话。
+本地 HTTP 夹具可以核对请求构造、解析和逐段消费，不能证明模型会生成哪句话。
 
 理解流式脚本时，有一个很容易忽略的实现细节：同一个名字 `stream` 出现在两个不同位置。
 
@@ -144,6 +150,6 @@ with requests.post(url, json=payload, stream=True) as response:
 
 但它仍然只是在完成一次模型交互。流式脚本中的循环是在读取同一次响应，既没有根据反馈重新请求模型，也没有执行文件操作。把这个接收循环与 Agent 的决策循环区分开，后面的控制流程才不会混淆。
 
-接下来的问题是：如果模型返回的不是解释文字，而是“请调用读取文件工具”，程序应该怎样理解并执行它？
+接下来的问题是：如果同一条 message 带的不是解释文字，而是 `tool_calls`，程序应该怎样理解并执行它？
 
 [上一章：认识 RayAgent：从一句请求到任务完成](01-the-rayagent-system.md) · [课程目录](README.md) · [下一章：工具与行动](03-tools-and-actions.md)

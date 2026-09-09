@@ -31,21 +31,22 @@
 | 核对内容 | 实现入口与观察重点 |
 |---|---|
 | 请求成为任务 | [任务协调](../ray_agent/api/app/application/services/agent_service.py)：`_create_task` 准备资源与运行器，`chat` 接收消息并启动执行。 |
-| 外层计划推进 | [规划执行流程](../ray_agent/api/app/domain/services/flows/planner_react.py)：`invoke` 在创建计划、执行步骤、更新计划与总结之间推进。 |
+| 外层计划推进 | [规划执行流程](../ray_agent/api/app/domain/services/flows/planner_react.py)：`invoke` 在创建计划、执行步骤、更新计划与总结之间推进。步骤 `FAILED` 时结束本轮，不进入 `update_plan`。 |
 | 内层工具反馈 | [Agent 基础循环](../ray_agent/api/app/domain/services/agents/base.py)：`invoke` 将工具结果带入下一次模型调用。 |
 | 文件执行位置 | [文件工具](../ray_agent/api/app/domain/services/tools/file.py)：`read_file`、`write_file` 委托给沙箱接口。 |
 | 事件与界面 | [任务运行器](../ray_agent/api/app/domain/services/agent_task_runner.py)：`_put_and_add_event` 写入输出流与会话；[会话接口](../ray_agent/api/app/interfaces/endpoints/session_routes.py)：`chat` 映射为 SSE。 |
 
 ## Chapter 02 evidence
 
-作者以两个 `3_4` 脚本研究请求、完整响应与流式消费。正文按需展示结构和关键调用，不附 RayAgent 源码清单。
+作者以两个 `3_4` 脚本研究请求、完整响应与流式消费。正文按需展示结构和关键调用，不附 RayAgent 源码清单。协议基线是 OpenAI 兼容 Chat Completions；产品客户端是 `OpenAILLM`，与本章脚本同类不同套。Anthropic Messages 与 `tool_calls` 分流不在本章展开。
 
 | 依据 | 核对重点 |
 |---|---|
 | `labs/foundations/3_4_DeepSeek API调用.py` 的 `main` | 消息正文、相同模型配置、HTTP 状态、完整 JSON 与结束原因。 |
 | `labs/foundations/3_4_DeepSeek API流式调用.py` 的 `main` | 服务端与客户端两个 stream、正文增量、非正文块、结束标记与部分响应。 |
 | `labs/foundations/tests/test_model_interaction.py` | 本地 HTTP 夹具；首段显示后才发送其余响应，验证客户端确实边接收边输出。 |
-| [DeepSeek Chat Completions](https://api-docs.deepseek.com/api/create-chat-completion/) | messages、message / delta、finish_reason 与 data: [DONE] 的接口契约。 |
+| [OpenAI Chat Completions](https://platform.openai.com/docs/api-reference/chat/create) | 协议基线：messages、message / delta、finish_reason 与 data: [DONE]。 |
+| [DeepSeek Chat Completions](https://api-docs.deepseek.com/api/create-chat-completion/) | labs 实际调用的兼容服务说明。 |
 | [Requests 响应体处理](https://requests.readthedocs.io/en/latest/user/advanced/#body-content-workflow) | stream=True 延迟读取响应体、逐步消费和关闭响应。 |
 
 运行入口维护在 foundations README；当前验证结果与真实服务缺口维护在 progress。
@@ -68,14 +69,14 @@
 | --- | --- | --- |
 | `3_4_DeepSeek API调用.py` | 02 | 读 `DEEPSEEK_API_KEY` |
 | `3_4_DeepSeek API流式调用.py` | 02 | 流式输出 |
-| `3_5_Kimi多模态API测试.py` | 02 | 多模态，非产品主路径 |
-| `3_6_OpenAI SDK重构代码.py` | 02 | SDK 写法对照 |
-| `3_6_OpenAI SDK重构多模态LLM调用.py` | 02 | 多模态 SDK |
+| `3_5_Kimi多模态API测试.py` | — | 对照／范围外；多模态，非产品主路径，第 02 章正文未使用 |
+| `3_6_OpenAI SDK重构代码.py` | — | 对照／范围外；SDK 写法对照，第 02 章正文未使用 |
+| `3_6_OpenAI SDK重构多模态LLM调用.py` | — | 对照／范围外；多模态 SDK，第 02 章正文未使用 |
 | `3_7_为ReAct Agent添加计算工具.py` | 03 | 工具调用 |
 | `3_8_Pydantic解析数据.py` | 03 | 结构化解析 |
 | `3_8_Pydantic结合Tool Calls实现数据提取.py` | 03 | schema + tool calls |
 | `3_9_DeepSeek JSON Output示例.py` | 03 | JSON 输出 |
-| `3_10_使用流式输出提升响应速度.py` | 02 | 流式体验 |
+| `3_10_使用流式输出提升响应速度.py` | — | 对照／范围外；另一份流式脚本，第 02 章正文只用 `3_4` |
 | `3_11_DeepSeek语音播报助手.py` | — | 历史或范围外参考；语音，产品主路径不覆盖 |
 
 ### foundations：上下文、ReAct、异步

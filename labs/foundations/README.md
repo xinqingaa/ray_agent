@@ -31,7 +31,7 @@ uv run --locked python '3_4_DeepSeek API调用.py'
 
 ## 模型交互对照
 
-在本目录使用前述依赖环境运行。配置 `DEEPSEEK_API_KEY`，可从本地 `.env` 加载；不要将密钥提交到仓库。两个 `3_4` 脚本默认使用 `deepseek-chat`，可通过 `DEEPSEEK_MODEL` 指定当前服务可用的模型；比较时保持该配置一致。
+在本目录使用前述依赖环境运行。两个 `3_4` 脚本按 OpenAI 兼容的 Chat Completions 构造请求，默认打到 DeepSeek。配置 `DEEPSEEK_API_KEY`，可从本地 `.env` 加载；不要将密钥提交到仓库。默认模型为 `deepseek-chat`，可通过 `DEEPSEEK_MODEL` 指定当前服务可用的模型；比较时保持该配置一致。
 
 ```bash
 uv run --locked python '3_4_DeepSeek API调用.py'
