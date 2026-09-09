@@ -50,6 +50,27 @@ uv run --locked python -m unittest discover -s tests -p test_model_interaction.p
 
 覆盖同输入对照、首段在服务端结束前显示、空增量与统计块、长度结束原因、缺失结束标记、HTTP 错误及缺少密钥。真实模型调用的课程验证状态见 [制作进度](../../lessons/progress.md)。
 
+## 工具调用与结构化输出
+
+在本目录使用前述依赖环境和 `LLM_*` 配置。`3_7` 观察一次工具执行：模型返回 `tool_calls` 后，程序按名字调用 `calculator`，把结果以 `role: tool` 追加到消息，再请求一次模型。文件名和类名含 ReAct，控制流却是执行后用 `tool_choice="none"` 强制生成文本，不是持续反馈循环。计算器在本进程里计算表达式，不写 hello.txt，也不经过沙箱。
+
+```bash
+uv run --locked python '3_7_为ReAct Agent添加计算工具.py' '计算 12+30'
+uv run --locked python '3_8_Pydantic解析数据.py'
+uv run --locked python '3_8_Pydantic结合Tool Calls实现数据提取.py'
+uv run --locked python '3_9_JSON Output示例.py'
+```
+
+`3_7` 带参数时只处理这一句；不带参数则进入交互输入，输入 `quit` 结束。`3_8` 解析脚本不需要模型密钥，用于观察 `arguments` 字符串的校验成败。另外两个脚本需要密钥：`3_8` 的 tool calls 示例强制模型按 schema 交数据，并不执行业务函数；`3_9` 把 JSON 放在 `content` 里。缺少密钥会在发出请求前退出。
+
+本地回归不访问外部模型：
+
+```bash
+uv run --locked python -m unittest discover -s tests -p test_tool_actions.py -v
+```
+
+覆盖参数校验、无工具时不执行、`tool_calls` 执行后以 `role: tool` 回传并带上 `tool_choice="none"`，以及强制 `tool_choice` 抽取字段。真实模型是否提出调用见 [制作进度](../../lessons/progress.md)。
+
 ## MCP 2.2 可复现基线
 
 本目录锁定 `mcp==2.2.0`，客户端显式采用 `2026-07-28` 协议，不回退到旧 `initialize` 握手。

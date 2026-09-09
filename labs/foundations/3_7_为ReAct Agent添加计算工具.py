@@ -1,6 +1,11 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+"""一次工具执行：模型提出 tool_calls 后由程序执行，再以 role: tool 回传。
+
+第二次调用使用 tool_choice=\"none\" 强制生成文本，不是持续反馈的 Agent Loop。
+"""
 import json
+import sys
 
 from llm_settings import openai_client
 
@@ -110,5 +115,13 @@ class ReActAgent:
                 print(f"\nError: {str(e)}")
 
 
+def main() -> None:
+    agent = ReActAgent()
+    if len(sys.argv) > 1:
+        print(agent.process_query(" ".join(sys.argv[1:])))
+        return
+    agent.chat_loop()
+
+
 if __name__ == "__main__":
-    ReActAgent().chat_loop()
+    main()

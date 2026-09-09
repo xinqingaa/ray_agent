@@ -12,26 +12,32 @@ class UserInfo(BaseModel):
     email: EmailStr = Field(..., description="用户的电子邮件")
 
 
-client, model = openai_client()
+def main() -> None:
+    client, model = openai_client()
 
-response = client.chat.completions.create(
-    model=model,
-    messages=[
-        {"role": "user", "content": "我叫泽辉呀，今年18岁，我的联系方式是zehuiya@163.com"}
-    ],
-    tools=[
-        {
-            "type": "function",
-            "function": {
-                "name": UserInfo.__name__,
-                "description": UserInfo.__doc__,
-                "parameters": UserInfo.model_json_schema(),
+    response = client.chat.completions.create(
+        model=model,
+        messages=[
+            {"role": "user", "content": "我叫泽辉呀，今年18岁，我的联系方式是zehuiya@163.com"}
+        ],
+        tools=[
+            {
+                "type": "function",
+                "function": {
+                    "name": UserInfo.__name__,
+                    "description": UserInfo.__doc__,
+                    "parameters": UserInfo.model_json_schema(),
+                }
             }
-        }
-    ],
-    tool_choice={"type": "function", "function": {"name": UserInfo.__name__}}
-)
+        ],
+        tool_choice={"type": "function", "function": {"name": UserInfo.__name__}}
+    )
 
-user_info = UserInfo.model_validate_json(response.choices[0].message.tool_calls[0].function.arguments)
+    user_info = UserInfo.model_validate_json(
+        response.choices[0].message.tool_calls[0].function.arguments
+    )
+    print(user_info.name)
 
-print(user_info.name)
+
+if __name__ == "__main__":
+    main()

@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field, EmailStr
 class UserInfo(BaseModel):
     """传递用户的信息进行数据提取&处理，涵盖name、age、email等"""
     name: str = Field(..., description="用户名字")
-    age: int = Field(..., description="用户年龄，必须是正整数")
+    age: int = Field(..., gt=0, description="用户年龄，必须是正整数")
     email: EmailStr = Field(..., description="用户的电子邮件")
 
 

@@ -8,7 +8,7 @@
 |---|---|---|
 | [01 · 认识 RayAgent：从一句请求到任务完成](01-the-rayagent-system.md) | [架构说明](../docs/architecture.md)；[作者核对入口](#chapter-01-evidence) | 概念阅读，无需启动服务 |
 | [02 · 与模型交互](02-model-interaction.md) | `labs/foundations/3_4` 同模型同输入对照；[作者核对入口](#chapter-02-evidence) | foundations 环境 + 模型配置 |
-| [03 · 工具与行动](03-tools-and-actions.md) | `labs/foundations/3_7`、`3_8`、`3_9` | foundations 环境；按脚本配置模型 |
+| [03 · 工具与行动](03-tools-and-actions.md) | `labs/foundations/3_7`、`3_8`、`3_9`；[作者核对入口](#chapter-03-evidence) | foundations 环境；按脚本配置模型 |
 | [04 · Agent Loop 与 ReAct](04-agent-loop-and-react.md) | `labs/foundations/4_3`、`4_4`；核对真实反馈与终止控制 | foundations 环境 + 模型配置 |
 | [05 · 上下文与记忆](05-context-and-memory.md) | `labs/foundations/4_2` 及循环脚本中的消息构造 | foundations 环境；按脚本配置模型 |
 | [06 · 运行 RayAgent：观察一条完整任务](06-run-rayagent-one-complete-task.md) | [应用指南](../ray_agent/README.md)；共同文件任务 | Compose + 模型配置 |
@@ -52,6 +52,22 @@
 
 运行入口维护在 foundations README；当前验证结果与真实服务缺口维护在 progress。
 
+## Chapter 03 evidence
+
+作者以 `3_7` 研究声明、`tool_calls` 执行与 `role: tool` 回传，以 `3_8` / `3_9` 对照结构化输出。正文按需展示结构和关键调用，不附 RayAgent 源码清单。协议基线仍是 OpenAI 兼容 Chat Completions；`3_7` 的类名含 ReAct，控制流是一次执行后 `tool_choice="none"`，不是第 04 章的反馈循环。配置使用 `LLM_*`。
+
+| 依据 | 核对重点 |
+|---|---|
+| `labs/foundations/3_7_为ReAct Agent添加计算工具.py` 的 `process_query` | 请求带 `tools`；按 `name` 查找实现；`arguments` 先解析再执行；结果以 `role: tool` 带回 `tool_call_id`；第二次调用 `tool_choice="none"`。 |
+| `labs/foundations/3_8_Pydantic解析数据.py` | 不调用模型；合法 `arguments` 通过，非法年龄或邮箱失败。 |
+| `labs/foundations/3_8_Pydantic结合Tool Calls实现数据提取.py` 的 `main` | 强制 `tool_choice` 抽取 schema；读取 `arguments`，不执行业务函数。 |
+| `labs/foundations/3_9_JSON Output示例.py` | `response_format: json_object`，结构在 `content`。 |
+| `labs/foundations/tests/test_tool_actions.py` | 本地夹具；无外部模型。 |
+| [OpenAI Chat Completions](https://platform.openai.com/docs/api-reference/chat/create) | `tools`、`tool_calls`、`finish_reason: tool_calls`、`role: tool`。 |
+| `ray_agent/api/app/domain/services/agents/tool_call_compat.py` 的 `extract_embedded_tool_calls` | 若 `content` 是 Anthropic 风格 `tool_use`，补成 `tool_calls`；已有 `tool_calls` 则不改。正文不展开 Messages API。 |
+
+运行入口维护在 foundations README；当前验证结果与真实服务缺口维护在 progress。
+
 ## Shared product observation
 
 第 06 章建立共同任务：在沙箱工作目录创建 hello.txt，写入 hello，再读取并总结。后续从同一任务观察计划、工具、状态、事件和文件流转。
@@ -73,10 +89,10 @@
 | `3_5_Kimi多模态API测试.py` | — | 对照／范围外；多模态，非产品主路径，第 02 章正文未使用 |
 | `3_6_OpenAI SDK重构代码.py` | — | 对照／范围外；SDK 写法对照，第 02 章正文未使用 |
 | `3_6_OpenAI SDK重构多模态LLM调用.py` | — | 对照／范围外；多模态 SDK，第 02 章正文未使用 |
-| `3_7_为ReAct Agent添加计算工具.py` | 03 | 工具调用 |
-| `3_8_Pydantic解析数据.py` | 03 | 结构化解析 |
-| `3_8_Pydantic结合Tool Calls实现数据提取.py` | 03 | schema + tool calls |
-| `3_9_JSON Output示例.py` | 03 | JSON 输出 |
+| `3_7_为ReAct Agent添加计算工具.py` | 03 | 一次工具执行；类名含 ReAct，不是持续反馈循环 |
+| `3_8_Pydantic解析数据.py` | 03 | 无模型；校验 `arguments` 字符串 |
+| `3_8_Pydantic结合Tool Calls实现数据提取.py` | 03 | 强制 tool_choice 抽取，不执行业务函数 |
+| `3_9_JSON Output示例.py` | 03 | JSON 在 `content`，不是 tool_calls |
 | `3_10_使用流式输出提升响应速度.py` | — | 对照／范围外；另一份流式脚本，第 02 章正文只用 `3_4` |
 | `3_11_语音播报助手.py` | — | 历史或范围外参考；语音，产品主路径不覆盖 |
 
