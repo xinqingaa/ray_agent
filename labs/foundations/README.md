@@ -29,6 +29,27 @@ uv run --locked python '3_4_DeepSeek API调用.py'
 
 `demo-code/`、`2-2 code/weather/` 和 `2-2 code/ui/` 分别维护独立环境，应在对应目录运行。保留 `resources/` 等资源的相对路径。
 
+## 模型交互对照
+
+在本目录使用前述依赖环境运行。配置 `DEEPSEEK_API_KEY`，可从本地 `.env` 加载；不要将密钥提交到仓库。两个 `3_4` 脚本默认使用 `deepseek-chat`，可通过 `DEEPSEEK_MODEL` 指定当前服务可用的模型；比较时保持该配置一致。
+
+```bash
+uv run --locked python '3_4_DeepSeek API调用.py'
+uv run --locked python '3_4_DeepSeek API流式调用.py'
+```
+
+两者询问同一个问题：“请用一句话说明：为什么写入文件后还要读取确认？”普通脚本打印完整 JSON、正文和结束原因；流式脚本逐段打印正文，最后输出拼接结果和结束原因。缺少密钥会在发出请求前退出；HTTP 错误不会作为回答解析。超时参数分别限制连接等待和读取等待，不是整次任务的总时限。
+
+流式脚本处理该 Chat Completions 接口的一行 `data:` JSON 与 `[DONE]` 约定，跳过空行、注释和无候选回答的统计块，不是通用 SSE 客户端。缺少结束标记或结束原因时会报告部分结果；`length` 等原因会原样显示，不代表完整回答。需要推理输出或工具调用的场景不在这两个文本实验的展示范围内。
+
+客户端回归验证使用本地 HTTP 服务，不访问外部模型：
+
+```bash
+uv run --locked python -m unittest discover -s tests -p test_model_interaction.py -v
+```
+
+覆盖同输入对照、首段在服务端结束前显示、空增量与统计块、长度结束原因、缺失结束标记、HTTP 错误及缺少密钥。真实模型调用的课程验证状态见 [制作进度](../../lessons/progress.md)。
+
 ## MCP 2.2 可复现基线
 
 本目录锁定 `mcp==2.2.0`，客户端显式采用 `2026-07-28` 协议，不回退到旧 `initialize` 握手。

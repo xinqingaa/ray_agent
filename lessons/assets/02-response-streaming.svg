@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
+<title id="title">普通响应与流式响应</title>
+<desc id="desc">普通模式等待完整响应再显示；流式模式在同一次请求中逐段接收并累积正文。图中无实际耗时比例。</desc>
+<defs><marker id="arrow" markerUnits="userSpaceOnUse" markerWidth="12" markerHeight="12" refX="11" refY="6" orient="auto"><path d="M0 0 L12 6 L0 12 Z" fill="#536579"/></marker></defs>
+<style>text{font-family:"PingFang SC","Microsoft YaHei",Arial,sans-serif;fill:#0d0d0d}</style>
+<rect data-graph-role="background" width="1600" height="900" fill="#f3f5f7"/>
+<text x="64" y="72" font-size="18" font-weight="400" style="fill:#6e6e80" text-anchor="start">RAYAGENT / LESSON 02</text>
+<text x="64" y="130" font-size="38" font-weight="600" style="fill:#0d0d0d" text-anchor="start">同一个问题，两种接收方式</text>
+<text x="64" y="175" font-size="23" font-weight="400" style="fill:#6e6e80" text-anchor="start">普通模式拿到完整回答再显示；流式模式先显示已收到的部分。</text>
+<rect data-graph-role="container" x="64" y="232" width="1472" height="224" rx="8" fill="#fafbfc" stroke="#bac7d5" stroke-width="2"/>
+<rect data-graph-role="container" x="64" y="496" width="1472" height="224" rx="8" fill="#edf4fc" stroke="#bac7d5" stroke-width="2"/>
+<text x="92" y="280" font-size="27" font-weight="600" style="fill:#0d0d0d" text-anchor="start">普通响应</text>
+<text x="92" y="325" font-size="21" font-weight="400" style="fill:#6e6e80" text-anchor="start">整体解析</text>
+<text x="92" y="544" font-size="27" font-weight="600" style="fill:#0d0d0d" text-anchor="start">流式响应</text>
+<text x="92" y="589" font-size="21" font-weight="400" style="fill:#6e6e80" text-anchor="start">逐段追加</text>
+<path data-graph-role="edge" d="M520 344 H1180" fill="none" stroke="#536579" stroke-width="4" marker-end="url(#arrow)"/>
+<rect data-graph-role="node" x="280" y="288" width="240" height="112" rx="8" fill="#ffffff" stroke="#8e9cac" stroke-width="3"/>
+<text x="400.0" y="331" font-size="26" font-weight="600" style="fill:#0d0d0d" text-anchor="middle">发送请求</text>
+<text x="400.0" y="371" font-size="21" font-weight="400" style="fill:#6e6e80" text-anchor="middle">stream: false</text>
+<rect data-graph-role="node" x="1180" y="288" width="320" height="112" rx="8" fill="#ffffff" stroke="#8e9cac" stroke-width="3"/>
+<text x="1340.0" y="331" font-size="26" font-weight="600" style="fill:#0d0d0d" text-anchor="middle">完整回答</text>
+<text x="1340.0" y="371" font-size="21" font-weight="400" style="fill:#6e6e80" text-anchor="middle">读取可以确认内容。</text>
+<text x="845" y="324" font-size="23" font-weight="400" style="fill:#6e6e80" text-anchor="middle">等待完整响应体</text>
+<text x="845" y="410" font-size="21" font-weight="400" style="fill:#6e6e80" text-anchor="middle">一次解析 message.content</text>
+<path data-graph-role="edge" d="M520 608 H640" fill="none" stroke="#536579" stroke-width="4" marker-end="url(#arrow)"/>
+<path data-graph-role="edge" d="M880 608 H950" fill="none" stroke="#536579" stroke-width="4" marker-end="url(#arrow)"/>
+<path data-graph-role="edge" d="M1190 608 H1260" fill="none" stroke="#536579" stroke-width="4" marker-end="url(#arrow)"/>
+<rect data-graph-role="node" x="280" y="552" width="240" height="112" rx="8" fill="#ffffff" stroke="#8e9cac" stroke-width="3"/>
+<text x="400.0" y="595" font-size="26" font-weight="600" style="fill:#0d0d0d" text-anchor="middle">发送请求</text>
+<text x="400.0" y="635" font-size="21" font-weight="400" style="fill:#6e6e80" text-anchor="middle">stream: true</text>
+<rect data-graph-role="node" x="640" y="552" width="240" height="112" rx="8" fill="#ffffff" stroke="#8e9cac" stroke-width="3"/>
+<text x="760.0" y="595" font-size="26" font-weight="600" style="fill:#0d0d0d" text-anchor="middle">片段 1</text>
+<text x="760.0" y="635" font-size="21" font-weight="400" style="fill:#6e6e80" text-anchor="middle">读取可以</text>
+<rect data-graph-role="node" x="950" y="552" width="240" height="112" rx="8" fill="#ffffff" stroke="#8e9cac" stroke-width="3"/>
+<text x="1070.0" y="595" font-size="26" font-weight="600" style="fill:#0d0d0d" text-anchor="middle">片段 2</text>
+<text x="1070.0" y="635" font-size="21" font-weight="400" style="fill:#6e6e80" text-anchor="middle">确认内容。</text>
+<rect data-graph-role="node" x="1260" y="552" width="240" height="112" rx="8" fill="#ffffff" stroke="#8e9cac" stroke-width="3"/>
+<text x="1380.0" y="595" font-size="26" font-weight="600" style="fill:#0d0d0d" text-anchor="middle">结束信息</text>
+<text x="1380.0" y="635" font-size="21" font-weight="400" style="fill:#6e6e80" text-anchor="middle">原因 + [DONE]</text>
+<text x="950" y="694" font-size="21" font-weight="400" style="fill:#6e6e80" text-anchor="middle">持续提取 delta.content，保存并显示；无正文的块不追加文字</text>
+<text x="64" y="781" font-size="28" font-weight="600" style="fill:#0d0d0d" text-anchor="start">多个响应块 ≠ 多次模型决策</text>
+<text x="64" y="825" font-size="22" font-weight="400" style="fill:#6e6e80" text-anchor="start">能先看到部分内容，不代表整段生成更快；连接中断也不代表回答完整。</text>
+<text x="64" y="866" font-size="20" font-weight="400" style="fill:#6e6e80" text-anchor="start">文本与分块仅为机制示意，不是模型实测输出；横向位置不表示真实耗时。</text>
+</svg>

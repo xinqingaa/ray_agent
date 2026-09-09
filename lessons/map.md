@@ -7,7 +7,7 @@
 | 章节 | 素材与实现入口 | 环境边界 |
 |---|---|---|
 | [01 · 认识 RayAgent：从一句请求到任务完成](01-the-rayagent-system.md) | [架构说明](../docs/architecture.md)；[作者核对入口](#chapter-01-evidence) | 概念阅读，无需启动服务 |
-| [02 · 与模型交互](02-model-interaction.md) | `labs/foundations/3_4` 调用与流式脚本；`3_6` SDK 对照 | foundations 环境 + 模型配置 |
+| [02 · 与模型交互](02-model-interaction.md) | `labs/foundations/3_4` 同模型同输入对照；[作者核对入口](#chapter-02-evidence) | foundations 环境 + 模型配置 |
 | [03 · 工具与行动](03-tools-and-actions.md) | `labs/foundations/3_7`、`3_8`、`3_9` | foundations 环境；按脚本配置模型 |
 | [04 · Agent Loop 与 ReAct](04-agent-loop-and-react.md) | `labs/foundations/4_3`、`4_4`；核对真实反馈与终止控制 | foundations 环境 + 模型配置 |
 | [05 · 上下文与记忆](05-context-and-memory.md) | `labs/foundations/4_2` 及循环脚本中的消息构造 | foundations 环境；按脚本配置模型 |
@@ -35,6 +35,20 @@
 | 内层工具反馈 | [Agent 基础循环](../ray_agent/api/app/domain/services/agents/base.py)：`invoke` 将工具结果带入下一次模型调用。 |
 | 文件执行位置 | [文件工具](../ray_agent/api/app/domain/services/tools/file.py)：`read_file`、`write_file` 委托给沙箱接口。 |
 | 事件与界面 | [任务运行器](../ray_agent/api/app/domain/services/agent_task_runner.py)：`_put_and_add_event` 写入输出流与会话；[会话接口](../ray_agent/api/app/interfaces/endpoints/session_routes.py)：`chat` 映射为 SSE。 |
+
+## Chapter 02 evidence
+
+作者以两个 `3_4` 脚本研究请求、完整响应与流式消费。正文按需展示结构和关键调用，不附 RayAgent 源码清单。
+
+| 依据 | 核对重点 |
+|---|---|
+| `labs/foundations/3_4_DeepSeek API调用.py` 的 `main` | 消息正文、相同模型配置、HTTP 状态、完整 JSON 与结束原因。 |
+| `labs/foundations/3_4_DeepSeek API流式调用.py` 的 `main` | 服务端与客户端两个 stream、正文增量、非正文块、结束标记与部分响应。 |
+| `labs/foundations/tests/test_model_interaction.py` | 本地 HTTP 夹具；首段显示后才发送其余响应，验证客户端确实边接收边输出。 |
+| [DeepSeek Chat Completions](https://api-docs.deepseek.com/api/create-chat-completion/) | messages、message / delta、finish_reason 与 data: [DONE] 的接口契约。 |
+| [Requests 响应体处理](https://requests.readthedocs.io/en/latest/user/advanced/#body-content-workflow) | stream=True 延迟读取响应体、逐步消费和关闭响应。 |
+
+运行入口维护在 foundations README；当前验证结果与真实服务缺口维护在 progress。
 
 ## Shared product observation
 
