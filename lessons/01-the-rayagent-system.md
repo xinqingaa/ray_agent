@@ -8,7 +8,7 @@
 
 本章沿着这条请求，理解 RayAgent 如何把目标变成行动，再根据执行结果继续推进。无需启动服务，我们先看清整个过程。
 
-下面的步骤用于解释机制，不是本次运行日志。计划如何拆分、工具调用几次，由实际模型响应和执行结果决定。
+下面用一条可能的执行过程说明机制；计划如何拆分、工具调用几次，取决于模型响应和执行结果。
 
 ## 从回答走向行动
 
@@ -116,15 +116,5 @@ RayAgent 的内置文件、Shell 和浏览器工具提供执行能力。MCP 用�
 进入完整产品后，我们会反复回到同一条任务：谁在推进它，谁保存它的状态，工具在哪里执行，事件怎样到达页面，失败后留下了什么。最后再评估，从当前会话任务扩展到项目工作区，需要改变哪些边界。
 
 下一章从这条链路的第一个具体接口开始：**程序怎样把信息交给模型，又怎样理解模型返回的内容？**
-
-## 实现依据与验证范围
-
-本章的实现依据集中在以下入口；正文中的机制可以独立阅读，源码链接用于追溯具体行为。
-
-- 任务准备与事件传递：[任务协调](../ray_agent/api/app/application/services/agent_service.py)、[任务运行器](../ray_agent/api/app/domain/services/agent_task_runner.py)与[会话接口](../ray_agent/api/app/interfaces/endpoints/session_routes.py)。
-- 两层循环与工具反馈：[规划执行流程](../ray_agent/api/app/domain/services/flows/planner_react.py)、[Agent 基础循环](../ray_agent/api/app/domain/services/agents/base.py)。
-- 文件执行位置：[文件工具](../ray_agent/api/app/domain/services/tools/file.py)；其他实现入口见[素材索引](map.md#chapter-materials)。
-
-本章已按当前源码静态核对；本次未复跑产品，文件示例的端到端观察为 `unverified`。两张图均为机制简化，省略了完整异常分支。
 
 [课程目录](README.md) · [下一章：与模型交互](02-model-interaction.md)

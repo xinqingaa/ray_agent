@@ -1,29 +1,29 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
 <title id="title">两层循环，分别推进什么？</title>
 <desc id="desc">外层安排整个任务；内层根据工具反馈完成当前步骤。</desc>
-<defs><marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0 0 L8 4 L0 8 Z" fill="#71717a"/></marker></defs>
+<defs><marker id="arrow" markerWidth="12" markerHeight="12" refX="11" refY="6" markerUnits="userSpaceOnUse" orient="auto"><path d="M0 0 L12 6 L0 12 Z" fill="#536579"/></marker></defs>
 <style>text{font-family:"PingFang SC","Microsoft YaHei",Arial,sans-serif;fill:#0d0d0d} .secondary{fill:#6e6e80}</style>
-<rect data-graph-role="background" width="1600" height="900" fill="#ffffff"/>
+<rect data-graph-role="background" width="1600" height="900" fill="#f3f5f7"/>
 <text x="64" y="72" font-size="18" font-weight="400" text-anchor="start" style="fill:#6e6e80">RAYAGENT  /  LESSON 01</text>
 <text x="64" y="130" font-size="38" font-weight="600" text-anchor="start" style="fill:#0d0d0d">两层循环，分别推进什么？</text>
 <text x="64" y="174" font-size="22" font-weight="400" text-anchor="start" style="fill:#6e6e80">外层安排整个任务；内层根据工具反馈完成当前步骤。</text>
-<rect data-graph-role="container" x="80" y="220" width="1440" height="500" rx="8" fill="#ffffff" stroke="#e5e5e5" stroke-width="1" stroke-dasharray="4 3"/>
-<rect data-graph-role="container" x="620" y="292" width="840" height="335" rx="8" fill="#ffffff" stroke="#e5e5e5" stroke-width="1" stroke-dasharray="4 3"/>
+<rect data-graph-role="container" x="80" y="220" width="1440" height="500" rx="8" fill="#fafbfc" stroke="#bac7d5" stroke-width="2"/>
+<rect data-graph-role="container" x="620" y="292" width="840" height="335" rx="8" fill="#edf4fc" stroke="#bac7d5" stroke-width="2"/>
 <text x="110" y="265" font-size="26" font-weight="600" text-anchor="start" style="fill:#0d0d0d">外层：计划推进</text>
 <text x="650" y="335" font-size="25" font-weight="600" text-anchor="start" style="fill:#0d0d0d">内层：执行当前步骤（ReAct）</text>
-<path data-graph-role="edge" d="M440 440 H670" fill="none" stroke="#71717a" stroke-width="1.5" marker-end="url(#arrow)"/>
-<path data-graph-role="edge" d="M970 440 H1110" fill="none" stroke="#71717a" stroke-width="1.5" marker-end="url(#arrow)"/>
-<path data-graph-role="edge" d="M1260 500 V575 H820 V500" fill="none" stroke="#71717a" stroke-width="1.5" marker-end="url(#arrow)"/>
-<path data-graph-role="edge" d="M710 500 V670 H290 V500" fill="none" stroke="#71717a" stroke-width="1.5" marker-end="url(#arrow)"/>
-<rect data-graph-role="node" x="140" y="390" width="300" height="110" rx="8" fill="#ffffff" stroke="#e5e5e5" stroke-width="1.5"/>
+<path data-graph-role="edge" d="M440 440 H670" fill="none" stroke="#536579" stroke-width="4" marker-end="url(#arrow)"/>
+<path data-graph-role="edge" d="M970 440 H1110" fill="none" stroke="#536579" stroke-width="4" marker-end="url(#arrow)"/>
+<path data-graph-role="edge" d="M1260 500 V575 H820 V500" fill="none" stroke="#536579" stroke-width="4" marker-end="url(#arrow)"/>
+<path data-graph-role="edge" d="M710 500 V670 H290 V500" fill="none" stroke="#536579" stroke-width="4" marker-end="url(#arrow)"/>
+<rect data-graph-role="node" x="140" y="390" width="300" height="110" rx="8" fill="#ffffff" stroke="#8e9cac" stroke-width="3"/>
 <rect data-graph-role="decoration" x="140" y="390" width="4" height="110" rx="2" fill="#10a37f"/>
 <text x="290.0" y="434" font-size="27" font-weight="600" text-anchor="middle" style="fill:#0d0d0d">Planner</text>
 <text x="290.0" y="473" font-size="20" font-weight="400" text-anchor="middle" style="fill:#71717a">制定 / 更新计划</text>
-<rect data-graph-role="node" x="670" y="390" width="300" height="110" rx="8" fill="#ffffff" stroke="#e5e5e5" stroke-width="1.5"/>
+<rect data-graph-role="node" x="670" y="390" width="300" height="110" rx="8" fill="#ffffff" stroke="#8e9cac" stroke-width="3"/>
 <rect data-graph-role="decoration" x="670" y="390" width="4" height="110" rx="2" fill="#10a37f"/>
 <text x="820.0" y="434" font-size="27" font-weight="600" text-anchor="middle" style="fill:#0d0d0d">模型决策</text>
 <text x="820.0" y="473" font-size="20" font-weight="400" text-anchor="middle" style="fill:#71717a">读取目标与上下文</text>
-<rect data-graph-role="node" x="1110" y="390" width="300" height="110" rx="8" fill="#ffffff" stroke="#e5e5e5" stroke-width="1.5"/>
+<rect data-graph-role="node" x="1110" y="390" width="300" height="110" rx="8" fill="#ffffff" stroke="#8e9cac" stroke-width="3"/>
 <text x="1260.0" y="434" font-size="27" font-weight="600" text-anchor="middle" style="fill:#0d0d0d">程序执行工具</text>
 <text x="1260.0" y="473" font-size="20" font-weight="400" text-anchor="middle" style="fill:#71717a">取得成功或失败结果</text>
 <text x="553" y="419" font-size="20" font-weight="400" text-anchor="middle" style="fill:#71717a">执行待办步骤</text>

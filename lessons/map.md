@@ -6,7 +6,7 @@
 
 | 章节 | 素材与实现入口 | 环境边界 |
 |---|---|---|
-| [01 · 认识 RayAgent：从一句请求到任务完成](01-the-rayagent-system.md) | [架构说明](../docs/architecture.md) | 概念阅读，无需启动服务 |
+| [01 · 认识 RayAgent：从一句请求到任务完成](01-the-rayagent-system.md) | [架构说明](../docs/architecture.md)；[作者核对入口](#chapter-01-evidence) | 概念阅读，无需启动服务 |
 | [02 · 与模型交互](02-model-interaction.md) | `labs/foundations/3_4` 调用与流式脚本；`3_6` SDK 对照 | foundations 环境 + 模型配置 |
 | [03 · 工具与行动](03-tools-and-actions.md) | `labs/foundations/3_7`、`3_8`、`3_9` | foundations 环境；按脚本配置模型 |
 | [04 · Agent Loop 与 ReAct](04-agent-loop-and-react.md) | `labs/foundations/4_3`、`4_4`；核对真实反馈与终止控制 | foundations 环境 + 模型配置 |
@@ -23,6 +23,18 @@
 | [15 · 通过 A2A 协作远程 Agent](15-agent-collaboration-with-a2a.md) | `labs/a2a`；[A2A 适配](../ray_agent/api/app/infrastructure/protocols/a2a.py) | 独立 A2A 环境；产品夹具见 API 指南 |
 | [16 · 可靠性与验证](16-reliability-and-verification.md) | [API 指南](../ray_agent/api/README.md)、任务运行器、Agent 基类与资源适配层 | 按具体故障场景准备产品环境 |
 | [17 · 从会话走向项目工作区](17-from-sessions-to-workspaces.md) | [架构说明](../docs/architecture.md)、[工作区调研](../docs/workspace-harness-research.md) | 先静态核对现状，运行结论另行验证 |
+
+## Chapter 01 evidence
+
+以下供作者核对第一章的机制说明，不作为正文中的阅读要求。验证状态维护在 progress。
+
+| 核对内容 | 实现入口与观察重点 |
+|---|---|
+| 请求成为任务 | [任务协调](../ray_agent/api/app/application/services/agent_service.py)：`_create_task` 准备资源与运行器，`chat` 接收消息并启动执行。 |
+| 外层计划推进 | [规划执行流程](../ray_agent/api/app/domain/services/flows/planner_react.py)：`invoke` 在创建计划、执行步骤、更新计划与总结之间推进。 |
+| 内层工具反馈 | [Agent 基础循环](../ray_agent/api/app/domain/services/agents/base.py)：`invoke` 将工具结果带入下一次模型调用。 |
+| 文件执行位置 | [文件工具](../ray_agent/api/app/domain/services/tools/file.py)：`read_file`、`write_file` 委托给沙箱接口。 |
+| 事件与界面 | [任务运行器](../ray_agent/api/app/domain/services/agent_task_runner.py)：`_put_and_add_event` 写入输出流与会话；[会话接口](../ray_agent/api/app/interfaces/endpoints/session_routes.py)：`chat` 映射为 SSE。 |
 
 ## Shared product observation
 
