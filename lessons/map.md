@@ -9,7 +9,7 @@
 | [01 · 认识 RayAgent：从一句请求到任务完成](01-the-rayagent-system.md) | [架构说明](../docs/architecture.md)；[作者核对入口](#chapter-01-evidence) | 概念阅读，无需启动服务 |
 | [02 · 与模型交互](02-model-interaction.md) | `labs/foundations/3_4` 同模型同输入对照；[作者核对入口](#chapter-02-evidence) | foundations 环境 + 模型配置 |
 | [03 · 工具与行动](03-tools-and-actions.md) | `labs/foundations/3_7`、`3_8`、`3_9`；[作者核对入口](#chapter-03-evidence) | foundations 环境；按脚本配置模型 |
-| [04 · Agent Loop 与 ReAct](04-agent-loop-and-react.md) | `labs/foundations/4_3`、`4_4`；核对真实反馈与终止控制 | foundations 环境 + 模型配置 |
+| [04 · Agent Loop 与 ReAct](04-agent-loop-and-react.md) | `labs/foundations/4_1`、`4_3`、`4_4`；[作者核对入口](#chapter-04-evidence) | foundations 环境；按脚本配置模型 |
 | [05 · 上下文与记忆](05-context-and-memory.md) | `labs/foundations/4_2` 及循环脚本中的消息构造 | foundations 环境；按脚本配置模型 |
 | [06 · 运行 RayAgent：观察一条完整任务](06-run-rayagent-one-complete-task.md) | [应用指南](../ray_agent/README.md)；共同文件任务 | Compose + 模型配置 |
 | [07 · 规划与内外层循环](07-planning-and-nested-loops.md) | [计划流程](../ray_agent/api/app/domain/services/flows/planner_react.py)、[Agent 基类](../ray_agent/api/app/domain/services/agents/base.py) | 源码；对照第 06 章任务 |
@@ -68,6 +68,20 @@
 
 运行入口维护在 foundations README；当前验证结果与真实服务缺口维护在 progress。
 
+## Chapter 04 evidence
+
+作者以 `4_1` 研究继续与停止，以 `3_7` / `4_3` 对照一次执行后锁死工具，以 `4_4` 对照递归再请求。正文按需展示控制流，不附 RayAgent 源码清单。`4_1` 的文件在进程内存中；产品内层循环另有迭代上限与事件，外层计划在第 07 章。配置使用 `LLM_*`。
+
+| 依据 | 核对重点 |
+|---|---|
+| `labs/foundations/4_1_工具反馈循环.py` 的 `process_query` | 无 `tool_calls` 则停；有则执行并再请求，不带 `tool_choice="none"`；超过 `max_iterations` 报错。 |
+| `labs/foundations/3_7_为ReAct Agent添加计算工具.py`、`4_3_ReAct Agent为LLM添加CoT.py` | 第二次调用 `tool_choice="none"`；`4_3` 的 CoT 标签与流式拼包不构成循环。 |
+| `labs/foundations/4_4_ReAct+CoT实现企业业务表单填写.py` 的 `process_query` | 有 `tool_calls` 时 `self.process_query()` 递归再请求；无迭代上限；不是 Planner。 |
+| `labs/foundations/tests/test_agent_loop.py` | 本地夹具；无外部模型。 |
+| `ray_agent/api/app/domain/services/agents/base.py` 的 `invoke` | 产品内层：无 `tool_calls` 则 `break`，`max_iterations` 用尽则报错。正文不展开外层计划。 |
+
+运行入口维护在 foundations README；当前验证结果与真实服务缺口维护在 progress。
+
 ## Shared product observation
 
 第 06 章建立共同任务：在沙箱工作目录创建 hello.txt，写入 hello，再读取并总结。后续从同一任务观察计划、工具、状态、事件和文件流转。
@@ -100,9 +114,10 @@
 
 | 脚本 | 挂课 | 备注 |
 | --- | --- | --- |
+| `4_1_工具反馈循环.py` | 04 | 最小循环；内存写/读；带 `max_iterations` |
 | `4_2_计算消息上下文长度.py` | 05 | 上下文长度 |
-| `4_3_ReAct Agent为LLM添加CoT.py` | 04 | 工具调用示例；是否足以展示持续反馈须核对实际控制流 |
-| `4_4_ReAct+CoT实现企业业务表单填写.py` | 04 | 多步表单，仍不是产品 Planner |
+| `4_3_ReAct Agent为LLM添加CoT.py` | 04 | 与 `3_7` 同类：一次执行后 `tool_choice="none"` |
+| `4_4_ReAct+CoT实现企业业务表单填写.py` | 04 | 递归再请求；无上限；不是产品 Planner |
 | `4_5_同步咖啡店.py` | 10 | 同步对照 |
 | `4_5_异步咖啡店.py` | 10 | 异步对照 |
 | `4_6_FastAPI-Demo.py` | 10 | 异步 HTTP |

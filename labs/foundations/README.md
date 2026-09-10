@@ -9,7 +9,7 @@
 | `3_4`～`3_6` | 模型 API、流式输出、SDK 和多模态 |
 | `3_7`～`3_10` | 工具调用、Pydantic、结构化输出与响应展示 |
 | `3_11` | 语音交互示例 |
-| `4_2`～`4_4` | 上下文与 ReAct 实验 |
+| `4_1`～`4_4` | 工具反馈循环、上下文与 ReAct 实验 |
 | `4_5`～`4_6` | 同步、异步与 FastAPI |
 | `6_5`～`6_11` | MCP 2.2 服务端、客户端、手写对照与外部工具 |
 | `10-4`、`10-6` | 浏览器操作与 CDP |
@@ -70,6 +70,25 @@ uv run --locked python -m unittest discover -s tests -p test_tool_actions.py -v
 ```
 
 覆盖参数校验、无工具时不执行、`tool_calls` 执行后以 `role: tool` 回传并带上 `tool_choice="none"`，以及强制 `tool_choice` 抽取字段。真实模型是否提出调用见 [制作进度](../../lessons/progress.md)。
+
+## 工具反馈循环
+
+在本目录使用前述依赖环境和 `LLM_*` 配置。`4_1` 观察最小反馈循环：有 `tool_calls` 就执行并再请求，没有则停止，达到 `max_iterations` 则报错。再次请求不使用 `tool_choice="none"`。`write_file` / `read_file` 写在进程内存里，不经过沙箱，默认问题是写入 hello.txt 再读取。
+
+```bash
+uv run --locked python '4_1_工具反馈循环.py'
+uv run --locked python '4_1_工具反馈循环.py' '请把 hello 写入 hello.txt，再读取文件，告诉我里面是什么。'
+```
+
+`4_3` 与 `3_7` 同类：执行后用 `tool_choice="none"` 强制生成文本，不是持续反馈。`4_4` 用递归再请求实现同一条继续条件，可走多步报销表单，但没有迭代上限，也不是产品 Planner。`4_3`、`4_4` 默认进入交互输入，输入 `quit` 结束。缺少密钥会在发出请求前退出。
+
+本地回归不访问外部模型：
+
+```bash
+uv run --locked python -m unittest discover -s tests -p test_agent_loop.py -v
+```
+
+覆盖只有 `content` 时停止、写入后再读取会继续请求、工具不结束时按上限停止，以及 `3_7` 第二次调用带 `tool_choice="none"`。真实模型是否连续提出写入和读取见 [制作进度](../../lessons/progress.md)。
 
 ## MCP 2.2 可复现基线
 
