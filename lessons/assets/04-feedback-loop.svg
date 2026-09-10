@@ -1,47 +1,34 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
-<title id="title">同一条请求，怎样连续做完？</title>
-<desc id="desc">左侧是每次响应后的继续或停止；右侧用写入、读取、回答三轮示意同一条文件请求。</desc>
+<title id="title">行动请求出现时，循环不能结束</title>
+<desc id="desc">行动请求必须执行、回传观察，再进入同一过程；终端消息才是正常收口。</desc>
 <defs><marker id="arrow" markerUnits="userSpaceOnUse" markerWidth="12" markerHeight="12" refX="11" refY="6" orient="auto"><path d="M0 0 L12 6 L0 12 Z" fill="#536579"/></marker></defs>
 <style>text{font-family:"PingFang SC","Microsoft YaHei",Arial,sans-serif;fill:#0d0d0d}</style>
 <rect data-graph-role="background" width="1600" height="900" fill="#f3f5f7"/>
 <text x="64" y="72" font-size="18" font-weight="400" style="fill:#6e6e80" text-anchor="start">RAYAGENT / LESSON 04</text>
-<text x="64" y="130" font-size="38" font-weight="600" style="fill:#0d0d0d" text-anchor="start">同一条请求，怎样连续做完？</text>
-<text x="64" y="174" font-size="23" font-weight="400" style="fill:#6e6e80" text-anchor="start">写入结果回来后还能再读；读完才生成回答。</text>
-<rect data-graph-role="container" x="64" y="220" width="700" height="508" rx="8" fill="#fafbfc" stroke="#bac7d5" stroke-width="2"/>
-<rect data-graph-role="container" x="788" y="220" width="748" height="508" rx="8" fill="#edf4fc" stroke="#bac7d5" stroke-width="2"/>
-<text x="92" y="268" font-size="26" font-weight="600" style="fill:#0d0d0d" text-anchor="start">每次响应后怎么走</text>
-<text x="820" y="268" font-size="26" font-weight="600" style="fill:#0d0d0d" text-anchor="start">同一请求可能怎样走完</text>
-<path data-graph-role="edge" d="M270 396 V428" fill="none" stroke="#536579" stroke-width="4" marker-end="url(#arrow)"/>
-<path data-graph-role="edge" d="M400 510 H448" fill="none" stroke="#536579" stroke-width="4" marker-end="url(#arrow)"/>
-<path data-graph-role="edge" d="M270 560 V592" fill="none" stroke="#536579" stroke-width="4" marker-end="url(#arrow)"/>
-<path data-graph-role="edge" d="M708 510 H736 V348 H400" fill="none" stroke="#536579" stroke-width="4" marker-end="url(#arrow)"/>
-<rect data-graph-role="node" x="140" y="296" width="260" height="100" rx="8" fill="#ffffff" stroke="#8e9cac" stroke-width="3"/>
-<text x="270.0" y="336" font-size="24" font-weight="600" style="fill:#0d0d0d" text-anchor="middle">请求模型</text>
-<text x="270.0" y="372" font-size="20" font-weight="400" style="fill:#6e6e80" text-anchor="middle">messages + tools</text>
-<rect data-graph-role="node" x="140" y="428" width="260" height="132" rx="8" fill="#ffffff" stroke="#8e9cac" stroke-width="3"/>
-<text x="270.0" y="478" font-size="24" font-weight="600" style="fill:#0d0d0d" text-anchor="middle">查看响应</text>
-<text x="270.0" y="518" font-size="20" font-weight="400" style="fill:#6e6e80" text-anchor="middle">有没有 tool_calls</text>
-<rect data-graph-role="node" x="448" y="460" width="260" height="100" rx="8" fill="#ffffff" stroke="#8e9cac" stroke-width="3"/>
-<rect data-graph-role="decoration" x="448" y="460" width="4" height="100" rx="2" fill="#10a37f"/>
-<text x="578.0" y="500" font-size="24" font-weight="600" style="fill:#0d0d0d" text-anchor="middle">执行并回传</text>
-<text x="578.0" y="536" font-size="20" font-weight="400" style="fill:#6e6e80" text-anchor="middle">追加 role: tool</text>
-<rect data-graph-role="node" x="140" y="592" width="260" height="100" rx="8" fill="#ffffff" stroke="#8e9cac" stroke-width="3"/>
-<text x="270.0" y="632" font-size="24" font-weight="600" style="fill:#0d0d0d" text-anchor="middle">结束本轮</text>
-<text x="270.0" y="668" font-size="20" font-weight="400" style="fill:#6e6e80" text-anchor="middle">使用 content</text>
-<text x="424" y="494" font-size="18" font-weight="400" style="fill:#6e6e80" text-anchor="middle">继续</text>
-<text x="284" y="584" font-size="18" font-weight="400" style="fill:#6e6e80" text-anchor="start">停止</text>
-<text x="568" y="334" font-size="18" font-weight="400" style="fill:#6e6e80" text-anchor="middle">再请求</text>
-<rect data-graph-role="node" x="820" y="296" width="684" height="112" rx="8" fill="#ffffff" stroke="#8e9cac" stroke-width="3"/>
-<text x="852" y="340" font-size="24" font-weight="600" style="fill:#0d0d0d" text-anchor="start">第一轮　提出写入</text>
-<text x="852" y="380" font-size="20" font-weight="400" style="fill:#6e6e80" text-anchor="start">write_file → 结果 ok</text>
-<rect data-graph-role="node" x="820" y="428" width="684" height="112" rx="8" fill="#ffffff" stroke="#8e9cac" stroke-width="3"/>
-<rect data-graph-role="decoration" x="820" y="428" width="4" height="112" rx="2" fill="#10a37f"/>
-<text x="852" y="472" font-size="24" font-weight="600" style="fill:#0d0d0d" text-anchor="start">第二轮　看见写入结果，提出读取</text>
-<text x="852" y="512" font-size="20" font-weight="400" style="fill:#6e6e80" text-anchor="start">read_file → 内容 hello</text>
-<rect data-graph-role="node" x="820" y="560" width="684" height="112" rx="8" fill="#ffffff" stroke="#8e9cac" stroke-width="3"/>
-<text x="852" y="604" font-size="24" font-weight="600" style="fill:#0d0d0d" text-anchor="start">第三轮　看见读取结果</text>
-<text x="852" y="644" font-size="20" font-weight="400" style="fill:#6e6e80" text-anchor="start">content：文件里是 hello，结束本轮</text>
-<text x="64" y="780" font-size="28" font-weight="600" style="fill:#0d0d0d" text-anchor="start">工具结果必须进入下一轮决策，循环才成立</text>
-<text x="64" y="824" font-size="22" font-weight="400" style="fill:#6e6e80" text-anchor="start">若下一轮禁止再调工具，写入之后就无法读取确认。</text>
-<text x="64" y="864" font-size="20" font-weight="400" style="fill:#6e6e80" text-anchor="start">图中顺序为机制示意，不是模型实测输出；达到上限也会停止。</text>
+<text x="64" y="130" font-size="38" font-weight="600" style="fill:#0d0d0d" text-anchor="start">行动请求出现时，循环不能结束</text>
+<text x="64" y="174" font-size="23" font-weight="400" style="fill:#6e6e80" text-anchor="start">执行并把观察送回，再走同一套判断；终端消息才是正常收口。</text>
+<rect data-graph-role="container" x="64" y="220" width="1472" height="508" rx="8" fill="#edf4fc" stroke="#bac7d5" stroke-width="2"/>
+<path data-graph-role="edge" d="M420 360 H500" fill="none" stroke="#536579" stroke-width="4" marker-end="url(#arrow)"/>
+<path data-graph-role="edge" d="M800 360 H920" fill="none" stroke="#536579" stroke-width="4" marker-end="url(#arrow)"/>
+<path data-graph-role="edge" d="M650 416 V496" fill="none" stroke="#536579" stroke-width="4" marker-end="url(#arrow)"/>
+<path data-graph-role="edge" d="M1120 304 V260 H280 V304" fill="none" stroke="#536579" stroke-width="4" marker-end="url(#arrow)"/>
+<rect data-graph-role="node" x="140" y="304" width="280" height="112" rx="8" fill="#ffffff" stroke="#8e9cac" stroke-width="3"/>
+<text x="280.0" y="347" font-size="26" font-weight="600" style="fill:#0d0d0d" text-anchor="middle">请求模型</text>
+<text x="280.0" y="387" font-size="20" font-weight="400" style="fill:#6e6e80" text-anchor="middle">同一套过程再开始</text>
+<rect data-graph-role="node" x="500" y="304" width="300" height="112" rx="8" fill="#ffffff" stroke="#8e9cac" stroke-width="3"/>
+<text x="650.0" y="347" font-size="26" font-weight="600" style="fill:#0d0d0d" text-anchor="middle">看返回类型</text>
+<text x="650.0" y="387" font-size="20" font-weight="400" style="fill:#6e6e80" text-anchor="middle">行动还是终端消息</text>
+<rect data-graph-role="node" x="920" y="304" width="400" height="112" rx="8" fill="#ffffff" stroke="#8e9cac" stroke-width="3"/>
+<rect data-graph-role="decoration" x="920" y="304" width="4" height="112" rx="2" fill="#10a37f"/>
+<text x="1120.0" y="347" font-size="26" font-weight="600" style="fill:#0d0d0d" text-anchor="middle">执行并回传观察</text>
+<text x="1120.0" y="387" font-size="20" font-weight="400" style="fill:#6e6e80" text-anchor="middle">行动不是终点，必须再判断</text>
+<rect data-graph-role="node" x="500" y="496" width="300" height="112" rx="8" fill="#ffffff" stroke="#8e9cac" stroke-width="3"/>
+<text x="650.0" y="539" font-size="26" font-weight="600" style="fill:#0d0d0d" text-anchor="middle">本轮正常结束</text>
+<text x="650.0" y="579" font-size="20" font-weight="400" style="fill:#6e6e80" text-anchor="middle">终端消息交给用户</text>
+<text x="860" y="348" font-size="20" font-weight="400" style="fill:#6e6e80" text-anchor="middle">行动请求</text>
+<text x="668" y="464" font-size="20" font-weight="400" style="fill:#6e6e80" text-anchor="start">终端消息</text>
+<text x="700" y="248" font-size="20" font-weight="400" style="fill:#6e6e80" text-anchor="middle">再进入同一过程</text>
+<text x="64" y="780" font-size="28" font-weight="600" style="fill:#0d0d0d" text-anchor="start">字段叫什么、工具是谁，都不改变这套判断</text>
+<text x="64" y="824" font-size="22" font-weight="400" style="fill:#6e6e80" text-anchor="start">同一条回复里既有文字又有行动，仍算行动轮；上限和失败也会打断循环。</text>
+<text x="64" y="864" font-size="20" font-weight="400" style="fill:#6e6e80" text-anchor="start">图中类型名为机制说明，不是某一家接口的字段清单。</text>
 </svg>
