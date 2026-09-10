@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
-<title id="title">压缩之后，还能作出同样的判断吗？</title>
-<desc id="desc">当前问题：正式版日期是否已经确定？处理方式应保留判断所需的条件。</desc>
+<title id="title">同一段资料，怎样放入 Context？</title>
+<desc id="desc">同一段资料，比较直接保留、摘要与外置后读取。</desc>
 <style>text{font-family:"Helvetica Neue",Helvetica,Arial,"PingFang SC","Microsoft YaHei",sans-serif}</style>
 <defs>
 <marker id="arrow-blue" markerUnits="userSpaceOnUse" markerWidth="14" markerHeight="12" refX="13" refY="6" orient="auto"><path d="M0 0 L14 6 L0 12 Z" fill="#2563eb"/></marker>
@@ -9,51 +9,43 @@
 </defs>
 <rect  data-graph-role="background" x="0" y="0" width="1600" height="900" rx="8" fill="#f8fafc" stroke="none" stroke-width="3"/>
 <text x="64" y="54" font-size="18" fill="#6b7280" font-weight="400">RAYAGENT  /  05  /  03</text>
-<text x="64" y="112" font-size="38" fill="#111827" font-weight="600">压缩之后，还能作出同样的判断吗？</text>
-<text x="64" y="155" font-size="23" fill="#6b7280" font-weight="400">当前问题：正式版日期是否已经确定？处理方式应保留判断所需的条件。</text>
-<rect  data-graph-role="node" x="64" y="202" width="1472" height="108" rx="8" fill="#eff6ff" stroke="#bfdbfe" stroke-width="3"/>
-<rect  data-graph-role="decoration" x="88" y="228" width="52" height="52" rx="8" fill="#eff6ff" stroke="none" stroke-width="3"/>
-<g data-graph-role="decoration" fill="none" stroke="#2563eb" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M103 238 H119 L127 246 V270 H103 Z M119 238 V246 H127 M109 254 H121 M109 261 H121"/></g>
-<text x="164" y="245" font-size="26" fill="#2563eb" font-weight="600">资料 A · 交付安排</text>
-<text x="164" y="282" font-size="25" fill="#111827" font-weight="400">初稿计划 6 月 10 日交付；只有评审通过，才于 6 月 20 日发布正式版。</text>
-<path data-graph-role="edge" d="M294 310 V392" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#arrow-blue)"/>
-<text x="312" y="357" font-size="22" fill="#2563eb" font-weight="400">直接放入</text>
-<rect  data-graph-role="node" x="64" y="392" width="460" height="404" rx="8" fill="#fff" stroke="#d1d5db" stroke-width="3"/>
-<rect  data-graph-role="decoration" x="88" y="416" width="52" height="52" rx="8" fill="#eff6ff" stroke="none" stroke-width="3"/>
-<g data-graph-role="decoration" fill="none" stroke="#2563eb" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M103 426 H119 L127 434 V458 H103 Z M119 426 V434 H127 M109 442 H121 M109 449 H121"/></g>
-<text x="158" y="452" font-size="28" fill="#111827" font-weight="600">保留关键原文</text>
-<text x="88" y="509" font-size="23" fill="#2563eb" font-weight="600">本次输入</text>
-<text x="88" y="549" font-size="23" fill="#111827" font-weight="400">“只有评审通过，才于</text>
-<text x="88" y="584" font-size="23" fill="#111827" font-weight="400">6 月 20 日发布正式版。”</text>
-<text x="88" y="661" font-size="23" fill="#111827" font-weight="600">保留原句与条件关系</text>
-<text x="88" y="707" font-size="23" fill="#6b7280" font-weight="400">代价：占用更多输入空间</text>
-<text x="88" y="754" font-size="23" fill="#6b7280" font-weight="400">适合短且关键的证据</text>
-<path data-graph-role="edge" d="M800 310 V392" fill="none" stroke="#9333ea" stroke-width="4" marker-end="url(#arrow-purple)"/>
-<text x="818" y="357" font-size="22" fill="#9333ea" font-weight="400">概括后放入</text>
-<rect  data-graph-role="node" x="570" y="392" width="460" height="404" rx="8" fill="#fff" stroke="#d1d5db" stroke-width="3"/>
-<rect  data-graph-role="decoration" x="594" y="416" width="52" height="52" rx="8" fill="#faf5ff" stroke="none" stroke-width="3"/>
-<g data-graph-role="decoration" fill="none" stroke="#9333ea" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M606 430 H634 M606 442 H634 M606 454 H626"/></g>
-<text x="664" y="452" font-size="28" fill="#111827" font-weight="600">形成工作摘要</text>
-<text x="594" y="509" font-size="23" fill="#9333ea" font-weight="600">本次输入</text>
-<text x="594" y="549" font-size="23" fill="#111827" font-weight="400">6 月 20 日是有条件的计划；</text>
-<text x="594" y="584" font-size="23" fill="#111827" font-weight="400">评审结果待查。来源：资料 A。</text>
-<text x="594" y="661" font-size="23" fill="#111827" font-weight="600">保留结论、条件和来源</text>
-<text x="594" y="707" font-size="23" fill="#6b7280" font-weight="400">代价：摘要可能遗漏前提</text>
-<text x="594" y="754" font-size="23" fill="#6b7280" font-weight="400">不能压成“6 月 20 日发布”</text>
-<path data-graph-role="edge" d="M1306 310 V392" fill="none" stroke="#16a34a" stroke-width="4" marker-end="url(#arrow-green)"/>
-<text x="1324" y="357" font-size="22" fill="#16a34a" font-weight="400">需要时读取</text>
-<rect  data-graph-role="node" x="1076" y="392" width="460" height="404" rx="8" fill="#fff" stroke="#d1d5db" stroke-width="3"/>
-<rect  data-graph-role="decoration" x="1100" y="416" width="52" height="52" rx="8" fill="#f0fdf4" stroke="none" stroke-width="3"/>
-<g data-graph-role="decoration" fill="none" stroke="#16a34a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="1123" cy="439" r="12"/><path d="M1132 448 L1143 459"/></g>
-<text x="1170" y="452" font-size="28" fill="#111827" font-weight="600">按需读取原文</text>
-<text x="1100" y="509" font-size="23" fill="#16a34a" font-weight="600">先保留线索</text>
-<text x="1100" y="549" font-size="23" fill="#111827" font-weight="400">资料 A → 交付安排</text>
-<text x="1100" y="584" font-size="23" fill="#111827" font-weight="400">需要日期时读取对应段落</text>
-<text x="1100" y="661" font-size="23" fill="#111827" font-weight="600">原文继续保存在外部</text>
-<text x="1100" y="707" font-size="23" fill="#6b7280" font-weight="400">代价：增加读取步骤</text>
-<text x="1100" y="754" font-size="23" fill="#6b7280" font-weight="400">要求来源可访问、定位有效</text>
-<text x="64" y="833" font-size="20" fill="#2563eb" font-weight="400">蓝色：保留原文</text>
-<text x="570" y="833" font-size="20" fill="#9333ea" font-weight="400">紫色：概括材料</text>
-<text x="1076" y="833" font-size="20" fill="#16a34a" font-weight="400">绿色：按需读取</text>
-<text x="64" y="877" font-size="23" fill="#111827" font-weight="600">可以组合：摘要维持进度，关键原文支撑结论，长资料按需找回。</text>
+<text x="64" y="112" font-size="38" fill="#111827" font-weight="600">同一段资料，怎样放入 Context？</text>
+<rect  data-graph-role="node" x="64" y="186" width="1472" height="112" rx="8" fill="#fff" stroke="#d1d5db" stroke-width="3"/>
+<rect  data-graph-role="decoration" x="88" y="212" width="52" height="52" rx="8" fill="#eff6ff" stroke="none" stroke-width="3"/>
+<g data-graph-role="decoration" fill="none" stroke="#2563eb" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M103 222 H119 L127 230 V254 H103 Z M119 222 V230 H127 M109 238 H121 M109 245 H121"/></g>
+<text x="164" y="226" font-size="24" fill="#6b7280" font-weight="400">资料 A · 交付安排</text>
+<text x="164" y="269" font-size="28" fill="#111827" font-weight="400">初稿 6 月 10 日交付；正式版 6 月 20 日发布，前提是评审通过。</text>
+<text x="88" y="346" font-size="23" fill="#6b7280" font-weight="400">处理方式</text>
+<text x="396" y="346" font-size="23" fill="#6b7280" font-weight="400">本次 Context</text>
+<text x="1180" y="346" font-size="23" fill="#6b7280" font-weight="400">取舍</text>
+<rect  data-graph-role="container" x="64" y="374" width="1472" height="144" rx="8" fill="#fff" stroke="#e5e7eb" stroke-width="3"/>
+<rect  data-graph-role="decoration" x="88" y="406" width="52" height="52" rx="8" fill="#eff6ff" stroke="none" stroke-width="3"/>
+<g data-graph-role="decoration" fill="none" stroke="#2563eb" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M103 416 H119 L127 424 V448 H103 Z M119 416 V424 H127 M109 432 H121 M109 439 H121"/></g>
+<text x="164" y="446" font-size="28" fill="#111827" font-weight="600">保留原文</text>
+<path data-graph-role="edge" d="M294 446 H374" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#arrow-blue)"/>
+<rect  data-graph-role="decoration" x="396" y="394" width="724" height="104" rx="8" fill="#eff6ff" stroke="none" stroke-width="3"/>
+<text x="416" y="431" font-size="25" fill="#111827" font-weight="400">初稿 6 月 10 日交付；正式版 6 月 20 日发布，</text>
+<text x="416" y="473" font-size="25" fill="#111827" font-weight="400">前提是评审通过。</text>
+<text x="1180" y="433" font-size="27" fill="#111827" font-weight="600">细节完整</text>
+<text x="1180" y="475" font-size="24" fill="#6b7280" font-weight="400">输入占用较多</text>
+<rect  data-graph-role="container" x="64" y="540" width="1472" height="144" rx="8" fill="#fff" stroke="#e5e7eb" stroke-width="3"/>
+<rect  data-graph-role="decoration" x="88" y="572" width="52" height="52" rx="8" fill="#faf5ff" stroke="none" stroke-width="3"/>
+<g data-graph-role="decoration" fill="none" stroke="#9333ea" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M100 586 H128 M100 598 H128 M100 610 H120"/></g>
+<text x="164" y="612" font-size="28" fill="#111827" font-weight="600">摘要</text>
+<path data-graph-role="edge" d="M294 612 H374" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#arrow-blue)"/>
+<rect  data-graph-role="decoration" x="396" y="560" width="724" height="104" rx="8" fill="#faf5ff" stroke="none" stroke-width="3"/>
+<text x="416" y="597" font-size="26" fill="#111827" font-weight="400">正式版暂定 6/20，须评审通过。</text>
+<text x="416" y="639" font-size="23" fill="#6b7280" font-weight="400">来源：资料 A · 评审结果待查</text>
+<text x="1180" y="599" font-size="27" fill="#111827" font-weight="600">提炼关键内容</text>
+<text x="1180" y="641" font-size="24" fill="#6b7280" font-weight="400">可能遗漏细节</text>
+<rect  data-graph-role="container" x="64" y="706" width="1472" height="144" rx="8" fill="#fff" stroke="#e5e7eb" stroke-width="3"/>
+<rect  data-graph-role="decoration" x="88" y="738" width="52" height="52" rx="8" fill="#f0fdf4" stroke="none" stroke-width="3"/>
+<g data-graph-role="decoration" fill="none" stroke="#16a34a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="111" cy="761" r="12"/><path d="M120 770 L131 781"/></g>
+<text x="164" y="778" font-size="28" fill="#111827" font-weight="600">按需读取</text>
+<path data-graph-role="edge" d="M294 778 H374" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#arrow-blue)"/>
+<rect  data-graph-role="decoration" x="396" y="726" width="724" height="104" rx="8" fill="#f0fdf4" stroke="none" stroke-width="3"/>
+<text x="416" y="763" font-size="26" fill="#111827" font-weight="400">资料 A → 交付安排</text>
+<text x="416" y="805" font-size="23" fill="#6b7280" font-weight="400">需要日期时，再读取对应段落</text>
+<text x="1180" y="765" font-size="27" fill="#111827" font-weight="600">原文留在外部</text>
+<text x="1180" y="807" font-size="24" fill="#6b7280" font-weight="400">增加一次读取</text>
 </svg>

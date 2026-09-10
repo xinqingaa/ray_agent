@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
-<title id="title">一次决策，需要哪些信息？</title>
-<desc id="desc">指令说明要求，历史提供连续性，外部材料补充当前证据。</desc>
+<title id="title">Context：一次调用的信息快照</title>
+<desc id="desc">示意时刻：hello.txt 已读取，模型准备根据结果回答。</desc>
 <style>text{font-family:"Helvetica Neue",Helvetica,Arial,"PingFang SC","Microsoft YaHei",sans-serif}</style>
 <defs>
 <marker id="arrow-blue" markerUnits="userSpaceOnUse" markerWidth="14" markerHeight="12" refX="13" refY="6" orient="auto"><path d="M0 0 L14 6 L0 12 Z" fill="#2563eb"/></marker>
@@ -9,53 +9,43 @@
 </defs>
 <rect  data-graph-role="background" x="0" y="0" width="1600" height="900" rx="8" fill="#f8fafc" stroke="none" stroke-width="3"/>
 <text x="64" y="54" font-size="18" fill="#6b7280" font-weight="400">RAYAGENT  /  05  /  01</text>
-<text x="64" y="112" font-size="38" fill="#111827" font-weight="600">一次决策，需要哪些信息？</text>
-<text x="64" y="155" font-size="23" fill="#6b7280" font-weight="400">指令说明要求，历史提供连续性，外部材料补充当前证据。</text>
-<rect  data-graph-role="node" x="64" y="222" width="420" height="144" rx="8" fill="#fff" stroke="#d1d5db" stroke-width="3"/>
-<rect  data-graph-role="decoration" x="88" y="245" width="52" height="52" rx="8" fill="#eff6ff" stroke="none" stroke-width="3"/>
-<g data-graph-role="decoration" fill="none" stroke="#2563eb" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="114" cy="271" r="16"/><circle cx="114" cy="271" r="7"/></g>
-<text x="158" y="279" font-size="27" fill="#111827" font-weight="600">指令、目标与工具</text>
-<text x="88" y="334" font-size="24" fill="#6b7280" font-weight="400">目标、执行要求、工具说明</text>
-<path data-graph-role="edge" d="M484 294 H644" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#arrow-blue)"/>
-<text x="512" y="276" font-size="22" fill="#2563eb" font-weight="400">选入</text>
-<rect  data-graph-role="node" x="64" y="412" width="420" height="144" rx="8" fill="#fff" stroke="#d1d5db" stroke-width="3"/>
-<rect  data-graph-role="decoration" x="88" y="435" width="52" height="52" rx="8" fill="#eff6ff" stroke="none" stroke-width="3"/>
-<g data-graph-role="decoration" fill="none" stroke="#2563eb" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M100 449 H128 M100 461 H128 M100 473 H120"/></g>
-<text x="158" y="469" font-size="27" fill="#111827" font-weight="600">历史与已保存记录</text>
-<text x="88" y="524" font-size="24" fill="#6b7280" font-weight="400">写入调用、成功结果</text>
-<path data-graph-role="edge" d="M484 484 H644" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#arrow-blue)"/>
-<text x="512" y="466" font-size="22" fill="#2563eb" font-weight="400">选入</text>
-<rect  data-graph-role="node" x="64" y="602" width="420" height="144" rx="8" fill="#fff" stroke="#d1d5db" stroke-width="3"/>
-<rect  data-graph-role="decoration" x="88" y="625" width="52" height="52" rx="8" fill="#eff6ff" stroke="none" stroke-width="3"/>
-<g data-graph-role="decoration" fill="none" stroke="#2563eb" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M103 635 H119 L127 643 V667 H103 Z M119 635 V643 H127 M109 651 H121 M109 658 H121"/></g>
-<text x="158" y="659" font-size="27" fill="#111827" font-weight="600">按需取得的材料</text>
-<text x="88" y="714" font-size="24" fill="#6b7280" font-weight="400">读取 hello.txt → 得到正文</text>
-<path data-graph-role="edge" d="M484 674 H644" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#arrow-blue)"/>
-<text x="512" y="656" font-size="22" fill="#2563eb" font-weight="400">选入</text>
-<rect  data-graph-role="node" x="644" y="222" width="552" height="524" rx="8" fill="#eff6ff" stroke="#bfdbfe" stroke-width="3"/>
-<text x="680" y="269" font-size="29" fill="#111827" font-weight="600">本次上下文</text>
-<rect  data-graph-role="decoration" x="676" y="298" width="488" height="66" rx="8" fill="#fff" stroke="none" stroke-width="3"/>
-<text x="694" y="325" font-size="22" fill="#2563eb" font-weight="600">行为要求</text>
-<text x="694" y="351" font-size="22" fill="#111827" font-weight="400">写入后读取确认</text>
-<rect  data-graph-role="decoration" x="676" y="380" width="488" height="66" rx="8" fill="#fff" stroke="none" stroke-width="3"/>
-<text x="694" y="407" font-size="22" fill="#2563eb" font-weight="600">用户目标</text>
-<text x="694" y="433" font-size="22" fill="#111827" font-weight="400">创建文件并报告内容</text>
-<rect  data-graph-role="decoration" x="676" y="462" width="488" height="66" rx="8" fill="#fff" stroke="none" stroke-width="3"/>
-<text x="694" y="489" font-size="22" fill="#2563eb" font-weight="600">行动与观察</text>
-<text x="694" y="515" font-size="22" fill="#111827" font-weight="400">已经写入；读取返回 hello</text>
-<rect  data-graph-role="decoration" x="676" y="544" width="488" height="66" rx="8" fill="#fff" stroke="none" stroke-width="3"/>
-<text x="694" y="571" font-size="22" fill="#2563eb" font-weight="600">工具说明</text>
-<text x="694" y="597" font-size="22" fill="#111827" font-weight="400">可用的读写能力与参数</text>
-<rect  data-graph-role="decoration" x="676" y="626" width="488" height="66" rx="8" fill="#fff" stroke="none" stroke-width="3"/>
-<text x="694" y="653" font-size="22" fill="#2563eb" font-weight="600">补充材料</text>
-<text x="694" y="679" font-size="22" fill="#111827" font-weight="400">与当前步骤相关的内容</text>
-<path data-graph-role="edge" d="M1196 485 H1324" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#arrow-blue)"/>
-<text x="1218" y="466" font-size="22" fill="#2563eb" font-weight="400">供推理</text>
-<rect  data-graph-role="node" x="1324" y="399" width="212" height="172" rx="8" fill="#fff" stroke="#d1d5db" stroke-width="3"/>
-<rect  data-graph-role="decoration" x="1404" y="419" width="52" height="52" rx="8" fill="#eff6ff" stroke="none" stroke-width="3"/>
-<g data-graph-role="decoration" fill="none" stroke="#2563eb" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1430 427 L1435 440 L1448 445 L1435 450 L1430 463 L1425 450 L1412 445 L1425 440 Z"/></g>
-<text x="1376" y="516" font-size="30" fill="#111827" font-weight="600">模型</text>
-<text x="1360" y="550" font-size="22" fill="#6b7280" font-weight="400">提出下一步</text>
-<text x="64" y="819" font-size="26" fill="#111827" font-weight="600">路径提供定位线索；读取结果才提供文件内容。</text>
-<text x="64" y="860" font-size="22" fill="#6b7280" font-weight="400">逻辑分组示意：不对应固定 API 字段，也不表示所有已保存内容都会选入。</text>
+<text x="64" y="112" font-size="38" fill="#111827" font-weight="600">Context：一次调用的信息快照</text>
+<text x="64" y="165" font-size="24" fill="#6b7280" font-weight="400">示意时刻：文件已读取，准备回答</text>
+<rect  data-graph-role="node" x="64" y="218" width="1084" height="530" rx="8" fill="#fff" stroke="#d1d5db" stroke-width="3"/>
+<text x="96" y="262" font-size="23" fill="#6b7280" font-weight="400">信息来源</text>
+<text x="352" y="262" font-size="25" fill="#111827" font-weight="600">进入本次 Context 的内容</text>
+<rect  data-graph-role="decoration" x="88" y="288" width="1036" height="76" rx="8" fill="#eff6ff" stroke="none" stroke-width="3"/>
+<rect  data-graph-role="decoration" x="104" y="300" width="52" height="52" rx="8" fill="#eff6ff" stroke="none" stroke-width="3"/>
+<g data-graph-role="decoration" fill="none" stroke="#2563eb" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="130" cy="326" r="16"/><circle cx="130" cy="326" r="7"/></g>
+<text x="176" y="335" font-size="27" fill="#111827" font-weight="600">指令</text>
+<text x="352" y="335" font-size="26" fill="#111827" font-weight="400">写入后读取确认。</text>
+<rect  data-graph-role="decoration" x="88" y="376" width="1036" height="76" rx="8" fill="#eff6ff" stroke="none" stroke-width="3"/>
+<rect  data-graph-role="decoration" x="104" y="388" width="52" height="52" rx="8" fill="#eff6ff" stroke="none" stroke-width="3"/>
+<g data-graph-role="decoration" fill="none" stroke="#2563eb" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="130" cy="414" r="16"/><circle cx="130" cy="414" r="7"/></g>
+<text x="176" y="423" font-size="27" fill="#111827" font-weight="600">用户目标</text>
+<text x="352" y="423" font-size="26" fill="#111827" font-weight="400">创建 hello.txt，写入 hello，再报告内容。</text>
+<rect  data-graph-role="decoration" x="88" y="464" width="1036" height="76" rx="8" fill="#f0fdf4" stroke="none" stroke-width="3"/>
+<rect  data-graph-role="decoration" x="104" y="476" width="52" height="52" rx="8" fill="#f0fdf4" stroke="none" stroke-width="3"/>
+<g data-graph-role="decoration" fill="none" stroke="#16a34a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M116 490 H144 M116 502 H144 M116 514 H136"/></g>
+<text x="176" y="511" font-size="27" fill="#111827" font-weight="600">历史行动</text>
+<text x="352" y="511" font-size="26" fill="#111827" font-weight="400">write_file → 成功；read_file → 已执行</text>
+<rect  data-graph-role="decoration" x="88" y="552" width="1036" height="76" rx="8" fill="#f0fdf4" stroke="none" stroke-width="3"/>
+<rect  data-graph-role="decoration" x="104" y="564" width="52" height="52" rx="8" fill="#f0fdf4" stroke="none" stroke-width="3"/>
+<g data-graph-role="decoration" fill="none" stroke="#16a34a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M119 574 H135 L143 582 V606 H119 Z M135 574 V582 H143 M125 590 H137 M125 597 H137"/></g>
+<text x="176" y="599" font-size="27" fill="#111827" font-weight="600">工具观察</text>
+<text x="352" y="599" font-size="26" fill="#111827" font-weight="400">hello.txt 的内容是 &quot;hello&quot;</text>
+<rect  data-graph-role="decoration" x="88" y="640" width="1036" height="76" rx="8" fill="#faf5ff" stroke="none" stroke-width="3"/>
+<rect  data-graph-role="decoration" x="104" y="652" width="52" height="52" rx="8" fill="#faf5ff" stroke="none" stroke-width="3"/>
+<g data-graph-role="decoration" fill="none" stroke="#9333ea" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M119 662 H135 L143 670 V694 H119 Z M135 662 V670 H143 M125 678 H137 M125 685 H137"/></g>
+<text x="176" y="687" font-size="27" fill="#111827" font-weight="600">工具说明</text>
+<text x="352" y="687" font-size="26" fill="#111827" font-weight="400">write_file / read_file 的用途与参数</text>
+<path data-graph-role="edge" d="M1148 483 H1284" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#arrow-blue)"/>
+<text x="1180" y="462" font-size="23" fill="#2563eb" font-weight="400">输入</text>
+<rect  data-graph-role="node" x="1284" y="364" width="252" height="238" rx="8" fill="#eff6ff" stroke="#bfdbfe" stroke-width="3"/>
+<rect  data-graph-role="decoration" x="1384" y="388" width="52" height="52" rx="8" fill="#eff6ff" stroke="none" stroke-width="3"/>
+<g data-graph-role="decoration" fill="none" stroke="#2563eb" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1410 396 L1415 409 L1428 414 L1415 419 L1410 432 L1405 419 L1392 414 L1405 409 Z"/></g>
+<text x="1360" y="477" font-size="33" fill="#111827" font-weight="600">Model</text>
+<text x="1312" y="533" font-size="25" fill="#6b7280" font-weight="400">可据读取结果</text>
+<text x="1338" y="569" font-size="25" fill="#6b7280" font-weight="400">报告内容</text>
+<text x="64" y="824" font-size="26" fill="#111827" font-weight="400">写入改变文件；读取结果进入 Context，模型才有内容确认的依据。</text>
 </svg>

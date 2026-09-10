@@ -18,6 +18,8 @@
 
 解释 RayAgent 的现有设计及其取舍，帮助读者理解现代 Agent 工程。课程不默认从零搭建产品，也不以 TS 重写或迁移框架为目标。
 
+正文以通用概念与机制建立理解，再对照项目实现；内容深度遵循 [write-lessons 的机制讲解原则](../skills/write-lessons/SKILL.md#research-first-explain-mechanisms-first)，不由现有脚本范围或固定篇幅决定。
+
 labs 隔离机制，RayAgent 展示机制组合后的状态、资源与交互契约。读者自行决定阅读、运行或修改，不设置必需、选做或进阶参与层级；仍须清楚交代每个示例所属环境。
 
 ## Course outline
@@ -72,11 +74,13 @@ labs 隔离机制，RayAgent 展示机制组合后的状态、资源与交互契
 
 ## Illustration conventions
 
-默认产物为 **SVG、1600×900、OpenAI 风格**，存放在 `lessons/assets/`，正文用相对路径引用。只有用户明确指定时，才改变对应格式、尺寸或风格；其他默认项保持不变。拥挤时精简或拆图，不自行调整画布。
+默认产物为 **SVG、1600×900、Fireworks Style 1（Flat Icon）**，存放在 `lessons/assets/`，正文用相对路径引用。只有用户明确指定时，才改变对应格式、尺寸或风格；其他默认项保持不变。拥挤时精简或拆图，不自行调整画布。新制与重绘采用此默认风格，已有章节不因默认值变化而批量重绘。
 
-技术图按需使用 Fireworks Tech Graph（`fireworks-tech-graph`）。定位并读取已安装 skill 及其 OpenAI 风格参考（Style 7），本课程的视觉与导出约定优先于作图 skill 的原始风格参数。不可用时说明情况，不声称已经使用。
+技术图按需使用 Fireworks Tech Graph（`fireworks-tech-graph`）。定位并读取已安装 skill 及其 Style 1 参考（`references/style-1-flat-icon.md`），本课程的视觉与导出约定优先于作图 skill 的原始风格参数。不可用时说明情况，不声称已经使用。
 
-在 OpenAI 简洁风格基础上使用本课程的视觉参数，不机械沿用纯白背景与细线条：
+文字密度与术语选择遵循 [write-lessons 的配图原则](../skills/write-lessons/SKILL.md#draw-to-explain)。课程正文使用中文，图中允许直接采用 `Context`、`Memory` 等简短通行术语。
+
+在 Style 1 的扁平图标与语义配色基础上使用本课程的视觉参数：
 
 | 元素 | 课程约定 |
 |---|---|
