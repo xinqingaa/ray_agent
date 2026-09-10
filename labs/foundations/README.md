@@ -9,7 +9,7 @@
 | `3_4`～`3_6` | 模型 API、流式输出、SDK 和多模态 |
 | `3_7`～`3_10` | 工具调用、Pydantic、结构化输出与响应展示 |
 | `3_11` | 语音交互示例 |
-| `4_1`～`4_4` | 工具反馈循环、上下文与 ReAct 实验 |
+| `4_1`～`5_1` | 工具反馈循环、请求工作集与 ReAct 实验 |
 | `4_5`～`4_6` | 同步、异步与 FastAPI |
 | `6_5`～`6_11` | MCP 2.2 服务端、客户端、手写对照与外部工具 |
 | `10-4`、`10-6` | 浏览器操作与 CDP |
@@ -89,6 +89,24 @@ uv run --locked python -m unittest discover -s tests -p test_agent_loop.py -v
 ```
 
 覆盖只有 `content` 时停止、写入后再读取会继续请求、工具不结束时按上限停止，以及 `3_7` 第二次调用带 `tool_choice="none"`。真实模型是否连续提出写入和读取见 [制作进度](../../lessons/progress.md)。
+
+## 请求工作集
+
+在本目录使用前述依赖环境。`5_1` 观察每一拍请求里有什么：与 `4_1` 默认任务同形的三拍示意消息，打印写入/读取观察是否出现，以及正文、角色包装、`tools` 声明各自占多少字符。不调用外部模型，也不依赖本地 tokenizer。字符统计使用教学口径：`wrapped_chars` 使用自定义包装，`request_chars` 是内容加工具声明长度，未累加角色包装；都不是真实 token 数。
+
+```bash
+uv run --locked python '5_1_观察请求工作集.py'
+```
+
+`4_2` 展示纯文本 `encode` 与消息 `apply_chat_template` 两种分词入口；当前两处正文不同，不能把计数差归因于模板，也不展示工作集如何增长。它需要 `resources/tokenizer/` 下的完整词表；当前目录只有配置，运行结果见 [制作进度](../../lessons/progress.md)。
+
+本地回归不访问外部模型：
+
+```bash
+uv run --locked python -m unittest discover -s tests -p test_request_context.py -v
+```
+
+覆盖第一拍没有工具观察、写入观察从第二拍出现、漏回传则看不见结果，以及角色包装和 `tools` 声明会让请求长于正文。
 
 ## MCP 2.2 可复现基线
 

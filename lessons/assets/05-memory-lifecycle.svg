@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
+<title id="title">记忆怎样参与下一次决策？</title>
+<desc id="desc">先保存，再按当前问题找回；新观察也会成为后续可用的材料。</desc>
+<style>text{font-family:"Helvetica Neue",Helvetica,Arial,"PingFang SC","Microsoft YaHei",sans-serif}</style>
+<defs>
+<marker id="arrow-blue" markerUnits="userSpaceOnUse" markerWidth="14" markerHeight="12" refX="13" refY="6" orient="auto"><path d="M0 0 L14 6 L0 12 Z" fill="#2563eb"/></marker>
+<marker id="arrow-green" markerUnits="userSpaceOnUse" markerWidth="14" markerHeight="12" refX="13" refY="6" orient="auto"><path d="M0 0 L14 6 L0 12 Z" fill="#16a34a"/></marker>
+<marker id="arrow-purple" markerUnits="userSpaceOnUse" markerWidth="14" markerHeight="12" refX="13" refY="6" orient="auto"><path d="M0 0 L14 6 L0 12 Z" fill="#9333ea"/></marker>
+</defs>
+<rect  data-graph-role="background" x="0" y="0" width="1600" height="900" rx="8" fill="#f8fafc" stroke="none" stroke-width="3"/>
+<text x="64" y="54" font-size="18" fill="#6b7280" font-weight="400">RAYAGENT  /  05  /  02</text>
+<text x="64" y="112" font-size="38" fill="#111827" font-weight="600">记忆怎样参与下一次决策？</text>
+<text x="64" y="155" font-size="23" fill="#6b7280" font-weight="400">先保存，再按当前问题找回；新观察也会成为后续可用的材料。</text>
+<rect  data-graph-role="node" x="64" y="320" width="344" height="242" rx="8" fill="#fff" stroke="#d1d5db" stroke-width="3"/>
+<rect  data-graph-role="decoration" x="88" y="344" width="52" height="52" rx="8" fill="#f0fdf4" stroke="none" stroke-width="3"/>
+<g data-graph-role="decoration" fill="none" stroke="#16a34a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="114" cy="358" rx="16" ry="6"/><path d="M98 358 V381 C98 390 130 390 130 381 V358 M98 370 C98 379 130 379 130 370"/></g>
+<text x="156" y="380" font-size="29" fill="#111827" font-weight="600">已保存的记忆</text>
+<text x="88" y="441" font-size="25" fill="#111827" font-weight="400">事实、经历、工作摘要</text>
+<text x="88" y="484" font-size="23" fill="#6b7280" font-weight="400">附来源、范围与更新时间</text>
+<text x="88" y="526" font-size="23" fill="#6b7280" font-weight="400">文件 / 键值 / 数据库</text>
+<rect  data-graph-role="node" x="568" y="320" width="352" height="242" rx="8" fill="#fff" stroke="#d1d5db" stroke-width="3"/>
+<rect  data-graph-role="decoration" x="592" y="344" width="52" height="52" rx="8" fill="#f0fdf4" stroke="none" stroke-width="3"/>
+<g data-graph-role="decoration" fill="none" stroke="#16a34a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="615" cy="367" r="12"/><path d="M624 376 L635 387"/></g>
+<text x="660" y="380" font-size="29" fill="#111827" font-weight="600">选择与检索</text>
+<text x="592" y="441" font-size="25" fill="#111827" font-weight="400">围绕本次报告问题查找</text>
+<text x="592" y="484" font-size="23" fill="#6b7280" font-weight="400">核对适用范围与有效性</text>
+<text x="592" y="526" font-size="23" fill="#6b7280" font-weight="400">候选内容还需要筛选</text>
+<rect  data-graph-role="node" x="1080" y="320" width="456" height="242" rx="8" fill="#eff6ff" stroke="#bfdbfe" stroke-width="3"/>
+<rect  data-graph-role="decoration" x="1104" y="344" width="52" height="52" rx="8" fill="#eff6ff" stroke="none" stroke-width="3"/>
+<g data-graph-role="decoration" fill="none" stroke="#2563eb" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M1130 352 L1135 365 L1148 370 L1135 375 L1130 388 L1125 375 L1112 370 L1125 365 Z"/></g>
+<text x="1172" y="380" font-size="29" fill="#111827" font-weight="600">本次决策与行动</text>
+<text x="1104" y="441" font-size="25" fill="#111827" font-weight="400">选入材料 + 当前目标</text>
+<text x="1104" y="484" font-size="23" fill="#6b7280" font-weight="400">模型据此判断，工具执行</text>
+<text x="1104" y="526" font-size="23" fill="#6b7280" font-weight="400">获得新观察与待核实事项</text>
+<path data-graph-role="edge" d="M408 438 H568" fill="none" stroke="#16a34a" stroke-width="4" marker-end="url(#arrow-green)"/>
+<text x="437" y="416" font-size="23" fill="#16a34a" font-weight="400">找回</text>
+<path data-graph-role="edge" d="M920 438 H1080" fill="none" stroke="#16a34a" stroke-width="4" marker-end="url(#arrow-green)"/>
+<text x="944" y="416" font-size="23" fill="#16a34a" font-weight="400">组装输入</text>
+<text x="588" y="245" font-size="26" fill="#111827" font-weight="600">当前问题：正式版日期确定了吗？</text>
+<path data-graph-role="edge" d="M744 263 V320" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#arrow-blue)"/>
+<text x="764" y="295" font-size="22" fill="#2563eb" font-weight="400">限定查找目标</text>
+<rect  data-graph-role="node" x="680" y="658" width="400" height="120" rx="8" fill="#faf5ff" stroke="#e9d5ff" stroke-width="3"/>
+<rect  data-graph-role="decoration" x="704" y="682" width="52" height="52" rx="8" fill="#ede9fe" stroke="none" stroke-width="3"/>
+<g data-graph-role="decoration" fill="none" stroke="#9333ea" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M716 696 H744 M716 708 H744 M716 720 H736"/></g>
+<text x="772" y="705" font-size="28" fill="#111827" font-weight="600">整理与更新</text>
+<text x="772" y="748" font-size="22" fill="#6b7280" font-weight="400">保留来源，修正过时内容</text>
+<path data-graph-role="edge" d="M1320 562 V718 H1080" fill="none" stroke="#9333ea" stroke-width="4" marker-end="url(#arrow-purple)"/>
+<text x="1340" y="625" font-size="23" fill="#9333ea" font-weight="400">新记录</text>
+<path data-graph-role="edge" d="M680 718 H236 V562" fill="none" stroke="#9333ea" stroke-width="4" marker-end="url(#arrow-purple)"/>
+<text x="430" y="699" font-size="23" fill="#9333ea" font-weight="400">保存 / 替换 / 失效</text>
+<text x="64" y="850" font-size="22" fill="#16a34a" font-weight="400">绿色：读取记忆</text>
+<text x="330" y="850" font-size="22" fill="#9333ea" font-weight="400">紫色：写入记忆</text>
+<text x="602" y="850" font-size="22" fill="#2563eb" font-weight="400">蓝色：当前任务</text>
+<text x="958" y="850" font-size="22" fill="#6b7280" font-weight="400">通用机制示意，非产品组件图</text>
+</svg>

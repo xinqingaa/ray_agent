@@ -10,7 +10,7 @@
 | [02 · 与模型交互](02-model-interaction.md) | `labs/foundations/3_4` 同模型同输入对照；[作者核对入口](#chapter-02-evidence) | foundations 环境 + 模型配置 |
 | [03 · 工具与行动](03-tools-and-actions.md) | `labs/foundations/3_7`、`3_8`、`3_9`；[作者核对入口](#chapter-03-evidence) | foundations 环境；按脚本配置模型 |
 | [04 · Agent Loop 与 ReAct](04-agent-loop-and-react.md) | `labs/foundations/4_1`、`4_3`、`4_4`；[作者核对入口](#chapter-04-evidence) | foundations 环境；按脚本配置模型 |
-| [05 · 上下文与记忆](05-context-and-memory.md) | `labs/foundations/4_2` 及循环脚本中的消息构造 | foundations 环境；按脚本配置模型 |
+| [05 · 上下文与记忆](05-context-and-memory.md) | `labs/foundations/5_1`、`4_1` 的消息构造；`4_2` 对照长度；[作者核对入口](#chapter-05-evidence) | foundations 环境；主观察不需要模型 |
 | [06 · 运行 RayAgent：观察一条完整任务](06-run-rayagent-one-complete-task.md) | [应用指南](../ray_agent/README.md)；共同文件任务 | Compose + 模型配置 |
 | [07 · 规划与内外层循环](07-planning-and-nested-loops.md) | [计划流程](../ray_agent/api/app/domain/services/flows/planner_react.py)、[Agent 基类](../ray_agent/api/app/domain/services/agents/base.py) | 源码；对照第 06 章任务 |
 | [08 · 任务执行与控制](08-task-execution-and-control.md) | [应用协调](../ray_agent/api/app/application/services/agent_service.py)、[运行器](../ray_agent/api/app/domain/services/agent_task_runner.py)、[任务适配](../ray_agent/api/app/infrastructure/external/task/redis_stream_task.py) | 源码；运行观察使用产品环境 |
@@ -82,6 +82,22 @@
 
 运行入口维护在 foundations README；当前验证结果与真实服务缺口维护在 progress。
 
+## Chapter 05 evidence
+
+本章先讲通用的上下文组成、任务内与跨任务记忆、写入与检索、容量约束和信息取舍，再以实验与产品作对照。资料报告场景及三张图是教学示意，不能作为产品已实现长期记忆、摘要或检索的证据。主观察不需要 `LLM_*`。
+
+| 依据 | 核对重点 |
+|---|---|
+| `labs/foundations/5_1_观察请求工作集.py` | 三份示意消息快照，检查写入与读取观察何时出现。字符统计采用自定义口径；`request_chars` 没有累加角色包装，不能当作真实 token 数或服务端请求长度。 |
+| `labs/foundations/4_1_工具反馈循环.py` 的 `process_query` | 更新后的 `messages` 与 `tools` 交给下一次调用，整表再送，不压缩。 |
+| `labs/foundations/4_2_计算消息上下文长度.py` | `encode` 与 `apply_chat_template` 使用不同正文，不能把差值归因于模板；依赖完整本地词表。 |
+| `labs/foundations/tests/test_request_context.py` | 本地夹具，验证示意数据与输出；不验证模型行为或残缺消息的协议有效性。 |
+| `ray_agent/api/app/domain/services/agents/base.py` | `_ensure_memory` 按会话和 Agent 名加载；`_add_to_memory` 追加保存；`_invoke_llm` 读取消息并另取工具说明。 |
+| `ray_agent/api/app/domain/models/memory.py` 的 `compact` | 清理 `browser_view`、`browser_navigate` 结果和 `reasoning_content`，不生成语义摘要，不按 token 预算检索。 |
+| `ray_agent/api/app/domain/services/flows/planner_react.py` | 步骤成功后调用执行器 `compact_memory`，随后进入计划更新；清理后的记忆会保存。 |
+
+通用概念的外部依据就地链接在正文中，包括 Anthropic 上下文工程与窗口说明、LangGraph 记忆概览，以及《Lost in the Middle》的特定实验结论。运行入口维护在 foundations README；验证结果与真实服务缺口维护在 progress。
+
 ## Shared product observation
 
 第 06 章建立共同任务：在沙箱工作目录创建 hello.txt，写入 hello，再读取并总结。后续从同一任务观察计划、工具、状态、事件和文件流转。
@@ -115,7 +131,8 @@
 | 脚本 | 挂课 | 备注 |
 | --- | --- | --- |
 | `4_1_工具反馈循环.py` | 04 | 最小循环；内存写/读；带 `max_iterations` |
-| `4_2_计算消息上下文长度.py` | 05 | 上下文长度 |
+| `5_1_观察请求工作集.py` | 05 | 三拍请求清单；无外部模型 |
+| `4_2_计算消息上下文长度.py` | 05 | 对照长度；需完整词表，当前 unverified |
 | `4_3_ReAct Agent为LLM添加CoT.py` | 04 | 与 `3_7` 同类：一次执行后 `tool_choice="none"` |
 | `4_4_ReAct+CoT实现企业业务表单填写.py` | 04 | 递归再请求；无上限；不是产品 Planner |
 | `4_5_同步咖啡店.py` | 10 | 同步对照 |
