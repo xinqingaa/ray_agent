@@ -36,18 +36,12 @@ class AppConfigService:
         return app_config.llm_config
 
     async def update_llm_config(self, llm_config: LLMConfig) -> LLMConfig:
-        """根据传递的llm_config更新语言模型提供商配置"""
-        # 1.获取应用配置
+        """更新模型名、地址等可写字段；密钥始终保持环境变量注入的值。"""
         app_config = await self._load_app_config()
-
-        # 2.判断api_key是否为空
-        if not llm_config.api_key.strip():
-            llm_config.api_key = app_config.llm_config.api_key
-
-        # 3.调用函数更新app_config
-        app_config.llm_config = llm_config
+        app_config.llm_config = app_config.llm_config.model_copy(
+            update=llm_config.model_dump(exclude={"api_key"})
+        )
         self.app_config_repository.save(app_config)
-
         return app_config.llm_config
 
     async def get_agent_config(self) -> AgentConfig:

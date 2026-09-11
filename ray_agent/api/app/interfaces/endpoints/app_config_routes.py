@@ -12,7 +12,12 @@ from fastapi import APIRouter, Depends, Body
 
 from app.application.services.app_config_service import AppConfigService
 from app.domain.models.app_config import LLMConfig, AgentConfig, MCPConfig
-from app.interfaces.schemas.app_config import ListMCPServerResponse, ListA2AServerResponse
+from app.interfaces.schemas.app_config import (
+    LLMConfigPublic,
+    LLMConfigUpdate,
+    ListMCPServerResponse,
+    ListA2AServerResponse,
+)
 from app.interfaces.schemas.base import Response
 from app.interfaces.service_dependencies import get_app_config_service
 
@@ -22,33 +27,35 @@ router = APIRouter(prefix="/app-config", tags=["设置模块"])
 
 @router.get(
     path="/llm",
-    response_model=Response[LLMConfig],
+    response_model=Response[LLMConfigPublic],
     summary="获取LLM配置信息",
-    description="包含LLM提供商的base_url、temperature、model_name、max_tokens、context_window"
+    description="返回模型名、地址等可写字段，以及是否已从环境变量配置密钥；不返回密钥明文"
 )
 async def get_llm_config(
         app_config_service: AppConfigService = Depends(get_app_config_service)
-) -> Response[LLMConfig]:
+) -> Response[LLMConfigPublic]:
     """获取LLM配置信息"""
     llm_config = await app_config_service.get_llm_config()
-    return Response.success(data=llm_config.model_dump(exclude={"api_key"}))
+    return Response.success(data=LLMConfigPublic.from_llm(llm_config))
 
 
 @router.post(
     path="/llm",
-    response_model=Response[LLMConfig],
+    response_model=Response[LLMConfigPublic],
     summary="更新LLM配置信息",
-    description="更新LLM配置信息，当api_key为空的时候表示不更新该字段"
+    description="更新模型名、地址、温度等；请求中的 api_key 会被忽略"
 )
 async def update_llm_config(
-        new_llm_config: LLMConfig,
+        new_llm_config: LLMConfigUpdate,
         app_config_service: AppConfigService = Depends(get_app_config_service)
-) -> Response[LLMConfig]:
+) -> Response[LLMConfigPublic]:
     """更新LLM配置信息"""
-    updated_llm_config = await app_config_service.update_llm_config(new_llm_config)
+    updated_llm_config = await app_config_service.update_llm_config(
+        LLMConfig.model_validate(new_llm_config.model_dump(mode="json"))
+    )
     return Response.success(
         msg="更新LLM信息配置成功",
-        data=updated_llm_config.model_dump(exclude={"api_key"})
+        data=LLMConfigPublic.from_llm(updated_llm_config)
     )
 
 

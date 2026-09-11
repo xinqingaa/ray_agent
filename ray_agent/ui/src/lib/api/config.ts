@@ -23,7 +23,8 @@ export const configApi = {
    * 更新 LLM 配置
    */
   updateLLMConfig: (config: LLMConfig): Promise<LLMConfig> => {
-    return post<LLMConfig>("/app-config/llm", config);
+    const { has_api_key: _hasApiKey, ...writable } = config;
+    return post<LLMConfig>("/app-config/llm", writable);
   },
 
   /**

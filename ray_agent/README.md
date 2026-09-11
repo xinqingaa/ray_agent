@@ -30,12 +30,7 @@ cd ray_agent
 | 配置项 | Compose 部署取值或要求 |
 |---|---|
 | `APP_CONFIG_FILEPATH` | `config.yaml` |
-| `LLM_API_KEY` | 模型服务凭据；不要写进已跟踪的 `config.yaml` |
-| `LLM_MODEL_NAME` | 支持工具调用的模型名称，例如 `deepseek-chat` |
-| `LLM_BASE_URL` | 兼容 OpenAI 的接口地址，DeepSeek 为 `https://api.deepseek.com/` |
-| `LLM_TEMPERATURE` | 采样温度，例如 `0.7` |
-| `LLM_MAX_TOKENS` | 单次回复最大输出 token，例如 `8192` |
-| `LLM_CONTEXT_WINDOW` | 模型上下文窗口，用于展示占用；例如 `65536`。与输出上限不是同一项 |
+| `LLM_API_KEY` | 模型服务凭据；只写在本文件，不要写进 `config.yaml` 或页面 |
 | `LOG_LEVEL` | API 日志等级，例如 `INFO` 或 `DEBUG` |
 | `SQLALCHEMY_ECHO` | `1` 时在 API 日志中回显 SQL；默认关闭 |
 | `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | 数据库初始化设置；与下面的连接 URI 一致 |
@@ -61,7 +56,7 @@ cd ray_agent
 
 ### 模型与工具
 
-模型调用使用 OpenAI 兼容的 Chat Completions 协议。LLM 字段一律写在本目录 `.env` 的 `LLM_*`：`LLM_API_KEY`、`LLM_MODEL_NAME`、`LLM_BASE_URL`、`LLM_TEMPERATURE`、`LLM_MAX_TOKENS`、`LLM_CONTEXT_WINDOW`。[api/config.yaml](api/config.yaml) 只保留未填环境变量时的回落默认值。加载时 `.env` 覆盖 yaml；写回时不会把覆盖值落盘。首次验证使用内置工具即可，仓库中的 MCP/A2A 配置已是空集合。启用外部 MCP/A2A、以及本地验收夹具的步骤见 [API 开发指南](api/README.md#mcpa2a)。仅启动页面不会验证这些服务，任务执行时才会初始化相关工具。
+模型调用使用 OpenAI 兼容的 Chat Completions 协议。密钥只读 `LLM_API_KEY`。模型名、地址、温度、`max_tokens`、`context_window` 写在 [api/config.yaml](api/config.yaml)，也可在页面设置中修改；设置接口不返回密钥明文。首次验证使用内置工具即可，仓库中的 MCP/A2A 配置已是空集合。启用外部 MCP/A2A、以及本地验收夹具的步骤见 [API 开发指南](api/README.md#mcpa2a)。仅启动页面不会验证这些服务，任务执行时才会初始化相关工具。
 
 `config.yaml` 由 Git 跟踪，不要写入真实凭据。修改该文件后需要重新构建 API 镜像。只改 `.env` 时必须重建 API 容器才能读到新值，`docker compose restart` 不会重读环境变量。具体命令见 [Docker 操作说明](DOCKER.md)。
 

@@ -14,7 +14,7 @@ uv sync --locked --group dev
 
 依赖由 [pyproject.toml](pyproject.toml) 声明、[uv.lock](uv.lock) 锁定；[Dockerfile](Dockerfile) 从 [requirements.txt](requirements.txt) 安装。升级时同步核对三者，本地开发不另维护一套手工安装版本。
 
-本地 API 从当前目录 `.env` 加载环境变量，字段定义见 [core/config.py](core/config.py)，示例见 [.env.example](.env.example)。LLM 使用 `LLM_API_KEY`、`LLM_MODEL_NAME`、`LLM_BASE_URL`、`LLM_TEMPERATURE`、`LLM_MAX_TOKENS`、`LLM_CONTEXT_WINDOW`；Agent / MCP / A2A 仍见 [config.yaml](config.yaml)。不要把密钥写入已跟踪的 yaml。
+本地 API 从当前目录 `.env` 加载环境变量，字段定义见 [core/config.py](core/config.py)，产品示例见 [../.env.example](../.env.example)。LLM 密钥只使用 `LLM_API_KEY`；模型名、地址等见 [config.yaml](config.yaml) 或设置页。不要把密钥写入已跟踪的 yaml。
 
 在宿主机运行 API 前，先准备可访问的 PostgreSQL、Redis、文件存储，以及沙箱与浏览器连接：
 

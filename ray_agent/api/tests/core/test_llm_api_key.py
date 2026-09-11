@@ -1,16 +1,18 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""LLM 配置从环境变量注入，且不会写回 yaml。"""
+"""LLM 密钥只从环境变量注入，不读写 yaml。"""
 from pathlib import Path
 
 import yaml
 
+from app.domain.models.app_config import LLMConfig
 from app.infrastructure.repositories.file_app_config_repository import FileAppConfigRepository
+from app.interfaces.schemas.app_config import LLMConfigPublic
 
 SAMPLE_CONFIG = """
 llm_config:
   base_url: https://api.deepseek.com/
-  api_key: xxxx
+  api_key: sk-from-yaml
   model_name: deepseek-chat
   temperature: 0.7
   max_tokens: 8192
@@ -26,40 +28,28 @@ a2a_config:
 
 
 class _FakeSettings:
-    def __init__(
-            self,
-            llm_api_key: str = "",
-            llm_model_name: str = "",
-            llm_base_url: str = "",
-            llm_temperature=None,
-            llm_max_tokens=None,
-            llm_context_window=None,
-    ) -> None:
+    def __init__(self, llm_api_key: str = "") -> None:
         self.llm_api_key = llm_api_key
-        self.llm_model_name = llm_model_name
-        self.llm_base_url = llm_base_url
-        self.llm_temperature = llm_temperature
-        self.llm_max_tokens = llm_max_tokens
-        self.llm_context_window = llm_context_window
 
 
-def _patch_settings(monkeypatch, **kwargs):
+def _patch_settings(monkeypatch, llm_api_key: str = ""):
     monkeypatch.setattr(
         "app.infrastructure.repositories.file_app_config_repository.get_settings",
-        lambda: _FakeSettings(**kwargs),
+        lambda: _FakeSettings(llm_api_key=llm_api_key),
     )
 
 
-def test_load_prefers_env_api_key(tmp_path: Path, monkeypatch):
+def test_load_injects_env_api_key_and_ignores_yaml_key(tmp_path: Path, monkeypatch):
     (tmp_path / "config.yaml").write_text(SAMPLE_CONFIG, encoding="utf-8")
     monkeypatch.chdir(tmp_path)
     _patch_settings(monkeypatch, llm_api_key="sk-from-env")
 
     app_config = FileAppConfigRepository("config.yaml").load()
     assert app_config.llm_config.api_key == "sk-from-env"
+    assert app_config.llm_config.model_name == "deepseek-chat"
 
 
-def test_load_treats_placeholder_as_empty(tmp_path: Path, monkeypatch):
+def test_load_ignores_yaml_api_key_when_env_empty(tmp_path: Path, monkeypatch):
     (tmp_path / "config.yaml").write_text(SAMPLE_CONFIG, encoding="utf-8")
     monkeypatch.chdir(tmp_path)
     _patch_settings(monkeypatch)
@@ -68,58 +58,32 @@ def test_load_treats_placeholder_as_empty(tmp_path: Path, monkeypatch):
     assert app_config.llm_config.api_key == ""
 
 
-def test_save_does_not_persist_env_api_key(tmp_path: Path, monkeypatch):
+def test_save_omits_api_key_and_keeps_model_fields(tmp_path: Path, monkeypatch):
     config_path = tmp_path / "config.yaml"
     config_path.write_text(SAMPLE_CONFIG, encoding="utf-8")
     monkeypatch.chdir(tmp_path)
     _patch_settings(monkeypatch, llm_api_key="sk-from-env")
 
     repository = FileAppConfigRepository("config.yaml")
-    repository.save(repository.load())
+    app_config = repository.load()
+    app_config.llm_config = app_config.llm_config.model_copy(
+        update={"model_name": "glm-4", "base_url": "https://example.test/v1"}
+    )
+    repository.save(app_config)
 
     persisted = yaml.safe_load(config_path.read_text(encoding="utf-8"))
-    assert persisted["llm_config"]["api_key"] == ""
+    assert "api_key" not in persisted["llm_config"]
+    assert persisted["llm_config"]["model_name"] == "glm-4"
+    assert persisted["llm_config"]["base_url"] == "https://example.test/v1"
 
 
-def test_load_prefers_all_llm_env_fields(tmp_path: Path, monkeypatch):
-    (tmp_path / "config.yaml").write_text(SAMPLE_CONFIG, encoding="utf-8")
-    monkeypatch.chdir(tmp_path)
-    _patch_settings(
-        monkeypatch,
-        llm_api_key="sk-from-env",
-        llm_model_name="gpt-4o-mini",
-        llm_base_url="https://api.openai.com/v1",
-        llm_temperature=0.2,
-        llm_max_tokens=1024,
-    )
-
-    app_config = FileAppConfigRepository("config.yaml").load()
-    assert app_config.llm_config.api_key == "sk-from-env"
-    assert app_config.llm_config.model_name == "gpt-4o-mini"
-    assert str(app_config.llm_config.base_url) == "https://api.openai.com/v1"
-    assert app_config.llm_config.temperature == 0.2
-    assert app_config.llm_config.max_tokens == 1024
-
-
-def test_save_does_not_persist_env_llm_fields(tmp_path: Path, monkeypatch):
-    config_path = tmp_path / "config.yaml"
-    config_path.write_text(SAMPLE_CONFIG, encoding="utf-8")
-    monkeypatch.chdir(tmp_path)
-    _patch_settings(
-        monkeypatch,
-        llm_api_key="sk-from-env",
-        llm_model_name="gpt-4o-mini",
-        llm_base_url="https://api.openai.com/v1",
-        llm_temperature=0.2,
-        llm_max_tokens=1024,
-    )
-
-    repository = FileAppConfigRepository("config.yaml")
-    repository.save(repository.load())
-
-    persisted = yaml.safe_load(config_path.read_text(encoding="utf-8"))
-    assert persisted["llm_config"]["api_key"] == ""
-    assert persisted["llm_config"]["model_name"] == "deepseek-chat"
-    assert persisted["llm_config"]["base_url"] == "https://api.deepseek.com/"
-    assert persisted["llm_config"]["temperature"] == 0.7
-    assert persisted["llm_config"]["max_tokens"] == 8192
+def test_public_schema_never_includes_api_key():
+    public = LLMConfigPublic.from_llm(LLMConfig(
+        base_url="https://api.deepseek.com/",
+        api_key="sk-secret",
+        model_name="deepseek-chat",
+    ))
+    dumped = public.model_dump()
+    assert "api_key" not in dumped
+    assert dumped["has_api_key"] is True
+    assert dumped["model_name"] == "deepseek-chat"

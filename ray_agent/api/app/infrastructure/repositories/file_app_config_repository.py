@@ -44,72 +44,26 @@ class FileAppConfigRepository(AppConfigRepository):
             )
             self.save(default_app_config)
 
-    _LLM_YAML_DEFAULTS = {
-        "api_key": "",
-        "model_name": "deepseek-chat",
-        "base_url": "https://api.deepseek.com/",
-        "temperature": 0.7,
-        "max_tokens": 8192,
-        "context_window": 65536,
-    }
-
     @staticmethod
-    def _env_llm_overrides() -> dict:
-        """从 .env 收集已填写的 LLM 覆盖项。"""
-        settings = get_settings()
-        overrides = {}
-
-        api_key = settings.llm_api_key.strip()
-        if api_key and api_key != "xxxx":
-            overrides["api_key"] = api_key
-
-        model_name = settings.llm_model_name.strip()
-        if model_name:
-            overrides["model_name"] = model_name
-
-        base_url = settings.llm_base_url.strip()
-        if base_url:
-            overrides["base_url"] = base_url
-
-        if settings.llm_temperature is not None:
-            overrides["temperature"] = settings.llm_temperature
-        if settings.llm_max_tokens is not None:
-            overrides["max_tokens"] = settings.llm_max_tokens
-        if settings.llm_context_window is not None:
-            overrides["context_window"] = settings.llm_context_window
-        return overrides
+    def _env_api_key() -> str:
+        """只从环境变量取密钥；占位符视为未配置。"""
+        api_key = get_settings().llm_api_key.strip()
+        if not api_key or api_key == "xxxx":
+            return ""
+        return api_key
 
     @classmethod
     def _apply_llm_env(cls, app_config: AppConfig) -> AppConfig:
-        """内存中的 LLM 配置优先使用环境变量。"""
-        if app_config.llm_config.api_key.strip() in {"", "xxxx"}:
-            app_config.llm_config.api_key = ""
-        overrides = cls._env_llm_overrides()
-        if overrides:
-            app_config.llm_config = app_config.llm_config.model_copy(update=overrides)
+        """内存中的密钥只来自 LLM_API_KEY，忽略 yaml 里的 api_key。"""
+        app_config.llm_config.api_key = cls._env_api_key()
         return app_config
 
-    @classmethod
-    def _redact_llm_env(cls, data: dict, previous: Optional[dict] = None) -> dict:
-        """写回 yaml 时不把 .env 覆盖值落盘。"""
+    @staticmethod
+    def _strip_api_key(data: dict) -> dict:
+        """yaml 不保存密钥。"""
         llm_config = data.get("llm_config")
-        if not isinstance(llm_config, dict):
-            return data
-
-        previous_llm = previous.get("llm_config") if isinstance(previous, dict) else {}
-        if not isinstance(previous_llm, dict):
-            previous_llm = {}
-
-        overrides = cls._env_llm_overrides()
-        for field, value in overrides.items():
-            dumped = llm_config.get(field)
-            if str(dumped).rstrip("/") != str(value).rstrip("/"):
-                continue
-            llm_config[field] = previous_llm.get(field, cls._LLM_YAML_DEFAULTS[field])
-
-        file_key = str(llm_config.get("api_key") or "").strip()
-        if not file_key or file_key == "xxxx":
-            llm_config["api_key"] = ""
+        if isinstance(llm_config, dict):
+            llm_config.pop("api_key", None)
         return data
 
     def load(self) -> Optional[AppConfig]:
@@ -123,7 +77,7 @@ class FileAppConfigRepository(AppConfigRepository):
                 data = yaml.safe_load(f)
                 if not data:
                     return None
-                return self._apply_llm_env(AppConfig.model_validate(data))
+                return self._apply_llm_env(AppConfig.model_validate(self._strip_api_key(data)))
         except Exception as e:
             logger.error(f"读取应用配置失败: {str(e)}")
             raise ServerRequestsError("读取应用配置失败，请稍后尝试")
@@ -135,14 +89,7 @@ class FileAppConfigRepository(AppConfigRepository):
 
         try:
             with lock:
-                previous = None
-                if self._config_path.exists():
-                    with open(self._config_path, "r", encoding="utf-8") as existing:
-                        previous = yaml.safe_load(existing)
-                # 2.将app_config转换成json，避免把 .env 覆盖值写入已跟踪文件
-                data_to_dump = self._redact_llm_env(app_config.model_dump(mode="json"), previous)
-
-                # 3.打开yaml文件并写入
+                data_to_dump = self._strip_api_key(app_config.model_dump(mode="json"))
                 with open(self._config_path, "w", encoding="utf-8") as f:
                     yaml.dump(data_to_dump, f, allow_unicode=True, sort_keys=False)
         except TimeoutError:

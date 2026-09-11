@@ -132,16 +132,12 @@ function LLMSetting({config, onChange}: LLMSettingProps) {
               </FieldDescription>
             </Field>
             <Field>
-              <FieldLabel htmlFor="api_key">提供商密钥</FieldLabel>
-              <Input
-                id="api_key"
-                type="password"
-                placeholder="请填写提供商API密钥"
-                value={config.api_key ?? ''}
-                onChange={(e) => handleChange('api_key', e.target.value)}
-              />
+              <FieldLabel>提供商密钥</FieldLabel>
+              <p className="text-sm text-gray-700">
+                {config.has_api_key ? '已从环境变量读取' : '未配置 LLM_API_KEY'}
+              </p>
               <FieldDescription className="text-xs">
-                请填写模型提供商密钥信息。
+                密钥只写在服务端 `.env` 的 `LLM_API_KEY`，不在此填写，也不会写入配置文件。
               </FieldDescription>
             </Field>
             <Field>

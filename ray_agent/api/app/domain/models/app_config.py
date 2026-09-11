@@ -15,7 +15,7 @@ from pydantic import BaseModel, HttpUrl, Field, ConfigDict, model_validator
 class LLMConfig(BaseModel):
     """LLM提供商配置"""
     base_url: HttpUrl = "https://api.deepseek.com"  # 模型基础URL地址
-    api_key: str = ""  # 模型API秘钥
+    api_key: str = ""  # 仅从 LLM_API_KEY 注入，不写配置文件、不返回给页面
     model_name: str = "deepseek-reasoner"  # 模型名字，默认使用deepseek-reasoner带推理的模型，传递tools会自动切换到deepseek-chat
     temperature: float = Field(0.7)  # 温度，默认设置为0.7
     max_tokens: int = Field(8192, ge=0)  # 最大输出token数，默认设置为deepseek-chat模型的最大输出限制

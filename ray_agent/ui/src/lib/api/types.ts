@@ -39,12 +39,11 @@ export type MCPTransport = "stdio" | "streamable_http";
  */
 export type LLMConfig = {
   base_url?: string;
-  api_key?: string;
   model_name?: string;
   temperature?: number;
   max_tokens?: number;
   context_window?: number;
-  [key: string]: unknown;
+  has_api_key?: boolean;
 };
 
 /**

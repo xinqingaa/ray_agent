@@ -31,6 +31,8 @@ API 的实现位于 `ray_agent/api/app/`：
 
 依赖在 [service_dependencies.py](../ray_agent/api/app/interfaces/service_dependencies.py) 中组装。数据访问通过仓库与工作单元组织，外部资源通过抽象接口和具体适配实现连接。目录表达了职责划分，分析具体行为仍需沿调用代码确认。
 
+应用配置中，Agent / MCP / A2A 以及模型名、地址保存在 `config.yaml`，可经设置接口读写。`LLM_API_KEY` 只从环境变量注入，不写入 yaml，设置接口只返回是否已配置，不返回明文。
+
 ## 一次任务的执行
 
 ```text
