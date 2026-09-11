@@ -2,7 +2,7 @@
 
 本文说明完整应用的配置、部署和运行检查。产品能力见 [项目首页](../README.md)，执行与数据流见 [架构说明](../docs/architecture.md)。
 
-以下说明已对照部署配置和启动代码核对，完整部署及任务执行仍待验证。
+以下说明已对照部署配置和启动代码核对；项目运行验收见 [执行计划](../PLAN.md)，课程任务的具体观察与验证范围见 [制作进度](../lessons/progress.md)。
 
 ## 环境要求
 
@@ -23,7 +23,7 @@ cd ray_agent
 
 ### 服务环境
 
-在本目录创建 `.env`，字段可参考 [API 环境示例](api/.env.example)。Compose 会把此文件中的环境变量传入 API 容器。
+在本目录创建 `.env`，字段可参考 [环境示例](.env.example)。Compose 会把此文件中的环境变量传入 API 容器。
 
 按 [docker-compose.yml](docker-compose.yml) 配置服务连接：
 

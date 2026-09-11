@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
+<title id="title">同一个 hello.txt，怎样成为预览和附件？</title><desc id="desc">运行器在文件工具调用结束后读取预览并同步存储，最终消息附件还会按路径同步；预览内容与给模型的function_result不是同一字段。</desc>
+<style>text{font-family:"Helvetica Neue",Arial,"PingFang SC","Microsoft YaHei",sans-serif}</style><defs>
+<marker id="blue" markerUnits="userSpaceOnUse" markerWidth="14" markerHeight="14" refX="13" refY="7" orient="auto"><path d="M0 0 L14 7 L0 14 Z" fill="#2563eb"/></marker>
+<marker id="green" markerUnits="userSpaceOnUse" markerWidth="14" markerHeight="14" refX="13" refY="7" orient="auto"><path d="M0 0 L14 7 L0 14 Z" fill="#16a34a"/></marker>
+<marker id="purple" markerUnits="userSpaceOnUse" markerWidth="14" markerHeight="14" refX="13" refY="7" orient="auto"><path d="M0 0 L14 7 L0 14 Z" fill="#9333ea"/></marker>
+</defs>
+<rect data-graph-role="background" width="1600" height="900" fill="#f3f6fa"/>
+<text x="64" y="60" font-size="18" fill="#64748b" font-weight="400" text-anchor="start">RAYAGENT / 06</text>
+<text x="64" y="114" font-size="36" fill="#111827" font-weight="600" text-anchor="start">同一个 hello.txt，怎样成为预览和附件？</text>
+<rect data-graph-role="node" x="70" y="370" width="310" height="140" rx="8" fill="#f0fdf4" stroke="#cbd5e1" stroke-width="3"/>
+<text x="225.0" y="418" font-size="27" fill="#111827" font-weight="600" text-anchor="middle">沙箱文件</text>
+<text x="225.0" y="457" font-size="21" fill="#526174" font-weight="400" text-anchor="middle">/home/ubuntu/hello.txt</text>
+<rect data-graph-role="node" x="550" y="370" width="360" height="140" rx="8" fill="#eff6ff" stroke="#cbd5e1" stroke-width="3"/>
+<text x="730.0" y="418" font-size="27" fill="#111827" font-weight="600" text-anchor="middle">运行器</text>
+<text x="730.0" y="457" font-size="21" fill="#526174" font-weight="400" text-anchor="middle">接住文件工具结束事件</text>
+<rect data-graph-role="node" x="1130" y="200" width="360" height="140" rx="8" fill="#faf5ff" stroke="#cbd5e1" stroke-width="3"/>
+<text x="1310.0" y="248" font-size="27" fill="#111827" font-weight="600" text-anchor="middle">工具记录预览</text>
+<text x="1310.0" y="287" font-size="21" fill="#526174" font-weight="400" text-anchor="middle">tool_content：hello</text>
+<rect data-graph-role="node" x="1130" y="530" width="360" height="140" rx="8" fill="#fff" stroke="#cbd5e1" stroke-width="3"/>
+<text x="1310.0" y="578" font-size="27" fill="#111827" font-weight="600" text-anchor="middle">存储与文件记录</text>
+<text x="1310.0" y="617" font-size="21" fill="#526174" font-weight="400" text-anchor="middle">文件内容 + File 元数据</text>
+<rect data-graph-role="node" x="550" y="685" width="360" height="110" rx="8" fill="#fff" stroke="#cbd5e1" stroke-width="3"/>
+<text x="730.0" y="733" font-size="27" fill="#111827" font-weight="600" text-anchor="middle">最终消息附件</text>
+<text x="730.0" y="772" font-size="21" fill="#526174" font-weight="400" text-anchor="middle">文件 ID → 下载接口</text>
+<path data-graph-role="edge" d="M380 440 H550" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#blue)"/>
+<text x="465" y="421" font-size="21" fill="#2563eb" font-weight="400" text-anchor="middle">读取文件</text>
+<path data-graph-role="edge" d="M910 410 H1020 V270 H1130" fill="none" stroke="#9333ea" stroke-width="4" marker-end="url(#purple)"/>
+<text x="963" y="252" font-size="21" fill="#9333ea" font-weight="400" text-anchor="start">补充预览</text>
+<path data-graph-role="edge" d="M910 470 H1020 V600 H1130" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#blue)"/>
+<text x="960" y="651" font-size="21" fill="#2563eb" font-weight="400" text-anchor="start">下载并上传</text>
+<path data-graph-role="edge" d="M1310 670 V740 H910" fill="none" stroke="#16a34a" stroke-width="4" marker-end="url(#green)"/>
+<text x="1120" y="725" font-size="21" fill="#15803d" font-weight="400" text-anchor="middle">关联可访问文件</text>
+<text x="75" y="610" font-size="25" fill="#111827" font-weight="600" text-anchor="start">给模型的工具结果</text>
+<text x="75" y="651" font-size="22" fill="#526174" font-weight="400" text-anchor="start">由执行器加入 role: tool</text>
+<text x="75" y="687" font-size="22" fill="#526174" font-weight="400" text-anchor="start">不以预览字段代替</text>
+<text x="730" y="279" font-size="22" fill="#526174" font-weight="400" text-anchor="middle">最终总结声明附件路径时</text>
+<text x="730" y="313" font-size="22" fill="#526174" font-weight="400" text-anchor="middle">运行器也会按路径重新同步</text>
+<path data-graph-role="edge" d="M64 845 H102" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#blue)"/>
+<text x="116" y="853" font-size="19" fill="#526174" font-weight="400" text-anchor="start">文件处理</text>
+<path data-graph-role="edge" d="M280 845 H318" fill="none" stroke="#9333ea" stroke-width="4" marker-end="url(#purple)"/>
+<text x="332" y="853" font-size="19" fill="#526174" font-weight="400" text-anchor="start">界面预览</text>
+<path data-graph-role="edge" d="M495 845 H533" fill="none" stroke="#16a34a" stroke-width="4" marker-end="url(#green)"/>
+<text x="547" y="853" font-size="19" fill="#526174" font-weight="400" text-anchor="start">附件关联</text>
+<text x="1536" y="853" font-size="19" fill="#64748b" font-weight="400" text-anchor="end">本次使用 API 本地文件存储</text>
+</svg>

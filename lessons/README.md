@@ -15,7 +15,7 @@
 | 03 | [工具与行动](03-tools-and-actions.md) |
 | 04 | [Agent Loop 与 ReAct](04-agent-loop-and-react.md) |
 | 05 | [上下文与记忆](05-context-and-memory.md) |
-| 06 | [从 Agent Loop 到完整 Harness](06-run-rayagent-one-complete-task.md) |
+| 06 | [从 Agent Loop 到完整 Harness](06-from-agent-loop-to-harness.md) |
 | 07 | [规划与内外层循环](07-planning-and-nested-loops.md) |
 | 08 | [任务执行与控制](08-task-execution-and-control.md) |
 | 09 | [状态与持久化](09-state-and-persistence.md) |

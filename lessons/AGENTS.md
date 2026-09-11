@@ -35,7 +35,7 @@ labs 隔离机制，RayAgent 展示机制组合后的状态、资源与交互契
 | [03 · 工具与行动](03-tools-and-actions.md) | 模型提出的动作如何真正执行？ | labs：工具调用、结构化数据 | Agent 如何根据工具结果继续决策并停止？ |
 | [04 · Agent Loop 与 ReAct](04-agent-loop-and-react.md) | Agent 如何根据工具结果继续决策并停止？ | labs：工具反馈循环 | Agent 每一步究竟知道什么？ |
 | [05 · 上下文与记忆](05-context-and-memory.md) | Agent 每一步究竟知道什么？ | labs：消息上下文与长度观察 | Context、模型调用、工具反馈与任务运行如何组成完整 Harness？ |
-| [06 · 从 Agent Loop 到完整 Harness](06-run-rayagent-one-complete-task.md) | Context、模型调用、工具反馈与任务运行如何组成完整 Harness？ | RayAgent：完整任务 | 外层计划与内层工具反馈如何协作？ |
+| [06 · 从 Agent Loop 到完整 Harness](06-from-agent-loop-to-harness.md) | Context、模型调用、工具反馈与任务运行如何组成完整 Harness？ | RayAgent：完整任务 | 外层计划与内层工具反馈如何协作？ |
 | [07 · 规划与内外层循环](07-planning-and-nested-loops.md) | 外层计划与内层工具反馈如何协作？ | RayAgent：Planner、Executor 与流程 | 任务如何启动、继续、等待、取消并受到执行预算约束？ |
 | [08 · 任务执行与控制](08-task-execution-and-control.md) | 任务如何启动、继续、等待、取消并受到执行预算约束？ | RayAgent：任务协调与运行器 | 执行中的信息分别归谁，能够保存多久？ |
 | [09 · 状态与持久化](09-state-and-persistence.md) | 执行中的信息分别归谁，能够保存多久？ | RayAgent：状态模型、存储与历史 | 现有事件能让我们看见什么，又看不见什么？ |
@@ -105,4 +105,4 @@ labs 隔离机制，RayAgent 展示机制组合后的状态、资源与交互契
 
 以上是可选择的范围，不要求各图固定取值。1600×900 的图可从浅灰背景、白色节点、8 px 圆角、3 px 节点边框与 4 px 主流程箭头开始，再根据实际渲染调整。加粗箭头时同步检查箭头头部尺寸、节点接口和文字间距。
 
-默认不交付 PNG、GIF 或 HTML。允许临时渲染预览检查中文字体、布局与裁切，但不提交这些预览。SVG 应做结构检查并实际渲染查看。GIF 只在明确指令下制作，先确认工具支持的结构和依赖。
+技术示意图默认不交付 PNG、GIF 或 HTML。用户授权的真实界面取证可保存为 PNG，按实际窗口尺寸保留必要区域，在图注交代来源与观察含义；界面截图不套用示意图的 1600×900 和 Style 1 参数。允许临时渲染预览检查中文字体、布局与裁切，但不提交这些预览。SVG 应做结构检查并实际渲染查看。GIF 只在明确指令下制作，先确认工具支持的结构和依赖。

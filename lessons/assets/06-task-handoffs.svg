@@ -1,0 +1,81 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
+<title id="title">从用户目标到 hello.txt 交付</title><desc id="desc">任务分为接收与规划、执行与反馈、更新与交付。程序准备 Context，模型提出调用，程序调用沙箱文件工具，工具结果进入后续 Context。同一步中先写入再读取。步骤结果交回后，计划更新为一个已完成步骤，模型生成总结，程序同步附件，Web 展示文件。本图按一次真实任务简化。</desc>
+<style>text{font-family:"Helvetica Neue",Arial,"PingFang SC","Microsoft YaHei",sans-serif}</style><defs>
+<marker id="blue" markerUnits="userSpaceOnUse" markerWidth="13" markerHeight="13" refX="12" refY="6.5" orient="auto"><path d="M0 0 L13 6.5 L0 13 Z" fill="#2563eb"/></marker>
+<marker id="green" markerUnits="userSpaceOnUse" markerWidth="13" markerHeight="13" refX="12" refY="6.5" orient="auto"><path d="M0 0 L13 6.5 L0 13 Z" fill="#168354"/></marker>
+</defs><rect data-graph-role="background" width="1600" height="900" fill="#f3f6fa"/>
+<text x="48" y="54" font-size="18" fill="#64748b" font-weight="400" text-anchor="start">RAYAGENT / 06</text>
+<text x="48" y="108" font-size="38" fill="#17253b" font-weight="600" text-anchor="start">从用户目标到 hello.txt 交付</text>
+<rect data-graph-role="container" x="48" y="156" width="300" height="658" rx="12" fill="#edf1f6"/>
+<text x="72" y="203" font-size="22" fill="#2563eb" font-weight="600" text-anchor="start">01</text>
+<text x="118" y="203" font-size="27" fill="#17253b" font-weight="600" text-anchor="start">接收与规划</text>
+<rect data-graph-role="container" x="398" y="156" width="802" height="658" rx="12" fill="#eaf1fc"/>
+<text x="422" y="203" font-size="22" fill="#2563eb" font-weight="600" text-anchor="start">02</text>
+<text x="468" y="203" font-size="27" fill="#17253b" font-weight="600" text-anchor="start">执行与反馈</text>
+<rect data-graph-role="container" x="1250" y="156" width="302" height="658" rx="12" fill="#edf1f6"/>
+<text x="1274" y="203" font-size="22" fill="#2563eb" font-weight="600" text-anchor="start">03</text>
+<text x="1320" y="203" font-size="27" fill="#17253b" font-weight="600" text-anchor="start">更新与交付</text>
+<rect data-graph-role="node" x="78" y="250" width="240" height="102" rx="10" fill="#fff" stroke="#c8d5e5" stroke-width="3"/>
+<text x="100" y="284" font-size="22" fill="#17253b" font-weight="600" text-anchor="start">Web · 用户目标</text>
+<text x="100" y="321" font-size="21" fill="#526174" font-weight="400" text-anchor="start">写入、读取并交付</text>
+<path data-graph-role="edge" d="M198 352 V418" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#blue)"/>
+<text x="213" y="380" font-size="18" fill="#526174" font-weight="400" text-anchor="start">程序准备任务</text>
+<text x="213" y="406" font-size="18" fill="#526174" font-weight="400" text-anchor="start">并请求规划</text>
+<rect data-graph-role="node" x="78" y="420" width="240" height="204" rx="10" fill="#fff" stroke="#c8d5e5" stroke-width="3"/>
+<text x="100" y="458" font-size="21" fill="#17253b" font-weight="600" text-anchor="start">Planner · 初始计划</text>
+<circle cx="111" cy="495" r="13" fill="#e7eefb"/>
+<text x="111" y="501" font-size="16" fill="#2563eb" font-weight="600" text-anchor="middle">1</text>
+<text x="137" y="503" font-size="22" fill="#17253b" font-weight="400" text-anchor="start">写入 hello</text>
+<circle cx="111" cy="540" r="13" fill="#e7eefb"/>
+<text x="111" y="546" font-size="16" fill="#2563eb" font-weight="600" text-anchor="middle">2</text>
+<text x="137" y="548" font-size="22" fill="#17253b" font-weight="400" text-anchor="start">读取文件</text>
+<circle cx="111" cy="585" r="13" fill="#e7eefb"/>
+<text x="111" y="591" font-size="16" fill="#2563eb" font-weight="600" text-anchor="middle">3</text>
+<text x="137" y="593" font-size="22" fill="#17253b" font-weight="400" text-anchor="start">交付附件</text>
+<path data-graph-role="edge" d="M318 450 H430" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#blue)"/>
+<text x="374" y="432" font-size="19" fill="#2563eb" font-weight="400" text-anchor="middle">步骤 1</text>
+<text x="430" y="273" font-size="25" fill="#17253b" font-weight="600" text-anchor="start">本次：写入与读取发生在同一步中</text>
+<text x="430" y="313" font-size="22" fill="#526174" font-weight="400" text-anchor="start">每次工具结果，都会参与后续决策</text>
+<rect data-graph-role="node" x="430" y="400" width="280" height="110" rx="10" fill="#fff" stroke="#8cabdb" stroke-width="3"/>
+<text x="454" y="435" font-size="20" fill="#526174" font-weight="400" text-anchor="start">程序准备</text>
+<text x="454" y="475" font-size="29" fill="#17253b" font-weight="600" text-anchor="start">Context</text>
+<rect data-graph-role="node" x="850" y="400" width="280" height="110" rx="10" fill="#fff" stroke="#8cabdb" stroke-width="3"/>
+<text x="874" y="435" font-size="20" fill="#526174" font-weight="400" text-anchor="start">模型决策</text>
+<text x="874" y="475" font-size="24" fill="#17253b" font-weight="600" text-anchor="start">提出调用或结束步骤</text>
+<rect data-graph-role="node" x="850" y="590" width="280" height="110" rx="10" fill="#fff" stroke="#8cabdb" stroke-width="3"/>
+<text x="874" y="625" font-size="20" fill="#526174" font-weight="400" text-anchor="start">程序调用 → 沙箱执行</text>
+<text x="874" y="665" font-size="27" fill="#17253b" font-weight="600" text-anchor="start">文件工具</text>
+<rect data-graph-role="node" x="430" y="590" width="280" height="110" rx="10" fill="#f5fcf8" stroke="#8bc5a9" stroke-width="3"/>
+<text x="454" y="625" font-size="20" fill="#526174" font-weight="400" text-anchor="start">程序接收</text>
+<text x="454" y="665" font-size="27" fill="#17253b" font-weight="600" text-anchor="start">工具结果</text>
+<path data-graph-role="edge" d="M710 450 H850" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#blue)"/>
+<text x="780" y="432" font-size="20" fill="#2563eb" font-weight="400" text-anchor="middle">请求模型</text>
+<path data-graph-role="edge" d="M990 510 V590" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#blue)"/>
+<text x="1010" y="558" font-size="20" fill="#2563eb" font-weight="400" text-anchor="start">工具调用</text>
+<path data-graph-role="edge" d="M850 645 H710" fill="none" stroke="#168354" stroke-width="4" marker-end="url(#green)"/>
+<text x="780" y="628" font-size="20" fill="#168354" font-weight="400" text-anchor="middle">执行结果</text>
+<path data-graph-role="edge" d="M570 590 V510" fill="none" stroke="#168354" stroke-width="4" marker-end="url(#green)"/>
+<text x="590" y="558" font-size="20" fill="#168354" font-weight="400" text-anchor="start">写回 Context</text>
+<text x="430" y="763" font-size="22" fill="#526174" font-weight="400" text-anchor="start">① 写入  hello.txt ← hello</text>
+<text x="821" y="763" font-size="22" fill="#526174" font-weight="400" text-anchor="start">② 读取  hello.txt → hello</text>
+<path data-graph-role="edge" d="M1130 450 H1280" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#blue)"/>
+<text x="1205" y="432" font-size="19" fill="#2563eb" font-weight="400" text-anchor="middle">步骤结果</text>
+<rect data-graph-role="node" x="1280" y="400" width="242" height="110" rx="10" fill="#fff" stroke="#c8d5e5" stroke-width="3"/>
+<text x="1302" y="435" font-size="20" fill="#526174" font-weight="400" text-anchor="start">Planner · 更新计划</text>
+<text x="1302" y="475" font-size="21" fill="#17253b" font-weight="600" text-anchor="start">保留 1 个已完成步骤</text>
+<path data-graph-role="edge" d="M1401 510 V560" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#blue)"/>
+<rect data-graph-role="node" x="1280" y="560" width="242" height="90" rx="10" fill="#fff" stroke="#c8d5e5" stroke-width="3"/>
+<text x="1302" y="594" font-size="22" fill="#17253b" font-weight="600" text-anchor="start">模型生成总结</text>
+<text x="1302" y="627" font-size="21" fill="#526174" font-weight="400" text-anchor="start">回答 + 附件路径</text>
+<path data-graph-role="edge" d="M1401 650 V710" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#blue)"/>
+<text x="1381" y="687" font-size="19" fill="#2563eb" font-weight="400" text-anchor="end">程序同步附件</text>
+<rect data-graph-role="node" x="1280" y="710" width="242" height="80" rx="10" fill="#f5fcf8" stroke="#8bc5a9" stroke-width="3"/>
+<text x="1302" y="742" font-size="20" fill="#17253b" font-weight="600" text-anchor="start">Web · 用户取得文件</text>
+<path data-graph-role="decoration" d="M1303 753 H1316 L1323 760 V779 H1303 Z M1316 753 V760 H1323" fill="none" stroke="#168354" stroke-width="2"/>
+<text x="1335" y="775" font-size="22" fill="#168354" font-weight="600" text-anchor="start">hello.txt</text>
+<path data-graph-role="edge" d="M48 854 H87" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#blue)"/>
+<text x="101" y="861" font-size="19" fill="#526174" font-weight="400" text-anchor="start">任务推进与调用</text>
+<path data-graph-role="edge" d="M305 854 H344" fill="none" stroke="#168354" stroke-width="4" marker-end="url(#green)"/>
+<text x="358" y="861" font-size="19" fill="#526174" font-weight="400" text-anchor="start">工具反馈</text>
+<text x="1552" y="861" font-size="19" fill="#64748b" font-weight="400" text-anchor="end">按本次运行简化 · 通知与事件展示见正文</text>
+</svg>

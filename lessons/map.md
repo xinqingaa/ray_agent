@@ -11,7 +11,7 @@
 | [03 · 工具与行动](03-tools-and-actions.md) | `labs/foundations/3_7`、`3_8`、`3_9`；[作者核对入口](#chapter-03-evidence) | foundations 环境；按脚本配置模型 |
 | [04 · Agent Loop 与 ReAct](04-agent-loop-and-react.md) | `labs/foundations/4_1`、`4_3`、`4_4`；[作者核对入口](#chapter-04-evidence) | foundations 环境；按脚本配置模型 |
 | [05 · 上下文与记忆](05-context-and-memory.md) | `labs/foundations/5_1`、`4_1` 的消息构造；`4_2` 对照长度；[作者核对入口](#chapter-05-evidence) | foundations 环境；主观察不需要模型 |
-| [06 · 从 Agent Loop 到完整 Harness](06-run-rayagent-one-complete-task.md) | [应用指南](../ray_agent/README.md)；共同文件任务 | Compose + 模型配置 |
+| [06 · 从 Agent Loop 到完整 Harness](06-from-agent-loop-to-harness.md) | [应用指南](../ray_agent/README.md)；共同文件任务 | Compose + 模型配置 |
 | [07 · 规划与内外层循环](07-planning-and-nested-loops.md) | [计划流程](../ray_agent/api/app/domain/services/flows/planner_react.py)、[Agent 基类](../ray_agent/api/app/domain/services/agents/base.py)；[嵌套循环图素材](assets/01-nested-loops.svg)（待改编素材，非现行教材；制作本章时调整课号、图注及风格） | 源码；对照第 06 章任务 |
 | [08 · 任务执行与控制](08-task-execution-and-control.md) | [应用协调](../ray_agent/api/app/application/services/agent_service.py)、[运行器](../ray_agent/api/app/domain/services/agent_task_runner.py)、[任务适配](../ray_agent/api/app/infrastructure/external/task/redis_stream_task.py) | 源码；运行观察使用产品环境 |
 | [09 · 状态与持久化](09-state-and-persistence.md) | [领域模型](../ray_agent/api/app/domain/models/)、[存储](../ray_agent/api/app/infrastructure/storage/) | 源码；产品历史与状态观察 |
@@ -97,6 +97,19 @@
 | `ray_agent/api/app/domain/services/flows/planner_react.py` | 步骤成功后调用执行器 `compact_memory`，随后进入计划更新；清理后的记忆会保存。 |
 
 通用概念的外部依据就地链接在正文中，包括 Anthropic 上下文工程与窗口说明、LangGraph 记忆概览，以及《Lost in the Middle》的特定实验结论。运行入口维护在 foundations README；验证结果与真实服务缺口维护在 progress。
+
+## Chapter 06 evidence
+
+第六章沿同一次文件任务核对信息、控制、反馈与产物交接。实际会话、附件标识和运行范围统一记录在 progress；正文中的输入组成表是源码概括，不是完整出站请求的捕获记录。
+
+| 依据 | 核对重点 |
+|---|---|
+| [应用协调](../ray_agent/api/app/application/services/agent_service.py) 的 `chat`、`_create_task` | 会话关联、沙箱与浏览器资源准备、输入事件、任务启动和输出消费。 |
+| [执行器](../ray_agent/api/app/domain/services/agents/react.py) 的 `execute_step` 与 [Agent 基类](../ray_agent/api/app/domain/services/agents/base.py) | 原始目标与步骤组装；按角色保存消息；工具声明；工具结果以 `role: tool` 和调用 ID 带入后续请求。 |
+| [计划流程](../ray_agent/api/app/domain/services/flows/planner_react.py) | 本次三步初始计划、第一步中的连续工具调用、步骤结果交回后的计划更新与总结。 |
+| [任务运行器](../ray_agent/api/app/domain/services/agent_task_runner.py) | `_handle_tool_event` 为文件记录自动读取预览并同步；`_sync_message_attachments_to_storage` 按最终附件路径再次同步。预览字段与原始工具结果不同。 |
+| [会话事件适配](../ray_agent/api/app/interfaces/schemas/event.py)、[文件接口](../ray_agent/api/app/interfaces/endpoints/file_routes.py) | 页面字段的保留范围；最终文件 ID 与下载接口。 |
+| 新任务事件、定向日志、沙箱及存储文件、Web 页面 | 区分模型发起的五次工具调用与程序的自动读取；核对文件三处字节一致、终态与刷新后的历史。 |
 
 ## Chapter 07 evidence
 
