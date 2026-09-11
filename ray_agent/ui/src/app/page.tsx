@@ -1,22 +1,16 @@
 'use client'
 
-import {useRef, useState} from 'react'
+import {useState} from 'react'
 import {useRouter} from 'next/navigation'
 import {ChatHeader} from '@/components/chat-header'
-import {ChatInput, type ChatInputRef} from '@/components/chat-input'
-import {SuggestedQuestions} from '@/components/suggested-questions'
+import {ChatInput} from '@/components/chat-input'
 import {sessionApi} from '@/lib/api/session'
 import type {FileInfo} from '@/lib/api/types'
 import {toast} from 'sonner'
 
 export default function Page() {
   const router = useRouter()
-  const chatInputRef = useRef<ChatInputRef>(null)
   const [sending, setSending] = useState(false)
-
-  const handleQuestionClick = (question: string) => {
-    chatInputRef.current?.setInputText(question)
-  }
 
   const handleSend = async (message: string, files: FileInfo[]) => {
     if (sending) return
@@ -54,18 +48,13 @@ export default function Page() {
         <div className="w-full max-w-full sm:max-w-[1024px] sm:min-w-[390px] mx-auto">
           {/* 对话提示内容 */}
           <div className="text-[24px] sm:text-[32px] font-bold mb-4 sm:mb-6 text-center sm:text-left">
-            <div className="text-gray-700">您好，欢迎使用 RayAgent</div>
-            <div className="text-gray-500">我能为您做什么?</div>
+            <div className="text-gray-500">想在 RayAgent 中做什么?</div>
           </div>
           {/* 对话框 */}
           <ChatInput
-            ref={chatInputRef}
-            className="mb-4 sm:mb-6"
             onSend={handleSend}
             disabled={sending}
           />
-          {/* 推荐对话内容 */}
-          <SuggestedQuestions onQuestionClick={handleQuestionClick}/>
         </div>
       </div>
     </div>

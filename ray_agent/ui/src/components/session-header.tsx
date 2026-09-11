@@ -123,7 +123,7 @@ export function SessionHeader({
 
   return (
     <header className="bg-[#f8f8f7] flex flex-row items-center justify-between pt-3 pb-2 gap-2 sticky top-0 z-10 flex-shrink-0">
-      <div className="text-gray-700 text-lg whitespace-nowrap text-ellipsis overflow-hidden flex-1 min-w-0">
+      <div className="text-gray-700 text-lg font-medium whitespace-nowrap text-ellipsis overflow-hidden flex-1 min-w-0">
         {title || '未命名任务'}
       </div>
       <div className="flex items-center gap-3 flex-shrink-0">

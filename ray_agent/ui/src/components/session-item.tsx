@@ -39,7 +39,6 @@ export function SessionItem({session, isActive, onClick, onDelete}: SessionItemP
     onDelete(session)
   }, [onDelete, session])
 
-  const description = session.latest_message || '暂无消息'
   const dayLabel = formatDayLabel(session.latest_message_at)
   const clockLabel = formatClockTime(session.latest_message_at)
   const timeLabel = [dayLabel, clockLabel].filter(Boolean).join(' ')
@@ -52,7 +51,7 @@ export function SessionItem({session, isActive, onClick, onDelete}: SessionItemP
     >
       <ItemContent className="gap-0.5 min-w-0 w-full">
         <div className="flex items-center gap-1 min-w-0">
-          <p className="text-sm font-medium truncate flex-1 min-w-0">
+          <p className="text-sm font-normal truncate flex-1 min-w-0">
             {session.title || '新任务'}
           </p>
           {isRunning ? (
@@ -82,9 +81,6 @@ export function SessionItem({session, isActive, onClick, onDelete}: SessionItemP
             </DropdownMenu>
           ) : null}
         </div>
-        <p className="text-xs text-muted-foreground truncate">
-          {description}
-        </p>
         {timeLabel && (
           <p className="text-xs text-muted-foreground truncate">{timeLabel}</p>
         )}
