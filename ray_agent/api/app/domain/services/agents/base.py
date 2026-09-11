@@ -9,12 +9,13 @@ import asyncio
 import logging
 import uuid
 from abc import ABC
-from typing import Optional, List, AsyncGenerator, Dict, Any, Callable
+from typing import Optional, List, AsyncGenerator, Dict, Any, Callable, Tuple
 
 from app.domain.external.json_parser import JSONParser
 from app.domain.external.llm import LLM
 from app.domain.models.app_config import AgentConfig
-from app.domain.models.event import ToolEvent, ToolEventStatus, ErrorEvent, MessageEvent, BaseEvent
+from app.domain.models.event import ToolEvent, ToolEventStatus, ErrorEvent, MessageEvent, BaseEvent, UsageEvent
+from app.domain.models.llm import LLMUsage
 from app.domain.models.memory import Memory
 from app.domain.models.message import Message
 from app.domain.models.tool_result import ToolResult
@@ -77,7 +78,19 @@ class BaseAgent(ABC):
 
         raise ValueError(f"未知工具: {tool_name}")
 
-    async def _invoke_llm(self, messages: List[Dict[str, Any]], format: Optional[str] = None) -> Dict[str, Any]:
+    def _new_usage_event(self, usage: Optional[LLMUsage]) -> UsageEvent:
+        """根据本次模型返回构造用量事件；合计字段由任务运行器补齐。"""
+        available = bool(usage and usage.available)
+        return UsageEvent(
+            agent=self.name,
+            available=available,
+            prompt_tokens=usage.prompt_tokens if usage else None,
+            completion_tokens=usage.completion_tokens if usage else None,
+            total_tokens=usage.total_tokens if usage else None,
+            context_window=self._llm.context_window,
+        )
+
+    async def _invoke_llm(self, messages: List[Dict[str, Any]], format: Optional[str] = None) -> Tuple[Dict[str, Any], List[UsageEvent]]:
         """调用语言模型并处理记忆内容"""
         # 1.将消息添加到记忆中
         await self._add_to_memory(messages)
@@ -87,16 +100,18 @@ class BaseAgent(ABC):
 
         # 3.循环向LLM发起提问直到最大重试次数
         error = "调用语言模型发生错误"
+        usage_events: List[UsageEvent] = []
         for _ in range(self._agent_config.max_retries):
             try:
                 # 4.调用语言模型获取响应内容
-                message = await self._llm.invoke(
+                result = await self._llm.invoke(
                     messages=self._memory.get_messages(),
                     tools=self._get_available_tools(),
                     response_format=response_format,
                     tool_choice=self._tool_choice,
                 )
-                message = extract_embedded_tool_calls(message)
+                usage_events.append(self._new_usage_event(result.usage))
+                message = extract_embedded_tool_calls(result.message)
 
                 # 5.处理AI响应内容避免空回复
                 if message.get("role") == "assistant":
@@ -123,7 +138,7 @@ class BaseAgent(ABC):
 
                 # 9.将消息添加到记忆中
                 await self._add_to_memory([filtered_message])
-                return filtered_message
+                return filtered_message, usage_events
             except Exception as e:
                 # 10.记录日志并睡眠指定的时间
                 logger.error(f"调用语言模型发生错误: {str(e)}")
@@ -216,10 +231,12 @@ class BaseAgent(ABC):
         format = self._format if format is _UNSET else format
 
         # 2.调用语言模型获取响应内容
-        message = await self._invoke_llm(
+        message, usage_events = await self._invoke_llm(
             [{"role": "user", "content": query}],
             format,
         )
+        for usage_event in usage_events:
+            yield usage_event
 
         # 3.循环遍历直到最大迭代次数
         for _ in range(self._agent_config.max_iterations):
@@ -272,7 +289,9 @@ class BaseAgent(ABC):
                 })
 
             # 12.所有工具都执行完成后，调用LLM获取汇总消息二次提供
-            message = await self._invoke_llm(tool_messages)
+            message, usage_events = await self._invoke_llm(tool_messages)
+            for usage_event in usage_events:
+                yield usage_event
         else:
             # 13.超过最大迭代次数后，则抛出错误
             yield ErrorEvent(error=f"Agent迭代超过最大迭代次数: {self._agent_config.max_iterations}, 任务处理失败")

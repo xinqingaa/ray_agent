@@ -24,7 +24,7 @@ router = APIRouter(prefix="/app-config", tags=["设置模块"])
     path="/llm",
     response_model=Response[LLMConfig],
     summary="获取LLM配置信息",
-    description="包含LLM提供商的base_url、temperature、model_name、max_tokens"
+    description="包含LLM提供商的base_url、temperature、model_name、max_tokens、context_window"
 )
 async def get_llm_config(
         app_config_service: AppConfigService = Depends(get_app_config_service)

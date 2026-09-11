@@ -15,6 +15,7 @@ import type {
   StepEvent,
   ToolEvent,
   SessionFile,
+  UsageEvent,
 } from "@/lib/api/types";
 import { formatClockTime } from "@/lib/utils";
 
@@ -283,6 +284,7 @@ export function eventsToTimeline(events: SSEEventData[]): TimelineItem[] {
       case "plan":
       case "wait":
       case "done":
+      case "usage":
         break;
       case "error": {
         // 处理错误事件
@@ -411,6 +413,15 @@ function userRetryKey(ev: SSEEventData): string {
     .sort()
     .join(",");
   return `${text}\0${ids}`;
+}
+
+export function getLatestUsageFromEvents(events: SSEEventData[]): UsageEvent | null {
+  for (let i = events.length - 1; i >= 0; i--) {
+    if (events[i].type === "usage") {
+      return events[i].data as UsageEvent;
+    }
+  }
+  return null;
 }
 
 /** 截到最后一条用户问题，立刻去掉失败块和失败轮次的中间输出 */

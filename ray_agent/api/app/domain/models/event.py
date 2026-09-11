@@ -135,6 +135,23 @@ class DoneEvent(BaseEvent):
     type: Literal["done"] = "done"
 
 
+class UsageEvent(BaseEvent):
+    """模型调用用量。单次字段来自服务端 usage；session/turn 合计由任务运行器写入。"""
+    type: Literal["usage"] = "usage"
+    agent: str = ""
+    available: bool = False
+    prompt_tokens: Optional[int] = None
+    completion_tokens: Optional[int] = None
+    total_tokens: Optional[int] = None
+    session_prompt_tokens: int = 0
+    session_completion_tokens: int = 0
+    session_total_tokens: int = 0
+    turn_prompt_tokens: int = 0
+    turn_completion_tokens: int = 0
+    turn_total_tokens: int = 0
+    context_window: Optional[int] = None
+
+
 # 定义应用事件类型声明
 Event = Annotated[
     Union[
@@ -146,6 +163,7 @@ Event = Annotated[
         WaitEvent,
         ErrorEvent,
         DoneEvent,
+        UsageEvent,
     ],
     Field(discriminator="type"),
 ]

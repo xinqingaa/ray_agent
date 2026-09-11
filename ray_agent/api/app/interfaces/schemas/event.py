@@ -215,6 +215,28 @@ class ErrorSSEEvent(BaseSSEEvent):
     data: ErrorEventData
 
 
+class UsageEventData(BaseEventData):
+    """模型用量事件数据。available 为 false 表示服务未返回 usage。"""
+    agent: str = ""
+    available: bool = False
+    prompt_tokens: Optional[int] = None
+    completion_tokens: Optional[int] = None
+    total_tokens: Optional[int] = None
+    session_prompt_tokens: int = 0
+    session_completion_tokens: int = 0
+    session_total_tokens: int = 0
+    turn_prompt_tokens: int = 0
+    turn_completion_tokens: int = 0
+    turn_total_tokens: int = 0
+    context_window: Optional[int] = None
+
+
+class UsageSSEEvent(BaseSSEEvent):
+    """模型用量流式事件"""
+    event: Literal["usage"] = "usage"
+    data: UsageEventData
+
+
 # 定义Agent流式事件类型集合
 AgentSSEEvent = Union[
     CommonSSEEvent,
@@ -226,6 +248,7 @@ AgentSSEEvent = Union[
     DoneSSEEvent,
     ErrorSSEEvent,
     WaitSSEEvent,
+    UsageSSEEvent,
 ]
 
 

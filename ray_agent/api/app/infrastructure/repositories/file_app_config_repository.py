@@ -50,6 +50,7 @@ class FileAppConfigRepository(AppConfigRepository):
         "base_url": "https://api.deepseek.com/",
         "temperature": 0.7,
         "max_tokens": 8192,
+        "context_window": 65536,
     }
 
     @staticmethod
@@ -74,6 +75,8 @@ class FileAppConfigRepository(AppConfigRepository):
             overrides["temperature"] = settings.llm_temperature
         if settings.llm_max_tokens is not None:
             overrides["max_tokens"] = settings.llm_max_tokens
+        if settings.llm_context_window is not None:
+            overrides["context_window"] = settings.llm_context_window
         return overrides
 
     @classmethod

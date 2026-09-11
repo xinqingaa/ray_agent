@@ -8,7 +8,8 @@ import {Avatar, AvatarGroupCount} from '@/components/ui/avatar'
 import {ArrowUp, FileText, Paperclip, XCircle, Loader2, Pause} from 'lucide-react'
 import {Button} from '@/components/ui/button'
 import {fileApi} from '@/lib/api/file'
-import type {FileInfo} from '@/lib/api/types'
+import type {FileInfo, UsageEvent} from '@/lib/api/types'
+import {TokenUsageRing} from '@/components/token-usage'
 import {toast} from 'sonner'
 
 interface ChatInputProps {
@@ -22,6 +23,8 @@ interface ChatInputProps {
   isRunning?: boolean
   /** 点击暂停按钮的回调 */
   onStop?: () => void
+  /** 传入（含 null）时在发送按钮左侧显示用量圆环；首页不传则不显示 */
+  usage?: UsageEvent | null
 }
 
 export interface ChatInputRef {
@@ -31,7 +34,7 @@ export interface ChatInputRef {
 }
 
 export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
-  ({ className, onInputValueChange, onSend, disabled = false, sessionId, isRunning = false, onStop }, ref) => {
+  ({ className, onInputValueChange, onSend, disabled = false, sessionId, isRunning = false, onStop, usage }, ref) => {
     const [files, setFiles] = useState<FileInfo[]>([])
     const [uploading, setUploading] = useState(false)
     const [sending, setSending] = useState(false)
@@ -214,7 +217,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
         />
       </div>
       {/* 底部上传&发送按钮 */}
-      <footer className="flex flex-row justify-between w-full px-3">
+      <footer className="flex flex-row items-center justify-between w-full px-3">
         {/* 上传按钮 */}
         <div className="flex gap-2">
           <input
@@ -239,7 +242,8 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
           </Button>
         </div>
         {/* 发送/暂停按钮 */}
-        <div className="flex gap-2">
+        <div className="flex items-center">
+          {usage !== undefined && <TokenUsageRing usage={usage} />}
           {isRunning ? (
             // 任务运行中时显示暂停按钮
             <Button

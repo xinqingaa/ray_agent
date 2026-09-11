@@ -13,6 +13,8 @@ from openai import AsyncOpenAI
 from app.application.errors.exceptions import ServerRequestsError
 from app.domain.external.llm import LLM
 from app.domain.models.app_config import LLMConfig
+from app.domain.models.llm import LLMInvokeResult
+from app.infrastructure.external.llm.usage import parse_completion_usage
 from app.infrastructure.logging import log_session_prefix
 
 logger = logging.getLogger(__name__)
@@ -34,6 +36,7 @@ class OpenAILLM(LLM):
         self._model_name = llm_config.model_name
         self._temperature = llm_config.temperature
         self._max_tokens = llm_config.max_tokens
+        self._context_window = llm_config.context_window
         self._timeout = 3600
 
     @property
@@ -48,13 +51,17 @@ class OpenAILLM(LLM):
     def max_tokens(self) -> int:
         return self._max_tokens
 
+    @property
+    def context_window(self) -> int:
+        return self._context_window
+
     async def invoke(
             self,
             messages: List[Dict[str, Any]],
             tools: List[Dict[str, Any]] = None,
             response_format: Dict[str, Any] = None,
             tool_choice: str = None,
-    ) -> Dict[str, Any]:
+    ) -> LLMInvokeResult:
         """使用异步OpenAI客户端发起块响应（该步骤可以切换成流式响应）"""
         prefix = log_session_prefix()
         response_type = (response_format or {}).get("type") if response_format else None
@@ -89,12 +96,14 @@ class OpenAILLM(LLM):
 
             # 3.处理响应数据并返回
             message = response.choices[0].message
+            usage = parse_completion_usage(getattr(response, "usage", None))
             logger.info(
                 f"{prefix}LLM响应 model={self._model_name} "
-                f"has_content={bool(message.content)} has_tool_calls={bool(message.tool_calls)}"
+                f"has_content={bool(message.content)} has_tool_calls={bool(message.tool_calls)} "
+                f"usage={usage.model_dump() if usage else None}"
             )
             logger.debug(f"{prefix}LLM完整响应: {response.model_dump()}")
-            return message.model_dump()
+            return LLMInvokeResult(message=message.model_dump(), usage=usage)
         except Exception as e:
             logger.error(
                 f"{prefix}LLM请求失败 status={getattr(e, 'status_code', None)} "

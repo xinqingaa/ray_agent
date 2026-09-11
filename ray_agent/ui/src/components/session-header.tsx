@@ -126,13 +126,14 @@ export function SessionHeader({
       <div className="text-gray-700 text-lg whitespace-nowrap text-ellipsis overflow-hidden flex-1 min-w-0">
         {title || '未命名任务'}
       </div>
-      {mounted ? (
-        <Dialog open={openState} onOpenChange={setOpenState}>
-          <DialogTrigger asChild>
-            <Button variant="ghost" size="icon-sm" className="cursor-pointer flex-shrink-0">
-              <FileSearchCorner />
-            </Button>
-          </DialogTrigger>
+      <div className="flex items-center gap-3 flex-shrink-0">
+        {mounted ? (
+          <Dialog open={openState} onOpenChange={setOpenState}>
+            <DialogTrigger asChild>
+              <Button variant="ghost" size="icon-sm" className="cursor-pointer flex-shrink-0">
+                <FileSearchCorner />
+              </Button>
+            </DialogTrigger>
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>此任务中的所有文件</DialogTitle>
@@ -181,13 +182,14 @@ export function SessionHeader({
                   )}
                 </div>
               </ScrollArea>
-          </DialogContent>
-        </Dialog>
-      ) : (
-        <Button variant="ghost" size="icon-sm" className="cursor-pointer flex-shrink-0">
-          <FileSearchCorner />
-        </Button>
-      )}
+            </DialogContent>
+          </Dialog>
+        ) : (
+          <Button variant="ghost" size="icon-sm" className="cursor-pointer flex-shrink-0">
+            <FileSearchCorner />
+          </Button>
+        )}
+      </div>
     </header>
   )
 }

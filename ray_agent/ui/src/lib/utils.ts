@@ -94,10 +94,24 @@ export function formatDurationBetween(start: unknown, end: unknown): string {
  */
 export function formatFileSize(bytes: number): string {
   if (bytes === 0) return '0 B'
-  
+
   const k = 1024
   const sizes = ['B', 'KB', 'MB', 'GB', 'TB']
   const i = Math.floor(Math.log(bytes) / Math.log(k))
-  
+
   return `${(bytes / Math.pow(k, i)).toFixed(2)} ${sizes[i]}`
+}
+
+/** 用量展示用的 token 计数，不把缺失值显示成 0。 */
+export function formatTokenCount(n: number): string {
+  if (!Number.isFinite(n)) return '—'
+  const abs = Math.abs(n)
+  if (abs >= 1_000_000) {
+    const value = n / 1_000_000
+    return `${value >= 10 ? value.toFixed(0) : value.toFixed(1)}M`
+  }
+  if (abs >= 10_000) {
+    return `${(n / 1000).toFixed(1)}k`
+  }
+  return String(Math.round(n))
 }

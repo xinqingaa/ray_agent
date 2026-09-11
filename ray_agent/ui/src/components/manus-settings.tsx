@@ -185,7 +185,22 @@ function LLMSetting({config, onChange}: LLMSettingProps) {
                 max={128000}
               />
               <FieldDescription className="text-xs">
-                模型单次回复允许生成的最大 Token 数量，默认为 8192。
+                模型单次回复允许生成的最大 Token 数量，默认为 8192。与上下文窗口不是同一项。
+              </FieldDescription>
+            </Field>
+            <Field>
+              <FieldLabel htmlFor="context_window">上下文窗口(context_window)</FieldLabel>
+              <Input
+                id="context_window"
+                type="number"
+                placeholder="请填写模型上下文窗口"
+                value={config.context_window ?? 65536}
+                onChange={(e) => handleNumberChange('context_window', e.target.value)}
+                min={1}
+                max={1000000}
+              />
+              <FieldDescription className="text-xs">
+                模型单次请求可容纳的输入与输出总 Token 数，用于展示窗口占用。请按所用模型填写，默认为 65536。
               </FieldDescription>
             </Field>
           </FieldGroup>

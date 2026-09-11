@@ -43,6 +43,7 @@ export type LLMConfig = {
   model_name?: string;
   temperature?: number;
   max_tokens?: number;
+  context_window?: number;
   [key: string]: unknown;
 };
 
@@ -264,6 +265,22 @@ export type ToolEvent = {
   [key: string]: unknown;
 };
 
+export type UsageEvent = {
+  agent?: string;
+  available: boolean;
+  prompt_tokens?: number | null;
+  completion_tokens?: number | null;
+  total_tokens?: number | null;
+  session_prompt_tokens?: number;
+  session_completion_tokens?: number;
+  session_total_tokens?: number;
+  turn_prompt_tokens?: number;
+  turn_completion_tokens?: number;
+  turn_total_tokens?: number;
+  context_window?: number | null;
+  [key: string]: unknown;
+};
+
 /**
  * SSE 事件类型
  */
@@ -275,7 +292,8 @@ export type SSEEventType =
   | "tool"
   | "wait"
   | "done"
-  | "error";
+  | "error"
+  | "usage";
 
 /**
  * SSE 事件数据
@@ -288,7 +306,8 @@ export type SSEEventData =
   | { type: "tool"; data: ToolEvent }
   | { type: "wait"; data: Record<string, unknown> }
   | { type: "done"; data: Record<string, unknown> }
-  | { type: "error"; data: { error: string } };
+  | { type: "error"; data: { error: string } }
+  | { type: "usage"; data: UsageEvent };
 
 /**
  * SSE 事件处理器

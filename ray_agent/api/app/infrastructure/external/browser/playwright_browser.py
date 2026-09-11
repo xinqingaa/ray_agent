@@ -97,7 +97,7 @@ class PlaywrightBrowser(BrowserProtocol):
                     "content": markdown_content[:max_content_length],
                 }
             ])
-            return response.get("content", "")
+            return response.message.get("content", "")
         else:
             return markdown_content[:max_content_length]
 

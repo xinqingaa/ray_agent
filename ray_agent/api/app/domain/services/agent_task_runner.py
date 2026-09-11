@@ -24,11 +24,18 @@ from app.domain.external.task import TaskRunner, Task
 from app.domain.models.app_config import AgentConfig
 from app.domain.models.event import ErrorEvent, Event, MessageEvent, BaseEvent, ToolEvent, ToolEventStatus, \
     BrowserToolContent, SearchToolContent, ShellToolContent, FileToolContent, ProtocolToolContent, \
-    TitleEvent, WaitEvent, DoneEvent
+    TitleEvent, WaitEvent, DoneEvent, UsageEvent
 from app.domain.models.file import File
 from app.domain.models.message import Message
 from app.domain.models.search import SearchResults
 from app.domain.models.session import SessionStatus
+from app.domain.models.token_usage import (
+    TokenUsageTotals,
+    apply_usage_call,
+    reset_turn,
+    stamp_usage_event,
+    totals_from_events,
+)
 from app.domain.models.tool_result import ToolResult
 from app.domain.repositories.uow import IUnitOfWork
 from app.domain.services.flows.planner_react import PlannerReActFlow
@@ -67,6 +74,7 @@ class AgentTaskRunner(TaskRunner):
         self._a2a_tool = a2a_tool
         self._file_storage = file_storage
         self._browser = browser
+        self._token_totals = TokenUsageTotals()
         self._flow = PlannerReActFlow(
             uow_factory=uow_factory,
             llm=llm,
@@ -309,6 +317,9 @@ class AgentTaskRunner(TaskRunner):
                     yield event
                     yield ErrorEvent(error=MISSING_ATTACHMENT_ERROR)
                     continue
+            elif isinstance(event, UsageEvent):
+                apply_usage_call(self._token_totals, event)
+                event = stamp_usage_event(event, self._token_totals)
 
             # 5.将事件直接返回
             yield event
@@ -351,6 +362,13 @@ class AgentTaskRunner(TaskRunner):
         except Exception as e:
             logger.warning(f"清理A2A工具资源时出错: {e}")
 
+    async def _restore_token_totals(self) -> None:
+        """从已保存事件恢复会话/本轮累计，避免新任务实例把历史用量清零。"""
+        async with self._uow:
+            session = await self._uow.session.get_by_id(self._session_id)
+        events = session.events if session else []
+        self._token_totals = totals_from_events(events)
+
     async def invoke(self, task: Task) -> None:
         """根据传递的任务处理agent消息队列并运行agent流"""
         try:
@@ -360,6 +378,7 @@ class AgentTaskRunner(TaskRunner):
             await self._sandbox.ensure_sandbox()
             await self._mcp_tool.initialize()
             await self._a2a_tool.initialize()
+            await self._restore_token_totals()
 
             had_error = False
             # 2.循环读取任务中的输入消息队列
@@ -375,6 +394,7 @@ class AgentTaskRunner(TaskRunner):
                     message = event.message or ""
                     await self._sync_message_attachments_to_sandbox(event)
                     logger.info(f"会话[{self._session_id}] AgentTaskRunner接收到新消息: {message[:50]}...")
+                    reset_turn(self._token_totals)
 
                 # 5.将消息事件转换称消息对象
                 message_obj = Message(

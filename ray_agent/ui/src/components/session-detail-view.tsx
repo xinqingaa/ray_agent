@@ -16,6 +16,7 @@ import {
   eventsToTimeline,
   findLastUserRetry,
   getLatestPlanFromEvents,
+  getLatestUsageFromEvents,
 } from '@/lib/session-events'
 import type { ToolEvent, FileInfo } from '@/lib/api/types'
 import type { AttachmentFile, TimelineItem } from '@/lib/session-events'
@@ -67,6 +68,7 @@ export function SessionDetailView({ sessionId, initialMessage, initialAttachment
   const visibleEvents = useMemo(() => collapseRetriedTurns(events), [events])
   const timeline = useMemo(() => eventsToTimeline(visibleEvents), [visibleEvents])
   const latestPlan = useMemo(() => getLatestPlanFromEvents(visibleEvents), [visibleEvents])
+  const usage = useMemo(() => getLatestUsageFromEvents(events), [events])
   const planSteps = latestPlan.steps
   const lastUserRetry = useMemo(() => findLastUserRetry(timeline), [timeline])
   const lastErrorId = useMemo(() => {
@@ -326,6 +328,7 @@ export function SessionDetailView({ sessionId, initialMessage, initialAttachment
                 sessionId={sessionId}
                 isRunning={isBusy}
                 onStop={handleStop}
+                usage={usage}
               />
             </div>
           </div>

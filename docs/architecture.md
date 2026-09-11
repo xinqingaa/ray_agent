@@ -84,7 +84,7 @@ MCP 的每个连接由独立任务拥有，发现、调用和退出 SDK 上下�
 
 ### 事件与 UI
 
-领域事件经 API schema 映射为 SSE，后端使用 `event` 标识事件类型；UI 将其归一化为 `type`，再构建时间线与计划展示。历史详情和实时流应解释为一致的业务行为。
+领域事件经 API schema 映射为 SSE，后端使用 `event` 标识事件类型；UI 将其归一化为 `type`，再构建时间线与计划展示。历史详情和实时流应解释为一致的业务行为。`usage` 事件携带模型服务返回的 token 用量及会话/本轮合计，不进入对话时间线；服务未返回 `usage` 时 `available` 为 false，页面不得把缺失当成 0。
 
 MCP/A2A 使用同一个 `ProtocolToolContent.outcome`，完整保存 `success/message/data`；其中 data 包含结构化结果、错误类别及远程状态。实时流与历史读取共用这套契约，不增加旧字段回退。`called` 只表示调用结束，页面根据 outcome.success 展示结果是否成功。
 

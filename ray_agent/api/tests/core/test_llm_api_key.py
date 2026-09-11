@@ -33,12 +33,14 @@ class _FakeSettings:
             llm_base_url: str = "",
             llm_temperature=None,
             llm_max_tokens=None,
+            llm_context_window=None,
     ) -> None:
         self.llm_api_key = llm_api_key
         self.llm_model_name = llm_model_name
         self.llm_base_url = llm_base_url
         self.llm_temperature = llm_temperature
         self.llm_max_tokens = llm_max_tokens
+        self.llm_context_window = llm_context_window
 
 
 def _patch_settings(monkeypatch, **kwargs):

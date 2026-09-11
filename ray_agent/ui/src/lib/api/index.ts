@@ -43,6 +43,7 @@ export type {
   PlanEvent,
   StepEvent,
   ToolEvent,
+  UsageEvent,
   SSEEventType,
   SSEEventData,
   SSEEventHandler,

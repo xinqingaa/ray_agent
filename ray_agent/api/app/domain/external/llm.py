@@ -7,6 +7,8 @@
 """
 from typing import Protocol, List, Dict, Any
 
+from app.domain.models.llm import LLMInvokeResult
+
 
 class LLM(Protocol):
     """用于Agent应用与LLM进行交互的接口协议"""
@@ -17,7 +19,7 @@ class LLM(Protocol):
             tools: List[Dict[str, Any]] = None,
             response_format: Dict[str, Any] = None,
             tool_choice: str = None,
-    ) -> Dict[str, Any]:
+    ) -> LLMInvokeResult:
         """传递消息列表、工具列表、响应格式、工具选择策略调用LLM接口"""
         ...
 
@@ -34,4 +36,9 @@ class LLM(Protocol):
     @property
     def max_tokens(self) -> int:
         """只读属性，返回LLM的最大生成token数"""
+        ...
+
+    @property
+    def context_window(self) -> int:
+        """只读属性，返回模型上下文窗口（输入+输出总容量）"""
         ...
