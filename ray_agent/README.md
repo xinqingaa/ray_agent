@@ -56,9 +56,11 @@ cd ray_agent
 
 ### 模型与工具
 
-模型调用使用 OpenAI 兼容的 Chat Completions 协议。密钥只读 `LLM_API_KEY`。模型名、地址、温度、`max_tokens`、`context_window` 写在 [api/config.yaml](api/config.yaml)，也可在页面设置中修改；设置接口不返回密钥明文。首次验证使用内置工具即可，仓库中的 MCP/A2A 配置已是空集合。启用外部 MCP/A2A、以及本地验收夹具的步骤见 [API 开发指南](api/README.md#mcpa2a)。仅启动页面不会验证这些服务，任务执行时才会初始化相关工具。
+模型调用使用 OpenAI 兼容的 Chat Completions 协议。密钥只读 `LLM_API_KEY`。模型名、地址、温度、`max_tokens`、`context_window` 写在 [api/config.yaml](api/config.yaml)，也可在页面设置中修改；设置接口不返回密钥明文。首次验证使用内置工具即可，仓库中的 MCP/A2A 配置已是空集合。启用外部 MCP/A2A、以及本地验收夹具的步骤见 [API 开发指南](api/README.md#mcpa2a)。
 
-`config.yaml` 由 Git 跟踪，不要写入真实凭据。修改该文件后需要重新构建 API 镜像。只改 `.env` 时必须重建 API 容器才能读到新值，`docker compose restart` 不会重读环境变量。具体命令见 [Docker 操作说明](DOCKER.md)。
+Compose 中 API 读写容器内 `/app/config.yaml`，当前未挂载仓库配置文件。页面设置写入运行中容器；仓库的 `api/config.yaml` 是镜像默认值，修改后需要重新构建 API 镜像，重建容器时应核对页面设置是否需要重新配置。仓库 yaml 由 Git 跟踪，不写入真实凭据。
+
+只改 `.env` 时需重新创建 API 容器，`restart` 不会重读环境变量。对应操作命令统一见 [Docker 操作说明](DOCKER.md#重启)。
 
 ## 启动与验证
 

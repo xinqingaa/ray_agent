@@ -8,26 +8,7 @@
 cd ray_agent
 ```
 
-本机路径即 `/Users/lrq/work/ray_agent/ray_agent` 时：
-
-```bash
-cd /Users/lrq/work/ray_agent/ray_agent
-```
-
-不要把终端里的提示符或 `[+]` 进度条粘进命令。zsh 会把 `[+]` 当成通配符。
-
-## 谁在跑、端口在哪
-
-| 容器名 | 角色 | 你在 Mac 上怎么访问 |
-|---|---|---|
-| `manus-nginx` | 总入口 | **http://localhost:8088**（`.env` 的 `NGINX_PORT`） |
-| `manus-ui` | 前端 | 容器内 3000，不映射到本机 |
-| `manus-api` | 后端 | 容器内 8000，页面经 Nginx 的 `/api/` 转发 |
-| `manus-postgres` | 数据库 | 容器内 5432，不映射到本机 |
-| `manus-redis` | 任务队列 | 容器内 6379，不映射到本机 |
-| `manus-sandbox` | 沙箱镜像/常驻容器 | 任务时 API 还会动态创建 `rayagent-sandbox-*` |
-
-浏览器只开 8088。不必再找 3000、8000、5432。
+页面入口与部署配置见[运行指南](README.md)。下列命令使用 Compose 服务名；沙箱连接模式见[沙箱指南](sandbox/README.md#与-api-连接)。
 
 ## 看是否启动
 
@@ -35,7 +16,7 @@ cd /Users/lrq/work/ray_agent/ray_agent
 docker compose ps
 ```
 
-认 `STATUS` 是否带 `healthy`，不要认构建输出里的绿勾。API、UI、Postgres、Redis 应为 healthy；Nginx 显示 `Started` 即可。
+认 `STATUS` 是否带 `healthy`，不要认构建输出里的绿勾。API、UI、Postgres、Redis 应为 healthy；Nginx 应处于运行状态。
 
 ## 启动
 
@@ -68,11 +49,11 @@ docker compose stop manus-api
 | 目的 | 命令 |
 |---|---|
 | 进程重启，不重读 `.env` | `docker compose restart manus-api` |
-| 只改了 `.env`（模型、Key、地址） | `docker compose up -d --force-recreate --no-deps manus-api` |
+| 只改了 `.env`（密钥、服务连接等） | `docker compose up -d --force-recreate --no-deps manus-api` |
 | 改了 API 代码或 `config.yaml` | `docker compose up -d --build manus-api` |
 | 整套重启 | `docker compose restart` |
 
-只执行 `restart` 时，容器创建时写入的环境变量不会更新。换模型后容器里仍是旧值，就是这个原因。
+只执行 `restart` 时，容器创建时写入的环境变量不会更新。模型名、地址与环境变量的区别见[模型与工具配置](README.md#模型与工具)。
 
 ## 看日志
 
@@ -100,9 +81,7 @@ docker compose logs --since 30m manus-api 2>&1 | grep 会话
 
 把 `会话` 换成页面地址栏里的会话 id，可只看这一次问答。
 
-`ENV=development` 不再自动回显全部 SQL。需要查 SQL 时在 `.env` 设 `SQLALCHEMY_ECHO=1`，再按上一节重建 API 容器。
-
-API 启动正常时，`manus-api` 日志里应能看到 `日志系统初始化完成 ... sqlalchemy_echo=False`，以及 `app.infrastructure.storage` 的 Redis/Postgres 初始化行。问答时应出现带 `会话[id]` 的 Planner / LLM 摘要，而不是刷屏 SELECT。日常使用 `.env` 的 `LOG_LEVEL=INFO`；健康检查不会再每 15 秒打一条 INFO。
+需要调整日志详细程度或 SQL 输出时，按[服务环境配置](README.md#服务环境)修改，再按上节重建 API 容器。
 
 ## 常见现象
 
@@ -111,5 +90,4 @@ API 启动正常时，`manus-api` 日志里应能看到 `日志系统初始化�
 | `no configuration file provided` | 当前目录是不是内层 `ray_agent/` |
 | 构建成功但页面打不开 | `docker compose ps`，再看 `manus-nginx` / `manus-api` |
 | API 不是 healthy | `docker compose logs --tail=80 manus-api` |
-| 换了模型或 Key 没生效 | 是不是只用了 `restart`，应 `up -d --force-recreate --no-deps manus-api` |
-| `zsh: no matches found: [+]` | 不要粘贴 Compose 进度条 |
+| 配置修改未生效 | 先核对[配置位置](README.md#模型与工具)，再按上表选择重建容器或镜像 |

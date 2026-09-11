@@ -1,1 +1,3 @@
-See the [README](../README.md) one folder up for more information.
+# 历史 UI 示例
+
+该示例的环境与可用范围见[基础实验指南](../../README.md#对照与非基线示例)。

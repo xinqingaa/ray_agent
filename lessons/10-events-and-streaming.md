@@ -8,7 +8,7 @@
 
 ## 材料与范围
 
-主要载体：RayAgent；按需对照异步 labs。材料与实现入口见 [素材索引](map.md#chapter-materials)。
+主要载体：RayAgent；按需对照异步 labs。材料与实现入口见 [素材索引](map.md#第-10-章素材)。
 
 区分模型 token 流与产品事件流；异步 HTTP 为理解事件服务。
 

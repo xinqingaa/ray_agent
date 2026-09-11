@@ -8,7 +8,7 @@
 
 ## 材料与范围
 
-主要载体：labs + RayAgent：MCP。材料与实现入口见 [素材索引](map.md#chapter-materials)。
+主要载体：labs + RayAgent：MCP。材料与实现入口见 [素材索引](map.md#第-14-章素材)。
 
 区分协议、SDK 和产品适配；不把协议可选能力写成已实现功能。
 

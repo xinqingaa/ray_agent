@@ -8,25 +8,27 @@
 
 ## 章节目录
 
-| 章 | 主题 |
-|---|---|
-| 01 | [认识 Agent Harness：从一句请求到任务完成](01-the-rayagent-system.md) |
-| 02 | [与模型交互](02-model-interaction.md) |
-| 03 | [工具与行动](03-tools-and-actions.md) |
-| 04 | [Agent Loop 与 ReAct](04-agent-loop-and-react.md) |
-| 05 | [上下文与记忆](05-context-and-memory.md) |
-| 06 | [从 Agent Loop 到完整 Harness](06-from-agent-loop-to-harness.md) |
-| 07 | [规划与内外层循环](07-planning-and-nested-loops.md) |
-| 08 | [任务执行与控制](08-task-execution-and-control.md) |
-| 09 | [状态与持久化](09-state-and-persistence.md) |
-| 10 | [事件与可观察性](10-events-and-streaming.md) |
-| 11 | [沙箱与执行环境](11-sandbox-and-execution-environment.md) |
-| 12 | [文件与任务产物](12-files-and-artifacts.md) |
-| 13 | [浏览器如何成为工具](13-browser-as-a-tool.md) |
-| 14 | [通过 MCP 接入外部工具](14-external-tools-with-mcp.md) |
-| 15 | [通过 A2A 协作远程 Agent](15-agent-collaboration-with-a2a.md) |
-| 16 | [可靠性、验证与评估](16-reliability-and-verification.md) |
-| 17 | [长任务与项目工作区](17-from-sessions-to-workspaces.md) |
+| 章 | 主题 | 核心问题 |
+|---|---|---|
+| 01 | [认识 Agent Harness：从一句请求到任务完成](01-the-rayagent-system.md) | 为什么模型之外还需要 Harness，它承担哪些职责？ |
+| 02 | [与模型交互](02-model-interaction.md) | 程序如何请求模型并消费响应？ |
+| 03 | [工具与行动](03-tools-and-actions.md) | 模型提出的动作如何真正执行？ |
+| 04 | [Agent Loop 与 ReAct](04-agent-loop-and-react.md) | Agent 如何根据工具结果继续决策并停止？ |
+| 05 | [上下文与记忆](05-context-and-memory.md) | Agent 每一步究竟知道什么？ |
+| 06 | [从 Agent Loop 到完整 Harness](06-from-agent-loop-to-harness.md) | Context、模型调用、工具反馈与任务运行如何组成完整 Harness？ |
+| 07 | [规划与内外层循环](07-planning-and-nested-loops.md) | 外层计划与内层工具反馈如何协作？ |
+| 08 | [任务执行与控制](08-task-execution-and-control.md) | 任务如何启动、继续、等待、取消并受到执行预算约束？ |
+| 09 | [状态与持久化](09-state-and-persistence.md) | 执行中的信息分别归谁，能够保存多久？ |
+| 10 | [事件与可观察性](10-events-and-streaming.md) | 现有事件能让我们看见什么，又看不见什么？ |
+| 11 | [沙箱与执行环境](11-sandbox-and-execution-environment.md) | 工具在哪里执行，环境由谁管理？ |
+| 12 | [文件与任务产物](12-files-and-artifacts.md) | Agent 产生的文件如何成为用户可访问的结果？ |
+| 13 | [浏览器如何成为工具](13-browser-as-a-tool.md) | Agent 怎样观察网页、操作页面并获得反馈？ |
+| 14 | [通过 MCP 接入外部工具](14-external-tools-with-mcp.md) | 进程外的工具如何接入已有执行链？ |
+| 15 | [通过 A2A 协作远程 Agent](15-agent-collaboration-with-a2a.md) | 调用远程 Agent 与调用工具有什么不同？ |
+| 16 | [可靠性、验证与评估](16-reliability-and-verification.md) | 如何处理失败、验证结果，并通过一组任务评估执行质量？ |
+| 17 | [长任务与项目工作区](17-from-sessions-to-workspaces.md) | 跨会话持续推进项目时，状态、环境与产物如何衔接？ |
+
+章节按解释层次分工：第 01 章建立用途与职责直觉，第 06 章沿真实任务串联交接，第 07 章深入两层循环；第 05 章关注模型可见信息，第 09 章关注系统状态、保存、回放与恢复。第 03 章解释工具契约与参数校验，第 08 章展开授权、暂停和执行控制，第 16 章系统讨论结果验证与评估。允许为不同问题重访同一概念。
 
 ## 相关资料
 
@@ -34,6 +36,6 @@
 - [实验指南](../labs/README.md)：实验环境与运行指南。
 - [应用运行指南](../ray_agent/README.md)：完整产品的部署与运行。
 - [架构说明](../docs/architecture.md)：系统边界与实现概览。
-- [课程创作约定](AGENTS.md)：课程设计与制作约定。
+- [课程创作约定](AGENTS.md)：课程特有的稳定制作约定。
 - [制作进度](progress.md)：正文制作状态、验证缺口与下一步。
 - [项目计划](../PLAN.md)：项目阶段与完成标准。

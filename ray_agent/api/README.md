@@ -14,7 +14,7 @@ uv sync --locked --group dev
 
 依赖由 [pyproject.toml](pyproject.toml) 声明、[uv.lock](uv.lock) 锁定；[Dockerfile](Dockerfile) 从 [requirements.txt](requirements.txt) 安装。升级时同步核对三者，本地开发不另维护一套手工安装版本。
 
-本地 API 从当前目录 `.env` 加载环境变量，字段定义见 [core/config.py](core/config.py)，产品示例见 [../.env.example](../.env.example)。LLM 密钥只使用 `LLM_API_KEY`；模型名、地址等见 [config.yaml](config.yaml) 或设置页。不要把密钥写入已跟踪的 yaml。
+本地 API 从当前目录 `.env` 加载环境变量，字段定义见 [core/config.py](core/config.py)。模型、密钥与工具配置的职责见[应用配置](../README.md#模型与工具)；宿主机运行时使用本目录的 `config.yaml` 与 `.env`，与产品 Compose 的配置位置区分。
 
 在宿主机运行 API 前，先准备可访问的 PostgreSQL、Redis、文件存储，以及沙箱与浏览器连接：
 
@@ -70,7 +70,7 @@ uv run --locked alembic upgrade head
 
 ## MCP/A2A
 
-仓库里的 [config.yaml](config.yaml) 保持空集合，供镜像默认值和 Git 使用。
+配置位置与生效方式见[应用配置](../README.md#模型与工具)。
 
 pytest 会自己拉起临时协议服务，不依赖本机 9911/9912，也不能代替页面验收：
 
@@ -89,11 +89,10 @@ uv run --locked python -m pytest tests/protocols tests/core
 1. 打开 http://localhost:8088/ 。会话详情页没有设置按钮。
 2. 「MCP 服务器」或「A2A Agent 配置」→ 添加。
 3. 开关打开后才会探测。对端没起来会显示「不可用」，配置仍会留下。
-4. Compose 里的 API 读写容器内 `/app/config.yaml`，没有挂载仓库文件；手改 `ray_agent/api/config.yaml` 不会立刻生效。查看运行中配置：`docker compose exec -T manus-api cat /app/config.yaml`（在 `ray_agent/` 执行）。
-5. Docker Desktop 中的 API 访问宿主机用 `host.docker.internal`，不要填容器自己的 `127.0.0.1`。API 跑在宿主机时用 `127.0.0.1`。
-6. stdio 的 MCP 必须写 `transport: stdio` 和 `command`；省略 `args`/`env` 分别为 `[]`/`{}`。旧 MCP `sse` 已移除，页面任务事件 SSE 不受影响。
-7. 工具失败可能让当前任务整轮结束；连测时把故意失败的步骤放在最后。
-8. 真实凭据只写运行中配置或未跟踪文件，不要提交进仓库。
+4. Docker Desktop 中的 API 访问宿主机用 `host.docker.internal`，不要填容器自己的 `127.0.0.1`。API 跑在宿主机时用 `127.0.0.1`。
+5. stdio 的 MCP 必须写 `transport: stdio` 和 `command`；省略 `args`/`env` 分别为 `[]`/`{}`。旧 MCP `sse` 已移除，页面任务事件 SSE 不受影响。
+6. 工具失败可能让当前任务整轮结束；连测时把故意失败的步骤放在最后。
+7. 真实凭据只写运行中配置或未跟踪文件，不要提交进仓库。
 
 线上用法是连接已经部署、协议一致的服务，不需要起下面的验收夹具。
 

@@ -8,7 +8,7 @@
 
 ## 材料与范围
 
-主要载体：RayAgent：Planner、Executor 与流程。材料与实现入口见 [本章核对入口](map.md#chapter-07-evidence)。
+主要载体：RayAgent：Planner、Executor 与流程。材料与实现入口见 [本章核对入口](map.md#第-07-章素材)。
 
 区分两层继续与结束条件，不把当前组织方式当作唯一 Agent 架构。
 

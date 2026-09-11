@@ -8,7 +8,7 @@
 
 ## 材料与范围
 
-主要载体：labs + RayAgent：A2A。材料与实现入口见 [素材索引](map.md#chapter-materials)。
+主要载体：labs + RayAgent：A2A。材料与实现入口见 [素材索引](map.md#第-15-章素材)。
 
 区分协议能力与当前产品采用的子集，比较围绕任务契约展开。
 
