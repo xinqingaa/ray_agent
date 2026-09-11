@@ -85,13 +85,14 @@
 
 ## 第 07 章素材
 
-深入追踪外层计划与内层反馈。可改编[嵌套循环图素材](assets/01-nested-loops.svg)，该图尚非现行教材，使用前核对课号、图注和风格。
+第 06 章任务用于观察步骤内部多次行动与计划收缩；正文另用两步骤教学示意解释外层继续，不作为新增运行证据。
 
 | 核对内容 | 实现入口与观察重点 |
 |---|---|
-| 外层计划推进与失败分支 | [规划执行流程](../ray_agent/api/app/domain/services/flows/planner_react.py)：`invoke` 在创建计划、执行步骤、更新计划与总结之间推进；步骤 `FAILED` 时结束本轮，不进入 `update_plan`。静态事实与实际失败观察分别记录。 |
-| 内层反馈与交回结果 | [Agent 基类](../ray_agent/api/app/domain/services/agents/base.py)：`invoke` 消费工具结果并继续调用；结合计划流程核对步骤结果如何交回外层。 |
-| 步骤、调用与模型角色 | [规划执行流程](../ray_agent/api/app/domain/services/flows/planner_react.py) 与 Agent 基类：步骤数不等于工具调用数；核对角色的模型配置、计划更新调用与对应成本。 |
+| 外层推进与失败出口 | [规划执行流程](../ray_agent/api/app/domain/services/flows/planner_react.py)：`invoke` 选择步骤、处理 `FAILED`、更新与总结；两个角色使用同一 LLM 对象。 |
+| 计划生成与合并 | [Planner](../ray_agent/api/app/domain/services/agents/planner.py)：禁止工具调用；`update_plan` 保留已结束前缀、替换剩余列表，无未结束步骤时不合并。对照[规划提示](../ray_agent/api/app/domain/services/prompts/planner.py)。 |
+| 内层收口与步骤结果 | [Agent 基类](../ray_agent/api/app/domain/services/agents/base.py) 的 `invoke`；[执行器](../ray_agent/api/app/domain/services/agents/react.py) 的 `execute_step`：原始请求与步骤输入、结构化结果处理、`success` 和状态分离。 |
+| 步骤选择 | [计划模型](../ray_agent/api/app/domain/models/plan.py)：`Step.done`、`Plan.get_next_step`；已结束不等于结果成功。 |
 
 ## 第 08 章素材
 
