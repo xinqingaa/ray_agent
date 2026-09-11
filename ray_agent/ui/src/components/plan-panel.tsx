@@ -3,7 +3,6 @@
 import { cn } from '@/lib/utils'
 import { useState } from 'react'
 import { Check, ChevronDown, ChevronUp, CircleAlert, Clock } from 'lucide-react'
-import { Button } from '@/components/ui/button'
 import type { PlanStep } from '@/lib/api/types'
 
 export interface PlanPanelProps {
@@ -55,33 +54,23 @@ export function PlanPanel({ className, steps: stepsProp = [] }: PlanPanelProps) 
           <ChevronUp className="text-gray-700" size={16} />
         </div>
       </div>}
-      {/* 展开状态 */}
+      {/* 展开状态：标题、进度、箭头同一行 */}
       {isExpanded && (
-        <div className="flex flex-col py-4 rounded-xl">
-          <div className="flex px-4 mb-4 w-full">
-            <div className="flex items-start ml-auto">
-              <div className="flex items-center justify-center gap-2">
-                <Button
-                  onClick={togglePanel}
-                  variant="ghost"
-                  size="icon-xs"
-                  className="cursor-pointer"
-                >
-                  <ChevronDown className="text-gray-500" size={16} />
-                </Button>
-              </div>
+        <div className="flex flex-col rounded-xl">
+          <div
+            className="flex items-center justify-between px-4 py-2.5 cursor-pointer"
+            onClick={togglePanel}
+          >
+            <span className="text-gray-700 font-bold">任务进度</span>
+            <div className="flex items-center gap-2">
+              <span className={cn('text-xs', interrupted ? 'text-red-600' : 'text-gray-500')}>
+                {progressLabel}
+              </span>
+              <ChevronDown className="text-gray-700" size={16} />
             </div>
           </div>
-          <div className="px-4">
+          <div className="px-4 pb-4">
             <div className="bg-gray-50 rounded-lg px-2 py-3">
-              <div className="flex justify-between w-full px-4">
-                <span className="text-gray-700 font-bold">任务进度</span>
-                <div className="flex items-center gap-3">
-                  <span className={cn('text-xs', interrupted ? 'text-red-600' : 'text-gray-500')}>
-                    {progressLabel}
-                  </span>
-                </div>
-              </div>
               <div className="max-h-[min(calc(100vh-360px),400px)] overflow-y-auto">
                 {steps.map((step) => (
                 <div

@@ -1,7 +1,6 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
-import { SidebarTrigger, useSidebar } from '@/components/ui/sidebar'
 import { Button } from '@/components/ui/button'
 import { Download, FileSearchCorner, FileText } from 'lucide-react'
 import {
@@ -51,7 +50,6 @@ export function SessionHeader({
   onFetchFiles,
   onFileClick,
 }: SessionHeaderProps) {
-  const { open, isMobile } = useSidebar()
   const [mounted, setMounted] = useState(false)
   const [internalOpen, setInternalOpen] = useState(false)
   const isControlled = fileListOpen !== undefined
@@ -125,7 +123,6 @@ export function SessionHeader({
 
   return (
     <header className="bg-[#f8f8f7] flex flex-row items-center justify-between pt-3 pb-2 gap-2 sticky top-0 z-10 flex-shrink-0">
-      {(!open || isMobile) && <SidebarTrigger className="cursor-pointer flex-shrink-0" />}
       <div className="text-gray-700 text-lg whitespace-nowrap text-ellipsis overflow-hidden flex-1 min-w-0">
         {title || '未命名任务'}
       </div>

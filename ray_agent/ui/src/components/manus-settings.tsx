@@ -753,7 +753,7 @@ export function ManusSettings() {
   // 客户端挂载前，仅渲染普通按钮占位，避免 Radix Dialog SSR hydration 不匹配
   if (!mounted) {
     return (
-      <Button variant="outline" size="icon-sm" className="cursor-pointer">
+      <Button variant="ghost" size="icon" className="cursor-pointer size-7" aria-label="设置">
         <Settings/>
       </Button>
     )
@@ -763,7 +763,7 @@ export function ManusSettings() {
     <Dialog open={open} onOpenChange={setOpen}>
       {/* 触发按钮 */}
       <DialogTrigger asChild>
-        <Button variant="outline" size="icon-sm" className="cursor-pointer">
+        <Button variant="ghost" size="icon" className="cursor-pointer size-7" aria-label="设置">
           <Settings/>
         </Button>
       </DialogTrigger>
