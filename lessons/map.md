@@ -12,7 +12,7 @@
 | [04 · Agent Loop 与 ReAct](04-agent-loop-and-react.md) | `labs/foundations/4_1`、`4_3`、`4_4`；[作者核对入口](#chapter-04-evidence) | foundations 环境；按脚本配置模型 |
 | [05 · 上下文与记忆](05-context-and-memory.md) | `labs/foundations/5_1`、`4_1` 的消息构造；`4_2` 对照长度；[作者核对入口](#chapter-05-evidence) | foundations 环境；主观察不需要模型 |
 | [06 · 从 Agent Loop 到完整 Harness](06-run-rayagent-one-complete-task.md) | [应用指南](../ray_agent/README.md)；共同文件任务 | Compose + 模型配置 |
-| [07 · 规划与内外层循环](07-planning-and-nested-loops.md) | [计划流程](../ray_agent/api/app/domain/services/flows/planner_react.py)、[Agent 基类](../ray_agent/api/app/domain/services/agents/base.py)；[嵌套循环图素材](assets/01-nested-loops.svg)（原第一章图，制作本章时调整课号与图注） | 源码；对照第 06 章任务 |
+| [07 · 规划与内外层循环](07-planning-and-nested-loops.md) | [计划流程](../ray_agent/api/app/domain/services/flows/planner_react.py)、[Agent 基类](../ray_agent/api/app/domain/services/agents/base.py)；[嵌套循环图素材](assets/01-nested-loops.svg)（待改编素材，非现行教材；制作本章时调整课号、图注及风格） | 源码；对照第 06 章任务 |
 | [08 · 任务执行与控制](08-task-execution-and-control.md) | [应用协调](../ray_agent/api/app/application/services/agent_service.py)、[运行器](../ray_agent/api/app/domain/services/agent_task_runner.py)、[任务适配](../ray_agent/api/app/infrastructure/external/task/redis_stream_task.py) | 源码；运行观察使用产品环境 |
 | [09 · 状态与持久化](09-state-and-persistence.md) | [领域模型](../ray_agent/api/app/domain/models/)、[存储](../ray_agent/api/app/infrastructure/storage/) | 源码；产品历史与状态观察 |
 | [10 · 事件与可观察性](10-events-and-streaming.md) | [领域事件](../ray_agent/api/app/domain/models/event.py)、[接口事件](../ray_agent/api/app/interfaces/schemas/event.py)、[前端事件](../ray_agent/ui/src/lib/session-events.ts)；异步 labs | 产品环境；异步实验使用 foundations 环境 |
@@ -26,12 +26,12 @@
 
 ## Chapter 01 evidence
 
-以下供作者核对第一章的机制说明，不作为正文中的阅读要求。验证状态维护在 progress。
+以下核对第一章项目介绍、职责解释与设计选择所需的实现事实；正文通过自然语言、任务例子和图解说明联系，具体调用链留给后续章节。这些入口供作者核对，不作为读者的阅读要求。验证状态维护在 progress。
 
 | 核对内容 | 实现入口与观察重点 |
 |---|---|
 | 请求成为任务 | [任务协调](../ray_agent/api/app/application/services/agent_service.py)：`_create_task` 准备资源与运行器，`chat` 接收消息并启动执行。 |
-| 外层计划推进 | [规划执行流程](../ray_agent/api/app/domain/services/flows/planner_react.py)：`invoke` 在创建计划、执行步骤、更新计划与总结之间推进。步骤 `FAILED` 时结束本轮，不进入 `update_plan`。 |
+| 规划与执行的分工 | [规划执行流程](../ray_agent/api/app/domain/services/flows/planner_react.py)：仅核对存在 Planner 与执行器的职责分工；两层交接和失败路径见第七章核对入口。 |
 | 内层工具反馈 | [Agent 基础循环](../ray_agent/api/app/domain/services/agents/base.py)：`invoke` 将工具结果带入下一次模型调用。 |
 | 文件执行位置 | [文件工具](../ray_agent/api/app/domain/services/tools/file.py)：`read_file`、`write_file` 委托给沙箱接口。 |
 | 事件与界面 | [任务运行器](../ray_agent/api/app/domain/services/agent_task_runner.py)：`_put_and_add_event` 写入输出流与会话；[会话接口](../ray_agent/api/app/interfaces/endpoints/session_routes.py)：`chat` 映射为 SSE。 |
@@ -98,9 +98,26 @@
 
 通用概念的外部依据就地链接在正文中，包括 Anthropic 上下文工程与窗口说明、LangGraph 记忆概览，以及《Lost in the Middle》的特定实验结论。运行入口维护在 foundations README；验证结果与真实服务缺口维护在 progress。
 
+## Chapter 07 evidence
+
+本节承接原第一章的两层循环素材，供第七章深入讲解；第六章只辨认一次真实任务中的角色交接。
+
+| 核对内容 | 实现入口与观察重点 |
+|---|---|
+| 外层计划推进与失败分支 | [规划执行流程](../ray_agent/api/app/domain/services/flows/planner_react.py)：`invoke` 在创建计划、执行步骤、更新计划与总结之间推进；步骤 `FAILED` 时结束本轮，不进入 `update_plan`。静态事实与实际失败观察分别记录。 |
+| 内层反馈与交回结果 | [Agent 基类](../ray_agent/api/app/domain/services/agents/base.py)：`invoke` 消费工具结果并继续调用；结合计划流程核对步骤结果如何交回外层。 |
+| 步骤、调用与模型角色 | [规划执行流程](../ray_agent/api/app/domain/services/flows/planner_react.py) 与 Agent 基类：步骤数不等于工具调用数；核对角色的模型配置、计划更新调用与对应成本。 |
+
 ## Shared product observation
 
-第 06 章以文件任务观察完整 Harness：在沙箱工作目录创建 hello.txt，写入 hello，再读取并总结。沿任务核对 Context、模型请求、计划与执行、工具观察、状态、事件和文件流转。后续在适用时复用，长任务、恢复和评估可补充独立场景。
+第 06 章以文件任务观察完整 Harness：在沙箱工作目录创建 hello.txt，写入 hello，再读取并总结。按下表核对交接，不再绘制职责总图。后续在适用时复用，长任务、恢复和评估可补充独立场景。
+
+| 交接 | 研究入口 | 需要取得的观察 |
+|---|---|---|
+| 消息进入任务 | [应用协调](../ray_agent/api/app/application/services/agent_service.py)、[运行器](../ray_agent/api/app/domain/services/agent_task_runner.py) | 谁接收消息、准备任务并启动执行；记录对应任务。 |
+| 信息进入模型 | [Agent 基类](../ray_agent/api/app/domain/services/agents/base.py) | 本次消息与工具说明由谁准备；区分实际请求证据与根据源码推断的输入。 |
+| 工具结果进入后续决策 | [文件工具](../ray_agent/api/app/domain/services/tools/file.py)、Agent 基类与计划流程 | 实际写入、读取调用及对应结果；结果交回谁，谁发起后续调用，不预设步骤或调用次数。 |
+| 文件成为可访问产物 | 运行器、[文件存储](../ray_agent/api/app/infrastructure/external/file_storage/) 与会话事件 | 区分工具返回、界面记录、沙箱文件和交付文件；核对路径、内容及关联关系。 |
 
 该任务有阶段 1 的历史验收记录；各章使用的实际观察仍需验证。启动条件见 [应用指南](../ray_agent/README.md)，协议夹具见 [API 指南](../ray_agent/api/README.md#mcpa2a)，不在正文或仓库配置中复制本地凭据。
 
@@ -108,10 +125,11 @@
 
 | 主题 | 已有研究入口 | 制作时需补充的证据 |
 |---|---|---|
-| 执行控制 | 任务协调、运行器、Agent 基类与任务适配 | 分别核对取消、超时、迭代上限、预算和人工介入；没有对应实现时标为通用策略或能力差距。 |
-| 状态与恢复 | 领域模型、存储与会话历史 | 追踪中断后的状态、环境和副作用；不能以历史可查看证明可恢复执行。 |
-| 可观察性与环境边界 | 领域事件、接口事件、前端消费与沙箱适配 | 对照事件、实际工具执行和资源生命周期；区分展示记录与执行证据。 |
-| 验证与评估 | API 测试入口、运行器和失败路径 | 设计任务样本、结果检查、失败分类与重复运行方法；现有测试不等于已经建立任务评估体系。 |
+| 执行控制 | 任务协调、运行器、Agent 基类与任务适配 | 承接第三、四章的授权与暂停边界，分别核对取消、超时、迭代上限、预算和人工介入；没有对应实现时标为通用策略或能力差距。 |
+| 状态与恢复 | 领域模型、存储与会话历史 | 承接第一章的历史与恢复区别，追踪中断后的状态、环境和副作用；不能以历史可查看证明可恢复执行。 |
+| 事件可观察性 | 领域事件、接口事件与前端消费 | 核对现有事件能看见什么、看不见什么；SSE 与异步 labs 不证明完整追踪体系。 |
+| 环境访问边界 | 沙箱适配与当前配置 | 承接第三章的操作范围问题，检查路径、进程和网络的实际限制；审批流程归第八章。 |
+| 验证与评估 | API 测试入口、运行器和失败路径 | 承接第一、四章的结果依据，用任务样本和失败场景设计检查与重复运行方法；现有测试不等于已经建立任务评估体系。 |
 | 长任务与工作区 | 当前架构与工作区调研 | 核对跨会话状态、项目指令、环境及产物如何衔接；调研中的演进方案不是已有能力。 |
 
 具体制作状态与待验证项目维护在 progress；本表只说明证据范围，不另设进度。

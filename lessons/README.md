@@ -31,9 +31,9 @@
 ## 相关资料
 
 - [素材索引](map.md)：章节对应的实验、源码与环境入口。
-- [Labs](../labs/README.md)：实验环境与运行指南。
-- [Application guide](../ray_agent/README.md)：完整产品的部署与运行。
-- [Architecture](../docs/architecture.md)：系统边界与实现概览。
-- [Authoring guide](AGENTS.md)：课程设计与制作约定。
-- [Writing progress](progress.md)：正文制作状态、验证缺口与下一步。
-- [Project plan](../PLAN.md)：项目阶段与完成标准。
+- [实验指南](../labs/README.md)：实验环境与运行指南。
+- [应用运行指南](../ray_agent/README.md)：完整产品的部署与运行。
+- [架构说明](../docs/architecture.md)：系统边界与实现概览。
+- [课程创作约定](AGENTS.md)：课程设计与制作约定。
+- [制作进度](progress.md)：正文制作状态、验证缺口与下一步。
+- [项目计划](../PLAN.md)：项目阶段与完成标准。
