@@ -6,23 +6,23 @@
 
 | 章节 | 素材与实现入口 | 环境边界 |
 |---|---|---|
-| [01 · 认识 RayAgent：从一句请求到任务完成](01-the-rayagent-system.md) | [架构说明](../docs/architecture.md)；[作者核对入口](#chapter-01-evidence) | 概念阅读，无需启动服务 |
+| [01 · 认识 Agent Harness：从一句请求到任务完成](01-the-rayagent-system.md) | [架构说明](../docs/architecture.md)；[作者核对入口](#chapter-01-evidence) | 概念阅读，无需启动服务 |
 | [02 · 与模型交互](02-model-interaction.md) | `labs/foundations/3_4` 同模型同输入对照；[作者核对入口](#chapter-02-evidence) | foundations 环境 + 模型配置 |
 | [03 · 工具与行动](03-tools-and-actions.md) | `labs/foundations/3_7`、`3_8`、`3_9`；[作者核对入口](#chapter-03-evidence) | foundations 环境；按脚本配置模型 |
 | [04 · Agent Loop 与 ReAct](04-agent-loop-and-react.md) | `labs/foundations/4_1`、`4_3`、`4_4`；[作者核对入口](#chapter-04-evidence) | foundations 环境；按脚本配置模型 |
 | [05 · 上下文与记忆](05-context-and-memory.md) | `labs/foundations/5_1`、`4_1` 的消息构造；`4_2` 对照长度；[作者核对入口](#chapter-05-evidence) | foundations 环境；主观察不需要模型 |
-| [06 · 运行 RayAgent：观察一条完整任务](06-run-rayagent-one-complete-task.md) | [应用指南](../ray_agent/README.md)；共同文件任务 | Compose + 模型配置 |
-| [07 · 规划与内外层循环](07-planning-and-nested-loops.md) | [计划流程](../ray_agent/api/app/domain/services/flows/planner_react.py)、[Agent 基类](../ray_agent/api/app/domain/services/agents/base.py) | 源码；对照第 06 章任务 |
+| [06 · 从 Agent Loop 到完整 Harness](06-run-rayagent-one-complete-task.md) | [应用指南](../ray_agent/README.md)；共同文件任务 | Compose + 模型配置 |
+| [07 · 规划与内外层循环](07-planning-and-nested-loops.md) | [计划流程](../ray_agent/api/app/domain/services/flows/planner_react.py)、[Agent 基类](../ray_agent/api/app/domain/services/agents/base.py)；[嵌套循环图素材](assets/01-nested-loops.svg)（原第一章图，制作本章时调整课号与图注） | 源码；对照第 06 章任务 |
 | [08 · 任务执行与控制](08-task-execution-and-control.md) | [应用协调](../ray_agent/api/app/application/services/agent_service.py)、[运行器](../ray_agent/api/app/domain/services/agent_task_runner.py)、[任务适配](../ray_agent/api/app/infrastructure/external/task/redis_stream_task.py) | 源码；运行观察使用产品环境 |
 | [09 · 状态与持久化](09-state-and-persistence.md) | [领域模型](../ray_agent/api/app/domain/models/)、[存储](../ray_agent/api/app/infrastructure/storage/) | 源码；产品历史与状态观察 |
-| [10 · 事件与流式传递](10-events-and-streaming.md) | [领域事件](../ray_agent/api/app/domain/models/event.py)、[接口事件](../ray_agent/api/app/interfaces/schemas/event.py)、[前端事件](../ray_agent/ui/src/lib/session-events.ts)；异步 labs | 产品环境；异步实验使用 foundations 环境 |
+| [10 · 事件与可观察性](10-events-and-streaming.md) | [领域事件](../ray_agent/api/app/domain/models/event.py)、[接口事件](../ray_agent/api/app/interfaces/schemas/event.py)、[前端事件](../ray_agent/ui/src/lib/session-events.ts)；异步 labs | 产品环境；异步实验使用 foundations 环境 |
 | [11 · 沙箱与执行环境](11-sandbox-and-execution-environment.md) | [沙箱适配](../ray_agent/api/app/infrastructure/external/sandbox/docker_sandbox.py)、[沙箱指南](../ray_agent/sandbox/README.md) | 产品与沙箱环境 |
 | [12 · 文件与任务产物](12-files-and-artifacts.md) | [工具](../ray_agent/api/app/domain/services/tools/)、[文件存储](../ray_agent/api/app/infrastructure/external/file_storage/) | 产品环境；复用文件任务 |
 | [13 · 浏览器如何成为工具](13-browser-as-a-tool.md) | `labs/foundations/10-6`、`10-4`；[沙箱指南](../ray_agent/sandbox/README.md) | 本机浏览器实验与产品沙箱分别配置 |
 | [14 · 通过 MCP 接入外部工具](14-external-tools-with-mcp.md) | MCP labs；[MCP 适配](../ray_agent/api/app/infrastructure/protocols/mcp.py) | 独立客户端／服务端；产品夹具见 API 指南 |
 | [15 · 通过 A2A 协作远程 Agent](15-agent-collaboration-with-a2a.md) | `labs/a2a`；[A2A 适配](../ray_agent/api/app/infrastructure/protocols/a2a.py) | 独立 A2A 环境；产品夹具见 API 指南 |
-| [16 · 可靠性与验证](16-reliability-and-verification.md) | [API 指南](../ray_agent/api/README.md)、任务运行器、Agent 基类与资源适配层 | 按具体故障场景准备产品环境 |
-| [17 · 从会话走向项目工作区](17-from-sessions-to-workspaces.md) | [架构说明](../docs/architecture.md)、[工作区调研](../docs/workspace-harness-research.md) | 先静态核对现状，运行结论另行验证 |
+| [16 · 可靠性、验证与评估](16-reliability-and-verification.md) | [API 指南](../ray_agent/api/README.md)、任务运行器、Agent 基类与资源适配层 | 按具体故障场景准备产品环境 |
+| [17 · 长任务与项目工作区](17-from-sessions-to-workspaces.md) | [架构说明](../docs/architecture.md)、[工作区调研](../docs/workspace-harness-research.md) | 先静态核对现状，运行结论另行验证 |
 
 ## Chapter 01 evidence
 
@@ -70,7 +70,7 @@
 
 ## Chapter 04 evidence
 
-作者先立与技术栈无关的 Agent Loop：行动请求必须再进入同一过程，终端消息才是正常收口。再落到 Chat Completions 的 `tool_calls` / `role: tool`，以 `4_1` 核对继续与停止，以一次执行后锁死工具的脚本和递归再请求的脚本对照。`4_1` 的文件在进程内存中；产品内层另有迭代上限与事件，外层计划在第 07 章。配置使用 `LLM_*`。
+作者先讲与技术栈无关的最小 Agent Loop：正常路径处理允许执行的行动、回传观察并再次决策，终端消息是正常收口条件；取消、超限和等待可改变这条路径。再落到 Chat Completions 的 `tool_calls` / `role: tool`，以 `4_1` 核对继续与停止，以一次执行后锁死工具的脚本和递归再请求的脚本对照。`4_1` 的文件在进程内存中；产品内层另有迭代上限与事件，外层计划在第 07 章。配置使用 `LLM_*`。
 
 | 依据 | 核对重点 |
 |---|---|
@@ -100,9 +100,21 @@
 
 ## Shared product observation
 
-第 06 章建立共同任务：在沙箱工作目录创建 hello.txt，写入 hello，再读取并总结。后续从同一任务观察计划、工具、状态、事件和文件流转。
+第 06 章以文件任务观察完整 Harness：在沙箱工作目录创建 hello.txt，写入 hello，再读取并总结。沿任务核对 Context、模型请求、计划与执行、工具观察、状态、事件和文件流转。后续在适用时复用，长任务、恢复和评估可补充独立场景。
 
 该任务有阶段 1 的历史验收记录；各章使用的实际观察仍需验证。启动条件见 [应用指南](../ray_agent/README.md)，协议夹具见 [API 指南](../ray_agent/api/README.md#mcpa2a)，不在正文或仓库配置中复制本地凭据。
+
+## 后续主题的材料边界
+
+| 主题 | 已有研究入口 | 制作时需补充的证据 |
+|---|---|---|
+| 执行控制 | 任务协调、运行器、Agent 基类与任务适配 | 分别核对取消、超时、迭代上限、预算和人工介入；没有对应实现时标为通用策略或能力差距。 |
+| 状态与恢复 | 领域模型、存储与会话历史 | 追踪中断后的状态、环境和副作用；不能以历史可查看证明可恢复执行。 |
+| 可观察性与环境边界 | 领域事件、接口事件、前端消费与沙箱适配 | 对照事件、实际工具执行和资源生命周期；区分展示记录与执行证据。 |
+| 验证与评估 | API 测试入口、运行器和失败路径 | 设计任务样本、结果检查、失败分类与重复运行方法；现有测试不等于已经建立任务评估体系。 |
+| 长任务与工作区 | 当前架构与工作区调研 | 核对跨会话状态、项目指令、环境及产物如何衔接；调研中的演进方案不是已有能力。 |
+
+具体制作状态与待验证项目维护在 progress；本表只说明证据范围，不另设进度。
 
 ## Lab inventory
 

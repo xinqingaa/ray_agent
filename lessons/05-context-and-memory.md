@@ -203,6 +203,6 @@ RayAgent 的 `Memory` 模型中，核心内容是 `messages` 列表。Agent 基�
 
 如果要评价这种处理是否适合任务，应追问：刚删除的内容后续还需要吗，能否再次读取，保留的消息是否足以支持下一步？这些问题来自通用机制，也能帮助我们准确理解当前设计的取舍。以上产品说明经过源码静态核对，本章没有启动产品验证运行表现。
 
-沿着这一章再看 Agent Loop，每一次“继续”都伴随一次信息准备：保留当前目标，加入新的观察，处理已经失效或过大的内容，并在需要时找回外部材料。下一章进入完整产品，观察这些信息怎样与计划、工具执行和界面记录一起支撑一条任务。
+沿着这一章再看 Agent Loop，每一次“继续”都伴随一次信息准备：保留当前目标，加入新的观察，处理已经失效或过大的内容，并在需要时找回外部材料。这些信息准备工作是 Harness 的一项核心职责。下一章沿 RayAgent 的真实任务，把 Context、模型调用、工具反馈与任务状态连接起来，理解这些机制如何共同支撑执行和结果交付。
 
-[上一章：Agent Loop 与 ReAct](04-agent-loop-and-react.md) · [课程目录](README.md) · [下一章：运行 RayAgent：观察一条完整任务](06-run-rayagent-one-complete-task.md)
+[上一章：Agent Loop 与 ReAct](04-agent-loop-and-react.md) · [课程目录](README.md) · [下一章：从 Agent Loop 到完整 Harness](06-run-rayagent-one-complete-task.md)

@@ -12,4 +12,4 @@
 
 区分协议能力与当前产品采用的子集，比较围绕任务契约展开。
 
-[上一章：通过 MCP 接入外部工具](14-external-tools-with-mcp.md) · [课程目录](README.md) · [下一章：可靠性与验证](16-reliability-and-verification.md)
+[上一章：通过 MCP 接入外部工具](14-external-tools-with-mcp.md) · [课程目录](README.md) · [下一章：可靠性、验证与评估](16-reliability-and-verification.md)

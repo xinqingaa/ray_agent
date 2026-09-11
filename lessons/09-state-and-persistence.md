@@ -10,6 +10,6 @@
 
 主要载体：RayAgent：状态模型、存储与历史。材料与实现入口见 [素材索引](map.md#chapter-materials)。
 
-保存历史不等于能够恢复执行；上下文概念承接第 05 章。
+区分状态保存、历史回放与恢复执行，解释恢复所需的进度、环境和副作用依据；故障实验与保证在第 16 章检查。上下文概念承接第 05 章。
 
-[上一章：任务执行与控制](08-task-execution-and-control.md) · [课程目录](README.md) · [下一章：事件与流式传递](10-events-and-streaming.md)
+[上一章：任务执行与控制](08-task-execution-and-control.md) · [课程目录](README.md) · [下一章：事件与可观察性](10-events-and-streaming.md)

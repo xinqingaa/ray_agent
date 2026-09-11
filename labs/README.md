@@ -1,6 +1,6 @@
 # RayAgent 实验与练习
 
-通过独立示例观察模型调用、Agent 执行、工具协议和浏览器操作。教学讲解与产品对照见 [lessons](../lessons/README.md)。
+通过独立示例隔离 Agent Harness 的关键机制，观察模型调用、Agent 执行、工具协议和浏览器操作。实验展示局部行为，完整系统的控制、状态与资源职责需要结合产品研究。教学讲解与产品对照见 [lessons](../lessons/README.md)。
 
 ## 选择实验
 

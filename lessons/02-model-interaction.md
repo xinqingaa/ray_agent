@@ -2,6 +2,8 @@
 
 上一章中，Agent 会根据目标和工具结果决定下一步。但程序并不能直接把一句话“放进模型脑中”。它需要构造请求，发送给模型服务，再理解返回的数据。
 
+Harness 在这一层承担模型交互的适配职责：把任务信息构造成请求，将响应还原成后续流程可使用的结果，并识别不完整或失败的交互。以下用一种具体接口观察这些职责；其他接口的字段和会话管理方式可能不同。
+
 本章用 labs 中的独立脚本观察 **OpenAI 兼容的 Chat Completions**，不必启动 RayAgent。产品使用同一类客户端，不是本章实验脚本。地址、模型和密钥从 `LLM_API_KEY`、`LLM_MODEL_NAME`、`LLM_BASE_URL` 读取，可与 `ray_agent/.env` 使用同一组。Anthropic Messages 是另一套接口形状，当前产品不走那条客户端。
 
 读结构即可跟上；要运行脚本，条件和命令见[基础实验运行指南](../labs/foundations/README.md#模型交互对照)。未配置真实模型密钥时，外部调用为 `unverified`，正文与图中的回答都是示意。
@@ -58,11 +60,13 @@
 
 本章只处理一个候选回答，所以取 `choices[0]`。其中 `message.content` 是要展示的正文，`finish_reason` 说明生成为何结束。打印整个 JSON 适合观察结构，界面展示则需要从中提取需要的字段。
 
-同一条 `assistant` message 上，正文在 `content`，工具调用在 `tool_calls`，二者是不同字段，不是两种 HTTP 响应。本章只看 `content`。旧文档里的 `function_call` 是更早的单次字段，产品和后续实验使用 `tool_calls`。
+同一条 `assistant` message 上，正文在 `content`，工具调用在 `tool_calls`，二者是不同字段，不是两种 HTTP 响应。本章只看 `content`，后续再处理 `tool_calls`。
 
 结束原因也不能忽略。对本章的文本回答，`stop` 表示正常停止；`length` 表示触及长度限制，已经收到的文字可能只是一部分。这些字段属于 [OpenAI Chat Completions](https://platform.openai.com/docs/api-reference/chat/create) 的契约；labs 实际打到的兼容服务说明见 [DeepSeek Chat Completions](https://api-docs.deepseek.com/api/create-chat-completion/)。
 
 这就有了两层判断：HTTP 请求是否成功，以及返回的模型结果是否完整、可用。网络连接成功，不代表输入一定被接受；收到一段文本，也不代表它已经说完。
+
+还应再区分一层：模型响应完整，不代表用户目标已经达成。`stop` 只说明这次生成正常结束；需要执行动作的任务，还要继续处理调用、取得观察并检查结果。
 
 还要保留上一章的边界：即使模型解释了“应该读取确认”，也没有真的读取文件。本章拿到的是文本回答，程序怎样读取 `tool_calls` 并执行，是另一个问题。
 
@@ -152,4 +156,4 @@ with requests.post(url, json=payload, stream=True) as response:
 
 接下来的问题是：如果同一条 message 带的不是解释文字，而是 `tool_calls`，程序应该怎样理解并执行它？
 
-[上一章：认识 RayAgent：从一句请求到任务完成](01-the-rayagent-system.md) · [课程目录](README.md) · [下一章：工具与行动](03-tools-and-actions.md)
+[上一章：认识 Agent Harness：从一句请求到任务完成](01-the-rayagent-system.md) · [课程目录](README.md) · [下一章：工具与行动](03-tools-and-actions.md)
