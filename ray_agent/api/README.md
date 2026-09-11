@@ -84,7 +84,7 @@ uv run --locked python -m pytest tests/protocols tests/core
 
 对端必须先在跑，并且协议一致：MCP `2026-07-28`（`stdio` 或 `streamable_http`），A2A 1.0 JSON-RPC。产品只做发现、调用和结果展示；不提供 OAuth、MCP resources、A2A 多轮人工续接。
 
-日常在**首页右上角齿轮**（标题「MoocManus 设置」）添加，不要改仓库 yaml：
+日常在**首页右上角齿轮**（标题「RayAgent 设置」）添加，不要改仓库 yaml：
 
 1. 打开 http://localhost:8088/ 。会话详情页没有设置按钮。
 2. 「MCP 服务器」或「A2A Agent 配置」→ 添加。

@@ -66,7 +66,8 @@ export function SessionDetailView({ sessionId, initialMessage, initialAttachment
 
   const visibleEvents = useMemo(() => collapseRetriedTurns(events), [events])
   const timeline = useMemo(() => eventsToTimeline(visibleEvents), [visibleEvents])
-  const planSteps = useMemo(() => getLatestPlanFromEvents(visibleEvents), [visibleEvents])
+  const latestPlan = useMemo(() => getLatestPlanFromEvents(visibleEvents), [visibleEvents])
+  const planSteps = latestPlan.steps
   const lastUserRetry = useMemo(() => findLastUserRetry(timeline), [timeline])
   const lastErrorId = useMemo(() => {
     for (let i = timeline.length - 1; i >= 0; i--) {
@@ -276,7 +277,7 @@ export function SessionDetailView({ sessionId, initialMessage, initialAttachment
       <div className="flex flex-row h-screen w-full overflow-hidden">
         {/* 主内容区 */}
         <div className="flex flex-col flex-1 min-w-0 h-full overflow-hidden">
-          <div className={`flex flex-col h-full mx-auto w-full min-w-0 px-4 ${hasPreview ? '' : 'max-w-[768px]'}`}>
+          <div className={`flex flex-col h-full mx-auto w-full min-w-0 px-4 ${hasPreview ? '' : 'max-w-[1024px]'}`}>
             <div className="flex-shrink-0">
               <SessionHeader
                 title={session.title}

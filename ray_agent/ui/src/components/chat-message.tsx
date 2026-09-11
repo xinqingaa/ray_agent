@@ -1,14 +1,13 @@
 'use client'
 
 import { useState } from 'react'
-import { cn } from '@/lib/utils'
-import { CheckIcon, ChevronDown, Languages } from 'lucide-react'
-import { ManusIcon } from '@/components/manus-icon'
+import { cn, formatClockTime, formatDurationBetween } from '@/lib/utils'
+import { CheckIcon, ChevronDown } from 'lucide-react'
 import { ToolUse } from '@/components/tool-use'
 import { AttachmentsMessage } from '@/components/attachments-message'
 import { MarkdownContent } from '@/components/markdown-content'
 import type { ToolEvent } from '@/lib/api/types'
-import { type TimelineItem, type AttachmentFile, formatTaskError, getToolTimeLabel } from '@/lib/session-events'
+import { type TimelineItem, type AttachmentFile, formatTaskError, readCreatedAt } from '@/lib/session-events'
 
 export interface ChatMessageProps {
   className?: string
@@ -20,34 +19,32 @@ export interface ChatMessageProps {
   retryDisabled?: boolean
 }
 
+function EventTime({
+  value,
+  className,
+}: {
+  value?: unknown
+  className?: string
+}) {
+  const label = formatClockTime(value)
+  if (!label) return null
+  return (
+    <span className={cn('text-xs text-gray-400 tabular-nums', className)}>
+      {label}
+    </span>
+  )
+}
+
 function ToolRow({
   className,
-  timeLabel,
   children,
 }: {
   className?: string
-  timeLabel?: string
   children: React.ReactNode
 }) {
-  const [hovered, setHovered] = useState(false)
   return (
-    <div
-      className={cn(
-        'flex items-center justify-between gap-2 mt-3 w-full min-w-0',
-        className
-      )}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-    >
-      <div className="min-w-0 flex-shrink-0">{children}</div>
-      <span
-        className={cn(
-          'flex-shrink-0 text-xs text-gray-500 min-w-[2.5rem] text-right transition-opacity duration-150',
-          hovered ? 'opacity-100' : 'opacity-0'
-        )}
-      >
-        {timeLabel ?? '刚刚'}
-      </span>
+    <div className={cn('flex items-center gap-2 mt-3 w-full min-w-0', className)}>
+      <div className="min-w-0">{children}</div>
     </div>
   )
 }
@@ -69,10 +66,11 @@ export function ChatMessage({
           className
         )}
       >
-        <div className="flex max-w-[90%] relative flex-col gap-2 items-end">
+        <div className="flex max-w-[90%] relative flex-col gap-1 items-end">
           <div className="text-gray-700 relative flex items-center rounded-lg overflow-hidden bg-white p-3 border">
             {item.data.message ?? ''}
           </div>
+          <EventTime value={readCreatedAt(item.data)} />
         </div>
       </div>
     )
@@ -83,25 +81,17 @@ export function ChatMessage({
       <div
         className={cn('flex flex-col gap-2 w-full group mt-3', className)}
       >
-        <div className="flex items-center justify-between h-7 group">
-          <div className="flex items-center justify-center gap-1 text-gray-700">
-            <Languages size={18} />
-            <ManusIcon />
-          </div>
-        </div>
         <div className="max-w-none p-0 m-0 text-gray-700">
           <MarkdownContent content={item.data.message ?? ''} />
         </div>
+        {item.showTime && <EventTime value={readCreatedAt(item.data)} />}
       </div>
     )
   }
 
   if (item.kind === 'tool') {
     return (
-      <ToolRow
-        className={className}
-        timeLabel={item.timeLabel}
-      >
+      <ToolRow className={className}>
         <ToolUse data={item.data} onClick={onToolClick ? () => onToolClick(item.data) : undefined} />
       </ToolRow>
     )
@@ -160,8 +150,8 @@ function StepBlock({
   onToolClick?: (tool: ToolEvent) => void
 }) {
   const [expanded, setExpanded] = useState(true)
-  const { data, tools } = stepItem
-  const isCompleted = data.status === 'completed'
+  const { data, tools, startedAt, endedAt } = stepItem
+  const durationLabel = formatDurationBetween(startedAt, endedAt)
 
   return (
     <div className={cn('flex flex-col mt-3', className)}>
@@ -175,7 +165,7 @@ function StepBlock({
             setExpanded((prev) => !prev)
           }
         }}
-        className="text-sm w-full cursor-pointer flex gap-2 justify-between group/header truncate text-gray-700 rounded-md hover:bg-gray-50/80 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-gray-300"
+        className="text-sm w-full cursor-pointer flex gap-2 justify-between group/header text-gray-700 rounded-md hover:bg-gray-50/80 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-gray-300"
       >
         <div className="flex flex-row gap-2 justify-start items-center truncate min-w-0 flex-1">
           <div
@@ -192,6 +182,11 @@ function StepBlock({
             className={cn('flex-shrink-0 transition-transform text-gray-500', expanded && 'rotate-180')}
           />
         </div>
+        {durationLabel && (
+          <span className="flex-shrink-0 text-xs text-gray-400 tabular-nums pt-0.5">
+            {durationLabel}
+          </span>
+        )}
       </div>
       {expanded && tools.length > 0 && (
         <div className="flex">
@@ -200,7 +195,7 @@ function StepBlock({
           </div>
           <div className="flex flex-col gap-3 flex-1 min-w-0 overflow-hidden pt-2 transition-[max-height,opacity] duration-150 ease-in-out">
             {tools.map((tool, idx) => (
-              <ToolRow key={`${data.id}-tool-${idx}`} timeLabel={getToolTimeLabel(tool)}>
+              <ToolRow key={`${data.id}-tool-${idx}`}>
                 <ToolUse data={tool} onClick={onToolClick ? () => onToolClick(tool) : undefined} />
               </ToolRow>
             ))}

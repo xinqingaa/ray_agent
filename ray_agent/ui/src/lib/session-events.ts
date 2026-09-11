@@ -16,6 +16,7 @@ import type {
   ToolEvent,
   SessionFile,
 } from "@/lib/api/types";
+import { formatClockTime } from "@/lib/utils";
 
 /** 后端返回的原始事件（可能用 event 或 type 表示类型） */
 type RawEvent = { event?: string; type?: string; data?: unknown };
@@ -47,10 +48,35 @@ export function normalizeEvents(rawList: unknown): SSEEventData[] {
 export type TimelineItem =
   | { kind: "user"; id: string; data: ChatMessage }
   | { kind: "attachments"; id: string; role: "user" | "assistant"; files: AttachmentFile[] }
-  | { kind: "assistant"; id: string; data: ChatMessage }
+  | { kind: "assistant"; id: string; data: ChatMessage; showTime?: boolean }
   | { kind: "tool"; id: string; data: ToolEvent; timeLabel?: string }
-  | { kind: "step"; id: string; data: StepEvent; tools: ToolEvent[] }
+  | { kind: "step"; id: string; data: StepEvent; tools: ToolEvent[]; startedAt?: unknown; endedAt?: unknown }
   | { kind: "error"; id: string; error: string; timestamp?: number };
+
+export function readCreatedAt(data: unknown): unknown {
+  if (!data || typeof data !== "object") return undefined;
+  const rec = data as Record<string, unknown>;
+  return rec.created_at ?? rec.timestamp ?? rec.ts;
+}
+
+function isStepFinished(status?: string): boolean {
+  return status === "completed" || status === "failed";
+}
+
+function mergeStepTimes(
+  existing: Extract<TimelineItem, { kind: "step" }> | undefined,
+  step: StepEvent
+): { startedAt?: unknown; endedAt?: unknown } {
+  const t = readCreatedAt(step);
+  let startedAt = existing?.startedAt;
+  let endedAt = existing?.endedAt;
+  if (isStepFinished(step.status)) {
+    if (t !== undefined) endedAt = t;
+  } else if (t !== undefined && startedAt === undefined) {
+    startedAt = t;
+  }
+  return { startedAt, endedAt };
+}
 
 /** 附件展示用（文件名、类型、大小等） */
 export type AttachmentFile = {
@@ -88,34 +114,9 @@ function stableId(prefix: string, index: number, suffix: string): string {
   return `${prefix}-${index}-${suffix}`;
 }
 
-/** 将时间戳格式化为相对时间，如 2天前、刚刚 */
-function formatTimeLabel(ts: number | string | undefined): string | undefined {
-  if (ts === undefined || ts === null) return undefined;
-  let t = typeof ts === "string" ? parseInt(ts, 10) : ts;
-  if (Number.isNaN(t)) return undefined;
-  
-  // 后端返回的是秒级时间戳（10位数），需要转为毫秒级（13位数）
-  if (t < 10000000000) {
-    t = t * 1000;
-  }
-  
-  const now = Date.now();
-  const diff = now - t;
-  if (diff < 0) return "刚刚";
-  if (diff < 60 * 1000) return "刚刚";
-  if (diff < 60 * 60 * 1000) return `${Math.floor(diff / (60 * 1000))}分钟前`;
-  if (diff < 24 * 60 * 60 * 1000) return `${Math.floor(diff / (60 * 60 * 1000))}小时前`;
-  if (diff < 2 * 24 * 60 * 60 * 1000) return "昨天";
-  if (diff < 7 * 24 * 60 * 60 * 1000) return `${Math.floor(diff / (24 * 60 * 60 * 1000))}天前`;
-  if (diff < 30 * 24 * 60 * 60 * 1000) return `${Math.floor(diff / (7 * 24 * 60 * 60 * 1000))}周前`;
-  return undefined;
-}
-
 export function getToolTimeLabel(tool: ToolEvent): string | undefined {
-  const ts = (tool as { timestamp?: number; created_at?: number; ts?: number }).timestamp
-    ?? (tool as { created_at?: number }).created_at
-    ?? (tool as { ts?: number }).ts;
-  return formatTimeLabel(ts);
+  const label = formatClockTime(readCreatedAt(tool));
+  return label || undefined;
 }
 
 /**
@@ -192,7 +193,8 @@ export function eventsToTimeline(events: SSEEventData[]): TimelineItem[] {
                 kind: "step", 
                 id: existing.id, 
                 data: step, 
-                tools: existing.tools // 保留已有的 tools
+                tools: existing.tools, // 保留已有的 tools
+                ...mergeStepTimes(existing, step),
               };
             }
           }
@@ -203,6 +205,7 @@ export function eventsToTimeline(events: SSEEventData[]): TimelineItem[] {
             id: stableId("step", stepIndex++, step.id + "_" + String(list.length)),
             data: step,
             tools: [], // 初始为空，tools 会在后续添加
+            ...mergeStepTimes(undefined, step),
           });
         }
         
@@ -262,7 +265,7 @@ export function eventsToTimeline(events: SSEEventData[]): TimelineItem[] {
               (last.data as { tool_call_id?: string }).tool_call_id === toolCallId
             ) {
               // 更新最后一个独立工具
-              list[list.length - 1] = { ...last, data: tool };
+              list[list.length - 1] = { ...last, data: tool, timeLabel: getToolTimeLabel(tool) };
               break;
             }
           }
@@ -299,17 +302,43 @@ export function eventsToTimeline(events: SSEEventData[]): TimelineItem[] {
     }
   }
 
-  return list;
+  return markAssistantReplyTimes(list);
+}
+
+/** 每一轮只给最后一条助手回复打时间，中间旁白不刷时钟。 */
+function markAssistantReplyTimes(list: TimelineItem[]): TimelineItem[] {
+  let lastAssistantIdx = -1
+  const mark = (idx: number) => {
+    const item = list[idx]
+    if (item.kind === "assistant") {
+      list[idx] = { ...item, showTime: true }
+    }
+  }
+  for (let i = 0; i < list.length; i++) {
+    if (list[i].kind === "user") {
+      if (lastAssistantIdx >= 0) mark(lastAssistantIdx)
+      lastAssistantIdx = -1
+    } else if (list[i].kind === "assistant") {
+      lastAssistantIdx = i
+    }
+  }
+  if (lastAssistantIdx >= 0) mark(lastAssistantIdx)
+  return list
 }
 
 /**
  * 从事件列表中取最新的 plan 步骤（用于底部任务进度面板）
  */
-export function getLatestPlanFromEvents(events: SSEEventData[]): PlanStep[] {
+export function getLatestPlanFromEvents(events: SSEEventData[]): {
+  steps: PlanStep[]
+  createdAt?: unknown
+} {
   let steps: PlanStep[] = [];
+  let createdAt: unknown;
   for (const ev of events) {
     if (ev.type === "plan") {
       const plan = ev.data as PlanEvent;
+      createdAt = readCreatedAt(plan) ?? createdAt;
       if (plan.steps && Array.isArray(plan.steps)) {
         steps = plan.steps.map((step) => ({ ...step }));
       }
@@ -325,7 +354,7 @@ export function getLatestPlanFromEvents(events: SSEEventData[]): PlanStep[] {
       }
     }
   }
-  return steps;
+  return { steps, createdAt };
 }
 
 /** 把历史里的校验栈收成可展示的失败说明 */

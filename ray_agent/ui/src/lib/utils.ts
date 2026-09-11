@@ -7,31 +7,84 @@ export function cn(...inputs: ClassValue[]) {
 
 const WEEK_DAYS = ['周日', '周一', '周二', '周三', '周四', '周五', '周六'] as const
 
-/**
- * 将日期字符串格式化为相对日期标签
- * - 今天 → "今天"
- * - 昨天 → "昨天"
- * - 本周内 → "周一"..."周六"
- * - 更早 → "MM/DD"
- */
-export function formatRelativeDate(dateStr: string | null | undefined): string {
-  if (!dateStr) return '今天'
-  const date = new Date(dateStr)
-  if (isNaN(date.getTime())) return '今天'
-  const now = new Date()
+function pad2(n: number): string {
+  return String(n).padStart(2, '0')
+}
 
-  // 归一化到当天 0:00
+/** 把事件时间戳或日期字符串转成 Date。秒级时间戳会换成毫秒。没有有效时间则返回 null。 */
+export function parseEventTime(value: unknown): Date | null {
+  if (value == null || value === '') return null
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    const ms = value < 1e12 ? value * 1000 : value
+    const date = new Date(ms)
+    return Number.isNaN(date.getTime()) ? null : date
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim()
+    if (!trimmed) return null
+    if (/^\d+(\.\d+)?$/.test(trimmed)) {
+      return parseEventTime(Number(trimmed))
+    }
+    // 接口里的 naive ISO 来自 UTC 容器，不能按浏览器本地时区解读
+    const naiveIso = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?$/.test(trimmed)
+    const date = new Date(naiveIso ? `${trimmed}Z` : trimmed)
+    return Number.isNaN(date.getTime()) ? null : date
+  }
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value
+  }
+  return null
+}
+
+export function formatClockTime(value: unknown): string {
+  const date = parseEventTime(value)
+  if (!date) return ''
+  return `${pad2(date.getHours())}:${pad2(date.getMinutes())}:${pad2(date.getSeconds())}`
+}
+
+export function formatDayLabel(value: unknown): string {
+  const date = parseEventTime(value)
+  if (!date) return ''
+  const now = new Date()
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
   const target = new Date(date.getFullYear(), date.getMonth(), date.getDate())
   const diffDays = Math.floor((today.getTime() - target.getTime()) / (1000 * 60 * 60 * 24))
 
   if (diffDays === 0) return '今天'
   if (diffDays === 1) return '昨天'
-  if (diffDays < 7) return WEEK_DAYS[date.getDay()]
+  if (diffDays < 7 && diffDays > 1) return WEEK_DAYS[date.getDay()]
 
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${month}/${day}`
+  return `${pad2(date.getMonth() + 1)}/${pad2(date.getDate())}`
+}
+
+/**
+ * 会话列表用：保留日期语义，并带上已有的时分秒。
+ * 没有有效时间时不编造“今天”。
+ */
+export function formatRelativeDate(dateStr: string | null | undefined): string {
+  const clock = formatClockTime(dateStr)
+  const day = formatDayLabel(dateStr)
+  if (!clock) return day
+  if (!day) return clock
+  return `${day} ${clock}`
+}
+
+/** 由两个已有时间戳算出间隔，没有起止时间则不显示。 */
+export function formatDurationBetween(start: unknown, end: unknown): string {
+  const from = parseEventTime(start)
+  const to = parseEventTime(end)
+  if (!from || !to) return ''
+  const sec = Math.round((to.getTime() - from.getTime()) / 1000)
+  if (sec < 0) return ''
+  if (sec < 60) return `${sec}秒`
+  const minutes = Math.floor(sec / 60)
+  const seconds = sec % 60
+  if (minutes < 60) {
+    return seconds ? `${minutes}分${pad2(seconds)}秒` : `${minutes}分`
+  }
+  const hours = Math.floor(minutes / 60)
+  const remainMinutes = minutes % 60
+  return remainMinutes ? `${hours}小时${remainMinutes}分` : `${hours}小时`
 }
 
 /**

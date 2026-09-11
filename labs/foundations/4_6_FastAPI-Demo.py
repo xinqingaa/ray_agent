@@ -15,7 +15,7 @@ app = FastAPI()
 #    就执行下面的函数 root()
 @app.get("/")
 async def root():
-    return {"message": "Hello, MoocManus!慕课网"}
+    return {"message": "Hello, RayAgent!"}
 
 
 # 3. 路径参数 (Path Parameters)
