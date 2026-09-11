@@ -16,7 +16,7 @@
 | [04 · Agent Loop 与 ReAct](04-agent-loop-and-react.md) | 停止与结果判断例子补充完成，待审阅 | 4 项本地夹具测试通过；循环静态核对与 SVG 检查完成；真实模型调用 unverified | 配置模型密钥后验证 `4_1` 是否连续提出写入和读取 |
 | [05 · 上下文与记忆](05-context-and-memory.md) | 主体保留，衔接已修订，待审阅 | `5_1` 与 5 项本地夹具测试通过；源码与 3 张 SVG 已核对；真实 token 与 `4_2` 分词 unverified | 审阅正文深度与视觉表达；真实 token 验证仍待完整词表或模型 |
 | [06 · 从 Agent Loop 到完整 Harness](06-from-agent-loop-to-harness.md) | 草稿完成，待审阅 | 真实 Web 文件任务通过，详见下方记录；2 张 SVG、2 张截图已核对；未捕获完整模型请求 | 审阅实际交接讲解与图文密度；完整出站请求正文未捕获 |
-| [07 · 规划与内外层循环](07-planning-and-nested-loops.md) | 草稿完成，待审阅 | 规划、步骤处理与循环源码静态核对；1 张 SVG 结构与浏览器渲染检查通过；新增真实模型运行 unverified | 审阅重绘的上下层视图与简化后的结束条件 |
+| [07 · 规划与内外层循环](07-planning-and-nested-loops.md) | 草稿完成，待审阅 | 规划、步骤处理与循环源码静态核对；2 张 SVG 已画；新增真实模型运行 unverified | 审阅双循环与单循环对照，并检查新图是否把控制权说清楚 |
 | [08 · 任务执行与控制](08-task-execution-and-control.md) | 骨架 | 未进行本章运行验证 | 核对取消、超时、执行预算及人工介入的实现与缺口，承接工具授权与暂停问题 |
 | [09 · 状态与持久化](09-state-and-persistence.md) | 骨架 | 未进行本章运行验证 | 区分保存、回放与恢复，核对状态及副作用依据 |
 | [10 · 事件与可观察性](10-events-and-streaming.md) | 骨架 | 未进行本章运行验证 | 核对现有事件的可见范围与观察缺口 |
@@ -58,5 +58,7 @@ Web 已打开工具记录与最终附件，刷新后历史和附件入口保留�
 2026-09-11 静态核对 `PlannerReActFlow.invoke`、`PlannerAgent.create_plan/update_plan`、`ReActAgent.execute_step/summarize`、`BaseAgent.invoke`、计划模型与对应提示。重点核对已结束步骤前缀的保留、无未结束步骤时不合并新列表、`success` 与步骤状态分离，以及 `FAILED` 步骤不进入更新分支。复用第 06 章已有任务证据；另一个两步骤案例为教学示意，未新增真实模型、产品或失败路径运行。
 
 `07-nested-feedback.svg` 已重绘为上下两个独立流程视图（1600×900、Style 1），通过 XML、marker、碰撞、几何与构图检查，并以 Chrome headless 渲染目视检查。通用渲染器不可用，浏览器代替其渲染环节；临时 PNG 不提交。
+
+对比小节保留原有“双循环编排与单循环”主线。`07-progress-control.svg` 按“编排器推进步骤 / Agent 连续选择行动”重绘为上下两条横向过程，图注已同步；XML、marker、碰撞、几何、构图和 Chrome 渲染目视检查通过。未新增产品或模型运行。
 
 第 07 章简化 Python 已通过语法解析，仅用于说明调用与返回，不是可独立运行脚本；本次修订未新增产品或模型运行。
