@@ -1,42 +1,65 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
-<style>text{font-family:Arial,"PingFang SC",sans-serif;fill:#172334}.title{font-size:36px;font-weight:600}.heading{font-size:29px;font-weight:600}.small{font-size:23px;fill:#526172}</style>
-<defs><marker id="arrow" markerWidth="8" markerHeight="7" refX="8" refY="3.5" orient="auto"><path d="M0 0 L8 3.5 L0 7Z" fill="#64748b"/></marker></defs>
-<rect data-graph-role="background" width="1600" height="900" fill="#f5f7fa"/>
-<text x="100" y="86" class="title">下一步由谁推进？</text>
-<text x="100" y="135" class="small">双循环交接步骤，单循环连续选择行动</text>
-<text x="100" y="230" class="heading">双循环编排</text>
-<text x="450" y="230" class="small">编排器管步骤进度，执行器决定步骤内行动</text>
-<rect x="100" y="270" width="400" height="140" rx="10" fill="white" stroke="#cbd5e1" stroke-width="3"/>
-<rect data-graph-role="decoration" x="124" y="299" width="5" height="35" rx="2" fill="#2563eb"/>
-<text x="148" y="328" class="heading">编排器选择步骤</text>
-<text x="148" y="374" class="small">明确当前要完成的工作</text>
-<rect x="600" y="270" width="400" height="140" rx="10" fill="white" stroke="#cbd5e1" stroke-width="3"/>
-<rect data-graph-role="decoration" x="624" y="299" width="5" height="35" rx="2" fill="#2563eb"/>
-<text x="648" y="328" class="heading">执行器运行 Agent Loop</text>
-<text x="648" y="374" class="small">调用工具，交回步骤结果</text>
-<rect x="1100" y="270" width="400" height="140" rx="10" fill="white" stroke="#cbd5e1" stroke-width="3"/>
-<rect data-graph-role="decoration" x="1124" y="299" width="5" height="35" rx="2" fill="#2563eb"/>
-<text x="1148" y="328" class="heading">编排器推进后续步骤</text>
-<text x="1148" y="374" class="small">结合 Planner 更新，继续或收尾</text>
-<path d="M524 340 H580" stroke="#64748b" stroke-width="3" fill="none" marker-end="url(#arrow)"/>
-<path d="M1024 340 H1080" stroke="#64748b" stroke-width="3" fill="none" marker-end="url(#arrow)"/>
-<line x1="100" y1="476" x2="1500" y2="476" stroke="#dbe2ea" stroke-width="2"/>
-<text x="100" y="550" class="heading">单循环</text>
-<text x="450" y="550" class="small">Agent 根据新观察，连续决定下一次行动</text>
-<rect x="100" y="590" width="400" height="140" rx="10" fill="white" stroke="#cbd5e1" stroke-width="3"/>
-<rect data-graph-role="decoration" x="124" y="619" width="5" height="35" rx="2" fill="#16a34a"/>
-<text x="148" y="648" class="heading">Agent 选择行动</text>
-<text x="148" y="694" class="small">根据目标与已有观察提出调用</text>
-<rect x="600" y="590" width="400" height="140" rx="10" fill="white" stroke="#cbd5e1" stroke-width="3"/>
-<rect data-graph-role="decoration" x="624" y="619" width="5" height="35" rx="2" fill="#16a34a"/>
-<text x="648" y="648" class="heading">程序执行并回传结果</text>
-<text x="648" y="694" class="small">工具结果成为新的观察</text>
-<rect x="1100" y="590" width="400" height="140" rx="10" fill="white" stroke="#cbd5e1" stroke-width="3"/>
-<rect data-graph-role="decoration" x="1124" y="619" width="5" height="35" rx="2" fill="#16a34a"/>
-<text x="1148" y="648" class="heading">Agent 再次决策</text>
-<text x="1148" y="694" class="small">继续行动、调整安排或收口</text>
-<path d="M524 660 H580" stroke="#64748b" stroke-width="3" fill="none" marker-end="url(#arrow)"/>
-<path d="M1024 660 H1080" stroke="#64748b" stroke-width="3" fill="none" marker-end="url(#arrow)"/>
-<text x="100" y="804" class="small">上行交回步骤结果，下行回传工具结果；循环回线在此省略。</text>
-<text x="100" y="844" class="small">两种方式均由程序执行，并受权限、预算与停止条件约束。</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
+  <title id="title">计划放在哪里，进度就怎样交接</title>
+  <desc id="desc">左侧双循环由编排器选择步骤，执行器内部进行模型与工具反馈，步骤结果交回 Planner 更新，再选择步骤。右侧单循环由模型选择工具，程序回传结果；计划工具也在同一循环中，清单不直接调度步骤。两种结构都由程序控制运行边界。</desc>
+  <style>
+    text { font-family: "Helvetica Neue", Arial, "PingFang SC", "Microsoft YaHei", sans-serif; fill: #111827; letter-spacing: 0; }
+    .title { font-size: 36px; font-weight: 600; }
+    .heading { font-size: 30px; font-weight: 600; }
+    .label { font-size: 25px; font-weight: 600; }
+    .note { font-size: 22px; fill: #4b5563; }
+    .edge-label { font-size: 22px; }
+    .edge { fill: none; stroke-width: 4; stroke-linejoin: round; }
+  </style>
+  <defs>
+    <marker id="arrow-blue" markerUnits="userSpaceOnUse" markerWidth="14" markerHeight="12" refX="13" refY="6" orient="auto"><path d="M0 0 L14 6 L0 12 Z" fill="#2563eb"/></marker>
+    <marker id="arrow-green" markerUnits="userSpaceOnUse" markerWidth="14" markerHeight="12" refX="13" refY="6" orient="auto"><path d="M0 0 L14 6 L0 12 Z" fill="#16803d"/></marker>
+  </defs>
+  <rect data-graph-role="background" width="1600" height="900" fill="#ffffff"/>
+  <text x="70" y="78" class="title">计划放在哪里，进度就怎样交接</text>
+  <line x1="800" y1="136" x2="800" y2="752" stroke="#e5e7eb" stroke-width="2" data-graph-role="decoration"/>
+  <text x="70" y="160" class="heading">双循环编排</text>
+  <text x="70" y="198" class="note">计划参与调度，步骤结果交回外层</text>
+  <rect id="select-step" x="80" y="280" width="240" height="104" rx="8" fill="#eff6ff" stroke="#2563eb" stroke-width="3"/>
+  <text x="200" y="321" text-anchor="middle" class="label">编排器选择步骤</text>
+  <text x="200" y="358" text-anchor="middle" class="note">读取当前待办</text>
+  <rect id="executor" data-graph-role="container" x="410" y="250" width="320" height="292" rx="8" fill="#f8fafc" stroke="#d1d5db" stroke-width="2"/>
+  <text x="435" y="289" class="label">执行器 · Agent Loop</text>
+  <rect id="inner-model" x="455" y="315" width="230" height="70" rx="8" fill="#ffffff" stroke="#d1d5db" stroke-width="3"/>
+  <text x="570" y="359" text-anchor="middle" class="label">模型选择行动</text>
+  <rect id="inner-tool" x="455" y="435" width="230" height="70" rx="8" fill="#f0fdf4" stroke="#16803d" stroke-width="3"/>
+  <text x="570" y="479" text-anchor="middle" class="label">程序执行工具</text>
+  <path id="choose" class="edge" d="M320 332 H410" stroke="#2563eb" marker-end="url(#arrow-blue)"/>
+  <text x="328" y="313" class="edge-label">步骤</text>
+  <path id="inner-call" class="edge" d="M600 385 V435" stroke="#16803d" marker-end="url(#arrow-green)"/>
+  <path id="inner-feedback" class="edge" d="M455 470 H432 V350 H455" stroke="#16803d" marker-end="url(#arrow-green)"/>
+  <text x="495" y="418" class="note">调用</text>
+  <rect id="update-plan" x="410" y="624" width="320" height="104" rx="8" fill="#eff6ff" stroke="#2563eb" stroke-width="3"/>
+  <text x="570" y="665" text-anchor="middle" class="label">Planner 更新计划</text>
+  <text x="570" y="702" text-anchor="middle" class="note">编排器接收后续安排</text>
+  <path id="step-result" class="edge" d="M570 542 V624" stroke="#2563eb" marker-end="url(#arrow-blue)"/>
+  <text x="589" y="587" class="edge-label">步骤结果</text>
+  <path id="next-step" class="edge" d="M410 676 H200 V384" stroke="#2563eb" marker-end="url(#arrow-blue)"/>
+  <text x="223" y="645" class="edge-label">再选步骤</text>
+  <text x="80" y="771" class="note">没有待办 → 转入总结</text>
+  <text x="865" y="160" class="heading">单循环 + 计划工具</text>
+  <text x="865" y="198" class="note">计划也作为工具调用，清单不直接调度</text>
+  <rect id="single-model" x="1010" y="280" width="430" height="104" rx="8" fill="#ffffff" stroke="#d1d5db" stroke-width="3"/>
+  <text x="1225" y="321" text-anchor="middle" class="label">Agent 选择下一次行动</text>
+  <text x="1225" y="358" text-anchor="middle" class="note">结合目标、历史与新观察</text>
+  <rect id="single-tool" x="1010" y="524" width="430" height="164" rx="8" fill="#f0fdf4" stroke="#16803d" stroke-width="3"/>
+  <text x="1225" y="568" text-anchor="middle" class="label">程序分发工具</text>
+  <text x="1225" y="614" text-anchor="middle" class="label">文件 / Shell / 计划工具</text>
+  <text x="1225" y="660" text-anchor="middle" class="note">计划工具保存与展示清单</text>
+  <path id="single-call" class="edge" d="M1225 384 V524" stroke="#16803d" marker-end="url(#arrow-green)"/>
+  <text x="1245" y="460" class="edge-label">工具调用</text>
+  <path id="single-feedback" class="edge" d="M1010 606 H925 V332 H1010" stroke="#16803d" marker-end="url(#arrow-green)"/>
+  <text x="950" y="447" class="edge-label">工具</text>
+  <text x="950" y="478" class="edge-label">结果</text>
+  <text x="1010" y="771" class="note">不再请求行动 → 本轮正常收口</text>
+  <line x1="70" y1="813" x2="1530" y2="813" stroke="#e5e7eb" stroke-width="2" data-graph-role="decoration"/>
+  <path d="M70 853 H114" class="edge" stroke="#2563eb" marker-end="url(#arrow-blue)" data-graph-role="decoration"/>
+  <text x="128" y="861" class="note">步骤交接</text>
+  <path d="M280 853 H324" class="edge" stroke="#16803d" marker-end="url(#arrow-green)" data-graph-role="decoration"/>
+  <text x="338" y="861" class="note">工具反馈循环</text>
+  <text x="730" y="861" class="note">只画正常路径；两者都受程序的权限、预算与停止条件约束</text>
 </svg>

@@ -93,6 +93,7 @@
 | 计划生成与合并 | [Planner](../ray_agent/api/app/domain/services/agents/planner.py)：禁止工具调用；`update_plan` 保留已结束前缀、替换剩余列表，无未结束步骤时不合并。对照[规划提示](../ray_agent/api/app/domain/services/prompts/planner.py)。 |
 | 内层收口与步骤结果 | [Agent 基类](../ray_agent/api/app/domain/services/agents/base.py) 的 `invoke`；[执行器](../ray_agent/api/app/domain/services/agents/react.py) 的 `execute_step`：原始请求与步骤输入、结构化结果处理、`success` 和状态分离。 |
 | 步骤选择 | [计划模型](../ray_agent/api/app/domain/models/plan.py)：`Step.done`、`Plan.get_next_step`；已结束不等于结果成功。 |
+| 外部设计比较 | [Codex App Server](https://learn.chatgpt.com/docs/app-server)：计划更新事件、运行中补充输入、取消与审批；接口资料不证明产品全部内部循环结构。[Anthropic 模式说明](https://www.anthropic.com/engineering/building-effective-agents)：按任务比较可组合模式与代价，不按循环数量判断优劣。 |
 
 ## 第 08 章素材
 
