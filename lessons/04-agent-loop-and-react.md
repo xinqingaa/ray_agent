@@ -29,20 +29,20 @@ assistant: 我先把文件写好。
 
 本章观察的 Chat Completions 里，行动请求落在 `tool_calls`，观察以 `role: tool` 回传，本章实验把不再带 `tool_calls` 的响应作为正常收口条件。实际系统还应检查响应完整性与内容是否可用。
 
-因此，上一章的伪代码还缺最后一步：执行之后，不要换一套规则。下面用带迭代上限的正常路径表示本章实验的控制结构：
+因此，上一章的伪代码还缺最后一步：执行之后，不要换一套规则。下面用简化 Python 表示本章实验的正常路径。辅助函数代表请求、工具处理和消息组装，省略连接、授权与异常处理，不能独立运行：
 
-```text
-把用户请求追加到 messages
-在迭代上限内重复
-  请求模型
-  把这条 assistant message 追加到 messages
-  如果这一轮是行动请求：
-    执行工具，取得观察
-    把观察以 role: tool 追加到 messages
-    再进入上面的「请求模型」
-  如果这一轮是终端消息：
-    使用这段文本，结束本轮
-用尽迭代次数仍未收口时，报错结束
+```python
+def run_query(query, messages, max_iterations):
+    messages.append(user_message(query))
+    for _ in range(max_iterations):
+        response = call_model(messages)
+        messages.append(response)
+        if not response.tool_calls:
+            return response.content
+        for call in response.tool_calls:
+            result = execute_allowed_tool(call)
+            messages.append(tool_message(call.id, result))
+    raise RuntimeError("达到迭代上限，尚未收口")
 ```
 
 和「做一次工具就强制出字」的差别不在会不会执行，而在执行之后还许不许再出现行动。有的实验会在第二次请求上加 `tool_choice="none"`，等于人为关掉 Loop。

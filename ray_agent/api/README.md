@@ -55,6 +55,14 @@ uv run --locked python -m pytest
 
 测试配置见 [pytest.ini](pytest.ini)。纯核心与协议用例不会启动应用或连接数据库。只有使用 [conftest.py](tests/conftest.py) 中 `client` fixture 的接口测试会进入应用生命周期、迁移和初始化外部服务，运行它们前需准备独立的测试数据库与 Redis 配置。协议自动测试不能替代真实模型的页面验收。
 
+课程的双循环与用量核对可定向运行：
+
+```bash
+uv run --locked python -m pytest tests/core/test_planner_react_flow.py tests/core/test_llm_usage.py
+```
+
+双循环用例保留实际流程、Planner、ReAct 和工具分发，用固定模型响应及内存存储、沙箱替身核对步骤选择、计划合并和失败出口；用量用例核对解析与累计。它们不连接外部服务，也不证明真实模型的规划质量或计费结果。
+
 数据库结构变化时核对领域模型、ORM 转换与迁移文件：
 
 ```bash

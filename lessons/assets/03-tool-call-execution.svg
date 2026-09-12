@@ -1,22 +1,23 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
 <title id="title">同一条 message，两条出路</title>
-<desc id="desc">正文可以直接展示；工具调用必须由程序执行，再把结果送回模型。</desc>
+<desc id="desc">正文可以展示；工具调用先查找工具、解析校验参数并检查授权，通过后才执行和回传结果。图为通用职责示意，不表示实验具备完整审批系统。</desc>
 <defs><marker id="arrow" markerUnits="userSpaceOnUse" markerWidth="12" markerHeight="12" refX="11" refY="6" orient="auto"><path d="M0 0 L12 6 L0 12 Z" fill="#536579"/></marker></defs>
 <style>text{font-family:"PingFang SC","Microsoft YaHei",Arial,sans-serif;fill:#0d0d0d}</style>
 <rect data-graph-role="background" width="1600" height="900" fill="#f3f5f7"/>
 <text x="64" y="72" font-size="18" font-weight="400" style="fill:#6e6e80" text-anchor="start">RAYAGENT / LESSON 03</text>
 <text x="64" y="130" font-size="38" font-weight="600" style="fill:#0d0d0d" text-anchor="start">同一条 message，两条出路</text>
-<text x="64" y="174" font-size="23" font-weight="400" style="fill:#6e6e80" text-anchor="start">正文可以直接展示；工具调用必须由程序执行，再把结果送回模型。</text>
+<text x="64" y="174" font-size="23" font-weight="400" style="fill:#6e6e80" text-anchor="start">正文可以展示；工具调用先经过检查，获准后才执行并回传。</text>
 <rect data-graph-role="container" x="64" y="220" width="1472" height="200" rx="8" fill="#fafbfc" stroke="#bac7d5" stroke-width="2"/>
 <rect data-graph-role="container" x="64" y="448" width="1472" height="292" rx="8" fill="#edf4fc" stroke="#bac7d5" stroke-width="2"/>
 <text x="92" y="268" font-size="27" font-weight="600" style="fill:#0d0d0d" text-anchor="start">只有 content</text>
 <text x="92" y="308" font-size="21" font-weight="400" style="fill:#6e6e80" text-anchor="start">直接展示</text>
 <text x="92" y="492" font-size="27" font-weight="600" style="fill:#0d0d0d" text-anchor="start">有 tool_calls</text>
-<text x="92" y="532" font-size="21" font-weight="400" style="fill:#6e6e80" text-anchor="start">程序执行后再送回</text>
+<text x="92" y="532" font-size="21" font-weight="400" style="fill:#6e6e80" text-anchor="start">下方只展开检查通过的路径；拒绝、等待与异常另行处理</text>
 <path data-graph-role="edge" d="M720 320 H1040" fill="none" stroke="#536579" stroke-width="4" marker-end="url(#arrow)"/>
-<path data-graph-role="edge" d="M580 624 H620" fill="none" stroke="#536579" stroke-width="4" marker-end="url(#arrow)"/>
-<path data-graph-role="edge" d="M860 624 H900" fill="none" stroke="#536579" stroke-width="4" marker-end="url(#arrow)"/>
-<path data-graph-role="edge" d="M1140 624 H1180" fill="none" stroke="#536579" stroke-width="4" marker-end="url(#arrow)"/>
+<path data-graph-role="edge" d="M320 624 H370" fill="none" stroke="#536579" stroke-width="4" marker-end="url(#arrow)"/>
+<path data-graph-role="edge" d="M590 624 H650" fill="none" stroke="#536579" stroke-width="4" marker-end="url(#arrow)"/>
+<path data-graph-role="edge" d="M870 624 H930" fill="none" stroke="#536579" stroke-width="4" marker-end="url(#arrow)"/>
+<path data-graph-role="edge" d="M1150 624 H1210" fill="none" stroke="#536579" stroke-width="4" marker-end="url(#arrow)"/>
 <rect data-graph-role="node" x="440" y="264" width="280" height="112" rx="8" fill="#ffffff" stroke="#8e9cac" stroke-width="3"/>
 <text x="580.0" y="307" font-size="26" font-weight="600" style="fill:#0d0d0d" text-anchor="middle">模型返回</text>
 <text x="580.0" y="347" font-size="21" font-weight="400" style="fill:#6e6e80" text-anchor="middle">content: 解释文字</text>
@@ -24,23 +25,24 @@
 <text x="1200.0" y="307" font-size="26" font-weight="600" style="fill:#0d0d0d" text-anchor="middle">展示给用户</text>
 <text x="1200.0" y="347" font-size="21" font-weight="400" style="fill:#6e6e80" text-anchor="middle">不执行任何操作</text>
 <text x="880" y="304" font-size="21" font-weight="400" style="fill:#6e6e80" text-anchor="middle">取出 content</text>
-<rect data-graph-role="node" x="340" y="568" width="240" height="112" rx="8" fill="#ffffff" stroke="#8e9cac" stroke-width="3"/>
-<text x="460.0" y="611" font-size="24" font-weight="600" style="fill:#0d0d0d" text-anchor="middle">返回 tool_calls</text>
-<text x="460.0" y="651" font-size="20" font-weight="400" style="fill:#6e6e80" text-anchor="middle">write_file + 参数</text>
-<rect data-graph-role="node" x="620" y="568" width="240" height="112" rx="8" fill="#ffffff" stroke="#8e9cac" stroke-width="3"/>
-<rect data-graph-role="decoration" x="620" y="568" width="4" height="112" rx="2" fill="#10a37f"/>
-<text x="740.0" y="611" font-size="24" font-weight="600" style="fill:#0d0d0d" text-anchor="middle">按 name 执行</text>
-<text x="740.0" y="651" font-size="20" font-weight="400" style="fill:#6e6e80" text-anchor="middle">程序写入文件</text>
-<rect data-graph-role="node" x="900" y="568" width="240" height="112" rx="8" fill="#ffffff" stroke="#8e9cac" stroke-width="3"/>
-<text x="1020.0" y="611" font-size="24" font-weight="600" style="fill:#0d0d0d" text-anchor="middle">追加 role: tool</text>
-<text x="1020.0" y="651" font-size="20" font-weight="400" style="fill:#6e6e80" text-anchor="middle">带上 tool_call_id</text>
-<rect data-graph-role="node" x="1180" y="568" width="280" height="112" rx="8" fill="#ffffff" stroke="#8e9cac" stroke-width="3"/>
-<text x="1320.0" y="611" font-size="24" font-weight="600" style="fill:#0d0d0d" text-anchor="middle">再次请求模型</text>
-<text x="1320.0" y="651" font-size="20" font-weight="400" style="fill:#6e6e80" text-anchor="middle">结果进入 messages</text>
-<text x="600" y="708" font-size="20" font-weight="400" style="fill:#6e6e80" text-anchor="middle">查找并执行</text>
-<text x="880" y="708" font-size="20" font-weight="400" style="fill:#6e6e80" text-anchor="middle">回传结果</text>
-<text x="1160" y="708" font-size="20" font-weight="400" style="fill:#6e6e80" text-anchor="middle">再次请求</text>
+<rect data-graph-role="node" x="100" y="568" width="220" height="112" rx="8" fill="#ffffff" stroke="#8e9cac" stroke-width="3"/>
+<text x="210" y="611" font-size="24" font-weight="600" text-anchor="middle">返回 tool_calls</text>
+<text x="210" y="651" font-size="20" style="fill:#6e6e80" text-anchor="middle">工具名 + 参数</text>
+<rect data-graph-role="node" x="370" y="568" width="220" height="112" rx="8" fill="#eff6ff" stroke="#2563eb" stroke-width="3"/>
+<text x="480" y="606" font-size="24" font-weight="600" text-anchor="middle">检查调用</text>
+<text x="480" y="638" font-size="20" style="fill:#4b5563" text-anchor="middle">查找工具 · 解析校验</text>
+<text x="480" y="665" font-size="20" style="fill:#4b5563" text-anchor="middle">核对动作授权</text>
+<rect data-graph-role="node" x="650" y="568" width="220" height="112" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="3"/>
+<text x="760" y="611" font-size="24" font-weight="600" text-anchor="middle">执行获准动作</text>
+<text x="760" y="651" font-size="20" style="fill:#4b5563" text-anchor="middle">取得实际结果</text>
+<rect data-graph-role="node" x="930" y="568" width="220" height="112" rx="8" fill="#ffffff" stroke="#8e9cac" stroke-width="3"/>
+<text x="1040" y="611" font-size="24" font-weight="600" text-anchor="middle">追加 role: tool</text>
+<text x="1040" y="651" font-size="20" style="fill:#6e6e80" text-anchor="middle">带上 tool_call_id</text>
+<rect data-graph-role="node" x="1210" y="568" width="280" height="112" rx="8" fill="#ffffff" stroke="#8e9cac" stroke-width="3"/>
+<text x="1350" y="611" font-size="24" font-weight="600" text-anchor="middle">再次请求模型</text>
+<text x="1350" y="651" font-size="20" style="fill:#6e6e80" text-anchor="middle">结果进入 messages</text>
+<text x="620" y="712" font-size="20" style="fill:#4b5563" text-anchor="middle">检查通过才执行</text>
 <text x="64" y="780" font-size="28" font-weight="600" style="fill:#0d0d0d" text-anchor="start">工具调用是操作请求，不是已经完成的动作</text>
 <text x="64" y="824" font-size="22" font-weight="400" style="fill:#6e6e80" text-anchor="start">实验用计算器观察同一条路径；第二次调用强制生成文本，还不是 Agent Loop。</text>
-<text x="64" y="864" font-size="20" font-weight="400" style="fill:#6e6e80" text-anchor="start">图中字段与文件操作为机制示意，不是模型实测输出。</text>
+<text x="64" y="864" font-size="20" font-weight="400" style="fill:#6e6e80" text-anchor="start">通用职责示意，不代表实验或产品已有完整审批系统；有调用时，展示正文不能代替处理调用。</text>
 </svg>

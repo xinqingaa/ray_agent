@@ -29,6 +29,7 @@
 | [OpenAI Chat Completions](https://platform.openai.com/docs/api-reference/chat/create) | 协议基线：messages、message / delta、finish_reason 与 data: [DONE]。 |
 | [DeepSeek Chat Completions](https://api-docs.deepseek.com/api/create-chat-completion/) | labs 实际调用的兼容服务说明。 |
 | [Requests 响应体处理](https://requests.readthedocs.io/en/latest/user/advanced/#body-content-workflow) | stream=True 延迟读取响应体、逐步消费和关闭响应。 |
+| [模型适配](../ray_agent/api/app/infrastructure/external/llm/openai_llm.py)、[用量解析](../ray_agent/api/app/infrastructure/external/llm/usage.py) | 对照实际参数、服务端 usage 与缺失用量；调用配置记录不包含密钥，产品累计在第 10 章展开。 |
 
 ## 第 03 章素材
 
@@ -43,6 +44,7 @@
 | `labs/foundations/tests/test_tool_actions.py` | 本地夹具；无外部模型。 |
 | [OpenAI Chat Completions](https://platform.openai.com/docs/api-reference/chat/create) | `tools`、`tool_calls`、`finish_reason: tool_calls`、`role: tool`。 |
 | `ray_agent/api/app/domain/services/agents/tool_call_compat.py` 的 `extract_embedded_tool_calls` | 若 `content` 是 Anthropic 风格 `tool_use`，补成 `tool_calls`；已有 `tool_calls` 则不改。 |
+| [文件工具](../ray_agent/api/app/domain/services/tools/file.py)、[工具基类](../ray_agent/api/app/domain/services/tools/base.py) | 核对工具名称、绝对路径说明、覆盖/追加参数与实现是否一致；描述对照是教学方法，不能当作模型效果实测。授权与环境限制分别在第 08、11 章追踪。 |
 
 ## 第 04 章素材
 
@@ -68,7 +70,8 @@
 | `labs/foundations/tests/test_request_context.py` | 本地夹具，验证示意数据与输出；不验证模型行为或残缺消息的协议有效性。 |
 | `ray_agent/api/app/domain/services/agents/base.py` | `_ensure_memory` 按会话和 Agent 名加载；`_add_to_memory` 追加保存；`_invoke_llm` 读取消息并另取工具说明。 |
 | `ray_agent/api/app/domain/models/memory.py` 的 `compact` | 清理 `browser_view`、`browser_navigate` 结果和 `reasoning_content`，不生成语义摘要，不按 token 预算检索。 |
-| `ray_agent/api/app/domain/services/flows/planner_react.py` | 步骤成功后调用执行器 `compact_memory`，随后进入计划更新；清理后的记忆会保存。 |
+| `ray_agent/api/app/domain/services/flows/planner_react.py` | 正常步骤返回后调用 `compact_memory` 并更新计划；`FAILED` 在清理前中止，不按模型 `success` 字段决定是否清理。 |
+| [预设角色提示](../ray_agent/api/app/domain/services/prompts/)、[依赖组装](../ray_agent/api/app/interfaces/service_dependencies.py) | 区分当前预设提示与通用的项目指令、技能按需加载设计；以资料 A 的日期、条件、来源检查压缩前后材料，不预设产品已有技能加载器。 |
 
 ## 第 06 章素材
 
@@ -94,63 +97,76 @@
 | 内层收口与步骤结果 | [Agent 基类](../ray_agent/api/app/domain/services/agents/base.py) 的 `invoke`；[执行器](../ray_agent/api/app/domain/services/agents/react.py) 的 `execute_step`：原始请求与步骤输入、结构化结果处理、`success` 和状态分离。 |
 | 步骤选择 | [计划模型](../ray_agent/api/app/domain/models/plan.py)：`Step.done`、`Plan.get_next_step`；已结束不等于结果成功。 |
 | 外部设计比较 | [Codex App Server](https://learn.chatgpt.com/docs/app-server)：计划更新事件、运行中补充输入、取消与审批；接口资料不证明产品全部内部循环结构。[Anthropic 模式说明](https://www.anthropic.com/engineering/building-effective-agents)：按任务比较可组合模式与代价，不按循环数量判断优劣。 |
+| 确定性流程验证 | [双循环测试](../ray_agent/api/tests/core/test_planner_react_flow.py)：保留真实 Flow、Planner、ReAct 和工具分发，替换模型、存储与沙箱。观察第二步继续、计划收缩、`success=false`、无待办时不追加、解析失败出口；不证明真实模型规划质量。运行入口见 [API 测试指南](../ray_agent/api/README.md#测试与数据库迁移)。 |
 
 ## 第 08 章素材
 
 [应用协调](../ray_agent/api/app/application/services/agent_service.py)、[运行器](../ray_agent/api/app/domain/services/agent_task_runner.py)、[任务适配](../ray_agent/api/app/infrastructure/external/task/redis_stream_task.py)。
 
-观察重点：核对取消、超时、迭代上限、预算与人工介入，区分已有控制与能力差距。
+补充入口：[Agent 配置](../ray_agent/api/app/domain/models/app_config.py)、[基础循环](../ray_agent/api/app/domain/services/agents/base.py)、[取消测试](../ray_agent/api/tests/core/test_agent_task_runner_cancel.py)、[Shell 服务](../ray_agent/sandbox/app/services/shell.py)。
+
+观察重点：区分模型不再行动、程序超限、等待输入、取消请求与取消确认；区分次数上限、单次超时、总时限、token 记账与强制预算。沿一次长操作检查后台进程是否结束、终态何时保存、资源何时释放。审批应绑定具体动作与资源，不能把询问用户当成完整授权系统；同会话重复提交的承接与排他范围也需核对。
 
 ## 第 09 章素材
 
-[领域模型](../ray_agent/api/app/domain/models/)、[存储](../ray_agent/api/app/infrastructure/storage/)。
+[领域模型](../ray_agent/api/app/domain/models/)、[会话仓库](../ray_agent/api/app/infrastructure/repositories/db_session_repository.py)、[工作单元](../ray_agent/api/app/infrastructure/repositories/db_uow.py)、[任务注册](../ray_agent/api/app/infrastructure/external/task/redis_stream_task.py)。
 
-观察重点：追踪中断后的状态、环境与副作用；历史可查看不能证明可恢复执行。
+观察重点：分别追踪动作未发出、动作已生效但结果未保存、结果已保存但页面未收到三个窗口。核对执行位置、文件和进程是否保留，以及重复执行是否改变结果；区分数据库记录、进程内注册和恢复依据。讨论幂等键、结果查询与并发所有权所需条件，不将这些通用策略写成现有保证。
 
 ## 第 10 章素材
 
 [领域事件](../ray_agent/api/app/domain/models/event.py)、[接口事件](../ray_agent/api/app/interfaces/schemas/event.py)、[前端事件](../ray_agent/ui/src/lib/session-events.ts)；基础实验 `4_5` 同步/异步、`4_6` FastAPI。
 
-观察重点：核对实时流与历史的可见范围；异步与 SSE 示例不证明完整追踪体系。
+补充入口：[模型适配](../ray_agent/api/app/infrastructure/external/llm/openai_llm.py)、[用量累计](../ray_agent/api/app/domain/models/token_usage.py)、[用量测试](../ray_agent/api/tests/core/test_llm_usage.py)、[任务运行器](../ray_agent/api/app/domain/services/agent_task_runner.py)、[应用配置](../ray_agent/api/app/application/services/app_config_service.py)。
+
+观察重点：沿用户请求、计划、模型调用、工具、产物建立关联表，核对实际 ID、耗时、状态与缺失记录。区分实时展示、历史、用量累计和完整追踪；未返回用量不是零消耗。记录模型、参数、提示与工具版本、环境初态，解释观测脱敏和保留范围；异步与 SSE 示例不证明评估或追踪体系。
 
 ## 第 11 章素材
 
 [沙箱适配](../ray_agent/api/app/infrastructure/external/sandbox/docker_sandbox.py)、[沙箱指南](../ray_agent/sandbox/README.md)。
 
-观察重点：检查环境生命周期、路径、进程与网络访问边界。
+补充入口：[沙箱文件服务](../ray_agent/sandbox/app/services/file.py)、[Shell 服务](../ray_agent/sandbox/app/services/shell.py)、[服务依赖](../ray_agent/api/app/interfaces/service_dependencies.py)。
+
+观察重点：检查环境生命周期、路径、进程与网络限制实际在哪里执行。用临时目录及本地服务设计越界读写、外部发送与资源清理观察；区分提示约束、审批、技术隔离。同会话复用与不同会话的资源归属需要分别核对，不能仅凭容器存在就认定租户隔离完备。
 
 ## 第 12 章素材
 
 [工具](../ray_agent/api/app/domain/services/tools/)、[文件存储](../ray_agent/api/app/infrastructure/external/file_storage/)。
 
-观察重点：区分工具返回、沙箱文件、界面记录与交付文件，核对同步链路。
+补充入口：[文件应用服务](../ray_agent/api/app/application/services/file_service.py)、[文件接口](../ray_agent/api/app/interfaces/endpoints/file_routes.py)、任务运行器中的文件与附件同步。
+
+观察重点：区分工具返回、沙箱文件、界面记录与交付文件，核对内容、文件 ID、来源与同步时机。设计写入后未同步、同步后断连、同路径再次覆盖的场景，检查用户拿到哪个版本，以及访问范围和资源清理如何确定。
 
 ## 第 13 章素材
 
 `labs/foundations/10-6`、`10-4`；[沙箱指南](../ray_agent/sandbox/README.md)。
 
-观察重点：区分本机浏览器实验与产品沙箱，观察页面状态如何反馈给模型。
+补充入口：[浏览器工具](../ray_agent/api/app/domain/services/tools/browser.py)、[浏览器适配](../ray_agent/api/app/infrastructure/external/browser/playwright_browser.py)、[记忆清理](../ray_agent/api/app/domain/models/memory.py)。
+
+观察重点：区分本机浏览器实验与产品沙箱；检查页面、截图与文本何时失效，状态如何反馈。用本地页面嵌入要求读取无关文件的文字，追踪资料与指令的信任边界；结合第 05 章说明清理旧观察后何时需要重新读取，不将提示注入防护默认写成已有能力。
 
 ## 第 14 章素材
 
 基础实验 MCP 示例；[MCP 适配](../ray_agent/api/app/infrastructure/protocols/mcp.py)。
 
-观察重点：观察发现、调用、结果与连接生命周期；手写协议示例用于对照 SDK 职责。
+观察重点：观察发现、调用、结果与连接生命周期；手写协议示例用于对照 SDK 职责。结合 [API 协议指南](../ray_agent/api/README.md#mcpa2a) 与 [协议边界测试](../ray_agent/api/tests/protocols/test_edges.py)核对版本、认证配置、超时和取消。远端工具说明与结果的可信范围、外部副作用、敏感配置记录需单独解释，不能将认证成功当成每个动作都已获准。
 
 ## 第 15 章素材
 
 [A2A 实验](../labs/a2a/README.md)；[A2A 适配](../ray_agent/api/app/infrastructure/protocols/a2a.py)。
 
-观察重点：对照 SDK 与手写客户端，核对远程任务状态如何映射为本地工具结果。
+观察重点：对照 SDK 与手写客户端，核对远程任务状态如何映射为本地工具结果；沿协议边界测试确认失败、超时、取消传播与资源释放。区分本地调用结束、远程任务结束和远程产物验收；讨论重复提交与结果查询的条件。A2A 接入不等于本地多 Agent 任务认领、并行汇合或共享状态。
 
 ## 第 16 章素材
 
 [API 指南](../ray_agent/api/README.md)、任务运行器、Agent 基类与资源适配层。
 
-观察重点：围绕任务样本、结果检查与失败场景研究验证方法，现有测试不等于任务评估体系。
+补充入口：[双循环夹具](../ray_agent/api/tests/core/test_planner_react_flow.py)、[用量测试](../ray_agent/api/tests/core/test_llm_usage.py)、[取消测试](../ray_agent/api/tests/core/test_agent_task_runner_cancel.py)、[协议边界测试](../ray_agent/api/tests/protocols/test_edges.py)、[Agent 评估方法](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents)。
+
+观察重点：设计包含文件交付、资料报告、失败纠正、长操作取消、压缩后继续的小型任务集；逐项定义初始环境、允许行动、预期产物、评分规则与失败分类。固定模型和运行配置比较一次改动，保留每次试验结果，观察成功率、耗时和可得用量；校验评分器，允许有效轨迹差异。故障实验承接第 08、09 章的窗口，检查重复副作用；区分程序分支夹具与真实模型评估，现有 API 测试不等于端到端任务验收。
 
 ## 第 17 章素材
 
 [架构说明](../docs/architecture.md)、[工作区调研](../docs/workspace-harness-research.md)。
 
-观察重点：核对跨会话状态、项目指令、环境及产物的衔接；调研方案不是已有能力。
+观察重点：核对跨会话状态、项目指令、环境及产物的衔接；调研方案不是已有能力。用暂停后交接同一项目的情境，明确目录、产物版本、待办、已验证结论和未决条件由谁保存。讨论并发修改归属、版本控制与隔离的必要性，用任务收益评估演进方案，不以增加自动化或多 Agent 数量作为完成标准。
