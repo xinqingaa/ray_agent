@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+<style>text{font-family:Arial,"PingFang SC",sans-serif;fill:#172334;font-size:28px}.small{font-size:23px;fill:#526172}.title{font-size:36px;font-weight:600}</style>
+<defs><marker id="arrow" markerWidth="8" markerHeight="7" refX="8" refY="3.5" orient="auto"><path d="M0 0 L8 3.5 L0 7Z" fill="#2563eb"/></marker></defs>
+<rect data-graph-role="background" width="1600" height="900" fill="#f3f6fa"/>
+<text x="80" y="75" text-anchor="start" class="title">取消请求、终态记录与实际停止分别观察</text>
+<text x="80" y="140" text-anchor="start" class="small">RayAgent 当前控制路径 · 各行不是统一完成时刻</text>
+<text x="80" y="230" text-anchor="start" class="">停止接口</text>
+<text x="80" y="410" text-anchor="start" class="">执行协程</text>
+<text x="80" y="590" text-anchor="start" class="">独立收尾任务</text>
+<text x="80" y="770" text-anchor="start" class="">沙箱进程</text>
+<rect x="350" y="175" width="310" height="90" rx="8" fill="#ffffff" stroke="#94a3b8" stroke-width="3"/>
+<text x="505.0" y="230.0" text-anchor="middle" class="">发出 cancel</text>
+<rect x="865" y="175" width="345" height="90" rx="8" fill="#ffffff" stroke="#94a3b8" stroke-width="3"/>
+<text x="1037.5" y="230.0" text-anchor="middle" class="">写 completed</text>
+<rect x="1320" y="175" width="200" height="90" rx="8" fill="#ffffff" stroke="#94a3b8" stroke-width="3"/>
+<text x="1420.0" y="230.0" text-anchor="middle" class="">接口返回</text>
+<path d="M660 220 H865" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#arrow)"/>
+<text x="762" y="202" text-anchor="middle" class="small">不等待清理</text>
+<path d="M1210 220 H1320" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#arrow)"/>
+<rect x="350" y="355" width="310" height="90" rx="8" fill="#eff6ff" stroke="#2563eb" stroke-width="3"/>
+<text x="505.0" y="410.0" text-anchor="middle" class="">响应取消</text>
+<rect x="865" y="355" width="345" height="90" rx="8" fill="#ffffff" stroke="#94a3b8" stroke-width="3"/>
+<text x="1037.5" y="410.0" text-anchor="middle" class="">清理 MCP / A2A</text>
+<rect x="1320" y="355" width="200" height="90" rx="8" fill="#ffffff" stroke="#94a3b8" stroke-width="3"/>
+<text x="1420.0" y="410.0" text-anchor="middle" class="">协程结束</text>
+<path d="M505 265 V355" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#arrow)"/>
+<path d="M660 400 H865" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#arrow)"/>
+<text x="762" y="382" text-anchor="middle" class="small">进入 finally</text>
+<path d="M1210 400 H1320" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#arrow)"/>
+<rect x="865" y="535" width="655" height="90" rx="8" fill="#ffffff" stroke="#94a3b8" stroke-width="3"/>
+<text x="1192.5" y="590.0" text-anchor="middle" class="">保存 DoneEvent 与 completed</text>
+<path d="M505 445 V580 H865" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#arrow)"/>
+<text x="670" y="559" text-anchor="middle" class="small">另行调度</text>
+<rect x="350" y="715" width="440" height="90" rx="8" fill="#ffffff" stroke="#94a3b8" stroke-width="3"/>
+<text x="570.0" y="770.0" text-anchor="middle" class="">仍需检查进程是否存活</text>
+<rect x="1050" y="715" width="470" height="90" rx="8" fill="#ffffff" stroke="#94a3b8" stroke-width="3"/>
+<text x="1285.0" y="770.0" text-anchor="middle" class="">显式终止后，检查退出码</text>
+<path d="M790 760 H1050" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#arrow)"/>
+<text x="920" y="739" text-anchor="middle" class="small">单独终止操作</text>
+<text x="80" y="862" text-anchor="start" class="small">停止会话路径未调用 Shell 终止；已写入文件不会因协程取消而撤销。</text>
+</svg>

@@ -63,6 +63,14 @@ uv run --locked python -m pytest tests/core/test_planner_react_flow.py tests/cor
 
 双循环用例保留实际流程、Planner、ReAct 和工具分发，用固定模型响应及内存存储、沙箱替身核对步骤选择、计划合并和失败出口；用量用例核对解析与累计。它们不连接外部服务，也不证明真实模型的规划质量或计费结果。
 
+第八章的执行控制可定向运行：
+
+```bash
+uv run --locked python -m pytest tests/core/test_task_execution_control.py tests/core/test_agent_task_runner_cancel.py tests/core/test_planner_react_flow.py
+```
+
+控制用例保留实际应用协调、运行器、任务适配或规划执行流程，按用例替换模型、传输、存储与沙箱；覆盖正常等待后用新运行器继续、事件交接处处理新输入、重复提交的任务选择、取消请求先于清理完成，以及迭代边界。取消用例用受控阻塞代替长流程，不启动操作系统进程。实际 Shell 进程观察见[沙箱指南](../sandbox/README.md#任务控制观察)；两段实验都不能替代真实 Web、Redis、数据库与容器链路验收，也不验证多进程并发排他。
+
 数据库结构变化时核对领域模型、ORM 转换与迁移文件：
 
 ```bash

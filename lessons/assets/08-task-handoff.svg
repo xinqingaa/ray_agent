@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+<style>text{font-family:Arial,"PingFang SC",sans-serif;fill:#172334;font-size:28px}.small{font-size:23px;fill:#526172}.title{font-size:36px;font-weight:600}</style>
+<defs><marker id="arrow" markerWidth="8" markerHeight="7" refX="8" refY="3.5" orient="auto"><path d="M0 0 L8 3.5 L0 7Z" fill="#2563eb"/></marker></defs>
+<rect data-graph-role="background" width="1600" height="900" fill="#f3f6fa"/>
+<text x="80" y="75" text-anchor="start" class="title">一次请求如何交给后台任务</text>
+<text x="80" y="145" text-anchor="start" class="small">输入与启动 · 新建或复用任务后</text>
+<rect x="80" y="210" width="285" height="110" rx="8" fill="#ffffff" stroke="#94a3b8" stroke-width="3"/>
+<text x="222.5" y="250" text-anchor="middle" class="">用户消息</text>
+<text x="222.5" y="288" text-anchor="middle" class="small">文件任务与附件</text>
+<rect x="465" y="210" width="285" height="110" rx="8" fill="#ffffff" stroke="#94a3b8" stroke-width="3"/>
+<text x="607.5" y="250" text-anchor="middle" class="">应用协调</text>
+<text x="607.5" y="288" text-anchor="middle" class="small">选择任务实例</text>
+<rect x="850" y="210" width="285" height="110" rx="8" fill="#ffffff" stroke="#94a3b8" stroke-width="3"/>
+<text x="992.5" y="250" text-anchor="middle" class="">输入队列</text>
+<text x="992.5" y="288" text-anchor="middle" class="small">保存待处理消息</text>
+<rect x="1235" y="210" width="285" height="110" rx="8" fill="#eff6ff" stroke="#2563eb" stroke-width="3"/>
+<text x="1377.5" y="250" text-anchor="middle" class="">后台运行器</text>
+<text x="1377.5" y="288" text-anchor="middle" class="small">消费输入并执行</text>
+<path d="M365 265 H465" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#arrow)"/>
+<text x="415" y="246" text-anchor="middle" class="small">提交</text>
+<path d="M750 265 H850" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#arrow)"/>
+<text x="800" y="246" text-anchor="middle" class="small">写入</text>
+<path d="M1135 265 H1235" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#arrow)"/>
+<text x="1185" y="246" text-anchor="middle" class="small">取出</text>
+<path d="M607 320 V415 H1377 V320" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#arrow)"/>
+<text x="975" y="398" text-anchor="middle" class="small">消息入队后调用 invoke，启动后台协程</text>
+<line x1="80" y1="480" x2="1520" y2="480" stroke="#cbd5e1" stroke-width="2"/>
+<text x="80" y="540" text-anchor="start" class="small">输出与展示 · 后台执行通过事件返回进展</text>
+<rect x="80" y="610" width="285" height="110" rx="8" fill="#ffffff" stroke="#94a3b8" stroke-width="3"/>
+<text x="222.5" y="650" text-anchor="middle" class="">页面展示</text>
+<text x="222.5" y="688" text-anchor="middle" class="small">消费事件</text>
+<rect x="465" y="610" width="285" height="110" rx="8" fill="#ffffff" stroke="#94a3b8" stroke-width="3"/>
+<text x="607.5" y="650" text-anchor="middle" class="">请求响应</text>
+<text x="607.5" y="688" text-anchor="middle" class="small">转换为 SSE</text>
+<rect x="850" y="610" width="285" height="110" rx="8" fill="#ffffff" stroke="#94a3b8" stroke-width="3"/>
+<text x="992.5" y="650" text-anchor="middle" class="">输出队列</text>
+<text x="992.5" y="688" text-anchor="middle" class="small">承接执行事件</text>
+<rect x="1235" y="610" width="285" height="110" rx="8" fill="#eff6ff" stroke="#2563eb" stroke-width="3"/>
+<text x="1377.5" y="650" text-anchor="middle" class="">后台运行器</text>
+<text x="1377.5" y="688" text-anchor="middle" class="small">产生执行事件</text>
+<path d="M1235 665 H1135" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#arrow)"/>
+<text x="1185" y="646" text-anchor="middle" class="small">写入</text>
+<path d="M850 665 H750" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#arrow)"/>
+<text x="800" y="646" text-anchor="middle" class="small">读取</text>
+<path d="M465 665 H365" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#arrow)"/>
+<text x="415" y="646" text-anchor="middle" class="small">推送</text>
+<text x="80" y="822" text-anchor="start" class="small">执行协程由任务实例持有；请求负责输入与输出消费。图中未展开错误与等待分支。</text>
+</svg>

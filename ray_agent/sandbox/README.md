@@ -2,7 +2,7 @@
 
 沙箱提供 Shell、文件、浏览器与进程管理能力。完整镜像由 Ubuntu、Python、Chromium、虚拟显示与 VNC 组件构成，Supervisor 负责启动各进程。
 
-本文区分完整沙箱与 Python 开发环境。架构边界见 [架构说明](../../docs/architecture.md)，整体部署见 [运行指南](../README.md)。下列配置与命令已静态核对，尚未完成运行验证。
+本文区分完整沙箱与 Python 开发环境。架构边界见 [架构说明](../../docs/architecture.md)，整体部署见 [运行指南](../README.md)。部署配置与启动命令已静态核对；下方任务控制脚本已有本地运行记录，不能代替完整沙箱验证。
 
 ## 完整沙箱
 
@@ -74,3 +74,15 @@ UV_PROJECT_ENVIRONMENT=/venv uv run --locked uvicorn app.main:app --host 0.0.0.0
 - API 侧调用方：[沙箱适配](../api/app/infrastructure/external/sandbox/docker_sandbox.py)、[浏览器适配](../api/app/infrastructure/external/browser/playwright_browser.py)。
 
 当前没有独立测试套件。Shell 或文件修改应在临时工作目录验证请求、结果和错误路径；浏览器相关修改需连同 CDP、VNC 和 API 侧调用一起验证。只启动 Python API 不代表完整沙箱可用。
+
+### 任务控制观察
+
+在本目录运行第八章的单进程实验：
+
+```bash
+uv run --locked python scripts/check_shell_control.py
+```
+
+脚本直接使用实际 `ShellService`，在临时目录启动一个持续追加文件的 Python 进程，依次观察等待超时、调用协程取消、文件继续增长、显式终止与实际退出码。它用 `exec` 消除外层 shell 子进程，并在 `finally` 中回收进程、退出临时目录时删除实验文件。终止前的文件仍存在，用于说明取消没有撤销先前写入。
+
+需要本机有 `/bin/bash`；使用沙箱锁定 Python 环境，无需启动 HTTP、Docker 或模型。输出含本次 PID、相对耗时、文件字节与退出结果，数值随运行变化；预期会出现一次等待超时日志。它不验证 API 停止接口、容器隔离、多层进程树、忽略终止信号或完整产品取消传播。课程验证记录见[制作进度](../../lessons/progress.md)。

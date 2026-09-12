@@ -101,11 +101,18 @@
 
 ## 第 08 章素材
 
-[应用协调](../ray_agent/api/app/application/services/agent_service.py)、[运行器](../ray_agent/api/app/domain/services/agent_task_runner.py)、[任务适配](../ray_agent/api/app/infrastructure/external/task/redis_stream_task.py)。
+文件任务用于串联正常控制，缺少路径与长操作分别用于观察等待和取消。区分代码事实、确定性夹具和真实产品；本地进程实验不能与 API 替身测试拼接为端到端证据。
 
-补充入口：[Agent 配置](../ray_agent/api/app/domain/models/app_config.py)、[基础循环](../ray_agent/api/app/domain/services/agents/base.py)、[取消测试](../ray_agent/api/tests/core/test_agent_task_runner_cancel.py)、[Shell 服务](../ray_agent/sandbox/app/services/shell.py)。
-
-观察重点：区分模型不再行动、程序超限、等待输入、取消请求与取消确认；区分次数上限、单次超时、总时限、token 记账与强制预算。沿一次长操作检查后台进程是否结束、终态何时保存、资源何时释放。审批应绑定具体动作与资源，不能把询问用户当成完整授权系统；同会话重复提交的承接与排他范围也需核对。
+| 核对内容 | 实现入口与观察重点 |
+|---|---|
+| 启动、补充输入与重复提交 | [应用协调](../ray_agent/api/app/application/services/agent_service.py) 的 `chat`、`_create_task`；[任务适配](../ray_agent/api/app/infrastructure/external/task/redis_stream_task.py) 的 `invoke` 与注册表；[输入流](../ray_agent/api/app/infrastructure/external/message_queue/redis_stream_message_queue.py) 的 `pop`。核对实例内防重入、消息不去重，以及弹出锁不覆盖会话任务创建。 |
+| 输入生效时刻 | [运行器](../ray_agent/api/app/domain/services/agent_task_runner.py) 的 `invoke`：事件发布之后检查新输入；不是只在计划步骤结束时检查。 |
+| 等待与继续 | [消息工具](../ray_agent/api/app/domain/services/tools/message.py)、[执行器](../ray_agent/api/app/domain/services/agents/react.py) 的 `execute_step`、[Flow](../ray_agent/api/app/domain/services/flows/planner_react.py) 的状态分支、[Agent 基类](../ray_agent/api/app/domain/services/agents/base.py) 的 `roll_back`。核对新运行器加载历史计划和提问回复；消息结构修整不撤销副作用，询问也不等于动作绑定的审批。 |
+| 取消与清理 | `AgentService.stop_session`、`RedisStreamTask.cancel`、运行器的 `_persist_terminal_state`、`_cleanup_tools`、`destroy`。区分接口返回、注册移除、终态写入、协程退出和环境销毁；[会话状态](../ray_agent/api/app/domain/models/session.py) 没有单独的 cancelled。 |
+| 控制夹具 | [执行控制测试](../ray_agent/api/tests/core/test_task_execution_control.py)、[取消测试](../ray_agent/api/tests/core/test_agent_task_runner_cancel.py)。固定输入交接时刻，核对新消息切换、等待续接、重复提交、取消时清理未完成、内层迭代边界。运行命令及替身范围归 [API 指南](../ray_agent/api/README.md#测试与数据库迁移)。 |
+| 实际 Shell 进程 | [Shell 服务](../ray_agent/sandbox/app/services/shell.py) 的 `exec_command`、`wait_process`、`kill_process`；[本地观察脚本](../ray_agent/sandbox/scripts/check_shell_control.py)。检查调用协程取消后进程和文件是否继续变化，显式终止后核对退出码并回收资源。运行条件归[沙箱指南](../ray_agent/sandbox/README.md#任务控制观察)。 |
+| 次数、时间与消耗 | [Agent 配置](../ray_agent/api/app/domain/models/app_config.py)、`BaseAgent.invoke/_invoke_llm/_invoke_tool`、[模型适配](../ray_agent/api/app/infrastructure/external/llm/openai_llm.py)、[沙箱适配](../ray_agent/api/app/infrastructure/external/sandbox/docker_sandbox.py)、[用量累计](../ray_agent/api/app/domain/models/token_usage.py)。区分迭代、尝试次数、请求超时、总时限、单次输出限制和记账；不预设统一任务预算。 |
+| 通用取消语义 | [Python 3.12 asyncio](https://docs.python.org/3.12/library/asyncio-task.html#task-cancellation)：取消请求、异常传播与清理；不据此推断远端进程已停止。 |
 
 ## 第 09 章素材
 

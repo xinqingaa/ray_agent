@@ -46,8 +46,8 @@ def initial_plan():
     ]})
 
 
-def make_flow(responses):
-    session = Session(id="lesson-07")
+def make_flow(responses, session=None):
+    session = session if session is not None else Session(id="lesson-07")
     requests = []
     remaining = list(responses)
 

@@ -1,0 +1,42 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+<style>text{font-family:Arial,"PingFang SC",sans-serif;fill:#172334;font-size:28px}.small{font-size:23px;fill:#526172}.title{font-size:36px;font-weight:600}</style>
+<defs><marker id="arrow" markerWidth="8" markerHeight="7" refX="8" refY="3.5" orient="auto"><path d="M0 0 L8 3.5 L0 7Z" fill="#2563eb"/></marker></defs>
+<rect data-graph-role="background" width="1600" height="900" fill="#f3f6fa"/>
+<text x="80" y="75" text-anchor="start" class="title">等待结束当前运行，回复触发下一次执行</text>
+<text x="80" y="145" text-anchor="start" class="small">第一次运行 · 等待必要信息</text>
+<rect x="80" y="215" width="340" height="110" rx="8" fill="#eff6ff" stroke="#2563eb" stroke-width="3"/>
+<text x="250.0" y="255" text-anchor="middle" class="">执行器提问</text>
+<text x="250.0" y="293" text-anchor="middle" class="small">message_ask_user</text>
+<rect x="625" y="215" width="340" height="110" rx="8" fill="#ffffff" stroke="#94a3b8" stroke-width="3"/>
+<text x="795.0" y="255" text-anchor="middle" class="">产生等待事件</text>
+<text x="795.0" y="293" text-anchor="middle" class="small">运行器记录 waiting</text>
+<rect x="1170" y="215" width="350" height="110" rx="8" fill="#ffffff" stroke="#94a3b8" stroke-width="3"/>
+<text x="1345.0" y="255" text-anchor="middle" class="">当前运行退出</text>
+<text x="1345.0" y="293" text-anchor="middle" class="small">清理协议连接</text>
+<path d="M420 270 H625" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#arrow)"/>
+<text x="522" y="248" text-anchor="middle" class="small">工具返回</text>
+<path d="M965 270 H1170" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#arrow)"/>
+<text x="1067" y="248" text-anchor="middle" class="small">停止消费流程</text>
+<text x="80" y="402" text-anchor="start" class="small">保留依据：会话中的计划事件、Agent 记忆，以及尚未配对的提问调用。</text>
+<line x1="80" y1="450" x2="1520" y2="450" stroke="#cbd5e1" stroke-width="2"/>
+<text x="80" y="515" text-anchor="start" class="small">用户回复后 · 基于已有记录继续</text>
+<rect x="80" y="585" width="300" height="110" rx="8" fill="#ffffff" stroke="#94a3b8" stroke-width="3"/>
+<text x="230.0" y="625" text-anchor="middle" class="">用户回复</text>
+<text x="230.0" y="663" text-anchor="middle" class="small">补充文件路径</text>
+<rect x="460" y="585" width="300" height="110" rx="8" fill="#ffffff" stroke="#94a3b8" stroke-width="3"/>
+<text x="610.0" y="625" text-anchor="middle" class="">新任务实例</text>
+<text x="610.0" y="663" text-anchor="middle" class="small">新建运行器与流程</text>
+<rect x="840" y="585" width="300" height="110" rx="8" fill="#ffffff" stroke="#94a3b8" stroke-width="3"/>
+<text x="990.0" y="625" text-anchor="middle" class="">读取历史</text>
+<text x="990.0" y="663" text-anchor="middle" class="small">计划与提问回复</text>
+<rect x="1220" y="585" width="300" height="110" rx="8" fill="#eff6ff" stroke="#2563eb" stroke-width="3"/>
+<text x="1370.0" y="625" text-anchor="middle" class="">继续执行</text>
+<text x="1370.0" y="663" text-anchor="middle" class="small">选择未结束步骤</text>
+<path d="M380 640 H460" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#arrow)"/>
+<text x="420" y="565" text-anchor="middle" class="small">提交</text>
+<path d="M760 640 H840" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#arrow)"/>
+<text x="800" y="565" text-anchor="middle" class="small">加载</text>
+<path d="M1140 640 H1220" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#arrow)"/>
+<text x="1180" y="565" text-anchor="middle" class="small">进入执行</text>
+<text x="80" y="798" text-anchor="start" class="small">回复通过 tool_call_id 配对提问；这条续接路径依赖记录齐全，不是任意位置的断点恢复。</text>
+</svg>
