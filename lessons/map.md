@@ -129,11 +129,16 @@
 
 ## 第 10 章素材
 
-[领域事件](../ray_agent/api/app/domain/models/event.py)、[接口事件](../ray_agent/api/app/interfaces/schemas/event.py)、[前端事件](../ray_agent/ui/src/lib/session-events.ts)；基础实验 `4_5` 同步/异步、`4_6` FastAPI。
+| 研究问题 | 实现入口与观察重点 |
+|---|---|
+| 事件生成与投影 | [领域事件](../ray_agent/api/app/domain/models/event.py)、[接口映射](../ray_agent/api/app/interfaces/schemas/event.py)、[任务运行器](../ray_agent/api/app/domain/services/agent_task_runner.py)、[会话路由](../ray_agent/api/app/interfaces/endpoints/session_routes.py)。工具原结果与预览分开；计划字段投影、事件时间取整、实时和历史共用映射。 |
+| 模型响应与用量 | [模型适配](../ray_agent/api/app/infrastructure/external/llm/openai_llm.py)、[Agent 基类](../ray_agent/api/app/domain/services/agents/base.py)、[用量解析](../ray_agent/api/app/infrastructure/external/llm/usage.py)、[用量累计](../ray_agent/api/app/domain/models/token_usage.py)。完整响应与产品 SSE 分开；重试、缺失字段和重复记录影响记账覆盖。 |
+| 前端接收与归并 | [SSE 接收](../ray_agent/ui/src/lib/api/fetch.ts)、[聊天请求](../ray_agent/ui/src/lib/api/session.ts)、[详情 hook](../ray_agent/ui/src/hooks/use-session-detail.ts)、[事件投影](../ray_agent/ui/src/lib/session-events.ts)、[时间格式](../ray_agent/ui/src/lib/utils.ts)。JSON event_id 游标、输入后步骤分组、tool_call_id 阶段合并、EOF 和 CRLF 分块限制。 |
+| 关联与记录范围 | [运行日志](../ray_agent/api/app/infrastructure/logging/logging.py)、[应用配置](../ray_agent/api/app/application/services/app_config_service.py)。会话前缀不是完整 trace；区分当时调用参数与当前配置，检查输入片段、工具结果和 DEBUG 响应的记录范围。 |
+| 本地验证 | [事件用例](../ray_agent/api/tests/core/test_event_observability.py)、[既有用量用例](../ray_agent/api/tests/core/test_llm_usage.py)、[UI 观察脚本](../ray_agent/ui/scripts/check-event-observability.cjs)。运行入口归 [API 指南](../ray_agent/api/README.md#测试与数据库迁移)与 [UI 指南](../ray_agent/ui/README.md#事件观察)；限制观测不算标准符合性通过。 |
+| 通用概念 | [HTML SSE 标准](https://html.spec.whatwg.org/multipage/server-sent-events.html)、[OpenTelemetry 信号](https://opentelemetry.io/docs/concepts/signals/)。规范用于核对文本事件边界，信号分类用于解释日志、指标与追踪；不据此宣称产品已经集成完整体系。 |
 
-补充入口：[模型适配](../ray_agent/api/app/infrastructure/external/llm/openai_llm.py)、[用量累计](../ray_agent/api/app/domain/models/token_usage.py)、[用量测试](../ray_agent/api/tests/core/test_llm_usage.py)、[任务运行器](../ray_agent/api/app/domain/services/agent_task_runner.py)、[应用配置](../ray_agent/api/app/application/services/app_config_service.py)。
-
-观察重点：沿用户请求、计划、模型调用、工具、产物建立关联表，核对实际 ID、耗时、状态与缺失记录。区分实时展示、历史、用量累计和完整追踪；未返回用量不是零消耗。记录模型、参数、提示与工具版本、环境初态，解释观测脱敏和保留范围；异步与 SSE 示例不证明评估或追踪体系。
+真实关联样例复用第九章同会话任务，运行与本次复核证据归 [制作进度](progress.md#第-10-章事件与可观察性)。按会话关联输入、计划、调用、用量和附件，明确父步骤、模型请求、重试与精确计时字段的缺口。基础实验 `4_5` 同步/异步、`4_6` FastAPI 仅为异步等待的辅助材料，不代替产品事件或追踪验证。
 
 ## 第 11 章素材
 

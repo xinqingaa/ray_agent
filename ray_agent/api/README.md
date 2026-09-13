@@ -79,6 +79,14 @@ uv run --locked python -m pytest tests/core/test_state_persistence.py tests/core
 
 新增状态用例保留实际 Agent、Flow 或事件发布方法，核对 `called` 交接先于工具结果保存、消息回滚保留临时文件、输出发布后仓库保存失败，以及会话序列化后加载计划和提问回复。存储、传输、模型与沙箱使用替身；其中写入替身只操作 pytest 临时目录。它们不连接数据库或 Redis，也不模拟 API 进程崩溃、事务提交故障和多执行者接管。
 
+第十章的事件与用量可定向运行：
+
+```bash
+uv run --locked python -m pytest tests/core/test_event_observability.py tests/core/test_llm_usage.py tests/core/test_state_persistence.py
+```
+
+新增事件用例核对实时与历史映射一致性、字段投影及秒级时间、空回复重试的用量交接缺口，以及一对工具事件内的多次执行尝试。模型、沙箱与存储均为替身，不验证外部计费或端到端断连。前端解析和时间线归并观察见 [UI 指南](../ui/README.md#事件观察)。
+
 数据库结构变化时核对领域模型、ORM 转换与迁移文件：
 
 ```bash

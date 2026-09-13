@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+<style>text{font-family:Arial,"PingFang SC",sans-serif;fill:#172334;font-size:28px}.small{font-size:23px;fill:#526172}.title{font-size:36px;font-weight:600}</style>
+<defs><marker id="arrow" markerWidth="8" markerHeight="7" refX="8" refY="3.5" orient="auto"><path d="M0 0 L8 3.5 L0 7Z" fill="#2563eb"/></marker></defs>
+<rect data-graph-role="background" width="1600" height="900" fill="#f3f6fa"/>
+<text x="60" y="75" class="title">事件经过投影，实时与历史共享展示入口</text>
+<rect x="60" y="210" width="280" height="110" rx="8" fill="#eff6ff" stroke="#2563eb" stroke-width="3"/>
+<text x="200.0" y="252" text-anchor="middle" class="">运行流程</text>
+<text x="200.0" y="290" text-anchor="middle" class="small">产生领域事件</text>
+<rect x="460" y="210" width="280" height="110" rx="8" fill="#ffffff" stroke="#94a3b8" stroke-width="3"/>
+<text x="600.0" y="252" text-anchor="middle" class="">Redis 输出流</text>
+<text x="600.0" y="290" text-anchor="middle" class="small">当前任务的事件</text>
+<rect x="460" y="570" width="280" height="110" rx="8" fill="#ffffff" stroke="#94a3b8" stroke-width="3"/>
+<text x="600.0" y="612" text-anchor="middle" class="">会话历史</text>
+<text x="600.0" y="650" text-anchor="middle" class="small">数据库中的事件</text>
+<rect x="860" y="390" width="280" height="110" rx="8" fill="#eff6ff" stroke="#2563eb" stroke-width="3"/>
+<text x="1000.0" y="432" text-anchor="middle" class="">接口映射</text>
+<text x="1000.0" y="470" text-anchor="middle" class="small">选择字段与格式</text>
+<rect x="1260" y="390" width="280" height="110" rx="8" fill="#ffffff" stroke="#94a3b8" stroke-width="3"/>
+<text x="1400.0" y="432" text-anchor="middle" class="">页面归并</text>
+<text x="1400.0" y="470" text-anchor="middle" class="small">时间线、计划、用量</text>
+<path d="M340 265 H460" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#arrow)"/>
+<path d="M740 265 H1000 V390" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#arrow)"/>
+<text x="995" y="239" text-anchor="middle" class="small">聊天请求读取</text>
+<path d="M200 320 V625 H460" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#arrow)"/>
+<text x="225" y="467" text-anchor="start" class="small">另行保存</text>
+<path d="M740 625 H1000 V500" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#arrow)"/>
+<text x="860" y="669" text-anchor="middle" class="small">刷新读取历史</text>
+<path d="M1140 445 H1260" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#arrow)"/>
+<text x="60" y="790" text-anchor="start" class="small">文件工具：内部 function_result 与页面 content 属于不同字段。</text>
+<text x="60" y="838" text-anchor="start" class="small">历史与实时的一致表示，有助于展示；不能独立证明记录完整或动作成功。</text>
+</svg>

@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+<style>text{font-family:Arial,"PingFang SC",sans-serif;fill:#172334;font-size:28px}.small{font-size:23px;fill:#526172}.title{font-size:36px;font-weight:600}</style>
+<defs><marker id="arrow" markerWidth="8" markerHeight="7" refX="8" refY="3.5" orient="auto"><path d="M0 0 L8 3.5 L0 7Z" fill="#2563eb"/></marker></defs>
+<rect data-graph-role="background" width="1600" height="900" fill="#f3f6fa"/>
+<text x="60" y="75" class="title">测量耗时之前，先明确起点与终点</text>
+<text x="60" y="145" text-anchor="start" class="small">一次文件调用的观察边界 · 时序示意，不按实际耗时比例绘制</text>
+<rect x="60" y="225" width="240" height="110" rx="8" fill="#eff6ff" stroke="#2563eb" stroke-width="3"/>
+<text x="180.0" y="267" text-anchor="middle" class="">calling 创建</text>
+<text x="180.0" y="305" text-anchor="middle" class="small">随后发布与保存</text>
+<path d="M300 280 H370" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#arrow)"/>
+<rect x="370" y="225" width="240" height="110" rx="8" fill="#ffffff" stroke="#94a3b8" stroke-width="3"/>
+<text x="490.0" y="267" text-anchor="middle" class="">发出工具请求</text>
+<text x="490.0" y="305" text-anchor="middle" class="small">可包含失败重试</text>
+<path d="M610 280 H680" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#arrow)"/>
+<rect x="680" y="225" width="240" height="110" rx="8" fill="#eff6ff" stroke="#2563eb" stroke-width="3"/>
+<text x="800.0" y="267" text-anchor="middle" class="">called 创建</text>
+<text x="800.0" y="305" text-anchor="middle" class="small">工具已返回</text>
+<path d="M920 280 H990" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#arrow)"/>
+<rect x="990" y="225" width="240" height="110" rx="8" fill="#ffffff" stroke="#94a3b8" stroke-width="3"/>
+<text x="1110.0" y="267" text-anchor="middle" class="">预览与文件同步</text>
+<text x="1110.0" y="305" text-anchor="middle" class="small">发布结束事件</text>
+<path d="M1230 280 H1300" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#arrow)"/>
+<rect x="1300" y="225" width="240" height="110" rx="8" fill="#ffffff" stroke="#94a3b8" stroke-width="3"/>
+<text x="1420.0" y="267" text-anchor="middle" class="">页面接收与展示</text>
+<text x="1420.0" y="305" text-anchor="middle" class="small">还受传输和消费影响</text>
+<!-- 用具体起止动作解释三种测量口径。工具请求与页面展示边界需另行埋点。 -->
+<rect x="60" y="385" width="1480" height="120" rx="8" fill="#eff6ff" stroke="#2563eb" stroke-width="3"/>
+<text x="88" y="432" font-weight="600">两个事件相隔多久？</text>
+<text x="88" y="473" class="small">已有事件时间可相减</text>
+<text x="420" y="432">创建 calling → 创建 called</text>
+<text x="420" y="473" class="small">先发布、保存 calling，再执行工具调用；失败后的重试也算在内。</text>
+<rect x="60" y="530" width="1480" height="120" rx="8" fill="#ffffff" stroke="#94a3b8" stroke-width="3"/>
+<text x="88" y="577" font-weight="600">一次请求花了多久？</text>
+<text x="88" y="618" class="small">需在请求边界另行计时</text>
+<text x="420" y="577">发出一次工具请求 → 收到这次请求的返回</text>
+<text x="420" y="618" class="small">例如向沙箱发出写文件请求，等待文件写入并收到响应；重试时逐次记录。</text>
+<rect x="60" y="675" width="1480" height="120" rx="8" fill="#ffffff" stroke="#94a3b8" stroke-width="3"/>
+<text x="88" y="722" font-weight="600">何时在页面看到结果？</text>
+<text x="88" y="763" class="small">需补充页面端观察时间</text>
+<text x="420" y="722">创建 calling → 页面展示这次工具的结果</text>
+<text x="420" y="763" class="small">工具返回后，还要读取预览、同步文件、发送结束事件，最后由页面接收与展示。</text>
+<text x="60" y="855" class="small">实际例子：写文件的两个领域事件相隔 11.621 毫秒，但接口取整到秒后，时间差显示为 0 秒。</text>
+</svg>
