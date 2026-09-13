@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+<style>text{font-family:Arial,"PingFang SC",sans-serif;fill:#172334;font-size:28px}.small{font-size:23px;fill:#526172}.title{font-size:36px;font-weight:600}</style>
+<defs><marker id="arrow" markerWidth="8" markerHeight="7" refX="8" refY="3.5" orient="auto"><path d="M0 0 L8 3.5 L0 7Z" fill="#2563eb"/></marker></defs>
+<rect data-graph-role="background" width="1600" height="900" fill="#f3f6fa"/>
+<text x="60" y="75" class="title">状态有不同的归属，恢复需要重新建立联系</text>
+<rect data-graph-role="container" x="60" y="125" width="510" height="650" rx="10" fill="#eaf0f7" stroke="#cbd5e1" stroke-width="2"/>
+<text x="90" y="161" text-anchor="start" class="small">API 进程内</text>
+<rect x="90" y="185" width="450" height="110" rx="8" fill="#eff6ff" stroke="#2563eb" stroke-width="3"/>
+<text x="315.0" y="227" text-anchor="middle" class="">Memory · 计划 · 会话</text>
+<text x="315.0" y="265" text-anchor="middle" class="small">运行对象使用的状态</text>
+<rect x="940" y="185" width="600" height="110" rx="8" fill="#ffffff" stroke="#94a3b8" stroke-width="3"/>
+<text x="1240.0" y="227" text-anchor="middle" class="">PostgreSQL</text>
+<text x="1240.0" y="265" text-anchor="middle" class="small">会话、事件、Memory、文件元数据</text>
+<path d="M540 240 H940" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#arrow)"/>
+<text x="740.0" y="220" text-anchor="middle" class="small">加载与保存</text>
+<rect x="90" y="330" width="450" height="110" rx="8" fill="#eff6ff" stroke="#2563eb" stroke-width="3"/>
+<text x="315.0" y="372" text-anchor="middle" class="">任务实例 · 执行协程</text>
+<text x="315.0" y="410" text-anchor="middle" class="small">注册表保留在 API 内存</text>
+<rect x="940" y="330" width="600" height="110" rx="8" fill="#ffffff" stroke="#94a3b8" stroke-width="3"/>
+<text x="1240.0" y="372" text-anchor="middle" class="">Redis Stream</text>
+<text x="1240.0" y="410" text-anchor="middle" class="small">按任务 ID 组织输入与输出</text>
+<path d="M540 385 H940" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#arrow)"/>
+<text x="740.0" y="365" text-anchor="middle" class="small">传递消息</text>
+<rect x="90" y="475" width="450" height="110" rx="8" fill="#eff6ff" stroke="#2563eb" stroke-width="3"/>
+<text x="315.0" y="517" text-anchor="middle" class="">工具与资源连接</text>
+<text x="315.0" y="555" text-anchor="middle" class="small">按 sandbox_id 尝试连接</text>
+<rect x="940" y="475" width="600" height="110" rx="8" fill="#ffffff" stroke="#94a3b8" stroke-width="3"/>
+<text x="1240.0" y="517" text-anchor="middle" class="">沙箱</text>
+<text x="1240.0" y="555" text-anchor="middle" class="small">文件、进程、浏览器状态</text>
+<path d="M540 530 H940" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#arrow)"/>
+<text x="740.0" y="510" text-anchor="middle" class="small">访问环境</text>
+<rect x="90" y="620" width="450" height="110" rx="8" fill="#eff6ff" stroke="#2563eb" stroke-width="3"/>
+<text x="315.0" y="662" text-anchor="middle" class="">文件同步</text>
+<text x="315.0" y="700" text-anchor="middle" class="small">建立文件与会话的关联</text>
+<rect x="940" y="620" width="600" height="110" rx="8" fill="#ffffff" stroke="#94a3b8" stroke-width="3"/>
+<text x="1240.0" y="662" text-anchor="middle" class="">文件存储</text>
+<text x="1240.0" y="700" text-anchor="middle" class="small">可下载的内容副本</text>
+<path d="M540 675 H940" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#arrow)"/>
+<text x="740.0" y="655" text-anchor="middle" class="small">上传与下载</text>
+<text x="60" y="837" text-anchor="start" class="small">保存 task_id 或 sandbox_id，只保留引用；对应的执行对象与资源仍需核对。</text>
+</svg>

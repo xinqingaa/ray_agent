@@ -116,9 +116,16 @@
 
 ## 第 09 章素材
 
-[领域模型](../ray_agent/api/app/domain/models/)、[会话仓库](../ray_agent/api/app/infrastructure/repositories/db_session_repository.py)、[工作单元](../ray_agent/api/app/infrastructure/repositories/db_uow.py)、[任务注册](../ray_agent/api/app/infrastructure/external/task/redis_stream_task.py)。
+| 研究问题 | 实现入口与观察重点 |
+|---|---|
+| 状态归属与提交 | [会话](../ray_agent/api/app/domain/models/session.py)、[计划](../ray_agent/api/app/domain/models/plan.py)、[Memory](../ray_agent/api/app/domain/models/memory.py)、[数据库会话模型](../ray_agent/api/app/infrastructure/models/session.py)、[会话仓库](../ray_agent/api/app/infrastructure/repositories/db_session_repository.py)、[工作单元](../ray_agent/api/app/infrastructure/repositories/db_uow.py)。区分领域对象、序列化表示、仓库更新与事务提交，核对持久化字段及未保存的执行位置。 |
+| 动作与记录间隔 | [Agent 基类](../ray_agent/api/app/domain/services/agents/base.py) 的 `invoke/_invoke_llm/_add_to_memory/roll_back`、[任务运行器](../ray_agent/api/app/domain/services/agent_task_runner.py) 的 `_handle_tool_event/_put_and_add_event`。追踪 calling、实际动作、called、预览同步、输出发布、事件保存及工具结果进入 Memory 的顺序；消息回滚不撤销外部副作用。 |
+| 等待后重新组装 | [应用协调](../ray_agent/api/app/application/services/agent_service.py)、[规划执行流](../ray_agent/api/app/domain/services/flows/planner_react.py)、[执行器](../ray_agent/api/app/domain/services/agents/react.py)。核对新任务、新 Flow、原沙箱查找、角色记忆加载与提问配对；`get_latest_plan` 读取最新 PlanEvent，不自动合并后续 StepEvent。 |
+| 历史与执行者 | [任务注册](../ray_agent/api/app/infrastructure/external/task/redis_stream_task.py)、[Redis 队列](../ray_agent/api/app/infrastructure/external/message_queue/redis_stream_message_queue.py)、[会话路由](../ray_agent/api/app/interfaces/endpoints/session_routes.py)、[前端详情加载](../ray_agent/ui/src/hooks/use-session-detail.ts)、[页面事件处理](../ray_agent/ui/src/lib/session-events.ts)。输入取出时删除，输出按游标读取；前端合并步骤进度不等于后台恢复计划；进程内注册不随 Redis 消息自动恢复。 |
+| 环境与存储保留 | [沙箱适配](../ray_agent/api/app/infrastructure/external/sandbox/docker_sandbox.py)、[Compose](../ray_agent/docker-compose.yml)、[沙箱连接说明](../ray_agent/sandbox/README.md#与-api-连接)。核对容器 ID 与实际资源、数据卷、Redis 配置和文件副本；区分同会话续接与跨会话文件访问。 |
+| 定向验证 | [状态夹具](../ray_agent/api/tests/core/test_state_persistence.py)、[控制夹具](../ray_agent/api/tests/core/test_task_execution_control.py)、[API 测试入口](../ray_agent/api/README.md#测试与数据库迁移)。检查交接快照、临时文件、序列化重建与存储失败分支；真实同会话观察及缺口归[制作进度](progress.md#第-09-章状态与持久化)。 |
 
-观察重点：分别追踪动作未发出、动作已生效但结果未保存、结果已保存但页面未收到三个窗口。核对执行位置、文件和进程是否保留，以及重复执行是否改变结果；区分数据库记录、进程内注册和恢复依据。讨论幂等键、结果查询与并发所有权所需条件，不将这些通用策略写成现有保证。
+观察重点：分别追踪动作未发出、动作已生效但结果未保存、结果已保存但页面未收到三个窗口。说明保存的是事件、Memory 还是产物；补充输出先发布、数据库后提交的反向窗口。幂等键、结果查询、检查点与并发所有权属于通用设计条件，不作为现有保证；系统性故障实测由第 16 章承接。
 
 ## 第 10 章素材
 

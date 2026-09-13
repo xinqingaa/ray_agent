@@ -71,6 +71,14 @@ uv run --locked python -m pytest tests/core/test_task_execution_control.py tests
 
 控制用例保留实际应用协调、运行器、任务适配或规划执行流程，按用例替换模型、传输、存储与沙箱；覆盖正常等待后用新运行器继续、事件交接处处理新输入、重复提交的任务选择、取消请求先于清理完成，以及迭代边界。取消用例用受控阻塞代替长流程，不启动操作系统进程。实际 Shell 进程观察见[沙箱指南](../sandbox/README.md#任务控制观察)；两段实验都不能替代真实 Web、Redis、数据库与容器链路验收，也不验证多进程并发排他。
 
+第九章的状态与持久化可定向运行：
+
+```bash
+uv run --locked python -m pytest tests/core/test_state_persistence.py tests/core/test_task_execution_control.py tests/core/test_planner_react_flow.py
+```
+
+新增状态用例保留实际 Agent、Flow 或事件发布方法，核对 `called` 交接先于工具结果保存、消息回滚保留临时文件、输出发布后仓库保存失败，以及会话序列化后加载计划和提问回复。存储、传输、模型与沙箱使用替身；其中写入替身只操作 pytest 临时目录。它们不连接数据库或 Redis，也不模拟 API 进程崩溃、事务提交故障和多执行者接管。
+
 数据库结构变化时核对领域模型、ORM 转换与迁移文件：
 
 ```bash
