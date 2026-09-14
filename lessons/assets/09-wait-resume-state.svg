@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+<style>text{font-family:Arial,"PingFang SC",sans-serif;fill:#172334;font-size:28px}.small{font-size:23px;fill:#526172}.title{font-size:36px;font-weight:600}</style>
+<defs><marker id="arrow" markerWidth="8" markerHeight="7" refX="8" refY="3.5" orient="auto"><path d="M0 0 L8 3.5 L0 7Z" fill="#2563eb"/></marker></defs>
+<rect data-graph-role="background" width="1600" height="900" fill="#f3f6fa"/>
+<text x="60" y="75" class="title">新运行器读取留下的记录，不恢复原调用栈</text>
+<text x="60" y="130" class="small">上排是等待退出后仍在会话里的依据；下排是新运行器实际拿去继续的东西</text>
+<rect x="60" y="200" width="420" height="120" rx="8" fill="#ffffff" stroke="#94a3b8" stroke-width="3"/>
+<text x="270" y="248" text-anchor="middle">计划事件</text>
+<text x="270" y="286" text-anchor="middle" class="small">最新 PlanEvent 快照</text>
+<rect x="590" y="200" width="420" height="120" rx="8" fill="#ffffff" stroke="#94a3b8" stroke-width="3"/>
+<text x="800" y="248" text-anchor="middle">角色 Memory</text>
+<text x="800" y="286" text-anchor="middle" class="small">末尾未配对的提问调用</text>
+<rect x="1120" y="200" width="420" height="120" rx="8" fill="#ffffff" stroke="#94a3b8" stroke-width="3"/>
+<text x="1330" y="248" text-anchor="middle">环境 ID</text>
+<text x="1330" y="286" text-anchor="middle" class="small">指向工作位置的引用</text>
+<rect x="60" y="520" width="420" height="120" rx="8" fill="#eff6ff" stroke="#2563eb" stroke-width="3"/>
+<text x="270" y="568" text-anchor="middle">选择未结束步骤</text>
+<text x="270" y="606" text-anchor="middle" class="small">不合并后续 StepEvent</text>
+<rect x="590" y="520" width="420" height="120" rx="8" fill="#eff6ff" stroke="#2563eb" stroke-width="3"/>
+<text x="800" y="568" text-anchor="middle">回复写成 tool 结果</text>
+<text x="800" y="606" text-anchor="middle" class="small">按 tool_call_id 配对</text>
+<rect x="1120" y="520" width="420" height="120" rx="8" fill="#eff6ff" stroke="#2563eb" stroke-width="3"/>
+<text x="1330" y="568" text-anchor="middle">尝试打开工作文件</text>
+<text x="1330" y="606" text-anchor="middle" class="small">连不上则没有原文件</text>
+<path d="M270 320 V520" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#arrow)"/>
+<path d="M800 320 V520" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#arrow)"/>
+<path d="M1330 320 V520" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#arrow)"/>
+<text x="290" y="430" class="small">读取</text>
+<text x="820" y="430" class="small">配对</text>
+<text x="1350" y="430" class="small">按 ID 访问</text>
+<text x="60" y="730" class="small">第八章说明等待会退出执行、再新建运行器；这里说明新运行器读什么。</text>
+<text x="60" y="778" class="small">任务 ID 会变；原协程和局部变量不会回来。页面上的步骤进度也不等于这份计划快照。</text>
+<text x="60" y="826" class="small">工作文件是否仍在原位置，要另查；跨会话找不到同一路径，由第十一章解释。</text>
+</svg>
