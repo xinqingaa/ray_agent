@@ -20,7 +20,7 @@
 | [08 · 任务执行与控制](08-task-execution-and-control.md) | 各节按问题 → 策略 → 实现收束；压缩源码路径与跨会话等待旁证 | 既有控制用例、Shell 进程观察与 Docker 正常/等待/停止证据仍适用；3 张原 SVG 未改。重复提交、SSE 断连、停止长 Shell 进程及动态沙箱回收仍 `unverified` | 审阅分节先后是否清楚；第十六章设计重复提交、断连和进程取消故障实验 |
 | [09 · 状态与持久化](09-state-and-persistence.md) | 总表改为停住之后要分清什么；等待续接补重新组装这一拍；不再把「三类寿命」输出为专名 | 既有状态夹具与同会话等待续接证据仍适用；3 张原 SVG 未改。API 崩溃、事务故障、执行位置替换、多执行者接管与 SSE 故障补齐仍 `unverified` | 审阅总表与等待续接是否好读；故障实测承接第 16 章 |
 | [10 · 事件与可观察性](10-events-and-streaming.md) | 开篇接第 9 章结论；关联节改为先讲通用追踪再对照当前字段 | 既有事件用例、用量用例、UI 解析观察与第九章 32 条事件复核仍适用；2 张原 SVG 未改。完整 SSE 故障、模型全尝试账本与跨服务追踪仍 `unverified` | 审阅关联节先后；第十六章承接断连与解析故障实验 |
-| [11 · 沙箱与执行环境](11-sandbox-and-execution-environment.md) | 正文按总分总补执行环境地图；TTL 变量名与配额细数收到进度；补 README 观察入口 | 既有本地边界脚本与 Docker 容器观察仍适用，本轮未重跑。完整 TTL 到期、应用关闭清理、公网出口与租户隔离仍 `unverified` | 审阅开篇总表与「容器 ≠ 隔离」主线；第十六章承接到期回收与关闭清理 |
+| [11 · 沙箱与执行环境](11-sandbox-and-execution-environment.md) | 正文按总分总补执行环境地图；「容器 ≠ 隔离」拆成文件系统、网络、身份、配额四轴并各补通用对照；补观察判断表与判断清单 | 既有本地边界脚本与 Docker 容器观察仍适用，本轮未重跑，新增段落均为静态核对。完整 TTL 到期、应用关闭清理、公网出口与租户隔离仍 `unverified` | 审阅四轴表述与 TTL「机制存在≠已生效」的写法；第十六章承接到期回收与关闭清理 |
 | [12 · 文件与任务产物](12-files-and-artifacts.md) | 骨架 | 未进行本章运行验证 | 追踪写入、同步、下载的内容与版本；设计未同步、断连和覆盖场景，明确交付与访问依据 |
 | [13 · 浏览器如何成为工具](13-browser-as-a-tool.md) | 骨架 | 未进行本章运行验证 | 核对页面、截图与文本的时效；用本地页面推演不可信指令进入 Context 的路径及重新观察条件 |
 | [14 · 通过 MCP 接入外部工具](14-external-tools-with-mcp.md) | 骨架 | 未进行本章运行验证 | 按现有协议基线核对发现、调用、认证、超时与取消；明确工具说明、结果与副作用的信任边界 |
@@ -119,5 +119,15 @@ Web 已打开工具记录与最终附件，刷新后历史和附件入口保留�
 ### 第 11 章沙箱与执行环境
 
 正文、两张配图与观察脚本此前已完成。2026-09-14 按第 8–10 章同一节奏改叙事：开篇接事件与执行位置，补总表，把路径围栏、复用、隔离轴和回收收成「分」；TTL 三个环境变量名、已有沙箱 `create`/`get` 销毁差异、`RedisStreamTask.destroy` 遍历改字典收到本节与 map。本轮未重跑脚本、未改产品隔离实现、未重画 SVG。
+
+2026-09-14 按第 8–10 章标准补齐欠账，只改 `11-sandbox-and-execution-environment.md`，未改产品代码、脚本与配图：
+
+- 「动作在哪落地」与「相同路径为何找不到」各补一组通用选项对照（进程内执行 vs 独立环境；共享工作区 vs 每会话一份环境），与第八章、第九章的「常见策略」列写法一致。
+- 「在容器里不等于隔离」由一段混写拆成四轴表与四段：文件系统（每容器可写层）、网络（共享 `SANDBOX_NETWORK`、无出口白名单）、身份（Supervisor `user=root`；`ShellExecuteRequest` 只有 `session_id`/`exec_dir`/`command`，无身份字段；Dockerfile 建 `ubuntu` 与免密 sudo 但默认未用；文件工具的 `sudo` 只作用于文件操作）、配额（创建参数无 CPU/内存/进程数上限）。
+- 补软件条件一轴：Dockerfile 安装 Python 3.10、Node 24、Chromium、curl/wget 与包管理器并配置软件源，说明工具清单不是能力边界。
+- 生命周期节补「随任务销毁 vs 会话级保留 + TTL」的取舍，以及 TTL 机制描述：`SupervisorService` 按 `server_timeout_minutes`（默认 60）设定倒计时并关闭 Supervisor，`auto_extend_timeout_middleware` 在每次 `/api/` 请求时延长 3 分钟（有请求即保活）。同时保留变量名不一致的结论：创建容器写入 `SERVICE_TIMEOUT_MINUTES`，沙箱读取 `server_timeout_minutes`（`SERVER_TIMEOUT_MINUTES` 前缀），二者无别名映射，因此「机制存在」不写成「本次部署已生效」。
+- 「用观察结果判断边界」补七行情境表（同会话复用与跨会话分开、`..` 与符号链接、容器内身份、容器间接口请求、运行中配额、显式删除、任务结束后存留）与证据列；检查清单由 5 条扩为 6 条，加入软件条件与「读到 TTL 机制不等于已触发」。
+
+上述新增内容均为源码静态核对（`ray_agent/sandbox/{Dockerfile,supervisord.conf,app/core/config.py,app/core/middleware.py,app/services/supervisor.py,app/interfaces/schemas/shell.py}`、`ray_agent/api/app/infrastructure/external/sandbox/docker_sandbox.py`、`ray_agent/docker-compose.yml`），未新增运行。容器内 root 身份、预置工具链、软件源与 VNC/CDP 端点可达性均未实测；自动到期、应用关闭清理、公网出口与租户隔离仍 `unverified`。
 
 既有本地脚本 `check_environment_boundaries.py` 与 Docker 脚本 `check_sandbox_environment.py` 仍适用。此前容器观察记录：按 ID 重连读到 `hello-ch11`，另一容器相同路径不存在；Shell `id -u` 为 `0`；同网络请求对端 `8080/api/supervisor/status` 为 HTTP 200；`Memory=0`、`NanoCpus=0`、`PidsLimit=null`；两个实验容器经 `destroy` 后查询不存在。API 创建写入 `SERVICE_TIMEOUT_MINUTES`，沙箱读取 `SERVER_TIMEOUT_MINUTES` / 字段 `server_timeout_minutes`，与 `SANDBOX_TTL_MINUTES` 无别名映射。自动 TTL、应用关闭清理、公网出口和租户隔离仍 `unverified`。
