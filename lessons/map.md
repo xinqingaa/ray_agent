@@ -142,11 +142,15 @@
 
 ## 第 11 章素材
 
-[沙箱适配](../ray_agent/api/app/infrastructure/external/sandbox/docker_sandbox.py)、[沙箱指南](../ray_agent/sandbox/README.md)。
+| 研究问题 | 实现入口与观察重点 |
+|---|---|
+| 执行位置与请求落地 | [沙箱适配](../ray_agent/api/app/infrastructure/external/sandbox/docker_sandbox.py)、[文件服务](../ray_agent/sandbox/app/services/file.py)、[Shell 服务](../ray_agent/sandbox/app/services/shell.py)。文件/Shell 走 HTTP，浏览器走 CDP；Docker Socket 是管理权限，不挂进动态容器。 |
+| 会话与环境复用 | [应用协调](../ray_agent/api/app/application/services/agent_service.py) 的 `_create_task`。按 `sandbox_id` 查找运行中容器；任务 ID 可换，环境 ID 不必换。 |
+| 路径、身份与网络 | 文件路径无目录白名单；Shell 只设置 `cwd`。Supervisor 以 root 运行；动态容器接入同一 `SANDBOX_NETWORK`，代理变量不是目标白名单。配额、TTL 变量名与已有沙箱销毁差异见制作进度，不占正文主线。 |
+| 生命周期 | `create` / `get` / `destroy`、运行器 `finally` 不销毁沙箱。`done` 不等于回收；显式删除与到期回收分开核对。 |
+| 本地验证 | [路径与 Shell 观察](../ray_agent/sandbox/scripts/check_environment_boundaries.py)、[容器观察](../ray_agent/api/scripts/check_sandbox_environment.py)。入口归 [沙箱指南](../ray_agent/sandbox/README.md#执行环境观察) 与 [API 指南](../ray_agent/api/README.md#沙箱环境观察)。第八章单进程取消观察仍独立。 |
 
-补充入口：[沙箱文件服务](../ray_agent/sandbox/app/services/file.py)、[Shell 服务](../ray_agent/sandbox/app/services/shell.py)、[服务依赖](../ray_agent/api/app/interfaces/service_dependencies.py)。
-
-观察重点：检查环境生命周期、路径、进程与网络限制实际在哪里执行。用临时目录及本地服务设计越界读写、外部发送与资源清理观察；区分提示约束、审批、技术隔离。同会话复用与不同会话的资源归属需要分别核对，不能仅凭容器存在就认定租户隔离完备。
+观察重点：工作目录约定、每会话一个容器、任务结束就删除，都是策略而不是默认事实。同会话复用与不同会话文件分离要分别核对，不能仅凭容器存在就认定租户隔离完备。运行与缺口归 [制作进度](progress.md#第-11-章沙箱与执行环境)。
 
 ## 第 12 章素材
 

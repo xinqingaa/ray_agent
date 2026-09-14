@@ -87,6 +87,16 @@ uv run --locked python -m pytest tests/core/test_event_observability.py tests/co
 
 新增事件用例核对实时与历史映射一致性、字段投影及秒级时间、空回复重试的用量交接缺口，以及一对工具事件内的多次执行尝试。模型、沙箱与存储均为替身，不验证外部计费或端到端断连。前端解析和时间线归并观察见 [UI 指南](../ui/README.md#事件观察)。
 
+### 沙箱环境观察
+
+动态模式下可在本目录运行第十一章的容器观察（需可访问 Docker，且未配置已有沙箱地址）：
+
+```bash
+uv run --locked python scripts/check_sandbox_environment.py
+```
+
+脚本用实际 `DockerSandbox` 创建两个一次性容器，核对按 ID 重连后读到写入标记、另一容器相同路径不存在、同网络访问状态接口、运行配额未显式设置，以及显式销毁后容器不存在。它不修改已有沙箱、不连接公网、不验证 TTL 到期或应用关闭清理。本地路径与 Shell 状态观察见[沙箱指南](../sandbox/README.md#执行环境观察)。课程记录见[制作进度](../../lessons/progress.md#第-11-章沙箱与执行环境)。
+
 数据库结构变化时核对领域模型、ORM 转换与迁移文件：
 
 ```bash

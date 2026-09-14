@@ -86,3 +86,13 @@ uv run --locked python scripts/check_shell_control.py
 脚本直接使用实际 `ShellService`，在临时目录启动一个持续追加文件的 Python 进程，依次观察等待超时、调用协程取消、文件继续增长、显式终止与实际退出码。它用 `exec` 消除外层 shell 子进程，并在 `finally` 中回收进程、退出临时目录时删除实验文件。终止前的文件仍存在，用于说明取消没有撤销先前写入。
 
 需要本机有 `/bin/bash`；使用沙箱锁定 Python 环境，无需启动 HTTP、Docker 或模型。输出含本次 PID、相对耗时、文件字节与退出结果，数值随运行变化；预期会出现一次等待超时日志。它不验证 API 停止接口、容器隔离、多层进程树、忽略终止信号或完整产品取消传播。课程验证记录见[制作进度](../../lessons/progress.md)。
+
+### 执行环境观察
+
+在本目录运行第十一章的本地边界观察：
+
+```bash
+uv run --locked python scripts/check_environment_boundaries.py
+```
+
+脚本在临时目录使用实际 `FileService` 与 `ShellService`，核对 `work/` 外的受控标记可通过 `..` 和符号链接读取、同一 Shell ID 不保留环境变量与 `cd`、子进程能访问本机回环 HTTP，以及实验结束时进程退出、临时目录删除。它不启动 Docker、不连接公网、不是容器逃逸实验。完整容器复用、文件分离、同网络访问与显式删除见 [API 指南](../api/README.md#沙箱环境观察)。课程记录见[制作进度](../../lessons/progress.md#第-11-章沙箱与执行环境)。
