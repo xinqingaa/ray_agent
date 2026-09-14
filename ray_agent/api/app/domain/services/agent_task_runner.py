@@ -184,17 +184,12 @@ class AgentTaskRunner(TaskRunner):
         try:
             # 1.根据文件路径从会话中查找文件数据
             async with self._uow:
-                file = await self._uow.session.get_file_by_path(self._session_id, filepath)
+                old_file = await self._uow.session.get_file_by_path(self._session_id, filepath)
 
             # 2.从沙箱中下载文件
             file_data = await self._sandbox.download_file(filepath)
 
-            # 3.判断会话中的文件是否存在
-            if file:
-                async with self._uow:
-                    await self._uow.session.remove_file(self._session_id, file.filepath)
-
-            # 4.提取文件名字、文件信息并更新文件路径
+            # 3.提取文件名字、文件信息并更新文件路径
             filename = filepath.split("/")[-1]
             upload_file = UploadFile(
                 file=file_data,
@@ -202,12 +197,14 @@ class AgentTaskRunner(TaskRunner):
                 size=self._get_stream_size(file_data),
             )
 
-            # 5.上传文件到文件存储桶
+            # 4.先上传新副本；上传失败时保留旧会话记录
             file = await self._file_storage.upload_file(upload_file)
             file.filepath = filepath
 
-            # 6.往会话中新增一个文件信息
+            # 5.在同一事务中替换关联，按旧文件id删除，不删除存储副本或历史附件
             async with self._uow:
+                if old_file:
+                    await self._uow.session.remove_file(self._session_id, old_file.id)
                 await self._uow.session.add_file(self._session_id, file)
             return file
         except Exception as e:

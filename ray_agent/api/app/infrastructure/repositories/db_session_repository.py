@@ -163,6 +163,8 @@ class DBSessionRepository(SessionRepository):
 
         # 5.更新数据
         record.files = new_files
+        # 会话工厂关闭了 autoflush；先刷新 ORM 修改，供同一事务后续 add_file 使用。
+        await self.db_session.flush()
 
     async def get_file_by_path(self, session_id: str, filepath: str) -> Optional[File]:
         """根据文件路径获取文件信息"""

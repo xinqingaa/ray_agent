@@ -66,7 +66,7 @@ class SessionRepository(Protocol):
         ...
 
     async def remove_file(self, session_id: str, file_id: str) -> None:
-        """根据传递的会话id+文件id移除文件"""
+        """根据传递的会话id+文件id移除文件；调用方需区分文件id与文件路径"""
         ...
 
     async def get_file_by_path(self, session_id: str, filepath: str) -> Optional[File]:

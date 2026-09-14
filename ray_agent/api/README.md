@@ -87,6 +87,26 @@ uv run --locked python -m pytest tests/core/test_event_observability.py tests/co
 
 新增事件用例核对实时与历史映射一致性、字段投影及秒级时间、空回复重试的用量交接缺口，以及一对工具事件内的多次执行尝试。模型、沙箱与存储均为替身，不验证外部计费或端到端断连。前端解析和时间线归并观察见 [UI 指南](../ui/README.md#事件观察)。
 
+### 文件与产物观察
+
+第十二章的确定性测试：
+
+```bash
+uv run --locked python -m pytest tests/core/test_file_artifacts.py
+```
+
+8 项用例覆盖同路径串行替换、按 ID 删除、上传或关联失败保留旧条目、全部与部分交付失败、历史附件保留原 ID，以及已有重复数据不被自动迁移。使用实际运行器和仓库过滤方法，存储与数据库为替身；其中事务回滚用内存快照模拟，不代替数据库验证。
+
+连接可用的 PostgreSQL 后，另运行真实事务与本地存储观察：
+
+```bash
+uv run --locked python scripts/check_file_artifacts.py
+```
+
+脚本保留生产的 `autoflush=False`，使用真实仓库、UoW 和本地磁盘存储，检查同事务替换、失败回滚、历史附件的旧 ID 与新旧副本字节。数据库操作置于外层回滚事务，各 UoW 使用保存点；只创建专用实验记录，结束后确认已回滚，文件写入临时目录并清理。脚本不调用模型、Redis、产品沙箱或 COS，不覆盖并发、真实数据库提交故障和页面操作。
+
+宿主机不可解析 Compose 内部数据库地址时，在包含当前源码的 API 容器中运行（进入产品目录后执行 `docker compose exec manus-api python scripts/check_file_artifacts.py`）；源码更新方式见 [Docker 说明](../DOCKER.md#重启)。不要把宿主机连接失败表述为用例通过。
+
 ### 沙箱环境观察
 
 动态模式下可在本目录运行第十一章的容器观察（需可访问 Docker，且未配置已有沙箱地址）：
