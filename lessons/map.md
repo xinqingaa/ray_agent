@@ -164,7 +164,7 @@
 | 存储与访问 | [文件存储协议](../ray_agent/api/app/domain/external/file_storage.py)、[本地实现](../ray_agent/api/app/infrastructure/external/file_storage/local_file_storage.py)、[文件应用服务](../ray_agent/api/app/application/services/file_service.py)、[文件接口](../ray_agent/api/app/interfaces/endpoints/file_routes.py)、[会话接口](../ray_agent/api/app/interfaces/endpoints/session_routes.py)。ID → 元数据 → key → 字节；没有副本删除流程。 |
 | 确定性核对 | [文件产物用例](../ray_agent/api/tests/core/test_file_artifacts.py)、[数据库与存储观察](../ray_agent/api/scripts/check_file_artifacts.py)。命令、连接条件和边界见 [API 指南](../ray_agent/api/README.md#文件与产物观察)。 |
 
-观察重点：沿输入资料准备、工具使用文件、观察进入 Context、选定成果、组织访问和交付核对，研究 Harness 的职责与策略。正文中的分析任务为教学推演；RayAgent 用于核对已有交接。副本引用、列表替换及其测试仅作为实现边界的研究材料。验证记录与未覆盖条件归[制作进度](progress.md#第-12-章文件与任务产物)。
+观察重点：沿输入资料准备、步骤如何发现上一份材料、观察进入 Context、选定成果、声明落实为入口，以及失败发生在准备、生成还是访问，研究 Harness 的职责与策略。正文中的分析任务为教学推演；RayAgent 用于核对已有交接。副本引用、列表替换及其测试仅作为实现边界的研究材料。验证记录与未覆盖条件归[制作进度](progress.md#第-12-章文件与任务产物)。
 
 ## 第 13 章素材
 

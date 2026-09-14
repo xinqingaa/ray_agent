@@ -21,7 +21,7 @@
 | 09 | [状态与持久化](09-state-and-persistence.md) | 执行中的信息分别归谁，能够保存多久？ |
 | 10 | [事件与可观察性](10-events-and-streaming.md) | 现有事件能让我们看见什么，又看不见什么？ |
 | 11 | [沙箱与执行环境](11-sandbox-and-execution-environment.md) | 工具在哪里执行，环境由谁管理？ |
-| 12 | [文件与任务产物](12-files-and-artifacts.md) | Agent 产生的文件如何成为用户可访问的结果？ |
+| 12 | [文件与任务产物](12-files-and-artifacts.md) | Harness 如何组织执行所需的文件，并把成果交给用户？ |
 | 13 | [浏览器如何成为工具](13-browser-as-a-tool.md) | Agent 怎样观察网页、操作页面并获得反馈？ |
 | 14 | [通过 MCP 接入外部工具](14-external-tools-with-mcp.md) | 进程外的工具如何接入已有执行链？ |
 | 15 | [通过 A2A 协作远程 Agent](15-agent-collaboration-with-a2a.md) | 调用远程 Agent 与调用工具有什么不同？ |
