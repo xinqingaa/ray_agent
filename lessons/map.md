@@ -190,6 +190,6 @@
 
 ## 第 17 章素材
 
-[架构说明](../docs/architecture.md)、[工作区调研](../docs/workspace-harness-research.md)。
+[架构说明](../docs/architecture.md)、[工作区调研](../docs/workspace-harness-research.md)、[Harness 能力评估](../docs/harness-capability-review-2026-09-14.md)。
 
 观察重点：核对跨会话状态、项目指令、环境及产物的衔接；调研方案不是已有能力。用暂停后交接同一项目的情境，明确目录、产物版本、待办、已验证结论和未决条件由谁保存。讨论并发修改归属、版本控制与隔离的必要性，用任务收益评估演进方案，不以增加自动化或多 Agent 数量作为完成标准。

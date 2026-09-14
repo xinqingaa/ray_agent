@@ -25,9 +25,11 @@
 | 模式 | 配置条件 | 资源归属 |
 |---|---|---|
 | 动态沙箱 | 不设置 `SANDBOX_ADDRESS`；配置 `SANDBOX_IMAGE`、`SANDBOX_NETWORK`、`SANDBOX_NAME_PREFIX` | API 创建容器，并在其销毁逻辑中删除所创建的容器 |
-| 已有沙箱 | `SANDBOX_ADDRESS` 设置为可解析的主机名或 IP，如同一 Compose 网络内的 `manus-sandbox` | API 连接已有服务，适配对象的销毁逻辑不删除该外部容器 |
+| 已有沙箱 | `SANDBOX_ADDRESS` 设置为可解析的主机名或 IP，如同一 Compose 网络内的 `manus-sandbox` | API 连接已有服务；适配对象的销毁是否删除该外部容器取决于取用方式，见下 |
 
 `SANDBOX_ADDRESS` 使用主机名或 IP，不填完整 URL。API 必须能访问沙箱的服务与浏览器端点；动态模式还需要访问 Docker。
+
+已有沙箱模式的两条取用路径对销毁的处理并不一致：按地址创建时不保存容器名，销毁不会删除该容器；按 ID 取回时会把该 ID 当作容器名保存，销毁会对这个名字执行强制删除。调用方需要按实际取用方式判断，不能假设外部容器一定安全。
 
 产品 Compose 中存在沙箱服务并不自动决定使用哪种模式，选择由 API 配置决定。具体 Compose 镜像、网络和环境取值统一见 [运行指南](../README.md#服务环境)。
 
