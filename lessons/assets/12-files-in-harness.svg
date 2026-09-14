@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+<title>文件怎样连接任务执行与成果交付</title>
+<desc>通用职责示意。模型经工具操作工作文件，工具观察返回模型；选定的成果由程序组织交付，再由用户取得。</desc>
+<style>text{font-family:Arial,"PingFang SC",sans-serif;fill:#172334;font-size:28px}.small{font-size:24px;fill:#526172}.title{font-size:36px;font-weight:600}.group{font-size:26px;font-weight:600}</style>
+<defs>
+<marker id="blue" markerWidth="8" markerHeight="7" refX="8" refY="3.5" orient="auto"><path d="M0 0L8 3.5L0 7Z" fill="#2563eb"/></marker>
+<marker id="green" markerWidth="8" markerHeight="7" refX="8" refY="3.5" orient="auto"><path d="M0 0L8 3.5L0 7Z" fill="#16845b"/></marker>
+</defs>
+<rect data-graph-role="background" width="1600" height="900" fill="#f5f7f9"/>
+<text x="60" y="74" class="title">文件怎样连接任务执行与成果交付</text>
+<rect data-graph-role="container" x="60" y="140" width="1480" height="365" rx="8" fill="#edf3fb" stroke="#cfdaea" stroke-width="2"/>
+<text x="95" y="187" class="group">执行：文件供工具使用，观察参与下一次决策</text>
+<rect data-graph-role="container" x="60" y="585" width="1480" height="215" rx="8" fill="#eff8f3" stroke="#cce2d4" stroke-width="2"/>
+<text x="95" y="628" class="group">交付：选定成果，由程序建立用户可用的入口</text>
+<g>
+<rect x="110" y="240" width="330" height="120" rx="8" fill="#fff" stroke="#2563eb" stroke-width="3"/>
+<text x="275" y="285" text-anchor="middle">模型决策</text>
+<text x="275" y="328" text-anchor="middle" class="small">提出动作与参数</text>
+<rect x="635" y="240" width="330" height="120" rx="8" fill="#fff" stroke="#2563eb" stroke-width="3"/>
+<text x="800" y="285" text-anchor="middle">工具执行</text>
+<text x="800" y="328" text-anchor="middle" class="small">读取、写入、运行脚本</text>
+<rect x="1160" y="240" width="330" height="120" rx="8" fill="#fff" stroke="#94a3b8" stroke-width="3"/>
+<text x="1325" y="285" text-anchor="middle">工作文件</text>
+<text x="1325" y="328" text-anchor="middle" class="small">资料、脚本、执行成果</text>
+</g>
+<path d="M440 290H635" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#blue)"/>
+<text x="537" y="264" text-anchor="middle" class="small">程序调用</text>
+<path d="M965 272H1160" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#blue)"/>
+<text x="1062" y="246" text-anchor="middle" class="small">读写文件</text>
+<path d="M1160 334H965" fill="none" stroke="#16845b" stroke-width="4" marker-end="url(#green)"/>
+<text x="1062" y="375" text-anchor="middle" class="small">内容与状态</text>
+<path d="M800 360V449H275V360" fill="none" stroke="#16845b" stroke-width="4" marker-end="url(#green)"/>
+<text x="537" y="428" text-anchor="middle" class="small">工具观察进入 Context</text>
+<rect x="1160" y="660" width="330" height="110" rx="8" fill="#fff" stroke="#94a3b8" stroke-width="3"/>
+<text x="1325" y="702" text-anchor="middle">选定产物</text>
+<text x="1325" y="742" text-anchor="middle" class="small">模型提出或规则指定</text>
+<rect x="635" y="660" width="330" height="110" rx="8" fill="#fff" stroke="#2563eb" stroke-width="3"/>
+<text x="800" y="702" text-anchor="middle">程序组织交付</text>
+<text x="800" y="742" text-anchor="middle" class="small">确认资源、保存与访问</text>
+<rect x="110" y="660" width="330" height="110" rx="8" fill="#fff" stroke="#16845b" stroke-width="3"/>
+<text x="275" y="702" text-anchor="middle">用户取得成果</text>
+<text x="275" y="742" text-anchor="middle" class="small">打开、使用与核对</text>
+<path d="M1325 360V660" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#blue)"/>
+<text x="1185" y="550" text-anchor="middle" class="small">按任务要求选择</text>
+<path d="M1160 713H965" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#blue)"/>
+<text x="1062" y="689" text-anchor="middle" class="small">交付对象</text>
+<path d="M635 713H440" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#blue)"/>
+<text x="537" y="689" text-anchor="middle" class="small">访问入口</text>
+<path d="M60 853H110" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#blue)"/>
+<text x="130" y="861" class="small">动作与交付</text>
+<path d="M340 853H390" fill="none" stroke="#16845b" stroke-width="4" marker-end="url(#green)"/>
+<text x="410" y="861" class="small">工具反馈</text>
+<text x="1540" y="861" text-anchor="end" class="small">通用职责示意；方框不代表独立服务</text>
+</svg>

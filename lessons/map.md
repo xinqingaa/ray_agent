@@ -156,15 +156,15 @@
 
 | 研究问题 | 实现入口与观察重点 |
 |---|---|
-| 工具与消息中的文件内容 | [文件工具](../ray_agent/api/app/domain/services/tools/file.py)、[沙箱文件服务](../ray_agent/sandbox/app/services/file.py)、[Agent 基类](../ray_agent/api/app/domain/services/agents/base.py)。读取结果可含正文，经工具消息加入 Memory；工作文件与消息快照不自动一致。 |
-| 两类同步触发 | [任务运行器](../ray_agent/api/app/domain/services/agent_task_runner.py) 的 `_handle_tool_event`：`file` + `called` + `filepath`；`_sync_message_attachments_to_storage`：消息附件路径。Shell 写入不自动走文件分支，截图 URL 放工具事件，不加入当前文件列表。 |
+| 文件参与执行与模型观察 | [文件工具](../ray_agent/api/app/domain/services/tools/file.py)、[沙箱文件服务](../ray_agent/sandbox/app/services/file.py)、[Agent 基类](../ray_agent/api/app/domain/services/agents/base.py)。读取结果可含正文，经工具消息加入 Memory；工作文件与消息快照不自动一致。 |
+| 成果选择与保存时机 | [任务运行器](../ray_agent/api/app/domain/services/agent_task_runner.py) 的 `_handle_tool_event`：`file` + `called` + `filepath`；`_sync_message_attachments_to_storage`：消息附件路径。Shell 写入不自动走文件分支，截图 URL 放工具事件，不加入当前文件列表。 |
 | 替换顺序与身份 | 同文件 `_sync_file_to_storage`；[会话仓库](../ray_agent/api/app/infrastructure/repositories/db_session_repository.py) 的 `get_file_by_path`、`remove_file`、`add_file`。按路径查旧条目，先上传，再在同一事务内按旧 ID 删除并添加；生产关闭 autoflush，删除方法显式 flush，保证随后 SQL 追加使用新值。已有重复条目及并发唯一性不在该修复保证内。 |
 | 当前引用与历史引用 | [事件模型](../ray_agent/api/app/domain/models/event.py)、[会话模型](../ray_agent/api/app/infrastructure/models/session.py)、[接口事件](../ray_agent/api/app/interfaces/schemas/event.py)、[前端附件投影](../ray_agent/ui/src/lib/session-events.ts)、[文件预览](../ray_agent/ui/src/components/file-preview-panel.tsx)。`files` 替换不重写 `events` 的附件 ID，预览和下载按所选 ID 取副本。 |
-| 输入同步与失败反馈 | 运行器 `_sync_file_to_sandbox`、`_sync_message_attachments_to_sandbox`、`_run_flow` 和 `invoke`。输入落在 `/home/ubuntu/upload/{filename}`；交付全部失败发错误事件，正常收尾记 failed，部分失败未触发全空检查。 |
+| 输入准备与交付反馈 | 运行器 `_sync_file_to_sandbox`、`_sync_message_attachments_to_sandbox`、`_run_flow` 和 `invoke`。输入落在 `/home/ubuntu/upload/{filename}`；交付全部失败发错误事件，正常收尾记 failed，部分失败未触发全空检查。 |
 | 存储与访问 | [文件存储协议](../ray_agent/api/app/domain/external/file_storage.py)、[本地实现](../ray_agent/api/app/infrastructure/external/file_storage/local_file_storage.py)、[文件应用服务](../ray_agent/api/app/application/services/file_service.py)、[文件接口](../ray_agent/api/app/interfaces/endpoints/file_routes.py)、[会话接口](../ray_agent/api/app/interfaces/endpoints/session_routes.py)。ID → 元数据 → key → 字节；没有副本删除流程。 |
 | 确定性核对 | [文件产物用例](../ray_agent/api/tests/core/test_file_artifacts.py)、[数据库与存储观察](../ray_agent/api/scripts/check_file_artifacts.py)。命令、连接条件和边界见 [API 指南](../ray_agent/api/README.md#文件与产物观察)。 |
 
-观察重点：用先交付 A、覆盖、再交付 B、重新下载 A 的时间推演，区分工作路径、当前列表、历史附件与存储副本。删除某个列表条目不等于所有引用消失。验证记录与未覆盖条件归[制作进度](progress.md#第-12-章文件与任务产物)。
+观察重点：沿输入资料准备、工具使用文件、观察进入 Context、选定成果、组织访问和交付核对，研究 Harness 的职责与策略。正文中的分析任务为教学推演；RayAgent 用于核对已有交接。副本引用、列表替换及其测试仅作为实现边界的研究材料。验证记录与未覆盖条件归[制作进度](progress.md#第-12-章文件与任务产物)。
 
 ## 第 13 章素材
 
