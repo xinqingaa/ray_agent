@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900"><title>从要求选择证据，再形成检查结论</title><desc>验证关系图：结果、约束、控制分别对应实际证据，检查后给出通过失败或未知的有界结论。</desc>
+<style>text{font-family:Arial,"PingFang SC",sans-serif;fill:#172334;font-size:28px}.small{font-size:24px;fill:#526172}.title{font-size:36px;font-weight:600}.label{font-size:28px;font-weight:600}</style><defs>
+<marker id="blue" markerWidth="8" markerHeight="7" refX="8" refY="3.5" orient="auto"><path d="M0 0L8 3.5L0 7Z" fill="#2563eb"/></marker>
+<marker id="green" markerWidth="8" markerHeight="7" refX="8" refY="3.5" orient="auto"><path d="M0 0L8 3.5L0 7Z" fill="#16845b"/></marker>
+<marker id="gray" markerWidth="8" markerHeight="7" refX="8" refY="3.5" orient="auto"><path d="M0 0L8 3.5L0 7Z" fill="#748295"/></marker>
+</defs><rect data-graph-role="background" width="1600" height="900" fill="#f5f7f9"/>
+<text x="60" y="78" class="title" text-anchor="start">从要求选择证据，再形成检查结论</text>
+<text x="60" y="135" class="small" text-anchor="start">同一次运行需要多类证据；状态字段不能替代成果与实际执行观察</text>
+<text x="60" y="215" class="label" text-anchor="start">要确认的要求</text>
+<text x="610" y="215" class="label" text-anchor="start">应取得的证据</text>
+<text x="1160" y="215" class="label" text-anchor="start">分项检查</text>
+<rect data-graph-role="node" x="60" y="255" width="380" height="115" rx="8" fill="#fff" stroke="#2563eb" stroke-width="3"/>
+<text x="250.0" y="305" class="label" text-anchor="middle">内容正确并可交付</text>
+<rect data-graph-role="node" x="610" y="255" width="400" height="115" rx="8" fill="#fff" stroke="#2563eb" stroke-width="3"/>
+<text x="810.0" y="305" class="label" text-anchor="middle">报告与实际下载字节</text>
+<rect data-graph-role="node" x="1160" y="255" width="380" height="115" rx="8" fill="#fff" stroke="#16845b" stroke-width="3"/>
+<text x="1350.0" y="305" class="label" text-anchor="middle">结果检查</text>
+<text x="1350.0" y="349" class="small" text-anchor="middle">通过 / 失败 / 未知</text>
+<path d="M440 312H610" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#blue)"/>
+<path d="M1010 312H1160" fill="none" stroke="#16845b" stroke-width="4" marker-end="url(#green)"/>
+<rect data-graph-role="node" x="60" y="440" width="380" height="115" rx="8" fill="#fff" stroke="#2563eb" stroke-width="3"/>
+<text x="250.0" y="490" class="label" text-anchor="middle">遵守允许的动作</text>
+<rect data-graph-role="node" x="610" y="440" width="400" height="115" rx="8" fill="#fff" stroke="#2563eb" stroke-width="3"/>
+<text x="810.0" y="490" class="label" text-anchor="middle">输入对照与动作记录</text>
+<rect data-graph-role="node" x="1160" y="440" width="380" height="115" rx="8" fill="#fff" stroke="#16845b" stroke-width="3"/>
+<text x="1350.0" y="490" class="label" text-anchor="middle">约束检查</text>
+<text x="1350.0" y="534" class="small" text-anchor="middle">通过 / 失败 / 未知</text>
+<path d="M440 497H610" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#blue)"/>
+<path d="M1010 497H1160" fill="none" stroke="#16845b" stroke-width="4" marker-end="url(#green)"/>
+<rect data-graph-role="node" x="60" y="625" width="380" height="115" rx="8" fill="#fff" stroke="#2563eb" stroke-width="3"/>
+<text x="250.0" y="675" class="label" text-anchor="middle">按要求停止与清理</text>
+<rect data-graph-role="node" x="610" y="625" width="400" height="115" rx="8" fill="#fff" stroke="#2563eb" stroke-width="3"/>
+<text x="810.0" y="675" class="label" text-anchor="middle">协程、进程及远程状态</text>
+<rect data-graph-role="node" x="1160" y="625" width="380" height="115" rx="8" fill="#fff" stroke="#16845b" stroke-width="3"/>
+<text x="1350.0" y="675" class="label" text-anchor="middle">控制检查</text>
+<text x="1350.0" y="719" class="small" text-anchor="middle">通过 / 失败 / 未知</text>
+<path d="M440 682H610" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#blue)"/>
+<path d="M1010 682H1160" fill="none" stroke="#16845b" stroke-width="4" marker-end="url(#green)"/>
+<text x="60" y="800" class="small" text-anchor="start">缺少证据记为未知；全部通过也只覆盖已检查的要求。</text>
+<path d="M60 855H110" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#blue)"/>
+<text x="130" y="863" class="small" text-anchor="start">确定取证范围</text>
+<path d="M390 855H440" fill="none" stroke="#16845b" stroke-width="4" marker-end="url(#green)"/>
+<text x="460" y="863" class="small" text-anchor="start">形成检查结论</text>
+</svg>

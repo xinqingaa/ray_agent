@@ -7,6 +7,7 @@
 | 入口 | 主题 |
 |---|---|
 | [基础实验](foundations/README.md) | LLM、结构化输出、ReAct、异步 HTTP、MCP 和浏览器 |
+| [验证方法实验](verification/README.md) | 检查器校准、响应丢失与五类任务样本 |
 | [A2A 实验](a2a/README.md) | A2A SDK 服务端、SDK 客户端与手写 JSON-RPC 客户端 |
 
 基础实验中还包含综合示例、天气 Agent 和配套交互界面，具体入口由各目录 README 导航。

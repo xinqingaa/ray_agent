@@ -208,11 +208,15 @@
 
 ## 第 16 章素材
 
-[API 指南](../ray_agent/api/README.md)、任务运行器、Agent 基类与资源适配层。
+| 研究内容 | 材料入口 | 观察重点 |
+|---|---|---|
+| 任务定义与检查器 | [验证实验指南](../labs/verification/README.md)、[交付检查](../labs/verification/check_delivery.py) | 五类样本、7 个合成结果；检查器校准不等于 Agent 成功率 |
+| 响应丢失与重试 | [重复效果实验](../labs/verification/check_lost_response.py) | 先产生效果再丢响应；稳定键与服务端去重配合；未覆盖事务和并发 |
+| 文件交付边界 | [产物测试](../ray_agent/api/tests/core/test_file_artifacts.py) | 实际同步逻辑配替身；上传与关联失败、部分交付；不经过真实下载路由 |
+| 控制与反馈 | [执行控制测试](../ray_agent/api/tests/core/test_task_execution_control.py)、[Flow 测试](../ray_agent/api/tests/core/test_planner_react_flow.py)、[取消写入](../ray_agent/api/tests/core/test_agent_task_runner_cancel.py) | 固定时刻注入、停止早于清理、步骤失败和工具失败区分 |
+| 协议与成本证据 | [协议测试](../ray_agent/api/tests/protocols/test_protocols.py)、[协议边界](../ray_agent/api/tests/protocols/test_edges.py)、[用量测试](../ray_agent/api/tests/core/test_llm_usage.py) | 本地失败与远程效果、已知用量与缺失；夹具不代表完整真实任务 |
 
-补充入口：[双循环夹具](../ray_agent/api/tests/core/test_planner_react_flow.py)、[用量测试](../ray_agent/api/tests/core/test_llm_usage.py)、[取消测试](../ray_agent/api/tests/core/test_agent_task_runner_cancel.py)、[协议边界测试](../ray_agent/api/tests/protocols/test_edges.py)、[Agent 评估方法](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents)。
-
-观察重点：设计包含文件交付、资料报告、失败纠正、长操作取消、压缩后继续的小型任务集；逐项定义初始环境、允许行动、预期产物、评分规则与失败分类。固定模型和运行配置比较一次改动，保留每次试验结果，观察成功率、耗时和可得用量；校验评分器，允许有效轨迹差异。故障实验承接第 08、09 章的窗口，检查重复副作用；区分程序分支夹具与真实模型评估，现有 API 测试不等于端到端任务验收。
+本章按要求、证据、故障、任务集和改进组织方法，不逐章重复实现说明。真实模型对照为具体待运行设计；实际运行与局限归[制作进度](progress.md#第-16-章可靠性验证与评估)。
 
 ## 第 17 章素材
 

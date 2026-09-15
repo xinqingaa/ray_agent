@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900"><title>动作已执行，客户端仍可能只看到超时</title><desc>教学故障时序：服务端先记录副作用，再模拟响应丢失，客户端需要外部效果记录判断是否可重试。</desc>
+<style>text{font-family:Arial,"PingFang SC",sans-serif;fill:#172334;font-size:28px}.small{font-size:24px;fill:#526172}.title{font-size:36px;font-weight:600}.label{font-size:28px;font-weight:600}</style><defs>
+<marker id="blue" markerWidth="8" markerHeight="7" refX="8" refY="3.5" orient="auto"><path d="M0 0L8 3.5L0 7Z" fill="#2563eb"/></marker>
+<marker id="green" markerWidth="8" markerHeight="7" refX="8" refY="3.5" orient="auto"><path d="M0 0L8 3.5L0 7Z" fill="#16845b"/></marker>
+<marker id="gray" markerWidth="8" markerHeight="7" refX="8" refY="3.5" orient="auto"><path d="M0 0L8 3.5L0 7Z" fill="#748295"/></marker>
+</defs><rect data-graph-role="background" width="1600" height="900" fill="#f5f7f9"/>
+<text x="60" y="78" class="title" text-anchor="start">动作已执行，客户端仍可能只看到超时</text>
+<text x="60" y="135" class="small" text-anchor="start">本章实验在副作用记录之后丢失响应；不是实际网络抓包</text>
+<rect data-graph-role="node" x="80" y="190" width="320" height="85" rx="8" fill="#fff" stroke="#2563eb" stroke-width="3"/>
+<text x="240" y="245" class="label" text-anchor="middle">调用方</text>
+<path data-graph-role="decoration" d="M240 275V740" stroke="#b6c2d2" stroke-width="2" stroke-dasharray="7 8"/>
+<rect data-graph-role="node" x="710" y="190" width="320" height="85" rx="8" fill="#fff" stroke="#2563eb" stroke-width="3"/>
+<text x="870" y="245" class="label" text-anchor="middle">执行服务</text>
+<path data-graph-role="decoration" d="M870 275V740" stroke="#b6c2d2" stroke-width="2" stroke-dasharray="7 8"/>
+<rect data-graph-role="node" x="1190" y="190" width="320" height="85" rx="8" fill="#fff" stroke="#2563eb" stroke-width="3"/>
+<text x="1350" y="245" class="label" text-anchor="middle">效果记录</text>
+<path data-graph-role="decoration" d="M1350 275V740" stroke="#b6c2d2" stroke-width="2" stroke-dasharray="7 8"/>
+<path d="M240 340H870" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#blue)"/>
+<text x="555" y="320" class="small" text-anchor="middle">发送操作</text>
+<path d="M870 430H1350" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#blue)"/>
+<text x="1110" y="410" class="small" text-anchor="middle">写入业务效果</text>
+<path d="M1350 510H870" fill="none" stroke="#16845b" stroke-width="4" marker-end="url(#green)"/>
+<text x="1110" y="490" class="small" text-anchor="middle">效果已记录</text>
+<rect data-graph-role="container" x="430" y="560" width="670" height="90" rx="8" fill="#edf3fb" stroke="#cfdaea" stroke-width="2"/>
+<text x="765" y="614" class="label" text-anchor="middle">此处丢失响应：调用方尚未取得回执</text>
+<text x="240" y="715" class="small" text-anchor="middle">本地观察：超时</text>
+<text x="1350" y="715" class="small" text-anchor="middle">执行侧：已有一次效果</text>
+<text x="60" y="795" class="small" text-anchor="start">恢复前关联请求与效果记录；请求次数和实际执行次数要分别统计。</text>
+<path d="M60 850H110" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#blue)"/>
+<text x="130" y="858" class="small" text-anchor="start">请求 / 调用</text>
+<path d="M390 850H440" fill="none" stroke="#16845b" stroke-width="4" marker-end="url(#green)"/>
+<text x="460" y="858" class="small" text-anchor="start">描述 / 结果</text>
+</svg>
