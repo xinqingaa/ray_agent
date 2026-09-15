@@ -35,4 +35,4 @@ coverage/
 tmp/
 .cache/
 
-# Course archives, screenshots, tokenizer data, and dependency locks are tracked.
+# Screenshots, tokenizer data, and dependency locks are tracked.

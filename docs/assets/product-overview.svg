@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="900" viewBox="0 0 1920 900" role="img" aria-labelledby="title desc">
+<title id="title">你在产品里做什么</title>
+<desc id="desc">用户打开会话、发送目标、观看任务推进，必要时回复或停止，最后取走附件。设置模型和外部能力是准备项，不插入这条主路径。</desc>
+<style>text{font-family:"Helvetica Neue",Arial,"PingFang SC","Microsoft YaHei",sans-serif}</style>
+<defs>
+<marker id="blue" markerUnits="userSpaceOnUse" markerWidth="14" markerHeight="14" refX="13" refY="7" orient="auto"><path d="M0 0 L14 7 L0 14 Z" fill="#2563eb"/></marker>
+</defs>
+<rect data-graph-role="background" width="1920" height="900" fill="#f3f6fa"/>
+<text x="64" y="52" font-size="18" fill="#64748b" font-weight="400" text-anchor="start">RAYAGENT / 产品</text>
+<text x="64" y="104" font-size="36" fill="#111827" font-weight="600" text-anchor="start">你在产品里做什么</text>
+<rect id="step1" data-graph-role="node" x="64" y="180" width="320" height="420" rx="12" fill="#ffffff" stroke="#c8d5e5" stroke-width="3"/>
+<text x="88" y="228" font-size="18" fill="#2563eb" font-weight="600" text-anchor="start">1</text>
+<text x="224" y="300" font-size="26" fill="#111827" font-weight="600" text-anchor="middle">进入会话</text>
+<text x="224" y="368" font-size="20" fill="#526174" font-weight="400" text-anchor="middle">打开 Web 页面</text>
+<text x="224" y="412" font-size="20" fill="#526174" font-weight="400" text-anchor="middle">新建或继续一次对话</text>
+<rect id="step2" data-graph-role="node" x="432" y="180" width="320" height="420" rx="12" fill="#ffffff" stroke="#c8d5e5" stroke-width="3"/>
+<text x="456" y="228" font-size="18" fill="#2563eb" font-weight="600" text-anchor="start">2</text>
+<text x="592" y="300" font-size="26" fill="#111827" font-weight="600" text-anchor="middle">发送目标</text>
+<text x="592" y="368" font-size="20" fill="#526174" font-weight="400" text-anchor="middle">写下要完成的事</text>
+<text x="592" y="412" font-size="20" fill="#526174" font-weight="400" text-anchor="middle">例如写入 hello.txt</text>
+<rect id="step3" data-graph-role="node" x="800" y="180" width="320" height="420" rx="12" fill="#ffffff" stroke="#8cabdb" stroke-width="3"/>
+<text x="824" y="228" font-size="18" fill="#2563eb" font-weight="600" text-anchor="start">3</text>
+<text x="960" y="300" font-size="26" fill="#111827" font-weight="600" text-anchor="middle">看着它推进</text>
+<text x="960" y="368" font-size="20" fill="#526174" font-weight="400" text-anchor="middle">计划、步骤、工具记录</text>
+<text x="960" y="412" font-size="20" fill="#526174" font-weight="400" text-anchor="middle">需要时查看浏览器画面</text>
+<rect id="step4" data-graph-role="node" x="1168" y="180" width="320" height="420" rx="12" fill="#ffffff" stroke="#c8d5e5" stroke-width="3"/>
+<text x="1192" y="228" font-size="18" fill="#2563eb" font-weight="600" text-anchor="start">4</text>
+<text x="1328" y="300" font-size="26" fill="#111827" font-weight="600" text-anchor="middle">回复或停止</text>
+<text x="1328" y="368" font-size="20" fill="#526174" font-weight="400" text-anchor="middle">Agent 提问时作答</text>
+<text x="1328" y="412" font-size="20" fill="#526174" font-weight="400" text-anchor="middle">不需要时可以停止</text>
+<rect id="step5" data-graph-role="node" x="1536" y="180" width="320" height="420" rx="12" fill="#ffffff" stroke="#86efac" stroke-width="3"/>
+<text x="1560" y="228" font-size="18" fill="#16a34a" font-weight="600" text-anchor="start">5</text>
+<text x="1696" y="300" font-size="26" fill="#111827" font-weight="600" text-anchor="middle">取走结果</text>
+<text x="1696" y="368" font-size="20" fill="#526174" font-weight="400" text-anchor="middle">打开附件并下载</text>
+<text x="1696" y="412" font-size="20" fill="#526174" font-weight="400" text-anchor="middle">刷新后历史还在</text>
+<path data-graph-role="edge" id="e12" d="M384 390 H432" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#blue)"/>
+<path data-graph-role="edge" id="e23" d="M752 390 H800" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#blue)"/>
+<path data-graph-role="edge" id="e34" d="M1120 390 H1168" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#blue)"/>
+<path data-graph-role="edge" id="e45" d="M1488 390 H1536" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#blue)"/>
+<rect data-graph-role="node" x="64" y="660" width="1792" height="120" rx="12" fill="#edf1f6" stroke="#dbe3ee" stroke-width="2"/>
+<text x="960" y="712" font-size="22" fill="#111827" font-weight="600" text-anchor="middle">设置里可以配置模型、MCP 与 A2A</text>
+<text x="960" y="752" font-size="18" fill="#526174" font-weight="400" text-anchor="middle">这是使用前的准备，不插入上面的任务路径</text>
+<text x="64" y="848" font-size="18" fill="#64748b" font-weight="400" text-anchor="start">按你在页面上的操作排列</text>
+<text x="1856" y="848" font-size="18" fill="#64748b" font-weight="400" text-anchor="end">文件写在沙箱里，下载的是同步后的附件</text>
+</svg>

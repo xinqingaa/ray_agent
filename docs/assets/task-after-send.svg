@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="720" viewBox="0 0 1920 720" role="img" aria-labelledby="title desc">
+<title id="title">发送之后，请求怎样走完</title>
+<desc id="desc">用户请求进入规划与执行，工具在沙箱或外部能力中落地，进度回到页面，选定文件再成为可下载附件。单向交接，不表示部署拓扑。</desc>
+<style>text{font-family:"Helvetica Neue",Arial,"PingFang SC","Microsoft YaHei",sans-serif}</style>
+<defs>
+<marker id="blue" markerUnits="userSpaceOnUse" markerWidth="14" markerHeight="14" refX="13" refY="7" orient="auto"><path d="M0 0 L14 7 L0 14 Z" fill="#2563eb"/></marker>
+</defs>
+<rect data-graph-role="background" width="1920" height="720" fill="#f3f6fa"/>
+<text x="64" y="52" font-size="18" fill="#64748b" font-weight="400" text-anchor="start">RAYAGENT / 一次请求</text>
+<text x="64" y="104" font-size="36" fill="#111827" font-weight="600" text-anchor="start">发送之后，请求怎样走完</text>
+<rect id="a1" data-graph-role="node" x="64" y="200" width="320" height="320" rx="12" fill="#ffffff" stroke="#c8d5e5" stroke-width="3"/>
+<text x="224" y="320" font-size="26" fill="#111827" font-weight="600" text-anchor="middle">你的请求</text>
+<text x="224" y="380" font-size="20" fill="#526174" font-weight="400" text-anchor="middle">页面发出目标</text>
+<rect id="a2" data-graph-role="node" x="432" y="200" width="320" height="320" rx="12" fill="#ffffff" stroke="#8cabdb" stroke-width="3"/>
+<text x="592" y="320" font-size="26" fill="#111827" font-weight="600" text-anchor="middle">规划并执行</text>
+<text x="592" y="380" font-size="20" fill="#526174" font-weight="400" text-anchor="middle">拆步骤、调模型与工具</text>
+<rect id="a3" data-graph-role="node" x="800" y="200" width="320" height="320" rx="12" fill="#ffffff" stroke="#c8d5e5" stroke-width="3"/>
+<text x="960" y="308" font-size="26" fill="#111827" font-weight="600" text-anchor="middle">在环境里落地</text>
+<text x="960" y="360" font-size="20" fill="#526174" font-weight="400" text-anchor="middle">沙箱、文件、浏览器</text>
+<text x="960" y="400" font-size="20" fill="#526174" font-weight="400" text-anchor="middle">或 MCP / A2A</text>
+<rect id="a4" data-graph-role="node" x="1168" y="200" width="320" height="320" rx="12" fill="#ffffff" stroke="#c8d5e5" stroke-width="3"/>
+<text x="1328" y="320" font-size="26" fill="#111827" font-weight="600" text-anchor="middle">进度回到页面</text>
+<text x="1328" y="380" font-size="20" fill="#526174" font-weight="400" text-anchor="middle">计划、工具记录、消息</text>
+<rect id="a5" data-graph-role="node" x="1536" y="200" width="320" height="320" rx="12" fill="#ffffff" stroke="#86efac" stroke-width="3"/>
+<text x="1696" y="320" font-size="26" fill="#111827" font-weight="600" text-anchor="middle">附件可下载</text>
+<text x="1696" y="380" font-size="20" fill="#526174" font-weight="400" text-anchor="middle">同步后的文件副本</text>
+<path data-graph-role="edge" id="b12" d="M384 360 H432" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#blue)"/>
+<path data-graph-role="edge" id="b23" d="M752 360 H800" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#blue)"/>
+<path data-graph-role="edge" id="b34" d="M1120 360 H1168" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#blue)"/>
+<path data-graph-role="edge" id="b45" d="M1488 360 H1536" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#blue)"/>
+<text x="64" y="612" font-size="18" fill="#64748b" font-weight="400" text-anchor="start">单向交接，不是部署图</text>
+<text x="1856" y="612" font-size="18" fill="#64748b" font-weight="400" text-anchor="end">模块边界见正文</text>
+</svg>

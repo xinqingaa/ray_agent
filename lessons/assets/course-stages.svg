@@ -1,0 +1,44 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2240" height="900" viewBox="0 0 2240 900" role="img" aria-labelledby="title desc">
+<title id="title">课程按什么顺序展开</title>
+<desc id="desc">课程按机制阶段阅读：认识闭环、一次完整任务、控制与观察、环境与交付、外部协作、验证。阶段用主题命名，不绑定章号。</desc>
+<style>text{font-family:"Helvetica Neue",Arial,"PingFang SC","Microsoft YaHei",sans-serif}</style>
+<defs>
+<marker id="blue" markerUnits="userSpaceOnUse" markerWidth="14" markerHeight="14" refX="13" refY="7" orient="auto"><path d="M0 0 L14 7 L0 14 Z" fill="#2563eb"/></marker>
+</defs>
+<rect data-graph-role="background" width="2240" height="900" fill="#f3f6fa"/>
+<text x="56" y="52" font-size="18" fill="#64748b" font-weight="400" text-anchor="start">RAYAGENT / 课程</text>
+<text x="56" y="104" font-size="36" fill="#111827" font-weight="600" text-anchor="start">课程按什么顺序展开</text>
+<rect id="s1" data-graph-role="node" x="56" y="180" width="320" height="520" rx="12" fill="#ffffff" stroke="#c8d5e5" stroke-width="3"/>
+<text x="216" y="280" font-size="26" fill="#111827" font-weight="600" text-anchor="middle">认识闭环</text>
+<text x="216" y="360" font-size="20" fill="#526174" font-weight="400" text-anchor="middle">模型怎样被请求</text>
+<text x="216" y="404" font-size="20" fill="#526174" font-weight="400" text-anchor="middle">工具怎样真正执行</text>
+<text x="216" y="448" font-size="20" fill="#526174" font-weight="400" text-anchor="middle">循环与上下文</text>
+<rect id="s2" data-graph-role="node" x="420" y="180" width="320" height="520" rx="12" fill="#ffffff" stroke="#8cabdb" stroke-width="3"/>
+<text x="580" y="280" font-size="26" fill="#111827" font-weight="600" text-anchor="middle">一次完整任务</text>
+<text x="580" y="360" font-size="20" fill="#526174" font-weight="400" text-anchor="middle">目标如何变成交接</text>
+<text x="580" y="404" font-size="20" fill="#526174" font-weight="400" text-anchor="middle">调用、反馈、交付</text>
+<rect id="s3" data-graph-role="node" x="784" y="180" width="320" height="520" rx="12" fill="#ffffff" stroke="#c8d5e5" stroke-width="3"/>
+<text x="944" y="280" font-size="26" fill="#111827" font-weight="600" text-anchor="middle">控制与观察</text>
+<text x="944" y="360" font-size="20" fill="#526174" font-weight="400" text-anchor="middle">规划、等待、取消</text>
+<text x="944" y="404" font-size="20" fill="#526174" font-weight="400" text-anchor="middle">状态保存与事件</text>
+<rect id="s4" data-graph-role="node" x="1148" y="180" width="320" height="520" rx="12" fill="#ffffff" stroke="#c8d5e5" stroke-width="3"/>
+<text x="1308" y="280" font-size="26" fill="#111827" font-weight="600" text-anchor="middle">环境与交付</text>
+<text x="1308" y="360" font-size="20" fill="#526174" font-weight="400" text-anchor="middle">沙箱里行动发生</text>
+<text x="1308" y="404" font-size="20" fill="#526174" font-weight="400" text-anchor="middle">文件、浏览器、附件</text>
+<rect id="s5" data-graph-role="node" x="1512" y="180" width="320" height="520" rx="12" fill="#ffffff" stroke="#c8d5e5" stroke-width="3"/>
+<text x="1672" y="280" font-size="26" fill="#111827" font-weight="600" text-anchor="middle">外部协作</text>
+<text x="1672" y="360" font-size="20" fill="#526174" font-weight="400" text-anchor="middle">MCP 外部工具</text>
+<text x="1672" y="404" font-size="20" fill="#526174" font-weight="400" text-anchor="middle">A2A 远程 Agent</text>
+<rect id="s6" data-graph-role="node" x="1876" y="180" width="320" height="520" rx="12" fill="#ffffff" stroke="#86efac" stroke-width="3"/>
+<text x="2036" y="280" font-size="26" fill="#111827" font-weight="600" text-anchor="middle">验证</text>
+<text x="2036" y="360" font-size="20" fill="#526174" font-weight="400" text-anchor="middle">要求与证据</text>
+<text x="2036" y="404" font-size="20" fill="#526174" font-weight="400" text-anchor="middle">失败与评估</text>
+<path data-graph-role="edge" id="c12" d="M376 440 H420" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#blue)"/>
+<path data-graph-role="edge" id="c23" d="M740 440 H784" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#blue)"/>
+<path data-graph-role="edge" id="c34" d="M1104 440 H1148" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#blue)"/>
+<path data-graph-role="edge" id="c45" d="M1468 440 H1512" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#blue)"/>
+<path data-graph-role="edge" id="c56" d="M1832 440 H1876" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#blue)"/>
+<text x="56" y="768" font-size="20" fill="#526174" font-weight="400" text-anchor="start">先理解机制，再对照实验和产品实现。局部实验见 labs，完整应用见运行指南。</text>
+<text x="56" y="848" font-size="18" fill="#64748b" font-weight="400" text-anchor="start">阶段按主题划分，不绑定章号</text>
+<text x="2184" y="848" font-size="18" fill="#64748b" font-weight="400" text-anchor="end">具体章节见下方目录</text>
+</svg>
