@@ -160,12 +160,12 @@ uv run --locked python 6_9_mcp-code.py
 uv run --locked python 6_9_mcp-client.py
 ```
 
-客户端应发现 `run_code` 并得到结果 `42`。以上 stdio 与 HTTP 闭环已在 macOS/Python 3.12 下实际验证，不需要模型密钥或外部网络。
+客户端应发现 `run_code` 并得到结果 `42`。以上 stdio 与 HTTP 闭环已在 macOS/Python 3.12 下实际验证，不需要模型密钥或外部网络。stdio 两例用于比较资源作用域，HTTP 一例用于观察独立服务通信；计算器的 `eval` 与 HTTP 的代码执行都不等于产品沙箱隔离。协议机制和产品对照见[第十四章](../../lessons/14-external-tools-with-mcp.md)，复跑条件见[制作进度](../../lessons/progress.md#第-14-章通过-mcp-接入外部工具)。
 
 ## 对照与非基线示例
 
-- `6_5_无MCP SDK调用高德MCP.py` 保留手写请求，用于观察不使用 SDK 时需要自行承担的协议处理。
-- `6_7_ReAct-Agent-with-mcp.py` 已适配 MCP 2.2，但运行还需要模型密钥。
+- `6_5_无MCP SDK调用高德MCP.py` 保留手写请求，用于观察不使用 SDK 时需要自行承担的协议处理；没有完整覆盖当前协议元数据和响应形式，不作为现代协议实现基线。
+- `6_7_ReAct-Agent-with-mcp.py` 已适配 MCP 2.2，实际连接本地计算器，运行还需要模型密钥；本章复跑未包含真实模型。
 - `6_8_mcp-bash.py`、`6_10_mcp-external-api.py` 和 `6_11_mcp-client-connect-api.py` 分别依赖本机 Shell 或外部服务，不作为离线验收条件；`6_11` 需要 `BAIDU_MCP_TOKEN`，且对端必须支持目标协议。
 - `demo-code/`、`2-2 code/weather/` 和 `2-2 code/ui/` 是独立历史综合环境，不属于阶段 3 的协议教学基线。其中 UI 示例还依赖仓库未包含的上游模块，不能表述为当前可运行示例。
 

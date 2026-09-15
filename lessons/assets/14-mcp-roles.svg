@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900"><title>Host 组织任务，Client 与 Server 通信</title><desc>通用角色图。Host 中的任务协调连接模型及多个 MCP Client；每个 Client 对应一个 Server。Server 在自己的环境执行能力。</desc>
+<style>text{font-family:Arial,"PingFang SC",sans-serif;fill:#172334;font-size:28px}.small{font-size:24px;fill:#526172}.title{font-size:36px;font-weight:600}.label{font-size:28px;font-weight:600}</style><defs>
+<marker id="blue" markerWidth="8" markerHeight="7" refX="8" refY="3.5" orient="auto"><path d="M0 0L8 3.5L0 7Z" fill="#2563eb"/></marker>
+<marker id="green" markerWidth="8" markerHeight="7" refX="8" refY="3.5" orient="auto"><path d="M0 0L8 3.5L0 7Z" fill="#16845b"/></marker>
+<marker id="gray" markerWidth="8" markerHeight="7" refX="8" refY="3.5" orient="auto"><path d="M0 0L8 3.5L0 7Z" fill="#748295"/></marker>
+</defs><rect data-graph-role="background" width="1600" height="900" fill="#f5f7f9"/>
+<text x="60" y="78" class="title" text-anchor="start">Host 组织任务，Client 与 Server 通信</text>
+<text x="60" y="132" class="small" text-anchor="start">通用职责；Server 可以是本机进程，也可以独立部署</text>
+<rect data-graph-role="container" x="60" y="180" width="860" height="540" rx="8" fill="#edf3fb" stroke="#cfdaea" stroke-width="2"/>
+<text x="90" y="226" class="label" text-anchor="start">Host：AI 应用</text>
+<rect data-graph-role="node" x="110" y="270" width="280" height="120" rx="8" fill="#fff" stroke="#2563eb" stroke-width="3"/>
+<text x="250.0" y="320" class="label" text-anchor="middle">模型</text>
+<text x="250.0" y="364" class="small" text-anchor="middle">提出动作</text>
+<rect data-graph-role="node" x="110" y="540" width="280" height="120" rx="8" fill="#fff" stroke="#2563eb" stroke-width="3"/>
+<text x="250.0" y="590" class="label" text-anchor="middle">任务协调</text>
+<text x="250.0" y="634" class="small" text-anchor="middle">组织工具与反馈</text>
+<rect data-graph-role="node" x="620" y="280" width="250" height="120" rx="8" fill="#fff" stroke="#2563eb" stroke-width="3"/>
+<text x="745.0" y="330" class="label" text-anchor="middle">Client A</text>
+<text x="745.0" y="374" class="small" text-anchor="middle">MCP 通信</text>
+<rect data-graph-role="node" x="620" y="540" width="250" height="120" rx="8" fill="#fff" stroke="#2563eb" stroke-width="3"/>
+<text x="745.0" y="590" class="label" text-anchor="middle">Client B</text>
+<text x="745.0" y="634" class="small" text-anchor="middle">MCP 通信</text>
+<rect data-graph-role="node" x="1160" y="280" width="360" height="120" rx="8" fill="#fff" stroke="#2563eb" stroke-width="3"/>
+<text x="1340.0" y="330" class="label" text-anchor="middle">Server A</text>
+<text x="1340.0" y="374" class="small" text-anchor="middle">执行函数 / 访问 API</text>
+<rect data-graph-role="node" x="1160" y="540" width="360" height="120" rx="8" fill="#fff" stroke="#2563eb" stroke-width="3"/>
+<text x="1340.0" y="590" class="label" text-anchor="middle">Server B</text>
+<text x="1340.0" y="634" class="small" text-anchor="middle">查询业务数据</text>
+<path d="M220 390V540" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#blue)"/>
+<text x="240" y="465" class="small" text-anchor="start">工具调用</text>
+<path d="M390 575H475V340H620" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#blue)"/>
+<path d="M390 625H620" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#blue)"/>
+<text x="460" y="614" class="small" text-anchor="start">调用</text>
+<path d="M870 315H1160" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#blue)"/>
+<text x="1015" y="302" class="small" text-anchor="middle">MCP 请求</text>
+<path d="M1160 370H870" fill="none" stroke="#16845b" stroke-width="4" marker-end="url(#green)"/>
+<text x="1015" y="359" class="small" text-anchor="middle">描述与结果</text>
+<path d="M870 575H1160" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#blue)"/>
+<text x="1015" y="562" class="small" text-anchor="middle">MCP 请求</text>
+<path d="M1160 630H870" fill="none" stroke="#16845b" stroke-width="4" marker-end="url(#green)"/>
+<text x="1015" y="619" class="small" text-anchor="middle">描述与结果</text>
+<text x="60" y="770" class="small" text-anchor="start">Client 收到的信息由 Host 组织回模型；Server 不必包含模型或任务规划器。</text>
+<path d="M60 825H110" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#blue)"/>
+<text x="130" y="833" class="small" text-anchor="start">请求 / 调用</text>
+<path d="M390 825H440" fill="none" stroke="#16845b" stroke-width="4" marker-end="url(#green)"/>
+<text x="460" y="833" class="small" text-anchor="start">描述 / 结果</text>
+</svg>

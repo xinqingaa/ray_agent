@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900"><title>从发现能力到执行一次工具调用</title><desc>时序图：应用经客户端发现版本和工具，再请求模型选择动作，转为 tools/call 并把结果交回模型。</desc>
+<style>text{font-family:Arial,"PingFang SC",sans-serif;fill:#172334;font-size:28px}.small{font-size:24px;fill:#526172}.title{font-size:36px;font-weight:600}.label{font-size:28px;font-weight:600}</style><defs>
+<marker id="blue" markerWidth="8" markerHeight="7" refX="8" refY="3.5" orient="auto"><path d="M0 0L8 3.5L0 7Z" fill="#2563eb"/></marker>
+<marker id="green" markerWidth="8" markerHeight="7" refX="8" refY="3.5" orient="auto"><path d="M0 0L8 3.5L0 7Z" fill="#16845b"/></marker>
+<marker id="gray" markerWidth="8" markerHeight="7" refX="8" refY="3.5" orient="auto"><path d="M0 0L8 3.5L0 7Z" fill="#748295"/></marker>
+</defs><rect data-graph-role="background" width="1600" height="900" fill="#f5f7f9"/>
+<text x="60" y="78" class="title" text-anchor="start">从发现能力到执行一次工具调用</text>
+<text x="60" y="127" class="small" text-anchor="start">本章使用的发现顺序；省略错误、分页与元数据字段</text>
+<rect data-graph-role="node" x="75" y="165" width="290" height="75" rx="8" fill="#fff" stroke="#2563eb" stroke-width="3"/>
+<text x="220" y="213" class="label" text-anchor="middle">模型</text>
+<path data-graph-role="decoration" d="M220 240V775" stroke="#b6c2d2" stroke-width="2" stroke-dasharray="7 8"/>
+<rect data-graph-role="node" x="615" y="165" width="290" height="75" rx="8" fill="#fff" stroke="#2563eb" stroke-width="3"/>
+<text x="760" y="213" class="label" text-anchor="middle">Host / Client</text>
+<path data-graph-role="decoration" d="M760 240V775" stroke="#b6c2d2" stroke-width="2" stroke-dasharray="7 8"/>
+<rect data-graph-role="node" x="1195" y="165" width="290" height="75" rx="8" fill="#fff" stroke="#2563eb" stroke-width="3"/>
+<text x="1340" y="213" class="label" text-anchor="middle">MCP Server</text>
+<path data-graph-role="decoration" d="M1340 240V775" stroke="#b6c2d2" stroke-width="2" stroke-dasharray="7 8"/>
+<path d="M760 290H1340" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#blue)"/>
+<text x="1050.0" y="278" class="small" text-anchor="middle">server/discover</text>
+<path d="M1340 350H760" fill="none" stroke="#16845b" stroke-width="4" marker-end="url(#green)"/>
+<text x="1050.0" y="338" class="small" text-anchor="middle">支持的版本与能力</text>
+<path d="M760 410H1340" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#blue)"/>
+<text x="1050.0" y="398" class="small" text-anchor="middle">tools/list</text>
+<path d="M1340 470H760" fill="none" stroke="#16845b" stroke-width="4" marker-end="url(#green)"/>
+<text x="1050.0" y="458" class="small" text-anchor="middle">名称、说明、schema</text>
+<path d="M760 530H220" fill="none" stroke="#16845b" stroke-width="4" marker-end="url(#green)"/>
+<text x="490.0" y="518" class="small" text-anchor="middle">模型请求：工具声明</text>
+<path d="M220 590H760" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#blue)"/>
+<text x="490.0" y="578" class="small" text-anchor="middle">模型响应：名称与参数</text>
+<path d="M760 650H1340" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#blue)"/>
+<text x="1050.0" y="638" class="small" text-anchor="middle">tools/call</text>
+<path d="M1340 710H760" fill="none" stroke="#16845b" stroke-width="4" marker-end="url(#green)"/>
+<text x="1050.0" y="698" class="small" text-anchor="middle">工具结果</text>
+<path d="M760 770H220" fill="none" stroke="#16845b" stroke-width="4" marker-end="url(#green)"/>
+<text x="490.0" y="758" class="small" text-anchor="middle">下一次模型请求：工具消息</text>
+<path d="M60 840H110" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#blue)"/>
+<text x="130" y="848" class="small" text-anchor="start">请求 / 调用</text>
+<path d="M390 840H440" fill="none" stroke="#16845b" stroke-width="4" marker-end="url(#green)"/>
+<text x="460" y="848" class="small" text-anchor="start">描述 / 结果</text>
+</svg>

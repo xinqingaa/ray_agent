@@ -144,7 +144,7 @@ uv run --locked python -m pytest tests/protocols tests/core
 
 ### 怎么接到产品里
 
-对端必须先在跑，并且协议一致：MCP `2026-07-28`（`stdio` 或 `streamable_http`），A2A 1.0 JSON-RPC。产品只做发现、调用和结果展示；不提供 OAuth、MCP resources、A2A 多轮人工续接。
+HTTP MCP 与 A2A 对端必须先运行；stdio MCP 由 API 按配置启动子进程，命令与依赖必须在 API 所在环境可用。双方协议需一致：MCP `2026-07-28`（`stdio` 或 `streamable_http`），A2A 1.0 JSON-RPC。产品只做发现、调用和结果展示；不提供 OAuth、MCP resources、A2A 多轮人工续接。
 
 日常在**首页右上角齿轮**（标题「RayAgent 设置」）添加，不要改仓库 yaml：
 

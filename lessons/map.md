@@ -183,9 +183,16 @@
 
 ## 第 14 章素材
 
-基础实验 MCP 示例；[MCP 适配](../ray_agent/api/app/infrastructure/protocols/mcp.py)。
+| 研究内容 | 实现与实验入口 | 观察重点 |
+|---|---|---|
+| 协议发现与两种传输 | [基础实验指南](../labs/foundations/README.md#mcp-22-可复现基线)、[实验协议辅助](../labs/foundations/mcp_client_2026.py) | 固定版本、发现与调用；stdio 子进程和 HTTP 服务的环境与寿命 |
+| 工具声明与服务执行 | [计算器服务](../labs/foundations/6_6_mcp-server-demo.py)、[产品协议夹具](../ray_agent/api/tests/protocols/fixture_server.py) | 字符串表达式与整数参数的区别，返回文本与结构化失败的区别 |
+| 模型反馈 | [ReAct 实验](../labs/foundations/6_7_ReAct-Agent-with-mcp.py) | 当前连接本地计算器；工具声明、调用与结果回传；首项文本和递归循环的简化边界 |
+| 产品适配与资源归属 | [MCP 适配](../ray_agent/api/app/infrastructure/protocols/mcp.py)、[工具箱](../ray_agent/api/app/domain/services/tools/mcp.py) | 分页、别名与精确路由、连接所属任务、队列和预算；列表不自动刷新 |
+| 结果进入任务与事件 | [BaseAgent](../ray_agent/api/app/domain/services/agents/base.py)、[运行器](../ray_agent/api/app/domain/services/agent_task_runner.py)、[结果转换](../ray_agent/api/app/infrastructure/protocols/common.py) | 工具消息与事件分别承接结果；截断、空值和失败语义 |
+| 配置探测与验证 | [配置服务](../ray_agent/api/app/application/services/app_config_service.py)、[协议测试](../ray_agent/api/tests/protocols/test_protocols.py)、[边界测试](../ray_agent/api/tests/protocols/test_edges.py)、[API 指南](../ray_agent/api/README.md#mcpa2a) | 临时探测与任务连接分开；部分失败、超时、取消与清理的证据范围 |
 
-观察重点：观察发现、调用、结果与连接生命周期；手写协议示例用于对照 SDK 职责。结合 [API 协议指南](../ray_agent/api/README.md#mcpa2a) 与 [协议边界测试](../ray_agent/api/tests/protocols/test_edges.py)核对版本、认证配置、超时和取消。远端工具说明与结果的可信范围、外部副作用、敏感配置记录需单独解释，不能将认证成功当成每个动作都已获准。
+官方协议依据就近维护在正文。手写高德示例仅用于观察请求拼装，不能当作完整的当前协议客户端。协议能力、SDK 能力与产品支持范围分别核对；认证成功不能代替行动授权。实际运行条件和缺口见[制作进度](progress.md#第-14-章通过-mcp-接入外部工具)。
 
 ## 第 15 章素材
 
