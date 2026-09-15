@@ -1,0 +1,86 @@
+<?xml version='1.0' encoding='utf-8'?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1430" viewBox="0 0 1600 1430" role="img" aria-labelledby="title desc">
+  <title id="title">一次任务的运行模型</title>
+  <desc id="desc">外层决定做哪个步骤，内层根据工具结果继续行动</desc>
+  <style>text {font-family: "PingFang SC", "Microsoft YaHei", sans-serif; letter-spacing:0}</style>
+  <defs>
+    <marker id="blue" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto-start-reverse" markerUnits="userSpaceOnUse">
+      <path d="M0 0 L10 5 L0 10 Z" fill="#2563eb" />
+    </marker>
+    <marker id="green" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto-start-reverse" markerUnits="userSpaceOnUse">
+      <path d="M0 0 L10 5 L0 10 Z" fill="#15803d" />
+    </marker>
+    <marker id="red" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto-start-reverse" markerUnits="userSpaceOnUse">
+      <path d="M0 0 L10 5 L0 10 Z" fill="#b91c1c" />
+    </marker>
+  </defs>
+  <rect x="0" y="0" width="1600" height="1430" rx="8" fill="#ffffff" stroke="none" stroke-width="1.5" data-graph-role="background" />
+  <text x="48" y="62" fill="#17212f" font-size="36" font-weight="650" text-anchor="start">一次任务的运行模型</text>
+  <text x="48" y="103" fill="#64748b" font-size="22" font-weight="400" text-anchor="start">外层决定做哪个步骤，内层根据工具结果继续行动</text>
+  <rect x="40" y="280" width="460" height="860" rx="8" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.5" data-graph-role="container" />
+  <rect x="640" y="440" width="910" height="550" rx="8" fill="#f0fdf4" stroke="#cbd5e1" stroke-width="1.5" data-graph-role="container" />
+  <text x="68" y="320" fill="#17212f" font-size="23" font-weight="600" text-anchor="start">外层 / PlannerReActFlow</text>
+  <text x="670" y="482" fill="#15803d" font-size="23" font-weight="600" text-anchor="start">内层 / ReActAgent + BaseAgent</text>
+  <rect x="70" y="150" width="400" height="90" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5" data-graph-role="node" id="input" />
+  <text x="94" y="187" fill="#17212f" font-size="26" font-weight="600" text-anchor="start">目标与输入资料</text>
+  <text x="94" y="222" fill="#526174" font-size="21" font-weight="400" text-anchor="start">接收消息、同步附件、准备环境</text>
+  <rect x="70" y="355" width="400" height="95" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5" data-graph-role="node" id="plan" />
+  <text x="94" y="392" fill="#17212f" font-size="26" font-weight="600" text-anchor="start">生成计划</text>
+  <text x="94" y="427" fill="#526174" font-size="21" font-weight="400" text-anchor="start">Planner 创建步骤与初始说明</text>
+  <rect x="70" y="550" width="400" height="105" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5" data-graph-role="node" id="select" />
+  <text x="94" y="587" fill="#17212f" font-size="26" font-weight="600" text-anchor="start">选择下一个待办步骤</text>
+  <text x="94" y="622" fill="#526174" font-size="21" font-weight="400" text-anchor="start">携带原始目标、计划与步骤信息</text>
+  <rect x="70" y="805" width="400" height="105" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5" data-graph-role="node" id="update" />
+  <text x="94" y="842" fill="#17212f" font-size="26" font-weight="600" text-anchor="start">更新剩余计划</text>
+  <text x="94" y="877" fill="#526174" font-size="21" font-weight="400" text-anchor="start">步骤结果交给 Planner 调整计划</text>
+  <rect x="70" y="1005" width="400" height="105" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5" data-graph-role="node" id="finish" />
+  <text x="94" y="1042" fill="#17212f" font-size="26" font-weight="600" text-anchor="start">总结与完成</text>
+  <text x="94" y="1077" fill="#526174" font-size="21" font-weight="400" text-anchor="start">无待办步骤时进入总结并收尾</text>
+  <rect x="690" y="550" width="365" height="105" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5" data-graph-role="node" id="model" />
+  <text x="714" y="587" fill="#17212f" font-size="26" font-weight="600" text-anchor="start">模型决定下一步</text>
+  <text x="714" y="622" fill="#526174" font-size="21" font-weight="400" text-anchor="start">读取上下文，返回响应或调用</text>
+  <rect x="1140" y="550" width="365" height="105" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5" data-graph-role="node" id="tool" />
+  <text x="1164" y="587" fill="#17212f" font-size="26" font-weight="600" text-anchor="start">执行工具调用</text>
+  <text x="1164" y="622" fill="#526174" font-size="21" font-weight="400" text-anchor="start">内置工具 / MCP / A2A</text>
+  <rect x="1140" y="810" width="365" height="105" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5" data-graph-role="node" id="feedback" />
+  <text x="1164" y="847" fill="#17212f" font-size="26" font-weight="600" text-anchor="start">写入工具结果</text>
+  <text x="1164" y="882" fill="#526174" font-size="21" font-weight="400" text-anchor="start">结果加入上下文，继续模型调用</text>
+  <rect x="690" y="810" width="365" height="105" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5" data-graph-role="node" id="stepdone" />
+  <text x="714" y="847" fill="#17212f" font-size="26" font-weight="600" text-anchor="start">当前步骤结束</text>
+  <text x="714" y="882" fill="#526174" font-size="21" font-weight="400" text-anchor="start">解析结果，交回外层流程</text>
+  <rect x="1140" y="150" width="365" height="105" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5" data-graph-role="node" id="wait" />
+  <text x="1164" y="187" fill="#17212f" font-size="26" font-weight="600" text-anchor="start">提问并等待用户</text>
+  <text x="1164" y="222" fill="#526174" font-size="21" font-weight="400" text-anchor="start">记录 WAITING，当前运行退出</text>
+  <path id="begin" data-graph-role="edge" data-source="input" data-target="plan" d="M425,240 L425,355" fill="none" stroke="#2563eb" stroke-width="2.5" marker-end="url(#blue)" />
+  <path id="planned" data-graph-role="edge" data-source="plan" data-target="select" d="M270,450 L270,550" fill="none" stroke="#2563eb" stroke-width="2.5" marker-end="url(#blue)" />
+  <text x="289" y="512" fill="#526174" font-size="20" font-weight="400" text-anchor="start">创建成功</text>
+  <path id="execute" data-graph-role="edge" data-source="select" data-target="model" d="M470,602 L690,602" fill="none" stroke="#2563eb" stroke-width="2.5" marker-end="url(#blue)" />
+  <text x="516" y="585" fill="#526174" font-size="20" font-weight="400" text-anchor="start">存在待办步骤</text>
+  <path id="invoke" data-graph-role="edge" data-source="model" data-target="tool" d="M1055,602 L1140,602" fill="none" stroke="#2563eb" stroke-width="2.5" marker-end="url(#blue)" />
+  <text x="1064" y="636" fill="#526174" font-size="20" font-weight="400" text-anchor="start">调用</text>
+  <path id="result" data-graph-role="edge" data-source="tool" data-target="feedback" d="M1322,655 L1322,810" fill="none" stroke="#2563eb" stroke-width="2.5" marker-end="url(#blue)" />
+  <text x="1340" y="747" fill="#526174" font-size="20" font-weight="400" text-anchor="start">返回结果</text>
+  <path id="repeat" data-graph-role="edge" data-source="feedback" data-target="model" d="M1180,810 L1180,745 L970,745 L970,655" fill="none" stroke="#15803d" stroke-width="2.5" marker-end="url(#green)" />
+  <text x="989" y="730" fill="#15803d" font-size="20" font-weight="400" text-anchor="start">反馈进入下一轮</text>
+  <path id="respond" data-graph-role="edge" data-source="model" data-target="stepdone" d="M792,655 L792,810" fill="none" stroke="#2563eb" stroke-width="2.5" marker-end="url(#blue)" />
+  <text x="680" y="757" fill="#526174" font-size="20" font-weight="400" text-anchor="start">无工具调用</text>
+  <path id="stepreturn" data-graph-role="edge" data-source="stepdone" data-target="update" d="M690,860 L470,860" fill="none" stroke="#2563eb" stroke-width="2.5" marker-end="url(#blue)" />
+  <text x="520" y="841" fill="#526174" font-size="20" font-weight="400" text-anchor="start">步骤结果</text>
+  <path id="next" data-graph-role="edge" data-source="update" data-target="select" d="M170,805 L170,655" fill="none" stroke="#2563eb" stroke-width="2.5" marker-end="url(#blue)" />
+  <text x="70" y="738" fill="#526174" font-size="20" font-weight="400" text-anchor="start">继续选步骤</text>
+  <path id="nomore" data-graph-role="edge" data-source="select" data-target="finish" d="M70,628 L20,628 L20,1056 L70,1056" fill="none" stroke="#2563eb" stroke-width="2.5" marker-end="url(#blue)" />
+  <text x="70" y="974" fill="#526174" font-size="20" font-weight="400" text-anchor="start">无待办步骤时总结</text>
+  <path id="ask" data-graph-role="edge" data-source="tool" data-target="wait" d="M1322,550 L1322,255" fill="none" stroke="#2563eb" stroke-width="2.5" marker-end="url(#blue)" />
+  <text x="1340" y="393" fill="#526174" font-size="20" font-weight="400" text-anchor="start">询问工具触发</text>
+  <path id="resume" data-graph-role="edge" data-source="wait" data-target="model" d="M1140,204 L1100,204 L1100,575 L1055,575" fill="none" stroke="#15803d" stroke-width="2.5" marker-end="url(#green)" />
+  <text x="890" y="397" fill="#15803d" font-size="20" font-weight="400" text-anchor="start">用户回复后继续</text>
+  <text x="670" y="1040" fill="#17212f" font-size="23" font-weight="600" text-anchor="start">执行控制</text>
+  <text x="670" y="1080" fill="#526174" font-size="22" font-weight="400" text-anchor="start">新输入：在事件交接处处理，运行中可能重新规划。</text>
+  <text x="670" y="1120" fill="#526174" font-size="22" font-weight="400" text-anchor="start">失败：步骤失败或未处理异常结束本轮，可再次发消息。</text>
+  <text x="670" y="1160" fill="#526174" font-size="22" font-weight="400" text-anchor="start">停止：取消当前运行；已经发生的副作用不会自动撤销。</text>
+  <rect x="40" y="1220" width="1510" height="125" rx="8" fill="#eff6ff" stroke="#cbd5e1" stroke-width="1.5" data-graph-role="container" />
+  <text x="68" y="1259" fill="#17212f" font-size="24" font-weight="600" text-anchor="start">贯穿执行的两条输出</text>
+  <text x="68" y="1294" fill="#526174" font-size="22" font-weight="400" text-anchor="start">过程：消息、计划、步骤与工具事件持续回到页面，并保存历史。</text>
+  <text x="68" y="1325" fill="#526174" font-size="22" font-weight="400" text-anchor="start">成果：需要交付文件时同步为附件；不要求每项任务生成文件，也不只发生在最后一步。</text>
+  <text x="48" y="1390" fill="#526174" font-size="20" font-weight="400" text-anchor="start">蓝色：执行与控制交接     绿色：工具反馈与用户回复续接；本图描述运行关系，不是数据库状态枚举。</text>
+</svg>

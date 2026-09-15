@@ -1,0 +1,84 @@
+<?xml version='1.0' encoding='utf-8'?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1300" viewBox="0 0 1600 1300" role="img" aria-labelledby="title desc">
+  <title id="title">RayAgent 系统架构</title>
+  <desc id="desc">会话入口、任务运行、工具执行与数据归属</desc>
+  <style>text {font-family: "PingFang SC", "Microsoft YaHei", sans-serif; letter-spacing:0}</style>
+  <defs>
+    <marker id="blue" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto-start-reverse" markerUnits="userSpaceOnUse">
+      <path d="M0 0 L10 5 L0 10 Z" fill="#2563eb" />
+    </marker>
+    <marker id="green" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto-start-reverse" markerUnits="userSpaceOnUse">
+      <path d="M0 0 L10 5 L0 10 Z" fill="#15803d" />
+    </marker>
+    <marker id="red" markerWidth="10" markerHeight="10" refX="9" refY="5" orient="auto-start-reverse" markerUnits="userSpaceOnUse">
+      <path d="M0 0 L10 5 L0 10 Z" fill="#b91c1c" />
+    </marker>
+  </defs>
+  <rect x="0" y="0" width="1600" height="1300" rx="8" fill="#ffffff" stroke="none" stroke-width="1.5" data-graph-role="background" />
+  <text x="48" y="62" fill="#17212f" font-size="36" font-weight="650" text-anchor="start">RayAgent 系统架构</text>
+  <text x="48" y="103" fill="#64748b" font-size="22" font-weight="400" text-anchor="start">会话入口、任务运行、工具执行与数据归属</text>
+  <rect x="470" y="285" width="660" height="690" rx="8" fill="#f8fafc" stroke="#cbd5e1" stroke-width="1.5" data-graph-role="container" />
+  <text x="494" y="319" fill="#64748b" font-size="20" font-weight="600" text-anchor="start">API 进程 / FastAPI</text>
+  <text x="50" y="298" fill="#17212f" font-size="22" font-weight="600" text-anchor="start">持久化与消息</text>
+  <text x="1250" y="505" fill="#17212f" font-size="22" font-weight="600" text-anchor="start">执行环境与外部服务</text>
+  <rect x="500" y="140" width="600" height="90" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5" data-graph-role="node" id="ui" />
+  <text x="524" y="177" fill="#17212f" font-size="26" font-weight="600" text-anchor="start">Web UI</text>
+  <text x="524" y="212" fill="#526174" font-size="21" font-weight="400" text-anchor="start">会话 · 计划 · 工具记录 · 文件预览 · 沙箱画面</text>
+  <rect x="500" y="350" width="600" height="100" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5" data-graph-role="node" id="app" />
+  <text x="524" y="387" fill="#17212f" font-size="26" font-weight="600" text-anchor="start">应用协调 / AgentService</text>
+  <text x="524" y="422" fill="#526174" font-size="21" font-weight="400" text-anchor="start">接收消息、附件与停止请求，准备执行资源</text>
+  <rect x="500" y="550" width="600" height="160" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5" data-graph-role="node" id="runner" />
+  <text x="524" y="587" fill="#17212f" font-size="26" font-weight="600" text-anchor="start">任务运行 / AgentTaskRunner</text>
+  <text x="524" y="622" fill="#526174" font-size="21" font-weight="400" text-anchor="start">PlannerReActFlow：规划、执行步骤、更新计划</text>
+  <text x="524" y="651" fill="#526174" font-size="21" font-weight="400" text-anchor="start">BaseAgent：模型调用、工具反馈、上下文</text>
+  <text x="524" y="680" fill="#526174" font-size="21" font-weight="400" text-anchor="start">事件发布、状态保存、文件同步</text>
+  <rect x="500" y="820" width="600" height="110" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5" data-graph-role="node" id="tools" />
+  <text x="524" y="857" fill="#17212f" font-size="26" font-weight="600" text-anchor="start">工具与外部能力适配</text>
+  <text x="524" y="892" fill="#526174" font-size="21" font-weight="400" text-anchor="start">文件 · Shell · 浏览器 · 搜索 · MCP · A2A</text>
+  <rect x="50" y="350" width="300" height="100" rx="8" fill="#eff6ff" stroke="#cbd5e1" stroke-width="1.5" data-graph-role="node" id="redis" />
+  <text x="74" y="387" fill="#17212f" font-size="26" font-weight="600" text-anchor="start">Redis Stream</text>
+  <text x="74" y="422" fill="#526174" font-size="21" font-weight="400" text-anchor="start">任务输入与输出事件</text>
+  <rect x="50" y="550" width="300" height="115" rx="8" fill="#f0fdf4" stroke="#cbd5e1" stroke-width="1.5" data-graph-role="node" id="db" />
+  <text x="74" y="587" fill="#17212f" font-size="26" font-weight="600" text-anchor="start">PostgreSQL</text>
+  <text x="74" y="622" fill="#526174" font-size="21" font-weight="400" text-anchor="start">会话、事件、Agent 记忆</text>
+  <text x="74" y="651" fill="#526174" font-size="21" font-weight="400" text-anchor="start">文件元数据</text>
+  <rect x="50" y="820" width="300" height="110" rx="8" fill="#f0fdf4" stroke="#cbd5e1" stroke-width="1.5" data-graph-role="node" id="files" />
+  <text x="74" y="857" fill="#17212f" font-size="26" font-weight="600" text-anchor="start">文件存储</text>
+  <text x="74" y="892" fill="#526174" font-size="21" font-weight="400" text-anchor="start">本地磁盘 / 腾讯云 COS</text>
+  <text x="74" y="921" fill="#526174" font-size="21" font-weight="400" text-anchor="start">附件、文件副本与截图</text>
+  <rect x="1250" y="550" width="300" height="115" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5" data-graph-role="node" id="llm" />
+  <text x="1274" y="587" fill="#17212f" font-size="26" font-weight="600" text-anchor="start">模型服务</text>
+  <text x="1274" y="622" fill="#526174" font-size="21" font-weight="400" text-anchor="start">OpenAI 兼容接口</text>
+  <text x="1274" y="651" fill="#526174" font-size="21" font-weight="400" text-anchor="start">规划与行动决策</text>
+  <rect x="1250" y="820" width="300" height="110" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5" data-graph-role="node" id="sandbox" />
+  <text x="1274" y="857" fill="#17212f" font-size="26" font-weight="600" text-anchor="start">会话沙箱</text>
+  <text x="1274" y="892" fill="#526174" font-size="21" font-weight="400" text-anchor="start">Shell / 文件 HTTP API</text>
+  <text x="1274" y="921" fill="#526174" font-size="21" font-weight="400" text-anchor="start">浏览器 CDP / VNC</text>
+  <rect x="500" y="1080" width="600" height="100" rx="8" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5" data-graph-role="node" id="remote" />
+  <text x="524" y="1117" fill="#17212f" font-size="26" font-weight="600" text-anchor="start">搜索服务 · MCP 服务 · A2A Agent</text>
+  <text x="524" y="1152" fill="#526174" font-size="21" font-weight="400" text-anchor="start">网页检索、外部工具调用与远程任务协作</text>
+  <path id="request" data-graph-role="edge" data-source="ui" data-target="app" d="M710,230 L710,350" fill="none" stroke="#2563eb" stroke-width="2.5" marker-end="url(#blue)" />
+  <text x="525" y="273" fill="#526174" font-size="20" font-weight="400" text-anchor="start">Nginx · HTTP</text>
+  <path id="sse" data-graph-role="edge" data-source="app" data-target="ui" d="M930,350 L930,230" fill="none" stroke="#15803d" stroke-width="2.5" marker-end="url(#green)" />
+  <text x="946" y="274" fill="#15803d" font-size="20" font-weight="400" text-anchor="start">SSE 事件</text>
+  <path id="queue" data-graph-role="edge" data-source="app" data-target="redis" d="M500,396 L350,396" fill="none" stroke="#2563eb" stroke-width="2.5" marker-end="url(#blue)" marker-start="url(#blue)" />
+  <text x="370" y="380" fill="#526174" font-size="20" font-weight="400" text-anchor="start">消息读写</text>
+  <path id="schedule" data-graph-role="edge" data-source="app" data-target="runner" d="M800,450 L800,550" fill="none" stroke="#2563eb" stroke-width="2.5" marker-end="url(#blue)" />
+  <text x="818" y="509" fill="#526174" font-size="20" font-weight="400" text-anchor="start">启动与控制</text>
+  <path id="persist" data-graph-role="edge" data-source="runner" data-target="db" d="M500,604 L350,604" fill="none" stroke="#15803d" stroke-width="2.5" marker-end="url(#green)" marker-start="url(#green)" />
+  <text x="370" y="642" fill="#15803d" font-size="20" font-weight="400" text-anchor="start">保存 / 加载</text>
+  <path id="runtime-events" data-graph-role="edge" data-source="runner" data-target="redis" d="M500,570 L380,570 L380,430 L350,430" fill="none" stroke="#2563eb" stroke-width="2.5" marker-end="url(#blue)" marker-start="url(#blue)" />
+  <text x="392" y="527" fill="#526174" font-size="20" font-weight="400" text-anchor="start">事件读写</text>
+  <path id="model" data-graph-role="edge" data-source="runner" data-target="llm" d="M1100,604 L1250,604" fill="none" stroke="#2563eb" stroke-width="2.5" marker-end="url(#blue)" marker-start="url(#blue)" />
+  <text x="1114" y="586" fill="#526174" font-size="20" font-weight="400" text-anchor="start">请求 / 响应</text>
+  <path id="dispatch" data-graph-role="edge" data-source="runner" data-target="tools" d="M800,710 L800,820" fill="none" stroke="#2563eb" stroke-width="2.5" marker-end="url(#blue)" marker-start="url(#blue)" />
+  <text x="818" y="772" fill="#526174" font-size="20" font-weight="400" text-anchor="start">动作 / 结果</text>
+  <path id="sync" data-graph-role="edge" data-source="runner" data-target="files" d="M500,688 L417,688 L417,875 L350,875" fill="none" stroke="#15803d" stroke-width="2.5" marker-end="url(#green)" marker-start="url(#green)" />
+  <text x="357" y="788" fill="#15803d" font-size="20" font-weight="400" text-anchor="start">文件同步</text>
+  <path id="environment" data-graph-role="edge" data-source="tools" data-target="sandbox" d="M1100,875 L1250,875" fill="none" stroke="#2563eb" stroke-width="2.5" marker-end="url(#blue)" marker-start="url(#blue)" />
+  <text x="1118" y="859" fill="#526174" font-size="20" font-weight="400" text-anchor="start">HTTP / CDP</text>
+  <path id="protocol" data-graph-role="edge" data-source="tools" data-target="remote" d="M800,930 L800,1080" fill="none" stroke="#2563eb" stroke-width="2.5" marker-end="url(#blue)" marker-start="url(#blue)" />
+  <text x="818" y="1037" fill="#526174" font-size="20" font-weight="400" text-anchor="start">HTTP · stdio · JSON-RPC</text>
+  <text x="50" y="1210" fill="#526174" font-size="20" font-weight="400" text-anchor="start">蓝色：请求、调用与结果     绿色：事件回传与数据保存</text>
+  <text x="50" y="1250" fill="#526174" font-size="20" font-weight="400" text-anchor="start">浏览器画面另经网关 WebSocket 转发至 UI；外部协议接入工具层，主循环由本地任务运行器驱动。</text>
+</svg>

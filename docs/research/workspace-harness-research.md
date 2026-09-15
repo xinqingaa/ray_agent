@@ -1,6 +1,6 @@
 # RayAgent 向项目工作区 Agent 演进的初步调研
 
-调研日期：2026-09-09。代码基线：RayAgent `a798654`；本机 learn-codex `bebbd85`。本文是方案评估，不表示已决定迁移或实现。现有架构以 [architecture.md](architecture.md) 为准，阶段进度仍只维护在 [PLAN.md](../PLAN.md)。
+调研日期：2026-09-09。代码基线：RayAgent `a798654`；本机 learn-codex `bebbd85`。本文是方案评估，不表示已决定迁移或实现。现有架构以 [architecture.md](../architecture.md) 为准，阶段进度仍只维护在 [PLAN.md](../../PLAN.md)。
 
 **建议：维持 RayAgent，围绕现有应用逐步学习和扩展工作区能力。当前没有证据表明二开成本高于独立重建；已有的循环、工具、协议、沙箱、存储与 UI 都有复用价值，也不需要先迁移 LangGraph。**
 
@@ -43,10 +43,10 @@ ReAct 描述推理与行动、观察交替的模式。它可以由原生 tool ca
 
 | 位置 | 实际职责 |
 |---|---|
-| [BaseAgent.invoke](../ray_agent/api/app/domain/services/agents/base.py) | 工具调用解析、执行、结果回填、再次请求模型、迭代上限 |
-| [PlannerReActFlow.invoke](../ray_agent/api/app/domain/services/flows/planner_react.py) | 规划、执行下一步、更新计划、总结的状态转换 |
-| [OpenAILLM.invoke](../ray_agent/api/app/infrastructure/external/llm/openai_llm.py) | 通过 `AsyncOpenAI.chat.completions.create` 请求模型 |
-| [pyproject.toml](../ray_agent/api/pyproject.toml) | 使用 OpenAI、MCP、A2A 等 SDK；没有声明 LangChain/LangGraph 驱动主循环 |
+| [BaseAgent.invoke](../../ray_agent/api/app/domain/services/agents/base.py) | 工具调用解析、执行、结果回填、再次请求模型、迭代上限 |
+| [PlannerReActFlow.invoke](../../ray_agent/api/app/domain/services/flows/planner_react.py) | 规划、执行下一步、更新计划、总结的状态转换 |
+| [OpenAILLM.invoke](../../ray_agent/api/app/infrastructure/external/llm/openai_llm.py) | 通过 `AsyncOpenAI.chat.completions.create` 请求模型 |
+| [pyproject.toml](../../ray_agent/api/pyproject.toml) | 使用 OpenAI、MCP、A2A 等 SDK；没有声明 LangChain/LangGraph 驱动主循环 |
 
 **“自研”表示控制流程由自己负责，不表示模型、HTTP 客户端、协议解析和数据库都要自己造。** 用 OpenAI SDK 不等于用 Agent 框架；使用 MCP/A2A SDK 也不改变 Loop 的归属。
 
@@ -107,7 +107,7 @@ RayAgent 当前使用非流式 Chat Completions，learn-codex 示例使用 Respo
 
 ## 4. 项目工作区需要先成为独立的业务对象
 
-当前 [Session](../ray_agent/api/app/domain/models/session.py) 直接关联 `sandbox_id`、`task_id`、附件、事件与两份 Agent 记忆，没有独立 Project/Workspace 领域实体。附件被 [AgentTaskRunner](../ray_agent/api/app/domain/services/agent_task_runner.py) 放入 `/home/ubuntu/upload/`，这套文件同步以会话附件和交付产物为中心。
+当前 [Session](../../ray_agent/api/app/domain/models/session.py) 直接关联 `sandbox_id`、`task_id`、附件、事件与两份 Agent 记忆，没有独立 Project/Workspace 领域实体。附件被 [AgentTaskRunner](../../ray_agent/api/app/domain/services/agent_task_runner.py) 放入 `/home/ubuntu/upload/`，这套文件同步以会话附件和交付产物为中心。
 
 这里的“会话级”不等于“一次用户输入”：现有会话可以多轮交互并持久化记忆，执行任务实例则具有自己的生命周期。缺少的是上层项目/工作区归属和跨会话协作契约。扩展时也不应把所有聊天历史合并成项目共享上下文；项目共享代码、规则和经选择的知识，会话继续保留独立目标与消息，执行轮次管理自己的运行状态。
 
@@ -162,19 +162,19 @@ flowchart TD
 
 ### 5.1 压缩不只是删掉浏览器输出
 
-[Memory.compact](../ray_agent/api/app/domain/models/memory.py) 将 `browser_view` / `browser_navigate` 的结果设为 `(removed)`，并删除 `reasoning_content`；没有按 token 水位汇总历史、保留目标约束与未完成工作。这种压缩对长代码任务不够，Shell 和文件内容仍会持续累积。
+[Memory.compact](../../ray_agent/api/app/domain/models/memory.py) 将 `browser_view` / `browser_navigate` 的结果设为 `(removed)`，并删除 `reasoning_content`；没有按 token 水位汇总历史、保留目标约束与未完成工作。这种压缩对长代码任务不够，Shell 和文件内容仍会持续累积。
 
 建议区分：不可变原始轨迹、提供给下一次模型请求的工作上下文、跨会话项目知识。压缩的是模型工作上下文，不能为了省 token 一并丢掉审查和恢复依据。扩展后的摘要应保留用户目标、约束、文件与修改、验证结果、当前失败和待办，并保持工具调用与结果配对。
 
 ### 5.2 消息持久化与可靠执行是两件事
 
-[RedisStreamTask](../ray_agent/api/app/infrastructure/external/task/redis_stream_task.py) 通过类级字典 `_task_registry` 保存实例，实际执行是 `asyncio.create_task()`。进程退出后这个对象消失；数据库里的 task_id 不会自动恢复执行。
+[RedisStreamTask](../../ray_agent/api/app/infrastructure/external/task/redis_stream_task.py) 通过类级字典 `_task_registry` 保存实例，实际执行是 `asyncio.create_task()`。进程退出后这个对象消失；数据库里的 task_id 不会自动恢复执行。
 
 建议第一版先保证：重启后能读取历史、检测未结束 Turn、标为中断并允许显式续接。之后再增加更复杂的自动恢复。文件变更、模型历史、进程状态、远程调用结果应分别核实；不要在恢复时直接重放所有写操作。
 
 ### 5.3 Shell 后台执行存在已复现的等待问题
 
-[ShellService.exec_command](../ray_agent/sandbox/app/services/shell.py) 第 237、266 行对 `_start_output_reader` 创建的 Task 直接 `await`；读取器持续读取直到 stdout EOF，随后才进入注释中“最多等 5 秒”的逻辑。
+[ShellService.exec_command](../../ray_agent/sandbox/app/services/shell.py) 第 237、266 行对 `_start_output_reader` 创建的 Task 直接 `await`；读取器持续读取直到 stdout EOF，随后才进入注释中“最多等 5 秒”的逻辑。
 
 本轮实际验证：在本机 macOS，以 API 已有虚拟环境解释器导入沙箱 `ShellService`，在临时目录执行 `sleep 6`；约 **6.02 秒**后返回 `status=completed`、`returncode=0`，没有在 5 秒返回 `running`。测试进程自然结束，临时目录自动清理。没有经 Docker、HTTP 或浏览器测试此路径。
 
@@ -182,7 +182,7 @@ flowchart TD
 
 ### 5.4 容器、工作区隔离、审批是不同机制
 
-[DockerSandbox](../ray_agent/api/app/infrastructure/external/sandbox/docker_sandbox.py) 动态创建配置中没有项目卷绑定，且设置自动移除；它不能充当长期项目的唯一存储。固定 `SANDBOX_ADDRESS` 路径又可能让多个会话接入同一个已有环境，不能默认认为每会话天然隔离。
+[DockerSandbox](../../ray_agent/api/app/infrastructure/external/sandbox/docker_sandbox.py) 动态创建配置中没有项目卷绑定，且设置自动移除；它不能充当长期项目的唯一存储。固定 `SANDBOX_ADDRESS` 路径又可能让多个会话接入同一个已有环境，不能默认认为每会话天然隔离。
 
 代码还存在需要单独验证的资源归属问题：已有地址的 `create()` 不填 `container_name`，但 `get(id)` 会填入；`destroy()` 按是否有该字段决定尝试删除容器。这与文档里“已有容器不由适配对象删除”的意图并不完全一致。本轮没有执行容器销毁，应在扩展前建立显式 ownership 并测试，而不是照文档假设它安全。
 
@@ -192,7 +192,7 @@ flowchart TD
 
 ### 5.5 现有提示词也需要重新定位
 
-[SYSTEM_PROMPT](../ray_agent/api/app/domain/services/prompts/system.py) 面向资料搜集和长文交付，包含长篇写作要求、自动确认命令建议及固定沙箱环境描述。这些规则适配当前产品取向，不应原样迁入长期代码协作。
+[SYSTEM_PROMPT](../../ray_agent/api/app/domain/services/prompts/system.py) 面向资料搜集和长文交付，包含长篇写作要求、自动确认命令建议及固定沙箱环境描述。这些规则适配当前产品取向，不应原样迁入长期代码协作。
 
 当前主产品没有发现自动加载项目 AGENTS.md / SKILL.md 的运行路径。仓库根存在给开发助手使用的 AGENTS.md，不等于 RayAgent 产品自己的模型会读取它。扩展时应把系统约定、项目规则、用户指令、检索到的普通内容按来源区分；技能按需加载，并且不能靠提示词授予执行权限。官方项目指令机制可参考 [AGENTS.md](https://learn.chatgpt.com/docs/agent-configuration/agents-md)。
 

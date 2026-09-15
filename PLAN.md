@@ -57,8 +57,7 @@
 主要参考：
 
 - [架构说明](docs/architecture.md)：模块边界与执行路径。
-- [工作区与 Harness 调研](docs/workspace-harness-research.md)：项目工作区方向的能力差距与路线比较。
-- [Harness 能力评估](docs/harness-capability-review-2026-09-14.md)：核心链路状态与改进候选。
+- [调研与评估索引](docs/research/README.md)：项目工作区、课程与 Harness 能力的阶段性研究快照。
 
 若评估后决定实施改动，再为具体范围写明问题、预期行为与验收条件；需要时再引入 `specs/` 和适当的 SDD 流程。
 
