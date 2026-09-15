@@ -196,9 +196,15 @@
 
 ## 第 15 章素材
 
-[A2A 实验](../labs/a2a/README.md)；[A2A 适配](../ray_agent/api/app/infrastructure/protocols/a2a.py)。
+| 研究内容 | 实现与实验入口 | 观察重点 |
+|---|---|---|
+| 卡片与直接回复 | [A2A 实验](../labs/a2a/README.md)、[服务组装](../labs/a2a/main.py)、[执行器](../labs/a2a/agent_executor.py) | 卡片、处理器与执行器分工；默认确定性 Message，不代表模型委派 |
+| SDK 与消息格式 | [SDK 客户端](../labs/a2a/client.py)、[手写客户端](../labs/a2a/httpx_a2a.py) | 相同输入与回复；JSON-RPC ID、消息 ID、接口选择；异步迭代不等于流式 |
+| 产品委派 | [工具箱](../ray_agent/api/app/domain/services/tools/a2a.py)、[A2A 适配](../ray_agent/api/app/infrastructure/protocols/a2a.py) | 统一卡片/委派工具；文本 query；一次发送、同任务轮询、状态映射 |
+| 结果与资源 | [任务运行器](../ray_agent/api/app/domain/services/agent_task_runner.py)、[结果转换](../ray_agent/api/app/infrastructure/protocols/common.py) | 工具反馈、事件展示与 HTTP 清理；产物描述不等于附件交付 |
+| 状态和故障证据 | [协议测试](../ray_agent/api/tests/protocols/test_protocols.py)、[边界测试](../ray_agent/api/tests/protocols/test_edges.py)、[服务夹具](../ray_agent/api/tests/protocols/fixture_server.py) | 中断与终态、超时与取消分开；提前返回 Task 是防御分支夹具，不是默认阻塞语义示范 |
 
-观察重点：对照 SDK 与手写客户端，核对远程任务状态如何映射为本地工具结果；沿协议边界测试确认失败、超时、取消传播与资源释放。区分本地调用结束、远程任务结束和远程产物验收；讨论重复提交与结果查询的条件。A2A 接入不等于本地多 Agent 任务认领、并行汇合或共享状态。
+官方协议引用就近维护在正文。区分协议能力与产品采用子集，以及远程完成、本地返回和用户成果验收；没有自动多 Agent 并行调度、跨运行续接或共享 Memory。验证条件见[制作进度](progress.md#第-15-章通过-a2a-协作远程-agent)。
 
 ## 第 16 章素材
 

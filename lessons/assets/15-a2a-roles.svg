@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900"><title>委派工作之后，双方各自组织执行</title><desc>通用职责示意：本地管理目标与验收，远程管理内部执行，通过 A2A 交换委托、状态和成果。</desc>
+<style>text{font-family:Arial,"PingFang SC",sans-serif;fill:#172334;font-size:28px}.small{font-size:24px;fill:#526172}.title{font-size:36px;font-weight:600}.label{font-size:28px;font-weight:600}</style><defs>
+<marker id="blue" markerWidth="8" markerHeight="7" refX="8" refY="3.5" orient="auto"><path d="M0 0L8 3.5L0 7Z" fill="#2563eb"/></marker>
+<marker id="green" markerWidth="8" markerHeight="7" refX="8" refY="3.5" orient="auto"><path d="M0 0L8 3.5L0 7Z" fill="#16845b"/></marker>
+<marker id="gray" markerWidth="8" markerHeight="7" refX="8" refY="3.5" orient="auto"><path d="M0 0L8 3.5L0 7Z" fill="#748295"/></marker>
+</defs><rect data-graph-role="background" width="1600" height="900" fill="#f5f7f9"/>
+<text x="60" y="78" class="title" text-anchor="start">委派工作之后，双方各自组织执行</text>
+<text x="60" y="135" class="small" text-anchor="start">A2A 连接协作边界；内部模型、工具和记忆不自动共享</text>
+<rect data-graph-role="container" x="60" y="190" width="570" height="540" rx="8" fill="#edf3fb" stroke="#cfdaea" stroke-width="2"/>
+<text x="90" y="240" class="label" text-anchor="start">本地 Harness</text>
+<rect data-graph-role="container" x="970" y="190" width="570" height="540" rx="8" fill="#edf3fb" stroke="#cfdaea" stroke-width="2"/>
+<text x="1000" y="240" class="label" text-anchor="start">远程 Agent 服务</text>
+<rect data-graph-role="node" x="105" y="280" width="480" height="120" rx="8" fill="#fff" stroke="#2563eb" stroke-width="3"/>
+<text x="345.0" y="330" class="label" text-anchor="middle">选择对端与组织委托</text>
+<text x="345.0" y="374" class="small" text-anchor="middle">目标 / 材料 / 约束</text>
+<rect data-graph-role="node" x="1015" y="280" width="480" height="120" rx="8" fill="#fff" stroke="#2563eb" stroke-width="3"/>
+<text x="1255.0" y="330" class="label" text-anchor="middle">接收工作并组织执行</text>
+<text x="1255.0" y="374" class="small" text-anchor="middle">内部模型 / 工具 / 数据</text>
+<rect data-graph-role="node" x="105" y="550" width="480" height="120" rx="8" fill="#fff" stroke="#16845b" stroke-width="3"/>
+<text x="345.0" y="600" class="label" text-anchor="middle">检查成果并继续任务</text>
+<text x="345.0" y="644" class="small" text-anchor="middle">本地计划与交付责任</text>
+<rect data-graph-role="node" x="1015" y="550" width="480" height="120" rx="8" fill="#fff" stroke="#16845b" stroke-width="3"/>
+<text x="1255.0" y="600" class="label" text-anchor="middle">提供状态与成果</text>
+<text x="1255.0" y="644" class="small" text-anchor="middle">消息 / 任务 / 产物</text>
+<path d="M585 340H1015" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#blue)"/>
+<text x="800" y="320" class="small" text-anchor="middle">A2A 消息：委托</text>
+<path d="M1255 400V550" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#blue)"/>
+<text x="1275" y="482" class="small" text-anchor="start">执行</text>
+<path d="M1015 610H585" fill="none" stroke="#16845b" stroke-width="4" marker-end="url(#green)"/>
+<text x="800" y="590" class="small" text-anchor="middle">状态与结果</text>
+<text x="60" y="785" class="small" text-anchor="start">本地可继续或另行委派；远程完成不自动等于用户任务完成。</text>
+<path d="M60 845H110" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#blue)"/>
+<text x="130" y="853" class="small" text-anchor="start">请求 / 调用</text>
+<path d="M390 845H440" fill="none" stroke="#16845b" stroke-width="4" marker-end="url(#green)"/>
+<text x="460" y="853" class="small" text-anchor="start">描述 / 结果</text>
+</svg>
