@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900"><title>同一个页面，分成两种用途的观察</title><desc>RayAgent 的工具文本进入模型请求，事件截图供用户预览；两者分时取得，均不等于活页面。</desc>
+<style>text{font-family:Arial,'PingFang SC',sans-serif;fill:#172334;font-size:28px}.small{font-size:24px;fill:#526172}.title{font-size:36px;font-weight:600}.label{font-size:28px;font-weight:600}</style>
+<defs><marker id="blue" markerWidth="8" markerHeight="7" refX="8" refY="3.5" orient="auto"><path d="M0 0L8 3.5L0 7Z" fill="#2563eb"/></marker><marker id="green" markerWidth="8" markerHeight="7" refX="8" refY="3.5" orient="auto"><path d="M0 0L8 3.5L0 7Z" fill="#16845b"/></marker></defs>
+<rect data-graph-role="background" width="1600" height="900" fill="#f5f7f9"/>
+<text x="60" y="78" class="title" text-anchor="start">同一个页面，分成两种用途的观察</text>
+<text x="60" y="130" class="small" text-anchor="start">RayAgent 当前路径；文本提取与事件截图并非同时取得</text>
+<rect data-graph-role="node" x="500" y="180" width="600" height="140" rx="8" fill="#fff" stroke="#2563eb" stroke-width="3"/>
+<text x="800" y="235" class="label" text-anchor="middle">沙箱中的活页面</text>
+<text x="800" y="281" class="small" text-anchor="middle">脚本、导航和交互持续改变 DOM</text>
+<text x="100" y="465" class="label" text-anchor="start">给模型的观察</text>
+<text x="920" y="465" class="label" text-anchor="start">给用户的预览</text>
+<rect data-graph-role="node" x="100" y="510" width="580" height="170" rx="8" fill="#fff" stroke="#16845b" stroke-width="3"/>
+<rect data-graph-role="node" x="920" y="510" width="580" height="170" rx="8" fill="#fff" stroke="#2563eb" stroke-width="3"/>
+<path d="M650 320V390H390V510" fill="none" stroke="#16845b" stroke-width="4" marker-end="url(#green)"/>
+<text x="435" y="378" class="small" text-anchor="start">提取文本与元素</text>
+<path d="M950 320V390H1210V510" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#blue)"/>
+<text x="1230" y="378" class="small" text-anchor="start">随后截图</text>
+<text x="390" y="570" class="label" text-anchor="middle">工具结果：正文与编号</text>
+<text x="390" y="625" class="small" text-anchor="middle">进入 Memory，再组成模型请求</text>
+<text x="1210" y="570" class="label" text-anchor="middle">工具事件：截图 URL</text>
+<text x="1210" y="625" class="small" text-anchor="middle">上传存储，供用户界面预览</text>
+<path d="M60 760H110" fill="none" stroke="#16845b" stroke-width="4" marker-end="url(#green)"/>
+<text x="130" y="768" class="small" text-anchor="start">模型反馈</text>
+<path d="M360 760H410" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#blue)"/>
+<text x="430" y="768" class="small" text-anchor="start">界面展示</text>
+<text x="60" y="835" class="small" text-anchor="start">消息压缩改变模型可见信息，不会同步清空浏览器缓存或改变页面。</text>
+</svg>

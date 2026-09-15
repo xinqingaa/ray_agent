@@ -12,7 +12,7 @@
 | `4_1`～`5_1` | 工具反馈循环、请求工作集与 ReAct 实验 |
 | `4_5`～`4_6` | 同步、异步与 FastAPI |
 | `6_5`～`6_11` | MCP 2.2 服务端、客户端、手写对照与外部工具 |
-| `10-4`、`10-6` | 浏览器操作与 CDP |
+| `10-4`、`10-6`、`10_7` | 浏览器 Agent、CDP 连接、动作与结果检查 |
 | [demo-code/](demo-code/) | 模型与 Agent 综合示例 |
 | [天气 Agent 入口](<2-2 code/weather/__main__.py>)、[交互界面入口](<2-2 code/ui/main.py>) | A2A 配套示例 |
 
@@ -107,6 +107,35 @@ uv run --locked python -m unittest discover -s tests -p test_request_context.py 
 ```
 
 覆盖第一拍没有工具观察、写入观察从第二拍出现、漏回传则看不见结果，以及角色包装和 `tools` 声明会让请求长于正文。
+
+## 浏览器动作与结果
+
+在本目录使用锁定的 Python 环境。`10_7_浏览器动作与结果.py` 由 Playwright 创建独立浏览器与 Context，以请求拦截提供教学页面和价格响应；不调用模型，不访问公网，不连接个人浏览器会话，也不经过 RayAgent 产品链路。脚本结束时关闭创建的浏览器，不写截图或下载文件。
+
+默认使用 Playwright 配套 Chromium；如果尚未安装浏览器，先执行一次下载（安装需要网络，实验运行不需要）：
+
+```bash
+uv run --locked playwright install chromium
+uv run --locked python 10_7_浏览器动作与结果.py
+uv run --locked python 10_7_浏览器动作与结果.py --fail-price
+```
+
+也可以使用本机已经安装的 Chrome，仍由脚本创建独立实例：
+
+```bash
+uv run --locked python 10_7_浏览器动作与结果.py --channel chrome
+uv run --locked python 10_7_浏览器动作与结果.py --channel chrome --fail-price
+```
+
+观察三件事：
+
+- 点击已经返回时，价格响应被实验程序暂时扣住，页面仍显示旧价 ¥39；这是为稳定观察而设置的响应控制，不代表真实网站固定具有这段延迟。
+- 页面替换了按钮节点，旧 ElementHandle 已脱离 DOM；同一个 Locator 仍能找到替换后的同名按钮。这只验证定位，不证明任意重绘或业务含义都能自动恢复。
+- 释放响应后，正常模式核对“大杯 / ¥59”；失败模式核对“价格查询失败”与未就绪状态。失败模式正常退出表示预期的失败反馈已观察到，不表示取价任务完成。
+
+`10-6 使用Playwright简化CDP连接.py` 是另一条入口：需要本机 Chromium 已开放 `localhost:9222`，会访问公网网站并向 `resources/` 保存截图。它演示连接已有浏览器，不应把新实验的离线运行条件套用过去。`10-4` 使用专用浏览器 Agent，仅作形态对照。
+
+本轮实际运行环境、输出及未覆盖范围见[课程制作进度](../../lessons/progress.md#第-13-章浏览器如何成为工具)。
 
 ## MCP 2.2 可复现基线
 

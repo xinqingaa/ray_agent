@@ -168,11 +168,18 @@
 
 ## 第 13 章素材
 
-`labs/foundations/10-6`、`10-4`；[沙箱指南](../ray_agent/sandbox/README.md)。
+| 研究问题 | 实现入口与观察重点 |
+|---|---|
+| 浏览器进程与调试口 | [Supervisor 配置](../ray_agent/sandbox/supervisord.conf)：Chromium `--remote-debugging-port=8222`，socat 转到 `9222`。动态容器仍带 `--no-sandbox`、`--disable-web-security`。端口含义见[沙箱指南](../ray_agent/sandbox/README.md)。 |
+| 程序如何连上页面 | [沙箱适配](../ray_agent/api/app/infrastructure/external/sandbox/docker_sandbox.py) 的 `cdp_url` / `get_browser`；[Playwright 适配](../ray_agent/api/app/infrastructure/external/browser/playwright_browser.py) 的 `initialize`。创建任务时拿到适配对象，首次使用才连接 CDP；运行器等 Supervisor 全进程就绪。 |
+| 对象与资源归属 | 适配器 `initialize` / `_ensure_page` / `cleanup`：默认 Context 内复用或新建 Page，后续可能选择其最后一个 Page；清理遍历所连浏览器的页面。新标签页不等于新 Context，不据此推断登录态跨任务保存或身份隔离。 |
+| 模型观察与指向 | [浏览器工具](../ray_agent/api/app/domain/services/tools/browser.py)；适配器 `view_page` / `navigate` / `_get_element_by_id` / `click`；[提取脚本](../ray_agent/api/app/infrastructure/external/browser/playwright_browser_fun.py)。HTML 经 markdownify 截断 5 万字符，父节点 outerHTML 可含子树；编号写入 `data-manus-id` 并缓存描述，查询节点后点击，没有观察版本校验。`get_browser()` 不传 `llm`。 |
+| 用户截图 | [任务运行器](../ray_agent/api/app/domain/services/agent_task_runner.py) 的 `_handle_tool_event`：浏览器 `called` 时另行截图、上传存储、把 URL 写入 `tool_content`。不走 `add_file`，不进入会话 `files`。[前端预览](../ray_agent/ui/src/components/tool-preview-panel.tsx) 读该 URL。文本提取与截图不是原子操作。 |
+| 等待、刷新与压缩 | 适配器 `wait_for_page_load` 检查 `readyState`，`view_page` 未据其 False 返回中止；滚动和点击不自动提取。显式导航与 view 提取元素。[Memory.compact](../ray_agent/api/app/domain/models/memory.py) 移除 view / navigate 工具正文，不清浏览器缓存；[流程](../ray_agent/api/app/domain/services/flows/planner_react.py) 在步骤失败时不压缩。 |
+| Playwright 本地实验 | [10_7](../labs/foundations/10_7_浏览器动作与结果.py)：独立浏览器，拦截所有页面请求，控制价格响应时刻，观察点击返回、旧句柄脱离 DOM、Locator 重定位以及成功/失败结果检查。无模型、CDP、产品事件与 Memory。运行条件见[基础实验](../labs/foundations/README.md#浏览器动作与结果)。 |
+| 连接实验与形态对照 | `10-6` 连接本机 `localhost:9222`，访问公网并截图；`10-4` 是 browser-use 专用浏览器 Agent，不是产品实现。 |
 
-补充入口：[浏览器工具](../ray_agent/api/app/domain/services/tools/browser.py)、[浏览器适配](../ray_agent/api/app/infrastructure/external/browser/playwright_browser.py)、[记忆清理](../ray_agent/api/app/domain/models/memory.py)。
-
-观察重点：区分本机浏览器实验与产品沙箱；检查页面、截图与文本何时失效，状态如何反馈。用本地页面嵌入要求读取无关文件的文字，追踪资料与指令的信任边界；结合第 05 章说明清理旧观察后何时需要重新读取，不将提示注入防护默认写成已有能力。
+观察重点：围绕任务条件选择观察、定位、等待、状态与验证机制；区分 Playwright 能力、Harness 职责和 RayAgent 已实现行为。商品详情全流程为教学推演。官方概念链接就近维护在正文；验证记录归[制作进度](progress.md#第-13-章浏览器如何成为工具)。
 
 ## 第 14 章素材
 

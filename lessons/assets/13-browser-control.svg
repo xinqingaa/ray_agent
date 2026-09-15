@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900"><title>谁决定动作，谁控制页面？</title><desc>RayAgent 当前的控制路径：模型提出工具调用，API 中的浏览器工具经 Playwright 与 CDP 控制沙箱 Chromium。</desc>
+<style>text{font-family:Arial,'PingFang SC',sans-serif;fill:#172334;font-size:28px}.small{font-size:24px;fill:#526172}.title{font-size:36px;font-weight:600}.label{font-size:28px;font-weight:600}</style>
+<defs><marker id="blue" markerWidth="8" markerHeight="7" refX="8" refY="3.5" orient="auto"><path d="M0 0L8 3.5L0 7Z" fill="#2563eb"/></marker><marker id="green" markerWidth="8" markerHeight="7" refX="8" refY="3.5" orient="auto"><path d="M0 0L8 3.5L0 7Z" fill="#16845b"/></marker></defs>
+<rect data-graph-role="background" width="1600" height="900" fill="#f5f7f9"/>
+<text x="60" y="78" class="title" text-anchor="start">谁决定动作，谁控制页面？</text>
+<text x="60" y="130" class="small" text-anchor="start">RayAgent 当前路径；图中箭头表示动作下发</text>
+<rect data-graph-role="container" x="400" y="210" width="730" height="390" rx="8" fill="#edf3fb" stroke="#cfdaea" stroke-width="2"/>
+<text x="430" y="260" class="label" text-anchor="start">API 进程</text>
+<rect data-graph-role="container" x="1200" y="210" width="340" height="390" rx="8" fill="#edf3fb" stroke="#cfdaea" stroke-width="2"/>
+<text x="1230" y="260" class="label" text-anchor="start">沙箱</text>
+<rect data-graph-role="node" x="60" y="330" width="240" height="150" rx="8" fill="#fff" stroke="#2563eb" stroke-width="3"/>
+<text x="180.0" y="389" class="label" text-anchor="middle">模型</text>
+<text x="180.0" y="437" class="small" text-anchor="middle">选择动作和参数</text>
+<rect data-graph-role="node" x="460" y="330" width="250" height="150" rx="8" fill="#fff" stroke="#2563eb" stroke-width="3"/>
+<text x="585.0" y="389" class="label" text-anchor="middle">浏览器工具</text>
+<text x="585.0" y="437" class="small" text-anchor="middle">分发调用</text>
+<rect data-graph-role="node" x="830" y="330" width="250" height="150" rx="8" fill="#fff" stroke="#2563eb" stroke-width="3"/>
+<text x="955.0" y="389" class="label" text-anchor="middle">Playwright</text>
+<text x="955.0" y="437" class="small" text-anchor="middle">调用页面接口</text>
+<rect data-graph-role="node" x="1240" y="330" width="260" height="150" rx="8" fill="#fff" stroke="#2563eb" stroke-width="3"/>
+<text x="1370.0" y="389" class="label" text-anchor="middle">Chromium</text>
+<text x="1370.0" y="437" class="small" text-anchor="middle">运行页面</text>
+<path d="M300 400H460" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#blue)"/>
+<text x="380" y="370" class="small" text-anchor="middle">工具调用</text>
+<path d="M710 400H830" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#blue)"/>
+<text x="770" y="370" class="small" text-anchor="middle">适配</text>
+<path d="M1080 400H1240" fill="none" stroke="#2563eb" stroke-width="4" marker-end="url(#blue)"/>
+<text x="1160" y="370" class="small" text-anchor="middle">CDP</text>
+<text x="460" y="548" class="small" text-anchor="start">连接与动作由程序落实</text>
+<text x="1240" y="548" class="small" text-anchor="start">DOM 与网页脚本</text>
+<text x="60" y="695" class="label" text-anchor="start">结果回传</text>
+<text x="60" y="745" class="" text-anchor="start">页面结果经适配器与工具层返回，进入下一次模型请求。</text>
+<text x="60" y="830" class="small" text-anchor="start">控制通道解决“怎样执行”；观察选择与业务结果判断由 Harness 组织。</text>
+</svg>
