@@ -40,4 +40,4 @@ export LLM_MODEL_NAME=deepseek-reasoner
 
 模型模式不属于阶段 2 的可复现验收基线。客户端默认访问 `127.0.0.1:9999`；跨设备运行时需同时修改客户端地址和 Agent Card 公布地址。
 
-依赖以本目录 [pyproject.toml](pyproject.toml) 和 [uv.lock](uv.lock) 为准。示例只覆盖非流式 Message 回复，未实现任务轮询、远程取消、认证和推送通知。产品协议测试另以确定性夹具覆盖 Task 状态、轮询、超时、取消与清理；不代表完整认证或推送已经实现。夹具提前返回进行中 Task，用于验证产品防御性轮询，区别于 A2A 1.0 默认阻塞发送的规范行为。运行证据见[制作进度](../../lessons/progress.md#第-15-章通过-a2a-协作远程-agent)。
+依赖以本目录 [pyproject.toml](pyproject.toml) 和 [uv.lock](uv.lock) 为准。示例只覆盖非流式 Message 回复，未实现任务轮询、远程取消、认证和推送通知。产品协议测试另以确定性夹具覆盖 Task 状态、轮询、超时、取消与清理；不代表完整认证或推送已经实现。夹具提前返回进行中 Task，用于验证产品防御性轮询，区别于 A2A 1.0 默认阻塞发送的规范行为。

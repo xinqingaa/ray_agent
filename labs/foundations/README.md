@@ -48,7 +48,7 @@ uv run --locked python '3_4_Chat Completions API流式调用.py'
 uv run --locked python -m unittest discover -s tests -p test_model_interaction.py -v
 ```
 
-覆盖同输入对照、首段在服务端结束前显示、空增量与统计块、长度结束原因、缺失结束标记、HTTP 错误及缺少密钥。真实模型调用的课程验证状态见 [制作进度](../../lessons/progress.md)。
+覆盖同输入对照、首段在服务端结束前显示、空增量与统计块、长度结束原因、缺失结束标记、HTTP 错误及缺少密钥。真实模型调用不在上述本地回归范围内。
 
 ## 工具调用与结构化输出
 
@@ -69,7 +69,7 @@ uv run --locked python '3_9_JSON Output示例.py'
 uv run --locked python -m unittest discover -s tests -p test_tool_actions.py -v
 ```
 
-覆盖参数校验、无工具时不执行、`tool_calls` 执行后以 `role: tool` 回传并带上 `tool_choice="none"`，以及强制 `tool_choice` 抽取字段。真实模型是否提出调用见 [制作进度](../../lessons/progress.md)。
+覆盖参数校验、无工具时不执行、`tool_calls` 执行后以 `role: tool` 回传并带上 `tool_choice="none"`，以及强制 `tool_choice` 抽取字段。真实模型是否提出调用不在上述本地回归范围内。
 
 ## 工具反馈循环
 
@@ -88,7 +88,7 @@ uv run --locked python '4_1_工具反馈循环.py' '请把 hello 写入 hello.tx
 uv run --locked python -m unittest discover -s tests -p test_agent_loop.py -v
 ```
 
-覆盖只有 `content` 时停止、写入后再读取会继续请求、工具不结束时按上限停止，以及 `3_7` 第二次调用带 `tool_choice="none"`。真实模型是否连续提出写入和读取见 [制作进度](../../lessons/progress.md)。
+覆盖只有 `content` 时停止、写入后再读取会继续请求、工具不结束时按上限停止，以及 `3_7` 第二次调用带 `tool_choice="none"`。真实模型是否连续提出写入和读取不在上述本地回归范围内。
 
 ## 请求工作集
 
@@ -98,7 +98,7 @@ uv run --locked python -m unittest discover -s tests -p test_agent_loop.py -v
 uv run --locked python '5_1_观察请求工作集.py'
 ```
 
-`4_2` 展示纯文本 `encode` 与消息 `apply_chat_template` 两种分词入口；当前两处正文不同，不能把计数差归因于模板，也不展示工作集如何增长。它需要 `resources/tokenizer/` 下的完整词表；当前目录只有配置，运行结果见 [制作进度](../../lessons/progress.md)。
+`4_2` 展示纯文本 `encode` 与消息 `apply_chat_template` 两种分词入口；当前两处正文不同，不能把计数差归因于模板，也不展示工作集如何增长。它需要 `resources/tokenizer/` 下的完整词表；当前目录只有配置。
 
 本地回归不访问外部模型：
 
@@ -133,9 +133,7 @@ uv run --locked python 10_7_浏览器动作与结果.py --channel chrome --fail-
 - 页面替换了按钮节点，旧 ElementHandle 已脱离 DOM；同一个 Locator 仍能找到替换后的同名按钮。这只验证定位，不证明任意重绘或业务含义都能自动恢复。
 - 释放响应后，正常模式核对“大杯 / ¥59”；失败模式核对“价格查询失败”与未就绪状态。失败模式正常退出表示预期的失败反馈已观察到，不表示取价任务完成。
 
-`10-6 使用Playwright简化CDP连接.py` 是另一条入口：需要本机 Chromium 已开放 `localhost:9222`，会访问公网网站并向 `resources/` 保存截图。它演示连接已有浏览器，不应把新实验的离线运行条件套用过去。`10-4` 使用专用浏览器 Agent，仅作形态对照。
-
-本轮实际运行环境、输出及未覆盖范围见[课程制作进度](../../lessons/progress.md#第-13-章浏览器如何成为工具)。
+`10-6 使用Playwright简化CDP连接.py` 是另一条入口：需要本机 Chromium 已开放 `localhost:9222`，会访问公网网站并向 `resources/` 保存截图。它演示连接已有浏览器，不应把新实验的离线运行条件套用过去。`10-4` 使用专用浏览器 Agent，仅作形态对照。完整产品浏览器任务、CDP 与编号时效仍 `unverified`。
 
 ## MCP 2.2 可复现基线
 
@@ -160,7 +158,7 @@ uv run --locked python 6_9_mcp-code.py
 uv run --locked python 6_9_mcp-client.py
 ```
 
-客户端应发现 `run_code` 并得到结果 `42`。以上 stdio 与 HTTP 闭环已在 macOS/Python 3.12 下实际验证，不需要模型密钥或外部网络。stdio 两例用于比较资源作用域，HTTP 一例用于观察独立服务通信；计算器的 `eval` 与 HTTP 的代码执行都不等于产品沙箱隔离。协议机制和产品对照见[第十四章](../../lessons/14-external-tools-with-mcp.md)，复跑条件见[制作进度](../../lessons/progress.md#第-14-章通过-mcp-接入外部工具)。
+客户端应发现 `run_code` 并得到结果 `42`。以上 stdio 与 HTTP 闭环已在 macOS/Python 3.12 下实际验证，不需要模型密钥或外部网络。stdio 两例用于比较资源作用域，HTTP 一例用于观察独立服务通信；计算器的 `eval` 与 HTTP 的代码执行都不等于产品沙箱隔离。协议机制和产品对照见[第十四章](../../lessons/14-external-tools-with-mcp.md)。
 
 ## 对照与非基线示例
 
