@@ -1,0 +1,189 @@
+<?xml version='1.0' encoding='utf-8'?>
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1100" viewBox="0 0 1600 1100" role="img" aria-labelledby="title desc">
+  <title id="title">Harness 职责分层</title>
+  <desc id="desc">模型之外的职责被拆成编排、规划、决策、工具契约与执行适配五层，观测控制与状态持久化贯穿其中。</desc>
+  <style>text{font-family:"PingFang SC","Microsoft YaHei",Arial,sans-serif;letter-spacing:0}</style>
+  <defs>
+    <marker id="a-20312f" markerWidth="20" markerHeight="20" refX="18" refY="10" orient="auto-start-reverse" markerUnits="userSpaceOnUse">
+      <path d="M2 2L19 10L2 18Z" fill="#20312f" />
+    </marker>
+    <marker id="b-20312f" markerWidth="14" markerHeight="14" refX="12" refY="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse">
+      <path d="M2 2L13 7L2 12Z" fill="#20312f" />
+    </marker>
+    <marker id="a-3268bf" markerWidth="20" markerHeight="20" refX="18" refY="10" orient="auto-start-reverse" markerUnits="userSpaceOnUse">
+      <path d="M2 2L19 10L2 18Z" fill="#3268bf" />
+    </marker>
+    <marker id="b-3268bf" markerWidth="14" markerHeight="14" refX="12" refY="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse">
+      <path d="M2 2L13 7L2 12Z" fill="#3268bf" />
+    </marker>
+    <marker id="a-177b65" markerWidth="20" markerHeight="20" refX="18" refY="10" orient="auto-start-reverse" markerUnits="userSpaceOnUse">
+      <path d="M2 2L19 10L2 18Z" fill="#177b65" />
+    </marker>
+    <marker id="b-177b65" markerWidth="14" markerHeight="14" refX="12" refY="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse">
+      <path d="M2 2L13 7L2 12Z" fill="#177b65" />
+    </marker>
+    <marker id="a-97691f" markerWidth="20" markerHeight="20" refX="18" refY="10" orient="auto-start-reverse" markerUnits="userSpaceOnUse">
+      <path d="M2 2L19 10L2 18Z" fill="#97691f" />
+    </marker>
+    <marker id="b-97691f" markerWidth="14" markerHeight="14" refX="12" refY="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse">
+      <path d="M2 2L13 7L2 12Z" fill="#97691f" />
+    </marker>
+    <marker id="a-70579c" markerWidth="20" markerHeight="20" refX="18" refY="10" orient="auto-start-reverse" markerUnits="userSpaceOnUse">
+      <path d="M2 2L19 10L2 18Z" fill="#70579c" />
+    </marker>
+    <marker id="b-70579c" markerWidth="14" markerHeight="14" refX="12" refY="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse">
+      <path d="M2 2L13 7L2 12Z" fill="#70579c" />
+    </marker>
+    <marker id="a-bd5254" markerWidth="20" markerHeight="20" refX="18" refY="10" orient="auto-start-reverse" markerUnits="userSpaceOnUse">
+      <path d="M2 2L19 10L2 18Z" fill="#bd5254" />
+    </marker>
+    <marker id="b-bd5254" markerWidth="14" markerHeight="14" refX="12" refY="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse">
+      <path d="M2 2L13 7L2 12Z" fill="#bd5254" />
+    </marker>
+  </defs>
+  <rect x="0" y="0" width="1600" height="1100" fill="#fafcfb" data-graph-role="background" />
+  <text x="64" y="44" fill="#177b65" font-size="18" font-weight="600" text-anchor="start">RAYAGENT ／ HARNESS 职责分层</text>
+  <text x="64" y="94" fill="#20312f" font-size="40" font-weight="650" text-anchor="start">Harness 把哪些职责从模型里分出来</text>
+  <circle cx="1141" cy="82" r="6" fill="#3268bf" />
+  <text x="1155" y="89" fill="#536965" font-size="19" font-weight="400" text-anchor="start">职责流转</text>
+  <circle cx="1265" cy="82" r="6" fill="#97691f" />
+  <text x="1279" y="89" fill="#536965" font-size="19" font-weight="400" text-anchor="start">观测与控制</text>
+  <circle cx="1408" cy="82" r="6" fill="#177b65" />
+  <text x="1422" y="89" fill="#536965" font-size="19" font-weight="400" text-anchor="start">状态与持久化</text>
+  <rect x="456" y="120" width="688" height="72" rx="10" fill="#ffffff" stroke="#c6d5d0" stroke-width="2" data-graph-role="node" />
+  <g transform="translate(666 142) scale(1.5)" fill="none" stroke="#20312f" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" data-graph-role="decoration">
+    <path d="M16 6A4 4 0 1 1 8 6A4 4 0 1 1 16 6" />
+    <path d="M3 22V19Q3 13 12 13Q21 13 21 19V22" />
+  </g>
+  <text x="718" y="170" fill="#20312f" font-size="24" font-weight="600" text-anchor="start">用户目标与任务资料</text>
+  <path d="M800 192 L800 226" fill="none" stroke="#3268bf" stroke-width="5" stroke-linejoin="round" marker-end="url(#a-3268bf)" data-graph-role="edge" />
+  <rect x="456" y="226" width="688" height="670" rx="12" fill="#f1f6f3" stroke="#a9c9b4" stroke-width="2" data-graph-role="container" id="stack" />
+  <rect x="480" y="250" width="640" height="96" rx="10" fill="#ffffff" stroke="#c6d5d0" stroke-width="2" data-graph-role="node" />
+  <g transform="translate(504 264) scale(1.5)" fill="none" stroke="#3268bf" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" data-graph-role="decoration">
+    <path d="M2 4H22V20H2Z" />
+    <path d="M2 9H22" />
+    <path d="M5 6.5H6" />
+    <path d="M9 6.5H10" />
+  </g>
+  <text x="556" y="292" fill="#20312f" font-size="24" font-weight="600" text-anchor="start">会话与任务编排</text>
+  <text x="504" y="326" fill="#536965" font-size="20" font-weight="400" text-anchor="start">接收目标与控制请求，准备沙箱与任务，启动、续接或停止</text>
+  <rect x="480" y="378" width="640" height="96" rx="10" fill="#ffffff" stroke="#c6d5d0" stroke-width="2" data-graph-role="node" />
+  <g transform="translate(504 392) scale(1.5)" fill="none" stroke="#3268bf" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" data-graph-role="decoration">
+    <path d="M8 6H21M8 12H21M8 18H21" />
+    <path d="M2 5L3.5 7L6 3.5" />
+    <path d="M2 11L3.5 13L6 9.5" />
+    <path d="M2 17L3.5 19L6 15.5" />
+  </g>
+  <text x="556" y="420" fill="#20312f" font-size="24" font-weight="600" text-anchor="start">规划层 Planner</text>
+  <text x="504" y="454" fill="#536965" font-size="20" font-weight="400" text-anchor="start">生成计划、选择待办步骤，按步骤结果更新剩余安排</text>
+  <rect x="480" y="506" width="640" height="96" rx="10" fill="#eef3fc" stroke="#3268bf" stroke-width="2.5" data-graph-role="node" />
+  <g transform="translate(504 520) scale(1.5)" fill="none" stroke="#3268bf" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" data-graph-role="decoration">
+    <path d="M6 6H18V18H6Z" />
+    <path d="M9 9H15V15H9Z" />
+    <path d="M9 2V6M15 2V6M9 18V22M15 18V22M2 9H6M2 15H6M18 9H22M18 15H22" />
+  </g>
+  <text x="556" y="548" fill="#20312f" font-size="24" font-weight="600" text-anchor="start">决策层 ReAct 执行器</text>
+  <text x="504" y="582" fill="#536965" font-size="20" font-weight="400" text-anchor="start">装配 Context 请求模型，解析响应：继续调用还是结束本步</text>
+  <rect x="480" y="634" width="640" height="110" rx="10" fill="#ffffff" stroke="#c6d5d0" stroke-width="2" data-graph-role="node" />
+  <g transform="translate(504 648) scale(1.5)" fill="none" stroke="#3268bf" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" data-graph-role="decoration">
+    <path d="M3 4H21V20H3Z" />
+    <path d="M7 9L10 12L7 15" />
+    <path d="M13 15H17" />
+  </g>
+  <text x="556" y="676" fill="#20312f" font-size="24" font-weight="600" text-anchor="start">工具契约层</text>
+  <rect x="480" y="776" width="640" height="96" rx="10" fill="#ffffff" stroke="#c6d5d0" stroke-width="2" data-graph-role="node" />
+  <g transform="translate(504 790) scale(1.5)" fill="none" stroke="#70579c" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" data-graph-role="decoration">
+    <path d="M3 7L12 2L21 7L12 12Z" />
+    <path d="M3 7V18L12 23L21 18V7" />
+    <path d="M12 12V23" />
+  </g>
+  <text x="556" y="818" fill="#20312f" font-size="24" font-weight="600" text-anchor="start">执行适配层</text>
+  <text x="504" y="852" fill="#536965" font-size="20" font-weight="400" text-anchor="start">沙箱文件与 Shell · 浏览器 · 检索 · MCP · A2A</text>
+  <rect x="546" y="692" width="76" height="36" rx="8" fill="#eef3fc" stroke="#3268bf" stroke-width="2" data-graph-role="node" />
+  <text x="584" y="716" fill="#3268bf" font-size="19" font-weight="500" text-anchor="middle">声明</text>
+  <text x="638" y="717" fill="#536965" font-size="22" font-weight="400" text-anchor="middle">›</text>
+  <rect x="654" y="692" width="76" height="36" rx="8" fill="#eef3fc" stroke="#3268bf" stroke-width="2" data-graph-role="node" />
+  <text x="692" y="716" fill="#3268bf" font-size="19" font-weight="500" text-anchor="middle">解析</text>
+  <text x="746" y="717" fill="#536965" font-size="22" font-weight="400" text-anchor="middle">›</text>
+  <rect x="762" y="692" width="76" height="36" rx="8" fill="#eef3fc" stroke="#3268bf" stroke-width="2" data-graph-role="node" />
+  <text x="800" y="716" fill="#3268bf" font-size="19" font-weight="500" text-anchor="middle">校验</text>
+  <text x="854" y="717" fill="#536965" font-size="22" font-weight="400" text-anchor="middle">›</text>
+  <rect x="870" y="692" width="76" height="36" rx="8" fill="#eef3fc" stroke="#3268bf" stroke-width="2" data-graph-role="node" />
+  <text x="908" y="716" fill="#3268bf" font-size="19" font-weight="500" text-anchor="middle">授权</text>
+  <text x="962" y="717" fill="#536965" font-size="22" font-weight="400" text-anchor="middle">›</text>
+  <rect x="978" y="692" width="76" height="36" rx="8" fill="#eef3fc" stroke="#3268bf" stroke-width="2" data-graph-role="node" />
+  <text x="1016" y="716" fill="#3268bf" font-size="19" font-weight="500" text-anchor="middle">分发</text>
+  <path d="M800 346 L800 378" fill="none" stroke="#3268bf" stroke-width="5" stroke-linejoin="round" marker-end="url(#a-3268bf)" data-graph-role="edge" />
+  <path d="M800 474 L800 506" fill="none" stroke="#3268bf" stroke-width="5" stroke-linejoin="round" marker-end="url(#a-3268bf)" data-graph-role="edge" />
+  <path d="M800 602 L800 634" fill="none" stroke="#3268bf" stroke-width="5" stroke-linejoin="round" marker-end="url(#a-3268bf)" data-graph-role="edge" />
+  <path d="M800 744 L800 776" fill="none" stroke="#3268bf" stroke-width="5" stroke-linejoin="round" marker-end="url(#a-3268bf)" data-graph-role="edge" />
+  <rect x="64" y="264" width="352" height="594" rx="12" fill="#faf5ea" stroke="#dcc79c" stroke-width="2" data-graph-role="container" />
+  <text x="84" y="308" fill="#20312f" font-size="26" font-weight="650" text-anchor="start">观测与控制</text>
+  <text x="84" y="340" fill="#97691f" font-size="20" font-weight="400" text-anchor="start">谁在看，谁能叫停？</text>
+  <rect x="84" y="364" width="312" height="140" rx="10" fill="#ffffff" stroke="#c6d5d0" stroke-width="2" data-graph-role="node" />
+  <g transform="translate(104 390) scale(1.2)" fill="none" stroke="#97691f" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" data-graph-role="decoration">
+    <path d="M2 12H6L9 4L14 20L17 12H22" />
+  </g>
+  <text x="147" y="412" fill="#20312f" font-size="22" font-weight="600" text-anchor="start">事件与投影</text>
+  <text x="104" y="448" fill="#536965" font-size="19" font-weight="400" text-anchor="start">计划、步骤、工具与用量</text>
+  <text x="104" y="477" fill="#536965" font-size="19" font-weight="400" text-anchor="start">经 SSE 回到页面并保存</text>
+  <rect x="84" y="528" width="312" height="140" rx="10" fill="#ffffff" stroke="#c6d5d0" stroke-width="2" data-graph-role="node" />
+  <g transform="translate(104 554) scale(1.2)" fill="none" stroke="#97691f" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" data-graph-role="decoration">
+    <path d="M16 6A4 4 0 1 1 8 6A4 4 0 1 1 16 6" />
+    <path d="M3 22V19Q3 13 12 13Q21 13 21 19V22" />
+  </g>
+  <text x="147" y="576" fill="#20312f" font-size="22" font-weight="600" text-anchor="start">用户参与</text>
+  <text x="104" y="612" fill="#536965" font-size="19" font-weight="400" text-anchor="start">Agent 提问、用户回复</text>
+  <text x="104" y="641" fill="#536965" font-size="19" font-weight="400" text-anchor="start">运行中补充输入或停止</text>
+  <rect x="84" y="692" width="312" height="140" rx="10" fill="#ffffff" stroke="#c6d5d0" stroke-width="2" data-graph-role="node" />
+  <g transform="translate(104 718) scale(1.2)" fill="none" stroke="#97691f" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" data-graph-role="decoration">
+    <path d="M12 2L21 6V12Q20 19 12 23Q4 19 3 12V6Z" />
+    <path d="M8 12L11 15L16 9" />
+  </g>
+  <text x="147" y="740" fill="#20312f" font-size="22" font-weight="600" text-anchor="start">预算与中止</text>
+  <text x="104" y="776" fill="#536965" font-size="19" font-weight="400" text-anchor="start">迭代、重试与请求超时</text>
+  <text x="104" y="805" fill="#536965" font-size="19" font-weight="400" text-anchor="start">没有跨调用的总预算</text>
+  <rect x="1184" y="264" width="352" height="594" rx="12" fill="#edf6ef" stroke="#a9c9b4" stroke-width="2" data-graph-role="container" />
+  <text x="1204" y="308" fill="#20312f" font-size="26" font-weight="650" text-anchor="start">状态与持久化</text>
+  <text x="1204" y="340" fill="#177b65" font-size="20" font-weight="400" text-anchor="start">信息归谁，能活多久？</text>
+  <rect x="1204" y="364" width="312" height="140" rx="10" fill="#ffffff" stroke="#c6d5d0" stroke-width="2" data-graph-role="node" />
+  <g transform="translate(1224 390) scale(1.2)" fill="none" stroke="#177b65" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" data-graph-role="decoration">
+    <path d="M3 8L12 3L21 8L12 13Z" />
+    <path d="M3 12L12 17L21 12" />
+    <path d="M3 16L12 21L21 16" />
+  </g>
+  <text x="1267" y="412" fill="#20312f" font-size="22" font-weight="600" text-anchor="start">本次请求内</text>
+  <text x="1224" y="448" fill="#536965" font-size="19" font-weight="400" text-anchor="start">Context 装配与页面状态</text>
+  <text x="1224" y="477" fill="#536965" font-size="19" font-weight="400" text-anchor="start">请求结束即消失</text>
+  <rect x="1204" y="528" width="312" height="140" rx="10" fill="#ffffff" stroke="#c6d5d0" stroke-width="2" data-graph-role="node" />
+  <g transform="translate(1224 554) scale(1.2)" fill="none" stroke="#177b65" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" data-graph-role="decoration">
+    <path d="M6 6H18V18H6Z" />
+    <path d="M9 9H15V15H9Z" />
+    <path d="M9 2V6M15 2V6M9 18V22M15 18V22M2 9H6M2 15H6M18 9H22M18 15H22" />
+  </g>
+  <text x="1267" y="576" fill="#20312f" font-size="22" font-weight="600" text-anchor="start">当前进程内</text>
+  <text x="1224" y="612" fill="#536965" font-size="19" font-weight="400" text-anchor="start">执行协程与任务注册表</text>
+  <text x="1224" y="641" fill="#536965" font-size="19" font-weight="400" text-anchor="start">重启不自动恢复</text>
+  <rect x="1204" y="692" width="312" height="140" rx="10" fill="#ffffff" stroke="#c6d5d0" stroke-width="2" data-graph-role="node" />
+  <g transform="translate(1224 718) scale(1.2)" fill="none" stroke="#177b65" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" data-graph-role="decoration">
+    <path d="M3 6C3 0 21 0 21 6C21 12 3 12 3 6Z" />
+    <path d="M3 6V18C3 24 21 24 21 18V6" />
+    <path d="M3 12C3 18 21 18 21 12" />
+  </g>
+  <text x="1267" y="740" fill="#20312f" font-size="22" font-weight="600" text-anchor="start">进程之外</text>
+  <text x="1224" y="776" fill="#536965" font-size="19" font-weight="400" text-anchor="start">会话、记忆与事件历史</text>
+  <text x="1224" y="805" fill="#536965" font-size="19" font-weight="400" text-anchor="start">工作文件是真实副作用</text>
+  <path d="M416 561 L456 561" fill="none" stroke="#97691f" stroke-width="3" stroke-linejoin="round" marker-end="url(#b-97691f)" marker-start="url(#b-97691f)" data-graph-role="edge" />
+  <path d="M1144 561 L1184 561" fill="none" stroke="#177b65" stroke-width="3" stroke-linejoin="round" marker-end="url(#b-177b65)" marker-start="url(#b-177b65)" data-graph-role="edge" />
+  <path d="M800 896 L800 930" fill="none" stroke="#3268bf" stroke-width="5" stroke-linejoin="round" marker-end="url(#a-3268bf)" data-graph-role="edge" />
+  <rect x="456" y="930" width="688" height="72" rx="10" fill="#ffffff" stroke="#c6d5d0" stroke-width="2" data-graph-role="node" />
+  <g transform="translate(606 952) scale(1.5)" fill="none" stroke="#177b65" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" data-graph-role="decoration">
+    <path d="M14 2H5V22H19V7Z" />
+    <path d="M14 2V7H19" />
+    <path d="M8 12H16" />
+    <path d="M8 16H14" />
+  </g>
+  <text x="658" y="980" fill="#20312f" font-size="24" font-weight="600" text-anchor="start">结果、产物与可回看的执行过程</text>
+  <path d="M64 1042 L1536 1042" fill="none" stroke="#c6d5d0" stroke-width="2" data-graph-role="decoration" />
+  <text x="64" y="1080" fill="#536965" font-size="22" font-weight="400" text-anchor="start">模型只负责一次判断；把判断变成可持续、可控制、可交付的任务，是 Harness 的工程职责。</text>
+</svg>
