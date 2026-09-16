@@ -56,7 +56,10 @@
 
 主要参考：
 
-- [架构说明](docs/architecture.md)：模块边界与执行路径。
+- [Harness 工程](docs/harness.md)：职责分层与设计取舍。
+- [架构说明](docs/architecture.md)：模块边界、执行路径与控制参数。
+- [能力与边界](docs/capabilities.md)：实现程度、证据类型与未验证范围。
+- [设计取舍记录](docs/decisions.md)：已有选择及其代价，判断是否推翻。
 - [调研与评估索引](docs/research/README.md)：项目工作区、课程与 Harness 能力的阶段性研究快照。
 
 若评估后决定实施改动，再为具体范围写明问题、预期行为与验收条件；需要时再引入 `specs/` 和适当的 SDD 流程。

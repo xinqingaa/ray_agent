@@ -1,145 +1,149 @@
 <?xml version='1.0' encoding='utf-8'?>
-<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1500" viewBox="0 0 1600 1500" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1090" viewBox="0 0 1600 1090" role="img" aria-labelledby="title desc">
   <title id="title">任务如何持续推进</title>
-  <desc id="desc">外层根据步骤结果调整计划，内层根据工具结果继续决策。</desc>
+  <desc id="desc">外层按步骤结果更新计划，内层按工具结果继续决策，两层只在步骤边界交接。</desc>
   <style>text{font-family:"PingFang SC","Microsoft YaHei",Arial,sans-serif;letter-spacing:0}</style>
   <defs>
-    <marker id="20312f" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto-start-reverse" markerUnits="userSpaceOnUse">
-      <path d="M1 1L11 6L1 11Z" fill="#20312f" />
+    <marker id="a-20312f" markerWidth="20" markerHeight="20" refX="18" refY="10" orient="auto-start-reverse" markerUnits="userSpaceOnUse">
+      <path d="M2 2L19 10L2 18Z" fill="#20312f" />
     </marker>
-    <marker id="3268bf" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto-start-reverse" markerUnits="userSpaceOnUse">
-      <path d="M1 1L11 6L1 11Z" fill="#3268bf" />
+    <marker id="b-20312f" markerWidth="14" markerHeight="14" refX="12" refY="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse">
+      <path d="M2 2L13 7L2 12Z" fill="#20312f" />
     </marker>
-    <marker id="177b65" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto-start-reverse" markerUnits="userSpaceOnUse">
-      <path d="M1 1L11 6L1 11Z" fill="#177b65" />
+    <marker id="a-3268bf" markerWidth="20" markerHeight="20" refX="18" refY="10" orient="auto-start-reverse" markerUnits="userSpaceOnUse">
+      <path d="M2 2L19 10L2 18Z" fill="#3268bf" />
     </marker>
-    <marker id="bd5254" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto-start-reverse" markerUnits="userSpaceOnUse">
-      <path d="M1 1L11 6L1 11Z" fill="#bd5254" />
+    <marker id="b-3268bf" markerWidth="14" markerHeight="14" refX="12" refY="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse">
+      <path d="M2 2L13 7L2 12Z" fill="#3268bf" />
     </marker>
-    <marker id="97691f" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto-start-reverse" markerUnits="userSpaceOnUse">
-      <path d="M1 1L11 6L1 11Z" fill="#97691f" />
+    <marker id="a-177b65" markerWidth="20" markerHeight="20" refX="18" refY="10" orient="auto-start-reverse" markerUnits="userSpaceOnUse">
+      <path d="M2 2L19 10L2 18Z" fill="#177b65" />
     </marker>
-    <marker id="70579c" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto-start-reverse" markerUnits="userSpaceOnUse">
-      <path d="M1 1L11 6L1 11Z" fill="#70579c" />
+    <marker id="b-177b65" markerWidth="14" markerHeight="14" refX="12" refY="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse">
+      <path d="M2 2L13 7L2 12Z" fill="#177b65" />
+    </marker>
+    <marker id="a-97691f" markerWidth="20" markerHeight="20" refX="18" refY="10" orient="auto-start-reverse" markerUnits="userSpaceOnUse">
+      <path d="M2 2L19 10L2 18Z" fill="#97691f" />
+    </marker>
+    <marker id="b-97691f" markerWidth="14" markerHeight="14" refX="12" refY="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse">
+      <path d="M2 2L13 7L2 12Z" fill="#97691f" />
+    </marker>
+    <marker id="a-70579c" markerWidth="20" markerHeight="20" refX="18" refY="10" orient="auto-start-reverse" markerUnits="userSpaceOnUse">
+      <path d="M2 2L19 10L2 18Z" fill="#70579c" />
+    </marker>
+    <marker id="b-70579c" markerWidth="14" markerHeight="14" refX="12" refY="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse">
+      <path d="M2 2L13 7L2 12Z" fill="#70579c" />
+    </marker>
+    <marker id="a-bd5254" markerWidth="20" markerHeight="20" refX="18" refY="10" orient="auto-start-reverse" markerUnits="userSpaceOnUse">
+      <path d="M2 2L19 10L2 18Z" fill="#bd5254" />
+    </marker>
+    <marker id="b-bd5254" markerWidth="14" markerHeight="14" refX="12" refY="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse">
+      <path d="M2 2L13 7L2 12Z" fill="#bd5254" />
+    </marker>
+    <marker id="a-536965" markerWidth="20" markerHeight="20" refX="18" refY="10" orient="auto-start-reverse" markerUnits="userSpaceOnUse">
+      <path d="M2 2L19 10L2 18Z" fill="#536965" />
+    </marker>
+    <marker id="b-536965" markerWidth="14" markerHeight="14" refX="12" refY="7" orient="auto-start-reverse" markerUnits="userSpaceOnUse">
+      <path d="M2 2L13 7L2 12Z" fill="#536965" />
     </marker>
   </defs>
-  <rect x="0" y="0" width="1600" height="1500" rx="0" fill="#fafcfb" stroke="none" stroke-width="2" data-graph-role="background" />
-  <text x="64" y="63" fill="#177b65" font-size="22" font-weight="600" text-anchor="start">RAYAGENT  /  任务运行模型</text>
-  <text x="64" y="139" fill="#20312f" font-size="51" font-weight="650" text-anchor="start">任务如何持续推进</text>
-  <text x="64" y="187" fill="#536965" font-size="25" font-weight="400" text-anchor="start">外层根据步骤结果调整计划，内层根据工具结果继续决策。</text>
-  <rect x="64" y="380" width="465" height="800" rx="10" fill="#eef3fc" stroke="#bfcee8" stroke-width="2" data-graph-role="container" />
-  <rect x="680" y="500" width="856" height="515" rx="10" fill="#edf6ef" stroke="#a9c9b4" stroke-width="2" data-graph-role="container" />
-  <text x="92" y="429" fill="#3268bf" font-size="23" font-weight="600" text-anchor="start">外层：计划与步骤</text>
-  <text x="714" y="546" fill="#177b65" font-size="23" font-weight="600" text-anchor="start">内层：决策与工具反馈</text>
-  <rect x="95" y="255" width="400" height="92" rx="10" fill="white" stroke="#c6d5d0" stroke-width="2" data-graph-role="node" id="input" />
-  <g transform="translate(118 276) scale(1.4)" fill="none" stroke="#20312f" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" data-graph-role="decoration">
+  <rect x="0" y="0" width="1600" height="1090" fill="#fafcfb" data-graph-role="background" />
+  <text x="64" y="44" fill="#177b65" font-size="18" font-weight="600" text-anchor="start">RAYAGENT ／ 任务运行模型</text>
+  <text x="64" y="94" fill="#20312f" font-size="40" font-weight="650" text-anchor="start">任务如何持续推进</text>
+  <rect x="144" y="134" width="456" height="88" rx="10" fill="#ffffff" stroke="#c6d5d0" stroke-width="2" data-graph-role="node" />
+  <g transform="translate(276 159) scale(1.5)" fill="none" stroke="#20312f" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" data-graph-role="decoration">
     <path d="M16 6A4 4 0 1 1 8 6A4 4 0 1 1 16 6" />
     <path d="M3 22V19Q3 13 12 13Q21 13 21 19V22" />
   </g>
-  <text x="171" y="302" fill="#20312f" font-size="28" font-weight="600" text-anchor="start">目标与资料</text>
-  <rect x="95" y="470" width="400" height="92" rx="10" fill="white" stroke="#c6d5d0" stroke-width="2" data-graph-role="node" id="plan" />
-  <g transform="translate(118 491) scale(1.4)" fill="none" stroke="#3268bf" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" data-graph-role="decoration">
+  <text x="328" y="187" fill="#20312f" font-size="28" font-weight="600" text-anchor="start">目标与资料</text>
+  <rect x="112" y="272" width="520" height="552" rx="12" fill="#eef3fc" stroke="#bfcee8" stroke-width="2" data-graph-role="container" />
+  <text x="144" y="306" fill="#3268bf" font-size="24" font-weight="600" text-anchor="start">外层：计划与步骤</text>
+  <rect x="144" y="320" width="456" height="92" rx="10" fill="#ffffff" stroke="#c6d5d0" stroke-width="2" data-graph-role="node" />
+  <g transform="translate(168 336) scale(1.5)" fill="none" stroke="#3268bf" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" data-graph-role="decoration">
     <path d="M8 6H21M8 12H21M8 18H21" />
     <path d="M2 5L3.5 7L6 3.5" />
     <path d="M2 11L3.5 13L6 9.5" />
     <path d="M2 17L3.5 19L6 15.5" />
   </g>
-  <text x="171" y="517" fill="#20312f" font-size="28" font-weight="600" text-anchor="start">生成计划</text>
-  <rect x="95" y="655" width="400" height="112" rx="10" fill="white" stroke="#c6d5d0" stroke-width="2" data-graph-role="node" id="select" />
-  <g transform="translate(118 676) scale(1.4)" fill="none" stroke="#3268bf" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" data-graph-role="decoration">
+  <text x="220" y="364" fill="#20312f" font-size="28" font-weight="600" text-anchor="start">生成计划</text>
+  <rect x="144" y="480" width="456" height="112" rx="10" fill="#ffffff" stroke="#c6d5d0" stroke-width="2" data-graph-role="node" />
+  <g transform="translate(168 496) scale(1.5)" fill="none" stroke="#3268bf" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" data-graph-role="decoration">
     <path d="M3 8L12 3L21 8L12 13Z" />
     <path d="M3 12L12 17L21 12" />
     <path d="M3 16L12 21L21 16" />
   </g>
-  <text x="171" y="702" fill="#20312f" font-size="28" font-weight="600" text-anchor="start">选择待办步骤</text>
-  <text x="119" y="741" fill="#536965" font-size="23" font-weight="400" text-anchor="start">携带目标、计划与当前步骤</text>
-  <rect x="95" y="940" width="400" height="112" rx="10" fill="white" stroke="#c6d5d0" stroke-width="2" data-graph-role="node" id="update" />
-  <g transform="translate(118 961) scale(1.4)" fill="none" stroke="#3268bf" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" data-graph-role="decoration">
+  <text x="220" y="524" fill="#20312f" font-size="28" font-weight="600" text-anchor="start">选择待办步骤</text>
+  <text x="168" y="558" fill="#536965" font-size="23" font-weight="400" text-anchor="start">携带目标、计划与当前步骤</text>
+  <rect x="144" y="688" width="456" height="112" rx="10" fill="#ffffff" stroke="#c6d5d0" stroke-width="2" data-graph-role="node" />
+  <g transform="translate(168 704) scale(1.5)" fill="none" stroke="#3268bf" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" data-graph-role="decoration">
     <path d="M8 6H21M8 12H21M8 18H21" />
     <path d="M2 5L3.5 7L6 3.5" />
     <path d="M2 11L3.5 13L6 9.5" />
     <path d="M2 17L3.5 19L6 15.5" />
   </g>
-  <text x="171" y="987" fill="#20312f" font-size="28" font-weight="600" text-anchor="start">更新剩余计划</text>
-  <text x="119" y="1026" fill="#536965" font-size="23" font-weight="400" text-anchor="start">将步骤结果交给规划器</text>
-  <rect x="715" y="655" width="360" height="112" rx="10" fill="white" stroke="#c6d5d0" stroke-width="2" data-graph-role="node" id="model" />
-  <g transform="translate(738 676) scale(1.4)" fill="none" stroke="#177b65" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" data-graph-role="decoration">
+  <text x="220" y="732" fill="#20312f" font-size="28" font-weight="600" text-anchor="start">更新剩余计划</text>
+  <text x="168" y="766" fill="#536965" font-size="23" font-weight="400" text-anchor="start">把步骤结果交给规划器</text>
+  <rect x="696" y="408" width="840" height="381" rx="12" fill="#edf6ef" stroke="#a9c9b4" stroke-width="2" data-graph-role="container" />
+  <text x="728" y="448" fill="#177b65" font-size="24" font-weight="600" text-anchor="start">内层：决策与工具反馈</text>
+  <rect x="728" y="470" width="376" height="112" rx="10" fill="#ffffff" stroke="#c6d5d0" stroke-width="2" data-graph-role="node" />
+  <g transform="translate(752 486) scale(1.5)" fill="none" stroke="#177b65" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" data-graph-role="decoration">
     <path d="M6 6H18V18H6Z" />
     <path d="M9 9H15V15H9Z" />
     <path d="M9 2V6M15 2V6M9 18V22M15 18V22M2 9H6M2 15H6M18 9H22M18 15H22" />
   </g>
-  <text x="791" y="702" fill="#20312f" font-size="28" font-weight="600" text-anchor="start">模型决策</text>
-  <text x="739" y="741" fill="#536965" font-size="23" font-weight="400" text-anchor="start">上下文 → 响应或工具调用</text>
-  <rect x="1195" y="655" width="306" height="112" rx="10" fill="white" stroke="#c6d5d0" stroke-width="2" data-graph-role="node" id="tool" />
-  <g transform="translate(1218 676) scale(1.4)" fill="none" stroke="#177b65" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" data-graph-role="decoration">
+  <text x="804" y="514" fill="#20312f" font-size="28" font-weight="600" text-anchor="start">模型决策</text>
+  <text x="752" y="548" fill="#536965" font-size="23" font-weight="400" text-anchor="start">上下文 → 响应或工具调用</text>
+  <rect x="1144" y="470" width="360" height="112" rx="10" fill="#ffffff" stroke="#c6d5d0" stroke-width="2" data-graph-role="node" />
+  <g transform="translate(1168 486) scale(1.5)" fill="none" stroke="#177b65" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" data-graph-role="decoration">
     <path d="M3 4H21V20H3Z" />
     <path d="M7 9L10 12L7 15" />
     <path d="M13 15H17" />
   </g>
-  <text x="1271" y="702" fill="#20312f" font-size="28" font-weight="600" text-anchor="start">执行工具</text>
-  <text x="1219" y="741" fill="#536965" font-size="23" font-weight="400" text-anchor="start">内置工具 / MCP / A2A</text>
-  <rect x="1195" y="863" width="306" height="105" rx="10" fill="white" stroke="#c6d5d0" stroke-width="2" data-graph-role="node" id="feedback" />
-  <g transform="translate(1218 884) scale(1.4)" fill="none" stroke="#177b65" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" data-graph-role="decoration">
-    <path d="M3 8L12 3L21 8L12 13Z" />
-    <path d="M3 12L12 17L21 12" />
-    <path d="M3 16L12 21L21 16" />
-  </g>
-  <text x="1271" y="910" fill="#20312f" font-size="28" font-weight="600" text-anchor="start">回填结果</text>
-  <text x="1219" y="949" fill="#536965" font-size="23" font-weight="400" text-anchor="start">结果进入上下文</text>
-  <rect x="715" y="863" width="360" height="105" rx="10" fill="white" stroke="#c6d5d0" stroke-width="2" data-graph-role="node" id="stepdone" />
-  <g transform="translate(738 884) scale(1.4)" fill="none" stroke="#3268bf" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" data-graph-role="decoration">
+  <text x="1220" y="514" fill="#20312f" font-size="28" font-weight="600" text-anchor="start">执行工具</text>
+  <text x="1168" y="548" fill="#536965" font-size="23" font-weight="400" text-anchor="start">内置工具 / MCP / A2A</text>
+  <rect x="728" y="660" width="376" height="105" rx="10" fill="#ffffff" stroke="#c6d5d0" stroke-width="2" data-graph-role="node" />
+  <g transform="translate(752 676) scale(1.5)" fill="none" stroke="#3268bf" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" data-graph-role="decoration">
     <path d="M8 6H21M8 12H21M8 18H21" />
     <path d="M2 5L3.5 7L6 3.5" />
     <path d="M2 11L3.5 13L6 9.5" />
     <path d="M2 17L3.5 19L6 15.5" />
   </g>
-  <text x="791" y="910" fill="#20312f" font-size="28" font-weight="600" text-anchor="start">步骤结束</text>
-  <text x="739" y="949" fill="#536965" font-size="23" font-weight="400" text-anchor="start">响应解析后交回外层</text>
-  <rect x="1195" y="255" width="306" height="126" rx="10" fill="white" stroke="#c6d5d0" stroke-width="2" data-graph-role="node" id="wait" />
-  <g transform="translate(1218 276) scale(1.4)" fill="none" stroke="#97691f" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" data-graph-role="decoration">
-    <path d="M16 6A4 4 0 1 1 8 6A4 4 0 1 1 16 6" />
-    <path d="M3 22V19Q3 13 12 13Q21 13 21 19V22" />
+  <text x="804" y="704" fill="#20312f" font-size="28" font-weight="600" text-anchor="start">步骤结束</text>
+  <text x="752" y="738" fill="#536965" font-size="23" font-weight="400" text-anchor="start">响应解析后交回外层</text>
+  <rect x="1144" y="660" width="360" height="105" rx="10" fill="#ffffff" stroke="#c6d5d0" stroke-width="2" data-graph-role="node" />
+  <g transform="translate(1168 676) scale(1.5)" fill="none" stroke="#177b65" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" data-graph-role="decoration">
+    <path d="M3 8L12 3L21 8L12 13Z" />
+    <path d="M3 12L12 17L21 12" />
+    <path d="M3 16L12 21L21 16" />
   </g>
-  <text x="1271" y="302" fill="#20312f" font-size="27" font-weight="600" text-anchor="start">等待用户</text>
-  <text x="1219" y="341" fill="#536965" font-size="23" font-weight="400" text-anchor="start">发出提问，保存等待状态</text>
-  <rect x="95" y="1245" width="400" height="110" rx="10" fill="white" stroke="#c6d5d0" stroke-width="2" data-graph-role="node" id="finish" />
-  <g transform="translate(118 1266) scale(1.4)" fill="none" stroke="#3268bf" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" data-graph-role="decoration">
+  <text x="1220" y="704" fill="#20312f" font-size="28" font-weight="600" text-anchor="start">回填结果</text>
+  <text x="1168" y="738" fill="#536965" font-size="23" font-weight="400" text-anchor="start">结果进入上下文</text>
+  <rect x="144" y="880" width="456" height="100" rx="10" fill="#ffffff" stroke="#c6d5d0" stroke-width="2" data-graph-role="node" />
+  <g transform="translate(276 911) scale(1.5)" fill="none" stroke="#177b65" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" data-graph-role="decoration">
     <path d="M14 2H5V22H19V7Z" />
     <path d="M14 2V7H19" />
     <path d="M8 12H16" />
     <path d="M8 16H14" />
   </g>
-  <text x="171" y="1292" fill="#20312f" font-size="28" font-weight="600" text-anchor="start">总结与完成</text>
-  <text x="119" y="1331" fill="#536965" font-size="23" font-weight="400" text-anchor="start">没有待办步骤时进入总结</text>
-  <path id="start" data-graph-role="edge" data-source="input" data-target="plan" d="M464 347 L464 470" fill="none" stroke="#3268bf" stroke-width="3.5" stroke-linejoin="round" marker-end="url(#3268bf)" />
-  <path id="created" data-graph-role="edge" data-source="plan" data-target="select" d="M295 562 L295 655" fill="none" stroke="#3268bf" stroke-width="3.5" stroke-linejoin="round" marker-end="url(#3268bf)" />
-  <path id="step" data-graph-role="edge" data-source="select" data-target="model" d="M495 711 L715 711" fill="none" stroke="#3268bf" stroke-width="3.5" stroke-linejoin="round" marker-end="url(#3268bf)" />
-  <text x="549" y="691" fill="#3268bf" font-size="22" font-weight="400" text-anchor="start">存在待办</text>
-  <path id="call" data-graph-role="edge" data-source="model" data-target="tool" d="M1075 711 L1195 711" fill="none" stroke="#177b65" stroke-width="3.5" stroke-linejoin="round" marker-end="url(#177b65)" />
-  <text x="1106" y="746" fill="#177b65" font-size="22" font-weight="400" text-anchor="start">调用</text>
-  <path id="feedback" data-graph-role="edge" data-source="tool" data-target="feedback" d="M1348 767 L1348 863" fill="none" stroke="#177b65" stroke-width="3.5" stroke-linejoin="round" marker-end="url(#177b65)" />
-  <path id="repeat" data-graph-role="edge" data-source="feedback" data-target="model" d="M1235 863 L1235 812 L1005 812 L1005 767" fill="none" stroke="#177b65" stroke-width="3.5" stroke-linejoin="round" marker-end="url(#177b65)" />
-  <text x="1055" y="795" fill="#177b65" font-size="21" font-weight="400" text-anchor="start">再次决策</text>
-  <path id="response" data-graph-role="edge" data-source="model" data-target="stepdone" d="M827 767 L827 863" fill="none" stroke="#3268bf" stroke-width="3.5" stroke-linejoin="round" marker-end="url(#3268bf)" />
-  <text x="718" y="822" fill="#3268bf" font-size="21" font-weight="400" text-anchor="start">无工具调用</text>
-  <path id="return" data-graph-role="edge" data-source="stepdone" data-target="update" d="M715 916 L607 916 L607 995 L495 995" fill="none" stroke="#3268bf" stroke-width="3.5" stroke-linejoin="round" marker-end="url(#3268bf)" />
-  <text x="541" y="887" fill="#3268bf" font-size="22" font-weight="400" text-anchor="start">步骤结果</text>
-  <path id="next" data-graph-role="edge" data-source="update" data-target="select" d="M260 940 L260 767" fill="none" stroke="#3268bf" stroke-width="3.5" stroke-linejoin="round" marker-end="url(#3268bf)" />
-  <text x="102" y="858" fill="#3268bf" font-size="22" font-weight="400" text-anchor="start">继续选择步骤</text>
-  <path id="done" data-graph-role="edge" data-source="select" data-target="finish" d="M95 735 L40 735 L40 1300 L95 1300" fill="none" stroke="#3268bf" stroke-width="3.5" stroke-linejoin="round" marker-end="url(#3268bf)" />
-  <text x="99" y="1215" fill="#3268bf" font-size="22" font-weight="400" text-anchor="start">无待办步骤</text>
-  <path id="ask" data-graph-role="edge" data-source="tool" data-target="wait" d="M1365 655 L1365 381" fill="none" stroke="#97691f" stroke-width="3.5" stroke-linejoin="round" marker-end="url(#97691f)" />
-  <text x="1387" y="483" fill="#97691f" font-size="22" font-weight="400" text-anchor="start">提问</text>
-  <path id="resume" data-graph-role="edge" data-source="wait" data-target="model" d="M1195 318 L1129 318 L1129 678 L1075 678" fill="none" stroke="#97691f" stroke-width="3.5" stroke-linejoin="round" marker-end="url(#97691f)" />
-  <text x="874" y="449" fill="#97691f" font-size="23" font-weight="400" text-anchor="start">用户回复后继续</text>
-  <g transform="translate(710 1064) scale(1.5)" fill="none" stroke="#177b65" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" data-graph-role="decoration">
-    <path d="M2 12H6L9 4L14 20L17 12H22" />
-  </g>
-  <text x="763" y="1096" fill="#20312f" font-size="28" font-weight="600" text-anchor="start">观察与控制贯穿任务</text>
-  <text x="714" y="1143" fill="#536965" font-size="24" font-weight="400" text-anchor="start">事件实时回传，消息与工具记录保存为历史。</text>
-  <text x="714" y="1185" fill="#536965" font-size="24" font-weight="400" text-anchor="start">新输入在交接处处理；等待后可回复继续。</text>
-  <text x="714" y="1227" fill="#536965" font-size="24" font-weight="400" text-anchor="start">失败或停止进入收尾，不撤销已发生的副作用。</text>
-  <text x="714" y="1269" fill="#536965" font-size="24" font-weight="400" text-anchor="start">需要文件交付时同步附件，不要求所有任务产出文件。</text>
-  <path d="M64 1410 L1536 1410" fill="none" stroke="#c6d5d0" stroke-width="2" data-graph-role="decoration" />
-  <text x="64" y="1455" fill="#536965" font-size="22" font-weight="400" text-anchor="start">蓝：步骤调度     绿：工具反馈     金：用户续接。此图描述运行关系，不等同于数据库状态枚举。</text>
+  <text x="328" y="939" fill="#20312f" font-size="28" font-weight="600" text-anchor="start">总结与完成</text>
+  <rect x="696" y="880" width="840" height="100" rx="12" fill="#f1f6f3" stroke="#a9c9b4" stroke-width="2" data-graph-role="container" />
+  <text x="728" y="920" fill="#20312f" font-size="22" font-weight="600" text-anchor="start">两层只在步骤边界交接</text>
+  <text x="728" y="952" fill="#536965" font-size="20" font-weight="400" text-anchor="start">外层拿到 success、result 与 attachments，看不到内层调用了哪些工具</text>
+  <path d="M480 222 L480 320" fill="none" stroke="#3268bf" stroke-width="5" stroke-linejoin="round" marker-end="url(#a-3268bf)" data-graph-role="edge" />
+  <path d="M480 412 L480 480" fill="none" stroke="#3268bf" stroke-width="5" stroke-linejoin="round" marker-end="url(#a-3268bf)" data-graph-role="edge" />
+  <path d="M600 536 L728 536" fill="none" stroke="#3268bf" stroke-width="5" stroke-linejoin="round" marker-end="url(#a-3268bf)" data-graph-role="edge" />
+  <text x="614" y="518" fill="#3268bf" font-size="20" font-weight="400" text-anchor="start">存在待办</text>
+  <path d="M1104 526 L1144 526" fill="none" stroke="#177b65" stroke-width="5" stroke-linejoin="round" marker-end="url(#a-177b65)" data-graph-role="edge" />
+  <path d="M1324 582 L1324 660" fill="none" stroke="#177b65" stroke-width="5" stroke-linejoin="round" marker-end="url(#a-177b65)" data-graph-role="edge" />
+  <path d="M1224 660 L1224 620 L1004 620 L1004 582" fill="none" stroke="#177b65" stroke-width="5" stroke-linejoin="round" marker-end="url(#a-177b65)" data-graph-role="edge" />
+  <text x="1040" y="608" fill="#177b65" font-size="19" font-weight="400" text-anchor="start">再次决策</text>
+  <path d="M916 582 L916 660" fill="none" stroke="#3268bf" stroke-width="5" stroke-linejoin="round" marker-end="url(#a-3268bf)" data-graph-role="edge" />
+  <text x="790" y="630" fill="#3268bf" font-size="19" font-weight="400" text-anchor="start">无工具调用</text>
+  <path d="M728 712 L668 712 L668 744 L600 744" fill="none" stroke="#3268bf" stroke-width="5" stroke-linejoin="round" marker-end="url(#a-3268bf)" data-graph-role="edge" />
+  <path d="M208 688 L208 592" fill="none" stroke="#3268bf" stroke-width="5" stroke-linejoin="round" marker-end="url(#a-3268bf)" data-graph-role="edge" />
+  <text x="232" y="648" fill="#3268bf" font-size="19" font-weight="400" text-anchor="start">继续选择步骤</text>
+  <path d="M144 536 L76 536 L76 930 L144 930" fill="none" stroke="#3268bf" stroke-width="5" stroke-linejoin="round" marker-end="url(#a-3268bf)" data-graph-role="edge" />
+  <text x="88" y="900" fill="#3268bf" font-size="19" font-weight="400" text-anchor="start">无待办步骤</text>
+  <path d="M64 1010 L1536 1010" fill="none" stroke="#c6d5d0" stroke-width="2" data-graph-role="decoration" />
+  <text x="64" y="1048" fill="#536965" font-size="22" font-weight="400" text-anchor="start">蓝：步骤调度　　绿：工具反馈。图中描述运行关系，不等同于数据库里的状态枚举；任务的四条结束路径见下一张图。</text>
 </svg>
