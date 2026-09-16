@@ -56,7 +56,7 @@ RayAgent 适合作为 Harness 机制与工程设计教程的实践载体。16 �
 
 ### P2：上游写作约定存在直接冲突
 
-[lessons/AGENTS.md 的制作约定](../../lessons/AGENTS.md#制作约定)要求“每个章节……不放源码链接或代码片段”，同一句又要求遵循 write-lessons。[write-lessons](../../skills/write-lessons/SKILL.md#use-examples-and-code-deliberately)则允许在实现影响行为时放短代码，并要求精确控制流使用简化 Python/TS。已制作的第 02–04、07 章也确实包含代码。
+[lessons/AGENTS.md 的写作约定](../../lessons/AGENTS.md#写作约定)（当时名为「制作约定」）要求“每个章节……不放源码链接或代码片段”，同一句又要求遵循 write-lessons。[write-lessons](../../skills/write-lessons/SKILL.md#use-examples-and-code-deliberately)则允许在实现影响行为时放短代码，并要求精确控制流使用简化 Python/TS。已制作的第 02–04、07 章也确实包含代码。
 
 这会让后续作者无法稳定判断“代码应删掉，还是为了讲清控制流保留”。建议把课程特有约束收窄为“开头先用任务与自然语言建立问题，正文不以源码导览代替机制讲解；短代码与简化模型按 write-lessons 使用”。这是对上游规则的修改建议，本次保留原规则供作者决定，不用一次评审直接重写长期规范。
 

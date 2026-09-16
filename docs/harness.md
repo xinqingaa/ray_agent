@@ -2,7 +2,7 @@
 
 模型一次调用只能做一件事：读入一段文本，输出一段文本或一次工具调用请求。它不会真的打开文件，不知道上一步做过什么，也不会在失败后重来。把这一次判断变成一项能持续推进、能被打断、能交付成果的任务，是模型之外的工程职责——本文把这部分职责称为 **Harness**，并说明 RayAgent 把它拆成了哪几层、每层解决什么问题、为此付出什么代价。
 
-本文维护职责分层与设计取舍。具体模块边界、状态归属与控制参数见[架构说明](architecture.md)，当前实现到了什么程度见[能力与边界](capabilities.md)，关键选型的备选方案见[设计取舍记录](decisions.md)，系统的教学式展开见[课程](../lessons/README.md)。
+本文维护职责分层与设计取舍，是理解这个项目的主入口。往下的出口统一放在文末。
 
 ## 三类职责
 
@@ -114,19 +114,22 @@ Agent 提问后，运行器保存等待状态并**退出当前运行**；用户�
 
 事件先写输出流、再写数据库。这让页面能尽快看到进展，但也意味着存在一个窗口：页面已经显示了某个事件，而它还没有落库。同样地，数据库事务不包含工作文件写入、事件发布和文件存储上传——一次"步骤完成"在不同位置的可见时间并不一致。
 
-## 与课程和实现的对应
+## 继续深入
 
-本文讲的是职责与取舍；同一批机制的教学式展开见课程，具体代码入口见架构说明。
+本文给的是结论和代价。同一批机制的完整推导、备选方案和排除理由在课程里，代码位置和回归测试在代码地图里。
 
-| 本文小节 | 课程章节 | 主要实现入口 |
+| 本文小节 | 想看推导，读课程 | 想看实现，查代码地图 |
 |---|---|---|
-| 三类职责 | [01](../lessons/01-the-rayagent-system.md) | — |
-| 决策层 | [02](../lessons/02-model-interaction.md)、[04](../lessons/04-agent-loop-and-react.md)、[05](../lessons/05-context-and-memory.md) | [BaseAgent](../ray_agent/api/app/domain/services/agents/base.py)、[Memory](../ray_agent/api/app/domain/models/memory.py) |
-| 工具契约层 | [03](../lessons/03-tools-and-actions.md) | [tools/](../ray_agent/api/app/domain/services/tools/) |
-| 编排与规划层 | [06](../lessons/06-from-agent-loop-to-harness.md)、[07](../lessons/07-planning-and-nested-loops.md) | [PlannerReActFlow](../ray_agent/api/app/domain/services/flows/planner_react.py)、[Planner](../ray_agent/api/app/domain/services/agents/planner.py) |
-| 观测与控制 | [08](../lessons/08-task-execution-and-control.md)、[10](../lessons/10-events-and-streaming.md) | [AgentTaskRunner](../ray_agent/api/app/domain/services/agent_task_runner.py)、[AgentService](../ray_agent/api/app/application/services/agent_service.py) |
-| 状态与持久化 | [09](../lessons/09-state-and-persistence.md) | [Session](../ray_agent/api/app/domain/models/session.py)、[RedisStreamTask](../ray_agent/api/app/infrastructure/external/task/redis_stream_task.py) |
-| 执行适配层 | [11](../lessons/11-sandbox-and-execution-environment.md)–[15](../lessons/15-agent-collaboration-with-a2a.md) | [DockerSandbox](../ray_agent/api/app/infrastructure/external/sandbox/docker_sandbox.py)、[protocols/](../ray_agent/api/app/infrastructure/protocols/) |
-| 验证这些判断 | [16](../lessons/16-reliability-and-verification.md) | [验证方法实验](../labs/verification/README.md) |
+| 三类职责 | 第 01 章 | — |
+| 会话与任务编排 | 第 06 章 | 任务控制与生命周期 |
+| 规划层 | 第 07 章 | 规划与执行循环 |
+| 决策层 | 第 02、04、05 章 | 规划与执行循环、上下文与记忆 |
+| 工具契约层 | 第 03 章 | 工具与动作 |
+| 执行适配层 | 第 11、13、14、15 章 | 执行环境、外部协议 |
+| 观测与控制 | 第 08、10 章 | 事件观测与投影、任务控制与生命周期 |
+| 状态与持久化 | 第 09 章 | 状态与持久化 |
+| 验证这些判断 | 第 16 章 | — |
 
-本文依据 2026-09-16 的代码静态核对撰写，机制描述以代码为准；哪些路径经过实际运行验证、哪些只做了静态核对，统一记在[能力与边界](capabilities.md)。
+课程目录见 [lessons](../lessons/README.md)，代码位置与回归测试见[代码地图](code-map.md)。此外：模块边界、状态归属与控制参数见[架构说明](architecture.md)；关键选型的备选方案见[设计取舍记录](decisions.md)；实现程度与证据见[能力与边界](capabilities.md)。
+
+本文依据 2026-09-16 的代码静态核对撰写，机制描述以代码为准。
