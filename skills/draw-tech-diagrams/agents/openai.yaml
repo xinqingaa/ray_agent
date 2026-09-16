@@ -1,0 +1,4 @@
+interface:
+  display_name: "技术图配图"
+  short_description: "判断技术文档是否需要配图，控制密度与术语，并在作图工具上落地与校验"
+  default_prompt: "使用 $draw-tech-diagrams，结合目标项目的配图约定判断是否需要画图，并控制密度、术语与交付校验。"

@@ -16,7 +16,7 @@ labs 用于隔离机制，RayAgent 用于研究机制组合后的设计与取舍
 | 本文件 | 课程特有的稳定约定 |
 | [根 PLAN](../PLAN.md) | 项目阶段与学习验收标准 |
 
-运行条件与命令链接所属 lab 或服务指南；模块边界见 [架构说明](../docs/architecture.md)。通用写作方法只在 write-lessons 维护。
+运行条件与命令链接所属 lab 或服务指南；模块边界见 [架构说明](../docs/architecture.md)。通用写作方法只在 write-lessons 维护，通用配图方法只在 draw-tech-diagrams 维护。
 
 ## 冻结约定
 
@@ -34,8 +34,10 @@ labs 用于隔离机制，RayAgent 用于研究机制组合后的设计与取舍
 
 ## 配图约定
 
-默认交付 **SVG、1600×900、Fireworks Style 1（Flat Icon）**，放在 `lessons/assets/`，正文使用相对路径。只有用户明确指定时才改变对应格式、尺寸或风格；拥挤时精简或拆图。已有图片不因默认值变化批量重绘。
+本节是根 [工作指南](../AGENTS.md#配图规范) 在课程范围内的具体化：存放路径（`lessons/assets/`）以根文件为准，根文件的四类项目级配图边界不约束各章配图选题；本节只加课程专属的格式与风格默认值。
 
-使用 Fireworks Tech Graph 时，读取已安装的 `fireworks-tech-graph` skill 和 `references/style-1-flat-icon.md`；不可用时如实说明。本课程参数优先于工具默认值：浅色背景，白色或浅色节点，4–12 px 圆角，3–6 px 节点边框与流程箭头；分组容器弱于主流程，少量强调色突出机制，不仅靠虚线区分层次。参数按实际渲染效果选择。
+默认交付 **SVG、1600×900、Fireworks Style 1（Flat Icon）**，正文使用相对路径。只有用户明确指定时才改变对应格式、尺寸或风格；拥挤时精简或拆图。已有图片不因默认值变化批量重绘。
 
-文字密度与术语选择遵循 [write-lessons](../skills/write-lessons/SKILL.md#draw-to-explain)。SVG 须做结构检查并实际渲染查看，临时预览不提交。技术示意图默认不交付 PNG、GIF 或 HTML；GIF 仅在明确指令下制作。用户授权的真实界面取证可保存为 PNG，按实际窗口尺寸保留必要区域，图注说明来源与观察含义，不套用示意图参数。
+使用 Fireworks Tech Graph 时，读取已安装的 `fireworks-tech-graph` skill 和 `references/style-1-flat-icon.md`。本课程参数优先于工具默认值：浅色背景，白色或浅色节点，4–12 px 圆角，3–6 px 节点边框与流程箭头；分组容器弱于主流程，少量强调色突出机制，不仅靠虚线区分层次。参数按实际渲染效果选择。
+
+文字密度与术语选择遵循 [draw-tech-diagrams](../skills/draw-tech-diagrams/SKILL.md)。SVG 须做结构检查并实际渲染查看，临时预览不提交。技术示意图默认不交付 PNG、GIF 或 HTML；GIF 仅在明确指令下制作。用户授权的真实界面取证可保存为 PNG，按实际窗口尺寸保留必要区域，图注说明来源与观察含义，不套用示意图参数。
