@@ -1,4 +1,4 @@
 interface:
   display_name: "技术图配图"
-  short_description: "判断技术文档是否需要配图，控制密度与术语，并在作图工具上落地与校验"
-  default_prompt: "使用 $draw-tech-diagrams，结合目标项目的配图约定判断是否需要画图，并控制密度、术语与交付校验。"
+  short_description: "选择技术图类型与格式，使用 Fireworks Tech Graph 制作并校验交付"
+  default_prompt: "使用 $draw-tech-diagrams，结合目标项目约定选择图类、格式与视觉参数，通过 Fireworks Tech Graph 制作并完成结构、渲染和图文一致性检查。"
