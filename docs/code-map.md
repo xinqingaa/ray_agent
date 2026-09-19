@@ -122,4 +122,21 @@
 
 ---
 
-基线：2026-09-16 核对，对应当前工作副本。路径变动时更新本文件，不在其他文档正文里重复代码位置。机制为什么这样设计见 [Harness 工程](harness.md)，完整推导见对应的[课程章节](../lessons/README.md)。
+基线：上述当前实现映射为 2026-09-16 核对。路径变动时更新本文件，不在其他文档正文里重复代码位置。机制为什么这样设计见 [Harness 工程](harness.md)，完整推导见对应的[课程章节](../lessons/README.md)。
+
+## 第四阶段改造入口
+
+2026-09-19 编制，基线 `2c323cc`。下表是[执行计划](research/phase-4-plan.md)的修改入口，**不是已完成的新架构**。工作包实施时以最终路径更新当前映射，拟新增对象不预建空文件。
+
+| 工作包 | 现有修改入口 | 拟新增职责与关联检查 |
+|---|---|---|
+| P1 运行/存储 | [session 模型](../ray_agent/api/app/domain/models/session.py)、[ORM](../ray_agent/api/app/infrastructure/models/session.py)、[会话仓库](../ray_agent/api/app/infrastructure/repositories/db_session_repository.py)、[UoW](../ray_agent/api/app/infrastructure/repositories/db_uow.py)、[迁移目录](../ray_agent/api/alembic/versions/)、[应用协调](../ray_agent/api/app/application/services/agent_service.py) | 拟新增 Run、ToolCall、顺序记录、ContextSnapshot 及相应仓库/迁移；扩展状态持久化、UoW、任务控制测试 |
+| P2 主循环 | [Flow](../ray_agent/api/app/domain/services/flows/planner_react.py)、[Agent 基类](../ray_agent/api/app/domain/services/agents/base.py)、[执行器](../ray_agent/api/app/domain/services/agents/react.py)、[提示词目录](../ray_agent/api/app/domain/services/prompts/)、[工具目录](../ray_agent/api/app/domain/services/tools/)、[装配](../ray_agent/api/app/interfaces/service_dependencies.py) | 拟新增单循环运行和计划工具；替换旧流程测试的调度预期，保留工具反馈/错误不变量 |
+| P2–P3 运行控制 | [Runner](../ray_agent/api/app/domain/services/agent_task_runner.py)、[任务适配](../ray_agent/api/app/infrastructure/external/task/redis_stream_task.py)、[会话路由](../ray_agent/api/app/interfaces/endpoints/session_routes.py)、[配置](../ray_agent/api/app/domain/models/app_config.py) | 拟新增持久等待/审批、运行预算、调用策略/取消状态；同步任务控制、取消、错误测试 |
+| P3 执行环境 | [沙箱适配](../ray_agent/api/app/infrastructure/external/sandbox/docker_sandbox.py)、[Shell 服务](../ray_agent/sandbox/app/services/shell.py)、[沙箱路由](../ray_agent/sandbox/app/interfaces/endpoints/)、[沙箱配置](../ray_agent/sandbox/app/core/config.py)、[Dockerfile](../ray_agent/sandbox/Dockerfile)、[浏览器](../ray_agent/api/app/infrastructure/external/browser/playwright_browser.py)、[协议适配](../ray_agent/api/app/infrastructure/protocols/) | 实现资源 ownership、进程组和调用句柄、策略入口；更新 API/沙箱 scripts 与协议夹具 |
+| P4 上下文 | [Memory](../ray_agent/api/app/domain/models/memory.py)、[模型抽象](../ray_agent/api/app/domain/external/llm.py)、[用量模型](../ray_agent/api/app/domain/models/token_usage.py)、[usage 解析](../ray_agent/api/app/infrastructure/external/llm/usage.py)、[文件存储](../ray_agent/api/app/infrastructure/external/file_storage/) | 拟新增 Context 构建器、预算/摘要服务和长结果引用；新增配对、失真、预算与缺失引用测试 |
+| P5 模型与事件 | [模型实现](../ray_agent/api/app/infrastructure/external/llm/openai_llm.py)、[事件模型](../ray_agent/api/app/domain/models/event.py)、[事件映射](../ray_agent/api/app/interfaces/schemas/event.py)、[Redis Stream](../ray_agent/api/app/infrastructure/external/message_queue/redis_stream_message_queue.py)、[Nginx](../ray_agent/nginx/conf.d/default.conf) | 增量模型契约、持久完成记录与补齐；新增分片/中断测试，更新事件观察测试 |
+| P2–P6 前端 | [接口和类型](../ray_agent/ui/src/lib/api/)、[事件投影](../ray_agent/ui/src/lib/session-events.ts)、[订阅 hook](../ray_agent/ui/src/hooks/use-session-detail.ts)、[计划面板](../ray_agent/ui/src/components/plan-panel.tsx)、[消息](../ray_agent/ui/src/components/chat-message.tsx)、[附件](../ray_agent/ui/src/components/attachments-message.tsx)、[用量](../ray_agent/ui/src/components/token-usage.tsx) | 拟新增运行/审批/验证展示；更新事件观察脚本并增加相应交互验证 |
+| P6 中断/产物 | [应用启动](../ray_agent/api/app/main.py)、[Runner](../ray_agent/api/app/domain/services/agent_task_runner.py)、[文件仓库](../ray_agent/api/app/infrastructure/repositories/db_file_repository.py)、[文件测试](../ray_agent/api/tests/core/test_file_artifacts.py)、[文件事务检查](../ray_agent/api/scripts/check_file_artifacts.py) | 拟新增中断识别、结果对账与具体产物检查器；故障窗口、旧附件、下载及验证反例 |
+
+服务指南、对应 `tests/core` / `tests/protocols`、UI 与沙箱 scripts 的运行条件见各服务 README；执行计划不重复维护命令。

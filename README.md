@@ -2,6 +2,8 @@
 
 RayAgent 是一个围绕 **Agent Harness 工程**构建的实践项目：一套可运行的任务执行系统，加上一整套把它拆开讲清楚的工程文档与课程。
 
+第四阶段已开始编制[核心重构与课程升级计划](docs/research/phase-4-plan.md)，执行状态见[进度](docs/research/phase-4-progress.md)，旧方案的演进依据见[背景说明](docs/background/README.md)。下文仍描述当前已实现的 Plan + ReAct，不将计划能力提前当作产品功能。
+
 ![RayAgent 产品全景：上下文与记忆、控制与观察、工具与环境、外部协作围绕 Plan + ReAct 执行核心](docs/assets/product-overview.svg)
 
 ## 为什么需要 Harness

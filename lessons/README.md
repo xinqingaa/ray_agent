@@ -1,5 +1,7 @@
 # RayAgent：Agent Harness 工程课程
 
+课程正在按[第四阶段计划](../docs/research/phase-4-plan.md)升级。当前正文仍以 `2c323cc` 的 Plan + ReAct 实现为基线；各章在对应实现与验证完成后替换为新版内容，处理状态见[进度](../docs/research/phase-4-progress.md)。旧方案作为[演进背景](../docs/background/README.md)保留，不长期并列维护两套课程。
+
 以 RayAgent 为实践载体，学习 Agent Harness 的核心机制、系统设计与工程验证。课程研究模型之外的运行系统如何组织 Context、行动与反馈，让任务持续执行、受到控制，并交付可验证的结果。
 
 先理解通用概念与设计取舍，再对照实验和现有实现。labs 用于隔离机制，RayAgent 用于观察机制组合；读者自行决定阅读、运行或修改。学习后应能解释职责与交接、比较设计方案、定位实现，并用任务与失败场景验证行为。
