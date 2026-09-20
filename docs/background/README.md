@@ -39,7 +39,7 @@ RayAgent 原方案是 Web UI、API、沙箱、PostgreSQL、Redis 和文件存储
 
 ### 工作区调研的本地观察
 
-2026-09-09 在 macOS 临时目录调用实际 ShellService 执行 `sleep 6`，约 6.02 秒后返回 completed，而非预期约 5 秒返回 running。观察指向输出读取器被直接等待的问题。未经过 Docker/HTTP，不能把这个结果当所有平台的现行结论；计划 P3 要复核并验证句柄与进程管理。
+2026-09-09 在 macOS 临时目录调用实际 ShellService 执行 `sleep 6`，约 6.02 秒后返回 completed，而非预期约 5 秒返回 running。观察指向输出读取器被直接等待的问题。未经过 Docker/HTTP，不能把这个结果当所有平台的现行结论；计划 P3a 要复核并验证句柄与进程管理。
 
 ### 能力评估的真实任务记录
 
