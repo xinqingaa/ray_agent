@@ -1,1 +1,1 @@
-docs/research/phase-4-plan.md
+docs/plan/README.md
