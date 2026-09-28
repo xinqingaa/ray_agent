@@ -87,6 +87,34 @@ uv run --locked python -m pytest tests/core/test_event_observability.py tests/co
 
 新增事件用例核对实时与历史映射一致性、字段投影及秒级时间、空回复重试的用量交接缺口，以及一对工具事件内的多次执行尝试。模型、沙箱与存储均为替身，不验证外部计费或端到端断连。前端解析和时间线归并观察见 [UI 指南](../ui/README.md#事件观察)。
 
+### 脚本化模型替身
+
+[tests/support/scripted_llm.py](tests/support/scripted_llm.py) 的 `ScriptedLLM` 满足模型接口协议：按顺序返回脚本中的文本、工具调用（含 finish_reason 与 usage）或抛出预设异常，支持按本次请求内容的简单分支，记录每次收到的 messages 与 tools 副本，脚本耗尽时抛出 `ScriptExhaustedError`。自测含一次接入现有双循环的用例：
+
+```bash
+uv run --locked python -m pytest tests/core/test_scripted_llm.py
+```
+
+### 端到端评测
+
+[scripts/eval/](scripts/eval/) 通过公开 HTTP API 与 SSE 驱动完整产品，运行 E1–E6 基线任务（定义见 [W0 子计划](../../docs/plan/w0-baseline-eval.md#评测脚本)）。前提：产品 Compose 已启动且各服务健康，模型已按[应用配置](../README.md#模型与工具)配置。每次运行会调用真实模型并产生费用；E6 会临时写入并在结束时删除一项 MCP 设置。
+
+```bash
+uv run --locked python -m scripts.eval --list
+uv run --locked python -m scripts.eval --label w0-baseline
+uv run --locked python -m scripts.eval --tasks E2,E4 --repeat 3 --label w1
+```
+
+默认经网关 `http://localhost:8088/api` 访问 API，报告写入 `docs/plan/evidence/<label>-<日期>-<提交短哈希>.{json,md}`，同名文件会被覆盖，调试时用 `--output-dir` 写到临时目录。E5 在宿主机自启静态页面，E6 以子进程运行 [MCP 夹具](tests/protocols/fixture_server.py)，两者都通过 `--host-address`（默认 Docker Desktop 的 `host.docker.internal`）让沙箱与 API 容器访问宿主机；访问不到时记为跳过。E4 停止后留在沙箱中的循环进程随沙箱 TTL 回收。
+
+新任务在 `scripts/eval/tasks.py` 用 `@register("E7")` 注册返回 `TaskSpec` 的函数：声明各轮消息、上传材料、提问回复（`ReplyOnWait`）、定时停止（`StopAfter`）、环境准备与检查函数。离线部分（SSE 解析、指标统计、注册顺序）的测试不连接服务：
+
+```bash
+uv run --locked python -m pytest tests/core/test_eval_script.py
+```
+
+指标来自 `GET /sessions/{id}` 读回的持久化事件：模型调用次数按 usage 事件计数，工具调用按 `called` 工具事件计数。评测只验证任务结果，不统计成功率，也不代替页面验收。
+
 ### 文件与产物观察
 
 第十二章的确定性测试：
