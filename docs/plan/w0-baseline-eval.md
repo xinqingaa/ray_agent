@@ -25,11 +25,11 @@
 
 在 API 测试支撑目录（如 `tests/support/scripted_llm.py`）实现 `ScriptedLLM`：
 
-- 构造时接收有序的响应脚本，每项是助手文本、工具调用列表（含 id、name、arguments 字符串）、可选 finish_reason 与 usage；
+- 构造时接收有序的响应脚本，每项是助手文本、工具调用列表（含 id、name、arguments 字符串）、可选 finish_reason 与 usage，或一个待抛出的异常（模拟传输错误）；
 - 每次 `invoke` 记录收到的 messages 与 tools 副本，返回下一项；脚本耗尽时抛出明确异常；
 - 支持按条件返回（例如根据最后一条 tool 消息内容选择分支），但保持简单，复杂分支在测试里组合。
 
-W1 起所有循环测试使用它；W5 在其上扩展流式分片。
+W1 起所有循环测试使用它；W3 用它记录实际请求以验证请求重建；W6 在其上扩展流式分片。
 
 ### 评测脚本
 
