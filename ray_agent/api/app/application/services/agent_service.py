@@ -9,10 +9,10 @@ import asyncio
 import logging
 from dataclasses import dataclass
 from datetime import datetime
-from typing import AsyncGenerator, Optional, List, Type, Callable
+from typing import AsyncGenerator, Optional, List, Type, Callable, Union
 
 from app.application.errors.exceptions import BadRequestError, NotFoundError
-from app.domain.external.event_notifier import EventNotifier
+from app.domain.external.event_notifier import EventNotifier, OutputDelta
 from app.domain.external.file_storage import FileStorage
 from app.domain.external.llm import LLM
 from app.domain.external.sandbox import Sandbox
@@ -221,9 +221,10 @@ class AgentService:
         logger.info(f"会话[{session_id}]运行[{run.id}]受理消息({route}): {message[:50]}...")
         return ChatAccepted(run_id=run.id, seq=message_event.seq, route=route)
 
-    async def stream_events(self, session_id: str, after_seq: int = 0) -> AsyncGenerator[Event, None]:
+    async def stream_events(self, session_id: str, after_seq: int = 0) -> AsyncGenerator[Union[Event, OutputDelta], None]:
         """按 seq 推送 after_seq 之后的事件：先补查数据库，再订阅通知，订阅建立后再补查一次覆盖空档；
-        订阅期间收到通知或每隔 FALLBACK_POLL_SECONDS 都按最后 seq 查库，通知丢失时由兜底查询补齐。
+        订阅期间收到落库通知或每隔 FALLBACK_POLL_SECONDS 都按最后 seq 查库，通知丢失时由兜底查询补齐。
+        文本增量随通知立刻交出，不查库、不分配 seq，重连不会补发。
         不结束，由客户端断开。
         """
         set_log_session_id(session_id)
@@ -260,10 +261,14 @@ class AgentService:
                     yield event
                 if subscription is not None:
                     try:
-                        await subscription.get(timeout=FALLBACK_POLL_SECONDS)
+                        notice = await subscription.get(timeout=FALLBACK_POLL_SECONDS)
                     except Exception as e:
                         logger.warning(f"会话[{session_id}]读取事件通知失败，改为兜底查询: {e}")
                         subscription = None
+                        continue
+                    if isinstance(notice, OutputDelta):
+                        yield notice
+                        continue
                 else:
                     await asyncio.sleep(FALLBACK_POLL_SECONDS)
         finally:
@@ -292,6 +297,12 @@ class AgentService:
             runner = getattr(task, "task_runner", None) if task is not None else None
             if getattr(runner, "run_id", None) != active.id:
                 task, runner = None, None
+            # 进行中的模型请求先落一条 attempt，再进入终态。终态之后再写会被账本丢掉。
+            open_attempt = getattr(runner, "open_attempt_event", None) if runner is not None else None
+            if open_attempt is not None:
+                pending = open_attempt()
+                if pending is not None:
+                    await self._ledger.append(session_id, [pending], run_id=active.id)
             run = await self._ledger.transition(
                 session_id, active.id, RunStatus.CANCELLED, RunReason.USER_STOP,
                 turn_closer=getattr(runner, "turn_snapshot", None),

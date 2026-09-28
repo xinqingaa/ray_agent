@@ -15,7 +15,16 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.application.services import agent_service as agent_service_module
 from app.application.services.agent_service import AgentService
-from app.domain.models.event import DoneEvent, MessageEvent, RunEvent
+from app.domain.models.event import (
+    AttemptEvent,
+    AttemptReason,
+    DoneEvent,
+    MessageEvent,
+    RunEvent,
+    TurnEvent,
+    TurnPhase,
+    TurnUsage,
+)
 from app.domain.models.run import RunStatus
 from app.domain.models.session import Session, SessionStatus
 from app.domain.repositories.run_repository import ActiveRunExistsError
@@ -317,4 +326,30 @@ def test_compaction_and_shaping_survive_jsonb_round_trip():
             rebuilt = rebuild_request(events, stored, index)
             assert rebuilt.messages == request.messages
             assert rebuilt.tools == request.tools
+    with_db(scenario)
+
+
+def test_attempt_ttft_and_message_attempt_survive_jsonb_round_trip():
+    """失败尝试、首字延迟和助手消息的 attempt 存在既有 payload 里，不需要新迁移。"""
+    async def scenario(uow_factory, engine):
+        session = await new_session(uow_factory, "pg-w6")
+        ledger = RunLedger(uow_factory, MemoryNotifier())
+        run = await ledger.start(session.id)
+        await ledger.append(session.id, [
+            TurnEvent(
+                phase=TurnPhase.COMPLETED, index=1, model_ms=20, attempts=2, ttft_ms=12,
+                usage=TurnUsage(prompt_tokens=3, completion_tokens=1), finish_reason="stop",
+            ),
+            AttemptEvent(turn=1, attempt=1, reason=AttemptReason.STREAM_INTERRUPTED, chars=4, retried=True),
+            MessageEvent(role="assistant", message="完成", attempt=2),
+        ], run_id=run.id)
+        _, _, events = await read(uow_factory, session.id)
+        attempt = next(event for event in events if isinstance(event, AttemptEvent))
+        assert (attempt.turn, attempt.attempt, attempt.reason, attempt.chars, attempt.retried) == (
+            1, 1, AttemptReason.STREAM_INTERRUPTED, 4, True,
+        )
+        turn = next(event for event in events if isinstance(event, TurnEvent) and event.phase == TurnPhase.COMPLETED)
+        assert turn.ttft_ms == 12 and turn.usage.prompt_tokens == 3
+        message = next(event for event in events if isinstance(event, MessageEvent) and event.role == "assistant")
+        assert message.attempt == 2 and message.message == "完成"
     with_db(scenario)

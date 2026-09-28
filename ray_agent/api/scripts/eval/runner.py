@@ -37,7 +37,10 @@ def _compact_event(event_type: str, data: Dict[str, Any]) -> Dict[str, Any]:
             usage = data.get("usage") or {}
             item.update(attempts=data.get("attempts"), prompt_tokens=usage.get("prompt_tokens"),
                         completion_tokens=usage.get("completion_tokens"), model_ms=data.get("model_ms"),
-                        error=data.get("error"))
+                        ttft_ms=data.get("ttft_ms"), error=data.get("error"))
+    elif event_type == "attempt":
+        item.update(turn=data.get("turn"), attempt=data.get("attempt"), reason=data.get("reason"),
+                    chars=data.get("chars"), retried=data.get("retried"))
     elif event_type == "run":
         item.update(run_id=(data.get("run_id") or "")[:8], status=data.get("status"), reason=data.get("reason"))
     elif event_type == "compact":
@@ -227,6 +230,8 @@ class EvalRunner:
 
         async def consume() -> None:
             async for event_type, data in self.client.events(ctx.session_id, after_seq=ctx.last_seq):
+                if event_type == "delta":
+                    continue
                 ctx.last_seq = max(ctx.last_seq, data.get("seq") or 0)
                 ctx.sse_log.append({"t": ctx.elapsed(), **_compact_event(event_type, data)})
                 if (spec.stop and spec.stop.trigger and state["stop_task"] is None

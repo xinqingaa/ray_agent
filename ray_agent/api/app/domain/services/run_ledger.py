@@ -204,6 +204,15 @@ class RunLedger:
                     cached_tokens=usage.cached_tokens,
                 )
 
+    async def publish_delta(self, session_id: str, run_id: str, turn: int, attempt: int, delta: str) -> None:
+        """文本增量只发通知，不写数据库。失败只记日志。"""
+        if self._notifier is None or not delta:
+            return
+        try:
+            await self._notifier.publish_delta(session_id, run_id, turn, attempt, delta)
+        except Exception as e:
+            logger.warning(f"会话[{session_id}] 文本增量发布失败: {e}")
+
     async def _notify(self, session_id: str, seq: Optional[int]) -> None:
         if self._notifier is None or seq is None:
             return

@@ -77,6 +77,41 @@ def test_save_omits_api_key_and_keeps_model_fields(tmp_path: Path, monkeypatch):
     assert persisted["llm_config"]["base_url"] == "https://example.test/v1"
 
 
+def test_yaml_streaming_survives_settings_update_and_defaults_when_omitted(tmp_path: Path, monkeypatch):
+    import asyncio
+
+    from app.application.services.app_config_service import AppConfigService
+    from app.interfaces.schemas.app_config import LLMConfigUpdate
+
+    config_path = tmp_path / "config.yaml"
+    config_path.write_text(
+        SAMPLE_CONFIG.replace(
+            "  max_tokens: 8192\n",
+            "  max_tokens: 8192\n  streaming: false\n  request_timeout: 30\n",
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+    _patch_settings(monkeypatch, llm_api_key="sk-from-env")
+    repository = FileAppConfigRepository("config.yaml")
+    service = AppConfigService(repository)
+    update = LLMConfigUpdate(base_url="https://example.test/v1", model_name="glm-4")
+    asyncio.run(service.update_llm_config(LLMConfig.model_validate(update.model_dump(mode="json"))))
+
+    persisted = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+    assert persisted["llm_config"]["streaming"] is False
+    assert persisted["llm_config"]["request_timeout"] == 30
+    loaded = repository.load()
+    assert loaded.llm_config.streaming is False
+    assert loaded.llm_config.request_timeout == 30
+    assert loaded.llm_config.model_name == "glm-4"
+
+    (tmp_path / "config.yaml").write_text(SAMPLE_CONFIG, encoding="utf-8")
+    omitted = FileAppConfigRepository("config.yaml").load()
+    assert omitted.llm_config.streaming is True
+    assert omitted.llm_config.request_timeout == 3600
+
+
 def test_public_schema_never_includes_api_key():
     public = LLMConfigPublic.from_llm(LLMConfig(
         base_url="https://api.deepseek.com/",

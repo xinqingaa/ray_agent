@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """单循环 Agent：一份记忆里交替进行模型请求与工具批次，没有工具调用的回复就是最终答复。
 
-一次调用（``invoke``）的事件序列由以下类型组成：Title、Message、Tool、Plan、Wait、Error、Done、Turn、Context、Compact。
+一次调用（``invoke``）的事件序列由以下类型组成：Title、Message、Tool、Plan、Wait、Error、Done、Turn、Attempt、Context、Compact。
 调用只以三种终止事件之一结束：DoneEvent（完成）、WaitEvent（等待用户回复）、ErrorEvent（失败）。
 每轮模型请求前后各有一条 TurnEvent；记忆的每次变化都先以 ContextEvent 发出，供请求重建按序回放。
 每轮请求前估算输入量：超过压缩水位先压缩（CompactEvent + ContextEvent(replace)），仍超过可用上限以 context_limit 失败。
@@ -28,6 +28,8 @@ from app.domain.models.event import (
     CompactUsage,
     ContextEvent,
     ContextOp,
+    AttemptEvent,
+    AttemptReason,
     DoneEvent,
     ErrorEvent,
     MessageEvent,
@@ -187,6 +189,14 @@ def _is_retryable(error: BaseException) -> bool:
     return isinstance(error, (ConnectionError, TimeoutError, asyncio.TimeoutError))
 
 
+def _attempt_reason(error: BaseException) -> str:
+    if isinstance(error, LLMRequestError) and error.reason:
+        return error.reason
+    if _is_retryable(error):
+        return AttemptReason.TRANSPORT.value
+    return AttemptReason.MODEL_ERROR.value
+
+
 def _add_optional(total: Optional[int], value: Optional[int]) -> Optional[int]:
     if value is None:
         return total
@@ -210,6 +220,7 @@ class _ModelTurn:
     finish_reason: Optional[str] = None
     attempts: int = 0
     model_ms: int = 0
+    ttft_ms: Optional[int] = None
     usage: TurnUsage = field(default_factory=TurnUsage)
 
     def add_usage(self, usage: Optional[LLMUsage]) -> None:
@@ -221,6 +232,16 @@ class _ModelTurn:
             cached_tokens=_add_optional(self.usage.cached_tokens, usage.cached_tokens),
             reasoning_tokens=_add_optional(self.usage.reasoning_tokens, usage.reasoning_tokens),
         )
+
+
+@dataclass
+class _Inflight:
+    """进行中的那一次模型请求。停止时用它补失败尝试，请求返回后清空。"""
+    turn: int
+    attempt: int
+    started: float
+    chars: int = 0
+    ttft_ms: Optional[int] = None
 
 
 class AgentLoop(BaseFlow):
@@ -261,6 +282,9 @@ class AgentLoop(BaseFlow):
         )
         self._capacity_error: Optional[str] = None
         self._estimate: Optional[ContextEstimate] = None
+        self._publish_delta: Optional[Callable[[int, int, str], Awaitable[None]]] = None
+        self._inflight: Optional[_Inflight] = None
+        self._deltas_closed = False
 
         self.plan_tool = PlanTool()
         toolkits = [*tools, self.plan_tool]
@@ -313,6 +337,8 @@ class AgentLoop(BaseFlow):
         self._running = True
         self.end_reason = None
         self.model_requests = 0
+        self._inflight = None
+        self._deltas_closed = False
         try:
             async for event in self._run(message, drain_injected_messages, prior_status, first_turn_index):
                 yield event
@@ -378,7 +404,8 @@ class AgentLoop(BaseFlow):
             turn = self._open_turn = _ModelTurn(index=index)
             yield TurnEvent(phase=TurnPhase.STARTED, index=index, context_window=self._llm.context_window,
                             context_estimate=self._estimate.as_dict())
-            await self._request_model(turn)
+            async for event in self._request_model(turn):
+                yield event
             if turn.overflow:
                 # 服务端以上下文超长拒绝：压缩一次后重新请求；压缩无效或再次被拒则失败
                 yield self._turn_completed(turn, error="context_overflow")
@@ -416,7 +443,7 @@ class AgentLoop(BaseFlow):
             content = (assistant.get("content") or "").strip()
             calls = assistant.get("tool_calls") or []
             if content:
-                yield MessageEvent(role="assistant", message=content)
+                yield MessageEvent(role="assistant", message=content, attempt=turn.attempts)
             if not calls:
                 yield self._turn_completed(turn)
                 self.end_reason = RunEndReason.COMPLETED
@@ -431,7 +458,8 @@ class AgentLoop(BaseFlow):
                 )
                 if invocation.function_name == ASK_USER_TOOL and await self.pipeline.check(invocation) is None:
                     # 提问之后的调用留待续接时由 repair_dangling_calls 补结果
-                    yield MessageEvent(role="assistant", message=str(invocation.arguments.get("text", "")))
+                    yield MessageEvent(role="assistant", message=str(invocation.arguments.get("text", "")),
+                                       attempt=turn.attempts)
                     yield self._turn_completed(turn)
                     self.end_reason = RunEndReason.WAITING
                     yield WaitEvent()
@@ -450,8 +478,53 @@ class AgentLoop(BaseFlow):
                     yield event
             yield self._turn_completed(turn)
 
-    async def _request_model(self, turn: _ModelTurn) -> None:
-        """发出一次模型请求；传输类错误与空回复按 max_retries 重试，每次尝试都计入 max_iterations。"""
+    async def _on_model_delta(self, text: str) -> None:
+        """流式文本增量：计入本次尝试的字符数，并经运行器推到通知通道。推理内容不会进到这里。"""
+        if self._deltas_closed or not text:
+            return
+        inflight = self._inflight
+        if inflight is None:
+            return
+        if inflight.ttft_ms is None:
+            inflight.ttft_ms = max(0, int((time.monotonic() - inflight.started) * 1000))
+        inflight.chars += len(text)
+        if self._publish_delta is None:
+            return
+        try:
+            await self._publish_delta(inflight.turn, inflight.attempt, text)
+        except Exception as e:
+            logger.warning(f"会话[{self._session_id}] 文本增量发布失败: {e}")
+
+    def _attempt_event(self, turn: _ModelTurn, reason: str, retried: bool) -> AttemptEvent:
+        chars = self._inflight.chars if self._inflight is not None else 0
+        self._inflight = None
+        return AttemptEvent(
+            turn=turn.index,
+            attempt=turn.attempts,
+            reason=AttemptReason(reason),
+            chars=chars,
+            retried=retried,
+        )
+
+    def open_attempt_event(self) -> Optional[AttemptEvent]:
+        """用户停止时，若有尚未返回的模型请求，给出要落库的失败尝试。调用后不再推送增量。"""
+        self._deltas_closed = True
+        inflight = self._inflight
+        if inflight is None:
+            return None
+        return AttemptEvent(
+            turn=inflight.turn,
+            attempt=inflight.attempt,
+            reason=AttemptReason.CANCELLED,
+            chars=inflight.chars,
+            retried=False,
+        )
+
+    async def _request_model(self, turn: _ModelTurn) -> AsyncGenerator[BaseEvent, None]:
+        """发出一次模型请求；传输类错误、流中断与空回复按 max_retries 重试，每次尝试都计入 max_iterations。
+
+        失败的尝试产出 AttemptEvent，不写入记忆。没有 finish_reason 的结果视为流中断。
+        """
         while True:
             if self.model_requests >= self._config.max_iterations:
                 turn.failure = RunEndReason.MAX_ITERATIONS
@@ -460,17 +533,30 @@ class AgentLoop(BaseFlow):
             self.model_requests += 1
             turn.attempts += 1
             started = time.monotonic()
+            self._inflight = _Inflight(turn=turn.index, attempt=turn.attempts, started=started)
             messages, tools = self._memory.get_messages(), self.pipeline.schemas()
             try:
-                result = await self._llm.invoke(messages=messages, tools=tools)
+                result = await self._llm.invoke(messages=messages, tools=tools, on_delta=self._on_model_delta)
+                if not result.finish_reason:
+                    raise LLMRequestError(
+                        "模型流在结束原因前结束",
+                        retryable=True,
+                        reason=AttemptReason.STREAM_INTERRUPTED.value,
+                    )
+            except asyncio.CancelledError:
+                self._inflight = None
+                raise
             except Exception as e:
                 turn.model_ms += int((time.monotonic() - started) * 1000)
                 logger.warning(f"会话[{self._session_id}] 模型请求失败（第 {turn.attempts} 次）: {e}")
                 if isinstance(e, LLMRequestError) and e.context_exceeded:
+                    self._inflight = None
                     turn.overflow = True
                     turn.error = str(e)
                     return
-                if not _is_retryable(e) or turn.attempts >= self._config.max_retries:
+                will_retry = _is_retryable(e) and turn.attempts < self._config.max_retries
+                yield self._attempt_event(turn, _attempt_reason(e), will_retry)
+                if not will_retry:
                     turn.failure = RunEndReason.MODEL_ERROR
                     turn.error = str(e) or type(e).__name__
                     return
@@ -480,20 +566,28 @@ class AgentLoop(BaseFlow):
             turn.model_ms += int((time.monotonic() - started) * 1000)
             turn.add_usage(result.usage)
             self.budget.record_usage(messages, tools, result.usage.prompt_tokens if result.usage else None)
+            if result.ttft_ms is not None:
+                turn.ttft_ms = result.ttft_ms
+            elif self._inflight is not None and self._inflight.ttft_ms is not None:
+                turn.ttft_ms = self._inflight.ttft_ms
             turn.finish_reason = result.finish_reason
             if result.finish_reason == "length":
                 logger.warning(f"会话[{self._session_id}] 模型输出被截断，丢弃本次响应")
+                self._inflight = None
                 turn.truncated = True
                 return
             response = normalize_assistant_message(result.message)
             if not (response.get("content") or "").strip() and not response.get("tool_calls"):
                 logger.warning(f"会话[{self._session_id}] 模型返回空回复（第 {turn.attempts} 次）")
-                if turn.attempts >= self._config.max_retries:
+                will_retry = turn.attempts < self._config.max_retries
+                yield self._attempt_event(turn, AttemptReason.EMPTY.value, will_retry)
+                if not will_retry:
                     turn.failure = RunEndReason.MODEL_ERROR
                     turn.error = f"模型连续 {turn.attempts} 次返回空回复"
                     return
                 await asyncio.sleep(self._retry_interval)
                 continue
+            self._inflight = None
             turn.response = response
             return
 
@@ -504,6 +598,7 @@ class AgentLoop(BaseFlow):
             index=turn.index,
             model_ms=turn.model_ms,
             attempts=turn.attempts,
+            ttft_ms=turn.ttft_ms,
             usage=turn.usage.model_copy(),
             finish_reason=turn.finish_reason,
             tool_call_ids=list(turn.executed),
@@ -520,7 +615,13 @@ class AgentLoop(BaseFlow):
         """运行被外部置为终态时补写第 index 轮的 completed：本轮仍在进行时按已发生的尝试与用量生成
         （带 error）；本轮的 completed 已产生但未写入时返回它。其他情况返回 None。"""
         if self._open_turn is not None and self._open_turn.index == index:
-            return self._completion(self._open_turn, error)
+            event = self._completion(self._open_turn, error)
+            inflight = self._inflight
+            if inflight is not None and inflight.turn == index:
+                event.model_ms = (event.model_ms or 0) + max(0, int((time.monotonic() - inflight.started) * 1000))
+                if event.ttft_ms is None and inflight.ttft_ms is not None:
+                    event.ttft_ms = inflight.ttft_ms
+            return event
         if self._last_completed is not None and self._last_completed.index == index:
             return self._last_completed.model_copy(deep=True)
         return None

@@ -3,17 +3,21 @@
 脚本中的每一项是以下之一：
 
 - ``ScriptedResponse``：助手文本、工具调用、finish_reason 与 usage；
+  带 ``chunks`` 时按片段回调文本增量并计算首字延迟，最终消息仍取 content / tool_calls；
 - ``BaseException`` 实例：调用时直接抛出，模拟传输或服务端错误；
 - ``Branch``：按本次请求内容在两项之间选择，选中的项可以再是 ``Branch``；
 - ``Dynamic``：按本次请求内容现场生成一项。
 
 每次 ``invoke`` 消耗一项；脚本耗尽时抛出 ``ScriptExhaustedError``。
 """
+import asyncio
 import json
+import time
 from copy import deepcopy
 from dataclasses import dataclass, field
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Awaitable, Callable, Dict, List, Optional, Union
 
+from app.domain.external.llm import LLMRequestError
 from app.domain.models.llm import LLMInvokeResult, LLMUsage
 
 
@@ -39,11 +43,30 @@ class ScriptedToolCall:
 
 
 @dataclass
+class ScriptedChunk:
+    """流式分片。text 会交给 on_delta；reasoning 只占一个分片，不产生文本增量。
+
+    tool_* 任一非空表示出现了工具调用片段，计入首字延迟，但不预览参数。
+    """
+    text: Optional[str] = None
+    reasoning: Optional[str] = None
+    tool_index: Optional[int] = None
+    tool_id: Optional[str] = None
+    tool_name: Optional[str] = None
+    tool_arguments: Optional[str] = None
+
+
+@dataclass
 class ScriptedResponse:
     content: Optional[str] = None
     tool_calls: List[ScriptedToolCall] = field(default_factory=list)
     finish_reason: Optional[str] = None
     usage: Optional[LLMUsage] = None
+    chunks: Optional[List[ScriptedChunk]] = None
+    first_chunk_delay: float = 0.0  # 首个分片前的等待
+    chunk_interval: float = 0.0  # 后续分片之间的等待
+    interrupted: bool = False  # 分片放完后以流中断失败，不返回结果
+    hold: Optional[asyncio.Event] = None  # 分片放完后一直等待，直到调用方取消
 
 
 @dataclass
@@ -169,6 +192,8 @@ class ScriptedLLM:
             tools: List[Dict[str, Any]] = None,
             response_format: Dict[str, Any] = None,
             tool_choice: str = None,
+            *,
+            on_delta: Optional[Callable[[str], Awaitable[None]]] = None,
     ) -> LLMInvokeResult:
         request = ScriptedRequest(
             messages=deepcopy(messages),
@@ -185,7 +210,53 @@ class ScriptedLLM:
         item = self._resolve(self._script.pop(0), request)
         if isinstance(item, BaseException):
             raise item
-        return self._build_result(item)
+        return await self._finish_response(item, on_delta)
+
+    async def _finish_response(
+            self,
+            response: ScriptedResponse,
+            on_delta: Optional[Callable[[str], Awaitable[None]]],
+    ) -> ScriptedInvokeResult:
+        ttft_ms = None
+        if response.chunks or response.interrupted or response.hold is not None:
+            ttft_ms = await self._play_chunks(response, on_delta)
+            if response.hold is not None:
+                await response.hold.wait()
+            if response.interrupted:
+                raise LLMRequestError(
+                    "模型流在结束原因前结束",
+                    retryable=True,
+                    reason="stream_interrupted",
+                )
+        result = self._build_result(response)
+        result.ttft_ms = ttft_ms
+        return result
+
+    async def _play_chunks(
+            self,
+            response: ScriptedResponse,
+            on_delta: Optional[Callable[[str], Awaitable[None]]],
+    ) -> Optional[int]:
+        chunks = response.chunks or []
+        if not chunks:
+            return None
+        started = time.monotonic()
+        await asyncio.sleep(response.first_chunk_delay)
+        ttft_ms: Optional[int] = None
+        for index, chunk in enumerate(chunks):
+            if index > 0 and response.chunk_interval:
+                await asyncio.sleep(response.chunk_interval)
+            visible = False
+            if chunk.text:
+                visible = True
+                if on_delta is not None:
+                    await on_delta(chunk.text)
+            if (chunk.tool_index is not None or chunk.tool_id or chunk.tool_name
+                    or chunk.tool_arguments is not None):
+                visible = True
+            if visible and ttft_ms is None:
+                ttft_ms = max(0, int((time.monotonic() - started) * 1000))
+        return ttft_ms
 
     def _resolve(self, item: ScriptItem, request: ScriptedRequest) -> Union[ScriptedResponse, BaseException]:
         while isinstance(item, (Branch, Dynamic)):

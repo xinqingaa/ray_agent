@@ -83,6 +83,7 @@ class MessageEventData(BaseEventData):
     role: Literal["user", "assistant"] = "assistant"
     message: str = ""
     attachments: List[File] = Field(default_factory=list)
+    attempt: Optional[int] = None  # 助手正文对应的本轮模型请求序号
 
 
 class MessageSSEEvent(BaseSSEEvent):
@@ -98,6 +99,7 @@ class MessageSSEEvent(BaseSSEEvent):
                 role=event.role,
                 message=event.message,
                 attachments=event.attachments,
+                attempt=event.attempt,
             )
         )
 
@@ -228,6 +230,7 @@ class TurnEventData(BaseEventData):
     context_window: Optional[int] = None
     model_ms: Optional[int] = None
     attempts: Optional[int] = None
+    ttft_ms: Optional[int] = None
     usage: Optional[TurnUsage] = None
     finish_reason: Optional[str] = None
     tool_call_ids: List[str] = Field(default_factory=list)
@@ -239,6 +242,21 @@ class TurnSSEEvent(BaseSSEEvent):
     """轮次边界流式事件"""
     event: Literal["turn"] = "turn"
     data: TurnEventData
+
+
+class AttemptEventData(BaseEventData):
+    """失败的模型请求。reason 是稳定代码，chars 是已推送的文本字符数。"""
+    turn: int
+    attempt: int
+    reason: str
+    chars: int = 0
+    retried: bool = False
+
+
+class AttemptSSEEvent(BaseSSEEvent):
+    """失败尝试流式事件"""
+    event: Literal["attempt"] = "attempt"
+    data: AttemptEventData
 
 
 class RunEventData(BaseEventData):
@@ -309,6 +327,7 @@ AgentSSEEvent = Union[
     ErrorSSEEvent,
     WaitSSEEvent,
     TurnSSEEvent,
+    AttemptSSEEvent,
     RunSSEEvent,
     ContextSSEEvent,
     CompactSSEEvent,

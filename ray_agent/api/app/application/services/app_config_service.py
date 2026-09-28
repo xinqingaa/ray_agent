@@ -38,8 +38,10 @@ class AppConfigService:
     async def update_llm_config(self, llm_config: LLMConfig) -> LLMConfig:
         """更新模型名、地址等可写字段；密钥始终保持环境变量注入的值。"""
         app_config = await self._load_app_config()
+        # streaming 与 request_timeout 只从 config.yaml 读取。设置页的更新请求没有这两项，
+        # 经 LLMConfig 填上默认值后再合并会把 yaml 里的选择覆盖掉。
         app_config.llm_config = app_config.llm_config.model_copy(
-            update=llm_config.model_dump(exclude={"api_key"})
+            update=llm_config.model_dump(exclude={"api_key", "streaming", "request_timeout"})
         )
         self.app_config_repository.save(app_config)
         return app_config.llm_config

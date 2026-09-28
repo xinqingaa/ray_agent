@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock
 from app.domain.models.app_config import AgentConfig
 from pydantic import TypeAdapter
 
+from app.domain.external.event_notifier import OutputDelta
 from app.domain.models.event import BaseEvent, Event, MessageEvent
 from app.domain.models.memory import Memory
 from app.domain.models.run import ACTIVE_RUN_STATUSES, Run, RunStatus
@@ -215,6 +216,7 @@ class MemoryNotifier:
 
     def __init__(self) -> None:
         self.published: List[int] = []
+        self.deltas: List[OutputDelta] = []
         self.drop = False
         self.on_publish: Optional[Callable[[int], Awaitable[None]]] = None
         self._queues: List[asyncio.Queue] = []
@@ -227,6 +229,14 @@ class MemoryNotifier:
             return
         for queue in list(self._queues):
             queue.put_nowait(seq)
+
+    async def publish_delta(self, session_id, run_id, turn, attempt, delta):
+        notice = OutputDelta(session_id=session_id, run_id=run_id, turn=turn, attempt=attempt, delta=delta)
+        self.deltas.append(notice)
+        if self.drop:
+            return
+        for queue in list(self._queues):
+            queue.put_nowait(notice)
 
     async def subscribe(self, session_id):
         queue: asyncio.Queue = asyncio.Queue()
@@ -382,6 +392,7 @@ def make_runner(h: SimpleNamespace, run: Optional[Run] = None,
     r._invoking, r._settled = False, asyncio.Event()
     r._sync_message_attachments_to_sandbox = AsyncMock()
     r._handle_tool_event = AsyncMock()
+    r._flow._publish_delta = r._publish_delta
     return r
 
 

@@ -73,6 +73,7 @@ class MessageEvent(BaseEvent):
     role: Literal["user", "assistant"] = "assistant"  # 消息角色
     message: str = ""  # 消息本身
     attachments: List[File] = Field(default_factory=list)  # 附件列表信息
+    attempt: Optional[int] = None  # 助手正文对应的本轮模型请求序号；用户消息与交付通知为空
 
 
 class BrowserToolContent(BaseModel):
@@ -181,11 +182,31 @@ class TurnEvent(BaseEvent):
     # completed
     model_ms: Optional[int] = None  # 各次尝试的请求耗时合计，不含重试间隔
     attempts: Optional[int] = None  # 本轮发出的模型请求次数（含重试）
+    ttft_ms: Optional[int] = None  # 产出本次响应的那次请求的首字延迟；非流式为空
     usage: Optional[TurnUsage] = None
     finish_reason: Optional[str] = None
     tool_call_ids: List[str] = Field(default_factory=list)  # 本轮经过工具管线、有 called 事件的调用
     tools_ms: Optional[int] = None  # 批次内工具耗时合计
     error: Optional[str] = None  # 请求失败时的原因代码
+
+
+class AttemptReason(str, Enum):
+    """失败的模型请求为什么没有进入历史。值稳定，界面文案由前端映射。"""
+    TRANSPORT = "transport"  # 连接、超时、限流、5xx
+    STREAM_INTERRUPTED = "stream_interrupted"  # 流在 finish_reason 前结束
+    EMPTY = "empty"  # 既无文本也无工具调用
+    MODEL_ERROR = "model_error"  # 不可重试的请求错误
+    CANCELLED = "cancelled"  # 用户停止时这次请求还在进行
+
+
+class AttemptEvent(BaseEvent):
+    """一次失败、被重试或被停止取消的模型请求。不进入模型历史，请求重建忽略它。"""
+    type: Literal["attempt"] = "attempt"
+    turn: int  # 运行内轮次序号，与 turn.index 相同
+    attempt: int  # 该轮内从 1 递增，含重试
+    reason: AttemptReason
+    chars: int = 0  # 这次尝试已经推送的文本字符数，不含推理内容
+    retried: bool = False  # 这次失败之后还会再请求一次
 
 
 class RunEvent(BaseEvent):
@@ -261,6 +282,7 @@ Event = Annotated[
         ErrorEvent,
         DoneEvent,
         TurnEvent,
+        AttemptEvent,
         RunEvent,
         ContextEvent,
         CompactEvent,

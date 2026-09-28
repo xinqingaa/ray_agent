@@ -6,9 +6,10 @@
 @File    : session_routes.py
 """
 import asyncio
+import json
 import logging
 from datetime import datetime
-from typing import Optional, Dict, AsyncGenerator
+from typing import Optional, Dict, AsyncGenerator, Union
 
 import websockets
 from fastapi import APIRouter, Depends, Header, Query
@@ -19,6 +20,8 @@ from websockets import ConnectionClosed
 from app.application.errors.exceptions import NotFoundError
 from app.application.services.agent_service import AgentService
 from app.application.services.session_service import SessionService
+from app.domain.external.event_notifier import OutputDelta
+from app.domain.models.event import Event
 from app.interfaces.schemas import Response
 from app.interfaces.schemas.event import EventMapper
 from app.interfaces.schemas.session import (
@@ -200,16 +203,35 @@ async def stream_events(
         start = int(last_event_id) if last_event_id and last_event_id.isdigit() else 0
 
     async def event_generator() -> AsyncGenerator[ServerSentEvent, None]:
-        async for event in agent_service.stream_events(session_id, after_seq=start):
-            sse_event = EventMapper.event_to_sse_event(event)
+        async for item in agent_service.stream_events(session_id, after_seq=start):
+            sse_event = to_session_sse(item)
             if sse_event:
-                yield ServerSentEvent(
-                    id=str(event.seq),
-                    event=sse_event.event,
-                    data=sse_event.data.model_dump_json(),
-                )
+                yield sse_event
 
     return EventSourceResponse(event_generator(), ping=15)
+
+
+def to_session_sse(item: Union[Event, OutputDelta]) -> Optional[ServerSentEvent]:
+    """落库事件带 seq 作为 SSE id；文本增量没有 id，重连不会补发。"""
+    if isinstance(item, OutputDelta):
+        return ServerSentEvent(
+            event="delta",
+            data=json.dumps({
+                "session_id": item.session_id,
+                "run_id": item.run_id,
+                "turn": item.turn,
+                "attempt": item.attempt,
+                "delta": item.delta,
+            }, ensure_ascii=False),
+        )
+    sse_event = EventMapper.event_to_sse_event(item)
+    if not sse_event:
+        return None
+    return ServerSentEvent(
+        id=str(item.seq) if item.seq is not None else None,
+        event=sse_event.event,
+        data=sse_event.data.model_dump_json(),
+    )
 
 
 @router.get(

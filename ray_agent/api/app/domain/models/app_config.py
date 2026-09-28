@@ -20,6 +20,9 @@ class LLMConfig(BaseModel):
     temperature: float = Field(0.7)  # 温度，默认设置为0.7
     max_tokens: int = Field(8192, ge=0)  # 最大输出token数，默认设置为deepseek-chat模型的最大输出限制
     context_window: int = Field(65536, ge=1)  # 模型上下文窗口（输入+输出）；可用输入上限 = 窗口 − max_tokens − 安全余量
+    streaming: bool = True  # 模型响应走流式并组装完整结果；false 时一次返回整包
+    # 秒。非流式是整次请求的上限；流式是首个分片与相邻分片的间隔上限，不是整段生成的总时长
+    request_timeout: float = Field(default=3600, gt=0, le=86400)
 
 
 class AgentConfig(BaseModel):

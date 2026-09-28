@@ -4,6 +4,8 @@ llm_config:
   temperature: 0.7
   max_tokens: 8192
   context_window: 65536
+  streaming: true
+  request_timeout: 3600
 agent_config:
   max_iterations: 100
   max_retries: 3

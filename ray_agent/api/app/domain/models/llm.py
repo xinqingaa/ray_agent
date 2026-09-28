@@ -38,7 +38,11 @@ class LLMInvokeResult(BaseModel):
 
     finish_reason 取服务端原值（stop / tool_calls / length / content_filter 等），未返回时为 None；
     值为 length 表示输出被 max_tokens 截断，消息内容与工具调用都可能不完整。
+    流在结束原因前断开时适配层抛出可重试错误，不返回半截结果。
+    ttft_ms 是从请求发出到第一个可见文本或工具调用片段的毫秒数；非流式路径为空。
+    推理分片不计入首字，也不作为文本增量交出。
     """
     message: Dict[str, Any] = Field(default_factory=dict)
     usage: Optional[LLMUsage] = None
     finish_reason: Optional[str] = None
+    ttft_ms: Optional[int] = None

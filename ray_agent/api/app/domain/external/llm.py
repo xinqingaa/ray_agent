@@ -5,21 +5,29 @@
 @Author  : thezehui@gmail.com
 @File    : llm.py
 """
-from typing import Protocol, List, Dict, Any, Optional
+from typing import Protocol, List, Dict, Any, Optional, Awaitable, Callable
 
 from app.domain.models.llm import LLMInvokeResult
 
+# 文本增量。推理内容与工具参数不经过这里。
+DeltaCallback = Callable[[str], Awaitable[None]]
+
 
 class LLMRequestError(Exception):
-    """模型请求失败。retryable 为 True 表示传输类错误（连接、超时、5xx、限流），可以原样重发；
-    context_exceeded 为 True 表示服务端以输入超出上下文长度拒绝，原样重发不会成功，应先压缩。"""
+    """模型请求失败。retryable 为 True 表示传输类错误（连接、超时、5xx、限流、流中断），可以原样重发；
+    context_exceeded 为 True 表示服务端以输入超出上下文长度拒绝，原样重发不会成功，应先压缩。
+
+    reason 是给失败尝试事件用的稳定代码：transport、stream_interrupted、model_error。
+    空回复与用户停止由循环层另行记录，不经过这个异常。
+    """
 
     def __init__(self, message: str, *, retryable: bool = False, status_code: Optional[int] = None,
-                 context_exceeded: bool = False) -> None:
+                 context_exceeded: bool = False, reason: Optional[str] = None) -> None:
         super().__init__(message)
         self.retryable = retryable
         self.status_code = status_code
         self.context_exceeded = context_exceeded
+        self.reason = reason or ("transport" if retryable else "model_error")
 
 
 class LLM(Protocol):
@@ -31,8 +39,14 @@ class LLM(Protocol):
             tools: List[Dict[str, Any]] = None,
             response_format: Dict[str, Any] = None,
             tool_choice: str = None,
+            *,
+            on_delta: Optional[DeltaCallback] = None,
     ) -> LLMInvokeResult:
-        """传递消息列表、工具列表、响应格式、工具选择策略调用LLM接口"""
+        """传递消息列表、工具列表、响应格式、工具选择策略调用LLM接口。
+
+        流式适配在组装完整结果的同时，对每个非空文本片段调用 on_delta。
+        非流式适配忽略该回调，返回的 ttft_ms 为空。
+        """
         ...
 
     @property

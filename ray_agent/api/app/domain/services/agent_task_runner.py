@@ -102,6 +102,7 @@ class AgentTaskRunner(TaskRunner):
             deliver_file=self._deliver_file,
             write_output=self._write_output,
         )
+        self._flow._publish_delta = self._publish_delta
 
     @property
     def run_id(self) -> str:
@@ -110,6 +111,13 @@ class AgentTaskRunner(TaskRunner):
     def turn_snapshot(self, index: int, error: str) -> Optional[TurnEvent]:
         """供停止接口补写被中止轮次的 completed，见 RunLedger.transition。"""
         return self._flow.turn_snapshot(index, error)
+
+    def open_attempt_event(self):
+        """供停止接口在运行仍活动时写下进行中的模型请求。"""
+        return self._flow.open_attempt_event()
+
+    async def _publish_delta(self, turn: int, attempt: int, delta: str) -> None:
+        await self._ledger.publish_delta(self._session_id, self._run_id, turn, attempt, delta)
 
     async def _persist(self, event: BaseEvent) -> None:
         """事件与它带来的会话字段更新在同一事务写入；运行已是终态时停止本协程。"""
