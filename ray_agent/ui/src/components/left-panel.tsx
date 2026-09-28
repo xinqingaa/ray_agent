@@ -23,6 +23,7 @@ export function LeftPanel() {
         <Button
           variant="outline"
           className="cursor-pointer mb-3"
+          data-navigate
           onClick={() => router.push('/')}
         >
           <Plus/>

@@ -63,7 +63,7 @@ function TokenUsageRing({ usage }: { usage?: UsageEvent | null }) {
               fill="none"
               stroke="currentColor"
               strokeWidth={STROKE}
-              className="text-gray-200"
+              className="text-border"
             />
             <circle
               cx={SIZE / 2}
@@ -77,12 +77,12 @@ function TokenUsageRing({ usage }: { usage?: UsageEvent | null }) {
               strokeDashoffset={offset}
               className={
                 percent == null
-                  ? 'text-gray-200'
+                  ? 'text-border'
                   : percent >= 90
-                    ? 'text-red-500'
+                    ? 'text-destructive'
                     : percent >= 70
-                      ? 'text-amber-500'
-                      : 'text-gray-500'
+                      ? 'text-state-waiting'
+                      : 'text-muted-foreground'
               }
             />
           </svg>

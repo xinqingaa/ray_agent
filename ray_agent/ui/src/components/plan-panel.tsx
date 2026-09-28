@@ -13,8 +13,8 @@ export interface PlanPanelProps {
 
 function StepIcon({ status }: { status: PlanStep['status'] }) {
   if (status === 'completed') return <Check size={16} className="relative top-0.5 flex-shrink-0" />
-  if (status === 'failed') return <CircleAlert size={16} className="relative top-0.5 flex-shrink-0 text-red-600" />
-  if (status === 'running') return <CircleDot size={16} className="relative top-0.5 flex-shrink-0 text-gray-800" />
+  if (status === 'failed') return <CircleAlert size={16} className="relative top-0.5 flex-shrink-0 text-destructive" />
+  if (status === 'running') return <CircleDot size={16} className="relative top-0.5 flex-shrink-0 text-foreground" />
   return <Clock size={16} className="relative top-0.5 flex-shrink-0" />
 }
 
@@ -39,7 +39,7 @@ export function PlanPanel({ className, steps: stepsProp = [] }: PlanPanelProps) 
     steps[steps.length - 1]
 
   return (
-    <div className={cn('bg-white rounded-xl border', className)}>
+    <div className={cn('bg-card rounded-xl border', className)}>
       {/* 折叠状态 */}
       {!isExpanded && <div
         className="flex flex-row items-start justify-between pr-3 relative clickable cursor-pointer rounded-xl"
@@ -48,10 +48,10 @@ export function PlanPanel({ className, steps: stepsProp = [] }: PlanPanelProps) 
         {/* 左侧的当前步骤 */}
         <div className="flex-1 min-w-0 relative overflow-hidden">
           <div className="w-full h-9">
-            <div className="flex items-center justify-center gap-2.5 w-full px-4 py-2 truncate text-gray-500">
+            <div className="flex items-center justify-center gap-2.5 w-full px-4 py-2 truncate text-muted-foreground">
               <StepIcon status={currentStep.status} />
               <div className="flex flex-col w-full gap-0.5 truncate">
-                <div className={cn('text-sm truncate', currentStep.status === 'running' && 'text-gray-800')}>
+                <div className={cn('text-sm truncate', currentStep.status === 'running' && 'text-foreground')}>
                   {currentStep.description || '暂无步骤'}
                 </div>
               </div>
@@ -60,10 +60,10 @@ export function PlanPanel({ className, steps: stepsProp = [] }: PlanPanelProps) 
         </div>
         {/* 右侧操作按钮&步骤信息 */}
         <div className="flex h-full justify-center gap-2 flex-shrink-0 items-center py-2.5">
-          <span className={cn('text-xs', interrupted ? 'text-red-600' : 'text-gray-500')}>
+          <span className={cn('text-xs', interrupted ? 'text-destructive' : 'text-muted-foreground')}>
             {progressLabel}
           </span>
-          <ChevronUp className="text-gray-700" size={16} />
+          <ChevronUp className="text-foreground" size={16} />
         </div>
       </div>}
       {/* 展开状态：标题、进度、箭头同一行 */}
@@ -73,23 +73,23 @@ export function PlanPanel({ className, steps: stepsProp = [] }: PlanPanelProps) 
             className="flex items-center justify-between px-4 py-2.5 cursor-pointer"
             onClick={togglePanel}
           >
-            <span className="text-gray-700 font-bold">任务进度</span>
+            <span className="text-foreground font-bold">任务进度</span>
             <div className="flex items-center gap-2">
-              <span className={cn('text-xs', interrupted ? 'text-red-600' : 'text-gray-500')}>
+              <span className={cn('text-xs', interrupted ? 'text-destructive' : 'text-muted-foreground')}>
                 {progressLabel}
               </span>
-              <ChevronDown className="text-gray-700" size={16} />
+              <ChevronDown className="text-foreground" size={16} />
             </div>
           </div>
           <div className="px-4 pb-4">
-            <div className="bg-gray-50 rounded-lg px-2 py-3">
+            <div className="bg-muted/50 rounded-lg px-2 py-3">
               <div className="max-h-[min(calc(100vh-360px),400px)] overflow-y-auto">
                 {steps.map((step) => (
                 <div
                   key={step.id}
                   className={cn(
                     'flex items-center text-sm gap-2.5 w-full px-4 py-2 truncate',
-                    step.status === 'running' ? 'text-gray-800' : 'text-gray-500',
+                    step.status === 'running' ? 'text-foreground' : 'text-muted-foreground',
                   )}
                 >
                   <StepIcon status={step.status} />

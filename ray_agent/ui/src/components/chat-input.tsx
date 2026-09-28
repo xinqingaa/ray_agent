@@ -158,7 +158,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
     }
 
     return (
-    <div className={cn('flex flex-col bg-white w-full rounded-2xl py-3 border', className)}>
+    <div className={cn('flex flex-col bg-card w-full rounded-2xl py-3 border', className)}>
       {/* 顶部的文件列表 */}
       {files.length > 0 && (
         <div className="w-full px-4 mb-1">
@@ -180,7 +180,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
                   </ItemMedia>
                   {/* 文件信息 */}
                   <ItemContent className="gap-0">
-                    <ItemTitle className="text-sm text-gray-700">{file.filename}</ItemTitle>
+                    <ItemTitle className="text-sm text-foreground">{file.filename}</ItemTitle>
                     <ItemDescription className="text-xs">
                       {file.extension} · {formatFileSize(file.size)}
                     </ItemDescription>

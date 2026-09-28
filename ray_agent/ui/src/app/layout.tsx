@@ -1,15 +1,16 @@
 import React from 'react'
 import type {Metadata} from 'next'
-import {SidebarProvider} from '@/components/ui/sidebar'
-import {SessionsProvider} from '@/providers/sessions-provider'
+import {ThemeProvider} from 'next-themes'
 import {Toaster} from '@/components/ui/sonner'
+import {AppShell} from '@/components/app-shell'
+import '@fontsource-variable/ibm-plex-sans/wght.css'
+import '@fontsource/ibm-plex-mono/400.css'
+import '@fontsource/ibm-plex-mono/500.css'
 import './globals.css'
-import {LeftPanel} from '@/components/left-panel'
-import {MainShell} from '@/components/sidebar-chrome'
 
 export const metadata: Metadata = {
   title: 'RayAgent',
-  description: 'RayAgent 是一个行动引擎，它超越了答案的范畴，可以执行任务、自动化工作流程，并扩展您的能力。',
+  description: 'RayAgent 在沙箱中操作文件、终端和浏览器，按你的任务一步步执行并交付结果。',
   icons: {
     icon: '/icon.png',
   },
@@ -25,22 +26,12 @@ export default function RootLayout(
   return (
     <html lang="zh-CN" suppressHydrationWarning>
     <body className="h-screen overflow-hidden">
-    <SessionsProvider>
-      <SidebarProvider
-        style={{
-          '--sidebar-width': '300px',
-          '--sidebar-width-icon': '3rem',
-        } as React.CSSProperties}
-      >
-        {/* 左侧的面板 */}
-        <LeftPanel/>
-        {/* 右侧的内容 */}
-        <MainShell>
-          {children}
-        </MainShell>
-      </SidebarProvider>
-    </SessionsProvider>
-    <Toaster position="top-center" richColors/>
+    <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+      <AppShell>
+        {children}
+      </AppShell>
+      <Toaster position="top-center" richColors/>
+    </ThemeProvider>
     </body>
     </html>
   )

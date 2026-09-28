@@ -26,12 +26,12 @@ function normalizeAutolinks(text: string): string {
 }
 
 const headingClasses: Record<string, string> = {
-  h1: 'text-lg font-semibold mt-4 mb-2 first:mt-0 text-gray-900',
-  h2: 'text-base font-semibold mt-3 mb-1.5 first:mt-0 text-gray-900',
-  h3: 'text-sm font-semibold mt-2.5 mb-1 first:mt-0 text-gray-800',
-  h4: 'text-sm font-medium mt-2 mb-1 first:mt-0 text-gray-800',
-  h5: 'text-sm font-medium mt-1.5 mb-0.5 first:mt-0 text-gray-700',
-  h6: 'text-sm font-medium mt-1 mb-0.5 first:mt-0 text-gray-700',
+  h1: 'text-base font-semibold mt-4 mb-2 first:mt-0',
+  h2: 'text-[15px] font-semibold mt-3.5 mb-1.5 first:mt-0',
+  h3: 'text-sm font-semibold mt-3 mb-1 first:mt-0',
+  h4: 'text-sm font-medium mt-2 mb-1 first:mt-0',
+  h5: 'text-sm font-medium mt-1.5 mb-0.5 first:mt-0 text-muted-foreground',
+  h6: 'text-sm font-medium mt-1 mb-0.5 first:mt-0 text-muted-foreground',
 }
 
 const components: React.ComponentProps<typeof ReactMarkdown>['components'] = {
@@ -54,29 +54,29 @@ const components: React.ComponentProps<typeof ReactMarkdown>['components'] = {
     <h6 className={cn(headingClasses.h6, className)} {...props} />
   ),
   p: ({ node, className, ...props }) => (
-    <p className={cn('text-sm text-gray-700 leading-relaxed mb-2 last:mb-0', className)} {...props} />
+    <p className={cn('text-sm leading-relaxed mb-2 last:mb-0', className)} {...props} />
   ),
   ul: ({ node, className, ...props }) => (
-    <ul className={cn('text-sm text-gray-700 list-disc pl-5 mb-2 space-y-0.5', className)} {...props} />
+    <ul className={cn('text-sm list-disc pl-5 mb-2 last:mb-0 space-y-0.5', className)} {...props} />
   ),
   ol: ({ node, className, ...props }) => (
-    <ol className={cn('text-sm text-gray-700 list-decimal pl-5 mb-2 space-y-0.5', className)} {...props} />
+    <ol className={cn('text-sm list-decimal pl-5 mb-2 last:mb-0 space-y-0.5', className)} {...props} />
   ),
   li: ({ node, className, ...props }) => (
-    <li className={cn('leading-relaxed', className)} {...props} />
+    <li className={cn('leading-relaxed marker:text-faint', className)} {...props} />
   ),
   strong: ({ node, className, ...props }) => (
-    <strong className={cn('font-semibold text-gray-900', className)} {...props} />
+    <strong className={cn('font-semibold', className)} {...props} />
   ),
   code: ({ node, className, children, ...props }) => {
     const text = typeof children === 'string' ? children : ''
-    const isBlock = text.includes('\n')
+    const isBlock = text.includes('\n') || /language-/.test(className ?? '')
     return (
       <code
         className={cn(
           isBlock
-            ? 'block p-3 rounded-md bg-gray-100 text-gray-800 text-sm font-mono overflow-x-auto my-2'
-            : 'inline px-1.5 py-0.5 rounded bg-gray-100 text-gray-800 text-[0.8125em] font-mono',
+            ? 'block text-[13px] leading-6 font-mono'
+            : 'inline px-1 py-px rounded-sm bg-muted text-[0.8125em] font-mono',
           className
         )}
         {...props}
@@ -86,12 +86,29 @@ const components: React.ComponentProps<typeof ReactMarkdown>['components'] = {
     )
   },
   pre: ({ node, className, ...props }) => (
-    <pre className={cn('my-2 overflow-x-auto', className)} {...props} />
+    <pre className={cn('my-2 overflow-x-auto rounded-md border bg-muted px-3 py-2', className)} {...props} />
+  ),
+  table: ({ node, className, ...props }) => (
+    <div className="my-2 overflow-x-auto rounded-md border">
+      <table className={cn('w-full border-collapse text-sm tabular-nums', className)} {...props} />
+    </div>
+  ),
+  thead: ({ node, className, ...props }) => (
+    <thead className={cn('bg-muted', className)} {...props} />
+  ),
+  th: ({ node, className, ...props }) => (
+    <th className={cn('border-b px-3 py-1.5 text-left font-medium', className)} {...props} />
+  ),
+  td: ({ node, className, ...props }) => (
+    <td className={cn('border-b px-3 py-1.5 align-top [tr:last-child>&]:border-b-0', className)} {...props} />
+  ),
+  hr: ({ node, className, ...props }) => (
+    <hr className={cn('my-3', className)} {...props} />
   ),
   blockquote: ({ node, className, ...props }) => (
     <blockquote
       className={cn(
-        'border-l-4 border-gray-200 pl-3 py-0.5 my-2 text-sm text-gray-600 italic',
+        'border-l-2 pl-3 py-0.5 my-2 text-sm text-muted-foreground',
         className
       )}
       {...props}
@@ -100,11 +117,11 @@ const components: React.ComponentProps<typeof ReactMarkdown>['components'] = {
   a: ({ node, className, href, children, ...props }) => {
     // 安全兜底：如果 href 包含 CJK 字符，说明 autolink 仍然误判，降级为纯文本
     if (href && /[\u4E00-\u9FFF\u3000-\u303F\uFF00-\uFFEF]/.test(href)) {
-      return <span className="text-sm text-gray-700">{children}</span>
+      return <span className="text-sm">{children}</span>
     }
     return (
       <a
-        className={cn('text-sm text-blue-600 hover:underline', className)}
+        className={cn('text-sm text-signal underline-offset-2 hover:underline', className)}
         href={href}
         target="_blank"
         rel="noopener noreferrer"

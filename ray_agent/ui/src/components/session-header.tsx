@@ -122,8 +122,8 @@ export function SessionHeader({
   }, [])
 
   return (
-    <header className="bg-[#f8f8f7] flex flex-row items-center justify-between pt-3 pb-2 gap-2 sticky top-0 z-10 flex-shrink-0">
-      <div className="text-gray-700 text-lg font-medium whitespace-nowrap text-ellipsis overflow-hidden flex-1 min-w-0">
+    <header className="bg-background flex flex-row items-center justify-between pt-3 pb-2 gap-2 sticky top-0 z-10 flex-shrink-0">
+      <div className="text-foreground text-lg font-medium whitespace-nowrap text-ellipsis overflow-hidden flex-1 min-w-0">
         {title || '未命名任务'}
       </div>
       <div className="flex items-center gap-3 flex-shrink-0">
@@ -141,13 +141,13 @@ export function SessionHeader({
               <ScrollArea className="h-[500px]">
                 <div className="flex flex-col gap-1">
                   {uniqueFileList.length === 0 ? (
-                    <p className="text-sm text-gray-500 py-4">暂无文件</p>
+                    <p className="text-sm text-muted-foreground py-4">暂无文件</p>
                   ) : (
                     uniqueFileList.map((file) => (
                       <Item
                         key={file.id}
                         variant="default"
-                        className="p-2 flex-shrink-0 gap-2 cursor-pointer hover:bg-gray-100"
+                        className="p-2 flex-shrink-0 gap-2 cursor-pointer hover:bg-muted"
                         onClick={() => handleFileItemClick(file)}
                       >
                         <ItemMedia>
@@ -158,7 +158,7 @@ export function SessionHeader({
                           </Avatar>
                         </ItemMedia>
                         <ItemContent className="gap-0">
-                          <ItemTitle className="text-sm text-gray-700">
+                          <ItemTitle className="text-sm text-foreground">
                             {file.filename}
                           </ItemTitle>
                           <ItemDescription className="text-xs">

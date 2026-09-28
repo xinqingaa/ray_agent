@@ -58,18 +58,23 @@ function getToolDescription(kind: ToolKind): string {
   return map[kind]
 }
 
-function getToolIcon(kind: ToolKind) {
-  const map: Record<ToolKind, typeof Terminal> = {
-    bash: Terminal,
-    browser: Globe,
-    search: Search,
-    file: FileSearch,
-    mcp: Wrench,
-    a2a: Bot,
-    message: Monitor,
-    default: Monitor,
+function ToolKindIcon({kind, size, className}: {kind: ToolKind; size: number; className?: string}) {
+  switch (kind) {
+    case 'bash':
+      return <Terminal size={size} className={className}/>
+    case 'browser':
+      return <Globe size={size} className={className}/>
+    case 'search':
+      return <Search size={size} className={className}/>
+    case 'file':
+      return <FileSearch size={size} className={className}/>
+    case 'mcp':
+      return <Wrench size={size} className={className}/>
+    case 'a2a':
+      return <Bot size={size} className={className}/>
+    default:
+      return <Monitor size={size} className={className}/>
   }
-  return map[kind]
 }
 
 /* ------------------------------------------------------------------ */
@@ -81,7 +86,7 @@ function JumpToLatestButton({ onClick }: { onClick: () => void }) {
     <button
       type="button"
       onClick={onClick}
-      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/90 backdrop-blur text-sm text-gray-700 hover:bg-white shadow-md border border-gray-200 transition-colors cursor-pointer"
+      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-card/90 backdrop-blur text-sm text-foreground hover:bg-card shadow-md border border-border transition-colors cursor-pointer"
     >
       <Play size={12} className="fill-current" />
       <span>跳转实时</span>
@@ -105,8 +110,8 @@ function ShellPreview({ tool }: { tool: ToolEvent }) {
 
   return (
     <div className="flex flex-col gap-3 p-4 h-full">
-      <div className="flex-1 rounded-lg overflow-hidden border border-gray-700 bg-[#1e1e1e] flex flex-col min-h-0">
-        <div className="text-center text-xs text-gray-400 py-1.5 bg-[#2d2d2d] border-b border-gray-700 flex-shrink-0">
+      <div className="flex-1 rounded-lg overflow-hidden border border-white/10 bg-terminal flex flex-col min-h-0">
+        <div className="text-center text-xs text-terminal-foreground/60 py-1.5 bg-white/5 border-b border-white/10 flex-shrink-0">
           {sessionId || 'shell'}
         </div>
         <ScrollArea className="flex-1">
@@ -119,11 +124,11 @@ function ShellPreview({ tool }: { tool: ToolEvent }) {
                   <span className="text-white">{rec.command}</span>
                 </div>
                 {rec.output && (
-                  <pre className="text-gray-300 whitespace-pre-wrap break-words mt-0.5">{rec.output}</pre>
+                  <pre className="text-terminal-foreground whitespace-pre-wrap break-words mt-0.5">{rec.output}</pre>
                 )}
               </div>
             )) : (
-              <span className="text-gray-500">等待命令输出...</span>
+              <span className="text-muted-foreground">等待命令输出...</span>
             )}
           </div>
         </ScrollArea>
@@ -140,8 +145,8 @@ function BrowserPreview({ tool, onOpenVNC }: { tool: ToolEvent; onOpenVNC?: () =
   return (
     <div className="flex flex-col gap-3 p-4 h-full">
       {url && (
-        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-gray-100 border text-sm text-gray-600 flex-shrink-0">
-          <Globe size={14} className="text-gray-400 flex-shrink-0" />
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-muted border text-sm text-muted-foreground flex-shrink-0">
+          <Globe size={14} className="text-muted-foreground flex-shrink-0" />
           <span className="truncate">{url}</span>
         </div>
       )}
@@ -155,7 +160,7 @@ function BrowserPreview({ tool, onOpenVNC }: { tool: ToolEvent; onOpenVNC?: () =
             />
           </ScrollArea>
         ) : (
-          <div className="flex items-center justify-center h-full text-sm text-gray-500">
+          <div className="flex items-center justify-center h-full text-sm text-muted-foreground">
             等待页面截图...
           </div>
         )}
@@ -189,7 +194,7 @@ function SearchPreview({ tool }: { tool: ToolEvent }) {
     <ScrollArea className="h-full">
       <div className="flex flex-col gap-1 p-4">
         {query && (
-          <div className="text-sm text-gray-500 mb-3">
+          <div className="text-sm text-muted-foreground mb-3">
             搜索&ldquo;{query}&rdquo;的结果 · 共 {results.length} 条
           </div>
         )}
@@ -199,18 +204,18 @@ function SearchPreview({ tool }: { tool: ToolEvent }) {
             href={item.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="block p-3 rounded-lg hover:bg-gray-50 transition-colors group"
+            className="block p-3 rounded-lg hover:bg-muted/60 transition-colors group"
           >
-            <div className="text-xs text-green-700 truncate mb-0.5">{item.url}</div>
-            <div className="text-sm font-medium text-blue-700 group-hover:underline mb-1 line-clamp-1">
+            <div className="text-xs text-state-success truncate mb-0.5">{item.url}</div>
+            <div className="text-sm font-medium text-signal group-hover:underline mb-1 line-clamp-1">
               {item.title}
             </div>
             {item.snippet && (
-              <div className="text-xs text-gray-600 line-clamp-2">{item.snippet}</div>
+              <div className="text-xs text-muted-foreground line-clamp-2">{item.snippet}</div>
             )}
           </a>
         )) : (
-          <div className="text-sm text-gray-500 text-center py-8">暂无搜索结果</div>
+          <div className="text-sm text-muted-foreground text-center py-8">暂无搜索结果</div>
         )}
       </div>
     </ScrollArea>
@@ -224,14 +229,14 @@ function FileToolPreview({ tool }: { tool: ToolEvent }) {
 
   return (
     <div className="flex flex-col gap-3 p-4 h-full">
-      <div className="flex-1 rounded-lg overflow-hidden border border-gray-700 bg-[#1e1e1e] flex flex-col min-h-0">
+      <div className="flex-1 rounded-lg overflow-hidden border border-white/10 bg-terminal flex flex-col min-h-0">
         {filepath && (
-          <div className="text-center text-xs text-gray-400 py-1.5 bg-[#2d2d2d] border-b border-gray-700 flex-shrink-0 truncate px-4">
+          <div className="text-center text-xs text-terminal-foreground/60 py-1.5 bg-white/5 border-b border-white/10 flex-shrink-0 truncate px-4">
             {filepath}
           </div>
         )}
         <ScrollArea className="flex-1">
-          <pre className="p-4 font-mono text-sm text-gray-300 whitespace-pre-wrap break-words leading-relaxed">
+          <pre className="p-4 font-mono text-sm text-terminal-foreground whitespace-pre-wrap break-words leading-relaxed">
             {fileContent ?? '等待文件内容...'}
           </pre>
         </ScrollArea>
@@ -245,19 +250,19 @@ function ProtocolPreview({ tool }: { tool: ToolEvent }) {
   return (
     <ScrollArea className="h-full">
       <div className="flex flex-col gap-4 p-4">
-        <div className="rounded-lg border bg-gray-50 p-3 text-sm">
+        <div className="rounded-lg border bg-muted/50 p-3 text-sm">
           <div className="break-all">{tool.function}</div>
           <pre className="mt-2 whitespace-pre-wrap break-words">{JSON.stringify(tool.args, null, 2)}</pre>
         </div>
         {outcome ? <>
-          <div className={outcome.success ? 'text-green-700' : 'text-red-700'}>
+          <div className={outcome.success ? 'text-state-success' : 'text-destructive'}>
             <strong>{outcome.success ? '调用成功' : '调用未成功'}</strong>
             <p className="text-sm whitespace-pre-wrap">{outcome.message}</p>
           </div>
-          <pre className="rounded-lg bg-[#1e1e1e] p-4 text-sm text-gray-300 whitespace-pre-wrap break-words">
+          <pre className="rounded-lg bg-terminal p-4 text-sm text-terminal-foreground whitespace-pre-wrap break-words">
             {JSON.stringify(outcome.data, null, 2)}
           </pre>
-        </> : <div className="text-sm text-gray-500">等待执行结果...</div>}
+        </> : <div className="text-sm text-muted-foreground">等待执行结果...</div>}
       </div>
     </ScrollArea>
   )
@@ -267,13 +272,13 @@ function DefaultPreview({ tool }: { tool: ToolEvent }) {
   return (
     <ScrollArea className="h-full">
       <div className="flex flex-col gap-4 p-4">
-        <div className="rounded-lg border bg-gray-50 p-3 text-sm">
-          <div><span className="text-gray-500">名称：</span><span className="text-gray-800">{tool.name}</span></div>
-          <div><span className="text-gray-500">函数：</span><span className="text-gray-800">{tool.function}</span></div>
+        <div className="rounded-lg border bg-muted/50 p-3 text-sm">
+          <div><span className="text-muted-foreground">名称：</span><span className="text-foreground">{tool.name}</span></div>
+          <div><span className="text-muted-foreground">函数：</span><span className="text-foreground">{tool.function}</span></div>
         </div>
         {tool.content != null && (
-          <div className="rounded-lg border border-gray-700 bg-[#1e1e1e] p-4">
-            <pre className="font-mono text-sm text-gray-300 whitespace-pre-wrap break-words">
+          <div className="rounded-lg border border-white/10 bg-terminal p-4">
+            <pre className="font-mono text-sm text-terminal-foreground whitespace-pre-wrap break-words">
               {typeof tool.content === 'string' ? tool.content : JSON.stringify(tool.content, null, 2)}
             </pre>
           </div>
@@ -295,15 +300,14 @@ export function ToolPreviewPanel({
 }: ToolPreviewPanelProps) {
   const kind = getToolKind(tool)
   const label = getFriendlyToolLabel(tool)
-  const ToolIcon = getToolIcon(kind)
   const toolDesc = getToolDescription(kind)
 
   return (
-    <div className="flex flex-col h-full rounded-xl bg-white shadow-xl overflow-hidden">
+    <div className="flex flex-col h-full rounded-xl bg-card shadow-xl overflow-hidden">
       {/* Header */}
-      <div className="flex flex-col gap-2 px-4 py-3 border-b border-gray-200 bg-gray-50 flex-shrink-0">
+      <div className="flex flex-col gap-2 px-4 py-3 border-b border-border bg-muted/50 flex-shrink-0">
         <div className="flex items-center justify-between">
-          <h2 className="text-base font-semibold text-gray-900">RayAgent 的电脑</h2>
+          <h2 className="text-base font-semibold text-foreground">RayAgent 的电脑</h2>
           <Button
             variant="ghost"
             size="icon-sm"
@@ -314,13 +318,13 @@ export function ToolPreviewPanel({
             <Maximize2 size={16} />
           </Button>
         </div>
-        <div className="flex items-center gap-2 text-sm text-gray-600">
-          <Monitor size={14} className="text-gray-500 flex-shrink-0" />
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Monitor size={14} className="text-muted-foreground flex-shrink-0" />
           <span>{tool.status === 'called' ? '工具调用记录' : 'RayAgent 正在使用'}</span>
-          <span className="font-medium text-gray-800">{toolDesc}</span>
+          <span className="font-medium text-foreground">{toolDesc}</span>
         </div>
-        <div className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 border border-gray-200 bg-gray-100 text-gray-700 text-xs w-fit max-w-full">
-          <ToolIcon size={14} className="flex-shrink-0 text-gray-500" />
+        <div className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 border border-border bg-muted text-foreground text-xs w-fit max-w-full">
+          <ToolKindIcon kind={kind} size={14} className="flex-shrink-0 text-muted-foreground"/>
           <span className="truncate">{label}</span>
         </div>
       </div>

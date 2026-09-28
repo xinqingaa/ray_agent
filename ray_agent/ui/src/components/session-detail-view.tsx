@@ -82,9 +82,28 @@ export function SessionDetailView({ sessionId, initialMessage, initialAttachment
   const [previewFile, setPreviewFile] = useState<AttachmentFile | null>(null)
   const [previewTool, setPreviewTool] = useState<ToolEvent | null>(null)
   const [vncOpen, setVncOpen] = useState(false)
+  const [showInitialThinking, setShowInitialThinking] = useState(Boolean(hasInitialMessage))
+  const [trackedToolCount, setTrackedToolCount] = useState(0)
   const initialMessageSentRef = useRef(false)
   const scrollContainerRef = useRef<HTMLDivElement>(null)
-  const prevToolCountRef = useRef(0)
+  const toolCount = useMemo(() => timeline.reduce((n, item) => {
+    if (item.kind === 'tool') return n + 1
+    if (item.kind === 'step') return n + item.tools.length
+    return n
+  }, 0), [timeline])
+
+  if (showInitialThinking && streaming) setShowInitialThinking(false)
+  if (session?.status === 'running' && !vncOpen && toolCount !== trackedToolCount) {
+    const previous = trackedToolCount
+    setTrackedToolCount(toolCount)
+    if (toolCount > previous) {
+      const latestTool = findLatestTool(timeline)
+      if (latestTool) {
+        setPreviewTool(latestTool)
+        setPreviewFile(null)
+      }
+    }
+  }
 
   const hasPreview = previewFile !== null || previewTool !== null
 
@@ -113,24 +132,10 @@ export function SessionDetailView({ sessionId, initialMessage, initialAttachment
     return previewTool
   }, [previewTool, timeline])
 
-  // 任务运行中自动追踪最新工具预览（VNC 打开时暂停）
   useEffect(() => {
-    if (session?.status !== 'running' || vncOpen) return
-
-    const latestTool = findLatestTool(timeline)
-    const toolCount = timeline.reduce((n, item) => {
-      if (item.kind === 'tool') return n + 1
-      if (item.kind === 'step') return n + item.tools.length
-      return n
-    }, 0)
-
-    if (toolCount > prevToolCountRef.current && latestTool) {
-      setPreviewTool(latestTool)
-      setPreviewFile(null)
-      scrollContainerRef.current?.scrollTo({ top: scrollContainerRef.current.scrollHeight, behavior: 'smooth' })
-    }
-    prevToolCountRef.current = toolCount
-  }, [timeline, session?.status, vncOpen])
+    if (session?.status !== 'running' || vncOpen || toolCount === 0) return
+    scrollContainerRef.current?.scrollTo({ top: scrollContainerRef.current.scrollHeight, behavior: 'smooth' })
+  }, [toolCount, session?.status, vncOpen])
 
   useEffect(() => {
     if (
@@ -240,12 +245,12 @@ export function SessionDetailView({ sessionId, initialMessage, initialAttachment
     return (
       <div className="relative flex flex-col h-full flex-1 min-w-0 px-4 items-center justify-center">
         {hasInitialMessage ? (
-          <div className="flex items-center gap-2 text-sm text-gray-500">
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Loader2 className="size-4 animate-spin" />
             <span>正在思考中...</span>
           </div>
         ) : (
-          <p className="text-sm text-gray-500">加载中...</p>
+          <p className="text-sm text-muted-foreground">加载中...</p>
         )}
       </div>
     )
@@ -254,7 +259,7 @@ export function SessionDetailView({ sessionId, initialMessage, initialAttachment
   if (error && !session) {
     return (
       <div className="relative flex flex-col h-full flex-1 min-w-0 px-4 items-center justify-center gap-2">
-        <p className="text-sm text-red-600">{error.message}</p>
+        <p className="text-sm text-destructive">{error.message}</p>
         <button
           type="button"
           onClick={() => refresh()}
@@ -269,7 +274,7 @@ export function SessionDetailView({ sessionId, initialMessage, initialAttachment
   if (!session) {
     return (
       <div className="relative flex flex-col h-full flex-1 min-w-0 px-4 items-center justify-center">
-        <p className="text-sm text-gray-500">未找到该任务</p>
+        <p className="text-sm text-muted-foreground">未找到该任务</p>
       </div>
     )
   }
@@ -294,7 +299,7 @@ export function SessionDetailView({ sessionId, initialMessage, initialAttachment
             <div ref={scrollContainerRef} className="flex-1 overflow-y-auto">
               <div className="flex flex-col w-full gap-3 pt-3">
                 {timeline.length === 0 && !streaming && !hasInitialMessage && (
-                  <div className="flex items-center justify-center py-8 text-sm text-gray-500">
+                  <div className="flex items-center justify-center py-8 text-sm text-muted-foreground">
                     暂无对话记录，在下方输入任务或提问
                   </div>
                 )}
@@ -310,8 +315,8 @@ export function SessionDetailView({ sessionId, initialMessage, initialAttachment
                   />
                 ))}
 
-                {(session?.status === 'running' || (hasInitialMessage && !initialMessageSentRef.current)) && (
-                  <div className="flex items-center gap-2 text-sm text-gray-500 py-3">
+                {(session?.status === 'running' || showInitialThinking) && (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground py-3">
                     <Loader2 className="size-4 animate-spin" />
                     <span>正在思考中...</span>
                   </div>
@@ -321,7 +326,7 @@ export function SessionDetailView({ sessionId, initialMessage, initialAttachment
               </div>
             </div>
 
-            <div className="flex-shrink-0 bg-[#f8f8f7] py-4">
+            <div className="flex-shrink-0 bg-background py-4">
               <PlanPanel className="mb-2" steps={planSteps} />
               <ChatInput
                 onSend={handleSend}

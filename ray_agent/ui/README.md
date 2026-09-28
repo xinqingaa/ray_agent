@@ -35,12 +35,32 @@ npm run dev
 |---|---|
 | 页面与路由 | [src/app/](src/app/) |
 | HTTP、流式请求和类型 | [src/lib/api/](src/lib/api/) |
-| 事件归一化、时间线和计划转换 | [session-events.ts](src/lib/session-events.ts) |
+| 会话视图模型 | [session-view.ts](src/lib/session-view.ts) |
+| 事件投影 | [session-projection.ts](src/lib/session-projection.ts) |
+| 当前会话页仍使用的事件归一化与旧时间线 | [session-events.ts](src/lib/session-events.ts) |
 | 会话详情与实时订阅 | [use-session-detail.ts](src/hooks/use-session-detail.ts) |
 | 共享会话状态 | [src/providers/](src/providers/) |
 | 交互与结果展示 | [src/components/](src/components/) |
 
 组件消费 hooks 和 providers 提供的状态。事件契约变化时，同时核对后端映射、前端类型和归一化逻辑，避免只调整展示组件。
+
+进入会话先取详情里的全部运行与事件，记下最大序号，再保持一条 `GET /sessions/{id}/events?after_seq=`。SSE 的 `id` 即序号。断开后按最后收到的序号重连，等待从 500 毫秒翻倍，上限 4 秒。发送消息只调用 `POST /sessions/{id}/chat`，返回 `run_id`、`seq` 与 `route`（`started`、`resumed` 或 `injected`），不再为发送单独开流。
+
+`useSessionDetail` 在原有的会话、文件、事件和 `sendMessage` 之外，返回投影结果 `view`、提交中的 `submitting`（与 `streaming` 相同）、`stop` 和 `loadTurnRequest`。某一轮发给模型的请求也可以用 `sessionApi.getTurnRequest`。字段约定见 [W4 子计划](../../docs/plan/w4-ui-data.md#视图模型契约)。当前会话页仍用旧时间线渲染；运行视图改消费 `view` 属于 W5 阶段二。
+
+## 设计与主题
+
+设计方案、颜色、字体、间距、圆角和组件状态清单见 [DESIGN.md](DESIGN.md)。取值以 [src/app/globals.css](src/app/globals.css) 为准。
+
+主题由 `next-themes` 挂在根布局，`attribute="class"`，默认跟随系统，也可在侧栏切换浅色或深色。选择保存在浏览器本地。深色 token 写在 `.dark` 下，不要在组件里再写一套 `dark:` 颜色。
+
+业务界面使用这些 token，例如 `bg-background`、`text-muted-foreground`、`text-state-running`、`bg-signal`。新界面不要写 `gray-*` 或十六进制颜色。计时、轮次、token 和字节数加 `tabular-nums`；命令、路径和代码用 `font-mono`。状态色成对使用文字类与浅底类（`text-state-*` 与 `bg-state-*-soft`）。
+
+## 组件状态目录
+
+开发模式下打开 [http://localhost:3000/dev/components](http://localhost:3000/dev/components)，路由在 [src/app/dev/components/page.tsx](src/app/dev/components/page.tsx)。页面用 [src/fixtures/](src/fixtures/) 里的视图模型夹具，逐个列出运行视图和设置列表的状态，供修改组件时回归。生产构建中该路由返回 404，不带会话侧栏。
+
+夹具里按 W3 契约补写的字段写在 [w1-sessions.ts](src/fixtures/w1-sessions.ts) 文件头；合成终态如何补写 `summary` 与轮次结束时间写在 [states.ts](src/fixtures/states.ts) 文件头。会话页接入这些组件属于 W5 阶段二，目录页在接入后保留。
 
 ## 检查与构建
 
@@ -57,12 +77,12 @@ npm run start
 
 ## 事件观察
 
-安装锁定依赖后，可直接运行第十章的本地观察脚本，无需启动 Next.js：
+安装锁定依赖后，可直接运行本地观察脚本，无需启动 Next.js：
 
 ```bash
 node scripts/check-event-observability.cjs
 ```
 
-脚本用项目 TypeScript 转译器加载实际 SSE 解析、事件归一化和时间线模块；不复制实现，也不连接产品服务。确认 LF 逐字节分块（含中文 UTF-8）、非法 JSON 回调、调用阶段合并与新输入后的步骤分组（旧会话历史），以及没有步骤事件时工具记录按调用 ID 平铺合并、计划面板读到进行中状态（当前单循环事件）。另将两个当前限制明确打印为 `LIMITATION`：EOF 分派未以空行结束的完整 JSON 尾段，以及 CRLF 恰在 CR/LF 之间分块时丢失事件类型。脚本退出成功表示上述现有行为与限制得到复现，不表示 SSE 标准符合性或全部分块场景通过。
+脚本用项目 TypeScript 转译器加载实际的 SSE 解析与 `projectSession`，不复制实现，也不连接产品服务。它检查 LF 逐字节分块（含中文 UTF-8）、非法 JSON 回调、SSE `id` 保留、重连等待上限、按 seq 去重与补齐、calling/called 合并、一轮多个调用成组、失败轮次保留、activity、轮次用时与用量、计划的 `changed`，以及停止、重启中断和请求上限的可读原因。另将两个当前限制明确打印为 `LIMITATION`：EOF 分派未以空行结束的完整 JSON 尾段，以及 CRLF 恰在 CR/LF 之间分块时丢失事件类型。脚本退出成功表示上述行为与限制得到复现，不表示 SSE 标准符合性、hook 挂载或浏览器断线恢复已通过。
 
-2026-09-13 在 Node.js 24.12.0 / 锁定 npm 依赖下运行上述观察；产品开发与容器基线仍按前文 Node.js 22。该次检查不覆盖 React hooks 挂载、浏览器重连、实际网络断开或生产构建。
+类型检查没有单独的 npm script，在本目录执行 `npx tsc --noEmit`。lint 与生产构建见上一节。

@@ -32,8 +32,8 @@ function FileCard({
   return (
     <div
       className={cn(
-        'flex items-center gap-3 rounded-lg border border-gray-200 bg-white p-3 flex-shrink-0 cursor-pointer hover:bg-gray-50 transition-colors',
-        role === 'user' && 'bg-white'
+        'flex items-center gap-3 rounded-lg border border-border bg-card p-3 flex-shrink-0 cursor-pointer hover:bg-muted/60 transition-colors',
+        role === 'user' && 'bg-card'
       )}
       style={{ width: CARD_WIDTH, height: CARD_HEIGHT }}
       role="button"
@@ -46,14 +46,14 @@ function FileCard({
         }
       }}
     >
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-blue-100 text-blue-600">
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-signal-soft text-signal">
         <FileText size={18} />
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-gray-900 truncate">
+        <p className="text-sm font-semibold text-foreground truncate">
           {file.filename}
         </p>
-        <p className="text-xs text-gray-500 mt-0.5">
+        <p className="text-xs text-muted-foreground mt-0.5">
           {file.extension} · {sizeLabel}
         </p>
       </div>
@@ -114,7 +114,7 @@ export function AttachmentsMessage({
           <Button
             variant="outline"
             size="sm"
-            className="shrink-0 py-2 px-3 border border-gray-200 bg-white hover:bg-gray-50 text-gray-600 gap-2 rounded-lg cursor-pointer"
+            className="shrink-0 py-2 px-3 border border-border bg-card hover:bg-muted/60 text-muted-foreground gap-2 rounded-lg cursor-pointer"
             style={{ width: CARD_WIDTH, height: CARD_HEIGHT }}
             onClick={onViewAllFiles}
           >

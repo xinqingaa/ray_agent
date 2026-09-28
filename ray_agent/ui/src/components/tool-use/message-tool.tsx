@@ -6,5 +6,5 @@ export interface MessageToolProps {
 }
 
 export function MessageTool({ label }: MessageToolProps) {
-  return <p className="text-gray-700 text-sm min-w-0">{label}</p>
+  return <p className="text-foreground text-sm min-w-0">{label}</p>
 }

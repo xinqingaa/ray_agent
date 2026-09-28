@@ -1,56 +1,17 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 
-@layer base {
-    .scrollbar-hide {
-        scrollbar-width: none;
-    }
-
-    .scrollbar-hide::-webkit-scrollbar {
-        display: none;
-    }
-
-    /* 全局美观滚动条样式 */
-    * {
-        scrollbar-width: thin;
-        scrollbar-color: transparent transparent;
-    }
-
-    *:hover {
-        scrollbar-color: rgba(156, 163, 175, 0.3) transparent;
-    }
-
-    *::-webkit-scrollbar {
-        width: 6px;
-        height: 6px;
-    }
-
-    *::-webkit-scrollbar-track {
-        background: transparent;
-    }
-
-    *::-webkit-scrollbar-thumb {
-        background-color: transparent;
-        border-radius: 3px;
-    }
-
-    *:hover::-webkit-scrollbar-thumb {
-        background-color: rgba(156, 163, 175, 0.3);
-    }
-
-    *::-webkit-scrollbar-thumb:hover {
-        background-color: rgba(156, 163, 175, 0.5);
-    }
-
-    *::-webkit-scrollbar-corner {
-        background: transparent;
-    }
-}
-
+/* 设计 token 的取值与使用约定见 ray_agent/ui/DESIGN.md */
 
 @custom-variant dark (&:is(.dark *));
 
 @theme inline {
+    --font-sans: "IBM Plex Sans Variable", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", "Source Han Sans SC", system-ui, sans-serif;
+    --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, "PingFang SC", monospace;
+
+    --text-meta: 0.8125rem;
+    --text-meta--line-height: 1.25rem;
+
     --radius-sm: calc(var(--radius) - 4px);
     --radius-md: calc(var(--radius) - 2px);
     --radius-lg: var(--radius);
@@ -58,6 +19,7 @@
     --radius-2xl: calc(var(--radius) + 8px);
     --radius-3xl: calc(var(--radius) + 12px);
     --radius-4xl: calc(var(--radius) + 16px);
+
     --color-background: var(--background);
     --color-foreground: var(--foreground);
     --color-card: var(--card);
@@ -70,12 +32,34 @@
     --color-secondary-foreground: var(--secondary-foreground);
     --color-muted: var(--muted);
     --color-muted-foreground: var(--muted-foreground);
+    --color-faint: var(--faint);
     --color-accent: var(--accent);
     --color-accent-foreground: var(--accent-foreground);
     --color-destructive: var(--destructive);
     --color-border: var(--border);
     --color-input: var(--input);
     --color-ring: var(--ring);
+
+    --color-signal: var(--signal);
+    --color-signal-soft: var(--signal-soft);
+    --color-signal-foreground: var(--signal-foreground);
+
+    --color-state-running: var(--state-running);
+    --color-state-running-soft: var(--state-running-soft);
+    --color-state-waiting: var(--state-waiting);
+    --color-state-waiting-soft: var(--state-waiting-soft);
+    --color-state-success: var(--state-success);
+    --color-state-success-soft: var(--state-success-soft);
+    --color-state-failed: var(--state-failed);
+    --color-state-failed-soft: var(--state-failed-soft);
+    --color-state-stopped: var(--state-stopped);
+    --color-state-stopped-soft: var(--state-stopped-soft);
+    --color-state-interrupted: var(--state-interrupted);
+    --color-state-interrupted-soft: var(--state-interrupted-soft);
+
+    --color-terminal: var(--terminal);
+    --color-terminal-foreground: var(--terminal-foreground);
+
     --color-chart-1: var(--chart-1);
     --color-chart-2: var(--chart-2);
     --color-chart-3: var(--chart-3);
@@ -89,83 +73,210 @@
     --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
     --color-sidebar-border: var(--sidebar-border);
     --color-sidebar-ring: var(--sidebar-ring);
+
+    --animate-shimmer: shimmer 2.2s linear infinite;
+
+    @keyframes shimmer {
+        from {
+            background-position: 100% 0;
+        }
+        to {
+            background-position: -100% 0;
+        }
+    }
 }
 
+/*
+ * 浅色：石墨纸面。画布偏冷的浅灰，内容面为白，墨色近黑但带一点蓝。
+ * 钴蓝 signal 是唯一强调色，只用于“正在运行”、焦点、当前项与链接。
+ */
 :root {
-    --radius: 0.625rem;
-    --background: oklch(1 0 0);
-    --foreground: oklch(0.145 0 0);
-    --card: oklch(1 0 0);
-    --card-foreground: oklch(0.145 0 0);
-    --popover: oklch(1 0 0);
-    --popover-foreground: oklch(0.145 0 0);
-    --primary: oklch(0.205 0 0);
-    --primary-foreground: oklch(0.985 0 0);
-    --secondary: oklch(0.97 0 0);
-    --secondary-foreground: oklch(0.205 0 0);
-    --muted: oklch(0.97 0 0);
-    --muted-foreground: oklch(0.556 0 0);
-    --accent: oklch(0.97 0 0);
-    --accent-foreground: oklch(0.205 0 0);
-    --destructive: oklch(0.577 0.245 27.325);
-    --border: oklch(0.922 0 0);
-    --input: oklch(0.922 0 0);
-    --ring: oklch(0.708 0 0);
-    --chart-1: oklch(0.646 0.222 41.116);
-    --chart-2: oklch(0.6 0.118 184.704);
-    --chart-3: oklch(0.398 0.07 227.392);
-    --chart-4: oklch(0.828 0.189 84.429);
-    --chart-5: oklch(0.769 0.188 70.08);
-    --sidebar: oklch(0.985 0 0);
-    --sidebar-foreground: oklch(0.145 0 0);
-    --sidebar-primary: oklch(0.205 0 0);
-    --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.97 0 0);
-    --sidebar-accent-foreground: oklch(0.205 0 0);
-    --sidebar-border: oklch(0.922 0 0);
-    --sidebar-ring: oklch(0.708 0 0);
+    --radius: 0.5rem;
+
+    --background: #f1f3f5;
+    --foreground: #14181d;
+    --card: #ffffff;
+    --card-foreground: #14181d;
+    --popover: #ffffff;
+    --popover-foreground: #14181d;
+    --primary: #14181d;
+    --primary-foreground: #f7f8f9;
+    --secondary: #e8ebee;
+    --secondary-foreground: #14181d;
+    --muted: #e8ebee;
+    --muted-foreground: #56606b;
+    --faint: #606973;
+    --accent: #e8ebee;
+    --accent-foreground: #14181d;
+    --destructive: #b42318;
+    --border: #d9dee3;
+    --input: #cdd3d9;
+    --ring: #2549c4;
+
+    --signal: #2549c4;
+    --signal-soft: #e6ecfb;
+    --signal-foreground: #ffffff;
+
+    --state-running: #2549c4;
+    --state-running-soft: #e6ecfb;
+    --state-waiting: #8a5300;
+    --state-waiting-soft: #fbf0dc;
+    --state-success: #1c7340;
+    --state-success-soft: #e2f3e8;
+    --state-failed: #b42318;
+    --state-failed-soft: #fce8e6;
+    --state-stopped: #56606b;
+    --state-stopped-soft: #eceff2;
+    --state-interrupted: #8a3a8f;
+    --state-interrupted-soft: #f5e6f5;
+
+    --terminal: #1b1f24;
+    --terminal-foreground: #d8dde3;
+
+    --chart-1: #2549c4;
+    --chart-2: #1c7340;
+    --chart-3: #8a5300;
+    --chart-4: #8a3a8f;
+    --chart-5: #56606b;
+
+    --sidebar: #e9ecef;
+    --sidebar-foreground: #14181d;
+    --sidebar-primary: #14181d;
+    --sidebar-primary-foreground: #f7f8f9;
+    --sidebar-accent: #dde1e6;
+    --sidebar-accent-foreground: #14181d;
+    --sidebar-border: #d9dee3;
+    --sidebar-ring: #2549c4;
 }
 
+/* 深色：深石墨而非纯黑，面与面之间靠明度台阶区分，状态色整体提亮以保持 AA 对比度 */
 .dark {
-    --background: oklch(0.145 0 0);
-    --foreground: oklch(0.985 0 0);
-    --card: oklch(0.205 0 0);
-    --card-foreground: oklch(0.985 0 0);
-    --popover: oklch(0.205 0 0);
-    --popover-foreground: oklch(0.985 0 0);
-    --primary: oklch(0.922 0 0);
-    --primary-foreground: oklch(0.205 0 0);
-    --secondary: oklch(0.269 0 0);
-    --secondary-foreground: oklch(0.985 0 0);
-    --muted: oklch(0.269 0 0);
-    --muted-foreground: oklch(0.708 0 0);
-    --accent: oklch(0.269 0 0);
-    --accent-foreground: oklch(0.985 0 0);
-    --destructive: oklch(0.704 0.191 22.216);
-    --border: oklch(1 0 0 / 10%);
-    --input: oklch(1 0 0 / 15%);
-    --ring: oklch(0.556 0 0);
-    --chart-1: oklch(0.488 0.243 264.376);
-    --chart-2: oklch(0.696 0.17 162.48);
-    --chart-3: oklch(0.769 0.188 70.08);
-    --chart-4: oklch(0.627 0.265 303.9);
-    --chart-5: oklch(0.645 0.246 16.439);
-    --sidebar: oklch(0.205 0 0);
-    --sidebar-foreground: oklch(0.985 0 0);
-    --sidebar-primary: oklch(0.488 0.243 264.376);
-    --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.269 0 0);
-    --sidebar-accent-foreground: oklch(0.985 0 0);
-    --sidebar-border: oklch(1 0 0 / 10%);
-    --sidebar-ring: oklch(0.556 0 0);
+    --background: #171a1e;
+    --foreground: #e6e9ed;
+    --card: #1e2227;
+    --card-foreground: #e6e9ed;
+    --popover: #23282e;
+    --popover-foreground: #e6e9ed;
+    --primary: #e6e9ed;
+    --primary-foreground: #171a1e;
+    --secondary: #2a3037;
+    --secondary-foreground: #e6e9ed;
+    --muted: #262b31;
+    --muted-foreground: #a3acb6;
+    --faint: #8a939d;
+    --accent: #2a3037;
+    --accent-foreground: #e6e9ed;
+    --destructive: #ff8f85;
+    --border: #343a42;
+    --input: #3d444d;
+    --ring: #8fa8ff;
+
+    --signal: #8fa8ff;
+    --signal-soft: #233056;
+    --signal-foreground: #10172e;
+
+    --state-running: #8fa8ff;
+    --state-running-soft: #233056;
+    --state-waiting: #f0b35a;
+    --state-waiting-soft: #3a2e1a;
+    --state-success: #6bcb8f;
+    --state-success-soft: #1d3527;
+    --state-failed: #ff8f85;
+    --state-failed-soft: #3d2222;
+    --state-stopped: #a3acb6;
+    --state-stopped-soft: #2a3037;
+    --state-interrupted: #e09ce4;
+    --state-interrupted-soft: #3a2440;
+
+    --terminal: #111418;
+    --terminal-foreground: #d8dde3;
+
+    --chart-1: #8fa8ff;
+    --chart-2: #6bcb8f;
+    --chart-3: #f0b35a;
+    --chart-4: #e09ce4;
+    --chart-5: #a3acb6;
+
+    --sidebar: #1b1e23;
+    --sidebar-foreground: #e6e9ed;
+    --sidebar-primary: #e6e9ed;
+    --sidebar-primary-foreground: #171a1e;
+    --sidebar-accent: #2a3037;
+    --sidebar-accent-foreground: #e6e9ed;
+    --sidebar-border: #2c3238;
+    --sidebar-ring: #8fa8ff;
 }
 
 @layer base {
     * {
-        @apply border-border outline-ring/50;
+        @apply border-border outline-ring/60;
+        scrollbar-width: thin;
+        scrollbar-color: transparent transparent;
+    }
+
+    *:hover {
+        scrollbar-color: color-mix(in oklab, var(--muted-foreground) 35%, transparent) transparent;
+    }
+
+    html {
+        color-scheme: light;
+    }
+
+    html.dark {
+        color-scheme: dark;
     }
 
     body {
-        @apply bg-background text-foreground;
+        @apply bg-background text-foreground font-sans antialiased;
+        font-size: 14px;
+        line-height: 1.6;
+    }
+
+    code, kbd, pre, samp {
+        @apply font-mono;
+    }
+
+    .scrollbar-hide {
+        scrollbar-width: none;
+    }
+
+    .scrollbar-hide::-webkit-scrollbar {
+        display: none;
+    }
+}
+
+@layer utilities {
+    /* 当前动作的“运行中”文字扫光；同屏只允许一处 */
+    .text-shimmer {
+        background-image: linear-gradient(
+            90deg,
+            currentColor 0%,
+            currentColor 40%,
+            color-mix(in oklab, currentColor 35%, transparent) 50%,
+            currentColor 60%,
+            currentColor 100%
+        );
+        background-size: 200% 100%;
+        -webkit-background-clip: text;
+        background-clip: text;
+        -webkit-text-fill-color: transparent;
+        animation: var(--animate-shimmer);
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .text-shimmer {
+            animation: none;
+            -webkit-text-fill-color: currentColor;
+            background-image: none;
+        }
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        scroll-behavior: auto !important;
     }
 }
