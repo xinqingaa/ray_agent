@@ -152,7 +152,7 @@ uv run --locked python scripts/check_file_artifacts.py
 uv run --locked python scripts/check_sandbox_environment.py
 ```
 
-脚本用实际 `DockerSandbox` 创建两个一次性容器，核对按 ID 重连后读到写入标记、另一容器相同路径不存在、同网络访问状态接口、运行配额未显式设置，以及显式销毁后容器不存在。它不修改已有沙箱、不连接公网、不验证 TTL 到期或应用关闭清理。本地路径与 Shell 状态观察见[沙箱指南](../sandbox/README.md#执行环境观察)。
+脚本用实际 `DockerSandbox` 创建两个一次性容器，核对按 ID 重连后读到写入标记、另一容器相同路径不存在、同网络访问状态接口，以及显式销毁后容器不存在。同时核对执行身份为 ubuntu、上传目录与 `/home/ubuntu/.rayagent/outputs` 的属主、服务进程用户、内存/CPU/进程数上限，以及 `SERVER_TIMEOUT_MINUTES` 与超时计时已按 `SANDBOX_TTL_MINUTES` 启动。它不修改已有沙箱、不连接公网、不等到 TTL 到期，也不验证应用关闭清理。本地路径与 Shell 状态观察见[沙箱指南](../sandbox/README.md#执行环境观察)。
 
 数据库结构变化时核对领域模型、ORM 转换与迁移文件：
 

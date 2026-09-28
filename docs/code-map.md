@@ -31,6 +31,7 @@
 | 自动压缩：范围选择、用户原文重新注入、摘要请求 | [`domain/services/context/compaction.py`](../ray_agent/api/app/domain/services/context/compaction.py)；流程在 [`agent_loop.py`](../ray_agent/api/app/domain/services/flows/agent_loop.py) 的 `_compact_history()`、`_request_summary()`；提示词 [`prompts/compact.py`](../ray_agent/api/app/domain/services/prompts/compact.py)（英文版在 `prompts/en/`） | [`core/test_context_governance.py`](../ray_agent/api/tests/core/test_context_governance.py)、[`core/test_turn_events_rebuild.py`](../ray_agent/api/tests/core/test_turn_events_rebuild.py) | 05 |
 | 工具结果整形与落盘 | [`domain/services/context/shaping.py`](../ray_agent/api/app/domain/services/context/shaping.py) 的 `ResultShaper`（工具管线执行后段最后一个处理函数），写文件经 [`agent_task_runner.py`](../ray_agent/api/app/domain/services/agent_task_runner.py) 的 `_write_output()`；协议截断前的完整内容见 [`infrastructure/protocols/common.py`](../ray_agent/api/app/infrastructure/protocols/common.py) 的 `keep_full_content()` | [`core/test_context_governance.py`](../ray_agent/api/tests/core/test_context_governance.py)、[`protocols/test_result_shaping.py`](../ray_agent/api/tests/protocols/test_result_shaping.py) | 05、14 |
 | 沙箱 Shell 输出上限 | [`services/shell.py`](../ray_agent/sandbox/app/services/shell.py)（沙箱）的 `append_output()` | — | 11 |
+| Shell 初次返回与进程组终止 | [`services/shell.py`](../ray_agent/sandbox/app/services/shell.py)（沙箱）的 `exec_command()`、`_terminate_process_group()`；API 侧等待上限在 [`docker_sandbox.py`](../ray_agent/api/app/infrastructure/external/sandbox/docker_sandbox.py) 的 `bound_shell_wait_seconds()` | [`tests/test_shell_service.py`](../ray_agent/sandbox/tests/test_shell_service.py)（沙箱） | 08、11 |
 | 模型调用、`finish_reason`、可重试错误与上下文超长拒绝 | [`infrastructure/external/llm/openai_llm.py`](../ray_agent/api/app/infrastructure/external/llm/openai_llm.py)、[`domain/external/llm.py`](../ray_agent/api/app/domain/external/llm.py) 的 `LLMRequestError` | [`core/test_llm_api_key.py`](../ray_agent/api/tests/core/test_llm_api_key.py)、[`core/test_context_governance.py`](../ray_agent/api/tests/core/test_context_governance.py) | 02 |
 | 内嵌工具调用的兼容解析 | [`domain/services/agents/tool_call_compat.py`](../ray_agent/api/app/domain/services/agents/tool_call_compat.py) | [`core/test_tool_call_compat.py`](../ray_agent/api/tests/core/test_tool_call_compat.py) | 03 |
 | token 用量记账 | [`domain/models/llm.py`](../ray_agent/api/app/domain/models/llm.py)、[`infrastructure/external/llm/usage.py`](../ray_agent/api/app/infrastructure/external/llm/usage.py) | [`core/test_llm_usage.py`](../ray_agent/api/tests/core/test_llm_usage.py) | 10 |
@@ -40,7 +41,7 @@
 | 机制 | 主要入口 | 回归测试 | 课程 |
 |---|---|---|---|
 | 工具声明装饰器与基类 | [`domain/services/tools/tool.py`](../ray_agent/api/app/domain/services/tools/tool.py)、[`domain/services/tools/base.py`](../ray_agent/api/app/domain/services/tools/base.py) | — | 03 |
-| 文件、Shell、浏览器、检索工具 | [`domain/services/tools/`](../ray_agent/api/app/domain/services/tools/) 的 `file.py`、`shell.py`、`browser.py`、`search.py` | — | 03、11、12、13 |
+| 文件、Shell、浏览器、检索工具 | [`domain/services/tools/`](../ray_agent/api/app/domain/services/tools/) 的 `file.py`、`shell.py`、`browser.py`、`search.py`。Shell 等待秒数经沙箱适配截断到 HTTP 超时以内 | [`tests/test_shell_service.py`](../ray_agent/sandbox/tests/test_shell_service.py)（沙箱，覆盖执行返回与进程组） | 03、08、11、12、13 |
 | 用户提问工具 | [`domain/services/tools/message.py`](../ray_agent/api/app/domain/services/tools/message.py)（调用由 `AgentLoop` 拦截为等待） | [`core/test_agent_loop.py`](../ray_agent/api/tests/core/test_agent_loop.py) | 08 |
 | 工具结果结构 | [`domain/models/tool_result.py`](../ray_agent/api/app/domain/models/tool_result.py) | — | 03 |
 
@@ -81,10 +82,10 @@
 
 | 机制 | 主要入口 | 回归测试 | 课程 |
 |---|---|---|---|
-| 沙箱创建、连接与销毁 | [`infrastructure/external/sandbox/docker_sandbox.py`](../ray_agent/api/app/infrastructure/external/sandbox/docker_sandbox.py) | [`core/test_docker_sandbox_ip.py`](../ray_agent/api/tests/core/test_docker_sandbox_ip.py) | 11 |
+| 沙箱创建、连接与销毁 | [`infrastructure/external/sandbox/docker_sandbox.py`](../ray_agent/api/app/infrastructure/external/sandbox/docker_sandbox.py)。动态创建时设置内存、CPU、进程数上限，并把 `SANDBOX_TTL_MINUTES` 注入为 `SERVER_TIMEOUT_MINUTES`；限额默认值在 [`core/config.py`](../ray_agent/api/core/config.py) | [`core/test_docker_sandbox_ip.py`](../ray_agent/api/tests/core/test_docker_sandbox_ip.py) | 11 |
 | 浏览器连接（CDP） | [`infrastructure/external/browser/playwright_browser.py`](../ray_agent/api/app/infrastructure/external/browser/playwright_browser.py) | — | 13 |
 | 沙箱画面转发（VNC WebSocket） | [`interfaces/endpoints/session_routes.py`](../ray_agent/api/app/interfaces/endpoints/session_routes.py) 的 `vnc_websocket()` | — | 11 |
-| 沙箱侧文件与 Shell 服务 | [`services/file.py`](../ray_agent/sandbox/app/services/file.py)、[`services/shell.py`](../ray_agent/sandbox/app/services/shell.py)（沙箱） | — | 11 |
+| 沙箱侧文件与 Shell 服务 | [`services/file.py`](../ray_agent/sandbox/app/services/file.py)、[`services/shell.py`](../ray_agent/sandbox/app/services/shell.py)（沙箱）。服务进程以 ubuntu 运行，配置在 [`supervisord.conf`](../ray_agent/sandbox/supervisord.conf) | [`tests/test_shell_service.py`](../ray_agent/sandbox/tests/test_shell_service.py)（沙箱） | 11 |
 | 沙箱侧存活时间与销毁 | [`services/supervisor.py`](../ray_agent/sandbox/app/services/supervisor.py)（沙箱） | — | 11 |
 
 ## 外部协议
@@ -128,7 +129,7 @@
 
 ---
 
-基线：上述当前实现映射为 2026-09-16 核对；Agent 循环与工具管线、上下文与记忆、工具及文件交付中的相关行于 2026-09-28 按 W1 实现更新；事件、状态与持久化、任务控制分组同日按 W3 实现更新；上下文与记忆分组同日按 W2 实现更新；前端事件订阅与视图投影同日按 W4 实现更新。路径变动时更新本文件，不在其他文档正文里重复代码位置。机制为什么这样设计见 [Harness 工程](harness.md)，完整推导见对应的[课程章节](../lessons/README.md)。
+基线：上述当前实现映射为 2026-09-16 核对；Agent 循环与工具管线、上下文与记忆、工具及文件交付中的相关行于 2026-09-28 按 W1 实现更新；事件、状态与持久化、任务控制分组同日按 W3 实现更新；上下文与记忆分组同日按 W2 实现更新；前端事件订阅与视图投影同日按 W4 实现更新；执行环境与 Shell 进程组同日按 W7.1、W7.3 实现更新。路径变动时更新本文件，不在其他文档正文里重复代码位置。机制为什么这样设计见 [Harness 工程](harness.md)，完整推导见对应的[课程章节](../lessons/README.md)。
 
 ## 二次开发改造入口
 
@@ -139,6 +140,6 @@
 | [W0 基线与评测](plan/w0-baseline-eval.md) | [模型抽象](../ray_agent/api/app/domain/external/llm.py)、[测试目录](../ray_agent/api/tests/)、[API 脚本目录](../ray_agent/api/scripts/)、[验证实验](../labs/verification/README.md) |
 | [W5 界面与交互](plan/w5-ux.md) | 阶段一、三：[设计说明](../ray_agent/ui/DESIGN.md)、[全局样式](../ray_agent/ui/src/app/globals.css)、[运行视图](../ray_agent/ui/src/components/run/)、[组件状态目录](../ray_agent/ui/src/app/dev/components/page.tsx)、[夹具](../ray_agent/ui/src/fixtures/)、[设置页](../ray_agent/ui/src/components/settings/)。阶段二前会话页仍用 [会话视图](../ray_agent/ui/src/components/session-detail-view.tsx)、[计划面板](../ray_agent/ui/src/components/plan-panel.tsx)、[工具组件](../ray_agent/ui/src/components/tool-use/) |
 | [W6 流式与运行指标](plan/w6-streaming.md) | [模型实现](../ray_agent/api/app/infrastructure/external/llm/openai_llm.py)、[usage 解析](../ray_agent/api/app/infrastructure/external/llm/usage.py)、[事件映射](../ray_agent/api/app/interfaces/schemas/event.py)、[Nginx](../ray_agent/nginx/conf.d/default.conf) |
-| [W7 控制与安全](plan/w7-control-safety.md) | [沙箱 Shell 服务](../ray_agent/sandbox/app/services/shell.py)、[supervisord 配置](../ray_agent/sandbox/supervisord.conf)、[沙箱 Dockerfile](../ray_agent/sandbox/Dockerfile)、[沙箱适配](../ray_agent/api/app/infrastructure/external/sandbox/docker_sandbox.py)、[运行时配置](../ray_agent/api/core/config.py)、[沙箱环境检查](../ray_agent/api/scripts/check_sandbox_environment.py) |
+| [W7 控制与安全](plan/w7-control-safety.md) | W7.1、W7.3 已落到上文执行环境。W7.2 审批仍未做：工具管线执行前段、应用配置中的工具策略、审批回复接口与设置页分区 |
 
 服务指南、对应 `tests/core` / `tests/protocols`、UI 与沙箱 scripts 的运行条件见各服务 README；计划不重复维护命令。

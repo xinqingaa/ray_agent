@@ -41,8 +41,11 @@ cd ray_agent
 | `SANDBOX_IMAGE` | `manus-sandbox` |
 | `SANDBOX_NETWORK` | `manus-network` |
 | `SANDBOX_NAME_PREFIX` | 动态容器名称前缀，例如 `rayagent-sandbox` |
-| `SANDBOX_TTL_MINUTES` | 沙箱存活时间，例如 `60` |
-| `SANDBOX_ADDRESS` | 使用动态沙箱时不设置此项 |
+| `SANDBOX_TTL_MINUTES` | 沙箱存活时间，例如 `60`。创建动态容器时注入为沙箱读取的 `SERVER_TIMEOUT_MINUTES` |
+| `SANDBOX_MEMORY_MB` | 动态容器内存上限，默认 `2048`。swap 不超过同一上限 |
+| `SANDBOX_CPUS` | 动态容器 CPU 上限，默认 `2` |
+| `SANDBOX_PIDS_LIMIT` | 动态容器进程数上限，默认 `512` |
+| `SANDBOX_ADDRESS` | 使用动态沙箱时不设置此项。设置后连接已有沙箱，不套用上面的限额 |
 | `FILE_STORAGE_BACKEND` | `local`（默认，写本地磁盘）或 `cos`（腾讯云对象存储） |
 | `FILE_STORAGE_LOCAL_DIR` | 本地模式的目录；Compose 部署使用 `/data/files` |
 | `COS_SECRET_ID` / `COS_SECRET_KEY` | 仅 `FILE_STORAGE_BACKEND=cos` 时必填 |
@@ -51,6 +54,8 @@ cd ray_agent
 | `NGINX_PORT` | 对外端口，默认 `8088` |
 
 表中的服务名、镜像名和网络名对应实际 Compose 标识。API 容器连接数据库和 Redis 时使用服务名，不能用指向容器自身的 `localhost`。环境示例中的 Redis 端口、沙箱镜像、网络和本地文件目录需按上表调整。本地模式不需要填写 COS 凭据；Compose 部署请使用 `FILE_STORAGE_LOCAL_DIR=/data/files`，与 API 数据卷对应。选择 `cos` 时缺项会导致 API 无法启动。
+
+动态沙箱里 Supervisor 管理的服务进程以用户 `ubuntu` 运行，`HOME` 与工作目录为 `/home/ubuntu`。内存、CPU、进程数上限和存活时间只在 API 创建容器时写入；改这些环境变量后需要重新创建 API 容器，已经在跑的沙箱不会改限额。
 
 `.env` 已被 Git 忽略，各设备分别准备凭据与本地配置。
 

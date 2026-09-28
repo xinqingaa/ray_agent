@@ -1,0 +1,731 @@
+{
+  "meta": {
+    "label": "w7-1-3",
+    "date": "2026-09-28",
+    "git": {
+      "commit": "4b413ef7237d0ea8c8f35364548c028ab0b8dadb",
+      "short": "4b413ef",
+      "dirty": [
+        "M docs/architecture.md",
+        " M docs/capabilities.md",
+        " M docs/code-map.md",
+        " M docs/harness.md",
+        " M docs/plan/w7-control-safety.md",
+        " M docs/product.md",
+        " M ray_agent/.env.example",
+        " M ray_agent/README.md",
+        " M ray_agent/api/README.md",
+        " M ray_agent/api/app/domain/services/prompts/en/system.py",
+        " M ray_agent/api/app/domain/services/prompts/system.py",
+        " M ray_agent/api/app/domain/services/tools/shell.py",
+        " M ray_agent/api/app/infrastructure/external/sandbox/docker_sandbox.py",
+        " M ray_agent/api/core/config.py",
+        " M ray_agent/api/scripts/check_sandbox_environment.py",
+        " M ray_agent/sandbox/README.md",
+        " M ray_agent/sandbox/app/services/shell.py",
+        " M ray_agent/sandbox/supervisord.conf",
+        " M ray_agent/ui/README.md",
+        " M ray_agent/ui/package-lock.json",
+        " M ray_agent/ui/package.json",
+        " M ray_agent/ui/src/app/globals.css",
+        " M ray_agent/ui/src/app/layout.tsx",
+        " M ray_agent/ui/src/app/page.tsx",
+        " M ray_agent/ui/src/components/attachments-message.tsx",
+        " M ray_agent/ui/src/components/chat-header.tsx",
+        " M ray_agent/ui/src/components/chat-input.tsx",
+        " M ray_agent/ui/src/components/chat-message.tsx",
+        " M ray_agent/ui/src/components/file-preview-panel.tsx",
+        " M ray_agent/ui/src/components/left-panel.tsx",
+        " D ray_agent/ui/src/components/manus-settings.tsx",
+        " M ray_agent/ui/src/components/markdown-content.tsx",
+        " M ray_agent/ui/src/components/plan-panel.tsx",
+        " M ray_agent/ui/src/components/session-detail-view.tsx",
+        " M ray_agent/ui/src/components/session-header.tsx",
+        " M ray_agent/ui/src/components/session-item.tsx",
+        " M ray_agent/ui/src/components/sidebar-chrome.tsx",
+        " M ray_agent/ui/src/components/token-usage.tsx",
+        " M ray_agent/ui/src/components/tool-preview-panel.tsx",
+        " M ray_agent/ui/src/components/tool-use/message-tool.tsx",
+        " M ray_agent/ui/src/components/tool-use/tool-badge.tsx",
+        " M ray_agent/ui/src/components/ui/dialog.tsx",
+        " M ray_agent/ui/src/components/ui/sonner.tsx",
+        "?? docs/plan/evidence/w5-2026-09-28-catalog-light-1.png",
+        "?? docs/plan/evidence/w5-2026-09-28-settings-light.png",
+        "?? ray_agent/sandbox/tests/",
+        "?? ray_agent/ui/DESIGN.md",
+        "?? ray_agent/ui/src/app/dev/",
+        "?? ray_agent/ui/src/app/settings/",
+        "?? ray_agent/ui/src/components/app-shell.tsx",
+        "?? ray_agent/ui/src/components/dev/",
+        "?? ray_agent/ui/src/components/run/",
+        "?? ray_agent/ui/src/components/settings/",
+        "?? ray_agent/ui/src/components/theme-toggle.tsx",
+        "?? ray_agent/ui/src/fixtures/",
+        "?? ray_agent/ui/src/hooks/use-mounted.ts"
+      ]
+    },
+    "base_url": "http://localhost:8088/api",
+    "host_address": "host.docker.internal",
+    "llm_config": {
+      "base_url": "https://api.deepseek.com/",
+      "model_name": "deepseek-flash",
+      "temperature": 0.7,
+      "max_tokens": 8192,
+      "context_window": 65536,
+      "has_api_key": true
+    },
+    "agent_config": {
+      "max_iterations": 100,
+      "max_retries": 3,
+      "max_search_results": 10,
+      "context_safety_ratio": 0.05,
+      "compact_watermark": 0.75,
+      "compact_keep_turns": 3,
+      "compact_user_chars": 16000,
+      "tool_result_max_chars": 8000
+    },
+    "mcp_servers_before": [],
+    "repeat": 1,
+    "tasks": [
+      "E2",
+      "E4"
+    ],
+    "started_at": "2026-09-28T22:57:34",
+    "finished_at": "2026-09-28T22:58:14"
+  },
+  "runs": [
+    {
+      "task_id": "E2",
+      "title": "文件交付（V01）",
+      "run_index": 1,
+      "outcome": "passed",
+      "session_id": "be415a0b-6987-4520-aadb-ebfc517c19a0",
+      "session_status": "completed",
+      "last_terminal_event": "done",
+      "last_run_status": "completed",
+      "last_run_reason": null,
+      "wall_seconds": 12.4,
+      "model_calls": 4,
+      "turns": 4,
+      "usage_unavailable_calls": 0,
+      "prompt_tokens": 19857,
+      "completion_tokens": 580,
+      "cached_tokens": 14720,
+      "tool_calls": 3,
+      "tool_calls_by_name": {
+        "shell_execute": 2,
+        "deliver_files": 1
+      },
+      "tool_calls_unfinished": 0,
+      "unpaired_turns": 0,
+      "compactions": 0,
+      "compaction_requests": 0,
+      "shaped_results": 0,
+      "max_context_estimate": 5451,
+      "metrics_consistent": true,
+      "metric_mismatches": [],
+      "runs": [
+        {
+          "run_id": "846fba5e-81c3-44b5-9ef4-5b50adf5ce6e",
+          "status": "completed",
+          "reason": null,
+          "source": "summary"
+        }
+      ],
+      "error_events": [],
+      "checks": [
+        {
+          "name": "交付 summary.json 并可下载",
+          "passed": true,
+          "detail": "文件 ID 94dd9344-2456-4d0e-9db3-8a7022c7ea74",
+          "required": true
+        },
+        {
+          "name": "summary.json 的 total 为整数 60",
+          "passed": true,
+          "detail": "total=60（int）；内容：{\"total\": 60}",
+          "required": true
+        },
+        {
+          "name": "源文件未被修改",
+          "passed": true,
+          "detail": "经会话文件接口读取 /home/ubuntu/upload/source.csv，与上传字节一致：'item,amount\\na,12\\nb,18\\nc,30\\n'",
+          "required": true
+        }
+      ],
+      "interactions": [
+        {
+          "t": 0.0,
+          "kind": "send",
+          "turn": 0,
+          "message": "附件 source.csv 是一份清单。请统计 amount 列的总和，把结果写成 summary.json（JSON 对象，总和放在 total 字段），并把 summary.json 作为附件提供给我下载。不要修改 source.csv。",
+          "attachments": 1
+        },
+        {
+          "t": 0.326,
+          "kind": "accepted",
+          "run_id": "846fba5e-81c3-44b5-9ef4-5b50adf5ce6e",
+          "seq": 2,
+          "route": "started"
+        },
+        {
+          "t": 12.378,
+          "kind": "sse_end",
+          "terminal": "completed",
+          "after_stop": false
+        }
+      ],
+      "observations": {},
+      "env": {
+        "host_address": "host.docker.internal"
+      },
+      "events": [
+        {
+          "event": "run",
+          "run_id": "846fba5e",
+          "status": "running",
+          "reason": null
+        },
+        {
+          "event": "message",
+          "role": "user",
+          "message": "附件 source.csv 是一份清单。请统计 amount 列的总和，把结果写成 summary.json（JSON 对象，总和放在 total 字段），并把 summary.json 作为附件提供给我下载。不要修改 source.csv",
+          "attachments": [
+            "source.csv"
+          ]
+        },
+        {
+          "event": "title"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "turn",
+          "phase": "started",
+          "index": 1,
+          "estimate": 4834
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "message",
+          "role": "assistant",
+          "message": "I'll start by inspecting the CSV file.",
+          "attachments": []
+        },
+        {
+          "event": "tool",
+          "function": "shell_execute",
+          "status": "calling",
+          "name": "shell"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "shell_execute",
+          "status": "called",
+          "name": "shell",
+          "duration_ms": 28
+        },
+        {
+          "event": "turn",
+          "phase": "completed",
+          "index": 1,
+          "attempts": 1,
+          "prompt_tokens": 4365,
+          "completion_tokens": 111,
+          "model_ms": 1048,
+          "error": null
+        },
+        {
+          "event": "turn",
+          "phase": "started",
+          "index": 2,
+          "estimate": 4577
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "message",
+          "role": "assistant",
+          "message": "Small file: 3 rows with amounts 12, 18, 30. I'll compute with Python and write the JSON.",
+          "attachments": []
+        },
+        {
+          "event": "tool",
+          "function": "shell_execute",
+          "status": "calling",
+          "name": "shell"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "shell_execute",
+          "status": "called",
+          "name": "shell",
+          "duration_ms": 29
+        },
+        {
+          "event": "turn",
+          "phase": "completed",
+          "index": 2,
+          "attempts": 1,
+          "prompt_tokens": 4666,
+          "completion_tokens": 317,
+          "model_ms": 1292,
+          "error": null
+        },
+        {
+          "event": "turn",
+          "phase": "started",
+          "index": 3,
+          "estimate": 5204
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "deliver_files",
+          "status": "calling",
+          "name": "deliver"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "deliver_files",
+          "status": "called",
+          "name": "deliver",
+          "duration_ms": 20
+        },
+        {
+          "event": "message",
+          "role": "assistant",
+          "message": "amount 列总和统计结果",
+          "attachments": [
+            "summary.json"
+          ]
+        },
+        {
+          "event": "turn",
+          "phase": "completed",
+          "index": 3,
+          "attempts": 1,
+          "prompt_tokens": 5298,
+          "completion_tokens": 69,
+          "model_ms": 676,
+          "error": null
+        },
+        {
+          "event": "turn",
+          "phase": "started",
+          "index": 4,
+          "estimate": 5451
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "message",
+          "role": "assistant",
+          "message": "统计完成，附件已提供。\n\n- source.csv 的内容：3 行数据，amount 分别为 12、18、30，总和 **60**\n- 输出文件 summary.json（未修改 source.csv，其 MD5 仍为 3102025535",
+          "attachments": []
+        },
+        {
+          "event": "turn",
+          "phase": "completed",
+          "index": 4,
+          "attempts": 1,
+          "prompt_tokens": 5528,
+          "completion_tokens": 83,
+          "model_ms": 731,
+          "error": null
+        },
+        {
+          "event": "done"
+        },
+        {
+          "event": "run",
+          "run_id": "846fba5e",
+          "status": "completed",
+          "reason": null
+        }
+      ],
+      "final_reply": "统计完成，附件已提供。\n\n- source.csv 的内容：3 行数据，amount 分别为 12、18、30，总和 **60**\n- 输出文件 summary.json（未修改 source.csv，其 MD5 仍为 31020255351bf0e1dde6622702f89e69）：\n\n```json\n{\n  \"total\": 60\n}\n```"
+    },
+    {
+      "task_id": "E4",
+      "title": "长命令与停止",
+      "run_index": 1,
+      "outcome": "passed",
+      "session_id": "22fa5562-29d4-4465-a8ab-55ba529e0563",
+      "session_status": "cancelled",
+      "last_terminal_event": null,
+      "last_run_status": "cancelled",
+      "last_run_reason": "user_stop",
+      "wall_seconds": 27.5,
+      "model_calls": 2,
+      "turns": 2,
+      "usage_unavailable_calls": 0,
+      "prompt_tokens": 9013,
+      "completion_tokens": 275,
+      "cached_tokens": 8576,
+      "tool_calls": 1,
+      "tool_calls_by_name": {
+        "shell_execute": 1
+      },
+      "tool_calls_unfinished": 1,
+      "unpaired_turns": 0,
+      "compactions": 0,
+      "compaction_requests": 0,
+      "shaped_results": 0,
+      "max_context_estimate": 4825,
+      "metrics_consistent": true,
+      "metric_mismatches": [],
+      "runs": [
+        {
+          "run_id": "46b4d165-7427-4095-9f72-8bfa739a2e8b",
+          "status": "cancelled",
+          "reason": "user_stop",
+          "source": "summary"
+        }
+      ],
+      "error_events": [],
+      "checks": [
+        {
+          "name": "已在命令运行中请求停止",
+          "passed": true,
+          "detail": "停止请求时刻：开始后 17.4s",
+          "required": true
+        },
+        {
+          "name": "停止前标记已开始写入",
+          "passed": true,
+          "detail": "停止时标记数 8",
+          "required": true
+        },
+        {
+          "name": "停止后 5 秒内标记不再增长",
+          "passed": true,
+          "detail": "增长 0 行；采样（停止后秒数:行数）0s:8, 1s:8, 2s:8, 3s:8, 4s:8, 5s:8, 6s:8, 7s:8, 8s:8, 9s:8, 10s:8",
+          "required": true
+        },
+        {
+          "name": "运行终态为 cancelled（user_stop）",
+          "passed": true,
+          "detail": "被停止的运行 46b4d165：cancelled（user_stop）；会话状态 cancelled；停止后事件流 已结束：cancelled",
+          "required": true
+        },
+        {
+          "name": "Shell 终止请求（只记录）",
+          "passed": true,
+          "detail": "shell e4 success=True 进程终止",
+          "required": false
+        }
+      ],
+      "interactions": [
+        {
+          "t": 0.0,
+          "kind": "send",
+          "turn": 0,
+          "message": "请在沙箱中用 shell 前台执行下面这条命令并等待它结束（不要加 &，不要改写命令）：\nfor i in $(seq 1 300); do echo mark-$i >> /home/ubuntu/e4_marks.txt; sleep 1; done\n结束后告诉我 /home/ubuntu/e4_marks.txt 的行数。",
+          "attachments": 0
+        },
+        {
+          "t": 0.222,
+          "kind": "accepted",
+          "run_id": "46b4d165-7427-4095-9f72-8bfa739a2e8b",
+          "seq": 2,
+          "route": "started"
+        },
+        {
+          "t": 9.428,
+          "kind": "stop_trigger",
+          "event": {
+            "event": "tool",
+            "function": "shell_execute",
+            "status": "calling",
+            "name": "shell"
+          }
+        },
+        {
+          "t": 17.43,
+          "kind": "stop_request"
+        },
+        {
+          "t": 17.456,
+          "kind": "sse_end",
+          "terminal": "cancelled",
+          "after_stop": true
+        },
+        {
+          "t": 17.468,
+          "kind": "stop_returned",
+          "run_id": "46b4d165-7427-4095-9f72-8bfa739a2e8b"
+        }
+      ],
+      "observations": {
+        "marks_after_stop": [
+          {
+            "t": 0,
+            "count": 8
+          },
+          {
+            "t": 1,
+            "count": 8
+          },
+          {
+            "t": 2,
+            "count": 8
+          },
+          {
+            "t": 3,
+            "count": 8
+          },
+          {
+            "t": 4,
+            "count": 8
+          },
+          {
+            "t": 5,
+            "count": 8
+          },
+          {
+            "t": 6,
+            "count": 8
+          },
+          {
+            "t": 7,
+            "count": 8
+          },
+          {
+            "t": 8,
+            "count": 8
+          },
+          {
+            "t": 9,
+            "count": 8
+          },
+          {
+            "t": 10,
+            "count": 8
+          }
+        ]
+      },
+      "env": {
+        "host_address": "host.docker.internal"
+      },
+      "events": [
+        {
+          "event": "run",
+          "run_id": "46b4d165",
+          "status": "running",
+          "reason": null
+        },
+        {
+          "event": "message",
+          "role": "user",
+          "message": "请在沙箱中用 shell 前台执行下面这条命令并等待它结束（不要加 &，不要改写命令）：\nfor i in $(seq 1 300); do echo mark-$i >> /home/ubuntu/e4_marks.txt; sleep ",
+          "attachments": []
+        },
+        {
+          "event": "title"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "turn",
+          "phase": "started",
+          "index": 1,
+          "estimate": 4825
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "message",
+          "role": "assistant",
+          "message": "我将按要求前台执行这条命令并等待其结束（约需 5 分钟）。",
+          "attachments": []
+        },
+        {
+          "event": "tool",
+          "function": "shell_execute",
+          "status": "calling",
+          "name": "shell"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "shell_execute",
+          "status": "called",
+          "name": "shell",
+          "duration_ms": 5029
+        },
+        {
+          "event": "turn",
+          "phase": "completed",
+          "index": 1,
+          "attempts": 1,
+          "prompt_tokens": 4370,
+          "completion_tokens": 198,
+          "model_ms": 1109,
+          "error": null
+        },
+        {
+          "event": "turn",
+          "phase": "started",
+          "index": 2,
+          "estimate": 4597
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "message",
+          "role": "assistant",
+          "message": "命令已在后台会话中前台运行，等待其完成。",
+          "attachments": []
+        },
+        {
+          "event": "tool",
+          "function": "shell_wait_process",
+          "status": "calling",
+          "name": "shell"
+        },
+        {
+          "event": "turn",
+          "phase": "completed",
+          "index": 2,
+          "attempts": 1,
+          "prompt_tokens": 4643,
+          "completion_tokens": 77,
+          "model_ms": 912,
+          "error": "user_stop"
+        },
+        {
+          "event": "run",
+          "run_id": "46b4d165",
+          "status": "cancelled",
+          "reason": "user_stop"
+        },
+        {
+          "event": "cleanup",
+          "targets": [
+            "shell:e4:True"
+          ]
+        }
+      ],
+      "final_reply": "命令已在后台会话中前台运行，等待其完成。"
+    }
+  ],
+  "baseline": {
+    "path": "docs/plan/evidence/w2-2026-09-28-c0822dc.json",
+    "label": "w2",
+    "commit": "c0822dc",
+    "runs": [
+      {
+        "task_id": "E1",
+        "title": "纯回答与跨轮记忆",
+        "run_index": 1,
+        "outcome": "passed",
+        "wall_seconds": 9.9,
+        "model_calls": 2,
+        "prompt_tokens": 8645,
+        "completion_tokens": 17,
+        "tool_calls": 0,
+        "session_id": "3d317510-9f9d-41d0-bb1d-07d407e46bcb"
+      },
+      {
+        "task_id": "E2",
+        "title": "文件交付（V01）",
+        "run_index": 1,
+        "outcome": "passed",
+        "wall_seconds": 13.5,
+        "model_calls": 4,
+        "prompt_tokens": 18658,
+        "completion_tokens": 399,
+        "tool_calls": 3,
+        "session_id": "24e01b26-a4bc-42d0-b92f-b6feffc5f039"
+      },
+      {
+        "task_id": "E3",
+        "title": "提问续接",
+        "run_index": 1,
+        "outcome": "passed",
+        "wall_seconds": 12.0,
+        "model_calls": 4,
+        "prompt_tokens": 18294,
+        "completion_tokens": 348,
+        "tool_calls": 2,
+        "session_id": "a6501241-0611-4a09-93d5-250efd2e34f5"
+      },
+      {
+        "task_id": "E4",
+        "title": "长命令与停止",
+        "run_index": 1,
+        "outcome": "passed",
+        "wall_seconds": 28.1,
+        "model_calls": 1,
+        "prompt_tokens": 4356,
+        "completion_tokens": 306,
+        "tool_calls": 0,
+        "session_id": "74694beb-d5f0-4555-a0f2-4034b564c788"
+      },
+      {
+        "task_id": "E5",
+        "title": "浏览器取事实",
+        "run_index": 1,
+        "outcome": "passed",
+        "wall_seconds": 13.2,
+        "model_calls": 4,
+        "prompt_tokens": 18476,
+        "completion_tokens": 333,
+        "tool_calls": 4,
+        "session_id": "9f37b03f-0609-499c-b8b6-7cfcbc92049f"
+      },
+      {
+        "task_id": "E6",
+        "title": "MCP 调用",
+        "run_index": 1,
+        "outcome": "passed",
+        "wall_seconds": 10.3,
+        "model_calls": 2,
+        "prompt_tokens": 9633,
+        "completion_tokens": 113,
+        "tool_calls": 1,
+        "session_id": "1531efe6-88cd-4ade-bb80-adcd8eb61862"
+      },
+      {
+        "task_id": "E7",
+        "title": "长上下文压缩（V05）",
+        "run_index": 1,
+        "outcome": "passed",
+        "wall_seconds": 29.4,
+        "model_calls": 13,
+        "prompt_tokens": 97861,
+        "completion_tokens": 4440,
+        "tool_calls": 17,
+        "session_id": "70cb4d52-4e28-4995-b6eb-f8715b709063"
+      }
+    ]
+  }
+}

@@ -27,8 +27,8 @@ SYSTEM_PROMPT = """
 </language_settings>
 
 <sandbox_environment>
-- Ubuntu 22.04，可访问互联网；命令当前以 root 身份执行
-- 工作目录约定为 /home/ubuntu；用户上传的附件位于 /home/ubuntu/upload
+- Ubuntu 22.04，可访问互联网；命令以用户 ubuntu 执行，需要更高权限时使用免密 sudo
+- 工作目录为 /home/ubuntu（HOME 也是这个目录）；用户上传的附件位于 /home/ubuntu/upload
 - Python 3.10（python3、pip3）、Node.js 24（node、npm）、bc；可以用 Shell 安装其他依赖
 - 可用工具：文件读写、Shell、浏览器、网页搜索，以及已接入的 MCP 工具与 A2A 远程 Agent
 </sandbox_environment>

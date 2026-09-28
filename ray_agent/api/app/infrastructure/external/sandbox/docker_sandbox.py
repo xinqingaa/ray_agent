@@ -26,6 +26,31 @@ from core.config import get_settings
 
 logger = logging.getLogger(__name__)
 
+# 单次沙箱 HTTP 的读超时。shell_wait 的等待秒数必须比它短一截，否则客户端先超时。
+SANDBOX_HTTP_TIMEOUT_SECONDS = 600
+SHELL_WAIT_MARGIN_SECONDS = 30
+SHELL_WAIT_MAX_SECONDS = SANDBOX_HTTP_TIMEOUT_SECONDS - SHELL_WAIT_MARGIN_SECONDS
+
+
+def bound_shell_wait_seconds(seconds: Optional[int]) -> Optional[int]:
+    """把等待秒数限制在 HTTP 超时减去余量之内。None 或非正数留给沙箱按默认 60 秒处理。"""
+    if seconds is None:
+        return None
+    try:
+        value = int(seconds)
+    except (TypeError, ValueError):
+        return seconds
+    if value > SHELL_WAIT_MAX_SECONDS:
+        logger.info(
+            "Shell 等待 %s 秒超过上限 %s 秒（HTTP 超时 %s 秒减去余量 %s 秒），已截断",
+            value,
+            SHELL_WAIT_MAX_SECONDS,
+            SANDBOX_HTTP_TIMEOUT_SECONDS,
+            SHELL_WAIT_MARGIN_SECONDS,
+        )
+        return SHELL_WAIT_MAX_SECONDS
+    return value
+
 
 class DockerSandbox(Sandbox):
     """基于Docker的沙箱服务"""
@@ -36,7 +61,7 @@ class DockerSandbox(Sandbox):
             container_name: Optional[str] = None
     ) -> None:
         """构造函数，完成Docker沙箱扩展创建"""
-        self.client = httpx.AsyncClient(timeout=600)
+        self.client = httpx.AsyncClient(timeout=SANDBOX_HTTP_TIMEOUT_SECONDS)
         self._ip = ip
         self._container_name = container_name
         self._base_url = f"http://{ip}:8080"
@@ -118,19 +143,27 @@ class DockerSandbox(Sandbox):
             # 3.创建一个docker客户端
             docker_client = docker.from_env()
 
-            # 4.预配置容器信息
+            # 4.预配置容器信息。TTL 使用沙箱 Settings 读取的 SERVER_TIMEOUT_MINUTES。
+            # 内存上限同时限制 swap，避免默认的双倍 swap 把内存帽放大。
+            memory_bytes = int(settings.sandbox_memory_mb) * 1024 * 1024
+            environment = {
+                "CHROME_ARGS": settings.sandbox_chrome_args,
+                "HTTPS_PROXY": settings.sandbox_https_proxy,
+                "HTTP_PROXY": settings.sandbox_http_proxy,
+                "NO_PROXY": settings.sandbox_no_proxy,
+            }
+            if settings.sandbox_ttl_minutes is not None:
+                environment["SERVER_TIMEOUT_MINUTES"] = str(settings.sandbox_ttl_minutes)
             container_config = {
                 "image": image,
                 "name": container_name,
                 "detach": True,
                 "remove": True,
-                "environment": {
-                    "SERVICE_TIMEOUT_MINUTES": settings.sandbox_ttl_minutes,
-                    "CHROME_ARGS": settings.sandbox_chrome_args,
-                    "HTTPS_PROXY": settings.sandbox_https_proxy,
-                    "HTTP_PROXY": settings.sandbox_http_proxy,
-                    "NO_PROXY": settings.sandbox_no_proxy,
-                }
+                "mem_limit": memory_bytes,
+                "memswap_limit": memory_bytes,
+                "nano_cpus": int(round(float(settings.sandbox_cpus) * 1_000_000_000)),
+                "pids_limit": int(settings.sandbox_pids_limit),
+                "environment": environment,
             }
 
             # 5.判断是否传递了网络
@@ -474,7 +507,8 @@ class DockerSandbox(Sandbox):
         return ToolResult.from_sandbox(**response.json())
 
     async def wait_process(self, session_id: str, seconds: Optional[int] = None) -> ToolResult:
-        """等待沙箱中进程的执行"""
+        """等待沙箱中进程的执行。等待秒数加上余量必须小于 HTTP 超时。"""
+        seconds = bound_shell_wait_seconds(seconds)
         response = await self.client.post(
             f"{self._base_url}/api/shell/wait-process",
             json={

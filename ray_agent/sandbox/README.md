@@ -18,6 +18,10 @@
 
 完整镜像由产品目录的 Compose 构建。上述沙箱端口未在产品 Compose 中映射到宿主机，访问方式取决于 API 与沙箱所在网络。
 
+Supervisor 管理的服务进程以用户 `ubuntu` 运行，FastAPI 的 `HOME` 与工作目录为 `/home/ubuntu`。容器入口 `supervisord` 仍是 root。需要 root 的操作使用镜像里为 `ubuntu` 配置的免密 sudo。虚拟显示使用 `Xvfb -ac`，这样同一容器里的 ubuntu 进程可以连接显示。上传目录 `/home/ubuntu/upload` 与工具输出目录 `/home/ubuntu/.rayagent/outputs` 在第一次写入时由该用户创建。
+
+内存、CPU、进程数上限和存活时间不写在镜像里。API 在动态创建容器时设置，环境变量见[运行指南](../README.md#服务环境)。按地址连接已有沙箱时，这些限额不会套用到那个容器上。
+
 ## 与 API 连接
 
 连接模式由 API 的环境配置决定，实现见 [DockerSandbox](../api/app/infrastructure/external/sandbox/docker_sandbox.py)。
@@ -75,7 +79,15 @@ UV_PROJECT_ENVIRONMENT=/venv uv run --locked uvicorn app.main:app --host 0.0.0.0
 - [app/core/](app/core/)：环境配置与请求中间件。
 - API 侧调用方：[沙箱适配](../api/app/infrastructure/external/sandbox/docker_sandbox.py)、[浏览器适配](../api/app/infrastructure/external/browser/playwright_browser.py)。
 
-当前没有独立测试套件。Shell 或文件修改应在临时工作目录验证请求、结果和错误路径；浏览器相关修改需连同 CDP、VNC 和 API 侧调用一起验证。只启动 Python API 不代表完整沙箱可用。
+Shell 执行返回与进程组终止有本地测试，在本目录运行，不启动 HTTP、Docker 或模型：
+
+```bash
+uv run --locked python -m unittest discover -s tests -p 'test_*.py' -v
+```
+
+用例直接调用 `ShellService`：`sleep 10` 在约 5 秒内返回 running，`sleep 1 && echo ok` 返回 completed 与输出；派生一个忽略 SIGTERM 的后台子进程后，终止或在同一会话执行新命令都会让整组进程退出。它不验证容器身份、资源限额或 API 停止传播。执行身份与限额见 API 指南中的沙箱环境观察。
+
+除此之外没有覆盖文件与浏览器的测试套件。Shell 或文件修改还应在临时工作目录验证请求、结果和错误路径；浏览器相关修改需连同 CDP、VNC 和 API 侧调用一起验证。只启动 Python API 不代表完整沙箱可用。
 
 ### 任务控制观察
 

@@ -80,7 +80,10 @@ class ShellTool(BaseTool):
         required=["session_id"],
     )
     async def shell_wait_process(self, session_id: str, seconds: Optional[int] = None) -> ToolResult:
-        """等待指定shell会话中正在运行的进程返回"""
+        """等待指定shell会话中正在运行的进程返回。
+
+        过长的 seconds 由沙箱适配按 HTTP 超时减去余量截断，避免客户端先于业务超时断开。
+        """
         return await self.sandbox.wait_process(session_id, seconds)
 
     @tool(

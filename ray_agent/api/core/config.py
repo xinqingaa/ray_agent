@@ -55,6 +55,10 @@ class Settings(BaseSettings):
     sandbox_https_proxy: Optional[str] = None
     sandbox_http_proxy: Optional[str] = None
     sandbox_no_proxy: Optional[str] = None
+    # 动态沙箱的 cgroup 上限。已有沙箱地址模式不创建容器，这些值不生效
+    sandbox_memory_mb: int = 2048
+    sandbox_cpus: float = 2
+    sandbox_pids_limit: int = 512
 
     # 使用pydantic v2的写法来完成环境变量信息的告知
     model_config = SettingsConfigDict(
@@ -62,6 +66,20 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         extra="ignore",
     )
+
+    @field_validator("sandbox_memory_mb", "sandbox_pids_limit")
+    @classmethod
+    def positive_sandbox_limit(cls, value: int) -> int:
+        if value <= 0:
+            raise ValueError("沙箱资源上限必须为正整数")
+        return value
+
+    @field_validator("sandbox_cpus")
+    @classmethod
+    def positive_sandbox_cpus(cls, value: float) -> float:
+        if value <= 0:
+            raise ValueError("沙箱 CPU 上限必须为正数")
+        return value
 
     @field_validator("file_storage_backend", mode="before")
     @classmethod
