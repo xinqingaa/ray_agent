@@ -9,14 +9,20 @@ import logging
 from typing import Optional, Dict
 
 from fastapi import APIRouter, Depends, Body
+from pydantic import ValidationError as PydanticValidationError
 
+from app.application.errors.exceptions import BadRequestError
 from app.application.services.app_config_service import AppConfigService
-from app.domain.models.app_config import LLMConfig, AgentConfig, MCPConfig
+from app.domain.models.app_config import LLMConfig, AgentConfig, MCPConfig, ToolPolicyConfig, \
+    default_tool_policy_rules
+from app.domain.services.tool_policy import builtin_tool_catalog
 from app.interfaces.schemas.app_config import (
     LLMConfigPublic,
     LLMConfigUpdate,
     ListMCPServerResponse,
     ListA2AServerResponse,
+    ToolPolicyResponse,
+    ToolPolicyUpdate,
 )
 from app.interfaces.schemas.base import Response
 from app.interfaces.service_dependencies import get_app_config_service
@@ -89,6 +95,47 @@ async def update_llm_config(
         msg="更新Agent信息配置成功",
         data=updated_agent_config.model_dump()
     )
+
+
+def _tool_policy_response(tool_policy: ToolPolicyConfig) -> ToolPolicyResponse:
+    return ToolPolicyResponse(
+        rules=tool_policy.rules,
+        default_rules=default_tool_policy_rules(),
+        builtin_toolsets=builtin_tool_catalog(),
+    )
+
+
+@router.get(
+    path="/tool-policy",
+    response_model=Response[ToolPolicyResponse],
+    summary="获取工具策略表",
+    description="规则键：内置工具写函数名或 <工具集>:*；MCP 写 mcp:<服务名>:<工具名>、mcp:<服务名>:*、mcp:*；"
+                "A2A 写 a2a:<远程Agent id>:call_remote_agent、a2a:<id>:*、a2a:*。值为 allow / ask / deny，"
+                "未匹配任何规则的调用为 allow",
+)
+async def get_tool_policy(
+        app_config_service: AppConfigService = Depends(get_app_config_service),
+) -> Response[ToolPolicyResponse]:
+    tool_policy = await app_config_service.get_tool_policy()
+    return Response.success(data=_tool_policy_response(tool_policy))
+
+
+@router.post(
+    path="/tool-policy",
+    response_model=Response[ToolPolicyResponse],
+    summary="更新工具策略表",
+    description="整体替换规则表；键格式不正确或指向计划、提问工具时返回 400。从下一次创建的执行任务起生效",
+)
+async def update_tool_policy(
+        update: ToolPolicyUpdate,
+        app_config_service: AppConfigService = Depends(get_app_config_service),
+) -> Response[ToolPolicyResponse]:
+    try:
+        tool_policy = ToolPolicyConfig(rules=update.rules)
+    except PydanticValidationError as e:
+        raise BadRequestError("; ".join(str(err.get("msg", "")) for err in e.errors()) or "工具策略格式不正确")
+    updated = await app_config_service.update_tool_policy(tool_policy)
+    return Response.success(msg="更新工具策略成功", data=_tool_policy_response(updated))
 
 
 @router.get(

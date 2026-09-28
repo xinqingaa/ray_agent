@@ -40,6 +40,13 @@ class NotFoundError(AppException):
         super().__init__(status_code=404, code=404, msg=msg)
 
 
+class ConflictError(AppException):
+    """请求与资源当前状态冲突，例如重复回复审批"""
+
+    def __init__(self, msg: str = "请求与当前状态冲突，请刷新后重试"):
+        super().__init__(status_code=409, code=409, msg=msg)
+
+
 class ValidationError(AppException):
     """数据校验错误"""
 

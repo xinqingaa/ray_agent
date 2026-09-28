@@ -112,4 +112,5 @@ def get_agent_service() -> AgentService:
         file_storage=file_storage,
         ledger=get_run_ledger(),
         notifier=RedisEventNotifier(),
+        tool_policy=app_config.tool_policy,
     )

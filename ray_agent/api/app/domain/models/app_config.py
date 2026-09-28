@@ -91,12 +91,61 @@ class A2AConfig(BaseModel):
     discovery_budget: float = Field(default=20, gt=0, le=300)
 
 
+class ToolPolicy(str, Enum):
+    """工具调用前的策略：直接执行、请求用户批准、禁止执行。"""
+    ALLOW = "allow"
+    ASK = "ask"
+    DENY = "deny"
+
+
+# 计划与提问是循环自身的控制工具，不受策略约束
+POLICY_EXEMPT_TOOLSETS = frozenset({"message", "plan"})
+POLICY_EXEMPT_FUNCTIONS = frozenset({"message_ask_user", "update_plan"})
+
+
+def default_tool_policy_rules() -> Dict[str, ToolPolicy]:
+    """默认策略：外部 MCP 服务与远程 Agent 需要批准；沙箱内的文件、Shell、浏览器、检索未列出，即 allow。"""
+    return {"mcp:*": ToolPolicy.ASK, "a2a:*": ToolPolicy.ASK}
+
+
+class ToolPolicyConfig(BaseModel):
+    """工具策略表。规则键（从具体到宽泛，先匹配者生效）：
+
+    - 内置工具：函数名（如 ``shell_execute``），或工具集通配 ``<工具集>:*``（如 ``shell:*``）；
+    - MCP：``mcp:<服务名>:<工具名>``、``mcp:<服务名>:*``、``mcp:*``，工具名是服务端的原始名称；
+    - A2A：``a2a:<远程 Agent id>:call_remote_agent``、``a2a:<id>:*``、``a2a:*``。
+      ``get_remote_agent_cards`` 只读本地已发现的卡片，按内置工具处理，不受 ``a2a:*`` 约束。
+
+    没有匹配任何规则的调用为 allow。
+    """
+    model_config = ConfigDict(extra="forbid")
+    rules: Dict[str, ToolPolicy] = Field(default_factory=default_tool_policy_rules)
+
+    @model_validator(mode="after")
+    def validate_rules(self):
+        for key in self.rules:
+            name = key.strip()
+            if not name or name != key or any(c.isspace() for c in key):
+                raise ValueError(f"工具策略规则键不能为空或包含空白：{key!r}")
+            toolset, _, rest = key.partition(":")
+            if not toolset or (rest and rest != "*" and toolset not in ("mcp", "a2a")):
+                raise ValueError(f"工具策略规则键格式不正确：{key!r}")
+            if toolset in ("mcp", "a2a") and rest and rest != "*":
+                service, _, tool_name = rest.partition(":")
+                if not service or not tool_name:
+                    raise ValueError(f"工具策略规则键格式不正确：{key!r}，应为 {toolset}:<服务>:<工具或*>")
+            if toolset in POLICY_EXEMPT_TOOLSETS or key in POLICY_EXEMPT_FUNCTIONS:
+                raise ValueError(f"计划与提问工具不受工具策略约束：{key!r}")
+        return self
+
+
 class AppConfig(BaseModel):
-    """应用配置信息，包含Agent配置、LLM提供商配置、MCP配置、A2A配置"""
+    """应用配置信息，包含Agent配置、LLM提供商配置、MCP配置、A2A配置与工具策略"""
     llm_config: LLMConfig  # 语言模型配置
     agent_config: AgentConfig  # Agent通用配置
     mcp_config: MCPConfig  # MCP服务配置
     a2a_config: A2AConfig  # A2A服务配置
+    tool_policy: ToolPolicyConfig = Field(default_factory=ToolPolicyConfig)  # 工具策略表
 
     # Pydantic配置，允许传递额外的字段初始化
     model_config = ConfigDict(extra="allow")

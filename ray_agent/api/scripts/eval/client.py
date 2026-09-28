@@ -63,6 +63,13 @@ class RayAgentClient:
     async def delete_mcp_server(self, name: str) -> None:
         await self._post(f"/app-config/mcp-servers/{name}/delete")
 
+    async def get_tool_policy(self) -> Dict[str, Any]:
+        return await self._get("/app-config/tool-policy")
+
+    async def update_tool_policy(self, rules: Dict[str, str]) -> Dict[str, Any]:
+        """POST /app-config/tool-policy，整体替换规则表。"""
+        return await self._post("/app-config/tool-policy", {"rules": rules})
+
     async def create_session(self) -> str:
         return (await self._post("/sessions"))["session_id"]
 
@@ -105,6 +112,10 @@ class RayAgentClient:
             "timestamp": int(time.time()),
         }
         return await self._post(f"/sessions/{session_id}/chat", payload)
+
+    async def reply_approval(self, session_id: str, tool_call_id: str, decision: str) -> Dict[str, Any]:
+        """答复审批（approve / deny），返回 {run_id, seq, status}；续接过程通过 events() 观察。"""
+        return await self._post(f"/sessions/{session_id}/approvals/{tool_call_id}", {"decision": decision})
 
     async def events(self, session_id: str, after_seq: int = 0) -> AsyncIterator[Tuple[str, Dict[str, Any]]]:
         """订阅 seq > after_seq 的会话事件，逐条产出 (event, data)；服务端不主动结束，由调用方停止迭代。"""

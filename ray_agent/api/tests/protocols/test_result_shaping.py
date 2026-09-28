@@ -39,7 +39,8 @@ async def test_mcp_long_text_is_previewed_and_tail_is_readable(servers):
 
         name = tool_name('test', 'long_text')
         h = make_loop([tool_call(name, {"length": 20000}, id="c-mcp"), Dynamic(_read_tail), text("尾部是标记")],
-                      sandbox=sandbox, extra_tools=[mcp_tool], write_output=write_output)
+                      sandbox=sandbox, extra_tools=[mcp_tool], write_output=write_output,
+                      tool_policy={"mcp:*": "allow"})
         events = [e async for e in h.loop.invoke(Message(message="调用 long_text 并读尾部"))]
 
         preview_content = h.llm.requests[1].last_tool_content

@@ -12,7 +12,7 @@ from typing import Optional, Dict, Any, Self, Type, Literal, List, Union, get_ar
 from pydantic import BaseModel, Field, ConfigDict
 
 from app.domain.models.event import Event, PlanEvent, ToolEventStatus, ToolEvent, StepEvent, ContextEvent, \
-    TurnUsage, ToolResultShaping, CompactUsage
+    TurnUsage, ToolResultShaping, CompactUsage, ApprovalEvent
 from app.domain.models.file import File
 from app.domain.models.plan import ExecutionStatus
 
@@ -177,6 +177,7 @@ class ToolEventData(BaseEventData):
     content: Optional[Any] = None  # 工具调用结果
     duration_ms: Optional[int] = None  # 工具耗时，只在 called 事件上有值
     shaping: Optional[ToolResultShaping] = None  # 结果被整形时：原始字符数、是否截断、完整内容路径
+    denied_by: Optional[Literal["policy", "user"]] = None  # 未执行：被工具策略禁止 / 被用户拒绝，只在 called 上
 
 
 class ToolSSEEvent(BaseSSEEvent):
@@ -197,6 +198,43 @@ class ToolSSEEvent(BaseSSEEvent):
                 content=event.tool_content,
                 duration_ms=event.duration_ms,
                 shaping=event.shaping,
+                denied_by=event.denied_by,
+            )
+        )
+
+
+class ApprovalEventData(BaseEventData):
+    """工具级审批。字段名与工具事件一致（name 为工具集、function 为函数名、args 为参数）；decided_at 为毫秒时间戳。"""
+    tool_call_id: str
+    name: str
+    function: str
+    args: Dict[str, Any] = Field(default_factory=dict)
+    status: Literal["pending", "approved", "rejected", "expired"]
+    rule: Optional[str] = None  # 命中的策略规则键
+    service: Optional[str] = None  # MCP 服务名或 A2A 远程 Agent id
+    service_tool: Optional[str] = None  # MCP 服务端原始工具名；A2A 为 call_remote_agent
+    decided_at: Optional[int] = None
+
+
+class ApprovalSSEEvent(BaseSSEEvent):
+    """工具级审批流式事件"""
+    event: Literal["approval"] = "approval"
+    data: ApprovalEventData
+
+    @classmethod
+    def from_event(cls, event: ApprovalEvent) -> Self:
+        return cls(
+            data=ApprovalEventData(
+                **BaseEventData.base_event_data(event),
+                tool_call_id=event.tool_call_id,
+                name=event.tool_name,
+                function=event.function_name,
+                args=event.function_args,
+                status=event.status.value,
+                rule=event.rule,
+                service=event.service,
+                service_tool=event.service_tool,
+                decided_at=to_epoch_ms(event.decided_at) if event.decided_at else None,
             )
         )
 
@@ -331,6 +369,7 @@ AgentSSEEvent = Union[
     RunSSEEvent,
     ContextSSEEvent,
     CompactSSEEvent,
+    ApprovalSSEEvent,
 ]
 
 

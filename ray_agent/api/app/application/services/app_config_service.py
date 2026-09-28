@@ -10,7 +10,8 @@ import uuid
 from typing import List
 
 from app.application.errors.exceptions import NotFoundError
-from app.domain.models.app_config import AppConfig, LLMConfig, AgentConfig, MCPConfig, A2AConfig, A2AServerConfig
+from app.domain.models.app_config import AppConfig, LLMConfig, AgentConfig, MCPConfig, A2AConfig, A2AServerConfig, \
+    ToolPolicyConfig
 from app.domain.repositories.app_config_repository import AppConfigRepository
 from app.infrastructure.protocols.a2a import A2AClientManager
 from app.infrastructure.protocols.mcp import MCPClientManager
@@ -61,6 +62,18 @@ class AppConfigService:
         self.app_config_repository.save(app_config)
 
         return app_config.agent_config
+
+    async def get_tool_policy(self) -> ToolPolicyConfig:
+        """获取工具策略表"""
+        app_config = await self._load_app_config()
+        return app_config.tool_policy
+
+    async def update_tool_policy(self, tool_policy: ToolPolicyConfig) -> ToolPolicyConfig:
+        """整体替换工具策略表；从下一次创建的执行任务起生效（新运行或审批、提问续接），进行中的运行不受影响。"""
+        app_config = await self._load_app_config()
+        app_config.tool_policy = tool_policy
+        self.app_config_repository.save(app_config)
+        return app_config.tool_policy
 
     async def get_mcp_servers(self) -> List[ListMCPServerItem]:
         """获取MCP服务器列表"""

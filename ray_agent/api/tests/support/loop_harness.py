@@ -5,7 +5,7 @@ from types import SimpleNamespace
 from typing import Any, Awaitable, Callable, Dict, List, Optional, Sequence
 from unittest.mock import AsyncMock
 
-from app.domain.models.app_config import AgentConfig
+from app.domain.models.app_config import AgentConfig, ToolPolicyConfig
 from pydantic import TypeAdapter
 
 from app.domain.external.event_notifier import OutputDelta
@@ -293,10 +293,12 @@ def make_loop(script: List[ScriptItem], *, session: Optional[Session] = None, de
               max_iterations: int = 10, max_retries: int = 2, sandbox=None,
               extra_tools: Sequence[BaseTool] = (), uow_factory=None, write_output=None,
               context_window: int = 32000, max_tokens: int = 4096,
-              agent_config: Optional[Dict[str, Any]] = None) -> SimpleNamespace:
+              agent_config: Optional[Dict[str, Any]] = None,
+              tool_policy: Optional[Dict[str, str]] = None) -> SimpleNamespace:
     """uow_factory 为空时使用内存仓库；传入真实数据库的 UoW 工厂时 store/events/runs 为空。
 
-    write_output 为结果整形的落盘函数（为空时超长结果只截断）；agent_config 覆盖 AgentConfig 的其他字段。
+    write_output 为结果整形的落盘函数（为空时超长结果只截断）；agent_config 覆盖 AgentConfig 的其他字段；
+    tool_policy 为工具策略规则表（为空时用默认策略）。
     """
     session = session if session is not None else Session(id="w1-loop")
     sandbox = sandbox if sandbox is not None else make_sandbox()
@@ -312,6 +314,7 @@ def make_loop(script: List[ScriptItem], *, session: Optional[Session] = None, de
         deliver_file=deliver_file,
         write_output=write_output,
         retry_interval=0,
+        tool_policy=ToolPolicyConfig(rules=tool_policy) if tool_policy is not None else None,
     )
     store = getattr(uow_factory, "store", None)
     notifier = MemoryNotifier()

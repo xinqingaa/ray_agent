@@ -180,6 +180,10 @@ class MCPClientManager:
                 "description": f"[{server}] {item.description or item.name}", "parameters": item.input_schema}}
                 for server, items in self.tools.items() for item in items]
 
+    def route(self, name: str) -> tuple[str, str] | None:
+        """工具别名对应的 (服务名, 原始工具名)，供工具策略按服务匹配。"""
+        return self.routes.get(name)
+
     async def invoke(self, name: str, arguments: dict) -> ToolResult:
         route = self.routes.get(name)
         if route is None:

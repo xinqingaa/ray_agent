@@ -33,6 +33,8 @@ from app.interfaces.schemas.session import (
     GetSessionResponse, GetSessionFilesResponse, FileReadResponse, FileReadRequest, ShellReadResponse, ShellReadRequest,
     RunItem,
     TurnRequestResponse,
+    ApprovalRequest,
+    ApprovalResponse,
 )
 from app.interfaces.service_dependencies import get_session_service, get_agent_service
 
@@ -180,6 +182,26 @@ async def chat(
     return Response.success(
         msg="消息已受理",
         data=ChatResponse(run_id=accepted.run_id, seq=accepted.seq, route=accepted.route),
+    )
+
+
+@router.post(
+    path="/{session_id}/approvals/{tool_call_id}",
+    response_model=Response[ApprovalResponse],
+    summary="回复工具调用的审批",
+    description="decision 为 approve（执行该调用一次）或 deny（回填“用户拒绝执行”）；运行随后续接，过程通过事件流观察。"
+                "审批请求不存在返回 404；已回复、已失效或运行已结束返回 409，不重复执行",
+)
+async def reply_approval(
+        session_id: str,
+        tool_call_id: str,
+        request: ApprovalRequest,
+        agent_service: AgentService = Depends(get_agent_service),
+) -> Response[ApprovalResponse]:
+    accepted = await agent_service.reply_approval(session_id, tool_call_id, approve=request.decision == "approve")
+    return Response.success(
+        msg="审批已受理",
+        data=ApprovalResponse(run_id=accepted.run_id, seq=accepted.seq, status=accepted.status),
     )
 
 

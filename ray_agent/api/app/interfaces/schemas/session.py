@@ -6,7 +6,7 @@
 @File    : session.py
 """
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -48,6 +48,18 @@ class ChatResponse(BaseModel):
     run_id: str
     seq: int
     route: str  # started / resumed / injected
+
+
+class ApprovalRequest(BaseModel):
+    """审批回复：approve 执行该调用一次，deny 回填“用户拒绝执行”。"""
+    decision: Literal["approve", "deny"]
+
+
+class ApprovalResponse(BaseModel):
+    """审批受理结果：approval 事件的 seq 与续接的运行；执行过程通过事件流观察。"""
+    run_id: str
+    seq: int
+    status: Literal["approved", "rejected"]
 
 
 class RunItem(BaseModel):

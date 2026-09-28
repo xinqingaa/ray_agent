@@ -1,5 +1,5 @@
 """工具层依赖的协议端口，不暴露 SDK 对象。"""
-from typing import Protocol
+from typing import Optional, Protocol
 from app.domain.models.tool_result import ToolResult
 
 
@@ -8,6 +8,7 @@ class MCPGateway(Protocol):
     async def cleanup(self) -> None: ...
     async def get_all_tools(self) -> list[dict]: ...
     async def invoke(self, name: str, arguments: dict) -> ToolResult: ...
+    def route(self, name: str) -> Optional[tuple[str, str]]: ...
 
 
 class A2AGateway(Protocol):

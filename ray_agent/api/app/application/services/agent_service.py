@@ -11,18 +11,19 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import AsyncGenerator, Optional, List, Type, Callable, Union
 
-from app.application.errors.exceptions import BadRequestError, NotFoundError
+from app.application.errors.exceptions import BadRequestError, ConflictError, NotFoundError
 from app.domain.external.event_notifier import EventNotifier, OutputDelta
 from app.domain.external.file_storage import FileStorage
 from app.domain.external.llm import LLM
 from app.domain.external.sandbox import Sandbox
 from app.domain.external.search import SearchEngine
 from app.domain.external.task import Task
-from app.domain.models.app_config import AgentConfig, MCPConfig, A2AConfig
-from app.domain.models.event import ErrorEvent, Event, MessageEvent
+from app.domain.models.app_config import AgentConfig, MCPConfig, A2AConfig, ToolPolicyConfig
+from app.domain.models.event import ApprovalStatus, ErrorEvent, Event, MessageEvent
 from app.domain.models.run import Run, RunReason, RunStatus
 from app.domain.models.session import Session, SessionStatus
 from app.domain.repositories.uow import IUnitOfWork
+from app.domain.services.approvals import close_waiting_approval, latest_approvals, waiting_for_approval
 from app.domain.services.request_rebuild import RebuiltRequest, rebuild_request
 from app.domain.services.run_ledger import RunLedger
 from app.domain.services.session_locks import session_lock
@@ -48,6 +49,14 @@ class ChatAccepted:
     route: str
 
 
+@dataclass
+class ApprovalAccepted:
+    """审批回复的受理结果：approval 事件（approved / rejected）的 seq 与续接的运行。"""
+    run_id: str
+    seq: int
+    status: str
+
+
 class AgentService:
     """Manus智能体服务"""
 
@@ -64,6 +73,7 @@ class AgentService:
             file_storage: FileStorage,
             ledger: Optional[RunLedger] = None,
             notifier: Optional[EventNotifier] = None,
+            tool_policy: Optional[ToolPolicyConfig] = None,
     ) -> None:
         """构造函数，完成Agent服务初始化"""
         self._uow_factory = uow_factory
@@ -72,6 +82,7 @@ class AgentService:
         self._agent_config = agent_config
         self._mcp_config = mcp_config
         self._a2a_config = a2a_config
+        self._tool_policy = tool_policy
         self._sandbox_cls = sandbox_cls
         self._task_cls = task_cls
         self._search_engine = search_engine
@@ -127,6 +138,7 @@ class AgentService:
             ledger=self._ledger,
             run_id=run_id,
             prior_status=prior_status,
+            tool_policy=self._tool_policy,
         )
 
         # 6.创建任务Task并更新会话中的信息
@@ -156,6 +168,7 @@ class AgentService:
 
         路由在会话锁内决定：running 且有执行协程 → 注入当前运行；waiting → 同一运行续接；
         其他情况新建运行（数据库里 running 却没有执行协程的旧运行先记为 interrupted/runner_lost）。
+        等待审批（waiting 且原因 approval）时不受理消息，返回冲突：先批准、拒绝或停止。
         """
         set_log_session_id(session_id)
         if not message or not message.strip():
@@ -180,6 +193,8 @@ class AgentService:
             if not session:
                 logger.error(f"尝试与不存在的任务会话[{session_id}]对话")
                 raise NotFoundError("任务会话不存在, 请核实后重试")
+            if waiting_for_approval(active):
+                raise ConflictError("当前运行在等待审批，请先批准或拒绝待审批的操作，或停止运行后再发送消息")
             task = await self._get_task(session)
 
             # 1.运行中且执行协程仍在：消息注入当前运行，循环在下一次模型请求前取走
@@ -220,6 +235,45 @@ class AgentService:
                 raise
         logger.info(f"会话[{session_id}]运行[{run.id}]受理消息({route}): {message[:50]}...")
         return ChatAccepted(run_id=run.id, seq=message_event.seq, route=route)
+
+    async def reply_approval(self, session_id: str, tool_call_id: str, approve: bool) -> ApprovalAccepted:
+        """回复审批：同一事务把运行从 waiting（approval）改回 running 并写入 approval(approved / rejected)，
+        再由新任务续接：批准时执行该调用一次，拒绝时回填“用户拒绝执行”。
+
+        会话或审批请求不存在 → NotFoundError；该审批已回复、已失效，或运行不在等待这次审批 → ConflictError，不重复执行。
+        """
+        set_log_session_id(session_id)
+        async with session_lock(session_id):
+            async with self._uow:
+                session = await self._uow.session.get_by_id(session_id)
+                if not session:
+                    raise NotFoundError("任务会话不存在, 请核实后重试")
+                approvals = await self._uow.event.list(session_id, types=["approval"])
+                active = await self._uow.run.get_active(session_id)
+            request = latest_approvals(approvals).get(tool_call_id)
+            if request is None:
+                raise NotFoundError("审批请求不存在, 请核实后重试")
+            if (request.status != ApprovalStatus.PENDING or not waiting_for_approval(active)
+                    or active.id != request.run_id):
+                raise ConflictError(f"该审批已处理或已失效（当前状态：{request.status.value}），不会重复执行")
+
+            decided = request.decided(ApprovalStatus.APPROVED if approve else ApprovalStatus.REJECTED)
+            run = await self._ledger.transition(session_id, active.id, RunStatus.RUNNING, events_after=[decided])
+            if run is None:
+                raise ConflictError("运行已结束，审批已失效")
+            try:
+                task = await self._create_task(session, run.id, SessionStatus.WAITING)
+                await task.input_stream.put(decided.model_dump_json())
+                await task.invoke()
+            except Exception as e:
+                logger.exception(f"会话[{session_id}]审批续接创建执行任务失败: {e}")
+                await self._ledger.transition(
+                    session_id, run.id, RunStatus.FAILED, RunReason.RUNNER_ERROR,
+                    events_before=[ErrorEvent(error=format_public_error(e))],
+                )
+                raise
+        logger.info(f"会话[{session_id}]运行[{run.id}]审批 {tool_call_id} → {decided.status.value}")
+        return ApprovalAccepted(run_id=run.id, seq=decided.seq, status=decided.status.value)
 
     async def stream_events(self, session_id: str, after_seq: int = 0) -> AsyncGenerator[Union[Event, OutputDelta], None]:
         """按 seq 推送 after_seq 之后的事件：先补查数据库，再订阅通知，订阅建立后再补查一次覆盖空档；
@@ -293,6 +347,10 @@ class AgentService:
             if active is None:
                 logger.info(f"会话[{session_id}]没有进行中的运行，无需停止")
                 return None
+            if waiting_for_approval(active):
+                # 没有执行协程：审批失效，待审批与同批后续调用补为未执行，与终态同一事务
+                return await close_waiting_approval(self._uow_factory, self._ledger, session_id, active.id,
+                                                    RunStatus.CANCELLED, RunReason.USER_STOP)
             task = await self._get_task(session)
             runner = getattr(task, "task_runner", None) if task is not None else None
             if getattr(runner, "run_id", None) != active.id:

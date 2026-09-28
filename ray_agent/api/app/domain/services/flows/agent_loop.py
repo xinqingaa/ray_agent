@@ -2,8 +2,9 @@
 # -*- coding: utf-8 -*-
 """单循环 Agent：一份记忆里交替进行模型请求与工具批次，没有工具调用的回复就是最终答复。
 
-一次调用（``invoke``）的事件序列由以下类型组成：Title、Message、Tool、Plan、Wait、Error、Done、Turn、Attempt、Context、Compact。
-调用只以三种终止事件之一结束：DoneEvent（完成）、WaitEvent（等待用户回复）、ErrorEvent（失败）。
+一次调用（``invoke`` 或审批续接 ``resume_approval``）的事件序列由以下类型组成：
+Title、Message、Tool、Plan、Wait、Error、Done、Turn、Attempt、Context、Compact、Approval。
+调用只以三种终止事件之一结束：DoneEvent（完成）、WaitEvent（等待用户回复或审批，见 end_reason）、ErrorEvent（失败）。
 每轮模型请求前后各有一条 TurnEvent；记忆的每次变化都先以 ContextEvent 发出，供请求重建按序回放。
 每轮请求前估算输入量：超过压缩水位先压缩（CompactEvent + ContextEvent(replace)），仍超过可用上限以 context_limit 失败。
 """
@@ -21,8 +22,10 @@ from app.domain.external.browser import Browser
 from app.domain.external.llm import LLM, LLMRequestError
 from app.domain.external.sandbox import Sandbox
 from app.domain.external.search import SearchEngine
-from app.domain.models.app_config import AgentConfig
+from app.domain.models.app_config import AgentConfig, ToolPolicyConfig
 from app.domain.models.event import (
+    ApprovalEvent,
+    ApprovalStatus,
     BaseEvent,
     CompactEvent,
     CompactUsage,
@@ -71,6 +74,7 @@ from app.domain.services.context.shaping import ResultShaper, WriteOutputFn
 from app.domain.services.prompts.compact import COMPACT_PROMPT
 from app.domain.services.prompts.system import SYSTEM_PROMPT
 from app.domain.services.task_error import format_public_error_text
+from app.domain.services.tool_policy import ToolPolicyGuard
 from app.domain.services.tools.a2a import A2ATool
 from app.domain.services.tools.base import BaseTool
 from app.domain.services.tools.browser import BrowserTool
@@ -92,6 +96,7 @@ TITLE_MAX_CHARS = 30
 NOT_EXECUTED_WAITING = "未执行：等待用户回复后重新决策"
 NOT_EXECUTED_STOPPED = "未执行：任务已停止"
 NOT_EXECUTED_FAILED = "未执行：任务失败"
+NOT_EXECUTED_APPROVAL = "未执行：同一批次中前面的调用在等待用户审批，本调用未执行，请根据审批结果重新决策"
 INTERRUPTED_STOPPED = "执行中断：任务在该调用执行期间被停止，调用可能已部分生效，结果未知"
 INTERRUPTED_FAILED = "执行中断：任务在该调用执行期间失败，调用可能已部分生效，结果未知"
 
@@ -108,6 +113,7 @@ class RunEndReason(str, Enum):
     """一次运行的结束原因。"""
     COMPLETED = "completed"  # 模型给出没有工具调用的最终答复
     WAITING = "waiting"  # 模型提问，等待用户回复
+    APPROVAL = "approval"  # 调用的策略为 ask，等待用户批准或拒绝
     MAX_ITERATIONS = "max_iterations"  # 模型请求次数达到 AgentConfig.max_iterations
     OUTPUT_TRUNCATED = "output_truncated"  # 连续两次 finish_reason == "length"
     MODEL_ERROR = "model_error"  # 不可重试的模型错误，或重试次数耗尽
@@ -150,6 +156,41 @@ def tool_message(call_id: str, function_name: str, result: ToolResult) -> Dict[s
         "function_name": function_name,
         "content": result.model_dump_json(),
     }
+
+
+def repair_results(
+        dangling: List[Dict[str, Any]],
+        status: SessionStatus,
+        message: Optional[Message] = None,
+        started_call_ids: Optional[Set[str]] = None,
+) -> tuple[List[Dict[str, Any]], bool]:
+    """悬空调用的补结果（规则见 AgentLoop.repair_dangling_calls）；返回 tool 消息与用户回复是否已作为提问结果。"""
+    started_call_ids = started_call_ids or set()
+    if status == SessionStatus.WAITING:
+        reason = NOT_EXECUTED_WAITING
+    elif status == SessionStatus.FAILED:
+        reason = NOT_EXECUTED_FAILED
+    else:
+        reason = NOT_EXECUTED_STOPPED
+
+    reply_consumed = False
+    repaired = []
+    for call in dangling:
+        function_name = (call.get("function") or {}).get("name", "")
+        if (status == SessionStatus.WAITING and message is not None and not reply_consumed
+                and function_name == ASK_USER_TOOL):
+            result = ToolResult(success=True, message="用户已回复", data={
+                "reply": message.message,
+                "attachments": list(message.attachments),
+            })
+            reply_consumed = True
+        elif status != SessionStatus.WAITING and call.get("id") in started_call_ids:
+            interrupted = INTERRUPTED_FAILED if status == SessionStatus.FAILED else INTERRUPTED_STOPPED
+            result = ToolResult(success=False, message=interrupted)
+        else:
+            result = ToolResult(success=False, message=reason)
+        repaired.append(tool_message(call.get("id"), function_name, result))
+    return repaired, reply_consumed
 
 
 def normalize_assistant_message(raw: Dict[str, Any]) -> Dict[str, Any]:
@@ -258,8 +299,12 @@ class AgentLoop(BaseFlow):
             write_output: Optional[WriteOutputFn] = None,
             system_prompt: str = SYSTEM_PROMPT,
             retry_interval: float = 1.0,
+            tool_policy: Optional[ToolPolicyConfig] = None,
     ) -> None:
-        """write_output 把超长工具结果的完整内容写入沙箱，由运行器注入；为空时超长结果只截断。"""
+        """write_output 把超长工具结果的完整内容写入沙箱，由运行器注入；为空时超长结果只截断。
+
+        tool_policy 为空时用默认策略表（MCP 与 A2A 需要批准，其余直接执行）。
+        """
         self._uow_factory = uow_factory
         self._uow = uow_factory()
         self._llm = llm
@@ -285,12 +330,16 @@ class AgentLoop(BaseFlow):
         self._publish_delta: Optional[Callable[[int, int, str], Awaitable[None]]] = None
         self._inflight: Optional[_Inflight] = None
         self._deltas_closed = False
+        self.pending_approval: Optional[ApprovalEvent] = None  # 以 APPROVAL 结束时等待回复的审批请求
+        self._session_title: Optional[str] = None
+        self._session_status: Optional[SessionStatus] = None
 
         self.plan_tool = PlanTool()
         toolkits = [*tools, self.plan_tool]
         if deliver_file is not None:
             toolkits.append(DeliverTool(deliver_file))
         self.pipeline = ToolPipeline(toolkits)
+        self.pipeline.add_before(ToolPolicyGuard(tool_policy))
         self.pipeline.add_after(self._emit_plan_event)
         self.pipeline.add_after(self._emit_delivery_message)
         # 整形放在最后：前面的处理函数读的是工具的原始结果
@@ -334,24 +383,39 @@ class AgentLoop(BaseFlow):
 
         first_turn_index 是本次调用第一轮的序号：续接同一运行时由运行器传入，使序号在运行内连续。
         """
-        self._running = True
-        self.end_reason = None
-        self.model_requests = 0
-        self._inflight = None
-        self._deltas_closed = False
+        self._begin()
         try:
             async for event in self._run(message, drain_injected_messages, prior_status, first_turn_index):
                 yield event
         finally:
             self._running = False
 
-    async def _run(
+    async def resume_approval(
             self,
-            message: Message,
-            drain: Optional[DrainFn],
-            prior_status: Optional[SessionStatus],
-            first_turn_index: int,
+            call_id: str,
+            decision: ApprovalStatus,
+            drain_injected_messages: Optional[DrainFn] = None,
+            first_turn_index: int = 1,
     ) -> AsyncGenerator[BaseEvent, None]:
+        """审批回复后续接：批准时经管线执行该调用一次，拒绝时回填“用户拒绝执行”；
+        同一批次中它之后仍悬空的调用补为未执行，然后照常请求模型。"""
+        self._begin()
+        try:
+            async for event in self._resume(call_id, decision, drain_injected_messages, first_turn_index):
+                yield event
+        finally:
+            self._running = False
+
+    def _begin(self) -> None:
+        self._running = True
+        self.end_reason = None
+        self.model_requests = 0
+        self._inflight = None
+        self._deltas_closed = False
+        self.pending_approval = None
+
+    async def _load(self) -> List[BaseEvent]:
+        """读会话与已有工具、计划事件，准备记忆与计划工具；返回这些事件。"""
         async with self._uow:
             session = await self._uow.session.get_by_id(self._session_id)
             history = await self._uow.event.list(self._session_id, types=["tool", "plan"])
@@ -360,16 +424,62 @@ class AgentLoop(BaseFlow):
         await self._ensure_memory()
         if self.plan_tool.latest_plan is None:
             self.plan_tool.latest_plan = latest_plan(history)
+        self._session_title = session.title
+        self._session_status = session.status
+        return history
+
+    async def _resume(
+            self,
+            call_id: str,
+            decision: ApprovalStatus,
+            drain: Optional[DrainFn],
+            first_turn_index: int,
+    ) -> AsyncGenerator[BaseEvent, None]:
+        await self._load()
+        dangling = find_dangling_calls(self._memory.get_messages())
+        position = next((i for i, call in enumerate(dangling) if call.get("id") == call_id), None)
+        if position is None:
+            raise ValueError(f"待审批的调用[{call_id}]不在模型历史的悬空调用中，无法续接")
+        call = dangling[position]
+        logger.info(f"会话[{self._session_id}] 审批续接 call={call_id} decision={decision.value}")
+        invocation = ToolInvocation(
+            call_id=call_id,
+            function_name=(call.get("function") or {}).get("name", ""),
+            raw_arguments=(call.get("function") or {}).get("arguments", ""),
+            approval=decision.value,
+        )
+        async for event in self._execute(invocation):
+            yield event
+        if invocation.suspended:
+            raise RuntimeError(f"已审批的调用[{call_id}]再次被挂起")
+        rest = [tool_message(c.get("id"), (c.get("function") or {}).get("name", ""),
+                             ToolResult(success=False, message=NOT_EXECUTED_APPROVAL))
+                for c in dangling[position + 1:]]
+        if rest:
+            await self._add_messages(rest)
+            for event in self._take_context():
+                yield event
+        async for event in self._loop(drain, first_turn_index):
+            yield event
+
+    async def _run(
+            self,
+            message: Message,
+            drain: Optional[DrainFn],
+            prior_status: Optional[SessionStatus],
+            first_turn_index: int,
+    ) -> AsyncGenerator[BaseEvent, None]:
+        history = await self._load()
 
         started = {
             e.tool_call_id for e in history
             if isinstance(e, ToolEvent) and e.status == ToolEventStatus.CALLING
         }
-        status = prior_status if prior_status is not None else session.status
+        status = prior_status if prior_status is not None else self._session_status
         reply_consumed = await self.repair_dangling_calls(status, message, started)
         for event in self._take_context():
             yield event
-        if not session.title or session.title == DEFAULT_SESSION_TITLE:
+        if not self._session_title or self._session_title == DEFAULT_SESSION_TITLE:
             yield TitleEvent(title=message.message.strip()[:TITLE_MAX_CHARS])
         if not reply_consumed:
             # 新用户消息开始新的一问：删除此前的思考内容；回复提问属于同一问，不删除
@@ -378,7 +488,11 @@ class AgentLoop(BaseFlow):
         for event in self._take_context():
             yield event
         logger.info(f"会话[{self._session_id}] Agent循环接收消息: {message.message[:50]}...")
+        async for event in self._loop(drain, first_turn_index):
+            yield event
 
+    async def _loop(self, drain: Optional[DrainFn], first_turn_index: int) -> AsyncGenerator[BaseEvent, None]:
+        """模型请求与工具批次交替，直到完成、等待（提问或审批）或失败。"""
         truncations = 0
         overflow_compacted = False
         index = first_turn_index - 1
@@ -464,19 +578,32 @@ class AgentLoop(BaseFlow):
                     self.end_reason = RunEndReason.WAITING
                     yield WaitEvent()
                     return
-                async for event in self.pipeline.run(invocation):
-                    if isinstance(event, ToolEvent) and event.status == ToolEventStatus.CALLED \
-                            and event.tool_call_id == invocation.call_id:
-                        # 先写记忆再发 called：在 called 之后停止，续接时不会把已执行的调用补成未执行
-                        await self._add_messages([
-                            tool_message(invocation.call_id, invocation.function_name, invocation.result),
-                        ])
-                        for context in self._take_context():
-                            yield context
-                        turn.executed.append(invocation.call_id)
-                        turn.tools_ms += invocation.duration_ms or 0
+                async for event in self._execute(invocation, turn):
                     yield event
+                if invocation.suspended:
+                    # 该调用与之后的调用留待审批回复时由 resume_approval 执行或补结果
+                    self.pending_approval = invocation.suspend_event
+                    yield self._turn_completed(turn)
+                    self.end_reason = RunEndReason.APPROVAL
+                    yield WaitEvent()
+                    return
             yield self._turn_completed(turn)
+
+    async def _execute(self, invocation: ToolInvocation,
+                       turn: Optional[_ModelTurn] = None) -> AsyncGenerator[BaseEvent, None]:
+        """经管线执行一次调用；结果先写记忆再发 called，在 called 之后停止时续接不会把已执行的调用补成未执行。"""
+        async for event in self.pipeline.run(invocation):
+            if isinstance(event, ToolEvent) and event.status == ToolEventStatus.CALLED \
+                    and event.tool_call_id == invocation.call_id:
+                await self._add_messages([
+                    tool_message(invocation.call_id, invocation.function_name, invocation.result),
+                ])
+                for context in self._take_context():
+                    yield context
+                if turn is not None:
+                    turn.executed.append(invocation.call_id)
+                    turn.tools_ms += invocation.duration_ms or 0
+            yield event
 
     async def _on_model_delta(self, text: str) -> None:
         """流式文本增量：计入本次尝试的字符数，并经运行器推到通知通道。推理内容不会进到这里。"""
@@ -650,36 +777,11 @@ class AgentLoop(BaseFlow):
         started_call_ids 中的调用已发出 calling 事件、可能已在沙箱产生副作用，补为“执行中断，结果未知”。
         返回用户回复是否已作为提问结果写入（是则调用方不再重复追加用户消息）。
         """
-        started_call_ids = started_call_ids or set()
         await self._ensure_memory()
         dangling = find_dangling_calls(self._memory.get_messages())
         if not dangling:
             return False
-
-        if status == SessionStatus.WAITING:
-            reason = NOT_EXECUTED_WAITING
-        elif status == SessionStatus.FAILED:
-            reason = NOT_EXECUTED_FAILED
-        else:
-            reason = NOT_EXECUTED_STOPPED
-
-        reply_consumed = False
-        repaired = []
-        for call in dangling:
-            function_name = (call.get("function") or {}).get("name", "")
-            if (status == SessionStatus.WAITING and message is not None and not reply_consumed
-                    and function_name == ASK_USER_TOOL):
-                result = ToolResult(success=True, message="用户已回复", data={
-                    "reply": message.message,
-                    "attachments": list(message.attachments),
-                })
-                reply_consumed = True
-            elif status != SessionStatus.WAITING and call.get("id") in started_call_ids:
-                interrupted = INTERRUPTED_FAILED if status == SessionStatus.FAILED else INTERRUPTED_STOPPED
-                result = ToolResult(success=False, message=interrupted)
-            else:
-                result = ToolResult(success=False, message=reason)
-            repaired.append(tool_message(call.get("id"), function_name, result))
+        repaired, reply_consumed = repair_results(dangling, status, message, started_call_ids)
         logger.info(f"会话[{self._session_id}] 为 {len(repaired)} 个悬空调用补结果（{status.value}）")
         await self._add_messages(repaired)
         return reply_consumed

@@ -10,7 +10,7 @@ import io
 import json
 import logging
 import uuid
-from typing import List, Callable, BinaryIO, Optional
+from typing import AsyncGenerator, List, Callable, BinaryIO, Optional, Union
 
 from fastapi import UploadFile
 from pydantic import TypeAdapter
@@ -21,10 +21,11 @@ from app.domain.external.llm import LLM
 from app.domain.external.sandbox import Sandbox
 from app.domain.external.search import SearchEngine
 from app.domain.external.task import TaskRunner, Task
-from app.domain.models.app_config import AgentConfig
+from app.domain.models.app_config import AgentConfig, ToolPolicyConfig
 from app.domain.models.event import ErrorEvent, Event, MessageEvent, BaseEvent, ToolEvent, ToolEventStatus, \
     BrowserToolContent, SearchToolContent, ShellToolContent, FileToolContent, ProtocolToolContent, \
-    TitleEvent, WaitEvent, DoneEvent, TurnEvent, TurnPhase, CleanupEvent, CleanupTarget
+    TitleEvent, WaitEvent, DoneEvent, TurnEvent, TurnPhase, CleanupEvent, CleanupTarget, ApprovalEvent, \
+    ApprovalStatus
 from app.domain.models.file import File
 from app.domain.models.message import Message
 from app.domain.models.run import RunReason, RunStatus, tools_for_turn
@@ -69,6 +70,7 @@ class AgentTaskRunner(TaskRunner):
             ledger: RunLedger,  # 运行与事件的写入入口
             run_id: str,  # 本任务执行的运行
             prior_status: Optional[SessionStatus] = None,  # 首条消息到达前会话所处的状态
+            tool_policy: Optional[ToolPolicyConfig] = None,  # 工具策略表，为空时用默认策略
     ) -> None:
         """构造函数，完成Agent任务运行器的创建"""
         self._uow_factory = uow_factory
@@ -101,6 +103,7 @@ class AgentTaskRunner(TaskRunner):
             ),
             deliver_file=self._deliver_file,
             write_output=self._write_output,
+            tool_policy=tool_policy,
         )
         self._flow._publish_delta = self._publish_delta
 
@@ -153,6 +156,16 @@ class AgentTaskRunner(TaskRunner):
         while not await task.input_stream.is_empty():
             event = await self._pop_event(task)
             if isinstance(event, MessageEvent):
+                return event
+        return None
+
+    async def _pop_first_input(self, task: Task) -> Optional[Union[MessageEvent, ApprovalEvent]]:
+        """任务的第一条输入：用户消息，或审批回复（approved / rejected，由审批接口放入）。"""
+        while not await task.input_stream.is_empty():
+            event = await self._pop_event(task)
+            if isinstance(event, MessageEvent):
+                return event
+            if isinstance(event, ApprovalEvent) and event.status in (ApprovalStatus.APPROVED, ApprovalStatus.REJECTED):
                 return event
         return None
 
@@ -277,8 +290,8 @@ class AgentTaskRunner(TaskRunner):
     async def _handle_tool_event(self, event: ToolEvent) -> None:
         """额外处理工具消息，使其前端交互更友好"""
         try:
-            # 1.如果事件状态为已调用则执行以下代码
-            if event.status == ToolEventStatus.CALLED:
+            # 1.如果事件状态为已调用则执行以下代码；被策略禁止或被用户拒绝的调用没有执行，不读取沙箱生成展示内容
+            if event.status == ToolEventStatus.CALLED and event.denied_by is None:
                 # 2.工具为浏览器则补全工具浏览器工具内容
                 if event.tool_name == "browser":
                     event.tool_content = BrowserToolContent(
@@ -354,16 +367,37 @@ class AgentTaskRunner(TaskRunner):
         logger.info(f"会话[{self._session_id}] AgentTaskRunner接收到新消息: {message.message[:50]}...")
 
         drain = lambda: self._drain_injected_messages(task)
-        async for loop_event in self._flow.invoke(
-                message,
-                drain_injected_messages=drain,
-                prior_status=prior_status,
-                first_turn_index=self._next_turn,
-        ):
+        return await self._drive(self._flow.invoke(
+            message,
+            drain_injected_messages=drain,
+            prior_status=prior_status,
+            first_turn_index=self._next_turn,
+        ))
+
+    async def _process_approval(self, event: ApprovalEvent, task: Task) -> BaseEvent:
+        """审批回复后续接同一运行：执行或拒绝该调用，再照常推进循环。"""
+        logger.info(f"会话[{self._session_id}] AgentTaskRunner续接审批 call={event.tool_call_id} "
+                    f"status={event.status.value}")
+        drain = lambda: self._drain_injected_messages(task)
+        return await self._drive(self._flow.resume_approval(
+            event.tool_call_id,
+            event.status,
+            drain_injected_messages=drain,
+            first_turn_index=self._next_turn,
+        ))
+
+    @property
+    def _waiting_approval(self) -> bool:
+        return self._flow.end_reason == RunEndReason.APPROVAL
+
+    async def _drive(self, events: AsyncGenerator[BaseEvent, None]) -> BaseEvent:
+        """逐条写入循环事件，返回终止事件（Done / Wait / Error）。"""
+        async for loop_event in events:
             if isinstance(loop_event, _LOOP_TERMINALS):
                 if isinstance(loop_event, ErrorEvent):
                     reason = self._flow.end_reason
-                    failed = reason is not None and reason not in (RunEndReason.COMPLETED, RunEndReason.WAITING)
+                    failed = reason is not None and reason not in (
+                        RunEndReason.COMPLETED, RunEndReason.WAITING, RunEndReason.APPROVAL)
                     self._failure_reason = reason.value if failed else RunReason.RUNNER_ERROR
                 return loop_event
             if isinstance(loop_event, ToolEvent):
@@ -380,7 +414,7 @@ class AgentTaskRunner(TaskRunner):
         if isinstance(outcome, DoneEvent):
             status, reason = RunStatus.COMPLETED, None
         elif isinstance(outcome, WaitEvent):
-            status, reason = RunStatus.WAITING, None
+            status, reason = RunStatus.WAITING, RunReason.APPROVAL if self._waiting_approval else None
         else:
             status, reason = RunStatus.FAILED, self._failure_reason or RunReason.RUNNER_ERROR
         await self._ledger.transition(self._session_id, self._run_id, status, reason, events_before=[outcome])
@@ -467,13 +501,17 @@ class AgentTaskRunner(TaskRunner):
 
             # 2.逐条处理输入消息；运行中到达的消息由循环在模型请求前取走
             prior_status = self._prior_status
-            event = await self._pop_message(task)
-            if event is None:
+            first = await self._pop_first_input(task)
+            if first is None:
                 self._failure_reason = RunReason.RUNNER_ERROR
                 await self._finish(ErrorEvent(error="未收到任务消息"))
                 return
+            event: Optional[MessageEvent] = first if isinstance(first, MessageEvent) else None
             while True:
-                outcome = await self._process(event, task, prior_status)
+                if event is None:
+                    outcome = await self._process_approval(first, task)
+                else:
+                    outcome = await self._process(event, task, prior_status)
                 # 3.收尾与“是否还有待处理输入”的判断和 chat 的路由在同一把会话锁内完成，消息不会落在两者之间
                 async with session_lock(self._session_id):
                     event = await self._pop_message(task)
@@ -481,11 +519,15 @@ class AgentTaskRunner(TaskRunner):
                         await self._finish(outcome)
                         return
                     if isinstance(outcome, WaitEvent):
-                        # 提问之后已到达的消息就是回复：运行经过 waiting 后继续
+                        # 提问之后已到达的消息就是回复：运行经过 waiting 后继续。
+                        # 等待审批时到达的消息（循环停下前注入）使审批失效，待审批的调用按等待规则补为未执行
+                        approval = self._flow.pending_approval if self._waiting_approval else None
                         waited = await self._ledger.transition(
-                            self._session_id, self._run_id, RunStatus.WAITING, events_before=[outcome])
+                            self._session_id, self._run_id, RunStatus.WAITING,
+                            RunReason.APPROVAL if approval is not None else None, events_before=[outcome])
+                        expired = [approval.decided(ApprovalStatus.EXPIRED)] if approval is not None else []
                         if waited is None or await self._ledger.transition(
-                                self._session_id, self._run_id, RunStatus.RUNNING) is None:
+                                self._session_id, self._run_id, RunStatus.RUNNING, events_after=expired) is None:
                             raise _RunClosed()
                         prior_status = SessionStatus.WAITING
                     else:

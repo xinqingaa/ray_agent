@@ -5,12 +5,13 @@
 每段是按注册顺序执行的处理函数列表，由 Agent 循环持有：
 
 - 执行前 ``BeforeHandler(invocation) -> ToolResult | None``：返回结果即短路，
-  其余执行前处理与执行段都不再运行；
+  其余执行前处理与执行段都不再运行；设置 ``invocation.suspend_event`` 则挂起（见下）；
 - 执行 ``Executor(invocation) -> ToolResult``：只调用一次，异常转为失败结果，不重试；
 - 执行后 ``AfterHandler(invocation, result) -> ToolResult``：可以替换结果，短路时照常运行。
 
-任何路径都产出一个与 call ID 配对的结果，并发出 called 工具事件；
+除挂起外，任何路径都产出一个与 call ID 配对的结果，并发出 called 工具事件；
 处理函数追加到 ``invocation.events`` 的事件在 called 事件之后按顺序发出。
+挂起（如等待审批）时管线只发出 ``suspend_event``，不执行、不运行执行后处理、不产生结果，由循环结束本次调用。
 """
 import json
 import logging
@@ -42,6 +43,13 @@ class ToolInvocation:
     raw_result: Optional[ToolResult] = None  # 执行后处理之前的结果
     shaping: Optional[ToolResultShaping] = None  # 结果整形处理函数写入
     events: List[BaseEvent] = field(default_factory=list)
+    approval: Optional[str] = None  # 用户对本次调用的审批结果（ApprovalStatus 取值），续接审批时由循环写入
+    suspend_event: Optional[BaseEvent] = None  # 执行前处理写入即挂起
+    denied_by: Optional[str] = None  # 短路原因：policy（策略禁止）/ user（用户拒绝）
+
+    @property
+    def suspended(self) -> bool:
+        return self.suspend_event is not None
 
     @property
     def toolkit_name(self) -> str:
@@ -58,6 +66,7 @@ class ToolInvocation:
             status=status,
             duration_ms=self.duration_ms if called else None,
             shaping=self.shaping if called else None,
+            denied_by=self.denied_by if called else None,
         )
         if called and self.shaping is not None:
             event._raw_result = self.raw_result
@@ -172,13 +181,16 @@ class ToolPipeline:
     # ---- 运行 ----
 
     async def run(self, invocation: ToolInvocation) -> AsyncGenerator[BaseEvent, None]:
-        """产出本次调用的事件；结束后 ``invocation`` 上的 result 即为写入记忆的结果。"""
+        """产出本次调用的事件；结束后 ``invocation`` 上的 result 即为写入记忆的结果（挂起时为空）。"""
         result: Optional[ToolResult] = None
         for handler in self._before:
             result = await handler(invocation)
             if result is not None:
                 invocation.short_circuited = True
                 break
+            if invocation.suspend_event is not None:
+                yield invocation.suspend_event
+                return
 
         if result is None:
             yield invocation.tool_event(ToolEventStatus.CALLING)

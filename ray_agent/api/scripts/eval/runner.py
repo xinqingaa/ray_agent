@@ -1,10 +1,10 @@
-"""运行单条评测任务：准备环境 → 创建会话 → 上传材料 → 逐轮对话（回复提问、定时停止）→ 读回会话 → 检查。"""
+"""运行单条评测任务：准备环境 → 创建会话 → 上传材料 → 逐轮对话（回复提问、答复审批、定时停止）→ 读回会话 → 检查。"""
 import asyncio
 import logging
 import time
 import traceback
 from collections import Counter
-from typing import Any, Dict, List, Optional
+from typing import Any, Awaitable, Callable, Dict, List, Optional
 
 from .client import RayAgentClient
 from .spec import CheckResult, RunContext, SkipTask, TaskSpec
@@ -21,6 +21,8 @@ def _compact_event(event_type: str, data: Dict[str, Any]) -> Dict[str, Any]:
     item: Dict[str, Any] = {"event": event_type}
     if event_type == "tool":
         item.update(function=data.get("function"), status=data.get("status"), name=data.get("name"))
+        if data.get("denied_by"):
+            item["denied_by"] = data["denied_by"]
         if data.get("duration_ms") is not None:
             item["duration_ms"] = data["duration_ms"]
         if data.get("shaping"):
@@ -43,6 +45,9 @@ def _compact_event(event_type: str, data: Dict[str, Any]) -> Dict[str, Any]:
                     chars=data.get("chars"), retried=data.get("retried"))
     elif event_type == "run":
         item.update(run_id=(data.get("run_id") or "")[:8], status=data.get("status"), reason=data.get("reason"))
+    elif event_type == "approval":
+        item.update(tool_call_id=data.get("tool_call_id"), function=data.get("function"), status=data.get("status"),
+                    rule=data.get("rule"), service=data.get("service"), service_tool=data.get("service_tool"))
     elif event_type == "compact":
         usage = data.get("usage") or {}
         item.update(trigger=data.get("trigger"), summarized_turns=data.get("summarized_turns"),
@@ -190,23 +195,39 @@ class EvalRunner:
         ctx.started_at = time.monotonic()
         deadline = ctx.started_at + spec.timeout
         replies = list(spec.on_wait.replies) if spec.on_wait else []
+        decisions = list(spec.on_approval.decisions) if spec.on_approval else []
         stop_task: Optional[asyncio.Task] = None
         if spec.stop and spec.stop.trigger is None:
             stop_task = asyncio.create_task(self._stop_later(ctx))
 
+        awaiting_approval = False
         for turn_index, turn in enumerate(spec.turns):
             message = turn(ctx) if callable(turn) else turn
             attachments = [info["id"] for info in ctx.uploads.values()] if turn_index == 0 else []
             while message is not None:
                 ctx.log("send", turn=turn_index, message=message[:200], attachments=len(attachments))
-                terminal, stop_task = await self._stream(ctx, message, attachments, deadline, stop_task)
+                submit = self._chat_submitter(ctx, message, attachments)
+                terminal, stop_task, approval = await self._stream(ctx, submit, deadline, stop_task)
                 message, attachments = None, []
+                # 等待审批时只能答复审批；答复后同一运行续接，可能再次停在审批或提问
+                while (terminal == "waiting" and approval and decisions
+                       and ctx.stop_requested_at is None and not ctx.observations.get("timed_out")):
+                    decision = decisions.pop(0)
+                    ctx.log("approval_reply", tool_call_id=approval.get("tool_call_id"),
+                            function=approval.get("function"), service=approval.get("service"), decision=decision)
+                    submit = self._approval_submitter(ctx, approval["tool_call_id"], decision)
+                    terminal, stop_task, approval = await self._stream(ctx, submit, deadline, stop_task)
+                if terminal == "waiting" and approval:
+                    # 审批答复已用完：后续消息会被拒绝（409），任务停在等待审批
+                    ctx.log("approval_unanswered", tool_call_id=approval.get("tool_call_id"))
+                    awaiting_approval = True
+                    break
                 if terminal == "waiting" and replies:
                     message = replies.pop(0)
                     ctx.log("reply", message=message)
                 if terminal in ("timeout",) or ctx.stop_requested_at is not None:
                     break
-            if ctx.observations.get("timed_out") or ctx.stop_requested_at is not None:
+            if awaiting_approval or ctx.observations.get("timed_out") or ctx.stop_requested_at is not None:
                 break
 
         if stop_task:
@@ -219,14 +240,26 @@ class EvalRunner:
                 pass
         ctx.observations["wall_seconds"] = round(time.monotonic() - ctx.started_at, 1)
 
-    async def _stream(self, ctx: RunContext, message: str, attachments: List[str],
+    def _chat_submitter(self, ctx: RunContext, message: str,
+                        attachments: List[str]) -> Callable[[], Awaitable[Dict[str, Any]]]:
+        return lambda: self.client.chat(ctx.session_id, message, attachments)
+
+    def _approval_submitter(self, ctx: RunContext, tool_call_id: str,
+                            decision: str) -> Callable[[], Awaitable[Dict[str, Any]]]:
+        return lambda: self.client.reply_approval(ctx.session_id, tool_call_id, decision)
+
+    async def _stream(self, ctx: RunContext, submit: Callable[[], Awaitable[Dict[str, Any]]],
                       deadline: float, stop_task: Optional[asyncio.Task]):
-        """发送消息后订阅事件流，直到受理该消息的运行进入 waiting 或终态。"""
+        """提交消息或审批答复后订阅事件流，直到受理它的运行进入 waiting 或终态。
+
+        返回 (终态, 停止任务, 待审批请求)；只有运行因审批进入 waiting 时第三项非空。
+        """
         spec = ctx.spec
-        state = {"terminal": None, "stop_task": stop_task}
-        accepted = await self.client.chat(ctx.session_id, message, attachments)
+        state: Dict[str, Any] = {"terminal": None, "stop_task": stop_task, "approval": None, "reason": None}
+        accepted = await submit()
         run_id = accepted["run_id"]
-        ctx.log("accepted", run_id=run_id, seq=accepted.get("seq"), route=accepted.get("route"))
+        ctx.log("accepted", run_id=run_id, seq=accepted.get("seq"), route=accepted.get("route"),
+                approval=accepted.get("status"))
 
         async def consume() -> None:
             async for event_type, data in self.client.events(ctx.session_id, after_seq=ctx.last_seq):
@@ -238,9 +271,11 @@ class EvalRunner:
                         and spec.stop.trigger(event_type, data)):
                     ctx.log("stop_trigger", event=_compact_event(event_type, data))
                     state["stop_task"] = asyncio.create_task(self._stop_later(ctx))
+                if event_type == "approval" and data.get("run_id") == run_id:
+                    state["approval"] = data if data.get("status") == "pending" else None
                 if (event_type == "run" and data.get("run_id") == run_id
                         and data.get("status") in SETTLED_RUN_STATUSES):
-                    state["terminal"] = data["status"]
+                    state["terminal"], state["reason"] = data["status"], data.get("reason")
                     return
             state["terminal"] = "stream_closed"
 
@@ -261,8 +296,10 @@ class EvalRunner:
                 ctx.observations["timed_out"] = True
                 await self._safe_stop(ctx, "timeout")
                 break
-        ctx.log("sse_end", terminal=state["terminal"], after_stop=ctx.stop_requested_at is not None)
-        return state["terminal"], state["stop_task"]
+        ctx.log("sse_end", terminal=state["terminal"], reason=state["reason"],
+                after_stop=ctx.stop_requested_at is not None)
+        approval = state["approval"] if state["terminal"] == "waiting" and state["reason"] == "approval" else None
+        return state["terminal"], state["stop_task"], approval
 
     async def _stop_later(self, ctx: RunContext) -> None:
         await asyncio.sleep(ctx.spec.stop.seconds)

@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 class RunStatus(str, Enum):
     """运行状态。running/waiting 是活动状态，其余是终态，终态不可再改。"""
     RUNNING = "running"  # 执行协程在运行
-    WAITING = "waiting"  # 等待用户回复提问
+    WAITING = "waiting"  # 等待用户回复提问（原因为空），或等待审批（原因 approval）
     COMPLETED = "completed"  # 循环正常结束，得到最终回复；不表示目标达成
     FAILED = "failed"  # 预算、上下文、截断或未处理异常
     CANCELLED = "cancelled"  # 用户停止
@@ -40,6 +40,7 @@ class RunReason:
     USER_STOP = "user_stop"
     API_RESTART = "api_restart"
     RUNNER_LOST = "runner_lost"  # 数据库里仍是 running，但本进程已没有执行协程
+    APPROVAL = "approval"  # waiting 的原因：工具调用等待用户批准或拒绝
 
 
 class RunSummary(BaseModel):

@@ -131,11 +131,44 @@ class ToolEvent(BaseEvent):
     status: ToolEventStatus = ToolEventStatus.CALLING  # 工具事件状态
     duration_ms: Optional[int] = None  # 工具管线从执行前到执行后的耗时，只在 called 事件上填写
     shaping: Optional[ToolResultShaping] = None  # 只在被整形的 called 事件上填写
+    denied_by: Optional[Literal["policy", "user"]] = None  # 调用未执行：被工具策略禁止 / 被用户拒绝，只在 called 上
     _raw_result: Optional[ToolResult] = PrivateAttr(default=None)  # 整形前的结果，只供运行器生成展示内容
 
     @property
     def raw_result(self) -> Optional[ToolResult]:
         return self._raw_result if self._raw_result is not None else self.function_result
+
+
+class ApprovalStatus(str, Enum):
+    PENDING = "pending"  # 等待用户批准或拒绝
+    APPROVED = "approved"  # 用户批准，该调用执行一次
+    REJECTED = "rejected"  # 用户拒绝，调用未执行
+    EXPIRED = "expired"  # 运行在等待审批时被停止或中断，审批失效
+
+
+class ApprovalEvent(BaseEvent):
+    """工具级审批：策略为 ask 的调用在执行前发出 pending，运行进入 waiting（原因 approval）；
+    用户回复写 approved / rejected，运行终止时写 expired。同一调用的后续事件复制请求的字段，只改状态与时间。"""
+    type: Literal["approval"] = "approval"
+    tool_call_id: str
+    tool_name: str  # 工具集名字（mcp、a2a、shell 等）
+    function_name: str  # 模型调用的函数名；MCP 是带哈希的别名，原始名称在 service_tool
+    function_args: Dict[str, Any] = Field(default_factory=dict)
+    status: ApprovalStatus = ApprovalStatus.PENDING
+    rule: Optional[str] = None  # 命中的策略规则键，如 mcp:*
+    service: Optional[str] = None  # MCP 服务名或 A2A 远程 Agent id
+    service_tool: Optional[str] = None  # MCP 服务端的原始工具名；A2A 为 call_remote_agent
+    decided_at: Optional[datetime] = None  # approved / rejected / expired 的时间
+
+    def decided(self, status: ApprovalStatus) -> "ApprovalEvent":
+        """同一调用的状态变化事件：新 id、未写入（无 seq），其余字段不变。"""
+        return self.model_copy(update={
+            "id": str(uuid.uuid4()),
+            "status": status,
+            "decided_at": datetime.now(),
+            "created_at": datetime.now(),
+            "seq": None,
+        }, deep=True)
 
 
 class WaitEvent(BaseEvent):
@@ -287,6 +320,7 @@ Event = Annotated[
         ContextEvent,
         CompactEvent,
         CleanupEvent,
+        ApprovalEvent,
     ],
     Field(discriminator="type"),
 ]

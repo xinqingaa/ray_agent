@@ -15,9 +15,10 @@ from alembic.config import Config
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.domain.services.approvals import interrupt_waiting_approvals
 from app.infrastructure.logging import setup_logging
 from app.infrastructure.storage.cos import get_cos
-from app.infrastructure.storage.postgres import get_postgres
+from app.infrastructure.storage.postgres import get_postgres, get_uow
 from app.infrastructure.storage.redis import get_redis
 from app.interfaces.endpoints.routes import router
 from app.interfaces.errors.exception_handlers import register_exception_handlers
@@ -64,8 +65,11 @@ async def lifespan(app: FastAPI):
         Path(settings.file_storage_local_dir).mkdir(parents=True, exist_ok=True)
         logger.info(f"文件存储使用本地磁盘: {settings.file_storage_local_dir}")
 
-    # 4.启动扫描：执行协程只存在于本进程，上次进程留下的 running 运行不会再推进，置为 interrupted；waiting 保持
-    interrupted = await get_run_ledger().interrupt_running()
+    # 4.启动扫描：执行协程只存在于本进程，上次进程留下的 running 运行不会再推进，置为 interrupted；
+    # 等待审批的运行同样置为 interrupted，待审批的调用补为未执行；等待提问的运行保持 waiting
+    ledger = get_run_ledger()
+    interrupted = await ledger.interrupt_running()
+    interrupted += await interrupt_waiting_approvals(get_uow, ledger)
     if interrupted:
         logger.info(f"启动扫描将 {len(interrupted)} 个运行置为 interrupted: {[run.id for run in interrupted]}")
 

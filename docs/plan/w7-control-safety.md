@@ -36,11 +36,11 @@
 
 ### W7.2 工具级审批
 
-- 配置：在应用配置中新增工具策略表，按工具名（MCP/A2A 按服务名加工具名）设置 `allow`、`ask`、`deny`，未列出的工具为 `allow`。默认策略：沙箱内的文件、Shell、浏览器、检索为 allow；MCP 与 A2A 工具为 ask，操作者可在配置中改为 allow。编辑入口在 W5 设置页预留的“工具策略”分区实现。
-- 分发前检查：作为 W1 工具管线执行前段的处理函数。`deny` 短路为“策略禁止”的失败结果，不执行；`ask` 时循环发出审批请求事件，运行进入 waiting，原因 `approval`，退出协程。同一批次中该调用之后的调用不执行。
-- 回复：`POST /sessions/{id}/approvals/{tool_call_id}`，body 为 approve 或 deny。批准时执行该调用一次并回填结果；拒绝时回填“用户拒绝执行”。两种情况下，同一批次后续未执行的调用都按 W1 的悬空调用规则补为未执行，然后请求模型。批准只对这一个调用有效。
-- 等待审批时 API 重启：启动扫描把该运行置为 interrupted（原因 `api_restart`），待审批的调用补为未执行；用户需要重新发起任务。这与等待提问时重启可以续接不同，原因是批准针对的是重启前的执行环境。
-- 重复回复或回复已结束的审批返回冲突错误，不重复执行。
+- 配置：应用配置 `tool_policy.rules` 是一张“规则键 → `allow` / `ask` / `deny`”的表。规则键：内置工具写函数名（如 `shell_execute`）或 `<工具集>:*`（如 `shell:*`）；MCP 写 `mcp:<服务名>:<服务端工具名>`、`mcp:<服务名>:*`、`mcp:*`；A2A 写 `a2a:<远程 Agent id>:call_remote_agent`、`a2a:<id>:*`、`a2a:*`。越具体的键优先，未匹配任何规则为 `allow`。默认规则只有 `mcp:*` 与 `a2a:*` 两条 ask，沙箱内的文件、Shell、浏览器、检索与交付未列出即 allow。计划与提问（`update_plan`、`message_ask_user`）不受策略约束，写进规则表会被拒绝；A2A 的 `get_remote_agent_cards` 只读本地缓存，不在 `a2a:*` 范围内。设置接口 `GET/POST /app-config/tool-policy` 读写整表，编辑入口在 W5 设置页预留的“工具策略”分区实现。
+- 分发前检查：作为 W1 工具管线执行前段的处理函数，排在参数校验之后。`deny` 短路为“策略禁止”的失败结果，不执行；`ask` 时发出 `approval(pending)` 事件，本轮以 turn(completed) 收尾，运行进入 waiting（原因 `approval`），退出协程。同一批次中该调用之后的调用不执行。
+- 回复：`POST /sessions/{id}/approvals/{tool_call_id}`，body 为 `{"decision": "approve" | "deny"}`。接口在同一事务里把运行改回 running 并写入 `approval(approved / rejected)`，再由新任务续接：批准时执行该调用一次并回填结果；拒绝时回填“用户拒绝执行”，调用不执行，结束事件带 `denied_by: "user"`。两种情况下，同一批次后续未执行的调用都按 W1 的悬空调用规则补为未执行，然后请求模型。批准只对这一个调用有效，只跳过 ask，续接时 deny 仍然生效。
+- 等待审批时 API 重启：启动扫描把该运行置为 interrupted（原因 `api_restart`），写入 `approval(expired)`，待审批的调用与同批后续调用补为未执行；用户需要重新发起任务。这与等待提问时重启可以续接不同，原因是批准针对的是重启前的执行环境。
+- 重复回复或回复已结束的审批返回冲突错误（409），不重复执行。等待审批时聊天接口也返回 409：先批准、拒绝或停止。
 - 界面：W4 视图模型的 `approval` 条目与 `waiting_approval` 动作接入审批事件；W5 的审批卡接入批准与拒绝接口，覆盖其全部状态。
 
 ### W7.3 执行身份与资源限制
@@ -87,7 +87,25 @@
 
 ## 交接
 
-W7.2 尚未实施。审批策略、事件、接口、启动扫描与界面接入的交接留空，待该子项完成时补写。
+给阶段 B（W7.2 前端接入与实际环境验收，阶段 A 完成于 2026-09-29，代码基线 `33964e0` 加未提交改动）：
+
+- **审批事件：** SSE 与 `GET /sessions/{id}` 的事件类型为 `approval`，同一调用按时间可能有 pending 与一条结论事件，结论为 `approved` / `rejected` / `expired`，各有自己的 `event_id` 与 `seq`。pending 示例：
+
+  ```json
+  {"event": "approval", "data": {
+    "event_id": "ad51…", "seq": 8, "run_id": "ae17…", "created_at": 1790618566325,
+    "tool_call_id": "call_0", "name": "mcp", "function": "mcp_w0eval_add_3f2a…",
+    "args": {"a": 1234, "b": 5678}, "status": "pending",
+    "rule": "mcp:w0eval:*", "service": "w0eval", "service_tool": "add", "decided_at": null}}
+  ```
+
+  `name` / `function` / `args` 与工具事件同名同义，`function` 对 MCP 是哈希别名，展示用 `service` 加 `service_tool`。A2A 的 `service` 是远程 Agent id，`service_tool` 为 `call_remote_agent`，内置工具两项为空。`rule` 是命中的规则键。结论事件复制请求字段，`decided_at` 为毫秒时间戳。
+- **事件顺序：** 等待时为 `turn(started)` … `approval(pending)` → `turn(completed)` → `wait` → `run(waiting, reason=approval)`，挂起的调用没有 `tool` 事件，所以界面要从审批事件本身构造调用条目，不能要求已有同 ID 的工具事件。批准后为 `run(running)` → `approval(approved)` → `tool(calling)` → `tool(called)` → `turn(started, index=N+1)`。拒绝后为 `run(running)` → `approval(rejected)` → `tool(called, denied_by="user")` → 下一轮。续接执行的这次调用落在两轮之间，不在任何 turn 的 `tool_call_ids` 里。策略禁止的调用只有 `tool(called, denied_by="policy")`，没有审批事件。`denied_by` 只出现在 called 上，有值时 `content` 为空。
+- **何时显示审批卡：** `run.status == "waiting"` 且 `reason == "approval"` 时，待审批的调用是该运行最新一条仍为 pending 的审批事件。此时聊天接口返回 409，输入框应改为引导批准、拒绝或停止。停止返回 `cancelled/user_stop` 并写入 `approval(expired)`。
+- **审批接口：** `POST /sessions/{session_id}/approvals/{tool_call_id}`，body `{"decision": "approve" | "deny"}`。成功时 `code` 为 200，`msg` 为“审批已受理”，`data` 为 `{"run_id", "seq", "status": "approved" | "rejected"}`，其中 `seq` 是结论事件的序号，续接过程从事件流观察。错误：会话或该调用的审批请求不存在返回 404。审批已回复、已失效，或运行不在等待这次审批时返回 409，响应带 `code` 与 `msg`，不重复执行。`decision` 取值非法由 FastAPI 返回 422（`{"detail": [...]}`，不是统一响应结构）。
+- **设置接口：** `GET /app-config/tool-policy` 返回 `{"rules": {...}, "default_rules": {"mcp:*": "ask", "a2a:*": "ask"}, "fallback": "allow", "builtin_toolsets": [{"toolset": "file", "functions": ["read_file", …]}, …]}`。`builtin_toolsets` 列出内置工具集（file、shell、browser、search、deliver，以及 a2a 的 `get_remote_agent_cards`），不含计划与提问。MCP 服务名与原始工具名取 `GET /app-config/mcp-servers` 的 `server_name`、`tools`，A2A id 取 `GET /app-config/a2a-servers`。`POST /app-config/tool-policy` 的 body 为 `{"rules": {...}}`，整表替换，返回同一结构。键格式不对、指向豁免工具或出现多余字段返回 400 或 422。修改从下一次创建的执行任务起生效，包括新运行和审批、提问续接。
+- **评测：** `scripts.eval` 已支持 `TaskSpec.on_approval = DecideOnApproval([...])`。运行因审批进入 waiting 时按顺序答复，用完后停在等待审批并不再发送后续轮次。E6 的环境把规则表临时设为 `mcp:w0eval:*` = ask（清除该服务更具体的键），结束后恢复原表，答复 approve，新增必需检查“add 调用先请求审批、再按答复执行”。新增 `E6-deny` 使用同一夹具，答复 deny，必需检查包括：审批状态为 pending → rejected、add 结束事件都是 `denied_by=user`、夹具没收到 add 调用、运行正常结束；最终回复只记录。运行方式与 E6 相同（`--tasks E6,E6-deny`）。阶段 A 未运行评测。
+- **未覆盖：** 前端全部接入、容器内实际运行、E6/E6-deny 实跑、E1–E5 复跑、真实浏览器走查、docs 同步。
 
 给 W8（W7.1、W7.3，2026-09-28）：
 
@@ -113,3 +131,19 @@ W7.2 尚未实施。审批策略、事件、接口、启动扫描与界面接入
 8. 中英文系统提示词按当前镜像改写：命令以 ubuntu 执行、免密 sudo、工作目录与 `HOME` 为 `/home/ubuntu`、Python 3.10、Node.js 24。输出落盘路径没有改。
 9. 检查脚本第一次把 `stat` 的返回值写进变量 `owned`，盖掉了待回收的容器列表。`ToolResult` 可迭代，`finally` 里对元组调用 `destroy` 失败，把已经通过的检查盖掉，并留下两个动态容器。已改名为 `owner_result`。第二次在 API 容器内执行通过。
 10. 沙箱测试用 `unittest`，不新增 pytest。指南中的命令是 `uv run --locked`（项目要求 Python 3.10）。本环境下载 CPython 3.10 没有进展，实际用已缓存的 3.12 跑通两项验收。这些测试不启动容器，不证明执行身份与限额。
+
+## 实施修正（W7.2）
+
+阶段 A（后端、评测脚本代码与自动测试）实施中以代码为准修正了上文“W7.2 工具级审批”，要点如下：
+
+1. **规则键：** MCP 工具在循环里的名字是哈希别名，策略按 MCP 客户端的路由表还原为“服务名 + 服务端原始工具名”再匹配；路由表里找不到时只匹配 `mcp:*`。A2A 以 `call_remote_agent` 参数里的远程 Agent id 为服务名。内置工具的键是函数名或 `<工具集>:*`，不支持 `file:read_file` 这类写法。原文“默认沙箱内工具为 allow”在实现上表现为不列规则，由兜底 allow 生效。
+2. **豁免与校验：** 计划与提问工具不受策略约束，否则 ask 会让提问本身停下来等审批。规则表在配置模型上校验：空键、不认识的 `x:y` 写法、`mcp:<服务名>` 缺工具段、指向豁免工具都会被拒绝。设置接口整表替换，不做逐条增删。
+3. **审批状态独立成事件：** 审批用单独的 `approval` 事件记录（pending 与一条结论），不给工具事件加状态。原因是挂起时调用还没有进入执行，写 `tool(calling)` 会破坏 calling / called 成对的约定。结论由写入它的一方在状态迁移的同一事务里写入：审批接口写 approved / rejected，停止、启动扫描与消息竞态写 expired。
+4. **挂起不另开状态：** 工具管线的执行前处理设置 `suspend_event` 表示挂起，管线产出该事件后不执行、不发 called。循环收尾本轮再发 wait，任务层按原因 `approval` 迁移到 waiting。续接由循环的 `resume_approval` 完成：批准或拒绝的调用重新经过管线（带审批标记，只跳过 ask），再按悬空规则补同批剩余调用，然后回到主循环，轮次编号接续。
+5. **补结果文案：** 同批后续调用补为“未执行：同一批次中前面的调用在等待用户审批……”。用户拒绝回填“用户拒绝执行：该调用未执行……”，结束事件带 `denied_by: "user"`。策略禁止回填以“策略禁止：”开头的说明，结束事件带 `denied_by: "policy"`，不产生审批事件。
+6. **停止与重启时立即修复记忆：** 等待审批时停止（cancelled）或 API 重启（interrupted）都在同一事务里写 `approval(expired)`，并把待审批调用与同批后续调用按 W1 停止规则补为“未执行：任务已停止”。补结果同时记为上下文事件，保证按事件重建请求一致。所以下一次运行的第一次请求不再有悬空调用。
+7. **等待审批时的消息：** 聊天接口返回 409，不把消息当作隐式拒绝。循环挂起的瞬间如果已经有排队消息（竞态），任务层写 `approval(expired)` 后在同一运行里处理这条消息，悬空调用按等待提问的规则补为“未执行：等待用户回复后重新决策”。
+8. **轮次与计数：** 挂起所在轮的 turn(completed) 在等待前发出，`tool_call_ids` 不含挂起的调用。续接时批准执行的调用落在两轮之间，计入运行的 `tool_calls`，按事件重建请求仍与实际请求一致（有自动测试与 PostgreSQL 往返覆盖）。
+9. **事件持久化：** 审批事件存在既有 `events.payload`（JSONB）里，`runs.reason` 也是字符串列，所以没有新迁移。
+10. **评测变体 ID：** `E6-deny` 排序在 E6 之后、E7 之前（`_order` 按前缀、编号、后缀排序）。E6 的环境会临时改写工具策略表并在结束时恢复。
+11. **既有测试：** W2 的 MCP 结果整形测试走真实循环，默认 `mcp:*`=ask 会让它停在审批，所以改为显式传入 `mcp:*`=allow。

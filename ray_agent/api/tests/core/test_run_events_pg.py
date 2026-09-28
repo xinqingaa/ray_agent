@@ -1,4 +1,4 @@
-"""W3 验收 1–4、6 与请求重建的数据库往返，W2 压缩与结果整形的往返：使用真实临时 PostgreSQL。
+"""W3 验收 1–4、6 与请求重建的数据库往返，W2 压缩与结果整形、W7.2 工具审批的往返：使用真实临时 PostgreSQL。
 
 设置 ``RAY_TEST_DATABASE_URI``（例如 ``postgresql+asyncpg://postgres:postgres@localhost:55432/postgres``）后运行；
 未设置时跳过。每个测试前清空 public schema 并执行 ``alembic upgrade head``，不要指向开发库。
@@ -326,6 +326,73 @@ def test_compaction_and_shaping_survive_jsonb_round_trip():
             rebuilt = rebuild_request(events, stored, index)
             assert rebuilt.messages == request.messages
             assert rebuilt.tools == request.tools
+    with_db(scenario)
+
+
+def test_tool_approval_round_trip_and_startup_scan():
+    """W7.2：审批事件与 reason=approval 存在既有列里；批准续接后请求可重建，等待审批时的启动扫描补结果。"""
+    from unittest.mock import AsyncMock
+
+    from app.domain.models.event import ApprovalEvent, ToolEvent
+    from app.domain.services.approvals import interrupt_waiting_approvals
+    from app.domain.services.flows.agent_loop import NOT_EXECUTED_APPROVAL, NOT_EXECUTED_STOPPED
+    from tests.core.test_tool_approval import ASK_ECHO, ECHO_THEN_READ, make_service
+    from tests.support.loop_harness import tool_results
+
+    async def wait(session, uow_factory):
+        h = make_loop([ECHO_THEN_READ], session=session, uow_factory=uow_factory, tool_policy=ASK_ECHO)
+        task = input_task()
+        run = await start_run(h, task, "回显 a 并读取 /b.txt")
+        await make_runner(h, run=run).invoke(task)
+        return h, run
+
+    async def scenario(uow_factory, engine):
+        session = await new_session(uow_factory, "pg-w72")
+        first, run = await wait(session, uow_factory)
+        _, runs, _ = await read(uow_factory, session.id)
+        assert (runs[0].status, runs[0].reason) == (RunStatus.WAITING, "approval")
+
+        second = make_loop([reply("已回显")], session=session, uow_factory=uow_factory, tool_policy=ASK_ECHO)
+        service = make_service(second)
+        created = []
+
+        async def create_task(s, rid, prior_status):
+            t = input_task()
+            t.invoke = AsyncMock()
+            created.append((t, prior_status))
+            return t
+        service._create_task = create_task
+        accepted = await service.reply_approval(session.id, "c-a", approve=True)
+        task, prior_status = created[0]
+        async with uow_factory() as uow:
+            resumed = await uow.run.get(run.id)
+        await make_runner(second, run=resumed, prior_status=prior_status).invoke(task)
+
+        stored, runs, events = await read(uow_factory, session.id)
+        assert runs[0].status == RunStatus.COMPLETED and runs[0].tool_calls == 1
+        approvals = [e for e in events if isinstance(e, ApprovalEvent)]
+        assert [(e.status, e.function_args) for e in approvals] == [("pending", {"text": "a"}),
+                                                                    ("approved", {"text": "a"})]
+        assert approvals[1].seq == accepted.seq and approvals[1].decided_at is not None
+        assert second.recording.calls == ["echo:a"]
+        assert tool_results(second.llm.requests[0].messages)["c-b"]["message"] == NOT_EXECUTED_APPROVAL
+        for index, request in enumerate([*first.llm.requests, *second.llm.requests], start=1):
+            rebuilt = rebuild_request(events, runs[0], index)
+            assert rebuilt.messages == request.messages and rebuilt.tools == request.tools
+
+        other = await new_session(uow_factory, "pg-w72-restart")
+        _, waiting_run = await wait(other, uow_factory)
+        interrupted = await interrupt_waiting_approvals(uow_factory, RunLedger(uow_factory))
+        assert [r.id for r in interrupted] == [waiting_run.id]
+        stored, runs, events = await read(uow_factory, other.id)
+        assert (runs[0].status, runs[0].reason) == (RunStatus.INTERRUPTED, "api_restart")
+        assert stored.status == SessionStatus.INTERRUPTED
+        assert [e.status for e in events if isinstance(e, ApprovalEvent)] == ["pending", "expired"]
+        assert not [e for e in events if isinstance(e, ToolEvent)]
+        async with uow_factory() as uow:
+            memory = await uow.session.get_memory(other.id, "agent")
+        assert {k: v["message"] for k, v in tool_results(memory.messages).items()} == {
+            "c-a": NOT_EXECUTED_STOPPED, "c-b": NOT_EXECUTED_STOPPED}
     with_db(scenario)
 
 

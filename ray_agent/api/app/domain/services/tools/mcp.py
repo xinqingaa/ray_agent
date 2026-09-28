@@ -5,6 +5,8 @@
 @Author  : thezehui@gmail.com
 @File    : mcp.py
 """
+from typing import Optional, Tuple
+
 from app.domain.models.tool_result import ToolResult
 from .base import BaseTool
 from .protocol_gateway import MCPGateway
@@ -28,6 +30,11 @@ class MCPTool(BaseTool):
 
     def has_tool(self, name: str) -> bool:
         return any(item["function"]["name"] == name for item in self._tools)
+
+    def route(self, name: str) -> Optional[Tuple[str, str]]:
+        """模型可见的工具别名对应的 (服务名, 服务端原始工具名)；未知时为 None。"""
+        route = getattr(self.gateway, "route", None)
+        return route(name) if callable(route) else None
 
     async def invoke(self, tool_name: str, **kwargs) -> ToolResult:
         return await self.gateway.invoke(tool_name, kwargs)

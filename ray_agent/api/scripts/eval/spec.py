@@ -3,6 +3,7 @@
 新任务在 ``tasks.py``（或另一个被导入的模块）中用 ``@register`` 注册一个返回 ``TaskSpec`` 的函数，
 ID 决定默认运行顺序。运行器只依赖本模块的结构，不关心具体任务。
 """
+import re
 import time
 from contextlib import asynccontextmanager
 from dataclasses import dataclass, field
@@ -27,6 +28,17 @@ class CheckResult:
 class ReplyOnWait:
     """运行进入 waiting（提问）时按顺序回复；超过次数后不再回复，任务停在等待。"""
     replies: List[str]
+
+
+@dataclass
+class DecideOnApproval:
+    """运行因工具审批进入 waiting 时按顺序答复 ``approve`` / ``deny``；用完后不再答复，任务停在等待审批。"""
+    decisions: List[str]
+
+    def __post_init__(self) -> None:
+        invalid = [d for d in self.decisions if d not in ("approve", "deny")]
+        if invalid:
+            raise ValueError(f"审批答复只能是 approve 或 deny：{invalid}")
 
 
 @dataclass
@@ -59,6 +71,7 @@ class TaskSpec:
     check: Check
     materials: Dict[str, bytes] = field(default_factory=dict)  # 上传并随第一轮发送的附件
     on_wait: Optional[ReplyOnWait] = None
+    on_approval: Optional[DecideOnApproval] = None
     stop: Optional[StopAfter] = None
     environment: Callable[["RunContext"], Any] = no_environment  # asynccontextmanager，可抛 SkipTask
     timeout: float = 600.0  # 整个任务的墙钟上限（秒），超时会请求停止
@@ -131,6 +144,10 @@ class RunContext:
     def tool_events(self, status: str = "called") -> List[Dict[str, Any]]:
         return [e["data"] for e in self.events if e["event"] == "tool" and e["data"].get("status") == status]
 
+    def approval_events(self, status: Optional[str] = None) -> List[Dict[str, Any]]:
+        return [e["data"] for e in self.events
+                if e["event"] == "approval" and (status is None or e["data"].get("status") == status)]
+
 
 _REGISTRY: Dict[str, Callable[[], TaskSpec]] = {}
 
@@ -145,9 +162,10 @@ def register(task_id: str) -> Callable[[Callable[[], TaskSpec]], Callable[[], Ta
 
 
 def _order(task_id: str) -> tuple:
-    prefix = task_id.rstrip("0123456789")
-    number = task_id[len(prefix):]
-    return prefix, int(number) if number else 0
+    """按前缀、编号、变体后缀排序：E2 < E6 < E6-deny < E7 < E10。"""
+    match = re.match(r"([^\d]*)(\d*)(.*)", task_id)
+    prefix, number, suffix = match.groups()
+    return prefix, int(number) if number else 0, suffix
 
 
 def registered_ids() -> List[str]:

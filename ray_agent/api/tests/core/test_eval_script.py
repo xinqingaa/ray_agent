@@ -16,9 +16,68 @@ def ev(event, **data):
 
 def test_registry_orders_numerically_and_builds_matching_ids():
     ids = registered_ids()
-    assert ids[:6] == ["E1", "E2", "E3", "E4", "E5", "E6"]
-    assert sorted(["E10", "E7", "E2"], key=_order) == ["E2", "E7", "E10"]
+    assert ids[:7] == ["E1", "E2", "E3", "E4", "E5", "E6", "E6-deny"]
+    assert sorted(["E10", "E7", "E6-deny", "E2", "E6"], key=_order) == ["E2", "E6", "E6-deny", "E7", "E10"]
     assert all(build(task_id).id == task_id for task_id in ids)
+    assert build("E6").on_approval.decisions[0] == "approve"
+    assert build("E6-deny").on_approval.decisions[0] == "deny"
+
+
+class ApprovalFakeClient:
+    """按提交次数给出事件：第一次提交后停在审批，答复后运行结束。"""
+
+    def __init__(self):
+        self.calls = []
+
+    async def create_session(self):
+        return "s1"
+
+    async def chat(self, session_id, message, attachments):
+        self.calls.append(("chat", message))
+        return {"run_id": "r1", "seq": 1, "route": "started"}
+
+    async def reply_approval(self, session_id, tool_call_id, decision):
+        self.calls.append(("approval", tool_call_id, decision))
+        return {"run_id": "r1", "seq": 5, "status": "approved" if decision == "approve" else "rejected"}
+
+    async def events(self, session_id, after_seq=0):
+        if after_seq < 4:
+            yield "approval", {"seq": 2, "run_id": "r1", "tool_call_id": "c1", "function": "mcp_w0eval_add_x",
+                               "status": "pending", "service": "w0eval", "service_tool": "add"}
+            yield "wait", {"seq": 3, "run_id": "r1"}
+            yield "run", {"seq": 4, "run_id": "r1", "status": "waiting", "reason": "approval"}
+        else:
+            yield "approval", {"seq": 5, "run_id": "r1", "tool_call_id": "c1", "status": "approved"}
+            yield "run", {"seq": 6, "run_id": "r1", "status": "completed"}
+
+
+def test_runner_answers_approval_and_stops_when_decisions_run_out():
+    from scripts.eval.runner import EvalRunner
+    from scripts.eval.spec import DecideOnApproval, TaskSpec
+
+    async def drive(decisions, turns):
+        client = ApprovalFakeClient()
+        spec = TaskSpec(id="T", title="t", turns=turns, check=None, on_approval=DecideOnApproval(decisions))
+        ctx = RunContext(client=client, spec=spec, run_index=1)
+        await EvalRunner(client, "h")._drive(ctx)
+        return client, ctx
+
+    client, ctx = asyncio.run(drive(["deny"], ["算一下"]))
+    assert client.calls == [("chat", "算一下"), ("approval", "c1", "deny")]
+    assert [i["kind"] for i in ctx.interactions if i["kind"].startswith("approval")] == ["approval_reply"]
+    assert [e["status"] for e in ctx.sse_log if e["event"] == "approval"] == ["pending", "approved"]
+
+    # 没有可用答复：停在等待审批，不再发送后续轮次（服务端会以 409 拒绝）
+    client, ctx = asyncio.run(drive([], ["算一下", "下一轮"]))
+    assert client.calls == [("chat", "算一下")]
+    assert [i["kind"] for i in ctx.interactions if i["kind"].startswith("approval")] == ["approval_unanswered"]
+
+    try:
+        DecideOnApproval(["yes"])
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("非法审批答复应被拒绝")
 
 
 def test_chat_posts_json_and_events_parse_sse_frames():
