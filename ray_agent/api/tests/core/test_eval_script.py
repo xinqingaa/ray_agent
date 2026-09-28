@@ -83,3 +83,26 @@ def test_context_splits_turns_and_uses_last_assistant_message():
     assert ctx.final_reply() == "答案是松柏"
     assert "青松" in ctx.assistant_text(turns[1])
     assert [f["filename"] for f in ctx.delivered_files()] == ["a.json"]
+
+
+def test_report_compares_runs_with_baseline_by_task_and_index(tmp_path):
+    from scripts.eval.report import load_baseline, render_markdown
+
+    def run(task_id, outcome, calls, seconds):
+        return {"task_id": task_id, "title": task_id, "run_index": 1, "outcome": outcome, "wall_seconds": seconds,
+                "model_calls": calls, "prompt_tokens": calls * 100, "completion_tokens": calls * 10,
+                "tool_calls": 1, "session_id": f"s-{task_id}", "checks": []}
+
+    meta = {"label": "w0", "date": "2026-09-28", "git": {"commit": "abc", "short": "abc", "dirty": []},
+            "base_url": "x", "host_address": "h", "llm_config": {}, "agent_config": {}, "repeat": 1,
+            "started_at": "t0", "finished_at": "t1"}
+    path = tmp_path / "base.json"
+    path.write_text(json.dumps({"meta": meta, "runs": [run("E1", "failed", 5, 30.0)]}), encoding="utf-8")
+    baseline = load_baseline(path)
+    assert baseline["runs"][0]["model_calls"] == 5 and "checks" not in baseline["runs"][0]
+
+    text = render_markdown({"meta": {**meta, "label": "w1"}, "baseline": baseline,
+                            "runs": [run("E1", "passed", 2, 12.5), run("E2", "passed", 3, 20.0)]})
+    assert "## 与基线对比（w0" in text
+    assert "| E1 | 1 | 通过 / 未通过 | 12.5（基线 30.0，-17.5） | 2（基线 5，-3） |" in text
+    assert "| E2 | 1 | 通过 / — |" in text

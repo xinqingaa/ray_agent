@@ -20,7 +20,7 @@ function load(relative) {
   return module.exports;
 }
 const {parseSSEStream} = load('src/lib/api/fetch.ts');
-const {normalizeEvents, eventsToTimeline} = load('src/lib/session-events.ts');
+const {normalizeEvents, eventsToTimeline, getLatestPlanFromEvents} = load('src/lib/session-events.ts');
 async function parse(chunks) {
   const events = [], errors = [];
   await parseSSEStream(new ReadableStream({start(controller) {
@@ -59,6 +59,18 @@ const encode = s => new TextEncoder().encode(s);
   assert.equal(steps[0].tools[0].status,'called');
   assert.equal(steps[1].tools[0].tool_call_id,'c2');
   console.log('PASS: 调用阶段合并，用户消息后的同名步骤另建展示项');
+
+  const loopEvents = normalizeEvents([
+    {event:'plan',data:{status:'updated',steps:[{id:'1',description:'读取',status:'completed'},{id:'2',description:'汇总',status:'running'}]}},
+    {event:'tool',data:{tool_call_id:'c3',name:'plan',function:'update_plan',status:'calling'}},
+    {event:'tool',data:{tool_call_id:'c3',name:'plan',function:'update_plan',status:'called',duration_ms:3}},
+    {event:'tool',data:{tool_call_id:'c4',name:'file',function:'read_file',status:'called',duration_ms:5}}
+  ]);
+  const flatTools = eventsToTimeline(loopEvents).filter(e=>e.kind==='tool');
+  assert.deepEqual(flatTools.map(t=>[t.data.tool_call_id,t.data.status]),[['c3','called'],['c4','called']]);
+  const latestPlan = getLatestPlanFromEvents(loopEvents).steps;
+  assert.deepEqual(latestPlan.map(s=>s.status),['completed','running']);
+  console.log('PASS: 无步骤事件时工具记录按调用 ID 平铺合并，计划面板读到进行中状态');
 
   // 以下断言锁定当前可观察限制，不表示 SSE 标准符合性通过。
   const eof = await parse([encode('event: message\ndata: {"message":"没有空行结尾"}')]);

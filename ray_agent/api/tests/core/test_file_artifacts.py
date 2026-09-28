@@ -1,4 +1,4 @@
-"""第十二章：文件同步与产物记录；保留真实运行器与仓库过滤逻辑，替换存储与数据库会话。"""
+"""文件交付与产物记录：保留真实运行器交付函数、交付工具与仓库过滤逻辑，替换存储与数据库会话。"""
 import asyncio
 import io
 import copy
@@ -9,10 +9,11 @@ from unittest.mock import AsyncMock
 
 from fastapi import UploadFile
 
-from app.domain.models.event import MessageEvent, ErrorEvent
-from app.domain.models.message import Message
+from app.domain.models.event import MessageEvent
+from app.domain.models.tool_result import ToolResult
 from app.domain.models.file import File
 from app.domain.services.agent_task_runner import AgentTaskRunner
+from app.domain.services.tools.deliver import DeliverTool
 from app.infrastructure.models import SessionModel
 from app.infrastructure.repositories.db_session_repository import DBSessionRepository
 
@@ -56,6 +57,12 @@ class FakeStorage:
         )
 
 
+def sandbox_with(download, exists=lambda path: True):
+    async def check_file_exists(path):
+        return ToolResult(success=True, data={"filepath": path, "exists": exists(path)})
+    return SimpleNamespace(download_file=download, check_file_exists=check_file_exists)
+
+
 def make_runner(session_id, sandbox, storage):
     runner = AgentTaskRunner.__new__(AgentTaskRunner)
     runner._session_id = session_id
@@ -83,13 +90,13 @@ def make_runner(session_id, sandbox, storage):
 
 def test_same_path_sync_replaces_record_instead_of_accumulating():
     async def run():
-        sandbox = SimpleNamespace(download_file=AsyncMock(side_effect=lambda _: io.BytesIO(b"v1")))
+        sandbox = sandbox_with(AsyncMock(side_effect=lambda _: io.BytesIO(b"v1")))
         runner, repo = make_runner("lesson-12", sandbox, FakeStorage())
         path = "/home/ubuntu/draft.txt"
 
-        first = await runner._sync_file_to_storage(path)
-        second = await runner._sync_file_to_storage(path)
-        third = await runner._sync_file_to_storage(path)
+        first = await runner._deliver_file(path)
+        second = await runner._deliver_file(path)
+        third = await runner._deliver_file(path)
 
         assert [f.id for f in repo.files] == [third.id]
         assert repo.removed == [first.id, second.id], "旧记录必须按文件id移除"
@@ -153,14 +160,15 @@ def test_remove_file_filters_by_id_not_path():
 @pytest.mark.parametrize("failure", ["upload", "association"])
 def test_failed_replacement_keeps_previous_file(failure):
     async def run():
-        sandbox = SimpleNamespace(download_file=AsyncMock(side_effect=lambda _: io.BytesIO(b"v1")))
+        sandbox = sandbox_with(AsyncMock(side_effect=lambda _: io.BytesIO(b"v1")))
         runner, repo = make_runner("lesson-12", sandbox, FakeStorage())
-        first = await runner._sync_file_to_storage("/a.txt")
+        first = await runner._deliver_file("/a.txt")
         if failure == "upload":
             runner._file_storage.upload_file = AsyncMock(side_effect=OSError("受控上传失败"))
         else:
             repo.add_file = AsyncMock(side_effect=RuntimeError("受控关联写入失败"))
-        assert await runner._sync_file_to_storage("/a.txt") is None
+        with pytest.raises((OSError, RuntimeError)):
+            await runner._deliver_file("/a.txt")
         assert [f.id for f in repo.files] == [first.id]
     asyncio.run(asyncio.wait_for(run(), 5))
 
@@ -169,28 +177,26 @@ def test_failed_replacement_keeps_previous_file(failure):
 def test_delivery_failure_distinguishes_all_and_partial(fail_all):
     async def run():
         async def download(path):
-            if fail_all or path == "/missing.txt":
-                raise FileNotFoundError(path)
             return io.BytesIO(b"available")
-        runner, repo = make_runner("lesson-12", SimpleNamespace(download_file=download), FakeStorage())
-        class Flow:
-            async def invoke(self, message):
-                yield MessageEvent(message="交付", attachments=[
-                    File(filepath="/available.txt"), File(filepath="/missing.txt")])
-        runner._flow = Flow()
-        events = [e async for e in runner._run_flow(Message(message="任务"))]
-        assert len(events[0].attachments) == (0 if fail_all else 1)
-        assert any(isinstance(e, ErrorEvent) for e in events) == fail_all
+        exists = lambda path: not fail_all and path != "/missing.txt"
+        runner, repo = make_runner("lesson-12", sandbox_with(download, exists), FakeStorage())
+        tool = DeliverTool(runner._deliver_file)
+        result = await tool.invoke("deliver_files", paths=["/available.txt", "/missing.txt"])
+        assert result.success is not fail_all
+        assert [item.success for item in result.data.items] == [not fail_all, False]
+        assert "不存在" in result.data.items[1].error
+        assert len(result.data.files) == (0 if fail_all else 1)
+        assert [f.filepath for f in repo.files] == ([] if fail_all else ["/available.txt"])
     asyncio.run(asyncio.wait_for(run(), 5))
 
 
 def test_current_list_replacement_does_not_rewrite_historical_attachment():
     async def run():
-        sandbox = SimpleNamespace(download_file=AsyncMock(side_effect=[io.BytesIO(b"v1"), io.BytesIO(b"v2")]))
+        sandbox = sandbox_with(AsyncMock(side_effect=[io.BytesIO(b"v1"), io.BytesIO(b"v2")]))
         runner, repo = make_runner("lesson-12", sandbox, FakeStorage())
-        first = await runner._sync_file_to_storage("/a.txt")
+        first = await runner._deliver_file("/a.txt")
         history = MessageEvent.model_validate_json(MessageEvent(attachments=[first]).model_dump_json())
-        second = await runner._sync_file_to_storage("/a.txt")
+        second = await runner._deliver_file("/a.txt")
         assert [f.id for f in repo.files] == [second.id]
         assert history.attachments[0].id == first.id
         assert runner._file_storage.contents == [b"v1", b"v2"]
@@ -199,9 +205,9 @@ def test_current_list_replacement_does_not_rewrite_historical_attachment():
 
 def test_existing_duplicate_records_are_not_a_migration():
     async def run():
-        sandbox = SimpleNamespace(download_file=AsyncMock(side_effect=lambda _: io.BytesIO(b"v2")))
+        sandbox = sandbox_with(AsyncMock(side_effect=lambda _: io.BytesIO(b"v2")))
         runner, repo = make_runner("lesson-12", sandbox, FakeStorage())
         repo.files = [File(id="old1", filepath="/a.txt"), File(id="old2", filepath="/a.txt")]
-        new_file = await runner._sync_file_to_storage("/a.txt")
+        new_file = await runner._deliver_file("/a.txt")
         assert [f.id for f in repo.files] == ["old2", new_file.id]
     asyncio.run(asyncio.wait_for(run(), 5))

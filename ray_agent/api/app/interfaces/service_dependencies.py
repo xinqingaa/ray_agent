@@ -20,7 +20,6 @@ from app.infrastructure.external.file_storage.cos_file_storage import CosFileSto
 from app.infrastructure.external.file_storage.local_file_storage import LocalFileStorage
 from app.infrastructure.external.health_checker.postgres_health_checker import PostgresHealthChecker
 from app.infrastructure.external.health_checker.redis_health_checker import RedisHealthChecker
-from app.infrastructure.external.json_parser.repair_json_parser import RepairJSONParser
 from app.infrastructure.external.llm.openai_llm import OpenAILLM
 from app.infrastructure.external.sandbox.docker_sandbox import DockerSandbox
 from app.infrastructure.external.search.bing_search import BingSearchEngine
@@ -102,7 +101,6 @@ def get_agent_service() -> AgentService:
         a2a_config=app_config.a2a_config,
         sandbox_cls=DockerSandbox,
         task_cls=RedisStreamTask,
-        json_parser=RepairJSONParser(),
         search_engine=BingSearchEngine(),
         file_storage=file_storage,
     )

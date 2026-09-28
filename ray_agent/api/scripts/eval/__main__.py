@@ -7,7 +7,7 @@ from pathlib import Path
 
 from . import tasks  # noqa: F401  注册 E1–E6
 from .client import RayAgentClient
-from .report import EVIDENCE_DIR, OUTCOME_TEXT, git_info, write_report
+from .report import EVIDENCE_DIR, OUTCOME_TEXT, git_info, load_baseline, write_report
 from .runner import EvalRunner
 from .spec import build, registered_ids
 
@@ -21,6 +21,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--host-address", default="host.docker.internal",
                         help="API 与沙箱容器访问宿主机评测服务的地址（Docker Desktop 默认值）")
     parser.add_argument("--output-dir", type=Path, default=EVIDENCE_DIR, help="报告目录，默认 docs/plan/evidence/")
+    parser.add_argument("--baseline", type=Path, help="作对比的另一份评测 JSON，报告按任务与运行序号列出指标差异")
     parser.add_argument("--list", action="store_true", help="只列出已注册任务")
     return parser.parse_args()
 
@@ -66,7 +67,10 @@ async def main() -> int:
                       flush=True)
         meta["finished_at"] = datetime.now().isoformat(timespec="seconds")
 
-    paths = write_report({"meta": meta, "runs": runs}, args.output_dir)
+    report = {"meta": meta, "runs": runs}
+    if args.baseline:
+        report["baseline"] = load_baseline(args.baseline)
+    paths = write_report(report, args.output_dir)
     print(f"报告：{paths['md']}\n原始数据：{paths['json']}")
     return 0
 

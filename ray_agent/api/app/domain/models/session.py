@@ -27,6 +27,9 @@ class SessionStatus(str, Enum):
     FAILED = "failed"  # 本轮失败，同一会话可再发消息重跑
 
 
+DEFAULT_SESSION_TITLE = "新对话"  # 创建会话时的占位标题，Agent 循环首次运行时替换
+
+
 class Session(BaseModel):
     """会话领域模型"""
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))  # 会话id

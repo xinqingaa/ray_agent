@@ -28,7 +28,8 @@ export function getToolKind(data: ToolEvent | null | undefined): ToolKind {
   const name = (data.name ?? '').toLowerCase()
   const fn = (data.function ?? '').toLowerCase()
 
-  if (data.function === 'message_notify_user' || data.function === 'message_ask_user') {
+  // 计划与交付的结果分别由计划面板和附件消息展示，工具记录只显示一行文字
+  if (data.function === 'message_ask_user' || data.function === 'update_plan' || data.function === 'deliver_files') {
     return 'message'
   }
   if (name === 'shell' || name.includes('bash') || fn === 'shell_execute' || fn === 'run' || fn === 'execute' || fn === 'run_command') {
@@ -62,9 +63,21 @@ export function getFriendlyToolLabel(data: ToolEvent | null | undefined): string
   const fn = (data.function ?? '').toLowerCase()
   const args = data.args && typeof data.args === 'object' ? data.args : {}
 
-  if (data.function === 'message_notify_user' || data.function === 'message_ask_user') {
+  if (data.function === 'message_ask_user') {
     const text = typeof args.text === 'string' ? args.text : ''
     return text || '—'
+  }
+
+  if (data.function === 'update_plan') {
+    const plan = Array.isArray(args.plan) ? args.plan : []
+    const completed = plan.filter((item) => (item as { status?: unknown })?.status === 'completed').length
+    return plan.length > 0 ? `更新计划清单：已完成 ${completed} / ${plan.length}` : '更新计划清单'
+  }
+
+  if (data.function === 'deliver_files') {
+    const paths = Array.isArray(args.paths) ? args.paths.filter((p): p is string => typeof p === 'string') : []
+    const names = paths.map((p) => p.split('/').pop() || p)
+    return names.length > 0 ? `交付文件 ${truncate(names.join('、'), 80)}` : '交付文件'
   }
 
   if (name === 'mcp' || name === 'a2a') {

@@ -21,8 +21,7 @@ class ScriptExhaustedError(RuntimeError):
 
 
 class ScriptedInvokeResult(LLMInvokeResult):
-    """在产品结果上补充 finish_reason，产品代码只读取父类字段。"""
-    finish_reason: Optional[str] = None
+    """脚本产生的调用结果；finish_reason 自 W1 起是产品字段，定义在父类上。"""
 
 
 @dataclass

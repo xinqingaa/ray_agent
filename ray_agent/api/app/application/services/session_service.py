@@ -11,7 +11,7 @@ from typing import List, Callable, Type
 from app.application.errors.exceptions import NotFoundError, ServerRequestsError
 from app.domain.external.sandbox import Sandbox
 from app.domain.models.file import File
-from app.domain.models.session import Session
+from app.domain.models.session import DEFAULT_SESSION_TITLE, Session
 from app.domain.repositories.uow import IUnitOfWork
 from app.interfaces.schemas.session import FileReadResponse, ShellReadResponse
 
@@ -34,7 +34,7 @@ class SessionService:
     async def create_session(self) -> Session:
         """创建一个空白的新任务会话"""
         logger.info(f"创建一个空白新任务会话")
-        session = Session(title="新对话")
+        session = Session(title=DEFAULT_SESSION_TITLE)
         async with self._uow:
             await self._uow.session.save(session)
         logger.info(f"成功创建一个新任务会话: {session.id}")

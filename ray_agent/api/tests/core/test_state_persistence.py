@@ -1,58 +1,69 @@
-"""第九章：交接快照与恢复依据；固定模型，替换存储/传输/沙箱。"""
+"""交接快照与恢复依据：固定模型，替换存储/传输/沙箱。"""
 import asyncio
 import json
 from unittest.mock import AsyncMock
 
 import pytest
 
-from app.domain.models.event import MessageEvent, ToolEvent, PlanEvent, StepEvent
+from app.domain.models.event import MessageEvent, PlanEvent, ToolEvent
 from app.domain.models.message import Message
-from app.domain.models.session import Session
+from app.domain.models.session import Session, SessionStatus
 from app.domain.models.tool_result import ToolResult
-from test_planner_react_flow import make_flow, read_call, response
-from test_task_execution_control import make_runner, input_task, plan, submit
+from tests.support.loop_harness import (
+    assert_no_dangling,
+    input_task,
+    make_loop,
+    make_runner,
+    memory_messages,
+    submit,
+    tool_results,
+)
+from tests.support.scripted_llm import ScriptedResponse, ScriptedToolCall, text, tool_call
 
 
 @pytest.mark.parametrize('resume', [False, True])
-def test_called_event_precedes_saved_tool_result_and_rollback_keeps_file(tmp_path, resume):
+def test_tool_result_is_saved_before_called_event_and_stop_keeps_it(tmp_path, resume):
     async def run():
         target = tmp_path / 'hello.txt'
-        call = read_call('write-1', str(target))
-        call['tool_calls'][0]['function'] = {'name': 'write_file', 'arguments': json.dumps({
-            'filepath': str(target), 'content': 'hello'})}
-        h = make_flow([call, response({'message': '完成'})])
+        h = make_loop([tool_call('write_file', {'filepath': str(target), 'content': 'hello'}, id='write-1'),
+                       text('完成')])
 
         async def write_file(filepath, content, **kwargs):
             target.write_text(content)
             return ToolResult(success=True)
         h.sandbox.write_file = AsyncMock(side_effect=write_file)
-        events = h.flow.react.invoke('写入文件')
+        events = h.loop.invoke(Message(message='写入文件'))
+        saved = None
         async for event in events:
             if isinstance(event, ToolEvent) and event.status == 'calling':
                 assert not target.exists()
             if isinstance(event, ToolEvent) and event.status == 'called':
                 assert target.read_text() == 'hello'
                 saved = Session.model_validate_json(h.session.model_dump_json())
-                assert saved.memories['react'].messages[-1]['tool_calls'][0]['id'] == 'write-1'
-                assert not any(m.get('tool_call_id') == 'write-1' for m in saved.memories['react'].messages)
+                assert tool_results(memory_messages(saved))['write-1']['success'] is True
                 if not resume:
                     break
         await events.aclose()
         if resume:
-            assert any(m.get('tool_call_id') == 'write-1' for m in h.session.memories['react'].messages)
-            assert len(h.requests) == 2
-        else:
-            restored = make_flow([], session=saved)
-            await restored.flow.react.roll_back(Message(message='继续'))
-            assert not restored.session.memories['react'].messages[-1].get('tool_calls')
-            assert target.read_text() == 'hello'
-            assert len(h.requests) == 1
+            assert len(h.llm.requests) == 2
+            return
+        # 在 called 之后停止：续接时已执行的调用保留真实结果，不会被补成“未执行”
+        saved.status = SessionStatus.COMPLETED
+        restored = make_loop([text('继续完成')], session=saved)
+        resumed = restored.loop.invoke(Message(message='继续'))
+        await resumed.__anext__()
+        await resumed.aclose()
+        messages = memory_messages(restored.session)
+        assert_no_dangling(messages)
+        assert tool_results(messages)['write-1']['success'] is True
+        assert target.read_text() == 'hello'
+        assert len(h.llm.requests) == 1
     asyncio.run(asyncio.wait_for(run(), 5))
 
 
 def test_output_publication_survives_repository_failure():
     async def run():
-        h = make_flow([])
+        h = make_loop([])
         runner, task = make_runner(h), input_task()
         runner._uow.session.add_event = AsyncMock(side_effect=RuntimeError('受控保存失败'))
         with pytest.raises(RuntimeError, match='受控保存失败'):
@@ -63,30 +74,39 @@ def test_output_publication_survives_repository_failure():
     asyncio.run(asyncio.wait_for(run(), 5))
 
 
-def test_wait_resume_after_serialization_uses_plan_snapshot_not_step_projection():
+def test_wait_resume_after_serialization_keeps_plan_snapshot_and_identity():
     async def run():
-        ask = read_call('ask-1', '/unused')
-        ask['tool_calls'][0]['function'] = {'name': 'message_ask_user', 'arguments': json.dumps({'text': '路径？'})}
-        first = make_flow([plan(), ask])
+        plan = [{'step': '确认路径', 'status': 'in_progress'}, {'step': '读取文件', 'status': 'pending'}]
+        first = make_loop([ScriptedResponse(tool_calls=[
+            ScriptedToolCall('update_plan', {'plan': plan}, id='plan-1'),
+            ScriptedToolCall('message_ask_user', {'text': '路径？'}, id='ask-1'),
+        ])])
         task = input_task()
         await submit(task, '核对文件')
         await make_runner(first).invoke(task)
         restored = Session.model_validate_json(first.session.model_dump_json())
         assert restored is not first.session
         assert restored.status == 'waiting'
-        # StepEvent 已记录 started，但最新 PlanEvent 的独立快照仍为 pending。
-        step_event = next(e for e in restored.events if isinstance(e, StepEvent))
-        assert step_event.step.status == 'running'
-        assert restored.get_latest_plan().steps[0].status == 'pending'
-        second = make_flow([read_call('read-1', '/hello.txt'), response({'success': True, 'result': '已读取'}),
-                            response({'steps': []}), response({'message': '完成', 'attachments': []})], session=restored)
+        snapshot = restored.get_latest_plan()
+        assert [s.status for s in snapshot.steps] == ['running', 'pending']
+
+        done_plan = [{'step': '确认路径', 'status': 'completed'}, {'step': '读取文件', 'status': 'completed'}]
+        second = make_loop([
+            ScriptedResponse(tool_calls=[
+                ScriptedToolCall('read_file', {'filepath': '/hello.txt'}, id='read-1'),
+                ScriptedToolCall('update_plan', {'plan': done_plan}, id='plan-2'),
+            ]),
+            text('完成'),
+        ], session=restored)
         task2 = input_task()
         await submit(task2, '/hello.txt')
         await make_runner(second).invoke(task2)
         assert restored.status == 'completed'
         assert first.session.status == 'waiting'
-        assert sum(isinstance(e, PlanEvent) and e.status == 'created' for e in restored.events) == 1
-        assert any(m.get('tool_call_id') == 'ask-1' for m in second.requests[0]['messages'])
+        plans = [e.plan for e in restored.events if isinstance(e, PlanEvent)]
+        assert len(plans) == 2 and plans[0].id == plans[1].id
+        assert [s.status for s in plans[-1].steps] == ['completed', 'completed']
+        assert tool_results(second.llm.requests[0].messages)['ask-1']['data']['reply'] == '/hello.txt'
         second.sandbox.read_file.assert_awaited_once()
-        assert not second.remaining
+        assert second.llm.remaining == 0
     asyncio.run(asyncio.wait_for(run(), 5))

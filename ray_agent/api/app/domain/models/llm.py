@@ -28,6 +28,11 @@ class LLMUsage(BaseModel):
 
 
 class LLMInvokeResult(BaseModel):
-    """一次模型调用的消息与可选用量。"""
+    """一次模型调用的消息、可选用量与结束原因。
+
+    finish_reason 取服务端原值（stop / tool_calls / length / content_filter 等），未返回时为 None；
+    值为 length 表示输出被 max_tokens 截断，消息内容与工具调用都可能不完整。
+    """
     message: Dict[str, Any] = Field(default_factory=dict)
     usage: Optional[LLMUsage] = None
+    finish_reason: Optional[str] = None

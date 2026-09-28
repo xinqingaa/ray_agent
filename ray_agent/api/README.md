@@ -41,7 +41,7 @@ uv run --locked uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 |---|---|
 | 应用生命周期与依赖组装 | `main.py`、`interfaces/service_dependencies.py` |
 | 会话请求与任务准备 | `interfaces/endpoints/session_routes.py`、`application/services/agent_service.py` |
-| 规划、模型循环与提示词 | `domain/services/flows/`、`domain/services/agents/`、`domain/services/prompts/` |
+| Agent 循环、工具管线与提示词 | `domain/services/flows/`、`domain/services/prompts/` |
 | 工具声明与协议适配 | `domain/services/tools/`、`infrastructure/protocols/` |
 | 事件模型与 SSE 映射 | `domain/models/event.py`、`interfaces/schemas/event.py` |
 | 数据访问与工作单元 | `domain/repositories/`、`infrastructure/repositories/`、`infrastructure/models/` |
@@ -55,41 +55,41 @@ uv run --locked python -m pytest
 
 测试配置见 [pytest.ini](pytest.ini)。纯核心与协议用例不会启动应用或连接数据库。只有使用 [conftest.py](tests/conftest.py) 中 `client` fixture 的接口测试会进入应用生命周期、迁移和初始化外部服务，运行它们前需准备独立的测试数据库与 Redis 配置。协议自动测试不能替代真实模型的页面验收。
 
-课程的双循环与用量核对可定向运行：
+Agent 循环与工具管线可定向运行：
 
 ```bash
-uv run --locked python -m pytest tests/core/test_planner_react_flow.py tests/core/test_llm_usage.py
+uv run --locked python -m pytest tests/core/test_agent_loop.py tests/core/test_llm_usage.py
 ```
 
-双循环用例保留实际流程、Planner、ReAct 和工具分发，用固定模型响应及内存存储、沙箱替身核对步骤选择、计划合并和失败出口；用量用例核对解析与累计。它们不连接外部服务，也不证明真实模型的规划质量或计费结果。
+循环用例用 `ScriptedLLM` 驱动实际 `AgentLoop` 与工具三段管线，存储与沙箱用内存替身（夹具在 [tests/support/loop_harness.py](tests/support/loop_harness.py)），覆盖多调用按 ID 配对与计划事件、未知工具与非法参数、工具异常不重试、提问位于批次中间与续接、运行中补充消息、文件交付、输出截断、请求预算、停止或失败后的悬空调用补结果，以及管线短路、结果替换和处理顺序；用量用例核对解析与累计。它们不连接外部服务，也不证明真实模型的任务质量或计费结果。
 
-第八章的执行控制可定向运行：
+执行控制可定向运行：
 
 ```bash
-uv run --locked python -m pytest tests/core/test_task_execution_control.py tests/core/test_agent_task_runner_cancel.py tests/core/test_planner_react_flow.py
+uv run --locked python -m pytest tests/core/test_task_execution_control.py tests/core/test_agent_task_runner_cancel.py
 ```
 
-控制用例保留实际应用协调、运行器、任务适配或规划执行流程，按用例替换模型、传输、存储与沙箱；覆盖正常等待后用新运行器继续、事件交接处处理新输入、重复提交的任务选择、取消请求先于清理完成，以及迭代边界。取消用例用受控阻塞代替长流程，不启动操作系统进程。实际 Shell 进程观察见[沙箱指南](../sandbox/README.md#任务控制观察)；两段实验都不能替代真实 Web、Redis、数据库与容器链路验收，也不验证多进程并发排他。
+控制用例保留实际应用协调、运行器、任务适配与 Agent 循环，按用例替换模型、传输、存储与沙箱；覆盖等待后用新运行器以回复续接、工具执行中收到的新消息在下一次模型请求前追加而不中断工具、最后一次请求后到达的消息开启下一次运行、重复提交的任务选择、取消请求先于清理完成，以及批次中途停止后经运行器补结果。取消用例用受控阻塞代替长流程，不启动操作系统进程。实际 Shell 进程观察见[沙箱指南](../sandbox/README.md#任务控制观察)；这些用例不能替代真实 Web、Redis、数据库与容器链路验收，也不验证多进程并发排他。
 
-第九章的状态与持久化可定向运行：
+状态与持久化可定向运行：
 
 ```bash
-uv run --locked python -m pytest tests/core/test_state_persistence.py tests/core/test_task_execution_control.py tests/core/test_planner_react_flow.py
+uv run --locked python -m pytest tests/core/test_state_persistence.py
 ```
 
-新增状态用例保留实际 Agent、Flow 或事件发布方法，核对 `called` 交接先于工具结果保存、消息回滚保留临时文件、输出发布后仓库保存失败，以及会话序列化后加载计划和提问回复。存储、传输、模型与沙箱使用替身；其中写入替身只操作 pytest 临时目录。它们不连接数据库或 Redis，也不模拟 API 进程崩溃、事务提交故障和多执行者接管。
+状态用例核对工具结果先写入记忆再发出 `called` 事件（在 `called` 后停止，续接时保留真实结果）、输出发布后仓库保存失败，以及会话序列化后续接时计划快照与计划 ID 保持。存储、传输、模型与沙箱使用替身；其中写入替身只操作 pytest 临时目录。它们不连接数据库或 Redis，也不模拟 API 进程崩溃、事务提交故障和多执行者接管。
 
-第十章的事件与用量可定向运行：
+事件与用量可定向运行：
 
 ```bash
-uv run --locked python -m pytest tests/core/test_event_observability.py tests/core/test_llm_usage.py tests/core/test_state_persistence.py
+uv run --locked python -m pytest tests/core/test_event_observability.py tests/core/test_llm_usage.py
 ```
 
-新增事件用例核对实时与历史映射一致性、字段投影及秒级时间、空回复重试的用量交接缺口，以及一对工具事件内的多次执行尝试。模型、沙箱与存储均为替身，不验证外部计费或端到端断连。前端解析和时间线归并观察见 [UI 指南](../ui/README.md#事件观察)。
+事件用例核对实时与历史映射一致性、字段投影及秒级时间、工具耗时字段、返回了响应的模型尝试（含空回复）都有用量而传输失败没有，以及一对工具事件只对应一次执行。模型、沙箱与存储均为替身，不验证外部计费或端到端断连。前端解析和时间线归并观察见 [UI 指南](../ui/README.md#事件观察)。
 
 ### 脚本化模型替身
 
-[tests/support/scripted_llm.py](tests/support/scripted_llm.py) 的 `ScriptedLLM` 满足模型接口协议：按顺序返回脚本中的文本、工具调用（含 finish_reason 与 usage）或抛出预设异常，支持按本次请求内容的简单分支，记录每次收到的 messages 与 tools 副本，脚本耗尽时抛出 `ScriptExhaustedError`。自测含一次接入现有双循环的用例：
+[tests/support/scripted_llm.py](tests/support/scripted_llm.py) 的 `ScriptedLLM` 满足模型接口协议：按顺序返回脚本中的文本、工具调用（含 finish_reason 与 usage）或抛出预设异常，支持按本次请求内容的简单分支，记录每次收到的 messages 与 tools 副本，脚本耗尽时抛出 `ScriptExhaustedError`。自测含一次接入 Agent 循环的用例：
 
 ```bash
 uv run --locked python -m pytest tests/core/test_scripted_llm.py
@@ -103,11 +103,12 @@ uv run --locked python -m pytest tests/core/test_scripted_llm.py
 uv run --locked python -m scripts.eval --list
 uv run --locked python -m scripts.eval --label w0-baseline
 uv run --locked python -m scripts.eval --tasks E2,E4 --repeat 3 --label w1
+uv run --locked python -m scripts.eval --label w1 --baseline ../../docs/plan/evidence/w0-baseline-2026-09-28-961005d.json
 ```
 
-默认经网关 `http://localhost:8088/api` 访问 API，报告写入 `docs/plan/evidence/<label>-<日期>-<提交短哈希>.{json,md}`，同名文件会被覆盖，调试时用 `--output-dir` 写到临时目录。E5 在宿主机自启静态页面，E6 以子进程运行 [MCP 夹具](tests/protocols/fixture_server.py)，两者都通过 `--host-address`（默认 Docker Desktop 的 `host.docker.internal`）让沙箱与 API 容器访问宿主机；访问不到时记为跳过。E4 停止后留在沙箱中的循环进程随沙箱 TTL 回收。
+默认经网关 `http://localhost:8088/api` 访问 API，报告写入 `docs/plan/evidence/<label>-<日期>-<提交短哈希>.{json,md}`，同名文件会被覆盖，调试时用 `--output-dir` 写到临时目录。`--baseline` 指定另一份报告 JSON 时，Markdown 增加按任务与运行序号配对的指标对比表；结论文字不自动生成。E5 在宿主机自启静态页面，E6 以子进程运行 [MCP 夹具](tests/protocols/fixture_server.py)，两者都通过 `--host-address`（默认 Docker Desktop 的 `host.docker.internal`）让沙箱与 API 容器访问宿主机；访问不到时记为跳过。E4 停止后留在沙箱中的循环进程随沙箱 TTL 回收。
 
-新任务在 `scripts/eval/tasks.py` 用 `@register("E7")` 注册返回 `TaskSpec` 的函数：声明各轮消息、上传材料、提问回复（`ReplyOnWait`）、定时停止（`StopAfter`）、环境准备与检查函数。离线部分（SSE 解析、指标统计、注册顺序）的测试不连接服务：
+新任务在 `scripts/eval/tasks.py` 用 `@register("E7")` 注册返回 `TaskSpec` 的函数：声明各轮消息、上传材料、提问回复（`ReplyOnWait`）、定时停止（`StopAfter`）、环境准备与检查函数。离线部分（SSE 解析、指标统计、注册顺序、基线对比表）的测试不连接服务：
 
 ```bash
 uv run --locked python -m pytest tests/core/test_eval_script.py
@@ -123,7 +124,7 @@ uv run --locked python -m pytest tests/core/test_eval_script.py
 uv run --locked python -m pytest tests/core/test_file_artifacts.py
 ```
 
-8 项用例覆盖同路径串行替换、按 ID 删除、上传或关联失败保留旧条目、全部与部分交付失败、历史附件保留原 ID，以及已有重复数据不被自动迁移。使用实际运行器和仓库过滤方法，存储与数据库为替身；其中事务回滚用内存快照模拟，不代替数据库验证。
+8 项用例覆盖同路径串行替换、按 ID 删除、上传或关联失败保留旧条目、经 `deliver_files` 的全部与部分交付失败、历史附件保留原 ID，以及已有重复数据不被自动迁移。使用实际运行器交付函数、交付工具和仓库过滤方法，存储与数据库为替身；其中事务回滚用内存快照模拟，不代替数据库验证。
 
 连接可用的 PostgreSQL 后，另运行真实事务与本地存储观察：
 
@@ -181,7 +182,7 @@ HTTP MCP 与 A2A 对端必须先运行；stdio MCP 由 API 按配置启动子进
 3. 开关打开后才会探测。对端没起来会显示「不可用」，配置仍会留下。
 4. Docker Desktop 中的 API 访问宿主机用 `host.docker.internal`，不要填容器自己的 `127.0.0.1`。API 跑在宿主机时用 `127.0.0.1`。
 5. stdio 的 MCP 必须写 `transport: stdio` 和 `command`；省略 `args`/`env` 分别为 `[]`/`{}`。旧 MCP `sse` 已移除，页面任务事件 SSE 不受影响。
-6. 工具失败可能让当前任务整轮结束；连测时把故意失败的步骤放在最后。
+6. 工具失败会作为该调用的失败结果回填模型，由模型决定改参数、换方法或结束，任务不会因此直接终止。
 7. 真实凭据只写运行中配置或未跟踪文件，不要提交进仓库。
 
 线上用法是连接已经部署、协议一致的服务，不需要起下面的验收夹具。

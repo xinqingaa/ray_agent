@@ -1,21 +1,21 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 from app.domain.services.task_error import (
-    STEP_PARSE_ERROR,
     QUOTA_ERROR,
     format_public_error,
     format_public_error_text,
 )
 
 
-def test_formats_step_validation_dump():
+def test_strips_validation_doc_link_and_runner_prefix():
     raw = (
-        "AgentTaskRunner出错: 1 validation error for Step "
-        "Input should be a valid dictionary or instance of Step "
-        "[type=model_type, input_value=[{'type': 'tool_use'}], input_type=list] "
+        "AgentTaskRunner出错: 1 validation error for Plan "
         "For further information visit https://errors.pydantic.dev/2.11/v/model_type"
     )
-    assert format_public_error_text(raw) == STEP_PARSE_ERROR
+    text = format_public_error_text(raw)
+    assert text.startswith("1 validation error for Plan")
+    assert "pydantic.dev" not in text
+    assert "重试" in text
 
 
 def test_formats_quota_error():

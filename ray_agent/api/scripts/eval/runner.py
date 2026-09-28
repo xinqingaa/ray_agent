@@ -20,6 +20,8 @@ def _compact_event(event_type: str, data: Dict[str, Any]) -> Dict[str, Any]:
     item: Dict[str, Any] = {"event": event_type}
     if event_type == "tool":
         item.update(function=data.get("function"), status=data.get("status"), name=data.get("name"))
+        if data.get("duration_ms") is not None:
+            item["duration_ms"] = data["duration_ms"]
     elif event_type == "message":
         item.update(role=data.get("role"), message=(data.get("message") or "")[:120],
                     attachments=[a.get("filename") for a in data.get("attachments") or []])
@@ -30,6 +32,9 @@ def _compact_event(event_type: str, data: Dict[str, Any]) -> Dict[str, Any]:
         item.update(error=(data.get("error") or "")[:300])
     elif event_type == "step":
         item.update(status=data.get("status"), description=(data.get("description") or "")[:80])
+    elif event_type == "plan":
+        item.update(status=data.get("status"),
+                    steps=[f"{s.get('status')}:{(s.get('description') or '')[:40]}" for s in data.get("steps") or []])
     return item
 
 

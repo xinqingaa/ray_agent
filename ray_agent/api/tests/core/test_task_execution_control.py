@@ -1,137 +1,106 @@
-"""第八章：实际协调、运行器和 Flow；模型、存储、传输与沙箱用替身。"""
+"""执行控制：实际协调、运行器和 Agent 循环；模型、存储、传输与沙箱用替身。"""
 import asyncio
 import json
-from types import SimpleNamespace
 from unittest.mock import AsyncMock
 
 import pytest
 
 from app.application.services.agent_service import AgentService
-from app.domain.models.event import DoneEvent, ErrorEvent, MessageEvent, PlanEvent, ToolEvent, WaitEvent
+from app.domain.models.event import DoneEvent, MessageEvent, ToolEvent, WaitEvent
 from app.domain.models.session import SessionStatus
-from app.domain.models.token_usage import TokenUsageTotals
-from app.domain.services.agent_task_runner import AgentTaskRunner
 from app.infrastructure.external.task import redis_stream_task as task_module
-from test_planner_react_flow import make_flow, read_call, response
+from tests.support.loop_harness import (
+    MemoryQueue,
+    assert_no_dangling,
+    input_task,
+    make_loop,
+    make_runner,
+    memory_messages,
+    submit,
+    tool_results,
+)
+from tests.support.scripted_llm import ScriptedResponse, ScriptedToolCall, text, tool_call
 
 
-class MemoryQueue:
-    """只替换传输，不模拟 Redis 锁与多进程。"""
-    def __init__(self, name=""):
-        self.items, self.history, self.on_put = [], [], None
-
-    async def put(self, value):
-        key = str(len(self.history) + 1)
-        self.items.append((key, value))
-        self.history.append(value)
-        if self.on_put:
-            await self.on_put(value)
-        return key
-
-    async def pop(self):
-        return self.items.pop(0) if self.items else (None, None)
-
-    async def is_empty(self):
-        return not self.items
+def ask(call_id="ask-1", question="请提供文件路径"):
+    return tool_call("message_ask_user", {"text": question}, id=call_id)
 
 
-def plan():
-    return response({"steps": [{"id": "file", "description": "read_file 核对文件"}]})
-
-
-def make_runner(h):
-    r = AgentTaskRunner.__new__(AgentTaskRunner)
-    r._session_id, r._uow_factory, r._flow = h.session.id, h.flow._uow_factory, h.flow
-    r._uow, r._sandbox = r._uow_factory(), h.sandbox
-    r._sandbox.ensure_sandbox, r._sandbox.destroy = AsyncMock(), AsyncMock()
-    r._mcp_tool = SimpleNamespace(initialize=AsyncMock(), cleanup=AsyncMock())
-    r._a2a_tool = SimpleNamespace(initialize=AsyncMock(), cleanup=AsyncMock())
-    r._token_totals = TokenUsageTotals()
-    # 附件/预览不属于本次控制实验。
-    r._sync_message_attachments_to_sandbox = AsyncMock()
-    r._sync_message_attachments_to_storage = AsyncMock()
-    r._handle_tool_event = AsyncMock()
-
-    async def add_event(sid, event):
-        h.session.events.append(event.model_copy(deep=True))
-
-    async def update_status(sid, status):
-        h.session.status = status
-
-    repo = r._uow.session
-    repo.add_event = AsyncMock(side_effect=add_event)
-    repo.update_status = AsyncMock(side_effect=update_status)
-    repo.update_title, repo.update_latest_message = AsyncMock(), AsyncMock()
-    repo.increment_unread_message_count = AsyncMock()
-    return r
-
-
-def input_task():
-    return SimpleNamespace(input_stream=MemoryQueue(), output_stream=MemoryQueue())
-
-
-async def submit(task, text):
-    await task.input_stream.put(MessageEvent(role="user", message=text).model_dump_json())
-
-
-def test_wait_then_new_runner_continues_from_saved_plan_and_reply():
+def test_wait_then_new_runner_continues_with_reply_as_ask_result():
     async def run():
-        ask = read_call("ask-1", "/unused")
-        ask["tool_calls"][0]["function"] = {
-            "name": "message_ask_user", "arguments": json.dumps({"text": "请提供文件路径"})}
-        first = make_flow([plan(), ask])
+        first = make_loop([ask()])
         r, task = make_runner(first), input_task()
         await submit(task, "核对文件，路径待补充")
         await r.invoke(task)
         assert first.session.status == SessionStatus.WAITING
         assert isinstance(first.session.events[-1], WaitEvent)
-        assert not first.remaining
+        assert first.llm.remaining == 0
         assert not any(isinstance(e, DoneEvent) for e in first.session.events)
         first.sandbox.read_file.assert_not_awaited()
         r._mcp_tool.cleanup.assert_awaited_once()
-        assert first.session.memories["react"].messages[-1]["tool_calls"][0]["id"] == "ask-1"
-        second = make_flow([
-            read_call("read-1", "/hello.txt"), response({"success": True, "result": "核对完成"}),
-            response({"steps": []}), response({"message": "完成", "attachments": []}),
-        ], session=first.session)
+        assert memory_messages(first.session)[-1]["tool_calls"][0]["id"] == "ask-1"
+
+        second = make_loop([tool_call("read_file", {"filepath": "/hello.txt"}, id="read-1"), text("核对完成")],
+                           session=first.session)
         r2, task2 = make_runner(second), input_task()
         await submit(task2, "/hello.txt")
         await r2.invoke(task2)
-        assert second.flow is not first.flow
+        assert second.loop is not first.loop
         assert second.session.status == SessionStatus.COMPLETED
-        assert not second.remaining
-        assert sum(isinstance(e, PlanEvent) and e.status == "created" for e in second.session.events) == 1
-        replies = [m for m in second.requests[0]["messages"] if m.get("tool_call_id") == "ask-1"]
-        assert len(replies) == 1
-        assert json.loads(replies[0]["content"])["message"] == "/hello.txt"
+        assert second.llm.remaining == 0
+        request = second.llm.requests[0].messages
+        assert_no_dangling(request)
+        assert tool_results(request)["ask-1"]["data"]["reply"] == "/hello.txt"
         second.sandbox.read_file.assert_awaited_once()
         assert second.sandbox.read_file.await_args.kwargs["filepath"] == "/hello.txt"
         assert isinstance(second.session.events[-1], DoneEvent)
     asyncio.run(asyncio.wait_for(run(), 5))
 
 
-def test_new_input_at_calling_event_switches_flow_before_tool_side_effect():
+def test_new_input_during_tool_is_injected_without_interrupting_or_replanning():
     async def run():
-        h = make_flow([
-            plan(), read_call("old", "/old.txt"), plan(), read_call("new", "/new.txt"),
-            response({"success": True, "result": "新文件核对完成"}),
-            response({"steps": []}), response({"message": "完成", "attachments": []})])
+        h = make_loop([
+            tool_call("read_file", {"filepath": "/old.txt"}, id="old"),
+            tool_call("read_file", {"filepath": "/new.txt"}, id="new"),
+            text("两个文件都核对完成"),
+        ])
         r, task = make_runner(h), input_task()
 
         async def inject(value):
             e = json.loads(value)
             if e.get("tool_call_id") == "old" and e.get("status") == "calling":
-                await submit(task, "改为核对 /new.txt")
+                await submit(task, "再核对 /new.txt")
         task.output_stream.on_put = inject
         await submit(task, "核对 /old.txt")
         await r.invoke(task)
-        assert not h.remaining
-        h.sandbox.read_file.assert_awaited_once()
-        assert h.sandbox.read_file.await_args.kwargs["filepath"] == "/new.txt"
-        assert sum(isinstance(e, PlanEvent) and e.status == "created" for e in h.session.events) == 2
+
+        assert h.llm.remaining == 0
+        assert [c.kwargs["filepath"] for c in h.sandbox.read_file.await_args_list] == ["/old.txt", "/new.txt"]
         old = [e for e in h.session.events if isinstance(e, ToolEvent) and e.tool_call_id == "old"]
-        assert [e.status for e in old] == ["calling"]
+        assert [e.status for e in old] == ["calling", "called"]
+        second = h.llm.requests[1].messages
+        assert [m["role"] for m in second[-3:]] == ["assistant", "tool", "user"]
+        assert second[-1]["content"] == "再核对 /new.txt"
         assert h.session.status == SessionStatus.COMPLETED
+        assert sum(isinstance(e, DoneEvent) for e in h.session.events) == 1
+    asyncio.run(asyncio.wait_for(run(), 5))
+
+
+def test_message_queued_after_last_request_starts_next_run():
+    async def run():
+        h = make_loop([text("第一轮答复"), text("第二轮答复")])
+        r, task = make_runner(h), input_task()
+
+        async def inject(value):
+            e = json.loads(value)
+            if e.get("type") == "message" and e.get("message") == "第一轮答复":
+                await submit(task, "第二个问题")
+        task.output_stream.on_put = inject
+        await submit(task, "第一个问题")
+        await r.invoke(task)
+        assert h.llm.remaining == 0
+        assert sum(isinstance(e, DoneEvent) for e in h.session.events) == 2
+        assert h.llm.requests[1].messages[-1] == {"role": "user", "content": "第二个问题"}
     asyncio.run(asyncio.wait_for(run(), 5))
 
 
@@ -140,7 +109,7 @@ def test_new_input_at_calling_event_switches_flow_before_tool_side_effect():
     (SessionStatus.WAITING, True, True)])
 def test_chat_selects_task_and_does_not_deduplicate(status, has_task, created):
     async def run():
-        h = make_flow([])
+        h = make_loop([])
         r = make_runner(h)
         h.session.status = status
         task = input_task()
@@ -164,11 +133,11 @@ def test_stop_returns_before_cleanup_and_does_not_destroy_sandbox(monkeypatch):
     monkeypatch.setattr(task_module, "RedisStreamMessageQueue", MemoryQueue)
 
     async def run():
-        h = make_flow([])
+        h = make_loop([])
         r = make_runner(h)
         entered, cleaning, release, persisted = [asyncio.Event() for _ in range(4)]
 
-        async def blocked_flow(message):
+        async def blocked_flow(message, task=None):
             entered.set()
             await asyncio.Event().wait()
             yield DoneEvent()
@@ -212,13 +181,36 @@ def test_stop_returns_before_cleanup_and_does_not_destroy_sandbox(monkeypatch):
     asyncio.run(asyncio.wait_for(run(), 5))
 
 
-@pytest.mark.parametrize("iterations,expect_error", [(1, True), (2, False)])
-def test_iteration_boundary_checks_last_reply_on_next_pass(iterations, expect_error):
+def test_stop_mid_batch_then_new_message_repairs_through_runner():
     async def run():
-        h = make_flow([read_call("read", "/hello.txt"), response({"message": "完成"})])
-        h.flow.react._agent_config.max_iterations = iterations
-        events = [e async for e in h.flow.react.invoke("核对文件")]
-        assert len(h.requests) == 2
-        assert any(isinstance(e, ErrorEvent) and "最大迭代" in e.error for e in events) is expect_error
-        h.sandbox.read_file.assert_awaited_once()
+        first = make_loop([ScriptedResponse(tool_calls=[
+            ScriptedToolCall("echo", {"text": "long"}, id="c-long"),
+            ScriptedToolCall("echo", {"text": "next"}, id="c-next"),
+        ])])
+        started = asyncio.Event()
+
+        async def block(_):
+            started.set()
+            await asyncio.Event().wait()
+        first.recording.hook = block
+        r, task = make_runner(first), input_task()
+        await submit(task, "长任务")
+        execution = asyncio.create_task(r.invoke(task))
+        await started.wait()
+        execution.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await execution
+        await asyncio.sleep(0)
+        assert first.session.status == SessionStatus.COMPLETED
+
+        second = make_loop([text("已按新要求处理")], session=first.session)
+        r2, task2 = make_runner(second), input_task()
+        await submit(task2, "换个做法")
+        await r2.invoke(task2)
+        request = second.llm.requests[0].messages
+        assert_no_dangling(request)
+        assert {k: v["message"] for k, v in tool_results(request).items()} == {
+            "c-long": "执行中断：任务在该调用执行期间被停止，调用可能已部分生效，结果未知",
+            "c-next": "未执行：任务已停止"}
+        assert second.session.status == SessionStatus.COMPLETED
     asyncio.run(asyncio.wait_for(run(), 5))

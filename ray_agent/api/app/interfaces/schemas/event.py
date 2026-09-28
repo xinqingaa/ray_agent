@@ -172,6 +172,7 @@ class ToolEventData(BaseEventData):
     function: str  # 工具名字
     args: Dict[str, Any]  # 工具参数
     content: Optional[Any] = None  # 工具调用结果
+    duration_ms: Optional[int] = None  # 工具耗时，只在 called 事件上有值
 
 
 class ToolSSEEvent(BaseSSEEvent):
@@ -190,6 +191,7 @@ class ToolSSEEvent(BaseSSEEvent):
                 function=event.function_name,
                 args=event.function_args,
                 content=event.tool_content,
+                duration_ms=event.duration_ms,
             )
         )
 

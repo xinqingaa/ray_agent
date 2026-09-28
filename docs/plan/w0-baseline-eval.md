@@ -11,7 +11,7 @@
 ## 现状
 
 - 模型接口是 `Protocol`，只有 `invoke(messages, tools, response_format, tool_choice)` 与四个只读属性（[`domain/external/llm.py`](../../ray_agent/api/app/domain/external/llm.py)），替身实现成本低。
-- 已有测试替身散落在各测试文件内（如 [`test_planner_react_flow.py`](../../ray_agent/api/tests/core/test_planner_react_flow.py) 的内联 `invoke`），没有可复用的脚本化模型。
+- 已有测试替身散落在各测试文件内（如 `test_planner_react_flow.py` 的内联 `invoke`，该文件已在 W1 删除），没有可复用的脚本化模型。
 - 用量已按模型调用发出 `UsageEvent`，工具调用有 `calling/called` 两条 `ToolEvent`，都随会话事件保存，可通过 `GET /sessions/{id}` 读回，足以统计评测指标。
 - [labs/verification](../../labs/verification/README.md) 列有 V01–V05 五条任务样本，没有自动运行入口；协议测试已有可自启的 MCP/A2A 夹具（[`tests/protocols/fixture_server.py`](../../ray_agent/api/tests/protocols/fixture_server.py)）。
 

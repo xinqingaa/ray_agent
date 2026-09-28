@@ -2,10 +2,8 @@
 # -*- coding: utf-8 -*-
 """把内部异常转成可展示、可重试的说明，不要求用户新开任务。"""
 
-STEP_PARSE_ERROR = "当前步骤的执行结果无法解析，已停止本轮任务。可直接重试，无需新开任务。"
 QUOTA_ERROR = "模型服务额度不足。请检查模型配置后，在本任务中重试。"
 EMPTY_MESSAGE_ERROR = "没有收到有效消息，请重新发送。"
-SUMMARIZE_PARSE_ERROR = "汇总结果无法解析，已停止本轮任务。可直接重试，无需新开任务。"
 GENERIC_RETRY_SUFFIX = "可在本任务中重试。"
 
 
@@ -16,14 +14,10 @@ def format_public_error_text(text: str) -> str:
         return f"任务执行失败。{GENERIC_RETRY_SUFFIX}"
 
     lowered = raw.lower()
-    if "validation error for step" in lowered or "type=model_type" in lowered:
-        return STEP_PARSE_ERROR
     if "insufficient_quota" in lowered:
         return QUOTA_ERROR
     if raw == "空消息错误" or "empty message" in lowered:
         return EMPTY_MESSAGE_ERROR
-    if "汇总结果无法解析" in raw:
-        return SUMMARIZE_PARSE_ERROR
 
     first_line = raw.splitlines()[0].strip()
     marker = "for further information visit"

@@ -5,9 +5,18 @@
 @Author  : thezehui@gmail.com
 @File    : llm.py
 """
-from typing import Protocol, List, Dict, Any
+from typing import Protocol, List, Dict, Any, Optional
 
 from app.domain.models.llm import LLMInvokeResult
+
+
+class LLMRequestError(Exception):
+    """模型请求失败。retryable 为 True 表示传输类错误（连接、超时、5xx、限流），可以原样重发。"""
+
+    def __init__(self, message: str, *, retryable: bool = False, status_code: Optional[int] = None) -> None:
+        super().__init__(message)
+        self.retryable = retryable
+        self.status_code = status_code
 
 
 class LLM(Protocol):

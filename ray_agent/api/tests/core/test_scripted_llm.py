@@ -1,8 +1,8 @@
-"""ScriptedLLM 自测：脚本顺序、请求记录、异常、耗尽与条件分支，以及接入现有流程。"""
+"""ScriptedLLM 自测：脚本顺序、请求记录、异常、耗尽与条件分支，以及接入 Agent 循环。"""
 import asyncio
 import json
 from types import SimpleNamespace
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -12,7 +12,8 @@ from app.domain.models.memory import Memory
 from app.domain.models.message import Message
 from app.domain.models.session import Session
 from app.domain.models.tool_result import ToolResult
-from app.domain.services.flows.planner_react import PlannerReActFlow
+from app.domain.services.flows.agent_loop import AgentLoop
+from app.domain.services.tools.file import FileTool
 from tests.support.scripted_llm import (
     Branch,
     ScriptedLLM,
@@ -144,23 +145,16 @@ def test_branch_can_choose_exception():
         run(llm.invoke([{"role": "tool", "content": "x"}]))
 
 
-def _plan_json(steps):
-    return json.dumps({"steps": steps}, ensure_ascii=False)
-
-
-def test_drives_existing_planner_react_flow():
-    """替身可直接替换产品模型对象：真实双循环读完文件并结束。"""
+def test_drives_agent_loop():
+    """替身可直接替换产品模型对象：真实 Agent 循环按分支读完文件并结束。"""
     session = Session(id="scripted")
     llm = ScriptedLLM([
-        text(_plan_json([{"id": "s1", "description": "read_file 读取记录"}]), usage=usage(100, 20)),
-        tool_call("read_file", {"filepath": "/records.txt"}, id="read-1"),
+        tool_call("read_file", {"filepath": "/records.txt"}, id="read-1", usage=usage(100, 20)),
         when_last_tool_contains(
             "fixture observation",
-            then=text(json.dumps({"success": True, "result": "已读取"}, ensure_ascii=False)),
-            otherwise=text(json.dumps({"success": False, "result": "未读到"}, ensure_ascii=False)),
+            then=text("已读取"),
+            otherwise=text("未读到"),
         ),
-        text(_plan_json([])),
-        text(json.dumps({"message": "完成", "attachments": []}, ensure_ascii=False)),
     ])
 
     async def get_memory(session_id, name):
@@ -188,32 +182,25 @@ def test_drives_existing_planner_react_flow():
     sandbox = SimpleNamespace(read_file=AsyncMock(
         return_value=ToolResult(success=True, data={"content": "fixture observation"}),
     ))
-    external_tool = MagicMock()
-    external_tool.get_tools.return_value = []
-    flow = PlannerReActFlow(
+    loop = AgentLoop(
         uow_factory=FakeUow,
         llm=llm,
         agent_config=AgentConfig(max_retries=2, max_iterations=4),
         session_id=session.id,
-        json_parser=SimpleNamespace(invoke=AsyncMock(side_effect=json.loads)),
-        browser=MagicMock(),
-        sandbox=sandbox,
-        search_engine=MagicMock(),
-        mcp_tool=external_tool,
-        a2a_tool=external_tool,
+        tools=[FileTool(sandbox=sandbox)],
+        retry_interval=0,
     )
-    flow.planner._retry_interval = 0
-    flow.react._retry_interval = 0
 
     async def collect():
-        return [event async for event in flow.invoke(Message(message="读取记录"))]
+        return [event async for event in loop.invoke(Message(message="读取记录"))]
 
     events = run(collect())
 
     assert llm.remaining == 0 and llm.exhausted_calls == 0
     assert not any(isinstance(event, ErrorEvent) for event in events)
     assert isinstance(events[-1], DoneEvent)
+    assert events[-2].message == "已读取"
     called = [event for event in events if isinstance(event, ToolEvent) and event.status == ToolEventStatus.CALLED]
     assert [event.function_name for event in called] == ["read_file"]
-    assert "read_file" in llm.requests[1].tool_names
-    assert llm.requests[2].last_message["tool_call_id"] == "read-1"
+    assert {"read_file", "update_plan"} <= set(llm.requests[0].tool_names)
+    assert llm.requests[1].last_message["tool_call_id"] == "read-1"

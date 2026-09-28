@@ -33,6 +33,54 @@ def _tools(counts: Dict[str, int]) -> str:
     return "、".join(f"{name}×{count}" for name, count in counts.items()) or "—"
 
 
+def load_baseline(path: Path) -> Dict[str, Any]:
+    """读取另一份评测 JSON，只保留对比所需的元数据与各次运行指标。"""
+    data = json.loads(path.read_text(encoding="utf-8"))
+    keys = ("task_id", "title", "run_index", "outcome", "wall_seconds", "model_calls",
+            "prompt_tokens", "completion_tokens", "tool_calls", "session_id")
+    return {
+        "path": str(path.resolve().relative_to(REPO_DIR)) if path.resolve().is_relative_to(REPO_DIR) else str(path),
+        "label": data["meta"]["label"],
+        "commit": data["meta"]["git"]["short"],
+        "runs": [{k: run.get(k) for k in keys} for run in data["runs"]],
+    }
+
+
+def _delta(current: Any, base: Any) -> str:
+    if not isinstance(current, (int, float)) or not isinstance(base, (int, float)):
+        return f"{current}（基线 {base}）"
+    diff = current - base
+    diff_text = f"{diff:+.1f}" if isinstance(diff, float) else f"{diff:+d}"
+    return f"{current}（基线 {base}，{diff_text}）"
+
+
+def _render_baseline(runs: List[Dict[str, Any]], baseline: Dict[str, Any]) -> List[str]:
+    """按任务与运行序号配对；本次或基线缺少的一方显示为「—」。"""
+    base_runs = {(r["task_id"], r["run_index"]): r for r in baseline["runs"]}
+    lines = [
+        "",
+        f"## 与基线对比（{baseline['label']}，`{baseline['commit']}`，{baseline['path']}）",
+        "",
+        "| 任务 | 次 | 结论（本次 / 基线） | 耗时 s | 模型调用 | prompt tokens | completion tokens | 工具调用 |",
+        "|---|---|---|---|---|---|---|---|",
+    ]
+    for run in runs:
+        base = base_runs.get((run["task_id"], run["run_index"]))
+        if base is None:
+            lines.append(f"| {run['task_id']} | {run['run_index']} | {OUTCOME_TEXT.get(run['outcome'], run['outcome'])} / — | — | — | — | — | — |")
+            continue
+        outcome = f"{OUTCOME_TEXT.get(run['outcome'], run['outcome'])} / {OUTCOME_TEXT.get(base['outcome'], base['outcome'])}"
+        lines.append(
+            f"| {run['task_id']} | {run['run_index']} | {outcome} "
+            f"| {_delta(run.get('wall_seconds'), base.get('wall_seconds'))} "
+            f"| {_delta(run.get('model_calls'), base.get('model_calls'))} "
+            f"| {_delta(run.get('prompt_tokens'), base.get('prompt_tokens'))} "
+            f"| {_delta(run.get('completion_tokens'), base.get('completion_tokens'))} "
+            f"| {_delta(run.get('tool_calls'), base.get('tool_calls'))} |"
+        )
+    return lines
+
+
 def render_markdown(report: Dict[str, Any]) -> str:
     meta = report["meta"]
     llm, agent = meta["llm_config"], meta["agent_config"]
@@ -70,6 +118,9 @@ def render_markdown(report: Dict[str, Any]) -> str:
             f"| {run.get('model_calls')} | {run.get('prompt_tokens')} / {run.get('completion_tokens')} "
             f"| {run.get('tool_calls')} | {_cell(_tools(run.get('tool_calls_by_name', {})))} | `{run.get('session_id')}` |"
         )
+    baseline = report.get("baseline")
+    if baseline:
+        lines += _render_baseline(report["runs"], baseline)
     lines += ["", "## 逐条结果", ""]
     for run in report["runs"]:
         lines.append(f"### {run['task_id']} {run['title']}（第 {run['run_index']} 次）：{OUTCOME_TEXT.get(run['outcome'], run['outcome'])}")

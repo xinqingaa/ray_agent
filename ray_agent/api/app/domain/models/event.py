@@ -117,6 +117,7 @@ class ToolEvent(BaseEvent):
     function_args: Dict[str, Any]  # LLM生成的工具调用参数
     function_result: Optional[ToolResult] = None  # 工具调用结果
     status: ToolEventStatus = ToolEventStatus.CALLING  # 工具事件状态
+    duration_ms: Optional[int] = None  # 工具管线从执行前到执行后的耗时，只在 called 事件上填写
 
 
 class WaitEvent(BaseEvent):

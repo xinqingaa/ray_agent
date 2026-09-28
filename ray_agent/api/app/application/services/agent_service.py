@@ -13,7 +13,6 @@ from typing import AsyncGenerator, Optional, List, Type, Callable
 from pydantic import TypeAdapter
 
 from app.domain.external.file_storage import FileStorage
-from app.domain.external.json_parser import JSONParser
 from app.domain.external.llm import LLM
 from app.domain.external.sandbox import Sandbox
 from app.domain.external.search import SearchEngine
@@ -45,7 +44,6 @@ class AgentService:
             a2a_config: A2AConfig,
             sandbox_cls: Type[Sandbox],
             task_cls: Type[Task],
-            json_parser: JSONParser,
             search_engine: SearchEngine,
             file_storage: FileStorage,
     ) -> None:
@@ -58,7 +56,6 @@ class AgentService:
         self._a2a_config = a2a_config
         self._sandbox_cls = sandbox_cls
         self._task_cls = task_cls
-        self._json_parser = json_parser
         self._search_engine = search_engine
         self._file_storage = file_storage
         logger.info(f"AgentService初始化成功")
@@ -104,7 +101,6 @@ class AgentService:
             a2a_tool=A2ATool(A2AClientManager(self._a2a_config)),
             session_id=session.id,
             file_storage=self._file_storage,
-            json_parser=self._json_parser,
             browser=browser,
             search_engine=self._search_engine,
             sandbox=sandbox,

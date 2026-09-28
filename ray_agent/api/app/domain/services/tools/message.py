@@ -11,8 +11,14 @@ from app.domain.models.tool_result import ToolResult
 from .base import BaseTool, tool
 
 
+ASK_USER_TOOL = "message_ask_user"
+
+
 class MessageTool(BaseTool):
-    """消息工具，用于完成消息工具初始化"""
+    """消息工具。提问由 Agent 循环拦截：发出问题并等待，用户回复在续接时写为该调用的结果。
+
+    进度不再通过工具通知，助手随工具调用附带的文本与计划清单承担这一职责。
+    """
     name: str = "message"
 
     def __init__(self) -> None:
@@ -20,23 +26,8 @@ class MessageTool(BaseTool):
         super().__init__()
 
     @tool(
-        name="message_notify_user",
-        description="向用户发送消息，且无需用户回复。用于确认收到消息、提供进度更新、报告任务完成情况，或解释处理方式的变更。",
-        parameters={
-            "text": {
-                "type": "string",
-                "description": "要显示给用户的消息文本",
-            },
-        },
-        required=["text"]
-    )
-    async def message_notify_user(self, text: str) -> ToolResult:
-        """发送通知消息给用户，不需要用户响应"""
-        return ToolResult(success=True, data="Continue")
-
-    @tool(
-        name="message_ask_user",
-        description="向用户提问并等待回复。用于：请求澄清、寻求确认、或收集额外信息。",
+        name=ASK_USER_TOOL,
+        description="向用户提问并等待回复。只在缺少必要信息且无法合理假设时使用；调用后本轮暂停，用户的回复会作为本调用的结果返回。",
         parameters={
             "text": {
                 "type": "string",

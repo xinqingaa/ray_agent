@@ -8,10 +8,9 @@
 import logging
 from typing import List, Dict, Any
 
-from openai import AsyncOpenAI
+from openai import APIConnectionError, APIStatusError, AsyncOpenAI, InternalServerError, RateLimitError
 
-from app.application.errors.exceptions import ServerRequestsError
-from app.domain.external.llm import LLM
+from app.domain.external.llm import LLM, LLMRequestError
 from app.domain.models.app_config import LLMConfig
 from app.domain.models.llm import LLMInvokeResult
 from app.infrastructure.external.llm.usage import parse_completion_usage
@@ -95,21 +94,36 @@ class OpenAILLM(LLM):
                 )
 
             # 3.处理响应数据并返回
-            message = response.choices[0].message
+            choice = response.choices[0]
+            message = choice.message
             usage = parse_completion_usage(getattr(response, "usage", None))
             logger.info(
-                f"{prefix}LLM响应 model={self._model_name} "
-                f"has_content={bool(message.content)} has_tool_calls={bool(message.tool_calls)} "
+                f"{prefix}LLM响应 model={self._model_name} finish_reason={choice.finish_reason} "
+                f"has_content={bool(message.content)} tool_calls={len(message.tool_calls or [])} "
                 f"usage={usage.model_dump() if usage else None}"
             )
             logger.debug(f"{prefix}LLM完整响应: {response.model_dump()}")
-            return LLMInvokeResult(message=message.model_dump(), usage=usage)
+            return LLMInvokeResult(message=message.model_dump(), usage=usage, finish_reason=choice.finish_reason)
         except Exception as e:
+            status_code = getattr(e, "status_code", None)
             logger.error(
-                f"{prefix}LLM请求失败 status={getattr(e, 'status_code', None)} "
+                f"{prefix}LLM请求失败 status={status_code} "
                 f"code={getattr(e, 'code', None)} error={e}"
             )
-            raise ServerRequestsError(f"调用OpenAI客户端向LLM发起请求出错: {str(e)}")
+            raise LLMRequestError(
+                f"调用OpenAI客户端向LLM发起请求出错: {str(e)}",
+                retryable=_is_transport_error(e),
+                status_code=status_code,
+            ) from e
+
+
+def _is_transport_error(error: Exception) -> bool:
+    """连接、超时、限流与 5xx 可以重发；参数、鉴权、额度等错误重发也不会成功。"""
+    if isinstance(error, (APIConnectionError, RateLimitError, InternalServerError)):
+        return True
+    if isinstance(error, APIStatusError):
+        return error.status_code == 429 or error.status_code >= 500
+    return False
 
 
 if __name__ == "__main__":

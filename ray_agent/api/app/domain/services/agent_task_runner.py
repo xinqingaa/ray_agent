@@ -16,7 +16,6 @@ from pydantic import TypeAdapter
 
 from app.domain.external.browser import Browser
 from app.domain.external.file_storage import FileStorage
-from app.domain.external.json_parser import JSONParser
 from app.domain.external.llm import LLM
 from app.domain.external.sandbox import Sandbox
 from app.domain.external.search import SearchEngine
@@ -38,8 +37,7 @@ from app.domain.models.token_usage import (
 )
 from app.domain.models.tool_result import ToolResult
 from app.domain.repositories.uow import IUnitOfWork
-from app.domain.services.flows.planner_react import PlannerReActFlow
-from app.domain.services.agents.step_guard import MISSING_ATTACHMENT_ERROR
+from app.domain.services.flows.agent_loop import AgentLoop, build_default_tools
 from app.domain.services.task_error import format_public_error
 from app.infrastructure.logging import set_log_session_id
 from app.domain.services.tools.a2a import A2ATool
@@ -60,7 +58,6 @@ class AgentTaskRunner(TaskRunner):
             a2a_tool: A2ATool,
             session_id: str,  # 会话id
             file_storage: FileStorage,  # 文件存储桶
-            json_parser: JSONParser,  # json解析器
             browser: Browser,  # 浏览器
             search_engine: SearchEngine,  # 搜索引擎
             sandbox: Sandbox,  # 沙箱
@@ -75,17 +72,19 @@ class AgentTaskRunner(TaskRunner):
         self._file_storage = file_storage
         self._browser = browser
         self._token_totals = TokenUsageTotals()
-        self._flow = PlannerReActFlow(
+        self._flow = AgentLoop(
             uow_factory=uow_factory,
             llm=llm,
             agent_config=agent_config,
             session_id=session_id,
-            json_parser=json_parser,
-            browser=browser,
-            sandbox=sandbox,
-            search_engine=search_engine,
-            mcp_tool=self._mcp_tool,
-            a2a_tool=self._a2a_tool,
+            tools=build_default_tools(
+                sandbox=sandbox,
+                browser=browser,
+                search_engine=search_engine,
+                mcp_tool=self._mcp_tool,
+                a2a_tool=self._a2a_tool,
+            ),
+            deliver_file=self._deliver_file,
         )
 
     async def _put_and_add_event(self, task: Task, event: Event) -> None:
@@ -179,56 +178,36 @@ class AgentTaskRunner(TaskRunner):
 
         return size
 
-    async def _sync_file_to_storage(self, filepath: str) -> File:
-        """将沙箱中指定的文件路径数据同步到存储桶中"""
-        try:
-            # 1.根据文件路径从会话中查找文件数据
-            async with self._uow:
-                old_file = await self._uow.session.get_file_by_path(self._session_id, filepath)
+    async def _deliver_file(self, filepath: str) -> File:
+        """deliver_files 的交付函数：校验沙箱文件存在，上传存储并关联会话。失败抛出异常，文本即错误原因。"""
+        # 1.确认文件存在，避免把下载失败的底层报错当作原因
+        exists_result = await self._sandbox.check_file_exists(filepath)
+        exists = exists_result.data.get("exists") if isinstance(exists_result.data, dict) else False
+        if not exists_result.success or not exists:
+            raise FileNotFoundError(f"沙箱中不存在文件 {filepath}，请先写入文件再交付")
 
-            # 2.从沙箱中下载文件
-            file_data = await self._sandbox.download_file(filepath)
+        # 2.根据文件路径从会话中查找旧记录
+        async with self._uow:
+            old_file = await self._uow.session.get_file_by_path(self._session_id, filepath)
 
-            # 3.提取文件名字、文件信息并更新文件路径
-            filename = filepath.split("/")[-1]
-            upload_file = UploadFile(
-                file=file_data,
-                filename=filename,
-                size=self._get_stream_size(file_data),
-            )
+        # 3.从沙箱中下载文件
+        file_data = await self._sandbox.download_file(filepath)
 
-            # 4.先上传新副本；上传失败时保留旧会话记录
-            file = await self._file_storage.upload_file(upload_file)
-            file.filepath = filepath
+        # 4.先上传新副本；上传失败时保留旧会话记录
+        filename = filepath.split("/")[-1]
+        file = await self._file_storage.upload_file(UploadFile(
+            file=file_data,
+            filename=filename,
+            size=self._get_stream_size(file_data),
+        ))
+        file.filepath = filepath
 
-            # 5.在同一事务中替换关联，按旧文件id删除，不删除存储副本或历史附件
-            async with self._uow:
-                if old_file:
-                    await self._uow.session.remove_file(self._session_id, old_file.id)
-                await self._uow.session.add_file(self._session_id, file)
-            return file
-        except Exception as e:
-            logger.exception(f"AgentTaskRunner同步消息附件到文件存储桶失败: {str(e)}")
-
-    async def _sync_message_attachments_to_storage(self, event: MessageEvent) -> None:
-        """将消息事件的附件同步到文件存储桶中"""
-        # 1.定义附件列表存储数据
-        attachments: List[File] = []
-
-        try:
-            # 2.判断消息中是否存在附件
-            if event.attachments:
-                # 3.循环遍历所有附件
-                for attachment in event.attachments:
-                    # 4.根据文件路径将数据同步到文件存储桶
-                    file = await self._sync_file_to_storage(attachment.filepath)
-                    if file:
-                        attachments.append(file)
-
-            # 5.更新时间中的附件列表资源
-            event.attachments = attachments
-        except Exception as e:
-            logger.exception(f"AgentTaskRunner同步消息附件到存储桶失败: {str(e)}")
+        # 5.在同一事务中替换关联，按旧文件id删除，不删除存储副本或历史附件
+        async with self._uow:
+            if old_file:
+                await self._uow.session.remove_file(self._session_id, old_file.id)
+            await self._uow.session.add_file(self._session_id, file)
+        return file
 
     async def _get_browser_screenshot(self) -> str:
         """获取浏览器截图并返回截图文件对应的在线URL"""
@@ -273,14 +252,12 @@ class AgentTaskRunner(TaskRunner):
                     else:
                         event.tool_content = ShellToolContent(console="(No console)")
                 elif event.tool_name == "file":
-                    # 5.工具为file则将文件同步到对象存储
+                    # 5.工具为file则只填充预览；会话文件列表只收录用户上传与 deliver_files 交付的文件
                     if "filepath" in event.function_args:
                         filepath = event.function_args["filepath"]
                         file_read_result = await self._sandbox.read_file(filepath)
                         file_content: str = (file_read_result.data or {}).get("content", "")
                         event.tool_content = FileToolContent(content=file_content)
-                        # bugfix:修改为同步文件到storage
-                        await self._sync_file_to_storage(filepath)
                     else:
                         event.tool_content = FileToolContent(content="(No Content)")
                 elif event.tool_name in ["mcp", "a2a"]:
@@ -289,8 +266,28 @@ class AgentTaskRunner(TaskRunner):
         except Exception as e:
             logger.exception(f"AgentTaskRunner生成工具内容失败: {str(e)}")
 
-    async def _run_flow(self, message: Message) -> AsyncGenerator[BaseEvent, None]:
-        """根据消息对象运行PlannerReActFlow"""
+    @staticmethod
+    def _to_message(event: MessageEvent) -> Message:
+        return Message(
+            message=event.message or "",
+            attachments=[attachment.filepath for attachment in event.attachments],
+        )
+
+    async def _drain_injected_messages(self, task: Task) -> List[Message]:
+        """取出运行中补充的全部用户消息，交给循环在下一次模型请求前追加。"""
+        messages: List[Message] = []
+        while not await task.input_stream.is_empty():
+            event = await self._pop_event(task)
+            if not isinstance(event, MessageEvent) or not event.message:
+                continue
+            await self._sync_message_attachments_to_sandbox(event)
+            reset_turn(self._token_totals)
+            logger.info(f"会话[{self._session_id}] 运行中收到补充消息: {event.message[:50]}...")
+            messages.append(self._to_message(event))
+        return messages
+
+    async def _run_flow(self, message: Message, task: Optional[Task] = None) -> AsyncGenerator[BaseEvent, None]:
+        """根据消息对象运行 Agent 循环"""
         # 1.判断传递的消息是否为空
         if not message.message:
             logger.warning(f"AgentTaskRunner接收了一条空消息")
@@ -298,27 +295,16 @@ class AgentTaskRunner(TaskRunner):
             return
 
         # 2.调用流并运行获取事件信息
-        async for event in self._flow.invoke(message):
-            # 3.判断是否为工具事件，如果是则额外处理
+        drain = (lambda: self._drain_injected_messages(task)) if task is not None else None
+        async for event in self._flow.invoke(message, drain_injected_messages=drain):
+            # 3.工具事件补充展示内容，用量事件补充累计
             if isinstance(event, ToolEvent):
                 await self._handle_tool_event(event)
-            elif isinstance(event, MessageEvent):
-                # 4.如果是消息事件则将AI消息事件中的附件同步到存储中
-                claimed = [
-                    attachment.filepath
-                    for attachment in (event.attachments or [])
-                    if getattr(attachment, "filepath", None)
-                ]
-                await self._sync_message_attachments_to_storage(event)
-                if claimed and not event.attachments:
-                    yield event
-                    yield ErrorEvent(error=MISSING_ATTACHMENT_ERROR)
-                    continue
             elif isinstance(event, UsageEvent):
                 apply_usage_call(self._token_totals, event)
                 event = stamp_usage_event(event, self._token_totals)
 
-            # 5.将事件直接返回
+            # 4.将事件直接返回
             yield event
 
     def _schedule_detached(self, coro) -> None:
@@ -378,7 +364,7 @@ class AgentTaskRunner(TaskRunner):
             await self._restore_token_totals()
 
             had_error = False
-            # 2.循环读取任务中的输入消息队列
+            # 2.循环读取任务中的输入消息队列；运行中到达的消息由循环在模型请求前取走，不再中断当前运行
             while not await task.input_stream.is_empty():
                 # 3.从输入流中获取数据
                 event = await self._pop_event(task)
@@ -399,8 +385,8 @@ class AgentTaskRunner(TaskRunner):
                     attachments=[attachment.filepath for attachment in event.attachments]
                 )
 
-                # 6.传递消息对象并运行PlannerReActFlow
-                async for event in self._run_flow(message_obj):
+                # 6.传递消息对象并运行 Agent 循环
+                async for event in self._run_flow(message_obj, task):
                     # 7.将得到的事件添加到消息队列中
                     await self._put_and_add_event(task, event)
                     if isinstance(event, ErrorEvent):
@@ -425,18 +411,14 @@ class AgentTaskRunner(TaskRunner):
                             await self._uow.session.update_status(self._session_id, SessionStatus.WAITING)
                         return
 
-                    # 11.判断如果输入消息队列为空则跳出循环
-                    if not await task.input_stream.is_empty():
-                        break
-
-            # 12.有错误事件则标失败，同一会话仍可再发消息重跑
+            # 11.有错误事件则标失败，同一会话仍可再发消息重跑
             async with self._uow:
                 await self._uow.session.update_status(
                     self._session_id,
                     SessionStatus.FAILED if had_error else SessionStatus.COMPLETED,
                 )
         except asyncio.CancelledError:
-            # 13.当前 Task 已被取消（例如 stop_session），不能再 await 同一条连接。
+            # 12.当前 Task 已被取消（例如 stop_session），不能再 await 同一条连接。
             # 终态写入放到新 Task，否则连接无法还回池子。
             logger.info(f"会话[{self._session_id}] AgentTaskRunner任务运行取消")
             self._schedule_detached(
@@ -444,13 +426,13 @@ class AgentTaskRunner(TaskRunner):
             )
             raise
         except Exception as e:
-            # 14.记录日志并往任务队列/消息队列中写入异常事件并更新会话状态
+            # 13.记录日志并往任务队列/消息队列中写入异常事件并更新会话状态
             logger.exception(f"会话[{self._session_id}] AgentTaskRunner运行出错: {str(e)}")
             await self._put_and_add_event(task, ErrorEvent(error=format_public_error(e)))
             async with self._uow:
                 await self._uow.session.update_status(self._session_id, SessionStatus.FAILED)
         finally:
-            # 15.在同一个asyncio Task上下文中清理MCP/A2A工具资源
+            # 14.在同一个asyncio Task上下文中清理MCP/A2A工具资源
             # 这是关键：streamablehttp_client内部使用anyio.create_task_group()，
             # 要求在同一个Task中进入和退出cancel scope，
             # 所以必须在invoke()的finally块（即初始化MCP的同一个Task）中清理
