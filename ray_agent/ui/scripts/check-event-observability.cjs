@@ -1,6 +1,7 @@
 // 事件观察：转译并执行实际 UI 模块，不启动 Next.js，默认不连接服务。
 // 覆盖 SSE 分块，以及 W4 投影：按 seq 去重、重连补齐、工具合并与成组、
 // 失败轮次保留、activity、轮次用量、计划变化、终态原因。
+// W6：增量累积与丢弃、速度估算。
 /* eslint-disable @typescript-eslint/no-require-imports */
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -38,7 +39,7 @@ function load(relative) {
   return loaded.exports;
 }
 const {parseSSEStream} = load('src/lib/api/fetch.ts');
-const {mergeBySeq, projectSession, readEventSeq, reconnectDelayMs} = load('src/lib/session-projection.ts');
+const {mergeBySeq, projectSession, readEventSeq, reconnectDelayMs, resolveOutputRate} = load('src/lib/session-projection.ts');
 
 async function parse(chunks) {
   const events = [];
@@ -400,6 +401,104 @@ function kinds(view) {
   assert.equal(attempt.attempt, 2);
   assert.equal(attempt.retried, true);
   console.log('PASS: 协议工具按 outcome 判失败；attempt 预留条目可投影');
+
+  const streamingBase = [
+    ev(1, 'run', {status: 'running'}),
+    ev(2, 'turn', {phase: 'started', index: 1}),
+  ];
+  const deltas = [
+    {run_id: 'run-1', turn: 1, attempt: 1, delta: '你'},
+    {run_id: 'run-1', turn: 1, attempt: 1, delta: '好'},
+  ];
+  const accumulated = projectSession({id: 's', events: streamingBase, deltas, streamStartedAt: {'run-1:1:1': 1_700_000_000_000}});
+  const draft = accumulated.timeline.find((item) => String(item.id).startsWith('stream:'));
+  assert.equal(draft.kind, 'narration');
+  assert.equal(draft.text, '你好');
+  assert.equal(accumulated.streamingItemId, draft.id);
+  assert.equal(accumulated.streaming.text, '你好');
+  assert.equal(accumulated.streaming.startedAt, 1_700_000_000_000);
+  assert.equal(accumulated.events.length, 2);
+  assert.equal(accumulated.events.some((item) => item.type === 'delta'), false);
+  const leaked = projectSession({
+    id: 's',
+    events: [...streamingBase, {event: 'delta', data: {seq: 9, run_id: 'run-1', turn: 1, attempt: 1, delta: '漏'}}],
+  });
+  assert.equal(leaked.events.some((item) => item.type === 'delta'), false);
+  assert.equal(leaked.streamingItemId, null);
+  console.log('PASS: 增量按 (run, turn, attempt) 累积，且不进入带 seq 的事件列表');
+
+  const replaced = projectSession({
+    id: 's',
+    events: [...streamingBase, ev(3, 'message', {role: 'assistant', message: '你好，世界', attempt: 1})],
+    deltas,
+  });
+  assert.equal(replaced.timeline.some((item) => String(item.id).startsWith('stream:')), false);
+  assert.equal(replaced.streamingItemId, null);
+  assert.equal(replaced.timeline.find((item) => item.kind === 'narration').text, '你好，世界');
+  console.log('PASS: 同一 attempt 的助手消息替换临时条目');
+
+  const bigger = projectSession({
+    id: 's',
+    events: streamingBase,
+    deltas: [
+      {run_id: 'run-1', turn: 1, attempt: 1, delta: '半截'},
+      {run_id: 'run-1', turn: 1, attempt: 2, delta: '重来'},
+    ],
+  });
+  const biggerDrafts = bigger.timeline.filter((item) => String(item.id).startsWith('stream:'));
+  assert.equal(biggerDrafts.length, 1);
+  assert.equal(biggerDrafts[0].text, '重来');
+  const nextTurn = projectSession({
+    id: 's',
+    events: [...streamingBase, ev(3, 'turn', {phase: 'started', index: 2})],
+    deltas: [
+      {run_id: 'run-1', turn: 1, attempt: 1, delta: '上一轮'},
+      {run_id: 'run-1', turn: 2, attempt: 1, delta: '这一轮'},
+    ],
+  });
+  assert.equal(nextTurn.timeline.find((item) => String(item.id).startsWith('stream:')).text, '这一轮');
+  const droppedTurn = projectSession({
+    id: 's',
+    events: [...streamingBase, ev(3, 'turn', {phase: 'started', index: 2})],
+    deltas: [{run_id: 'run-1', turn: 1, attempt: 1, delta: '上一轮'}],
+  });
+  assert.equal(droppedTurn.streamingItemId, null);
+  console.log('PASS: 更大的 attempt 或另一轮丢掉旧临时条目');
+
+  const truncated = projectSession({
+    id: 's',
+    events: [...streamingBase, ev(3, 'turn', {phase: 'completed', index: 1, model_ms: 100, ttft_ms: 40, finish_reason: 'length', attempts: 1})],
+    deltas: [{run_id: 'run-1', turn: 1, attempt: 1, delta: '被截断'}],
+  });
+  assert.equal(truncated.streamingItemId, null);
+  const failedTry = projectSession({
+    id: 's',
+    events: [...streamingBase, ev(3, 'attempt', {turn: 1, attempt: 1, reason: 'cancelled', chars: 2, retried: false})],
+    deltas: [{run_id: 'run-1', turn: 1, attempt: 1, delta: '半'}],
+  });
+  assert.equal(failedTry.streamingItemId, null);
+  assert.equal(failedTry.timeline.find((item) => item.kind === 'attempt').chars, 2);
+  const stoppedStream = projectSession({
+    id: 's',
+    events: [...streamingBase, ev(3, 'run', {status: 'cancelled', reason: 'user_stop', summary: summary()})],
+    deltas: [{run_id: 'run-1', turn: 1, attempt: 1, delta: '停'}],
+  });
+  assert.equal(stoppedStream.streamingItemId, null);
+  assert.equal(stoppedStream.timeline.some((item) => item.text === '停'), false);
+  console.log('PASS: 轮次结束且没有同 attempt 助手消息、失败尝试或运行终态后没有临时条目');
+
+  const noUsage = resolveOutputRate({text: '你好', elapsedMs: 1000, turnEnded: true, completionTokens: null, modelMs: 1000, ttftMs: 200});
+  assert.equal(noUsage.estimated, true);
+  assert.ok(Math.abs(noUsage.tokensPerSecond - 1.4) < 1e-9);
+  const measured = resolveOutputRate({turnEnded: true, modelMs: 840, ttftMs: 210, completionTokens: 40});
+  assert.equal(measured.estimated, false);
+  assert.ok(Math.abs(measured.tokensPerSecond - (40 / ((840 - 210) / 1000))) < 1e-9);
+  const reasoned = resolveOutputRate({turnEnded: true, modelMs: 840, ttftMs: 210, completionTokens: 26, reasoningTokens: 24});
+  assert.equal(reasoned.estimated, false);
+  assert.ok(Math.abs(reasoned.tokensPerSecond - (2 / ((840 - 210) / 1000))) < 1e-9);
+  const liveOnly = resolveOutputRate({text: 'ab', elapsedMs: 1000, turnEnded: false, modelMs: 840, ttftMs: 210, completionTokens: 40});
+  assert.equal(liveOnly.estimated, true);
+  console.log('PASS: 无 usage 或仍在生成时速度标为估算；有 usage 时按交接公式，推理 token 从分子扣除');
 
   const eof = await parse([encode('event: message\ndata: {"message":"没有空行结尾"}')]);
   assert.equal(eof.events.length, 1);

@@ -112,7 +112,7 @@
 
 | 机制 | 主要入口 | 课程 |
 |---|---|---|
-| 事件订阅与视图投影 | [`lib/session-projection.ts`](../ray_agent/ui/src/lib/session-projection.ts) 的 `projectSession`、[`lib/session-view.ts`](../ray_agent/ui/src/lib/session-view.ts)、[`hooks/use-session-detail.ts`](../ray_agent/ui/src/hooks/use-session-detail.ts)。[`lib/session-events.ts`](../ray_agent/ui/src/lib/session-events.ts) 只做事件归一化 | 10 |
+| 事件订阅与视图投影 | [`lib/session-projection.ts`](../ray_agent/ui/src/lib/session-projection.ts) 的 `projectSession` 与 `resolveOutputRate`、[`lib/session-view.ts`](../ray_agent/ui/src/lib/session-view.ts)、[`hooks/use-session-detail.ts`](../ray_agent/ui/src/hooks/use-session-detail.ts)。文本增量不进入带序号的事件列表。[`lib/session-events.ts`](../ray_agent/ui/src/lib/session-events.ts) 只做事件归一化 | 10 |
 | 接口请求 | [`lib/api/`](../ray_agent/ui/src/lib/api/) 的 `session.ts`、`file.ts`、`fetch.ts` | 10 |
 | 会话页 | [`components/session-detail-view.tsx`](../ray_agent/ui/src/components/session-detail-view.tsx)：状态条、时间线、计划条、输入框，以及对话与开发者视图切换 | 10 |
 | 运行视图 | [`components/run/`](../ray_agent/ui/src/components/run/) | 07、10 |
@@ -134,7 +134,7 @@
 
 ---
 
-基线：上述当前实现映射为 2026-09-16 核对；Agent 循环与工具管线、上下文与记忆、工具及文件交付中的相关行于 2026-09-28 按 W1 实现更新；事件、状态与持久化、任务控制分组同日按 W3 实现更新；上下文与记忆分组同日按 W2 实现更新；前端事件订阅与视图投影同日按 W4 实现更新；前端分组于 2026-09-29 按 W5 阶段二更新；执行环境与 Shell 进程组于 2026-09-28 按 W7.1、W7.3 实现更新；模型调用与事件分组于 2026-09-29 按 W6 后端（流式组装、增量通道、首字延迟与失败尝试）更新。路径变动时更新本文件，不在其他文档正文里重复代码位置。机制为什么这样设计见 [Harness 工程](harness.md)，完整推导见对应的[课程章节](../lessons/README.md)。
+基线：上述当前实现映射为 2026-09-16 核对；Agent 循环与工具管线、上下文与记忆、工具及文件交付中的相关行于 2026-09-28 按 W1 实现更新；事件、状态与持久化、任务控制分组同日按 W3 实现更新；上下文与记忆分组同日按 W2 实现更新；前端事件订阅与视图投影同日按 W4 实现更新；前端分组于 2026-09-29 按 W5 阶段二更新，同日按 W6 接入文本增量、生成速度与失败尝试文案；执行环境与 Shell 进程组于 2026-09-28 按 W7.1、W7.3 实现更新；模型调用与事件分组于 2026-09-29 按 W6（流式组装、增量通道、首字延迟与失败尝试）更新。路径变动时更新本文件，不在其他文档正文里重复代码位置。机制为什么这样设计见 [Harness 工程](harness.md)，完整推导见对应的[课程章节](../lessons/README.md)。
 
 ## 二次开发改造入口
 
@@ -143,7 +143,6 @@
 | 工作包 | 现有修改入口 |
 |---|---|
 | [W0 基线与评测](plan/w0-baseline-eval.md) | [模型抽象](../ray_agent/api/app/domain/external/llm.py)、[测试目录](../ray_agent/api/tests/)、[API 脚本目录](../ray_agent/api/scripts/)、[验证实验](../labs/verification/README.md) |
-| [W6 流式与运行指标](plan/w6-streaming.md) | 后端已落到上文模型调用行与「文本增量、首字延迟与失败尝试」行。前端增量渲染仍未做，入口是会话页订阅与时间线（`ray_agent/ui/`，等 W5 阶段二完成后再接） |
 | [W7 控制与安全](plan/w7-control-safety.md) | W7.1、W7.3 已落到上文执行环境。W7.2 审批仍未做：工具管线执行前段、应用配置中的工具策略、审批回复接口与设置页分区 |
 
 服务指南、对应 `tests/core` / `tests/protocols`、UI 与沙箱 scripts 的运行条件见各服务 README；计划不重复维护命令。

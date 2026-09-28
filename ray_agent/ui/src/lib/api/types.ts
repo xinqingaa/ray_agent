@@ -398,7 +398,9 @@ export type SSEEventType =
   | "turn"
   | "run"
   | "context"
-  | "cleanup";
+  | "cleanup"
+  | "attempt"
+  | "delta";
 
 /**
  * SSE 事件数据
@@ -415,7 +417,12 @@ export type SSEEventData =
   | { type: "turn"; data: TurnEvent }
   | { type: "run"; data: RunEvent }
   | { type: "context"; data: Record<string, unknown> }
-  | { type: "cleanup"; data: Record<string, unknown> };
+  | { type: "cleanup"; data: Record<string, unknown> }
+  | { type: "attempt"; data: Record<string, unknown> }
+  | {
+      type: "delta";
+      data: { session_id?: string; run_id: string; turn: number; attempt: number; delta: string };
+    };
 
 /**
  * SSE 事件处理器

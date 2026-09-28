@@ -19,7 +19,10 @@ import {
   SheetTitle,
 } from '@/components/ui/sheet'
 import {useSessionDetail} from '@/hooks/use-session-detail'
+import {useSessions} from '@/hooks/use-sessions'
 import {useIsMobile} from '@/hooks/use-mobile'
+import {useNow} from '@/components/run/clock'
+import {resolveOutputRate} from '@/lib/session-projection'
 import type {FileInfo} from '@/lib/api/types'
 import type {FileView, TimelineItem, ToolCallView, ToolFamily} from '@/lib/session-view'
 
@@ -54,6 +57,7 @@ export function SessionDetailView({
 }: SessionDetailViewProps) {
   const router = useRouter()
   const isMobile = useIsMobile()
+  const {sessions, patchSession} = useSessions()
   const {
     view,
     loading,
@@ -77,6 +81,33 @@ export function SessionDetailView({
   const initialSentRef = useRef(false)
   const scrollRef = useRef<HTMLDivElement>(null)
   const stickRef = useRef(true)
+  const now = useNow(view?.streaming != null)
+  const outputRate = useMemo(() => {
+    const live = view?.streaming
+    if (live) {
+      const elapsed = now != null && live.startedAt != null ? now - live.startedAt : null
+      return resolveOutputRate({text: live.text, elapsedMs: elapsed, turnEnded: false})
+    }
+    const focus = view?.activeRun ?? (view && view.runs.length > 0 ? view.runs[view.runs.length - 1] : null)
+    if (!focus || focus.turns.some((turn) => turn.endedAt == null)) return null
+    const last = [...focus.turns].reverse().find((turn) => turn.endedAt != null)
+    if (!last) return null
+    return resolveOutputRate({
+      turnEnded: true,
+      modelMs: last.modelMs,
+      ttftMs: last.ttftMs ?? null,
+      completionTokens: last.usage?.completion ?? null,
+      reasoningTokens: last.usage?.reasoning ?? null,
+    })
+  }, [view, now])
+
+  const sessionStatus = view?.status
+  useEffect(() => {
+    if (!sessionStatus || sessionStatus === 'idle') return
+    const item = sessions.find((session) => session.session_id === sessionId)
+    if (item?.status === sessionStatus) return
+    patchSession(sessionId, {status: sessionStatus})
+  }, [sessionId, sessionStatus, sessions, patchSession])
 
   const calls = useMemo(() => collectCalls(view?.timeline ?? []), [view])
   const latest = calls.length > 0 ? calls[calls.length - 1] : null
@@ -115,7 +146,7 @@ export function SessionDetailView({
     const el = scrollRef.current
     if (!el) return
     el.scrollTo({top: el.scrollHeight, behavior: 'auto'})
-  }, [view?.timeline.length, view?.status, vncOpen])
+  }, [view?.timeline.length, view?.status, view?.streaming?.text, vncOpen])
 
   useEffect(() => {
     if (!initialMessage || initialSentRef.current || !view || loading || submitting) return
@@ -182,12 +213,13 @@ export function SessionDetailView({
     onDownloadAll: (files) => {
       void downloadAll(files)
     },
+    streamingItemId: view?.streamingItemId ?? null,
     onRetry: view?.activeRun || submitting ? undefined : (text) => {
       void sendMessage(text, []).catch((err: unknown) => {
         toast.error(err instanceof Error ? err.message : '重试失败')
       })
     },
-  }), [focus?.callId, view?.activeRun, submitting, downloadOne, downloadAll, sendMessage])
+  }), [focus?.callId, view?.activeRun, view?.streamingItemId, submitting, downloadOne, downloadAll, sendMessage])
 
   const onScroll = () => {
     const el = scrollRef.current
@@ -286,7 +318,7 @@ export function SessionDetailView({
             </button>
           </header>
 
-          <RunStatusBar run={run} onStop={() => void handleStop()}/>
+          <RunStatusBar run={run} onStop={() => void handleStop()} outputRate={outputRate}/>
 
           {mode === 'conversation' ? (
             <div ref={scrollRef} onScroll={onScroll} className="min-h-0 flex-1 overflow-y-auto">

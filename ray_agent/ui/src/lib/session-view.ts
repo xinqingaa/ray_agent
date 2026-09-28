@@ -22,6 +22,8 @@ export type TokenCounts = {
   completion: number | null
   total: number | null
   cached?: number | null
+  /** 供应商把推理 token 计入 completion 时给出；没有则为空 */
+  reasoning?: number | null
 }
 
 /** W2 的四部分上下文估算（tokens） */
@@ -183,7 +185,7 @@ export type TimelineItem =
   | (ItemBase & {kind: 'approval'; call: ToolCallView; status: ApprovalStatus; decidedAt: number | null})
   | (ItemBase & {kind: 'delivery'; files: FileView[]; note: string})
   | (ItemBase & {kind: 'compaction'; beforeTokens: number; afterTokens: number; summarizedTurns: number; summary: string | null})
-  | (ItemBase & {kind: 'attempt'; turnIndex: number; attempt: number; reason: string; retried: boolean})
+  | (ItemBase & {kind: 'attempt'; turnIndex: number; attempt: number; reason: string; retried: boolean; chars?: number | null})
   | (ItemBase & {kind: 'final'; text: string; summary: RunSummary | null})
   | (ItemBase & {kind: 'run_end'; status: Exclude<RunStatus, 'running' | 'waiting' | 'completed'>; reason: RunReason | null; reasonText: string; retryText: string | null})
 
@@ -212,6 +214,17 @@ export type RawEvent = {
   payload: Record<string, unknown>
 }
 
+/** 正在增长的临时文本。不落库；刷新、重连或被完整消息替换后消失 */
+export type StreamingDraft = {
+  itemId: string
+  runId: string
+  turn: number
+  attempt: number
+  text: string
+  /** 第一个片段的到达时间；调用方传入，投影不读时钟 */
+  startedAt: number | null
+}
+
 export type SessionView = {
   id: string
   title: string
@@ -224,4 +237,8 @@ export type SessionView = {
   usage: UsageView
   files: FileView[]
   events: RawEvent[]
+  /** 正在增长的旁白 id；没有增量时为 null。手写夹具可省略 */
+  streamingItemId?: string | null
+  /** 与 streamingItemId 对应的临时文本，供速度估算。手写夹具可省略 */
+  streaming?: StreamingDraft | null
 }

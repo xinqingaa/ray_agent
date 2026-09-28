@@ -27,32 +27,55 @@ export function CompactionNotice({beforeTokens, afterTokens, summarizedTurns, cl
   )
 }
 
+const ATTEMPT_REASON: Record<string, string> = {
+  transport: '连接中断或超时',
+  stream_interrupted: '输出流中断',
+  empty: '空回复',
+  model_error: '模型拒绝请求',
+  cancelled: '已停止',
+}
+
+/** 这些原因在不再重试时，才是重试耗尽 */
+const RETRY_EXHAUSTED = new Set(['transport', 'stream_interrupted', 'empty'])
+
 type AttemptNoticeProps = {
   /** 本轮内第几次请求 */
   attempt: number
+  /** 原因代码或已经写好的说明 */
   reason: string
-  /** true：之后已重试；false：这是最后一次，运行因此失败 */
+  /** true：之后还会再请求一次 */
   retried: boolean
+  /** 这次尝试已经推送的可见文本字符数 */
+  chars?: number | null
   className?: string
 }
 
-/** 失败尝试提示（W6 接入 attempt 事件）：模型请求失败但不进入模型历史 */
-export function AttemptNotice({attempt, reason, retried, className}: AttemptNoticeProps) {
+function attemptSentence(attempt: number, reason: string, retried: boolean, chars?: number | null): string {
+  const label = ATTEMPT_REASON[reason] ?? reason
+  const received = chars != null && chars > 0 ? `，已收到 ${chars} 个字符` : ''
+  if (reason === 'cancelled') return `第 ${attempt} 次请求已停止${received}`
+  if (retried) return `第 ${attempt} 次请求失败：${label}${received}，已重试`
+  const exhausted = RETRY_EXHAUSTED.has(reason) || !(reason in ATTEMPT_REASON)
+  return exhausted
+    ? `第 ${attempt} 次请求失败：${label}${received}，已达到重试上限，不再重试`
+    : `第 ${attempt} 次请求失败：${label}${received}`
+}
+
+/** 失败尝试提示：模型请求失败、被取消或不进入模型历史的半截输出 */
+export function AttemptNotice({attempt, reason, retried, chars, className}: AttemptNoticeProps) {
+  const stopped = reason === 'cancelled'
   const Icon = retried ? RotateCw : TriangleAlert
   return (
     <p
       role="note"
       className={cn(
         'flex items-start gap-1.5 text-xs',
-        retried ? 'text-state-waiting' : 'text-state-failed',
+        stopped ? 'text-muted-foreground' : retried ? 'text-state-waiting' : 'text-state-failed',
         className,
       )}
     >
       <Icon className="mt-0.5 size-3.5 shrink-0" aria-hidden/>
-      <span>
-        第 {attempt} 次请求失败：{reason}
-        {retried ? '，已重试' : '，已达到重试上限，不再重试'}
-      </span>
+      <span>{attemptSentence(attempt, reason, retried, chars)}</span>
     </p>
   )
 }

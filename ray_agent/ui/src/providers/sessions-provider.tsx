@@ -33,6 +33,8 @@ type SessionsContextValue = {
   error: string | null
   /** 手动刷新（通过 REST 接口拉取一次） */
   refresh: () => Promise<void>
+  /** 用详情里的状态更新列表中的一项，避免徽标停在旧的「运行中」 */
+  patchSession: (sessionId: string, patch: Partial<Pick<Session, 'status' | 'title'>>) => void
   deleteSession: (sessionId: string) => Promise<boolean>
 }
 
@@ -162,6 +164,21 @@ export function SessionsProvider({children}: { children: React.ReactNode }) {
     }
   }, [])
 
+  const patchSession = useCallback((sessionId: string, patch: Partial<Pick<Session, 'status' | 'title'>>) => {
+    setSessions((prev) => {
+      let changed = false
+      const next = prev.map((item) => {
+        if (item.session_id !== sessionId) return item
+        const status = patch.status ?? item.status
+        const title = patch.title ?? item.title
+        if (status === item.status && title === item.title) return item
+        changed = true
+        return {...item, status, title}
+      })
+      return changed ? next : prev
+    })
+  }, [])
+
   // ---------- 删除会话 ----------
   const deleteSession = useCallback(async (sessionId: string): Promise<boolean> => {
     try {
@@ -174,7 +191,7 @@ export function SessionsProvider({children}: { children: React.ReactNode }) {
   }, [])
 
   return (
-    <SessionsContext.Provider value={{sessions, loading, error, refresh, deleteSession}}>
+    <SessionsContext.Provider value={{sessions, loading, error, refresh, patchSession, deleteSession}}>
       {children}
     </SessionsContext.Provider>
   )

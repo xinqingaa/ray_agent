@@ -10,6 +10,8 @@ import {
   projectSession,
   readEventSeq,
   reconnectDelayMs,
+  streamDraftKey,
+  type DeltaInput,
 } from '@/lib/session-projection'
 import type { SessionView } from '@/lib/session-view'
 
@@ -54,6 +56,8 @@ export function useSessionDetail(
   const [submitting, setSubmitting] = useState(false)
   const [loaded, setLoaded] = useState(false)
   const [stoppingRequestedAt, setStoppingRequestedAt] = useState<number | null>(null)
+  const [deltas, setDeltas] = useState<DeltaInput[]>([])
+  const [streamStartedAt, setStreamStartedAt] = useState<Record<string, number>>({})
   const lastSeqRef = useRef(0)
   const seenSeqRef = useRef(new Set<number>())
   const retryRef = useRef(0)
@@ -66,9 +70,34 @@ export function useSessionDetail(
     if (seq > lastSeqRef.current) lastSeqRef.current = seq
   }, [])
 
+  const clearDrafts = useCallback(() => {
+    setDeltas([])
+    setStreamStartedAt({})
+  }, [])
+
   const appendEvent = useCallback((ev: SSEEventData) => {
     if (String(ev.type) === 'ping') return
-    let evToAppend = ev
+    if (ev.type === 'delta') {
+      const data = ev.data
+      const runId = data?.run_id
+      const turn = data?.turn
+      const attempt = data?.attempt
+      const delta = data?.delta
+      if (!runId || typeof turn !== 'number' || typeof attempt !== 'number' || !delta) return
+      const key = streamDraftKey(runId, turn, attempt)
+      setStreamStartedAt((prev) => (prev[key] != null ? prev : {...prev, [key]: Date.now()}))
+      setDeltas((prev) => {
+        const index = prev.findIndex((item) => (item.runId || item.run_id) === runId && item.turn === turn && item.attempt === attempt)
+        if (index < 0) return [...prev, {runId, turn, attempt, delta}]
+        const next = prev.slice()
+        const current = next[index]
+        next[index] = {...current, delta: `${current.delta ?? ''}${delta}`}
+        return next
+      })
+      retryRef.current = 0
+      return
+    }
+    let evToAppend: SSEEventData = ev
     if (ev.data && typeof ev.data === 'object' && ('event' in ev.data || 'type' in ev.data) && 'data' in ev.data) {
       const normalized = normalizeEvent(ev.data as { event?: string; type?: string; data?: unknown })
       if (normalized) evToAppend = normalized
@@ -114,6 +143,7 @@ export function useSessionDetail(
       (ev) => appendEvent(ev),
       (err) => {
         if (err.name === 'AbortError') return
+        clearDrafts()
         if (err.message !== 'SSE_STREAM_END') {
           console.warn('Session events stream error:', err)
         }
@@ -126,7 +156,7 @@ export function useSessionDetail(
         }, delay)
       }
     )
-  }, [sessionId, appendEvent, stopStream])
+  }, [sessionId, appendEvent, stopStream, clearDrafts])
 
   const normalizeFileList = useCallback((raw: unknown): SessionFile[] => {
     if (Array.isArray(raw)) return raw as SessionFile[]
@@ -142,6 +172,7 @@ export function useSessionDetail(
   const refresh = useCallback(async () => {
     if (!sessionId) return
     setError(null)
+    clearDrafts()
     try {
       const [detail, fileListRaw] = await Promise.all([
         sessionApi.getSessionDetail(sessionId),
@@ -162,7 +193,7 @@ export function useSessionDetail(
     } finally {
       setLoading(false)
     }
-  }, [sessionId, normalizeFileList, rememberSeq])
+  }, [sessionId, normalizeFileList, rememberSeq, clearDrafts])
 
   const refreshFiles = useCallback(async () => {
     if (!sessionId) return
@@ -182,6 +213,8 @@ export function useSessionDetail(
     setSubmitting(false)
     setStoppingRequestedAt(null)
     setEvents([])
+    setDeltas([])
+    setStreamStartedAt({})
     if (!sessionId) {
       setLoading(false)
       setSession(null)
@@ -246,8 +279,10 @@ export function useSessionDetail(
       runs: session.runs,
       events,
       stoppingRequestedAt,
+      deltas,
+      streamStartedAt,
     })
-  }, [sessionId, session, events, stoppingRequestedAt])
+  }, [sessionId, session, events, stoppingRequestedAt, deltas, streamStartedAt])
 
   return {
     session,

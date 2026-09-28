@@ -5,6 +5,7 @@ import {Download} from 'lucide-react'
 import {Button} from '@/components/ui/button'
 import type {TurnRequest} from '@/lib/api/types'
 import type {ContextEstimate, RawEvent, RunView, SessionView, TurnView} from '@/lib/session-view'
+import {resolveOutputRate, type OutputRate} from '@/lib/session-projection'
 import {cn} from '@/lib/utils'
 import {formatDuration, formatTime, formatTokens, totalTokens} from '@/components/run/format'
 
@@ -315,6 +316,37 @@ export function DeveloperView({view, loadTurnRequest, className}: DeveloperViewP
   )
 }
 
+function speedNote(turn: TurnView, rate: OutputRate): string | undefined {
+  if (rate.estimated) return '没有可用的 completion tokens，这是按字符估算的速度'
+  const notes: string[] = []
+  if ((turn.attempts ?? 1) > 1) notes.push('用时含失败尝试，数值偏小')
+  if (turn.usage?.reasoning != null) notes.push('已从 completion tokens 中扣除推理 token')
+  return notes.length > 0 ? notes.join('。') : undefined
+}
+
+function formatSpeed(tokensPerSecond: number): string {
+  if (!Number.isFinite(tokensPerSecond) || tokensPerSecond < 0) return '—'
+  if (tokensPerSecond > 0 && tokensPerSecond < 1) return '<1'
+  return String(Math.round(tokensPerSecond))
+}
+
+function TurnSpeed({turn}: {turn: TurnView}) {
+  if (turn.endedAt == null) return null
+  const rate = resolveOutputRate({
+    turnEnded: true,
+    modelMs: turn.modelMs,
+    ttftMs: turn.ttftMs ?? null,
+    completionTokens: turn.usage?.completion ?? null,
+    reasoningTokens: turn.usage?.reasoning ?? null,
+  })
+  if (!rate) return null
+  return (
+    <span title={speedNote(turn, rate)}>
+      {rate.estimated ? '速度（估算）' : '速度'} {formatSpeed(rate.tokensPerSecond)} tok/s
+    </span>
+  )
+}
+
 function RunTurns({
   run,
   selected,
@@ -356,6 +388,7 @@ function RunTurns({
                     <span>结束原因 {turn.finishReason ?? '—'}</span>
                     {turn.ttftMs != null && <span>首字 {formatDuration(turn.ttftMs)}</span>}
                     {turn.attempts != null && <span>尝试 {turn.attempts}</span>}
+                    <TurnSpeed turn={turn}/>
                   </span>
                   <span className="mt-1.5 block">
                     <ContextBar estimate={turn.contextEstimate}/>

@@ -149,3 +149,7 @@
 ## W5 阶段二之后（2026-09-29）
 
 会话页已改为只消费 `view`。`session-events.ts` 只保留 `normalizeEvent` 与 `normalizeEvents`。上文提到的 `eventsToTimeline`、`collapseRetriedTurns`、`getLatestPlanFromEvents` 等旧时间线导出已删除。类型字段没有增删。投影补读事件真实键名：`system_prompt` 与 `tool_results` 写入上下文构成；`watermark` 是压缩水位的 token 数，该轮同时有 `context_window` 时 `watermarkRatio` 为二者之商。浏览器走查补记写在 [W5 子计划](w5-ux.md) 的实施修正，不改本节的 W4 当日记录。
+
+## W6 前端之后（2026-09-29）
+
+`projectSession` 另接收 `deltas` 与 `streamStartedAt`。增量不写入 `events`。仍在增长的文本是时间线末尾的一条 `narration`，id 为 `stream:{runId}:{turn}:{attempt}`。`SessionView.streamingItemId` 指向它，`streaming` 带文本和第一个片段的时间；手写夹具可以省略这两项。同一 `(run_id, turn, attempt)` 的助手正文到达、该 attempt 已有失败记录、该轮 `turn(completed)`、同一运行里更大的 attempt 或另一轮、运行进入终态时，不保留临时条目。`TokenCounts.reasoning` 与尝试条目的 `chars` 为可选。速度不写入视图模型，由 `resolveOutputRate` 计算。

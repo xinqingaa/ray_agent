@@ -42,6 +42,16 @@ export type RunSnapshot = {
   cached_tokens?: number | null
 }
 
+/** 文本增量。不进入带 seq 的事件列表；同一 (run_id, turn, attempt) 按到达顺序拼接 */
+export type DeltaInput = {
+  run_id?: string
+  runId?: string
+  turn: number
+  attempt: number
+  delta?: string
+  text?: string
+}
+
 export type ProjectSessionInput = {
   id: string
   title?: string | null
@@ -52,6 +62,15 @@ export type ProjectSessionInput = {
   stoppingRequestedAt?: number | null
   /** 接口不返回配置快照时为空。调用方若已知本次上限可传入 */
   maxTurns?: number | null
+  /** 当前连接收到的文本增量。刷新和重连不会重放 */
+  deltas?: DeltaInput[]
+  /** 键为 streamDraftKey。第一个片段的时间，投影不调用 Date.now */
+  streamStartedAt?: Record<string, number>
+}
+
+/** 临时条目的键。运行 ID 是 UUID，不含冒号 */
+export function streamDraftKey(runId: string, turn: number, attempt: number): string {
+  return `${runId}:${turn}:${attempt}`
 }
 
 const RUN_STATUSES: readonly RunStatus[] = ['running', 'waiting', 'completed', 'failed', 'cancelled', 'interrupted']
@@ -172,6 +191,128 @@ export function isTerminalRunStatus(status: string | null | undefined): boolean 
   return status === 'completed' || status === 'failed' || status === 'cancelled' || status === 'interrupted'
 }
 
+const CJK_TOKENS_PER_CHAR = 0.7
+const OTHER_TOKENS_PER_CHAR = 0.3
+
+function isCjk(char: string): boolean {
+  const code = char.codePointAt(0) ?? 0
+  return (code >= 0x3000 && code <= 0x9fff)
+    || (code >= 0xac00 && code <= 0xd7af)
+    || (code >= 0xf900 && code <= 0xfaff)
+    || (code >= 0xff00 && code <= 0xffef)
+}
+
+/** 与请求容量估算相同的系数：中日韩 0.7 token/字，其余 0.3 */
+export function estimateTextTokens(text: string): number {
+  let tokens = 0
+  for (const char of text) tokens += isCjk(char) ? CJK_TOKENS_PER_CHAR : OTHER_TOKENS_PER_CHAR
+  return tokens
+}
+
+export type OutputRate = {tokensPerSecond: number; estimated: boolean}
+
+/**
+ * 运行中只用字符估算。轮次结束后，completion_tokens 与 ttft_ms 都有值且 model_ms 更大时用实测；
+ * reasoning_tokens 有值时从分子扣除。无 usage、或除法不成立时，若调用方提供了文本和耗时，仍标为估算。
+ */
+export function resolveOutputRate(input: {
+  text?: string
+  elapsedMs?: number | null
+  turnEnded?: boolean
+  modelMs?: number | null
+  ttftMs?: number | null
+  completionTokens?: number | null
+  reasoningTokens?: number | null
+}): OutputRate | null {
+  const estimated = charOutputRate(input.text ?? '', input.elapsedMs)
+  if (!input.turnEnded) return estimated
+  const measured = measuredOutputRate(input)
+  return measured ?? estimated
+}
+
+function charOutputRate(text: string, elapsedMs: number | null | undefined): OutputRate | null {
+  if (!text || elapsedMs == null || !(elapsedMs > 0)) return null
+  return {tokensPerSecond: estimateTextTokens(text) / (elapsedMs / 1000), estimated: true}
+}
+
+function measuredOutputRate(input: {
+  modelMs?: number | null
+  ttftMs?: number | null
+  completionTokens?: number | null
+  reasoningTokens?: number | null
+}): OutputRate | null {
+  const {modelMs, ttftMs, completionTokens, reasoningTokens} = input
+  if (completionTokens == null || ttftMs == null || modelMs == null || !(modelMs > ttftMs)) return null
+  const tokens = reasoningTokens != null ? completionTokens - reasoningTokens : completionTokens
+  if (!(tokens > 0)) return null
+  return {tokensPerSecond: tokens / ((modelMs - ttftMs) / 1000), estimated: false}
+}
+
+type StreamDraft = {runId: string; turn: number; attempt: number; text: string}
+
+function accumulateDeltas(deltas: DeltaInput[] | undefined): StreamDraft[] {
+  const map = new Map<string, StreamDraft>()
+  const order: string[] = []
+  for (const item of deltas ?? []) {
+    const runId = item.runId || item.run_id || ''
+    const piece = item.delta ?? item.text ?? ''
+    if (!runId || !Number.isFinite(item.turn) || !Number.isFinite(item.attempt) || !piece) continue
+    const key = streamDraftKey(runId, item.turn, item.attempt)
+    const found = map.get(key)
+    if (found) found.text += piece
+    else {
+      map.set(key, {runId, turn: item.turn, attempt: item.attempt, text: piece})
+      order.push(key)
+    }
+  }
+  return order.map((key) => map.get(key) as StreamDraft)
+}
+
+function laterAttempt(keys: Set<string>, runId: string, turn: number, attempt: number): boolean {
+  const prefix = `${runId}:${turn}:`
+  for (const key of keys) {
+    if (!key.startsWith(prefix)) continue
+    const value = Number(key.slice(prefix.length))
+    if (value > attempt) return true
+  }
+  return false
+}
+
+/** 只保留仍在增长的那一份。同一运行里更大的 attempt、另一轮、失败尝试、轮次结束或运行终态都会丢掉旧的 */
+function pickStreamingDraft(
+  drafts: StreamDraft[],
+  runs: Map<string, RunTrack>,
+  assistantAttempts: Set<string>,
+  failedAttempts: Set<string>,
+  completedTurns: Set<string>,
+  maxTurnIndex: Map<string, number>,
+): StreamDraft | null {
+  let chosen: StreamDraft | null = null
+  const byRun = new Map<string, StreamDraft[]>()
+  for (const draft of drafts) {
+    const list = byRun.get(draft.runId) ?? []
+    list.push(draft)
+    byRun.set(draft.runId, list)
+  }
+  for (const [runId, list] of byRun) {
+    const track = runs.get(runId)
+    if (track && isTerminalRunStatus(track.status)) continue
+    const latestTurn = Math.max(maxTurnIndex.get(runId) ?? 0, ...list.map((item) => item.turn))
+    const onTurn = list.filter((item) => item.turn === latestTurn)
+    if (onTurn.length === 0) continue
+    const maxAttempt = Math.max(...onTurn.map((item) => item.attempt))
+    const draft = onTurn.find((item) => item.attempt === maxAttempt)
+    if (!draft || !draft.text.trim()) continue
+    const key = streamDraftKey(draft.runId, draft.turn, draft.attempt)
+    if (assistantAttempts.has(key) || failedAttempts.has(key)) continue
+    if (completedTurns.has(`${draft.runId}:${draft.turn}`)) continue
+    if (laterAttempt(failedAttempts, draft.runId, draft.turn, draft.attempt)) continue
+    if (laterAttempt(assistantAttempts, draft.runId, draft.turn, draft.attempt)) continue
+    chosen = draft
+  }
+  return chosen
+}
+
 export function readEventSeq(event: unknown): number | null {
   if (!isRecord(event)) return null
   if (typeof event.seq === 'number') return event.seq
@@ -229,6 +370,10 @@ export function projectSession(input: ProjectSessionInput): SessionView {
   let planExplanation: string | null = null
   let compactions = 0
   const currentTurn = new Map<string, number>()
+  const maxTurnIndex = new Map<string, number>()
+  const assistantAttempts = new Set<string>()
+  const failedAttempts = new Set<string>()
+  const completedTurns = new Set<string>()
 
   const ensureRun = (runId: string, at: number, seq: number | null): RunTrack => {
     let track = runs.get(runId)
@@ -343,15 +488,19 @@ export function projectSession(input: ProjectSessionInput): SessionView {
       continue
     }
     if (ev.type === 'attempt') {
+      const attemptTurn = num(data.turn ?? data.turn_index ?? data.index) ?? 0
+      const attemptNo = num(data.attempt) ?? 1
+      if (ev.runId) failedAttempts.add(streamDraftKey(ev.runId, attemptTurn, attemptNo))
       timeline.push({
         kind: 'attempt',
         id: idOf(ev.seq, timeline.length),
         runId: ev.runId,
         at: ev.createdAt,
-        turnIndex: num(data.turn ?? data.turn_index ?? data.index) ?? 0,
-        attempt: num(data.attempt) ?? 1,
+        turnIndex: attemptTurn,
+        attempt: attemptNo,
         reason: str(data.reason) ?? str(data.error) ?? '',
         retried: data.retried === true,
+        chars: num(data.chars),
       })
       continue
     }
@@ -415,7 +564,10 @@ export function projectSession(input: ProjectSessionInput): SessionView {
         const watermark = readWatermarkTokens(data.context_estimate)
         if (watermark != null) turn.watermarkTokens = watermark
         currentTurn.set(track.id, index)
+        const prevMax = maxTurnIndex.get(track.id) ?? 0
+        if (index > prevMax) maxTurnIndex.set(track.id, index)
       } else if (data.phase === 'completed') {
+        completedTurns.add(`${track.id}:${index}`)
         turn.endedAt = ev.createdAt
         turn.modelMs = num(data.model_ms)
         turn.toolsMs = num(data.tools_ms)
@@ -462,6 +614,13 @@ export function projectSession(input: ProjectSessionInput): SessionView {
           injected,
         })
         continue
+      }
+      if (role === 'assistant' && text.trim() && attachments.length === 0) {
+        const attempt = num(data.attempt)
+        const turnIndex = ev.runId ? currentTurn.get(ev.runId) : null
+        if (attempt != null && turnIndex != null && ev.runId) {
+          assistantAttempts.add(streamDraftKey(ev.runId, turnIndex, attempt))
+        }
       }
       if (role === 'assistant' && attachments.length > 0) {
         timeline.push({
@@ -594,6 +753,37 @@ export function projectSession(input: ProjectSessionInput): SessionView {
 
   if (pending.length > 0) flushNarration()
 
+  const streamingDraft = pickStreamingDraft(
+    accumulateDeltas(input.deltas),
+    runs,
+    assistantAttempts,
+    failedAttempts,
+    completedTurns,
+    maxTurnIndex,
+  )
+  let streamingItemId: string | null = null
+  let streaming: SessionView['streaming'] = null
+  if (streamingDraft && streamingDraft.text.trim()) {
+    const itemId = `stream:${streamingDraft.runId}:${streamingDraft.turn}:${streamingDraft.attempt}`
+    const startedAt = input.streamStartedAt?.[streamDraftKey(streamingDraft.runId, streamingDraft.turn, streamingDraft.attempt)] ?? null
+    timeline.push({
+      kind: 'narration',
+      id: itemId,
+      runId: streamingDraft.runId,
+      at: startedAt ?? 0,
+      text: streamingDraft.text,
+    })
+    streamingItemId = itemId
+    streaming = {
+      itemId,
+      runId: streamingDraft.runId,
+      turn: streamingDraft.turn,
+      attempt: streamingDraft.attempt,
+      text: streamingDraft.text,
+      startedAt,
+    }
+  }
+
   for (const live of liveCalls) {
     if (live.view.status !== 'running') continue
     const track = live.runId ? runs.get(live.runId) : undefined
@@ -651,6 +841,8 @@ export function projectSession(input: ProjectSessionInput): SessionView {
     },
     files,
     events: rawEvents,
+    streamingItemId,
+    streaming,
   }
 }
 
@@ -780,7 +972,7 @@ function normalizeAll(events: unknown[]): StoredEvent[] {
   const list = Array.isArray(events) ? events : []
   for (const raw of list) {
     const ev = normalizeEventRecord(raw)
-    if (!ev || ev.type === 'ping') continue
+    if (!ev || ev.type === 'ping' || ev.type === 'delta') continue
     if (ev.seq != null) {
       if (seen.has(ev.seq)) continue
       seen.add(ev.seq)
@@ -837,11 +1029,14 @@ function readUsage(raw: unknown): TokenCounts | null {
   if (!isRecord(raw)) return null
   const prompt = num(raw.prompt_tokens)
   const completion = num(raw.completion_tokens)
-  if (prompt == null && completion == null && raw.cached_tokens == null) return null
-  return withCached(
+  const reasoning = num(raw.reasoning_tokens)
+  if (prompt == null && completion == null && raw.cached_tokens == null && reasoning == null) return null
+  const usage = withCached(
     {prompt, completion, total: prompt != null && completion != null ? prompt + completion : null},
     raw.cached_tokens == null ? null : num(raw.cached_tokens),
   )
+  if (reasoning != null) usage.reasoning = reasoning
+  return usage
 }
 
 function readEstimate(raw: unknown): ContextEstimate | null {

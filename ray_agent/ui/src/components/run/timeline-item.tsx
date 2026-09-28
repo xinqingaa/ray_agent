@@ -62,7 +62,7 @@ export function TimelineItemView({item, handlers = {}}: {item: TimelineItem; han
     case 'compaction':
       return <CompactionNotice beforeTokens={item.beforeTokens} afterTokens={item.afterTokens} summarizedTurns={item.summarizedTurns}/>
     case 'attempt':
-      return <AttemptNotice attempt={item.attempt} reason={item.reason} retried={item.retried}/>
+      return <AttemptNotice attempt={item.attempt} reason={item.reason} retried={item.retried} chars={item.chars}/>
     case 'final':
       return <FinalReply text={item.text} summary={item.summary} streaming={streaming}/>
     case 'run_end':

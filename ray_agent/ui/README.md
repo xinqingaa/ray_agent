@@ -46,9 +46,11 @@ npm run dev
 
 进入会话先取详情里的全部运行与事件，记下最大序号，再保持一条 `GET /sessions/{id}/events?after_seq=`。SSE 的 `id` 即序号。断开后按最后收到的序号重连，等待从 500 毫秒翻倍，上限 4 秒。发送消息只调用 `POST /sessions/{id}/chat`，返回 `run_id`、`seq` 与 `route`（`started`、`resumed` 或 `injected`），不再为发送单独开流。
 
+文本增量是没有 `id` 的 `event: delta`，载荷为 `run_id`、`turn`、`attempt`、`delta`。它不写入带序号的事件列表，刷新和重连也不会补发。订阅按 `(run_id, turn, attempt)` 拼成时间线末尾的临时旁白；同一 attempt 的助手消息到达后改由那条已保存消息显示。出现更大的 attempt、另一轮、该轮结束但没有对应助手消息，或运行进入终态时，临时旁白丢掉。断线重连同样丢掉尚未保存的半截文本。
+
 `useSessionDetail` 在原有的会话、文件、事件和 `sendMessage` 之外，返回投影结果 `view`、提交中的 `submitting`（与 `streaming` 相同）、`stop` 和 `loadTurnRequest`。某一轮发给模型的请求也可以用 `sessionApi.getTurnRequest`。字段约定见 [W4 子计划](../../docs/plan/w4-ui-data.md#视图模型契约)。
 
-会话页只渲染 `view`：状态条、时间线、计划条和上下文环都读这份投影。停止调用 `stop()`。运行中输入框仍可发送，内容作为补充要求；等待回复时占位符说明回复会继续当前任务。工作台默认跟随最新工具，点开某次调用后固定，直到「回到最新」。终端在该次 Shell 调用仍为运行中时，按约 1.5 秒调用 `sessionApi.viewShell`。开发者视图用 `loadTurnRequest` 显示某一轮重建出的请求。组件状态目录在接入后保留。
+会话页只渲染 `view`：状态条、时间线、计划条和上下文环都读这份投影。正在增长的条目 id 放在 `handlers.streamingItemId`。停止调用 `stop()`。运行中输入框仍可发送，内容作为补充要求；等待回复时占位符说明回复会继续当前任务。生成过程中，状态条用累计字符按中日韩 0.7、其余 0.3 的系数估算速度，并标明估算；该轮结束后，在 `completion_tokens`、`ttft_ms` 都有值且 `model_ms` 更大时，改为 `completion_tokens / (model_ms − ttft_ms)`，`reasoning_tokens` 有值时先从分子扣除。开发者视图的轮次行显示这次实测速度，并在尝试次数大于 1 或扣除了推理 token 时用提示说明偏差。失败尝试的原因代码在提示里写成「连接中断或超时」「输出流中断」「空回复」「模型拒绝请求」「已停止」；只有传输中断、流中断和空回复在不再重试时才加上「已达到重试上限」。工作台默认跟随最新工具，点开某次调用后固定，直到「回到最新」。终端在该次 Shell 调用仍为运行中时，按约 1.5 秒调用 `sessionApi.viewShell`。开发者视图用 `loadTurnRequest` 显示某一轮重建出的请求。当前会话的运行状态会写回会话列表里的对应项，终态后侧栏不再停在「运行中」。组件状态目录在接入后保留。
 
 ## 设计与主题
 
@@ -85,6 +87,6 @@ npm run start
 node scripts/check-event-observability.cjs
 ```
 
-脚本用项目 TypeScript 转译器加载实际的 SSE 解析与 `projectSession`，不复制实现，也不连接产品服务。它检查 LF 逐字节分块（含中文 UTF-8）、非法 JSON 回调、SSE `id` 保留、重连等待上限、按 seq 去重与补齐、calling/called 合并、一轮多个调用成组、失败轮次保留、activity、轮次用时与用量、计划的 `changed`，以及停止、重启中断和请求上限的可读原因。另将两个当前限制明确打印为 `LIMITATION`：EOF 分派未以空行结束的完整 JSON 尾段，以及 CRLF 恰在 CR/LF 之间分块时丢失事件类型。脚本退出成功表示上述行为与限制得到复现，不表示 SSE 标准符合性、hook 挂载或浏览器断线恢复已通过。
+脚本用项目 TypeScript 转译器加载实际的 SSE 解析与 `projectSession`，不复制实现，也不连接产品服务。它检查 LF 逐字节分块（含中文 UTF-8）、非法 JSON 回调、SSE `id` 保留、重连等待上限、按 seq 去重与补齐、calling/called 合并、一轮多个调用成组、失败轮次保留、activity、轮次用时与用量、计划的 `changed`，以及停止、重启中断和请求上限的可读原因。W6 另检查增量按 `(run_id, turn, attempt)` 累积且不进入带序号的事件列表、同一 attempt 的助手消息替换临时条目、更大 attempt 或另一轮丢弃旧条目、轮次结束或运行终态后没有临时条目，以及没有 usage 时速度标为估算、有 usage 时按公式计算并扣除推理 token。另将两个当前限制明确打印为 `LIMITATION`：EOF 分派未以空行结束的完整 JSON 尾段，以及 CRLF 恰在 CR/LF 之间分块时丢失事件类型。脚本退出成功表示上述行为与限制得到复现，不表示 SSE 标准符合性、hook 挂载或浏览器断线恢复已通过。
 
 类型检查没有单独的 npm script，在本目录执行 `npx tsc --noEmit`。lint 与生产构建见上一节。
