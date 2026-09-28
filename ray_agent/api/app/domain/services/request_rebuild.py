@@ -3,7 +3,8 @@
 """请求重建：由运行的 config_snapshot 与会话事件重建某一轮实际发送给模型的消息与工具。
 
 规则：system 消息取自该运行快照里的系统提示词全文；随后按 seq 顺序回放该轮 ``turn(started)`` 之前的全部
-``context`` 事件——append 追加消息，compact 按 ``Memory.compact`` 规则裁剪；工具取快照中适用于该轮的 schema。
+``context`` 事件——append 追加消息，strip_reasoning 删除此前的推理字段，replace（自动压缩）把 system 之后的
+消息整体替换为事件携带的摘要、用户原文与保留区；工具取快照中适用于该轮的 schema。
 只读，不重放任何动作。
 """
 import copy
@@ -46,8 +47,10 @@ def rebuild_request(events: Sequence[BaseEvent], run: Run, index: int) -> Rebuil
             continue
         if event.op == ContextOp.APPEND:
             memory.add_messages(copy.deepcopy(event.messages))
-        elif event.op == ContextOp.COMPACT:
-            memory.compact()
+        elif event.op == ContextOp.STRIP_REASONING:
+            memory.strip_reasoning()
+        elif event.op == ContextOp.REPLACE:
+            memory.replace(copy.deepcopy(event.messages))
     return RebuiltRequest(
         run_id=run.id,
         index=index,

@@ -4,26 +4,38 @@ from typing import Any
 
 from app.domain.models.tool_result import ToolResult
 
+TEXT_LIMIT = 16000
+LIST_LIMIT = 100
+
 
 def failure(kind: str, message: str, **data: Any) -> ToolResult:
     return ToolResult(success=False, message=message, data={"error_kind": kind, **data})
 
 
-def describe_content(value: Any) -> Any:
-    """保留 JSON 空值；二进制仅保留长度，长文本与列表显式标注截断。"""
+def describe_content(value: Any, truncate: bool = True) -> Any:
+    """保留 JSON 空值；二进制仅保留长度。truncate=True 时长文本与列表显式标注截断。"""
     if isinstance(value, dict):
         return {k: ({"omitted": True, "encoded_length": len(v)}
                     if k in {"raw", "blob"} and isinstance(v, str)
                     or k == "data" and value.get("type") in {"image", "audio"} and isinstance(v, str)
-                    else describe_content(v)) for k, v in value.items()}
+                    else describe_content(v, truncate)) for k, v in value.items()}
     if isinstance(value, list):
-        result = [describe_content(item) for item in value[:100]]
-        if len(value) > 100:
-            result.append({"omitted_items": len(value) - 100})
+        items = value[:LIST_LIMIT] if truncate else value
+        result = [describe_content(item, truncate) for item in items]
+        if len(value) > len(items):
+            result.append({"omitted_items": len(value) - len(items)})
         return result
-    if isinstance(value, str) and len(value) > 16000:
-        return value[:16000] + f"\n[截断，原长度 {len(value)}]"
+    if truncate and isinstance(value, str) and len(value) > TEXT_LIMIT:
+        return value[:TEXT_LIMIT] + f"\n[截断，原长度 {len(value)}]"
     return value
+
+
+def keep_full_content(result: ToolResult, raw: Any) -> ToolResult:
+    """截断规则只作用于进入上下文的内容：截断前的完整内容（二进制仍只留长度）交给结果整形落盘。"""
+    full = describe_content(raw, truncate=False)
+    if full != describe_content(raw):
+        result.with_full_content(full)
+    return result
 
 
 async def discover_all(jobs: dict[str, Any], budget: float, errors: dict[str, str]) -> None:

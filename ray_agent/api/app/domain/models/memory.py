@@ -6,7 +6,7 @@
 @File    : memory.py
 """
 import logging
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 
 from pydantic import BaseModel, Field
 
@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 
 
 class Memory(BaseModel):
-    """记忆类，定义Agent的记忆基础信息"""
+    """发给模型的对话记忆：只追加，压缩时整体替换；会话事件里的原始记录不受影响。"""
     messages: List[Dict[str, Any]] = Field(default_factory=list)
 
     @classmethod
@@ -42,20 +42,35 @@ class Memory(BaseModel):
         """回滚记忆，删除最后一条消息"""
         self.messages = self.messages[:-1]
 
-    def compact(self) -> None:
-        """记忆压缩，将记忆中已经执行的工具(搜索/网页源码获取/浏览器访问结果等)这类已经执行过的消息进行压缩检索"""
-        # 1.循环遍历所有的消息列表
+    def strip_reasoning(self) -> None:
+        """删除此前各条消息的推理字段；新用户消息到达时调用，回复提问属于同一轮，不调用。"""
         for message in self.messages:
-            # 2.判断消息的角色是否为tool
-            if self.get_message_role(message) == "tool":
-                if message.get("function_name") in ["browser_view", "browser_navigate"]:
-                    message["content"] = "(removed)"
-                    logger.debug(f"从记忆中移除对应工具的结果: {message['function_name']}")
-
-            # 3.压缩记忆时reasoning_content内容可以去除压缩上下文
             if "reasoning_content" in message:
                 logger.debug(f"从记忆中移除工具思考结果: {message['reasoning_content'][:50]}...")
                 del message["reasoning_content"]
+
+    def rounds(self) -> List[Tuple[int, int]]:
+        """按轮切分：一轮是一条助手消息及其后紧跟的全部 tool 结果，返回每轮的 [start, end) 下标。
+
+        轮之间的 user 消息不属于任何一轮；轮的结束位置就是可以安全切开记忆、不拆开调用与结果的边界。
+        """
+        spans: List[Tuple[int, int]] = []
+        index = 0
+        while index < len(self.messages):
+            if self.messages[index].get("role") != "assistant":
+                index += 1
+                continue
+            end = index + 1
+            while end < len(self.messages) and self.messages[end].get("role") == "tool":
+                end += 1
+            spans.append((index, end))
+            index = end
+        return spans
+
+    def replace(self, messages: List[Dict[str, Any]]) -> None:
+        """整体替换记忆（压缩），第一条 system 消息保留。"""
+        head = self.messages[:1] if self.messages and self.messages[0].get("role") == "system" else []
+        self.messages = [*head, *messages]
 
     @property
     def empty(self) -> bool:

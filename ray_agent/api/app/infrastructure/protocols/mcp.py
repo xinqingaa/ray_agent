@@ -15,7 +15,7 @@ from pydantic import ValidationError
 
 from app.domain.models.app_config import MCPConfig, MCPServerConfig, MCPTransport
 from app.domain.models.tool_result import ToolResult
-from .common import describe_content, discover_all, failure
+from .common import describe_content, discover_all, failure, keep_full_content
 
 logger = logging.getLogger(__name__)
 
@@ -84,11 +84,12 @@ class MCPConnection:
                             if not isinstance(result, types.CallToolResult):
                                 outcome = failure("input_required", "MCP 工具需要当前产品未支持的交互")
                             else:
-                                data = describe_content(result.model_dump(mode="json", by_alias=False))
+                                raw = result.model_dump(mode="json", by_alias=False)
+                                data = describe_content(raw)
                                 reason = "\n".join(item.text for item in result.content if isinstance(item, types.TextContent))
-                                outcome = ToolResult(success=not result.is_error,
+                                outcome = keep_full_content(ToolResult(success=not result.is_error,
                                     message=(reason[:2000] or "MCP 工具执行失败") if result.is_error else "MCP 工具调用完成",
-                                    data={**data, "error_kind": "tool_error" if result.is_error else None})
+                                    data={**data, "error_kind": "tool_error" if result.is_error else None}), raw)
                         except TimeoutError:
                             outcome = failure("timeout", "MCP 调用超时，远程结果未知；未自动重试")
                         except MCPError as exc:

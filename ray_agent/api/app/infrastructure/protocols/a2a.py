@@ -12,7 +12,7 @@ from google.protobuf.json_format import MessageToDict, ParseError
 
 from app.domain.models.app_config import A2AConfig, A2AServerConfig
 from app.domain.models.tool_result import ToolResult
-from .common import describe_content, discover_all, failure
+from .common import describe_content, discover_all, failure, keep_full_content
 
 logger = logging.getLogger(__name__)
 ACTIVE = {types.TASK_STATE_SUBMITTED, types.TASK_STATE_WORKING}
@@ -105,8 +105,9 @@ class A2AClientManager:
                         message = response.message
                         if not message.message_id or message.role != types.ROLE_AGENT or not message.parts:
                             raise ValueError("非法 Message")
-                        return ToolResult(message="远程 Agent 已回复", data={
-                            "remote_state": "message", "message": describe_content(MessageToDict(message))})
+                        raw = MessageToDict(message)
+                        return keep_full_content(ToolResult(message="远程 Agent 已回复", data={
+                            "remote_state": "message", "message": describe_content(raw)}), raw)
                     if response.HasField("task"):
                         task = response.task
                     else:
@@ -124,13 +125,15 @@ class A2AClientManager:
                     if task.status.state not in ACTIVE:
                         success = task.status.state == types.TASK_STATE_COMPLETED
                         reason = "\n".join(p.text for p in task.status.message.parts if p.HasField("text"))
+                        raw = MessageToDict(task)
                         data = {"task_id": task_id, "context_id": context_id, "remote_state": remote_state,
-                                "task": describe_content(MessageToDict(task)),
+                                "task": describe_content(raw),
                                 "error_kind": None if success else "remote_state"}
                         if task.status.state == types.TASK_STATE_UNSPECIFIED:
                             raise ValueError("Task 状态未指定")
-                        return ToolResult(success=success, message="远程任务已完成" if success else
-                                          f"远程任务 {remote_state}: {reason or '未完成，需处理远程状态'}", data=data)
+                        return keep_full_content(ToolResult(success=success, message="远程任务已完成" if success else
+                                                 f"远程任务 {remote_state}: {reason or '未完成，需处理远程状态'}",
+                                                 data=data), raw)
                     await asyncio.sleep(interval)
                     interval = min(5, interval * 1.5)
                     task = await client.get_task(types.GetTaskRequest(id=task_id))

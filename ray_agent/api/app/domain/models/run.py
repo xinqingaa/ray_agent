@@ -33,7 +33,7 @@ ACTIVE_RUN_STATUSES = frozenset({RunStatus.RUNNING, RunStatus.WAITING})
 class RunReason:
     """运行原因代码；失败原因与循环的 RunEndReason 取值一致。"""
     MAX_ITERATIONS = "max_iterations"
-    CONTEXT_LIMIT = "context_limit"  # W2 容量检查使用
+    CONTEXT_LIMIT = "context_limit"  # 压缩后仍放不进窗口、摘要请求失败，或服务端拒绝超长输入且压缩无效
     OUTPUT_TRUNCATED = "output_truncated"
     MODEL_ERROR = "model_error"
     RUNNER_ERROR = "runner_error"  # 运行器未处理的异常
@@ -43,7 +43,7 @@ class RunReason:
 
 
 class RunSummary(BaseModel):
-    """运行汇总：终态 run 事件附带，数值与各轮 turn 事件之和一致。"""
+    """运行汇总：终态 run 事件附带；模型请求与 tokens 等于各轮 turn 事件与 compact 事件（摘要请求）之和。"""
     duration_ms: Optional[int] = None
     turns: int = 0
     model_requests: int = 0

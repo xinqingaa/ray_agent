@@ -100,6 +100,7 @@ class AgentTaskRunner(TaskRunner):
                 a2a_tool=self._a2a_tool,
             ),
             deliver_file=self._deliver_file,
+            write_output=self._write_output,
         )
 
     @property
@@ -244,6 +245,12 @@ class AgentTaskRunner(TaskRunner):
             await self._uow.session.add_file(self._session_id, file)
         return file
 
+    async def _write_output(self, filepath: str, content: str) -> None:
+        """结果整形的落盘函数：把超长工具结果的完整内容写入沙箱文件，失败抛出异常。"""
+        result = await self._sandbox.write_file(filepath=filepath, content=content)
+        if not result.success:
+            raise RuntimeError(result.message or "沙箱写入失败")
+
     async def _get_browser_screenshot(self) -> str:
         """获取浏览器截图并返回截图文件对应的在线URL"""
         # 1.调用浏览器完成截图
@@ -270,8 +277,8 @@ class AgentTaskRunner(TaskRunner):
                         screenshot=await self._get_browser_screenshot(),
                     )
                 elif event.tool_name == "search":
-                    # 3.工具为搜索则添加搜索工具内容
-                    search_results: ToolResult[SearchResults] = event.function_result
+                    # 3.工具为搜索则添加搜索工具内容；结果被整形时展示内容取整形前的结果
+                    search_results: ToolResult[SearchResults] = event.raw_result
                     logger.info(f"搜索工具结果: {search_results}")
                     event.tool_content = SearchToolContent(results=search_results.data.results)
                 elif event.tool_name == "shell":
@@ -296,6 +303,7 @@ class AgentTaskRunner(TaskRunner):
                     else:
                         event.tool_content = FileToolContent(content="(No Content)")
                 elif event.tool_name in ["mcp", "a2a"]:
+                    # 协议结果展示进入上下文的内容：整形后是预览，完整内容路径在 event.shaping
                     if event.function_result is not None:
                         event.tool_content = ProtocolToolContent(outcome=event.function_result)
         except Exception as e:

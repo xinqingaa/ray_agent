@@ -105,7 +105,7 @@ uv run --locked python -m pytest tests/core/test_scripted_llm.py
 
 ### 端到端评测
 
-[scripts/eval/](scripts/eval/) 通过公开 HTTP API 与 SSE 驱动完整产品，运行 E1–E6 基线任务（定义见 [W0 子计划](../../docs/plan/w0-baseline-eval.md#评测脚本)）。前提：产品 Compose 已启动且各服务健康，模型已按[应用配置](../README.md#模型与工具)配置。每次运行会调用真实模型并产生费用；E6 会临时写入并在结束时删除一项 MCP 设置。
+[scripts/eval/](scripts/eval/) 通过公开 HTTP API 与 SSE 驱动完整产品，运行 E1–E6 基线任务（定义见 [W0 子计划](../../docs/plan/w0-baseline-eval.md#评测脚本)）与长上下文压缩任务 E7（见 [W2 子计划](../../docs/plan/w2-context.md#验收)）。前提：产品 Compose 已启动且各服务健康，模型已按[应用配置](../README.md#模型与工具)配置。每次运行会调用真实模型并产生费用；E6 会临时写入并在结束时删除一项 MCP 设置；E7 运行期间把模型配置的 `context_window` 与 `max_tokens` 临时调低，结束时恢复，期间同一 API 上的其他会话也使用调低后的值。
 
 ```bash
 uv run --locked python -m scripts.eval --list

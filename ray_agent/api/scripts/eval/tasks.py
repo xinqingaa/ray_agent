@@ -1,4 +1,4 @@
-"""E1–E6 基线评测任务，定义见 docs/plan/w0-baseline-eval.md。W2 在此追加 E7。"""
+"""E1–E6 基线评测任务（定义见 docs/plan/w0-baseline-eval.md）与 W2 的 E7（见 docs/plan/w2-context.md）。"""
 import asyncio
 import json
 from contextlib import asynccontextmanager
@@ -352,4 +352,98 @@ def e6() -> TaskSpec:
         turns=[f"请使用 MCP 工具中的 add 工具计算 {E6_A} 与 {E6_B} 的和，并告诉我结果。"],
         check=_check_e6,
         timeout=600,
+    )
+
+
+# ---------------- E7 长上下文压缩（改编自 V05） ----------------
+
+E7_MATERIALS = 12
+E7_CODES = [f"K7-{(i * 7919 + 1301) % 9000 + 1000}" for i in range(1, E7_MATERIALS + 1)]
+E7_CONTEXT_WINDOW = 24576  # 调低窗口使压缩稳定发生；只在本任务期间生效，结束后恢复
+E7_MAX_TOKENS = 4096
+E7_SENTENCE = "这是评测材料的正文段落，内容本身不需要记住，只用于占用上下文空间。"
+
+
+def _e7_material(index: int) -> bytes:
+    """约 1,800 个中文字符；校验码放在中段，必须读到正文才能取得。"""
+    lines = [f"材料 m{index:02d}"]
+    for line in range(60):
+        if line == 30:
+            lines.append(f"本份材料的校验码：{E7_CODES[index - 1]}")
+        lines.append(f"{line + 1:02d}. {E7_SENTENCE}")
+    return ("\n".join(lines) + "\n").encode("utf-8")
+
+
+@asynccontextmanager
+async def _e7_environment(ctx: RunContext) -> AsyncIterator[None]:
+    original = await ctx.client.get_llm_config()
+    override = {**{k: original[k] for k in ("base_url", "model_name", "temperature")},
+                "max_tokens": E7_MAX_TOKENS, "context_window": E7_CONTEXT_WINDOW}
+    await ctx.client.update_llm_config(override)
+    ctx.observations["llm_config_override"] = {"context_window": E7_CONTEXT_WINDOW, "max_tokens": E7_MAX_TOKENS,
+                                               "restored_to": {k: original[k] for k in ("context_window", "max_tokens")}}
+    try:
+        yield
+    finally:
+        restore = {k: original[k] for k in ("base_url", "model_name", "temperature", "max_tokens", "context_window")}
+        await ctx.client.update_llm_config(restore)
+
+
+async def _check_e7(ctx: RunContext) -> List[CheckResult]:
+    compacts = [e["data"] for e in ctx.events if e["event"] == "compact"]
+    override = ctx.observations.get("llm_config_override", {})
+    results = [
+        CheckResult("发生过压缩", bool(compacts),
+                    f"compact 事件 {len(compacts)} 条："
+                    + "；".join(f"{c.get('trigger')} 摘要 {c.get('summarized_turns')} 轮/保留 {c.get('kept_turns')} 轮，"
+                               f"估算 {(c.get('before_estimate') or {}).get('total')}→{(c.get('after_estimate') or {}).get('total')}，"
+                               f"重新注入 {len(c.get('reinjected_event_seqs') or [])} 条"
+                               for c in compacts)),
+        CheckResult("评测配置（只记录）", True,
+                    f"本任务期间 context_window={override.get('context_window')}、max_tokens={override.get('max_tokens')}，"
+                    f"结束后恢复为 {override.get('restored_to')}", required=False),
+    ]
+    results.append(await _check_source_unchanged(ctx))
+    info, data, note = await _download_delivered(ctx, "summary.json")
+    results.append(CheckResult("交付 summary.json 并可下载", data is not None, note))
+    parsed, error = _parse_json(data)
+    total = parsed.get("source_total") if isinstance(parsed, dict) else None
+    codes = parsed.get("codes") if isinstance(parsed, dict) else None
+    results.append(CheckResult("source_total 为整数 60", isinstance(total, int) and not isinstance(total, bool)
+                               and total == 60, error or f"source_total={total!r}"))
+    results.append(CheckResult("codes 与 12 份材料的校验码按顺序一致", codes == E7_CODES,
+                               error or f"期望 {E7_CODES}；实际 {codes}"))
+    reads_after = []
+    if compacts:
+        first_compact = next(i for i, e in enumerate(ctx.events) if e["event"] == "compact")
+        reads_after = [e["data"].get("args", {}).get("filepath", "") for e in ctx.events[first_compact:]
+                       if e["event"] == "tool" and e["data"].get("status") == "called"
+                       and e["data"].get("function") == "read_file"]
+    results.append(CheckResult("首次压缩后的 read_file（只记录）", True, f"{len(reads_after)} 次：{reads_after}",
+                               required=False))
+    return results
+
+
+@register("E7")
+def e7() -> TaskSpec:
+    materials = {"source.csv": SOURCE_CSV}
+    materials.update({f"m{i:02d}.txt": _e7_material(i) for i in range(1, E7_MATERIALS + 1)})
+    first_half = "、".join(f"m{i:02d}.txt" for i in range(1, 7))
+    second_half = "、".join(f"m{i:02d}.txt" for i in range(7, 13))
+    return TaskSpec(
+        id="E7",
+        title="长上下文压缩（V05）",
+        materials=materials,
+        environment=_e7_environment,
+        turns=[
+            "本会话的约束：不得覆盖或修改附件 source.csv。附件里还有 12 份材料 m01.txt 到 m12.txt，"
+            "稍后我会让你逐份阅读。现在只需确认收到约束，不要做其他事情。",
+            f"请在这一轮里用 read_file 依次完整读取 {first_half} 这 6 份材料（每次调用读一份，"
+            "不要用 shell、grep 等方式只提取片段），6 份全部读完后再逐条报告每份的校验码。",
+            f"继续用同样的方式在这一轮里依次完整读取 {second_half} 这 6 份，全部读完后逐条报告校验码。",
+            "最后，请生成 summary.json（JSON 对象）：source_total 为 source.csv 中 amount 列之和（整数），"
+            "codes 为 m01 到 m12 的校验码字符串数组（按文件顺序）。把 summary.json 作为附件交付给我。",
+        ],
+        check=_check_e7,
+        timeout=1500,
     )

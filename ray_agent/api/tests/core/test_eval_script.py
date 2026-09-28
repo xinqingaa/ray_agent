@@ -90,6 +90,14 @@ def test_metrics_come_from_run_summary_and_are_cross_checked_with_turns():
     assert not broken["metrics_consistent"]
     assert broken["metric_mismatches"] == ["model_requests: 运行汇总 4 ≠ 逐轮 3"]
 
+    summary = events[-2]["data"]["summary"]
+    summary.update(prompt_tokens=150, completion_tokens=15)
+    events.insert(6, ev("compact", trigger="watermark", usage={"attempts": 1, "prompt_tokens": 50,
+                                                               "completion_tokens": 5}))
+    with_compact = compute_metrics({"runs": runs, "events": events})
+    assert with_compact["metrics_consistent"], with_compact["metric_mismatches"]
+    assert (with_compact["compactions"], with_compact["compaction_requests"]) == (1, 1)
+
 
 def test_context_splits_turns_and_uses_last_assistant_message():
     ctx = RunContext(client=None, spec=build("E1"), run_index=1)

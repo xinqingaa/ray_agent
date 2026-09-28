@@ -1,4 +1,5 @@
 """W3 验收 7、8：轮次事件配对与运行汇总；由事件重建的请求与 ScriptedLLM 实际收到的请求逐项一致。
+W2 验收 9：压缩后的请求重建。
 
 运行器、Agent 循环、工具管线与 RunLedger 都是真实实现；模型、存储与沙箱用替身（事件经 JSON 往返保存）。
 """
@@ -189,6 +190,51 @@ def test_resume_after_stop_is_rebuilt():
         assert_turns_well_formed(events, next_run.id)
         assert_rebuild_matches(events, stored_run(second, stopped.id), first.llm, [1])
         assert_rebuild_matches(events, stored_run(second, next_run.id), second.llm, [1])
+    asyncio.run(asyncio.wait_for(run(), 5))
+
+
+def test_request_after_compaction_is_rebuilt():
+    """W2 验收 9：压缩后的请求（摘要 + 用户原文 + 保留区）仍能由 context 事件与运行快照重建。
+
+    较早的长历史直接写入记忆、没有对应的 context 事件：replace 事件携带替换后的全部消息，
+    所以压缩之后各轮的重建不依赖压缩前的事件是否完整。
+    """
+    async def run():
+        from app.domain.models.event import CompactEvent, ContextEvent, ContextOp
+        from app.domain.models.session import Session
+        from app.domain.services.prompts.compact import SUMMARY_MARKER
+        from tests.core.test_context_governance import GOAL, SUMMARY, seeded_session
+
+        first = make_loop([], session=Session(id="w2-rebuild"))
+        task = input_task()
+        goal_run = await start_run(first, task, GOAL)
+        first.runs[goal_run.id].status = RunStatus.COMPLETED
+        session, _ = seeded_session(10)
+        session.id = first.session.id
+        first.session.memories = session.memories
+
+        h = make_loop([text(SUMMARY, usage=usage(8000, 200)),
+                       tool_call("echo", {"text": "after"}, id="c-after", usage=usage(9000, 5)),
+                       text("完成", usage=usage(9100, 3))], session=first.session)
+        task = input_task()
+        active = await start_run(h, task, "继续")
+        await make_runner(h, run=active, prior_status=SessionStatus.COMPLETED).invoke(task)
+
+        events = h.events
+        compact = [e for e in events if isinstance(e, CompactEvent)]
+        assert len(compact) == 1 and compact[0].run_id == active.id
+        assert compact[0].reinjected_event_seqs == [2]  # 第一次运行里 GOAL 的 message 事件
+        assert any(isinstance(e, ContextEvent) and e.op == ContextOp.REPLACE for e in events)
+        main = [r for r in h.llm.requests if r.tools]
+        run_model = stored_run(h, active.id)
+        for index, actual in zip([1, 2], main):
+            rebuilt = rebuild_request(events, run_model, index)
+            assert rebuilt.messages == actual.messages and rebuilt.tools == actual.tools
+        assert main[0].messages[1]["content"].startswith(SUMMARY_MARKER)
+        # 摘要请求计入运行的模型请求数与 tokens，但不算一轮
+        summary = summary_of(events, active.id)
+        assert summary["turns"] == 2 and summary["model_requests"] == 3
+        assert summary["prompt_tokens"] == 8000 + 9000 + 9100
     asyncio.run(asyncio.wait_for(run(), 5))
 
 

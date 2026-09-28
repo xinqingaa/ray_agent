@@ -5,7 +5,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-from . import tasks  # noqa: F401  注册 E1–E6
+from . import tasks  # noqa: F401  注册 E1–E7
 from .client import RayAgentClient
 from .report import EVIDENCE_DIR, OUTCOME_TEXT, git_info, load_baseline, write_report
 from .runner import EvalRunner

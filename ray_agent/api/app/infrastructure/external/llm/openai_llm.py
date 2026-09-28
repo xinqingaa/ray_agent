@@ -114,7 +114,20 @@ class OpenAILLM(LLM):
                 f"调用OpenAI客户端向LLM发起请求出错: {str(e)}",
                 retryable=_is_transport_error(e),
                 status_code=status_code,
+                context_exceeded=_is_context_exceeded(e),
             ) from e
+
+
+_CONTEXT_EXCEEDED_MARKERS = ("context_length_exceeded", "maximum context length", "context length",
+                             "context window", "too many tokens", "prompt is too long")
+
+
+def _is_context_exceeded(error: Exception) -> bool:
+    """OpenAI 兼容服务的上下文超长拒绝：400 且错误码或信息提到上下文长度（DeepSeek 为 maximum context length）。"""
+    if not isinstance(error, APIStatusError) or error.status_code not in (400, 413):
+        return False
+    text = f"{getattr(error, 'code', '') or ''} {error}".lower()
+    return any(marker in text for marker in _CONTEXT_EXCEEDED_MARKERS)
 
 
 def _is_transport_error(error: Exception) -> bool:

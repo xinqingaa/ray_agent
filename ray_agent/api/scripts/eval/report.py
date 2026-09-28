@@ -90,7 +90,8 @@ def render_markdown(report: Dict[str, Any]) -> str:
         "由 `scripts/eval` 生成；原始数据见同名 JSON。评测通过公开 HTTP API 驱动完整产品：`POST chat` 提交消息，"
         "`GET /sessions/{id}/events` 按 seq 订阅事件，直到受理消息的运行进入 waiting 或终态。"
         "指标取自 `GET /sessions/{id}` 读回的运行与事件：模型调用次数与 tokens 取运行汇总（终态 `run` 事件的 summary，"
-        "仍活动的运行取运行行计数），并与 `turn(completed)` 逐轮累加核对；工具调用次数按 `called` 工具事件计数。",
+        "仍活动的运行取运行行计数），并与 `turn(completed)` 及 `compact`（摘要请求）逐条累加核对；"
+        "工具调用次数按 `called` 工具事件计数。",
         "",
         "## 运行条件",
         "",
@@ -103,6 +104,9 @@ def render_markdown(report: Dict[str, Any]) -> str:
         f"| 模型 | {llm.get('model_name')}（{llm.get('base_url')}） |",
         f"| temperature / max_tokens / context_window | {llm.get('temperature')} / {llm.get('max_tokens')} / {llm.get('context_window')} |",
         f"| Agent 配置 | max_iterations={agent.get('max_iterations')}，max_retries={agent.get('max_retries')}，max_search_results={agent.get('max_search_results')} |",
+        f"| 上下文治理 | 安全余量 {agent.get('context_safety_ratio')}，压缩水位 {agent.get('compact_watermark')}，"
+        f"保留轮数 {agent.get('compact_keep_turns')}，单条结果上限 {agent.get('tool_result_max_chars')} 字符"
+        f"（任务临时改动的配置见各任务的检查项） |",
         f"| 开始前已配置的 MCP 服务 | {_cell(meta.get('mcp_servers_before') or '无')} |",
         f"| 每任务运行次数 | {meta['repeat']} |",
         f"| 开始 / 结束 | {meta['started_at']} / {meta['finished_at']} |",
@@ -151,6 +155,10 @@ def render_markdown(report: Dict[str, Any]) -> str:
             lines.append(f"- 运行：{_cell(runs_text)}")
         if run.get("tool_calls_unfinished"):
             lines.append(f"- 只有 calling 没有 called 的工具调用：{run['tool_calls_unfinished']} 次")
+        if run.get("compactions") or run.get("shaped_results"):
+            lines.append(f"- 上下文：压缩 {run.get('compactions', 0)} 次（摘要请求 {run.get('compaction_requests', 0)} 次，"
+                         f"已计入模型调用），整形结果 {run.get('shaped_results', 0)} 条，"
+                         f"单轮最大估算 {run.get('max_context_estimate')} tokens")
         for error in run.get("error_events", []):
             lines.append(f"- 错误事件：{_cell(error)}")
         if run.get("final_reply"):

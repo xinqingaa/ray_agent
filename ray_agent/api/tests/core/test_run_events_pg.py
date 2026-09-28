@@ -1,4 +1,4 @@
-"""W3 验收 1–4、6 与请求重建的数据库往返：使用真实临时 PostgreSQL。
+"""W3 验收 1–4、6 与请求重建的数据库往返，W2 压缩与结果整形的往返：使用真实临时 PostgreSQL。
 
 设置 ``RAY_TEST_DATABASE_URI``（例如 ``postgresql+asyncpg://postgres:postgres@localhost:55432/postgres``）后运行；
 未设置时跳过。每个测试前清空 public schema 并执行 ``alembic upgrade head``，不要指向开发库。
@@ -268,6 +268,52 @@ def test_request_rebuild_survives_jsonb_round_trip():
         assert stored.turns == 3 and stored.model_requests == 3 and stored.tool_calls == 2
         actual = [h.llm.requests[0], *second.llm.requests]
         for index, request in enumerate(actual, start=1):
+            rebuilt = rebuild_request(events, stored, index)
+            assert rebuilt.messages == request.messages
+            assert rebuilt.tools == request.tools
+    with_db(scenario)
+
+
+# W2：压缩与结果整形的数据库往返 ----------------------------------------------
+
+def test_compaction_and_shaping_survive_jsonb_round_trip():
+    async def scenario(uow_factory, engine):
+        from app.domain.models.event import CompactEvent, ToolEvent
+        from app.domain.models.memory import Memory
+        from app.domain.services.flows.agent_loop import AGENT_MEMORY_NAME
+        from tests.core.test_context_governance import LONG_FILE, SUMMARY, seeded_session
+        from tests.support.loop_harness import InMemorySandbox
+
+        session = await new_session(uow_factory, "pg-w2")
+        _, seeded = seeded_session(10)
+        async with uow_factory() as uow:
+            await uow.session.save_memory(session.id, AGENT_MEMORY_NAME, Memory(messages=seeded))
+            await uow.commit()
+        sandbox = InMemorySandbox({"/data/big.txt": LONG_FILE})
+
+        async def write_output(path, content):
+            await sandbox.write_file(path, content)
+
+        h = make_loop([reply(SUMMARY, usage=usage(8000, 100)),
+                       tool_call("read_file", {"filepath": "/data/big.txt", "max_length": 100000}, id="c-big",
+                                 usage=usage(9000, 5)),
+                       reply("完成", usage=usage(9500, 3))],
+                      session=session, uow_factory=uow_factory, sandbox=sandbox, write_output=write_output)
+        task = input_task()
+        run = await start_run(h, task, "继续")
+        await make_runner(h, run=run, prior_status=SessionStatus.COMPLETED).invoke(task)
+
+        async with uow_factory() as uow:
+            stored = await uow.run.get(run.id)
+            events = await uow.event.list(session.id)
+        assert stored.status == RunStatus.COMPLETED
+        assert stored.turns == 2 and stored.model_requests == 3 and stored.prompt_tokens == 8000 + 9000 + 9500
+        compact = [e for e in events if isinstance(e, CompactEvent)]
+        assert len(compact) == 1 and compact[0].summary == SUMMARY and compact[0].usage.attempts == 1
+        called = [e for e in events if isinstance(e, ToolEvent) and e.status == "called"]
+        assert called[0].shaping.full_output_path == "/home/ubuntu/.rayagent/outputs/c-big.txt"
+        main = [r for r in h.llm.requests if r.tools]
+        for index, request in enumerate(main, start=1):
             rebuilt = rebuild_request(events, stored, index)
             assert rebuilt.messages == request.messages
             assert rebuilt.tools == request.tools

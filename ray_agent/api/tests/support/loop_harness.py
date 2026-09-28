@@ -253,22 +253,54 @@ def make_sandbox():
     ))
 
 
+class InMemorySandbox:
+    """文件读写按真实沙箱的语义（按行切片、max_length 截断、失败返回 success=False）保存在内存里。"""
+
+    def __init__(self, files: Optional[Dict[str, str]] = None, fail_writes: bool = False) -> None:
+        self.files: Dict[str, str] = dict(files or {})
+        self.fail_writes = fail_writes
+
+    async def read_file(self, filepath, start_line=None, end_line=None, sudo=False, max_length=10000):
+        if filepath not in self.files:
+            return ToolResult(success=False, message=f"要读取的文件不存在或无权限: {filepath}")
+        content = self.files[filepath]
+        if start_line is not None or end_line is not None:
+            lines = content.splitlines()
+            content = "\n".join(lines[start_line or 0:end_line if end_line is not None else len(lines)])
+        if max_length is not None and 0 < max_length < len(content):
+            content = content[:max_length] + "(truncated)"
+        return ToolResult(success=True, data={"filepath": filepath, "content": content})
+
+    async def write_file(self, filepath, content, append=False, leading_newline=False, trailing_newline=False,
+                         sudo=False):
+        if self.fail_writes:
+            return ToolResult(success=False, message="文件内容写入失败: 磁盘已满")
+        self.files[filepath] = (self.files.get(filepath, "") if append else "") + content
+        return ToolResult(success=True, data={"filepath": filepath, "bytes_written": len(content)})
+
+
 def make_loop(script: List[ScriptItem], *, session: Optional[Session] = None, deliver_file=None,
               max_iterations: int = 10, max_retries: int = 2, sandbox=None,
-              extra_tools: Sequence[BaseTool] = (), uow_factory=None) -> SimpleNamespace:
-    """uow_factory 为空时使用内存仓库；传入真实数据库的 UoW 工厂时 store/events/runs 为空。"""
+              extra_tools: Sequence[BaseTool] = (), uow_factory=None, write_output=None,
+              context_window: int = 32000, max_tokens: int = 4096,
+              agent_config: Optional[Dict[str, Any]] = None) -> SimpleNamespace:
+    """uow_factory 为空时使用内存仓库；传入真实数据库的 UoW 工厂时 store/events/runs 为空。
+
+    write_output 为结果整形的落盘函数（为空时超长结果只截断）；agent_config 覆盖 AgentConfig 的其他字段。
+    """
     session = session if session is not None else Session(id="w1-loop")
     sandbox = sandbox if sandbox is not None else make_sandbox()
-    llm = ScriptedLLM(script)
+    llm = ScriptedLLM(script, context_window=context_window, max_tokens=max_tokens)
     recording = RecordingTool()
     uow_factory = uow_factory or make_uow_factory(session)
     loop = AgentLoop(
         uow_factory=uow_factory,
         llm=llm,
-        agent_config=AgentConfig(max_iterations=max_iterations, max_retries=max_retries),
+        agent_config=AgentConfig(max_iterations=max_iterations, max_retries=max_retries, **(agent_config or {})),
         session_id=session.id,
         tools=[FileTool(sandbox=sandbox), MessageTool(), recording, *extra_tools],
         deliver_file=deliver_file,
+        write_output=write_output,
         retry_interval=0,
     )
     store = getattr(uow_factory, "store", None)

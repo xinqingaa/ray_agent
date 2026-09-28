@@ -11,12 +11,15 @@ from app.domain.models.llm import LLMInvokeResult
 
 
 class LLMRequestError(Exception):
-    """模型请求失败。retryable 为 True 表示传输类错误（连接、超时、5xx、限流），可以原样重发。"""
+    """模型请求失败。retryable 为 True 表示传输类错误（连接、超时、5xx、限流），可以原样重发；
+    context_exceeded 为 True 表示服务端以输入超出上下文长度拒绝，原样重发不会成功，应先压缩。"""
 
-    def __init__(self, message: str, *, retryable: bool = False, status_code: Optional[int] = None) -> None:
+    def __init__(self, message: str, *, retryable: bool = False, status_code: Optional[int] = None,
+                 context_exceeded: bool = False) -> None:
         super().__init__(message)
         self.retryable = retryable
         self.status_code = status_code
+        self.context_exceeded = context_exceeded
 
 
 class LLM(Protocol):

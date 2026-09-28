@@ -12,7 +12,7 @@ from typing import Optional, Dict, Any, Self, Type, Literal, List, Union, get_ar
 from pydantic import BaseModel, Field, ConfigDict
 
 from app.domain.models.event import Event, PlanEvent, ToolEventStatus, ToolEvent, StepEvent, ContextEvent, \
-    TurnUsage
+    TurnUsage, ToolResultShaping, CompactUsage
 from app.domain.models.file import File
 from app.domain.models.plan import ExecutionStatus
 
@@ -174,6 +174,7 @@ class ToolEventData(BaseEventData):
     args: Dict[str, Any]  # 工具参数
     content: Optional[Any] = None  # 工具调用结果
     duration_ms: Optional[int] = None  # 工具耗时，只在 called 事件上有值
+    shaping: Optional[ToolResultShaping] = None  # 结果被整形时：原始字符数、是否截断、完整内容路径
 
 
 class ToolSSEEvent(BaseSSEEvent):
@@ -193,6 +194,7 @@ class ToolSSEEvent(BaseSSEEvent):
                 args=event.function_args,
                 content=event.tool_content,
                 duration_ms=event.duration_ms,
+                shaping=event.shaping,
             )
         )
 
@@ -254,9 +256,28 @@ class RunSSEEvent(BaseSSEEvent):
 
 class ContextEventData(BaseEventData):
     """模型历史变化的轻量投影：消息全文只在数据库与请求重建接口里，推送时只给条数与角色。"""
-    op: Literal["append", "compact"]
+    op: Literal["append", "strip_reasoning", "replace"]
     message_count: int = 0
     roles: List[str] = Field(default_factory=list)
+
+
+class CompactEventData(BaseEventData):
+    """自动压缩事件数据，字段含义见领域模型 CompactEvent；摘要全文随事件推送，供开发者视图显示。"""
+    trigger: Literal["watermark", "overflow"]
+    before_estimate: Dict[str, Any] = Field(default_factory=dict)
+    after_estimate: Dict[str, Any] = Field(default_factory=dict)
+    summarized_turns: int = 0
+    kept_turns: int = 0
+    summary: str = ""
+    reinjected_event_seqs: List[int] = Field(default_factory=list)
+    omitted_user_messages: int = 0
+    usage: CompactUsage = Field(default_factory=CompactUsage)
+
+
+class CompactSSEEvent(BaseSSEEvent):
+    """自动压缩流式事件"""
+    event: Literal["compact"] = "compact"
+    data: CompactEventData
 
 
 class ContextSSEEvent(BaseSSEEvent):
@@ -290,6 +311,7 @@ AgentSSEEvent = Union[
     TurnSSEEvent,
     RunSSEEvent,
     ContextSSEEvent,
+    CompactSSEEvent,
 ]
 
 

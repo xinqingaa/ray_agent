@@ -11,7 +11,8 @@ from datetime import datetime
 from typing import Awaitable, Callable, List, Optional, Sequence
 
 from app.domain.external.event_notifier import EventNotifier
-from app.domain.models.event import BaseEvent, RunEvent, ToolEvent, ToolEventStatus, TurnEvent, TurnPhase
+from app.domain.models.event import BaseEvent, CompactEvent, RunEvent, ToolEvent, ToolEventStatus, TurnEvent, \
+    TurnPhase
 from app.domain.models.run import Run, RunReason, RunStatus
 from app.domain.models.session import SessionStatus
 from app.domain.repositories.uow import IUnitOfWork
@@ -192,6 +193,16 @@ class RunLedger:
                     )
             elif isinstance(event, ToolEvent) and event.status == ToolEventStatus.CALLED:
                 await uow.run.add_counters(event.run_id, tool_calls=1)
+            elif isinstance(event, CompactEvent):
+                # 摘要请求不算一轮，但计入模型请求数与 tokens
+                usage = event.usage
+                await uow.run.add_counters(
+                    event.run_id,
+                    model_requests=usage.attempts,
+                    prompt_tokens=usage.prompt_tokens or 0,
+                    completion_tokens=usage.completion_tokens or 0,
+                    cached_tokens=usage.cached_tokens,
+                )
 
     async def _notify(self, session_id: str, seq: Optional[int]) -> None:
         if self._notifier is None or seq is None:

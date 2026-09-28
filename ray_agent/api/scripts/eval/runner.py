@@ -23,11 +23,16 @@ def _compact_event(event_type: str, data: Dict[str, Any]) -> Dict[str, Any]:
         item.update(function=data.get("function"), status=data.get("status"), name=data.get("name"))
         if data.get("duration_ms") is not None:
             item["duration_ms"] = data["duration_ms"]
+        if data.get("shaping"):
+            item.update(original_chars=data["shaping"].get("original_chars"),
+                        full_output_path=data["shaping"].get("full_output_path"))
     elif event_type == "message":
         item.update(role=data.get("role"), message=(data.get("message") or "")[:120],
                     attachments=[a.get("filename") for a in data.get("attachments") or []])
     elif event_type == "turn":
         item.update(phase=data.get("phase"), index=data.get("index"))
+        if data.get("phase") == "started" and data.get("context_estimate"):
+            item["estimate"] = data["context_estimate"].get("total")
         if data.get("phase") == "completed":
             usage = data.get("usage") or {}
             item.update(attempts=data.get("attempts"), prompt_tokens=usage.get("prompt_tokens"),
@@ -35,6 +40,14 @@ def _compact_event(event_type: str, data: Dict[str, Any]) -> Dict[str, Any]:
                         error=data.get("error"))
     elif event_type == "run":
         item.update(run_id=(data.get("run_id") or "")[:8], status=data.get("status"), reason=data.get("reason"))
+    elif event_type == "compact":
+        usage = data.get("usage") or {}
+        item.update(trigger=data.get("trigger"), summarized_turns=data.get("summarized_turns"),
+                    kept_turns=data.get("kept_turns"),
+                    before=(data.get("before_estimate") or {}).get("total"),
+                    after=(data.get("after_estimate") or {}).get("total"),
+                    attempts=usage.get("attempts"), prompt_tokens=usage.get("prompt_tokens"),
+                    completion_tokens=usage.get("completion_tokens"))
     elif event_type == "cleanup":
         item.update(targets=[f"{t.get('kind')}:{t.get('id')}:{t.get('success')}" for t in data.get("targets") or []])
     elif event_type == "error":
@@ -62,11 +75,14 @@ def _run_totals(session: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
 
 
 def compute_metrics(session: Dict[str, Any]) -> Dict[str, Any]:
-    """模型调用次数与 tokens 取自运行汇总，并与 turn(completed) 逐轮累加核对；工具调用按 called 事件计数。"""
+    """模型调用次数与 tokens 取自运行汇总，并与 turn(completed) 及 compact（摘要请求）逐条累加核对；
+    工具调用按 called 事件计数。"""
     events = session.get("events") or []
     totals = _run_totals(session)
     completed = [e["data"] for e in events if e["event"] == "turn" and e["data"].get("phase") == "completed"]
     started = [e["data"] for e in events if e["event"] == "turn" and e["data"].get("phase") == "started"]
+    compacts = [e["data"] for e in events if e["event"] == "compact"]
+    compact_usage = [c.get("usage") or {} for c in compacts]
     called = [e["data"] for e in events if e["event"] == "tool" and e["data"].get("status") == "called"]
     calling_ids = {e["data"].get("tool_call_id") for e in events
                    if e["event"] == "tool" and e["data"].get("status") == "calling"}
@@ -77,11 +93,15 @@ def compute_metrics(session: Dict[str, Any]) -> Dict[str, Any]:
 
     turn_sums = {
         "turns": len(started),
-        "model_requests": sum(t.get("attempts") or 0 for t in completed),
-        "prompt_tokens": sum((t.get("usage") or {}).get("prompt_tokens") or 0 for t in completed),
-        "completion_tokens": sum((t.get("usage") or {}).get("completion_tokens") or 0 for t in completed),
+        "model_requests": sum(t.get("attempts") or 0 for t in completed) + sum(u.get("attempts") or 0
+                                                                                for u in compact_usage),
+        "prompt_tokens": sum((t.get("usage") or {}).get("prompt_tokens") or 0 for t in completed)
+        + sum(u.get("prompt_tokens") or 0 for u in compact_usage),
+        "completion_tokens": sum((t.get("usage") or {}).get("completion_tokens") or 0 for t in completed)
+        + sum(u.get("completion_tokens") or 0 for u in compact_usage),
         "tool_calls": len(called),
     }
+    shaped = [d for d in called if d.get("shaping")]
     mismatches = [f"{key}: 运行汇总 {run_sum(key)} ≠ 逐轮 {value}" for key, value in turn_sums.items()
                   if run_sum(key) != value]
     return {
@@ -96,6 +116,11 @@ def compute_metrics(session: Dict[str, Any]) -> Dict[str, Any]:
         "tool_calls_by_name": dict(Counter(d.get("function", "") for d in called).most_common()),
         "tool_calls_unfinished": len(calling_ids - called_ids),
         "unpaired_turns": len(started) - len(completed),
+        "compactions": len(compacts),
+        "compaction_requests": sum(u.get("attempts") or 0 for u in compact_usage),
+        "shaped_results": len(shaped),
+        "max_context_estimate": max(((t.get("context_estimate") or {}).get("total") or 0 for t in started),
+                                    default=0),
         "metrics_consistent": not mismatches,
         "metric_mismatches": mismatches,
         "runs": [{"run_id": run_id, "status": t["status"], "reason": t["reason"], "source": t["source"]}

@@ -47,6 +47,10 @@ class RayAgentClient:
     async def get_llm_config(self) -> Dict[str, Any]:
         return await self._get("/app-config/llm")
 
+    async def update_llm_config(self, config: Dict[str, Any]) -> Dict[str, Any]:
+        """POST /app-config/llm；密钥字段被服务端忽略，始终保持环境变量注入的值。"""
+        return await self._post("/app-config/llm", config)
+
     async def get_agent_config(self) -> Dict[str, Any]:
         return await self._get("/app-config/agent")
 

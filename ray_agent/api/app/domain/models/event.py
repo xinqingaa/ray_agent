@@ -10,7 +10,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Literal, List, Union, Optional, Any, Dict, Annotated
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, PrivateAttr
 
 from .file import File
 from .plan import Plan, Step
@@ -109,6 +109,15 @@ ToolContent = Union[
 ]
 
 
+class ToolResultShaping(BaseModel):
+    """结果整形元数据：结果序列化后超过单条上限时，进入上下文的只是首尾预览。"""
+    original_chars: int  # 完整内容（落盘文本，协议结果为适配层截断前的内容）的字符数
+    preview_chars: int  # 进入上下文的预览序列化后的字符数
+    truncated: bool = True
+    full_output_path: Optional[str] = None  # 完整内容在沙箱中的路径；写入失败时为空，完整内容不可再读
+    error: Optional[str] = None  # 写入失败的原因
+
+
 class ToolEvent(BaseEvent):
     """工具事件"""
     type: Literal["tool"] = "tool"
@@ -117,9 +126,15 @@ class ToolEvent(BaseEvent):
     tool_content: Optional[ToolContent] = None  # 工具扩展内容
     function_name: str  # LLM调用函数/工具名字
     function_args: Dict[str, Any]  # LLM生成的工具调用参数
-    function_result: Optional[ToolResult] = None  # 工具调用结果
+    function_result: Optional[ToolResult] = None  # 工具调用结果；called 事件上即进入上下文的内容（整形后为预览）
     status: ToolEventStatus = ToolEventStatus.CALLING  # 工具事件状态
     duration_ms: Optional[int] = None  # 工具管线从执行前到执行后的耗时，只在 called 事件上填写
+    shaping: Optional[ToolResultShaping] = None  # 只在被整形的 called 事件上填写
+    _raw_result: Optional[ToolResult] = PrivateAttr(default=None)  # 整形前的结果，只供运行器生成展示内容
+
+    @property
+    def raw_result(self) -> Optional[ToolResult]:
+        return self._raw_result if self._raw_result is not None else self.function_result
 
 
 class WaitEvent(BaseEvent):
@@ -161,7 +176,7 @@ class TurnEvent(BaseEvent):
     phase: TurnPhase
     index: int  # 运行内从 1 递增
     # started
-    context_estimate: Optional[Dict[str, Any]] = None  # W2 的四部分估算；W2 合入前为空
+    context_estimate: Optional[Dict[str, Any]] = None  # 本轮请求的容量估算，字段见 ContextEstimate.as_dict()
     context_window: Optional[int] = None  # 本轮请求所用模型的上下文窗口
     # completed
     model_ms: Optional[int] = None  # 各次尝试的请求耗时合计，不含重试间隔
@@ -183,7 +198,13 @@ class RunEvent(BaseEvent):
 
 class ContextOp(str, Enum):
     APPEND = "append"  # 向模型历史追加消息（system 除外，system 在运行快照里）
-    COMPACT = "compact"  # 按 Memory.compact 规则裁剪此前的消息
+    STRIP_REASONING = "strip_reasoning"  # 按 Memory.strip_reasoning 删除此前消息的推理字段
+    REPLACE = "replace"  # 压缩：system 之后的全部消息替换为 messages（摘要、重新注入的用户原文、保留区）
+
+    @classmethod
+    def _missing_(cls, value: object) -> Optional["ContextOp"]:
+        # W3 开发库里的旧值：当时的 compact 就是删除推理字段（外加已删除的浏览器结果替换）
+        return cls.STRIP_REASONING if value == "compact" else None
 
 
 class ContextEvent(BaseEvent):
@@ -191,6 +212,28 @@ class ContextEvent(BaseEvent):
     type: Literal["context"] = "context"
     op: ContextOp = ContextOp.APPEND
     messages: List[Dict[str, Any]] = Field(default_factory=list)
+
+
+class CompactUsage(BaseModel):
+    """摘要请求各次尝试的用量合计；计入运行的模型请求数与 tokens，不算一轮。"""
+    attempts: int = 0
+    prompt_tokens: Optional[int] = None
+    completion_tokens: Optional[int] = None
+    cached_tokens: Optional[int] = None
+
+
+class CompactEvent(BaseEvent):
+    """自动压缩：较早的轮次替换为摘要，用户消息原文重新注入。随后的 context(replace) 事件携带替换后的消息全文。"""
+    type: Literal["compact"] = "compact"
+    trigger: Literal["watermark", "overflow"] = "watermark"  # 估算超过水位 / 服务端以上下文超长拒绝
+    before_estimate: Dict[str, Any] = Field(default_factory=dict)  # 压缩前的容量估算
+    after_estimate: Dict[str, Any] = Field(default_factory=dict)  # 替换后的容量估算
+    summarized_turns: int = 0  # 进入摘要的轮数（助手消息及其工具结果）
+    kept_turns: int = 0  # 原样保留的最近轮数
+    summary: str = ""  # 摘要全文
+    reinjected_event_seqs: List[int] = Field(default_factory=list)  # 重新注入的用户消息对应的 message 事件
+    omitted_user_messages: int = 0  # 因总量上限未重新注入、只由摘要覆盖的用户消息条数
+    usage: CompactUsage = Field(default_factory=CompactUsage)
 
 
 class CleanupTarget(BaseModel):
@@ -220,6 +263,7 @@ Event = Annotated[
         TurnEvent,
         RunEvent,
         ContextEvent,
+        CompactEvent,
         CleanupEvent,
     ],
     Field(discriminator="type"),

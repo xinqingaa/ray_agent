@@ -10,11 +10,13 @@
 
 ## 现状
 
-- 记忆只追加（[`models/memory.py`](../../ray_agent/api/app/domain/models/memory.py)），`compact()` 只把 `browser_view`、`browser_navigate` 的结果替换为 `(removed)` 并删除推理字段，按工具类型而非预算触发。
-- `context_window` 只用于用量展示（[`models/app_config.py`](../../ray_agent/api/app/domain/models/app_config.py) 第 21 行）；`max_tokens` 默认 8192。
+以下是 W2 实施前的代码事实，对应已提交的 W3 `c0822dc`。下列文件在 W2 中已改写，行号不再指向当前源码，按需用 `git show c0822dc:<路径>` 查看。
+
+- 记忆只追加（`domain/models/memory.py`），`compact()` 只把 `browser_view`、`browser_navigate` 的结果替换为 `(removed)` 并删除推理字段，按工具类型而非预算触发；W3 把这次清理记为 `context(op=compact)` 事件。
+- `context_window` 只随 `turn(started)` 记录、用于用量展示，`context_estimate` 恒为空；`max_tokens` 默认 8192。
 - 文件读取工具已支持 `start_line`、`end_line`、`max_length`（[`tools/file.py`](../../ray_agent/api/app/domain/services/tools/file.py)），可以分段读取沙箱文件。
-- MCP/A2A 结果在协议适配层按字符数与列表项截断后才进入上下文（[`protocols/common.py`](../../ray_agent/api/app/infrastructure/protocols/common.py) 的 `describe_content()`），被截掉的部分不可再读。
-- Shell 输出在沙箱内存中无上限累积（[`sandbox/app/services/shell.py`](../../ray_agent/sandbox/app/services/shell.py) 第 101–104 行）。
+- MCP/A2A 结果在协议适配层按字符数与列表项截断后才进入上下文（`protocols/common.py` 的 `describe_content()`），被截掉的部分不可再读。
+- Shell 输出在沙箱内存中无上限累积（`sandbox/app/services/shell.py`）。
 
 ## 设计
 
@@ -87,3 +89,39 @@
 ## 交接
 
 下游依赖：`CompactEvent` 的字段；结果整形的落盘路径约定与 `called` 事件中的整形元数据；容量估算的四部分构成；新增配置项。W3 迁移事件存储时包含 `compact` 类型，并把估算构成写入轮次开始事件；W6 流式输出的 usage 结算要继续提供容量估算所需的 `prompt_tokens`；W7.3 调整执行身份后同步落盘目录。
+
+交接接口（2026-09-28 实现）：
+
+- **容量检查：** [`AgentLoop._ensure_capacity()`](../../ray_agent/api/app/domain/services/flows/agent_loop.py)，每轮在发出 `turn(started)` 之前执行。估算器 [`ContextBudget`](../../ray_agent/api/app/domain/services/context/budget.py) 以上一次请求的 `prompt_tokens` 为已知部分，按那次请求的字符估算比例分摊到四部分，其后新增的消息与工具 schema 差额按字符估算（中日韩字符 0.7 token/字，其余 0.3，每条消息另加 4）；没有 usage、或记忆被替换、清理后全部按字符估算。可用上限 `limit = context_window − max_tokens − ceil(context_window × context_safety_ratio)`，水位 `watermark = limit × compact_watermark`。
+- **`context_estimate`（`turn(started)`）：** `system_prompt`、`tools`、`history`、`tool_results`（整数 tokens，四者之和即 `total`）、`total`、`limit`、`watermark`、`context_window`、`max_tokens`、`method`（`usage` 或 `chars`）。`history` 含 user、assistant 消息与摘要消息，`tool_results` 是 tool 消息。
+- **压缩触发：** 估算超过水位时 `trigger=watermark`；服务端以上下文超长拒绝时，该轮以 `turn(completed, error="context_overflow")` 结束，随后 `trigger=overflow` 强制压缩一次并重发，同一轮再次被拒即失败。水位触发时，可摘要部分扣除重新注入的原文后不到可用上限的 15%，跳过压缩、不发摘要请求。
+- **压缩产物：** 先发 `compact` 事件，再发 `context(op=replace)`，其 `messages` 是 system 之后的全部新消息：摘要消息（user 角色，以 `[上下文摘要]` 开头），被摘要范围内的用户原文（含对提问的回复，按时间顺序，总量不超过 `compact_user_chars`，从最近往前取），保留区原样。`compact` 字段：`trigger`、`before_estimate`、`after_estimate`（同 `context_estimate` 结构）、`summarized_turns`、`kept_turns`、`summary`（全文）、`reinjected_event_seqs`（重新注入原文对应的 `message` 事件 `seq`；提问回复不是 `message` 事件，没有对应项）、`omitted_user_messages`、`usage`（`attempts`、`prompt_tokens`、`completion_tokens`、`cached_tokens`）。运行账本把 `usage.attempts` 计入 `model_requests`，把 tokens 计入运行合计，不加轮数。SSE 事件名 `compact`，`data` 字段同上。
+- **失败：** 摘要请求失败或返回空内容时按 `max_retries` 重试，仍失败则运行 failed，原因 `context_limit`，记忆不变；压缩后仍超过 `limit`，或 overflow 时没有可压缩的轮次，同样以 `context_limit` 失败。错误文本分别说明是摘要失败、估算超限还是服务端拒绝。
+- **结果整形：** [`ResultShaper`](../../ray_agent/api/app/domain/services/context/shaping.py) 是执行后段最后一个处理函数。结果序列化后超过 `tool_result_max_chars`，或协议适配层带来了截断前的完整内容时触发。完整内容按“每字段一行、长文本原样展开”的格式写入沙箱 `/home/ubuntu/.rayagent/outputs/<call_id>.txt`（`call_id` 中 `[A-Za-z0-9_.-]` 以外的字符替换为 `_`），由运行器的 `_write_output()` 经沙箱 `write_file` 写入，目录不存在时由沙箱创建。进入记忆的预览是一个 `ToolResult`：`success`、`message`（前 500 字），`data` 含 `truncated`、`total_chars`、`total_lines`、`full_output_path`、`note`（读取提示或失败说明）、`head`（上限的 45%）、`tail`（上限的 20%），序列化后超过上限时首尾同比收缩。写入失败时 `full_output_path` 为空，`note` 说明不可再读。
+- **整形元数据：** `tool(called)` 事件与 SSE 的 `shaping` 字段为 `original_chars`（完整内容字符数）、`preview_chars`、`truncated`、`full_output_path`、`error`；未整形时为空。`function_result` 是进入上下文的预览；运行器在进程内用整形前的结果填充搜索结果等展示内容。
+- **落盘目录与执行身份：** 当前沙箱服务以 root 运行，目录由 root 创建。W7.3 改为普通用户执行后，需保证该用户对 `/home/ubuntu/.rayagent/outputs` 可写并可被 `read_file` 读取；若改路径，同步 `shaping.OUTPUT_DIR` 与中英文系统提示词里的路径（`prompts/system.py`、`prompts/en/system.py` 的文件规则各一处）。
+- **配置项（`AgentConfig`）：** `context_safety_ratio`（0.05）、`compact_watermark`（0.75）、`compact_keep_turns`（3，保留区含 system 与工具 schema 超过水位的 60% 时逐步减到 1）、`compact_user_chars`（16000）、`tool_result_max_chars`（8000）。`GET/POST /api/app-config/agent` 可读写；设置页尚未提供编辑项。
+- **给 W4/W5：** `context.op` 取值改为 `append`、`strip_reasoning`、`replace`；需要消费 `compact` 事件（界面显示“已压缩上下文”，开发者视图显示摘要全文）、`tool.shaping`（工具卡显示“完整输出已保存”或“不可再读”）、`turn(started).context_estimate`（上下文环与构成）。本包未改 `ray_agent/ui/`。
+- **给 W6：** 容量估算依赖每次成功请求的 `prompt_tokens`（`AgentLoop._request_model()` 在成功后调用 `budget.record_usage()`）；流式结算缺少 usage 时估算退回全部按字符计算，仍可工作但偏保守。超长拒绝识别在 `openai_llm._is_context_exceeded()`（400/413 且错误码或信息含上下文长度标记），换模型客户端时需提供同样的 `LLMRequestError.context_exceeded`。
+- **沙箱 Shell：** 单个会话的累积输出按字符计上限约 1 MB，超出上限 256K 后裁剪一次，只保留尾部并以截断标记开头；该会话较早的控制台记录合计超限时清空为标记。
+
+未决：浏览器与 A2A 的大结果只有单元路径覆盖，没有真实运行记录；E7 只跑 1 次；服务端超长拒绝没有真实拒绝的运行记录；W2 未改 UI，`compact` 事件与整形元数据在页面上尚无展示。
+
+## 实施修正（2026-09-28）
+
+实施中以代码为准修正了本文以下内容：
+
+1. “现状”改为标注 W3 提交 `c0822dc` 的快照，去掉已失效的行号链接。
+2. **`context` 事件的 `op`：** W3 的 `compact` 改名为 `strip_reasoning`（浏览器正文替换已删除，只剩删除推理字段），新增 `replace`。旧值 `compact` 在读取时按 `strip_reasoning` 解析，这偏离了总计划“不兼容旧数据”的原则。原因是开发库由并行的工作包共用，不清库也能读回 W3 期间的旧事件。代价是：旧运行里曾被替换的浏览器正文，在请求重建中会显示为原文。W8 收口时可删除这条兼容。
+3. **`replace` 携带替换后的全部消息：** `replace` 事件记录 system 之后的完整新序列，而不是差量，请求重建直接替换即可。验收 9 在 `test_turn_events_rebuild.py` 中由运行器驱动真实循环完成压缩；`test_run_events_pg.py` 另加 JSONB 往返用例，覆盖 `compact`、`shaping`、运行计数与重建。
+4. **保留轮数可变，并设最小收益：** 保留区（含 system 与工具 schema）超过水位的 60% 时，K 从 3 逐步减到 1，给摘要和用户原文留空间。E7 冒烟中出现过一次无效压缩：只摘要了一条很短的回复，却保留了一个读入 6 份材料的大批次，估算不降反升（15226 → 15413），白白多了一次摘要请求。因此增加规则：水位触发时，可摘要部分扣除重新注入的原文后不足可用上限的 15%，就跳过压缩；overflow 触发时仍强制压缩。
+5. **用户原文的来源：** 原文说“从会话事件中取出所有用户消息原文”，实现改为取被摘要范围内记忆中的用户原文，再按顺序匹配会话 `message` 事件的 `seq`。这样既包含对提问的回复（它不是 `message` 事件），又排除循环自己写入的 `[系统提示]` 与上一次的摘要；保留区里的用户消息原位不动，不会重复注入。上一次重新注入的原文在下次压缩时会再次进入摘要范围，因此仍会被重新注入。
+6. **服务端超长拒绝：** 由 `LLMRequestError.context_exceeded` 标识，判定条件是 400/413 且错误码或信息含上下文长度关键字。该轮以 `turn(completed, error="context_overflow")` 结束后强制压缩并重发，压缩事件的 `trigger` 为 `overflow`。
+7. **摘要请求的计数：** 每次尝试计入循环的模型请求数（受 `max_iterations` 约束），由账本按 `compact.usage` 计入运行合计，不写 `turn` 事件。评测脚本的逐轮核对同时累加 `turn(completed)` 与 `compact.usage`。
+8. **预览格式：** 完整内容不落原始 JSON，而是按“每字段一行、长文本原样展开”的格式落盘，使 `read_file` 的行号有意义。预览的 `data` 增加 `total_lines`；首尾比例为上限的 45% 与 20%，转义导致超限时同比收缩。协议结果经 `ToolResult` 的私有字段带上截断前的内容，只在进程内传给整形步骤；只要协议层截断过，即使预览不超过上限也会落盘。
+9. **Shell 上限：** 按 Python 字符数计，而不是字节数；超出上限 256K 才裁剪，避免每次追加都复制整段输出；同一会话较早的控制台记录合计超限时一并清空为标记。沙箱没有测试套件，这部分由手工脚本验证：写入约 2.8 MB 后保留 1,290,282 字符，以截断标记开头。
+10. **提示词写死落盘路径：** 中英文系统提示词的文件规则各增加一行，说明预览、路径 `/home/ubuntu/.rayagent/outputs/` 与分段读取方式；另在循环说明中增加一行，说明 `[上下文摘要]` 消息。W7.3 改路径时需同步这三处（两份提示词与 `OUTPUT_DIR`）。
+11. **搜索结果展示用整形前的结果：** `tool(called)` 事件的 `function_result` 是进入上下文的预览；运行器填充搜索展示内容时改用进程内保留的整形前结果，页面不受整形影响。
+12. **`context_estimate` 的内容：** 在四部分之外还记录 `total`、`limit`、`watermark`、`context_window`、`max_tokens` 与估算方式 `method`。字符系数为中日韩字符 0.7、其余 0.3、每条消息加 4；真实首轮的字符估算为 4920，实际 `prompt_tokens` 为 4485，偏保守约 10%，有 usage 后按实际值校准。
+13. **E7 的具体形态：** 共 4 轮：声明约束；在一轮内读 m01–m06；在一轮内读 m07–m12；输出并交付 `summary.json`（`source_total` 与 12 个校验码）。每份材料约 2,300 字符，校验码放在中段。读取分两轮，是为了让模型即使一次回复读完 6 份，单轮最大体量也在可用上限之内。任务期间经 `POST /app-config/llm` 把 `context_window` 调为 24576、`max_tokens` 调为 4096（可用上限 19251、水位 14438），结束后在 `finally` 中恢复；报告的检查项记录了这两个值和恢复值。第一次冒烟时，“每次回复只读一份”被理解为每轮只读一份，模型改用 grep 取校验码，没有触发压缩；措辞改为“在这一轮里依次完整读取、不要用 shell 提取片段”。
+14. **`Memory.compact()` 删除，改为 `strip_reasoning()`：** 原浏览器结果替换的回归用例改为断言新用户消息只删推理字段、页面正文保留。

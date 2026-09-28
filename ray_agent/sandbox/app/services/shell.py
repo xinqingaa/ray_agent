@@ -30,6 +30,33 @@ from app.models.shell import (
 
 logger = logging.getLogger(__name__)
 
+OUTPUT_LIMIT_CHARS = 1024 * 1024  # 单个 Shell 会话在内存中保留的输出上限（按字符计，约 1 MB）
+TRIM_SLACK_CHARS = 256 * 1024  # 超出上限这么多才裁剪一次，避免每读一块输出就复制整段文本
+TRUNCATED_MARK = "[较早的输出已丢弃：单个 Shell 会话最多保留约 1 MB 输出，以下为尾部]\n"
+
+
+def _keep_tail(text: str, limit: int) -> str:
+    """超过上限时丢弃头部、只保留最后 limit 个字符，并在截断位置写入标记。"""
+    if len(text) <= limit + TRIM_SLACK_CHARS:
+        return text
+    return TRUNCATED_MARK + text[-limit:]
+
+
+def append_output(shell: Shell, text: str, limit: int = OUTPUT_LIMIT_CHARS) -> None:
+    """把新输出追加到当前输出与最后一条控制台记录；控制台记录累计超过上限时，从最早的记录开始清空。"""
+    shell.output = _keep_tail(shell.output + text, limit)
+    records = shell.console_records
+    if not records:
+        return
+    records[-1].output = _keep_tail(records[-1].output + text, limit)
+    total = sum(len(record.output) for record in records)
+    for record in records[:-1]:
+        if total <= limit + TRIM_SLACK_CHARS:
+            break
+        if record.output != TRUNCATED_MARK:
+            total += len(TRUNCATED_MARK) - len(record.output)
+            record.output = TRUNCATED_MARK
+
 
 class ShellService:
     """Shell命令服务"""
@@ -99,10 +126,8 @@ class ShellService:
 
                     # 6.判断会话是否存在
                     if shell:
-                        # 7.更新会话输出和控制台记录
-                        shell.output += output
-                        if shell.console_records:
-                            shell.console_records[-1].output += output
+                        # 7.更新会话输出和控制台记录（超过上限只保留尾部）
+                        append_output(shell, output)
                 except Exception as e:
                     logger.error(f"读取进程输出时错误: {str(e)}")
                     break
@@ -344,9 +369,7 @@ class ShellService:
 
             # 7.记录日志/输出(直接使用原始字符串，不从input_data编码，避免编码不统一的情况)
             log_text = input_text + ("\n" if press_enter else "")
-            shell.output += log_text
-            if shell.console_records:
-                shell.console_records[-1].output += log_text
+            append_output(shell, log_text)
 
             # 8.向子进程写入数据
             process.stdin.write(input_data)

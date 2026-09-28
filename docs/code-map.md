@@ -26,11 +26,14 @@
 
 | 机制 | 主要入口 | 回归测试 | 课程 |
 |---|---|---|---|
-| 消息序列组装、按角色写入 | [`domain/models/memory.py`](../ray_agent/api/app/domain/models/memory.py) | — | 05 |
-| 新用户消息时的定点裁剪 | [`domain/models/memory.py`](../ray_agent/api/app/domain/models/memory.py) 的 `Memory.compact()`，由 `AgentLoop` 调用 | [`core/test_agent_loop.py`](../ray_agent/api/tests/core/test_agent_loop.py) | 05 |
-| 模型调用、`finish_reason` 与可重试错误 | [`infrastructure/external/llm/openai_llm.py`](../ray_agent/api/app/infrastructure/external/llm/openai_llm.py)、[`domain/external/llm.py`](../ray_agent/api/app/domain/external/llm.py) 的 `LLMRequestError` | [`core/test_llm_api_key.py`](../ray_agent/api/tests/core/test_llm_api_key.py) | 02 |
+| 消息序列组装、按轮切分与整体替换 | [`domain/models/memory.py`](../ray_agent/api/app/domain/models/memory.py) 的 `rounds()`、`replace()`；新用户消息时删除推理字段为 `strip_reasoning()` | [`core/test_agent_loop.py`](../ray_agent/api/tests/core/test_agent_loop.py)、[`core/test_context_governance.py`](../ray_agent/api/tests/core/test_context_governance.py) | 05 |
+| 请求前容量估算：四部分构成、usage 校准、可用上限与水位 | [`domain/services/context/budget.py`](../ray_agent/api/app/domain/services/context/budget.py) 的 `ContextBudget`、`ContextEstimate`；由 [`agent_loop.py`](../ray_agent/api/app/domain/services/flows/agent_loop.py) 的 `_ensure_capacity()` 在每轮 `turn(started)` 前调用 | [`core/test_context_governance.py`](../ray_agent/api/tests/core/test_context_governance.py) | 05 |
+| 自动压缩：范围选择、用户原文重新注入、摘要请求 | [`domain/services/context/compaction.py`](../ray_agent/api/app/domain/services/context/compaction.py)；流程在 [`agent_loop.py`](../ray_agent/api/app/domain/services/flows/agent_loop.py) 的 `_compact_history()`、`_request_summary()`；提示词 [`prompts/compact.py`](../ray_agent/api/app/domain/services/prompts/compact.py)（英文版在 `prompts/en/`） | [`core/test_context_governance.py`](../ray_agent/api/tests/core/test_context_governance.py)、[`core/test_turn_events_rebuild.py`](../ray_agent/api/tests/core/test_turn_events_rebuild.py) | 05 |
+| 工具结果整形与落盘 | [`domain/services/context/shaping.py`](../ray_agent/api/app/domain/services/context/shaping.py) 的 `ResultShaper`（工具管线执行后段最后一个处理函数），写文件经 [`agent_task_runner.py`](../ray_agent/api/app/domain/services/agent_task_runner.py) 的 `_write_output()`；协议截断前的完整内容见 [`infrastructure/protocols/common.py`](../ray_agent/api/app/infrastructure/protocols/common.py) 的 `keep_full_content()` | [`core/test_context_governance.py`](../ray_agent/api/tests/core/test_context_governance.py)、[`protocols/test_result_shaping.py`](../ray_agent/api/tests/protocols/test_result_shaping.py) | 05、14 |
+| 沙箱 Shell 输出上限 | [`services/shell.py`](../ray_agent/sandbox/app/services/shell.py)（沙箱）的 `append_output()` | — | 11 |
+| 模型调用、`finish_reason`、可重试错误与上下文超长拒绝 | [`infrastructure/external/llm/openai_llm.py`](../ray_agent/api/app/infrastructure/external/llm/openai_llm.py)、[`domain/external/llm.py`](../ray_agent/api/app/domain/external/llm.py) 的 `LLMRequestError` | [`core/test_llm_api_key.py`](../ray_agent/api/tests/core/test_llm_api_key.py)、[`core/test_context_governance.py`](../ray_agent/api/tests/core/test_context_governance.py) | 02 |
 | 内嵌工具调用的兼容解析 | [`domain/services/agents/tool_call_compat.py`](../ray_agent/api/app/domain/services/agents/tool_call_compat.py) | [`core/test_tool_call_compat.py`](../ray_agent/api/tests/core/test_tool_call_compat.py) | 03 |
-| token 用量记账 | [`domain/models/token_usage.py`](../ray_agent/api/app/domain/models/token_usage.py)、[`infrastructure/external/llm/usage.py`](../ray_agent/api/app/infrastructure/external/llm/usage.py) | [`core/test_llm_usage.py`](../ray_agent/api/tests/core/test_llm_usage.py) | 10 |
+| token 用量记账 | [`domain/models/llm.py`](../ray_agent/api/app/domain/models/llm.py)、[`infrastructure/external/llm/usage.py`](../ray_agent/api/app/infrastructure/external/llm/usage.py) | [`core/test_llm_usage.py`](../ray_agent/api/tests/core/test_llm_usage.py) | 10 |
 
 ## 工具与动作
 
@@ -107,7 +110,7 @@
 
 | 机制 | 主要入口 | 课程 |
 |---|---|---|
-| 事件流消费与时间线构建 | [`lib/session-events.ts`](../ray_agent/ui/src/lib/session-events.ts)、[`hooks/use-session-detail.ts`](../ray_agent/ui/src/hooks/use-session-detail.ts) | 10 |
+| 事件订阅与视图投影 | [`lib/session-projection.ts`](../ray_agent/ui/src/lib/session-projection.ts) 的 `projectSession`、[`lib/session-view.ts`](../ray_agent/ui/src/lib/session-view.ts)、[`hooks/use-session-detail.ts`](../ray_agent/ui/src/hooks/use-session-detail.ts)。当前会话页仍用 [`lib/session-events.ts`](../ray_agent/ui/src/lib/session-events.ts) 的旧时间线，到 W5 阶段二为止 | 10 |
 | 接口请求 | [`lib/api/`](../ray_agent/ui/src/lib/api/) 的 `session.ts`、`file.ts`、`fetch.ts` | 10 |
 | 计划与工具展示 | [`components/plan-panel.tsx`](../ray_agent/ui/src/components/plan-panel.tsx)、[`components/tool-use/`](../ray_agent/ui/src/components/tool-use/) | 07、10 |
 | 文件预览与附件 | [`components/file-preview-panel.tsx`](../ray_agent/ui/src/components/file-preview-panel.tsx)、[`components/attachments-message.tsx`](../ray_agent/ui/src/components/attachments-message.tsx) | 12 |
@@ -125,7 +128,7 @@
 
 ---
 
-基线：上述当前实现映射为 2026-09-16 核对；Agent 循环与工具管线、上下文与记忆、工具及文件交付中的相关行于 2026-09-28 按 W1 实现更新；事件、状态与持久化、任务控制分组同日按 W3 实现更新。路径变动时更新本文件，不在其他文档正文里重复代码位置。机制为什么这样设计见 [Harness 工程](harness.md)，完整推导见对应的[课程章节](../lessons/README.md)。
+基线：上述当前实现映射为 2026-09-16 核对；Agent 循环与工具管线、上下文与记忆、工具及文件交付中的相关行于 2026-09-28 按 W1 实现更新；事件、状态与持久化、任务控制分组同日按 W3 实现更新；上下文与记忆分组同日按 W2 实现更新；前端事件订阅与视图投影同日按 W4 实现更新。路径变动时更新本文件，不在其他文档正文里重复代码位置。机制为什么这样设计见 [Harness 工程](harness.md)，完整推导见对应的[课程章节](../lessons/README.md)。
 
 ## 二次开发改造入口
 
@@ -134,8 +137,6 @@
 | 工作包 | 现有修改入口 |
 |---|---|
 | [W0 基线与评测](plan/w0-baseline-eval.md) | [模型抽象](../ray_agent/api/app/domain/external/llm.py)、[测试目录](../ray_agent/api/tests/)、[API 脚本目录](../ray_agent/api/scripts/)、[验证实验](../labs/verification/README.md) |
-| [W2 上下文治理](plan/w2-context.md) | [Memory](../ray_agent/api/app/domain/models/memory.py)、[协议结果截断](../ray_agent/api/app/infrastructure/protocols/common.py)、[沙箱 Shell 服务](../ray_agent/sandbox/app/services/shell.py)、[事件模型](../ray_agent/api/app/domain/models/event.py)、[应用配置模型](../ray_agent/api/app/domain/models/app_config.py) |
-| [W4 前端数据层](plan/w4-ui-data.md) | [接口和类型](../ray_agent/ui/src/lib/api/)、[订阅 hook](../ray_agent/ui/src/hooks/use-session-detail.ts)、[事件投影](../ray_agent/ui/src/lib/session-events.ts)、[用量](../ray_agent/ui/src/components/token-usage.tsx)、[观察脚本](../ray_agent/ui/scripts/check-event-observability.cjs) |
 | [W5 界面与交互](plan/w5-ux.md) | 阶段一、三：[设计说明](../ray_agent/ui/DESIGN.md)、[全局样式](../ray_agent/ui/src/app/globals.css)、[运行视图](../ray_agent/ui/src/components/run/)、[组件状态目录](../ray_agent/ui/src/app/dev/components/page.tsx)、[夹具](../ray_agent/ui/src/fixtures/)、[设置页](../ray_agent/ui/src/components/settings/)。阶段二前会话页仍用 [会话视图](../ray_agent/ui/src/components/session-detail-view.tsx)、[计划面板](../ray_agent/ui/src/components/plan-panel.tsx)、[工具组件](../ray_agent/ui/src/components/tool-use/) |
 | [W6 流式与运行指标](plan/w6-streaming.md) | [模型实现](../ray_agent/api/app/infrastructure/external/llm/openai_llm.py)、[usage 解析](../ray_agent/api/app/infrastructure/external/llm/usage.py)、[事件映射](../ray_agent/api/app/interfaces/schemas/event.py)、[Nginx](../ray_agent/nginx/conf.d/default.conf) |
 | [W7 控制与安全](plan/w7-control-safety.md) | [沙箱 Shell 服务](../ray_agent/sandbox/app/services/shell.py)、[supervisord 配置](../ray_agent/sandbox/supervisord.conf)、[沙箱 Dockerfile](../ray_agent/sandbox/Dockerfile)、[沙箱适配](../ray_agent/api/app/infrastructure/external/sandbox/docker_sandbox.py)、[运行时配置](../ray_agent/api/core/config.py)、[沙箱环境检查](../ray_agent/api/scripts/check_sandbox_environment.py) |

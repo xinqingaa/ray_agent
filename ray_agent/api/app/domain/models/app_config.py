@@ -19,7 +19,7 @@ class LLMConfig(BaseModel):
     model_name: str = "deepseek-reasoner"  # 模型名字，默认使用deepseek-reasoner带推理的模型，传递tools会自动切换到deepseek-chat
     temperature: float = Field(0.7)  # 温度，默认设置为0.7
     max_tokens: int = Field(8192, ge=0)  # 最大输出token数，默认设置为deepseek-chat模型的最大输出限制
-    context_window: int = Field(65536, ge=1)  # 模型上下文窗口，用于展示最近一次请求占用；不是输出上限
+    context_window: int = Field(65536, ge=1)  # 模型上下文窗口（输入+输出）；可用输入上限 = 窗口 − max_tokens − 安全余量
 
 
 class AgentConfig(BaseModel):
@@ -27,6 +27,12 @@ class AgentConfig(BaseModel):
     max_iterations: int = Field(default=100, gt=0, lt=1000)  # Agent最大迭代次数
     max_retries: int = Field(default=3, gt=1, lt=10)  # 最大重试次数
     max_search_results: int = Field(default=10, gt=1, lt=30)  # 最大搜索结果条数
+    # 上下文治理（W2）
+    context_safety_ratio: float = Field(default=0.05, ge=0, lt=0.5)  # 安全余量占窗口的比例
+    compact_watermark: float = Field(default=0.75, gt=0, le=1)  # 估算超过“可用输入上限 × 该比例”时先压缩
+    compact_keep_turns: int = Field(default=3, ge=1, le=20)  # 压缩时原样保留的最近轮数
+    compact_user_chars: int = Field(default=16000, ge=1000)  # 压缩后重新注入的用户消息原文总字符上限
+    tool_result_max_chars: int = Field(default=8000, ge=1000)  # 单条工具结果序列化后的字符上限，超出只给首尾预览
 
 
 class ProtocolTimeouts(BaseModel):

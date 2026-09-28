@@ -40,6 +40,14 @@ def mcp_server(args):
                                    structured_content={'zero': 0, 'false': False, 'empty': '', 'list': []})
 
     @server.tool()
+    def long_text(length: int = 20000) -> str:
+        """返回指定长度的多行文本，末行是尾部标记 MCP_TAIL_MARKER，用于结果整形验收。"""
+        record(protocol='mcp', method='long_text', length=length)
+        tail = '\nMCP_TAIL_MARKER'
+        body = '\n'.join(f'mcp-line-{i:05d} ' + 'x' * 40 for i in range(length // 56 + 1))
+        return body[:length - len(tail)] + tail
+
+    @server.tool()
     async def delay(seconds: float = 30) -> str:
         """等待指定秒数，用于超时和取消验收。"""
         record(protocol='mcp', method='delay', seconds=seconds)

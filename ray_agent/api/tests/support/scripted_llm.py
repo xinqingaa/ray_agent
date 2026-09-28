@@ -4,7 +4,8 @@
 
 - ``ScriptedResponse``：助手文本、工具调用、finish_reason 与 usage；
 - ``BaseException`` 实例：调用时直接抛出，模拟传输或服务端错误；
-- ``Branch``：按本次请求内容在两项之间选择，选中的项可以再是 ``Branch``。
+- ``Branch``：按本次请求内容在两项之间选择，选中的项可以再是 ``Branch``；
+- ``Dynamic``：按本次请求内容现场生成一项。
 
 每次 ``invoke`` 消耗一项；脚本耗尽时抛出 ``ScriptExhaustedError``。
 """
@@ -78,7 +79,13 @@ class Branch:
     otherwise: "ScriptItem"
 
 
-ScriptItem = Union[ScriptedResponse, BaseException, Branch]
+@dataclass
+class Dynamic:
+    """按本次请求内容生成脚本项，用于参数取决于先前工具结果的调用（例如按预览给出的行数分段读取）。"""
+    build: Callable[[ScriptedRequest], "ScriptItem"]
+
+
+ScriptItem = Union[ScriptedResponse, BaseException, Branch, Dynamic]
 
 
 def text(content: str, *, finish_reason: Optional[str] = None,
@@ -181,8 +188,9 @@ class ScriptedLLM:
         return self._build_result(item)
 
     def _resolve(self, item: ScriptItem, request: ScriptedRequest) -> Union[ScriptedResponse, BaseException]:
-        while isinstance(item, Branch):
-            item = item.then if item.when(request) else item.otherwise
+        while isinstance(item, (Branch, Dynamic)):
+            item = item.build(request) if isinstance(item, Dynamic) else \
+                item.then if item.when(request) else item.otherwise
         if not isinstance(item, (ScriptedResponse, BaseException)):
             raise TypeError(f"不支持的脚本项类型: {type(item).__name__}")
         return item

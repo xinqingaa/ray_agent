@@ -475,16 +475,17 @@ def _previous_turn(ask: bool):
     return Memory(messages=messages)
 
 
-@pytest.mark.parametrize("ask,status,compacted", [
-    (False, SessionStatus.COMPLETED, True),  # 新用户消息：裁掉旧页面结果与思考内容
-    (True, SessionStatus.WAITING, False),  # 回复提问：同一轮，保留思考内容
+@pytest.mark.parametrize("ask,status,stripped", [
+    (False, SessionStatus.COMPLETED, True),  # 新用户消息：删除此前的思考内容
+    (True, SessionStatus.WAITING, False),  # 回复提问：同一问，保留思考内容
 ])
-def test_new_user_message_compacts_previous_turns_but_reply_does_not(ask, status, compacted):
+def test_new_user_message_strips_reasoning_but_reply_does_not(ask, status, stripped):
     session = Session(id="w1-compact", title="t", status=status)
     session.memories[AGENT_MEMORY_NAME] = _previous_turn(ask)
     h = make_loop([text("好")], session=session)
     run(collect(h.loop, message="继续"))
     request = h.llm.requests[0].messages
-    assert ("reasoning_content" in request[2]) is not compacted
+    assert ("reasoning_content" in request[2]) is not stripped
     if not ask:
-        assert request[3]["content"] == "(removed)"
+        # W2 起浏览器结果不再按工具名替换，统一走结果整形的单条上限
+        assert request[3]["content"] == "页面全文"

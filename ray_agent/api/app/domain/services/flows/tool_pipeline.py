@@ -18,7 +18,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, AsyncGenerator, Awaitable, Callable, Dict, List, Optional
 
-from app.domain.models.event import BaseEvent, ToolEvent, ToolEventStatus
+from app.domain.models.event import BaseEvent, ToolEvent, ToolEventStatus, ToolResultShaping
 from app.domain.models.tool_result import ToolResult
 from app.domain.services.tools.base import BaseTool
 
@@ -39,6 +39,8 @@ class ToolInvocation:
     duration_ms: Optional[int] = None
     short_circuited: bool = False
     result: Optional[ToolResult] = None
+    raw_result: Optional[ToolResult] = None  # 执行后处理之前的结果
+    shaping: Optional[ToolResultShaping] = None  # 结果整形处理函数写入
     events: List[BaseEvent] = field(default_factory=list)
 
     @property
@@ -46,15 +48,20 @@ class ToolInvocation:
         return self.tool.name if self.tool else UNKNOWN_TOOLKIT
 
     def tool_event(self, status: ToolEventStatus, result: Optional[ToolResult] = None) -> ToolEvent:
-        return ToolEvent(
+        called = status == ToolEventStatus.CALLED
+        event = ToolEvent(
             tool_call_id=self.call_id,
             tool_name=self.toolkit_name,
             function_name=self.function_name,
             function_args=self.arguments,
             function_result=result,
             status=status,
-            duration_ms=self.duration_ms if status == ToolEventStatus.CALLED else None,
+            duration_ms=self.duration_ms if called else None,
+            shaping=self.shaping if called else None,
         )
+        if called and self.shaping is not None:
+            event._raw_result = self.raw_result
+        return event
 
 
 BeforeHandler = Callable[[ToolInvocation], Awaitable[Optional[ToolResult]]]
@@ -177,6 +184,7 @@ class ToolPipeline:
             yield invocation.tool_event(ToolEventStatus.CALLING)
             result = await self._executor(invocation)
 
+        invocation.raw_result = result
         for handler in self._after:
             result = await handler(invocation, result)
 
