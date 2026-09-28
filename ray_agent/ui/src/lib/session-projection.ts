@@ -147,6 +147,8 @@ type TurnBuild = {
   seenCalls: string[]
   contextEstimate: ContextEstimate | null
   contextWindow: number | null
+  /** context_estimate.watermark，token 数；没有则为空 */
+  watermarkTokens: number | null
   ttftMs: number | null
   attempts: number | null
   hasAttempts: boolean
@@ -268,6 +270,7 @@ export function projectSession(input: ProjectSessionInput): SessionView {
       seenCalls: [],
       contextEstimate: null,
       contextWindow: null,
+      watermarkTokens: null,
       ttftMs: null,
       attempts: null,
       hasAttempts: false,
@@ -409,6 +412,8 @@ export function projectSession(input: ProjectSessionInput): SessionView {
         if (window != null) turn.contextWindow = window
         const estimate = readEstimate(data.context_estimate)
         if (estimate) turn.contextEstimate = estimate
+        const watermark = readWatermarkTokens(data.context_estimate)
+        if (watermark != null) turn.watermarkTokens = watermark
         currentTurn.set(track.id, index)
       } else if (data.phase === 'completed') {
         turn.endedAt = ev.createdAt
@@ -641,7 +646,7 @@ export function projectSession(input: ProjectSessionInput): SessionView {
     usage: {
       session: sessionTokens,
       context,
-      watermarkRatio: null,
+      watermarkRatio: watermarkRatioOf(turns),
       compactions,
     },
     files,
@@ -841,12 +846,26 @@ function readUsage(raw: unknown): TokenCounts | null {
 
 function readEstimate(raw: unknown): ContextEstimate | null {
   if (!isRecord(raw)) return null
-  const system = num(raw.system)
+  const system = num(raw.system) ?? num(raw.system_prompt)
   const tools = num(raw.tools)
   const history = num(raw.history)
-  const toolResults = num(raw.toolResults ?? raw.tool_results)
+  const toolResults = num(raw.toolResults) ?? num(raw.tool_results)
   if (system == null || tools == null || history == null || toolResults == null) return null
   return {system, tools, history, toolResults}
+}
+
+function readWatermarkTokens(raw: unknown): number | null {
+  if (!isRecord(raw)) return null
+  return num(raw.watermark)
+}
+
+function watermarkRatioOf(turns: TurnBuild[]): number | null {
+  for (let i = turns.length - 1; i >= 0; i--) {
+    const tokens = turns[i].watermarkTokens
+    const window = turns[i].contextWindow
+    if (tokens != null && window != null && window > 0) return tokens / window
+  }
+  return null
 }
 
 function sumUsage(list: Array<TokenCounts | null>): TokenCounts {

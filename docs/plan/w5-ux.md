@@ -132,3 +132,22 @@
 ## 交接
 
 下游依赖：消息组件的增量渲染入口（W6）；审批卡与设置页工具策略分区的位置（W7.2）；失败尝试提示组件（W6）；组件状态目录页（W8 走查与配图核对）。
+
+阶段二之后的接入位置（2026-09-29）：
+
+- **W6 增量与速度：** 会话页把时间线回调集中在 `session-detail-view.tsx` 的 `handlers`。把正在增长的旁白或最终回复的条目 id 写入 `handlers.streamingItemId`，`TimelineItemView` 已会在该条目末尾加光标。状态条把 `{tokensPerSecond, estimated}` 传给 `RunStatusBar` 的 `outputRate`。开发者视图的轮次行在 `TurnView.ttftMs` 或 `attempts` 有值时已经显示，投影读到事件字段即可，不必再改行结构。增量不要写进带 seq 的事件列表。
+- **W7.2 审批：** 时间线里的 `approval` 条目已经渲染 `components/run/approval-card.tsx`。批准与拒绝接到 `handlers.onApprove` / `handlers.onReject`，参数是 `callId`。请求未返回时设置 `handlers.approvalSubmitting = {callId, decision: 'approve' | 'reject'}`。本次没有传这两个回调，待审批按钮保持禁用。设置页工具策略的位置仍是 `components/settings/tool-policy-section.tsx`。
+
+## 实施修正（2026-09-29）
+
+阶段二以代码为准，相对本文原稿有这些差别：
+
+1. 会话页改为只消费 `useSessionDetail` 的 `view`。停止调用 hook 的 `stop()`。运行中输入框可以发送，不再被停止按钮替换。
+2. 旧时间线已删除。`session-events.ts` 只保留事件归一化。`eventsToTimeline`、`collapseRetriedTurns`、`getLatestPlanFromEvents` 以及按步骤渲染的 `tool-use/`、计划面板、旧工具预览不再存在。
+3. 工作台的终端轮询沿用现有客户端 `sessionApi.viewShell`，这是 `POST /sessions/{id}/shell`，不是原稿写的 GET。调用仍在运行且参数里有 `session_id` 时，约每 1.5 秒读一次，结束后停止。
+4. 工具标题用投影里的动词（「读取文件」「运行命令」），完成后不再显示「正在…」。等待中的会话在侧栏是「等你回复」徽标，不是加载图标。
+5. 审批卡只渲染视图里的 `approval` 条目，不调用批准或拒绝接口。
+6. 运行已经是 `running`、但还没有 `turn started` 时，状态条仍显示「模型思考中」：状态条把这种运行归到模型相。开发者视图在轮次事件到达前写「还没有轮次记录」。
+7. 详情里的运行没有 `maxTurns`，状态条的轮次上限留空。时间线没有做虚拟化。`watermarkRatio` 由轮次开始事件的水位 token 数除以 `context_window` 得到，不是配置里的 0.75 原样抄入。
+8. 视图模型类型没有增删字段。投影补读了事件里的真实键名：`context_estimate.system_prompt` 与 `tool_results` 写入构成；`watermark` 是压缩水位的 token 数，有窗口时 `watermarkRatio` 为二者之商。契约已回写 [W4](w4-ui-data.md#视图模型契约)。
+9. 2026-09-29 用 Playwright 在 `http://localhost:8088` 走查。状态条工具相的文案是「执行工具」加上动词，不是「正在执行工具」。E2 交付下载、E3 提问、E4 在执行工具时停止、多工具与计划条、工作台跟随、开发者视图的构成和重建请求、暗色与窄屏已截图。刷新不重复只发生在仅有 2 条事件时。运行中断网补齐没有做成。API 重启中断文案未走查。「停止中」没有单独截到。对比度自动检查和设置页逐项保存仍未做。

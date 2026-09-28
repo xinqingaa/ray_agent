@@ -114,14 +114,14 @@ flowchart LR
 | W1 | 完成 | `phase-4` 上以 `W1:` 开头的提交 | [w1-2026-09-28-9faa304](evidence/w1-2026-09-28-9faa304.md) | 通过情况同基线；模型调用 55 → 20 |
 | W2 | 完成 | `phase-4` 上以 `W2:` 开头的提交 | [w2-2026-09-28-c0822dc](evidence/w2-2026-09-28-c0822dc.md) | E1–E7 全部通过；E7 压缩 2 次 |
 | W3 | 完成 | `phase-4` 上以 `W3:` 开头的提交 | [w3-2026-09-28-8511bdf](evidence/w3-2026-09-28-8511bdf.md) | E1–E6 全部通过，E4 停止生效 |
-| W4 | 待验证 | `phase-4` 上以 `W4:` 开头的提交 | — | 脚本与构建已过；浏览器走查随 W5 阶段二 |
-| W5 | 进行中 | 阶段一、三：以 `W5 阶段一+三:` 开头的提交 | 截图 `evidence/w5-2026-09-28-*.png` | 阶段一、三完成；阶段二未开始 |
+| W4 | 待验证 | `phase-4` 上以 `W4:` 开头的提交 | — | 浏览器走查已补刷新与停止；运行中断网补齐随 W6 前端复验 |
+| W5 | 待验证 | 以 `W5 阶段一+三:`、`W5 阶段二:` 开头的提交 | 截图 `evidence/w5-2026-09-28-*.png`、`evidence/w5-2-2026-09-29-*.png` | 三个阶段代码完成；侧栏徽标滞后待修，随 W6 前端复验 |
 | W6 | 未开始 | — | — | — |
 | W7 | 进行中 | W7.1、W7.3：以 `W7.1/W7.3:` 开头的提交 | [w7-1-3-2026-09-28-4b413ef](evidence/w7-1-3-2026-09-28-4b413ef.md) | W7.1、W7.3 完成；W7.2 审批未开始 |
 | W8 | 未开始 | — | — | — |
 | L 课程同步 | 未开始 | — | — | W8 后另立计划 |
 
-**下一步：** W5 阶段二（含 W4 浏览器走查），之后 W6 与 W7.2 并行。
+**下一步：** W6 前端与评测（含 W4、W5 遗留复验）与 W7.2 并行，之后 W8。
 
 ## 6. 证据记录
 
@@ -136,6 +136,8 @@ flowchart LR
 - 2026-09-28，W4（待验证）：基于 `c0822dc`。新增 `session-projection.ts`（`projectSession`、按序号去重合并、重连退避 500 ms 起翻倍至 4 s），`useSessionDetail` 改为单条 `after_seq` 订阅并返回 `view`、`stop()`、`loadTurnRequest()`；API 客户端增加 `getTurnRequest`，SSE 忽略 ping、缺 `seq` 时用 SSE `id`；删除按内容折叠重试轮次与按最后用户消息裁剪；视图模型类型以 `session-view.ts` 为准，契约调整写回子计划（`maxTurns` 与水位不推断，提问等待 reason 为空时视为 `waiting_reply` 等）。检查：`check-event-observability.cjs` 通过，`tsc --noEmit` 与 `npm run build` 通过，lint 9 个 error 均在旧组件（W5 范围）；对真实 API 一条已完成会话只读核对，续传只收到后续序号、已到最新时只有 ping，投影得到 4 次运行与 78 条事件。会话页仍渲染旧时间线，浏览器走查（E2、E3、刷新不重复、断网补齐、停止文案）随 W5 阶段二完成后补记。
 - 2026-09-28，W7.1 与 W7.3（W7.2 未做）：基于 `4b413ef`。沙箱 `exec_command` 最多等 5 秒，未结束返回 running；子进程以新会话启动，终止对进程组先 SIGTERM、约 3 秒后仍有存活进程再 SIGKILL，新命令替换旧进程同样按组处理；API 侧 Shell 等待截断到 570 秒（HTTP 读超时 600 减余量）。Supervisor 下全部服务以 ubuntu（uid 1000）运行，HOME 与工作目录 `/home/ubuntu`，上传目录与 W2 落盘目录属主为 ubuntu；动态容器默认 2048 MiB（swap 同值）、2 CPU、512 进程，可由 `SANDBOX_MEMORY_MB`/`SANDBOX_CPUS`/`SANDBOX_PIDS_LIMIT` 调整；`SANDBOX_TTL_MINUTES` 改为注入沙箱实际读取的 `SERVER_TIMEOUT_MINUTES`；提示词环境描述按镜像更新（Python 3.10.12、Node v24）。检查：沙箱新增 `test_shell_service.py` 2 项通过（本机 Python 3.12，指南的 3.10 下载无进展）；API 定向测试 31 项通过；API 容器内 `check_sandbox_environment.py` 通过（执行身份、限额与 TTL 注入）。评测 [w7-1-3-2026-09-28-4b413ef](evidence/w7-1-3-2026-09-28-4b413ef.md)（E2、E4 各 1 次，对照 W2）均通过；E4 停止后沙箱日志显示向进程组发 SIGTERM、返回 -15，`docker exec` 进程列表无循环进程，标记停在 8 行。子计划按代码修正，原因见其“实施修正（W7.1、W7.3）”。未覆盖：E1、E3、E5、E6 复跑（留到 W7.2）；TTL 实际到期销毁；supervisord 主进程仍为 root；`SANDBOX_ADDRESS` 地址模式不套用限额。
 - 2026-09-28，W5 阶段一、三（阶段二未做）：基于 `f97d3a8`。新增设计说明 `ui/DESIGN.md` 与设计 token（石墨纸面加钴蓝强调，IBM Plex Sans/Mono 与中文字体回落，`next-themes` 类名暗色、默认跟随系统，状态色成对）；运行视图组件（状态条、计划条、工具卡与工具组、旁白与最终回复、用户消息、提问卡、审批卡、交付卡、压缩提示、失败尝试提示、终态条、上下文环、会话列表项）与开发模式组件状态目录 `/dev/components`，按子计划“组件与状态”表列全状态，夹具来自 W1 评测与走查会话的真实事件，按 W2/W3 契约补写的字段在夹具文件头注明；设置页拆为通用、模型提供商、MCP、远程 Agent、工具策略（占位，W7.2 实现）五分区，窄屏改为顶部标签；删除 866 行的 `manus-settings.tsx`。`ui/README.md` 中 W3、W4 的数据层段落随本提交入库。实施由三个代理完成：前两个在用浏览器 MCP 截长图时停止，第三个补齐会话列表 `pending`/`cancelled` 两个状态、修 lint 并改用 Playwright 无头脚本截图。检查：`tsc --noEmit` 与 `npm run build` 通过；`npm run lint` 在 W5 文件上 0 error，全仓剩 1 个既有 error（`components/ui/sidebar.tsx` 的 `Math.random`）。截图：`evidence/w5-2026-09-28-catalog-light.png`、`catalog-dark.png`（整页）、`settings-light.png`、`settings-dark.png`、`settings-narrow.png`（390×844），协调者抽看设置页暗色与目录页顶部。未覆盖：对比度自动检查；设置页保存与校验逐项操作；会话页接入 `view`、工作台、开发者视图与首页（阶段二）。
+- 2026-09-29，W5 阶段二（待验证）：基于 `459b221`。会话页只消费 `useSessionDetail` 的 `view`，停止调用 `stop()`，删除旧时间线与其组件（`tool-use/`、`chat-message`、`plan-panel`、`tool-preview-panel` 等）；新增工作台（跟随最新工具、可固定，终端/浏览器/文件三页，窄屏抽屉）与开发者视图（事件表、按轮用时与上下文构成、`loadTurnRequest` 重建请求、导出 JSON）；首页为输入框加最近会话，空态三条示例；修复 W1 遗留的“工具完成后仍显示正在…”与等待中会话侧栏加载图标。投影补读 `context_estimate.system_prompt`/`tool_results` 与水位 token，类型字段未增删，契约写回 W4 子计划。检查：`tsc --noEmit`、`npm run lint`（0 error，原 `sidebar.tsx` 既有错误已修）、`npm run build`、`check-event-observability.cjs` 通过。Playwright 无头走查 `http://localhost:8088`（真实模型）：E2 上传与交付下载、E3 进入等你回复、E4 执行工具时停止后工具卡为“已取消：运行被停止”、多工具任务计划条 3/3、工作台跟随、开发者视图四部分构成与第 1 轮重建请求、暗色与 390×844 窄屏均通过，截图 `evidence/w5-2-2026-09-29-*.png` 13 张，协调者抽看交付与开发者视图两张。重建 UI 时 Compose 连带重建了 API 容器，把当时未提交的 W6 后端代码带入运行环境，走查在其后进行。发现缺陷：会话已终态时侧栏徽标仍显示“运行中”（列表未随详情更新）。未覆盖：E3 回复后的交付终态、工作台“回到最新”、“停止中”单独一帧、对比度自动检查、设置页逐项保存。以上缺陷与未覆盖项交给 W6 前端修复复验。
+- 2026-09-29，W4 走查补记（随 W5 阶段二）：刷新前后事件不重复、不缺失（任务刚开始，仅 2 条）；执行工具时停止后文案为“你停止了这次运行”；任务结束后断网再恢复 50 条序号不丢不重，但运行中断网后的补齐三次尝试均未观察到；API 重启后的中断文案未在浏览器核对。运行中断网补齐交给 W6 前端走查。
 
 ## 7. 课程同步（W8 之后）
 

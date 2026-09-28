@@ -1,15 +1,14 @@
 'use client'
 
-import {useState, useRef, forwardRef, useImperativeHandle} from 'react'
+import {useState, useRef, forwardRef, useImperativeHandle, type ReactNode} from 'react'
 import {cn, formatFileSize} from '@/lib/utils'
 import {ScrollArea, ScrollBar} from '@/components/ui/scroll-area'
 import {Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle} from '@/components/ui/item'
 import {Avatar, AvatarGroupCount} from '@/components/ui/avatar'
-import {ArrowUp, FileText, Paperclip, XCircle, Loader2, Pause} from 'lucide-react'
+import {ArrowUp, FileText, Paperclip, XCircle, Loader2} from 'lucide-react'
 import {Button} from '@/components/ui/button'
 import {fileApi} from '@/lib/api/file'
-import type {FileInfo, UsageEvent} from '@/lib/api/types'
-import {TokenUsageRing} from '@/components/token-usage'
+import type {FileInfo} from '@/lib/api/types'
 import {toast} from 'sonner'
 
 interface ChatInputProps {
@@ -19,12 +18,9 @@ interface ChatInputProps {
   disabled?: boolean
   /** 当前会话 ID，上传附件时会关联到该会话 */
   sessionId?: string | null
-  /** 任务是否正在运行中 */
-  isRunning?: boolean
-  /** 点击暂停按钮的回调 */
-  onStop?: () => void
-  /** 传入（含 null）时在发送按钮左侧显示用量圆环；首页不传则不显示 */
-  usage?: UsageEvent | null
+  placeholder?: string
+  /** 发送按钮左侧，例如上下文环 */
+  accessory?: ReactNode
 }
 
 export interface ChatInputRef {
@@ -34,7 +30,7 @@ export interface ChatInputRef {
 }
 
 export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
-  ({ className, onInputValueChange, onSend, disabled = false, sessionId, isRunning = false, onStop, usage }, ref) => {
+  ({ className, onInputValueChange, onSend, disabled = false, sessionId, placeholder = '分配一个任务或提问任何问题...', accessory }, ref) => {
     const [files, setFiles] = useState<FileInfo[]>([])
     const [uploading, setUploading] = useState(false)
     const [sending, setSending] = useState(false)
@@ -90,7 +86,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
           setFiles((prev) => [...prev, ...uploadedFiles])
           toast.success(`成功上传 ${uploadedFiles.length} 个文件`)
         }
-      } catch (error) {
+      } catch {
         toast.error('文件上传过程中发生错误')
       } finally {
         setUploading(false)
@@ -187,11 +183,13 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
                   </ItemContent>
                   <ItemActions>
                     <Button
+                      type="button"
                       variant="ghost"
                       size="icon-xs"
                       className="cursor-pointer"
                       onClick={() => handleRemoveFile(file.id)}
                       disabled={uploading}
+                      aria-label={`移除 ${file.filename}`}
                     >
                       <XCircle/>
                     </Button>
@@ -211,7 +209,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
           value={inputValue}
           onChange={handleInputChange}
           onKeyDown={handleKeyDown}
-          placeholder="分配一个任务或提问任何问题..."
+          placeholder={placeholder}
           className="scrollbar-hide outline-none w-full text-sm resize-none h-[46px] min-h-[40px]"
           disabled={sending || disabled}
         />
@@ -229,10 +227,12 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
             disabled={uploading}
           />
           <Button
+            type="button"
             variant="outline"
             className="rounded-full w-8 h-8 cursor-pointer"
             onClick={handleUploadClick}
             disabled={uploading}
+            aria-label="上传附件"
           >
             {uploading ? (
               <Loader2 className="size-4 animate-spin"/>
@@ -242,33 +242,22 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
           </Button>
         </div>
         {/* 发送/暂停按钮 */}
-        <div className="flex items-center">
-          {usage !== undefined && <TokenUsageRing usage={usage} />}
-          {isRunning ? (
-            // 任务运行中时显示暂停按钮
-            <Button
-              variant="outline"
-              className="rounded-full w-8 h-8 cursor-pointer"
-              onClick={onStop}
-              disabled={!onStop}
-            >
-              <Pause className="size-4" />
-            </Button>
-          ) : (
-            // 任务未运行时显示发送按钮
-            <Button
-              variant="outline"
-              className="rounded-full w-8 h-8 cursor-pointer"
-              onClick={handleSend}
-              disabled={sending || disabled || !inputValue.trim()}
-            >
-              {sending ? (
-                <Loader2 className="size-4 animate-spin"/>
-              ) : (
-                <ArrowUp/>
-              )}
-            </Button>
-          )}
+        <div className="flex items-center gap-1">
+          {accessory}
+          <Button
+            type="button"
+            variant="outline"
+            className="rounded-full w-8 h-8 cursor-pointer"
+            onClick={handleSend}
+            disabled={sending || disabled || !inputValue.trim()}
+            aria-label="发送"
+          >
+            {sending ? (
+              <Loader2 className="size-4 animate-spin"/>
+            ) : (
+              <ArrowUp/>
+            )}
+          </Button>
         </div>
       </footer>
     </div>

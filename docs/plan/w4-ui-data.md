@@ -55,7 +55,7 @@
 
 **TokenCounts：** `prompt`、`completion`、`total`，`cached` 可选。缺的一项不把另一项当成 0 去凑 `total`。
 
-**usage：** `session` 为各轮之和。`context` 在同时知道占用和窗口时为 `{usedTokens, windowTokens, lastTurnTokens}`，否则 `null`。进行中的轮次若有四部分 `context_estimate`，`usedTokens` 用其和，否则用最近一次完成轮次的 prompt；`windowTokens` 来自该轮或最近一次 `started` 的 `context_window`；`lastTurnTokens` 是最近完成轮次的 prompt 与 completion 之和。`watermarkRatio` 在 W2 写入水位前恒为 `null`。`compactions` 为压缩次数。
+**usage：** `session` 为各轮之和。`context` 在同时知道占用和窗口时为 `{usedTokens, windowTokens, lastTurnTokens}`，否则 `null`。进行中的轮次若有四部分 `context_estimate`，`usedTokens` 用其和，否则用最近一次完成轮次的 prompt；`windowTokens` 来自该轮或最近一次 `started` 的 `context_window`；`lastTurnTokens` 是最近完成轮次的 prompt 与 completion 之和。事件里的四部分键是 `system_prompt`、`tools`、`history`、`tool_results`（也接受 `system`、`toolResults`），投影写成 `system`、`tools`、`history`、`toolResults`。`watermark` 若是 token 数且该轮有 `context_window`，`watermarkRatio` 为二者之商；否则为 `null`。`compactions` 为压缩次数。
 
 **ToolCallView：** `callId`、`family`（`file` / `shell` / `browser` / `search` / `mcp` / `a2a` / `plan` / `deliver` / `other`）、`name`、`toolset`（事件的 `name`）、`title`、`verb`、`target`、`argSummary`、`status`（`running` / `succeeded` / `failed` / `denied` / `skipped` / `cancelled`）、`startedAt`、`durationMs`、`result`、`raw`。动词短语由工具名与关键参数生成，映射表在投影模块。
 
@@ -136,7 +136,7 @@
 
 1. “现状”改为 W3 提交 `c0822dc` 的快照。当时的双流、乐观 `running` 和固定 1 秒重连已经替换，那些行号不要再对当前文件。
 2. 视图模型以 `session-view.ts` 为准，并写回“视图模型契约”。相对原稿增加或收紧的部分：`SessionView.status` 在没有运行时为 `idle`；`RunView` 增加 `reasonText`、`tokens`，`summary` 仅终态；`activity.tool` 附带 `family`，`waiting_approval` 附带 `title`；`TurnView` 增加 `toolsMs`，`ttftMs` 与 `attempts` 为可选；`RunSummary` 为 `durationMs`、`turns`、`toolCalls`、`tokens`，不含 `model_requests`；`ToolCallView` 增加 `toolset`、`verb`、`target`，`family` 含 `plan`、`deliver`，`result` 为 `ToolResultView`；`PlanItem` 有起止时间，`PlanView` 有 `version`，`changed` 的下标规则见契约；时间线条目都有 `id`、`runId`、`at`；`UsageView` 增加 `watermarkRatio`、`compactions` 与结构化的 `context`；补上 `FileView`、`RawEvent`、`ApprovalStatus`。
-3. `maxTurns` 与 `watermarkRatio` 不推断。运行项没有 `config_snapshot`，水位尚未由 W2 写入。
+3. `maxTurns` 不推断。运行项没有 `config_snapshot`。水位后来由轮次开始事件的 `context_estimate.watermark`（token 数）给出；2026-09-29 起，有窗口时 `watermarkRatio` 取该数除以 `context_window`，没有该字段时仍为 `null`。
 4. 提问等待的 `reason` 在账本里是空，不是 `ask`。投影把 `waiting` 且 `reason` 不是 `approval` 视为 `waiting_reply`。
 5. 压缩事件没有前后 token 时只增加 `compactions`，不生成时间线条目。
 6. SSE 工具事件没有 `function_result`。`called` 且没有失败信号时记 `succeeded`。终态时仍为 `calling` 的调用按运行状态收成 `cancelled` 或 `failed`。
@@ -145,3 +145,7 @@
 9. 去重改为已见集合，再按 seq 合并，避免序号空洞被丢掉。重连等待从 500 毫秒翻倍，上限 4 秒。
 10. 计划只信 `plan` 事件。后续事件没有新说明时保留上一版 `explanation`。
 11. 浏览器里的 E2、E3、刷新、断网、停止文案和重启 API 没有走查：会话页还没换成新组件，也不向正在被 W2 使用的 API 提交新任务。SSE 续传与注释行 ping 用只读 curl 核对；投影用观察脚本，并用一条已有会话的详情跑过 `projectSession`。
+
+## W5 阶段二之后（2026-09-29）
+
+会话页已改为只消费 `view`。`session-events.ts` 只保留 `normalizeEvent` 与 `normalizeEvents`。上文提到的 `eventsToTimeline`、`collapseRetriedTurns`、`getLatestPlanFromEvents` 等旧时间线导出已删除。类型字段没有增删。投影补读事件真实键名：`system_prompt` 与 `tool_results` 写入上下文构成；`watermark` 是压缩水位的 token 数，该轮同时有 `context_window` 时 `watermarkRatio` 为二者之商。浏览器走查补记写在 [W5 子计划](w5-ux.md) 的实施修正，不改本节的 W4 当日记录。

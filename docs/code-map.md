@@ -32,7 +32,7 @@
 | 工具结果整形与落盘 | [`domain/services/context/shaping.py`](../ray_agent/api/app/domain/services/context/shaping.py) 的 `ResultShaper`（工具管线执行后段最后一个处理函数），写文件经 [`agent_task_runner.py`](../ray_agent/api/app/domain/services/agent_task_runner.py) 的 `_write_output()`；协议截断前的完整内容见 [`infrastructure/protocols/common.py`](../ray_agent/api/app/infrastructure/protocols/common.py) 的 `keep_full_content()` | [`core/test_context_governance.py`](../ray_agent/api/tests/core/test_context_governance.py)、[`protocols/test_result_shaping.py`](../ray_agent/api/tests/protocols/test_result_shaping.py) | 05、14 |
 | 沙箱 Shell 输出上限 | [`services/shell.py`](../ray_agent/sandbox/app/services/shell.py)（沙箱）的 `append_output()` | — | 11 |
 | Shell 初次返回与进程组终止 | [`services/shell.py`](../ray_agent/sandbox/app/services/shell.py)（沙箱）的 `exec_command()`、`_terminate_process_group()`；API 侧等待上限在 [`docker_sandbox.py`](../ray_agent/api/app/infrastructure/external/sandbox/docker_sandbox.py) 的 `bound_shell_wait_seconds()` | [`tests/test_shell_service.py`](../ray_agent/sandbox/tests/test_shell_service.py)（沙箱） | 08、11 |
-| 模型调用、`finish_reason`、可重试错误与上下文超长拒绝 | [`infrastructure/external/llm/openai_llm.py`](../ray_agent/api/app/infrastructure/external/llm/openai_llm.py)、[`domain/external/llm.py`](../ray_agent/api/app/domain/external/llm.py) 的 `LLMRequestError` | [`core/test_llm_api_key.py`](../ray_agent/api/tests/core/test_llm_api_key.py)、[`core/test_context_governance.py`](../ray_agent/api/tests/core/test_context_governance.py) | 02 |
+| 模型调用、流式组装、`finish_reason`、可重试错误与上下文超长拒绝 | [`infrastructure/external/llm/openai_llm.py`](../ray_agent/api/app/infrastructure/external/llm/openai_llm.py)（`stream_options.include_usage`、推理分片、空闲超时）、[`domain/external/llm.py`](../ray_agent/api/app/domain/external/llm.py) 的 `LLMRequestError` 与 `on_delta` | [`core/test_openai_stream.py`](../ray_agent/api/tests/core/test_openai_stream.py)、[`core/test_llm_api_key.py`](../ray_agent/api/tests/core/test_llm_api_key.py)、[`core/test_context_governance.py`](../ray_agent/api/tests/core/test_context_governance.py) | 02 |
 | 内嵌工具调用的兼容解析 | [`domain/services/agents/tool_call_compat.py`](../ray_agent/api/app/domain/services/agents/tool_call_compat.py) | [`core/test_tool_call_compat.py`](../ray_agent/api/tests/core/test_tool_call_compat.py) | 03 |
 | token 用量记账 | [`domain/models/llm.py`](../ray_agent/api/app/domain/models/llm.py)、[`infrastructure/external/llm/usage.py`](../ray_agent/api/app/infrastructure/external/llm/usage.py) | [`core/test_llm_usage.py`](../ray_agent/api/tests/core/test_llm_usage.py) | 10 |
 
@@ -54,7 +54,8 @@
 | 请求重建 | [`domain/services/request_rebuild.py`](../ray_agent/api/app/domain/services/request_rebuild.py) | [`core/test_turn_events_rebuild.py`](../ray_agent/api/tests/core/test_turn_events_rebuild.py) | 09、10 |
 | 工具事件加工与预览填充 | [`domain/services/agent_task_runner.py`](../ray_agent/api/app/domain/services/agent_task_runner.py) 的 `_handle_tool_event()` | [`core/test_file_artifacts.py`](../ray_agent/api/tests/core/test_file_artifacts.py) | 10、12 |
 | SSE 投影与字段省略 | [`interfaces/schemas/event.py`](../ray_agent/api/app/interfaces/schemas/event.py) | [`core/test_event_observability.py`](../ray_agent/api/tests/core/test_event_observability.py) | 10 |
-| SSE、会话详情与请求读取 | [`interfaces/endpoints/session_routes.py`](../ray_agent/api/app/interfaces/endpoints/session_routes.py) | [`core/test_run_events_pg.py`](../ray_agent/api/tests/core/test_run_events_pg.py) | 10 |
+| 文本增量、首字延迟与失败尝试 | 组装与 `ttft_ms` 在 [`openai_llm.py`](../ray_agent/api/app/infrastructure/external/llm/openai_llm.py)；`attempt` 事件与增量回调在 [`agent_loop.py`](../ray_agent/api/app/domain/services/flows/agent_loop.py)；发布在 [`run_ledger.py`](../ray_agent/api/app/domain/services/run_ledger.py) 的 `publish_delta()`；SSE 事件名 `delta` 在 [`session_routes.py`](../ray_agent/api/app/interfaces/endpoints/session_routes.py) 的 `to_session_sse()` | [`core/test_streaming_loop.py`](../ray_agent/api/tests/core/test_streaming_loop.py)、[`core/test_openai_stream.py`](../ray_agent/api/tests/core/test_openai_stream.py) | 10 |
+| SSE、会话详情与请求读取 | [`interfaces/endpoints/session_routes.py`](../ray_agent/api/app/interfaces/endpoints/session_routes.py) | [`core/test_run_events_pg.py`](../ray_agent/api/tests/core/test_run_events_pg.py)、[`core/test_streaming_loop.py`](../ray_agent/api/tests/core/test_streaming_loop.py) | 10 |
 
 ## 状态与持久化
 
@@ -111,11 +112,15 @@
 
 | 机制 | 主要入口 | 课程 |
 |---|---|---|
-| 事件订阅与视图投影 | [`lib/session-projection.ts`](../ray_agent/ui/src/lib/session-projection.ts) 的 `projectSession`、[`lib/session-view.ts`](../ray_agent/ui/src/lib/session-view.ts)、[`hooks/use-session-detail.ts`](../ray_agent/ui/src/hooks/use-session-detail.ts)。当前会话页仍用 [`lib/session-events.ts`](../ray_agent/ui/src/lib/session-events.ts) 的旧时间线，到 W5 阶段二为止 | 10 |
+| 事件订阅与视图投影 | [`lib/session-projection.ts`](../ray_agent/ui/src/lib/session-projection.ts) 的 `projectSession`、[`lib/session-view.ts`](../ray_agent/ui/src/lib/session-view.ts)、[`hooks/use-session-detail.ts`](../ray_agent/ui/src/hooks/use-session-detail.ts)。[`lib/session-events.ts`](../ray_agent/ui/src/lib/session-events.ts) 只做事件归一化 | 10 |
 | 接口请求 | [`lib/api/`](../ray_agent/ui/src/lib/api/) 的 `session.ts`、`file.ts`、`fetch.ts` | 10 |
-| 计划与工具展示 | [`components/plan-panel.tsx`](../ray_agent/ui/src/components/plan-panel.tsx)、[`components/tool-use/`](../ray_agent/ui/src/components/tool-use/) | 07、10 |
-| 文件预览与附件 | [`components/file-preview-panel.tsx`](../ray_agent/ui/src/components/file-preview-panel.tsx)、[`components/attachments-message.tsx`](../ray_agent/ui/src/components/attachments-message.tsx) | 12 |
+| 会话页 | [`components/session-detail-view.tsx`](../ray_agent/ui/src/components/session-detail-view.tsx)：状态条、时间线、计划条、输入框，以及对话与开发者视图切换 | 10 |
+| 运行视图 | [`components/run/`](../ray_agent/ui/src/components/run/) | 07、10 |
+| 工作台 | [`components/workbench/workbench.tsx`](../ray_agent/ui/src/components/workbench/workbench.tsx)：终端、浏览器截图、会话文件 | 11、12 |
+| 开发者视图 | [`components/developer/developer-view.tsx`](../ray_agent/ui/src/components/developer/developer-view.tsx) | 10 |
 | 沙箱画面 | [`components/vnc-overlay.tsx`](../ray_agent/ui/src/components/vnc-overlay.tsx)、[`components/vnc-viewer.tsx`](../ray_agent/ui/src/components/vnc-viewer.tsx) | 11 |
+| 设置页 | [`components/settings/`](../ray_agent/ui/src/components/settings/)，路由 `/settings` | — |
+| 组件状态目录 | [`app/dev/components/page.tsx`](../ray_agent/ui/src/app/dev/components/page.tsx)，仅开发模式 | — |
 
 ## 装配与配置
 
@@ -129,7 +134,7 @@
 
 ---
 
-基线：上述当前实现映射为 2026-09-16 核对；Agent 循环与工具管线、上下文与记忆、工具及文件交付中的相关行于 2026-09-28 按 W1 实现更新；事件、状态与持久化、任务控制分组同日按 W3 实现更新；上下文与记忆分组同日按 W2 实现更新；前端事件订阅与视图投影同日按 W4 实现更新；执行环境与 Shell 进程组同日按 W7.1、W7.3 实现更新。路径变动时更新本文件，不在其他文档正文里重复代码位置。机制为什么这样设计见 [Harness 工程](harness.md)，完整推导见对应的[课程章节](../lessons/README.md)。
+基线：上述当前实现映射为 2026-09-16 核对；Agent 循环与工具管线、上下文与记忆、工具及文件交付中的相关行于 2026-09-28 按 W1 实现更新；事件、状态与持久化、任务控制分组同日按 W3 实现更新；上下文与记忆分组同日按 W2 实现更新；前端事件订阅与视图投影同日按 W4 实现更新；前端分组于 2026-09-29 按 W5 阶段二更新；执行环境与 Shell 进程组于 2026-09-28 按 W7.1、W7.3 实现更新；模型调用与事件分组于 2026-09-29 按 W6 后端（流式组装、增量通道、首字延迟与失败尝试）更新。路径变动时更新本文件，不在其他文档正文里重复代码位置。机制为什么这样设计见 [Harness 工程](harness.md)，完整推导见对应的[课程章节](../lessons/README.md)。
 
 ## 二次开发改造入口
 
@@ -138,8 +143,7 @@
 | 工作包 | 现有修改入口 |
 |---|---|
 | [W0 基线与评测](plan/w0-baseline-eval.md) | [模型抽象](../ray_agent/api/app/domain/external/llm.py)、[测试目录](../ray_agent/api/tests/)、[API 脚本目录](../ray_agent/api/scripts/)、[验证实验](../labs/verification/README.md) |
-| [W5 界面与交互](plan/w5-ux.md) | 阶段一、三：[设计说明](../ray_agent/ui/DESIGN.md)、[全局样式](../ray_agent/ui/src/app/globals.css)、[运行视图](../ray_agent/ui/src/components/run/)、[组件状态目录](../ray_agent/ui/src/app/dev/components/page.tsx)、[夹具](../ray_agent/ui/src/fixtures/)、[设置页](../ray_agent/ui/src/components/settings/)。阶段二前会话页仍用 [会话视图](../ray_agent/ui/src/components/session-detail-view.tsx)、[计划面板](../ray_agent/ui/src/components/plan-panel.tsx)、[工具组件](../ray_agent/ui/src/components/tool-use/) |
-| [W6 流式与运行指标](plan/w6-streaming.md) | [模型实现](../ray_agent/api/app/infrastructure/external/llm/openai_llm.py)、[usage 解析](../ray_agent/api/app/infrastructure/external/llm/usage.py)、[事件映射](../ray_agent/api/app/interfaces/schemas/event.py)、[Nginx](../ray_agent/nginx/conf.d/default.conf) |
+| [W6 流式与运行指标](plan/w6-streaming.md) | 后端已落到上文模型调用行与「文本增量、首字延迟与失败尝试」行。前端增量渲染仍未做，入口是会话页订阅与时间线（`ray_agent/ui/`，等 W5 阶段二完成后再接） |
 | [W7 控制与安全](plan/w7-control-safety.md) | W7.1、W7.3 已落到上文执行环境。W7.2 审批仍未做：工具管线执行前段、应用配置中的工具策略、审批回复接口与设置页分区 |
 
 服务指南、对应 `tests/core` / `tests/protocols`、UI 与沙箱 scripts 的运行条件见各服务 README；计划不重复维护命令。

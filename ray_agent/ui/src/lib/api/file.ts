@@ -37,7 +37,7 @@ export const fileApi = {
    */
   downloadFile: async (fileId: string): Promise<Blob> => {
     const response = await fetch(
-      `${process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api"}/files/${fileId}/download`
+      `${process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8088/api"}/files/${fileId}/download`
     );
 
     if (!response.ok) {
@@ -54,7 +54,7 @@ export const fileApi = {
    */
   getFileDownloadUrl: (fileId: string): string => {
     const baseURL =
-      process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000/api";
+      process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8088/api";
     return `${baseURL}/files/${fileId}/download`;
   },
 };

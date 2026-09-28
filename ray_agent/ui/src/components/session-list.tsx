@@ -92,8 +92,9 @@ export function SessionList() {
   // 空态
   if (sessions.length === 0) {
     return (
-      <div className="py-8 text-center text-sm text-muted-foreground">
-        暂无任务
+      <div className="px-2 py-8 text-center text-sm text-muted-foreground">
+        <p>还没有会话</p>
+        <p className="mt-1 text-xs text-faint">在首页发送任务后，会话会出现在这里，并标出运行中、等你回复或失败。</p>
       </div>
     )
   }

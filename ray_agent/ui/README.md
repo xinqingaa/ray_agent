@@ -37,7 +37,7 @@ npm run dev
 | HTTP、流式请求和类型 | [src/lib/api/](src/lib/api/) |
 | 会话视图模型 | [session-view.ts](src/lib/session-view.ts) |
 | 事件投影 | [session-projection.ts](src/lib/session-projection.ts) |
-| 当前会话页仍使用的事件归一化与旧时间线 | [session-events.ts](src/lib/session-events.ts) |
+| 事件归一化 | [session-events.ts](src/lib/session-events.ts) |
 | 会话详情与实时订阅 | [use-session-detail.ts](src/hooks/use-session-detail.ts) |
 | 共享会话状态 | [src/providers/](src/providers/) |
 | 交互与结果展示 | [src/components/](src/components/) |
@@ -46,7 +46,9 @@ npm run dev
 
 进入会话先取详情里的全部运行与事件，记下最大序号，再保持一条 `GET /sessions/{id}/events?after_seq=`。SSE 的 `id` 即序号。断开后按最后收到的序号重连，等待从 500 毫秒翻倍，上限 4 秒。发送消息只调用 `POST /sessions/{id}/chat`，返回 `run_id`、`seq` 与 `route`（`started`、`resumed` 或 `injected`），不再为发送单独开流。
 
-`useSessionDetail` 在原有的会话、文件、事件和 `sendMessage` 之外，返回投影结果 `view`、提交中的 `submitting`（与 `streaming` 相同）、`stop` 和 `loadTurnRequest`。某一轮发给模型的请求也可以用 `sessionApi.getTurnRequest`。字段约定见 [W4 子计划](../../docs/plan/w4-ui-data.md#视图模型契约)。当前会话页仍用旧时间线渲染；运行视图改消费 `view` 属于 W5 阶段二。
+`useSessionDetail` 在原有的会话、文件、事件和 `sendMessage` 之外，返回投影结果 `view`、提交中的 `submitting`（与 `streaming` 相同）、`stop` 和 `loadTurnRequest`。某一轮发给模型的请求也可以用 `sessionApi.getTurnRequest`。字段约定见 [W4 子计划](../../docs/plan/w4-ui-data.md#视图模型契约)。
+
+会话页只渲染 `view`：状态条、时间线、计划条和上下文环都读这份投影。停止调用 `stop()`。运行中输入框仍可发送，内容作为补充要求；等待回复时占位符说明回复会继续当前任务。工作台默认跟随最新工具，点开某次调用后固定，直到「回到最新」。终端在该次 Shell 调用仍为运行中时，按约 1.5 秒调用 `sessionApi.viewShell`。开发者视图用 `loadTurnRequest` 显示某一轮重建出的请求。组件状态目录在接入后保留。
 
 ## 设计与主题
 
@@ -60,7 +62,7 @@ npm run dev
 
 开发模式下打开 [http://localhost:3000/dev/components](http://localhost:3000/dev/components)，路由在 [src/app/dev/components/page.tsx](src/app/dev/components/page.tsx)。页面用 [src/fixtures/](src/fixtures/) 里的视图模型夹具，逐个列出运行视图和设置列表的状态，供修改组件时回归。生产构建中该路由返回 404，不带会话侧栏。
 
-夹具里按 W3 契约补写的字段写在 [w1-sessions.ts](src/fixtures/w1-sessions.ts) 文件头；合成终态如何补写 `summary` 与轮次结束时间写在 [states.ts](src/fixtures/states.ts) 文件头。会话页接入这些组件属于 W5 阶段二，目录页在接入后保留。
+夹具里按 W3 契约补写的字段写在 [w1-sessions.ts](src/fixtures/w1-sessions.ts) 文件头；合成终态如何补写 `summary` 与轮次结束时间写在 [states.ts](src/fixtures/states.ts) 文件头。目录页在会话页接入这些组件后保留，供以后改组件时回归。
 
 ## 检查与构建
 
