@@ -6,6 +6,7 @@ import type {
   CreateSessionParams,
   ChatParams,
   ChatAccepted,
+  TurnRequest,
   SessionFile,
   ViewFileParams,
   ViewShellParams,
@@ -156,9 +157,20 @@ export const sessionApi = {
               typeof messageEvent.data === "string"
                 ? JSON.parse(messageEvent.data)
                 : messageEvent.data;
+            if (messageEvent.type === "ping") return;
+            const seqFromId = /^\d+$/.test(messageEvent.lastEventId)
+              ? Number(messageEvent.lastEventId)
+              : undefined;
+            const withSeq =
+              data &&
+              typeof data === "object" &&
+              (data as { seq?: unknown }).seq == null &&
+              seqFromId !== undefined
+                ? { ...(data as Record<string, unknown>), seq: seqFromId }
+                : data;
             onEvent({
               type: messageEvent.type as SSEEventData["type"],
-              data,
+              data: withSeq,
             } as SSEEventData);
           },
           (error) => {
@@ -188,6 +200,19 @@ export const sessionApi = {
     return () => {
       controller.abort();
     };
+  },
+
+  /**
+   * 读取某一轮重建出的模型请求（只读）
+   */
+  getTurnRequest: (
+    sessionId: string,
+    runId: string,
+    index: number
+  ): Promise<TurnRequest> => {
+    return get<TurnRequest>(
+      `/sessions/${sessionId}/runs/${runId}/turns/${index}/request`
+    );
   },
 
   /**

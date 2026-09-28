@@ -1,6 +1,7 @@
 /**
- * 将 SSE 事件列表转换为时间线展示项与计划步骤
- * 与 chat 流式 / 任务详情接口的响应格式一致
+ * 当前会话页仍使用的事件归一化与旧时间线。
+ * 新的会话视图由 session-projection.ts 的 projectSession 生成；
+ * W5 阶段二切换页面后，这里的步骤分组可以删除。
  *
  * 后端事件格式为 { event: "message"|"title"|..., data: {...} }，
  * 前端统一使用 { type, data }，需先归一化。
@@ -404,22 +405,6 @@ export function findLastUserRetry(timeline: TimelineItem[]): {
   return message ? { message, attachmentIds } : null;
 }
 
-function isUserMessageEvent(ev: SSEEventData): boolean {
-  if (ev.type !== "message") return false;
-  return (ev.data as ChatMessage).role === "user";
-}
-
-function userRetryKey(ev: SSEEventData): string {
-  const msg = ev.data as ChatMessage;
-  const text = (msg.message ?? "").trim();
-  const ids = (msg.attachments ?? [])
-    .map((item) => String(item.file_id || item.id || ""))
-    .filter(Boolean)
-    .sort()
-    .join(",");
-  return `${text}\0${ids}`;
-}
-
 /**
  * 由 turn 事件推导用量：最近一轮 completed 的 tokens，配对 started 的上下文窗口，
  * 本次运行与整个会话按轮累加。没有已完成的轮次时返回 null。
@@ -468,47 +453,10 @@ export function getLatestUsageFromEvents(events: SSEEventData[]): UsageEvent | n
   };
 }
 
-/** 截到最后一条用户问题，立刻去掉失败块和失败轮次的中间输出 */
-export function trimToLastUserMessage(events: SSEEventData[]): SSEEventData[] {
-  let lastUser = -1;
-  for (let i = events.length - 1; i >= 0; i--) {
-    if (isUserMessageEvent(events[i])) {
-      lastUser = i;
-      break;
-    }
-  }
-  if (lastUser < 0) return events;
-  return events.slice(0, lastUser + 1);
-}
-
 /**
- * 同内容重试不展示失败块和重复问题：只保留第一次提问，以及最后一轮的回答。
+ * 失败轮次保留。名称仍供当前会话页调用，不再按同内容重试裁掉之前的事件。
+ * 再次发送相同内容只是又一次提交，不删除已有事件。
  */
 export function collapseRetriedTurns(events: SSEEventData[]): SSEEventData[] {
-  const out: SSEEventData[] = [];
-  let i = 0;
-  while (i < events.length) {
-    const ev = events[i];
-    if (!isUserMessageEvent(ev)) {
-      const hasLaterUser = events.slice(i + 1).some(isUserMessageEvent);
-      if (ev.type === "error" && hasLaterUser) {
-        i += 1;
-        continue;
-      }
-      out.push(ev);
-      i += 1;
-      continue;
-    }
-
-    const key = userRetryKey(ev);
-    let lastSame = i;
-    for (let j = i + 1; j < events.length; j++) {
-      if (isUserMessageEvent(events[j]) && userRetryKey(events[j]) === key) {
-        lastSame = j;
-      }
-    }
-    out.push(ev);
-    i = lastSame + 1;
-  }
-  return out;
+  return events;
 }

@@ -246,6 +246,17 @@ export type ChatAccepted = {
 };
 
 /**
+ * 某一轮实际发给模型的请求（只读重建）
+ */
+export type TurnRequest = {
+  run_id: string;
+  index: number;
+  turn_seq: number;
+  messages: Array<Record<string, unknown>>;
+  tools: Array<Record<string, unknown>>;
+};
+
+/**
  * 运行记录（时间为毫秒时间戳）
  */
 export type RunItem = {

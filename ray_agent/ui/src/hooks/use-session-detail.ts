@@ -1,34 +1,45 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { sessionApi } from '@/lib/api/session'
-import { normalizeEvent, normalizeEvents, trimToLastUserMessage } from '@/lib/session-events'
-import type { RunEvent, SessionDetail, SSEEventData, SessionFile } from '@/lib/api/types'
-import { isRunSettled } from '@/lib/api/types'
+import { normalizeEvent, normalizeEvents } from '@/lib/session-events'
+import type { RunEvent, SessionDetail, SSEEventData, SessionFile, TurnRequest } from '@/lib/api/types'
+import {
+  isTerminalRunStatus,
+  mergeBySeq,
+  projectSession,
+  readEventSeq,
+  reconnectDelayMs,
+} from '@/lib/session-projection'
+import type { SessionView } from '@/lib/session-view'
 
 export type UseSessionDetailResult = {
   session: SessionDetail | null
+  /** 会话文件接口返回的列表，供当前会话页的文件入口使用 */
   files: SessionFile[]
   events: SSEEventData[]
+  /** 由事件投影出的视图模型；W5 阶段二的页面改消费这一份 */
+  view: SessionView | null
   loading: boolean
   error: Error | null
   refresh: () => Promise<void>
   refreshFiles: () => Promise<void>
+  /** 只提交消息。retry 不再裁掉已有事件。提交期间 streaming 为 true，不改写运行状态 */
   sendMessage: (message: string, attachmentIds: string[], options?: { retry?: boolean }) => Promise<void>
+  /** 与 submitting 相同：chat 请求未返回时为 true，不是运行中 */
   streaming: boolean
-}
-
-const RECONNECT_DELAY_MS = 1000
-
-function eventSeq(ev: SSEEventData): number | undefined {
-  const seq = (ev.data as { seq?: unknown } | undefined)?.seq
-  return typeof seq === 'number' ? seq : undefined
+  submitting: boolean
+  /** 请求停止并记下请求时间，终态事件到达前视图 activity 为 stopping */
+  stop: () => Promise<void>
+  /** 读取某一轮重建出的模型请求 */
+  loadTurnRequest: (runId: string, index: number) => Promise<TurnRequest>
 }
 
 /**
- * 任务详情：拉取会话详情与文件列表，按 seq 订阅会话事件。
- * 发送消息只提交 chat，事件统一由订阅流送达；断线后从最后一个 seq 续传。
- * `initialSkipEmptyStream` 为旧调用方保留，订阅与发送解耦后不再需要。
+ * 任务详情：先拉会话详情记下最大 seq，再保持一条 after_seq 订阅。
+ * 断线后按最后收到的 seq 指数退避重连。发送消息只 POST /chat。
+ * 运行状态只随 run 事件或重新拉取详情变化。
+ * `initialSkipEmptyStream` 为旧调用方保留，订阅与发送解耦后不再使用。
  */
 export function useSessionDetail(
   sessionId: string | null,
@@ -40,29 +51,35 @@ export function useSessionDetail(
   const [events, setEvents] = useState<SSEEventData[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
-  const [streaming, setStreaming] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
   const [loaded, setLoaded] = useState(false)
+  const [stoppingRequestedAt, setStoppingRequestedAt] = useState<number | null>(null)
   const lastSeqRef = useRef(0)
+  const seenSeqRef = useRef(new Set<number>())
+  const retryRef = useRef(0)
   const streamCleanupRef = useRef<(() => void) | null>(null)
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const pendingRunIdRef = useRef<string | null>(null)
-  // run_id → 最近一次进入 waiting 或终态的事件 seq，用于判断 chat 受理前运行是否已停下
-  const settledRunsRef = useRef<Map<string, number>>(new Map())
+
+  const rememberSeq = useCallback((seq: number | null) => {
+    if (seq == null) return
+    seenSeqRef.current.add(seq)
+    if (seq > lastSeqRef.current) lastSeqRef.current = seq
+  }, [])
 
   const appendEvent = useCallback((ev: SSEEventData) => {
+    if (String(ev.type) === 'ping') return
     let evToAppend = ev
     if (ev.data && typeof ev.data === 'object' && ('event' in ev.data || 'type' in ev.data) && 'data' in ev.data) {
       const normalized = normalizeEvent(ev.data as { event?: string; type?: string; data?: unknown })
       if (normalized) evToAppend = normalized
     }
+    if (String(evToAppend.type) === 'ping') return
 
-    const seq = eventSeq(evToAppend)
-    if (seq !== undefined) {
-      if (seq <= lastSeqRef.current) return
-      lastSeqRef.current = seq
-    }
-
-    setEvents((prev) => [...prev, evToAppend])
+    const seq = readEventSeq(evToAppend)
+    if (seq != null && seenSeqRef.current.has(seq)) return
+    rememberSeq(seq)
+    retryRef.current = 0
+    setEvents((prev) => mergeBySeq(prev, [evToAppend]))
 
     if (evToAppend.type === 'title' && evToAppend.data && typeof (evToAppend.data as { title?: string }).title === 'string') {
       setSession((prev) =>
@@ -70,19 +87,12 @@ export function useSessionDetail(
       )
     }
 
-    // 会话状态以运行事件为准；done/error 之后同一运行可能因待处理输入继续
     if (evToAppend.type === 'run') {
-      const runData = evToAppend.data as RunEvent & { run_id?: string | null }
+      const runData = evToAppend.data as RunEvent
       setSession((prev) => (prev ? { ...prev, status: runData.status } : null))
-      if (runData.run_id && isRunSettled(runData.status)) {
-        settledRunsRef.current.set(runData.run_id, seq ?? 0)
-        if (pendingRunIdRef.current === runData.run_id) {
-          pendingRunIdRef.current = null
-          setStreaming(false)
-        }
-      }
+      if (isTerminalRunStatus(runData.status)) setStoppingRequestedAt(null)
     }
-  }, [])
+  }, [rememberSeq])
 
   const stopStream = useCallback(() => {
     if (reconnectTimerRef.current) {
@@ -108,10 +118,12 @@ export function useSessionDetail(
           console.warn('Session events stream error:', err)
         }
         streamCleanupRef.current = null
+        const delay = reconnectDelayMs(retryRef.current)
+        retryRef.current += 1
         reconnectTimerRef.current = setTimeout(() => {
           reconnectTimerRef.current = null
           if (!streamCleanupRef.current) startStream()
-        }, RECONNECT_DELAY_MS)
+        }, delay)
       }
     )
   }, [sessionId, appendEvent, stopStream])
@@ -136,10 +148,10 @@ export function useSessionDetail(
         sessionApi.getSessionFiles(sessionId),
       ])
       const snapshot = normalizeEvents(detail.events ?? [])
-      const snapshotSeq = detail.last_seq ?? snapshot.reduce((max, ev) => Math.max(max, eventSeq(ev) ?? 0), 0)
-      // 订阅流可能已送达快照之后的事件，保留它们
-      setEvents((prev) => [...snapshot, ...prev.filter((ev) => (eventSeq(ev) ?? 0) > snapshotSeq)])
+      const snapshotSeq = detail.last_seq ?? snapshot.reduce((max, ev) => Math.max(max, readEventSeq(ev) ?? 0), 0)
+      for (const ev of snapshot) rememberSeq(readEventSeq(ev))
       lastSeqRef.current = Math.max(lastSeqRef.current, snapshotSeq)
+      setEvents((prev) => mergeBySeq(snapshot, prev))
       setSession((prev) =>
         prev && lastSeqRef.current > snapshotSeq ? { ...detail, status: prev.status, title: prev.title } : detail
       )
@@ -150,7 +162,7 @@ export function useSessionDetail(
     } finally {
       setLoading(false)
     }
-  }, [sessionId, normalizeFileList])
+  }, [sessionId, normalizeFileList, rememberSeq])
 
   const refreshFiles = useCallback(async () => {
     if (!sessionId) return
@@ -164,10 +176,11 @@ export function useSessionDetail(
 
   useEffect(() => {
     lastSeqRef.current = 0
-    pendingRunIdRef.current = null
-    settledRunsRef.current = new Map()
+    seenSeqRef.current = new Set()
+    retryRef.current = 0
     setLoaded(false)
-    setStreaming(false)
+    setSubmitting(false)
+    setStoppingRequestedAt(null)
     setEvents([])
     if (!sessionId) {
       setLoading(false)
@@ -180,7 +193,6 @@ export function useSessionDetail(
     refresh()
   }, [sessionId]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // 详情加载后常驻订阅，覆盖运行中、等待回复、停止后的收尾事件与其他入口发起的新运行
   useEffect(() => {
     if (!sessionId || !loaded) return
     startStream()
@@ -191,37 +203,65 @@ export function useSessionDetail(
 
   const sendMessage = useCallback(
     async (message: string, attachmentIds: string[], options?: { retry?: boolean }) => {
+      void options
       if (!sessionId) return
-      if (options?.retry) {
-        setEvents((prev) => trimToLastUserMessage(prev))
-      }
-      setStreaming(true)
-      setSession((prev) => (prev ? { ...prev, status: 'running' } : null))
+      setSubmitting(true)
       try {
-        const accepted = await sessionApi.chat(sessionId, { message, attachments: attachmentIds })
-        if ((settledRunsRef.current.get(accepted.run_id) ?? -1) > accepted.seq) {
-          setStreaming(false)
-        } else {
-          pendingRunIdRef.current = accepted.run_id
-        }
+        await sessionApi.chat(sessionId, { message, attachments: attachmentIds })
       } catch (e) {
-        setStreaming(false)
-        refresh()
+        await refresh()
         throw e
+      } finally {
+        setSubmitting(false)
       }
     },
     [sessionId, refresh]
   )
 
+  const stop = useCallback(async () => {
+    if (!sessionId) return
+    setStoppingRequestedAt(Date.now())
+    try {
+      const stopped = await sessionApi.stopSession(sessionId)
+      if (!stopped) setStoppingRequestedAt(null)
+    } catch (e) {
+      setStoppingRequestedAt(null)
+      throw e
+    }
+  }, [sessionId])
+
+  const loadTurnRequest = useCallback(
+    (runId: string, index: number) => {
+      if (!sessionId) return Promise.reject(new Error('没有会话'))
+      return sessionApi.getTurnRequest(sessionId, runId, index)
+    },
+    [sessionId]
+  )
+
+  const view = useMemo(() => {
+    if (!sessionId || !session) return null
+    return projectSession({
+      id: sessionId,
+      title: session.title,
+      runs: session.runs,
+      events,
+      stoppingRequestedAt,
+    })
+  }, [sessionId, session, events, stoppingRequestedAt])
+
   return {
     session,
     files,
     events,
+    view,
     loading,
     error,
     refresh,
     refreshFiles,
     sendMessage,
-    streaming,
+    streaming: submitting,
+    submitting,
+    stop,
+    loadTurnRequest,
   }
 }
