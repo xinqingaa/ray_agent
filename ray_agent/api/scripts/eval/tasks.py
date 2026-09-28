@@ -191,8 +191,11 @@ async def _check_e4(ctx: RunContext) -> List[CheckResult]:
     by_t = {s["t"]: s["count"] for s in samples}
     start, window = by_t.get(0, -1), by_t.get(E4_GROWTH_WINDOW, -1)
     series = ", ".join(f"{s['t']}s:{s['count']}" for s in samples)
-    last_terminal = next((e["event"] for e in reversed(ctx.events) if e["event"] in ("done", "error", "wait")), None)
+    stopped_id = next((i.get("run_id") for i in ctx.interactions if i["kind"] == "stop_returned"), None)
+    stopped = next((r for r in ctx.runs if r.get("run_id") == stopped_id), {})
     after_stop = [i for i in ctx.interactions if i["kind"] == "sse_end" and i.get("after_stop")]
+    cleanup = [t for e in ctx.events if e["event"] == "cleanup" and e["data"].get("run_id") == stopped_id
+               for t in e["data"].get("targets") or []]
     return [
         CheckResult("已在命令运行中请求停止", True, f"停止请求时刻：开始后 {ctx.stop_requested_at:.1f}s"),
         CheckResult("停止前标记已开始写入", start > 0, f"停止时标记数 {start}"),
@@ -201,9 +204,17 @@ async def _check_e4(ctx: RunContext) -> List[CheckResult]:
             f"增长 {window - start if start >= 0 and window >= 0 else '未知'} 行；采样（停止后秒数:行数）{series}",
         ),
         CheckResult(
-            "终态（只记录）", True,
-            f"会话状态 {ctx.session.get('status')}；最后终止事件 {last_terminal}；"
-            f"停止后 SSE {'已结束：' + after_stop[0].get('terminal', '') if after_stop else '未在停止后结束'}",
+            "运行终态为 cancelled（user_stop）",
+            stopped.get("status") == "cancelled" and stopped.get("reason") == "user_stop"
+            and ctx.session.get("status") == "cancelled",
+            f"被停止的运行 {(stopped_id or '未知')[:8]}：{stopped.get('status')}（{stopped.get('reason')}）；"
+            f"会话状态 {ctx.session.get('status')}；"
+            f"停止后事件流 {'已结束：' + after_stop[0].get('terminal', '') if after_stop else '未在停止后结束'}",
+        ),
+        CheckResult(
+            "Shell 终止请求（只记录）", True,
+            "；".join(f"{t.get('kind')} {t.get('id')} success={t.get('success')} {t.get('message', '')[:80]}"
+                     for t in cleanup) or "无 cleanup 事件",
             required=False,
         ),
     ]

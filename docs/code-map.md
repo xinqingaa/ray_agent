@@ -45,29 +45,31 @@
 
 | 机制 | 主要入口 | 回归测试 | 课程 |
 |---|---|---|---|
-| 领域事件模型 | [`domain/models/event.py`](../ray_agent/api/app/domain/models/event.py) | [`core/test_event_observability.py`](../ray_agent/api/tests/core/test_event_observability.py) | 10 |
-| 发布顺序：先输出流、后数据库 | [`domain/services/agent_task_runner.py`](../ray_agent/api/app/domain/services/agent_task_runner.py) 的 `_put_and_add_event()` | [`core/test_event_observability.py`](../ray_agent/api/tests/core/test_event_observability.py) | 09、10 |
+| 领域事件模型 | [`domain/models/event.py`](../ray_agent/api/app/domain/models/event.py) | [`core/test_event_observability.py`](../ray_agent/api/tests/core/test_event_observability.py)、[`core/test_turn_events_rebuild.py`](../ray_agent/api/tests/core/test_turn_events_rebuild.py) | 10 |
+| 写入顺序：先数据库事务、后通知 | [`domain/services/run_ledger.py`](../ray_agent/api/app/domain/services/run_ledger.py) | [`core/test_run_events_pg.py`](../ray_agent/api/tests/core/test_run_events_pg.py) | 09、10 |
+| 请求重建 | [`domain/services/request_rebuild.py`](../ray_agent/api/app/domain/services/request_rebuild.py) | [`core/test_turn_events_rebuild.py`](../ray_agent/api/tests/core/test_turn_events_rebuild.py) | 09、10 |
 | 工具事件加工与预览填充 | [`domain/services/agent_task_runner.py`](../ray_agent/api/app/domain/services/agent_task_runner.py) 的 `_handle_tool_event()` | [`core/test_file_artifacts.py`](../ray_agent/api/tests/core/test_file_artifacts.py) | 10、12 |
 | SSE 投影与字段省略 | [`interfaces/schemas/event.py`](../ray_agent/api/app/interfaces/schemas/event.py) | [`core/test_event_observability.py`](../ray_agent/api/tests/core/test_event_observability.py) | 10 |
-| SSE 与历史接口 | [`interfaces/endpoints/session_routes.py`](../ray_agent/api/app/interfaces/endpoints/session_routes.py) | — | 10 |
+| SSE、会话详情与请求读取 | [`interfaces/endpoints/session_routes.py`](../ray_agent/api/app/interfaces/endpoints/session_routes.py) | [`core/test_run_events_pg.py`](../ray_agent/api/tests/core/test_run_events_pg.py) | 10 |
 
 ## 状态与持久化
 
 | 机制 | 主要入口 | 回归测试 | 课程 |
 |---|---|---|---|
-| 会话聚合与计划快照读取 | [`domain/models/session.py`](../ray_agent/api/app/domain/models/session.py) 的 `get_latest_plan()` | [`core/test_state_persistence.py`](../ray_agent/api/tests/core/test_state_persistence.py) | 09 |
-| 仓库接口与工作单元 | [`domain/repositories/`](../ray_agent/api/app/domain/repositories/) 的 `session_repository.py`、`uow.py` | [`core/test_db_uow.py`](../ray_agent/api/tests/core/test_db_uow.py) | 09 |
-| 数据库实现 | [`infrastructure/repositories/`](../ray_agent/api/app/infrastructure/repositories/) 的 `db_session_repository.py`、`db_uow.py` | [`core/test_state_persistence.py`](../ray_agent/api/tests/core/test_state_persistence.py)、[`core/test_file_artifacts.py`](../ray_agent/api/tests/core/test_file_artifacts.py) | 09 |
-| 输入输出流 | [`infrastructure/external/message_queue/redis_stream_message_queue.py`](../ray_agent/api/app/infrastructure/external/message_queue/redis_stream_message_queue.py) | — | 08、09 |
+| 会话状态与计划快照 | [`domain/models/session.py`](../ray_agent/api/app/domain/models/session.py)；计划读取为 [`domain/models/event.py`](../ray_agent/api/app/domain/models/event.py) 的 `latest_plan()` | [`core/test_state_persistence.py`](../ray_agent/api/tests/core/test_state_persistence.py) | 09 |
+| 运行与事件仓库 | [`domain/repositories/run_repository.py`](../ray_agent/api/app/domain/repositories/run_repository.py)、[`domain/repositories/event_repository.py`](../ray_agent/api/app/domain/repositories/event_repository.py)；实现为 [`db_run_repository.py`](../ray_agent/api/app/infrastructure/repositories/db_run_repository.py)、[`db_event_repository.py`](../ray_agent/api/app/infrastructure/repositories/db_event_repository.py) | [`core/test_run_events_pg.py`](../ray_agent/api/tests/core/test_run_events_pg.py) | 09 |
+| 仓库接口与工作单元 | [`domain/repositories/uow.py`](../ray_agent/api/app/domain/repositories/uow.py)、[`db_uow.py`](../ray_agent/api/app/infrastructure/repositories/db_uow.py) | [`core/test_db_uow.py`](../ray_agent/api/tests/core/test_db_uow.py) | 09 |
+| 输入流与事件通知 | 输入流 [`redis_stream_message_queue.py`](../ray_agent/api/app/infrastructure/external/message_queue/redis_stream_message_queue.py)；通知 [`redis_event_notifier.py`](../ray_agent/api/app/infrastructure/external/message_queue/redis_event_notifier.py) | [`core/test_run_events_pg.py`](../ray_agent/api/tests/core/test_run_events_pg.py)（通知用内存替身） | 08、09 |
 
 ## 任务控制与生命周期
 
 | 机制 | 主要入口 | 回归测试 | 课程 |
 |---|---|---|---|
-| 任务准备、启动、停止 | [`application/services/agent_service.py`](../ray_agent/api/app/application/services/agent_service.py) 的 `stop_session()` | [`core/test_task_execution_control.py`](../ray_agent/api/tests/core/test_task_execution_control.py) | 08 |
-| 运行器主循环与终态写入 | [`domain/services/agent_task_runner.py`](../ray_agent/api/app/domain/services/agent_task_runner.py) 的 `invoke()`、`_persist_terminal_state()` | [`core/test_task_execution_control.py`](../ray_agent/api/tests/core/test_task_execution_control.py)、[`core/test_task_error.py`](../ray_agent/api/tests/core/test_task_error.py) | 08 |
-| 取消路径与收尾边界 | [`domain/services/agent_task_runner.py`](../ray_agent/api/app/domain/services/agent_task_runner.py) 的 `CancelledError` 分支 | [`core/test_agent_task_runner_cancel.py`](../ray_agent/api/tests/core/test_agent_task_runner_cancel.py) | 08 |
-| 进程内任务注册表 | [`infrastructure/external/task/redis_stream_task.py`](../ray_agent/api/app/infrastructure/external/task/redis_stream_task.py) | [`core/test_task_execution_control.py`](../ray_agent/api/tests/core/test_task_execution_control.py) | 09 |
+| 消息受理、事件流与停止 | [`application/services/agent_service.py`](../ray_agent/api/app/application/services/agent_service.py) 的 `chat()`、`stream_events()`、`stop_session()` | [`core/test_task_execution_control.py`](../ray_agent/api/tests/core/test_task_execution_control.py)、[`core/test_run_events_pg.py`](../ray_agent/api/tests/core/test_run_events_pg.py) | 08 |
+| 运行器主循环与终态写入 | [`domain/services/agent_task_runner.py`](../ray_agent/api/app/domain/services/agent_task_runner.py) 的 `invoke()`、`_finish()` | [`core/test_task_execution_control.py`](../ray_agent/api/tests/core/test_task_execution_control.py)、[`core/test_task_error.py`](../ray_agent/api/tests/core/test_task_error.py) | 08 |
+| 停止后的进程收尾 | [`domain/services/agent_task_runner.py`](../ray_agent/api/app/domain/services/agent_task_runner.py) 的 `stop_processes()` | [`core/test_agent_task_runner_cancel.py`](../ray_agent/api/tests/core/test_agent_task_runner_cancel.py) | 08 |
+| 启动扫描 | [`domain/services/run_ledger.py`](../ray_agent/api/app/domain/services/run_ledger.py) 的 `interrupt_running()`，由 [`main.py`](../ray_agent/api/app/main.py) 在开始接收请求前调用 | [`core/test_run_events_pg.py`](../ray_agent/api/tests/core/test_run_events_pg.py)、[`core/test_agent_task_runner_cancel.py`](../ray_agent/api/tests/core/test_agent_task_runner_cancel.py) | 08 |
+| 进程内任务注册表与会话锁 | [`infrastructure/external/task/redis_stream_task.py`](../ray_agent/api/app/infrastructure/external/task/redis_stream_task.py)、[`domain/services/session_locks.py`](../ray_agent/api/app/domain/services/session_locks.py) | [`core/test_task_execution_control.py`](../ray_agent/api/tests/core/test_task_execution_control.py) | 09 |
 | 等待用户与续接 | [`domain/services/agent_task_runner.py`](../ray_agent/api/app/domain/services/agent_task_runner.py) 的 `WaitEvent` 分支 | [`core/test_task_execution_control.py`](../ray_agent/api/tests/core/test_task_execution_control.py) | 08 |
 | 运行中补充消息 | [`domain/services/agent_task_runner.py`](../ray_agent/api/app/domain/services/agent_task_runner.py) 的 `_drain_injected_messages()` | [`core/test_task_execution_control.py`](../ray_agent/api/tests/core/test_task_execution_control.py) | 08 |
 | 预算与超时配置 | [`domain/models/app_config.py`](../ray_agent/api/app/domain/models/app_config.py)、[`core/config.py`](../ray_agent/api/core/config.py) | — | 08 |
@@ -123,7 +125,7 @@
 
 ---
 
-基线：上述当前实现映射为 2026-09-16 核对；Agent 循环与工具管线、上下文与记忆、工具、任务控制及文件交付中的相关行于 2026-09-28 按 W1 实现更新。路径变动时更新本文件，不在其他文档正文里重复代码位置。机制为什么这样设计见 [Harness 工程](harness.md)，完整推导见对应的[课程章节](../lessons/README.md)。
+基线：上述当前实现映射为 2026-09-16 核对；Agent 循环与工具管线、上下文与记忆、工具及文件交付中的相关行于 2026-09-28 按 W1 实现更新；事件、状态与持久化、任务控制分组同日按 W3 实现更新。路径变动时更新本文件，不在其他文档正文里重复代码位置。机制为什么这样设计见 [Harness 工程](harness.md)，完整推导见对应的[课程章节](../lessons/README.md)。
 
 ## 二次开发改造入口
 
@@ -133,9 +135,8 @@
 |---|---|
 | [W0 基线与评测](plan/w0-baseline-eval.md) | [模型抽象](../ray_agent/api/app/domain/external/llm.py)、[测试目录](../ray_agent/api/tests/)、[API 脚本目录](../ray_agent/api/scripts/)、[验证实验](../labs/verification/README.md) |
 | [W2 上下文治理](plan/w2-context.md) | [Memory](../ray_agent/api/app/domain/models/memory.py)、[协议结果截断](../ray_agent/api/app/infrastructure/protocols/common.py)、[沙箱 Shell 服务](../ray_agent/sandbox/app/services/shell.py)、[事件模型](../ray_agent/api/app/domain/models/event.py)、[应用配置模型](../ray_agent/api/app/domain/models/app_config.py) |
-| [W3 运行与事件](plan/w3-run-events.md) | [会话模型](../ray_agent/api/app/domain/models/session.py)、[ORM](../ray_agent/api/app/infrastructure/models/session.py)、[会话仓库](../ray_agent/api/app/infrastructure/repositories/db_session_repository.py)、[UoW](../ray_agent/api/app/infrastructure/repositories/db_uow.py)、[迁移目录](../ray_agent/api/alembic/versions/)、[应用协调](../ray_agent/api/app/application/services/agent_service.py)、[会话路由](../ray_agent/api/app/interfaces/endpoints/session_routes.py)、[Redis Stream](../ray_agent/api/app/infrastructure/external/message_queue/redis_stream_message_queue.py)、[任务适配](../ray_agent/api/app/infrastructure/external/task/redis_stream_task.py)、[应用启动](../ray_agent/api/app/main.py) |
 | [W4 前端数据层](plan/w4-ui-data.md) | [接口和类型](../ray_agent/ui/src/lib/api/)、[订阅 hook](../ray_agent/ui/src/hooks/use-session-detail.ts)、[事件投影](../ray_agent/ui/src/lib/session-events.ts)、[用量](../ray_agent/ui/src/components/token-usage.tsx)、[观察脚本](../ray_agent/ui/scripts/check-event-observability.cjs) |
-| [W5 界面与交互](plan/w5-ux.md) | [全局样式](../ray_agent/ui/src/app/globals.css)、[根布局](../ray_agent/ui/src/app/layout.tsx)、[组件目录](../ray_agent/ui/src/components/)、[会话视图](../ray_agent/ui/src/components/session-detail-view.tsx)、[消息](../ray_agent/ui/src/components/chat-message.tsx)、[工具组件](../ray_agent/ui/src/components/tool-use/)、[工具预览](../ray_agent/ui/src/components/tool-preview-panel.tsx)、[计划面板](../ray_agent/ui/src/components/plan-panel.tsx)、[设置页](../ray_agent/ui/src/components/manus-settings.tsx) |
+| [W5 界面与交互](plan/w5-ux.md) | 阶段一、三：[设计说明](../ray_agent/ui/DESIGN.md)、[全局样式](../ray_agent/ui/src/app/globals.css)、[运行视图](../ray_agent/ui/src/components/run/)、[组件状态目录](../ray_agent/ui/src/app/dev/components/page.tsx)、[夹具](../ray_agent/ui/src/fixtures/)、[设置页](../ray_agent/ui/src/components/settings/)。阶段二前会话页仍用 [会话视图](../ray_agent/ui/src/components/session-detail-view.tsx)、[计划面板](../ray_agent/ui/src/components/plan-panel.tsx)、[工具组件](../ray_agent/ui/src/components/tool-use/) |
 | [W6 流式与运行指标](plan/w6-streaming.md) | [模型实现](../ray_agent/api/app/infrastructure/external/llm/openai_llm.py)、[usage 解析](../ray_agent/api/app/infrastructure/external/llm/usage.py)、[事件映射](../ray_agent/api/app/interfaces/schemas/event.py)、[Nginx](../ray_agent/nginx/conf.d/default.conf) |
 | [W7 控制与安全](plan/w7-control-safety.md) | [沙箱 Shell 服务](../ray_agent/sandbox/app/services/shell.py)、[supervisord 配置](../ray_agent/sandbox/supervisord.conf)、[沙箱 Dockerfile](../ray_agent/sandbox/Dockerfile)、[沙箱适配](../ray_agent/api/app/infrastructure/external/sandbox/docker_sandbox.py)、[运行时配置](../ray_agent/api/core/config.py)、[沙箱环境检查](../ray_agent/api/scripts/check_sandbox_environment.py) |
 

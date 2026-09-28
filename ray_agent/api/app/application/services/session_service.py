@@ -6,16 +6,27 @@
 @File    : session_service.py
 """
 import logging
-from typing import List, Callable, Type
+from dataclasses import dataclass
+from typing import List, Callable, Optional, Type
 
 from app.application.errors.exceptions import NotFoundError, ServerRequestsError
 from app.domain.external.sandbox import Sandbox
+from app.domain.models.event import Event
 from app.domain.models.file import File
+from app.domain.models.run import Run
 from app.domain.models.session import DEFAULT_SESSION_TITLE, Session
 from app.domain.repositories.uow import IUnitOfWork
 from app.interfaces.schemas.session import FileReadResponse, ShellReadResponse
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class SessionDetail:
+    session: Session
+    runs: List[Run]
+    events: List[Event]
+    last_seq: int  # 会话当前最大 seq；分页读取时用于判断是否还有后续
 
 
 class SessionService:
@@ -70,6 +81,22 @@ class SessionService:
         """获取指定会话详情信息"""
         async with self._uow:
             return await self._uow.session.get_by_id(session_id)
+
+    async def get_session_detail(
+            self,
+            session_id: str,
+            after_seq: int = 0,
+            limit: Optional[int] = None,
+    ) -> Optional[SessionDetail]:
+        """会话详情：会话行、全部运行，以及 after_seq 之后按 seq 升序的事件（limit 为空时读到最新）。"""
+        async with self._uow:
+            session = await self._uow.session.get_by_id(session_id)
+            if not session:
+                return None
+            runs = await self._uow.run.list_by_session(session_id)
+            events = await self._uow.event.list(session_id, after_seq=after_seq, limit=limit)
+            last_seq = await self._uow.event.max_seq(session_id)
+        return SessionDetail(session=session, runs=runs, events=events, last_seq=last_seq)
 
     async def get_session_files(self, session_id: str) -> List[File]:
         """根据传递的会话id获取指定会话的文件列表信息"""

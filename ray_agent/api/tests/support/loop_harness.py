@@ -1,16 +1,21 @@
 """Agent 循环测试夹具：保留真实 AgentLoop、工具管线与运行器，替换模型、存储、传输与沙箱。"""
+import asyncio
 import json
 from types import SimpleNamespace
-from typing import Any, Awaitable, Callable, Dict, List, Optional
+from typing import Any, Awaitable, Callable, Dict, List, Optional, Sequence
 from unittest.mock import AsyncMock
 
 from app.domain.models.app_config import AgentConfig
-from app.domain.models.event import MessageEvent
+from pydantic import TypeAdapter
+
+from app.domain.models.event import BaseEvent, Event, MessageEvent
 from app.domain.models.memory import Memory
-from app.domain.models.session import Session
-from app.domain.models.token_usage import TokenUsageTotals
+from app.domain.models.run import ACTIVE_RUN_STATUSES, Run, RunStatus
+from app.domain.models.session import Session, SessionStatus
 from app.domain.models.tool_result import ToolResult
+from app.domain.repositories.run_repository import ActiveRunExistsError
 from app.domain.services.agent_task_runner import AgentTaskRunner
+from app.domain.services.run_ledger import RunLedger
 from app.domain.services.flows.agent_loop import AGENT_MEMORY_NAME, AgentLoop
 from app.domain.services.tools.base import BaseTool, tool
 from app.domain.services.tools.file import FileTool
@@ -51,9 +56,13 @@ class FakeSessionRepository:
         self.update_title = AsyncMock()
         self.update_latest_message = AsyncMock()
         self.increment_unread_message_count = AsyncMock()
+        self.update_unread_message_count = AsyncMock()
 
     async def get_by_id(self, session_id):
         return self.s
+
+    async def save(self, session):
+        self.s.sandbox_id, self.s.task_id = session.sandbox_id, session.task_id
 
     async def update_status(self, session_id, status):
         self.s.status = status
@@ -63,9 +72,6 @@ class FakeSessionRepository:
 
     async def save_memory(self, session_id, name, memory):
         self.s.memories[name] = memory.model_copy(deep=True)
-
-    async def add_event(self, session_id, event):
-        self.s.events.append(event.model_copy(deep=True))
 
     async def add_file(self, session_id, file):
         self.s.files.append(file)
@@ -77,12 +83,116 @@ class FakeSessionRepository:
         return next((f for f in self.s.files if f.filepath == filepath), None)
 
 
+_EVENT = TypeAdapter(Event)
+
+
+class FakeEventRepository:
+    """内存事件表：seq 按会话递增；保存经 JSON 往返的副本，模拟落库后再读出。"""
+
+    def __init__(self, events: List[BaseEvent]) -> None:
+        self.events = events
+
+    async def add(self, session_id, event):
+        event.seq = len(self.events) + 1
+        self.events.append(_EVENT.validate_json(event.model_dump_json()))
+        return event.seq
+
+    async def list(self, session_id, after_seq=0, limit=None, types=None, run_id=None):
+        found = [e.model_copy(deep=True) for e in self.events
+                 if e.seq > after_seq and (not types or e.type in types) and (run_id is None or e.run_id == run_id)]
+        return found[:limit] if limit is not None else found
+
+    async def max_seq(self, session_id):
+        return len(self.events)
+
+
+class FakeRunRepository:
+    """内存运行表：保留“每会话至多一个活动运行”与“终态不可改”两条约束。"""
+
+    def __init__(self, runs: Dict[str, Run]) -> None:
+        self.runs = runs
+
+    async def create(self, run):
+        if any(r.session_id == run.session_id and r.status in ACTIVE_RUN_STATUSES for r in self.runs.values()):
+            raise ActiveRunExistsError(run.session_id)
+        self.runs[run.id] = run.model_copy(deep=True)
+
+    async def get(self, run_id):
+        run = self.runs.get(run_id)
+        return run.model_copy(deep=True) if run else None
+
+    lock = get
+
+    async def get_active(self, session_id):
+        return next((r.model_copy(deep=True) for r in self.runs.values()
+                     if r.session_id == session_id and r.status in ACTIVE_RUN_STATUSES), None)
+
+    async def list_by_session(self, session_id):
+        return [r.model_copy(deep=True) for r in self.runs.values() if r.session_id == session_id]
+
+    async def list_by_status(self, status):
+        return [r.model_copy(deep=True) for r in self.runs.values() if r.status == status]
+
+    async def transition(self, run_id, status, reason=None, ended_at=None):
+        run = self.runs.get(run_id)
+        if run is None or run.status.terminal:
+            return None
+        run.status, run.reason, run.ended_at = status, reason, ended_at
+        return run.model_copy(deep=True)
+
+    async def add_counters(self, run_id, turns=0, model_requests=0, tool_calls=0, prompt_tokens=0,
+                           completion_tokens=0, cached_tokens=None):
+        run = self.runs[run_id]
+        run.turns += turns
+        run.model_requests += model_requests
+        run.tool_calls += tool_calls
+        run.prompt_tokens += prompt_tokens
+        run.completion_tokens += completion_tokens
+        if cached_tokens is not None:
+            run.cached_tokens = (run.cached_tokens or 0) + cached_tokens
+
+    async def save_snapshot(self, run_id, snapshot):
+        self.runs[run_id].config_snapshot = json.loads(json.dumps(snapshot))
+
+
+class Store:
+    """一个会话的全部内存状态；同一 Session 对象的多个夹具共享同一份。"""
+
+    def __init__(self, session: Session) -> None:
+        self.session = session
+        self.events: List[BaseEvent] = []
+        self.runs: Dict[str, Run] = {}
+
+
+_STORES: Dict[int, Store] = {}
+
+
+def store_of(session: Session) -> Store:
+    store = _STORES.get(id(session))
+    if store is None or store.session is not session:
+        store = _STORES[id(session)] = Store(session)
+    return store
+
+
+def restore_session(session: Session) -> Session:
+    """模拟从数据库重新读出：会话经 JSON 往返得到新对象，事件与运行表按副本共享给新对象。"""
+    restored = Session.model_validate_json(session.model_dump_json())
+    old, new = store_of(session), store_of(restored)
+    new.events.extend(e.model_copy(deep=True) for e in old.events)
+    new.runs.update({k: v.model_copy(deep=True) for k, v in old.runs.items()})
+    return restored
+
+
 def make_uow_factory(session: Session):
+    store = store_of(session)
     repository = FakeSessionRepository(session)
 
     class FakeUow:
         def __init__(self):
             self.session = repository
+            self.event = FakeEventRepository(store.events)
+            self.run = FakeRunRepository(store.runs)
+            self.file = SimpleNamespace(get_by_id=AsyncMock(return_value=None), save=AsyncMock())
 
         async def __aenter__(self):
             return self
@@ -90,7 +200,51 @@ def make_uow_factory(session: Session):
         async def __aexit__(self, *args):
             return False
 
+        async def commit(self):
+            pass
+
+        async def rollback(self):
+            pass
+
+    FakeUow.store = store
     return FakeUow
+
+
+class MemoryNotifier:
+    """内存通知：记录发布的 seq；drop=True 时丢弃通知，用来验证兜底查询。on_publish 在提交后被调用。"""
+
+    def __init__(self) -> None:
+        self.published: List[int] = []
+        self.drop = False
+        self.on_publish: Optional[Callable[[int], Awaitable[None]]] = None
+        self._queues: List[asyncio.Queue] = []
+
+    async def publish(self, session_id, seq):
+        self.published.append(seq)
+        if self.on_publish:
+            await self.on_publish(seq)
+        if self.drop:
+            return
+        for queue in list(self._queues):
+            queue.put_nowait(seq)
+
+    async def subscribe(self, session_id):
+        queue: asyncio.Queue = asyncio.Queue()
+        self._queues.append(queue)
+        notifier = self
+
+        class Subscription:
+            async def get(self, timeout):
+                try:
+                    return await asyncio.wait_for(queue.get(), timeout)
+                except asyncio.TimeoutError:
+                    return None
+
+            async def close(self):
+                if queue in notifier._queues:
+                    notifier._queues.remove(queue)
+
+        return Subscription()
 
 
 def make_sandbox():
@@ -100,21 +254,33 @@ def make_sandbox():
 
 
 def make_loop(script: List[ScriptItem], *, session: Optional[Session] = None, deliver_file=None,
-              max_iterations: int = 10, max_retries: int = 2, sandbox=None) -> SimpleNamespace:
+              max_iterations: int = 10, max_retries: int = 2, sandbox=None,
+              extra_tools: Sequence[BaseTool] = (), uow_factory=None) -> SimpleNamespace:
+    """uow_factory 为空时使用内存仓库；传入真实数据库的 UoW 工厂时 store/events/runs 为空。"""
     session = session if session is not None else Session(id="w1-loop")
     sandbox = sandbox if sandbox is not None else make_sandbox()
     llm = ScriptedLLM(script)
     recording = RecordingTool()
+    uow_factory = uow_factory or make_uow_factory(session)
     loop = AgentLoop(
-        uow_factory=make_uow_factory(session),
+        uow_factory=uow_factory,
         llm=llm,
         agent_config=AgentConfig(max_iterations=max_iterations, max_retries=max_retries),
         session_id=session.id,
-        tools=[FileTool(sandbox=sandbox), MessageTool(), recording],
+        tools=[FileTool(sandbox=sandbox), MessageTool(), recording, *extra_tools],
         deliver_file=deliver_file,
         retry_interval=0,
     )
-    return SimpleNamespace(loop=loop, llm=llm, session=session, sandbox=sandbox, recording=recording)
+    store = getattr(uow_factory, "store", None)
+    notifier = MemoryNotifier()
+    return SimpleNamespace(loop=loop, llm=llm, session=session, sandbox=sandbox, recording=recording,
+                           store=store, events=store.events if store else None,
+                           runs=store.runs if store else None, notifier=notifier,
+                           ledger=RunLedger(uow_factory, notifier))
+
+
+def of_run(events: Sequence[BaseEvent], run_id: str) -> List[BaseEvent]:
+    return [e for e in events if e.run_id == run_id]
 
 
 def memory_messages(session: Session) -> List[Dict[str, Any]]:
@@ -163,23 +329,52 @@ class MemoryQueue:
         return not self.items
 
 
-def make_runner(h: SimpleNamespace) -> AgentTaskRunner:
-    """用 make_loop 的结果组装运行器；附件同步与工具展示内容不属于这些实验。"""
+def make_runner(h: SimpleNamespace, run: Optional[Run] = None,
+                prior_status: Optional[SessionStatus] = None) -> AgentTaskRunner:
+    """用 make_loop 的结果组装运行器；附件同步与工具展示内容不属于这些实验。
+
+    没有传入运行时直接在内存表里建一个 running 运行（相当于 chat 已受理），不写 run 事件。
+    """
+    if run is None:
+        run = Run(session_id=h.session.id)
+        h.runs[run.id] = run.model_copy(deep=True)
+        h.session.status = SessionStatus.RUNNING
     r = AgentTaskRunner.__new__(AgentTaskRunner)
     r._session_id, r._uow_factory, r._flow = h.session.id, h.loop._uow_factory, h.loop
     r._uow, r._sandbox = r._uow_factory(), h.sandbox
     r._sandbox.ensure_sandbox, r._sandbox.destroy = AsyncMock(), AsyncMock()
     r._mcp_tool = SimpleNamespace(initialize=AsyncMock(), cleanup=AsyncMock())
     r._a2a_tool = SimpleNamespace(initialize=AsyncMock(), cleanup=AsyncMock())
-    r._token_totals = TokenUsageTotals()
+    r._ledger, r._run_id, r._prior_status = h.ledger, run.id, prior_status
+    r._next_turn, r._failure_reason, r._shell_sessions = 1, None, []
+    r._invoking, r._settled = False, asyncio.Event()
     r._sync_message_attachments_to_sandbox = AsyncMock()
     r._handle_tool_event = AsyncMock()
     return r
 
 
 def input_task() -> SimpleNamespace:
-    return SimpleNamespace(input_stream=MemoryQueue(), output_stream=MemoryQueue())
+    return SimpleNamespace(input_stream=MemoryQueue(), done=False)
 
 
 async def submit(task, text: str) -> None:
     await task.input_stream.put(MessageEvent(role="user", message=text).model_dump_json())
+
+
+async def start_run(h: SimpleNamespace, task, text: str) -> Run:
+    """与 chat 新建运行一致：同一事务写 run(running) 与用户消息，再放进输入流。"""
+    message = MessageEvent(role="user", message=text)
+    run = await h.ledger.start(h.session.id, events_after=[message])
+    await task.input_stream.put(message.model_dump_json())
+    return run
+
+
+async def inject(h: SimpleNamespace, task, run_id: str, text: str) -> None:
+    """与 chat 注入一致：消息写入当前运行后放进输入流。"""
+    message = MessageEvent(role="user", message=text)
+    await h.ledger.append(h.session.id, [message], run_id=run_id)
+    await task.input_stream.put(message.model_dump_json())
+
+
+def event_at(h: SimpleNamespace, seq: int) -> BaseEvent:
+    return h.events[seq - 1]

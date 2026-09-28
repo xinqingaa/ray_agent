@@ -6,7 +6,9 @@
 @File    : __init__.py.py
 """
 from .base import Base
+from .event import EventModel
 from .file import FileModel
+from .run import RunModel
 from .session import SessionModel
 
-__all__ = ["Base", "SessionModel", "FileModel"]
+__all__ = ["Base", "SessionModel", "FileModel", "RunModel", "EventModel"]

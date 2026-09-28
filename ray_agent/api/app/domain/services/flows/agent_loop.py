@@ -2,16 +2,19 @@
 # -*- coding: utf-8 -*-
 """单循环 Agent：一份记忆里交替进行模型请求与工具批次，没有工具调用的回复就是最终答复。
 
-一次运行（``invoke``）的事件序列由以下类型组成：Title、Message、Tool、Plan、Wait、Error、Done、Usage。
-运行只以三种终止事件之一结束：DoneEvent（完成）、WaitEvent（等待用户回复）、ErrorEvent（失败）。
+一次调用（``invoke``）的事件序列由以下类型组成：Title、Message、Tool、Plan、Wait、Error、Done、Turn、Context。
+调用只以三种终止事件之一结束：DoneEvent（完成）、WaitEvent（等待用户回复）、ErrorEvent（失败）。
+每轮模型请求前后各有一条 TurnEvent；记忆的每次变化都先以 ContextEvent 发出，供请求重建按序回放。
 """
 import asyncio
+import copy
 import json
 import logging
+import time
 import uuid
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, AsyncGenerator, Awaitable, Callable, Dict, List, Optional, Set
+from typing import Any, AsyncGenerator, Awaitable, Callable, Dict, Iterator, List, Optional, Set
 
 from app.domain.external.browser import Browser
 from app.domain.external.llm import LLM, LLMRequestError
@@ -20,6 +23,8 @@ from app.domain.external.search import SearchEngine
 from app.domain.models.app_config import AgentConfig
 from app.domain.models.event import (
     BaseEvent,
+    ContextEvent,
+    ContextOp,
     DoneEvent,
     ErrorEvent,
     MessageEvent,
@@ -28,8 +33,11 @@ from app.domain.models.event import (
     TitleEvent,
     ToolEvent,
     ToolEventStatus,
-    UsageEvent,
+    TurnEvent,
+    TurnPhase,
+    TurnUsage,
     WaitEvent,
+    latest_plan,
 )
 from app.domain.models.llm import LLMUsage
 from app.domain.models.memory import Memory
@@ -157,13 +165,39 @@ def _is_retryable(error: BaseException) -> bool:
     return isinstance(error, (ConnectionError, TimeoutError, asyncio.TimeoutError))
 
 
+def _add_optional(total: Optional[int], value: Optional[int]) -> Optional[int]:
+    if value is None:
+        return total
+    return (total or 0) + value
+
+
 @dataclass
 class _ModelTurn:
-    """一次模型请求（含重试）的结果：response 与 failure 至多一个有值，truncated 表示应丢弃并重试。"""
+    """一轮的进行状态：一次模型请求（含重试）的结果与随后的工具批次。
+
+    response 与 failure 至多一个有值，truncated 表示应丢弃并重试。
+    """
+    index: int = 0
+    executed: List[str] = field(default_factory=list)  # 有 called 事件的调用
+    tools_ms: int = 0
     response: Optional[Dict[str, Any]] = None
     truncated: bool = False
     failure: Optional[RunEndReason] = None
     error: str = ""
+    finish_reason: Optional[str] = None
+    attempts: int = 0
+    model_ms: int = 0
+    usage: TurnUsage = field(default_factory=TurnUsage)
+
+    def add_usage(self, usage: Optional[LLMUsage]) -> None:
+        if usage is None:
+            return
+        self.usage = TurnUsage(
+            prompt_tokens=_add_optional(self.usage.prompt_tokens, usage.prompt_tokens),
+            completion_tokens=_add_optional(self.usage.completion_tokens, usage.completion_tokens),
+            cached_tokens=_add_optional(self.usage.cached_tokens, usage.cached_tokens),
+            reasoning_tokens=_add_optional(self.usage.reasoning_tokens, usage.reasoning_tokens),
+        )
 
 
 class AgentLoop(BaseFlow):
@@ -188,9 +222,12 @@ class AgentLoop(BaseFlow):
         self._system_prompt = system_prompt
         self._retry_interval = retry_interval
         self._memory: Optional[Memory] = None
+        self._pending_context: List[ContextEvent] = []
+        self._open_turn: Optional[_ModelTurn] = None
+        self._last_completed: Optional[TurnEvent] = None
         self._running = False
         self.end_reason: Optional[RunEndReason] = None
-        self.model_requests = 0  # 本次运行已发出的模型请求数（含重试）
+        self.model_requests = 0  # 本次调用已发出的模型请求数（含重试）
 
         self.plan_tool = PlanTool()
         toolkits = [*tools, self.plan_tool]
@@ -208,76 +245,124 @@ class AgentLoop(BaseFlow):
     def memory(self) -> Optional[Memory]:
         return self._memory
 
+    async def config_snapshot(self) -> Dict[str, Any]:
+        """本次运行的配置快照：模型参数、Agent 配置、实际使用的系统提示词全文与工具 schema，供请求重建使用。"""
+        await self._ensure_memory()
+        messages = self._memory.get_messages()
+        system_prompt = self._system_prompt
+        if messages and messages[0].get("role") == "system":
+            system_prompt = messages[0].get("content")
+        return {
+            "model_name": self._llm.model_name,
+            "temperature": self._llm.temperature,
+            "max_tokens": self._llm.max_tokens,
+            "context_window": self._llm.context_window,
+            "agent_config": self._config.model_dump(mode="json"),
+            "system_prompt": system_prompt,
+            "tools": copy.deepcopy(self.pipeline.schemas()),
+        }
+
     # ---- 运行 ----
 
     async def invoke(
             self,
             message: Message,
             drain_injected_messages: Optional[DrainFn] = None,
+            prior_status: Optional[SessionStatus] = None,
+            first_turn_index: int = 1,
     ) -> AsyncGenerator[BaseEvent, None]:
+        """prior_status 是本条消息到达前会话所处的状态，决定悬空调用如何补结果；为空时读会话行。
+
+        first_turn_index 是本次调用第一轮的序号：续接同一运行时由运行器传入，使序号在运行内连续。
+        """
         self._running = True
         self.end_reason = None
         self.model_requests = 0
         try:
-            async for event in self._run(message, drain_injected_messages):
+            async for event in self._run(message, drain_injected_messages, prior_status, first_turn_index):
                 yield event
         finally:
             self._running = False
 
-    async def _run(self, message: Message, drain: Optional[DrainFn]) -> AsyncGenerator[BaseEvent, None]:
+    async def _run(
+            self,
+            message: Message,
+            drain: Optional[DrainFn],
+            prior_status: Optional[SessionStatus],
+            first_turn_index: int,
+    ) -> AsyncGenerator[BaseEvent, None]:
         async with self._uow:
             session = await self._uow.session.get_by_id(self._session_id)
+            history = await self._uow.event.list(self._session_id, types=["tool", "plan"])
         if not session:
             raise ValueError(f"会话[{self._session_id}]不存在, 请核实后尝试")
         await self._ensure_memory()
         if self.plan_tool.latest_plan is None:
-            self.plan_tool.latest_plan = session.get_latest_plan()
+            self.plan_tool.latest_plan = latest_plan(history)
 
         started = {
-            e.tool_call_id for e in session.events
+            e.tool_call_id for e in history
             if isinstance(e, ToolEvent) and e.status == ToolEventStatus.CALLING
         }
-        reply_consumed = await self.repair_dangling_calls(session.status, message, started)
-        async with self._uow:
-            await self._uow.session.update_status(self._session_id, SessionStatus.RUNNING)
+        status = prior_status if prior_status is not None else session.status
+        reply_consumed = await self.repair_dangling_calls(status, message, started)
+        for event in self._take_context():
+            yield event
         if not session.title or session.title == DEFAULT_SESSION_TITLE:
             yield TitleEvent(title=message.message.strip()[:TITLE_MAX_CHARS])
         if not reply_consumed:
             # 新用户消息是旧实现的步骤边界：裁掉此前的浏览器页面结果与思考内容；回复提问属于同一轮，不裁剪
-            self._memory.compact()
+            self._compact()
             await self._add_messages([{"role": "user", "content": _user_content(message)}])
+        for event in self._take_context():
+            yield event
         logger.info(f"会话[{self._session_id}] Agent循环接收消息: {message.message[:50]}...")
 
         truncations = 0
+        index = first_turn_index - 1
         while True:
             if drain is not None:
                 injected = await drain()
                 if injected:
                     logger.info(f"会话[{self._session_id}] 追加运行中补充的消息 {len(injected)} 条")
                     await self._add_messages([{"role": "user", "content": _user_content(m)} for m in injected])
+                    for event in self._take_context():
+                        yield event
 
-            turn = _ModelTurn()
-            async for event in self._request_model(turn):
-                yield event
+            if self.model_requests >= self._config.max_iterations:
+                yield self._fail(RunEndReason.MAX_ITERATIONS,
+                                 f"模型请求次数达到本次运行上限 {self._config.max_iterations}")
+                return
+            index += 1
+            turn = self._open_turn = _ModelTurn(index=index)
+            yield TurnEvent(phase=TurnPhase.STARTED, index=index, context_window=self._llm.context_window)
+            await self._request_model(turn)
             if turn.failure is not None:
+                yield self._turn_completed(turn, error=turn.failure.value)
                 yield self._fail(turn.failure, turn.error)
                 return
             if turn.truncated:
+                yield self._turn_completed(turn)
                 truncations += 1
                 if truncations > 1:
                     yield self._fail(RunEndReason.OUTPUT_TRUNCATED, "模型输出连续两次超过长度上限被截断")
                     return
                 await self._add_messages([{"role": "user", "content": TRUNCATION_PROMPT}])
+                for event in self._take_context():
+                    yield event
                 continue
             truncations = 0
 
             assistant = turn.response
             await self._add_messages([assistant])
+            for event in self._take_context():
+                yield event
             content = (assistant.get("content") or "").strip()
             calls = assistant.get("tool_calls") or []
             if content:
                 yield MessageEvent(role="assistant", message=content)
             if not calls:
+                yield self._turn_completed(turn)
                 self.end_reason = RunEndReason.COMPLETED
                 yield DoneEvent()
                 return
@@ -291,6 +376,7 @@ class AgentLoop(BaseFlow):
                 if invocation.function_name == ASK_USER_TOOL and await self.pipeline.check(invocation) is None:
                     # 提问之后的调用留待续接时由 repair_dangling_calls 补结果
                     yield MessageEvent(role="assistant", message=str(invocation.arguments.get("text", "")))
+                    yield self._turn_completed(turn)
                     self.end_reason = RunEndReason.WAITING
                     yield WaitEvent()
                     return
@@ -301,48 +387,84 @@ class AgentLoop(BaseFlow):
                         await self._add_messages([
                             tool_message(invocation.call_id, invocation.function_name, invocation.result),
                         ])
+                        for context in self._take_context():
+                            yield context
+                        turn.executed.append(invocation.call_id)
+                        turn.tools_ms += invocation.duration_ms or 0
                     yield event
+            yield self._turn_completed(turn)
 
-    async def _request_model(self, turn: _ModelTurn) -> AsyncGenerator[BaseEvent, None]:
+    async def _request_model(self, turn: _ModelTurn) -> None:
         """发出一次模型请求；传输类错误与空回复按 max_retries 重试，每次尝试都计入 max_iterations。"""
-        attempts = 0
         while True:
             if self.model_requests >= self._config.max_iterations:
                 turn.failure = RunEndReason.MAX_ITERATIONS
                 turn.error = f"模型请求次数达到本次运行上限 {self._config.max_iterations}"
                 return
             self.model_requests += 1
-            attempts += 1
+            turn.attempts += 1
+            started = time.monotonic()
             try:
                 result = await self._llm.invoke(
                     messages=self._memory.get_messages(),
                     tools=self.pipeline.schemas(),
                 )
             except Exception as e:
-                logger.warning(f"会话[{self._session_id}] 模型请求失败（第 {attempts} 次）: {e}")
-                if not _is_retryable(e) or attempts >= self._config.max_retries:
+                turn.model_ms += int((time.monotonic() - started) * 1000)
+                logger.warning(f"会话[{self._session_id}] 模型请求失败（第 {turn.attempts} 次）: {e}")
+                if not _is_retryable(e) or turn.attempts >= self._config.max_retries:
                     turn.failure = RunEndReason.MODEL_ERROR
                     turn.error = str(e) or type(e).__name__
                     return
                 await asyncio.sleep(self._retry_interval)
                 continue
 
-            yield self._usage_event(result.usage)
+            turn.model_ms += int((time.monotonic() - started) * 1000)
+            turn.add_usage(result.usage)
+            turn.finish_reason = result.finish_reason
             if result.finish_reason == "length":
                 logger.warning(f"会话[{self._session_id}] 模型输出被截断，丢弃本次响应")
                 turn.truncated = True
                 return
             response = normalize_assistant_message(result.message)
             if not (response.get("content") or "").strip() and not response.get("tool_calls"):
-                logger.warning(f"会话[{self._session_id}] 模型返回空回复（第 {attempts} 次）")
-                if attempts >= self._config.max_retries:
+                logger.warning(f"会话[{self._session_id}] 模型返回空回复（第 {turn.attempts} 次）")
+                if turn.attempts >= self._config.max_retries:
                     turn.failure = RunEndReason.MODEL_ERROR
-                    turn.error = f"模型连续 {attempts} 次返回空回复"
+                    turn.error = f"模型连续 {turn.attempts} 次返回空回复"
                     return
                 await asyncio.sleep(self._retry_interval)
                 continue
             turn.response = response
             return
+
+    @staticmethod
+    def _completion(turn: _ModelTurn, error: Optional[str] = None) -> TurnEvent:
+        return TurnEvent(
+            phase=TurnPhase.COMPLETED,
+            index=turn.index,
+            model_ms=turn.model_ms,
+            attempts=turn.attempts,
+            usage=turn.usage.model_copy(),
+            finish_reason=turn.finish_reason,
+            tool_call_ids=list(turn.executed),
+            tools_ms=turn.tools_ms,
+            error=error,
+        )
+
+    def _turn_completed(self, turn: _ModelTurn, error: Optional[str] = None) -> TurnEvent:
+        self._open_turn = None
+        self._last_completed = self._completion(turn, error)
+        return self._last_completed.model_copy(deep=True)
+
+    def turn_snapshot(self, index: int, error: str) -> Optional[TurnEvent]:
+        """运行被外部置为终态时补写第 index 轮的 completed：本轮仍在进行时按已发生的尝试与用量生成
+        （带 error）；本轮的 completed 已产生但未写入时返回它。其他情况返回 None。"""
+        if self._open_turn is not None and self._open_turn.index == index:
+            return self._completion(self._open_turn, error)
+        if self._last_completed is not None and self._last_completed.index == index:
+            return self._last_completed.model_copy(deep=True)
+        return None
 
     def _fail(self, reason: RunEndReason, detail: str) -> ErrorEvent:
         self.end_reason = reason
@@ -352,17 +474,6 @@ class AgentLoop(BaseFlow):
         else:
             text = f"{detail}，任务未完成。可在本任务中重试。"
         return ErrorEvent(error=f"{text}（原因：{reason.value}）")
-
-    def _usage_event(self, usage: Optional[LLMUsage]) -> UsageEvent:
-        available = bool(usage and usage.available)
-        return UsageEvent(
-            agent=AGENT_MEMORY_NAME,
-            available=available,
-            prompt_tokens=usage.prompt_tokens if usage else None,
-            completion_tokens=usage.completion_tokens if usage else None,
-            total_tokens=usage.total_tokens if usage else None,
-            context_window=self._llm.context_window,
-        )
 
     # ---- 悬空调用 ----
 
@@ -375,7 +486,7 @@ class AgentLoop(BaseFlow):
         """为上一次运行留下的无结果调用补结果，保证之后的模型请求不含悬空调用。
 
         会话处于 waiting 时，第一个悬空的提问调用以用户回复为结果，其余调用补为“等待用户回复后重新决策”；
-        failed 补为“任务失败”；其他状态（停止写为 completed、进程中断仍为 running）补为“任务已停止”。
+        failed 补为“任务失败”；其他状态（cancelled、interrupted，以及无法判断时）补为“任务已停止”。
         started_call_ids 中的调用已发出 calling 事件、可能已在沙箱产生副作用，补为“执行中断，结果未知”。
         返回用户回复是否已作为提问结果写入（是则调用方不再重复追加用户消息）。
         """
@@ -444,10 +555,21 @@ class AgentLoop(BaseFlow):
             async with self._uow:
                 self._memory = await self._uow.session.get_memory(self._session_id, AGENT_MEMORY_NAME)
 
+    def _take_context(self) -> Iterator[ContextEvent]:
+        """取出尚未发出的上下文事件；调用方在下一次模型请求前把它们全部发出。"""
+        pending, self._pending_context = self._pending_context, []
+        return iter(pending)
+
+    def _compact(self) -> None:
+        self._memory.compact()
+        self._pending_context.append(ContextEvent(op=ContextOp.COMPACT))
+
     async def _add_messages(self, messages: List[Dict[str, Any]]) -> None:
         await self._ensure_memory()
         if self._memory.empty:
+            # system 消息不记为上下文事件：它的全文在运行的 config_snapshot 里
             self._memory.add_message({"role": "system", "content": self._system_prompt})
         self._memory.add_messages(messages)
+        self._pending_context.append(ContextEvent(op=ContextOp.APPEND, messages=copy.deepcopy(messages)))
         async with self._uow:
             await self._uow.session.save_memory(self._session_id, AGENT_MEMORY_NAME, self._memory)

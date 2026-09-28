@@ -16,6 +16,8 @@ import type {
   ToolEvent,
   SessionFile,
   UsageEvent,
+  TurnEvent,
+  EventMeta,
 } from "@/lib/api/types";
 import { formatClockTime } from "@/lib/utils";
 
@@ -284,7 +286,10 @@ export function eventsToTimeline(events: SSEEventData[]): TimelineItem[] {
       case "plan":
       case "wait":
       case "done":
-      case "usage":
+      case "turn":
+      case "run":
+      case "context":
+      case "cleanup":
         break;
       case "error": {
         // 处理错误事件
@@ -415,13 +420,52 @@ function userRetryKey(ev: SSEEventData): string {
   return `${text}\0${ids}`;
 }
 
+/**
+ * 由 turn 事件推导用量：最近一轮 completed 的 tokens，配对 started 的上下文窗口，
+ * 本次运行与整个会话按轮累加。没有已完成的轮次时返回 null。
+ */
 export function getLatestUsageFromEvents(events: SSEEventData[]): UsageEvent | null {
-  for (let i = events.length - 1; i >= 0; i--) {
-    if (events[i].type === "usage") {
-      return events[i].data as UsageEvent;
+  let latest: (TurnEvent & EventMeta) | null = null;
+  let contextWindow: number | null = null;
+  const session = { prompt: 0, completion: 0 };
+  const run = { prompt: 0, completion: 0 };
+  let runId: string | null | undefined;
+  for (const ev of events) {
+    if (ev.type !== "turn") continue;
+    const turn = ev.data as TurnEvent & EventMeta;
+    if (turn.phase === "started") {
+      if (turn.context_window != null) contextWindow = turn.context_window;
+      continue;
     }
+    const prompt = turn.usage?.prompt_tokens ?? 0;
+    const completion = turn.usage?.completion_tokens ?? 0;
+    if (turn.run_id !== runId) {
+      runId = turn.run_id;
+      run.prompt = 0;
+      run.completion = 0;
+    }
+    session.prompt += prompt;
+    session.completion += completion;
+    run.prompt += prompt;
+    run.completion += completion;
+    latest = turn;
   }
-  return null;
+  if (!latest) return null;
+  const prompt = latest.usage?.prompt_tokens ?? null;
+  const completion = latest.usage?.completion_tokens ?? null;
+  return {
+    available: prompt != null || completion != null,
+    prompt_tokens: prompt,
+    completion_tokens: completion,
+    total_tokens: prompt != null && completion != null ? prompt + completion : null,
+    context_window: contextWindow,
+    session_prompt_tokens: session.prompt,
+    session_completion_tokens: session.completion,
+    session_total_tokens: session.prompt + session.completion,
+    turn_prompt_tokens: run.prompt,
+    turn_completion_tokens: run.completion,
+    turn_total_tokens: run.prompt + run.completion,
+  };
 }
 
 /** 截到最后一条用户问题，立刻去掉失败块和失败轮次的中间输出 */

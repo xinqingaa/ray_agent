@@ -12,26 +12,26 @@ from typing import Optional, List, Dict
 
 from pydantic import BaseModel, Field
 
-from .event import Event, PlanEvent
 from .file import File
 from .memory import Memory
-from .plan import Plan
 
 
 class SessionStatus(str, Enum):
-    """会话状态类型枚举"""
-    PENDING = "pending"  # 等待任务
+    """会话状态：最新运行状态的冗余副本，与运行状态在同一事务更新，供会话列表使用。"""
+    PENDING = "pending"  # 尚无运行
     RUNNING = "running"  # 运行中
     WAITING = "waiting"  # 等待人类响应
-    COMPLETED = "completed"  # 已完成
-    FAILED = "failed"  # 本轮失败，同一会话可再发消息重跑
+    COMPLETED = "completed"  # 最新运行正常结束
+    FAILED = "failed"  # 最新运行失败，同一会话可再发消息
+    CANCELLED = "cancelled"  # 最新运行被用户停止
+    INTERRUPTED = "interrupted"  # 最新运行因 API 重启中断
 
 
 DEFAULT_SESSION_TITLE = "新对话"  # 创建会话时的占位标题，Agent 循环首次运行时替换
 
 
 class Session(BaseModel):
-    """会话领域模型"""
+    """会话领域模型；事件与运行分别存放在 events、runs 表，不在会话行上。"""
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))  # 会话id
     sandbox_id: Optional[str] = None  # 沙箱id
     task_id: Optional[str] = None  # 任务id
@@ -39,19 +39,8 @@ class Session(BaseModel):
     unread_message_count: int = 0  # 未读消息数
     latest_message: str = ""  # 最新消息
     latest_message_at: Optional[datetime] = None  # 最新消息时间
-    events: List[Event] = Field(default_factory=list)  # 事件列表
     files: List[File] = Field(default_factory=list)  # 文件列表
     memories: Dict[str, Memory] = Field(default_factory=dict)  # 记忆
     status: SessionStatus = SessionStatus.PENDING  # 状态
     updated_at: datetime = Field(default_factory=datetime.now)  # 更新时间
     created_at: datetime = Field(default_factory=datetime.now)  # 创建时间
-
-    def get_latest_plan(self) -> Optional[Plan]:
-        """获取会话中的最新计划"""
-        # 1.倒序遍历会话中所有事件消息
-        for event in reversed(self.events):
-            # 2.判断事件的类型是否为PlanEvent，如果是则提取计划后返回
-            if isinstance(event, PlanEvent):
-                return event.plan
-
-        return None

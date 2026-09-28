@@ -10,11 +10,31 @@ export type ApiResponse<T = unknown> = {
 /**
  * 会话状态
  */
-export type SessionStatus = "pending" | "running" | "waiting" | "completed" | "failed";
+export type SessionStatus =
+  | "pending"
+  | "running"
+  | "waiting"
+  | "completed"
+  | "failed"
+  | "cancelled"
+  | "interrupted";
 
-/** 本轮已结束，同一会话仍可再发消息 */
+/** 运行状态；会话状态冗余为最近一次运行的状态 */
+export type RunStatus = Exclude<SessionStatus, "pending">;
+
+/** 最近一次运行已进入终态，同一会话仍可再发消息 */
 export function isSessionFinished(status?: SessionStatus | string | null): boolean {
-  return status === "completed" || status === "failed";
+  return (
+    status === "completed" ||
+    status === "failed" ||
+    status === "cancelled" ||
+    status === "interrupted"
+  );
+}
+
+/** waiting 或终态：运行不再推进，等待用户输入 */
+export function isRunSettled(status?: string | null): boolean {
+  return status === "waiting" || isSessionFinished(status);
 }
 
 /**
@@ -208,20 +228,56 @@ export type ChatMessage = {
 };
 
 /**
- * 聊天请求参数
- * message 为空时用于流式拉取未完成任务的事件列表
+ * 聊天请求参数；事件通过 GET /sessions/:id/events 订阅
  */
 export type ChatParams = {
-  message?: string;
+  message: string;
   attachments?: string[];
   [key: string]: unknown;
 };
 
 /**
- * 会话详情（含事件列表，与 chat 流式响应格式一致）
+ * chat 受理结果：消息写入的运行、消息事件 seq 与路由方式
+ */
+export type ChatAccepted = {
+  run_id: string;
+  seq: number;
+  route: "started" | "injected" | "resumed";
+};
+
+/**
+ * 运行记录（时间为毫秒时间戳）
+ */
+export type RunItem = {
+  run_id: string;
+  status: RunStatus;
+  reason?: string | null;
+  turns: number;
+  model_requests: number;
+  tool_calls: number;
+  prompt_tokens: number;
+  completion_tokens: number;
+  cached_tokens?: number | null;
+  started_at: number;
+  ended_at?: number | null;
+  [key: string]: unknown;
+};
+
+/**
+ * 会话详情：运行列表、按 seq 升序的事件与最后一条事件的 seq
  */
 export type SessionDetail = Session & {
+  runs?: RunItem[];
   events?: SSEEventData[];
+  last_seq?: number;
+};
+
+/** 所有持久化事件共有的字段 */
+export type EventMeta = {
+  event_id?: string;
+  seq?: number;
+  run_id?: string | null;
+  created_at?: number;
 };
 
 /**
@@ -264,6 +320,42 @@ export type ToolEvent = {
   [key: string]: unknown;
 };
 
+export type TokenUsage = {
+  prompt_tokens?: number | null;
+  completion_tokens?: number | null;
+  cached_tokens?: number | null;
+  reasoning_tokens?: number | null;
+};
+
+/**
+ * 模型轮次事件：started 在请求前，completed 在响应或失败后
+ */
+export type TurnEvent = {
+  phase: "started" | "completed";
+  index: number;
+  context_estimate?: Record<string, unknown> | null;
+  context_window?: number | null;
+  model_ms?: number | null;
+  attempts?: number | null;
+  usage?: TokenUsage | null;
+  finish_reason?: string | null;
+  tool_call_ids?: string[];
+  tools_ms?: number | null;
+  error?: string | null;
+  [key: string]: unknown;
+};
+
+/**
+ * 运行状态事件；终态附带汇总
+ */
+export type RunEvent = {
+  status: RunStatus;
+  reason?: string | null;
+  summary?: Record<string, number | null> | null;
+  [key: string]: unknown;
+};
+
+/** 由 turn 事件推导的用量展示数据 */
 export type UsageEvent = {
   agent?: string;
   available: boolean;
@@ -292,7 +384,10 @@ export type SSEEventType =
   | "wait"
   | "done"
   | "error"
-  | "usage";
+  | "turn"
+  | "run"
+  | "context"
+  | "cleanup";
 
 /**
  * SSE 事件数据
@@ -306,7 +401,10 @@ export type SSEEventData =
   | { type: "wait"; data: Record<string, unknown> }
   | { type: "done"; data: Record<string, unknown> }
   | { type: "error"; data: { error: string } }
-  | { type: "usage"; data: UsageEvent };
+  | { type: "turn"; data: TurnEvent }
+  | { type: "run"; data: RunEvent }
+  | { type: "context"; data: Record<string, unknown> }
+  | { type: "cleanup"; data: Record<string, unknown> };
 
 /**
  * SSE 事件处理器

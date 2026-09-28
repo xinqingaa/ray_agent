@@ -12,8 +12,9 @@ from .spec import CheckResult, RunContext, SkipTask, TaskSpec
 logger = logging.getLogger("eval")
 
 TERMINAL_EVENTS = ("done", "error", "wait")
-SSE_GRACE_AFTER_STOP = 60.0  # 停止请求后仍未关闭 SSE 时，客户端主动断开的等待秒数
-SETTLE_TIMEOUT = 120.0  # SSE 结束后等待会话离开 running 的最长秒数
+SETTLED_RUN_STATUSES = ("waiting", "completed", "failed", "cancelled", "interrupted")
+SSE_GRACE_AFTER_STOP = 60.0  # 停止请求后仍未看到运行终态时，客户端主动断开的等待秒数
+SETTLE_TIMEOUT = 120.0  # 事件流结束后等待会话离开 running 的最长秒数
 
 
 def _compact_event(event_type: str, data: Dict[str, Any]) -> Dict[str, Any]:
@@ -25,9 +26,17 @@ def _compact_event(event_type: str, data: Dict[str, Any]) -> Dict[str, Any]:
     elif event_type == "message":
         item.update(role=data.get("role"), message=(data.get("message") or "")[:120],
                     attachments=[a.get("filename") for a in data.get("attachments") or []])
-    elif event_type == "usage":
-        item.update(prompt_tokens=data.get("prompt_tokens"), completion_tokens=data.get("completion_tokens"),
-                    available=data.get("available"))
+    elif event_type == "turn":
+        item.update(phase=data.get("phase"), index=data.get("index"))
+        if data.get("phase") == "completed":
+            usage = data.get("usage") or {}
+            item.update(attempts=data.get("attempts"), prompt_tokens=usage.get("prompt_tokens"),
+                        completion_tokens=usage.get("completion_tokens"), model_ms=data.get("model_ms"),
+                        error=data.get("error"))
+    elif event_type == "run":
+        item.update(run_id=(data.get("run_id") or "")[:8], status=data.get("status"), reason=data.get("reason"))
+    elif event_type == "cleanup":
+        item.update(targets=[f"{t.get('kind')}:{t.get('id')}:{t.get('success')}" for t in data.get("targets") or []])
     elif event_type == "error":
         item.update(error=(data.get("error") or "")[:300])
     elif event_type == "step":
@@ -38,21 +47,59 @@ def _compact_event(event_type: str, data: Dict[str, Any]) -> Dict[str, Any]:
     return item
 
 
-def compute_metrics(events: List[Dict[str, Any]]) -> Dict[str, Any]:
-    """从持久化事件统计指标；模型调用次数按 usage 事件计数。"""
-    usage = [e["data"] for e in events if e["event"] == "usage"]
+def _run_totals(session: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
+    """每个运行的汇总：终态 run 事件带的 summary；仍活动（例如停在 waiting）的运行取运行行上的实时计数。"""
+    totals: Dict[str, Dict[str, Any]] = {}
+    for run in session.get("runs") or []:
+        totals[run["run_id"]] = {"status": run.get("status"), "reason": run.get("reason"), "source": "runs",
+                                 **{k: run.get(k) for k in ("turns", "model_requests", "tool_calls",
+                                                            "prompt_tokens", "completion_tokens", "cached_tokens")}}
+    for event in session.get("events") or []:
+        data = event["data"]
+        if event["event"] == "run" and data.get("summary") and data.get("run_id") in totals:
+            totals[data["run_id"]].update(source="summary", **data["summary"])
+    return totals
+
+
+def compute_metrics(session: Dict[str, Any]) -> Dict[str, Any]:
+    """模型调用次数与 tokens 取自运行汇总，并与 turn(completed) 逐轮累加核对；工具调用按 called 事件计数。"""
+    events = session.get("events") or []
+    totals = _run_totals(session)
+    completed = [e["data"] for e in events if e["event"] == "turn" and e["data"].get("phase") == "completed"]
+    started = [e["data"] for e in events if e["event"] == "turn" and e["data"].get("phase") == "started"]
     called = [e["data"] for e in events if e["event"] == "tool" and e["data"].get("status") == "called"]
     calling_ids = {e["data"].get("tool_call_id") for e in events
                    if e["event"] == "tool" and e["data"].get("status") == "calling"}
     called_ids = {d.get("tool_call_id") for d in called}
+
+    def run_sum(key: str) -> int:
+        return sum(t.get(key) or 0 for t in totals.values())
+
+    turn_sums = {
+        "turns": len(started),
+        "model_requests": sum(t.get("attempts") or 0 for t in completed),
+        "prompt_tokens": sum((t.get("usage") or {}).get("prompt_tokens") or 0 for t in completed),
+        "completion_tokens": sum((t.get("usage") or {}).get("completion_tokens") or 0 for t in completed),
+        "tool_calls": len(called),
+    }
+    mismatches = [f"{key}: 运行汇总 {run_sum(key)} ≠ 逐轮 {value}" for key, value in turn_sums.items()
+                  if run_sum(key) != value]
     return {
-        "model_calls": len(usage),
-        "usage_unavailable_calls": sum(1 for u in usage if not u.get("available")),
-        "prompt_tokens": sum(u.get("prompt_tokens") or 0 for u in usage),
-        "completion_tokens": sum(u.get("completion_tokens") or 0 for u in usage),
+        "model_calls": run_sum("model_requests"),
+        "turns": run_sum("turns"),
+        "usage_unavailable_calls": sum(1 for t in completed
+                                       if t.get("attempts") and (t.get("usage") or {}).get("prompt_tokens") is None),
+        "prompt_tokens": run_sum("prompt_tokens"),
+        "completion_tokens": run_sum("completion_tokens"),
+        "cached_tokens": run_sum("cached_tokens"),
         "tool_calls": len(called),
         "tool_calls_by_name": dict(Counter(d.get("function", "") for d in called).most_common()),
         "tool_calls_unfinished": len(calling_ids - called_ids),
+        "unpaired_turns": len(started) - len(completed),
+        "metrics_consistent": not mismatches,
+        "metric_mismatches": mismatches,
+        "runs": [{"run_id": run_id, "status": t["status"], "reason": t["reason"], "source": t["source"]}
+                 for run_id, t in totals.items()],
         "error_events": [e["data"].get("error", "")[:300] for e in events if e["event"] == "error"],
     }
 
@@ -87,12 +134,15 @@ class EvalRunner:
             await self._safe_stop(ctx, "runner_error")
             await self._settle(ctx, fetch_only=True)
 
-        metrics = compute_metrics(ctx.events)
+        metrics = compute_metrics(ctx.session or {})
         last_terminal = next((e["event"] for e in reversed(ctx.events) if e["event"] in TERMINAL_EVENTS), None)
+        last_run = ctx.runs[-1] if ctx.runs else {}
         result.update(
             session_id=ctx.session_id,
             session_status=ctx.session.get("status") if ctx.session else None,
             last_terminal_event=last_terminal,
+            last_run_status=last_run.get("status"),
+            last_run_reason=last_run.get("reason"),
             wall_seconds=round(ctx.observations.get("wall_seconds", time.time() - wall_start), 1),
             **metrics,
             checks=[c.__dict__ for c in checks],
@@ -123,7 +173,7 @@ class EvalRunner:
                 ctx.log("send", turn=turn_index, message=message[:200], attachments=len(attachments))
                 terminal, stop_task = await self._stream(ctx, message, attachments, deadline, stop_task)
                 message, attachments = None, []
-                if terminal == "wait" and replies:
+                if terminal == "waiting" and replies:
                     message = replies.pop(0)
                     ctx.log("reply", message=message)
                 if terminal in ("timeout",) or ctx.stop_requested_at is not None:
@@ -143,18 +193,24 @@ class EvalRunner:
 
     async def _stream(self, ctx: RunContext, message: str, attachments: List[str],
                       deadline: float, stop_task: Optional[asyncio.Task]):
+        """发送消息后订阅事件流，直到受理该消息的运行进入 waiting 或终态。"""
         spec = ctx.spec
         state = {"terminal": None, "stop_task": stop_task}
+        accepted = await self.client.chat(ctx.session_id, message, attachments)
+        run_id = accepted["run_id"]
+        ctx.log("accepted", run_id=run_id, seq=accepted.get("seq"), route=accepted.get("route"))
 
         async def consume() -> None:
-            async for event_type, data in self.client.chat(ctx.session_id, message, attachments):
+            async for event_type, data in self.client.events(ctx.session_id, after_seq=ctx.last_seq):
+                ctx.last_seq = max(ctx.last_seq, data.get("seq") or 0)
                 ctx.sse_log.append({"t": ctx.elapsed(), **_compact_event(event_type, data)})
                 if (spec.stop and spec.stop.trigger and state["stop_task"] is None
                         and spec.stop.trigger(event_type, data)):
                     ctx.log("stop_trigger", event=_compact_event(event_type, data))
                     state["stop_task"] = asyncio.create_task(self._stop_later(ctx))
-                if event_type in TERMINAL_EVENTS:
-                    state["terminal"] = event_type
+                if (event_type == "run" and data.get("run_id") == run_id
+                        and data.get("status") in SETTLED_RUN_STATUSES):
+                    state["terminal"] = data["status"]
                     return
             state["terminal"] = "stream_closed"
 
@@ -167,7 +223,7 @@ class EvalRunner:
             now = time.monotonic()
             if ctx.stop_requested_at is not None and now - ctx.started_at - ctx.stop_requested_at > SSE_GRACE_AFTER_STOP:
                 sse_task.cancel()
-                state["terminal"] = "sse_not_closed_after_stop"
+                state["terminal"] = "no_terminal_after_stop"
                 break
             if now > deadline:
                 sse_task.cancel()
@@ -182,8 +238,8 @@ class EvalRunner:
         await asyncio.sleep(ctx.spec.stop.seconds)
         ctx.stop_requested_at = ctx.elapsed()
         ctx.log("stop_request")
-        await self.client.stop_session(ctx.session_id)
-        ctx.log("stop_returned")
+        stopped = await self.client.stop_session(ctx.session_id)
+        ctx.log("stop_returned", run_id=(stopped or {}).get("run_id"))
         if ctx.spec.stop.observe:
             await ctx.spec.stop.observe(ctx)
 
@@ -197,7 +253,7 @@ class EvalRunner:
             ctx.log("cleanup_stop_failed", reason=reason, error=str(e))
 
     async def _settle(self, ctx: RunContext, fetch_only: bool = False) -> None:
-        """SSE 在 error 事件处就会断开而任务可能仍在运行，等会话离开 running 后再读回。"""
+        """等会话离开 running 后读回完整详情（运行与全部事件）。"""
         if not ctx.session_id:
             return
         loop = asyncio.get_running_loop()

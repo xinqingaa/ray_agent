@@ -8,7 +8,9 @@
 from abc import ABC, abstractmethod
 from typing import TypeVar
 
+from .event_repository import EventRepository
 from .file_repository import FileRepository
+from .run_repository import RunRepository
 from .session_repository import SessionRepository
 
 T = TypeVar("T", bound="IUnitOfWork")
@@ -18,6 +20,8 @@ class IUnitOfWork(ABC):
     """Uow模式协议接口"""
     file: FileRepository
     session: SessionRepository
+    run: RunRepository
+    event: EventRepository
 
     @abstractmethod
     async def commit(self):

@@ -113,7 +113,7 @@ flowchart LR
 | W0 | 完成 | `phase-4` 上以 `W0:` 开头的提交 | [w0-baseline-2026-09-28-961005d](evidence/w0-baseline-2026-09-28-961005d.md) | 基线 5/6 通过，E4 停止未生效；tag `baseline-v1` 指向 `961005d` |
 | W1 | 完成 | `phase-4` 上以 `W1:` 开头的提交 | [w1-2026-09-28-9faa304](evidence/w1-2026-09-28-9faa304.md) | 通过情况同基线；模型调用 55 → 20 |
 | W2 | 未开始 | — | — | — |
-| W3 | 未开始 | — | — | — |
+| W3 | 完成 | `phase-4` 上以 `W3:` 开头的提交 | [w3-2026-09-28-8511bdf](evidence/w3-2026-09-28-8511bdf.md) | E1–E6 全部通过，E4 停止生效 |
 | W4 | 未开始 | — | — | — |
 | W5 | 未开始 | — | — | 三个阶段分别记录 |
 | W6 | 未开始 | — | — | — |
@@ -121,7 +121,7 @@ flowchart LR
 | W8 | 未开始 | — | — | — |
 | L 课程同步 | 未开始 | — | — | W8 后另立计划 |
 
-**下一步：** W3 与 W2 串行（先 W3，它在 W4、W6 的关键路径上），W5 阶段一并行。
+**下一步：** W4 与 W2 并行（文件不重叠），W5 阶段一、三收尾。
 
 ## 6. 证据记录
 
@@ -131,6 +131,7 @@ flowchart LR
 - 2026-09-28，计划修订：基于提交 `66f20d7`。原因：界面是作品唯一直接可见的部分，原计划把视觉重设计列为不做，与作品定位不符；补查 pi 与 DeepSeek Harness 后吸收四项设计（第 2 节）。变更：范围纳入对话、运行视图与设置页重设计及开发者视图；原 W4 收窄为前端数据层并新增视图模型契约；新增 W5 界面与交互设计；原 W5、W6、W7 顺延为 W6、W7、W8，文件同步改名；W1 增加工具三段管线，W3 增加轮次事件、运行指标、请求重建与调试读取，W6 增加首字延迟、输出速度与失败尝试记录；项目 skill 新增 `skills/frontend-design`（来自 anthropics/skills，Apache 2.0，保留 LICENSE），根 AGENTS 增加界面设计约定；同步代码地图“二次开发改造入口”与背景中的编号。检查：全仓 Markdown 本地链接与锚点经 `docs/plan/` 路径解析无失效（根目录 `PLAN.md` 软链接按根目录解析相对路径产生的 14 条为检查脚本误报）；plan 目录与其他文档中无旧编号与旧文件名残留；第 4、5 节工作包与 9 份子计划一一对应。W5 现状中的样式与组件数据为本日静态核对结果。未修改产品代码，未运行测试或评测。
 - 2026-09-28，W0：分支 `phase-4` 从 `961005d` 开出，本地 tag `baseline-v1` 指向 `961005d`（其与 `2c323cc` 之间只有文档变更）。新增 `tests/support/scripted_llm.py`（`ScriptedLLM`，`finish_reason` 经子类 `ScriptedInvokeResult` 携带，另提供 `exhausted_calls` 供测试断言脚本耗尽被产品重试吞掉的情况）与 `scripts/eval/`（E1–E6 声明式任务、HTTP + SSE 运行器、JSON/Markdown 报告），API 开发指南增加评测前提与命令；未修改产品代码。环境：Docker 29.7.2、Compose v5.5.0，按当前代码重建后各服务健康（重建后需重启 nginx，否则 UI 502）；模型 `deepseek-flash`（`api.deepseek.com`）直连与工具调用可用。检查：`test_scripted_llm.py` 8 项、`test_eval_script.py` 4 项通过；后端全量 103 通过、1 错误（`test_status_routes` 在宿主机解析不到 `manus-postgres`，与指南所述接口测试需另备数据库一致，开工前即存在）；UI `npm run lint` 有 19 个既有错误（`react-hooks/refs` 等，未修），事件观察脚本通过，镜像内 `next build` 通过。评测：[w0-baseline-2026-09-28-961005d](evidence/w0-baseline-2026-09-28-961005d.md)，温度 0.7、`max_tokens` 8192、`context_window` 65536，每条 1 次；E1、E2、E3、E5、E6 通过，E4 未通过（停止后标记 5 秒内增长 5 行，会话写为 completed，`shell_execute` 只有 calling 事件）。任务措辞按可检查性收紧：E2 写明 `total` 字段，E3 明确要求先询问文件名，E1/E5/E6 以最后一条助手消息为准（规划说明会复述问题）。冒烟中出现一次 E4 前置步骤“执行结果无法解析”导致结束的波动，单次基线不能代表稳定性。未覆盖：模型调用按 usage 事件计数，未发 usage 的调用会漏算；沙箱 TTL 回收未验证。
 - 2026-09-28，W1：基于 `9faa304`。单循环 `AgentLoop` 替换 Planner + ReAct；新增工具三段管线 `ToolPipeline`（`add_before`/`add_after`）、`update_plan`、`deliver_files`、`repair_dangling_calls`（已发出 calling 的调用补为“执行中断，结果未知”，其余补为未执行）、传输错误与空回复重试、截断重试一次、`LLMInvokeResult.finish_reason`；移除 `message_notify_user`、Step JSON、假完成守卫、附件 JSON 与 `JSONParser`；重写中英文系统提示词；前端计划面板与工具记录最小兼容；`config.yaml` 随本包提交为 `deepseek-flash`。根 AGENTS 两处“当前 Plan + ReAct”改为单循环。检查：`test_agent_loop.py` 22 项覆盖子计划 10 项验收，协调者复跑循环与替身测试 30 项通过；后端全量 118 通过、1 既有错误；UI `npm run build` 通过，lint 仍为 19 个既有错误。评测 [w1-2026-09-28-9faa304](evidence/w1-2026-09-28-9faa304.md)（每条 1 次）：E1、E2、E3、E5、E6 通过，E4 未通过同基线；六条合计模型调用 55 → 20，prompt tokens 285218 → 92653，各条耗时均缩短；短任务均未调用 `update_plan`。Web 走查：E2、E3 类任务的计划清单、工具记录、提问与附件下载可见，截图 `evidence/w1-2026-09-28-web-*.png`（走查早于最后一处上下文清理修改，该修改不涉及提问续接路径，评测在其后运行）。子计划按代码修正，原因见其“实施修正”一节：会话占位标题“新对话”也要替换、中断调用补结果、新用户消息时清理上下文、截断提示用 user 角色等。未覆盖：停止未传到沙箱进程与停止时缺 called 事件（W7.1/W3）；基础设施不可达时会话卡在 pending；`json-repair` 依赖仍在 `pyproject`（W8 清理）；工具记录完成后仍显示“正在…”与等待中会话在侧栏显示加载图标（W5）。
+- 2026-09-28，W3：基于 `8511bdf`。运行与事件改为独立表（迁移 `5b7e2c9d4a10`，删除 `sessions.events`，不转换旧数据）；事件先落库（会话内 `seq`）再发 Redis 通知；`chat` 返回 `run_id`/`seq`/`route`，SSE 改为 `GET /sessions/{id}/events?after_seq=N` 按序号续传；轮次事件与运行汇总；只读请求重建接口；停止写 `cancelled`/`user_stop` 并终止本次运行登记的 Shell 会话；启动扫描把遗留 running 标为 `interrupted`/`api_restart`，waiting 保持；前端只做接口最小适配。实施由两个代理完成（首个在收尾截图时停止，第二个补子计划修正、交接与 docs 核对）。检查：后端全量 122 通过、6 跳过、1 既有错误；跳过的 `test_run_events_pg.py`（验收 1–4、6 与快照往返）由协调者在临时 PostgreSQL 16 上补跑，6 项通过。评测 [w3-2026-09-28-8511bdf](evidence/w3-2026-09-28-8511bdf.md)（每条 1 次，对照 W1）：E1–E6 全部通过；E4 终态 cancelled（user_stop），停止后 10 秒内标记增长 0 行；六条合计模型调用 19（W1 为 20），prompt tokens 86923（W1 为 92653），差值含模型波动。手动：运行中重启 API 后刷新为 interrupted，等待中重启后回复可续接（经 API 核对，未截图，子计划未要求）。子计划按代码修正，原因见其“实施修正”（`runs.turns`、终态补写未完成轮次、`context`/`cleanup` 事件、`route`、`runner_lost` 等）。`ui/README.md` 的 chat/SSE 段落随 W5 提交（同文件含 W5 内容）。未覆盖：浏览器里的 SSE 断线重连未走查；`ttft_ms` 未实现（W6）；API 进程崩溃前已在沙箱启动的进程不被启动扫描回收。
 
 ## 7. 课程同步（W8 之后）
 

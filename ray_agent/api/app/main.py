@@ -21,7 +21,7 @@ from app.infrastructure.storage.postgres import get_postgres
 from app.infrastructure.storage.redis import get_redis
 from app.interfaces.endpoints.routes import router
 from app.interfaces.errors.exception_handlers import register_exception_handlers
-from app.interfaces.service_dependencies import get_agent_service
+from app.interfaces.service_dependencies import get_agent_service, get_run_ledger
 from core.config import get_settings
 
 # 1.加载配置信息
@@ -63,6 +63,11 @@ async def lifespan(app: FastAPI):
     else:
         Path(settings.file_storage_local_dir).mkdir(parents=True, exist_ok=True)
         logger.info(f"文件存储使用本地磁盘: {settings.file_storage_local_dir}")
+
+    # 4.启动扫描：执行协程只存在于本进程，上次进程留下的 running 运行不会再推进，置为 interrupted；waiting 保持
+    interrupted = await get_run_ledger().interrupt_running()
+    if interrupted:
+        logger.info(f"启动扫描将 {len(interrupted)} 个运行置为 interrupted: {[run.id for run in interrupted]}")
 
     try:
         # 4.lifespan分界点

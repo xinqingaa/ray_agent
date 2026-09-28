@@ -25,7 +25,7 @@ class CheckResult:
 
 @dataclass
 class ReplyOnWait:
-    """出现提问（wait 事件）时按顺序回复；超过次数后不再回复，任务停在等待。"""
+    """运行进入 waiting（提问）时按顺序回复；超过次数后不再回复，任务停在等待。"""
     replies: List[str]
 
 
@@ -33,7 +33,7 @@ class ReplyOnWait:
 class StopAfter:
     """在触发点之后 ``seconds`` 秒请求停止。
 
-    ``trigger`` 接收每条 SSE 事件 (event, data)，首次返回 True 时开始计时；为空时从首条消息发出开始计时。
+    ``trigger`` 接收事件流的每条事件 (event, data)，首次返回 True 时开始计时；为空时从首条消息发出开始计时。
     所有轮次结束时仍未到停止时刻，则取消停止，避免改写已结束会话的状态。
     """
     seconds: float
@@ -55,7 +55,7 @@ async def no_environment(ctx: "RunContext") -> AsyncIterator[None]:
 class TaskSpec:
     id: str
     title: str
-    turns: List[Message]  # 每一轮在上一轮结束（done/error/未回复的 wait）后发送
+    turns: List[Message]  # 每一轮在上一轮的运行进入 waiting（且不再回复）或终态后发送
     check: Check
     materials: Dict[str, bytes] = field(default_factory=dict)  # 上传并随第一轮发送的附件
     on_wait: Optional[ReplyOnWait] = None
@@ -79,6 +79,11 @@ class RunContext:
     session: Dict[str, Any] = field(default_factory=dict)  # 结束后 GET /sessions/{id} 的结果
     started_at: float = 0.0
     stop_requested_at: Optional[float] = None
+    last_seq: int = 0  # 事件流已读到的最大 seq，下一轮从这里续订
+
+    @property
+    def runs(self) -> List[Dict[str, Any]]:
+        return self.session.get("runs", []) if self.session else []
 
     def elapsed(self) -> float:
         return round(time.monotonic() - self.started_at, 3) if self.started_at else 0.0
@@ -86,7 +91,7 @@ class RunContext:
     def log(self, kind: str, **fields: Any) -> None:
         self.interactions.append({"t": self.elapsed(), "kind": kind, **fields})
 
-    # ---- 会话事件读取（基于 GET /sessions/{id} 的持久化事件） ----
+    # ---- 会话事件读取（基于 GET /sessions/{id} 的持久化事件与运行） ----
 
     @property
     def events(self) -> List[Dict[str, Any]]:

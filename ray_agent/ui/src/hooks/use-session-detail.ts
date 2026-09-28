@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { sessionApi } from '@/lib/api/session'
 import { normalizeEvent, normalizeEvents, trimToLastUserMessage } from '@/lib/session-events'
-import type { SessionDetail, SSEEventData, SessionFile } from '@/lib/api/types'
-import { isSessionFinished } from '@/lib/api/types'
+import type { RunEvent, SessionDetail, SSEEventData, SessionFile } from '@/lib/api/types'
+import { isRunSettled } from '@/lib/api/types'
 
 export type UseSessionDetailResult = {
   session: SessionDetail | null
@@ -18,26 +18,36 @@ export type UseSessionDetailResult = {
   streaming: boolean
 }
 
+const RECONNECT_DELAY_MS = 1000
+
+function eventSeq(ev: SSEEventData): number | undefined {
+  const seq = (ev.data as { seq?: unknown } | undefined)?.seq
+  return typeof seq === 'number' ? seq : undefined
+}
+
 /**
- * 任务详情：拉取会话详情与文件列表，管理事件列表；
- * 未完成任务会通过 chat 空 body 流式拉取事件，发送消息时通过 chat 带 body 流式追加事件。
+ * 任务详情：拉取会话详情与文件列表，按 seq 订阅会话事件。
+ * 发送消息只提交 chat，事件统一由订阅流送达；断线后从最后一个 seq 续传。
+ * `initialSkipEmptyStream` 为旧调用方保留，订阅与发送解耦后不再需要。
  */
 export function useSessionDetail(
   sessionId: string | null,
   initialSkipEmptyStream?: boolean
 ): UseSessionDetailResult {
+  void initialSkipEmptyStream
   const [session, setSession] = useState<SessionDetail | null>(null)
   const [files, setFiles] = useState<SessionFile[]>([])
   const [events, setEvents] = useState<SSEEventData[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
   const [streaming, setStreaming] = useState(false)
-  const [skipEmptyStream, setSkipEmptyStream] = useState(initialSkipEmptyStream || false)
-  const emptyStreamCleanupRef = useRef<(() => void) | null>(null)
-  const messageStreamCleanupRef = useRef<(() => void) | null>(null)
-  const isSendMessageRef = useRef(false)
-  const lastEventIdRef = useRef<string | null>(null)
-  const skipEmptyReconnectRef = useRef(false)
+  const [loaded, setLoaded] = useState(false)
+  const lastSeqRef = useRef(0)
+  const streamCleanupRef = useRef<(() => void) | null>(null)
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const pendingRunIdRef = useRef<string | null>(null)
+  // run_id → 最近一次进入 waiting 或终态的事件 seq，用于判断 chat 受理前运行是否已停下
+  const settledRunsRef = useRef<Map<string, number>>(new Map())
 
   const appendEvent = useCallback((ev: SSEEventData) => {
     let evToAppend = ev
@@ -46,94 +56,65 @@ export function useSessionDetail(
       if (normalized) evToAppend = normalized
     }
 
-    const eventId = (evToAppend.data as { event_id?: string })?.event_id
-    if (eventId) lastEventIdRef.current = eventId
+    const seq = eventSeq(evToAppend)
+    if (seq !== undefined) {
+      if (seq <= lastSeqRef.current) return
+      lastSeqRef.current = seq
+    }
 
     setEvents((prev) => [...prev, evToAppend])
-    
-    // 更新会话标题
+
     if (evToAppend.type === 'title' && evToAppend.data && typeof (evToAppend.data as { title?: string }).title === 'string') {
       setSession((prev) =>
         prev ? { ...prev, title: (evToAppend.data as { title: string }).title } : null
       )
     }
-    
-    // 监听事件更新会话状态
-    if (evToAppend.type === 'step') {
-      const stepData = evToAppend.data as { status?: string }
-      if (stepData.status === 'running') {
-        setSession((prev) => prev ? { ...prev, status: 'running' } : null)
-      }
-      if (stepData.status === 'waiting') {
-        setSession((prev) => prev ? { ...prev, status: 'waiting' } : null)
-        setStreaming(false)
-      }
-    }
 
-    // message_ask_user calling → 等待用户输入，切换为 waiting
-    if (evToAppend.type === 'tool') {
-      const toolData = evToAppend.data as { function?: string; status?: string }
-      if (toolData.function === 'message_ask_user' && toolData.status === 'calling') {
-        setSession((prev) => prev ? { ...prev, status: 'waiting' } : null)
-        setStreaming(false)
+    // 会话状态以运行事件为准；done/error 之后同一运行可能因待处理输入继续
+    if (evToAppend.type === 'run') {
+      const runData = evToAppend.data as RunEvent & { run_id?: string | null }
+      setSession((prev) => (prev ? { ...prev, status: runData.status } : null))
+      if (runData.run_id && isRunSettled(runData.status)) {
+        settledRunsRef.current.set(runData.run_id, seq ?? 0)
+        if (pendingRunIdRef.current === runData.run_id) {
+          pendingRunIdRef.current = null
+          setStreaming(false)
+        }
       }
-    }
-
-    // wait 事件 → 等待用户输入
-    if (evToAppend.type === 'wait') {
-      setSession((prev) => prev ? { ...prev, status: 'waiting' } : null)
-      setStreaming(false)
-    }
-    
-    // done 不能盖掉本轮失败，空流仍可能读到后续 DoneEvent
-    if (evToAppend.type === 'done') {
-      setSession((prev) => {
-        if (!prev || prev.status === 'failed') return prev
-        return { ...prev, status: 'completed' }
-      })
-    }
-    
-    // error 事件：本轮失败，同一会话仍可再发
-    if (evToAppend.type === 'error') {
-      setSession((prev) => prev ? { ...prev, status: 'failed' } : null)
     }
   }, [])
 
-  const startEmptyStream = useCallback(() => {
-    if (!sessionId) return
-    if (emptyStreamCleanupRef.current) {
-      emptyStreamCleanupRef.current()
-      emptyStreamCleanupRef.current = null
+  const stopStream = useCallback(() => {
+    if (reconnectTimerRef.current) {
+      clearTimeout(reconnectTimerRef.current)
+      reconnectTimerRef.current = null
     }
-    emptyStreamCleanupRef.current = sessionApi.chat(
+    if (streamCleanupRef.current) {
+      streamCleanupRef.current()
+      streamCleanupRef.current = null
+    }
+  }, [])
+
+  const startStream = useCallback(() => {
+    if (!sessionId) return
+    stopStream()
+    streamCleanupRef.current = sessionApi.streamEvents(
       sessionId,
-      { event_id: lastEventIdRef.current || undefined },
+      lastSeqRef.current,
       (ev) => appendEvent(ev),
       (err) => {
-        if (err.name === 'AbortError') {
-          return
+        if (err.name === 'AbortError') return
+        if (err.message !== 'SSE_STREAM_END') {
+          console.warn('Session events stream error:', err)
         }
-        // 流正常结束（服务端关闭连接），延迟重连
-        if (err.message === 'SSE_STREAM_END') {
-          emptyStreamCleanupRef.current = null
-          setTimeout(() => {
-            if (!emptyStreamCleanupRef.current && !isSendMessageRef.current) {
-              startEmptyStream()
-            }
-          }, 500)
-          return
-        }
-        console.warn('Session detail empty stream error:', err)
+        streamCleanupRef.current = null
+        reconnectTimerRef.current = setTimeout(() => {
+          reconnectTimerRef.current = null
+          if (!streamCleanupRef.current) startStream()
+        }, RECONNECT_DELAY_MS)
       }
     )
-  }, [sessionId, appendEvent])
-
-  const stopEmptyStream = useCallback(() => {
-    if (emptyStreamCleanupRef.current) {
-      emptyStreamCleanupRef.current()
-      emptyStreamCleanupRef.current = null
-    }
-  }, [])
+  }, [sessionId, appendEvent, stopStream])
 
   const normalizeFileList = useCallback((raw: unknown): SessionFile[] => {
     if (Array.isArray(raw)) return raw as SessionFile[]
@@ -154,15 +135,16 @@ export function useSessionDetail(
         sessionApi.getSessionDetail(sessionId),
         sessionApi.getSessionFiles(sessionId),
       ])
-      setSession(detail)
+      const snapshot = normalizeEvents(detail.events ?? [])
+      const snapshotSeq = detail.last_seq ?? snapshot.reduce((max, ev) => Math.max(max, eventSeq(ev) ?? 0), 0)
+      // 订阅流可能已送达快照之后的事件，保留它们
+      setEvents((prev) => [...snapshot, ...prev.filter((ev) => (eventSeq(ev) ?? 0) > snapshotSeq)])
+      lastSeqRef.current = Math.max(lastSeqRef.current, snapshotSeq)
+      setSession((prev) =>
+        prev && lastSeqRef.current > snapshotSeq ? { ...detail, status: prev.status, title: prev.title } : detail
+      )
       setFiles(normalizeFileList(fileListRaw))
-      const rawEvents = (detail as { events?: unknown }).events
-      if (rawEvents && Array.isArray(rawEvents) && rawEvents.length > 0) {
-        const normalized = normalizeEvents(rawEvents)
-        setEvents(normalized)
-        const lastEvId = (normalized[normalized.length - 1]?.data as { event_id?: string })?.event_id
-        if (lastEvId) lastEventIdRef.current = lastEvId
-      }
+      setLoaded(true)
     } catch (e) {
       setError(e instanceof Error ? e : new Error('加载失败'))
     } finally {
@@ -181,46 +163,31 @@ export function useSessionDetail(
   }, [sessionId, normalizeFileList])
 
   useEffect(() => {
+    lastSeqRef.current = 0
+    pendingRunIdRef.current = null
+    settledRunsRef.current = new Map()
+    setLoaded(false)
+    setStreaming(false)
+    setEvents([])
     if (!sessionId) {
       setLoading(false)
       setSession(null)
       setFiles([])
-      setEvents([])
       setError(null)
-      stopEmptyStream()
       return
     }
     setLoading(true)
-    refresh().then(() => {
-      // 由下面的 effect 根据 session 状态决定是否开空流
-    })
-    return () => {
-      stopEmptyStream()
-    }
+    refresh()
   }, [sessionId]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // 详情加载后常驻订阅，覆盖运行中、等待回复、停止后的收尾事件与其他入口发起的新运行
   useEffect(() => {
-    if (!sessionId || !session) return
-    const status = session.status
-    const finished = isSessionFinished(status)
-    // 如果标记了跳过空流（比如有初始消息待发送），则不启动空流
-    if (!finished && !isSendMessageRef.current && !skipEmptyStream) {
-      startEmptyStream()
-    }
+    if (!sessionId || !loaded) return
+    startStream()
     return () => {
-      stopEmptyStream()
+      stopStream()
     }
-  }, [sessionId, session?.status, skipEmptyStream, startEmptyStream, stopEmptyStream])
-
-  // 组件卸载时清理消息流
-  useEffect(() => {
-    return () => {
-      if (messageStreamCleanupRef.current) {
-        messageStreamCleanupRef.current()
-        messageStreamCleanupRef.current = null
-      }
-    }
-  }, [])
+  }, [sessionId, loaded, startStream, stopStream])
 
   const sendMessage = useCallback(
     async (message: string, attachmentIds: string[], options?: { retry?: boolean }) => {
@@ -228,80 +195,22 @@ export function useSessionDetail(
       if (options?.retry) {
         setEvents((prev) => trimToLastUserMessage(prev))
       }
-      stopEmptyStream()
-      // 清理已有的消息流连接（如 waiting 状态时用户再次发送）
-      if (messageStreamCleanupRef.current) {
-        messageStreamCleanupRef.current()
-        messageStreamCleanupRef.current = null
-      }
-      // 发送消息时，清除跳过空流的标记
-      setSkipEmptyStream(false)
-      isSendMessageRef.current = true
-      skipEmptyReconnectRef.current = false
       setStreaming(true)
-      
-      // 立即更新状态为 running，不等待 SSE 事件
-      setSession((prev) => prev ? { ...prev, status: 'running' } : null)
-      
-      const finishMessageStream = (options?: { abort?: boolean; reconnect?: boolean }) => {
-        setStreaming(false)
-        isSendMessageRef.current = false
-        if (options?.abort !== false && messageStreamCleanupRef.current) {
-          messageStreamCleanupRef.current()
-          messageStreamCleanupRef.current = null
-        } else {
-          messageStreamCleanupRef.current = null
-        }
-        if (options?.reconnect !== false) {
-          startEmptyStream()
-        }
-      }
-      const onEvent = (ev: SSEEventData) => {
-        appendEvent(ev)
-        if (ev.type === 'done' || ev.type === 'error') {
-          // 不要立刻 abort：服务端还要写会话状态并归还数据库连接
-          skipEmptyReconnectRef.current = true
-          finishMessageStream({ abort: false, reconnect: false })
-        }
-      }
-      const messageStreamCleanup = sessionApi.chat(
-        sessionId,
-        { message, attachments: attachmentIds },
-        onEvent,
-        (err) => {
-          if (err.name === 'AbortError') {
-            setStreaming(false)
-            isSendMessageRef.current = false
-            return
-          }
-          // 流正常结束（服务端关闭连接），重置状态并启动空流监听后续事件
-          if (err.message === 'SSE_STREAM_END') {
-            setStreaming(false)
-            isSendMessageRef.current = false
-            messageStreamCleanupRef.current = null
-            if (!skipEmptyReconnectRef.current) {
-              startEmptyStream()
-            }
-            return
-          }
-          // 实际错误
-          setError(err instanceof Error ? err : new Error('流式响应异常'))
+      setSession((prev) => (prev ? { ...prev, status: 'running' } : null))
+      try {
+        const accepted = await sessionApi.chat(sessionId, { message, attachments: attachmentIds })
+        if ((settledRunsRef.current.get(accepted.run_id) ?? -1) > accepted.seq) {
           setStreaming(false)
-          isSendMessageRef.current = false
-          setSession((prev) => prev ? { ...prev, status: 'failed' } : null)
-          if (messageStreamCleanupRef.current) {
-            messageStreamCleanupRef.current()
-            messageStreamCleanupRef.current = null
-          }
-          if (!skipEmptyReconnectRef.current) {
-            startEmptyStream()
-          }
+        } else {
+          pendingRunIdRef.current = accepted.run_id
         }
-      )
-      // 将消息流的 cleanup 存到独立的 ref，不与 emptyStream 混淆
-      messageStreamCleanupRef.current = messageStreamCleanup
+      } catch (e) {
+        setStreaming(false)
+        refresh()
+        throw e
+      }
     },
-    [sessionId, appendEvent, startEmptyStream, stopEmptyStream]
+    [sessionId, refresh]
   )
 
   return {

@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.domain.models.event import MessageEvent
 from app.domain.models.session import Session
+from app.domain.models.tool_result import ToolResult
 from app.domain.services.agent_task_runner import AgentTaskRunner
 from app.infrastructure.external.file_storage.local_file_storage import LocalFileStorage
 from app.infrastructure.models import SessionModel
@@ -44,6 +45,8 @@ async def check():
                     storage = LocalFileStorage(directory, uow_factory)
                     sandbox = SimpleNamespace(content=b"v1")
                     sandbox.download_file = AsyncMock(side_effect=lambda _: io.BytesIO(sandbox.content))
+                    sandbox.check_file_exists = AsyncMock(
+                        return_value=ToolResult(success=True, data={"exists": True}))
                     runner = AgentTaskRunner.__new__(AgentTaskRunner)
                     runner._session_id = session.id
                     runner._sandbox = sandbox
@@ -52,14 +55,22 @@ async def check():
                     async def current():
                         async with uow_factory() as uow:
                             return await uow.session.get_by_id(session.id)
-                    first = await runner._sync_file_to_storage("/a.txt")
+                    async def deliver_fails() -> bool:
+                        try:
+                            await runner._deliver_file("/a.txt")
+                        except Exception:
+                            return True
+                        return False
+                    first = await runner._deliver_file("/a.txt")
                     async with uow_factory() as uow:
-                        await uow.session.add_event(session.id, MessageEvent(attachments=[first]))
+                        await uow.event.add(session.id, MessageEvent(attachments=[first]))
                     sandbox.content = b"v2"
-                    second = await runner._sync_file_to_storage("/a.txt")
+                    second = await runner._deliver_file("/a.txt")
                     saved = await current()
                     assert [f.id for f in saved.files] == [second.id]
-                    assert saved.events[0].attachments[0].id == first.id
+                    async with uow_factory() as uow:
+                        events = await uow.event.list(session.id)
+                    assert events[0].attachments[0].id == first.id
                     data, _ = await storage.download_file(first.id)
                     with data:
                         assert data.read() == b"v1"
@@ -68,11 +79,11 @@ async def check():
                         assert data.read() == b"v2"
                     print("PASS: 同事务替换只留新条目；历史附件读 v1，新副本读 v2")
                     with patch.object(storage, "upload_file", AsyncMock(side_effect=OSError("受控上传失败"))):
-                        assert await runner._sync_file_to_storage("/a.txt") is None
+                        assert await deliver_fails()
                     assert [f.id for f in (await current()).files] == [second.id]
                     print("PASS: 上传失败保留旧条目")
                     with patch.object(DBSessionRepository, "add_file", AsyncMock(side_effect=RuntimeError("受控关联失败"))):
-                        assert await runner._sync_file_to_storage("/a.txt") is None
+                        assert await deliver_fails()
                     assert [f.id for f in (await current()).files] == [second.id]
                     print("PASS: 关联写入失败，真实数据库回滚保留旧条目")
             finally:

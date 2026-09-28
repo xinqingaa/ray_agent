@@ -7,9 +7,10 @@
 """
 import asyncio
 import io
+import json
 import logging
 import uuid
-from typing import List, AsyncGenerator, Callable, BinaryIO, Optional
+from typing import List, Callable, BinaryIO, Optional
 
 from fastapi import UploadFile
 from pydantic import TypeAdapter
@@ -23,27 +24,31 @@ from app.domain.external.task import TaskRunner, Task
 from app.domain.models.app_config import AgentConfig
 from app.domain.models.event import ErrorEvent, Event, MessageEvent, BaseEvent, ToolEvent, ToolEventStatus, \
     BrowserToolContent, SearchToolContent, ShellToolContent, FileToolContent, ProtocolToolContent, \
-    TitleEvent, WaitEvent, DoneEvent, UsageEvent
+    TitleEvent, WaitEvent, DoneEvent, TurnEvent, TurnPhase, CleanupEvent, CleanupTarget
 from app.domain.models.file import File
 from app.domain.models.message import Message
+from app.domain.models.run import RunReason, RunStatus, tools_for_turn
 from app.domain.models.search import SearchResults
 from app.domain.models.session import SessionStatus
-from app.domain.models.token_usage import (
-    TokenUsageTotals,
-    apply_usage_call,
-    reset_turn,
-    stamp_usage_event,
-    totals_from_events,
-)
 from app.domain.models.tool_result import ToolResult
 from app.domain.repositories.uow import IUnitOfWork
-from app.domain.services.flows.agent_loop import AgentLoop, build_default_tools
+from app.domain.services.flows.agent_loop import AgentLoop, RunEndReason, build_default_tools
+from app.domain.services.run_ledger import RunLedger
+from app.domain.services.session_locks import session_lock
 from app.domain.services.task_error import format_public_error
 from app.infrastructure.logging import set_log_session_id
 from app.domain.services.tools.a2a import A2ATool
 from app.domain.services.tools.mcp import MCPTool
 
 logger = logging.getLogger(__name__)
+
+SHELL_EXECUTE_TOOL = "shell_execute"
+STOP_SETTLE_SECONDS = 10.0  # 停止后等待执行协程退出的上限，A2A 的远端取消在协程退出过程中完成
+_LOOP_TERMINALS = (DoneEvent, WaitEvent, ErrorEvent)
+
+
+class _RunClosed(Exception):
+    """运行已被停止或改为终态：本协程不再写入任何事件。"""
 
 
 class AgentTaskRunner(TaskRunner):
@@ -61,6 +66,9 @@ class AgentTaskRunner(TaskRunner):
             browser: Browser,  # 浏览器
             search_engine: SearchEngine,  # 搜索引擎
             sandbox: Sandbox,  # 沙箱
+            ledger: RunLedger,  # 运行与事件的写入入口
+            run_id: str,  # 本任务执行的运行
+            prior_status: Optional[SessionStatus] = None,  # 首条消息到达前会话所处的状态
     ) -> None:
         """构造函数，完成Agent任务运行器的创建"""
         self._uow_factory = uow_factory
@@ -71,7 +79,14 @@ class AgentTaskRunner(TaskRunner):
         self._a2a_tool = a2a_tool
         self._file_storage = file_storage
         self._browser = browser
-        self._token_totals = TokenUsageTotals()
+        self._ledger = ledger
+        self._run_id = run_id
+        self._prior_status = prior_status
+        self._next_turn = 1
+        self._failure_reason: Optional[str] = None
+        self._shell_sessions: List[str] = []  # 本次运行调用过 shell_execute 的 Shell 会话，停止时逐个终止
+        self._invoking = False
+        self._settled = asyncio.Event()
         self._flow = AgentLoop(
             uow_factory=uow_factory,
             llm=llm,
@@ -87,15 +102,27 @@ class AgentTaskRunner(TaskRunner):
             deliver_file=self._deliver_file,
         )
 
-    async def _put_and_add_event(self, task: Task, event: Event) -> None:
-        """往指定任务的消息队列中添加事件"""
-        # 1.往任务的输出消息队列中新增事件
-        event_id = await task.output_stream.put(event.model_dump_json())
-        event.id = event_id
+    @property
+    def run_id(self) -> str:
+        return self._run_id
 
-        # 2.将事件添加到对应的会话中
-        async with self._uow:
-            await self._uow.session.add_event(self._session_id, event)
+    def turn_snapshot(self, index: int, error: str) -> Optional[TurnEvent]:
+        """供停止接口补写被中止轮次的 completed，见 RunLedger.transition。"""
+        return self._flow.turn_snapshot(index, error)
+
+    async def _persist(self, event: BaseEvent) -> None:
+        """事件与它带来的会话字段更新在同一事务写入；运行已是终态时停止本协程。"""
+        apply = None
+        if isinstance(event, TitleEvent):
+            async def apply(uow: IUnitOfWork) -> None:
+                await uow.session.update_title(self._session_id, event.title)
+        elif isinstance(event, MessageEvent):
+            async def apply(uow: IUnitOfWork) -> None:
+                await uow.session.update_latest_message(self._session_id, event.message, event.created_at)
+                await uow.session.increment_unread_message_count(self._session_id)
+        written = await self._ledger.append(self._session_id, [event], run_id=self._run_id, apply=apply)
+        if not written:
+            raise _RunClosed()
 
     @classmethod
     async def _pop_event(cls, task: Task) -> Optional[Event]:
@@ -111,6 +138,14 @@ class AgentTaskRunner(TaskRunner):
         event.id = event_id
 
         return event
+
+    async def _pop_message(self, task: Task) -> Optional[MessageEvent]:
+        """取出输入流里的下一条用户消息；输入流为空时返回 None。"""
+        while not await task.input_stream.is_empty():
+            event = await self._pop_event(task)
+            if isinstance(event, MessageEvent):
+                return event
+        return None
 
     async def _sync_file_to_sandbox(self, file_id: str) -> File:
         """根据文件id将文件同步到沙箱中"""
@@ -281,56 +316,113 @@ class AgentTaskRunner(TaskRunner):
             if not isinstance(event, MessageEvent) or not event.message:
                 continue
             await self._sync_message_attachments_to_sandbox(event)
-            reset_turn(self._token_totals)
             logger.info(f"会话[{self._session_id}] 运行中收到补充消息: {event.message[:50]}...")
             messages.append(self._to_message(event))
         return messages
 
-    async def _run_flow(self, message: Message, task: Optional[Task] = None) -> AsyncGenerator[BaseEvent, None]:
-        """根据消息对象运行 Agent 循环"""
-        # 1.判断传递的消息是否为空
+    def _register_shell(self, event: ToolEvent) -> None:
+        if event.status != ToolEventStatus.CALLING or event.function_name != SHELL_EXECUTE_TOOL:
+            return
+        shell_session = (event.function_args or {}).get("session_id")
+        if isinstance(shell_session, str) and shell_session and shell_session not in self._shell_sessions:
+            self._shell_sessions.append(shell_session)
+
+    async def _process(self, event: MessageEvent, task: Task, prior_status: Optional[SessionStatus]) -> BaseEvent:
+        """运行一条用户消息，逐条写入事件；返回循环的终止事件（Done / Wait / Error），由调用方在会话锁内收尾。"""
+        await self._sync_message_attachments_to_sandbox(event)
+        message = self._to_message(event)
         if not message.message:
             logger.warning(f"AgentTaskRunner接收了一条空消息")
-            yield ErrorEvent(error="空消息错误")
+            self._failure_reason = RunReason.RUNNER_ERROR
+            return ErrorEvent(error="空消息错误")
+        logger.info(f"会话[{self._session_id}] AgentTaskRunner接收到新消息: {message.message[:50]}...")
+
+        drain = lambda: self._drain_injected_messages(task)
+        async for loop_event in self._flow.invoke(
+                message,
+                drain_injected_messages=drain,
+                prior_status=prior_status,
+                first_turn_index=self._next_turn,
+        ):
+            if isinstance(loop_event, _LOOP_TERMINALS):
+                if isinstance(loop_event, ErrorEvent):
+                    reason = self._flow.end_reason
+                    failed = reason is not None and reason not in (RunEndReason.COMPLETED, RunEndReason.WAITING)
+                    self._failure_reason = reason.value if failed else RunReason.RUNNER_ERROR
+                return loop_event
+            if isinstance(loop_event, ToolEvent):
+                self._register_shell(loop_event)
+                await self._handle_tool_event(loop_event)
+            elif isinstance(loop_event, TurnEvent) and loop_event.phase == TurnPhase.STARTED:
+                self._next_turn = loop_event.index + 1
+            await self._persist(loop_event)
+        self._failure_reason = RunReason.RUNNER_ERROR
+        return ErrorEvent(error="Agent 循环未给出终止事件")
+
+    async def _finish(self, outcome: BaseEvent) -> None:
+        """没有待处理输入时，把循环的终止事件与运行状态变化写在同一事务里。"""
+        if isinstance(outcome, DoneEvent):
+            status, reason = RunStatus.COMPLETED, None
+        elif isinstance(outcome, WaitEvent):
+            status, reason = RunStatus.WAITING, None
+        else:
+            status, reason = RunStatus.FAILED, self._failure_reason or RunReason.RUNNER_ERROR
+        await self._ledger.transition(self._session_id, self._run_id, status, reason, events_before=[outcome])
+
+    async def _prepare_run(self) -> None:
+        """记录运行的配置快照；续接已有运行时工具集若有变化，追加一条从下一轮生效的修订。"""
+        async with self._uow:
+            run = await self._uow.run.get(self._run_id)
+        if run is None:
+            raise RuntimeError(f"运行[{self._run_id}]不存在")
+        self._next_turn = run.turns + 1
+        snapshot = await self._flow.config_snapshot()
+        stored = run.config_snapshot or {}
+        if not stored:
+            updated = snapshot
+        elif tools_for_turn(stored, self._next_turn) == snapshot["tools"]:
             return
+        else:
+            revisions = [*(stored.get("tool_revisions") or []),
+                         {"from_turn": self._next_turn, "tools": snapshot["tools"]}]
+            updated = {**stored, "tool_revisions": revisions}
+        async with self._uow:
+            await self._uow.run.save_snapshot(self._run_id, updated)
 
-        # 2.调用流并运行获取事件信息
-        drain = (lambda: self._drain_injected_messages(task)) if task is not None else None
-        async for event in self._flow.invoke(message, drain_injected_messages=drain):
-            # 3.工具事件补充展示内容，用量事件补充累计
-            if isinstance(event, ToolEvent):
-                await self._handle_tool_event(event)
-            elif isinstance(event, UsageEvent):
-                apply_usage_call(self._token_totals, event)
-                event = stamp_usage_event(event, self._token_totals)
+    async def stop_processes(self, run_id: str, settle_seconds: float = STOP_SETTLE_SECONDS) -> List[CleanupTarget]:
+        """停止后的收尾：逐个终止登记的 Shell 会话，等待协程退出后收集 A2A 远端取消结果，写入一条 cleanup 事件。
 
-            # 4.将事件直接返回
-            yield event
-
-    def _schedule_detached(self, coro) -> None:
-        """把收尾写库放到新 Task，避开当前 Task 上的 cancel scope。"""
-        try:
-            asyncio.get_running_loop().create_task(coro)
-        except RuntimeError:
-            logger.warning(f"会话[{self._session_id}] 事件循环已关闭，无法后台持久化")
-            coro.close()
-
-    async def _persist_terminal_state(
-            self,
-            task: Task,
-            status: SessionStatus,
-            event: Event,
-    ) -> None:
-        """用全新 UoW 写入终态事件和会话状态，不复用可能已被取消的连接。"""
-        try:
-            event_id = await task.output_stream.put(event.model_dump_json())
-            event.id = event_id
-            uow = self._uow_factory()
-            async with uow:
-                await uow.session.add_event(self._session_id, event)
-                await uow.session.update_status(self._session_id, status)
-        except Exception as e:
-            logger.warning(f"会话[{self._session_id}] 任务终态持久化失败: {e}")
+        收尾失败只记录在事件里，不改变运行终态。
+        """
+        targets: List[CleanupTarget] = []
+        for shell_session in list(self._shell_sessions):
+            try:
+                result = await self._sandbox.kill_process(shell_session)
+                targets.append(CleanupTarget(kind="shell", id=shell_session, success=bool(result.success),
+                                             message=result.message or ""))
+            except Exception as e:
+                logger.warning(f"会话[{self._session_id}] 终止Shell会话[{shell_session}]失败: {e}")
+                targets.append(CleanupTarget(kind="shell", id=shell_session, success=False, message=str(e)))
+        if self._invoking:
+            try:
+                await asyncio.wait_for(self._settled.wait(), settle_seconds)
+            except asyncio.TimeoutError:
+                logger.warning(f"会话[{self._session_id}] 停止后 {settle_seconds}s 内执行协程未退出")
+        gateway = getattr(self._a2a_tool, "gateway", None)
+        for agent_id, outcome in dict(getattr(gateway, "last_cancellations", None) or {}).items():
+            targets.append(CleanupTarget(
+                kind="a2a",
+                id=str(agent_id),
+                success=outcome.get("remote_cancel") == "canceled",
+                message=json.dumps(outcome, ensure_ascii=False),
+            ))
+        if targets:
+            try:
+                await self._ledger.append(self._session_id, [CleanupEvent(targets=targets)], run_id=run_id,
+                                          after_terminal=True)
+            except Exception as e:
+                logger.warning(f"会话[{self._session_id}] 写入停止收尾事件失败: {e}")
+        return targets
 
     async def _cleanup_tools(self) -> None:
         """关闭外部协议资源；MCP 上下文由各自连接任务负责退出。"""
@@ -345,94 +437,65 @@ class AgentTaskRunner(TaskRunner):
         except Exception as e:
             logger.warning(f"清理A2A工具资源时出错: {e}")
 
-    async def _restore_token_totals(self) -> None:
-        """从已保存事件恢复会话/本轮累计，避免新任务实例把历史用量清零。"""
-        async with self._uow:
-            session = await self._uow.session.get_by_id(self._session_id)
-        events = session.events if session else []
-        self._token_totals = totals_from_events(events)
-
     async def invoke(self, task: Task) -> None:
-        """根据传递的任务处理agent消息队列并运行agent流"""
+        """处理输入流里的消息并运行 Agent 循环；运行状态的每次变化都经由 RunLedger 与事件同事务写入。"""
+        self._invoking = True
         try:
-            # 1.确保沙箱、mcp、a2a均初始化完成
+            # 1.确保沙箱、mcp、a2a均初始化完成，并记录运行的配置快照
             set_log_session_id(self._session_id)
-            logger.info(f"会话[{self._session_id}] AgentTaskRunner任务处理开始")
+            logger.info(f"会话[{self._session_id}] AgentTaskRunner任务处理开始 run={self._run_id}")
             await self._sandbox.ensure_sandbox()
             await self._mcp_tool.initialize()
             await self._a2a_tool.initialize()
-            await self._restore_token_totals()
+            await self._prepare_run()
 
-            had_error = False
-            # 2.循环读取任务中的输入消息队列；运行中到达的消息由循环在模型请求前取走，不再中断当前运行
-            while not await task.input_stream.is_empty():
-                # 3.从输入流中获取数据
-                event = await self._pop_event(task)
-                if event is None:
-                    continue
-                message = ""
-
-                # 4.判断事件类型是否为消息事件，如果是则处理消息并将附件同步到沙箱中
-                if isinstance(event, MessageEvent):
-                    message = event.message or ""
-                    await self._sync_message_attachments_to_sandbox(event)
-                    logger.info(f"会话[{self._session_id}] AgentTaskRunner接收到新消息: {message[:50]}...")
-                    reset_turn(self._token_totals)
-
-                # 5.将消息事件转换称消息对象
-                message_obj = Message(
-                    message=message,
-                    attachments=[attachment.filepath for attachment in event.attachments]
-                )
-
-                # 6.传递消息对象并运行 Agent 循环
-                async for event in self._run_flow(message_obj, task):
-                    # 7.将得到的事件添加到消息队列中
-                    await self._put_and_add_event(task, event)
-                    if isinstance(event, ErrorEvent):
-                        had_error = True
-
-                    # 8.如果事件类型为标题事件则更新会话标题
-                    if isinstance(event, TitleEvent):
-                        async with self._uow:
-                            await self._uow.session.update_title(self._session_id, event.title)
-                    elif isinstance(event, MessageEvent):
-                        # 9.如果事件为消息事件，则更新最新消息并新增未读消息数
-                        async with self._uow:
-                            await self._uow.session.update_latest_message(
-                                self._session_id,
-                                event.message,
-                                event.created_at,
-                            )
-                            await self._uow.session.increment_unread_message_count(self._session_id)
-                    elif isinstance(event, WaitEvent):
-                        # 10.如果事件为等待，则更新会话状态并终止程序
-                        async with self._uow:
-                            await self._uow.session.update_status(self._session_id, SessionStatus.WAITING)
+            # 2.逐条处理输入消息；运行中到达的消息由循环在模型请求前取走
+            prior_status = self._prior_status
+            event = await self._pop_message(task)
+            if event is None:
+                self._failure_reason = RunReason.RUNNER_ERROR
+                await self._finish(ErrorEvent(error="未收到任务消息"))
+                return
+            while True:
+                outcome = await self._process(event, task, prior_status)
+                # 3.收尾与“是否还有待处理输入”的判断和 chat 的路由在同一把会话锁内完成，消息不会落在两者之间
+                async with session_lock(self._session_id):
+                    event = await self._pop_message(task)
+                    if event is None:
+                        await self._finish(outcome)
                         return
-
-            # 11.有错误事件则标失败，同一会话仍可再发消息重跑
-            async with self._uow:
-                await self._uow.session.update_status(
-                    self._session_id,
-                    SessionStatus.FAILED if had_error else SessionStatus.COMPLETED,
-                )
+                    if isinstance(outcome, WaitEvent):
+                        # 提问之后已到达的消息就是回复：运行经过 waiting 后继续
+                        waited = await self._ledger.transition(
+                            self._session_id, self._run_id, RunStatus.WAITING, events_before=[outcome])
+                        if waited is None or await self._ledger.transition(
+                                self._session_id, self._run_id, RunStatus.RUNNING) is None:
+                            raise _RunClosed()
+                        prior_status = SessionStatus.WAITING
+                    else:
+                        # 完成或失败后仍有消息：同一运行继续处理，运行终态以最后一条消息的结果为准
+                        await self._persist(outcome)
+                        prior_status = SessionStatus.COMPLETED if isinstance(outcome, DoneEvent) \
+                            else SessionStatus.FAILED
+        except _RunClosed:
+            logger.info(f"会话[{self._session_id}] 运行[{self._run_id}]已是终态，执行协程退出")
         except asyncio.CancelledError:
-            # 12.当前 Task 已被取消（例如 stop_session），不能再 await 同一条连接。
-            # 终态写入放到新 Task，否则连接无法还回池子。
+            # 停止接口已在同一事务里写好 cancelled 与终态事件；这里不再写库
             logger.info(f"会话[{self._session_id}] AgentTaskRunner任务运行取消")
-            self._schedule_detached(
-                self._persist_terminal_state(task, SessionStatus.COMPLETED, DoneEvent())
-            )
             raise
         except Exception as e:
-            # 13.记录日志并往任务队列/消息队列中写入异常事件并更新会话状态
             logger.exception(f"会话[{self._session_id}] AgentTaskRunner运行出错: {str(e)}")
-            await self._put_and_add_event(task, ErrorEvent(error=format_public_error(e)))
-            async with self._uow:
-                await self._uow.session.update_status(self._session_id, SessionStatus.FAILED)
+            try:
+                await self._ledger.transition(
+                    self._session_id, self._run_id, RunStatus.FAILED, RunReason.RUNNER_ERROR,
+                    events_before=[ErrorEvent(error=format_public_error(e))],
+                    turn_closer=self.turn_snapshot,
+                )
+            except Exception as persist_error:
+                logger.warning(f"会话[{self._session_id}] 写入运行失败状态失败: {persist_error}")
         finally:
-            # 14.在同一个asyncio Task上下文中清理MCP/A2A工具资源
+            self._settled.set()
+            # 在同一个asyncio Task上下文中清理MCP/A2A工具资源
             # 这是关键：streamablehttp_client内部使用anyio.create_task_group()，
             # 要求在同一个Task中进入和退出cancel scope，
             # 所以必须在invoke()的finally块（即初始化MCP的同一个Task）中清理

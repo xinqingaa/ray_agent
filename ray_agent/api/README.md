@@ -77,7 +77,7 @@ uv run --locked python -m pytest tests/core/test_task_execution_control.py tests
 uv run --locked python -m pytest tests/core/test_state_persistence.py
 ```
 
-状态用例核对工具结果先写入记忆再发出 `called` 事件（在 `called` 后停止，续接时保留真实结果）、输出发布后仓库保存失败，以及会话序列化后续接时计划快照与计划 ID 保持。存储、传输、模型与沙箱使用替身；其中写入替身只操作 pytest 临时目录。它们不连接数据库或 Redis，也不模拟 API 进程崩溃、事务提交故障和多执行者接管。
+状态用例核对工具结果先写入记忆再发出 `called` 事件（在 `called` 后停止，续接时保留真实结果）、事件写入失败时不发布通知，以及会话序列化后续接时计划快照与计划 ID 保持。存储、传输、模型与沙箱使用替身；其中写入替身只操作 pytest 临时目录。它们不连接数据库或 Redis，也不模拟 API 进程崩溃和多执行者接管；真实事务回滚见 `test_run_events_pg.py`。
 
 事件与用量可定向运行：
 
@@ -85,7 +85,15 @@ uv run --locked python -m pytest tests/core/test_state_persistence.py
 uv run --locked python -m pytest tests/core/test_event_observability.py tests/core/test_llm_usage.py
 ```
 
-事件用例核对实时与历史映射一致性、字段投影及秒级时间、工具耗时字段、返回了响应的模型尝试（含空回复）都有用量而传输失败没有，以及一对工具事件只对应一次执行。模型、沙箱与存储均为替身，不验证外部计费或端到端断连。前端解析和时间线归并观察见 [UI 指南](../ui/README.md#事件观察)。
+事件用例核对实时与历史映射一致性、字段投影及毫秒时间、工具耗时字段、返回了响应的模型尝试（含空回复）用量记在轮次完成事件上而传输失败没有，以及一对工具事件只对应一次执行。模型、沙箱与存储均为替身，不验证外部计费或端到端断连。前端解析和时间线归并观察见 [UI 指南](../ui/README.md#事件观察)。
+
+轮次事件与请求重建可定向运行：
+
+```bash
+uv run --locked python -m pytest tests/core/test_turn_events_rebuild.py
+```
+
+这些用例用内存替身核对轮次成对、终态补写、汇总与重建结果，不连接数据库。序号并发、活动运行唯一、提交失败不发布通知、启动扫描、SSE 补齐和快照往返需要真实临时 PostgreSQL，见 [tests/core/test_run_events_pg.py](tests/core/test_run_events_pg.py)：设置 `RAY_TEST_DATABASE_URI`（`postgresql+asyncpg://…`）后再运行该文件；未设置时 6 项跳过。每个测试会清空 `public` schema 并执行 `alembic upgrade head`，不要指向开发库。
 
 ### 脚本化模型替身
 
@@ -106,7 +114,7 @@ uv run --locked python -m scripts.eval --tasks E2,E4 --repeat 3 --label w1
 uv run --locked python -m scripts.eval --label w1 --baseline ../../docs/plan/evidence/w0-baseline-2026-09-28-961005d.json
 ```
 
-默认经网关 `http://localhost:8088/api` 访问 API，报告写入 `docs/plan/evidence/<label>-<日期>-<提交短哈希>.{json,md}`，同名文件会被覆盖，调试时用 `--output-dir` 写到临时目录。`--baseline` 指定另一份报告 JSON 时，Markdown 增加按任务与运行序号配对的指标对比表；结论文字不自动生成。E5 在宿主机自启静态页面，E6 以子进程运行 [MCP 夹具](tests/protocols/fixture_server.py)，两者都通过 `--host-address`（默认 Docker Desktop 的 `host.docker.internal`）让沙箱与 API 容器访问宿主机；访问不到时记为跳过。E4 停止后留在沙箱中的循环进程随沙箱 TTL 回收。
+默认经网关 `http://localhost:8088/api` 访问 API，报告写入 `docs/plan/evidence/<label>-<日期>-<提交短哈希>.{json,md}`，同名文件会被覆盖，调试时用 `--output-dir` 写到临时目录。`--baseline` 指定另一份报告 JSON 时，Markdown 增加按任务与运行序号配对的指标对比表；结论文字不自动生成。E5 在宿主机自启静态页面，E6 以子进程运行 [MCP 夹具](tests/protocols/fixture_server.py)，两者都通过 `--host-address`（默认 Docker Desktop 的 `host.docker.internal`）让沙箱与 API 容器访问宿主机；访问不到时记为跳过。E4 停止后应终止本次运行登记的 Shell 会话；沙箱容器本身仍随 TTL 回收。
 
 新任务在 `scripts/eval/tasks.py` 用 `@register("E7")` 注册返回 `TaskSpec` 的函数：声明各轮消息、上传材料、提问回复（`ReplyOnWait`）、定时停止（`StopAfter`）、环境准备与检查函数。离线部分（SSE 解析、指标统计、注册顺序、基线对比表）的测试不连接服务：
 
@@ -114,7 +122,7 @@ uv run --locked python -m scripts.eval --label w1 --baseline ../../docs/plan/evi
 uv run --locked python -m pytest tests/core/test_eval_script.py
 ```
 
-指标来自 `GET /sessions/{id}` 读回的持久化事件：模型调用次数按 usage 事件计数，工具调用按 `called` 工具事件计数。评测只验证任务结果，不统计成功率，也不代替页面验收。
+指标来自 `GET /sessions/{id}` 读回的运行与事件：模型调用次数与 tokens 取运行汇总（终态 `run` 事件的 summary，仍活动的运行取运行行计数），并与 `turn(completed)` 逐轮累加核对；工具调用按 `called` 工具事件计数。评测只验证任务结果，不统计成功率，也不代替页面验收。
 
 ### 文件与产物观察
 
@@ -154,6 +162,8 @@ uv run --locked alembic upgrade head
 ```
 
 生成后检查迁移内容再应用。接口或事件变化还需验证客户端解析；任务与协议变化需运行对应真实流程，不能只依赖状态接口测试。
+
+迁移 `5b7e2c9d4a10` 建立 `runs`、`events` 表并删除 `sessions.events`，不把旧 JSONB 事件搬进新表。已有库执行 `alembic upgrade head` 后会话行仍在，事件历史会被丢掉。要清空后重新初始化，只能在明确要删除数据库和文件卷时按 [Docker 操作说明](../DOCKER.md) 使用 `docker compose down -v`，再重新启动。
 
 ## 排查入口
 

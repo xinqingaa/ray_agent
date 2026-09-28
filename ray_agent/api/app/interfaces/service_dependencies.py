@@ -16,11 +16,13 @@ from app.application.services.file_service import FileService
 from app.application.services.session_service import SessionService
 from app.application.services.status_service import StatusService
 from app.domain.external.file_storage import FileStorage
+from app.domain.services.run_ledger import RunLedger
 from app.infrastructure.external.file_storage.cos_file_storage import CosFileStorage
 from app.infrastructure.external.file_storage.local_file_storage import LocalFileStorage
 from app.infrastructure.external.health_checker.postgres_health_checker import PostgresHealthChecker
 from app.infrastructure.external.health_checker.redis_health_checker import RedisHealthChecker
 from app.infrastructure.external.llm.openai_llm import OpenAILLM
+from app.infrastructure.external.message_queue.redis_event_notifier import RedisEventNotifier
 from app.infrastructure.external.sandbox.docker_sandbox import DockerSandbox
 from app.infrastructure.external.search.bing_search import BingSearchEngine
 from app.infrastructure.external.task.redis_stream_task import RedisStreamTask
@@ -83,6 +85,11 @@ def get_session_service() -> SessionService:
     return SessionService(uow_factory=get_uow, sandbox_cls=DockerSandbox)
 
 
+def get_run_ledger() -> RunLedger:
+    """运行与事件的写入入口：提交后经 Redis pub/sub 通知订阅方"""
+    return RunLedger(uow_factory=get_uow, notifier=RedisEventNotifier())
+
+
 def get_agent_service() -> AgentService:
     # 1.获取应用配置信息(读取配置需要实时获取,所以不配置缓存)
     app_config_repository = FileAppConfigRepository(config_path=settings.app_config_filepath)
@@ -103,4 +110,6 @@ def get_agent_service() -> AgentService:
         task_cls=RedisStreamTask,
         search_engine=BingSearchEngine(),
         file_storage=file_storage,
+        ledger=get_run_ledger(),
+        notifier=RedisEventNotifier(),
     )

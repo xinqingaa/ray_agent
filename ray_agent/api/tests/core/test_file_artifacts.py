@@ -137,7 +137,6 @@ def test_remove_file_filters_by_id_not_path():
             title="",
             unread_message_count=0,
             latest_message="",
-            events=[],
             files=[
                 File(id="file-1", filepath="/a.txt").model_dump(mode="json"),
                 File(id="file-2", filepath="/a.txt").model_dump(mode="json"),

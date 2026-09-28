@@ -6,13 +6,14 @@
 @File    : session.py
 """
 from datetime import datetime
-from typing import List, Optional
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
 from app.domain.models.file import File
+from app.domain.models.run import Run
 from app.domain.models.session import SessionStatus
-from app.interfaces.schemas.event import AgentSSEEvent
+from app.interfaces.schemas.event import AgentSSEEvent, to_epoch_ms
 
 
 class CreateSessionResponse(BaseModel):
@@ -37,18 +38,66 @@ class ListSessionResponse(BaseModel):
 
 class ChatRequest(BaseModel):
     """聊天请求结构"""
-    message: Optional[str] = None  # 人类消息
+    message: Optional[str] = None  # 人类消息，不能为空
     attachments: Optional[List[str]] = Field(default_factory=list)  # 附件列表(传递的是文件id列表)
-    event_id: Optional[str] = None  # 最新事件id
-    timestamp: Optional[int] = None  # 当前时间戳
+    timestamp: Optional[int] = None  # 当前时间戳（秒）
+
+
+class ChatResponse(BaseModel):
+    """chat 受理结果：消息事件的 seq 与处理它的运行；执行过程通过 GET /sessions/{id}/events 观察。"""
+    run_id: str
+    seq: int
+    route: str  # started / resumed / injected
+
+
+class RunItem(BaseModel):
+    """运行摘要；时间为毫秒时间戳。"""
+    run_id: str
+    status: str
+    reason: Optional[str] = None
+    started_at: int
+    ended_at: Optional[int] = None
+    turns: int = 0
+    model_requests: int = 0
+    tool_calls: int = 0
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    cached_tokens: Optional[int] = None
+
+    @classmethod
+    def from_run(cls, run: Run) -> "RunItem":
+        return cls(
+            run_id=run.id,
+            status=run.status.value,
+            reason=run.reason,
+            started_at=to_epoch_ms(run.started_at),
+            ended_at=to_epoch_ms(run.ended_at) if run.ended_at else None,
+            turns=run.turns,
+            model_requests=run.model_requests,
+            tool_calls=run.tool_calls,
+            prompt_tokens=run.prompt_tokens,
+            completion_tokens=run.completion_tokens,
+            cached_tokens=run.cached_tokens,
+        )
 
 
 class GetSessionResponse(BaseModel):
-    """获取会话详情响应结构"""
+    """获取会话详情响应结构。events 为 after_seq 之后按 seq 升序的事件；last_seq 是会话当前最大 seq。"""
     session_id: str
     title: Optional[str] = None
     status: SessionStatus
+    runs: List[RunItem] = Field(default_factory=list)
     events: List[AgentSSEEvent] = Field(default_factory=list)
+    last_seq: int = 0
+
+
+class TurnRequestResponse(BaseModel):
+    """由运行快照与事件重建的某一轮模型请求（只读调试）。"""
+    run_id: str
+    index: int
+    turn_seq: int
+    messages: List[Dict[str, Any]]
+    tools: List[Dict[str, Any]]
 
 
 class GetSessionFilesResponse(BaseModel):

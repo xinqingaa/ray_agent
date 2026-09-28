@@ -1,20 +1,24 @@
 """交接快照与恢复依据：固定模型，替换存储/传输/沙箱。"""
 import asyncio
-import json
 from unittest.mock import AsyncMock
 
 import pytest
 
-from app.domain.models.event import MessageEvent, PlanEvent, ToolEvent
+from app.domain.models.event import MessageEvent, PlanEvent, ToolEvent, latest_plan
 from app.domain.models.message import Message
+from app.domain.models.run import RunStatus
 from app.domain.models.session import Session, SessionStatus
 from app.domain.models.tool_result import ToolResult
 from tests.support.loop_harness import (
+    FakeEventRepository,
     assert_no_dangling,
     input_task,
     make_loop,
     make_runner,
     memory_messages,
+    restore_session,
+    start_run,
+    store_of,
     submit,
     tool_results,
 )
@@ -48,7 +52,7 @@ def test_tool_result_is_saved_before_called_event_and_stop_keeps_it(tmp_path, re
             assert len(h.llm.requests) == 2
             return
         # 在 called 之后停止：续接时已执行的调用保留真实结果，不会被补成“未执行”
-        saved.status = SessionStatus.COMPLETED
+        saved.status = SessionStatus.CANCELLED
         restored = make_loop([text('继续完成')], session=saved)
         resumed = restored.loop.invoke(Message(message='继续'))
         await resumed.__anext__()
@@ -61,16 +65,15 @@ def test_tool_result_is_saved_before_called_event_and_stop_keeps_it(tmp_path, re
     asyncio.run(asyncio.wait_for(run(), 5))
 
 
-def test_output_publication_survives_repository_failure():
+def test_failed_event_write_publishes_nothing(monkeypatch):
+    """写入失败时不发通知，异常交给调用方；真实数据库上的事务回滚见 PostgreSQL 验收测试。"""
     async def run():
         h = make_loop([])
-        runner, task = make_runner(h), input_task()
-        runner._uow.session.add_event = AsyncMock(side_effect=RuntimeError('受控保存失败'))
+        monkeypatch.setattr(FakeEventRepository, 'add', AsyncMock(side_effect=RuntimeError('受控保存失败')))
         with pytest.raises(RuntimeError, match='受控保存失败'):
-            await runner._put_and_add_event(task, MessageEvent(message='观察结果'))
-        assert len(task.output_stream.history) == 1
-        assert json.loads(task.output_stream.history[0])['message'] == '观察结果'
-        assert h.session.events == []
+            await h.ledger.append(h.session.id, [MessageEvent(message='观察结果')])
+        assert h.notifier.published == []
+        assert h.events == []
     asyncio.run(asyncio.wait_for(run(), 5))
 
 
@@ -82,12 +85,12 @@ def test_wait_resume_after_serialization_keeps_plan_snapshot_and_identity():
             ScriptedToolCall('message_ask_user', {'text': '路径？'}, id='ask-1'),
         ])])
         task = input_task()
-        await submit(task, '核对文件')
-        await make_runner(first).invoke(task)
-        restored = Session.model_validate_json(first.session.model_dump_json())
+        waiting = await start_run(first, task, '核对文件')
+        await make_runner(first, run=waiting).invoke(task)
+        restored = restore_session(first.session)
         assert restored is not first.session
         assert restored.status == 'waiting'
-        snapshot = restored.get_latest_plan()
+        snapshot = latest_plan(store_of(restored).events)
         assert [s.status for s in snapshot.steps] == ['running', 'pending']
 
         done_plan = [{'step': '确认路径', 'status': 'completed'}, {'step': '读取文件', 'status': 'completed'}]
@@ -99,11 +102,13 @@ def test_wait_resume_after_serialization_keeps_plan_snapshot_and_identity():
             text('完成'),
         ], session=restored)
         task2 = input_task()
+        reply = MessageEvent(role='user', message='/hello.txt')
+        resumed = await second.ledger.transition(restored.id, waiting.id, RunStatus.RUNNING, events_after=[reply])
         await submit(task2, '/hello.txt')
-        await make_runner(second).invoke(task2)
+        await make_runner(second, run=resumed, prior_status=SessionStatus.WAITING).invoke(task2)
         assert restored.status == 'completed'
         assert first.session.status == 'waiting'
-        plans = [e.plan for e in restored.events if isinstance(e, PlanEvent)]
+        plans = [e.plan for e in second.events if isinstance(e, PlanEvent)]
         assert len(plans) == 2 and plans[0].id == plans[1].id
         assert [s.status for s in plans[-1].steps] == ['completed', 'completed']
         assert tool_results(second.llm.requests[0].messages)['ask-1']['data']['reply'] == '/hello.txt'

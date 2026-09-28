@@ -269,7 +269,7 @@ export function createSSEConnection(
 }
 
 /**
- * 创建流式 SSE 连接（支持 POST 请求）
+ * 创建流式 SSE 连接（默认 POST；`method: "GET"` 时不发送请求体）
  *
  * @param endpoint  接口路径
  * @param data      请求体
@@ -288,11 +288,13 @@ export async function createSSEStream(
     timeout = API_CONFIG.timeout,
     headers = {},
     signal: externalSignal,
+    method = "POST",
     ...fetchOptions
   } = options || {};
+  const hasBody = method !== "GET";
 
   const mergedHeaders: HeadersInit = {
-    "Content-Type": "application/json",
+    ...(hasBody ? { "Content-Type": "application/json" } : {}),
     Accept: "text/event-stream",
     ...headers,
   };
@@ -324,9 +326,9 @@ export async function createSSEStream(
   try {
     const response = await fetch(url, {
       ...fetchOptions,
-      method: "POST",
+      method,
       headers: mergedHeaders,
-      body: JSON.stringify(data),
+      body: hasBody ? JSON.stringify(data) : undefined,
       signal: controller.signal,
     });
 

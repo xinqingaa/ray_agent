@@ -43,12 +43,12 @@ class Task(Protocol):
 
     @property
     def input_stream(self) -> MessageQueue:
-        """只读属性，返回任务的输入流"""
+        """只读属性，返回任务的输入流：提交消息与运行中补充消息；输出不再经过 Redis 流，事件以数据库为事实源"""
         ...
 
     @property
-    def output_stream(self) -> MessageQueue:
-        """只读属性，返回任务的输出流"""
+    def task_runner(self) -> TaskRunner:
+        """只读属性，返回执行本任务的运行器"""
         ...
 
     @property

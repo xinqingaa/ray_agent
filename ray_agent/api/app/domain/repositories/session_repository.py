@@ -8,7 +8,6 @@
 from datetime import datetime
 from typing import Protocol, List, Optional
 
-from app.domain.models.event import BaseEvent
 from app.domain.models.file import File
 from app.domain.models.memory import Memory
 from app.domain.models.session import Session, SessionStatus
@@ -55,10 +54,6 @@ class SessionRepository(Protocol):
 
     async def update_status(self, session_id: str, status: SessionStatus) -> None:
         """根据传递的会话id更新会话状态"""
-        ...
-
-    async def add_event(self, session_id: str, event: BaseEvent) -> None:
-        """往会话中新增事件"""
         ...
 
     async def add_file(self, session_id: str, file: File) -> None:

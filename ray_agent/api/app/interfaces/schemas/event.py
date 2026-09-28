@@ -11,27 +11,33 @@ from typing import Optional, Dict, Any, Self, Type, Literal, List, Union, get_ar
 
 from pydantic import BaseModel, Field, ConfigDict
 
-from app.domain.models.event import Event, PlanEvent, ToolEventStatus, ToolEvent, StepEvent
+from app.domain.models.event import Event, PlanEvent, ToolEventStatus, ToolEvent, StepEvent, ContextEvent, \
+    TurnUsage
 from app.domain.models.file import File
 from app.domain.models.plan import ExecutionStatus
 
+_BASE_FIELDS = {"id", "type", "created_at", "seq", "run_id"}
+
+
+def to_epoch_ms(value: datetime) -> int:
+    return int(value.timestamp() * 1000)
+
 
 class BaseEventData(BaseModel):
-    """基础事件数据"""
+    """基础事件数据。seq 是会话内序号（SSE 的 id），created_at 是毫秒时间戳。"""
     event_id: Optional[str] = None  # 事件id
-    created_at: datetime = Field(default_factory=datetime.now)  # 事件时间
-
-    # pydantic v2写法，序列化时将datetime转换为时间戳
-    model_config = ConfigDict(json_encoders={
-        datetime: lambda v: int(v.timestamp())
-    })
+    seq: Optional[int] = None
+    run_id: Optional[str] = None
+    created_at: int = 0  # 事件时间，毫秒时间戳
 
     @classmethod
     def base_event_data(cls, event: Event) -> Dict[str, Any]:
         """类方法，用于将事件Domain模型转换成基础事件数据字典"""
         return {
             "event_id": event.id,
-            "created_at": int(event.created_at.timestamp()),
+            "seq": event.seq,
+            "run_id": event.run_id,
+            "created_at": to_epoch_ms(event.created_at),
         }
 
     @classmethod
@@ -39,7 +45,7 @@ class BaseEventData(BaseModel):
         """从事件Domain模型中构建基础事件数据"""
         return cls(
             **cls.base_event_data(event),
-            **event.model_dump(mode="json", exclude={"id", "type", "created_at"}),
+            **event.model_dump(mode="json", exclude=_BASE_FIELDS),
         )
 
 
@@ -63,12 +69,7 @@ class BaseSSEEvent(BaseModel):
 
 class CommonEventData(BaseEventData):
     """通用事件数据，让结构允许填充额外的数据"""
-    model_config = ConfigDict(
-        json_encoders={
-            datetime: lambda v: int(v.timestamp()),
-        },
-        extra="allow",
-    )
+    model_config = ConfigDict(extra="allow")
 
 
 class CommonSSEEvent(BaseSSEEvent):
@@ -217,26 +218,62 @@ class ErrorSSEEvent(BaseSSEEvent):
     data: ErrorEventData
 
 
-class UsageEventData(BaseEventData):
-    """模型用量事件数据。available 为 false 表示服务未返回 usage。"""
-    agent: str = ""
-    available: bool = False
-    prompt_tokens: Optional[int] = None
-    completion_tokens: Optional[int] = None
-    total_tokens: Optional[int] = None
-    session_prompt_tokens: int = 0
-    session_completion_tokens: int = 0
-    session_total_tokens: int = 0
-    turn_prompt_tokens: int = 0
-    turn_completion_tokens: int = 0
-    turn_total_tokens: int = 0
+class TurnEventData(BaseEventData):
+    """轮次边界事件数据，字段含义见领域模型 TurnEvent。"""
+    phase: Literal["started", "completed"]
+    index: int
+    context_estimate: Optional[Dict[str, Any]] = None
     context_window: Optional[int] = None
+    model_ms: Optional[int] = None
+    attempts: Optional[int] = None
+    usage: Optional[TurnUsage] = None
+    finish_reason: Optional[str] = None
+    tool_call_ids: List[str] = Field(default_factory=list)
+    tools_ms: Optional[int] = None
+    error: Optional[str] = None
 
 
-class UsageSSEEvent(BaseSSEEvent):
-    """模型用量流式事件"""
-    event: Literal["usage"] = "usage"
-    data: UsageEventData
+class TurnSSEEvent(BaseSSEEvent):
+    """轮次边界流式事件"""
+    event: Literal["turn"] = "turn"
+    data: TurnEventData
+
+
+class RunEventData(BaseEventData):
+    """运行状态变化事件数据；终态时 summary 为运行汇总。"""
+    status: str
+    reason: Optional[str] = None
+    summary: Optional[Dict[str, Any]] = None
+
+
+class RunSSEEvent(BaseSSEEvent):
+    """运行状态流式事件"""
+    event: Literal["run"] = "run"
+    data: RunEventData
+
+
+class ContextEventData(BaseEventData):
+    """模型历史变化的轻量投影：消息全文只在数据库与请求重建接口里，推送时只给条数与角色。"""
+    op: Literal["append", "compact"]
+    message_count: int = 0
+    roles: List[str] = Field(default_factory=list)
+
+
+class ContextSSEEvent(BaseSSEEvent):
+    """模型历史变化流式事件"""
+    event: Literal["context"] = "context"
+    data: ContextEventData
+
+    @classmethod
+    def from_event(cls, event: ContextEvent) -> Self:
+        return cls(
+            data=ContextEventData(
+                **BaseEventData.base_event_data(event),
+                op=event.op.value,
+                message_count=len(event.messages),
+                roles=[str(message.get("role", "")) for message in event.messages],
+            )
+        )
 
 
 # 定义Agent流式事件类型集合
@@ -250,7 +287,9 @@ AgentSSEEvent = Union[
     DoneSSEEvent,
     ErrorSSEEvent,
     WaitSSEEvent,
-    UsageSSEEvent,
+    TurnSSEEvent,
+    RunSSEEvent,
+    ContextSSEEvent,
 ]
 
 

@@ -7,10 +7,16 @@ from pydantic import BaseModel, Field
 
 
 class LLMUsage(BaseModel):
-    """单次 Chat Completions 调用的 token 用量；字段缺失表示服务未返回。"""
+    """单次 Chat Completions 调用的 token 用量；字段缺失表示服务未返回。
+
+    cached_tokens 取 ``prompt_tokens_details.cached_tokens``（DeepSeek 为 ``prompt_cache_hit_tokens``），
+    reasoning_tokens 取 ``completion_tokens_details.reasoning_tokens``。
+    """
     prompt_tokens: Optional[int] = None
     completion_tokens: Optional[int] = None
     total_tokens: Optional[int] = None
+    cached_tokens: Optional[int] = None
+    reasoning_tokens: Optional[int] = None
 
     @property
     def available(self) -> bool:

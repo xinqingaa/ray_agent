@@ -5,6 +5,7 @@ import type {
   SessionsData,
   CreateSessionParams,
   ChatParams,
+  ChatAccepted,
   SessionFile,
   ViewFileParams,
   ViewShellParams,
@@ -113,24 +114,27 @@ export const sessionApi = {
   },
 
   /**
-   * 获取会话详情（含事件列表，与 chat 流式响应格式一致）
-   * 若后端在 GET /sessions/:id 中返回 events 字段则一并返回
+   * 获取会话详情：运行列表、事件（按 seq 升序）与 last_seq
    */
   getSessionDetail: (sessionId: string): Promise<SessionDetail> => {
     return get<SessionDetail>(`/sessions/${sessionId}`);
   },
 
   /**
-   * 发起聊天请求（SSE 流式）
-   * @param sessionId 会话 ID
-   * @param params 聊天参数
-   * @param onEvent 事件处理器
-   * @param onError 错误处理器
+   * 提交消息；返回受理的运行与消息 seq，事件通过 streamEvents 订阅
+   */
+  chat: (sessionId: string, params: ChatParams): Promise<ChatAccepted> => {
+    return post<ChatAccepted>(`/sessions/${sessionId}/chat`, params);
+  },
+
+  /**
+   * 订阅会话事件（SSE）：先补发 seq 大于 afterSeq 的历史事件，再推送新事件，
+   * SSE id 即 seq。流结束或出错时回调 onError，由调用方按最新 seq 重连。
    * @returns 清理函数
    */
-  chat: (
+  streamEvents: (
     sessionId: string,
-    params: ChatParams,
+    afterSeq: number,
     onEvent: SSEEventHandler,
     onError?: (error: Error) => void
   ): (() => void) => {
@@ -139,26 +143,19 @@ export const sessionApi = {
     const startStream = async () => {
       try {
         const stream = await createSSEStream(
-          `/sessions/${sessionId}/chat`,
-          params,
-          { 
-            signal: controller.signal,
-            // 流式连接需要很长时间，设置为 5 分钟超时
-            timeout: 5 * 60 * 1000
-          }
+          `/sessions/${sessionId}/events?after_seq=${afterSeq}`,
+          undefined,
+          { method: "GET", signal: controller.signal }
         );
-        
+
         await parseSSEStream(
           stream,
           (messageEvent) => {
             if (controller.signal.aborted) return;
-            
-            // messageEvent.data 已经在 parseSSEStream 中解析为对象
             const data =
               typeof messageEvent.data === "string"
                 ? JSON.parse(messageEvent.data)
                 : messageEvent.data;
-            
             onEvent({
               type: messageEvent.type as SSEEventData["type"],
               data,
@@ -171,18 +168,16 @@ export const sessionApi = {
           }
         );
 
-        // 流正常结束（服务端关闭连接），通知上层以便重连或状态恢复
         if (!controller.signal.aborted && onError) {
           onError(new Error("SSE_STREAM_END"));
         }
       } catch (error) {
-        // 忽略 AbortError，这是正常的连接中止
-        if (error instanceof Error && error.name === 'AbortError') {
+        if (error instanceof Error && error.name === "AbortError") {
           return;
         }
         if (!controller.signal.aborted && onError) {
           onError(
-            error instanceof Error ? error : new Error("启动聊天流失败")
+            error instanceof Error ? error : new Error("订阅会话事件失败")
           );
         }
       }
@@ -190,7 +185,6 @@ export const sessionApi = {
 
     startStream();
 
-    // 返回清理函数：通过 AbortController 中止连接
     return () => {
       controller.abort();
     };
@@ -199,8 +193,8 @@ export const sessionApi = {
   /**
    * 停止会话
    */
-  stopSession: (sessionId: string): Promise<void> => {
-    return post<void>(`/sessions/${sessionId}/stop`, {});
+  stopSession: (sessionId: string): Promise<{ run_id: string } | null> => {
+    return post<{ run_id: string } | null>(`/sessions/${sessionId}/stop`, {});
   },
 
   /**

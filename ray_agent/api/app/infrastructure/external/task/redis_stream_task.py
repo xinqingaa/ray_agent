@@ -29,11 +29,7 @@ class RedisStreamTask(Task):
         self._id = str(uuid.uuid4())
         self._execution_task: Optional[asyncio.Task] = None  # 定义在后台执行的任务
 
-        input_stream_name = f"task:input:{self._id}"
-        output_stream_name = f"task:output:{self._id}"
-
-        self._input_stream = RedisStreamMessageQueue(input_stream_name)
-        self._output_stream = RedisStreamMessageQueue(output_stream_name)
+        self._input_stream = RedisStreamMessageQueue(f"task:input:{self._id}")
 
         # 将当前类实例注册到全局变量中
         RedisStreamTask._task_registry[self._id] = self
@@ -91,8 +87,8 @@ class RedisStreamTask(Task):
         return self._input_stream
 
     @property
-    def output_stream(self) -> MessageQueue:
-        return self._output_stream
+    def task_runner(self) -> TaskRunner:
+        return self._task_runner
 
     @property
     def id(self) -> str:

@@ -11,7 +11,7 @@ from datetime import datetime
 from typing import Optional, Dict, AsyncGenerator
 
 import websockets
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Header, Query
 from sse_starlette import EventSourceResponse, ServerSentEvent
 from starlette.websockets import WebSocket, WebSocketDisconnect
 from websockets import ConnectionClosed
@@ -26,7 +26,10 @@ from app.interfaces.schemas.session import (
     ListSessionResponse,
     ListSessionItem,
     ChatRequest,
+    ChatResponse,
     GetSessionResponse, GetSessionFilesResponse, FileReadResponse, FileReadRequest, ShellReadResponse, ShellReadRequest,
+    RunItem,
+    TurnRequestResponse,
 )
 from app.interfaces.service_dependencies import get_session_service, get_agent_service
 
@@ -155,59 +158,111 @@ async def delete_session(
 
 @router.post(
     path="/{session_id}/chat",
-    summary="向指定任务会话发起聊天请求",
-    description="向指定任务会话发起聊天请求"
+    response_model=Response[ChatResponse],
+    summary="向指定任务会话发送消息",
+    description="受理一条用户消息并立即返回 run_id 与消息事件的 seq；执行过程通过事件流接口观察",
 )
 async def chat(
         session_id: str,
         request: ChatRequest,
         agent_service: AgentService = Depends(get_agent_service),
+) -> Response[ChatResponse]:
+    """根据传递的会话id+chat请求数据向指定会话发送消息"""
+    accepted = await agent_service.chat(
+        session_id=session_id,
+        message=request.message,
+        attachments=request.attachments,
+        timestamp=datetime.fromtimestamp(request.timestamp) if request.timestamp else None,
+    )
+    return Response.success(
+        msg="消息已受理",
+        data=ChatResponse(run_id=accepted.run_id, seq=accepted.seq, route=accepted.route),
+    )
+
+
+@router.get(
+    path="/{session_id}/events",
+    summary="按序号订阅会话事件",
+    description="SSE：推送 after_seq（或 Last-Event-ID）之后的全部事件，每条的 id 是会话内 seq；连接不主动结束",
+)
+async def stream_events(
+        session_id: str,
+        after_seq: Optional[int] = Query(default=None, ge=0),
+        last_event_id: Optional[str] = Header(default=None),
+        agent_service: AgentService = Depends(get_agent_service),
+        session_service: SessionService = Depends(get_session_service),
 ) -> EventSourceResponse:
-    """根据传递的会话id+chat请求数据向指定会话发起聊天请求"""
+    """断线重连时浏览器 EventSource 会带 Last-Event-ID；显式的 after_seq 优先"""
+    if not await session_service.get_session(session_id):
+        raise NotFoundError("该会话不存在，请核实后重试")
+    start = after_seq
+    if start is None:
+        start = int(last_event_id) if last_event_id and last_event_id.isdigit() else 0
 
     async def event_generator() -> AsyncGenerator[ServerSentEvent, None]:
-        """定义事件生成器，用于配合EventSourceResponse生成流式响应数据"""
-        # 1.调用Agent服务发起聊天
-        async for event in agent_service.chat(
-                session_id=session_id,
-                message=request.message,
-                attachments=request.attachments,
-                latest_event_id=request.event_id,
-                timestamp=datetime.fromtimestamp(request.timestamp) if request.timestamp else None,
-        ):
-            # 2.将Agent事件转换为sse数据(因为普通的event没法通过流式事件传输)
+        async for event in agent_service.stream_events(session_id, after_seq=start):
             sse_event = EventMapper.event_to_sse_event(event)
             if sse_event:
                 yield ServerSentEvent(
+                    id=str(event.seq),
                     event=sse_event.event,
                     data=sse_event.data.model_dump_json(),
                 )
 
-    return EventSourceResponse(event_generator())
+    return EventSourceResponse(event_generator(), ping=15)
 
 
 @router.get(
     path="/{session_id}",
     response_model=Response[GetSessionResponse],
     summary="获取指定会话详情信息",
-    description="根据传递的会话id获取该会话的对话详情",
+    description="返回会话、全部运行，以及 after_seq 之后按 seq 升序的事件（limit 为空时读到最新）",
 )
 async def get_session(
         session_id: str,
+        after_seq: int = Query(default=0, ge=0),
+        limit: Optional[int] = Query(default=None, ge=1, le=5000),
         session_service: SessionService = Depends(get_session_service),
 ) -> Response[GetSessionResponse]:
     """传递指定会话id获取该会话的对话详情"""
-    session = await session_service.get_session(session_id)
-    if not session:
+    detail = await session_service.get_session_detail(session_id, after_seq=after_seq, limit=limit)
+    if not detail:
         raise NotFoundError("该会话不存在，请核实后重试")
     return Response.success(
         msg="获取会话详情成功",
         data=GetSessionResponse(
-            session_id=session.id,
-            title=session.title,
-            status=session.status,
-            events=EventMapper.events_to_sse_events(session.events),
+            session_id=detail.session.id,
+            title=detail.session.title,
+            status=detail.session.status,
+            runs=[RunItem.from_run(run) for run in detail.runs],
+            events=EventMapper.events_to_sse_events(detail.events),
+            last_seq=detail.last_seq,
         )
+    )
+
+
+@router.get(
+    path="/{session_id}/runs/{run_id}/turns/{index}/request",
+    response_model=Response[TurnRequestResponse],
+    summary="重建某一轮的模型请求",
+    description="只读调试：由运行的配置快照与事件重建该轮发给模型的消息与工具，不重放任何动作",
+)
+async def get_turn_request(
+        session_id: str,
+        run_id: str,
+        index: int,
+        agent_service: AgentService = Depends(get_agent_service),
+) -> Response[TurnRequestResponse]:
+    rebuilt = await agent_service.get_turn_request(session_id, run_id, index)
+    return Response.success(
+        msg="重建请求成功",
+        data=TurnRequestResponse(
+            run_id=rebuilt.run_id,
+            index=rebuilt.index,
+            turn_seq=rebuilt.turn_seq,
+            messages=rebuilt.messages,
+            tools=rebuilt.tools,
+        ),
     )
 
 
@@ -221,9 +276,9 @@ async def stop_session(
         session_id: str,
         agent_service: AgentService = Depends(get_agent_service),
 ) -> Response[Optional[Dict]]:
-    """根据传递的指定会话id停止对应任务会话"""
-    await agent_service.stop_session(session_id)
-    return Response.success(msg="停止任务会话成功")
+    """根据传递的指定会话id停止对应任务会话；返回被停止的运行 id，没有进行中的运行时为空"""
+    run = await agent_service.stop_session(session_id)
+    return Response.success(msg="停止任务会话成功", data={"run_id": run.id} if run else None)
 
 
 @router.get(

@@ -17,21 +17,26 @@ def _int_or_none(value: Any) -> Optional[int]:
         return None
 
 
+def _field(source: Any, name: str) -> Any:
+    if source is None:
+        return None
+    if isinstance(source, dict):
+        return source.get(name)
+    return getattr(source, name, None)
+
+
 def parse_completion_usage(usage: Any) -> Optional[LLMUsage]:
     """读取 Chat Completions 的 usage；没有可解析字段时返回 None。"""
     if usage is None:
         return None
-    if isinstance(usage, dict):
-        prompt = _int_or_none(usage.get("prompt_tokens"))
-        completion = _int_or_none(usage.get("completion_tokens"))
-        total = _int_or_none(usage.get("total_tokens"))
-    else:
-        prompt = _int_or_none(getattr(usage, "prompt_tokens", None))
-        completion = _int_or_none(getattr(usage, "completion_tokens", None))
-        total = _int_or_none(getattr(usage, "total_tokens", None))
+    cached = _int_or_none(_field(_field(usage, "prompt_tokens_details"), "cached_tokens"))
+    if cached is None:
+        cached = _int_or_none(_field(usage, "prompt_cache_hit_tokens"))
     parsed = LLMUsage(
-        prompt_tokens=prompt,
-        completion_tokens=completion,
-        total_tokens=total,
+        prompt_tokens=_int_or_none(_field(usage, "prompt_tokens")),
+        completion_tokens=_int_or_none(_field(usage, "completion_tokens")),
+        total_tokens=_int_or_none(_field(usage, "total_tokens")),
+        cached_tokens=cached,
+        reasoning_tokens=_int_or_none(_field(_field(usage, "completion_tokens_details"), "reasoning_tokens")),
     )
     return parsed if parsed.available else None

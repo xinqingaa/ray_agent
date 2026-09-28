@@ -13,7 +13,8 @@ from app.domain.models.event import (
     TitleEvent,
     ToolEvent,
     ToolEventStatus,
-    UsageEvent,
+    TurnEvent,
+    TurnPhase,
     WaitEvent,
 )
 from app.domain.models.file import File
@@ -46,6 +47,10 @@ async def collect(loop, message="任务", **kwargs):
 
 def called(events):
     return [e for e in events if isinstance(e, ToolEvent) and e.status == ToolEventStatus.CALLED]
+
+
+def turns_completed(events):
+    return [e for e in events if isinstance(e, TurnEvent) and e.phase == TurnPhase.COMPLETED]
 
 
 def assert_clean_script(h):
@@ -266,7 +271,7 @@ def test_length_truncation_discards_calls_retries_once_then_fails():
     assert not any(m.get("role") == "assistant" for m in retry)
     assert h.loop.end_reason == RunEndReason.OUTPUT_TRUNCATED
     assert isinstance(events[-1], ErrorEvent) and "output_truncated" in events[-1].error
-    assert len([e for e in events if isinstance(e, UsageEvent)]) == 2
+    assert [(e.attempts, e.finish_reason) for e in turns_completed(events)] == [(1, "length"), (1, "length")]
     assert not any(m.get("role") == "assistant" for m in memory_messages(h.session))
 
 
@@ -299,7 +304,8 @@ def test_max_iterations_counts_model_requests_including_retries():
 # 9 --------------------------------------------------------------------------
 
 @pytest.mark.parametrize("status,interrupted,expected", [
-    (SessionStatus.COMPLETED, INTERRUPTED_STOPPED, NOT_EXECUTED_STOPPED),  # stop_session 把会话写为 completed
+    (SessionStatus.CANCELLED, INTERRUPTED_STOPPED, NOT_EXECUTED_STOPPED),
+    (SessionStatus.INTERRUPTED, INTERRUPTED_STOPPED, NOT_EXECUTED_STOPPED),
     (SessionStatus.FAILED, INTERRUPTED_FAILED, NOT_EXECUTED_FAILED),
 ])
 def test_message_after_stop_or_failure_repairs_dangling_calls(status, interrupted, expected):
@@ -318,7 +324,7 @@ def test_message_after_stop_or_failure_repairs_dangling_calls(status, interrupte
 
         async def persist_events():
             async for event in first.loop.invoke(Message(message="任务")):
-                first.session.events.append(event.model_copy(deep=True))
+                await first.ledger.append(first.session.id, [event])
 
         task = asyncio.create_task(persist_events())
         await started.wait()
@@ -410,7 +416,7 @@ def test_empty_reply_is_retried_without_fake_user_message():
     assert_clean_script(h)
     assert h.llm.requests[1].messages == h.llm.requests[0].messages
     assert [m["role"] for m in memory_messages(h.session)] == ["system", "user", "assistant"]
-    assert len([e for e in events if isinstance(e, UsageEvent)]) == 2
+    assert [e.attempts for e in turns_completed(events)] == [2]
     assert isinstance(events[-1], DoneEvent)
 
 

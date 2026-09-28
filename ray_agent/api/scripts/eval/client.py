@@ -62,14 +62,18 @@ class RayAgentClient:
     async def create_session(self) -> str:
         return (await self._post("/sessions"))["session_id"]
 
-    async def get_session(self, session_id: str) -> Dict[str, Any]:
-        return await self._get(f"/sessions/{session_id}")
+    async def get_session(self, session_id: str, after_seq: int = 0) -> Dict[str, Any]:
+        suffix = f"?after_seq={after_seq}" if after_seq else ""
+        return await self._get(f"/sessions/{session_id}{suffix}")
+
+    async def get_turn_request(self, session_id: str, run_id: str, index: int) -> Dict[str, Any]:
+        return await self._get(f"/sessions/{session_id}/runs/{run_id}/turns/{index}/request")
 
     async def get_session_files(self, session_id: str) -> List[Dict[str, Any]]:
         return (await self._get(f"/sessions/{session_id}/files"))["files"]
 
-    async def stop_session(self, session_id: str) -> None:
-        await self._post(f"/sessions/{session_id}/stop")
+    async def stop_session(self, session_id: str) -> Optional[Dict[str, Any]]:
+        return await self._post(f"/sessions/{session_id}/stop")
 
     async def read_sandbox_file(self, session_id: str, filepath: str) -> str:
         return (await self._post(f"/sessions/{session_id}/file", {"filepath": filepath}))["content"]
@@ -89,33 +93,43 @@ class RayAgentClient:
             session_id: str,
             message: str,
             attachments: Optional[List[str]] = None,
-    ) -> AsyncIterator[Tuple[str, Dict[str, Any]]]:
-        """发送消息并逐条产出 SSE 事件 (event, data)；连接由服务端关闭时结束。"""
+    ) -> Dict[str, Any]:
+        """发送消息，返回 {run_id, seq, route}；执行过程通过 events() 观察。"""
         payload = {
             "message": message,
             "attachments": attachments or [],
             "timestamp": int(time.time()),
         }
+        return await self._post(f"/sessions/{session_id}/chat", payload)
+
+    async def events(self, session_id: str, after_seq: int = 0) -> AsyncIterator[Tuple[str, Dict[str, Any]]]:
+        """订阅 seq > after_seq 的会话事件，逐条产出 (event, data)；服务端不主动结束，由调用方停止迭代。"""
         timeout = httpx.Timeout(30.0, read=None)
-        async with self._http.stream("POST", f"/sessions/{session_id}/chat", json=payload, timeout=timeout) as response:
+        async with self._http.stream("GET", f"/sessions/{session_id}/events", params={"after_seq": after_seq},
+                                     timeout=timeout) as response:
             if response.status_code != 200:
                 body = await response.aread()
-                raise ApiError(f"chat HTTP {response.status_code}: {body[:300]!r}")
+                raise ApiError(f"events HTTP {response.status_code}: {body[:300]!r}")
+            async for item in parse_sse(response.aiter_lines()):
+                yield item
+
+
+async def parse_sse(lines: AsyncIterator[str]) -> AsyncIterator[Tuple[str, Dict[str, Any]]]:
+    event_type, data_lines = None, []
+    async for line in lines:
+        if line == "":
+            if data_lines:
+                raw = "\n".join(data_lines)
+                try:
+                    data = json.loads(raw)
+                except ValueError:
+                    data = {"raw": raw}
+                yield event_type or "message", data
             event_type, data_lines = None, []
-            async for line in response.aiter_lines():
-                if line == "":
-                    if data_lines:
-                        raw = "\n".join(data_lines)
-                        try:
-                            data = json.loads(raw)
-                        except ValueError:
-                            data = {"raw": raw}
-                        yield event_type or "message", data
-                    event_type, data_lines = None, []
-                elif line.startswith(":"):
-                    continue
-                elif line.startswith("event:"):
-                    event_type = line[len("event:"):].strip()
-                elif line.startswith("data:"):
-                    value = line[len("data:"):]
-                    data_lines.append(value[1:] if value.startswith(" ") else value)
+        elif line.startswith(":") or line.startswith("id:"):
+            continue
+        elif line.startswith("event:"):
+            event_type = line[len("event:"):].strip()
+        elif line.startswith("data:"):
+            value = line[len("data:"):]
+            data_lines.append(value[1:] if value.startswith(" ") else value)

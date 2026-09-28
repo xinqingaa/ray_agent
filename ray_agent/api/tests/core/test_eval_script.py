@@ -21,50 +21,74 @@ def test_registry_orders_numerically_and_builds_matching_ids():
     assert all(build(task_id).id == task_id for task_id in ids)
 
 
-def test_chat_parses_sse_frames_with_crlf_comments_and_multiline_data():
+def test_chat_posts_json_and_events_parse_sse_frames():
     body = (
         ": ping\r\n\r\n"
-        "event: message\r\ndata: {\"role\": \"user\", \"message\": \"中文\"}\r\n\r\n"
-        "event: tool\r\ndata: {\"function\": \"read_file\",\r\ndata:  \"status\": \"called\"}\r\n\r\n"
-        "event: done\r\ndata: {}\r\n\r\n"
+        "id: 1\r\nevent: message\r\ndata: {\"seq\": 1, \"role\": \"user\", \"message\": \"中文\"}\r\n\r\n"
+        "id: 2\r\nevent: tool\r\ndata: {\"function\": \"read_file\",\r\ndata:  \"status\": \"called\"}\r\n\r\n"
+        "id: 3\r\nevent: run\r\ndata: {\"seq\": 3, \"status\": \"completed\"}\r\n\r\n"
     )
     seen = {}
 
     def handler(request: httpx.Request) -> httpx.Response:
-        seen["payload"] = json.loads(request.content)
+        if request.method == "POST":
+            seen["payload"] = json.loads(request.content)
+            return httpx.Response(200, json={"code": 200, "msg": "ok", "data": {"run_id": "r1", "seq": 1,
+                                                                             "route": "started"}})
+        seen["after_seq"] = request.url.params.get("after_seq")
         return httpx.Response(200, content=body.encode("utf-8"), headers={"content-type": "text/event-stream"})
 
     async def collect():
         client = RayAgentClient("http://test/api")
         client._http = httpx.AsyncClient(base_url="http://test/api", transport=httpx.MockTransport(handler))
         async with client:
-            return [item async for item in client.chat("s1", "hi", ["f1"])]
+            accepted = await client.chat("s1", "hi", ["f1"])
+            return accepted, [item async for item in client.events("s1", after_seq=0)]
 
-    events = asyncio.run(collect())
-    assert [e for e, _ in events] == ["message", "tool", "done"]
+    accepted, events = asyncio.run(collect())
+    assert accepted == {"run_id": "r1", "seq": 1, "route": "started"}
+    assert seen["payload"]["attachments"] == ["f1"] and seen["after_seq"] == "0"
+    assert [e for e, _ in events] == ["message", "tool", "run"]
     assert events[0][1]["message"] == "中文"
     assert events[1][1] == {"function": "read_file", "status": "called"}
-    assert seen["payload"]["attachments"] == ["f1"]
 
 
-def test_metrics_count_usage_and_called_tools():
+def test_metrics_come_from_run_summary_and_are_cross_checked_with_turns():
+    def turn(phase, index, **data):
+        return ev("turn", phase=phase, index=index, run_id="r1", **data)
+
     events = [
+        ev("run", run_id="r1", status="running"),
         ev("message", role="user", message="q"),
-        ev("usage", available=True, prompt_tokens=100, completion_tokens=10),
+        turn("started", 1),
         ev("tool", tool_call_id="a", function="shell_execute", status="calling"),
         ev("tool", tool_call_id="a", function="shell_execute", status="called"),
-        ev("usage", available=False),
+        turn("completed", 1, attempts=2, usage={"prompt_tokens": 100, "completion_tokens": 10}),
+        turn("started", 2),
         ev("tool", tool_call_id="b", function="shell_execute", status="calling"),
+        turn("completed", 2, attempts=1, usage={"prompt_tokens": None}, error="user_stop"),
+        ev("run", run_id="r1", status="cancelled", reason="user_stop",
+           summary={"turns": 2, "model_requests": 3, "tool_calls": 1, "prompt_tokens": 100,
+                    "completion_tokens": 10, "cached_tokens": None, "duration_ms": 5}),
         ev("error", error="boom"),
     ]
-    metrics = compute_metrics(events)
-    assert metrics["model_calls"] == 2
+    runs = [{"run_id": "r1", "status": "cancelled", "reason": "user_stop", "turns": 2, "model_requests": 3,
+             "tool_calls": 1, "prompt_tokens": 100, "completion_tokens": 10, "cached_tokens": None}]
+    metrics = compute_metrics({"runs": runs, "events": events})
+    assert (metrics["model_calls"], metrics["turns"]) == (3, 2)
     assert metrics["usage_unavailable_calls"] == 1
     assert (metrics["prompt_tokens"], metrics["completion_tokens"]) == (100, 10)
     assert metrics["tool_calls"] == 1
     assert metrics["tool_calls_by_name"] == {"shell_execute": 1}
     assert metrics["tool_calls_unfinished"] == 1
+    assert metrics["metrics_consistent"] and metrics["unpaired_turns"] == 0
+    assert metrics["runs"] == [{"run_id": "r1", "status": "cancelled", "reason": "user_stop", "source": "summary"}]
     assert metrics["error_events"] == ["boom"]
+
+    events[-2]["data"]["summary"]["model_requests"] = 4
+    broken = compute_metrics({"runs": runs, "events": events})
+    assert not broken["metrics_consistent"]
+    assert broken["metric_mismatches"] == ["model_requests: 运行汇总 4 ≠ 逐轮 3"]
 
 
 def test_context_splits_turns_and_uses_last_assistant_message():

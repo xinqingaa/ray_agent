@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 import pytest
 from pydantic import TypeAdapter
 
-from app.domain.models.event import ErrorEvent, Event, ToolEvent, FileToolContent, PlanEvent, UsageEvent
+from app.domain.models.event import ErrorEvent, Event, ToolEvent, FileToolContent, PlanEvent, TurnEvent
 from app.domain.models.message import Message
 from app.domain.models.plan import Plan, Step
 from app.domain.models.tool_result import ToolResult
@@ -29,7 +29,8 @@ def test_live_and_history_projection_preserves_correlation_but_omits_internal_re
     assert live == history
     assert live[0]['data']['event_id'] != live[1]['data']['event_id']
     assert live[0]['data']['tool_call_id'] == live[1]['data']['tool_call_id']
-    assert live[0]['data']['created_at'] == live[1]['data']['created_at']
+    # created_at 是毫秒时间戳
+    assert live[1]['data']['created_at'] - live[0]['data']['created_at'] == 20
     assert live[1]['data']['content']['content'] == '预览内容'
     assert live[1]['data']['duration_ms'] == 12 and live[0]['data']['duration_ms'] is None
     assert 'function_result' not in live[1]['data']
@@ -52,9 +53,11 @@ def test_usage_counts_returned_attempts_but_not_failed_transport(eventually_vali
         h = make_loop(script, max_retries=3)
         observed = [e async for e in h.loop.invoke(Message(message='文本任务'))]
         assert h.llm.call_count == 3
-        usages = [e for e in observed if isinstance(e, UsageEvent)]
-        # 返回了响应的尝试（含空回复）都有用量事件；传输失败没有响应，也就没有用量
-        assert [e.total_tokens for e in usages] == ([7, 11] if eventually_valid else [7, 7])
+        completed = [e for e in observed if isinstance(e, TurnEvent) and e.phase == 'completed']
+        # 一轮的用量是返回了响应的尝试（含空回复）之和；传输失败没有响应，也就没有用量，但计入 attempts
+        assert len(completed) == 1 and completed[0].attempts == 3
+        usage_sum = (completed[0].usage.prompt_tokens, completed[0].usage.completion_tokens)
+        assert usage_sum == ((17, 1) if eventually_valid else (14, 0))
         assert any(isinstance(e, ErrorEvent) for e in observed) is not eventually_valid
     asyncio.run(asyncio.wait_for(run(), 5))
 

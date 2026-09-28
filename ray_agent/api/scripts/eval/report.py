@@ -87,9 +87,10 @@ def render_markdown(report: Dict[str, Any]) -> str:
     lines: List[str] = [
         f"# 评测报告：{meta['label']}（{meta['date']}，`{meta['git']['short']}`）",
         "",
-        "由 `scripts/eval` 生成；原始数据见同名 JSON。评测通过公开 HTTP API 与 SSE 驱动完整产品，"
-        "指标取自 `GET /sessions/{id}` 读回的持久化事件：模型调用次数按 usage 事件计数，"
-        "工具调用次数按 `called` 工具事件计数。",
+        "由 `scripts/eval` 生成；原始数据见同名 JSON。评测通过公开 HTTP API 驱动完整产品：`POST chat` 提交消息，"
+        "`GET /sessions/{id}/events` 按 seq 订阅事件，直到受理消息的运行进入 waiting 或终态。"
+        "指标取自 `GET /sessions/{id}` 读回的运行与事件：模型调用次数与 tokens 取运行汇总（终态 `run` 事件的 summary，"
+        "仍活动的运行取运行行计数），并与 `turn(completed)` 逐轮累加核对；工具调用次数按 `called` 工具事件计数。",
         "",
         "## 运行条件",
         "",
@@ -108,15 +109,20 @@ def render_markdown(report: Dict[str, Any]) -> str:
         "",
         "## 汇总",
         "",
-        "| 任务 | 次 | 结论 | 会话状态 / 最后终止事件 | 耗时 s | 模型调用 | prompt / completion tokens | 工具调用 | 工具分布 | 会话 ID |",
-        "|---|---|---|---|---|---|---|---|---|---|",
+        "| 任务 | 次 | 结论 | 会话状态 / 最后运行（原因） | 耗时 s | 模型调用 | prompt / completion tokens | 工具调用 | 工具分布 | 指标核对 | 会话 ID |",
+        "|---|---|---|---|---|---|---|---|---|---|---|",
     ]
     for run in report["runs"]:
+        last_run = run.get("last_run_status") or "—"
+        if run.get("last_run_reason"):
+            last_run += f"（{run['last_run_reason']}）"
+        consistent = run.get("metrics_consistent")
         lines.append(
             f"| {run['task_id']} {run['title']} | {run['run_index']} | {OUTCOME_TEXT.get(run['outcome'], run['outcome'])} "
-            f"| {run.get('session_status')} / {run.get('last_terminal_event')} | {run.get('wall_seconds')} "
+            f"| {run.get('session_status')} / {last_run} | {run.get('wall_seconds')} "
             f"| {run.get('model_calls')} | {run.get('prompt_tokens')} / {run.get('completion_tokens')} "
-            f"| {run.get('tool_calls')} | {_cell(_tools(run.get('tool_calls_by_name', {})))} | `{run.get('session_id')}` |"
+            f"| {run.get('tool_calls')} | {_cell(_tools(run.get('tool_calls_by_name', {})))} "
+            f"| {'—' if consistent is None else ('一致' if consistent else '不一致')} | `{run.get('session_id')}` |"
         )
     baseline = report.get("baseline")
     if baseline:
@@ -135,6 +141,14 @@ def render_markdown(report: Dict[str, Any]) -> str:
             lines.append(f"- {mark} {check['name']}{suffix}：{_cell(check['detail'])}")
         if run.get("usage_unavailable_calls"):
             lines.append(f"- usage 不可用的模型调用：{run['usage_unavailable_calls']} 次")
+        for mismatch in run.get("metric_mismatches", []):
+            lines.append(f"- 指标核对不一致：{_cell(mismatch)}")
+        if run.get("unpaired_turns"):
+            lines.append(f"- 只有 started 没有 completed 的轮次：{run['unpaired_turns']} 个")
+        if run.get("runs"):
+            runs_text = "；".join(f"{r['run_id'][:8]} {r['status']}{'（' + r['reason'] + '）' if r.get('reason') else ''}"
+                                  for r in run["runs"])
+            lines.append(f"- 运行：{_cell(runs_text)}")
         if run.get("tool_calls_unfinished"):
             lines.append(f"- 只有 calling 没有 called 的工具调用：{run['tool_calls_unfinished']} 次")
         for error in run.get("error_events", []):

@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from app.domain.models.app_config import AgentConfig
-from app.domain.models.event import DoneEvent, ErrorEvent, ToolEvent, ToolEventStatus
+from app.domain.models.event import DoneEvent, ErrorEvent, MessageEvent, ToolEvent, ToolEventStatus
 from app.domain.models.memory import Memory
 from app.domain.models.message import Message
 from app.domain.models.session import Session
@@ -172,6 +172,7 @@ def test_drives_agent_loop():
 
     class FakeUow:
         session = repository
+        event = SimpleNamespace(list=AsyncMock(return_value=[]))
 
         async def __aenter__(self):
             return self
@@ -199,7 +200,7 @@ def test_drives_agent_loop():
     assert llm.remaining == 0 and llm.exhausted_calls == 0
     assert not any(isinstance(event, ErrorEvent) for event in events)
     assert isinstance(events[-1], DoneEvent)
-    assert events[-2].message == "已读取"
+    assert [event.message for event in events if isinstance(event, MessageEvent)] == ["已读取"]
     called = [event for event in events if isinstance(event, ToolEvent) and event.status == ToolEventStatus.CALLED]
     assert [event.function_name for event in called] == ["read_file"]
     assert {"read_file", "update_plan"} <= set(llm.requests[0].tool_names)
