@@ -23,7 +23,7 @@ type SessionItemProps = {
 const STATUS_BADGE: Record<string, {label: string; className: string}> = {
   running: {label: '运行中', className: 'text-state-running'},
   pending: {label: '运行中', className: 'text-state-running'},
-  waiting: {label: '等你回复', className: 'bg-state-waiting-soft text-state-waiting'},
+  waiting: {label: '等你处理', className: 'bg-state-waiting-soft text-state-waiting'},
   failed: {label: '失败', className: 'bg-state-failed-soft text-state-failed'},
   interrupted: {label: '已中断', className: 'bg-state-interrupted-soft text-state-interrupted'},
 }

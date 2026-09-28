@@ -6,6 +6,7 @@
 
 import type {
   Activity,
+  ApprovalStatus,
   ContextEstimate,
   FileView,
   PlanChange,
@@ -374,6 +375,12 @@ export function projectSession(input: ProjectSessionInput): SessionView {
   const assistantAttempts = new Set<string>()
   const failedAttempts = new Set<string>()
   const completedTurns = new Set<string>()
+  /** 审批条目在 timeline 中的下标，键为 `${runId}:${callId}`；pending 与结论合并为一条 */
+  const approvalIndex = new Map<string, number>()
+  /** 审批事件给出的 MCP 服务名与原始工具名，同一调用的工具事件沿用 */
+  const callServices = new Map<string, ServiceName>()
+  /** 有 pending 审批的运行 */
+  const pendingApprovalRuns = new Set<string>()
 
   const ensureRun = (runId: string, at: number, seq: number | null): RunTrack => {
     let track = runs.get(runId)
@@ -649,8 +656,8 @@ export function projectSession(input: ProjectSessionInput): SessionView {
         const explanation = str(args.explanation)
         if (explanation) planExplanation = explanation
       }
-      const presented = presentTool(name, toolset, args)
       const key = `${ev.runId ?? ''}:${callId}`
+      const presented = presentTool(name, toolset, args, callServices.get(key))
       let live = liveCalls.find((item) => `${item.runId ?? ''}:${item.view.callId}` === key)
       if (!live) {
         const turnIndex = ev.runId ? currentTurn.get(ev.runId) ?? null : null
@@ -715,19 +722,65 @@ export function projectSession(input: ProjectSessionInput): SessionView {
     }
 
     if (ev.type === 'approval') {
-      const callId = str(data.call_id) ?? str(data.tool_call_id) ?? ''
-      const live = liveCalls.find((item) => item.view.callId === callId && item.runId === ev.runId)
-      if (!live) continue
-      const status = data.status
+      const callId = str(data.tool_call_id) ?? str(data.call_id) ?? ''
+      if (!callId) continue
+      const key = `${ev.runId ?? ''}:${callId}`
+      const status = asApprovalStatus(data.status)
+      const decidedAt = status === 'pending' ? null : num(data.decided_at) ?? ev.createdAt
+      if (ev.runId) {
+        if (status === 'pending') pendingApprovalRuns.add(ev.runId)
+        else pendingApprovalRuns.delete(ev.runId)
+      }
+      const server = str(data.service)
+      const serviceTool = str(data.service_tool)
+      const name = str(data.function) ?? ''
+      const toolset = str(data.name) ?? ''
+      if (server && serviceTool && familyOf(name, toolset) === 'mcp') callServices.set(key, {server, tool: serviceTool})
+      const existing = approvalIndex.get(key)
+      if (existing != null) {
+        const item = timeline[existing]
+        if (item.kind === 'approval') timeline[existing] = {...item, status, decidedAt}
+        if (status === 'expired') markExpired(liveCalls, key)
+        continue
+      }
+      let live = liveCalls.find((item) => `${item.runId ?? ''}:${item.view.callId}` === key)
+      if (!live) {
+        // 挂起的调用没有工具事件：从审批事件构造调用条目，后续 calling / called 更新同一个对象
+        const args = readArgs(data)
+        const presented = presentTool(name, toolset, args, callServices.get(key))
+        live = {
+          runId: ev.runId,
+          view: {
+            callId,
+            family: presented.family,
+            name,
+            toolset,
+            title: presented.title,
+            verb: presented.verb,
+            target: presented.target,
+            argSummary: presented.argSummary,
+            status: 'running',
+            startedAt: ev.createdAt,
+            durationMs: null,
+            result: null,
+            raw: {args, content: null},
+          },
+        }
+        liveCalls.push(live)
+      }
+      if (pending.length > 0) flushNarration()
+      openGroup = null
+      approvalIndex.set(key, timeline.length)
       timeline.push({
         kind: 'approval',
         id: idOf(ev.seq, timeline.length),
         runId: ev.runId,
         at: ev.createdAt,
         call: live.view,
-        status: status === 'approved' || status === 'rejected' || status === 'expired' || status === 'pending' ? status : 'pending',
-        decidedAt: num(data.decided_at),
+        status,
+        decidedAt,
       })
+      if (status === 'expired') markExpired(liveCalls, key)
       continue
     }
 
@@ -742,7 +795,9 @@ export function projectSession(input: ProjectSessionInput): SessionView {
     }
 
     if (ev.type === 'wait') {
-      flushAsk(ev)
+      // 审批挂起也会发 wait，那时等的是批准而不是回复
+      if (ev.runId && pendingApprovalRuns.has(ev.runId)) flushNarration()
+      else flushAsk(ev)
       continue
     }
 
@@ -900,6 +955,12 @@ function activityOf(
     return {kind: 'stopping', requestedAt: stoppingRequestedAt}
   }
   if (track.status === 'waiting' && track.reason === 'approval') {
+    for (let i = timeline.length - 1; i >= 0; i--) {
+      const item = timeline[i]
+      if (item.kind === 'approval' && item.runId === track.id && item.status === 'pending') {
+        return {kind: 'waiting_approval', callId: item.call.callId, title: item.call.title}
+      }
+    }
     const call = [...liveCalls].reverse().find((item) => item.runId === track.id)
     return {kind: 'waiting_approval', callId: call?.view.callId ?? '', title: call?.view.title ?? ''}
   }
@@ -1140,7 +1201,9 @@ function diffPlan(prev: PlanItem[], next: PlanItem[]): PlanChange[] {
   return changes
 }
 
-function presentTool(name: string, toolset: string, args: Record<string, unknown>): {
+type ServiceName = {server: string; tool: string}
+
+function presentTool(name: string, toolset: string, args: Record<string, unknown>, service?: ServiceName): {
   family: ToolFamily
   verb: string
   target: string
@@ -1149,6 +1212,10 @@ function presentTool(name: string, toolset: string, args: Record<string, unknown
 } {
   const family = familyOf(name, toolset)
   if (family === 'mcp') {
+    if (service) {
+      const verb = `调用 MCP 工具 ${service.server} / ${service.tool}`
+      return {family, verb, target: '', title: verb, argSummary: primitivePairs(args)}
+    }
     const server = toolset.startsWith('mcp_') ? toolset.slice(4) : toolset === 'mcp' ? '' : toolset
     const verb = server ? `调用 MCP 工具 ${server} / ${name}` : `调用 MCP 工具 ${name}`
     return {family, verb, target: '', title: verb, argSummary: primitivePairs(args)}
@@ -1250,7 +1317,14 @@ function shellOutput(content: Record<string, unknown>): string | null {
   return typeof last.output === 'string' ? last.output : null
 }
 
+const DENIED_TEXT: Record<string, string> = {
+  user: '你拒绝了这次调用，它没有执行',
+  policy: '工具策略禁止这次调用，它没有执行',
+}
+
 function failureOf(data: Record<string, unknown>, content: unknown): {status: ToolCallStatus; error: string | null} | null {
+  const deniedBy = str(data.denied_by)
+  if (deniedBy) return {status: 'denied', error: DENIED_TEXT[deniedBy] ?? '调用被拒绝，没有执行'}
   const explicit = str(data.disposition) ?? str(data.outcome_kind)
   if (explicit === 'denied' || explicit === 'rejected') return {status: 'denied', error: messageOf(data, content)}
   if (explicit === 'skipped') return {status: 'skipped', error: messageOf(data, content)}
@@ -1431,6 +1505,18 @@ function idOf(seq: number | null, fallback: number): string {
 
 function asRunStatus(value: unknown): RunStatus | null {
   return typeof value === 'string' && (RUN_STATUSES as readonly string[]).includes(value) ? value as RunStatus : null
+}
+
+function asApprovalStatus(value: unknown): ApprovalStatus {
+  return value === 'approved' || value === 'rejected' || value === 'expired' ? value : 'pending'
+}
+
+/** 审批失效：调用没有执行，不再按运行终态推断为“结果未知” */
+function markExpired(liveCalls: LiveCall[], key: string) {
+  const live = liveCalls.find((item) => `${item.runId ?? ''}:${item.view.callId}` === key)
+  if (!live || live.view.status !== 'running') return
+  live.view.status = 'skipped'
+  live.view.result = {exitCode: null, truncated: false, fullOutputPath: null, rawChars: null, error: '审批已失效，这次调用没有执行', summary: null}
 }
 
 function asToolStatus(value: string | null): ToolCallStatus | null {

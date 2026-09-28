@@ -6,6 +6,8 @@ import type {
   MCPServersData,
   A2AServersData,
   CreateA2AServerParams,
+  ToolPolicy,
+  ToolPolicyConfig,
 } from "./types";
 
 /**
@@ -39,6 +41,20 @@ export const configApi = {
    */
   updateAgentConfig: (config: AgentConfig): Promise<AgentConfig> => {
     return post<AgentConfig>("/app-config/agent", config);
+  },
+
+  /**
+   * 获取工具策略表与内置工具目录
+   */
+  getToolPolicy: (): Promise<ToolPolicyConfig> => {
+    return get<ToolPolicyConfig>("/app-config/tool-policy");
+  },
+
+  /**
+   * 整表替换工具策略；从下一次创建的执行任务起生效
+   */
+  updateToolPolicy: (rules: Record<string, ToolPolicy>): Promise<ToolPolicyConfig> => {
+    return post<ToolPolicyConfig>("/app-config/tool-policy", { rules });
   },
 
   /**

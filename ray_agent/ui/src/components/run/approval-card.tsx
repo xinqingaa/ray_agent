@@ -17,6 +17,8 @@ type ApprovalCardProps = {
   submitting?: 'approve' | 'reject' | null
   onApprove?: () => void
   onReject?: () => void
+  /** 批准后在工作台查看这次调用 */
+  onOpen?: () => void
   className?: string
 }
 
@@ -31,16 +33,24 @@ function stringify(value: unknown): string {
 }
 
 const RESULT_TEXT: Record<Exclude<ApprovalStatus, 'pending'>, {text: string; tone: string}> = {
-  approved: {text: '已批准，调用已执行一次', tone: 'text-state-success'},
+  approved: {text: '已批准，只执行这一次', tone: 'text-state-success'},
   rejected: {text: '已拒绝，Agent 收到“用户拒绝执行”', tone: 'text-state-stopped'},
-  expired: {text: '已失效：服务重启导致运行中断，这次调用没有执行。需要时重新发起任务', tone: 'text-state-interrupted'},
+  expired: {text: '已失效，这次调用没有执行。运行结束的原因见下方', tone: 'text-state-interrupted'},
+}
+
+/** 批准后的执行情况：执行中、结果摘要或失败说明 */
+function outcomeText(call: ToolCallView): string | null {
+  if (call.status === 'running') return '正在执行'
+  if (call.result?.error) return call.result.error
+  if (call.status === 'succeeded') return call.result?.summary ? `执行完成：${call.result.summary}` : '执行完成'
+  return null
 }
 
 /**
  * 审批卡：执行前需要操作者确认的工具调用。焦点在卡片内时按 Y 批准、N 拒绝。
- * 接口接入由 W7.2 完成；“提交中”由调用方通过 submitting 传入。
+ * “提交中”由调用方通过 submitting 传入；批准后可打开工作台查看结果。
  */
-export function ApprovalCard({call, status, decidedAt, submitting = null, onApprove, onReject, className}: ApprovalCardProps) {
+export function ApprovalCard({call, status, decidedAt, submitting = null, onApprove, onReject, onOpen, className}: ApprovalCardProps) {
   const args = call.raw.args ?? {}
   const keyArg = KEY_ARG[call.family]
   const highlighted = keyArg && args[keyArg.key] != null ? stringify(args[keyArg.key]) : null
@@ -123,10 +133,26 @@ export function ApprovalCard({call, status, decidedAt, submitting = null, onAppr
           <span className="text-xs text-muted-foreground">批准只对这一次调用有效</span>
         </div>
       ) : (
-        <p className={cn('mt-3 text-xs', RESULT_TEXT[status].tone)}>
-          {RESULT_TEXT[status].text}
-          {decidedAt != null && status !== 'expired' && <span className="ml-2 tabular-nums text-muted-foreground">{formatTime(decidedAt)}</span>}
-        </p>
+        <div className="mt-3 space-y-1 text-xs">
+          <p className={RESULT_TEXT[status].tone}>
+            {RESULT_TEXT[status].text}
+            {decidedAt != null && <span className="ml-2 tabular-nums text-muted-foreground">{formatTime(decidedAt)}</span>}
+          </p>
+          {status === 'approved' && outcomeText(call) && (
+            <p className="flex flex-wrap items-center gap-x-2 text-muted-foreground">
+              <span className={call.status === 'failed' ? 'text-state-failed' : undefined}>{outcomeText(call)}</span>
+              {onOpen && call.status !== 'running' && (
+                <button
+                  type="button"
+                  onClick={onOpen}
+                  className="rounded-sm text-signal underline-offset-2 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  在工作台查看
+                </button>
+              )}
+            </p>
+          )}
+        </div>
       )}
     </div>
   )

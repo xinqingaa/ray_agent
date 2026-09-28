@@ -46,6 +46,7 @@ export function TimelineItemView({item, handlers = {}}: {item: TimelineItem; han
           submitting={submitting}
           onApprove={handlers.onApprove ? () => handlers.onApprove?.(item.call.callId) : undefined}
           onReject={handlers.onReject ? () => handlers.onReject?.(item.call.callId) : undefined}
+          onOpen={handlers.onOpenCall ? () => handlers.onOpenCall?.(item.call.callId) : undefined}
         />
       )
     }

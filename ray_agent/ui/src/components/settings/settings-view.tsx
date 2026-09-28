@@ -7,7 +7,7 @@ import {GeneralSection, generalFormOptions} from './general-section'
 import {LlmSection, llmFormOptions} from './llm-section'
 import {McpSection} from './mcp-section'
 import {A2aSection} from './a2a-section'
-import {ToolPolicySection} from './tool-policy-section'
+import {ToolPolicySection, useToolPolicyForm} from './tool-policy-section'
 
 type SectionKey = 'general' | 'llm' | 'mcp' | 'a2a' | 'tool-policy'
 
@@ -16,7 +16,7 @@ const SECTIONS: {key: SectionKey; label: string; tag?: string}[] = [
   {key: 'llm', label: '模型提供商'},
   {key: 'mcp', label: 'MCP 服务器'},
   {key: 'a2a', label: '远程 Agent'},
-  {key: 'tool-policy', label: '工具策略', tag: '未实现'},
+  {key: 'tool-policy', label: '工具策略'},
 ]
 
 /** 设置页：左侧切换分区；表单草稿保存在这里，切换分区不丢失 */
@@ -24,8 +24,9 @@ export function SettingsView() {
   const [active, setActive] = useState<SectionKey>('general')
   const general = useConfigForm(generalFormOptions)
   const llm = useConfigForm(llmFormOptions)
-  const dirty: Partial<Record<SectionKey, boolean>> = {general: general.dirty, llm: llm.dirty}
-  useUnsavedGuard(general.dirty || llm.dirty)
+  const toolPolicy = useToolPolicyForm()
+  const dirty: Partial<Record<SectionKey, boolean>> = {general: general.dirty, llm: llm.dirty, 'tool-policy': toolPolicy.dirty}
+  useUnsavedGuard(general.dirty || llm.dirty || toolPolicy.dirty)
 
   return (
     <div className="h-full overflow-y-auto">
@@ -77,7 +78,7 @@ export function SettingsView() {
             {active === 'llm' && <LlmSection form={llm}/>}
             {active === 'mcp' && <McpSection/>}
             {active === 'a2a' && <A2aSection/>}
-            {active === 'tool-policy' && <ToolPolicySection/>}
+            {active === 'tool-policy' && <ToolPolicySection form={toolPolicy}/>}
           </div>
         </div>
       </div>

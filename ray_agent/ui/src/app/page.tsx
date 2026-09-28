@@ -91,7 +91,7 @@ export default function Page() {
           <section aria-label="示例任务">
             <h2 className="text-sm font-medium">还没有会话</h2>
             <p className="mt-1 text-meta text-faint">
-              发送任务后，会话会出现在左侧列表，并标出运行中、等你回复或失败。下面三条可以直接发送。
+              发送任务后，会话会出现在左侧列表，并标出运行中、等你处理（回复提问或批准操作）或失败。下面三条可以直接发送。
             </p>
             <ul className="mt-3 flex flex-col gap-2">
               {EXAMPLES.map((example) => (

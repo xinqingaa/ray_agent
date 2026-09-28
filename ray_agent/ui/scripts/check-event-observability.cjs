@@ -1,7 +1,7 @@
 // 事件观察：转译并执行实际 UI 模块，不启动 Next.js，默认不连接服务。
 // 覆盖 SSE 分块，以及 W4 投影：按 seq 去重、重连补齐、工具合并与成组、
 // 失败轮次保留、activity、轮次用量、计划变化、终态原因。
-// W6：增量累积与丢弃、速度估算。
+// W6：增量累积与丢弃、速度估算。W7.2：审批条目合并、拒绝与策略禁止、失效。
 /* eslint-disable @typescript-eslint/no-require-imports */
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -248,6 +248,112 @@ function kinds(view) {
   assert.equal(approval.activeRun.activity.kind, 'waiting_approval');
   assert.equal(approval.activeRun.activity.callId, 'c-ok');
   console.log('PASS: reason=approval 时 activity 为 waiting_approval');
+
+  // W7.2：挂起的调用只有审批事件，没有工具事件
+  const mcpApproval = {tool_call_id: 'c-add', name: 'mcp', function: 'mcp_w0eval_add_3f2a', args: {a: 1234, b: 5678}, rule: 'mcp:w0eval:*', service: 'w0eval', service_tool: 'add'};
+  const pendingEvents = [
+    ev(1, 'run', {status: 'running'}),
+    ev(2, 'message', {role: 'user', message: '用 add 算和'}),
+    ev(3, 'turn', {phase: 'started', index: 1}),
+    ev(4, 'message', {role: 'assistant', message: '调用 add。'}),
+    ev(5, 'approval', {...mcpApproval, status: 'pending', decided_at: null}),
+    ev(6, 'turn', {phase: 'completed', index: 1, model_ms: 10, tool_call_ids: [], usage: {prompt_tokens: 5, completion_tokens: 5}}),
+    ev(7, 'wait', {}),
+    ev(8, 'run', {status: 'waiting', reason: 'approval'}),
+  ];
+  const pendingView = projectSession({id: 's', events: pendingEvents});
+  const pendingItems = pendingView.timeline.filter((item) => item.kind === 'approval');
+  assert.equal(pendingItems.length, 1);
+  assert.equal(pendingItems[0].status, 'pending');
+  assert.equal(pendingItems[0].call.family, 'mcp');
+  assert.equal(pendingItems[0].call.title, '调用 MCP 工具 w0eval / add');
+  assert.deepEqual(pendingItems[0].call.raw.args, {a: 1234, b: 5678});
+  assert.equal(pendingView.timeline.some((item) => item.kind === 'tools'), false);
+  assert.equal(pendingView.timeline.some((item) => item.kind === 'ask'), false);
+  assert.deepEqual(pendingView.activeRun.activity, {kind: 'waiting_approval', callId: 'c-add', title: '调用 MCP 工具 w0eval / add'});
+  console.log('PASS: 只有审批事件时从事件本身构造调用条目，MCP 用服务名与原始工具名');
+
+  const approvedView = projectSession({
+    id: 's',
+    events: [
+      ...pendingEvents,
+      ev(9, 'run', {status: 'running'}),
+      ev(10, 'approval', {...mcpApproval, status: 'approved', decided_at: 1_700_000_010_500}),
+      ev(11, 'tool', {tool_call_id: 'c-add', name: 'mcp', function: 'mcp_w0eval_add_3f2a', status: 'calling', args: mcpApproval.args}),
+      ev(12, 'tool', {tool_call_id: 'c-add', name: 'mcp', function: 'mcp_w0eval_add_3f2a', status: 'called', duration_ms: 20, args: mcpApproval.args, content: {outcome: {success: true, message: null, data: '6912'}}}),
+      ev(13, 'turn', {phase: 'started', index: 2}),
+      ev(14, 'message', {role: 'assistant', message: '和是 6912。'}),
+      ev(15, 'turn', {phase: 'completed', index: 2, model_ms: 10, tool_call_ids: [], usage: {prompt_tokens: 6, completion_tokens: 3}}),
+      ev(16, 'done', {}),
+      ev(17, 'run', {status: 'completed', summary: summary({turns: 2, tool_calls: 1})}),
+    ],
+  });
+  const approvedItems = approvedView.timeline.filter((item) => item.kind === 'approval');
+  assert.equal(approvedItems.length, 1);
+  assert.equal(approvedItems[0].status, 'approved');
+  assert.equal(approvedItems[0].decidedAt, 1_700_000_010_500);
+  assert.equal(approvedItems[0].call.status, 'succeeded');
+  assert.equal(approvedItems[0].call.durationMs, 20);
+  assert.equal(approvedItems[0].call.title, '调用 MCP 工具 w0eval / add');
+  assert.equal(approvedView.timeline.some((item) => item.kind === 'tools'), false);
+  assert.equal(approvedView.timeline.find((item) => item.kind === 'final').text, '和是 6912。');
+  assert.equal(approvedView.activeRun, null);
+  console.log('PASS: 批准后 pending 与结论合并为一条，同一调用的执行结果写回该条目，不另起工具组');
+
+  const rejectedView = projectSession({
+    id: 's',
+    events: [
+      ...pendingEvents,
+      ev(9, 'run', {status: 'running'}),
+      ev(10, 'approval', {...mcpApproval, status: 'rejected', decided_at: 1_700_000_010_500}),
+      ev(11, 'tool', {tool_call_id: 'c-add', name: 'mcp', function: 'mcp_w0eval_add_3f2a', status: 'called', args: mcpApproval.args, content: null, denied_by: 'user'}),
+    ],
+  });
+  const rejected = rejectedView.timeline.find((item) => item.kind === 'approval');
+  assert.equal(rejected.status, 'rejected');
+  assert.equal(rejected.call.status, 'denied');
+  assert.match(rejected.call.result.error, /拒绝/);
+  assert.equal(rejectedView.activeRun.activity.kind, 'idle');
+  console.log('PASS: 拒绝后条目为 rejected，调用状态为 denied（denied_by=user），不当作成功');
+
+  const policyView = projectSession({
+    id: 's',
+    events: [
+      ev(1, 'run', {status: 'running'}),
+      ev(2, 'turn', {phase: 'started', index: 1}),
+      ev(3, 'tool', {tool_call_id: 'c-rm', name: 'shell', function: 'shell_execute', status: 'called', args: {command: 'rm -rf /tmp/x'}, content: null, denied_by: 'policy'}),
+    ],
+  });
+  const policyCall = policyView.timeline.find((item) => item.kind === 'tools').calls[0];
+  assert.equal(policyCall.status, 'denied');
+  assert.match(policyCall.result.error, /策略/);
+  assert.equal(policyView.timeline.some((item) => item.kind === 'approval'), false);
+  console.log('PASS: 策略禁止的调用在工具组里显示为 denied，没有审批条目');
+
+  const stoppedApproval = projectSession({
+    id: 's',
+    events: [
+      ...pendingEvents,
+      ev(9, 'approval', {...mcpApproval, status: 'expired', decided_at: 1_700_000_010_500}),
+      ev(10, 'run', {status: 'cancelled', reason: 'user_stop', summary: summary()}),
+    ],
+  });
+  const expired = stoppedApproval.timeline.find((item) => item.kind === 'approval');
+  assert.equal(expired.status, 'expired');
+  assert.equal(expired.call.status, 'skipped');
+  assert.equal(stoppedApproval.timeline.find((item) => item.kind === 'run_end').reasonText, '你停止了这次运行');
+  assert.equal(stoppedApproval.activeRun, null);
+  const restarted = projectSession({
+    id: 's',
+    events: [
+      ...pendingEvents,
+      ev(9, 'approval', {...mcpApproval, status: 'expired', decided_at: 1_700_000_010_500}),
+      ev(10, 'run', {status: 'interrupted', reason: 'api_restart', summary: summary()}),
+    ],
+  });
+  assert.equal(restarted.timeline.find((item) => item.kind === 'approval').status, 'expired');
+  assert.equal(restarted.timeline.find((item) => item.kind === 'run_end').reasonText, '服务重启导致运行中断');
+  console.log('PASS: 停止或 API 重启后审批条目为 expired、调用为未执行，结束原因分别可读');
 
   const failed = projectSession({
     id: 's',

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { sessionApi } from '@/lib/api/session'
 import { normalizeEvent, normalizeEvents } from '@/lib/session-events'
-import type { RunEvent, SessionDetail, SSEEventData, SessionFile, TurnRequest } from '@/lib/api/types'
+import type { ApprovalDecision, RunEvent, SessionDetail, SSEEventData, SessionFile, TurnRequest } from '@/lib/api/types'
 import {
   isTerminalRunStatus,
   mergeBySeq,
@@ -35,6 +35,8 @@ export type UseSessionDetailResult = {
   stop: () => Promise<void>
   /** 读取某一轮重建出的模型请求 */
   loadTurnRequest: (runId: string, index: number) => Promise<TurnRequest>
+  /** 答复审批。失败（含 409 已处理或已失效）时重新拉取详情再抛出 */
+  replyApproval: (toolCallId: string, decision: ApprovalDecision) => Promise<void>
 }
 
 /**
@@ -263,6 +265,19 @@ export function useSessionDetail(
     }
   }, [sessionId])
 
+  const replyApproval = useCallback(
+    async (toolCallId: string, decision: ApprovalDecision) => {
+      if (!sessionId) return
+      try {
+        await sessionApi.replyApproval(sessionId, toolCallId, decision)
+      } catch (e) {
+        await refresh()
+        throw e
+      }
+    },
+    [sessionId, refresh]
+  )
+
   const loadTurnRequest = useCallback(
     (runId: string, index: number) => {
       if (!sessionId) return Promise.reject(new Error('没有会话'))
@@ -298,5 +313,6 @@ export function useSessionDetail(
     submitting,
     stop,
     loadTurnRequest,
+    replyApproval,
   }
 }

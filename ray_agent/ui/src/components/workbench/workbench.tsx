@@ -134,32 +134,40 @@ function EmptyNote({children}: {children: string}) {
 }
 
 function ShellPane({sessionId, call}: {sessionId: string; call: ToolCallView | null}) {
-  const [live, setLive] = useState<string | null>(null)
-  const [liveError, setLiveError] = useState<string | null>(null)
   const running = call?.status === 'running'
   const session = shellSessionId(call)
+  const pullKey = `${call?.callId ?? ''}:${session ?? ''}`
+  // 输出与错误都记下所属调用，切换调用后旧状态不再显示
+  const [pulled, setPulled] = useState<{key: string; output: string | null; error: string | null} | null>(null)
+  const current = pulled?.key === pullKey ? pulled : null
+  const live = current?.output ?? null
+  const liveError = current?.error ?? null
 
   useEffect(() => {
     if (!running || !session) return
     let cancelled = false
     const pull = async () => {
       try {
-        const res = await sessionApi.viewShell(sessionId, {shell_session_id: session})
+        const res = await sessionApi.viewShell(sessionId, {session_id: session})
         if (cancelled) return
-        setLive(typeof res.output === 'string' ? res.output : '')
-        setLiveError(null)
+        setPulled({key: pullKey, output: typeof res.output === 'string' ? res.output : '', error: null})
       } catch (err) {
         if (cancelled) return
-        setLiveError(err instanceof Error ? err.message : '读取终端输出失败')
+        const message = err instanceof Error ? err.message : '读取终端输出失败'
+        setPulled((prev) => ({key: pullKey, output: prev?.key === pullKey ? prev.output : null, error: message}))
       }
     }
     void pull()
     const timer = window.setInterval(() => void pull(), 1500)
+    // 断网恢复后立即重拉，不等下一次轮询
+    const onOnline = () => void pull()
+    window.addEventListener('online', onOnline)
     return () => {
       cancelled = true
       window.clearInterval(timer)
+      window.removeEventListener('online', onOnline)
     }
-  }, [running, session, sessionId, call?.callId])
+  }, [running, session, sessionId, pullKey])
 
   if (!call) {
     return <EmptyNote>这里会显示所选或最新的命令输出。运行命令后出现。</EmptyNote>
@@ -180,8 +188,10 @@ function ShellPane({sessionId, call}: {sessionId: string; call: ToolCallView | n
             {showLive && !session && (
               <p className="text-terminal-foreground/70">这次调用没有终端会话编号。长命令可能要等结束后才返回输出。</p>
             )}
-            {showLive && session && liveError && <p>{liveError}</p>}
-            {showLive && session && !liveError && live != null && live.length > 0 && (
+            {showLive && session && liveError && (
+              <p className="mb-2 text-terminal-foreground/70">暂时读不到实时输出（{liveError}），连接恢复后会自动刷新。</p>
+            )}
+            {showLive && session && live != null && live.length > 0 && (
               <pre className="whitespace-pre-wrap break-all">{live}</pre>
             )}
             {showLive && session && !liveError && live != null && live.length === 0 && rows.length === 0 && (

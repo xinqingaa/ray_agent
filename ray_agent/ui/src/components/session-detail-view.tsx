@@ -33,13 +33,24 @@ export interface SessionDetailViewProps {
   hasInitialMessage?: boolean
 }
 
+type ApprovalSubmitting = {callId: string; decision: 'approve' | 'reject'}
+
+/** 工作台可查看的调用；等待审批的调用还没有执行，不进入工作台 */
 function collectCalls(items: TimelineItem[]): ToolCallView[] {
   const calls: ToolCallView[] = []
   for (const item of items) {
     if (item.kind === 'tools') calls.push(...item.calls)
-    else if (item.kind === 'approval') calls.push(item.call)
+    else if (item.kind === 'approval' && item.status !== 'pending') calls.push(item.call)
   }
   return calls
+}
+
+function pendingApprovalIds(items: TimelineItem[]): Set<string> {
+  const ids = new Set<string>()
+  for (const item of items) {
+    if (item.kind === 'approval' && item.status === 'pending') ids.add(item.call.callId)
+  }
+  return ids
 }
 
 function lastOf(calls: ToolCallView[], family: ToolFamily): ToolCallView | null {
@@ -67,7 +78,9 @@ export function SessionDetailView({
     submitting,
     stop,
     loadTurnRequest,
+    replyApproval,
   } = useSessionDetail(sessionId, hasInitialMessage)
+  const [approvalRequest, setApprovalRequest] = useState<ApprovalSubmitting | null>(null)
 
   const [mode, setMode] = useState<'conversation' | 'developer'>('conversation')
   const [pinnedCallId, setPinnedCallId] = useState<string | null>(null)
@@ -110,6 +123,10 @@ export function SessionDetailView({
   }, [sessionId, sessionStatus, sessions, patchSession])
 
   const calls = useMemo(() => collectCalls(view?.timeline ?? []), [view])
+  const pendingApprovals = useMemo(() => pendingApprovalIds(view?.timeline ?? []), [view])
+  // 请求返回后仍保持“提交中”，直到结论事件到达、卡片不再是 pending
+  const approvalSubmitting = approvalRequest && pendingApprovals.has(approvalRequest.callId) ? approvalRequest : null
+  const waitingApproval = view?.activeRun?.activity.kind === 'waiting_approval'
   const latest = calls.length > 0 ? calls[calls.length - 1] : null
   const pin = pinnedCallId && calls.some((call) => call.callId === pinnedCallId) ? pinnedCallId : null
   const focus = pin ? calls.find((call) => call.callId === pin) ?? latest : latest
@@ -175,6 +192,17 @@ export function SessionDetailView({
     }
   }, [sendMessage])
 
+  const handleApproval = useCallback(async (callId: string, decision: 'approve' | 'reject') => {
+    if (approvalSubmitting) return
+    setApprovalRequest({callId, decision})
+    try {
+      await replyApproval(callId, decision === 'approve' ? 'approve' : 'deny')
+    } catch (err) {
+      setApprovalRequest(null)
+      toast.error(err instanceof Error ? err.message : '提交审批失败，请重试')
+    }
+  }, [approvalSubmitting, replyApproval])
+
   const downloadOne = useCallback(async (file: FileView) => {
     try {
       await downloadSessionFile(file)
@@ -219,7 +247,10 @@ export function SessionDetailView({
         toast.error(err instanceof Error ? err.message : '重试失败')
       })
     },
-  }), [focus?.callId, view?.activeRun, view?.streamingItemId, submitting, downloadOne, downloadAll, sendMessage])
+    onApprove: (callId) => void handleApproval(callId, 'approve'),
+    onReject: (callId) => void handleApproval(callId, 'reject'),
+    approvalSubmitting,
+  }), [focus?.callId, view?.activeRun, view?.streamingItemId, submitting, downloadOne, downloadAll, sendMessage, handleApproval, approvalSubmitting])
 
   const onScroll = () => {
     const el = scrollRef.current
@@ -258,7 +289,9 @@ export function SessionDetailView({
     )
   }
 
-  const placeholder = view.status === 'waiting'
+  const placeholder = waitingApproval
+    ? '先在上方批准或拒绝这个操作，或点“停止”结束运行'
+    : view.status === 'waiting'
     ? '回复将继续当前任务'
     : view.status === 'running'
       ? '补充要求，会在当前这批操作结束后读取'
@@ -345,7 +378,7 @@ export function SessionDetailView({
               <ChatInput
                 sessionId={sessionId}
                 onSend={handleSend}
-                disabled={submitting}
+                disabled={submitting || waitingApproval}
                 placeholder={placeholder}
                 accessory={<ContextRing usage={view.usage}/>}
               />

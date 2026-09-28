@@ -21,7 +21,7 @@ import {ContextRing} from '@/components/run/context-ring'
 import {Timeline} from '@/components/run/timeline-item'
 import {McpServerRow} from '@/components/settings/mcp-section'
 import {A2aServerRow} from '@/components/settings/a2a-section'
-import {ToolPolicySection} from '@/components/settings/tool-policy-section'
+import {ToolPolicySection, type ToolPolicyForm} from '@/components/settings/tool-policy-section'
 import {
   approvalCall,
   approvalMcpCall,
@@ -148,6 +148,36 @@ function ComposedSession({items, statusBar, plan, usage}: {items: TimelineItem[]
 }
 
 const noop = () => toast.info('目录页中的操作不会调用接口')
+
+const toolPolicyFixture: ToolPolicyForm = {
+  load: {phase: 'ready'},
+  config: {
+    rules: {'mcp:*': 'ask', 'a2a:*': 'ask', 'mcp:qiniu:*': 'allow', shell_execute: 'ask'},
+    default_rules: {'mcp:*': 'ask', 'a2a:*': 'ask'},
+    fallback: 'allow',
+    builtin_toolsets: [
+      {toolset: 'file', functions: ['read_file', 'write_file', 'replace_in_file', 'search_in_file', 'find_files']},
+      {toolset: 'shell', functions: ['shell_execute', 'shell_read_output', 'shell_wait_process', 'shell_write_input', 'shell_kill_process']},
+      {toolset: 'browser', functions: ['browser_view', 'browser_navigate']},
+      {toolset: 'search', functions: ['search_web']},
+      {toolset: 'deliver', functions: ['deliver_files']},
+    ],
+  },
+  mcpServers: settingsListStates.mcp,
+  a2aServers: settingsListStates.a2a,
+  rules: {'mcp:*': 'ask', 'a2a:*': 'ask', 'mcp:qiniu:*': 'allow', shell_execute: 'ask'},
+  dirty: false,
+  saving: false,
+  savedAt: null,
+  saveError: null,
+  setRule: noop,
+  restoreDefaults: noop,
+  reset: noop,
+  save: async () => {
+    noop()
+  },
+  reload: noop,
+}
 
 export function ComponentCatalog() {
   return (
@@ -299,7 +329,7 @@ export function ComponentCatalog() {
           <div className="w-[288px] max-w-full space-y-3 rounded-lg bg-sidebar p-2">
             <State label="运行中" source="合成"><SessionItem session={sessionItemStates.running} isActive={false} onClick={noop} onDelete={noop}/></State>
             <State label="等待启动（徽标同运行中）" source="合成"><SessionItem session={sessionItemStates.pending} isActive={false} onClick={noop} onDelete={noop}/></State>
-            <State label="等你回复" source="合成"><SessionItem session={sessionItemStates.waiting} isActive={false} onClick={noop} onDelete={noop}/></State>
+            <State label="等你处理（提问或审批）" source="合成"><SessionItem session={sessionItemStates.waiting} isActive={false} onClick={noop} onDelete={noop}/></State>
             <State label="失败" source="合成"><SessionItem session={sessionItemStates.failed} isActive={false} onClick={noop} onDelete={noop}/></State>
             <State label="已中断" source="合成"><SessionItem session={sessionItemStates.interrupted} isActive={false} onClick={noop} onDelete={noop}/></State>
             <State label="已完成" source="真实"><SessionItem session={sessionItemStates.completed} isActive={false} onClick={noop} onDelete={noop}/></State>
@@ -328,8 +358,8 @@ export function ComponentCatalog() {
               </ul>
             </Surface>
           </State>
-          <State label="工具策略（W7.2 占位）" source="合成">
-            <Surface><ToolPolicySection/></Surface>
+          <State label="工具策略：默认规则加一条 MCP 服务器与一条函数规则" source="合成">
+            <Surface><ToolPolicySection form={toolPolicyFixture}/></Surface>
           </State>
         </Section>
 

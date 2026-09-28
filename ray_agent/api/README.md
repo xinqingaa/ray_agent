@@ -71,6 +71,14 @@ uv run --locked python -m pytest tests/core/test_task_execution_control.py tests
 
 控制用例保留实际应用协调、运行器、任务适配与 Agent 循环，按用例替换模型、传输、存储与沙箱；覆盖等待后用新运行器以回复续接、工具执行中收到的新消息在下一次模型请求前追加而不中断工具、最后一次请求后到达的消息开启下一次运行、重复提交的任务选择、取消请求先于清理完成，以及批次中途停止后经运行器补结果。取消用例用受控阻塞代替长流程，不启动操作系统进程。实际 Shell 进程观察见[沙箱指南](../sandbox/README.md#任务控制观察)；这些用例不能替代真实 Web、Redis、数据库与容器链路验收，也不验证多进程并发排他。
 
+工具策略与审批可定向运行：
+
+```bash
+uv run --locked python -m pytest tests/core/test_tool_approval.py
+```
+
+审批用例用 `ScriptedLLM` 驱动实际循环、管线与运行器，覆盖规则匹配与优先级、豁免工具与规则表校验、MCP 别名还原为服务名、deny 短路、ask 挂起进入等待、批准执行一次后补同批剩余调用、重复答复被拒绝、拒绝回填且不执行、挂起瞬间已有排队消息时审批失效并继续、停止时写入失效、启动扫描中断等待审批而保留等待提问、审批事件的 SSE 字段与设置读写。审批与启动扫描在真实数据库上的往返在 `test_run_events_pg.py`，需要临时 PostgreSQL（见下文）。这些用例不连接真实 MCP 或 A2A 服务，也不验证页面上的审批卡。
+
 状态与持久化可定向运行：
 
 ```bash
@@ -105,7 +113,7 @@ uv run --locked python -m pytest tests/core/test_scripted_llm.py
 
 ### 端到端评测
 
-[scripts/eval/](scripts/eval/) 通过公开 HTTP API 与 SSE 驱动完整产品，运行 E1–E6 基线任务（定义见 [W0 子计划](../../docs/plan/w0-baseline-eval.md#评测脚本)）与长上下文压缩任务 E7（见 [W2 子计划](../../docs/plan/w2-context.md#验收)）。前提：产品 Compose 已启动且各服务健康，模型已按[应用配置](../README.md#模型与工具)配置。每次运行会调用真实模型并产生费用；E6 会临时写入并在结束时删除一项 MCP 设置；E7 运行期间把模型配置的 `context_window` 与 `max_tokens` 临时调低，结束时恢复，期间同一 API 上的其他会话也使用调低后的值。
+[scripts/eval/](scripts/eval/) 通过公开 HTTP API 与 SSE 驱动完整产品，运行 E1–E6 基线任务（定义见 [W0 子计划](../../docs/plan/w0-baseline-eval.md#评测脚本)）与长上下文压缩任务 E7（见 [W2 子计划](../../docs/plan/w2-context.md#验收)）。前提：产品 Compose 已启动且各服务健康，模型已按[应用配置](../README.md#模型与工具)配置。每次运行会调用真实模型并产生费用；E6 与 E6-deny 会临时写入并在结束时删除一项 MCP 设置，同时把工具策略表临时设为该服务需要审批，结束时恢复原表；E7 运行期间把模型配置的 `context_window` 与 `max_tokens` 临时调低，结束时恢复，期间同一 API 上的其他会话也使用调低后的值。
 
 ```bash
 uv run --locked python -m scripts.eval --list

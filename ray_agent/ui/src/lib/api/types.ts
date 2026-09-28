@@ -328,7 +328,62 @@ export type ToolEvent = {
   args: Record<string, unknown>;
   content?: unknown;
   status?: ToolEventStatus;
+  /** 未执行：被工具策略禁止 / 被用户拒绝，只在 called 上；有值时 content 为空 */
+  denied_by?: "policy" | "user" | null;
   [key: string]: unknown;
+};
+
+export type ApprovalStatus = "pending" | "approved" | "rejected" | "expired";
+
+/**
+ * 工具级审批事件：同一调用先有 pending，再有一条结论。
+ * name / function / args 与工具事件同义；MCP 的 function 是哈希别名，展示用 service + service_tool。
+ */
+export type ApprovalEvent = {
+  tool_call_id: string;
+  name: string;
+  function: string;
+  args: Record<string, unknown>;
+  status: ApprovalStatus;
+  /** 命中的策略规则键 */
+  rule?: string | null;
+  /** MCP 服务名或 A2A 远程 Agent id */
+  service?: string | null;
+  /** MCP 服务端原始工具名；A2A 为 call_remote_agent */
+  service_tool?: string | null;
+  /** 毫秒时间戳 */
+  decided_at?: number | null;
+  [key: string]: unknown;
+};
+
+/** 审批受理结果：seq 是结论事件的序号，续接过程从事件流观察 */
+export type ApprovalAccepted = {
+  run_id: string;
+  seq: number;
+  status: "approved" | "rejected";
+};
+
+export type ApprovalDecision = "approve" | "deny";
+
+// ==================== 工具策略 ====================
+
+export type ToolPolicy = "allow" | "ask" | "deny";
+
+export type BuiltinToolset = {
+  toolset: string;
+  functions: string[];
+};
+
+/**
+ * 工具策略表。规则键：内置工具写函数名或 <工具集>:*；
+ * MCP 写 mcp:<服务名>:<工具名>、mcp:<服务名>:*、mcp:*；A2A 写 a2a:<id>:call_remote_agent、a2a:<id>:*、a2a:*。
+ * 越具体的键优先，未匹配任何规则为 fallback（allow）。
+ */
+export type ToolPolicyConfig = {
+  rules: Record<string, ToolPolicy>;
+  default_rules: Record<string, ToolPolicy>;
+  fallback: ToolPolicy;
+  builtin_toolsets: BuiltinToolset[];
 };
 
 export type TokenUsage = {
@@ -400,6 +455,7 @@ export type SSEEventType =
   | "context"
   | "cleanup"
   | "attempt"
+  | "approval"
   | "delta";
 
 /**
@@ -419,6 +475,7 @@ export type SSEEventData =
   | { type: "context"; data: Record<string, unknown> }
   | { type: "cleanup"; data: Record<string, unknown> }
   | { type: "attempt"; data: Record<string, unknown> }
+  | { type: "approval"; data: ApprovalEvent }
   | {
       type: "delta";
       data: { session_id?: string; run_id: string; turn: number; attempt: number; delta: string };
@@ -455,7 +512,7 @@ export type ViewFileParams = {
  * 查看 Shell 输出请求参数
  */
 export type ViewShellParams = {
-  shell_session_id: string;
+  session_id: string;
   [key: string]: unknown;
 };
 

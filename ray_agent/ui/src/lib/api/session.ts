@@ -6,6 +6,8 @@ import type {
   CreateSessionParams,
   ChatParams,
   ChatAccepted,
+  ApprovalAccepted,
+  ApprovalDecision,
   TurnRequest,
   SessionFile,
   ViewFileParams,
@@ -212,6 +214,21 @@ export const sessionApi = {
   ): Promise<TurnRequest> => {
     return get<TurnRequest>(
       `/sessions/${sessionId}/runs/${runId}/turns/${index}/request`
+    );
+  },
+
+  /**
+   * 答复工具审批：approve 执行该调用一次，deny 回填“用户拒绝执行”。
+   * 已答复或已失效返回 409（ApiError.code 为 409），不会重复执行
+   */
+  replyApproval: (
+    sessionId: string,
+    toolCallId: string,
+    decision: ApprovalDecision
+  ): Promise<ApprovalAccepted> => {
+    return post<ApprovalAccepted>(
+      `/sessions/${sessionId}/approvals/${encodeURIComponent(toolCallId)}`,
+      { decision }
     );
   },
 
