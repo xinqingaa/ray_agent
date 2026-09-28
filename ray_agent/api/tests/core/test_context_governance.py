@@ -319,11 +319,6 @@ def test_turn_started_records_context_estimate():
     assert estimate["system_prompt"] > 0 and estimate["tools"] > 0 and estimate["history"] > 0
 
 
-def test_legacy_compact_context_op_reads_as_strip_reasoning():
-    event = ContextEvent.model_validate({"op": "compact"})
-    assert event.op == ContextOp.STRIP_REASONING
-
-
 def test_openai_client_recognizes_context_length_rejections():
     import httpx
     from openai import BadRequestError

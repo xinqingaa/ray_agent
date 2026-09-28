@@ -255,11 +255,6 @@ class ContextOp(str, Enum):
     STRIP_REASONING = "strip_reasoning"  # 按 Memory.strip_reasoning 删除此前消息的推理字段
     REPLACE = "replace"  # 压缩：system 之后的全部消息替换为 messages（摘要、重新注入的用户原文、保留区）
 
-    @classmethod
-    def _missing_(cls, value: object) -> Optional["ContextOp"]:
-        # W3 开发库里的旧值：当时的 compact 就是删除推理字段（外加已删除的浏览器结果替换）
-        return cls.STRIP_REASONING if value == "compact" else None
-
 
 class ContextEvent(BaseEvent):
     """模型可见即已记录：模型历史的每次变化都先成为事件，请求重建按序回放这些事件。"""

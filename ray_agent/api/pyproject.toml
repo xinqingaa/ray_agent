@@ -17,7 +17,6 @@ dependencies = [
     "httpx>=0.28.1",
     "httpx2>=2.5,<3",
     "protobuf>=6.33,<7",
-    "json-repair>=0.53.0",
     "markdownify>=1.2.2",
     "mcp>=2.2.0,<3",
     "openai>=1.107.2",

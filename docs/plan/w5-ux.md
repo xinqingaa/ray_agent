@@ -18,9 +18,9 @@
 
 - 技术栈：Next 16、React 19、Tailwind 4、Radix 与 shadcn 风格基础组件（`components/ui/`）、lucide 图标、react-markdown、sonner、noVNC（[`package.json`](../../ray_agent/ui/package.json)）。
 - `globals.css` 只有 shadcn 默认的浅色中性 token，没有暗色 token；依赖中有 next-themes，但应用没有挂载主题切换；业务组件中约 110 处直接写 `gray-*` 类名，颜色与间距没有统一来源；布局没有指定字体。
-- 会话页是“对话 + 右侧工具预览”两栏（[`session-detail-view.tsx`](../../ray_agent/ui/src/components/session-detail-view.tsx)），工具预览按工具类型显示 Shell 输出、文件内容、浏览器截图，并可打开 VNC（[`tool-preview-panel.tsx`](../../ray_agent/ui/src/components/tool-preview-panel.tsx)、[`vnc-overlay.tsx`](../../ray_agent/ui/src/components/vnc-overlay.tsx)）；Shell 输出通过 `GET /sessions/{id}/shell` 读取。
-- 工具行只有图标、工具名与参数摘要（[`tool-use/`](../../ray_agent/ui/src/components/tool-use/)）；计划面板是独立组件；用量是输入框旁的上下文占用环。
-- 设置页是一个 866 行的单文件，含通用配置、模型提供商、A2A、MCP 四个分区（[`manus-settings.tsx`](../../ray_agent/ui/src/components/manus-settings.tsx)）。
+- 会话页是“对话 + 右侧工具预览”两栏（[`session-detail-view.tsx`](../../ray_agent/ui/src/components/session-detail-view.tsx)），工具预览按工具类型显示 Shell 输出、文件内容、浏览器截图，并可打开 VNC（`tool-preview-panel.tsx`，W5 已删除；[`vnc-overlay.tsx`](../../ray_agent/ui/src/components/vnc-overlay.tsx)）；Shell 输出通过 `GET /sessions/{id}/shell` 读取。
+- 工具行只有图标、工具名与参数摘要（`tool-use/`，W5 已删除）；计划面板是独立组件；用量是输入框旁的上下文占用环。
+- 设置页是一个 866 行的单文件，含通用配置、模型提供商、A2A、MCP 四个分区（`manus-settings.tsx`，W5 已删除）。
 
 ## 设计方向
 

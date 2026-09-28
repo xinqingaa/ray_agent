@@ -71,7 +71,7 @@ docker compose stop manus-api
 
 1. **构建输出**：`Building`、`CACHED`、`exporting`。只说明镜像编没编好。
 2. **容器运行日志**：上表。问答时盯 `manus-api`。
-3. **任务轨迹**：页面时间线，以及库里的 `sessions.events`。Postgres 容器日志不会打出「规划了几步」或工具名。
+3. **任务轨迹**：页面时间线，以及库里的 `events` 表（按会话内 `seq`）。运行状态在 `runs` 表。Postgres 容器日志不会打出工具名。
 
 按会话过滤后端日志：
 

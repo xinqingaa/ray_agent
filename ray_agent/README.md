@@ -87,7 +87,7 @@ docker compose ps
 
 打开 [http://localhost:8088](http://localhost:8088)。如果设置了 `NGINX_PORT`，使用对应端口。
 
-首次启动会构建 API、UI 和沙箱镜像。API 启动时执行数据库迁移，再初始化 Redis、PostgreSQL，并按 `FILE_STORAGE_BACKEND` 初始化本地目录或 COS。迁移 `5b7e2c9d4a10` 建立运行与事件表并删除会话行上的旧事件列，不转换已有 JSONB 事件；已有数据卷升级后事件历史不会保留。要清空数据库再初始化，只能在明确要删除数据时按 [Docker 操作说明](DOCKER.md) 使用 `docker compose down -v`。API 就绪后，UI 和网关才会按依赖条件启动。迁移完成、开始接收请求之前，启动扫描会把上次进程留下的 running 运行标为 interrupted。
+首次启动会构建 API、UI 和沙箱镜像。API 启动时执行数据库迁移，再初始化 Redis、PostgreSQL，并按 `FILE_STORAGE_BACKEND` 初始化本地目录或 COS。迁移 `5b7e2c9d4a10` 建立运行与事件表并删除会话行上的旧事件列，不转换已有 JSONB 事件；已有数据卷升级后事件历史不会保留。要清空数据库再初始化，只能在明确要删除数据时按 [Docker 操作说明](DOCKER.md) 使用 `docker compose down -v`。API 就绪后，UI 和网关才会按依赖条件启动。迁移完成、开始接收请求之前，启动扫描会把上次进程留下的 running 运行，以及正在等待审批的运行，标为 interrupted；等待提问的运行保持 waiting。
 
 检查顺序：
 

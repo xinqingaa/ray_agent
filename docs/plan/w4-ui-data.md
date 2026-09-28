@@ -14,8 +14,8 @@
 
 - [`hooks/use-session-detail.ts`](../../ray_agent/ui/src/hooks/use-session-detail.ts) 同时维护“发送消息的流”和“空消息的补齐流”，流结束后延迟重连（第 102–129 行、第 226–305 行）；会话状态从 step、tool、wait、done、error 事件推断（第 62–99 行），发送时先乐观置为 running。
 - [`lib/session-events.ts`](../../ray_agent/ui/src/lib/session-events.ts) 按 step 分组工具（第 174–259 行），没有 step 时平铺；`collapseRetriedTurns` 与 `trimToLastUserMessage` 会隐藏同内容重试之前的失败轮次（第 427–470 行）。
-- 计划面板读取最新 plan 事件并合并 step 事件的状态（第 333–360 行；[`components/plan-panel.tsx`](../../ray_agent/ui/src/components/plan-panel.tsx)）。
-- 用量只显示最近一次调用的上下文占用（[`components/token-usage.tsx`](../../ray_agent/ui/src/components/token-usage.tsx)）。
+- 计划面板读取最新 plan 事件并合并 step 事件的状态（第 333–360 行；`components/plan-panel.tsx`，W5 已删除）。
+- 用量只显示最近一次调用的上下文占用（`components/token-usage.tsx`，W5 已删除）。
 - 已有本地观察脚本 [`scripts/check-event-observability.cjs`](../../ray_agent/ui/scripts/check-event-observability.cjs)，转译并执行真实 UI 模块验证 SSE 解析与时间线构建。
 
 ## 设计

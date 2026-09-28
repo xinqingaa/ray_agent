@@ -401,10 +401,6 @@ jiter==0.10.0 \
     --hash=sha256:fa3402a2ff9815960e0372a47b75c76979d74402448509ccd49a275fa983ef8a \
     --hash=sha256:fcedb049bdfc555e261d6f65a6abe1d5ad68825b7202ccb9692636c70fcced86
     # via openai
-json-repair==0.53.0 \
-    --hash=sha256:17f7439e41ae39964e1d678b1def38cb8ec43d607340564acf3e62d8ce47a727 \
-    --hash=sha256:97fcbf1eea0bbcf6d5cc94befc573623ab4bbba6abdc394cfd3b933a2571266d
-    # via api
 json-rpc==1.15.0 \
     --hash=sha256:4a4668bbbe7116feb4abbd0f54e64a4adcf4b8f648f19ffa0848ad0f6606a9bf \
     --hash=sha256:e6441d56c1dcd54241c937d0a2dcd193bdf0bdc539b5316524713f554b7f85b9

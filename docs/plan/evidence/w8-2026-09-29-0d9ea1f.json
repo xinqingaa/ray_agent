@@ -1,0 +1,6035 @@
+{
+  "meta": {
+    "label": "w8",
+    "date": "2026-09-29",
+    "git": {
+      "commit": "0d9ea1f568a2b6007f5ab78bc1e4f567af4e42cb",
+      "short": "0d9ea1f",
+      "dirty": [
+        "M README.md",
+        " M docs/architecture.md",
+        " M docs/assets/architecture-overview.svg",
+        " M docs/assets/harness-layers.svg",
+        " M docs/assets/product-overview.svg",
+        " M docs/assets/state-ownership.svg",
+        " M docs/assets/task-exits.svg",
+        " M docs/assets/task-lifecycle.svg",
+        " M docs/background/README.md",
+        " M docs/capabilities.md",
+        " M docs/code-map.md",
+        " M docs/decisions.md",
+        " M docs/harness.md",
+        " M docs/plan/README.md",
+        " M docs/plan/w4-ui-data.md",
+        " M docs/plan/w5-ux.md",
+        " M docs/product.md",
+        " M lessons/README.md",
+        " M ray_agent/DOCKER.md",
+        " M ray_agent/README.md",
+        " M ray_agent/api/app/domain/models/event.py",
+        " M ray_agent/api/pyproject.toml",
+        " M ray_agent/api/requirements.txt",
+        " M ray_agent/api/tests/core/test_context_governance.py",
+        " M ray_agent/api/uv.lock",
+        "?? docs/plan/course-sync.md",
+        "?? docs/plan/evidence/w8-2026-09-29-a2a-fail.png",
+        "?? docs/plan/evidence/w8-2026-09-29-a2a-ok.png",
+        "?? docs/plan/evidence/w8-2026-09-29-ask.png",
+        "?? docs/plan/evidence/w8-2026-09-29-browser.png",
+        "?? docs/plan/evidence/w8-2026-09-29-catalog-dark.png",
+        "?? docs/plan/evidence/w8-2026-09-29-catalog-light.png",
+        "?? docs/plan/evidence/w8-2026-09-29-dark.png",
+        "?? docs/plan/evidence/w8-2026-09-29-delivery.png",
+        "?? docs/plan/evidence/w8-2026-09-29-developer.png",
+        "?? docs/plan/evidence/w8-2026-09-29-mcp.png",
+        "?? docs/plan/evidence/w8-2026-09-29-narrow.png",
+        "?? docs/plan/evidence/w8-2026-09-29-refresh.png",
+        "?? docs/plan/evidence/w8-2026-09-29-restart.png",
+        "?? docs/plan/evidence/w8-2026-09-29-stop.png",
+        "?? docs/plan/evidence/w8-2026-09-29-workbench.png"
+      ]
+    },
+    "base_url": "http://localhost:8088/api",
+    "host_address": "host.docker.internal",
+    "llm_config": {
+      "base_url": "https://api.deepseek.com/",
+      "model_name": "deepseek-flash",
+      "temperature": 0.7,
+      "max_tokens": 8192,
+      "context_window": 65536,
+      "has_api_key": true
+    },
+    "agent_config": {
+      "max_iterations": 100,
+      "max_retries": 3,
+      "max_search_results": 10,
+      "context_safety_ratio": 0.05,
+      "compact_watermark": 0.75,
+      "compact_keep_turns": 3,
+      "compact_user_chars": 16000,
+      "tool_result_max_chars": 8000
+    },
+    "mcp_servers_before": [],
+    "repeat": 2,
+    "tasks": [
+      "E1",
+      "E2",
+      "E3",
+      "E4",
+      "E5",
+      "E6",
+      "E6-deny",
+      "E7"
+    ],
+    "started_at": "2026-09-29T02:53:52",
+    "finished_at": "2026-09-29T02:58:37",
+    "note": "16 次运行按任务拆开执行，每任务前后删除 rayagent-sandbox-* 动态容器。合并时保留各次原始指标与事件摘要。"
+  },
+  "runs": [
+    {
+      "task_id": "E1",
+      "title": "纯回答与跨轮记忆",
+      "run_index": 1,
+      "outcome": "passed",
+      "session_id": "42679ccd-08fc-4122-8495-d1e804b14682",
+      "session_status": "completed",
+      "last_terminal_event": "done",
+      "last_run_status": "completed",
+      "last_run_reason": null,
+      "wall_seconds": 10.0,
+      "model_calls": 2,
+      "turns": 2,
+      "usage_unavailable_calls": 0,
+      "prompt_tokens": 8673,
+      "completion_tokens": 17,
+      "cached_tokens": 8192,
+      "tool_calls": 0,
+      "tool_calls_by_name": {},
+      "tool_calls_unfinished": 0,
+      "unpaired_turns": 0,
+      "compactions": 0,
+      "compaction_requests": 0,
+      "shaped_results": 0,
+      "max_context_estimate": 4812,
+      "metrics_consistent": true,
+      "metric_mismatches": [],
+      "runs": [
+        {
+          "run_id": "19f923ef-14f0-4e91-91ca-7e0aa1904160",
+          "status": "completed",
+          "reason": null,
+          "source": "summary"
+        },
+        {
+          "run_id": "6b633fd0-aabc-4942-8a02-d6057978e336",
+          "status": "completed",
+          "reason": null,
+          "source": "summary"
+        }
+      ],
+      "error_events": [],
+      "checks": [
+        {
+          "name": "第二轮最终回复含“青松”",
+          "passed": true,
+          "detail": "第二轮最后一条助手消息：'青松'",
+          "required": true
+        },
+        {
+          "name": "第二轮任一助手消息含“青松”（只记录）",
+          "passed": true,
+          "detail": "第二轮助手消息 1 条",
+          "required": false
+        },
+        {
+          "name": "第一轮工具调用（只记录）",
+          "passed": true,
+          "detail": "0 次：[]",
+          "required": false
+        }
+      ],
+      "interactions": [
+        {
+          "t": 0.0,
+          "kind": "send",
+          "turn": 0,
+          "message": "请记住：本会话的校验词是“青松”。只需确认你已记住，不需要做其他事情。",
+          "attachments": 0
+        },
+        {
+          "t": 0.263,
+          "kind": "accepted",
+          "run_id": "19f923ef-14f0-4e91-91ca-7e0aa1904160",
+          "seq": 2,
+          "route": "started",
+          "approval": null
+        },
+        {
+          "t": 9.171,
+          "kind": "sse_end",
+          "terminal": "completed",
+          "reason": null,
+          "after_stop": false
+        },
+        {
+          "t": 9.171,
+          "kind": "send",
+          "turn": 1,
+          "message": "本会话的校验词是什么？请直接回答。",
+          "attachments": 0
+        },
+        {
+          "t": 9.204,
+          "kind": "accepted",
+          "run_id": "6b633fd0-aabc-4942-8a02-d6057978e336",
+          "seq": 13,
+          "route": "started",
+          "approval": null
+        },
+        {
+          "t": 10.045,
+          "kind": "sse_end",
+          "terminal": "completed",
+          "reason": null,
+          "after_stop": false
+        }
+      ],
+      "observations": {},
+      "env": {
+        "host_address": "host.docker.internal"
+      },
+      "events": [
+        {
+          "event": "run",
+          "run_id": "19f923ef",
+          "status": "running",
+          "reason": null
+        },
+        {
+          "event": "message",
+          "role": "user",
+          "message": "请记住：本会话的校验词是“青松”。只需确认你已记住，不需要做其他事情。",
+          "attachments": []
+        },
+        {
+          "event": "title"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "turn",
+          "phase": "started",
+          "index": 1,
+          "estimate": 4781
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "message",
+          "role": "assistant",
+          "message": "已记住：本会话的校验词是\"青松\"。",
+          "attachments": []
+        },
+        {
+          "event": "turn",
+          "phase": "completed",
+          "index": 1,
+          "attempts": 1,
+          "prompt_tokens": 4322,
+          "completion_tokens": 14,
+          "model_ms": 712,
+          "ttft_ms": 671,
+          "error": null
+        },
+        {
+          "event": "done"
+        },
+        {
+          "event": "run",
+          "run_id": "19f923ef",
+          "status": "completed",
+          "reason": null
+        },
+        {
+          "event": "run",
+          "run_id": "6b633fd0",
+          "status": "running",
+          "reason": null
+        },
+        {
+          "event": "message",
+          "role": "user",
+          "message": "本会话的校验词是什么？请直接回答。",
+          "attachments": []
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "turn",
+          "phase": "started",
+          "index": 1,
+          "estimate": 4812
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "message",
+          "role": "assistant",
+          "message": "青松",
+          "attachments": []
+        },
+        {
+          "event": "turn",
+          "phase": "completed",
+          "index": 1,
+          "attempts": 1,
+          "prompt_tokens": 4351,
+          "completion_tokens": 3,
+          "model_ms": 804,
+          "ttft_ms": 801,
+          "error": null
+        },
+        {
+          "event": "done"
+        },
+        {
+          "event": "run",
+          "run_id": "6b633fd0",
+          "status": "completed",
+          "reason": null
+        }
+      ],
+      "final_reply": "青松"
+    },
+    {
+      "task_id": "E1",
+      "title": "纯回答与跨轮记忆",
+      "run_index": 2,
+      "outcome": "passed",
+      "session_id": "ffd90464-827a-4f5b-a7ae-a5480ce07d6c",
+      "session_status": "completed",
+      "last_terminal_event": "done",
+      "last_run_status": "completed",
+      "last_run_reason": null,
+      "wall_seconds": 9.5,
+      "model_calls": 2,
+      "turns": 2,
+      "usage_unavailable_calls": 0,
+      "prompt_tokens": 8673,
+      "completion_tokens": 41,
+      "cached_tokens": 8192,
+      "tool_calls": 0,
+      "tool_calls_by_name": {},
+      "tool_calls_unfinished": 0,
+      "unpaired_turns": 0,
+      "compactions": 0,
+      "compaction_requests": 0,
+      "shaped_results": 0,
+      "max_context_estimate": 4812,
+      "metrics_consistent": true,
+      "metric_mismatches": [],
+      "runs": [
+        {
+          "run_id": "d45330e9-28e5-4c00-a63f-c6b7ed220fae",
+          "status": "completed",
+          "reason": null,
+          "source": "summary"
+        },
+        {
+          "run_id": "641182fa-46c5-452c-9f49-ccf196b484c4",
+          "status": "completed",
+          "reason": null,
+          "source": "summary"
+        }
+      ],
+      "error_events": [],
+      "checks": [
+        {
+          "name": "第二轮最终回复含“青松”",
+          "passed": true,
+          "detail": "第二轮最后一条助手消息：'青松'",
+          "required": true
+        },
+        {
+          "name": "第二轮任一助手消息含“青松”（只记录）",
+          "passed": true,
+          "detail": "第二轮助手消息 1 条",
+          "required": false
+        },
+        {
+          "name": "第一轮工具调用（只记录）",
+          "passed": true,
+          "detail": "0 次：[]",
+          "required": false
+        }
+      ],
+      "interactions": [
+        {
+          "t": 0.0,
+          "kind": "send",
+          "turn": 0,
+          "message": "请记住：本会话的校验词是“青松”。只需确认你已记住，不需要做其他事情。",
+          "attachments": 0
+        },
+        {
+          "t": 0.187,
+          "kind": "accepted",
+          "run_id": "d45330e9-28e5-4c00-a63f-c6b7ed220fae",
+          "seq": 2,
+          "route": "started",
+          "approval": null
+        },
+        {
+          "t": 8.948,
+          "kind": "sse_end",
+          "terminal": "completed",
+          "reason": null,
+          "after_stop": false
+        },
+        {
+          "t": 8.949,
+          "kind": "send",
+          "turn": 1,
+          "message": "本会话的校验词是什么？请直接回答。",
+          "attachments": 0
+        },
+        {
+          "t": 8.988,
+          "kind": "accepted",
+          "run_id": "641182fa-46c5-452c-9f49-ccf196b484c4",
+          "seq": 13,
+          "route": "started",
+          "approval": null
+        },
+        {
+          "t": 9.507,
+          "kind": "sse_end",
+          "terminal": "completed",
+          "reason": null,
+          "after_stop": false
+        }
+      ],
+      "observations": {},
+      "env": {
+        "host_address": "host.docker.internal"
+      },
+      "events": [
+        {
+          "event": "run",
+          "run_id": "d45330e9",
+          "status": "running",
+          "reason": null
+        },
+        {
+          "event": "message",
+          "role": "user",
+          "message": "请记住：本会话的校验词是“青松”。只需确认你已记住，不需要做其他事情。",
+          "attachments": []
+        },
+        {
+          "event": "title"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "turn",
+          "phase": "started",
+          "index": 1,
+          "estimate": 4781
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "message",
+          "role": "assistant",
+          "message": "已记住：本会话的校验词是「青松」。",
+          "attachments": []
+        },
+        {
+          "event": "turn",
+          "phase": "completed",
+          "index": 1,
+          "attempts": 1,
+          "prompt_tokens": 4322,
+          "completion_tokens": 38,
+          "model_ms": 675,
+          "ttft_ms": 631,
+          "error": null
+        },
+        {
+          "event": "done"
+        },
+        {
+          "event": "run",
+          "run_id": "d45330e9",
+          "status": "completed",
+          "reason": null
+        },
+        {
+          "event": "run",
+          "run_id": "641182fa",
+          "status": "running",
+          "reason": null
+        },
+        {
+          "event": "message",
+          "role": "user",
+          "message": "本会话的校验词是什么？请直接回答。",
+          "attachments": []
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "turn",
+          "phase": "started",
+          "index": 1,
+          "estimate": 4812
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "message",
+          "role": "assistant",
+          "message": "青松",
+          "attachments": []
+        },
+        {
+          "event": "turn",
+          "phase": "completed",
+          "index": 1,
+          "attempts": 1,
+          "prompt_tokens": 4351,
+          "completion_tokens": 3,
+          "model_ms": 484,
+          "ttft_ms": 466,
+          "error": null
+        },
+        {
+          "event": "done"
+        },
+        {
+          "event": "run",
+          "run_id": "641182fa",
+          "status": "completed",
+          "reason": null
+        }
+      ],
+      "final_reply": "青松"
+    },
+    {
+      "task_id": "E2",
+      "title": "文件交付（V01）",
+      "run_index": 1,
+      "outcome": "passed",
+      "session_id": "768c612f-f6a5-4df5-87ff-f5ba66e9df07",
+      "session_status": "completed",
+      "last_terminal_event": "done",
+      "last_run_status": "completed",
+      "last_run_reason": null,
+      "wall_seconds": 13.2,
+      "model_calls": 5,
+      "turns": 5,
+      "usage_unavailable_calls": 0,
+      "prompt_tokens": 24705,
+      "completion_tokens": 673,
+      "cached_tokens": 23552,
+      "tool_calls": 5,
+      "tool_calls_by_name": {
+        "shell_execute": 2,
+        "read_file": 1,
+        "write_file": 1,
+        "deliver_files": 1
+      },
+      "tool_calls_unfinished": 0,
+      "unpaired_turns": 0,
+      "compactions": 0,
+      "compaction_requests": 0,
+      "shaped_results": 0,
+      "max_context_estimate": 5453,
+      "metrics_consistent": true,
+      "metric_mismatches": [],
+      "runs": [
+        {
+          "run_id": "0e4931b4-0531-4521-b5b8-196362a91a42",
+          "status": "completed",
+          "reason": null,
+          "source": "summary"
+        }
+      ],
+      "error_events": [],
+      "checks": [
+        {
+          "name": "交付 summary.json 并可下载",
+          "passed": true,
+          "detail": "文件 ID cf9ce9b1-bb2d-4aca-bba2-a2e49dac5911",
+          "required": true
+        },
+        {
+          "name": "summary.json 的 total 为整数 60",
+          "passed": true,
+          "detail": "total=60（int）；内容：{\"total\": 60}",
+          "required": true
+        },
+        {
+          "name": "源文件未被修改",
+          "passed": true,
+          "detail": "经会话文件接口读取 /home/ubuntu/upload/source.csv，与上传字节一致：'item,amount\\na,12\\nb,18\\nc,30\\n'",
+          "required": true
+        }
+      ],
+      "interactions": [
+        {
+          "t": 0.0,
+          "kind": "send",
+          "turn": 0,
+          "message": "附件 source.csv 是一份清单。请统计 amount 列的总和，把结果写成 summary.json（JSON 对象，总和放在 total 字段），并把 summary.json 作为附件提供给我下载。不要修改 source.csv。",
+          "attachments": 1
+        },
+        {
+          "t": 0.184,
+          "kind": "accepted",
+          "run_id": "0e4931b4-0531-4521-b5b8-196362a91a42",
+          "seq": 2,
+          "route": "started",
+          "approval": null
+        },
+        {
+          "t": 13.174,
+          "kind": "sse_end",
+          "terminal": "completed",
+          "reason": null,
+          "after_stop": false
+        }
+      ],
+      "observations": {},
+      "env": {
+        "host_address": "host.docker.internal"
+      },
+      "events": [
+        {
+          "event": "run",
+          "run_id": "0e4931b4",
+          "status": "running",
+          "reason": null
+        },
+        {
+          "event": "message",
+          "role": "user",
+          "message": "附件 source.csv 是一份清单。请统计 amount 列的总和，把结果写成 summary.json（JSON 对象，总和放在 total 字段），并把 summary.json 作为附件提供给我下载。不要修改 source.csv",
+          "attachments": [
+            "source.csv"
+          ]
+        },
+        {
+          "event": "title"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "turn",
+          "phase": "started",
+          "index": 1,
+          "estimate": 4834
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "message",
+          "role": "assistant",
+          "message": "I'll start by examining the CSV file.",
+          "attachments": []
+        },
+        {
+          "event": "tool",
+          "function": "read_file",
+          "status": "calling",
+          "name": "file"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "read_file",
+          "status": "called",
+          "name": "file",
+          "duration_ms": 6
+        },
+        {
+          "event": "tool",
+          "function": "shell_execute",
+          "status": "calling",
+          "name": "shell"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "shell_execute",
+          "status": "called",
+          "name": "shell",
+          "duration_ms": 19
+        },
+        {
+          "event": "turn",
+          "phase": "completed",
+          "index": 1,
+          "attempts": 1,
+          "prompt_tokens": 4365,
+          "completion_tokens": 158,
+          "model_ms": 930,
+          "ttft_ms": 406,
+          "error": null
+        },
+        {
+          "event": "turn",
+          "phase": "started",
+          "index": 2,
+          "estimate": 4618
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "write_file",
+          "status": "calling",
+          "name": "file"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "write_file",
+          "status": "called",
+          "name": "file",
+          "duration_ms": 5
+        },
+        {
+          "event": "turn",
+          "phase": "completed",
+          "index": 2,
+          "attempts": 1,
+          "prompt_tokens": 4713,
+          "completion_tokens": 90,
+          "model_ms": 1034,
+          "ttft_ms": 904,
+          "error": null
+        },
+        {
+          "event": "turn",
+          "phase": "started",
+          "index": 3,
+          "estimate": 4799
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "shell_execute",
+          "status": "calling",
+          "name": "shell"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "shell_execute",
+          "status": "called",
+          "name": "shell",
+          "duration_ms": 19
+        },
+        {
+          "event": "turn",
+          "phase": "completed",
+          "index": 3,
+          "attempts": 1,
+          "prompt_tokens": 4846,
+          "completion_tokens": 210,
+          "model_ms": 1074,
+          "ttft_ms": 654,
+          "error": null
+        },
+        {
+          "event": "turn",
+          "phase": "started",
+          "index": 4,
+          "estimate": 5194
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "deliver_files",
+          "status": "calling",
+          "name": "deliver"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "deliver_files",
+          "status": "called",
+          "name": "deliver",
+          "duration_ms": 10
+        },
+        {
+          "event": "message",
+          "role": "assistant",
+          "message": "summary.json：amount 列总和为 60",
+          "attachments": [
+            "summary.json"
+          ]
+        },
+        {
+          "event": "turn",
+          "phase": "completed",
+          "index": 4,
+          "attempts": 1,
+          "prompt_tokens": 5257,
+          "completion_tokens": 104,
+          "model_ms": 780,
+          "ttft_ms": 661,
+          "error": null
+        },
+        {
+          "event": "turn",
+          "phase": "started",
+          "index": 5,
+          "estimate": 5453
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "message",
+          "role": "assistant",
+          "message": "已完成。\n\n- 数据：`source.csv` 共 3 条记录，amount 为 12 + 18 + 30\n- 结果：总和 = **60**，已写入 `summary.json`（`{\"total\": 60}`），并用 csv 模块独立复算",
+          "attachments": []
+        },
+        {
+          "event": "turn",
+          "phase": "completed",
+          "index": 5,
+          "attempts": 1,
+          "prompt_tokens": 5524,
+          "completion_tokens": 111,
+          "model_ms": 833,
+          "ttft_ms": 453,
+          "error": null
+        },
+        {
+          "event": "done"
+        },
+        {
+          "event": "run",
+          "run_id": "0e4931b4",
+          "status": "completed",
+          "reason": null
+        }
+      ],
+      "final_reply": "已完成。\n\n- 数据：`source.csv` 共 3 条记录，amount 为 12 + 18 + 30\n- 结果：总和 = **60**，已写入 `summary.json`（`{\"total\": 60}`），并用 csv 模块独立复算验证一致\n- `source.csv` 未被修改（MD5 前后均为 `31020255351bf0e1dde6622702f89e69`）\n\n`summary.json` 已作为附件提供下载。"
+    },
+    {
+      "task_id": "E2",
+      "title": "文件交付（V01）",
+      "run_index": 2,
+      "outcome": "passed",
+      "session_id": "aaf443d4-8801-4f32-9cd9-93bf43b30757",
+      "session_status": "completed",
+      "last_terminal_event": "done",
+      "last_run_status": "completed",
+      "last_run_reason": null,
+      "wall_seconds": 11.7,
+      "model_calls": 4,
+      "turns": 4,
+      "usage_unavailable_calls": 0,
+      "prompt_tokens": 19537,
+      "completion_tokens": 550,
+      "cached_tokens": 18688,
+      "tool_calls": 3,
+      "tool_calls_by_name": {
+        "shell_execute": 2,
+        "deliver_files": 1
+      },
+      "tool_calls_unfinished": 0,
+      "unpaired_turns": 0,
+      "compactions": 0,
+      "compaction_requests": 0,
+      "shaped_results": 0,
+      "max_context_estimate": 5339,
+      "metrics_consistent": true,
+      "metric_mismatches": [],
+      "runs": [
+        {
+          "run_id": "c323e42e-4828-406a-a299-0c3043c7beee",
+          "status": "completed",
+          "reason": null,
+          "source": "summary"
+        }
+      ],
+      "error_events": [],
+      "checks": [
+        {
+          "name": "交付 summary.json 并可下载",
+          "passed": true,
+          "detail": "文件 ID 40c8a42d-a15d-4bc0-ba2e-1acca130abb6",
+          "required": true
+        },
+        {
+          "name": "summary.json 的 total 为整数 60",
+          "passed": true,
+          "detail": "total=60（int）；内容：{\"total\": 60}",
+          "required": true
+        },
+        {
+          "name": "源文件未被修改",
+          "passed": true,
+          "detail": "经会话文件接口读取 /home/ubuntu/upload/source.csv，与上传字节一致：'item,amount\\na,12\\nb,18\\nc,30\\n'",
+          "required": true
+        }
+      ],
+      "interactions": [
+        {
+          "t": 0.0,
+          "kind": "send",
+          "turn": 0,
+          "message": "附件 source.csv 是一份清单。请统计 amount 列的总和，把结果写成 summary.json（JSON 对象，总和放在 total 字段），并把 summary.json 作为附件提供给我下载。不要修改 source.csv。",
+          "attachments": 1
+        },
+        {
+          "t": 0.211,
+          "kind": "accepted",
+          "run_id": "c323e42e-4828-406a-a299-0c3043c7beee",
+          "seq": 2,
+          "route": "started",
+          "approval": null
+        },
+        {
+          "t": 11.73,
+          "kind": "sse_end",
+          "terminal": "completed",
+          "reason": null,
+          "after_stop": false
+        }
+      ],
+      "observations": {},
+      "env": {
+        "host_address": "host.docker.internal"
+      },
+      "events": [
+        {
+          "event": "run",
+          "run_id": "c323e42e",
+          "status": "running",
+          "reason": null
+        },
+        {
+          "event": "message",
+          "role": "user",
+          "message": "附件 source.csv 是一份清单。请统计 amount 列的总和，把结果写成 summary.json（JSON 对象，总和放在 total 字段），并把 summary.json 作为附件提供给我下载。不要修改 source.csv",
+          "attachments": [
+            "source.csv"
+          ]
+        },
+        {
+          "event": "title"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "turn",
+          "phase": "started",
+          "index": 1,
+          "estimate": 4834
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "message",
+          "role": "assistant",
+          "message": "先查看源文件内容与结构。",
+          "attachments": []
+        },
+        {
+          "event": "tool",
+          "function": "shell_execute",
+          "status": "calling",
+          "name": "shell"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "shell_execute",
+          "status": "called",
+          "name": "shell",
+          "duration_ms": 13
+        },
+        {
+          "event": "turn",
+          "phase": "completed",
+          "index": 1,
+          "attempts": 1,
+          "prompt_tokens": 4365,
+          "completion_tokens": 128,
+          "model_ms": 838,
+          "ttft_ms": 498,
+          "error": null
+        },
+        {
+          "event": "turn",
+          "phase": "started",
+          "index": 2,
+          "estimate": 4555
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "message",
+          "role": "assistant",
+          "message": "文件只有 4 行，用 Python 解析求和并写 JSON。",
+          "attachments": []
+        },
+        {
+          "event": "tool",
+          "function": "shell_execute",
+          "status": "calling",
+          "name": "shell"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "shell_execute",
+          "status": "called",
+          "name": "shell",
+          "duration_ms": 20
+        },
+        {
+          "event": "turn",
+          "phase": "completed",
+          "index": 2,
+          "attempts": 1,
+          "prompt_tokens": 4631,
+          "completion_tokens": 239,
+          "model_ms": 1104,
+          "ttft_ms": 519,
+          "error": null
+        },
+        {
+          "event": "turn",
+          "phase": "started",
+          "index": 3,
+          "estimate": 5046
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "deliver_files",
+          "status": "calling",
+          "name": "deliver"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "deliver_files",
+          "status": "called",
+          "name": "deliver",
+          "duration_ms": 9
+        },
+        {
+          "event": "message",
+          "role": "assistant",
+          "message": "amount 列总和（total=60）已写入 summary.json",
+          "attachments": [
+            "summary.json"
+          ]
+        },
+        {
+          "event": "turn",
+          "phase": "completed",
+          "index": 3,
+          "attempts": 1,
+          "prompt_tokens": 5134,
+          "completion_tokens": 109,
+          "model_ms": 692,
+          "ttft_ms": 499,
+          "error": null
+        },
+        {
+          "event": "turn",
+          "phase": "started",
+          "index": 4,
+          "estimate": 5339
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "message",
+          "role": "assistant",
+          "message": "已完成。\n\n- source.csv 共 3 条数据（12、18、30），amount 总和 = **60**\n- 结果已写入 `/home/ubuntu/summary.json`，内容为 `{\"total\": 60}`\n- source",
+          "attachments": []
+        },
+        {
+          "event": "turn",
+          "phase": "completed",
+          "index": 4,
+          "attempts": 1,
+          "prompt_tokens": 5407,
+          "completion_tokens": 74,
+          "model_ms": 680,
+          "ttft_ms": 450,
+          "error": null
+        },
+        {
+          "event": "done"
+        },
+        {
+          "event": "run",
+          "run_id": "c323e42e",
+          "status": "completed",
+          "reason": null
+        }
+      ],
+      "final_reply": "已完成。\n\n- source.csv 共 3 条数据（12、18、30），amount 总和 = **60**\n- 结果已写入 `/home/ubuntu/summary.json`，内容为 `{\"total\": 60}`\n- source.csv 仅被读取，未做任何修改\n\n文件已作为附件交付（summary.json）。"
+    },
+    {
+      "task_id": "E3",
+      "title": "提问续接",
+      "run_index": 1,
+      "outcome": "passed",
+      "session_id": "c1dfc5ea-f7bc-4da3-ba19-d6307b599a0a",
+      "session_status": "completed",
+      "last_terminal_event": "done",
+      "last_run_status": "completed",
+      "last_run_reason": null,
+      "wall_seconds": 11.0,
+      "model_calls": 4,
+      "turns": 4,
+      "usage_unavailable_calls": 0,
+      "prompt_tokens": 18358,
+      "completion_tokens": 342,
+      "cached_tokens": 17536,
+      "tool_calls": 2,
+      "tool_calls_by_name": {
+        "write_file": 1,
+        "deliver_files": 1
+      },
+      "tool_calls_unfinished": 0,
+      "unpaired_turns": 0,
+      "compactions": 0,
+      "compaction_requests": 0,
+      "shaped_results": 0,
+      "max_context_estimate": 4940,
+      "metrics_consistent": true,
+      "metric_mismatches": [],
+      "runs": [
+        {
+          "run_id": "672cccb3-8f7b-4849-bbbd-1747464320d5",
+          "status": "completed",
+          "reason": null,
+          "source": "summary"
+        }
+      ],
+      "error_events": [],
+      "checks": [
+        {
+          "name": "出现提问并等待",
+          "passed": true,
+          "detail": "wait 事件出现；已回复 1 次",
+          "required": true
+        },
+        {
+          "name": "提问前未写文件（只记录）",
+          "passed": true,
+          "detail": "提问前的写入类调用：[]",
+          "required": false
+        },
+        {
+          "name": "回复后交付 e3_answer.json",
+          "passed": true,
+          "detail": "文件 ID 82ca465b-a1f0-4749-ae10-591e52be55ad",
+          "required": true
+        },
+        {
+          "name": "交付内容正确",
+          "passed": true,
+          "detail": "内容：{\"status\": \"ok\", \"count\": 3}",
+          "required": true
+        }
+      ],
+      "interactions": [
+        {
+          "t": 0.0,
+          "kind": "send",
+          "turn": 0,
+          "message": "请生成一个 JSON 文件，内容是 {\"status\": \"ok\", \"count\": 3}，并作为附件交付给我。文件名我还没告诉你：在创建文件之前，必须先询问我要用什么文件名，得到答复后再创建和交付。",
+          "attachments": 0
+        },
+        {
+          "t": 0.188,
+          "kind": "accepted",
+          "run_id": "672cccb3-8f7b-4849-bbbd-1747464320d5",
+          "seq": 2,
+          "route": "started",
+          "approval": null
+        },
+        {
+          "t": 9.015,
+          "kind": "sse_end",
+          "terminal": "waiting",
+          "reason": null,
+          "after_stop": false
+        },
+        {
+          "t": 9.015,
+          "kind": "reply",
+          "message": "文件名用 e3_answer.json"
+        },
+        {
+          "t": 9.015,
+          "kind": "send",
+          "turn": 0,
+          "message": "文件名用 e3_answer.json",
+          "attachments": 0
+        },
+        {
+          "t": 9.049,
+          "kind": "accepted",
+          "run_id": "672cccb3-8f7b-4849-bbbd-1747464320d5",
+          "seq": 14,
+          "route": "resumed",
+          "approval": null
+        },
+        {
+          "t": 11.008,
+          "kind": "sse_end",
+          "terminal": "completed",
+          "reason": null,
+          "after_stop": false
+        }
+      ],
+      "observations": {},
+      "env": {
+        "host_address": "host.docker.internal"
+      },
+      "events": [
+        {
+          "event": "run",
+          "run_id": "672cccb3",
+          "status": "running",
+          "reason": null
+        },
+        {
+          "event": "message",
+          "role": "user",
+          "message": "请生成一个 JSON 文件，内容是 {\"status\": \"ok\", \"count\": 3}，并作为附件交付给我。文件名我还没告诉你：在创建文件之前，必须先询问我要用什么文件名，得到答复后再创建和交付。",
+          "attachments": []
+        },
+        {
+          "event": "title"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "turn",
+          "phase": "started",
+          "index": 1,
+          "estimate": 4814
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "message",
+          "role": "assistant",
+          "message": "我先确认文件名再创建文件。",
+          "attachments": []
+        },
+        {
+          "event": "message",
+          "role": "assistant",
+          "message": "请告诉我希望使用的文件名（含扩展名，例如 result.json）。收到后我会立即创建内容为 {\"status\": \"ok\", \"count\": 3} 的文件并作为附件交付给你。",
+          "attachments": []
+        },
+        {
+          "event": "turn",
+          "phase": "completed",
+          "index": 1,
+          "attempts": 1,
+          "prompt_tokens": 4348,
+          "completion_tokens": 103,
+          "model_ms": 746,
+          "ttft_ms": 433,
+          "error": null
+        },
+        {
+          "event": "wait"
+        },
+        {
+          "event": "run",
+          "run_id": "672cccb3",
+          "status": "waiting",
+          "reason": null
+        },
+        {
+          "event": "run",
+          "run_id": "672cccb3",
+          "status": "running",
+          "reason": null
+        },
+        {
+          "event": "message",
+          "role": "user",
+          "message": "文件名用 e3_answer.json",
+          "attachments": []
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "turn",
+          "phase": "started",
+          "index": 2,
+          "estimate": 4940
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "write_file",
+          "status": "calling",
+          "name": "file"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "write_file",
+          "status": "called",
+          "name": "file",
+          "duration_ms": 4
+        },
+        {
+          "event": "turn",
+          "phase": "completed",
+          "index": 2,
+          "attempts": 1,
+          "prompt_tokens": 4489,
+          "completion_tokens": 98,
+          "model_ms": 871,
+          "ttft_ms": 730,
+          "error": null
+        },
+        {
+          "event": "turn",
+          "phase": "started",
+          "index": 3,
+          "estimate": 4581
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "deliver_files",
+          "status": "calling",
+          "name": "deliver"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "deliver_files",
+          "status": "called",
+          "name": "deliver",
+          "duration_ms": 10
+        },
+        {
+          "event": "message",
+          "role": "assistant",
+          "message": "按你指定的文件名 e3_answer.json 创建，内容为 {\"status\": \"ok\", \"count\": 3}",
+          "attachments": [
+            "e3_answer.json"
+          ]
+        },
+        {
+          "event": "turn",
+          "phase": "completed",
+          "index": 3,
+          "attempts": 1,
+          "prompt_tokens": 4630,
+          "completion_tokens": 87,
+          "model_ms": 549,
+          "ttft_ms": 394,
+          "error": null
+        },
+        {
+          "event": "turn",
+          "phase": "started",
+          "index": 4,
+          "estimate": 4820
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "message",
+          "role": "assistant",
+          "message": "已按你指定的文件名创建并交付文件。\n\n- 文件名：`e3_answer.json`\n- 内容：`{\"status\": \"ok\", \"count\": 3}`\n- 大小：29 字节\n\n附件已发送，可直接下载。",
+          "attachments": []
+        },
+        {
+          "event": "turn",
+          "phase": "completed",
+          "index": 4,
+          "attempts": 1,
+          "prompt_tokens": 4891,
+          "completion_tokens": 54,
+          "model_ms": 454,
+          "ttft_ms": 273,
+          "error": null
+        },
+        {
+          "event": "done"
+        },
+        {
+          "event": "run",
+          "run_id": "672cccb3",
+          "status": "completed",
+          "reason": null
+        }
+      ],
+      "final_reply": "已按你指定的文件名创建并交付文件。\n\n- 文件名：`e3_answer.json`\n- 内容：`{\"status\": \"ok\", \"count\": 3}`\n- 大小：29 字节\n\n附件已发送，可直接下载。"
+    },
+    {
+      "task_id": "E3",
+      "title": "提问续接",
+      "run_index": 2,
+      "outcome": "passed",
+      "session_id": "1b49fced-e865-4962-94ab-3b5631534198",
+      "session_status": "completed",
+      "last_terminal_event": "done",
+      "last_run_status": "completed",
+      "last_run_reason": null,
+      "wall_seconds": 12.1,
+      "model_calls": 4,
+      "turns": 4,
+      "usage_unavailable_calls": 0,
+      "prompt_tokens": 18260,
+      "completion_tokens": 304,
+      "cached_tokens": 17280,
+      "tool_calls": 2,
+      "tool_calls_by_name": {
+        "write_file": 1,
+        "deliver_files": 1
+      },
+      "tool_calls_unfinished": 0,
+      "unpaired_turns": 0,
+      "compactions": 0,
+      "compaction_requests": 0,
+      "shaped_results": 0,
+      "max_context_estimate": 4906,
+      "metrics_consistent": true,
+      "metric_mismatches": [],
+      "runs": [
+        {
+          "run_id": "794a98a8-01d4-462d-a80f-6bbcce4eb031",
+          "status": "completed",
+          "reason": null,
+          "source": "summary"
+        }
+      ],
+      "error_events": [],
+      "checks": [
+        {
+          "name": "出现提问并等待",
+          "passed": true,
+          "detail": "wait 事件出现；已回复 1 次",
+          "required": true
+        },
+        {
+          "name": "提问前未写文件（只记录）",
+          "passed": true,
+          "detail": "提问前的写入类调用：[]",
+          "required": false
+        },
+        {
+          "name": "回复后交付 e3_answer.json",
+          "passed": true,
+          "detail": "文件 ID 9f0c7f1b-f448-4c26-9704-61a8a53138d4",
+          "required": true
+        },
+        {
+          "name": "交付内容正确",
+          "passed": true,
+          "detail": "内容：{\"status\": \"ok\", \"count\": 3}",
+          "required": true
+        }
+      ],
+      "interactions": [
+        {
+          "t": 0.0,
+          "kind": "send",
+          "turn": 0,
+          "message": "请生成一个 JSON 文件，内容是 {\"status\": \"ok\", \"count\": 3}，并作为附件交付给我。文件名我还没告诉你：在创建文件之前，必须先询问我要用什么文件名，得到答复后再创建和交付。",
+          "attachments": 0
+        },
+        {
+          "t": 0.185,
+          "kind": "accepted",
+          "run_id": "794a98a8-01d4-462d-a80f-6bbcce4eb031",
+          "seq": 2,
+          "route": "started",
+          "approval": null
+        },
+        {
+          "t": 9.149,
+          "kind": "sse_end",
+          "terminal": "waiting",
+          "reason": null,
+          "after_stop": false
+        },
+        {
+          "t": 9.149,
+          "kind": "reply",
+          "message": "文件名用 e3_answer.json"
+        },
+        {
+          "t": 9.149,
+          "kind": "send",
+          "turn": 0,
+          "message": "文件名用 e3_answer.json",
+          "attachments": 0
+        },
+        {
+          "t": 9.193,
+          "kind": "accepted",
+          "run_id": "794a98a8-01d4-462d-a80f-6bbcce4eb031",
+          "seq": 13,
+          "route": "resumed",
+          "approval": null
+        },
+        {
+          "t": 12.056,
+          "kind": "sse_end",
+          "terminal": "completed",
+          "reason": null,
+          "after_stop": false
+        }
+      ],
+      "observations": {},
+      "env": {
+        "host_address": "host.docker.internal"
+      },
+      "events": [
+        {
+          "event": "run",
+          "run_id": "794a98a8",
+          "status": "running",
+          "reason": null
+        },
+        {
+          "event": "message",
+          "role": "user",
+          "message": "请生成一个 JSON 文件，内容是 {\"status\": \"ok\", \"count\": 3}，并作为附件交付给我。文件名我还没告诉你：在创建文件之前，必须先询问我要用什么文件名，得到答复后再创建和交付。",
+          "attachments": []
+        },
+        {
+          "event": "title"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "turn",
+          "phase": "started",
+          "index": 1,
+          "estimate": 4814
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "message",
+          "role": "assistant",
+          "message": "请问您希望这个 JSON 文件使用什么文件名？（例如 result.json）",
+          "attachments": []
+        },
+        {
+          "event": "turn",
+          "phase": "completed",
+          "index": 1,
+          "attempts": 1,
+          "prompt_tokens": 4348,
+          "completion_tokens": 74,
+          "model_ms": 885,
+          "ttft_ms": 756,
+          "error": null
+        },
+        {
+          "event": "wait"
+        },
+        {
+          "event": "run",
+          "run_id": "794a98a8",
+          "status": "waiting",
+          "reason": null
+        },
+        {
+          "event": "run",
+          "run_id": "794a98a8",
+          "status": "running",
+          "reason": null
+        },
+        {
+          "event": "message",
+          "role": "user",
+          "message": "文件名用 e3_answer.json",
+          "attachments": []
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "turn",
+          "phase": "started",
+          "index": 2,
+          "estimate": 4906
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "write_file",
+          "status": "calling",
+          "name": "file"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "write_file",
+          "status": "called",
+          "name": "file",
+          "duration_ms": 22
+        },
+        {
+          "event": "turn",
+          "phase": "completed",
+          "index": 2,
+          "attempts": 1,
+          "prompt_tokens": 4460,
+          "completion_tokens": 104,
+          "model_ms": 788,
+          "ttft_ms": 608,
+          "error": null
+        },
+        {
+          "event": "turn",
+          "phase": "started",
+          "index": 3,
+          "estimate": 4558
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "deliver_files",
+          "status": "calling",
+          "name": "deliver"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "deliver_files",
+          "status": "called",
+          "name": "deliver",
+          "duration_ms": 12
+        },
+        {
+          "event": "message",
+          "role": "assistant",
+          "message": "按您指定的文件名生成的 JSON 文件",
+          "attachments": [
+            "e3_answer.json"
+          ]
+        },
+        {
+          "event": "turn",
+          "phase": "completed",
+          "index": 3,
+          "attempts": 1,
+          "prompt_tokens": 4607,
+          "completion_tokens": 71,
+          "model_ms": 1148,
+          "ttft_ms": 1125,
+          "error": null
+        },
+        {
+          "event": "turn",
+          "phase": "started",
+          "index": 4,
+          "estimate": 4768
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "message",
+          "role": "assistant",
+          "message": "已按您的命名创建并交付文件：\n\n- 文件名：`e3_answer.json`\n- 内容：`{\"status\": \"ok\", \"count\": 3}`\n- 大小：29 字节\n\n文件已作为附件提供，可直接下载。",
+          "attachments": []
+        },
+        {
+          "event": "turn",
+          "phase": "completed",
+          "index": 4,
+          "attempts": 1,
+          "prompt_tokens": 4845,
+          "completion_tokens": 55,
+          "model_ms": 798,
+          "ttft_ms": 635,
+          "error": null
+        },
+        {
+          "event": "done"
+        },
+        {
+          "event": "run",
+          "run_id": "794a98a8",
+          "status": "completed",
+          "reason": null
+        }
+      ],
+      "final_reply": "已按您的命名创建并交付文件：\n\n- 文件名：`e3_answer.json`\n- 内容：`{\"status\": \"ok\", \"count\": 3}`\n- 大小：29 字节\n\n文件已作为附件提供，可直接下载。"
+    },
+    {
+      "task_id": "E4",
+      "title": "长命令与停止",
+      "run_index": 1,
+      "outcome": "passed",
+      "session_id": "c6345083-8c40-47ed-937a-3a5838f46bc1",
+      "session_status": "cancelled",
+      "last_terminal_event": null,
+      "last_run_status": "cancelled",
+      "last_run_reason": "user_stop",
+      "wall_seconds": 29.1,
+      "model_calls": 3,
+      "turns": 3,
+      "usage_unavailable_calls": 0,
+      "prompt_tokens": 14397,
+      "completion_tokens": 641,
+      "cached_tokens": 13952,
+      "tool_calls": 2,
+      "tool_calls_by_name": {
+        "shell_execute": 2
+      },
+      "tool_calls_unfinished": 1,
+      "unpaired_turns": 0,
+      "compactions": 0,
+      "compaction_requests": 0,
+      "shaped_results": 0,
+      "max_context_estimate": 5070,
+      "metrics_consistent": true,
+      "metric_mismatches": [],
+      "runs": [
+        {
+          "run_id": "ff6eb8bb-f06f-4960-82b0-440646e35f05",
+          "status": "cancelled",
+          "reason": "user_stop",
+          "source": "summary"
+        }
+      ],
+      "error_events": [],
+      "checks": [
+        {
+          "name": "已在命令运行中请求停止",
+          "passed": true,
+          "detail": "停止请求时刻：开始后 19.0s",
+          "required": true
+        },
+        {
+          "name": "停止前标记已开始写入",
+          "passed": true,
+          "detail": "停止时标记数 8",
+          "required": true
+        },
+        {
+          "name": "停止后 5 秒内标记不再增长",
+          "passed": true,
+          "detail": "增长 0 行；采样（停止后秒数:行数）0s:8, 1s:8, 2s:8, 3s:8, 4s:8, 5s:8, 6s:8, 7s:8, 8s:8, 9s:8, 10s:8",
+          "required": true
+        },
+        {
+          "name": "运行终态为 cancelled（user_stop）",
+          "passed": true,
+          "detail": "被停止的运行 ff6eb8bb：cancelled（user_stop）；会话状态 cancelled；停止后事件流 已结束：cancelled",
+          "required": true
+        },
+        {
+          "name": "Shell 终止请求（只记录）",
+          "passed": true,
+          "detail": "shell e4 success=True 进程终止",
+          "required": false
+        }
+      ],
+      "interactions": [
+        {
+          "t": 0.0,
+          "kind": "send",
+          "turn": 0,
+          "message": "请在沙箱中用 shell 前台执行下面这条命令并等待它结束（不要加 &，不要改写命令）：\nfor i in $(seq 1 300); do echo mark-$i >> /home/ubuntu/e4_marks.txt; sleep 1; done\n结束后告诉我 /home/ubuntu/e4_marks.txt 的行数。",
+          "attachments": 0
+        },
+        {
+          "t": 0.197,
+          "kind": "accepted",
+          "run_id": "ff6eb8bb-f06f-4960-82b0-440646e35f05",
+          "seq": 2,
+          "route": "started",
+          "approval": null
+        },
+        {
+          "t": 10.98,
+          "kind": "stop_trigger",
+          "event": {
+            "event": "tool",
+            "function": "shell_execute",
+            "status": "calling",
+            "name": "shell"
+          }
+        },
+        {
+          "t": 18.981,
+          "kind": "stop_request"
+        },
+        {
+          "t": 19.009,
+          "kind": "sse_end",
+          "terminal": "cancelled",
+          "reason": "user_stop",
+          "after_stop": true
+        },
+        {
+          "t": 19.028,
+          "kind": "stop_returned",
+          "run_id": "ff6eb8bb-f06f-4960-82b0-440646e35f05"
+        }
+      ],
+      "observations": {
+        "marks_after_stop": [
+          {
+            "t": 0,
+            "count": 8
+          },
+          {
+            "t": 1,
+            "count": 8
+          },
+          {
+            "t": 2,
+            "count": 8
+          },
+          {
+            "t": 3,
+            "count": 8
+          },
+          {
+            "t": 4,
+            "count": 8
+          },
+          {
+            "t": 5,
+            "count": 8
+          },
+          {
+            "t": 6,
+            "count": 8
+          },
+          {
+            "t": 7,
+            "count": 8
+          },
+          {
+            "t": 8,
+            "count": 8
+          },
+          {
+            "t": 9,
+            "count": 8
+          },
+          {
+            "t": 10,
+            "count": 8
+          }
+        ]
+      },
+      "env": {
+        "host_address": "host.docker.internal"
+      },
+      "events": [
+        {
+          "event": "run",
+          "run_id": "ff6eb8bb",
+          "status": "running",
+          "reason": null
+        },
+        {
+          "event": "message",
+          "role": "user",
+          "message": "请在沙箱中用 shell 前台执行下面这条命令并等待它结束（不要加 &，不要改写命令）：\nfor i in $(seq 1 300); do echo mark-$i >> /home/ubuntu/e4_marks.txt; sleep ",
+          "attachments": []
+        },
+        {
+          "event": "title"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "turn",
+          "phase": "started",
+          "index": 1,
+          "estimate": 4825
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "message",
+          "role": "assistant",
+          "message": "我先看一下目标文件是否已存在，然后前台执行这条命令。",
+          "attachments": []
+        },
+        {
+          "event": "tool",
+          "function": "shell_execute",
+          "status": "calling",
+          "name": "shell"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "shell_execute",
+          "status": "called",
+          "name": "shell",
+          "duration_ms": 13
+        },
+        {
+          "event": "turn",
+          "phase": "completed",
+          "index": 1,
+          "attempts": 1,
+          "prompt_tokens": 4370,
+          "completion_tokens": 402,
+          "model_ms": 1892,
+          "ttft_ms": 1591,
+          "error": null
+        },
+        {
+          "event": "turn",
+          "phase": "started",
+          "index": 2,
+          "estimate": 4885
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "message",
+          "role": "assistant",
+          "message": "文件不存在，现在按原样前台执行该命令（预计约 300 秒）。",
+          "attachments": []
+        },
+        {
+          "event": "tool",
+          "function": "shell_execute",
+          "status": "calling",
+          "name": "shell"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "shell_execute",
+          "status": "called",
+          "name": "shell",
+          "duration_ms": 5015
+        },
+        {
+          "event": "turn",
+          "phase": "completed",
+          "index": 2,
+          "attempts": 1,
+          "prompt_tokens": 4899,
+          "completion_tokens": 154,
+          "model_ms": 760,
+          "ttft_ms": 480,
+          "error": null
+        },
+        {
+          "event": "turn",
+          "phase": "started",
+          "index": 3,
+          "estimate": 5070
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "message",
+          "role": "assistant",
+          "message": "命令已在后台会话中前台运行（未加 &），我来等待它结束。",
+          "attachments": []
+        },
+        {
+          "event": "tool",
+          "function": "shell_wait_process",
+          "status": "calling",
+          "name": "shell"
+        },
+        {
+          "event": "turn",
+          "phase": "completed",
+          "index": 3,
+          "attempts": 1,
+          "prompt_tokens": 5128,
+          "completion_tokens": 85,
+          "model_ms": 802,
+          "ttft_ms": 579,
+          "error": "user_stop"
+        },
+        {
+          "event": "run",
+          "run_id": "ff6eb8bb",
+          "status": "cancelled",
+          "reason": "user_stop"
+        },
+        {
+          "event": "cleanup",
+          "targets": [
+            "shell:e4:True"
+          ]
+        }
+      ],
+      "final_reply": "命令已在后台会话中前台运行（未加 &），我来等待它结束。"
+    },
+    {
+      "task_id": "E4",
+      "title": "长命令与停止",
+      "run_index": 2,
+      "outcome": "passed",
+      "session_id": "0cf62213-d381-4d2b-b254-b25a8dcf03c2",
+      "session_status": "cancelled",
+      "last_terminal_event": null,
+      "last_run_status": "cancelled",
+      "last_run_reason": "user_stop",
+      "wall_seconds": 27.6,
+      "model_calls": 2,
+      "turns": 2,
+      "usage_unavailable_calls": 0,
+      "prompt_tokens": 9026,
+      "completion_tokens": 307,
+      "cached_tokens": 8704,
+      "tool_calls": 1,
+      "tool_calls_by_name": {
+        "shell_execute": 1
+      },
+      "tool_calls_unfinished": 1,
+      "unpaired_turns": 0,
+      "compactions": 0,
+      "compaction_requests": 0,
+      "shaped_results": 0,
+      "max_context_estimate": 4825,
+      "metrics_consistent": true,
+      "metric_mismatches": [],
+      "runs": [
+        {
+          "run_id": "84da3d6c-3753-4274-ab72-d3fd7d6c7c35",
+          "status": "cancelled",
+          "reason": "user_stop",
+          "source": "summary"
+        }
+      ],
+      "error_events": [],
+      "checks": [
+        {
+          "name": "已在命令运行中请求停止",
+          "passed": true,
+          "detail": "停止请求时刻：开始后 17.6s",
+          "required": true
+        },
+        {
+          "name": "停止前标记已开始写入",
+          "passed": true,
+          "detail": "停止时标记数 8",
+          "required": true
+        },
+        {
+          "name": "停止后 5 秒内标记不再增长",
+          "passed": true,
+          "detail": "增长 0 行；采样（停止后秒数:行数）0s:8, 1s:8, 2s:8, 3s:8, 4s:8, 5s:8, 6s:8, 7s:8, 8s:8, 9s:8, 10s:8",
+          "required": true
+        },
+        {
+          "name": "运行终态为 cancelled（user_stop）",
+          "passed": true,
+          "detail": "被停止的运行 84da3d6c：cancelled（user_stop）；会话状态 cancelled；停止后事件流 已结束：cancelled",
+          "required": true
+        },
+        {
+          "name": "Shell 终止请求（只记录）",
+          "passed": true,
+          "detail": "shell e4 success=True 进程终止",
+          "required": false
+        }
+      ],
+      "interactions": [
+        {
+          "t": 0.0,
+          "kind": "send",
+          "turn": 0,
+          "message": "请在沙箱中用 shell 前台执行下面这条命令并等待它结束（不要加 &，不要改写命令）：\nfor i in $(seq 1 300); do echo mark-$i >> /home/ubuntu/e4_marks.txt; sleep 1; done\n结束后告诉我 /home/ubuntu/e4_marks.txt 的行数。",
+          "attachments": 0
+        },
+        {
+          "t": 0.295,
+          "kind": "accepted",
+          "run_id": "84da3d6c-3753-4274-ab72-d3fd7d6c7c35",
+          "seq": 2,
+          "route": "started",
+          "approval": null
+        },
+        {
+          "t": 9.587,
+          "kind": "stop_trigger",
+          "event": {
+            "event": "tool",
+            "function": "shell_execute",
+            "status": "calling",
+            "name": "shell"
+          }
+        },
+        {
+          "t": 17.589,
+          "kind": "stop_request"
+        },
+        {
+          "t": 17.608,
+          "kind": "sse_end",
+          "terminal": "cancelled",
+          "reason": "user_stop",
+          "after_stop": true
+        },
+        {
+          "t": 17.619,
+          "kind": "stop_returned",
+          "run_id": "84da3d6c-3753-4274-ab72-d3fd7d6c7c35"
+        }
+      ],
+      "observations": {
+        "marks_after_stop": [
+          {
+            "t": 0,
+            "count": 8
+          },
+          {
+            "t": 1,
+            "count": 8
+          },
+          {
+            "t": 2,
+            "count": 8
+          },
+          {
+            "t": 3,
+            "count": 8
+          },
+          {
+            "t": 4,
+            "count": 8
+          },
+          {
+            "t": 5,
+            "count": 8
+          },
+          {
+            "t": 6,
+            "count": 8
+          },
+          {
+            "t": 7,
+            "count": 8
+          },
+          {
+            "t": 8,
+            "count": 8
+          },
+          {
+            "t": 9,
+            "count": 8
+          },
+          {
+            "t": 10,
+            "count": 8
+          }
+        ]
+      },
+      "env": {
+        "host_address": "host.docker.internal"
+      },
+      "events": [
+        {
+          "event": "run",
+          "run_id": "84da3d6c",
+          "status": "running",
+          "reason": null
+        },
+        {
+          "event": "message",
+          "role": "user",
+          "message": "请在沙箱中用 shell 前台执行下面这条命令并等待它结束（不要加 &，不要改写命令）：\nfor i in $(seq 1 300); do echo mark-$i >> /home/ubuntu/e4_marks.txt; sleep ",
+          "attachments": []
+        },
+        {
+          "event": "title"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "turn",
+          "phase": "started",
+          "index": 1,
+          "estimate": 4825
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "message",
+          "role": "assistant",
+          "message": "我在沙箱中前台执行这条命令（约需 5 分钟），执行期间会等待它跑完。",
+          "attachments": []
+        },
+        {
+          "event": "tool",
+          "function": "shell_execute",
+          "status": "calling",
+          "name": "shell"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "shell_execute",
+          "status": "called",
+          "name": "shell",
+          "duration_ms": 5020
+        },
+        {
+          "event": "turn",
+          "phase": "completed",
+          "index": 1,
+          "attempts": 1,
+          "prompt_tokens": 4370,
+          "completion_tokens": 211,
+          "model_ms": 1213,
+          "ttft_ms": 834,
+          "error": null
+        },
+        {
+          "event": "turn",
+          "phase": "started",
+          "index": 2,
+          "estimate": 4611
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "message",
+          "role": "assistant",
+          "message": "命令已在运行，正在等待结束。",
+          "attachments": []
+        },
+        {
+          "event": "tool",
+          "function": "shell_wait_process",
+          "status": "calling",
+          "name": "shell"
+        },
+        {
+          "event": "turn",
+          "phase": "completed",
+          "index": 2,
+          "attempts": 1,
+          "prompt_tokens": 4656,
+          "completion_tokens": 96,
+          "model_ms": 795,
+          "ttft_ms": 604,
+          "error": "user_stop"
+        },
+        {
+          "event": "run",
+          "run_id": "84da3d6c",
+          "status": "cancelled",
+          "reason": "user_stop"
+        },
+        {
+          "event": "cleanup",
+          "targets": [
+            "shell:e4:True"
+          ]
+        }
+      ],
+      "final_reply": "命令已在运行，正在等待结束。"
+    },
+    {
+      "task_id": "E5",
+      "title": "浏览器取事实",
+      "run_index": 1,
+      "outcome": "passed",
+      "session_id": "6bf26772-e16f-4fc4-b8e9-b0e8daf2f94a",
+      "session_status": "completed",
+      "last_terminal_event": "done",
+      "last_run_status": "completed",
+      "last_run_reason": null,
+      "wall_seconds": 13.8,
+      "model_calls": 5,
+      "turns": 5,
+      "usage_unavailable_calls": 0,
+      "prompt_tokens": 23815,
+      "completion_tokens": 640,
+      "cached_tokens": 22528,
+      "tool_calls": 4,
+      "tool_calls_by_name": {
+        "browser_console_exec": 2,
+        "browser_navigate": 1,
+        "browser_view": 1
+      },
+      "tool_calls_unfinished": 0,
+      "unpaired_turns": 0,
+      "compactions": 0,
+      "compaction_requests": 0,
+      "shaped_results": 0,
+      "max_context_estimate": 5389,
+      "metrics_consistent": true,
+      "metric_mismatches": [],
+      "runs": [
+        {
+          "run_id": "dede588b-682f-4c5c-9d2a-b79eb1514e46",
+          "status": "completed",
+          "reason": null,
+          "source": "summary"
+        }
+      ],
+      "error_events": [],
+      "checks": [
+        {
+          "name": "最终回复含页面校验码",
+          "passed": true,
+          "detail": "最后一条助手消息：'页面上“校验码”一栏的值为：**QX-7319-LM**\\n\\n该页面（订单核对单，订单号 RA-E5-2026，负责人 林澈）只有一个表格，我核对了 DOM 结构，校验码字段为 `QX-7319-LM`。'",
+          "required": true
+        },
+        {
+          "name": "评测页面被访问（只记录）",
+          "passed": true,
+          "detail": "页面请求 1 次，来源 ['127.0.0.1']",
+          "required": false
+        }
+      ],
+      "interactions": [
+        {
+          "t": 0.0,
+          "kind": "send",
+          "turn": 0,
+          "message": "请用浏览器打开 http://host.docker.internal:55434/e5.html ，读取页面上“校验码”一栏的值，并直接告诉我这个值。",
+          "attachments": 0
+        },
+        {
+          "t": 0.189,
+          "kind": "accepted",
+          "run_id": "dede588b-682f-4c5c-9d2a-b79eb1514e46",
+          "seq": 2,
+          "route": "started",
+          "approval": null
+        },
+        {
+          "t": 13.759,
+          "kind": "sse_end",
+          "terminal": "completed",
+          "reason": null,
+          "after_stop": false
+        }
+      ],
+      "observations": {
+        "page_requests": [
+          {
+            "path": "/e5.html",
+            "client": "127.0.0.1"
+          },
+          {
+            "path": "/favicon.ico",
+            "client": "127.0.0.1"
+          }
+        ]
+      },
+      "env": {
+        "host_address": "host.docker.internal",
+        "page_url": "http://host.docker.internal:55434/e5.html"
+      },
+      "events": [
+        {
+          "event": "run",
+          "run_id": "dede588b",
+          "status": "running",
+          "reason": null
+        },
+        {
+          "event": "message",
+          "role": "user",
+          "message": "请用浏览器打开 http://host.docker.internal:55434/e5.html ，读取页面上“校验码”一栏的值，并直接告诉我这个值。",
+          "attachments": []
+        },
+        {
+          "event": "title"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "turn",
+          "phase": "started",
+          "index": 1,
+          "estimate": 4792
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "message",
+          "role": "assistant",
+          "message": "我来打开这个页面查看。",
+          "attachments": []
+        },
+        {
+          "event": "tool",
+          "function": "browser_navigate",
+          "status": "calling",
+          "name": "browser"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "browser_navigate",
+          "status": "called",
+          "name": "browser",
+          "duration_ms": 311
+        },
+        {
+          "event": "turn",
+          "phase": "completed",
+          "index": 1,
+          "attempts": 1,
+          "prompt_tokens": 4332,
+          "completion_tokens": 62,
+          "model_ms": 1063,
+          "ttft_ms": 924,
+          "error": null
+        },
+        {
+          "event": "turn",
+          "phase": "started",
+          "index": 2,
+          "estimate": 4394
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "browser_view",
+          "status": "calling",
+          "name": "browser"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "browser_view",
+          "status": "called",
+          "name": "browser",
+          "duration_ms": 11
+        },
+        {
+          "event": "turn",
+          "phase": "completed",
+          "index": 2,
+          "attempts": 1,
+          "prompt_tokens": 4422,
+          "completion_tokens": 37,
+          "model_ms": 553,
+          "ttft_ms": 521,
+          "error": null
+        },
+        {
+          "event": "turn",
+          "phase": "started",
+          "index": 3,
+          "estimate": 4597
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "browser_console_exec",
+          "status": "calling",
+          "name": "browser"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "browser_console_exec",
+          "status": "called",
+          "name": "browser",
+          "duration_ms": 7
+        },
+        {
+          "event": "turn",
+          "phase": "completed",
+          "index": 3,
+          "attempts": 1,
+          "prompt_tokens": 4690,
+          "completion_tokens": 135,
+          "model_ms": 1027,
+          "ttft_ms": 940,
+          "error": null
+        },
+        {
+          "event": "turn",
+          "phase": "started",
+          "index": 4,
+          "estimate": 4953
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "browser_console_exec",
+          "status": "calling",
+          "name": "browser"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "browser_console_exec",
+          "status": "called",
+          "name": "browser",
+          "duration_ms": 7
+        },
+        {
+          "event": "turn",
+          "phase": "completed",
+          "index": 4,
+          "attempts": 1,
+          "prompt_tokens": 5001,
+          "completion_tokens": 250,
+          "model_ms": 1283,
+          "ttft_ms": 1089,
+          "error": null
+        },
+        {
+          "event": "turn",
+          "phase": "started",
+          "index": 5,
+          "estimate": 5389
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "message",
+          "role": "assistant",
+          "message": "页面上“校验码”一栏的值为：**QX-7319-LM**\n\n该页面（订单核对单，订单号 RA-E5-2026，负责人 林澈）只有一个表格，我核对了 DOM 结构，校验码字段为 `QX-7319-LM`。",
+          "attachments": []
+        },
+        {
+          "event": "turn",
+          "phase": "completed",
+          "index": 5,
+          "attempts": 1,
+          "prompt_tokens": 5370,
+          "completion_tokens": 156,
+          "model_ms": 811,
+          "ttft_ms": 578,
+          "error": null
+        },
+        {
+          "event": "done"
+        },
+        {
+          "event": "run",
+          "run_id": "dede588b",
+          "status": "completed",
+          "reason": null
+        }
+      ],
+      "final_reply": "页面上“校验码”一栏的值为：**QX-7319-LM**\n\n该页面（订单核对单，订单号 RA-E5-2026，负责人 林澈）只有一个表格，我核对了 DOM 结构，校验码字段为 `QX-7319-LM`。"
+    },
+    {
+      "task_id": "E5",
+      "title": "浏览器取事实",
+      "run_index": 2,
+      "outcome": "passed",
+      "session_id": "692c02e7-9184-4b58-9d10-08ec7cff7005",
+      "session_status": "completed",
+      "last_terminal_event": "done",
+      "last_run_status": "completed",
+      "last_run_reason": null,
+      "wall_seconds": 13.1,
+      "model_calls": 5,
+      "turns": 5,
+      "usage_unavailable_calls": 0,
+      "prompt_tokens": 23916,
+      "completion_tokens": 512,
+      "cached_tokens": 22656,
+      "tool_calls": 4,
+      "tool_calls_by_name": {
+        "browser_console_exec": 2,
+        "browser_navigate": 1,
+        "browser_view": 1
+      },
+      "tool_calls_unfinished": 0,
+      "unpaired_turns": 0,
+      "compactions": 0,
+      "compaction_requests": 0,
+      "shaped_results": 0,
+      "max_context_estimate": 5315,
+      "metrics_consistent": true,
+      "metric_mismatches": [],
+      "runs": [
+        {
+          "run_id": "6a92d662-64f9-44d3-bc5d-72c7c135e7a3",
+          "status": "completed",
+          "reason": null,
+          "source": "summary"
+        }
+      ],
+      "error_events": [],
+      "checks": [
+        {
+          "name": "最终回复含页面校验码",
+          "passed": true,
+          "detail": "最后一条助手消息：'页面上「校验码」一栏的值是：\\n\\n**QX-7319-LM**\\n\\n（同页信息：订单号 RA-E5-2026，负责人 林澈。）'",
+          "required": true
+        },
+        {
+          "name": "评测页面被访问（只记录）",
+          "passed": true,
+          "detail": "页面请求 1 次，来源 ['127.0.0.1']",
+          "required": false
+        }
+      ],
+      "interactions": [
+        {
+          "t": 0.0,
+          "kind": "send",
+          "turn": 0,
+          "message": "请用浏览器打开 http://host.docker.internal:55481/e5.html ，读取页面上“校验码”一栏的值，并直接告诉我这个值。",
+          "attachments": 0
+        },
+        {
+          "t": 0.361,
+          "kind": "accepted",
+          "run_id": "6a92d662-64f9-44d3-bc5d-72c7c135e7a3",
+          "seq": 2,
+          "route": "started",
+          "approval": null
+        },
+        {
+          "t": 13.052,
+          "kind": "sse_end",
+          "terminal": "completed",
+          "reason": null,
+          "after_stop": false
+        }
+      ],
+      "observations": {
+        "page_requests": [
+          {
+            "path": "/e5.html",
+            "client": "127.0.0.1"
+          },
+          {
+            "path": "/favicon.ico",
+            "client": "127.0.0.1"
+          }
+        ]
+      },
+      "env": {
+        "host_address": "host.docker.internal",
+        "page_url": "http://host.docker.internal:55481/e5.html"
+      },
+      "events": [
+        {
+          "event": "run",
+          "run_id": "6a92d662",
+          "status": "running",
+          "reason": null
+        },
+        {
+          "event": "message",
+          "role": "user",
+          "message": "请用浏览器打开 http://host.docker.internal:55481/e5.html ，读取页面上“校验码”一栏的值，并直接告诉我这个值。",
+          "attachments": []
+        },
+        {
+          "event": "title"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "turn",
+          "phase": "started",
+          "index": 1,
+          "estimate": 4792
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "message",
+          "role": "assistant",
+          "message": "我这就打开页面查看。",
+          "attachments": []
+        },
+        {
+          "event": "tool",
+          "function": "browser_navigate",
+          "status": "calling",
+          "name": "browser"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "browser_navigate",
+          "status": "called",
+          "name": "browser",
+          "duration_ms": 364
+        },
+        {
+          "event": "turn",
+          "phase": "completed",
+          "index": 1,
+          "attempts": 1,
+          "prompt_tokens": 4332,
+          "completion_tokens": 62,
+          "model_ms": 655,
+          "ttft_ms": 491,
+          "error": null
+        },
+        {
+          "event": "turn",
+          "phase": "started",
+          "index": 2,
+          "estimate": 4393
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "browser_view",
+          "status": "calling",
+          "name": "browser"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "browser_view",
+          "status": "called",
+          "name": "browser",
+          "duration_ms": 11
+        },
+        {
+          "event": "turn",
+          "phase": "completed",
+          "index": 2,
+          "attempts": 1,
+          "prompt_tokens": 4422,
+          "completion_tokens": 33,
+          "model_ms": 525,
+          "ttft_ms": 508,
+          "error": null
+        },
+        {
+          "event": "turn",
+          "phase": "started",
+          "index": 3,
+          "estimate": 4591
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "browser_console_exec",
+          "status": "calling",
+          "name": "browser"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "browser_console_exec",
+          "status": "called",
+          "name": "browser",
+          "duration_ms": 6
+        },
+        {
+          "event": "turn",
+          "phase": "completed",
+          "index": 3,
+          "attempts": 1,
+          "prompt_tokens": 4686,
+          "completion_tokens": 231,
+          "model_ms": 1020,
+          "ttft_ms": 760,
+          "error": null
+        },
+        {
+          "event": "turn",
+          "phase": "started",
+          "index": 4,
+          "estimate": 5083
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "browser_console_exec",
+          "status": "calling",
+          "name": "browser"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "browser_console_exec",
+          "status": "called",
+          "name": "browser",
+          "duration_ms": 5
+        },
+        {
+          "event": "turn",
+          "phase": "completed",
+          "index": 4,
+          "attempts": 1,
+          "prompt_tokens": 5147,
+          "completion_tokens": 147,
+          "model_ms": 1020,
+          "ttft_ms": 824,
+          "error": null
+        },
+        {
+          "event": "turn",
+          "phase": "started",
+          "index": 5,
+          "estimate": 5315
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "message",
+          "role": "assistant",
+          "message": "页面上「校验码」一栏的值是：\n\n**QX-7319-LM**\n\n（同页信息：订单号 RA-E5-2026，负责人 林澈。）",
+          "attachments": []
+        },
+        {
+          "event": "turn",
+          "phase": "completed",
+          "index": 5,
+          "attempts": 1,
+          "prompt_tokens": 5329,
+          "completion_tokens": 39,
+          "model_ms": 548,
+          "ttft_ms": 426,
+          "error": null
+        },
+        {
+          "event": "done"
+        },
+        {
+          "event": "run",
+          "run_id": "6a92d662",
+          "status": "completed",
+          "reason": null
+        }
+      ],
+      "final_reply": "页面上「校验码」一栏的值是：\n\n**QX-7319-LM**\n\n（同页信息：订单号 RA-E5-2026，负责人 林澈。）"
+    },
+    {
+      "task_id": "E6",
+      "title": "MCP 调用（审批通过）",
+      "run_index": 1,
+      "outcome": "passed",
+      "session_id": "f71f384e-2c20-4102-8dc1-65b1e719d5f2",
+      "session_status": "completed",
+      "last_terminal_event": "done",
+      "last_run_status": "completed",
+      "last_run_reason": null,
+      "wall_seconds": 10.2,
+      "model_calls": 2,
+      "turns": 2,
+      "usage_unavailable_calls": 0,
+      "prompt_tokens": 9699,
+      "completion_tokens": 155,
+      "cached_tokens": 9344,
+      "tool_calls": 1,
+      "tool_calls_by_name": {
+        "mcp_w0eval_add_b60d8afebe134904": 1
+      },
+      "tool_calls_unfinished": 0,
+      "unpaired_turns": 0,
+      "compactions": 0,
+      "compaction_requests": 0,
+      "shaped_results": 0,
+      "max_context_estimate": 5383,
+      "metrics_consistent": true,
+      "metric_mismatches": [],
+      "runs": [
+        {
+          "run_id": "287d3752-b678-4c5e-8736-c2e480871743",
+          "status": "completed",
+          "reason": null,
+          "source": "summary"
+        }
+      ],
+      "error_events": [],
+      "checks": [
+        {
+          "name": "最终回复含正确结果",
+          "passed": true,
+          "detail": "期望 6912；最后一条助手消息：'1234 + 5678 = **6912**\\n\\n（通过 MCP `add` 工具计算，返回结果 `{\"result\": 6912}`，调用成功无错误。）'",
+          "required": true
+        },
+        {
+          "name": "有对应 MCP 工具事件",
+          "passed": true,
+          "detail": "MCP 工具事件 1 条，add 调用 1 条，成功 1 条；参数 [{'a': 1234, 'b': 5678}]",
+          "required": true
+        },
+        {
+          "name": "夹具收到 add 调用（只记录）",
+          "passed": true,
+          "detail": "[{'protocol': 'mcp', 'method': 'add', 'a': 1234, 'b': 5678, 'time': 1790621797.637147, 'pid': 79048}]",
+          "required": false
+        },
+        {
+          "name": "add 调用先请求审批、再按答复执行",
+          "passed": true,
+          "detail": "审批状态 {'call_00_QGtLwryWduxhGa5VUS0W4308': ['pending', 'approved']}；规则 mcp:w0eval:*=ask",
+          "required": true
+        }
+      ],
+      "interactions": [
+        {
+          "t": 0.0,
+          "kind": "send",
+          "turn": 0,
+          "message": "请使用 MCP 工具中的 add 工具计算 1234 与 5678 的和，并告诉我结果。",
+          "attachments": 0
+        },
+        {
+          "t": 0.203,
+          "kind": "accepted",
+          "run_id": "287d3752-b678-4c5e-8736-c2e480871743",
+          "seq": 2,
+          "route": "started",
+          "approval": null
+        },
+        {
+          "t": 9.196,
+          "kind": "sse_end",
+          "terminal": "waiting",
+          "reason": "approval",
+          "after_stop": false
+        },
+        {
+          "t": 9.196,
+          "kind": "approval_reply",
+          "tool_call_id": "call_00_QGtLwryWduxhGa5VUS0W4308",
+          "function": "mcp_w0eval_add_b60d8afebe134904",
+          "service": "w0eval",
+          "decision": "approve"
+        },
+        {
+          "t": 9.231,
+          "kind": "accepted",
+          "run_id": "287d3752-b678-4c5e-8736-c2e480871743",
+          "seq": 14,
+          "route": null,
+          "approval": "approved"
+        },
+        {
+          "t": 10.155,
+          "kind": "sse_end",
+          "terminal": "completed",
+          "reason": null,
+          "after_stop": false
+        }
+      ],
+      "observations": {
+        "mcp_server_status": {
+          "connection_status": "connected",
+          "error": null,
+          "server_name": "w0eval",
+          "enabled": true,
+          "transport": "streamable_http",
+          "tools": [
+            "add",
+            "fail",
+            "values",
+            "long_text",
+            "delay"
+          ]
+        },
+        "tool_policy": {
+          "mcp:*": "ask",
+          "a2a:*": "ask",
+          "mcp:w0eval:*": "ask"
+        },
+        "mcp_fixture_calls": [
+          {
+            "protocol": "mcp",
+            "method": "start",
+            "time": 1790621788.0922291,
+            "pid": 79048
+          },
+          {
+            "protocol": "mcp",
+            "method": "add",
+            "a": 1234,
+            "b": 5678,
+            "time": 1790621797.637147,
+            "pid": 79048
+          }
+        ]
+      },
+      "env": {
+        "host_address": "host.docker.internal",
+        "mcp_url": "http://host.docker.internal:55545/mcp"
+      },
+      "events": [
+        {
+          "event": "run",
+          "run_id": "287d3752",
+          "status": "running",
+          "reason": null
+        },
+        {
+          "event": "message",
+          "role": "user",
+          "message": "请使用 MCP 工具中的 add 工具计算 1234 与 5678 的和，并告诉我结果。",
+          "attachments": []
+        },
+        {
+          "event": "title"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "turn",
+          "phase": "started",
+          "index": 1,
+          "estimate": 5208
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "message",
+          "role": "assistant",
+          "message": "我来调用 MCP 的加法工具计算。",
+          "attachments": []
+        },
+        {
+          "event": "approval",
+          "tool_call_id": "call_00_QGtLwryWduxhGa5VUS0W4308",
+          "function": "mcp_w0eval_add_b60d8afebe134904",
+          "status": "pending",
+          "rule": "mcp:w0eval:*",
+          "service": "w0eval",
+          "service_tool": "add"
+        },
+        {
+          "event": "turn",
+          "phase": "completed",
+          "index": 1,
+          "attempts": 1,
+          "prompt_tokens": 4743,
+          "completion_tokens": 116,
+          "model_ms": 898,
+          "ttft_ms": 694,
+          "error": null
+        },
+        {
+          "event": "wait"
+        },
+        {
+          "event": "run",
+          "run_id": "287d3752",
+          "status": "waiting",
+          "reason": "approval"
+        },
+        {
+          "event": "run",
+          "run_id": "287d3752",
+          "status": "running",
+          "reason": null
+        },
+        {
+          "event": "approval",
+          "tool_call_id": "call_00_QGtLwryWduxhGa5VUS0W4308",
+          "function": "mcp_w0eval_add_b60d8afebe134904",
+          "status": "approved",
+          "rule": "mcp:w0eval:*",
+          "service": "w0eval",
+          "service_tool": "add"
+        },
+        {
+          "event": "tool",
+          "function": "mcp_w0eval_add_b60d8afebe134904",
+          "status": "calling",
+          "name": "mcp"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "mcp_w0eval_add_b60d8afebe134904",
+          "status": "called",
+          "name": "mcp",
+          "duration_ms": 78
+        },
+        {
+          "event": "turn",
+          "phase": "started",
+          "index": 2,
+          "estimate": 5383
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "message",
+          "role": "assistant",
+          "message": "1234 + 5678 = **6912**\n\n（通过 MCP `add` 工具计算，返回结果 `{\"result\": 6912}`，调用成功无错误。）",
+          "attachments": []
+        },
+        {
+          "event": "turn",
+          "phase": "completed",
+          "index": 2,
+          "attempts": 1,
+          "prompt_tokens": 4956,
+          "completion_tokens": 39,
+          "model_ms": 683,
+          "ttft_ms": 647,
+          "error": null
+        },
+        {
+          "event": "done"
+        },
+        {
+          "event": "run",
+          "run_id": "287d3752",
+          "status": "completed",
+          "reason": null
+        }
+      ],
+      "final_reply": "1234 + 5678 = **6912**\n\n（通过 MCP `add` 工具计算，返回结果 `{\"result\": 6912}`，调用成功无错误。）"
+    },
+    {
+      "task_id": "E6",
+      "title": "MCP 调用（审批通过）",
+      "run_index": 2,
+      "outcome": "passed",
+      "session_id": "807d0a85-a9ce-4d9c-b73d-46b38e2f0468",
+      "session_status": "completed",
+      "last_terminal_event": "done",
+      "last_run_status": "completed",
+      "last_run_reason": null,
+      "wall_seconds": 9.7,
+      "model_calls": 2,
+      "turns": 2,
+      "usage_unavailable_calls": 0,
+      "prompt_tokens": 9680,
+      "completion_tokens": 122,
+      "cached_tokens": 9344,
+      "tool_calls": 1,
+      "tool_calls_by_name": {
+        "mcp_w0eval_add_b60d8afebe134904": 1
+      },
+      "tool_calls_unfinished": 0,
+      "unpaired_turns": 0,
+      "compactions": 0,
+      "compaction_requests": 0,
+      "shaped_results": 0,
+      "max_context_estimate": 5349,
+      "metrics_consistent": true,
+      "metric_mismatches": [],
+      "runs": [
+        {
+          "run_id": "623bdbec-d5be-498b-a964-ecf2696f44d2",
+          "status": "completed",
+          "reason": null,
+          "source": "summary"
+        }
+      ],
+      "error_events": [],
+      "checks": [
+        {
+          "name": "最终回复含正确结果",
+          "passed": true,
+          "detail": "期望 6912；最后一条助手消息：'已通过 MCP 的 add 工具完成计算：\\n\\n**1234 + 5678 = 6912**'",
+          "required": true
+        },
+        {
+          "name": "有对应 MCP 工具事件",
+          "passed": true,
+          "detail": "MCP 工具事件 1 条，add 调用 1 条，成功 1 条；参数 [{'a': 1234, 'b': 5678}]",
+          "required": true
+        },
+        {
+          "name": "夹具收到 add 调用（只记录）",
+          "passed": true,
+          "detail": "[{'protocol': 'mcp', 'method': 'add', 'a': 1234, 'b': 5678, 'time': 1790621808.280214, 'pid': 79233}]",
+          "required": false
+        },
+        {
+          "name": "add 调用先请求审批、再按答复执行",
+          "passed": true,
+          "detail": "审批状态 {'call_00_mQWpSBxrAHoxuN5LmKSh3739': ['pending', 'approved']}；规则 mcp:w0eval:*=ask",
+          "required": true
+        }
+      ],
+      "interactions": [
+        {
+          "t": 0.0,
+          "kind": "send",
+          "turn": 0,
+          "message": "请使用 MCP 工具中的 add 工具计算 1234 与 5678 的和，并告诉我结果。",
+          "attachments": 0
+        },
+        {
+          "t": 0.208,
+          "kind": "accepted",
+          "run_id": "623bdbec-d5be-498b-a964-ecf2696f44d2",
+          "seq": 2,
+          "route": "started",
+          "approval": null
+        },
+        {
+          "t": 8.945,
+          "kind": "sse_end",
+          "terminal": "waiting",
+          "reason": "approval",
+          "after_stop": false
+        },
+        {
+          "t": 8.945,
+          "kind": "approval_reply",
+          "tool_call_id": "call_00_mQWpSBxrAHoxuN5LmKSh3739",
+          "function": "mcp_w0eval_add_b60d8afebe134904",
+          "service": "w0eval",
+          "decision": "approve"
+        },
+        {
+          "t": 8.997,
+          "kind": "accepted",
+          "run_id": "623bdbec-d5be-498b-a964-ecf2696f44d2",
+          "seq": 13,
+          "route": null,
+          "approval": "approved"
+        },
+        {
+          "t": 9.67,
+          "kind": "sse_end",
+          "terminal": "completed",
+          "reason": null,
+          "after_stop": false
+        }
+      ],
+      "observations": {
+        "mcp_server_status": {
+          "connection_status": "connected",
+          "error": null,
+          "server_name": "w0eval",
+          "enabled": true,
+          "transport": "streamable_http",
+          "tools": [
+            "add",
+            "fail",
+            "values",
+            "long_text",
+            "delay"
+          ]
+        },
+        "tool_policy": {
+          "mcp:*": "ask",
+          "a2a:*": "ask",
+          "mcp:w0eval:*": "ask"
+        },
+        "mcp_fixture_calls": [
+          {
+            "protocol": "mcp",
+            "method": "start",
+            "time": 1790621799.160365,
+            "pid": 79233
+          },
+          {
+            "protocol": "mcp",
+            "method": "add",
+            "a": 1234,
+            "b": 5678,
+            "time": 1790621808.280214,
+            "pid": 79233
+          }
+        ]
+      },
+      "env": {
+        "host_address": "host.docker.internal",
+        "mcp_url": "http://host.docker.internal:55593/mcp"
+      },
+      "events": [
+        {
+          "event": "run",
+          "run_id": "623bdbec",
+          "status": "running",
+          "reason": null
+        },
+        {
+          "event": "message",
+          "role": "user",
+          "message": "请使用 MCP 工具中的 add 工具计算 1234 与 5678 的和，并告诉我结果。",
+          "attachments": []
+        },
+        {
+          "event": "title"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "turn",
+          "phase": "started",
+          "index": 1,
+          "estimate": 5208
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "approval",
+          "tool_call_id": "call_00_mQWpSBxrAHoxuN5LmKSh3739",
+          "function": "mcp_w0eval_add_b60d8afebe134904",
+          "status": "pending",
+          "rule": "mcp:w0eval:*",
+          "service": "w0eval",
+          "service_tool": "add"
+        },
+        {
+          "event": "turn",
+          "phase": "completed",
+          "index": 1,
+          "attempts": 1,
+          "prompt_tokens": 4743,
+          "completion_tokens": 97,
+          "model_ms": 637,
+          "ttft_ms": 539,
+          "error": null
+        },
+        {
+          "event": "wait"
+        },
+        {
+          "event": "run",
+          "run_id": "623bdbec",
+          "status": "waiting",
+          "reason": "approval"
+        },
+        {
+          "event": "run",
+          "run_id": "623bdbec",
+          "status": "running",
+          "reason": null
+        },
+        {
+          "event": "approval",
+          "tool_call_id": "call_00_mQWpSBxrAHoxuN5LmKSh3739",
+          "function": "mcp_w0eval_add_b60d8afebe134904",
+          "status": "approved",
+          "rule": "mcp:w0eval:*",
+          "service": "w0eval",
+          "service_tool": "add"
+        },
+        {
+          "event": "tool",
+          "function": "mcp_w0eval_add_b60d8afebe134904",
+          "status": "calling",
+          "name": "mcp"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "mcp_w0eval_add_b60d8afebe134904",
+          "status": "called",
+          "name": "mcp",
+          "duration_ms": 13
+        },
+        {
+          "event": "turn",
+          "phase": "started",
+          "index": 2,
+          "estimate": 5349
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "message",
+          "role": "assistant",
+          "message": "已通过 MCP 的 add 工具完成计算：\n\n**1234 + 5678 = 6912**",
+          "attachments": []
+        },
+        {
+          "event": "turn",
+          "phase": "completed",
+          "index": 2,
+          "attempts": 1,
+          "prompt_tokens": 4937,
+          "completion_tokens": 25,
+          "model_ms": 604,
+          "ttft_ms": 533,
+          "error": null
+        },
+        {
+          "event": "done"
+        },
+        {
+          "event": "run",
+          "run_id": "623bdbec",
+          "status": "completed",
+          "reason": null
+        }
+      ],
+      "final_reply": "已通过 MCP 的 add 工具完成计算：\n\n**1234 + 5678 = 6912**"
+    },
+    {
+      "task_id": "E6-deny",
+      "title": "MCP 调用（审批拒绝）",
+      "run_index": 1,
+      "outcome": "passed",
+      "session_id": "259ba45d-d922-4617-b019-7872df70da6f",
+      "session_status": "completed",
+      "last_terminal_event": "done",
+      "last_run_status": "completed",
+      "last_run_reason": null,
+      "wall_seconds": 11.8,
+      "model_calls": 3,
+      "turns": 3,
+      "usage_unavailable_calls": 0,
+      "prompt_tokens": 14795,
+      "completion_tokens": 442,
+      "cached_tokens": 14336,
+      "tool_calls": 2,
+      "tool_calls_by_name": {
+        "mcp_w0eval_add_b60d8afebe134904": 1,
+        "shell_execute": 1
+      },
+      "tool_calls_unfinished": 0,
+      "unpaired_turns": 0,
+      "compactions": 0,
+      "compaction_requests": 0,
+      "shaped_results": 0,
+      "max_context_estimate": 5329,
+      "metrics_consistent": true,
+      "metric_mismatches": [],
+      "runs": [
+        {
+          "run_id": "83067a94-a752-490f-9b3b-5c136a796174",
+          "status": "completed",
+          "reason": null,
+          "source": "summary"
+        }
+      ],
+      "error_events": [],
+      "checks": [
+        {
+          "name": "add 调用先请求审批、再按答复拒绝",
+          "passed": true,
+          "detail": "审批状态 {'call_00_kGt5m1w4TkpGc4VtPTCM5689': ['pending', 'rejected']}；规则 mcp:w0eval:*=ask",
+          "required": true
+        },
+        {
+          "name": "被拒绝的 add 调用记为用户拒绝、没有执行",
+          "passed": true,
+          "detail": "add 结束事件 1 条，用户拒绝 1 条，实际执行 0 条",
+          "required": true
+        },
+        {
+          "name": "夹具没有收到 add 调用",
+          "passed": true,
+          "detail": "[]",
+          "required": true
+        },
+        {
+          "name": "运行在拒绝后继续并正常结束",
+          "passed": true,
+          "detail": "最后一个运行 completed/None",
+          "required": true
+        },
+        {
+          "name": "最终回复向用户说明（只记录）",
+          "passed": true,
+          "detail": "'我没能通过 MCP 的 add 工具完成这次计算。\\n\\n**情况说明**\\n- 调用 `add(1234, 5678)` 时返回：`success: false`，`message: \"用户拒绝执行：该调用未执行。不要原样重复提交\"`。\\n- 也就是说这次 MCP 调用在确认环节被拒绝，没有得到该工具返回的计算结果，按规则我没有再次原样重试。\\n\\n**作为替代，我用沙箱里的 Python 算了同样的式子*'",
+          "required": false
+        }
+      ],
+      "interactions": [
+        {
+          "t": 0.0,
+          "kind": "send",
+          "turn": 0,
+          "message": "请使用 MCP 工具中的 add 工具计算 1234 与 5678 的和，并告诉我结果。",
+          "attachments": 0
+        },
+        {
+          "t": 0.236,
+          "kind": "accepted",
+          "run_id": "83067a94-a752-490f-9b3b-5c136a796174",
+          "seq": 2,
+          "route": "started",
+          "approval": null
+        },
+        {
+          "t": 9.701,
+          "kind": "sse_end",
+          "terminal": "waiting",
+          "reason": "approval",
+          "after_stop": false
+        },
+        {
+          "t": 9.701,
+          "kind": "approval_reply",
+          "tool_call_id": "call_00_kGt5m1w4TkpGc4VtPTCM5689",
+          "function": "mcp_w0eval_add_b60d8afebe134904",
+          "service": "w0eval",
+          "decision": "deny"
+        },
+        {
+          "t": 9.756,
+          "kind": "accepted",
+          "run_id": "83067a94-a752-490f-9b3b-5c136a796174",
+          "seq": 13,
+          "route": null,
+          "approval": "rejected"
+        },
+        {
+          "t": 11.843,
+          "kind": "sse_end",
+          "terminal": "completed",
+          "reason": null,
+          "after_stop": false
+        }
+      ],
+      "observations": {
+        "mcp_server_status": {
+          "connection_status": "connected",
+          "error": null,
+          "server_name": "w0eval",
+          "enabled": true,
+          "transport": "streamable_http",
+          "tools": [
+            "add",
+            "fail",
+            "values",
+            "long_text",
+            "delay"
+          ]
+        },
+        "tool_policy": {
+          "mcp:*": "ask",
+          "a2a:*": "ask",
+          "mcp:w0eval:*": "ask"
+        },
+        "mcp_fixture_calls": [
+          {
+            "protocol": "mcp",
+            "method": "start",
+            "time": 1790621810.469665,
+            "pid": 79460
+          }
+        ]
+      },
+      "env": {
+        "host_address": "host.docker.internal",
+        "mcp_url": "http://host.docker.internal:55651/mcp"
+      },
+      "events": [
+        {
+          "event": "run",
+          "run_id": "83067a94",
+          "status": "running",
+          "reason": null
+        },
+        {
+          "event": "message",
+          "role": "user",
+          "message": "请使用 MCP 工具中的 add 工具计算 1234 与 5678 的和，并告诉我结果。",
+          "attachments": []
+        },
+        {
+          "event": "title"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "turn",
+          "phase": "started",
+          "index": 1,
+          "estimate": 5208
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "approval",
+          "tool_call_id": "call_00_kGt5m1w4TkpGc4VtPTCM5689",
+          "function": "mcp_w0eval_add_b60d8afebe134904",
+          "status": "pending",
+          "rule": "mcp:w0eval:*",
+          "service": "w0eval",
+          "service_tool": "add"
+        },
+        {
+          "event": "turn",
+          "phase": "completed",
+          "index": 1,
+          "attempts": 1,
+          "prompt_tokens": 4743,
+          "completion_tokens": 114,
+          "model_ms": 1306,
+          "ttft_ms": 1194,
+          "error": null
+        },
+        {
+          "event": "wait"
+        },
+        {
+          "event": "run",
+          "run_id": "83067a94",
+          "status": "waiting",
+          "reason": "approval"
+        },
+        {
+          "event": "run",
+          "run_id": "83067a94",
+          "status": "running",
+          "reason": null
+        },
+        {
+          "event": "approval",
+          "tool_call_id": "call_00_kGt5m1w4TkpGc4VtPTCM5689",
+          "function": "mcp_w0eval_add_b60d8afebe134904",
+          "status": "rejected",
+          "rule": "mcp:w0eval:*",
+          "service": "w0eval",
+          "service_tool": "add"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "mcp_w0eval_add_b60d8afebe134904",
+          "status": "called",
+          "name": "mcp",
+          "denied_by": "user",
+          "duration_ms": 0
+        },
+        {
+          "event": "turn",
+          "phase": "started",
+          "index": 2,
+          "estimate": 5329
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "shell_execute",
+          "status": "calling",
+          "name": "shell"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "shell_execute",
+          "status": "called",
+          "name": "shell",
+          "duration_ms": 20
+        },
+        {
+          "event": "turn",
+          "phase": "completed",
+          "index": 2,
+          "attempts": 1,
+          "prompt_tokens": 4908,
+          "completion_tokens": 176,
+          "model_ms": 1076,
+          "ttft_ms": 897,
+          "error": null
+        },
+        {
+          "event": "turn",
+          "phase": "started",
+          "index": 3,
+          "estimate": 5106
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "message",
+          "role": "assistant",
+          "message": "我没能通过 MCP 的 add 工具完成这次计算。\n\n**情况说明**\n- 调用 `add(1234, 5678)` 时返回：`success: false`，`message: \"用户拒绝执行：该调用未执行。不要原样重复提交\"`。\n- 也",
+          "attachments": []
+        },
+        {
+          "event": "turn",
+          "phase": "completed",
+          "index": 3,
+          "attempts": 1,
+          "prompt_tokens": 5144,
+          "completion_tokens": 152,
+          "model_ms": 921,
+          "ttft_ms": 245,
+          "error": null
+        },
+        {
+          "event": "done"
+        },
+        {
+          "event": "run",
+          "run_id": "83067a94",
+          "status": "completed",
+          "reason": null
+        }
+      ],
+      "final_reply": "我没能通过 MCP 的 add 工具完成这次计算。\n\n**情况说明**\n- 调用 `add(1234, 5678)` 时返回：`success: false`，`message: \"用户拒绝执行：该调用未执行。不要原样重复提交\"`。\n- 也就是说这次 MCP 调用在确认环节被拒绝，没有得到该工具返回的计算结果，按规则我没有再次原样重试。\n\n**作为替代，我用沙箱里的 Python 算了同样的式子**：\n\n1234 + 5678 = **6912**\n\n如果你希望必须由 MCP 的 add 工具给出结果，请在调用确认时选择允许，我再重新发起一次（或直接告诉我可以重试）。"
+    },
+    {
+      "task_id": "E6-deny",
+      "title": "MCP 调用（审批拒绝）",
+      "run_index": 2,
+      "outcome": "passed",
+      "session_id": "8fc3f9e6-f4d4-44af-81a2-ba907138d2b2",
+      "session_status": "completed",
+      "last_terminal_event": "done",
+      "last_run_status": "completed",
+      "last_run_reason": null,
+      "wall_seconds": 11.2,
+      "model_calls": 3,
+      "turns": 3,
+      "usage_unavailable_calls": 0,
+      "prompt_tokens": 14779,
+      "completion_tokens": 415,
+      "cached_tokens": 14336,
+      "tool_calls": 2,
+      "tool_calls_by_name": {
+        "mcp_w0eval_add_b60d8afebe134904": 1,
+        "shell_execute": 1
+      },
+      "tool_calls_unfinished": 0,
+      "unpaired_turns": 0,
+      "compactions": 0,
+      "compaction_requests": 0,
+      "shaped_results": 0,
+      "max_context_estimate": 5293,
+      "metrics_consistent": true,
+      "metric_mismatches": [],
+      "runs": [
+        {
+          "run_id": "570ed286-e01f-441e-a725-11eb5afdc23c",
+          "status": "completed",
+          "reason": null,
+          "source": "summary"
+        }
+      ],
+      "error_events": [],
+      "checks": [
+        {
+          "name": "add 调用先请求审批、再按答复拒绝",
+          "passed": true,
+          "detail": "审批状态 {'call_00_NpsMkRiMgnwJIVaLrjxt1037': ['pending', 'rejected']}；规则 mcp:w0eval:*=ask",
+          "required": true
+        },
+        {
+          "name": "被拒绝的 add 调用记为用户拒绝、没有执行",
+          "passed": true,
+          "detail": "add 结束事件 1 条，用户拒绝 1 条，实际执行 0 条",
+          "required": true
+        },
+        {
+          "name": "夹具没有收到 add 调用",
+          "passed": true,
+          "detail": "[]",
+          "required": true
+        },
+        {
+          "name": "运行在拒绝后继续并正常结束",
+          "passed": true,
+          "detail": "最后一个运行 completed/None",
+          "required": true
+        },
+        {
+          "name": "最终回复向用户说明（只记录）",
+          "passed": true,
+          "detail": "'调用 MCP 的 add 工具没有成功：该次调用被拒绝执行（返回“用户拒绝执行，该调用未执行”），按规则我没有原样重试。\\n\\n作为替代，我用本地 Python 计算了同样的加法：\\n\\n**1234 + 5678 = 6912**\\n\\n需要说明的是，这个 6912 是本地计算结果，不是 MCP add 工具返回的结果。如果你希望走 MCP 工具这条路径，请在下次弹出确认时允许执行，我再重新调用一次。'",
+          "required": false
+        }
+      ],
+      "interactions": [
+        {
+          "t": 0.0,
+          "kind": "send",
+          "turn": 0,
+          "message": "请使用 MCP 工具中的 add 工具计算 1234 与 5678 的和，并告诉我结果。",
+          "attachments": 0
+        },
+        {
+          "t": 0.18,
+          "kind": "accepted",
+          "run_id": "570ed286-e01f-441e-a725-11eb5afdc23c",
+          "seq": 2,
+          "route": "started",
+          "approval": null
+        },
+        {
+          "t": 9.051,
+          "kind": "sse_end",
+          "terminal": "waiting",
+          "reason": "approval",
+          "after_stop": false
+        },
+        {
+          "t": 9.051,
+          "kind": "approval_reply",
+          "tool_call_id": "call_00_NpsMkRiMgnwJIVaLrjxt1037",
+          "function": "mcp_w0eval_add_b60d8afebe134904",
+          "service": "w0eval",
+          "decision": "deny"
+        },
+        {
+          "t": 9.094,
+          "kind": "accepted",
+          "run_id": "570ed286-e01f-441e-a725-11eb5afdc23c",
+          "seq": 13,
+          "route": null,
+          "approval": "rejected"
+        },
+        {
+          "t": 11.162,
+          "kind": "sse_end",
+          "terminal": "completed",
+          "reason": null,
+          "after_stop": false
+        }
+      ],
+      "observations": {
+        "mcp_server_status": {
+          "connection_status": "connected",
+          "error": null,
+          "server_name": "w0eval",
+          "enabled": true,
+          "transport": "streamable_http",
+          "tools": [
+            "add",
+            "fail",
+            "values",
+            "long_text",
+            "delay"
+          ]
+        },
+        "tool_policy": {
+          "mcp:*": "ask",
+          "a2a:*": "ask",
+          "mcp:w0eval:*": "ask"
+        },
+        "mcp_fixture_calls": [
+          {
+            "protocol": "mcp",
+            "method": "start",
+            "time": 1790621822.95036,
+            "pid": 79686
+          }
+        ]
+      },
+      "env": {
+        "host_address": "host.docker.internal",
+        "mcp_url": "http://host.docker.internal:55714/mcp"
+      },
+      "events": [
+        {
+          "event": "run",
+          "run_id": "570ed286",
+          "status": "running",
+          "reason": null
+        },
+        {
+          "event": "message",
+          "role": "user",
+          "message": "请使用 MCP 工具中的 add 工具计算 1234 与 5678 的和，并告诉我结果。",
+          "attachments": []
+        },
+        {
+          "event": "title"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "turn",
+          "phase": "started",
+          "index": 1,
+          "estimate": 5208
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "approval",
+          "tool_call_id": "call_00_NpsMkRiMgnwJIVaLrjxt1037",
+          "function": "mcp_w0eval_add_b60d8afebe134904",
+          "status": "pending",
+          "rule": "mcp:w0eval:*",
+          "service": "w0eval",
+          "service_tool": "add"
+        },
+        {
+          "event": "turn",
+          "phase": "completed",
+          "index": 1,
+          "attempts": 1,
+          "prompt_tokens": 4743,
+          "completion_tokens": 85,
+          "model_ms": 730,
+          "ttft_ms": 652,
+          "error": null
+        },
+        {
+          "event": "wait"
+        },
+        {
+          "event": "run",
+          "run_id": "570ed286",
+          "status": "waiting",
+          "reason": "approval"
+        },
+        {
+          "event": "run",
+          "run_id": "570ed286",
+          "status": "running",
+          "reason": null
+        },
+        {
+          "event": "approval",
+          "tool_call_id": "call_00_NpsMkRiMgnwJIVaLrjxt1037",
+          "function": "mcp_w0eval_add_b60d8afebe134904",
+          "status": "rejected",
+          "rule": "mcp:w0eval:*",
+          "service": "w0eval",
+          "service_tool": "add"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "mcp_w0eval_add_b60d8afebe134904",
+          "status": "called",
+          "name": "mcp",
+          "denied_by": "user",
+          "duration_ms": 0
+        },
+        {
+          "event": "turn",
+          "phase": "started",
+          "index": 2,
+          "estimate": 5293
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "shell_execute",
+          "status": "calling",
+          "name": "shell"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "shell_execute",
+          "status": "called",
+          "name": "shell",
+          "duration_ms": 25
+        },
+        {
+          "event": "turn",
+          "phase": "completed",
+          "index": 2,
+          "attempts": 1,
+          "prompt_tokens": 4879,
+          "completion_tokens": 218,
+          "model_ms": 1211,
+          "ttft_ms": 1038,
+          "error": null
+        },
+        {
+          "event": "turn",
+          "phase": "started",
+          "index": 3,
+          "estimate": 5146
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "message",
+          "role": "assistant",
+          "message": "调用 MCP 的 add 工具没有成功：该次调用被拒绝执行（返回“用户拒绝执行，该调用未执行”），按规则我没有原样重试。\n\n作为替代，我用本地 Python 计算了同样的加法：\n\n**1234 + 5678 = 6912**\n\n需要说明的是",
+          "attachments": []
+        },
+        {
+          "event": "turn",
+          "phase": "completed",
+          "index": 3,
+          "attempts": 1,
+          "prompt_tokens": 5157,
+          "completion_tokens": 112,
+          "model_ms": 762,
+          "ttft_ms": 306,
+          "error": null
+        },
+        {
+          "event": "done"
+        },
+        {
+          "event": "run",
+          "run_id": "570ed286",
+          "status": "completed",
+          "reason": null
+        }
+      ],
+      "final_reply": "调用 MCP 的 add 工具没有成功：该次调用被拒绝执行（返回“用户拒绝执行，该调用未执行”），按规则我没有原样重试。\n\n作为替代，我用本地 Python 计算了同样的加法：\n\n**1234 + 5678 = 6912**\n\n需要说明的是，这个 6912 是本地计算结果，不是 MCP add 工具返回的结果。如果你希望走 MCP 工具这条路径，请在下次弹出确认时允许执行，我再重新调用一次。"
+    },
+    {
+      "task_id": "E7",
+      "title": "长上下文压缩（V05）",
+      "run_index": 1,
+      "outcome": "passed",
+      "session_id": "224a7b39-8fee-4bf1-b48d-e8f0f0e3327a",
+      "session_status": "completed",
+      "last_terminal_event": "done",
+      "last_run_status": "completed",
+      "last_run_reason": null,
+      "wall_seconds": 52.2,
+      "model_calls": 14,
+      "turns": 12,
+      "usage_unavailable_calls": 0,
+      "prompt_tokens": 126979,
+      "completion_tokens": 9706,
+      "cached_tokens": 88448,
+      "tool_calls": 17,
+      "tool_calls_by_name": {
+        "read_file": 12,
+        "shell_execute": 3,
+        "write_file": 1,
+        "deliver_files": 1
+      },
+      "tool_calls_unfinished": 0,
+      "unpaired_turns": 0,
+      "compactions": 2,
+      "compaction_requests": 2,
+      "shaped_results": 0,
+      "max_context_estimate": 14385,
+      "metrics_consistent": true,
+      "metric_mismatches": [],
+      "runs": [
+        {
+          "run_id": "6b721ed3-026e-4297-a161-db0827db530c",
+          "status": "completed",
+          "reason": null,
+          "source": "summary"
+        },
+        {
+          "run_id": "fe9bbd71-d56d-464a-b895-d528bee05a82",
+          "status": "completed",
+          "reason": null,
+          "source": "summary"
+        },
+        {
+          "run_id": "9c653854-6910-4785-bade-41e162bbcd6f",
+          "status": "completed",
+          "reason": null,
+          "source": "summary"
+        },
+        {
+          "run_id": "08975380-cabc-4ae3-929c-722060196e9f",
+          "status": "completed",
+          "reason": null,
+          "source": "summary"
+        }
+      ],
+      "error_events": [],
+      "checks": [
+        {
+          "name": "发生过压缩",
+          "passed": true,
+          "detail": "compact 事件 2 条：watermark 摘要 2 轮/保留 1 轮，估算 14775→5819，重新注入 2 条；watermark 摘要 2 轮/保留 1 轮，估算 14844→10677，重新注入 3 条",
+          "required": true
+        },
+        {
+          "name": "评测配置（只记录）",
+          "passed": true,
+          "detail": "本任务期间 context_window=24576、max_tokens=4096，结束后恢复为 {'context_window': 65536, 'max_tokens': 8192}",
+          "required": false
+        },
+        {
+          "name": "源文件未被修改",
+          "passed": true,
+          "detail": "经会话文件接口读取 /home/ubuntu/upload/source.csv，与上传字节一致：'item,amount\\na,12\\nb,18\\nc,30\\n'",
+          "required": true
+        },
+        {
+          "name": "交付 summary.json 并可下载",
+          "passed": true,
+          "detail": "文件 ID b4cb05eb-0b0b-4ba4-baad-c66f49db1217",
+          "required": true
+        },
+        {
+          "name": "source_total 为整数 60",
+          "passed": true,
+          "detail": "source_total=60",
+          "required": true
+        },
+        {
+          "name": "codes 与 12 份材料的校验码按顺序一致",
+          "passed": true,
+          "detail": "期望 ['K7-1220', 'K7-9139', 'K7-8058', 'K7-6977', 'K7-5896', 'K7-4815', 'K7-3734', 'K7-2653', 'K7-1572', 'K7-9491', 'K7-8410', 'K7-7329']；实际 ['K7-1220', 'K7-9139', 'K7-8058', 'K7-6977', 'K7-5896', 'K7-4815', 'K7-3734', 'K7-2653', 'K7-1572', 'K7-9491', 'K7-8410', 'K7-7329']",
+          "required": true
+        },
+        {
+          "name": "首次压缩后的 read_file（只记录）",
+          "passed": true,
+          "detail": "6 次：['/home/ubuntu/upload/m07.txt', '/home/ubuntu/upload/m08.txt', '/home/ubuntu/upload/m09.txt', '/home/ubuntu/upload/m10.txt', '/home/ubuntu/upload/m11.txt', '/home/ubuntu/upload/m12.txt']",
+          "required": false
+        }
+      ],
+      "interactions": [
+        {
+          "t": 0.0,
+          "kind": "send",
+          "turn": 0,
+          "message": "本会话的约束：不得覆盖或修改附件 source.csv。附件里还有 12 份材料 m01.txt 到 m12.txt，稍后我会让你逐份阅读。现在只需确认收到约束，不要做其他事情。",
+          "attachments": 13
+        },
+        {
+          "t": 0.148,
+          "kind": "accepted",
+          "run_id": "6b721ed3-026e-4297-a161-db0827db530c",
+          "seq": 2,
+          "route": "started",
+          "approval": null
+        },
+        {
+          "t": 9.378,
+          "kind": "sse_end",
+          "terminal": "completed",
+          "reason": null,
+          "after_stop": false
+        },
+        {
+          "t": 9.378,
+          "kind": "send",
+          "turn": 1,
+          "message": "请在这一轮里用 read_file 依次完整读取 m01.txt、m02.txt、m03.txt、m04.txt、m05.txt、m06.txt 这 6 份材料（每次调用读一份，不要用 shell、grep 等方式只提取片段），6 份全部读完后再逐条报告每份的校验码。",
+          "attachments": 0
+        },
+        {
+          "t": 9.427,
+          "kind": "accepted",
+          "run_id": "fe9bbd71-d56d-464a-b895-d528bee05a82",
+          "seq": 13,
+          "route": "started",
+          "approval": null
+        },
+        {
+          "t": 14.131,
+          "kind": "sse_end",
+          "terminal": "completed",
+          "reason": null,
+          "after_stop": false
+        },
+        {
+          "t": 14.131,
+          "kind": "send",
+          "turn": 2,
+          "message": "继续用同样的方式在这一轮里依次完整读取 m07.txt、m08.txt、m09.txt、m10.txt、m11.txt、m12.txt 这 6 份，全部读完后逐条报告校验码。",
+          "attachments": 0
+        },
+        {
+          "t": 14.178,
+          "kind": "accepted",
+          "run_id": "9c653854-6910-4785-bade-41e162bbcd6f",
+          "seq": 45,
+          "route": "started",
+          "approval": null
+        },
+        {
+          "t": 46.862,
+          "kind": "sse_end",
+          "terminal": "completed",
+          "reason": null,
+          "after_stop": false
+        },
+        {
+          "t": 46.862,
+          "kind": "send",
+          "turn": 3,
+          "message": "最后，请生成 summary.json（JSON 对象）：source_total 为 source.csv 中 amount 列之和（整数），codes 为 m01 到 m12 的校验码字符串数组（按文件顺序）。把 summary.json 作为附件交付给我。",
+          "attachments": 0
+        },
+        {
+          "t": 46.901,
+          "kind": "accepted",
+          "run_id": "08975380-cabc-4ae3-929c-722060196e9f",
+          "seq": 87,
+          "route": "started",
+          "approval": null
+        },
+        {
+          "t": 52.243,
+          "kind": "sse_end",
+          "terminal": "completed",
+          "reason": null,
+          "after_stop": false
+        }
+      ],
+      "observations": {
+        "llm_config_override": {
+          "context_window": 24576,
+          "max_tokens": 4096,
+          "restored_to": {
+            "context_window": 65536,
+            "max_tokens": 8192
+          }
+        }
+      },
+      "env": {
+        "host_address": "host.docker.internal"
+      },
+      "events": [
+        {
+          "event": "run",
+          "run_id": "6b721ed3",
+          "status": "running",
+          "reason": null
+        },
+        {
+          "event": "message",
+          "role": "user",
+          "message": "本会话的约束：不得覆盖或修改附件 source.csv。附件里还有 12 份材料 m01.txt 到 m12.txt，稍后我会让你逐份阅读。现在只需确认收到约束，不要做其他事情。",
+          "attachments": [
+            "source.csv",
+            "m01.txt",
+            "m02.txt",
+            "m03.txt",
+            "m04.txt",
+            "m05.txt",
+            "m06.txt",
+            "m07.txt",
+            "m08.txt",
+            "m09.txt",
+            "m10.txt",
+            "m11.txt",
+            "m12.txt"
+          ]
+        },
+        {
+          "event": "title"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "turn",
+          "phase": "started",
+          "index": 1,
+          "estimate": 4935
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "message",
+          "role": "assistant",
+          "message": "已收到约束，确认如下：\n\n1. **不会覆盖或修改 `/home/ubuntu/upload/source.csv`** —— 该文件只读，任何操作都不写入它。\n2. 已看到附件中的 12 份材料：`m01.txt` ~ `m12.txt`",
+          "attachments": []
+        },
+        {
+          "event": "turn",
+          "phase": "completed",
+          "index": 1,
+          "attempts": 1,
+          "prompt_tokens": 4499,
+          "completion_tokens": 137,
+          "model_ms": 1086,
+          "ttft_ms": 722,
+          "error": null
+        },
+        {
+          "event": "done"
+        },
+        {
+          "event": "run",
+          "run_id": "6b721ed3",
+          "status": "completed",
+          "reason": null
+        },
+        {
+          "event": "run",
+          "run_id": "fe9bbd71",
+          "status": "running",
+          "reason": null
+        },
+        {
+          "event": "message",
+          "role": "user",
+          "message": "请在这一轮里用 read_file 依次完整读取 m01.txt、m02.txt、m03.txt、m04.txt、m05.txt、m06.txt 这 6 份材料（每次调用读一份，不要用 shell、grep 等方式只提取片段），6 份全部读",
+          "attachments": []
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "turn",
+          "phase": "started",
+          "index": 1,
+          "estimate": 5100
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "message",
+          "role": "assistant",
+          "message": "正在依次完整读取这 6 份材料。",
+          "attachments": []
+        },
+        {
+          "event": "tool",
+          "function": "read_file",
+          "status": "calling",
+          "name": "file"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "read_file",
+          "status": "called",
+          "name": "file",
+          "duration_ms": 8
+        },
+        {
+          "event": "tool",
+          "function": "read_file",
+          "status": "calling",
+          "name": "file"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "read_file",
+          "status": "called",
+          "name": "file",
+          "duration_ms": 7
+        },
+        {
+          "event": "tool",
+          "function": "read_file",
+          "status": "calling",
+          "name": "file"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "read_file",
+          "status": "called",
+          "name": "file",
+          "duration_ms": 8
+        },
+        {
+          "event": "tool",
+          "function": "read_file",
+          "status": "calling",
+          "name": "file"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "read_file",
+          "status": "called",
+          "name": "file",
+          "duration_ms": 5
+        },
+        {
+          "event": "tool",
+          "function": "read_file",
+          "status": "calling",
+          "name": "file"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "read_file",
+          "status": "called",
+          "name": "file",
+          "duration_ms": 6
+        },
+        {
+          "event": "tool",
+          "function": "read_file",
+          "status": "calling",
+          "name": "file"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "read_file",
+          "status": "called",
+          "name": "file",
+          "duration_ms": 8
+        },
+        {
+          "event": "turn",
+          "phase": "completed",
+          "index": 1,
+          "attempts": 1,
+          "prompt_tokens": 4679,
+          "completion_tokens": 599,
+          "model_ms": 2230,
+          "ttft_ms": 1417,
+          "error": null
+        },
+        {
+          "event": "turn",
+          "phase": "started",
+          "index": 2,
+          "estimate": 14385
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "message",
+          "role": "assistant",
+          "message": "6 份材料已全部逐份完整读取完毕，逐条报告各份文件内标注的校验码：\n\n| 材料 | 校验码 |\n|---|---|\n| m01.txt | K7-1220 |\n| m02.txt | K7-9139 |\n| m03.txt | K7-805",
+          "attachments": []
+        },
+        {
+          "event": "turn",
+          "phase": "completed",
+          "index": 2,
+          "attempts": 1,
+          "prompt_tokens": 13526,
+          "completion_tokens": 506,
+          "model_ms": 2280,
+          "ttft_ms": 1228,
+          "error": null
+        },
+        {
+          "event": "done"
+        },
+        {
+          "event": "run",
+          "run_id": "fe9bbd71",
+          "status": "completed",
+          "reason": null
+        },
+        {
+          "event": "run",
+          "run_id": "9c653854",
+          "status": "running",
+          "reason": null
+        },
+        {
+          "event": "message",
+          "role": "user",
+          "message": "继续用同样的方式在这一轮里依次完整读取 m07.txt、m08.txt、m09.txt、m10.txt、m11.txt、m12.txt 这 6 份，全部读完后逐条报告校验码。",
+          "attachments": []
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "compact",
+          "trigger": "watermark",
+          "summarized_turns": 2,
+          "kept_turns": 1,
+          "before": 14775,
+          "after": 5819,
+          "attempts": 1,
+          "prompt_tokens": 7843,
+          "completion_tokens": 756
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "turn",
+          "phase": "started",
+          "index": 1,
+          "estimate": 5819
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "message",
+          "role": "assistant",
+          "message": "继续逐份完整读取剩下 6 份材料。",
+          "attachments": []
+        },
+        {
+          "event": "tool",
+          "function": "read_file",
+          "status": "calling",
+          "name": "file"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "read_file",
+          "status": "called",
+          "name": "file",
+          "duration_ms": 10
+        },
+        {
+          "event": "tool",
+          "function": "read_file",
+          "status": "calling",
+          "name": "file"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "read_file",
+          "status": "called",
+          "name": "file",
+          "duration_ms": 3
+        },
+        {
+          "event": "tool",
+          "function": "read_file",
+          "status": "calling",
+          "name": "file"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "read_file",
+          "status": "called",
+          "name": "file",
+          "duration_ms": 3
+        },
+        {
+          "event": "turn",
+          "phase": "completed",
+          "index": 1,
+          "attempts": 1,
+          "prompt_tokens": 5525,
+          "completion_tokens": 432,
+          "model_ms": 1867,
+          "ttft_ms": 1407,
+          "error": null
+        },
+        {
+          "event": "turn",
+          "phase": "started",
+          "index": 2,
+          "estimate": 10533
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "read_file",
+          "status": "calling",
+          "name": "file"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "read_file",
+          "status": "called",
+          "name": "file",
+          "duration_ms": 4
+        },
+        {
+          "event": "tool",
+          "function": "read_file",
+          "status": "calling",
+          "name": "file"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "read_file",
+          "status": "called",
+          "name": "file",
+          "duration_ms": 3
+        },
+        {
+          "event": "tool",
+          "function": "read_file",
+          "status": "calling",
+          "name": "file"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "read_file",
+          "status": "called",
+          "name": "file",
+          "duration_ms": 3
+        },
+        {
+          "event": "turn",
+          "phase": "completed",
+          "index": 2,
+          "attempts": 1,
+          "prompt_tokens": 10083,
+          "completion_tokens": 255,
+          "model_ms": 976,
+          "ttft_ms": 602,
+          "error": null
+        },
+        {
+          "event": "compact",
+          "trigger": "watermark",
+          "summarized_turns": 2,
+          "kept_turns": 1,
+          "before": 14844,
+          "after": 10677,
+          "attempts": 1,
+          "prompt_tokens": 5135,
+          "completion_tokens": 1473
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "turn",
+          "phase": "started",
+          "index": 3,
+          "estimate": 10677
+        },
+        {
+          "event": "turn",
+          "phase": "completed",
+          "index": 3,
+          "attempts": 1,
+          "prompt_tokens": 10043,
+          "completion_tokens": 4096,
+          "model_ms": 17924,
+          "ttft_ms": null,
+          "error": null
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "turn",
+          "phase": "started",
+          "index": 4,
+          "estimate": 10097
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "message",
+          "role": "assistant",
+          "message": "已按同样方式（read_file，每次一份，未用 shell/grep 截取）完整读取 m07–m12 六份材料正文，全部读取成功。逐条报告校验码：\n\n- m07.txt：K7-3734\n- m08.txt：K7-2653\n- m09.tx",
+          "attachments": []
+        },
+        {
+          "event": "turn",
+          "phase": "completed",
+          "index": 4,
+          "attempts": 1,
+          "prompt_tokens": 10088,
+          "completion_tokens": 549,
+          "model_ms": 3044,
+          "ttft_ms": 1748,
+          "error": null
+        },
+        {
+          "event": "done"
+        },
+        {
+          "event": "run",
+          "run_id": "9c653854",
+          "status": "completed",
+          "reason": null
+        },
+        {
+          "event": "run",
+          "run_id": "08975380",
+          "status": "running",
+          "reason": null
+        },
+        {
+          "event": "message",
+          "role": "user",
+          "message": "最后，请生成 summary.json（JSON 对象）：source_total 为 source.csv 中 amount 列之和（整数），codes 为 m01 到 m12 的校验码字符串数组（按文件顺序）。把 summary.jso",
+          "attachments": []
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "turn",
+          "phase": "started",
+          "index": 1,
+          "estimate": 10941
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "shell_execute",
+          "status": "calling",
+          "name": "shell"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "shell_execute",
+          "status": "called",
+          "name": "shell",
+          "duration_ms": 27
+        },
+        {
+          "event": "tool",
+          "function": "shell_execute",
+          "status": "calling",
+          "name": "shell"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "shell_execute",
+          "status": "called",
+          "name": "shell",
+          "duration_ms": 7
+        },
+        {
+          "event": "turn",
+          "phase": "completed",
+          "index": 1,
+          "attempts": 1,
+          "prompt_tokens": 10337,
+          "completion_tokens": 231,
+          "model_ms": 1266,
+          "ttft_ms": 805,
+          "error": null
+        },
+        {
+          "event": "turn",
+          "phase": "started",
+          "index": 2,
+          "estimate": 10766
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "write_file",
+          "status": "calling",
+          "name": "file"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "write_file",
+          "status": "called",
+          "name": "file",
+          "duration_ms": 6
+        },
+        {
+          "event": "turn",
+          "phase": "completed",
+          "index": 2,
+          "attempts": 1,
+          "prompt_tokens": 10912,
+          "completion_tokens": 202,
+          "model_ms": 1030,
+          "ttft_ms": 665,
+          "error": null
+        },
+        {
+          "event": "turn",
+          "phase": "started",
+          "index": 3,
+          "estimate": 11079
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "shell_execute",
+          "status": "calling",
+          "name": "shell"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "shell_execute",
+          "status": "called",
+          "name": "shell",
+          "duration_ms": 23
+        },
+        {
+          "event": "turn",
+          "phase": "completed",
+          "index": 3,
+          "attempts": 1,
+          "prompt_tokens": 11157,
+          "completion_tokens": 133,
+          "model_ms": 776,
+          "ttft_ms": 476,
+          "error": null
+        },
+        {
+          "event": "turn",
+          "phase": "started",
+          "index": 4,
+          "estimate": 11373
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "deliver_files",
+          "status": "calling",
+          "name": "deliver"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "deliver_files",
+          "status": "called",
+          "name": "deliver",
+          "duration_ms": 9
+        },
+        {
+          "event": "message",
+          "role": "assistant",
+          "message": "summary.json：source_total = source.csv 的 amount 列之和；codes 为 m01–m12 校验码（按文件顺序）。",
+          "attachments": [
+            "summary.json"
+          ]
+        },
+        {
+          "event": "turn",
+          "phase": "completed",
+          "index": 4,
+          "attempts": 1,
+          "prompt_tokens": 11435,
+          "completion_tokens": 99,
+          "model_ms": 758,
+          "ttft_ms": 538,
+          "error": null
+        },
+        {
+          "event": "turn",
+          "phase": "started",
+          "index": 5,
+          "estimate": 11640
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "message",
+          "role": "assistant",
+          "message": "summary.json 已生成并作为附件交付。\n\n```json\n{\n  \"source_total\": 60,\n  \"codes\": [\n    \"K7-1220\", \"K7-9139\", \"K7-8058\", \"K7-6977\",\n ",
+          "attachments": []
+        },
+        {
+          "event": "turn",
+          "phase": "completed",
+          "index": 5,
+          "attempts": 1,
+          "prompt_tokens": 11717,
+          "completion_tokens": 238,
+          "model_ms": 1264,
+          "ttft_ms": 481,
+          "error": null
+        },
+        {
+          "event": "done"
+        },
+        {
+          "event": "run",
+          "run_id": "08975380",
+          "status": "completed",
+          "reason": null
+        }
+      ],
+      "final_reply": "summary.json 已生成并作为附件交付。\n\n```json\n{\n  \"source_total\": 60,\n  \"codes\": [\n    \"K7-1220\", \"K7-9139\", \"K7-8058\", \"K7-6977\",\n    \"K7-5896\", \"K7-4815\", \"K7-3734\", \"K7-2653\",\n    \"K7-1572\", \"K7-9491\", \"K7-8410\", \"K7-7329\"\n  ]\n}\n```\n\n说明：\n- source_total = 60：source.csv 中 amount 列为 12 + 18 + 30（三行数据，第一行 item,amount 为表头），结果为整数。\n- codes：按 m01 → m12 文件顺序排列，取自各文件\"本份材料的校验码：…\"一行，与之前两轮逐份读取所报告的一致。\n- source.csv 全程只读，未覆盖或修改；读取前后 MD5 均为 31020255351bf0e1dde6622702f89e69。"
+    },
+    {
+      "task_id": "E7",
+      "title": "长上下文压缩（V05）",
+      "run_index": 2,
+      "outcome": "passed",
+      "session_id": "908f0dc9-9553-4be2-b877-1d177e7f59bf",
+      "session_status": "completed",
+      "last_terminal_event": "done",
+      "last_run_status": "completed",
+      "last_run_reason": null,
+      "wall_seconds": 30.3,
+      "model_calls": 12,
+      "turns": 10,
+      "usage_unavailable_calls": 0,
+      "prompt_tokens": 92403,
+      "completion_tokens": 4785,
+      "cached_tokens": 55168,
+      "tool_calls": 17,
+      "tool_calls_by_name": {
+        "read_file": 13,
+        "shell_execute": 2,
+        "write_file": 1,
+        "deliver_files": 1
+      },
+      "tool_calls_unfinished": 0,
+      "unpaired_turns": 0,
+      "compactions": 2,
+      "compaction_requests": 2,
+      "shaped_results": 0,
+      "max_context_estimate": 15284,
+      "metrics_consistent": true,
+      "metric_mismatches": [],
+      "runs": [
+        {
+          "run_id": "173bab6f-ae0c-42c1-9a48-afa1f0406655",
+          "status": "completed",
+          "reason": null,
+          "source": "summary"
+        },
+        {
+          "run_id": "9398ce78-ac3e-4ea7-8212-09b1759bceb3",
+          "status": "completed",
+          "reason": null,
+          "source": "summary"
+        },
+        {
+          "run_id": "4b4f8559-dafd-4a5a-928b-92d5e0adfae4",
+          "status": "completed",
+          "reason": null,
+          "source": "summary"
+        },
+        {
+          "run_id": "2a942c5a-f32d-4418-ad7e-2ba29bb910d0",
+          "status": "completed",
+          "reason": null,
+          "source": "summary"
+        }
+      ],
+      "error_events": [],
+      "checks": [
+        {
+          "name": "发生过压缩",
+          "passed": true,
+          "detail": "compact 事件 2 条：watermark 摘要 2 轮/保留 1 轮，估算 14703→5903，重新注入 2 条；watermark 摘要 2 轮/保留 1 轮，估算 15487→6162，重新注入 3 条",
+          "required": true
+        },
+        {
+          "name": "评测配置（只记录）",
+          "passed": true,
+          "detail": "本任务期间 context_window=24576、max_tokens=4096，结束后恢复为 {'context_window': 65536, 'max_tokens': 8192}",
+          "required": false
+        },
+        {
+          "name": "源文件未被修改",
+          "passed": true,
+          "detail": "经会话文件接口读取 /home/ubuntu/upload/source.csv，与上传字节一致：'item,amount\\na,12\\nb,18\\nc,30\\n'",
+          "required": true
+        },
+        {
+          "name": "交付 summary.json 并可下载",
+          "passed": true,
+          "detail": "文件 ID 9fa914e2-bfa0-4afa-86d8-b2bc9895817a",
+          "required": true
+        },
+        {
+          "name": "source_total 为整数 60",
+          "passed": true,
+          "detail": "source_total=60",
+          "required": true
+        },
+        {
+          "name": "codes 与 12 份材料的校验码按顺序一致",
+          "passed": true,
+          "detail": "期望 ['K7-1220', 'K7-9139', 'K7-8058', 'K7-6977', 'K7-5896', 'K7-4815', 'K7-3734', 'K7-2653', 'K7-1572', 'K7-9491', 'K7-8410', 'K7-7329']；实际 ['K7-1220', 'K7-9139', 'K7-8058', 'K7-6977', 'K7-5896', 'K7-4815', 'K7-3734', 'K7-2653', 'K7-1572', 'K7-9491', 'K7-8410', 'K7-7329']",
+          "required": true
+        },
+        {
+          "name": "首次压缩后的 read_file（只记录）",
+          "passed": true,
+          "detail": "7 次：['/home/ubuntu/upload/m07.txt', '/home/ubuntu/upload/m08.txt', '/home/ubuntu/upload/m09.txt', '/home/ubuntu/upload/m10.txt', '/home/ubuntu/upload/m11.txt', '/home/ubuntu/upload/m12.txt', '/home/ubuntu/upload/source.csv']",
+          "required": false
+        }
+      ],
+      "interactions": [
+        {
+          "t": 0.0,
+          "kind": "send",
+          "turn": 0,
+          "message": "本会话的约束：不得覆盖或修改附件 source.csv。附件里还有 12 份材料 m01.txt 到 m12.txt，稍后我会让你逐份阅读。现在只需确认收到约束，不要做其他事情。",
+          "attachments": 13
+        },
+        {
+          "t": 0.213,
+          "kind": "accepted",
+          "run_id": "173bab6f-ae0c-42c1-9a48-afa1f0406655",
+          "seq": 2,
+          "route": "started",
+          "approval": null
+        },
+        {
+          "t": 9.444,
+          "kind": "sse_end",
+          "terminal": "completed",
+          "reason": null,
+          "after_stop": false
+        },
+        {
+          "t": 9.444,
+          "kind": "send",
+          "turn": 1,
+          "message": "请在这一轮里用 read_file 依次完整读取 m01.txt、m02.txt、m03.txt、m04.txt、m05.txt、m06.txt 这 6 份材料（每次调用读一份，不要用 shell、grep 等方式只提取片段），6 份全部读完后再逐条报告每份的校验码。",
+          "attachments": 0
+        },
+        {
+          "t": 9.497,
+          "kind": "accepted",
+          "run_id": "9398ce78-ac3e-4ea7-8212-09b1759bceb3",
+          "seq": 13,
+          "route": "started",
+          "approval": null
+        },
+        {
+          "t": 12.576,
+          "kind": "sse_end",
+          "terminal": "completed",
+          "reason": null,
+          "after_stop": false
+        },
+        {
+          "t": 12.576,
+          "kind": "send",
+          "turn": 2,
+          "message": "继续用同样的方式在这一轮里依次完整读取 m07.txt、m08.txt、m09.txt、m10.txt、m11.txt、m12.txt 这 6 份，全部读完后逐条报告校验码。",
+          "attachments": 0
+        },
+        {
+          "t": 12.605,
+          "kind": "accepted",
+          "run_id": "4b4f8559-dafd-4a5a-928b-92d5e0adfae4",
+          "seq": 45,
+          "route": "started",
+          "approval": null
+        },
+        {
+          "t": 19.679,
+          "kind": "sse_end",
+          "terminal": "completed",
+          "reason": null,
+          "after_stop": false
+        },
+        {
+          "t": 19.679,
+          "kind": "send",
+          "turn": 3,
+          "message": "最后，请生成 summary.json（JSON 对象）：source_total 为 source.csv 中 amount 列之和（整数），codes 为 m01 到 m12 的校验码字符串数组（按文件顺序）。把 summary.json 作为附件交付给我。",
+          "attachments": 0
+        },
+        {
+          "t": 19.717,
+          "kind": "accepted",
+          "run_id": "2a942c5a-f32d-4418-ad7e-2ba29bb910d0",
+          "seq": 78,
+          "route": "started",
+          "approval": null
+        },
+        {
+          "t": 30.31,
+          "kind": "sse_end",
+          "terminal": "completed",
+          "reason": null,
+          "after_stop": false
+        }
+      ],
+      "observations": {
+        "llm_config_override": {
+          "context_window": 24576,
+          "max_tokens": 4096,
+          "restored_to": {
+            "context_window": 65536,
+            "max_tokens": 8192
+          }
+        }
+      },
+      "env": {
+        "host_address": "host.docker.internal"
+      },
+      "events": [
+        {
+          "event": "run",
+          "run_id": "173bab6f",
+          "status": "running",
+          "reason": null
+        },
+        {
+          "event": "message",
+          "role": "user",
+          "message": "本会话的约束：不得覆盖或修改附件 source.csv。附件里还有 12 份材料 m01.txt 到 m12.txt，稍后我会让你逐份阅读。现在只需确认收到约束，不要做其他事情。",
+          "attachments": [
+            "source.csv",
+            "m01.txt",
+            "m02.txt",
+            "m03.txt",
+            "m04.txt",
+            "m05.txt",
+            "m06.txt",
+            "m07.txt",
+            "m08.txt",
+            "m09.txt",
+            "m10.txt",
+            "m11.txt",
+            "m12.txt"
+          ]
+        },
+        {
+          "event": "title"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "turn",
+          "phase": "started",
+          "index": 1,
+          "estimate": 4935
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "message",
+          "role": "assistant",
+          "message": "已收到约束，确认如下：\n\n1. **不会覆盖或修改** `/home/ubuntu/upload/source.csv` —— 只读取，不写入、不追加、不重命名、不删除。\n2. 附件中共有 **12 份材料**：`m01.txt` ~ `m",
+          "attachments": []
+        },
+        {
+          "event": "turn",
+          "phase": "completed",
+          "index": 1,
+          "attempts": 1,
+          "prompt_tokens": 4499,
+          "completion_tokens": 115,
+          "model_ms": 1033,
+          "ttft_ms": 589,
+          "error": null
+        },
+        {
+          "event": "done"
+        },
+        {
+          "event": "run",
+          "run_id": "173bab6f",
+          "status": "completed",
+          "reason": null
+        },
+        {
+          "event": "run",
+          "run_id": "9398ce78",
+          "status": "running",
+          "reason": null
+        },
+        {
+          "event": "message",
+          "role": "user",
+          "message": "请在这一轮里用 read_file 依次完整读取 m01.txt、m02.txt、m03.txt、m04.txt、m05.txt、m06.txt 这 6 份材料（每次调用读一份，不要用 shell、grep 等方式只提取片段），6 份全部读",
+          "attachments": []
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "turn",
+          "phase": "started",
+          "index": 1,
+          "estimate": 5109
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "message",
+          "role": "assistant",
+          "message": "我先依次完整读取这 6 份材料。",
+          "attachments": []
+        },
+        {
+          "event": "tool",
+          "function": "read_file",
+          "status": "calling",
+          "name": "file"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "read_file",
+          "status": "called",
+          "name": "file",
+          "duration_ms": 4
+        },
+        {
+          "event": "tool",
+          "function": "read_file",
+          "status": "calling",
+          "name": "file"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "read_file",
+          "status": "called",
+          "name": "file",
+          "duration_ms": 3
+        },
+        {
+          "event": "tool",
+          "function": "read_file",
+          "status": "calling",
+          "name": "file"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "read_file",
+          "status": "called",
+          "name": "file",
+          "duration_ms": 3
+        },
+        {
+          "event": "tool",
+          "function": "read_file",
+          "status": "calling",
+          "name": "file"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "read_file",
+          "status": "called",
+          "name": "file",
+          "duration_ms": 4
+        },
+        {
+          "event": "tool",
+          "function": "read_file",
+          "status": "calling",
+          "name": "file"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "read_file",
+          "status": "called",
+          "name": "file",
+          "duration_ms": 3
+        },
+        {
+          "event": "tool",
+          "function": "read_file",
+          "status": "calling",
+          "name": "file"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "read_file",
+          "status": "called",
+          "name": "file",
+          "duration_ms": 3
+        },
+        {
+          "event": "turn",
+          "phase": "completed",
+          "index": 1,
+          "attempts": 1,
+          "prompt_tokens": 4692,
+          "completion_tokens": 547,
+          "model_ms": 1942,
+          "ttft_ms": 1129,
+          "error": null
+        },
+        {
+          "event": "turn",
+          "phase": "started",
+          "index": 2,
+          "estimate": 14335
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "message",
+          "role": "assistant",
+          "message": "6 份材料已逐份完整读取完毕（每次一个 read_file 调用，未使用 shell/grep 提取片段）。各份正文中标注的校验码如下：\n\n| 材料 | 校验码 |\n|---|---|\n| m01.txt | K7-1220 |\n| m02",
+          "attachments": []
+        },
+        {
+          "event": "turn",
+          "phase": "completed",
+          "index": 2,
+          "attempts": 1,
+          "prompt_tokens": 13487,
+          "completion_tokens": 182,
+          "model_ms": 1003,
+          "ttft_ms": 430,
+          "error": null
+        },
+        {
+          "event": "done"
+        },
+        {
+          "event": "run",
+          "run_id": "9398ce78",
+          "status": "completed",
+          "reason": null
+        },
+        {
+          "event": "run",
+          "run_id": "4b4f8559",
+          "status": "running",
+          "reason": null
+        },
+        {
+          "event": "message",
+          "role": "user",
+          "message": "继续用同样的方式在这一轮里依次完整读取 m07.txt、m08.txt、m09.txt、m10.txt、m11.txt、m12.txt 这 6 份，全部读完后逐条报告校验码。",
+          "attachments": []
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "compact",
+          "trigger": "watermark",
+          "summarized_turns": 2,
+          "kept_turns": 1,
+          "before": 14703,
+          "after": 5903,
+          "attempts": 1,
+          "prompt_tokens": 7864,
+          "completion_tokens": 903
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "turn",
+          "phase": "started",
+          "index": 1,
+          "estimate": 5903
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "read_file",
+          "status": "calling",
+          "name": "file"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "read_file",
+          "status": "called",
+          "name": "file",
+          "duration_ms": 8
+        },
+        {
+          "event": "tool",
+          "function": "read_file",
+          "status": "calling",
+          "name": "file"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "read_file",
+          "status": "called",
+          "name": "file",
+          "duration_ms": 4
+        },
+        {
+          "event": "tool",
+          "function": "read_file",
+          "status": "calling",
+          "name": "file"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "read_file",
+          "status": "called",
+          "name": "file",
+          "duration_ms": 3
+        },
+        {
+          "event": "tool",
+          "function": "read_file",
+          "status": "calling",
+          "name": "file"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "read_file",
+          "status": "called",
+          "name": "file",
+          "duration_ms": 3
+        },
+        {
+          "event": "tool",
+          "function": "read_file",
+          "status": "calling",
+          "name": "file"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "read_file",
+          "status": "called",
+          "name": "file",
+          "duration_ms": 3
+        },
+        {
+          "event": "tool",
+          "function": "read_file",
+          "status": "calling",
+          "name": "file"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "read_file",
+          "status": "called",
+          "name": "file",
+          "duration_ms": 3
+        },
+        {
+          "event": "turn",
+          "phase": "completed",
+          "index": 1,
+          "attempts": 1,
+          "prompt_tokens": 5658,
+          "completion_tokens": 525,
+          "model_ms": 2122,
+          "ttft_ms": 1410,
+          "error": null
+        },
+        {
+          "event": "turn",
+          "phase": "started",
+          "index": 2,
+          "estimate": 15284
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "message",
+          "role": "assistant",
+          "message": "6 份材料已逐份完整读取完毕（仍为每次一个 read_file 调用，未使用 shell/grep 截取片段）。校验码如下：\n\n| 材料 | 校验码 |\n|---|---|\n| m07.txt | K7-3734 |\n| m08.txt |",
+          "attachments": []
+        },
+        {
+          "event": "turn",
+          "phase": "completed",
+          "index": 2,
+          "attempts": 1,
+          "prompt_tokens": 14431,
+          "completion_tokens": 240,
+          "model_ms": 1326,
+          "ttft_ms": 860,
+          "error": null
+        },
+        {
+          "event": "done"
+        },
+        {
+          "event": "run",
+          "run_id": "4b4f8559",
+          "status": "completed",
+          "reason": null
+        },
+        {
+          "event": "run",
+          "run_id": "2a942c5a",
+          "status": "running",
+          "reason": null
+        },
+        {
+          "event": "message",
+          "role": "user",
+          "message": "最后，请生成 summary.json（JSON 对象）：source_total 为 source.csv 中 amount 列之和（整数），codes 为 m01 到 m12 的校验码字符串数组（按文件顺序）。把 summary.jso",
+          "attachments": []
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "compact",
+          "trigger": "watermark",
+          "summarized_turns": 2,
+          "kept_turns": 1,
+          "before": 15487,
+          "after": 6162,
+          "attempts": 1,
+          "prompt_tokens": 8819,
+          "completion_tokens": 1430
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "turn",
+          "phase": "started",
+          "index": 1,
+          "estimate": 6162
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "message",
+          "role": "assistant",
+          "message": "现在可以读取 source.csv 来计算汇总了（只读，不修改）。",
+          "attachments": []
+        },
+        {
+          "event": "tool",
+          "function": "shell_execute",
+          "status": "calling",
+          "name": "shell"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "shell_execute",
+          "status": "called",
+          "name": "shell",
+          "duration_ms": 11
+        },
+        {
+          "event": "tool",
+          "function": "read_file",
+          "status": "calling",
+          "name": "file"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "read_file",
+          "status": "called",
+          "name": "file",
+          "duration_ms": 3
+        },
+        {
+          "event": "turn",
+          "phase": "completed",
+          "index": 1,
+          "attempts": 1,
+          "prompt_tokens": 5992,
+          "completion_tokens": 210,
+          "model_ms": 1253,
+          "ttft_ms": 851,
+          "error": null
+        },
+        {
+          "event": "turn",
+          "phase": "started",
+          "index": 2,
+          "estimate": 6253
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "write_file",
+          "status": "calling",
+          "name": "file"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "write_file",
+          "status": "called",
+          "name": "file",
+          "duration_ms": 4
+        },
+        {
+          "event": "turn",
+          "phase": "completed",
+          "index": 2,
+          "attempts": 1,
+          "prompt_tokens": 6330,
+          "completion_tokens": 210,
+          "model_ms": 1012,
+          "ttft_ms": 572,
+          "error": null
+        },
+        {
+          "event": "turn",
+          "phase": "started",
+          "index": 3,
+          "estimate": 6495
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "shell_execute",
+          "status": "calling",
+          "name": "shell"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "shell_execute",
+          "status": "called",
+          "name": "shell",
+          "duration_ms": 23
+        },
+        {
+          "event": "turn",
+          "phase": "completed",
+          "index": 3,
+          "attempts": 1,
+          "prompt_tokens": 6583,
+          "completion_tokens": 114,
+          "model_ms": 1123,
+          "ttft_ms": 269,
+          "error": null
+        },
+        {
+          "event": "turn",
+          "phase": "started",
+          "index": 4,
+          "estimate": 6772
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "deliver_files",
+          "status": "calling",
+          "name": "deliver"
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "tool",
+          "function": "deliver_files",
+          "status": "called",
+          "name": "deliver",
+          "duration_ms": 10
+        },
+        {
+          "event": "message",
+          "role": "assistant",
+          "message": "summary.json：source_total 为 source.csv 中 amount 列之和（12+18+30=60），codes 为 m01–m12 的校验码（按文件顺序）。",
+          "attachments": [
+            "summary.json"
+          ]
+        },
+        {
+          "event": "turn",
+          "phase": "completed",
+          "index": 4,
+          "attempts": 1,
+          "prompt_tokens": 6877,
+          "completion_tokens": 104,
+          "model_ms": 1225,
+          "ttft_ms": 620,
+          "error": null
+        },
+        {
+          "event": "turn",
+          "phase": "started",
+          "index": 5,
+          "estimate": 7087
+        },
+        {
+          "event": "context"
+        },
+        {
+          "event": "message",
+          "role": "assistant",
+          "message": "已生成并交付 summary.json：\n\n```json\n{\n  \"source_total\": 60,\n  \"codes\": [\n    \"K7-1220\",\n    \"K7-9139\",\n    \"K7-8058\",\n    \"K7-",
+          "attachments": []
+        },
+        {
+          "event": "turn",
+          "phase": "completed",
+          "index": 5,
+          "attempts": 1,
+          "prompt_tokens": 7171,
+          "completion_tokens": 205,
+          "model_ms": 1025,
+          "ttft_ms": 467,
+          "error": null
+        },
+        {
+          "event": "done"
+        },
+        {
+          "event": "run",
+          "run_id": "2a942c5a",
+          "status": "completed",
+          "reason": null
+        }
+      ],
+      "final_reply": "已生成并交付 summary.json：\n\n```json\n{\n  \"source_total\": 60,\n  \"codes\": [\n    \"K7-1220\",\n    \"K7-9139\",\n    \"K7-8058\",\n    \"K7-6977\",\n    \"K7-5896\",\n    \"K7-4815\",\n    \"K7-3734\",\n    \"K7-2653\",\n    \"K7-1572\",\n    \"K7-9491\",\n    \"K7-8410\",\n    \"K7-7329\"\n  ]\n}\n```\n\n说明：\n- `source_total` = 60（source.csv 仅 3 行数据：a=12、b=18、c=30，只读未改动）。\n- `codes` 按 m01→m12 文件名顺序，共 12 项，与之前逐份报告的一致。\n\n文件已作为附件交付：/home/ubuntu/summary.json"
+    }
+  ],
+  "baseline": {
+    "path": "docs/plan/evidence/w0-baseline-2026-09-28-961005d.json",
+    "label": "w0-baseline",
+    "commit": "961005d",
+    "runs": [
+      {
+        "task_id": "E1",
+        "title": "纯回答与跨轮记忆",
+        "run_index": 1,
+        "outcome": "passed",
+        "wall_seconds": 20.6,
+        "model_calls": 10,
+        "prompt_tokens": 46323,
+        "completion_tokens": 1318,
+        "tool_calls": 2,
+        "session_id": "75027341-5924-4fba-812c-a4a71c891253"
+      },
+      {
+        "task_id": "E2",
+        "title": "文件交付（V01）",
+        "run_index": 1,
+        "outcome": "passed",
+        "wall_seconds": 27.7,
+        "model_calls": 16,
+        "prompt_tokens": 95683,
+        "completion_tokens": 2575,
+        "tool_calls": 10,
+        "session_id": "db13df35-45e9-45ee-aa61-b3d6cb0bbc93"
+      },
+      {
+        "task_id": "E3",
+        "title": "提问续接",
+        "run_index": 1,
+        "outcome": "passed",
+        "wall_seconds": 21.9,
+        "model_calls": 10,
+        "prompt_tokens": 53291,
+        "completion_tokens": 1913,
+        "tool_calls": 5,
+        "session_id": "dead1d85-2132-4a4d-b1db-a0c705066d57"
+      },
+      {
+        "task_id": "E4",
+        "title": "长命令与停止",
+        "run_index": 1,
+        "outcome": "failed",
+        "wall_seconds": 32.5,
+        "model_calls": 3,
+        "prompt_tokens": 12647,
+        "completion_tokens": 1015,
+        "tool_calls": 1,
+        "session_id": "9d1d3950-182b-46d4-9bdb-fe12fbe8b26b"
+      },
+      {
+        "task_id": "E5",
+        "title": "浏览器取事实",
+        "run_index": 1,
+        "outcome": "passed",
+        "wall_seconds": 18.8,
+        "model_calls": 9,
+        "prompt_tokens": 44206,
+        "completion_tokens": 1284,
+        "tool_calls": 5,
+        "session_id": "d69100a5-0a1a-4002-bd75-68720b8be2fd"
+      },
+      {
+        "task_id": "E6",
+        "title": "MCP 调用",
+        "run_index": 1,
+        "outcome": "passed",
+        "wall_seconds": 17.3,
+        "model_calls": 7,
+        "prompt_tokens": 33068,
+        "completion_tokens": 1074,
+        "tool_calls": 3,
+        "session_id": "89a56837-7f65-471b-8748-c77b9c1d9ccd"
+      }
+    ]
+  }
+}
