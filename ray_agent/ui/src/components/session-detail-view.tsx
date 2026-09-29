@@ -3,7 +3,7 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {useRouter} from 'next/navigation'
 import {toast} from 'sonner'
-import {Pencil} from 'lucide-react'
+import {PanelRightOpen, Pencil} from 'lucide-react'
 import {ChatInput} from '@/components/chat-input'
 import {RenameSessionDialog} from '@/components/rename-session-dialog'
 import {DeveloperView} from '@/components/developer/developer-view'
@@ -24,8 +24,6 @@ import {
 import {useSessionDetail} from '@/hooks/use-session-detail'
 import {useSessions} from '@/hooks/use-sessions'
 import {useIsMobile} from '@/hooks/use-mobile'
-import {useNow} from '@/components/run/clock'
-import {resolveOutputRate} from '@/lib/session-projection'
 import type {FileInfo} from '@/lib/api/types'
 import type {FileView, TimelineItem, ToolCallView, ToolFamily} from '@/lib/session-view'
 
@@ -91,34 +89,13 @@ export function SessionDetailView({
   const [workbenchRendered, setWorkbenchRendered] = useState(false)
   const [renameOpen, setRenameOpen] = useState(false)
   const [renamedTitle, setRenamedTitle] = useState<{sessionId: string; title: string; previousTitle: string} | null>(null)
-  const [wide, setWide] = useState<boolean | null>(null)
-  const [appliedWide, setAppliedWide] = useState(false)
-  const [tab, setTab] = useState<WorkbenchTab>('terminal')
+  const [tab, setTab] = useState<WorkbenchTab>('files')
   const [tabForId, setTabForId] = useState<string | null>(null)
   const [highlightFileId, setHighlightFileId] = useState<string | null>(null)
   const [vncOpen, setVncOpen] = useState(false)
   const initialSentRef = useRef(false)
   const scrollRef = useRef<HTMLDivElement>(null)
   const stickRef = useRef(true)
-  const now = useNow(view?.streaming != null)
-  const outputRate = useMemo(() => {
-    const live = view?.streaming
-    if (live) {
-      const elapsed = now != null && live.startedAt != null ? now - live.startedAt : null
-      return resolveOutputRate({text: live.text, elapsedMs: elapsed, turnEnded: false})
-    }
-    const focus = view?.activeRun ?? (view && view.runs.length > 0 ? view.runs[view.runs.length - 1] : null)
-    if (!focus || focus.turns.some((turn) => turn.endedAt == null)) return null
-    const last = [...focus.turns].reverse().find((turn) => turn.endedAt != null)
-    if (!last) return null
-    return resolveOutputRate({
-      turnEnded: true,
-      modelMs: last.modelMs,
-      ttftMs: last.ttftMs ?? null,
-      completionTokens: last.usage?.completion ?? null,
-      reasoningTokens: last.usage?.reasoning ?? null,
-    })
-  }, [view, now])
 
   const sessionStatus = view?.status
   const displayTitle = renamedTitle?.sessionId === sessionId && view?.title === renamedTitle.previousTitle
@@ -157,24 +134,6 @@ export function SessionDetailView({
     setTabForId(focusId)
     if (focus) setTab(tabForFamily(focus.family))
   }
-  if (!appliedWide && wide === true && calls.length > 0) {
-    setAppliedWide(true)
-    setWorkbenchOpen(true)
-  } else if (!appliedWide && wide === false) {
-    setAppliedWide(true)
-  }
-
-  useEffect(() => {
-    const mq = window.matchMedia('(min-width: 768px)')
-    const apply = () => setWide(mq.matches)
-    const frame = window.requestAnimationFrame(apply)
-    mq.addEventListener('change', apply)
-    return () => {
-      window.cancelAnimationFrame(frame)
-      mq.removeEventListener('change', apply)
-    }
-  }, [])
-
   useEffect(() => {
     if (!stickRef.current || vncOpen) return
     const el = scrollRef.current
@@ -343,6 +302,11 @@ export function SessionDetailView({
                 title="重命名会话" aria-label="重命名会话" onClick={() => setRenameOpen(true)}>
                 <Pencil className="size-3.5"/>
               </Button>
+              {(run?.status === 'completed' || run?.status === 'cancelled') && (
+                <span role="status" className="shrink-0 text-xs text-muted-foreground">
+                  {run.status === 'completed' ? '已完成' : '已停止'}
+                </span>
+              )}
             </div>
             <div role="group" aria-label="会话视图" className="flex shrink-0 rounded-md border p-0.5">
               <button
@@ -362,17 +326,15 @@ export function SessionDetailView({
                 开发者
               </button>
             </div>
-            <button
-              type="button"
-              aria-pressed={workbenchOpen}
-              onClick={() => setWorkbenchOpen((open) => !open)}
-              className="rounded-md border px-2 py-1 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              工作台
-            </button>
+            {!workbenchOpen && (
+              <Button type="button" variant="ghost" size="icon-xs" className="size-7 shrink-0"
+                title="打开工作台" aria-label="打开工作台" onClick={() => setWorkbenchOpen(true)}>
+                <PanelRightOpen className="size-4"/>
+              </Button>
+            )}
           </header>
 
-          <RunStatusBar run={run} onStop={() => void handleStop()} outputRate={outputRate}/>
+          <RunStatusBar run={run} onStop={() => void handleStop()}/>
 
           {mode === 'conversation' ? (
             <div ref={scrollRef} onScroll={onScroll} className="min-h-0 flex-1 overflow-y-auto">
@@ -419,8 +381,8 @@ export function SessionDetailView({
         <Sheet open={workbenchOpen} onOpenChange={setWorkbenchOpen}>
           <SheetContent side="right" className="w-full gap-0 p-0 sm:max-w-md data-[state=closed]:duration-[220ms] data-[state=open]:duration-[220ms]" showCloseButton={false}>
             <SheetHeader className="sr-only">
-              <SheetTitle>工作台</SheetTitle>
-              <SheetDescription>终端、浏览器和会话文件</SheetDescription>
+              <SheetTitle>操作详情</SheetTitle>
+              <SheetDescription>查看工具结果、终端、浏览器和文件</SheetDescription>
             </SheetHeader>
             {workbench}
           </SheetContent>

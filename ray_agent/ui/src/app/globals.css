@@ -74,26 +74,16 @@
     --color-sidebar-border: var(--sidebar-border);
     --color-sidebar-ring: var(--sidebar-ring);
 
-    --animate-shimmer: shimmer 2.2s linear infinite;
-
-    @keyframes shimmer {
-        from {
-            background-position: 100% 0;
-        }
-        to {
-            background-position: -100% 0;
-        }
-    }
 }
 
 /*
- * 浅色：石墨纸面。画布偏冷的浅灰，内容面为白，墨色近黑但带一点蓝。
+ * 浅色：接近白色的中性纸面；侧栏只比画布深一档。
  * 钴蓝 signal 是唯一强调色，只用于“正在运行”、焦点、当前项与链接。
  */
 :root {
     --radius: 0.5rem;
 
-    --background: #f1f3f5;
+    --background: #fafbfc;
     --foreground: #14181d;
     --card: #ffffff;
     --card-foreground: #14181d;
@@ -101,16 +91,16 @@
     --popover-foreground: #14181d;
     --primary: #14181d;
     --primary-foreground: #f7f8f9;
-    --secondary: #e8ebee;
+    --secondary: #f0f2f4;
     --secondary-foreground: #14181d;
-    --muted: #e8ebee;
+    --muted: #f0f2f4;
     --muted-foreground: #56606b;
     --faint: #606973;
-    --accent: #e8ebee;
+    --accent: #f0f2f4;
     --accent-foreground: #14181d;
     --destructive: #b42318;
-    --border: #d9dee3;
-    --input: #cdd3d9;
+    --border: #e2e7ea;
+    --input: #d6dce0;
     --ring: #2549c4;
 
     --signal: #2549c4;
@@ -139,13 +129,13 @@
     --chart-4: #8a3a8f;
     --chart-5: #56606b;
 
-    --sidebar: #e9ecef;
+    --sidebar: #f6f7f8;
     --sidebar-foreground: #14181d;
     --sidebar-primary: #14181d;
     --sidebar-primary-foreground: #f7f8f9;
-    --sidebar-accent: #dde1e6;
+    --sidebar-accent: #edf0f2;
     --sidebar-accent-foreground: #14181d;
-    --sidebar-border: #d9dee3;
+    --sidebar-border: #e2e7ea;
     --sidebar-ring: #2549c4;
 }
 
@@ -229,6 +219,7 @@
     body {
         @apply bg-background text-foreground font-sans antialiased;
         font-size: 14px;
+        font-weight: 500;
         line-height: 1.6;
     }
 
@@ -242,33 +233,6 @@
 
     .scrollbar-hide::-webkit-scrollbar {
         display: none;
-    }
-}
-
-@layer utilities {
-    /* 当前动作的“运行中”文字扫光；同屏只允许一处 */
-    .text-shimmer {
-        background-image: linear-gradient(
-            90deg,
-            currentColor 0%,
-            currentColor 40%,
-            color-mix(in oklab, currentColor 35%, transparent) 50%,
-            currentColor 60%,
-            currentColor 100%
-        );
-        background-size: 200% 100%;
-        -webkit-background-clip: text;
-        background-clip: text;
-        -webkit-text-fill-color: transparent;
-        animation: var(--animate-shimmer);
-    }
-
-    @media (prefers-reduced-motion: reduce) {
-        .text-shimmer {
-            animation: none;
-            -webkit-text-fill-color: currentColor;
-            background-image: none;
-        }
     }
 }
 

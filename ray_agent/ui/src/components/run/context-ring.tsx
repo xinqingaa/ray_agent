@@ -36,7 +36,7 @@ export function ContextRing({usage, className}: {usage: UsageView; className?: s
 
   const label = !ctx
     ? '上下文占用：暂无数据'
-    : `上下文占用 ${percent}%，剩余 ${formatTokens(remaining)} tokens${compacted ? `，已压缩 ${usage.compactions} 次` : ''}`
+    : `最近一次模型请求的上下文占用 ${percent}%，剩余 ${formatTokens(remaining)} tokens${compacted ? `，已压缩 ${usage.compactions} 次` : ''}`
 
   return (
     <Tooltip>
@@ -91,20 +91,23 @@ export function ContextRing({usage, className}: {usage: UsageView; className?: s
               <span className="absolute -top-0.5 -right-0.5 size-1.5 rounded-full bg-signal ring-2 ring-card" aria-hidden/>
             )}
           </span>
-          <span>{percent != null ? `${percent}%` : '—'}</span>
+          <span>{percent != null ? `上下文 ${percent}%` : '上下文 —'}</span>
         </button>
       </TooltipTrigger>
       <TooltipContent side="top" className="text-left">
         {!ctx ? (
-          <p>暂无用量：第一次模型请求完成后显示</p>
+          <p>暂无上下文用量：第一次模型请求完成后显示</p>
         ) : (
-          <dl className="grid grid-cols-[auto_auto] gap-x-3 gap-y-0.5 tabular-nums">
+          <div>
+            <p className="mb-1 text-xs text-muted-foreground">最近一次模型请求的占用，不是本次运行累计用量</p>
+            <dl className="grid grid-cols-[auto_auto] gap-x-3 gap-y-0.5 tabular-nums">
             <dt>已用</dt><dd>{percent}%（{formatTokens(ctx.usedTokens)} / {formatTokens(ctx.windowTokens)}）</dd>
             <dt>剩余</dt><dd>{formatTokens(remaining)}</dd>
             <dt>最近一轮</dt><dd>{formatTokens(ctx.lastTurnTokens)}</dd>
             {watermark != null && (<><dt>压缩水位</dt><dd>{Math.round(watermark * 100)}%</dd></>)}
             <dt>压缩</dt><dd>{compacted ? `已压缩 ${usage.compactions} 次` : '未压缩'}</dd>
-          </dl>
+            </dl>
+          </div>
         )}
       </TooltipContent>
     </Tooltip>

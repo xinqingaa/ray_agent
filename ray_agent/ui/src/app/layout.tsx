@@ -12,7 +12,7 @@ export const metadata: Metadata = {
   title: 'RayAgent',
   description: 'RayAgent 在沙箱中操作文件、终端和浏览器，按你的任务一步步执行并交付结果。',
   icons: {
-    icon: '/icon.png',
+    icon: '/brand-mark.svg',
   },
 }
 

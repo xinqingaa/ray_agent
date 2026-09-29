@@ -4,6 +4,7 @@ import {useState} from 'react'
 import {useRouter} from 'next/navigation'
 import {toast} from 'sonner'
 import {ChatInput} from '@/components/chat-input'
+import {BrandMark} from '@/components/brand-mark'
 import {sessionApi} from '@/lib/api/session'
 import type {FileInfo} from '@/lib/api/types'
 
@@ -30,7 +31,10 @@ export default function Page() {
     <main className="flex h-full min-h-0 items-center justify-center overflow-y-auto px-4 py-8 sm:px-6">
       <div className="w-full max-w-2xl">
         <div>
-          <h1 className="text-xl font-medium">想在 RayAgent 中做什么</h1>
+          <div className="flex items-center gap-2.5">
+            <BrandMark className="size-7"/>
+            <h1 className="text-xl font-medium">想在 RayAgent 中做什么</h1>
+          </div>
           <p className="mt-1 text-meta text-muted-foreground">
             描述目标，或说明要交付的文件。
           </p>

@@ -5,17 +5,13 @@ import {Button} from '@/components/ui/button'
 import {cn} from '@/lib/utils'
 import type {RunView} from '@/lib/session-view'
 import {useNow} from './clock'
-import {formatClock, formatDuration, formatTokens, totalTokens} from './format'
+import {formatClock, formatDuration} from './format'
 import {RUN_PHASE, runPhase, TONE_TEXT, type RunPhase} from './status-meta'
-
-export type OutputRate = {tokensPerSecond: number; estimated: boolean}
 
 type RunStatusBarProps = {
   /** 最新一次运行；没有运行时为空（空闲） */
   run: RunView | null
   onStop?: () => void
-  /** W6 接入：生成速度 */
-  outputRate?: OutputRate | null
   className?: string
 }
 
@@ -62,11 +58,8 @@ function activityText(run: RunView | null, phase: RunPhase, now: number | null):
   }
 }
 
-/**
- * 运行状态条：状态、已用时间、轮次、当前动作、本次运行 tokens 与停止按钮。
- * 同屏唯一的持续动画是运行中当前动作文字的扫光。
- */
-export function RunStatusBar({run, onStop, outputRate, className}: RunStatusBarProps) {
+/** 只在运行、等待或异常结束时显示的轻量状态行；完成汇总留给时间线。 */
+export function RunStatusBar({run, onStop, className}: RunStatusBarProps) {
   const phase = runPhase(run?.status, run?.activity)
   const meta = RUN_PHASE[phase]
   const live = LIVE_PHASES.includes(phase)
@@ -80,55 +73,35 @@ export function RunStatusBar({run, onStop, outputRate, className}: RunStatusBarP
         ? now - run.startedAt
         : null
   const turnCount = run ? run.summary?.turns ?? run.turns.length : 0
-  const tokens = run ? totalTokens(run.summary?.tokens ?? run.tokens) : null
   const text = activityText(run, phase, now)
-  const animate = phase === 'model' || phase === 'tool'
   const showStop = run != null && (run.status === 'running' || run.status === 'waiting')
   const isFailure = phase === 'failed' || phase === 'interrupted'
+  if (!run || phase === 'completed' || phase === 'cancelled') return null
 
   return (
-    <div className={cn('@container/status border-b bg-card', className)}>
-      <div className="flex min-h-12 flex-wrap items-center gap-x-4 gap-y-1.5 px-4 py-2 @lg/status:h-12 @lg/status:flex-nowrap @lg/status:py-0">
+    <div className={cn('@container/status border-b border-border/60 bg-background', className)}>
+      <div className="flex min-h-9 items-center gap-3 px-4 py-1.5">
         <span
           role="status"
           className={cn(
-            'inline-flex h-5 shrink-0 items-center text-meta font-semibold leading-5 whitespace-nowrap',
-            TONE_TEXT[meta.tone],
+            'shrink-0 text-xs font-medium whitespace-nowrap',
+            isFailure || phase === 'waiting_reply' || phase === 'waiting_approval'
+              ? TONE_TEXT[meta.tone] : 'text-muted-foreground',
           )}
         >
           {meta.label}
         </span>
-
-        {run && (
-          <Field label="用时">
-            <time dateTime={elapsed != null ? `PT${Math.floor(elapsed / 1000)}S` : undefined}>{formatClock(elapsed)}</time>
-          </Field>
-        )}
-        {run && (
-          <Field label="轮次" className="hidden @sm/status:inline-flex">
-            {turnCount}
-            {run.maxTurns != null && <span className="text-muted-foreground font-normal">/{run.maxTurns}</span>}
-          </Field>
-        )}
-
         <p
-          className={cn(
-            'order-last basis-full min-w-0 truncate text-meta leading-5 @lg/status:order-none @lg/status:basis-0 @lg/status:flex-1',
-            isFailure ? TONE_TEXT[meta.tone] : 'text-muted-foreground',
-            animate && 'text-foreground',
-          )}
+          className="min-w-0 flex-1 truncate text-xs text-muted-foreground"
           title={text}
         >
-          <span className={cn(animate && 'text-shimmer')}>{text}</span>
+          {text}
         </p>
-
-        <div className="ml-auto flex h-5 items-center gap-4">
-          {outputRate && (
-            <Field label={outputRate.estimated ? '速度（估算）' : '速度'} className="hidden @2xl/status:inline-flex">
-              {Math.round(outputRate.tokensPerSecond)} tok/s
-            </Field>
-          )}
-          {run && <Field label="tokens" className="hidden @xs/status:inline-flex">{formatTokens(tokens)}</Field>}
+        <div className="ml-auto flex shrink-0 items-center gap-3">
+          {!isFailure && <Field label="用时" className="hidden @xs/status:inline-flex">
+            <time dateTime={elapsed != null ? `PT${Math.floor(elapsed / 1000)}S` : undefined}>{formatClock(elapsed)}</time>
+          </Field>}
+          {!isFailure && turnCount > 0 && <Field label="轮次" className="hidden @lg/status:inline-flex">{turnCount}</Field>}
           {showStop && (
             <Button
               type="button"

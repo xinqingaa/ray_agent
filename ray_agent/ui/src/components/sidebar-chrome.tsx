@@ -3,6 +3,7 @@
 import type {ReactNode} from 'react'
 import Link from 'next/link'
 import {SidebarTrigger, useSidebar} from '@/components/ui/sidebar'
+import {BrandMark} from '@/components/brand-mark'
 import {cn} from '@/lib/utils'
 
 /** 侧栏顶部只保留产品入口与折叠控制。 */
@@ -12,8 +13,9 @@ export function SidebarChrome() {
   return (
     <div className={cn('flex h-9 items-center justify-between gap-2', state === 'collapsed' && !isMobile && 'justify-center')}>
       <Link href="/" onClick={() => setOpenMobile(false)}
-        className={cn('min-w-0 truncate rounded-sm px-1 text-sm font-semibold tracking-tight outline-none focus-visible:ring-2 focus-visible:ring-ring', state === 'collapsed' && !isMobile && 'hidden')}>
-        RayAgent
+        className={cn('flex min-w-0 items-center gap-2 rounded-sm px-1 text-sm font-semibold tracking-tight outline-none focus-visible:ring-2 focus-visible:ring-ring', state === 'collapsed' && !isMobile && 'hidden')}>
+        <BrandMark className="size-5"/>
+        <span className="truncate">RayAgent</span>
       </Link>
       <SidebarTrigger aria-label={state === 'collapsed' && !isMobile ? '展开侧栏' : '收起侧栏'} className="shrink-0"/>
     </div>

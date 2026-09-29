@@ -65,6 +65,7 @@ export default function SessionDetailPage({ params }: PageProps) {
 
   return (
     <SessionDetailView
+      key={sessionData.id}
       sessionId={sessionData.id}
       initialMessage={sessionData.initialMessage}
       initialAttachments={sessionData.initialAttachments}

@@ -13,7 +13,7 @@ import {fileIcon, previewUnavailableReason} from '@/components/run/file-icon'
 import {formatBytes} from '@/components/run/format'
 import {TOOL_STATUS} from '@/components/run/status-meta'
 
-export type WorkbenchTab = 'terminal' | 'browser' | 'files'
+export type WorkbenchTab = 'result' | 'terminal' | 'browser' | 'files'
 
 type WorkbenchProps = {
   sessionId: string
@@ -35,15 +35,17 @@ type WorkbenchProps = {
 }
 
 const TABS: Array<{id: WorkbenchTab; label: string}> = [
+  {id: 'result', label: '结果'},
   {id: 'terminal', label: '终端'},
   {id: 'browser', label: '浏览器'},
   {id: 'files', label: '文件'},
 ]
 
 export function tabForFamily(family: ToolFamily): WorkbenchTab {
+  if (family === 'shell') return 'terminal'
   if (family === 'browser') return 'browser'
   if (family === 'file' || family === 'deliver') return 'files'
-  return 'terminal'
+  return 'result'
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -133,6 +135,43 @@ function EmptyNote({children}: {children: string}) {
   return <p className="px-4 py-8 text-center text-meta text-faint">{children}</p>
 }
 
+/** 没有专属终端、浏览器或文件视图的工具，直接展示该次调用的结果。 */
+function ResultPane({call}: {call: ToolCallView}) {
+  const body = resultExcerpt(call)
+  const plan = call.family === 'plan' && Array.isArray(call.raw.args.plan) ? call.raw.args.plan : null
+  return (
+    <ScrollArea className="min-h-0 flex-1">
+      <div className="space-y-3 p-3">
+        {call.result?.error && <p className="text-sm text-state-failed">{call.result.error}</p>}
+        {call.result?.summary && <p className="text-xs text-muted-foreground">{call.result.summary}</p>}
+        {body ? (
+          <pre className="overflow-x-auto rounded-md bg-muted px-3 py-2 font-mono text-xs leading-5 whitespace-pre-wrap break-all">
+            {body.length > 20000 ? `${body.slice(0, 20000)}…` : body}
+          </pre>
+        ) : plan ? (
+          <ol className="space-y-2 text-sm">
+            {plan.map((item, index) => {
+              const step = asRecord(item)
+              return <li key={index} className="flex gap-2">
+                <span className="shrink-0 tabular-nums text-muted-foreground">{index + 1}.</span>
+                <span>{typeof step?.step === 'string' ? step.step : '未命名步骤'}</span>
+              </li>
+            })}
+          </ol>
+        ) : !call.result?.error && !call.result?.summary && (
+          <p className="py-6 text-center text-meta text-faint">
+            {call.status === 'running' ? '等待工具返回结果。' : '这次调用没有可显示的结果。'}
+          </p>
+        )}
+        {body && body.length > 20000 && <p className="text-xs text-muted-foreground">结果较长，这里只显示前 20,000 字符。</p>}
+        {call.result?.truncated && call.result.fullOutputPath && (
+          <p className="text-xs text-muted-foreground">完整输出保存在 {call.result.fullOutputPath}</p>
+        )}
+      </div>
+    </ScrollArea>
+  )
+}
+
 function ShellPane({sessionId, call}: {sessionId: string; call: ToolCallView | null}) {
   const running = call?.status === 'running'
   const session = shellSessionId(call)
@@ -174,6 +213,7 @@ function ShellPane({sessionId, call}: {sessionId: string; call: ToolCallView | n
   }
 
   const rows = consoleRows(call)
+  const fallback = rows.length === 0 ? resultExcerpt(call) : null
   const showLive = running && (live != null || liveError != null || !session)
 
   return (
@@ -185,6 +225,9 @@ function ShellPane({sessionId, call}: {sessionId: string; call: ToolCallView | n
         </div>
         <ScrollArea className="min-h-0 flex-1">
           <div className="p-3 font-mono text-[13px] leading-5 text-terminal-foreground">
+            {call.result?.error && (
+              <p className="mb-2 text-state-failed">{call.result.error}</p>
+            )}
             {showLive && !session && (
               <p className="text-terminal-foreground/70">这次调用没有终端会话编号。长命令可能要等结束后才返回输出。</p>
             )}
@@ -205,7 +248,8 @@ function ShellPane({sessionId, call}: {sessionId: string; call: ToolCallView | n
                 {row.output && <pre className="mt-0.5 whitespace-pre-wrap break-all">{row.output}</pre>}
               </div>
             ))}
-            {!showLive && rows.length === 0 && (
+            {fallback && <pre className="whitespace-pre-wrap break-all">{fallback.length > 20000 ? `${fallback.slice(0, 20000)}…` : fallback}</pre>}
+            {!showLive && rows.length === 0 && !fallback && !call.result?.error && (
               <p className="text-terminal-foreground/70">
                 {call.status === 'running' ? '等待命令输出。' : '这次调用没有终端记录。'}
               </p>
@@ -222,6 +266,7 @@ function BrowserPane({call, onOpenVnc}: {call: ToolCallView | null; onOpenVnc?: 
     return <EmptyNote>这里会显示所选浏览器操作的截图。打开页面后出现，也可以进入远程桌面。</EmptyNote>
   }
   const src = screenshotSrc(call)
+  const fallback = !src ? resultExcerpt(call) : null
   const url = typeof call.raw.args.url === 'string' ? call.raw.args.url : call.target
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-2 p-3">
@@ -237,8 +282,12 @@ function BrowserPane({call, onOpenVnc}: {call: ToolCallView | null; onOpenVnc?: 
             {/* eslint-disable-next-line @next/next/no-img-element -- 沙箱截图是 data URL */}
             <img src={src} alt="浏览器截图" className="h-auto w-full"/>
           </ScrollArea>
+        ) : fallback ? (
+          <ScrollArea className="h-full">
+            <pre className="p-3 font-mono text-xs leading-5 whitespace-pre-wrap break-all">{fallback.length > 20000 ? `${fallback.slice(0, 20000)}…` : fallback}</pre>
+          </ScrollArea>
         ) : (
-          <EmptyNote>{call.status === 'running' ? '等待页面截图。' : '这次调用没有截图。'}</EmptyNote>
+          <EmptyNote>{call.result?.error ?? (call.status === 'running' ? '等待页面截图或结果。' : '这次调用没有截图或可显示的结果。')}</EmptyNote>
         )}
         {onOpenVnc && (
           <Button
@@ -352,6 +401,12 @@ function FilesPane({focus, files, highlightFileId}: {focus: ToolCallView | null;
   return (
     <ScrollArea className="min-h-0 flex-1">
       <div className="flex flex-col gap-3 p-3">
+        {focus && (focus.family === 'file' || focus.family === 'deliver') && focus.result?.error && (
+          <p className="text-xs text-state-failed">{focus.result.error}</p>
+        )}
+        {focus && (focus.family === 'file' || focus.family === 'deliver') && !toolText && focus.result?.summary && (
+          <p className="text-xs text-muted-foreground">{focus.result.summary}</p>
+        )}
         {toolText != null && focus && (
           <section>
             <h3 className="mb-1 text-xs font-medium text-muted-foreground">{focus.verb}{focus.target ? ` ${focus.target}` : ''}</h3>
@@ -420,7 +475,7 @@ function FilesPane({focus, files, highlightFileId}: {focus: ToolCallView | null;
   )
 }
 
-/** 工作台：终端、浏览器、文件。默认跟随最新工具，手动选择后固定，直到回到最新。 */
+/** 工作台按当前工具展示结果、终端、浏览器或文件，手动选择后可固定。 */
 export function Workbench({
   sessionId,
   focus,
@@ -441,9 +496,13 @@ export function Workbench({
     (tab === 'terminal' && focus.family !== 'shell' && shellCall && shellCall.callId !== focus.callId) ||
     (tab === 'browser' && focus.family !== 'browser' && browserCall && browserCall.callId !== focus.callId)
   )
-  const otherText = focus && focus.family !== 'shell' && focus.family !== 'browser' && focus.family !== 'file' && focus.family !== 'deliver'
-    ? resultExcerpt(focus)
-    : null
+  const hasResultTab = focus && !['shell', 'browser', 'file', 'deliver'].includes(focus.family)
+  const availableTabs = TABS.filter((item) =>
+    item.id === 'files' ||
+    (item.id === 'result' && hasResultTab) ||
+    (item.id === 'terminal' && shellCall) ||
+    (item.id === 'browser' && browserCall),
+  )
 
   return (
     <section aria-label="工作台" className={cn('flex h-full min-h-0 flex-col bg-card', className)}>
@@ -469,7 +528,7 @@ export function Workbench({
         </p>
       )}
       <div role="tablist" aria-label="工作台内容" className="flex gap-1 border-b px-2 py-1">
-        {TABS.map((item) => (
+        {availableTabs.map((item) => (
           <button
             key={item.id}
             type="button"
@@ -491,11 +550,7 @@ export function Workbench({
           {tab === 'terminal' ? '终端显示最近一次命令，与当前固定或跟随的操作不同。' : '浏览器显示最近一次页面操作，与当前固定或跟随的操作不同。'}
         </p>
       )}
-      {tab === 'terminal' && otherText && focus && focus.family !== 'shell' && (
-        <pre className="mx-3 mt-2 max-h-32 overflow-auto rounded-md bg-muted px-3 py-2 font-mono text-xs whitespace-pre-wrap break-all">
-          {otherText.slice(0, 4000)}
-        </pre>
-      )}
+      {tab === 'result' && hasResultTab && <ResultPane call={focus}/>}
       {tab === 'terminal' && <ShellPane sessionId={sessionId} call={shellCall}/>}
       {tab === 'browser' && <BrowserPane call={browserCall} onOpenVnc={onOpenVnc}/>}
       {tab === 'files' && <FilesPane focus={focus} files={files} highlightFileId={highlightFileId}/>}

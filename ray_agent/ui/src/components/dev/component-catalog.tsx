@@ -214,13 +214,10 @@ export function ComponentCatalog() {
           <State label="等待回复" source="真实"><FixtureClock at={runStates.waitingReplyNow}><RunStatusBar run={runStates.waitingReply} onStop={noop}/></FixtureClock></State>
           <State label="等待审批" source="合成"><FixtureClock at={runStates.toolNow}><RunStatusBar run={runStates.waitingApproval} onStop={noop}/></FixtureClock></State>
           <State label="停止中" source="合成"><FixtureClock at={runStates.toolNow}><RunStatusBar run={runStates.stopping} onStop={noop}/></FixtureClock></State>
-          <State label="已完成" source="真实"><RunStatusBar run={runStates.completed}/></State>
+          <State label="已完成（状态行收起）" source="真实"><Surface className="text-meta text-faint">会话标题显示已完成，运行汇总留在时间线。</Surface></State>
           <State label="失败（含原因）" source="合成"><RunStatusBar run={runStates.failed}/></State>
-          <State label="已停止" source="合成"><RunStatusBar run={runStates.cancelled}/></State>
+          <State label="已停止（状态行收起）" source="合成"><Surface className="text-meta text-faint">会话标题显示已停止，停止记录留在时间线。</Surface></State>
           <State label="已中断" source="合成"><RunStatusBar run={runStates.interrupted}/></State>
-          <State label="工具执行中（W6 生成速度入口）" source="合成">
-            <FixtureClock at={runStates.toolNow}><RunStatusBar run={runStates.tool} onStop={noop} outputRate={{tokensPerSecond: 42, estimated: true}}/></FixtureClock>
-          </State>
         </Section>
 
         <Section id="plan-bar" title="计划条" columns={2} note="折叠时显示进度、当前项与其用时；展开为完整清单与说明。计划更新时，变化的项带左侧标记与说明。">

@@ -50,13 +50,15 @@ npm run dev
 
 `useSessionDetail` 在原有的会话、文件、事件和 `sendMessage` 之外，返回投影结果 `view`、提交中的 `submitting`（与 `streaming` 相同）、`stop`、`replyApproval` 和 `loadTurnRequest`。某一轮发给模型的请求也可以用 `sessionApi.getTurnRequest`。字段约定见 [W4 子计划](../../docs/plan/w4-ui-data.md#视图模型契约)。
 
-会话页只渲染 `view`：状态条、时间线、计划条和上下文环都读这份投影。正在增长的条目 id 放在 `handlers.streamingItemId`。停止调用 `stop()`。运行中输入框仍可发送，内容作为补充要求；等待回复时占位符说明回复会继续当前任务。生成过程中，状态条用累计字符按中日韩 0.7、其余 0.3 的系数估算速度，并标明估算；该轮结束后，在 `completion_tokens`、`ttft_ms` 都有值且 `model_ms` 更大时，改为 `completion_tokens / (model_ms − ttft_ms)`，`reasoning_tokens` 有值时先从分子扣除。开发者视图的轮次行显示这次实测速度，并在尝试次数大于 1 或扣除了推理 token 时用提示说明偏差。失败尝试的原因代码在提示里写成「连接中断或超时」「输出流中断」「空回复」「模型拒绝请求」「已停止」；只有传输中断、流中断和空回复在不再重试时才加上「已达到重试上限」。审批事件（`approval`）投影为时间线上的审批条目：挂起的调用在答复前没有工具事件，调用视图从审批事件本身构造，MCP 标题用 `service` 与 `service_tool`；结论事件原地更新同一条目，批准后该调用的 `tool` 事件写回条目里的调用，不另起工具组；`expired` 时调用标为未执行。审批挂起时的 `wait` 不生成提问条目。`run(waiting, reason=approval)` 时 activity 为 `waiting_approval`。审批卡的批准与拒绝调用 `replyApproval(toolCallId, 'approve' | 'deny')`，提交中状态保持到结论事件到达；接口出错时提示并重新拉取详情。等待批准时输入框禁用，占位符引导批准、拒绝或停止；等待中的调用不进入工作台。设置页工具策略分区经 `getToolPolicy` / `updateToolPolicy` 整表读写 `/app-config/tool-policy`。工作台默认跟随最新工具，点开某次调用后固定，直到「回到最新」。终端在该次 Shell 调用仍为运行中时，按约 1.5 秒调用 `sessionApi.viewShell`（请求体字段为 `session_id`），浏览器 `online` 事件触发时立即重读；读取失败时保留上次输出并提示。开发者视图用 `loadTurnRequest` 显示某一轮重建出的请求。当前会话的运行状态会写回会话列表里的对应项，终态后侧栏不再停在「运行中」。组件状态目录在接入后保留。
+会话页只渲染 `view`：状态条、时间线、计划条和上下文环都读这份投影。正在增长的条目 id 放在 `handlers.streamingItemId`。停止调用 `stop()`。运行中输入框仍可发送，内容作为补充要求；等待回复时占位符说明回复会继续当前任务。生成过程中，时间线显示逐步增长的文本，顶部状态行只显示状态、当前动作、用时和停止入口；已结束轮次的速度在 `completion_tokens`、`ttft_ms` 都有值且 `model_ms` 更大时按 `completion_tokens / (model_ms − ttft_ms)` 计算，`reasoning_tokens` 有值时先从分子扣除，缺少用量时按字符估算。速度只在开发者视图的已结束轮次行显示，并在尝试次数大于 1 或扣除了推理 token 时用提示说明偏差。失败尝试的原因代码在提示里写成「连接中断或超时」「输出流中断」「空回复」「模型拒绝请求」「已停止」；只有传输中断、流中断和空回复在不再重试时才加上「已达到重试上限」。审批事件（`approval`）投影为时间线上的审批条目：挂起的调用在答复前没有工具事件，调用视图从审批事件本身构造，MCP 标题用 `service` 与 `service_tool`；结论事件原地更新同一条目，批准后该调用的 `tool` 事件写回条目里的调用，不另起工具组；`expired` 时调用标为未执行。审批挂起时的 `wait` 不生成提问条目。`run(waiting, reason=approval)` 时 activity 为 `waiting_approval`。审批卡的批准与拒绝调用 `replyApproval(toolCallId, 'approve' | 'deny')`，提交中状态保持到结论事件到达；接口出错时提示并重新拉取详情。等待批准时输入框禁用，占位符引导批准、拒绝或停止；等待中的调用不进入工作台。设置页工具策略分区经 `getToolPolicy` / `updateToolPolicy` 整表读写 `/app-config/tool-policy`。工作台进入会话时默认关闭，点击顶部入口、工具记录或文件预览后打开；打开后默认跟随最新工具，点开某次调用后固定，直到「回到最新」。搜索、MCP、远程 Agent、计划和其他工具默认落在结果页，Shell、浏览器、文件调用分别落在专属页；没有相应调用时不显示空的终端或浏览器标签。终端在该次 Shell 调用仍为运行中时，按约 1.5 秒调用 `sessionApi.viewShell`（请求体字段为 `session_id`），浏览器 `online` 事件触发时立即重读；读取失败时保留上次输出并提示。开发者视图用 `loadTurnRequest` 显示某一轮重建出的请求。当前会话的运行状态会写回会话列表里的对应项，终态后侧栏不再停在「运行中」。组件状态目录在接入后保留。
 
 ## 设计与主题
 
 设计方案、颜色、字体、间距、圆角和组件状态清单见 [DESIGN.md](DESIGN.md)。取值以 [src/app/globals.css](src/app/globals.css) 为准。
 
-主题由 `next-themes` 挂在根布局，`attribute="class"`，默认跟随系统，也可在侧栏切换浅色或深色。选择保存在浏览器本地。深色 token 写在 `.dark` 下，不要在组件里再写一套 `dark:` 颜色。
+浅色画布、侧栏与弱底色统一由 `:root` token 控制；深色 token 独立保留。品牌标记的界面组件是 [brand-mark.tsx](src/components/brand-mark.tsx)，浏览器图标是 [brand-mark.svg](public/brand-mark.svg)。
+
+主题由 `next-themes` 挂在根布局，`attribute="class"`，默认跟随系统，也可在设置页“外观”分区切换浅色或深色。选择保存在浏览器本地。深色 token 写在 `.dark` 下，不要在组件里再写一套 `dark:` 颜色。
 
 业务界面使用这些 token，例如 `bg-background`、`text-muted-foreground`、`text-state-running`、`bg-signal`。新界面不要写 `gray-*` 或十六进制颜色。计时、轮次、token 和字节数加 `tabular-nums`；命令、路径和代码用 `font-mono`。状态色成对使用文字类与浅底类（`text-state-*` 与 `bg-state-*-soft`）。
 
