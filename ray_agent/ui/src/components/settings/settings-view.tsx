@@ -8,11 +8,13 @@ import {LlmSection, llmFormOptions} from './llm-section'
 import {McpSection} from './mcp-section'
 import {A2aSection} from './a2a-section'
 import {ToolPolicySection, useToolPolicyForm} from './tool-policy-section'
+import {AppearanceSection} from './appearance-section'
 
-type SectionKey = 'general' | 'llm' | 'mcp' | 'a2a' | 'tool-policy'
+type SectionKey = 'general' | 'appearance' | 'llm' | 'mcp' | 'a2a' | 'tool-policy'
 
 const SECTIONS: {key: SectionKey; label: string; tag?: string}[] = [
   {key: 'general', label: '通用'},
+  {key: 'appearance', label: '外观'},
   {key: 'llm', label: '模型提供商'},
   {key: 'mcp', label: 'MCP 服务器'},
   {key: 'a2a', label: '远程 Agent'},
@@ -34,7 +36,7 @@ export function SettingsView() {
         <header className="mb-6 @3xl/settings:mb-8">
           <h1 className="text-xl font-semibold">设置</h1>
           <p className="mt-1 text-meta text-muted-foreground">
-            保存在 API 服务的配置文件中，对所有会话生效。
+            执行配置对所有会话生效；外观设置保存在当前浏览器中。
           </p>
         </header>
 
@@ -75,6 +77,7 @@ export function SettingsView() {
 
           <div className="@container/form min-w-0">
             {active === 'general' && <GeneralSection form={general}/>}
+            {active === 'appearance' && <AppearanceSection/>}
             {active === 'llm' && <LlmSection form={llm}/>}
             {active === 'mcp' && <McpSection/>}
             {active === 'a2a' && <A2aSection/>}

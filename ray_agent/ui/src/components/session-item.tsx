@@ -22,7 +22,7 @@ type SessionItemProps = {
   onRename?: (session: Session) => void
 }
 
-const STATUS_DOT: Record<Session['status'], {label: string; className: string}> = {
+const STATUS_INDICATOR: Record<Session['status'], {label: string; className: string}> = {
   pending: {label: '准备中', className: 'bg-state-running'},
   running: {label: '运行中', className: 'bg-state-running'},
   waiting: {label: '等你处理', className: 'bg-state-waiting'},
@@ -32,7 +32,7 @@ const STATUS_DOT: Record<Session['status'], {label: string; className: string}> 
   interrupted: {label: '已中断', className: 'bg-state-interrupted'},
 }
 
-/** 会话列表项：标题自然换行，状态在右下角用色点提示；选中项左侧有强调条。 */
+/** 会话列表项：仅选中项的左侧强调条使用状态色，状态名称保留在提示和可访问名称中。 */
 export function SessionItem({session, isActive, onClick, onDelete, onRename}: SessionItemProps) {
   const mounted = useMounted()
 
@@ -49,16 +49,16 @@ export function SessionItem({session, isActive, onClick, onDelete, onRename}: Se
   const clockLabel = formatClockTime(session.latest_message_at)
   const timeLabel = [dayLabel, clockLabel].filter(Boolean).join(' ')
   const title = session.title || '新任务'
-  const status = STATUS_DOT[session.status]
+  const status = STATUS_INDICATOR[session.status]
 
   return (
     <div
       className={cn(
-        'group/session relative rounded-md py-1.5 pr-1 pl-2.5 hover:bg-sidebar-accent/70',
+        'group/session relative rounded-md py-2.5 pr-1.5 pl-2.5 hover:bg-sidebar-accent/70',
         isActive && 'bg-sidebar-accent',
       )}
     >
-      {isActive && <span className="absolute inset-y-1.5 left-0 w-0.5 rounded-full bg-signal" aria-hidden/>}
+      {isActive && <span className={cn('absolute inset-y-1.5 left-0 w-0.5 rounded-full', status.className)} aria-hidden/>}
       <Tooltip>
         <TooltipTrigger asChild>
           <button
@@ -70,10 +70,7 @@ export function SessionItem({session, isActive, onClick, onDelete, onRename}: Se
             className="block w-full min-w-0 rounded-sm text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <p className="truncate pr-7 text-sm leading-5" dir="auto" title={title}>{title}</p>
-            <div className="flex min-w-0 items-center justify-between gap-2">
-              {timeLabel && <span className="min-w-0 truncate text-xs tabular-nums text-muted-foreground">{timeLabel}</span>}
-              <span className={cn('ml-auto size-2 shrink-0 rounded-full', status.className)} aria-hidden/>
-            </div>
+            {timeLabel && <span className="block min-w-0 truncate text-xs tabular-nums text-muted-foreground">{timeLabel}</span>}
           </button>
         </TooltipTrigger>
         <TooltipContent side="right" sideOffset={6}>{status.label}</TooltipContent>

@@ -122,7 +122,7 @@ export function SessionList() {
         onOpenChange={handleDialogOpenChange}
         onConfirm={handleDeleteConfirm}
       />
-      {pendingRenameSession && <RenameSessionDialog session={pendingRenameSession} open
+      {pendingRenameSession && <RenameSessionDialog sessionId={pendingRenameSession.session_id} currentTitle={pendingRenameSession.title} open
         onOpenChange={(open) => {if (!open) setPendingRenameSession(null)}}
         onSaved={(title) => patchSession(pendingRenameSession.session_id, {title})}/>}
     </>

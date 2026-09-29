@@ -6,31 +6,30 @@ import {toast} from 'sonner'
 import {Button} from '@/components/ui/button'
 import {Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle} from '@/components/ui/dialog'
 import {sessionApi} from '@/lib/api/session'
-import type {Session} from '@/lib/api'
-
 type Props = {
-  session: Session
+  sessionId: string
+  currentTitle: string
   open: boolean
   onOpenChange: (open: boolean) => void
   onSaved: (title: string) => void
 }
 
-export function RenameSessionDialog({session, open, onOpenChange, onSaved}: Props) {
-  const [title, setTitle] = useState(session.title)
+export function RenameSessionDialog({sessionId, currentTitle, open, onOpenChange, onSaved}: Props) {
+  const [title, setTitle] = useState(currentTitle)
   const [suggesting, setSuggesting] = useState(false)
   const [saving, setSaving] = useState(false)
   const wasOpen = useRef(false)
 
   useEffect(() => {
-    if (open && !wasOpen.current) setTitle(session.title)
+    if (open && !wasOpen.current) setTitle(currentTitle)
     wasOpen.current = open
-  }, [open, session.title])
+  }, [open, currentTitle])
 
   const suggest = async () => {
     const titleBeforeRequest = title
     setSuggesting(true)
     try {
-      const result = await sessionApi.suggestTitle(session.session_id)
+      const result = await sessionApi.suggestTitle(sessionId)
       setTitle((current) => current === titleBeforeRequest ? result.title : current)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '生成标题失败')
@@ -43,7 +42,7 @@ export function RenameSessionDialog({session, open, onOpenChange, onSaved}: Prop
     if (!title.trim() || saving) return
     setSaving(true)
     try {
-      const result = await sessionApi.renameTitle(session.session_id, title.trim())
+      const result = await sessionApi.renameTitle(sessionId, title.trim())
       onSaved(result.title)
       onOpenChange(false)
     } catch (error) {

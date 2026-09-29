@@ -2,46 +2,25 @@
 
 import type {ReactNode} from 'react'
 import Link from 'next/link'
-import {usePathname} from 'next/navigation'
-import {Home, Settings} from 'lucide-react'
 import {SidebarTrigger, useSidebar} from '@/components/ui/sidebar'
-import {Button} from '@/components/ui/button'
-import {ThemeToggle} from '@/components/theme-toggle'
 import {cn} from '@/lib/utils'
 
-export function SidebarChrome({className}: {className?: string}) {
-  const pathname = usePathname()
+/** 侧栏顶部只保留产品入口与折叠控制。 */
+export function SidebarChrome() {
+  const {state, isMobile, setOpenMobile} = useSidebar()
 
   return (
-    <div
-      className={cn(
-        'flex h-8 flex-row flex-nowrap items-center gap-1',
-        'group-data-[collapsible=icon]:flex-col',
-        className,
-      )}
-    >
-      <SidebarTrigger aria-label="收起或展开侧栏"/>
-      <Button variant="ghost" size="icon" className="size-7" asChild>
-        <Link href="/" aria-label="回到首页">
-          <Home/>
-        </Link>
-      </Button>
-      <Button
-        variant="ghost"
-        size="icon"
-        className={cn('size-7', pathname === '/settings' && 'bg-sidebar-accent')}
-        asChild
-      >
-        <Link href="/settings" aria-label="设置" aria-current={pathname === '/settings' ? 'page' : undefined}>
-          <Settings/>
-        </Link>
-      </Button>
-      <ThemeToggle/>
+    <div className={cn('flex h-9 items-center justify-between gap-2', state === 'collapsed' && !isMobile && 'justify-center')}>
+      <Link href="/" onClick={() => setOpenMobile(false)}
+        className={cn('min-w-0 truncate rounded-sm px-1 text-sm font-semibold tracking-tight outline-none focus-visible:ring-2 focus-visible:ring-ring', state === 'collapsed' && !isMobile && 'hidden')}>
+        RayAgent
+      </Link>
+      <SidebarTrigger aria-label={state === 'collapsed' && !isMobile ? '展开侧栏' : '收起侧栏'} className="shrink-0"/>
     </div>
   )
 }
 
-/** 仅移动端抽屉关闭时，在主区保留同一组按钮 */
+/** 移动端抽屉关闭时，在主区保留侧栏入口。 */
 export function MainShell({children}: {children: ReactNode}) {
   const {isMobile} = useSidebar()
 
@@ -49,7 +28,7 @@ export function MainShell({children}: {children: ReactNode}) {
     <div className="relative flex-1 min-w-0 bg-background h-screen overflow-hidden">
       {isMobile && (
         <div className="absolute top-2 left-2 z-50">
-          <SidebarChrome/>
+          <SidebarTrigger aria-label="打开侧栏"/>
         </div>
       )}
       <div className={cn('h-full', isMobile && 'pt-11')}>

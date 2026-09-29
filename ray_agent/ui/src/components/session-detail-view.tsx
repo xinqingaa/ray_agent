@@ -3,7 +3,9 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {useRouter} from 'next/navigation'
 import {toast} from 'sonner'
+import {Pencil} from 'lucide-react'
 import {ChatInput} from '@/components/chat-input'
+import {RenameSessionDialog} from '@/components/rename-session-dialog'
 import {DeveloperView} from '@/components/developer/developer-view'
 import {ContextRing} from '@/components/run/context-ring'
 import {PlanBar} from '@/components/run/plan-bar'
@@ -11,6 +13,7 @@ import {RunStatusBar} from '@/components/run/status-bar'
 import {Timeline, type TimelineHandlers} from '@/components/run/timeline-item'
 import {downloadSessionFile, tabForFamily, Workbench, type WorkbenchTab} from '@/components/workbench/workbench'
 import {VNCOverlay} from '@/components/vnc-overlay'
+import {Button} from '@/components/ui/button'
 import {
   Sheet,
   SheetContent,
@@ -85,6 +88,9 @@ export function SessionDetailView({
   const [mode, setMode] = useState<'conversation' | 'developer'>('conversation')
   const [pinnedCallId, setPinnedCallId] = useState<string | null>(null)
   const [workbenchOpen, setWorkbenchOpen] = useState(false)
+  const [workbenchRendered, setWorkbenchRendered] = useState(false)
+  const [renameOpen, setRenameOpen] = useState(false)
+  const [renamedTitle, setRenamedTitle] = useState<{sessionId: string; title: string; previousTitle: string} | null>(null)
   const [wide, setWide] = useState<boolean | null>(null)
   const [appliedWide, setAppliedWide] = useState(false)
   const [tab, setTab] = useState<WorkbenchTab>('terminal')
@@ -115,12 +121,23 @@ export function SessionDetailView({
   }, [view, now])
 
   const sessionStatus = view?.status
+  const displayTitle = renamedTitle?.sessionId === sessionId && view?.title === renamedTitle.previousTitle
+    ? renamedTitle.title : view?.title || '新任务'
   useEffect(() => {
     if (!sessionStatus || sessionStatus === 'idle') return
     const item = sessions.find((session) => session.session_id === sessionId)
     if (item?.status === sessionStatus) return
     patchSession(sessionId, {status: sessionStatus})
   }, [sessionId, sessionStatus, sessions, patchSession])
+
+  useEffect(() => {
+    if (workbenchOpen) {
+      const frame = window.requestAnimationFrame(() => setWorkbenchRendered(true))
+      return () => window.cancelAnimationFrame(frame)
+    }
+    const timeout = window.setTimeout(() => setWorkbenchRendered(false), 230)
+    return () => window.clearTimeout(timeout)
+  }, [workbenchOpen])
 
   const calls = useMemo(() => collectCalls(view?.timeline ?? []), [view])
   const pendingApprovals = useMemo(() => pendingApprovalIds(view?.timeline ?? []), [view])
@@ -311,7 +328,7 @@ export function SessionDetailView({
       onFollowLatest={() => setPinnedCallId(null)}
       onClose={() => setWorkbenchOpen(false)}
       onOpenVnc={browserCall ? () => setVncOpen(true) : undefined}
-      className={isMobile ? undefined : 'w-[min(40vw,26rem)] shrink-0 border-l'}
+      className={isMobile ? undefined : 'h-full w-[min(40vw,26rem)] shrink-0 border-l'}
     />
   )
 
@@ -320,9 +337,13 @@ export function SessionDetailView({
       <div className="flex h-full min-h-0 w-full overflow-hidden">
         <div className="flex min-w-0 flex-1 flex-col">
           <header className="flex h-12 shrink-0 items-center gap-2 border-b px-3">
-            <h1 className="min-w-0 flex-1 truncate text-sm font-medium" title={view.title || '新任务'}>
-              {view.title || '新任务'}
-            </h1>
+            <div className="flex min-w-0 flex-1 items-center gap-1">
+              <h1 className="min-w-0 truncate text-sm font-medium" title={displayTitle}>{displayTitle}</h1>
+              <Button type="button" variant="ghost" size="icon-xs" className="size-7 shrink-0 text-muted-foreground"
+                title="重命名会话" aria-label="重命名会话" onClick={() => setRenameOpen(true)}>
+                <Pencil className="size-3.5"/>
+              </Button>
+            </div>
             <div role="group" aria-label="会话视图" className="flex shrink-0 rounded-md border p-0.5">
               <button
                 type="button"
@@ -386,12 +407,17 @@ export function SessionDetailView({
           </div>
         </div>
 
-        {!isMobile && workbenchOpen && workbench}
+        {!isMobile && (
+          <div aria-hidden={!workbenchOpen} inert={!workbenchOpen}
+            className={`h-full shrink-0 overflow-hidden transition-[width] duration-[220ms] ease-in-out motion-reduce:transition-none ${workbenchOpen ? 'w-[min(40vw,26rem)]' : 'w-0'}`}>
+            {(workbenchOpen || workbenchRendered) && workbench}
+          </div>
+        )}
       </div>
 
       {isMobile && (
         <Sheet open={workbenchOpen} onOpenChange={setWorkbenchOpen}>
-          <SheetContent side="right" className="w-full gap-0 p-0 sm:max-w-md" showCloseButton={false}>
+          <SheetContent side="right" className="w-full gap-0 p-0 sm:max-w-md data-[state=closed]:duration-[220ms] data-[state=open]:duration-[220ms]" showCloseButton={false}>
             <SheetHeader className="sr-only">
               <SheetTitle>工作台</SheetTitle>
               <SheetDescription>终端、浏览器和会话文件</SheetDescription>
@@ -401,6 +427,12 @@ export function SessionDetailView({
         </Sheet>
       )}
 
+      <RenameSessionDialog sessionId={sessionId} currentTitle={displayTitle} open={renameOpen}
+        onOpenChange={setRenameOpen}
+        onSaved={(title) => {
+          setRenamedTitle({sessionId, title, previousTitle: view.title})
+          patchSession(sessionId, {title})
+        }}/>
       {vncOpen && <VNCOverlay sessionId={sessionId} onClose={() => setVncOpen(false)}/>}
     </>
   )
