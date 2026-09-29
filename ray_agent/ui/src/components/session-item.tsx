@@ -23,26 +23,22 @@ type SessionItemProps = {
 const STATUS_BADGE: Record<string, {label: string; className: string}> = {
   running: {label: '运行中', className: 'text-state-running'},
   pending: {label: '运行中', className: 'text-state-running'},
-  waiting: {label: '等你处理', className: 'bg-state-waiting-soft text-state-waiting'},
-  failed: {label: '失败', className: 'bg-state-failed-soft text-state-failed'},
-  interrupted: {label: '已中断', className: 'bg-state-interrupted-soft text-state-interrupted'},
+  waiting: {label: '等你处理', className: 'text-state-waiting'},
+  failed: {label: '失败', className: 'text-state-failed'},
+  interrupted: {label: '已中断', className: 'text-state-interrupted'},
 }
 
 function StatusBadge({status}: {status: string}) {
   const badge = STATUS_BADGE[status]
   if (!badge) return null
-  const running = status === 'running' || status === 'pending'
   return (
-    <span className={cn('inline-flex shrink-0 items-center gap-1 rounded-sm px-1.5 text-xs leading-5', badge.className)}>
-      {running && <span className="size-1.5 rounded-full bg-state-running" aria-hidden/>}
+    <span className={cn('shrink-0 text-xs font-medium leading-5', badge.className)}>
       {badge.label}
     </span>
   )
 }
 
-/**
- * 会话列表项：标题一行、时间与状态徽标一行；选中项左侧有强调条。
- */
+/** 会话列表项：标题一行、时间与纯文字状态一行；选中项左侧有强调条。 */
 export function SessionItem({session, isActive, onClick, onDelete}: SessionItemProps) {
   const mounted = useMounted()
 
@@ -76,8 +72,8 @@ export function SessionItem({session, isActive, onClick, onDelete}: SessionItemP
         className="min-w-0 flex-1 rounded-sm text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <p className="truncate text-sm" title={title}>{title}</p>
-        <div className="flex min-w-0 items-center gap-2">
-          {timeLabel && <span className="truncate text-xs tabular-nums text-muted-foreground">{timeLabel}</span>}
+        <div className="flex min-w-0 items-center justify-between gap-2">
+          {timeLabel && <span className="min-w-0 truncate text-xs tabular-nums text-muted-foreground">{timeLabel}</span>}
           <StatusBadge status={String(session.status)}/>
         </div>
       </button>

@@ -15,7 +15,7 @@ export function SidebarChrome({className}: {className?: string}) {
   return (
     <div
       className={cn(
-        'flex flex-row flex-nowrap items-center gap-1',
+        'flex h-8 flex-row flex-nowrap items-center gap-1',
         'group-data-[collapsible=icon]:flex-col',
         className,
       )}

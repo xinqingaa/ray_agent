@@ -6,7 +6,7 @@ import {cn} from '@/lib/utils'
 import type {RunView} from '@/lib/session-view'
 import {useNow} from './clock'
 import {formatClock, formatDuration, formatTokens, totalTokens} from './format'
-import {RUN_PHASE, runPhase, TONE_SOFT, TONE_TEXT, type RunPhase} from './status-meta'
+import {RUN_PHASE, runPhase, TONE_TEXT, type RunPhase} from './status-meta'
 
 export type OutputRate = {tokensPerSecond: number; estimated: boolean}
 
@@ -23,9 +23,9 @@ const LIVE_PHASES: RunPhase[] = ['model', 'tool', 'waiting_reply', 'waiting_appr
 
 function Field({label, children, className}: {label: string; children: React.ReactNode; className?: string}) {
   return (
-    <span className={cn('inline-flex items-baseline gap-1.5 whitespace-nowrap', className)}>
-      <span className="text-xs text-muted-foreground">{label}</span>
-      <span className="text-meta font-medium tabular-nums text-foreground">{children}</span>
+    <span className={cn('inline-flex h-5 items-center gap-1.5 whitespace-nowrap', className)}>
+      <span className="text-xs leading-5 text-muted-foreground">{label}</span>
+      <span className="text-meta font-medium leading-5 tabular-nums text-foreground">{children}</span>
     </span>
   )
 }
@@ -71,7 +71,6 @@ export function RunStatusBar({run, onStop, outputRate, className}: RunStatusBarP
   const meta = RUN_PHASE[phase]
   const live = LIVE_PHASES.includes(phase)
   const now = useNow(live && run != null)
-  const Icon = meta.icon
 
   const elapsed = !run
     ? null
@@ -89,16 +88,14 @@ export function RunStatusBar({run, onStop, outputRate, className}: RunStatusBarP
 
   return (
     <div className={cn('@container/status border-b bg-card', className)}>
-      <div className="flex min-h-12 flex-wrap items-center gap-x-4 gap-y-1.5 px-4 py-2">
+      <div className="flex min-h-12 flex-wrap items-center gap-x-4 gap-y-1.5 px-4 py-2 @lg/status:h-12 @lg/status:flex-nowrap @lg/status:py-0">
         <span
           role="status"
           className={cn(
-            'inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-meta font-medium whitespace-nowrap',
-            TONE_SOFT[meta.tone],
+            'inline-flex h-5 shrink-0 items-center text-meta font-semibold leading-5 whitespace-nowrap',
             TONE_TEXT[meta.tone],
           )}
         >
-          <Icon className="size-3.5" aria-hidden/>
           {meta.label}
         </span>
 
@@ -116,7 +113,7 @@ export function RunStatusBar({run, onStop, outputRate, className}: RunStatusBarP
 
         <p
           className={cn(
-            'order-last basis-full min-w-0 truncate text-meta @lg/status:order-none @lg/status:basis-0 @lg/status:flex-1',
+            'order-last basis-full min-w-0 truncate text-meta leading-5 @lg/status:order-none @lg/status:basis-0 @lg/status:flex-1',
             isFailure ? TONE_TEXT[meta.tone] : 'text-muted-foreground',
             animate && 'text-foreground',
           )}
@@ -125,7 +122,7 @@ export function RunStatusBar({run, onStop, outputRate, className}: RunStatusBarP
           <span className={cn(animate && 'text-shimmer')}>{text}</span>
         </p>
 
-        <div className="ml-auto flex items-center gap-4">
+        <div className="ml-auto flex h-5 items-center gap-4">
           {outputRate && (
             <Field label={outputRate.estimated ? '速度（估算）' : '速度'} className="hidden @2xl/status:inline-flex">
               {Math.round(outputRate.tokensPerSecond)} tok/s

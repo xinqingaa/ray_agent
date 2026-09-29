@@ -1,8 +1,16 @@
 'use client'
 
 import {useEffect, useMemo, useState} from 'react'
-import {Download} from 'lucide-react'
+import {ChevronDown, Download, ListFilter} from 'lucide-react'
 import {Button} from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import type {TurnRequest} from '@/lib/api/types'
 import type {ContextEstimate, RawEvent, RunView, SessionView, TurnView} from '@/lib/session-view'
 import {resolveOutputRate, type OutputRate} from '@/lib/session-projection'
@@ -22,6 +30,23 @@ function clip(text: string, max: number): string {
 
 function textOf(value: unknown): string {
   return typeof value === 'string' ? value : ''
+}
+
+const EVENT_LABELS: Record<string, string> = {
+  approval: '审批',
+  attempt: '模型尝试',
+  cleanup: '清理',
+  compact: '上下文压缩',
+  context: '上下文变更',
+  done: '结束',
+  error: '错误',
+  message: '消息',
+  plan: '计划',
+  run: '运行',
+  title: '标题',
+  tool: '工具',
+  turn: '轮次',
+  wait: '等待',
 }
 
 function eventSummary(ev: RawEvent): string {
@@ -45,7 +70,13 @@ function eventSummary(ev: RawEvent): string {
       return '运行结束'
     case 'title':
       return clip(textOf(p.title), 80)
-    case 'context':
+    case 'context': {
+      const op = textOf(p.op)
+      if (op === 'append') return `追加上下文${typeof p.message_count === 'number' ? ` · ${p.message_count} 条消息` : ''}`
+      if (op === 'strip_reasoning') return '清理历史推理字段'
+      if (op === 'replace') return '替换模型上下文'
+      return '上下文变更'
+    }
     case 'compact':
       return '上下文压缩'
     case 'attempt':
@@ -146,6 +177,26 @@ function turnDuration(turn: TurnView): string {
   return formatDuration(turn.endedAt - turn.startedAt)
 }
 
+function RawEventDetail({event, open, rendered}: {event: RawEvent; open: boolean; rendered: boolean}) {
+  return (
+    <div
+      id={`event-raw-${event.seq}`}
+      aria-hidden={!open}
+      inert={!open}
+      className={cn(
+        'overflow-hidden transition-[max-height,opacity,margin] duration-200 ease-out motion-reduce:transition-none',
+        open ? 'mt-2 max-h-72 opacity-100' : 'mt-0 max-h-0 opacity-0',
+      )}
+    >
+      {rendered && (
+        <pre className="max-h-64 overflow-auto rounded-md bg-muted p-2 font-mono whitespace-pre-wrap break-all">
+          {JSON.stringify(event.payload, null, 2)}
+        </pre>
+      )}
+    </div>
+  )
+}
+
 export function DeveloperView({view, loadTurnRequest, className}: DeveloperViewProps) {
   const types = useMemo(() => {
     const set = new Set(view.events.map((ev) => ev.type))
@@ -153,17 +204,19 @@ export function DeveloperView({view, loadTurnRequest, className}: DeveloperViewP
   }, [view.events])
   const [typeFilter, setTypeFilter] = useState('all')
   const [openSeq, setOpenSeq] = useState<number | null>(null)
+  const [visitedSeqs, setVisitedSeqs] = useState<Set<number>>(() => new Set())
   const [selected, setSelected] = useState<{runId: string; index: number} | null>(null)
   const [request, setRequest] = useState<TurnRequest | null>(null)
   const [requestError, setRequestError] = useState<string | null>(null)
   const [loadedKey, setLoadedKey] = useState<string | null>(null)
 
   const events = typeFilter === 'all' ? view.events : view.events.filter((ev) => ev.type === typeFilter)
+  const filterLabel = typeFilter === 'all' ? '全部事件' : EVENT_LABELS[typeFilter] ?? typeFilter
   const compactions = view.timeline.filter((item) => item.kind === 'compaction')
   const selectedKey = selected ? `${selected.runId}:${selected.index}` : null
   const requestLoading = selectedKey != null && loadedKey !== selectedKey
-  const shownRequest = loadedKey === selectedKey ? request : null
-  const shownError = loadedKey === selectedKey ? requestError : null
+  const shownRequest = selectedKey == null || loadedKey === selectedKey ? request : null
+  const shownError = selectedKey == null || loadedKey === selectedKey ? requestError : null
 
   useEffect(() => {
     if (!selected) return
@@ -199,23 +252,36 @@ export function DeveloperView({view, loadTurnRequest, className}: DeveloperViewP
 
   return (
     <div className={cn('flex flex-col gap-6 px-4 py-4', className)}>
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2 border-b pb-3">
         <h2 className="text-sm font-medium">开发者视图</h2>
-        <label className="ml-auto flex items-center gap-2 text-xs text-muted-foreground">
-          事件类型
-          <select
-            value={typeFilter}
-            onChange={(e) => setTypeFilter(e.target.value)}
-            className="h-7 rounded-md border bg-card px-2 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring"
-          >
-            <option value="all">全部</option>
-            {types.map((type) => <option key={type} value={type}>{type}</option>)}
-          </select>
-        </label>
-        <Button type="button" variant="outline" size="sm" onClick={exportJson}>
-          <Download aria-hidden/>
-          下载运行与事件
-        </Button>
+        <div className="ml-auto flex items-center gap-1">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button type="button" variant="ghost" size="sm" className="h-8 px-2.5" aria-label={`筛选事件类型，当前：${filterLabel}`}>
+                <ListFilter aria-hidden/>
+                {filterLabel}
+                <ChevronDown className="size-3.5 text-muted-foreground" aria-hidden/>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-48">
+              <DropdownMenuLabel className="text-xs text-muted-foreground font-normal">事件类型</DropdownMenuLabel>
+              <DropdownMenuRadioGroup value={typeFilter} onValueChange={setTypeFilter}>
+                <DropdownMenuRadioItem value="all">全部事件 <span className="ml-auto tabular-nums text-xs text-muted-foreground">{view.events.length}</span></DropdownMenuRadioItem>
+                {types.map((type) => (
+                  <DropdownMenuRadioItem key={type} value={type}>
+                    {EVENT_LABELS[type] ?? type}
+                    <span className="ml-auto font-mono text-[11px] text-muted-foreground">{type}</span>
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <span className="mx-0.5 h-4 w-px bg-border" aria-hidden/>
+          <Button type="button" variant="ghost" size="sm" className="h-8 px-2.5" onClick={exportJson}>
+            <Download aria-hidden/>
+            导出 JSON
+          </Button>
+        </div>
       </div>
 
       <section aria-label="事件流">
@@ -242,22 +308,22 @@ export function DeveloperView({view, loadTurnRequest, className}: DeveloperViewP
                     <tr key={ev.seq} className="border-t align-top">
                       <td className="px-2 py-1.5 tabular-nums">{ev.seq}</td>
                       <td className="px-2 py-1.5 tabular-nums text-muted-foreground">{formatTime(ev.createdAt)}</td>
-                      <td className="px-2 py-1.5 font-mono">{ev.type}</td>
+                      <td className="px-2 py-1.5" title={ev.type}>{EVENT_LABELS[ev.type] ?? ev.type}</td>
                       <td className="px-2 py-1.5 font-mono text-muted-foreground">{ev.runId ? ev.runId.slice(0, 8) : '—'}</td>
                       <td className="px-2 py-1.5">
                         <div>{eventSummary(ev)}</div>
-                        {open && (
-                          <pre className="mt-1 max-h-64 overflow-auto rounded-md bg-muted p-2 font-mono whitespace-pre-wrap break-all">
-                            {JSON.stringify(ev.payload, null, 2)}
-                          </pre>
-                        )}
+                        <RawEventDetail event={ev} open={open} rendered={open || visitedSeqs.has(ev.seq)}/>
                       </td>
                       <td className="px-2 py-1.5">
                         <button
                           type="button"
-                          onClick={() => setOpenSeq(open ? null : ev.seq)}
+                          onClick={() => {
+                            if (!open) setVisitedSeqs((current) => new Set(current).add(ev.seq))
+                            setOpenSeq(open ? null : ev.seq)
+                          }}
                           className="rounded-sm text-signal outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
                           aria-expanded={open}
+                          aria-controls={`event-raw-${ev.seq}`}
                         >
                           {open ? '收起' : '原文'}
                         </button>
@@ -280,14 +346,22 @@ export function DeveloperView({view, loadTurnRequest, className}: DeveloperViewP
             key={run.id}
             run={run}
             selected={selected}
-            onSelect={(index) => setSelected({runId: run.id, index})}
+            onSelect={(index) => setSelected((current) => current?.runId === run.id && current.index === index ? null : {runId: run.id, index})}
           />
         ))}
-        {(selected || request || requestLoading || requestError) && (
-          <div className="mt-3">
+        <div
+          id="turn-request-panel"
+          aria-hidden={!selected}
+          inert={!selected}
+          className={cn(
+            'grid transition-[grid-template-rows,opacity,margin] duration-200 ease-out motion-reduce:transition-none',
+            selected ? 'mt-3 grid-rows-[1fr] opacity-100' : 'mt-0 grid-rows-[0fr] opacity-0',
+          )}
+        >
+          <div className="min-h-0 overflow-hidden">
             <TurnRequestPanel request={shownRequest} loading={requestLoading} error={shownError}/>
           </div>
-        )}
+        </div>
       </section>
 
       <section aria-label="压缩">
@@ -372,7 +446,8 @@ function RunTurns({
               <li key={turn.index}>
                 <button
                   type="button"
-                  aria-pressed={active}
+                  aria-expanded={active}
+                  aria-controls="turn-request-panel"
                   onClick={() => onSelect(turn.index)}
                   className={cn(
                     'w-full rounded-md border px-3 py-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring',
@@ -389,6 +464,7 @@ function RunTurns({
                     {turn.ttftMs != null && <span>首字 {formatDuration(turn.ttftMs)}</span>}
                     {turn.attempts != null && <span>尝试 {turn.attempts}</span>}
                     <TurnSpeed turn={turn}/>
+                    <ChevronDown className={cn('ml-auto size-3.5 self-center transition-transform duration-200 motion-reduce:transition-none', active && 'rotate-180')} aria-hidden/>
                   </span>
                   <span className="mt-1.5 block">
                     <ContextBar estimate={turn.contextEstimate}/>
