@@ -38,6 +38,10 @@ class SessionRepository(Protocol):
     async def update_sandbox_id(self, session_id: str, sandbox_id: str) -> None:
         ...
 
+    async def set_project_path(self, session_id: str, project_path: Optional[str]) -> None:
+        """绑定、更换或解除会话的项目目录。project_path 为空表示解除。"""
+        ...
+
     async def update_task_id(self, session_id: str, task_id: str) -> None:
         ...
 

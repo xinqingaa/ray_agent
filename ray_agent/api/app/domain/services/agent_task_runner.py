@@ -29,6 +29,7 @@ from app.domain.models.session import SessionStatus
 from app.domain.models.tool_result import ToolResult
 from app.domain.repositories.uow import IUnitOfWork
 from app.domain.services.flows.agent_loop import AgentLoop, RunEndReason, build_default_tools
+from app.domain.services.prompts.system import build_system_prompt
 from app.domain.services.run_ledger import RunLedger
 from app.domain.services.session_locks import session_lock
 from app.domain.services.task_error import format_public_error
@@ -66,6 +67,7 @@ class AgentTaskRunner(TaskRunner):
             run_id: str,  # 本任务执行的运行
             prior_status: Optional[SessionStatus] = None,  # 首条消息到达前会话所处的状态
             tool_policy: Optional[ToolPolicyConfig] = None,  # 工具策略表，为空时用默认策略
+            workspace_dir: Optional[str] = None,  # 绑定项目时为 /workspace，否则为空
     ) -> None:
         """构造函数，完成Agent任务运行器的创建"""
         self._uow_factory = uow_factory
@@ -84,6 +86,7 @@ class AgentTaskRunner(TaskRunner):
         self._shell_sessions: List[str] = []  # 本次运行调用过 shell_execute 的 Shell 会话，停止时逐个终止
         self._invoking = False
         self._settled = asyncio.Event()
+        default_exec_dir = workspace_dir or "/home/ubuntu"
         self._flow = AgentLoop(
             uow_factory=uow_factory,
             llm=llm,
@@ -95,9 +98,11 @@ class AgentTaskRunner(TaskRunner):
                 search_engine=search_engine,
                 mcp_tool=self._mcp_tool,
                 a2a_tool=self._a2a_tool,
+                default_exec_dir=default_exec_dir,
             ),
             deliver_file=self._deliver_file,
             write_output=self._write_output,
+            system_prompt=build_system_prompt(workspace_dir),
             tool_policy=tool_policy,
         )
         self._flow._publish_delta = self._publish_delta

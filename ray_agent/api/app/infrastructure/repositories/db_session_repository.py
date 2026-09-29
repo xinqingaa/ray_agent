@@ -89,6 +89,13 @@ class DBSessionRepository(SessionRepository):
     async def update_sandbox_id(self, session_id: str, sandbox_id: str) -> None:
         await self.db_session.execute(update(SessionModel).where(SessionModel.id == session_id).values(sandbox_id=sandbox_id))
 
+    async def set_project_path(self, session_id: str, project_path: Optional[str]) -> None:
+        result = await self.db_session.execute(
+            update(SessionModel).where(SessionModel.id == session_id).values(project_path=project_path)
+        )
+        if result.rowcount == 0:
+            raise ValueError(f"会话[{session_id}]不存在，请核实后重试")
+
     async def update_task_id(self, session_id: str, task_id: str) -> None:
         await self.db_session.execute(update(SessionModel).where(SessionModel.id == session_id).values(task_id=task_id))
 

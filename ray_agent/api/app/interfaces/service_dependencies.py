@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.application.services.agent_service import AgentService
 from app.application.services.app_config_service import AppConfigService
 from app.application.services.file_service import FileService
+from app.application.services.project_service import ProjectService
 from app.application.services.session_service import SessionService
 from app.application.services.title_service import TitleService
 from app.application.services.status_service import StatusService
@@ -19,6 +20,8 @@ from app.infrastructure.external.health_checker.postgres_health_checker import P
 from app.infrastructure.external.health_checker.redis_health_checker import RedisHealthChecker
 from app.infrastructure.external.llm.openai_llm import OpenAILLM
 from app.infrastructure.external.message_queue.redis_event_notifier import RedisEventNotifier
+from app.infrastructure.external.project.git_reader import GitCliReader
+from app.infrastructure.external.project.local_project_files import LocalProjectFiles
 from app.infrastructure.external.sandbox.docker_sandbox import DockerSandbox
 from app.infrastructure.external.search.bing_search import BingSearchEngine
 from app.infrastructure.external.task.redis_stream_task import RedisStreamTask
@@ -79,6 +82,18 @@ def get_file_service() -> FileService:
 
 def get_session_service() -> SessionService:
     return SessionService(uow_factory=get_uow, sandbox_cls=DockerSandbox)
+
+
+def get_project_service() -> ProjectService:
+    """每次请求按当前配置组装。文件与 Git 读取走 API 容器内的只读挂载，不访问沙箱。"""
+    current = get_settings()
+    return ProjectService(
+        uow_factory=get_uow,
+        files=LocalProjectFiles(current.project_roots),
+        git=GitCliReader(current.project_roots),
+        roots=current.project_roots,
+        sandbox_address=current.sandbox_address,
+    )
 
 
 def get_run_ledger() -> RunLedger:

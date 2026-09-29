@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 from fastapi import APIRouter
 
-from . import status_routes, app_config_routes, file_routes, session_routes
+from . import status_routes, app_config_routes, file_routes, session_routes, project_routes
 
 
 def create_api_routes() -> APIRouter:
@@ -15,6 +15,7 @@ def create_api_routes() -> APIRouter:
     api_router.include_router(app_config_routes.router)
     api_router.include_router(file_routes.router)
     api_router.include_router(session_routes.router)
+    api_router.include_router(project_routes.router)
 
     # 3.返回api路由实例
     return api_router

@@ -167,3 +167,10 @@
 - **`shell_execute`：** `exec_dir` 从 `required` 中移除，工具集构造时接收 `default_exec_dir`（有项目 `/workspace`，否则 `/home/ubuntu`），调用缺省时使用它；参数说明写明缺省值。
 - **前端：** `lib/api/` 增加 `projectApi`（上面各接口）与类型；`SessionView.project`（W4 契约同步）；首页项目选择器是输入框工具行上的 Popover（最近项目列表 + “浏览…”逐层进入根目录，Git 仓库标图标），`PROJECT_ROOTS` 未启用时不渲染；注册表命令 `/project`（`id: 'project'`，放在最后），`CommandContext` 加 `projectsEnabled`、`projectBindable`（首页，或会话 `hasRuns` 为假），`projectsEnabled` 为假时 `available` 之外直接从列表过滤掉该命令；不可用原因“项目只能在首次运行前选择”。会话标题栏显示项目名与分支（分支来自 `git/status`，进入会话时取一次，此后随“变更”页刷新更新）；项目不可用时显示 `reason`。
 - **工作台：** `workbench.tsx` 在会话有 `project` 时增加“项目”“变更”两个页签，不参与按工具家族默认打开。“项目”页按层懒加载树，点文件读取预览（二进制、过大显示说明）。“变更”页列出 `git/status` 条目，选中后取单文件 diff（暂存与工作区分开显示），有手动刷新；事件流里 `write_file`、`replace_in_file`、`shell_*` 的 `tool(called)` 完成后自动刷新，1 秒内多次合并为一次。
+
+## 实施修正（2026-09-29，第二批后端）
+
+第二批只做后端，未改 UI，也未改 W9 的计划模式、压缩与 compact 路由。下面只记与「第二批的已定细节」不一致的地方。
+
+1. **`sessions.project_path` 长度：** 已定细节写 `String`、可空、无默认值，没有给长度。列与 ORM 用 `String(4096)`。会话 id 那类列是 255，装不下常见的宿主机路径。
+2. **Git `state=error`：** 已定细节点名 `not_a_repository` 与 `timeout` 以 200 的 `state` 返回。读取器还会返回 `error`，接口同样以 200 交出，不转成 5xx。

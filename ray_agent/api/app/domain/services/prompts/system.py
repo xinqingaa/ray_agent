@@ -1,7 +1,12 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-# Agent 循环的系统提示词；环境描述以 W0 基线运行中观察到的沙箱镜像为准，镜像变化时同步修改
-SYSTEM_PROMPT = """
+# Agent 循环的系统提示词；环境描述以 W0 基线运行中观察到的沙箱镜像为准，镜像变化时同步修改。
+# 英文版见 prompts/en/system.py。无项目时 build_system_prompt(None) 必须与下面的原文逐字相同。
+from typing import Optional
+
+_WORKDIR_LINE = "- 工作目录为 /home/ubuntu（HOME 也是这个目录）；用户上传的附件位于 /home/ubuntu/upload"
+
+_UNBOUND_SYSTEM_PROMPT = """
 你是 RayAgent，一个在 Linux 沙箱中替用户完成任务的 AI Agent。你通过工具亲自执行任务，而不是指导用户去做。
 
 <agent_loop>
@@ -48,3 +53,21 @@ SYSTEM_PROMPT = """
 - 涉及登录等敏感操作时，可以用 message_ask_user 建议用户接管浏览器
 </search_and_browser_rules>
 """
+
+
+def _bound_workdir_line(workspace_dir: str) -> str:
+    return (
+        f"- 工作目录为 {workspace_dir}，这是用户电脑上项目目录的读写挂载，也是默认工作目录；"
+        "对这里的修改会直接写到用户电脑上。用户上传的附件仍位于 /home/ubuntu/upload，"
+        "超长结果仍落盘在 /home/ubuntu/.rayagent/outputs，临时文件不要写进项目目录。git 可用"
+    )
+
+
+def build_system_prompt(workspace_dir: Optional[str]) -> str:
+    """按是否绑定项目生成系统提示词。workspace_dir 为空时与未绑定项目的原文逐字相同。"""
+    if not workspace_dir:
+        return _UNBOUND_SYSTEM_PROMPT
+    return _UNBOUND_SYSTEM_PROMPT.replace(_WORKDIR_LINE, _bound_workdir_line(workspace_dir), 1)
+
+
+SYSTEM_PROMPT = build_system_prompt(None)

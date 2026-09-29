@@ -1,8 +1,12 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+# English system prompt for the agent loop; keep it in sync with prompts/system.py.
+# build_system_prompt(None) must stay character-identical to the unbound text below.
+from typing import Optional
 
-# English system prompt for the agent loop; keep it in sync with prompts/system.py
-SYSTEM_PROMPT = """
+_WORKDIR_LINE = "- Working directory is /home/ubuntu (HOME is the same path); user uploads are in /home/ubuntu/upload"
+
+_UNBOUND_SYSTEM_PROMPT = """
 You are RayAgent, an AI agent that completes tasks for the user inside a Linux sandbox. You carry out the task yourself with tools instead of telling the user how to do it.
 
 <agent_loop>
@@ -49,3 +53,22 @@ You are RayAgent, an AI agent that completes tasks for the user inside a Linux s
 - For sensitive operations such as logging in, you may use message_ask_user to suggest that the user takes over the browser
 </search_and_browser_rules>
 """
+
+
+def _bound_workdir_line(workspace_dir: str) -> str:
+    return (
+        f"- Working directory is {workspace_dir}, a read-write mount of the project directory on the user's computer "
+        "and the default working directory; changes here are written directly to the user's computer. "
+        "User uploads remain in /home/ubuntu/upload, oversized results are still saved under "
+        "/home/ubuntu/.rayagent/outputs, and temporary files must not be written into the project. git is available"
+    )
+
+
+def build_system_prompt(workspace_dir: Optional[str]) -> str:
+    """System prompt with or without a bound project. None keeps the unbound text unchanged."""
+    if not workspace_dir:
+        return _UNBOUND_SYSTEM_PROMPT
+    return _UNBOUND_SYSTEM_PROMPT.replace(_WORKDIR_LINE, _bound_workdir_line(workspace_dir), 1)
+
+
+SYSTEM_PROMPT = build_system_prompt(None)

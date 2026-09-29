@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Literal, Optional
 from pydantic import BaseModel, Field
 
 from app.domain.models.file import File
+from app.domain.models.project import ProjectView
 from app.domain.models.run import Run
 from app.domain.models.session import SessionStatus
 from app.interfaces.schemas.event import AgentSSEEvent, to_epoch_ms
@@ -24,6 +25,7 @@ class ListSessionItem(BaseModel):
     latest_message_at: Optional[datetime] = Field(default_factory=datetime.now)
     status: SessionStatus = SessionStatus.PENDING
     unread_message_count: int = 0
+    project: Optional[ProjectView] = None  # 未绑定项目时为 null；available/reason 每次请求实时计算
 
 
 class ListSessionResponse(BaseModel):
@@ -122,6 +124,7 @@ class GetSessionResponse(BaseModel):
     runs: List[RunItem] = Field(default_factory=list)
     events: List[AgentSSEEvent] = Field(default_factory=list)
     last_seq: int = 0
+    project: Optional[ProjectView] = None  # 未绑定项目时为 null；available/reason 每次请求实时计算
 
 
 class TurnRequestResponse(BaseModel):

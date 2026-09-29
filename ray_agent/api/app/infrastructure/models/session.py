@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 import uuid
 from datetime import datetime
-from typing import List, Dict, Any
+from typing import Any, Dict, List, Optional
 
 from sqlalchemy import (
     String,
@@ -33,6 +33,7 @@ class SessionModel(Base):
         default=lambda: str(uuid.uuid4()),
     )  # 会话id
     sandbox_id: Mapped[str] = mapped_column(String(255), nullable=True)  # 沙箱id
+    project_path: Mapped[Optional[str]] = mapped_column(String(4096), nullable=True)  # 绑定的宿主机项目目录
     task_id: Mapped[str] = mapped_column(String(255), nullable=True)  # 任务id
     title: Mapped[str] = mapped_column(
         String(255),

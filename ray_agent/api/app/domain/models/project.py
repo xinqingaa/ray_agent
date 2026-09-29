@@ -56,6 +56,14 @@ class PathCheck(BaseModel):
     message: Optional[str] = None
 
 
+class ProjectView(BaseModel):
+    """会话对外的项目摘要。available 与 reason 每次请求按当前 PROJECT_ROOTS 实时计算，不入库。"""
+    path: str
+    name: str
+    available: bool
+    reason: Optional[str] = None  # 不可用时的中文说明；可用时为空
+
+
 class ProjectPathError(Exception):
     """路径校验不通过。文件浏览与 Git 读取在校验失败时抛出，由应用层转成 400/404。"""
 

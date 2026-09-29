@@ -14,11 +14,14 @@ from websockets import ConnectionClosed
 
 from app.application.errors.exceptions import NotFoundError
 from app.application.services.agent_service import AgentService
+from app.application.services.project_service import ProjectService
 from app.application.services.session_service import SessionService
 from app.application.services.title_service import TitleService
 from app.domain.external.event_notifier import OutputDelta
 from app.domain.models.event import Event
+from app.domain.models.project import GitDiff, GitStatus, ProjectFile, ProjectListing, ProjectView
 from app.domain.models.run import RunMode
+from app.domain.models.session import Session
 from app.interfaces.schemas import Response
 from app.interfaces.schemas.event import EventMapper
 from app.interfaces.schemas.session import (
@@ -35,13 +38,29 @@ from app.interfaces.schemas.session import (
     CompactResponse,
     RenameTitleRequest, TitleResponse,
 )
-from app.interfaces.service_dependencies import get_session_service, get_agent_service, get_title_service
+from app.interfaces.schemas.project import BindProjectRequest
+from app.interfaces.service_dependencies import (
+    get_session_service, get_agent_service, get_title_service, get_project_service,
+)
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/sessions", tags=["会话模块"])
 
 # 流式获取会话详情睡眠间隔
 SESSION_SLEEP_INTERVAL = 5
+
+
+def session_list_item(session: Session, project_service: ProjectService) -> ListSessionItem:
+    """列表与列表流共用。project 每次用路径校验实时计算，不缓存。"""
+    return ListSessionItem(
+        session_id=session.id,
+        title=session.title,
+        latest_message=session.latest_message,
+        latest_message_at=session.latest_message_at,
+        status=session.status,
+        unread_message_count=session.unread_message_count,
+        project=project_service.describe(session.project_path),
+    )
 
 
 @router.post(
@@ -68,6 +87,7 @@ async def create_session(
 )
 async def stream_sessions(
         session_service: SessionService = Depends(get_session_service),
+        project_service: ProjectService = Depends(get_project_service),
 ) -> EventSourceResponse:
     """间隔指定时间流式获取所有会话基础信息列表"""
 
@@ -78,17 +98,7 @@ async def stream_sessions(
             sessions = await session_service.get_all_sessions()
 
             # 2.循环遍历并组装数据
-            session_items = [
-                ListSessionItem(
-                    session_id=session.id,
-                    title=session.title,
-                    latest_message=session.latest_message,
-                    latest_message_at=session.latest_message_at,
-                    status=session.status,
-                    unread_message_count=session.unread_message_count,
-                )
-                for session in sessions
-            ]
+            session_items = [session_list_item(session, project_service) for session in sessions]
 
             # 3.将会话列表转换为流式事件数据并返回
             yield ServerSentEvent(
@@ -110,20 +120,11 @@ async def stream_sessions(
 )
 async def get_all_sessions(
         session_service: SessionService = Depends(get_session_service),
+        project_service: ProjectService = Depends(get_project_service),
 ) -> Response[ListSessionResponse]:
     """获取MoocManus项目中所有任务会话基础信息列表"""
     sessions = await session_service.get_all_sessions()
-    session_items = [
-        ListSessionItem(
-            session_id=session.id,
-            title=session.title,
-            latest_message=session.latest_message,
-            latest_message_at=session.latest_message_at,
-            status=session.status,
-            unread_message_count=session.unread_message_count,
-        )
-        for session in sessions
-    ]
+    session_items = [session_list_item(session, project_service) for session in sessions]
     return Response.success(
         msg="获取任务会话列表成功",
         data=ListSessionResponse(sessions=session_items)
@@ -316,6 +317,7 @@ async def get_session(
         after_seq: int = Query(default=0, ge=0),
         limit: Optional[int] = Query(default=None, ge=1, le=5000),
         session_service: SessionService = Depends(get_session_service),
+        project_service: ProjectService = Depends(get_project_service),
 ) -> Response[GetSessionResponse]:
     """传递指定会话id获取该会话的对话详情"""
     detail = await session_service.get_session_detail(session_id, after_seq=after_seq, limit=limit)
@@ -330,6 +332,7 @@ async def get_session(
             runs=[RunItem.from_run(run) for run in detail.runs],
             events=EventMapper.events_to_sse_events(detail.events),
             last_seq=detail.last_seq,
+            project=project_service.describe(detail.session.project_path),
         )
     )
 
@@ -428,6 +431,99 @@ async def read_shell_output(
         msg="获取Shell内容输出结果成功",
         data=result,
     )
+
+
+@router.put(
+    path="/{session_id}/project",
+    response_model=Response[ProjectView],
+    summary="绑定或更换会话项目",
+    description="只能在首次运行前绑定或更换。会话不存在 404；共享沙箱模式、已有运行或已有沙箱 409；"
+                "路径校验失败或未配置 PROJECT_ROOTS 返回 400。成功时 data 为 project 对象，path 是 realpath",
+)
+async def bind_project(
+        session_id: str,
+        request: BindProjectRequest,
+        project_service: ProjectService = Depends(get_project_service),
+) -> Response[ProjectView]:
+    project = await project_service.bind(session_id, request.path)
+    return Response.success(msg="已绑定项目", data=project)
+
+
+@router.delete(
+    path="/{session_id}/project",
+    response_model=Response[Optional[ProjectView]],
+    summary="解除会话项目绑定",
+    description="只能在首次运行前解除。会话不存在 404；共享沙箱模式、已有运行或已有沙箱 409。成功时 data 为 null",
+)
+async def unbind_project(
+        session_id: str,
+        project_service: ProjectService = Depends(get_project_service),
+) -> Response[Optional[ProjectView]]:
+    await project_service.unbind(session_id)
+    return Response(code=200, msg="已解除项目绑定", data=None)
+
+
+@router.get(
+    path="/{session_id}/project/tree",
+    response_model=Response[ProjectListing],
+    summary="列出项目目录的一层子项",
+    description="path 为相对项目根的路径，省略时列出项目根。会话未绑定项目 404；路径校验失败 400。"
+                "读的是 API 侧只读挂载，不依赖沙箱",
+)
+async def project_tree(
+        session_id: str,
+        path: str = Query(default=""),
+        project_service: ProjectService = Depends(get_project_service),
+) -> Response[ProjectListing]:
+    listing = await project_service.tree(session_id, path)
+    return Response.success(msg="获取项目目录成功", data=listing)
+
+
+@router.get(
+    path="/{session_id}/project/file",
+    response_model=Response[ProjectFile],
+    summary="读取项目内文件",
+    description="二进制与超过上限的文件只返回元数据。会话未绑定项目 404；路径校验失败 400",
+)
+async def project_file(
+        session_id: str,
+        path: str = Query(),
+        project_service: ProjectService = Depends(get_project_service),
+) -> Response[ProjectFile]:
+    project_file_result = await project_service.read_file(session_id, path)
+    return Response.success(msg="读取项目文件成功", data=project_file_result)
+
+
+@router.get(
+    path="/{session_id}/project/git/status",
+    response_model=Response[GitStatus],
+    summary="读取项目 Git 状态",
+    description="不是仓库或超时以 200 的 state 返回（not_a_repository / timeout），不当作错误。"
+                "会话未绑定项目 404；路径校验失败 400",
+)
+async def project_git_status(
+        session_id: str,
+        project_service: ProjectService = Depends(get_project_service),
+) -> Response[GitStatus]:
+    status = await project_service.git_status(session_id)
+    return Response.success(msg="获取 Git 状态成功", data=status)
+
+
+@router.get(
+    path="/{session_id}/project/git/diff",
+    response_model=Response[GitDiff],
+    summary="读取项目 Git diff",
+    description="scope=worktree 为工作区相对暂存区，staged 为暂存区相对 HEAD。path 省略时取全部。"
+                "不是仓库或超时以 200 的 state 返回。会话未绑定项目 404；路径校验失败 400",
+)
+async def project_git_diff(
+        session_id: str,
+        scope: str = Query(default="worktree"),
+        path: Optional[str] = Query(default=None),
+        project_service: ProjectService = Depends(get_project_service),
+) -> Response[GitDiff]:
+    diff = await project_service.git_diff(session_id, scope=scope, path=path)
+    return Response.success(msg="获取 Git diff 成功", data=diff)
 
 
 @router.websocket(

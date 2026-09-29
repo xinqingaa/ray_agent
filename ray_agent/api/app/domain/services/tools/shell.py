@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-from typing import Optional
+import copy
+from typing import Any, Dict, List, Optional
 
 from app.domain.external.sandbox import Sandbox
 from app.domain.models.tool_result import ToolResult
@@ -11,10 +12,26 @@ class ShellTool(BaseTool):
     """Shell工具箱，提供Shell交互相关功能"""
     name: str = "shell"
 
-    def __init__(self, sandbox: Sandbox) -> None:
-        """构造函数，完成Shell工具箱初始化"""
+    def __init__(self, sandbox: Sandbox, default_exec_dir: str = "/home/ubuntu") -> None:
+        """构造函数，完成Shell工具箱初始化。default_exec_dir 是省略 exec_dir 时的工作目录。"""
         super().__init__()
         self.sandbox = sandbox
+        self.default_exec_dir = default_exec_dir
+
+    def get_tools(self) -> List[Dict[str, Any]]:
+        """schema 里写明省略 exec_dir 时实际使用的默认目录。"""
+        if self._tools_cache is None:
+            tools = copy.deepcopy(super().get_tools())
+            for item in tools:
+                function = item.get("function") or {}
+                if function.get("name") != "shell_execute":
+                    continue
+                function["parameters"]["properties"]["exec_dir"]["description"] = (
+                    "执行命令的工作目录（必须使用绝对路径）。"
+                    f"省略时使用默认工作目录 {self.default_exec_dir}"
+                )
+            self._tools_cache = tools
+        return self._tools_cache
 
     @tool(
         name="shell_execute",
@@ -26,23 +43,24 @@ class ShellTool(BaseTool):
             },
             "exec_dir": {
                 "type": "string",
-                "description": "执行命令的工作目录（必须使用绝对路径）",
+                "description": "执行命令的工作目录（必须使用绝对路径）。省略时使用默认工作目录",
             },
             "command": {
                 "type": "string",
                 "description": "要执行的 Shell 命令",
             },
         },
-        required=["session_id", "exec_dir", "command"],
+        required=["session_id", "command"],
     )
     async def shell_execute(
             self,
             session_id: str,
-            exec_dir: str,
             command: str,
+            exec_dir: Optional[str] = None,
     ) -> ToolResult:
-        """执行shell脚本"""
-        return await self.sandbox.exec_command(session_id, exec_dir, command)
+        """执行shell脚本。未给出工作目录时使用构造时的默认目录。"""
+        directory = exec_dir or self.default_exec_dir
+        return await self.sandbox.exec_command(session_id, directory, command)
 
     @tool(
         name="shell_read_output",

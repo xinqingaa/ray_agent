@@ -112,11 +112,12 @@ def build_default_tools(
         search_engine: SearchEngine,
         mcp_tool: MCPTool,
         a2a_tool: A2ATool,
+        default_exec_dir: str = "/home/ubuntu",
 ) -> List[BaseTool]:
-    """默认工具集；计划与交付工具由循环自己追加。"""
+    """默认工具集；计划与交付工具由循环自己追加。default_exec_dir 是 shell_execute 省略工作目录时的默认值。"""
     return [
         FileTool(sandbox=sandbox),
-        ShellTool(sandbox=sandbox),
+        ShellTool(sandbox=sandbox, default_exec_dir=default_exec_dir),
         BrowserTool(browser=browser),
         SearchTool(search_engine=search_engine),
         MessageTool(),

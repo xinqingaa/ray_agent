@@ -10,11 +10,12 @@ from app.application.errors.exceptions import AppException, BadRequestError, Con
 from app.domain.external.event_notifier import EventNotifier, OutputDelta
 from app.domain.external.file_storage import FileStorage
 from app.domain.external.llm import LLM
-from app.domain.external.sandbox import Sandbox
+from app.domain.external.sandbox import Sandbox, SandboxProjectBindingError
 from app.domain.external.search import SearchEngine
 from app.domain.external.task import Task
 from app.domain.models.app_config import AgentConfig, MCPConfig, A2AConfig, ToolPolicyConfig
 from app.domain.models.event import ApprovalStatus, ErrorEvent, Event, MessageEvent, TitleEvent
+from app.domain.models.project import SANDBOX_PROJECT_DIR
 from app.domain.models.run import Run, RunMode, RunReason, RunStatus, tools_for_turn
 from app.domain.models.session import Session, SessionStatus
 from app.domain.repositories.uow import IUnitOfWork
@@ -121,8 +122,11 @@ class AgentService:
 
         # 2.判断是否能获取到沙箱(如果没有则创建)
         if not sandbox:
-            # 3.沙箱不存在则创建一个新的(有可能被释放了)
-            sandbox = await self._sandbox_cls.create()
+            # 3.沙箱不存在则创建一个新的(有可能被释放了)。绑定了项目时重新挂载同一个目录
+            try:
+                sandbox = await self._sandbox_cls.create(project_path=session.project_path)
+            except SandboxProjectBindingError as exc:
+                raise ConflictError(str(exc)) from exc
             session.sandbox_id = sandbox.id
             async with self._uow:
                 await self._uow.session.update_sandbox_id(session.id, sandbox.id)
@@ -149,6 +153,7 @@ class AgentService:
             run_id=run_id,
             prior_status=prior_status,
             tool_policy=self._tool_policy,
+            workspace_dir=SANDBOX_PROJECT_DIR if session.project_path else None,
         )
 
         # 6.创建任务Task并更新会话中的信息

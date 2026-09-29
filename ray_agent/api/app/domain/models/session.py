@@ -29,6 +29,7 @@ class Session(BaseModel):
     """会话领域模型；事件与运行分别存放在 events、runs 表，不在会话行上。"""
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))  # 会话id
     sandbox_id: Optional[str] = None  # 沙箱id
+    project_path: Optional[str] = None  # 绑定的宿主机项目目录（校验通过后的 realpath）；未绑定为空
     task_id: Optional[str] = None  # 任务id
     title: str = ""  # 标题
     title_source: str = "placeholder"  # placeholder / provisional / auto / manual
