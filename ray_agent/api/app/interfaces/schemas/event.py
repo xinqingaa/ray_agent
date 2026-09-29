@@ -172,7 +172,8 @@ class ToolEventData(BaseEventData):
     content: Optional[Any] = None  # 工具调用结果
     duration_ms: Optional[int] = None  # 工具耗时，只在 called 事件上有值
     shaping: Optional[ToolResultShaping] = None  # 结果被整形时：原始字符数、是否截断、完整内容路径
-    denied_by: Optional[Literal["policy", "user"]] = None  # 未执行：被工具策略禁止 / 被用户拒绝，只在 called 上
+    # 未执行：被工具策略禁止 / 被用户拒绝 / 计划模式不允许，只在 called 上
+    denied_by: Optional[Literal["policy", "user", "plan_mode"]] = None
 
 
 class ToolSSEEvent(BaseSSEEvent):
@@ -293,10 +294,11 @@ class AttemptSSEEvent(BaseSSEEvent):
 
 
 class RunEventData(BaseEventData):
-    """运行状态变化事件数据；终态时 summary 为运行汇总。"""
+    """运行状态变化事件数据；终态时 summary 为运行汇总，mode 为运行模式（normal / plan）。"""
     status: str
     reason: Optional[str] = None
     summary: Optional[Dict[str, Any]] = None
+    mode: Optional[str] = None
 
 
 class RunSSEEvent(BaseSSEEvent):
@@ -313,8 +315,8 @@ class ContextEventData(BaseEventData):
 
 
 class CompactEventData(BaseEventData):
-    """自动压缩事件数据，字段含义见领域模型 CompactEvent；摘要全文随事件推送，供开发者视图显示。"""
-    trigger: Literal["watermark", "overflow"]
+    """压缩事件数据，字段含义见领域模型 CompactEvent；摘要全文随事件推送，供开发者视图显示。manual 时 run_id 为空。"""
+    trigger: Literal["watermark", "overflow", "manual"]
     before_estimate: Dict[str, Any] = Field(default_factory=dict)
     after_estimate: Dict[str, Any] = Field(default_factory=dict)
     summarized_turns: int = 0
@@ -326,7 +328,7 @@ class CompactEventData(BaseEventData):
 
 
 class CompactSSEEvent(BaseSSEEvent):
-    """自动压缩流式事件"""
+    """压缩流式事件"""
     event: Literal["compact"] = "compact"
     data: CompactEventData
 

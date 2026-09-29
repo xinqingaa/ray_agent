@@ -364,6 +364,13 @@ export function SessionDetailView({
                 disabled={submitting || waitingApproval}
                 placeholder={placeholder}
                 accessory={<ContextRing usage={view.usage}/>}
+                commandHost={{
+                  hasSession: true,
+                  runStatus: view.status,
+                  waitingApproval,
+                  waitingReply: view.activeRun?.activity.kind === 'waiting_reply',
+                  submitting,
+                }}
               />
             </div>
           </div>

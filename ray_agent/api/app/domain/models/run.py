@@ -30,6 +30,12 @@ class RunStatus(str, Enum):
 ACTIVE_RUN_STATUSES = frozenset({RunStatus.RUNNING, RunStatus.WAITING})
 
 
+class RunMode(str, Enum):
+    """运行模式：只在新建运行时由 chat 选择，续接沿用。"""
+    NORMAL = "normal"
+    PLAN = "plan"  # 计划模式：只允许只读工具，提示词要求调研后给出计划并结束
+
+
 class RunReason:
     """运行原因代码；失败原因与循环的 RunEndReason 取值一致。"""
     MAX_ITERATIONS = "max_iterations"
@@ -60,6 +66,7 @@ class Run(BaseModel):
     session_id: str
     status: RunStatus = RunStatus.RUNNING
     reason: Optional[str] = None
+    mode: RunMode = RunMode.NORMAL
     started_at: datetime = Field(default_factory=datetime.now)
     ended_at: Optional[datetime] = None
     turns: int = 0

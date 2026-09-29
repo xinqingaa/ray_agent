@@ -40,7 +40,18 @@ export default function Page() {
           </p>
         </div>
         <div className="mt-6">
-          <ChatInput onSend={startTask} disabled={sending} placeholder="描述你想完成的任务"/>
+          <ChatInput
+            onSend={startTask}
+            disabled={sending}
+            placeholder="描述你想完成的任务"
+            commandHost={{
+              hasSession: false,
+              runStatus: 'idle',
+              waitingApproval: false,
+              waitingReply: false,
+              submitting: sending,
+            }}
+          />
         </div>
       </div>
     </main>

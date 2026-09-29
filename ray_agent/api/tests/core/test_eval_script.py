@@ -151,11 +151,33 @@ def test_metrics_come_from_run_summary_and_are_cross_checked_with_turns():
 
     summary = events[-2]["data"]["summary"]
     summary.update(prompt_tokens=150, completion_tokens=15)
-    events.insert(6, ev("compact", trigger="watermark", usage={"attempts": 1, "prompt_tokens": 50,
-                                                               "completion_tokens": 5}))
+    events.insert(6, ev("compact", run_id="r1", trigger="watermark", usage={"attempts": 1, "prompt_tokens": 50,
+                                                                            "completion_tokens": 5}))
     with_compact = compute_metrics({"runs": runs, "events": events})
     assert with_compact["metrics_consistent"], with_compact["metric_mismatches"]
     assert (with_compact["compactions"], with_compact["compaction_requests"]) == (1, 1)
+
+    # W9 验收 12：手动压缩不带 run_id，不属于任何运行，不参与核对，另计次数、请求数与 tokens
+    events.append(ev("compact", run_id=None, trigger="manual", usage={"attempts": 2, "prompt_tokens": 70,
+                                                                      "completion_tokens": 7}))
+    events.append(ev("context", run_id=None, op="replace", message_count=3))
+    with_manual = compute_metrics({"runs": runs, "events": events})
+    assert with_manual["metrics_consistent"], with_manual["metric_mismatches"]
+    assert (with_manual["model_calls"], with_manual["prompt_tokens"]) == (4, 150)
+    assert (with_manual["compactions"], with_manual["compaction_requests"]) == (1, 1)
+    assert with_manual["compactions_by_trigger"] == {"watermark": 1, "manual": 1}
+    assert (with_manual["manual_compactions"], with_manual["manual_compaction_requests"],
+            with_manual["manual_compaction_prompt_tokens"], with_manual["manual_compaction_completion_tokens"]) == (
+        1, 2, 70, 7)
+    from scripts.eval.report import render_markdown
+    report = render_markdown({
+        "meta": {"label": "t", "date": "d", "git": {"short": "x", "commit": "x", "dirty": []}, "base_url": "u",
+                 "host_address": "h", "llm_config": {}, "agent_config": {}, "repeat": 1,
+                 "started_at": "s", "finished_at": "f"},
+        "runs": [{"task_id": "T", "title": "t", "run_index": 1, "outcome": "passed", **with_manual}],
+    })
+    assert "压缩触发：watermark×1、manual×1" in report
+    assert "手动压缩（manual，不属于任何运行，不计入运行汇总与模型调用）：1 次，摘要请求 2 次" in report
 
 
 def test_context_splits_turns_and_uses_last_assistant_message():

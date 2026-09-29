@@ -1,4 +1,5 @@
-"""W3 验收 1–4、6 与请求重建的数据库往返，W2 压缩与结果整形、W7.2 工具审批的往返：使用真实临时 PostgreSQL。
+"""W3 验收 1–4、6 与请求重建的数据库往返，W2 压缩与结果整形、W7.2 工具审批、W9 运行模式与手动压缩的往返：
+使用真实临时 PostgreSQL。
 
 设置 ``RAY_TEST_DATABASE_URI``（例如 ``postgresql+asyncpg://postgres:postgres@localhost:55432/postgres``）后运行；
 未设置时跳过。每个测试前清空 public schema 并执行 ``alembic upgrade head``，不要指向开发库。
@@ -393,6 +394,96 @@ def test_tool_approval_round_trip_and_startup_scan():
             memory = await uow.session.get_memory(other.id, "agent")
         assert {k: v["message"] for k, v in tool_results(memory.messages).items()} == {
             "c-a": NOT_EXECUTED_STOPPED, "c-b": NOT_EXECUTED_STOPPED}
+    with_db(scenario)
+
+
+def test_plan_mode_and_manual_compaction_round_trip():
+    """W9：runs.mode 列与 run 事件的 mode；手动压缩的两条事件不带 run_id、与记忆同一事务，下一次运行可重建。"""
+    from app.domain.models.event import CompactEvent, ContextEvent
+    from app.domain.models.memory import Memory
+    from app.domain.models.run import RunMode
+    from app.domain.services.flows.agent_loop import AGENT_MEMORY_NAME
+    from app.domain.services.prompts.compact import SUMMARY_MARKER
+    from tests.core.test_context_governance import GOAL, SUMMARY, seeded_session
+    from tests.core.test_tool_approval import make_service
+
+    async def seed(uow_factory, session_id):
+        session = await new_session(uow_factory, session_id)
+        _, seeded = seeded_session(10)
+        async with uow_factory() as uow:
+            await uow.session.save_memory(session.id, AGENT_MEMORY_NAME, Memory(messages=seeded))
+            await uow.session.update_status(session.id, SessionStatus.COMPLETED)
+            await uow.commit()
+        ledger = RunLedger(uow_factory)
+        await ledger.append(session.id, [MessageEvent(role="user", message=GOAL)])
+        plan = await ledger.start(session.id, mode=RunMode.PLAN)
+        await ledger.transition(session.id, plan.id, RunStatus.COMPLETED)
+        return session, seeded, plan
+
+    def service_for(session, script, uow_factory):
+        h = make_loop(script, session=session, uow_factory=uow_factory)
+        service = make_service(h)
+        service._llm, service._agent_config = h.llm, h.loop._config
+        return h, service
+
+    async def scenario(uow_factory, engine):
+        session, seeded, plan = await seed(uow_factory, "pg-w9")
+        stored, runs, events = await read(uow_factory, session.id)
+        assert [(r.id, r.mode) for r in runs] == [(plan.id, RunMode.PLAN)]
+        assert [(e.status, e.mode) for e in events if isinstance(e, RunEvent)] == [("running", "plan"),
+                                                                                 ("completed", "plan")]
+
+        h, service = service_for(session, [reply(SUMMARY, usage=usage(9000, 300))], uow_factory)
+        result = await service.compact_session(session.id)
+        stored, after_runs, events = await read(uow_factory, session.id)
+        compact, context = events[-2:]
+        assert isinstance(compact, CompactEvent) and isinstance(context, ContextEvent)
+        assert (compact.trigger, compact.run_id, context.run_id) == ("manual", None, None)
+        assert (result.compact_seq, result.context_seq) == (compact.seq, context.seq)
+        assert compact.usage.prompt_tokens == 9000 and compact.before_estimate["total"] == result.before_total
+        assert stored.status == SessionStatus.COMPLETED
+        assert [r.model_dump() for r in after_runs] == [r.model_dump() for r in runs]
+        async with uow_factory() as uow:
+            memory = await uow.session.get_memory(session.id, AGENT_MEMORY_NAME)
+        assert memory.messages[1:] == context.messages
+        assert memory.messages[1]["content"].startswith(SUMMARY_MARKER) and memory.messages[2]["content"] == GOAL
+        async with engine.connect() as conn:
+            rows = (await conn.execute(text(
+                "SELECT type, run_id FROM events WHERE session_id = :s ORDER BY seq DESC LIMIT 2"),
+                {"s": session.id})).all()
+        assert [(r.type, r.run_id) for r in rows] == [("context", None), ("compact", None)]
+
+        nxt = make_loop([reply("继续完成")], session=session, uow_factory=uow_factory)
+        task = input_task()
+        started = await start_run(nxt, task, "接着汇总")
+        await make_runner(nxt, run=started, prior_status=SessionStatus.COMPLETED).invoke(task)
+        async with uow_factory() as uow:
+            stored_run = await uow.run.get(started.id)
+            events = await uow.event.list(session.id)
+        assert stored_run.status == RunStatus.COMPLETED and stored_run.mode == RunMode.NORMAL
+        request = nxt.llm.requests[0]
+        assert request.messages[1]["content"].startswith(SUMMARY_MARKER)
+        rebuilt = rebuild_request(events, stored_run, 1)
+        assert rebuilt.messages == request.messages and rebuilt.tools == request.tools
+
+        # 提交失败时两条事件与记忆一起回滚
+        other, other_seeded, _ = await seed(uow_factory, "pg-w9-rollback")
+        async with engine.begin() as conn:
+            await conn.execute(text("""
+                CREATE FUNCTION fail_compact() RETURNS trigger AS $$
+                BEGIN RAISE EXCEPTION '受控提交失败'; END; $$ LANGUAGE plpgsql"""))
+            await conn.execute(text("""
+                CREATE CONSTRAINT TRIGGER fail_compact AFTER INSERT ON events
+                DEFERRABLE INITIALLY DEFERRED FOR EACH ROW
+                WHEN (NEW.type = 'context') EXECUTE FUNCTION fail_compact()"""))
+        _, failing = service_for(other, [reply(SUMMARY)], uow_factory)
+        before_events = len((await read(uow_factory, other.id))[2])
+        with pytest.raises(Exception, match="受控提交失败"):
+            await failing.compact_session(other.id)
+        _, _, other_events = await read(uow_factory, other.id)
+        async with uow_factory() as uow:
+            other_memory = await uow.session.get_memory(other.id, AGENT_MEMORY_NAME)
+        assert len(other_events) == before_events and other_memory.messages == other_seeded
     with_db(scenario)
 
 

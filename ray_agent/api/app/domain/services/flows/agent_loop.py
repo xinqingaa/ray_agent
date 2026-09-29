@@ -7,6 +7,7 @@ Title、Message、Tool、Plan、Wait、Error、Done、Turn、Attempt、Context�
 调用只以三种终止事件之一结束：DoneEvent（完成）、WaitEvent（等待用户回复或审批，见 end_reason）、ErrorEvent（失败）。
 每轮模型请求前后各有一条 TurnEvent；记忆的每次变化都先以 ContextEvent 发出，供请求重建按序回放。
 每轮请求前估算输入量：超过压缩水位先压缩（CompactEvent + ContextEvent(replace)），仍超过可用上限以 context_limit 失败。
+计划模式（mode=plan）下只读工具以外的调用在执行前被拒绝，计划模式说明只在发送请求时拼到 system 消息末尾。
 """
 import asyncio
 import copy
@@ -19,7 +20,7 @@ from enum import Enum
 from typing import Any, AsyncGenerator, Awaitable, Callable, Dict, Iterator, List, Optional, Set
 
 from app.domain.external.browser import Browser
-from app.domain.external.llm import LLM, LLMRequestError
+from app.domain.external.llm import LLM, LLMRequestError, is_retryable as _is_retryable
 from app.domain.external.sandbox import Sandbox
 from app.domain.external.search import SearchEngine
 from app.domain.models.app_config import AgentConfig, ToolPolicyConfig
@@ -28,7 +29,6 @@ from app.domain.models.event import (
     ApprovalStatus,
     BaseEvent,
     CompactEvent,
-    CompactUsage,
     ContextEvent,
     ContextOp,
     AttemptEvent,
@@ -53,24 +53,12 @@ from app.domain.models.session import SessionStatus
 from app.domain.models.tool_result import ToolResult
 from app.domain.repositories.uow import IUnitOfWork
 from app.domain.services.agents.tool_call_compat import extract_embedded_tool_calls
-from app.domain.services.context.budget import (
-    ContextBudget,
-    ContextEstimate,
-    estimate_message,
-    estimate_text,
-    raw_parts,
-)
-from app.domain.services.context.compaction import (
-    MIN_GAIN_RATIO,
-    match_events,
-    plan_compaction,
-    render_transcript,
-    select_reinjection,
-    summary_message,
-    user_origins,
-)
+from app.domain.models.run import RunMode
+from app.domain.services.context.budget import ContextBudget, ContextEstimate
+from app.domain.services.context.compactor import CompactionStatus, Compactor
 from app.domain.services.context.shaping import ResultShaper, WriteOutputFn
-from app.domain.services.prompts.compact import COMPACT_PROMPT
+from app.domain.services.plan_mode import PlanModeGuard
+from app.domain.services.prompts.plan_mode import PLAN_MODE_SUFFIX
 from app.domain.services.prompts.system import SYSTEM_PROMPT
 from app.domain.services.task_error import format_public_error_text
 from app.domain.services.tool_policy import ToolPolicyGuard
@@ -222,12 +210,6 @@ def _user_content(message: Message) -> str:
     return f"{message.message}\n\n用户上传的附件（沙箱路径）：\n{listed}"
 
 
-def _is_retryable(error: BaseException) -> bool:
-    if isinstance(error, LLMRequestError):
-        return error.retryable
-    return isinstance(error, (ConnectionError, TimeoutError, asyncio.TimeoutError))
-
-
 def _attempt_reason(error: BaseException) -> str:
     if isinstance(error, LLMRequestError) and error.reason:
         return error.reason
@@ -298,10 +280,12 @@ class AgentLoop(BaseFlow):
             system_prompt: str = SYSTEM_PROMPT,
             retry_interval: float = 1.0,
             tool_policy: Optional[ToolPolicyConfig] = None,
+            mode: RunMode = RunMode.NORMAL,
     ) -> None:
         """write_output 把超长工具结果的完整内容写入沙箱，由运行器注入；为空时超长结果只截断。
 
         tool_policy 为空时用默认策略表（MCP 与 A2A 需要批准，其余直接执行）。
+        mode 是运行模式；运行器在记录配置快照前按运行行改写（见 mode 属性）。
         """
         self._uow_factory = uow_factory
         self._uow = uow_factory()
@@ -330,13 +314,19 @@ class AgentLoop(BaseFlow):
         self._deltas_closed = False
         self.pending_approval: Optional[ApprovalEvent] = None  # 以 APPROVAL 结束时等待回复的审批请求
         self._session_status: Optional[SessionStatus] = None
+        self._compactor = Compactor(llm, agent_config, retry_interval, label=f"会话[{session_id}]")
 
         self.plan_tool = PlanTool()
         toolkits = [*tools, self.plan_tool]
         if deliver_file is not None:
             toolkits.append(DeliverTool(deliver_file))
         self.pipeline = ToolPipeline(toolkits)
+        # 计划模式的检查在策略之前：被拒绝的调用不会进入审批
+        self._plan_guard = PlanModeGuard()
+        self.pipeline.add_before(self._plan_guard)
         self.pipeline.add_before(ToolPolicyGuard(tool_policy))
+        self._mode = RunMode.NORMAL
+        self.mode = mode
         self.pipeline.add_after(self._emit_plan_event)
         self.pipeline.add_after(self._emit_delivery_message)
         # 整形放在最后：前面的处理函数读的是工具的原始结果
@@ -350,8 +340,29 @@ class AgentLoop(BaseFlow):
     def memory(self) -> Optional[Memory]:
         return self._memory
 
+    @property
+    def mode(self) -> RunMode:
+        return self._mode
+
+    @mode.setter
+    def mode(self, value: RunMode) -> None:
+        self._mode = RunMode(value)
+        self._plan_guard.enabled = self._mode == RunMode.PLAN
+
+    def _with_mode_suffix(self, system_prompt: str) -> str:
+        return system_prompt + PLAN_MODE_SUFFIX if self._mode == RunMode.PLAN else system_prompt
+
+    def _request_messages(self) -> List[Dict[str, Any]]:
+        """发给模型的消息：记忆本身；计划模式下 system 消息拼上计划模式说明（记忆里的 system 不变）。"""
+        messages = self._memory.get_messages()
+        if self._mode != RunMode.PLAN or not messages or messages[0].get("role") != "system":
+            return messages
+        system = {**messages[0], "content": self._with_mode_suffix(str(messages[0].get("content") or ""))}
+        return [system, *messages[1:]]
+
     async def config_snapshot(self) -> Dict[str, Any]:
-        """本次运行的配置快照：模型参数、Agent 配置、实际使用的系统提示词全文与工具 schema，供请求重建使用。"""
+        """本次运行的配置快照：模型参数、Agent 配置、运行模式、实际发送的系统提示词全文（计划模式含后缀）
+        与工具 schema，供请求重建使用。"""
         await self._ensure_memory()
         messages = self._memory.get_messages()
         system_prompt = self._system_prompt
@@ -363,7 +374,8 @@ class AgentLoop(BaseFlow):
             "max_tokens": self._llm.max_tokens,
             "context_window": self._llm.context_window,
             "agent_config": self._config.model_dump(mode="json"),
-            "system_prompt": system_prompt,
+            "mode": self._mode.value,
+            "system_prompt": self._with_mode_suffix(system_prompt),
             "tools": copy.deepcopy(self.pipeline.schemas()),
         }
 
@@ -655,7 +667,7 @@ class AgentLoop(BaseFlow):
             turn.attempts += 1
             started = time.monotonic()
             self._inflight = _Inflight(turn=turn.index, attempt=turn.attempts, started=started)
-            messages, tools = self._memory.get_messages(), self.pipeline.schemas()
+            messages, tools = self._request_messages(), self.pipeline.schemas()
             try:
                 result = await self._llm.invoke(messages=messages, tools=tools, on_delta=self._on_model_delta)
                 if not result.finish_reason:
@@ -825,7 +837,7 @@ class AgentLoop(BaseFlow):
 
     def estimate_context(self) -> ContextEstimate:
         """下一次模型请求的输入量估算（四部分与上限）。"""
-        return self.budget.estimate(self._memory.get_messages(), self.pipeline.schemas())
+        return self.budget.estimate(self._request_messages(), self.pipeline.schemas())
 
     async def _ensure_capacity(self, force: bool = False) -> AsyncGenerator[BaseEvent, None]:
         """请求前的容量检查：超过水位（或 force）先压缩并重新估算；仍超过可用上限时置 _capacity_error。
@@ -853,90 +865,32 @@ class AgentLoop(BaseFlow):
             self._capacity_error = (f"上下文估算 {estimate.total} tokens 超过可用输入上限 {estimate.limit} "
                                     f"（窗口 {estimate.context_window}，输出预留 {estimate.max_tokens}）")
 
-    def _raw_total(self, messages: List[Dict[str, Any]]) -> float:
-        return sum(raw_parts(messages, self.pipeline.schemas()).values())
-
     async def _compact_history(self, before: ContextEstimate, trigger: str) -> AsyncGenerator[BaseEvent, None]:
-        """把保留区之前的历史替换为摘要，并重新注入其中的用户原文；摘要失败时置 _capacity_error，不改记忆。"""
-        messages = self._memory.get_messages()
-        system = messages[:1]
-        # 保留区（含系统提示词与工具 schema）不超过水位的 60%，给摘要与用户原文留出空间
-        plan = plan_compaction(messages, self._config.compact_keep_turns,
-                               lambda kept: self._raw_total([*system, *kept]) <= before.watermark * 0.6)
-        if plan is None:
-            logger.info(f"会话[{self._session_id}] 没有可摘要的完整轮次，跳过压缩")
-            return
-        summarized, kept = messages[1:plan.boundary], messages[plan.boundary:]
+        """把保留区之前的历史替换为摘要，并重新注入其中的用户原文；摘要失败时置 _capacity_error，不改记忆。
 
-        origins = user_origins(summarized)
-        async with self._uow:
-            events = await self._uow.event.list(self._session_id, types=["message"])
-        match_events(origins, [(e.seq, e.message) for e in events
-                               if isinstance(e, MessageEvent) and e.role == "user" and e.seq is not None])
-        reinjection = select_reinjection(origins, self._config.compact_user_chars)
-        gain = (sum(estimate_message(m) for m in summarized)
-                - sum(estimate_message(m) for m in reinjection.messages))
-        if trigger == "watermark" and gain < before.limit * MIN_GAIN_RATIO:
-            # 可摘要的部分太小（例如最近一轮本身就很大），摘要换不回空间，只会多一次模型请求
-            logger.info(f"会话[{self._session_id}] 可摘要部分约 {gain:.0f} tokens，低于最小收益，跳过压缩")
-            return
+        先替换并保存记忆，再产出 compact 与 context(replace) 事件由运行器写入；最小收益判断只在水位触发时启用。
+        """
+        async def load_user_events():
+            async with self._uow:
+                return await self._uow.event.list(self._session_id, types=["message"])
 
-        transcript = render_transcript(
-            summarized, lambda text: estimate_text(COMPACT_PROMPT + text) + 16 <= self.budget.limit)
-        summary, usage = await self._request_summary(transcript)
-        if not summary:
-            self._capacity_error = f"上下文压缩的摘要请求连续 {usage.attempts} 次失败或返回空内容，未压缩历史"
+        result = await self._compactor.compact(
+            self._request_messages(), self.pipeline.schemas(), before, trigger, load_user_events,
+            min_gain=trigger == "watermark")
+        self.model_requests += result.usage.attempts
+        if result.status == CompactionStatus.SKIPPED:
             return
-
-        replaced = [summary_message(summary, plan.summarized_turns, reinjection.omitted),
-                    *reinjection.messages, *copy.deepcopy(kept)]
-        self._memory.replace(replaced)
+        if result.status == CompactionStatus.FAILED:
+            self._capacity_error = f"上下文压缩的摘要请求连续 {result.usage.attempts} 次失败或返回空内容，未压缩历史"
+            return
+        self._memory.replace(result.messages)
         self.budget.reset()
-        self._pending_context.append(ContextEvent(op=ContextOp.REPLACE, messages=copy.deepcopy(replaced)))
+        self._pending_context.append(result.context)
         async with self._uow:
             await self._uow.session.save_memory(self._session_id, AGENT_MEMORY_NAME, self._memory)
-        after = self.estimate_context()
-        logger.info(f"会话[{self._session_id}] 压缩完成：摘要 {plan.summarized_turns} 轮，保留 {plan.kept_turns} 轮，"
-                    f"估算 {before.total} → {after.total} tokens")
-        yield CompactEvent(
-            trigger=trigger,
-            before_estimate=before.as_dict(),
-            after_estimate=after.as_dict(),
-            summarized_turns=plan.summarized_turns,
-            kept_turns=plan.kept_turns,
-            summary=summary,
-            reinjected_event_seqs=reinjection.event_seqs,
-            omitted_user_messages=reinjection.omitted,
-            usage=usage,
-        )
+        yield result.compact
         for event in self._take_context():
             yield event
-
-    async def _request_summary(self, transcript: str) -> tuple[Optional[str], CompactUsage]:
-        """独立的摘要请求（不带工具）；传输错误与空回复按 max_retries 重试，每次尝试都计入模型请求数。"""
-        usage = CompactUsage()
-        request = [{"role": "system", "content": COMPACT_PROMPT}, {"role": "user", "content": transcript}]
-        while usage.attempts < self._config.max_retries:
-            usage.attempts += 1
-            self.model_requests += 1
-            try:
-                result = await self._llm.invoke(messages=request)
-            except Exception as e:
-                logger.warning(f"会话[{self._session_id}] 摘要请求失败（第 {usage.attempts} 次）: {e}")
-                if not _is_retryable(e):
-                    break
-                await asyncio.sleep(self._retry_interval)
-                continue
-            if result.usage is not None:
-                usage.prompt_tokens = _add_optional(usage.prompt_tokens, result.usage.prompt_tokens)
-                usage.completion_tokens = _add_optional(usage.completion_tokens, result.usage.completion_tokens)
-                usage.cached_tokens = _add_optional(usage.cached_tokens, result.usage.cached_tokens)
-            summary = str((result.message or {}).get("content") or "").strip()
-            if summary:
-                return summary, usage
-            logger.warning(f"会话[{self._session_id}] 摘要请求返回空内容（第 {usage.attempts} 次）")
-            await asyncio.sleep(self._retry_interval)
-        return None, usage
 
     async def _add_messages(self, messages: List[Dict[str, Any]]) -> None:
         await self._ensure_memory()

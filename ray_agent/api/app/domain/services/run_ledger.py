@@ -13,7 +13,7 @@ from typing import Awaitable, Callable, List, Optional, Sequence
 from app.domain.external.event_notifier import EventNotifier
 from app.domain.models.event import BaseEvent, CompactEvent, RunEvent, ToolEvent, ToolEventStatus, TurnEvent, \
     TurnPhase
-from app.domain.models.run import Run, RunReason, RunStatus
+from app.domain.models.run import Run, RunMode, RunReason, RunStatus
 from app.domain.models.session import SessionStatus
 from app.domain.repositories.uow import IUnitOfWork
 
@@ -71,13 +71,14 @@ class RunLedger:
             session_id: str,
             events_after: Sequence[BaseEvent] = (),
             apply: Optional[Apply] = None,
+            mode: RunMode = RunMode.NORMAL,
     ) -> Run:
         """创建运行并写入 run(running) 事件与随后的事件；会话已有活动运行时抛 ActiveRunExistsError。"""
-        run = Run(session_id=session_id)
+        run = Run(session_id=session_id, mode=mode)
         uow = self._uow_factory()
         async with uow:
             await uow.run.create(run)
-            events = [RunEvent(status=RunStatus.RUNNING.value), *events_after]
+            events = [RunEvent(status=RunStatus.RUNNING.value, mode=run.mode.value), *events_after]
             await self._write(uow, session_id, events, run.id)
             await uow.session.update_status(session_id, SessionStatus.RUNNING)
             if apply is not None:
@@ -123,6 +124,7 @@ class RunLedger:
                     status=status.value,
                     reason=reason,
                     summary=run.summary().model_dump() if status.terminal else None,
+                    mode=run.mode.value,
                 )
                 if ended_at is not None:
                     run_event.created_at = ended_at

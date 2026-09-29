@@ -415,11 +415,12 @@ class AgentTaskRunner(TaskRunner):
         await self._ledger.transition(self._session_id, self._run_id, status, reason, events_before=[outcome])
 
     async def _prepare_run(self) -> None:
-        """记录运行的配置快照；续接已有运行时工具集若有变化，追加一条从下一轮生效的修订。"""
+        """按运行行设置运行模式并记录配置快照；续接已有运行时工具集若有变化，追加一条从下一轮生效的修订。"""
         async with self._uow:
             run = await self._uow.run.get(self._run_id)
         if run is None:
             raise RuntimeError(f"运行[{self._run_id}]不存在")
+        self._flow.mode = run.mode
         self._next_turn = run.turns + 1
         snapshot = await self._flow.config_snapshot()
         stored = run.config_snapshot or {}

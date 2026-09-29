@@ -12,10 +12,13 @@ import httpx
 from async_lru import alru_cache
 from docker.errors import NotFound, APIError
 from docker.models.resource import Model
+from docker.types import Mount
 
 from app.domain.external.browser import Browser
-from app.domain.external.sandbox import Sandbox
+from app.domain.external.sandbox import Sandbox, SandboxProjectBindingError
+from app.domain.models.project import SANDBOX_PROJECT_DIR, ProjectPathError
 from app.domain.models.tool_result import ToolResult
+from app.domain.services.project_paths import check_project_path
 from app.infrastructure.external.browser.playwright_browser import PlaywrightBrowser
 from core.config import get_settings
 
@@ -123,8 +126,8 @@ class DockerSandbox(Sandbox):
         return ip_address
 
     @classmethod
-    def _create_task(cls) -> Self:
-        """创建沙箱容器的异步任务"""
+    def _create_task(cls, project_path: Optional[str] = None) -> Self:
+        """创建沙箱容器的异步任务。project_path 是已校验的宿主机项目目录，读写挂载到 SANDBOX_PROJECT_DIR"""
         # 1.获取系统配置信息
         settings = get_settings()
 
@@ -165,6 +168,13 @@ class DockerSandbox(Sandbox):
             if settings.sandbox_network:
                 container_config["network"] = settings.sandbox_network
 
+            # 5.1 绑定项目：源路径由宿主机的 Docker 守护进程解析，必须是宿主机路径；
+            # 用 mount 而不是 volumes，源目录不存在时报错而不是在宿主机上新建空目录
+            if project_path:
+                container_config["mounts"] = [
+                    Mount(target=SANDBOX_PROJECT_DIR, source=project_path, type="bind", read_only=False),
+                ]
+
             # 6.调用docker客户端容器运行参数创建沙箱
             container = docker_client.containers.run(**container_config)
 
@@ -183,19 +193,29 @@ class DockerSandbox(Sandbox):
             raise Exception(f"创建Docker沙箱容器失败: {str(e)}")
 
     @classmethod
-    async def create(cls) -> Self:
-        """类方法，创建沙箱容器"""
+    async def create(cls, project_path: Optional[str] = None) -> Self:
+        """类方法，创建沙箱容器。传入项目目录时读写挂载到 /workspace"""
         # 1.获取系统配置信息
         settings = get_settings()
 
         # 2.判断是否使用现成的沙箱
         if settings.sandbox_address:
+            # 共享沙箱不是为这个会话创建的，不能为它挂载项目，直接报错而不是悄悄不挂载
+            if project_path:
+                raise SandboxProjectBindingError("共享沙箱模式（已设置 SANDBOX_ADDRESS）不支持绑定项目")
             # 3.将沙箱主机/地址解析成ip
             ip = await cls._resolve_hostname_to_ip(settings.sandbox_address)
             return DockerSandbox(ip=ip)
 
-        # 4.使用子线程创建一个容器后返回
-        return await asyncio.to_thread(cls._create_task)
+        # 4.挂载前按 PROJECT_ROOTS 再校验一次，挂载源用校验得到的 realpath
+        if project_path:
+            check = check_project_path(project_path, settings.project_roots)
+            if not check.ok:
+                raise ProjectPathError(check)
+            project_path = check.real_path
+
+        # 5.使用子线程创建一个容器后返回
+        return await asyncio.to_thread(cls._create_task, project_path)
 
     async def destroy(self) -> bool:
         """销毁当前的DockerSandbox实例"""

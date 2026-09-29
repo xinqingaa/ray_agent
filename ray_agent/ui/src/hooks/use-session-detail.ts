@@ -154,6 +154,7 @@ export function useSessionDetail(
         retryRef.current += 1
         reconnectTimerRef.current = setTimeout(() => {
           reconnectTimerRef.current = null
+          if (document.visibilityState === 'hidden') return
           if (!streamCleanupRef.current) startStream()
         }, delay)
       }
@@ -230,11 +231,21 @@ export function useSessionDetail(
 
   useEffect(() => {
     if (!sessionId || !loaded) return
-    startStream()
+    const sync = () => {
+      if (document.visibilityState === 'hidden') {
+        stopStream()
+        clearDrafts()
+        return
+      }
+      startStream()
+    }
+    sync()
+    document.addEventListener('visibilitychange', sync)
     return () => {
+      document.removeEventListener('visibilitychange', sync)
       stopStream()
     }
-  }, [sessionId, loaded, startStream, stopStream])
+  }, [sessionId, loaded, startStream, stopStream, clearDrafts])
 
   const sendMessage = useCallback(
     async (message: string, attachmentIds: string[], options?: { retry?: boolean }) => {

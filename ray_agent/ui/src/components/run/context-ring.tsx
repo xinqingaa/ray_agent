@@ -13,6 +13,13 @@ const C = 2 * Math.PI * R
 const DEFAULT_NEAR = 0.7
 /** 距水位多少比例开始提示 */
 const NEAR_MARGIN = 0.1
+/**
+ * 刻度停在环带内侧。描边外沿是 R + STROKE/2 = 9，正好贴着画布半径；
+ * 再向外画会被裁成毛刺。外端只咬进描边一截，内端留在环心。
+ */
+const TICK_OUTER = R - STROKE / 2 + 0.6
+const TICK_INNER = 3.4
+const TICK_WIDTH = 1.75
 
 export type ContextLevel = 'none' | 'normal' | 'near'
 
@@ -24,7 +31,16 @@ export function contextLevel(usage: UsageView): ContextLevel {
   return ratio >= near ? 'near' : 'normal'
 }
 
-/** 上下文环：最近一次请求的上下文占用；发生过压缩时带标记。数字在旁边直接可见，细节在悬停提示中 */
+function tickEnds(ratio: number) {
+  const angle = 2 * Math.PI * ratio
+  const at = (radius: number) => ({
+    x: SIZE / 2 + radius * Math.cos(angle),
+    y: SIZE / 2 + radius * Math.sin(angle),
+  })
+  return {inner: at(TICK_INNER), outer: at(TICK_OUTER)}
+}
+
+/** 上下文环：最近一次请求的上下文占用；刻度在环内，发生过压缩时带标记。数字在旁边直接可见，细节在悬停提示中 */
 export function ContextRing({usage, className}: {usage: UsageView; className?: string}) {
   const ctx = usage.context
   const level = contextLevel(usage)
@@ -33,6 +49,7 @@ export function ContextRing({usage, className}: {usage: UsageView; className?: s
   const remaining = ctx ? Math.max(0, ctx.windowTokens - ctx.usedTokens) : null
   const compacted = usage.compactions > 0
   const watermark = usage.watermarkRatio
+  const tick = watermark != null && ctx ? tickEnds(watermark) : null
 
   const label = !ctx
     ? '上下文占用：暂无数据'
@@ -75,14 +92,15 @@ export function ContextRing({usage, className}: {usage: UsageView; className?: s
                   strokeDashoffset={C * (1 - Math.max(ratio, 0.02))}
                 />
               )}
-              {watermark != null && ctx && (
+              {tick && (
                 <line
-                  x1={SIZE / 2 + (R - STROKE) * Math.cos(2 * Math.PI * watermark)}
-                  y1={SIZE / 2 + (R - STROKE) * Math.sin(2 * Math.PI * watermark)}
-                  x2={SIZE / 2 + (R + STROKE) * Math.cos(2 * Math.PI * watermark)}
-                  y2={SIZE / 2 + (R + STROKE) * Math.sin(2 * Math.PI * watermark)}
+                  x1={tick.inner.x}
+                  y1={tick.inner.y}
+                  x2={tick.outer.x}
+                  y2={tick.outer.y}
                   stroke="currentColor"
-                  strokeWidth={1.25}
+                  strokeWidth={TICK_WIDTH}
+                  strokeLinecap="butt"
                   className="text-foreground"
                 />
               )}
@@ -94,18 +112,24 @@ export function ContextRing({usage, className}: {usage: UsageView; className?: s
           <span>{percent != null ? `上下文 ${percent}%` : '上下文 —'}</span>
         </button>
       </TooltipTrigger>
-      <TooltipContent side="top" className="text-left">
+      <TooltipContent side="top" className="max-w-80 text-left text-wrap">
         {!ctx ? (
           <p>第一次请求完成后显示</p>
         ) : (
-          <div>
-            <p className="mb-1 text-xs text-muted-foreground">最近一次请求的占用</p>
+          <div className="space-y-1">
+            <p className="whitespace-nowrap">到达刻度后，下一次模型请求前会自动压缩</p>
+            <p>
+              {watermark != null
+                ? '变黄表示最近一次请求的占用达到刻度前 10 个百分点。'
+                : '当前没有刻度。变黄表示最近一次请求的占用达到 70%。'}
+              右上圆点表示本会话已经压缩过。环上的百分比是最近一次模型请求的占用，不是用来判断压缩的估算。
+            </p>
             <dl className="grid grid-cols-[auto_auto] gap-x-3 gap-y-0.5 tabular-nums">
-            <dt>已用</dt><dd>{percent}%（{formatTokens(ctx.usedTokens)} / {formatTokens(ctx.windowTokens)}）</dd>
-            <dt>剩余</dt><dd>{formatTokens(remaining)}</dd>
-            <dt>最近一轮</dt><dd>{formatTokens(ctx.lastTurnTokens)}</dd>
-            {watermark != null && (<><dt>压缩水位</dt><dd>{Math.round(watermark * 100)}%</dd></>)}
-            <dt>压缩</dt><dd>{compacted ? `已压缩 ${usage.compactions} 次` : '未压缩'}</dd>
+              <dt>已用</dt><dd>{percent}%（{formatTokens(ctx.usedTokens)} / {formatTokens(ctx.windowTokens)}）</dd>
+              <dt>剩余</dt><dd>{formatTokens(remaining)}</dd>
+              <dt>最近一轮</dt><dd>{formatTokens(ctx.lastTurnTokens)}</dd>
+              {watermark != null && (<><dt>刻度</dt><dd>{Math.round(watermark * 100)}%</dd></>)}
+              <dt>压缩</dt><dd>{compacted ? `已压缩 ${usage.compactions} 次` : '未压缩'}</dd>
             </dl>
           </div>
         )}

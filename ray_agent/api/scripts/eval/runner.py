@@ -45,12 +45,15 @@ def _compact_event(event_type: str, data: Dict[str, Any]) -> Dict[str, Any]:
                     chars=data.get("chars"), retried=data.get("retried"))
     elif event_type == "run":
         item.update(run_id=(data.get("run_id") or "")[:8], status=data.get("status"), reason=data.get("reason"))
+        if data.get("mode") and data["mode"] != "normal":
+            item["mode"] = data["mode"]
     elif event_type == "approval":
         item.update(tool_call_id=data.get("tool_call_id"), function=data.get("function"), status=data.get("status"),
                     rule=data.get("rule"), service=data.get("service"), service_tool=data.get("service_tool"))
     elif event_type == "compact":
         usage = data.get("usage") or {}
-        item.update(trigger=data.get("trigger"), summarized_turns=data.get("summarized_turns"),
+        item.update(trigger=data.get("trigger"), run_id=(data.get("run_id") or "")[:8] or None,
+                    summarized_turns=data.get("summarized_turns"),
                     kept_turns=data.get("kept_turns"),
                     before=(data.get("before_estimate") or {}).get("total"),
                     after=(data.get("after_estimate") or {}).get("total"),
@@ -83,14 +86,18 @@ def _run_totals(session: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
 
 
 def compute_metrics(session: Dict[str, Any]) -> Dict[str, Any]:
-    """模型调用次数与 tokens 取自运行汇总，并与 turn(completed) 及 compact（摘要请求）逐条累加核对；
+    """模型调用次数与 tokens 取自运行汇总，并与 turn(completed) 及带 run_id 的 compact（摘要请求）逐条累加核对；
+    不带 run_id 的 compact 是手动压缩，不属于任何运行，另计次数、请求数与 tokens，不参与核对。
     工具调用按 called 事件计数。"""
     events = session.get("events") or []
     totals = _run_totals(session)
     completed = [e["data"] for e in events if e["event"] == "turn" and e["data"].get("phase") == "completed"]
     started = [e["data"] for e in events if e["event"] == "turn" and e["data"].get("phase") == "started"]
-    compacts = [e["data"] for e in events if e["event"] == "compact"]
+    all_compacts = [e["data"] for e in events if e["event"] == "compact"]
+    compacts = [c for c in all_compacts if c.get("run_id")]
+    manual = [c for c in all_compacts if not c.get("run_id")]
     compact_usage = [c.get("usage") or {} for c in compacts]
+    manual_usage = [c.get("usage") or {} for c in manual]
     called = [e["data"] for e in events if e["event"] == "tool" and e["data"].get("status") == "called"]
     calling_ids = {e["data"].get("tool_call_id") for e in events
                    if e["event"] == "tool" and e["data"].get("status") == "calling"}
@@ -126,6 +133,11 @@ def compute_metrics(session: Dict[str, Any]) -> Dict[str, Any]:
         "unpaired_turns": len(started) - len(completed),
         "compactions": len(compacts),
         "compaction_requests": sum(u.get("attempts") or 0 for u in compact_usage),
+        "compactions_by_trigger": dict(Counter(c.get("trigger") or "" for c in all_compacts)),
+        "manual_compactions": len(manual),
+        "manual_compaction_requests": sum(u.get("attempts") or 0 for u in manual_usage),
+        "manual_compaction_prompt_tokens": sum(u.get("prompt_tokens") or 0 for u in manual_usage),
+        "manual_compaction_completion_tokens": sum(u.get("completion_tokens") or 0 for u in manual_usage),
         "shaped_results": len(shaped),
         "max_context_estimate": max(((t.get("context_estimate") or {}).get("total") or 0 for t in started),
                                     default=0),

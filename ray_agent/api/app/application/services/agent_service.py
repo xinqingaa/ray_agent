@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import AsyncGenerator, Optional, List, Type, Callable, Union
 
-from app.application.errors.exceptions import BadRequestError, ConflictError, NotFoundError
+from app.application.errors.exceptions import AppException, BadRequestError, ConflictError, NotFoundError
 from app.domain.external.event_notifier import EventNotifier, OutputDelta
 from app.domain.external.file_storage import FileStorage
 from app.domain.external.llm import LLM
@@ -15,10 +15,12 @@ from app.domain.external.search import SearchEngine
 from app.domain.external.task import Task
 from app.domain.models.app_config import AgentConfig, MCPConfig, A2AConfig, ToolPolicyConfig
 from app.domain.models.event import ApprovalStatus, ErrorEvent, Event, MessageEvent, TitleEvent
-from app.domain.models.run import Run, RunReason, RunStatus
+from app.domain.models.run import Run, RunMode, RunReason, RunStatus, tools_for_turn
 from app.domain.models.session import Session, SessionStatus
 from app.domain.repositories.uow import IUnitOfWork
 from app.domain.services.approvals import close_waiting_approval, latest_approvals, waiting_for_approval
+from app.domain.services.context.compactor import CompactionStatus, Compactor
+from app.domain.services.flows.agent_loop import AGENT_MEMORY_NAME
 from app.domain.services.request_rebuild import RebuiltRequest, rebuild_request
 from app.domain.services.run_ledger import RunLedger
 from app.domain.services.session_locks import session_lock
@@ -50,6 +52,19 @@ class ApprovalAccepted:
     run_id: str
     seq: int
     status: str
+
+
+@dataclass
+class ManualCompaction:
+    """手动压缩的结果。compacted 时带两条事件的 seq 与前后估算；skipped 时 reason 为 no_rounds，没有写事件。"""
+    status: str
+    reason: Optional[str] = None
+    compact_seq: Optional[int] = None
+    context_seq: Optional[int] = None
+    before_total: Optional[int] = None
+    after_total: Optional[int] = None
+    summarized_turns: Optional[int] = None
+    kept_turns: Optional[int] = None
 
 
 class AgentService:
@@ -158,16 +173,19 @@ class AgentService:
             message: Optional[str] = None,
             attachments: Optional[List[str]] = None,
             timestamp: Optional[datetime] = None,
+            mode: RunMode = RunMode.NORMAL,
     ) -> ChatAccepted:
         """受理一条用户消息并立即返回；执行过程只通过事件流（stream_events）观察。
 
         路由在会话锁内决定：running 且有执行协程 → 注入当前运行；waiting → 同一运行续接；
         其他情况新建运行（数据库里 running 却没有执行协程的旧运行先记为 interrupted/runner_lost）。
         等待审批（waiting 且原因 approval）时不受理消息，返回冲突：先批准、拒绝或停止。
+        mode 只在新建运行时生效：会走注入或续接路由时带 plan 返回冲突，普通模式下续接的运行沿用自己的模式。
         """
         set_log_session_id(session_id)
         if not message or not message.strip():
             raise BadRequestError("消息不能为空")
+        mode = RunMode(mode)
 
         async with self._uow:
             db_attachments = [await self._uow.file.get_by_id(file_id) for file_id in (attachments or [])]
@@ -194,6 +212,9 @@ class AgentService:
             if waiting_for_approval(active):
                 raise ConflictError("当前运行在等待审批，请先批准或拒绝待审批的操作，或停止运行后再发送消息")
             task = await self._get_task(session)
+            if mode == RunMode.PLAN and active is not None and (
+                    active.status == RunStatus.WAITING or self._task_runs(task, active.id)):
+                raise ConflictError("当前运行还没有结束，计划模式只能在新运行开始时选择；请等运行结束或停止后再发送")
 
             # 1.运行中且执行协程仍在：消息注入当前运行，循环在下一次模型请求前取走
             if active is not None and active.status == RunStatus.RUNNING and self._task_runs(task, active.id):
@@ -221,7 +242,7 @@ class AgentService:
                     provisional_title = TitleEvent(title=message.strip()[:30])
                 run = await self._ledger.start(
                     session_id, events_after=[message_event, *([provisional_title] if provisional_title else [])],
-                    apply=touch,
+                    apply=touch, mode=mode,
                 )
                 if provisional_title is not None:
                     from app.application.services.title_service import TitleService
@@ -376,6 +397,62 @@ class AgentService:
         if run is not None and runner is not None and hasattr(runner, "stop_processes"):
             await runner.stop_processes(active.id)
         return run
+
+    async def compact_session(self, session_id: str) -> ManualCompaction:
+        """手动压缩：在没有活动运行时把较早的轮次替换为摘要，不新建运行、不改会话状态。
+
+        整个过程（含摘要请求）持有与 chat 共用的会话锁。会话不存在 → NotFoundError；有活动运行（running，
+        或 waiting 不论提问还是审批）→ ConflictError；少于 2 轮 → skipped/no_rounds，不写事件；不做最小收益判断。
+        成功时 compact(trigger=manual) 与 context(replace) 不带 run_id，与替换后的记忆在同一事务写入；
+        摘要请求失败 → 502，不写事件、不改记忆。估算全部按字符计算：工具 schema 取最后一次运行的配置快照，
+        窗口与输出预留取当前模型配置。
+        """
+        set_log_session_id(session_id)
+        async with session_lock(session_id):
+            async with self._uow:
+                session = await self._uow.session.get_by_id(session_id)
+                if not session:
+                    raise NotFoundError("任务会话不存在, 请核实后重试")
+                active = await self._uow.run.get_active(session_id)
+                runs = await self._uow.run.list_by_session(session_id)
+                memory = await self._uow.session.get_memory(session_id, AGENT_MEMORY_NAME)
+            if active is not None:
+                raise ConflictError("会话有进行中或等待中的运行，不能手动压缩；请先停止运行或等待运行结束")
+
+            last = max(runs, key=lambda r: r.started_at) if runs else None
+            tools = tools_for_turn(last.config_snapshot, last.turns + 1) if last is not None else []
+            compactor = Compactor(self._llm, self._agent_config, label=f"会话[{session_id}]手动压缩")
+            messages = memory.get_messages()
+            before = compactor.fresh_budget().estimate(messages, tools)
+
+            async def load_user_events():
+                async with self._uow:
+                    return await self._uow.event.list(session_id, types=["message"])
+
+            result = await compactor.compact(messages, tools, before, "manual", load_user_events, min_gain=False)
+            if result.status == CompactionStatus.SKIPPED:
+                return ManualCompaction(status="skipped", reason=result.reason)
+            if result.status == CompactionStatus.FAILED:
+                raise AppException(code=502, status_code=502, msg=(
+                    f"摘要请求连续 {result.usage.attempts} 次失败或返回空内容，上下文没有改变"))
+
+            memory.replace(result.messages)
+
+            async def save_memory(uow: IUnitOfWork) -> None:
+                await uow.session.save_memory(session_id, AGENT_MEMORY_NAME, memory)
+
+            compact, context = result.compact, result.context
+            await self._ledger.append(session_id, [compact, context], apply=save_memory)
+        logger.info(f"会话[{session_id}]手动压缩完成 seq={compact.seq},{context.seq}")
+        return ManualCompaction(
+            status="compacted",
+            compact_seq=compact.seq,
+            context_seq=context.seq,
+            before_total=compact.before_estimate.get("total"),
+            after_total=compact.after_estimate.get("total"),
+            summarized_turns=compact.summarized_turns,
+            kept_turns=compact.kept_turns,
+        )
 
     async def get_turn_request(self, session_id: str, run_id: str, index: int) -> RebuiltRequest:
         """只读调试：由运行的配置快照与事件重建第 index 轮发给模型的请求。"""

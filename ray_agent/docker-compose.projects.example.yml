@@ -1,0 +1,18 @@
+# 本地项目目录接入的 Compose 覆盖文件示例。默认的 docker-compose.yml 不挂载任何宿主机目录。
+#
+# 用法（在本目录执行）：
+#   cp docker-compose.projects.example.yml docker-compose.projects.yml   # 复制后的文件已被 Git 忽略
+#   # 把下面的示例路径换成自己的根目录，挂载与 PROJECT_ROOTS 保持一致
+#   docker compose -f docker-compose.yml -f docker-compose.projects.yml up -d --force-recreate --no-deps manus-api
+#
+# 每个根目录以“宿主机路径:相同路径:ro”只读挂进 API：API 在容器内看到的路径就是宿主机路径，
+# 文件树与 Git 读这份只读挂载，同一路径再作为沙箱读写挂载 /workspace 的源（由宿主机 Docker 守护进程解析）。
+# macOS 的 Docker Desktop 只能挂载“文件共享”设置里包含的目录。
+services:
+  manus-api:
+    environment:
+      # 逗号分隔的绝对路径，多个根目录时每个都要有对应的挂载
+      PROJECT_ROOTS: /absolute/path/to/your/projects
+    volumes:
+      - /absolute/path/to/your/projects:/absolute/path/to/your/projects:ro
+      # - /absolute/path/to/another/root:/absolute/path/to/another/root:ro

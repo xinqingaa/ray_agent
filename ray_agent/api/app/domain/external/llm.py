@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+import asyncio
 from typing import Protocol, List, Dict, Any, Optional, Awaitable, Callable
 
 from app.domain.models.llm import LLMInvokeResult
@@ -23,6 +24,13 @@ class LLMRequestError(Exception):
         self.status_code = status_code
         self.context_exceeded = context_exceeded
         self.reason = reason or ("transport" if retryable else "model_error")
+
+
+def is_retryable(error: BaseException) -> bool:
+    """传输类错误可以原样重发：带 retryable 的 LLMRequestError，或连接、超时异常。"""
+    if isinstance(error, LLMRequestError):
+        return error.retryable
+    return isinstance(error, (ConnectionError, TimeoutError, asyncio.TimeoutError))
 
 
 class LLM(Protocol):

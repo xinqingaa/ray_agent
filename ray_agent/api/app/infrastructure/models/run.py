@@ -28,6 +28,7 @@ class RunModel(Base):
     )
     status: Mapped[str] = mapped_column(String(32), nullable=False)
     reason: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    mode: Mapped[str] = mapped_column(String(16), nullable=False, server_default=text("'normal'"))
     started_at: Mapped[datetime] = mapped_column(TIMESTAMP(precision=3), nullable=False)
     ended_at: Mapped[Optional[datetime]] = mapped_column(TIMESTAMP(precision=3), nullable=True)
     turns: Mapped[int] = mapped_column(Integer, nullable=False, server_default=text("0"))
@@ -42,8 +43,9 @@ class RunModel(Base):
 
     @classmethod
     def from_domain(cls, run: Run) -> "RunModel":
-        data = run.model_dump(mode="python", exclude={"config_snapshot", "status"})
-        return cls(**data, status=run.status.value, config_snapshot=run.model_dump(mode="json")["config_snapshot"])
+        data = run.model_dump(mode="python", exclude={"config_snapshot", "status", "mode"})
+        return cls(**data, status=run.status.value, mode=run.mode.value,
+                   config_snapshot=run.model_dump(mode="json")["config_snapshot"])
 
     def to_domain(self) -> Run:
         return Run.model_validate(self, from_attributes=True)

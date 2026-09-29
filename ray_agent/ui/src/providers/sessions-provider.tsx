@@ -103,33 +103,50 @@ export function SessionsProvider({children}: { children: React.ReactNode }) {
   }, [])
 
   // ---------- SSE 实时订阅 ----------
+  // 同源 HTTP/1.1 只有 6 条连接。每个标签页各开一条列表流时，三个会话页会把连接占满，
+  // 点击后的导航请求一直排在队列里。可见标签页共用一条列表流；页面隐藏时放开这条连接。
   useEffect(() => {
     let mounted = true
     let retryCount = 0
+    let leader = false
+    let lastLeaderAt = 0
+    const tabId = crypto.randomUUID()
+    const channel = typeof BroadcastChannel === 'undefined' ? null : new BroadcastChannel('ray-agent-sessions')
 
-    const connect = () => {
-      if (!mounted) return
-
-      // 清理上一次连接
+    const disconnect = () => {
       if (cleanupRef.current) {
         cleanupRef.current()
         cleanupRef.current = null
       }
+      if (retryTimerRef.current) {
+        clearTimeout(retryTimerRef.current)
+        retryTimerRef.current = null
+      }
+    }
 
-      const cleanup = sessionApi.streamSessions(
-        // onSessions
+    const applySessions = (next: Session[]) => {
+      if (!mounted) return
+      sseReceivedRef.current = true
+      setSessions(next)
+      setLoading(false)
+      setError(null)
+    }
+
+    const connect = () => {
+      if (!mounted || !leader || document.visibilityState === 'hidden') return
+      disconnect()
+
+      cleanupRef.current = sessionApi.streamSessions(
         (newSessions) => {
-          if (!mounted) return
+          if (!mounted || !leader) return
           retryCount = 0
-          sseReceivedRef.current = true
-          setSessions(newSessions)
-          setLoading(false)
-          setError(null)
+          applySessions(newSessions)
+          channel?.postMessage({type: 'sessions', tabId, sessions: newSessions})
         },
-        // onError / onEnd
         (err) => {
-          if (!mounted) return
+          if (!mounted || !leader) return
           console.warn('[Sessions] SSE 断开:', err.message)
+          cleanupRef.current = null
 
           if (retryCount >= RETRY_CONFIG.maxRetries) {
             console.error('[Sessions] 超过最大重试次数，停止重连')
@@ -145,22 +162,69 @@ export function SessionsProvider({children}: { children: React.ReactNode }) {
           retryTimerRef.current = setTimeout(connect, delay)
         },
       )
-
-      cleanupRef.current = cleanup
     }
 
-    connect()
+    const resign = () => {
+      if (!leader) return
+      leader = false
+      retryCount = 0
+      disconnect()
+      channel?.postMessage({type: 'resign', tabId})
+    }
+
+    const claim = () => {
+      if (!mounted || document.visibilityState === 'hidden' || leader) return
+      if (lastLeaderAt && Date.now() - lastLeaderAt < 2000) return
+      leader = true
+      channel?.postMessage({type: 'leader', tabId})
+      connect()
+    }
+
+    const onMessage = (event: MessageEvent) => {
+      const msg = event.data as {type?: string; tabId?: string; sessions?: Session[]} | null
+      if (!msg || msg.tabId === tabId) return
+      if (msg.type === 'leader' && msg.tabId) {
+        lastLeaderAt = Date.now()
+        if (leader && msg.tabId < tabId) resign()
+        else if (leader) channel?.postMessage({type: 'leader', tabId})
+      } else if (msg.type === 'sessions' && Array.isArray(msg.sessions)) {
+        lastLeaderAt = Date.now()
+        if (!leader) applySessions(msg.sessions)
+      } else if (msg.type === 'resign') {
+        if (leader) return
+        window.setTimeout(claim, 80 + Math.random() * 120)
+      } else if (msg.type === 'ping' && leader) {
+        channel?.postMessage({type: 'leader', tabId})
+      }
+    }
+
+    channel?.addEventListener('message', onMessage)
+    channel?.postMessage({type: 'ping', tabId})
+    const claimTimer = window.setTimeout(claim, 160)
+    const heartbeat = window.setInterval(() => {
+      if (!mounted) return
+      if (leader) channel?.postMessage({type: 'leader', tabId})
+      else if (document.visibilityState !== 'hidden' && Date.now() - lastLeaderAt > 4000) claim()
+    }, 2000)
+
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') resign()
+      else {
+        channel?.postMessage({type: 'ping', tabId})
+        window.setTimeout(claim, 160)
+      }
+    }
+    document.addEventListener('visibilitychange', onVisibility)
+    if (!channel) claim()
 
     return () => {
       mounted = false
-      if (cleanupRef.current) {
-        cleanupRef.current()
-        cleanupRef.current = null
-      }
-      if (retryTimerRef.current) {
-        clearTimeout(retryTimerRef.current)
-        retryTimerRef.current = null
-      }
+      window.clearTimeout(claimTimer)
+      window.clearInterval(heartbeat)
+      document.removeEventListener('visibilitychange', onVisibility)
+      resign()
+      channel?.removeEventListener('message', onMessage)
+      channel?.close()
     }
   }, [])
 

@@ -22,10 +22,18 @@ export function SessionList() {
   // 待删除的会话
   const [pendingDeleteSession, setPendingDeleteSession] = useState<Session | null>(null)
   const [pendingRenameSession, setPendingRenameSession] = useState<Session | null>(null)
+  const routeId = String(params?.id ?? '')
+  const [pendingId, setPendingId] = useState<string | null>(null)
+  const [pendingRoute, setPendingRoute] = useState(routeId)
+  if (routeId !== pendingRoute) {
+    setPendingRoute(routeId)
+    setPendingId(null)
+  }
+  const activeId = pendingId ?? routeId
 
   const handleSessionClick = useCallback((sessionId: string) => {
-    router.push(`/sessions/${sessionId}`)
-  }, [router])
+    setPendingId(sessionId)
+  }, [])
 
   const handleDeleteRequest = useCallback((session: Session) => {
     setPendingDeleteSession(session)
@@ -108,7 +116,8 @@ export function SessionList() {
           <SessionItem
             key={session.session_id}
             session={session}
-            isActive={session.session_id === String(params?.id ?? '')}
+            href={`/sessions/${session.session_id}`}
+            isActive={session.session_id === activeId}
             onClick={handleSessionClick}
             onDelete={handleDeleteRequest}
             onRename={setPendingRenameSession}

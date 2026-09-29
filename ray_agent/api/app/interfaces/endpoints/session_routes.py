@@ -18,6 +18,7 @@ from app.application.services.session_service import SessionService
 from app.application.services.title_service import TitleService
 from app.domain.external.event_notifier import OutputDelta
 from app.domain.models.event import Event
+from app.domain.models.run import RunMode
 from app.interfaces.schemas import Response
 from app.interfaces.schemas.event import EventMapper
 from app.interfaces.schemas.session import (
@@ -31,6 +32,7 @@ from app.interfaces.schemas.session import (
     TurnRequestResponse,
     ApprovalRequest,
     ApprovalResponse,
+    CompactResponse,
     RenameTitleRequest, TitleResponse,
 )
 from app.interfaces.service_dependencies import get_session_service, get_agent_service, get_title_service
@@ -162,7 +164,8 @@ async def delete_session(
     path="/{session_id}/chat",
     response_model=Response[ChatResponse],
     summary="向指定任务会话发送消息",
-    description="受理一条用户消息并立即返回 run_id 与消息事件的 seq；执行过程通过事件流接口观察",
+    description="受理一条用户消息并立即返回 run_id 与消息事件的 seq；执行过程通过事件流接口观察。"
+                "mode 为 plan 时新运行以计划模式执行；会话有活动运行（会注入或续接）时带 plan 返回 409",
 )
 async def chat(
         session_id: str,
@@ -175,11 +178,41 @@ async def chat(
         message=request.message,
         attachments=request.attachments,
         timestamp=datetime.fromtimestamp(request.timestamp) if request.timestamp else None,
+        mode=RunMode(request.mode),
     )
     return Response.success(
         msg="消息已受理",
         data=ChatResponse(run_id=accepted.run_id, seq=accepted.seq, route=accepted.route),
     )
+
+
+@router.post(
+    path="/{session_id}/compact",
+    response_model=Response[CompactResponse],
+    summary="手动压缩会话上下文",
+    description="没有活动运行时把较早的轮次替换为摘要，写入不属于任何运行的 compact(trigger=manual) 与 context(replace)。"
+                "会话不存在 404；有运行中或等待中（提问或审批）的运行 409；少于 2 轮返回 status=skipped；"
+                "摘要请求失败 502，上下文不变。压缩期间同一会话的 chat 等待",
+)
+async def compact_session(
+        session_id: str,
+        agent_service: AgentService = Depends(get_agent_service),
+) -> Response[CompactResponse]:
+    result = await agent_service.compact_session(session_id)
+    if result.status == "skipped":
+        return Response.success(msg="没有可压缩的较早轮次", data=CompactResponse(
+            status="skipped", reason=result.reason, message="没有可压缩的较早轮次"))
+    message = f"已把较早的 {result.summarized_turns} 轮对话压缩为摘要"
+    return Response.success(msg=message, data=CompactResponse(
+        status="compacted",
+        message=message,
+        compact_seq=result.compact_seq,
+        context_seq=result.context_seq,
+        before_total=result.before_total,
+        after_total=result.after_total,
+        summarized_turns=result.summarized_turns,
+        kept_turns=result.kept_turns,
+    ))
 
 
 @router.put(path="/{session_id}/title", response_model=Response[TitleResponse], summary="重命名会话")

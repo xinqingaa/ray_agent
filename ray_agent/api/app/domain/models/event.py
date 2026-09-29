@@ -126,7 +126,8 @@ class ToolEvent(BaseEvent):
     status: ToolEventStatus = ToolEventStatus.CALLING  # 工具事件状态
     duration_ms: Optional[int] = None  # 工具管线从执行前到执行后的耗时，只在 called 事件上填写
     shaping: Optional[ToolResultShaping] = None  # 只在被整形的 called 事件上填写
-    denied_by: Optional[Literal["policy", "user"]] = None  # 调用未执行：被工具策略禁止 / 被用户拒绝，只在 called 上
+    # 调用未执行：被工具策略禁止 / 被用户拒绝 / 计划模式不允许，只在 called 上
+    denied_by: Optional[Literal["policy", "user", "plan_mode"]] = None
     _raw_result: Optional[ToolResult] = PrivateAttr(default=None)  # 整形前的结果，只供运行器生成展示内容
 
     @property
@@ -243,6 +244,7 @@ class RunEvent(BaseEvent):
     status: str  # RunStatus 取值
     reason: Optional[str] = None
     summary: Optional[Dict[str, Any]] = None  # RunSummary 字段，终态才有
+    mode: Optional[str] = None  # RunMode 取值，运行账本写入的每条 run 事件都带上
 
 
 class ContextOp(str, Enum):
@@ -259,7 +261,7 @@ class ContextEvent(BaseEvent):
 
 
 class CompactUsage(BaseModel):
-    """摘要请求各次尝试的用量合计；计入运行的模型请求数与 tokens，不算一轮。"""
+    """摘要请求各次尝试的用量合计；属于运行时计入运行的模型请求数与 tokens，不算一轮。"""
     attempts: int = 0
     prompt_tokens: Optional[int] = None
     completion_tokens: Optional[int] = None
@@ -267,9 +269,13 @@ class CompactUsage(BaseModel):
 
 
 class CompactEvent(BaseEvent):
-    """自动压缩：较早的轮次替换为摘要，用户消息原文重新注入。随后的 context(replace) 事件携带替换后的消息全文。"""
+    """上下文压缩：较早的轮次替换为摘要，用户消息原文重新注入。随后的 context(replace) 事件携带替换后的消息全文。
+
+    manual 由用户在没有活动运行时发起，这条事件与随后的 context(replace) 不属于任何运行（run_id 为空）。
+    """
     type: Literal["compact"] = "compact"
-    trigger: Literal["watermark", "overflow"] = "watermark"  # 估算超过水位 / 服务端以上下文超长拒绝
+    # 估算超过水位 / 服务端以上下文超长拒绝 / 用户手动压缩
+    trigger: Literal["watermark", "overflow", "manual"] = "watermark"
     before_estimate: Dict[str, Any] = Field(default_factory=dict)  # 压缩前的容量估算
     after_estimate: Dict[str, Any] = Field(default_factory=dict)  # 替换后的容量估算
     summarized_turns: int = 0  # 进入摘要的轮数（助手消息及其工具结果）

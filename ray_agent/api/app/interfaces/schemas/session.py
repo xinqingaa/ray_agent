@@ -36,6 +36,8 @@ class ChatRequest(BaseModel):
     message: Optional[str] = None  # 人类消息，不能为空
     attachments: Optional[List[str]] = Field(default_factory=list)  # 附件列表(传递的是文件id列表)
     timestamp: Optional[int] = None  # 当前时间戳（秒）
+    # 只在新建运行时生效；会话有活动运行（注入或续接）时带 plan 返回 409
+    mode: Literal["normal", "plan"] = "normal"
 
 
 class ChatResponse(BaseModel):
@@ -65,11 +67,26 @@ class ApprovalResponse(BaseModel):
     status: Literal["approved", "rejected"]
 
 
+class CompactResponse(BaseModel):
+    """手动压缩结果。compacted：两条事件的 seq、前后估算总量（按字符估算的 tokens）与轮数；
+    skipped：reason 为 no_rounds，没有写事件，其余字段为空。"""
+    status: Literal["compacted", "skipped"]
+    reason: Optional[Literal["no_rounds"]] = None
+    message: str
+    compact_seq: Optional[int] = None
+    context_seq: Optional[int] = None
+    before_total: Optional[int] = None
+    after_total: Optional[int] = None
+    summarized_turns: Optional[int] = None
+    kept_turns: Optional[int] = None
+
+
 class RunItem(BaseModel):
     """运行摘要；时间为毫秒时间戳。"""
     run_id: str
     status: str
     reason: Optional[str] = None
+    mode: Literal["normal", "plan"] = "normal"
     started_at: int
     ended_at: Optional[int] = None
     turns: int = 0
@@ -85,6 +102,7 @@ class RunItem(BaseModel):
             run_id=run.id,
             status=run.status.value,
             reason=run.reason,
+            mode=run.mode.value,
             started_at=to_epoch_ms(run.started_at),
             ended_at=to_epoch_ms(run.ended_at) if run.ended_at else None,
             turns=run.turns,

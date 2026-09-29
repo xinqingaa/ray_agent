@@ -45,7 +45,7 @@ class ToolInvocation:
     events: List[BaseEvent] = field(default_factory=list)
     approval: Optional[str] = None  # 用户对本次调用的审批结果（ApprovalStatus 取值），续接审批时由循环写入
     suspend_event: Optional[BaseEvent] = None  # 执行前处理写入即挂起
-    denied_by: Optional[str] = None  # 短路原因：policy（策略禁止）/ user（用户拒绝）
+    denied_by: Optional[str] = None  # 短路原因：policy（策略禁止）/ user（用户拒绝）/ plan_mode（计划模式不允许）
 
     @property
     def suspended(self) -> bool:

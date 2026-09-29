@@ -90,8 +90,8 @@ def render_markdown(report: Dict[str, Any]) -> str:
         "由 `scripts/eval` 生成；原始数据见同名 JSON。评测通过公开 HTTP API 驱动完整产品：`POST chat` 提交消息，"
         "`GET /sessions/{id}/events` 按 seq 订阅事件，直到受理消息的运行进入 waiting 或终态。"
         "指标取自 `GET /sessions/{id}` 读回的运行与事件：模型调用次数与 tokens 取运行汇总（终态 `run` 事件的 summary，"
-        "仍活动的运行取运行行计数），并与 `turn(completed)` 及 `compact`（摘要请求）逐条累加核对；"
-        "工具调用次数按 `called` 工具事件计数。",
+        "仍活动的运行取运行行计数），并与 `turn(completed)` 及带 `run_id` 的 `compact`（摘要请求）逐条累加核对；"
+        "不带 `run_id` 的 `compact` 是手动压缩，单独列出；工具调用次数按 `called` 工具事件计数。",
         "",
         "## 运行条件",
         "",
@@ -156,9 +156,17 @@ def render_markdown(report: Dict[str, Any]) -> str:
         if run.get("tool_calls_unfinished"):
             lines.append(f"- 只有 calling 没有 called 的工具调用：{run['tool_calls_unfinished']} 次")
         if run.get("compactions") or run.get("shaped_results"):
-            lines.append(f"- 上下文：压缩 {run.get('compactions', 0)} 次（摘要请求 {run.get('compaction_requests', 0)} 次，"
+            lines.append(f"- 上下文：运行内压缩 {run.get('compactions', 0)} 次（摘要请求 {run.get('compaction_requests', 0)} 次，"
                          f"已计入模型调用），整形结果 {run.get('shaped_results', 0)} 条，"
                          f"单轮最大估算 {run.get('max_context_estimate')} tokens")
+        if run.get("compactions_by_trigger"):
+            triggers = "、".join(f"{name}×{count}" for name, count in run["compactions_by_trigger"].items())
+            lines.append(f"- 压缩触发：{_cell(triggers)}")
+        if run.get("manual_compactions"):
+            lines.append(f"- 手动压缩（manual，不属于任何运行，不计入运行汇总与模型调用）：{run['manual_compactions']} 次，"
+                         f"摘要请求 {run.get('manual_compaction_requests', 0)} 次，"
+                         f"prompt / completion tokens {run.get('manual_compaction_prompt_tokens', 0)} / "
+                         f"{run.get('manual_compaction_completion_tokens', 0)}")
         for error in run.get("error_events", []):
             lines.append(f"- 错误事件：{_cell(error)}")
         if run.get("final_reply"):
