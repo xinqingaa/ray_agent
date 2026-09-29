@@ -21,6 +21,27 @@ function entryLabel(entry: GitStatusEntry): string {
   return parts.join(' · ') || entry.xy
 }
 
+type DiffSection = {
+  title?: string
+  diff: GitDiff
+}
+
+function DiffBody({diff}: {diff: GitDiff}) {
+  return (
+    <>
+      {diff.diff && (
+        <pre className="overflow-x-auto rounded-md bg-muted px-3 py-2 font-mono text-xs leading-5 whitespace-pre-wrap break-all">
+          {diff.diff.length > 50000 ? `${diff.diff.slice(0, 50000)}…` : diff.diff}
+        </pre>
+      )}
+      {!diff.diff && diff.state === 'ok' && (
+        <p className="text-meta text-faint">{diff.untracked ? '未跟踪文件，全部为新增内容。' : '没有可显示的 diff 文本。'}</p>
+      )}
+      {diff.truncated && <p className="mt-2 text-xs text-muted-foreground">diff 过长，输出已截断。</p>}
+    </>
+  )
+}
+
 type ChangesPaneProps = {
   sessionId: string
   refreshSignal?: number
@@ -31,7 +52,7 @@ export function ChangesPane({sessionId, refreshSignal, onBranchUpdate}: ChangesP
   const [status, setStatus] = useState<GitStatus | null>(null)
   const [loading, setLoading] = useState(true)
   const [selectedPath, setSelectedPath] = useState<string | null>(null)
-  const [diff, setDiff] = useState<GitDiff | null>(null)
+  const [diffSections, setDiffSections] = useState<DiffSection[]>([])
   const [diffLoading, setDiffLoading] = useState(false)
 
   const refresh = useCallback(async () => {
@@ -54,11 +75,22 @@ export function ChangesPane({sessionId, refreshSignal, onBranchUpdate}: ChangesP
   const loadDiff = async (entry: GitStatusEntry) => {
     setSelectedPath(entry.path)
     setDiffLoading(true)
-    setDiff(null)
-    const scope = entry.index && !entry.worktree ? 'staged' : 'worktree'
+    setDiffSections([])
+    const hasStaged = Boolean(entry.index)
+    const hasWorktree = Boolean(entry.worktree)
+    const showTitles = hasStaged && hasWorktree
+    const requests: {title?: string; scope: 'staged' | 'worktree'}[] = []
+    if (hasStaged) requests.push({title: showTitles ? '暂存区' : undefined, scope: 'staged'})
+    if (hasWorktree) requests.push({title: showTitles ? '工作区' : undefined, scope: 'worktree'})
+    if (requests.length === 0) requests.push({scope: 'worktree'})
     try {
-      const result = await projectApi.getGitDiff(sessionId, scope, entry.path)
-      setDiff(result)
+      const sections = await Promise.all(
+        requests.map(async ({title, scope}) => ({
+          title,
+          diff: await projectApi.getGitDiff(sessionId, scope, entry.path),
+        })),
+      )
+      setDiffSections(sections)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : '读取 diff 失败')
     } finally {
@@ -130,17 +162,14 @@ export function ChangesPane({sessionId, refreshSignal, onBranchUpdate}: ChangesP
             {selectedPath && diffLoading && (
               <p className="text-meta text-muted-foreground"><Loader2 className="mr-1 inline size-4 animate-spin"/>正在读取 diff</p>
             )}
-            {diff && diff.diff && (
-              <pre className="overflow-x-auto rounded-md bg-muted px-3 py-2 font-mono text-xs leading-5 whitespace-pre-wrap break-all">
-                {diff.diff.length > 50000 ? `${diff.diff.slice(0, 50000)}…` : diff.diff}
-              </pre>
-            )}
-            {diff && !diff.diff && diff.state === 'ok' && (
-              <p className="text-meta text-faint">{diff.untracked ? '未跟踪文件，全部为新增内容。' : '没有可显示的 diff 文本。'}</p>
-            )}
-            {diff && diff.truncated && (
-              <p className="mt-2 text-xs text-muted-foreground">diff 过长，输出已截断。</p>
-            )}
+            {diffSections.map((section, index) => (
+              <div key={`${section.diff.scope}:${index}`} className={index > 0 ? 'mt-4 border-t border-border pt-4' : undefined}>
+                {section.title && (
+                  <p className="mb-2 text-meta text-muted-foreground">{section.title}</p>
+                )}
+                <DiffBody diff={section.diff}/>
+              </div>
+            ))}
           </div>
         </ScrollArea>
       </div>
