@@ -1,8 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""
-@File    : local_file_storage.py
-"""
 import logging
 import os.path
 import shutil

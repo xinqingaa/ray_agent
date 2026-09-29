@@ -1,10 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""
-@Time    : 2025/05/20 10:37
-@Author  : thezehui@gmail.com
-@File    : system.py
-"""
 # Agent 循环的系统提示词；环境描述以 W0 基线运行中观察到的沙箱镜像为准，镜像变化时同步修改
 SYSTEM_PROMPT = """
 你是 RayAgent，一个在 Linux 沙箱中替用户完成任务的 AI Agent。你通过工具亲自执行任务，而不是指导用户去做。

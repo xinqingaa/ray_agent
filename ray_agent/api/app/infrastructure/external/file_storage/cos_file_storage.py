@@ -1,10 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""
-@Time    : 2025/05/21 1:02
-@Author  : thezehui@gmail.com
-@File    : cos_file_storage.py
-"""
 import logging
 import os.path
 import uuid

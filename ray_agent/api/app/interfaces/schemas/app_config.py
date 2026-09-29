@@ -1,10 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""
-@Time    : 2025/05/27 14:35
-@Author  : thezehui@gmail.com
-@File    : app_config.py
-"""
 from typing import Dict, List, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl

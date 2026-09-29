@@ -1,10 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""
-@Time    : 2025/05/08 0:55
-@Author  : thezehui@gmail.com
-@File    : httpx_a2a.py
-"""
 import uuid
 
 import httpx

@@ -1,10 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""
-@Time    : 2025/05/22 15:37
-@Author  : thezehui@gmail.com
-@File    : system.py
-"""
 
 # English system prompt for the agent loop; keep it in sync with prompts/system.py
 SYSTEM_PROMPT = """

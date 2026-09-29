@@ -1,10 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""
-@Time    : 2025/05/18 15:16
-@Author  : thezehui@gmail.com
-@File    : base.py
-"""
 import inspect
 from typing import Dict, Any, List, Callable
 

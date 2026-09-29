@@ -1,10 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""
-@Time    : 2025/05/09 10:14
-@Author  : thezehui@gmail.com
-@File    : a2a.py
-"""
 from app.domain.models.tool_result import ToolResult
 from .base import BaseTool, tool
 from .protocol_gateway import A2AGateway

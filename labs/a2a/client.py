@@ -1,10 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""
-@Time    : 2025/05/07 17:47
-@Author  : thezehui@gmail.com
-@File    : client.py
-"""
 import httpx
 import uuid
 from a2a.client import ClientConfig, ClientFactory

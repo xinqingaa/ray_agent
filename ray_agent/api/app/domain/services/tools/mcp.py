@@ -1,10 +1,5 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""
-@Time    : 2025/05/27 9:43
-@Author  : thezehui@gmail.com
-@File    : mcp.py
-"""
 from typing import Optional, Tuple
 
 from app.domain.models.tool_result import ToolResult
