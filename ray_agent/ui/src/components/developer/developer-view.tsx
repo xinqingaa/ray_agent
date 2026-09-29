@@ -23,6 +23,8 @@ type DeveloperViewProps = {
   className?: string
 }
 
+type TurnRequestResult = {request: TurnRequest | null; error: string | null}
+
 function clip(text: string, max: number): string {
   const flat = text.replace(/\s+/g, ' ').trim()
   return flat.length > max ? `${flat.slice(0, max)}…` : flat
@@ -206,17 +208,12 @@ export function DeveloperView({view, loadTurnRequest, className}: DeveloperViewP
   const [openSeq, setOpenSeq] = useState<number | null>(null)
   const [visitedSeqs, setVisitedSeqs] = useState<Set<number>>(() => new Set())
   const [selected, setSelected] = useState<{runId: string; index: number} | null>(null)
-  const [request, setRequest] = useState<TurnRequest | null>(null)
-  const [requestError, setRequestError] = useState<string | null>(null)
-  const [loadedKey, setLoadedKey] = useState<string | null>(null)
+  const [visitedTurnKeys, setVisitedTurnKeys] = useState<Set<string>>(() => new Set())
+  const [requestByKey, setRequestByKey] = useState<Record<string, TurnRequestResult>>({})
 
   const events = typeFilter === 'all' ? view.events : view.events.filter((ev) => ev.type === typeFilter)
   const filterLabel = typeFilter === 'all' ? '全部事件' : EVENT_LABELS[typeFilter] ?? typeFilter
   const compactions = view.timeline.filter((item) => item.kind === 'compaction')
-  const selectedKey = selected ? `${selected.runId}:${selected.index}` : null
-  const requestLoading = selectedKey != null && loadedKey !== selectedKey
-  const shownRequest = selectedKey == null || loadedKey === selectedKey ? request : null
-  const shownError = selectedKey == null || loadedKey === selectedKey ? requestError : null
 
   useEffect(() => {
     if (!selected) return
@@ -224,14 +221,13 @@ export function DeveloperView({view, loadTurnRequest, className}: DeveloperViewP
     const key = `${selected.runId}:${selected.index}`
     loadTurnRequest(selected.runId, selected.index).then((next) => {
       if (cancelled) return
-      setRequest(next)
-      setRequestError(null)
-      setLoadedKey(key)
+      setRequestByKey((current) => ({...current, [key]: {request: next, error: null}}))
     }).catch((err: unknown) => {
       if (cancelled) return
-      setRequest(null)
-      setRequestError(err instanceof Error ? err.message : '读不到这一轮的请求')
-      setLoadedKey(key)
+      setRequestByKey((current) => ({
+        ...current,
+        [key]: {request: null, error: err instanceof Error ? err.message : '读不到这一轮的请求'},
+      }))
     })
     return () => {
       cancelled = true
@@ -289,16 +285,24 @@ export function DeveloperView({view, loadTurnRequest, className}: DeveloperViewP
         {view.events.length === 0 ? (
           <p className="text-meta text-faint">这里会按序号列出事件。任务开始后出现。</p>
         ) : (
-          <div className="overflow-auto rounded-lg border">
-            <table className="w-full min-w-[36rem] text-left text-xs">
+          <div className="overflow-x-auto rounded-lg border">
+            <table className="w-full min-w-[46rem] table-fixed text-left text-xs">
+              <colgroup>
+                <col className="w-16"/>
+                <col className="w-24"/>
+                <col className="w-28"/>
+                <col className="w-24"/>
+                <col/>
+                <col className="w-16"/>
+              </colgroup>
               <thead className="bg-muted/60 text-muted-foreground">
                 <tr>
-                  <th scope="col" className="px-2 py-1.5 font-medium">序号</th>
-                  <th scope="col" className="px-2 py-1.5 font-medium">时间</th>
-                  <th scope="col" className="px-2 py-1.5 font-medium">类型</th>
-                  <th scope="col" className="px-2 py-1.5 font-medium">运行</th>
+                  <th scope="col" className="px-2 py-1.5 font-medium whitespace-nowrap">序号</th>
+                  <th scope="col" className="px-2 py-1.5 font-medium whitespace-nowrap">时间</th>
+                  <th scope="col" className="px-2 py-1.5 font-medium whitespace-nowrap">类型</th>
+                  <th scope="col" className="px-2 py-1.5 font-medium whitespace-nowrap">运行</th>
                   <th scope="col" className="px-2 py-1.5 font-medium">摘要</th>
-                  <th scope="col" className="px-2 py-1.5 font-medium"><span className="sr-only">原文</span></th>
+                  <th scope="col" className="px-2 py-1.5 text-right font-medium"><span className="sr-only">原文</span></th>
                 </tr>
               </thead>
               <tbody>
@@ -306,22 +310,22 @@ export function DeveloperView({view, loadTurnRequest, className}: DeveloperViewP
                   const open = openSeq === ev.seq
                   return (
                     <tr key={ev.seq} className="border-t align-top">
-                      <td className="px-2 py-1.5 tabular-nums">{ev.seq}</td>
-                      <td className="px-2 py-1.5 tabular-nums text-muted-foreground">{formatTime(ev.createdAt)}</td>
-                      <td className="px-2 py-1.5" title={ev.type}>{EVENT_LABELS[ev.type] ?? ev.type}</td>
-                      <td className="px-2 py-1.5 font-mono text-muted-foreground">{ev.runId ? ev.runId.slice(0, 8) : '—'}</td>
+                      <td className="px-2 py-1.5 tabular-nums whitespace-nowrap">{ev.seq}</td>
+                      <td className="px-2 py-1.5 tabular-nums whitespace-nowrap text-muted-foreground">{formatTime(ev.createdAt)}</td>
+                      <td className="px-2 py-1.5 whitespace-nowrap" title={ev.type}>{EVENT_LABELS[ev.type] ?? ev.type}</td>
+                      <td className="px-2 py-1.5 font-mono whitespace-nowrap text-muted-foreground">{ev.runId ? ev.runId.slice(0, 8) : '—'}</td>
                       <td className="px-2 py-1.5">
-                        <div>{eventSummary(ev)}</div>
+                        <div className="break-words">{eventSummary(ev)}</div>
                         <RawEventDetail event={ev} open={open} rendered={open || visitedSeqs.has(ev.seq)}/>
                       </td>
-                      <td className="px-2 py-1.5">
+                      <td className="px-2 py-1.5 text-right whitespace-nowrap">
                         <button
                           type="button"
                           onClick={() => {
                             if (!open) setVisitedSeqs((current) => new Set(current).add(ev.seq))
                             setOpenSeq(open ? null : ev.seq)
                           }}
-                          className="rounded-sm text-signal outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+                          className="inline-flex whitespace-nowrap rounded-sm text-signal outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
                           aria-expanded={open}
                           aria-controls={`event-raw-${ev.seq}`}
                         >
@@ -346,22 +350,14 @@ export function DeveloperView({view, loadTurnRequest, className}: DeveloperViewP
             key={run.id}
             run={run}
             selected={selected}
-            onSelect={(index) => setSelected((current) => current?.runId === run.id && current.index === index ? null : {runId: run.id, index})}
+            visitedTurnKeys={visitedTurnKeys}
+            requestByKey={requestByKey}
+            onSelect={(index) => {
+              setVisitedTurnKeys((current) => new Set(current).add(`${run.id}:${index}`))
+              setSelected((current) => current?.runId === run.id && current.index === index ? null : {runId: run.id, index})
+            }}
           />
         ))}
-        <div
-          id="turn-request-panel"
-          aria-hidden={!selected}
-          inert={!selected}
-          className={cn(
-            'grid transition-[grid-template-rows,opacity,margin] duration-200 ease-out motion-reduce:transition-none',
-            selected ? 'mt-3 grid-rows-[1fr] opacity-100' : 'mt-0 grid-rows-[0fr] opacity-0',
-          )}
-        >
-          <div className="min-h-0 overflow-hidden">
-            <TurnRequestPanel request={shownRequest} loading={requestLoading} error={shownError}/>
-          </div>
-        </div>
       </section>
 
       <section aria-label="压缩">
@@ -424,10 +420,14 @@ function TurnSpeed({turn}: {turn: TurnView}) {
 function RunTurns({
   run,
   selected,
+  visitedTurnKeys,
+  requestByKey,
   onSelect,
 }: {
   run: RunView
   selected: {runId: string; index: number} | null
+  visitedTurnKeys: Set<string>
+  requestByKey: Record<string, TurnRequestResult>
   onSelect: (index: number) => void
 }) {
   return (
@@ -441,13 +441,16 @@ function RunTurns({
         <ul className="flex flex-col gap-1">
           {run.turns.map((turn) => {
             const active = selected?.runId === run.id && selected.index === turn.index
+            const key = `${run.id}:${turn.index}`
+            const panelId = `turn-request-${run.id}-${turn.index}`
+            const result = requestByKey[key]
             const tokens = totalTokens(turn.usage)
             return (
               <li key={turn.index}>
                 <button
                   type="button"
                   aria-expanded={active}
-                  aria-controls="turn-request-panel"
+                  aria-controls={panelId}
                   onClick={() => onSelect(turn.index)}
                   className={cn(
                     'w-full rounded-md border px-3 py-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring',
@@ -470,6 +473,23 @@ function RunTurns({
                     <ContextBar estimate={turn.contextEstimate}/>
                   </span>
                 </button>
+                <div
+                  id={panelId}
+                  aria-hidden={!active}
+                  inert={!active}
+                  className={cn(
+                    'grid transition-[grid-template-rows,opacity,margin] duration-200 ease-out motion-reduce:transition-none',
+                    active ? 'mt-2 grid-rows-[1fr] opacity-100' : 'mt-0 grid-rows-[0fr] opacity-0',
+                  )}
+                >
+                  <div className="min-h-0 overflow-hidden">
+                    {visitedTurnKeys.has(key) && (
+                      <div className="ml-2 border-l pl-3">
+                        <TurnRequestPanel request={result?.request ?? null} loading={!result} error={result?.error ?? null}/>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </li>
             )
           })}

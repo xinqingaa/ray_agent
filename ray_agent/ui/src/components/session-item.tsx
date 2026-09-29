@@ -9,6 +9,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import {Tooltip, TooltipContent, TooltipTrigger} from '@/components/ui/tooltip'
 import {useMounted} from '@/hooks/use-mounted'
 import {cn, formatClockTime, formatDayLabel} from '@/lib/utils'
 import type {Session} from '@/lib/api'
@@ -20,25 +21,17 @@ type SessionItemProps = {
   onDelete: (session: Session) => void
 }
 
-const STATUS_BADGE: Record<string, {label: string; className: string}> = {
-  running: {label: '运行中', className: 'text-state-running'},
-  pending: {label: '运行中', className: 'text-state-running'},
-  waiting: {label: '等你处理', className: 'text-state-waiting'},
-  failed: {label: '失败', className: 'text-state-failed'},
-  interrupted: {label: '已中断', className: 'text-state-interrupted'},
+const STATUS_DOT: Record<Session['status'], {label: string; className: string}> = {
+  pending: {label: '准备中', className: 'bg-state-running'},
+  running: {label: '运行中', className: 'bg-state-running'},
+  waiting: {label: '等你处理', className: 'bg-state-waiting'},
+  completed: {label: '已完成', className: 'bg-state-success'},
+  failed: {label: '失败', className: 'bg-state-failed'},
+  cancelled: {label: '已停止', className: 'bg-state-stopped'},
+  interrupted: {label: '已中断', className: 'bg-state-interrupted'},
 }
 
-function StatusBadge({status}: {status: string}) {
-  const badge = STATUS_BADGE[status]
-  if (!badge) return null
-  return (
-    <span className={cn('shrink-0 text-xs font-medium leading-5', badge.className)}>
-      {badge.label}
-    </span>
-  )
-}
-
-/** 会话列表项：标题一行、时间与纯文字状态一行；选中项左侧有强调条。 */
+/** 会话列表项：标题自然换行，状态在右下角用色点提示；选中项左侧有强调条。 */
 export function SessionItem({session, isActive, onClick, onDelete}: SessionItemProps) {
   const mounted = useMounted()
 
@@ -55,35 +48,42 @@ export function SessionItem({session, isActive, onClick, onDelete}: SessionItemP
   const clockLabel = formatClockTime(session.latest_message_at)
   const timeLabel = [dayLabel, clockLabel].filter(Boolean).join(' ')
   const title = session.title || '新任务'
+  const status = STATUS_DOT[session.status]
 
   return (
     <div
       className={cn(
-        'group/session relative flex items-start gap-1 rounded-md py-1.5 pr-1 pl-2.5 hover:bg-sidebar-accent/70',
+        'group/session relative rounded-md py-1.5 pr-1 pl-2.5 hover:bg-sidebar-accent/70',
         isActive && 'bg-sidebar-accent',
       )}
     >
       {isActive && <span className="absolute inset-y-1.5 left-0 w-0.5 rounded-full bg-signal" aria-hidden/>}
-      <button
-        type="button"
-        data-navigate
-        onClick={handleClick}
-        aria-current={isActive ? 'page' : undefined}
-        className="min-w-0 flex-1 rounded-sm text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
-      >
-        <p className="truncate text-sm" title={title}>{title}</p>
-        <div className="flex min-w-0 items-center justify-between gap-2">
-          {timeLabel && <span className="min-w-0 truncate text-xs tabular-nums text-muted-foreground">{timeLabel}</span>}
-          <StatusBadge status={String(session.status)}/>
-        </div>
-      </button>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            data-navigate
+            onClick={handleClick}
+            aria-current={isActive ? 'page' : undefined}
+            aria-label={`${title}，${status.label}`}
+            className="block w-full min-w-0 rounded-sm text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <p className="pr-7 text-sm leading-5 whitespace-normal [overflow-wrap:anywhere]">{title}</p>
+            <div className="flex min-w-0 items-center justify-between gap-2">
+              {timeLabel && <span className="min-w-0 truncate text-xs tabular-nums text-muted-foreground">{timeLabel}</span>}
+              <span className={cn('ml-auto size-2 shrink-0 rounded-full', status.className)} aria-hidden/>
+            </div>
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="right" sideOffset={6}>{status.label}</TooltipContent>
+      </Tooltip>
       {mounted ? (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button
               size="icon-xs"
               variant="ghost"
-              className="shrink-0 text-muted-foreground opacity-0 group-hover/session:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100 max-md:opacity-100"
+              className="absolute top-1.5 right-1 text-muted-foreground opacity-0 group-hover/session:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100 max-md:opacity-100"
               aria-label={`${title} 的操作`}
             >
               <MoreHorizontal/>
@@ -97,7 +97,7 @@ export function SessionItem({session, isActive, onClick, onDelete}: SessionItemP
           </DropdownMenuContent>
         </DropdownMenu>
       ) : (
-        <span className="size-6 shrink-0"/>
+        <span className="absolute top-1.5 right-1 size-6"/>
       )}
     </div>
   )

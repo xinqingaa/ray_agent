@@ -325,15 +325,15 @@ export function ComponentCatalog() {
           <State label="已压缩" source="合成"><Surface><ContextRing usage={usageStates.compacted}/></Surface></State>
         </Section>
 
-        <Section id="session-item" title="会话列表项" note="标题一行、时间与状态徽标一行。已完成与已停止不显示徽标；等待启动与运行中共用“运行中”徽标。">
+        <Section id="session-item" title="会话列表项" note="标题自然换行，时间在左、状态色点在右；悬停或聚焦会话可查看状态名称。">
           <div className="w-[288px] max-w-full space-y-3 rounded-lg bg-sidebar p-2">
             <State label="运行中" source="合成"><SessionItem session={sessionItemStates.running} isActive={false} onClick={noop} onDelete={noop}/></State>
-            <State label="等待启动（徽标同运行中）" source="合成"><SessionItem session={sessionItemStates.pending} isActive={false} onClick={noop} onDelete={noop}/></State>
+            <State label="准备中" source="合成"><SessionItem session={sessionItemStates.pending} isActive={false} onClick={noop} onDelete={noop}/></State>
             <State label="等你处理（提问或审批）" source="合成"><SessionItem session={sessionItemStates.waiting} isActive={false} onClick={noop} onDelete={noop}/></State>
             <State label="失败" source="合成"><SessionItem session={sessionItemStates.failed} isActive={false} onClick={noop} onDelete={noop}/></State>
             <State label="已中断" source="合成"><SessionItem session={sessionItemStates.interrupted} isActive={false} onClick={noop} onDelete={noop}/></State>
             <State label="已完成" source="真实"><SessionItem session={sessionItemStates.completed} isActive={false} onClick={noop} onDelete={noop}/></State>
-            <State label="已停止（无徽标）" source="合成"><SessionItem session={sessionItemStates.cancelled} isActive={false} onClick={noop} onDelete={noop}/></State>
+            <State label="已停止" source="合成"><SessionItem session={sessionItemStates.cancelled} isActive={false} onClick={noop} onDelete={noop}/></State>
             <State label="选中" source="真实"><SessionItem session={sessionItemStates.completed} isActive onClick={noop} onDelete={noop}/></State>
             <State label="长标题" source="合成"><SessionItem session={sessionItemStates.longTitle} isActive={false} onClick={noop} onDelete={noop}/></State>
           </div>
