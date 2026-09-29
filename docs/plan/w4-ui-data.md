@@ -32,9 +32,9 @@
 
 类型在 [`session-view.ts`](../../ray_agent/ui/src/lib/session-view.ts)，投影函数是 [`session-projection.ts`](../../ray_agent/ui/src/lib/session-projection.ts) 的 `projectSession`。W5 只依赖这些类型。时间一律是毫秒时间戳。删改字段需同步本节。
 
-**SessionView：** `id`、`title`、`status`（最新运行的状态；没有运行时为 `idle`。详情里的 `pending` 不进这个字段）、`runs`、`activeRun`（最后一个 `running` 或 `waiting`，没有则为 `null`）、`timeline`、`plan`、`usage`、`files`、`events`（有 seq 的原始事件，按 seq 排序）。
+**SessionView：** `id`、`title`、`status`（最新运行的状态；没有运行时为 `idle`。详情里的 `pending` 不进这个字段）、`project`（`{path, name, available, reason}` 或 `null`）、`runs`、`activeRun`（最后一个 `running` 或 `waiting`，没有则为 `null`）、`timeline`、`plan`、`usage`、`files`、`events`（有 seq 的原始事件，按 seq 排序）。
 
-**RunView：** `id`、`status`、`reason`、`reasonText`、`startedAt`、`endedAt`、`turns`、`maxTurns`、`summary`（仅终态）、`tokens`（各轮用量之和，运行中也可算）、`activity`。`running`、`waiting`、`completed` 的 `reasonText` 为 `null`。失败且有错误事件时，用去掉末尾 `（原因：code）` 的错误文本。否则：`user_stop` 与没有更具体原因的 `cancelled` 为“你停止了这次运行”；`api_restart` 为“服务重启导致运行中断”；`runner_lost` 为“执行过程已丢失，运行已中断”；`max_iterations` 在没有 `maxTurns` 时为“模型请求次数达到本次运行上限”，传入上限时带次数和设置提示；`context_limit`、`output_truncated`、`model_error`、`runner_error` 各有固定句子，见投影模块。没有原因的 `interrupted` 为“运行已中断”。
+**RunView：** `id`、`status`、`mode`（`normal` \| `plan`，缺省投影为 `normal`）、`reason`、`reasonText`、`startedAt`、`endedAt`、`turns`、`maxTurns`、`summary`（仅终态）、`tokens`（各轮用量之和，运行中也可算）、`activity`。`running`、`waiting`、`completed` 的 `reasonText` 为 `null`。失败且有错误事件时，用去掉末尾 `（原因：code）` 的错误文本。否则：`user_stop` 与没有更具体原因的 `cancelled` 为“你停止了这次运行”；`api_restart` 为“服务重启导致运行中断”；`runner_lost` 为“执行过程已丢失，运行已中断”；`max_iterations` 在没有 `maxTurns` 时为“模型请求次数达到本次运行上限”，传入上限时带次数和设置提示；`context_limit`、`output_truncated`、`model_error`、`runner_error` 各有固定句子，见投影模块。没有原因的 `interrupted` 为“运行已中断”。
 
 详情接口的运行项没有配置快照，`maxTurns` 为 `null`，除非调用 `projectSession` 时传入。
 
@@ -55,7 +55,9 @@
 
 **TokenCounts：** `prompt`、`completion`、`total`，`cached` 可选。缺的一项不把另一项当成 0 去凑 `total`。
 
-**usage：** `session` 为各轮之和。`context` 在同时知道占用和窗口时为 `{usedTokens, windowTokens, lastTurnTokens}`，否则 `null`。进行中的轮次若有四部分 `context_estimate`，`usedTokens` 用其和，否则用最近一次完成轮次的 prompt；`windowTokens` 来自该轮或最近一次 `started` 的 `context_window`；`lastTurnTokens` 是最近完成轮次的 prompt 与 completion 之和。事件里的四部分键是 `system_prompt`、`tools`、`history`、`tool_results`（也接受 `system`、`toolResults`），投影写成 `system`、`tools`、`history`、`toolResults`。`watermark` 若是 token 数且该轮有 `context_window`，`watermarkRatio` 为二者之商；否则为 `null`。`compactions` 为压缩次数。
+**usage：** `session` 为各轮用量之和，加上会话内全部 `compact.usage`（含不带 `run_id` 的手动压缩）。`context` 在同时知道占用和窗口时为 `{usedTokens, windowTokens, lastTurnTokens, postCompactEstimate?}`，否则 `null`。进行中的轮次若有四部分 `context_estimate`，`usedTokens` 用其和，否则用最近一次完成轮次的 prompt；`windowTokens` 来自该轮或最近一次 `started` 的 `context_window`；`lastTurnTokens` 是最近完成轮次的 prompt 与 completion 之和；最近一次压缩的 `seq` 晚于最近一轮 `turn(started)` 时，可用压缩后的 `after_estimate.total` 并设 `postCompactEstimate`。事件里的四部分键是 `system_prompt`、`tools`、`history`、`tool_results`（也接受 `system`、`toolResults`），投影写成 `system`、`tools`、`history`、`toolResults`。`watermark` 若是 token 数且该轮有 `context_window`，`watermarkRatio` 为二者之商；否则为 `null`。`compactions` 为压缩次数。可选 `lastCompaction`（最近触发与前后估算）供上下文环详情。
+
+**ToolCallView（W9）：** `denied_by === 'plan_mode'` 时 `status` 为 `denied`，来源文案为“计划模式下不执行”。
 
 **ToolCallView：** `callId`、`family`（`file` / `shell` / `browser` / `search` / `mcp` / `a2a` / `plan` / `deliver` / `other`）、`name`、`toolset`（事件的 `name`）、`title`、`verb`、`target`、`argSummary`、`status`（`running` / `succeeded` / `failed` / `denied` / `skipped` / `cancelled`）、`startedAt`、`durationMs`、`result`、`raw`。动词短语由工具名与关键参数生成，映射表在投影模块。
 
@@ -73,7 +75,7 @@
 | `ask` | 等待前缓冲里的最后一条助手文本 | 问题、`answered` |
 | `approval` | `approval` 事件 | 调用、`pending` / `approved` / `rejected` / `expired`、`decidedAt` |
 | `delivery` | 带附件的助手消息 | 文件、说明 |
-| `compaction` | 带前后 token 的压缩 | `beforeTokens`、`afterTokens`、`summarizedTurns`、`summary`。没有估算量的压缩只增加 `compactions`，不出现在时间线 |
+| `compaction` | 带前后 token 的压缩 | `beforeTokens`、`afterTokens`、`summarizedTurns`、`summary`、`trigger`（`watermark` \| `overflow` \| `manual`）。`runId` 可为空（手动压缩）。没有估算量的压缩只增加 `compactions`，不出现在时间线 |
 | `attempt` | `attempt` 事件 | `turnIndex`、`attempt`、`reason`、`retried` |
 | `final` | `done` 或 `run(completed)` 时缓冲里的最后一条助手文本 | 文本；终态汇总随后写到该运行最后一条 `final` |
 | `run_end` | `failed` / `cancelled` / `interrupted` | `status`、`reason`、`reasonText`、`retryText`（仅 `failed`，取该运行第一条非注入用户消息） |
