@@ -15,6 +15,7 @@ from websockets import ConnectionClosed
 from app.application.errors.exceptions import NotFoundError
 from app.application.services.agent_service import AgentService
 from app.application.services.session_service import SessionService
+from app.application.services.title_service import TitleService
 from app.domain.external.event_notifier import OutputDelta
 from app.domain.models.event import Event
 from app.interfaces.schemas import Response
@@ -30,8 +31,9 @@ from app.interfaces.schemas.session import (
     TurnRequestResponse,
     ApprovalRequest,
     ApprovalResponse,
+    RenameTitleRequest, TitleResponse,
 )
-from app.interfaces.service_dependencies import get_session_service, get_agent_service
+from app.interfaces.service_dependencies import get_session_service, get_agent_service, get_title_service
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/sessions", tags=["会话模块"])
@@ -178,6 +180,25 @@ async def chat(
         msg="消息已受理",
         data=ChatResponse(run_id=accepted.run_id, seq=accepted.seq, route=accepted.route),
     )
+
+
+@router.put(path="/{session_id}/title", response_model=Response[TitleResponse], summary="重命名会话")
+async def rename_title(
+        session_id: str,
+        request: RenameTitleRequest,
+        title_service: TitleService = Depends(get_title_service),
+) -> Response[TitleResponse]:
+    title = await title_service.set_title(session_id, request.title)
+    return Response.success(data=TitleResponse(title=title))
+
+
+@router.post(path="/{session_id}/title/suggestion", response_model=Response[TitleResponse], summary="生成标题建议")
+async def suggest_title(
+        session_id: str,
+        title_service: TitleService = Depends(get_title_service),
+) -> Response[TitleResponse]:
+    title = await title_service.suggest(session_id)
+    return Response.success(data=TitleResponse(title=title))
 
 
 @router.post(

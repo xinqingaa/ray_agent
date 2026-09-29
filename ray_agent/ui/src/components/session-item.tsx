@@ -1,7 +1,7 @@
 'use client'
 
 import {useCallback} from 'react'
-import {MoreHorizontal, Trash} from 'lucide-react'
+import {MoreHorizontal, Pencil, Trash} from 'lucide-react'
 import {Button} from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -19,6 +19,7 @@ type SessionItemProps = {
   isActive: boolean
   onClick: (sessionId: string) => void
   onDelete: (session: Session) => void
+  onRename?: (session: Session) => void
 }
 
 const STATUS_DOT: Record<Session['status'], {label: string; className: string}> = {
@@ -32,7 +33,7 @@ const STATUS_DOT: Record<Session['status'], {label: string; className: string}> 
 }
 
 /** 会话列表项：标题自然换行，状态在右下角用色点提示；选中项左侧有强调条。 */
-export function SessionItem({session, isActive, onClick, onDelete}: SessionItemProps) {
+export function SessionItem({session, isActive, onClick, onDelete, onRename}: SessionItemProps) {
   const mounted = useMounted()
 
   const handleClick = useCallback(() => {
@@ -68,7 +69,7 @@ export function SessionItem({session, isActive, onClick, onDelete}: SessionItemP
             aria-label={`${title}，${status.label}`}
             className="block w-full min-w-0 rounded-sm text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
-            <p className="pr-7 text-sm leading-5 whitespace-normal [overflow-wrap:anywhere]">{title}</p>
+            <p className="truncate pr-7 text-sm leading-5" dir="auto" title={title}>{title}</p>
             <div className="flex min-w-0 items-center justify-between gap-2">
               {timeLabel && <span className="min-w-0 truncate text-xs tabular-nums text-muted-foreground">{timeLabel}</span>}
               <span className={cn('ml-auto size-2 shrink-0 rounded-full', status.className)} aria-hidden/>
@@ -90,6 +91,10 @@ export function SessionItem({session, isActive, onClick, onDelete}: SessionItemP
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" side="bottom">
+            <DropdownMenuItem onSelect={() => onRename?.(session)}>
+              <Pencil/>
+              重命名
+            </DropdownMenuItem>
             <DropdownMenuItem variant="destructive" onClick={handleDelete}>
               <Trash/>
               删除

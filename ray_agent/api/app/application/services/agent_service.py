@@ -14,7 +14,7 @@ from app.domain.external.sandbox import Sandbox
 from app.domain.external.search import SearchEngine
 from app.domain.external.task import Task
 from app.domain.models.app_config import AgentConfig, MCPConfig, A2AConfig, ToolPolicyConfig
-from app.domain.models.event import ApprovalStatus, ErrorEvent, Event, MessageEvent
+from app.domain.models.event import ApprovalStatus, ErrorEvent, Event, MessageEvent, TitleEvent
 from app.domain.models.run import Run, RunReason, RunStatus
 from app.domain.models.session import Session, SessionStatus
 from app.domain.repositories.uow import IUnitOfWork
@@ -110,7 +110,7 @@ class AgentService:
             sandbox = await self._sandbox_cls.create()
             session.sandbox_id = sandbox.id
             async with self._uow:
-                await self._uow.session.save(session)
+                await self._uow.session.update_sandbox_id(session.id, sandbox.id)
 
         # 4.从沙箱中获取浏览器实例
         browser = await sandbox.get_browser()
@@ -140,7 +140,7 @@ class AgentService:
         task = self._task_cls.create(task_runner=task_runner)
         session.task_id = task.id
         async with self._uow:
-            await self._uow.session.save(session)
+            await self._uow.session.update_task_id(session.id, task.id)
 
         return task
 
@@ -180,7 +180,10 @@ class AgentService:
 
         async def touch(uow: IUnitOfWork) -> None:
             await uow.session.update_latest_message(session_id=session_id, message=message, timestamp=sent_at)
+            if provisional_title is not None:
+                await uow.session.set_title(session_id, provisional_title.title, "provisional", "placeholder")
 
+        provisional_title: Optional[TitleEvent] = None
         async with session_lock(session_id):
             async with self._uow:
                 session = await self._uow.session.get_by_id(session_id)
@@ -214,7 +217,15 @@ class AgentService:
                 await self._ledger.transition(session_id, active.id, RunStatus.INTERRUPTED, RunReason.RUNNER_LOST)
                 prior_status = SessionStatus.INTERRUPTED
             if run is None:
-                run = await self._ledger.start(session_id, events_after=[message_event], apply=touch)
+                if session.title_source == "placeholder" and session.title in ("", "新对话"):
+                    provisional_title = TitleEvent(title=message.strip()[:30])
+                run = await self._ledger.start(
+                    session_id, events_after=[message_event, *([provisional_title] if provisional_title else [])],
+                    apply=touch,
+                )
+                if provisional_title is not None:
+                    from app.application.services.title_service import TitleService
+                    asyncio.create_task(TitleService(self._uow_factory, self._ledger).auto_generate(session_id, message))
 
             # 4.创建执行任务；创建失败时运行记为失败，不留下没有协程的 running
             try:

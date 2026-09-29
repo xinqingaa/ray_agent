@@ -96,18 +96,15 @@ def test_batch_with_two_calls_and_update_plan_runs_in_order_and_pairs_by_id():
     assert results["c-plan"]["success"] is True
     assert isinstance(events[-1], DoneEvent) and h.loop.end_reason == RunEndReason.COMPLETED
     assert [e.message for e in events if isinstance(e, MessageEvent)] == ["先读两份资料并写计划", "完成"]
-    assert isinstance(events[0], TitleEvent) and events[0].title == "任务"
+    assert not any(isinstance(e, TitleEvent) for e in events)
 
 
-@pytest.mark.parametrize("title,expected", [
-    (DEFAULT_SESSION_TITLE, "一二三四五六七八九十一二三四五六七八九十一二三四五六七八九十"),
-    ("已有标题", None),
-])
-def test_title_replaces_placeholder_without_model_call(title, expected):
+@pytest.mark.parametrize("title", [DEFAULT_SESSION_TITLE, "已有标题"])
+def test_title_is_managed_outside_agent_loop(title):
     h = make_loop([text("好")], session=Session(id="w1-title", title=title))
     events = run(collect(h.loop, message="  " + "一二三四五六七八九十" * 4))
     titles = [e.title for e in events if isinstance(e, TitleEvent)]
-    assert titles == ([expected] if expected else [])
+    assert titles == []
     assert h.llm.call_count == 1
 
 

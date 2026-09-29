@@ -31,6 +31,16 @@ class SessionRepository(Protocol):
         """根据传递的会话id+标题更新会话信息"""
         ...
 
+    async def set_title(self, session_id: str, title: str, source: str, expected_source: Optional[str] = None) -> bool:
+        """按来源条件更新标题；异步结果不能覆盖手动标题。"""
+        ...
+
+    async def update_sandbox_id(self, session_id: str, sandbox_id: str) -> None:
+        ...
+
+    async def update_task_id(self, session_id: str, task_id: str) -> None:
+        ...
+
     async def update_latest_message(self, session_id: str, message: str, timestamp: datetime) -> None:
         """根据传递的信息更新最新消息"""
         ...

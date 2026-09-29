@@ -39,6 +39,7 @@ class SessionModel(Base):
         nullable=False,
         server_default=text("''::character varying"),
     )  # 会话标题
+    title_source: Mapped[str] = mapped_column(String(16), nullable=False, server_default=text("'placeholder'"))
     unread_message_count: Mapped[int] = mapped_column(
         Integer,
         nullable=False,

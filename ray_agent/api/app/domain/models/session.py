@@ -31,6 +31,7 @@ class Session(BaseModel):
     sandbox_id: Optional[str] = None  # 沙箱id
     task_id: Optional[str] = None  # 任务id
     title: str = ""  # 标题
+    title_source: str = "placeholder"  # placeholder / provisional / auto / manual
     unread_message_count: int = 0  # 未读消息数
     latest_message: str = ""  # 最新消息
     latest_message_at: Optional[datetime] = None  # 最新消息时间

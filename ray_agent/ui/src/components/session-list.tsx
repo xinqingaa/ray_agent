@@ -6,6 +6,7 @@ import {toast} from 'sonner'
 import {ItemGroup} from '@/components/ui/item'
 import {SessionItem} from '@/components/session-item'
 import {DeleteSessionDialog} from '@/components/delete-session-dialog'
+import {RenameSessionDialog} from '@/components/rename-session-dialog'
 import {useSessions} from '@/hooks/use-sessions'
 import type {Session} from '@/lib/api'
 
@@ -16,10 +17,11 @@ import type {Session} from '@/lib/api'
 export function SessionList() {
   const router = useRouter()
   const params = useParams()
-  const {sessions, loading, error, refresh, deleteSession} = useSessions()
+  const {sessions, loading, error, refresh, deleteSession, patchSession} = useSessions()
 
   // 待删除的会话
   const [pendingDeleteSession, setPendingDeleteSession] = useState<Session | null>(null)
+  const [pendingRenameSession, setPendingRenameSession] = useState<Session | null>(null)
 
   const handleSessionClick = useCallback((sessionId: string) => {
     router.push(`/sessions/${sessionId}`)
@@ -109,6 +111,7 @@ export function SessionList() {
             isActive={session.session_id === String(params?.id ?? '')}
             onClick={handleSessionClick}
             onDelete={handleDeleteRequest}
+            onRename={setPendingRenameSession}
           />
         ))}
       </ItemGroup>
@@ -119,7 +122,9 @@ export function SessionList() {
         onOpenChange={handleDialogOpenChange}
         onConfirm={handleDeleteConfirm}
       />
+      {pendingRenameSession && <RenameSessionDialog session={pendingRenameSession} open
+        onOpenChange={(open) => {if (!open) setPendingRenameSession(null)}}
+        onSaved={(title) => patchSession(pendingRenameSession.session_id, {title})}/>}
     </>
   )
 }
-

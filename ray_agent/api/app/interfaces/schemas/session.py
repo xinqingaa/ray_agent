@@ -45,6 +45,14 @@ class ChatResponse(BaseModel):
     route: str  # started / resumed / injected
 
 
+class RenameTitleRequest(BaseModel):
+    title: str
+
+
+class TitleResponse(BaseModel):
+    title: str
+
+
 class ApprovalRequest(BaseModel):
     """审批回复：approve 执行该调用一次，deny 回填“用户拒绝执行”。"""
     decision: Literal["approve", "deny"]

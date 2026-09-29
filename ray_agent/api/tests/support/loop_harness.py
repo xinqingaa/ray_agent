@@ -65,6 +65,18 @@ class FakeSessionRepository:
     async def save(self, session):
         self.s.sandbox_id, self.s.task_id = session.sandbox_id, session.task_id
 
+    async def update_sandbox_id(self, session_id, sandbox_id):
+        self.s.sandbox_id = sandbox_id
+
+    async def update_task_id(self, session_id, task_id):
+        self.s.task_id = task_id
+
+    async def set_title(self, session_id, title, source, expected_source=None):
+        if expected_source is not None and self.s.title_source != expected_source:
+            return False
+        self.s.title, self.s.title_source = title, source
+        return True
+
     async def update_status(self, session_id, status):
         self.s.status = status
 

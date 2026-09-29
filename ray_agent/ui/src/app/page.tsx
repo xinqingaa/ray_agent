@@ -5,6 +5,7 @@ import {useRouter} from 'next/navigation'
 import {toast} from 'sonner'
 import {ChatInput} from '@/components/chat-input'
 import {DeleteSessionDialog} from '@/components/delete-session-dialog'
+import {RenameSessionDialog} from '@/components/rename-session-dialog'
 import {SessionItem} from '@/components/session-item'
 import {useSessions} from '@/hooks/use-sessions'
 import {sessionApi} from '@/lib/api/session'
@@ -38,9 +39,10 @@ function sessionTime(session: Session): number {
 
 export default function Page() {
   const router = useRouter()
-  const {sessions, loading, error, refresh, deleteSession} = useSessions()
+  const {sessions, loading, error, refresh, deleteSession, patchSession} = useSessions()
   const [sending, setSending] = useState(false)
   const [pendingDelete, setPendingDelete] = useState<Session | null>(null)
+  const [pendingRename, setPendingRename] = useState<Session | null>(null)
 
   const recent = useMemo(
     () => [...sessions].sort((a, b) => sessionTime(b) - sessionTime(a)).slice(0, 8),
@@ -120,6 +122,7 @@ export default function Page() {
                     isActive={false}
                     onClick={(id) => router.push(`/sessions/${id}`)}
                     onDelete={setPendingDelete}
+                    onRename={setPendingRename}
                   />
                 </li>
               ))}
@@ -142,6 +145,9 @@ export default function Page() {
           setPendingDelete(null)
         }}
       />
+      {pendingRename && <RenameSessionDialog session={pendingRename} open
+        onOpenChange={(open) => {if (!open) setPendingRename(null)}}
+        onSaved={(title) => patchSession(pendingRename.session_id, {title})}/>}
     </div>
   )
 }

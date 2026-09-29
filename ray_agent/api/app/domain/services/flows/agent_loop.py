@@ -38,7 +38,6 @@ from app.domain.models.event import (
     MessageEvent,
     PlanEvent,
     PlanEventStatus,
-    TitleEvent,
     ToolEvent,
     ToolEventStatus,
     TurnEvent,
@@ -50,7 +49,7 @@ from app.domain.models.event import (
 from app.domain.models.llm import LLMUsage
 from app.domain.models.memory import Memory
 from app.domain.models.message import Message
-from app.domain.models.session import DEFAULT_SESSION_TITLE, SessionStatus
+from app.domain.models.session import SessionStatus
 from app.domain.models.tool_result import ToolResult
 from app.domain.repositories.uow import IUnitOfWork
 from app.domain.services.agents.tool_call_compat import extract_embedded_tool_calls
@@ -91,7 +90,6 @@ from .tool_pipeline import ToolInvocation, ToolPipeline
 logger = logging.getLogger(__name__)
 
 AGENT_MEMORY_NAME = "agent"
-TITLE_MAX_CHARS = 30
 
 NOT_EXECUTED_WAITING = "未执行：等待用户回复后重新决策"
 NOT_EXECUTED_STOPPED = "未执行：任务已停止"
@@ -331,7 +329,6 @@ class AgentLoop(BaseFlow):
         self._inflight: Optional[_Inflight] = None
         self._deltas_closed = False
         self.pending_approval: Optional[ApprovalEvent] = None  # 以 APPROVAL 结束时等待回复的审批请求
-        self._session_title: Optional[str] = None
         self._session_status: Optional[SessionStatus] = None
 
         self.plan_tool = PlanTool()
@@ -424,7 +421,6 @@ class AgentLoop(BaseFlow):
         await self._ensure_memory()
         if self.plan_tool.latest_plan is None:
             self.plan_tool.latest_plan = latest_plan(history)
-        self._session_title = session.title
         self._session_status = session.status
         return history
 
@@ -479,8 +475,6 @@ class AgentLoop(BaseFlow):
         reply_consumed = await self.repair_dangling_calls(status, message, started)
         for event in self._take_context():
             yield event
-        if not self._session_title or self._session_title == DEFAULT_SESSION_TITLE:
-            yield TitleEvent(title=message.message.strip()[:TITLE_MAX_CHARS])
         if not reply_consumed:
             # 新用户消息开始新的一问：删除此前的思考内容；回复提问属于同一问，不删除
             self._strip_reasoning()

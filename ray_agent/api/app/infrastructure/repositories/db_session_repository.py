@@ -79,6 +79,19 @@ class DBSessionRepository(SessionRepository):
         if result.rowcount == 0:
             raise ValueError(f"会话[{session_id}]不存在，请核实后重试")
 
+    async def set_title(self, session_id: str, title: str, source: str, expected_source: Optional[str] = None) -> bool:
+        stmt = update(SessionModel).where(SessionModel.id == session_id)
+        if expected_source is not None:
+            stmt = stmt.where(SessionModel.title_source == expected_source)
+        result = await self.db_session.execute(stmt.values(title=title, title_source=source))
+        return result.rowcount > 0
+
+    async def update_sandbox_id(self, session_id: str, sandbox_id: str) -> None:
+        await self.db_session.execute(update(SessionModel).where(SessionModel.id == session_id).values(sandbox_id=sandbox_id))
+
+    async def update_task_id(self, session_id: str, task_id: str) -> None:
+        await self.db_session.execute(update(SessionModel).where(SessionModel.id == session_id).values(task_id=task_id))
+
     async def update_latest_message(self, session_id: str, message: str, timestamp: datetime) -> None:
         """更新会话最新消息"""
         # 1.构建更新语句并执行

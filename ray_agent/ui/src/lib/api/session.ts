@@ -1,4 +1,4 @@
-import { get, post, createSSEStream, parseSSEStream } from "./fetch";
+import { get, post, put, createSSEStream, parseSSEStream } from "./fetch";
 import type {
   Session,
   SessionDetail,
@@ -25,6 +25,11 @@ type SessionsStreamCallback = (sessions: Session[]) => void;
  * 会话模块 API
  */
 export const sessionApi = {
+  renameTitle: (sessionId: string, title: string): Promise<{title: string}> =>
+    put<{title: string}>(`/sessions/${sessionId}/title`, {title}),
+
+  suggestTitle: (sessionId: string): Promise<{title: string}> =>
+    post<{title: string}>(`/sessions/${sessionId}/title/suggestion`, {}, {timeout: 28000}),
   /**
    * 获取会话列表
    */
@@ -289,4 +294,3 @@ export const sessionApi = {
     );
   },
 };
-

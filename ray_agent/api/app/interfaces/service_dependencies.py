@@ -9,6 +9,7 @@ from app.application.services.agent_service import AgentService
 from app.application.services.app_config_service import AppConfigService
 from app.application.services.file_service import FileService
 from app.application.services.session_service import SessionService
+from app.application.services.title_service import TitleService
 from app.application.services.status_service import StatusService
 from app.domain.external.file_storage import FileStorage
 from app.domain.services.run_ledger import RunLedger
@@ -83,6 +84,10 @@ def get_session_service() -> SessionService:
 def get_run_ledger() -> RunLedger:
     """运行与事件的写入入口：提交后经 Redis pub/sub 通知订阅方"""
     return RunLedger(uow_factory=get_uow, notifier=RedisEventNotifier())
+
+
+def get_title_service() -> TitleService:
+    return TitleService(uow_factory=get_uow, ledger=get_run_ledger())
 
 
 def get_agent_service() -> AgentService:
