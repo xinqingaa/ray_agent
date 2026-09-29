@@ -13,7 +13,7 @@ import {
   streamDraftKey,
   type DeltaInput,
 } from '@/lib/session-projection'
-import type { SessionView } from '@/lib/session-view'
+import type { ProjectView, SessionView } from '@/lib/session-view'
 
 export type UseSessionDetailResult = {
   session: SessionDetail | null
@@ -27,7 +27,7 @@ export type UseSessionDetailResult = {
   refresh: () => Promise<void>
   refreshFiles: () => Promise<void>
   /** 只提交消息。retry 不再裁掉已有事件。提交期间 streaming 为 true，不改写运行状态 */
-  sendMessage: (message: string, attachmentIds: string[], options?: { retry?: boolean }) => Promise<void>
+  sendMessage: (message: string, attachmentIds: string[], options?: { retry?: boolean; mode?: 'plan' | 'normal' }) => Promise<void>
   /** 与 submitting 相同：chat 请求未返回时为 true，不是运行中 */
   streaming: boolean
   submitting: boolean
@@ -248,12 +248,16 @@ export function useSessionDetail(
   }, [sessionId, loaded, startStream, stopStream, clearDrafts])
 
   const sendMessage = useCallback(
-    async (message: string, attachmentIds: string[], options?: { retry?: boolean }) => {
-      void options
+    async (message: string, attachmentIds: string[], options?: { retry?: boolean; mode?: 'plan' | 'normal' }) => {
+      void options?.retry
       if (!sessionId) return
       setSubmitting(true)
       try {
-        await sessionApi.chat(sessionId, { message, attachments: attachmentIds })
+        await sessionApi.chat(sessionId, {
+          message,
+          attachments: attachmentIds,
+          ...(options?.mode === 'plan' ? {mode: 'plan'} : {}),
+        })
       } catch (e) {
         await refresh()
         throw e
@@ -299,9 +303,14 @@ export function useSessionDetail(
 
   const view = useMemo(() => {
     if (!sessionId || !session) return null
+    const project: ProjectView | null =
+      session.project && typeof session.project === 'object' && 'path' in session.project
+        ? (session.project as ProjectView)
+        : null
     return projectSession({
       id: sessionId,
       title: session.title,
+      project,
       runs: session.runs,
       events,
       stoppingRequestedAt,

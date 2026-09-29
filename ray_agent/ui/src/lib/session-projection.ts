@@ -13,6 +13,7 @@ import type {
   PlanItem,
   PlanItemStatus,
   PlanView,
+  ProjectView,
   RawEvent,
   RunStatus,
   RunSummary,
@@ -26,6 +27,8 @@ import type {
   ToolResultView,
   TurnView,
   UsageView,
+  CompactTrigger,
+  RunMode,
 } from '@/lib/session-view'
 
 /** 会话详情里的运行行；缺字段时由 run 事件补 */
@@ -56,6 +59,7 @@ export type DeltaInput = {
 export type ProjectSessionInput = {
   id: string
   title?: string | null
+  project?: ProjectView | null
   runs?: RunSnapshot[]
   /** 会话详情的 `{event,data}`、SSE 的 `{type,data}`，或带 type 的扁平事件 */
   events: unknown[]
@@ -143,6 +147,7 @@ type StoredEvent = {
 type RunTrack = {
   id: string
   status: RunStatus | null
+  mode: RunMode
   reason: string | null
   startedAt: number
   endedAt: number | null
@@ -347,6 +352,7 @@ export function projectSession(input: ProjectSessionInput): SessionView {
     runs.set(snap.run_id, {
       id: snap.run_id,
       status: asRunStatus(snap.status),
+      mode: 'normal',
       reason: snap.reason ?? null,
       startedAt: snap.started_at ?? 0,
       endedAt: snap.ended_at ?? null,
@@ -370,6 +376,9 @@ export function projectSession(input: ProjectSessionInput): SessionView {
   let previousPlan: PlanItem[] | null = null
   let planExplanation: string | null = null
   let compactions = 0
+  let compactSessionUsage: TokenCounts | null = null
+  let lastCompaction: UsageView['lastCompaction'] = null
+  let lastTurnStartedSeq: number | null = null
   const currentTurn = new Map<string, number>()
   const maxTurnIndex = new Map<string, number>()
   const assistantAttempts = new Set<string>()
@@ -388,6 +397,7 @@ export function projectSession(input: ProjectSessionInput): SessionView {
       track = {
         id: runId,
         status: null,
+        mode: 'normal',
         reason: null,
         startedAt: at,
         endedAt: null,
@@ -476,10 +486,20 @@ export function projectSession(input: ProjectSessionInput): SessionView {
     if (ev.type === 'context' || ev.type === 'compact') {
       if (ev.type === 'compact' || data.op === 'compact') {
         compactions += 1
-        const before = num(data.before_tokens ?? data.beforeTokens)
-        const after = num(data.after_tokens ?? data.afterTokens)
-        if (before != null && after != null) {
+        const before = estimateTotal(data.before_estimate ?? data.beforeEstimate)
+          ?? num(data.before_tokens ?? data.beforeTokens)
+        const after = estimateTotal(data.after_estimate ?? data.afterEstimate)
+          ?? num(data.after_tokens ?? data.afterTokens)
+        const usageRaw = data.usage
+        if (isRecord(usageRaw)) {
+          compactSessionUsage = sumUsage([compactSessionUsage, readUsage(usageRaw)])
+        }
+        const trigger = asCompactTrigger(data.trigger)
+        if (before != null && after != null && trigger) {
           const summary = str(data.summary)
+          if (ev.seq != null) {
+            lastCompaction = {seq: ev.seq, trigger, beforeTotal: before, afterTotal: after}
+          }
           timeline.push({
             kind: 'compaction',
             id: idOf(ev.seq, timeline.length),
@@ -489,6 +509,7 @@ export function projectSession(input: ProjectSessionInput): SessionView {
             afterTokens: after,
             summarizedTurns: num(data.summarized_turns ?? data.summarizedTurns) ?? 0,
             summary,
+            trigger,
           })
         }
       }
@@ -517,6 +538,8 @@ export function projectSession(input: ProjectSessionInput): SessionView {
     if (ev.type === 'run' && track) {
       const status = asRunStatus(data.status)
       if (!status) continue
+      const modeRaw = data.mode
+      if (modeRaw === 'plan' || modeRaw === 'normal') track.mode = modeRaw
       const prev = track.status
       track.status = status
       track.reason = typeof data.reason === 'string' ? data.reason : null
@@ -564,6 +587,7 @@ export function projectSession(input: ProjectSessionInput): SessionView {
       if (data.phase === 'started') {
         if (pending.length > 0) flushNarration()
         turn.startedAt = ev.createdAt
+        if (ev.seq != null) lastTurnStartedSeq = ev.seq
         const window = num(data.context_window)
         if (window != null) turn.contextWindow = window
         const estimate = readEstimate(data.context_estimate)
@@ -867,8 +891,8 @@ export function projectSession(input: ProjectSessionInput): SessionView {
   const runViews = ordered.map((track) => toRunView(track, turns, liveCalls, timeline, input, activeTrack?.id === track.id))
   const activeRun = activeTrack ? runViews.find((run) => run.id === activeTrack.id) ?? null : null
   const latest = runViews[runViews.length - 1]
-  const sessionTokens = sumUsage(turns.map((turn) => turn.usage))
-  const context = usageContext(turns)
+  const sessionTokens = sumUsage([sumUsage(turns.map((turn) => turn.usage)), compactSessionUsage])
+  const context = usageContext(turns, lastCompaction, lastTurnStartedSeq)
 
   const rawEvents: RawEvent[] = normalized
     .filter((ev) => ev.seq != null)
@@ -880,10 +904,13 @@ export function projectSession(input: ProjectSessionInput): SessionView {
       payload: {...ev.data},
     }))
 
+  const project: ProjectView | null = input.project ?? null
+
   return {
     id: input.id,
     title,
     status: activeRun?.status ?? latest?.status ?? 'idle',
+    project,
     runs: runViews,
     activeRun,
     timeline,
@@ -891,6 +918,7 @@ export function projectSession(input: ProjectSessionInput): SessionView {
     usage: {
       session: sessionTokens,
       context,
+      lastCompaction,
       watermarkRatio: watermarkRatioOf(turns),
       compactions,
     },
@@ -915,6 +943,7 @@ function toRunView(
   return {
     id: track.id,
     status,
+    mode: track.mode,
     reason: track.reason,
     reasonText: reasonText(track, input.maxTurns ?? null),
     startedAt: track.startedAt,
@@ -1009,13 +1038,26 @@ function reasonText(track: RunTrack, maxTurns: number | null): string | null {
   return track.reason ? `运行已结束（${track.reason}）` : '运行失败'
 }
 
-function usageContext(turns: TurnBuild[]): UsageView['context'] {
+function usageContext(
+  turns: TurnBuild[],
+  lastCompaction: UsageView['lastCompaction'],
+  lastTurnStartedSeq: number | null,
+): UsageView['context'] {
   const completed = [...turns].reverse().find((turn) => turn.endedAt != null && turn.usage)
   const open = [...turns].reverse().find((turn) => turn.endedAt == null)
   const estimate = open?.contextEstimate ?? completed?.contextEstimate ?? null
-  const used = estimate
+  let used = estimate
     ? estimate.system + estimate.tools + estimate.history + estimate.toolResults
     : completed?.usage?.prompt ?? null
+  let postCompactEstimate = false
+  if (
+    lastCompaction &&
+    lastTurnStartedSeq != null &&
+    lastCompaction.seq > lastTurnStartedSeq
+  ) {
+    used = lastCompaction.afterTotal
+    postCompactEstimate = true
+  }
   const window = open?.contextWindow ?? completed?.contextWindow ?? null
   if (used == null || window == null || window <= 0) return null
   const prompt = completed?.usage?.prompt
@@ -1024,6 +1066,7 @@ function usageContext(turns: TurnBuild[]): UsageView['context'] {
     usedTokens: used,
     windowTokens: window,
     lastTurnTokens: prompt != null && completion != null ? prompt + completion : null,
+    ...(postCompactEstimate ? {postCompactEstimate: true} : {}),
   }
 }
 
@@ -1320,6 +1363,7 @@ function shellOutput(content: Record<string, unknown>): string | null {
 const DENIED_TEXT: Record<string, string> = {
   user: '你拒绝了这次调用，它没有执行',
   policy: '工具策略禁止这次调用，它没有执行',
+  plan_mode: '计划模式下不执行',
 }
 
 function failureOf(data: Record<string, unknown>, content: unknown): {status: ToolCallStatus; error: string | null} | null {
@@ -1524,6 +1568,15 @@ function asToolStatus(value: string | null): ToolCallStatus | null {
     return value
   }
   return null
+}
+
+function estimateTotal(raw: unknown): number | null {
+  if (!isRecord(raw)) return null
+  return num(raw.total)
+}
+
+function asCompactTrigger(value: unknown): CompactTrigger | null {
+  return value === 'watermark' || value === 'overflow' || value === 'manual' ? value : null
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

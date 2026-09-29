@@ -472,16 +472,63 @@ function kinds(view) {
     id: 's',
     events: [
       ev(1, 'context', {op: 'compact', message_count: 2, roles: ['assistant', 'tool']}),
-      ev(2, 'compact', {before_tokens: 800, after_tokens: 120, summarized_turns: 3, summary: '前文已摘要'}),
+      ev(2, 'compact', {
+        trigger: 'watermark',
+        before_estimate: {total: 800},
+        after_estimate: {total: 120},
+        summarized_turns: 3,
+        summary: '前文已摘要',
+        usage: {prompt_tokens: 50, completion_tokens: 10},
+      }),
     ],
   });
   assert.equal(compact.usage.compactions, 2);
+  assert.equal(compact.usage.session.prompt, 50);
+  assert.equal(compact.usage.session.completion, 10);
+  assert.equal(compact.usage.session.total, 60);
   const compaction = compact.timeline.filter((item) => item.kind === 'compaction');
   assert.equal(compaction.length, 1);
   assert.equal(compaction[0].beforeTokens, 800);
   assert.equal(compaction[0].afterTokens, 120);
   assert.equal(compaction[0].summarizedTurns, 3);
-  console.log('PASS: 没有估算量的压缩只计数；带前后 token 的压缩进入时间线');
+  assert.equal(compaction[0].trigger, 'watermark');
+  console.log('PASS: 没有估算量的压缩只计数；带 estimate 的压缩进入时间线并计入 session 用量');
+
+  const manualCompact = projectSession({
+    id: 's',
+    events: [
+      ev(1, 'run', {status: 'running'}),
+      ev(2, 'turn', {phase: 'started', index: 1, context_window: 32000}),
+      ev(3, 'compact', {
+        run_id: null,
+        trigger: 'manual',
+        before_estimate: {total: 9000},
+        after_estimate: {total: 4200},
+        summarized_turns: 2,
+        usage: {prompt_tokens: 3, completion_tokens: 1},
+      }, null),
+    ],
+  });
+  const manualItem = manualCompact.timeline.find((item) => item.kind === 'compaction');
+  assert.equal(manualItem.runId, null);
+  assert.equal(manualItem.trigger, 'manual');
+  assert.equal(manualCompact.usage.session.total, 4);
+  assert.equal(manualCompact.usage.lastCompaction?.afterTotal, 4200);
+  console.log('PASS: runId 为空的 manual 压缩进入时间线并计入 session 用量');
+
+  const planModeRun = projectSession({
+    id: 's',
+    events: [
+      ev(1, 'run', {status: 'running', mode: 'plan'}),
+      ev(2, 'turn', {phase: 'started', index: 1}),
+      ev(3, 'tool', {tool_call_id: 'c-w', name: 'file', function: 'write_file', status: 'called', args: {filepath: '/tmp/x'}, content: null, denied_by: 'plan_mode'}),
+    ],
+  });
+  assert.equal(planModeRun.runs[0].mode, 'plan');
+  const planDenied = planModeRun.timeline.find((item) => item.kind === 'tools').calls[0];
+  assert.equal(planDenied.status, 'denied');
+  assert.match(planDenied.result.error, /计划模式/);
+  console.log('PASS: RunView.mode 与 denied_by=plan_mode 的拒绝文案');
 
   const mcp = projectSession({
     id: 's',

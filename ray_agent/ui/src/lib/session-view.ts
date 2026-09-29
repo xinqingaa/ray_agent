@@ -66,9 +66,13 @@ export type Activity =
   | {kind: 'stopping'; requestedAt: number}
   | {kind: 'idle'}
 
+export type RunMode = 'normal' | 'plan'
+
 export type RunView = {
   id: string
   status: RunStatus
+  /** 运行模式；缺省为 normal */
+  mode?: RunMode
   reason: RunReason | null
   /** 投影生成的可读原因，终态非 completed 时必有 */
   reasonText: string | null
@@ -175,6 +179,14 @@ export type FileView = {
   path: string | null
 }
 
+/** 会话绑定的本地项目；与 API ProjectView 一致 */
+export type ProjectView = {
+  path: string
+  name: string
+  available: boolean
+  reason?: string | null
+}
+
 type ItemBase = {id: string; runId: string | null; at: number}
 
 export type TimelineItem =
@@ -184,7 +196,14 @@ export type TimelineItem =
   | (ItemBase & {kind: 'ask'; question: string; answered: boolean})
   | (ItemBase & {kind: 'approval'; call: ToolCallView; status: ApprovalStatus; decidedAt: number | null})
   | (ItemBase & {kind: 'delivery'; files: FileView[]; note: string})
-  | (ItemBase & {kind: 'compaction'; beforeTokens: number; afterTokens: number; summarizedTurns: number; summary: string | null})
+  | (ItemBase & {
+      kind: 'compaction'
+      beforeTokens: number
+      afterTokens: number
+      summarizedTurns: number
+      summary: string | null
+      trigger: 'watermark' | 'overflow' | 'manual'
+    })
   | (ItemBase & {kind: 'attempt'; turnIndex: number; attempt: number; reason: string; retried: boolean; chars?: number | null})
   | (ItemBase & {kind: 'final'; text: string; summary: RunSummary | null})
   | (ItemBase & {kind: 'run_end'; status: Exclude<RunStatus, 'running' | 'waiting' | 'completed'>; reason: RunReason | null; reasonText: string; retryText: string | null})
@@ -195,11 +214,26 @@ export type TimelineItemOf<K extends TimelineItemKind> = Extract<TimelineItem, {
 /** W7.2 审批条目状态；“提交中”是按钮的临时状态，不在视图模型中 */
 export type ApprovalStatus = 'pending' | 'approved' | 'rejected' | 'expired'
 
+export type CompactTrigger = 'watermark' | 'overflow' | 'manual'
+
 export type UsageView = {
   /** 会话累计 */
   session: TokenCounts
   /** 最近一次模型请求的上下文占用；尚无请求时为空 */
-  context: {usedTokens: number; windowTokens: number; lastTurnTokens: number | null} | null
+  context: {
+    usedTokens: number
+    windowTokens: number
+    lastTurnTokens: number | null
+    /** 占用来自手动/会话级压缩后的估算，下一次请求后会更新 */
+    postCompactEstimate?: boolean
+  } | null
+  /** 最近一次带估算的压缩事件 */
+  lastCompaction?: {
+    seq: number
+    trigger: CompactTrigger
+    beforeTotal: number
+    afterTotal: number
+  } | null
   /** W2 压缩水位，占窗口的比例；未知为空 */
   watermarkRatio: number | null
   /** 本会话发生过的压缩次数 */
@@ -230,6 +264,8 @@ export type SessionView = {
   title: string
   /** 最新运行的状态；没有运行时为 idle */
   status: RunStatus | 'idle'
+  /** 绑定的本地项目；未绑定为 null */
+  project: ProjectView | null
   runs: RunView[]
   activeRun: RunView | null
   timeline: TimelineItem[]

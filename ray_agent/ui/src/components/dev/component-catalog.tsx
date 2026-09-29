@@ -16,8 +16,11 @@ import {AskCard} from '@/components/run/ask-card'
 import {ApprovalCard} from '@/components/run/approval-card'
 import {DeliveryCard} from '@/components/run/delivery-card'
 import {AttemptNotice, CompactionNotice} from '@/components/run/notices'
-import {RunEndBar} from '@/components/run/run-end-bar'
+import {RunEndBar, PlanExecuteBar} from '@/components/run/run-end-bar'
+import {PlusCommandMenu} from '@/components/input-command-menu'
+import {ProjectPicker} from '@/components/project-picker'
 import {ContextRing} from '@/components/run/context-ring'
+import type {CommandContext} from '@/lib/commands'
 import {Timeline} from '@/components/run/timeline-item'
 import {McpServerRow} from '@/components/settings/mcp-section'
 import {A2aServerRow} from '@/components/settings/a2a-section'
@@ -37,6 +40,8 @@ import {
   runStates,
   sessionItemStates,
   settingsListStates,
+  projectPickerStates,
+  projectWorkbenchNotes,
   toolGroups,
   toolStates,
   usageStates,
@@ -58,6 +63,9 @@ const SECTIONS = [
   ['attempt', '失败尝试提示'],
   ['run-end', '终态条'],
   ['context-ring', '上下文环'],
+  ['input-commands', '输入命令'],
+  ['project-picker', '项目选择器'],
+  ['project-workbench', '项目与变更页'],
   ['session-item', '会话列表项'],
   ['settings-list', '设置列表项'],
   ['composed', '组合：真实会话'],
@@ -149,6 +157,31 @@ function ComposedSession({items, statusBar, plan, usage}: {items: TimelineItem[]
 
 const noop = () => toast.info('目录页中的操作不会调用接口')
 
+const commandIdle: CommandContext = {
+  hasSession: true,
+  hasRuns: true,
+  runStatus: 'idle',
+  waitingApproval: false,
+  waitingReply: false,
+  submitting: false,
+  uploading: false,
+  compacting: false,
+  planMode: false,
+  projectsEnabled: true,
+  projectBindable: true,
+  actions: {openFilePicker: noop, togglePlan: noop, openProjectPicker: noop, compact: noop},
+}
+
+const commandRunning: CommandContext = {
+  ...commandIdle,
+  runStatus: 'running',
+}
+
+const commandNoRuns: CommandContext = {
+  ...commandIdle,
+  hasRuns: false,
+}
+
 const toolPolicyFixture: ToolPolicyForm = {
   load: {phase: 'ready'},
   config: {
@@ -211,6 +244,7 @@ export function ComponentCatalog() {
           <State label="空闲" source="真实"><RunStatusBar run={runStates.idle}/></State>
           <State label="模型思考中" source="真实"><FixtureClock at={runStates.modelNow}><RunStatusBar run={runStates.model} onStop={noop}/></FixtureClock></State>
           <State label="工具执行中" source="真实"><FixtureClock at={runStates.toolNow}><RunStatusBar run={runStates.tool} onStop={noop}/></FixtureClock></State>
+          <State label="计划模式" source="合成"><FixtureClock at={runStates.toolNow}><RunStatusBar run={runStates.planMode} onStop={noop}/></FixtureClock></State>
           <State label="等待回复" source="真实"><FixtureClock at={runStates.waitingReplyNow}><RunStatusBar run={runStates.waitingReply} onStop={noop}/></FixtureClock></State>
           <State label="等待审批" source="合成"><FixtureClock at={runStates.toolNow}><RunStatusBar run={runStates.waitingApproval} onStop={noop}/></FixtureClock></State>
           <State label="停止中" source="合成"><FixtureClock at={runStates.toolNow}><RunStatusBar run={runStates.stopping} onStop={noop}/></FixtureClock></State>
@@ -301,7 +335,8 @@ export function ComponentCatalog() {
         </Section>
 
         <Section id="compaction" title="压缩提示" note="W2 合入后由 compact 事件产生；摘要全文在开发者视图。">
-          <State label="一次压缩" source="合成"><Surface><CompactionNotice beforeTokens={41_236} afterTokens={6_310} summarizedTurns={8}/></Surface></State>
+          <State label="一次压缩（自动）" source="合成"><Surface><CompactionNotice beforeTokens={41_236} afterTokens={6_310} summarizedTurns={8} trigger="watermark"/></Surface></State>
+          <State label="手动压缩" source="合成"><Surface><CompactionNotice beforeTokens={18_200} afterTokens={9_400} summarizedTurns={4} trigger="manual"/></Surface></State>
         </Section>
 
         <Section id="attempt" title="失败尝试提示" columns={2} note="W6 的 attempt 事件；失败的请求不进入模型历史。">
@@ -313,6 +348,7 @@ export function ComponentCatalog() {
           <State label="失败" source="合成"><RunEndBar status="failed" reasonText={runStates.failed.reasonText ?? ''} retryText="附件 inventory.csv 是库存清单……" onRetry={noop}/></State>
           <State label="已停止" source="合成"><RunEndBar status="cancelled" reasonText="你停止了这次运行"/></State>
           <State label="已中断" source="合成"><RunEndBar status="interrupted" reasonText="服务重启导致运行中断"/></State>
+          <State label="按计划执行" source="合成"><PlanExecuteBar onExecute={noop}/></State>
         </Section>
 
         <Section id="context-ring" title="上下文环" columns={3} note="最近一次请求的上下文占用；刻度线是压缩水位，蓝点表示发生过压缩。悬停或聚焦查看剩余量与最近一轮用量。">
@@ -320,6 +356,53 @@ export function ComponentCatalog() {
           <State label="正常" source="真实"><Surface><ContextRing usage={usageStates.normal}/></Surface></State>
           <State label="接近水位" source="合成"><Surface><ContextRing usage={usageStates.near}/></Surface></State>
           <State label="已压缩" source="合成"><Surface><ContextRing usage={usageStates.compacted}/></Surface></State>
+          <State label="压缩后估算" source="合成"><Surface><ContextRing usage={usageStates.postCompactEstimate}/></Surface></State>
+        </Section>
+
+        <Section id="project-picker" title="项目选择器" columns={2} note="首页与会话输入框工具行；PROJECT_ROOTS 未启用时不渲染。目录页用静态展示。">
+          <State label="未选择" source="合成">
+            <Surface className="inline-flex">
+              <ProjectPicker enabled selected={projectPickerStates.unselected} onSelect={noop}/>
+            </Surface>
+          </State>
+          <State label="已选择项目" source="合成">
+            <Surface className="inline-flex">
+              <ProjectPicker enabled selected={projectPickerStates.selected} onSelect={noop}/>
+            </Surface>
+          </State>
+          <State label="不可用（禁用选择）" source="合成">
+            <Surface className="inline-flex">
+              <ProjectPicker enabled selected={projectPickerStates.unavailable} onSelect={noop} disabled/>
+            </Surface>
+          </State>
+        </Section>
+
+        <Section id="project-workbench" title="项目与变更页" columns={2} note="绑定项目后出现在工作台；不参与按工具家族自动打开。目录页只展示空态文案。">
+          <State label="项目页空态" source="合成">
+            <Surface className="text-meta text-faint">{projectWorkbenchNotes.treeEmpty}</Surface>
+          </State>
+          <State label="非 Git 仓库" source="合成">
+            <Surface className="text-meta text-faint">{projectWorkbenchNotes.notGit}</Surface>
+          </State>
+          <State label="变更页无改动" source="合成">
+            <Surface className="text-meta text-faint">{projectWorkbenchNotes.changesClean}</Surface>
+          </State>
+          <State label="标题栏项目不可用" source="合成">
+            <p className="text-xs text-muted-foreground">
+              {projectPickerStates.unavailable.name} · {projectPickerStates.unavailable.reason}
+            </p>
+          </State>
+        </Section>
+
+        <Section id="input-commands" title="输入命令" columns={2} note="+ 菜单与 / 提示共用注册表；不可用项显示原因。">
+          <State label="全部可用" source="合成"><Surface className="inline-flex"><PlusCommandMenu context={commandIdle}/></Surface></State>
+          <State label="运行中（Plan 与压缩不可用）" source="合成"><Surface className="inline-flex"><PlusCommandMenu context={commandRunning}/></Surface></State>
+          <State label="无运行历史（压缩不可用）" source="合成"><Surface className="inline-flex"><PlusCommandMenu context={commandNoRuns}/></Surface></State>
+          <State label="计划模式标记" source="合成">
+            <span className="inline-flex h-7 items-center rounded-md border border-signal/30 bg-signal-soft/50 px-2 text-xs font-medium text-signal">
+              计划模式
+            </span>
+          </State>
         </Section>
 
         <Section id="session-item" title="会话列表项" note="标题自然换行，时间在左、状态色点在右；悬停或聚焦会话可查看状态名称。">

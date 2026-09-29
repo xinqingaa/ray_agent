@@ -58,7 +58,7 @@ function CommandRow({
 export function PlusCommandMenu({context}: {context: CommandContext}) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
-  const items = matchingCommands(query)
+  const items = matchingCommands(query, {projectsEnabled: context.projectsEnabled})
 
   const run = (command: InputCommand) => {
     command.run(context)
@@ -127,7 +127,7 @@ export function SlashCommandList({
   onActiveIdChange: (id: string) => void
   onRun: (command: InputCommand) => void
 }) {
-  const items = matchingCommands(query)
+  const items = matchingCommands(query, {projectsEnabled: context.projectsEnabled})
   return (
     <Command
       shouldFilter={false}

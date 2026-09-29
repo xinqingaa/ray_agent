@@ -31,6 +31,7 @@ export const e2Delivery: SessionView = {
   "id": "7a88f476-01e8-49b7-8b13-2ad691efb073",
   "title": "附件 source.csv 是一份清单。请统计 amount",
   "status": "completed",
+  "project": null,
   "runs": [
     {
       "id": "run-7a88f476-1",
@@ -792,6 +793,7 @@ export const e3Ask: SessionView = {
   "id": "43d3298d-3133-4f6a-ac7d-ad55360bf628",
   "title": "请生成一个 JSON 文件，内容是 {\"status\": \"",
   "status": "completed",
+  "project": null,
   "runs": [
     {
       "id": "run-43d3298d-1",
@@ -1367,6 +1369,7 @@ export const e3Waiting: SessionView = {
   "id": "43d3298d-3133-4f6a-ac7d-ad55360bf628",
   "title": "请生成一个 JSON 文件，内容是 {\"status\": \"",
   "status": "waiting",
+  "project": null,
   "runs": [
     {
       "id": "run-43d3298d-1",
@@ -1574,6 +1577,7 @@ export const planWalkthrough: SessionView = {
   "id": "8d61d99d-d37e-4977-9167-ad8807fba746",
   "title": "附件 inventory.csv 是库存清单。请按这几步完成",
   "status": "completed",
+  "project": null,
   "runs": [
     {
       "id": "run-8d61d99d-1",
@@ -2843,6 +2847,7 @@ export const planToolRunning: SessionView = {
   "id": "8d61d99d-d37e-4977-9167-ad8807fba746",
   "title": "附件 inventory.csv 是库存清单。请按这几步完成",
   "status": "running",
+  "project": null,
   "runs": [
     {
       "id": "run-8d61d99d-1",
@@ -3456,6 +3461,7 @@ export const planModelThinking: SessionView = {
   "id": "8d61d99d-d37e-4977-9167-ad8807fba746",
   "title": "附件 inventory.csv 是库存清单。请按这几步完成",
   "status": "running",
+  "project": null,
   "runs": [
     {
       "id": "run-8d61d99d-1",
@@ -4131,6 +4137,7 @@ export const planChanged: SessionView = {
   "id": "8d61d99d-d37e-4977-9167-ad8807fba746",
   "title": "附件 inventory.csv 是库存清单。请按这几步完成",
   "status": "running",
+  "project": null,
   "runs": [
     {
       "id": "run-8d61d99d-1",

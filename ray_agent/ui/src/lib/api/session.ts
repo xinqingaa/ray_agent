@@ -6,6 +6,7 @@ import type {
   CreateSessionParams,
   ChatParams,
   ChatAccepted,
+  CompactResult,
   ApprovalAccepted,
   ApprovalDecision,
   TurnRequest,
@@ -133,6 +134,13 @@ export const sessionApi = {
    */
   chat: (sessionId: string, params: ChatParams): Promise<ChatAccepted> => {
     return post<ChatAccepted>(`/sessions/${sessionId}/chat`, params);
+  },
+
+  /**
+   * 手动压缩会话上下文；结果通过事件流写入，不在前端伪造时间线条目
+   */
+  compact: (sessionId: string): Promise<CompactResult> => {
+    return post<CompactResult>(`/sessions/${sessionId}/compact`, {});
   },
 
   /**

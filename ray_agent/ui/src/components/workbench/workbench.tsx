@@ -12,8 +12,11 @@ import {toast} from 'sonner'
 import {fileIcon, previewUnavailableReason} from '@/components/run/file-icon'
 import {formatBytes} from '@/components/run/format'
 import {TOOL_STATUS} from '@/components/run/status-meta'
+import type {ProjectView} from '@/lib/session-view'
+import {ChangesPane} from '@/components/workbench/changes-pane'
+import {ProjectPane} from '@/components/workbench/project-pane'
 
-export type WorkbenchTab = 'result' | 'terminal' | 'browser' | 'files'
+export type WorkbenchTab = 'result' | 'terminal' | 'browser' | 'files' | 'project' | 'changes'
 
 type WorkbenchProps = {
   sessionId: string
@@ -31,6 +34,9 @@ type WorkbenchProps = {
   onFollowLatest: () => void
   onClose: () => void
   onOpenVnc?: () => void
+  project?: ProjectView | null
+  gitRefreshSignal?: number
+  onGitBranchUpdate?: (branch: string | null) => void
   className?: string
 }
 
@@ -489,6 +495,9 @@ export function Workbench({
   onFollowLatest,
   onClose,
   onOpenVnc,
+  project,
+  gitRefreshSignal,
+  onGitBranchUpdate,
   className,
 }: WorkbenchProps) {
   const status = focus ? TOOL_STATUS[focus.status] : null
@@ -497,12 +506,16 @@ export function Workbench({
     (tab === 'browser' && focus.family !== 'browser' && browserCall && browserCall.callId !== focus.callId)
   )
   const hasResultTab = focus && !['shell', 'browser', 'file', 'deliver'].includes(focus.family)
-  const availableTabs = TABS.filter((item) =>
-    item.id === 'files' ||
-    (item.id === 'result' && hasResultTab) ||
-    (item.id === 'terminal' && shellCall) ||
-    (item.id === 'browser' && browserCall),
-  )
+  const hasProject = project != null
+  const availableTabs = [
+    ...TABS.filter((item) =>
+      item.id === 'files' ||
+      (item.id === 'result' && hasResultTab) ||
+      (item.id === 'terminal' && shellCall) ||
+      (item.id === 'browser' && browserCall),
+    ),
+    ...(hasProject ? [{id: 'project' as const, label: '项目'}, {id: 'changes' as const, label: '变更'}] : []),
+  ]
 
   return (
     <section aria-label="工作台" className={cn('flex h-full min-h-0 flex-col bg-card', className)}>
@@ -554,6 +567,18 @@ export function Workbench({
       {tab === 'terminal' && <ShellPane sessionId={sessionId} call={shellCall}/>}
       {tab === 'browser' && <BrowserPane call={browserCall} onOpenVnc={onOpenVnc}/>}
       {tab === 'files' && <FilesPane focus={focus} files={files} highlightFileId={highlightFileId}/>}
+      {tab === 'project' && hasProject && project?.available && (
+        <ProjectPane sessionId={sessionId}/>
+      )}
+      {tab === 'project' && hasProject && !project?.available && (
+        <EmptyNote>{project.reason ?? '项目目录不可用'}</EmptyNote>
+      )}
+      {tab === 'changes' && hasProject && project?.available && (
+        <ChangesPane sessionId={sessionId} refreshSignal={gitRefreshSignal} onBranchUpdate={onGitBranchUpdate}/>
+      )}
+      {tab === 'changes' && hasProject && !project?.available && (
+        <EmptyNote>{project.reason ?? '项目目录不可用'}</EmptyNote>
+      )}
     </section>
   )
 }

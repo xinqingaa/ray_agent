@@ -183,6 +183,142 @@ export type FileUploadParams = {
   session_id?: string;
 };
 
+// ==================== 本地项目模块类型 ====================
+
+export type ProjectView = {
+  path: string;
+  name: string;
+  available: boolean;
+  reason?: string | null;
+};
+
+export type ProjectRootItem = {
+  path: string;
+  available: boolean;
+};
+
+export type ProjectRootsData = {
+  enabled: boolean;
+  roots: ProjectRootItem[];
+};
+
+export type BrowseEntry = {
+  name: string;
+  path: string;
+  is_git_repo: boolean;
+  is_symlink: boolean;
+};
+
+export type BrowseListing = {
+  path: string;
+  root: string;
+  parent?: string | null;
+  is_git_repo: boolean;
+  entries: BrowseEntry[];
+  total: number;
+  truncated: boolean;
+  limit: number;
+};
+
+export type ProjectEntryType = "file" | "directory" | "symlink" | "other";
+export type ProjectLinkState = "inside" | "outside" | "broken";
+
+export type ProjectTreeEntry = {
+  name: string;
+  path: string;
+  type: ProjectEntryType;
+  size?: number | null;
+  modified_at?: number | null;
+  is_symlink: boolean;
+  link?: ProjectLinkState | null;
+};
+
+export type ProjectListing = {
+  path: string;
+  entries: ProjectTreeEntry[];
+  total: number;
+  truncated: boolean;
+  limit: number;
+};
+
+export type ProjectFileKind = "text" | "binary" | "too_large";
+
+export type ProjectFile = {
+  path: string;
+  name: string;
+  size: number;
+  modified_at?: number | null;
+  kind: ProjectFileKind;
+  content?: string | null;
+  max_bytes: number;
+};
+
+export type GitState = "ok" | "not_a_repository" | "timeout" | "error";
+export type GitEntryKind = "ordinary" | "renamed" | "copied" | "unmerged" | "untracked";
+export type GitChange =
+  | "modified"
+  | "type_changed"
+  | "added"
+  | "deleted"
+  | "renamed"
+  | "copied"
+  | "unmerged";
+export type GitConflict =
+  | "both_deleted"
+  | "added_by_us"
+  | "deleted_by_them"
+  | "added_by_them"
+  | "deleted_by_us"
+  | "both_added"
+  | "both_modified";
+
+export type GitStatusEntry = {
+  kind: GitEntryKind;
+  path: string;
+  orig_path?: string | null;
+  xy: string;
+  index?: GitChange | null;
+  worktree?: GitChange | null;
+  conflict?: GitConflict | null;
+};
+
+export type GitStatus = {
+  state: GitState;
+  branch?: string | null;
+  detached: boolean;
+  oid?: string | null;
+  initial: boolean;
+  upstream?: string | null;
+  ahead?: number | null;
+  behind?: number | null;
+  entries: GitStatusEntry[];
+  truncated: boolean;
+  limit: number;
+  error?: string | null;
+};
+
+export type GitDiffScope = "worktree" | "staged";
+
+export type GitDiffFile = {
+  path: string;
+  orig_path?: string | null;
+  additions?: number | null;
+  deletions?: number | null;
+  binary: boolean;
+};
+
+export type GitDiff = {
+  state: GitState;
+  scope: GitDiffScope;
+  path?: string | null;
+  untracked: boolean;
+  files: GitDiffFile[];
+  diff: string;
+  truncated: boolean;
+  max_bytes: number;
+  error?: string | null;
+};
+
 // ==================== 会话模块类型 ====================
 
 /**
@@ -195,6 +331,7 @@ export type Session = {
   latest_message_at: string;
   status: SessionStatus;
   unread_message_count: number;
+  project?: ProjectView | null;
   [key: string]: unknown;
 };
 
@@ -233,7 +370,20 @@ export type ChatMessage = {
 export type ChatParams = {
   message: string;
   attachments?: string[];
+  mode?: "normal" | "plan";
   [key: string]: unknown;
+};
+
+export type CompactResult = {
+  status: "compacted" | "skipped";
+  reason?: string | null;
+  message: string;
+  compact_seq?: number | null;
+  context_seq?: number | null;
+  before_total?: number | null;
+  after_total?: number | null;
+  summarized_turns?: number | null;
+  kept_turns?: number | null;
 };
 
 /**

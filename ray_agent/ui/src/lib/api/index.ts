@@ -54,10 +54,19 @@ export type {
   SessionFile,
   ViewFileParams,
   ViewShellParams,
+  ProjectView,
+  ProjectRootsData,
+  BrowseListing,
+  ProjectListing,
+  ProjectFile,
+  GitStatus,
+  GitDiff,
+  GitDiffScope,
 } from "./types";
 
 // 模块 API
 export { configApi } from "./config";
 export { fileApi } from "./file";
 export { sessionApi } from "./session";
+export { projectApi } from "./project";
 

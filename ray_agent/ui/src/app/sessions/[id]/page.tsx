@@ -21,6 +21,7 @@ export default function SessionDetailPage({ params }: PageProps) {
     id: string
     initialMessage?: string
     initialAttachments?: string[]
+    initialMode?: 'plan' | 'normal'
     hasInitialMessage: boolean
   } | null>(null)
   
@@ -33,13 +34,14 @@ export default function SessionDetailPage({ params }: PageProps) {
         try {
           // 解码 Base64
           const decoded = decodeURIComponent(atob(initParam))
-          const { message, attachments } = JSON.parse(decoded)
+          const { message, attachments, mode } = JSON.parse(decoded)
           
           // 一次性设置所有状态
           setSessionData({
             id: p.id,
             initialMessage: message,
             initialAttachments: attachments,
+            initialMode: mode === 'plan' ? 'plan' : 'normal',
             hasInitialMessage: true
           })
         } catch (e) {
@@ -69,6 +71,7 @@ export default function SessionDetailPage({ params }: PageProps) {
       sessionId={sessionData.id}
       initialMessage={sessionData.initialMessage}
       initialAttachments={sessionData.initialAttachments}
+      initialMode={sessionData.initialMode}
       hasInitialMessage={sessionData.hasInitialMessage}
     />
   )

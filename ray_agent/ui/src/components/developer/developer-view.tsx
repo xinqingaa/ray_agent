@@ -369,8 +369,10 @@ export function DeveloperView({view, loadTurnRequest, className}: DeveloperViewP
             {compactions.map((item) => (
               <li key={item.id} className="rounded-md border bg-card px-3 py-2 text-meta">
                 <p className="tabular-nums">
+                  {item.trigger === 'manual' ? '手动' : item.trigger === 'overflow' ? '溢出' : '水位'} ·{' '}
                   {formatTokens(item.beforeTokens)} → {formatTokens(item.afterTokens)} tokens
                   {item.summarizedTurns > 0 && `，摘要了 ${item.summarizedTurns} 轮`}
+                  {item.runId == null && ' · 会话级'}
                 </p>
                 {item.summary ? (
                   <pre className="mt-1 whitespace-pre-wrap break-words font-sans text-xs text-muted-foreground">{item.summary}</pre>
@@ -434,6 +436,7 @@ function RunTurns({
     <div className="mb-3">
       <p className="mb-1 font-mono text-xs text-muted-foreground">
         运行 {run.id.slice(0, 8)} · {run.status}
+        {run.mode === 'plan' && ' · 计划模式'}
       </p>
       {run.turns.length === 0 ? (
         <p className="text-xs text-faint">这次运行还没有轮次记录</p>

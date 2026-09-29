@@ -245,3 +245,12 @@
 - **「按计划执行」：** 放在终态条（`run-end-bar.tsx`）。条件：最新运行 `mode === 'plan'` 且 `completed`，会话没有活动运行。点击以普通模式发送固定文案“按计划执行”，与“以相同内容重试”同一发送路径。
 - **上下文环详情：** 环改为 Popover 触发按钮（可访问名称沿用现有），悬停仍显示简短说明。详情内容按上文“上下文环详情”一节；「立即压缩」按钮调用注册表里 `id === 'compact'` 那一项的 `available(ctx)` 与 `run(ctx)`，不另写判断，不可用时按钮禁用并显示同一句原因。最近一次压缩的 `seq` 大于最近一轮 `turn(started)` 时，占用显示 `after_estimate.total` 并标“压缩后估算，下一次请求后更新”。
 - **组件状态目录：** `components/dev/component-catalog.tsx` 补 Plan 标记、压缩命令的可用与不可用、上下文环详情（未压缩、已压缩、压缩后估算）、手动压缩时间线条目。
+
+## 实施修正（2026-09-29，前端第二批）
+
+1. **`RunView.mode` 可选：** 投影对缺省 `mode` 的运行写 `normal`；手写夹具未批量补 `mode` 字段，组件侧用 `run.mode === 'plan'` 判断。
+2. **`UsageView` 扩展：** 除契约中的 `session` / `context` 外，增加 `lastCompaction`（详情 popover 的最近触发与估算）与 `context.postCompactEstimate`（压缩晚于最近一轮 `turn(started)` 时的占用说明）。
+3. **首页计划模式：** `init` 参数 JSON 增加可选 `mode: "plan"`，会话页首次 `chat` 传入；未改 `use-session-detail` 的对外类型名，仅在 `sendMessage` 第三参增加 `mode`。
+4. **上下文环 `commandContext`：** 会话页为环单独构造 `CommandContext`（`planMode` 固定 false，不影响压缩可用性）；`togglePlan` / `openFilePicker` 为空操作，仅「立即压缩」走注册表。
+5. **「按计划执行」位置：** 协调者要求放在 `run-end-bar.tsx` 组件文件内的 `PlanExecuteBar`，渲染在时间线列表末尾（最终回复之后），而非 `run_end` 条目内。
+6. **已跑：** `npx tsc --noEmit`、`npm run lint`（0 错误，22 条既有警告）、`node scripts/check-event-observability.cjs`、`node scripts/check-slash-trigger.cjs` 通过。未跑 `npm run build`，未做浏览器走查。

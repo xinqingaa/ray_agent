@@ -12,13 +12,15 @@ import {PlusCommandMenu, SlashCommandList} from '@/components/input-command-menu
 import {fileApi} from '@/lib/api/file'
 import type {FileInfo} from '@/lib/api/types'
 import {toast} from 'sonner'
+import {ProjectPicker} from '@/components/project-picker'
+import type {ProjectView} from '@/lib/api/types'
 import {matchingCommands, type CommandContext, type CommandHost, type InputCommand} from '@/lib/commands'
 import {findSlashTrigger, removeSlashFragment, type SlashFragment} from '@/lib/slash-trigger'
 
 interface ChatInputProps {
   className?: string
   onInputValueChange?: (value: string) => void
-  onSend?: (message: string, files: FileInfo[]) => Promise<void>
+  onSend?: (message: string, files: FileInfo[], options?: {mode?: 'plan' | 'normal'}) => Promise<void>
   disabled?: boolean
   /** 当前会话 ID，上传附件时会关联到该会话 */
   sessionId?: string | null
@@ -27,14 +29,23 @@ interface ChatInputProps {
   accessory?: ReactNode
   /** 页面状态。上传中与文件选择由输入框补进命令上下文。 */
   commandHost?: CommandHost
+  projectsEnabled?: boolean
+  projectBindable?: boolean
+  selectedProject?: ProjectView | null
+  onProjectSelect?: (project: ProjectView | null) => void
 }
 
 const EMPTY_HOST: CommandHost = {
   hasSession: false,
+  hasRuns: false,
   runStatus: 'idle',
   waitingApproval: false,
   waitingReply: false,
   submitting: false,
+  compacting: false,
+  actions: {compact: () => {}},
+  projectsEnabled: false,
+  projectBindable: false,
 }
 
 export interface ChatInputRef {
@@ -44,12 +55,14 @@ export interface ChatInputRef {
 }
 
 export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
-  ({ className, onInputValueChange, onSend, disabled = false, sessionId, placeholder = '分配一个任务或提问任何问题...', accessory, commandHost = EMPTY_HOST }, ref) => {
+  ({ className, onInputValueChange, onSend, disabled = false, sessionId, placeholder = '分配一个任务或提问任何问题...', accessory, commandHost = EMPTY_HOST, projectsEnabled = false, projectBindable = false, selectedProject = null, onProjectSelect }, ref) => {
     const [files, setFiles] = useState<FileInfo[]>([])
     const [uploading, setUploading] = useState(false)
     const [sending, setSending] = useState(false)
     const [inputValue, setInputValue] = useState('')
+    const [planMode, setPlanMode] = useState(false)
     const [slash, setSlash] = useState<SlashFragment | null>(null)
+    const [projectPickerOpen, setProjectPickerOpen] = useState(false)
     const [activeId, setActiveId] = useState<string | null>(null)
     const fileInputRef = useRef<HTMLInputElement>(null)
     const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -58,7 +71,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
     /** Esc 或执行命令后，同一片段不要被随后的 keyup 重新打开。 */
     const dismissedRef = useRef<SlashFragment | null>(null)
     const slashListId = useId()
-    const blocked = disabled || sending
+    const blocked = disabled || sending || commandHost.compacting
     const [wasBlocked, setWasBlocked] = useState(blocked)
     if (blocked !== wasBlocked) {
       setWasBlocked(blocked)
@@ -69,29 +82,53 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
       fileInputRef.current?.click()
     }, [])
 
+    const togglePlan = useCallback(() => {
+      setPlanMode((prev) => !prev)
+    }, [])
+
+    const resolvedProjectsEnabled = commandHost.projectsEnabled ?? projectsEnabled
+    const resolvedProjectBindable = commandHost.projectBindable ?? projectBindable
+
     const commandContext = useMemo<CommandContext>(() => ({
       hasSession: commandHost.hasSession,
+      hasRuns: commandHost.hasRuns,
       runStatus: commandHost.runStatus,
       waitingApproval: commandHost.waitingApproval,
       waitingReply: commandHost.waitingReply,
       submitting: commandHost.submitting || sending,
       uploading,
-      actions: {openFilePicker},
+      compacting: commandHost.compacting,
+      planMode,
+      projectsEnabled: resolvedProjectsEnabled,
+      projectBindable: resolvedProjectBindable,
+      actions: {
+        openFilePicker,
+        togglePlan,
+        openProjectPicker: () => setProjectPickerOpen(true),
+        compact: commandHost.actions.compact,
+      },
     }), [
       commandHost.hasSession,
+      commandHost.hasRuns,
       commandHost.runStatus,
       commandHost.waitingApproval,
       commandHost.waitingReply,
       commandHost.submitting,
+      commandHost.compacting,
+      commandHost.actions.compact,
       sending,
       uploading,
+      planMode,
+      resolvedProjectsEnabled,
+      resolvedProjectBindable,
       openFilePicker,
+      togglePlan,
     ])
 
     const slashOpen = slash != null && !blocked
     const matched = useMemo(
-      () => (slashOpen && slash ? matchingCommands(slash.query) : []),
-      [slashOpen, slash],
+      () => (slashOpen && slash ? matchingCommands(slash.query, {projectsEnabled: resolvedProjectsEnabled}) : []),
+      [slashOpen, slash, resolvedProjectsEnabled],
     )
     const resolvedActiveId = matched.some((command) => command.id === activeId)
       ? activeId
@@ -225,10 +262,11 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
       if (onSend) {
         setSending(true)
         try {
-          await onSend(trimmedMessage, files)
+          await onSend(trimmedMessage, files, {mode: planMode ? 'plan' : 'normal'})
           // 发送成功后清空输入框和文件列表
           setInputValue('')
           setFiles([])
+          setPlanMode(false)
           setSlash(null)
           onInputValueChange?.('')
         } catch (error) {
@@ -394,7 +432,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
       {/* 底部上传&发送按钮 */}
       <footer className="flex flex-row items-center justify-between w-full px-3">
         {/* 命令菜单 */}
-        <div className="flex gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <input
             ref={fileInputRef}
             type="file"
@@ -404,6 +442,27 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
             disabled={uploading}
           />
           <PlusCommandMenu context={commandContext}/>
+          {resolvedProjectsEnabled && onProjectSelect && (
+            <ProjectPicker
+              enabled
+              selected={selectedProject}
+              onSelect={onProjectSelect}
+              open={projectPickerOpen}
+              onOpenChange={setProjectPickerOpen}
+              disabled={!resolvedProjectBindable || blocked}
+            />
+          )}
+          {planMode && (
+            <button
+              type="button"
+              onClick={() => setPlanMode(false)}
+              className="inline-flex h-7 max-w-full items-center gap-1 rounded-md border border-signal/30 bg-signal-soft/50 px-2 text-xs font-medium text-signal outline-none hover:bg-signal-soft focus-visible:ring-2 focus-visible:ring-ring"
+            >
+              <span className="truncate">计划模式</span>
+              <XCircle className="size-3.5 shrink-0" aria-hidden/>
+              <span className="sr-only">，点击移除</span>
+            </button>
+          )}
         </div>
         {/* 发送/暂停按钮 */}
         <div className="flex items-center gap-1">
@@ -413,7 +472,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
             variant="outline"
             className="rounded-full w-8 h-8 cursor-pointer"
             onClick={handleSend}
-            disabled={sending || disabled || !inputValue.trim()}
+            disabled={sending || disabled || commandHost.compacting || !inputValue.trim()}
             aria-label="发送"
           >
             {sending ? (

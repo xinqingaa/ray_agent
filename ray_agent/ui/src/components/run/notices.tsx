@@ -1,26 +1,39 @@
 import {Layers, RotateCw, TriangleAlert} from 'lucide-react'
 import {cn} from '@/lib/utils'
+import type {CompactTrigger} from '@/lib/session-view'
 import {formatTokens} from './format'
+
+const HEADLINE: Record<CompactTrigger, string> = {
+  manual: '你手动压缩了上下文',
+  watermark: '上下文接近上限，已自动压缩',
+  overflow: '请求超出窗口，已压缩后重试',
+}
 
 type CompactionNoticeProps = {
   beforeTokens: number
   afterTokens: number
   summarizedTurns: number
+  trigger: CompactTrigger
   className?: string
 }
 
-/** 压缩提示：一行说明压缩了多少轮与前后估算量；摘要全文在开发者视图 */
-export function CompactionNotice({beforeTokens, afterTokens, summarizedTurns, className}: CompactionNoticeProps) {
+/** 压缩提示：一行说明触发原因与前后估算量；摘要全文在开发者视图 */
+export function CompactionNotice({beforeTokens, afterTokens, summarizedTurns, trigger, className}: CompactionNoticeProps) {
   return (
     <div role="note" className={cn('flex items-center gap-3 text-xs text-muted-foreground', className)}>
       <span className="h-px flex-1 bg-border" aria-hidden/>
-      <span className="inline-flex items-center gap-1.5">
-        <Layers className="size-3.5" aria-hidden/>
-        已把较早的 {summarizedTurns} 轮压缩为摘要，上下文约
-        <span className="tabular-nums text-foreground">{formatTokens(beforeTokens)}</span>
-        降到
-        <span className="tabular-nums text-foreground">{formatTokens(afterTokens)}</span>
-        tokens
+      <span className="inline-flex flex-wrap items-center justify-center gap-x-1.5 gap-y-0.5 text-center">
+        <Layers className="size-3.5 shrink-0" aria-hidden/>
+        <span>{HEADLINE[trigger]}</span>
+        {summarizedTurns > 0 && (
+          <>
+            <span>，摘要 {summarizedTurns} 轮，约</span>
+            <span className="tabular-nums text-foreground">{formatTokens(beforeTokens)}</span>
+            <span>→</span>
+            <span className="tabular-nums text-foreground">{formatTokens(afterTokens)}</span>
+            <span>tokens</span>
+          </>
+        )}
       </span>
       <span className="h-px flex-1 bg-border" aria-hidden/>
     </div>

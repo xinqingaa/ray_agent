@@ -8,6 +8,7 @@ import {ChatInput} from '@/components/chat-input'
 import {RenameSessionDialog} from '@/components/rename-session-dialog'
 import {DeveloperView} from '@/components/developer/developer-view'
 import {ContextRing} from '@/components/run/context-ring'
+import {PlanExecuteBar} from '@/components/run/run-end-bar'
 import {PlanBar} from '@/components/run/plan-bar'
 import {RunStatusBar} from '@/components/run/status-bar'
 import {Timeline, type TimelineHandlers} from '@/components/run/timeline-item'
@@ -24,13 +25,17 @@ import {
 import {useSessionDetail} from '@/hooks/use-session-detail'
 import {useSessions} from '@/hooks/use-sessions'
 import {useIsMobile} from '@/hooks/use-mobile'
-import type {FileInfo} from '@/lib/api/types'
-import type {FileView, TimelineItem, ToolCallView, ToolFamily} from '@/lib/session-view'
+import {sessionApi} from '@/lib/api/session'
+import {projectApi} from '@/lib/api/project'
+import {ApiError} from '@/lib/api/fetch'
+import type {FileInfo, ToolEvent} from '@/lib/api/types'
+import type {FileView, ProjectView, TimelineItem, ToolCallView, ToolFamily} from '@/lib/session-view'
 
 export interface SessionDetailViewProps {
   sessionId: string
   initialMessage?: string
   initialAttachments?: string[]
+  initialMode?: 'plan' | 'normal'
   hasInitialMessage?: boolean
 }
 
@@ -65,6 +70,7 @@ export function SessionDetailView({
   sessionId,
   initialMessage,
   initialAttachments,
+  initialMode = 'normal',
   hasInitialMessage,
 }: SessionDetailViewProps) {
   const router = useRouter()
@@ -72,6 +78,7 @@ export function SessionDetailView({
   const {sessions, patchSession} = useSessions()
   const {
     view,
+    events,
     loading,
     error,
     refresh,
@@ -81,7 +88,12 @@ export function SessionDetailView({
     loadTurnRequest,
     replyApproval,
   } = useSessionDetail(sessionId, hasInitialMessage)
+  const [projectsEnabled, setProjectsEnabled] = useState(false)
+  const [gitBranch, setGitBranch] = useState<string | null>(null)
+  const [gitRefreshSignal, setGitRefreshSignal] = useState(0)
+  const gitRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [approvalRequest, setApprovalRequest] = useState<ApprovalSubmitting | null>(null)
+  const [compacting, setCompacting] = useState(false)
 
   const [mode, setMode] = useState<'conversation' | 'developer'>('conversation')
   const [pinnedCallId, setPinnedCallId] = useState<string | null>(null)
@@ -132,8 +144,52 @@ export function SessionDetailView({
 
   if (focusId !== tabForId) {
     setTabForId(focusId)
-    if (focus) setTab(tabForFamily(focus.family))
+    if (focus && tab !== 'project' && tab !== 'changes') setTab(tabForFamily(focus.family))
   }
+
+  const projectBindable = (view?.runs.length ?? 0) === 0 && (view?.status ?? 'idle') === 'idle'
+
+  useEffect(() => {
+    projectApi.getRoots().then((data) => setProjectsEnabled(data.enabled)).catch(() => setProjectsEnabled(false))
+  }, [])
+
+  useEffect(() => {
+    if (!view?.project?.available) {
+      setGitBranch(null)
+      return
+    }
+    void projectApi.getGitStatus(sessionId).then((status) => {
+      if (status.state === 'ok') setGitBranch(status.branch ?? null)
+    }).catch(() => {})
+  }, [sessionId, view?.project?.path, view?.project?.available])
+
+  useEffect(() => {
+    if (!view?.project?.available || events.length === 0) return
+    const last = events[events.length - 1]
+    if (last.type !== 'tool') return
+    const data = last.data as ToolEvent
+    if (data.status !== 'called') return
+    const fn = data.function ?? data.name ?? ''
+    if (fn !== 'write_file' && fn !== 'replace_in_file' && !fn.startsWith('shell_')) return
+    if (gitRefreshTimerRef.current) clearTimeout(gitRefreshTimerRef.current)
+    gitRefreshTimerRef.current = setTimeout(() => {
+      setGitRefreshSignal((n) => n + 1)
+    }, 1000)
+    return () => {
+      if (gitRefreshTimerRef.current) clearTimeout(gitRefreshTimerRef.current)
+    }
+  }, [events, view?.project?.available])
+
+  const handleProjectSelect = useCallback(async (project: ProjectView | null) => {
+    if (!project || !projectBindable) return
+    try {
+      await projectApi.bindSessionProject(sessionId, project.path)
+      await refresh()
+      toast.success(`已绑定项目「${project.name}」`)
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.msg : err instanceof Error ? err.message : '绑定项目失败')
+    }
+  }, [sessionId, projectBindable, refresh])
   useEffect(() => {
     if (!stickRef.current || vncOpen) return
     const el = scrollRef.current
@@ -144,12 +200,34 @@ export function SessionDetailView({
   useEffect(() => {
     if (!initialMessage || initialSentRef.current || !view || loading || submitting) return
     initialSentRef.current = true
-    sendMessage(initialMessage, initialAttachments ?? []).then(() => {
+    sendMessage(initialMessage, initialAttachments ?? [], {mode: initialMode}).then(() => {
       window.setTimeout(() => router.replace(`/sessions/${sessionId}`), 100)
     }).catch((err: unknown) => {
       toast.error(err instanceof Error ? err.message : '发送消息失败')
     })
-  }, [initialMessage, initialAttachments, view, loading, submitting, sendMessage, sessionId, router])
+  }, [initialMessage, initialAttachments, initialMode, view, loading, submitting, sendMessage, sessionId, router])
+
+  const handleCompact = useCallback(async () => {
+    if (compacting) return
+    setCompacting(true)
+    try {
+      const result = await sessionApi.compact(sessionId)
+      if (result.status === 'skipped') {
+        toast.message(result.message)
+      } else {
+        toast.success(result.message)
+      }
+      await refresh()
+    } catch (err) {
+      if (err instanceof ApiError) {
+        toast.error(err.msg)
+      } else {
+        toast.error(err instanceof Error ? err.message : '压缩失败')
+      }
+    } finally {
+      setCompacting(false)
+    }
+  }, [compacting, refresh, sessionId])
 
   const handleStop = useCallback(async () => {
     try {
@@ -159,11 +237,15 @@ export function SessionDetailView({
     }
   }, [stop])
 
-  const handleSend = useCallback(async (message: string, uploaded: FileInfo[]) => {
+  const handleSend = useCallback(async (message: string, uploaded: FileInfo[], options?: {mode?: 'plan' | 'normal'}) => {
     try {
-      await sendMessage(message, uploaded.map((file) => file.id))
+      await sendMessage(message, uploaded.map((file) => file.id), {mode: options?.mode})
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : '发送失败，请重试')
+      if (err instanceof ApiError && err.code === 409) {
+        toast.error(err.msg)
+      } else {
+        toast.error(err instanceof Error ? err.message : '发送失败，请重试')
+      }
       throw err
     }
   }, [sendMessage])
@@ -273,6 +355,10 @@ export function SessionDetailView({
       ? '补充要求，会在当前这批操作结束后读取'
       : '描述下一步，或开始一次新的运行'
 
+  const showPlanExecute = !view.activeRun
+    && run?.status === 'completed'
+    && run.mode === 'plan'
+
   const workbench = (
     <Workbench
       sessionId={sessionId}
@@ -287,6 +373,9 @@ export function SessionDetailView({
       onFollowLatest={() => setPinnedCallId(null)}
       onClose={() => setWorkbenchOpen(false)}
       onOpenVnc={browserCall ? () => setVncOpen(true) : undefined}
+      project={view.project}
+      gitRefreshSignal={gitRefreshSignal}
+      onGitBranchUpdate={setGitBranch}
       className={isMobile ? undefined : 'h-full w-[min(40vw,26rem)] shrink-0 border-l'}
     />
   )
@@ -296,7 +385,8 @@ export function SessionDetailView({
       <div className="flex h-full min-h-0 w-full overflow-hidden">
         <div className="flex min-w-0 flex-1 flex-col">
           <header className="flex h-12 shrink-0 items-center gap-2 border-b px-3">
-            <div className="flex min-w-0 flex-1 items-center gap-1">
+            <div className="flex min-w-0 flex-1 flex-col gap-0.5 sm:flex-row sm:items-center sm:gap-1">
+              <div className="flex min-w-0 items-center gap-1">
               <h1 className="min-w-0 truncate text-sm font-medium" title={displayTitle}>{displayTitle}</h1>
               <Button type="button" variant="ghost" size="icon-xs" className="size-7 shrink-0 text-muted-foreground"
                 title="重命名会话" aria-label="重命名会话" onClick={() => setRenameOpen(true)}>
@@ -306,6 +396,14 @@ export function SessionDetailView({
                 <span role="status" className="shrink-0 text-xs text-muted-foreground">
                   {run.status === 'completed' ? '已完成' : '已停止'}
                 </span>
+              )}
+              </div>
+              {view.project && (
+                <p className="min-w-0 truncate text-xs text-muted-foreground" title={view.project.available ? view.project.path : view.project.reason ?? view.project.path}>
+                  {view.project.name}
+                  {view.project.available && gitBranch ? ` · ${gitBranch}` : ''}
+                  {!view.project.available && view.project.reason ? ` · ${view.project.reason}` : ''}
+                </p>
               )}
             </div>
             <div role="group" aria-label="会话视图" className="flex shrink-0 rounded-md border p-0.5">
@@ -334,7 +432,7 @@ export function SessionDetailView({
             )}
           </header>
 
-          <RunStatusBar run={run} onStop={() => void handleStop()}/>
+          <RunStatusBar run={view.activeRun} onStop={() => void handleStop()}/>
 
           {mode === 'conversation' ? (
             <div ref={scrollRef} onScroll={onScroll} className="min-h-0 flex-1 overflow-y-auto">
@@ -345,6 +443,20 @@ export function SessionDetailView({
                   </p>
                 )}
                 <Timeline items={view.timeline} handlers={handlers}/>
+                {showPlanExecute && (
+                  <PlanExecuteBar
+                    disabled={submitting}
+                    onExecute={() => {
+                      void sendMessage('按计划执行', [], {mode: 'normal'}).catch((err: unknown) => {
+                        if (err instanceof ApiError && err.code === 409) {
+                          toast.error(err.msg)
+                          return
+                        }
+                        toast.error(err instanceof Error ? err.message : '发送失败')
+                      })
+                    }}
+                  />
+                )}
               </div>
             </div>
           ) : (
@@ -363,13 +475,40 @@ export function SessionDetailView({
                 onSend={handleSend}
                 disabled={submitting || waitingApproval}
                 placeholder={placeholder}
-                accessory={<ContextRing usage={view.usage}/>}
-                commandHost={{
+                accessory={<ContextRing usage={view.usage} commandContext={{
                   hasSession: true,
+                  hasRuns: view.runs.length > 0,
                   runStatus: view.status,
                   waitingApproval,
                   waitingReply: view.activeRun?.activity.kind === 'waiting_reply',
                   submitting,
+                  compacting,
+                  planMode: false,
+                  uploading: false,
+                  projectsEnabled,
+                  projectBindable,
+                  actions: {
+                    compact: () => { void handleCompact() },
+                    openFilePicker: () => {},
+                    togglePlan: () => {},
+                    openProjectPicker: () => {},
+                  },
+                }}/>}
+                projectsEnabled={projectsEnabled}
+                projectBindable={projectBindable}
+                selectedProject={view.project}
+                onProjectSelect={(project) => { void handleProjectSelect(project) }}
+                commandHost={{
+                  hasSession: true,
+                  hasRuns: view.runs.length > 0,
+                  runStatus: view.status,
+                  waitingApproval,
+                  waitingReply: view.activeRun?.activity.kind === 'waiting_reply',
+                  submitting,
+                  compacting,
+                  projectsEnabled,
+                  projectBindable,
+                  actions: {compact: () => { void handleCompact() }},
                 }}
               />
             </div>

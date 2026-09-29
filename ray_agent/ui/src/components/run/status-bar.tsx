@@ -76,11 +76,17 @@ export function RunStatusBar({run, onStop, className}: RunStatusBarProps) {
   const text = activityText(run, phase, now)
   const showStop = run != null && (run.status === 'running' || run.status === 'waiting')
   const isFailure = phase === 'failed' || phase === 'interrupted'
+  const planMode = run?.mode === 'plan' && live
   if (!run || phase === 'completed' || phase === 'cancelled') return null
 
   return (
     <div className={cn('@container/status border-b border-border/60 bg-background', className)}>
       <div className="flex min-h-9 items-center gap-3 px-4 py-1.5">
+        {planMode && (
+          <span className="shrink-0 rounded-sm bg-signal-soft px-1.5 py-0.5 text-xs font-medium text-signal">
+            计划模式
+          </span>
+        )}
         <span
           role="status"
           className={cn(

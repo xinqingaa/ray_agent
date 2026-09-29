@@ -111,6 +111,11 @@ export const runStates = {
     ...runningRun,
     activity: {kind: 'stopping', requestedAt: PLAN_TOOL_RUNNING_NOW - 800},
   } satisfies RunView,
+  /** 合成：计划模式运行中 */
+  planMode: {
+    ...runningRun,
+    mode: 'plan',
+  } satisfies RunView,
   /** 真实：E2 完成 */
   completed: completedRun,
   /** 合成：模型请求次数达到上限 */
@@ -362,7 +367,7 @@ export const deliveryStates = {
 
 // ==================== 上下文环 ====================
 
-export const usageStates: Record<'none' | 'normal' | 'near' | 'compacted', UsageView> = {
+export const usageStates: Record<'none' | 'normal' | 'near' | 'compacted' | 'postCompactEstimate', UsageView> = {
   none: {session: {prompt: null, completion: null, total: null}, context: null, watermarkRatio: 0.75, compactions: 0},
   /** 真实：E2 最后一次请求 */
   normal: e2Delivery.usage,
@@ -370,6 +375,17 @@ export const usageStates: Record<'none' | 'normal' | 'near' | 'compacted', Usage
   near: {...e2Delivery.usage, context: {usedTokens: 46_812, windowTokens: 65_536, lastTurnTokens: 47_390}},
   /** 合成：压缩一次之后 */
   compacted: {...e2Delivery.usage, context: {usedTokens: 11_402, windowTokens: 65_536, lastTurnTokens: 11_980}, compactions: 1},
+  postCompactEstimate: {
+    ...e2Delivery.usage,
+    context: {
+      usedTokens: 8_200,
+      windowTokens: 65_536,
+      lastTurnTokens: 11_980,
+      postCompactEstimate: true,
+    },
+    lastCompaction: {seq: 120, trigger: 'manual', beforeTotal: 15_226, afterTotal: 8_200},
+    compactions: 2,
+  },
 }
 
 // ==================== 会话列表项 ====================
@@ -391,6 +407,30 @@ export const sessionItemStates = {
   /** 合成：用户停止；与已完成一样不显示徽标 */
   cancelled: session('fx-s8', '统计 logs/ 下所有构建日志的失败原因', 'cancelled', today),
   longTitle: session('fx-s5', '把 inventory.csv 按 item 分组统计 amount 的总和、平均值与最大值，生成带图表的 Markdown 报告，并把报告和图表一起打包交付给我下载', 'completed', '2026-09-26T21:10:44'),
+}
+
+// ==================== 本地项目（合成） ====================
+
+export const projectPickerStates = {
+  unselected: null as import('@/lib/session-view').ProjectView | null,
+  selected: {
+    path: '/Users/demo/ray-sample',
+    name: 'ray-sample',
+    available: true,
+    reason: null,
+  },
+  unavailable: {
+    path: '/Users/demo/moved-away',
+    name: 'moved-away',
+    available: false,
+    reason: '路径不存在',
+  },
+}
+
+export const projectWorkbenchNotes = {
+  treeEmpty: '项目目录为空，或当前层没有可列出的文件。',
+  notGit: '这个项目不是 Git 仓库',
+  changesClean: '工作区干净，没有改动',
 }
 
 // ==================== 设置列表项（合成：开发库当前没有配置 MCP 与 A2A） ====================
