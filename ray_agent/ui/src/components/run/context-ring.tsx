@@ -96,10 +96,10 @@ export function ContextRing({usage, className}: {usage: UsageView; className?: s
       </TooltipTrigger>
       <TooltipContent side="top" className="text-left">
         {!ctx ? (
-          <p>暂无上下文用量：第一次模型请求完成后显示</p>
+          <p>第一次请求完成后显示</p>
         ) : (
           <div>
-            <p className="mb-1 text-xs text-muted-foreground">最近一次模型请求的占用，不是本次运行累计用量</p>
+            <p className="mb-1 text-xs text-muted-foreground">最近一次请求的占用</p>
             <dl className="grid grid-cols-[auto_auto] gap-x-3 gap-y-0.5 tabular-nums">
             <dt>已用</dt><dd>{percent}%（{formatTokens(ctx.usedTokens)} / {formatTokens(ctx.windowTokens)}）</dd>
             <dt>剩余</dt><dd>{formatTokens(remaining)}</dd>
