@@ -37,6 +37,7 @@ export type ContextEstimate = {
   inputLimit?: number | null
   watermarkTokens?: number | null
   method?: string | null
+  includesProjectContext?: boolean
 }
 
 export type TurnView = {
@@ -231,6 +232,8 @@ export type UsageView = {
     postCompactEstimate?: boolean
     source?: 'prompt_usage' | 'request_estimate' | 'compact_estimate'
     configChanged?: boolean
+    fixedInputExceeded?: boolean
+    includesProjectContext?: boolean
     snapshotAt?: number
     inputLimit?: number | null
     maxTokens?: number | null

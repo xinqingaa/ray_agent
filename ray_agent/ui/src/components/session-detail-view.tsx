@@ -9,7 +9,8 @@ import {DeveloperView} from '@/components/developer/developer-view'
 import {ContextRing} from '@/components/run/context-ring'
 import {PlanExecuteBar} from '@/components/run/run-end-bar'
 import {PlanBar} from '@/components/run/plan-bar'
-import {RunStatusBar} from '@/components/run/status-bar'
+import {CompactingNotice} from '@/components/run/notices'
+import {CompactingStatusBar, RunStatusBar} from '@/components/run/status-bar'
 import {Timeline, type TimelineHandlers} from '@/components/run/timeline-item'
 import {downloadSessionFile, tabForFamily, Workbench, type WorkbenchTab} from '@/components/workbench/workbench'
 import {VNCOverlay} from '@/components/vnc-overlay'
@@ -57,6 +58,14 @@ function pendingApprovalIds(items: TimelineItem[]): Set<string> {
   return ids
 }
 
+function latestCompactionId(items: TimelineItem[] | undefined): string | null {
+  if (!items) return null
+  for (let i = items.length - 1; i >= 0; i--) {
+    if (items[i].kind === 'compaction') return items[i].id
+  }
+  return null
+}
+
 function lastOf(calls: ToolCallView[], family: ToolFamily): ToolCallView | null {
   for (let i = calls.length - 1; i >= 0; i--) {
     if (calls[i].family === family) return calls[i]
@@ -68,7 +77,7 @@ export function SessionDetailView({
   sessionId,
 }: SessionDetailViewProps) {
   const isMobile = useIsMobile()
-  const {sessions, patchSession} = useSessions()
+  const {sessions, patchSession, setCompactingSessionId} = useSessions()
   const {
     session,
     view,
@@ -87,6 +96,8 @@ export function SessionDetailView({
   const projectRefreshRef = useRef<ReturnType<typeof createProjectRefreshWatcher> | null>(null)
   const [approvalRequest, setApprovalRequest] = useState<ApprovalSubmitting | null>(null)
   const [localCompacting, setCompacting] = useState(false)
+  const [compactAnchor, setCompactAnchor] = useState<string | null>(null)
+  const compactArmed = useRef(false)
   const compacting = localCompacting || session?.context_operation?.status === 'compacting'
 
   const [mode, setMode] = useState<'conversation' | 'developer'>('conversation')
@@ -111,6 +122,25 @@ export function SessionDetailView({
     if (item?.status === sessionStatus) return
     patchSession(sessionId, {status: sessionStatus})
   }, [sessionId, sessionStatus, sessions, patchSession])
+
+  useEffect(() => {
+    if (!compacting) {
+      setCompactingSessionId(current => current === sessionId ? null : current)
+      return
+    }
+    setCompactingSessionId(sessionId)
+    return () => setCompactingSessionId(current => current === sessionId ? null : current)
+  }, [compacting, sessionId, setCompactingSessionId])
+
+  useEffect(() => {
+    if (!compacting) {
+      compactArmed.current = false
+      return
+    }
+    if (compactArmed.current) return
+    compactArmed.current = true
+    setCompactAnchor(latestCompactionId(view?.timeline))
+  }, [compacting, view?.timeline])
 
   useEffect(() => {
     if (workbenchOpen) {
@@ -158,10 +188,12 @@ export function SessionDetailView({
     const el = scrollRef.current
     if (!el) return
     el.scrollTo({top: el.scrollHeight, behavior: 'auto'})
-  }, [view?.timeline.length, view?.status, view?.streaming?.text, vncOpen])
+  }, [view?.timeline.length, view?.status, view?.streaming?.text, vncOpen, compacting])
 
   const handleCompact = useCallback(async () => {
     if (compacting) return
+    compactArmed.current = true
+    setCompactAnchor(latestCompactionId(view?.timeline))
     setCompacting(true)
     const scope = `session:${sessionId}`
     const beforeSeq = Math.max(session?.last_seq ?? 0, ...events.map((event) => {
@@ -200,7 +232,7 @@ export function SessionDetailView({
         toast.error('暂时无法核对压缩结果，请恢复连接后查看时间线；不会自动重试')
       }
     } finally { setCompacting(false) }
-  }, [compacting, events, refresh, session?.last_seq, sessionId])
+  }, [compacting, events, refresh, session?.last_seq, sessionId, view?.timeline])
 
   useEffect(() => {
     if (localCompacting || session?.context_operation?.status === 'compacting') return
@@ -377,7 +409,9 @@ export function SessionDetailView({
                 title="重命名会话" aria-label="重命名会话" onClick={() => setRenameOpen(true)}>
                 <Pencil className="size-3.5"/>
               </Button>
-              {(run?.status === 'completed' || run?.status === 'cancelled') && (
+              {compacting ? (
+                <span role="status" className="shrink-0 text-xs font-medium text-state-running">压缩中</span>
+              ) : (run?.status === 'completed' || run?.status === 'cancelled') && (
                 <span role="status" className="shrink-0 text-xs text-muted-foreground">
                   {run.status === 'completed' ? '已完成' : '已停止'}
                 </span>
@@ -416,7 +450,9 @@ export function SessionDetailView({
             )}
           </header>
 
-          <RunStatusBar run={view.activeRun} onStop={() => void handleStop()}/>
+          {compacting
+            ? <CompactingStatusBar/>
+            : <RunStatusBar run={view.activeRun} onStop={() => void handleStop()}/>}
 
           {mode === 'conversation' ? (
             <div ref={scrollRef} onScroll={onScroll} className="min-h-0 flex-1 overflow-y-auto">
@@ -427,6 +463,7 @@ export function SessionDetailView({
                   </p>
                 )}
                 <Timeline items={view.timeline} handlers={handlers}/>
+                {compacting && latestCompactionId(view.timeline) === compactAnchor ? <CompactingNotice/> : null}
                 {showPlanExecute && (
                   <PlanExecuteBar
                     disabled={submitting}

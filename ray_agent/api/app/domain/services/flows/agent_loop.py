@@ -54,7 +54,7 @@ from app.domain.models.tool_result import ToolResult
 from app.domain.repositories.uow import IUnitOfWork
 from app.domain.services.agents.tool_call_compat import extract_embedded_tool_calls
 from app.domain.models.run import RunMode
-from app.domain.services.context.budget import ContextBudget, ContextEstimate
+from app.domain.services.context.budget import ContextBudget, ContextEstimate, fixed_input_estimate, FIXED_INPUT_GUIDANCE
 from app.domain.services.context.compactor import CompactionStatus, Compactor
 from app.domain.services.context.shaping import ResultShaper, WriteOutputFn
 from app.domain.services.plan_mode import PlanModeGuard
@@ -282,6 +282,7 @@ class AgentLoop(BaseFlow):
             retry_interval: float = 1.0,
             tool_policy: Optional[ToolPolicyConfig] = None,
             mode: RunMode = RunMode.NORMAL,
+            project_prompt: str = "",
     ) -> None:
         """write_output 把超长工具结果的完整内容写入沙箱，由运行器注入；为空时超长结果只截断。
 
@@ -294,6 +295,8 @@ class AgentLoop(BaseFlow):
         self._config = agent_config
         self._session_id = session_id
         self._system_prompt = system_prompt
+        self.project_prompt = project_prompt
+        self.request_system_prompt: Optional[str] = None
         self._retry_interval = retry_interval
         self._memory: Optional[Memory] = None
         self._pending_context: List[ContextEvent] = []
@@ -354,12 +357,12 @@ class AgentLoop(BaseFlow):
         return system_prompt + PLAN_MODE_SUFFIX if self._mode == RunMode.PLAN else system_prompt
 
     def _request_messages(self) -> List[Dict[str, Any]]:
-        """发给模型的消息：记忆本身；计划模式下 system 消息拼上计划模式说明（记忆里的 system 不变）。"""
+        """基础 system 留在记忆，运行冻结的项目段/模式只进入实际请求。"""
         messages = self._memory.get_messages()
-        if self._mode != RunMode.PLAN or not messages or messages[0].get("role") != "system":
+        if not messages or messages[0].get("role") != "system":
             return messages
-        system = {**messages[0], "content": self._with_mode_suffix(str(messages[0].get("content") or ""))}
-        return [system, *messages[1:]]
+        system = self.request_system_prompt or self._with_mode_suffix(str(messages[0].get("content") or "") + self.project_prompt)
+        return [{**messages[0], "content": system}, *messages[1:]]
 
     async def config_snapshot(self) -> Dict[str, Any]:
         """本次运行的配置快照：模型参数、Agent 配置、运行模式、实际发送的系统提示词全文（计划模式含后缀）
@@ -376,7 +379,8 @@ class AgentLoop(BaseFlow):
             "context_window": self._llm.context_window,
             "agent_config": self._config.model_dump(mode="json"),
             "mode": self._mode.value,
-            "system_prompt": self._with_mode_suffix(system_prompt),
+            "system_prompt": self.request_system_prompt or self._with_mode_suffix(system_prompt + self.project_prompt),
+            "project_prompt": self.project_prompt,
             "tools": copy.deepcopy(self.pipeline.schemas()),
         }
 
@@ -767,7 +771,9 @@ class AgentLoop(BaseFlow):
             text = format_public_error_text(detail)
         else:
             text = f"{detail}，任务未完成。可在本任务中重试。"
-        return ErrorEvent(error=f"{text}（原因：{reason.value}）")
+        return ErrorEvent(error=f"{text}（原因：{reason.value}）",
+                          context_estimate=self._estimate.as_dict() if reason == RunEndReason.CONTEXT_LIMIT and self._estimate else None,
+                          fixed_input_exceeded=reason == RunEndReason.CONTEXT_LIMIT and FIXED_INPUT_GUIDANCE in detail)
 
     # ---- 悬空调用 ----
 
@@ -847,6 +853,11 @@ class AgentLoop(BaseFlow):
         """
         self._capacity_error = None
         estimate = self.estimate_context()
+        fixed = fixed_input_estimate(self.budget, self._request_messages(), self.pipeline.schemas())
+        if fixed.over_limit:
+            self._estimate = estimate
+            self._capacity_error = f"{FIXED_INPUT_GUIDANCE}（固定输入 {fixed.total}，可用上限 {fixed.limit} tokens）"
+            return
         if force or estimate.over_watermark:
             trigger = "overflow" if force else "watermark"
             logger.info(f"会话[{self._session_id}] 上下文估算 {estimate.total}/{estimate.limit} tokens，"

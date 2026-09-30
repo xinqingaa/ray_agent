@@ -64,13 +64,11 @@ def _bound_workdir_line(workspace_dir: str) -> str:
     )
 
 
-def build_system_prompt(workspace_dir: Optional[str], project_instructions: Optional[str] = None) -> str:
+def build_system_prompt(workspace_dir: Optional[str]) -> str:
     """System prompt with or without a bound project. None keeps the unbound text unchanged."""
     if not workspace_dir:
         return _UNBOUND_SYSTEM_PROMPT
     prompt = _UNBOUND_SYSTEM_PROMPT.replace(_WORKDIR_LINE, _bound_workdir_line(workspace_dir), 1)
-    if project_instructions:
-        prompt += "\n<project_instructions>\n" + project_instructions + "\n</project_instructions>\n"
     return prompt
 
 

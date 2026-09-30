@@ -60,6 +60,18 @@ function activityText(run: RunView | null, phase: RunPhase, now: number | null):
   }
 }
 
+/** 手动压缩不改变运行状态，单独占状态行，避免页头仍显示已完成。 */
+export function CompactingStatusBar({className}: {className?: string}) {
+  return (
+    <div className={cn('@container/status border-b border-border/60 bg-background', className)}>
+      <div className="flex min-h-9 items-center gap-3 px-4 py-1.5">
+        <span role="status" className="shrink-0 text-xs font-medium whitespace-nowrap text-state-running">压缩中</span>
+        <p className="min-w-0 flex-1 truncate text-xs text-muted-foreground">正在摘要较早的对话</p>
+      </div>
+    </div>
+  )
+}
+
 /** 只在运行、等待或异常结束时显示的轻量状态行；完成汇总留给时间线。 */
 export function RunStatusBar({run, onStop, className}: RunStatusBarProps) {
   const phase = runPhase(run?.status, run?.activity)

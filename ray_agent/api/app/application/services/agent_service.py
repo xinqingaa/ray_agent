@@ -24,6 +24,8 @@ from app.domain.repositories.uow import IUnitOfWork
 from app.domain.services.approvals import close_waiting_approval, latest_approvals, waiting_for_approval
 from app.application.services.context_operations import compacting, ensure_context_idle
 from app.domain.services.context.compactor import CompactionStatus, Compactor
+from app.domain.services.context.budget import fixed_input_estimate, FIXED_INPUT_GUIDANCE
+from app.domain.services.prompts.project import build_project_prompt
 from app.domain.services.flows.agent_loop import AGENT_MEMORY_NAME
 from app.domain.services.request_rebuild import RebuiltRequest, rebuild_request
 from app.domain.services.run_ledger import RunLedger
@@ -189,7 +191,7 @@ class AgentService:
                 prior_status=prior_status,
                 tool_policy=self._tool_policy,
                 workspace_dir=SANDBOX_PROJECT_DIR if session.project_id else None,
-                project_instructions=session.project_snapshot.instructions if session.project_snapshot else None,
+                project_prompt=build_project_prompt(session.project.instructions) if session.project else "",
             )
 
             # 6.创建尚未发布引用的任务，由后台启动所有权检查后登记
@@ -292,11 +294,17 @@ class AgentService:
         sent_at = timestamp or datetime.now()
 
         async def touch(uow: IUnitOfWork) -> None:
+            if accepted_project_prompt is not None:
+                accepted = await uow.run.get_active(session_id)
+                await uow.run.save_snapshot(accepted.id, {"project_prompt": accepted_project_prompt})
             await uow.session.update_latest_message(session_id=session_id, message=message, timestamp=sent_at)
             if provisional_title is not None:
                 await uow.session.set_title(session_id, provisional_title.title, "provisional", "placeholder")
 
+        accepted_project_prompt = None
+
         async def prepare_project(uow: IUnitOfWork) -> None:
+            nonlocal accepted_project_prompt
             current = await uow.session.get_by_id(session_id)
             if current is None or current.project_id != session.project_id:
                 from app.domain.services.project_transactions import ProjectRunConflict
@@ -305,6 +313,8 @@ class AgentService:
                 await self._project_prepare(uow, current)
             session.project = current.project
             session.project_snapshot = current.project_snapshot
+            if current.project:
+                accepted_project_prompt = build_project_prompt(current.project.instructions)
 
         provisional_title: Optional[TitleEvent] = None
         async with session_lock(session_id):
@@ -527,8 +537,17 @@ class AgentService:
             last = max(runs, key=lambda r: r.started_at) if runs else None
             tools = tools_for_turn(last.config_snapshot, last.turns + 1) if last is not None else []
             compactor = Compactor(self._llm, self._agent_config, label=f"会话[{session_id}]手动压缩")
-            messages = memory.get_messages()
-            before = compactor.fresh_budget().estimate(messages, tools)
+            messages = copy.deepcopy(memory.get_messages())
+            project_prompt = ""
+            if session.project and messages and messages[0].get("role") == "system":
+                project_prompt = build_project_prompt(session.project.instructions)
+                messages[0]["content"] += project_prompt
+            budget = compactor.fresh_budget()
+            fixed = fixed_input_estimate(budget, messages, tools)
+            if fixed.over_limit:
+                raise AppException(code=422, status_code=422, msg=FIXED_INPUT_GUIDANCE,
+                                   data={"reason": "context_limit", "fixed_input": fixed.as_dict()})
+            before = budget.estimate(messages, tools)
 
             async def load_user_events():
                 async with self._uow:
@@ -547,6 +566,9 @@ class AgentService:
                 await uow.session.save_memory(session_id, AGENT_MEMORY_NAME, memory)
 
             compact, context = result.compact, result.context
+            if project_prompt:
+                compact.before_estimate["includes_project_context"] = True
+                compact.after_estimate["includes_project_context"] = True
             await self._ledger.append(session_id, [compact, context], apply=save_memory)
         logger.info(f"会话[{session_id}]手动压缩完成 seq={compact.seq},{context.seq}")
         return ManualCompaction(

@@ -176,6 +176,8 @@ class ErrorEvent(BaseEvent):
     """错误事件"""
     type: Literal["error"] = "error"
     error: str = ""  # 错误信息
+    context_estimate: Optional[Dict[str, Any]] = None
+    fixed_input_exceeded: bool = False
 
 
 class DoneEvent(BaseEvent):

@@ -15,7 +15,7 @@ import {FinalReply, NarrationBlock, UserMessage} from '@/components/run/messages
 import {AskCard} from '@/components/run/ask-card'
 import {ApprovalCard} from '@/components/run/approval-card'
 import {DeliveryCard} from '@/components/run/delivery-card'
-import {AttemptNotice, CompactionNotice} from '@/components/run/notices'
+import {AttemptNotice, CompactingNotice, CompactionNotice} from '@/components/run/notices'
 import {RunEndBar, PlanExecuteBar} from '@/components/run/run-end-bar'
 import {PlusCommandMenu} from '@/components/input-command-menu'
 import {ProjectWorkspaceCatalog} from '@/components/dev/project-workspace-catalog'
@@ -336,7 +336,8 @@ export function ComponentCatalog() {
           <State label="预览不可用" source="合成"><DeliveryCard files={deliveryStates.previewUnavailable.files} note={deliveryStates.previewUnavailable.note} onPreview={noop} onDownload={noop}/></State>
         </Section>
 
-        <Section id="compaction" title="压缩提示" note="W2 合入后由 compact 事件产生；摘要全文在开发者视图。">
+        <Section id="compaction" title="压缩提示" note="W2 合入后由 compact 事件产生；摘要全文在开发者视图。点击压缩后、结果到达前显示转圈的「压缩中」。">
+          <State label="压缩中" source="合成"><Surface><CompactingNotice/></Surface></State>
           <State label="一次压缩（自动）" source="合成"><Surface><CompactionNotice beforeTokens={41_236} afterTokens={6_310} summarizedTurns={8} trigger="watermark"/></Surface></State>
           <State label="手动压缩" source="合成"><Surface><CompactionNotice beforeTokens={18_200} afterTokens={9_400} summarizedTurns={4} trigger="manual"/></Surface></State>
         </Section>
@@ -413,6 +414,7 @@ export function ComponentCatalog() {
             <State label="失败" source="合成"><SessionItem session={sessionItemStates.failed} isActive={false} onClick={noop} onDelete={noop}/></State>
             <State label="已中断" source="合成"><SessionItem session={sessionItemStates.interrupted} isActive={false} onClick={noop} onDelete={noop}/></State>
             <State label="已完成" source="真实"><SessionItem session={sessionItemStates.completed} isActive={false} onClick={noop} onDelete={noop}/></State>
+            <State label="压缩中" source="合成"><SessionItem session={sessionItemStates.completed} isActive compacting onClick={noop} onDelete={noop}/></State>
             <State label="已停止" source="合成"><SessionItem session={sessionItemStates.cancelled} isActive={false} onClick={noop} onDelete={noop}/></State>
             <State label="选中" source="真实"><SessionItem session={sessionItemStates.completed} isActive onClick={noop} onDelete={noop}/></State>
             <State label="长标题" source="合成"><SessionItem session={sessionItemStates.longTitle} isActive={false} onClick={noop} onDelete={noop}/></State>

@@ -67,7 +67,7 @@ class AgentTaskRunner(TaskRunner):
             run_id: str,  # 本任务执行的运行
             prior_status: Optional[SessionStatus] = None,  # 首条消息到达前会话所处的状态
             tool_policy: Optional[ToolPolicyConfig] = None,  # 工具策略表，为空时用默认策略
-            project_instructions: Optional[str] = None,
+            project_prompt: str = "",
             workspace_dir: Optional[str] = None,  # 绑定项目时为 /workspace，否则为空
     ) -> None:
         """构造函数，完成Agent任务运行器的创建"""
@@ -103,7 +103,8 @@ class AgentTaskRunner(TaskRunner):
             ),
             deliver_file=self._deliver_file,
             write_output=self._write_output,
-            system_prompt=build_system_prompt(workspace_dir, project_instructions),
+            system_prompt=build_system_prompt(workspace_dir),
+            project_prompt=project_prompt,
             tool_policy=tool_policy,
         )
         self._flow._publish_delta = self._publish_delta
@@ -171,53 +172,34 @@ class AgentTaskRunner(TaskRunner):
         return None
 
     async def _sync_file_to_sandbox(self, file_id: str) -> File:
-        """根据文件id将文件同步到沙箱中"""
+        """同步失败终止已受理运行，不能将失败附件静默移出模型输入。"""
         try:
-            # 1.调用文件存储下载文件信息
             file_data, file = await self._file_storage.download_file(file_id)
-
-            # 2.组装沙箱文件路径
-            filepath = f"/home/ubuntu/upload/{file.filename}"
-
-            # 3.调用沙箱将文件上传至沙箱
-            tool_result = await self._sandbox.upload_file(
-                file_data=file_data,
-                filepath=filepath,
-                filename=file.filename
-            )
-
-            # 4.判断是否上传成功
-            if tool_result.success:
-                file.filepath = filepath
-                async with self._uow:
-                    await self._uow.file.save(file)  # 可以更新也可以不更新
-                return file
-        except Exception as e:
-            logger.exception(f"AgentTaskRunner同步文件[{file_id}]失败: {str(e)}")
+            # 附件名属于存储元数据，仍只允许一个文件名，不能改变沙箱目标目录。
+            filename = file.filename.replace("\\", "/").split("/")[-1]
+            if filename in ("", ".", "..") or "\x00" in filename:
+                raise ValueError("附件名称无效")
+            filepath = f"/home/ubuntu/upload/{filename}"
+            result = await self._sandbox.upload_file(file_data=file_data, filepath=filepath, filename=filename)
+            if not result.success:
+                raise RuntimeError(result.message or "沙箱拒绝附件上传")
+            copied = file.model_copy(update={"filepath": filepath})
+            async with self._uow:
+                await self._uow.file.save(copied)
+            return copied
+        except Exception as exc:
+            logger.exception("附件同步失败 id=%s", file_id)
+            raise RuntimeError(f"准备执行环境失败：附件 {file_id} 同步失败；本次运行未完成，请核对后重试") from exc
 
     async def _sync_message_attachments_to_sandbox(self, event: MessageEvent) -> None:
-        """将消息事件中的附件同步到沙箱中"""
-        # 1.定义附件列表
-        attachments: List[str] = []
-
-        try:
-            # 2.判断消息中是否存在附件
-            if event.attachments:
-                # 3.循环遍历所有的消息附件
-                for attachment in event.attachments:
-                    # 4.根据同步文件的id将数据同步到沙箱中
-                    file = await self._sync_file_to_sandbox(attachment.id)
-
-                    # 5.文件是否同步成功
-                    if file:
-                        attachments.append(file)
-                        async with self._uow:
-                            await self._uow.session.add_file(self._session_id, file)
-
-            # 6.更新消息事件中的attachments
-            event.attachments = attachments
-        except Exception as e:
-            logger.exception(f"AgentTaskRunner同步消息附件到沙箱失败: {str(e)}")
+        """先完整同步，成功后替换本次输入；失败保留原受理事件和附件 id。"""
+        attachments: List[File] = []
+        for attachment in event.attachments:
+            copied = await self._sync_file_to_sandbox(attachment.id)
+            async with self._uow:
+                await self._uow.session.add_file(self._session_id, copied)
+            attachments.append(copied)
+        event.attachments = attachments
 
     @classmethod
     def _get_stream_size(cls, f: BinaryIO) -> int:
@@ -428,10 +410,14 @@ class AgentTaskRunner(TaskRunner):
             raise RuntimeError(f"运行[{self._run_id}]不存在")
         self._flow.mode = run.mode
         self._next_turn = run.turns + 1
-        snapshot = await self._flow.config_snapshot()
         stored = run.config_snapshot or {}
-        if not stored:
-            updated = snapshot
+        if stored.get("system_prompt"):
+            self._flow.request_system_prompt = stored["system_prompt"]
+        if "project_prompt" in stored:
+            self._flow.project_prompt = stored["project_prompt"]
+        snapshot = await self._flow.config_snapshot()
+        if not stored.get("system_prompt"):
+            updated = {**stored, **snapshot}
         elif tools_for_turn(stored, self._next_turn) == snapshot["tools"]:
             return
         else:

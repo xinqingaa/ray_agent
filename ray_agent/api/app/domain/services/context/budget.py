@@ -161,3 +161,13 @@ class ContextBudget:
             max_tokens=self.max_tokens,
             method=method,
         )
+
+
+FIXED_INPUT_GUIDANCE = "项目说明/笔记等固定输入超过容量，压缩历史无法解决；请精简项目说明、笔记或调整模型窗口"
+
+def fixed_input_estimate(budget: ContextBudget, messages: List[Dict[str, Any]],
+                         tools: Optional[List[Dict[str, Any]]]) -> ContextEstimate:
+    """固定输入使用字符预算，不用上一请求 usage 校准掩盖新配置的容量。"""
+    fresh = ContextBudget(budget.context_window, budget.max_tokens, 0, 0)
+    fresh.limit, fresh.watermark = budget.limit, budget.watermark
+    return fresh.estimate([m for m in messages if m.get("role") == "system"], tools)

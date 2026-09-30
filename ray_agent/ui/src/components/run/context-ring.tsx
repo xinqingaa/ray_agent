@@ -17,15 +17,17 @@ export type ContextLevel = 'none' | 'normal' | 'near' | 'over'
 export function contextLevel(usage: UsageView): ContextLevel {
   const ctx = usage.context
   if (!ctx || ctx.windowTokens <= 0) return 'none'
+  if (ctx.fixedInputExceeded) return 'over'
   const ratio = ctx.usedTokens / ctx.windowTokens
   if (ratio > 1) return 'over'
   const near = usage.watermarkRatio != null ? Math.max(0, usage.watermarkRatio - 0.1) : 0.7
   return ratio >= near ? 'near' : 'normal'
 }
 function sourceText(ctx: NonNullable<UsageView['context']>): string {
-  if (ctx.source === 'prompt_usage') return '最近请求实测输入'
-  if (ctx.source === 'compact_estimate' || ctx.postCompactEstimate) return '压缩后估算'
-  return '请求前估算（请求中或未返回 usage）'
+  const base = ctx.source === 'prompt_usage' ? '最近请求实测输入'
+    : ctx.source === 'compact_estimate' || ctx.postCompactEstimate ? '压缩后估算'
+      : '请求前估算（请求中或未返回 usage）'
+  return ctx.includesProjectContext ? `${base} · 按当前项目内容估算` : base
 }
 function ContextData({usage}: {usage: UsageView}) {
   const ctx = usage.context
@@ -33,6 +35,7 @@ function ContextData({usage}: {usage: UsageView}) {
   const percent = Math.round(ctx.usedTokens / ctx.windowTokens * 100)
   return <>
     <p className="mb-2 text-xs text-muted-foreground">{sourceText(ctx)}{ctx.configChanged ? ' · 旧配置快照' : ''}</p>
+    {ctx.fixedInputExceeded && <p className="mb-2 text-xs text-state-failed">项目说明/笔记等固定输入超过容量，压缩历史无法解决。请精简项目设置或调整模型窗口。</p>}
     <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-meta tabular-nums">
       <dt className="text-muted-foreground">占用</dt><dd>{percent}%</dd>
       <dt className="text-muted-foreground">已用 / 窗口</dt><dd>{formatTokens(ctx.usedTokens)} / {formatTokens(ctx.windowTokens)}</dd>
@@ -55,7 +58,7 @@ export function ContextRing({usage, commandContext, className}: {usage: UsageVie
   const tick = ctx && watermark != null && watermark > 0 && watermark < 1
     ? 2 * Math.PI * watermark : null
   const compact = commandById('compact')
-  const available = compact && commandContext ? compact.available(commandContext) : {available: false as const, reason: '还没有可压缩的上下文'}
+  const available = ctx?.fixedInputExceeded ? {available: false as const, reason: '固定输入超过容量，压缩历史无法解决'} : compact && commandContext ? compact.available(commandContext) : {available: false as const, reason: '还没有可压缩的上下文'}
   const label = ctx
     ? `上下文占用 ${Math.round(ctx.usedTokens / ctx.windowTokens * 100)}%，${sourceText(ctx)}${ctx.configChanged ? '，旧配置快照' : ''}，已用 ${ctx.usedTokens}，窗口 ${ctx.windowTokens}，${available.available ? '可以手动压缩' : available.reason}`
     : '上下文占用暂无可比数据'

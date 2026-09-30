@@ -380,6 +380,7 @@ export function projectSession(input: ProjectSessionInput): SessionView {
   let compactions = 0
   let compactSessionUsage: TokenCounts | null = null
   let lastCompaction: UsageView['lastCompaction'] = null
+  let capacityFailure: {estimate: ContextEstimate; at: number; seq: number} | null = null
   let lastTurnStartedSeq: number | null = null
   const currentTurn = new Map<string, number>()
   const maxTurnIndex = new Map<string, number>()
@@ -583,6 +584,8 @@ export function projectSession(input: ProjectSessionInput): SessionView {
     if (ev.type === 'error' && track) {
       const error = str(data.error)
       if (error) track.lastError = error
+      const estimate = readEstimate(data.context_estimate)
+      if (data.fixed_input_exceeded === true && estimate) capacityFailure = {estimate, at: ev.createdAt, seq: ev.seq ?? 0}
       continue
     }
 
@@ -898,7 +901,17 @@ export function projectSession(input: ProjectSessionInput): SessionView {
   const activeRun = activeTrack ? runViews.find((run) => run.id === activeTrack.id) ?? null : null
   const latest = runViews[runViews.length - 1]
   const sessionTokens = sumUsage([sumUsage(turns.map((turn) => turn.usage)), compactSessionUsage])
-  const context = usageContext(turns, lastCompaction, lastTurnStartedSeq)
+  let context = usageContext(turns, lastCompaction, lastTurnStartedSeq)
+  if (capacityFailure && capacityFailure.seq > Math.max(lastTurnStartedSeq ?? 0, lastCompaction?.seq ?? 0)) {
+    const e = capacityFailure.estimate
+    if (e.contextWindow != null && e.contextWindow > 0) context = {
+      usedTokens: e.system + e.tools + e.history + e.toolResults,
+      windowTokens: e.contextWindow, lastTurnTokens: context?.lastTurnTokens ?? null,
+      source: 'request_estimate', fixedInputExceeded: true, snapshotAt: capacityFailure.at,
+      inputLimit: e.inputLimit, maxTokens: e.maxTokens, watermarkTokens: e.watermarkTokens,
+      inputRemaining: 0, estimate: e,
+    }
+  }
   if (context && input.contextConfig) {
     context.configChanged = context.windowTokens !== input.contextConfig.context_window
       || context.maxTokens != null && context.maxTokens !== input.contextConfig.max_tokens
@@ -1080,6 +1093,7 @@ function usageContext(
     windowTokens: window,
     lastTurnTokens: prompt != null && completion != null ? prompt + completion : null,
     source: postCompact ? 'compact_estimate' : hasUsage ? 'prompt_usage' : 'request_estimate',
+    ...(estimate?.includesProjectContext ? {includesProjectContext: true} : {}),
     snapshotAt: postCompact ? lastCompaction?.at : last?.startedAt,
     inputLimit, maxTokens, safetyTokens,
     watermarkTokens: estimate?.watermarkTokens ?? null,
@@ -1175,6 +1189,8 @@ function readEstimate(raw: unknown): ContextEstimate | null {
     inputLimit: num(raw.limit ?? raw.inputLimit),
     watermarkTokens: num(raw.watermark ?? raw.watermarkTokens),
     method: str(raw.method),
+    ...(raw.includes_project_context === true || raw.includesProjectContext === true
+      ? {includesProjectContext: true} : {}),
   }
 }
 

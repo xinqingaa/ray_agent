@@ -1,4 +1,4 @@
-import {Layers, RotateCw, TriangleAlert} from 'lucide-react'
+import {Layers, Loader2, RotateCw, TriangleAlert} from 'lucide-react'
 import {cn} from '@/lib/utils'
 import type {CompactTrigger} from '@/lib/session-view'
 import {formatTokens} from './format'
@@ -15,6 +15,20 @@ type CompactionNoticeProps = {
   summarizedTurns: number
   trigger: CompactTrigger
   className?: string
+}
+
+/** 点击压缩后、结果事件到达前，占在时间线末尾；结果写入后由真实摘要行替换 */
+export function CompactingNotice({className}: {className?: string}) {
+  return (
+    <div role="status" aria-live="polite" className={cn('flex items-center gap-3 text-xs text-muted-foreground', className)}>
+      <span className="h-px flex-1 bg-border" aria-hidden/>
+      <span className="inline-flex items-center gap-1.5">
+        <Loader2 className="size-3.5 shrink-0 animate-spin text-state-running" aria-hidden/>
+        压缩中
+      </span>
+      <span className="h-px flex-1 bg-border" aria-hidden/>
+    </div>
+  )
 }
 
 /** 压缩提示：一行说明触发原因与前后估算量；摘要全文在开发者视图 */

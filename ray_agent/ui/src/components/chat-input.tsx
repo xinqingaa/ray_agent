@@ -385,7 +385,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
     return (
     <Popover open={slashOpen} onOpenChange={(open) => { if (!open) setSlash(null) }}>
     <div className={cn('flex flex-col bg-card w-full rounded-2xl py-3 border', className)}>
-      {uncertain && (
+      {uncertain && !sending && !commandHost.submitting && (
         <div role="status" className="mx-4 mb-2 space-y-2 text-meta text-state-waiting">
           <p>发送结果尚未确认，草稿已保留。请先核对对话历史。</p>
           <div className="flex flex-wrap gap-2">

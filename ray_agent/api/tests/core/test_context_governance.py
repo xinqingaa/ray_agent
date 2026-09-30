@@ -335,3 +335,16 @@ def test_openai_client_recognizes_context_length_rejections():
     assert _is_context_exceeded(rejected(400, "bad", code="context_length_exceeded"))
     assert not _is_context_exceeded(rejected(400, "Invalid parameter: temperature"))
     assert not _is_context_exceeded(ConnectionError("maximum context length"))
+
+
+def test_fixed_input_overflow_does_not_try_history_compaction():
+    session, _ = seeded_session(10)
+    session.memories[AGENT_MEMORY_NAME].messages[0]['content'] = '固定项目输入' * 12000
+    h = make_loop([], session=session)
+    events = run(collect(h.loop))
+    failure = events[-1]
+    assert isinstance(failure, ErrorEvent) and failure.fixed_input_exceeded
+    assert '压缩历史无法解决' in failure.error
+    assert failure.context_estimate['total'] > failure.context_estimate['limit']
+    assert not h.llm.requests and not of_type(events, CompactEvent)
+    assert not of_type(events, TurnEvent)

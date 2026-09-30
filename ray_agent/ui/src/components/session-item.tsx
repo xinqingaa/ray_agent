@@ -12,6 +12,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import {Tooltip, TooltipContent, TooltipTrigger} from '@/components/ui/tooltip'
 import {useMounted} from '@/hooks/use-mounted'
+import {useCompactingSessionId} from '@/providers/sessions-provider'
 import {cn, formatClockTime, formatDayLabel} from '@/lib/utils'
 import type {Session} from '@/lib/api'
 
@@ -23,6 +24,8 @@ type SessionItemProps = {
   /** 整行链接。目录页不传，只展示按下态，不离开当前页 */
   href?: string
   onClick?: (sessionId: string) => void
+  /** 目录夹具直接标出压缩中；产品页由列表里的当前压缩会话决定 */
+  compacting?: boolean
 }
 
 const STATUS_INDICATOR: Record<Session['status'], {label: string; className: string}> = {
@@ -36,8 +39,10 @@ const STATUS_INDICATOR: Record<Session['status'], {label: string; className: str
 }
 
 /** 会话列表项：仅选中项的左侧强调条使用状态色，状态名称保留在提示和可访问名称中。 */
-export function SessionItem({session, isActive, onClick, onDelete, onRename, href}: SessionItemProps) {
+export function SessionItem({session, isActive, onClick, onDelete, onRename, href, compacting: compactingProp}: SessionItemProps) {
   const mounted = useMounted()
+  const listedCompacting = useCompactingSessionId()
+  const compacting = compactingProp || listedCompacting === session.session_id
 
   const handleSelect = useCallback(() => {
     onClick?.(session.session_id)
@@ -52,7 +57,9 @@ export function SessionItem({session, isActive, onClick, onDelete, onRename, hre
   const clockLabel = formatClockTime(session.latest_message_at)
   const timeLabel = [dayLabel, clockLabel].filter(Boolean).join(' ')
   const title = session.title || '新任务'
-  const status = STATUS_INDICATOR[session.status]
+  const status = compacting
+    ? {label: '压缩中', className: 'bg-state-running'}
+    : STATUS_INDICATOR[session.status]
   const accessibleName = `${title}，${status.label}`
   const controlClass = cn(
     'absolute inset-0 z-0 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring',

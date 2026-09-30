@@ -703,6 +703,11 @@ function kinds(view) {
   assert.equal(compacted.windowTokens, 16000);
   assert.equal(compacted.maxTokens, 2000);
   assert.equal(compacted.source, 'compact_estimate');
+  assert.equal(compacted.includesProjectContext, undefined);
+  const projectAfter = {...after, includes_project_context: true};
+  const projectCompacted = projectSession({id: 's', events: [...done, ev(4, 'compact', {trigger: 'manual', before_estimate: {...estimate, includes_project_context: true}, after_estimate: projectAfter})]}).usage.context;
+  assert.equal(projectCompacted.includesProjectContext, true);
+  assert.equal(projectCompacted.source, 'compact_estimate');
   assert.equal(projectSession({id: 's', events: [...done, ev(4, 'compact', {trigger: 'manual', before_tokens: 1000, after_tokens: 1900})]}).usage.context, null);
   assert.equal(projectSession({id: 's', events: []}).usage.context, null);
   const over = projectSession({id: 's', events: [...request, ev(3, 'turn', {phase: 'completed', index: 1, usage: {prompt_tokens: 9000}})]}).usage.context;
@@ -719,4 +724,18 @@ function kinds(view) {
   assert.equal(canExecutePlan(projectSession({id: 's', events: [started, {...plan, data: {...plan.data, run_id: 'old'}}, ended]})), false);
   assert.equal(canExecutePlan(projectSession({id: 's', events: [started, plan, ev(4, 'run', {status: 'failed', mode: 'plan'})]})), false);
   console.log('PASS: 有效计划关联plan_id/run/更新时间，无计划/空计划/旧计划/失败不显示执行入口');
+}
+
+{
+  const budget = {system_prompt: 8000, tools: 500, history: 100, tool_results: 0, context_window: 8000, max_tokens: 1000, limit: 6500, watermark: 4875};
+  const events = [ev(1, 'run', {status: 'running'}), ev(2, 'error', {error: '固定输入超过容量', context_estimate: budget, fixed_input_exceeded: true}), ev(3, 'run', {status: 'failed', reason: 'context_limit'})];
+  const ctx = projectSession({id: 's', events}).usage.context;
+  assert.equal(ctx.fixedInputExceeded, true);
+  assert.equal(ctx.usedTokens, 8600);
+  assert.equal(ctx.windowTokens, 8000);
+  assert.equal(ctx.inputRemaining, 0);
+  const next = projectSession({id: 's', events: [...events, ev(4, 'run', {status: 'running'}, 'run-2'), ev(5, 'turn', {phase: 'started', index: 1, context_estimate: {...budget, system_prompt: 100}}, 'run-2')]}).usage.context;
+  assert.equal(next.fixedInputExceeded, undefined);
+  assert.equal(next.usedTokens, 700);
+  console.log('PASS: 固定输入失败无需模型请求，圆环使用失败预算，下一次请求覆盖旧失败');
 }

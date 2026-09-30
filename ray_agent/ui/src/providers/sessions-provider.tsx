@@ -31,6 +31,9 @@ type SessionsContextValue = {
   sessions: Session[]
   loading: boolean
   error: string | null
+  /** 当前正在手动压缩的会话；不是运行状态，刷新列表不会覆盖 */
+  compactingSessionId: string | null
+  setCompactingSessionId: React.Dispatch<React.SetStateAction<string | null>>
   /** 手动刷新（通过 REST 接口拉取一次） */
   refresh: () => Promise<void>
   /** 用详情里的状态更新列表中的一项，避免徽标停在旧的「运行中」 */
@@ -55,6 +58,7 @@ const SessionsContext = createContext<SessionsContextValue | null>(null)
  */
 export function SessionsProvider({children}: { children: React.ReactNode }) {
   const [sessions, setSessions] = useState<Session[]>([])
+  const [compactingSessionId, setCompactingSessionId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -255,7 +259,7 @@ export function SessionsProvider({children}: { children: React.ReactNode }) {
   }, [])
 
   return (
-    <SessionsContext.Provider value={{sessions, loading, error, refresh, patchSession, deleteSession}}>
+    <SessionsContext.Provider value={{sessions, compactingSessionId, setCompactingSessionId, loading, error, refresh, patchSession, deleteSession}}>
       {children}
     </SessionsContext.Provider>
   )
@@ -274,5 +278,10 @@ export function useSessions(): SessionsContextValue {
     throw new Error('useSessions 必须在 SessionsProvider 内使用')
   }
   return ctx
+}
+
+/** 目录页等没有列表 Provider 的地方返回 null，不把压缩状态当成运行状态。 */
+export function useCompactingSessionId(): string | null {
+  return useContext(SessionsContext)?.compactingSessionId ?? null
 }
 

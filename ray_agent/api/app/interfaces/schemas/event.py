@@ -250,6 +250,8 @@ class WaitSSEEvent(BaseSSEEvent):
 class ErrorEventData(BaseEventData):
     """错误事件数据"""
     error: str
+    context_estimate: Optional[Dict[str, Any]] = None
+    fixed_input_exceeded: bool = False
 
 
 class ErrorSSEEvent(BaseSSEEvent):
