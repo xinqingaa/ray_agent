@@ -4,9 +4,8 @@ FROM python:3.12-slim
 # 2.配置容器工作空间
 WORKDIR /app
 
-# 3.安装curl, 便于后续使用curl安装nodejs(Playwrigh需要安装nodejs作为中转连接)；
-#   git 供项目目录的 Git 只读读取，不配置提交身份与凭据
-RUN apt-get update && apt-get install -y curl git
+# 3.安装curl, 便于后续使用curl安装nodejs(Playwrigh需要安装nodejs作为中转连接)
+RUN apt-get update && apt-get install -y curl
 
 # 4.安装v22版本的node.js
 RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && \

@@ -13,10 +13,9 @@ import {fileIcon, previewUnavailableReason} from '@/components/run/file-icon'
 import {formatBytes} from '@/components/run/format'
 import {TOOL_STATUS} from '@/components/run/status-meta'
 import type {ProjectView} from '@/lib/session-view'
-import {ChangesPane} from '@/components/workbench/changes-pane'
 import {ProjectPane} from '@/components/workbench/project-pane'
 
-export type WorkbenchTab = 'result' | 'terminal' | 'browser' | 'files' | 'project' | 'changes'
+export type WorkbenchTab = 'result' | 'terminal' | 'browser' | 'files' | 'project'
 
 type WorkbenchProps = {
   sessionId: string
@@ -35,8 +34,7 @@ type WorkbenchProps = {
   onClose: () => void
   onOpenVnc?: () => void
   project?: ProjectView | null
-  gitRefreshSignal?: number
-  onGitBranchUpdate?: (branch: string | null) => void
+  projectRefreshSignal?: number
   className?: string
 }
 
@@ -496,8 +494,7 @@ export function Workbench({
   onClose,
   onOpenVnc,
   project,
-  gitRefreshSignal,
-  onGitBranchUpdate,
+  projectRefreshSignal,
   className,
 }: WorkbenchProps) {
   const status = focus ? TOOL_STATUS[focus.status] : null
@@ -514,7 +511,7 @@ export function Workbench({
       (item.id === 'terminal' && shellCall) ||
       (item.id === 'browser' && browserCall),
     ),
-    ...(hasProject ? [{id: 'project' as const, label: '项目'}, {id: 'changes' as const, label: '变更'}] : []),
+    ...(hasProject ? [{id: 'project' as const, label: '项目'}] : []),
   ]
 
   return (
@@ -568,15 +565,9 @@ export function Workbench({
       {tab === 'browser' && <BrowserPane call={browserCall} onOpenVnc={onOpenVnc}/>}
       {tab === 'files' && <FilesPane focus={focus} files={files} highlightFileId={highlightFileId}/>}
       {tab === 'project' && hasProject && project?.available && (
-        <ProjectPane key={sessionId} sessionId={sessionId} refreshSignal={gitRefreshSignal}/>
+        <ProjectPane key={sessionId} sessionId={sessionId} refreshSignal={projectRefreshSignal}/>
       )}
       {tab === 'project' && hasProject && !project?.available && (
-        <EmptyNote>{project.reason ?? '项目目录不可用'}</EmptyNote>
-      )}
-      {tab === 'changes' && hasProject && project?.available && (
-        <ChangesPane key={sessionId} sessionId={sessionId} refreshSignal={gitRefreshSignal} onBranchUpdate={onGitBranchUpdate}/>
-      )}
-      {tab === 'changes' && hasProject && !project?.available && (
         <EmptyNote>{project.reason ?? '项目目录不可用'}</EmptyNote>
       )}
     </section>

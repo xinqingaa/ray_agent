@@ -3,13 +3,12 @@
 import {useCallback, useEffect, useRef, useState} from 'react'
 import {useRouter} from 'next/navigation'
 import Link from 'next/link'
-import {Files, GitBranch, PanelRightClose, Settings, X} from 'lucide-react'
+import {Files, PanelRightClose, Settings, X} from 'lucide-react'
 import {toast} from 'sonner'
 import {Button} from '@/components/ui/button'
 import {ChatInput} from '@/components/chat-input'
 import {ProjectSettingsDialog} from '@/components/project-settings-dialog'
 import {ProjectPane} from '@/components/workbench/project-pane'
-import {ChangesPane} from '@/components/workbench/changes-pane'
 import {Sheet, SheetContent, SheetTitle} from '@/components/ui/sheet'
 import {useIsMobile} from '@/hooks/use-mobile'
 import {useProjects} from '@/providers/projects-provider'
@@ -38,8 +37,7 @@ export function ProjectWorkspace({projectId}: {projectId: string}) {
   const [sending, setSending] = useState(false)
   const [sendError, setSendError] = useState<string | null>(null)
   const [occupier, setOccupier] = useState<string | null>(null)
-  const [panel, setPanel] = useState<'project' | 'changes' | null>(null)
-  const [branch, setBranch] = useState<string | null>(null)
+  const [panel, setPanel] = useState<'project' | null>(null)
   const [rename, setRename] = useState<Session | null>(null)
   const [remove, setRemove] = useState<Session | null>(null)
   const request = useRef(0)
@@ -69,7 +67,6 @@ export function ProjectWorkspace({projectId}: {projectId: string}) {
   }, [projectId])
   useEffect(() => {
     void refresh(); void refreshList()
-    projectApi.getGitStatus(projectId, true).then(status => setBranch(status.branch ?? null)).catch(() => setBranch(null))
     const visible = () => {if (document.visibilityState !== 'hidden') {void refresh(); void refreshList()}}
     const timer = setInterval(visible, 5000)
     window.addEventListener('focus', visible); document.addEventListener('visibilitychange', visible)
@@ -98,16 +95,14 @@ export function ProjectWorkspace({projectId}: {projectId: string}) {
   if (loading) return <div className="p-6 text-meta text-faint">正在打开项目</div>
   if (!project) return <div className="p-6"><p role="alert" className="text-state-failed">{error ?? '项目不存在'}</p><Button variant="ghost" onClick={() => void refresh()}>重试</Button><Button variant="ghost" onClick={() => router.push('/')}>返回首页</Button></div>
   const contents = <div className="flex h-full min-h-0 flex-col">
-    <div className="flex items-center gap-2 border-b p-2"><Button size="sm" variant={panel === 'project' ? 'secondary' : 'ghost'} onClick={() => setPanel('project')}>项目文件</Button><Button size="sm" variant={panel === 'changes' ? 'secondary' : 'ghost'} onClick={() => setPanel('changes')}>当前变更</Button><Button size="icon-sm" variant="ghost" className="ml-auto" aria-label="关闭工作台" onClick={() => setPanel(null)}><PanelRightClose/></Button></div>
-    {panel === 'project' ? <ProjectPane key={projectId} sessionId={projectId} projectLevel/> : <ChangesPane key={projectId} sessionId={projectId} projectLevel onBranchUpdate={setBranch}/>}
+    <div className="flex items-center gap-2 border-b p-2"><span className="px-2 text-sm font-medium">项目文件</span><Button size="icon-sm" variant="ghost" className="ml-auto" aria-label="关闭工作台" onClick={() => setPanel(null)}><PanelRightClose/></Button></div>
+    <ProjectPane key={projectId} sessionId={projectId} projectLevel/>
   </div>
   return <div className="flex h-full min-w-0">
     <main className="flex min-w-0 flex-1 flex-col overflow-y-auto">
       <header className="flex flex-wrap items-center gap-2 border-b px-4 py-3">
         <div className="min-w-0 flex-1"><h1 className="truncate text-sm font-medium">{project.name}</h1><p className="truncate font-mono text-xs text-faint" title={project.path}>{project.path}</p></div>
-        {branch && <span className="inline-flex items-center gap-1 text-xs text-muted-foreground"><GitBranch className="size-3.5"/>{branch}</span>}
         <Button size="icon-sm" variant="ghost" title="项目文件" aria-label="项目文件" disabled={!project.available} onClick={() => setPanel('project')}><Files/></Button>
-        <Button size="sm" variant="ghost" disabled={!project.available} onClick={() => setPanel('changes')}>当前变更</Button>
         <Button size="icon-sm" variant="ghost" title="项目设置" aria-label="项目设置" onClick={() => setSettings(true)}><Settings/></Button>
         <Button size="icon-sm" variant="ghost" title="关闭项目" aria-label="关闭项目" onClick={() => router.push('/')}><X/></Button>
       </header>

@@ -1,9 +1,6 @@
 import { del, get, put, post } from "./fetch";
 import type {
   BrowseListing,
-  GitDiff,
-  GitDiffScope,
-  GitStatus,
   ProjectFile,
   ProjectListing,
   ProjectRootsData,
@@ -36,18 +33,4 @@ export const projectApi = {
 
   getFile: (id: string, path: string, projectLevel = false): Promise<ProjectFile> =>
     get<ProjectFile>(projectLevel ? `/projects/${id}/file` : `/sessions/${id}/project/file`, { path }),
-
-  getGitStatus: (id: string, projectLevel = false): Promise<GitStatus> =>
-    get<GitStatus>(projectLevel ? `/projects/${id}/git/status` : `/sessions/${id}/project/git/status`),
-
-  getGitDiff: (
-    sessionId: string,
-    scope: GitDiffScope,
-    path?: string
-    , projectLevel = false
-  ): Promise<GitDiff> =>
-    get<GitDiff>(projectLevel ? `/projects/${sessionId}/git/diff` : `/sessions/${sessionId}/project/git/diff`, {
-      scope,
-      ...(path ? { path } : {}),
-    }),
 };

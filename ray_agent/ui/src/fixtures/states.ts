@@ -431,8 +431,6 @@ export const projectPickerStates = {
 
 export const projectWorkbenchNotes = {
   treeEmpty: '项目目录为空，或当前层没有可列出的文件。',
-  notGit: '这个项目不是 Git 仓库',
-  changesClean: '工作区干净，没有改动',
 }
 
 // ==================== 设置列表项（合成：开发库当前没有配置 MCP 与 A2A） ====================

@@ -28,8 +28,6 @@ from app.domain.models.file import File
 from app.domain.models.project import (
     SANDBOX_PROJECT_DIR,
     BrowseListing,
-    GitDiff,
-    GitStatus,
     PathCheck,
     PathCheckReason,
     ProjectFile,
@@ -118,22 +116,10 @@ class Files:
         return BrowseListing(path=path, root=path)
 
 
-class Git:
-    def __init__(self, state="ok") -> None:
-        self.state = state
-
-    async def status(self, project_path):
-        return GitStatus(state=self.state, error="git 超时" if self.state == "timeout" else None)
-
-    async def diff(self, project_path, scope="worktree", path=None):
-        return GitDiff(state=self.state, scope=scope, path=path, error="git 超时" if self.state == "timeout" else None)
-
-
-def service(store, root, *, sandbox_address=None, git_state="ok") -> ProjectService:
+def service(store, root, *, sandbox_address=None) -> ProjectService:
     return ProjectService(
         uow_factory=lambda: Uow(store),
         files=Files(),
-        git=Git(git_state),
         roots=[root] if root is not None else [],
         sandbox_address=sandbox_address,
     )
@@ -171,7 +157,7 @@ def test_project_view_reports_unavailable_reason(tmp_path):
     assert ok is not None and ok.available is True and ok.reason is None and ok.name == "alpha"
 
 
-def test_read_endpoints_and_git_states(tmp_path):
+def test_read_endpoints(tmp_path):
     root, first, _second = make_dirs(tmp_path)
 
     async def run():
@@ -193,15 +179,6 @@ def test_read_endpoints_and_git_states(tmp_path):
         with pytest.raises(BadRequestError) as bad:
             await projects.tree(bound.id, "escape")
         assert bad.value.status_code == 400 and bad.value.msg == "路径超出了项目目录"
-
-        timed = service(store, root, git_state="timeout")
-        status = await timed.git_status(bound.id)
-        diff = await timed.git_diff(bound.id, scope="staged", path="a.txt")
-        assert status.state == "timeout" and diff.state == "timeout" and diff.scope == "staged"
-        repo = service(store, root, git_state="not_a_repository")
-        assert (await repo.git_status(bound.id)).state == "not_a_repository"
-        errored = service(store, root, git_state="error")
-        assert (await errored.git_status(bound.id)).state == "error"
 
     asyncio.run(run())
 
@@ -413,11 +390,11 @@ def test_unbound_system_prompts_match_historical_text():
     assert bound != SYSTEM_PROMPT
     assert "读写挂载" in bound and "也是默认工作目录" in bound
     assert "/home/ubuntu/upload" in bound and "/home/ubuntu/.rayagent/outputs" in bound
-    assert "临时文件不要写进项目目录" in bound and "git 可用" in bound
+    assert "临时文件不要写进项目目录" in bound and "git" not in bound
     assert "工作目录为 /home/ubuntu（HOME 也是这个目录）" not in bound
     assert "你是 RayAgent" in bound and "<file_rules>" in bound
     en_bound = build_en_system_prompt("/workspace")
-    assert "read-write mount" in en_bound and "git is available" in en_bound
+    assert "read-write mount" in en_bound and "git is available" not in en_bound
     assert "/home/ubuntu/upload" in en_bound and "/home/ubuntu/.rayagent/outputs" in en_bound
     assert "temporary files must not be written into the project" in en_bound
     assert "Working directory is /home/ubuntu (HOME is the same path)" not in en_bound
@@ -438,11 +415,6 @@ def test_validate_start_rechecks_roots_and_rejects_replaced_paths(tmp_path):
         service(store, None).validate_start(project)
     with pytest.raises(ConflictError, match="共享沙箱"):
         service(store, root, sandbox_address="shared").validate_start(project)
-    with open(os.path.join(project, ".git"), "w") as handle:
-        handle.write("gitdir: ../other")
-    with pytest.raises(ConflictError, match="linked worktree"):
-        svc.validate_start(project)
-    os.remove(os.path.join(project, ".git"))
     os.rmdir(project)
     os.mkdir(os.path.join(root, "replacement"))
     os.symlink(os.path.join(root, "replacement"), project)

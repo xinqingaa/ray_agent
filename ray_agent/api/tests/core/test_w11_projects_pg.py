@@ -17,7 +17,6 @@ from app.domain.models.workspace_project import ProjectSettings
 from app.domain.services.project_transactions import ProjectRunConflict
 from app.domain.services.run_ledger import RunLedger
 from app.infrastructure.external.project.local_project_files import LocalProjectFiles
-from app.infrastructure.external.project.git_reader import GitCliReader
 from tests.core.test_run_events_pg import PG_URI, fresh_schema, with_db
 
 pytestmark = pytest.mark.skipif(not PG_URI, reason="需要独立临时 PostgreSQL")
@@ -25,7 +24,7 @@ pytestmark = pytest.mark.skipif(not PG_URI, reason="需要独立临时 PostgreSQ
 
 def projects(factory, root):
     root = os.path.realpath(root)
-    return ProjectService(factory, LocalProjectFiles([root]), GitCliReader([root]), [root])
+    return ProjectService(factory, LocalProjectFiles([root]), [root])
 
 
 def test_registration_deduplicates_and_rejects_overlap_both_directions(tmp_path):
@@ -79,53 +78,16 @@ def legacy_sessions(paths):
     return engine
 
 
-def test_migration_deduplicates_preserves_history_and_freezes_old_empty_settings():
+def test_migration_drops_legacy_project_path_without_backfill():
     migrate("e7b1c4d9a2f6")
-    engine = legacy_sessions(["/host/project", "/host/project", None])
+    engine = legacy_sessions(["/host/project", None])
     try:
-        with engine.begin() as conn:
-            conn.execute(text("INSERT INTO runs(id,session_id,status,started_at) VALUES('legacy-run','legacy-0','waiting',now())"))
         migrate("head")
         with engine.connect() as conn:
-            assert conn.execute(text("SELECT count(*) FROM projects")).scalar() == 1
-            rows = conn.execute(text("SELECT id,project_id,project_snapshot,title FROM sessions ORDER BY id")).all()
-            assert rows[0].project_id == rows[1].project_id
-            assert rows[0].project_snapshot["instructions"] is None
-            assert rows[0].project_snapshot["initial_dirty"] is None
-            assert rows[1].project_snapshot is None and rows[2].project_id is None
-            assert all(row.title == "保留标题" for row in rows)
-            assert conn.execute(text("SELECT status FROM runs WHERE id='legacy-run'")).scalar() == "waiting"
+            assert conn.execute(text("SELECT count(*) FROM projects")).scalar() == 0
+            assert conn.execute(text("SELECT count(*) FROM sessions WHERE project_id IS NOT NULL")).scalar() == 0
             assert conn.execute(text("SELECT count(*) FROM information_schema.columns WHERE table_name='sessions' AND column_name='project_path'")).scalar() == 0
             assert conn.execute(text("SELECT version_num FROM alembic_version")).scalar() == "f9c2a7b4d110"
-    finally:
-        engine.dispose()
-
-
-def test_migration_nested_legacy_paths_rolls_back_without_data_loss():
-    migrate("e7b1c4d9a2f6")
-    engine = legacy_sessions(["/host/parent_%", "/host/parent_%/child"])
-    try:
-        with pytest.raises(Exception, match="嵌套"):
-            migrate("head")
-        with engine.connect() as conn:
-            assert conn.execute(text("SELECT version_num FROM alembic_version")).scalar() == "e7b1c4d9a2f6"
-            assert conn.execute(text("SELECT count(*) FROM sessions WHERE project_path IS NOT NULL")).scalar() == 2
-            assert conn.execute(text("SELECT to_regclass('public.projects')")).scalar() is None
-    finally:
-        engine.dispose()
-
-
-def test_migration_multiple_active_legacy_tasks_preserves_both_and_rejects():
-    migrate("e7b1c4d9a2f6")
-    engine = legacy_sessions(["/host/project", "/host/project"])
-    try:
-        with engine.begin() as conn:
-            conn.execute(text("INSERT INTO runs(id,session_id,status,started_at) VALUES('run-a','legacy-0','waiting',now()),('run-b','legacy-1','running',now())"))
-        with pytest.raises(Exception, match="多个活动"):
-            migrate("head")
-        with engine.connect() as conn:
-            assert conn.execute(text("SELECT version_num FROM alembic_version")).scalar() == "e7b1c4d9a2f6"
-            assert conn.execute(text("SELECT count(*) FROM runs WHERE status IN ('running','waiting')")).scalar() == 2
     finally:
         engine.dispose()
 
@@ -178,8 +140,7 @@ def test_first_acceptance_freezes_settings_and_detects_directory_replacement(tmp
     async def scenario(factory, engine):
         service = projects(factory, tmp_path)
         project = await service.register(str(path))
-        await service.update(project.id, ProjectSettings(name="旧设置", instructions="旧说明",
-            git_author_name="Old Author", git_author_email="old@example.test"))
+        await service.update(project.id, ProjectSettings(name="旧设置", instructions="旧说明"))
         existing = await service.create_session(project.id)
         async with factory() as uow:
             assert (await uow.session.get_by_id(existing.id)).project_snapshot is None
@@ -202,9 +163,7 @@ def test_first_acceptance_freezes_settings_and_detects_directory_replacement(tmp
             old_snapshot = (await uow.session.get_by_id(existing.id)).project_snapshot
             new_snapshot = (await uow.session.get_by_id(new.id)).project_snapshot
         assert old_snapshot.instructions == "旧说明"
-        assert old_snapshot.git_environment()["GIT_AUTHOR_NAME"] == "Old Author"
-        assert old_snapshot.initial_head is None and old_snapshot.initial_dirty is None
-        assert new_snapshot.instructions == "新说明" and new_snapshot.git_environment() == {}
+        assert new_snapshot.instructions == "新说明"
         moved = tmp_path / "moved"
         path.rename(moved)
         path.mkdir()
@@ -289,7 +248,6 @@ def test_bind_lifecycle_and_public_project_contract(tmp_path):
             assert independent["total"] == 1 and independent["sessions"][0]["project"] is None
             assert (await client.get(f"/projects/{project_id}/tree")).status_code == 200
             assert (await client.get(f"/sessions/{session_id}/project/tree")).status_code == 200
-            assert (await client.get(f"/projects/{project_id}/git/status")).json()["data"]["state"] == "not_a_repository"
             run = await RunLedger(factory).start(session_id)
             locked = await client.delete(f"/sessions/{session_id}/project")
             assert locked.status_code == 409

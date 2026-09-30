@@ -124,12 +124,6 @@ class ContextOperation(BaseModel):
     started_at: Optional[datetime] = None
 
 
-class ProjectStartObservation(BaseModel):
-    """首次受理的只读观察；未知不等同于无改动，不提供任务专属 diff。"""
-    initial_head: Optional[str] = None
-    initial_dirty: Optional[bool] = None
-
-
 class GetSessionResponse(BaseModel):
     """获取会话详情响应结构。events 为 after_seq 之后按 seq 升序的事件；last_seq 是会话当前最大 seq。"""
     session_id: str
@@ -141,7 +135,6 @@ class GetSessionResponse(BaseModel):
     context_operation: ContextOperation = Field(default_factory=ContextOperation)
     context_config: Dict[str, int] = Field(default_factory=dict)
     project: Optional[ProjectView] = None  # 未绑定项目时为 null；available/reason 每次请求实时计算
-    project_start: Optional[ProjectStartObservation] = None
 
 
 class TurnRequestResponse(BaseModel):

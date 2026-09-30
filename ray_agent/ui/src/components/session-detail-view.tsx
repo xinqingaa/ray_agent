@@ -84,8 +84,7 @@ export function SessionDetailView({
     replyApproval,
   } = useSessionDetail(sessionId)
   const [projectsEnabled, setProjectsEnabled] = useState(false)
-  const [gitBranch, setGitBranch] = useState<string | null>(null)
-  const [gitRefreshSignal, setGitRefreshSignal] = useState(0)
+  const [projectRefreshSignal, setProjectRefreshSignal] = useState(0)
   const projectRefreshRef = useRef<ReturnType<typeof createProjectRefreshWatcher> | null>(null)
   const [approvalRequest, setApprovalRequest] = useState<ApprovalSubmitting | null>(null)
   const [localCompacting, setCompacting] = useState(false)
@@ -139,7 +138,7 @@ export function SessionDetailView({
 
   if (focusId !== tabForId) {
     setTabForId(focusId)
-    if (focus && tab !== 'project' && tab !== 'changes') setTab(tabForFamily(focus.family))
+    if (focus && tab !== 'project') setTab(tabForFamily(focus.family))
   }
 
   const projectBindable = (view?.runs.length ?? 0) === 0 && (view?.status ?? 'idle') === 'idle'
@@ -149,18 +148,7 @@ export function SessionDetailView({
   }, [])
 
   useEffect(() => {
-    let current = true
-    setGitBranch(null)
-    if (view?.project?.available) {
-      void projectApi.getGitStatus(sessionId).then((status) => {
-        if (current) setGitBranch(status.state === 'ok' ? status.branch ?? null : null)
-      }).catch(() => {if (current) setGitBranch(null)})
-    }
-    return () => {current = false}
-  }, [sessionId, view?.project?.path, view?.project?.available, gitRefreshSignal])
-
-  useEffect(() => {
-    const watcher = createProjectRefreshWatcher(() => setGitRefreshSignal((n) => n + 1))
+    const watcher = createProjectRefreshWatcher(() => setProjectRefreshSignal((n) => n + 1))
     projectRefreshRef.current = watcher
     return () => {watcher.dispose(); projectRefreshRef.current = null}
   }, [sessionId])
@@ -376,8 +364,7 @@ export function SessionDetailView({
       onClose={() => setWorkbenchOpen(false)}
       onOpenVnc={browserCall ? () => setVncOpen(true) : undefined}
       project={view.project}
-      gitRefreshSignal={gitRefreshSignal}
-      onGitBranchUpdate={setGitBranch}
+      projectRefreshSignal={projectRefreshSignal}
       className={isMobile ? undefined : 'h-full w-[min(40vw,26rem)] shrink-0 border-l'}
     />
   )
@@ -403,7 +390,6 @@ export function SessionDetailView({
               {view.project && (
                 <p className="min-w-0 truncate text-xs text-muted-foreground" title={view.project.available ? view.project.path : view.project.reason ?? view.project.path}>
                   {view.project.name}
-                  {view.project.available && gitBranch ? ` · ${gitBranch}` : ''}
                   {!view.project.available && view.project.reason ? ` · ${view.project.reason}` : ''}
                 </p>
               )}

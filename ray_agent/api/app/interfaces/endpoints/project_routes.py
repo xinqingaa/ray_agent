@@ -1,11 +1,9 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-from typing import Optional
-
 from fastapi import APIRouter, Depends, Query
 
 from app.application.services.project_service import ProjectService
-from app.domain.models.project import BrowseListing, ProjectListing, ProjectFile, GitStatus, GitDiff, PATH_CHECK_MESSAGES
+from app.domain.models.project import BrowseListing, ProjectListing, ProjectFile, PATH_CHECK_MESSAGES
 from app.interfaces.schemas import Response
 from app.interfaces.schemas.project import (ProjectRootItem, ProjectRootsResponse, ProjectPage, ProjectDetails,
     CreateProjectRequest, ArchiveProjectRequest, ProjectSettings)
@@ -42,7 +40,7 @@ async def list_project_roots(
     path="/browse",
     response_model=Response[BrowseListing],
     summary="浏览允许根目录内的一层子目录",
-    description="只列目录，并标出哪些是 Git 仓库。路径校验失败返回 400",
+    description="只列目录。路径校验失败返回 400",
 )
 async def browse_projects(
         path: str = Query(),
@@ -70,7 +68,7 @@ async def get_project(project_id: str, project_service: ProjectService = Depends
     return Response.success(data=await project_service.detail(project_id))
 
 
-@router.put("/{project_id}", response_model=Response[ProjectDetails], summary="保存项目说明与可选 Git 身份")
+@router.put("/{project_id}", response_model=Response[ProjectDetails], summary="保存项目名称与说明")
 async def update_project(project_id: str, request: ProjectSettings, project_service: ProjectService = Depends(get_project_service)):
     await project_service.update(project_id, request)
     return Response.success(data=await project_service.detail(project_id))
@@ -98,13 +96,3 @@ async def project_tree(project_id: str, path: str = Query(""), project_service: 
 @router.get("/{project_id}/file", response_model=Response[ProjectFile])
 async def project_file(project_id: str, path: str = Query(), project_service: ProjectService = Depends(get_project_service)):
     return Response.success(data=await project_service.read_file(project_id, path, project_level=True))
-
-
-@router.get("/{project_id}/git/status", response_model=Response[GitStatus])
-async def project_git_status(project_id: str, project_service: ProjectService = Depends(get_project_service)):
-    return Response.success(data=await project_service.git_status(project_id, project_level=True))
-
-
-@router.get("/{project_id}/git/diff", response_model=Response[GitDiff])
-async def project_git_diff(project_id: str, scope: str = Query("worktree"), path: Optional[str] = Query(None), project_service: ProjectService = Depends(get_project_service)):
-    return Response.success(data=await project_service.git_diff(project_id, scope, path, project_level=True))

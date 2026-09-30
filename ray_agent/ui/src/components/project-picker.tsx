@@ -1,7 +1,7 @@
 'use client'
 
 import {useCallback, useEffect, useState} from 'react'
-import {ChevronLeft, FolderGit2, Loader2} from 'lucide-react'
+import {ChevronLeft, Folder, Loader2} from 'lucide-react'
 import {Button} from '@/components/ui/button'
 import {Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle} from '@/components/ui/dialog'
 import {projectApi} from '@/lib/api/project'
@@ -76,7 +76,7 @@ export function ProjectPicker({onSelect, open: controlled, onOpenChange, disable
     finally {setSaving(false)}
   }
   return <>
-    {!hideTrigger && <Button type="button" variant="outline" size="sm" disabled={disabled} className={className} onClick={() => setOpen(true)}><FolderGit2 className="size-3.5"/>打开项目</Button>}
+    {!hideTrigger && <Button type="button" variant="outline" size="sm" disabled={disabled} className={className} onClick={() => setOpen(true)}><Folder className="size-3.5"/>打开项目</Button>}
     <Dialog open={open} onOpenChange={setOpen}><DialogContent className="max-h-[85vh] overflow-hidden sm:max-w-[480px]">
       <DialogHeader><DialogTitle>打开项目</DialogTitle><DialogDescription>选择已登记项目，或添加允许目录中的项目。</DialogDescription></DialogHeader>
       {!browsing ? <>
@@ -97,7 +97,7 @@ export function ProjectPicker({onSelect, open: controlled, onOpenChange, disable
         <div className="flex min-w-0 items-center gap-2"><Button variant="ghost" size="icon-sm" aria-label="返回" onClick={() => {if (browse?.parent) void browsePath(browse.parent); else if (browse) setBrowse(null); else setBrowsing(false)}}><ChevronLeft/></Button><span className="truncate font-mono text-xs" title={browse?.path}>{browse?.path ?? '允许的根目录'}</span></div>
         <div className="max-h-[40vh] overflow-y-auto">
           {!browse && !loading && roots?.roots.map(root => <button key={root.path} type="button" disabled={!root.available} title={root.reason ?? root.path} className="block w-full truncate rounded-sm px-2 py-2 text-left font-mono text-xs hover:bg-muted disabled:opacity-50" onClick={() => void browsePath(root.path)}>{root.path}{!root.available && ` · ${root.reason ?? '不可用'}`}</button>)}
-          {browse?.entries.map(entry => <button type="button" key={entry.path} className="flex w-full items-center gap-2 rounded-sm px-2 py-2 text-left text-sm hover:bg-muted" onClick={() => void browsePath(entry.path)}><FolderGit2 className="size-4"/>{entry.name}</button>)}
+          {browse?.entries.map(entry => <button type="button" key={entry.path} className="flex w-full items-center gap-2 rounded-sm px-2 py-2 text-left text-sm hover:bg-muted" onClick={() => void browsePath(entry.path)}><Folder className="size-4"/>{entry.name}</button>)}
           {browse && !browse.entries.length && <p className="py-5 text-meta text-faint">没有子目录</p>}
         </div>
         {browse?.truncated && <p className="text-xs text-faint">目录列表已截断，请进入更具体的目录。</p>}

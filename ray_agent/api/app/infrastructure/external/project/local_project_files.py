@@ -232,7 +232,6 @@ class LocalProjectFiles(ProjectFiles):
                 candidates.append(BrowseEntry(
                     name=entry.name,
                     path=child,
-                    is_git_repo=os.path.lexists(os.path.join(child, ".git")),
                     is_symlink=is_link,
                 ))
         candidates.sort(key=lambda item: (item.name.casefold(), item.name))
@@ -240,7 +239,6 @@ class LocalProjectFiles(ProjectFiles):
             path=dir_real,
             root=check.root,
             parent=None if dir_real == check.root else os.path.dirname(dir_real),
-            is_git_repo=os.path.lexists(os.path.join(dir_real, ".git")),
             entries=candidates[:self._entry_limit],
             total=len(candidates),
             truncated=len(candidates) > self._entry_limit,

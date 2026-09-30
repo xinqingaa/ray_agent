@@ -66,13 +66,6 @@ ENV LANG=zh_CN.UTF-8 \
     LANGUAGE=zh_CN:zh \
     LC_ALL=zh_CN.UTF-8
 
-# 12.1 安装git。绑定的项目挂在/workspace，宿主机目录属主通常不是ubuntu(uid 1000)，
-#      系统级safe.directory让git不拒绝操作；不预设提交身份，不注入凭据
-RUN apt-get update && apt-get install -y git \
-    && git config --system --add safe.directory /workspace \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
-
 # 13.设置工作空间
 WORKDIR /sandbox
 
@@ -82,10 +75,6 @@ RUN pip3 install --no-cache-dir -r requirements.txt
 
 # 15.拷贝当前整个项目文件
 COPY . .
-
-# Git 默认执行配置：禁用 hooks/fsmonitor/外部 filter/diff 驱动，不修改宿主机仓库配置。
-# 任意 Shell 可绕过该入口；不是隔离或访问围栏，不注入身份与凭据。
-RUN install -m 0755 /sandbox/scripts/git-defaults.py /usr/local/bin/git
 
 # 16.将supervisord.conf拷贝至supervisor服务配置目录中
 COPY supervisord.conf /etc/supervisor/conf.d/sandbox.conf

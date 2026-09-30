@@ -1,4 +1,4 @@
-import {ClipboardList, FolderGit2, Layers, Paperclip, type LucideIcon} from 'lucide-react'
+import {ClipboardList, Folder, Layers, Paperclip, type LucideIcon} from 'lucide-react'
 import type {RunStatus} from '@/lib/session-view'
 import {matchesCommandQuery} from '@/lib/slash-trigger'
 
@@ -156,7 +156,7 @@ const projectCommand: InputCommand = {
   keyword: 'project',
   aliases: [],
   keywords: ['项目', '目录', '仓库'],
-  icon: FolderGit2,
+  icon: Folder,
   available: projectAvailable,
   run(context) {
     if (!projectAvailable().available) return

@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import {ChevronDown, ChevronRight, FolderGit2, Plus, MoreHorizontal} from 'lucide-react'
+import {ChevronDown, ChevronRight, Folder, Plus, MoreHorizontal} from 'lucide-react'
 import {Button} from '@/components/ui/button'
 import {DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger} from '@/components/ui/dropdown-menu'
 import {SessionItem} from '@/components/session-item'
@@ -69,7 +69,7 @@ export function ProjectNavigation(props: Props) {
                 {expansion.items[project.id] ? <ChevronDown className="size-3.5"/> : <ChevronRight className="size-3.5"/>}
               </button>
               <Link href={`/projects/${project.id}`} aria-current={props.selectedProject === project.id ? 'page' : undefined} title={project.available ? project.name : `${project.name}：${project.reason ?? '目录不可用'}`} onClick={event => {if (preview) event.preventDefault(); props.onNavigate?.(`/projects/${project.id}`)}} className={cn('flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-1.5 py-1.5 text-sm outline-none hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-ring', props.selectedProject === project.id && 'bg-sidebar-accent')}>
-                <FolderGit2 className="size-3.5 shrink-0 text-muted-foreground"/><span className="truncate">{project.name}</span>
+                <Folder className="size-3.5 shrink-0 text-muted-foreground"/><span className="truncate">{project.name}</span>
                 {!project.available && <span className="shrink-0 text-[10px] text-faint">不可用</span>}
               </Link>
               <DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="icon-xs" aria-label={`${project.name} 的操作`} className="opacity-0 group-hover/project:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100 max-md:opacity-100"><MoreHorizontal/></Button></DropdownMenuTrigger>

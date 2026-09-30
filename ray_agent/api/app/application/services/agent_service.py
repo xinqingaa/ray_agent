@@ -158,10 +158,7 @@ class AgentService:
         if not sandbox:
             # 3.沙箱不存在则创建一个新的(有可能被释放了)。绑定了项目时重新挂载同一个目录
             try:
-                kwargs = {"project_path": session.project_path}
-                if session.project_snapshot and session.project_snapshot.git_environment():
-                    kwargs["git_environment"] = session.project_snapshot.git_environment()
-                sandbox = await self._sandbox_cls.create(**kwargs)
+                sandbox = await self._sandbox_cls.create(project_path=session.project_path)
             except SandboxProjectBindingError as exc:
                 raise ConflictError(str(exc)) from exc
             session.sandbox_id = sandbox.id

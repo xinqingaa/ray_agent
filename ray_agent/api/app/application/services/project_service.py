@@ -4,9 +4,9 @@ from datetime import datetime
 from typing import Callable, Optional, Sequence
 
 from app.application.errors.exceptions import BadRequestError, ConflictError, NotFoundError
-from app.domain.external.project import ProjectFiles, ProjectGit
+from app.domain.external.project import ProjectFiles
 from app.domain.models.project import (
-    BrowseListing, GitDiff, GitDiffScope, GitStatus, ProjectFile, ProjectListing,
+    BrowseListing, ProjectFile, ProjectListing,
     ProjectPathError, ProjectRoot, ProjectView,
 )
 from app.domain.models.workspace_project import WorkspaceProject, ProjectSettings, ProjectTaskSnapshot
@@ -25,9 +25,9 @@ PROJECT_UNBOUND_MESSAGE = "对话没有关联项目"
 
 class ProjectService:
     def __init__(self, uow_factory: Callable[[], IUnitOfWork], files: ProjectFiles,
-                 git: ProjectGit, roots: Sequence[str], sandbox_address: Optional[str] = None):
+                 roots: Sequence[str], sandbox_address: Optional[str] = None):
         self._uow_factory = uow_factory
-        self._files, self._git = files, git
+        self._files = files
         self._roots = list(roots)
         self._sandbox_address = sandbox_address or None
 
@@ -39,8 +39,6 @@ class ProjectService:
             raise ConflictError(check.message or "项目目录不可用")
         if check.real_path != project_path:
             raise ConflictError("项目路径已被替换，请恢复原目录或重新添加项目")
-        if os.path.isfile(os.path.join(project_path, ".git")):
-            raise ConflictError("暂不支持 .git 文件或 linked worktree，请使用普通仓库目录")
         if directory_identity is not None and self.directory_identity(project_path) != directory_identity:
             raise ConflictError("项目目录已被同路径替换，请恢复原目录或从工作区重新添加")
 
@@ -192,11 +190,8 @@ class ProjectService:
             session.project_snapshot.directory_identity if session.project_snapshot else None)
         if session.project_snapshot is None:
             project = session.project
-            git = await self._git.status(project.path)
             session.project_snapshot = ProjectTaskSnapshot(project_id=project.id,
-                **project.model_dump(include={"path", "name", "instructions", "git_author_name", "git_author_email"}),
-                initial_head=git.oid if git.state == "ok" else None,
-                initial_dirty=(bool(git.entries) or git.truncated) if git.state == "ok" else None,
+                **project.model_dump(include={"path", "name", "instructions"}),
                 directory_identity=self.directory_identity(project.path))
             await uow.session.save_project_snapshot(session.id, session.project_snapshot.model_dump(mode="json"))
         project = session.project
@@ -229,16 +224,6 @@ class ProjectService:
     async def read_file(self, identifier: str, relative: str, *, project_level: bool = False) -> ProjectFile:
         path = await self._require_project(identifier, project_level=project_level)
         return await self._read(self._files.read_file(path, relative))
-
-    async def git_status(self, identifier: str, *, project_level: bool = False) -> GitStatus:
-        path = await self._require_project(identifier, project_level=project_level)
-        return await self._read(self._git.status(path))
-
-    async def git_diff(self, identifier: str, scope: str = "worktree", path: Optional[str] = None, *, project_level: bool = False) -> GitDiff:
-        if scope not in ("worktree", "staged"):
-            raise BadRequestError("diff 范围只能是 worktree 或 staged")
-        project_path = await self._require_project(identifier, project_level=project_level)
-        return await self._read(self._git.diff(project_path, scope=scope, path=path or None))
 
     @staticmethod
     async def _read(awaitable):

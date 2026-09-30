@@ -59,7 +59,7 @@ def _bound_workdir_line(workspace_dir: str) -> str:
     return (
         f"- 工作目录为 {workspace_dir}，这是用户电脑上项目目录的读写挂载，也是默认工作目录；"
         "对这里的修改会直接写到用户电脑上。用户上传的附件仍位于 /home/ubuntu/upload，"
-        "超长结果仍落盘在 /home/ubuntu/.rayagent/outputs，临时文件不要写进项目目录。git 可用"
+        "超长结果仍落盘在 /home/ubuntu/.rayagent/outputs，临时文件不要写进项目目录"
     )
 
 

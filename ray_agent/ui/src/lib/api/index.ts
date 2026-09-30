@@ -59,9 +59,6 @@ export type {
   BrowseListing,
   ProjectListing,
   ProjectFile,
-  GitStatus,
-  GitDiff,
-  GitDiffScope,
 } from "./types";
 
 // 模块 API

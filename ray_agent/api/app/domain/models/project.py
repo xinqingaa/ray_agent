@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""本地项目的路径校验结果、文件浏览与 Git 只读读取的返回结构。
+"""本地项目的路径校验结果与文件浏览的返回结构。
 
-宿主机项目目录以相同路径只读挂进 API 容器，文件树与 Git 都读这份挂载；沙箱里同一目录读写挂在 ``SANDBOX_PROJECT_DIR``。
+宿主机项目目录以相同路径只读挂进 API 容器，文件树读这份挂载；沙箱里同一目录读写挂在 ``SANDBOX_PROJECT_DIR``。
 时间字段与事件一致，用毫秒时间戳。
 """
 from datetime import datetime
@@ -13,15 +13,11 @@ from pydantic import BaseModel, Field
 
 SANDBOX_PROJECT_DIR = "/workspace"
 
-# 文件树每层默认不列出的名称（只按名称精确匹配，不读 .gitignore）
+# 文件树每层默认不列出的名称（只按名称精确匹配）
 DEFAULT_IGNORED_NAMES = frozenset({".git", "node_modules", ".venv", "__pycache__", ".next", ".DS_Store"})
 TREE_ENTRY_LIMIT = 1000
 FILE_READ_MAX_BYTES = 1024 * 1024
 BINARY_SNIFF_BYTES = 8 * 1024
-
-GIT_TIMEOUT_SECONDS = 10.0
-GIT_STATUS_ENTRY_LIMIT = 2000
-GIT_DIFF_MAX_BYTES = 512 * 1024
 
 
 class PathCheckReason(str, Enum):
@@ -70,7 +66,7 @@ class ProjectView(BaseModel):
 
 
 class ProjectPathError(Exception):
-    """路径校验不通过。文件浏览与 Git 读取在校验失败时抛出，由应用层转成 400/404。"""
+    """路径校验不通过。文件浏览在校验失败时抛出，由应用层转成 400/404。"""
 
     def __init__(self, check: PathCheck) -> None:
         self.check = check
@@ -135,7 +131,6 @@ class BrowseEntry(BaseModel):
     """根目录内某一层的一个子目录，供项目选择器逐层浏览。"""
     name: str
     path: str  # 绝对路径（父目录 realpath + 名称），绑定前仍要走路径校验
-    is_git_repo: bool = False  # 该目录下有 .git（目录或 gitdir 文件）
     is_symlink: bool = False
 
 
@@ -143,66 +138,7 @@ class BrowseListing(BaseModel):
     path: str  # 当前目录 realpath
     root: str  # 所在的允许根目录 realpath
     parent: Optional[str] = None  # 上一级，已经在根目录时为空
-    is_git_repo: bool = False  # 当前目录本身是否是 Git 仓库
     entries: List[BrowseEntry] = Field(default_factory=list)
     total: int = 0
     truncated: bool = False
     limit: int = TREE_ENTRY_LIMIT
-
-
-GitState = Literal["ok", "not_a_repository", "timeout", "error"]
-GitEntryKind = Literal["ordinary", "renamed", "copied", "unmerged", "untracked"]
-GitChange = Literal["modified", "type_changed", "added", "deleted", "renamed", "copied", "unmerged"]
-GitConflict = Literal[
-    "both_deleted", "added_by_us", "deleted_by_them", "added_by_them", "deleted_by_us", "both_added", "both_modified",
-]
-
-
-class GitStatusEntry(BaseModel):
-    """``status --porcelain=v2`` 的一个条目，暂存区与工作区分开。"""
-    kind: GitEntryKind
-    path: str  # 相对仓库根
-    orig_path: Optional[str] = None  # 重命名或复制前的路径
-    xy: str  # 原始两位状态码，未跟踪为 "??"
-    index: Optional[GitChange] = None  # 暂存区相对 HEAD
-    worktree: Optional[GitChange] = None  # 工作区相对暂存区
-    conflict: Optional[GitConflict] = None  # 仅 unmerged
-
-
-class GitStatus(BaseModel):
-    state: GitState
-    branch: Optional[str] = None  # 分离头指针时为空
-    detached: bool = False
-    oid: Optional[str] = None  # HEAD 提交；没有提交时为空
-    initial: bool = False  # 仓库还没有任何提交
-    upstream: Optional[str] = None
-    ahead: Optional[int] = None
-    behind: Optional[int] = None
-    entries: List[GitStatusEntry] = Field(default_factory=list)
-    truncated: bool = False  # 条目超过上限或输出超过字节上限
-    limit: int = GIT_STATUS_ENTRY_LIMIT
-    error: Optional[str] = None  # state 为 timeout / error 时的说明
-
-
-class GitDiffFile(BaseModel):
-    path: str
-    orig_path: Optional[str] = None
-    additions: Optional[int] = None  # 二进制为空
-    deletions: Optional[int] = None
-    binary: bool = False
-
-
-GitDiffScope = Literal["worktree", "staged"]
-
-
-class GitDiff(BaseModel):
-    """一次 diff 的结果。worktree 为工作区相对暂存区，staged 为暂存区相对 HEAD（没有提交时相对空树）。"""
-    state: GitState
-    scope: GitDiffScope
-    path: Optional[str] = None  # 只取单个文件时的相对路径
-    untracked: bool = False  # 单文件 diff 且该文件未跟踪，显示为全部新增
-    files: List[GitDiffFile] = Field(default_factory=list)
-    diff: str = ""  # unified diff 文本；二进制文件只有 “Binary files … differ”
-    truncated: bool = False  # diff 或文件列表超过上限
-    max_bytes: int = GIT_DIFF_MAX_BYTES
-    error: Optional[str] = None

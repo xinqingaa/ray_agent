@@ -379,15 +379,9 @@ export function ComponentCatalog() {
           </State>
         </Section>
 
-        <Section id="project-workbench" title="项目与变更页" columns={2} note="绑定项目后出现在工作台；不参与按工具家族自动打开。目录页只展示空态文案。">
+        <Section id="project-workbench" title="项目页" columns={2} note="绑定项目后出现在工作台；不参与按工具家族自动打开。目录页只展示空态文案。">
           <State label="项目页空态" source="合成">
             <Surface className="text-meta text-faint">{projectWorkbenchNotes.treeEmpty}</Surface>
-          </State>
-          <State label="非 Git 仓库" source="合成">
-            <Surface className="text-meta text-faint">{projectWorkbenchNotes.notGit}</Surface>
-          </State>
-          <State label="变更页无改动" source="合成">
-            <Surface className="text-meta text-faint">{projectWorkbenchNotes.changesClean}</Surface>
           </State>
           <State label="标题栏项目不可用" source="合成">
             <p className="text-xs text-muted-foreground">

@@ -128,26 +128,24 @@ def test_async_wrappers(project):
     assert asyncio.run(project["files"].read_file(project["proj"], "src/app.py")).content == "print('hi')\n"
 
 
-def test_browse_lists_directories_and_git_repos(project):
+def test_browse_lists_directories(project):
     root = project["root"]
     os.makedirs(os.path.join(root, "plain"))
     _write(os.path.join(root, "file.txt"))
     os.makedirs(os.path.join(root, "node_modules"))
     os.symlink(project["outside"], os.path.join(root, "outlink"))
     os.symlink(os.path.join(root, "plain"), os.path.join(root, "inlink"))
-    worktree = os.path.join(root, "wt")
-    _write(os.path.join(worktree, ".git"), b"gitdir: /elsewhere\n")
+    os.makedirs(os.path.join(root, "wt"))
 
     listing = asyncio.run(project["files"].browse(root))
     assert listing.path == root and listing.root == root and listing.parent is None
     by_name = {e.name: e for e in listing.entries}
     assert list(by_name) == ["inlink", "plain", "proj", "wt"]
-    assert by_name["proj"].is_git_repo and by_name["wt"].is_git_repo and not by_name["plain"].is_git_repo
     assert by_name["inlink"].is_symlink
     assert by_name["proj"].path == os.path.join(root, "proj")
 
     inner = project["files"].browse_sync(os.path.join(root, "proj"))
-    assert inner.parent == root and inner.is_git_repo
+    assert inner.parent == root
     assert [e.name for e in inner.entries] == ["src"]
 
     with pytest.raises(ProjectPathError) as exc:

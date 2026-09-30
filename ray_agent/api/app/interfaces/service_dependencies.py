@@ -20,7 +20,6 @@ from app.infrastructure.external.health_checker.postgres_health_checker import P
 from app.infrastructure.external.health_checker.redis_health_checker import RedisHealthChecker
 from app.infrastructure.external.llm.openai_llm import OpenAILLM
 from app.infrastructure.external.message_queue.redis_event_notifier import RedisEventNotifier
-from app.infrastructure.external.project.git_reader import GitCliReader
 from app.infrastructure.external.project.local_project_files import LocalProjectFiles
 from app.infrastructure.external.sandbox.docker_sandbox import DockerSandbox
 from app.infrastructure.external.search.bing_search import BingSearchEngine
@@ -85,12 +84,11 @@ def get_session_service() -> SessionService:
 
 
 def get_project_service() -> ProjectService:
-    """每次请求按当前配置组装。文件与 Git 读取走 API 容器内的只读挂载，不访问沙箱。"""
+    """每次请求按当前配置组装。文件读取走 API 容器内的只读挂载，不访问沙箱。"""
     current = get_settings()
     return ProjectService(
         uow_factory=get_uow,
         files=LocalProjectFiles(current.project_roots),
-        git=GitCliReader(current.project_roots),
         roots=current.project_roots,
         sandbox_address=current.sandbox_address,
     )

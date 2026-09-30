@@ -128,7 +128,7 @@ class DockerSandbox(Sandbox):
         return ip_address
 
     @classmethod
-    def _create_task(cls, project_path: Optional[str] = None, git_environment: Optional[dict[str, str]] = None) -> Self:
+    def _create_task(cls, project_path: Optional[str] = None) -> Self:
         """创建沙箱容器的异步任务。project_path 是已校验的宿主机项目目录，读写挂载到 SANDBOX_PROJECT_DIR"""
         # 1.获取系统配置信息
         settings = get_settings()
@@ -152,11 +152,6 @@ class DockerSandbox(Sandbox):
                 "HTTP_PROXY": settings.sandbox_http_proxy,
                 "NO_PROXY": settings.sandbox_no_proxy,
             }
-            if git_environment:
-                allowed = {"GIT_AUTHOR_NAME", "GIT_AUTHOR_EMAIL", "GIT_COMMITTER_NAME", "GIT_COMMITTER_EMAIL"}
-                if set(git_environment) != allowed or not project_path:
-                    raise SandboxProjectBindingError("项目身份只能设置 author/committer 姓名与邮箱")
-                environment.update(git_environment)
             if settings.sandbox_ttl_minutes is not None:
                 environment["SERVER_TIMEOUT_MINUTES"] = str(settings.sandbox_ttl_minutes)
             container_config = {
@@ -200,7 +195,7 @@ class DockerSandbox(Sandbox):
             raise Exception(f"创建Docker沙箱容器失败: {str(e)}")
 
     @classmethod
-    async def create(cls, project_path: Optional[str] = None, git_environment: Optional[dict[str, str]] = None) -> Self:
+    async def create(cls, project_path: Optional[str] = None) -> Self:
         """类方法，创建沙箱容器。传入项目目录时读写挂载到 /workspace"""
         # 1.获取系统配置信息
         settings = get_settings()
@@ -222,7 +217,7 @@ class DockerSandbox(Sandbox):
             project_path = check.real_path
 
         # 5.使用子线程创建一个容器后返回
-        creation = asyncio.create_task(asyncio.to_thread(cls._create_task, project_path, git_environment) if git_environment else asyncio.to_thread(cls._create_task, project_path))
+        creation = asyncio.create_task(asyncio.to_thread(cls._create_task, project_path))
         try:
             return await asyncio.shield(creation)
         except asyncio.CancelledError:
@@ -308,8 +303,6 @@ class DockerSandbox(Sandbox):
             raise SandboxProjectBindingError(check.message or "项目路径已被替换")
         if settings.sandbox_address or not self._container_name:
             raise SandboxProjectBindingError("共享沙箱不支持项目挂载")
-        if os.path.isfile(os.path.join(project_path, ".git")):
-            raise SandboxProjectBindingError("暂不支持 .git 文件或 linked worktree")
 
         def probe():
             container = docker.from_env().containers.get(self._container_name)

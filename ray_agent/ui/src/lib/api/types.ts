@@ -196,7 +196,7 @@ export type ProjectView = {
   last_active_at?: string | null;
 };
 
-export type ProjectSettings = {name: string; instructions: string | null; git_author_name: string | null; git_author_email: string | null};
+export type ProjectSettings = {name: string; instructions: string | null};
 export type ProjectDetails = ProjectView & ProjectSettings & {created_at: string; updated_at: string; archived_at: string | null; occupying_session_id: string | null};
 export type ProjectPage = {projects: ProjectView[]; total: number; offset: number; limit: number};
 
@@ -216,7 +216,6 @@ export type ProjectRootsData = {
 export type BrowseEntry = {
   name: string;
   path: string;
-  is_git_repo: boolean;
   is_symlink: boolean;
 };
 
@@ -224,7 +223,6 @@ export type BrowseListing = {
   path: string;
   root: string;
   parent?: string | null;
-  is_git_repo: boolean;
   entries: BrowseEntry[];
   total: number;
   truncated: boolean;
@@ -262,72 +260,6 @@ export type ProjectFile = {
   kind: ProjectFileKind;
   content?: string | null;
   max_bytes: number;
-};
-
-export type GitState = "ok" | "not_a_repository" | "timeout" | "error";
-export type GitEntryKind = "ordinary" | "renamed" | "copied" | "unmerged" | "untracked";
-export type GitChange =
-  | "modified"
-  | "type_changed"
-  | "added"
-  | "deleted"
-  | "renamed"
-  | "copied"
-  | "unmerged";
-export type GitConflict =
-  | "both_deleted"
-  | "added_by_us"
-  | "deleted_by_them"
-  | "added_by_them"
-  | "deleted_by_us"
-  | "both_added"
-  | "both_modified";
-
-export type GitStatusEntry = {
-  kind: GitEntryKind;
-  path: string;
-  orig_path?: string | null;
-  xy: string;
-  index?: GitChange | null;
-  worktree?: GitChange | null;
-  conflict?: GitConflict | null;
-};
-
-export type GitStatus = {
-  state: GitState;
-  branch?: string | null;
-  detached: boolean;
-  oid?: string | null;
-  initial: boolean;
-  upstream?: string | null;
-  ahead?: number | null;
-  behind?: number | null;
-  entries: GitStatusEntry[];
-  truncated: boolean;
-  limit: number;
-  error?: string | null;
-};
-
-export type GitDiffScope = "worktree" | "staged";
-
-export type GitDiffFile = {
-  path: string;
-  orig_path?: string | null;
-  additions?: number | null;
-  deletions?: number | null;
-  binary: boolean;
-};
-
-export type GitDiff = {
-  state: GitState;
-  scope: GitDiffScope;
-  path?: string | null;
-  untracked: boolean;
-  files: GitDiffFile[];
-  diff: string;
-  truncated: boolean;
-  max_bytes: number;
-  error?: string | null;
 };
 
 // ==================== 会话模块类型 ====================

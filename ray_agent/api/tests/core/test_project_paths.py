@@ -152,8 +152,8 @@ def test_in_project_rechecks_project_against_roots(layout):
     assert check.reason == PathCheckReason.OUTSIDE_ROOTS
 
 
-def test_git_pathspec_mode(layout):
-    # 已删除的文件不存在也可以交给 git；父目录经符号链接离开项目仍拒绝
+def test_lexical_mode_for_missing_targets(layout):
+    # 目标不存在时只做词法检查；父目录经符号链接离开项目仍拒绝
     ok = resolve_in_project(layout["project"], "src/deleted.py", layout["roots"], must_exist=False)
     assert ok.ok and ok.relative == "src/deleted.py"
     os.symlink(layout["outside"], os.path.join(layout["project"], "leakdir"))

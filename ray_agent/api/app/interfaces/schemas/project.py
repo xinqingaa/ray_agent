@@ -46,8 +46,6 @@ class ProjectPage(BaseModel):
 
 class ProjectDetails(ProjectView):
     instructions: Optional[str] = None
-    git_author_name: Optional[str] = None
-    git_author_email: Optional[str] = None
     created_at: datetime
     updated_at: datetime
     archived_at: Optional[datetime] = None

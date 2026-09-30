@@ -6,7 +6,7 @@ import Link from 'next/link'
 import {toast} from 'sonner'
 import {Sidebar, SidebarContent, SidebarFooter, SidebarHeader, useSidebar} from '@/components/ui/sidebar'
 import {Button} from '@/components/ui/button'
-import {FolderGit2, Plus, Settings} from 'lucide-react'
+import {Folder, Plus, Settings} from 'lucide-react'
 import {SidebarChrome} from '@/components/sidebar-chrome'
 import {ProjectNavigation, type NavigationExpansion, type NavigationProject} from '@/components/project-navigation'
 import {ProjectSettingsDialog} from '@/components/project-settings-dialog'
@@ -93,7 +93,7 @@ export function LeftPanel() {
       <SidebarHeader><SidebarChrome/></SidebarHeader>
       <SidebarContent className="min-h-0 overflow-hidden p-2">
         <div className="hidden flex-1 flex-col items-center gap-2 group-data-[collapsible=icon]:flex">
-          <Button variant="ghost" size="icon" aria-label="打开项目" title="打开项目" onClick={workspace.openProject}><FolderGit2/></Button>
+          <Button variant="ghost" size="icon" aria-label="打开项目" title="打开项目" onClick={workspace.openProject}><Folder/></Button>
           <Button variant="ghost" size="icon" aria-label="新独立对话" title="新独立对话" onClick={independent}><Plus/></Button>
         </div>
         <div className="flex min-h-0 flex-1 flex-col group-data-[collapsible=icon]:hidden">

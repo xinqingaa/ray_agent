@@ -22,13 +22,13 @@ from app.application.services.session_service import SessionService
 from app.application.services.title_service import TitleService
 from app.domain.external.event_notifier import OutputDelta
 from app.domain.models.event import Event
-from app.domain.models.project import GitDiff, GitStatus, ProjectFile, ProjectListing, ProjectView
+from app.domain.models.project import ProjectFile, ProjectListing, ProjectView
 from app.domain.models.run import RunMode
 from app.domain.models.session import Session
 from app.interfaces.schemas import Response
 from app.interfaces.schemas.event import EventMapper
 from app.interfaces.schemas.session import (
-    CreateSessionRequest, CreateSessionResponse, ProjectStartObservation,
+    CreateSessionRequest, CreateSessionResponse,
     ListSessionResponse,
     ListSessionItem,
     ChatRequest,
@@ -354,10 +354,6 @@ async def get_session(
             context_operation=context_operation(session_id),
             context_config=await config_service.get_context_config(),
             project=project_service.describe(detail.session.project),
-            project_start=ProjectStartObservation(
-                initial_head=detail.session.project_snapshot.initial_head,
-                initial_dirty=detail.session.project_snapshot.initial_dirty,
-            ) if detail.session.project_snapshot else None,
         )
     )
 
@@ -517,38 +513,6 @@ async def project_file(
 ) -> Response[ProjectFile]:
     project_file_result = await project_service.read_file(session_id, path)
     return Response.success(msg="读取项目文件成功", data=project_file_result)
-
-
-@router.get(
-    path="/{session_id}/project/git/status",
-    response_model=Response[GitStatus],
-    summary="读取项目 Git 状态",
-    description="不是仓库或超时以 200 的 state 返回（not_a_repository / timeout），不当作错误。"
-                "会话未绑定项目 404；路径校验失败 400",
-)
-async def project_git_status(
-        session_id: str,
-        project_service: ProjectService = Depends(get_project_service),
-) -> Response[GitStatus]:
-    status = await project_service.git_status(session_id)
-    return Response.success(msg="获取 Git 状态成功", data=status)
-
-
-@router.get(
-    path="/{session_id}/project/git/diff",
-    response_model=Response[GitDiff],
-    summary="读取项目 Git diff",
-    description="scope=worktree 为工作区相对暂存区，staged 为暂存区相对 HEAD。path 省略时取全部。"
-                "不是仓库或超时以 200 的 state 返回。会话未绑定项目 404；路径校验失败 400",
-)
-async def project_git_diff(
-        session_id: str,
-        scope: str = Query(default="worktree"),
-        path: Optional[str] = Query(default=None),
-        project_service: ProjectService = Depends(get_project_service),
-) -> Response[GitDiff]:
-    diff = await project_service.git_diff(session_id, scope=scope, path=path)
-    return Response.success(msg="获取 Git diff 成功", data=diff)
 
 
 @router.websocket(
