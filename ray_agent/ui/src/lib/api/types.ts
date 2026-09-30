@@ -187,7 +187,6 @@ export type FileUploadParams = {
 
 export type ProjectView = {
   id: string;
-  path: string;
   name: string;
   available: boolean;
   reason?: string | null;
@@ -199,35 +198,6 @@ export type ProjectView = {
 export type ProjectSettings = {name: string; instructions: string | null};
 export type ProjectDetails = ProjectView & ProjectSettings & {created_at: string; updated_at: string; archived_at: string | null; occupying_session_id: string | null};
 export type ProjectPage = {projects: ProjectView[]; total: number; offset: number; limit: number};
-
-export type ProjectRootItem = {
-  path: string;
-  available: boolean;
-  reason?: string | null;
-};
-
-export type ProjectRootsData = {
-  enabled: boolean;
-  supported?: boolean;
-  reason?: string | null;
-  roots: ProjectRootItem[];
-};
-
-export type BrowseEntry = {
-  name: string;
-  path: string;
-  is_symlink: boolean;
-};
-
-export type BrowseListing = {
-  path: string;
-  root: string;
-  parent?: string | null;
-  entries: BrowseEntry[];
-  total: number;
-  truncated: boolean;
-  limit: number;
-};
 
 export type ProjectEntryType = "file" | "directory" | "symlink" | "other";
 export type ProjectLinkState = "inside" | "outside" | "broken";
@@ -250,7 +220,7 @@ export type ProjectListing = {
   limit: number;
 };
 
-export type ProjectFileKind = "text" | "binary" | "too_large";
+export type ProjectFileKind = "text" | "binary" | "too_large" | "symlink" | "other";
 
 export type ProjectFile = {
   path: string;

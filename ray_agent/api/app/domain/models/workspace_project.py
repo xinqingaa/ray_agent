@@ -33,7 +33,6 @@ class ProjectSettings(BaseModel):
 
 class WorkspaceProject(ProjectSettings):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    path: str = Field(min_length=1, max_length=4096)
     archived_at: Optional[datetime] = None
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)
@@ -42,6 +41,3 @@ class WorkspaceProject(ProjectSettings):
 
 class ProjectTaskSnapshot(ProjectSettings):
     project_id: str
-    path: str
-    # 用于识别目录被同路径替换；具体值由部署环境的路径适配层产生。
-    directory_identity: Optional[str] = None

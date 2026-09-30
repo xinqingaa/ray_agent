@@ -1,11 +1,10 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-import os
 from functools import lru_cache
-from typing import Annotated, List, Literal, Optional
+from typing import Literal, Optional
 
 from pydantic import field_validator, model_validator
-from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
@@ -56,9 +55,10 @@ class Settings(BaseSettings):
     sandbox_cpus: float = 2
     sandbox_pids_limit: int = 512
 
-    # 允许会话绑定的宿主机项目根目录，逗号分隔的绝对路径；为空时项目功能关闭。
-    # API 容器内须以相同路径只读挂载，这些路径同时是沙箱绑定挂载的源
-    project_roots: Annotated[List[str], NoDecode] = []
+    # 仅宿主机开发 API 的托管存储回退；产品 Compose 自动解析命名卷。
+    project_local_bind: Optional[str] = None
+    project_uid: int = 1000
+    project_gid: int = 1000
 
     # 使用pydantic v2的写法来完成环境变量信息的告知
     model_config = SettingsConfigDict(
@@ -80,26 +80,6 @@ class Settings(BaseSettings):
         if value <= 0:
             raise ValueError("沙箱 CPU 上限必须为正数")
         return value
-
-    @field_validator("project_roots", mode="before")
-    @classmethod
-    def split_project_roots(cls, value):
-        """逗号分隔，去掉空项；每项必须是绝对路径，且不能是文件系统根。"""
-        if value is None:
-            return []
-        items = value.split(",") if isinstance(value, str) else list(value)
-        roots: List[str] = []
-        for item in items:
-            root = str(item).strip()
-            if not root:
-                continue
-            if not os.path.isabs(root):
-                raise ValueError(f"PROJECT_ROOTS 必须是绝对路径: {root}")
-            if not os.path.normpath(root).rstrip("/"):
-                raise ValueError("PROJECT_ROOTS 不能是文件系统根目录 /")
-            if root not in roots:
-                roots.append(root)
-        return roots
 
     @field_validator("file_storage_backend", mode="before")
     @classmethod

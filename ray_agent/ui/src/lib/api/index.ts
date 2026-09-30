@@ -55,8 +55,6 @@ export type {
   ViewFileParams,
   ViewShellParams,
   ProjectView,
-  ProjectRootsData,
-  BrowseListing,
   ProjectListing,
   ProjectFile,
 } from "./types";

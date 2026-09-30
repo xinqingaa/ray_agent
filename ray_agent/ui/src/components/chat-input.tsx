@@ -505,7 +505,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
             <Paperclip className="size-4"/>
           </Button>
           {!workspace && <ProjectPicker hideTrigger open={projectPickerOpen} onOpenChange={setProjectPickerOpen} onSelect={project => {if (project) router.push(`/projects/${project.id}`)}}/>}
-          {selectedProject && <span className="max-w-[12rem] truncate text-xs text-muted-foreground" title={selectedProject.path}>{selectedProject.name}</span>}
+          {selectedProject && <span className="max-w-[12rem] truncate text-xs text-muted-foreground" title={selectedProject.name}>{selectedProject.name}</span>}
           {planMode && (
             <button
               type="button"

@@ -41,7 +41,6 @@ from app.interfaces.schemas.session import (
     CompactResponse,
     RenameTitleRequest, TitleResponse,
 )
-from app.interfaces.schemas.project import BindProjectRequest
 from app.interfaces.service_dependencies import (
     get_app_config_service,
     get_session_service, get_agent_service, get_title_service, get_project_service,
@@ -452,36 +451,6 @@ async def read_shell_output(
         msg="获取Shell内容输出结果成功",
         data=result,
     )
-
-
-@router.put(
-    path="/{session_id}/project",
-    response_model=Response[ProjectView],
-    summary="绑定或更换会话项目",
-    description="只能在首次运行前绑定或更换。会话不存在 404；共享沙箱模式、已有运行或已有沙箱 409；"
-                "路径校验失败或未配置 PROJECT_ROOTS 返回 400。成功时 data 为 project 对象，path 是 realpath",
-)
-async def bind_project(
-        session_id: str,
-        request: BindProjectRequest,
-        project_service: ProjectService = Depends(get_project_service),
-) -> Response[ProjectView]:
-    project = await project_service.bind(session_id, request.project_id)
-    return Response.success(msg="已绑定项目", data=project)
-
-
-@router.delete(
-    path="/{session_id}/project",
-    response_model=Response[Optional[ProjectView]],
-    summary="解除会话项目绑定",
-    description="只能在首次运行前解除。会话不存在 404；共享沙箱模式、已有运行或已有沙箱 409。成功时 data 为 null",
-)
-async def unbind_project(
-        session_id: str,
-        project_service: ProjectService = Depends(get_project_service),
-) -> Response[Optional[ProjectView]]:
-    await project_service.unbind(session_id)
-    return Response(code=200, msg="已解除项目绑定", data=None)
 
 
 @router.get(

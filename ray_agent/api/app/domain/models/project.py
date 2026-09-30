@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """本地项目的路径校验结果与文件浏览的返回结构。
 
-宿主机项目目录以相同路径只读挂进 API 容器，文件树读这份挂载；沙箱里同一目录读写挂在 ``SANDBOX_PROJECT_DIR``。
+文件树读取平台托管文件，沙箱仅挂载 files 子目录到 ``SANDBOX_PROJECT_DIR``。
 时间字段与事件一致，用毫秒时间戳。
 """
 from datetime import datetime
@@ -22,9 +22,7 @@ BINARY_SNIFF_BYTES = 8 * 1024
 
 class PathCheckReason(str, Enum):
     """路径校验不通过的原因。"""
-    NO_ROOTS = "no_roots"  # PROJECT_ROOTS 为空，功能关闭
-    INVALID_PATH = "invalid_path"  # 空串、含 NUL、项目路径不是绝对路径，或项目内路径写成了绝对路径
-    OUTSIDE_ROOTS = "outside_roots"  # realpath 不在任何允许根目录之内
+    INVALID_PATH = "invalid_path"
     NOT_FOUND = "not_found"
     NOT_DIRECTORY = "not_directory"
     NOT_FILE = "not_file"  # 读文件时目标不是普通文件
@@ -32,9 +30,7 @@ class PathCheckReason(str, Enum):
 
 
 PATH_CHECK_MESSAGES = {
-    PathCheckReason.NO_ROOTS: "未配置允许接入的项目根目录（PROJECT_ROOTS）",
     PathCheckReason.INVALID_PATH: "路径格式不正确",
-    PathCheckReason.OUTSIDE_ROOTS: "路径不在允许的项目根目录内",
     PathCheckReason.NOT_FOUND: "路径不存在",
     PathCheckReason.NOT_DIRECTORY: "路径不是目录",
     PathCheckReason.NOT_FILE: "路径不是普通文件",
@@ -54,9 +50,8 @@ class PathCheck(BaseModel):
 
 
 class ProjectView(BaseModel):
-    """会话对外的项目摘要。available 与 reason 每次请求按当前 PROJECT_ROOTS 实时计算，不入库。"""
+    """会话对外的项目摘要。available 与 reason 来自托管存储自检，不入库。"""
     id: str
-    path: str
     name: str
     available: bool
     archived: bool = False
@@ -77,14 +72,6 @@ class ProjectPathError(Exception):
         return self.check.reason
 
 
-class ProjectRoot(BaseModel):
-    """配置中的一个允许根目录。"""
-    configured: str  # PROJECT_ROOTS 里写的原值
-    path: str  # realpath
-    available: bool
-    reason: Optional[PathCheckReason] = None  # not_found / not_directory
-
-
 EntryType = Literal["file", "directory", "symlink", "other"]
 LinkState = Literal["inside", "outside", "broken"]
 
@@ -92,8 +79,7 @@ LinkState = Literal["inside", "outside", "broken"]
 class ProjectEntry(BaseModel):
     """文件树中的一个直接子项。
 
-    符号链接指向项目内时 ``type`` 是目标的类型（可以展开或预览）；指向项目外或断链时 ``type`` 为 symlink，
-    不跟随、不读取，``size`` 与 ``modified_at`` 取链接本身。
+    符号链接统一作为链接显示，不展开或读取目标。
     """
     name: str
     path: str  # 相对项目根的 POSIX 路径，按请求路径拼接，不解析符号链接
@@ -113,7 +99,7 @@ class ProjectListing(BaseModel):
     limit: int = TREE_ENTRY_LIMIT
 
 
-FileKind = Literal["text", "binary", "too_large"]
+FileKind = Literal["text", "binary", "too_large", "symlink", "other"]
 
 
 class ProjectFile(BaseModel):
@@ -125,20 +111,3 @@ class ProjectFile(BaseModel):
     kind: FileKind
     content: Optional[str] = None  # UTF-8 解码，非法字节以替换字符显示
     max_bytes: int = FILE_READ_MAX_BYTES
-
-
-class BrowseEntry(BaseModel):
-    """根目录内某一层的一个子目录，供项目选择器逐层浏览。"""
-    name: str
-    path: str  # 绝对路径（父目录 realpath + 名称），绑定前仍要走路径校验
-    is_symlink: bool = False
-
-
-class BrowseListing(BaseModel):
-    path: str  # 当前目录 realpath
-    root: str  # 所在的允许根目录 realpath
-    parent: Optional[str] = None  # 上一级，已经在根目录时为空
-    entries: List[BrowseEntry] = Field(default_factory=list)
-    total: int = 0
-    truncated: bool = False
-    limit: int = TREE_ENTRY_LIMIT

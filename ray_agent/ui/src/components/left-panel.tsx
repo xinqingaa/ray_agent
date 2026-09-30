@@ -28,20 +28,24 @@ export function LeftPanel() {
   const [expansion, setExpansion] = useState(DEFAULT_EXPANSION)
   const [restored, setRestored] = useState(false)
   const [rows, setRows] = useState<NavigationProject[]>([])
-  const [selected, setSelected] = useState<Session | null>(null)
+  const [selectedRecord, setSelected] = useState<Session | null>(null)
   const [settings, setSettings] = useState<string | null>(null)
   const [pendingDelete, setPendingDelete] = useState<Session | null>(null)
   const [pendingRename, setPendingRename] = useState<Session | null>(null)
   const sessionId = pathname.startsWith('/sessions/') ? pathname.split('/')[2] : null
+  const selected = selectedRecord?.session_id === sessionId ? selectedRecord : null
   const projectId = pathname.startsWith('/projects/') ? pathname.split('/')[2] : selected?.project?.id ?? null
   const located = useRef<string | null>(null)
   useEffect(() => {
-    try {const saved = JSON.parse(localStorage.getItem('rayagent:navigation') ?? 'null'); if (saved && typeof saved.projects === 'boolean' && typeof saved.conversations === 'boolean' && saved.items && typeof saved.items === 'object') setExpansion(saved)} catch {}
-    setRestored(true)
+    const frame = requestAnimationFrame(() => {
+      try {const saved = JSON.parse(localStorage.getItem('rayagent:navigation') ?? 'null'); if (saved && typeof saved.projects === 'boolean' && typeof saved.conversations === 'boolean' && saved.items && typeof saved.items === 'object') setExpansion(saved)} catch {}
+      setRestored(true)
+    })
+    return () => cancelAnimationFrame(frame)
   }, [])
   const expand = (state: NavigationExpansion) => {setExpansion(state); localStorage.setItem('rayagent:navigation', JSON.stringify(state))}
   useEffect(() => {
-    if (!sessionId) {setSelected(null); located.current = null; return}
+    if (!sessionId) {located.current = null; return}
     let active = true
     sessionApi.getSession(sessionId).then(session => {
       if (!active) return

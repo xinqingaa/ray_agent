@@ -101,7 +101,7 @@ export function ProjectWorkspace({projectId}: {projectId: string}) {
   return <div className="flex h-full min-w-0">
     <main className="flex min-w-0 flex-1 flex-col overflow-y-auto">
       <header className="flex flex-wrap items-center gap-2 border-b px-4 py-3">
-        <div className="min-w-0 flex-1"><h1 className="truncate text-sm font-medium">{project.name}</h1><p className="truncate font-mono text-xs text-faint" title={project.path}>{project.path}</p></div>
+        <div className="min-w-0 flex-1"><h1 className="truncate text-sm font-medium">{project.name}</h1><p className="text-xs text-faint">平台托管文件</p></div>
         <Button size="icon-sm" variant="ghost" title="项目文件" aria-label="项目文件" disabled={!project.available} onClick={() => setPanel('project')}><Files/></Button>
         <Button size="icon-sm" variant="ghost" title="项目设置" aria-label="项目设置" onClick={() => setSettings(true)}><Settings/></Button>
         <Button size="icon-sm" variant="ghost" title="关闭项目" aria-label="关闭项目" onClick={() => router.push('/')}><X/></Button>

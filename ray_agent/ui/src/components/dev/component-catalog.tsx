@@ -361,7 +361,7 @@ export function ComponentCatalog() {
           <State label="压缩后估算" source="合成"><Surface><ContextRing usage={usageStates.postCompactEstimate}/></Surface></State>
         </Section>
 
-        <Section id="project-picker" title="项目选择器" columns={2} note="首页与会话输入框工具行；PROJECT_ROOTS 未启用时不渲染。目录页用静态展示。">
+        <Section id="project-picker" title="项目选择器" columns={2} note="首页与会话输入框可打开托管项目；错误与不可用原因在选择器中展示。">
           <State label="未选择" source="合成">
             <Surface className="inline-flex">
               <ProjectPicker enabled selected={projectPickerStates.unselected} onSelect={noop}/>

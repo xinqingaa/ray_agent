@@ -31,7 +31,7 @@ class Session(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))  # 会话id
     sandbox_id: Optional[str] = None  # 沙箱id
     project_id: Optional[str] = None
-    project: Optional[WorkspaceProject] = Field(default=None, exclude=True)  # 仓库装配；路径仅来自项目实体
+    project: Optional[WorkspaceProject] = Field(default=None, exclude=True)  # 仓库装配；只保存项目归属
     project_snapshot: Optional[ProjectTaskSnapshot] = None  # 首次受理后固定，后续 run 与重建沿用
     task_id: Optional[str] = None  # 任务id
     title: str = ""  # 标题
@@ -44,7 +44,3 @@ class Session(BaseModel):
     status: SessionStatus = SessionStatus.PENDING  # 状态
     updated_at: datetime = Field(default_factory=datetime.now)  # 更新时间
     created_at: datetime = Field(default_factory=datetime.now)  # 创建时间
-
-    @property
-    def project_path(self) -> Optional[str]:
-        return self.project.path if self.project else None

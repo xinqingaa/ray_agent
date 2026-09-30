@@ -51,6 +51,9 @@ cd ray_agent
 | `COS_SECRET_ID` / `COS_SECRET_KEY` | 仅 `FILE_STORAGE_BACKEND=cos` 时必填 |
 | `COS_REGION` / `COS_BUCKET` | 仅云端模式需要，填存储桶地域与名称 |
 | `COS_SCHEME` | `https` |
+| `NGINX_BIND_ADDRESS` | 默认 `127.0.0.1`，显式修改才向其他地址发布；当前应用无鉴权 |
+| `PROJECT_LOCAL_BIND` | 仅宿主机开发 API 的托管目录回退，值须与文件存储目录一致；Compose 不设置 |
+| `PROJECT_UID` / `PROJECT_GID` | 托管文件的沙箱属主，默认 `1000:1000` |
 | `NGINX_PORT` | 对外端口，默认 `8088` |
 
 表中的服务名、镜像名和网络名对应实际 Compose 标识。API 容器连接数据库和 Redis 时使用服务名，不能用指向容器自身的 `localhost`。环境示例中的 Redis 端口、沙箱镜像、网络和本地文件目录需按上表调整。本地模式不需要填写 COS 凭据；Compose 部署请使用 `FILE_STORAGE_LOCAL_DIR=/data/files`，与 API 数据卷对应。选择 `cos` 时缺项会导致 API 无法启动。

@@ -25,7 +25,6 @@ import {useSessionDetail} from '@/hooks/use-session-detail'
 import {useSessions} from '@/hooks/use-sessions'
 import {useIsMobile} from '@/hooks/use-mobile'
 import {sessionApi} from '@/lib/api/session'
-import {projectApi} from '@/lib/api/project'
 import {createProjectRefreshWatcher} from '@/lib/project-refresh'
 import {readDraft, writeDraft} from '@/lib/drafts'
 import {normalizeEvents} from '@/lib/session-events'
@@ -83,7 +82,7 @@ export function SessionDetailView({
     loadTurnRequest,
     replyApproval,
   } = useSessionDetail(sessionId)
-  const [projectsEnabled, setProjectsEnabled] = useState(false)
+  const projectsEnabled = true
   const [projectRefreshSignal, setProjectRefreshSignal] = useState(0)
   const projectRefreshRef = useRef<ReturnType<typeof createProjectRefreshWatcher> | null>(null)
   const [approvalRequest, setApprovalRequest] = useState<ApprovalSubmitting | null>(null)
@@ -143,9 +142,6 @@ export function SessionDetailView({
 
   const projectBindable = (view?.runs.length ?? 0) === 0 && (view?.status ?? 'idle') === 'idle'
 
-  useEffect(() => {
-    projectApi.getRoots().then((data) => setProjectsEnabled(data.enabled)).catch(() => setProjectsEnabled(false))
-  }, [])
 
   useEffect(() => {
     const watcher = createProjectRefreshWatcher(() => setProjectRefreshSignal((n) => n + 1))
@@ -388,7 +384,7 @@ export function SessionDetailView({
               )}
               </div>
               {view.project && (
-                <p className="min-w-0 truncate text-xs text-muted-foreground" title={view.project.available ? view.project.path : view.project.reason ?? view.project.path}>
+                <p className="min-w-0 truncate text-xs text-muted-foreground" title={view.project.reason ?? view.project.name}>
                   {view.project.name}
                   {!view.project.available && view.project.reason ? ` · ${view.project.reason}` : ''}
                 </p>

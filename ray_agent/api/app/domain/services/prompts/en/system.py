@@ -57,8 +57,8 @@ You are RayAgent, an AI agent that completes tasks for the user inside a Linux s
 
 def _bound_workdir_line(workspace_dir: str) -> str:
     return (
-        f"- Working directory is {workspace_dir}, a read-write mount of the project directory on the user's computer "
-        "and the default working directory; changes here are written directly to the user's computer. "
+        f"- Working directory is {workspace_dir}, a read-write mount of platform-managed project files "
+        "and the default working directory; changes affect the uploaded copy, not the user's original local files. "
         "User uploads remain in /home/ubuntu/upload, oversized results are still saved under "
         "/home/ubuntu/.rayagent/outputs, and temporary files must not be written into the project"
     )

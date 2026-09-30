@@ -22,8 +22,8 @@ def test_settings_reject_invalid_fields(fields):
 
 
 def test_snapshot_is_independent_of_later_settings():
-    project = WorkspaceProject(name="项目", path="/tmp/example", instructions="初始说明")
-    snapshot = ProjectTaskSnapshot(project_id=project.id, **project.model_dump(include={"path", "name", "instructions"}))
+    project = WorkspaceProject(name="项目", instructions="初始说明")
+    snapshot = ProjectTaskSnapshot(project_id=project.id, **project.model_dump(include={"name", "instructions"}))
     project.instructions = "新说明"
     assert snapshot.instructions == "初始说明"
     restored = ProjectTaskSnapshot.model_validate_json(snapshot.model_dump_json())

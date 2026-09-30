@@ -104,7 +104,7 @@ class Sandbox(Protocol):
         """根据传递的文件路径下载沙箱中的文件"""
         ...
 
-    async def validate_project(self, project_path: str) -> None:
+    async def validate_project(self, project_id: str) -> None:
         """核对实际挂载来源和沙箱用户读写权限；失败禁止执行。"""
         ...
 
@@ -136,7 +136,7 @@ class Sandbox(Protocol):
         ...
 
     @classmethod
-    async def create(cls, project_path: Optional[str] = None) -> Self:
+    async def create(cls, project_id: Optional[str] = None) -> Self:
         """类方法，用于快速创建一个沙箱。传入宿主机项目目录时读写挂载到 SANDBOX_PROJECT_DIR，
         当前模式不支持绑定时抛出 SandboxProjectBindingError"""
         ...

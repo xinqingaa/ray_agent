@@ -57,8 +57,8 @@ _UNBOUND_SYSTEM_PROMPT = """
 
 def _bound_workdir_line(workspace_dir: str) -> str:
     return (
-        f"- 工作目录为 {workspace_dir}，这是用户电脑上项目目录的读写挂载，也是默认工作目录；"
-        "对这里的修改会直接写到用户电脑上。用户上传的附件仍位于 /home/ubuntu/upload，"
+        f"- 工作目录为 {workspace_dir}，这是平台托管项目文件的读写挂载，也是默认工作目录；"
+        "这里的文件与本地原材料是独立副本，不会回写用户电脑。用户上传的附件仍位于 /home/ubuntu/upload，"
         "超长结果仍落盘在 /home/ubuntu/.rayagent/outputs，临时文件不要写进项目目录"
     )
 

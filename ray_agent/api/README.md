@@ -152,6 +152,18 @@ uv run --locked python scripts/check_file_artifacts.py
 
 宿主机不可解析 Compose 内部数据库地址时，在包含当前源码的 API 容器中运行（进入产品目录后执行 `docker compose exec manus-api python scripts/check_file_artifacts.py`）；源码更新方式见 [Docker 说明](../DOCKER.md#重启)。不要把宿主机连接失败表述为用例通过。
 
+### 托管项目挂载观察
+
+默认 Compose 的 API 从自身容器挂载信息解析命名卷，沙箱仅挂项目文件子路径，不登记用户电脑目录。宿主机开发 API 需显式设置 `PROJECT_LOCAL_BIND` 为文件存储目录；解析失败时项目不可用，独立对话可继续。
+
+产品镜像构建后，在产品目录运行：
+
+```bash
+docker compose run --rm --no-deps -T manus-api python scripts/check_managed_project_mount.py
+```
+
+该脚本创建一次性托管目录与真实沙箱，检查卷子路径、ubuntu 修改/删除与快照目录不可见，并清理本次资源；不连接数据库或模型，不验证运行终态收尾与恢复。脚本尚未打进镜像时可把该脚本通过 stdin 送给同一命令的 `python -`；不能把旧镜像中的文件缺失算通过。
+
 ### 沙箱环境观察
 
 动态模式下可在本目录运行第十一章的容器观察（需可访问 Docker，且未配置已有沙箱地址）：

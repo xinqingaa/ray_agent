@@ -6,18 +6,15 @@ from typing import Callable, Optional, Sequence
 from app.application.errors.exceptions import BadRequestError, ConflictError, NotFoundError
 from app.domain.external.project import ProjectFiles
 from app.domain.models.project import (
-    BrowseListing, ProjectFile, ProjectListing,
-    ProjectPathError, ProjectRoot, ProjectView,
+    ProjectFile, ProjectListing,
+    ProjectPathError, ProjectView,
 )
 from app.domain.models.workspace_project import WorkspaceProject, ProjectSettings, ProjectTaskSnapshot
 from app.domain.models.session import Session, DEFAULT_SESSION_TITLE
 from app.domain.repositories.uow import IUnitOfWork
-from app.domain.services.project_paths import check_project_path, resolve_roots
 from app.domain.services.project_transactions import lock_project_session, ProjectRunConflict
 from app.domain.services.session_locks import session_lock
 
-NO_ROOTS_MESSAGE = "未配置允许的项目根目录"
-SHARED_SANDBOX_MESSAGE = "共享沙箱模式（已设置 SANDBOX_ADDRESS）不支持本机项目"
 PROJECT_LOCKED_MESSAGE = "对话归属只能在首次运行前选择或更换"
 SESSION_MISSING_MESSAGE = "该对话不存在，请核实后重试"
 PROJECT_UNBOUND_MESSAGE = "对话没有关联项目"
@@ -25,37 +22,29 @@ PROJECT_UNBOUND_MESSAGE = "对话没有关联项目"
 
 class ProjectService:
     def __init__(self, uow_factory: Callable[[], IUnitOfWork], files: ProjectFiles,
-                 roots: Sequence[str], sandbox_address: Optional[str] = None):
+                 storage, sandbox_address: Optional[str] = None):
         self._uow_factory = uow_factory
         self._files = files
-        self._roots = list(roots)
+        self._storage = storage
         self._sandbox_address = sandbox_address or None
 
-    def validate_start(self, project_path: str, directory_identity: Optional[str] = None) -> None:
+    def validate_start(self, project_id: str) -> None:
         if self._sandbox_address:
-            raise ConflictError(SHARED_SANDBOX_MESSAGE)
-        check = check_project_path(project_path, self._roots)
-        if not check.ok:
-            raise ConflictError(check.message or "项目目录不可用")
-        if check.real_path != project_path:
-            raise ConflictError("项目路径已被替换，请恢复原目录或重新添加项目")
-        if directory_identity is not None and self.directory_identity(project_path) != directory_identity:
-            raise ConflictError("项目目录已被同路径替换，请恢复原目录或从工作区重新添加")
-
-    @staticmethod
-    def directory_identity(path: str) -> str:
-        stat = os.stat(path)
-        return f"{stat.st_dev}:{stat.st_ino}"
+            raise ConflictError("共享沙箱模式不支持托管项目，请启用动态沙箱")
+        try:
+            self._storage.validate(project_id)
+        except (ValueError, OSError) as exc:
+            raise ConflictError(str(exc)) from exc
 
     def describe(self, project: Optional[WorkspaceProject]) -> Optional[ProjectView]:
         if project is None:
             return None
         try:
-            self.validate_start(project.path)
+            self.validate_start(project.id)
             available, reason = True, None
         except (ConflictError, OSError) as exc:
             available, reason = False, str(exc)
-        return ProjectView(id=project.id, path=project.path, name=project.name,
+        return ProjectView(id=project.id, name=project.name,
             available=available, reason=reason, archived=project.archived_at is not None,
             last_active_at=project.last_active_at)
 
@@ -65,33 +54,17 @@ class ProjectService:
         return {session.id: views.get(session.project_id) for session in sessions}
 
     def availability(self) -> tuple[bool, Optional[str]]:
-        if self._sandbox_address:
-            return False, SHARED_SANDBOX_MESSAGE
-        return True, None if self._roots else NO_ROOTS_MESSAGE
+        reason = "共享沙箱模式不支持托管项目" if self._sandbox_address else self._storage.reason
+        return reason is None, reason
 
-    def list_roots(self) -> tuple[bool, list[ProjectRoot]]:
-        return bool(self._roots), resolve_roots(self._roots)
-
-    async def browse(self, path: str) -> BrowseListing:
-        if self._sandbox_address:
-            raise ConflictError(SHARED_SANDBOX_MESSAGE)
-        return await self._read(self._files.browse(path))
-
-    async def register(self, path: str, name: Optional[str] = None) -> WorkspaceProject:
-        check = check_project_path(path, self._roots)
-        if not check.ok or not check.real_path:
-            raise BadRequestError(check.message or "路径校验失败")
-        self.validate_start(check.real_path)
-        candidate = WorkspaceProject(path=check.real_path, name=name or (os.path.basename(check.real_path) or '/')[:160])
+    async def create(self, name: str, instructions: Optional[str] = None) -> WorkspaceProject:
+        supported, reason = self.availability()
+        if not supported:
+            raise ConflictError(reason)
+        candidate = WorkspaceProject(name=name, instructions=instructions)
+        self._storage.ensure_project(candidate.id)
         async with self._uow_factory() as uow:
-            await uow.project.lock_registry()
-            existing = await uow.project.get_by_path(candidate.path)
-            if existing:
-                return existing
-            overlap = await uow.project.overlapping(candidate.path)
-            if overlap:
-                raise ConflictError(f"目录与已登记项目「{overlap.name}」重叠，请选择互不嵌套的目录")
-            return await uow.project.create_or_get(candidate)
+            return await uow.project.create(candidate)
 
     async def get(self, project_id: str) -> WorkspaceProject:
         async with self._uow_factory() as uow:
@@ -136,7 +109,7 @@ class ProjectService:
             if archived and occupied:
                 raise ProjectRunConflict("项目仍有活动对话，结束或停止后才能归档", occupied.session_id)
             if not archived:
-                self.validate_start(project.path)
+                self.validate_start(project.id)
             project.archived_at = datetime.now() if archived else None
             project.updated_at = datetime.now()
             await uow.project.save(project)
@@ -149,52 +122,20 @@ class ProjectService:
                 raise NotFoundError("项目不存在")
             if project.archived_at:
                 raise ConflictError("项目已归档，请先恢复")
-            self.validate_start(project.path)
+            self.validate_start(project.id)
             session = Session(title=DEFAULT_SESSION_TITLE, project_id=project.id, project=project)
             await uow.session.save(session)
         return session
 
-    async def bind(self, session_id: str, project_id: str) -> ProjectView:
-        async with session_lock(session_id):
-            async with self._uow_factory() as uow:
-                session = await lock_project_session(uow, session_id, target_project_id=project_id)
-                await self._ensure_bindable(uow, session)
-                project = await uow.project.get(project_id)
-                if project is None:
-                    raise NotFoundError("项目不存在")
-                if project.archived_at:
-                    raise ConflictError("项目已归档，请先恢复")
-                self.validate_start(project.path)
-                await uow.session.set_project_id(session_id, project.id)
-            return self.describe(project)
-
-    async def unbind(self, session_id: str) -> None:
-        async with session_lock(session_id):
-            async with self._uow_factory() as uow:
-                session = await lock_project_session(uow, session_id)
-                await self._ensure_bindable(uow, session)
-                await uow.session.set_project_id(session_id, None)
-
-    @staticmethod
-    async def _ensure_bindable(uow, session):
-        if session is None:
-            raise NotFoundError(SESSION_MISSING_MESSAGE)
-        if session.sandbox_id or await uow.run.list_by_session(session.id):
-            raise ConflictError(PROJECT_LOCKED_MESSAGE)
-
     async def prepare_snapshot(self, uow: IUnitOfWork, session: Session) -> None:
-        """项目与会话已锁定；与首次受理同事务冻结设置，不在打开项目时预取。"""
+        """受理读取项目元数据；文件快照与运行输入冻结另由后台协调。"""
         if not session.project:
             return
-        self.validate_start(session.project.path,
-            session.project_snapshot.directory_identity if session.project_snapshot else None)
-        if session.project_snapshot is None:
-            project = session.project
-            session.project_snapshot = ProjectTaskSnapshot(project_id=project.id,
-                **project.model_dump(include={"path", "name", "instructions"}),
-                directory_identity=self.directory_identity(project.path))
-            await uow.session.save_project_snapshot(session.id, session.project_snapshot.model_dump(mode="json"))
         project = session.project
+        self.validate_start(project.id)
+        session.project_snapshot = ProjectTaskSnapshot(project_id=project.id,
+            **project.model_dump(include={"name", "instructions"}))
+        await uow.session.save_project_snapshot(session.id, session.project_snapshot.model_dump(mode="json"))
         project.last_active_at = datetime.now()
         await uow.project.save(project)
 
@@ -214,8 +155,8 @@ class ProjectService:
             project = session.project
             if project is None:
                 raise NotFoundError(PROJECT_UNBOUND_MESSAGE)
-        self.validate_start(project.path)
-        return project.path
+        self.validate_start(project.id)
+        return str(self._storage.files_path(project.id))
 
     async def tree(self, identifier: str, relative: str = "", *, project_level: bool = False) -> ProjectListing:
         path = await self._require_project(identifier, project_level=project_level)

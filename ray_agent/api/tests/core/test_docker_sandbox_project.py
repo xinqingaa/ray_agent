@@ -1,96 +1,62 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-"""W10 沙箱绑定项目（mock docker client）：有项目时 bind 挂载到 /workspace 读写，无项目时没有挂载，共享沙箱模式报错。"""
+"""托管卷参数替身验证；真实 Docker 的属主/停止/子路径仍须另验。"""
 import asyncio
-import os
-from types import SimpleNamespace
 from unittest.mock import MagicMock
-
 import pytest
-
-from app.domain.external.sandbox import SandboxProjectBindingError
-from app.domain.models.project import PathCheckReason, ProjectPathError
+from app.infrastructure.external.project.managed_storage import ManagedProjectStorage
 from app.infrastructure.external.sandbox import docker_sandbox as module
 from app.infrastructure.external.sandbox.docker_sandbox import DockerSandbox
+from app.domain.external.sandbox import SandboxProjectBindingError
 from core.config import Settings
 
 
-def make_settings(**overrides):
-    values = dict(
-        sandbox_address=None,
-        sandbox_image="manus-sandbox",
-        sandbox_name_prefix="rayagent-sandbox",
-        sandbox_network="manus-network",
-        project_roots=[],
-    )
-    values.update(overrides)
-    return Settings(_env_file=None, **values)
+def test_volume_discovery_and_subpath(tmp_path):
+    client=MagicMock()
+    client.containers.get.return_value.attrs={'Mounts':[{'Type':'volume','Destination':str(tmp_path),'Name':'compose_file_data','RW':True}]}
+    client.version.return_value={'ApiVersion':'1.55'}
+    store=ManagedProjectStorage(str(tmp_path))
+    assert store.initialize(client,in_container=True,container_id='api')
+    store.ensure_project('project-1')
+    mount=store.mount('project-1')
+    assert mount['Source']=='compose_file_data' and mount['Type']=='volume'
+    assert mount['VolumeOptions']=={'NoCopy':True,'Subpath':'projects/project-1/files'}
+    assert mount['Target']=='/workspace' and not mount['ReadOnly']
+    for invalid in ('../../secrets','/etc','x/y'):
+        with pytest.raises(ValueError):
+            store.mount(invalid)
 
 
-@pytest.fixture
-def docker_client(monkeypatch):
-    container = MagicMock()
-    container.attrs = {"NetworkSettings": {"Networks": {"manus-network": {"IPAddress": "172.18.0.9"}}}}
-    client = MagicMock()
-    client.containers.run.return_value = container
-    monkeypatch.setattr(module.docker, "from_env", lambda: client)
-    return client
+def test_failed_discovery_has_no_bind_fallback(tmp_path):
+    client=MagicMock(); client.containers.get.return_value.attrs={'Mounts':[]}
+    store=ManagedProjectStorage(str(tmp_path),local_bind=str(tmp_path))
+    assert not store.initialize(client,in_container=True)
+    with pytest.raises(ValueError,match='命名卷'):
+        store.mount('x')
 
 
-def use_settings(monkeypatch, settings):
-    monkeypatch.setattr(module, "get_settings", lambda: settings)
+def test_local_development_is_explicit_and_root_link_rejected(tmp_path):
+    store=ManagedProjectStorage(str(tmp_path))
+    assert not store.initialize(in_container=False)
+    store.local_bind=str(tmp_path); assert store.initialize(in_container=False)
+    store.ensure_project('p')
+    path=store.files_path('p'); path.rmdir(); path.symlink_to(tmp_path,target_is_directory=True)
+    with pytest.raises(OSError):
+        store.validate('p')
 
 
-@pytest.fixture
-def project(tmp_path):
-    root = os.path.join(os.path.realpath(tmp_path), "root")
-    proj = os.path.join(root, "proj")
-    os.makedirs(proj)
-    return SimpleNamespace(root=root, proj=proj)
-
-
-def test_create_without_project_has_no_mounts(monkeypatch, docker_client):
-    use_settings(monkeypatch, make_settings())
-    sandbox = asyncio.run(DockerSandbox.create())
-    config = docker_client.containers.run.call_args.kwargs
-    assert "mounts" not in config and "volumes" not in config
-    assert config["image"] == "manus-sandbox" and config["network"] == "manus-network"
-    assert sandbox.id.startswith("rayagent-sandbox-")
-
-
-def test_create_with_project_binds_workspace_rw(monkeypatch, docker_client, project):
-    use_settings(monkeypatch, make_settings(project_roots=[project.root]))
-    asyncio.run(DockerSandbox.create(project_path=project.proj + "/"))
-    mounts = docker_client.containers.run.call_args.kwargs["mounts"]
-    assert len(mounts) == 1
-    mount = mounts[0]
-    assert mount["Type"] == "bind"
-    assert mount["Source"] == project.proj
-    assert mount["Target"] == "/workspace"
-    assert mount["ReadOnly"] is False
-
-
-def test_create_with_project_revalidates_against_roots(monkeypatch, docker_client, project, tmp_path):
-    outside = os.path.join(os.path.realpath(tmp_path), "outside")
-    os.makedirs(outside)
-    use_settings(monkeypatch, make_settings(project_roots=[project.root]))
-    with pytest.raises(ProjectPathError) as exc:
-        asyncio.run(DockerSandbox.create(project_path=outside))
-    assert exc.value.reason == PathCheckReason.OUTSIDE_ROOTS
-
-    use_settings(monkeypatch, make_settings())
-    with pytest.raises(ProjectPathError) as exc:
-        asyncio.run(DockerSandbox.create(project_path=project.proj))
-    assert exc.value.reason == PathCheckReason.NO_ROOTS
-    docker_client.containers.run.assert_not_called()
-
-
-def test_shared_sandbox_rejects_project(monkeypatch, docker_client, project):
-    use_settings(monkeypatch, make_settings(sandbox_address="127.0.0.1", project_roots=[project.root]))
-    with pytest.raises(SandboxProjectBindingError, match="共享沙箱模式"):
-        asyncio.run(DockerSandbox.create(project_path=project.proj))
-    docker_client.containers.run.assert_not_called()
-
-    sandbox = asyncio.run(DockerSandbox.create())
-    assert sandbox.cdp_url == "http://127.0.0.1:9222"
-    docker_client.containers.run.assert_not_called()
+def test_sandbox_mount_and_shared_rejection(tmp_path,monkeypatch):
+    settings=Settings(_env_file=None,sandbox_image='manus-sandbox',sandbox_name_prefix='test',sandbox_network='net')
+    monkeypatch.setattr(module,'get_settings',lambda:settings)
+    store=ManagedProjectStorage(str(tmp_path),local_bind=str(tmp_path)); store.initialize(in_container=False)
+    store.ensure_project('p'); store.volume='compose_file_data'
+    monkeypatch.setattr(module,'get_managed_storage',lambda:store)
+    client=MagicMock(); client.containers.run.return_value.attrs={'NetworkSettings':{'Networks':{'net':{'IPAddress':'172.18.0.9'}}}}
+    monkeypatch.setattr(module.docker,'from_env',lambda:client)
+    asyncio.run(DockerSandbox.create(project_id='p'))
+    config=client.containers.run.call_args.kwargs
+    assert config['mounts'][0]['VolumeOptions']['Subpath']=='projects/p/files'
+    assert config['labels']['rayagent.project_id']=='p'
+    asyncio.run(DockerSandbox.create())
+    assert 'mounts' not in client.containers.run.call_args.kwargs
+    settings.sandbox_address='127.0.0.1'
+    with pytest.raises(SandboxProjectBindingError):
+        asyncio.run(DockerSandbox.create(project_id='p'))

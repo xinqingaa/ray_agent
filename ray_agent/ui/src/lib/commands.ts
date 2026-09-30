@@ -34,7 +34,7 @@ export type CommandContext = {
   compacting: boolean
   /** 输入框是否带计划模式标记。 */
   planMode: boolean
-  /** PROJECT_ROOTS 已配置，项目功能启用。 */
+  /** 托管项目入口可发现；可用性由项目选择器说明。 */
   projectsEnabled: boolean
   /** 首页，或会话尚未开始首次运行时可绑定项目。 */
   projectBindable: boolean

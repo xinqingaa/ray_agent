@@ -11,7 +11,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.domain.services.approvals import interrupt_waiting_approvals
-from app.domain.services.project_paths import resolve_roots
+from app.infrastructure.external.project.managed_storage import get_managed_storage
 from app.infrastructure.logging import setup_logging
 from app.infrastructure.storage.cos import get_cos
 from app.infrastructure.storage.postgres import get_postgres, get_uow
@@ -61,12 +61,12 @@ async def lifespan(app: FastAPI):
         Path(settings.file_storage_local_dir).mkdir(parents=True, exist_ok=True)
         logger.info(f"文件存储使用本地磁盘: {settings.file_storage_local_dir}")
 
-    # 3.1 项目根目录：在 API 容器内取 realpath 并确认存在，不可用的根记日志，校验时自然不可选
-    for root in resolve_roots(settings.project_roots):
-        if root.available:
-            logger.info(f"项目根目录可用: {root.path}")
-        else:
-            logger.warning(f"项目根目录不可用（{root.reason.value}）: {root.configured}")
+    # 项目功能单独自检，不因项目卷不可用阻止独立对话。
+    storage = await asyncio.to_thread(get_managed_storage)
+    if storage.reason:
+        logger.warning(storage.reason)
+    else:
+        logger.info("托管项目存储可用")
 
     # 4.启动扫描：执行协程只存在于本进程，上次进程留下的 running 运行不会再推进，置为 interrupted；
     # 等待审批的运行同样置为 interrupted，待审批的调用补为未执行；等待提问的运行保持 waiting

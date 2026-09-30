@@ -21,6 +21,7 @@ from app.infrastructure.external.health_checker.redis_health_checker import Redi
 from app.infrastructure.external.llm.openai_llm import OpenAILLM
 from app.infrastructure.external.message_queue.redis_event_notifier import RedisEventNotifier
 from app.infrastructure.external.project.local_project_files import LocalProjectFiles
+from app.infrastructure.external.project.managed_storage import get_managed_storage
 from app.infrastructure.external.sandbox.docker_sandbox import DockerSandbox
 from app.infrastructure.external.search.bing_search import BingSearchEngine
 from app.infrastructure.external.task.redis_stream_task import RedisStreamTask
@@ -88,8 +89,8 @@ def get_project_service() -> ProjectService:
     current = get_settings()
     return ProjectService(
         uow_factory=get_uow,
-        files=LocalProjectFiles(current.project_roots),
-        roots=current.project_roots,
+        files=LocalProjectFiles(),
+        storage=get_managed_storage(),
         sandbox_address=current.sandbox_address,
     )
 

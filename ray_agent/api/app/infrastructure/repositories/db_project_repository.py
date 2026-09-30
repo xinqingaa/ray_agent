@@ -1,7 +1,7 @@
 """PostgreSQL 项目实体与目录登记锁。运行互斥另在受理事务锁项目行。"""
 from typing import Optional
 
-from sqlalchemy import func, select, update, or_, literal
+from sqlalchemy import func, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -14,10 +14,6 @@ class DBProjectRepository(ProjectRepository):
     def __init__(self, db_session: AsyncSession):
         self.db_session = db_session
 
-    async def lock_registry(self) -> None:
-        # PostgreSQL 事务级锁：目录未登记时没有可锁行，用固定 namespace 串行防双向嵌套。
-        await self.db_session.execute(select(func.pg_advisory_xact_lock(0x52415950524F4A)))
-
     async def get(self, project_id: str, *, lock: bool = False) -> Optional[WorkspaceProject]:
         stmt = select(ProjectModel).where(ProjectModel.id == project_id)
         if lock:
@@ -25,30 +21,12 @@ class DBProjectRepository(ProjectRepository):
         record = (await self.db_session.execute(stmt)).scalar_one_or_none()
         return record.to_domain() if record else None
 
-    async def get_by_path(self, path: str) -> Optional[WorkspaceProject]:
-        record = (await self.db_session.execute(select(ProjectModel).where(ProjectModel.path == path))).scalar_one_or_none()
-        return record.to_domain() if record else None
-
-    async def overlapping(self, path: str) -> Optional[WorkspaceProject]:
-        # 使用长度/前缀而非 LIKE；目录中的 %、_ 不成为通配符。
-        stored_prefix = func.rtrim(ProjectModel.path, '/') + '/'
-        requested_prefix = path.rstrip('/') + '/'
-        stored_parent = func.left(literal(path), func.length(stored_prefix)) == stored_prefix
-        requested_parent = func.left(ProjectModel.path, len(requested_prefix)) == requested_prefix
-        stmt = select(ProjectModel).where(ProjectModel.path != path, or_(stored_parent, requested_parent)).limit(1)
-        record = (await self.db_session.execute(stmt)).scalar_one_or_none()
-        return record.to_domain() if record else None
-
-    async def create_or_get(self, project: WorkspaceProject) -> WorkspaceProject:
-        stmt = insert(ProjectModel).values(**project.model_dump(mode="python")).on_conflict_do_nothing(index_elements=[ProjectModel.path])
-        await self.db_session.execute(stmt)
-        result = await self.get_by_path(project.path)
-        if result is None:
-            raise RuntimeError("项目登记后无法读取")
-        return result
+    async def create(self, project: WorkspaceProject) -> WorkspaceProject:
+        await self.db_session.execute(insert(ProjectModel).values(**project.model_dump(mode="python")))
+        return project
 
     async def save(self, project: WorkspaceProject) -> None:
-        values = project.model_dump(mode="python", exclude={"id", "path", "created_at"})
+        values = project.model_dump(mode="python", exclude={"id", "created_at"})
         result = await self.db_session.execute(update(ProjectModel).where(ProjectModel.id == project.id).values(**values))
         if result.rowcount == 0:
             raise ValueError("项目不存在")

@@ -70,8 +70,6 @@ class FakeSessionRepository:
     async def update_sandbox_id(self, session_id, sandbox_id):
         self.s.sandbox_id = sandbox_id
 
-    async def set_project_path(self, session_id, project_path):
-        self.s.project_path = project_path
 
     async def update_task_id(self, session_id, task_id):
         self.s.task_id = task_id

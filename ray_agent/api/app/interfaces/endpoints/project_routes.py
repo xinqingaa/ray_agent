@@ -3,51 +3,14 @@
 from fastapi import APIRouter, Depends, Query
 
 from app.application.services.project_service import ProjectService
-from app.domain.models.project import BrowseListing, ProjectListing, ProjectFile, PATH_CHECK_MESSAGES
+from app.domain.models.project import ProjectListing, ProjectFile
 from app.interfaces.schemas import Response
-from app.interfaces.schemas.project import (ProjectRootItem, ProjectRootsResponse, ProjectPage, ProjectDetails,
+from app.interfaces.schemas.project import (ProjectPage, ProjectDetails,
     CreateProjectRequest, ArchiveProjectRequest, ProjectSettings)
 from app.interfaces.schemas.session import ListSessionResponse
 from app.interfaces.service_dependencies import get_project_service
 
 router = APIRouter(prefix="/projects", tags=["项目模块"])
-
-
-@router.get(
-    path="/roots",
-    response_model=Response[ProjectRootsResponse],
-    summary="列出允许接入的项目根目录",
-    description="enabled 为 PROJECT_ROOTS 非空。每个根目录带 available；不存在或不是目录的根仍返回且 available 为 false",
-)
-async def list_project_roots(
-        project_service: ProjectService = Depends(get_project_service),
-) -> Response[ProjectRootsResponse]:
-    enabled, roots = project_service.list_roots()
-    supported, reason = project_service.availability()
-    return Response.success(
-        msg="获取项目根目录成功",
-        data=ProjectRootsResponse(
-            enabled=enabled,
-            supported=supported,
-            reason=reason,
-            roots=[ProjectRootItem(path=root.path, available=root.available,
-                                   reason=PATH_CHECK_MESSAGES.get(root.reason)) for root in roots],
-        ),
-    )
-
-
-@router.get(
-    path="/browse",
-    response_model=Response[BrowseListing],
-    summary="浏览允许根目录内的一层子目录",
-    description="只列目录。路径校验失败返回 400",
-)
-async def browse_projects(
-        path: str = Query(),
-        project_service: ProjectService = Depends(get_project_service),
-) -> Response[BrowseListing]:
-    listing = await project_service.browse(path)
-    return Response.success(msg="浏览项目目录成功", data=listing)
 
 
 @router.get("", response_model=Response[ProjectPage], summary="分页列出长期项目")
@@ -57,9 +20,9 @@ async def list_projects(archived: bool = Query(False), offset: int = Query(0, ge
     return Response.success(data=ProjectPage(projects=projects, total=total, offset=offset, limit=limit))
 
 
-@router.post("", response_model=Response[ProjectDetails], summary="登记项目目录，不创建对话或沙箱")
+@router.post("", response_model=Response[ProjectDetails], summary="新建托管项目，不创建对话或沙箱")
 async def create_project(request: CreateProjectRequest, project_service: ProjectService = Depends(get_project_service)):
-    project = await project_service.register(request.path, request.name)
+    project = await project_service.create(request.name, request.instructions)
     return Response.success(data=await project_service.detail(project.id))
 
 
