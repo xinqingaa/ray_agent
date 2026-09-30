@@ -88,9 +88,8 @@
 
 | 机制 | 主要入口 | 回归测试 | 课程 |
 |---|---|---|---|
-| 沙箱创建、连接与销毁 | [`infrastructure/external/sandbox/docker_sandbox.py`](../ray_agent/api/app/infrastructure/external/sandbox/docker_sandbox.py)。动态创建时设置内存、CPU、进程数上限，并把 `SANDBOX_TTL_MINUTES` 注入为 `SERVER_TIMEOUT_MINUTES`；有项目时挂载宿主机目录到 `/workspace`。项目实体见 [W11](plan/w11-project-workspace.md)。限额默认值在 [`core/config.py`](../ray_agent/api/core/config.py) | [`core/test_docker_sandbox_ip.py`](../ray_agent/api/tests/core/test_docker_sandbox_ip.py)、[`core/test_docker_sandbox_project.py`](../ray_agent/api/tests/core/test_docker_sandbox_project.py) | 11 |
+| 沙箱创建、连接与销毁 | [`infrastructure/external/sandbox/docker_sandbox.py`](../ray_agent/api/app/infrastructure/external/sandbox/docker_sandbox.py)。动态创建时设置内存、CPU、进程数上限，并把 `SANDBOX_TTL_MINUTES` 注入为 `SERVER_TIMEOUT_MINUTES`；有项目时挂载宿主机目录到 `/workspace`（已废弃、待按 [W11](plan/w11-project-workspace.md) 改为托管目录）。限额默认值在 [`core/config.py`](../ray_agent/api/core/config.py) | [`core/test_docker_sandbox_ip.py`](../ray_agent/api/tests/core/test_docker_sandbox_ip.py)、[`core/test_docker_sandbox_project.py`](../ray_agent/api/tests/core/test_docker_sandbox_project.py) | 11 |
 | 项目路径校验与只读浏览 | [`domain/services/project_paths.py`](../ray_agent/api/app/domain/services/project_paths.py)；文件 [`infrastructure/external/project/local_project_files.py`](../ray_agent/api/app/infrastructure/external/project/local_project_files.py) | [`core/test_project_paths.py`](../ray_agent/api/tests/core/test_project_paths.py)、[`core/test_project_files.py`](../ray_agent/api/tests/core/test_project_files.py) | — |
-| Git 只读读取 | [`infrastructure/external/project/git_reader.py`](../ray_agent/api/app/infrastructure/external/project/git_reader.py) 的 `GitCliReader` | [`core/test_project_files.py`](../ray_agent/api/tests/core/test_project_files.py) | — |
 | 会话项目绑定与接口 | [`application/services/project_service.py`](../ray_agent/api/app/application/services/project_service.py)；路由 [`interfaces/endpoints/project_routes.py`](../ray_agent/api/app/interfaces/endpoints/project_routes.py) 与会话内 `project/*` 在 [`session_routes.py`](../ray_agent/api/app/interfaces/endpoints/session_routes.py) | [`core/test_w10_project_session.py`](../ray_agent/api/tests/core/test_w10_project_session.py) | — |
 | 浏览器连接（CDP） | [`infrastructure/external/browser/playwright_browser.py`](../ray_agent/api/app/infrastructure/external/browser/playwright_browser.py) | — | 13 |
 | 沙箱画面转发（VNC WebSocket） | [`interfaces/endpoints/session_routes.py`](../ray_agent/api/app/interfaces/endpoints/session_routes.py) 的 `vnc_websocket()` | — | 11 |
@@ -148,6 +147,6 @@
 
 ---
 
-`863e2a2` 起新增项目实体（迁移 `f9c2a7b4d110`、项目事务与互斥、前端 `projects-provider`、`send-recovery`、`drafts`），尚未逐项核对进上表，映射待 W11 验收时补齐。上述映射于 2026-09-29 按当前源码核对，覆盖 W0–W10 已合入部分：单循环与工具管线、上下文治理与手动压缩、Plan 模式、运行与事件、前端投影与界面、流式增量、沙箱身份与配额、工具策略与审批、本地项目目录与 Git 只读查看。路径变动时更新本文件，不在其他文档正文里重复代码位置。机制为什么这样设计见 [Harness 工程](harness.md)，完整推导见对应的[课程章节](../lessons/README.md)。课程正文仍对应 tag `baseline-v1`；逐章同步见[课程计划草稿](plan/course-sync.md)。
+`863e2a2` 起新增项目实体（迁移 `f9c2a7b4d110`、项目事务与互斥、前端 `projects-provider`、`send-recovery`、`drafts`），尚未逐项核对进上表，映射待 W11 验收时补齐。上述映射于 2026-09-29 按当前源码核对，覆盖 W0–W10 已合入部分：单循环与工具管线、上下文治理与手动压缩、Plan 模式、运行与事件、前端投影与界面、流式增量、沙箱身份与配额、工具策略与审批、本地项目目录（Git 只读查看已于 2026-09-30 在 `ce131c5` 移除，宿主机目录接入待移除）。路径变动时更新本文件，不在其他文档正文里重复代码位置。机制为什么这样设计见 [Harness 工程](harness.md)，完整推导见对应的[课程章节](../lessons/README.md)。课程正文仍对应 tag `baseline-v1`；逐章同步见[课程计划草稿](plan/course-sync.md)。
 
 W9、W10 仍在总计划中记为进行中；各机制的当前位置在上文分组里。工作包的设计、验收与证据见[二次开发总计划](plan/README.md)。服务指南、对应测试和脚本的运行条件见各服务 README。
