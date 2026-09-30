@@ -105,7 +105,7 @@ class RedisStreamTask(Task):
 
     @classmethod
     async def destroy(cls) -> None:
-        for task_id in RedisStreamTask._task_registry:
+        for task_id in list(RedisStreamTask._task_registry):
             # 1.获取对应的任务
             task = RedisStreamTask._task_registry[task_id]
             task.cancel()

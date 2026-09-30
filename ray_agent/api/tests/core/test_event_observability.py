@@ -38,11 +38,12 @@ def test_live_and_history_projection_preserves_correlation_but_omits_internal_re
     assert restored[1].function_result.success is False
 
 
-def test_plan_projection_does_not_supply_plan_identity_or_phase():
+def test_plan_projection_supplies_identity_without_goal_or_phase():
     event = PlanEvent(plan=Plan(id='plan-1', goal='目标', steps=[Step(id='step-1')]), status='updated')
     projected = EventMapper.event_to_sse_event(event).data.model_dump(mode='json')
     assert projected['steps'][0]['id'] == 'step-1'
-    assert not {'plan_id', 'goal', 'status'} & projected.keys()
+    assert projected['plan_id'] == 'plan-1'
+    assert not {'goal', 'status'} & projected.keys()
 
 
 @pytest.mark.parametrize('eventually_valid', [True, False])

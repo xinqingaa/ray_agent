@@ -125,8 +125,8 @@ export const sessionApi = {
   /**
    * 获取会话详情：运行列表、事件（按 seq 升序）与 last_seq
    */
-  getSessionDetail: (sessionId: string): Promise<SessionDetail> => {
-    return get<SessionDetail>(`/sessions/${sessionId}`);
+  getSessionDetail: (sessionId: string, afterSeq?: number): Promise<SessionDetail> => {
+    return get<SessionDetail>(`/sessions/${sessionId}${afterSeq != null ? `?after_seq=${afterSeq}` : ''}`);
   },
 
   /**
@@ -140,7 +140,7 @@ export const sessionApi = {
    * 手动压缩会话上下文；结果通过事件流写入，不在前端伪造时间线条目
    */
   compact: (sessionId: string): Promise<CompactResult> => {
-    return post<CompactResult>(`/sessions/${sessionId}/compact`, {});
+    return post<CompactResult>(`/sessions/${sessionId}/compact`, {}, {timeout: 70000});
   },
 
   /**

@@ -7,7 +7,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from app.application.errors.exceptions import BadRequestError, ConflictError, NotFoundError
-from app.application.services.agent_service import AgentService
+from app.application.services.agent_service import AgentService, pending_starts
 from app.application.services.app_config_service import AppConfigService
 from app.domain.models.app_config import ToolPolicy, ToolPolicyConfig
 from app.domain.models.event import ApprovalEvent, ApprovalStatus, ContextEvent, RunEvent, ToolEvent, WaitEvent
@@ -99,6 +99,7 @@ async def reply(first, run_id, call_id, approve, script, policy=None):
         return task
     service._create_task = create_task
     accepted = await service.reply_approval(first.session.id, call_id, approve=approve)
+    await pending_starts()[accepted.run_id].worker
     task, rid, prior_status = created[0]
     assert rid == run_id and prior_status == SessionStatus.WAITING
     await make_runner(second, run=second.runs[rid], prior_status=prior_status).invoke(task)

@@ -28,6 +28,9 @@ class RunRepository(Protocol):
         """会话当前 running 或 waiting 的运行。"""
         ...
 
+    async def get_active_project(self, project_id: str, exclude_session: Optional[str] = None) -> Optional[Run]:
+        ...
+
     async def list_by_session(self, session_id: str) -> List[Run]:
         """按开始时间升序。"""
         ...

@@ -135,6 +135,7 @@ class StepSSEEvent(BaseSSEEvent):
 
 
 class PlanEventData(BaseEventData):
+    plan_id: str
     """计划事件数据"""
     steps: List[StepEventData]
 
@@ -149,6 +150,7 @@ class PlanSSEEvent(BaseSSEEvent):
         return cls(
             data=PlanEventData(
                 **BaseEventData.base_event_data(event),
+                plan_id=event.plan.id,
                 steps=[
                     StepEventData(
                         **BaseEventData.base_event_data(event),
@@ -293,6 +295,15 @@ class AttemptSSEEvent(BaseSSEEvent):
     data: AttemptEventData
 
 
+class EnvironmentEventData(BaseEventData):
+    status: Literal["preparing", "ready"]
+
+
+class EnvironmentSSEEvent(BaseSSEEvent):
+    event: Literal["environment"] = "environment"
+    data: EnvironmentEventData
+
+
 class RunEventData(BaseEventData):
     """运行状态变化事件数据；终态时 summary 为运行汇总，mode 为运行模式（normal / plan）。"""
     status: str
@@ -364,6 +375,7 @@ AgentSSEEvent = Union[
     TurnSSEEvent,
     AttemptSSEEvent,
     RunSSEEvent,
+    EnvironmentSSEEvent,
     ContextSSEEvent,
     CompactSSEEvent,
     ApprovalSSEEvent,

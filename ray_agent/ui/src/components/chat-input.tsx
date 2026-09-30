@@ -1,11 +1,11 @@
 'use client'
 
-import {useState, useRef, useMemo, useCallback, useId, useLayoutEffect, forwardRef, useImperativeHandle, type ReactNode} from 'react'
+import {useState, useEffect, useRef, useMemo, useCallback, useId, useLayoutEffect, forwardRef, useImperativeHandle, type ReactNode} from 'react'
 import {cn, formatFileSize} from '@/lib/utils'
 import {ScrollArea, ScrollBar} from '@/components/ui/scroll-area'
 import {Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle} from '@/components/ui/item'
 import {Avatar, AvatarGroupCount} from '@/components/ui/avatar'
-import {ArrowUp, FileText, XCircle, Loader2} from 'lucide-react'
+import {ArrowUp, FileText, XCircle, Loader2, Paperclip} from 'lucide-react'
 import {Button} from '@/components/ui/button'
 import {Popover, PopoverAnchor, PopoverContent} from '@/components/ui/popover'
 import {PlusCommandMenu, SlashCommandList} from '@/components/input-command-menu'
@@ -14,7 +14,9 @@ import type {FileInfo} from '@/lib/api/types'
 import {toast} from 'sonner'
 import {ProjectPicker} from '@/components/project-picker'
 import type {ProjectView} from '@/lib/api/types'
-import {matchingCommands, type CommandContext, type CommandHost, type InputCommand} from '@/lib/commands'
+import {commandById, matchingCommands, type CommandContext, type CommandHost, type InputCommand} from '@/lib/commands'
+import {clearDraft, readDraft, writeDraft, DRAFT_CHANGED} from '@/lib/drafts'
+import {recoverSubmission, UncertainSubmissionError} from '@/lib/send-recovery'
 import {findSlashTrigger, removeSlashFragment, type SlashFragment} from '@/lib/slash-trigger'
 
 interface ChatInputProps {
@@ -26,7 +28,8 @@ interface ChatInputProps {
   sessionId?: string | null
   placeholder?: string
   /** 发送按钮左侧，例如上下文环 */
-  accessory?: ReactNode
+  accessory?: ReactNode | ((context: CommandContext) => ReactNode)
+  draftScope?: string
   /** 页面状态。上传中与文件选择由输入框补进命令上下文。 */
   commandHost?: CommandHost
   projectsEnabled?: boolean
@@ -55,7 +58,7 @@ export interface ChatInputRef {
 }
 
 export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
-  ({ className, onInputValueChange, onSend, disabled = false, sessionId, placeholder = '分配一个任务或提问任何问题...', accessory, commandHost = EMPTY_HOST, projectsEnabled = false, projectBindable = false, selectedProject = null, onProjectSelect }, ref) => {
+  ({ className, onInputValueChange, onSend, disabled = false, sessionId, placeholder = '分配一个任务或提问任何问题...', accessory, draftScope, commandHost = EMPTY_HOST, projectsEnabled = false, projectBindable = false, selectedProject = null, onProjectSelect }, ref) => {
     const [files, setFiles] = useState<FileInfo[]>([])
     const [uploading, setUploading] = useState(false)
     const [sending, setSending] = useState(false)
@@ -71,7 +74,30 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
     /** Esc 或执行命令后，同一片段不要被随后的 keyup 重新打开。 */
     const dismissedRef = useRef<SlashFragment | null>(null)
     const slashListId = useId()
-    const blocked = disabled || sending || commandHost.compacting
+    const localDraftId = useId()
+    const scope = draftScope ?? (sessionId ? `session:${sessionId}` : `input:${localDraftId}`)
+    const [loadedScope, setLoadedScope] = useState<string | null>(null)
+    const [uncertain, setUncertain] = useState(false)
+    useEffect(() => {
+      const draft = readDraft(scope)
+      setInputValue(draft.text)
+      setFiles(draft.files)
+      setPlanMode(draft.planMode)
+      setUncertain(!!draft.submission)
+      setLoadedScope(scope)
+    }, [scope])
+    useEffect(() => {
+      const check = (event: Event) => {
+        if ((event as CustomEvent).detail === scope) setUncertain(!!readDraft(scope).submission)
+      }
+      window.addEventListener(DRAFT_CHANGED, check)
+      return () => window.removeEventListener(DRAFT_CHANGED, check)
+    }, [scope])
+    useEffect(() => {
+      if (loadedScope === scope) writeDraft(scope, {text: inputValue, files, planMode})
+    }, [scope, loadedScope, inputValue, files, planMode])
+
+    const blocked = disabled || sending || commandHost.compacting || uncertain
     const [wasBlocked, setWasBlocked] = useState(blocked)
     if (blocked !== wasBlocked) {
       setWasBlocked(blocked)
@@ -95,7 +121,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
       runStatus: commandHost.runStatus,
       waitingApproval: commandHost.waitingApproval,
       waitingReply: commandHost.waitingReply,
-      submitting: commandHost.submitting || sending,
+      submitting: commandHost.submitting || sending || uncertain,
       uploading,
       compacting: commandHost.compacting,
       planMode,
@@ -117,6 +143,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
       commandHost.compacting,
       commandHost.actions.compact,
       sending,
+      uncertain,
       uploading,
       planMode,
       resolvedProjectsEnabled,
@@ -249,6 +276,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
     }
 
     const handleSend = async () => {
+      if (blocked || uploading) return
       const trimmedMessage = inputValue.trim()
       
       // 验证消息不为空
@@ -263,6 +291,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
         setSending(true)
         try {
           await onSend(trimmedMessage, files, {mode: planMode ? 'plan' : 'normal'})
+          clearDraft(scope)
           // 发送成功后清空输入框和文件列表
           setInputValue('')
           setFiles([])
@@ -271,6 +300,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
           onInputValueChange?.('')
         } catch (error) {
           // 错误处理由 onSend 内部处理
+          if (error instanceof UncertainSubmissionError) setUncertain(true)
           console.error('发送消息失败:', error)
         } finally {
           setSending(false)
@@ -350,6 +380,28 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
     return (
     <Popover open={slashOpen} onOpenChange={(open) => { if (!open) setSlash(null) }}>
     <div className={cn('flex flex-col bg-card w-full rounded-2xl py-3 border', className)}>
+      {uncertain && (
+        <div role="status" className="mx-4 mb-2 space-y-2 text-meta text-state-waiting">
+          <p>发送结果尚未确认，草稿已保留。请先核对对话历史。</p>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={async () => {
+              const id = sessionId ?? readDraft(scope).sessionId
+              if (!id) return
+              try {
+                if (await recoverSubmission(scope, id)) {
+                  clearDraft(scope); setInputValue(''); setFiles([]); setPlanMode(false); setUncertain(false)
+                  toast.success('已确认消息受理，可以继续查看运行')
+                  window.location.assign(`/sessions/${id}`)
+                }
+              } catch (error) { toast.error(error instanceof Error ? error.message : '核对失败') }
+            }}>核对受理状态</Button>
+            <Button type="button" variant="ghost" size="sm" onClick={() => {
+              writeDraft(scope, {submission: undefined}); setUncertain(false)
+              toast.message('已允许手动重发，请确认历史中没有这条消息后发送')
+            }}>确认未受理，允许重发</Button>
+          </div>
+        </div>
+      )}
       {/* 顶部的文件列表 */}
       {files.length > 0 && (
         <div className="w-full px-4 mb-1">
@@ -383,7 +435,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
                       size="icon-xs"
                       className="cursor-pointer"
                       onClick={() => handleRemoveFile(file.id)}
-                      disabled={uploading}
+                      disabled={blocked || uploading}
                       aria-label={`移除 ${file.filename}`}
                     >
                       <XCircle/>
@@ -425,7 +477,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
           aria-autocomplete={slashOpen ? 'list' : undefined}
           role={slashOpen ? 'combobox' : undefined}
           className="scrollbar-hide outline-none w-full text-sm resize-none h-[46px] min-h-[40px]"
-          disabled={sending || disabled}
+          disabled={blocked}
         />
       </div>
       </PopoverAnchor>
@@ -442,6 +494,11 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
             disabled={uploading}
           />
           <PlusCommandMenu context={commandContext}/>
+          <Button type="button" variant="ghost" size="icon-sm" aria-label="上传附件"
+            disabled={!commandById('upload')?.available(commandContext).available}
+            onClick={() => commandById('upload')?.run(commandContext)}>
+            <Paperclip className="size-4"/>
+          </Button>
           {resolvedProjectsEnabled && onProjectSelect && (
             <ProjectPicker
               enabled
@@ -466,13 +523,13 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
         </div>
         {/* 发送/暂停按钮 */}
         <div className="flex items-center gap-1">
-          {accessory}
+          {typeof accessory === 'function' ? accessory(commandContext) : accessory}
           <Button
             type="button"
             variant="outline"
             className="rounded-full w-8 h-8 cursor-pointer"
             onClick={handleSend}
-            disabled={sending || disabled || commandHost.compacting || !inputValue.trim()}
+            disabled={blocked || uploading || !inputValue.trim()}
             aria-label="发送"
           >
             {sending ? (

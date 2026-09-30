@@ -24,7 +24,7 @@ export function CompactionNotice({beforeTokens, afterTokens, summarizedTurns, tr
       <span className="h-px flex-1 bg-border" aria-hidden/>
       <span className="inline-flex flex-wrap items-center justify-center gap-x-1.5 gap-y-0.5 text-center">
         <Layers className="size-3.5 shrink-0" aria-hidden/>
-        <span>{HEADLINE[trigger]}</span>
+        <span>{trigger === 'manual' && afterTokens >= beforeTokens ? '已摘要，估算空间未减少' : HEADLINE[trigger]}</span>
         {summarizedTurns > 0 && (
           <>
             <span>，摘要 {summarizedTurns} 轮，约</span>

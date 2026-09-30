@@ -568,13 +568,13 @@ export function Workbench({
       {tab === 'browser' && <BrowserPane call={browserCall} onOpenVnc={onOpenVnc}/>}
       {tab === 'files' && <FilesPane focus={focus} files={files} highlightFileId={highlightFileId}/>}
       {tab === 'project' && hasProject && project?.available && (
-        <ProjectPane sessionId={sessionId}/>
+        <ProjectPane key={sessionId} sessionId={sessionId} refreshSignal={gitRefreshSignal}/>
       )}
       {tab === 'project' && hasProject && !project?.available && (
         <EmptyNote>{project.reason ?? '项目目录不可用'}</EmptyNote>
       )}
       {tab === 'changes' && hasProject && project?.available && (
-        <ChangesPane sessionId={sessionId} refreshSignal={gitRefreshSignal} onBranchUpdate={onGitBranchUpdate}/>
+        <ChangesPane key={sessionId} sessionId={sessionId} refreshSignal={gitRefreshSignal} onBranchUpdate={onGitBranchUpdate}/>
       )}
       {tab === 'changes' && hasProject && !project?.available && (
         <EmptyNote>{project.reason ?? '项目目录不可用'}</EmptyNote>

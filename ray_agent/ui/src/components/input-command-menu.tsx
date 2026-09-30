@@ -1,21 +1,20 @@
 'use client'
 
 import {useState} from 'react'
-import {Loader2, Plus} from 'lucide-react'
+import {Info, Loader2, Plus} from 'lucide-react'
 import {Button} from '@/components/ui/button'
 import {
   Command,
   CommandEmpty,
   CommandGroup,
-  CommandInput,
   CommandItem,
   CommandList,
 } from '@/components/ui/command'
-import {Popover, PopoverContent, PopoverTrigger} from '@/components/ui/popover'
 import {matchingCommands, type CommandContext, type InputCommand} from '@/lib/commands'
 import {cn} from '@/lib/utils'
+import {Tooltip, TooltipTrigger, TooltipContent} from '@/components/ui/tooltip'
+import {DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem} from '@/components/ui/dropdown-menu'
 
-const menuWidth = 'w-[min(20rem,calc(100vw-2rem))]'
 
 function CommandRow({
   command,
@@ -57,60 +56,42 @@ function CommandRow({
 
 export function PlusCommandMenu({context}: {context: CommandContext}) {
   const [open, setOpen] = useState(false)
-  const [query, setQuery] = useState('')
-  const items = matchingCommands(query, {projectsEnabled: context.projectsEnabled})
-
-  const run = (command: InputCommand) => {
-    command.run(context)
-    setOpen(false)
-  }
-
+  const [reason, setReason] = useState<string | null>(null)
+  const items = matchingCommands('', undefined, 'plus')
   return (
-    <Popover
-      open={open}
-      onOpenChange={(next) => {
-        setOpen(next)
-        if (!next) setQuery('')
-      }}
-    >
-      <PopoverTrigger asChild>
-        <Button
-          type="button"
-          variant="outline"
-          size="icon-sm"
-          className="cursor-pointer"
-          aria-label="命令菜单"
-          aria-haspopup="dialog"
-          aria-expanded={open}
-          aria-busy={context.uploading}
-          title="命令菜单"
-        >
+    <DropdownMenu open={open} onOpenChange={(next) => {setOpen(next); setReason(null)}}>
+      <DropdownMenuTrigger asChild>
+        <Button type="button" variant="outline" size="icon-sm" aria-label="命令菜单" aria-busy={context.uploading}>
           {context.uploading ? <Loader2 className="size-4 animate-spin"/> : <Plus/>}
         </Button>
-      </PopoverTrigger>
-      <PopoverContent
-        align="start"
-        side="top"
-        sideOffset={8}
-        collisionPadding={8}
-        className={cn(menuWidth, 'p-0')}
-      >
-        <Command shouldFilter={false} loop label="命令菜单">
-          <CommandInput aria-label="搜索命令" placeholder="搜索命令" value={query} onValueChange={setQuery}/>
-          <CommandList label="命令">
-            {items.length === 0 ? (
-              <CommandEmpty className="py-4 text-center text-meta text-muted-foreground">没有匹配的命令</CommandEmpty>
-            ) : (
-              <CommandGroup>
-                {items.map((command) => (
-                  <CommandRow key={command.id} command={command} context={context} onRun={run}/>
-                ))}
-              </CommandGroup>
-            )}
-          </CommandList>
-        </Command>
-      </PopoverContent>
-    </Popover>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" side="top" className="w-48 max-w-[14rem]">
+        {items.map((command) => {
+          const state = command.available(context)
+          const Icon = command.icon
+          return (
+            <Tooltip key={command.id}>
+              <TooltipTrigger asChild>
+                <DropdownMenuItem
+                  aria-disabled={!state.available}
+                  aria-label={state.available ? command.title : `${command.title}，不可用：${state.reason}`}
+                  className={cn(!state.available && 'text-muted-foreground')}
+                  onSelect={(event) => {
+                    if (!state.available) {event.preventDefault(); setReason(state.reason); return}
+                    command.run(context); setOpen(false)
+                  }}
+                >
+                  <Icon/><span className="flex-1">{command.title}</span>
+                  {!state.available && <Info className="size-3.5" aria-hidden/>}
+                </DropdownMenuItem>
+              </TooltipTrigger>
+              {!state.available && <TooltipContent>{state.reason}</TooltipContent>}
+            </Tooltip>
+          )
+        })}
+        {reason && <p role="status" className="px-2 py-2 text-meta text-muted-foreground">{reason}</p>}
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }
 

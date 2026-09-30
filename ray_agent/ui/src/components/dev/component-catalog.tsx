@@ -18,6 +18,7 @@ import {DeliveryCard} from '@/components/run/delivery-card'
 import {AttemptNotice, CompactionNotice} from '@/components/run/notices'
 import {RunEndBar, PlanExecuteBar} from '@/components/run/run-end-bar'
 import {PlusCommandMenu} from '@/components/input-command-menu'
+import {ProjectWorkspaceCatalog} from '@/components/dev/project-workspace-catalog'
 import {ProjectPicker} from '@/components/project-picker'
 import {ContextRing} from '@/components/run/context-ring'
 import type {CommandContext} from '@/lib/commands'
@@ -50,6 +51,7 @@ import {
 type Source = '真实' | '合成'
 
 const SECTIONS = [
+  ['project-workspace', 'W11 工作区主路径'],
   ['status-bar', '运行状态条'],
   ['plan-bar', '计划条'],
   ['tool-card', '工具卡'],
@@ -403,6 +405,10 @@ export function ComponentCatalog() {
               计划模式
             </span>
           </State>
+        </Section>
+
+        <Section id="project-workspace" title="W11 工作区主路径" note="合成设计目录：打开项目不创建对话，独立加号与项目加号含义固定；列表刷新不重置展开状态。此处不证明产品端到端能力。">
+          <ProjectWorkspaceCatalog/>
         </Section>
 
         <Section id="session-item" title="会话列表项" note="标题自然换行，时间在左、状态色点在右；悬停或聚焦会话可查看状态名称。">

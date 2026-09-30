@@ -63,6 +63,7 @@ export type ProjectSessionInput = {
   runs?: RunSnapshot[]
   /** 会话详情的 `{event,data}`、SSE 的 `{type,data}`，或带 type 的扁平事件 */
   events: unknown[]
+  contextConfig?: {context_window: number; max_tokens: number; limit: number; watermark: number}
   /** 已请求停止、尚未反映到终态；由订阅方记入，投影不调用 Date.now */
   stoppingRequestedAt?: number | null
   /** 接口不返回配置快照时为空。调用方若已知本次上限可传入 */
@@ -156,6 +157,7 @@ type RunTrack = {
   lastError: string | null
   awaitingReply: boolean
   sawUser: boolean
+  environment?: string
 }
 
 type TurnBuild = {
@@ -498,7 +500,7 @@ export function projectSession(input: ProjectSessionInput): SessionView {
         if (before != null && after != null && trigger) {
           const summary = str(data.summary)
           if (ev.seq != null) {
-            lastCompaction = {seq: ev.seq, trigger, beforeTotal: before, afterTotal: after}
+            lastCompaction = {seq: ev.seq, trigger, beforeTotal: before, afterTotal: after, afterEstimate: readEstimate(data.after_estimate ?? data.afterEstimate), at: ev.createdAt}
           }
           timeline.push({
             kind: 'compaction',
@@ -535,6 +537,10 @@ export function projectSession(input: ProjectSessionInput): SessionView {
 
     const track = ev.runId ? ensureRun(ev.runId, ev.createdAt, ev.seq) : null
 
+    if (ev.type === 'environment' && track) {
+      track.environment = str(data.status) ?? undefined
+      continue
+    }
     if (ev.type === 'run' && track) {
       const status = asRunStatus(data.status)
       if (!status) continue
@@ -812,7 +818,7 @@ export function projectSession(input: ProjectSessionInput): SessionView {
       const items = readPlanItems(data.steps, previousPlan, ev.createdAt)
       const changed = previousPlan ? diffPlan(previousPlan, items) : []
       const incoming = str(data.explanation) ?? str(data.message) ?? planExplanation
-      plan = nextPlan(plan, items, changed, incoming, ev.createdAt)
+      plan = {...nextPlan(plan, items, changed, incoming, ev.createdAt), planId: str(data.plan_id), sourceRunId: ev.runId}
       previousPlan = items.map((item) => ({...item}))
       planExplanation = null
       continue
@@ -893,6 +899,12 @@ export function projectSession(input: ProjectSessionInput): SessionView {
   const latest = runViews[runViews.length - 1]
   const sessionTokens = sumUsage([sumUsage(turns.map((turn) => turn.usage)), compactSessionUsage])
   const context = usageContext(turns, lastCompaction, lastTurnStartedSeq)
+  if (context && input.contextConfig) {
+    context.configChanged = context.windowTokens !== input.contextConfig.context_window
+      || context.maxTokens != null && context.maxTokens !== input.contextConfig.max_tokens
+      || context.inputLimit != null && context.inputLimit !== input.contextConfig.limit
+      || context.watermarkTokens != null && context.watermarkTokens !== input.contextConfig.watermark
+  }
 
   const rawEvents: RawEvent[] = normalized
     .filter((ev) => ev.seq != null)
@@ -919,7 +931,7 @@ export function projectSession(input: ProjectSessionInput): SessionView {
       session: sessionTokens,
       context,
       lastCompaction,
-      watermarkRatio: watermarkRatioOf(turns),
+      watermarkRatio: context?.watermarkTokens != null ? context.watermarkTokens / context.windowTokens : null,
       compactions,
     },
     files,
@@ -1004,6 +1016,9 @@ function activityOf(
     }
     return {kind: 'waiting_reply', question}
   }
+  if (track.status === 'running' && track.environment === 'preparing') {
+    return {kind: 'preparing_environment'}
+  }
   const runningTool = [...liveCalls].reverse().find((item) => item.runId === track.id && item.view.status === 'running')
   if (runningTool) {
     return {
@@ -1043,30 +1058,34 @@ function usageContext(
   lastCompaction: UsageView['lastCompaction'],
   lastTurnStartedSeq: number | null,
 ): UsageView['context'] {
-  const completed = [...turns].reverse().find((turn) => turn.endedAt != null && turn.usage)
-  const open = [...turns].reverse().find((turn) => turn.endedAt == null)
-  const estimate = open?.contextEstimate ?? completed?.contextEstimate ?? null
-  let used = estimate
-    ? estimate.system + estimate.tools + estimate.history + estimate.toolResults
-    : completed?.usage?.prompt ?? null
-  let postCompactEstimate = false
-  if (
-    lastCompaction &&
-    lastTurnStartedSeq != null &&
-    lastCompaction.seq > lastTurnStartedSeq
-  ) {
-    used = lastCompaction.afterTotal
-    postCompactEstimate = true
-  }
-  const window = open?.contextWindow ?? completed?.contextWindow ?? null
+  // 只用最新请求，不能让较早一轮有 usage 的数据覆盖后来缺失 usage 的请求。
+  const last = turns[turns.length - 1]
+  const completed = [...turns].reverse().find((turn) => turn.endedAt != null)
+  const postCompact = !!lastCompaction && lastCompaction.seq > (lastTurnStartedSeq ?? 0)
+  const estimate = postCompact ? lastCompaction?.afterEstimate ?? null : last?.contextEstimate ?? null
+  // 压缩后的快照不完整时，不与历史请求的窗口拼接计算百分比。
+  const window = postCompact ? estimate?.contextWindow ?? null
+    : estimate?.contextWindow ?? last?.contextWindow ?? null
+  const hasUsage = !postCompact && last?.endedAt != null && last.usage?.prompt != null
+  const used = hasUsage ? last.usage!.prompt
+    : estimate ? estimate.system + estimate.tools + estimate.history + estimate.toolResults : null
   if (used == null || window == null || window <= 0) return null
+  const inputLimit = estimate?.inputLimit ?? null
+  const maxTokens = estimate?.maxTokens ?? null
+  const safetyTokens = inputLimit != null && maxTokens != null ? window - inputLimit - maxTokens : null
   const prompt = completed?.usage?.prompt
   const completion = completed?.usage?.completion
   return {
     usedTokens: used,
     windowTokens: window,
     lastTurnTokens: prompt != null && completion != null ? prompt + completion : null,
-    ...(postCompactEstimate ? {postCompactEstimate: true} : {}),
+    source: postCompact ? 'compact_estimate' : hasUsage ? 'prompt_usage' : 'request_estimate',
+    snapshotAt: postCompact ? lastCompaction?.at : last?.startedAt,
+    inputLimit, maxTokens, safetyTokens,
+    watermarkTokens: estimate?.watermarkTokens ?? null,
+    inputRemaining: inputLimit != null ? Math.max(0, inputLimit - used) : null,
+    estimate,
+    ...(postCompact ? {postCompactEstimate: true} : {}),
   }
 }
 
@@ -1150,7 +1169,13 @@ function readEstimate(raw: unknown): ContextEstimate | null {
   const history = num(raw.history)
   const toolResults = num(raw.toolResults) ?? num(raw.tool_results)
   if (system == null || tools == null || history == null || toolResults == null) return null
-  return {system, tools, history, toolResults}
+  return {system, tools, history, toolResults,
+    contextWindow: num(raw.context_window ?? raw.contextWindow),
+    maxTokens: num(raw.max_tokens ?? raw.maxTokens),
+    inputLimit: num(raw.limit ?? raw.inputLimit),
+    watermarkTokens: num(raw.watermark ?? raw.watermarkTokens),
+    method: str(raw.method),
+  }
 }
 
 function readWatermarkTokens(raw: unknown): number | null {
@@ -1158,14 +1183,6 @@ function readWatermarkTokens(raw: unknown): number | null {
   return num(raw.watermark)
 }
 
-function watermarkRatioOf(turns: TurnBuild[]): number | null {
-  for (let i = turns.length - 1; i >= 0; i--) {
-    const tokens = turns[i].watermarkTokens
-    const window = turns[i].contextWindow
-    if (tokens != null && window != null && window > 0) return tokens / window
-  }
-  return null
-}
 
 function sumUsage(list: Array<TokenCounts | null>): TokenCounts {
   let prompt: number | null = null
@@ -1598,4 +1615,15 @@ function readTime(value: unknown): number {
     return Number.isNaN(parsed) ? 0 : parsed
   }
   return 0
+}
+
+
+/** 最新计划运行确实产出带身份的可执行清单，才提供后续执行。 */
+export function canExecutePlan(view: Pick<SessionView, 'activeRun' | 'runs' | 'plan'>): boolean {
+  const run = view.runs[view.runs.length - 1]
+  const plan = view.plan
+  return !view.activeRun && run?.status === 'completed' && run.mode === 'plan'
+    && !!plan?.planId && plan.sourceRunId === run.id
+    && plan.updatedAt >= run.startedAt && run.endedAt != null && plan.updatedAt <= run.endedAt
+    && plan.items.some((item) => item.text.trim() && item.status !== 'completed')
 }

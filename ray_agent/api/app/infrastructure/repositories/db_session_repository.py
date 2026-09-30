@@ -89,12 +89,35 @@ class DBSessionRepository(SessionRepository):
     async def update_sandbox_id(self, session_id: str, sandbox_id: str) -> None:
         await self.db_session.execute(update(SessionModel).where(SessionModel.id == session_id).values(sandbox_id=sandbox_id))
 
-    async def set_project_path(self, session_id: str, project_path: Optional[str]) -> None:
-        result = await self.db_session.execute(
-            update(SessionModel).where(SessionModel.id == session_id).values(project_path=project_path)
-        )
+    async def lock(self, session_id: str) -> Optional[Session]:
+        stmt = select(SessionModel).where(SessionModel.id == session_id).with_for_update(of=SessionModel).execution_options(populate_existing=True)
+        record = (await self.db_session.execute(stmt)).scalar_one_or_none()
+        return record.to_domain() if record else None
+
+    async def set_project_id(self, session_id: str, project_id: Optional[str]) -> None:
+        result = await self.db_session.execute(update(SessionModel).where(SessionModel.id == session_id).values(project_id=project_id))
         if result.rowcount == 0:
-            raise ValueError(f"会话[{session_id}]不存在，请核实后重试")
+            raise ValueError("会话不存在")
+
+    async def save_project_snapshot(self, session_id: str, snapshot: dict) -> None:
+        await self.db_session.execute(update(SessionModel).where(SessionModel.id == session_id).values(project_snapshot=snapshot))
+
+    async def page(self, *, project_id: Optional[str] = None, independent: bool = False, offset: int = 0, limit: int = 50) -> tuple[List[Session], int]:
+        filters = []
+        if project_id is not None:
+            filters.append(SessionModel.project_id == project_id)
+        elif independent:
+            filters.append(SessionModel.project_id.is_(None))
+        total = (await self.db_session.execute(select(func.count()).select_from(SessionModel).where(*filters))).scalar_one()
+        stmt = select(SessionModel).where(*filters).order_by(SessionModel.latest_message_at.desc().nullslast(), SessionModel.created_at.desc(), SessionModel.id).offset(offset).limit(limit)
+        records = (await self.db_session.execute(stmt)).scalars().all()
+        return [record.to_domain() for record in records], total
+
+    async def project_counts(self, project_ids: List[str]) -> dict[str, int]:
+        if not project_ids:
+            return {}
+        stmt = select(SessionModel.project_id, func.count()).where(SessionModel.project_id.in_(project_ids)).group_by(SessionModel.project_id)
+        return dict((await self.db_session.execute(stmt)).all())
 
     async def update_task_id(self, session_id: str, task_id: str) -> None:
         await self.db_session.execute(update(SessionModel).where(SessionModel.id == session_id).values(task_id=task_id))

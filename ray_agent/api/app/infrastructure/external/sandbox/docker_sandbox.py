@@ -3,6 +3,8 @@
 import asyncio
 import io
 import logging
+import os
+import shlex
 import socket
 import uuid
 from typing import Optional, Self, BinaryIO
@@ -215,7 +217,14 @@ class DockerSandbox(Sandbox):
             project_path = check.real_path
 
         # 5.使用子线程创建一个容器后返回
-        return await asyncio.to_thread(cls._create_task, project_path)
+        creation = asyncio.create_task(asyncio.to_thread(cls._create_task, project_path))
+        try:
+            return await asyncio.shield(creation)
+        except asyncio.CancelledError:
+            # Docker 线程仍可能返回容器；撤销协程不能把资源留在宿主机。
+            sandbox = await creation
+            await sandbox.destroy()
+            raise
 
     async def destroy(self) -> bool:
         """销毁当前的DockerSandbox实例"""
@@ -285,6 +294,44 @@ class DockerSandbox(Sandbox):
     async def get_browser(self) -> Browser:
         """获取沙箱中的浏览器实例"""
         return PlaywrightBrowser(self.cdp_url)
+
+    async def validate_project(self, project_path: str) -> None:
+        """检查真实 bind 与读写；探针仅使用独占临时文件，结束后删除。"""
+        settings = get_settings()
+        check = check_project_path(project_path, settings.project_roots)
+        if not check.ok or check.real_path != project_path:
+            raise SandboxProjectBindingError(check.message or "项目路径已被替换")
+        if settings.sandbox_address or not self._container_name:
+            raise SandboxProjectBindingError("共享沙箱不支持项目挂载")
+        if os.path.isfile(os.path.join(project_path, ".git")):
+            raise SandboxProjectBindingError("暂不支持 .git 文件或 linked worktree")
+
+        def probe():
+            container = docker.from_env().containers.get(self._container_name)
+            container.reload()
+            mounts = container.attrs.get("Mounts", [])
+            if not any(m.get("Type") == "bind" and m.get("Destination") == SANDBOX_PROJECT_DIR
+                       and m.get("Source") == project_path and m.get("RW") for m in mounts):
+                raise SandboxProjectBindingError("项目读写挂载与当前目录不一致，请重新创建执行环境")
+            name = ".rayagent-probe-" + uuid.uuid4().hex
+            marker = uuid.uuid4().hex
+            target = shlex.quote(SANDBOX_PROJECT_DIR + "/" + name)
+            # noclobber 防止覆盖已有文件；通过 API 只读挂载读回，检测同路径替换导致的旧挂载。
+            command = "set -C; printf %s " + shlex.quote(marker) + " > " + target
+            result = container.exec_run(["sh", "-c", command], user="ubuntu")
+            if result.exit_code != 0:
+                raise SandboxProjectBindingError("沙箱不能写入项目目录，请检查 Docker 文件共享及目录权限")
+            try:
+                with open(os.path.join(project_path, name), encoding="utf-8") as handle:
+                    if handle.read() != marker:
+                        raise SandboxProjectBindingError("项目挂载读回不一致")
+            except OSError as exc:
+                raise SandboxProjectBindingError("项目路径已替换或 API 与沙箱挂载不一致，请恢复挂载") from exc
+            finally:
+                cleanup = container.exec_run(["rm", "-f", "--", SANDBOX_PROJECT_DIR + "/" + name], user="ubuntu")
+                if cleanup.exit_code != 0:
+                    raise SandboxProjectBindingError("项目挂载探针清理失败，请检查目录权限")
+        await asyncio.to_thread(probe)
 
     async def ensure_sandbox(self) -> None:
         """确保沙箱一定存在/服务全部都开启了才执行后续步骤"""

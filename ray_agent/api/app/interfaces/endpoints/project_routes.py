@@ -5,7 +5,7 @@ from typing import List
 from fastapi import APIRouter, Depends, Query
 
 from app.application.services.project_service import ProjectService
-from app.domain.models.project import BrowseListing, ProjectView
+from app.domain.models.project import BrowseListing, ProjectView, PATH_CHECK_MESSAGES
 from app.interfaces.schemas import Response
 from app.interfaces.schemas.project import ProjectRootItem, ProjectRootsResponse
 from app.interfaces.service_dependencies import get_project_service
@@ -23,11 +23,15 @@ async def list_project_roots(
         project_service: ProjectService = Depends(get_project_service),
 ) -> Response[ProjectRootsResponse]:
     enabled, roots = project_service.list_roots()
+    supported, reason = project_service.availability()
     return Response.success(
         msg="获取项目根目录成功",
         data=ProjectRootsResponse(
             enabled=enabled,
-            roots=[ProjectRootItem(path=root.path, available=root.available) for root in roots],
+            supported=supported,
+            reason=reason,
+            roots=[ProjectRootItem(path=root.path, available=root.available,
+                                   reason=PATH_CHECK_MESSAGES.get(root.reason)) for root in roots],
         ),
     )
 

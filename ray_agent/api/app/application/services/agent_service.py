@@ -1,8 +1,10 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 import asyncio
+import copy
 import logging
-from dataclasses import dataclass
+import weakref
+from dataclasses import dataclass, field
 from datetime import datetime
 from typing import AsyncGenerator, Optional, List, Type, Callable, Union
 
@@ -14,12 +16,13 @@ from app.domain.external.sandbox import Sandbox, SandboxProjectBindingError
 from app.domain.external.search import SearchEngine
 from app.domain.external.task import Task
 from app.domain.models.app_config import AgentConfig, MCPConfig, A2AConfig, ToolPolicyConfig
-from app.domain.models.event import ApprovalStatus, ErrorEvent, Event, MessageEvent, TitleEvent
+from app.domain.models.event import ApprovalStatus, EnvironmentEvent, ErrorEvent, Event, MessageEvent, TitleEvent
 from app.domain.models.project import SANDBOX_PROJECT_DIR
 from app.domain.models.run import Run, RunMode, RunReason, RunStatus, tools_for_turn
 from app.domain.models.session import Session, SessionStatus
 from app.domain.repositories.uow import IUnitOfWork
 from app.domain.services.approvals import close_waiting_approval, latest_approvals, waiting_for_approval
+from app.application.services.context_operations import compacting, ensure_context_idle
 from app.domain.services.context.compactor import CompactionStatus, Compactor
 from app.domain.services.flows.agent_loop import AGENT_MEMORY_NAME
 from app.domain.services.request_rebuild import RebuiltRequest, rebuild_request
@@ -36,7 +39,23 @@ from app.infrastructure.logging import set_log_session_id
 logger = logging.getLogger(__name__)
 
 EVENT_PAGE_SIZE = 200  # SSE 补查每页条数
+MANUAL_COMPACT_TIMEOUT_SECONDS = 60.0
 FALLBACK_POLL_SECONDS = 3.0  # 订阅期间没有通知时的兜底查询间隔
+
+
+@dataclass
+class PendingStart:
+    """单进程启动所有权。停止只撤销所有权，耗时 Docker 创建返回后负责清理。"""
+    messages: list[str] = field(default_factory=list)
+    cancelled: bool = False
+    worker: Optional[asyncio.Task] = None
+
+
+_starts = weakref.WeakKeyDictionary()
+
+
+def pending_starts() -> dict[str, PendingStart]:
+    return _starts.setdefault(asyncio.get_running_loop(), {})
 
 
 @dataclass
@@ -85,6 +104,7 @@ class AgentService:
             ledger: Optional[RunLedger] = None,
             notifier: Optional[EventNotifier] = None,
             tool_policy: Optional[ToolPolicyConfig] = None,
+            project_validator: Optional[Callable[[str], None]] = None,
     ) -> None:
         """构造函数，完成Agent服务初始化"""
         self._uow_factory = uow_factory
@@ -93,6 +113,7 @@ class AgentService:
         self._agent_config = agent_config
         self._mcp_config = mcp_config
         self._a2a_config = a2a_config
+        self._project_validator = project_validator
         self._tool_policy = tool_policy
         self._sandbox_cls = sandbox_cls
         self._task_cls = task_cls
@@ -114,12 +135,15 @@ class AgentService:
 
     async def _create_task(self, session: Session, run_id: str, prior_status: Optional[SessionStatus]) -> Task:
         """根据传递的会话创建一个执行 run_id 的新任务"""
+        if session.project_path and getattr(self, "_project_validator", None):
+            self._project_validator(session.project_path)
         # 1.获取沙箱实例
         sandbox = None
         sandbox_id = session.sandbox_id
         if sandbox_id:
             sandbox = await self._sandbox_cls.get(sandbox_id)
 
+        created_sandbox = sandbox is None
         # 2.判断是否能获取到沙箱(如果没有则创建)
         if not sandbox:
             # 3.沙箱不存在则创建一个新的(有可能被释放了)。绑定了项目时重新挂载同一个目录
@@ -128,41 +152,97 @@ class AgentService:
             except SandboxProjectBindingError as exc:
                 raise ConflictError(str(exc)) from exc
             session.sandbox_id = sandbox.id
-            async with self._uow:
-                await self._uow.session.update_sandbox_id(session.id, sandbox.id)
 
         # 4.从沙箱中获取浏览器实例
-        browser = await sandbox.get_browser()
-        if not browser:
-            logger.error(f"获取沙箱[{sandbox.id}]中的浏览器实例失败")
-            raise RuntimeError(f"获取沙箱[{sandbox.id}]中的浏览器实例失败")
+        try:
+            if session.project_path:
+                await sandbox.validate_project(session.project_path)
+            browser = await sandbox.get_browser()
+            if not browser:
+                raise RuntimeError("执行环境浏览器不可用")
+        except BaseException:
+            if created_sandbox:
+                await sandbox.destroy()
+            raise
 
-        # 5.创建AgentTaskRunner
-        task_runner = AgentTaskRunner(
-            uow_factory=self._uow_factory,
-            llm=self._llm,
-            agent_config=self._agent_config,
-            mcp_tool=MCPTool(MCPClientManager(self._mcp_config)),
-            a2a_tool=A2ATool(A2AClientManager(self._a2a_config)),
-            session_id=session.id,
-            file_storage=self._file_storage,
-            browser=browser,
-            search_engine=self._search_engine,
-            sandbox=sandbox,
-            ledger=self._ledger,
-            run_id=run_id,
-            prior_status=prior_status,
-            tool_policy=self._tool_policy,
-            workspace_dir=SANDBOX_PROJECT_DIR if session.project_path else None,
-        )
+        try:
+            # 5.创建AgentTaskRunner
+            task_runner = AgentTaskRunner(
+                uow_factory=self._uow_factory,
+                llm=self._llm,
+                agent_config=self._agent_config,
+                mcp_tool=MCPTool(MCPClientManager(self._mcp_config)),
+                a2a_tool=A2ATool(A2AClientManager(self._a2a_config)),
+                session_id=session.id,
+                file_storage=self._file_storage,
+                browser=browser,
+                search_engine=self._search_engine,
+                sandbox=sandbox,
+                ledger=self._ledger,
+                run_id=run_id,
+                prior_status=prior_status,
+                tool_policy=self._tool_policy,
+                workspace_dir=SANDBOX_PROJECT_DIR if session.project_path else None,
+            )
 
-        # 6.创建任务Task并更新会话中的信息
-        task = self._task_cls.create(task_runner=task_runner)
-        session.task_id = task.id
-        async with self._uow:
-            await self._uow.session.update_task_id(session.id, task.id)
+            # 6.创建尚未发布引用的任务，由后台启动所有权检查后登记
+            task = self._task_cls.create(task_runner=task_runner)
+            return task
+        except BaseException:
+            if created_sandbox:
+                await sandbox.destroy()
+            raise
 
-        return task
+    def _schedule_start(self, session: Session, run_id: str, prior_status, event: Event) -> None:
+        owner = PendingStart(messages=[event.model_dump_json()])
+        pending_starts()[run_id] = owner
+        # 独立服务与工作单元：后台不复用请求中的事务对象。
+        worker_service = copy.copy(self)
+        worker_service._uow = self._uow_factory()
+        owner.worker = asyncio.create_task(worker_service._start_run(
+            session.model_copy(deep=True), run_id, prior_status, owner))
+
+    async def _start_run(self, session: Session, run_id: str, prior_status, owner: PendingStart) -> None:
+        task = None
+        published = False
+        original_sandbox_id = session.sandbox_id
+        try:
+            task = await self._create_task(session, run_id, prior_status)
+            async with session_lock(session.id):
+                async with self._uow:
+                    active = await self._uow.run.get_active(session.id)
+                    current = await self._uow.session.get_by_id(session.id)
+                if (owner.cancelled or active is None or active.id != run_id
+                        or active.status != RunStatus.RUNNING or current is None
+                        or current.project_path != session.project_path):
+                    return
+                if session.project_path and getattr(self, "_project_validator", None):
+                    self._project_validator(session.project_path)
+                async with self._uow:
+                    if session.sandbox_id:
+                        await self._uow.session.update_sandbox_id(session.id, session.sandbox_id)
+                    await self._uow.session.update_task_id(session.id, task.id)
+                for message in owner.messages:
+                    await task.input_stream.put(message)
+                await self._ledger.append(session.id, [EnvironmentEvent(status="ready")], run_id=run_id)
+                await task.invoke()
+                published = True
+        except Exception as exc:
+            logger.exception("会话[%s]准备执行环境失败", session.id)
+            async with session_lock(session.id):
+                await self._ledger.transition(
+                    session.id, run_id, RunStatus.FAILED, RunReason.RUNNER_ERROR,
+                    events_before=[ErrorEvent(error="准备执行环境失败：" + format_public_error(exc))])
+        finally:
+            try:
+                if not published and task is not None:
+                    task.cancel()
+                    sandbox = getattr(getattr(task, "task_runner", None), "_sandbox", None)
+                    if sandbox is not None and sandbox.id != original_sandbox_id:
+                        await sandbox.destroy()
+            finally:
+                if pending_starts().get(run_id) is owner:
+                    del pending_starts()[run_id]
 
     @staticmethod
     def _task_runs(task: Optional[Task], run_id: str) -> bool:
@@ -191,9 +271,12 @@ class AgentService:
         if not message or not message.strip():
             raise BadRequestError("消息不能为空")
         mode = RunMode(mode)
+        ensure_context_idle(session_id)
 
         async with self._uow:
             db_attachments = [await self._uow.file.get_by_id(file_id) for file_id in (attachments or [])]
+        if any(attachment is None for attachment in db_attachments):
+            raise BadRequestError("附件已失效，请移除并重新上传后发送")
         message_event = MessageEvent(
             role="user",
             message=message,
@@ -208,23 +291,30 @@ class AgentService:
 
         provisional_title: Optional[TitleEvent] = None
         async with session_lock(session_id):
+            ensure_context_idle(session_id)
             async with self._uow:
                 session = await self._uow.session.get_by_id(session_id)
                 active = await self._uow.run.get_active(session_id) if session else None
             if not session:
                 logger.error(f"尝试与不存在的任务会话[{session_id}]对话")
                 raise NotFoundError("任务会话不存在, 请核实后重试")
+            if session.project_path and getattr(self, "_project_validator", None):
+                self._project_validator(session.project_path)
             if waiting_for_approval(active):
                 raise ConflictError("当前运行在等待审批，请先批准或拒绝待审批的操作，或停止运行后再发送消息")
             task = await self._get_task(session)
+            starting = pending_starts().get(active.id) if active is not None else None
             if mode == RunMode.PLAN and active is not None and (
-                    active.status == RunStatus.WAITING or self._task_runs(task, active.id)):
+                    active.status == RunStatus.WAITING or starting is not None or self._task_runs(task, active.id)):
                 raise ConflictError("当前运行还没有结束，计划模式只能在新运行开始时选择；请等运行结束或停止后再发送")
 
             # 1.运行中且执行协程仍在：消息注入当前运行，循环在下一次模型请求前取走
-            if active is not None and active.status == RunStatus.RUNNING and self._task_runs(task, active.id):
+            if active is not None and active.status == RunStatus.RUNNING and (starting is not None or self._task_runs(task, active.id)):
                 if await self._ledger.append(session_id, [message_event], run_id=active.id, apply=touch):
-                    await task.input_stream.put(message_event.model_dump_json())
+                    if starting is not None:
+                        starting.messages.append(message_event.model_dump_json())
+                    else:
+                        await task.input_stream.put(message_event.model_dump_json())
                     logger.info(f"会话[{session_id}]运行[{active.id}]注入消息: {message[:50]}...")
                     return ChatAccepted(run_id=active.id, seq=message_event.seq, route="injected")
                 active = None
@@ -235,7 +325,7 @@ class AgentService:
             # 2.等待回复：同一运行 waiting → running，由新任务续接
             if active is not None and active.status == RunStatus.WAITING:
                 run = await self._ledger.transition(
-                    session_id, active.id, RunStatus.RUNNING, events_after=[message_event], apply=touch)
+                    session_id, active.id, RunStatus.RUNNING, events_after=[message_event, EnvironmentEvent(status="preparing")], apply=touch)
                 if run is not None:
                     route, prior_status = "resumed", SessionStatus.WAITING
             elif active is not None:
@@ -246,25 +336,14 @@ class AgentService:
                 if session.title_source == "placeholder" and session.title in ("", "新对话"):
                     provisional_title = TitleEvent(title=message.strip()[:30])
                 run = await self._ledger.start(
-                    session_id, events_after=[message_event, *([provisional_title] if provisional_title else [])],
+                    session_id, events_after=[message_event, EnvironmentEvent(status="preparing"), *([provisional_title] if provisional_title else [])],
                     apply=touch, mode=mode,
                 )
                 if provisional_title is not None:
                     from app.application.services.title_service import TitleService
                     asyncio.create_task(TitleService(self._uow_factory, self._ledger).auto_generate(session_id, message))
 
-            # 4.创建执行任务；创建失败时运行记为失败，不留下没有协程的 running
-            try:
-                task = await self._create_task(session, run.id, prior_status)
-                await task.input_stream.put(message_event.model_dump_json())
-                await task.invoke()
-            except Exception as e:
-                logger.exception(f"会话[{session_id}]创建执行任务失败: {e}")
-                await self._ledger.transition(
-                    session_id, run.id, RunStatus.FAILED, RunReason.RUNNER_ERROR,
-                    events_before=[ErrorEvent(error=format_public_error(e))],
-                )
-                raise
+            self._schedule_start(session, run.id, prior_status, message_event)
         logger.info(f"会话[{session_id}]运行[{run.id}]受理消息({route}): {message[:50]}...")
         return ChatAccepted(run_id=run.id, seq=message_event.seq, route=route)
 
@@ -289,21 +368,13 @@ class AgentService:
                     or active.id != request.run_id):
                 raise ConflictError(f"该审批已处理或已失效（当前状态：{request.status.value}），不会重复执行")
 
+            if session.project_path and getattr(self, "_project_validator", None):
+                self._project_validator(session.project_path)
             decided = request.decided(ApprovalStatus.APPROVED if approve else ApprovalStatus.REJECTED)
-            run = await self._ledger.transition(session_id, active.id, RunStatus.RUNNING, events_after=[decided])
+            run = await self._ledger.transition(session_id, active.id, RunStatus.RUNNING, events_after=[decided, EnvironmentEvent(status="preparing")])
             if run is None:
                 raise ConflictError("运行已结束，审批已失效")
-            try:
-                task = await self._create_task(session, run.id, SessionStatus.WAITING)
-                await task.input_stream.put(decided.model_dump_json())
-                await task.invoke()
-            except Exception as e:
-                logger.exception(f"会话[{session_id}]审批续接创建执行任务失败: {e}")
-                await self._ledger.transition(
-                    session_id, run.id, RunStatus.FAILED, RunReason.RUNNER_ERROR,
-                    events_before=[ErrorEvent(error=format_public_error(e))],
-                )
-                raise
+            self._schedule_start(session, run.id, SessionStatus.WAITING, decided)
         logger.info(f"会话[{session_id}]运行[{run.id}]审批 {tool_call_id} → {decided.status.value}")
         return ApprovalAccepted(run_id=run.id, seq=decided.seq, status=decided.status.value)
 
@@ -383,6 +454,9 @@ class AgentService:
                 # 没有执行协程：审批失效，待审批与同批后续调用补为未执行，与终态同一事务
                 return await close_waiting_approval(self._uow_factory, self._ledger, session_id, active.id,
                                                     RunStatus.CANCELLED, RunReason.USER_STOP)
+            starting = pending_starts().get(active.id)
+            if starting is not None:
+                starting.cancelled = True
             task = await self._get_task(session)
             runner = getattr(task, "task_runner", None) if task is not None else None
             if getattr(runner, "run_id", None) != active.id:
@@ -404,6 +478,15 @@ class AgentService:
         return run
 
     async def compact_session(self, session_id: str) -> ManualCompaction:
+        async with compacting(session_id):
+            try:
+                async with asyncio.timeout(MANUAL_COMPACT_TIMEOUT_SECONDS):
+                    return await self._compact_session(session_id)
+            except TimeoutError as exc:
+                raise AppException(code=504, status_code=504,
+                                   msg="摘要超过总期限，请核对最新操作状态和压缩记录后再决定是否重试") from exc
+
+    async def _compact_session(self, session_id: str) -> ManualCompaction:
         """手动压缩：在没有活动运行时把较早的轮次替换为摘要，不新建运行、不改会话状态。
 
         整个过程（含摘要请求）持有与 chat 共用的会话锁。会话不存在 → NotFoundError；有活动运行（running，
@@ -474,5 +557,10 @@ class AgentService:
     async def shutdown(self) -> None:
         """关闭Agent服务"""
         logger.info("正在清除所有会话任务资源并释放")
+        owners = list(pending_starts().values())
+        for owner in owners:
+            owner.cancelled = True
+        # 不假定取消协程能取消 Docker 线程；让迟到资源走所有权检查和清理。
+        await asyncio.gather(*(owner.worker for owner in owners if owner.worker is not None), return_exceptions=True)
         await self._task_cls.destroy()
         logger.info("所有会话任务资源清除成功")

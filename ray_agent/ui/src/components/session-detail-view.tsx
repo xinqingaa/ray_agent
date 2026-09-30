@@ -1,7 +1,6 @@
 'use client'
 
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
-import {useRouter} from 'next/navigation'
 import {toast} from 'sonner'
 import {PanelRightOpen, Pencil} from 'lucide-react'
 import {ChatInput} from '@/components/chat-input'
@@ -27,16 +26,16 @@ import {useSessions} from '@/hooks/use-sessions'
 import {useIsMobile} from '@/hooks/use-mobile'
 import {sessionApi} from '@/lib/api/session'
 import {projectApi} from '@/lib/api/project'
+import {createProjectRefreshWatcher} from '@/lib/project-refresh'
+import {readDraft, writeDraft} from '@/lib/drafts'
+import {normalizeEvents} from '@/lib/session-events'
+import {canExecutePlan} from '@/lib/session-projection'
 import {ApiError} from '@/lib/api/fetch'
-import type {FileInfo, ToolEvent} from '@/lib/api/types'
+import type {FileInfo} from '@/lib/api/types'
 import type {FileView, ProjectView, TimelineItem, ToolCallView, ToolFamily} from '@/lib/session-view'
 
 export interface SessionDetailViewProps {
   sessionId: string
-  initialMessage?: string
-  initialAttachments?: string[]
-  initialMode?: 'plan' | 'normal'
-  hasInitialMessage?: boolean
 }
 
 type ApprovalSubmitting = {callId: string; decision: 'approve' | 'reject'}
@@ -68,15 +67,11 @@ function lastOf(calls: ToolCallView[], family: ToolFamily): ToolCallView | null 
 
 export function SessionDetailView({
   sessionId,
-  initialMessage,
-  initialAttachments,
-  initialMode = 'normal',
-  hasInitialMessage,
 }: SessionDetailViewProps) {
-  const router = useRouter()
   const isMobile = useIsMobile()
   const {sessions, patchSession} = useSessions()
   const {
+    session,
     view,
     events,
     loading,
@@ -87,13 +82,14 @@ export function SessionDetailView({
     stop,
     loadTurnRequest,
     replyApproval,
-  } = useSessionDetail(sessionId, hasInitialMessage)
+  } = useSessionDetail(sessionId)
   const [projectsEnabled, setProjectsEnabled] = useState(false)
   const [gitBranch, setGitBranch] = useState<string | null>(null)
   const [gitRefreshSignal, setGitRefreshSignal] = useState(0)
-  const gitRefreshTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const projectRefreshRef = useRef<ReturnType<typeof createProjectRefreshWatcher> | null>(null)
   const [approvalRequest, setApprovalRequest] = useState<ApprovalSubmitting | null>(null)
-  const [compacting, setCompacting] = useState(false)
+  const [localCompacting, setCompacting] = useState(false)
+  const compacting = localCompacting || session?.context_operation?.status === 'compacting'
 
   const [mode, setMode] = useState<'conversation' | 'developer'>('conversation')
   const [pinnedCallId, setPinnedCallId] = useState<string | null>(null)
@@ -105,7 +101,6 @@ export function SessionDetailView({
   const [tabForId, setTabForId] = useState<string | null>(null)
   const [highlightFileId, setHighlightFileId] = useState<string | null>(null)
   const [vncOpen, setVncOpen] = useState(false)
-  const initialSentRef = useRef(false)
   const scrollRef = useRef<HTMLDivElement>(null)
   const stickRef = useRef(true)
 
@@ -154,30 +149,24 @@ export function SessionDetailView({
   }, [])
 
   useEffect(() => {
-    if (!view?.project?.available) {
-      setGitBranch(null)
-      return
+    let current = true
+    setGitBranch(null)
+    if (view?.project?.available) {
+      void projectApi.getGitStatus(sessionId).then((status) => {
+        if (current) setGitBranch(status.state === 'ok' ? status.branch ?? null : null)
+      }).catch(() => {if (current) setGitBranch(null)})
     }
-    void projectApi.getGitStatus(sessionId).then((status) => {
-      if (status.state === 'ok') setGitBranch(status.branch ?? null)
-    }).catch(() => {})
-  }, [sessionId, view?.project?.path, view?.project?.available])
+    return () => {current = false}
+  }, [sessionId, view?.project?.path, view?.project?.available, gitRefreshSignal])
 
   useEffect(() => {
-    if (!view?.project?.available || events.length === 0) return
-    const last = events[events.length - 1]
-    if (last.type !== 'tool') return
-    const data = last.data as ToolEvent
-    if (data.status !== 'called') return
-    const fn = data.function ?? data.name ?? ''
-    if (fn !== 'write_file' && fn !== 'replace_in_file' && !fn.startsWith('shell_')) return
-    if (gitRefreshTimerRef.current) clearTimeout(gitRefreshTimerRef.current)
-    gitRefreshTimerRef.current = setTimeout(() => {
-      setGitRefreshSignal((n) => n + 1)
-    }, 1000)
-    return () => {
-      if (gitRefreshTimerRef.current) clearTimeout(gitRefreshTimerRef.current)
-    }
+    const watcher = createProjectRefreshWatcher(() => setGitRefreshSignal((n) => n + 1))
+    projectRefreshRef.current = watcher
+    return () => {watcher.dispose(); projectRefreshRef.current = null}
+  }, [sessionId])
+
+  useEffect(() => {
+    if (view?.project?.available) projectRefreshRef.current?.observe(events)
   }, [events, view?.project?.available])
 
   const handleProjectSelect = useCallback(async (project: ProjectView | null) => {
@@ -197,37 +186,62 @@ export function SessionDetailView({
     el.scrollTo({top: el.scrollHeight, behavior: 'auto'})
   }, [view?.timeline.length, view?.status, view?.streaming?.text, vncOpen])
 
-  useEffect(() => {
-    if (!initialMessage || initialSentRef.current || !view || loading || submitting) return
-    initialSentRef.current = true
-    sendMessage(initialMessage, initialAttachments ?? [], {mode: initialMode}).then(() => {
-      window.setTimeout(() => router.replace(`/sessions/${sessionId}`), 100)
-    }).catch((err: unknown) => {
-      toast.error(err instanceof Error ? err.message : '发送消息失败')
-    })
-  }, [initialMessage, initialAttachments, initialMode, view, loading, submitting, sendMessage, sessionId, router])
-
   const handleCompact = useCallback(async () => {
     if (compacting) return
     setCompacting(true)
+    const scope = `session:${sessionId}`
+    const beforeSeq = Math.max(session?.last_seq ?? 0, ...events.map((event) => {
+      const data = event.data as {seq?: number}
+      return data.seq ?? 0
+    }))
+    writeDraft(scope, {compactionAfterSeq: beforeSeq})
     try {
       const result = await sessionApi.compact(sessionId)
-      if (result.status === 'skipped') {
-        toast.message(result.message)
-      } else {
-        toast.success(result.message)
-      }
+      writeDraft(scope, {compactionAfterSeq: undefined})
+      if (result.status === 'skipped') toast.message(result.message)
+      else toast.success(result.message)
       await refresh()
     } catch (err) {
-      if (err instanceof ApiError) {
-        toast.error(err.msg)
-      } else {
-        toast.error(err instanceof Error ? err.message : '压缩失败')
+      // 超时/断连后读取已提交事件和临时状态，不再发出第二次 compact。
+      try {
+        const detail = await sessionApi.getSessionDetail(sessionId)
+        const records = normalizeEvents(detail.events).filter((event) => {
+          const data = event.data as Record<string, unknown>
+          return String(event.type) === 'compact' && data.trigger === 'manual' && Number(data.seq) > beforeSeq
+        })
+        if (records.length === 1) {
+          const data = records[0].data as Record<string, unknown>
+          const before = (data.before_estimate as {total?: number})?.total
+          const after = (data.after_estimate as {total?: number})?.total
+          writeDraft(scope, {compactionAfterSeq: undefined})
+          toast.success(before != null && after != null && after >= before ? '已摘要，估算空间未减少' : '已确认上下文摘要完成')
+        } else if (detail.context_operation?.status === 'compacting') {
+          toast.message('仍在压缩，请等待操作完成；不会自动重试')
+        } else {
+          writeDraft(scope, {compactionAfterSeq: undefined})
+          toast.error(err instanceof Error ? err.message : '压缩失败，请核对时间线后再试')
+        }
+        await refresh()
+      } catch {
+        toast.error('暂时无法核对压缩结果，请恢复连接后查看时间线；不会自动重试')
       }
-    } finally {
-      setCompacting(false)
+    } finally { setCompacting(false) }
+  }, [compacting, events, refresh, session?.last_seq, sessionId])
+
+  useEffect(() => {
+    if (localCompacting || session?.context_operation?.status === 'compacting') return
+    const scope = `session:${sessionId}`
+    const after = readDraft(scope).compactionAfterSeq
+    if (after == null) return
+    const records = events.filter((event) => {
+      const data = event.data as Record<string, unknown>
+      return String(event.type) === 'compact' && data.trigger === 'manual' && Number(data.seq) > after
+    })
+    if (records.length === 1) {
+      writeDraft(scope, {compactionAfterSeq: undefined})
+      toast.success('已确认上下文摘要完成，请查看压缩记录')
     }
-  }, [compacting, refresh, sessionId])
+  }, [events, localCompacting, session?.context_operation?.status, sessionId])
 
   const handleStop = useCallback(async () => {
     try {
@@ -319,7 +333,7 @@ export function SessionDetailView({
   if (loading && !view) {
     return (
       <div className="flex h-full flex-1 items-center justify-center px-4">
-        <p className="text-sm text-muted-foreground">{hasInitialMessage ? '正在创建任务' : '正在读取会话'}</p>
+        <p className="text-sm text-muted-foreground">正在读取对话</p>
       </div>
     )
   }
@@ -355,9 +369,7 @@ export function SessionDetailView({
       ? '补充要求，会在当前这批操作结束后读取'
       : '描述下一步，或开始一次新的运行'
 
-  const showPlanExecute = !view.activeRun
-    && run?.status === 'completed'
-    && run.mode === 'plan'
+  const showPlanExecute = canExecutePlan(view)
 
   const workbench = (
     <Workbench
@@ -475,25 +487,7 @@ export function SessionDetailView({
                 onSend={handleSend}
                 disabled={submitting || waitingApproval}
                 placeholder={placeholder}
-                accessory={<ContextRing usage={view.usage} commandContext={{
-                  hasSession: true,
-                  hasRuns: view.runs.length > 0,
-                  runStatus: view.status,
-                  waitingApproval,
-                  waitingReply: view.activeRun?.activity.kind === 'waiting_reply',
-                  submitting,
-                  compacting,
-                  planMode: false,
-                  uploading: false,
-                  projectsEnabled,
-                  projectBindable,
-                  actions: {
-                    compact: () => { void handleCompact() },
-                    openFilePicker: () => {},
-                    togglePlan: () => {},
-                    openProjectPicker: () => {},
-                  },
-                }}/>}
+                accessory={(context) => <ContextRing usage={view.usage} commandContext={context}/>}
                 projectsEnabled={projectsEnabled}
                 projectBindable={projectBindable}
                 selectedProject={view.project}

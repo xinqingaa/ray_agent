@@ -38,8 +38,20 @@ class SessionRepository(Protocol):
     async def update_sandbox_id(self, session_id: str, sandbox_id: str) -> None:
         ...
 
-    async def set_project_path(self, session_id: str, project_path: Optional[str]) -> None:
-        """绑定、更换或解除会话的项目目录。project_path 为空表示解除。"""
+    async def lock(self, session_id: str) -> Optional[Session]:
+        """锁会话行；项目行须先按固定顺序加锁。"""
+        ...
+
+    async def set_project_id(self, session_id: str, project_id: Optional[str]) -> None:
+        ...
+
+    async def save_project_snapshot(self, session_id: str, snapshot: dict) -> None:
+        ...
+
+    async def page(self, *, project_id: Optional[str] = None, independent: bool = False, offset: int = 0, limit: int = 50) -> tuple[List[Session], int]:
+        ...
+
+    async def project_counts(self, project_ids: List[str]) -> dict[str, int]:
         ...
 
     async def update_task_id(self, session_id: str, task_id: str) -> None:

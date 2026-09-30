@@ -415,7 +415,7 @@ def make_runner(h: SimpleNamespace, run: Optional[Run] = None,
 
 
 def input_task() -> SimpleNamespace:
-    return SimpleNamespace(input_stream=MemoryQueue(), done=False)
+    return SimpleNamespace(id="test-task", input_stream=MemoryQueue(), done=False, cancel=lambda: True)
 
 
 async def submit(task, text: str) -> None:

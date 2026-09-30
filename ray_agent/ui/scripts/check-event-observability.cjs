@@ -39,7 +39,7 @@ function load(relative) {
   return loaded.exports;
 }
 const {parseSSEStream} = load('src/lib/api/fetch.ts');
-const {mergeBySeq, projectSession, readEventSeq, reconnectDelayMs, resolveOutputRate} = load('src/lib/session-projection.ts');
+const {mergeBySeq, projectSession, readEventSeq, reconnectDelayMs, resolveOutputRate, canExecutePlan} = load('src/lib/session-projection.ts');
 
 async function parse(chunks) {
   const events = [];
@@ -665,3 +665,58 @@ function kinds(view) {
   console.error(error);
   process.exitCode = 1;
 });
+
+{
+  const events = [ev(1, 'run', {status: 'running'}), ev(2, 'environment', {status: 'preparing'})];
+  const preparing = projectSession({id: 's', events});
+  assert.equal(preparing.activeRun.activity.kind, 'preparing_environment');
+  const ready = projectSession({id: 's', events: [...events, ev(3, 'environment', {status: 'ready'}), ev(4, 'turn', {phase: 'started', index: 1})]});
+  assert.equal(ready.activeRun.activity.kind, 'model');
+  const stopped = projectSession({id: 's', events: [...events, ev(3, 'run', {status: 'cancelled'})]});
+  assert.equal(stopped.activeRun, null);
+  console.log('PASS: 环境准备来自持久化事件，ready 后进入模型 turn，停止不残留准备态');
+}
+
+{
+  const estimate = {system_prompt: 100, tools: 200, history: 500, tool_results: 200, total: 1000, context_window: 8000, max_tokens: 1000, limit: 6500, watermark: 4875, method: 'chars'};
+  const request = [ev(1, 'run', {status: 'running'}), ev(2, 'turn', {phase: 'started', index: 1, context_window: 8000, context_estimate: estimate})];
+  assert.equal(projectSession({id: 's', events: request}).usage.context.source, 'request_estimate');
+  const done = [...request, ev(3, 'turn', {phase: 'completed', index: 1, usage: {prompt_tokens: 4000, completion_tokens: 50}})];
+  const actual = projectSession({id: 's', events: done}).usage.context;
+  assert.equal(actual.usedTokens, 4000);
+  assert.equal(actual.source, 'prompt_usage');
+  const oldConfig = projectSession({id: 's', events: done, contextConfig: {context_window: 16000, max_tokens: 2000, limit: 13200, watermark: 9900}}).usage.context;
+  assert.equal(oldConfig.usedTokens, 4000);
+  assert.equal(oldConfig.windowTokens, 8000);
+  assert.equal(oldConfig.configChanged, true);
+  assert.equal(actual.inputRemaining, 2500);
+  assert.equal(actual.maxTokens, 1000);
+  assert.equal(actual.safetyTokens, 500);
+  assert.equal(actual.watermarkTokens, 4875);
+  const missing = projectSession({id: 's', events: [...request, ev(3, 'turn', {phase: 'completed', index: 1})]}).usage.context;
+  assert.equal(missing.usedTokens, 1000);
+  assert.equal(missing.source, 'request_estimate');
+  const after = {...estimate, history: 1400, context_window: 16000, max_tokens: 2000, limit: 13200, watermark: 9900};
+  const compact = ev(4, 'compact', {trigger: 'manual', before_estimate: estimate, after_estimate: after});
+  const compacted = projectSession({id: 's', events: [...done, compact]}).usage.context;
+  assert.equal(compacted.usedTokens, 1900);
+  assert.equal(compacted.windowTokens, 16000);
+  assert.equal(compacted.maxTokens, 2000);
+  assert.equal(compacted.source, 'compact_estimate');
+  assert.equal(projectSession({id: 's', events: [...done, ev(4, 'compact', {trigger: 'manual', before_tokens: 1000, after_tokens: 1900})]}).usage.context, null);
+  assert.equal(projectSession({id: 's', events: []}).usage.context, null);
+  const over = projectSession({id: 's', events: [...request, ev(3, 'turn', {phase: 'completed', index: 1, usage: {prompt_tokens: 9000}})]}).usage.context;
+  assert.equal(over.usedTokens, 9000);
+  assert.equal(over.inputRemaining, 0);
+  console.log('PASS: 估算1000/实测4000优先实测，缺usage/请求中/压缩后/旧配置/无数据/超限使用一致快照');
+
+  const started = ev(1, 'run', {status: 'running', mode: 'plan'});
+  const ended = ev(4, 'run', {status: 'completed', mode: 'plan'});
+  const plan = ev(2, 'plan', {plan_id: 'plan-1', steps: [{description: '写入确定性文件', status: 'pending'}]});
+  assert.equal(canExecutePlan(projectSession({id: 's', events: [started, ended]})), false);
+  assert.equal(canExecutePlan(projectSession({id: 's', events: [started, plan, ended]})), true);
+  assert.equal(canExecutePlan(projectSession({id: 's', events: [started, {...plan, data: {...plan.data, steps: []}}, ended]})), false);
+  assert.equal(canExecutePlan(projectSession({id: 's', events: [started, {...plan, data: {...plan.data, run_id: 'old'}}, ended]})), false);
+  assert.equal(canExecutePlan(projectSession({id: 's', events: [started, plan, ev(4, 'run', {status: 'failed', mode: 'plan'})]})), false);
+  console.log('PASS: 有效计划关联plan_id/run/更新时间，无计划/空计划/旧计划/失败不显示执行入口');
+}

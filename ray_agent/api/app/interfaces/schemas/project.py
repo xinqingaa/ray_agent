@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-from typing import List
+from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -13,9 +13,12 @@ class BindProjectRequest(BaseModel):
 class ProjectRootItem(BaseModel):
     path: str
     available: bool
+    reason: Optional[str] = None
 
 
 class ProjectRootsResponse(BaseModel):
     """enabled 为 PROJECT_ROOTS 非空。不可用的根目录仍列出，available 为 false。"""
     enabled: bool
+    supported: bool = True
+    reason: Optional[str] = None
     roots: List[ProjectRootItem] = Field(default_factory=list)

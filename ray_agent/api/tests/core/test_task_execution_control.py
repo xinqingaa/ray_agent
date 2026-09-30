@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
-from app.application.services.agent_service import AgentService
+from app.application.services.agent_service import AgentService, pending_starts
 from app.domain.models.event import DoneEvent, MessageEvent, RunEvent, ToolEvent, WaitEvent
 from app.domain.models.run import Run, RunStatus
 from app.domain.models.session import SessionStatus
@@ -75,6 +75,7 @@ def test_wait_then_reply_resumes_same_run_with_reply_as_ask_result():
         service._get_task = AsyncMock(return_value=None)
         accepted = await service.chat(first.session.id, "/hello.txt", attachments=[])
         assert accepted.route == "resumed" and accepted.run_id == waiting_run.id
+        await pending_starts()[accepted.run_id].worker
         task2, run_id, prior_status = created[0]
         assert (run_id, prior_status) == (waiting_run.id, SessionStatus.WAITING)
         r2 = make_runner(second, run=second.runs[run_id], prior_status=prior_status)
@@ -183,6 +184,8 @@ def test_chat_routes_by_active_run_and_does_not_deduplicate(prior, live_task, ro
         if prior == "running" and not live_task:
             assert h.runs[existing.id].status == RunStatus.INTERRUPTED
             assert h.runs[existing.id].reason == "runner_lost"
+        if first.run_id in pending_starts():
+            await pending_starts()[first.run_id].worker
         # 同一内容再发一次不去重：进入同一个活动运行
         second = await service.chat(h.session.id, "同一请求", attachments=[])
         assert second.route == "injected" and second.run_id == first.run_id

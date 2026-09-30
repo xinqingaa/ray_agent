@@ -44,8 +44,9 @@ async function parseResponse<T>(response: Response): Promise<ApiResponse<T>> {
   const text = await response.text();
   return {
     code: response.ok ? 0 : response.status,
-    msg: response.ok ? "success" : text || response.statusText,
-    data: text as unknown as T,
+    msg: response.ok ? "success" : response.status >= 500
+      ? "服务暂时不可用，请核对最新状态后重试" : "请求失败，请重试",
+    data: (response.ok ? text : null) as unknown as T,
   };
 }
 

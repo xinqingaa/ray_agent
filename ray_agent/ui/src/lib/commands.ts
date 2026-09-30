@@ -54,6 +54,7 @@ export type CommandHost = Omit<CommandContext, 'uploading' | 'planMode' | 'actio
 
 export type InputCommand = {
   id: string
+  surfaces: readonly ('plus' | 'slash')[]
   title: string
   description: string
   /** `/` 后的主关键字，不含斜杠。 */
@@ -66,7 +67,16 @@ export type InputCommand = {
   run: (context: CommandContext) => void
 }
 
+function busy(context: CommandContext): CommandAvailability {
+  if (context.submitting) return {available: false, reason: '正在发送或核对受理状态'}
+  if (context.uploading) return {available: false, reason: '正在上传附件'}
+  if (context.compacting) return {available: false, reason: '上下文正在压缩'}
+  return {available: true}
+}
+
 function uploadAvailable(context: CommandContext): CommandAvailability {
+  const state = busy(context)
+  if (!state.available) return state
   if (context.uploading) return {available: false, reason: '正在上传'}
   if (context.waitingApproval) return {available: false, reason: '正在等待审批'}
   return {available: true}
@@ -74,6 +84,7 @@ function uploadAvailable(context: CommandContext): CommandAvailability {
 
 const uploadCommand: InputCommand = {
   id: 'upload',
+  surfaces: ['plus', 'slash'],
   title: '上传附件',
   description: '选择文件，附在下一条消息上',
   keyword: 'upload',
@@ -88,6 +99,8 @@ const uploadCommand: InputCommand = {
 }
 
 function planAvailable(context: CommandContext): CommandAvailability {
+  const state = busy(context)
+  if (!state.available) return state
   if (context.waitingApproval) return {available: false, reason: '正在等待审批'}
   if (context.runStatus === 'running') {
     return {available: false, reason: '运行进行中，计划模式只能在新运行开始时选择'}
@@ -101,7 +114,8 @@ function planAvailable(context: CommandContext): CommandAvailability {
 
 const planCommand: InputCommand = {
   id: 'plan',
-  title: 'Plan',
+  surfaces: ['plus', 'slash'],
+  title: '计划模式',
   description: '下一次发送以计划模式运行，只调研不写文件',
   keyword: 'plan',
   aliases: ['plan-mode'],
@@ -115,6 +129,8 @@ const planCommand: InputCommand = {
 }
 
 function compactAvailable(context: CommandContext): CommandAvailability {
+  const state = busy(context)
+  if (!state.available) return state
   if (!context.hasSession || !context.hasRuns) {
     return {available: false, reason: '还没有可压缩的上下文'}
   }
@@ -128,31 +144,29 @@ function compactAvailable(context: CommandContext): CommandAvailability {
   return {available: true}
 }
 
-function projectAvailable(context: CommandContext): CommandAvailability {
-  if (!context.projectsEnabled) return {available: false, reason: '未配置项目根目录'}
-  if (!context.projectBindable) {
-    return {available: false, reason: '项目只能在首次运行前选择'}
-  }
+function projectAvailable(): CommandAvailability {
   return {available: true}
 }
 
 const projectCommand: InputCommand = {
   id: 'project',
-  title: '选择项目',
-  description: '把任务绑定到本机上的一个项目目录',
+  surfaces: ['plus', 'slash'],
+  title: '打开项目',
+  description: '打开项目导航，保留当前草稿',
   keyword: 'project',
   aliases: [],
   keywords: ['项目', '目录', '仓库'],
   icon: FolderGit2,
   available: projectAvailable,
   run(context) {
-    if (!projectAvailable(context).available) return
+    if (!projectAvailable().available) return
     context.actions.openProjectPicker()
   },
 }
 
 const compactCommand: InputCommand = {
   id: 'compact',
+  surfaces: ['plus', 'slash'],
   title: '压缩上下文',
   description: '摘要较早轮次，腾出上下文空间',
   keyword: 'compact',
@@ -173,7 +187,7 @@ export function commandById(id: string): InputCommand | undefined {
 
 /**
  * `+` 菜单与 `/` 提示只读这个数组，顺序即展示顺序。
- * W10 追加「选择项目」时排在最后，不要改菜单组件。
+ * 展示入口由 surfaces 定义，执行状态由 available 统一判断。
  */
 export const inputCommands: readonly InputCommand[] = [uploadCommand, planCommand, compactCommand, projectCommand]
 
@@ -182,9 +196,9 @@ export function commandSearchFields(command: InputCommand): readonly string[] {
 }
 
 /** 按注册表顺序返回查询命中的命令。空查询返回全部。 */
-export function matchingCommands(query: string, context?: Pick<CommandContext, 'projectsEnabled'>): readonly InputCommand[] {
+export function matchingCommands(query: string, _context?: Pick<CommandContext, 'projectsEnabled'>, surface: 'plus' | 'slash' = 'slash'): readonly InputCommand[] {
   return inputCommands.filter((command) => {
-    if (command.id === 'project' && context && !context.projectsEnabled) return false
+    if (!command.surfaces.includes(surface)) return false
     return matchesCommandQuery(query, commandSearchFields(command))
   })
 }

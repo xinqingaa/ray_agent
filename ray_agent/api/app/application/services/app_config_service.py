@@ -2,9 +2,10 @@
 # -*- coding: utf-8 -*-
 import logging
 import uuid
-from typing import List
+from typing import List, Dict
 
 from app.application.errors.exceptions import NotFoundError
+from app.domain.services.context.budget import ContextBudget
 from app.domain.models.app_config import AppConfig, LLMConfig, AgentConfig, MCPConfig, A2AConfig, A2AServerConfig, \
     ToolPolicyConfig
 from app.domain.repositories.app_config_repository import AppConfigRepository
@@ -25,6 +26,15 @@ class AppConfigService:
     async def _load_app_config(self) -> AppConfig:
         """加载获取所有的应用配置"""
         return self.app_config_repository.load()
+
+    async def get_context_config(self) -> Dict[str, int]:
+        """只返回当前容量配置，供界面识别历史请求快照，不暴露模型凭据。"""
+        config = await self._load_app_config()
+        llm, agent = config.llm_config, config.agent_config
+        budget = ContextBudget(llm.context_window, llm.max_tokens,
+                               agent.context_safety_ratio, agent.compact_watermark)
+        return {"context_window": budget.context_window, "max_tokens": budget.max_tokens,
+                "limit": budget.limit, "watermark": budget.watermark}
 
     async def get_llm_config(self) -> LLMConfig:
         """获取LLM提供商配置"""

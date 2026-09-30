@@ -104,6 +104,10 @@ class Sandbox(Protocol):
         """根据传递的文件路径下载沙箱中的文件"""
         ...
 
+    async def validate_project(self, project_path: str) -> None:
+        """核对实际挂载来源和沙箱用户读写权限；失败禁止执行。"""
+        ...
+
     async def ensure_sandbox(self) -> None:
         """确保当前沙箱存在，如果不存在会创建"""
         ...

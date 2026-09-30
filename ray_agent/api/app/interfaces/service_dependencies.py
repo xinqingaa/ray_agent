@@ -128,4 +128,5 @@ def get_agent_service() -> AgentService:
         ledger=get_run_ledger(),
         notifier=RedisEventNotifier(),
         tool_policy=app_config.tool_policy,
+        project_validator=get_project_service().validate_start,
     )

@@ -83,10 +83,14 @@ npm run start
 
 ## 事件观察
 
-安装锁定依赖后，可直接运行本地观察脚本，无需启动 Next.js：
+安装锁定依赖后，可直接运行本地观察脚本，无需启动 Next.js。命令脚本检查共用可用性；发送脚本模拟响应丢失和受理读回；工作台脚本通过实际 React effects 检查乱序响应、双范围 diff、刷新与读取失败，传输及基础 UI 元素为替身，不能替代浏览器布局和真实服务验收。React renderer 会输出既有弃用提示：
 
 ```bash
 node scripts/check-event-observability.cjs
+node scripts/check-slash-trigger.cjs
+node scripts/check-command-state.cjs
+node scripts/check-send-recovery.cjs
+node scripts/check-workbench-recovery.cjs
 ```
 
 脚本用项目 TypeScript 转译器加载实际的 SSE 解析与 `projectSession`，不复制实现，也不连接产品服务。它检查 LF 逐字节分块（含中文 UTF-8）、非法 JSON 回调、SSE `id` 保留、重连等待上限、按 seq 去重与补齐、calling/called 合并、一轮多个调用成组、失败轮次保留、activity、轮次用时与用量、计划的 `changed`，以及停止、重启中断和请求上限的可读原因。W6 另检查增量按 `(run_id, turn, attempt)` 累积且不进入带序号的事件列表、同一 attempt 的助手消息替换临时条目、更大 attempt 或另一轮丢弃旧条目、轮次结束或运行终态后没有临时条目，以及没有 usage 时速度标为估算、有 usage 时按公式计算并扣除推理 token。W7.2 另检查只有审批事件时从事件构造调用条目且不生成提问条目、批准后 pending 与结论合并为一条并写回执行结果、拒绝为 denied（`denied_by=user`）、策略禁止在工具组里为 denied 且没有审批条目，以及停止或 API 重启后审批为 expired、调用为未执行。另将两个当前限制明确打印为 `LIMITATION`：EOF 分派未以空行结束的完整 JSON 尾段，以及 CRLF 恰在 CR/LF 之间分块时丢失事件类型。脚本退出成功表示上述行为与限制得到复现，不表示 SSE 标准符合性、hook 挂载或浏览器断线恢复已通过。

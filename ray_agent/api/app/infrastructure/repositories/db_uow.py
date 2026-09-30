@@ -7,6 +7,7 @@ from typing import Optional
 from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
 
 from app.domain.repositories.uow import IUnitOfWork
+from .db_project_repository import DBProjectRepository
 from .db_event_repository import DBEventRepository
 from .db_file_repository import DBFileRepository
 from .db_run_repository import DBRunRepository
@@ -37,6 +38,7 @@ class DBUnitOfWork(IUnitOfWork):
         self.db_session = self.session_factory()
 
         # 2.初始化所有数据库仓库
+        self.project = DBProjectRepository(db_session=self.db_session)
         self.file = DBFileRepository(db_session=self.db_session)
         self.session = DBSessionRepository(db_session=self.db_session)
         self.run = DBRunRepository(db_session=self.db_session)

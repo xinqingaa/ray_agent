@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.models.run import ACTIVE_RUN_STATUSES, Run, RunStatus
 from app.domain.repositories.run_repository import ActiveRunExistsError, RunRepository
-from app.infrastructure.models import RunModel
+from app.infrastructure.models import RunModel, SessionModel
 
 _ACTIVE_VALUES = [status.value for status in ACTIVE_RUN_STATUSES]
 
@@ -43,6 +43,13 @@ class DBRunRepository(RunRepository):
     async def get_active(self, session_id: str) -> Optional[Run]:
         stmt = select(RunModel).where(RunModel.session_id == session_id, RunModel.status.in_(_ACTIVE_VALUES))
         record = (await self.db_session.execute(stmt)).scalar_one_or_none()
+        return record.to_domain() if record else None
+
+    async def get_active_project(self, project_id: str, exclude_session: Optional[str] = None) -> Optional[Run]:
+        stmt = select(RunModel).join(SessionModel, SessionModel.id == RunModel.session_id).where(SessionModel.project_id == project_id, RunModel.status.in_(_ACTIVE_VALUES))
+        if exclude_session:
+            stmt = stmt.where(RunModel.session_id != exclude_session)
+        record = (await self.db_session.execute(stmt.order_by(RunModel.started_at).limit(1))).scalar_one_or_none()
         return record.to_domain() if record else None
 
     async def list_by_session(self, session_id: str) -> List[Run]:

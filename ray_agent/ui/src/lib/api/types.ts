@@ -195,10 +195,13 @@ export type ProjectView = {
 export type ProjectRootItem = {
   path: string;
   available: boolean;
+  reason?: string | null;
 };
 
 export type ProjectRootsData = {
   enabled: boolean;
+  supported?: boolean;
+  reason?: string | null;
   roots: ProjectRootItem[];
 };
 
@@ -431,6 +434,8 @@ export type SessionDetail = Session & {
   runs?: RunItem[];
   events?: SSEEventData[];
   last_seq?: number;
+  context_config?: {context_window: number; max_tokens: number; limit: number; watermark: number};
+  context_operation?: {status: "idle" | "compacting"; started_at: string | null};
 };
 
 /** 所有持久化事件共有的字段 */
@@ -602,6 +607,7 @@ export type SSEEventType =
   | "error"
   | "turn"
   | "run"
+  | "environment"
   | "context"
   | "cleanup"
   | "attempt"
@@ -622,6 +628,7 @@ export type SSEEventData =
   | { type: "error"; data: { error: string } }
   | { type: "turn"; data: TurnEvent }
   | { type: "run"; data: RunEvent }
+  | { type: "environment"; data: EventMeta & { status: "preparing" | "ready" } }
   | { type: "context"; data: Record<string, unknown> }
   | { type: "cleanup"; data: Record<string, unknown> }
   | { type: "attempt"; data: Record<string, unknown> }

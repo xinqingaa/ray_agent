@@ -299,6 +299,12 @@ class CleanupEvent(BaseEvent):
     targets: List[CleanupTarget] = Field(default_factory=list)
 
 
+class EnvironmentEvent(BaseEvent):
+    """应用协调层记录环境准备；与模型 turn 分开，重连可重建。"""
+    type: Literal["environment"] = "environment"
+    status: Literal["preparing", "ready"]
+
+
 # 定义应用事件类型声明
 Event = Annotated[
     Union[
@@ -316,6 +322,7 @@ Event = Annotated[
         ContextEvent,
         CompactEvent,
         CleanupEvent,
+        EnvironmentEvent,
         ApprovalEvent,
     ],
     Field(discriminator="type"),

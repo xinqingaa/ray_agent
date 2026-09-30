@@ -7,12 +7,15 @@ from datetime import datetime
 from typing import Optional, Dict, AsyncGenerator, Union
 
 import websockets
+from app.application.services.context_operations import context_operation
+
 from fastapi import APIRouter, Depends, Header, Query
 from sse_starlette import EventSourceResponse, ServerSentEvent
 from starlette.websockets import WebSocket, WebSocketDisconnect
 from websockets import ConnectionClosed
 
 from app.application.errors.exceptions import NotFoundError
+from app.application.services.app_config_service import AppConfigService
 from app.application.services.agent_service import AgentService
 from app.application.services.project_service import ProjectService
 from app.application.services.session_service import SessionService
@@ -40,6 +43,7 @@ from app.interfaces.schemas.session import (
 )
 from app.interfaces.schemas.project import BindProjectRequest
 from app.interfaces.service_dependencies import (
+    get_app_config_service,
     get_session_service, get_agent_service, get_title_service, get_project_service,
 )
 
@@ -193,7 +197,7 @@ async def chat(
     summary="手动压缩会话上下文",
     description="没有活动运行时把较早的轮次替换为摘要，写入不属于任何运行的 compact(trigger=manual) 与 context(replace)。"
                 "会话不存在 404；有运行中或等待中（提问或审批）的运行 409；少于 2 轮返回 status=skipped；"
-                "摘要请求失败 502，上下文不变。压缩期间同一会话的 chat 等待",
+                "摘要请求失败 502，上下文不变。压缩期间 chat/compact 及时返回 409；摘要总期限 60 秒，超时结果需读回核对",
 )
 async def compact_session(
         session_id: str,
@@ -204,6 +208,8 @@ async def compact_session(
         return Response.success(msg="没有可压缩的较早轮次", data=CompactResponse(
             status="skipped", reason=result.reason, message="没有可压缩的较早轮次"))
     message = f"已把较早的 {result.summarized_turns} 轮对话压缩为摘要"
+    if result.after_total is not None and result.before_total is not None and result.after_total >= result.before_total:
+        message = "已摘要，估算空间未减少"
     return Response.success(msg=message, data=CompactResponse(
         status="compacted",
         message=message,
@@ -318,6 +324,7 @@ async def get_session(
         limit: Optional[int] = Query(default=None, ge=1, le=5000),
         session_service: SessionService = Depends(get_session_service),
         project_service: ProjectService = Depends(get_project_service),
+        config_service: AppConfigService = Depends(get_app_config_service),
 ) -> Response[GetSessionResponse]:
     """传递指定会话id获取该会话的对话详情"""
     detail = await session_service.get_session_detail(session_id, after_seq=after_seq, limit=limit)
@@ -332,6 +339,8 @@ async def get_session(
             runs=[RunItem.from_run(run) for run in detail.runs],
             events=EventMapper.events_to_sse_events(detail.events),
             last_seq=detail.last_seq,
+            context_operation=context_operation(session_id),
+            context_config=await config_service.get_context_config(),
             project=project_service.describe(detail.session.project_path),
         )
     )

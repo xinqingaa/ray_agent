@@ -116,6 +116,11 @@ class RunItem(BaseModel):
         )
 
 
+class ContextOperation(BaseModel):
+    status: Literal["idle", "compacting"] = "idle"
+    started_at: Optional[datetime] = None
+
+
 class GetSessionResponse(BaseModel):
     """获取会话详情响应结构。events 为 after_seq 之后按 seq 升序的事件；last_seq 是会话当前最大 seq。"""
     session_id: str
@@ -124,6 +129,8 @@ class GetSessionResponse(BaseModel):
     runs: List[RunItem] = Field(default_factory=list)
     events: List[AgentSSEEvent] = Field(default_factory=list)
     last_seq: int = 0
+    context_operation: ContextOperation = Field(default_factory=ContextOperation)
+    context_config: Dict[str, int] = Field(default_factory=dict)
     project: Optional[ProjectView] = None  # 未绑定项目时为 null；available/reason 每次请求实时计算
 
 

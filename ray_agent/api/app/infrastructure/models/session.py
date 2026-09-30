@@ -5,6 +5,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from sqlalchemy import (
+    ForeignKey,
     String,
     Integer,
     DateTime,
@@ -13,9 +14,10 @@ from sqlalchemy import (
     PrimaryKeyConstraint,
 )
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from .base import Base
+from .project import ProjectModel
 from ...domain.models.session import Session
 
 
@@ -33,7 +35,9 @@ class SessionModel(Base):
         default=lambda: str(uuid.uuid4()),
     )  # 会话id
     sandbox_id: Mapped[str] = mapped_column(String(255), nullable=True)  # 沙箱id
-    project_path: Mapped[Optional[str]] = mapped_column(String(4096), nullable=True)  # 绑定的宿主机项目目录
+    project_id: Mapped[Optional[str]] = mapped_column(String(255), ForeignKey("projects.id", ondelete="RESTRICT"), nullable=True, index=True)
+    project: Mapped[Optional[ProjectModel]] = relationship(lazy="joined")
+    project_snapshot: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSONB, nullable=True)
     task_id: Mapped[str] = mapped_column(String(255), nullable=True)  # 任务id
     title: Mapped[str] = mapped_column(
         String(255),
@@ -89,12 +93,12 @@ class SessionModel(Base):
             # 1.基础字段: 使用BaseModel提供的python字典转换格式
             **session.model_dump(
                 mode="python",
-                exclude={"memories", "files", "updated_at", "created_at"},
+                exclude={"project", "project_snapshot", "memories", "files", "updated_at", "created_at"},
             ),
             # 2.复杂字段: 使用BaseModel提供的json字典转换格式
             **session.model_dump(
                 mode="json",
-                include={"memories", "files"},
+                include={"project_snapshot", "memories", "files"},
             )
         )
 
@@ -107,13 +111,13 @@ class SessionModel(Base):
         # 1.基础字段: Python模式
         base_data = session.model_dump(
             mode="python",
-            exclude={"memories", "files", "updated_at", "created_at"},
+            exclude={"project", "project_snapshot", "memories", "files", "updated_at", "created_at"},
         )
 
         # 2.复杂字段: JSON模式
         json_data = session.model_dump(
             mode="json",
-            include={"memories", "files"},
+            include={"project_snapshot", "memories", "files"},
         )
 
         # 3.合并更新

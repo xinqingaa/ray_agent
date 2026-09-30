@@ -83,6 +83,10 @@ RUN pip3 install --no-cache-dir -r requirements.txt
 # 15.拷贝当前整个项目文件
 COPY . .
 
+# Git 默认执行配置：禁用 hooks/fsmonitor/外部 filter/diff 驱动，不修改宿主机仓库配置。
+# 任意 Shell 可绕过该入口；不是隔离或访问围栏，不注入身份与凭据。
+RUN install -m 0755 /sandbox/scripts/git-defaults.py /usr/local/bin/git
+
 # 16.将supervisord.conf拷贝至supervisor服务配置目录中
 COPY supervisord.conf /etc/supervisor/conf.d/sandbox.conf
 

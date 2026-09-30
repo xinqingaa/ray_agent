@@ -15,7 +15,7 @@ type RunStatusBarProps = {
   className?: string
 }
 
-const LIVE_PHASES: RunPhase[] = ['model', 'tool', 'waiting_reply', 'waiting_approval', 'stopping']
+const LIVE_PHASES: RunPhase[] = ['preparing_environment', 'model', 'tool', 'waiting_reply', 'waiting_approval', 'stopping']
 
 function Field({label, children, className}: {label: string; children: React.ReactNode; className?: string}) {
   return (
@@ -30,6 +30,8 @@ function activityText(run: RunView | null, phase: RunPhase, now: number | null):
   if (!run) return '发送消息后开始运行'
   const a = run.activity
   switch (phase) {
+    case 'preparing_environment':
+      return '准备执行环境'
     case 'model': {
       const since = a.kind === 'model' && now != null ? now - a.startedAt : null
       return since != null && since >= 1000 ? `正在思考下一步，本轮已 ${formatDuration(since)}` : '正在思考下一步'

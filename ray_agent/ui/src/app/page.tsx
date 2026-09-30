@@ -3,6 +3,8 @@
 import {useEffect, useState} from 'react'
 import {useRouter} from 'next/navigation'
 import {toast} from 'sonner'
+import {readDraft, writeDraft} from '@/lib/drafts'
+import {sendRecoverably} from '@/lib/send-recovery'
 import {ChatInput} from '@/components/chat-input'
 import {BrandMark} from '@/components/brand-mark'
 import {ApiError} from '@/lib/api/fetch'
@@ -24,10 +26,15 @@ export default function Page() {
     if (sending) return
     setSending(true)
     try {
-      const session = await sessionApi.createSession()
+      let id = readDraft('independent').sessionId
+      if (!id) {
+        const session = await sessionApi.createSession()
+        id = session.session_id
+        writeDraft('independent', {sessionId: id})
+      }
       if (selectedProject) {
         try {
-          await projectApi.bindSessionProject(session.session_id, selectedProject.path)
+          await projectApi.bindSessionProject(id, selectedProject.path)
         } catch (err) {
           const msg = err instanceof ApiError ? err.msg : err instanceof Error ? err.message : '绑定项目失败'
           toast.error(msg)
@@ -35,13 +42,12 @@ export default function Page() {
           throw err
         }
       }
-      const payload = JSON.stringify({
+      await sendRecoverably('independent', id, {
         message,
         attachments: files.map((file) => file.id),
-        ...(options?.mode === 'plan' ? {mode: 'plan'} : {}),
+        mode: options?.mode ?? 'normal',
       })
-      const encoded = btoa(encodeURIComponent(payload))
-      router.push(`/sessions/${session.session_id}?init=${encoded}`)
+      router.push(`/sessions/${id}`)
     } catch (err) {
       if (!(err instanceof ApiError)) {
         toast.error(err instanceof Error ? err.message : '创建会话失败')
@@ -65,6 +71,7 @@ export default function Page() {
         </div>
         <div className="mt-6">
           <ChatInput
+            draftScope="independent"
             onSend={startTask}
             disabled={sending}
             placeholder="描述你想完成的任务"

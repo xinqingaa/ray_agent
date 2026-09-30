@@ -1,13 +1,12 @@
 'use client'
 
-import {useCallback, useEffect, useState} from 'react'
+import {useCallback, useEffect, useState, useRef} from 'react'
 import {Loader2, RefreshCw} from 'lucide-react'
 import {Button} from '@/components/ui/button'
 import {ScrollArea} from '@/components/ui/scroll-area'
 import {projectApi} from '@/lib/api/project'
 import type {GitDiff, GitStatus, GitStatusEntry} from '@/lib/api/types'
 import {cn} from '@/lib/utils'
-import {toast} from 'sonner'
 
 function EmptyNote({children}: {children: string}) {
   return <p className="px-4 py-8 text-center text-meta text-faint">{children}</p>
@@ -27,6 +26,8 @@ type DiffSection = {
 }
 
 function DiffBody({diff}: {diff: GitDiff}) {
+  if (diff.state !== 'ok') return <p role="alert" className="text-meta text-state-failed">{diff.error ?? (diff.state === 'timeout' ? '读取 diff 超时' : '读取 diff 失败')}</p>
+  if (diff.files.some((file) => file.binary)) return <p className="text-meta text-faint">二进制变更，不能显示文本 diff。</p>
   return (
     <>
       {diff.diff && (
@@ -37,7 +38,7 @@ function DiffBody({diff}: {diff: GitDiff}) {
       {!diff.diff && diff.state === 'ok' && (
         <p className="text-meta text-faint">{diff.untracked ? '未跟踪文件，全部为新增内容。' : '没有可显示的 diff 文本。'}</p>
       )}
-      {diff.truncated && <p className="mt-2 text-xs text-muted-foreground">diff 过长，输出已截断。</p>}
+      {(diff.truncated || diff.diff.length > 50000) && <p className="mt-2 text-xs text-muted-foreground">diff 过长，输出已截断。</p>}
     </>
   )
 }
@@ -49,30 +50,22 @@ type ChangesPaneProps = {
 }
 
 export function ChangesPane({sessionId, refreshSignal, onBranchUpdate}: ChangesPaneProps) {
+  const statusRequest = useRef(0)
+  const diffRequest = useRef(0)
+  const selectedRef = useRef<string | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [diffError, setDiffError] = useState<string | null>(null)
+  useEffect(() => () => {statusRequest.current++; diffRequest.current++}, [sessionId])
   const [status, setStatus] = useState<GitStatus | null>(null)
   const [loading, setLoading] = useState(true)
   const [selectedPath, setSelectedPath] = useState<string | null>(null)
   const [diffSections, setDiffSections] = useState<DiffSection[]>([])
   const [diffLoading, setDiffLoading] = useState(false)
 
-  const refresh = useCallback(async () => {
-    setLoading(true)
-    try {
-      const next = await projectApi.getGitStatus(sessionId)
-      setStatus(next)
-      onBranchUpdate?.(next.state === 'ok' ? next.branch ?? null : null)
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : '读取 Git 状态失败')
-    } finally {
-      setLoading(false)
-    }
-  }, [sessionId, onBranchUpdate])
-
-  useEffect(() => {
-    void refresh()
-  }, [refresh, refreshSignal])
-
-  const loadDiff = async (entry: GitStatusEntry) => {
+  const loadDiff = useCallback(async (entry: GitStatusEntry) => {
+    const request = ++diffRequest.current
+    selectedRef.current = entry.path
+    setDiffError(null)
     setSelectedPath(entry.path)
     setDiffLoading(true)
     setDiffSections([])
@@ -90,13 +83,42 @@ export function ChangesPane({sessionId, refreshSignal, onBranchUpdate}: ChangesP
           diff: await projectApi.getGitDiff(sessionId, scope, entry.path),
         })),
       )
-      setDiffSections(sections)
+      if (request === diffRequest.current) setDiffSections(sections)
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : '读取 diff 失败')
+      if (request === diffRequest.current) setDiffError(err instanceof Error ? err.message : '读取 diff 失败')
     } finally {
-      setDiffLoading(false)
+      if (request === diffRequest.current) setDiffLoading(false)
     }
-  }
+  }, [sessionId])
+
+  const refresh = useCallback(async () => {
+    const request = ++statusRequest.current
+    setLoading(true)
+    setError(null)
+    try {
+      const next = await projectApi.getGitStatus(sessionId)
+      if (request !== statusRequest.current) return
+      setStatus(next)
+      const selected = next.entries.find((entry) => entry.path === selectedRef.current)
+      if (selected) void loadDiff(selected)
+      else {selectedRef.current = null; setSelectedPath(null); diffRequest.current++; setDiffSections([]); setDiffLoading(false)}
+      onBranchUpdate?.(next.state === 'ok' ? next.branch ?? null : null)
+    } catch (err) {
+      if (request !== statusRequest.current) return
+      setError(err instanceof Error ? err.message : '读取 Git 状态失败')
+      setStatus(null)
+      onBranchUpdate?.(null)
+    } finally {
+      if (request === statusRequest.current) setLoading(false)
+    }
+  }, [sessionId, onBranchUpdate, loadDiff])
+
+  useEffect(() => {
+    void refresh()
+  }, [refresh, refreshSignal])
+
+
+  if (error) return <div><p role="alert" className="px-4 py-4 text-meta text-state-failed">{error}</p><Button variant="ghost" onClick={() => void refresh()}>重试</Button></div>
 
   if (loading && !status) {
     return <EmptyNote>正在读取 Git 状态</EmptyNote>
@@ -118,6 +140,7 @@ export function ChangesPane({sessionId, refreshSignal, onBranchUpdate}: ChangesP
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
+      <p className="px-3 pt-2 text-meta text-faint">项目当前变更，包含其他对话与人工修改。</p>
       <div className="flex items-center gap-2 border-b px-3 py-2">
         <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">
           {status?.branch ? `分支 ${status.branch}` : '无分支信息'}
@@ -162,6 +185,7 @@ export function ChangesPane({sessionId, refreshSignal, onBranchUpdate}: ChangesP
             {selectedPath && diffLoading && (
               <p className="text-meta text-muted-foreground"><Loader2 className="mr-1 inline size-4 animate-spin"/>正在读取 diff</p>
             )}
+            {diffError && <p role="alert" className="text-meta text-state-failed">{diffError}</p>}
             {diffSections.map((section, index) => (
               <div key={`${section.diff.scope}:${index}`} className={index > 0 ? 'mt-4 border-t border-border pt-4' : undefined}>
                 {section.title && (

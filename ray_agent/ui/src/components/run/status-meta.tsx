@@ -62,6 +62,7 @@ export const TONE_BAR: Record<Tone, string> = {
 
 export type RunPhase =
   | 'idle'
+  | 'preparing_environment'
   | 'model'
   | 'tool'
   | 'waiting_reply'
@@ -74,6 +75,7 @@ export type RunPhase =
 
 export const RUN_PHASE: Record<RunPhase, {label: string; tone: Tone; icon: LucideIcon}> = {
   idle: {label: '空闲', tone: 'idle', icon: CircleDashed},
+  preparing_environment: {label: '准备执行环境', tone: 'running', icon: Hourglass},
   model: {label: '模型思考中', tone: 'running', icon: Sparkles},
   tool: {label: '执行工具', tone: 'running', icon: CircleDot},
   waiting_reply: {label: '等你回复', tone: 'waiting', icon: CirclePause},
@@ -92,6 +94,7 @@ export function runPhase(status: RunStatus | null | undefined, activity?: Activi
     if (kind === 'stopping') return 'stopping'
     if (kind === 'waiting_approval') return 'waiting_approval'
     if (kind === 'waiting_reply' || status === 'waiting') return 'waiting_reply'
+    if (kind === 'preparing_environment') return 'preparing_environment'
     if (kind === 'tool') return 'tool'
     return 'model'
   }

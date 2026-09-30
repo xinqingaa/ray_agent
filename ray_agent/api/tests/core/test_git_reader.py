@@ -271,3 +271,33 @@ def test_repo_config_cannot_run_commands(root, tmp_path):
     assert "+changed" in diff.diff
     leftovers = [name for name in os.listdir(os.path.dirname(marker)) if name.startswith("pwned")]
     assert leftovers == []
+
+
+def test_real_conflict_and_both_diff_scopes(root):
+    repo = make_repo(root)
+    git(repo, "checkout", "-q", "-b", "other")
+    write(os.path.join(repo, "edit.txt"), "other branch\n")
+    git(repo, "commit", "-q", "-am", "other")
+    git(repo, "checkout", "-q", "main")
+    write(os.path.join(repo, "edit.txt"), "main branch\n")
+    git(repo, "commit", "-q", "-am", "main")
+    merged = subprocess.run(["git", "-C", repo, "merge", "other"], env=GIT_ENV,
+                            capture_output=True, text=True)
+    assert merged.returncode == 1
+    reader = GitCliReader([root])
+    status = run(reader.status(repo))
+    conflict = next(e for e in status.entries if e.path == "edit.txt")
+    assert conflict.kind == "unmerged" and conflict.conflict == "both_modified"
+    for scope in ("staged", "worktree"):
+        diff = run(reader.diff(repo, scope, "edit.txt"))
+        assert diff.state == "ok" and diff.diff
+
+    git(repo, "merge", "--abort")
+    write(os.path.join(repo, "edit.txt"), "staged text\n")
+    git(repo, "add", "edit.txt")
+    write(os.path.join(repo, "edit.txt"), "working text\n")
+    status = run(reader.status(repo))
+    entry = next(e for e in status.entries if e.path == "edit.txt")
+    assert entry.index == "modified" and entry.worktree == "modified"
+    assert "+staged text" in run(reader.diff(repo, "staged", "edit.txt")).diff
+    assert "+working text" in run(reader.diff(repo, "worktree", "edit.txt")).diff

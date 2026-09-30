@@ -1,12 +1,12 @@
 'use client'
 
-import {useCallback, useEffect, useState} from 'react'
-import {ChevronDown, ChevronRight, FileText, Loader2} from 'lucide-react'
+import {useCallback, useEffect, useState, useRef} from 'react'
+import {ChevronDown, ChevronRight, FileText, Loader2, RefreshCw} from 'lucide-react'
 import {ScrollArea} from '@/components/ui/scroll-area'
 import {projectApi} from '@/lib/api/project'
 import type {ProjectFile, ProjectListing, ProjectTreeEntry} from '@/lib/api/types'
 import {cn} from '@/lib/utils'
-import {toast} from 'sonner'
+import {Button} from '@/components/ui/button'
 
 function EmptyNote({children}: {children: string}) {
   return <p className="px-4 py-8 text-center text-meta text-faint">{children}</p>
@@ -18,40 +18,59 @@ type TreeNode = {
   loading?: boolean
   expanded?: boolean
   loaded?: boolean
+  error?: string
 }
 
-export function ProjectPane({sessionId}: {sessionId: string}) {
+export function ProjectPane({sessionId, refreshSignal}: {sessionId: string; refreshSignal?: number}) {
+  const epoch = useRef(0)
+  const fileRequest = useRef(0)
+  const selectedRef = useRef<string | null>(null)
+  const [revision, setRevision] = useState(0)
+  const [rootLoading, setRootLoading] = useState(true)
+  const [rootError, setRootError] = useState<string | null>(null)
+  const [fileError, setFileError] = useState<string | null>(null)
+  useEffect(() => () => {epoch.current++; fileRequest.current++}, [sessionId])
   const [root, setRoot] = useState<ProjectListing | null>(null)
   const [nodes, setNodes] = useState<Record<string, TreeNode>>({})
   const [selectedPath, setSelectedPath] = useState<string | null>(null)
   const [file, setFile] = useState<ProjectFile | null>(null)
   const [fileLoading, setFileLoading] = useState(false)
 
-  const loadDir = useCallback(async (relative: string) => {
+  const openFile = useCallback(async (path: string) => {
+    const request = ++fileRequest.current
+    selectedRef.current = path
+    setSelectedPath(path)
+    setFileLoading(true)
+    setFile(null)
+    setFileError(null)
     try {
-      return await projectApi.getTree(sessionId, relative)
+      const result = await projectApi.getFile(sessionId, path)
+      if (request === fileRequest.current) setFile(result)
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : '读取目录失败')
-      return null
+      if (request === fileRequest.current) setFileError(err instanceof Error ? err.message : '读取文件失败')
+    } finally {
+      if (request === fileRequest.current) setFileLoading(false)
     }
   }, [sessionId])
 
   useEffect(() => {
-    void (async () => {
-      const listing = await loadDir('')
-      if (!listing) return
+    const current = ++epoch.current
+    setRootLoading(true)
+    setRootError(null)
+    void projectApi.getTree(sessionId, '').then((listing) => {
+      if (current !== epoch.current) return
       setRoot(listing)
       const next: Record<string, TreeNode> = {}
-      for (const entry of listing.entries) {
-        if (entry.type === 'directory') {
-          next[entry.path] = {entry, expanded: false, loaded: false}
-        } else {
-          next[entry.path] = {entry}
-        }
-      }
+      for (const entry of listing.entries) next[entry.path] = {entry, expanded: false, loaded: false}
       setNodes(next)
-    })()
-  }, [loadDir])
+      if (selectedRef.current) void openFile(selectedRef.current)
+    }).catch((err) => {
+      if (current === epoch.current) {setRoot(null); setRootError(err instanceof Error ? err.message : '读取目录失败')}
+    }).finally(() => {if (current === epoch.current) setRootLoading(false)})
+    const epochCounter = epoch
+    const fileCounter = fileRequest
+    return () => {epochCounter.current++; fileCounter.current++}
+  }, [sessionId, refreshSignal, revision, openFile])
 
   const toggleDir = async (path: string) => {
     const node = nodes[path]
@@ -60,9 +79,15 @@ export function ProjectPane({sessionId}: {sessionId: string}) {
       setNodes((prev) => ({...prev, [path]: {...node, expanded: false}}))
       return
     }
-    setNodes((prev) => ({...prev, [path]: {...node, expanded: true, loading: !node.loaded}}))
+    setNodes((prev) => ({...prev, [path]: {...node, expanded: true, loading: !node.loaded, error: undefined}}))
     if (!node.loaded) {
-      const listing = await loadDir(path)
+      const currentEpoch = epoch.current
+      let listing: ProjectListing
+      try {listing = await projectApi.getTree(sessionId, path)} catch (err) {
+        if (currentEpoch === epoch.current) setNodes((prev) => ({...prev, [path]: {...prev[path], loading: false, loaded: false, error: err instanceof Error ? err.message : '读取目录失败'}}))
+        return
+      }
+      if (currentEpoch !== epoch.current) return
       setNodes((prev) => {
         const current = prev[path]
         if (!current) return prev
@@ -78,20 +103,6 @@ export function ProjectPane({sessionId}: {sessionId: string}) {
         childNodes[path] = {...current, loading: false, loaded: true, children}
         return childNodes
       })
-    }
-  }
-
-  const openFile = async (path: string) => {
-    setSelectedPath(path)
-    setFileLoading(true)
-    setFile(null)
-    try {
-      const result = await projectApi.getFile(sessionId, path)
-      setFile(result)
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : '读取文件失败')
-    } finally {
-      setFileLoading(false)
     }
   }
 
@@ -127,23 +138,26 @@ export function ProjectPane({sessionId}: {sessionId: string}) {
             正在读取
           </p>
         )}
+        {isDir && expanded && node?.error && <p role="alert" className="px-3 py-1 text-meta text-state-failed">{node.error}</p>}
         {isDir && expanded && node?.children?.map((child) => renderEntry(child, depth + 1))}
       </div>
     )
   }
 
-  if (!root) {
-    return <EmptyNote>正在加载项目文件树</EmptyNote>
-  }
-
-  if (root.entries.length === 0) {
-    return <EmptyNote>项目目录为空，或当前层没有可列出的文件。</EmptyNote>
-  }
+  if (rootError) return <div><p role="alert" className="px-4 py-4 text-meta text-state-failed">{rootError}</p><Button variant="ghost" onClick={() => setRevision((n) => n + 1)}>重试</Button></div>
+  if (!root) return <EmptyNote>正在加载项目文件树</EmptyNote>
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
+      <div className="flex items-center border-b px-3 py-2">
+        <span className="flex-1 text-meta text-muted-foreground">项目当前文件</span>
+        <Button type="button" variant="ghost" size="icon-xs" aria-label="刷新项目文件" disabled={rootLoading} onClick={() => setRevision((n) => n + 1)}>
+          {rootLoading ? <Loader2 className="size-4 animate-spin"/> : <RefreshCw className="size-4"/>}
+        </Button>
+      </div>
       <ScrollArea className="min-h-0 max-h-[45%] shrink-0 border-b">
         <div className="py-1">
+          {root.entries.length === 0 && <p className="px-3 py-4 text-meta text-faint">项目目录为空，或当前层没有可列出的文件。</p>}
           {root.entries.map((entry) => renderEntry(entry, 0))}
           {root.truncated && (
             <p className="px-3 py-2 text-xs text-muted-foreground">条目过多，只显示前 {root.limit} 项。</p>
@@ -156,9 +170,10 @@ export function ProjectPane({sessionId}: {sessionId: string}) {
           {selectedPath && fileLoading && (
             <p className="text-meta text-muted-foreground"><Loader2 className="mr-1 inline size-4 animate-spin"/>正在读取</p>
           )}
+          {fileError && <p role="alert" className="text-meta text-state-failed">{fileError}</p>}
           {file && file.kind === 'text' && file.content != null && (
             <pre className="overflow-x-auto rounded-md bg-muted px-3 py-2 font-mono text-xs leading-5 whitespace-pre-wrap break-all">
-              {file.content.length > 20000 ? `${file.content.slice(0, 20000)}…` : file.content}
+              {file.content}
             </pre>
           )}
           {file && file.kind === 'binary' && (

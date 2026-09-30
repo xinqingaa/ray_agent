@@ -32,6 +32,11 @@ export type ContextEstimate = {
   tools: number
   history: number
   toolResults: number
+  contextWindow?: number | null
+  maxTokens?: number | null
+  inputLimit?: number | null
+  watermarkTokens?: number | null
+  method?: string | null
 }
 
 export type TurnView = {
@@ -59,6 +64,7 @@ export type RunSummary = {
 }
 
 export type Activity =
+  | {kind: 'preparing_environment'}
   | {kind: 'model'; turnIndex: number; startedAt: number}
   | {kind: 'tool'; callId: string; title: string; family: ToolFamily; startedAt: number}
   | {kind: 'waiting_reply'; question: string}
@@ -157,6 +163,8 @@ export type PlanChange = {
 }
 
 export type PlanView = {
+  planId?: string | null
+  sourceRunId?: string | null
   items: PlanItem[]
   currentIndex: number | null
   completedCount: number
@@ -226,6 +234,15 @@ export type UsageView = {
     lastTurnTokens: number | null
     /** 占用来自手动/会话级压缩后的估算，下一次请求后会更新 */
     postCompactEstimate?: boolean
+    source?: 'prompt_usage' | 'request_estimate' | 'compact_estimate'
+    configChanged?: boolean
+    snapshotAt?: number
+    inputLimit?: number | null
+    maxTokens?: number | null
+    safetyTokens?: number | null
+    watermarkTokens?: number | null
+    inputRemaining?: number | null
+    estimate?: ContextEstimate | null
   } | null
   /** 最近一次带估算的压缩事件 */
   lastCompaction?: {
@@ -233,6 +250,8 @@ export type UsageView = {
     trigger: CompactTrigger
     beforeTotal: number
     afterTotal: number
+    afterEstimate?: ContextEstimate | null
+    at?: number
   } | null
   /** W2 压缩水位，占窗口的比例；未知为空 */
   watermarkRatio: number | null

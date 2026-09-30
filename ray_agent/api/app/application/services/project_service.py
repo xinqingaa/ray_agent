@@ -63,6 +63,23 @@ class ProjectService:
             reason=None if check.ok else check.message,
         )
 
+    def validate_start(self, project_path: str) -> None:
+        """每次启动/续接检查当前许可与规范路径，已有沙箱也不能绕过。"""
+        if self._sandbox_address:
+            raise ConflictError(SHARED_SANDBOX_MESSAGE)
+        check = check_project_path(project_path, self._roots)
+        if not check.ok:
+            raise ConflictError(check.message or "项目目录不可用")
+        if check.real_path != project_path:
+            raise ConflictError("项目路径已被替换，请恢复原目录或重新添加项目")
+        if os.path.isfile(os.path.join(project_path, ".git")):
+            raise ConflictError("暂不支持 .git 文件或 linked worktree，请使用普通仓库目录")
+
+    def availability(self) -> tuple[bool, Optional[str]]:
+        if self._sandbox_address:
+            return False, SHARED_SANDBOX_MESSAGE
+        return True, None if self._roots else NO_ROOTS_MESSAGE
+
     def list_roots(self) -> tuple[bool, List[ProjectRoot]]:
         """enabled 表示配置了 PROJECT_ROOTS；不可用的根目录仍返回，available 为 false。"""
         return bool(self._roots), resolve_roots(self._roots)

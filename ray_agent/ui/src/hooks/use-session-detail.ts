@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import {sendRecoverably} from '@/lib/send-recovery'
 import { sessionApi } from '@/lib/api/session'
 import { normalizeEvent, normalizeEvents } from '@/lib/session-events'
 import type { ApprovalDecision, RunEvent, SessionDetail, SSEEventData, SessionFile, TurnRequest } from '@/lib/api/types'
@@ -247,16 +248,38 @@ export function useSessionDetail(
     }
   }, [sessionId, loaded, startStream, stopStream, clearDrafts])
 
+  // 单进程操作状态不是 run 事件；轻量读回让另一标签也识别摘要忙碌。
+  useEffect(() => {
+    if (!sessionId || !loaded) return
+    let cancelled = false
+    let reading = false
+    const check = async () => {
+      if (cancelled || reading || document.visibilityState === 'hidden') return
+      reading = true
+      try {
+        const detail = await sessionApi.getSessionDetail(sessionId, lastSeqRef.current)
+        if (!cancelled) {
+          for (const event of normalizeEvents(detail.events ?? [])) appendEvent(event)
+          setSession((prev) => prev ? {...prev, context_operation: detail.context_operation, context_config: detail.context_config} : prev)
+        }
+      } catch { /* 网络失败由流重连提示处理；不伪造 idle。 */ }
+      finally { reading = false }
+    }
+    const timer = window.setInterval(() => { void check() }, 3000)
+    window.addEventListener('focus', check)
+    return () => { cancelled = true; clearInterval(timer); window.removeEventListener('focus', check) }
+  }, [sessionId, loaded, appendEvent])
+
   const sendMessage = useCallback(
     async (message: string, attachmentIds: string[], options?: { retry?: boolean; mode?: 'plan' | 'normal' }) => {
       void options?.retry
       if (!sessionId) return
       setSubmitting(true)
       try {
-        await sessionApi.chat(sessionId, {
+        await sendRecoverably(`session:${sessionId}`, sessionId, {
           message,
           attachments: attachmentIds,
-          ...(options?.mode === 'plan' ? {mode: 'plan'} : {}),
+          mode: options?.mode ?? 'normal',
         })
       } catch (e) {
         await refresh()
@@ -312,6 +335,7 @@ export function useSessionDetail(
       title: session.title,
       project,
       runs: session.runs,
+      contextConfig: session.context_config,
       events,
       stoppingRequestedAt,
       deltas,
