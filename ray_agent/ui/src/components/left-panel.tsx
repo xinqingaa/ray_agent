@@ -94,7 +94,7 @@ export function LeftPanel() {
       <SidebarContent className="min-h-0 overflow-hidden p-2">
         <div className="hidden flex-1 flex-col items-center gap-2 group-data-[collapsible=icon]:flex">
           <Button variant="ghost" size="icon" aria-label="打开项目" title="打开项目" onClick={workspace.openProject}><FolderGit2/></Button>
-          <Button variant="ghost" size="icon" aria-label="新独立对话" title="新独立对话（⌘K）" onClick={independent}><Plus/></Button>
+          <Button variant="ghost" size="icon" aria-label="新独立对话" title="新独立对话" onClick={independent}><Plus/></Button>
         </div>
         <div className="flex min-h-0 flex-1 flex-col group-data-[collapsible=icon]:hidden">
           <ProjectNavigation projects={rows} conversations={conversations} expansion={expansion} onExpansion={expand} selectedProject={projectId} selectedSession={sessionId}
