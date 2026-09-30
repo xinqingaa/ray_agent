@@ -1,70 +1,37 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-"""会话与宿主机项目目录的绑定，以及文件树、读文件、Git 只读接口的应用层协调。
-
-不放进 AgentService：绑定发生在首次运行之前，文件与 Git 读取不经过沙箱。
-"""
+"""长期项目登记、生命周期、对话归属及项目/会话共用的只读工作台。"""
 import os
 from datetime import datetime
-from typing import Callable, List, Optional, Sequence
+from typing import Callable, Optional, Sequence
 
 from app.application.errors.exceptions import BadRequestError, ConflictError, NotFoundError
 from app.domain.external.project import ProjectFiles, ProjectGit
 from app.domain.models.project import (
-    BrowseListing,
-    GitDiff,
-    GitDiffScope,
-    GitStatus,
-    ProjectFile,
-    ProjectListing,
-    ProjectPathError,
-    ProjectRoot,
-    ProjectView,
+    BrowseListing, GitDiff, GitDiffScope, GitStatus, ProjectFile, ProjectListing,
+    ProjectPathError, ProjectRoot, ProjectView,
 )
+from app.domain.models.workspace_project import WorkspaceProject, ProjectSettings, ProjectTaskSnapshot
+from app.domain.models.session import Session, DEFAULT_SESSION_TITLE
 from app.domain.repositories.uow import IUnitOfWork
 from app.domain.services.project_paths import check_project_path, resolve_roots
+from app.domain.services.project_transactions import lock_project_session, ProjectRunConflict
 from app.domain.services.session_locks import session_lock
 
 NO_ROOTS_MESSAGE = "未配置允许的项目根目录"
-SHARED_SANDBOX_MESSAGE = "共享沙箱模式（已设置 SANDBOX_ADDRESS）不支持绑定项目"
-PROJECT_LOCKED_MESSAGE = "项目只能在首次运行前选择或更换"
-SESSION_MISSING_MESSAGE = "该会话不存在，请核实后重试"
-PROJECT_UNBOUND_MESSAGE = "会话没有绑定项目"
+SHARED_SANDBOX_MESSAGE = "共享沙箱模式（已设置 SANDBOX_ADDRESS）不支持本机项目"
+PROJECT_LOCKED_MESSAGE = "对话归属只能在首次运行前选择或更换"
+SESSION_MISSING_MESSAGE = "该对话不存在，请核实后重试"
+PROJECT_UNBOUND_MESSAGE = "对话没有关联项目"
 
 
 class ProjectService:
-    """项目绑定与只读读取。roots 与 sandbox_address 取构造时的配置。"""
-
-    def __init__(
-            self,
-            uow_factory: Callable[[], IUnitOfWork],
-            files: ProjectFiles,
-            git: ProjectGit,
-            roots: Sequence[str],
-            sandbox_address: Optional[str] = None,
-    ) -> None:
+    def __init__(self, uow_factory: Callable[[], IUnitOfWork], files: ProjectFiles,
+                 git: ProjectGit, roots: Sequence[str], sandbox_address: Optional[str] = None):
         self._uow_factory = uow_factory
-        self._uow = uow_factory()
-        self._files = files
-        self._git = git
+        self._files, self._git = files, git
         self._roots = list(roots)
         self._sandbox_address = sandbox_address or None
 
-    def describe(self, project_path: Optional[str]) -> Optional[ProjectView]:
-        """把会话上的 project_path 变成对外的 project 对象。空路径为 None，不访问文件系统。"""
-        if not project_path:
-            return None
-        check = check_project_path(project_path, self._roots)
-        name = os.path.basename(project_path.rstrip("/")) or project_path
-        return ProjectView(
-            path=project_path,
-            name=name,
-            available=check.ok,
-            reason=None if check.ok else check.message,
-        )
-
-    def validate_start(self, project_path: str) -> None:
-        """每次启动/续接检查当前许可与规范路径，已有沙箱也不能绕过。"""
+    def validate_start(self, project_path: str, directory_identity: Optional[str] = None) -> None:
         if self._sandbox_address:
             raise ConflictError(SHARED_SANDBOX_MESSAGE)
         check = check_project_path(project_path, self._roots)
@@ -74,106 +41,204 @@ class ProjectService:
             raise ConflictError("项目路径已被替换，请恢复原目录或重新添加项目")
         if os.path.isfile(os.path.join(project_path, ".git")):
             raise ConflictError("暂不支持 .git 文件或 linked worktree，请使用普通仓库目录")
+        if directory_identity is not None and self.directory_identity(project_path) != directory_identity:
+            raise ConflictError("项目目录已被同路径替换，请恢复原目录或从工作区重新添加")
+
+    @staticmethod
+    def directory_identity(path: str) -> str:
+        stat = os.stat(path)
+        return f"{stat.st_dev}:{stat.st_ino}"
+
+    def describe(self, project: Optional[WorkspaceProject]) -> Optional[ProjectView]:
+        if project is None:
+            return None
+        try:
+            self.validate_start(project.path)
+            available, reason = True, None
+        except (ConflictError, OSError) as exc:
+            available, reason = False, str(exc)
+        return ProjectView(id=project.id, path=project.path, name=project.name,
+            available=available, reason=reason, archived=project.archived_at is not None,
+            last_active_at=project.last_active_at)
+
+    def describe_sessions(self, sessions: list[Session]) -> dict[str, Optional[ProjectView]]:
+        projects = {session.project_id: session.project for session in sessions if session.project_id}
+        views = {project_id: self.describe(project) for project_id, project in projects.items()}
+        return {session.id: views.get(session.project_id) for session in sessions}
 
     def availability(self) -> tuple[bool, Optional[str]]:
         if self._sandbox_address:
             return False, SHARED_SANDBOX_MESSAGE
         return True, None if self._roots else NO_ROOTS_MESSAGE
 
-    def list_roots(self) -> tuple[bool, List[ProjectRoot]]:
-        """enabled 表示配置了 PROJECT_ROOTS；不可用的根目录仍返回，available 为 false。"""
+    def list_roots(self) -> tuple[bool, list[ProjectRoot]]:
         return bool(self._roots), resolve_roots(self._roots)
 
     async def browse(self, path: str) -> BrowseListing:
-        return await self._read(self._files.browse(path))
-
-    async def list_recent(self, limit: int = 10) -> List[ProjectView]:
-        """按 project_path 分组，组内取最大 updated_at，再按该时间倒序。"""
-        async with self._uow:
-            sessions = await self._uow.session.get_all()
-        latest: dict[str, datetime] = {}
-        for session in sessions:
-            path = session.project_path
-            if not path:
-                continue
-            current = latest.get(path)
-            if current is None or session.updated_at > current:
-                latest[path] = session.updated_at
-        ordered = sorted(latest.items(), key=lambda item: (item[1], item[0]), reverse=True)
-        views = []
-        for path, _updated in ordered[:limit]:
-            view = self.describe(path)
-            if view is not None:
-                views.append(view)
-        return views
-
-    async def bind(self, session_id: str, path: str) -> ProjectView:
-        """绑定或更换项目。成功后保存校验得到的 realpath，并返回 project 对象。"""
-        async with session_lock(session_id):
-            session, runs = await self._load_for_bind(session_id)
-            self._ensure_bindable(session, runs)
-            if not self._roots:
-                raise BadRequestError(NO_ROOTS_MESSAGE)
-            check = check_project_path(path, self._roots)
-            if not check.ok or not check.real_path:
-                raise BadRequestError(check.message or "路径校验失败")
-            async with self._uow:
-                await self._uow.session.set_project_path(session_id, check.real_path)
-            view = self.describe(check.real_path)
-            if view is None:
-                raise BadRequestError("路径校验失败")
-            return view
-
-    async def unbind(self, session_id: str) -> None:
-        """解除绑定。已经没有项目时同样成功。"""
-        async with session_lock(session_id):
-            session, runs = await self._load_for_bind(session_id)
-            self._ensure_bindable(session, runs)
-            async with self._uow:
-                await self._uow.session.set_project_path(session_id, None)
-
-    async def tree(self, session_id: str, relative: str = "") -> ProjectListing:
-        project_path = await self._require_project(session_id)
-        return await self._read(self._files.list_directory(project_path, relative or ""))
-
-    async def read_file(self, session_id: str, relative: str) -> ProjectFile:
-        project_path = await self._require_project(session_id)
-        return await self._read(self._files.read_file(project_path, relative))
-
-    async def git_status(self, session_id: str) -> GitStatus:
-        project_path = await self._require_project(session_id)
-        return await self._read(self._git.status(project_path))
-
-    async def git_diff(self, session_id: str, scope: str = "worktree", path: Optional[str] = None) -> GitDiff:
-        if scope not in ("worktree", "staged"):
-            raise BadRequestError("diff 范围只能是 worktree 或 staged")
-        project_path = await self._require_project(session_id)
-        relative = path or None
-        diff_scope: GitDiffScope = "worktree" if scope == "worktree" else "staged"
-        return await self._read(self._git.diff(project_path, scope=diff_scope, path=relative))
-
-    async def _load_for_bind(self, session_id: str):
-        async with self._uow:
-            session = await self._uow.session.get_by_id(session_id)
-            runs = await self._uow.run.list_by_session(session_id) if session else []
-        return session, runs
-
-    def _ensure_bindable(self, session, runs) -> None:
-        if session is None:
-            raise NotFoundError(SESSION_MISSING_MESSAGE)
         if self._sandbox_address:
             raise ConflictError(SHARED_SANDBOX_MESSAGE)
-        if runs or session.sandbox_id:
-            raise ConflictError(PROJECT_LOCKED_MESSAGE)
+        return await self._read(self._files.browse(path))
 
-    async def _require_project(self, session_id: str) -> str:
-        async with self._uow:
-            session = await self._uow.session.get_by_id(session_id)
+    async def register(self, path: str, name: Optional[str] = None) -> WorkspaceProject:
+        check = check_project_path(path, self._roots)
+        if not check.ok or not check.real_path:
+            raise BadRequestError(check.message or "路径校验失败")
+        self.validate_start(check.real_path)
+        candidate = WorkspaceProject(path=check.real_path, name=name or (os.path.basename(check.real_path) or '/')[:160])
+        async with self._uow_factory() as uow:
+            await uow.project.lock_registry()
+            existing = await uow.project.get_by_path(candidate.path)
+            if existing:
+                return existing
+            overlap = await uow.project.overlapping(candidate.path)
+            if overlap:
+                raise ConflictError(f"目录与已登记项目「{overlap.name}」重叠，请选择互不嵌套的目录")
+            return await uow.project.create_or_get(candidate)
+
+    async def get(self, project_id: str) -> WorkspaceProject:
+        async with self._uow_factory() as uow:
+            project = await uow.project.get(project_id)
+        if project is None:
+            raise NotFoundError("项目不存在，请刷新后重试")
+        return project
+
+    async def page(self, *, archived: bool = False, offset: int = 0, limit: int = 50):
+        async with self._uow_factory() as uow:
+            projects, total = await uow.project.page(archived=archived, offset=offset, limit=limit)
+            counts = await uow.session.project_counts([project.id for project in projects])
+        views = []
+        for project in projects:
+            view = self.describe(project)
+            views.append(view.model_copy(update={"task_count": counts.get(project.id, 0)}))
+        return views, total
+
+    async def detail(self, project_id: str):
+        project = await self.get(project_id)
+        async with self._uow_factory() as uow:
+            counts = await uow.session.project_counts([project.id])
+            occupied = await uow.run.get_active_project(project.id)
+        return {**project.model_dump(mode="json"), **self.describe(project).model_dump(mode="json"),
+            "task_count": counts.get(project.id, 0), "occupying_session_id": occupied.session_id if occupied else None}
+
+    async def update(self, project_id: str, settings: ProjectSettings) -> WorkspaceProject:
+        async with self._uow_factory() as uow:
+            project = await uow.project.get(project_id, lock=True)
+            if project is None:
+                raise NotFoundError("项目不存在")
+            updated = project.model_copy(update={**settings.model_dump(), "updated_at": datetime.now()})
+            await uow.project.save(updated)
+        return updated
+
+    async def archive(self, project_id: str, archived: bool) -> WorkspaceProject:
+        async with self._uow_factory() as uow:
+            project = await uow.project.get(project_id, lock=True)
+            if project is None:
+                raise NotFoundError("项目不存在")
+            occupied = await uow.run.get_active_project(project_id)
+            if archived and occupied:
+                raise ProjectRunConflict("项目仍有活动对话，结束或停止后才能归档", occupied.session_id)
+            if not archived:
+                self.validate_start(project.path)
+            project.archived_at = datetime.now() if archived else None
+            project.updated_at = datetime.now()
+            await uow.project.save(project)
+        return project
+
+    async def create_session(self, project_id: str) -> Session:
+        async with self._uow_factory() as uow:
+            project = await uow.project.get(project_id, lock=True)
+            if project is None:
+                raise NotFoundError("项目不存在")
+            if project.archived_at:
+                raise ConflictError("项目已归档，请先恢复")
+            self.validate_start(project.path)
+            session = Session(title=DEFAULT_SESSION_TITLE, project_id=project.id, project=project)
+            await uow.session.save(session)
+        return session
+
+    async def bind(self, session_id: str, project_id: str) -> ProjectView:
+        async with session_lock(session_id):
+            async with self._uow_factory() as uow:
+                session = await lock_project_session(uow, session_id, target_project_id=project_id)
+                await self._ensure_bindable(uow, session)
+                project = await uow.project.get(project_id)
+                if project is None:
+                    raise NotFoundError("项目不存在")
+                if project.archived_at:
+                    raise ConflictError("项目已归档，请先恢复")
+                self.validate_start(project.path)
+                await uow.session.set_project_id(session_id, project.id)
+            return self.describe(project)
+
+    async def unbind(self, session_id: str) -> None:
+        async with session_lock(session_id):
+            async with self._uow_factory() as uow:
+                session = await lock_project_session(uow, session_id)
+                await self._ensure_bindable(uow, session)
+                await uow.session.set_project_id(session_id, None)
+
+    @staticmethod
+    async def _ensure_bindable(uow, session):
         if session is None:
             raise NotFoundError(SESSION_MISSING_MESSAGE)
-        if not session.project_path:
-            raise NotFoundError(PROJECT_UNBOUND_MESSAGE)
-        return session.project_path
+        if session.sandbox_id or await uow.run.list_by_session(session.id):
+            raise ConflictError(PROJECT_LOCKED_MESSAGE)
+
+    async def prepare_snapshot(self, uow: IUnitOfWork, session: Session) -> None:
+        """项目与会话已锁定；与首次受理同事务冻结设置，不在打开项目时预取。"""
+        if not session.project:
+            return
+        self.validate_start(session.project.path,
+            session.project_snapshot.directory_identity if session.project_snapshot else None)
+        if session.project_snapshot is None:
+            project = session.project
+            git = await self._git.status(project.path)
+            session.project_snapshot = ProjectTaskSnapshot(project_id=project.id,
+                **project.model_dump(include={"path", "name", "instructions", "git_author_name", "git_author_email"}),
+                initial_head=git.oid if git.state == "ok" else None,
+                initial_dirty=(bool(git.entries) or git.truncated) if git.state == "ok" else None,
+                directory_identity=self.directory_identity(project.path))
+            await uow.session.save_project_snapshot(session.id, session.project_snapshot.model_dump(mode="json"))
+        project = session.project
+        project.last_active_at = datetime.now()
+        await uow.project.save(project)
+
+    async def sessions(self, project_id: str, offset: int = 0, limit: int = 50):
+        await self.get(project_id)
+        async with self._uow_factory() as uow:
+            return await uow.session.page(project_id=project_id, offset=offset, limit=limit)
+
+    async def _require_project(self, identifier: str, *, project_level: bool) -> str:
+        if project_level:
+            project = await self.get(identifier)
+        else:
+            async with self._uow_factory() as uow:
+                session = await uow.session.get_by_id(identifier)
+            if session is None:
+                raise NotFoundError(SESSION_MISSING_MESSAGE)
+            project = session.project
+            if project is None:
+                raise NotFoundError(PROJECT_UNBOUND_MESSAGE)
+        self.validate_start(project.path)
+        return project.path
+
+    async def tree(self, identifier: str, relative: str = "", *, project_level: bool = False) -> ProjectListing:
+        path = await self._require_project(identifier, project_level=project_level)
+        return await self._read(self._files.list_directory(path, relative or ""))
+
+    async def read_file(self, identifier: str, relative: str, *, project_level: bool = False) -> ProjectFile:
+        path = await self._require_project(identifier, project_level=project_level)
+        return await self._read(self._files.read_file(path, relative))
+
+    async def git_status(self, identifier: str, *, project_level: bool = False) -> GitStatus:
+        path = await self._require_project(identifier, project_level=project_level)
+        return await self._read(self._git.status(path))
+
+    async def git_diff(self, identifier: str, scope: str = "worktree", path: Optional[str] = None, *, project_level: bool = False) -> GitDiff:
+        if scope not in ("worktree", "staged"):
+            raise BadRequestError("diff 范围只能是 worktree 或 staged")
+        project_path = await self._require_project(identifier, project_level=project_level)
+        return await self._read(self._git.diff(project_path, scope=scope, path=path or None))
 
     @staticmethod
     async def _read(awaitable):

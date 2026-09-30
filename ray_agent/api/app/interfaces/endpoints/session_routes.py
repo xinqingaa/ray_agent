@@ -9,7 +9,7 @@ from typing import Optional, Dict, AsyncGenerator, Union
 import websockets
 from app.application.services.context_operations import context_operation
 
-from fastapi import APIRouter, Depends, Header, Query
+from fastapi import APIRouter, Depends, Header, Query, Body
 from sse_starlette import EventSourceResponse, ServerSentEvent
 from starlette.websockets import WebSocket, WebSocketDisconnect
 from websockets import ConnectionClosed
@@ -28,7 +28,7 @@ from app.domain.models.session import Session
 from app.interfaces.schemas import Response
 from app.interfaces.schemas.event import EventMapper
 from app.interfaces.schemas.session import (
-    CreateSessionResponse,
+    CreateSessionRequest, CreateSessionResponse, ProjectStartObservation,
     ListSessionResponse,
     ListSessionItem,
     ChatRequest,
@@ -54,7 +54,7 @@ router = APIRouter(prefix="/sessions", tags=["会话模块"])
 SESSION_SLEEP_INTERVAL = 5
 
 
-def session_list_item(session: Session, project_service: ProjectService) -> ListSessionItem:
+def session_list_item(session: Session, project_service: ProjectService, project_views=None) -> ListSessionItem:
     """列表与列表流共用。project 每次用路径校验实时计算，不缓存。"""
     return ListSessionItem(
         session_id=session.id,
@@ -63,7 +63,7 @@ def session_list_item(session: Session, project_service: ProjectService) -> List
         latest_message_at=session.latest_message_at,
         status=session.status,
         unread_message_count=session.unread_message_count,
-        project=project_service.describe(session.project_path),
+        project=project_views.get(session.id) if project_views is not None else project_service.describe(session.project),
     )
 
 
@@ -74,10 +74,12 @@ def session_list_item(session: Session, project_service: ProjectService) -> List
     description="创建一个空白的新任务会话",
 )
 async def create_session(
+        request: Optional[CreateSessionRequest] = Body(default=None),
+        project_service: ProjectService = Depends(get_project_service),
         session_service: SessionService = Depends(get_session_service),
 ) -> Response[CreateSessionResponse]:
     """创建一个空白的新任务会话"""
-    session = await session_service.create_session()
+    session = await project_service.create_session(request.project_id) if request and request.project_id else await session_service.create_session()
     return Response.success(
         msg="创建任务会话成功",
         data=CreateSessionResponse(session_id=session.id)
@@ -90,6 +92,10 @@ async def create_session(
     description="间隔指定时间流式获取所有会话基础信息列表",
 )
 async def stream_sessions(
+        project_id: Optional[str] = Query(default=None),
+        independent: bool = Query(default=False),
+        offset: int = Query(default=0, ge=0),
+        limit: int = Query(default=50, ge=1, le=100),
         session_service: SessionService = Depends(get_session_service),
         project_service: ProjectService = Depends(get_project_service),
 ) -> EventSourceResponse:
@@ -99,15 +105,16 @@ async def stream_sessions(
         """定义一个异步迭代器，用于获取所有会话列表"""
         while True:
             # 1.获取所有会话列表
-            sessions = await session_service.get_all_sessions()
+            sessions, total = await session_service.page(project_id=project_id, independent=independent, offset=offset, limit=limit)
 
             # 2.循环遍历并组装数据
-            session_items = [session_list_item(session, project_service) for session in sessions]
+            project_views = project_service.describe_sessions(sessions)
+            session_items = [session_list_item(session, project_service, project_views) for session in sessions]
 
             # 3.将会话列表转换为流式事件数据并返回
             yield ServerSentEvent(
                 event="sessions",
-                data=ListSessionResponse(sessions=session_items).model_dump_json(),
+                data=ListSessionResponse(sessions=session_items, total=total, offset=offset, limit=limit).model_dump_json(),
             )
 
             # 4.睡眠指定时间避免高频响应
@@ -123,15 +130,20 @@ async def stream_sessions(
     description="获取MoocManus项目中所有任务会话基础信息列表",
 )
 async def get_all_sessions(
+        project_id: Optional[str] = Query(default=None),
+        independent: bool = Query(default=False),
+        offset: int = Query(default=0, ge=0),
+        limit: int = Query(default=50, ge=1, le=100),
         session_service: SessionService = Depends(get_session_service),
         project_service: ProjectService = Depends(get_project_service),
 ) -> Response[ListSessionResponse]:
     """获取MoocManus项目中所有任务会话基础信息列表"""
-    sessions = await session_service.get_all_sessions()
-    session_items = [session_list_item(session, project_service) for session in sessions]
+    sessions, total = await session_service.page(project_id=project_id, independent=independent, offset=offset, limit=limit)
+    project_views = project_service.describe_sessions(sessions)
+    session_items = [session_list_item(session, project_service, project_views) for session in sessions]
     return Response.success(
         msg="获取任务会话列表成功",
-        data=ListSessionResponse(sessions=session_items)
+        data=ListSessionResponse(sessions=session_items, total=total, offset=offset, limit=limit)
     )
 
 
@@ -341,7 +353,11 @@ async def get_session(
             last_seq=detail.last_seq,
             context_operation=context_operation(session_id),
             context_config=await config_service.get_context_config(),
-            project=project_service.describe(detail.session.project_path),
+            project=project_service.describe(detail.session.project),
+            project_start=ProjectStartObservation(
+                initial_head=detail.session.project_snapshot.initial_head,
+                initial_dirty=detail.session.project_snapshot.initial_dirty,
+            ) if detail.session.project_snapshot else None,
         )
     )
 
@@ -454,7 +470,7 @@ async def bind_project(
         request: BindProjectRequest,
         project_service: ProjectService = Depends(get_project_service),
 ) -> Response[ProjectView]:
-    project = await project_service.bind(session_id, request.path)
+    project = await project_service.bind(session_id, request.project_id)
     return Response.success(msg="已绑定项目", data=project)
 
 

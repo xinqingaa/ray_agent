@@ -188,12 +188,7 @@ export type FileView = {
 }
 
 /** 会话绑定的本地项目；与 API ProjectView 一致 */
-export type ProjectView = {
-  path: string
-  name: string
-  available: boolean
-  reason?: string | null
-}
+export type ProjectView = import('@/lib/api/types').ProjectView
 
 type ItemBase = {id: string; runId: string | null; at: number}
 

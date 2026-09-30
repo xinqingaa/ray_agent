@@ -13,6 +13,8 @@ import {fileApi} from '@/lib/api/file'
 import type {FileInfo} from '@/lib/api/types'
 import {toast} from 'sonner'
 import {ProjectPicker} from '@/components/project-picker'
+import {useProjects} from '@/providers/projects-provider'
+import {useRouter} from 'next/navigation'
 import type {ProjectView} from '@/lib/api/types'
 import {commandById, matchingCommands, type CommandContext, type CommandHost, type InputCommand} from '@/lib/commands'
 import {clearDraft, readDraft, writeDraft, DRAFT_CHANGED} from '@/lib/drafts'
@@ -58,13 +60,15 @@ export interface ChatInputRef {
 }
 
 export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
-  ({ className, onInputValueChange, onSend, disabled = false, sessionId, placeholder = '分配一个任务或提问任何问题...', accessory, draftScope, commandHost = EMPTY_HOST, projectsEnabled = false, projectBindable = false, selectedProject = null, onProjectSelect }, ref) => {
+  ({ className, onInputValueChange, onSend, disabled = false, sessionId, placeholder = '分配一个任务或提问任何问题...', accessory, draftScope, commandHost = EMPTY_HOST, projectsEnabled = false, projectBindable = false, selectedProject = null }, ref) => {
     const [files, setFiles] = useState<FileInfo[]>([])
     const [uploading, setUploading] = useState(false)
     const [sending, setSending] = useState(false)
     const [inputValue, setInputValue] = useState('')
     const [planMode, setPlanMode] = useState(false)
     const [slash, setSlash] = useState<SlashFragment | null>(null)
+    const workspace = useProjects()
+    const router = useRouter()
     const [projectPickerOpen, setProjectPickerOpen] = useState(false)
     const [activeId, setActiveId] = useState<string | null>(null)
     const fileInputRef = useRef<HTMLInputElement>(null)
@@ -130,10 +134,11 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
       actions: {
         openFilePicker,
         togglePlan,
-        openProjectPicker: () => setProjectPickerOpen(true),
+        openProjectPicker: () => workspace ? workspace.openProject() : setProjectPickerOpen(true),
         compact: commandHost.actions.compact,
       },
     }), [
+      workspace,
       commandHost.hasSession,
       commandHost.hasRuns,
       commandHost.runStatus,
@@ -499,16 +504,8 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
             onClick={() => commandById('upload')?.run(commandContext)}>
             <Paperclip className="size-4"/>
           </Button>
-          {resolvedProjectsEnabled && onProjectSelect && (
-            <ProjectPicker
-              enabled
-              selected={selectedProject}
-              onSelect={onProjectSelect}
-              open={projectPickerOpen}
-              onOpenChange={setProjectPickerOpen}
-              disabled={!resolvedProjectBindable || blocked}
-            />
-          )}
+          {!workspace && <ProjectPicker hideTrigger open={projectPickerOpen} onOpenChange={setProjectPickerOpen} onSelect={project => {if (project) router.push(`/projects/${project.id}`)}}/>}
+          {selectedProject && <span className="max-w-[12rem] truncate text-xs text-muted-foreground" title={selectedProject.path}>{selectedProject.name}</span>}
           {planMode && (
             <button
               type="button"

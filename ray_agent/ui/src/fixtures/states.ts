@@ -414,12 +414,14 @@ export const sessionItemStates = {
 export const projectPickerStates = {
   unselected: null as import('@/lib/session-view').ProjectView | null,
   selected: {
+    id: 'catalog-ray-sample',
     path: '/Users/demo/ray-sample',
     name: 'ray-sample',
     available: true,
     reason: null,
   },
   unavailable: {
+    id: 'catalog-moved-away',
     path: '/Users/demo/moved-away',
     name: 'moved-away',
     available: false,

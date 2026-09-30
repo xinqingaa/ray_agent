@@ -105,6 +105,7 @@ class AgentService:
             notifier: Optional[EventNotifier] = None,
             tool_policy: Optional[ToolPolicyConfig] = None,
             project_validator: Optional[Callable[[str], None]] = None,
+            project_prepare=None,
     ) -> None:
         """构造函数，完成Agent服务初始化"""
         self._uow_factory = uow_factory
@@ -114,6 +115,7 @@ class AgentService:
         self._mcp_config = mcp_config
         self._a2a_config = a2a_config
         self._project_validator = project_validator
+        self._project_prepare = project_prepare
         self._tool_policy = tool_policy
         self._sandbox_cls = sandbox_cls
         self._task_cls = task_cls
@@ -133,10 +135,18 @@ class AgentService:
         # 2.调用人物类的get方法获取对应的任务实例
         return self._task_cls.get(task_id)
 
+    def _validate_project_session(self, session: Session) -> None:
+        if getattr(self, "_project_validator", None):
+            self._project_validator(session.project_path)
+        if session.project_snapshot and session.project_snapshot.directory_identity:
+            from app.application.services.project_service import ProjectService
+            if ProjectService.directory_identity(session.project_path) != session.project_snapshot.directory_identity:
+                raise ConflictError("项目目录已被同路径替换，请恢复原目录或重新添加")
+
     async def _create_task(self, session: Session, run_id: str, prior_status: Optional[SessionStatus]) -> Task:
         """根据传递的会话创建一个执行 run_id 的新任务"""
-        if session.project_path and getattr(self, "_project_validator", None):
-            self._project_validator(session.project_path)
+        if session.project_path:
+            self._validate_project_session(session)
         # 1.获取沙箱实例
         sandbox = None
         sandbox_id = session.sandbox_id
@@ -148,7 +158,10 @@ class AgentService:
         if not sandbox:
             # 3.沙箱不存在则创建一个新的(有可能被释放了)。绑定了项目时重新挂载同一个目录
             try:
-                sandbox = await self._sandbox_cls.create(project_path=session.project_path)
+                kwargs = {"project_path": session.project_path}
+                if session.project_snapshot and session.project_snapshot.git_environment():
+                    kwargs["git_environment"] = session.project_snapshot.git_environment()
+                sandbox = await self._sandbox_cls.create(**kwargs)
             except SandboxProjectBindingError as exc:
                 raise ConflictError(str(exc)) from exc
             session.sandbox_id = sandbox.id
@@ -183,6 +196,7 @@ class AgentService:
                 prior_status=prior_status,
                 tool_policy=self._tool_policy,
                 workspace_dir=SANDBOX_PROJECT_DIR if session.project_path else None,
+                project_instructions=session.project_snapshot.instructions if session.project_snapshot else None,
             )
 
             # 6.创建尚未发布引用的任务，由后台启动所有权检查后登记
@@ -216,8 +230,8 @@ class AgentService:
                         or active.status != RunStatus.RUNNING or current is None
                         or current.project_path != session.project_path):
                     return
-                if session.project_path and getattr(self, "_project_validator", None):
-                    self._project_validator(session.project_path)
+                if session.project_path:
+                    self._validate_project_session(session)
                 async with self._uow:
                     if session.sandbox_id:
                         await self._uow.session.update_sandbox_id(session.id, session.sandbox_id)
@@ -289,6 +303,16 @@ class AgentService:
             if provisional_title is not None:
                 await uow.session.set_title(session_id, provisional_title.title, "provisional", "placeholder")
 
+        async def prepare_project(uow: IUnitOfWork) -> None:
+            current = await uow.session.get_by_id(session_id)
+            if current is None or current.project_id != session.project_id:
+                from app.domain.services.project_transactions import ProjectRunConflict
+                raise ProjectRunConflict("对话归属刚刚发生变化，请刷新后重新发送")
+            if current.project_id and getattr(self, "_project_prepare", None):
+                await self._project_prepare(uow, current)
+            session.project = current.project
+            session.project_snapshot = current.project_snapshot
+
         provisional_title: Optional[TitleEvent] = None
         async with session_lock(session_id):
             ensure_context_idle(session_id)
@@ -298,8 +322,8 @@ class AgentService:
             if not session:
                 logger.error(f"尝试与不存在的任务会话[{session_id}]对话")
                 raise NotFoundError("任务会话不存在, 请核实后重试")
-            if session.project_path and getattr(self, "_project_validator", None):
-                self._project_validator(session.project_path)
+            if session.project_path:
+                self._validate_project_session(session)
             if waiting_for_approval(active):
                 raise ConflictError("当前运行在等待审批，请先批准或拒绝待审批的操作，或停止运行后再发送消息")
             task = await self._get_task(session)
@@ -337,7 +361,7 @@ class AgentService:
                     provisional_title = TitleEvent(title=message.strip()[:30])
                 run = await self._ledger.start(
                     session_id, events_after=[message_event, EnvironmentEvent(status="preparing"), *([provisional_title] if provisional_title else [])],
-                    apply=touch, mode=mode,
+                    apply=touch, mode=mode, before_start=prepare_project,
                 )
                 if provisional_title is not None:
                     from app.application.services.title_service import TitleService
@@ -368,8 +392,8 @@ class AgentService:
                     or active.id != request.run_id):
                 raise ConflictError(f"该审批已处理或已失效（当前状态：{request.status.value}），不会重复执行")
 
-            if session.project_path and getattr(self, "_project_validator", None):
-                self._project_validator(session.project_path)
+            if session.project_path:
+                self._validate_project_session(session)
             decided = request.decided(ApprovalStatus.APPROVED if approve else ApprovalStatus.REJECTED)
             run = await self._ledger.transition(session_id, active.id, RunStatus.RUNNING, events_after=[decided, EnvironmentEvent(status="preparing")])
             if run is None:

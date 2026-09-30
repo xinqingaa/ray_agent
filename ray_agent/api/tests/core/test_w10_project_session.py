@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""W10 第二批：绑定 409、exec_dir 缺省、上传与结果不进 /workspace、提示词、会话 project 字段、最近项目排序。"""
+"""W10 工作台与沙箱契约。W11 项目绑定、生命周期、分页与 HTTP 验收见 test_w11_projects_pg。"""
 import asyncio
 import io
 import os
@@ -38,6 +38,7 @@ from app.domain.models.project import (
 )
 from app.domain.models.run import Run
 from app.domain.models.session import Session
+from app.domain.models.workspace_project import WorkspaceProject
 from app.domain.models.tool_result import ToolResult
 from app.domain.services.agent_task_runner import AgentTaskRunner
 from app.domain.services.context.shaping import OUTPUT_DIR, ResultShaper
@@ -58,6 +59,11 @@ from tests.support.loop_harness import InMemorySandbox, make_uow_factory
 # 改写 build_system_prompt 之前的中英文系统提示词。无项目时必须与此逐字相同。
 
 
+def project_session(session_id, path, **kwargs):
+    project = WorkspaceProject(path=path, name=os.path.basename(path))
+    return Session(id=session_id, project_id=project.id, project=project, **kwargs)
+
+
 class MemStore:
     """绑定测试用的内存会话与运行表。"""
 
@@ -70,12 +76,6 @@ class MemStore:
 
     async def get_all(self):
         return list(self.sessions.values())
-
-    async def set_project_path(self, session_id, project_path):
-        session = self.sessions.get(session_id)
-        if session is None:
-            raise ValueError(session_id)
-        session.project_path = project_path
 
     async def list_by_session(self, session_id):
         return [run for run in self.runs if run.session_id == session_id]
@@ -148,114 +148,12 @@ def make_dirs(tmp_path):
     return root, first, second
 
 
-def test_bind_before_first_run_and_reject_after(tmp_path):
-    root, first, second = make_dirs(tmp_path)
-    store = MemStore()
-    session = Session(id="s-bind", title="新对话")
-    store.sessions[session.id] = session
-    projects = service(store, root)
-
-    async def run():
-        bound = await projects.bind(session.id, first + "/../alpha")
-        assert bound.path == first
-        assert bound.name == "alpha"
-        assert bound.available is True and bound.reason is None
-        assert session.project_path == first
-
-        replaced = await projects.bind(session.id, second)
-        assert replaced.path == second and session.project_path == second
-
-        await projects.unbind(session.id)
-        assert session.project_path is None
-        again = await projects.bind(session.id, first)
-        assert again.path == first
-
-        store.runs.append(Run(session_id=session.id))
-        with pytest.raises(ConflictError) as locked:
-            await projects.bind(session.id, second)
-        assert locked.value.status_code == 409
-        assert locked.value.msg == PROJECT_LOCKED_MESSAGE
-        assert session.project_path == first
-        with pytest.raises(ConflictError) as still:
-            await projects.unbind(session.id)
-        assert still.value.status_code == 409
-        assert session.project_path == first
-
-    asyncio.run(run())
 
 
-def test_bind_rejects_sandbox_shared_mode_and_existing_sandbox(tmp_path):
-    root, first, _second = make_dirs(tmp_path)
-    store = MemStore()
-    bare = Session(id="s-shared")
-    sandboxed = Session(id="s-box", sandbox_id="box-1")
-    store.sessions[bare.id] = bare
-    store.sessions[sandboxed.id] = sandboxed
-
-    async def run():
-        shared = service(store, root, sandbox_address="127.0.0.1")
-        with pytest.raises(ConflictError) as exc:
-            await shared.bind(bare.id, first)
-        assert exc.value.status_code == 409 and exc.value.msg == SHARED_SANDBOX_MESSAGE
-        assert bare.project_path is None
-
-        normal = service(store, root)
-        with pytest.raises(ConflictError) as locked:
-            await normal.bind(sandboxed.id, first)
-        assert locked.value.status_code == 409 and locked.value.msg == PROJECT_LOCKED_MESSAGE
-        assert sandboxed.project_path is None
-
-        with pytest.raises(NotFoundError) as missing:
-            await normal.bind("missing", first)
-        assert missing.value.status_code == 404
-
-    asyncio.run(run())
 
 
-def test_bind_rejects_bad_path_and_empty_roots(tmp_path):
-    root, first, _second = make_dirs(tmp_path)
-    outside = os.path.join(os.path.realpath(tmp_path), "outside")
-    os.makedirs(outside)
-    store = MemStore()
-    session = Session(id="s-path")
-    store.sessions[session.id] = session
-
-    async def run():
-        closed = service(store, None)
-        with pytest.raises(BadRequestError) as empty:
-            await closed.bind(session.id, first)
-        assert empty.value.status_code == 400 and empty.value.msg == NO_ROOTS_MESSAGE
-
-        projects = service(store, root)
-        missing = os.path.join(root, "gone")
-        with pytest.raises(BadRequestError) as not_found:
-            await projects.bind(session.id, missing)
-        assert not_found.value.status_code == 400 and not_found.value.msg == "路径不存在"
-        with pytest.raises(BadRequestError) as out:
-            await projects.bind(session.id, outside)
-        assert out.value.msg == "路径不在允许的项目根目录内"
-        assert session.project_path is None
-
-    asyncio.run(run())
 
 
-def test_recent_projects_use_latest_updated_at(tmp_path):
-    root, first, second = make_dirs(tmp_path)
-    day = datetime(2026, 9, 1, 12, 0, 0)
-    store = MemStore()
-    store.sessions["old-a"] = Session(id="old-a", project_path=first, updated_at=day.replace(day=1))
-    store.sessions["new-a"] = Session(id="new-a", project_path=first, updated_at=day.replace(day=3))
-    store.sessions["b"] = Session(id="b", project_path=second, updated_at=day.replace(day=2))
-    store.sessions["plain"] = Session(id="plain", project_path=None, updated_at=day.replace(day=9))
-    projects = service(store, root)
-
-    async def run():
-        recent = await projects.list_recent(limit=10)
-        assert [item.path for item in recent] == [first, second]
-        assert recent[0].name == "alpha" and recent[0].available is True and recent[0].reason is None
-        assert [item.path for item in await projects.list_recent(limit=1)] == [first]
-
-    asyncio.run(run())
 
 
 def test_project_view_reports_unavailable_reason(tmp_path):
@@ -264,13 +162,12 @@ def test_project_view_reports_unavailable_reason(tmp_path):
     gone = os.path.join(root, "missing")
     outside = os.path.join(os.path.realpath(tmp_path), "outside")
     assert projects.describe(None) is None
-    assert projects.describe("") is None
-    missing = projects.describe(gone)
+    missing = projects.describe(WorkspaceProject(path=gone, name="missing"))
     assert missing is not None and missing.available is False and missing.reason == "路径不存在"
     assert missing.name == "missing"
-    out = projects.describe(outside)
+    out = projects.describe(WorkspaceProject(path=outside, name="outside"))
     assert out is not None and out.available is False and out.reason == "路径不在允许的项目根目录内"
-    ok = projects.describe(first)
+    ok = projects.describe(WorkspaceProject(path=first, name="alpha"))
     assert ok is not None and ok.available is True and ok.reason is None and ok.name == "alpha"
 
 
@@ -280,7 +177,7 @@ def test_read_endpoints_and_git_states(tmp_path):
     async def run():
         store = MemStore()
         bare = Session(id="bare")
-        bound = Session(id="bound", project_path=first)
+        bound = project_session("bound", first)
         store.sessions[bare.id] = bare
         store.sessions[bound.id] = bound
         projects = service(store, root)
@@ -309,112 +206,8 @@ def test_read_endpoints_and_git_states(tmp_path):
     asyncio.run(run())
 
 
-def _http(projects: ProjectService, sessions=None):
-    app = FastAPI()
-    register_exception_handlers(app)
-    app.include_router(session_routes.router)
-    app.include_router(project_routes.router)
-    app.dependency_overrides[get_project_service] = lambda: projects
-
-    class Listing:
-        async def get_all_sessions(self):
-            return list(sessions or [])
-
-        async def get_session_detail(self, session_id, after_seq=0, limit=None):
-            found = next((item for item in (sessions or []) if item.id == session_id), None)
-            if found is None:
-                return None
-            return SessionDetail(session=found, runs=[], events=[], last_seq=0)
-
-    app.dependency_overrides[get_session_service] = lambda: Listing()
-    return TestClient(app)
 
 
-def test_http_bind_status_codes_and_project_fields(tmp_path):
-    root, first, second = make_dirs(tmp_path)
-    outside = os.path.join(os.path.realpath(tmp_path), "outside")
-    os.makedirs(outside)
-    gone = os.path.join(root, "gone")
-    day = datetime(2026, 9, 2, 8, 0, 0)
-    store = MemStore()
-    ready = Session(id="ready")
-    started = Session(id="started", sandbox_id="box")
-    bound = Session(id="bound", project_path=first, title="已绑定", updated_at=day.replace(day=2))
-    missing_dir = Session(id="missing-dir", project_path=gone, updated_at=day.replace(day=1))
-    foreign = Session(id="foreign", project_path=outside, updated_at=day.replace(day=4))
-    plain = Session(id="plain", title="无项目", updated_at=day.replace(day=3))
-    for session in (ready, started, bound, missing_dir, foreign, plain):
-        store.sessions[session.id] = session
-    # 最近项目：foreign 的 updated_at 更晚，但列表接口的排序另测；这里给 recent 用同一份 store
-    store.sessions["later-first"] = Session(id="later-first", project_path=first, updated_at=day.replace(day=5))
-    projects = service(store, root)
-    client = _http(projects, [bound, missing_dir, foreign, plain])
-
-    created = client.put(f"/sessions/{ready.id}/project", json={"path": second})
-    assert created.status_code == 200
-    body = created.json()
-    assert body["data"]["path"] == second and body["data"]["name"] == "beta"
-    assert body["data"]["available"] is True and body["data"]["reason"] is None
-
-    replaced = client.put(f"/sessions/{ready.id}/project", json={"path": first})
-    assert replaced.status_code == 200 and replaced.json()["data"]["path"] == first
-
-    conflict = client.put(f"/sessions/{started.id}/project", json={"path": first})
-    assert conflict.status_code == 409 and conflict.json()["msg"] == PROJECT_LOCKED_MESSAGE
-    shared = _http(service(store, root, sandbox_address="10.0.0.1"))
-    shared_resp = shared.put(f"/sessions/{ready.id}/project", json={"path": first})
-    assert shared_resp.status_code == 409 and SHARED_SANDBOX_MESSAGE in shared_resp.json()["msg"]
-    # 共享模式的拒绝发生在写入之前，ready 仍是上一次成功绑定的 first
-    assert store.sessions[ready.id].project_path == first
-
-    bad = client.put(f"/sessions/{plain.id}/project", json={"path": outside})
-    assert bad.status_code == 400 and bad.json()["msg"] == "路径不在允许的项目根目录内"
-    empty = _http(service(store, None))
-    assert empty.put(f"/sessions/{plain.id}/project", json={"path": first}).status_code == 400
-    assert empty.put(f"/sessions/{plain.id}/project", json={"path": first}).json()["msg"] == NO_ROOTS_MESSAGE
-    assert client.put("/sessions/missing/project", json={"path": first}).status_code == 404
-
-    cleared = client.delete(f"/sessions/{ready.id}/project")
-    assert cleared.status_code == 200 and cleared.json()["data"] is None
-    assert store.sessions[ready.id].project_path is None
-    assert client.delete(f"/sessions/{started.id}/project").status_code == 409
-
-    listed = client.get("/sessions").json()["data"]["sessions"]
-    by_id = {item["session_id"]: item["project"] for item in listed}
-    assert by_id["plain"] is None
-    assert by_id["bound"] == {"path": first, "name": "alpha", "available": True, "reason": None}
-    assert by_id["missing-dir"]["available"] is False and by_id["missing-dir"]["reason"] == "路径不存在"
-    assert by_id["foreign"]["available"] is False and by_id["foreign"]["reason"] == "路径不在允许的项目根目录内"
-    # 列表流与 GET 共用 session_list_item，字段计算相同
-    assert session_list_item(bound, projects).project.model_dump() == by_id["bound"]
-    assert session_list_item(plain, projects).project is None
-
-    detail = client.get(f"/sessions/{missing_dir.id}").json()["data"]
-    assert detail["project"]["path"] == gone and detail["project"]["available"] is False
-    assert detail["project"]["reason"] == "路径不存在"
-    assert client.get(f"/sessions/{plain.id}").json()["data"]["project"] is None
-
-    recent = client.get("/projects/recent?limit=2").json()["data"]
-    assert [item["path"] for item in recent] == [first, outside]
-    assert recent[0]["available"] is True and recent[1]["available"] is False
-
-    roots = client.get("/projects/roots").json()["data"]
-    assert roots["enabled"] is True and roots["roots"][0]["path"] == root and roots["roots"][0]["available"] is True
-    assert _http(service(store, None)).get("/projects/roots").json()["data"] == {"enabled": False, "roots": [], "supported": True, "reason": NO_ROOTS_MESSAGE}
-
-    tree = client.get(f"/sessions/{bound.id}/project/tree")
-    assert tree.status_code == 200 and tree.json()["data"]["path"] == ""
-    assert client.get(f"/sessions/{plain.id}/project/tree").status_code == 404
-    assert client.get(f"/sessions/{plain.id}/project/tree").json()["msg"] == PROJECT_UNBOUND_MESSAGE
-    escaped = client.get(f"/sessions/{bound.id}/project/tree", params={"path": "escape"})
-    assert escaped.status_code == 400
-
-    git = _http(service(store, root, git_state="not_a_repository"), [bound])
-    status = git.get(f"/sessions/{bound.id}/project/git/status")
-    assert status.status_code == 200 and status.json()["data"]["state"] == "not_a_repository"
-    timed = _http(service(store, root, git_state="timeout"), [bound])
-    diff = timed.get(f"/sessions/{bound.id}/project/git/diff", params={"scope": "worktree"})
-    assert diff.status_code == 200 and diff.json()["data"]["state"] == "timeout"
 
 
 def test_shell_exec_dir_defaults_to_workspace_or_home():
@@ -574,7 +367,7 @@ def test_create_task_passes_project_and_maps_binding_error(monkeypatch):
 
     async def run():
         SandboxCls.created, SandboxCls.existing, SandboxCls.fail = [], None, False
-        session = Session(id="s-task", project_path="/host/proj")
+        session = project_session("s-task", "/host/proj")
         await agent._create_task(session, "run-1", None)
         assert SandboxCls.created == ["/host/proj"]
         assert captured["workspace_dir"] == "/workspace"
@@ -584,7 +377,7 @@ def test_create_task_passes_project_and_maps_binding_error(monkeypatch):
         SandboxCls.created = []
         SandboxCls.existing = None
         captured.clear()
-        rebuilt = Session(id="s-ttl", project_path="/host/proj", sandbox_id="expired")
+        rebuilt = project_session("s-ttl", "/host/proj", sandbox_id="expired")
         await agent._create_task(rebuilt, "run-2", None)
         assert SandboxCls.created == ["/host/proj"]
         assert captured["workspace_dir"] == "/workspace"
@@ -593,7 +386,7 @@ def test_create_task_passes_project_and_maps_binding_error(monkeypatch):
         live = Box("still-there")
         SandboxCls.existing = live
         captured.clear()
-        kept = Session(id="s-live", project_path="/host/proj", sandbox_id="still-there")
+        kept = project_session("s-live", "/host/proj", sandbox_id="still-there")
         await agent._create_task(kept, "run-3", None)
         assert SandboxCls.created == []
         assert captured["workspace_dir"] == "/workspace"
@@ -607,7 +400,7 @@ def test_create_task_passes_project_and_maps_binding_error(monkeypatch):
 
         SandboxCls.fail = True
         with pytest.raises(ConflictError) as exc:
-            await agent._create_task(Session(id="s-shared", project_path="/host/proj"), "run-5", None)
+            await agent._create_task(project_session("s-shared", "/host/proj"), "run-5", None)
         assert exc.value.status_code == 409 and exc.value.msg == SHARED_SANDBOX_MESSAGE
 
     asyncio.run(run())
@@ -655,3 +448,19 @@ def test_validate_start_rechecks_roots_and_rejects_replaced_paths(tmp_path):
     os.symlink(os.path.join(root, "replacement"), project)
     with pytest.raises(ConflictError, match="已被替换"):
         svc.validate_start(project)
+
+
+def test_registration_reports_empty_roots_shared_and_bad_paths(tmp_path):
+    root, first, _ = make_dirs(tmp_path)
+    store = MemStore()
+
+    async def run():
+        with pytest.raises(BadRequestError, match="未配置.*项目根目录"):
+            await service(store, None).register(first)
+        with pytest.raises(ConflictError, match="共享沙箱"):
+            await service(store, root, sandbox_address="shared").register(first)
+        with pytest.raises(BadRequestError, match="路径不存在"):
+            await service(store, root).register(os.path.join(root, "gone"))
+        with pytest.raises(BadRequestError, match="允许的项目根目录"):
+            await service(store, root).register(str(tmp_path))
+    asyncio.run(run())

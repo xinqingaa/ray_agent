@@ -15,7 +15,7 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.ext.asyncio import async_sessionmaker, create_async_engine
 
 from app.application.services import agent_service as agent_service_module
-from app.application.services.agent_service import AgentService
+from app.application.services.agent_service import AgentService, pending_starts
 from app.domain.models.event import (
     AttemptEvent,
     AttemptReason,
@@ -364,6 +364,7 @@ def test_tool_approval_round_trip_and_startup_scan():
             return t
         service._create_task = create_task
         accepted = await service.reply_approval(session.id, "c-a", approve=True)
+        await pending_starts()[accepted.run_id].worker
         task, prior_status = created[0]
         async with uow_factory() as uow:
             resumed = await uow.run.get(run.id)

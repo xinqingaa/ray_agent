@@ -1,6 +1,6 @@
 'use client'
 
-import {useEffect, useState} from 'react'
+import {useState} from 'react'
 import {useRouter} from 'next/navigation'
 import {toast} from 'sonner'
 import {readDraft, writeDraft} from '@/lib/drafts'
@@ -8,20 +8,12 @@ import {sendRecoverably} from '@/lib/send-recovery'
 import {ChatInput} from '@/components/chat-input'
 import {BrandMark} from '@/components/brand-mark'
 import {ApiError} from '@/lib/api/fetch'
-import {projectApi} from '@/lib/api/project'
 import {sessionApi} from '@/lib/api/session'
-import type {FileInfo, ProjectView} from '@/lib/api/types'
+import type {FileInfo} from '@/lib/api/types'
 
 export default function Page() {
   const router = useRouter()
   const [sending, setSending] = useState(false)
-  const [projectsEnabled, setProjectsEnabled] = useState(false)
-  const [selectedProject, setSelectedProject] = useState<ProjectView | null>(null)
-
-  useEffect(() => {
-    projectApi.getRoots().then((data) => setProjectsEnabled(data.enabled)).catch(() => setProjectsEnabled(false))
-  }, [])
-
   const startTask = async (message: string, files: FileInfo[], options?: {mode?: 'plan' | 'normal'}) => {
     if (sending) return
     setSending(true)
@@ -31,16 +23,6 @@ export default function Page() {
         const session = await sessionApi.createSession()
         id = session.session_id
         writeDraft('independent', {sessionId: id})
-      }
-      if (selectedProject) {
-        try {
-          await projectApi.bindSessionProject(id, selectedProject.path)
-        } catch (err) {
-          const msg = err instanceof ApiError ? err.msg : err instanceof Error ? err.message : '绑定项目失败'
-          toast.error(msg)
-          setSending(false)
-          throw err
-        }
       }
       await sendRecoverably('independent', id, {
         message,
@@ -75,10 +57,6 @@ export default function Page() {
             onSend={startTask}
             disabled={sending}
             placeholder="描述你想完成的任务"
-            projectsEnabled={projectsEnabled}
-            projectBindable
-            selectedProject={selectedProject}
-            onProjectSelect={setSelectedProject}
             commandHost={{
               hasSession: false,
               hasRuns: false,
@@ -87,7 +65,7 @@ export default function Page() {
               waitingReply: false,
               submitting: sending,
               compacting: false,
-              projectsEnabled,
+              projectsEnabled: true,
               projectBindable: true,
               actions: {compact: () => toast.message('还没有可压缩的上下文')},
             }}

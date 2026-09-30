@@ -5,6 +5,7 @@
 宿主机项目目录以相同路径只读挂进 API 容器，文件树与 Git 都读这份挂载；沙箱里同一目录读写挂在 ``SANDBOX_PROJECT_DIR``。
 时间字段与事件一致，用毫秒时间戳。
 """
+from datetime import datetime
 from enum import Enum
 from typing import List, Literal, Optional
 
@@ -58,9 +59,13 @@ class PathCheck(BaseModel):
 
 class ProjectView(BaseModel):
     """会话对外的项目摘要。available 与 reason 每次请求按当前 PROJECT_ROOTS 实时计算，不入库。"""
+    id: str
     path: str
     name: str
     available: bool
+    archived: bool = False
+    task_count: int = 0
+    last_active_at: Optional[datetime] = None
     reason: Optional[str] = None  # 不可用时的中文说明；可用时为空
 
 

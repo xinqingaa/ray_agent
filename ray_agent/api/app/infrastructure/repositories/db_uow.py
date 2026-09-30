@@ -109,4 +109,5 @@ class DBUnitOfWork(IUnitOfWork):
         except Exception as e:
             logger.warning(f"UoW提交/回滚/关闭失败: {e}")
             self._schedule_close(session)
+            raise
         return False

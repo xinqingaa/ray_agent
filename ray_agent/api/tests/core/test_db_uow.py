@@ -76,3 +76,17 @@ def test_cancelled_close_retries_in_background():
         assert session.close.await_count == 2
 
     asyncio.run(_run())
+
+
+def test_commit_failure_is_not_reported_as_success_and_still_releases_connection():
+    async def scenario():
+        session = _session_mock(commit_error=RuntimeError("commit failed"))
+        session.in_transaction.return_value = True
+        uow = DBUnitOfWork(MagicMock(return_value=session))
+        with pytest.raises(RuntimeError, match="commit failed"):
+            async with uow:
+                pass
+        await asyncio.sleep(0)
+        session.rollback.assert_awaited()
+        session.close.assert_awaited()
+    asyncio.run(scenario())

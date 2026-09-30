@@ -186,11 +186,19 @@ export type FileUploadParams = {
 // ==================== 本地项目模块类型 ====================
 
 export type ProjectView = {
+  id: string;
   path: string;
   name: string;
   available: boolean;
   reason?: string | null;
+  archived?: boolean;
+  task_count?: number;
+  last_active_at?: string | null;
 };
+
+export type ProjectSettings = {name: string; instructions: string | null; git_author_name: string | null; git_author_email: string | null};
+export type ProjectDetails = ProjectView & ProjectSettings & {created_at: string; updated_at: string; archived_at: string | null; occupying_session_id: string | null};
+export type ProjectPage = {projects: ProjectView[]; total: number; offset: number; limit: number};
 
 export type ProjectRootItem = {
   path: string;
@@ -343,12 +351,16 @@ export type Session = {
  */
 export type SessionsData = {
   sessions: Session[];
+  total: number;
+  offset: number;
+  limit: number;
 };
 
 /**
  * 创建会话请求参数
  */
 export type CreateSessionParams = {
+  project_id?: string;
   title?: string;
   [key: string]: unknown;
 };
@@ -672,4 +684,3 @@ export type ViewShellParams = {
   session_id: string;
   [key: string]: unknown;
 };
-

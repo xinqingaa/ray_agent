@@ -62,6 +62,8 @@ class FakeSessionRepository:
     async def get_by_id(self, session_id):
         return self.s
 
+    lock = get_by_id
+
     async def save(self, session):
         self.s.sandbox_id, self.s.task_id = session.sandbox_id, session.task_id
 

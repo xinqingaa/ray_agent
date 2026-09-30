@@ -5,6 +5,7 @@ import {usePathname} from 'next/navigation'
 import {SidebarProvider} from '@/components/ui/sidebar'
 import {SessionsProvider} from '@/providers/sessions-provider'
 import {LeftPanel} from '@/components/left-panel'
+import {ProjectsProvider} from '@/providers/projects-provider'
 import {MainShell} from '@/components/sidebar-chrome'
 
 /** 开发用路由（组件状态目录）不带会话侧栏，也不连接会话列表 */
@@ -20,7 +21,7 @@ export function AppShell({children}: {children: React.ReactNode}) {
   }
 
   return (
-    <SessionsProvider>
+    <ProjectsProvider><SessionsProvider>
       <SidebarProvider
         style={{
           '--sidebar-width': '288px',
@@ -32,6 +33,6 @@ export function AppShell({children}: {children: React.ReactNode}) {
           {children}
         </MainShell>
       </SidebarProvider>
-    </SessionsProvider>
+    </SessionsProvider></ProjectsProvider>
   )
 }

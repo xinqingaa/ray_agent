@@ -21,7 +21,7 @@ type TreeNode = {
   error?: string
 }
 
-export function ProjectPane({sessionId, refreshSignal}: {sessionId: string; refreshSignal?: number}) {
+export function ProjectPane({sessionId, refreshSignal, projectLevel = false}: {sessionId: string; refreshSignal?: number; projectLevel?: boolean}) {
   const epoch = useRef(0)
   const fileRequest = useRef(0)
   const selectedRef = useRef<string | null>(null)
@@ -29,7 +29,7 @@ export function ProjectPane({sessionId, refreshSignal}: {sessionId: string; refr
   const [rootLoading, setRootLoading] = useState(true)
   const [rootError, setRootError] = useState<string | null>(null)
   const [fileError, setFileError] = useState<string | null>(null)
-  useEffect(() => () => {epoch.current++; fileRequest.current++}, [sessionId])
+  useEffect(() => () => {epoch.current++; fileRequest.current++}, [sessionId, projectLevel])
   const [root, setRoot] = useState<ProjectListing | null>(null)
   const [nodes, setNodes] = useState<Record<string, TreeNode>>({})
   const [selectedPath, setSelectedPath] = useState<string | null>(null)
@@ -44,20 +44,20 @@ export function ProjectPane({sessionId, refreshSignal}: {sessionId: string; refr
     setFile(null)
     setFileError(null)
     try {
-      const result = await projectApi.getFile(sessionId, path)
+      const result = await projectApi.getFile(sessionId, path, projectLevel)
       if (request === fileRequest.current) setFile(result)
     } catch (err) {
       if (request === fileRequest.current) setFileError(err instanceof Error ? err.message : '读取文件失败')
     } finally {
       if (request === fileRequest.current) setFileLoading(false)
     }
-  }, [sessionId])
+  }, [sessionId, projectLevel])
 
   useEffect(() => {
     const current = ++epoch.current
     setRootLoading(true)
     setRootError(null)
-    void projectApi.getTree(sessionId, '').then((listing) => {
+    void projectApi.getTree(sessionId, '', projectLevel).then((listing) => {
       if (current !== epoch.current) return
       setRoot(listing)
       const next: Record<string, TreeNode> = {}
@@ -70,7 +70,7 @@ export function ProjectPane({sessionId, refreshSignal}: {sessionId: string; refr
     const epochCounter = epoch
     const fileCounter = fileRequest
     return () => {epochCounter.current++; fileCounter.current++}
-  }, [sessionId, refreshSignal, revision, openFile])
+  }, [sessionId, projectLevel, refreshSignal, revision, openFile])
 
   const toggleDir = async (path: string) => {
     const node = nodes[path]
@@ -83,7 +83,7 @@ export function ProjectPane({sessionId, refreshSignal}: {sessionId: string; refr
     if (!node.loaded) {
       const currentEpoch = epoch.current
       let listing: ProjectListing
-      try {listing = await projectApi.getTree(sessionId, path)} catch (err) {
+      try {listing = await projectApi.getTree(sessionId, path, projectLevel)} catch (err) {
         if (currentEpoch === epoch.current) setNodes((prev) => ({...prev, [path]: {...prev[path], loading: false, loaded: false, error: err instanceof Error ? err.message : '读取目录失败'}}))
         return
       }
@@ -172,7 +172,7 @@ export function ProjectPane({sessionId, refreshSignal}: {sessionId: string; refr
           )}
           {fileError && <p role="alert" className="text-meta text-state-failed">{fileError}</p>}
           {file && file.kind === 'text' && file.content != null && (
-            <pre className="overflow-x-auto rounded-md bg-muted px-3 py-2 font-mono text-xs leading-5 whitespace-pre-wrap break-all">
+            <pre className="overflow-x-auto rounded-md bg-muted px-3 py-2 font-mono text-xs leading-5 whitespace-pre">
               {file.content}
             </pre>
           )}

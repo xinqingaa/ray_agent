@@ -46,6 +46,10 @@ class SessionService:
         logger.info(f"成功创建一个新任务会话: {session.id}")
         return session
 
+    async def page(self, *, project_id: Optional[str] = None, independent: bool = False, offset: int = 0, limit: int = 50):
+        async with self._uow_factory() as uow:
+            return await uow.session.page(project_id=project_id, independent=independent, offset=offset, limit=limit)
+
     async def get_all_sessions(self) -> List[Session]:
         """获取项目所有任务会话列表"""
         async with self._uow:

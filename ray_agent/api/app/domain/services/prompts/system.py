@@ -63,11 +63,14 @@ def _bound_workdir_line(workspace_dir: str) -> str:
     )
 
 
-def build_system_prompt(workspace_dir: Optional[str]) -> str:
+def build_system_prompt(workspace_dir: Optional[str], project_instructions: Optional[str] = None) -> str:
     """按是否绑定项目生成系统提示词。workspace_dir 为空时与未绑定项目的原文逐字相同。"""
     if not workspace_dir:
         return _UNBOUND_SYSTEM_PROMPT
-    return _UNBOUND_SYSTEM_PROMPT.replace(_WORKDIR_LINE, _bound_workdir_line(workspace_dir), 1)
+    prompt = _UNBOUND_SYSTEM_PROMPT.replace(_WORKDIR_LINE, _bound_workdir_line(workspace_dir), 1)
+    if project_instructions:
+        prompt += "\n<project_instructions>\n" + project_instructions + "\n</project_instructions>\n"
+    return prompt
 
 
 SYSTEM_PROMPT = build_system_prompt(None)

@@ -16,6 +16,7 @@ from app.domain.models.event import BaseEvent, CompactEvent, RunEvent, ToolEvent
 from app.domain.models.run import Run, RunMode, RunReason, RunStatus
 from app.domain.models.session import SessionStatus
 from app.domain.repositories.uow import IUnitOfWork
+from app.domain.services.project_transactions import lock_project_session, ensure_project_start
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +53,7 @@ class RunLedger:
             return []
         uow = self._uow_factory()
         async with uow:
+            await lock_project_session(uow, session_id)
             if run_id is not None:
                 run = await uow.run.lock(run_id)
                 if run is None or (run.status.terminal and not after_terminal):
@@ -72,11 +74,16 @@ class RunLedger:
             events_after: Sequence[BaseEvent] = (),
             apply: Optional[Apply] = None,
             mode: RunMode = RunMode.NORMAL,
+            before_start: Optional[Apply] = None,
     ) -> Run:
         """创建运行并写入 run(running) 事件与随后的事件；会话已有活动运行时抛 ActiveRunExistsError。"""
         run = Run(session_id=session_id, mode=mode)
         uow = self._uow_factory()
         async with uow:
+            session = await lock_project_session(uow, session_id)
+            await ensure_project_start(uow, session)
+            if before_start is not None:
+                await before_start(uow)
             await uow.run.create(run)
             events = [RunEvent(status=RunStatus.RUNNING.value, mode=run.mode.value), *events_after]
             await self._write(uow, session_id, events, run.id)
@@ -108,6 +115,7 @@ class RunLedger:
         uow = self._uow_factory()
         try:
             async with uow:
+                await lock_project_session(uow, session_id)
                 current = await uow.run.lock(run_id)
                 if current is None or current.status.terminal:
                     raise _StaleRun()

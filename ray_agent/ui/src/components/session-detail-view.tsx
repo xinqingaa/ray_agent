@@ -32,7 +32,7 @@ import {normalizeEvents} from '@/lib/session-events'
 import {canExecutePlan} from '@/lib/session-projection'
 import {ApiError} from '@/lib/api/fetch'
 import type {FileInfo} from '@/lib/api/types'
-import type {FileView, ProjectView, TimelineItem, ToolCallView, ToolFamily} from '@/lib/session-view'
+import type {FileView, TimelineItem, ToolCallView, ToolFamily} from '@/lib/session-view'
 
 export interface SessionDetailViewProps {
   sessionId: string
@@ -169,16 +169,6 @@ export function SessionDetailView({
     if (view?.project?.available) projectRefreshRef.current?.observe(events)
   }, [events, view?.project?.available])
 
-  const handleProjectSelect = useCallback(async (project: ProjectView | null) => {
-    if (!project || !projectBindable) return
-    try {
-      await projectApi.bindSessionProject(sessionId, project.path)
-      await refresh()
-      toast.success(`已绑定项目「${project.name}」`)
-    } catch (err) {
-      toast.error(err instanceof ApiError ? err.msg : err instanceof Error ? err.message : '绑定项目失败')
-    }
-  }, [sessionId, projectBindable, refresh])
   useEffect(() => {
     if (!stickRef.current || vncOpen) return
     const el = scrollRef.current
@@ -491,7 +481,6 @@ export function SessionDetailView({
                 projectsEnabled={projectsEnabled}
                 projectBindable={projectBindable}
                 selectedProject={view.project}
-                onProjectSelect={(project) => { void handleProjectSelect(project) }}
                 commandHost={{
                   hasSession: true,
                   hasRuns: view.runs.length > 0,

@@ -27,6 +27,8 @@ def test_late_auto_title_does_not_replace_manual_title():
         async def get_by_id(self, _):
             return session
 
+        lock = get_by_id
+
         async def set_title(self, _, title, source, expected):
             if session.title_source != expected:
                 return False

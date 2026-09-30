@@ -14,6 +14,7 @@ export type NavigationProject = {
   available: boolean
   reason?: string | null
   conversations: Session[]
+  navigationError?: string
 }
 export type NavigationExpansion = {projects: boolean; conversations: boolean; items: Record<string, boolean>}
 
@@ -77,7 +78,8 @@ export function ProjectNavigation(props: Props) {
             </div>
             {expansion.items[project.id] && <div className="ml-5 border-l pl-1">
               {project.conversations.map(sessionRow)}
-              {project.conversations.length === 0 && <p className="px-2 py-2 text-meta text-faint">从项目工作区发送，开始对话</p>}
+              {project.navigationError && <p role="alert" className="px-2 py-2 text-meta text-state-failed">{project.navigationError}</p>}
+              {!project.navigationError && project.conversations.length === 0 && <p className="px-2 py-2 text-meta text-faint">从项目工作区发送，开始对话</p>}
             </div>}
           </div>)}
         </div>}

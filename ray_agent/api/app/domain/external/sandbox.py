@@ -136,7 +136,7 @@ class Sandbox(Protocol):
         ...
 
     @classmethod
-    async def create(cls, project_path: Optional[str] = None) -> Self:
+    async def create(cls, project_path: Optional[str] = None, git_environment: Optional[dict[str, str]] = None) -> Self:
         """类方法，用于快速创建一个沙箱。传入宿主机项目目录时读写挂载到 SANDBOX_PROJECT_DIR，
         当前模式不支持绑定时抛出 SandboxProjectBindingError"""
         ...

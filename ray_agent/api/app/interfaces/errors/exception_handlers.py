@@ -8,12 +8,18 @@ from starlette.exceptions import HTTPException
 
 from app.application.errors.exceptions import AppException
 from app.interfaces.schemas import Response
+from app.domain.services.project_transactions import ProjectRunConflict
 
 logger = logging.getLogger(__name__)
 
 
 def register_exception_handlers(app: FastAPI) -> None:
     """处理MoocManus项目中所有的异常并进行统一处理，涵盖：自定义业务状态异常、HTTP异常、通用异常"""
+
+    @app.exception_handler(ProjectRunConflict)
+    async def project_conflict_handler(req: Request, e: ProjectRunConflict) -> JSONResponse:
+        return JSONResponse(status_code=409, content=Response(code=409, msg=str(e),
+            data={"occupying_session_id": e.occupying_session_id} if e.occupying_session_id else {}).model_dump())
 
     @app.exception_handler(AppException)
     async def app_exception_handler(req: Request, e: AppException) -> JSONResponse:

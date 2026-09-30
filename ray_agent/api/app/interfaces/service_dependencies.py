@@ -129,4 +129,5 @@ def get_agent_service() -> AgentService:
         notifier=RedisEventNotifier(),
         tool_policy=app_config.tool_policy,
         project_validator=get_project_service().validate_start,
+        project_prepare=get_project_service().prepare_snapshot,
     )

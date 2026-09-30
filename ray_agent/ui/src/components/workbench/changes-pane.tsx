@@ -31,7 +31,7 @@ function DiffBody({diff}: {diff: GitDiff}) {
   return (
     <>
       {diff.diff && (
-        <pre className="overflow-x-auto rounded-md bg-muted px-3 py-2 font-mono text-xs leading-5 whitespace-pre-wrap break-all">
+        <pre className="overflow-x-auto rounded-md bg-muted px-3 py-2 font-mono text-xs leading-5 whitespace-pre">
           {diff.diff.length > 50000 ? `${diff.diff.slice(0, 50000)}…` : diff.diff}
         </pre>
       )}
@@ -45,17 +45,18 @@ function DiffBody({diff}: {diff: GitDiff}) {
 
 type ChangesPaneProps = {
   sessionId: string
+  projectLevel?: boolean
   refreshSignal?: number
   onBranchUpdate?: (branch: string | null) => void
 }
 
-export function ChangesPane({sessionId, refreshSignal, onBranchUpdate}: ChangesPaneProps) {
+export function ChangesPane({sessionId, refreshSignal, onBranchUpdate, projectLevel = false}: ChangesPaneProps) {
   const statusRequest = useRef(0)
   const diffRequest = useRef(0)
   const selectedRef = useRef<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [diffError, setDiffError] = useState<string | null>(null)
-  useEffect(() => () => {statusRequest.current++; diffRequest.current++}, [sessionId])
+  useEffect(() => () => {statusRequest.current++; diffRequest.current++}, [sessionId, projectLevel])
   const [status, setStatus] = useState<GitStatus | null>(null)
   const [loading, setLoading] = useState(true)
   const [selectedPath, setSelectedPath] = useState<string | null>(null)
@@ -80,7 +81,7 @@ export function ChangesPane({sessionId, refreshSignal, onBranchUpdate}: ChangesP
       const sections = await Promise.all(
         requests.map(async ({title, scope}) => ({
           title,
-          diff: await projectApi.getGitDiff(sessionId, scope, entry.path),
+          diff: await projectApi.getGitDiff(sessionId, scope, entry.path, projectLevel),
         })),
       )
       if (request === diffRequest.current) setDiffSections(sections)
@@ -89,14 +90,14 @@ export function ChangesPane({sessionId, refreshSignal, onBranchUpdate}: ChangesP
     } finally {
       if (request === diffRequest.current) setDiffLoading(false)
     }
-  }, [sessionId])
+  }, [sessionId, projectLevel])
 
   const refresh = useCallback(async () => {
     const request = ++statusRequest.current
     setLoading(true)
     setError(null)
     try {
-      const next = await projectApi.getGitStatus(sessionId)
+      const next = await projectApi.getGitStatus(sessionId, projectLevel)
       if (request !== statusRequest.current) return
       setStatus(next)
       const selected = next.entries.find((entry) => entry.path === selectedRef.current)

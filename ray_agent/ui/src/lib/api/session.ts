@@ -34,8 +34,8 @@ export const sessionApi = {
   /**
    * 获取会话列表
    */
-  getSessions: (): Promise<SessionsData> => {
-    return get<SessionsData>("/sessions");
+  getSessions: (offset = 0, independent = true, limit = 50): Promise<SessionsData> => {
+    return get<SessionsData>("/sessions", {offset, independent, limit});
   },
 
   /**
@@ -66,7 +66,7 @@ export const sessionApi = {
 
     const startStream = async () => {
       try {
-        const stream = await createSSEStream("/sessions/stream", {}, {
+        const stream = await createSSEStream("/sessions/stream?independent=true", {}, {
           signal: controller.signal,
         });
 

@@ -67,6 +67,7 @@ class AgentTaskRunner(TaskRunner):
             run_id: str,  # 本任务执行的运行
             prior_status: Optional[SessionStatus] = None,  # 首条消息到达前会话所处的状态
             tool_policy: Optional[ToolPolicyConfig] = None,  # 工具策略表，为空时用默认策略
+            project_instructions: Optional[str] = None,
             workspace_dir: Optional[str] = None,  # 绑定项目时为 /workspace，否则为空
     ) -> None:
         """构造函数，完成Agent任务运行器的创建"""
@@ -102,7 +103,7 @@ class AgentTaskRunner(TaskRunner):
             ),
             deliver_file=self._deliver_file,
             write_output=self._write_output,
-            system_prompt=build_system_prompt(workspace_dir),
+            system_prompt=build_system_prompt(workspace_dir, project_instructions),
             tool_policy=tool_policy,
         )
         self._flow._publish_delta = self._publish_delta
