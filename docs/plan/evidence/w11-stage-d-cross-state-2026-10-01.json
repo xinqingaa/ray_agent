@@ -36,5 +36,24 @@
     "W11连续非编码项目及全部故障场景"
   ],
   "model_blocker": "既有真实模型401，无新凭据，不重复无效请求",
-  "resources": "原始审计及限定测试项目/对话/CSV保留，未清理用户数据"
+  "resources": "原始审计及限定测试项目/对话/CSV保留，未清理用户数据",
+  "attachment_receipts_followup": {
+    "product_commit": "22d40a862dfb8c9f3bed93abdd08576e69292442",
+    "ui_image_id": "sha256:f73af1854e67a4a948ba1adf555b9269649f8cad89062f3bbc32413d1596d4f5",
+    "health": "healthy",
+    "checks": [
+      "UI所属目录tsc、定向eslint复验通过",
+      "npm生产构建、事件投影脚本和Docker最终UI构建通过",
+      "UI重建、Nginx重启、IAB重载项目入口通过；不是附件/交付状态场景验收"
+    ],
+    "failure_retest": "初次eslint拒绝effect同步清空状态；按projectId key重新挂状态容器后复验通过",
+    "remaining": "真实附件状态、交付补存与等待侧栏场景尚待浏览器验收"
+  },
+  "full_regression": {
+    "command": "API目录 RAY_TEST_DATABASE_URI=独立临时PG uv run --locked pytest tests/core tests/protocols -q",
+    "result": "327 passed, 2 warnings in 38.52s",
+    "conditions": "真实独立PostgreSQL16；协议临时服务、Docker/模型替身按测试夹具，不是产品真实模型或阶段E",
+    "warnings": "既有工具策略配置的HttpUrl序列化警告",
+    "raw_log": "/tmp/rayagent-stage-d-cross-full-pg.log"
+  }
 }
