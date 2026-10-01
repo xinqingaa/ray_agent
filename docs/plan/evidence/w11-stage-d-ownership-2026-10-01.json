@@ -1,0 +1,69 @@
+{
+  "date": "2026-10-01",
+  "timezone": "Asia/Shanghai",
+  "baseline": "d4a0be0033d177a53e855a9a27ebf70bedf8edfa",
+  "product_commit": "203fa083138e4a03415dc90da6e3550b40b60ac8",
+  "images": {
+    "manus-api": "sha256:d460e0728ee1c571fc1098df99ac94c875feeaa6d62c4466ecd87cdf05ab790d",
+    "manus-ui": "sha256:4908d14d8214c64638f371680c89bde64416731d0378014f35aae711cd38b789",
+    "sandbox": "sha256:cc0105ee3b36826d67005b231858e0f5cc814d0efda742529e51d78085049faf"
+  },
+  "migration": "a1d4e8f20c31",
+  "api_python_hashes_equal": true,
+  "api_python_files": 176,
+  "file_storage_local_dir": "/data/files",
+  "volume": "ray_agent_file_data",
+  "gateway": "127.0.0.1:8088",
+  "tests": {
+    "core_protocols": {
+      "passed": 244,
+      "skipped": 16,
+      "warnings": 2,
+      "seconds": 26.97,
+      "condition": "新增第4/5项PG与startup waiting调整之前的全量；之后定向39项覆盖受影响路径"
+    },
+    "targeted_final": {
+      "passed": 39,
+      "seconds": 5.27,
+      "postgres": "independent PostgreSQL 16",
+      "docker_in_pg_tests": "substitute"
+    }
+  },
+  "docker_writer_check": {
+    "project_id": "settling-check-5ad4163dc9c742128b8b5a206b8c5dc0",
+    "container": "rayagent-sandbox-e51e21ec",
+    "old_writer_grew": true,
+    "stopped_status": "absent",
+    "stopped_bytes": 530,
+    "restored_bytes_unchanged": true,
+    "waiting_container_preserved": true,
+    "resources_cleaned": true
+  },
+  "deployment_probe": {
+    "id": "fe24e243-2852-4044-8eb3-3f7df80f5ac3",
+    "http_status": 200,
+    "available": true,
+    "sessions_created": 0,
+    "cleaned": true
+  },
+  "failures": [
+    {
+      "step": "Docker writer first run",
+      "reason": "DockerClient context manager unsupported",
+      "resolved": true
+    },
+    {
+      "step": "Docker writer second run",
+      "reason": "auto-remove removing transient state triggered kill 409",
+      "resolved": true
+    }
+  ],
+  "model_evaluation_executed": false,
+  "browser_acceptance_executed": false,
+  "final_freeze": false,
+  "remaining_business_counts": {
+    "projects": 0,
+    "sessions": 0,
+    "runs": 0
+  }
+}
