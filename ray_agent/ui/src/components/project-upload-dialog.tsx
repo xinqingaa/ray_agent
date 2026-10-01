@@ -31,7 +31,6 @@ export function ProjectUploadDialog({open, projectId, disabledReason, onClose, o
   const [onlyFailed,setOnlyFailed]=useState<Set<string> | undefined>()
   const sources=useRef<UploadSource[]>([]), epoch=useRef(0), cancel=useRef(false), transferring=useRef(false)
   const filesInput=useRef<HTMLInputElement>(null), folderInput=useRef<HTMLInputElement>(null)
-  useEffect(() => {if (folderInput.current) folderInput.current.setAttribute('webkitdirectory','')},[open])
   const readback=useCallback(async (id: string, op: string) => {
     const token=epoch.current
     const value=await projectApi.operation(id,op);if(token===epoch.current){setResult(value);setOperation(op)}return value
@@ -138,7 +137,7 @@ export function ProjectUploadDialog({open, projectId, disabledReason, onClose, o
     <div className="flex min-h-20 flex-wrap items-center justify-center gap-2 rounded-md border border-dashed p-3" onDragOver={event => event.preventDefault()} onDrop={event => {event.preventDefault();if(!busy && !disabledReason && !activeBatch)void inspect(sourcesFromDrop(event.dataTransfer.items))}}>
       <span className="text-meta text-faint">拖入文件或文件夹</span><Button size="sm" variant="outline" disabled={!!busy || !!disabledReason || !!activeBatch} onClick={() => filesInput.current?.click()}>选择文件</Button><Button size="sm" variant="outline" disabled={!!busy || !!disabledReason || !!activeBatch} onClick={() => void folder()}>选择文件夹</Button>
       <input ref={filesInput} type="file" multiple className="hidden" onChange={event => {const files=Array.from(event.target.files || []);event.target.value='';void inspect(sourcesFromFiles(files))}}/>
-      <input ref={folderInput} type="file" multiple className="hidden" onChange={event => {const files=Array.from(event.target.files || []);event.target.value='';if(files.length)setName(files[0].webkitRelativePath.split('/')[0]);void inspect(sourcesFromFiles(files,true))}}/>
+      <input ref={element => {folderInput.current=element;element?.setAttribute('webkitdirectory','')}} type="file" multiple className="hidden" onChange={event => {const files=Array.from(event.target.files || []);event.target.value='';if(files.length)setName(files[0].webkitRelativePath.split('/')[0]);void inspect(sourcesFromFiles(files,true))}}/>
     </div>
     {disabledReason && <p className="text-meta text-state-waiting">{disabledReason}</p>}
     {busy && <p role="status" className="truncate text-meta text-faint">{busy==='scan' ? '正在扫描与预检' : busy==='upload' ? '正在上传' : '正在读取批次'}：{progress}</p>}
