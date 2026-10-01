@@ -1,6 +1,7 @@
 'use client'
 
 import type {FileView, TimelineItem} from '@/lib/session-view'
+import {ProjectCopiesProvider} from './project-copy-status'
 import {ApprovalCard} from './approval-card'
 import {AskCard} from './ask-card'
 import {DeliveryCard} from './delivery-card'
@@ -83,12 +84,12 @@ export function TimelineItemView({item, handlers = {}}: {item: TimelineItem; han
 /** 时间线：条目之间按类型留白；数百条时的虚拟化在接入真实数据时处理 */
 export function Timeline({items, handlers, className}: {items: TimelineItem[]; handlers?: TimelineHandlers; className?: string}) {
   return (
-    <ol className={className ?? 'flex flex-col gap-3'}>
+    <ProjectCopiesProvider projectId={handlers?.projectId}><ol className={className ?? 'flex flex-col gap-3'}>
       {items.map((item) => (
         <li key={item.id}>
           <TimelineItemView item={item} handlers={handlers}/>
         </li>
       ))}
-    </ol>
+    </ol></ProjectCopiesProvider>
   )
 }

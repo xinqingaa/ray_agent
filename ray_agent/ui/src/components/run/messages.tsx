@@ -1,5 +1,6 @@
 'use client'
 
+import {AttachmentCopyStatus} from './project-copy-status'
 import {CornerDownRight} from 'lucide-react'
 import {MarkdownContent} from '@/components/markdown-content'
 import {cn} from '@/lib/utils'
@@ -36,10 +37,11 @@ export function UserMessage({text, attachments = [], injected = false, className
             {attachments.map((file) => {
               const Icon = fileIcon(file.extension)
               return (
-                <span key={file.id} className="inline-flex max-w-full items-center gap-1.5 rounded-md border bg-card px-2 py-1 text-xs">
+                <span key={file.id} className="inline-flex max-w-full flex-wrap items-center gap-1.5 rounded-md border bg-card px-2 py-1 text-xs">
                   <Icon className="size-3.5 shrink-0 text-muted-foreground" aria-hidden/>
                   <span className="truncate">{file.filename}</span>
                   <span className="shrink-0 tabular-nums text-muted-foreground">{formatBytes(file.size)}</span>
+                  <AttachmentCopyStatus attachmentId={file.id}/>
                 </span>
               )
             })}
