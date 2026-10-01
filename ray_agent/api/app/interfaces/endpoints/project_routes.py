@@ -162,3 +162,11 @@ async def download_project(project_id: str, path: str | None = Query(None), serv
         'X-RayAgent-Download-Warning': quote(warning, safe=''),
         'Cache-Control': 'no-store',
     })
+
+
+@router.get('/{project_id}/file-copies', response_model=Response[list])
+async def file_copies(project_id: str, service: ProjectFileService = Depends(get_project_file_service)):
+    await service.get(project_id)
+    async with service.factory() as uow:
+        copies = await uow.project.file_copies(project_id)
+    return Response.success(data=copies)

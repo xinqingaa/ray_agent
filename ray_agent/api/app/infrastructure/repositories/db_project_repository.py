@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.models.workspace_project import WorkspaceProject
 from app.domain.repositories.project_repository import ProjectRepository
-from app.infrastructure.models.project import ProjectModel, ProjectAuditModel, ProjectSnapshotModel
+from app.infrastructure.models.project import ProjectModel, ProjectAuditModel, ProjectSnapshotModel, ProjectFileCopyModel
 
 
 class DBProjectRepository(ProjectRepository):
@@ -93,3 +93,28 @@ class DBProjectRepository(ProjectRepository):
             ProjectAuditModel.type == 'file_operation',
         ).order_by(ProjectAuditModel.seq.desc()).limit(1))).scalar_one_or_none()
         return record.payload if record else None
+
+
+    async def file_copy(self, project_id, copy_key):
+        from app.domain.models.project_file_copy import ProjectFileCopy
+        record = (await self.db_session.execute(select(ProjectFileCopyModel).where(
+            ProjectFileCopyModel.project_id == project_id, ProjectFileCopyModel.copy_key == copy_key))).scalar_one_or_none()
+        return ProjectFileCopy.model_validate(record) if record else None
+
+    async def file_copies(self, project_id, *, run_id=None):
+        from app.domain.models.project_file_copy import ProjectFileCopy
+        stmt = select(ProjectFileCopyModel).where(ProjectFileCopyModel.project_id == project_id)
+        if run_id:
+            stmt = stmt.where(ProjectFileCopyModel.run_id == run_id)
+        return [ProjectFileCopy.model_validate(record) for record in (await self.db_session.execute(stmt.order_by(ProjectFileCopyModel.created_at))).scalars()]
+
+    async def save_file_copy(self, copy):
+        values = copy.model_dump()
+        stmt = insert(ProjectFileCopyModel).values(**values)
+        await self.db_session.execute(stmt.on_conflict_do_update(index_elements=['project_id', 'copy_key'],
+            set_={k:v for k,v in values.items() if k not in ('project_id', 'copy_key')}))
+
+
+    async def drop_file_copy(self, project_id, copy_key):
+        await self.db_session.execute(delete(ProjectFileCopyModel).where(
+            ProjectFileCopyModel.project_id == project_id, ProjectFileCopyModel.copy_key == copy_key))

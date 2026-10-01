@@ -205,6 +205,10 @@ class AgentTaskRunner(TaskRunner):
         """先完整同步，成功后替换本次输入；失败保留原受理事件和附件 id。"""
         attachments: List[File] = []
         for attachment in event.attachments:
+            project_id = getattr(self, '_project_id', None)
+            service = getattr(self, '_project_attachment_service', None)
+            if project_id and service:
+                await service.publish(project_id, attachment.id, self._run_id)
             copied = await self._sync_file_to_sandbox(attachment.id)
             async with self._uow:
                 await self._uow.session.add_file(self._session_id, copied)

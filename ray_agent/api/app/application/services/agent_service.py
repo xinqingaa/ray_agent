@@ -111,6 +111,7 @@ class AgentService:
             project_prepare=None,
             project_file_prepare=None,
             project_file_coordinator=None,
+            project_attachments=None,
     ) -> None:
         """构造函数，完成Agent服务初始化"""
         self._uow_factory = uow_factory
@@ -122,6 +123,7 @@ class AgentService:
         self._project_validator = project_validator
         self._project_prepare = project_prepare
         self._project_file_prepare = project_file_prepare
+        self._project_attachments = project_attachments
         from app.domain.services.project_file_coordinator import ProjectFileCoordinator
         self._project_coordinator = project_file_coordinator or ProjectFileCoordinator(uow_factory, sandbox_cls)
         self._tool_policy = tool_policy
@@ -217,6 +219,9 @@ class AgentService:
                 workspace_dir=SANDBOX_PROJECT_DIR if session.project_id else None,
                 project_prompt=build_project_prompt(session.project.instructions) if session.project else "",
             )
+
+            task_runner._project_attachment_service = getattr(self, '_project_attachments', None)
+            task_runner._project_id = session.project_id
 
             # 6.创建尚未发布引用的任务，由后台启动所有权检查后登记
             task = self._task_cls.create(task_runner=task_runner)
@@ -335,6 +340,10 @@ class AgentService:
             if accepted_project_prompt is not None:
                 accepted = await uow.run.get_active(session_id)
                 await uow.run.save_snapshot(accepted.id, {"project_prompt": accepted_project_prompt})
+            attachments_service = getattr(self, '_project_attachments', None)
+            if attachments_service and session.project_id:
+                accepted = await uow.run.get_active(session_id)
+                await attachments_service.stage(uow, session.project_id, session_id, accepted.id, message_event)
             await uow.session.update_latest_message(session_id=session_id, message=message, timestamp=sent_at)
             if provisional_title is not None:
                 await uow.session.set_title(session_id, provisional_title.title, "provisional", "placeholder")

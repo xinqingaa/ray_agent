@@ -15,6 +15,16 @@ from tests.core.test_w11_projects_pg import projects
 from tests.core.test_project_snapshots_pg import files
 
 
+@pytest.fixture(autouse=True)
+def fresh_schema():
+    # 本文件也有不需要 PG 的规则用例，不能无配置时调用数据库 fixture。
+    if PG_URI:
+        from tests.core import test_run_events_pg as pg_tests
+        yield from pg_tests.fresh_schema.__wrapped__()
+    else:
+        yield
+
+
 def item(path, data, **kwargs):
     return dict(path=path, size=len(data), sha256=hashlib.sha256(data).hexdigest(), **kwargs)
 

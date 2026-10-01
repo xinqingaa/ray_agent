@@ -10,6 +10,7 @@ from sqlalchemy import (
     text,
     PrimaryKeyConstraint,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .base import Base
@@ -59,6 +60,8 @@ class FileModel(Base):
         nullable=False,
         server_default=text("0"),
     )  # 文件大小
+    sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    project_upload: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime,
         nullable=False,

@@ -24,6 +24,7 @@ class ProjectFileService:
         self.max_bytes, self.retention, self.ledger = max_bytes, retention, ledger
         self.disk_factory = disk_factory
         self.settings = settings
+        self.attachments = None
 
     def disk(self, project_id):
         return self.disk_factory(self.storage, project_id, max_bytes=self.max_bytes)
@@ -121,6 +122,8 @@ class ProjectFileService:
             cancelled = False
             try:
                 cancelled |= await self._stop_owned(project_id, operation.operation_id)
+                if self.attachments:
+                    await self.attachments.publish_run(project_id, run_id, lock_held=True)
                 protection, was_cancelled = await self._capture(project_id, operation.operation_id, 'run', run_id=run_id, session_id=session_id)
                 cancelled |= was_cancelled
                 _, was_cancelled = await self._collect(project_id, operation.operation_id)

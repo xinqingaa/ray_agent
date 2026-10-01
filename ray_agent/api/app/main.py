@@ -80,6 +80,7 @@ async def lifespan(app: FastAPI):
     from app.infrastructure.external.sandbox.docker_sandbox import DockerSandbox
     await get_project_file_service().reconcile_startup()
     await ProjectFileCoordinator(get_uow, DockerSandbox, get_project_file_service().measure_size).reconcile_startup()
+    await get_project_file_service().attachments.reconcile_startup()
     await get_project_file_service().reconcile_orphans()
 
     async def upload_expiry():

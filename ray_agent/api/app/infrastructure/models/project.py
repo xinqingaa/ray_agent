@@ -62,3 +62,21 @@ class ProjectSnapshotModel(Base):
     total_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False)
     manifest_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+
+
+class ProjectFileCopyModel(Base):
+    __tablename__ = 'project_file_copies'
+    __table_args__ = (UniqueConstraint('project_id', 'path', name='uq_project_file_copies_path'),)
+    project_id: Mapped[str] = mapped_column(String(255), ForeignKey('projects.id', ondelete='RESTRICT'), primary_key=True)
+    copy_key: Mapped[str] = mapped_column(String(255), primary_key=True)
+    kind: Mapped[str] = mapped_column(String(20), nullable=False)
+    attachment_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    session_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    run_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    message_seq: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+    path: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    size: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    state: Mapped[str] = mapped_column(String(20), nullable=False)
+    error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)

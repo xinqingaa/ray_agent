@@ -177,11 +177,11 @@ docker compose run --rm --no-deps -T manus-api python scripts/check_project_writ
 ### 项目上传、快照与下载观察
 
 ```bash
-RAY_TEST_DATABASE_URI=postgresql+asyncpg://… uv run --locked python -m pytest tests/core/test_project_uploads.py tests/core/test_project_snapshots_pg.py tests/core/test_project_snapshot_disk.py tests/core/test_project_download.py
+RAY_TEST_DATABASE_URI=postgresql+asyncpg://… uv run --locked python -m pytest tests/core/test_project_uploads.py tests/core/test_project_snapshots_pg.py tests/core/test_project_snapshot_disk.py tests/core/test_project_download.py tests/core/test_project_attachments_pg.py
 uv run --locked python scripts/check_project_file_lifecycle.py --url http://127.0.0.1:8088/api --output /tmp/project-file-check.json
 ```
 
-数据库测试使用独立临时 PostgreSQL（每例重建 `public`），文件使用临时目录，Docker 为替身；覆盖上传批次所有权、规则与实际字节复核、保护快照、故障修复、取消、到期与重启。磁盘测试核对内容对象、无硬链接去重、原地恢复、链接与流式 ZIP。真实部署脚本通过 HTTP 新建唯一测试项目，验证覆盖保护、恢复路径/字节、下载、归档快照清理；不调用模型，不替代浏览器验收。脚本保留测试项目并输出其 id 与限定清理范围；检查记录后仅按该范围清理，不能清空业务库或删除其他项目。
+数据库测试使用独立临时 PostgreSQL（每例重建 `public`），文件使用临时目录，Docker 为替身；覆盖上传批次所有权、规则与实际字节复核、保护快照、故障修复、取消、到期与重启。磁盘测试核对内容对象、无硬链接去重、原地恢复、链接与流式 ZIP。真实部署脚本通过 HTTP 新建唯一测试项目，验证覆盖保护、恢复路径/字节、下载、归档快照清理；不调用模型，不替代浏览器验收。项目输入附件上传使用 `/files` 的 `project_id`、当前 `rule_version` 和可选项明确确认参数；已上传 id 在 chat 受理事务中登记 pending，后台停止旧写入者后发布并纳入运行前快照。附件用例验证原子受理、改名、快照锁、结果未知读回、明确 ready 拒绝、启动孤儿收敛；尚需与真实模型/浏览器完整链路验收。脚本保留测试项目并输出其 id 与限定清理范围；检查记录后仅按该范围清理，不能清空业务库或删除其他项目。
 
 ### 沙箱环境观察
 

@@ -79,6 +79,7 @@ def get_file_service() -> FileService:
     return FileService(
         uow_factory=get_uow,
         file_storage=get_file_storage(),
+        project_files=get_project_file_service(),
     )
 
 
@@ -133,6 +134,7 @@ def get_agent_service() -> AgentService:
         project_validator=get_project_service().validate_start,
         project_prepare=get_project_service().prepare_snapshot,
         project_file_prepare=get_project_file_service().prepare_run,
+        project_attachments=get_project_file_service().attachments,
         project_file_coordinator=ProjectFileCoordinator(get_uow, DockerSandbox, get_project_file_service().measure_size),
     )
 
@@ -141,5 +143,8 @@ def get_project_file_service() -> ProjectFileService:
     current = get_settings()
     def retention():
         return FileAppConfigRepository(current.app_config_filepath).load().agent_config.project_snapshot_retention
-    return ProjectFileService(get_uow, get_managed_storage(), DockerSandbox,
+    from app.application.services.project_attachment_service import ProjectAttachmentService
+    service = ProjectFileService(get_uow, get_managed_storage(), DockerSandbox,
         max_bytes=current.project_max_bytes, retention=retention, ledger=get_run_ledger(), settings=current)
+    service.attachments = ProjectAttachmentService(service, get_file_storage())
+    return service

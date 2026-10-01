@@ -14,3 +14,5 @@ class File(BaseModel):
     extension: str = ""  # 扩展名
     mime_type: str = ""  # mime-type类型
     size: int = 0  # 文件大小，单位为字节
+    sha256: str | None = None
+    project_upload: dict | None = None
