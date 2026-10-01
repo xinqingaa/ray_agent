@@ -65,5 +65,17 @@
     "projects": 0,
     "sessions": 0,
     "runs": 0
+  },
+  "followup_file_io": {
+    "product_commit": "abaff8bad86ad3c3da8222ae89c9895ef53a9a12",
+    "api_image": "sha256:847aa06d77dc1c3d68bab9444d6a7a1f5f0b7b68b5529e727a47341e2059ad4e",
+    "api_python_files": 177,
+    "api_hashes_equal": true,
+    "file_tests_passed": 19,
+    "seconds": 0.03,
+    "docker_unified_owner_modify_delete": true,
+    "test_project": "mount-check-6e2fbc96daf743afa1f85fc6c36dc908",
+    "test_container": "rayagent-sandbox-83a709bd",
+    "resources_cleaned": true
   }
 }
