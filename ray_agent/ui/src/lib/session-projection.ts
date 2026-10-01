@@ -1501,6 +1501,12 @@ function readFiles(raw: unknown, source: 'upload' | 'delivery'): FileView[] {
       contentType: str(item.mime_type) ?? str(item.content_type) ?? str(item.contentType) ?? '',
       source,
       path: path || null,
+      projectPersistence: isRecord(item.project_persistence) ? {
+        state: str(item.project_persistence.state) ?? 'pending',
+        copy_key: str(item.project_persistence.copy_key) ?? '',
+        path: str(item.project_persistence.path), error: str(item.project_persistence.error),
+        can_retry: item.project_persistence.can_retry === true,
+      } : undefined,
     })
   }
   return files

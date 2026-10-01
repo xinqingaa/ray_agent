@@ -65,6 +65,9 @@ class ProjectView(BaseModel):
     snapshots_released_bytes: int = 0
     file_operation: Optional[ProjectOperation] = None
     write_blocked_reason: Optional[str] = None
+    occupying_session_id: Optional[str] = None
+    active_run_status: Optional[str] = None
+    active_run_reason: Optional[str] = None
     task_count: int = 0
     last_active_at: Optional[datetime] = None
     reason: Optional[str] = None  # 不可用时的中文说明；可用时为空

@@ -85,10 +85,15 @@ class ProjectService:
         async with self._uow_factory() as uow:
             projects, total = await uow.project.page(archived=archived, offset=offset, limit=limit)
             counts = await uow.session.project_counts([project.id for project in projects])
+            active = {project.id: await uow.run.get_active_project(project.id) for project in projects}
         views = []
         for project in projects:
             view = self.describe(project)
-            views.append(view.model_copy(update={"task_count": counts.get(project.id, 0)}))
+            run = active[project.id]
+            views.append(view.model_copy(update={"task_count": counts.get(project.id, 0),
+                "occupying_session_id": run.session_id if run else None,
+                "active_run_status": run.status.value if run else None,
+                "active_run_reason": run.reason if run else None}))
         return views, total
 
     async def detail(self, project_id: str):
@@ -97,7 +102,9 @@ class ProjectService:
             counts = await uow.session.project_counts([project.id])
             occupied = await uow.run.get_active_project(project.id)
         return {**project.model_dump(mode="json"), **self.describe(project).model_dump(mode="json"),
-            "task_count": counts.get(project.id, 0), "occupying_session_id": occupied.session_id if occupied else None}
+            "task_count": counts.get(project.id, 0), "occupying_session_id": occupied.session_id if occupied else None,
+            "active_run_status": occupied.status.value if occupied else None,
+            "active_run_reason": occupied.reason if occupied else None}
 
     async def update(self, project_id: str, settings: ProjectSettings, *, base_version: int | None = None,
                      notes: str | None = None, notes_version: int | None = None) -> WorkspaceProject:

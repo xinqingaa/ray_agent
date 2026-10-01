@@ -303,6 +303,7 @@ export function SessionDetailView({
   }, [])
 
   const handlers = useMemo<TimelineHandlers>(() => ({
+    projectId: view?.project?.id,
     selectedCallId: focus?.callId ?? null,
     onOpenCall: (callId) => {
       setPinnedCallId(callId)
@@ -328,7 +329,7 @@ export function SessionDetailView({
     onApprove: (callId) => void handleApproval(callId, 'approve'),
     onReject: (callId) => void handleApproval(callId, 'reject'),
     approvalSubmitting,
-  }), [focus?.callId, view?.activeRun, view?.streamingItemId, submitting, downloadOne, downloadAll, sendMessage, handleApproval, approvalSubmitting])
+  }), [view?.project?.id, focus?.callId, view?.activeRun, view?.streamingItemId, submitting, downloadOne, downloadAll, sendMessage, handleApproval, approvalSubmitting])
 
   const onScroll = () => {
     const el = scrollRef.current

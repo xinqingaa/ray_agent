@@ -48,7 +48,7 @@ export function ProjectSummaryDialog({sessionId,title,onClose,onChanged}: {sessi
       <textarea aria-label="对话摘要全文" className="min-h-32 w-full rounded-md border bg-background p-3 text-sm" maxLength={1500} value={draft} disabled={busy} onChange={event=>{dirty.current=true;setDraft(event.target.value)}}/>
       <p className="text-meta text-faint">{draft.length} / 1500 字符。生成只读取最初目标与已完成运行的最终答复。</p>
       {summary.summary_error && <p role="alert" className="text-meta text-state-failed">{summary.summary_error}；已有摘要保留。</p>}
-      <details className="text-meta text-faint"><summary>摘要来源</summary><p>生成代次 {summary.summary_generation}，材料截止消息序号 {summary.summary_source_seq}。较早代次的结果会被丢弃，不能覆盖当前摘要。</p></details>
+      <details className="text-meta text-faint"><summary>摘要来源</summary><p>生成代次 {summary.summary_generation}，材料截止消息序号 {summary.summary_source_seq}。较早代次的结果会被丢弃，不能覆盖当前摘要；实际丢弃和失败记录可在项目工作台的项目审计中查看。</p></details>
       <div className="flex flex-wrap gap-2"><Button disabled={busy} onClick={()=>void save()}>保存改写</Button><Button variant="outline" disabled={busy} onClick={()=>void regenerate()}>重新生成</Button><Button variant="ghost" disabled={busy} onClick={()=>void reload()}>重新加载</Button></div>
     </div> : <p className="text-meta text-faint">正在读取摘要</p>}
     {error && <p role="alert" className="text-meta text-state-failed">{error}</p>}

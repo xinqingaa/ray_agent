@@ -73,6 +73,11 @@ def test_summary_generations_sources_failures_and_stale_session_save(tmp_path):
         await memory.edit_summary(s.id,'手动摘要',newer['generation'])
         assert await memory.begin_summary(s.id) is None
         assert not await memory.complete_summary(newer,'迟到结果')
+        async with factory() as uow:
+            discarded = [event for event in await uow.project.events(p.id) if event['type'] == 'conversation_summary_discarded']
+        assert len(discarded) == 2
+        assert discarded[-1]['payload']['current_source'] == 'manual'
+        assert discarded[-1]['payload']['generation'] == newer['generation']
         # 正常会话状态/沙箱引用保存不会恢复旧摘要或代次。
         async with factory() as uow:
             stale.sandbox_id='old-sandbox'
@@ -187,4 +192,30 @@ def test_chat_receipt_freezes_full_context_and_waiting_reuses_same_run(tmp_path)
         assert newer.run_id!=first.id
         assert second.config_snapshot['project_context']['notes_version']==1
         assert '第二说明' in second.config_snapshot['project_prompt'] and '第二笔记' in second.config_snapshot['project_prompt']
+    with_db(scenario)
+
+
+def test_project_navigation_reports_waiting_and_terminal_status(tmp_path):
+    async def scenario(factory, engine):
+        service = projects(factory, tmp_path)
+        project = await service.create('侧栏状态')
+        session = await service.create_session(project.id)
+        ledger = RunLedger(factory)
+        run = await ledger.start(session.id)
+        async def check(status, reason=None):
+            views, total = await service.page()
+            detail = await service.detail(project.id)
+            assert total == 1 and views[0].task_count == 1
+            for view in (views[0].model_dump(), detail):
+                assert view['active_run_status'] == status
+                assert view['active_run_reason'] == reason
+                assert view['occupying_session_id'] == (session.id if status else None)
+        await check('running')
+        await ledger.transition(session.id, run.id, RunStatus.WAITING, reason='approval')
+        await check('waiting', 'approval')
+        await ledger.transition(session.id, run.id, RunStatus.RUNNING)
+        await ledger.transition(session.id, run.id, RunStatus.WAITING)
+        await check('waiting')
+        await ledger.transition(session.id, run.id, RunStatus.CANCELLED)
+        await check(None)
     with_db(scenario)

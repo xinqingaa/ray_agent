@@ -31,6 +31,7 @@ export const projectApi = {
   },
   finishUpload: (id: string, operation: string, cancel = false) => post<ProjectOperationResult>(`/projects/${id}/uploads/${operation}/finish?cancel=${cancel}`, {}, {timeout: 120000}),
   operation: (id: string, operation: string) => get<ProjectOperationResult>(`/projects/${id}/operations/${operation}`),
+  fileCopies: (id: string) => get<Array<{copy_key: string; kind: string; state: string; path: string | null; error: string | null; resolved_path: string | null}>>(`/projects/${id}/file-copies`),
   retryDelivery: (id: string, copyKey: string) => post<Record<string, unknown>>(`/projects/${id}/deliveries/retry`, {copy_key: copyKey}, {timeout: 120000}),
   download: async (id: string, path?: string) => {
     const base = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8088/api';

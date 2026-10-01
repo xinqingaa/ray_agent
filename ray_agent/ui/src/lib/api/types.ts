@@ -196,6 +196,8 @@ export type ProjectView = {
   available: boolean;
   reason?: string | null;
   archived?: boolean;
+  occupying_session_id?: string | null;
+  active_run_status?: string | null; active_run_reason?: string | null;
   task_count?: number;
   last_active_at?: string | null;
   files_size?: number; files_size_at?: string | null; files_size_stale?: boolean;

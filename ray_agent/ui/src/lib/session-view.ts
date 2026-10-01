@@ -184,6 +184,7 @@ export type FileView = {
   extension: string
   contentType: string
   source: 'upload' | 'delivery'
+  projectPersistence?: import('@/lib/api/types').FileInfo['project_persistence']
   /** 沙箱内路径；上传文件可能为空 */
   path: string | null
 }

@@ -100,11 +100,18 @@ class ProjectMemoryService:
             if (session.project_id != ticket['project_id'] or session.summary_source != 'auto'
                 or session.summary_generation != ticket['generation']
                 or session.summary_source_seq > ticket['source_seq']):
+                await uow.project.audit(session.project_id, 'conversation_summary_discarded', dict(
+                    session_id=session.id, generation=ticket['generation'], source_seq=ticket['source_seq'],
+                    current_generation=session.summary_generation, current_source=session.summary_source,
+                    current_source_seq=session.summary_source_seq, reason='摘要来源、代次或材料截止已更新'))
                 return False
             text = (text or '').strip()[:1500]
             if error or not text:
                 await uow.session.set_summary_fields(session.id, summary_state='failed',
                     summary_error=error or '模型返回空摘要，请重新生成')
+                await uow.project.audit(session.project_id, 'conversation_summary_failed', dict(
+                    session_id=session.id, generation=ticket['generation'], source_seq=ticket['source_seq'],
+                    error=error or '模型返回空摘要，请重新生成', preserved_summary=session.summary))
                 return False
             await uow.session.set_summary_fields(session.id, summary=text, summary_state='ready',
                 summary_error=None, summary_source_seq=ticket['source_seq'])

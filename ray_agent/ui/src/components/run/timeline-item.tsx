@@ -10,6 +10,7 @@ import {RunEndBar} from './run-end-bar'
 import {ToolGroup} from './tool-group'
 
 export type TimelineHandlers = {
+  projectId?: string
   selectedCallId?: string | null
   onOpenCall?: (callId: string) => void
   onPreviewFile?: (file: FileView) => void
@@ -53,6 +54,7 @@ export function TimelineItemView({item, handlers = {}}: {item: TimelineItem; han
     case 'delivery':
       return (
         <DeliveryCard
+          projectId={handlers.projectId}
           files={item.files}
           note={item.note}
           onPreview={handlers.onPreviewFile}
