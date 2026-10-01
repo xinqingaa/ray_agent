@@ -33,3 +33,4 @@ const file=(name,content='abc')=>({name,kind:'file',file:async()=>new File([cont
  const fallback=await scanProjectUpload(sourcesFromFiles([fallbackFile],true),rule,new Set());assert.equal(fallback.excluded[0].size,4);
  console.log('PASS: lazy directory exclusion, explicit rescan, marker/manifest distinctions, NFC conflicts, hash, quota, cancellation, known fallback sizes');
 })().catch(error=>{console.error(error);process.exitCode=1});
+/* eslint-disable @typescript-eslint/no-require-imports -- 独立 Node CommonJS 扫描检查脚本。 */
