@@ -1,0 +1,97 @@
+{
+  "kind": "阶段D浏览器覆盖/保护快照/恢复局部验收，非模型连续项目",
+  "product_commit": "a22e1ca4cc22f53261c6d7792f060e9f4330e452",
+  "project_id": "9a10bd1d-580b-44d0-97e7-36f091599357",
+  "original_file": "/tmp/rayagent-ui-upload-4b75ba29ba/source.csv",
+  "original_sha256": "7d99d75e14563a94bb420dc1fd994a4e51d89be413bcd1deb9652cbd95e18125",
+  "overwrite_file": "/tmp/rayagent-ui-upload-4b75ba29ba/overwrite/source.csv",
+  "overwrite_sha256": "b04131b78db649130873f1175691c8b18f9c076f4e72245d510673175a12ab23",
+  "overwrite_bytes": 31,
+  "cleanup_scope": "仅此既有临时测试项目内source.csv覆盖/本次保护快照与/tmp/rayagent-ui-upload-4b75ba29ba/overwrite；恢复原始CSV，保留项目/笔记/对话供模型复验，不删除用户数据；只清理本次浏览器生成的两个Downloads文件source.csv和stage-d-memory-334588aa27.zip，核对哈希后执行",
+  "checks": [
+    "浏览器单文件与整项目下载实际事件、磁盘文件、ZIP路径/字节与源文件哈希一致",
+    "真实浏览器勾选覆盖确认、批次完成；API读回覆盖后字节哈希，已登记上传前保护快照"
+  ],
+  "browser_downloads": {
+    "file": "/Users/linruiqiang/Downloads/source.csv",
+    "zip": "/Users/linruiqiang/Downloads/stage-d-memory-334588aa27.zip",
+    "file_sha256": "7d99d75e14563a94bb420dc1fd994a4e51d89be413bcd1deb9652cbd95e18125",
+    "zip_members": [
+      "source.csv"
+    ],
+    "zip_file_bytes_match": true,
+    "events": "两个真实IAB下载事件均收到并返回本地路径"
+  },
+  "upload_protection": [
+    {
+      "id": "7ad39175-1f52-4281-953f-fe7b50ebde81",
+      "project_id": "9a10bd1d-580b-44d0-97e7-36f091599357",
+      "source": "upload",
+      "run_id": null,
+      "session_id": null,
+      "total_bytes": 31,
+      "manifest_sha256": "0cb31a748fc37a42a930786c02a8a2a6e683950d334de4c00a61f5d97a675bc4",
+      "created_at": "2026-10-01T14:15:07.893410"
+    }
+  ],
+  "before_restore_disk": {
+    "files_inode": [
+      65025,
+      398983
+    ],
+    "manifest": {
+      "entries": [
+        {
+          "mode": 436,
+          "mtime_ns": 1790861526621194344,
+          "path": "source.csv",
+          "sha256": "7d99d75e14563a94bb420dc1fd994a4e51d89be413bcd1deb9652cbd95e18125",
+          "size": 31,
+          "target": null,
+          "type": "file"
+        }
+      ],
+      "snapshot_id": "7ad39175-1f52-4281-953f-fe7b50ebde81",
+      "total_bytes": 31,
+      "version": 1
+    }
+  },
+  "failures": [
+    "首次HEAD请求与Nginx重启交叉，连接关闭；重启句柄完成后HEAD200/零响应体复验",
+    "旧window.confirm导致IAB工具被阻断，getJsDialog无弹窗对象；数据库读回未受理且文件占用为空；原生Codex窗口被工具安全限制拒绝。新建同浏览器标签可读页面，按钮无变化；推断可能仍被旧原生弹窗影响，已请求用户取消可见弹窗。a22e1ca改为网页内确认，尚未实际验收。"
+  ],
+  "api_product_commit": "1a37012",
+  "download_browser_product_commit": "1a37012",
+  "containers": [
+    {
+      "name": "/manus-api",
+      "image_id": "sha256:766d33b91334d4f326997592f4e1309202785c2a7ea976dffc8bb98b336d692d",
+      "health": "healthy"
+    },
+    {
+      "name": "/manus-ui",
+      "image_id": "sha256:2df09d07332d166571d20c8bd1e07ac4bacb8c4e8acacc4b2cb3d73980f4a9fe",
+      "health": "healthy"
+    }
+  ],
+  "migration": "f6cad3e75b86",
+  "regression": {
+    "result": "328 passed, 2 warnings in 38.54s",
+    "conditions": "独立真实PG16+核心/协议夹具，不是真实模型阶段E",
+    "log": "/tmp/rayagent-stage-d-stream-full-pg.log"
+  },
+  "remaining": [
+    "浏览器恢复仍未受理，当前项目CSV是覆盖版本A/11，原始本地CSV未改，上传前保护快照保存原字节",
+    "等待原生弹窗解除后复验新版网页确认、恢复前保护及inode/字节",
+    "所有阶段E、连续模型项目与完整故障场景"
+  ],
+  "browser_tabs": {
+    "stalled_tab": "1",
+    "recovery_tab": "2",
+    "same_browser_id": "2"
+  },
+  "api_python_hash_match": 178,
+  "screenshots": [
+    "w11-stage-d-download-recovery-page-2026-10-01.png"
+  ]
+}
