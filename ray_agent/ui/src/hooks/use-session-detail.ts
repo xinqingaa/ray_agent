@@ -14,7 +14,7 @@ import {
   streamDraftKey,
   type DeltaInput,
 } from '@/lib/session-projection'
-import type { ProjectView, SessionView } from '@/lib/session-view'
+import type { SessionView } from '@/lib/session-view'
 
 export type UseSessionDetailResult = {
   session: SessionDetail | null
@@ -326,14 +326,10 @@ export function useSessionDetail(
 
   const view = useMemo(() => {
     if (!sessionId || !session) return null
-    const project: ProjectView | null =
-      session.project && typeof session.project === 'object' && 'path' in session.project
-        ? (session.project as ProjectView)
-        : null
     return projectSession({
       id: sessionId,
       title: session.title,
-      project,
+      project: session.project ?? null,
       runs: session.runs,
       contextConfig: session.context_config,
       events,
