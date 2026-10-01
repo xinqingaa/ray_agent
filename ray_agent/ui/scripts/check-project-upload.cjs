@@ -1,4 +1,5 @@
 /* 浏览器扫描控制的纯运行验证；不替代真实文件夹选择或上传验收。 */
+/* eslint-disable @typescript-eslint/no-require-imports -- 独立 Node CommonJS 扫描检查脚本。 */
 const fs=require('node:fs'),ts=require('typescript'),assert=require('node:assert/strict');
 const {File}=require('node:buffer');global.File=File;global.crypto=require('node:crypto').webcrypto;
 const source=fs.readFileSync('src/lib/project-upload.ts','utf8');
@@ -33,4 +34,3 @@ const file=(name,content='abc')=>({name,kind:'file',file:async()=>new File([cont
  const fallback=await scanProjectUpload(sourcesFromFiles([fallbackFile],true),rule,new Set());assert.equal(fallback.excluded[0].size,4);
  console.log('PASS: lazy directory exclusion, explicit rescan, marker/manifest distinctions, NFC conflicts, hash, quota, cancellation, known fallback sizes');
 })().catch(error=>{console.error(error);process.exitCode=1});
-/* eslint-disable @typescript-eslint/no-require-imports -- 独立 Node CommonJS 扫描检查脚本。 */
