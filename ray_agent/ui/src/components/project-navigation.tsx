@@ -78,7 +78,7 @@ export function ProjectNavigation(props: Props) {
                 {!project.available && <span className="shrink-0 text-[10px] text-faint">不可用</span>}
               </Link>
               <DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="icon-xs" aria-label={`${project.name} 的操作`} className="opacity-0 group-hover/project:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100 max-md:opacity-100"><MoreHorizontal/></Button></DropdownMenuTrigger>
-                <DropdownMenuContent align="end"><DropdownMenuItem onSelect={() => props.onProjectSettings(project.id)}>项目设置</DropdownMenuItem><DropdownMenuItem onSelect={() => props.onArchive(project.id)}>归档项目</DropdownMenuItem></DropdownMenuContent>
+                <DropdownMenuContent align="end"><DropdownMenuItem asChild><Link href={`/projects/${project.id}`} onClick={event => {if (preview) event.preventDefault(); props.onNavigate?.(`/projects/${project.id}`)}}>在此项目新对话</Link></DropdownMenuItem><DropdownMenuItem onSelect={() => props.onProjectSettings(project.id)}>项目设置</DropdownMenuItem><DropdownMenuItem onSelect={() => props.onArchive(project.id)}>归档项目</DropdownMenuItem></DropdownMenuContent>
               </DropdownMenu>
             </div>
             {expansion.items[project.id] && <div className="ml-5 border-l pl-1">

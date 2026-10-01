@@ -2,7 +2,8 @@
 
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {toast} from 'sonner'
-import {PanelRightOpen, Pencil} from 'lucide-react'
+import {PanelRightOpen, Pencil, Plus} from 'lucide-react'
+import Link from 'next/link'
 import {ChatInput} from '@/components/chat-input'
 import {RenameSessionDialog} from '@/components/rename-session-dialog'
 import {DeveloperView} from '@/components/developer/developer-view'
@@ -419,10 +420,15 @@ export function SessionDetailView({
               )}
               </div>
               {view.project && (
-                <p className="min-w-0 truncate text-xs text-muted-foreground" title={view.project.reason ?? view.project.name}>
-                  {view.project.name}
-                  {!view.project.available && view.project.reason ? ` · ${view.project.reason}` : ''}
-                </p>
+                <div className="flex min-w-0 items-center gap-1">
+                  <p className="min-w-0 truncate text-xs text-muted-foreground" title={view.project.reason ?? view.project.name}>
+                    {view.project.name}
+                    {!view.project.available && view.project.reason ? ` · ${view.project.reason}` : ''}
+                  </p>
+                  <Button variant="ghost" size="icon-xs" className="size-7 shrink-0" asChild>
+                    <Link href={`/projects/${view.project.id}`} title="在此项目新对话" aria-label="在此项目新对话"><Plus className="size-3.5"/></Link>
+                  </Button>
+                </div>
               )}
             </div>
             <div role="group" aria-label="会话视图" className="flex shrink-0 rounded-md border p-0.5">
