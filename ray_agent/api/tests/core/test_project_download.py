@@ -36,3 +36,28 @@ def test_zip_actual_growth_limit_and_final_symlink_recheck(tmp_path):
     (tmp_path/'file').unlink(); os.symlink('/etc/passwd', tmp_path/'file')
     with pytest.raises(OSError):
         b''.join(stream_zip(store, entries, 1000))
+
+
+def test_download_head_checks_headers_without_consuming_stream():
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    from app.interfaces.endpoints.project_routes import router
+    from app.interfaces.service_dependencies import get_project_file_service
+    consumed = []
+    class Files:
+        async def download(self, project_id, path):
+            assert project_id == 'project' and path == 'source.csv'
+            def stream():
+                consumed.append(True)
+                yield b'category,amount\nA,10\n'
+            return stream(), '材料.csv', 'application/octet-stream', '打包跳过链接'
+    app = FastAPI()
+    app.include_router(router)
+    app.dependency_overrides[get_project_file_service] = lambda: Files()
+    with TestClient(app) as client:
+        head = client.head('/projects/project/download?path=source.csv')
+        assert head.status_code == 200 and not head.content and consumed == []
+        result = client.get('/projects/project/download?path=source.csv')
+    assert result.content == b'category,amount\nA,10\n' and consumed == [True]
+    for name in ['content-disposition', 'content-type', 'x-rayagent-download-warning']:
+        assert head.headers[name] == result.headers[name]

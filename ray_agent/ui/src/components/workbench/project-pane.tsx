@@ -154,7 +154,7 @@ export function ProjectPane({sessionId, refreshSignal, projectLevel = false, dow
         <span className="flex-1 text-meta text-muted-foreground">项目当前文件</span>
         {downloadProjectId && <Button variant="ghost" size="sm" disabled={!file} onClick={async () => {
           if(!selectedPath)return
-          try {const value=await projectApi.download(downloadProjectId,selectedPath);if(value.warning)toast.warning(value.warning);const url=URL.createObjectURL(value.blob),link=document.createElement('a');link.href=url;link.download=value.filename;document.body.appendChild(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000)}catch(error){toast.error(error instanceof Error ? error.message : '下载失败')}
+          try {const value=await projectApi.download(downloadProjectId,selectedPath);if(value.warning)toast.warning(value.warning);const link=document.createElement('a');link.href=value.url;link.download=value.filename;document.body.appendChild(link);link.click();link.remove()}catch(error){toast.error(error instanceof Error ? error.message : '下载失败')}
         }}>下载所选文件</Button>}
         <Button type="button" variant="ghost" size="icon-xs" aria-label="刷新项目文件" disabled={rootLoading} onClick={() => setRevision((n) => n + 1)}>
           {rootLoading ? <Loader2 className="size-4 animate-spin"/> : <RefreshCw className="size-4"/>}

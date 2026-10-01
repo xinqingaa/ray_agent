@@ -43,7 +43,7 @@ export function ManagedProjectPane({projectId,refreshSignal}: {projectId:string;
     catch(error){if(token===auditRequest.current)setAuditError(error instanceof Error ? error.message : '读取记录失败')}
   }
   const download=async () => {
-    try {const value=await projectApi.download(projectId);if(value.warning)toast.warning(value.warning);const url=URL.createObjectURL(value.blob),a=document.createElement('a');a.href=url;a.download=value.filename;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000)}
+    try {const value=await projectApi.download(projectId);if(value.warning)toast.warning(value.warning);const a=document.createElement('a');a.href=value.url;a.download=value.filename;document.body.appendChild(a);a.click();a.remove()}
     catch(error){toast.error(error instanceof Error ? error.message : '下载失败')}
   }
   const reason=projectWriteReason(project),op=project?.file_operation

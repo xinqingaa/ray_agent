@@ -138,6 +138,7 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["Content-Disposition", "X-RayAgent-Download-Warning"],
 )
 
 # 6.注册错误处理器

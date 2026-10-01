@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-from fastapi import APIRouter, Depends, Query, UploadFile, File
+from fastapi import APIRouter, Depends, Query, UploadFile, File, Request
 from pydantic import BaseModel
 from app.application.services.project_file_service import ProjectFileService
 from app.application.errors.exceptions import BadRequestError, ServerRequestsError, NotFoundError
@@ -159,16 +159,19 @@ async def operation_result(project_id: str, operation_id: str, service: ProjectF
     return Response.success(data=await service.operation_result(project_id, operation_id))
 
 
-@router.get('/{project_id}/download')
-async def download_project(project_id: str, path: str | None = Query(None), service: ProjectFileService = Depends(get_project_file_service)):
+@router.api_route('/{project_id}/download', methods=['GET', 'HEAD'])
+async def download_project(project_id: str, request: Request, path: str | None = Query(None), service: ProjectFileService = Depends(get_project_file_service)):
     from urllib.parse import quote
-    from starlette.responses import StreamingResponse
+    from starlette.responses import StreamingResponse, Response as RawResponse
     content, filename, media_type, warning = await file_action(service.download(project_id, path))
-    return StreamingResponse(content, media_type=media_type, headers={
+    headers = {
         'Content-Disposition': "attachment; filename*=utf-8''" + quote(filename, safe=''),
         'X-RayAgent-Download-Warning': quote(warning, safe=''),
         'Cache-Control': 'no-store',
-    })
+    }
+    if request.method == 'HEAD':
+        return RawResponse(media_type=media_type, headers=headers)
+    return StreamingResponse(content, media_type=media_type, headers=headers)
 
 
 @router.get('/{project_id}/file-copies', response_model=Response[list])

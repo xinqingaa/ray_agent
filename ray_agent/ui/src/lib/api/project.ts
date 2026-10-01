@@ -35,14 +35,15 @@ export const projectApi = {
   retryDelivery: (id: string, copyKey: string) => post<Record<string, unknown>>(`/projects/${id}/deliveries/retry`, {copy_key: copyKey}, {timeout: 120000}),
   download: async (id: string, path?: string) => {
     const base = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8088/api';
-    const response = await fetch(`${base}/projects/${id}/download${path == null ? '' : '?path=' + encodeURIComponent(path)}`);
+    const url = `${base}/projects/${id}/download${path == null ? '' : '?path=' + encodeURIComponent(path)}`;
+    const response = await fetch(url, {method: 'HEAD'});
     if (!response.ok) {
       const body = await response.json().catch(() => null);
-      throw new ApiError(response.status, body?.msg || '下载失败，请重新读取项目状态');
+      throw new ApiError(response.status, body?.msg || `下载不可用（HTTP ${response.status}），请重新读取项目文件状态`);
     }
     const header = response.headers.get('Content-Disposition') || '';
     const match = header.match(/filename\*=utf-8''(.+)/i);
-    return {blob: await response.blob(), filename: match ? decodeURIComponent(match[1]) : path?.split('/').pop() || 'project.zip',
+    return {url, filename: match ? decodeURIComponent(match[1]) : path?.split('/').pop() || 'project.zip',
       warning: decodeURIComponent(response.headers.get('X-RayAgent-Download-Warning') || '')};
   },
 

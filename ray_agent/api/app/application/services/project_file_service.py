@@ -603,6 +603,9 @@ class ProjectFileService:
             raise BadRequestError('项目超过整项目下载上限，请分文件下载或精简文件')
         if cancelled:
             raise asyncio.CancelledError()
+        skipped = sum(entry.type != 'file' and entry.type != 'directory' for entry in entries)
+        if skipped:
+            warning = '；'.join(filter(None, [warning, f'打包跳过 {skipped} 个符号链接或特殊文件']))
         return stream_zip(store, entries, self.upload_rules()['max_project_bytes']), project.name + '.zip', 'application/zip', warning
 
     async def measure_size(self, project_id):
