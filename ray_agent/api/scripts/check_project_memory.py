@@ -40,7 +40,8 @@ async def main(args):
         await ledger.append(args.session_id,[MessageEvent(role='assistant',message='三笔金额合计60元。')],run_id=run.id)
         await ledger.transition(args.session_id,run.id,RunStatus.COMPLETED,events_before=[DoneEvent()])
         await ProjectFileCoordinator(get_uow,DockerSandbox).settle(args.project_id)
-        ticket=await memory.begin_summary(args.session_id)
+        assert await memory.begin_summary(args.session_id) is None  # HTTP 先手动编辑过，自动摘要不得覆盖。
+        ticket=await memory.begin_summary(args.session_id,manual=True)
         evidence['summary_request_material']=ticket['material'];save()
         await memory.generate_ticket(ticket)
         summary=await memory.get_summary(args.session_id)
