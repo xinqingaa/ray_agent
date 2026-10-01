@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 
 class ProjectOperation(BaseModel):
     operation_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    kind: Literal['settling', 'upload', 'snapshot', 'restore', 'cleanup']
+    kind: Literal['settling', 'upload', 'snapshot', 'restore', 'cleanup', 'delivery']
     state: Literal['running', 'failed'] = 'running'
     run_id: str | None = None
     session_id: str | None = None

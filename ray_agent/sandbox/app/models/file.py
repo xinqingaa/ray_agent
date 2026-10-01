@@ -47,6 +47,8 @@ class FileCheckResult(BaseModel):
     """文件检查是否存在结果"""
     filepath: str = Field(..., description="需要检查文件的绝对路径")
     exists: bool = Field(..., description="文件是否存在")
+    resolved_path: str = Field(..., description="在沙箱内解析链接后的实际绝对路径")
+    regular_file: bool = Field(..., description="是否为普通文件")
 
 
 class FileDeleteResult(BaseModel):

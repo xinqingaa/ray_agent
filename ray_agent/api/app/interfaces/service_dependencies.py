@@ -135,6 +135,7 @@ def get_agent_service() -> AgentService:
         project_prepare=get_project_service().prepare_snapshot,
         project_file_prepare=get_project_file_service().prepare_run,
         project_attachments=get_project_file_service().attachments,
+        project_delivery=get_project_file_service().delivery,
         project_file_coordinator=ProjectFileCoordinator(get_uow, DockerSandbox, get_project_file_service().measure_size),
     )
 
@@ -144,7 +145,9 @@ def get_project_file_service() -> ProjectFileService:
     def retention():
         return FileAppConfigRepository(current.app_config_filepath).load().agent_config.project_snapshot_retention
     from app.application.services.project_attachment_service import ProjectAttachmentService
+    from app.application.services.project_delivery_service import ProjectDeliveryService
     service = ProjectFileService(get_uow, get_managed_storage(), DockerSandbox,
         max_bytes=current.project_max_bytes, retention=retention, ledger=get_run_ledger(), settings=current)
     service.attachments = ProjectAttachmentService(service, get_file_storage())
+    service.delivery = ProjectDeliveryService(service, get_file_storage())
     return service

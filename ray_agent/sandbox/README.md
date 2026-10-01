@@ -87,7 +87,7 @@ uv run --locked python -m unittest discover -s tests -p 'test_*.py' -v
 
 用例直接调用 `ShellService`：`sleep 10` 在约 5 秒内返回 running，`sleep 1 && echo ok` 返回 completed 与输出；派生一个忽略 SIGTERM 的后台子进程后，终止或在同一会话执行新命令都会让整组进程退出。它不验证容器身份、资源限额或 API 停止传播。执行身份与限额见 API 指南中的沙箱环境观察。
 
-除此之外没有覆盖文件与浏览器的测试套件。Shell 或文件修改还应在临时工作目录验证请求、结果和错误路径；浏览器相关修改需连同 CDP、VNC 和 API 侧调用一起验证。只启动 Python API 不代表完整沙箱可用。
+文件用例 `tests/test_file_resolve.py` 使用真实临时文件与父目录/最终链接，核对实际解析路径和普通文件类型；用于项目交付的工作区归属判断，不验证 HTTP 或 Docker。浏览器仍没有自动测试套件。Shell 或文件修改还应在临时工作目录验证请求、结果和错误路径；浏览器相关修改需连同 CDP、VNC 和 API 侧调用一起验证。只启动 Python API 不代表完整沙箱可用。
 
 ### 任务控制观察
 

@@ -170,3 +170,12 @@ async def file_copies(project_id: str, service: ProjectFileService = Depends(get
     async with service.factory() as uow:
         copies = await uow.project.file_copies(project_id)
     return Response.success(data=copies)
+
+
+class RetryDeliveryRequest(BaseModel):
+    copy_key: str
+
+
+@router.post('/{project_id}/deliveries/retry', response_model=Response[dict])
+async def retry_delivery(project_id: str, request: RetryDeliveryRequest, service: ProjectFileService = Depends(get_project_file_service)):
+    return Response.success(data=await file_action(service.delivery.retry(project_id, request.copy_key)))

@@ -310,6 +310,8 @@ class FileService:
         return FileCheckResult(
             filepath=filepath,
             exists=os.path.exists(filepath),
+            resolved_path=os.path.realpath(filepath),
+            regular_file=os.path.isfile(filepath),
         )
 
     async def delete_file(self, filepath: str) -> FileDeleteResult:

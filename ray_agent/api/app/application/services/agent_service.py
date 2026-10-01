@@ -112,6 +112,7 @@ class AgentService:
             project_file_prepare=None,
             project_file_coordinator=None,
             project_attachments=None,
+            project_delivery=None,
     ) -> None:
         """构造函数，完成Agent服务初始化"""
         self._uow_factory = uow_factory
@@ -124,6 +125,7 @@ class AgentService:
         self._project_prepare = project_prepare
         self._project_file_prepare = project_file_prepare
         self._project_attachments = project_attachments
+        self._project_delivery = project_delivery
         from app.domain.services.project_file_coordinator import ProjectFileCoordinator
         self._project_coordinator = project_file_coordinator or ProjectFileCoordinator(uow_factory, sandbox_cls)
         self._tool_policy = tool_policy
@@ -221,6 +223,7 @@ class AgentService:
             )
 
             task_runner._project_attachment_service = getattr(self, '_project_attachments', None)
+            task_runner._project_delivery_service = getattr(self, '_project_delivery', None)
             task_runner._project_id = session.project_id
 
             # 6.创建尚未发布引用的任务，由后台启动所有权检查后登记

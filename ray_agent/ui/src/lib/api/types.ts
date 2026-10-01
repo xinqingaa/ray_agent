@@ -173,6 +173,7 @@ export type FileInfo = {
   content_type: string;
   size: number;
   [key: string]: unknown;
+  project_persistence?: {state: string; copy_key: string; path?: string | null; error?: string | null; can_retry: boolean};
 };
 
 /**

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """交付工具：把沙箱中的文件交给用户。存储与会话关联由运行器注入的交付函数完成。"""
-from typing import Awaitable, Callable, List, Optional
+from typing import Awaitable, Callable, List, Optional, Union
 
 from pydantic import BaseModel, Field
 
@@ -12,7 +12,12 @@ from .base import BaseTool, tool
 DELIVER_FILES_TOOL = "deliver_files"
 
 # 交付单个沙箱路径：成功返回已关联会话的文件记录，失败抛出异常，异常文本作为错误原因回填模型
-DeliverFileFn = Callable[[str], Awaitable[File]]
+class DeliveredFile(BaseModel):
+    file: File
+    project: Optional[dict] = None
+
+
+DeliverFileFn = Callable[[str], Awaitable[Union[File, DeliveredFile]]]
 
 
 class DeliveryItem(BaseModel):
@@ -21,6 +26,7 @@ class DeliveryItem(BaseModel):
     success: bool
     file: Optional[File] = None
     error: Optional[str] = None
+    project: Optional[dict] = None
 
 
 class DeliveryResult(BaseModel):
@@ -73,7 +79,10 @@ class DeliverTool(BaseTool):
             except Exception as e:
                 items.append(DeliveryItem(path=path, success=False, error=str(e) or type(e).__name__))
                 continue
-            items.append(DeliveryItem(path=path, success=True, file=file))
+            if isinstance(file, DeliveredFile):
+                items.append(DeliveryItem(path=path, success=True, file=file.file, project=file.project))
+            else:
+                items.append(DeliveryItem(path=path, success=True, file=file))
 
         result = DeliveryResult(items=items, note=note)
         delivered = len(result.files)
@@ -81,4 +90,8 @@ class DeliverTool(BaseTool):
         message = f"已交付 {delivered}/{len(items)} 个文件"
         if failed:
             message += "；失败：" + "；".join(failed)
-        return ToolResult(success=delivered > 0, message=message, data=result)
+        project_failed = [item for item in items if item.project and item.project.get('state') == 'failed']
+        if project_failed:
+            message += '；部分失败：交付可下载，但未保存到项目：' + '；'.join(
+                f"{item.path}（{item.project.get('error') or '项目副本失败'}）" for item in project_failed)
+        return ToolResult(success=delivered > 0 and not project_failed, message=message, data=result)

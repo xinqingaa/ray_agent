@@ -10,6 +10,9 @@ class ProjectFileCopy(BaseModel):
     attachment_id: str
     session_id: str
     run_id: str
+    resolved_path: str | None = None
+    source_path: str | None = None
+    tool_call_id: str | None = None
     message_seq: int | None = None
     path: str | None = None
     sha256: str

@@ -181,12 +181,13 @@ class AgentTaskRunner(TaskRunner):
                 return event
         return None
 
-    async def _sync_file_to_sandbox(self, file_id: str) -> File:
+    async def _sync_file_to_sandbox(self, file_id: str, *, project_filename=None) -> File:
         """同步失败终止已受理运行，不能将失败附件静默移出模型输入。"""
+        file_data = None
         try:
             file_data, file = await self._file_storage.download_file(file_id)
             # 附件名属于存储元数据，仍只允许一个文件名，不能改变沙箱目标目录。
-            filename = file.filename.replace("\\", "/").split("/")[-1]
+            filename = (project_filename or file.filename).replace("\\", "/").split("/")[-1]
             if filename in ("", ".", "..") or "\x00" in filename:
                 raise ValueError("附件名称无效")
             filepath = f"/home/ubuntu/upload/{filename}"
@@ -200,6 +201,9 @@ class AgentTaskRunner(TaskRunner):
         except Exception as exc:
             logger.exception("附件同步失败 id=%s", file_id)
             raise RuntimeError(f"准备执行环境失败：附件 {file_id} 同步失败；本次运行未完成，请核对后重试") from exc
+        finally:
+            if file_data is not None:
+                file_data.close()
 
     async def _sync_message_attachments_to_sandbox(self, event: MessageEvent) -> None:
         """先完整同步，成功后替换本次输入；失败保留原受理事件和附件 id。"""
@@ -208,8 +212,10 @@ class AgentTaskRunner(TaskRunner):
             project_id = getattr(self, '_project_id', None)
             service = getattr(self, '_project_attachment_service', None)
             if project_id and service:
-                await service.publish(project_id, attachment.id, self._run_id)
-            copied = await self._sync_file_to_sandbox(attachment.id)
+                project_copy = await service.publish(project_id, attachment.id, self._run_id)
+                copied = await self._sync_file_to_sandbox(attachment.id, project_filename=project_copy.path.rsplit('/', 1)[-1])
+            else:
+                copied = await self._sync_file_to_sandbox(attachment.id)
             async with self._uow:
                 await self._uow.session.add_file(self._session_id, copied)
             attachments.append(copied)
@@ -234,6 +240,10 @@ class AgentTaskRunner(TaskRunner):
 
     async def _deliver_file(self, filepath: str) -> File:
         """deliver_files 的交付函数：校验沙箱文件存在，上传存储并关联会话。失败抛出异常，文本即错误原因。"""
+        service = getattr(self, '_project_delivery_service', None)
+        if service and getattr(self, '_project_id', None):
+            return await service.deliver(self._project_id, self._session_id, self._run_id,
+                getattr(self, '_delivery_call_id', None), filepath, self._sandbox)
         # 1.确认文件存在，避免把下载失败的底层报错当作原因
         exists_result = await self._sandbox.check_file_exists(filepath)
         exists = exists_result.data.get("exists") if isinstance(exists_result.data, dict) else False
@@ -398,6 +408,8 @@ class AgentTaskRunner(TaskRunner):
                     self._failure_reason = reason.value if failed else RunReason.RUNNER_ERROR
                 return loop_event
             if isinstance(loop_event, ToolEvent):
+                if loop_event.function_name == 'deliver_files' and loop_event.status == ToolEventStatus.CALLING:
+                    self._delivery_call_id = loop_event.tool_call_id
                 self._register_shell(loop_event)
                 await self._handle_tool_event(loop_event)
             elif isinstance(loop_event, TurnEvent) and loop_event.phase == TurnPhase.STARTED:

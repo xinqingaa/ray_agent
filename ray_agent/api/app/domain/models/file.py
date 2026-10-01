@@ -16,3 +16,4 @@ class File(BaseModel):
     size: int = 0  # 文件大小，单位为字节
     sha256: str | None = None
     project_upload: dict | None = None
+    project_persistence: dict | None = None  # 事件中的交付状态；全局文件表不保存此投影

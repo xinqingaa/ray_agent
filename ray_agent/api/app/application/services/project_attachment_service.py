@@ -38,7 +38,7 @@ class ProjectAttachmentService:
             await uow.project.audit(project_id, 'attachment_pending', {'attachment_id': file.id,
                 'session_id': session_id, 'run_id': run_id, 'message_seq': event.seq})
 
-    def _allocate(self, project_id, filename, reserved):
+    def _allocate(self, project_id, filename, reserved, *, folder='uploads'):
         from app.domain.services.project_paths import normalize_relative
         name = normalize_relative(filename)
         if not name or '/' in name:
@@ -46,7 +46,7 @@ class ProjectAttachmentService:
         store = self.files.file_io(project_id)
         stem, suffix = PurePosixPath(name).stem, PurePosixPath(name).suffix
         for index in range(10000):
-            candidate = 'uploads/' + (name if index == 0 else f'{stem} ({index}){suffix}')
+            candidate = folder + '/' + (name if index == 0 else f'{stem} ({index}){suffix}')
             if candidate in reserved:
                 continue
             try:

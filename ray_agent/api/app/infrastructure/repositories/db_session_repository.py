@@ -161,7 +161,7 @@ class DBSessionRepository(SessionRepository):
     async def remove_file(self, session_id: str, file_id: str) -> None:
         """移除会话中的指定文件"""
         # 1.查询会话记录并加锁
-        stmt = select(SessionModel).where(SessionModel.id == session_id).with_for_update()
+        stmt = select(SessionModel).where(SessionModel.id == session_id).with_for_update(of=SessionModel)
         result = await self.db_session.execute(stmt)
         record = result.scalar_one_or_none()
 

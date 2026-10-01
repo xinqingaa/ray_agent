@@ -816,9 +816,13 @@ class AgentLoop(BaseFlow):
         files = result.data.files
         if files:
             names = "、".join(file.filename or file.filepath for file in files)
+            message = result.data.note or f"已交付文件：{names}"
+            partial = [item for item in result.data.items if item.project and item.project.get('state') == 'failed']
+            if partial:
+                message += '；交付可下载，但未保存到项目：' + '、'.join(item.path for item in partial)
             invocation.events.append(MessageEvent(
                 role="assistant",
-                message=result.data.note or f"已交付文件：{names}",
+                message=message,
                 attachments=files,
             ))
         return result
