@@ -1,0 +1,1480 @@
+{
+  "kind": "真实业务PG/卷/独立故障进程/HTTP读回，非模型非浏览器",
+  "product_sha": "4fe78455596919d8ddad35cccbfc00f2d40b4ee3",
+  "scope": "仅新建stage-d-snapshot-fault-20261002-前缀8项目，事先逐项记录id；无会话/运行/沙箱。旧三个项目和全部凭据保留。临时worker只运行本记录id。",
+  "cases": [
+    {
+      "project_id": "0e9d7035-8ee4-477d-8dd6-a86db696e9a6",
+      "name": "stage-d-snapshot-fault-20261002-object-error",
+      "phase": "object",
+      "mode": "error",
+      "worker_exit": 0,
+      "worker_log": "RESULT {\"project_id\": \"0e9d7035-8ee4-477d-8dd6-a86db696e9a6\", \"first\": {\"state\": \"ready\", \"total_bytes\": 31, \"manifest_sha256\": \"4a746b8d30c2cae4998da18f8d35b6e1b19209c7d69d7705e6367edea1e86c91\", \"source\": \"upload\", \"run_id\": null, \"snapshot_id\": \"d5a29e14-5452-48bb-b57d-c7aabc2a9286\", \"created_at\": \"2026-10-01T23:09:39.996817\"}, \"changed\": {\"state\": \"ready\", \"total_bytes\": 31, \"manifest_sha256\": \"c447a759803092984ac5a8d93537c6b59a05b6e6632473650906d9b3545b2012\", \"source\": \"upload\", \"run_id\": null, \"snapshot_id\": \"efae31bf-3ea0-45b8-870e-e6fe2d1d1cd9\", \"created_at\": \"2026-10-01T23:09:40.028800\"}, \"dedup_objects\": [\"objects/7d99d75e14563a94bb420dc1fd994a4e51d89be413bcd1deb9652cbd95e18125\"], \"changed_objects\": [\"objects/7d99d75e14563a94bb420dc1fd994a4e51d89be413bcd1deb9652cbd95e18125\", \"objects/b04131b78db649130873f1175691c8b18f9c076f4e72245d510673175a12ab23\"], \"same_inode_mtime\": true}\nFAULT {\"phase\": \"object\", \"path\": \"new.txt\", \"mode\": \"error\"}\nEXPECTED scoped snapshot fault: object\n",
+      "baseline": {
+        "project_id": "0e9d7035-8ee4-477d-8dd6-a86db696e9a6",
+        "first": {
+          "state": "ready",
+          "total_bytes": 31,
+          "manifest_sha256": "4a746b8d30c2cae4998da18f8d35b6e1b19209c7d69d7705e6367edea1e86c91",
+          "source": "upload",
+          "run_id": null,
+          "snapshot_id": "d5a29e14-5452-48bb-b57d-c7aabc2a9286",
+          "created_at": "2026-10-01T23:09:39.996817"
+        },
+        "changed": {
+          "state": "ready",
+          "total_bytes": 31,
+          "manifest_sha256": "c447a759803092984ac5a8d93537c6b59a05b6e6632473650906d9b3545b2012",
+          "source": "upload",
+          "run_id": null,
+          "snapshot_id": "efae31bf-3ea0-45b8-870e-e6fe2d1d1cd9",
+          "created_at": "2026-10-01T23:09:40.028800"
+        },
+        "dedup_objects": [
+          "objects/7d99d75e14563a94bb420dc1fd994a4e51d89be413bcd1deb9652cbd95e18125"
+        ],
+        "changed_objects": [
+          "objects/7d99d75e14563a94bb420dc1fd994a4e51d89be413bcd1deb9652cbd95e18125",
+          "objects/b04131b78db649130873f1175691c8b18f9c076f4e72245d510673175a12ab23"
+        ],
+        "same_inode_mtime": true
+      },
+      "fault": {
+        "phase": "object",
+        "path": "new.txt",
+        "mode": "error"
+      },
+      "detail_before_restart": {
+        "id": "0e9d7035-8ee4-477d-8dd6-a86db696e9a6",
+        "name": "stage-d-snapshot-fault-20261002-object-error",
+        "available": true,
+        "archived": false,
+        "files_size": 31,
+        "files_size_at": "2026-10-01T23:09:40.028798",
+        "files_size_stale": false,
+        "protection": {
+          "state": "ready",
+          "run_id": null,
+          "source": "upload",
+          "created_at": "2026-10-01T23:09:40.028800",
+          "snapshot_id": "efae31bf-3ea0-45b8-870e-e6fe2d1d1cd9",
+          "total_bytes": 31,
+          "manifest_sha256": "c447a759803092984ac5a8d93537c6b59a05b6e6632473650906d9b3545b2012"
+        },
+        "snapshot_gc_pending": false,
+        "snapshots_cleaned_at": null,
+        "snapshots_released_bytes": 0,
+        "file_operation": {
+          "operation_id": "75aee5d8-53a2-4899-a550-9f18f048d0cb",
+          "kind": "snapshot",
+          "state": "running",
+          "run_id": null,
+          "session_id": null,
+          "phase": "capturing",
+          "target_snapshot_id": null,
+          "before_snapshot_id": null,
+          "started_at": "2026-10-01T23:09:40.033926",
+          "last_active_at": "2026-10-01T23:09:40.033927",
+          "error": null,
+          "results": {
+            "capturing_snapshot_id": "1eae78bb-0f9b-4593-b813-121e626dd248"
+          }
+        },
+        "write_blocked_reason": "项目文件操作尚未结束：snapshot/running，capturing",
+        "occupying_session_id": null,
+        "active_run_status": null,
+        "active_run_reason": null,
+        "task_count": 0,
+        "last_active_at": null,
+        "reason": null,
+        "instructions": null,
+        "notes": "",
+        "notes_version": 0,
+        "settings_version": 0,
+        "created_at": "2026-10-01T23:09:39.232862",
+        "updated_at": "2026-10-01T23:09:39.232865",
+        "archived_at": null
+      },
+      "after_restart": {
+        "id": "0e9d7035-8ee4-477d-8dd6-a86db696e9a6",
+        "name": "stage-d-snapshot-fault-20261002-object-error",
+        "available": true,
+        "archived": false,
+        "files_size": 63,
+        "files_size_at": "2026-10-01T23:11:02.301133",
+        "files_size_stale": false,
+        "protection": {
+          "state": "ready",
+          "run_id": null,
+          "source": "upload",
+          "created_at": "2026-10-01T23:09:40.028800",
+          "snapshot_id": "efae31bf-3ea0-45b8-870e-e6fe2d1d1cd9",
+          "total_bytes": 31,
+          "manifest_sha256": "c447a759803092984ac5a8d93537c6b59a05b6e6632473650906d9b3545b2012"
+        },
+        "snapshot_gc_pending": false,
+        "snapshots_cleaned_at": null,
+        "snapshots_released_bytes": 0,
+        "file_operation": null,
+        "write_blocked_reason": null,
+        "occupying_session_id": null,
+        "active_run_status": null,
+        "active_run_reason": null,
+        "task_count": 0,
+        "last_active_at": null,
+        "reason": null,
+        "instructions": null,
+        "notes": "",
+        "notes_version": 0,
+        "settings_version": 0,
+        "created_at": "2026-10-01T23:09:39.232862",
+        "updated_at": "2026-10-01T23:09:39.232865",
+        "archived_at": null
+      },
+      "ready_after_restart": [
+        {
+          "id": "efae31bf-3ea0-45b8-870e-e6fe2d1d1cd9",
+          "project_id": "0e9d7035-8ee4-477d-8dd6-a86db696e9a6",
+          "source": "upload",
+          "run_id": null,
+          "session_id": null,
+          "total_bytes": 31,
+          "manifest_sha256": "c447a759803092984ac5a8d93537c6b59a05b6e6632473650906d9b3545b2012",
+          "created_at": "2026-10-01T23:09:40.028806"
+        },
+        {
+          "id": "e5c42a27-3da6-41a7-8de4-1ab359422c3e",
+          "project_id": "0e9d7035-8ee4-477d-8dd6-a86db696e9a6",
+          "source": "upload",
+          "run_id": null,
+          "session_id": null,
+          "total_bytes": 31,
+          "manifest_sha256": "a48a0ceeee9bc2c654855542c03245fd7ab4d8c0dedd2c08d73c998906fa19c9",
+          "created_at": "2026-10-01T23:09:40.012024"
+        },
+        {
+          "id": "d5a29e14-5452-48bb-b57d-c7aabc2a9286",
+          "project_id": "0e9d7035-8ee4-477d-8dd6-a86db696e9a6",
+          "source": "upload",
+          "run_id": null,
+          "session_id": null,
+          "total_bytes": 31,
+          "manifest_sha256": "4a746b8d30c2cae4998da18f8d35b6e1b19209c7d69d7705e6367edea1e86c91",
+          "created_at": "2026-10-01T23:09:39.996825"
+        }
+      ],
+      "disk_after_restart": {
+        "objects": [
+          "objects/7d99d75e14563a94bb420dc1fd994a4e51d89be413bcd1deb9652cbd95e18125",
+          "objects/b04131b78db649130873f1175691c8b18f9c076f4e72245d510673175a12ab23"
+        ],
+        "manifests": [
+          "manifests/d5a29e14-5452-48bb-b57d-c7aabc2a9286.json",
+          "manifests/e5c42a27-3da6-41a7-8de4-1ab359422c3e.json",
+          "manifests/efae31bf-3ea0-45b8-870e-e6fe2d1d1cd9.json"
+        ]
+      }
+    },
+    {
+      "project_id": "77dd67a1-60ff-42e0-9b9a-a9ce9783a616",
+      "name": "stage-d-snapshot-fault-20261002-object-exit",
+      "phase": "object",
+      "mode": "exit",
+      "worker_exit": 73,
+      "worker_log": "RESULT {\"project_id\": \"77dd67a1-60ff-42e0-9b9a-a9ce9783a616\", \"first\": {\"state\": \"ready\", \"total_bytes\": 31, \"manifest_sha256\": \"4ccaf8ea9d9dbed234042b34b83b158ed2ecc27537df31a3b693e8759c5c3ddb\", \"source\": \"upload\", \"run_id\": null, \"snapshot_id\": \"53900008-6d8d-4226-90c5-1a669a89212f\", \"created_at\": \"2026-10-01T23:09:40.915462\"}, \"changed\": {\"state\": \"ready\", \"total_bytes\": 31, \"manifest_sha256\": \"efbb5dafdf730d85800d7c5345846e4df518869ba078ac2c5fd239d3cb72e049\", \"source\": \"upload\", \"run_id\": null, \"snapshot_id\": \"78fc6e7e-9231-4585-b0a9-105ea025f4de\", \"created_at\": \"2026-10-01T23:09:40.945184\"}, \"dedup_objects\": [\"objects/7d99d75e14563a94bb420dc1fd994a4e51d89be413bcd1deb9652cbd95e18125\"], \"changed_objects\": [\"objects/7d99d75e14563a94bb420dc1fd994a4e51d89be413bcd1deb9652cbd95e18125\", \"objects/b04131b78db649130873f1175691c8b18f9c076f4e72245d510673175a12ab23\"], \"same_inode_mtime\": true}\nFAULT {\"phase\": \"object\", \"path\": \"new.txt\", \"mode\": \"exit\"}\n",
+      "baseline": {
+        "project_id": "77dd67a1-60ff-42e0-9b9a-a9ce9783a616",
+        "first": {
+          "state": "ready",
+          "total_bytes": 31,
+          "manifest_sha256": "4ccaf8ea9d9dbed234042b34b83b158ed2ecc27537df31a3b693e8759c5c3ddb",
+          "source": "upload",
+          "run_id": null,
+          "snapshot_id": "53900008-6d8d-4226-90c5-1a669a89212f",
+          "created_at": "2026-10-01T23:09:40.915462"
+        },
+        "changed": {
+          "state": "ready",
+          "total_bytes": 31,
+          "manifest_sha256": "efbb5dafdf730d85800d7c5345846e4df518869ba078ac2c5fd239d3cb72e049",
+          "source": "upload",
+          "run_id": null,
+          "snapshot_id": "78fc6e7e-9231-4585-b0a9-105ea025f4de",
+          "created_at": "2026-10-01T23:09:40.945184"
+        },
+        "dedup_objects": [
+          "objects/7d99d75e14563a94bb420dc1fd994a4e51d89be413bcd1deb9652cbd95e18125"
+        ],
+        "changed_objects": [
+          "objects/7d99d75e14563a94bb420dc1fd994a4e51d89be413bcd1deb9652cbd95e18125",
+          "objects/b04131b78db649130873f1175691c8b18f9c076f4e72245d510673175a12ab23"
+        ],
+        "same_inode_mtime": true
+      },
+      "fault": {
+        "phase": "object",
+        "path": "new.txt",
+        "mode": "exit"
+      },
+      "detail_before_restart": {
+        "id": "77dd67a1-60ff-42e0-9b9a-a9ce9783a616",
+        "name": "stage-d-snapshot-fault-20261002-object-exit",
+        "available": true,
+        "archived": false,
+        "files_size": 31,
+        "files_size_at": "2026-10-01T23:09:40.945182",
+        "files_size_stale": false,
+        "protection": {
+          "state": "ready",
+          "run_id": null,
+          "source": "upload",
+          "created_at": "2026-10-01T23:09:40.945184",
+          "snapshot_id": "78fc6e7e-9231-4585-b0a9-105ea025f4de",
+          "total_bytes": 31,
+          "manifest_sha256": "efbb5dafdf730d85800d7c5345846e4df518869ba078ac2c5fd239d3cb72e049"
+        },
+        "snapshot_gc_pending": false,
+        "snapshots_cleaned_at": null,
+        "snapshots_released_bytes": 0,
+        "file_operation": {
+          "operation_id": "7d2dfdb9-29c9-4116-848b-9a1fc40a3b8b",
+          "kind": "snapshot",
+          "state": "running",
+          "run_id": null,
+          "session_id": null,
+          "phase": "capturing",
+          "target_snapshot_id": null,
+          "before_snapshot_id": null,
+          "started_at": "2026-10-01T23:09:40.950523",
+          "last_active_at": "2026-10-01T23:09:40.950524",
+          "error": null,
+          "results": {
+            "capturing_snapshot_id": "2736c265-076e-44c9-8272-7c2e9d56ffab"
+          }
+        },
+        "write_blocked_reason": "项目文件操作尚未结束：snapshot/running，capturing",
+        "occupying_session_id": null,
+        "active_run_status": null,
+        "active_run_reason": null,
+        "task_count": 0,
+        "last_active_at": null,
+        "reason": null,
+        "instructions": null,
+        "notes": "",
+        "notes_version": 0,
+        "settings_version": 0,
+        "created_at": "2026-10-01T23:09:40.234622",
+        "updated_at": "2026-10-01T23:09:40.234623",
+        "archived_at": null
+      },
+      "after_restart": {
+        "id": "77dd67a1-60ff-42e0-9b9a-a9ce9783a616",
+        "name": "stage-d-snapshot-fault-20261002-object-exit",
+        "available": true,
+        "archived": false,
+        "files_size": 63,
+        "files_size_at": "2026-10-01T23:11:02.334209",
+        "files_size_stale": false,
+        "protection": {
+          "state": "ready",
+          "run_id": null,
+          "source": "upload",
+          "created_at": "2026-10-01T23:09:40.945184",
+          "snapshot_id": "78fc6e7e-9231-4585-b0a9-105ea025f4de",
+          "total_bytes": 31,
+          "manifest_sha256": "efbb5dafdf730d85800d7c5345846e4df518869ba078ac2c5fd239d3cb72e049"
+        },
+        "snapshot_gc_pending": false,
+        "snapshots_cleaned_at": null,
+        "snapshots_released_bytes": 0,
+        "file_operation": null,
+        "write_blocked_reason": null,
+        "occupying_session_id": null,
+        "active_run_status": null,
+        "active_run_reason": null,
+        "task_count": 0,
+        "last_active_at": null,
+        "reason": null,
+        "instructions": null,
+        "notes": "",
+        "notes_version": 0,
+        "settings_version": 0,
+        "created_at": "2026-10-01T23:09:40.234622",
+        "updated_at": "2026-10-01T23:09:40.234623",
+        "archived_at": null
+      },
+      "ready_after_restart": [
+        {
+          "id": "78fc6e7e-9231-4585-b0a9-105ea025f4de",
+          "project_id": "77dd67a1-60ff-42e0-9b9a-a9ce9783a616",
+          "source": "upload",
+          "run_id": null,
+          "session_id": null,
+          "total_bytes": 31,
+          "manifest_sha256": "efbb5dafdf730d85800d7c5345846e4df518869ba078ac2c5fd239d3cb72e049",
+          "created_at": "2026-10-01T23:09:40.945192"
+        },
+        {
+          "id": "733e009b-10fb-4a09-9485-3e4afaea18e4",
+          "project_id": "77dd67a1-60ff-42e0-9b9a-a9ce9783a616",
+          "source": "upload",
+          "run_id": null,
+          "session_id": null,
+          "total_bytes": 31,
+          "manifest_sha256": "1ad1cfa907a53d79139cefed7f8e729e052cc7e6c4aeb662569b8878a51d08d6",
+          "created_at": "2026-10-01T23:09:40.930212"
+        },
+        {
+          "id": "53900008-6d8d-4226-90c5-1a669a89212f",
+          "project_id": "77dd67a1-60ff-42e0-9b9a-a9ce9783a616",
+          "source": "upload",
+          "run_id": null,
+          "session_id": null,
+          "total_bytes": 31,
+          "manifest_sha256": "4ccaf8ea9d9dbed234042b34b83b158ed2ecc27537df31a3b693e8759c5c3ddb",
+          "created_at": "2026-10-01T23:09:40.915471"
+        }
+      ],
+      "disk_after_restart": {
+        "objects": [
+          "objects/7d99d75e14563a94bb420dc1fd994a4e51d89be413bcd1deb9652cbd95e18125",
+          "objects/b04131b78db649130873f1175691c8b18f9c076f4e72245d510673175a12ab23"
+        ],
+        "manifests": [
+          "manifests/53900008-6d8d-4226-90c5-1a669a89212f.json",
+          "manifests/733e009b-10fb-4a09-9485-3e4afaea18e4.json",
+          "manifests/78fc6e7e-9231-4585-b0a9-105ea025f4de.json"
+        ]
+      }
+    },
+    {
+      "project_id": "8763a3f6-d837-4ed7-b7ef-316dda278096",
+      "name": "stage-d-snapshot-fault-20261002-before_manifest-error",
+      "phase": "before_manifest",
+      "mode": "error",
+      "worker_exit": 0,
+      "worker_log": "RESULT {\"project_id\": \"8763a3f6-d837-4ed7-b7ef-316dda278096\", \"first\": {\"state\": \"ready\", \"total_bytes\": 31, \"manifest_sha256\": \"f38cf05ee4996a6f71e93987a213c5aed7f4c2f76323ae20bf8b3875bdbd966e\", \"source\": \"upload\", \"run_id\": null, \"snapshot_id\": \"fcddf65c-a991-4606-a214-77969866cb11\", \"created_at\": \"2026-10-01T23:09:41.621249\"}, \"changed\": {\"state\": \"ready\", \"total_bytes\": 31, \"manifest_sha256\": \"9359118ec6b6dbbd321a851e967874ad48151cd5083ca8ff3d867b5c796737e8\", \"source\": \"upload\", \"run_id\": null, \"snapshot_id\": \"3e685897-e9d4-41c7-bb83-9367c9c6f8d3\", \"created_at\": \"2026-10-01T23:09:41.650524\"}, \"dedup_objects\": [\"objects/7d99d75e14563a94bb420dc1fd994a4e51d89be413bcd1deb9652cbd95e18125\"], \"changed_objects\": [\"objects/7d99d75e14563a94bb420dc1fd994a4e51d89be413bcd1deb9652cbd95e18125\", \"objects/b04131b78db649130873f1175691c8b18f9c076f4e72245d510673175a12ab23\"], \"same_inode_mtime\": true}\nFAULT {\"phase\": \"before_manifest\", \"path\": \"\", \"mode\": \"error\"}\nEXPECTED scoped snapshot fault: before_manifest\n",
+      "baseline": {
+        "project_id": "8763a3f6-d837-4ed7-b7ef-316dda278096",
+        "first": {
+          "state": "ready",
+          "total_bytes": 31,
+          "manifest_sha256": "f38cf05ee4996a6f71e93987a213c5aed7f4c2f76323ae20bf8b3875bdbd966e",
+          "source": "upload",
+          "run_id": null,
+          "snapshot_id": "fcddf65c-a991-4606-a214-77969866cb11",
+          "created_at": "2026-10-01T23:09:41.621249"
+        },
+        "changed": {
+          "state": "ready",
+          "total_bytes": 31,
+          "manifest_sha256": "9359118ec6b6dbbd321a851e967874ad48151cd5083ca8ff3d867b5c796737e8",
+          "source": "upload",
+          "run_id": null,
+          "snapshot_id": "3e685897-e9d4-41c7-bb83-9367c9c6f8d3",
+          "created_at": "2026-10-01T23:09:41.650524"
+        },
+        "dedup_objects": [
+          "objects/7d99d75e14563a94bb420dc1fd994a4e51d89be413bcd1deb9652cbd95e18125"
+        ],
+        "changed_objects": [
+          "objects/7d99d75e14563a94bb420dc1fd994a4e51d89be413bcd1deb9652cbd95e18125",
+          "objects/b04131b78db649130873f1175691c8b18f9c076f4e72245d510673175a12ab23"
+        ],
+        "same_inode_mtime": true
+      },
+      "fault": {
+        "phase": "before_manifest",
+        "path": "",
+        "mode": "error"
+      },
+      "detail_before_restart": {
+        "id": "8763a3f6-d837-4ed7-b7ef-316dda278096",
+        "name": "stage-d-snapshot-fault-20261002-before_manifest-error",
+        "available": true,
+        "archived": false,
+        "files_size": 31,
+        "files_size_at": "2026-10-01T23:09:41.650521",
+        "files_size_stale": false,
+        "protection": {
+          "state": "ready",
+          "run_id": null,
+          "source": "upload",
+          "created_at": "2026-10-01T23:09:41.650524",
+          "snapshot_id": "3e685897-e9d4-41c7-bb83-9367c9c6f8d3",
+          "total_bytes": 31,
+          "manifest_sha256": "9359118ec6b6dbbd321a851e967874ad48151cd5083ca8ff3d867b5c796737e8"
+        },
+        "snapshot_gc_pending": false,
+        "snapshots_cleaned_at": null,
+        "snapshots_released_bytes": 0,
+        "file_operation": {
+          "operation_id": "bc37ebd8-809e-4d5b-854d-b5677b728047",
+          "kind": "snapshot",
+          "state": "running",
+          "run_id": null,
+          "session_id": null,
+          "phase": "capturing",
+          "target_snapshot_id": null,
+          "before_snapshot_id": null,
+          "started_at": "2026-10-01T23:09:41.654983",
+          "last_active_at": "2026-10-01T23:09:41.654983",
+          "error": null,
+          "results": {
+            "capturing_snapshot_id": "6a6a1264-6a93-45e7-9fae-138640d2da31"
+          }
+        },
+        "write_blocked_reason": "项目文件操作尚未结束：snapshot/running，capturing",
+        "occupying_session_id": null,
+        "active_run_status": null,
+        "active_run_reason": null,
+        "task_count": 0,
+        "last_active_at": null,
+        "reason": null,
+        "instructions": null,
+        "notes": "",
+        "notes_version": 0,
+        "settings_version": 0,
+        "created_at": "2026-10-01T23:09:40.978987",
+        "updated_at": "2026-10-01T23:09:40.978988",
+        "archived_at": null
+      },
+      "after_restart": {
+        "id": "8763a3f6-d837-4ed7-b7ef-316dda278096",
+        "name": "stage-d-snapshot-fault-20261002-before_manifest-error",
+        "available": true,
+        "archived": false,
+        "files_size": 63,
+        "files_size_at": "2026-10-01T23:11:02.346389",
+        "files_size_stale": false,
+        "protection": {
+          "state": "ready",
+          "run_id": null,
+          "source": "upload",
+          "created_at": "2026-10-01T23:09:41.650524",
+          "snapshot_id": "3e685897-e9d4-41c7-bb83-9367c9c6f8d3",
+          "total_bytes": 31,
+          "manifest_sha256": "9359118ec6b6dbbd321a851e967874ad48151cd5083ca8ff3d867b5c796737e8"
+        },
+        "snapshot_gc_pending": false,
+        "snapshots_cleaned_at": null,
+        "snapshots_released_bytes": 0,
+        "file_operation": null,
+        "write_blocked_reason": null,
+        "occupying_session_id": null,
+        "active_run_status": null,
+        "active_run_reason": null,
+        "task_count": 0,
+        "last_active_at": null,
+        "reason": null,
+        "instructions": null,
+        "notes": "",
+        "notes_version": 0,
+        "settings_version": 0,
+        "created_at": "2026-10-01T23:09:40.978987",
+        "updated_at": "2026-10-01T23:09:40.978988",
+        "archived_at": null
+      },
+      "ready_after_restart": [
+        {
+          "id": "3e685897-e9d4-41c7-bb83-9367c9c6f8d3",
+          "project_id": "8763a3f6-d837-4ed7-b7ef-316dda278096",
+          "source": "upload",
+          "run_id": null,
+          "session_id": null,
+          "total_bytes": 31,
+          "manifest_sha256": "9359118ec6b6dbbd321a851e967874ad48151cd5083ca8ff3d867b5c796737e8",
+          "created_at": "2026-10-01T23:09:41.650531"
+        },
+        {
+          "id": "9ceaa4bb-dc31-465a-91c7-2a0e75789fe6",
+          "project_id": "8763a3f6-d837-4ed7-b7ef-316dda278096",
+          "source": "upload",
+          "run_id": null,
+          "session_id": null,
+          "total_bytes": 31,
+          "manifest_sha256": "80472ee1de6ea6e7185901b84aeb738208aa309acd749d71014e37e8f79270b6",
+          "created_at": "2026-10-01T23:09:41.635877"
+        },
+        {
+          "id": "fcddf65c-a991-4606-a214-77969866cb11",
+          "project_id": "8763a3f6-d837-4ed7-b7ef-316dda278096",
+          "source": "upload",
+          "run_id": null,
+          "session_id": null,
+          "total_bytes": 31,
+          "manifest_sha256": "f38cf05ee4996a6f71e93987a213c5aed7f4c2f76323ae20bf8b3875bdbd966e",
+          "created_at": "2026-10-01T23:09:41.621257"
+        }
+      ],
+      "disk_after_restart": {
+        "objects": [
+          "objects/7d99d75e14563a94bb420dc1fd994a4e51d89be413bcd1deb9652cbd95e18125",
+          "objects/b04131b78db649130873f1175691c8b18f9c076f4e72245d510673175a12ab23"
+        ],
+        "manifests": [
+          "manifests/3e685897-e9d4-41c7-bb83-9367c9c6f8d3.json",
+          "manifests/9ceaa4bb-dc31-465a-91c7-2a0e75789fe6.json",
+          "manifests/fcddf65c-a991-4606-a214-77969866cb11.json"
+        ]
+      }
+    },
+    {
+      "project_id": "d22c7c8f-5c5d-4993-bec0-0bd1f77583d5",
+      "name": "stage-d-snapshot-fault-20261002-before_manifest-exit",
+      "phase": "before_manifest",
+      "mode": "exit",
+      "worker_exit": 73,
+      "worker_log": "RESULT {\"project_id\": \"d22c7c8f-5c5d-4993-bec0-0bd1f77583d5\", \"first\": {\"state\": \"ready\", \"total_bytes\": 31, \"manifest_sha256\": \"41a90ea21cc8a93d7f7c825b27b280a4a095569cbfe602a9747463b9ec8f653e\", \"source\": \"upload\", \"run_id\": null, \"snapshot_id\": \"26c9555c-ce46-4cbd-94eb-40b401442b3d\", \"created_at\": \"2026-10-01T23:09:42.444450\"}, \"changed\": {\"state\": \"ready\", \"total_bytes\": 31, \"manifest_sha256\": \"da39711d429f615b437d1d7bd809eaba66a695f024bebc4ee0f0660005c631c7\", \"source\": \"upload\", \"run_id\": null, \"snapshot_id\": \"056da6a1-9e9f-4739-b756-4d7c829de442\", \"created_at\": \"2026-10-01T23:09:42.476488\"}, \"dedup_objects\": [\"objects/7d99d75e14563a94bb420dc1fd994a4e51d89be413bcd1deb9652cbd95e18125\"], \"changed_objects\": [\"objects/7d99d75e14563a94bb420dc1fd994a4e51d89be413bcd1deb9652cbd95e18125\", \"objects/b04131b78db649130873f1175691c8b18f9c076f4e72245d510673175a12ab23\"], \"same_inode_mtime\": true}\nFAULT {\"phase\": \"before_manifest\", \"path\": \"\", \"mode\": \"exit\"}\n",
+      "baseline": {
+        "project_id": "d22c7c8f-5c5d-4993-bec0-0bd1f77583d5",
+        "first": {
+          "state": "ready",
+          "total_bytes": 31,
+          "manifest_sha256": "41a90ea21cc8a93d7f7c825b27b280a4a095569cbfe602a9747463b9ec8f653e",
+          "source": "upload",
+          "run_id": null,
+          "snapshot_id": "26c9555c-ce46-4cbd-94eb-40b401442b3d",
+          "created_at": "2026-10-01T23:09:42.444450"
+        },
+        "changed": {
+          "state": "ready",
+          "total_bytes": 31,
+          "manifest_sha256": "da39711d429f615b437d1d7bd809eaba66a695f024bebc4ee0f0660005c631c7",
+          "source": "upload",
+          "run_id": null,
+          "snapshot_id": "056da6a1-9e9f-4739-b756-4d7c829de442",
+          "created_at": "2026-10-01T23:09:42.476488"
+        },
+        "dedup_objects": [
+          "objects/7d99d75e14563a94bb420dc1fd994a4e51d89be413bcd1deb9652cbd95e18125"
+        ],
+        "changed_objects": [
+          "objects/7d99d75e14563a94bb420dc1fd994a4e51d89be413bcd1deb9652cbd95e18125",
+          "objects/b04131b78db649130873f1175691c8b18f9c076f4e72245d510673175a12ab23"
+        ],
+        "same_inode_mtime": true
+      },
+      "fault": {
+        "phase": "before_manifest",
+        "path": "",
+        "mode": "exit"
+      },
+      "detail_before_restart": {
+        "id": "d22c7c8f-5c5d-4993-bec0-0bd1f77583d5",
+        "name": "stage-d-snapshot-fault-20261002-before_manifest-exit",
+        "available": true,
+        "archived": false,
+        "files_size": 31,
+        "files_size_at": "2026-10-01T23:09:42.476486",
+        "files_size_stale": false,
+        "protection": {
+          "state": "ready",
+          "run_id": null,
+          "source": "upload",
+          "created_at": "2026-10-01T23:09:42.476488",
+          "snapshot_id": "056da6a1-9e9f-4739-b756-4d7c829de442",
+          "total_bytes": 31,
+          "manifest_sha256": "da39711d429f615b437d1d7bd809eaba66a695f024bebc4ee0f0660005c631c7"
+        },
+        "snapshot_gc_pending": false,
+        "snapshots_cleaned_at": null,
+        "snapshots_released_bytes": 0,
+        "file_operation": {
+          "operation_id": "b221d525-74d1-463b-b99c-5bb3705978b8",
+          "kind": "snapshot",
+          "state": "running",
+          "run_id": null,
+          "session_id": null,
+          "phase": "capturing",
+          "target_snapshot_id": null,
+          "before_snapshot_id": null,
+          "started_at": "2026-10-01T23:09:42.481172",
+          "last_active_at": "2026-10-01T23:09:42.481173",
+          "error": null,
+          "results": {
+            "capturing_snapshot_id": "9b97af78-c623-48af-a5e8-187049e23ec6"
+          }
+        },
+        "write_blocked_reason": "项目文件操作尚未结束：snapshot/running，capturing",
+        "occupying_session_id": null,
+        "active_run_status": null,
+        "active_run_reason": null,
+        "task_count": 0,
+        "last_active_at": null,
+        "reason": null,
+        "instructions": null,
+        "notes": "",
+        "notes_version": 0,
+        "settings_version": 0,
+        "created_at": "2026-10-01T23:09:41.800402",
+        "updated_at": "2026-10-01T23:09:41.800404",
+        "archived_at": null
+      },
+      "after_restart": {
+        "id": "d22c7c8f-5c5d-4993-bec0-0bd1f77583d5",
+        "name": "stage-d-snapshot-fault-20261002-before_manifest-exit",
+        "available": true,
+        "archived": false,
+        "files_size": 63,
+        "files_size_at": "2026-10-01T23:11:02.401667",
+        "files_size_stale": false,
+        "protection": {
+          "state": "ready",
+          "run_id": null,
+          "source": "upload",
+          "created_at": "2026-10-01T23:09:42.476488",
+          "snapshot_id": "056da6a1-9e9f-4739-b756-4d7c829de442",
+          "total_bytes": 31,
+          "manifest_sha256": "da39711d429f615b437d1d7bd809eaba66a695f024bebc4ee0f0660005c631c7"
+        },
+        "snapshot_gc_pending": false,
+        "snapshots_cleaned_at": null,
+        "snapshots_released_bytes": 0,
+        "file_operation": null,
+        "write_blocked_reason": null,
+        "occupying_session_id": null,
+        "active_run_status": null,
+        "active_run_reason": null,
+        "task_count": 0,
+        "last_active_at": null,
+        "reason": null,
+        "instructions": null,
+        "notes": "",
+        "notes_version": 0,
+        "settings_version": 0,
+        "created_at": "2026-10-01T23:09:41.800402",
+        "updated_at": "2026-10-01T23:09:41.800404",
+        "archived_at": null
+      },
+      "ready_after_restart": [
+        {
+          "id": "056da6a1-9e9f-4739-b756-4d7c829de442",
+          "project_id": "d22c7c8f-5c5d-4993-bec0-0bd1f77583d5",
+          "source": "upload",
+          "run_id": null,
+          "session_id": null,
+          "total_bytes": 31,
+          "manifest_sha256": "da39711d429f615b437d1d7bd809eaba66a695f024bebc4ee0f0660005c631c7",
+          "created_at": "2026-10-01T23:09:42.476495"
+        },
+        {
+          "id": "e4c06891-86fb-46b8-9405-eaa5762d3ecb",
+          "project_id": "d22c7c8f-5c5d-4993-bec0-0bd1f77583d5",
+          "source": "upload",
+          "run_id": null,
+          "session_id": null,
+          "total_bytes": 31,
+          "manifest_sha256": "7ea7c04aebcf5e0e92298ae8d7f015fc1bbe2f17ba6e904264ab81c733c6f025",
+          "created_at": "2026-10-01T23:09:42.460270"
+        },
+        {
+          "id": "26c9555c-ce46-4cbd-94eb-40b401442b3d",
+          "project_id": "d22c7c8f-5c5d-4993-bec0-0bd1f77583d5",
+          "source": "upload",
+          "run_id": null,
+          "session_id": null,
+          "total_bytes": 31,
+          "manifest_sha256": "41a90ea21cc8a93d7f7c825b27b280a4a095569cbfe602a9747463b9ec8f653e",
+          "created_at": "2026-10-01T23:09:42.444467"
+        }
+      ],
+      "disk_after_restart": {
+        "objects": [
+          "objects/7d99d75e14563a94bb420dc1fd994a4e51d89be413bcd1deb9652cbd95e18125",
+          "objects/b04131b78db649130873f1175691c8b18f9c076f4e72245d510673175a12ab23"
+        ],
+        "manifests": [
+          "manifests/056da6a1-9e9f-4739-b756-4d7c829de442.json",
+          "manifests/26c9555c-ce46-4cbd-94eb-40b401442b3d.json",
+          "manifests/e4c06891-86fb-46b8-9405-eaa5762d3ecb.json"
+        ]
+      }
+    },
+    {
+      "project_id": "d713a62a-0d31-4878-872a-2b3e5d4ec7cd",
+      "name": "stage-d-snapshot-fault-20261002-manifest-error",
+      "phase": "manifest",
+      "mode": "error",
+      "worker_exit": 0,
+      "worker_log": "RESULT {\"project_id\": \"d713a62a-0d31-4878-872a-2b3e5d4ec7cd\", \"first\": {\"state\": \"ready\", \"total_bytes\": 31, \"manifest_sha256\": \"ebf6a81864fcf50b822aa6fd8b4d79f3f2eb29d7acf6ce166e2c8d82fbbd9439\", \"source\": \"upload\", \"run_id\": null, \"snapshot_id\": \"20111424-7a88-41fc-990a-5ff285989d5f\", \"created_at\": \"2026-10-01T23:09:43.194054\"}, \"changed\": {\"state\": \"ready\", \"total_bytes\": 31, \"manifest_sha256\": \"22b8a2f0db8efd624aad2dbf31fcfb229646b87938442baa830462d278425ba1\", \"source\": \"upload\", \"run_id\": null, \"snapshot_id\": \"2c22f15b-25b0-45b4-9ad4-a73ee5d8a2fb\", \"created_at\": \"2026-10-01T23:09:43.224833\"}, \"dedup_objects\": [\"objects/7d99d75e14563a94bb420dc1fd994a4e51d89be413bcd1deb9652cbd95e18125\"], \"changed_objects\": [\"objects/7d99d75e14563a94bb420dc1fd994a4e51d89be413bcd1deb9652cbd95e18125\", \"objects/b04131b78db649130873f1175691c8b18f9c076f4e72245d510673175a12ab23\"], \"same_inode_mtime\": true}\nFAULT {\"phase\": \"manifest\", \"path\": \"\", \"mode\": \"error\"}\nEXPECTED scoped snapshot fault: manifest\n",
+      "baseline": {
+        "project_id": "d713a62a-0d31-4878-872a-2b3e5d4ec7cd",
+        "first": {
+          "state": "ready",
+          "total_bytes": 31,
+          "manifest_sha256": "ebf6a81864fcf50b822aa6fd8b4d79f3f2eb29d7acf6ce166e2c8d82fbbd9439",
+          "source": "upload",
+          "run_id": null,
+          "snapshot_id": "20111424-7a88-41fc-990a-5ff285989d5f",
+          "created_at": "2026-10-01T23:09:43.194054"
+        },
+        "changed": {
+          "state": "ready",
+          "total_bytes": 31,
+          "manifest_sha256": "22b8a2f0db8efd624aad2dbf31fcfb229646b87938442baa830462d278425ba1",
+          "source": "upload",
+          "run_id": null,
+          "snapshot_id": "2c22f15b-25b0-45b4-9ad4-a73ee5d8a2fb",
+          "created_at": "2026-10-01T23:09:43.224833"
+        },
+        "dedup_objects": [
+          "objects/7d99d75e14563a94bb420dc1fd994a4e51d89be413bcd1deb9652cbd95e18125"
+        ],
+        "changed_objects": [
+          "objects/7d99d75e14563a94bb420dc1fd994a4e51d89be413bcd1deb9652cbd95e18125",
+          "objects/b04131b78db649130873f1175691c8b18f9c076f4e72245d510673175a12ab23"
+        ],
+        "same_inode_mtime": true
+      },
+      "fault": {
+        "phase": "manifest",
+        "path": "",
+        "mode": "error"
+      },
+      "detail_before_restart": {
+        "id": "d713a62a-0d31-4878-872a-2b3e5d4ec7cd",
+        "name": "stage-d-snapshot-fault-20261002-manifest-error",
+        "available": true,
+        "archived": false,
+        "files_size": 31,
+        "files_size_at": "2026-10-01T23:09:43.224830",
+        "files_size_stale": false,
+        "protection": {
+          "state": "ready",
+          "run_id": null,
+          "source": "upload",
+          "created_at": "2026-10-01T23:09:43.224833",
+          "snapshot_id": "2c22f15b-25b0-45b4-9ad4-a73ee5d8a2fb",
+          "total_bytes": 31,
+          "manifest_sha256": "22b8a2f0db8efd624aad2dbf31fcfb229646b87938442baa830462d278425ba1"
+        },
+        "snapshot_gc_pending": false,
+        "snapshots_cleaned_at": null,
+        "snapshots_released_bytes": 0,
+        "file_operation": {
+          "operation_id": "62c34421-6513-435b-8452-db512ecad98f",
+          "kind": "snapshot",
+          "state": "running",
+          "run_id": null,
+          "session_id": null,
+          "phase": "capturing",
+          "target_snapshot_id": null,
+          "before_snapshot_id": null,
+          "started_at": "2026-10-01T23:09:43.229456",
+          "last_active_at": "2026-10-01T23:09:43.229457",
+          "error": null,
+          "results": {
+            "capturing_snapshot_id": "2c2f998a-623f-4d0d-b80d-222f38cb5e37"
+          }
+        },
+        "write_blocked_reason": "项目文件操作尚未结束：snapshot/running，capturing",
+        "occupying_session_id": null,
+        "active_run_status": null,
+        "active_run_reason": null,
+        "task_count": 0,
+        "last_active_at": null,
+        "reason": null,
+        "instructions": null,
+        "notes": "",
+        "notes_version": 0,
+        "settings_version": 0,
+        "created_at": "2026-10-01T23:09:42.509026",
+        "updated_at": "2026-10-01T23:09:42.509028",
+        "archived_at": null
+      },
+      "after_restart": {
+        "id": "d713a62a-0d31-4878-872a-2b3e5d4ec7cd",
+        "name": "stage-d-snapshot-fault-20261002-manifest-error",
+        "available": true,
+        "archived": false,
+        "files_size": 63,
+        "files_size_at": "2026-10-01T23:11:02.412542",
+        "files_size_stale": false,
+        "protection": {
+          "state": "ready",
+          "run_id": null,
+          "source": "upload",
+          "created_at": "2026-10-01T23:09:43.224833",
+          "snapshot_id": "2c22f15b-25b0-45b4-9ad4-a73ee5d8a2fb",
+          "total_bytes": 31,
+          "manifest_sha256": "22b8a2f0db8efd624aad2dbf31fcfb229646b87938442baa830462d278425ba1"
+        },
+        "snapshot_gc_pending": false,
+        "snapshots_cleaned_at": null,
+        "snapshots_released_bytes": 0,
+        "file_operation": null,
+        "write_blocked_reason": null,
+        "occupying_session_id": null,
+        "active_run_status": null,
+        "active_run_reason": null,
+        "task_count": 0,
+        "last_active_at": null,
+        "reason": null,
+        "instructions": null,
+        "notes": "",
+        "notes_version": 0,
+        "settings_version": 0,
+        "created_at": "2026-10-01T23:09:42.509026",
+        "updated_at": "2026-10-01T23:09:42.509028",
+        "archived_at": null
+      },
+      "ready_after_restart": [
+        {
+          "id": "2c22f15b-25b0-45b4-9ad4-a73ee5d8a2fb",
+          "project_id": "d713a62a-0d31-4878-872a-2b3e5d4ec7cd",
+          "source": "upload",
+          "run_id": null,
+          "session_id": null,
+          "total_bytes": 31,
+          "manifest_sha256": "22b8a2f0db8efd624aad2dbf31fcfb229646b87938442baa830462d278425ba1",
+          "created_at": "2026-10-01T23:09:43.224840"
+        },
+        {
+          "id": "7e9729ff-3d73-4133-9fd6-e3b3f68aa5cc",
+          "project_id": "d713a62a-0d31-4878-872a-2b3e5d4ec7cd",
+          "source": "upload",
+          "run_id": null,
+          "session_id": null,
+          "total_bytes": 31,
+          "manifest_sha256": "f80ac1dcd7dcc76a94a591e3438bbf578546028e73e9759b43fc64fbd7b8b3a0",
+          "created_at": "2026-10-01T23:09:43.209939"
+        },
+        {
+          "id": "20111424-7a88-41fc-990a-5ff285989d5f",
+          "project_id": "d713a62a-0d31-4878-872a-2b3e5d4ec7cd",
+          "source": "upload",
+          "run_id": null,
+          "session_id": null,
+          "total_bytes": 31,
+          "manifest_sha256": "ebf6a81864fcf50b822aa6fd8b4d79f3f2eb29d7acf6ce166e2c8d82fbbd9439",
+          "created_at": "2026-10-01T23:09:43.194062"
+        }
+      ],
+      "disk_after_restart": {
+        "objects": [
+          "objects/7d99d75e14563a94bb420dc1fd994a4e51d89be413bcd1deb9652cbd95e18125",
+          "objects/b04131b78db649130873f1175691c8b18f9c076f4e72245d510673175a12ab23"
+        ],
+        "manifests": [
+          "manifests/20111424-7a88-41fc-990a-5ff285989d5f.json",
+          "manifests/2c22f15b-25b0-45b4-9ad4-a73ee5d8a2fb.json",
+          "manifests/7e9729ff-3d73-4133-9fd6-e3b3f68aa5cc.json"
+        ]
+      }
+    },
+    {
+      "project_id": "423dcd8f-a88b-47c0-9e7c-9f62aab9193c",
+      "name": "stage-d-snapshot-fault-20261002-manifest-exit",
+      "phase": "manifest",
+      "mode": "exit",
+      "worker_exit": 73,
+      "worker_log": "RESULT {\"project_id\": \"423dcd8f-a88b-47c0-9e7c-9f62aab9193c\", \"first\": {\"state\": \"ready\", \"total_bytes\": 31, \"manifest_sha256\": \"c5ed0e44f8e10b9642ca583c47afa937fb373e7d628e2c41f00fe77d8366640a\", \"source\": \"upload\", \"run_id\": null, \"snapshot_id\": \"478c9534-987e-498f-b6b4-8c3c8dcf3f11\", \"created_at\": \"2026-10-01T23:09:43.994723\"}, \"changed\": {\"state\": \"ready\", \"total_bytes\": 31, \"manifest_sha256\": \"157afe0776c6f9d54567153f148c576ca770f0b08bf543c17d03ba7011856864\", \"source\": \"upload\", \"run_id\": null, \"snapshot_id\": \"4554cb85-f3f5-43aa-8686-4271812398d2\", \"created_at\": \"2026-10-01T23:09:44.024470\"}, \"dedup_objects\": [\"objects/7d99d75e14563a94bb420dc1fd994a4e51d89be413bcd1deb9652cbd95e18125\"], \"changed_objects\": [\"objects/7d99d75e14563a94bb420dc1fd994a4e51d89be413bcd1deb9652cbd95e18125\", \"objects/b04131b78db649130873f1175691c8b18f9c076f4e72245d510673175a12ab23\"], \"same_inode_mtime\": true}\nFAULT {\"phase\": \"manifest\", \"path\": \"\", \"mode\": \"exit\"}\n",
+      "baseline": {
+        "project_id": "423dcd8f-a88b-47c0-9e7c-9f62aab9193c",
+        "first": {
+          "state": "ready",
+          "total_bytes": 31,
+          "manifest_sha256": "c5ed0e44f8e10b9642ca583c47afa937fb373e7d628e2c41f00fe77d8366640a",
+          "source": "upload",
+          "run_id": null,
+          "snapshot_id": "478c9534-987e-498f-b6b4-8c3c8dcf3f11",
+          "created_at": "2026-10-01T23:09:43.994723"
+        },
+        "changed": {
+          "state": "ready",
+          "total_bytes": 31,
+          "manifest_sha256": "157afe0776c6f9d54567153f148c576ca770f0b08bf543c17d03ba7011856864",
+          "source": "upload",
+          "run_id": null,
+          "snapshot_id": "4554cb85-f3f5-43aa-8686-4271812398d2",
+          "created_at": "2026-10-01T23:09:44.024470"
+        },
+        "dedup_objects": [
+          "objects/7d99d75e14563a94bb420dc1fd994a4e51d89be413bcd1deb9652cbd95e18125"
+        ],
+        "changed_objects": [
+          "objects/7d99d75e14563a94bb420dc1fd994a4e51d89be413bcd1deb9652cbd95e18125",
+          "objects/b04131b78db649130873f1175691c8b18f9c076f4e72245d510673175a12ab23"
+        ],
+        "same_inode_mtime": true
+      },
+      "fault": {
+        "phase": "manifest",
+        "path": "",
+        "mode": "exit"
+      },
+      "detail_before_restart": {
+        "id": "423dcd8f-a88b-47c0-9e7c-9f62aab9193c",
+        "name": "stage-d-snapshot-fault-20261002-manifest-exit",
+        "available": true,
+        "archived": false,
+        "files_size": 31,
+        "files_size_at": "2026-10-01T23:09:44.024467",
+        "files_size_stale": false,
+        "protection": {
+          "state": "ready",
+          "run_id": null,
+          "source": "upload",
+          "created_at": "2026-10-01T23:09:44.024470",
+          "snapshot_id": "4554cb85-f3f5-43aa-8686-4271812398d2",
+          "total_bytes": 31,
+          "manifest_sha256": "157afe0776c6f9d54567153f148c576ca770f0b08bf543c17d03ba7011856864"
+        },
+        "snapshot_gc_pending": false,
+        "snapshots_cleaned_at": null,
+        "snapshots_released_bytes": 0,
+        "file_operation": {
+          "operation_id": "6640b37e-6ebb-4515-b8c9-5b4faf124dfa",
+          "kind": "snapshot",
+          "state": "running",
+          "run_id": null,
+          "session_id": null,
+          "phase": "capturing",
+          "target_snapshot_id": null,
+          "before_snapshot_id": null,
+          "started_at": "2026-10-01T23:09:44.028478",
+          "last_active_at": "2026-10-01T23:09:44.028480",
+          "error": null,
+          "results": {
+            "capturing_snapshot_id": "f59e346b-d6be-4d15-81f8-aa14f0c41803"
+          }
+        },
+        "write_blocked_reason": "项目文件操作尚未结束：snapshot/running，capturing",
+        "occupying_session_id": null,
+        "active_run_status": null,
+        "active_run_reason": null,
+        "task_count": 0,
+        "last_active_at": null,
+        "reason": null,
+        "instructions": null,
+        "notes": "",
+        "notes_version": 0,
+        "settings_version": 0,
+        "created_at": "2026-10-01T23:09:43.375505",
+        "updated_at": "2026-10-01T23:09:43.375507",
+        "archived_at": null
+      },
+      "after_restart": {
+        "id": "423dcd8f-a88b-47c0-9e7c-9f62aab9193c",
+        "name": "stage-d-snapshot-fault-20261002-manifest-exit",
+        "available": true,
+        "archived": false,
+        "files_size": 63,
+        "files_size_at": "2026-10-01T23:11:02.311757",
+        "files_size_stale": false,
+        "protection": {
+          "state": "ready",
+          "run_id": null,
+          "source": "upload",
+          "created_at": "2026-10-01T23:09:44.024470",
+          "snapshot_id": "4554cb85-f3f5-43aa-8686-4271812398d2",
+          "total_bytes": 31,
+          "manifest_sha256": "157afe0776c6f9d54567153f148c576ca770f0b08bf543c17d03ba7011856864"
+        },
+        "snapshot_gc_pending": false,
+        "snapshots_cleaned_at": null,
+        "snapshots_released_bytes": 0,
+        "file_operation": null,
+        "write_blocked_reason": null,
+        "occupying_session_id": null,
+        "active_run_status": null,
+        "active_run_reason": null,
+        "task_count": 0,
+        "last_active_at": null,
+        "reason": null,
+        "instructions": null,
+        "notes": "",
+        "notes_version": 0,
+        "settings_version": 0,
+        "created_at": "2026-10-01T23:09:43.375505",
+        "updated_at": "2026-10-01T23:09:43.375507",
+        "archived_at": null
+      },
+      "ready_after_restart": [
+        {
+          "id": "4554cb85-f3f5-43aa-8686-4271812398d2",
+          "project_id": "423dcd8f-a88b-47c0-9e7c-9f62aab9193c",
+          "source": "upload",
+          "run_id": null,
+          "session_id": null,
+          "total_bytes": 31,
+          "manifest_sha256": "157afe0776c6f9d54567153f148c576ca770f0b08bf543c17d03ba7011856864",
+          "created_at": "2026-10-01T23:09:44.024484"
+        },
+        {
+          "id": "c3e49535-7bfa-4fac-ac01-2cae17b163db",
+          "project_id": "423dcd8f-a88b-47c0-9e7c-9f62aab9193c",
+          "source": "upload",
+          "run_id": null,
+          "session_id": null,
+          "total_bytes": 31,
+          "manifest_sha256": "bbde3fd862eeee806514fd211c200fa68296dc8bc474618ea863b6e911416e9f",
+          "created_at": "2026-10-01T23:09:44.009502"
+        },
+        {
+          "id": "478c9534-987e-498f-b6b4-8c3c8dcf3f11",
+          "project_id": "423dcd8f-a88b-47c0-9e7c-9f62aab9193c",
+          "source": "upload",
+          "run_id": null,
+          "session_id": null,
+          "total_bytes": 31,
+          "manifest_sha256": "c5ed0e44f8e10b9642ca583c47afa937fb373e7d628e2c41f00fe77d8366640a",
+          "created_at": "2026-10-01T23:09:43.994733"
+        }
+      ],
+      "disk_after_restart": {
+        "objects": [
+          "objects/7d99d75e14563a94bb420dc1fd994a4e51d89be413bcd1deb9652cbd95e18125",
+          "objects/b04131b78db649130873f1175691c8b18f9c076f4e72245d510673175a12ab23"
+        ],
+        "manifests": [
+          "manifests/4554cb85-f3f5-43aa-8686-4271812398d2.json",
+          "manifests/478c9534-987e-498f-b6b4-8c3c8dcf3f11.json",
+          "manifests/c3e49535-7bfa-4fac-ac01-2cae17b163db.json"
+        ]
+      }
+    },
+    {
+      "project_id": "4a4b98f2-63eb-494f-a2e0-94bb3787ff12",
+      "name": "stage-d-snapshot-fault-20261002-collect-error",
+      "phase": "collect",
+      "mode": "error",
+      "worker_exit": 0,
+      "worker_log": "RESULT {\"project_id\": \"4a4b98f2-63eb-494f-a2e0-94bb3787ff12\", \"first\": {\"state\": \"ready\", \"total_bytes\": 31, \"manifest_sha256\": \"5df79489202b8e760b5d958d8d4f4df2cb2f35dce927329423e1e686ad6072ff\", \"source\": \"upload\", \"run_id\": null, \"snapshot_id\": \"a544002a-96af-4813-9976-a2d3ecb8c934\", \"created_at\": \"2026-10-01T23:09:44.681165\"}, \"changed\": {\"state\": \"ready\", \"total_bytes\": 31, \"manifest_sha256\": \"65a2ebcf6ecd5a57549d180a1f9970c5a2c8b496fde1833a196e5bfa0a4caf68\", \"source\": \"upload\", \"run_id\": null, \"snapshot_id\": \"fa16a7e8-b7e1-4a70-a30d-07d7d00765d5\", \"created_at\": \"2026-10-01T23:09:44.710772\"}, \"dedup_objects\": [\"objects/7d99d75e14563a94bb420dc1fd994a4e51d89be413bcd1deb9652cbd95e18125\"], \"changed_objects\": [\"objects/7d99d75e14563a94bb420dc1fd994a4e51d89be413bcd1deb9652cbd95e18125\", \"objects/b04131b78db649130873f1175691c8b18f9c076f4e72245d510673175a12ab23\"], \"same_inode_mtime\": true}\nFAULT {\"phase\": \"collect\", \"path\": \"manifests/86d83047-f4df-4940-9241-baadfdad357f.json\", \"mode\": \"error\"}\nPENDING {\"released_bytes\": 390, \"gc_pending\": true}\n项目[4a4b98f2-63eb-494f-a2e0-94bb3787ff12]快照回收待重试\nTraceback (most recent call last):\n  File \"/app/app/application/services/project_file_service.py\", line 85, in _collect\n    released, cancelled = await run_file_io(self.disk(project_id).collect, keep)\n                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/app/app/domain/services/project_file_coordinator.py\", line 139, in run_file_io\n    return await _join_io(asyncio.create_task(asyncio.to_thread(function, *args, **kwargs)))\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/app/app/domain/services/project_file_coordinator.py\", line 130, in _join_io\n    return await asyncio.shield(work), cancelled\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/asyncio/threads.py\", line 25, in to_thread\n    return await loop.run_in_executor(None, func_call)\n           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/usr/local/lib/python3.12/concurrent/futures/thread.py\", line 59, in run\n    result = self.fn(*self.args, **self.kwargs)\n             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n  File \"/app/app/infrastructure/external/project/snapshot_disk.py\", line 193, in collect\n    self._fault('collect', entry.path)\n  File \"/app/app/infrastructure/external/project/snapshot_disk.py\", line 44, in _fault\n    self.fault_hook(phase, path)\n  File \"/tmp/rayagent-snapshot-worker-20261002.py\", line 46, in fault\n    raise OSError('scoped snapshot fault: ' + actual)\nOSError: scoped snapshot fault: collect\n",
+      "baseline": {
+        "project_id": "4a4b98f2-63eb-494f-a2e0-94bb3787ff12",
+        "first": {
+          "state": "ready",
+          "total_bytes": 31,
+          "manifest_sha256": "5df79489202b8e760b5d958d8d4f4df2cb2f35dce927329423e1e686ad6072ff",
+          "source": "upload",
+          "run_id": null,
+          "snapshot_id": "a544002a-96af-4813-9976-a2d3ecb8c934",
+          "created_at": "2026-10-01T23:09:44.681165"
+        },
+        "changed": {
+          "state": "ready",
+          "total_bytes": 31,
+          "manifest_sha256": "65a2ebcf6ecd5a57549d180a1f9970c5a2c8b496fde1833a196e5bfa0a4caf68",
+          "source": "upload",
+          "run_id": null,
+          "snapshot_id": "fa16a7e8-b7e1-4a70-a30d-07d7d00765d5",
+          "created_at": "2026-10-01T23:09:44.710772"
+        },
+        "dedup_objects": [
+          "objects/7d99d75e14563a94bb420dc1fd994a4e51d89be413bcd1deb9652cbd95e18125"
+        ],
+        "changed_objects": [
+          "objects/7d99d75e14563a94bb420dc1fd994a4e51d89be413bcd1deb9652cbd95e18125",
+          "objects/b04131b78db649130873f1175691c8b18f9c076f4e72245d510673175a12ab23"
+        ],
+        "same_inode_mtime": true
+      },
+      "fault": {
+        "phase": "collect",
+        "path": "manifests/86d83047-f4df-4940-9241-baadfdad357f.json",
+        "mode": "error"
+      },
+      "pending": {
+        "released_bytes": 390,
+        "gc_pending": true
+      },
+      "detail_before_restart": {
+        "id": "4a4b98f2-63eb-494f-a2e0-94bb3787ff12",
+        "name": "stage-d-snapshot-fault-20261002-collect-error",
+        "available": true,
+        "archived": true,
+        "files_size": 31,
+        "files_size_at": "2026-10-01T23:09:44.710770",
+        "files_size_stale": false,
+        "protection": {
+          "state": "ready",
+          "run_id": null,
+          "source": "upload",
+          "created_at": "2026-10-01T23:09:44.710772",
+          "snapshot_id": "fa16a7e8-b7e1-4a70-a30d-07d7d00765d5",
+          "total_bytes": 31,
+          "manifest_sha256": "65a2ebcf6ecd5a57549d180a1f9970c5a2c8b496fde1833a196e5bfa0a4caf68"
+        },
+        "snapshot_gc_pending": true,
+        "snapshots_cleaned_at": "2026-10-01T23:09:44.729451",
+        "snapshots_released_bytes": 390,
+        "file_operation": null,
+        "write_blocked_reason": null,
+        "occupying_session_id": null,
+        "active_run_status": null,
+        "active_run_reason": null,
+        "task_count": 0,
+        "last_active_at": null,
+        "reason": null,
+        "instructions": null,
+        "notes": "",
+        "notes_version": 0,
+        "settings_version": 0,
+        "created_at": "2026-10-01T23:09:44.054804",
+        "updated_at": "2026-10-01T23:09:44.054806",
+        "archived_at": "2026-10-01T23:09:44.713962"
+      },
+      "after_restart": {
+        "id": "4a4b98f2-63eb-494f-a2e0-94bb3787ff12",
+        "name": "stage-d-snapshot-fault-20261002-collect-error",
+        "available": true,
+        "archived": true,
+        "files_size": 31,
+        "files_size_at": "2026-10-01T23:11:02.323665",
+        "files_size_stale": false,
+        "protection": {
+          "state": "ready",
+          "run_id": null,
+          "source": "upload",
+          "created_at": "2026-10-01T23:09:44.710772",
+          "snapshot_id": "fa16a7e8-b7e1-4a70-a30d-07d7d00765d5",
+          "total_bytes": 31,
+          "manifest_sha256": "65a2ebcf6ecd5a57549d180a1f9970c5a2c8b496fde1833a196e5bfa0a4caf68"
+        },
+        "snapshot_gc_pending": false,
+        "snapshots_cleaned_at": "2026-10-01T23:09:44.729451",
+        "snapshots_released_bytes": 390,
+        "file_operation": null,
+        "write_blocked_reason": null,
+        "occupying_session_id": null,
+        "active_run_status": null,
+        "active_run_reason": null,
+        "task_count": 0,
+        "last_active_at": null,
+        "reason": null,
+        "instructions": null,
+        "notes": "",
+        "notes_version": 0,
+        "settings_version": 0,
+        "created_at": "2026-10-01T23:09:44.054804",
+        "updated_at": "2026-10-01T23:09:44.054806",
+        "archived_at": "2026-10-01T23:09:44.713962"
+      },
+      "ready_after_restart": [],
+      "cleanup_retry": {
+        "released_bytes": 0,
+        "gc_pending": false
+      }
+    },
+    {
+      "project_id": "b5221d73-461f-45bc-adc7-8804969864d6",
+      "name": "stage-d-snapshot-fault-20261002-collect-exit",
+      "phase": "collect",
+      "mode": "exit",
+      "worker_exit": 73,
+      "worker_log": "RESULT {\"project_id\": \"b5221d73-461f-45bc-adc7-8804969864d6\", \"first\": {\"state\": \"ready\", \"total_bytes\": 31, \"manifest_sha256\": \"9ab1511de7e537273b1def148b126c4bd669356188884385740e204bbc2d34a8\", \"source\": \"upload\", \"run_id\": null, \"snapshot_id\": \"0f52f15b-3333-4a42-966d-cb2c5a430ae9\", \"created_at\": \"2026-10-01T23:09:45.486712\"}, \"changed\": {\"state\": \"ready\", \"total_bytes\": 31, \"manifest_sha256\": \"e6e6178128c1326a3bd8905316c2a03baa46fdf78527cdb4085ce37fd0958bb1\", \"source\": \"upload\", \"run_id\": null, \"snapshot_id\": \"ae262917-3af5-44f9-9932-0e7df54d4e77\", \"created_at\": \"2026-10-01T23:09:45.525862\"}, \"dedup_objects\": [\"objects/7d99d75e14563a94bb420dc1fd994a4e51d89be413bcd1deb9652cbd95e18125\"], \"changed_objects\": [\"objects/7d99d75e14563a94bb420dc1fd994a4e51d89be413bcd1deb9652cbd95e18125\", \"objects/b04131b78db649130873f1175691c8b18f9c076f4e72245d510673175a12ab23\"], \"same_inode_mtime\": true}\nFAULT {\"phase\": \"collect\", \"path\": \"manifests/0f52f15b-3333-4a42-966d-cb2c5a430ae9.json\", \"mode\": \"exit\"}\n",
+      "baseline": {
+        "project_id": "b5221d73-461f-45bc-adc7-8804969864d6",
+        "first": {
+          "state": "ready",
+          "total_bytes": 31,
+          "manifest_sha256": "9ab1511de7e537273b1def148b126c4bd669356188884385740e204bbc2d34a8",
+          "source": "upload",
+          "run_id": null,
+          "snapshot_id": "0f52f15b-3333-4a42-966d-cb2c5a430ae9",
+          "created_at": "2026-10-01T23:09:45.486712"
+        },
+        "changed": {
+          "state": "ready",
+          "total_bytes": 31,
+          "manifest_sha256": "e6e6178128c1326a3bd8905316c2a03baa46fdf78527cdb4085ce37fd0958bb1",
+          "source": "upload",
+          "run_id": null,
+          "snapshot_id": "ae262917-3af5-44f9-9932-0e7df54d4e77",
+          "created_at": "2026-10-01T23:09:45.525862"
+        },
+        "dedup_objects": [
+          "objects/7d99d75e14563a94bb420dc1fd994a4e51d89be413bcd1deb9652cbd95e18125"
+        ],
+        "changed_objects": [
+          "objects/7d99d75e14563a94bb420dc1fd994a4e51d89be413bcd1deb9652cbd95e18125",
+          "objects/b04131b78db649130873f1175691c8b18f9c076f4e72245d510673175a12ab23"
+        ],
+        "same_inode_mtime": true
+      },
+      "fault": {
+        "phase": "collect",
+        "path": "manifests/0f52f15b-3333-4a42-966d-cb2c5a430ae9.json",
+        "mode": "exit"
+      },
+      "detail_before_restart": {
+        "id": "b5221d73-461f-45bc-adc7-8804969864d6",
+        "name": "stage-d-snapshot-fault-20261002-collect-exit",
+        "available": true,
+        "archived": true,
+        "files_size": 31,
+        "files_size_at": "2026-10-01T23:09:45.525858",
+        "files_size_stale": false,
+        "protection": {
+          "state": "ready",
+          "run_id": null,
+          "source": "upload",
+          "created_at": "2026-10-01T23:09:45.525862",
+          "snapshot_id": "ae262917-3af5-44f9-9932-0e7df54d4e77",
+          "total_bytes": 31,
+          "manifest_sha256": "e6e6178128c1326a3bd8905316c2a03baa46fdf78527cdb4085ce37fd0958bb1"
+        },
+        "snapshot_gc_pending": true,
+        "snapshots_cleaned_at": null,
+        "snapshots_released_bytes": 0,
+        "file_operation": {
+          "operation_id": "20e0f468-56dc-48cf-a8cd-90bc44f5b591",
+          "kind": "cleanup",
+          "state": "running",
+          "run_id": null,
+          "session_id": null,
+          "phase": "writers_stopped",
+          "target_snapshot_id": null,
+          "before_snapshot_id": null,
+          "started_at": "2026-10-01T23:09:45.532234",
+          "last_active_at": "2026-10-01T23:09:45.532235",
+          "error": null,
+          "results": {}
+        },
+        "write_blocked_reason": "项目文件操作尚未结束：cleanup/running，writers_stopped",
+        "occupying_session_id": null,
+        "active_run_status": null,
+        "active_run_reason": null,
+        "task_count": 0,
+        "last_active_at": null,
+        "reason": null,
+        "instructions": null,
+        "notes": "",
+        "notes_version": 0,
+        "settings_version": 0,
+        "created_at": "2026-10-01T23:09:44.865562",
+        "updated_at": "2026-10-01T23:09:44.865563",
+        "archived_at": "2026-10-01T23:09:45.530321"
+      },
+      "after_restart": {
+        "id": "b5221d73-461f-45bc-adc7-8804969864d6",
+        "name": "stage-d-snapshot-fault-20261002-collect-exit",
+        "available": true,
+        "archived": true,
+        "files_size": 31,
+        "files_size_at": "2026-10-01T23:11:02.379664",
+        "files_size_stale": false,
+        "protection": {
+          "state": "ready",
+          "run_id": null,
+          "source": "upload",
+          "created_at": "2026-10-01T23:09:45.525862",
+          "snapshot_id": "ae262917-3af5-44f9-9932-0e7df54d4e77",
+          "total_bytes": 31,
+          "manifest_sha256": "e6e6178128c1326a3bd8905316c2a03baa46fdf78527cdb4085ce37fd0958bb1"
+        },
+        "snapshot_gc_pending": false,
+        "snapshots_cleaned_at": null,
+        "snapshots_released_bytes": 0,
+        "file_operation": null,
+        "write_blocked_reason": null,
+        "occupying_session_id": null,
+        "active_run_status": null,
+        "active_run_reason": null,
+        "task_count": 0,
+        "last_active_at": null,
+        "reason": null,
+        "instructions": null,
+        "notes": "",
+        "notes_version": 0,
+        "settings_version": 0,
+        "created_at": "2026-10-01T23:09:44.865562",
+        "updated_at": "2026-10-01T23:09:44.865563",
+        "archived_at": "2026-10-01T23:09:45.530321"
+      },
+      "ready_after_restart": [],
+      "cleanup_retry": {
+        "released_bytes": 0,
+        "gc_pending": false
+      }
+    }
+  ],
+  "runs_before_restart": "completed=1; 无活动运行（真实runs表查询）",
+  "api_image": "sha256:766d33b91334d4f326997592f4e1309202785c2a7ea976dffc8bb98b336d692d",
+  "failures": [
+    {
+      "case": "首次统计运行表",
+      "result": "task_runs不存在；核对模型后查询runs，确认仅completed=1，无活动运行"
+    },
+    {
+      "case": "首次Compose重启",
+      "result": "仓库根目录无Compose文件，无变更；在应用目录重试成功"
+    },
+    {
+      "case": "首次独立磁盘检查",
+      "result": "service factory依赖PG初始化；失败前未改变文件；修正为async初始化后复验"
+    }
+  ],
+  "integrity_scope": {
+    "project_id": "0e9d7035-8ee4-477d-8dd6-a86db696e9a6",
+    "snapshot_id": "d5a29e14-5452-48bb-b57d-c7aabc2a9286",
+    "object_path": "/data/files/projects/0e9d7035-8ee4-477d-8dd6-a86db696e9a6/snapshots/objects/7d99d75e14563a94bb420dc1fd994a4e51d89be413bcd1deb9652cbd95e18125",
+    "original_bytes": 31
+  },
+  "integrity_cases": [
+    {
+      "kind": "corrupt",
+      "status": 400,
+      "response": {
+        "code": 400,
+        "msg": "快照对象损坏：source.csv",
+        "data": {}
+      },
+      "files_before": {
+        "inode": 523397,
+        "entries": {
+          "source.csv": {
+            "sha256": "b04131b78db649130873f1175691c8b18f9c076f4e72245d510673175a12ab23",
+            "bytes": 31
+          },
+          "external-link": {
+            "link": "/etc/passwd"
+          },
+          "new.txt": {
+            "sha256": "88d787d389b0c9260ebd3783278cd59404f3fb8ac9b83bf9f83ab7d056423984",
+            "bytes": 32
+          }
+        }
+      },
+      "files_after": {
+        "inode": 523397,
+        "entries": {
+          "source.csv": {
+            "sha256": "b04131b78db649130873f1175691c8b18f9c076f4e72245d510673175a12ab23",
+            "bytes": 31
+          },
+          "external-link": {
+            "link": "/etc/passwd"
+          },
+          "new.txt": {
+            "sha256": "88d787d389b0c9260ebd3783278cd59404f3fb8ac9b83bf9f83ab7d056423984",
+            "bytes": 32
+          }
+        }
+      },
+      "operation_released": true
+    },
+    {
+      "kind": "missing",
+      "status": 400,
+      "response": {
+        "code": 400,
+        "msg": "快照对象缺失或不可读：source.csv",
+        "data": {}
+      },
+      "files_before": {
+        "inode": 523397,
+        "entries": {
+          "source.csv": {
+            "sha256": "b04131b78db649130873f1175691c8b18f9c076f4e72245d510673175a12ab23",
+            "bytes": 31
+          },
+          "external-link": {
+            "link": "/etc/passwd"
+          },
+          "new.txt": {
+            "sha256": "88d787d389b0c9260ebd3783278cd59404f3fb8ac9b83bf9f83ab7d056423984",
+            "bytes": 32
+          }
+        }
+      },
+      "files_after": {
+        "inode": 523397,
+        "entries": {
+          "source.csv": {
+            "sha256": "b04131b78db649130873f1175691c8b18f9c076f4e72245d510673175a12ab23",
+            "bytes": 31
+          },
+          "external-link": {
+            "link": "/etc/passwd"
+          },
+          "new.txt": {
+            "sha256": "88d787d389b0c9260ebd3783278cd59404f3fb8ac9b83bf9f83ab7d056423984",
+            "bytes": 32
+          }
+        }
+      },
+      "operation_released": true
+    }
+  ],
+  "link_zip": {
+    "names": [
+      "new.txt",
+      "source.csv"
+    ],
+    "warning": "%E6%89%93%E5%8C%85%E8%B7%B3%E8%BF%87%201%20%E4%B8%AA%E7%AC%A6%E5%8F%B7%E9%93%BE%E6%8E%A5%E6%88%96%E7%89%B9%E6%AE%8A%E6%96%87%E4%BB%B6",
+    "zip_sha256": "76b837b620a5c7934317f6ac2575e97634541905295e81f3523c1a7d0e5b5dea",
+    "external_target_content_included": false
+  },
+  "oversize_scope": "仅此新建测试项目files/over-limit-test.bin，501MiB稀疏文件；HTTP恢复拒绝后立即移除",
+  "oversize": {
+    "status": 400,
+    "response": {
+      "code": 400,
+      "msg": "项目文件 525336639 字节超过快照上限 524288000 字节；保护快照不可跳过，请先下载或精简文件",
+      "data": {}
+    },
+    "run_capture_helper": {
+      "state": "skipped",
+      "total_bytes": 525336639,
+      "reason": "项目超过快照上限，本次运行没有快照",
+      "source": "run",
+      "run_id": null,
+      "snapshot_id": null,
+      "created_at": "2026-10-01T23:12:38.354557"
+    },
+    "boundary": "真实配置阈值与PG/卷应用捕获 helper，未启动真实运行/模型/沙箱；不能代替工具前界面提示",
+    "files_after_test": {
+      "inode": 523397,
+      "entries": {
+        "source.csv": {
+          "sha256": "b04131b78db649130873f1175691c8b18f9c076f4e72245d510673175a12ab23",
+          "bytes": 31
+        },
+        "external-link": {
+          "link": "/etc/passwd"
+        },
+        "new.txt": {
+          "sha256": "88d787d389b0c9260ebd3783278cd59404f3fb8ac9b83bf9f83ab7d056423984",
+          "bytes": 32
+        }
+      }
+    }
+  },
+  "cleanup_authorized_scope": {
+    "project_ids": [
+      "0e9d7035-8ee4-477d-8dd6-a86db696e9a6",
+      "77dd67a1-60ff-42e0-9b9a-a9ce9783a616",
+      "8763a3f6-d837-4ed7-b7ef-316dda278096",
+      "d22c7c8f-5c5d-4993-bec0-0bd1f77583d5",
+      "d713a62a-0d31-4878-872a-2b3e5d4ec7cd",
+      "423dcd8f-a88b-47c0-9e7c-9f62aab9193c",
+      "4a4b98f2-63eb-494f-a2e0-94bb3787ff12",
+      "b5221d73-461f-45bc-adc7-8804969864d6"
+    ],
+    "session_ids": [],
+    "name_prefix": "stage-d-snapshot-fault-20261002-"
+  },
+  "browser_failure": [
+    "视口set390x844调用30秒超时，未确认尺寸生效",
+    "同一tab3重新绑定调试同步超时，listTabs仍列出tab3",
+    "viewport.reset调用40秒超时，不能宣称已撤销；已请求用户关闭并重新打开内置浏览器"
+  ],
+  "cleanup_result": {
+    "project_file_copies": 0,
+    "project_snapshots": 18,
+    "project_audit_events": 151,
+    "projects": 8,
+    "directories_removed": 8
+  },
+  "preserved_memory_project": {
+    "id": "9a10bd1d-580b-44d0-97e7-36f091599357",
+    "notes_version": 3,
+    "source_sha256": "7d99d75e14563a94bb420dc1fd994a4e51d89be413bcd1deb9652cbd95e18125"
+  },
+  "ui_image": "sha256:6f8a748c4ac84e4879fb8a8298a5eb87f581f2b5dd0d83075043263670728a68",
+  "migration": "f6cad3e75b86",
+  "model_condition": "本地key非空，与既有API容器key一致；不输出凭据，不在未更新配置下重复真实401请求。阶段E尚未执行。"
+}
