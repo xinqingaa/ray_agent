@@ -3,7 +3,7 @@
 from functools import lru_cache
 from typing import Literal, Optional
 
-from pydantic import field_validator, model_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -59,6 +59,10 @@ class Settings(BaseSettings):
     project_local_bind: Optional[str] = None
     project_uid: int = 1000
     project_gid: int = 1000
+    project_upload_max_bytes: int = Field(default=200 * 1024 * 1024, gt=0)
+    project_upload_max_files: int = Field(default=2000, gt=0)
+    project_file_max_bytes: int = Field(default=50 * 1024 * 1024, gt=0)
+    project_max_bytes: int = Field(default=500 * 1024 * 1024, gt=0)
 
     # 使用pydantic v2的写法来完成环境变量信息的告知
     model_config = SettingsConfigDict(

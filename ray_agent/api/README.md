@@ -174,6 +174,15 @@ docker compose run --rm --no-deps -T manus-api python scripts/check_project_writ
 
 脚本仅创建本次唯一项目目录与沙箱，不写业务数据库：启动真实后台写入进程，核对项目/会话/运行标签，保留指定 waiting 容器并停止同项目其他容器，随后停止全部测试容器，检查文件不再增长及改写后的字节不被旧进程覆盖，最后清理本次资源。它不调用模型，也不代替完整运行、上传或恢复验收。持久占用、并发准入、取消、迟到启动、启动核对与事务回滚见 `tests/core/test_project_operations_pg.py`，同样需独立 `RAY_TEST_DATABASE_URI`，其 Docker 为替身。
 
+### 项目上传、快照与下载观察
+
+```bash
+RAY_TEST_DATABASE_URI=postgresql+asyncpg://… uv run --locked python -m pytest tests/core/test_project_uploads.py tests/core/test_project_snapshots_pg.py tests/core/test_project_snapshot_disk.py tests/core/test_project_download.py
+uv run --locked python scripts/check_project_file_lifecycle.py --url http://127.0.0.1:8088/api --output /tmp/project-file-check.json
+```
+
+数据库测试使用独立临时 PostgreSQL（每例重建 `public`），文件使用临时目录，Docker 为替身；覆盖上传批次所有权、规则与实际字节复核、保护快照、故障修复、取消、到期与重启。磁盘测试核对内容对象、无硬链接去重、原地恢复、链接与流式 ZIP。真实部署脚本通过 HTTP 新建唯一测试项目，验证覆盖保护、恢复路径/字节、下载、归档快照清理；不调用模型，不替代浏览器验收。脚本保留测试项目并输出其 id 与限定清理范围；检查记录后仅按该范围清理，不能清空业务库或删除其他项目。
+
 ### 沙箱环境观察
 
 动态模式下可在本目录运行第十一章的容器观察（需可访问 Docker，且未配置已有沙箱地址）：

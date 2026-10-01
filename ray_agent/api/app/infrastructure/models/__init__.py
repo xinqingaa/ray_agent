@@ -3,7 +3,7 @@
 from .base import Base
 from .event import EventModel
 from .file import FileModel
-from .project import ProjectModel, ProjectAuditModel
+from .project import ProjectModel, ProjectAuditModel, ProjectSnapshotModel
 from .run import RunModel
 from .session import SessionModel
 

@@ -48,6 +48,9 @@ class ProjectService:
             available, reason = False, str(exc)
         return ProjectView(id=project.id, name=project.name,
             available=available, reason=reason, archived=project.archived_at is not None,
+            files_size=project.files_size, files_size_at=project.files_size_at, files_size_stale=project.files_size_stale,
+            protection=project.protection, snapshot_gc_pending=project.snapshot_gc_pending,
+            snapshots_cleaned_at=project.snapshots_cleaned_at, snapshots_released_bytes=project.snapshots_released_bytes,
             file_operation=project.file_operation,
             write_blocked_reason=(f"项目文件操作尚未结束：{project.file_operation.kind}/{project.file_operation.state}，{project.file_operation.error or project.file_operation.phase}" if project.file_operation else None),
             last_active_at=project.last_active_at)

@@ -542,7 +542,7 @@ export type SSEEventData =
   | { type: "error"; data: { error: string } }
   | { type: "turn"; data: TurnEvent }
   | { type: "run"; data: RunEvent }
-  | { type: "environment"; data: EventMeta & { status: "preparing" | "ready" } }
+  | { type: "environment"; data: EventMeta & { status: "preparing" | "ready"; message?: string; project_file_protection?: Record<string, unknown> } }
   | { type: "context"; data: Record<string, unknown> }
   | { type: "cleanup"; data: Record<string, unknown> }
   | { type: "attempt"; data: Record<string, unknown> }

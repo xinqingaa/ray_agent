@@ -22,6 +22,7 @@ class LLMConfig(BaseModel):
 
 class AgentConfig(BaseModel):
     """Agent通用配置"""
+    project_snapshot_retention: int = Field(default=5, ge=1, le=7)
     max_iterations: int = Field(default=100, gt=0, lt=1000)  # Agent最大迭代次数
     max_retries: int = Field(default=3, gt=1, lt=10)  # 最大重试次数
     max_search_results: int = Field(default=10, gt=1, lt=30)  # 最大搜索结果条数

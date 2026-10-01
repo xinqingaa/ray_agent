@@ -18,7 +18,7 @@ from app.infrastructure.storage.postgres import get_postgres, get_uow
 from app.infrastructure.storage.redis import get_redis
 from app.interfaces.endpoints.routes import router
 from app.interfaces.errors.exception_handlers import register_exception_handlers
-from app.interfaces.service_dependencies import get_agent_service, get_run_ledger
+from app.interfaces.service_dependencies import get_agent_service, get_run_ledger, get_project_file_service
 from core.config import get_settings
 
 # 1.加载配置信息
@@ -78,12 +78,28 @@ async def lifespan(app: FastAPI):
 
     from app.domain.services.project_file_coordinator import ProjectFileCoordinator
     from app.infrastructure.external.sandbox.docker_sandbox import DockerSandbox
-    await ProjectFileCoordinator(get_uow, DockerSandbox).reconcile_startup()
+    await get_project_file_service().reconcile_startup()
+    await ProjectFileCoordinator(get_uow, DockerSandbox, get_project_file_service().measure_size).reconcile_startup()
+    await get_project_file_service().reconcile_orphans()
+
+    async def upload_expiry():
+        while True:
+            await asyncio.sleep(30)
+            try:
+                await get_project_file_service().expire_uploads()
+            except Exception:
+                logger.exception('上传批次到期核对失败，将在下一轮重试')
+    expiry_task = asyncio.create_task(upload_expiry())
 
     try:
         # 4.lifespan分界点
         yield
     finally:
+        expiry_task.cancel()
+        try:
+            await expiry_task
+        except asyncio.CancelledError:
+            pass
         try:
             # 5.等待agent服务关闭
             logger.info("RayAgent正在关闭")

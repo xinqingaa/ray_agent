@@ -1,13 +1,13 @@
 """PostgreSQL 项目实体与目录登记锁。运行互斥另在受理事务锁项目行。"""
 from typing import Optional
 
-from sqlalchemy import func, select, update
+from sqlalchemy import func, select, update, delete
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.models.workspace_project import WorkspaceProject
 from app.domain.repositories.project_repository import ProjectRepository
-from app.infrastructure.models.project import ProjectModel, ProjectAuditModel
+from app.infrastructure.models.project import ProjectModel, ProjectAuditModel, ProjectSnapshotModel
 
 
 class DBProjectRepository(ProjectRepository):
@@ -70,3 +70,26 @@ class DBProjectRepository(ProjectRepository):
             ProjectAuditModel.project_id == project_id, ProjectAuditModel.seq > after_seq
         ).order_by(ProjectAuditModel.seq).limit(limit))).scalars().all()
         return [dict(seq=r.seq, type=r.type, payload=r.payload, created_at=r.created_at.isoformat()) for r in records]
+
+    async def add_snapshot(self, snapshot):
+        await self.db_session.execute(insert(ProjectSnapshotModel).values(**snapshot.model_dump(mode='python')))
+
+    async def snapshots(self, project_id):
+        from app.domain.models.project_snapshot import ProjectSnapshot
+        records = (await self.db_session.execute(select(ProjectSnapshotModel).where(
+            ProjectSnapshotModel.project_id == project_id).order_by(
+            ProjectSnapshotModel.created_at.desc(), ProjectSnapshotModel.id.desc()))).scalars().all()
+        return [ProjectSnapshot.model_validate(r) for r in records]
+
+    async def drop_snapshots(self, project_id, ids):
+        if ids:
+            await self.db_session.execute(delete(ProjectSnapshotModel).where(
+                ProjectSnapshotModel.project_id == project_id, ProjectSnapshotModel.id.in_(ids)))
+
+    async def operation_result(self, project_id, operation_id):
+        record = (await self.db_session.execute(select(ProjectAuditModel).where(
+            ProjectAuditModel.project_id == project_id,
+            ProjectAuditModel.payload['operation_id'].astext == operation_id,
+            ProjectAuditModel.type == 'file_operation',
+        ).order_by(ProjectAuditModel.seq.desc()).limit(1))).scalar_one_or_none()
+        return record.payload if record else None

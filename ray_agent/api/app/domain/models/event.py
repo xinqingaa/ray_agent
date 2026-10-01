@@ -305,6 +305,8 @@ class EnvironmentEvent(BaseEvent):
     """应用协调层记录环境准备；与模型 turn 分开，重连可重建。"""
     type: Literal["environment"] = "environment"
     status: Literal["preparing", "ready"]
+    message: Optional[str] = None
+    project_file_protection: Optional[Dict[str, Any]] = None
 
 
 # 定义应用事件类型声明

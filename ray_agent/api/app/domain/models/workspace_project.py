@@ -36,6 +36,13 @@ class ProjectSettings(BaseModel):
 class WorkspaceProject(ProjectSettings):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     file_operation: Optional[ProjectOperation] = None
+    files_size: int = 0
+    files_size_at: Optional[datetime] = None
+    files_size_stale: bool = False
+    protection: Optional[dict] = None
+    snapshot_gc_pending: bool = False
+    snapshots_cleaned_at: Optional[datetime] = None
+    snapshots_released_bytes: int = 0
     archived_at: Optional[datetime] = None
     created_at: datetime = Field(default_factory=datetime.now)
     updated_at: datetime = Field(default_factory=datetime.now)

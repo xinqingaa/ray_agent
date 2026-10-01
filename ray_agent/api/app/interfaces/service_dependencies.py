@@ -9,6 +9,7 @@ from app.application.services.agent_service import AgentService
 from app.application.services.app_config_service import AppConfigService
 from app.application.services.file_service import FileService
 from app.application.services.project_service import ProjectService
+from app.application.services.project_file_service import ProjectFileService
 from app.application.services.session_service import SessionService
 from app.application.services.title_service import TitleService
 from app.application.services.status_service import StatusService
@@ -93,7 +94,7 @@ def get_project_service() -> ProjectService:
         files=LocalProjectFiles(),
         storage=get_managed_storage(),
         sandbox_address=current.sandbox_address,
-        coordinator=ProjectFileCoordinator(get_uow, DockerSandbox),
+        coordinator=ProjectFileCoordinator(get_uow, DockerSandbox, get_project_file_service().measure_size),
     )
 
 
@@ -131,4 +132,14 @@ def get_agent_service() -> AgentService:
         tool_policy=app_config.tool_policy,
         project_validator=get_project_service().validate_start,
         project_prepare=get_project_service().prepare_snapshot,
+        project_file_prepare=get_project_file_service().prepare_run,
+        project_file_coordinator=ProjectFileCoordinator(get_uow, DockerSandbox, get_project_file_service().measure_size),
     )
+
+
+def get_project_file_service() -> ProjectFileService:
+    current = get_settings()
+    def retention():
+        return FileAppConfigRepository(current.app_config_filepath).load().agent_config.project_snapshot_retention
+    return ProjectFileService(get_uow, get_managed_storage(), DockerSandbox,
+        max_bytes=current.project_max_bytes, retention=retention, ledger=get_run_ledger(), settings=current)

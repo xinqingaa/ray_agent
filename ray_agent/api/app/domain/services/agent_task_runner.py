@@ -134,6 +134,16 @@ class AgentTaskRunner(TaskRunner):
             async def apply(uow: IUnitOfWork) -> None:
                 await uow.session.update_latest_message(self._session_id, event.message, event.created_at)
                 await uow.session.increment_unread_message_count(self._session_id)
+        if (isinstance(event, ToolEvent) and event.tool_name in ('shell', 'file')
+                and event.status == ToolEventStatus.CALLING and getattr(self, '_project_id', None)):
+            previous_apply = apply
+            async def apply(uow: IUnitOfWork) -> None:
+                if previous_apply:
+                    await previous_apply(uow)
+                project = await uow.project.get(self._project_id, lock=True)
+                if project:
+                    project.files_size_stale = True
+                    await uow.project.save(project)
         written = await self._ledger.append(self._session_id, [event], run_id=self._run_id, apply=apply)
         if not written:
             raise _RunClosed()
@@ -545,7 +555,7 @@ class AgentTaskRunner(TaskRunner):
             retire_writer(project_id, getattr(self, '_project_writer_token', None))
             if project_id:
                 try:
-                    await ProjectFileCoordinator(self._uow_factory, type(self._sandbox)).settle(project_id)
+                    await (getattr(self, '_project_coordinator', None) or ProjectFileCoordinator(self._uow_factory, type(self._sandbox))).settle(project_id)
                 except Exception:
                     logger.exception('项目环境收尾未完成')
             self._settled.set()

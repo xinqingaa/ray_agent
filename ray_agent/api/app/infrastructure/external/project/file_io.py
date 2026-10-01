@@ -167,3 +167,45 @@ class ProjectFileIO:
                     os.unlink(temporary, dir_fd=parent_fd)
                 except FileNotFoundError:
                     pass
+
+    def remove(self, relative):
+        path = normalize_relative(relative)
+        if not path:
+            raise path_error(relative)
+        parent, _, name = path.rpartition('/')
+        with self.directory(parent) as fd:
+            meta = os.stat(name, dir_fd=fd, follow_symlinks=False)
+            if stat.S_ISDIR(meta.st_mode):
+                os.rmdir(name, dir_fd=fd)
+            else:
+                os.unlink(name, dir_fd=fd)
+            os.fsync(fd)
+
+    def link(self, relative, target):
+        path = normalize_relative(relative)
+        if not path:
+            raise path_error(relative)
+        parent, _, name = path.rpartition('/')
+        with self.directory(parent, create=True) as fd:
+            os.symlink(target, name, dir_fd=fd)
+            if os.geteuid() == 0:
+                os.chown(name, self.uid, self.gid, dir_fd=fd, follow_symlinks=False)
+            os.fsync(fd)
+
+    def restore_metadata(self, entry):
+        path = entry['path']
+        parent, _, name = path.rpartition('/')
+        with self.directory(parent) as fd:
+            if entry['type'] == 'symlink':
+                if os.geteuid() == 0:
+                    os.chown(name, self.uid, self.gid, dir_fd=fd, follow_symlinks=False)
+            else:
+                flags = os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK
+                if entry['type'] == 'directory':
+                    flags |= os.O_DIRECTORY
+                child = os.open(name, flags, dir_fd=fd)
+                try:
+                    self._ownership(child, directory=entry['type'] == 'directory')
+                finally:
+                    os.close(child)
+            os.utime(name, ns=(entry['mtime_ns'], entry['mtime_ns']), dir_fd=fd, follow_symlinks=False)

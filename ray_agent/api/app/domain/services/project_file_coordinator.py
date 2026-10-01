@@ -32,8 +32,9 @@ def retire_writer(project_id, token):
 
 
 class ProjectFileCoordinator:
-    def __init__(self, uow_factory, sandbox_cls):
+    def __init__(self, uow_factory, sandbox_cls, size_reader=None):
         self.factory, self.sandbox_cls = uow_factory, sandbox_cls
+        self.size_reader = size_reader
 
     async def settle(self, project_id):
         lock = state()['locks'].setdefault(project_id, asyncio.Lock())
@@ -76,8 +77,26 @@ class ProjectFileCoordinator:
                     raise
                 logger.exception('项目[%s]环境收尾失败', project_id)
                 return False
-            async with self.factory() as uow:
-                return await finish(uow, project_id, operation_id)
+            cancelled = False
+            try:
+                size = None
+                if self.size_reader and not active:
+                    size, cancelled = await self.size_reader(project_id)
+                async with self.factory() as uow:
+                    project = await uow.project.get(project_id, lock=True)
+                    if project and project.file_operation and project.file_operation.operation_id == operation_id and size is not None:
+                        from datetime import datetime
+                        project.files_size, project.files_size_at, project.files_size_stale = size, datetime.now(), False
+                        await uow.project.save(project)
+                    result = await finish(uow, project_id, operation_id)
+            except Exception as exc:
+                async with self.factory() as uow:
+                    await finish(uow, project_id, operation_id, error='文件大小核对失败：' + str(exc))
+                logger.exception('项目[%s]文件收尾核对失败', project_id)
+                return False
+            if cancelled:
+                raise asyncio.CancelledError()
+            return result
 
     async def retry_settling(self, project_id):
         if not await self.settle(project_id):
@@ -98,3 +117,27 @@ class ProjectFileCoordinator:
                         await uow.project.save(current)
                         await uow.project.audit(project.id, 'file_operation', current.file_operation.model_dump(mode='json'))
             await self.settle(project.id)
+
+
+def project_io_lock(project_id):
+    return state().setdefault('io_locks', {}).setdefault(project_id, asyncio.Lock())
+
+
+async def _join_io(work):
+    cancelled = False
+    while True:
+        try:
+            return await asyncio.shield(work), cancelled
+        except asyncio.CancelledError:
+            cancelled = True
+            if work.done():
+                return work.result(), cancelled
+
+
+async def run_file_io(function, *args, **kwargs):
+    """等待线程实际退出；调用方完成持久发布/清理后再传播取消。"""
+    return await _join_io(asyncio.create_task(asyncio.to_thread(function, *args, **kwargs)))
+
+
+async def run_async_io(awaitable):
+    return await _join_io(asyncio.create_task(awaitable))

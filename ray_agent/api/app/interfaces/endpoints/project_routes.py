@@ -1,6 +1,9 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, UploadFile, File
+from pydantic import BaseModel
+from app.application.services.project_file_service import ProjectFileService
+from app.application.errors.exceptions import BadRequestError, ServerRequestsError, NotFoundError
 
 from app.application.services.project_service import ProjectService
 from app.domain.models.project import ProjectListing, ProjectFile
@@ -8,9 +11,16 @@ from app.interfaces.schemas import Response
 from app.interfaces.schemas.project import (ProjectPage, ProjectDetails,
     CreateProjectRequest, ArchiveProjectRequest, ProjectSettings)
 from app.interfaces.schemas.session import ListSessionResponse
-from app.interfaces.service_dependencies import get_project_service
+from app.interfaces.service_dependencies import get_project_service, get_project_file_service
+
+from app.domain.models.project_upload import ProjectUploadSelection
 
 router = APIRouter(prefix="/projects", tags=["项目模块"])
+
+
+@router.get('/upload-rules', response_model=Response[dict])
+async def upload_rules(service: ProjectFileService = Depends(get_project_file_service)):
+    return Response.success(data=service.upload_rules())
 
 
 @router.get("", response_model=Response[ProjectPage], summary="分页列出长期项目")
@@ -72,3 +82,83 @@ async def project_events(project_id: str, after_seq: int = Query(0, ge=0),
                          limit: int = Query(50, ge=1, le=100),
                          project_service: ProjectService = Depends(get_project_service)):
     return Response.success(data=await project_service.events(project_id, after_seq, limit))
+
+
+class RepairRestoreRequest(BaseModel):
+    operation_id: str
+    return_before: bool = False
+
+
+async def file_action(awaitable):
+    try:
+        return await awaitable
+    except ValueError as exc:
+        raise BadRequestError(str(exc)) from exc
+    except FileNotFoundError as exc:
+        raise NotFoundError('项目文件不存在') from exc
+    except OSError as exc:
+        raise ServerRequestsError('项目文件操作失败：' + str(exc)) from exc
+
+
+@router.get('/{project_id}/snapshots', response_model=Response[list])
+async def snapshots(project_id: str, service: ProjectFileService = Depends(get_project_file_service)):
+    return Response.success(data=await file_action(service.snapshots(project_id)))
+
+
+@router.post('/{project_id}/snapshots/{snapshot_id}/restore', response_model=Response[dict])
+async def restore_snapshot(project_id: str, snapshot_id: str, service: ProjectFileService = Depends(get_project_file_service)):
+    return Response.success(data=await file_action(service.restore(project_id, snapshot_id)))
+
+
+@router.post('/{project_id}/restore/repair', response_model=Response[dict])
+async def repair_restore(project_id: str, request: RepairRestoreRequest, service: ProjectFileService = Depends(get_project_file_service)):
+    return Response.success(data=await file_action(service.repair_restore(project_id, request.operation_id, return_before=request.return_before)))
+
+
+@router.post('/{project_id}/snapshots/cleanup', response_model=Response[dict])
+async def cleanup_snapshots(project_id: str, service: ProjectFileService = Depends(get_project_file_service)):
+    return Response.success(data=await file_action(service.cleanup(project_id)))
+
+
+@router.post('/{project_id}/operations/reconcile', response_model=Response[dict])
+async def reconcile_files(project_id: str, request: RepairRestoreRequest, service: ProjectFileService = Depends(get_project_file_service)):
+    return Response.success(data=await file_action(service.reconcile_operation(project_id, request.operation_id)))
+
+
+@router.post('/{project_id}/uploads/preflight', response_model=Response[dict])
+async def preflight_upload(project_id: str, request: ProjectUploadSelection, service: ProjectFileService = Depends(get_project_file_service)):
+    return Response.success(data=await file_action(service.preflight_upload(project_id, request)))
+
+
+@router.post('/{project_id}/uploads', response_model=Response[dict])
+async def start_upload(project_id: str, request: ProjectUploadSelection, service: ProjectFileService = Depends(get_project_file_service)):
+    return Response.success(data=await file_action(service.start_upload(project_id, request)))
+
+
+@router.put('/{project_id}/uploads/{operation_id}/file', response_model=Response[dict])
+async def upload_item(project_id: str, operation_id: str, path: str = Query(), file: UploadFile = File(),
+                      service: ProjectFileService = Depends(get_project_file_service)):
+    return Response.success(data=await file_action(service.upload_item(project_id, operation_id, path, file.file)))
+
+
+@router.post('/{project_id}/uploads/{operation_id}/finish', response_model=Response[dict])
+async def finish_upload(project_id: str, operation_id: str, cancel: bool = Query(False),
+                        service: ProjectFileService = Depends(get_project_file_service)):
+    return Response.success(data=await file_action(service.end_upload(project_id, operation_id, cancel=cancel)))
+
+
+@router.get('/{project_id}/operations/{operation_id}', response_model=Response[dict])
+async def operation_result(project_id: str, operation_id: str, service: ProjectFileService = Depends(get_project_file_service)):
+    return Response.success(data=await service.operation_result(project_id, operation_id))
+
+
+@router.get('/{project_id}/download')
+async def download_project(project_id: str, path: str | None = Query(None), service: ProjectFileService = Depends(get_project_file_service)):
+    from urllib.parse import quote
+    from starlette.responses import StreamingResponse
+    content, filename, media_type, warning = await file_action(service.download(project_id, path))
+    return StreamingResponse(content, media_type=media_type, headers={
+        'Content-Disposition': "attachment; filename*=utf-8''" + quote(filename, safe=''),
+        'X-RayAgent-Download-Warning': quote(warning, safe=''),
+        'Cache-Control': 'no-store',
+    })

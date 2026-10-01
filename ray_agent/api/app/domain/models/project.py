@@ -56,6 +56,13 @@ class ProjectView(BaseModel):
     name: str
     available: bool
     archived: bool = False
+    files_size: int = 0
+    files_size_at: Optional[datetime] = None
+    files_size_stale: bool = False
+    protection: Optional[dict] = None
+    snapshot_gc_pending: bool = False
+    snapshots_cleaned_at: Optional[datetime] = None
+    snapshots_released_bytes: int = 0
     file_operation: Optional[ProjectOperation] = None
     write_blocked_reason: Optional[str] = None
     task_count: int = 0

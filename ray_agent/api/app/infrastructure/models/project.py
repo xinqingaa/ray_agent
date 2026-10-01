@@ -2,7 +2,7 @@
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import CheckConstraint, DateTime, String, Text, UniqueConstraint, ForeignKey, Integer, text
+from sqlalchemy import CheckConstraint, DateTime, String, Text, UniqueConstraint, ForeignKey, Integer, BigInteger, Boolean, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -20,6 +20,13 @@ class ProjectModel(Base):
     name: Mapped[str] = mapped_column(String(160), nullable=False)
     instructions: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     file_operation: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+    files_size: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0, server_default='0')
+    files_size_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    files_size_stale: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=text('false'))
+    protection: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
+    snapshot_gc_pending: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False, server_default=text('false'))
+    snapshots_cleaned_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    snapshots_released_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0, server_default='0')
     archived_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=text("CURRENT_TIMESTAMP(0)"))
     updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=text("CURRENT_TIMESTAMP(0)"))
@@ -42,3 +49,16 @@ class ProjectAuditModel(Base):
     type: Mapped[str] = mapped_column(String(80), nullable=False)
     payload: Mapped[dict] = mapped_column(JSONB, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.now)
+
+
+class ProjectSnapshotModel(Base):
+    __tablename__ = 'project_snapshots'
+    __table_args__ = (CheckConstraint("source IN ('run', 'upload', 'restore')", name='ck_project_snapshots_source'),)
+    id: Mapped[str] = mapped_column(String(255), primary_key=True)
+    project_id: Mapped[str] = mapped_column(String(255), ForeignKey('projects.id', ondelete='RESTRICT'), index=True, nullable=False)
+    source: Mapped[str] = mapped_column(String(20), nullable=False)
+    run_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    session_id: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
+    total_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    manifest_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)

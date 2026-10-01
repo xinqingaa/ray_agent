@@ -51,7 +51,7 @@ def test_migration_drops_legacy_project_path_without_backfill():
             assert conn.execute(text("SELECT count(*) FROM projects")).scalar() == 0
             assert conn.execute(text("SELECT count(*) FROM sessions WHERE project_id IS NOT NULL")).scalar() == 0
             assert conn.execute(text("SELECT count(*) FROM information_schema.columns WHERE table_name='sessions' AND column_name='project_path'")).scalar() == 0
-            assert conn.execute(text("SELECT version_num FROM alembic_version")).scalar() == "a1d4e8f20c31"
+            assert conn.execute(text("SELECT version_num FROM alembic_version")).scalar() == "b2e6f9a31d42"
     finally:
         engine.dispose()
 

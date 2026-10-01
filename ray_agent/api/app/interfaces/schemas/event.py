@@ -299,6 +299,8 @@ class AttemptSSEEvent(BaseSSEEvent):
 
 class EnvironmentEventData(BaseEventData):
     status: Literal["preparing", "ready"]
+    message: Optional[str] = None
+    project_file_protection: Optional[Dict[str, Any]] = None
 
 
 class EnvironmentSSEEvent(BaseSSEEvent):

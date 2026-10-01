@@ -109,6 +109,8 @@ class AgentService:
             tool_policy: Optional[ToolPolicyConfig] = None,
             project_validator: Optional[Callable[[str], None]] = None,
             project_prepare=None,
+            project_file_prepare=None,
+            project_file_coordinator=None,
     ) -> None:
         """构造函数，完成Agent服务初始化"""
         self._uow_factory = uow_factory
@@ -119,6 +121,9 @@ class AgentService:
         self._a2a_config = a2a_config
         self._project_validator = project_validator
         self._project_prepare = project_prepare
+        self._project_file_prepare = project_file_prepare
+        from app.domain.services.project_file_coordinator import ProjectFileCoordinator
+        self._project_coordinator = project_file_coordinator or ProjectFileCoordinator(uow_factory, sandbox_cls)
         self._tool_policy = tool_policy
         self._sandbox_cls = sandbox_cls
         self._task_cls = task_cls
@@ -127,6 +132,10 @@ class AgentService:
         self._notifier = notifier
         self._ledger = ledger or RunLedger(uow_factory, notifier)
         logger.info(f"AgentService初始化成功")
+
+    def _file_coordinator(self):
+        from app.domain.services.project_file_coordinator import ProjectFileCoordinator
+        return getattr(self, '_project_coordinator', None) or ProjectFileCoordinator(self._uow_factory, self._sandbox_cls)
 
     async def _get_task(self, session: Session) -> Optional[Task]:
         """根据传递的任务会话获取任务实例"""
@@ -147,6 +156,13 @@ class AgentService:
         if session.project_id:
             self._validate_project_session(session)
         if session.project_id and prior_status != SessionStatus.WAITING:
+            prepare_files = getattr(self, '_project_file_prepare', None)
+            if prepare_files:
+                await prepare_files(session.project_id, session.id, run_id)
+                async with self._uow:
+                    current = await self._uow.run.get(run_id)
+                if current is None or current.status != RunStatus.RUNNING:
+                    raise asyncio.CancelledError()
             stop_writers = getattr(self._sandbox_cls, 'stop_project_writers', None)
             if stop_writers:
                 await stop_writers(session.project_id)
@@ -247,6 +263,7 @@ class AgentService:
                 if session.project_id:
                     from app.domain.services.project_file_coordinator import register_writer
                     runner = task.task_runner
+                    runner._project_coordinator = self._file_coordinator()
                     runner._project_id = session.project_id
                     runner._project_writer_token = register_writer(session.project_id)
                 await task.invoke()
@@ -272,7 +289,7 @@ class AgentService:
                 if session.project_id:
                     if not published and task is not None:
                         retire_writer(session.project_id, getattr(task.task_runner, "_project_writer_token", None))
-                    await ProjectFileCoordinator(self._uow_factory, self._sandbox_cls).settle(session.project_id)
+                    await self._file_coordinator().settle(session.project_id)
 
     @staticmethod
     def _task_runs(task: Optional[Task], run_id: str) -> bool:
@@ -504,7 +521,7 @@ class AgentService:
                                                     RunStatus.CANCELLED, RunReason.USER_STOP)
                 if session.project_id:
                     from app.domain.services.project_file_coordinator import ProjectFileCoordinator
-                    asyncio.create_task(ProjectFileCoordinator(self._uow_factory, self._sandbox_cls).settle(session.project_id))
+                    asyncio.create_task(self._file_coordinator().settle(session.project_id))
                 return result
             starting = pending_starts().get(active.id)
             if starting is not None:
@@ -529,7 +546,7 @@ class AgentService:
             await runner.stop_processes(active.id)
         if session.project_id:
             from app.domain.services.project_file_coordinator import ProjectFileCoordinator
-            asyncio.create_task(ProjectFileCoordinator(self._uow_factory, self._sandbox_cls).settle(session.project_id))
+            asyncio.create_task(self._file_coordinator().settle(session.project_id))
         return run
 
     async def compact_session(self, session_id: str) -> ManualCompaction:

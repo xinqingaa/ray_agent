@@ -17,8 +17,10 @@ async def claim(uow, project_id, kind, **values):
         raise ProjectRunConflict('项目不存在')
     require_writable(project)
     occupied = await uow.run.get_active_project(project_id)
-    if occupied:
+    if occupied and not (kind == 'snapshot' and values.get('run_id') == occupied.id):
         raise ProjectRunConflict('项目仍有活动运行，请先回复或停止', occupied.session_id)
+    if project.archived_at and kind != 'cleanup':
+        raise ProjectRunConflict('项目已归档，请先恢复')
     operation = ProjectOperation(kind=kind, **values)
     project.file_operation = operation
     await uow.project.save(project)
@@ -51,3 +53,10 @@ async def finish(uow, project_id, operation_id, *, error=None):
     await uow.project.save(project)
     await uow.project.audit(project_id, "file_operation", payload)
     return True
+
+
+async def owned(uow, project_id, operation_id):
+    project = await uow.project.get(project_id, lock=True)
+    if project is None or project.file_operation is None or project.file_operation.operation_id != operation_id:
+        raise ProjectRunConflict('文件操作所有权已经改变，请读回最新结果')
+    return project
