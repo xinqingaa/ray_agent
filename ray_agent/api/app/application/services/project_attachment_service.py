@@ -170,12 +170,26 @@ class ProjectAttachmentService:
                         events = await uow.event.list(copy.session_id, types=['message'])
                     linked = any(e.seq == copy.message_seq and any(f.id == copy.attachment_id for f in e.attachments) for e in events)
                     if linked:
+                        matches, cancelled = False, False
+                        if copy.path:
+                            def inspect_published():
+                                try:
+                                    return self.files.file_io(project.id).hash_file(copy.path) == (copy.sha256, copy.size)
+                                except (OSError, ValueError):
+                                    return False
+                            matches, cancelled = await run_file_io(inspect_published)
                         async with self.factory() as uow:
                             await uow.project.get(project.id, lock=True)
                             current = await uow.project.file_copy(project.id, copy.copy_key)
                             if current.state == 'pending':
-                                current.error = '上次环境准备中断；已受理附件保留，重新发送时可复用已上传 id'
+                                if matches and current.path == copy.path:
+                                    current.state, current.error = 'ready', None
+                                    await uow.project.audit(project.id, 'attachment_ready', {**current.model_dump(mode='json'), 'startup_readback': True})
+                                else:
+                                    current.error = '上次环境准备中断；已受理附件保留，重新发送时可复用已上传 id'
                                 await uow.project.save_file_copy(current)
+                        if cancelled:
+                            raise asyncio.CancelledError()
                         continue
                     async with self.factory() as uow:
                         current = await uow.project.get(project.id, lock=True)

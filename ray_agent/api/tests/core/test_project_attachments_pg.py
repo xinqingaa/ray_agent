@@ -118,7 +118,12 @@ def test_accept_rollback_creates_no_pending_or_message_and_unknown_publish_readb
             copy.path = 'uploads/a.txt'
             await uow.project.save_file_copy(copy)
         fs.file_io(project.id).publish(copy.path, io.BytesIO(b'abc'))
-        copied = await fs.attachments.publish(project.id, uploaded.id, run.id)
+        await RunLedger(factory).transition(session.id, run.id, RunStatus.INTERRUPTED)
+        from app.domain.services.project_file_coordinator import ProjectFileCoordinator
+        await ProjectFileCoordinator(factory, Stopped).settle(project.id)
+        await fs.attachments.reconcile_startup()
+        async with factory() as uow:
+            copied = await uow.project.file_copy(project.id, copy.copy_key)
         assert copied.state == 'ready'
         assert len([e for e in fs.file_io(project.id).walk() if e.type=='file']) == 1
     with_db(scenario)
