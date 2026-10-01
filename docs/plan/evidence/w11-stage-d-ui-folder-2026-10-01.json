@@ -1,0 +1,174 @@
+{
+  "kind": "阶段D真实浏览器文件夹与限额验收，不是模型连续项目",
+  "fixture_root": "/tmp/rayagent-folder-ui-5527ccf2fa",
+  "sample_directory": "/tmp/rayagent-folder-ui-5527ccf2fa/stage-d-folder-sample",
+  "over_limit_file": "/tmp/rayagent-folder-ui-5527ccf2fa/over-limit/large.bin",
+  "file_hashes": {
+    "source.csv": {
+      "bytes": 31,
+      "sha256": "7d99d75e14563a94bb420dc1fd994a4e51d89be413bcd1deb9652cbd95e18125"
+    },
+    "notes/readme.txt": {
+      "bytes": 11,
+      "sha256": "d32b85b587d51021d99ad572e30225fbdea57867cf64a1b3cbb4b8730b6e651d"
+    },
+    "package.json": {
+      "bytes": 19,
+      "sha256": "05b8e56c4b60b75374eb2fb9b680ae2b1c7bfcfefdf09474f93eb587a7e0a2fd"
+    },
+    "dist/generated.txt": {
+      "bytes": 10,
+      "sha256": "9f5936ff15d3a2ba7d3d8f21858338a6c1e2adc9fe34c685c7de5b4a00caa29a"
+    },
+    "materials/build/reference.txt": {
+      "bytes": 10,
+      "sha256": "4151674fad2310eaff3e54db63b6ee84a6c96a68dd46c0f8df5df620d57f899a"
+    },
+    ".env": {
+      "bytes": 23,
+      "sha256": "b27e479ee4f32c144d451b2e271db41e6b20c1a33ba14294b0a112d366ad679d"
+    },
+    ".git/config": {
+      "bytes": 18,
+      "sha256": "964cc9a1b46fe926d0cd69bb94c0adb93172ffb69bef6763c31a33ad708b40a2"
+    },
+    "node_modules/example/index.txt": {
+      "bytes": 16,
+      "sha256": "e5ab8b12647cacd1f6dafc40c74adfeb8978180269a102f0a8a9895187c287b3"
+    },
+    "venv/pyvenv.cfg": {
+      "bytes": 10,
+      "sha256": "6865f94460091a26ba2404f1d7f44a2ecad17071130f31e38994968a1c6c117d"
+    },
+    "venv/lib/data.txt": {
+      "bytes": 17,
+      "sha256": "6c820753e5ffb878695bf1ab0e01961718377b0f8ff774536a13bb10678960f5"
+    }
+  },
+  "name_prefix": "stage-d-folder-ui-",
+  "project_id": "b764877f-1662-4482-80ee-204de6b38f1e",
+  "cleanup_scope": "仅此唯一fixture_root目录和通过浏览器创建、后续明确记录id的stage-d-folder-ui-测试项目；仅本次文件/快照/空对话，原memory项目与真实用户数据保留",
+  "checks": [
+    {
+      "kind": "真实浏览器DOM",
+      "case": "51MiB文件",
+      "result": "0个文件，显示超过单文件大小上限，创建项目并上传禁用，未点击受理"
+    },
+    {
+      "kind": "真实浏览器DOM",
+      "case": "普通文件与可选.env",
+      "result": "选中source.csv/package.json/.env后仅前两项入上传清单，.env在需要确认清单，23B；尚未勾选与受理"
+    },
+    {
+      "kind": "真实浏览器DOM",
+      "case": "目录输入属性",
+      "result": "修复前不存在webkitdirectory；挂载ref回调修复后input[webkitdirectory]匹配1项"
+    },
+    {
+      "kind": "控制接口限制",
+      "case": "文件夹入口",
+      "result": "点击选择文件夹未返回可操作目录选择器或后备对话框；直接隐藏input点击被接口拒绝为no_visible_match。未标文件夹端到端通过"
+    },
+    {
+      "kind": "真实浏览器",
+      "case": "勾选.env后上传",
+      "result": "3文件73B，批次完成，三项已发布；checkbox变名导致控制接口验证超时，但之后DOM明确checked与三文件清单，未重复勾选"
+    }
+  ],
+  "product_sha": "e0b753bdcdddba480f8fdc304f01ba6dc0c7d3b6",
+  "before_confirm_projects": {
+    "code": 200,
+    "msg": "success",
+    "data": {
+      "projects": [
+        {
+          "id": "9a10bd1d-580b-44d0-97e7-36f091599357",
+          "name": "stage-d-memory-334588aa27",
+          "available": true,
+          "archived": false,
+          "files_size": 31,
+          "files_size_at": "2026-10-01T15:05:07.194419",
+          "files_size_stale": false,
+          "protection": {
+            "state": "ready",
+            "run_id": null,
+            "source": "restore",
+            "created_at": "2026-10-01T15:05:07.185213",
+            "snapshot_id": "a108afbc-aa6e-4ec9-90d6-74526d20a191",
+            "total_bytes": 31,
+            "manifest_sha256": "db720a23a8036860ccff3cb6c35d6d344280d643b79c89b6089ab23f812aa1b6"
+          },
+          "snapshot_gc_pending": false,
+          "snapshots_cleaned_at": null,
+          "snapshots_released_bytes": 0,
+          "file_operation": null,
+          "write_blocked_reason": null,
+          "occupying_session_id": null,
+          "active_run_status": null,
+          "active_run_reason": null,
+          "task_count": 1,
+          "last_active_at": "2026-10-01T10:49:39.138314",
+          "reason": null
+        }
+      ],
+      "total": 1,
+      "offset": 0,
+      "limit": 50
+    }
+  },
+  "ui_image": "sha256:6f8a748c4ac84e4879fb8a8298a5eb87f581f2b5dd0d83075043263670728a68",
+  "persisted_files": {
+    "source.csv": {
+      "bytes": 31,
+      "sha256": "7d99d75e14563a94bb420dc1fd994a4e51d89be413bcd1deb9652cbd95e18125",
+      "same_as_source": true
+    },
+    ".env": {
+      "bytes": 23,
+      "sha256": "b27e479ee4f32c144d451b2e271db41e6b20c1a33ba14294b0a112d366ad679d",
+      "same_as_source": true
+    },
+    "package.json": {
+      "bytes": 19,
+      "sha256": "05b8e56c4b60b75374eb2fb9b680ae2b1c7bfcfefdf09474f93eb587a7e0a2fd",
+      "same_as_source": true
+    }
+  },
+  "local_source_unchanged": true,
+  "detail_after": {
+    "code": 200,
+    "msg": "success",
+    "data": {
+      "id": "b764877f-1662-4482-80ee-204de6b38f1e",
+      "name": "stage-d-folder-ui-5527ccf2fa",
+      "available": true,
+      "archived": false,
+      "files_size": 73,
+      "files_size_at": "2026-10-01T15:38:00.375272",
+      "files_size_stale": false,
+      "protection": null,
+      "snapshot_gc_pending": false,
+      "snapshots_cleaned_at": null,
+      "snapshots_released_bytes": 0,
+      "file_operation": null,
+      "write_blocked_reason": null,
+      "occupying_session_id": null,
+      "active_run_status": null,
+      "active_run_reason": null,
+      "task_count": 0,
+      "last_active_at": null,
+      "reason": null,
+      "instructions": null,
+      "notes": "",
+      "notes_version": 0,
+      "settings_version": 0,
+      "created_at": "2026-10-01T15:38:00.254518",
+      "updated_at": "2026-10-01T15:38:00.254524",
+      "archived_at": null
+    }
+  },
+  "screenshots": [
+    "w11-stage-d-ui-size-limit-2026-10-01.png",
+    "w11-stage-d-ui-optional-upload-2026-10-01.png"
+  ]
+}

@@ -10,7 +10,8 @@
   "cleanup_scope": "仅此既有临时测试项目内source.csv覆盖/本次保护快照与/tmp/rayagent-ui-upload-4b75ba29ba/overwrite；恢复原始CSV，保留项目/笔记/对话供模型复验，不删除用户数据；只清理本次浏览器生成的两个Downloads文件source.csv和stage-d-memory-334588aa27.zip，核对哈希后执行",
   "checks": [
     "浏览器单文件与整项目下载实际事件、磁盘文件、ZIP路径/字节与源文件哈希一致",
-    "真实浏览器勾选覆盖确认、批次完成；API读回覆盖后字节哈希，已登记上传前保护快照"
+    "真实浏览器勾选覆盖确认、批次完成；API读回覆盖后字节哈希，已登记上传前保护快照",
+    "新版网页内恢复确认实际浏览器通过；原source.csv哈希还原、files根inode不变、额外恢复前保护快照ready、文件操作解除"
   ],
   "browser_downloads": {
     "file": "/Users/linruiqiang/Downloads/source.csv",
@@ -81,9 +82,8 @@
     "log": "/tmp/rayagent-stage-d-stream-full-pg.log"
   },
   "remaining": [
-    "浏览器恢复仍未受理，当前项目CSV是覆盖版本A/11，原始本地CSV未改，上传前保护快照保存原字节",
-    "等待原生弹窗解除后复验新版网页确认、恢复前保护及inode/字节",
-    "所有阶段E、连续模型项目与完整故障场景"
+    "W11真实恢复失败/两种修复界面",
+    "连续模型项目/阶段E及完整故障场景"
   ],
   "browser_tabs": {
     "stalled_tab": "1",
@@ -92,6 +92,46 @@
   },
   "api_python_hash_match": 178,
   "screenshots": [
-    "w11-stage-d-download-recovery-page-2026-10-01.png"
-  ]
+    "w11-stage-d-download-recovery-page-2026-10-01.png",
+    "w11-stage-d-ui-restored-snapshots-2026-10-01.png"
+  ],
+  "browser_restore_retest": {
+    "product_commit": "a22e1ca4cc22f53261c6d7792f060e9f4330e452",
+    "tab": "2",
+    "old_tab1_absent": true,
+    "flow": "快照/恢复/网页确认/确认恢复实际点击",
+    "restored_source_sha256": "7d99d75e14563a94bb420dc1fd994a4e51d89be413bcd1deb9652cbd95e18125",
+    "operation_released": true,
+    "files_inode": [
+      65025,
+      398983
+    ],
+    "snapshots": [
+      {
+        "id": "a108afbc-aa6e-4ec9-90d6-74526d20a191",
+        "project_id": "9a10bd1d-580b-44d0-97e7-36f091599357",
+        "source": "restore",
+        "run_id": null,
+        "session_id": null,
+        "total_bytes": 31,
+        "manifest_sha256": "db720a23a8036860ccff3cb6c35d6d344280d643b79c89b6089ab23f812aa1b6",
+        "created_at": "2026-10-01T15:05:07.185324"
+      },
+      {
+        "id": "7ad39175-1f52-4281-953f-fe7b50ebde81",
+        "project_id": "9a10bd1d-580b-44d0-97e7-36f091599357",
+        "source": "upload",
+        "run_id": null,
+        "session_id": null,
+        "total_bytes": 31,
+        "manifest_sha256": "0cb31a748fc37a42a930786c02a8a2a6e683950d334de4c00a61f5d97a675bc4",
+        "created_at": "2026-10-01T14:15:07.893410"
+      }
+    ],
+    "confirmed_before_snapshot_hash": "b04131b78db649130873f1175691c8b18f9c076f4e72245d510673175a12ab23",
+    "protected_before_disk_hash": {
+      "manifest_sha256": "b04131b78db649130873f1175691c8b18f9c076f4e72245d510673175a12ab23",
+      "object_sha256": "b04131b78db649130873f1175691c8b18f9c076f4e72245d510673175a12ab23"
+    }
+  }
 }
