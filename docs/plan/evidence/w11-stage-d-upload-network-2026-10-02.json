@@ -2051,5 +2051,12 @@
     "projects": 1,
     "directories_removed": 1
   },
-  "preserved_memory_notes_version": 3
+  "preserved_memory_notes_version": 3,
+  "browser_recovery_after_record": {
+    "browser_id": "2",
+    "new_tab_id": "4",
+    "ax_and_dom_available": true,
+    "viewport_not_reverified": true,
+    "old_tab3": "调试同步曾超时，仍列出，未因观察超时强制关闭"
+  }
 }
