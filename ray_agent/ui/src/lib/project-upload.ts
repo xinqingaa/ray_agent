@@ -153,3 +153,8 @@ export function sourcesFromDrop(items: DataTransferItemList): UploadSource[] {
   }
   return result
 }
+
+/** 完成入口返回的是释放前记录，不能仅靠 state=running 判断批次仍活动。 */
+export function isActiveUploadBatch(result: import('@/lib/api/types').ProjectOperationResult | null): boolean {
+  return result?.kind==='upload' && result.state==='running' && result.results.batch_status==='uploading'
+}

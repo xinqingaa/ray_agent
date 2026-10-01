@@ -5,7 +5,7 @@ import {Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle} fro
 import {projectApi} from '@/lib/api/project'
 import {ApiError} from '@/lib/api/fetch'
 import type {ProjectDetails, ProjectOperationResult, ProjectUploadPreflight, ProjectUploadRules} from '@/lib/api/types'
-import {chooseProjectFolder, scanProjectUpload, sourcesFromDrop, sourcesFromFiles, uploadSelection, type UploadScan, type UploadSource} from '@/lib/project-upload'
+import {chooseProjectFolder, isActiveUploadBatch, scanProjectUpload, sourcesFromDrop, sourcesFromFiles, uploadSelection, type UploadScan, type UploadSource} from '@/lib/project-upload'
 import {formatBytes} from '@/components/run/format'
 
 type Props = {open: boolean; projectId?: string; disabledReason?: string | null; onClose: () => void; onUploaded?: () => void; onCreated?: (project: ProjectDetails) => void}
@@ -130,7 +130,7 @@ export function ProjectUploadDialog({open, projectId, disabledReason, onClose, o
   const unresolved=preflight?.items.some(item => item.conflict && !overwrite.has(item.path))
   const optionalRows=scan ? [...scan.excluded,...[...confirmed].filter(path => !scan.excluded.some(item => item.path===path)).map(path => ({path,policy:'optional' as const,reason:'已确认上传；取消勾选可排除',size:scan.files.filter(item => item.path===path || item.path.startsWith(path+'/')).reduce((sum,item) => sum+item.file.size,0),directory:true}))] : []
   const totalBytes=scan?.files.reduce((sum,item) => sum+item.file.size,0) || 0
-  const activeBatch=result?.state==='running' && result?.kind==='upload'
+  const activeBatch=isActiveUploadBatch(result)
   return <Dialog open={open} onOpenChange={value => {if(!value)close()}}><DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[660px]">
     <DialogHeader><DialogTitle>{projectId ? '上传项目文件' : '从文件夹创建项目'}</DialogTitle><DialogDescription>上传文件副本，仅保留文件及其父目录。确认前不会写入项目；覆盖前会保存保护快照。</DialogDescription></DialogHeader>
     {!projectId && !target && <label className="text-sm">项目名称<input className="mt-1 w-full rounded-md border bg-background px-3 py-2" maxLength={160} value={name} onChange={event => setName(event.target.value)}/></label>}

@@ -10,6 +10,8 @@ import {Button} from '@/components/ui/button'
 import {Popover, PopoverAnchor, PopoverContent} from '@/components/ui/popover'
 import {PlusCommandMenu, SlashCommandList} from '@/components/input-command-menu'
 import {fileApi} from '@/lib/api/file'
+import {projectApi} from '@/lib/api/project'
+import {classifyUpload} from '@/lib/project-upload'
 import type {FileInfo} from '@/lib/api/types'
 import {toast} from 'sonner'
 import {ProjectPicker} from '@/components/project-picker'
@@ -243,11 +245,28 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
       setUploading(true)
 
       try {
-        const uploadPromises = Array.from(selectedFiles).map(async (file) => {
+        let chosen=Array.from(selectedFiles)
+        const rule=selectedProject ? await projectApi.uploadRules() : null
+        const optional=new Set<string>()
+        if(rule) {
+          chosen=chosen.filter(file => {
+            const decision=classifyUpload(file.name.normalize('NFC'),false,chosen.map(item=>item.name.normalize('NFC')),rule)
+            if(decision.policy==='always' || file.size>rule.max_file_bytes){toast.error(`文件「${file.name}」已排除：${decision.reason || '超过单文件大小上限'}`);return false}
+            if(decision.policy==='optional') {
+              if(!window.confirm(`「${file.name}」可能包含密钥或凭据，默认不上传。确认将此文件作为项目附件上传？`))return false
+              optional.add(file.name)
+            }
+            return true
+          })
+          const total=chosen.reduce((sum,file)=>sum+file.size,0)
+          if(chosen.length>rule.max_files || total>rule.max_batch_bytes)throw new Error('最终待上传附件超过数量或单次大小上限，请减少材料')
+        }
+        const uploadPromises = chosen.map(async (file) => {
           try {
             const fileInfo = await fileApi.uploadFile({
               file,
               ...(sessionId && { session_id: sessionId }),
+              ...(selectedProject && rule && {project_id:selectedProject.id,rule_version:rule.version,include_optional:optional.has(file.name)}),
             })
             return fileInfo
           } catch (error) {
@@ -265,8 +284,8 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
           setFiles((prev) => [...prev, ...uploadedFiles])
           toast.success(`成功上传 ${uploadedFiles.length} 个文件`)
         }
-      } catch {
-        toast.error('文件上传过程中发生错误')
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : '文件上传过程中发生错误')
       } finally {
         setUploading(false)
         // 重置input，以便可以重复选择同一文件

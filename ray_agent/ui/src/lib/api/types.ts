@@ -73,6 +73,7 @@ export type AgentConfig = {
   max_iterations?: number;
   max_retries?: number;
   max_search_results?: number;
+  project_snapshot_retention?: number;
   [key: string]: unknown;
 };
 
@@ -182,6 +183,9 @@ export type FileInfo = {
 export type FileUploadParams = {
   file: File;
   session_id?: string;
+  project_id?: string;
+  rule_version?: string;
+  include_optional?: boolean;
 };
 
 // ==================== 本地项目模块类型 ====================

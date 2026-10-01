@@ -4,12 +4,14 @@ const {File}=require('node:buffer');global.File=File;global.crypto=require('node
 const source=fs.readFileSync('src/lib/project-upload.ts','utf8');
 const js=ts.transpileModule(source,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;
 const moduleObject={exports:{}};new Function('exports','require','module',js)(moduleObject.exports,require,moduleObject);
-const {scanProjectUpload,sourcesFromFiles,uploadSelection}=moduleObject.exports;
+const {scanProjectUpload,sourcesFromFiles,uploadSelection,isActiveUploadBatch}=moduleObject.exports;
 const rule={version:'fixture-only',max_batch_bytes:200000,max_files:2000,max_file_bytes:50000,max_project_bytes:500000,
  always_exclude:['.git','.DS_Store'],dependency_directories:['node_modules'],conditional_directories:{dist:['package.json'],vendor:['go.mod'],'.venv':['pyproject.toml']},
  sensitive_patterns:['.env','.env.*','*.key'],venv_marker:'pyvenv.cfg'};
 const file=(name,content='abc')=>({name,kind:'file',file:async()=>new File([content],name)});
 (async()=>{
+ assert.equal(isActiveUploadBatch({kind:'upload',state:'running',results:{batch_status:'uploading'}}),true);
+ for(const status of ['completed','partial_failure','cancelled','expired'])assert.equal(isActiveUploadBatch({kind:'upload',state:'running',results:{batch_status:status}}),false);
  let reads=0;
  const node={name:'node_modules',kind:'directory',children:async()=>{reads++;return[file('dep.txt')]}};
  const first=await scanProjectUpload([file('source.csv'),node,file('.env'),{name:'.git',kind:'directory',children:async()=>{throw Error('不得扫描版本库')}}],rule,new Set());

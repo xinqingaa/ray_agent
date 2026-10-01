@@ -5,11 +5,12 @@ import {configApi} from '@/lib/api/config'
 import type {AgentConfig} from '@/lib/api/types'
 import {checkInteger, collect, FormField, FormSkeleton, LoadError, SaveBar, SectionHeader, type ConfigForm, type Values} from './form'
 
-export type GeneralField = 'max_iterations' | 'max_retries' | 'max_search_results'
+export type GeneralField = 'max_iterations' | 'max_retries' | 'max_search_results' | 'project_snapshot_retention'
 export type GeneralForm = ConfigForm<AgentConfig, GeneralField>
 
 /** 取值范围与后端 AgentConfig 的约束一致 */
 const FIELDS: {field: GeneralField; label: string; hint: string; min: number; max: number}[] = [
+  {field:'project_snapshot_retention',label:'项目运行前快照保留份数',hint:'保留最近1至7份运行前快照；上传前和恢复前保护另行保留。后续文件操作按该设置清理旧快照。',min:1,max:7},
   {
     field: 'max_iterations',
     label: '单次运行最大模型请求次数',
@@ -41,12 +42,14 @@ export const generalFormOptions = {
     max_iterations: String(c.max_iterations ?? ''),
     max_retries: String(c.max_retries ?? ''),
     max_search_results: String(c.max_search_results ?? ''),
+    project_snapshot_retention: String(c.project_snapshot_retention ?? 5),
   }),
   fromValues: (v: Values<GeneralField>, base: AgentConfig): AgentConfig => ({
     ...base,
     max_iterations: Number(v.max_iterations),
     max_retries: Number(v.max_retries),
     max_search_results: Number(v.max_search_results),
+    project_snapshot_retention: Number(v.project_snapshot_retention),
   }),
   validate: (v: Values<GeneralField>) =>
     collect<GeneralField>(Object.fromEntries(FIELDS.map((f) => [f.field, checkInteger(v[f.field], f.min, f.max)]))),

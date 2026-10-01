@@ -18,7 +18,9 @@ export const fileApi = {
       formData.append("session_id", params.session_id);
     }
 
-    return post<FileInfo>("/files", formData);
+    const query = params.project_id ? new URLSearchParams({project_id: params.project_id,
+      rule_version: params.rule_version || '', include_optional: String(params.include_optional || false)}) : null;
+    return post<FileInfo>(query ? `/files?${query}` : '/files', formData);
   },
 
   /**
