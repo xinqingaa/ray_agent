@@ -43,7 +43,7 @@ from app.interfaces.schemas.session import (
 )
 from app.interfaces.service_dependencies import (
     get_app_config_service,
-    get_session_service, get_agent_service, get_title_service, get_project_service,
+    get_session_service, get_agent_service, get_title_service, get_project_service, get_project_memory_service,
 )
 
 logger = logging.getLogger(__name__)
@@ -62,6 +62,7 @@ def session_list_item(session: Session, project_service: ProjectService, project
         latest_message_at=session.latest_message_at,
         status=session.status,
         unread_message_count=session.unread_message_count,
+        **session.model_dump(include={'summary', 'summary_source', 'summary_state', 'summary_error', 'summary_generation', 'summary_source_seq'}),
         project=project_views.get(session.id) if project_views is not None else project_service.describe(session.project),
     )
 
@@ -560,3 +561,21 @@ async def vnc_websocket(
         # 其他错误记录日志并关闭websocket
         logger.error(f"WebSocket异常: {str(e)}")
         await websocket.close(code=1011, reason=f"WebSocket异常: {str(e)}")
+
+
+from app.interfaces.schemas.session import EditSummaryRequest
+
+
+@router.get('/{session_id}/summary', response_model=Response[dict])
+async def get_summary(session_id: str, service=Depends(get_project_memory_service)):
+    return Response.success(data=await service.get_summary(session_id))
+
+
+@router.put('/{session_id}/summary', response_model=Response[dict])
+async def edit_summary(session_id: str, request: EditSummaryRequest, service=Depends(get_project_memory_service)):
+    return Response.success(data=await service.edit_summary(session_id, request.content, request.base_generation))
+
+
+@router.post('/{session_id}/summary/regenerate', response_model=Response[dict])
+async def regenerate_summary(session_id: str, service=Depends(get_project_memory_service)):
+    return Response.success(data=await service.regenerate(session_id))

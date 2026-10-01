@@ -197,7 +197,8 @@ export type ProjectView = {
 };
 
 export type ProjectSettings = {name: string; instructions: string | null};
-export type ProjectDetails = ProjectView & ProjectSettings & {created_at: string; updated_at: string; archived_at: string | null; occupying_session_id: string | null};
+export type ProjectUpdate = ProjectSettings & {settings_version: number; notes: string; notes_version: number};
+export type ProjectDetails = ProjectView & ProjectSettings & {notes: string; notes_version: number; settings_version: number; created_at: string; updated_at: string; archived_at: string | null; occupying_session_id: string | null};
 export type ProjectPage = {projects: ProjectView[]; total: number; offset: number; limit: number};
 
 export type ProjectEntryType = "file" | "directory" | "symlink" | "other";
@@ -238,7 +239,13 @@ export type ProjectFile = {
 /**
  * 会话信息
  */
-export type Session = {
+export type ConversationSummary = {
+  summary: string | null; summary_source: 'auto' | 'manual' | null;
+  summary_state: 'idle' | 'generating' | 'ready' | 'failed'; summary_error: string | null;
+  summary_generation: number; summary_source_seq: number;
+};
+
+export type Session = Partial<ConversationSummary> & {
   session_id: string;
   title: string;
   latest_message: string;
@@ -523,6 +530,7 @@ export type SSEEventType =
   | "turn"
   | "run"
   | "environment"
+  | "project_notes"
   | "context"
   | "cleanup"
   | "attempt"
@@ -544,6 +552,7 @@ export type SSEEventData =
   | { type: "turn"; data: TurnEvent }
   | { type: "run"; data: RunEvent }
   | { type: "environment"; data: EventMeta & { status: "preparing" | "ready"; message?: string; project_file_protection?: Record<string, unknown> } }
+  | { type: "project_notes"; data: EventMeta & {project_id: string; content: string; notes_version: number; source: "user" | "agent"} }
   | { type: "context"; data: Record<string, unknown> }
   | { type: "cleanup"; data: Record<string, unknown> }
   | { type: "attempt"; data: Record<string, unknown> }

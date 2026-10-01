@@ -25,6 +25,12 @@ class ListSessionItem(BaseModel):
     latest_message_at: Optional[datetime] = Field(default_factory=datetime.now)
     status: SessionStatus = SessionStatus.PENDING
     unread_message_count: int = 0
+    summary: Optional[str] = None
+    summary_source: Optional[Literal['auto', 'manual']] = None
+    summary_state: str = 'idle'
+    summary_error: Optional[str] = None
+    summary_generation: int = 0
+    summary_source_seq: int = 0
     project: Optional[ProjectView] = None  # 未绑定项目时为 null；available/reason 每次请求实时计算
 
 
@@ -54,6 +60,11 @@ class ChatResponse(BaseModel):
 
 class RenameTitleRequest(BaseModel):
     title: str
+
+
+class EditSummaryRequest(BaseModel):
+    content: str = Field(max_length=1500)
+    base_generation: int = Field(ge=0)
 
 
 class TitleResponse(BaseModel):

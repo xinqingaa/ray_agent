@@ -28,7 +28,21 @@ class ProjectPage(BaseModel):
 
 class ProjectDetails(ProjectView):
     instructions: Optional[str] = None
+    notes: str = ''
+    notes_version: int = 0
+    settings_version: int = 0
     created_at: datetime
     updated_at: datetime
     archived_at: Optional[datetime] = None
     occupying_session_id: Optional[str] = None
+
+
+class UpdateProjectRequest(ProjectSettings):
+    settings_version: int = Field(ge=0)
+    notes: str | None = Field(default=None, max_length=8000)
+    notes_version: int | None = Field(default=None, ge=0)
+
+
+class UpdateProjectNotesRequest(BaseModel):
+    content: str = Field(max_length=8000)
+    base_version: int = Field(ge=0)

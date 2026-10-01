@@ -15,10 +15,14 @@ class ProjectModel(Base):
     __table_args__ = (
         CheckConstraint("char_length(name) BETWEEN 1 AND 160", name="ck_projects_name"),
         CheckConstraint("instructions IS NULL OR char_length(instructions) <= 8000", name="ck_projects_instructions"),
+        CheckConstraint("char_length(notes) <= 8000", name="ck_projects_notes"),
     )
     id: Mapped[str] = mapped_column(String(255), primary_key=True)
     name: Mapped[str] = mapped_column(String(160), nullable=False)
     instructions: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    notes: Mapped[str] = mapped_column(Text, nullable=False, default='', server_default='')
+    notes_version: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default='0')
+    settings_version: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default='0')
     file_operation: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
     files_size: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0, server_default='0')
     files_size_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)

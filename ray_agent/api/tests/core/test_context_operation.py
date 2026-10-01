@@ -109,3 +109,17 @@ def test_manual_compact_counts_live_project_segment_without_storing_it():
         assert memory_messages(session)[0]["content"] == system_before
         assert all("项目固定说明甲" not in str(message.get("content") or "") for message in memory_messages(session))
     asyncio.run(scenario())
+
+
+def test_manual_project_notes_overflow_does_not_touch_memory():
+    async def scenario():
+        session, _ = seeded_session(10)
+        session.project = WorkspaceProject(id='notes-capacity',name='容量',instructions='说'*8000,notes='记'*8000,notes_version=12)
+        h, service = compact_service(session, [])
+        service._llm._context_window=4000
+        before = [dict(m) for m in memory_messages(session)]
+        with pytest.raises(AppException) as raised:
+            await service.compact_session(session.id)
+        assert raised.value.status_code==422 and raised.value.data['reason']=='context_limit'
+        assert memory_messages(session)==before and not h.events and not h.llm.requests
+    asyncio.run(scenario())

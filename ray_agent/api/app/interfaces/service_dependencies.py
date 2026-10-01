@@ -104,6 +104,11 @@ def get_run_ledger() -> RunLedger:
     return RunLedger(uow_factory=get_uow, notifier=RedisEventNotifier())
 
 
+def get_project_memory_service():
+    from app.application.services.project_memory_service import ProjectMemoryService
+    return ProjectMemoryService(get_uow, get_run_ledger())
+
+
 def get_title_service() -> TitleService:
     return TitleService(uow_factory=get_uow, ledger=get_run_ledger())
 

@@ -309,6 +309,14 @@ class EnvironmentEvent(BaseEvent):
     project_file_protection: Optional[Dict[str, Any]] = None
 
 
+class ProjectNotesEvent(BaseEvent):
+    type: Literal['project_notes'] = 'project_notes'
+    project_id: str
+    content: str
+    notes_version: int
+    source: Literal['user', 'agent']
+
+
 # 定义应用事件类型声明
 Event = Annotated[
     Union[
@@ -327,6 +335,7 @@ Event = Annotated[
         CompactEvent,
         CleanupEvent,
         EnvironmentEvent,
+        ProjectNotesEvent,
         ApprovalEvent,
     ],
     Field(discriminator="type"),

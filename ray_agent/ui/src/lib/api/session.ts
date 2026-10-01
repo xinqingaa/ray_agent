@@ -1,6 +1,7 @@
 import { get, post, put, createSSEStream, parseSSEStream } from "./fetch";
 import type {
   Session,
+  ConversationSummary,
   SessionDetail,
   SessionsData,
   CreateSessionParams,
@@ -26,6 +27,9 @@ type SessionsStreamCallback = (sessions: Session[]) => void;
  * 会话模块 API
  */
 export const sessionApi = {
+  summary: (id: string) => get<ConversationSummary>(`/sessions/${id}/summary`),
+  editSummary: (id: string, content: string, baseGeneration: number) => put<ConversationSummary>(`/sessions/${id}/summary`, {content, base_generation: baseGeneration}),
+  regenerateSummary: (id: string) => post<ConversationSummary>(`/sessions/${id}/summary/regenerate`, {}),
   renameTitle: (sessionId: string, title: string): Promise<{title: string}> =>
     put<{title: string}>(`/sessions/${sessionId}/title`, {title}),
 

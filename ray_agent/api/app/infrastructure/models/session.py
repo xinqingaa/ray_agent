@@ -5,6 +5,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional
 
 from sqlalchemy import (
+    BigInteger,
     ForeignKey,
     String,
     Integer,
@@ -44,6 +45,12 @@ class SessionModel(Base):
         nullable=False,
         server_default=text("''::character varying"),
     )  # 会话标题
+    summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    summary_source: Mapped[Optional[str]] = mapped_column(String(16), nullable=True)
+    summary_state: Mapped[str] = mapped_column(String(16), nullable=False, default='idle', server_default='idle')
+    summary_error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    summary_generation: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0, server_default='0')
+    summary_source_seq: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0, server_default='0')
     title_source: Mapped[str] = mapped_column(String(16), nullable=False, server_default=text("'placeholder'"))
     unread_message_count: Mapped[int] = mapped_column(
         Integer,
@@ -111,7 +118,7 @@ class SessionModel(Base):
         # 1.基础字段: Python模式
         base_data = session.model_dump(
             mode="python",
-            exclude={"project", "project_snapshot", "memories", "files", "updated_at", "created_at"},
+            exclude={"project", "project_snapshot", "memories", "files", "updated_at", "created_at", "summary", "summary_source", "summary_state", "summary_error", "summary_generation", "summary_source_seq"},
         )
 
         # 2.复杂字段: JSON模式

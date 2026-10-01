@@ -2,7 +2,7 @@ import { get, put, post } from "./fetch";
 import type {
   ProjectFile,
   ProjectListing,
-  ProjectDetails, ProjectPage, ProjectSettings, SessionsData,
+  ProjectDetails, ProjectPage, ProjectSettings, ProjectUpdate, SessionsData,
 } from "./types";
 
 export const projectApi = {
@@ -10,7 +10,7 @@ export const projectApi = {
     get<ProjectPage>("/projects", {archived, offset, limit}),
   create: (name: string, instructions?: string): Promise<ProjectDetails> => post<ProjectDetails>("/projects", {name, instructions}),
   detail: (id: string): Promise<ProjectDetails> => get<ProjectDetails>(`/projects/${id}`),
-  update: (id: string, settings: ProjectSettings): Promise<ProjectDetails> => put<ProjectDetails>(`/projects/${id}`, settings),
+  update: (id: string, settings: ProjectUpdate): Promise<ProjectDetails> => put<ProjectDetails>(`/projects/${id}`, settings),
   archive: (id: string, archived: boolean): Promise<ProjectDetails> => post<ProjectDetails>(`/projects/${id}/archive`, {archived}),
   sessions: (id: string, offset = 0, limit = 50): Promise<SessionsData> => get<SessionsData>(`/projects/${id}/sessions`, {offset, limit}),
 

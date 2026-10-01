@@ -9,9 +9,9 @@ from app.application.services.project_service import ProjectService
 from app.domain.models.project import ProjectListing, ProjectFile
 from app.interfaces.schemas import Response
 from app.interfaces.schemas.project import (ProjectPage, ProjectDetails,
-    CreateProjectRequest, ArchiveProjectRequest, ProjectSettings)
+    CreateProjectRequest, ArchiveProjectRequest, ProjectSettings, UpdateProjectRequest, UpdateProjectNotesRequest)
 from app.interfaces.schemas.session import ListSessionResponse
-from app.interfaces.service_dependencies import get_project_service, get_project_file_service
+from app.interfaces.service_dependencies import get_project_service, get_project_file_service, get_project_memory_service
 
 from app.domain.models.project_upload import ProjectUploadSelection
 
@@ -42,9 +42,16 @@ async def get_project(project_id: str, project_service: ProjectService = Depends
 
 
 @router.put("/{project_id}", response_model=Response[ProjectDetails], summary="保存项目名称与说明")
-async def update_project(project_id: str, request: ProjectSettings, project_service: ProjectService = Depends(get_project_service)):
-    await project_service.update(project_id, request)
+async def update_project(project_id: str, request: UpdateProjectRequest, project_service: ProjectService = Depends(get_project_service)):
+    await project_service.update(project_id, ProjectSettings(name=request.name, instructions=request.instructions),
+        base_version=request.settings_version, notes=request.notes, notes_version=request.notes_version)
     return Response.success(data=await project_service.detail(project_id))
+
+
+@router.put('/{project_id}/notes', response_model=Response[dict])
+async def update_notes(project_id: str, request: UpdateProjectNotesRequest,
+                       service=Depends(get_project_memory_service)):
+    return Response.success(data=await service.update_notes(project_id, request.content, request.base_version))
 
 
 @router.post("/{project_id}/archive", response_model=Response[ProjectDetails], summary="归档或恢复，保留历史与目录")

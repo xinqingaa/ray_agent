@@ -35,6 +35,9 @@ class ProjectSettings(BaseModel):
 
 class WorkspaceProject(ProjectSettings):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
+    notes: str = Field(default='', max_length=8000)
+    notes_version: int = 0
+    settings_version: int = 0
     file_operation: Optional[ProjectOperation] = None
     files_size: int = 0
     files_size_at: Optional[datetime] = None
@@ -51,3 +54,7 @@ class WorkspaceProject(ProjectSettings):
 
 class ProjectTaskSnapshot(ProjectSettings):
     project_id: str
+    notes: str = ''
+    notes_version: int = 0
+    settings_version: int = 0
+    summaries: list[dict] = Field(default_factory=list)

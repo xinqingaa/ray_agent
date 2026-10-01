@@ -15,6 +15,7 @@ from app.domain.repositories.uow import IUnitOfWork
 from app.domain.services.project_transactions import lock_project_session, ProjectRunConflict
 from app.domain.services.session_locks import session_lock
 from app.domain.services.project_operations import require_writable
+from app.domain.services.prompts.project import bounded_summaries
 
 PROJECT_LOCKED_MESSAGE = "对话归属只能在首次运行前选择或更换"
 SESSION_MISSING_MESSAGE = "该对话不存在，请核实后重试"
@@ -98,12 +99,26 @@ class ProjectService:
         return {**project.model_dump(mode="json"), **self.describe(project).model_dump(mode="json"),
             "task_count": counts.get(project.id, 0), "occupying_session_id": occupied.session_id if occupied else None}
 
-    async def update(self, project_id: str, settings: ProjectSettings) -> WorkspaceProject:
+    async def update(self, project_id: str, settings: ProjectSettings, *, base_version: int | None = None,
+                     notes: str | None = None, notes_version: int | None = None) -> WorkspaceProject:
         async with self._uow_factory() as uow:
             project = await uow.project.get(project_id, lock=True)
             if project is None:
                 raise NotFoundError("项目不存在")
-            updated = project.model_copy(update={**settings.model_dump(), "updated_at": datetime.now()})
+            if base_version is None or base_version != project.settings_version:
+                raise ConflictError("项目设置版本冲突，请重新加载后合并修改")
+            if notes is not None and notes_version != project.notes_version:
+                raise ConflictError("项目笔记版本冲突，请重新加载后合并修改")
+            updated = project.model_copy(update={**settings.model_dump(), "settings_version": project.settings_version + 1,
+                "updated_at": datetime.now()})
+            await uow.project.audit(project_id, 'project_settings', dict(name=updated.name,
+                instructions=updated.instructions, settings_version=updated.settings_version, source='user'))
+            if notes is not None:
+                if len(notes) > 8000 or '\x00' in notes:
+                    raise BadRequestError('项目笔记不能超过 8000 字符或包含 NUL')
+                updated.notes, updated.notes_version = notes, project.notes_version + 1
+                await uow.project.audit(project_id, 'project_notes', dict(content=notes,
+                    notes_version=updated.notes_version, source='user'))
             await uow.project.save(updated)
         return updated
 
@@ -139,13 +154,21 @@ class ProjectService:
         """受理读取项目元数据；文件快照与运行输入冻结另由后台协调。"""
         if not session.project:
             return
-        project = session.project
+        project = await uow.project.get(session.project_id, lock=True)
         self.validate_start(project.id)
-        session.project_snapshot = ProjectTaskSnapshot(project_id=project.id,
-            **project.model_dump(include={"name", "instructions"}))
+        session.project = project
+        session.project_snapshot = await self.memory_snapshot(uow, session, project)
         await uow.session.save_project_snapshot(session.id, session.project_snapshot.model_dump(mode="json"))
         project.last_active_at = datetime.now()
         await uow.project.save(project)
+
+    async def memory_snapshot(self, uow, session, project=None):
+        # 所有元数据写入均先锁项目，保证说明、笔记及摘要来自同一受理视图。
+        project = project or await uow.project.get(session.project_id, lock=True)
+        summaries = await uow.session.recent_summaries(project.id, session.id)
+        return ProjectTaskSnapshot(project_id=project.id, **project.model_dump(include={
+            'name', 'instructions', 'notes', 'notes_version', 'settings_version'}),
+            summaries=bounded_summaries(summaries))
 
     async def sessions(self, project_id: str, offset: int = 0, limit: int = 50):
         await self.get(project_id)

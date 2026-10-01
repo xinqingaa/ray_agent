@@ -40,6 +40,7 @@ const EVENT_LABELS: Record<string, string> = {
   cleanup: '清理',
   compact: '上下文压缩',
   context: '上下文变更',
+  project_notes: '项目笔记',
   done: '结束',
   error: '错误',
   message: '消息',

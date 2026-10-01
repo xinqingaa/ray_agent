@@ -25,7 +25,7 @@ from app.domain.services.approvals import close_waiting_approval, latest_approva
 from app.application.services.context_operations import compacting, ensure_context_idle
 from app.domain.services.context.compactor import CompactionStatus, Compactor
 from app.domain.services.context.budget import fixed_input_estimate, FIXED_INPUT_GUIDANCE
-from app.domain.services.prompts.project import build_project_prompt
+from app.domain.services.prompts.project import build_project_prompt, snapshot_prompt
 from app.domain.services.flows.agent_loop import AGENT_MEMORY_NAME
 from app.domain.services.request_rebuild import RebuiltRequest, rebuild_request
 from app.domain.services.run_ledger import RunLedger
@@ -203,6 +203,17 @@ class AgentService:
 
         try:
             # 5.创建AgentTaskRunner
+            from app.application.services.project_memory_service import ProjectMemoryService
+            project_memory = ProjectMemoryService(self._uow_factory, self._ledger)
+            async def notes_update(content, base_version):
+                from app.application.errors.exceptions import AppException
+                from app.domain.models.tool_result import ToolResult
+                try:
+                    data = await project_memory.update_notes(session.project_id, content, base_version,
+                        session_id=session.id, run_id=run_id)
+                    return ToolResult(success=True, message='项目笔记已更新', data=data)
+                except AppException as exc:
+                    return ToolResult(success=False, message=str(exc), data=exc.data)
             task_runner = AgentTaskRunner(
                 uow_factory=self._uow_factory,
                 llm=self._llm,
@@ -218,6 +229,7 @@ class AgentService:
                 run_id=run_id,
                 prior_status=prior_status,
                 tool_policy=self._tool_policy,
+                project_notes_update=notes_update if session.project_id else None,
                 workspace_dir=SANDBOX_PROJECT_DIR if session.project_id else None,
                 project_prompt=build_project_prompt(session.project.instructions) if session.project else "",
             )
@@ -225,6 +237,7 @@ class AgentService:
             task_runner._project_attachment_service = getattr(self, '_project_attachments', None)
             task_runner._project_delivery_service = getattr(self, '_project_delivery', None)
             task_runner._project_id = session.project_id
+            task_runner._project_memory_service = project_memory
 
             # 6.创建尚未发布引用的任务，由后台启动所有权检查后登记
             task = self._task_cls.create(task_runner=task_runner)
@@ -342,7 +355,7 @@ class AgentService:
         async def touch(uow: IUnitOfWork) -> None:
             if accepted_project_prompt is not None:
                 accepted = await uow.run.get_active(session_id)
-                await uow.run.save_snapshot(accepted.id, {"project_prompt": accepted_project_prompt})
+                await uow.run.save_snapshot(accepted.id, {"project_prompt": accepted_project_prompt, "project_context": session.project_snapshot.model_dump(mode="json") if session.project_snapshot else None})
             attachments_service = getattr(self, '_project_attachments', None)
             if attachments_service and session.project_id:
                 accepted = await uow.run.get_active(session_id)
@@ -364,7 +377,7 @@ class AgentService:
             session.project = current.project
             session.project_snapshot = current.project_snapshot
             if current.project:
-                accepted_project_prompt = build_project_prompt(current.project.instructions)
+                accepted_project_prompt = snapshot_prompt(current.project_snapshot) if current.project_snapshot else build_project_prompt(current.project.instructions)
 
         provisional_title: Optional[TitleEvent] = None
         async with session_lock(session_id):
@@ -597,7 +610,15 @@ class AgentService:
             messages = copy.deepcopy(memory.get_messages())
             project_prompt = ""
             if session.project and messages and messages[0].get("role") == "system":
-                project_prompt = build_project_prompt(session.project.instructions)
+                from app.domain.models.workspace_project import ProjectTaskSnapshot
+                from app.domain.services.prompts.project import bounded_summaries
+                async with self._uow:
+                    project = await self._uow.project.get(session.project_id, lock=True)
+                    summaries = await self._uow.session.recent_summaries(project.id, session.id)
+                    current = ProjectTaskSnapshot(project_id=project.id, **project.model_dump(include={
+                        'name', 'instructions', 'notes', 'notes_version', 'settings_version'}),
+                        summaries=bounded_summaries(summaries))
+                project_prompt = snapshot_prompt(current)
                 messages[0]["content"] += project_prompt
             budget = compactor.fresh_budget()
             fixed = fixed_input_estimate(budget, messages, tools)

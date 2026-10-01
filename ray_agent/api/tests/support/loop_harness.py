@@ -54,6 +54,7 @@ class FakeSessionRepository:
 
     def __init__(self, session: Session) -> None:
         self.s = session
+        self.recent_summaries = AsyncMock(return_value=[])
         self.update_title = AsyncMock()
         self.update_latest_message = AsyncMock()
         self.increment_unread_message_count = AsyncMock()
@@ -206,6 +207,7 @@ def make_uow_factory(session: Session):
     class FakeUow:
         def __init__(self):
             self.session = repository
+            self.project = SimpleNamespace(get=AsyncMock(return_value=session.project))
             self.event = FakeEventRepository(store.events)
             self.run = FakeRunRepository(store.runs)
             self.file = SimpleNamespace(get_by_id=AsyncMock(return_value=None), save=AsyncMock())

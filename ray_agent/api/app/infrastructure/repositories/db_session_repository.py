@@ -304,3 +304,33 @@ class DBSessionRepository(SessionRepository):
 
         # 3.如果记忆不存在，则构建一个空记忆后返回
         return Memory(messages=[])
+
+
+    async def recent_summaries(self, project_id, exclude_session_id):
+        stmt = select(SessionModel).where(SessionModel.project_id == project_id,
+            SessionModel.id != exclude_session_id, SessionModel.summary.is_not(None), SessionModel.summary != '').order_by(
+                SessionModel.latest_message_at.desc().nullslast(), SessionModel.updated_at.desc()).limit(10)
+        return [{'session_id':s.id,'title':s.title,'summary':s.summary,'source':s.summary_source,
+            'source_seq':s.summary_source_seq,'generation':s.summary_generation} for s in (await self.db_session.execute(stmt)).scalars()]
+
+    async def summary_material(self, session_id):
+        from app.infrastructure.models.event import EventModel
+        from app.infrastructure.models.run import RunModel
+        first = (await self.db_session.execute(select(EventModel).where(EventModel.session_id == session_id,
+            EventModel.type == 'message', EventModel.payload['role'].astext == 'user').order_by(EventModel.seq).limit(1))).scalar_one_or_none()
+        finals = (await self.db_session.execute(select(EventModel).join(RunModel,RunModel.id == EventModel.run_id).where(
+            EventModel.session_id == session_id,EventModel.type == 'message',EventModel.payload['role'].astext == 'assistant',
+            RunModel.status == 'completed').distinct(EventModel.run_id).order_by(EventModel.run_id,EventModel.seq.desc()))).scalars().all()
+        return {'first_user':(first.payload.get('message') or '')[:2000] if first else '',
+            'finals':[{'run_id':e.run_id,'seq':e.seq,'message':(e.payload.get('message') or '')[:1000]} for e in sorted(finals,key=lambda e:e.seq)],
+            'source_seq':max([e.seq for e in finals]+[first.seq if first else 0])}
+
+    async def set_summary_fields(self, session_id, **values):
+        await self.db_session.execute(update(SessionModel).where(SessionModel.id == session_id).values(**values))
+
+
+    async def interrupt_summaries(self, project_id):
+        await self.db_session.execute(update(SessionModel).where(SessionModel.project_id == project_id,
+            SessionModel.summary_state == 'generating').values(summary_state='failed',
+                summary_error='服务重启中断了摘要请求，请重新生成',
+                summary_generation=SessionModel.summary_generation + 1))

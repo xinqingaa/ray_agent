@@ -32,9 +32,15 @@ class Session(BaseModel):
     sandbox_id: Optional[str] = None  # 沙箱id
     project_id: Optional[str] = None
     project: Optional[WorkspaceProject] = Field(default=None, exclude=True)  # 仓库装配；只保存项目归属
-    project_snapshot: Optional[ProjectTaskSnapshot] = None  # 首次受理后固定，后续 run 与重建沿用
+    project_snapshot: Optional[ProjectTaskSnapshot] = None  # 最新新 run 受理快照；各 run 冻结全文另保存在运行快照
     task_id: Optional[str] = None  # 任务id
     title: str = ""  # 标题
+    summary: Optional[str] = None
+    summary_source: Optional[str] = None
+    summary_state: str = 'idle'
+    summary_error: Optional[str] = None
+    summary_generation: int = 0
+    summary_source_seq: int = 0
     title_source: str = "placeholder"  # placeholder / provisional / auto / manual
     unread_message_count: int = 0  # 未读消息数
     latest_message: str = ""  # 最新消息

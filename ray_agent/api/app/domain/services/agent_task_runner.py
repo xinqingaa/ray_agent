@@ -36,6 +36,7 @@ from app.domain.services.task_error import format_public_error
 from app.infrastructure.logging import set_log_session_id
 from app.domain.services.tools.a2a import A2ATool
 from app.domain.services.tools.mcp import MCPTool
+from app.domain.services.tools.project_notes import ProjectNotesTool
 
 logger = logging.getLogger(__name__)
 
@@ -68,6 +69,7 @@ class AgentTaskRunner(TaskRunner):
             prior_status: Optional[SessionStatus] = None,  # 首条消息到达前会话所处的状态
             tool_policy: Optional[ToolPolicyConfig] = None,  # 工具策略表，为空时用默认策略
             project_prompt: str = "",
+            project_notes_update=None,
             workspace_dir: Optional[str] = None,  # 绑定项目时为 /workspace，否则为空
     ) -> None:
         """构造函数，完成Agent任务运行器的创建"""
@@ -93,7 +95,7 @@ class AgentTaskRunner(TaskRunner):
             llm=llm,
             agent_config=agent_config,
             session_id=session_id,
-            tools=build_default_tools(
+            tools=([ProjectNotesTool(project_notes_update)] if project_notes_update else []) + build_default_tools(
                 sandbox=sandbox,
                 browser=browser,
                 search_engine=search_engine,
@@ -426,7 +428,10 @@ class AgentTaskRunner(TaskRunner):
             status, reason = RunStatus.WAITING, RunReason.APPROVAL if self._waiting_approval else None
         else:
             status, reason = RunStatus.FAILED, self._failure_reason or RunReason.RUNNER_ERROR
-        await self._ledger.transition(self._session_id, self._run_id, status, reason, events_before=[outcome])
+        committed = await self._ledger.transition(self._session_id, self._run_id, status, reason, events_before=[outcome])
+        memory = getattr(self, '_project_memory_service', None)
+        if committed and status == RunStatus.COMPLETED and memory and getattr(self, '_project_id', None):
+            asyncio.create_task(memory.auto_summary(self._session_id))
 
     async def _prepare_run(self) -> None:
         """按运行行设置运行模式并记录配置快照；续接已有运行时工具集若有变化，追加一条从下一轮生效的修订。"""
