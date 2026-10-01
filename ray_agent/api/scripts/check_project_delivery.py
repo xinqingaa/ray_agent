@@ -4,6 +4,7 @@ import asyncio
 import json
 from pathlib import Path
 from app.infrastructure.storage.postgres import get_postgres, get_uow
+from app.infrastructure.storage.redis import get_redis
 from app.interfaces.service_dependencies import get_project_file_service
 from app.domain.models.event import MessageEvent
 from app.domain.models.run import RunStatus
@@ -14,6 +15,7 @@ from app.infrastructure.external.sandbox.docker_sandbox import DockerSandbox
 
 async def main(args):
     await get_postgres().init()
+    await get_redis().init()
     fs = get_project_file_service(); ledger = RunLedger(get_uow)
     evidence = {'project_id': args.project_id, 'session_id': args.session_id,
         'kind': '真实 API 服务/业务 PostgreSQL/Docker 沙箱；无模型或浏览器操作', 'checks': []}
@@ -27,11 +29,13 @@ async def main(args):
         await fs.prepare_run(args.project_id,args.session_id,run.id)
         sandbox = await DockerSandbox.create_owned(args.project_id,args.session_id,run.id)
         evidence['sandbox_id'] = sandbox.id;save()
+        await sandbox.ensure_sandbox()
+        await sandbox.validate_project(args.project_id)
         expected = '答案,42\n'
         for path in ('/tmp/report.csv','/tmp/partial.csv','/workspace/reference.csv'):
             result = await sandbox.write_file(filepath=path,content=expected)
             assert result.success,result.message
-        command = "mkdir -p /workspace-other; cp /tmp/report.csv /workspace-other/report.csv; ln -s /tmp/report.csv /workspace/link.csv"
+        command = "sudo mkdir -p /workspace-other && sudo chown ubuntu:ubuntu /workspace-other && cp /tmp/report.csv /workspace-other/report.csv && ln -sf /tmp/report.csv /workspace/link.csv"
         result = await sandbox.exec_command(session_id='delivery-check',exec_dir='/home/ubuntu',command=command)
         assert result.success,result.message
         for index,path in enumerate(('/tmp/report.csv','/workspace/reference.csv','/workspace-other/report.csv','/workspace/link.csv')):
@@ -75,6 +79,7 @@ async def main(args):
             await sandbox.destroy()
         save()
         await get_postgres().shutdown()
+        await get_redis().shutdown()
 
 
 if __name__ == '__main__':

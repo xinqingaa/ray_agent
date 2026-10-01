@@ -2,7 +2,7 @@
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import CheckConstraint, DateTime, String, Text, UniqueConstraint, ForeignKey, Integer, BigInteger, Boolean, text
+from sqlalchemy import CheckConstraint, Index, DateTime, String, Text, UniqueConstraint, ForeignKey, Integer, BigInteger, Boolean, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -66,7 +66,8 @@ class ProjectSnapshotModel(Base):
 
 class ProjectFileCopyModel(Base):
     __tablename__ = 'project_file_copies'
-    __table_args__ = (UniqueConstraint('project_id', 'path', name='uq_project_file_copies_path'),)
+    __table_args__ = (Index('uq_project_file_copies_path', 'project_id', 'path', unique=True,
+        postgresql_where=text("resolved_path IS NULL OR resolved_path NOT LIKE '/workspace/%'")),)
     project_id: Mapped[str] = mapped_column(String(255), ForeignKey('projects.id', ondelete='RESTRICT'), primary_key=True)
     copy_key: Mapped[str] = mapped_column(String(255), primary_key=True)
     kind: Mapped[str] = mapped_column(String(20), nullable=False)

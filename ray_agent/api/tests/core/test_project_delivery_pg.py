@@ -63,6 +63,10 @@ def test_resolved_workspace_boundary_and_same_call_reuses_delivery(tmp_path, sou
         async with factory() as uow:
             stored = await uow.session.get_by_id(session.id)
         assert len(stored.files) == 1
+        if inside:
+            fresh = await fs.delivery.deliver(project.id,session.id,run.id,'call-next',source,sandbox)
+            assert fresh.project['state'] == 'in_workspace' and fresh.project['path'] == copy.path
+            assert fresh.file.id != result.file.id
     with_db(scenario)
 
 
