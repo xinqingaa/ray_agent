@@ -25,6 +25,7 @@ export function ProjectUploadDialog({open, projectId, disabledReason, onClose, o
   const [operation,setOperation]=useState<string | null>(null)
   const [target,setTarget]=useState(projectId)
   const [name,setName]=useState('本地材料')
+  const [folderFallback,setFolderFallback]=useState(false)
   const [created,setCreated]=useState<ProjectDetails | null>(null)
   const [creationUnknown,setCreationUnknown]=useState(false)
   const [onlyFailed,setOnlyFailed]=useState<Set<string> | undefined>()
@@ -64,7 +65,7 @@ export function ProjectUploadDialog({open, projectId, disabledReason, onClose, o
   const folder=async () => {
     setError(null)
     try {const chosen=await chooseProjectFolder();if(chosen){setName(chosen.name);void inspect(chosen.sources)}else{
-      if(window.confirm('此浏览器会先列出文件夹内全部文件，大型依赖目录可能明显变慢。继续选择文件夹？'))folderInput.current?.click()
+      setFolderFallback(true)
     }} catch(error) {if(!(error instanceof DOMException && error.name==='AbortError'))setError(message(error))}
   }
   const optional=(path: string, checked: boolean) => {const next=new Set(confirmed);if(checked)next.add(path);else next.delete(path);void inspect(sources.current,next,overwrite,onlyFailed)}
@@ -160,5 +161,9 @@ export function ProjectUploadDialog({open, projectId, disabledReason, onClose, o
     {error && <p role="alert" className="text-meta text-state-failed">{error}</p>}
     {creationUnknown && <p className="text-meta text-state-waiting">新建项目的受理结果未知，请关闭弹框，刷新项目列表后选择已创建的项目。不要重复新建。</p>}
     <div className="flex gap-2"><Button disabled={!scan?.files.length || !!busy || !!disabledReason || !!scan.errors.length || !!preflight?.errors.length || !!unresolved || !!activeBatch || creationUnknown || (!target && !name.trim())} onClick={() => void upload()}>{target ? '确认上传' : '创建项目并上传'}</Button><Button variant="outline" onClick={() => busy==='upload' ? void cancelBatch() : close()}>{busy==='upload' ? '取消批次' : '关闭'}</Button></div>
+    <Dialog open={folderFallback && open} onOpenChange={setFolderFallback}><DialogContent>
+      <DialogHeader><DialogTitle>浏览器文件夹选择</DialogTitle><DialogDescription>此浏览器会先列出文件夹内全部文件，大型依赖目录可能明显变慢。确认后继续选择文件夹。</DialogDescription></DialogHeader>
+      <div className="flex justify-end gap-2"><Button variant="outline" onClick={()=>setFolderFallback(false)}>取消</Button><Button onClick={()=>{setFolderFallback(false);folderInput.current?.click()}}>继续选择文件夹</Button></div>
+    </DialogContent></Dialog>
   </DialogContent></Dialog>
 }
