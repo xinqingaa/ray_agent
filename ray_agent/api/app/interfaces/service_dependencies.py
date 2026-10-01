@@ -14,6 +14,7 @@ from app.application.services.title_service import TitleService
 from app.application.services.status_service import StatusService
 from app.domain.external.file_storage import FileStorage
 from app.domain.services.run_ledger import RunLedger
+from app.domain.services.project_file_coordinator import ProjectFileCoordinator
 from app.infrastructure.external.file_storage.cos_file_storage import CosFileStorage
 from app.infrastructure.external.file_storage.local_file_storage import LocalFileStorage
 from app.infrastructure.external.health_checker.postgres_health_checker import PostgresHealthChecker
@@ -92,6 +93,7 @@ def get_project_service() -> ProjectService:
         files=LocalProjectFiles(),
         storage=get_managed_storage(),
         sandbox_address=current.sandbox_address,
+        coordinator=ProjectFileCoordinator(get_uow, DockerSandbox),
     )
 
 

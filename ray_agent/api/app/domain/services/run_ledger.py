@@ -115,11 +115,19 @@ class RunLedger:
         uow = self._uow_factory()
         try:
             async with uow:
-                await lock_project_session(uow, session_id)
+                session = await lock_project_session(uow, session_id)
                 current = await uow.run.lock(run_id)
                 if current is None or current.status.terminal:
                     raise _StaleRun()
+                if status == RunStatus.RUNNING and session and session.project_id:
+                    from app.domain.services.project_operations import require_writable
+                    project = await uow.project.get(session.project_id)
+                    require_writable(project)
                 if status.terminal:
+                    if session and session.project_id:
+                        from app.domain.services.project_operations import mark_settling
+                        project = await uow.project.get(session.project_id)
+                        await mark_settling(uow, project, run_id, session_id)
                     closing = await self._close_open_turn(uow, session_id, run_id, reason or status.value, turn_closer)
                     if closing is not None:
                         events_before = [closing, *events_before]

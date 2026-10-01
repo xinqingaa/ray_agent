@@ -51,7 +51,7 @@ def test_migration_drops_legacy_project_path_without_backfill():
             assert conn.execute(text("SELECT count(*) FROM projects")).scalar() == 0
             assert conn.execute(text("SELECT count(*) FROM sessions WHERE project_id IS NOT NULL")).scalar() == 0
             assert conn.execute(text("SELECT count(*) FROM information_schema.columns WHERE table_name='sessions' AND column_name='project_path'")).scalar() == 0
-            assert conn.execute(text("SELECT version_num FROM alembic_version")).scalar() == "f9c2a7b4d110"
+            assert conn.execute(text("SELECT version_num FROM alembic_version")).scalar() == "a1d4e8f20c31"
     finally:
         engine.dispose()
 
@@ -78,7 +78,14 @@ def test_managed_projects_and_concurrent_admission(tmp_path):
             await service.archive(first.id,True)
         assert (await ledger.start(independent.id)).status==RunStatus.RUNNING
         await ledger.transition(run.session_id,run.id,RunStatus.CANCELLED)
-        # 阶段 D 将在终态加入持久化 settling，届时此断言需先完成环境收尾。
+        with pytest.raises(ProjectRunConflict, match='文件操作'):
+            await service.archive(first.id,True)
+        from app.domain.services.project_file_coordinator import ProjectFileCoordinator
+        class StoppedSandbox:
+            @classmethod
+            async def stop_project_writers(cls, project_id):
+                assert project_id == first.id
+        assert await ProjectFileCoordinator(factory, StoppedSandbox).settle(first.id)
         await service.archive(first.id,True)
         page,total=await service.page(archived=True)
         assert total==1 and page[0].id==first.id

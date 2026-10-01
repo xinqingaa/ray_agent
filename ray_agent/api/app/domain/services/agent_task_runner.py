@@ -540,6 +540,14 @@ class AgentTaskRunner(TaskRunner):
             except Exception as persist_error:
                 logger.warning(f"会话[{self._session_id}] 写入运行失败状态失败: {persist_error}")
         finally:
+            from app.domain.services.project_file_coordinator import retire_writer, ProjectFileCoordinator
+            project_id = getattr(self, '_project_id', None)
+            retire_writer(project_id, getattr(self, '_project_writer_token', None))
+            if project_id:
+                try:
+                    await ProjectFileCoordinator(self._uow_factory, type(self._sandbox)).settle(project_id)
+                except Exception:
+                    logger.exception('项目环境收尾未完成')
             self._settled.set()
             # 在同一个asyncio Task上下文中清理MCP/A2A工具资源
             # 这是关键：streamablehttp_client内部使用anyio.create_task_group()，

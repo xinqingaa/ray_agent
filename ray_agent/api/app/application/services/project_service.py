@@ -14,6 +14,7 @@ from app.domain.models.session import Session, DEFAULT_SESSION_TITLE
 from app.domain.repositories.uow import IUnitOfWork
 from app.domain.services.project_transactions import lock_project_session, ProjectRunConflict
 from app.domain.services.session_locks import session_lock
+from app.domain.services.project_operations import require_writable
 
 PROJECT_LOCKED_MESSAGE = "对话归属只能在首次运行前选择或更换"
 SESSION_MISSING_MESSAGE = "该对话不存在，请核实后重试"
@@ -22,11 +23,12 @@ PROJECT_UNBOUND_MESSAGE = "对话没有关联项目"
 
 class ProjectService:
     def __init__(self, uow_factory: Callable[[], IUnitOfWork], files: ProjectFiles,
-                 storage, sandbox_address: Optional[str] = None):
+                 storage, sandbox_address: Optional[str] = None, coordinator=None):
         self._uow_factory = uow_factory
         self._files = files
         self._storage = storage
         self._sandbox_address = sandbox_address or None
+        self._coordinator = coordinator
 
     def validate_start(self, project_id: str) -> None:
         if self._sandbox_address:
@@ -46,6 +48,8 @@ class ProjectService:
             available, reason = False, str(exc)
         return ProjectView(id=project.id, name=project.name,
             available=available, reason=reason, archived=project.archived_at is not None,
+            file_operation=project.file_operation,
+            write_blocked_reason=(f"项目文件操作尚未结束：{project.file_operation.kind}/{project.file_operation.state}，{project.file_operation.error or project.file_operation.phase}" if project.file_operation else None),
             last_active_at=project.last_active_at)
 
     def describe_sessions(self, sessions: list[Session]) -> dict[str, Optional[ProjectView]]:
@@ -105,8 +109,9 @@ class ProjectService:
             project = await uow.project.get(project_id, lock=True)
             if project is None:
                 raise NotFoundError("项目不存在")
+            require_writable(project)
             occupied = await uow.run.get_active_project(project_id)
-            if archived and occupied:
+            if occupied:
                 raise ProjectRunConflict("项目仍有活动对话，结束或停止后才能归档", occupied.session_id)
             if not archived:
                 self.validate_start(project.id)
@@ -172,3 +177,14 @@ class ProjectService:
             return await awaitable
         except ProjectPathError as exc:
             raise BadRequestError(exc.check.message or "路径校验失败") from exc
+
+    async def retry_settling(self, project_id):
+        await self.get(project_id)
+        if self._coordinator is None:
+            raise ConflictError('项目环境协调器不可用')
+        await self._coordinator.retry_settling(project_id)
+
+    async def events(self, project_id, after_seq=0, limit=50):
+        await self.get(project_id)
+        async with self._uow_factory() as uow:
+            return await uow.project.events(project_id, after_seq, limit)

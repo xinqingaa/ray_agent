@@ -10,6 +10,7 @@ from enum import Enum
 from typing import List, Literal, Optional
 
 from pydantic import BaseModel, Field
+from app.domain.models.project_operation import ProjectOperation
 
 SANDBOX_PROJECT_DIR = "/workspace"
 
@@ -55,6 +56,8 @@ class ProjectView(BaseModel):
     name: str
     available: bool
     archived: bool = False
+    file_operation: Optional[ProjectOperation] = None
+    write_blocked_reason: Optional[str] = None
     task_count: int = 0
     last_active_at: Optional[datetime] = None
     reason: Optional[str] = None  # 不可用时的中文说明；可用时为空

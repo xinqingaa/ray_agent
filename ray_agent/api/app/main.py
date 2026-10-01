@@ -76,6 +76,10 @@ async def lifespan(app: FastAPI):
     if interrupted:
         logger.info(f"启动扫描将 {len(interrupted)} 个运行置为 interrupted: {[run.id for run in interrupted]}")
 
+    from app.domain.services.project_file_coordinator import ProjectFileCoordinator
+    from app.infrastructure.external.sandbox.docker_sandbox import DockerSandbox
+    await ProjectFileCoordinator(get_uow, DockerSandbox).reconcile_startup()
+
     try:
         # 4.lifespan分界点
         yield

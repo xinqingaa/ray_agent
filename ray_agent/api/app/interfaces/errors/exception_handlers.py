@@ -18,8 +18,11 @@ def register_exception_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(ProjectRunConflict)
     async def project_conflict_handler(req: Request, e: ProjectRunConflict) -> JSONResponse:
-        return JSONResponse(status_code=409, content=Response(code=409, msg=str(e),
-            data={"occupying_session_id": e.occupying_session_id} if e.occupying_session_id else {}).model_dump())
+        data = {"occupying_session_id": e.occupying_session_id} if e.occupying_session_id else {}
+        if e.operation:
+            data.update(project_id=e.project_id, file_operation=e.operation.model_dump(mode="json"),
+                repair_action="retry_settling" if e.operation.kind == "settling" else "repair_restore" if e.operation.kind == "restore" else "read_operation")
+        return JSONResponse(status_code=409, content=Response(code=409, msg=str(e), data=data).model_dump())
 
     @app.exception_handler(AppException)
     async def app_exception_handler(req: Request, e: AppException) -> JSONResponse:

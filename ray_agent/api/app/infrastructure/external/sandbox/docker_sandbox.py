@@ -128,7 +128,7 @@ class DockerSandbox(Sandbox):
         return ip_address
 
     @classmethod
-    def _create_task(cls, project_id: Optional[str] = None) -> Self:
+    def _create_task(cls, project_id: Optional[str] = None, session_id: Optional[str] = None, run_id: Optional[str] = None) -> Self:
         """创建沙箱容器的异步任务。project_id 指向托管项目 files 子目录"""
         # 1.获取系统配置信息
         settings = get_settings()
@@ -172,7 +172,9 @@ class DockerSandbox(Sandbox):
 
             if project_id:
                 container_config["mounts"] = [get_managed_storage().mount(project_id)]
-                container_config["labels"] = {"rayagent.project_id": project_id}
+                container_config["labels"] = {"rayagent.project_id": project_id,
+                    **({"rayagent.session_id": session_id} if session_id else {}),
+                    **({"rayagent.run_id": run_id} if run_id else {})}
 
             # 6.调用docker客户端容器运行参数创建沙箱
             container = docker_client.containers.run(**container_config)
@@ -192,7 +194,7 @@ class DockerSandbox(Sandbox):
             raise Exception(f"创建Docker沙箱容器失败: {str(e)}")
 
     @classmethod
-    async def create(cls, project_id: Optional[str] = None) -> Self:
+    async def create(cls, project_id: Optional[str] = None, *, session_id: Optional[str] = None, run_id: Optional[str] = None) -> Self:
         """类方法，创建沙箱容器。传入项目目录时读写挂载到 /workspace"""
         # 1.获取系统配置信息
         settings = get_settings()
@@ -210,7 +212,7 @@ class DockerSandbox(Sandbox):
             get_managed_storage().validate(project_id)
 
         # 5.使用子线程创建一个容器后返回
-        creation = asyncio.create_task(asyncio.to_thread(cls._create_task, project_id))
+        creation = asyncio.create_task(asyncio.to_thread(cls._create_task, project_id, session_id, run_id))
         try:
             return await asyncio.shield(creation)
         except asyncio.CancelledError:
@@ -218,6 +220,52 @@ class DockerSandbox(Sandbox):
             sandbox = await creation
             await sandbox.destroy()
             raise
+
+    @classmethod
+    async def stop_project_writers(cls, project_id: str, keep_container_id: Optional[str] = None) -> None:
+        """正常停止项目容器，10 秒后强制终止；使用 inspect 的 Running 核对。"""
+        def stop():
+            client = docker.from_env()
+            try:
+                containers = client.containers.list(all=True,
+                    filters={"label": f"rayagent.project_id={project_id}"})
+                for container in containers:
+                    if container.name == keep_container_id:
+                        continue
+                    try:
+                        container.reload()
+                        if container.attrs['State']['Running']:
+                            try:
+                                container.stop(timeout=10)
+                            except APIError:
+                                # 自动移除与停止可能交叉，先读回再决定是否需要 kill。
+                                container.reload()
+                                if container.attrs['State']['Running']:
+                                    container.kill()
+                        container.reload()
+                        if container.attrs['State']['Running']:
+                            try:
+                                container.kill()
+                            except APIError:
+                                container.reload()
+                                if container.attrs['State']['Running']:
+                                    raise
+                            container.reload()
+                        if container.attrs['State']['Running']:
+                            raise RuntimeError(f"项目容器 {container.name} 仍在写入")
+                    except NotFound:
+                        pass
+            finally:
+                client.close()
+        await asyncio.to_thread(stop)
+
+    @classmethod
+    async def stop_other_project_writers(cls, project_id: str, keep_container_id: Optional[str]) -> None:
+        await cls.stop_project_writers(project_id, keep_container_id)
+
+    @classmethod
+    async def create_owned(cls, project_id: str, session_id: str, run_id: str) -> Self:
+        return await cls.create(project_id, session_id=session_id, run_id=run_id)
 
     async def destroy(self) -> bool:
         """销毁当前的DockerSandbox实例"""
@@ -230,6 +278,8 @@ class DockerSandbox(Sandbox):
             if self._container_name:
                 docker_client = docker.from_env()
                 docker_client.containers.get(self._container_name).remove(force=True)
+            return True
+        except NotFound:
             return True
         except Exception as e:
             logger.error(f"销毁当前Docker沙箱[{self._container_name}]失败: {str(e)}")

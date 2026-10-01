@@ -51,6 +51,7 @@ class PendingStart:
     messages: list[str] = field(default_factory=list)
     cancelled: bool = False
     worker: Optional[asyncio.Task] = None
+    project_writer_token: Optional[str] = None
 
 
 _starts = weakref.WeakKeyDictionary()
@@ -145,6 +146,10 @@ class AgentService:
         """根据传递的会话创建一个执行 run_id 的新任务"""
         if session.project_id:
             self._validate_project_session(session)
+        if session.project_id and prior_status != SessionStatus.WAITING:
+            stop_writers = getattr(self._sandbox_cls, 'stop_project_writers', None)
+            if stop_writers:
+                await stop_writers(session.project_id)
         # 1.获取沙箱实例
         sandbox = None
         sandbox_id = session.sandbox_id
@@ -156,7 +161,10 @@ class AgentService:
         if not sandbox:
             # 3.沙箱不存在则创建一个新的(有可能被释放了)。绑定了项目时重新挂载同一个目录
             try:
-                sandbox = await self._sandbox_cls.create(project_id=session.project_id)
+                if session.project_id and hasattr(self._sandbox_cls, 'create_owned'):
+                    sandbox = await self._sandbox_cls.create_owned(session.project_id, session.id, run_id)
+                else:
+                    sandbox = await self._sandbox_cls.create(project_id=session.project_id)
             except SandboxProjectBindingError as exc:
                 raise ConflictError(str(exc)) from exc
             session.sandbox_id = sandbox.id
@@ -208,6 +216,8 @@ class AgentService:
         # 独立服务与工作单元：后台不复用请求中的事务对象。
         worker_service = copy.copy(self)
         worker_service._uow = self._uow_factory()
+        from app.domain.services.project_file_coordinator import register_writer
+        owner.project_writer_token = register_writer(session.project_id)
         owner.worker = asyncio.create_task(worker_service._start_run(
             session.model_copy(deep=True), run_id, prior_status, owner))
 
@@ -234,6 +244,11 @@ class AgentService:
                 for message in owner.messages:
                     await task.input_stream.put(message)
                 await self._ledger.append(session.id, [EnvironmentEvent(status="ready")], run_id=run_id)
+                if session.project_id:
+                    from app.domain.services.project_file_coordinator import register_writer
+                    runner = task.task_runner
+                    runner._project_id = session.project_id
+                    runner._project_writer_token = register_writer(session.project_id)
                 await task.invoke()
                 published = True
         except Exception as exc:
@@ -252,6 +267,12 @@ class AgentService:
             finally:
                 if pending_starts().get(run_id) is owner:
                     del pending_starts()[run_id]
+                from app.domain.services.project_file_coordinator import retire_writer, ProjectFileCoordinator
+                retire_writer(session.project_id, getattr(owner, 'project_writer_token', None))
+                if session.project_id:
+                    if not published and task is not None:
+                        retire_writer(session.project_id, getattr(task.task_runner, "_project_writer_token", None))
+                    await ProjectFileCoordinator(self._uow_factory, self._sandbox_cls).settle(session.project_id)
 
     @staticmethod
     def _task_runs(task: Optional[Task], run_id: str) -> bool:
@@ -479,8 +500,12 @@ class AgentService:
                 return None
             if waiting_for_approval(active):
                 # 没有执行协程：审批失效，待审批与同批后续调用补为未执行，与终态同一事务
-                return await close_waiting_approval(self._uow_factory, self._ledger, session_id, active.id,
+                result = await close_waiting_approval(self._uow_factory, self._ledger, session_id, active.id,
                                                     RunStatus.CANCELLED, RunReason.USER_STOP)
+                if session.project_id:
+                    from app.domain.services.project_file_coordinator import ProjectFileCoordinator
+                    asyncio.create_task(ProjectFileCoordinator(self._uow_factory, self._sandbox_cls).settle(session.project_id))
+                return result
             starting = pending_starts().get(active.id)
             if starting is not None:
                 starting.cancelled = True
@@ -502,6 +527,9 @@ class AgentService:
                 task.cancel()
         if run is not None and runner is not None and hasattr(runner, "stop_processes"):
             await runner.stop_processes(active.id)
+        if session.project_id:
+            from app.domain.services.project_file_coordinator import ProjectFileCoordinator
+            asyncio.create_task(ProjectFileCoordinator(self._uow_factory, self._sandbox_cls).settle(session.project_id))
         return run
 
     async def compact_session(self, session_id: str) -> ManualCompaction:

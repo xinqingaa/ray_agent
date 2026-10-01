@@ -2,7 +2,8 @@
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import CheckConstraint, DateTime, String, Text, UniqueConstraint, text
+from sqlalchemy import CheckConstraint, DateTime, String, Text, UniqueConstraint, ForeignKey, Integer, text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.domain.models.workspace_project import WorkspaceProject
@@ -18,6 +19,7 @@ class ProjectModel(Base):
     id: Mapped[str] = mapped_column(String(255), primary_key=True)
     name: Mapped[str] = mapped_column(String(160), nullable=False)
     instructions: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    file_operation: Mapped[Optional[dict]] = mapped_column(JSONB, nullable=True)
     archived_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=text("CURRENT_TIMESTAMP(0)"))
     updated_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, server_default=text("CURRENT_TIMESTAMP(0)"))
@@ -25,7 +27,18 @@ class ProjectModel(Base):
 
     @classmethod
     def from_domain(cls, project: WorkspaceProject) -> "ProjectModel":
-        return cls(**project.model_dump(mode="python"))
+        values = project.model_dump(mode="python", exclude={"file_operation"})
+        values["file_operation"] = project.file_operation.model_dump(mode="json") if project.file_operation else None
+        return cls(**values)
 
     def to_domain(self) -> WorkspaceProject:
         return WorkspaceProject.model_validate(self, from_attributes=True)
+
+
+class ProjectAuditModel(Base):
+    __tablename__ = 'project_audit_events'
+    project_id: Mapped[str] = mapped_column(String(255), ForeignKey('projects.id', ondelete='RESTRICT'), primary_key=True)
+    seq: Mapped[int] = mapped_column(Integer, primary_key=True)
+    type: Mapped[str] = mapped_column(String(80), nullable=False)
+    payload: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.now)

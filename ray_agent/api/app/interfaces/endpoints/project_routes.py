@@ -59,3 +59,16 @@ async def project_tree(project_id: str, path: str = Query(""), project_service: 
 @router.get("/{project_id}/file", response_model=Response[ProjectFile])
 async def project_file(project_id: str, path: str = Query(), project_service: ProjectService = Depends(get_project_service)):
     return Response.success(data=await project_service.read_file(project_id, path, project_level=True))
+
+
+@router.post("/{project_id}/settling/retry", response_model=Response[ProjectDetails])
+async def retry_settling(project_id: str, project_service: ProjectService = Depends(get_project_service)):
+    await project_service.retry_settling(project_id)
+    return Response.success(data=await project_service.detail(project_id))
+
+
+@router.get("/{project_id}/events", response_model=Response[list[dict]])
+async def project_events(project_id: str, after_seq: int = Query(0, ge=0),
+                         limit: int = Query(50, ge=1, le=100),
+                         project_service: ProjectService = Depends(get_project_service)):
+    return Response.success(data=await project_service.events(project_id, after_seq, limit))

@@ -101,7 +101,7 @@ uv run --locked python -m pytest tests/core/test_event_observability.py tests/co
 uv run --locked python -m pytest tests/core/test_turn_events_rebuild.py
 ```
 
-这些用例用内存替身核对轮次成对、终态补写、汇总与重建结果，不连接数据库。序号并发、活动运行唯一、提交失败不发布通知、启动扫描、SSE 补齐和快照往返需要真实临时 PostgreSQL，见 [tests/core/test_run_events_pg.py](tests/core/test_run_events_pg.py)：设置 `RAY_TEST_DATABASE_URI`（`postgresql+asyncpg://…`）后再运行该文件；未设置时 6 项跳过。每个测试会清空 `public` schema 并执行 `alembic upgrade head`，不要指向开发库。
+这些用例用内存替身核对轮次成对、终态补写、汇总与重建结果，不连接数据库。序号并发、活动运行唯一、提交失败不发布通知、启动扫描、SSE 补齐和快照往返需要真实临时 PostgreSQL，见 [tests/core/test_run_events_pg.py](tests/core/test_run_events_pg.py)：设置 `RAY_TEST_DATABASE_URI`（`postgresql+asyncpg://…`）后再运行该文件；未设置时数据库用例跳过（数量以当次 pytest 收集结果为准）。每个测试会清空 `public` schema 并执行 `alembic upgrade head`，不要指向开发库。
 
 ### 脚本化模型替身
 
@@ -163,6 +163,16 @@ docker compose run --rm --no-deps -T manus-api python scripts/check_managed_proj
 ```
 
 该脚本创建一次性托管目录与真实沙箱，检查卷子路径、ubuntu 修改/删除与快照目录不可见，并清理本次资源；不连接数据库或模型，不验证运行终态收尾与恢复。脚本尚未打进镜像时可把该脚本通过 stdin 送给同一命令的 `python -`；不能把旧镜像中的文件缺失算通过。
+
+### 项目旧写入者停止观察
+
+产品镜像构建后，在产品目录运行：
+
+```bash
+docker compose run --rm --no-deps -T manus-api python scripts/check_project_writer_settling.py
+```
+
+脚本仅创建本次唯一项目目录与沙箱，不写业务数据库：启动真实后台写入进程，核对项目/会话/运行标签，保留指定 waiting 容器并停止同项目其他容器，随后停止全部测试容器，检查文件不再增长及改写后的字节不被旧进程覆盖，最后清理本次资源。它不调用模型，也不代替完整运行、上传或恢复验收。持久占用、并发准入、取消、迟到启动、启动核对与事务回滚见 `tests/core/test_project_operations_pg.py`，同样需独立 `RAY_TEST_DATABASE_URI`，其 Docker 为替身。
 
 ### 沙箱环境观察
 

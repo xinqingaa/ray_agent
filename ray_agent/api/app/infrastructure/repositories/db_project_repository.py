@@ -7,7 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.models.workspace_project import WorkspaceProject
 from app.domain.repositories.project_repository import ProjectRepository
-from app.infrastructure.models.project import ProjectModel
+from app.infrastructure.models.project import ProjectModel, ProjectAuditModel
 
 
 class DBProjectRepository(ProjectRepository):
@@ -22,11 +22,13 @@ class DBProjectRepository(ProjectRepository):
         return record.to_domain() if record else None
 
     async def create(self, project: WorkspaceProject) -> WorkspaceProject:
-        await self.db_session.execute(insert(ProjectModel).values(**project.model_dump(mode="python")))
+        await self.db_session.execute(insert(ProjectModel).values(**self._values(project)))
         return project
 
     async def save(self, project: WorkspaceProject) -> None:
-        values = project.model_dump(mode="python", exclude={"id", "created_at"})
+        values = self._values(project)
+        values.pop("id")
+        values.pop("created_at")
         result = await self.db_session.execute(update(ProjectModel).where(ProjectModel.id == project.id).values(**values))
         if result.rowcount == 0:
             raise ValueError("项目不存在")
@@ -43,3 +45,28 @@ class DBProjectRepository(ProjectRepository):
             return []
         records = (await self.db_session.execute(select(ProjectModel).where(ProjectModel.id.in_(project_ids)))).scalars().all()
         return [record.to_domain() for record in records]
+
+    @staticmethod
+    def _values(project):
+        values = project.model_dump(mode="python", exclude={"file_operation"})
+        values["file_operation"] = project.file_operation.model_dump(mode="json") if project.file_operation else None
+        return values
+
+    async def all(self) -> list[WorkspaceProject]:
+        records = (await self.db_session.execute(select(ProjectModel).order_by(ProjectModel.id))).scalars().all()
+        return [record.to_domain() for record in records]
+
+    async def audit(self, project_id, event_type, payload):
+        from datetime import datetime
+        # 调用方已经锁项目行，seq 分配与更新提交共用事务。
+        seq = (await self.db_session.execute(select(func.coalesce(func.max(ProjectAuditModel.seq), 0)).where(
+            ProjectAuditModel.project_id == project_id))).scalar_one() + 1
+        await self.db_session.execute(insert(ProjectAuditModel).values(project_id=project_id,
+            seq=seq, type=event_type, payload=payload, created_at=datetime.now()))
+        return seq
+
+    async def events(self, project_id, after_seq=0, limit=50):
+        records = (await self.db_session.execute(select(ProjectAuditModel).where(
+            ProjectAuditModel.project_id == project_id, ProjectAuditModel.seq > after_seq
+        ).order_by(ProjectAuditModel.seq).limit(limit))).scalars().all()
+        return [dict(seq=r.seq, type=r.type, payload=r.payload, created_at=r.created_at.isoformat()) for r in records]
