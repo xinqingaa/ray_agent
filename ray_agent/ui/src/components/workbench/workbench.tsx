@@ -13,7 +13,7 @@ import {fileIcon, previewUnavailableReason} from '@/components/run/file-icon'
 import {formatBytes} from '@/components/run/format'
 import {TOOL_STATUS} from '@/components/run/status-meta'
 import type {ProjectView} from '@/lib/session-view'
-import {ProjectPane} from '@/components/workbench/project-pane'
+import {ManagedProjectPane} from '@/components/workbench/managed-project-pane'
 
 export type WorkbenchTab = 'result' | 'terminal' | 'browser' | 'files' | 'project'
 
@@ -565,7 +565,7 @@ export function Workbench({
       {tab === 'browser' && <BrowserPane call={browserCall} onOpenVnc={onOpenVnc}/>}
       {tab === 'files' && <FilesPane focus={focus} files={files} highlightFileId={highlightFileId}/>}
       {tab === 'project' && hasProject && project?.available && (
-        <ProjectPane key={sessionId} sessionId={sessionId} refreshSignal={projectRefreshSignal}/>
+        <ManagedProjectPane key={project.id} projectId={project.id} refreshSignal={projectRefreshSignal}/>
       )}
       {tab === 'project' && hasProject && !project?.available && (
         <EmptyNote>{project.reason ?? '项目目录不可用'}</EmptyNote>

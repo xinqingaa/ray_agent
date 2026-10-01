@@ -1,8 +1,9 @@
-import { get, put, post } from "./fetch";
+import { get, put, post, request, ApiError } from "./fetch";
 import type {
   ProjectFile,
   ProjectListing,
-  ProjectDetails, ProjectPage, ProjectSettings, ProjectUpdate, SessionsData,
+  ProjectDetails, ProjectPage, ProjectUpdate, SessionsData,
+  ProjectSnapshot, ProjectAuditEvent, ProjectUploadRules, ProjectUploadSelection, ProjectUploadPreflight, ProjectOperationResult, ProjectUploadResult,
 } from "./types";
 
 export const projectApi = {
@@ -13,6 +14,36 @@ export const projectApi = {
   update: (id: string, settings: ProjectUpdate): Promise<ProjectDetails> => put<ProjectDetails>(`/projects/${id}`, settings),
   archive: (id: string, archived: boolean): Promise<ProjectDetails> => post<ProjectDetails>(`/projects/${id}/archive`, {archived}),
   sessions: (id: string, offset = 0, limit = 50): Promise<SessionsData> => get<SessionsData>(`/projects/${id}/sessions`, {offset, limit}),
+
+  uploadRules: () => get<ProjectUploadRules>('/projects/upload-rules'),
+  snapshots: (id: string) => get<ProjectSnapshot[]>(`/projects/${id}/snapshots`),
+  restore: (id: string, snapshot: string) => post<ProjectOperationResult>(`/projects/${id}/snapshots/${snapshot}/restore`, {}, {timeout: 120000}),
+  repairRestore: (id: string, operation: string, returnBefore: boolean) => post<ProjectOperationResult>(`/projects/${id}/restore/repair`, {operation_id: operation, return_before: returnBefore}, {timeout: 120000}),
+  cleanupSnapshots: (id: string) => post<ProjectOperationResult>(`/projects/${id}/snapshots/cleanup`, {}, {timeout: 120000}),
+  retrySettling: (id: string) => post<ProjectDetails>(`/projects/${id}/settling/retry`, {}, {timeout: 60000}),
+  reconcile: (id: string, operation: string) => post<ProjectOperationResult>(`/projects/${id}/operations/reconcile`, {operation_id: operation}, {timeout: 120000}),
+  events: (id: string, afterSeq = 0) => get<ProjectAuditEvent[]>(`/projects/${id}/events`, {after_seq: afterSeq, limit: 50}),
+  preflight: (id: string, selection: ProjectUploadSelection) => post<ProjectUploadPreflight>(`/projects/${id}/uploads/preflight`, selection, {timeout: 120000}),
+  startUpload: (id: string, selection: ProjectUploadSelection) => post<ProjectOperationResult>(`/projects/${id}/uploads`, selection, {timeout: 120000}),
+  uploadItem: (id: string, operation: string, path: string, file: File) => {
+    const form = new FormData(); form.append('file', file);
+    return request<ProjectUploadResult>(`/projects/${id}/uploads/${operation}/file?path=${encodeURIComponent(path)}`, {method: 'PUT', body: form, timeout: 120000});
+  },
+  finishUpload: (id: string, operation: string, cancel = false) => post<ProjectOperationResult>(`/projects/${id}/uploads/${operation}/finish?cancel=${cancel}`, {}, {timeout: 120000}),
+  operation: (id: string, operation: string) => get<ProjectOperationResult>(`/projects/${id}/operations/${operation}`),
+  retryDelivery: (id: string, copyKey: string) => post<Record<string, unknown>>(`/projects/${id}/deliveries/retry`, {copy_key: copyKey}, {timeout: 120000}),
+  download: async (id: string, path?: string) => {
+    const base = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8088/api';
+    const response = await fetch(`${base}/projects/${id}/download${path == null ? '' : '?path=' + encodeURIComponent(path)}`);
+    if (!response.ok) {
+      const body = await response.json().catch(() => null);
+      throw new ApiError(response.status, body?.msg || '下载失败，请重新读取项目状态');
+    }
+    const header = response.headers.get('Content-Disposition') || '';
+    const match = header.match(/filename\*=utf-8''(.+)/i);
+    return {blob: await response.blob(), filename: match ? decodeURIComponent(match[1]) : path?.split('/').pop() || 'project.zip',
+      warning: decodeURIComponent(response.headers.get('X-RayAgent-Download-Warning') || '')};
+  },
 
   getTree: (id: string, path = "", projectLevel = false): Promise<ProjectListing> =>
     get<ProjectListing>(projectLevel ? `/projects/${id}/tree` : `/sessions/${id}/project/tree`, { path }),

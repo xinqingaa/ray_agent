@@ -7,6 +7,7 @@ import {Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle} fro
 import {projectApi} from '@/lib/api/project'
 import type {ProjectView} from '@/lib/api/types'
 import {toast} from 'sonner'
+import {ProjectUploadDialog} from '@/components/project-upload-dialog'
 
 export type ProjectPickerProps = {
   enabled?: boolean; selected?: ProjectView | null; onSelect: (project: ProjectView | null) => void
@@ -26,6 +27,7 @@ export function ProjectPicker({onSelect, open: controlled, onOpenChange, disable
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
   const [creating, setCreating] = useState(false)
+  const [uploadFolder,setUploadFolder]=useState(false)
   const [name, setName] = useState('')
   const load = useCallback(async (append = false) => {
     setLoading(true); setError(null)
@@ -75,8 +77,10 @@ export function ProjectPicker({onSelect, open: controlled, onOpenChange, disable
         <input aria-label="项目名称" required maxLength={160} className="min-w-0 flex-1 rounded-sm border bg-background px-2 text-sm" value={name} onChange={event => setName(event.target.value)}/>
         <Button size="sm" disabled={saving || !name.trim()} type="submit">{saving ? '正在创建' : '创建并打开'}</Button>
       </form> : <Button size="sm" variant="outline" onClick={() => {setCreating(true); setName(''); setError(null)}}>新建项目</Button>}
+      <Button size="sm" variant="outline" disabled={saving} onClick={()=>setUploadFolder(true)}>从文件夹创建</Button>
       {loading && <p className="flex items-center gap-2 text-meta text-faint"><Loader2 className="size-4 animate-spin"/>正在读取</p>}
       {error && <p role="alert" className="text-meta text-state-failed">{error}<Button variant="ghost" size="sm" onClick={() => void load()}>重试</Button></p>}
     </DialogContent></Dialog>
+    <ProjectUploadDialog open={uploadFolder} onClose={()=>setUploadFolder(false)} onCreated={project=>{onChanged?.();pick(project)}}/>
   </>
 }

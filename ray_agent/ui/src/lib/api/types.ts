@@ -194,7 +194,33 @@ export type ProjectView = {
   archived?: boolean;
   task_count?: number;
   last_active_at?: string | null;
+  files_size?: number; files_size_at?: string | null; files_size_stale?: boolean;
+  protection?: ProjectProtection | null; file_operation?: ProjectFileOperation | null; write_blocked_reason?: string | null;
+  snapshot_gc_pending?: boolean; snapshots_cleaned_at?: string | null; snapshots_released_bytes?: number;
+
 };
+
+export type ProjectFileOperation = {
+  operation_id: string; kind: 'settling' | 'upload' | 'snapshot' | 'restore' | 'cleanup' | 'delivery';
+  state: 'running' | 'failed'; phase: string; error: string | null;
+  run_id: string | null; session_id: string | null;
+  target_snapshot_id: string | null; before_snapshot_id: string | null;
+  started_at: string; last_active_at: string; results: Record<string, unknown>;
+};
+export type ProjectProtection = {state: 'ready' | 'skipped' | 'failed'; reason?: string; error?: string; snapshot_id?: string; run_id?: string};
+export type ProjectSnapshot = {id: string; project_id: string; source: 'run' | 'upload' | 'restore'; run_id: string | null; session_id: string | null; total_bytes: number; manifest_sha256: string; created_at: string};
+export type ProjectAuditEvent = {seq: number; type: string; payload: Record<string, unknown>; created_at: string};
+export type ProjectUploadRules = {
+  version: string; max_batch_bytes: number; max_files: number; max_file_bytes: number; max_project_bytes: number;
+  always_exclude: string[]; dependency_directories: string[]; conditional_directories: Record<string, string[]>;
+  sensitive_patterns: string[]; venv_marker: string; preserve_empty_directories: boolean;
+  idle_timeout_seconds: number; total_timeout_seconds: number;
+};
+export type ProjectUploadItem = {path: string; size: number; sha256: string; overwrite: boolean};
+export type ProjectUploadSelection = {rule_version: string; items: ProjectUploadItem[]; include_optional: string[]; inventory: string[]; fingerprint: Record<string, unknown>};
+export type ProjectUploadPreflight = {rule_version: string; items: Array<ProjectUploadItem & {included: boolean; reuse: boolean; conflict?: boolean; policy: string; reason?: string; confirmation_path?: string}>; fingerprint: Record<string, unknown>; current_bytes: number; projected_bytes: number; upload_bytes: number; upload_count: number; warnings: Array<{path: string; case_conflicts: string[]}>; errors: string[]; empty_directories: string};
+export type ProjectUploadResult = {path: string; size?: number; sha256?: string; published: boolean; reused?: boolean; error?: string};
+export type ProjectOperationResult = {operation_id: string; kind?: string; state?: string; status?: string; phase?: string; error?: string | null; results: {received?: Record<string, ProjectUploadResult>; failures?: Record<string, string>; batch_status?: string; [key: string]: unknown}};
 
 export type ProjectSettings = {name: string; instructions: string | null};
 export type ProjectUpdate = ProjectSettings & {settings_version: number; notes: string; notes_version: number};

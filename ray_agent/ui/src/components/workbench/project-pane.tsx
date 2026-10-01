@@ -7,6 +7,7 @@ import {projectApi} from '@/lib/api/project'
 import type {ProjectFile, ProjectListing, ProjectTreeEntry} from '@/lib/api/types'
 import {cn} from '@/lib/utils'
 import {Button} from '@/components/ui/button'
+import {toast} from 'sonner'
 
 function EmptyNote({children}: {children: string}) {
   return <p className="px-4 py-8 text-center text-meta text-faint">{children}</p>
@@ -21,7 +22,7 @@ type TreeNode = {
   error?: string
 }
 
-export function ProjectPane({sessionId, refreshSignal, projectLevel = false}: {sessionId: string; refreshSignal?: number; projectLevel?: boolean}) {
+export function ProjectPane({sessionId, refreshSignal, projectLevel = false, downloadProjectId}: {sessionId: string; refreshSignal?: number; projectLevel?: boolean; downloadProjectId?: string}) {
   const epoch = useRef(0)
   const fileRequest = useRef(0)
   const selectedRef = useRef<string | null>(null)
@@ -151,6 +152,10 @@ export function ProjectPane({sessionId, refreshSignal, projectLevel = false}: {s
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex items-center border-b px-3 py-2">
         <span className="flex-1 text-meta text-muted-foreground">项目当前文件</span>
+        {downloadProjectId && <Button variant="ghost" size="sm" disabled={!file} onClick={async () => {
+          if(!selectedPath)return
+          try {const value=await projectApi.download(downloadProjectId,selectedPath);if(value.warning)toast.warning(value.warning);const url=URL.createObjectURL(value.blob),link=document.createElement('a');link.href=url;link.download=value.filename;link.click();setTimeout(()=>URL.revokeObjectURL(url),1000)}catch(error){toast.error(error instanceof Error ? error.message : '下载失败')}
+        }}>下载所选文件</Button>}
         <Button type="button" variant="ghost" size="icon-xs" aria-label="刷新项目文件" disabled={rootLoading} onClick={() => setRevision((n) => n + 1)}>
           {rootLoading ? <Loader2 className="size-4 animate-spin"/> : <RefreshCw className="size-4"/>}
         </Button>
