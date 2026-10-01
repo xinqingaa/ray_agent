@@ -149,3 +149,42 @@ def test_notes_audit_failure_rolls_back_all_writes_and_restart_invalidates_summa
         assert state['summary_state']=='failed' and '重启' in state['summary_error']
         assert not await memory.complete_summary(ticket,'重启前迟到')
     with_db(scenario)
+
+
+def test_chat_receipt_freezes_full_context_and_waiting_reuses_same_run(tmp_path):
+    async def scenario(factory,engine):
+        from unittest.mock import AsyncMock, Mock
+        from app.application.services.agent_service import AgentService
+        service=projects(factory,tmp_path);p=await service.create('受理冻结','第一说明')
+        session=await service.create_session(p.id);ledger=RunLedger(factory);memory=ProjectMemoryService(factory,ledger)
+        async with factory() as uow:
+            await uow.session.set_title(session.id,'冻结测试','manual')
+        agent=AgentService.__new__(AgentService)
+        agent._uow_factory,agent._uow,agent._ledger=factory,factory(),ledger
+        agent._project_prepare=service.prepare_snapshot
+        agent._project_validator=service.validate_start
+        agent._get_task=AsyncMock(return_value=None)
+        agent._schedule_start=Mock()
+        accepted=await agent.chat(session.id,'第一运行')
+        async with factory() as uow:
+            first=await uow.run.get(accepted.run_id)
+        assert first.config_snapshot['project_context']['notes_version']==0
+        assert '第一说明' in first.config_snapshot['project_prompt']
+        await service.update(p.id,ProjectSettings(name=p.name,instructions='第二说明'),base_version=0)
+        await memory.update_notes(p.id,'第二笔记',0)
+        await ledger.transition(session.id,first.id,RunStatus.WAITING)
+        resumed=await agent.chat(session.id,'等待后的回答')
+        assert resumed.run_id==first.id and resumed.route=='resumed'
+        async with factory() as uow:
+            waiting=await uow.run.get(first.id)
+        assert waiting.config_snapshot==first.config_snapshot
+        await ledger.transition(session.id,first.id,RunStatus.COMPLETED)
+        async with factory() as uow:
+            project=await uow.project.get(p.id,lock=True);project.file_operation=None;await uow.project.save(project)
+        newer=await agent.chat(session.id,'新运行')
+        async with factory() as uow:
+            second=await uow.run.get(newer.run_id)
+        assert newer.run_id!=first.id
+        assert second.config_snapshot['project_context']['notes_version']==1
+        assert '第二说明' in second.config_snapshot['project_prompt'] and '第二笔记' in second.config_snapshot['project_prompt']
+    with_db(scenario)

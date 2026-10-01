@@ -1,0 +1,50 @@
+{
+  "kind": "真实 Docker/API HTTP/业务 PostgreSQL，无浏览器",
+  "checks": [
+    "用户笔记版本与冲突409",
+    "设置与笔记整体保存版本",
+    "过时设置409",
+    "摘要手动来源与版本冲突409"
+  ],
+  "project_id": "9a10bd1d-580b-44d0-97e7-36f091599357",
+  "project_name": "stage-d-memory-334588aa27",
+  "session_id": "ed472e96-ff4e-4c15-ac9b-993c10c5fa6c",
+  "status": "passed",
+  "http_summary": {
+    "summary": "手動摘要",
+    "summary_source": "manual",
+    "summary_state": "ready",
+    "summary_error": null,
+    "summary_generation": 1,
+    "summary_source_seq": 0
+  },
+  "product_commit": "a49aa52f67ef584f3499341e30deffd6b251e69b",
+  "images": {
+    "manus-api": "sha256:5f6e9ee303d6b836c85bddbe1b5f4c8bd8bf8db37192e4bce9bbdd5fd86374a3",
+    "manus-ui": "sha256:4908d14d8214c64638f371680c89bde64416731d0378014f35aae711cd38b789"
+  },
+  "sandbox_image": "sha256:f93fe5fa1b441c84c5a4fb7622f2d56f92709684320f0bdc57f4bd48b8df33a2",
+  "migration": "f6cad3e75b86",
+  "api_python_files": 178,
+  "api_source_hash_match": true,
+  "model_config": {
+    "model": "deepseek-reasoner",
+    "base_url": "https://api.deepseek.com/",
+    "context_window": 65536,
+    "max_tokens": 8192,
+    "streaming": true
+  },
+  "ui_scope": "源代码中增加笔记版本编辑与项目笔记事件；类型检查通过，当前 UI 镜像未重建，尚无浏览器证据",
+  "summary_model_observation": "真实请求401 invalid_request_error / authentication_error；原摘要保留，state=failed；无有效凭据前不计成功",
+  "resource_scope": {
+    "project_ids": [
+      "9a10bd1d-580b-44d0-97e7-36f091599357"
+    ],
+    "session_ids": [
+      "ed472e96-ff4e-4c15-ac9b-993c10c5fa6c"
+    ],
+    "name_prefix": "stage-d-memory-",
+    "retained_for_retry": true,
+    "cleanup": "只清理此范围，等待真实模型复验后再执行；未删除用户数据"
+  }
+}

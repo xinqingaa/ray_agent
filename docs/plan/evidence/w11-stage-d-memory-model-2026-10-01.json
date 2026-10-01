@@ -1,0 +1,41 @@
+{
+  "project_id": "9a10bd1d-580b-44d0-97e7-36f091599357",
+  "session_id": "ed472e96-ff4e-4c15-ac9b-993c10c5fa6c",
+  "kind": "实际 API 容器服务/业务 PostgreSQL；独立真实摘要模型；没有 Agent 循环或浏览器",
+  "checks": [],
+  "frozen_context": {
+    "name": "stage-d-memory-334588aa27",
+    "instructions": "金额单位为元；不得覆盖原材料",
+    "project_id": "9a10bd1d-580b-44d0-97e7-36f091599357",
+    "notes": "合并笔记",
+    "notes_version": 2,
+    "settings_version": 1,
+    "summaries": []
+  },
+  "run_id": "2967cbb6-e1b5-4386-82de-a26275afee98",
+  "notes_tool_service_result": {
+    "content": "统计口径：金额单位为元；总计60。",
+    "notes_version": 3
+  },
+  "summary_request_material": {
+    "first_user": "统计三笔金额10、20、30，总计60元。",
+    "finals": [
+      {
+        "run_id": "2967cbb6-e1b5-4386-82de-a26275afee98",
+        "seq": 4,
+        "message": "三笔金额合计60元。"
+      }
+    ],
+    "source_seq": 4
+  },
+  "summary_result": {
+    "summary": "手動摘要",
+    "summary_source": "auto",
+    "summary_state": "failed",
+    "summary_error": "摘要生成失败（LLMRequestError），可重新生成",
+    "summary_generation": 2,
+    "summary_source_seq": 0
+  },
+  "status": "failed",
+  "error": "AssertionError: {'summary': '手動摘要', 'summary_source': 'auto', 'summary_state': 'failed', 'summary_error': '摘要生成失败（LLMRequestError），可重新生成', 'summary_generation': 2, 'summary_source_seq': 0}"
+}
