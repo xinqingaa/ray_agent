@@ -1,0 +1,78 @@
+{
+  "date": "2026-10-02",
+  "product_sha": "b95ab11e352482c647f12b07787580909ad4ca08",
+  "working_tree": "uncommitted UI protection timeline and folder fallback; plan evidence not committed",
+  "ui_image": "sha256:878347819b56ad3bda5fff3de1d789dbeabdf7805a3dda19c2a9bb92a20a9fc5",
+  "api_image": "sha256:766d33b91334d4f326997592f4e1309202785c2a7ea976dffc8bb98b336d692d",
+  "api_rebuilt": false,
+  "gateway": "http://127.0.0.1:8088 200",
+  "services_healthy": ["manus-api", "manus-ui", "manus-postgres", "manus-redis"],
+  "browser": "cursor-ide-browser viewId 4523eb",
+  "viewport_390": {"innerWidth": 390, "innerHeight": 844, "cleared_to": {"w": 638, "h": 443}},
+  "model_401_repeated": false,
+  "sessions_before_new_conversation_click": 5,
+  "sessions_after_new_conversation_click": 5,
+  "overlimit": {
+    "project_id": "8e2a5d4d-83b8-443a-9262-b1327e600d02",
+    "session_id": "b41c0c90-9228-4ff5-a137-ec4c45960b46",
+    "apparent_bytes": 525336576,
+    "protection_state": "skipped",
+    "protection_reason": "项目超过快照上限，本次运行没有快照",
+    "event_order": ["run", "message", "environment", "title", "environment:protection=skipped", "environment", "context", "context", "turn", "attempt:model_error", "turn", "error:401", "run:failed"],
+    "tool_events": 0
+  },
+  "attachment": {
+    "project_id": "c6900f0b-1373-4a2b-9f47-7b0845df3735",
+    "session_id": "e9593208-9f6c-446c-b742-c8f0a666c5ea",
+    "file_id": "11b91b26-6547-4b7c-9643-665d98220b5a",
+    "path": "uploads/receipt-note.txt",
+    "bytes": 27,
+    "sha256": "283a1ef6265b88a2020342687f4591bbc9ed95c3317236f28768892976cbdb7c",
+    "uid": 1000,
+    "copy_state": "ready",
+    "picker_driven": false
+  },
+  "retry_restore": {
+    "project_id": "c6900f0b-1373-4a2b-9f47-7b0845df3735",
+    "root_inode": 539452,
+    "source_csv_bytes": 31,
+    "source_csv_sha256": "7d99d75e14563a94bb420dc1fd994a4e51d89be413bcd1deb9652cbd95e18125",
+    "link": "source-link -> source.csv",
+    "uid": 1000,
+    "target_manifest": "a19bdac1-9f67-4129-9014-12f7957705bf",
+    "before_manifest": "ba52d77b-13d0-4db9-bdf4-bad611e83783",
+    "later_attachment_manifest_bytes": 58,
+    "fault_after_publish": true
+  },
+  "delivery_retry": {
+    "project_id": "ec37be7a-ab36-4801-bed8-4231a1f42278",
+    "session_id": "74a3b41c-4cd4-47b2-8ae6-7d671196cfc9",
+    "copy_key": "delivery:74196e8eab309ff2a893cb782a3fbe34012ecebad140efe3facf3ca94691579c",
+    "path": "outputs/partial.csv",
+    "bytes": 19,
+    "sha256": "ea9ba0158dcc0276de506ebbada96abc9c54f11c42d578daef1a6b460d3e1008",
+    "uid": 1000,
+    "events_unchanged": ["run", "message", "environment", "run"]
+  },
+  "folder_e2e": {
+    "passed": true,
+    "runner": "playwright 1.61.1 chromium_headless_shell-1228 from ray_agent/ui",
+    "target": "http://127.0.0.1:8088",
+    "ui_image": "sha256:878347819b56ad3bda5fff3de1d789dbeabdf7805a3dda19c2a9bb92a20a9fc5",
+    "setFileInputFiles": "not retried; earlier denial stands",
+    "assignment": "filechooser.setFiles(directory)",
+    "project_id": "b240254f-c2e8-43e1-8045-5d6543d56460",
+    "project_name": "stage-d-folder-pw-20261002",
+    "files_size": 27,
+    "uploaded": {
+      "readme.txt": {"bytes": 14, "sha256": "ca1db41542488933aff0ebb177d39a48b969d94a9abb16858e0c81d11d8905ad"},
+      "build/generated.txt": {"bytes": 13, "sha256": "45960edc3c59bf0464cb0f656ff22742eb452746bab1b7b13ddcedc8c55c5eb8"}
+    },
+    "tree": ["build/", "build/generated.txt", "readme.txt"],
+    "excluded_absent": [".env", ".git", ".git/config"],
+    "excluded_download_status": 404,
+    "build_without_package_json": "uploaded as ordinary material"
+  },
+  "not_passed": ["cross_conversation_summary", "waiting_approval", "waiting_reply"],
+  "stage_e_started": false
+}

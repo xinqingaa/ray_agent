@@ -540,6 +540,18 @@ export function projectSession(input: ProjectSessionInput): SessionView {
 
     if (ev.type === 'environment' && track) {
       track.environment = str(data.status) ?? undefined
+      const protection = isRecord(data.project_file_protection) ? data.project_file_protection : null
+      const protectionState = str(protection?.state)
+      if (protection && (protectionState === 'skipped' || protectionState === 'failed')) {
+        timeline.push({
+          kind: 'protection',
+          id: idOf(ev.seq, timeline.length),
+          runId: track.id,
+          at: ev.createdAt,
+          state: protectionState,
+          message: str(protection.reason) ?? str(protection.error) ?? (protectionState === 'skipped' ? '项目超过快照上限，本次运行没有快照' : '运行前保护失败'),
+        })
+      }
       continue
     }
     if (ev.type === 'run' && track) {

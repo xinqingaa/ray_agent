@@ -77,6 +77,7 @@
 | `delivery` | 带附件的助手消息 | 文件、说明 |
 | `compaction` | 带前后 token 的压缩 | `beforeTokens`、`afterTokens`、`summarizedTurns`、`summary`、`trigger`（`watermark` \| `overflow` \| `manual`）。`runId` 可为空（手动压缩）。没有估算量的压缩只增加 `compactions`，不出现在时间线 |
 | `attempt` | `attempt` 事件 | `turnIndex`、`attempt`、`reason`、`retried` |
+| `protection` | 带 `project_file_protection.state` 为 `skipped` 或 `failed` 的 `environment` 事件 | `state`、`message`（事件中的原因原文）。成功快照不单列。该条目按事件顺序出现，因此位于同一次运行的工具条目之前 |
 | `final` | `done` 或 `run(completed)` 时缓冲里的最后一条助手文本 | 文本；终态汇总随后写到该运行最后一条 `final` |
 | `run_end` | `failed` / `cancelled` / `interrupted` | `status`、`reason`、`reasonText`、`retryText`（仅 `failed`，取该运行第一条非注入用户消息） |
 

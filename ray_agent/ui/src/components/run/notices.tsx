@@ -17,6 +17,20 @@ type CompactionNoticeProps = {
   className?: string
 }
 
+/** 运行前快照的保护降级或失败。文案用事件里的原因，出现在任何工具条目之前。 */
+export function ProtectionNotice({message, state, className}: {message: string; state: 'skipped' | 'failed'; className?: string}) {
+  return (
+    <div role="status" className={cn('flex items-center gap-3 text-xs', state === 'failed' ? 'text-state-failed' : 'text-state-waiting', className)}>
+      <span className="h-px flex-1 bg-border" aria-hidden/>
+      <span className="inline-flex max-w-[40rem] items-center gap-1.5 text-center">
+        <TriangleAlert className="size-3.5 shrink-0" aria-hidden/>
+        {message}
+      </span>
+      <span className="h-px flex-1 bg-border" aria-hidden/>
+    </div>
+  )
+}
+
 /** 点击压缩后、结果事件到达前，占在时间线末尾；结果写入后由真实摘要行替换 */
 export function CompactingNotice({className}: {className?: string}) {
   return (

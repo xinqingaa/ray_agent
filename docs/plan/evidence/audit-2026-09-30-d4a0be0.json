@@ -1,0 +1,110 @@
+{
+  "audit_time": "2026-09-30T20:37:41.959267+08:00",
+  "baseline": "d4a0be0033d177a53e855a9a27ebf70bedf8edfa",
+  "branch": "phase-4",
+  "initial_worktree_clean": true,
+  "local_tags": [],
+  "remote_tags": [],
+  "images": {
+    "manus-api": {
+      "image_id": "sha256:2fc9465f3b8c7a4109b98e630fe0bf25f98342a1facc2b96639044a737dac37e",
+      "created": "2026-09-30T11:56:46.481301293Z"
+    },
+    "manus-ui": {
+      "image_id": "sha256:4908d14d8214c64638f371680c89bde64416731d0378014f35aae711cd38b789",
+      "created": "2026-09-30T11:56:46.511162459Z"
+    },
+    "manus-sandbox": {
+      "image_id": "sha256:13731ad856e921bff58f2ef38bfc3ffd5d85a6c7ae3e0ddeaa6ba230ce07340d",
+      "created": "2026-09-30T11:56:46.387286918Z"
+    }
+  },
+  "python_source_comparison": {
+    "manus-api": {
+      "files": 172,
+      "mismatches": []
+    },
+    "manus-sandbox": {
+      "files": 28,
+      "mismatches": []
+    }
+  },
+  "database_readonly_query": "sessions|0\nruns|0\nevents|0\nprojects|0\nfiles|0\nf9c2a7b4d110",
+  "project_storage": {
+    "file_storage_local_dir": "/data/files/phase4-20260920",
+    "storage_reason": "项目存储不可用：无法解析项目文件存储的命名卷，请检查 API 数据卷挂载",
+    "compose_volume_destination": "/data/files"
+  },
+  "checks": [
+    {
+      "name": "API core and protocols",
+      "command": "uv run --locked python -m pytest tests/core tests/protocols -q",
+      "result": "244 passed, 13 skipped, 2 warnings",
+      "seconds": 27.23
+    },
+    {
+      "name": "isolated PostgreSQL 16",
+      "command": "RAY_TEST_DATABASE_URI=<isolated test database> uv run --locked python -m pytest tests/core/test_run_events_pg.py tests/core/test_w11_projects_pg.py -q",
+      "result": "13 passed",
+      "seconds": 4.68
+    },
+    {
+      "name": "UI observation scripts",
+      "result": "5 scripts passed; initial check-workbench-recovery failed because local react-test-renderer was missing; npm ci --no-audit --no-fund then that script passed"
+    },
+    {
+      "name": "UI TypeScript",
+      "command": "npx --no-install tsc --noEmit",
+      "result": "passed"
+    },
+    {
+      "name": "UI lint",
+      "command": "npm run lint",
+      "result": "0 errors, 25 warnings"
+    },
+    {
+      "name": "sandbox ShellService",
+      "command": "uv run --locked python -m unittest discover -s tests -p 'test_*.py' -v",
+      "result": "2 passed",
+      "seconds": 22.236
+    },
+    {
+      "name": "managed mount with deployed env",
+      "result": "failed: cannot resolve managed volume"
+    },
+    {
+      "name": "project POST probe",
+      "result": "HTTP 409: cannot resolve managed volume; no project created"
+    },
+    {
+      "name": "managed mount one-off config override",
+      "override": "FILE_STORAGE_LOCAL_DIR=/data/files",
+      "result": {
+        "ubuntu_modify_delete": true,
+        "snapshots_hidden": true,
+        "cleanup": true
+      }
+    },
+    {
+      "name": "model end to end",
+      "result": "not run in this audit"
+    },
+    {
+      "name": "UI production build",
+      "result": "passed earlier in this conversation on current phase-4 during Docker rebuild; not repeated in this audit"
+    }
+  ],
+  "cleanup": {
+    "isolated_pg_removed": true,
+    "mount_test_container_and_directory_removed": true,
+    "application_data_unchanged": true
+  },
+  "conclusion_revision": {
+    "date": "2026-10-01",
+    "scope": "W9–W11 已实施部分与阶段 D 开工评估；W0–W8 沿用已完成基线",
+    "decision": "可以继续阶段 D；在已核对与验证范围内未发现需要返工阶段 B/C 的代码问题",
+    "deployment_followup": "进入阶段 D 时先将本地文件目录与 Compose 卷目标对齐；本次未修改运行配置",
+    "stage_d_pending": "文件操作占用、旧写入者收尾、上传、文件快照、恢复、笔记与摘要属于既定阶段 D 待办，不是 B/C 返工项",
+    "new_runtime_verification": false
+  }
+}

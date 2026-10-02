@@ -677,6 +677,23 @@ function kinds(view) {
   const stopped = projectSession({id: 's', events: [...events, ev(3, 'run', {status: 'cancelled'})]});
   assert.equal(stopped.activeRun, null);
   console.log('PASS: 环境准备来自持久化事件，ready 后进入模型 turn，停止不残留准备态');
+  const reason = '项目超过快照上限，本次运行没有快照';
+  const downgraded = projectSession({id: 's', events: [
+    ev(1, 'run', {status: 'running'}),
+    ev(2, 'message', {role: 'user', message: '只回复，不要调用工具'}),
+    ev(3, 'environment', {status: 'preparing', message: reason, project_file_protection: {state: 'skipped', reason}}),
+    ev(4, 'environment', {status: 'ready'}),
+  ]});
+  const protection = downgraded.timeline.find((item) => item.kind === 'protection');
+  assert.equal(protection && protection.kind === 'protection' ? protection.message : '', reason);
+  assert.equal(protection && protection.kind === 'protection' ? protection.state : '', 'skipped');
+  const userIndex = downgraded.timeline.findIndex((item) => item.kind === 'user');
+  const protectionIndex = downgraded.timeline.findIndex((item) => item.kind === 'protection');
+  assert.ok(userIndex >= 0 && protectionIndex > userIndex);
+  assert.equal(downgraded.timeline.some((item) => item.kind === 'tools'), false);
+  const readyOnly = projectSession({id: 's', events: [ev(1, 'run', {status: 'running'}), ev(2, 'environment', {status: 'ready', message: '项目运行前文件快照已保存', project_file_protection: {state: 'ready'}})]});
+  assert.equal(readyOnly.timeline.some((item) => item.kind === 'protection'), false);
+  console.log('PASS: 超限跳过的保护原因进入时间线，成功快照不单列');
 }
 
 {

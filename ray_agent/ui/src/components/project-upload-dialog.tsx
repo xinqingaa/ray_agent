@@ -65,7 +65,11 @@ export function ProjectUploadDialog({open, projectId, disabledReason, onClose, o
     setError(null)
     try {const chosen=await chooseProjectFolder();if(chosen){setName(chosen.name);void inspect(chosen.sources)}else{
       setFolderFallback(true)
-    }} catch(error) {if(!(error instanceof DOMException && error.name==='AbortError'))setError(message(error))}
+    }} catch(error) {
+      if(error instanceof DOMException && error.name==='AbortError')return
+      if(error instanceof DOMException && (error.name==='NotAllowedError' || error.name==='SecurityError')){setFolderFallback(true);return}
+      setError(message(error))
+    }
   }
   const optional=(path: string, checked: boolean) => {const next=new Set(confirmed);if(checked)next.add(path);else next.delete(path);void inspect(sources.current,next,overwrite,onlyFailed)}
   const setCover=(path: string, checked: boolean) => {const next=new Set(overwrite);if(checked)next.add(path);else next.delete(path);setOverwrite(next)}
@@ -135,9 +139,9 @@ export function ProjectUploadDialog({open, projectId, disabledReason, onClose, o
     <DialogHeader><DialogTitle>{projectId ? '上传项目文件' : '从文件夹创建项目'}</DialogTitle><DialogDescription>上传文件副本，仅保留文件及其父目录。确认前不会写入项目；覆盖前会保存保护快照。</DialogDescription></DialogHeader>
     {!projectId && !target && <label className="text-sm">项目名称<input className="mt-1 w-full rounded-md border bg-background px-3 py-2" maxLength={160} value={name} onChange={event => setName(event.target.value)}/></label>}
     <div className="flex min-h-20 flex-wrap items-center justify-center gap-2 rounded-md border border-dashed p-3" onDragOver={event => event.preventDefault()} onDrop={event => {event.preventDefault();if(!busy && !disabledReason && !activeBatch)void inspect(sourcesFromDrop(event.dataTransfer.items))}}>
-      <span className="text-meta text-faint">拖入文件或文件夹</span><Button size="sm" variant="outline" disabled={!!busy || !!disabledReason || !!activeBatch} onClick={() => filesInput.current?.click()}>选择文件</Button><Button size="sm" variant="outline" disabled={!!busy || !!disabledReason || !!activeBatch} onClick={() => void folder()}>选择文件夹</Button>
+      <span className="text-meta text-faint">拖入文件或文件夹</span><Button size="sm" variant="outline" disabled={!!busy || !!disabledReason || !!activeBatch} onClick={() => filesInput.current?.click()}>选择文件</Button><Button size="sm" variant="outline" disabled={!!busy || !!disabledReason || !!activeBatch} onClick={() => void folder()}>选择文件夹</Button><Button size="sm" variant="ghost" disabled={!!busy || !!disabledReason || !!activeBatch} onClick={() => setFolderFallback(true)}>兼容选择</Button>
       <input ref={filesInput} type="file" multiple className="hidden" onChange={event => {const files=Array.from(event.target.files || []);event.target.value='';void inspect(sourcesFromFiles(files))}}/>
-      <input ref={element => {folderInput.current=element;element?.setAttribute('webkitdirectory','')}} type="file" multiple className="hidden" onChange={event => {const files=Array.from(event.target.files || []);event.target.value='';if(files.length)setName(files[0].webkitRelativePath.split('/')[0]);void inspect(sourcesFromFiles(files,true))}}/>
+      <input ref={element => {folderInput.current=element;element?.setAttribute('webkitdirectory','')}} type="file" multiple className="hidden" {...{webkitdirectory: ''}} onChange={event => {const files=Array.from(event.target.files || []);event.target.value='';if(files.length)setName(files[0].webkitRelativePath.split('/')[0]);void inspect(sourcesFromFiles(files,true))}}/>
     </div>
     {disabledReason && <p className="text-meta text-state-waiting">{disabledReason}</p>}
     {busy && <p role="status" className="truncate text-meta text-faint">{busy==='scan' ? '正在扫描与预检' : busy==='upload' ? '正在上传' : '正在读取批次'}：{progress}</p>}
@@ -162,7 +166,7 @@ export function ProjectUploadDialog({open, projectId, disabledReason, onClose, o
     <div className="flex gap-2"><Button disabled={!scan?.files.length || !!busy || !!disabledReason || !!scan.errors.length || !!preflight?.errors.length || !!unresolved || !!activeBatch || creationUnknown || (!target && !name.trim())} onClick={() => void upload()}>{target ? '确认上传' : '创建项目并上传'}</Button><Button variant="outline" onClick={() => busy==='upload' ? void cancelBatch() : close()}>{busy==='upload' ? '取消批次' : '关闭'}</Button></div>
     <Dialog open={folderFallback && open} onOpenChange={setFolderFallback}><DialogContent>
       <DialogHeader><DialogTitle>浏览器文件夹选择</DialogTitle><DialogDescription>此浏览器会先列出文件夹内全部文件，大型依赖目录可能明显变慢。确认后继续选择文件夹。</DialogDescription></DialogHeader>
-      <div className="flex justify-end gap-2"><Button variant="outline" onClick={()=>setFolderFallback(false)}>取消</Button><Button onClick={()=>{setFolderFallback(false);folderInput.current?.click()}}>继续选择文件夹</Button></div>
+      <div className="flex justify-end gap-2"><Button variant="outline" onClick={()=>setFolderFallback(false)}>取消</Button><Button onClick={()=>{folderInput.current?.setAttribute('webkitdirectory','');setFolderFallback(false);folderInput.current?.click()}}>继续选择文件夹</Button></div>
     </DialogContent></Dialog>
   </DialogContent></Dialog>
 }

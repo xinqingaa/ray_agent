@@ -4,14 +4,15 @@ import type {FileView, TimelineItem} from '@/lib/session-view'
 import {ProjectCopiesProvider} from './project-copy-status'
 import {ApprovalCard} from './approval-card'
 import {AskCard} from './ask-card'
-import {DeliveryCard} from './delivery-card'
+import {DeliveryCard, SessionDeliveryCopies} from './delivery-card'
 import {FinalReply, NarrationBlock, UserMessage} from './messages'
-import {AttemptNotice, CompactionNotice} from './notices'
+import {AttemptNotice, CompactionNotice, ProtectionNotice} from './notices'
 import {RunEndBar} from './run-end-bar'
 import {ToolGroup} from './tool-group'
 
 export type TimelineHandlers = {
   projectId?: string
+  sessionId?: string
   selectedCallId?: string | null
   onOpenCall?: (callId: string) => void
   onPreviewFile?: (file: FileView) => void
@@ -74,6 +75,8 @@ export function TimelineItemView({item, handlers = {}}: {item: TimelineItem; han
       )
     case 'attempt':
       return <AttemptNotice attempt={item.attempt} reason={item.reason} retried={item.retried} chars={item.chars}/>
+    case 'protection':
+      return <ProtectionNotice message={item.message} state={item.state}/>
     case 'final':
       return <FinalReply text={item.text} summary={item.summary} streaming={streaming}/>
     case 'run_end':
@@ -90,6 +93,7 @@ export function Timeline({items, handlers, className}: {items: TimelineItem[]; h
           <TimelineItemView item={item} handlers={handlers}/>
         </li>
       ))}
+      <SessionDeliveryCopies sessionId={handlers?.sessionId} items={items} onPreview={handlers?.onPreviewFile} onDownload={handlers?.onDownloadFile} onDownloadAll={handlers?.onDownloadAll}/>
     </ol></ProjectCopiesProvider>
   )
 }

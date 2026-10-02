@@ -210,6 +210,7 @@ export type TimelineItem =
       trigger: 'watermark' | 'overflow' | 'manual'
     })
   | (ItemBase & {kind: 'attempt'; turnIndex: number; attempt: number; reason: string; retried: boolean; chars?: number | null})
+  | (ItemBase & {kind: 'protection'; state: 'skipped' | 'failed'; message: string})
   | (ItemBase & {kind: 'final'; text: string; summary: RunSummary | null})
   | (ItemBase & {kind: 'run_end'; status: Exclude<RunStatus, 'running' | 'waiting' | 'completed'>; reason: RunReason | null; reasonText: string; retryText: string | null})
 

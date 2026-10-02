@@ -7,7 +7,7 @@ import {toast} from 'sonner'
 import {Download, Eye, Package} from 'lucide-react'
 import {Button} from '@/components/ui/button'
 import {cn} from '@/lib/utils'
-import type {FileView} from '@/lib/session-view'
+import type {FileView, TimelineItem} from '@/lib/session-view'
 import {fileIcon, previewUnavailableReason} from './file-icon'
 import {formatBytes} from './format'
 
@@ -107,4 +107,40 @@ export function DeliveryCard({projectId, files, note, onPreview, onDownload, onD
       </ul>
     </section>
   )
+}
+
+/** 服务已记下的交付副本。工具消息没发出时，失败副本仍要能下载并按原 key 补存。 */
+export function SessionDeliveryCopies({sessionId, items, onPreview, onDownload, onDownloadAll}: {
+  sessionId?: string
+  items: TimelineItem[]
+  onPreview?: (file: FileView) => void
+  onDownload?: (file: FileView) => void
+  onDownloadAll?: (files: FileView[]) => void
+}) {
+  const state = useProjectCopies()
+  if (!state?.projectId || !sessionId || !state.loaded) return null
+  const shown = new Set(items.flatMap(item => item.kind === 'delivery' ? item.files.flatMap(file => file.projectPersistence?.copy_key ? [file.projectPersistence.copy_key] : []) : []))
+  const copies = state.copies.filter(copy => copy.kind === 'delivery' && copy.session_id === sessionId && copy.attachment_id && !shown.has(copy.copy_key))
+  if (!copies.length) return null
+  const files: FileView[] = copies.map(copy => {
+    const filename = (copy.source_path || copy.path || '交付文件').split('/').pop() || '交付文件'
+    const dot = filename.lastIndexOf('.')
+    return {
+      id: copy.attachment_id!,
+      filename,
+      size: copy.size ?? null,
+      extension: dot > 0 ? filename.slice(dot) : '',
+      contentType: '',
+      source: 'delivery',
+      path: copy.source_path ?? null,
+      projectPersistence: {
+        state: copy.state,
+        copy_key: copy.copy_key,
+        path: copy.path,
+        error: copy.error,
+        can_retry: copy.state !== 'ready',
+      },
+    }
+  })
+  return <li><DeliveryCard projectId={state.projectId} files={files} note="交付可下载。项目副本按原关联补存，不重新执行交付。" onPreview={onPreview} onDownload={onDownload} onDownloadAll={onDownloadAll}/></li>
 }
