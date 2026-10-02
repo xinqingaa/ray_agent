@@ -17,6 +17,7 @@ function load(file) {
   if(name==='react')return React;
   if(name==='react/jsx-runtime')return require('react/jsx-runtime');
   if(name==='lucide-react')return new Proxy({}, {get:()=>()=>null});
+  if(name==='sonner')return {toast:{error(){}}};
   if(name==='@/lib/api/project')return {projectApi:api};
   if(name==='@/lib/utils')return {cn:(...x)=>x.filter(Boolean).join(' ')};
   if(name.startsWith('@/components/ui/'))return elements;

@@ -1,6 +1,6 @@
 # W4：前端数据层
 
-所属：[二次开发总计划](README.md)。前置：W3（新接口与轮次事件）；W1、W2 的事件语义。上下文环的占用口径以 [W9 文末 U3](w9-input-commands.md#审计返工2026-09-30) 为准。下面 usage 段里「估算优先、压缩后用 after_estimate」的写法是返工前的投影，不作为当前契约。
+所属：[二次开发总计划](README.md)。前置：W3（新接口与轮次事件）；W1、W2 的事件语义。上下文环的占用口径以 [W9 U3](w9-input-commands.md#审计返工2026-09-30) 为准。下面 usage 段里「估算优先、压缩后用 after_estimate」的写法是返工前的投影，不作为当前契约。
 
 ## 目标与不做
 
@@ -156,3 +156,7 @@
 ## W6 前端之后（2026-09-29）
 
 `projectSession` 另接收 `deltas` 与 `streamStartedAt`。增量不写入 `events`。仍在增长的文本是时间线末尾的一条 `narration`，id 为 `stream:{runId}:{turn}:{attempt}`。`SessionView.streamingItemId` 指向它，`streaming` 带文本和第一个片段的时间；手写夹具可以省略这两项。同一 `(run_id, turn, attempt)` 的助手正文到达、该 attempt 已有失败记录、该轮 `turn(completed)`、同一运行里更大的 attempt 或另一轮、运行进入终态时，不保留临时条目。`TokenCounts.reasoning` 与尝试条目的 `chars` 为可选。速度不写入视图模型，由 `resolveOutputRate` 计算。
+
+## W9–W11 的现行投影补充（2026-10-02）
+
+SessionView 保留实时 ProjectView，输入恢复不改变已有会话归属。FileView 的 projectPersistence 表达项目文件引用、副本成功或失败；时间线 protection 条目只显示运行前保护跳过/失败，环境准备与收尾来自持久化事件。上下文环共用实测优先的数据源；project_context 纳入固定输入容量，固定输入超限不循环压缩。新增状态由现有观察脚本覆盖，验收证据只登记总计划。

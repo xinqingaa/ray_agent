@@ -96,6 +96,16 @@
 | 沙箱侧文件与 Shell 服务 | [`services/file.py`](../ray_agent/sandbox/app/services/file.py)、[`services/shell.py`](../ray_agent/sandbox/app/services/shell.py)（沙箱）。服务进程以 ubuntu 运行，配置在 [`supervisord.conf`](../ray_agent/sandbox/supervisord.conf) | [`tests/test_shell_service.py`](../ray_agent/sandbox/tests/test_shell_service.py)（沙箱） | 11 |
 | 沙箱侧存活时间与销毁 | [`services/supervisor.py`](../ray_agent/sandbox/app/services/supervisor.py)（沙箱） | — | 11 |
 
+## 托管项目与记忆
+
+| 机制 | 主要入口 | 回归测试 |
+|---|---|---|
+| 文件操作与旧写入者 | [project_operations.py](../ray_agent/api/app/domain/services/project_operations.py)、[project_file_coordinator.py](../ray_agent/api/app/domain/services/project_file_coordinator.py) | [test_project_operations_pg.py](../ray_agent/api/tests/core/test_project_operations_pg.py) |
+| 上传、快照、恢复与下载 | [project_file_service.py](../ray_agent/api/app/application/services/project_file_service.py)、[snapshot_disk.py](../ray_agent/api/app/infrastructure/external/project/snapshot_disk.py)、[file_io.py](../ray_agent/api/app/infrastructure/external/project/file_io.py) | [test_project_uploads.py](../ray_agent/api/tests/core/test_project_uploads.py)、[test_project_snapshots_pg.py](../ray_agent/api/tests/core/test_project_snapshots_pg.py)、[test_project_download.py](../ray_agent/api/tests/core/test_project_download.py) |
+| 项目背景与笔记摘要 | [project_memory_service.py](../ray_agent/api/app/application/services/project_memory_service.py) | [test_project_memory_pg.py](../ray_agent/api/tests/core/test_project_memory_pg.py) |
+| 附件与交付项目副本 | [project_delivery_service.py](../ray_agent/api/app/application/services/project_delivery_service.py) | [test_project_attachments_pg.py](../ray_agent/api/tests/core/test_project_attachments_pg.py)、[test_project_delivery_pg.py](../ray_agent/api/tests/core/test_project_delivery_pg.py) |
+| 导航与工作台 | [left-panel.tsx](../ray_agent/ui/src/components/left-panel.tsx)、[project-workspace.tsx](../ray_agent/ui/src/components/project-workspace.tsx)、[managed-project-pane.tsx](../ray_agent/ui/src/components/workbench/managed-project-pane.tsx) | [check-project-navigation-recovery.cjs](../ray_agent/ui/scripts/check-project-navigation-recovery.cjs)、[check-workbench-recovery.cjs](../ray_agent/ui/scripts/check-workbench-recovery.cjs) |
+
 ## 外部协议
 
 | 机制 | 主要入口 | 回归测试 | 课程 |
@@ -147,6 +157,4 @@
 
 ---
 
-`863e2a2` 起新增项目实体（迁移 `f9c2a7b4d110`、项目事务与互斥、前端 `projects-provider`、`send-recovery`、`drafts`），尚未逐项核对进上表，映射待 W11 验收时补齐。上述映射于 2026-09-29 按当前源码核对，覆盖 W0–W10 已合入部分：单循环与工具管线、上下文治理与手动压缩、Plan 模式、运行与事件、前端投影与界面、流式增量、沙箱身份与配额、工具策略与审批、托管项目基础（Git 只读查看与宿主机目录接入已移除，文件快照与项目记忆尚在实施）。路径变动时更新本文件，不在其他文档正文里重复代码位置。机制为什么这样设计见 [Harness 工程](harness.md)，完整推导见对应的[课程章节](../lessons/README.md)。课程正文仍对应 tag `baseline-v1`；逐章同步见[课程计划草稿](plan/course-sync.md)。
-
-W9、W10 仍在总计划中记为进行中；各机制的当前位置在上文分组里。工作包的设计、验收与证据见[二次开发总计划](plan/README.md)。服务指南、对应测试和脚本的运行条件见各服务 README。
+本表于 2026-10-02 按 W9–W11 源码补齐托管项目、文件保护与记忆映射。工作包范围和验收证据见[总计划](plan/README.md)，运行命令见服务指南。课程正文仍对应 `baseline-v1`，另行同步。

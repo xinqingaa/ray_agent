@@ -240,9 +240,9 @@ uv run --locked python -m pytest tests/protocols tests/core
 
 HTTP MCP 与 A2A 对端必须先运行；stdio MCP 由 API 按配置启动子进程，命令与依赖必须在 API 所在环境可用。双方协议需一致：MCP `2026-07-28`（`stdio` 或 `streamable_http`），A2A 1.0 JSON-RPC。产品只做发现、调用和结果展示；不提供 OAuth、MCP resources、A2A 多轮人工续接。
 
-日常在**首页右上角齿轮**（标题「RayAgent 设置」）添加，不要改仓库 yaml：
+日常在**侧栏底部「设置」**（标题「RayAgent 设置」）添加，不要改仓库 yaml：
 
-1. 打开 http://localhost:8088/ 。会话详情页没有设置按钮。
+1. 打开 http://localhost:8088/ ，从侧栏底部进入设置；收起侧栏时仍可通过设置入口进入。
 2. 「MCP 服务器」或「A2A Agent 配置」→ 添加。
 3. 开关打开后才会探测。对端没起来会显示「不可用」，配置仍会留下。
 4. Docker Desktop 中的 API 访问宿主机用 `host.docker.internal`，不要填容器自己的 `127.0.0.1`。API 跑在宿主机时用 `127.0.0.1`。
@@ -263,6 +263,6 @@ HTTP MCP 与 A2A 对端必须先运行；stdio MCP 由 API 按配置启动子进
 ./scripts/run-protocol-fixtures.sh stop
 ```
 
-`start` 会打印设置里应粘贴的地址。添加后两项应为「已连接」，MCP 能看到 `add`。新建任务验证调用，不要发在旧会话里。做完：设置里删除临时项，再 `stop`。不要把 `9911`/`9912` 写进仓库 yaml。
+`start` 会打印设置里应粘贴的地址。添加后两项应为「已连接」，MCP 能看到 `add`。新建独立对话验证调用，不要发在旧对话里。做完：设置里删除临时项，再 `stop`。不要把 `9911`/`9912` 写进仓库 yaml。
 
 每个服务可设 `connect_timeout`、`discovery_timeout`、`call_timeout`（秒），A2A 另有 `cancel_timeout`；配置根节点有 `discovery_budget`。静态认证用 `headers`，stdio 环境用 `env`。
