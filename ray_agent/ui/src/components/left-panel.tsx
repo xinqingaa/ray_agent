@@ -16,7 +16,7 @@ import {useProjects} from '@/providers/projects-provider'
 import {useSessions} from '@/hooks/use-sessions'
 import {projectApi} from '@/lib/api/project'
 import {sessionApi} from '@/lib/api/session'
-import type {Session} from '@/lib/api/types'
+import type {ProjectView, Session} from '@/lib/api/types'
 
 const DEFAULT_EXPANSION: NavigationExpansion = {projects: true, conversations: true, items: {}}
 export function LeftPanel() {
@@ -29,6 +29,7 @@ export function LeftPanel() {
   const [restored, setRestored] = useState(false)
   const [rows, setRows] = useState<NavigationProject[]>([])
   const [selectedRecord, setSelected] = useState<Session | null>(null)
+  const [locatedProject, setLocatedProject] = useState<ProjectView | null>(null)
   const [settings, setSettings] = useState<string | null>(null)
   const [pendingDelete, setPendingDelete] = useState<Session | null>(null)
   const [pendingRename, setPendingRename] = useState<Session | null>(null)
@@ -62,22 +63,32 @@ export function LeftPanel() {
     return () => {active = false}
   }, [sessionId, restored])
   useEffect(() => {
+    if (!projectId || workspace.projects.some(project => project.id === projectId) || selected?.project?.id === projectId) return
+    let active = true
+    projectApi.detail(projectId).then(project => {if (active) setLocatedProject(project)})
+      .catch(() => {if (active) setLocatedProject(null)})
+    return () => {active = false}
+  }, [projectId, workspace.projects, selected?.project?.id])
+  useEffect(() => {
     let active = true
     const load = async () => {
-      const next = await Promise.all(workspace.projects.map(async project => {
+      const projects = [...workspace.projects]
+      const current = selected?.project ?? (locatedProject?.id === projectId ? locatedProject : null)
+      if (current && !projects.some(project => project.id === current.id)) projects.unshift(current)
+      const next = await Promise.all(projects.map(async project => {
         if (!expansion.projects || !expansion.items[project.id]) return {...project, conversations: []}
         try {
           const page = await projectApi.sessions(project.id, 0, 5)
           const list = page.sessions
           if (selected?.project?.id === project.id && !list.some(s => s.session_id === selected.session_id)) list.push(selected)
           return {...project, conversations: list}
-        } catch (err) {return {...project, conversations: [], navigationError: err instanceof Error ? err.message : '读取对话失败'}}
+        } catch (err) {return {...project, conversations: selected?.project?.id === project.id ? [selected] : [], navigationError: err instanceof Error ? err.message : '读取对话失败'}}
       }))
       if (active) setRows(next)
     }
     void load()
     return () => {active = false}
-  }, [workspace.projects, expansion, selected, sessions])
+  }, [workspace.projects, expansion, selected, sessions, locatedProject, projectId])
   const independent = () => {setOpenMobile(false); router.push('/')}
   const remove = async () => {
     if (!pendingDelete) return

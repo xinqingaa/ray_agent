@@ -12,6 +12,7 @@ export type NavigationProject = {
   id: string
   name: string
   available: boolean
+  archived?: boolean
   reason?: string | null
   active_run_status?: string | null
   active_run_reason?: string | null
@@ -73,12 +74,13 @@ export function ProjectNavigation(props: Props) {
               </button>
               <Link href={`/projects/${project.id}`} aria-current={props.selectedProject === project.id ? 'page' : undefined} title={project.available ? project.name : `${project.name}：${project.reason ?? '目录不可用'}`} onClick={event => {if (preview) event.preventDefault(); props.onNavigate?.(`/projects/${project.id}`)}} className={cn('flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-1.5 py-1.5 text-sm outline-none hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-ring', props.selectedProject === project.id && 'bg-sidebar-accent')}>
                 <Folder className="size-3.5 shrink-0 text-muted-foreground"/><span className="truncate">{project.name}</span>
+                {project.archived && <span className="shrink-0 text-[10px] text-faint">已归档</span>}
                 {project.active_run_status && <span className="shrink-0 text-[10px] text-state-waiting">{project.active_run_status === 'waiting' ? project.active_run_reason === 'approval' ? '等待审批' : '等待回复' : '运行中'}</span>}
                 {!project.active_run_status && project.file_operation && <span className="shrink-0 text-[10px] text-state-waiting">{project.file_operation.state === 'failed' ? '等待修复' : '文件处理中'}</span>}
                 {!project.available && <span className="shrink-0 text-[10px] text-faint">不可用</span>}
               </Link>
               <DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="icon-xs" aria-label={`${project.name} 的操作`} className="opacity-0 group-hover/project:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100 max-md:opacity-100"><MoreHorizontal/></Button></DropdownMenuTrigger>
-                <DropdownMenuContent align="end"><DropdownMenuItem asChild><Link href={`/projects/${project.id}`} onClick={event => {if (preview) event.preventDefault(); props.onNavigate?.(`/projects/${project.id}`)}}>在此项目新对话</Link></DropdownMenuItem><DropdownMenuItem onSelect={() => props.onProjectSettings(project.id)}>项目设置</DropdownMenuItem><DropdownMenuItem onSelect={() => props.onArchive(project.id)}>归档项目</DropdownMenuItem></DropdownMenuContent>
+                <DropdownMenuContent align="end"><DropdownMenuItem asChild><Link href={`/projects/${project.id}`} onClick={event => {if (preview) event.preventDefault(); props.onNavigate?.(`/projects/${project.id}`)}}>{project.archived ? '打开项目' : '在此项目新对话'}</Link></DropdownMenuItem><DropdownMenuItem onSelect={() => props.onProjectSettings(project.id)}>项目设置</DropdownMenuItem>{!project.archived && <DropdownMenuItem onSelect={() => props.onArchive(project.id)}>归档项目</DropdownMenuItem>}</DropdownMenuContent>
               </DropdownMenu>
             </div>
             {expansion.items[project.id] && <div className="ml-5 border-l pl-1">

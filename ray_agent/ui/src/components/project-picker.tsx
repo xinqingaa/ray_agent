@@ -1,6 +1,6 @@
 'use client'
 
-import {useCallback, useEffect, useState} from 'react'
+import {useCallback, useEffect, useRef, useState} from 'react'
 import {Folder, Loader2} from 'lucide-react'
 import {Button} from '@/components/ui/button'
 import {Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle} from '@/components/ui/dialog'
@@ -29,23 +29,32 @@ export function ProjectPicker({onSelect, open: controlled, onOpenChange, disable
   const [creating, setCreating] = useState(false)
   const [uploadFolder,setUploadFolder]=useState(false)
   const [name, setName] = useState('')
+  const request = useRef(0)
   const load = useCallback(async (append = false) => {
+    const current = ++request.current
     setLoading(true); setError(null)
     try {
       const result = await projectApi.list(archived, append ? items.length : 0)
+      if (current !== request.current) return
       setItems(old => append ? [...old, ...result.projects] : result.projects); setTotal(result.total)
-    } catch (err) {setError(err instanceof Error ? err.message : '读取项目失败')}
-    finally {setLoading(false)}
+    } catch (err) {if (current === request.current) setError(err instanceof Error ? err.message : '读取项目失败')}
+    finally {if (current === request.current) setLoading(false)}
   }, [archived, items.length])
   useEffect(() => {
     if (!open) return
-    let active = true
+    const current = ++request.current
+    const counter = request
     setLoading(true); setError(null); setCreating(false)
-    projectApi.list(archived).then(result => {if (active) {setItems(result.projects); setTotal(result.total)}})
-      .catch(err => {if (active) setError(err instanceof Error ? err.message : '读取项目失败')})
-      .finally(() => {if (active) setLoading(false)})
-    return () => {active = false}
+    projectApi.list(archived).then(result => {if (current === counter.current) {setItems(result.projects); setTotal(result.total)}})
+      .catch(err => {if (current === counter.current) setError(err instanceof Error ? err.message : '读取项目失败')})
+      .finally(() => {if (current === counter.current) setLoading(false)})
+    return () => {counter.current++}
   }, [open, archived])
+  const switchSection = (value: boolean) => {
+    if (value === archived) return
+    request.current++
+    setItems([]); setTotal(0); setError(null); setLoading(true); setArchived(value)
+  }
   const pick = (item: ProjectView) => {onSelect(item); setOpen(false)}
   const create = async () => {
     if (!name.trim() || saving) return
@@ -64,7 +73,7 @@ export function ProjectPicker({onSelect, open: controlled, onOpenChange, disable
     {!hideTrigger && <Button type="button" variant="outline" size="sm" disabled={disabled} className={className} onClick={() => setOpen(true)}><Folder className="size-3.5"/>打开项目</Button>}
     <Dialog open={open} onOpenChange={setOpen}><DialogContent className="max-h-[85vh] overflow-hidden sm:max-w-[480px]">
       <DialogHeader><DialogTitle>打开项目</DialogTitle><DialogDescription>项目保留材料、产出和对话历史。上传的是本地文件的副本。</DialogDescription></DialogHeader>
-      <div className="flex gap-2"><Button size="sm" variant={!archived ? 'secondary' : 'ghost'} onClick={() => setArchived(false)}>项目</Button><Button size="sm" variant={archived ? 'secondary' : 'ghost'} onClick={() => setArchived(true)}>已归档</Button></div>
+      <div className="flex gap-2"><Button size="sm" variant={!archived ? 'secondary' : 'ghost'} onClick={() => switchSection(false)}>项目</Button><Button size="sm" variant={archived ? 'secondary' : 'ghost'} onClick={() => switchSection(true)}>已归档</Button></div>
       <div className="max-h-[40vh] overflow-y-auto">
         {items.map(item => <div key={item.id} className="flex items-center gap-2 border-b py-1">
           <button type="button" className="min-w-0 flex-1 rounded-sm px-2 py-2 text-left hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring" onClick={() => pick(item)}><span className="block truncate text-sm">{item.name}</span>{!item.available && <span className="block text-xs text-state-failed">{item.reason ?? '项目存储不可用'}</span>}</button>

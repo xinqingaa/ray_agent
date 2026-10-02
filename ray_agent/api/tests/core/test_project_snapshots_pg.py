@@ -72,6 +72,44 @@ def test_ready_registration_retention_one_restore_and_archived_cleanup(tmp_path)
     with_db(scenario)
 
 
+def test_archived_cleanup_retry_after_manifest_list_is_empty(tmp_path):
+    async def scenario(factory, engine):
+        service = projects(factory, tmp_path)
+        project = await service.create('回收重试项目')
+        session = await service.create_session(project.id)
+        failed_once = False
+
+        def fault(phase, path):
+            nonlocal failed_once
+            if phase == 'collect' and not failed_once:
+                failed_once = True
+                raise OSError('观察注入：回收中断')
+
+        def disk(storage, project_id, **kwargs):
+            return SnapshotDisk(storage, project_id, fault_hook=fault, **kwargs)
+
+        fs = files(factory, service, disk_factory=disk)
+        store = fs.disk(project.id)
+        store.files.publish('source', io.BytesIO(b'original'))
+        await snapshot_run(factory, service, fs, project, session)
+        bytes_before = sum(entry.size for entry in store.private.walk() if entry.type == 'file')
+        await service.archive(project.id, True)
+        partial = await fs.cleanup(project.id)
+        assert partial['gc_pending'] is True
+        assert not await fs.snapshots(project.id)
+        assert (await service.get(project.id)).file_operation is None
+        assert list(store.private.walk())
+        completed = await fs.cleanup(project.id)
+        assert completed['gc_pending'] is False
+        assert not await fs.snapshots(project.id)
+        assert not [entry for entry in store.private.walk() if entry.type == 'file']
+        assert partial['released_bytes'] + completed['released_bytes'] == bytes_before
+        with store.files.open_regular('source') as source:
+            assert source.read() == b'original'
+        assert (await service.sessions(project.id))[1] == 1
+    with_db(scenario)
+
+
 @pytest.mark.parametrize('return_before', [False, True])
 def test_failed_apply_blocks_and_both_repairs_use_original_fixed_manifests(tmp_path, return_before):
     async def scenario(factory, engine):
