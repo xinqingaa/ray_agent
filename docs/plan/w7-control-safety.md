@@ -92,8 +92,8 @@
 - **完成范围：** 阶段 A（后端与评测脚本，提交 `72a5c23`）与阶段 B（前端接入、容器重建、评测、真实浏览器走查、docs 同步）。下面“阶段 A 交给阶段 B”的事件与接口约定仍是当前契约，前端按它实现。
 - **前端契约：** 投影从 `approval` 事件构造审批条目，结论原地更新；批准后同一调用的 `tool` 事件写回该条目，不另起工具组；`expired` 时调用状态为 `skipped`（未执行）；审批挂起时的 `wait` 不生成提问条目。`denied_by` 让调用状态为 `denied`，文案分用户拒绝与策略禁止。等待审批时输入框禁用，侧栏徽标为「等你处理」（会话列表接口不带等待原因，提问与审批共用）。设置页工具策略分区整表保存，内置工具集选“直接执行”即删除该键，服务器行可选“跟随”。
 - **终端实时输出：** W5 起 `ViewShellParams` 的字段一直写成 `shell_session_id`，接口要求 `session_id`，实时读取每次都返回 422，只有调用结束后的结果能显示；已改正，并在 `online` 时立即重读、失败时保留上次输出。W6 走查记录的「恢复后仍显示网络连接失败」根因在此。
-- **评测：** [w7-2026-09-29-b2d83c5](evidence/w7-2026-09-29-b2d83c5.md)，E1–E6 与 E6-deny 各 1 次，对照 W2。E1–E5 通过，指标与 W2 同量级；E6 通过但耗时 174.3 秒（W2 为 10.3 秒），E6-deny 在该报告里“运行出错（ReadTimeout）”。两者发生时 Docker 虚拟机里积压了 21 个动态沙箱（约 7 GB，虚拟机共约 8 GB），API 日志里创建会话用了 72 秒；清掉 15 个 15 分钟以上的空闲沙箱后，E6-deny 单任务复跑 14.9 秒通过（报告写在 `/tmp`，未入库）。W8 综合验收需要在沙箱不积压的环境下重跑 E6 以取得可比耗时。
-- **走查：** Playwright 无头脚本（`/tmp/w5-pw/w7.mjs`，未入库）驱动 `http://localhost:8088`，MCP 夹具按 E6 的方式配置，结束后恢复。批准、拒绝、刷新恢复、等待审批时停止、等待审批时重启 API、设置页读写工具策略、断网恢复后终端错误清除均通过，截图 `evidence/w7-2-2026-09-29-*.png` 共 8 张。
+- **评测：** Git 提交 `2e68aa3` 中的 `w7-2026-09-29-b2d83c5`，E1–E6 与 E6-deny 各 1 次，对照 W2。E1–E5 通过，指标与 W2 同量级；E6 通过但耗时 174.3 秒（W2 为 10.3 秒），E6-deny 在该报告里“运行出错（ReadTimeout）”。两者发生时 Docker 虚拟机里积压了 21 个动态沙箱（约 7 GB，虚拟机共约 8 GB），API 日志里创建会话用了 72 秒；清掉 15 个 15 分钟以上的空闲沙箱后，E6-deny 单任务复跑 14.9 秒通过（报告写在 `/tmp`，未入库）。W8 综合验收需要在沙箱不积压的环境下重跑 E6 以取得可比耗时。
+- **走查：** Playwright 无头脚本（`/tmp/w5-pw/w7.mjs`，未入库）驱动 `http://localhost:8088`，MCP 夹具按 E6 的方式配置，结束后恢复。批准、拒绝、刷新恢复、等待审批时停止、等待审批时重启 API、设置页读写工具策略、断网恢复后终端错误清除均通过。当次 8 张截图在 Git 提交 `2e68aa3`，当前证据目录不再保留。
 - **未覆盖：** A2A 调用的审批只有本地测试；策略禁止与内置工具 ask 没有浏览器走查；设置页的添加与删除其他规则、恢复默认、保存失败提示没有浏览器操作；等待审批时同时打开两个页面的并发答复只有接口层 409 的测试；E6 的可比耗时见上。W8 的跨包检查“等待审批时重启 API”本次已走查一遍，可在最终代码上复查。
 
 阶段 A 交给阶段 B 的事件与接口约定（2026-09-29，代码基线 `33964e0` 加当时未提交改动）：
@@ -123,7 +123,7 @@
 - **执行身份：** Supervisor 管理的服务（FastAPI、Chromium、Xvfb、x11vnc、socat、websockify）以 `ubuntu` 运行，`HOME` 与工作目录 `/home/ubuntu`。supervisord 主进程仍是 root。`Xvfb -ac`。上传目录与 `/home/ubuntu/.rayagent/outputs` 第一次写入时创建，路径未改。W2 交接里“当前以 root 运行”已被本包取代。
 - **限额与 TTL：** 动态创建时 `mem_limit` 与 `memswap_limit` 同为 `SANDBOX_MEMORY_MB`（默认 2048）MiB，`nano_cpus` 为 `SANDBOX_CPUS`（默认 2）×10⁹，`pids_limit` 为 `SANDBOX_PIDS_LIMIT`（默认 512）。`SANDBOX_ADDRESS` 已设置时不创建容器，不套用限额。`SANDBOX_TTL_MINUTES`（默认 60）注入为沙箱读取的 `SERVER_TIMEOUT_MINUTES`，不再注入 `SERVICE_TIMEOUT_MINUTES`。多数 `/api` 请求会把剩余销毁时间延长 3 分钟，所以检查到的剩余时间可以大于 60 分钟。
 - **检查脚本：** 在 API 容器内执行 `python scripts/check_sandbox_environment.py`（宿主机 `uv run` 读的是 `api/.env`，不一定与 Compose 一致）。2026-09-28 通过：用户 ubuntu、uid 1000、HOME 与工作目录 `/home/ubuntu`、Python 3.10.12、Node v24.21.0；上述服务进程用户均为 ubuntu；上传目录与输出目录属主 ubuntu；内存与 swap 2147483648、NanoCpus 2000000000、PidsLimit 512；`SERVER_TIMEOUT_MINUTES=60` 且没有 `SERVICE_TIMEOUT_MINUTES`；超时计时活动，剩余约 5400 秒。
-- **评测：** [w7-1-3-2026-09-28-4b413ef](evidence/w7-1-3-2026-09-28-4b413ef.md)，只跑 E2、E4 各 1 次，对照 W2。E2 通过（`total` 60，source.csv 未改）。E4 通过：停止后标记停在 8 行，10 秒内不增长；`cleanup` 为 `shell e4 success=True`。停止后 `docker exec` 进 `rayagent-sandbox-fbda657d`：进程列表里没有该循环，标记文件 8 行、属主 ubuntu，再等 5 秒仍是 8 行；该容器 HostConfig 与默认限额一致。E1–E5 全量与 E6 留到 W7.2 完成时。
+- **评测：** Git 提交 `2e68aa3` 中的 `w7-1-3-2026-09-28-4b413ef`，只跑 E2、E4 各 1 次，对照 W2。E2 通过（`total` 60，source.csv 未改）。E4 通过：停止后标记停在 8 行，10 秒内不增长；`cleanup` 为 `shell e4 success=True`。停止后 `docker exec` 进 `rayagent-sandbox-fbda657d`：进程列表里没有该循环，标记文件 8 行、属主 ubuntu，再等 5 秒仍是 8 行；该容器 HostConfig 与默认限额一致。E1–E5 全量与 E6 留到 W7.2 完成时。
 - **未覆盖：** 审批；TTL 真正到期；API 崩溃后沙箱进程回收；网络出站过滤；工作目录不是访问围栏；地址模式不限额；supervisord 仍是 root。沙箱单测不在容器里跑，不证明执行身份。
 
 ## 实施修正（W7.1、W7.3）

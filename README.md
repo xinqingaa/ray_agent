@@ -2,7 +2,7 @@
 
 RayAgent 是一个围绕 **Agent Harness 工程**构建的实践项目：一套可运行的任务执行系统，加上一整套把它拆开讲清楚的工程文档与课程。
 
-阶段 4 二次开发已完成（tag `v2`）：单循环与 `update_plan`、工具三段管线与 allow / ask / deny、容量检查与压缩、结果整形、runs / events 与按 seq 的 SSE、文本增量、停止时终止进程组、启动扫描对提问等待和审批等待的区分、沙箱以 ubuntu 运行并带配额。范围与证据见[二次开发总计划](docs/plan/README.md)，旧方案的演进依据见[背景说明](docs/background/README.md)，与旧基线的对照见[对比报告](docs/plan/evidence/w8-comparison-2026-09-29.md)。课程正文仍对应 tag `baseline-v1`，按[课程计划草稿](docs/plan/course-sync.md)另行升级。
+阶段 4 二次开发已完成（tag `v2`）：单循环与 `update_plan`、工具三段管线与 allow / ask / deny、容量检查与压缩、结果整形、runs / events 与按 seq 的 SSE、文本增量、停止时终止进程组、启动扫描对提问等待和审批等待的区分、沙箱以 ubuntu 运行并带配额。范围与证据见[二次开发总计划](docs/plan/README.md)，旧方案的演进依据见[背景说明](docs/background/README.md)，与旧基线的对照见[对比报告](docs/plan/evidence/w8-comparison-2026-09-29.md)。课程正文仍对应 tag `baseline-v1`，按[课程计划草稿](docs/course-sync.md)另行升级。
 
 ![RayAgent 产品全景：上下文与记忆、控制与观察、工具与环境、外部协作围绕单循环 Agent](docs/assets/product-overview.svg)
 
