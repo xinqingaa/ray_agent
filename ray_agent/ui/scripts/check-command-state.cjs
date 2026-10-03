@@ -44,7 +44,7 @@ const context = {
   projectsEnabled: false, projectBindable: false,
   actions: {compact: () => calls.push('compact'), openFilePicker: () => calls.push('upload'), togglePlan: () => calls.push('plan'), openProjectPicker: () => calls.push('project')},
 };
-assert.deepEqual(matchingCommands('', context, 'plus').map(x => x.id), ['upload','plan','compact','project']);
+assert.deepEqual(matchingCommands('', context, 'plus').map(x => x.id), ['plan','compact']);
 assert.equal(matchingCommands('project', context)[0].title, '打开项目');
 assert.equal(commandById('plan').title, '计划模式');
 for (const busy of ['submitting','uploading','compacting']) {

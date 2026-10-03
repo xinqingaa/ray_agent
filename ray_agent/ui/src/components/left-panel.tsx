@@ -8,7 +8,7 @@ import {Sidebar, SidebarContent, SidebarFooter, SidebarHeader, useSidebar} from 
 import {Button} from '@/components/ui/button'
 import {Folder, Plus, Settings} from 'lucide-react'
 import {SidebarChrome} from '@/components/sidebar-chrome'
-import {ProjectNavigation, type NavigationExpansion, type NavigationProject} from '@/components/project-navigation'
+import {NavigationCreateButton, ProjectNavigation, type NavigationExpansion, type NavigationProject} from '@/components/project-navigation'
 import {ProjectSettingsDialog} from '@/components/project-settings-dialog'
 import {DeleteSessionDialog} from '@/components/delete-session-dialog'
 import {RenameSessionDialog} from '@/components/rename-session-dialog'
@@ -22,7 +22,7 @@ const DEFAULT_EXPANSION: NavigationExpansion = {projects: true, conversations: t
 export function LeftPanel() {
   const router = useRouter()
   const pathname = usePathname()
-  const {setOpenMobile} = useSidebar()
+  const {setOpenMobile, setOpen} = useSidebar()
   const workspace = useProjects()!
   const {sessions, refresh, deleteSession, patchSession} = useSessions()
   const [expansion, setExpansion] = useState(DEFAULT_EXPANSION)
@@ -36,6 +36,15 @@ export function LeftPanel() {
   const sessionId = pathname.startsWith('/sessions/') ? pathname.split('/')[2] : null
   const selected = selectedRecord?.session_id === sessionId ? selectedRecord : null
   const projectId = pathname.startsWith('/projects/') ? pathname.split('/')[2] : selected?.project?.id ?? null
+  const previousRoute = useRef<string | null>(null)
+  useEffect(() => {
+    if (sessionId && !selected) return
+    if (previousRoute.current === pathname) return
+    previousRoute.current = pathname
+    workspace.setNavigationTab?.(projectId ? 'projects' : 'conversations')
+  }, [pathname, sessionId, selected, projectId, workspace])
+  const navigationRequest = workspace.navigationRequest
+  useEffect(() => {if (navigationRequest) setOpen?.(true)}, [navigationRequest, setOpen])
   const located = useRef<string | null>(null)
   useEffect(() => {
     const frame = requestAnimationFrame(() => {
@@ -105,17 +114,17 @@ export function LeftPanel() {
   if (selected && !selected.project && !conversations.some(item => item.session_id === selected.session_id)) conversations.push(selected)
   return <>
     <Sidebar collapsible="icon">
-      <SidebarHeader><SidebarChrome/></SidebarHeader>
+      <SidebarHeader><SidebarChrome action={<NavigationCreateButton tab={workspace.navigationTab} onIndependent={independent} onCreateProject={workspace.createProject} onImportProject={workspace.importProject}/>}/></SidebarHeader>
       <SidebarContent className="min-h-0 overflow-hidden p-2">
         <div className="hidden flex-1 flex-col items-center gap-2 group-data-[collapsible=icon]:flex">
-          <Button variant="ghost" size="icon" aria-label="打开项目" title="打开项目" onClick={workspace.openProject}><Folder/></Button>
-          <Button variant="ghost" size="icon" aria-label="新独立对话" title="新独立对话" onClick={independent}><Plus/></Button>
+          <Button variant="ghost" size="icon" aria-label="新对话" title="新对话" onClick={independent}><Plus/></Button>
+          <Button variant="ghost" size="icon" aria-label="项目" title="项目" onClick={workspace.openProject}><Folder/></Button>
         </div>
         <div className="flex min-h-0 flex-1 flex-col group-data-[collapsible=icon]:hidden">
           <ProjectNavigation projects={rows} conversations={conversations} expansion={expansion} onExpansion={expand} selectedProject={projectId} selectedSession={sessionId}
-            loading={workspace.loading} error={workspace.error} onRetry={() => void workspace.refresh()} onOpenProject={workspace.openProject} onIndependent={independent}
+            tab={workspace.navigationTab} onTabChange={workspace.setNavigationTab} onOpenArchived={workspace.openArchived} onMoreProjects={workspace.projects.length < workspace.total ? () => void workspace.more() : undefined}
+            loading={workspace.loading} error={workspace.error} onRetry={() => void workspace.refresh()} onOpenProject={workspace.openProject}
             onProjectSettings={setSettings} onArchive={id => void archive(id)} onSessionDelete={setPendingDelete} onSessionRename={setPendingRename} onNavigate={() => setOpenMobile(false)}/>
-          {workspace.projects.length < workspace.total && <Button size="sm" variant="ghost" onClick={() => void workspace.more()}>更多项目</Button>}
         </div>
       </SidebarContent>
       <SidebarFooter><Button variant="ghost" asChild className="w-full justify-start gap-2.5 text-muted-foreground group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:self-center group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0"><Link href="/settings" onClick={() => setOpenMobile(false)} title="设置" aria-label="设置"><Settings className="size-4"/><span className="group-data-[collapsible=icon]:hidden">设置</span></Link></Button></SidebarFooter>

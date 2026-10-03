@@ -84,7 +84,7 @@ function uploadAvailable(context: CommandContext): CommandAvailability {
 
 const uploadCommand: InputCommand = {
   id: 'upload',
-  surfaces: ['plus', 'slash'],
+  surfaces: ['slash'],
   title: '上传附件',
   description: '选择文件，附在下一条消息上',
   keyword: 'upload',
@@ -150,7 +150,7 @@ function projectAvailable(): CommandAvailability {
 
 const projectCommand: InputCommand = {
   id: 'project',
-  surfaces: ['plus', 'slash'],
+  surfaces: ['slash'],
   title: '打开项目',
   description: '打开项目导航，保留当前草稿',
   keyword: 'project',

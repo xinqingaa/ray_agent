@@ -10,19 +10,19 @@ import {toast} from 'sonner'
 import {ProjectUploadDialog} from '@/components/project-upload-dialog'
 
 export type ProjectPickerProps = {
-  enabled?: boolean; selected?: ProjectView | null; onSelect: (project: ProjectView | null) => void
+  mode?: 'create' | 'archived'; enabled?: boolean; selected?: ProjectView | null; onSelect: (project: ProjectView | null) => void
   open?: boolean; onOpenChange?: (open: boolean) => void; disabled?: boolean; className?: string
   hideTrigger?: boolean; onChanged?: () => void
 }
 
 /** 打开托管项目；新建只创建项目，发送时才创建对话。 */
-export function ProjectPicker({onSelect, open: controlled, onOpenChange, disabled, className, hideTrigger, onChanged}: ProjectPickerProps) {
+export function ProjectPicker({mode, onSelect, open: controlled, onOpenChange, disabled, className, hideTrigger, onChanged}: ProjectPickerProps) {
   const [internal, setInternal] = useState(false)
   const open = controlled ?? internal
   const setOpen = onOpenChange ?? setInternal
   const [items, setItems] = useState<ProjectView[]>([])
   const [total, setTotal] = useState(0)
-  const [archived, setArchived] = useState(false)
+  const [archived, setArchived] = useState(mode === 'archived')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -44,12 +44,13 @@ export function ProjectPicker({onSelect, open: controlled, onOpenChange, disable
     if (!open) return
     const current = ++request.current
     const counter = request
-    setLoading(true); setError(null); setCreating(false)
+    setLoading(true); setError(null); setCreating(mode === 'create')
+    if (mode === 'create') {setLoading(false); setName(''); return () => {counter.current++}}
     projectApi.list(archived).then(result => {if (current === counter.current) {setItems(result.projects); setTotal(result.total)}})
       .catch(err => {if (current === counter.current) setError(err instanceof Error ? err.message : '读取项目失败')})
       .finally(() => {if (current === counter.current) setLoading(false)})
     return () => {counter.current++}
-  }, [open, archived])
+  }, [open, archived, mode])
   const switchSection = (value: boolean) => {
     if (value === archived) return
     request.current++
@@ -72,21 +73,21 @@ export function ProjectPicker({onSelect, open: controlled, onOpenChange, disable
   return <>
     {!hideTrigger && <Button type="button" variant="outline" size="sm" disabled={disabled} className={className} onClick={() => setOpen(true)}><Folder className="size-3.5"/>打开项目</Button>}
     <Dialog open={open} onOpenChange={setOpen}><DialogContent className="max-h-[85vh] overflow-hidden sm:max-w-[480px]">
-      <DialogHeader><DialogTitle>打开项目</DialogTitle><DialogDescription>项目保留材料、产出和对话历史。上传的是本地文件的副本。</DialogDescription></DialogHeader>
-      <div className="flex gap-2"><Button size="sm" variant={!archived ? 'secondary' : 'ghost'} onClick={() => switchSection(false)}>项目</Button><Button size="sm" variant={archived ? 'secondary' : 'ghost'} onClick={() => switchSection(true)}>已归档</Button></div>
-      <div className="max-h-[40vh] overflow-y-auto">
+      <DialogHeader><DialogTitle>{mode === 'create' ? '新建项目' : mode === 'archived' ? '已归档项目' : '项目'}</DialogTitle><DialogDescription>项目保留材料、产出和对话历史。上传的是本地文件的副本。</DialogDescription></DialogHeader>
+      {!mode && <div className="flex gap-2"><Button size="sm" variant={!archived ? 'secondary' : 'ghost'} onClick={() => switchSection(false)}>项目</Button><Button size="sm" variant={archived ? 'secondary' : 'ghost'} onClick={() => switchSection(true)}>已归档</Button></div>}
+      {mode !== 'create' && <div className="max-h-[40vh] overflow-y-auto">
         {items.map(item => <div key={item.id} className="flex items-center gap-2 border-b py-1">
           <button type="button" className="min-w-0 flex-1 rounded-sm px-2 py-2 text-left hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring" onClick={() => pick(item)}><span className="block truncate text-sm">{item.name}</span>{!item.available && <span className="block text-xs text-state-failed">{item.reason ?? '项目存储不可用'}</span>}</button>
           {archived && <Button size="sm" variant="ghost" disabled={saving} onClick={() => void restore(item)}>恢复</Button>}
         </div>)}
         {!loading && !error && items.length === 0 && <p className="py-6 text-center text-meta text-faint">{archived ? '没有已归档项目' : '还没有项目，可新建项目'}</p>}
         {items.length < total && <Button variant="ghost" size="sm" disabled={loading} onClick={() => void load(true)}>加载更多</Button>}
-      </div>
-      {creating ? <form className="flex gap-2 border-t pt-3" onSubmit={event => {event.preventDefault(); void create()}}>
-        <input aria-label="项目名称" required maxLength={160} className="min-w-0 flex-1 rounded-sm border bg-background px-2 text-sm" value={name} onChange={event => setName(event.target.value)}/>
+      </div>}
+      {mode !== 'archived' && (creating ? <form className="flex items-end gap-2 border-t pt-3" onSubmit={event => {event.preventDefault(); void create()}}>
+        <label className="min-w-0 flex-1 text-sm font-normal">项目名称<input aria-label="项目名称" placeholder="例如：季度研究" required maxLength={160} className="mt-2 w-full rounded-md border bg-background px-3 py-2 text-sm" value={name} onChange={event => setName(event.target.value)}/></label>
         <Button size="sm" disabled={saving || !name.trim()} type="submit">{saving ? '正在创建' : '创建并打开'}</Button>
-      </form> : <Button size="sm" variant="outline" onClick={() => {setCreating(true); setName(''); setError(null)}}>新建项目</Button>}
-      <Button size="sm" variant="outline" disabled={saving} onClick={()=>setUploadFolder(true)}>从文件夹创建</Button>
+      </form> : <Button size="sm" variant="outline" onClick={() => {setCreating(true); setName(''); setError(null)}}>新建项目</Button>)}
+      {!mode && <Button size="sm" variant="outline" disabled={saving} onClick={()=>setUploadFolder(true)}>从文件夹创建</Button>}
       {loading && <p className="flex items-center gap-2 text-meta text-faint"><Loader2 className="size-4 animate-spin"/>正在读取</p>}
       {error && <p role="alert" className="text-meta text-state-failed">{error}<Button variant="ghost" size="sm" onClick={() => void load()}>重试</Button></p>}
     </DialogContent></Dialog>

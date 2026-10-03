@@ -2,7 +2,7 @@
 
 import {useState} from 'react'
 import {Folder, PanelLeftClose, PanelLeftOpen, Settings, Plus} from 'lucide-react'
-import {ProjectNavigation, type NavigationExpansion, type NavigationProject} from '@/components/project-navigation'
+import {NavigationCreateButton, ProjectNavigation, type NavigationExpansion, type NavigationProject} from '@/components/project-navigation'
 import {ChatInput} from '@/components/chat-input'
 import {Button} from '@/components/ui/button'
 import {Sheet, SheetContent, SheetTitle, SheetDescription} from '@/components/ui/sheet'
@@ -20,15 +20,19 @@ export function ProjectWorkspaceCatalog() {
   const [state, setState] = useState('ready')
   const [longList, setLongList] = useState(false)
   const [note, setNote] = useState('尚未发送；打开项目不会创建对话或沙箱。')
+  const [tab, setTab] = useState<'conversations' | 'projects'>('conversations')
   const projects: NavigationProject[] = state === 'empty' ? [] : [{id:'demo',name:'RayAgent 实验项目',available:state !== 'unavailable',reason:'项目根目录不可用',conversations:[sessionItemStates.completed,sessionItemStates.waiting]}, ...(longList ? Array.from({length:40}, (_,i)=>({id:`project-${i}`,name:`研究项目 ${i+1}`,available:true,conversations:[]})) : [])]
   const inProject = path.startsWith('/projects/')
   const statusNotes: Record<string,string> = {unconfigured:'尚未配置项目根目录；请查看应用运行指南。',shared:'共享沙箱不支持挂载本机项目。',error:'读取项目失败；可重试。',unavailable:'项目目录不可用，历史仍可查看。',starting:'已受理，准备执行环境',waiting:'等待回复，占用该项目；另一对话发送会指出占用对话。',failed:'准备执行环境失败。草稿和已创建对话保留，可核对后重试。'}
   const navigation = <>
-        <div className="flex h-9 shrink-0 items-center justify-between">
+        <div className="flex h-9 shrink-0 items-center justify-between gap-1">
           {!collapsed && <button type="button" onClick={()=>setPath('/')} className="text-sm font-semibold">RayAgent</button>}
-          <Button variant="ghost" size="icon-xs" aria-label={collapsed ? '恢复侧栏' : '收起侧栏'} onClick={()=>{if (isMobile) setMobileOpen(false); else setCollapsed(!collapsed)}}>{collapsed ? <PanelLeftOpen/> : <PanelLeftClose/>}</Button>
+          <div className="flex items-center">
+            {!collapsed && <NavigationCreateButton tab={tab} onIndependent={()=>setPath('/')} onOpenProject={()=>setPicker(true)}/>}
+            <Button variant="ghost" size="icon-xs" aria-label={collapsed ? '恢复侧栏' : '收起侧栏'} onClick={()=>{if (isMobile) setMobileOpen(false); else setCollapsed(!collapsed)}}>{collapsed ? <PanelLeftOpen/> : <PanelLeftClose/>}</Button>
+          </div>
         </div>
-        {collapsed ? <div className="flex flex-1 flex-col gap-2"><Button variant="ghost" size="icon-sm" aria-label="打开项目" title="打开项目" onClick={()=>setPicker(true)}><Folder/></Button><Button variant="ghost" size="icon-sm" aria-label="新独立对话" title="新独立对话" onClick={()=>setPath('/')}><Plus/></Button></div> : <div className="min-h-0 flex-1"><ProjectNavigation projects={projects} conversations={[sessionItemStates.failed]} expansion={expansion} onExpansion={setExpansion} selectedProject={inProject ? path.split('/')[2] : null} selectedSession={path.startsWith('/sessions/') ? path.split('/')[2] : null} loading={state==='loading'} error={state==='error' ? '读取项目失败' : null} onRetry={()=>setState('ready')} onOpenProject={()=>setPicker(true)} onIndependent={()=>setPath('/')} onProjectSettings={()=>setNote('设置项目说明；新对话首次受理时保存快照。')} onArchive={()=>setNote('归档保留对话与宿主机文件；活动运行时返回冲突。')} onSessionDelete={()=>setNote('示例不删除数据')} onSessionRename={()=>setNote('示例不写入标题')} onNavigate={next=>{setPath(next);setMobileOpen(false)}} preview/></div>}
+        {collapsed ? <div className="flex flex-1 flex-col gap-2"><Button variant="ghost" size="icon-sm" aria-label="新独立对话" title="新独立对话" onClick={()=>setPath('/')}><Plus/></Button><Button variant="ghost" size="icon-sm" aria-label="打开项目" title="打开项目" onClick={()=>setPicker(true)}><Folder/></Button></div> : <div className="min-h-0 flex-1"><ProjectNavigation projects={projects} conversations={[sessionItemStates.failed]} expansion={expansion} onExpansion={setExpansion} selectedProject={inProject ? path.split('/')[2] : null} selectedSession={path.startsWith('/sessions/') ? path.split('/')[2] : null} tab={tab} onTabChange={setTab} loading={state==='loading'} error={state==='error' ? '读取项目失败' : null} onRetry={()=>setState('ready')} onOpenProject={()=>setPicker(true)} onProjectSettings={()=>setNote('设置项目说明；新对话首次受理时保存快照。')} onArchive={()=>setNote('归档保留对话与宿主机文件；活动运行时返回冲突。')} onSessionDelete={()=>setNote('示例不删除数据')} onSessionRename={()=>setNote('示例不写入标题')} onNavigate={next=>{setPath(next); setTab(next.startsWith('/projects') ? 'projects' : tab); setMobileOpen(false)}} preview/></div>}
         <Button variant="ghost" size="sm" aria-label="设置" className="mt-2 shrink-0 justify-start"><Settings className="size-4"/>{!collapsed && '设置'}</Button>
   </>
   return <div className="min-w-0 space-y-3">

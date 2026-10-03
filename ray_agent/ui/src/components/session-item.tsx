@@ -10,7 +10,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import {Tooltip, TooltipContent, TooltipTrigger} from '@/components/ui/tooltip'
 import {useMounted} from '@/hooks/use-mounted'
 import {useCompactingSessionId} from '@/providers/sessions-provider'
 import {cn, formatClockTime, formatDayLabel} from '@/lib/utils'
@@ -25,21 +24,22 @@ type SessionItemProps = {
   href?: string
   onClick?: (sessionId: string) => void
   /** 目录夹具直接标出压缩中；产品页由列表里的当前压缩会话决定 */
+  showTime?: boolean
   compacting?: boolean
 }
 
-const STATUS_INDICATOR: Record<Session['status'], {label: string; className: string}> = {
-  pending: {label: '准备中', className: 'bg-state-running'},
-  running: {label: '运行中', className: 'bg-state-running'},
-  waiting: {label: '等你处理', className: 'bg-state-waiting'},
-  completed: {label: '已完成', className: 'bg-state-success'},
-  failed: {label: '失败', className: 'bg-state-failed'},
-  cancelled: {label: '已停止', className: 'bg-state-stopped'},
-  interrupted: {label: '已中断', className: 'bg-state-interrupted'},
+const STATUS: Record<Session['status'], {label: string; textClass?: string}> = {
+  pending: {label: '准备中', textClass: 'text-state-running'},
+  running: {label: '运行中', textClass: 'text-state-running'},
+  waiting: {label: '等你处理', textClass: 'text-state-waiting'},
+  completed: {label: '已完成'},
+  failed: {label: '失败', textClass: 'text-state-failed'},
+  cancelled: {label: '已停止'},
+  interrupted: {label: '已中断', textClass: 'text-state-interrupted'},
 }
 
-/** 会话列表项：仅选中项的左侧强调条使用状态色，状态名称保留在提示和可访问名称中。 */
-export function SessionItem({session, isActive, onClick, onDelete, onRename, href, compacting: compactingProp}: SessionItemProps) {
+/** 会话列表项：选中用弱底和字重。需要处理的状态写在标题右侧；已完成和已停止不写。 */
+export function SessionItem({session, isActive, onClick, onDelete, onRename, href, compacting: compactingProp, showTime = true}: SessionItemProps) {
   const mounted = useMounted()
   const listedCompacting = useCompactingSessionId()
   const compacting = compactingProp || listedCompacting === session.session_id
@@ -57,9 +57,7 @@ export function SessionItem({session, isActive, onClick, onDelete, onRename, hre
   const clockLabel = formatClockTime(session.latest_message_at)
   const timeLabel = [dayLabel, clockLabel].filter(Boolean).join(' ')
   const title = session.title || '新任务'
-  const status = compacting
-    ? {label: '压缩中', className: 'bg-state-running'}
-    : STATUS_INDICATOR[session.status]
+  const status = compacting ? {label: '压缩中', textClass: 'text-state-running'} : STATUS[session.status]
   const accessibleName = `${title}，${status.label}`
   const controlClass = cn(
     'absolute inset-0 z-0 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring',
@@ -68,43 +66,42 @@ export function SessionItem({session, isActive, onClick, onDelete, onRename, hre
 
   return (
     <div className="group/session relative">
-      {isActive && <span className={cn('pointer-events-none absolute inset-y-1.5 left-0 z-10 w-0.5 rounded-full', status.className)} aria-hidden/>}
-      <Tooltip>
-        <TooltipTrigger asChild>
-          {href ? (
-            <Link
-              href={href}
-              data-navigate
-              prefetch={false}
-              onClick={(event) => {
-                if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return
-                handleSelect()
-              }}
-              onKeyDown={(event) => {
-                if (event.key !== ' ') return
-                event.preventDefault()
-                event.currentTarget.click()
-              }}
-              aria-current={isActive ? 'page' : undefined}
-              aria-label={accessibleName}
-              className={controlClass}
-            />
-          ) : (
-            <button
-              type="button"
-              data-navigate
-              onClick={handleSelect}
-              aria-current={isActive ? 'page' : undefined}
-              aria-label={accessibleName}
-              className={controlClass}
-            />
-          )}
-        </TooltipTrigger>
-        <TooltipContent side="right" sideOffset={6}>{status.label}</TooltipContent>
-      </Tooltip>
-      <div className="pointer-events-none relative z-10 py-2.5 pr-1.5 pl-2.5">
-        <p className="truncate pr-7 text-sm leading-5" dir="auto" title={title}>{title}</p>
-        {timeLabel && <span className="block min-w-0 truncate text-xs tabular-nums text-muted-foreground">{timeLabel}</span>}
+      {href ? (
+        <Link
+          href={href}
+          data-navigate
+          prefetch={false}
+          title={title}
+          onClick={(event) => {
+            if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return
+            handleSelect()
+          }}
+          onKeyDown={(event) => {
+            if (event.key !== ' ') return
+            event.preventDefault()
+            event.currentTarget.click()
+          }}
+          aria-current={isActive ? 'page' : undefined}
+          aria-label={accessibleName}
+          className={controlClass}
+        />
+      ) : (
+        <button
+          type="button"
+          data-navigate
+          title={title}
+          onClick={handleSelect}
+          aria-current={isActive ? 'page' : undefined}
+          aria-label={accessibleName}
+          className={controlClass}
+        />
+      )}
+      <div className="pointer-events-none relative z-10 py-2.5 pr-8 pl-2.5">
+        <div className="flex items-baseline gap-2">
+          <p className={cn('min-w-0 flex-1 truncate text-sm leading-5', isActive ? 'font-medium' : 'font-normal')} dir="auto">{title}</p>
+          {status.textClass && <span className={cn('shrink-0 text-xs leading-5', status.textClass)}>{status.label}</span>}
+        </div>
+        {showTime && timeLabel && <span className="block min-w-0 truncate text-xs font-normal tabular-nums text-muted-foreground">{timeLabel}</span>}
       </div>
       {mounted ? (
         <DropdownMenu>

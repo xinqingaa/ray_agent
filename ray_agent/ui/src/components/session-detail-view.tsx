@@ -2,7 +2,7 @@
 
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {toast} from 'sonner'
-import {PanelRightOpen, Pencil, Plus} from 'lucide-react'
+import {Folder, PanelRightOpen, Pencil} from 'lucide-react'
 import Link from 'next/link'
 import {ChatInput} from '@/components/chat-input'
 import {RenameSessionDialog} from '@/components/rename-session-dialog'
@@ -421,14 +421,12 @@ export function SessionDetailView({
               )}
               </div>
               {view.project && (
-                <div className="flex min-w-0 items-center gap-1">
-                  <p className="min-w-0 truncate text-xs text-muted-foreground" title={view.project.reason ?? view.project.name}>
+                <div className="order-first flex min-w-0 items-center gap-1">
+                  <Link href={`/projects/${view.project.id}`} className="flex min-w-0 items-center gap-1 text-xs font-normal text-muted-foreground hover:text-foreground" title={view.project.reason ?? view.project.name}>
+                    <Folder className="size-3.5 shrink-0"/><span className="truncate">
                     {view.project.name}
                     {!view.project.available && view.project.reason ? ` · ${view.project.reason}` : ''}
-                  </p>
-                  <Button variant="ghost" size="icon-xs" className="size-7 shrink-0" asChild>
-                    <Link href={`/projects/${view.project.id}`} title="在此项目新对话" aria-label="在此项目新对话"><Plus className="size-3.5"/></Link>
-                  </Button>
+                  </span></Link>
                 </div>
               )}
             </div>

@@ -3,7 +3,7 @@
 import {useCallback, useEffect, useRef, useState} from 'react'
 import {useRouter} from 'next/navigation'
 import Link from 'next/link'
-import {Files, PanelRightClose, Settings, X} from 'lucide-react'
+import {Files, Folder, PanelRightClose, Settings, X} from 'lucide-react'
 import {toast} from 'sonner'
 import {Button} from '@/components/ui/button'
 import {ChatInput} from '@/components/chat-input'
@@ -105,7 +105,7 @@ export function ProjectWorkspace({projectId}: {projectId: string}) {
   return <div className="flex h-full min-w-0">
     <main className="flex min-w-0 flex-1 flex-col overflow-y-auto">
       <header className="flex flex-wrap items-center gap-2 border-b px-4 py-3">
-        <div className="min-w-0 flex-1"><h1 className="truncate text-sm font-medium">{project.name}</h1><p className="text-xs text-faint">平台托管文件</p></div>
+        <div className="min-w-0 flex-1"><h1 className="flex min-w-0 items-center gap-1.5 text-sm font-medium"><Folder className="size-3.5 shrink-0 text-muted-foreground"/><span className="truncate" title={project.name}>{project.name}</span></h1><p className="text-xs text-faint">平台托管文件</p></div>
         <Button size="icon-sm" variant="ghost" title="项目文件" aria-label="项目文件" disabled={!project.available} onClick={() => setPanel('project')}><Files/></Button>
         <Button size="icon-sm" variant="ghost" title="项目设置" aria-label="项目设置" onClick={() => setSettings(true)}><Settings/></Button>
         <Button size="icon-sm" variant="ghost" title="关闭项目" aria-label="关闭项目" onClick={() => router.push('/')}><X/></Button>

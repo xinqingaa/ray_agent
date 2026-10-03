@@ -518,13 +518,12 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
             disabled={uploading}
           />
           <PlusCommandMenu context={commandContext}/>
-          <Button type="button" variant="ghost" size="icon-sm" aria-label="上传附件"
+          <Button type="button" variant="ghost" size="icon-sm" aria-label="添加附件" title="添加附件"
             disabled={!commandById('upload')?.available(commandContext).available}
             onClick={() => commandById('upload')?.run(commandContext)}>
             <Paperclip className="size-4"/>
           </Button>
           {!workspace && <ProjectPicker hideTrigger open={projectPickerOpen} onOpenChange={setProjectPickerOpen} onSelect={project => {if (project) router.push(`/projects/${project.id}`)}}/>}
-          {selectedProject && <span className="max-w-[12rem] truncate text-xs text-muted-foreground" title={selectedProject.name}>{selectedProject.name}</span>}
           {planMode && (
             <button
               type="button"

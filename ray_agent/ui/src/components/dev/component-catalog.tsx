@@ -19,6 +19,7 @@ import {AttemptNotice, CompactingNotice, CompactionNotice} from '@/components/ru
 import {RunEndBar, PlanExecuteBar} from '@/components/run/run-end-bar'
 import {PlusCommandMenu} from '@/components/input-command-menu'
 import {ProjectWorkspaceCatalog} from '@/components/dev/project-workspace-catalog'
+import {ProjectUploadTreeCatalog} from '@/components/dev/project-upload-tree-catalog'
 import {ProjectPicker} from '@/components/project-picker'
 import {ContextRing} from '@/components/run/context-ring'
 import type {CommandContext} from '@/lib/commands'
@@ -66,6 +67,7 @@ const SECTIONS = [
   ['run-end', '终态条'],
   ['context-ring', '上下文环'],
   ['input-commands', '输入命令'],
+  ['project-upload-tree', '项目导入审核树'],
   ['project-picker', '项目选择器'],
   ['project-workbench', '项目与变更页'],
   ['session-item', '会话列表项'],
@@ -362,7 +364,9 @@ export function ComponentCatalog() {
           <State label="压缩后估算" source="合成"><Surface><ContextRing usage={usageStates.postCompactEstimate}/></Surface></State>
         </Section>
 
-        <Section id="project-picker" title="项目选择器" columns={2} note="首页与会话输入框可打开托管项目；错误与不可用原因在选择器中展示。">
+        <Section id="project-upload-tree" title="项目导入审核树" note="合成文件树，支持筛选、键盘导航和确认；不读取本地文件或写入项目。"><ProjectUploadTreeCatalog/></Section>
+
+        <Section id="project-picker" title="项目选择器" columns={2} note="项目从侧栏打开；此处保留选择器的独立状态检查，创建与归档在产品中使用单独入口。">
           <State label="未选择" source="合成">
             <Surface className="inline-flex">
               <ProjectPicker enabled selected={projectPickerStates.unselected} onSelect={noop}/>
@@ -402,11 +406,11 @@ export function ComponentCatalog() {
           </State>
         </Section>
 
-        <Section id="project-workspace" title="W11 工作区主路径" note="合成设计目录：打开项目不创建对话，独立加号与项目加号含义固定；列表刷新不重置展开状态。此处不证明产品端到端能力。">
+        <Section id="project-workspace" title="W11 工作区主路径" note="合成设计目录：胶囊切换对话与项目，打开项目不创建对话；列表刷新不重置展开状态。此处不证明产品端到端能力。">
           <ProjectWorkspaceCatalog/>
         </Section>
 
-        <Section id="session-item" title="会话列表项" note="标题自然换行，时间在左、状态色点在右；悬停或聚焦会话可查看状态名称。">
+        <Section id="session-item" title="会话列表项" note="选中用弱底和字重。需要处理的状态写在标题右侧；已完成和已停止只保留时间和可访问名称。">
           <div className="w-[288px] max-w-full space-y-3 rounded-lg bg-sidebar p-2">
             <State label="运行中" source="合成"><SessionItem session={sessionItemStates.running} isActive={false} onClick={noop} onDelete={noop}/></State>
             <State label="准备中" source="合成"><SessionItem session={sessionItemStates.pending} isActive={false} onClick={noop} onDelete={noop}/></State>

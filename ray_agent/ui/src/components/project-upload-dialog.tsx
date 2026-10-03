@@ -1,5 +1,6 @@
 'use client'
 import {useCallback, useEffect, useRef, useState} from 'react'
+import {ProjectUploadTree} from '@/components/project-upload-tree'
 import {Button} from '@/components/ui/button'
 import {Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle} from '@/components/ui/dialog'
 import {projectApi} from '@/lib/api/project'
@@ -25,6 +26,7 @@ export function ProjectUploadDialog({open, projectId, disabledReason, onClose, o
   const [operation,setOperation]=useState<string | null>(null)
   const [target,setTarget]=useState(projectId)
   const [name,setName]=useState('本地材料')
+  const [sourceName,setSourceName]=useState('所选材料')
   const [folderFallback,setFolderFallback]=useState(false)
   const [created,setCreated]=useState<ProjectDetails | null>(null)
   const [creationUnknown,setCreationUnknown]=useState(false)
@@ -39,7 +41,7 @@ export function ProjectUploadDialog({open, projectId, disabledReason, onClose, o
     if (!open) return
     let live=true
     const epochCounter=epoch
-    setError(null);setBusy(null);setProgress('');setTarget(projectId);setCreated(null);setScan(null);setPreflight(null);setResult(null);setOperation(null);setConfirmed(new Set());setOverwrite(new Set());setOnlyFailed(undefined);setCreationUnknown(false)
+    setError(null);setBusy(null);setProgress('');setTarget(projectId);setCreated(null);setScan(null);setPreflight(null);setResult(null);setOperation(null);setConfirmed(new Set());setOverwrite(new Set());setOnlyFailed(undefined);setCreationUnknown(false);setSourceName('所选材料');setName('本地材料')
     sources.current=[]
     projectApi.uploadRules().then(value => {if(live)setRules(value)}).catch(error => {if(live)setError(message(error))})
     if(projectId) {const op=localStorage.getItem(batchKey(projectId));if(op)void readback(projectId,op).catch(error => {if(live)setError(message(error))})}
@@ -63,7 +65,7 @@ export function ProjectUploadDialog({open, projectId, disabledReason, onClose, o
   }
   const folder=async () => {
     setError(null)
-    try {const chosen=await chooseProjectFolder();if(chosen){setName(chosen.name);void inspect(chosen.sources)}else{
+    try {const chosen=await chooseProjectFolder();if(chosen){setName(chosen.name);setSourceName(chosen.name);void inspect(chosen.sources)}else{
       setFolderFallback(true)
     }} catch(error) {
       if(error instanceof DOMException && error.name==='AbortError')return
@@ -132,27 +134,27 @@ export function ProjectUploadDialog({open, projectId, disabledReason, onClose, o
     onClose()
   }
   const unresolved=preflight?.items.some(item => item.conflict && !overwrite.has(item.path))
-  const optionalRows=scan ? [...scan.excluded,...[...confirmed].filter(path => !scan.excluded.some(item => item.path===path)).map(path => ({path,policy:'optional' as const,reason:'已确认上传；取消勾选可排除',size:scan.files.filter(item => item.path===path || item.path.startsWith(path+'/')).reduce((sum,item) => sum+item.file.size,0),directory:true}))] : []
+  const optionalRows=scan ? [...scan.excluded,...[...confirmed].filter(path => !scan.excluded.some(item => item.path===path)).map(path => ({path,policy:'optional' as const,reason:'已确认上传；取消勾选可排除',size:scan.files.filter(item => item.path===path || item.path.startsWith(path+'/')).reduce((sum,item) => sum+item.file.size,0),directory:!scan.files.some(item => item.path===path)}))] : []
   const totalBytes=scan?.files.reduce((sum,item) => sum+item.file.size,0) || 0
   const activeBatch=isActiveUploadBatch(result)
-  return <Dialog open={open} onOpenChange={value => {if(!value)close()}}><DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-[660px]">
-    <DialogHeader><DialogTitle>{projectId ? '上传项目文件' : '从文件夹创建项目'}</DialogTitle><DialogDescription>上传文件副本，仅保留文件及其父目录。确认前不会写入项目；覆盖前会保存保护快照。</DialogDescription></DialogHeader>
-    {!projectId && !target && <label className="text-sm">项目名称<input className="mt-1 w-full rounded-md border bg-background px-3 py-2" maxLength={160} value={name} onChange={event => setName(event.target.value)}/></label>}
-    <div className="flex min-h-20 flex-wrap items-center justify-center gap-2 rounded-md border border-dashed p-3" onDragOver={event => event.preventDefault()} onDrop={event => {event.preventDefault();if(!busy && !disabledReason && !activeBatch)void inspect(sourcesFromDrop(event.dataTransfer.items))}}>
-      <span className="text-meta text-faint">拖入文件或文件夹</span><Button size="sm" variant="outline" disabled={!!busy || !!disabledReason || !!activeBatch} onClick={() => filesInput.current?.click()}>选择文件</Button><Button size="sm" variant="outline" disabled={!!busy || !!disabledReason || !!activeBatch} onClick={() => void folder()}>选择文件夹</Button><Button size="sm" variant="ghost" disabled={!!busy || !!disabledReason || !!activeBatch} onClick={() => setFolderFallback(true)}>兼容选择</Button>
+  const uploadComplete=result?.results.batch_status==='completed'
+  return <Dialog open={open} onOpenChange={value => {if(!value)close()}}><DialogContent className="flex h-[calc(100dvh-24px)] max-h-[880px] max-w-[calc(100%-24px)] flex-col gap-3 overflow-hidden p-4 font-normal sm:h-[80dvh] sm:max-w-[min(960px,calc(100%-48px))] sm:p-5">
+    <DialogHeader className="shrink-0 pr-7 text-left"><DialogTitle>{projectId ? '上传项目文件' : '从文件夹创建项目'}</DialogTitle><DialogDescription>上传的是副本，本地文件不会自动同步。空文件夹不保留；覆盖前会保存保护快照。</DialogDescription></DialogHeader>
+    {!projectId && !target && <label className="shrink-0 text-sm">项目名称<input className="mt-1 w-full rounded-md border bg-background px-3 py-2" maxLength={160} value={name} onChange={event => setName(event.target.value)}/></label>}
+    <div className={scan ? 'flex shrink-0 flex-wrap items-center gap-2' : 'flex min-h-28 shrink-0 flex-wrap items-center justify-center gap-2 rounded-md border border-dashed p-3'} onDragOver={event => event.preventDefault()} onDrop={event => {event.preventDefault();if(!busy && !disabledReason && !activeBatch)void inspect(sourcesFromDrop(event.dataTransfer.items))}}>
+      <span className="min-w-0 flex-1 truncate text-meta text-faint">{scan ? `来源：${sourceName}` : '拖入文件或文件夹，或选择本地材料'}</span><Button size="sm" variant="outline" disabled={!!busy || !!disabledReason || !!activeBatch} onClick={() => filesInput.current?.click()}>选择文件</Button><Button size="sm" variant="outline" disabled={!!busy || !!disabledReason || !!activeBatch} onClick={() => void folder()}>选择文件夹</Button>
       <input ref={filesInput} type="file" multiple className="hidden" onChange={event => {const files=Array.from(event.target.files || []);event.target.value='';void inspect(sourcesFromFiles(files))}}/>
-      <input ref={element => {folderInput.current=element;element?.setAttribute('webkitdirectory','')}} type="file" multiple className="hidden" {...{webkitdirectory: ''}} onChange={event => {const files=Array.from(event.target.files || []);event.target.value='';if(files.length)setName(files[0].webkitRelativePath.split('/')[0]);void inspect(sourcesFromFiles(files,true))}}/>
+      <input ref={element => {folderInput.current=element;element?.setAttribute('webkitdirectory','')}} type="file" multiple className="hidden" {...{webkitdirectory: ''}} onChange={event => {const files=Array.from(event.target.files || []);event.target.value='';if(files.length){setName(files[0].webkitRelativePath.split('/')[0]);setSourceName(files[0].webkitRelativePath.split('/')[0])};void inspect(sourcesFromFiles(files,true))}}/>
     </div>
     {disabledReason && <p className="text-meta text-state-waiting">{disabledReason}</p>}
     {busy && <p role="status" className="truncate text-meta text-faint">{busy==='scan' ? '正在扫描与预检' : busy==='upload' ? '正在上传' : '正在读取批次'}：{progress}</p>}
-    {scan && <div className="space-y-3 text-meta"><p>{scan.files.length} 个文件 · {formatBytes(totalBytes)}{preflight && ` · 上传后项目 ${formatBytes(preflight.projected_bytes)}`}</p>
-      <details open><summary>将上传</summary><ul className="max-h-36 overflow-y-auto divide-y">{scan.files.filter(item => !onlyFailed || onlyFailed.has(item.path)).map(item => <li key={item.path} className="flex gap-2 py-1"><span className="min-w-0 flex-1 break-all">{item.path}</span><span className="shrink-0 tabular-nums">{formatBytes(item.file.size)}</span>{preflight?.items.find(value => value.path===item.path)?.reuse && <span>相同内容，复用</span>}</li>)}</ul></details>
-      {!!optionalRows.length && <details open><summary>将排除 / 需要确认</summary><ul className="max-h-48 overflow-y-auto divide-y">{optionalRows.map(item => <li key={item.path} className="py-2"><label className="flex items-start gap-2">{item.policy==='optional' && <input type="checkbox" disabled={!!busy} checked={confirmed.has(item.path)} onChange={event => optional(item.path,event.target.checked)}/>}<span className="break-all">{item.path} — {item.reason}<span className="block text-faint">{item.size==null ? '未扫描，大小未统计；勾选后继续扫描' : formatBytes(item.size)}</span></span></label></li>)}</ul></details>}
-      {!!preflight?.items.some(item => item.conflict) && <div><p>需要确认覆盖</p>{preflight.items.filter(item => item.conflict).map(item => <label key={item.path} className="flex items-center gap-2 py-1"><input type="checkbox" disabled={!!busy} checked={overwrite.has(item.path)} onChange={event => setCover(item.path,event.target.checked)}/><span className="break-all">覆盖 {item.path}</span></label>)}</div>}
+    <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto">
+    {scan ? <ProjectUploadTree scan={scan} optionalRows={optionalRows} confirmed={confirmed} overwrite={overwrite} preflight={preflight} result={result} onlyFailed={onlyFailed} disabled={!!busy || activeBatch || uploadComplete} sourceName={sourceName} onOptional={optional} onOverwrite={setCover}/> : <div className="flex min-h-24 flex-1 items-center justify-center rounded-md border bg-muted/20 p-5 text-center text-meta text-faint">选择材料后，在这里审核文件层级、大小与上传规则</div>}
+    {scan && <div className="max-h-28 shrink-0 overflow-y-auto text-meta">
       {preflight?.warnings.map(item => <p key={item.path} className="text-state-waiting">{item.path} 与 {item.case_conflicts.join('、')} 仅大小写不同，下载到 macOS 或 Windows 时可能冲突。</p>)}
       {scan.errors.map((text,index) => <p role="alert" key={index} className="text-state-failed">{text}</p>)}{preflight?.errors.map(text => <p role="alert" key={text} className="text-state-failed">{text}</p>)}
     </div>}
-    {result && <div className="space-y-2 border-t pt-3 text-meta"><p>批次结果：{({completed:'完成',partial_failure:'部分失败',failed:'失败',expired:'已到期',interrupted:'已中断',cancelled:'已取消',uploading:'上传中'} as Record<string,string>)[result.results.batch_status || ''] || result.results.batch_status || result.state}</p>
+    {result && <div className="max-h-40 shrink-0 space-y-2 overflow-y-auto border-t pt-3 text-meta"><p>批次结果：{({completed:'完成',partial_failure:'部分失败',failed:'失败',expired:'已到期',interrupted:'已中断',cancelled:'已取消',uploading:'上传中'} as Record<string,string>)[result.results.batch_status || ''] || result.results.batch_status || result.state}</p>
       {Object.entries(result.results.received || {}).map(([path,item]) => <p key={path} className="break-all">{path}：{item.published ? item.reused ? '已复用' : '已发布' : item.error || '未发布'}</p>)}
       {Object.entries(result.results.failures || {}).map(([path,error]) => <p key={path} className="break-all text-state-failed">{path}：{error}</p>)}
       {result.error && <p className="text-state-failed">{result.error}</p>}
@@ -163,7 +165,15 @@ export function ProjectUploadDialog({open, projectId, disabledReason, onClose, o
     </div>}
     {error && <p role="alert" className="text-meta text-state-failed">{error}</p>}
     {creationUnknown && <p className="text-meta text-state-waiting">新建项目的受理结果未知，请关闭弹框，刷新项目列表后选择已创建的项目。不要重复新建。</p>}
-    <div className="flex gap-2"><Button disabled={!scan?.files.length || !!busy || !!disabledReason || !!scan.errors.length || !!preflight?.errors.length || !!unresolved || !!activeBatch || creationUnknown || (!target && !name.trim())} onClick={() => void upload()}>{target ? '确认上传' : '创建项目并上传'}</Button><Button variant="outline" onClick={() => busy==='upload' ? void cancelBatch() : close()}>{busy==='upload' ? '取消批次' : '关闭'}</Button></div>
+    </div>
+    <div className="shrink-0 border-t pt-3">
+      {scan && <p className="mb-2 text-meta">{uploadComplete ? '已上传' : '将上传'} {scan.files.filter(item => !onlyFailed || onlyFailed.has(item.path)).length} 个文件，{formatBytes(onlyFailed ? scan.files.filter(item => onlyFailed.has(item.path)).reduce((sum,item) => sum+item.file.size,0) : totalBytes)}；排除 {scan.excluded.length} 项{preflight && `；上传后项目 ${formatBytes(preflight.projected_bytes)}`}</p>}
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <p className="mr-auto text-xs text-muted-foreground" role="status">{uploadComplete ? '上传完成，文件副本已保存在项目中' : disabledReason || (busy ? '请等待当前操作完成' : unresolved ? '请在文件详情中确认同名覆盖' : scan?.errors.length || preflight?.errors.length ? '请先处理检查错误' : creationUnknown ? '请读回项目创建结果' : activeBatch ? '请读回或取消当前批次' : !scan?.files.length ? '请选择可上传的材料' : !target && !name.trim() ? '请填写项目名称' : '确认前不会写入项目')}</p>
+        <Button variant="outline" onClick={() => busy==='upload' ? void cancelBatch() : close()}>{busy==='upload' ? '取消批次' : '关闭'}</Button>
+        {uploadComplete ? <Button onClick={close}>完成</Button> : <Button disabled={!scan?.files.length || !!busy || !!disabledReason || !!scan.errors.length || !!preflight?.errors.length || !!unresolved || !!activeBatch || creationUnknown || (!target && !name.trim())} onClick={() => void upload()}>{target ? '确认上传' : '创建项目并上传'}</Button>}
+      </div>
+    </div>
     <Dialog open={folderFallback && open} onOpenChange={setFolderFallback}><DialogContent>
       <DialogHeader><DialogTitle>浏览器文件夹选择</DialogTitle><DialogDescription>此浏览器会先列出文件夹内全部文件，大型依赖目录可能明显变慢。确认后继续选择文件夹。</DialogDescription></DialogHeader>
       <div className="flex justify-end gap-2"><Button variant="outline" onClick={()=>setFolderFallback(false)}>取消</Button><Button onClick={()=>{folderInput.current?.setAttribute('webkitdirectory','');setFolderFallback(false);folderInput.current?.click()}}>继续选择文件夹</Button></div>
