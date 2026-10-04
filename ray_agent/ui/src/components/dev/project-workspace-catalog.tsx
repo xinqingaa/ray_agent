@@ -1,7 +1,8 @@
 'use client'
 
 import {useState} from 'react'
-import {Folder, PanelLeftClose, PanelLeftOpen, Settings, Plus} from 'lucide-react'
+import {PanelLeftClose, PanelLeftOpen, Settings} from 'lucide-react'
+import {NewChatIcon, NewProjectIcon} from '@/components/nav-icons'
 import {NavigationCreateButton, ProjectNavigation, type NavigationExpansion, type NavigationProject} from '@/components/project-navigation'
 import {ChatInput} from '@/components/chat-input'
 import {Button} from '@/components/ui/button'
@@ -32,7 +33,7 @@ export function ProjectWorkspaceCatalog() {
             <Button variant="ghost" size="icon-xs" aria-label={collapsed ? '恢复侧栏' : '收起侧栏'} onClick={()=>{if (isMobile) setMobileOpen(false); else setCollapsed(!collapsed)}}>{collapsed ? <PanelLeftOpen/> : <PanelLeftClose/>}</Button>
           </div>
         </div>
-        {collapsed ? <div className="flex flex-1 flex-col gap-2"><Button variant="ghost" size="icon-sm" aria-label="新独立对话" title="新独立对话" onClick={()=>setPath('/')}><Plus/></Button><Button variant="ghost" size="icon-sm" aria-label="打开项目" title="打开项目" onClick={()=>setPicker(true)}><Folder/></Button></div> : <div className="min-h-0 flex-1"><ProjectNavigation projects={projects} conversations={[sessionItemStates.failed]} expansion={expansion} onExpansion={setExpansion} selectedProject={inProject ? path.split('/')[2] : null} selectedSession={path.startsWith('/sessions/') ? path.split('/')[2] : null} tab={tab} onTabChange={setTab} loading={state==='loading'} error={state==='error' ? '读取项目失败' : null} onRetry={()=>setState('ready')} onOpenProject={()=>setPicker(true)} onProjectSettings={()=>setNote('设置项目说明；新对话首次受理时保存快照。')} onArchive={()=>setNote('归档保留对话与宿主机文件；活动运行时返回冲突。')} onSessionDelete={()=>setNote('示例不删除数据')} onSessionRename={()=>setNote('示例不写入标题')} onNavigate={next=>{setPath(next); setTab(next.startsWith('/projects') ? 'projects' : tab); setMobileOpen(false)}} preview/></div>}
+        {collapsed ? <div className="flex flex-1 flex-col gap-2"><Button variant="ghost" size="icon-sm" className="group/create" aria-label="新对话" title="新对话" onClick={()=>setPath('/')}><NewChatIcon className="size-4"/></Button><Button variant="ghost" size="icon-sm" className="group/create" aria-label="新建项目" title="新建项目" onClick={()=>setPicker(true)}><NewProjectIcon className="size-4"/></Button></div> : <div className="min-h-0 flex-1"><ProjectNavigation projects={projects} conversations={[sessionItemStates.failed]} expansion={expansion} onExpansion={setExpansion} selectedProject={inProject ? path.split('/')[2] : null} selectedSession={path.startsWith('/sessions/') ? path.split('/')[2] : null} tab={tab} onTabChange={setTab} loading={state==='loading'} error={state==='error' ? '读取项目失败' : null} onRetry={()=>setState('ready')} onOpenProject={()=>setPicker(true)} onProjectSettings={()=>setNote('设置项目说明；新对话首次受理时保存快照。')} onArchive={()=>setNote('归档保留对话与宿主机文件；活动运行时返回冲突。')} onSessionDelete={()=>setNote('示例不删除数据')} onSessionRename={()=>setNote('示例不写入标题')} onNavigate={next=>{setPath(next); setTab(next.startsWith('/projects') ? 'projects' : tab); setMobileOpen(false)}} preview/></div>}
         <Button variant="ghost" size="sm" aria-label="设置" className="mt-2 shrink-0 justify-start"><Settings className="size-4"/>{!collapsed && '设置'}</Button>
   </>
   return <div className="min-w-0 space-y-3">

@@ -12,6 +12,7 @@ import {Button} from '@/components/ui/button'
 import {BrandMark} from '@/components/brand-mark'
 import {ApiError} from '@/lib/api/fetch'
 import {sessionApi} from '@/lib/api/session'
+import {formatSidebarTime} from '@/lib/utils'
 import type {FileInfo} from '@/lib/api/types'
 
 export default function Page() {
@@ -79,9 +80,6 @@ export default function Page() {
               actions: {compact: () => toast.message('还没有可压缩的上下文')},
             }}
           />
-          <p className="text-center text-xs text-muted-foreground">
-            单次问答可直接开始，持续工作请从侧栏新建项目
-          </p>
         </div>
 
         <div className="space-y-3">
@@ -125,16 +123,19 @@ export default function Page() {
             )}
             {!loading && !error && sessions.length > 0 && (
               <div className="space-y-1">
-                {sessions.slice(0,5).map(session=>(
+                {sessions.slice(0,5).map(session=>{
+                  const time = formatSidebarTime(session.latest_message_at)
+                  return (
                   <Link
                     key={session.session_id}
                     href={`/sessions/${session.session_id}`}
-                    className="block rounded-lg border bg-card px-3 py-2.5 transition-colors hover:bg-muted/50"
+                    className="flex items-center gap-3 rounded-lg border bg-card px-3 py-2 transition-colors hover:bg-muted/50"
                   >
-                    <span className="block truncate text-sm font-medium">{session.title || '新对话'}</span>
-                    <span className="block truncate text-xs text-muted-foreground">{session.latest_message || '还没有消息'}</span>
+                    <span className="min-w-0 flex-1 truncate text-sm font-medium">{session.title || '新对话'}</span>
+                    {time && <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{time}</span>}
                   </Link>
-                ))}
+                  )
+                })}
               </div>
             )}
           </section>

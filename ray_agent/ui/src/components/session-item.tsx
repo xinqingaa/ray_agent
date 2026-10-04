@@ -12,7 +12,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import {useMounted} from '@/hooks/use-mounted'
 import {useCompactingSessionId} from '@/providers/sessions-provider'
-import {cn, formatClockTime, formatDayLabel} from '@/lib/utils'
+import {cn, formatSidebarTime} from '@/lib/utils'
 import type {Session} from '@/lib/api'
 
 type SessionItemProps = {
@@ -38,7 +38,9 @@ const STATUS: Record<Session['status'], {label: string; textClass?: string}> = {
   interrupted: {label: '已中断', textClass: 'text-state-interrupted'},
 }
 
-/** 会话列表项：选中用弱底和字重。需要处理的状态写在标题右侧；已完成和已停止不写。 */
+const ATTENTION = new Set<Session['status']>(['pending', 'running', 'waiting', 'failed', 'interrupted'])
+
+/** 会话一行：标题在左，时间或需要处理的状态在右。悬停时操作为时间让位。 */
 export function SessionItem({session, isActive, onClick, onDelete, onRename, href, compacting: compactingProp, showTime = true}: SessionItemProps) {
   const mounted = useMounted()
   const listedCompacting = useCompactingSessionId()
@@ -53,11 +55,10 @@ export function SessionItem({session, isActive, onClick, onDelete, onRename, hre
     onDelete(session)
   }, [onDelete, session])
 
-  const dayLabel = formatDayLabel(session.latest_message_at)
-  const clockLabel = formatClockTime(session.latest_message_at)
-  const timeLabel = [dayLabel, clockLabel].filter(Boolean).join(' ')
   const title = session.title || '新任务'
   const status = compacting ? {label: '压缩中', textClass: 'text-state-running'} : STATUS[session.status]
+  const attention = compacting || ATTENTION.has(session.status)
+  const meta = attention ? status.label : showTime ? formatSidebarTime(session.latest_message_at) : ''
   const accessibleName = `${title}，${status.label}`
   const controlClass = cn(
     'absolute inset-0 z-0 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring',
@@ -65,7 +66,7 @@ export function SessionItem({session, isActive, onClick, onDelete, onRename, hre
   )
 
   return (
-    <div className="group/session relative">
+    <div className="group/session relative h-8">
       {href ? (
         <Link
           href={href}
@@ -96,13 +97,11 @@ export function SessionItem({session, isActive, onClick, onDelete, onRename, hre
           className={controlClass}
         />
       )}
-      <div className="pointer-events-none relative z-10 py-2.5 pr-8 pl-2.5">
-        <div className="flex items-baseline gap-2">
-          <p className={cn('min-w-0 flex-1 truncate text-sm leading-5', isActive ? 'font-medium' : 'font-normal')} dir="auto">{title}</p>
-          {status.textClass && <span className={cn('shrink-0 text-xs leading-5', status.textClass)}>{status.label}</span>}
-        </div>
-        {session.latest_message && <p className="mt-0.5 truncate text-xs text-muted-foreground" dir="auto">{session.latest_message}</p>}
-        {showTime && timeLabel && <span className="block min-w-0 truncate text-xs font-normal tabular-nums text-muted-foreground">{timeLabel}</span>}
+      <div className="pointer-events-none relative z-10 flex h-8 items-center gap-2 pl-2">
+        <p className={cn('min-w-0 flex-1 truncate text-sm leading-5', isActive ? 'font-medium' : 'font-normal')} dir="auto">{title}</p>
+        {meta && (
+          <span className={cn('w-[4.75rem] shrink-0 truncate pr-2 text-right text-xs font-normal tabular-nums group-hover/session:invisible group-has-[[data-state=open]]/session:invisible', attention ? status.textClass : 'text-muted-foreground')}>{meta}</span>
+        )}
       </div>
       {mounted ? (
         <DropdownMenu>
@@ -110,7 +109,7 @@ export function SessionItem({session, isActive, onClick, onDelete, onRename, hre
             <Button
               size="icon-xs"
               variant="ghost"
-              className="absolute top-1.5 right-1 z-20 text-muted-foreground opacity-0 group-hover/session:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100 max-md:opacity-100"
+              className="absolute top-1 right-1 z-20 text-muted-foreground opacity-0 group-hover/session:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100 max-md:opacity-100"
               aria-label={`${title} 的操作`}
               onClick={(event) => event.stopPropagation()}
             >
@@ -129,7 +128,7 @@ export function SessionItem({session, isActive, onClick, onDelete, onRename, hre
           </DropdownMenuContent>
         </DropdownMenu>
       ) : (
-        <span className="absolute top-1.5 right-1 z-20 size-6"/>
+        <span className="absolute top-1 right-1 z-20 size-6"/>
       )}
     </div>
   )

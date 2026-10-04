@@ -57,6 +57,19 @@ export function formatDayLabel(value: unknown): string {
   return `${pad2(date.getMonth() + 1)}/${pad2(date.getDate())}`
 }
 
+/** 侧栏一行里的时间：今天只显示时分，昨天显示「昨天」，更早显示月/日。 */
+export function formatSidebarTime(value: unknown): string {
+  const date = parseEventTime(value)
+  if (!date) return ''
+  const now = new Date()
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const target = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+  const diffDays = Math.floor((today.getTime() - target.getTime()) / (1000 * 60 * 60 * 24))
+  if (diffDays === 0) return `${pad2(date.getHours())}:${pad2(date.getMinutes())}`
+  if (diffDays === 1) return '昨天'
+  return `${pad2(date.getMonth() + 1)}/${pad2(date.getDate())}`
+}
+
 /**
  * 会话列表用：保留日期语义，并带上已有的时分秒。
  * 没有有效时间时不编造“今天”。

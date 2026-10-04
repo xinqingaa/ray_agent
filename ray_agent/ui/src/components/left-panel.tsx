@@ -6,7 +6,9 @@ import Link from 'next/link'
 import {toast} from 'sonner'
 import {Sidebar, SidebarContent, SidebarFooter, SidebarHeader, useSidebar} from '@/components/ui/sidebar'
 import {Button} from '@/components/ui/button'
-import {Folder, Plus, Settings} from 'lucide-react'
+import {DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger} from '@/components/ui/dropdown-menu'
+import {Settings} from 'lucide-react'
+import {NewChatIcon, NewProjectIcon} from '@/components/nav-icons'
 import {SidebarChrome} from '@/components/sidebar-chrome'
 import {NavigationCreateButton, ProjectNavigation, type NavigationExpansion, type NavigationProject} from '@/components/project-navigation'
 import {ProjectSettingsDialog} from '@/components/project-settings-dialog'
@@ -117,8 +119,16 @@ export function LeftPanel() {
       <SidebarHeader><SidebarChrome action={<NavigationCreateButton tab={workspace.navigationTab} onIndependent={independent} onCreateProject={workspace.createProject} onImportProject={workspace.importProject}/>}/></SidebarHeader>
       <SidebarContent className="min-h-0 overflow-hidden p-2">
         <div className="hidden flex-1 flex-col items-center gap-2 group-data-[collapsible=icon]:flex">
-          <Button variant="ghost" size="icon" aria-label="新对话" title="新对话" onClick={independent}><Plus/></Button>
-          <Button variant="ghost" size="icon" aria-label="项目" title="项目" onClick={workspace.openProject}><Folder/></Button>
+          <Button variant="ghost" size="icon" className="group/create text-muted-foreground" aria-label="新对话" title="新对话" onClick={independent}><NewChatIcon className="size-4"/></Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="icon" className="group/create text-muted-foreground" aria-label="新建项目" title="新建项目"><NewProjectIcon className="size-4"/></Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" side="right">
+              <DropdownMenuItem onSelect={workspace.createProject}>空白项目</DropdownMenuItem>
+              <DropdownMenuItem onSelect={workspace.importProject}>从文件夹创建</DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
         <div className="flex min-h-0 flex-1 flex-col group-data-[collapsible=icon]:hidden">
           <ProjectNavigation projects={rows} conversations={conversations} expansion={expansion} onExpansion={expand} selectedProject={projectId} selectedSession={sessionId}

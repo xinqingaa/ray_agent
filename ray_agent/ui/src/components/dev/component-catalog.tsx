@@ -410,7 +410,7 @@ export function ComponentCatalog() {
           <ProjectWorkspaceCatalog/>
         </Section>
 
-        <Section id="session-item" title="会话列表项" note="选中用弱底和字重。需要处理的状态写在标题右侧；已完成和已停止只保留时间和可访问名称。">
+        <Section id="session-item" title="会话列表项" note="一行：标题在左，时间在右。需要处理的状态替换时间；已完成和已停止只显示时间。选中用弱底和字重。">
           <div className="w-[288px] max-w-full space-y-3 rounded-lg bg-sidebar p-2">
             <State label="运行中" source="合成"><SessionItem session={sessionItemStates.running} isActive={false} onClick={noop} onDelete={noop}/></State>
             <State label="准备中" source="合成"><SessionItem session={sessionItemStates.pending} isActive={false} onClick={noop} onDelete={noop}/></State>

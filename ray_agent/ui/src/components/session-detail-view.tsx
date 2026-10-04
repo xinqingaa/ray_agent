@@ -3,6 +3,7 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {toast} from 'sonner'
 import {Folder, PanelRightOpen, Pencil} from 'lucide-react'
+import {MemoryIcon} from '@/components/nav-icons'
 import Link from 'next/link'
 import {ProjectMemoryPanel} from '@/components/project-memory-panel'
 import {ChatInput} from '@/components/chat-input'
@@ -450,13 +451,18 @@ export function SessionDetailView({
                 开发者
               </button>
             </div>
+            {view.project && (
+              <Button type="button" variant="ghost" size="icon-xs" className="size-7 shrink-0 text-muted-foreground"
+                title="项目记忆" aria-label="项目记忆" onClick={() => setMemoryOpen(true)}>
+                <MemoryIcon className="size-4"/>
+              </Button>
+            )}
             {!workbenchOpen && (
               <Button type="button" variant="ghost" size="icon-xs" className="size-7 shrink-0"
                 title="打开工作台" aria-label="打开工作台" onClick={() => setWorkbenchOpen(true)}>
                 <PanelRightOpen className="size-4"/>
               </Button>
             )}
-            {view.project && <Button size="sm" variant="ghost" onClick={()=>setMemoryOpen(true)}>项目记忆</Button>}
           </header>
           {view.project && <ProjectMemoryPanel projectId={view.project.id} sessionId={sessionId} open={memoryOpen} onClose={()=>setMemoryOpen(false)}/>} 
 
