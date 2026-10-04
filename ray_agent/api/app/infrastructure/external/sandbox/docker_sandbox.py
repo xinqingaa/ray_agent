@@ -26,6 +26,32 @@ from core.config import get_settings
 
 logger = logging.getLogger(__name__)
 
+
+class SandboxSetupError(Exception):
+    """沙箱没能创建时给用户看的说明。原始 Docker 错误只留在日志里。"""
+
+
+def describe_sandbox_create_failure(exc: BaseException, image: str, network: Optional[str]) -> str:
+    """把 Docker 创建失败收成可执行的短句，不带引擎 URL。"""
+    text = str(exc)
+    lowered = text.lower()
+    if (
+        isinstance(exc, NotFound)
+        or "no such image" in lowered
+        or "failed to resolve" in lowered
+        or "manifest unknown" in lowered
+        or "pull access denied" in lowered
+    ):
+        return f"本地没有沙箱镜像 {image}。请先构建镜像，并核对 SANDBOX_IMAGE。"
+    if "network" in lowered and "not found" in lowered:
+        return f"沙箱网络 {network or '未配置'} 不存在。请核对 SANDBOX_NETWORK。"
+    if "http+docker://" in lowered or "fromimage=" in lowered:
+        return "创建沙箱容器失败。请核对 SANDBOX_IMAGE、SANDBOX_NETWORK 与 Docker 是否可用。"
+    first = text.splitlines()[0].strip()
+    if len(first) > 120:
+        first = first[:120] + "…"
+    return f"创建沙箱容器失败：{first}" if first else "创建沙箱容器失败。"
+
 # 单次沙箱 HTTP 的读超时。shell_wait 的等待秒数必须比它短一截，否则客户端先超时。
 SANDBOX_HTTP_TIMEOUT_SECONDS = 600
 SHELL_WAIT_MARGIN_SECONDS = 30
@@ -140,8 +166,16 @@ class DockerSandbox(Sandbox):
 
         container = None
         try:
-            # 3.创建一个docker客户端
+            # 3.创建一个docker客户端。先确认本地镜像，避免引擎去仓库拉取并返回难读的 500。
             docker_client = docker.from_env()
+            if not image:
+                raise SandboxSetupError("未配置 SANDBOX_IMAGE，无法创建沙箱。")
+            try:
+                docker_client.images.get(image)
+            except NotFound as exc:
+                raise SandboxSetupError(
+                    f"本地没有沙箱镜像 {image}。请先构建镜像，并核对 SANDBOX_IMAGE。"
+                ) from exc
 
             # 4.预配置容器信息。TTL 使用沙箱 Settings 读取的 SERVER_TIMEOUT_MINUTES。
             # 内存上限同时限制 swap，避免默认的双倍 swap 把内存帽放大。
@@ -190,8 +224,11 @@ class DockerSandbox(Sandbox):
                     container.remove(force=True)
                 except Exception:
                     logger.warning(f"创建失败后清理沙箱容器[{container_name}]未成功")
-            logger.error(f"创建Docker沙箱容器失败: {str(e)}")
-            raise Exception(f"创建Docker沙箱容器失败: {str(e)}")
+            if isinstance(e, SandboxSetupError):
+                logger.error("创建Docker沙箱容器失败: %s", e)
+                raise
+            logger.error("创建Docker沙箱容器失败: %s", e)
+            raise SandboxSetupError(describe_sandbox_create_failure(e, image, settings.sandbox_network)) from e
 
     @classmethod
     async def create(cls, project_id: Optional[str] = None, *, session_id: Optional[str] = None, run_id: Optional[str] = None) -> Self:

@@ -16,6 +16,8 @@ def format_public_error_text(text: str) -> str:
     lowered = raw.lower()
     if "insufficient_quota" in lowered:
         return QUOTA_ERROR
+    if "http+docker://" in lowered or "fromimage=" in lowered or "failed to resolve" in lowered:
+        return f"沙箱镜像或网络不可用。请核对 SANDBOX_IMAGE、SANDBOX_NETWORK 与 Docker。{GENERIC_RETRY_SUFFIX}"
     if raw == "空消息错误" or "empty message" in lowered:
         return EMPTY_MESSAGE_ERROR
 

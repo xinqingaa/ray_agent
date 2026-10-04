@@ -31,6 +31,16 @@ export function ProtectionNotice({message, state, className}: {message: string; 
   )
 }
 
+/** 沙箱容器尚未就绪时占在时间线末尾；环境就绪或失败后由后续条目替换 */
+export function PreparingNotice({className}: {className?: string}) {
+  return (
+    <div role="status" aria-live="polite" className={cn('flex items-center gap-2 rounded-lg bg-state-running-soft px-3.5 py-2.5 text-sm', className)}>
+      <Loader2 className="size-4 shrink-0 animate-spin text-state-running" aria-hidden/>
+      <span>正在准备执行环境</span>
+    </div>
+  )
+}
+
 /** 点击压缩后、结果事件到达前，占在时间线末尾；结果写入后由真实摘要行替换 */
 export function CompactingNotice({className}: {className?: string}) {
   return (

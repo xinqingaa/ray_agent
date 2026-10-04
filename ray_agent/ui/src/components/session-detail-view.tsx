@@ -11,7 +11,7 @@ import {DeveloperView} from '@/components/developer/developer-view'
 import {ContextRing} from '@/components/run/context-ring'
 import {PlanExecuteBar} from '@/components/run/run-end-bar'
 import {PlanBar} from '@/components/run/plan-bar'
-import {CompactingNotice} from '@/components/run/notices'
+import {CompactingNotice, PreparingNotice} from '@/components/run/notices'
 import {CompactingStatusBar, RunStatusBar} from '@/components/run/status-bar'
 import {Timeline, type TimelineHandlers} from '@/components/run/timeline-item'
 import {downloadSessionFile, tabForFamily, Workbench, type WorkbenchTab} from '@/components/workbench/workbench'
@@ -473,6 +473,7 @@ export function SessionDetailView({
                   </p>
                 )}
                 <Timeline items={view.timeline} handlers={handlers}/>
+                {view.activeRun?.activity.kind === 'preparing_environment' ? <PreparingNotice/> : null}
                 {compacting && latestCompactionId(view.timeline) === compactAnchor ? <CompactingNotice/> : null}
                 {showPlanExecute && (
                   <PlanExecuteBar

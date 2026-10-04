@@ -2,6 +2,7 @@
 import asyncio
 from unittest.mock import MagicMock
 import pytest
+from docker.errors import APIError, NotFound
 from app.infrastructure.external.project.managed_storage import ManagedProjectStorage
 from app.infrastructure.external.sandbox import docker_sandbox as module
 from app.infrastructure.external.sandbox.docker_sandbox import DockerSandbox
@@ -60,3 +61,24 @@ def test_sandbox_mount_and_shared_rejection(tmp_path,monkeypatch):
     settings.sandbox_address='127.0.0.1'
     with pytest.raises(SandboxProjectBindingError):
         asyncio.run(DockerSandbox.create(project_id='p'))
+
+
+def test_missing_image_is_explained_without_pull(monkeypatch):
+    settings = Settings(_env_file=None, sandbox_image='missing-sandbox', sandbox_name_prefix='test', sandbox_network='manus-network')
+    monkeypatch.setattr(module, 'get_settings', lambda: settings)
+    client = MagicMock()
+    client.images.get.side_effect = NotFound('no such image')
+    monkeypatch.setattr(module.docker, 'from_env', lambda: client)
+    with pytest.raises(module.SandboxSetupError, match='本地没有沙箱镜像 missing-sandbox'):
+        asyncio.run(DockerSandbox.create())
+    client.containers.run.assert_not_called()
+
+
+def test_missing_network_is_explained(monkeypatch):
+    settings = Settings(_env_file=None, sandbox_image='manus-sandbox', sandbox_name_prefix='test', sandbox_network='mooc-manus-network')
+    monkeypatch.setattr(module, 'get_settings', lambda: settings)
+    client = MagicMock()
+    client.containers.run.side_effect = APIError('network mooc-manus-network not found')
+    monkeypatch.setattr(module.docker, 'from_env', lambda: client)
+    with pytest.raises(module.SandboxSetupError, match='沙箱网络 mooc-manus-network 不存在'):
+        asyncio.run(DockerSandbox.create())

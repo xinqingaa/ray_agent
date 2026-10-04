@@ -56,7 +56,7 @@ cd ray_agent
 | `PROJECT_UID` / `PROJECT_GID` | 托管文件的沙箱属主，默认 `1000:1000` |
 | `NGINX_PORT` | 对外端口，默认 `8088` |
 
-表中的服务名、镜像名和网络名对应实际 Compose 标识。API 容器连接数据库和 Redis 时使用服务名，不能用指向容器自身的 `localhost`。环境示例中的 Redis 端口、沙箱镜像、网络和本地文件目录需按上表调整。本地模式不需要填写 COS 凭据；Compose 部署请使用 `FILE_STORAGE_LOCAL_DIR=/data/files`，与 API 数据卷对应。选择 `cos` 时缺项会导致 API 无法启动。
+表中的服务名、镜像名和网络名对应实际 Compose 标识。API 容器连接数据库和 Redis 时使用服务名，不能用指向容器自身的 `localhost`。环境示例中的 Redis 端口和本地文件目录需按上表调整。沙箱镜像、网络和名称前缀已按 Compose 标识填写。本地模式不需要填写 COS 凭据；Compose 部署请使用 `FILE_STORAGE_LOCAL_DIR=/data/files`，与 API 数据卷对应。选择 `cos` 时缺项会导致 API 无法启动。
 
 动态沙箱里 Supervisor 管理的服务进程以用户 `ubuntu` 运行，`HOME` 与工作目录为 `/home/ubuntu`。内存、CPU、进程数上限和存活时间只在 API 创建容器时写入；改这些环境变量后需要重新创建 API 容器，已经在跑的沙箱不会改限额。
 

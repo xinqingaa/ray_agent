@@ -31,7 +31,7 @@ function activityText(run: RunView | null, phase: RunPhase, now: number | null):
   const a = run.activity
   switch (phase) {
     case 'preparing_environment':
-      return '准备执行环境'
+      return '正在启动沙箱'
     case 'model': {
       const since = a.kind === 'model' && now != null ? now - a.startedAt : null
       return since != null && since >= 1000 ? `正在思考下一步，本轮已 ${formatDuration(since)}` : '正在思考下一步'
@@ -104,11 +104,14 @@ export function RunStatusBar({run, onStop, className}: RunStatusBarProps) {
         <span
           role="status"
           className={cn(
-            'shrink-0 text-xs font-medium whitespace-nowrap',
+            'inline-flex shrink-0 items-center gap-1.5 text-xs font-medium whitespace-nowrap',
             isFailure || phase === 'waiting_reply' || phase === 'waiting_approval'
               ? TONE_TEXT[meta.tone] : 'text-muted-foreground',
           )}
         >
+          {(phase === 'preparing_environment' || phase === 'model' || phase === 'tool') && (
+            <Loader2 className="size-3.5 animate-spin text-state-running" aria-hidden/>
+          )}
           {meta.label}
         </span>
         <p

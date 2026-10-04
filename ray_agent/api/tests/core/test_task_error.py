@@ -23,6 +23,18 @@ def test_formats_quota_error():
     assert format_public_error(RuntimeError("insufficient_quota")) == QUOTA_ERROR
 
 
+def test_hides_docker_pull_url():
+    raw = (
+        '500 Server Error for http+docker://localhost/v1.56/images/create'
+        '?tag=latest&fromImage=mooc-manus-sandbox: Internal Server Error ("failed to resolve reference")'
+    )
+    text = format_public_error_text(raw)
+    assert "http+docker" not in text
+    assert "fromImage" not in text
+    assert "沙箱镜像或网络不可用" in text
+    assert text.endswith("可在本任务中重试。")
+
+
 def test_keeps_short_error_and_adds_retry_hint():
     text = format_public_error_text("沙箱未就绪")
     assert text.startswith("沙箱未就绪")

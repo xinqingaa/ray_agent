@@ -22,6 +22,13 @@ const NEXT_STEP: Record<RunEndBarProps['status'], string> = {
   interrupted: '这次运行不会自动恢复，可以重新发送任务。',
 }
 
+function nextStep(status: RunEndBarProps['status'], reasonText: string): string {
+  if (status === 'failed' && reasonText.includes('准备执行环境')) {
+    return '执行环境没有启动。已发送的内容还在，核对镜像和网络后可以重试。'
+  }
+  return NEXT_STEP[status]
+}
+
 /** 终态条：非 completed 的运行结束方式与原因；失败时可以相同内容再发一次 */
 export function RunEndBar({status, reasonText, retryText, onRetry, retrying = false, className}: RunEndBarProps) {
   const meta = RUN_PHASE[status]
@@ -37,7 +44,7 @@ export function RunEndBar({status, reasonText, retryText, onRetry, retrying = fa
           <span className={cn('font-medium', TONE_TEXT[meta.tone])}>{meta.label}</span>
           <span className="ml-2">{reasonText}</span>
         </p>
-        <p className="text-xs text-muted-foreground">{NEXT_STEP[status]}</p>
+        <p className="text-xs text-muted-foreground">{nextStep(status, reasonText)}</p>
       </div>
       {status === 'failed' && retryText && (
         <Button

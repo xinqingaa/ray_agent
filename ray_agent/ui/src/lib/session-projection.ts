@@ -1061,13 +1061,21 @@ function activityOf(
   return {kind: 'idle'}
 }
 
+/** 已落库的 Docker 引擎地址对用户没有帮助，展示时改成可执行的说明。 */
+function readableFailure(text: string): string {
+  if (/http\+docker:\/\/|fromimage=|failed to resolve/i.test(text)) {
+    return '准备执行环境失败：沙箱镜像或网络不可用。请核对 SANDBOX_IMAGE、SANDBOX_NETWORK 与 Docker。可在本任务中重试。'
+  }
+  return text
+}
+
 function reasonText(track: RunTrack, maxTurns: number | null): string | null {
   if (track.status == null || track.status === 'running' || track.status === 'waiting' || track.status === 'completed') {
     return null
   }
   if (track.status === 'failed' && track.lastError) {
     const cleaned = track.lastError.replace(/（原因：[A-Za-z0-9_]+）\s*$/u, '').trim()
-    if (cleaned) return cleaned
+    if (cleaned) return readableFailure(cleaned)
   }
   if (track.reason === 'max_iterations' && maxTurns != null) {
     return `模型请求次数达到本次运行上限 ${maxTurns} 次。确认任务没有陷入重复后，可在设置中调高“单次运行最大模型请求次数”再重试`
