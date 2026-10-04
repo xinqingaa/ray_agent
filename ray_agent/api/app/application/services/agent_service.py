@@ -141,6 +141,32 @@ class AgentService:
         from app.domain.services.project_file_coordinator import ProjectFileCoordinator
         return getattr(self, '_project_coordinator', None) or ProjectFileCoordinator(self._uow_factory, self._sandbox_cls)
 
+    async def estimate_project_memory(self, memory_view, mode=RunMode.NORMAL):
+        """与执行循环共用工具 schema 和预算；只发现工具，不创建沙箱或执行任务。"""
+        from app.domain.services.flows.agent_loop import AgentLoop, build_default_tools
+        from app.domain.services.tools.project_notes import ProjectNotesTool
+        from app.domain.services.prompts.system import build_system_prompt
+        from app.domain.services.context.budget import fixed_input_estimate
+        mcp = MCPTool(MCPClientManager(self._mcp_config))
+        a2a = A2ATool(A2AClientManager(self._a2a_config))
+        async def unavailable(*args, **kwargs):
+            raise RuntimeError('容量预览不执行工具')
+        try:
+            await mcp.initialize()
+            loop = AgentLoop(uow_factory=self._uow_factory, llm=self._llm,
+                agent_config=self._agent_config, session_id='capacity-preview', mode=mode,
+                tools=[ProjectNotesTool(unavailable)] + build_default_tools(None, None,
+                    self._search_engine, mcp, a2a, default_exec_dir=SANDBOX_PROJECT_DIR),
+                deliver_file=unavailable, system_prompt=build_system_prompt(SANDBOX_PROJECT_DIR),
+                project_prompt=memory_view['project_prompt'], tool_policy=self._tool_policy)
+            prompt = loop._with_mode_suffix(build_system_prompt(SANDBOX_PROJECT_DIR) + memory_view['project_prompt'])
+            estimate = fixed_input_estimate(loop.budget, [{'role':'system','content':prompt}], loop.pipeline.schemas())
+            return dict(**memory_view, capacity=dict(**estimate.as_dict(), over_limit=estimate.over_limit,
+                model=self._llm.model_name, mode=mode.value, tool_count=len(loop.pipeline.schemas()),
+                discovery_errors=dict(mcp.gateway.errors), source='当前配置与发现成功的工具；字符估算，不包含对话历史'))
+        finally:
+            await mcp.cleanup()
+
     async def _get_task(self, session: Session) -> Optional[Task]:
         """根据传递的任务会话获取任务实例"""
         # 1.从会话中取出任务id
@@ -327,6 +353,7 @@ class AgentService:
             attachments: Optional[List[str]] = None,
             timestamp: Optional[datetime] = None,
             mode: RunMode = RunMode.NORMAL,
+            create_project_id: str | None = None,
     ) -> ChatAccepted:
         """受理一条用户消息并立即返回；执行过程只通过事件流（stream_events）观察。
 
@@ -385,8 +412,27 @@ class AgentService:
             async with self._uow:
                 session = await self._uow.session.get_by_id(session_id)
                 active = await self._uow.run.get_active(session_id) if session else None
+            new_session = None
+            if create_project_id:
+                if session:
+                    if session.project_id != create_project_id:
+                        raise ConflictError('首发标识属于另一项目')
+                    async with self._uow:
+                        first = await self._uow.event.first_user_message(session_id)
+                        original_run = await self._uow.run.get(first.run_id) if first else None
+                    if first and original_run:
+                        if (first.message != message or [f.id for f in first.attachments] != (attachments or [])
+                                or original_run.mode != mode):
+                            raise ConflictError('此首发标识已受理其他内容，请核对原对话')
+                        return ChatAccepted(run_id=original_run.id, seq=first.seq, route='started')
+                else:
+                    async with self._uow:
+                        project = await self._uow.project.get(create_project_id)
+                    if project is None:
+                        raise NotFoundError('项目不存在')
+                    session = Session(id=session_id, project_id=create_project_id, project=project)
+                    new_session = session
             if not session:
-                logger.error(f"尝试与不存在的任务会话[{session_id}]对话")
                 raise NotFoundError("任务会话不存在, 请核实后重试")
             if session.project_id:
                 self._validate_project_session(session)
@@ -427,7 +473,7 @@ class AgentService:
                     provisional_title = TitleEvent(title=message.strip()[:30])
                 run = await self._ledger.start(
                     session_id, events_after=[message_event, EnvironmentEvent(status="preparing"), *([provisional_title] if provisional_title else [])],
-                    apply=touch, mode=mode, before_start=prepare_project,
+                    apply=touch, mode=mode, before_start=prepare_project, session_to_create=new_session,
                 )
                 if provisional_title is not None:
                     from app.application.services.title_service import TitleService

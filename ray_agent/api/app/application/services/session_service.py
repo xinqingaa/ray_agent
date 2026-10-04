@@ -37,12 +37,22 @@ class SessionService:
         self._uow = uow_factory()
         self._sandbox_cls = sandbox_cls
 
-    async def create_session(self) -> Session:
+    async def create_session(self, creation_id: str | None = None) -> Session:
         """创建一个空白的新任务会话"""
         logger.info(f"创建一个空白新任务会话")
         session = Session(title=DEFAULT_SESSION_TITLE)
-        async with self._uow:
-            await self._uow.session.save(session)
+        if creation_id:
+            session.id = creation_id
+        async with self._uow_factory() as uow:
+            if creation_id:
+                await uow.session.lock_creation('session:' + creation_id)
+                existing = await uow.session.get_by_id(creation_id)
+                if existing:
+                    if existing.project_id:
+                        from app.application.errors.exceptions import ConflictError
+                        raise ConflictError('创建标识已用于项目对话')
+                    return existing
+            await uow.session.save(session)
         logger.info(f"成功创建一个新任务会话: {session.id}")
         return session
 

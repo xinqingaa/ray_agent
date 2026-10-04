@@ -13,11 +13,13 @@ export type ChatDraft = {
   text: string
   files: FileInfo[]
   planMode: boolean
+  creationId?: string
   sessionId?: string
   submission?: Submission
   compactionAfterSeq?: number
 }
 export const EMPTY_DRAFT: ChatDraft = {text: '', files: [], planMode: false}
+const volatileDrafts=new Map<string,ChatDraft>()
 const prefix = 'rayagent:draft:'
 export const DRAFT_CHANGED = 'rayagent-draft-changed'
 function changed(scope: string): void {
@@ -30,15 +32,18 @@ export function readDraft(scope: string): ChatDraft {
   try {
     const parsed = JSON.parse(sessionStorage.getItem(prefix + scope) ?? 'null')
     return parsed && typeof parsed.text === 'string' && Array.isArray(parsed.files)
-      ? parsed : {...EMPTY_DRAFT}
-  } catch { return {...EMPTY_DRAFT} }
+      ? parsed : volatileDrafts.get(scope) ?? {...EMPTY_DRAFT}
+  } catch { return volatileDrafts.get(scope) ?? {...EMPTY_DRAFT} }
 }
 export function writeDraft(scope: string, changes: Partial<ChatDraft>): void {
-  sessionStorage.setItem(prefix + scope, JSON.stringify({...readDraft(scope), ...changes}))
+  const next={...readDraft(scope),...changes}
+  volatileDrafts.set(scope,next)
+  try{sessionStorage.setItem(prefix + scope, JSON.stringify(next))}catch{/* 当前标签内存仍保留草稿 */}
   changed(scope)
 }
 export function clearDraft(scope: string): void {
-  sessionStorage.removeItem(prefix + scope)
+  volatileDrafts.delete(scope)
+  try{sessionStorage.removeItem(prefix + scope)}catch{}
   changed(scope)
 }
 
@@ -60,6 +65,12 @@ export function checkAcceptance(detail: SessionDetail, pending: Submission): Acc
   const data = matches[0].data as Record<string, unknown>
   const runId = typeof data.run_id === 'string' ? data.run_id : null
   const seq = readEventSeq(matches[0])
-  if (!runId || seq == null || !detail.runs?.some((run) => run.run_id === runId)) return {kind: 'ambiguous'}
+  const run = detail.runs?.find(run => run.run_id === runId)
+  const continuation = normalizeEvents(detail.events).some(event => {
+    if (event.type !== 'message' || !event.data || typeof event.data !== 'object') return false
+    const data = event.data as Record<string, unknown>
+    return data.run_id === runId && data.role === 'user' && (readEventSeq(event) ?? Infinity) <= pending.afterSeq
+  })
+  if (!runId || seq == null || !run || (continuation ? pending.mode !== 'normal' : run.mode !== pending.mode)) return {kind: 'ambiguous'}
   return {kind: 'accepted', runId, seq}
 }

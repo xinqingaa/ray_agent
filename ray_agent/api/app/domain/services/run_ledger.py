@@ -14,7 +14,7 @@ from app.domain.external.event_notifier import EventNotifier
 from app.domain.models.event import BaseEvent, CompactEvent, RunEvent, ToolEvent, ToolEventStatus, TurnEvent, \
     TurnPhase
 from app.domain.models.run import Run, RunMode, RunReason, RunStatus
-from app.domain.models.session import SessionStatus
+from app.domain.models.session import Session, SessionStatus
 from app.domain.repositories.uow import IUnitOfWork
 from app.domain.services.project_transactions import lock_project_session, ensure_project_start
 
@@ -75,11 +75,17 @@ class RunLedger:
             apply: Optional[Apply] = None,
             mode: RunMode = RunMode.NORMAL,
             before_start: Optional[Apply] = None,
+            session_to_create: Optional[Session] = None,
     ) -> Run:
         """创建运行并写入 run(running) 事件与随后的事件；会话已有活动运行时抛 ActiveRunExistsError。"""
         run = Run(session_id=session_id, mode=mode)
         uow = self._uow_factory()
         async with uow:
+            if session_to_create is not None:
+                # 锁项目后检查准入，创建与消息/运行提交同一事务，409 不留空会话。
+                await uow.project.get(session_to_create.project_id, lock=True)
+                await ensure_project_start(uow, session_to_create)
+                await uow.session.save(session_to_create)
             session = await lock_project_session(uow, session_id)
             await ensure_project_start(uow, session)
             if before_start is not None:

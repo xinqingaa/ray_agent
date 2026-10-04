@@ -31,6 +31,9 @@ class RunRepository(Protocol):
     async def get_active_project(self, project_id: str, exclude_session: Optional[str] = None) -> Optional[Run]:
         ...
 
+    async def active_projects(self, project_ids: list[str]) -> dict[str, Run]:
+        ...
+
     async def list_by_session(self, session_id: str) -> List[Run]:
         """按开始时间升序。"""
         ...

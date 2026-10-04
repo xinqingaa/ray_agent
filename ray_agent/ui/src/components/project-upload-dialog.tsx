@@ -11,9 +11,14 @@ import {formatBytes} from '@/components/run/format'
 
 type Props = {open: boolean; projectId?: string; disabledReason?: string | null; onClose: () => void; onUploaded?: () => void; onCreated?: (project: ProjectDetails) => void}
 const batchKey = (id: string) => `rayagent:project-upload:${id}`
+const rememberBatch=(id:string,op:string)=>{try{localStorage.setItem(batchKey(id),op)}catch{/* 服务器占用仍可发现，浏览器存储不是事实源 */}}
+const forgetBatch=(id:string)=>{try{localStorage.removeItem(batchKey(id))}catch{}}
+const readBatch=(id:string)=>{try{return localStorage.getItem(batchKey(id))}catch{return null}}
 const message = (error: unknown) => error instanceof Error ? error.message : '上传失败，请读回批次结果'
 
 export function ProjectUploadDialog({open, projectId, disabledReason, onClose, onUploaded, onCreated}: Props) {
+  const creationId=useRef<string|null>(null)
+  const [transfer,setTransfer]=useState<{loaded:number;total:number;published:number;count:number;path:string}|null>(null)
   const [rules,setRules]=useState<ProjectUploadRules | null>(null)
   const [scan,setScan]=useState<UploadScan | null>(null)
   const [preflight,setPreflight]=useState<ProjectUploadPreflight | null>(null)
@@ -39,23 +44,24 @@ export function ProjectUploadDialog({open, projectId, disabledReason, onClose, o
   },[])
   useEffect(() => {
     if (!open) return
+    creationId.current=null
     let live=true
     const epochCounter=epoch
     setError(null);setBusy(null);setProgress('');setTarget(projectId);setCreated(null);setScan(null);setPreflight(null);setResult(null);setOperation(null);setConfirmed(new Set());setOverwrite(new Set());setOnlyFailed(undefined);setCreationUnknown(false);setSourceName('所选材料');setName('本地材料')
     sources.current=[]
     projectApi.uploadRules().then(value => {if(live)setRules(value)}).catch(error => {if(live)setError(message(error))})
-    if(projectId) {const op=localStorage.getItem(batchKey(projectId));if(op)void readback(projectId,op).catch(error => {if(live)setError(message(error))})}
+    if(projectId) {const op=readBatch(projectId);if(op)void readback(projectId,op).catch(error => {if(live)setError(message(error))})}
     return () => {live=false;epochCounter.current++;cancel.current=true}
   },[open,projectId,readback])
 
   const inspect=async (input: UploadSource[], nextConfirmed=new Set<string>(), nextOverwrite=new Set<string>(), only?: Set<string>) => {
-    const token=++epoch.current;setBusy('scan');setError(null);setPreflight(null);setResult(null);setOnlyFailed(only)
+    const token=++epoch.current;setBusy('scan');setTransfer(null);setError(null);setPreflight(null);setResult(null);setOnlyFailed(only)
     try {
       const current=await projectApi.uploadRules()
       if(token!==epoch.current)return
       if(rules && rules.version!==current.version && nextConfirmed.size) {nextConfirmed=new Set();nextOverwrite=new Set();setError('上传规则已变化，可选项与覆盖项已清除，请重新确认')}
       setRules(current);sources.current=input;setConfirmed(new Set(nextConfirmed));setOverwrite(new Set(nextOverwrite))
-      const scanned=await scanProjectUpload(input,current,nextConfirmed,path => {if(token===epoch.current)setProgress(path)},() => token!==epoch.current)
+      const scanned=await scanProjectUpload(input,current,nextConfirmed,(path,count) => {if(token===epoch.current)setProgress(`已扫描 ${count} 项 · ${path}`)},() => token!==epoch.current)
       if(token!==epoch.current)return
       setScan(scanned)
       if(scanned.errors.length || !scanned.files.length)return
@@ -81,7 +87,7 @@ export function ProjectUploadDialog({open, projectId, disabledReason, onClose, o
     let id=target, op: string | null=null
     try {
       if(!id) {
-        try {const project=await projectApi.create(name.trim());id=project.id;setTarget(id);setCreated(project)}
+        try {const project=await projectApi.create(name.trim(),undefined,creationId.current ?? (creationId.current=crypto.randomUUID()));id=project.id;setTarget(id);setCreated(project)}
         catch(error) {if(!(error instanceof ApiError) || error.code>=500 || error.code===408)setCreationUnknown(true);throw error}
       }
       const selection=uploadSelection(scan,rules,overwrite,onlyFailed)
@@ -89,26 +95,31 @@ export function ProjectUploadDialog({open, projectId, disabledReason, onClose, o
       if(checked.errors.length || checked.items.some(item => !item.included || (item.conflict && !item.overwrite))) throw new Error('检查结果发生变化，请核对冲突和限制后重新确认')
       if(preflight && JSON.stringify(checked.fingerprint)!==JSON.stringify(preflight.fingerprint)) throw new Error('项目文件已变化，请核对最新冲突后重新确认上传')
       selection.fingerprint=checked.fingerprint
+      setTransfer({loaded:0,total:selection.items.reduce((sum,item)=>sum+item.size,0),published:0,count:selection.items.length,path:''})
+      let finishedBytes=0, published=0
       const started=await projectApi.startUpload(id,selection);op=started.operation_id
-      setOperation(op);localStorage.setItem(batchKey(id),op);setResult(started)
+      setOperation(op);rememberBatch(id,op);setResult(started)
       for(const [index,item] of selection.items.entries()) {
         if(cancel.current)break
         setProgress(`${index+1} / ${selection.items.length} · ${item.path}`)
-        if(checked.items.find(value => value.path===item.path)?.reuse)continue
+        if(checked.items.find(value => value.path===item.path)?.reuse){finishedBytes+=item.size;published++;setTransfer({loaded:finishedBytes,total:selection.items.reduce((sum,item)=>sum+item.size,0),published,count:selection.items.length,path:item.path});continue}
         const source=scan.files.find(value => value.path===item.path)!
-        try {await projectApi.uploadItem(id,op,item.path,source.file)}catch(error) {
+        try {await projectApi.uploadItem(id,op,item.path,source.file,(loaded,total)=>setTransfer({loaded:finishedBytes+item.size*(total?loaded/total:0),total:selection.items.reduce((sum,item)=>sum+item.size,0),published,count:selection.items.length,path:item.path}));published++}catch(error) {
           if(error instanceof ApiError && error.code<500 && error.code!==408)continue
           // 网络未知先读回，不盲目重传副本；断线时保留批次，提供读回和取消。
           const value=await readback(id,op)
           if(!value.results.received?.[item.path]?.published)throw error
+          published++
         }
+        finishedBytes+=item.size
+        setTransfer({loaded:finishedBytes,total:selection.items.reduce((sum,item)=>sum+item.size,0),published,count:selection.items.length,path:item.path})
       }
       const finished=await projectApi.finishUpload(id,op,cancel.current);setResult(finished);onUploaded?.()
     } catch(error) {
       setError(message(error))
       if(id) {
         try {const detail=await projectApi.detail(id);if(!op && (!(error instanceof ApiError) || error.code>=500 || error.code===408) && detail.file_operation?.kind==='upload'){
-          op=detail.file_operation.operation_id;setOperation(op);localStorage.setItem(batchKey(id),op)
+          op=detail.file_operation.operation_id;setOperation(op);rememberBatch(id,op)
         }if(op)await readback(id,op)}catch{/* 读回不可达时维持未知状态，不自动开始新批次。 */}
       }
     } finally {setBusy(null);setProgress('');transferring.current=false;onUploaded?.()}
@@ -147,6 +158,7 @@ export function ProjectUploadDialog({open, projectId, disabledReason, onClose, o
       <input ref={element => {folderInput.current=element;element?.setAttribute('webkitdirectory','')}} type="file" multiple className="hidden" {...{webkitdirectory: ''}} onChange={event => {const files=Array.from(event.target.files || []);event.target.value='';if(files.length){setName(files[0].webkitRelativePath.split('/')[0]);setSourceName(files[0].webkitRelativePath.split('/')[0])};void inspect(sourcesFromFiles(files,true))}}/>
     </div>
     {disabledReason && <p className="text-meta text-state-waiting">{disabledReason}</p>}
+    {transfer && <div className="shrink-0 space-y-1 rounded-md border p-3"><div className="flex justify-between text-meta"><span>传输进度（按文件字节加权）</span><span className="tabular-nums">{transfer.total?Math.min(100,Math.floor(transfer.loaded/transfer.total*100)):0}%</span></div><progress aria-label="上传传输进度" className="h-2 w-full accent-signal" max={transfer.total || 1} value={transfer.loaded}/><p className="text-meta text-muted-foreground">已确认发布 {transfer.published} / {transfer.count} 个文件。传输结束后仍需等待服务端保存。</p><p className="truncate font-mono text-xs" title={transfer.path}>{transfer.path}</p></div>}
     {busy && <p role="status" className="truncate text-meta text-faint">{busy==='scan' ? '正在扫描与预检' : busy==='upload' ? '正在上传' : '正在读取批次'}：{progress}</p>}
     <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto">
     {scan ? <ProjectUploadTree scan={scan} optionalRows={optionalRows} confirmed={confirmed} overwrite={overwrite} preflight={preflight} result={result} onlyFailed={onlyFailed} disabled={!!busy || activeBatch || uploadComplete} sourceName={sourceName} onOptional={optional} onOverwrite={setCover}/> : <div className="flex min-h-24 flex-1 items-center justify-center rounded-md border bg-muted/20 p-5 text-center text-meta text-faint">选择材料后，在这里审核文件层级、大小与上传规则</div>}
@@ -164,7 +176,7 @@ export function ProjectUploadDialog({open, projectId, disabledReason, onClose, o
       {!scan && <p className="text-faint">重试失败项需重新选择本地材料；已发布的相同路径与内容会复用。</p>}
     </div>}
     {error && <p role="alert" className="text-meta text-state-failed">{error}</p>}
-    {creationUnknown && <p className="text-meta text-state-waiting">新建项目的受理结果未知，请关闭弹框，刷新项目列表后选择已创建的项目。不要重复新建。</p>}
+    {creationUnknown && <div className="text-meta text-state-waiting"><p>创建结果尚未确认，请读取原创建标识的结果。</p><Button size="sm" variant="outline" disabled={!!busy} onClick={async()=>{if(!creationId.current)return;try{const project=await projectApi.create(name.trim(),undefined,creationId.current);setTarget(project.id);setCreated(project);setCreationUnknown(false);setError(null)}catch(error){setError(message(error))}}}>检查创建结果</Button></div>}
     </div>
     <div className="shrink-0 border-t pt-3">
       {scan && <p className="mb-2 text-meta">{uploadComplete ? '已上传' : '将上传'} {scan.files.filter(item => !onlyFailed || onlyFailed.has(item.path)).length} 个文件，{formatBytes(onlyFailed ? scan.files.filter(item => onlyFailed.has(item.path)).reduce((sum,item) => sum+item.file.size,0) : totalBytes)}；排除 {scan.excluded.length} 项{preflight && `；上传后项目 ${formatBytes(preflight.projected_bytes)}`}</p>}

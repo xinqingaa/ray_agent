@@ -113,7 +113,11 @@ def test_summary_material_only_completed_final_replies_and_bounds(tmp_path):
             material=await uow.session.summary_material(s.id)
         assert material['first_user']=='最初目标'
         assert [f['message'] for f in material['finals']]==['最终结论']
-        assert material['source_seq']==material['finals'][0]['seq']
+        assert material['source_seq'] > material['finals'][0]['seq']
+        assert [item['message'] for item in material['user_updates']] == ['后续目标']
+        assert any(item['status'] == 'failed' for item in material['run_states'])
+        async with factory() as uow:
+            project=await uow.project.get(p.id,lock=True);project.file_operation=None;await uow.project.save(project)
         for index in range(12):
             other=await service.create_session(p.id)
             async with factory() as uow:
@@ -218,4 +222,34 @@ def test_project_navigation_reports_waiting_and_terminal_status(tmp_path):
         await check('waiting')
         await ledger.transition(session.id, run.id, RunStatus.CANCELLED)
         await check(None)
+    with_db(scenario)
+
+
+def test_manual_source_preserved_on_regeneration_failure_and_memory_preview(tmp_path):
+    async def scenario(factory, engine):
+        service = projects(factory, tmp_path)
+        project = await service.create('透明记忆')
+        session = await service.create_session(project.id)
+        memory = ProjectMemoryService(factory, RunLedger(factory))
+        await memory.edit_summary(session.id, '用户确认的摘要', 0)
+        ticket = await memory.begin_summary(session.id, manual=True)
+        generating = await memory.get_summary(session.id)
+        assert generating['summary_source'] == 'manual'
+        assert generating['summary_state'] == 'generating'
+        assert not await memory.complete_summary(ticket, error='模型超时')
+        failed = await memory.get_summary(session.id)
+        assert failed['summary'] == '用户确认的摘要' and failed['summary_source'] == 'manual'
+        newer = await memory.begin_summary(session.id, manual=True)
+        assert await memory.complete_summary(newer, '新自动摘要')
+        assert (await memory.get_summary(session.id))['summary_source'] == 'auto'
+        await memory.update_notes(project.id, '旧结论', 0)
+        await memory.update_notes(project.id, '新结论', 1)
+        history = await service.memory_history(project.id, limit=1)
+        assert len(history) == 1 and history[0]['payload']['content'] == '新结论'
+        older = await service.memory_history(project.id, history[0]['seq'], 20)
+        assert any(item['payload'].get('content') == '旧结论' for item in older)
+        view = await service.memory_view(project.id)
+        assert view['project']['notes'] == '新结论'
+        assert view['project']['summaries'][0]['summary'] == '新自动摘要'
+        assert not (await service.memory_view(project.id, session.id))['candidates']
     with_db(scenario)

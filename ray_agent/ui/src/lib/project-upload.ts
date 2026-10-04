@@ -31,8 +31,9 @@ export function classifyUpload(name: string, directory: boolean, siblingNames: s
 
 /** 只枚举当前层名称，先判断排除再进入子目录；可选目录勾选后才遍历文件和统计大小。 */
 export async function scanProjectUpload(roots: UploadSource[], rule: ProjectUploadRules, confirmed: Set<string>,
-  onProgress?: (path: string) => void, cancelled?: () => boolean): Promise<UploadScan> {
+  onProgress?: (path: string, scanned: number) => void, cancelled?: () => boolean): Promise<UploadScan> {
   const output: UploadScan = {files: [], excluded: [], inventory: [], includeOptional: [...confirmed], errors: []}
+  let scanned = 0
   const seen = new Set<string>()
   const check = () => {if (cancelled?.()) throw new DOMException('扫描已取消', 'AbortError')}
   async function visit(sources: UploadSource[], prefix: string, inherited = false) {
@@ -43,7 +44,7 @@ export async function scanProjectUpload(roots: UploadSource[], rule: ProjectUplo
     for (let index = 0; index < sources.length; index++) {
       check()
       const source = sources[index], name = names[index], path = prefix + name
-      onProgress?.(path)
+      onProgress?.(path, ++scanned)
       if (source.kind === 'directory') {
         let decision = classifyUpload(name, true, names, rule)
         // 确定排除不用进目录；必要的 venv 标志查询只取元数据，不扫描依赖文件。

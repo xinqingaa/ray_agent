@@ -52,6 +52,16 @@ class DBRunRepository(RunRepository):
         record = (await self.db_session.execute(stmt.order_by(RunModel.started_at).limit(1))).scalar_one_or_none()
         return record.to_domain() if record else None
 
+    async def active_projects(self, project_ids: list[str]) -> dict[str, Run]:
+        if not project_ids:
+            return {}
+        stmt = select(SessionModel.project_id, RunModel).join(SessionModel, SessionModel.id == RunModel.session_id).where(
+            SessionModel.project_id.in_(project_ids), RunModel.status.in_(_ACTIVE_VALUES)).order_by(RunModel.started_at)
+        result = {}
+        for project_id, record in (await self.db_session.execute(stmt)).all():
+            result.setdefault(project_id, record.to_domain())
+        return result
+
     async def list_by_session(self, session_id: str) -> List[Run]:
         stmt = select(RunModel).where(RunModel.session_id == session_id).order_by(RunModel.started_at)
         return [record.to_domain() for record in (await self.db_session.execute(stmt)).scalars().all()]

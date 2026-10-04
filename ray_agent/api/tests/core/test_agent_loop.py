@@ -69,6 +69,7 @@ def test_batch_with_two_calls_and_update_plan_runs_in_order_and_pairs_by_id():
             ScriptedToolCall("echo", {"text": "b"}, id="c-b"),
         ]),
         text("完成"),
+        text("仍有未完成条目"),
     ])
     events = run(collect(h.loop))
 
@@ -95,7 +96,9 @@ def test_batch_with_two_calls_and_update_plan_runs_in_order_and_pairs_by_id():
     assert results["c-a"]["data"] == {"echo": "a"} and results["c-b"]["data"] == {"echo": "b"}
     assert results["c-plan"]["success"] is True
     assert isinstance(events[-1], DoneEvent) and h.loop.end_reason == RunEndReason.COMPLETED
-    assert [e.message for e in events if isinstance(e, MessageEvent)] == ["先读两份资料并写计划", "完成"]
+    assert [e.message for e in events if isinstance(e, MessageEvent)][0] == "先读两份资料并写计划"
+    assert "执行记录仍有未完成项" in [e.message for e in events if isinstance(e, MessageEvent)][-1]
+    assert h.loop._completion_feedbacks == 1
     assert not any(isinstance(e, TitleEvent) for e in events)
 
 
@@ -226,7 +229,7 @@ def test_deliver_files_attaches_existing_file_and_reports_missing(exists):
         delivered.append(p)
         return File(id="file-1", filename="out.json", filepath=p, size=12)
 
-    h = make_loop([tool_call("deliver_files", {"paths": [path], "note": "请查收"}, id="c-deliver"), text("完成")],
+    h = make_loop([tool_call("deliver_files", {"paths": [path], "note": "请查收"}, id="c-deliver"), text("完成")] + ([] if exists else [text("文件未交付")]),
                   deliver_file=deliver_file)
     events = run(collect(h.loop))
 

@@ -11,7 +11,7 @@ from app.interfaces.schemas import Response
 from app.interfaces.schemas.project import (ProjectPage, ProjectDetails,
     CreateProjectRequest, ArchiveProjectRequest, ProjectSettings, UpdateProjectRequest, UpdateProjectNotesRequest)
 from app.interfaces.schemas.session import ListSessionResponse
-from app.interfaces.service_dependencies import get_project_service, get_project_file_service, get_project_memory_service
+from app.interfaces.service_dependencies import get_project_service, get_project_file_service, get_project_memory_service, get_agent_service
 
 from app.domain.models.project_upload import ProjectUploadSelection
 
@@ -32,7 +32,7 @@ async def list_projects(archived: bool = Query(False), offset: int = Query(0, ge
 
 @router.post("", response_model=Response[ProjectDetails], summary="新建托管项目，不创建对话或沙箱")
 async def create_project(request: CreateProjectRequest, project_service: ProjectService = Depends(get_project_service)):
-    project = await project_service.create(request.name, request.instructions)
+    project = await project_service.create(request.name, request.instructions, str(request.creation_id) if request.creation_id else None)
     return Response.success(data=await project_service.detail(project.id))
 
 
@@ -189,3 +189,41 @@ class RetryDeliveryRequest(BaseModel):
 @router.post('/{project_id}/deliveries/retry', response_model=Response[dict])
 async def retry_delivery(project_id: str, request: RetryDeliveryRequest, service: ProjectFileService = Depends(get_project_file_service)):
     return Response.success(data=await file_action(service.delivery.retry(project_id, request.copy_key)))
+
+
+@router.get('/{project_id}/memory', response_model=Response[dict])
+async def memory_view(project_id: str, session_id: str | None = Query(None),
+                      service: ProjectService = Depends(get_project_service)):
+    return Response.success(data=await service.memory_view(project_id, session_id))
+
+
+@router.get('/{project_id}/memory/history', response_model=Response[list[dict]])
+async def memory_history(project_id: str, before_seq: int = Query(0, ge=0),
+                         limit: int = Query(20, ge=1, le=50),
+                         service: ProjectService = Depends(get_project_service)):
+    return Response.success(data=await service.memory_history(project_id, before_seq, limit))
+
+
+from uuid import UUID
+from app.interfaces.schemas.session import ChatRequest
+from app.interfaces.service_dependencies import get_agent_service
+
+class ProjectFirstChatRequest(ChatRequest):
+    creation_id: UUID
+
+
+@router.post('/{project_id}/chat', response_model=Response[dict])
+async def first_chat(project_id: str, request: ProjectFirstChatRequest, service=Depends(get_agent_service)):
+    accepted = await service.chat(str(request.creation_id), message=request.message,
+        attachments=request.attachments, mode=request.mode, create_project_id=project_id)
+    return Response.success(data={'run_id': accepted.run_id, 'seq': accepted.seq, 'route': accepted.route, 'session_id': str(request.creation_id)})
+
+
+@router.get('/{project_id}/memory/estimate', response_model=Response[dict])
+async def estimate_memory(project_id: str, session_id: str | None = None,
+                          mode: str = Query('normal', pattern='^(normal|plan)$'),
+                          service=Depends(get_project_service),
+                          agent=Depends(get_agent_service)):
+    from app.domain.models.run import RunMode
+    view = await service.memory_view(project_id, session_id)
+    return Response.success(data=await agent.estimate_project_memory(view, RunMode(mode)))

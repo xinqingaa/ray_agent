@@ -23,6 +23,9 @@ class EventRepository(Protocol):
         """按 seq 升序读取 seq > after_seq 的事件，可按类型与运行过滤。"""
         ...
 
+    async def first_user_message(self, session_id: str) -> Optional[Event]:
+        ...
+
     async def max_seq(self, session_id: str) -> int:
         """会话当前最大 seq，没有事件时为 0。"""
         ...

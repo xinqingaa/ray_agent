@@ -482,3 +482,25 @@ function processSSEBuffer(
   }
 }
 
+
+/** 上传字节来自浏览器传输事件；100% 仅表示传输完成，发布结果由响应确认。 */
+export function uploadRequest<T>(endpoint:string, body:FormData, onProgress?:(loaded:number,total:number)=>void, timeout=120000):Promise<T> {
+  return new Promise((resolve,reject)=>{
+    const xhr=new XMLHttpRequest()
+    xhr.open('PUT',`${API_CONFIG.baseURL}${endpoint}`)
+    xhr.timeout=timeout
+    xhr.responseType='json'
+    xhr.upload.onprogress=event=>{if(event.lengthComputable)onProgress?.(event.loaded,event.total)}
+    xhr.onerror=()=>reject(new ApiError(500,'上传连接中断，结果需读回确认'))
+    xhr.ontimeout=()=>reject(new ApiError(408,'上传请求超时，结果需读回确认'))
+    xhr.onabort=()=>reject(new ApiError(408,'上传已中断，结果需读回确认'))
+    xhr.onload=()=>{
+      const result=xhr.response as ApiResponse<T>|null
+      if(xhr.status<200 || xhr.status>=300){reject(new ApiError(xhr.status,result?.msg || (xhr.status>=500?'服务暂时不可用，请读回上传结果':'上传被拒绝'),result?.data));return}
+      if(!result){reject(new ApiError(500,'上传响应无法识别，请读回批次结果'));return}
+      if(result.code!==0 && result.code!==200){reject(new ApiError(result.code,result.msg,result.data));return}
+      resolve(result.data as T)
+    }
+    xhr.send(body)
+  })
+}

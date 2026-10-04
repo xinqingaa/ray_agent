@@ -1,5 +1,6 @@
 """长期项目登记、生命周期、对话归属及项目/会话共用的只读工作台。"""
 import os
+import asyncio
 from datetime import datetime
 from typing import Callable, Optional, Sequence
 
@@ -65,13 +66,20 @@ class ProjectService:
         reason = "共享沙箱模式不支持托管项目" if self._sandbox_address else self._storage.reason
         return reason is None, reason
 
-    async def create(self, name: str, instructions: Optional[str] = None) -> WorkspaceProject:
+    async def create(self, name: str, instructions: Optional[str] = None, creation_id: str | None = None) -> WorkspaceProject:
         supported, reason = self.availability()
         if not supported:
             raise ConflictError(reason)
         candidate = WorkspaceProject(name=name, instructions=instructions)
-        self._storage.ensure_project(candidate.id)
+        if creation_id:
+            candidate.id = creation_id
         async with self._uow_factory() as uow:
+            if creation_id:
+                await uow.project.lock_creation('project:' + creation_id)
+                existing = await uow.project.get(creation_id)
+                if existing:
+                    return existing
+            await asyncio.to_thread(self._storage.ensure_project, candidate.id)
             return await uow.project.create(candidate)
 
     async def get(self, project_id: str) -> WorkspaceProject:
@@ -85,11 +93,11 @@ class ProjectService:
         async with self._uow_factory() as uow:
             projects, total = await uow.project.page(archived=archived, offset=offset, limit=limit)
             counts = await uow.session.project_counts([project.id for project in projects])
-            active = {project.id: await uow.run.get_active_project(project.id) for project in projects}
+            active = await uow.run.active_projects([project.id for project in projects])
         views = []
         for project in projects:
             view = self.describe(project)
-            run = active[project.id]
+            run = active.get(project.id)
             views.append(view.model_copy(update={"task_count": counts.get(project.id, 0),
                 "occupying_session_id": run.session_id if run else None,
                 "active_run_status": run.status.value if run else None,
@@ -113,9 +121,14 @@ class ProjectService:
             if project is None:
                 raise NotFoundError("项目不存在")
             if base_version is None or base_version != project.settings_version:
-                raise ConflictError("项目设置版本冲突，请重新加载后合并修改")
+                error = ConflictError("项目设置版本冲突，请保留草稿，按最新内容合并后保存")
+                error.data = dict(name=project.name, instructions=project.instructions, settings_version=project.settings_version)
+                raise error
             if notes is not None and notes_version != project.notes_version:
                 raise ConflictError("项目笔记版本冲突，请重新加载后合并修改")
+            if (settings.name == project.name and settings.instructions == project.instructions
+                    and (notes is None or notes == project.notes)):
+                return project
             updated = project.model_copy(update={**settings.model_dump(), "settings_version": project.settings_version + 1,
                 "updated_at": datetime.now()})
             await uow.project.audit(project_id, 'project_settings', dict(name=updated.name,
@@ -145,15 +158,27 @@ class ProjectService:
             await uow.project.save(project)
         return project
 
-    async def create_session(self, project_id: str) -> Session:
+    async def create_session(self, project_id: str, creation_id: str | None = None) -> Session:
         async with self._uow_factory() as uow:
             project = await uow.project.get(project_id, lock=True)
             if project is None:
                 raise NotFoundError("项目不存在")
+            if creation_id:
+                existing = await uow.session.get_by_id(creation_id)
+                if existing:
+                    if existing.project_id != project_id:
+                        raise ConflictError('创建标识属于其他项目')
+                    return existing
             if project.archived_at:
                 raise ConflictError("项目已归档，请先恢复")
+            require_writable(project)
+            occupied = await uow.run.get_active_project(project_id)
+            if occupied:
+                raise ProjectRunConflict('项目有活动对话，请返回占用对话', occupied.session_id)
             self.validate_start(project.id)
             session = Session(title=DEFAULT_SESSION_TITLE, project_id=project.id, project=project)
+            if creation_id:
+                session.id = creation_id
             await uow.session.save(session)
         return session
 
@@ -221,3 +246,32 @@ class ProjectService:
         await self.get(project_id)
         async with self._uow_factory() as uow:
             return await uow.project.events(project_id, after_seq, limit)
+
+    async def memory_view(self, project_id, exclude_session_id=None):
+        """与受理使用同一项目段选择；当前预览不保证未来受理内容不变。"""
+        from app.domain.services.prompts.project import snapshot_prompt
+        async with self._uow_factory() as uow:
+            project = await uow.project.get(project_id, lock=True)
+            if project is None:
+                raise NotFoundError('项目不存在')
+            if exclude_session_id:
+                session = await uow.session.get_by_id(exclude_session_id)
+                if not session or session.project_id != project_id:
+                    raise BadRequestError('当前对话不属于该项目')
+            candidates = await uow.session.recent_summaries(project_id, exclude_session_id or '')
+            selected = bounded_summaries(candidates)
+            snapshot = ProjectTaskSnapshot(project_id=project_id, **project.model_dump(include={
+                'name', 'instructions', 'notes', 'notes_version', 'settings_version'}), summaries=selected)
+            active = await uow.run.get_active_project(project_id)
+            frozen = None
+            if active:
+                current = await uow.session.get_by_id(active.session_id)
+                frozen = active.config_snapshot.get('project_context') or (current.project_snapshot.model_dump(mode='json') if current.project_snapshot else None)
+        return dict(project=snapshot.model_dump(mode='json'), candidates=candidates,
+            project_prompt=snapshot_prompt(snapshot), frozen=frozen,
+            active_run_id=active.id if active else None, occupying_session_id=active.session_id if active else None)
+
+    async def memory_history(self, project_id, before_seq=0, limit=20):
+        await self.get(project_id)
+        async with self._uow_factory() as uow:
+            return await uow.project.memory_history(project_id, before_seq, limit)

@@ -3,6 +3,7 @@
 from datetime import datetime
 from typing import Any, Dict, List, Literal, Optional
 
+from uuid import UUID
 from pydantic import BaseModel, Field
 
 from app.domain.models.file import File
@@ -193,4 +194,5 @@ class ShellReadResponse(BaseModel):
 
 
 class CreateSessionRequest(BaseModel):
+    creation_id: UUID | None = None
     project_id: Optional[str] = Field(default=None, min_length=1, max_length=255)

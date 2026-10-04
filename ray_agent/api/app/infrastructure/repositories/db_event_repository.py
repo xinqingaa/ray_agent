@@ -84,6 +84,12 @@ class DBEventRepository(EventRepository):
         records = (await self.db_session.execute(stmt)).scalars().all()
         return [record.to_domain() for record in records]
 
+    async def first_user_message(self, session_id: str) -> Optional[Event]:
+        stmt = select(EventModel).where(EventModel.session_id == session_id, EventModel.type == 'message',
+            EventModel.payload['role'].astext == 'user').order_by(EventModel.seq).limit(1)
+        record = (await self.db_session.execute(stmt)).scalar_one_or_none()
+        return record.to_domain() if record else None
+
     async def max_seq(self, session_id: str) -> int:
         stmt = select(func.coalesce(func.max(EventModel.seq), 0)).where(EventModel.session_id == session_id)
         return (await self.db_session.execute(stmt)).scalar_one()

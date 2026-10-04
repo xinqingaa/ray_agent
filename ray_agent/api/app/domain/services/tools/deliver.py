@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """交付工具：把沙箱中的文件交给用户。存储与会话关联由运行器注入的交付函数完成。"""
-from typing import Awaitable, Callable, List, Optional, Union
+from typing import Awaitable, Callable, List, Optional, Union, Literal
 
 from pydantic import BaseModel, Field
 
@@ -31,6 +31,7 @@ class DeliveryItem(BaseModel):
 
 class DeliveryResult(BaseModel):
     """deliver_files 的结果数据，items 与请求的 paths 一一对应、顺序相同。"""
+    state: Literal['complete', 'partial', 'failed'] = 'failed'
     items: List[DeliveryItem] = Field(default_factory=list)
     note: Optional[str] = None
 
@@ -84,7 +85,9 @@ class DeliverTool(BaseTool):
             else:
                 items.append(DeliveryItem(path=path, success=True, file=file))
 
-        result = DeliveryResult(items=items, note=note)
+        project_failed = [item for item in items if item.project and item.project.get('state') == 'failed']
+        count = sum(item.success for item in items)
+        result = DeliveryResult(items=items, note=note, state='complete' if count == len(items) and not project_failed else 'partial' if count else 'failed')
         delivered = len(result.files)
         failed = [f"{item.path}（{item.error}）" for item in items if not item.success]
         message = f"已交付 {delivered}/{len(items)} 个文件"
@@ -94,4 +97,4 @@ class DeliverTool(BaseTool):
         if project_failed:
             message += '；部分失败：交付可下载，但未保存到项目：' + '；'.join(
                 f"{item.path}（{item.project.get('error') or '项目副本失败'}）" for item in project_failed)
-        return ToolResult(success=delivered > 0 and not project_failed, message=message, data=result)
+        return ToolResult(success=result.state == 'complete', message=message, data=result)

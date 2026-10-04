@@ -29,11 +29,11 @@ def register_exception_handlers(app: FastAPI) -> None:
         """处理MoocManus业务异常，将所有状态统一响应结构"""
         logger.error(f"AppException: {e.msg}")
         return JSONResponse(
-            status_code=e.status_code,
+            status_code=e.code,
             content=Response(
                 code=e.status_code,
                 msg=e.msg,
-                data={}
+                data=e.data if e.data is not None else {}
             ).model_dump(),
         )
 

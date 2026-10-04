@@ -32,6 +32,7 @@ class DBSessionRepository(SessionRepository):
         if not record:
             record = SessionModel.from_domain(session)
             self.db_session.add(record)
+            await self.db_session.flush()
             return
 
         # 3.会话存在则更新会话
@@ -307,23 +308,40 @@ class DBSessionRepository(SessionRepository):
 
 
     async def recent_summaries(self, project_id, exclude_session_id):
-        stmt = select(SessionModel).where(SessionModel.project_id == project_id,
+        from app.infrastructure.models.event import EventModel
+        latest = select(func.max(EventModel.seq)).where(EventModel.session_id == SessionModel.id,
+            EventModel.type.in_(['message', 'run'])).correlate(SessionModel).scalar_subquery()
+        stmt = select(SessionModel, latest.label('latest_seq')).where(SessionModel.project_id == project_id,
             SessionModel.id != exclude_session_id, SessionModel.summary.is_not(None), SessionModel.summary != '').order_by(
-                SessionModel.latest_message_at.desc().nullslast(), SessionModel.updated_at.desc()).limit(10)
+                SessionModel.latest_message_at.desc().nullslast(), SessionModel.updated_at.desc(), SessionModel.id).limit(10)
         return [{'session_id':s.id,'title':s.title,'summary':s.summary,'source':s.summary_source,
-            'source_seq':s.summary_source_seq,'generation':s.summary_generation} for s in (await self.db_session.execute(stmt)).scalars()]
+            'source_seq':s.summary_source_seq,'generation':s.summary_generation,'state':s.summary_state,
+            'error':s.summary_error,'latest_seq':seq or 0,'stale':(seq or 0) > s.summary_source_seq,
+            'latest_message_at':s.latest_message_at.isoformat() if s.latest_message_at else None}
+            for s, seq in (await self.db_session.execute(stmt)).all()]
 
     async def summary_material(self, session_id):
         from app.infrastructure.models.event import EventModel
         from app.infrastructure.models.run import RunModel
-        first = (await self.db_session.execute(select(EventModel).where(EventModel.session_id == session_id,
-            EventModel.type == 'message', EventModel.payload['role'].astext == 'user').order_by(EventModel.seq).limit(1))).scalar_one_or_none()
-        finals = (await self.db_session.execute(select(EventModel).join(RunModel,RunModel.id == EventModel.run_id).where(
-            EventModel.session_id == session_id,EventModel.type == 'message',EventModel.payload['role'].astext == 'assistant',
-            RunModel.status == 'completed').distinct(EventModel.run_id).order_by(EventModel.run_id,EventModel.seq.desc()))).scalars().all()
-        return {'first_user':(first.payload.get('message') or '')[:2000] if first else '',
-            'finals':[{'run_id':e.run_id,'seq':e.seq,'message':(e.payload.get('message') or '')[:1000]} for e in sorted(finals,key=lambda e:e.seq)],
-            'source_seq':max([e.seq for e in finals]+[first.seq if first else 0])}
+        from app.domain.services.summary_material import bound_material
+        users = select(EventModel).where(EventModel.session_id == session_id,
+            EventModel.type == 'message', EventModel.payload['role'].astext == 'user')
+        first = (await self.db_session.execute(users.order_by(EventModel.seq).limit(1))).scalar_one_or_none()
+        recent = (await self.db_session.execute(users.order_by(EventModel.seq.desc()).limit(12))).scalars().all()
+        finals_query = select(EventModel).join(RunModel, RunModel.id == EventModel.run_id).where(
+            EventModel.session_id == session_id, EventModel.type == 'message',
+            EventModel.payload['role'].astext == 'assistant', RunModel.status == 'completed').distinct(
+            EventModel.run_id).order_by(EventModel.run_id, EventModel.seq.desc()).subquery()
+        from sqlalchemy.orm import aliased
+        final = aliased(EventModel, finals_query)
+        finals = (await self.db_session.execute(select(final).order_by(final.seq.desc()).limit(12))).scalars().all()
+        runs = (await self.db_session.execute(select(RunModel).where(RunModel.session_id == session_id,
+            RunModel.status.in_(['completed', 'failed', 'cancelled', 'interrupted'])).order_by(
+            RunModel.started_at.desc()).limit(12))).scalars().all()
+        material = bound_material(first, recent, finals, runs)
+        cutoff = (await self.db_session.execute(select(func.max(EventModel.seq)).where(EventModel.session_id == session_id, EventModel.type.in_(['message', 'run'])))).scalar()
+        material['source_seq'] = max(material['source_seq'], cutoff or 0)
+        return material
 
     async def set_summary_fields(self, session_id, **values):
         await self.db_session.execute(update(SessionModel).where(SessionModel.id == session_id).values(**values))
@@ -334,3 +352,7 @@ class DBSessionRepository(SessionRepository):
             SessionModel.summary_state == 'generating').values(summary_state='failed',
                 summary_error='服务重启中断了摘要请求，请重新生成',
                 summary_generation=SessionModel.summary_generation + 1))
+
+    async def lock_creation(self, key):
+        from sqlalchemy import text
+        await self.db_session.execute(text('SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))'), {'key': key})

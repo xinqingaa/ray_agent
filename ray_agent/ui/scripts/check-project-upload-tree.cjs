@@ -42,11 +42,11 @@ const sources = [
   let renderer;
   await act(async () => {renderer=create(React.createElement(ProjectUploadTree,props()))});
   const content=() => JSON.stringify(renderer.toJSON());
-  const control=label => renderer.root.findAllByType('button').find(button => button.children.join('')===label);
+  const control=label => renderer.root.findAllByType('button').find(button => button.children.join('').startsWith(label));
   const node=title => renderer.root.findAllByProps({role:'treeitem'}).find(item => item.findAllByProps({title}).length);
   await act(async () => node('node_modules').props.onClick());
   assert.ok(content().includes('未扫描，大小未统计'));
-  await act(async () => renderer.root.findByType('input').props.onChange({target:{checked:true}}));
+  await act(async () => renderer.root.findAllByType('input').find(input=>input.props.type==='checkbox').props.onChange({target:{checked:true}}));
   assert.deepEqual(optionalCalls,[['node_modules',true]]);
   assert.equal(dependencyScans,0);
   await act(async () => control('需确认').props.onClick());
@@ -54,7 +54,7 @@ const sources = [
   assert.ok(node('.env'));
   await act(async () => control('已排除').props.onClick());
   await act(async () => node('.git').props.onClick());
-  assert.equal(renderer.root.findAllByType('input').length,0);
+  assert.equal(renderer.root.findAllByType('input').filter(input => input.props.type==='checkbox').length,0);
   confirmed=new Set(['node_modules','.env']);
   scan=await scanProjectUpload(sources,rules,confirmed);
   assert.equal(dependencyScans,1);
@@ -62,7 +62,7 @@ const sources = [
   assert.ok(selection.items.some(item => item.path==='node_modules/index.js'));
   assert.ok(selection.items.some(item => item.path==='.env'));
   assert.ok(!selection.items.some(item => item.path.startsWith('.git') || item.path==='超大文件.bin'));
-  await act(async () => renderer.update(React.createElement(ProjectUploadTree,{...props(),preflight:{items:[{path:'资料/source.csv',conflict:true}]}})));
+  await act(async () => renderer.update(React.createElement(ProjectUploadTree,{...props(),preflight:{items:[{path:'资料/source.csv',included:true,conflict:true}]}})));
   await act(async () => control('需确认').props.onClick());
   assert.ok(node('source.csv'));
   await act(async () => node('source.csv').props.onClick());

@@ -229,7 +229,7 @@ export type ProjectUploadResult = {path: string; size?: number; sha256?: string;
 export type ProjectOperationResult = {operation_id: string; kind?: string; state?: string; status?: string; phase?: string; error?: string | null; results: {received?: Record<string, ProjectUploadResult>; failures?: Record<string, string>; batch_status?: string; [key: string]: unknown}};
 
 export type ProjectSettings = {name: string; instructions: string | null};
-export type ProjectUpdate = ProjectSettings & {settings_version: number; notes: string; notes_version: number};
+export type ProjectUpdate = ProjectSettings & {settings_version: number; notes?: string; notes_version?: number};
 export type ProjectDetails = ProjectView & ProjectSettings & {notes: string; notes_version: number; settings_version: number; created_at: string; updated_at: string; archived_at: string | null; occupying_session_id: string | null};
 export type ProjectPage = {projects: ProjectView[]; total: number; offset: number; limit: number};
 
@@ -628,3 +628,8 @@ export type ViewShellParams = {
   session_id: string;
   [key: string]: unknown;
 };
+
+export type ProjectMemorySummary = {stale?:boolean;latest_seq?:number;session_id:string; title:string; summary:string; source:string; source_seq:number; generation:number; state?:string; error?:string|null; injected_text?:string; truncated?:boolean};
+export type ProjectMemorySnapshot = {instructions:string|null; notes:string; settings_version:number; notes_version:number; summaries:ProjectMemorySummary[]};
+export type ProjectMemoryCapacity = {total:number;limit:number;over_limit:boolean;model:string;mode:string;tool_count:number;discovery_errors:Record<string,string>;source:string;system_prompt:number;tools:number};
+export type ProjectMemoryView = {capacity?:ProjectMemoryCapacity;project:ProjectMemorySnapshot; candidates:ProjectMemorySummary[]; project_prompt:string; frozen:ProjectMemorySnapshot|null; active_run_id:string|null};

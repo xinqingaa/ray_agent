@@ -1,15 +1,20 @@
-import { get, put, post, request, ApiError } from "./fetch";
+import { get, put, post, uploadRequest, ApiError } from "./fetch";
 import type {
-  ProjectFile,
+  ChatAccepted, ProjectMemoryView, ProjectFile,
   ProjectListing,
   ProjectDetails, ProjectPage, ProjectUpdate, SessionsData,
   ProjectSnapshot, ProjectAuditEvent, ProjectUploadRules, ProjectUploadSelection, ProjectUploadPreflight, ProjectOperationResult, ProjectUploadResult,
 } from "./types";
 
 export const projectApi = {
+  startChat: (id:string, creationId:string, payload:{message:string;attachments:string[];mode:'normal'|'plan'}) => post<ChatAccepted & {session_id:string}>(`/projects/${id}/chat`,{...payload,creation_id:creationId}),
+  estimateMemory: (id:string, sessionId?:string, mode='normal') => get<ProjectMemoryView>(`/projects/${id}/memory/estimate`,{...(sessionId?{session_id:sessionId}:{}),mode}),
+  memory: (id:string, sessionId?:string) => get<ProjectMemoryView>(`/projects/${id}/memory`,sessionId ? {session_id:sessionId} : {}),
+  memoryHistory: (id:string, beforeSeq=0) => get<ProjectAuditEvent[]>(`/projects/${id}/memory/history`,{before_seq:beforeSeq}),
+  updateNotes: (id:string, content:string, version:number) => put<{content:string; notes_version:number}>(`/projects/${id}/notes`,{content,base_version:version}),
   list: (archived = false, offset = 0, limit = 50): Promise<ProjectPage> =>
     get<ProjectPage>("/projects", {archived, offset, limit}),
-  create: (name: string, instructions?: string): Promise<ProjectDetails> => post<ProjectDetails>("/projects", {name, instructions}),
+  create: (name: string, instructions?: string, creationId?: string): Promise<ProjectDetails> => post<ProjectDetails>("/projects", {name, instructions, creation_id:creationId}),
   detail: (id: string): Promise<ProjectDetails> => get<ProjectDetails>(`/projects/${id}`),
   update: (id: string, settings: ProjectUpdate): Promise<ProjectDetails> => put<ProjectDetails>(`/projects/${id}`, settings),
   archive: (id: string, archived: boolean): Promise<ProjectDetails> => post<ProjectDetails>(`/projects/${id}/archive`, {archived}),
@@ -25,9 +30,9 @@ export const projectApi = {
   events: (id: string, afterSeq = 0) => get<ProjectAuditEvent[]>(`/projects/${id}/events`, {after_seq: afterSeq, limit: 50}),
   preflight: (id: string, selection: ProjectUploadSelection) => post<ProjectUploadPreflight>(`/projects/${id}/uploads/preflight`, selection, {timeout: 120000}),
   startUpload: (id: string, selection: ProjectUploadSelection) => post<ProjectOperationResult>(`/projects/${id}/uploads`, selection, {timeout: 120000}),
-  uploadItem: (id: string, operation: string, path: string, file: File) => {
+  uploadItem: (id: string, operation: string, path: string, file: File, onProgress?: (loaded:number,total:number)=>void) => {
     const form = new FormData(); form.append('file', file);
-    return request<ProjectUploadResult>(`/projects/${id}/uploads/${operation}/file?path=${encodeURIComponent(path)}`, {method: 'PUT', body: form, timeout: 120000});
+    return uploadRequest<ProjectUploadResult>(`/projects/${id}/uploads/${operation}/file?path=${encodeURIComponent(path)}`, form, onProgress);
   },
   finishUpload: (id: string, operation: string, cancel = false) => post<ProjectOperationResult>(`/projects/${id}/uploads/${operation}/finish?cancel=${cancel}`, {}, {timeout: 120000}),
   operation: (id: string, operation: string) => get<ProjectOperationResult>(`/projects/${id}/operations/${operation}`),

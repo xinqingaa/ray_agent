@@ -56,12 +56,18 @@ export function NavigationCreateButton({tab, onIndependent, onCreateProject, onI
   onOpenProject?: () => void
 }) {
   if (tab === 'conversations') {
-    return <Button variant="ghost" size="icon" className="size-7" aria-label="新对话" title="新对话" onClick={onIndependent}><Plus className="size-4"/></Button>
+    return <Button variant="default" size="sm" className="h-7 gap-1.5 px-2.5 text-[13px] font-medium" onClick={onIndependent}>
+      <Plus className="size-3.5"/>
+      <span>新对话</span>
+    </Button>
   }
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="size-7" aria-label="新建项目" title="新建项目"><Plus className="size-4"/></Button>
+        <Button variant="default" size="sm" className="h-7 gap-1.5 px-2.5 text-[13px] font-medium">
+          <Plus className="size-3.5"/>
+          <span>新建</span>
+        </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         <DropdownMenuItem onSelect={onCreateProject ?? onOpenProject}>空白项目</DropdownMenuItem>
@@ -98,34 +104,85 @@ export function ProjectNavigation(props: Props) {
         <div hidden={tab !== 'projects'}>
           {props.loading && <p className="px-3 py-3 text-meta text-faint">正在读取项目</p>}
           {props.error && <div className="px-3 py-3"><p role="alert" className="text-meta text-state-failed">{props.error}</p><Button size="sm" variant="ghost" onClick={props.onRetry}>重试</Button></div>}
+          {!props.loading && !props.error && projects.length === 0 && (
+            <div className="mx-2 space-y-3 rounded-lg border bg-muted/30 p-4">
+              <div className="space-y-1">
+                <h3 className="text-sm font-medium">创建你的第一个项目</h3>
+                <p className="text-xs text-muted-foreground">项目保留材料、产出和对话记忆，适合持续完成的工作。</p>
+              </div>
+              <div className="flex flex-col gap-2">
+                <Button size="sm" variant="outline" className="justify-start" onClick={props.onOpenProject}>
+                  <Plus className="size-3.5"/>
+                  空白项目
+                </Button>
+                <Button size="sm" variant="outline" className="justify-start" onClick={props.onOpenProject}>
+                  <Folder className="size-3.5"/>
+                  从文件夹创建
+                </Button>
+              </div>
+            </div>
+          )}
           {projects.map(project => {
             const selected = props.selectedProject === project.id
             const openProject = (event: MouseEvent) => {if (preview) event.preventDefault(); props.onNavigate?.(`/projects/${project.id}`)}
+            const label=!project.available?'不可用':project.file_operation?.state==='failed'?'需修复':project.active_run_status==='waiting'?project.active_run_reason==='approval'?'等待审批':'等待回复':project.active_run_status?'运行中':project.file_operation?'文件处理中':project.archived?'已归档':null
+            const details=[!project.available?project.reason:null,project.file_operation?.error,project.active_run_status,project.archived?'已归档':null].filter(Boolean).join('；')
             return <div key={project.id}>
-            <div className={cn('group/project flex items-center rounded-md pr-0.5', selected ? 'bg-sidebar-accent' : 'hover:bg-sidebar-accent/70')}>
-              <Link href={`/projects/${project.id}`} aria-current={selected ? 'page' : undefined} title={project.available ? project.name : `${project.name}：${project.reason ?? '目录不可用'}`} onClick={openProject} className="flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-1.5 py-2 text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                <Folder className="size-3.5 shrink-0 text-muted-foreground"/><span className="truncate">{project.name}</span>
-                {project.archived && <span className="shrink-0 text-[10px] text-faint">已归档</span>}
-                {project.active_run_status && <span className="shrink-0 text-[10px] text-state-waiting">{project.active_run_status === 'waiting' ? project.active_run_reason === 'approval' ? '等待审批' : '等待回复' : '运行中'}</span>}
-                {!project.active_run_status && project.file_operation && <span className="shrink-0 text-[10px] text-state-waiting">{project.file_operation.state === 'failed' ? '等待修复' : '文件处理中'}</span>}
-                {!project.available && <span className="shrink-0 text-[10px] text-faint">不可用</span>}
+            <div className={cn('group/project rounded-md', selected ? 'bg-sidebar-accent' : 'hover:bg-sidebar-accent/70')}>
+              <Link href={`/projects/${project.id}`} aria-current={selected ? 'page' : undefined} title={project.available ? project.name : `${project.name}：${project.reason ?? '目录不可用'}`} onClick={openProject} className="flex min-w-0 items-center gap-2 rounded-md px-2 py-2.5 outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                <Folder className="size-4 shrink-0 text-muted-foreground"/>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-2">
+                    <span className="truncate text-sm font-medium">{project.name}</span>
+                    {label && (
+                      <span title={details || label} className={cn('shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-medium',!project.available || project.file_operation?.state==='failed'?'bg-red-500/10 text-red-600 dark:text-red-400':project.active_run_status || project.file_operation?'bg-amber-500/10 text-amber-600 dark:text-amber-400':'bg-muted text-muted-foreground')}>
+                        {label}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className="flex shrink-0 items-center gap-0.5">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild onClick={(e) => e.preventDefault()}>
+                      <Button variant="ghost" size="icon-xs" aria-label={`${project.name} 的操作`} className="text-muted-foreground opacity-0 hover:bg-muted group-hover/project:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100 max-md:opacity-100">
+                        <MoreHorizontal className="size-4"/>
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem asChild><Link href={`/projects/${project.id}`} onClick={openProject}>{project.archived ? '打开项目' : '在此项目新对话'}</Link></DropdownMenuItem>
+                      <DropdownMenuItem onSelect={() => props.onProjectSettings(project.id)}>项目设置</DropdownMenuItem>
+                      {!project.archived && <DropdownMenuItem onSelect={() => props.onArchive(project.id)}>归档项目</DropdownMenuItem>}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                  <button type="button" aria-label={`${expansion.items[project.id] ? '收起' : '展开'} ${project.name} 的对话`} aria-expanded={!!expansion.items[project.id]} onClick={(e) => {e.preventDefault(); onExpansion({...expansion, items: {...expansion.items, [project.id]: !expansion.items[project.id]}})}} className="flex size-8 shrink-0 items-center justify-center rounded-md outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring">
+                    {expansion.items[project.id] ? <ChevronDown className="size-4"/> : <ChevronRight className="size-4"/>}
+                  </button>
+                </div>
               </Link>
-              <DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="icon-xs" aria-label={`${project.name} 的操作`} className="text-muted-foreground opacity-0 hover:bg-transparent group-hover/project:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100 max-md:opacity-100 dark:hover:bg-transparent"><MoreHorizontal/></Button></DropdownMenuTrigger>
-                <DropdownMenuContent align="end"><DropdownMenuItem asChild><Link href={`/projects/${project.id}`} onClick={openProject}>{project.archived ? '打开项目' : '在此项目新对话'}</Link></DropdownMenuItem><DropdownMenuItem onSelect={() => props.onProjectSettings(project.id)}>项目设置</DropdownMenuItem>{!project.archived && <DropdownMenuItem onSelect={() => props.onArchive(project.id)}>归档项目</DropdownMenuItem>}</DropdownMenuContent>
-              </DropdownMenu>
-              <button type="button" aria-label={`${expansion.items[project.id] ? '收起' : '展开'} ${project.name} 的对话`} aria-expanded={!!expansion.items[project.id]} onClick={() => onExpansion({...expansion, items: {...expansion.items, [project.id]: !expansion.items[project.id]}})} className="flex size-7 shrink-0 items-center justify-center rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                {expansion.items[project.id] ? <ChevronDown className="size-3.5"/> : <ChevronRight className="size-3.5"/>}
-              </button>
             </div>
-            {expansion.items[project.id] && <div className="ml-5 border-l pl-1">
+            {expansion.items[project.id] && <div className="ml-6 space-y-0.5 border-l pl-2 pt-1">
               {project.conversations.map(session => sessionRow(session, false))}
               {!project.archived && <Link href={`/projects/${project.id}`} onClick={openProject} className="block rounded-md px-2.5 py-2 text-sm text-muted-foreground outline-none hover:bg-sidebar-accent hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring">在此项目中新对话</Link>}
-              {project.navigationError && <p role="alert" className="px-2 py-2 text-meta text-state-failed">{project.navigationError}</p>}
+              {project.navigationError && <p role="alert" className="px-2 py-2 text-xs text-state-failed">{project.navigationError}</p>}
             </div>}
           </div>})}
           {props.onMoreProjects && <Button size="sm" variant="ghost" onClick={props.onMoreProjects}>更多项目</Button>}
         </div>
         <div hidden={tab !== 'conversations'}>
+          {!conversations.length && !props.loading && (
+            <div className="mx-2 space-y-3 rounded-lg border bg-muted/30 p-4">
+              <div className="space-y-1">
+                <h3 className="text-sm font-medium">开始你的第一次对话</h3>
+                <p className="text-xs text-muted-foreground">适合单次问答、快速处理附件或探索想法。</p>
+              </div>
+              <Button size="sm" variant="default" className="w-full justify-start" asChild>
+                <Link href="/">
+                  <Plus className="size-3.5"/>
+                  开始新对话
+                </Link>
+              </Button>
+            </div>
+          )}
           {conversations.map(session => sessionRow(session))}
         </div>
       </div>

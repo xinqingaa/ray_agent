@@ -136,7 +136,7 @@ class AgentTaskRunner(TaskRunner):
             async def apply(uow: IUnitOfWork) -> None:
                 await uow.session.update_latest_message(self._session_id, event.message, event.created_at)
                 await uow.session.increment_unread_message_count(self._session_id)
-        if (isinstance(event, ToolEvent) and event.tool_name in ('shell', 'file')
+        if (isinstance(event, ToolEvent) and event.tool_name in ('shell', 'file', 'browser', 'mcp', 'a2a')
                 and event.status == ToolEventStatus.CALLING and getattr(self, '_project_id', None)):
             previous_apply = apply
             async def apply(uow: IUnitOfWork) -> None:

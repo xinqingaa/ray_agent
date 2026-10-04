@@ -118,3 +118,16 @@ class DBProjectRepository(ProjectRepository):
     async def drop_file_copy(self, project_id, copy_key):
         await self.db_session.execute(delete(ProjectFileCopyModel).where(
             ProjectFileCopyModel.project_id == project_id, ProjectFileCopyModel.copy_key == copy_key))
+
+    async def memory_history(self, project_id, before_seq=0, limit=20):
+        query = select(ProjectAuditModel).where(ProjectAuditModel.project_id == project_id,
+            ProjectAuditModel.type.in_(['project_notes', 'project_settings', 'conversation_summary',
+                'conversation_summary_failed', 'conversation_summary_discarded']))
+        if before_seq:
+            query = query.where(ProjectAuditModel.seq < before_seq)
+        records = (await self.db_session.execute(query.order_by(ProjectAuditModel.seq.desc()).limit(limit))).scalars().all()
+        return [dict(seq=r.seq, type=r.type, payload=r.payload, created_at=r.created_at.isoformat()) for r in records]
+
+    async def lock_creation(self, key):
+        from sqlalchemy import text
+        await self.db_session.execute(text('SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))'), {'key': key})

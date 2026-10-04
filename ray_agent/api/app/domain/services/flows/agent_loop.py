@@ -13,6 +13,7 @@ import asyncio
 import copy
 import json
 import logging
+import re
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -304,6 +305,11 @@ class AgentLoop(BaseFlow):
         self._last_completed: Optional[TurnEvent] = None
         self._running = False
         self.end_reason: Optional[RunEndReason] = None
+        self._completion_feedbacks = 0
+        self._delivery_required = False
+        self._delivery_state = None
+        self._delivery_failures = set()
+        self._plan_changed = False
         self.model_requests = 0  # 本次调用已发出的模型请求数（含重试与摘要请求）
         self.budget = ContextBudget(
             context_window=llm.context_window,
@@ -332,6 +338,7 @@ class AgentLoop(BaseFlow):
         self._mode = RunMode.NORMAL
         self.mode = mode
         self.pipeline.add_after(self._emit_plan_event)
+        self.pipeline.add_after(self._record_delivery_state)
         self.pipeline.add_after(self._emit_delivery_message)
         # 整形放在最后：前面的处理函数读的是工具的原始结果
         self.pipeline.add_after(ResultShaper(agent_config.tool_result_max_chars, write_output))
@@ -427,6 +434,11 @@ class AgentLoop(BaseFlow):
         self._inflight = None
         self._deltas_closed = False
         self.pending_approval = None
+        self._completion_feedbacks=0
+        self._delivery_state=None
+        self._delivery_failures.clear()
+        self._delivery_required=False
+        self._plan_changed=False
 
     async def _load(self) -> List[BaseEvent]:
         """读会话与已有工具、计划事件，准备记忆与计划工具；返回这些事件。"""
@@ -483,6 +495,7 @@ class AgentLoop(BaseFlow):
             first_turn_index: int,
     ) -> AsyncGenerator[BaseEvent, None]:
         history = await self._load()
+        self._delivery_required=bool(re.search(r'(交付|下载|deliver).{0,25}(文件|file)|(文件|file).{0,25}(交付|下载|deliver)',message.message or '', re.I)) and self.mode != RunMode.PLAN
 
         started = {
             e.tool_call_id for e in history
@@ -567,6 +580,22 @@ class AgentLoop(BaseFlow):
                 yield event
             content = (assistant.get("content") or "").strip()
             calls = assistant.get("tool_calls") or []
+            if not calls and self.mode != RunMode.PLAN:
+                issues=[]
+                if (self._delivery_required and self._delivery_state != 'complete') or self._delivery_failures:
+                    issues.append('文件交付尚未完整成功；核对工具结果，只补交失败项')
+                plan=self.plan_tool.latest_plan
+                if self._plan_changed and plan and any(not step.done for step in plan.steps):
+                    issues.append('当前计划还有未完成条目；完成后更新计划，或明确说明未完成原因')
+                if issues and self._completion_feedbacks < 1:
+                    self._completion_feedbacks+=1
+                    yield self._turn_completed(turn)
+                    await self._add_messages([{'role':'user','content':'结束前一致性核对：'+'；'.join(issues)+'。不能把路径、计划或部分成功当成全部完成。无法补齐时如实交代缺口。'}])
+                    for event in self._take_context():
+                        yield event
+                    continue
+                if issues:
+                    content += '\n\n执行记录仍有未完成项：'+'；'.join(issues)+'。请以上述工具事实为准。'
             if content:
                 yield MessageEvent(role="assistant", message=content, attempt=turn.attempts)
             if not calls:
@@ -804,10 +833,21 @@ class AgentLoop(BaseFlow):
     async def _emit_plan_event(self, invocation: ToolInvocation, result: ToolResult) -> ToolResult:
         if (invocation.function_name == UPDATE_PLAN_TOOL and not invocation.short_circuited
                 and result.success and self.plan_tool.latest_plan is not None):
+            self._plan_changed=True
             invocation.events.append(PlanEvent(
                 status=PlanEventStatus.UPDATED,
                 plan=self.plan_tool.latest_plan.model_copy(deep=True),
             ))
+        return result
+
+    async def _record_delivery_state(self, invocation: ToolInvocation, result: ToolResult) -> ToolResult:
+        if invocation.function_name == DELIVER_FILES_TOOL and isinstance(result.data, DeliveryResult):
+            self._delivery_state = result.data.state
+            for item in result.data.items:
+                if not item.success or (item.project and item.project.get('state') == 'failed'):
+                    self._delivery_failures.add(item.path)
+                else:
+                    self._delivery_failures.discard(item.path)
         return result
 
     async def _emit_delivery_message(self, invocation: ToolInvocation, result: ToolResult) -> ToolResult:
@@ -817,6 +857,9 @@ class AgentLoop(BaseFlow):
         if files:
             names = "、".join(file.filename or file.filepath for file in files)
             message = result.data.note or f"已交付文件：{names}"
+            failed=[item.path for item in result.data.items if not item.success]
+            if failed:
+                message += '；未交付：'+'、'.join(failed)
             partial = [item for item in result.data.items if item.project and item.project.get('state') == 'failed']
             if partial:
                 message += '；交付可下载，但未保存到项目：' + '、'.join(item.path for item in partial)

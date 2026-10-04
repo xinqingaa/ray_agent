@@ -181,7 +181,8 @@ def test_delivery_failure_distinguishes_all_and_partial(fail_all):
         runner, repo = make_runner("lesson-12", sandbox_with(download, exists), FakeStorage())
         tool = DeliverTool(runner._deliver_file)
         result = await tool.invoke("deliver_files", paths=["/available.txt", "/missing.txt"])
-        assert result.success is not fail_all
+        assert result.success is False
+        assert result.data.state == ('failed' if fail_all else 'partial')
         assert [item.success for item in result.data.items] == [not fail_all, False]
         assert "不存在" in result.data.items[1].error
         assert len(result.data.files) == (0 if fail_all else 1)

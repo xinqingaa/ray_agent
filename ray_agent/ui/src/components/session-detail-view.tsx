@@ -4,6 +4,7 @@ import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import {toast} from 'sonner'
 import {Folder, PanelRightOpen, Pencil} from 'lucide-react'
 import Link from 'next/link'
+import {ProjectMemoryPanel} from '@/components/project-memory-panel'
 import {ChatInput} from '@/components/chat-input'
 import {RenameSessionDialog} from '@/components/rename-session-dialog'
 import {DeveloperView} from '@/components/developer/developer-view'
@@ -92,6 +93,7 @@ export function SessionDetailView({
     loadTurnRequest,
     replyApproval,
   } = useSessionDetail(sessionId)
+  const [memoryOpen,setMemoryOpen]=useState(false)
   const projectsEnabled = true
   const [projectRefreshSignal, setProjectRefreshSignal] = useState(0)
   const projectRefreshRef = useRef<ReturnType<typeof createProjectRefreshWatcher> | null>(null)
@@ -454,7 +456,9 @@ export function SessionDetailView({
                 <PanelRightOpen className="size-4"/>
               </Button>
             )}
+            {view.project && <Button size="sm" variant="ghost" onClick={()=>setMemoryOpen(true)}>项目记忆</Button>}
           </header>
+          {view.project && <ProjectMemoryPanel projectId={view.project.id} sessionId={sessionId} open={memoryOpen} onClose={()=>setMemoryOpen(false)}/>} 
 
           {compacting
             ? <CompactingStatusBar/>

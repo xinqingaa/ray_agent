@@ -46,7 +46,7 @@ global.sessionStorage = {getItem: (key) => values.get(key) ?? null, setItem: (ke
 const payload = {message: '继续检查', attachments: ['file-1'], mode: 'plan'};
 const pending = {...payload, afterSeq: 5, state: 'unknown'};
 const event = {event: 'message', data: {seq: 6, run_id: 'r1', role: 'user', message: payload.message, attachments: [{id: 'file-1'}]}};
-const accepted = {last_seq: 7, events: [event], runs: [{run_id: 'r1', status: 'completed'}]};
+const accepted = {last_seq: 7, events: [event], runs: [{run_id: 'r1', mode: 'plan', status: 'completed'}]};
 
 async function main() {
   assert.deepEqual(checkAcceptance(accepted, pending), {kind: 'accepted', runId: 'r1', seq: 6});

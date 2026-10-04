@@ -79,7 +79,8 @@ async def create_session(
         session_service: SessionService = Depends(get_session_service),
 ) -> Response[CreateSessionResponse]:
     """创建一个空白的新任务会话"""
-    session = await project_service.create_session(request.project_id) if request and request.project_id else await session_service.create_session()
+    creation_id = str(request.creation_id) if request and request.creation_id else None
+    session = await project_service.create_session(request.project_id, creation_id) if request and request.project_id else await session_service.create_session(creation_id)
     return Response.success(
         msg="创建任务会话成功",
         data=CreateSessionResponse(session_id=session.id)

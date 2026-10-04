@@ -101,6 +101,7 @@ export function SessionItem({session, isActive, onClick, onDelete, onRename, hre
           <p className={cn('min-w-0 flex-1 truncate text-sm leading-5', isActive ? 'font-medium' : 'font-normal')} dir="auto">{title}</p>
           {status.textClass && <span className={cn('shrink-0 text-xs leading-5', status.textClass)}>{status.label}</span>}
         </div>
+        {session.latest_message && <p className="mt-0.5 truncate text-xs text-muted-foreground" dir="auto">{session.latest_message}</p>}
         {showTime && timeLabel && <span className="block min-w-0 truncate text-xs font-normal tabular-nums text-muted-foreground">{timeLabel}</span>}
       </div>
       {mounted ? (

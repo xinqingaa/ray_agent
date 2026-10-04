@@ -406,7 +406,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
     <div className={cn('flex flex-col bg-card w-full rounded-2xl py-3 border', className)}>
       {uncertain && !sending && !commandHost.submitting && (
         <div role="status" className="mx-4 mb-2 space-y-2 text-meta text-state-waiting">
-          <p>发送结果尚未确认，草稿已保留。请先核对对话历史。</p>
+          <p>正在确认是否发送成功，文字、附件和模式已保留。请检查结果或核对对话历史。</p>
           <div className="flex flex-wrap gap-2">
             <Button type="button" variant="outline" size="sm" onClick={async () => {
               const id = sessionId ?? readDraft(scope).sessionId
@@ -418,8 +418,9 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
                   window.location.assign(`/sessions/${id}`)
                 }
               } catch (error) { toast.error(error instanceof Error ? error.message : '核对失败') }
-            }}>核对受理状态</Button>
+            }}>检查发送结果</Button>
             <Button type="button" variant="ghost" size="sm" onClick={() => {
+              if(!window.confirm('仅在已核对对话、确认未发送时重发。若原消息已受理，重发可能重复执行。是否允许手动重发？'))return
               writeDraft(scope, {submission: undefined}); setUncertain(false)
               toast.message('已允许手动重发，请确认历史中没有这条消息后发送')
             }}>确认未受理，允许重发</Button>
