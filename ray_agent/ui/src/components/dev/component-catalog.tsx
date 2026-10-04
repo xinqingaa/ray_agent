@@ -15,7 +15,8 @@ import {FinalReply, NarrationBlock, UserMessage} from '@/components/run/messages
 import {AskCard} from '@/components/run/ask-card'
 import {ApprovalCard} from '@/components/run/approval-card'
 import {DeliveryCard} from '@/components/run/delivery-card'
-import {AttemptNotice, CompactingNotice, CompactionNotice} from '@/components/run/notices'
+import {AttemptNotice, CompactionNotice} from '@/components/run/notices'
+import {RunStatus} from '@/components/run/run-status'
 import {RunEndBar, PlanExecuteBar} from '@/components/run/run-end-bar'
 import {PlusCommandMenu} from '@/components/input-command-menu'
 import {ProjectWorkspaceCatalog} from '@/components/dev/project-workspace-catalog'
@@ -244,18 +245,19 @@ export function ComponentCatalog() {
           标“合成”的是这些事件里不会出现的状态，按视图模型契约改写。运行中的计时从夹具记录的时刻开始走秒。
         </p>
 
-        <Section id="status-bar" title="运行状态条" note="放在输入框上方。状态、已用时间、轮次与当前动作。暂停在发送按钮上，状态行不再写「停止」。">
-          <State label="空闲" source="真实"><RunStatusBar run={runStates.idle}/></State>
-          <State label="模型思考中" source="真实"><FixtureClock at={runStates.modelNow}><RunStatusBar run={runStates.model} /></FixtureClock></State>
-          <State label="工具执行中" source="真实"><FixtureClock at={runStates.toolNow}><RunStatusBar run={runStates.tool} /></FixtureClock></State>
-          <State label="计划模式" source="合成"><FixtureClock at={runStates.toolNow}><RunStatusBar run={runStates.planMode} /></FixtureClock></State>
-          <State label="等待回复" source="真实"><FixtureClock at={runStates.waitingReplyNow}><RunStatusBar run={runStates.waitingReply} /></FixtureClock></State>
-          <State label="等待审批" source="合成"><FixtureClock at={runStates.toolNow}><RunStatusBar run={runStates.waitingApproval} /></FixtureClock></State>
-          <State label="停止中" source="合成"><FixtureClock at={runStates.toolNow}><RunStatusBar run={runStates.stopping} /></FixtureClock></State>
-          <State label="已完成（状态行收起）" source="真实"><Surface className="text-meta text-faint">会话标题显示已完成，运行汇总留在时间线。</Surface></State>
-          <State label="失败（含原因）" source="合成"><RunStatusBar run={runStates.failed}/></State>
-          <State label="已停止（状态行收起）" source="合成"><Surface className="text-meta text-faint">会话标题显示已停止，停止记录留在时间线。</Surface></State>
-          <State label="已中断" source="合成"><RunStatusBar run={runStates.interrupted}/></State>
+        <Section id="status-bar" title="运行状态条" note="放在输入框上方，进行中只保留用时和轮次。当前一句在时间线末尾。终态原因只在终态条。暂停在发送按钮上。">
+          <State label="空闲（不占位）" source="真实"><RunStatusBar run={runStates.idle}/></State>
+          <State label="正在思考" source="真实"><FixtureClock at={runStates.modelNow}><div className="flex flex-col gap-2"><RunStatus place="timeline" compacting={false} pendingSend={false} activity="model" streaming={false} running tailQuiet/><RunStatusBar run={runStates.model}/></div></FixtureClock></State>
+          <State label="工具执行中（动词在工具行）" source="真实"><FixtureClock at={runStates.toolNow}><RunStatusBar run={runStates.tool}/></FixtureClock></State>
+          <State label="计划模式" source="合成"><FixtureClock at={runStates.toolNow}><RunStatusBar run={runStates.planMode}/></FixtureClock></State>
+          <State label="等你回复（句子在提问卡）" source="真实"><FixtureClock at={runStates.waitingReplyNow}><RunStatusBar run={runStates.waitingReply}/></FixtureClock></State>
+          <State label="等你批准（句子在审批卡）" source="合成"><FixtureClock at={runStates.toolNow}><RunStatusBar run={runStates.waitingApproval}/></FixtureClock></State>
+          <State label="正在停止" source="合成"><FixtureClock at={runStates.toolNow}><div className="flex flex-col gap-2"><RunStatus place="timeline" compacting={false} pendingSend={false} activity="stopping" streaming={false} running={false} tailQuiet/><RunStatusBar run={runStates.stopping}/></div></FixtureClock></State>
+          <State label="正在准备执行环境" source="合成"><Surface><RunStatus place="timeline" compacting={false} pendingSend={false} activity="preparing_environment" streaming={false} running={false} tailQuiet/></Surface></State>
+          <State label="已完成（状态行收起）" source="真实"><Surface className="flex items-center gap-2 text-sm"><span className="font-medium">会话标题</span><RunStatus place="headline" status="completed" compacting={false}/><span className="text-meta text-faint">运行汇总留在时间线。</span></Surface></State>
+          <State label="失败（状态行收起）" source="合成"><Surface className="text-meta text-faint"><RunStatus place="headline" status="failed" compacting={false}/>原因和重试只在时间线终态条。</Surface></State>
+          <State label="已停止（状态行收起）" source="合成"><Surface className="flex items-center gap-2 text-sm"><span className="font-medium">会话标题</span><RunStatus place="headline" status="cancelled" compacting={false}/><span className="text-meta text-faint">停止记录留在时间线。</span></Surface></State>
+          <State label="已中断（状态行收起）" source="合成"><Surface className="text-meta text-faint"><RunStatus place="headline" status="interrupted" compacting={false}/>原因只在时间线终态条。</Surface></State>
         </Section>
 
         <Section id="plan-bar" title="计划条" columns={2} note="折叠时显示进度、当前项与其用时；展开为完整清单与说明。计划更新时，变化的项带左侧标记与说明。">
@@ -288,7 +290,7 @@ export function ComponentCatalog() {
         <Section id="tool-card" title="工具卡" columns={2} note="按工具族显示图标，动词标题与关键参数在一行内，状态、耗时与结果摘要右对齐。点击行展开参数与结果原文，并在工作台打开该调用。">
           <State label="运行中" source="真实"><Surface><FixtureClock at={PLAN_TOOL_RUNNING_NOW}><ToolCard call={toolStates.running} onOpen={noop}/></FixtureClock></Surface></State>
           <State label="成功" source="真实"><Surface><ToolCard call={toolStates.succeeded} onOpen={noop}/><ToolCard call={toolStates.succeededShell} onOpen={noop}/></Surface></State>
-          <State label="失败" source="合成"><Surface><ToolCard call={toolStates.failed} onOpen={noop}/></Surface></State>
+          <State label="未成功" source="合成"><Surface><ToolCard call={toolStates.failed} onOpen={noop}/></Surface></State>
           <State label="被拒绝" source="合成"><Surface><ToolCard call={toolStates.denied} onOpen={noop}/></Surface></State>
           <State label="未执行" source="合成"><Surface><ToolCard call={toolStates.skipped} onOpen={noop}/></Surface></State>
           <State label="已取消" source="合成"><Surface><ToolCard call={toolStates.cancelled} onOpen={noop}/></Surface></State>
@@ -300,7 +302,7 @@ export function ComponentCatalog() {
         <Section id="tool-group" title="工具组" columns={3} note="一轮多个调用时整体显示为一组，标题给出数量与整体状态；一轮只有一个调用时直接显示工具卡。">
           <State label="部分完成" source="合成"><Surface><FixtureClock at={PLAN_TOOL_RUNNING_NOW}><ToolGroup calls={toolGroups.partial}/></FixtureClock></Surface></State>
           <State label="全部成功" source="真实"><Surface><ToolGroup calls={toolGroups.allSucceeded}/></Surface></State>
-          <State label="含失败" source="合成"><Surface><ToolGroup calls={toolGroups.withFailure}/></Surface></State>
+          <State label="含未成功" source="合成"><Surface><ToolGroup calls={toolGroups.withFailure}/></Surface></State>
         </Section>
 
         <Section id="replies" title="旁白与最终回复" columns={2} note="旁白比最终回复弱一级；最终回复下方附所属运行的汇总。">
@@ -317,7 +319,7 @@ export function ComponentCatalog() {
           <State label="补充要求" source="合成"><Surface><UserMessage text={messageStates.userInjected.text} injected/></Surface></State>
         </Section>
 
-        <Section id="ask-card" title="提问卡" columns={2} note="等待回复时，输入框提示“输入回复，回复将继续当前任务”。">
+        <Section id="ask-card" title="提问卡" columns={2} note="等你回复时，输入框提示“回复将继续当前任务”。">
           <State label="等待回复" source="真实"><AskCard question={askStates.waiting.question} answered={false}/></State>
           <State label="已回复" source="真实"><AskCard question={askStates.answered.question} answered/></State>
         </Section>
@@ -338,8 +340,8 @@ export function ComponentCatalog() {
           <State label="预览不可用" source="合成"><DeliveryCard files={deliveryStates.previewUnavailable.files} note={deliveryStates.previewUnavailable.note} onPreview={noop} onDownload={noop}/></State>
         </Section>
 
-        <Section id="compaction" title="压缩提示" note="W2 合入后由 compact 事件产生；摘要全文在开发者视图。点击压缩后、结果到达前显示转圈的「压缩中」。">
-          <State label="压缩中" source="合成"><Surface><CompactingNotice/></Surface></State>
+        <Section id="compaction" title="压缩提示" note="W2 合入后由 compact 事件产生；摘要全文在开发者视图。点击压缩后、结果到达前，时间线末尾显示「正在压缩上下文」。侧栏写「压缩中」。">
+          <State label="正在压缩上下文" source="合成"><Surface><RunStatus place="timeline" compacting pendingSend={false} activity={null} streaming={false} running={false} tailQuiet/></Surface></State>
           <State label="一次压缩（自动）" source="合成"><Surface><CompactionNotice beforeTokens={41_236} afterTokens={6_310} summarizedTurns={8} trigger="watermark"/></Surface></State>
           <State label="手动压缩" source="合成"><Surface><CompactionNotice beforeTokens={18_200} afterTokens={9_400} summarizedTurns={4} trigger="manual"/></Surface></State>
         </Section>
@@ -410,11 +412,13 @@ export function ComponentCatalog() {
           <ProjectWorkspaceCatalog/>
         </Section>
 
-        <Section id="session-item" title="会话列表项" note="一行：标题在左，时间在右。需要处理的状态替换时间；已完成和已停止只显示时间。选中用弱底和字重。">
+        <Section id="session-item" title="会话列表项" note="一行：标题在左，时间在右。运行中、准备中、压缩中、等你回复、等你批准、失败和已中断替换时间。还不知道是回复还是批准时写「等你」。已完成和已停止只显示时间。">
           <div className="w-[288px] max-w-full space-y-3 rounded-lg bg-sidebar p-2">
             <State label="运行中" source="合成"><SessionItem session={sessionItemStates.running} isActive={false} onClick={noop} onDelete={noop}/></State>
             <State label="准备中" source="合成"><SessionItem session={sessionItemStates.pending} isActive={false} onClick={noop} onDelete={noop}/></State>
-            <State label="等你处理（提问或审批）" source="合成"><SessionItem session={sessionItemStates.waiting} isActive={false} onClick={noop} onDelete={noop}/></State>
+            <State label="等你回复" source="合成"><SessionItem session={sessionItemStates.waiting} waitKind="reply" isActive={false} onClick={noop} onDelete={noop}/></State>
+            <State label="等你批准" source="合成"><SessionItem session={sessionItemStates.waiting} waitKind="approval" isActive={false} onClick={noop} onDelete={noop}/></State>
+            <State label="等你（原因未知）" source="合成"><SessionItem session={sessionItemStates.waiting} waitKind={null} isActive={false} onClick={noop} onDelete={noop}/></State>
             <State label="失败" source="合成"><SessionItem session={sessionItemStates.failed} isActive={false} onClick={noop} onDelete={noop}/></State>
             <State label="已中断" source="合成"><SessionItem session={sessionItemStates.interrupted} isActive={false} onClick={noop} onDelete={noop}/></State>
             <State label="已完成" source="真实"><SessionItem session={sessionItemStates.completed} isActive={false} onClick={noop} onDelete={noop}/></State>

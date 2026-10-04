@@ -3,11 +3,12 @@
 import {ListChecks, RotateCcw} from 'lucide-react'
 import {Button} from '@/components/ui/button'
 import {cn} from '@/lib/utils'
-import type {RunStatus} from '@/lib/session-view'
+import type {RunStatus as RunState} from '@/lib/session-view'
+import {RunStatus} from './run-status'
 import {RUN_PHASE, TONE_SOFT, TONE_TEXT} from './status-meta'
 
 type RunEndBarProps = {
-  status: Exclude<RunStatus, 'running' | 'waiting' | 'completed'>
+  status: Exclude<RunState, 'running' | 'waiting' | 'completed'>
   reasonText: string
   /** 失败时“以相同内容重试”要发送的原文；为空则不显示按钮 */
   retryText?: string | null
@@ -48,7 +49,7 @@ export function RunEndBar({status, reasonText, retryText, onRetry, retrying = fa
       <Icon className={cn('mt-0.5 size-4 shrink-0', TONE_TEXT[meta.tone])} aria-hidden/>
       <div className="min-w-0 flex-1">
         <p className="text-sm">
-          <span className={cn('font-medium', TONE_TEXT[meta.tone])}>{meta.label}</span>
+          <span className={cn('font-medium', TONE_TEXT[meta.tone])}><RunStatus place="terminal" status={status}/></span>
           {reason ? <span className="ml-2">{reason}</span> : null}
         </p>
         {status !== 'failed' && <p className="text-xs text-muted-foreground">{nextStep(status, reasonText)}</p>}
@@ -58,12 +59,11 @@ export function RunEndBar({status, reasonText, retryText, onRetry, retrying = fa
           type="button"
           size="sm"
           variant="outline"
-          className="bg-card"
+          className="bg-transparent"
           onClick={() => onRetry?.(retryText)}
           disabled={retrying}
         >
           <RotateCcw aria-hidden/>
-          重试
         </Button>
       )}
     </div>

@@ -7,6 +7,7 @@ import {Kbd} from '@/components/ui/kbd'
 import {cn} from '@/lib/utils'
 import type {ApprovalStatus, ToolCallView} from '@/lib/session-view'
 import {formatTime} from './format'
+import {RunStatus} from './run-status'
 import {FAMILY} from './status-meta'
 
 type ApprovalCardProps = {
@@ -86,7 +87,7 @@ export function ApprovalCard({call, status, decidedAt, submitting = null, onAppr
       <div className="flex items-center gap-2">
         <ShieldQuestion className={cn('size-4', pending ? 'text-state-waiting' : 'text-muted-foreground')} aria-hidden/>
         <span className={cn('text-xs font-medium', pending ? 'text-state-waiting' : 'text-muted-foreground')}>
-          {pending ? '需要你批准后才会执行' : '审批记录'}
+          <RunStatus place="approval" pending={pending}/>
         </span>
         <code className="ml-auto font-mono text-xs text-faint">{call.toolset}.{call.name}</code>
       </div>

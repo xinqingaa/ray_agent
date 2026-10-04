@@ -5,6 +5,7 @@ import Link from 'next/link'
 import {Folder, MoreHorizontal} from 'lucide-react'
 import {Button} from '@/components/ui/button'
 import {DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger} from '@/components/ui/dropdown-menu'
+import {RunStatus} from '@/components/run/run-status'
 import {SessionItem} from '@/components/session-item'
 import {NewChatIcon, NewProjectIcon} from '@/components/nav-icons'
 import type {Session} from '@/lib/api/types'
@@ -18,6 +19,7 @@ export type NavigationProject = {
   reason?: string | null
   active_run_status?: string | null
   active_run_reason?: string | null
+  occupying_session_id?: string | null
   file_operation?: import("@/lib/api/types").ProjectFileOperation | null
   conversations: Session[]
   /** 项目里的对话数。0 表示点项目行不展开。 */
@@ -94,10 +96,10 @@ export function ProjectNavigation(props: Props) {
     setLocalTab(next); props.onTabChange?.(next)
     requestAnimationFrame(() => {if (scroll.current) scroll.current.scrollTop = positions.current[next]})
   }
-  const sessionRow = (session: Session) => <SessionItem key={session.session_id} session={session} isActive={selectedSession === session.session_id}
+  const sessionRow = (session: Session, waitKind?: 'reply' | 'approval') => <SessionItem key={session.session_id} session={session} isActive={selectedSession === session.session_id}
     href={preview ? undefined : `/sessions/${session.session_id}`}
     onClick={() => props.onNavigate?.(`/sessions/${session.session_id}`)}
-    onDelete={props.onSessionDelete} onRename={props.onSessionRename}/>
+    onDelete={props.onSessionDelete} onRename={props.onSessionRename} waitKind={waitKind}/>
   return (
     <nav aria-label="项目与对话" className="flex h-full min-h-0 flex-col">
       <div role="tablist" aria-label="导航模式" className="mb-3 flex h-8 shrink-0 rounded-full bg-muted p-0.5">
@@ -122,15 +124,20 @@ export function ProjectNavigation(props: Props) {
               if (!expansion.items[project.id]) onExpansion({...expansion, items: {...expansion.items, [project.id]: true}})
               props.onNavigate?.(`/projects/${project.id}`)
             }
-            const label = !project.available ? '不可用' : project.file_operation?.state === 'failed' ? '需修复' : project.active_run_status === 'waiting' ? project.active_run_reason === 'approval' ? '等待审批' : '等待回复' : project.active_run_status ? '运行中' : project.file_operation ? '文件处理中' : null
-            const tone = !project.available || project.file_operation?.state === 'failed' ? 'failed' : project.active_run_status === 'waiting' ? 'waiting' : project.active_run_status || project.file_operation ? 'running' : null
-            const details = [!project.available ? project.reason : null, project.file_operation?.error, label, project.archived ? '已归档' : null].filter(Boolean).join('；')
             return <div key={project.id}>
               <div className="group/project relative flex h-8 items-center">
-                <button type="button" aria-expanded={expandable ? open : undefined} aria-current={selected && !selectedSession ? 'page' : undefined} title={details ? `${project.name}：${details}` : project.name} onClick={toggleProject} className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-md px-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                <button type="button" aria-expanded={expandable ? open : undefined} aria-current={selected && !selectedSession ? 'page' : undefined} onClick={toggleProject} className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-md px-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring">
                   <Folder className={cn('size-4 shrink-0', selected ? 'text-foreground' : 'text-muted-foreground')}/>
-                  {tone && <span title={details || label || undefined} className={cn('size-1.5 shrink-0 rounded-full', tone === 'failed' ? 'bg-state-failed' : tone === 'waiting' ? 'bg-state-waiting' : 'bg-state-running')}/>}
-                  <span className="min-w-0 flex-1 truncate text-sm font-medium">{project.name}</span>
+                  <RunStatus
+                    place="project"
+                    name={project.name}
+                    available={project.available}
+                    reason={project.reason}
+                    activeRunStatus={project.active_run_status}
+                    activeRunReason={project.active_run_reason}
+                    fileOperation={project.file_operation}
+                    archived={project.archived}
+                  />
                 </button>
                 <div className="relative flex shrink-0 items-center pr-0.5">
                   <DropdownMenu>
@@ -153,7 +160,7 @@ export function ProjectNavigation(props: Props) {
                 </div>
               </div>
               {open && (project.conversations.length > 0 || project.navigationError) && <div className="ml-6 flex flex-col gap-1 py-1">
-                {project.conversations.map(session => sessionRow(session))}
+                {project.conversations.map(session => sessionRow(session, project.active_run_status === 'waiting' && project.occupying_session_id === session.session_id ? project.active_run_reason === 'approval' ? 'approval' : 'reply' : undefined))}
                 {project.navigationError && <p role="alert" className="px-2 py-1 text-xs text-state-failed">{project.navigationError}</p>}
               </div>}
             </div>})}

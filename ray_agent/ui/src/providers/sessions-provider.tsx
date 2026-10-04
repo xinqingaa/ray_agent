@@ -27,6 +27,8 @@ function normalizeSessions(raw: unknown): Session[] {
 
 // ==================== Context ====================
 
+export type WaitKind = 'reply' | 'approval'
+
 type SessionsContextValue = {
   sessions: Session[]
   loading: boolean
@@ -34,6 +36,9 @@ type SessionsContextValue = {
   /** 当前正在手动压缩的会话；不是运行状态，刷新列表不会覆盖 */
   compactingSessionId: string | null
   setCompactingSessionId: React.Dispatch<React.SetStateAction<string | null>>
+  /** 已打开会话记下的等待原因；列表接口没有这个字段，刷新不会清掉 */
+  waitKinds: Record<string, WaitKind>
+  setWaitKind: (sessionId: string, kind: WaitKind | null) => void
   /** 手动刷新（通过 REST 接口拉取一次） */
   refresh: () => Promise<void>
   /** 用详情里的状态更新列表中的一项，避免徽标停在旧的「运行中」 */
@@ -59,6 +64,7 @@ const SessionsContext = createContext<SessionsContextValue | null>(null)
 export function SessionsProvider({children}: { children: React.ReactNode }) {
   const [sessions, setSessions] = useState<Session[]>([])
   const [compactingSessionId, setCompactingSessionId] = useState<string | null>(null)
+  const [waitKinds, setWaitKinds] = useState<Record<string, WaitKind>>({})
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -232,6 +238,19 @@ export function SessionsProvider({children}: { children: React.ReactNode }) {
     }
   }, [])
 
+  const setWaitKind = useCallback((sessionId: string, kind: WaitKind | null) => {
+    setWaitKinds((prev) => {
+      if (kind == null) {
+        if (!(sessionId in prev)) return prev
+        const next = {...prev}
+        delete next[sessionId]
+        return next
+      }
+      if (prev[sessionId] === kind) return prev
+      return {...prev, [sessionId]: kind}
+    })
+  }, [])
+
   const patchSession = useCallback((sessionId: string, patch: Partial<Pick<Session, 'status' | 'title'>>) => {
     setSessions((prev) => {
       let changed = false
@@ -259,7 +278,7 @@ export function SessionsProvider({children}: { children: React.ReactNode }) {
   }, [])
 
   return (
-    <SessionsContext.Provider value={{sessions, compactingSessionId, setCompactingSessionId, loading, error, refresh, patchSession, deleteSession}}>
+    <SessionsContext.Provider value={{sessions, compactingSessionId, setCompactingSessionId, waitKinds, setWaitKind, loading, error, refresh, patchSession, deleteSession}}>
       {children}
     </SessionsContext.Provider>
   )
@@ -283,5 +302,10 @@ export function useSessions(): SessionsContextValue {
 /** 目录页等没有列表 Provider 的地方返回 null，不把压缩状态当成运行状态。 */
 export function useCompactingSessionId(): string | null {
   return useContext(SessionsContext)?.compactingSessionId ?? null
+}
+
+/** 已打开过的等待会话记住回复或批准；没打开过、列表也没有原因时为空。 */
+export function useSessionWaitKind(sessionId: string): WaitKind | null {
+  return useContext(SessionsContext)?.waitKinds[sessionId] ?? null
 }
 

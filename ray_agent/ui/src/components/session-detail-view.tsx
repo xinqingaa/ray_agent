@@ -12,9 +12,9 @@ import {DeveloperView} from '@/components/developer/developer-view'
 import {ContextRing} from '@/components/run/context-ring'
 import {PlanExecuteBar} from '@/components/run/run-end-bar'
 import {PlanBar} from '@/components/run/plan-bar'
-import {CompactingNotice, PreparingNotice, ThinkingNotice} from '@/components/run/notices'
 import {UserMessage} from '@/components/run/messages'
-import {CompactingStatusBar, RunStatusBar} from '@/components/run/status-bar'
+import {RUN_INPUT_HINT, RunStatus} from '@/components/run/run-status'
+import {RunStatusBar} from '@/components/run/status-bar'
 import {Timeline, type TimelineHandlers} from '@/components/run/timeline-item'
 import {downloadSessionFile, tabForFamily, Workbench, type WorkbenchTab} from '@/components/workbench/workbench'
 import {VNCOverlay} from '@/components/vnc-overlay'
@@ -81,7 +81,7 @@ export function SessionDetailView({
   sessionId,
 }: SessionDetailViewProps) {
   const isMobile = useIsMobile()
-  const {sessions, patchSession, setCompactingSessionId} = useSessions()
+  const {sessions, patchSession, setCompactingSessionId, setWaitKind} = useSessions()
   const {
     session,
     view,
@@ -96,7 +96,7 @@ export function SessionDetailView({
     replyApproval,
   } = useSessionDetail(sessionId)
   const [memoryOpen,setMemoryOpen]=useState(false)
-  const [outgoing, setOutgoing] = useState<{text: string; userCount: number; echo?: boolean} | null>(null)
+  const [outgoing, setOutgoing] = useState<{text: string; userCount: number; endCount: number; echo?: boolean} | null>(null)
   const [hiddenRunIds, setHiddenRunIds] = useState<string[]>([])
   const [hiddenUserIds, setHiddenUserIds] = useState<string[]>([])
   const [retrying, setRetrying] = useState<{text: string; knownUserIds: string[]; fromRunId: string} | null>(null)
@@ -126,11 +126,25 @@ export function SessionDetailView({
   const displayTitle = renamedTitle?.sessionId === sessionId && view?.title === renamedTitle.previousTitle
     ? renamedTitle.title : view?.title || '新任务'
   useEffect(() => {
-    if (!sessionStatus || sessionStatus === 'idle') return
+    const items = view?.timeline ?? []
+    const retrySettled = retrying != null && items.some((item) => item.runId && item.runId !== retrying.fromRunId && item.kind !== 'user' && item.kind !== 'protection')
+    const holdRunning = outgoing != null || (retrying != null && !retrySettled)
+    const status = holdRunning ? 'running' : sessionStatus
+    if (!status || status === 'idle') return
     const item = sessions.find((session) => session.session_id === sessionId)
-    if (item?.status === sessionStatus) return
-    patchSession(sessionId, {status: sessionStatus})
-  }, [sessionId, sessionStatus, sessions, patchSession])
+    if (item?.status === status) return
+    patchSession(sessionId, {status})
+  }, [sessionId, sessionStatus, sessions, patchSession, outgoing, retrying, view?.timeline])
+  useEffect(() => {
+    if (!view) return
+    const retrySettled = retrying != null && view.timeline.some((item) => item.runId && item.runId !== retrying.fromRunId && item.kind !== 'user' && item.kind !== 'protection')
+    const holdRunning = outgoing != null || (retrying != null && !retrySettled)
+    if (holdRunning || view.status !== 'waiting') {
+      setWaitKind(sessionId, null)
+      return
+    }
+    setWaitKind(sessionId, view.activeRun?.activity.kind === 'waiting_approval' ? 'approval' : 'reply')
+  }, [sessionId, view, outgoing, retrying, setWaitKind])
 
   useEffect(() => {
     if (!compacting) {
@@ -201,13 +215,17 @@ export function SessionDetailView({
 
   useEffect(() => {
     if (!outgoing) return
-    const count = (view?.timeline ?? []).filter((item) => item.kind === 'user').length
-    if (count > outgoing.userCount) setOutgoing(null)
-  }, [outgoing, view?.timeline])
+    const items = view?.timeline ?? []
+    const count = items.filter((item) => item.kind === 'user').length
+    const endCount = items.filter((item) => item.kind === 'run_end').length
+    if (count > outgoing.userCount && (view?.activeRun || endCount > outgoing.endCount)) setOutgoing(null)
+  }, [outgoing, view?.activeRun, view?.timeline])
 
   const deliver = useCallback(async (message: string, attachmentIds: string[], options?: {mode?: 'plan' | 'normal'; echo?: boolean}) => {
-    const userCount = (view?.timeline ?? []).filter((item) => item.kind === 'user').length
-    setOutgoing({text: message, userCount, echo: options?.echo !== false})
+    const items = view?.timeline ?? []
+    const userCount = items.filter((item) => item.kind === 'user').length
+    const endCount = items.filter((item) => item.kind === 'run_end').length
+    setOutgoing({text: message, userCount, endCount, echo: options?.echo !== false})
     try {
       await sendMessage(message, attachmentIds, {mode: options?.mode})
     } catch (err) {
@@ -426,31 +444,35 @@ export function SessionDetailView({
     )
   }
 
-  const activity = view.activeRun?.activity.kind
+  const activity = view.activeRun?.activity
+  const activityKind = activity?.kind
   const userCount = view.timeline.filter((item) => item.kind === 'user').length
   const echoed = outgoing != null && userCount > outgoing.userCount
+  const endCount = view.timeline.filter((item) => item.kind === 'run_end').length
   const visibleTimeline = view.timeline.filter((item) => {
     if (item.kind === 'run_end' && item.runId && hiddenRunIds.includes(item.runId)) return false
     if (item.kind === 'user' && (hiddenUserIds.includes(item.id) || (retrying != null && item.text === retrying.text && !retrying.knownUserIds.includes(item.id)))) return false
     return true
   })
-  const lastItem = visibleTimeline[visibleTimeline.length - 1]
+  const hideEndId = outgoing != null && endCount <= outgoing.endCount
+    ? [...visibleTimeline].reverse().find((item) => item.kind === 'run_end')?.id ?? null
+    : null
+  const shownTimeline = hideEndId ? visibleTimeline.filter((item) => item.id !== hideEndId) : visibleTimeline
+  const lastItem = shownTimeline[shownTimeline.length - 1]
   const tailQuiet = !lastItem || lastItem.kind === 'user' || lastItem.kind === 'protection'
   const retrySettled = retrying != null && view.timeline.some((item) => item.runId && item.runId !== retrying.fromRunId && item.kind !== 'user' && item.kind !== 'protection')
+  const pendingSend = outgoing != null || (retrying != null && !retrySettled)
   const showOptimistic = outgoing != null && outgoing.echo !== false && !echoed && !submitting
-  const showThinking = activity !== 'preparing_environment' && activity !== 'tool' && activity !== 'waiting_reply' && activity !== 'waiting_approval' && activity !== 'stopping' && !view.streaming?.text && (
-    (outgoing != null && !echoed) || (retrying != null && !retrySettled) || (tailQuiet && view.activeRun?.status === 'running' && (activity === 'model' || activity === 'idle' || activity == null))
-  )
-  const waitingReply = activity === 'waiting_reply'
-  const pauseMode = waitingReply ? false : activity === 'stopping' ? 'stopping' : (outgoing || submitting || (retrying != null && !retrySettled) || view.status === 'running' || waitingApproval) ? 'ready' as const : false
+  const waitingReply = activityKind === 'waiting_reply'
+  const pauseMode = waitingReply ? false : activityKind === 'stopping' ? 'stopping' : (outgoing || submitting || (retrying != null && !retrySettled) || view.status === 'running' || waitingApproval) ? 'ready' as const : false
 
   const placeholder = waitingApproval
-    ? '先在上方批准或拒绝这个操作，或点暂停结束运行'
+    ? RUN_INPUT_HINT.approval
     : view.status === 'waiting'
-    ? '回复将继续当前任务'
+    ? RUN_INPUT_HINT.reply
     : view.status === 'running'
-      ? '补充要求，会在当前这批操作结束后读取'
-      : '描述下一步，或开始一次新的运行'
+      ? RUN_INPUT_HINT.running
+      : RUN_INPUT_HINT.idle
 
   const showPlanExecute = canExecutePlan(view)
 
@@ -486,13 +508,7 @@ export function SessionDetailView({
                 title="重命名会话" aria-label="重命名会话" onClick={() => setRenameOpen(true)}>
                 <Pencil className="size-3.5"/>
               </Button>
-              {compacting ? (
-                <span role="status" className="shrink-0 text-xs font-medium text-state-running">压缩中</span>
-              ) : (run?.status === 'completed' || run?.status === 'cancelled') && (
-                <span role="status" className="shrink-0 text-xs text-muted-foreground">
-                  {run.status === 'completed' ? '已完成' : '已停止'}
-                </span>
-              )}
+              <RunStatus place="headline" status={run?.status} compacting={compacting}/>
               </div>
               {view.project && (
                 <div className="order-first flex min-w-0 items-center gap-1">
@@ -540,16 +556,22 @@ export function SessionDetailView({
           {mode === 'conversation' ? (
             <div ref={scrollRef} onScroll={onScroll} className="min-h-0 flex-1 overflow-y-auto">
               <div className="mx-auto flex w-full max-w-3xl flex-col gap-3 px-4 py-3">
-                {visibleTimeline.length === 0 && !showOptimistic && (
+                {shownTimeline.length === 0 && !showOptimistic && (
                   <p className="py-8 text-center text-meta text-faint">
                     这里会显示你的消息、工具操作和最终回复。在下方输入任务后开始。
                   </p>
                 )}
-                <Timeline items={visibleTimeline} handlers={handlers}/>
+                <Timeline items={shownTimeline} handlers={handlers}/>
                 {showOptimistic && outgoing ? <UserMessage text={outgoing.text}/> : null}
-                {view.activeRun?.activity.kind === 'preparing_environment' ? <PreparingNotice/> : null}
-                {showThinking ? <ThinkingNotice/> : null}
-                {compacting && latestCompactionId(view.timeline) === compactAnchor ? <CompactingNotice/> : null}
+                <RunStatus
+                  place="timeline"
+                  compacting={compacting && latestCompactionId(view.timeline) === compactAnchor}
+                  pendingSend={pendingSend}
+                  activity={activityKind}
+                  streaming={!!view.streaming?.text}
+                  running={view.activeRun?.status === 'running'}
+                  tailQuiet={tailQuiet}
+                />
                 {showPlanExecute && (
                   <PlanExecuteBar
                     disabled={submitting}
@@ -577,9 +599,7 @@ export function SessionDetailView({
               {mode === 'conversation' && (
                 <PlanBar plan={view.plan} runStatus={view.status === 'idle' ? null : view.status} className="mb-2"/>
               )}
-              {compacting
-                ? <CompactingStatusBar className="mb-2"/>
-                : <RunStatusBar run={view.activeRun} className="mb-2"/>}
+              <RunStatusBar run={pendingSend && !view.activeRun ? null : view.activeRun} className="mb-2"/>
               <ChatInput
                 sessionId={sessionId}
                 onSend={handleSend}

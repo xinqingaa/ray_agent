@@ -22,7 +22,7 @@ function groupStatus(calls: ToolCallView[]): {tone: Tone; text: string} {
   const ok = count('succeeded')
   const other = calls.length - running - failed - ok
   if (running > 0) return {tone: 'running', text: `进行中，已完成 ${calls.length - running}/${calls.length}`}
-  if (failed > 0) return {tone: 'failed', text: `${failed} 个失败${ok ? `，${ok} 个成功` : ''}${other ? `，${other} 个未完成` : ''}`}
+  if (failed > 0) return {tone: 'failed', text: `${failed} 个未成功${ok ? `，${ok} 个成功` : ''}${other ? `，${other} 个未完成` : ''}`}
   if (other > 0) return {tone: 'stopped', text: `${ok} 个成功，${other} 个未执行或被取消`}
   return {tone: 'success', text: '全部成功'}
 }

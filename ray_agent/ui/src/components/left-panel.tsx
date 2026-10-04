@@ -93,7 +93,7 @@ export function LeftPanel() {
           const list = page.sessions
           if (selected?.project?.id === project.id && !list.some(s => s.session_id === selected.session_id)) list.push(selected)
           return {...project, taskCount: project.task_count, conversations: list, navigationError: undefined}
-          image.png        } catch (err) {return {...project, taskCount: project.task_count, conversations: selected?.project?.id === project.id ? [selected] : [], navigationError: err instanceof Error ? err.message : '读取对话失败'}}
+        } catch (err) {return {...project, taskCount: project.task_count, conversations: selected?.project?.id === project.id ? [selected] : [], navigationError: err instanceof Error ? err.message : '读取对话失败'}}
       }))
       if (active) {
         setRows(next)

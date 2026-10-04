@@ -27,7 +27,7 @@ interface ChatInputProps {
   className?: string
   onInputValueChange?: (value: string) => void
   onSend?: (message: string, files: FileInfo[], options?: {mode?: 'plan' | 'normal'}) => Promise<void>
-  /** 运行中或消息刚送出时，发送位改为暂停。stopping 时图标转为等待。 */
+  /** 运行中或消息刚送出时，发送位改为暂停。停止中按钮禁用，转圈留在时间线那一句。 */
   pause?: false | 'ready' | 'stopping'
   onPause?: () => void
   disabled?: boolean
@@ -555,7 +555,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
             title={showPause ? (pause === 'stopping' ? '停止中' : '暂停') : '发送'}
           >
             {showPause ? (
-              pause === 'stopping' ? <Loader2 className="size-4 animate-spin"/> : <Pause className="size-3.5 fill-current"/>
+              <Pause className="size-3.5 fill-current"/>
             ) : sending ? (
               <Loader2 className="size-4 animate-spin"/>
             ) : (

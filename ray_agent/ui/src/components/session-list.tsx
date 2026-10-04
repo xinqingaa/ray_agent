@@ -104,7 +104,7 @@ export function SessionList() {
     return (
       <div className="px-2 py-8 text-center text-sm text-muted-foreground">
         <p>还没有会话</p>
-        <p className="mt-1 text-xs text-faint">在首页发送任务后，会话会出现在这里，并标出运行中、等你处理（回复提问或批准操作）或失败。</p>
+        <p className="mt-1 text-xs text-faint">在首页发送任务后，会话会出现在这里，并标出运行中、等你回复、等你批准或失败。</p>
       </div>
     )
   }

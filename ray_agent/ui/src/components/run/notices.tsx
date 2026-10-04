@@ -1,4 +1,4 @@
-import {Layers, Loader2, RotateCw, TriangleAlert} from 'lucide-react'
+import {Layers, RotateCw, TriangleAlert} from 'lucide-react'
 import {cn} from '@/lib/utils'
 import type {CompactTrigger} from '@/lib/session-view'
 import {formatTokens} from './format'
@@ -25,40 +25,6 @@ export function ProtectionNotice({message, state, className}: {message: string; 
       <span className="inline-flex max-w-[40rem] items-center gap-1.5 text-center">
         <TriangleAlert className="size-3.5 shrink-0" aria-hidden/>
         {message}
-      </span>
-      <span className="h-px flex-1 bg-border" aria-hidden/>
-    </div>
-  )
-}
-
-/** 消息已从输入框送出、模型和工具事件还没到时占在时间线末尾，避免对话区空档。 */
-export function ThinkingNotice({className}: {className?: string}) {
-  return (
-    <div role="status" aria-live="polite" className={cn('flex items-center gap-2 text-sm text-muted-foreground', className)}>
-      <Loader2 className="size-4 shrink-0 animate-spin text-state-running" aria-hidden/>
-      <span>正在思考中...</span>
-    </div>
-  )
-}
-
-/** 沙箱容器尚未就绪时占在时间线末尾；环境就绪或失败后由后续条目替换 */
-export function PreparingNotice({className}: {className?: string}) {
-  return (
-    <div role="status" aria-live="polite" className={cn('flex items-center gap-2 rounded-lg bg-state-running-soft px-3.5 py-2.5 text-sm', className)}>
-      <Loader2 className="size-4 shrink-0 animate-spin text-state-running" aria-hidden/>
-      <span>正在准备执行环境</span>
-    </div>
-  )
-}
-
-/** 点击压缩后、结果事件到达前，占在时间线末尾；结果写入后由真实摘要行替换 */
-export function CompactingNotice({className}: {className?: string}) {
-  return (
-    <div role="status" aria-live="polite" className={cn('flex items-center gap-3 text-xs text-muted-foreground', className)}>
-      <span className="h-px flex-1 bg-border" aria-hidden/>
-      <span className="inline-flex items-center gap-1.5">
-        <Loader2 className="size-3.5 shrink-0 animate-spin text-state-running" aria-hidden/>
-        压缩中
       </span>
       <span className="h-px flex-1 bg-border" aria-hidden/>
     </div>

@@ -1,6 +1,6 @@
 'use client'
 
-import {useCallback} from 'react'
+import {useCallback, useId} from 'react'
 import Link from 'next/link'
 import {MoreHorizontal, Pencil, Trash} from 'lucide-react'
 import {Button} from '@/components/ui/button'
@@ -10,8 +10,9 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import {RunStatus} from '@/components/run/run-status'
 import {useMounted} from '@/hooks/use-mounted'
-import {useCompactingSessionId} from '@/providers/sessions-provider'
+import {useCompactingSessionId, useSessionWaitKind, type WaitKind} from '@/providers/sessions-provider'
 import {cn, formatSidebarTime} from '@/lib/utils'
 import type {Session} from '@/lib/api'
 
@@ -26,25 +27,18 @@ type SessionItemProps = {
   /** 目录夹具直接标出压缩中；产品页由列表里的当前压缩会话决定 */
   showTime?: boolean
   compacting?: boolean
+  /** 目录夹具直接标明等回复还是等批准；产品页优先用项目占用，其次用已打开会话记下的原因 */
+  waitKind?: WaitKind | null
 }
-
-const STATUS: Record<Session['status'], {label: string; textClass?: string}> = {
-  pending: {label: '准备中', textClass: 'text-state-running'},
-  running: {label: '运行中', textClass: 'text-state-running'},
-  waiting: {label: '等你处理', textClass: 'text-state-waiting'},
-  completed: {label: '已完成'},
-  failed: {label: '失败', textClass: 'text-state-failed'},
-  cancelled: {label: '已停止'},
-  interrupted: {label: '已中断', textClass: 'text-state-interrupted'},
-}
-
-const ATTENTION = new Set<Session['status']>(['pending', 'running', 'waiting', 'failed', 'interrupted'])
 
 /** 会话一行：标题在左，时间或需要处理的状态在右。悬停时操作为时间让位。 */
-export function SessionItem({session, isActive, onClick, onDelete, onRename, href, compacting: compactingProp, showTime = true}: SessionItemProps) {
+export function SessionItem({session, isActive, onClick, onDelete, onRename, href, compacting: compactingProp, showTime = true, waitKind: waitKindProp}: SessionItemProps) {
   const mounted = useMounted()
+  const statusId = useId()
   const listedCompacting = useCompactingSessionId()
+  const rememberedWait = useSessionWaitKind(session.session_id)
   const compacting = compactingProp || listedCompacting === session.session_id
+  const waitKind = waitKindProp === undefined ? rememberedWait : waitKindProp
 
   const handleSelect = useCallback(() => {
     onClick?.(session.session_id)
@@ -56,10 +50,6 @@ export function SessionItem({session, isActive, onClick, onDelete, onRename, hre
   }, [onDelete, session])
 
   const title = session.title || '新任务'
-  const status = compacting ? {label: '压缩中', textClass: 'text-state-running'} : STATUS[session.status]
-  const attention = compacting || ATTENTION.has(session.status)
-  const meta = attention ? status.label : showTime ? formatSidebarTime(session.latest_message_at) : ''
-  const accessibleName = `${title}，${status.label}`
   const controlClass = cn(
     'absolute inset-0 z-0 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring',
     isActive ? 'bg-sidebar-accent' : 'hover:bg-sidebar-accent/70',
@@ -83,7 +73,7 @@ export function SessionItem({session, isActive, onClick, onDelete, onRename, hre
             event.currentTarget.click()
           }}
           aria-current={isActive ? 'page' : undefined}
-          aria-label={accessibleName}
+          aria-labelledby={statusId}
           className={controlClass}
         />
       ) : (
@@ -93,15 +83,22 @@ export function SessionItem({session, isActive, onClick, onDelete, onRename, hre
           title={title}
           onClick={handleSelect}
           aria-current={isActive ? 'page' : undefined}
-          aria-label={accessibleName}
+          aria-labelledby={statusId}
           className={controlClass}
         />
       )}
       <div className="pointer-events-none relative z-10 flex h-8 items-center gap-2 pl-2">
         <p className={cn('min-w-0 flex-1 truncate text-sm leading-5', isActive ? 'font-medium' : 'font-normal')} dir="auto">{title}</p>
-        {meta && (
-          <span className={cn('w-[4.75rem] shrink-0 truncate pr-2 text-right text-xs font-normal tabular-nums group-hover/session:invisible group-has-[[data-state=open]]/session:invisible', attention ? status.textClass : 'text-muted-foreground')}>{meta}</span>
-        )}
+        <RunStatus
+          place="sidebar"
+          id={statusId}
+          title={title}
+          status={session.status}
+          waitKind={waitKind}
+          compacting={compacting}
+          time={formatSidebarTime(session.latest_message_at)}
+          showTime={showTime}
+        />
       </div>
       {mounted ? (
         <DropdownMenu>
