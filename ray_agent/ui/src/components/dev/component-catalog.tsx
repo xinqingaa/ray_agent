@@ -144,12 +144,12 @@ function ComposedSession({items, statusBar, plan, usage}: {items: TimelineItem[]
   const [selected, setSelected] = useState<string | null>(null)
   return (
     <div className="flex flex-col overflow-hidden rounded-lg border bg-background">
-      {statusBar}
       <div className="max-h-[560px] overflow-y-auto px-4 py-4">
         <Timeline items={items} handlers={{selectedCallId: selected, onOpenCall: setSelected}}/>
       </div>
       <div className="space-y-2 border-t bg-card/60 p-3">
         {plan}
+        {statusBar}
         <div className="flex items-center justify-between rounded-lg border bg-card px-3 py-2 text-meta text-faint">
           <span>输入框（阶段二接入）</span>
           {usage}
@@ -244,14 +244,14 @@ export function ComponentCatalog() {
           标“合成”的是这些事件里不会出现的状态，按视图模型契约改写。运行中的计时从夹具记录的时刻开始走秒。
         </p>
 
-        <Section id="status-bar" title="运行状态条" note="状态、已用时间、轮次/上限、当前动作、本次运行 tokens 与停止按钮。只有模型思考中与工具执行中时，当前动作文字有扫光动画。">
+        <Section id="status-bar" title="运行状态条" note="放在输入框上方。状态、已用时间、轮次与当前动作。暂停在发送按钮上，状态行不再写「停止」。">
           <State label="空闲" source="真实"><RunStatusBar run={runStates.idle}/></State>
-          <State label="模型思考中" source="真实"><FixtureClock at={runStates.modelNow}><RunStatusBar run={runStates.model} onStop={noop}/></FixtureClock></State>
-          <State label="工具执行中" source="真实"><FixtureClock at={runStates.toolNow}><RunStatusBar run={runStates.tool} onStop={noop}/></FixtureClock></State>
-          <State label="计划模式" source="合成"><FixtureClock at={runStates.toolNow}><RunStatusBar run={runStates.planMode} onStop={noop}/></FixtureClock></State>
-          <State label="等待回复" source="真实"><FixtureClock at={runStates.waitingReplyNow}><RunStatusBar run={runStates.waitingReply} onStop={noop}/></FixtureClock></State>
-          <State label="等待审批" source="合成"><FixtureClock at={runStates.toolNow}><RunStatusBar run={runStates.waitingApproval} onStop={noop}/></FixtureClock></State>
-          <State label="停止中" source="合成"><FixtureClock at={runStates.toolNow}><RunStatusBar run={runStates.stopping} onStop={noop}/></FixtureClock></State>
+          <State label="模型思考中" source="真实"><FixtureClock at={runStates.modelNow}><RunStatusBar run={runStates.model} /></FixtureClock></State>
+          <State label="工具执行中" source="真实"><FixtureClock at={runStates.toolNow}><RunStatusBar run={runStates.tool} /></FixtureClock></State>
+          <State label="计划模式" source="合成"><FixtureClock at={runStates.toolNow}><RunStatusBar run={runStates.planMode} /></FixtureClock></State>
+          <State label="等待回复" source="真实"><FixtureClock at={runStates.waitingReplyNow}><RunStatusBar run={runStates.waitingReply} /></FixtureClock></State>
+          <State label="等待审批" source="合成"><FixtureClock at={runStates.toolNow}><RunStatusBar run={runStates.waitingApproval} /></FixtureClock></State>
+          <State label="停止中" source="合成"><FixtureClock at={runStates.toolNow}><RunStatusBar run={runStates.stopping} /></FixtureClock></State>
           <State label="已完成（状态行收起）" source="真实"><Surface className="text-meta text-faint">会话标题显示已完成，运行汇总留在时间线。</Surface></State>
           <State label="失败（含原因）" source="合成"><RunStatusBar run={runStates.failed}/></State>
           <State label="已停止（状态行收起）" source="合成"><Surface className="text-meta text-faint">会话标题显示已停止，停止记录留在时间线。</Surface></State>
@@ -454,7 +454,7 @@ export function ComponentCatalog() {
             <FixtureClock at={PLAN_TOOL_RUNNING_NOW}>
               <ComposedSession
                 items={planToolRunning.timeline}
-                statusBar={<RunStatusBar run={planToolRunning.runs[0]} onStop={noop}/>}
+                statusBar={<RunStatusBar run={planToolRunning.runs[0]} />}
                 plan={<PlanBar plan={planToolRunning.plan} runStatus="running"/>}
                 usage={<ContextRing usage={planToolRunning.usage}/>}
               />

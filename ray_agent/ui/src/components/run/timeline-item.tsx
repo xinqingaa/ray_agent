@@ -18,7 +18,9 @@ export type TimelineHandlers = {
   onPreviewFile?: (file: FileView) => void
   onDownloadFile?: (file: FileView) => void
   onDownloadAll?: (files: FileView[]) => void
-  onRetry?: (text: string) => void
+  onRetry?: (text: string, runId: string) => void
+  /** 只给这一次失败显示重试；不传则凡是失败都可重试。 */
+  retryRunId?: string | null
   onApprove?: (callId: string) => void
   onReject?: (callId: string) => void
   /** 正在提交审批的调用 */
@@ -80,7 +82,7 @@ export function TimelineItemView({item, handlers = {}}: {item: TimelineItem; han
     case 'final':
       return <FinalReply text={item.text} summary={item.summary} streaming={streaming}/>
     case 'run_end':
-      return <RunEndBar status={item.status} reasonText={item.reasonText} retryText={item.retryText} onRetry={handlers.onRetry}/>
+      return <RunEndBar status={item.status} reasonText={item.reasonText} retryText={item.retryText} onRetry={handlers.onRetry && (handlers.retryRunId == null || handlers.retryRunId === item.runId) ? (text) => handlers.onRetry?.(text, item.runId ?? '') : undefined}/>
   }
 }
 

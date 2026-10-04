@@ -1,7 +1,6 @@
 'use client'
 
-import {Loader2, Square} from 'lucide-react'
-import {Button} from '@/components/ui/button'
+import {Loader2} from 'lucide-react'
 import {cn} from '@/lib/utils'
 import type {RunView} from '@/lib/session-view'
 import {useNow} from './clock'
@@ -11,7 +10,6 @@ import {RUN_PHASE, runPhase, TONE_TEXT, type RunPhase} from './status-meta'
 type RunStatusBarProps = {
   /** 最新一次运行；没有运行时为空（空闲） */
   run: RunView | null
-  onStop?: () => void
   className?: string
 }
 
@@ -63,8 +61,8 @@ function activityText(run: RunView | null, phase: RunPhase, now: number | null):
 /** 手动压缩不改变运行状态，单独占状态行，避免页头仍显示已完成。 */
 export function CompactingStatusBar({className}: {className?: string}) {
   return (
-    <div className={cn('@container/status border-b border-border/60 bg-background', className)}>
-      <div className="flex min-h-9 items-center gap-3 px-4 py-1.5">
+    <div className={cn('@container/status', className)}>
+      <div className="flex min-h-9 items-center gap-3 py-1.5">
         <span role="status" className="shrink-0 text-xs font-medium whitespace-nowrap text-state-running">压缩中</span>
         <p className="min-w-0 flex-1 truncate text-xs text-muted-foreground">正在摘要较早的对话</p>
       </div>
@@ -72,8 +70,8 @@ export function CompactingStatusBar({className}: {className?: string}) {
   )
 }
 
-/** 只在运行、等待或异常结束时显示的轻量状态行；完成汇总留给时间线。 */
-export function RunStatusBar({run, onStop, className}: RunStatusBarProps) {
+/** 只在运行、等待或异常结束时显示的轻量状态行；完成汇总留给时间线。暂停在输入框的发送位。 */
+export function RunStatusBar({run, className}: RunStatusBarProps) {
   const phase = runPhase(run?.status, run?.activity)
   const meta = RUN_PHASE[phase]
   const live = LIVE_PHASES.includes(phase)
@@ -88,14 +86,13 @@ export function RunStatusBar({run, onStop, className}: RunStatusBarProps) {
         : null
   const turnCount = run ? run.summary?.turns ?? run.turns.length : 0
   const text = activityText(run, phase, now)
-  const showStop = run != null && (run.status === 'running' || run.status === 'waiting')
   const isFailure = phase === 'failed' || phase === 'interrupted'
   const planMode = run?.mode === 'plan' && live
   if (!run || phase === 'completed' || phase === 'cancelled') return null
 
   return (
-    <div className={cn('@container/status border-b border-border/60 bg-background', className)}>
-      <div className="flex min-h-9 items-center gap-3 px-4 py-1.5">
+    <div className={cn('@container/status', className)}>
+      <div className="flex min-h-9 items-center gap-3 py-1.5">
         {planMode && (
           <span className="shrink-0 rounded-sm bg-signal-soft px-1.5 py-0.5 text-xs font-medium text-signal">
             计划模式
@@ -125,19 +122,6 @@ export function RunStatusBar({run, onStop, className}: RunStatusBarProps) {
             <time dateTime={elapsed != null ? `PT${Math.floor(elapsed / 1000)}S` : undefined}>{formatClock(elapsed)}</time>
           </Field>}
           {!isFailure && turnCount > 0 && <Field label="轮次" className="hidden @lg/status:inline-flex">{turnCount}</Field>}
-          {showStop && (
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={onStop}
-              disabled={phase === 'stopping' || !onStop}
-              className="h-7 gap-1.5 px-2.5 hover:border-state-failed/50 hover:text-state-failed"
-            >
-              {phase === 'stopping' ? <Loader2 className="size-3.5 animate-spin" aria-hidden/> : <Square className="size-3 fill-current" aria-hidden/>}
-              {phase === 'stopping' ? '停止中' : '停止'}
-            </Button>
-          )}
         </div>
       </div>
     </div>

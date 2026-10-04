@@ -20,6 +20,8 @@ export type NavigationProject = {
   active_run_reason?: string | null
   file_operation?: import("@/lib/api/types").ProjectFileOperation | null
   conversations: Session[]
+  /** 项目里的对话数。0 表示点项目行不展开。 */
+  taskCount?: number
   navigationError?: string
 }
 export type NavigationExpansion = {projects: boolean; conversations: boolean; items: Record<string, boolean>}
@@ -109,7 +111,12 @@ export function ProjectNavigation(props: Props) {
           {props.error && <div className="px-2 py-3"><p role="alert" className="text-meta text-state-failed">{props.error}</p><Button size="sm" variant="ghost" onClick={props.onRetry}>重试</Button></div>}
           {projects.map(project => {
             const selected = props.selectedProject === project.id
-            const toggleProject = () => onExpansion({...expansion, items: {...expansion.items, [project.id]: !expansion.items[project.id]}})
+            const open = !!expansion.items[project.id]
+            const expandable = (project.taskCount ?? 0) > 0 || project.conversations.length > 0 || !!project.navigationError
+            const toggleProject = () => {
+              if (!open && !expandable) return
+              onExpansion({...expansion, items: {...expansion.items, [project.id]: !open}})
+            }
             const openProject = (event: MouseEvent) => {
               if (preview) event.preventDefault()
               if (!expansion.items[project.id]) onExpansion({...expansion, items: {...expansion.items, [project.id]: true}})
@@ -120,7 +127,7 @@ export function ProjectNavigation(props: Props) {
             const details = [!project.available ? project.reason : null, project.file_operation?.error, label, project.archived ? '已归档' : null].filter(Boolean).join('；')
             return <div key={project.id}>
               <div className="group/project relative flex h-8 items-center">
-                <button type="button" aria-expanded={!!expansion.items[project.id]} aria-current={selected && !selectedSession ? 'page' : undefined} title={details ? `${project.name}：${details}` : project.name} onClick={toggleProject} className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-md px-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                <button type="button" aria-expanded={expandable ? open : undefined} aria-current={selected && !selectedSession ? 'page' : undefined} title={details ? `${project.name}：${details}` : project.name} onClick={toggleProject} className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-md px-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring">
                   <Folder className={cn('size-4 shrink-0', selected ? 'text-foreground' : 'text-muted-foreground')}/>
                   {tone && <span title={details || label || undefined} className={cn('size-1.5 shrink-0 rounded-full', tone === 'failed' ? 'bg-state-failed' : tone === 'waiting' ? 'bg-state-waiting' : 'bg-state-running')}/>}
                   <span className="min-w-0 flex-1 truncate text-sm font-medium">{project.name}</span>
@@ -145,7 +152,7 @@ export function ProjectNavigation(props: Props) {
                   )}
                 </div>
               </div>
-              {expansion.items[project.id] && <div className="ml-6 flex flex-col gap-1 py-1">
+              {open && (project.conversations.length > 0 || project.navigationError) && <div className="ml-6 flex flex-col gap-1 py-1">
                 {project.conversations.map(session => sessionRow(session))}
                 {project.navigationError && <p role="alert" className="px-2 py-1 text-xs text-state-failed">{project.navigationError}</p>}
               </div>}

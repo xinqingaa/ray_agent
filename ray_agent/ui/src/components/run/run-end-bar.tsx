@@ -29,10 +29,17 @@ function nextStep(status: RunEndBarProps['status'], reasonText: string): string 
   return NEXT_STEP[status]
 }
 
-/** 终态条：非 completed 的运行结束方式与原因；失败时可以相同内容再发一次 */
+/** 失败原因里不再写「可以重试」，重试只由按钮承担。 */
+function failureReason(reasonText: string): string {
+  return reasonText.replace(/可在本任务中重试。?/g, '').replace(/可直接重试。?/g, '').replace(/\s{2,}/g, ' ').trim()
+}
+
+/** 终态条：非 completed 的运行结束方式与原因。失败只留一枚重试，不再配一段重复说明。 */
 export function RunEndBar({status, reasonText, retryText, onRetry, retrying = false, className}: RunEndBarProps) {
   const meta = RUN_PHASE[status]
   const Icon = meta.icon
+  const showRetry = status === 'failed' && !!retryText && !!onRetry
+  const reason = status === 'failed' ? failureReason(reasonText) : reasonText
   return (
     <div
       role="status"
@@ -42,21 +49,21 @@ export function RunEndBar({status, reasonText, retryText, onRetry, retrying = fa
       <div className="min-w-0 flex-1">
         <p className="text-sm">
           <span className={cn('font-medium', TONE_TEXT[meta.tone])}>{meta.label}</span>
-          <span className="ml-2">{reasonText}</span>
+          {reason ? <span className="ml-2">{reason}</span> : null}
         </p>
-        <p className="text-xs text-muted-foreground">{nextStep(status, reasonText)}</p>
+        {status !== 'failed' && <p className="text-xs text-muted-foreground">{nextStep(status, reasonText)}</p>}
       </div>
-      {status === 'failed' && retryText && (
+      {showRetry && (
         <Button
           type="button"
           size="sm"
           variant="outline"
           className="bg-card"
           onClick={() => onRetry?.(retryText)}
-          disabled={!onRetry || retrying}
+          disabled={retrying}
         >
           <RotateCcw aria-hidden/>
-          以相同内容重试
+          重试
         </Button>
       )}
     </div>

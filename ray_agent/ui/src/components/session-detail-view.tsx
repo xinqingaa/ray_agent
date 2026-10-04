@@ -12,7 +12,8 @@ import {DeveloperView} from '@/components/developer/developer-view'
 import {ContextRing} from '@/components/run/context-ring'
 import {PlanExecuteBar} from '@/components/run/run-end-bar'
 import {PlanBar} from '@/components/run/plan-bar'
-import {CompactingNotice, PreparingNotice} from '@/components/run/notices'
+import {CompactingNotice, PreparingNotice, ThinkingNotice} from '@/components/run/notices'
+import {UserMessage} from '@/components/run/messages'
 import {CompactingStatusBar, RunStatusBar} from '@/components/run/status-bar'
 import {Timeline, type TimelineHandlers} from '@/components/run/timeline-item'
 import {downloadSessionFile, tabForFamily, Workbench, type WorkbenchTab} from '@/components/workbench/workbench'
@@ -95,6 +96,10 @@ export function SessionDetailView({
     replyApproval,
   } = useSessionDetail(sessionId)
   const [memoryOpen,setMemoryOpen]=useState(false)
+  const [outgoing, setOutgoing] = useState<{text: string; userCount: number; echo?: boolean} | null>(null)
+  const [hiddenRunIds, setHiddenRunIds] = useState<string[]>([])
+  const [hiddenUserIds, setHiddenUserIds] = useState<string[]>([])
+  const [retrying, setRetrying] = useState<{text: string; knownUserIds: string[]; fromRunId: string} | null>(null)
   const projectsEnabled = true
   const [projectRefreshSignal, setProjectRefreshSignal] = useState(0)
   const projectRefreshRef = useRef<ReturnType<typeof createProjectRefreshWatcher> | null>(null)
@@ -188,11 +193,50 @@ export function SessionDetailView({
   }, [events, view?.project?.available])
 
   useEffect(() => {
+    setOutgoing(null)
+    setHiddenRunIds([])
+    setHiddenUserIds([])
+    setRetrying(null)
+  }, [sessionId])
+
+  useEffect(() => {
+    if (!outgoing) return
+    const count = (view?.timeline ?? []).filter((item) => item.kind === 'user').length
+    if (count > outgoing.userCount) setOutgoing(null)
+  }, [outgoing, view?.timeline])
+
+  const deliver = useCallback(async (message: string, attachmentIds: string[], options?: {mode?: 'plan' | 'normal'; echo?: boolean}) => {
+    const userCount = (view?.timeline ?? []).filter((item) => item.kind === 'user').length
+    setOutgoing({text: message, userCount, echo: options?.echo !== false})
+    try {
+      await sendMessage(message, attachmentIds, {mode: options?.mode})
+    } catch (err) {
+      setOutgoing(null)
+      throw err
+    }
+  }, [sendMessage, view?.timeline])
+
+  useEffect(() => {
+    if (!retrying) return
+    const items = view?.timeline ?? []
+    const extra = items.filter((item) => item.kind === 'user' && item.text === retrying.text && !retrying.knownUserIds.includes(item.id))
+    if (extra.length) {
+      setHiddenUserIds((prev) => {
+        const ids = extra.map((item) => item.id).filter((id) => !prev.includes(id))
+        return ids.length ? [...prev, ...ids] : prev
+      })
+    }
+    const echoedRuns = new Set(extra.map((item) => item.runId).filter((id): id is string => !!id))
+    const outcome = items.some((item) => item.runId && echoedRuns.has(item.runId) && item.kind !== 'user')
+    if (outcome) setRetrying(null)
+  }, [retrying, view?.timeline])
+
+  useEffect(() => {
     if (!stickRef.current || vncOpen) return
     const el = scrollRef.current
     if (!el) return
     el.scrollTo({top: el.scrollHeight, behavior: 'auto'})
-  }, [view?.timeline.length, view?.status, view?.streaming?.text, vncOpen, compacting])
+  }, [view?.timeline.length, view?.status, view?.streaming?.text, vncOpen, compacting, outgoing])
 
   const handleCompact = useCallback(async () => {
     if (compacting) return
@@ -263,7 +307,7 @@ export function SessionDetailView({
 
   const handleSend = useCallback(async (message: string, uploaded: FileInfo[], options?: {mode?: 'plan' | 'normal'}) => {
     try {
-      await sendMessage(message, uploaded.map((file) => file.id), {mode: options?.mode})
+      await deliver(message, uploaded.map((file) => file.id), {mode: options?.mode})
     } catch (err) {
       if (err instanceof ApiError && err.code === 409) {
         toast.error(err.msg)
@@ -272,7 +316,7 @@ export function SessionDetailView({
       }
       throw err
     }
-  }, [sendMessage])
+  }, [deliver])
 
   const handleApproval = useCallback(async (callId: string, decision: 'approve' | 'reject') => {
     if (approvalSubmitting) return
@@ -326,15 +370,24 @@ export function SessionDetailView({
       void downloadAll(files)
     },
     streamingItemId: view?.streamingItemId ?? null,
-    onRetry: view?.activeRun || submitting ? undefined : (text) => {
-      void sendMessage(text, []).catch((err: unknown) => {
+    retryRunId: (() => {
+      const latest = [...(view?.timeline ?? [])].reverse().find((item) => item.kind === 'run_end' && item.status === 'failed' && item.retryText && item.runId)
+      return latest?.runId && !hiddenRunIds.includes(latest.runId) ? latest.runId : ''
+    })(),
+    onRetry: view?.activeRun || submitting || retrying ? undefined : (text, runId) => {
+      const knownUserIds = (view?.timeline ?? []).filter((item) => item.kind === 'user').map((item) => item.id)
+      setHiddenRunIds((prev) => prev.includes(runId) ? prev : [...prev, runId])
+      setRetrying({text, knownUserIds, fromRunId: runId})
+      void deliver(text, [], {echo: false}).catch((err: unknown) => {
+        setHiddenRunIds((prev) => prev.filter((id) => id !== runId))
+        setRetrying((current) => current?.fromRunId === runId ? null : current)
         toast.error(err instanceof Error ? err.message : '重试失败')
       })
     },
     onApprove: (callId) => void handleApproval(callId, 'approve'),
     onReject: (callId) => void handleApproval(callId, 'reject'),
     approvalSubmitting,
-  }), [view?.id, view?.project?.id, focus?.callId, view?.activeRun, view?.streamingItemId, submitting, downloadOne, downloadAll, sendMessage, handleApproval, approvalSubmitting])
+  }), [view?.id, view?.project?.id, view?.timeline, focus?.callId, view?.activeRun, view?.streamingItemId, submitting, retrying, hiddenRunIds, downloadOne, downloadAll, deliver, handleApproval, approvalSubmitting])
 
   const onScroll = () => {
     const el = scrollRef.current
@@ -373,8 +426,26 @@ export function SessionDetailView({
     )
   }
 
+  const activity = view.activeRun?.activity.kind
+  const userCount = view.timeline.filter((item) => item.kind === 'user').length
+  const echoed = outgoing != null && userCount > outgoing.userCount
+  const visibleTimeline = view.timeline.filter((item) => {
+    if (item.kind === 'run_end' && item.runId && hiddenRunIds.includes(item.runId)) return false
+    if (item.kind === 'user' && (hiddenUserIds.includes(item.id) || (retrying != null && item.text === retrying.text && !retrying.knownUserIds.includes(item.id)))) return false
+    return true
+  })
+  const lastItem = visibleTimeline[visibleTimeline.length - 1]
+  const tailQuiet = !lastItem || lastItem.kind === 'user' || lastItem.kind === 'protection'
+  const retrySettled = retrying != null && view.timeline.some((item) => item.runId && item.runId !== retrying.fromRunId && item.kind !== 'user' && item.kind !== 'protection')
+  const showOptimistic = outgoing != null && outgoing.echo !== false && !echoed && !submitting
+  const showThinking = activity !== 'preparing_environment' && activity !== 'tool' && activity !== 'waiting_reply' && activity !== 'waiting_approval' && activity !== 'stopping' && !view.streaming?.text && (
+    (outgoing != null && !echoed) || (retrying != null && !retrySettled) || (tailQuiet && view.activeRun?.status === 'running' && (activity === 'model' || activity === 'idle' || activity == null))
+  )
+  const waitingReply = activity === 'waiting_reply'
+  const pauseMode = waitingReply ? false : activity === 'stopping' ? 'stopping' : (outgoing || submitting || (retrying != null && !retrySettled) || view.status === 'running' || waitingApproval) ? 'ready' as const : false
+
   const placeholder = waitingApproval
-    ? '先在上方批准或拒绝这个操作，或点“停止”结束运行'
+    ? '先在上方批准或拒绝这个操作，或点暂停结束运行'
     : view.status === 'waiting'
     ? '回复将继续当前任务'
     : view.status === 'running'
@@ -464,28 +535,26 @@ export function SessionDetailView({
               </Button>
             )}
           </header>
-          {view.project && <ProjectMemoryPanel projectId={view.project.id} sessionId={sessionId} open={memoryOpen} onClose={()=>setMemoryOpen(false)}/>} 
-
-          {compacting
-            ? <CompactingStatusBar/>
-            : <RunStatusBar run={view.activeRun} onStop={() => void handleStop()}/>}
+          {view.project && <ProjectMemoryPanel projectId={view.project.id} sessionId={sessionId} open={memoryOpen} onClose={()=>setMemoryOpen(false)}/>}
 
           {mode === 'conversation' ? (
             <div ref={scrollRef} onScroll={onScroll} className="min-h-0 flex-1 overflow-y-auto">
               <div className="mx-auto flex w-full max-w-3xl flex-col gap-3 px-4 py-3">
-                {view.timeline.length === 0 && (
+                {visibleTimeline.length === 0 && !showOptimistic && (
                   <p className="py-8 text-center text-meta text-faint">
                     这里会显示你的消息、工具操作和最终回复。在下方输入任务后开始。
                   </p>
                 )}
-                <Timeline items={view.timeline} handlers={handlers}/>
+                <Timeline items={visibleTimeline} handlers={handlers}/>
+                {showOptimistic && outgoing ? <UserMessage text={outgoing.text}/> : null}
                 {view.activeRun?.activity.kind === 'preparing_environment' ? <PreparingNotice/> : null}
+                {showThinking ? <ThinkingNotice/> : null}
                 {compacting && latestCompactionId(view.timeline) === compactAnchor ? <CompactingNotice/> : null}
                 {showPlanExecute && (
                   <PlanExecuteBar
                     disabled={submitting}
                     onExecute={() => {
-                      void sendMessage('按计划执行', [], {mode: 'normal'}).catch((err: unknown) => {
+                      void deliver('按计划执行', [], {mode: 'normal'}).catch((err: unknown) => {
                         if (err instanceof ApiError && err.code === 409) {
                           toast.error(err.msg)
                           return
@@ -508,9 +577,14 @@ export function SessionDetailView({
               {mode === 'conversation' && (
                 <PlanBar plan={view.plan} runStatus={view.status === 'idle' ? null : view.status} className="mb-2"/>
               )}
+              {compacting
+                ? <CompactingStatusBar className="mb-2"/>
+                : <RunStatusBar run={view.activeRun} className="mb-2"/>}
               <ChatInput
                 sessionId={sessionId}
                 onSend={handleSend}
+                pause={pauseMode}
+                onPause={() => void handleStop()}
                 disabled={submitting || waitingApproval}
                 placeholder={placeholder}
                 accessory={(context) => <ContextRing usage={view.usage} commandContext={context}/>}

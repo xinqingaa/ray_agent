@@ -5,7 +5,7 @@ import {cn, formatFileSize} from '@/lib/utils'
 import {ScrollArea, ScrollBar} from '@/components/ui/scroll-area'
 import {Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle} from '@/components/ui/item'
 import {Avatar, AvatarGroupCount} from '@/components/ui/avatar'
-import {ArrowUp, FileText, XCircle, Loader2, Paperclip} from 'lucide-react'
+import {ArrowUp, FileText, Loader2, Paperclip, Pause, XCircle} from 'lucide-react'
 import {Button} from '@/components/ui/button'
 import {Popover, PopoverAnchor, PopoverContent} from '@/components/ui/popover'
 import {PlusCommandMenu, SlashCommandList} from '@/components/input-command-menu'
@@ -27,6 +27,9 @@ interface ChatInputProps {
   className?: string
   onInputValueChange?: (value: string) => void
   onSend?: (message: string, files: FileInfo[], options?: {mode?: 'plan' | 'normal'}) => Promise<void>
+  /** 运行中或消息刚送出时，发送位改为暂停。stopping 时图标转为等待。 */
+  pause?: false | 'ready' | 'stopping'
+  onPause?: () => void
   disabled?: boolean
   /** 当前会话 ID，上传附件时会关联到该会话 */
   sessionId?: string | null
@@ -62,7 +65,7 @@ export interface ChatInputRef {
 }
 
 export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
-  ({ className, onInputValueChange, onSend, disabled = false, sessionId, placeholder = '分配一个任务或提问任何问题...', accessory, draftScope, commandHost = EMPTY_HOST, projectsEnabled = false, projectBindable = false, selectedProject = null }, ref) => {
+  ({ className, onInputValueChange, onSend, pause = false, onPause, disabled = false, sessionId, placeholder = '分配一个任务或提问任何问题...', accessory, draftScope, commandHost = EMPTY_HOST, projectsEnabled = false, projectBindable = false, selectedProject = null }, ref) => {
     const [files, setFiles] = useState<FileInfo[]>([])
     const [uploading, setUploading] = useState(false)
     const [sending, setSending] = useState(false)
@@ -401,6 +404,8 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
       void handleSend()
     }
 
+    const showPause = pause === 'stopping' || pause === 'ready' || (sending && !!onPause)
+
     return (
     <Popover open={slashOpen} onOpenChange={(open) => { if (!open) setSlash(null) }}>
     <div className={cn('flex flex-col bg-card w-full rounded-2xl py-3 border', className)}>
@@ -544,11 +549,14 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
             type="button"
             variant="outline"
             className="rounded-full w-8 h-8 cursor-pointer"
-            onClick={handleSend}
-            disabled={blocked || uploading || !inputValue.trim()}
-            aria-label="发送"
+            onClick={showPause ? onPause : handleSend}
+            disabled={showPause ? pause === 'stopping' || !onPause : blocked || uploading || !inputValue.trim()}
+            aria-label={showPause ? (pause === 'stopping' ? '停止中' : '暂停') : '发送'}
+            title={showPause ? (pause === 'stopping' ? '停止中' : '暂停') : '发送'}
           >
-            {sending ? (
+            {showPause ? (
+              pause === 'stopping' ? <Loader2 className="size-4 animate-spin"/> : <Pause className="size-3.5 fill-current"/>
+            ) : sending ? (
               <Loader2 className="size-4 animate-spin"/>
             ) : (
               <ArrowUp/>

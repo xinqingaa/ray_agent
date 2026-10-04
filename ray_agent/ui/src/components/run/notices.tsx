@@ -31,6 +31,16 @@ export function ProtectionNotice({message, state, className}: {message: string; 
   )
 }
 
+/** 消息已从输入框送出、模型和工具事件还没到时占在时间线末尾，避免对话区空档。 */
+export function ThinkingNotice({className}: {className?: string}) {
+  return (
+    <div role="status" aria-live="polite" className={cn('flex items-center gap-2 text-sm text-muted-foreground', className)}>
+      <Loader2 className="size-4 shrink-0 animate-spin text-state-running" aria-hidden/>
+      <span>正在思考中...</span>
+    </div>
+  )
+}
+
 /** 沙箱容器尚未就绪时占在时间线末尾；环境就绪或失败后由后续条目替换 */
 export function PreparingNotice({className}: {className?: string}) {
   return (

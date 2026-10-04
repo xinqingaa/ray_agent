@@ -87,15 +87,27 @@ export function LeftPanel() {
       const current = selected?.project ?? (locatedProject?.id === projectId ? locatedProject : null)
       if (current && !projects.some(project => project.id === current.id)) projects.unshift(current)
       const next = await Promise.all(projects.map(async project => {
-        if (!expansion.projects || !expansion.items[project.id]) return {...project, conversations: []}
+        if (!expansion.projects || !expansion.items[project.id]) return {...project, taskCount: project.task_count, conversations: [], navigationError: undefined}
         try {
           const page = await projectApi.sessions(project.id, 0, 5)
           const list = page.sessions
           if (selected?.project?.id === project.id && !list.some(s => s.session_id === selected.session_id)) list.push(selected)
-          return {...project, conversations: list}
-        } catch (err) {return {...project, conversations: selected?.project?.id === project.id ? [selected] : [], navigationError: err instanceof Error ? err.message : '读取对话失败'}}
+          return {...project, taskCount: project.task_count, conversations: list, navigationError: undefined}
+          image.png        } catch (err) {return {...project, taskCount: project.task_count, conversations: selected?.project?.id === project.id ? [selected] : [], navigationError: err instanceof Error ? err.message : '读取对话失败'}}
       }))
-      if (active) setRows(next)
+      if (active) {
+        setRows(next)
+        const empty = next.filter(project => expansion.items[project.id] && project.conversations.length === 0 && !project.navigationError)
+        if (empty.length) setExpansion(old => {
+          const items = {...old.items}
+          let changed = false
+          for (const project of empty) if (items[project.id]) { items[project.id] = false; changed = true }
+          if (!changed) return old
+          const state = {...old, items}
+          localStorage.setItem('rayagent:navigation', JSON.stringify(state))
+          return state
+        })
+      }
     }
     void load()
     return () => {active = false}
