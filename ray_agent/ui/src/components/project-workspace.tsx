@@ -76,11 +76,11 @@ export function ProjectWorkspace({projectId}: {projectId: string}) {
     window.addEventListener('focus', visible); document.addEventListener('visibilitychange', visible)
     return () => {request.current++; listRequest.current++; clearInterval(timer); window.removeEventListener('focus', visible); document.removeEventListener('visibilitychange', visible)}
   }, [projectId, refresh, refreshList])
-  const send = async (message: string, files: FileInfo[], options?: {mode?: 'normal' | 'plan'}) => {
+  const send = async (message: string, files: FileInfo[], options?: {mode?: 'normal' | 'plan'; model?: string; reasoning?: string}) => {
     if (sending || !project?.available || project.archived || project.file_operation || project.occupying_session_id) return
     setSending(true); setSendError(null); setOccupier(null)
     try {
-      const id=await startProjectRecoverably(scope,projectId,{message,attachments:files.map(file=>file.id),mode:options?.mode ?? 'normal'})
+      const id=await startProjectRecoverably(scope,projectId,{message,attachments:files.map(file=>file.id),mode:options?.mode ?? 'normal',...(options?.model && options?.reasoning ? {model:options.model,reasoning:options.reasoning} : {})})
       void registry?.refresh(); router.push(`/sessions/${id}`)
     } catch (err) {
       const message = err instanceof Error ? err.message : '发送失败'

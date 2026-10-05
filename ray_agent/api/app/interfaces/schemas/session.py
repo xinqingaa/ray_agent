@@ -50,6 +50,8 @@ class ChatRequest(BaseModel):
     timestamp: Optional[int] = None  # 当前时间戳（秒）
     # 只在新建运行时生效；会话有活动运行（注入或续接）时带 plan 返回 409
     mode: Literal["normal", "plan"] = "normal"
+    model: Optional[str] = None  # 厂商模型 id；与 reasoning 一起提交
+    reasoning: Optional[str] = None  # 思考参数原词
 
 
 class ChatResponse(BaseModel):
@@ -147,6 +149,20 @@ class GetSessionResponse(BaseModel):
     context_operation: ContextOperation = Field(default_factory=ContextOperation)
     context_config: Dict[str, int] = Field(default_factory=dict)
     project: Optional[ProjectView] = None  # 未绑定项目时为 null；available/reason 每次请求实时计算
+    model_id: Optional[str] = None
+    reasoning: Optional[str] = None
+    run_model: Optional[str] = None  # 活动运行快照里的模型；与选择不同时，下次新运行才切换
+    run_reasoning: Optional[str] = None
+
+
+class ModelSelectionRequest(BaseModel):
+    model: str
+    reasoning: str
+
+
+class ModelSelectionResponse(BaseModel):
+    model: str
+    reasoning: str
 
 
 class TurnRequestResponse(BaseModel):

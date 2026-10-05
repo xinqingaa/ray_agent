@@ -29,6 +29,20 @@ class LLMConfigPublic(BaseModel):
         )
 
 
+class ModelCatalogItem(BaseModel):
+    id: str
+    context_window: int
+    max_output: int
+    choices: List[str]
+    default_choice: str
+
+
+class ModelCatalogResponse(BaseModel):
+    provider: str | None = None
+    models: List[ModelCatalogItem] = Field(default_factory=list)
+    default_model: str | None = None
+
+
 class LLMConfigUpdate(BaseModel):
     """更新 LLM 配置时忽略密钥字段。"""
     model_config = ConfigDict(extra="ignore")

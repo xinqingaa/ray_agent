@@ -21,7 +21,7 @@ export default function Page() {
   const {sessions,loading,error,refresh}=useSessions()
   const examples=['调研一个近期行业趋势，核对原始来源并整理成简短报告。','我会上传一份 CSV，请核对数据质量，汇总关键指标并交付结果文件。','先制定一份活动筹备计划，列出任务、所需材料和需要我确认的信息。']
   const [sending, setSending] = useState(false)
-  const startTask = async (message: string, files: FileInfo[], options?: {mode?: 'plan' | 'normal'}) => {
+  const startTask = async (message: string, files: FileInfo[], options?: {mode?: 'plan' | 'normal'; model?: string; reasoning?: string}) => {
     if (sending) return
     setSending(true)
     try {
@@ -37,6 +37,7 @@ export default function Page() {
         message,
         attachments: files.map((file) => file.id),
         mode: options?.mode ?? 'normal',
+        ...(options?.model && options?.reasoning ? {model: options.model, reasoning: options.reasoning} : {}),
       })
       router.push(`/sessions/${id}`)
     } catch (err) {

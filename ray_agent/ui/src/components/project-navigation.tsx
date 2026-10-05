@@ -48,6 +48,7 @@ type Props = {
   onSessionDelete: (session: Session) => void
   onSessionRename: (session: Session) => void
   onNavigate?: (path: string) => void
+  onNewConversation?: (projectId: string) => void
   /** 目录示例保留导航交互，但不访问产品路由。 */
   preview?: boolean
 }
@@ -124,6 +125,11 @@ export function ProjectNavigation(props: Props) {
               if (!expansion.items[project.id]) onExpansion({...expansion, items: {...expansion.items, [project.id]: true}})
               props.onNavigate?.(`/projects/${project.id}`)
             }
+            const startConversation = () => {
+              if (!expansion.items[project.id]) onExpansion({...expansion, items: {...expansion.items, [project.id]: true}})
+              props.onNavigate?.(`/sessions/new`)
+              props.onNewConversation?.(project.id)
+            }
             return <div key={project.id}>
               <div className="group/project relative flex h-8 items-center">
                 <button type="button" aria-expanded={expandable ? open : undefined} aria-current={selected && !selectedSession ? 'page' : undefined} onClick={toggleProject} className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-md px-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring">
@@ -147,16 +153,22 @@ export function ProjectNavigation(props: Props) {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem asChild><Link href={`/projects/${project.id}`} onClick={openProject}>{project.archived ? '打开项目' : '在此项目新对话'}</Link></DropdownMenuItem>
+                      {project.archived || !props.onNewConversation
+                        ? <DropdownMenuItem asChild><Link href={`/projects/${project.id}`} onClick={openProject}>{project.archived ? '打开项目' : '在此项目新对话'}</Link></DropdownMenuItem>
+                        : <DropdownMenuItem onSelect={startConversation}>在此项目新对话</DropdownMenuItem>}
                       <DropdownMenuItem onSelect={() => props.onProjectSettings(project.id)}>项目设置</DropdownMenuItem>
                       {!project.archived && <DropdownMenuItem onSelect={() => props.onArchive(project.id)}>归档项目</DropdownMenuItem>}
                     </DropdownMenuContent>
                   </DropdownMenu>
-                  {!project.archived && (
+                  {!project.archived && (props.onNewConversation ? (
+                    <button type="button" aria-label={`${project.name} 中新对话`} title="在此项目中新对话" onClick={startConversation} className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring">
+                      <NewChatIcon className="size-4"/>
+                    </button>
+                  ) : (
                     <Link href={`/projects/${project.id}`} aria-label={`${project.name} 中新对话`} title="在此项目中新对话" onClick={openProject} className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring">
                       <NewChatIcon className="size-4"/>
                     </Link>
-                  )}
+                  ))}
                 </div>
               </div>
               {open && (project.conversations.length > 0 || project.navigationError) && <div className="ml-6 flex flex-col gap-1 py-1">

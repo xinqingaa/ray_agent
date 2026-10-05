@@ -194,10 +194,10 @@ class ProjectMemoryService:
         from app.infrastructure.external.llm.openai_llm import OpenAILLM
         from app.infrastructure.repositories.file_app_config_repository import FileAppConfigRepository
         from core.config import get_settings
+        from app.domain.models.model_catalog import auxiliary_call
         config = FileAppConfigRepository(get_settings().app_config_filepath).load().llm_config
-        model = 'deepseek-chat' if config.base_url.host == 'api.deepseek.com' else config.model_name
-        config = config.model_copy(update=dict(model_name=model, max_tokens=512, temperature=0.2,
-                                              streaming=False, request_timeout=20))
+        config, thinking, effort = auxiliary_call(config, max_tokens=512, temperature=0.2, timeout=20)
+        model = config.model_name
         from app.domain.services.context.budget import ContextBudget
         messages = [
             dict(role='system', content='用与用户相同的语言生成一句简短对话摘要，说明目标与已完成结果。'
@@ -208,7 +208,9 @@ class ProjectMemoryService:
         estimate = ContextBudget(config.context_window, config.max_tokens, 0.05, 0.75).estimate(messages, [])
         if estimate.over_limit:
             raise BadRequestError('摘要材料超过当前模型容量，请精简材料或调整窗口')
-        result = await asyncio.wait_for(OpenAILLM(config).invoke(messages), timeout=23)
+        result = await asyncio.wait_for(OpenAILLM(
+            config, thinking=thinking, reasoning_effort=effort, reasoning_id='disabled' if thinking else None,
+        ).invoke(messages), timeout=23)
         if result.finish_reason == 'length':
             raise BadRequestError('摘要生成未完成')
         return dict(text=str(result.message.get('content') or ''), model=model, usage=result.usage.model_dump() if result.usage else None)

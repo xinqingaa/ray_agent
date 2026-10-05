@@ -22,11 +22,17 @@ import {commandById, matchingCommands, type CommandContext, type CommandHost, ty
 import {clearDraft, readDraft, writeDraft, DRAFT_CHANGED} from '@/lib/drafts'
 import {recoverSubmission, UncertainSubmissionError} from '@/lib/send-recovery'
 import {findSlashTrigger, removeSlashFragment, type SlashFragment} from '@/lib/slash-trigger'
+import {ModelPicker, type ModelSelection} from '@/components/model-picker'
+import {createProjectSession} from '@/lib/open-project-session'
 
 interface ChatInputProps {
   className?: string
   onInputValueChange?: (value: string) => void
-  onSend?: (message: string, files: FileInfo[], options?: {mode?: 'plan' | 'normal'}) => Promise<void>
+  onSend?: (message: string, files: FileInfo[], options?: {mode?: 'plan' | 'normal'; model?: string; reasoning?: string}) => Promise<void>
+  savedModel?: string | null
+  savedReasoning?: string | null
+  runModel?: string | null
+  runReasoning?: string | null
   /** 运行中或消息刚送出时，发送位改为暂停。停止中按钮禁用，转圈留在时间线那一句。 */
   pause?: false | 'ready' | 'stopping'
   onPause?: () => void
@@ -65,7 +71,7 @@ export interface ChatInputRef {
 }
 
 export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
-  ({ className, onInputValueChange, onSend, pause = false, onPause, disabled = false, sessionId, placeholder = '分配一个任务或提问任何问题...', accessory, draftScope, commandHost = EMPTY_HOST, projectsEnabled = false, projectBindable = false, selectedProject = null }, ref) => {
+  ({ className, onInputValueChange, onSend, pause = false, onPause, disabled = false, sessionId, placeholder = '分配一个任务或提问任何问题...', accessory, draftScope, commandHost = EMPTY_HOST, projectsEnabled = false, projectBindable = false, selectedProject = null, savedModel = null, savedReasoning = null, runModel = null, runReasoning = null }, ref) => {
     const [files, setFiles] = useState<FileInfo[]>([])
     const [uploading, setUploading] = useState(false)
     const [sending, setSending] = useState(false)
@@ -87,6 +93,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
     const scope = draftScope ?? (sessionId ? `session:${sessionId}` : `input:${localDraftId}`)
     const [loadedScope, setLoadedScope] = useState<string | null>(null)
     const [uncertain, setUncertain] = useState(false)
+    const [modelChoice, setModelChoice] = useState<ModelSelection | null>(null)
     useEffect(() => {
       const draft = readDraft(scope)
       setInputValue(draft.text)
@@ -317,7 +324,10 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
       if (onSend) {
         setSending(true)
         try {
-          await onSend(trimmedMessage, files, {mode: planMode ? 'plan' : 'normal'})
+          await onSend(trimmedMessage, files, {
+            mode: planMode ? 'plan' : 'normal',
+            ...(modelChoice ? {model: modelChoice.model, reasoning: modelChoice.reasoning} : {}),
+          })
           clearDraft(scope)
           // 发送成功后清空输入框和文件列表
           setInputValue('')
@@ -529,7 +539,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
             onClick={() => commandById('upload')?.run(commandContext)}>
             <Paperclip className="size-4"/>
           </Button>
-          {!workspace && <ProjectPicker hideTrigger open={projectPickerOpen} onOpenChange={setProjectPickerOpen} onSelect={project => {if (project) router.push(`/projects/${project.id}`)}}/>}
+          {!workspace && <ProjectPicker hideTrigger open={projectPickerOpen} onOpenChange={setProjectPickerOpen} onSelect={project => {if (!project) return; void createProjectSession(project.id).then(id => {if (id) router.push(`/sessions/${id}`)}).catch(err => toast.error(err instanceof Error ? err.message : '创建对话失败'))}}/>}
           {planMode && (
             <button
               type="button"
@@ -544,6 +554,14 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
         </div>
         {/* 发送/暂停按钮 */}
         <div className="flex items-center gap-1">
+          <ModelPicker
+            sessionId={sessionId}
+            savedModel={savedModel}
+            savedReasoning={savedReasoning}
+            runModel={runModel}
+            runReasoning={runReasoning}
+            onSelection={setModelChoice}
+          />
           {typeof accessory === 'function' ? accessory(commandContext) : accessory}
           <Button
             type="button"

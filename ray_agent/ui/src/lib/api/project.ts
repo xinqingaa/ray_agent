@@ -7,7 +7,7 @@ import type {
 } from "./types";
 
 export const projectApi = {
-  startChat: (id:string, creationId:string, payload:{message:string;attachments:string[];mode:'normal'|'plan'}) => post<ChatAccepted & {session_id:string}>(`/projects/${id}/chat`,{...payload,creation_id:creationId}),
+  startChat: (id:string, creationId:string, payload:{message:string;attachments:string[];mode:'normal'|'plan';model?:string;reasoning?:string}) => post<ChatAccepted & {session_id:string}>(`/projects/${id}/chat`,{...payload,creation_id:creationId}),
   estimateMemory: (id:string, sessionId?:string, mode='normal') => get<ProjectMemoryView>(`/projects/${id}/memory/estimate`,{...(sessionId?{session_id:sessionId}:{}),mode}),
   memory: (id:string, sessionId?:string) => get<ProjectMemoryView>(`/projects/${id}/memory`,sessionId ? {session_id:sessionId} : {}),
   memoryHistory: (id:string, beforeSeq=0) => get<ProjectAuditEvent[]>(`/projects/${id}/memory/history`,{before_seq:beforeSeq}),

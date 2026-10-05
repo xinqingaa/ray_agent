@@ -384,6 +384,8 @@ class AgentLoop(BaseFlow):
             "temperature": self._llm.temperature,
             "max_tokens": self._llm.max_tokens,
             "context_window": self._llm.context_window,
+            "thinking": getattr(self._llm, "thinking", None),
+            "reasoning": getattr(self._llm, "reasoning_id", None),
             "agent_config": self._config.model_dump(mode="json"),
             "mode": self._mode.value,
             "system_prompt": self.request_system_prompt or self._with_mode_suffix(system_prompt + self.project_prompt),
@@ -506,8 +508,10 @@ class AgentLoop(BaseFlow):
         for event in self._take_context():
             yield event
         if not reply_consumed:
-            # 新用户消息开始新的一问：删除此前的思考内容；回复提问属于同一问，不删除
-            self._strip_reasoning()
+            # 新用户消息开始新的一问。关闭思考时删除此前的思考内容；开启思考且厂商要求跨问回放时保留。
+            # 回复提问属于同一问，不删除。
+            if not getattr(self._llm, "keep_reasoning", False):
+                self._strip_reasoning()
             await self._add_messages([{"role": "user", "content": _user_content(message)}])
         for event in self._take_context():
             yield event

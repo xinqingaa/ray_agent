@@ -489,3 +489,12 @@ def test_new_user_message_strips_reasoning_but_reply_does_not(ask, status, strip
     if not ask:
         # W2 起浏览器结果不再按工具名替换，统一走结果整形的单条上限
         assert request[3]["content"] == "页面全文"
+
+
+def test_keep_reasoning_leaves_prior_thoughts_on_a_new_user_message():
+    session = Session(id="w1-compact", title="t", status=SessionStatus.COMPLETED)
+    session.memories[AGENT_MEMORY_NAME] = _previous_turn(False)
+    h = make_loop([text("好")], session=session)
+    h.llm.keep_reasoning = True
+    run(collect(h.loop, message="继续"))
+    assert "reasoning_content" in h.llm.requests[0].messages[2]

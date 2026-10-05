@@ -71,12 +71,10 @@ class TitleService:
         material = material.strip()[:2000]
         if not material:
             raise BadRequestError("会话还没有消息")
+        from app.domain.models.model_catalog import auxiliary_call
         config = FileAppConfigRepository(get_settings().app_config_filepath).load().llm_config
-        title_model = "deepseek-chat" if config.base_url.host == "api.deepseek.com" else config.model_name
-        short_config = config.model_copy(update={
-            "model_name": title_model,
-            "max_tokens": 256, "temperature": 0.2, "streaming": False, "request_timeout": 20,
-        })
+        short_config, thinking, effort = auxiliary_call(
+            config, max_tokens=256, temperature=0.2, timeout=20)
         prompt = (
             "You create sidebar titles for task conversations. Return ONLY a short noun phrase naming the task. "
             "Do not perform, answer, explain, or restate the task. Use the same language as the user. "
@@ -86,7 +84,9 @@ class TitleService:
             "'Écris un résumé du rapport' -> 'Résumé du rapport'. "
             "Output only the title, with no prefix, quotes, or final punctuation."
         )
-        result = await asyncio.wait_for(OpenAILLM(short_config).invoke([
+        result = await asyncio.wait_for(OpenAILLM(
+            short_config, thinking=thinking, reasoning_effort=effort, reasoning_id="disabled" if thinking else None,
+        ).invoke([
             {"role": "system", "content": prompt}, {"role": "user", "content": material},
         ]), timeout=23)
         if result.finish_reason == "length":

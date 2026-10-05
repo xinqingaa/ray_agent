@@ -16,7 +16,7 @@ export type ProjectPickerProps = {
   hideTrigger?: boolean; onChanged?: () => void
 }
 
-/** 打开托管项目；新建只创建项目，发送时才创建对话。 */
+/** 选择或新建托管项目。打开后由调用方进入该项目的新对话。 */
 export function ProjectPicker({mode, onSelect, open: controlled, onOpenChange, disabled, className, hideTrigger, onChanged}: ProjectPickerProps) {
   const [internal, setInternal] = useState(false)
   const open = controlled ?? internal

@@ -215,7 +215,8 @@ class ProjectFirstChatRequest(ChatRequest):
 @router.post('/{project_id}/chat', response_model=Response[dict])
 async def first_chat(project_id: str, request: ProjectFirstChatRequest, service=Depends(get_agent_service)):
     accepted = await service.chat(str(request.creation_id), message=request.message,
-        attachments=request.attachments, mode=request.mode, create_project_id=project_id)
+        attachments=request.attachments, mode=request.mode, create_project_id=project_id,
+        model=request.model, reasoning=request.reasoning)
     return Response.success(data={'run_id': accepted.run_id, 'seq': accepted.seq, 'route': accepted.route, 'session_id': str(request.creation_id)})
 
 

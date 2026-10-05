@@ -123,6 +123,10 @@ class DBSessionRepository(SessionRepository):
     async def update_task_id(self, session_id: str, task_id: str) -> None:
         await self.db_session.execute(update(SessionModel).where(SessionModel.id == session_id).values(task_id=task_id))
 
+    async def update_model(self, session_id: str, model_id: str, reasoning: str) -> None:
+        await self.db_session.execute(
+            update(SessionModel).where(SessionModel.id == session_id).values(model_id=model_id, reasoning=reasoning))
+
     async def update_latest_message(self, session_id: str, message: str, timestamp: datetime) -> None:
         """更新会话最新消息"""
         # 1.构建更新语句并执行

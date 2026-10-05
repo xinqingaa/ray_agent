@@ -15,7 +15,8 @@ from app.domain.external.llm import LLM
 from app.domain.external.sandbox import Sandbox, SandboxProjectBindingError
 from app.domain.external.search import SearchEngine
 from app.domain.external.task import Task
-from app.domain.models.app_config import AgentConfig, MCPConfig, A2AConfig, ToolPolicyConfig
+from app.domain.models.app_config import AgentConfig, LLMConfig, MCPConfig, A2AConfig, ToolPolicyConfig
+from app.domain.models.model_catalog import missing_reasoning, model_request, provider_for, resolve_selection
 from app.domain.models.event import ApprovalStatus, EnvironmentEvent, ErrorEvent, Event, MessageEvent, TitleEvent
 from app.domain.models.project import SANDBOX_PROJECT_DIR
 from app.domain.models.run import Run, RunMode, RunReason, RunStatus, tools_for_turn
@@ -113,11 +114,13 @@ class AgentService:
             project_file_coordinator=None,
             project_attachments=None,
             project_delivery=None,
+            llm_config: Optional[LLMConfig] = None,
     ) -> None:
         """构造函数，完成Agent服务初始化"""
         self._uow_factory = uow_factory
         self._uow = uow_factory()
         self._llm = llm
+        self._llm_config = llm_config
         self._agent_config = agent_config
         self._mcp_config = mcp_config
         self._a2a_config = a2a_config
@@ -137,6 +140,78 @@ class AgentService:
         self._ledger = ledger or RunLedger(uow_factory, notifier)
         logger.info(f"AgentService初始化成功")
 
+    def _llm_for_session(self, session: Session):
+        """已知厂商按会话选择构造客户端；续接不走这里。"""
+        if self._llm_config is None:
+            return self._llm
+        profile = model_request(self._llm_config, model_id=session.model_id, reasoning=session.reasoning)
+        return self._llm if profile is None else self._open_llm(profile)
+
+    async def _llm_for_run(self, session: Session, prior_status: Optional[SessionStatus], run_id: str):
+        """新运行用会话选择。等待续接沿用该次运行快照，不改进行中的模型。"""
+        if self._llm_config is None:
+            return self._llm
+        snapshot = None
+        if prior_status == SessionStatus.WAITING:
+            async with self._uow:
+                run = await self._uow.run.get(run_id)
+            stored = (run.config_snapshot or {}) if run is not None else {}
+            snapshot = stored if stored.get("model_name") else None
+        profile = model_request(
+            self._llm_config, model_id=session.model_id, reasoning=session.reasoning, snapshot=snapshot)
+        return self._llm if profile is None else self._open_llm(profile)
+
+    def _open_llm(self, profile):
+        from app.infrastructure.external.llm.openai_llm import OpenAILLM
+        tuned = self._llm_config.model_copy(update={
+            "model_name": profile.model_name,
+            "context_window": profile.context_window,
+            "max_tokens": profile.max_tokens,
+        })
+        return OpenAILLM(
+            tuned, thinking=profile.thinking, reasoning_effort=profile.reasoning_effort, reasoning_id=profile.reasoning_id,
+        )
+
+    async def _remember_model(self, session: Session, model: Optional[str], reasoning: Optional[str], *, creating: bool) -> None:
+        """把选择写到会话上。旧对话没有思考字段时，未指定选择则先用 disabled，避免下一次请求被拒绝。"""
+        if self._llm_config is None:
+            return
+        provider = provider_for(str(self._llm_config.base_url))
+        if provider is None:
+            if model or reasoning:
+                raise BadRequestError("当前接口没有可选模型")
+            return
+        if (model is None) ^ (reasoning is None):
+            raise BadRequestError("模型和思考强度需要一起提交")
+        memory = session.memories.get(AGENT_MEMORY_NAME)
+        messages = list(memory.messages) if memory is not None else []
+        if model is None and session.model_id and session.reasoning:
+            return
+        chosen_reasoning = reasoning
+        if model is None and missing_reasoning(messages):
+            chosen_reasoning = "disabled"
+        try:
+            spec, choice = resolve_selection(provider, model or session.model_id, chosen_reasoning or session.reasoning)
+        except ValueError as exc:
+            raise BadRequestError(str(exc)) from exc
+        if choice.replay == "all_turns" and missing_reasoning(messages):
+            raise BadRequestError("这条对话已经丢掉思考内容，请新开对话再打开思考")
+        session.model_id = spec.id
+        session.reasoning = choice.id
+        if not creating:
+            async with self._uow:
+                await self._uow.session.update_model(session.id, spec.id, choice.id)
+
+    async def set_model(self, session_id: str, model: str, reasoning: str) -> tuple[str, str]:
+        """保存下一次新运行的模型与思考强度。进行中的运行仍用自己的快照。"""
+        async with session_lock(session_id):
+            async with self._uow:
+                session = await self._uow.session.get_by_id(session_id)
+            if session is None:
+                raise NotFoundError("任务会话不存在, 请核实后重试")
+            await self._remember_model(session, model, reasoning, creating=False)
+        return session.model_id or model, session.reasoning or reasoning
+
     def _file_coordinator(self):
         from app.domain.services.project_file_coordinator import ProjectFileCoordinator
         return getattr(self, '_project_coordinator', None) or ProjectFileCoordinator(self._uow_factory, self._sandbox_cls)
@@ -153,7 +228,8 @@ class AgentService:
             raise RuntimeError('容量预览不执行工具')
         try:
             await mcp.initialize()
-            loop = AgentLoop(uow_factory=self._uow_factory, llm=self._llm,
+            preview_llm = self._llm_for_session(Session())
+            loop = AgentLoop(uow_factory=self._uow_factory, llm=preview_llm,
                 agent_config=self._agent_config, session_id='capacity-preview', mode=mode,
                 tools=[ProjectNotesTool(unavailable)] + build_default_tools(None, None,
                     self._search_engine, mcp, a2a, default_exec_dir=SANDBOX_PROJECT_DIR),
@@ -162,7 +238,7 @@ class AgentService:
             prompt = loop._with_mode_suffix(build_system_prompt(SANDBOX_PROJECT_DIR) + memory_view['project_prompt'])
             estimate = fixed_input_estimate(loop.budget, [{'role':'system','content':prompt}], loop.pipeline.schemas())
             return dict(**memory_view, capacity=dict(**estimate.as_dict(), over_limit=estimate.over_limit,
-                model=self._llm.model_name, mode=mode.value, tool_count=len(loop.pipeline.schemas()),
+                model=preview_llm.model_name, mode=mode.value, tool_count=len(loop.pipeline.schemas()),
                 discovery_errors=dict(mcp.gateway.errors), source='当前配置与发现成功的工具；字符估算，不包含对话历史'))
         finally:
             await mcp.cleanup()
@@ -242,7 +318,7 @@ class AgentService:
                     return ToolResult(success=False, message=str(exc), data=exc.data)
             task_runner = AgentTaskRunner(
                 uow_factory=self._uow_factory,
-                llm=self._llm,
+                llm=await self._llm_for_run(session, prior_status, run_id),
                 agent_config=self._agent_config,
                 mcp_tool=MCPTool(MCPClientManager(self._mcp_config)),
                 a2a_tool=A2ATool(A2AClientManager(self._a2a_config)),
@@ -354,6 +430,8 @@ class AgentService:
             timestamp: Optional[datetime] = None,
             mode: RunMode = RunMode.NORMAL,
             create_project_id: str | None = None,
+            model: Optional[str] = None,
+            reasoning: Optional[str] = None,
     ) -> ChatAccepted:
         """受理一条用户消息并立即返回；执行过程只通过事件流（stream_events）观察。
 
@@ -434,6 +512,7 @@ class AgentService:
                     new_session = session
             if not session:
                 raise NotFoundError("任务会话不存在, 请核实后重试")
+            await self._remember_model(session, model, reasoning, creating=new_session is not None)
             if session.project_id:
                 self._validate_project_session(session)
             if waiting_for_approval(active):
@@ -652,7 +731,7 @@ class AgentService:
 
             last = max(runs, key=lambda r: r.started_at) if runs else None
             tools = tools_for_turn(last.config_snapshot, last.turns + 1) if last is not None else []
-            compactor = Compactor(self._llm, self._agent_config, label=f"会话[{session_id}]手动压缩")
+            compactor = Compactor(self._llm_for_session(session), self._agent_config, label=f"会话[{session_id}]手动压缩")
             messages = copy.deepcopy(memory.get_messages())
             project_prompt = ""
             if session.project and messages and messages[0].get("role") == "system":

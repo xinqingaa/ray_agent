@@ -33,6 +33,8 @@ from app.interfaces.schemas.session import (
     ListSessionItem,
     ChatRequest,
     ChatResponse,
+    ModelSelectionRequest,
+    ModelSelectionResponse,
     GetSessionResponse, GetSessionFilesResponse, FileReadResponse, FileReadRequest, ShellReadResponse, ShellReadRequest,
     RunItem,
     TurnRequestResponse,
@@ -197,11 +199,28 @@ async def chat(
         attachments=request.attachments,
         timestamp=datetime.fromtimestamp(request.timestamp) if request.timestamp else None,
         mode=RunMode(request.mode),
+        model=request.model,
+        reasoning=request.reasoning,
     )
     return Response.success(
         msg="消息已受理",
         data=ChatResponse(run_id=accepted.run_id, seq=accepted.seq, route=accepted.route),
     )
+
+
+@router.put(
+    path="/{session_id}/model",
+    response_model=Response[ModelSelectionResponse],
+    summary="保存会话的模型与思考强度",
+    description="写入下一次新运行使用的模型 id 与思考参数。进行中的运行仍用自己的快照。",
+)
+async def set_session_model(
+        session_id: str,
+        request: ModelSelectionRequest,
+        agent_service: AgentService = Depends(get_agent_service),
+) -> Response[ModelSelectionResponse]:
+    model, reasoning = await agent_service.set_model(session_id, request.model, request.reasoning)
+    return Response.success(data=ModelSelectionResponse(model=model, reasoning=reasoning))
 
 
 @router.post(
@@ -343,6 +362,8 @@ async def get_session(
     detail = await session_service.get_session_detail(session_id, after_seq=after_seq, limit=limit)
     if not detail:
         raise NotFoundError("该会话不存在，请核实后重试")
+    active = next((run for run in detail.runs if run.status.active), None)
+    snapshot = (active.config_snapshot or {}) if active is not None else {}
     return Response.success(
         msg="获取会话详情成功",
         data=GetSessionResponse(
@@ -353,8 +374,12 @@ async def get_session(
             events=EventMapper.events_to_sse_events(detail.events),
             last_seq=detail.last_seq,
             context_operation=context_operation(session_id),
-            context_config=await config_service.get_context_config(),
+            context_config=await config_service.get_context_config(detail.session.model_id, detail.session.reasoning),
             project=project_service.describe(detail.session.project),
+            model_id=detail.session.model_id,
+            reasoning=detail.session.reasoning,
+            run_model=snapshot.get("model_name"),
+            run_reasoning=snapshot.get("reasoning"),
         )
     )
 

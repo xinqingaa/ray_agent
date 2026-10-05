@@ -6,6 +6,8 @@ export type Submission = {
   message: string
   attachments: string[]
   mode: 'normal' | 'plan'
+  model?: string
+  reasoning?: string
   afterSeq: number
   state: 'sending' | 'unknown'
 }

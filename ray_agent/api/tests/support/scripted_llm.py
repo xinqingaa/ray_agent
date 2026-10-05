@@ -158,6 +158,7 @@ class ScriptedLLM:
         self._temperature = temperature
         self._max_tokens = max_tokens
         self._context_window = context_window
+        self.keep_reasoning = False
         self._next_call_id = 1
         self.requests: List[ScriptedRequest] = []
         self.exhausted_calls = 0

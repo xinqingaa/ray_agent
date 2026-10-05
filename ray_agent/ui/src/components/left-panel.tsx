@@ -18,6 +18,7 @@ import {useProjects} from '@/providers/projects-provider'
 import {useSessions} from '@/hooks/use-sessions'
 import {projectApi} from '@/lib/api/project'
 import {sessionApi} from '@/lib/api/session'
+import {createProjectSession} from '@/lib/open-project-session'
 import type {ProjectView, Session} from '@/lib/api/types'
 
 const DEFAULT_EXPANSION: NavigationExpansion = {projects: true, conversations: true, items: {}}
@@ -113,6 +114,13 @@ export function LeftPanel() {
     return () => {active = false}
   }, [workspace.projects, expansion, selected, sessions, locatedProject, projectId])
   const independent = () => {setOpenMobile(false); router.push('/')}
+  const startInProject = async (id: string) => {
+    setOpenMobile(false)
+    try {
+      const created = await createProjectSession(id)
+      if (created) {router.push(`/sessions/${created}`); await workspace.refresh(); await refresh()}
+    } catch (err) {toast.error(err instanceof Error ? err.message : '创建对话失败')}
+  }
   const remove = async () => {
     if (!pendingDelete) return
     const success = await deleteSession(pendingDelete.session_id)
@@ -146,7 +154,7 @@ export function LeftPanel() {
           <ProjectNavigation projects={rows} conversations={conversations} expansion={expansion} onExpansion={expand} selectedProject={projectId} selectedSession={sessionId}
             tab={workspace.navigationTab} onTabChange={workspace.setNavigationTab} onOpenArchived={workspace.openArchived} onMoreProjects={workspace.projects.length < workspace.total ? () => void workspace.more() : undefined}
             loading={workspace.loading} error={workspace.error} onRetry={() => void workspace.refresh()} onOpenProject={workspace.openProject}
-            onProjectSettings={setSettings} onArchive={id => void archive(id)} onSessionDelete={setPendingDelete} onSessionRename={setPendingRename} onNavigate={() => setOpenMobile(false)}/>
+            onProjectSettings={setSettings} onArchive={id => void archive(id)} onSessionDelete={setPendingDelete} onSessionRename={setPendingRename} onNavigate={() => setOpenMobile(false)} onNewConversation={id => void startInProject(id)}/>
         </div>
       </SidebarContent>
       <SidebarFooter><Button variant="ghost" asChild className="w-full justify-start gap-2.5 text-muted-foreground group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:self-center group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0"><Link href="/settings" onClick={() => setOpenMobile(false)} title="设置" aria-label="设置"><Settings className="size-4"/><span className="group-data-[collapsible=icon]:hidden">设置</span></Link></Button></SidebarFooter>

@@ -11,9 +11,12 @@ from app.application.services.app_config_service import AppConfigService
 from app.domain.models.app_config import LLMConfig, AgentConfig, MCPConfig, ToolPolicyConfig, \
     default_tool_policy_rules
 from app.domain.services.tool_policy import builtin_tool_catalog
+from app.domain.models.model_catalog import model_list, provider_for, resolve_selection
 from app.interfaces.schemas.app_config import (
     LLMConfigPublic,
     LLMConfigUpdate,
+    ModelCatalogItem,
+    ModelCatalogResponse,
     ListMCPServerResponse,
     ListA2AServerResponse,
     ToolPolicyResponse,
@@ -38,6 +41,31 @@ async def get_llm_config(
     """获取LLM配置信息"""
     llm_config = await app_config_service.get_llm_config()
     return Response.success(data=LLMConfigPublic.from_llm(llm_config))
+
+
+@router.get(
+    path="/models",
+    response_model=Response[ModelCatalogResponse],
+    summary="当前接口可选的模型",
+    description="已知厂商返回模型 id 与思考参数原词。未知地址的 provider 为空，页面不提供切换。",
+)
+async def get_model_catalog(
+        app_config_service: AppConfigService = Depends(get_app_config_service),
+) -> Response[ModelCatalogResponse]:
+    llm = await app_config_service.get_llm_config()
+    provider = provider_for(str(llm.base_url))
+    if provider is None:
+        return Response.success(data=ModelCatalogResponse())
+    models = model_list(provider)
+    default = resolve_selection(provider, None, None)[0]
+    return Response.success(data=ModelCatalogResponse(
+        provider=provider,
+        default_model=default.id,
+        models=[ModelCatalogItem(
+            id=item.id, context_window=item.context_window, max_output=item.max_output,
+            choices=[choice.id for choice in item.choices], default_choice=item.default_choice,
+        ) for item in models],
+    ))
 
 
 @router.post(

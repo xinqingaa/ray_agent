@@ -258,3 +258,17 @@ def test_non_streaming_path_keeps_whole_response_and_empty_ttft():
     assert result.usage.prompt_tokens == 5
     assert "stream" not in completions.calls[0]
     assert completions.calls[0]["timeout"] == 30.0
+
+
+def test_thinking_choice_is_sent_as_vendor_parameters():
+    llm, _ = _llm([SimpleNamespace()])
+    llm._thinking = "enabled"
+    llm._reasoning_effort = "high"
+    kwargs = llm._request_kwargs([{"role": "user", "content": "a"}], None, None, None, stream=False)
+    assert kwargs["extra_body"] == {"thinking": {"type": "enabled"}}
+    assert kwargs["reasoning_effort"] == "high"
+    llm._thinking = "disabled"
+    llm._reasoning_effort = None
+    off = llm._request_kwargs([{"role": "user", "content": "a"}], None, None, None, stream=False)
+    assert off["extra_body"] == {"thinking": {"type": "disabled"}}
+    assert "reasoning_effort" not in off

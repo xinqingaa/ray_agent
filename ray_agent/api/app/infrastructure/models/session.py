@@ -52,6 +52,8 @@ class SessionModel(Base):
     summary_generation: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0, server_default='0')
     summary_source_seq: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0, server_default='0')
     title_source: Mapped[str] = mapped_column(String(16), nullable=False, server_default=text("'placeholder'"))
+    model_id: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    reasoning: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
     unread_message_count: Mapped[int] = mapped_column(
         Integer,
         nullable=False,

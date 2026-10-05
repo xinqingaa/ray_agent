@@ -22,8 +22,19 @@ _STREAM_OPTION_MARKERS = ("stream_options", "include_usage")
 class OpenAILLM(LLM):
     """基于 OpenAI SDK / 兼容格式的模型调用。默认流式组装，配置 streaming=false 时一次返回整包。"""
 
-    def __init__(self, llm_config: LLMConfig, **kwargs) -> None:
-        """构造函数，完成异步 OpenAI 客户端的创建和参数初始化"""
+    def __init__(
+            self,
+            llm_config: LLMConfig,
+            *,
+            thinking: Optional[str] = None,
+            reasoning_effort: Optional[str] = None,
+            reasoning_id: Optional[str] = None,
+            **kwargs,
+    ) -> None:
+        """构造函数，完成异步 OpenAI 客户端的创建和参数初始化。
+
+        thinking 为 enabled 或 disabled 时写入 extra_body。reasoning_effort 只在开启思考时发送。
+        """
         self._client = AsyncOpenAI(
             base_url=str(llm_config.base_url),
             api_key=llm_config.api_key,
@@ -36,6 +47,9 @@ class OpenAILLM(LLM):
         self._context_window = llm_config.context_window
         self._streaming = llm_config.streaming
         self._timeout = llm_config.request_timeout
+        self._thinking = thinking
+        self._reasoning_effort = reasoning_effort
+        self._reasoning_id = reasoning_id
         # 供应商拒绝 stream_options 后，同进程后续请求不再携带
         self._include_stream_usage = True
 
@@ -54,6 +68,19 @@ class OpenAILLM(LLM):
     @property
     def context_window(self) -> int:
         return self._context_window
+
+    @property
+    def thinking(self) -> Optional[str]:
+        return self._thinking
+
+    @property
+    def reasoning_id(self) -> Optional[str]:
+        return self._reasoning_id
+
+    @property
+    def keep_reasoning(self) -> bool:
+        """开启思考时，新的一问仍保留此前的 reasoning_content。"""
+        return self._thinking == "enabled"
 
     async def invoke(
             self,
@@ -115,6 +142,10 @@ class OpenAILLM(LLM):
             kwargs["stream"] = True
             if self._include_stream_usage:
                 kwargs["stream_options"] = {"include_usage": True}
+        if self._thinking in ("enabled", "disabled"):
+            kwargs["extra_body"] = {"thinking": {"type": self._thinking}}
+        if self._reasoning_effort:
+            kwargs["reasoning_effort"] = self._reasoning_effort
         return kwargs
 
     async def _create(self, kwargs: Dict[str, Any]) -> Any:

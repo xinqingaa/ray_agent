@@ -27,12 +27,23 @@ class AppConfigService:
         """加载获取所有的应用配置"""
         return self.app_config_repository.load()
 
-    async def get_context_config(self) -> Dict[str, int]:
-        """只返回当前容量配置，供界面识别历史请求快照，不暴露模型凭据。"""
+    async def get_context_config(self, model_id: str | None = None, reasoning: str | None = None) -> Dict[str, int]:
+        """只返回当前容量配置，供界面识别历史请求快照，不暴露模型凭据。
+
+        已知厂商按模型目录计算窗口；未保存选择时用目录默认。
+        """
+        from app.domain.models.model_catalog import provider_for, resolve_selection, tuned_limits
         config = await self._load_app_config()
         llm, agent = config.llm_config, config.agent_config
-        budget = ContextBudget(llm.context_window, llm.max_tokens,
-                               agent.context_safety_ratio, agent.compact_watermark)
+        window, tokens = llm.context_window, llm.max_tokens
+        provider = provider_for(str(llm.base_url))
+        if provider:
+            try:
+                spec, choice = resolve_selection(provider, model_id, reasoning)
+                window, tokens = tuned_limits(llm.max_tokens, spec, choice)
+            except ValueError:
+                pass
+        budget = ContextBudget(window, tokens, agent.context_safety_ratio, agent.compact_watermark)
         return {"context_window": budget.context_window, "max_tokens": budget.max_tokens,
                 "limit": budget.limit, "watermark": budget.watermark}
 

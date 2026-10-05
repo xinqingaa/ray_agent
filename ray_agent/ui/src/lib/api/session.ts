@@ -136,6 +136,9 @@ export const sessionApi = {
   /**
    * 提交消息；返回受理的运行与消息 seq，事件通过 streamEvents 订阅
    */
+  setModel: (sessionId: string, selection: {model: string; reasoning: string}): Promise<{model: string; reasoning: string}> =>
+    put<{model: string; reasoning: string}>(`/sessions/${sessionId}/model`, selection),
+
   chat: (sessionId: string, params: ChatParams): Promise<ChatAccepted> => {
     return post<ChatAccepted>(`/sessions/${sessionId}/chat`, params);
   },

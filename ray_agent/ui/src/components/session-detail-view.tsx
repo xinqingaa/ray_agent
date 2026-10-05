@@ -221,13 +221,13 @@ export function SessionDetailView({
     if (count > outgoing.userCount && (view?.activeRun || endCount > outgoing.endCount)) setOutgoing(null)
   }, [outgoing, view?.activeRun, view?.timeline])
 
-  const deliver = useCallback(async (message: string, attachmentIds: string[], options?: {mode?: 'plan' | 'normal'; echo?: boolean}) => {
+  const deliver = useCallback(async (message: string, attachmentIds: string[], options?: {mode?: 'plan' | 'normal'; model?: string; reasoning?: string; echo?: boolean}) => {
     const items = view?.timeline ?? []
     const userCount = items.filter((item) => item.kind === 'user').length
     const endCount = items.filter((item) => item.kind === 'run_end').length
     setOutgoing({text: message, userCount, endCount, echo: options?.echo !== false})
     try {
-      await sendMessage(message, attachmentIds, {mode: options?.mode})
+      await sendMessage(message, attachmentIds, {mode: options?.mode, model: options?.model, reasoning: options?.reasoning})
     } catch (err) {
       setOutgoing(null)
       throw err
@@ -323,9 +323,9 @@ export function SessionDetailView({
     }
   }, [stop])
 
-  const handleSend = useCallback(async (message: string, uploaded: FileInfo[], options?: {mode?: 'plan' | 'normal'}) => {
+  const handleSend = useCallback(async (message: string, uploaded: FileInfo[], options?: {mode?: 'plan' | 'normal'; model?: string; reasoning?: string}) => {
     try {
-      await deliver(message, uploaded.map((file) => file.id), {mode: options?.mode})
+      await deliver(message, uploaded.map((file) => file.id), options)
     } catch (err) {
       if (err instanceof ApiError && err.code === 409) {
         toast.error(err.msg)
@@ -607,6 +607,10 @@ export function SessionDetailView({
                 onPause={() => void handleStop()}
                 disabled={submitting || waitingApproval}
                 placeholder={placeholder}
+                savedModel={session?.model_id}
+                savedReasoning={session?.reasoning}
+                runModel={session?.run_model}
+                runReasoning={session?.run_reasoning}
                 accessory={(context) => <ContextRing usage={view.usage} commandContext={context}/>}
                 projectsEnabled={projectsEnabled}
                 projectBindable={projectBindable}

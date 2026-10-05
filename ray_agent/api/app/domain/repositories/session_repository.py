@@ -57,6 +57,10 @@ class SessionRepository(Protocol):
     async def update_task_id(self, session_id: str, task_id: str) -> None:
         ...
 
+    async def update_model(self, session_id: str, model_id: str, reasoning: str) -> None:
+        """保存会话下次新运行使用的模型 id 与思考参数。"""
+        ...
+
     async def update_latest_message(self, session_id: str, message: str, timestamp: datetime) -> None:
         """根据传递的信息更新最新消息"""
         ...

@@ -2,7 +2,9 @@
 
 import {createContext, useContext, useCallback, useEffect, useRef, useState, type ReactNode} from 'react'
 import {useRouter} from 'next/navigation'
+import {toast} from 'sonner'
 import {projectApi} from '@/lib/api/project'
+import {createProjectSession} from '@/lib/open-project-session'
 import {ProjectUploadDialog} from '@/components/project-upload-dialog'
 import {ProjectPicker} from '@/components/project-picker'
 import type {ProjectView} from '@/lib/api/types'
@@ -51,10 +53,16 @@ export function ProjectsProvider({children}: {children: ReactNode}) {
   const createProject = () => {setPickerMode('create'); setOpen(true)}
   const openArchived = () => {setPickerMode('archived'); setOpen(true)}
   const importProject = () => setUpload(true)
+  const openConversation = async (projectId: string) => {
+    try {
+      const sessionId = await createProjectSession(projectId)
+      if (sessionId) {await refresh(); router.push(`/sessions/${sessionId}`)}
+    } catch (err) {toast.error(err instanceof Error ? err.message : '创建对话失败')}
+  }
   return <Context.Provider value={{projects, total, loading, error, refresh, more, openProject, navigationTab, setNavigationTab, navigationRequest, createProject, importProject, openArchived}}>
     {children}
-    <ProjectUploadDialog open={upload} onClose={() => setUpload(false)} onCreated={project => {void refresh(); router.push(`/projects/${project.id}`)}}/>
-    <ProjectPicker key={pickerMode} mode={pickerMode} hideTrigger open={open} onOpenChange={setOpen} onChanged={() => void refresh()} onSelect={project => {if (project) {void refresh(); router.push(`/projects/${project.id}`)}}}/>
+    <ProjectUploadDialog open={upload} onClose={() => setUpload(false)} onCreated={project => {void openConversation(project.id)}}/>
+    <ProjectPicker key={pickerMode} mode={pickerMode} hideTrigger open={open} onOpenChange={setOpen} onChanged={() => void refresh()} onSelect={project => {if (!project) return; if (pickerMode === 'archived') {void refresh(); router.push(`/projects/${project.id}`)} else void openConversation(project.id)}}/>
   </Context.Provider>
 }
 export function useProjects() {return useContext(Context)}

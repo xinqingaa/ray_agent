@@ -303,6 +303,7 @@ export type SessionsData = {
  */
 export type CreateSessionParams = {
   project_id?: string;
+  creation_id?: string;
   title?: string;
   [key: string]: unknown;
 };
@@ -328,7 +329,21 @@ export type ChatParams = {
   message: string;
   attachments?: string[];
   mode?: "normal" | "plan";
+  model?: string;
+  reasoning?: string;
   [key: string]: unknown;
+};
+
+export type ModelCatalog = {
+  provider: string | null;
+  default_model: string | null;
+  models: Array<{
+    id: string;
+    context_window: number;
+    max_output: number;
+    choices: string[];
+    default_choice: string;
+  }>;
 };
 
 export type CompactResult = {
@@ -390,6 +405,10 @@ export type SessionDetail = Session & {
   last_seq?: number;
   context_config?: {context_window: number; max_tokens: number; limit: number; watermark: number};
   context_operation?: {status: "idle" | "compacting"; started_at: string | null};
+  model_id?: string | null;
+  reasoning?: string | null;
+  run_model?: string | null;
+  run_reasoning?: string | null;
 };
 
 /** 所有持久化事件共有的字段 */

@@ -1,6 +1,7 @@
 import { get, post } from "./fetch";
 import type {
   LLMConfig,
+  ModelCatalog,
   AgentConfig,
   MCPConfig,
   MCPServersData,
@@ -21,9 +22,8 @@ export const configApi = {
     return get<LLMConfig>("/app-config/llm");
   },
 
-  /**
-   * 更新 LLM 配置
-   */
+  getModels: (): Promise<ModelCatalog> => get<ModelCatalog>("/app-config/models"),
+
   updateLLMConfig: (config: LLMConfig): Promise<LLMConfig> => {
     const { has_api_key: _hasApiKey, ...writable } = config;
     return post<LLMConfig>("/app-config/llm", writable);

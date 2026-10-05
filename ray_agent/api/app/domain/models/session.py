@@ -35,6 +35,8 @@ class Session(BaseModel):
     project_snapshot: Optional[ProjectTaskSnapshot] = None  # 最新新 run 受理快照；各 run 冻结全文另保存在运行快照
     task_id: Optional[str] = None  # 任务id
     title: str = ""  # 标题
+    model_id: Optional[str] = None  # 厂商模型 id；空则在已知厂商上用目录默认
+    reasoning: Optional[str] = None  # 思考参数原词，如 disabled / high
     summary: Optional[str] = None
     summary_source: Optional[str] = None
     summary_state: str = 'idle'
