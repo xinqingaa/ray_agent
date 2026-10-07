@@ -6,6 +6,7 @@ import {useProjectCopies} from './project-copy-status'
 import {toast} from 'sonner'
 import {Download, Eye, Package} from 'lucide-react'
 import {Button} from '@/components/ui/button'
+import {Tooltip, TooltipContent, TooltipTrigger} from '@/components/ui/tooltip'
 import {cn} from '@/lib/utils'
 import type {FileView, TimelineItem} from '@/lib/session-view'
 import {fileIcon, previewUnavailableReason} from './file-icon'
@@ -50,7 +51,6 @@ export function DeliveryCard({projectId, files, note, onPreview, onDownload, onD
             onClick={() => onDownloadAll?.(files)}
             disabled={!onDownloadAll}
           >
-            <Download aria-hidden/>
             全部下载
           </Button>
         )}
@@ -79,28 +79,36 @@ export function DeliveryCard({projectId, files, note, onPreview, onDownload, onD
                 </p>}
               </div>
               {projectId && receipt?.copy_key && persistence?.can_retry && <Button size="sm" variant="outline" disabled={!!retrying || !!state?.error || !state?.loaded} onClick={() => void retry(receipt.copy_key)}>{retrying === receipt.copy_key ? '正在写入' : '重试项目副本'}</Button>}
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon-sm"
-                onClick={() => onPreview?.(file)}
-                disabled={unavailable != null || !onPreview}
-                aria-label={unavailable ? `无法预览 ${file.filename}：${unavailable}` : `预览 ${file.filename}`}
-                title={unavailable ?? '预览'}
-              >
-                <Eye aria-hidden/>
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => onDownload?.(file)}
-                disabled={!onDownload}
-                aria-label={`下载 ${file.filename}`}
-              >
-                <Download aria-hidden/>
-                <span className="max-sm:sr-only">下载</span>
-              </Button>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={() => onPreview?.(file)}
+                    disabled={unavailable != null || !onPreview}
+                    aria-label={unavailable ? `无法预览 ${file.filename}：${unavailable}` : `预览 ${file.filename}`}
+                  >
+                    <Eye aria-hidden/>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>{unavailable ?? '预览'}</TooltipContent>
+              </Tooltip>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={() => onDownload?.(file)}
+                    disabled={!onDownload}
+                    aria-label={`下载 ${file.filename}`}
+                  >
+                    <Download aria-hidden/>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>下载</TooltipContent>
+              </Tooltip>
             </li>
           )
         })}

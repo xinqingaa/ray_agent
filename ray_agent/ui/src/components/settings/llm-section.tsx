@@ -37,12 +37,12 @@ function profileIds(values: Values<LlmField> | null): string[] {
   return ids
 }
 
-function checkTemperature(value: string): string | null {
+export function checkTemperature(value: string): string | null {
   const v = value.trim()
   if (v === '') return '必填'
   const n = Number(v)
   if (!Number.isFinite(n)) return '请输入数字，例如 0.7'
-  if (n < 0) return '不能小于 0'
+  if (n < 0 || n > 2) return '范围为 0–2'
   return null
 }
 
@@ -184,7 +184,7 @@ function useThinkingReserve(model: ModelCatalog['models'][number] | undefined, s
   const usable = Boolean(model && sampling && [sampling.temperature, sampling.max_tokens, sampling.context_window].every(Number.isFinite) && sampling.max_tokens >= 1 && sampling.context_window >= 1)
   const key = usable && model && sampling ? JSON.stringify([model.id, sampling]) : null
   useEffect(() => {
-    if (!key || !model) {setReserve(null); return}
+    if (!key || !model) return
     let cancelled = false
     const timer = setTimeout(() => {
       const body = JSON.parse(key)[1] as ModelSampling
@@ -197,18 +197,36 @@ function useThinkingReserve(model: ModelCatalog['models'][number] | undefined, s
     }, 250)
     return () => {cancelled = true; clearTimeout(timer)}
   }, [key, model])
-  return reserve
+  return key ? reserve : null
+}
+
+function enabledDefault(spec: ModelCatalog['models'][number] | undefined) {
+  if (!spec) return undefined
+  return spec.reasoning_options.find(option => option.enabled && option.id === spec.default_choice)
+    ?? spec.reasoning_options.find(option => option.enabled)
 }
 
 function profileCopy(part: ProfilePart, spec: ModelCatalog['models'][number] | undefined, reserve: number | null): {label: string; hint?: string} {
   if (part === 'context_window') return {label: '应用上下文预算'}
-  if (part === 'max_tokens') return {label: '单次生成预算', hint: reserve == null ? undefined : `开启思考时为 ${reserve.toLocaleString()}`}
-  if (spec?.temperature_when === 'disabled') {
-    const off = spec.reasoning_options.find(option => !option.enabled)?.id ?? '关闭'
-    return {label: '非思考温度', hint: spec.temperature_max == null ? `仅 ${off} 时使用` : `仅 ${off} 时使用 · 0–${spec.temperature_max}`}
+  if (part === 'max_tokens') {
+    const choice = enabledDefault(spec)
+    return {label: '单次生成预算', hint: reserve == null || !choice ? undefined : `默认档位 ${choice.id}，开启思考时为 ${reserve.toLocaleString()}`}
   }
+  if (spec?.temperature_when === 'disabled') return {label: '非思考温度', hint: '关闭思考时发送'}
   if (spec?.temperature_when === 'never') return {label: '温度', hint: '该模型不使用温度'}
   return {label: '温度'}
+}
+
+function capabilityNote(spec: ModelCatalog['models'][number] | undefined, reserve: number | null): string | null {
+  if (!spec) return null
+  const choice = enabledDefault(spec)
+  const parts = [spec.reasoning_ordered ? '有序档位' : '无序档位']
+  if (spec.reasoning_options.some(option => !option.enabled)) parts.push('关闭思考')
+  if (choice && reserve != null) parts.push(`默认档位 ${choice.id}，开启思考时为 ${reserve.toLocaleString()}`)
+  else if (spec.default_choice) parts.push(`默认档位 ${spec.default_choice}`)
+  if (spec.temperature_when === 'disabled') parts.push(spec.temperature_max == null ? '温度在关闭思考时发送' : `温度在关闭思考时发送，范围 0–${spec.temperature_max}`)
+  else if (spec.temperature_when === 'never') parts.push('该模型不使用温度')
+  return parts.join('。')
 }
 
 export function LlmSection({form}: {form: LlmForm}) {
@@ -225,7 +243,7 @@ export function LlmSection({form}: {form: LlmForm}) {
   const values = form.values
   const ids = profileIds(values)
   const current = ids.includes(selected ?? '') ? selected! : ids[0]
-  const spec = catalog?.models.find(model => model.id === current)
+  const spec = catalog?.models.find(model => model.id === (current || values?.model_name.trim() || catalog.default_model || ''))
   const fields = current ? PROFILE_FIELDS.map(item => profileField(current, item.part)) : FIELDS.slice(1).map(item => item.field)
   function dirtyFor(scope: LlmField[]) {
     if (!form.config || !values) return false
@@ -236,12 +254,13 @@ export function LlmSection({form}: {form: LlmForm}) {
     return <SaveBar dirty={dirtyFor(scope)} saving={form.saving} invalid={scope.some(field => Boolean(form.visibleErrors[field]))}
       savedAt={form.savedAt} saveError={form.saveError} onReset={() => form.reset(scope)} label={label}/>
   }
-  const sampling = current && values ? {
-    temperature: Number(values[profileField(current, 'temperature')]),
-    max_tokens: Number(values[profileField(current, 'max_tokens')]),
-    context_window: Number(values[profileField(current, 'context_window')]),
+  const sampling = values ? {
+    temperature: Number(current ? values[profileField(current, 'temperature')] : values.temperature),
+    max_tokens: Number(current ? values[profileField(current, 'max_tokens')] : values.max_tokens),
+    context_window: Number(current ? values[profileField(current, 'context_window')] : values.context_window),
   } : null
   const reserve = useThinkingReserve(spec, sampling)
+  const note = capabilityNote(spec, reserve)
   return <section aria-labelledby="settings-llm-title">
     <SectionHeader id="settings-llm-title" title="模型提供商"/>
     {form.load.phase === 'loading' && <FormSkeleton rows={5}/>}
@@ -268,11 +287,18 @@ export function LlmSection({form}: {form: LlmForm}) {
           </nav>}
           <form noValidate onSubmit={e => {e.preventDefault(); void form.save(fields)}} className="min-w-0">
             <h3 className="break-all font-mono text-base font-semibold">{current || '模型参数'}</h3>
+            {note && <p className="mt-2 text-meta text-muted-foreground">{note}</p>}
             {spec && <p className="mt-2 text-meta text-muted-foreground">{spec.context_window.toLocaleString()} 窗口 · {spec.max_output.toLocaleString()} 生成<br/>{spec.choices.join(' / ')}</p>}
             {ids.length > 0 ? [...PROFILE_FIELDS].sort((a, b) => ['context_window', 'max_tokens', 'temperature'].indexOf(a.part) - ['context_window', 'max_tokens', 'temperature'].indexOf(b.part)).map(item => {
               const copy = profileCopy(item.part, spec, reserve)
               return renderField({...item, field: profileField(current, item.part), label: copy.label, hint: copy.hint})
-            }) : FIELDS.slice(1).map(renderField)}
+            }) : FIELDS.slice(1).map(item => {
+              if (item.field === 'temperature' || item.field === 'max_tokens' || item.field === 'context_window') {
+                const copy = profileCopy(item.field, spec, reserve)
+                return renderField({...item, label: copy.label, hint: copy.hint ?? item.hint})
+              }
+              return renderField(item)
+            })}
             <p className="mt-2 text-xs text-muted-foreground">新运行和换到此模型时使用。</p>
             {saveBar(fields, current ? '保存此模型' : '保存模型参数')}
           </form>

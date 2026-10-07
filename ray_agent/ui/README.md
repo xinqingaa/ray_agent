@@ -72,6 +72,10 @@ npm run dev
 
 ```bash
 node scripts/check-model-configuration.cjs
+node scripts/check-effort-slider.cjs
+node scripts/check-process-block.cjs
+node scripts/check-workbench-width.cjs
+node scripts/check-markdown-preview.cjs
 npm run lint
 npm run build
 npm run start

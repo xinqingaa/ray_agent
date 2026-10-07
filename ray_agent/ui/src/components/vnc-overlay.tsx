@@ -65,32 +65,26 @@ export function VNCOverlay({ sessionId, onClose }: VNCOverlayProps) {
   const hasError = status === 'error' || status === 'disconnected'
 
   return (
-    <div className="fixed inset-0 z-50 bg-black flex flex-col animate-in fade-in duration-200">
-      <div className="flex-1 relative">
+    <div className="dark fixed inset-0 z-50 flex flex-col bg-background animate-in fade-in duration-200">
+      <div className="relative flex-1">
         <VNCViewer url={vncUrl} viewOnly={false} onStatusChange={handleStatusChange} />
 
-        {/* 连接中 */}
         {status === 'connecting' && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-black/80 z-10">
-            <Loader2 className="size-8 text-white animate-spin" />
-            <span className="text-sm text-gray-300">正在连接沙箱环境...</span>
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-background/80">
+            <Loader2 className="size-8 animate-spin text-foreground" />
+            <span className="text-sm text-muted-foreground">正在连接沙箱环境...</span>
           </div>
         )}
 
-        {/* 连接失败 / 沙箱离线 */}
         {hasError && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/80 z-10">
-            <div className="flex flex-col items-center gap-3 rounded-2xl bg-gray-900/90 border border-gray-700 px-10 py-8">
-              <WifiOff className="size-10 text-gray-400" />
-              <div className="text-base font-medium text-white">无法连接到沙箱</div>
-              <p className="text-sm text-gray-400 text-center max-w-[280px] leading-relaxed">
+          <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-background/80">
+            <div className="flex flex-col items-center gap-3 rounded-lg border bg-card px-10 py-8">
+              <WifiOff className="size-10 text-muted-foreground" />
+              <div className="text-base font-medium text-foreground">无法连接到沙箱</div>
+              <p className="max-w-[280px] text-center text-sm leading-relaxed text-muted-foreground">
                 {errorDetail || '沙箱环境可能已关闭，请确认任务仍在运行中'}
               </p>
-              <Button
-                variant="secondary"
-                onClick={onClose}
-                className="mt-2 gap-2 rounded-full px-6 bg-white/10 hover:bg-white/20 text-white border border-gray-600 cursor-pointer"
-              >
+              <Button variant="secondary" onClick={onClose} className="mt-2">
                 <X size={14} />
                 退出远程桌面
               </Button>
@@ -99,13 +93,12 @@ export function VNCOverlay({ sessionId, onClose }: VNCOverlayProps) {
         )}
       </div>
 
-      {/* 底部退出按钮（仅连接成功时显示） */}
       {status === 'connected' && (
-        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-10">
+        <div className="absolute bottom-6 left-1/2 z-10 -translate-x-1/2">
           <button
             type="button"
             onClick={onClose}
-            className="inline-flex items-center gap-2 rounded-full px-5 py-2 bg-black/60 backdrop-blur text-white/90 hover:bg-black/80 text-sm shadow-xl transition-colors cursor-pointer border border-white/10"
+            className="inline-flex items-center gap-2 rounded-md border bg-card/80 px-5 py-2 text-sm text-foreground"
           >
             <X size={14} />
             退出远程桌面

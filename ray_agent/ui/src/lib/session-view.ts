@@ -196,7 +196,7 @@ type ItemBase = {id: string; runId: string | null; at: number}
 
 export type TimelineItem =
   | (ItemBase & {kind: 'user'; text: string; attachments: FileView[]; injected: boolean})
-  | (ItemBase & {kind: 'narration'; text: string})
+  | (ItemBase & {kind: 'narration'; text: string; turnIndex?: number | null})
   | (ItemBase & {kind: 'tools'; turnIndex: number | null; calls: ToolCallView[]})
   | (ItemBase & {kind: 'ask'; question: string; answered: boolean})
   | (ItemBase & {kind: 'approval'; call: ToolCallView; status: ApprovalStatus; decidedAt: number | null})

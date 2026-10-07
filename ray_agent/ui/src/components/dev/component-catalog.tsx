@@ -25,6 +25,10 @@ import {ProjectPicker} from '@/components/project-picker'
 import {ContextRing} from '@/components/run/context-ring'
 import type {CommandContext} from '@/lib/commands'
 import {Timeline} from '@/components/run/timeline-item'
+import {ModelPicker} from '@/components/model-picker'
+import {MarkdownContent} from '@/components/markdown-content'
+import {previewBodyKind} from '@/components/run/file-icon'
+import type {ModelCatalog} from '@/lib/api/types'
 import {McpServerRow} from '@/components/settings/mcp-section'
 import {A2aServerRow} from '@/components/settings/a2a-section'
 import {ToolPolicySection, type ToolPolicyForm} from '@/components/settings/tool-policy-section'
@@ -59,6 +63,9 @@ const SECTIONS = [
   ['tool-card', '工具卡'],
   ['tool-group', '工具组'],
   ['replies', '旁白与最终回复'],
+  ['process-block', '过程块'],
+  ['model-picker', '模型菜单'],
+  ['file-preview', '文件预览'],
   ['user-message', '用户消息'],
   ['ask-card', '提问卡'],
   ['approval-card', '审批卡'],
@@ -161,6 +168,42 @@ function ComposedSession({items, statusBar, plan, usage}: {items: TimelineItem[]
 }
 
 const noop = () => toast.info('目录页中的操作不会调用接口')
+
+const pickerCatalog: ModelCatalog = {
+  provider: 'fixture',
+  default_model: 'deepseek-v4-pro',
+  models: [{
+    id: 'deepseek-v4-pro',
+    context_window: 1_000_000,
+    max_output: 393_216,
+    choices: ['disabled', 'low', 'high', 'max'],
+    default_choice: 'high',
+    reasoning_options: [
+      {id: 'disabled', enabled: false},
+      {id: 'low', enabled: true},
+      {id: 'high', enabled: true},
+      {id: 'max', enabled: true},
+    ],
+    reasoning_ordered: true,
+    reasoning_family: 'deepseek-v4',
+    temperature_when: 'disabled',
+    temperature_max: 2,
+  }],
+}
+
+function processFixture(settled: boolean): TimelineItem[] {
+  const items: TimelineItem[] = [
+    {id: 'proc-n', kind: 'narration', runId: 'run-catalog', at: 1, text: '先查看上传的清单。', turnIndex: 1},
+    {id: 'proc-t', kind: 'tools', runId: 'run-catalog', at: 2, turnIndex: 1, calls: toolGroups.allSucceeded},
+  ]
+  return settled ? [...items, {id: 'proc-f', kind: 'final', runId: 'run-catalog', at: 3, text: '清单已整理完成。', summary: null}] : items
+}
+
+function PreviewSample({name, text}: {name: string; text: string}) {
+  return previewBodyKind(name) === 'markdown'
+    ? <MarkdownContent content={text}/>
+    : <pre className="whitespace-pre-wrap font-mono text-xs">{text}</pre>
+}
 
 const commandIdle: CommandContext = {
   hasSession: true,
@@ -311,6 +354,22 @@ export function ComponentCatalog() {
           <State label="短文本" source="真实"><Surface><FinalReply text={messageStates.finalShort.text} summary={messageStates.finalShort.summary}/></Surface></State>
           <State label="表格" source="真实"><Surface><FinalReply text={messageStates.finalTable.text} summary={messageStates.finalTable.summary}/></Surface></State>
           <State label="长文本与代码块" source="合成" className="lg:col-span-2"><Surface><FinalReply text={messageStates.finalLong.text} summary={messageStates.finalLong.summary}/></Surface></State>
+        </Section>
+
+        <Section id="process-block" title="过程块" columns={2} note="同一轮的旁白和工具组收成一块。运行中展开；出现最终回复后收成一行，点击再展开。">
+          <State label="运行中" source="合成"><Surface><Timeline items={processFixture(false)}/></Surface></State>
+          <State label="已收起" source="合成"><Surface><Timeline items={processFixture(true)}/></Surface></State>
+        </Section>
+
+        <Section id="model-picker" title="模型菜单" columns={2} note="有序档位只有滑块可以聚焦。目录读取失败时触发器仍在。">
+          <State label="有序档位" source="合成"><Surface><ModelPicker catalog={pickerCatalog} savedModel="deepseek-v4-pro" savedReasoning="high" onSelection={noop}/></Surface></State>
+          <State label="目录读取失败" source="合成"><Surface><ModelPicker loadError="模型能力读取失败" onSelection={noop}/></Surface></State>
+        </Section>
+
+        <Section id="file-preview" title="文件预览" columns={2} note="Markdown 使用与回复相同的渲染器。纯文本仍按原文显示。">
+          <State label="Markdown" source="合成"><Surface><PreviewSample name="notes.md" text={messageStates.finalLong.text}/></Surface></State>
+          <State label="Markdown 扩展名" source="合成"><Surface><PreviewSample name="guide.mdx" text={'# 标题\n\n一段说明。'}/></Surface></State>
+          <State label="纯文本" source="合成"><Surface><PreviewSample name="output.txt" text={'第一行\n第二行'}/></Surface></State>
         </Section>
 
         <Section id="user-message" title="用户消息" columns={3}>

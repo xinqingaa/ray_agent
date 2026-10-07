@@ -1,6 +1,7 @@
 'use client'
 
 import {useEffect, useState} from 'react'
+import {MarkdownContent} from '@/components/markdown-content'
 import {Globe, Monitor, PanelRightClose, Play, Terminal} from 'lucide-react'
 import {Button} from '@/components/ui/button'
 import {ScrollArea} from '@/components/ui/scroll-area'
@@ -9,7 +10,7 @@ import {sessionApi} from '@/lib/api/session'
 import type {FileView, ToolCallView, ToolFamily} from '@/lib/session-view'
 import {cn} from '@/lib/utils'
 import {toast} from 'sonner'
-import {fileIcon, previewUnavailableReason} from '@/components/run/file-icon'
+import {fileIcon, previewBodyKind, previewUnavailableReason} from '@/components/run/file-icon'
 import {formatBytes} from '@/components/run/format'
 import {TOOL_STATUS} from '@/components/run/status-meta'
 import type {ProjectView} from '@/lib/session-view'
@@ -109,14 +110,8 @@ function resultExcerpt(call: ToolCallView): string | null {
   return JSON.stringify(content, null, 2)
 }
 
-const TEXT_EXT = new Set([
-  '.txt', '.md', '.json', '.csv', '.tsv', '.log', '.py', '.js', '.ts', '.tsx', '.jsx', '.html', '.css', '.sh', '.yml', '.yaml', '.xml',
-])
-const IMAGE_EXT = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'])
-
-function extOf(file: FileView): string {
-  const ext = file.extension || ''
-  return ext.startsWith('.') ? ext.toLowerCase() : ext ? `.${ext.toLowerCase()}` : ''
+function clipPreview(text: string) {
+  return text.length > 20000 ? `${text.slice(0, 20000)}…` : text
 }
 
 async function saveBlob(blob: Blob, filename: string) {
@@ -314,9 +309,9 @@ function FilePreview({file}: {file: FileView}) {
   const [imageUrl, setImageUrl] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [done, setDone] = useState(false)
-  const ext = extOf(file)
+  const kind = previewBodyKind(file.extension)
   const unavailable = previewUnavailableReason(file.extension, file.size)
-  const canPreview = !unavailable && (TEXT_EXT.has(ext) || IMAGE_EXT.has(ext) || ext === '.pdf')
+  const canPreview = !unavailable && kind !== 'unavailable'
 
   useEffect(() => {
     if (!canPreview) return
@@ -324,7 +319,7 @@ function FilePreview({file}: {file: FileView}) {
     let url: string | null = null
     fileApi.downloadFile(file.id).then(async (blob) => {
       if (cancelled) return
-      if (IMAGE_EXT.has(ext) || ext === '.pdf') {
+      if (kind === 'image' || kind === 'pdf') {
         url = URL.createObjectURL(blob)
         if (cancelled) {
           URL.revokeObjectURL(url)
@@ -347,25 +342,34 @@ function FilePreview({file}: {file: FileView}) {
       cancelled = true
       if (url) URL.revokeObjectURL(url)
     }
-  }, [file.id, ext, canPreview])
+  }, [file.id, kind, canPreview])
 
   if (unavailable) return <p className="text-xs text-faint">{unavailable}</p>
   if (canPreview && !done) return <p className="text-xs text-muted-foreground">正在读取文件</p>
   if (error) return <p className="text-xs text-state-failed">{error}</p>
-  if (ext === '.pdf' && imageUrl) {
-    return <iframe title={file.filename} src={imageUrl} className="h-64 w-full rounded-md border bg-card"/>
+  if (kind === 'pdf' && imageUrl) {
+    return <iframe title={file.filename} src={imageUrl} className="h-full w-full bg-card"/>
   }
-  if (imageUrl) {
+  if (kind === 'image' && imageUrl) {
     return (
-      // eslint-disable-next-line @next/next/no-img-element
-      <img src={imageUrl} alt={file.filename} className="max-h-64 rounded-md border"/>
+      <ScrollArea className="h-full">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={imageUrl} alt={file.filename} className="max-w-full rounded-md border"/>
+      </ScrollArea>
+    )
+  }
+  if (text != null && kind === 'markdown') {
+    return (
+      <ScrollArea className="h-full">
+        <div className="px-3 py-2"><MarkdownContent content={clipPreview(text)}/></div>
+      </ScrollArea>
     )
   }
   if (text != null) {
     return (
-      <pre className="max-h-64 overflow-auto rounded-md bg-muted px-3 py-2 font-mono text-xs leading-5 whitespace-pre-wrap break-all">
-        {text.length > 20000 ? `${text.slice(0, 20000)}…` : text}
-      </pre>
+      <ScrollArea className="h-full">
+        <pre className="px-3 py-2 font-mono text-xs leading-5 whitespace-pre-wrap break-all">{clipPreview(text)}</pre>
+      </ScrollArea>
     )
   }
   return <p className="text-xs text-faint">没有可显示的内容</p>
@@ -403,7 +407,8 @@ function FilesPane({focus, files, highlightFileId}: {focus: ToolCallView | null;
   }
 
   return (
-    <ScrollArea className="min-h-0 flex-1">
+    <div className="flex min-h-0 flex-1 flex-col">
+    <ScrollArea className={open ? 'max-h-48 shrink-0' : 'min-h-0 flex-1'}>
       <div className="flex flex-col gap-3 p-3">
         {focus && (focus.family === 'file' || focus.family === 'deliver') && focus.result?.error && (
           <p className="text-xs text-state-failed">{focus.result.error}</p>
@@ -467,15 +472,18 @@ function FilesPane({focus, files, highlightFileId}: {focus: ToolCallView | null;
               })}
             </ul>
           )}
-          {open && (
-            <div className="mt-2">
-              <p className="mb-1 truncate text-xs text-muted-foreground">{open.filename}</p>
-              <FilePreview file={open}/>
-            </div>
-          )}
         </section>
       </div>
     </ScrollArea>
+    {open && (
+      <div className="flex min-h-0 flex-1 flex-col border-t">
+        <p className="shrink-0 truncate px-3 py-1.5 text-xs text-muted-foreground">{open.filename}</p>
+        <div className="min-h-0 flex-1">
+          <FilePreview file={open}/>
+        </div>
+      </div>
+    )}
+    </div>
   )
 }
 
@@ -538,13 +546,24 @@ export function Workbench({
         </p>
       )}
       <div role="tablist" aria-label="工作台内容" className="flex gap-1 border-b px-2 py-1">
-        {availableTabs.map((item) => (
+        {availableTabs.map((item, index) => (
           <button
             key={item.id}
             type="button"
             role="tab"
+            id={`workbench-tab-${item.id}`}
+            aria-controls={tab === item.id ? `workbench-panel-${item.id}` : undefined}
             aria-selected={tab === item.id}
+            tabIndex={tab === item.id ? 0 : -1}
             onClick={() => onTab(item.id)}
+            onKeyDown={event => {
+              if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
+              event.preventDefault()
+              const next = event.key === 'Home' ? 0 : event.key === 'End' ? availableTabs.length - 1 : event.key === 'ArrowRight' ? (index + 1) % availableTabs.length : (index - 1 + availableTabs.length) % availableTabs.length
+              const id = availableTabs[next].id
+              onTab(id)
+              document.getElementById(`workbench-tab-${id}`)?.focus()
+            }}
             className={cn(
               'rounded-md px-2.5 py-1 text-meta outline-none focus-visible:ring-2 focus-visible:ring-ring',
               tab === item.id ? 'bg-muted font-medium text-foreground' : 'text-muted-foreground hover:bg-muted/60',
@@ -560,6 +579,7 @@ export function Workbench({
           {tab === 'terminal' ? '终端显示最近一次命令，与当前固定或跟随的操作不同。' : '浏览器显示最近一次页面操作，与当前固定或跟随的操作不同。'}
         </p>
       )}
+      <div role="tabpanel" id={`workbench-panel-${tab}`} aria-labelledby={`workbench-tab-${tab}`} className="flex min-h-0 flex-1 flex-col">
       {tab === 'result' && hasResultTab && <ResultPane call={focus}/>}
       {tab === 'terminal' && <ShellPane sessionId={sessionId} call={shellCall}/>}
       {tab === 'browser' && <BrowserPane call={browserCall} onOpenVnc={onOpenVnc}/>}
@@ -570,6 +590,7 @@ export function Workbench({
       {tab === 'project' && hasProject && !project?.available && (
         <EmptyNote>{project.reason ?? '项目目录不可用'}</EmptyNote>
       )}
+      </div>
     </section>
   )
 }

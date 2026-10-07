@@ -14,6 +14,8 @@ import {ManagedProjectPane} from '@/components/workbench/managed-project-pane'
 import {ProjectStateNotice} from '@/components/project-state-notice'
 import {Sheet, SheetContent, SheetTitle} from '@/components/ui/sheet'
 import {useIsMobile} from '@/hooks/use-mobile'
+import {useWorkbenchWidth, WorkbenchResizeHandle} from '@/components/workbench/resize-handle'
+import {cn} from '@/lib/utils'
 import {useProjects} from '@/providers/projects-provider'
 import {projectApi} from '@/lib/api/project'
 import {sessionApi} from '@/lib/api/session'
@@ -41,6 +43,8 @@ export function ProjectWorkspace({projectId}: {projectId: string}) {
   const [sendError, setSendError] = useState<string | null>(null)
   const [occupier, setOccupier] = useState<string | null>(null)
   const [panel, setPanel] = useState<'project' | null>(null)
+  const [draggingPanel, setDraggingPanel] = useState(false)
+  const panelWidth = useWorkbenchWidth()
   const [rename, setRename] = useState<Session | null>(null)
   const [stopping, setStopping] = useState(false)
   const [remove, setRemove] = useState<Session | null>(null)
@@ -122,7 +126,7 @@ export function ProjectWorkspace({projectId}: {projectId: string}) {
         {(sendError || project.occupying_session_id) && <p className="text-meta text-muted-foreground">{sendError ?? '此项目有正在运行或等待处理的对话。'}{(occupier || project.occupying_session_id) && <Link className="ml-2 text-signal underline" href={`/sessions/${occupier ?? project.occupying_session_id}`}>返回占用对话</Link>}{(occupier || project.occupying_session_id) && <Button variant="ghost" size="sm" disabled={stopping} onClick={async () => {setStopping(true);try{await sessionApi.stopSession(occupier || project.occupying_session_id!);setOccupier(null);setSendError(null);await refresh();await registry?.refresh()}catch(error){toast.error(error instanceof Error ? error.message : '停止失败')}finally{setStopping(false)}}}>停止占用运行</Button>}</p>}
       </div>
     </main>
-    {panel && !mobile && <aside className="flex w-[42%] min-w-[320px] max-w-[600px] flex-col border-l">{contents}</aside>}
+    {!mobile && <div aria-hidden={!panel} className={cn('relative h-full shrink-0 overflow-hidden', panel && 'border-l', draggingPanel ? 'transition-none' : 'transition-[width] duration-[220ms] ease-in-out motion-reduce:transition-none')} style={{width: panel ? panelWidth.width : 0}}>{panel && contents}{panel && <WorkbenchResizeHandle width={panelWidth.width} min={panelWidth.min} max={panelWidth.max} onWidth={panelWidth.setWidth} onReset={panelWidth.reset} onDragging={setDraggingPanel}/>}</div>}
     {mobile && <Sheet open={!!panel} onOpenChange={open => {if (!open) setPanel(null)}}><SheetContent side="right" className="w-[95vw] gap-0 p-0 [&>button]:hidden"><SheetTitle className="sr-only">项目工作台</SheetTitle>{contents}</SheetContent></Sheet>}
     <ProjectMemoryPanel projectId={projectId} open={memoryOpen} onClose={()=>setMemoryOpen(false)} onChanged={()=>{void refresh();void refreshList();void registry?.refresh()}}/>
     <ProjectSettingsDialog id={settings ? projectId : null} onClose={() => setSettings(false)} onSaved={() => {void refresh(); void registry?.refresh()}}/>

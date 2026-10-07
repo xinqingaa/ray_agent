@@ -15,6 +15,7 @@ function load(file){
   if(name==='@/lib/api/config')return {configApi};if(name==='@/lib/api/session')return {sessionApi};
   if(name==='@/lib/utils')return {cn:(...xs)=>xs.filter(Boolean).join(' ')};
   if(name==='@/components/run/format')return {formatTime:()=> 'now'};
+  if(name==='@/components/ui/slider')return load('components/ui/slider.tsx');
   if(name.startsWith('@/components/ui/'))return ui;
   if(name.startsWith('@/'))return load(name.slice(2)+'.'+(name.includes('components/')?'tsx':'ts'));
   throw Error(name);

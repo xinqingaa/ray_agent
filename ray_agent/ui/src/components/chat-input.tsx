@@ -416,7 +416,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
 
     return (
     <Popover open={slashOpen} onOpenChange={(open) => { if (!open) setSlash(null) }}>
-    <div className={cn('flex flex-col bg-card w-full rounded-2xl py-3 border', className)}>
+    <div className={cn('flex flex-col bg-card w-full rounded-lg py-3 border', className)}>
       {uncertain && !sending && !commandHost.submitting && (
         <div role="status" className="mx-4 mb-2 space-y-2 text-meta text-state-waiting">
           <p>正在确认是否发送成功，文字、附件和模式已保留。请检查结果或核对对话历史。</p>

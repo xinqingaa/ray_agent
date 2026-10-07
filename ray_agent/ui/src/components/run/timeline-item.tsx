@@ -1,6 +1,10 @@
 'use client'
 
+import {useState} from 'react'
+import {ChevronRight} from 'lucide-react'
 import type {FileView, TimelineItem} from '@/lib/session-view'
+import {groupProcessBlocks, processBlockOpen, processSettled, processSummary, type ProcessBlock} from '@/lib/process-blocks'
+import {cn} from '@/lib/utils'
 import {ProjectCopiesProvider} from './project-copy-status'
 import {ApprovalCard} from './approval-card'
 import {AskCard} from './ask-card'
@@ -86,13 +90,48 @@ export function TimelineItemView({item, handlers = {}}: {item: TimelineItem; han
   }
 }
 
-/** 时间线：条目之间按类型留白；数百条时的虚拟化在接入真实数据时处理 */
+function ProcessBlockView({block, settled, streaming, handlers}: {block: ProcessBlock; settled: boolean; streaming: boolean; handlers?: TimelineHandlers}) {
+  const [override, setOverride] = useState<boolean | null>(null)
+  const open = processBlockOpen(settled, override, streaming)
+  const panelId = `process-${block.id}`
+  return (
+    <div>
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls={open ? panelId : undefined}
+        onClick={() => setOverride(!open)}
+        className="flex min-h-8 w-full items-center gap-2 rounded-md px-1 text-left text-meta text-muted-foreground outline-none hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        <ChevronRight className={cn('size-3.5 shrink-0 transition-transform duration-200 motion-reduce:transition-none', open && 'rotate-90')} aria-hidden/>
+        <span className="min-w-0 truncate">{processSummary(block)}</span>
+      </button>
+      {open && (
+        <div id={panelId} className="mt-2 flex flex-col gap-3">
+          {block.items.map(item => <TimelineItemView key={item.id} item={item} handlers={handlers}/>)}
+        </div>
+      )}
+    </div>
+  )
+}
+
+/** 时间线：同一轮的旁白和工具组收成过程块；运行中展开，结束后收起 */
 export function Timeline({items, handlers, className}: {items: TimelineItem[]; handlers?: TimelineHandlers; className?: string}) {
+  const rows = groupProcessBlocks(items)
   return (
     <ProjectCopiesProvider projectId={handlers?.projectId}><ol className={className ?? 'flex flex-col gap-3'}>
-      {items.map((item) => (
-        <li key={item.id}>
-          <TimelineItemView item={item} handlers={handlers}/>
+      {rows.map(row => row.type === 'process' ? (
+        <li key={row.block.id}>
+          <ProcessBlockView
+            block={row.block}
+            settled={processSettled(items, row.block)}
+            streaming={row.block.items.some(item => item.id === handlers?.streamingItemId)}
+            handlers={handlers}
+          />
+        </li>
+      ) : (
+        <li key={row.item.id}>
+          <TimelineItemView item={row.item} handlers={handlers}/>
         </li>
       ))}
       <SessionDeliveryCopies sessionId={handlers?.sessionId} items={items} onPreview={handlers?.onPreviewFile} onDownload={handlers?.onDownloadFile} onDownloadAll={handlers?.onDownloadAll}/>

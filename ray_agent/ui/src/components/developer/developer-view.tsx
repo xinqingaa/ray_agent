@@ -17,6 +17,12 @@ import {resolveOutputRate, type OutputRate} from '@/lib/session-projection'
 import {cn} from '@/lib/utils'
 import {formatDuration, formatTime, formatTokens, usageSummary} from '@/components/run/format'
 
+const DEV_TABS = [
+  ['events', '事件'],
+  ['turns', '轮次'],
+  ['compaction', '压缩'],
+] as const
+
 type DeveloperViewProps = {
   view: SessionView
   loadTurnRequest: (runId: string, index: number) => Promise<TurnRequest>
@@ -205,15 +211,28 @@ export function DeveloperView({view, loadTurnRequest, className}: DeveloperViewP
     const set = new Set(view.events.map((ev) => ev.type))
     return [...set].sort()
   }, [view.events])
+  const [section, setSection] = useState<'events' | 'turns' | 'compaction'>('events')
   const [typeFilter, setTypeFilter] = useState('all')
+  const [runFilter, setRunFilter] = useState('all')
+  const [page, setPage] = useState(0)
   const [openSeq, setOpenSeq] = useState<number | null>(null)
   const [visitedSeqs, setVisitedSeqs] = useState<Set<number>>(() => new Set())
   const [selected, setSelected] = useState<{runId: string; index: number} | null>(null)
   const [visitedTurnKeys, setVisitedTurnKeys] = useState<Set<string>>(() => new Set())
   const [requestByKey, setRequestByKey] = useState<Record<string, TurnRequestResult>>({})
 
-  const events = typeFilter === 'all' ? view.events : view.events.filter((ev) => ev.type === typeFilter)
+  const events = view.events.filter(ev => (typeFilter === 'all' || ev.type === typeFilter) && (runFilter === 'all' || (runFilter === 'session' ? !ev.runId : ev.runId === runFilter)))
   const filterLabel = typeFilter === 'all' ? '全部事件' : EVENT_LABELS[typeFilter] ?? typeFilter
+  const runChoices = useMemo(() => {
+    const seen = new Map<string, string>()
+    for (const run of view.runs) seen.set(run.id, run.id.slice(0, 8))
+    for (const ev of view.events) if (ev.runId && !seen.has(ev.runId)) seen.set(ev.runId, ev.runId.slice(0, 8))
+    return [...seen]
+  }, [view.runs, view.events])
+  const pageCount = Math.max(1, Math.ceil(events.length / 50))
+  const currentPage = Math.min(page, pageCount - 1)
+  const shownEvents = events.slice(currentPage * 50, currentPage * 50 + 50)
+  const runLabel = runFilter === 'all' ? '全部运行' : runFilter === 'session' ? '会话级' : runChoices.find(([id]) => id === runFilter)?.[1] ?? runFilter.slice(0, 8)
   const compactions = view.timeline.filter((item) => item.kind === 'compaction')
 
   useEffect(() => {
@@ -251,7 +270,28 @@ export function DeveloperView({view, loadTurnRequest, className}: DeveloperViewP
     <div className={cn('flex flex-col gap-6 px-4 py-4', className)}>
       <div className="flex flex-wrap items-center gap-2 border-b pb-3">
         <h2 className="text-sm font-medium">开发者视图</h2>
-        <div className="ml-auto flex items-center gap-1">
+        <div role="tablist" aria-label="开发者视图分区" className="flex h-8 rounded-full bg-muted p-0.5">
+          {DEV_TABS.map(([id, label]) => <button key={id} type="button" role="tab" id={`dev-${id}`} aria-controls={`dev-panel-${id}`} aria-selected={section === id} tabIndex={section === id ? 0 : -1}
+            onClick={() => setSection(id)}
+            onKeyDown={event => {
+              if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
+              event.preventDefault()
+              const index = DEV_TABS.findIndex(([value]) => value === section)
+              const next = event.key === 'Home' ? 0 : event.key === 'End' ? DEV_TABS.length - 1 : event.key === 'ArrowRight' ? (index + 1) % DEV_TABS.length : (index - 1 + DEV_TABS.length) % DEV_TABS.length
+              const idNext = DEV_TABS[next][0]
+              setSection(idNext)
+              document.getElementById(`dev-${idNext}`)?.focus()
+            }}
+            className={cn('rounded-full px-3 text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-ring', section === id ? 'bg-card font-medium text-foreground shadow-sm' : 'text-muted-foreground')}>{label}</button>)}
+        </div>
+        <Button type="button" variant="ghost" size="sm" className="ml-auto h-8 px-2.5" onClick={exportJson}>
+          <Download aria-hidden/>
+          导出 JSON
+        </Button>
+      </div>
+
+      <section id="dev-panel-events" role="tabpanel" aria-labelledby="dev-events" hidden={section !== 'events'}>
+        <div className="mb-2 flex flex-wrap items-center gap-1">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button type="button" variant="ghost" size="sm" className="h-8 px-2.5" aria-label={`筛选事件类型，当前：${filterLabel}`}>
@@ -260,9 +300,9 @@ export function DeveloperView({view, loadTurnRequest, className}: DeveloperViewP
                 <ChevronDown className="size-3.5 text-muted-foreground" aria-hidden/>
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="min-w-48">
-              <DropdownMenuLabel className="text-xs text-muted-foreground font-normal">事件类型</DropdownMenuLabel>
-              <DropdownMenuRadioGroup value={typeFilter} onValueChange={setTypeFilter}>
+            <DropdownMenuContent align="start" className="min-w-48">
+              <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">事件类型</DropdownMenuLabel>
+              <DropdownMenuRadioGroup value={typeFilter} onValueChange={value => {setTypeFilter(value); setPage(0)}}>
                 <DropdownMenuRadioItem value="all">全部事件 <span className="ml-auto tabular-nums text-xs text-muted-foreground">{view.events.length}</span></DropdownMenuRadioItem>
                 {types.map((type) => (
                   <DropdownMenuRadioItem key={type} value={type}>
@@ -273,18 +313,27 @@ export function DeveloperView({view, loadTurnRequest, className}: DeveloperViewP
               </DropdownMenuRadioGroup>
             </DropdownMenuContent>
           </DropdownMenu>
-          <span className="mx-0.5 h-4 w-px bg-border" aria-hidden/>
-          <Button type="button" variant="ghost" size="sm" className="h-8 px-2.5" onClick={exportJson}>
-            <Download aria-hidden/>
-            导出 JSON
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button type="button" variant="ghost" size="sm" className="h-8 px-2.5" aria-label={`筛选运行，当前：${runLabel}`}>
+                {runLabel}
+                <ChevronDown className="size-3.5 text-muted-foreground" aria-hidden/>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="min-w-48">
+              <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">运行</DropdownMenuLabel>
+              <DropdownMenuRadioGroup value={runFilter} onValueChange={value => {setRunFilter(value); setPage(0)}}>
+                <DropdownMenuRadioItem value="all">全部运行</DropdownMenuRadioItem>
+                {view.events.some(ev => !ev.runId) && <DropdownMenuRadioItem value="session">会话级</DropdownMenuRadioItem>}
+                {runChoices.map(([id, label]) => <DropdownMenuRadioItem key={id} value={id}>{label}</DropdownMenuRadioItem>)}
+              </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
-      </div>
-
-      <section aria-label="事件流">
-        <h3 className="mb-2 text-xs font-medium text-muted-foreground">事件</h3>
         {view.events.length === 0 ? (
           <p className="text-meta text-faint">这里会按序号列出事件。任务开始后出现。</p>
+        ) : events.length === 0 ? (
+          <p className="text-meta text-faint">没有符合筛选的事件。</p>
         ) : (
           <div className="overflow-x-auto rounded-lg border">
             <table className="w-full min-w-[46rem] table-fixed text-left text-xs">
@@ -307,7 +356,7 @@ export function DeveloperView({view, loadTurnRequest, className}: DeveloperViewP
                 </tr>
               </thead>
               <tbody>
-                {events.map((ev) => {
+                {shownEvents.map((ev) => {
                   const open = openSeq === ev.seq
                   return (
                     <tr key={ev.seq} className="border-t align-top">
@@ -338,12 +387,18 @@ export function DeveloperView({view, loadTurnRequest, className}: DeveloperViewP
                 })}
               </tbody>
             </table>
+            {events.length > 0 && <div className="flex items-center justify-between gap-2 border-t px-2 py-1.5 text-xs text-muted-foreground">
+              <span className="tabular-nums">第 {currentPage * 50 + 1}–{Math.min(events.length, (currentPage + 1) * 50)} 条，共 {events.length} 条</span>
+              <div className="flex gap-1">
+                <Button type="button" variant="ghost" size="xs" disabled={currentPage === 0} onClick={() => setPage(currentPage - 1)}>上一页</Button>
+                <Button type="button" variant="ghost" size="xs" disabled={currentPage >= pageCount - 1} onClick={() => setPage(currentPage + 1)}>下一页</Button>
+              </div>
+            </div>}
           </div>
         )}
       </section>
 
-      <section aria-label="轮次">
-        <h3 className="mb-2 text-xs font-medium text-muted-foreground">轮次</h3>
+      <section id="dev-panel-turns" role="tabpanel" aria-labelledby="dev-turns" hidden={section !== 'turns'}>
         {view.runs.length === 0 ? (
           <p className="text-meta text-faint">每一轮的用时、用量和上下文构成会出现在这里。模型开始请求后出现。</p>
         ) : view.runs.map((run) => (
@@ -361,8 +416,7 @@ export function DeveloperView({view, loadTurnRequest, className}: DeveloperViewP
         ))}
       </section>
 
-      <section aria-label="压缩">
-        <h3 className="mb-2 text-xs font-medium text-muted-foreground">压缩</h3>
+      <section id="dev-panel-compaction" role="tabpanel" aria-labelledby="dev-compaction" hidden={section !== 'compaction'}>
         <ContextBudget usage={view.usage}/>
         {compactions.length === 0 ? (
           <p className="text-meta text-faint">还没有压缩。上下文超过压缩阈值时，这里列出前后估算量和摘要全文。</p>

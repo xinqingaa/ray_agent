@@ -17,6 +17,8 @@ import {RUN_INPUT_HINT, RunStatus} from '@/components/run/run-status'
 import {RunStatusBar} from '@/components/run/status-bar'
 import {Timeline, type TimelineHandlers} from '@/components/run/timeline-item'
 import {downloadSessionFile, tabForFamily, Workbench, type WorkbenchTab} from '@/components/workbench/workbench'
+import {useWorkbenchWidth, WorkbenchResizeHandle} from '@/components/workbench/resize-handle'
+import {cn} from '@/lib/utils'
 import {VNCOverlay} from '@/components/vnc-overlay'
 import {Button} from '@/components/ui/button'
 import {
@@ -113,6 +115,8 @@ export function SessionDetailView({
   const [pinnedCallId, setPinnedCallId] = useState<string | null>(null)
   const [workbenchOpen, setWorkbenchOpen] = useState(false)
   const [workbenchRendered, setWorkbenchRendered] = useState(false)
+  const [draggingWorkbench, setDraggingWorkbench] = useState(false)
+  const workbenchWidth = useWorkbenchWidth()
   const [renameOpen, setRenameOpen] = useState(false)
   const [renamedTitle, setRenamedTitle] = useState<{sessionId: string; title: string; previousTitle: string} | null>(null)
   const [tab, setTab] = useState<WorkbenchTab>('files')
@@ -492,7 +496,7 @@ export function SessionDetailView({
       onOpenVnc={browserCall ? () => setVncOpen(true) : undefined}
       project={view.project}
       projectRefreshSignal={projectRefreshSignal}
-      className={isMobile ? undefined : 'h-full w-[min(40vw,26rem)] shrink-0 border-l'}
+      className={isMobile ? undefined : 'h-full w-full'}
     />
   )
 
@@ -634,8 +638,10 @@ export function SessionDetailView({
 
         {!isMobile && (
           <div aria-hidden={!workbenchOpen} inert={!workbenchOpen}
-            className={`h-full shrink-0 overflow-hidden transition-[width] duration-[220ms] ease-in-out motion-reduce:transition-none ${workbenchOpen ? 'w-[min(40vw,26rem)]' : 'w-0'}`}>
+            className={cn('relative h-full shrink-0 overflow-hidden', workbenchOpen && 'border-l', draggingWorkbench ? 'transition-none' : 'transition-[width] duration-[220ms] ease-in-out motion-reduce:transition-none')}
+            style={{width: workbenchOpen ? workbenchWidth.width : 0}}>
             {(workbenchOpen || workbenchRendered) && workbench}
+            {workbenchOpen && <WorkbenchResizeHandle width={workbenchWidth.width} min={workbenchWidth.min} max={workbenchWidth.max} onWidth={workbenchWidth.setWidth} onReset={workbenchWidth.reset} onDragging={setDraggingWorkbench}/>}
           </div>
         )}
       </div>

@@ -182,7 +182,7 @@ type TurnBuild = {
   hasTtft: boolean
 }
 
-type PendingText = {seq: number | null; at: number; runId: string | null; text: string}
+type PendingText = {seq: number | null; at: number; runId: string | null; text: string; turnIndex: number | null}
 
 type LiveCall = {runId: string | null; view: ToolCallView}
 
@@ -686,7 +686,7 @@ export function projectSession(input: ProjectSessionInput): SessionView {
         continue
       }
       if (role === 'assistant' && text.trim()) {
-        pending.push({seq: ev.seq, at: ev.createdAt, runId: ev.runId, text})
+        pending.push({seq: ev.seq, at: ev.createdAt, runId: ev.runId, text, turnIndex: ev.runId ? currentTurn.get(ev.runId) ?? null : null})
       }
       continue
     }
@@ -872,6 +872,7 @@ export function projectSession(input: ProjectSessionInput): SessionView {
       runId: streamingDraft.runId,
       at: startedAt ?? 0,
       text: streamingDraft.text,
+      turnIndex: streamingDraft.turn,
     })
     streamingItemId = itemId
     streaming = {
@@ -1546,6 +1547,7 @@ function pushNarration(timeline: TimelineItem[], msg: PendingText) {
     runId: msg.runId,
     at: msg.at,
     text: msg.text,
+    turnIndex: msg.turnIndex,
   })
 }
 

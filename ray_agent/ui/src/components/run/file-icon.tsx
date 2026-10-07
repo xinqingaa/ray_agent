@@ -16,6 +16,8 @@ const BY_EXTENSION: Record<string, LucideIcon> = {
   '.xlsx': FileSpreadsheet,
   '.xls': FileSpreadsheet,
   '.md': FileText,
+  '.mdx': FileText,
+  '.markdown': FileText,
   '.txt': FileText,
   '.pdf': FileText,
   '.docx': FileText,
@@ -37,19 +39,35 @@ const BY_EXTENSION: Record<string, LucideIcon> = {
   '.sh': FileCode,
 }
 
+function normalizeExt(extension: string): string {
+  if (!extension) return ''
+  const lower = extension.toLowerCase()
+  return lower.startsWith('.') ? lower : `.${lower}`
+}
+
 export function fileIcon(extension: string): LucideIcon {
-  const ext = extension.startsWith('.') ? extension.toLowerCase() : `.${extension.toLowerCase()}`
-  return BY_EXTENSION[ext] ?? File
+  return BY_EXTENSION[normalizeExt(extension)] ?? File
 }
 
 const PREVIEWABLE = new Set([
-  '.json', '.csv', '.tsv', '.md', '.txt', '.py', '.js', '.ts', '.tsx', '.html', '.css', '.sh', '.yaml', '.yml', '.log',
+  '.json', '.csv', '.tsv', '.md', '.mdx', '.markdown', '.txt', '.py', '.js', '.ts', '.tsx', '.html', '.css', '.sh', '.yaml', '.yml', '.log',
   '.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.pdf',
 ])
+const MARKDOWN_EXT = new Set(['.md', '.mdx', '.markdown'])
+const IMAGE_EXT = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'])
+
+export function previewBodyKind(extension: string): 'markdown' | 'text' | 'image' | 'pdf' | 'unavailable' {
+  const ext = normalizeExt(extension)
+  if (!PREVIEWABLE.has(ext)) return 'unavailable'
+  if (MARKDOWN_EXT.has(ext)) return 'markdown'
+  if (IMAGE_EXT.has(ext)) return 'image'
+  if (ext === '.pdf') return 'pdf'
+  return 'text'
+}
 
 /** 工作台能预览的类型；不能预览时返回原因 */
 export function previewUnavailableReason(extension: string, size: number | null): string | null {
-  const ext = extension.startsWith('.') ? extension.toLowerCase() : `.${extension.toLowerCase()}`
+  const ext = normalizeExt(extension)
   if (!PREVIEWABLE.has(ext)) return `${ext || '该'} 类型不支持预览，可下载后查看`
   if (size != null && size > 5 * 1024 * 1024) return '文件超过 5 MB，不在页面内预览'
   return null
