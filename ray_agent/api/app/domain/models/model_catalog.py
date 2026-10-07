@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import Callable, Literal, Optional
 from urllib.parse import urlparse
 
-from app.domain.models.app_config import LLMConfig
+from app.domain.models.app_config import LLMConfig, ModelSampling
 
 
 Replay = Literal["current_turn", "all_turns"]
@@ -43,6 +43,7 @@ class ModelRequest:
     model_name: str
     context_window: int
     max_tokens: int
+    temperature: float
     thinking: Optional[str]
     reasoning_effort: Optional[str]
     reasoning_id: Optional[str]
@@ -103,12 +104,65 @@ def resolve_selection(provider: str, model_id: Optional[str], reasoning: Optiona
     return spec, choice
 
 
-def tuned_limits(configured_max_tokens: int, spec: ModelSpec, choice: ReasoningChoice) -> tuple[int, int]:
-    """思考开启时把生成预算抬到建议下限，再封顶到该模型的最大输出。"""
+def configured_sampling(config: LLMConfig, model_id: Optional[str]) -> ModelSampling:
+    """该模型单独保存的数值；没有时用全局三项。未指定模型时用辅助模型的单独配置。"""
+    if model_id and model_id in config.model_profiles:
+        return config.model_profiles[model_id]
+    provider = provider_for(str(config.base_url))
+    if provider and not model_id:
+        auxiliary = next((item for item in model_list(provider) if item.auxiliary), None)
+        if auxiliary and auxiliary.id in config.model_profiles:
+            return config.model_profiles[auxiliary.id]
+    return ModelSampling(
+        temperature=config.temperature, max_tokens=config.max_tokens, context_window=config.context_window,
+    )
+
+
+def current_sampling(config: LLMConfig, model_id: Optional[str]) -> ModelSampling:
+    """新建对话要冻结的数值：不超过模型目录上限，不含思考开启时临时抬高的输出。"""
+    provider = provider_for(str(config.base_url))
+    spec = None
+    if provider:
+        try:
+            spec, _choice = resolve_selection(provider, model_id, None)
+        except ValueError:
+            spec = None
+    raw = configured_sampling(config, spec.id if spec else model_id)
+    if spec is None:
+        return raw
+    return raw.model_copy(update={
+        "context_window": min(raw.context_window, spec.context_window),
+        "max_tokens": min(raw.max_tokens, spec.max_output),
+    })
+
+
+def choose_sampling(
+        *, frozen: Optional[ModelSampling], model_changed: bool, snapshot: Optional[dict], current: ModelSampling,
+) -> ModelSampling:
+    """改设置不改已有对话。对话里换了模型，就用目标模型当前的配置。旧对话没有冻结值时沿用上次运行快照。"""
+    if model_changed:
+        return current
+    if frozen is not None:
+        return frozen
+    if snapshot and snapshot.get("context_window"):
+        temperature = snapshot.get("temperature")
+        tokens = snapshot.get("max_tokens")
+        return ModelSampling(
+            temperature=float(temperature) if isinstance(temperature, (int, float)) else current.temperature,
+            max_tokens=int(tokens) if isinstance(tokens, int) and not isinstance(tokens, bool) else current.max_tokens,
+            context_window=int(snapshot["context_window"]),
+        )
+    return current
+
+
+def tuned_limits(
+        configured_max_tokens: int, configured_context_window: int, spec: ModelSpec, choice: ReasoningChoice,
+) -> tuple[int, int]:
+    """窗口用配置值，再封顶到模型目录里的上下文上限。思考开启时把生成预算抬到建议下限，再封顶到该模型的最大输出。"""
     tokens = configured_max_tokens
     if choice.thinking == "enabled":
         tokens = max(tokens, spec.thinking_output_floor)
-    return spec.context_window, min(tokens, spec.max_output)
+    return min(configured_context_window, spec.context_window), min(tokens, spec.max_output)
 
 
 def missing_reasoning(messages: list) -> bool:
@@ -125,30 +179,34 @@ def model_request(
         model_id: Optional[str],
         reasoning: Optional[str],
         snapshot: Optional[dict] = None,
+        sampling: Optional[ModelSampling] = None,
 ) -> Optional[ModelRequest]:
-    """未知厂商返回 None，调用方继续用全局配置。续接优先用该次运行快照。"""
+    """未知厂商返回 None，调用方继续用全局配置。续接优先用该次运行快照。sampling 是这条对话已经记下的数值。"""
     provider = provider_for(str(config.base_url))
     if provider is None:
         return None
     if snapshot and snapshot.get("model_name"):
-        return _from_snapshot(snapshot, config.context_window, config.max_tokens)
+        return _from_snapshot(snapshot, config.context_window, config.max_tokens, config.temperature)
     spec, choice = resolve_selection(provider, model_id, reasoning)
-    window, tokens = tuned_limits(config.max_tokens, spec, choice)
+    base = sampling or configured_sampling(config, spec.id)
+    window, tokens = tuned_limits(base.max_tokens, base.context_window, spec, choice)
     return ModelRequest(
-        spec.id, window, tokens, choice.thinking, choice.effort, choice.id, choice.replay == "all_turns",
+        spec.id, window, tokens, base.temperature, choice.thinking, choice.effort, choice.id, choice.replay == "all_turns",
     )
 
 
-def _from_snapshot(snapshot: dict, fallback_window: int, fallback_tokens: int) -> ModelRequest:
+def _from_snapshot(snapshot: dict, fallback_window: int, fallback_tokens: int, fallback_temperature: float) -> ModelRequest:
     """没有思考字段的旧快照不补参数，续接仍按当时的请求形状。"""
     thinking = snapshot.get("thinking")
     reasoning = snapshot.get("reasoning")
     enabled = thinking == "enabled"
     effort = reasoning if enabled and reasoning not in (None, "disabled") else None
+    temperature = snapshot.get("temperature")
     return ModelRequest(
         model_name=str(snapshot["model_name"]),
         context_window=int(snapshot.get("context_window") or fallback_window),
         max_tokens=int(snapshot.get("max_tokens") or fallback_tokens),
+        temperature=float(temperature) if isinstance(temperature, (int, float)) else fallback_temperature,
         thinking=thinking if thinking in ("enabled", "disabled") else None,
         reasoning_effort=effort if isinstance(effort, str) else None,
         reasoning_id=reasoning if isinstance(reasoning, str) else None,
@@ -168,6 +226,6 @@ def auxiliary_call(
     choice = spec.choice("disabled")
     assert choice is not None
     updates["model_name"] = spec.id
-    updates["context_window"] = spec.context_window
+    updates["context_window"] = min(configured_sampling(config, spec.id).context_window, spec.context_window)
     updates["max_tokens"] = min(max_tokens, spec.max_output)
     return config.model_copy(update=updates), choice.thinking, choice.effort

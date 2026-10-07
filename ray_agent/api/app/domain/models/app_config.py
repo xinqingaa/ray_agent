@@ -7,14 +7,22 @@ from typing import Dict, Optional, List, Any
 from pydantic import BaseModel, HttpUrl, Field, ConfigDict, model_validator
 
 
+class ModelSampling(BaseModel):
+    """一个模型给新建对话使用的温度、输出上限和上下文窗口。"""
+    temperature: float = Field(0.7, ge=0)
+    max_tokens: int = Field(8192, ge=0)
+    context_window: int = Field(131072, ge=1)
+
+
 class LLMConfig(BaseModel):
     """LLM提供商配置"""
     base_url: HttpUrl = "https://api.deepseek.com"  # 模型基础URL地址
     api_key: str = ""  # 仅从 LLM_API_KEY 注入，不写配置文件、不返回给页面
     model_name: str = "deepseek-flash"  # 未知厂商时的模型 id；已知厂商的对话用模型目录，不读这一项
-    temperature: float = Field(0.7)  # 温度，默认设置为0.7
-    max_tokens: int = Field(8192, ge=0)  # 最大输出token数，默认设置为deepseek-chat模型的最大输出限制
-    context_window: int = Field(65536, ge=1)  # 模型上下文窗口（输入+输出）；可用输入上限 = 窗口 − max_tokens − 安全余量
+    temperature: float = Field(0.7)  # 未知厂商，以及某个模型还没有单独配置时使用
+    max_tokens: int = Field(8192, ge=0)  # 同上；思考开启时请求还会抬到该模型的建议下限
+    context_window: int = Field(131072, ge=1)  # 同上。已知模型有单独配置时用 model_profiles，再封顶到模型目录上限
+    model_profiles: Dict[str, ModelSampling] = Field(default_factory=dict)  # 按模型 id 保存；只影响之后新建的对话
     streaming: bool = True  # 模型响应走流式并组装完整结果；false 时一次返回整包
     # 秒。非流式是整次请求的上限；流式是首个分片与相邻分片的间隔上限，不是整段生成的总时长
     request_timeout: float = Field(default=3600, gt=0, le=86400)

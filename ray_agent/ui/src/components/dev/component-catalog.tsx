@@ -358,10 +358,10 @@ export function ComponentCatalog() {
           <State label="按计划执行" source="合成"><PlanExecuteBar onExecute={noop}/></State>
         </Section>
 
-        <Section id="context-ring" title="上下文环" columns={3} note="最近一次请求的上下文占用；刻度线是压缩水位，蓝点表示发生过压缩。悬停或聚焦查看剩余量与最近一轮用量。">
+        <Section id="context-ring" title="上下文环" columns={3} note="刻度线是压缩阈值。悬停一行显示已用百分比和具体数值；点击后每项一行，名称在左、数值在右。">
           <State label="无数据" source="合成"><Surface><ContextRing usage={usageStates.none}/></Surface></State>
           <State label="正常" source="真实"><Surface><ContextRing usage={usageStates.normal}/></Surface></State>
-          <State label="接近水位" source="合成"><Surface><ContextRing usage={usageStates.near}/></Surface></State>
+          <State label="接近阈值" source="合成"><Surface><ContextRing usage={usageStates.near}/></Surface></State>
           <State label="已压缩" source="合成"><Surface><ContextRing usage={usageStates.compacted}/></Surface></State>
           <State label="压缩后估算" source="合成"><Surface><ContextRing usage={usageStates.postCompactEstimate}/></Surface></State>
         </Section>

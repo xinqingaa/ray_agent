@@ -39,6 +39,24 @@ export function totalTokens(t: TokenCounts | null | undefined): number | null {
   return null
 }
 
+/** 命中数和输入都有、且输入大于 0 时才有命中率。缺命中数时为空，不当成 0。 */
+export function cacheHitRate(tokens: TokenCounts | null | undefined): number | null {
+  if (tokens?.cached == null || tokens.prompt == null || tokens.prompt <= 0) return null
+  return tokens.cached / tokens.prompt
+}
+
+export function hasTokenUsage(tokens: TokenCounts | null | undefined): boolean {
+  return tokens?.prompt != null || tokens?.completion != null || tokens?.cached != null
+}
+
+/** 输入、输出、缓存命中、命中率。缺的项写成 —。 */
+export function usageSummary(tokens: TokenCounts | null | undefined): string {
+  const rate = cacheHitRate(tokens)
+  const cached = tokens?.cached == null ? '—' : formatTokens(tokens.cached)
+  const rateText = rate == null ? '—' : `${Math.round(rate * 100)}%`
+  return `输入 ${formatTokens(tokens?.prompt)} · 输出 ${formatTokens(tokens?.completion)} · 缓存命中 ${cached} · 命中率 ${rateText}`
+}
+
 export function formatCount(n: number): string {
   return n.toLocaleString('zh-CN')
 }

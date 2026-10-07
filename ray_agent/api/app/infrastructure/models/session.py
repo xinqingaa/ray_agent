@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional
 
 from sqlalchemy import (
     BigInteger,
+    Float,
     ForeignKey,
     String,
     Integer,
@@ -54,6 +55,9 @@ class SessionModel(Base):
     title_source: Mapped[str] = mapped_column(String(16), nullable=False, server_default=text("'placeholder'"))
     model_id: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
     reasoning: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+    context_window: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+    max_tokens: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+    temperature: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     unread_message_count: Mapped[int] = mapped_column(
         Integer,
         nullable=False,

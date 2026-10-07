@@ -24,6 +24,7 @@ from app.domain.external.event_notifier import OutputDelta
 from app.domain.models.event import Event
 from app.domain.models.project import ProjectFile, ProjectListing, ProjectView
 from app.domain.models.run import RunMode
+from app.domain.models.app_config import ModelSampling
 from app.domain.models.session import Session
 from app.interfaces.schemas import Response
 from app.interfaces.schemas.event import EventMapper
@@ -49,6 +50,15 @@ from app.interfaces.service_dependencies import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _saved_sampling(session: Session) -> Optional[ModelSampling]:
+    """这条对话已经记下的窗口、输出上限和温度。还没运行过则为空，界面改用当前模型配置。"""
+    if session.context_window is None or session.max_tokens is None or session.temperature is None:
+        return None
+    return ModelSampling(
+        temperature=session.temperature, max_tokens=session.max_tokens, context_window=session.context_window,
+    )
 router = APIRouter(prefix="/sessions", tags=["会话模块"])
 
 # 流式获取会话详情睡眠间隔
@@ -374,7 +384,8 @@ async def get_session(
             events=EventMapper.events_to_sse_events(detail.events),
             last_seq=detail.last_seq,
             context_operation=context_operation(session_id),
-            context_config=await config_service.get_context_config(detail.session.model_id, detail.session.reasoning),
+            context_config=await config_service.get_context_config(
+                detail.session.model_id, detail.session.reasoning, _saved_sampling(detail.session)),
             project=project_service.describe(detail.session.project),
             model_id=detail.session.model_id,
             reasoning=detail.session.reasoning,

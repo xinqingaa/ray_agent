@@ -1,10 +1,16 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-from typing import Dict, List, Literal
+from typing import Dict, List, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl
 
-from app.domain.models.app_config import LLMConfig, MCPTransport, ToolPolicy
+from app.domain.models.app_config import LLMConfig, ModelSampling, MCPTransport, ToolPolicy
+
+
+class ModelSamplingPublic(BaseModel):
+    temperature: float
+    max_tokens: int
+    context_window: int
 
 
 class LLMConfigPublic(BaseModel):
@@ -14,17 +20,28 @@ class LLMConfigPublic(BaseModel):
     temperature: float
     max_tokens: int
     context_window: int
+    model_profiles: Dict[str, ModelSamplingPublic] = Field(default_factory=dict)
     has_api_key: bool = False
 
     @classmethod
     def from_llm(cls, llm: LLMConfig) -> "LLMConfigPublic":
+        from app.domain.models.model_catalog import configured_sampling, model_list, provider_for
         key = (llm.api_key or "").strip()
+        profiles: Dict[str, ModelSamplingPublic] = {}
+        provider = provider_for(str(llm.base_url))
+        if provider:
+            for spec in model_list(provider):
+                sampling = configured_sampling(llm, spec.id)
+                profiles[spec.id] = ModelSamplingPublic(
+                    temperature=sampling.temperature, max_tokens=sampling.max_tokens, context_window=sampling.context_window,
+                )
         return cls(
             base_url=str(llm.base_url),
             model_name=llm.model_name,
             temperature=llm.temperature,
             max_tokens=llm.max_tokens,
             context_window=llm.context_window,
+            model_profiles=profiles,
             has_api_key=bool(key) and key != "xxxx",
         )
 
@@ -44,13 +61,14 @@ class ModelCatalogResponse(BaseModel):
 
 
 class LLMConfigUpdate(BaseModel):
-    """更新 LLM 配置时忽略密钥字段。"""
+    """更新 LLM 配置时忽略密钥字段。未提交的字段保持原值。"""
     model_config = ConfigDict(extra="ignore")
     base_url: HttpUrl
     model_name: str
     temperature: float = Field(0.7)
     max_tokens: int = Field(8192, ge=0)
-    context_window: int = Field(65536, ge=1)
+    context_window: int = Field(131072, ge=1)
+    model_profiles: Optional[Dict[str, ModelSampling]] = None
 
 
 class ConnectionState(BaseModel):

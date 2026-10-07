@@ -127,6 +127,11 @@ class DBSessionRepository(SessionRepository):
         await self.db_session.execute(
             update(SessionModel).where(SessionModel.id == session_id).values(model_id=model_id, reasoning=reasoning))
 
+    async def update_sampling(self, session_id: str, context_window: int, max_tokens: int, temperature: float) -> None:
+        await self.db_session.execute(
+            update(SessionModel).where(SessionModel.id == session_id).values(
+                context_window=context_window, max_tokens=max_tokens, temperature=temperature))
+
     async def update_latest_message(self, session_id: str, message: str, timestamp: datetime) -> None:
         """更新会话最新消息"""
         # 1.构建更新语句并执行

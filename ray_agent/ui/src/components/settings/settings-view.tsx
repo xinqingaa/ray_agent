@@ -36,7 +36,7 @@ export function SettingsView() {
         <header className="mb-6 @3xl/settings:mb-8">
           <h1 className="text-xl font-semibold">设置</h1>
           <p className="mt-1 text-meta text-muted-foreground">
-            执行配置对所有会话生效；外观设置保存在当前浏览器中。
+            执行配置保存在服务端。模型的温度、回复上限和上下文窗口在对话第一次运行时记下；外观设置保存在当前浏览器中。
           </p>
         </header>
 

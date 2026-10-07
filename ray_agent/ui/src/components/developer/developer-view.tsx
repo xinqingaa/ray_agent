@@ -12,10 +12,10 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import type {TurnRequest} from '@/lib/api/types'
-import type {ContextEstimate, RawEvent, RunView, SessionView, TurnView} from '@/lib/session-view'
+import type {ContextEstimate, RawEvent, RunView, SessionView, TurnView, UsageView} from '@/lib/session-view'
 import {resolveOutputRate, type OutputRate} from '@/lib/session-projection'
 import {cn} from '@/lib/utils'
-import {formatDuration, formatTime, formatTokens, totalTokens} from '@/components/run/format'
+import {formatDuration, formatTime, formatTokens, usageSummary} from '@/components/run/format'
 
 type DeveloperViewProps = {
   view: SessionView
@@ -363,14 +363,15 @@ export function DeveloperView({view, loadTurnRequest, className}: DeveloperViewP
 
       <section aria-label="压缩">
         <h3 className="mb-2 text-xs font-medium text-muted-foreground">压缩</h3>
+        <ContextBudget usage={view.usage}/>
         {compactions.length === 0 ? (
-          <p className="text-meta text-faint">还没有压缩。上下文超过水位时，这里列出前后估算量和摘要全文。</p>
+          <p className="text-meta text-faint">还没有压缩。上下文超过压缩阈值时，这里列出前后估算量和摘要全文。</p>
         ) : (
           <ul className="flex flex-col gap-2">
             {compactions.map((item) => (
               <li key={item.id} className="rounded-md border bg-card px-3 py-2 text-meta">
                 <p className="tabular-nums">
-                  {item.trigger === 'manual' ? '手动' : item.trigger === 'overflow' ? '溢出' : '水位'} ·{' '}
+                  {item.trigger === 'manual' ? '手动' : item.trigger === 'overflow' ? '溢出' : '阈值'} ·{' '}
                   {formatTokens(item.beforeTokens)} → {formatTokens(item.afterTokens)} tokens
                   {item.summarizedTurns > 0 && `，摘要了 ${item.summarizedTurns} 轮`}
                   {item.runId == null && ' · 会话级'}
@@ -386,6 +387,20 @@ export function DeveloperView({view, loadTurnRequest, className}: DeveloperViewP
         )}
       </section>
     </div>
+  )
+}
+
+function ContextBudget({usage}: {usage: UsageView}) {
+  const ctx = usage.context
+  if (!ctx) return null
+  const snapshot = ctx.snapshotAt != null ? new Date(ctx.snapshotAt).toLocaleString() : '—'
+  return (
+    <dl className="mb-3 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-meta tabular-nums">
+      <dt className="text-muted-foreground">可用输入上限</dt><dd>{formatTokens(ctx.inputLimit)}</dd>
+      <dt className="text-muted-foreground">输出预留</dt><dd>{formatTokens(ctx.maxTokens)}</dd>
+      <dt className="text-muted-foreground">安全余量</dt><dd>{formatTokens(ctx.safetyTokens)}</dd>
+      <dt className="text-muted-foreground">快照时间</dt><dd>{snapshot}</dd>
+    </dl>
   )
 }
 
@@ -448,7 +463,6 @@ function RunTurns({
             const key = `${run.id}:${turn.index}`
             const panelId = `turn-request-${run.id}-${turn.index}`
             const result = requestByKey[key]
-            const tokens = totalTokens(turn.usage)
             return (
               <li key={turn.index}>
                 <button
@@ -466,7 +480,7 @@ function RunTurns({
                     <span>用时 {turnDuration(turn)}</span>
                     <span>模型 {formatDuration(turn.modelMs)}</span>
                     <span>工具 {formatDuration(turn.toolsMs)}</span>
-                    <span>tokens {formatTokens(tokens)}</span>
+                    <span>{usageSummary(turn.usage)}</span>
                     <span>结束原因 {turn.finishReason ?? '—'}</span>
                     {turn.ttftMs != null && <span>首字 {formatDuration(turn.ttftMs)}</span>}
                     {turn.attempts != null && <span>尝试 {turn.attempts}</span>}

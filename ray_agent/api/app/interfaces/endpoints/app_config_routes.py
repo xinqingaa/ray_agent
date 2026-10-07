@@ -8,7 +8,7 @@ from pydantic import ValidationError as PydanticValidationError
 
 from app.application.errors.exceptions import BadRequestError
 from app.application.services.app_config_service import AppConfigService
-from app.domain.models.app_config import LLMConfig, AgentConfig, MCPConfig, ToolPolicyConfig, \
+from app.domain.models.app_config import AgentConfig, MCPConfig, ToolPolicyConfig, \
     default_tool_policy_rules
 from app.domain.services.tool_policy import builtin_tool_catalog
 from app.domain.models.model_catalog import model_list, provider_for, resolve_selection
@@ -80,7 +80,7 @@ async def update_llm_config(
 ) -> Response[LLMConfigPublic]:
     """更新LLM配置信息"""
     updated_llm_config = await app_config_service.update_llm_config(
-        LLMConfig.model_validate(new_llm_config.model_dump(mode="json"))
+        new_llm_config.model_dump(mode="json", exclude_unset=True)
     )
     return Response.success(
         msg="更新LLM信息配置成功",

@@ -15,8 +15,10 @@ from app.domain.external.llm import LLM
 from app.domain.external.sandbox import Sandbox, SandboxProjectBindingError
 from app.domain.external.search import SearchEngine
 from app.domain.external.task import Task
-from app.domain.models.app_config import AgentConfig, LLMConfig, MCPConfig, A2AConfig, ToolPolicyConfig
-from app.domain.models.model_catalog import missing_reasoning, model_request, provider_for, resolve_selection
+from app.domain.models.app_config import AgentConfig, LLMConfig, MCPConfig, A2AConfig, ModelSampling, ToolPolicyConfig
+from app.domain.models.model_catalog import (
+    choose_sampling, current_sampling, missing_reasoning, model_request, provider_for, resolve_selection,
+)
 from app.domain.models.event import ApprovalStatus, EnvironmentEvent, ErrorEvent, Event, MessageEvent, TitleEvent
 from app.domain.models.project import SANDBOX_PROJECT_DIR
 from app.domain.models.run import Run, RunMode, RunReason, RunStatus, tools_for_turn
@@ -140,26 +142,37 @@ class AgentService:
         self._ledger = ledger or RunLedger(uow_factory, notifier)
         logger.info(f"AgentService初始化成功")
 
+    def _session_sampling(self, session: Session) -> Optional[ModelSampling]:
+        if session.context_window is None or session.max_tokens is None or session.temperature is None:
+            return None
+        return ModelSampling(
+            temperature=session.temperature, max_tokens=session.max_tokens, context_window=session.context_window,
+        )
+
     def _llm_for_session(self, session: Session):
-        """已知厂商按会话选择构造客户端；续接不走这里。"""
+        """已知厂商按会话选择构造客户端。已记下的窗口和温度优先于当前设置。"""
         if self._llm_config is None:
             return self._llm
-        profile = model_request(self._llm_config, model_id=session.model_id, reasoning=session.reasoning)
-        return self._llm if profile is None else self._open_llm(profile)
+        sampling = self._session_sampling(session)
+        profile = model_request(self._llm_config, model_id=session.model_id, reasoning=session.reasoning, sampling=sampling)
+        return self._open_plain(sampling) if profile is None else self._open_llm(profile)
 
     async def _llm_for_run(self, session: Session, prior_status: Optional[SessionStatus], run_id: str):
-        """新运行用会话选择。等待续接沿用该次运行快照，不改进行中的模型。"""
+        """新运行用这条对话记下的数值。等待续接沿用该次运行快照，不改进行中的模型。"""
         if self._llm_config is None:
             return self._llm
-        snapshot = None
         if prior_status == SessionStatus.WAITING:
             async with self._uow:
                 run = await self._uow.run.get(run_id)
             stored = (run.config_snapshot or {}) if run is not None else {}
-            snapshot = stored if stored.get("model_name") else None
+            if stored.get("model_name"):
+                profile = model_request(
+                    self._llm_config, model_id=session.model_id, reasoning=session.reasoning, snapshot=stored)
+                return self._llm if profile is None else self._open_llm(profile)
+        sampling = self._session_sampling(session)
         profile = model_request(
-            self._llm_config, model_id=session.model_id, reasoning=session.reasoning, snapshot=snapshot)
-        return self._llm if profile is None else self._open_llm(profile)
+            self._llm_config, model_id=session.model_id, reasoning=session.reasoning, sampling=sampling)
+        return self._open_plain(sampling) if profile is None else self._open_llm(profile)
 
     def _open_llm(self, profile):
         from app.infrastructure.external.llm.openai_llm import OpenAILLM
@@ -167,10 +180,51 @@ class AgentService:
             "model_name": profile.model_name,
             "context_window": profile.context_window,
             "max_tokens": profile.max_tokens,
+            "temperature": profile.temperature,
         })
         return OpenAILLM(
             tuned, thinking=profile.thinking, reasoning_effort=profile.reasoning_effort, reasoning_id=profile.reasoning_id,
         )
+
+    def _open_plain(self, sampling: Optional[ModelSampling]):
+        """未知厂商没有目录。已记下数值时按那一份构造，否则用当前全局客户端。"""
+        if sampling is None or self._llm_config is None:
+            return self._llm
+        from app.infrastructure.external.llm.openai_llm import OpenAILLM
+        tuned = self._llm_config.model_copy(update={
+            "temperature": sampling.temperature,
+            "context_window": sampling.context_window,
+            "max_tokens": sampling.max_tokens,
+        })
+        return OpenAILLM(tuned)
+
+    async def _latest_snapshot(self, session_id: str) -> Optional[dict]:
+        async with self._uow:
+            runs = await self._uow.run.list_by_session(session_id)
+        if not runs:
+            return None
+        last = max(runs, key=lambda item: item.started_at)
+        stored = last.config_snapshot or {}
+        return stored if stored.get("context_window") else None
+
+    async def _bind_sampling(self, session: Session, *, creating: bool, model_changed: bool) -> None:
+        """第一次运行记下当前模型的三项。已有对话改设置不重写；对话里换模型才改成目标模型当前的数值。"""
+        if self._llm_config is None:
+            return
+        frozen = self._session_sampling(session)
+        if frozen is not None and not model_changed:
+            return
+        current = current_sampling(self._llm_config, session.model_id)
+        snapshot = None if creating or model_changed else await self._latest_snapshot(session.id)
+        chosen = choose_sampling(frozen=frozen, model_changed=model_changed, snapshot=snapshot, current=current)
+        session.context_window = chosen.context_window
+        session.max_tokens = chosen.max_tokens
+        session.temperature = chosen.temperature
+        if creating:
+            return
+        async with self._uow:
+            await self._uow.session.update_sampling(
+                session.id, chosen.context_window, chosen.max_tokens, chosen.temperature)
 
     async def _remember_model(self, session: Session, model: Optional[str], reasoning: Optional[str], *, creating: bool) -> None:
         """把选择写到会话上。旧对话没有思考字段时，未指定选择则先用 disabled，避免下一次请求被拒绝。"""
@@ -209,7 +263,16 @@ class AgentService:
                 session = await self._uow.session.get_by_id(session_id)
             if session is None:
                 raise NotFoundError("任务会话不存在, 请核实后重试")
+            previous_model = session.model_id
             await self._remember_model(session, model, reasoning, creating=False)
+            if session.model_id != previous_model:
+                snapshot = None if session.context_window is not None else await self._latest_snapshot(session.id)
+                if session.context_window is not None or snapshot:
+                    bound_model = previous_model or (snapshot or {}).get("model_name")
+                    await self._bind_sampling(
+                        session, creating=False,
+                        model_changed=bound_model is not None and session.model_id != bound_model,
+                    )
         return session.model_id or model, session.reasoning or reasoning
 
     def _file_coordinator(self):
@@ -512,7 +575,12 @@ class AgentService:
                     new_session = session
             if not session:
                 raise NotFoundError("任务会话不存在, 请核实后重试")
+            previous_model = session.model_id
             await self._remember_model(session, model, reasoning, creating=new_session is not None)
+            await self._bind_sampling(
+                session, creating=new_session is not None,
+                model_changed=previous_model is not None and session.model_id != previous_model,
+            )
             if session.project_id:
                 self._validate_project_session(session)
             if waiting_for_approval(active):
@@ -715,7 +783,7 @@ class AgentService:
         或 waiting 不论提问还是审批）→ ConflictError；少于 2 轮 → skipped/no_rounds，不写事件；不做最小收益判断。
         成功时 compact(trigger=manual) 与 context(replace) 不带 run_id，与替换后的记忆在同一事务写入；
         摘要请求失败 → 502，不写事件、不改记忆。估算全部按字符计算：工具 schema 取最后一次运行的配置快照，
-        窗口与输出预留取当前模型配置。
+        窗口与输出预留取这条对话记下的数值；还没有记下时沿用上次运行快照。
         """
         set_log_session_id(session_id)
         async with session_lock(session_id):
@@ -731,6 +799,7 @@ class AgentService:
 
             last = max(runs, key=lambda r: r.started_at) if runs else None
             tools = tools_for_turn(last.config_snapshot, last.turns + 1) if last is not None else []
+            await self._bind_sampling(session, creating=False, model_changed=False)
             compactor = Compactor(self._llm_for_session(session), self._agent_config, label=f"会话[{session_id}]手动压缩")
             messages = copy.deepcopy(memory.get_messages())
             project_prompt = ""

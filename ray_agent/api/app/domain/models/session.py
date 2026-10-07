@@ -37,6 +37,9 @@ class Session(BaseModel):
     title: str = ""  # 标题
     model_id: Optional[str] = None  # 厂商模型 id；空则在已知厂商上用目录默认
     reasoning: Optional[str] = None  # 思考参数原词，如 disabled / high
+    context_window: Optional[int] = None  # 第一次运行时记下的上下文窗口；空表示还没记下
+    max_tokens: Optional[int] = None  # 同时记下的单次回复上限，不含思考时临时抬高的部分
+    temperature: Optional[float] = None  # 同时记下的温度
     summary: Optional[str] = None
     summary_source: Optional[str] = None
     summary_state: str = 'idle'

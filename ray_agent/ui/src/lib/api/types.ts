@@ -57,12 +57,19 @@ export type MCPTransport = "stdio" | "streamable_http";
 /**
  * LLM 配置
  */
+export type ModelSampling = {
+  temperature: number;
+  max_tokens: number;
+  context_window: number;
+};
+
 export type LLMConfig = {
   base_url?: string;
   model_name?: string;
   temperature?: number;
   max_tokens?: number;
   context_window?: number;
+  model_profiles?: Record<string, ModelSampling>;
   has_api_key?: boolean;
 };
 

@@ -96,7 +96,7 @@ def test_yaml_streaming_survives_settings_update_and_defaults_when_omitted(tmp_p
     repository = FileAppConfigRepository("config.yaml")
     service = AppConfigService(repository)
     update = LLMConfigUpdate(base_url="https://example.test/v1", model_name="glm-4")
-    asyncio.run(service.update_llm_config(LLMConfig.model_validate(update.model_dump(mode="json"))))
+    asyncio.run(service.update_llm_config(update.model_dump(mode="json", exclude_unset=True)))
 
     persisted = yaml.safe_load(config_path.read_text(encoding="utf-8"))
     assert persisted["llm_config"]["streaming"] is False

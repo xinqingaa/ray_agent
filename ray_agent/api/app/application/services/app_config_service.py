@@ -7,7 +7,7 @@ from typing import List, Dict
 from app.application.errors.exceptions import NotFoundError
 from app.domain.services.context.budget import ContextBudget
 from app.domain.models.app_config import AppConfig, LLMConfig, AgentConfig, MCPConfig, A2AConfig, A2AServerConfig, \
-    ToolPolicyConfig
+    ModelSampling, ToolPolicyConfig
 from app.domain.repositories.app_config_repository import AppConfigRepository
 from app.infrastructure.protocols.a2a import A2AClientManager
 from app.infrastructure.protocols.mcp import MCPClientManager
@@ -27,20 +27,20 @@ class AppConfigService:
         """加载获取所有的应用配置"""
         return self.app_config_repository.load()
 
-    async def get_context_config(self, model_id: str | None = None, reasoning: str | None = None) -> Dict[str, int]:
-        """只返回当前容量配置，供界面识别历史请求快照，不暴露模型凭据。
-
-        已知厂商按模型目录计算窗口；未保存选择时用目录默认。
-        """
-        from app.domain.models.model_catalog import provider_for, resolve_selection, tuned_limits
+    async def get_context_config(
+            self, model_id: str | None = None, reasoning: str | None = None, sampling: ModelSampling | None = None,
+    ) -> Dict[str, int]:
+        """返回这条对话实际使用的容量。已记下数值时用记下的，否则用该模型当前配置。"""
+        from app.domain.models.model_catalog import configured_sampling, provider_for, resolve_selection, tuned_limits
         config = await self._load_app_config()
         llm, agent = config.llm_config, config.agent_config
-        window, tokens = llm.context_window, llm.max_tokens
+        base = sampling or configured_sampling(llm, model_id)
+        window, tokens = base.context_window, base.max_tokens
         provider = provider_for(str(llm.base_url))
         if provider:
             try:
                 spec, choice = resolve_selection(provider, model_id, reasoning)
-                window, tokens = tuned_limits(llm.max_tokens, spec, choice)
+                window, tokens = tuned_limits(base.max_tokens, base.context_window, spec, choice)
             except ValueError:
                 pass
         budget = ContextBudget(window, tokens, agent.context_safety_ratio, agent.compact_watermark)
@@ -52,16 +52,48 @@ class AppConfigService:
         app_config = await self._load_app_config()
         return app_config.llm_config
 
-    async def update_llm_config(self, llm_config: LLMConfig) -> LLMConfig:
-        """更新模型名、地址等可写字段；密钥始终保持环境变量注入的值。"""
+    async def update_llm_config(self, fields: Dict) -> LLMConfig:
+        """更新调用方提交的字段。未提交的保持原值；密钥、流式和超时不从页面写入。"""
+        from app.domain.models.model_catalog import model_list, provider_for
         app_config = await self._load_app_config()
-        # streaming 与 request_timeout 只从 config.yaml 读取。设置页的更新请求没有这两项，
-        # 经 LLMConfig 填上默认值后再合并会把 yaml 里的选择覆盖掉。
-        app_config.llm_config = app_config.llm_config.model_copy(
-            update=llm_config.model_dump(exclude={"api_key", "streaming", "request_timeout"})
-        )
+        current = app_config.llm_config
+        data = dict(fields)
+        data.pop("api_key", None)
+        if "model_profiles" in data:
+            if data["model_profiles"] is None:
+                data.pop("model_profiles")
+            else:
+                data["model_profiles"] = self._cap_profiles(
+                    str(data.get("base_url", current.base_url)), data["model_profiles"], provider_for, model_list,
+                )
+        app_config.llm_config = LLMConfig.model_validate({
+            **current.model_dump(),
+            **data,
+            "api_key": current.api_key,
+            "streaming": current.streaming,
+            "request_timeout": current.request_timeout,
+        })
         self.app_config_repository.save(app_config)
         return app_config.llm_config
+
+    @staticmethod
+    def _cap_profiles(base_url: str, profiles: dict, provider_for, model_list) -> dict:
+        """已知模型的窗口和输出不超过目录上限。目录里没有的 id 不保留。"""
+        provider = provider_for(base_url)
+        if provider is None:
+            return {key: ModelSampling.model_validate(value) for key, value in profiles.items()}
+        specs = {item.id: item for item in model_list(provider)}
+        capped = {}
+        for model_id, raw in profiles.items():
+            spec = specs.get(model_id)
+            if spec is None:
+                continue
+            profile = ModelSampling.model_validate(raw)
+            capped[model_id] = profile.model_copy(update={
+                "context_window": min(profile.context_window, spec.context_window),
+                "max_tokens": min(profile.max_tokens, spec.max_output),
+            })
+        return capped
 
     async def get_agent_config(self) -> AgentConfig:
         """获取Agent通用配置"""

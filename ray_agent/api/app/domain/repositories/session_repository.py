@@ -61,6 +61,10 @@ class SessionRepository(Protocol):
         """保存会话下次新运行使用的模型 id 与思考参数。"""
         ...
 
+    async def update_sampling(self, session_id: str, context_window: int, max_tokens: int, temperature: float) -> None:
+        """记下这条对话使用的窗口、输出上限和温度。"""
+        ...
+
     async def update_latest_message(self, session_id: str, message: str, timestamp: datetime) -> None:
         """根据传递的信息更新最新消息"""
         ...

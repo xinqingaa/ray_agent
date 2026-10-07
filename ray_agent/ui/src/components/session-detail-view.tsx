@@ -611,7 +611,7 @@ export function SessionDetailView({
                 savedReasoning={session?.reasoning}
                 runModel={session?.run_model}
                 runReasoning={session?.run_reasoning}
-                accessory={(context) => <ContextRing usage={view.usage} commandContext={context}/>}
+                accessory={() => <ContextRing usage={view.usage}/>}
                 projectsEnabled={projectsEnabled}
                 projectBindable={projectBindable}
                 selectedProject={view.project}
