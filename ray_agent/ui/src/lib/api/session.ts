@@ -65,7 +65,8 @@ export const sessionApi = {
    */
   streamSessions: (
     onSessions: SessionsStreamCallback,
-    onError?: (error: Error) => void
+    onError?: (error: Error) => void,
+    onCatalog?: (hint: {kind: 'session' | 'project'; id: string}) => void,
   ): (() => void) => {
     const controller = new AbortController();
 
@@ -85,6 +86,10 @@ export const sessionApi = {
                 ? JSON.parse(messageEvent.data)
                 : messageEvent.data;
 
+            if (messageEvent.type === "catalog" && (data?.kind === "session" || data?.kind === "project") && data?.id) {
+              onCatalog?.({kind: data.kind, id: String(data.id)});
+              return;
+            }
             // 服务端事件格式: event: sessions  data: { sessions: [...] }
             // 注意：部分事件可能没有 event: 行，此时 type 默认为 "message"
             // 因此只校验数据结构，不强制要求 type === "sessions"

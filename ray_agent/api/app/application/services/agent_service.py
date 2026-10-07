@@ -45,7 +45,23 @@ logger = logging.getLogger(__name__)
 
 EVENT_PAGE_SIZE = 200  # SSE 补查每页条数
 MANUAL_COMPACT_TIMEOUT_SECONDS = 60.0
-FALLBACK_POLL_SECONDS = 3.0  # 订阅期间没有通知时的兜底查询间隔
+FALLBACK_POLL_SECONDS = 3.0  # 有活动运行或刚有进展时，通知丢失后的查库间隔
+IDLE_POLL_SECONDS = 30.0  # 连续空闲且没有活动运行后的查库间隔
+IDLE_BACKOFF_AFTER = 2
+
+
+def stream_poll_delay(idle_waits: int) -> float:
+    """连续空闲达到阈值后拉长兜底间隔。"""
+    if idle_waits >= IDLE_BACKOFF_AFTER:
+        return IDLE_POLL_SECONDS
+    return FALLBACK_POLL_SECONDS
+
+
+def next_idle_waits(idle_waits: int, *, active: bool, progressed: bool) -> int:
+    """有新事件、通知或活动运行时回到短间隔。"""
+    if progressed or active:
+        return 0
+    return idle_waits + 1
 
 
 @dataclass
@@ -719,7 +735,7 @@ class AgentService:
 
     async def stream_events(self, session_id: str, after_seq: int = 0) -> AsyncGenerator[Union[Event, OutputDelta], None]:
         """按 seq 推送 after_seq 之后的事件：先补查数据库，再订阅通知，订阅建立后再补查一次覆盖空档；
-        订阅期间收到落库通知或每隔 FALLBACK_POLL_SECONDS 都按最后 seq 查库，通知丢失时由兜底查询补齐。
+        订阅期间收到落库通知就按最后 seq 查库。没有通知时，有活动运行仍按短间隔查；连续空闲后改为长间隔。通知丢失时由这次查库补齐。
         文本增量随通知立刻交出，不查库、不分配 seq，重连不会补发。
         不结束，由客户端断开。
         """
@@ -751,22 +767,37 @@ class AgentService:
                 subscription = await self._notifier.subscribe(session_id)
             except Exception as e:
                 logger.warning(f"会话[{session_id}]订阅事件通知失败，仅靠兜底查询: {e}")
+        idle_waits = 0
         try:
             while True:
+                progressed = False
                 async for event in catch_up():
+                    progressed = True
                     yield event
+                if progressed:
+                    idle_waits = 0
+                notice = None
                 if subscription is not None:
                     try:
-                        notice = await subscription.get(timeout=FALLBACK_POLL_SECONDS)
+                        notice = await subscription.get(timeout=stream_poll_delay(idle_waits))
                     except Exception as e:
                         logger.warning(f"会话[{session_id}]读取事件通知失败，改为兜底查询: {e}")
                         subscription = None
                         continue
                     if isinstance(notice, OutputDelta):
+                        idle_waits = 0
                         yield notice
                         continue
+                    if notice is not None:
+                        idle_waits = 0
+                        continue
                 else:
-                    await asyncio.sleep(FALLBACK_POLL_SECONDS)
+                    await asyncio.sleep(stream_poll_delay(idle_waits))
+                if progressed:
+                    continue
+                async with self._uow_factory() as active_uow:
+                    active = await active_uow.run.get_active(session_id) is not None
+                idle_waits = next_idle_waits(idle_waits, active=active, progressed=False)
         finally:
             if subscription is not None:
                 try:

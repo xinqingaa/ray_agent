@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.domain.models.workspace_project import WorkspaceProject
 from app.domain.repositories.project_repository import ProjectRepository
 from app.infrastructure.models.project import ProjectModel, ProjectAuditModel, ProjectSnapshotModel, ProjectFileCopyModel
+from app.infrastructure.repositories.catalog_hints import note
 
 
 class DBProjectRepository(ProjectRepository):
@@ -23,6 +24,7 @@ class DBProjectRepository(ProjectRepository):
 
     async def create(self, project: WorkspaceProject) -> WorkspaceProject:
         await self.db_session.execute(insert(ProjectModel).values(**self._values(project)))
+        note(self.db_session, "project", project.id)
         return project
 
     async def save(self, project: WorkspaceProject) -> None:
@@ -32,6 +34,7 @@ class DBProjectRepository(ProjectRepository):
         result = await self.db_session.execute(update(ProjectModel).where(ProjectModel.id == project.id).values(**values))
         if result.rowcount == 0:
             raise ValueError("项目不存在")
+        note(self.db_session, "project", project.id)
 
     async def page(self, *, archived: bool = False, offset: int = 0, limit: int = 50) -> tuple[list[WorkspaceProject], int]:
         criterion = ProjectModel.archived_at.is_not(None) if archived else ProjectModel.archived_at.is_(None)
@@ -73,6 +76,7 @@ class DBProjectRepository(ProjectRepository):
 
     async def add_snapshot(self, snapshot):
         await self.db_session.execute(insert(ProjectSnapshotModel).values(**snapshot.model_dump(mode='python')))
+        note(self.db_session, "project", snapshot.project_id)
 
     async def snapshots(self, project_id):
         from app.domain.models.project_snapshot import ProjectSnapshot
@@ -85,6 +89,7 @@ class DBProjectRepository(ProjectRepository):
         if ids:
             await self.db_session.execute(delete(ProjectSnapshotModel).where(
                 ProjectSnapshotModel.project_id == project_id, ProjectSnapshotModel.id.in_(ids)))
+            note(self.db_session, "project", project_id)
 
     async def operation_result(self, project_id, operation_id):
         record = (await self.db_session.execute(select(ProjectAuditModel).where(
@@ -113,11 +118,13 @@ class DBProjectRepository(ProjectRepository):
         stmt = insert(ProjectFileCopyModel).values(**values)
         await self.db_session.execute(stmt.on_conflict_do_update(index_elements=['project_id', 'copy_key'],
             set_={k:v for k,v in values.items() if k not in ('project_id', 'copy_key')}))
+        note(self.db_session, "project", copy.project_id)
 
 
     async def drop_file_copy(self, project_id, copy_key):
         await self.db_session.execute(delete(ProjectFileCopyModel).where(
             ProjectFileCopyModel.project_id == project_id, ProjectFileCopyModel.copy_key == copy_key))
+        note(self.db_session, "project", project_id)
 
     async def memory_history(self, project_id, before_seq=0, limit=20):
         query = select(ProjectAuditModel).where(ProjectAuditModel.project_id == project_id,

@@ -3,15 +3,56 @@
 from datetime import datetime
 from typing import List, Optional
 
+from sqlalchemy import inspect as sa_inspect
 from sqlalchemy import select, delete, update, func, cast
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import defer
 
 from app.domain.models.file import File
 from app.domain.models.memory import Memory
 from app.domain.models.session import Session, SessionStatus
 from app.domain.repositories.session_repository import SessionRepository
 from app.infrastructure.models import SessionModel
+from app.infrastructure.repositories.catalog_hints import note
+
+_LIST_OMIT = ("memories", "files", "project_snapshot")
+_MISSING = object()
+
+
+def session_list_statement(*, project_id=None, independent: bool = False, offset: int = 0, limit: int = 50):
+    """列表只取侧栏需要的列，不读取模型记忆、文件清单和项目快照。"""
+    filters = []
+    if project_id is not None:
+        filters.append(SessionModel.project_id == project_id)
+    elif independent:
+        filters.append(SessionModel.project_id.is_(None))
+    return (
+        select(SessionModel)
+        .options(
+            defer(SessionModel.memories),
+            defer(SessionModel.files),
+            defer(SessionModel.project_snapshot),
+        )
+        .where(*filters)
+        .order_by(SessionModel.latest_message_at.desc().nullslast(), SessionModel.created_at.desc(), SessionModel.id)
+        .offset(offset)
+        .limit(limit)
+    )
+
+
+def session_for_list(record: SessionModel) -> Session:
+    """用已加载的列组装列表项。延迟列保持默认空值，避免异步会话再去补读。"""
+    state = sa_inspect(record)
+    data = {}
+    for attr in state.mapper.column_attrs:
+        if attr.key in _LIST_OMIT or attr.key in state.unloaded:
+            continue
+        data[attr.key] = getattr(record, attr.key)
+    session = Session.model_validate(data)
+    project = record.project
+    session.project = project.to_domain() if project is not None else None
+    return session
 
 
 class DBSessionRepository(SessionRepository):
@@ -20,6 +61,15 @@ class DBSessionRepository(SessionRepository):
     def __init__(self, db_session: AsyncSession) -> None:
         """构造函数，完成数据仓库的初始化"""
         self.db_session = db_session
+
+    async def _note(self, session_id: str, project_id=_MISSING) -> None:
+        """列表可见字段变化后记下会话；已知归属时一并记下项目。"""
+        note(self.db_session, "session", session_id)
+        if project_id is _MISSING:
+            project_id = await self.db_session.scalar(
+                select(SessionModel.project_id).where(SessionModel.id == session_id))
+        if project_id:
+            note(self.db_session, "project", project_id)
 
     async def save(self, session: Session) -> None:
         """根据传递的领域模型更新或者新增会话"""
@@ -33,10 +83,12 @@ class DBSessionRepository(SessionRepository):
             record = SessionModel.from_domain(session)
             self.db_session.add(record)
             await self.db_session.flush()
+            await self._note(session.id, session.project_id)
             return
 
         # 3.会话存在则更新会话
         record.update_from_domain(session)
+        await self._note(session.id, session.project_id)
 
     async def get_all(self) -> List[Session]:
         """获取所有会话列表"""
@@ -60,11 +112,9 @@ class DBSessionRepository(SessionRepository):
 
     async def delete_by_id(self, session_id: str) -> None:
         """根据传递的id删除会话"""
-        # 1.构建删除语句
-        stmt = delete(SessionModel).where(SessionModel.id == session_id)
-
-        # 2.执行sql无需检查是否删除
-        await self.db_session.execute(stmt)
+        project_id = await self.db_session.scalar(select(SessionModel.project_id).where(SessionModel.id == session_id))
+        await self.db_session.execute(delete(SessionModel).where(SessionModel.id == session_id))
+        await self._note(session_id, project_id)
 
     async def update_title(self, session_id: str, title: str) -> None:
         """更新会话标题"""
@@ -79,12 +129,15 @@ class DBSessionRepository(SessionRepository):
         # 2.检查是否更新成功
         if result.rowcount == 0:
             raise ValueError(f"会话[{session_id}]不存在，请核实后重试")
+        await self._note(session_id)
 
     async def set_title(self, session_id: str, title: str, source: str, expected_source: Optional[str] = None) -> bool:
         stmt = update(SessionModel).where(SessionModel.id == session_id)
         if expected_source is not None:
             stmt = stmt.where(SessionModel.title_source == expected_source)
         result = await self.db_session.execute(stmt.values(title=title, title_source=source))
+        if result.rowcount > 0:
+            await self._note(session_id)
         return result.rowcount > 0
 
     async def update_sandbox_id(self, session_id: str, sandbox_id: str) -> None:
@@ -96,9 +149,13 @@ class DBSessionRepository(SessionRepository):
         return record.to_domain() if record else None
 
     async def set_project_id(self, session_id: str, project_id: Optional[str]) -> None:
+        previous = await self.db_session.scalar(select(SessionModel.project_id).where(SessionModel.id == session_id))
         result = await self.db_session.execute(update(SessionModel).where(SessionModel.id == session_id).values(project_id=project_id))
         if result.rowcount == 0:
             raise ValueError("会话不存在")
+        await self._note(session_id, previous)
+        if project_id and project_id != previous:
+            note(self.db_session, "project", project_id)
 
     async def save_project_snapshot(self, session_id: str, snapshot: dict) -> None:
         await self.db_session.execute(update(SessionModel).where(SessionModel.id == session_id).values(project_snapshot=snapshot))
@@ -110,9 +167,9 @@ class DBSessionRepository(SessionRepository):
         elif independent:
             filters.append(SessionModel.project_id.is_(None))
         total = (await self.db_session.execute(select(func.count()).select_from(SessionModel).where(*filters))).scalar_one()
-        stmt = select(SessionModel).where(*filters).order_by(SessionModel.latest_message_at.desc().nullslast(), SessionModel.created_at.desc(), SessionModel.id).offset(offset).limit(limit)
+        stmt = session_list_statement(project_id=project_id, independent=independent, offset=offset, limit=limit)
         records = (await self.db_session.execute(stmt)).scalars().all()
-        return [record.to_domain() for record in records], total
+        return [session_for_list(record) for record in records], total
 
     async def project_counts(self, project_ids: List[str]) -> dict[str, int]:
         if not project_ids:
@@ -126,11 +183,13 @@ class DBSessionRepository(SessionRepository):
     async def update_model(self, session_id: str, model_id: str, reasoning: str) -> None:
         await self.db_session.execute(
             update(SessionModel).where(SessionModel.id == session_id).values(model_id=model_id, reasoning=reasoning))
+        await self._note(session_id)
 
     async def update_sampling(self, session_id: str, context_window: int, max_tokens: int, temperature: float) -> None:
         await self.db_session.execute(
             update(SessionModel).where(SessionModel.id == session_id).values(
                 context_window=context_window, max_tokens=max_tokens, temperature=temperature))
+        await self._note(session_id)
 
     async def update_latest_message(self, session_id: str, message: str, timestamp: datetime) -> None:
         """更新会话最新消息"""
@@ -148,6 +207,7 @@ class DBSessionRepository(SessionRepository):
         # 2.检查是否更新成功
         if result.rowcount == 0:
             raise ValueError(f"会话[{session_id}]不存在，请核实后重试")
+        await self._note(session_id)
 
     async def add_file(self, session_id: str, file: File) -> None:
         """往会话中新增文件"""
@@ -225,6 +285,7 @@ class DBSessionRepository(SessionRepository):
         # 2.检查是否更新成功
         if result.rowcount == 0:
             raise ValueError(f"会话[{session_id}]不存在，请核实后重试")
+        await self._note(session_id)
 
     async def update_unread_message_count(self, session_id: str, count: int) -> None:
         """更新会话的未读消息数"""
@@ -239,6 +300,7 @@ class DBSessionRepository(SessionRepository):
         # 2.检查是否更新成功
         if result.rowcount == 0:
             raise ValueError(f"会话[{session_id}]不存在，请核实后重试")
+        await self._note(session_id)
 
     async def increment_unread_message_count(self, session_id: str) -> None:
         """新增会话的未读消息数"""
@@ -255,6 +317,7 @@ class DBSessionRepository(SessionRepository):
         # 2.检查是否更新成功
         if result.rowcount == 0:
             raise ValueError(f"会话[{session_id}]不存在，请核实后重试")
+        await self._note(session_id)
 
     async def decrement_unread_message_count(self, session_id: str) -> None:
         """将会话中的未读消息数-1"""
@@ -275,6 +338,7 @@ class DBSessionRepository(SessionRepository):
         # 3.检查是否更新成功
         if result.rowcount == 0:
             raise ValueError(f"会话[{session_id}]不存在，请核实后重试")
+        await self._note(session_id)
 
     async def save_memory(self, session_id: str, agent_name: str, memory: Memory) -> None:
         """存储或者更新会话中的记忆(字典直接覆盖)"""
@@ -354,13 +418,17 @@ class DBSessionRepository(SessionRepository):
 
     async def set_summary_fields(self, session_id, **values):
         await self.db_session.execute(update(SessionModel).where(SessionModel.id == session_id).values(**values))
-
+        await self._note(session_id)
 
     async def interrupt_summaries(self, project_id):
+        ids = (await self.db_session.execute(select(SessionModel.id).where(SessionModel.project_id == project_id,
+            SessionModel.summary_state == 'generating'))).scalars().all()
         await self.db_session.execute(update(SessionModel).where(SessionModel.project_id == project_id,
             SessionModel.summary_state == 'generating').values(summary_state='failed',
                 summary_error='服务重启中断了摘要请求，请重新生成',
                 summary_generation=SessionModel.summary_generation + 1))
+        for session_id in ids:
+            await self._note(session_id, project_id)
 
     async def lock_creation(self, key):
         from sqlalchemy import text

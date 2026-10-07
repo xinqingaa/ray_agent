@@ -1,6 +1,7 @@
 'use client'
 
 import {createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode} from 'react'
+import {subscribeCatalog} from '@/lib/catalog-bus'
 import {projectApi} from '@/lib/api/project'
 import {Button} from '@/components/ui/button'
 
@@ -44,9 +45,14 @@ function ProjectCopiesState({projectId, children}: {projectId?: string; children
     }
     void read()
     const visible = () => {if (document.visibilityState !== 'hidden') void read()}
-    const timer = setInterval(visible, 5000)
+    let timer: number | undefined
+    const unsubscribe = subscribeCatalog((hint) => {
+      if (!projectId || hint.kind !== 'project' || hint.id !== projectId) return
+      window.clearTimeout(timer)
+      timer = window.setTimeout(visible, 300)
+    })
     window.addEventListener('focus', visible)
-    return () => {live = false; counter.current++; clearInterval(timer); window.removeEventListener('focus', visible)}
+    return () => {live = false; counter.current++; window.clearTimeout(timer); unsubscribe(); window.removeEventListener('focus', visible)}
   }, [projectId])
   return <Context.Provider value={projectId ? {projectId, copies, error, loaded, refresh} : null}>
     {projectId && error && <p role="alert" className="text-xs text-state-failed">项目副本状态未确认：{error}<Button size="xs" variant="ghost" onClick={() => void refresh().catch(() => {})}>重新读取</Button></p>}

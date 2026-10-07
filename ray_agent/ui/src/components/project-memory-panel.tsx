@@ -7,6 +7,7 @@ import {useUnsavedNavigation} from '@/hooks/use-unsaved-navigation'
 import {Button} from '@/components/ui/button'
 import {Popover, PopoverContent, PopoverTrigger} from '@/components/ui/popover'
 import {Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle} from '@/components/ui/sheet'
+import {subscribeCatalog} from '@/lib/catalog-bus'
 import {projectApi} from '@/lib/api/project'
 import {ApiError} from '@/lib/api/fetch'
 import type {ProjectAuditEvent, ProjectDetails, ProjectMemorySummary, ProjectMemoryView} from '@/lib/api/types'
@@ -58,12 +59,19 @@ export function ProjectMemoryPanel({projectId, sessionId, open, onClose, onChang
     setSection('instructions')
     dirty.current = false
     void refresh()
-    const timer = setInterval(() => {if (document.visibilityState !== 'hidden') void refresh()}, 5000)
+    const visible = () => {if (document.visibilityState !== 'hidden' && !dirty.current) void refresh()}
+    let timer: number | undefined
+    const unsubscribe = subscribeCatalog((hint) => {
+      if (hint.kind !== 'project' || hint.id !== projectId || dirty.current) return
+      window.clearTimeout(timer)
+      timer = window.setTimeout(visible, 300)
+    })
+    window.addEventListener('focus', visible)
     const counter = epoch
     const historyCounter = historyEpoch
     const estimateCounter = estimateEpoch
-    return () => {counter.current++; historyCounter.current++; estimateCounter.current++; setEstimating(false); clearInterval(timer)}
-  }, [open, refresh])
+    return () => {counter.current++; historyCounter.current++; estimateCounter.current++; setEstimating(false); window.clearTimeout(timer); unsubscribe(); window.removeEventListener('focus', visible)}
+  }, [open, projectId, refresh])
 
   useUnsavedNavigation(() => dirty.current, open)
   const leave = () => {if (!dirty.current || window.confirm('项目记忆有未保存的修改，放弃修改并关闭？')) onClose()}

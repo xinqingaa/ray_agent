@@ -44,6 +44,10 @@ from app.interfaces.schemas.session import (
     CompactResponse,
     RenameTitleRequest, TitleResponse,
 )
+from app.infrastructure.external.message_queue.catalog_notifier import (
+    CATALOG_FALLBACK_SECONDS,
+    subscribe_catalog,
+)
 from app.interfaces.service_dependencies import (
     get_app_config_service,
     get_session_service, get_agent_service, get_title_service, get_project_service, get_project_memory_service,
@@ -60,9 +64,6 @@ def _saved_sampling(session: Session) -> Optional[ModelSampling]:
         temperature=session.temperature, max_tokens=session.max_tokens, context_window=session.context_window,
     )
 router = APIRouter(prefix="/sessions", tags=["会话模块"])
-
-# 流式获取会话详情睡眠间隔
-SESSION_SLEEP_INTERVAL = 5
 
 
 def session_list_item(session: Session, project_service: ProjectService, project_views=None) -> ListSessionItem:
@@ -102,7 +103,7 @@ async def create_session(
 @router.post(
     path="/stream",
     summary="流式获取所有会话基础信息列表",
-    description="间隔指定时间流式获取所有会话基础信息列表",
+    description="连接后先推送一页列表。目录有写入时再查；没有通知时最多每 30 秒兜底一次。内容没变不重复推送。",
 )
 async def stream_sessions(
         project_id: Optional[str] = Query(default=None),
@@ -112,26 +113,37 @@ async def stream_sessions(
         session_service: SessionService = Depends(get_session_service),
         project_service: ProjectService = Depends(get_project_service),
 ) -> EventSourceResponse:
-    """间隔指定时间流式获取所有会话基础信息列表"""
+    """列表流：通知驱动，附带慢速兜底。"""
 
     async def event_generator() -> AsyncGenerator[ServerSentEvent, None]:
-        """定义一个异步迭代器，用于获取所有会话列表"""
-        while True:
-            # 1.获取所有会话列表
-            sessions, total = await session_service.page(project_id=project_id, independent=independent, offset=offset, limit=limit)
-
-            # 2.循环遍历并组装数据
-            project_views = project_service.describe_sessions(sessions)
-            session_items = [session_list_item(session, project_service, project_views) for session in sessions]
-
-            # 3.将会话列表转换为流式事件数据并返回
-            yield ServerSentEvent(
-                event="sessions",
-                data=ListSessionResponse(sessions=session_items, total=total, offset=offset, limit=limit).model_dump_json(),
-            )
-
-            # 4.睡眠指定时间避免高频响应
-            await asyncio.sleep(SESSION_SLEEP_INTERVAL)
+        subscription = await subscribe_catalog()
+        last_payload = None
+        try:
+            while True:
+                sessions, total = await session_service.page(
+                    project_id=project_id, independent=independent, offset=offset, limit=limit)
+                project_views = project_service.describe_sessions(sessions)
+                session_items = [session_list_item(session, project_service, project_views) for session in sessions]
+                payload = ListSessionResponse(
+                    sessions=session_items, total=total, offset=offset, limit=limit).model_dump_json()
+                if payload != last_payload:
+                    last_payload = payload
+                    yield ServerSentEvent(event="sessions", data=payload)
+                hint = None
+                if subscription is not None:
+                    try:
+                        hint = await subscription.get(timeout=CATALOG_FALLBACK_SECONDS)
+                    except Exception as exc:
+                        logger.warning(f"读取目录通知失败，改为定时兜底: {exc}")
+                        await subscription.close()
+                        subscription = None
+                else:
+                    await asyncio.sleep(CATALOG_FALLBACK_SECONDS)
+                if hint:
+                    yield ServerSentEvent(event="catalog", data=json.dumps(hint))
+        finally:
+            if subscription is not None:
+                await subscription.close()
 
     return EventSourceResponse(event_generator())
 

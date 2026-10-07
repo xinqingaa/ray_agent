@@ -7,6 +7,7 @@ import {Dialog,DialogContent,DialogDescription,DialogHeader,DialogTitle} from '@
 import {ProjectPane} from './project-pane'
 import {ProjectUploadDialog} from '@/components/project-upload-dialog'
 import {ProjectStateNotice,projectWriteReason} from '@/components/project-state-notice'
+import {subscribeCatalog} from '@/lib/catalog-bus'
 import {projectApi} from '@/lib/api/project'
 import type {ProjectAuditEvent,ProjectDetails,ProjectSnapshot} from '@/lib/api/types'
 import {formatBytes} from '@/components/run/format'
@@ -30,9 +31,19 @@ export function ManagedProjectPane({projectId,refreshSignal}: {projectId:string;
   useEffect(() => {
     void refresh()
     const requests=request,audits=auditRequest
-    const timer=setInterval(() => {if(document.visibilityState!=='hidden')void refresh()},5000)
-    return () => {requests.current++;audits.current++;clearInterval(timer)}
-  },[refresh,refreshSignal])
+    const visible=() => {if(document.visibilityState!=='hidden')void refresh()}
+    let debounce: number | undefined
+    const unsubscribe=subscribeCatalog((hint) => {
+      if(hint.kind!=='project' || hint.id!==projectId)return
+      window.clearTimeout(debounce)
+      debounce=window.setTimeout(visible,300)
+    })
+    const timer=project?.file_operation?.state==='running'
+      ? window.setInterval(() => {if(document.visibilityState!=='hidden')void refresh()},5000)
+      : undefined
+    window.addEventListener('focus', visible)
+    return () => {requests.current++;audits.current++;window.clearTimeout(debounce);if(timer!==undefined)window.clearInterval(timer);unsubscribe();window.removeEventListener('focus', visible)}
+  },[refresh,refreshSignal,projectId,project?.file_operation?.state,project?.file_operation?.operation_id])
   const changed=() => {setRevision(value=>value+1);void refresh()}
   const action=async (name:string,run:()=>Promise<unknown>) => {
     setBusy(name);setError(null)

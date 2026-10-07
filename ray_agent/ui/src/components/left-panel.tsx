@@ -16,6 +16,7 @@ import {DeleteSessionDialog} from '@/components/delete-session-dialog'
 import {RenameSessionDialog} from '@/components/rename-session-dialog'
 import {useProjects} from '@/providers/projects-provider'
 import {useSessions} from '@/hooks/use-sessions'
+import {subscribeCatalog} from '@/lib/catalog-bus'
 import {projectApi} from '@/lib/api/project'
 import {sessionApi} from '@/lib/api/session'
 import type {ProjectView, Session} from '@/lib/api/types'
@@ -39,6 +40,16 @@ export function LeftPanel() {
   const selected = selectedRecord?.session_id === sessionId ? selectedRecord : null
   const projectId = pathname.startsWith('/projects/') ? pathname.split('/')[2] : selected?.project?.id ?? null
   const previousRoute = useRef<string | null>(null)
+  const [pulse, setPulse] = useState(0)
+  useEffect(() => {
+    let timer: number | undefined
+    const unsubscribe = subscribeCatalog((hint) => {
+      if (hint.kind !== 'project' && hint.kind !== 'session') return
+      window.clearTimeout(timer)
+      timer = window.setTimeout(() => setPulse((value) => value + 1), 300)
+    })
+    return () => {unsubscribe(); window.clearTimeout(timer)}
+  }, [])
   useEffect(() => {
     if (sessionId && !selected) return
     if (previousRoute.current === pathname) return
@@ -111,7 +122,7 @@ export function LeftPanel() {
     }
     void load()
     return () => {active = false}
-  }, [workspace.projects, expansion, selected, sessions, locatedProject, projectId])
+  }, [workspace.projects, expansion, selected, locatedProject, projectId, pulse])
   const independent = () => {setOpenMobile(false); router.push('/')}
   const remove = async () => {
     if (!pendingDelete) return
@@ -157,6 +168,12 @@ export function LeftPanel() {
     </Sidebar>
     <ProjectSettingsDialog id={settings} onClose={() => setSettings(null)} onSaved={() => void workspace.refresh()}/>
     <DeleteSessionDialog open={!!pendingDelete} onOpenChange={open => {if (!open) setPendingDelete(null)}} onConfirm={remove}/>
-    {pendingRename && <RenameSessionDialog sessionId={pendingRename.session_id} currentTitle={pendingRename.title} open onOpenChange={open => {if (!open) setPendingRename(null)}} onSaved={title => {patchSession(pendingRename.session_id, {title}); void refresh(); void workspace.refresh()}}/>}
+    {pendingRename && <RenameSessionDialog sessionId={pendingRename.session_id} currentTitle={pendingRename.title} open onOpenChange={open => {if (!open) setPendingRename(null)}} onSaved={title => {
+      const id = pendingRename.session_id
+      patchSession(id, {title})
+      setRows(current => current.map(project => ({...project, conversations: project.conversations.map(item => item.session_id === id ? {...item, title} : item)})))
+      setSelected(current => current?.session_id === id ? {...current, title} : current)
+      void refresh(); void workspace.refresh()
+    }}/>}
   </>
 }

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {sendRecoverably} from '@/lib/send-recovery'
+import {subscribeCatalog} from '@/lib/catalog-bus'
 import { sessionApi } from '@/lib/api/session'
 import { normalizeEvent, normalizeEvents } from '@/lib/session-events'
 import type { ApprovalDecision, RunEvent, SessionDetail, SSEEventData, SessionFile, TurnRequest } from '@/lib/api/types'
@@ -62,6 +63,8 @@ export function useSessionDetail(
   const [deltas, setDeltas] = useState<DeltaInput[]>([])
   const [streamStartedAt, setStreamStartedAt] = useState<Record<string, number>>({})
   const lastSeqRef = useRef(0)
+  const operationStatusRef = useRef<string | undefined>(undefined)
+  operationStatusRef.current = session?.context_operation?.status
   const seenSeqRef = useRef(new Set<number>())
   const retryRef = useRef(0)
   const streamCleanupRef = useRef<(() => void) | null>(null)
@@ -232,15 +235,19 @@ export function useSessionDetail(
 
   useEffect(() => {
     if (!sessionId || !loaded) return
+    let hidden = document.visibilityState === 'hidden'
+    if (!hidden) startStream()
     const sync = () => {
-      if (document.visibilityState === 'hidden') {
+      const nowHidden = document.visibilityState === 'hidden'
+      if (nowHidden === hidden) return
+      hidden = nowHidden
+      if (nowHidden) {
         stopStream()
         clearDrafts()
         return
       }
       startStream()
     }
-    sync()
     document.addEventListener('visibilitychange', sync)
     return () => {
       document.removeEventListener('visibilitychange', sync)
@@ -248,11 +255,19 @@ export function useSessionDetail(
     }
   }, [sessionId, loaded, startStream, stopStream, clearDrafts])
 
-  // 单进程操作状态不是 run 事件；轻量读回让另一标签也识别摘要忙碌。
+  // 压缩状态不进运行事件。只在压缩进行中轮询；通知或切回页面时核对一次。
   useEffect(() => {
     if (!sessionId || !loaded) return
     let cancelled = false
     let reading = false
+    let timer: number | undefined
+    const follow = (status?: string) => {
+      if (status === 'compacting') {
+        if (timer === undefined) timer = window.setInterval(() => { void check() }, 3000)
+        return
+      }
+      if (timer !== undefined) { window.clearInterval(timer); timer = undefined }
+    }
     const check = async () => {
       if (cancelled || reading || document.visibilityState === 'hidden') return
       reading = true
@@ -260,14 +275,35 @@ export function useSessionDetail(
         const detail = await sessionApi.getSessionDetail(sessionId, lastSeqRef.current)
         if (!cancelled) {
           for (const event of normalizeEvents(detail.events ?? [])) appendEvent(event)
-          setSession((prev) => prev ? {...prev, context_operation: detail.context_operation, context_config: detail.context_config, model_id: detail.model_id, reasoning: detail.reasoning, run_model: detail.run_model, run_reasoning: detail.run_reasoning} : prev)
+          setSession((prev) => {
+            if (!prev) return prev
+            const next = {
+              context_operation: detail.context_operation,
+              context_config: detail.context_config,
+              model_id: detail.model_id,
+              reasoning: detail.reasoning,
+              run_model: detail.run_model,
+              run_reasoning: detail.run_reasoning,
+            }
+            const unchanged = prev.model_id === next.model_id && prev.reasoning === next.reasoning
+              && prev.run_model === next.run_model && prev.run_reasoning === next.run_reasoning
+              && prev.context_operation?.status === next.context_operation?.status
+              && prev.context_operation?.started_at === next.context_operation?.started_at
+              && JSON.stringify(prev.context_config) === JSON.stringify(next.context_config)
+            return unchanged ? prev : {...prev, ...next}
+          })
+          follow(detail.context_operation?.status)
         }
       } catch { /* 网络失败由流重连提示处理；不伪造 idle。 */ }
       finally { reading = false }
     }
-    const timer = window.setInterval(() => { void check() }, 3000)
-    window.addEventListener('focus', check)
-    return () => { cancelled = true; clearInterval(timer); window.removeEventListener('focus', check) }
+    follow(operationStatusRef.current)
+    const onFocus = () => { void check() }
+    const unsubscribe = subscribeCatalog((hint) => {
+      if (hint.kind === 'session' && hint.id === sessionId) void check()
+    })
+    window.addEventListener('focus', onFocus)
+    return () => { cancelled = true; unsubscribe(); if (timer !== undefined) window.clearInterval(timer); window.removeEventListener('focus', onFocus) }
   }, [sessionId, loaded, appendEvent])
 
   const sendMessage = useCallback(

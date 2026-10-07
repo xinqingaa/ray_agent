@@ -7,6 +7,8 @@ from typing import Optional
 from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession
 
 from app.domain.repositories.uow import IUnitOfWork
+from app.infrastructure.external.message_queue.catalog_notifier import publish_catalog
+from app.infrastructure.repositories.catalog_hints import take
 from .db_project_repository import DBProjectRepository
 from .db_event_repository import DBEventRepository
 from .db_file_repository import DBFileRepository
@@ -25,8 +27,17 @@ class DBUnitOfWork(IUnitOfWork):
         self.db_session: Optional[AsyncSession] = None
 
     async def commit(self):
-        """提交数据库持久化"""
+        """提交数据库持久化，并在提交成功后发布目录通知。"""
         await self.db_session.commit()
+        await self._publish_catalog()
+
+    async def _publish_catalog(self) -> None:
+        session = self.db_session
+        if session is None:
+            return
+        hints = take(session)
+        if hints:
+            await publish_catalog(hints)
 
     async def rollback(self):
         """数据库回退操作"""
@@ -100,6 +111,7 @@ class DBUnitOfWork(IUnitOfWork):
                 await session.rollback()
             else:
                 await session.commit()
+                await self._publish_catalog()
             await session.close()
             self.db_session = None
         except asyncio.CancelledError:

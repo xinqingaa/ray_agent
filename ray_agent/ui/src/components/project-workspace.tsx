@@ -17,6 +17,7 @@ import {useIsMobile} from '@/hooks/use-mobile'
 import {useWorkbenchWidth, WorkbenchResizeHandle} from '@/components/workbench/resize-handle'
 import {cn} from '@/lib/utils'
 import {useProjects} from '@/providers/projects-provider'
+import {subscribeCatalog} from '@/lib/catalog-bus'
 import {projectApi} from '@/lib/api/project'
 import {sessionApi} from '@/lib/api/session'
 import {ApiError} from '@/lib/api/fetch'
@@ -76,9 +77,23 @@ export function ProjectWorkspace({projectId}: {projectId: string}) {
   useEffect(() => {
     void refresh(); void refreshList()
     const visible = () => {if (document.visibilityState !== 'hidden') {void refresh(); void refreshList()}}
-    const timer = setInterval(visible, 5000)
-    window.addEventListener('focus', visible); document.addEventListener('visibilitychange', visible)
-    return () => {request.current++; listRequest.current++; clearInterval(timer); window.removeEventListener('focus', visible); document.removeEventListener('visibilitychange', visible)}
+    let hidden = document.visibilityState === 'hidden'
+    const onVisibility = () => {
+      const nowHidden = document.visibilityState === 'hidden'
+      if (nowHidden === hidden) return
+      hidden = nowHidden
+      if (!nowHidden) visible()
+    }
+    let timer: number | undefined
+    const unsubscribe = subscribeCatalog((hint) => {
+      if (hint.kind !== 'project' || hint.id !== projectId) return
+      window.clearTimeout(timer)
+      timer = window.setTimeout(visible, 300)
+    })
+    window.addEventListener('focus', visible); document.addEventListener('visibilitychange', onVisibility)
+    const detailGeneration = request
+    const listGeneration = listRequest
+    return () => {detailGeneration.current++; listGeneration.current++; window.clearTimeout(timer); unsubscribe(); window.removeEventListener('focus', visible); document.removeEventListener('visibilitychange', onVisibility)}
   }, [projectId, refresh, refreshList])
   const send = async (message: string, files: FileInfo[], options?: {mode?: 'normal' | 'plan'; model?: string; reasoning?: string}) => {
     if (sending || !project?.available || project.archived || project.file_operation || project.occupying_session_id) return

@@ -3,6 +3,18 @@
 import React, {createContext, useCallback, useContext, useEffect, useRef, useState} from 'react'
 import {sessionApi} from '@/lib/api'
 import type {Session, SessionStatus} from '@/lib/api'
+import {emitCatalog} from '@/lib/catalog-bus'
+
+function sessionSignature(item: Session) {
+  return [
+    item.session_id, item.status, item.title, item.latest_message, item.latest_message_at,
+    item.unread_message_count, item.summary_state, item.summary_generation,
+  ].join('\0')
+}
+
+function sameSessions(current: Session[], next: Session[]) {
+  return current.length === next.length && current.every((item, index) => sessionSignature(item) === sessionSignature(next[index]))
+}
 
 /** 重连配置 */
 const RETRY_CONFIG = {
@@ -84,7 +96,8 @@ export function SessionsProvider({children}: { children: React.ReactNode }) {
       setLoading(true)
       setError(null)
       const raw = await sessionApi.getSessions()
-      setSessions(normalizeSessions(raw))
+      const next = normalizeSessions(raw)
+      setSessions((current) => sameSessions(current, next) ? current : next)
     } catch (err) {
       console.error('[Sessions] REST 获取失败:', err)
       setError(err instanceof Error ? err.message : '获取会话列表失败')
@@ -103,7 +116,8 @@ export function SessionsProvider({children}: { children: React.ReactNode }) {
       .then((raw) => {
         // 仅在 SSE 尚未推送过数据时更新，防止用旧数据覆盖 SSE 已推送的新数据
         if (!sseReceivedRef.current) {
-          setSessions(normalizeSessions(raw))
+          const next = normalizeSessions(raw)
+          setSessions((current) => sameSessions(current, next) ? current : next)
         }
         setLoading(false)
         setError(null)
@@ -140,7 +154,7 @@ export function SessionsProvider({children}: { children: React.ReactNode }) {
     const applySessions = (next: Session[]) => {
       if (!mounted) return
       sseReceivedRef.current = true
-      setSessions(next)
+      setSessions((current) => sameSessions(current, next) ? current : next)
       setLoading(false)
       setError(null)
     }
@@ -174,6 +188,11 @@ export function SessionsProvider({children}: { children: React.ReactNode }) {
           console.log(`[Sessions] ${delay}ms 后尝试重连（第 ${retryCount} 次）`)
           retryTimerRef.current = setTimeout(connect, delay)
         },
+        (hint) => {
+          if (!mounted || !leader) return
+          emitCatalog(hint)
+          channel?.postMessage({type: 'catalog', tabId, hint})
+        },
       )
     }
 
@@ -194,7 +213,7 @@ export function SessionsProvider({children}: { children: React.ReactNode }) {
     }
 
     const onMessage = (event: MessageEvent) => {
-      const msg = event.data as {type?: string; tabId?: string; sessions?: Session[]} | null
+      const msg = event.data as {type?: string; tabId?: string; sessions?: Session[]; hint?: {kind?: string; id?: string}} | null
       if (!msg || msg.tabId === tabId) return
       if (msg.type === 'leader' && msg.tabId) {
         lastLeaderAt = Date.now()
@@ -203,6 +222,9 @@ export function SessionsProvider({children}: { children: React.ReactNode }) {
       } else if (msg.type === 'sessions' && Array.isArray(msg.sessions)) {
         lastLeaderAt = Date.now()
         if (!leader) applySessions(msg.sessions)
+      } else if (msg.type === 'catalog' && msg.hint && (msg.hint.kind === 'session' || msg.hint.kind === 'project') && msg.hint.id) {
+        lastLeaderAt = Date.now()
+        if (!leader) emitCatalog({kind: msg.hint.kind, id: String(msg.hint.id)})
       } else if (msg.type === 'resign') {
         if (leader) return
         window.setTimeout(claim, 80 + Math.random() * 120)
@@ -220,8 +242,12 @@ export function SessionsProvider({children}: { children: React.ReactNode }) {
       else if (document.visibilityState !== 'hidden' && Date.now() - lastLeaderAt > 4000) claim()
     }, 2000)
 
+    let hidden = document.visibilityState === 'hidden'
     const onVisibility = () => {
-      if (document.visibilityState === 'hidden') resign()
+      const nowHidden = document.visibilityState === 'hidden'
+      if (nowHidden === hidden) return
+      hidden = nowHidden
+      if (nowHidden) resign()
       else {
         channel?.postMessage({type: 'ping', tabId})
         window.setTimeout(claim, 160)

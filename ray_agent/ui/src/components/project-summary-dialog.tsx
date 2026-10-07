@@ -3,6 +3,7 @@ import {useCallback,useEffect,useRef,useState} from 'react'
 import {useUnsavedNavigation} from '@/hooks/use-unsaved-navigation'
 import {Button} from '@/components/ui/button'
 import {Dialog,DialogContent,DialogDescription,DialogHeader,DialogTitle} from '@/components/ui/dialog'
+import {subscribeCatalog} from '@/lib/catalog-bus'
 import {sessionApi} from '@/lib/api/session'
 import {ApiError} from '@/lib/api/fetch'
 import type {ConversationSummary} from '@/lib/api/types'
@@ -29,9 +30,22 @@ export function ProjectSummaryDialog({sessionId,title,onClose,onChanged}: {sessi
     epoch.current++;initialized.current=false;dirty.current=false;mutating.current=false;setSummary(null);setError(null);setLoading(false);setSaving(false);setGenerating(false);setReloading(false);setConflict(null)
     if(!sessionId)return
     void refresh()
-    const timer=setInterval(()=>{if(document.visibilityState!=='hidden' && !mutating.current)void refresh()},3000),counter=epoch
-    return ()=>{counter.current++;clearInterval(timer)}
+    const visible=()=>{if(document.visibilityState!=='hidden' && !mutating.current)void refresh()}
+    let debounce: number | undefined
+    const unsubscribe=subscribeCatalog((hint)=>{
+      if(!sessionId || hint.kind!=='session' || hint.id!==sessionId)return
+      window.clearTimeout(debounce)
+      debounce=window.setTimeout(visible,300)
+    })
+    window.addEventListener('focus', visible)
+    const counter=epoch
+    return ()=>{counter.current++;window.clearTimeout(debounce);unsubscribe();window.removeEventListener('focus', visible)}
   },[sessionId,refresh])
+  useEffect(()=>{
+    if(summary?.summary_state!=='generating')return
+    const timer=window.setInterval(()=>{if(document.visibilityState!=='hidden' && !mutating.current)void refresh()},3000)
+    return ()=>window.clearInterval(timer)
+  },[summary?.summary_state,refresh])
   const reload=async()=>{
     if(!sessionId || mutating.current || (dirty.current && !window.confirm('重新加载会放弃未保存的摘要修改，是否继续？')))return
     const scope=epoch.current;mutating.current=true;setReloading(true);setError(null)
