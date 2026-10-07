@@ -29,6 +29,7 @@ class OpenAILLM(LLM):
             thinking: Optional[str] = None,
             reasoning_effort: Optional[str] = None,
             reasoning_id: Optional[str] = None,
+            keep_reasoning: Optional[bool] = None,
             **kwargs,
     ) -> None:
         """构造函数，完成异步 OpenAI 客户端的创建和参数初始化。
@@ -43,6 +44,11 @@ class OpenAILLM(LLM):
 
         self._model_name = llm_config.model_name
         self._temperature = llm_config.temperature
+        from app.domain.models.model_catalog import model_list, provider_for
+        spec = next((m for m in model_list(provider_for(str(llm_config.base_url)) or "")
+                     if m.id == llm_config.model_name), None)
+        self._send_temperature = spec is None or (spec.temperature_when == "always" or
+            spec.temperature_when == "disabled" and thinking != "enabled")
         self._max_tokens = llm_config.max_tokens
         self._context_window = llm_config.context_window
         self._streaming = llm_config.streaming
@@ -50,6 +56,7 @@ class OpenAILLM(LLM):
         self._thinking = thinking
         self._reasoning_effort = reasoning_effort
         self._reasoning_id = reasoning_id
+        self._keep_reasoning = thinking == "enabled" if keep_reasoning is None else keep_reasoning
         # 供应商拒绝 stream_options 后，同进程后续请求不再携带
         self._include_stream_usage = True
 
@@ -78,9 +85,13 @@ class OpenAILLM(LLM):
         return self._reasoning_id
 
     @property
+    def reasoning_effort(self) -> Optional[str]:
+        return self._reasoning_effort
+
+    @property
     def keep_reasoning(self) -> bool:
         """开启思考时，新的一问仍保留此前的 reasoning_content。"""
-        return self._thinking == "enabled"
+        return self._keep_reasoning
 
     async def invoke(
             self,
@@ -128,12 +139,13 @@ class OpenAILLM(LLM):
     ) -> Dict[str, Any]:
         kwargs: Dict[str, Any] = {
             "model": self._model_name,
-            "temperature": self._temperature,
             "max_tokens": self._max_tokens,
             "messages": messages,
             "response_format": response_format,
             "timeout": self._timeout,
         }
+        if self._send_temperature:
+            kwargs["temperature"] = self._temperature
         if tools:
             kwargs["tools"] = tools
             kwargs["tool_choice"] = tool_choice

@@ -151,7 +151,7 @@ class AgentService:
 
     def _llm_for_session(self, session: Session):
         """已知厂商按会话选择构造客户端。已记下的窗口和温度优先于当前设置。"""
-        if self._llm_config is None:
+        if getattr(self, "_llm_config", None) is None:
             return self._llm
         sampling = self._session_sampling(session)
         profile = model_request(self._llm_config, model_id=session.model_id, reasoning=session.reasoning, sampling=sampling)
@@ -159,7 +159,7 @@ class AgentService:
 
     async def _llm_for_run(self, session: Session, prior_status: Optional[SessionStatus], run_id: str):
         """新运行用这条对话记下的数值。等待续接沿用该次运行快照，不改进行中的模型。"""
-        if self._llm_config is None:
+        if getattr(self, "_llm_config", None) is None:
             return self._llm
         if prior_status == SessionStatus.WAITING:
             async with self._uow:
@@ -184,11 +184,12 @@ class AgentService:
         })
         return OpenAILLM(
             tuned, thinking=profile.thinking, reasoning_effort=profile.reasoning_effort, reasoning_id=profile.reasoning_id,
+            keep_reasoning=profile.keep_reasoning,
         )
 
     def _open_plain(self, sampling: Optional[ModelSampling]):
         """未知厂商没有目录。已记下数值时按那一份构造，否则用当前全局客户端。"""
-        if sampling is None or self._llm_config is None:
+        if sampling is None or getattr(self, "_llm_config", None) is None:
             return self._llm
         from app.infrastructure.external.llm.openai_llm import OpenAILLM
         tuned = self._llm_config.model_copy(update={
@@ -209,11 +210,9 @@ class AgentService:
 
     async def _bind_sampling(self, session: Session, *, creating: bool, model_changed: bool) -> None:
         """第一次运行记下当前模型的三项。已有对话改设置不重写；对话里换模型才改成目标模型当前的数值。"""
-        if self._llm_config is None:
+        if getattr(self, "_llm_config", None) is None:
             return
         frozen = self._session_sampling(session)
-        if frozen is not None and not model_changed:
-            return
         current = current_sampling(self._llm_config, session.model_id)
         snapshot = None if creating or model_changed else await self._latest_snapshot(session.id)
         chosen = choose_sampling(frozen=frozen, model_changed=model_changed, snapshot=snapshot, current=current)
@@ -223,12 +222,14 @@ class AgentService:
         if creating:
             return
         async with self._uow:
+            if session.model_id is not None:
+                await self._uow.session.update_model(session.id, session.model_id, session.reasoning)
             await self._uow.session.update_sampling(
                 session.id, chosen.context_window, chosen.max_tokens, chosen.temperature)
 
     async def _remember_model(self, session: Session, model: Optional[str], reasoning: Optional[str], *, creating: bool) -> None:
         """把选择写到会话上。旧对话没有思考字段时，未指定选择则先用 disabled，避免下一次请求被拒绝。"""
-        if self._llm_config is None:
+        if getattr(self, "_llm_config", None) is None:
             return
         provider = provider_for(str(self._llm_config.base_url))
         if provider is None:
@@ -252,9 +253,6 @@ class AgentService:
             raise BadRequestError("这条对话已经丢掉思考内容，请新开对话再打开思考")
         session.model_id = spec.id
         session.reasoning = choice.id
-        if not creating:
-            async with self._uow:
-                await self._uow.session.update_model(session.id, spec.id, choice.id)
 
     async def set_model(self, session_id: str, model: str, reasoning: str) -> tuple[str, str]:
         """保存下一次新运行的模型与思考强度。进行中的运行仍用自己的快照。"""
@@ -265,14 +263,9 @@ class AgentService:
                 raise NotFoundError("任务会话不存在, 请核实后重试")
             previous_model = session.model_id
             await self._remember_model(session, model, reasoning, creating=False)
-            if session.model_id != previous_model:
-                snapshot = None if session.context_window is not None else await self._latest_snapshot(session.id)
-                if session.context_window is not None or snapshot:
-                    bound_model = previous_model or (snapshot or {}).get("model_name")
-                    await self._bind_sampling(
-                        session, creating=False,
-                        model_changed=bound_model is not None and session.model_id != bound_model,
-                    )
+            ensure_context_idle(session_id)
+            await self._bind_sampling(session, creating=False,
+                model_changed=previous_model is not None and session.model_id != previous_model)
         return session.model_id or model, session.reasoning or reasoning
 
     def _file_coordinator(self):
@@ -305,6 +298,69 @@ class AgentService:
                 discovery_errors=dict(mcp.gateway.errors), source='当前配置与发现成功的工具；字符估算，不包含对话历史'))
         finally:
             await mcp.cleanup()
+
+    async def preview_context(self, session_id: str, mode: RunMode = RunMode.NORMAL) -> dict:
+        """下一新运行的只读请求估算；不创建沙箱、调用模型或修改记忆。"""
+        from app.domain.services.flows.agent_loop import AgentLoop, build_default_tools
+        from app.domain.services.tools.project_notes import ProjectNotesTool
+        from app.domain.services.prompts.system import build_system_prompt
+        from app.domain.models.workspace_project import ProjectTaskSnapshot
+        from app.domain.services.prompts.project import bounded_summaries
+        async with session_lock(session_id):
+            ensure_context_idle(session_id)
+            async with self._uow:
+                session = await self._uow.session.get_by_id(session_id)
+                if session is None:
+                    raise NotFoundError("对话不存在")
+                memory = await self._uow.session.get_memory(session_id, AGENT_MEMORY_NAME)
+                project_prompt = ""
+                if session.project_id:
+                    project = await self._uow.project.get(session.project_id)
+                    summaries = await self._uow.session.recent_summaries(project.id, session.id)
+                    snapshot = ProjectTaskSnapshot(project_id=project.id, **project.model_dump(include={
+                        'name', 'instructions', 'notes', 'notes_version', 'settings_version'}),
+                        summaries=bounded_summaries(summaries))
+                    project_prompt = snapshot_prompt(snapshot)
+            session = copy.deepcopy(session)
+            await self._remember_model(session, None, None, creating=True)
+            if getattr(self, "_llm_config", None) is not None:
+                sampling = choose_sampling(frozen=self._session_sampling(session), model_changed=False,
+                    snapshot=await self._latest_snapshot(session.id),
+                    current=current_sampling(self._llm_config, session.model_id))
+                session.context_window, session.max_tokens, session.temperature = (
+                    sampling.context_window, sampling.max_tokens, sampling.temperature)
+            llm = self._llm_for_session(session)
+            mcp = MCPTool(MCPClientManager(self._mcp_config))
+            a2a = A2ATool(A2AClientManager(self._a2a_config))
+            async def unavailable(*args, **kwargs):
+                raise RuntimeError("预览不执行工具")
+            try:
+                await mcp.initialize()
+                if mcp.gateway.errors:
+                    raise BadRequestError("工具发现失败，暂时无法估算下一次运行，请重试")
+                workspace = SANDBOX_PROJECT_DIR if session.project_id else None
+                directory = workspace or "/home/ubuntu"
+                loop = AgentLoop(uow_factory=self._uow_factory, llm=llm,
+                    agent_config=self._agent_config, session_id=session.id, mode=mode,
+                    tools=([ProjectNotesTool(unavailable)] if session.project_id else []) + build_default_tools(
+                        None, None, self._search_engine, mcp, a2a, default_exec_dir=directory),
+                    deliver_file=unavailable, system_prompt=build_system_prompt(workspace),
+                    project_prompt=project_prompt, tool_policy=self._tool_policy)
+                messages = copy.deepcopy(memory.get_messages()) if memory else []
+                if not messages or messages[0].get("role") != "system":
+                    messages.insert(0, {"role": "system", "content": build_system_prompt(workspace)})
+                messages[0]["content"] = loop._with_mode_suffix(str(messages[0].get("content") or "") + project_prompt)
+                if not getattr(llm, "keep_reasoning", False):
+                    for message in messages:
+                        message.pop("reasoning_content", None)
+                tools = loop.pipeline.schemas()
+                estimate = loop.budget.estimate(messages, tools)
+                fixed = fixed_input_estimate(loop.budget, messages, tools)
+                return dict(**estimate.as_dict(), model=session.model_id or llm.model_name,
+                    reasoning=getattr(llm, "reasoning_id", session.reasoning), fixed_input_exceeded=fixed.over_limit,
+                    over_watermark=estimate.over_watermark, over_limit=estimate.over_limit)
+            finally:
+                await mcp.cleanup()
 
     async def _get_task(self, session: Session) -> Optional[Task]:
         """根据传递的任务会话获取任务实例"""

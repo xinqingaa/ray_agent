@@ -61,6 +61,23 @@ class FileAppConfigRepository(AppConfigRepository):
             llm_config.pop("api_key", None)
         return data
 
+    @staticmethod
+    def _migrate_default_budget(data: dict) -> bool:
+        """只迁移一次旧默认；会话/运行在数据库中，不在这里修改。"""
+        if data.get("model_budget_defaults_version", 0) >= 1:
+            return False
+        from app.domain.models.model_catalog import provider_for
+        llm = data.get("llm_config") or {}
+        if provider_for(str(llm.get("base_url", ""))) == "deepseek":
+            if llm.get("context_window") == 131072:
+                llm["context_window"] = 200000
+            for name in ("deepseek-flash", "deepseek-v4-pro"):
+                profile = (llm.get("model_profiles") or {}).get(name)
+                if profile and profile.get("context_window") == 131072:
+                    profile["context_window"] = 200000
+        data["model_budget_defaults_version"] = 1
+        return True
+
     def load(self) -> Optional[AppConfig]:
         """从本地yaml文件中加载应用配置"""
         # 1.创建默认配置确保文件存在
@@ -72,7 +89,11 @@ class FileAppConfigRepository(AppConfigRepository):
                 data = yaml.safe_load(f)
                 if not data:
                     return None
-                return self._apply_llm_env(AppConfig.model_validate(self._strip_api_key(data)))
+                changed = self._migrate_default_budget(data)
+                config = self._apply_llm_env(AppConfig.model_validate(self._strip_api_key(data)))
+                if changed:
+                    self.save(config)
+                return config
         except Exception as e:
             logger.error(f"读取应用配置失败: {str(e)}")
             raise ServerRequestsError("读取应用配置失败，请稍后尝试")

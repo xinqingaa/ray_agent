@@ -104,7 +104,19 @@ def test_auxiliary_call_uses_flash_without_thinking():
     config = LLMConfig(base_url="https://api.deepseek.com", model_name="deepseek-v4-pro")
     short, thinking, effort = auxiliary_call(config, max_tokens=256, temperature=0.2, timeout=20)
     assert (short.model_name, thinking, effort, short.max_tokens, short.streaming, short.context_window) == (
-        "deepseek-flash", "disabled", None, 256, False, 131_072)
+        "deepseek-flash", "disabled", None, 256, False, 200_000)
     wide = auxiliary_call(
         config.model_copy(update={"context_window": 2_000_000}), max_tokens=256, temperature=0.2, timeout=20)
     assert wide[0].context_window == 1_000_000
+
+
+def test_snapshot_preserves_request_encoding_separately_from_display_choice():
+    config = LLMConfig(base_url="https://api.deepseek.com", model_name="deepseek-flash")
+    profile = model_request(config, model_id="deepseek-v4-pro", reasoning="high", snapshot={
+        "model_name": "deepseek-flash", "reasoning": "vendor-high",
+        "reasoning_effort": "high", "thinking": "enabled", "keep_reasoning": False,
+        "context_window": 200000, "max_tokens": 8192,
+    })
+    assert profile.reasoning_id == "vendor-high"
+    assert profile.reasoning_effort == "high"
+    assert profile.keep_reasoning is False

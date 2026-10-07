@@ -1,3 +1,4 @@
+import type {ContextPreview} from "./types";
 import { get, post, put, createSSEStream, parseSSEStream } from "./fetch";
 import type {
   Session,
@@ -136,6 +137,8 @@ export const sessionApi = {
   /**
    * 提交消息；返回受理的运行与消息 seq，事件通过 streamEvents 订阅
    */
+  previewContext: (sessionId: string, mode: string = "normal"): Promise<ContextPreview> => get<ContextPreview>(`/sessions/${sessionId}/context-preview?mode=${mode}`),
+
   setModel: (sessionId: string, selection: {model: string; reasoning: string}): Promise<{model: string; reasoning: string}> =>
     put<{model: string; reasoning: string}>(`/sessions/${sessionId}/model`, selection),
 

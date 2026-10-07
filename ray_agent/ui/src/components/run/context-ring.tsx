@@ -46,8 +46,8 @@ function thresholdText(usage: UsageView): string {
 function usageRows(tokens: TokenCounts): {label: string; value: string}[] {
   const rate = cacheHitRate(tokens)
   return [
-    {label: '输入', value: formatTokens(tokens.prompt)},
-    {label: '输出', value: formatTokens(tokens.completion)},
+    {label: '累计输入', value: formatTokens(tokens.prompt)},
+    {label: '累计输出', value: formatTokens(tokens.completion)},
     {label: '缓存命中', value: tokens.cached == null ? '—' : formatTokens(tokens.cached)},
     {label: '命中率', value: rate == null ? '—' : `${Math.round(rate * 100)}%`},
   ]
@@ -73,6 +73,8 @@ function ContextPanel({usage}: {usage: UsageView}) {
   const totals = hasTokenUsage(usage.session) ? usageRows(usage.session) : []
   return (
     <div className="space-y-2">
+      <p className="text-meta font-medium">最近请求 / 压缩快照</p>
+      {ctx?.configChanged && <p className="text-xs text-state-waiting">这是上次运行的快照。</p>}
       {occupancy.length === 0 && <p className="text-meta text-muted-foreground">暂无占用</p>}
       {(occupancy.length > 0 || totals.length > 0) && (
         <dl className="grid grid-cols-[max-content_minmax(0,1fr)] items-baseline gap-x-6 gap-y-1.5 text-meta tabular-nums">

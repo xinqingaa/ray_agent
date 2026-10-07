@@ -498,3 +498,11 @@ def test_keep_reasoning_leaves_prior_thoughts_on_a_new_user_message():
     h.llm.keep_reasoning = True
     run(collect(h.loop, message="继续"))
     assert "reasoning_content" in h.llm.requests[0].messages[2]
+
+
+def test_thinking_response_without_fragments_keeps_empty_reasoning_marker():
+    h = make_loop([text("答复")])
+    h.llm.keep_reasoning = True
+    run(collect(h.loop))
+    assistant = next(m for m in memory_messages(h.session) if m.get("role") == "assistant")
+    assert assistant["reasoning_content"] == ""

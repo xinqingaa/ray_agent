@@ -159,3 +159,12 @@
 ---
 
 本表于 2026-10-02 按 W9–W11 源码补齐托管项目、文件保护与记忆映射。工作包范围和验收证据见[总计划](plan/README.md)，运行命令见服务指南。课程正文仍对应 `baseline-v1`，另行同步。
+
+## 逐模型配置与切换预览
+
+| 机制 | 代码 | 验证 |
+|---|---|---|
+| 厂商档位、温度兼容性与采样优先级 | [model_catalog.py](../ray_agent/api/app/domain/models/model_catalog.py)、[app_config_service.py](../ray_agent/api/app/application/services/app_config_service.py) | [test_model_configuration.py](../ray_agent/api/tests/core/test_model_configuration.py)、[test_model_catalog.py](../ray_agent/api/tests/core/test_model_catalog.py) |
+| 默认预算一次迁移 | [file_app_config_repository.py](../ray_agent/api/app/infrastructure/repositories/file_app_config_repository.py) | 同上配置检查 |
+| 会话切换原子保存、完整请求只读估算 | [agent_service.py](../ray_agent/api/app/application/services/agent_service.py) 的 set_model / preview_context | 同上配置检查 |
+| 模型设置草稿、动态思考滑块与选择 | [llm-section.tsx](../ray_agent/ui/src/components/settings/llm-section.tsx)、[model-picker.tsx](../ray_agent/ui/src/components/model-picker.tsx)、[model-selection.ts](../ray_agent/ui/src/lib/model-selection.ts) | [check-model-configuration.cjs](../ray_agent/ui/scripts/check-model-configuration.cjs) |

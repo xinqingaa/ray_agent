@@ -15,12 +15,12 @@ export function errorMessage(err: unknown, fallback = '请求失败'): string {
 
 // ---------- 分区外框 ----------
 
-export function SectionHeader({id, title, description, action}: {id: string; title: string; description: ReactNode; action?: ReactNode}) {
+export function SectionHeader({id, title, description, action}: {id: string; title: string; description?: ReactNode; action?: ReactNode}) {
   return (
     <header className="flex flex-wrap items-start justify-between gap-3 border-b pb-4">
       <div className="min-w-0 max-w-prose">
         <h2 id={id} className="text-base font-semibold">{title}</h2>
-        <p className="mt-1 text-meta text-muted-foreground">{description}</p>
+        {description ? <p className="mt-1 text-meta text-muted-foreground">{description}</p> : null}
       </div>
       {action}
     </header>
@@ -99,7 +99,7 @@ type ConfigFormOptions<T, F extends string> = {
   /** 用于 toast 与字段 id 前缀 */
   name: string
   load: () => Promise<T>
-  save: (next: T) => Promise<T>
+  save: (next: T, fields?: F[]) => Promise<T>
   toValues: (config: T) => Values<F>
   /** 把字段值合并回原配置（保留页面不认识的字段） */
   fromValues: (values: Values<F>, base: T) => T
@@ -121,8 +121,8 @@ export type ConfigForm<T, F extends string> = {
   saveError: string | null
   fieldId: (field: F) => string
   setValue: (field: F, value: string) => void
-  reset: () => void
-  save: () => Promise<void>
+  reset: (fields?: F[]) => void
+  save: (fields?: F[]) => Promise<void>
   reload: () => void
 }
 
@@ -179,17 +179,17 @@ export function useConfigForm<T, F extends string>(options: ConfigFormOptions<T,
     setSaveError(null)
   }, [])
 
-  const reset = useCallback(() => {
-    setValues(base)
+  const reset = useCallback((fields?: F[]) => {
+    setValues((prev) => fields && prev && base ? {...prev, ...Object.fromEntries(fields.map(f => [f, base[f]]))} : base)
     setSubmitted(false)
     setSaveError(null)
   }, [base])
 
-  const save = useCallback(async () => {
+  const save = useCallback(async (fields?: F[]) => {
     if (!values || !config || saving) return
     const {name, validate, fromValues} = optionsRef.current
     const currentErrors = validate(values)
-    const first = Object.keys(currentErrors)[0]
+    const first = Object.keys(currentErrors).find(key => !fields || fields.includes(key as F))
     if (first) {
       setSubmitted(true)
       document.getElementById(`${name}-${first}`)?.focus()
@@ -198,11 +198,12 @@ export function useConfigForm<T, F extends string>(options: ConfigFormOptions<T,
     setSaving(true)
     setSaveError(null)
     try {
-      const next = await optionsRef.current.save(fromValues(values, config))
+      const next = await optionsRef.current.save(fromValues(values, config), fields)
       const v = optionsRef.current.toValues(next)
       setConfig(next)
       setBase(v)
-      setValues(v)
+      setValues(fields && base ? {...v, ...Object.fromEntries(
+        (Object.keys(values) as F[]).filter(f => !fields.includes(f) && values[f] !== base[f]).map(f => [f, values[f]]))} : v)
       setSubmitted(false)
       setSavedAt(Date.now())
     } catch (err) {
@@ -212,7 +213,7 @@ export function useConfigForm<T, F extends string>(options: ConfigFormOptions<T,
     } finally {
       setSaving(false)
     }
-  }, [values, config, saving])
+  }, [values, config, saving, base])
 
   const reload = useCallback(() => {
     setLoad({phase: 'loading'})
@@ -231,10 +232,11 @@ type SaveBarProps = {
   savedAt: number | null
   saveError: string | null
   onReset: () => void
+  label?: string
 }
 
 /** 分区底部的保存栏；表单以 submit 触发保存，回车即可提交 */
-export function SaveBar({dirty, saving, invalid, savedAt, saveError, onReset}: SaveBarProps) {
+export function SaveBar({dirty, saving, invalid, savedAt, saveError, onReset, label = "保存"}: SaveBarProps) {
   let status: ReactNode = null
   if (saving) status = <span className="text-muted-foreground">正在保存</span>
   else if (saveError) status = <span className="text-destructive">保存失败：{saveError}</span>
@@ -257,7 +259,7 @@ export function SaveBar({dirty, saving, invalid, savedAt, saveError, onReset}: S
       </Button>
       <Button type="submit" size="sm" disabled={!dirty || saving}>
         {saving && <Loader2 className="animate-spin" aria-hidden/>}
-        {saving ? '保存中' : '保存'}
+        {saving ? '保存中' : label}
       </Button>
     </div>
   )

@@ -11,10 +11,11 @@ from app.application.services.app_config_service import AppConfigService
 from app.domain.models.app_config import AgentConfig, MCPConfig, ToolPolicyConfig, \
     default_tool_policy_rules
 from app.domain.services.tool_policy import builtin_tool_catalog
-from app.domain.models.model_catalog import model_list, provider_for, resolve_selection
+from app.domain.models.model_catalog import model_list, provider_for, resolve_selection, public_capabilities
 from app.interfaces.schemas.app_config import (
     LLMConfigPublic,
     LLMConfigUpdate,
+    SamplingPreviewRequest,
     ModelCatalogItem,
     ModelCatalogResponse,
     ListMCPServerResponse,
@@ -61,11 +62,14 @@ async def get_model_catalog(
     return Response.success(data=ModelCatalogResponse(
         provider=provider,
         default_model=default.id,
-        models=[ModelCatalogItem(
-            id=item.id, context_window=item.context_window, max_output=item.max_output,
-            choices=[choice.id for choice in item.choices], default_choice=item.default_choice,
-        ) for item in models],
+        models=[ModelCatalogItem(**public_capabilities(item)) for item in models],
     ))
+
+
+@router.post("/llm/preview", response_model=Response[Dict])
+async def preview_sampling(body: SamplingPreviewRequest,
+        service: AppConfigService = Depends(get_app_config_service)):
+    return Response.success(data=await service.preview_sampling(body.model, body.sampling))
 
 
 @router.post(

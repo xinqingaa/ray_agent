@@ -32,6 +32,11 @@ class ModelSpec:
     choices: tuple[ReasoningChoice, ...]
     default_choice: str
     thinking_output_floor: int
+    # 能力由模型声明；UI 不猜测强度顺序、关闭标识或采样兼容性。
+    reasoning_ordered: bool = False
+    reasoning_family: Optional[str] = None
+    temperature_when: Literal["always", "disabled", "never"] = "always"
+    temperature_max: Optional[float] = None
 
     def choice(self, choice_id: str) -> Optional[ReasoningChoice]:
         return next((item for item in self.choices if item.id == choice_id), None)
@@ -62,8 +67,9 @@ def _deepseek_choices() -> tuple[ReasoningChoice, ...]:
 def deepseek_models() -> tuple[ModelSpec, ...]:
     choices = _deepseek_choices()
     shared = dict(
-        provider="deepseek", context_window=1_000_000, max_output=384_000, tools=True,
+        provider="deepseek", context_window=1_000_000, max_output=393_216, tools=True,
         choices=choices, default_choice="high", thinking_output_floor=32_768,
+        reasoning_ordered=True, reasoning_family="deepseek-v4", temperature_when="disabled", temperature_max=2,
     )
     return (
         ModelSpec(id="deepseek-flash", vision=True, auxiliary=True, **shared),
@@ -200,7 +206,7 @@ def _from_snapshot(snapshot: dict, fallback_window: int, fallback_tokens: int, f
     thinking = snapshot.get("thinking")
     reasoning = snapshot.get("reasoning")
     enabled = thinking == "enabled"
-    effort = reasoning if enabled and reasoning not in (None, "disabled") else None
+    effort = snapshot.get("reasoning_effort", reasoning) if enabled else None
     temperature = snapshot.get("temperature")
     return ModelRequest(
         model_name=str(snapshot["model_name"]),
@@ -210,7 +216,7 @@ def _from_snapshot(snapshot: dict, fallback_window: int, fallback_tokens: int, f
         thinking=thinking if thinking in ("enabled", "disabled") else None,
         reasoning_effort=effort if isinstance(effort, str) else None,
         reasoning_id=reasoning if isinstance(reasoning, str) else None,
-        keep_reasoning=enabled,
+        keep_reasoning=bool(snapshot.get("keep_reasoning", enabled)),
     )
 
 
@@ -229,3 +235,12 @@ def auxiliary_call(
     updates["context_window"] = min(configured_sampling(config, spec.id).context_window, spec.context_window)
     updates["max_tokens"] = min(max_tokens, spec.max_output)
     return config.model_copy(update=updates), choice.thinking, choice.effort
+
+
+def public_capabilities(spec: ModelSpec) -> dict:
+    """前端只读取展示能力，厂商请求编码仍由模型目录/适配层负责。"""
+    return dict(id=spec.id, context_window=spec.context_window, max_output=spec.max_output,
+        choices=[c.id for c in spec.choices], default_choice=spec.default_choice,
+        reasoning_options=[dict(id=c.id, enabled=c.thinking == "enabled") for c in spec.choices],
+        reasoning_ordered=spec.reasoning_ordered, reasoning_family=spec.reasoning_family,
+        temperature_when=spec.temperature_when, temperature_max=spec.temperature_max)

@@ -35,9 +35,6 @@ export function SettingsView() {
       <div className="@container/settings mx-auto w-full max-w-5xl px-5 pb-10 pt-6 md:px-8 md:pt-10">
         <header className="mb-6 @3xl/settings:mb-8">
           <h1 className="text-xl font-semibold">设置</h1>
-          <p className="mt-1 text-meta text-muted-foreground">
-            执行配置保存在服务端。模型的温度、回复上限和上下文窗口在对话第一次运行时记下；外观设置保存在当前浏览器中。
-          </p>
         </header>
 
         <div className="@3xl/settings:grid @3xl/settings:grid-cols-[11rem_minmax(0,1fr)] @3xl/settings:gap-10">

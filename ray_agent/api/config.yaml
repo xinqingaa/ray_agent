@@ -3,16 +3,16 @@ llm_config:
   model_name: deepseek-flash
   temperature: 0.7
   max_tokens: 8192
-  context_window: 131072
+  context_window: 200000
   model_profiles:
     deepseek-flash:
       temperature: 0.7
       max_tokens: 8192
-      context_window: 131072
+      context_window: 200000
     deepseek-v4-pro:
       temperature: 0.7
       max_tokens: 8192
-      context_window: 131072
+      context_window: 200000
   streaming: true
   request_timeout: 3600
 agent_config:
@@ -23,3 +23,4 @@ mcp_config:
   mcpServers: {}
 a2a_config:
   a2a_servers: []
+model_budget_defaults_version: 1

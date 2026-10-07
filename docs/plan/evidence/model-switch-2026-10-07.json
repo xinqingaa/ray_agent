@@ -1,0 +1,224 @@
+{
+  "session_id": "6a006e37-953a-4bf9-9f6b-be92a5dbc37a",
+  "results": [
+    {
+      "model": "deepseek-flash",
+      "preview": {
+        "system_prompt": 904,
+        "tools": 3858,
+        "history": 0,
+        "tool_results": 0,
+        "total": 4762,
+        "limit": 157232,
+        "watermark": 117924,
+        "context_window": 200000,
+        "max_tokens": 32768,
+        "method": "chars",
+        "model": "deepseek-flash",
+        "reasoning": "high",
+        "fixed_input_exceeded": false,
+        "over_watermark": false,
+        "over_limit": false
+      },
+      "run": {
+        "run_id": "2849bc06-3420-4f57-b28c-1f368e86407c",
+        "status": "completed",
+        "reason": null,
+        "mode": "normal",
+        "started_at": 1791358610250,
+        "ended_at": 1791358619581,
+        "turns": 1,
+        "model_requests": 1,
+        "tool_calls": 0,
+        "prompt_tokens": 4322,
+        "completion_tokens": 10,
+        "cached_tokens": 4096
+      },
+      "start_estimate": {
+        "limit": 157232,
+        "tools": 3858,
+        "total": 4783,
+        "method": "chars",
+        "history": 21,
+        "watermark": 117924,
+        "max_tokens": 32768,
+        "tool_results": 0,
+        "system_prompt": 904,
+        "context_window": 200000
+      },
+      "answers": [
+        "已记住校验词：松树731。"
+      ],
+      "request_messages": [
+        {
+          "role": "user",
+          "content": "请记住校验词：松树731。只回复已记住，不调用工具。"
+        }
+      ],
+      "request_snapshot": {
+        "model_name": "deepseek-flash",
+        "thinking": "enabled",
+        "reasoning": "high",
+        "reasoning_effort": "high",
+        "keep_reasoning": true,
+        "context_window": 200000,
+        "max_tokens": 32768
+      }
+    },
+    {
+      "model": "deepseek-v4-pro",
+      "preview": {
+        "system_prompt": 904,
+        "tools": 3858,
+        "history": 33,
+        "tool_results": 0,
+        "total": 4795,
+        "limit": 157232,
+        "watermark": 117924,
+        "context_window": 200000,
+        "max_tokens": 32768,
+        "method": "chars",
+        "model": "deepseek-v4-pro",
+        "reasoning": "high",
+        "fixed_input_exceeded": false,
+        "over_watermark": false,
+        "over_limit": false
+      },
+      "run": {
+        "run_id": "fbef53b2-1a38-4dae-9df8-71436027b8dc",
+        "status": "completed",
+        "reason": null,
+        "mode": "normal",
+        "started_at": 1791358620568,
+        "ended_at": 1791358622655,
+        "turns": 1,
+        "model_requests": 1,
+        "tool_calls": 0,
+        "prompt_tokens": 4410,
+        "completion_tokens": 25,
+        "cached_tokens": 0
+      },
+      "start_estimate": {
+        "limit": 157232,
+        "tools": 3858,
+        "total": 4811,
+        "method": "chars",
+        "history": 49,
+        "watermark": 117924,
+        "max_tokens": 32768,
+        "tool_results": 0,
+        "system_prompt": 904,
+        "context_window": 200000
+      },
+      "answers": [
+        "松树731"
+      ],
+      "request_messages": [
+        {
+          "role": "user",
+          "content": "请记住校验词：松树731。只回复已记住，不调用工具。"
+        },
+        {
+          "role": "assistant",
+          "content": "已记住校验词：松树731。",
+          "reasoning_content": ""
+        },
+        {
+          "role": "user",
+          "content": "只回复上一轮的校验词，不调用工具。"
+        }
+      ],
+      "request_snapshot": {
+        "model_name": "deepseek-v4-pro",
+        "thinking": "enabled",
+        "reasoning": "high",
+        "reasoning_effort": "high",
+        "keep_reasoning": true,
+        "context_window": 200000,
+        "max_tokens": 32768
+      }
+    },
+    {
+      "model": "deepseek-flash",
+      "preview": {
+        "system_prompt": 904,
+        "tools": 3858,
+        "history": 76,
+        "tool_results": 0,
+        "total": 4838,
+        "limit": 157232,
+        "watermark": 117924,
+        "context_window": 200000,
+        "max_tokens": 32768,
+        "method": "chars",
+        "model": "deepseek-flash",
+        "reasoning": "high",
+        "fixed_input_exceeded": false,
+        "over_watermark": false,
+        "over_limit": false
+      },
+      "run": {
+        "run_id": "e1f5fa20-90f4-4ccc-8a21-f95217667ccc",
+        "status": "completed",
+        "reason": null,
+        "mode": "normal",
+        "started_at": 1791358624704,
+        "ended_at": 1791358625189,
+        "turns": 1,
+        "model_requests": 1,
+        "tool_calls": 0,
+        "prompt_tokens": 4389,
+        "completion_tokens": 4,
+        "cached_tokens": 4224
+      },
+      "start_estimate": {
+        "limit": 157232,
+        "tools": 3858,
+        "total": 4856,
+        "method": "chars",
+        "history": 94,
+        "watermark": 117924,
+        "max_tokens": 32768,
+        "tool_results": 0,
+        "system_prompt": 904,
+        "context_window": 200000
+      },
+      "answers": [
+        "松树731"
+      ],
+      "request_messages": [
+        {
+          "role": "user",
+          "content": "请记住校验词：松树731。只回复已记住，不调用工具。"
+        },
+        {
+          "role": "assistant",
+          "content": "已记住校验词：松树731。",
+          "reasoning_content": ""
+        },
+        {
+          "role": "user",
+          "content": "只回复上一轮的校验词，不调用工具。"
+        },
+        {
+          "role": "assistant",
+          "content": "松树731",
+          "reasoning_content": "用户要求只回复上一轮的校验词，不调用工具。校验词是\"松树731\"。"
+        },
+        {
+          "role": "user",
+          "content": "再次只回复前面记住的校验词，不调用工具。"
+        }
+      ],
+      "request_snapshot": {
+        "model_name": "deepseek-flash",
+        "thinking": "enabled",
+        "reasoning": "high",
+        "reasoning_effort": "high",
+        "keep_reasoning": true,
+        "context_window": 200000,
+        "max_tokens": 32768
+      }
+    }
+  ]
+}

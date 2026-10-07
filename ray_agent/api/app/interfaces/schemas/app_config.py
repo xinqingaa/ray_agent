@@ -52,6 +52,11 @@ class ModelCatalogItem(BaseModel):
     max_output: int
     choices: List[str]
     default_choice: str
+    reasoning_options: List[Dict[str, object]] = Field(default_factory=list)
+    reasoning_ordered: bool = False
+    reasoning_family: Optional[str] = None
+    temperature_when: Literal["always", "disabled", "never"] = "always"
+    temperature_max: Optional[float] = None
 
 
 class ModelCatalogResponse(BaseModel):
@@ -63,11 +68,11 @@ class ModelCatalogResponse(BaseModel):
 class LLMConfigUpdate(BaseModel):
     """更新 LLM 配置时忽略密钥字段。未提交的字段保持原值。"""
     model_config = ConfigDict(extra="ignore")
-    base_url: HttpUrl
-    model_name: str
-    temperature: float = Field(0.7)
-    max_tokens: int = Field(8192, ge=0)
-    context_window: int = Field(131072, ge=1)
+    base_url: Optional[HttpUrl] = None
+    model_name: Optional[str] = None
+    temperature: float = Field(0.7, ge=0)
+    max_tokens: int = Field(8192, ge=1)
+    context_window: int = Field(200000, ge=1)
     model_profiles: Optional[Dict[str, ModelSampling]] = None
 
 
@@ -124,3 +129,8 @@ class ToolPolicyResponse(BaseModel):
     default_rules: Dict[str, ToolPolicy]  # 出厂默认规则，供“恢复默认”
     fallback: ToolPolicy = ToolPolicy.ALLOW
     builtin_toolsets: List[BuiltinToolset] = Field(default_factory=list)  # 内置工具；MCP/A2A 服务见各自列表接口
+
+
+class SamplingPreviewRequest(BaseModel):
+    model: str
+    sampling: ModelSampling

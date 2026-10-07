@@ -4,7 +4,7 @@ import logging
 import uuid
 from typing import List, Dict
 
-from app.application.errors.exceptions import NotFoundError
+from app.application.errors.exceptions import NotFoundError, BadRequestError
 from app.domain.services.context.budget import ContextBudget
 from app.domain.models.app_config import AppConfig, LLMConfig, AgentConfig, MCPConfig, A2AConfig, A2AServerConfig, \
     ModelSampling, ToolPolicyConfig
@@ -66,6 +66,8 @@ class AppConfigService:
                 data["model_profiles"] = self._cap_profiles(
                     str(data.get("base_url", current.base_url)), data["model_profiles"], provider_for, model_list,
                 )
+        if "model_profiles" in data:
+            data["model_profiles"] = {**current.model_profiles, **data["model_profiles"]}
         app_config.llm_config = LLMConfig.model_validate({
             **current.model_dump(),
             **data,
@@ -73,6 +75,7 @@ class AppConfigService:
             "streaming": current.streaming,
             "request_timeout": current.request_timeout,
         })
+        self._validate_sampling(app_config.llm_config, app_config.agent_config)
         self.app_config_repository.save(app_config)
         return app_config.llm_config
 
@@ -87,13 +90,40 @@ class AppConfigService:
         for model_id, raw in profiles.items():
             spec = specs.get(model_id)
             if spec is None:
-                continue
+                raise BadRequestError(f"未知模型 {model_id}")
             profile = ModelSampling.model_validate(raw)
-            capped[model_id] = profile.model_copy(update={
-                "context_window": min(profile.context_window, spec.context_window),
-                "max_tokens": min(profile.max_tokens, spec.max_output),
-            })
+            if profile.context_window > spec.context_window or profile.max_tokens > spec.max_output:
+                raise BadRequestError(f"{model_id} 超过模型能力上限：窗口 {spec.context_window}，生成 {spec.max_output}")
+            capped[model_id] = profile
         return capped
+
+    @staticmethod
+    def _validate_sampling(llm: LLMConfig, agent: AgentConfig) -> None:
+        from app.domain.models.model_catalog import model_list, provider_for, configured_sampling, tuned_limits
+        models = model_list(provider_for(str(llm.base_url)) or "")
+        for spec in models:
+            base = configured_sampling(llm, spec.id)
+            if spec.temperature_max is not None and base.temperature > spec.temperature_max:
+                raise BadRequestError(f"{spec.id} 温度范围为 0 到 {spec.temperature_max:g}")
+            for choice in spec.choices:
+                window, tokens = tuned_limits(base.max_tokens, base.context_window, spec, choice)
+                if ContextBudget(window, tokens, agent.context_safety_ratio, agent.compact_watermark).limit <= 0:
+                    raise BadRequestError(f"{spec.id} 在 {choice.id} 下没有可用输入空间，请增大窗口或减少生成预算")
+        if not models and ContextBudget(llm.context_window, llm.max_tokens,
+                agent.context_safety_ratio, agent.compact_watermark).limit <= 0:
+            raise BadRequestError("没有可用输入空间，请增大窗口或减少生成预算")
+
+    async def preview_sampling(self, model: str, sampling: ModelSampling) -> dict:
+        from app.domain.models.model_catalog import provider_for, resolve_selection
+        config = await self._load_app_config()
+        provider = provider_for(str(config.llm_config.base_url))
+        if provider is None:
+            raise BadRequestError("当前接口没有模型能力目录")
+        try:
+            spec, _ = resolve_selection(provider, model, None)
+        except ValueError as exc:
+            raise BadRequestError(str(exc)) from exc
+        return {choice.id: await self.get_context_config(model, choice.id, sampling) for choice in spec.choices}
 
     async def get_agent_config(self) -> AgentConfig:
         """获取Agent通用配置"""

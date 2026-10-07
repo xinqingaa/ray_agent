@@ -4,7 +4,7 @@ import asyncio
 import json
 import logging
 from datetime import datetime
-from typing import Optional, Dict, AsyncGenerator, Union
+from typing import Optional, Dict, Any, AsyncGenerator, Union
 
 import websockets
 from app.application.services.context_operations import context_operation
@@ -393,6 +393,12 @@ async def get_session(
             run_reasoning=snapshot.get("reasoning"),
         )
     )
+
+
+@router.get("/{session_id}/context-preview", response_model=Response[Dict[str, Any]])
+async def preview_context(session_id: str, mode: RunMode = Query(default=RunMode.NORMAL),
+        service: AgentService = Depends(get_agent_service)):
+    return Response.success(data=await service.preview_context(session_id, mode))
 
 
 @router.get(

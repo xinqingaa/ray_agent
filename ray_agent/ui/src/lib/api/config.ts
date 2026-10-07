@@ -1,6 +1,8 @@
 import { get, post } from "./fetch";
 import type {
   LLMConfig,
+  ModelSampling,
+  SamplingBudget,
   ModelCatalog,
   AgentConfig,
   MCPConfig,
@@ -22,9 +24,12 @@ export const configApi = {
     return get<LLMConfig>("/app-config/llm");
   },
 
+  previewSampling: (model: string, sampling: ModelSampling): Promise<Record<string, SamplingBudget>> =>
+    post<Record<string, SamplingBudget>>("/app-config/llm/preview", {model, sampling}),
+
   getModels: (): Promise<ModelCatalog> => get<ModelCatalog>("/app-config/models"),
 
-  updateLLMConfig: (config: LLMConfig): Promise<LLMConfig> => {
+  updateLLMConfig: (config: Partial<LLMConfig>): Promise<LLMConfig> => {
     const { has_api_key: _hasApiKey, ...writable } = config;
     return post<LLMConfig>("/app-config/llm", writable);
   },

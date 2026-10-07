@@ -71,6 +71,7 @@ npm run dev
 ## 检查与构建
 
 ```bash
+node scripts/check-model-configuration.cjs
 npm run lint
 npm run build
 npm run start

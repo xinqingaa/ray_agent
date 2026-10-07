@@ -386,6 +386,8 @@ class AgentLoop(BaseFlow):
             "context_window": self._llm.context_window,
             "thinking": getattr(self._llm, "thinking", None),
             "reasoning": getattr(self._llm, "reasoning_id", None),
+            "reasoning_effort": getattr(self._llm, "reasoning_effort", None),
+            "keep_reasoning": getattr(self._llm, "keep_reasoning", False),
             "agent_config": self._config.model_dump(mode="json"),
             "mode": self._mode.value,
             "system_prompt": self.request_system_prompt or self._with_mode_suffix(system_prompt + self.project_prompt),
@@ -748,6 +750,9 @@ class AgentLoop(BaseFlow):
                 turn.truncated = True
                 return
             response = normalize_assistant_message(result.message)
+            if getattr(self._llm, "keep_reasoning", False):
+                # 合法思考响应可以没有推理片段；空字段与旧历史丢失推理不同。
+                response.setdefault("reasoning_content", "")
             if not (response.get("content") or "").strip() and not response.get("tool_calls"):
                 logger.warning(f"会话[{self._session_id}] 模型返回空回复（第 {turn.attempts} 次）")
                 will_retry = turn.attempts < self._config.max_retries

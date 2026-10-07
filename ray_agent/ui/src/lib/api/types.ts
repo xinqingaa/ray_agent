@@ -350,6 +350,11 @@ export type ModelCatalog = {
     max_output: number;
     choices: string[];
     default_choice: string;
+    reasoning_options: Array<{id: string; enabled: boolean}>;
+    reasoning_ordered: boolean;
+    reasoning_family: string | null;
+    temperature_when: "always" | "disabled" | "never";
+    temperature_max: number | null;
   }>;
 };
 
@@ -659,3 +664,10 @@ export type ProjectMemorySummary = {stale?:boolean;latest_seq?:number;session_id
 export type ProjectMemorySnapshot = {instructions:string|null; notes:string; settings_version:number; notes_version:number; summaries:ProjectMemorySummary[]};
 export type ProjectMemoryCapacity = {total:number;limit:number;over_limit:boolean;model:string;mode:string;tool_count:number;discovery_errors:Record<string,string>;source:string;system_prompt:number;tools:number};
 export type ProjectMemoryView = {capacity?:ProjectMemoryCapacity;project:ProjectMemorySnapshot; candidates:ProjectMemorySummary[]; project_prompt:string; frozen:ProjectMemorySnapshot|null; active_run_id:string|null};
+
+export type ContextPreview = {
+  model: string; reasoning: string | null; total: number; context_window: number;
+  max_tokens: number; limit: number; watermark: number; method: string;
+  over_watermark: boolean; over_limit: boolean; fixed_input_exceeded: boolean;
+};
+export type SamplingBudget = {context_window: number; max_tokens: number; limit: number; watermark: number};
