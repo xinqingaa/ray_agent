@@ -412,10 +412,10 @@ export function ComponentCatalog() {
           <ProjectWorkspaceCatalog/>
         </Section>
 
-        <Section id="session-item" title="会话列表项" note="一行：标题在左，时间在右。运行中、准备中、压缩中、等你回复、等你批准、失败和已中断替换时间。还不知道是回复还是批准时写「等你」。已完成和已停止只显示时间。">
+        <Section id="session-item" title="会话列表项" note="一行：标题在左，时间在右。运行中、压缩中、等你回复、等你批准、失败和已中断替换时间。还不知道是回复还是批准时写「等你」。尚无运行、已完成和已停止只显示时间。">
           <div className="w-[288px] max-w-full space-y-3 rounded-lg bg-sidebar p-2">
             <State label="运行中" source="合成"><SessionItem session={sessionItemStates.running} isActive={false} onClick={noop} onDelete={noop}/></State>
-            <State label="准备中" source="合成"><SessionItem session={sessionItemStates.pending} isActive={false} onClick={noop} onDelete={noop}/></State>
+            <State label="尚无运行" source="合成"><SessionItem session={sessionItemStates.pending} isActive={false} onClick={noop} onDelete={noop}/></State>
             <State label="等你回复" source="合成"><SessionItem session={sessionItemStates.waiting} waitKind="reply" isActive={false} onClick={noop} onDelete={noop}/></State>
             <State label="等你批准" source="合成"><SessionItem session={sessionItemStates.waiting} waitKind="approval" isActive={false} onClick={noop} onDelete={noop}/></State>
             <State label="等你（原因未知）" source="合成"><SessionItem session={sessionItemStates.waiting} waitKind={null} isActive={false} onClick={noop} onDelete={noop}/></State>

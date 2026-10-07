@@ -129,8 +129,8 @@ export function SessionDetailView({
     const items = view?.timeline ?? []
     const retrySettled = retrying != null && items.some((item) => item.runId && item.runId !== retrying.fromRunId && item.kind !== 'user' && item.kind !== 'protection')
     const holdRunning = outgoing != null || (retrying != null && !retrySettled)
-    const status = holdRunning ? 'running' : sessionStatus
-    if (!status || status === 'idle') return
+    const status = holdRunning ? 'running' : sessionStatus === 'idle' ? 'pending' : sessionStatus
+    if (!status) return
     const item = sessions.find((session) => session.session_id === sessionId)
     if (item?.status === status) return
     patchSession(sessionId, {status})

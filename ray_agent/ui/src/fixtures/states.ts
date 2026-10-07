@@ -398,7 +398,7 @@ const today = '2026-09-28T09:43:08'
 
 export const sessionItemStates = {
   running: session('fx-s1', planWalkthrough.title, 'running', today),
-  /** 合成：执行器尚未接管；徽标与运行中相同 */
+  /** 合成：会话已在，还没有运行；与已完成一样只显示时间 */
   pending: session('fx-s7', '等待执行器接管的新任务', 'pending', today),
   waiting: session('fx-s2', e3Waiting.title, 'waiting', today),
   failed: session('fx-s3', '统计 logs/ 下所有构建日志的失败原因', 'failed', today),

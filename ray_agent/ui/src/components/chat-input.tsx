@@ -23,8 +23,6 @@ import {clearDraft, readDraft, writeDraft, DRAFT_CHANGED} from '@/lib/drafts'
 import {recoverSubmission, UncertainSubmissionError} from '@/lib/send-recovery'
 import {findSlashTrigger, removeSlashFragment, type SlashFragment} from '@/lib/slash-trigger'
 import {ModelPicker, type ModelSelection} from '@/components/model-picker'
-import {createProjectSession} from '@/lib/open-project-session'
-
 interface ChatInputProps {
   className?: string
   onInputValueChange?: (value: string) => void
@@ -539,7 +537,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
             onClick={() => commandById('upload')?.run(commandContext)}>
             <Paperclip className="size-4"/>
           </Button>
-          {!workspace && <ProjectPicker hideTrigger open={projectPickerOpen} onOpenChange={setProjectPickerOpen} onSelect={project => {if (!project) return; void createProjectSession(project.id).then(id => {if (id) router.push(`/sessions/${id}`)}).catch(err => toast.error(err instanceof Error ? err.message : '创建对话失败'))}}/>}
+          {!workspace && <ProjectPicker hideTrigger open={projectPickerOpen} onOpenChange={setProjectPickerOpen} onSelect={project => {if (!project) return; router.push(`/projects/${project.id}`)}}/>}
           {planMode && (
             <button
               type="button"

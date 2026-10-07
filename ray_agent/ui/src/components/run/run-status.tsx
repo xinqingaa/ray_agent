@@ -18,7 +18,6 @@ const TEXT = {
   stopping: '正在停止',
   compacting: '正在压缩上下文',
   compactingShort: '压缩中',
-  pending: '准备中',
   running: '运行中',
   completed: '已完成',
   failed: '失败',
@@ -116,7 +115,7 @@ function timelineSentence(input: TimelineProps): string | null {
 function sidebarWord(status: SessionStatus, waitKind: WaitKind | null, compacting: boolean): {label: string; attention: boolean; tone: string | null} {
   if (compacting) return {label: TEXT.compactingShort, attention: true, tone: TONE_TEXT.running}
   switch (status) {
-    case 'pending': return {label: TEXT.pending, attention: true, tone: TONE_TEXT.running}
+    case 'pending': return {label: '', attention: false, tone: null}
     case 'running': return {label: TEXT.running, attention: true, tone: TONE_TEXT.running}
     case 'waiting':
       return {
@@ -201,7 +200,7 @@ export function RunStatus(props: RunStatusProps): ReactNode {
       const word = sidebarWord(props.status, props.waitKind, props.compacting)
       return (
         <>
-          <span id={props.id} className="sr-only">{`${props.title}，${word.label}`}</span>
+          <span id={props.id} className="sr-only">{word.label ? `${props.title}，${word.label}` : props.title}</span>
           {word.attention ? (
             <span aria-hidden className={cn(SIDEBAR_META, word.tone)}>{word.label}</span>
           ) : props.showTime && props.time ? (

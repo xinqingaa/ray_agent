@@ -2,7 +2,7 @@
 
 import React, {createContext, useCallback, useContext, useEffect, useRef, useState} from 'react'
 import {sessionApi} from '@/lib/api'
-import type {Session} from '@/lib/api'
+import type {Session, SessionStatus} from '@/lib/api'
 
 /** 重连配置 */
 const RETRY_CONFIG = {
@@ -43,6 +43,8 @@ type SessionsContextValue = {
   refresh: () => Promise<void>
   /** 用详情里的状态更新列表中的一项，避免徽标停在旧的「运行中」 */
   patchSession: (sessionId: string, patch: Partial<Pick<Session, 'status' | 'title'>>) => void
+  /** 当前打开的会话刚写入的状态；项目子列表不在独立对话数组里，靠它覆盖 */
+  liveSession: {id: string; status: SessionStatus} | null
   deleteSession: (sessionId: string) => Promise<boolean>
 }
 
@@ -63,6 +65,7 @@ const SessionsContext = createContext<SessionsContextValue | null>(null)
  */
 export function SessionsProvider({children}: { children: React.ReactNode }) {
   const [sessions, setSessions] = useState<Session[]>([])
+  const [liveSession, setLiveSession] = useState<{id: string; status: SessionStatus} | null>(null)
   const [compactingSessionId, setCompactingSessionId] = useState<string | null>(null)
   const [waitKinds, setWaitKinds] = useState<Record<string, WaitKind>>({})
   const [loading, setLoading] = useState(true)
@@ -252,6 +255,10 @@ export function SessionsProvider({children}: { children: React.ReactNode }) {
   }, [])
 
   const patchSession = useCallback((sessionId: string, patch: Partial<Pick<Session, 'status' | 'title'>>) => {
+    if (patch.status) {
+      const status = patch.status
+      setLiveSession((prev) => prev?.id === sessionId && prev.status === status ? prev : {id: sessionId, status})
+    }
     setSessions((prev) => {
       let changed = false
       const next = prev.map((item) => {
@@ -278,7 +285,7 @@ export function SessionsProvider({children}: { children: React.ReactNode }) {
   }, [])
 
   return (
-    <SessionsContext.Provider value={{sessions, compactingSessionId, setCompactingSessionId, waitKinds, setWaitKind, loading, error, refresh, patchSession, deleteSession}}>
+    <SessionsContext.Provider value={{sessions, compactingSessionId, setCompactingSessionId, waitKinds, setWaitKind, loading, error, refresh, patchSession, deleteSession, liveSession}}>
       {children}
     </SessionsContext.Provider>
   )
