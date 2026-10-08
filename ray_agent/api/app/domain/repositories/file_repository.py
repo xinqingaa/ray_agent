@@ -15,3 +15,7 @@ class FileRepository(Protocol):
     async def get_by_id(self, file_id: str) -> Optional[File]:
         """根据传递的文件id获取文件信息"""
         ...
+
+    async def expired_visual_files(self, now: float, limit: int = 100) -> list[File]:
+        """读取到期且尚未删除的新临时视觉产物。"""
+        ...

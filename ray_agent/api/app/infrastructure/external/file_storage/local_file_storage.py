@@ -39,7 +39,7 @@ class LocalFileStorage(FileStorage):
             raise ValueError(f"非法的文件存储路径: {key}")
         return path
 
-    async def upload_file(self, upload_file: UploadFile) -> File:
+    async def upload_file(self, upload_file: UploadFile, *, visual: dict | None = None) -> File:
         """根据传递的文件源将文件写入本地磁盘"""
         try:
             file_id = str(uuid.uuid4())
@@ -53,6 +53,14 @@ class LocalFileStorage(FileStorage):
             dest = self._resolve_key_path(storage_key)
             dest.parent.mkdir(parents=True, exist_ok=True)
 
+            if visual:
+                # 先登记归属，上传取消或写入失败也能由到期回收处理。
+                pending = File(id=file_id, filename=filename, key=storage_key, extension=file_extension,
+                    mime_type=upload_file.content_type or '', size=upload_file.size or visual.get('size', 0),
+                    sha256=visual.get('sha256'), visual=visual)
+                async with self._uow_factory() as uow:
+                    await uow.file.save(pending)
+
             def _write() -> int:
                 with dest.open("wb") as output:
                     shutil.copyfileobj(upload_file.file, output)
@@ -62,6 +70,8 @@ class LocalFileStorage(FileStorage):
             logger.info(f"文件上传成功: {filename} (ID: {file_id})")
 
             file = File(
+                visual=visual,
+                sha256=visual.get("sha256") if visual else None,
                 id=file_id,
                 filename=filename,
                 key=storage_key,
@@ -97,3 +107,8 @@ class LocalFileStorage(FileStorage):
     def get_file_url(self, file: File) -> str:
         """返回经 API 下载接口访问的相对地址"""
         return f"/api/files/{file.id}/download"
+
+    async def delete_visual_file(self, file: File) -> None:
+        if not file.visual or not file.visual.get('temporary'):
+            raise ValueError('只能回收登记的临时视觉文件')
+        await run_in_threadpool(self._resolve_key_path(file.key).unlink, missing_ok=True)

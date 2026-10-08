@@ -386,6 +386,7 @@ export type TurnRequest = {
   run_id: string;
   index: number;
   turn_seq: number;
+  images?: Record<string, unknown>[];
   messages: Array<Record<string, unknown>>;
   tools: Array<Record<string, unknown>>;
 };

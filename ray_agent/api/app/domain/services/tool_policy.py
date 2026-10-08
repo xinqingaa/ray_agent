@@ -48,6 +48,8 @@ def policy_candidates(
         mcp_route: Optional[Tuple[str, str]] = None,
 ) -> Tuple[List[str], Optional[str], Optional[str]]:
     """一次调用的候选规则键（从具体到宽泛），以及它指向的服务与服务端工具名。"""
+    if toolset == "mcp" and function_name == "discover_mcp_tools":
+        return [function_name], None, None
     if toolset == "mcp":
         if mcp_route is None:
             return ["mcp:*"], None, None
@@ -55,7 +57,7 @@ def policy_candidates(
         return [f"mcp:{server}:{original}", f"mcp:{server}:*", "mcp:*"], server, original
     if toolset == "a2a":
         if function_name != A2A_CALL_TOOL:
-            # 只读本地已发现卡片，不接触远程服务
+            # 只发现卡片，不提交远程业务任务；委派仍走 a2a 策略
             return [function_name], None, None
         agent_id = str((arguments or {}).get("id") or "")
         if not agent_id:
@@ -68,6 +70,7 @@ def builtin_tool_catalog() -> List[Dict[str, Any]]:
     """设置页可配置的内置工具：工具集与函数名。MCP 与 A2A 的服务和工具由各自的列表接口提供。"""
     toolkits = [FileTool(None), ShellTool(None), BrowserTool(None), WebTool(None), SearchTool(None), DeliverTool(None)]
     catalog = [{"toolset": t.name, "functions": [s["function"]["name"] for s in t.get_tools()]} for t in toolkits]
+    catalog.append({"toolset": "mcp", "functions": ["discover_mcp_tools"]})
     catalog.append({"toolset": A2ATool.name, "functions": [
         s["function"]["name"] for s in A2ATool(None).get_tools() if s["function"]["name"] != A2A_CALL_TOOL]})
     return catalog

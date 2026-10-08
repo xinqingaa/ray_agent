@@ -1,6 +1,8 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 import asyncio
+import copy
+import base64
 import logging
 from typing import Any, Dict, List, Optional
 
@@ -48,6 +50,8 @@ class OpenAILLM(LLM):
         spec = next((m for m in model_list(provider_for(str(llm_config.base_url)) or "")
                      if m.id == llm_config.model_name), None)
         self.tool_batching = spec.tool_batching if spec else 'disabled'
+        self.supports_vision = bool(spec and spec.vision)
+        self.image_loader = None
         self._send_temperature = spec is None or (spec.temperature_when == "always" or
             spec.temperature_when == "disabled" and thinking != "enabled")
         self._max_tokens = llm_config.max_tokens
@@ -111,6 +115,7 @@ class OpenAILLM(LLM):
             f"tool_choice={tool_choice} response_format={response_type}"
         )
         try:
+            messages = await self._materialize_images(messages)
             if self._streaming:
                 return await self._invoke_stream(messages, tools, response_format, tool_choice, on_delta, prefix)
             return await self._invoke_complete(messages, tools, response_format, tool_choice, prefix)
@@ -128,6 +133,24 @@ class OpenAILLM(LLM):
                 status_code=status_code,
                 context_exceeded=_is_context_exceeded(e),
             ) from e
+
+    async def _materialize_images(self, messages):
+        messages = copy.deepcopy(messages)
+        for message in messages:
+            message.pop('_ray_visual', None)
+            if not isinstance(message.get('content'), list):
+                continue
+            for index, part in enumerate(message['content']):
+                if part.get('type') != 'image_ref':
+                    continue
+                if not self.supports_vision or self.image_loader is None or message.get('role') != 'user':
+                    raise LLMRequestError('当前模型或消息角色不支持图像输入')
+                ref = part['image_ref']
+                data = await self.image_loader(ref)
+                message['content'][index] = {'type': 'image_url', 'image_url': {
+                    'url': f"data:{ref['mime_type']};base64," + base64.b64encode(data).decode('ascii'),
+                    'detail': ref.get('detail', 'high')}}
+        return messages
 
     def _request_kwargs(
             self,

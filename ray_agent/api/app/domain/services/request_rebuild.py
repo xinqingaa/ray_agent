@@ -8,7 +8,7 @@
 只读，不重放任何动作。
 """
 import copy
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Dict, List, Sequence
 
 from app.domain.models.event import BaseEvent, ContextEvent, ContextOp, TurnEvent, TurnPhase
@@ -27,6 +27,7 @@ class RebuiltRequest:
     turn_seq: int
     messages: List[Dict[str, Any]]
     tools: List[Dict[str, Any]]
+    images: List[Dict[str, Any]] = field(default_factory=list)
 
 
 def rebuild_request(events: Sequence[BaseEvent], run: Run, index: int) -> RebuiltRequest:
@@ -51,10 +52,12 @@ def rebuild_request(events: Sequence[BaseEvent], run: Run, index: int) -> Rebuil
             memory.strip_reasoning()
         elif event.op == ContextOp.REPLACE:
             memory.replace(copy.deepcopy(event.messages))
+    from app.domain.services.context.vision import image_refs
     return RebuiltRequest(
         run_id=run.id,
         index=index,
         turn_seq=turn_seq,
         messages=memory.messages,
         tools=copy.deepcopy(tools_for_turn(run.config_snapshot, index)),
+        images=copy.deepcopy(list(image_refs(memory.messages))),
     )

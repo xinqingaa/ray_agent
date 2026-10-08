@@ -9,10 +9,11 @@ OBSERVE_PAGE = r"""({mode, scope, target, observation, firstIndex}) => {
     };
     const inViewport = rect => rect.width > 0 && rect.height > 0 && rect.bottom > 0 &&
         rect.right > 0 && rect.top < innerHeight && rect.left < innerWidth;
+    const visibleTree = el => { for (let n=el; n; n=n.parentElement) if (!visible(n)) return false; return true; };
     const root = target ? document.querySelector(`[data-ray-ref="${CSS.escape(target)}"]`)
         : scope === 'document' && mode === 'text'
-            ? document.querySelector('main, article, [role="main"]') || document.body : document.body;
-    if (!root) throw new Error('观察目标不存在，请重新读取页面');
+            ? [...document.querySelectorAll('main, article, [role="main"]')].find(visibleTree) || document.body : document.body;
+    if (!root || !visibleTree(root)) throw new Error('观察目标不存在，请重新读取页面');
     const copy = node => {
         if (++nodes > maxNodes || chars >= maxChars) { incomplete = true; return null; }
         if (node.nodeType === Node.TEXT_NODE) {
@@ -40,6 +41,7 @@ OBSERVE_PAGE = r"""({mode, scope, target, observation, firstIndex}) => {
     const html = mode === 'interactive' ? '' : (copy(root)?.outerHTML || '');
     const elements = [];
     if (mode !== 'text') {
+        window.__rayAgentRefs = new Map();
         const candidates = root.querySelectorAll('a[href],button,input,textarea,select,[role="button"],[role="link"],[role="checkbox"],[contenteditable="true"],[tabindex]');
         const withRoot = root.matches('input,textarea,select,button,a,[contenteditable="true"]') ? [root, ...candidates] : candidates;
         let scanned = 0;
@@ -54,6 +56,7 @@ OBSERVE_PAGE = r"""({mode, scope, target, observation, firstIndex}) => {
                 el.innerText || el.getAttribute('placeholder') || el.getAttribute('title') || el.getAttribute('alt') || '').trim().slice(0,240);
             const index = firstIndex + elements.length, ref = `${observation}-${index}`;
             el.setAttribute('data-ray-ref', ref);
+            window.__rayAgentRefs.set(ref, {node:el, index, tag:el.tagName.toLowerCase(), href:el.getAttribute('href'), type:el.getAttribute('type'), name});
             elements.push({index, ref, tag:el.tagName.toLowerCase(), role:el.getAttribute('role'), name,
                 type:el.getAttribute('type'), href:el.getAttribute('href'),
                 value:el.type === 'password' ? '[redacted]' : typeof el.value === 'string' ? el.value.slice(0,500) : null,

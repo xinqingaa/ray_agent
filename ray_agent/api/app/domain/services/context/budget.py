@@ -49,7 +49,12 @@ def _message_text(message: Dict[str, Any]) -> str:
 
 
 def estimate_message(message: Dict[str, Any]) -> float:
-    return estimate_text(_message_text(message)) + MESSAGE_OVERHEAD_TOKENS
+    images = 0
+    if isinstance(message.get('content'), list):
+        # 已支持厂商的尺寸换算上界；未知规格保守拒绝/降级由适配层处理。
+        images = sum(max(1024, int(part['image_ref'].get('token_estimate', 1024)))
+                     for part in message['content'] if isinstance(part, dict) and part.get('type') == 'image_ref')
+    return estimate_text(_message_text(message)) + MESSAGE_OVERHEAD_TOKENS + images
 
 
 def estimate_tools(tools: Optional[List[Dict[str, Any]]]) -> float:

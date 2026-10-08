@@ -79,6 +79,6 @@ class Browser(Protocol):
         ...
 
     async def capture_screenshot(self, scope: str = "viewport", ref: Optional[str] = None,
-                                 tab_id: Optional[str] = None) -> tuple[bytes, dict]:
+                                 tab_id: Optional[str] = None, for_model: bool = False) -> tuple[bytes, dict]:
         """有界截图与实际尺寸元数据；二进制不进入工具文本结果。"""
         ...

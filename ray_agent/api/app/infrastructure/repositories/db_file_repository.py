@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.domain.models.file import File
 from app.domain.repositories.file_repository import FileRepository
 from app.infrastructure.models import FileModel
+from app.infrastructure.models.run import RunModel
 
 
 class DBFileRepository(FileRepository):
@@ -42,3 +43,13 @@ class DBFileRepository(FileRepository):
 
         # 2.判断文件记录是否存在返回不同的值
         return record.to_domain() if record is not None else None
+
+    async def expired_visual_files(self, now: float, limit: int = 100) -> list[File]:
+        stmt = select(FileModel).where(
+            FileModel.visual['temporary'].as_boolean() == True,
+            FileModel.visual['expires_at'].as_float() <= now,
+            FileModel.visual['deleted_at'].as_float().is_(None),
+            ~select(RunModel.id).where(RunModel.id == FileModel.visual['run_id'].as_string(),
+                                      RunModel.status.in_(['running', 'waiting'])).exists(),
+        ).order_by(FileModel.created_at, FileModel.id).limit(limit)
+        return [record.to_domain() for record in (await self.db_session.execute(stmt)).scalars()]

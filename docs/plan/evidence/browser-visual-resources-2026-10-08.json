@@ -1,0 +1,4164 @@
+{
+  "date": "2026-10-08",
+  "baseline_commit": "0ec5080f82da5f13570a152d100706817f92cabb",
+  "working_tree_uncommitted": true,
+  "source_sha256": {
+    "ray_agent/api/README.md": "984383a360325896cb17c176908242fb1cba8ba106ffe627467ab0fdd5450fcd",
+    "ray_agent/api/alembic/versions/d5f9b2c83e10_visual_artifacts.py": "55839e10d567502d74f0454e799b7885215c51620b02efeca5ec079c2e4c95e4",
+    "ray_agent/api/app/application/services/agent_service.py": "bc21bc5866218af620086f28a0559014e2f44cef2e2665eefc454a7080ad2d2d",
+    "ray_agent/api/app/application/services/file_service.py": "395746ce1ef15ee3b4af43f78d226896714f199d765290f939e42e3699cca91e",
+    "ray_agent/api/app/application/services/lazy_resources.py": "00d5865a127b841a57283079912258f3e0b299ff821d681cd3f0aada024d44c4",
+    "ray_agent/api/app/application/services/visual_artifacts.py": "6e51b21a84339bc1bf9c38d431c87e6385135167e857f936d39a8c105da537c6",
+    "ray_agent/api/app/domain/external/browser.py": "1976263e26750e7212c18477f0114522146328af0e8912d64afc6bd8927b4a82",
+    "ray_agent/api/app/domain/external/file_storage.py": "81cff5c995113641aded54c44101a8397b320af96b5a0733895ff63a71a3dbce",
+    "ray_agent/api/app/domain/models/app_config.py": "3bc74048cdadff6f5f4c8f855fa73c5afee41b83f82182d7005f0720729cff14",
+    "ray_agent/api/app/domain/models/file.py": "8e7c7c8bbe8910798c00acb20266cc927e552acc67d062d3ca0e4fabdb762bb4",
+    "ray_agent/api/app/domain/repositories/file_repository.py": "85574cdfc31795b3e45a9dab9f2f31fd1ab53c2723caf2b88ee8b66cbc352ad6",
+    "ray_agent/api/app/domain/services/agent_task_runner.py": "ccea17c9815ff241117fb16e66d1915eb3e66fdb3c8c256278e733b207e88fef",
+    "ray_agent/api/app/domain/services/context/budget.py": "13c6a6fa8d078d108570432ccef39eeb21ba816cc6b4e7f6b082ac173957c1ae",
+    "ray_agent/api/app/domain/services/context/compaction.py": "8d81517e4282b9b944af28ca6496e070695258f0f13744dd46854e5bab0620dc",
+    "ray_agent/api/app/domain/services/context/vision.py": "440ae302eb6ea148ed48ed0466f5238a9c46f855afa521d794849aae0b61564e",
+    "ray_agent/api/app/domain/services/flows/agent_loop.py": "45b764e96a8ebfe670d2428c85ca3e7541b521595eacf270bb5bd4c009e5e46f",
+    "ray_agent/api/app/domain/services/flows/tool_pipeline.py": "f08e8f883bfff70da7caa7fb03c97566c33d119fc49887f79a00c73ddf31764a",
+    "ray_agent/api/app/domain/services/plan_mode.py": "68239ecacb67f62743d1c8e9ebbe4d149dc8652e79ab6c21413a2c8e0e25358a",
+    "ray_agent/api/app/domain/services/prompts/en/system.py": "19a08874d22553f48ead4242b33621bbed20e270ba938e4cf9ed613f144fa388",
+    "ray_agent/api/app/domain/services/prompts/system.py": "10185e05f921896135f15d5435f773e2a4c4e30a6ac4ad6897827baf7d31e493",
+    "ray_agent/api/app/domain/services/request_rebuild.py": "3a282efd961ca15e3251e06509ce83b22b7a2892e3bc74031685d5788b0ea6c1",
+    "ray_agent/api/app/domain/services/run_ledger.py": "863953870264bbaea493477417b1e2db8ba55c954104d588ada649b02d2bf2b9",
+    "ray_agent/api/app/domain/services/tool_policy.py": "467d3d8181e5979a8ac33fc630c415e44b231ad49b476de7ca402a48af451e15",
+    "ray_agent/api/app/domain/services/tools/a2a.py": "77f28b13e5d20254a9fcec95b44db259b4491fa13ecf24fabd5e04f472240c7e",
+    "ray_agent/api/app/domain/services/tools/browser.py": "849fc67cb0aa7a90e522df8eed786bbf260f7619c0dbe9038720751d7d3d5f86",
+    "ray_agent/api/app/domain/services/tools/mcp.py": "f692ba266bc8a2dcd89cf862b709c61b586bb502205d99d0a57d4fb8adeb84a4",
+    "ray_agent/api/app/domain/services/tools/protocol_gateway.py": "b544a1cc060990e1960ef4739d7ceeb8f94561d36c290a5644514ecab22cbdd7",
+    "ray_agent/api/app/infrastructure/external/browser/playwright_browser.py": "b74b871e7455ed23961c6c4fb60309771c341ddf3e116858ec8d08531698adf1",
+    "ray_agent/api/app/infrastructure/external/browser/playwright_browser_fun.py": "d1a1b70beeddcc4cda363854a9168267c312ce483ccfc6d1479dc83bb9c8e926",
+    "ray_agent/api/app/infrastructure/external/file_storage/cos_file_storage.py": "79cfe50ff2772612af46b467e84137ac2a840f4d6585741501ff68145f8ad795",
+    "ray_agent/api/app/infrastructure/external/file_storage/local_file_storage.py": "d57eb50c5d05212973db60932de33d3764353973862ae2ca05ffa93e0fdc8e01",
+    "ray_agent/api/app/infrastructure/external/llm/openai_llm.py": "f7e1d41308bb7367be97a14a8b2e35d8dabcff0dae8f2a3a0df021cda15b23c7",
+    "ray_agent/api/app/infrastructure/models/file.py": "ac4b65f4ac62d314891ed3d950a5b0d2495ce0441e05db1eb9854f319638d691",
+    "ray_agent/api/app/infrastructure/protocols/a2a.py": "7d315e13ccde694785305fd694c0692d7004c2d222842c8079db20977c312047",
+    "ray_agent/api/app/infrastructure/protocols/mcp.py": "928668333ae897185a4ca9122891deb7b780d20a18b8e4bf932aa92f1f580b4f",
+    "ray_agent/api/app/infrastructure/repositories/db_file_repository.py": "d1ecba7d3c62b4c5917f9ee5460c730fea2d8861cb0921efd983594bf0c2a738",
+    "ray_agent/api/app/interfaces/endpoints/session_routes.py": "5a565b87f31b2b93cd6bf14eba911309e3817975ab8523e5fa6546cbafc3b019",
+    "ray_agent/api/app/interfaces/schemas/session.py": "991575ac0d6db6c96dd10c876c33c2122e481d60c1152a1ab1de31a8b1bb95e1",
+    "ray_agent/api/app/main.py": "40bb01659b5a988206750a14456552bb9c0e895ce19451c0e196366867f4af3c",
+    "ray_agent/api/pyproject.toml": "7113d754af574570e417fa199cdc6efbc475e1e8554dd45380f5c6311f570f22",
+    "ray_agent/api/requirements.txt": "2f263a08315a254a053a9f45d4e771466a76e9702a81b6f78778b1ce3bc0b6fe",
+    "ray_agent/api/tests/core/test_run_events_pg.py": "0820335e7ac3447f600c3c0b6dd5625e2e39643f77231795ad1e11c81ef08200",
+    "ray_agent/api/tests/core/test_visual_resources.py": "57a37d6b94545f42202bf056b527e544a0303254e0ce69e759f1e4b91e0212cf",
+    "ray_agent/api/tests/core/test_w10_project_session.py": "9f5438b94894d520726ed466db1dd73a70cc2c3e2ded9420bd547f93a681b349",
+    "ray_agent/api/tests/core/test_w11_projects_pg.py": "cff30b7f134cc43b6e502b39cce4bace8b4b8e3fb3585a5e4e18fc41bfd7ff5a",
+    "ray_agent/api/tests/protocols/test_protocols.py": "38bcf8b3d51fe8aa4938c90ffc7f8078b68a2f96927a54c5b23439da866f3a85",
+    "ray_agent/api/uv.lock": "391d2cf9f2370357ebb76b7dc30de68a08bd27778aa94501416cd8852b384d9e",
+    "ray_agent/ui/src/components/workbench/workbench.tsx": "00a1283adb5cdc0626d70fe0f689ea4aebb1dca54a63f79245af6ec0c7f67867",
+    "ray_agent/ui/src/lib/api/types.ts": "5df980271da330e10621a349026e308951b373bed180bd88b4b2f2b709f75aa0"
+  },
+  "final_images": {
+    "manus-api": "sha256:bc4f1b974b703c46afda6ffe949c7d1ff53d164e18aa68d5c981426468887921",
+    "manus-ui": "sha256:3b333fcaa8aea1525c2da046177e4a3e0773da15bab764a31881f64e081fb601",
+    "manus-sandbox": "sha256:4bcf8fcb364a836d513d047686a984a57a6de7bd7dae4c5ce6e26b69476e395d"
+  },
+  "container_source_verified": {
+    "ray_agent/api/app/application/services/agent_service.py": "bc21bc5866218af620086f28a0559014e2f44cef2e2665eefc454a7080ad2d2d",
+    "ray_agent/api/app/application/services/file_service.py": "395746ce1ef15ee3b4af43f78d226896714f199d765290f939e42e3699cca91e",
+    "ray_agent/api/app/domain/external/browser.py": "1976263e26750e7212c18477f0114522146328af0e8912d64afc6bd8927b4a82",
+    "ray_agent/api/app/domain/external/file_storage.py": "81cff5c995113641aded54c44101a8397b320af96b5a0733895ff63a71a3dbce",
+    "ray_agent/api/app/domain/models/app_config.py": "3bc74048cdadff6f5f4c8f855fa73c5afee41b83f82182d7005f0720729cff14",
+    "ray_agent/api/app/domain/models/file.py": "8e7c7c8bbe8910798c00acb20266cc927e552acc67d062d3ca0e4fabdb762bb4",
+    "ray_agent/api/app/domain/repositories/file_repository.py": "85574cdfc31795b3e45a9dab9f2f31fd1ab53c2723caf2b88ee8b66cbc352ad6",
+    "ray_agent/api/app/domain/services/agent_task_runner.py": "ccea17c9815ff241117fb16e66d1915eb3e66fdb3c8c256278e733b207e88fef",
+    "ray_agent/api/app/domain/services/context/budget.py": "13c6a6fa8d078d108570432ccef39eeb21ba816cc6b4e7f6b082ac173957c1ae",
+    "ray_agent/api/app/domain/services/context/compaction.py": "8d81517e4282b9b944af28ca6496e070695258f0f13744dd46854e5bab0620dc",
+    "ray_agent/api/app/domain/services/flows/agent_loop.py": "45b764e96a8ebfe670d2428c85ca3e7541b521595eacf270bb5bd4c009e5e46f",
+    "ray_agent/api/app/domain/services/flows/tool_pipeline.py": "f08e8f883bfff70da7caa7fb03c97566c33d119fc49887f79a00c73ddf31764a",
+    "ray_agent/api/app/domain/services/plan_mode.py": "68239ecacb67f62743d1c8e9ebbe4d149dc8652e79ab6c21413a2c8e0e25358a",
+    "ray_agent/api/app/domain/services/prompts/en/system.py": "19a08874d22553f48ead4242b33621bbed20e270ba938e4cf9ed613f144fa388",
+    "ray_agent/api/app/domain/services/prompts/system.py": "10185e05f921896135f15d5435f773e2a4c4e30a6ac4ad6897827baf7d31e493",
+    "ray_agent/api/app/domain/services/request_rebuild.py": "3a282efd961ca15e3251e06509ce83b22b7a2892e3bc74031685d5788b0ea6c1",
+    "ray_agent/api/app/domain/services/run_ledger.py": "863953870264bbaea493477417b1e2db8ba55c954104d588ada649b02d2bf2b9",
+    "ray_agent/api/app/domain/services/tool_policy.py": "467d3d8181e5979a8ac33fc630c415e44b231ad49b476de7ca402a48af451e15",
+    "ray_agent/api/app/domain/services/tools/a2a.py": "77f28b13e5d20254a9fcec95b44db259b4491fa13ecf24fabd5e04f472240c7e",
+    "ray_agent/api/app/domain/services/tools/browser.py": "849fc67cb0aa7a90e522df8eed786bbf260f7619c0dbe9038720751d7d3d5f86",
+    "ray_agent/api/app/domain/services/tools/mcp.py": "f692ba266bc8a2dcd89cf862b709c61b586bb502205d99d0a57d4fb8adeb84a4",
+    "ray_agent/api/app/domain/services/tools/protocol_gateway.py": "b544a1cc060990e1960ef4739d7ceeb8f94561d36c290a5644514ecab22cbdd7",
+    "ray_agent/api/app/infrastructure/external/browser/playwright_browser.py": "b74b871e7455ed23961c6c4fb60309771c341ddf3e116858ec8d08531698adf1",
+    "ray_agent/api/app/infrastructure/external/browser/playwright_browser_fun.py": "d1a1b70beeddcc4cda363854a9168267c312ce483ccfc6d1479dc83bb9c8e926",
+    "ray_agent/api/app/infrastructure/external/file_storage/cos_file_storage.py": "79cfe50ff2772612af46b467e84137ac2a840f4d6585741501ff68145f8ad795",
+    "ray_agent/api/app/infrastructure/external/file_storage/local_file_storage.py": "d57eb50c5d05212973db60932de33d3764353973862ae2ca05ffa93e0fdc8e01",
+    "ray_agent/api/app/infrastructure/external/llm/openai_llm.py": "f7e1d41308bb7367be97a14a8b2e35d8dabcff0dae8f2a3a0df021cda15b23c7",
+    "ray_agent/api/app/infrastructure/models/file.py": "ac4b65f4ac62d314891ed3d950a5b0d2495ce0441e05db1eb9854f319638d691",
+    "ray_agent/api/app/infrastructure/protocols/a2a.py": "7d315e13ccde694785305fd694c0692d7004c2d222842c8079db20977c312047",
+    "ray_agent/api/app/infrastructure/protocols/mcp.py": "928668333ae897185a4ca9122891deb7b780d20a18b8e4bf932aa92f1f580b4f",
+    "ray_agent/api/app/infrastructure/repositories/db_file_repository.py": "d1ecba7d3c62b4c5917f9ee5460c730fea2d8861cb0921efd983594bf0c2a738",
+    "ray_agent/api/app/interfaces/endpoints/session_routes.py": "5a565b87f31b2b93cd6bf14eba911309e3817975ab8523e5fa6546cbafc3b019",
+    "ray_agent/api/app/interfaces/schemas/session.py": "991575ac0d6db6c96dd10c876c33c2122e481d60c1152a1ab1de31a8b1bb95e1",
+    "ray_agent/api/app/main.py": "40bb01659b5a988206750a14456552bb9c0e895ce19451c0e196366867f4af3c",
+    "ray_agent/api/pyproject.toml": "7113d754af574570e417fa199cdc6efbc475e1e8554dd45380f5c6311f570f22",
+    "ray_agent/api/requirements.txt": "2f263a08315a254a053a9f45d4e771466a76e9702a81b6f78778b1ce3bc0b6fe",
+    "ray_agent/api/alembic/versions/d5f9b2c83e10_visual_artifacts.py": "55839e10d567502d74f0454e799b7885215c51620b02efeca5ec079c2e4c95e4",
+    "ray_agent/api/app/application/services/lazy_resources.py": "00d5865a127b841a57283079912258f3e0b299ff821d681cd3f0aada024d44c4",
+    "ray_agent/api/app/application/services/visual_artifacts.py": "6e51b21a84339bc1bf9c38d431c87e6385135167e857f936d39a8c105da537c6",
+    "ray_agent/api/app/domain/services/context/vision.py": "440ae302eb6ea148ed48ed0466f5238a9c46f855afa521d794849aae0b61564e"
+  },
+  "migration": "d5f9b2c83e10",
+  "runtime_test_image": "sha256:24ff9a2023876b0dedc37488934dca7ea074ce7d586c945cb20fa66882f26b35",
+  "runtime_image_note": "前三项与视觉/审批任务在首个构建执行；最终镜像增加目标名称变化校验、细分计时、发现入口策略目录及文字整理。相同机制经最终 39 项回归，最终镜像读文件冒烟通过。",
+  "efficiency": [
+    {
+      "task": "answer",
+      "session_id": "ffe61e1f-9cef-4296-8382-81661d02dd0a",
+      "run_id": "9ce23a5d-314b-4b87-bd19-f1013d8af4b4",
+      "wall_seconds": 1.409,
+      "status": "completed",
+      "prompt": "只回复一句：你好，效率验证。不要使用工具。",
+      "calls": [],
+      "screenshots": 0,
+      "model_calls": 1,
+      "model_ms": 591,
+      "tools_ms": 0,
+      "prompt_tokens": 5874,
+      "completion_tokens": 26,
+      "cached_tokens": 0,
+      "answer": [
+        "你好，效率验证。"
+      ],
+      "events": [
+        {
+          "event": "run",
+          "data": {
+            "event_id": "40316e60-0ea0-436e-afd1-cdec5db1a7c6",
+            "seq": 1,
+            "run_id": "9ce23a5d-314b-4b87-bd19-f1013d8af4b4",
+            "created_at": 1791455021757,
+            "status": "running",
+            "reason": null,
+            "summary": null,
+            "mode": "normal"
+          }
+        },
+        {
+          "event": "message",
+          "data": {
+            "event_id": "389a4000-e800-4af6-b3b5-f1188952038b",
+            "seq": 2,
+            "run_id": "9ce23a5d-314b-4b87-bd19-f1013d8af4b4",
+            "created_at": 1791455021740,
+            "role": "user",
+            "message": "只回复一句：你好，效率验证。不要使用工具。",
+            "attachments": [],
+            "attempt": null
+          }
+        },
+        {
+          "event": "title",
+          "data": {
+            "event_id": "481f4258-3845-414d-8fb7-7050d35de92c",
+            "seq": 3,
+            "run_id": "9ce23a5d-314b-4b87-bd19-f1013d8af4b4",
+            "created_at": 1791455021751,
+            "title": "只回复一句：你好，效率验证。不要使用工具。"
+          }
+        },
+        {
+          "event": "context",
+          "data": {
+            "event_id": "929b0a66-c172-4212-b2e2-5ac069189241",
+            "seq": 4,
+            "run_id": "9ce23a5d-314b-4b87-bd19-f1013d8af4b4",
+            "created_at": 1791455022028,
+            "op": "append",
+            "message_count": 1,
+            "roles": [
+              "user"
+            ]
+          }
+        },
+        {
+          "event": "turn",
+          "data": {
+            "event_id": "682dba3a-162f-44ef-9282-3fbe18b9b3bd",
+            "seq": 5,
+            "run_id": "9ce23a5d-314b-4b87-bd19-f1013d8af4b4",
+            "created_at": 1791455022038,
+            "phase": "started",
+            "index": 1,
+            "context_estimate": {
+              "limit": 157232,
+              "tools": 5068,
+              "total": 6361,
+              "method": "chars",
+              "history": 19,
+              "watermark": 117924,
+              "max_tokens": 32768,
+              "tool_results": 0,
+              "system_prompt": 1274,
+              "context_window": 200000
+            },
+            "context_window": 200000,
+            "model_ms": null,
+            "attempts": null,
+            "ttft_ms": null,
+            "usage": null,
+            "finish_reason": null,
+            "tool_call_ids": [],
+            "tools_ms": null,
+            "error": null
+          }
+        },
+        {
+          "event": "title",
+          "data": {
+            "event_id": "ff3c5fb4-92b1-4cd9-b66a-7a622c8b27d3",
+            "seq": 6,
+            "run_id": null,
+            "created_at": 1791455022490,
+            "title": "你好效率验证"
+          }
+        },
+        {
+          "event": "context",
+          "data": {
+            "event_id": "3e2d35c7-475b-4d08-8939-fadf65366cd5",
+            "seq": 7,
+            "run_id": "9ce23a5d-314b-4b87-bd19-f1013d8af4b4",
+            "created_at": 1791455022643,
+            "op": "append",
+            "message_count": 1,
+            "roles": [
+              "assistant"
+            ]
+          }
+        },
+        {
+          "event": "message",
+          "data": {
+            "event_id": "5ac02ef5-9db0-4d18-a623-1c4abc8bbb94",
+            "seq": 8,
+            "run_id": "9ce23a5d-314b-4b87-bd19-f1013d8af4b4",
+            "created_at": 1791455022652,
+            "role": "assistant",
+            "message": "你好，效率验证。",
+            "attachments": [],
+            "attempt": 1
+          }
+        },
+        {
+          "event": "turn",
+          "data": {
+            "event_id": "a5b01d61-8f3d-49cc-bd5c-1239fccabf77",
+            "seq": 9,
+            "run_id": "9ce23a5d-314b-4b87-bd19-f1013d8af4b4",
+            "created_at": 1791455022658,
+            "phase": "completed",
+            "index": 1,
+            "context_estimate": null,
+            "context_window": null,
+            "model_ms": 591,
+            "attempts": 1,
+            "ttft_ms": 576,
+            "usage": {
+              "prompt_tokens": 5874,
+              "completion_tokens": 26,
+              "cached_tokens": 0,
+              "reasoning_tokens": 20
+            },
+            "finish_reason": "stop",
+            "tool_call_ids": [],
+            "tools_ms": 0,
+            "error": null
+          }
+        },
+        {
+          "event": "done",
+          "data": {
+            "event_id": "db8a1d38-9920-4af5-91e3-56c4b62854dc",
+            "seq": 10,
+            "run_id": "9ce23a5d-314b-4b87-bd19-f1013d8af4b4",
+            "created_at": 1791455022663
+          }
+        },
+        {
+          "event": "run",
+          "data": {
+            "event_id": "eefbfd02-2b3f-4a3a-8446-e582207eae83",
+            "seq": 11,
+            "run_id": "9ce23a5d-314b-4b87-bd19-f1013d8af4b4",
+            "created_at": 1791455022668,
+            "status": "completed",
+            "reason": null,
+            "summary": {
+              "turns": 1,
+              "tool_calls": 0,
+              "duration_ms": 917,
+              "cached_tokens": 0,
+              "prompt_tokens": 5874,
+              "model_requests": 1,
+              "completion_tokens": 26
+            },
+            "mode": "normal"
+          }
+        }
+      ],
+      "request_model": {
+        "model_id": "deepseek-flash",
+        "reasoning": "high"
+      }
+    },
+    {
+      "task": "read",
+      "session_id": "1bfd8d45-e487-4ab2-8563-02463856db80",
+      "run_id": "331f3cc3-6a22-45cd-afa3-d9678837199f",
+      "wall_seconds": 11.077,
+      "status": "completed",
+      "prompt": "使用浏览器打开 http://host.docker.internal:18819/read ，读取页面校验码，只回答校验码。",
+      "calls": [
+        "browser_navigate"
+      ],
+      "screenshots": 0,
+      "model_calls": 2,
+      "model_ms": 1416,
+      "tools_ms": 9035,
+      "prompt_tokens": 12050,
+      "completion_tokens": 83,
+      "cached_tokens": 11520,
+      "answer": [
+        "QX-7319-LM"
+      ],
+      "events": [
+        {
+          "event": "run",
+          "data": {
+            "event_id": "c184515c-b719-48b9-a063-2b1747392264",
+            "seq": 1,
+            "run_id": "331f3cc3-6a22-45cd-afa3-d9678837199f",
+            "created_at": 1791455023100,
+            "status": "running",
+            "reason": null,
+            "summary": null,
+            "mode": "normal"
+          }
+        },
+        {
+          "event": "message",
+          "data": {
+            "event_id": "e511a58c-facc-46c7-8e76-d6afb4a1b5af",
+            "seq": 2,
+            "run_id": "331f3cc3-6a22-45cd-afa3-d9678837199f",
+            "created_at": 1791455023093,
+            "role": "user",
+            "message": "使用浏览器打开 http://host.docker.internal:18819/read ，读取页面校验码，只回答校验码。",
+            "attachments": [],
+            "attempt": null
+          }
+        },
+        {
+          "event": "title",
+          "data": {
+            "event_id": "75f76090-5a15-42eb-b0a3-6fa25e409f84",
+            "seq": 3,
+            "run_id": "331f3cc3-6a22-45cd-afa3-d9678837199f",
+            "created_at": 1791455023097,
+            "title": "使用浏览器打开 http://host.docker.int"
+          }
+        },
+        {
+          "event": "context",
+          "data": {
+            "event_id": "78b52540-b3ea-444b-8489-97d6828a1a37",
+            "seq": 4,
+            "run_id": "331f3cc3-6a22-45cd-afa3-d9678837199f",
+            "created_at": 1791455023132,
+            "op": "append",
+            "message_count": 1,
+            "roles": [
+              "user"
+            ]
+          }
+        },
+        {
+          "event": "turn",
+          "data": {
+            "event_id": "db476a78-70f4-4d12-9978-dd818dca62c0",
+            "seq": 5,
+            "run_id": "331f3cc3-6a22-45cd-afa3-d9678837199f",
+            "created_at": 1791455023139,
+            "phase": "started",
+            "index": 1,
+            "context_estimate": {
+              "limit": 157232,
+              "tools": 5068,
+              "total": 6374,
+              "method": "chars",
+              "history": 32,
+              "watermark": 117924,
+              "max_tokens": 32768,
+              "tool_results": 0,
+              "system_prompt": 1274,
+              "context_window": 200000
+            },
+            "context_window": 200000,
+            "model_ms": null,
+            "attempts": null,
+            "ttft_ms": null,
+            "usage": null,
+            "finish_reason": null,
+            "tool_call_ids": [],
+            "tools_ms": null,
+            "error": null
+          }
+        },
+        {
+          "event": "context",
+          "data": {
+            "event_id": "1cc714d6-e402-491e-8e8c-fba3229f9708",
+            "seq": 6,
+            "run_id": "331f3cc3-6a22-45cd-afa3-d9678837199f",
+            "created_at": 1791455023779,
+            "op": "append",
+            "message_count": 1,
+            "roles": [
+              "assistant"
+            ]
+          }
+        },
+        {
+          "event": "tool",
+          "data": {
+            "event_id": "26feb08a-5106-446a-9449-3b45745231e8",
+            "seq": 7,
+            "run_id": "331f3cc3-6a22-45cd-afa3-d9678837199f",
+            "created_at": 1791455023793,
+            "tool_call_id": "call_00_WlO7ghZMmPH4tCCrL5uX3957",
+            "name": "browser",
+            "status": "calling",
+            "function": "browser_navigate",
+            "args": {
+              "url": "http://host.docker.internal:18819/read",
+              "observe": "both"
+            },
+            "content": null,
+            "duration_ms": null,
+            "stages_ms": {},
+            "shaping": null,
+            "denied_by": null
+          }
+        },
+        {
+          "event": "environment",
+          "data": {
+            "event_id": "a8703e86-808a-4258-a136-1ee8f042b3ba",
+            "seq": 8,
+            "run_id": "331f3cc3-6a22-45cd-afa3-d9678837199f",
+            "created_at": 1791455023797,
+            "status": "preparing",
+            "message": null,
+            "project_file_protection": null
+          }
+        },
+        {
+          "event": "title",
+          "data": {
+            "event_id": "12a07bb2-c692-4fba-a4e8-ae7e678f548b",
+            "seq": 9,
+            "run_id": null,
+            "created_at": 1791455023844,
+            "title": "浏览器读取页面校验码"
+          }
+        },
+        {
+          "event": "environment",
+          "data": {
+            "event_id": "af567c69-55ea-4c9b-a488-2c79fb5fd5a7",
+            "seq": 10,
+            "run_id": "331f3cc3-6a22-45cd-afa3-d9678837199f",
+            "created_at": 1791455032252,
+            "status": "ready",
+            "message": null,
+            "project_file_protection": null
+          }
+        },
+        {
+          "event": "context",
+          "data": {
+            "event_id": "91fea0d3-91a7-4a11-b38c-17b0d3f180ec",
+            "seq": 11,
+            "run_id": "331f3cc3-6a22-45cd-afa3-d9678837199f",
+            "created_at": 1791455032828,
+            "op": "append",
+            "message_count": 1,
+            "roles": [
+              "tool"
+            ]
+          }
+        },
+        {
+          "event": "tool",
+          "data": {
+            "event_id": "ba02c7b0-2527-4a95-8b24-dbcc87bb5bb6",
+            "seq": 12,
+            "run_id": "331f3cc3-6a22-45cd-afa3-d9678837199f",
+            "created_at": 1791455032828,
+            "tool_call_id": "call_00_WlO7ghZMmPH4tCCrL5uX3957",
+            "name": "browser",
+            "status": "called",
+            "function": "browser_navigate",
+            "args": {
+              "url": "http://host.docker.internal:18819/read",
+              "observe": "both"
+            },
+            "content": {
+              "screenshot": null,
+              "content": "# 任务资料\n\n校验码：QX-7319-LM",
+              "outcome": {
+                "success": true,
+                "message": "",
+                "data": {
+                  "url": "http://host.docker.internal:18819/read",
+                  "mode": "both",
+                  "scope": "document",
+                  "title": "效率验证读取页",
+                  "tab_id": "tab-3ED5E82C2EF93BB9641B1E4DB83B44BA",
+                  "content": "# 任务资料\n\n校验码：QX-7319-LM",
+                  "stages_ms": {
+                    "observation": 13
+                  },
+                  "truncated": false,
+                  "incomplete": false,
+                  "observed_at": "2026-10-08T10:23:52.827608+00:00",
+                  "total_chars": 22,
+                  "action_success": true,
+                  "observation_id": "obs-2f2ed2fe99",
+                  "total_elements": 0,
+                  "extraction_limits": {
+                    "chars": 1000000,
+                    "nodes": 30000,
+                    "elements": 500
+                  },
+                  "observation_status": "ok",
+                  "interactive_elements": []
+                }
+              },
+              "url": "http://host.docker.internal:18819/read",
+              "title": "效率验证读取页",
+              "tab_id": "tab-3ED5E82C2EF93BB9641B1E4DB83B44BA",
+              "observation_status": "ok"
+            },
+            "duration_ms": 9035,
+            "stages_ms": {
+              "execution": 9035,
+              "projection": 0,
+              "postprocess": 0
+            },
+            "shaping": null,
+            "denied_by": null
+          }
+        },
+        {
+          "event": "turn",
+          "data": {
+            "event_id": "49c29bc7-b785-42e9-bd99-263bac6db2ab",
+            "seq": 13,
+            "run_id": "331f3cc3-6a22-45cd-afa3-d9678837199f",
+            "created_at": 1791455032840,
+            "phase": "completed",
+            "index": 1,
+            "context_estimate": null,
+            "context_window": null,
+            "model_ms": 629,
+            "attempts": 1,
+            "ttft_ms": 527,
+            "usage": {
+              "prompt_tokens": 5886,
+              "completion_tokens": 76,
+              "cached_tokens": 5632,
+              "reasoning_tokens": 9
+            },
+            "finish_reason": "tool_calls",
+            "tool_call_ids": [
+              "call_00_WlO7ghZMmPH4tCCrL5uX3957"
+            ],
+            "tools_ms": 9035,
+            "error": null
+          }
+        },
+        {
+          "event": "turn",
+          "data": {
+            "event_id": "f908fbd1-dd18-47a9-ad05-98d954fb708e",
+            "seq": 14,
+            "run_id": "331f3cc3-6a22-45cd-afa3-d9678837199f",
+            "created_at": 1791455032847,
+            "phase": "started",
+            "index": 2,
+            "context_estimate": {
+              "limit": 157232,
+              "tools": 4681,
+              "total": 6102,
+              "method": "usage",
+              "history": 70,
+              "watermark": 117924,
+              "max_tokens": 32768,
+              "tool_results": 175,
+              "system_prompt": 1176,
+              "context_window": 200000
+            },
+            "context_window": 200000,
+            "model_ms": null,
+            "attempts": null,
+            "ttft_ms": null,
+            "usage": null,
+            "finish_reason": null,
+            "tool_call_ids": [],
+            "tools_ms": null,
+            "error": null
+          }
+        },
+        {
+          "event": "context",
+          "data": {
+            "event_id": "29684778-b89f-4c5e-ac5d-d6c428e38550",
+            "seq": 15,
+            "run_id": "331f3cc3-6a22-45cd-afa3-d9678837199f",
+            "created_at": 1791455033643,
+            "op": "append",
+            "message_count": 1,
+            "roles": [
+              "assistant"
+            ]
+          }
+        },
+        {
+          "event": "message",
+          "data": {
+            "event_id": "d2ba49f0-18d7-4921-a1fa-bcae15cdcfce",
+            "seq": 16,
+            "run_id": "331f3cc3-6a22-45cd-afa3-d9678837199f",
+            "created_at": 1791455033652,
+            "role": "assistant",
+            "message": "QX-7319-LM",
+            "attachments": [],
+            "attempt": 1
+          }
+        },
+        {
+          "event": "turn",
+          "data": {
+            "event_id": "8efc96d7-3035-4916-9a06-af7b3c060f2f",
+            "seq": 17,
+            "run_id": "331f3cc3-6a22-45cd-afa3-d9678837199f",
+            "created_at": 1791455033659,
+            "phase": "completed",
+            "index": 2,
+            "context_estimate": null,
+            "context_window": null,
+            "model_ms": 787,
+            "attempts": 1,
+            "ttft_ms": 777,
+            "usage": {
+              "prompt_tokens": 6164,
+              "completion_tokens": 7,
+              "cached_tokens": 5888,
+              "reasoning_tokens": 0
+            },
+            "finish_reason": "stop",
+            "tool_call_ids": [],
+            "tools_ms": 0,
+            "error": null
+          }
+        },
+        {
+          "event": "done",
+          "data": {
+            "event_id": "de912e7a-78e7-48a5-96ce-af772d46ad5b",
+            "seq": 18,
+            "run_id": "331f3cc3-6a22-45cd-afa3-d9678837199f",
+            "created_at": 1791455033663
+          }
+        },
+        {
+          "event": "run",
+          "data": {
+            "event_id": "4bbc4ff2-109f-4f31-9510-98d8f7584155",
+            "seq": 19,
+            "run_id": "331f3cc3-6a22-45cd-afa3-d9678837199f",
+            "created_at": 1791455033667,
+            "status": "completed",
+            "reason": null,
+            "summary": {
+              "turns": 2,
+              "tool_calls": 1,
+              "duration_ms": 10570,
+              "cached_tokens": 11520,
+              "prompt_tokens": 12050,
+              "model_requests": 2,
+              "completion_tokens": 83
+            },
+            "mode": "normal"
+          }
+        }
+      ],
+      "request_model": {
+        "model_id": "deepseek-flash",
+        "reasoning": "high"
+      }
+    },
+    {
+      "task": "form",
+      "session_id": "bc7aae25-ebce-4918-a54e-2f0e507a4f51",
+      "run_id": "efdf0b10-00ca-426e-a3e3-373a3f71ba8d",
+      "wall_seconds": 14.739,
+      "status": "completed",
+      "prompt": "使用浏览器打开 http://host.docker.internal:18819/form ，将姓名覆盖为林青，点击提交，核对页面显示已提交：林青，并保存一张截图留证。最后简短告知结果。",
+      "calls": [
+        "browser_navigate",
+        "browser_input",
+        "browser_click",
+        "browser_screenshot"
+      ],
+      "screenshots": 1,
+      "model_calls": 5,
+      "model_ms": 4850,
+      "tools_ms": 9445,
+      "prompt_tokens": 34262,
+      "completion_tokens": 518,
+      "cached_tokens": 31488,
+      "answer": [
+        "我先打开表单页面看看结构。",
+        "页面已加载，姓名当前值为\"旧值\"。现在覆盖输入并提交。",
+        "页面已显示\"已提交：林青\"，现在截图留证。",
+        "截图已保存",
+        "截图确认：输入框中显示的值为\"林青\"，页面下方显示\"已提交：林青\"，提交成功。截图已作为附件保存。\n\n**结果**：已将姓名覆盖为\"林青\"并提交，页面显示\"已提交：林青\"，留证截图已交付。"
+      ],
+      "events": [
+        {
+          "event": "run",
+          "data": {
+            "event_id": "6051b8e7-9113-4f71-bbb4-9ecfdd6783bc",
+            "seq": 1,
+            "run_id": "efdf0b10-00ca-426e-a3e3-373a3f71ba8d",
+            "created_at": 1791455034392,
+            "status": "running",
+            "reason": null,
+            "summary": null,
+            "mode": "normal"
+          }
+        },
+        {
+          "event": "message",
+          "data": {
+            "event_id": "104324a0-365c-489c-b411-bac6a68f248c",
+            "seq": 2,
+            "run_id": "efdf0b10-00ca-426e-a3e3-373a3f71ba8d",
+            "created_at": 1791455034381,
+            "role": "user",
+            "message": "使用浏览器打开 http://host.docker.internal:18819/form ，将姓名覆盖为林青，点击提交，核对页面显示已提交：林青，并保存一张截图留证。最后简短告知结果。",
+            "attachments": [],
+            "attempt": null
+          }
+        },
+        {
+          "event": "title",
+          "data": {
+            "event_id": "ebc506a1-924f-45fc-92fc-6484f1045280",
+            "seq": 3,
+            "run_id": "efdf0b10-00ca-426e-a3e3-373a3f71ba8d",
+            "created_at": 1791455034387,
+            "title": "使用浏览器打开 http://host.docker.int"
+          }
+        },
+        {
+          "event": "context",
+          "data": {
+            "event_id": "42a43dc7-3b51-4701-92f2-c6c2ffcbfe4c",
+            "seq": 4,
+            "run_id": "efdf0b10-00ca-426e-a3e3-373a3f71ba8d",
+            "created_at": 1791455034528,
+            "op": "append",
+            "message_count": 1,
+            "roles": [
+              "user"
+            ]
+          }
+        },
+        {
+          "event": "turn",
+          "data": {
+            "event_id": "3fbab045-acf6-469c-8507-e4bd904a61be",
+            "seq": 5,
+            "run_id": "efdf0b10-00ca-426e-a3e3-373a3f71ba8d",
+            "created_at": 1791455034538,
+            "phase": "started",
+            "index": 1,
+            "context_estimate": {
+              "limit": 157232,
+              "tools": 5068,
+              "total": 6396,
+              "method": "chars",
+              "history": 54,
+              "watermark": 117924,
+              "max_tokens": 32768,
+              "tool_results": 0,
+              "system_prompt": 1274,
+              "context_window": 200000
+            },
+            "context_window": 200000,
+            "model_ms": null,
+            "attempts": null,
+            "ttft_ms": null,
+            "usage": null,
+            "finish_reason": null,
+            "tool_call_ids": [],
+            "tools_ms": null,
+            "error": null
+          }
+        },
+        {
+          "event": "title",
+          "data": {
+            "event_id": "e12e829c-e193-4639-89fa-40c41031fcb9",
+            "seq": 6,
+            "run_id": null,
+            "created_at": 1791455035188,
+            "title": "浏览器表单提交与截图"
+          }
+        },
+        {
+          "event": "context",
+          "data": {
+            "event_id": "7e05d8d3-8564-4f11-8a5b-477972b723e5",
+            "seq": 7,
+            "run_id": "efdf0b10-00ca-426e-a3e3-373a3f71ba8d",
+            "created_at": 1791455035378,
+            "op": "append",
+            "message_count": 1,
+            "roles": [
+              "assistant"
+            ]
+          }
+        },
+        {
+          "event": "message",
+          "data": {
+            "event_id": "832a2db0-f483-454a-b40a-bbb68d8e8cc8",
+            "seq": 8,
+            "run_id": "efdf0b10-00ca-426e-a3e3-373a3f71ba8d",
+            "created_at": 1791455035398,
+            "role": "assistant",
+            "message": "我先打开表单页面看看结构。",
+            "attachments": [],
+            "attempt": 1
+          }
+        },
+        {
+          "event": "tool",
+          "data": {
+            "event_id": "b57e51a7-d486-40e7-a48a-ab29731401c9",
+            "seq": 9,
+            "run_id": "efdf0b10-00ca-426e-a3e3-373a3f71ba8d",
+            "created_at": 1791455035408,
+            "tool_call_id": "call_00_p86x0IjizKjGRsXMon7j7881",
+            "name": "browser",
+            "status": "calling",
+            "function": "browser_navigate",
+            "args": {
+              "url": "http://host.docker.internal:18819/form",
+              "observe": "both"
+            },
+            "content": null,
+            "duration_ms": null,
+            "stages_ms": {},
+            "shaping": null,
+            "denied_by": null
+          }
+        },
+        {
+          "event": "environment",
+          "data": {
+            "event_id": "b1e0ada8-15d0-4d31-b7b3-8bc2b972eb70",
+            "seq": 10,
+            "run_id": "efdf0b10-00ca-426e-a3e3-373a3f71ba8d",
+            "created_at": 1791455035413,
+            "status": "preparing",
+            "message": null,
+            "project_file_protection": null
+          }
+        },
+        {
+          "event": "environment",
+          "data": {
+            "event_id": "75abfbe9-ee8e-4097-8568-4e523fbd6429",
+            "seq": 11,
+            "run_id": "efdf0b10-00ca-426e-a3e3-373a3f71ba8d",
+            "created_at": 1791455043739,
+            "status": "ready",
+            "message": null,
+            "project_file_protection": null
+          }
+        },
+        {
+          "event": "context",
+          "data": {
+            "event_id": "40d8a02c-535d-4466-8514-e9c78fd5ea14",
+            "seq": 12,
+            "run_id": "efdf0b10-00ca-426e-a3e3-373a3f71ba8d",
+            "created_at": 1791455044180,
+            "op": "append",
+            "message_count": 1,
+            "roles": [
+              "tool"
+            ]
+          }
+        },
+        {
+          "event": "tool",
+          "data": {
+            "event_id": "6d4467ce-f057-4ee4-934c-9215ca903363",
+            "seq": 13,
+            "run_id": "efdf0b10-00ca-426e-a3e3-373a3f71ba8d",
+            "created_at": 1791455044180,
+            "tool_call_id": "call_00_p86x0IjizKjGRsXMon7j7881",
+            "name": "browser",
+            "status": "called",
+            "function": "browser_navigate",
+            "args": {
+              "url": "http://host.docker.internal:18819/form",
+              "observe": "both"
+            },
+            "content": {
+              "screenshot": null,
+              "content": "# 受控表单\n\n姓名提交\n\n尚未提交",
+              "outcome": {
+                "success": true,
+                "message": "",
+                "data": {
+                  "url": "http://host.docker.internal:18819/form",
+                  "mode": "both",
+                  "scope": "document",
+                  "title": "效率验证表单",
+                  "tab_id": "tab-2DDC2DA44175685C1EB5BB1BE11E2185",
+                  "content": "# 受控表单\n\n姓名提交\n\n尚未提交",
+                  "stages_ms": {
+                    "observation": 12
+                  },
+                  "truncated": false,
+                  "incomplete": false,
+                  "observed_at": "2026-10-08T10:24:04.179342+00:00",
+                  "total_chars": 18,
+                  "action_success": true,
+                  "observation_id": "obs-a14f514da2",
+                  "total_elements": 2,
+                  "extraction_limits": {
+                    "chars": 1000000,
+                    "nodes": 30000,
+                    "elements": 500
+                  },
+                  "observation_status": "ok",
+                  "interactive_elements": [
+                    {
+                      "ref": "obs-a14f514da2-382510390175",
+                      "tag": "input",
+                      "href": null,
+                      "name": "姓名",
+                      "role": null,
+                      "type": null,
+                      "index": 382510390175,
+                      "value": "旧值",
+                      "checked": false,
+                      "disabled": false,
+                      "expanded": null
+                    },
+                    {
+                      "ref": "obs-a14f514da2-382510390176",
+                      "tag": "button",
+                      "href": null,
+                      "name": "提交",
+                      "role": null,
+                      "type": null,
+                      "index": 382510390176,
+                      "value": "",
+                      "checked": null,
+                      "disabled": false,
+                      "expanded": null
+                    }
+                  ]
+                }
+              },
+              "url": "http://host.docker.internal:18819/form",
+              "title": "效率验证表单",
+              "tab_id": "tab-2DDC2DA44175685C1EB5BB1BE11E2185",
+              "observation_status": "ok"
+            },
+            "duration_ms": 8771,
+            "stages_ms": {
+              "execution": 8771,
+              "projection": 0,
+              "postprocess": 0
+            },
+            "shaping": null,
+            "denied_by": null
+          }
+        },
+        {
+          "event": "turn",
+          "data": {
+            "event_id": "9760c4b1-1b0b-4a27-b1e3-7e2bfe17a698",
+            "seq": 14,
+            "run_id": "efdf0b10-00ca-426e-a3e3-373a3f71ba8d",
+            "created_at": 1791455044190,
+            "phase": "completed",
+            "index": 1,
+            "context_estimate": null,
+            "context_window": null,
+            "model_ms": 824,
+            "attempts": 1,
+            "ttft_ms": 632,
+            "usage": {
+              "prompt_tokens": 5906,
+              "completion_tokens": 83,
+              "cached_tokens": 5760,
+              "reasoning_tokens": 11
+            },
+            "finish_reason": "tool_calls",
+            "tool_call_ids": [
+              "call_00_p86x0IjizKjGRsXMon7j7881"
+            ],
+            "tools_ms": 8771,
+            "error": null
+          }
+        },
+        {
+          "event": "turn",
+          "data": {
+            "event_id": "5ecbaaad-c05a-49ab-8da3-74f6be07579c",
+            "seq": 15,
+            "run_id": "efdf0b10-00ca-426e-a3e3-373a3f71ba8d",
+            "created_at": 1791455044196,
+            "phase": "started",
+            "index": 2,
+            "context_estimate": {
+              "limit": 157232,
+              "tools": 4681,
+              "total": 6245,
+              "method": "usage",
+              "history": 102,
+              "watermark": 117924,
+              "max_tokens": 32768,
+              "tool_results": 286,
+              "system_prompt": 1176,
+              "context_window": 200000
+            },
+            "context_window": 200000,
+            "model_ms": null,
+            "attempts": null,
+            "ttft_ms": null,
+            "usage": null,
+            "finish_reason": null,
+            "tool_call_ids": [],
+            "tools_ms": null,
+            "error": null
+          }
+        },
+        {
+          "event": "context",
+          "data": {
+            "event_id": "99333378-0210-4387-832d-5cf4de2cc15f",
+            "seq": 16,
+            "run_id": "efdf0b10-00ca-426e-a3e3-373a3f71ba8d",
+            "created_at": 1791455045153,
+            "op": "append",
+            "message_count": 1,
+            "roles": [
+              "assistant"
+            ]
+          }
+        },
+        {
+          "event": "message",
+          "data": {
+            "event_id": "392860c8-00ca-4899-a698-0b8f284c46f5",
+            "seq": 17,
+            "run_id": "efdf0b10-00ca-426e-a3e3-373a3f71ba8d",
+            "created_at": 1791455045169,
+            "role": "assistant",
+            "message": "页面已加载，姓名当前值为\"旧值\"。现在覆盖输入并提交。",
+            "attachments": [],
+            "attempt": 1
+          }
+        },
+        {
+          "event": "tool",
+          "data": {
+            "event_id": "527c085b-e614-47d9-b188-90a41cb3bf2d",
+            "seq": 18,
+            "run_id": "efdf0b10-00ca-426e-a3e3-373a3f71ba8d",
+            "created_at": 1791455045177,
+            "tool_call_id": "call_00_75zZh9DG5RAXuR7zzUJ42836",
+            "name": "browser",
+            "status": "calling",
+            "function": "browser_input",
+            "args": {
+              "ref": "obs-a14f514da2-382510390175",
+              "text": "林青"
+            },
+            "content": null,
+            "duration_ms": null,
+            "stages_ms": {},
+            "shaping": null,
+            "denied_by": null
+          }
+        },
+        {
+          "event": "context",
+          "data": {
+            "event_id": "1ad395df-a31a-40e0-9e7d-7000ab38f34f",
+            "seq": 19,
+            "run_id": "efdf0b10-00ca-426e-a3e3-373a3f71ba8d",
+            "created_at": 1791455045392,
+            "op": "append",
+            "message_count": 1,
+            "roles": [
+              "tool"
+            ]
+          }
+        },
+        {
+          "event": "tool",
+          "data": {
+            "event_id": "cdbbc9aa-2c83-41d2-846a-d3fad94f39b0",
+            "seq": 20,
+            "run_id": "efdf0b10-00ca-426e-a3e3-373a3f71ba8d",
+            "created_at": 1791455045392,
+            "tool_call_id": "call_00_75zZh9DG5RAXuR7zzUJ42836",
+            "name": "browser",
+            "status": "called",
+            "function": "browser_input",
+            "args": {
+              "ref": "obs-a14f514da2-382510390175",
+              "text": "林青"
+            },
+            "content": {
+              "screenshot": null,
+              "content": "操作已完成",
+              "outcome": {
+                "success": true,
+                "message": "",
+                "data": {
+                  "url": "http://host.docker.internal:18819/form",
+                  "title": "效率验证表单",
+                  "tab_id": "tab-2DDC2DA44175685C1EB5BB1BE11E2185",
+                  "observed_at": "2026-10-08T10:24:05.391601+00:00",
+                  "action_success": true,
+                  "observation_status": "not_requested"
+                }
+              },
+              "url": "http://host.docker.internal:18819/form",
+              "title": "效率验证表单",
+              "tab_id": "tab-2DDC2DA44175685C1EB5BB1BE11E2185",
+              "observation_status": "not_requested"
+            },
+            "duration_ms": 214,
+            "stages_ms": {
+              "execution": 214,
+              "projection": 0,
+              "postprocess": 0
+            },
+            "shaping": null,
+            "denied_by": null
+          }
+        },
+        {
+          "event": "turn",
+          "data": {
+            "event_id": "e133d44c-0b46-4d29-889f-6bac4cbc106d",
+            "seq": 21,
+            "run_id": "efdf0b10-00ca-426e-a3e3-373a3f71ba8d",
+            "created_at": 1791455045413,
+            "phase": "completed",
+            "index": 2,
+            "context_estimate": null,
+            "context_window": null,
+            "model_ms": 947,
+            "attempts": 1,
+            "ttft_ms": 740,
+            "usage": {
+              "prompt_tokens": 6301,
+              "completion_tokens": 103,
+              "cached_tokens": 5888,
+              "reasoning_tokens": 20
+            },
+            "finish_reason": "tool_calls",
+            "tool_call_ids": [
+              "call_00_75zZh9DG5RAXuR7zzUJ42836"
+            ],
+            "tools_ms": 214,
+            "error": null
+          }
+        },
+        {
+          "event": "turn",
+          "data": {
+            "event_id": "f56927e9-5d71-41d0-867f-9e457510274f",
+            "seq": 22,
+            "run_id": "efdf0b10-00ca-426e-a3e3-373a3f71ba8d",
+            "created_at": 1791455045422,
+            "phase": "started",
+            "index": 3,
+            "context_estimate": {
+              "limit": 157232,
+              "tools": 4742,
+              "total": 6449,
+              "method": "usage",
+              "history": 163,
+              "watermark": 117924,
+              "max_tokens": 32768,
+              "tool_results": 352,
+              "system_prompt": 1192,
+              "context_window": 200000
+            },
+            "context_window": 200000,
+            "model_ms": null,
+            "attempts": null,
+            "ttft_ms": null,
+            "usage": null,
+            "finish_reason": null,
+            "tool_call_ids": [],
+            "tools_ms": null,
+            "error": null
+          }
+        },
+        {
+          "event": "context",
+          "data": {
+            "event_id": "d2da5599-5c0f-4fd7-aa68-b8d3d39c7ac3",
+            "seq": 23,
+            "run_id": "efdf0b10-00ca-426e-a3e3-373a3f71ba8d",
+            "created_at": 1791455046192,
+            "op": "append",
+            "message_count": 1,
+            "roles": [
+              "assistant"
+            ]
+          }
+        },
+        {
+          "event": "tool",
+          "data": {
+            "event_id": "4f8dfbca-7b52-4381-ad0b-bc633630b980",
+            "seq": 24,
+            "run_id": "efdf0b10-00ca-426e-a3e3-373a3f71ba8d",
+            "created_at": 1791455046204,
+            "tool_call_id": "call_00_nWKiN0dmVoq6lazfiU4P8205",
+            "name": "browser",
+            "status": "calling",
+            "function": "browser_click",
+            "args": {
+              "ref": "obs-a14f514da2-382510390176",
+              "observe": "both"
+            },
+            "content": null,
+            "duration_ms": null,
+            "stages_ms": {},
+            "shaping": null,
+            "denied_by": null
+          }
+        },
+        {
+          "event": "context",
+          "data": {
+            "event_id": "6fd88a32-a7db-4d9e-82dc-f7d991758f21",
+            "seq": 25,
+            "run_id": "efdf0b10-00ca-426e-a3e3-373a3f71ba8d",
+            "created_at": 1791455046523,
+            "op": "append",
+            "message_count": 1,
+            "roles": [
+              "tool"
+            ]
+          }
+        },
+        {
+          "event": "tool",
+          "data": {
+            "event_id": "4b73e46b-7d3f-46ef-b185-a74c1ab4e37e",
+            "seq": 26,
+            "run_id": "efdf0b10-00ca-426e-a3e3-373a3f71ba8d",
+            "created_at": 1791455046523,
+            "tool_call_id": "call_00_nWKiN0dmVoq6lazfiU4P8205",
+            "name": "browser",
+            "status": "called",
+            "function": "browser_click",
+            "args": {
+              "ref": "obs-a14f514da2-382510390176",
+              "observe": "both"
+            },
+            "content": {
+              "screenshot": null,
+              "content": "# 受控表单\n\n姓名提交\n\n已提交：林青",
+              "outcome": {
+                "success": true,
+                "message": "",
+                "data": {
+                  "url": "http://host.docker.internal:18819/form",
+                  "mode": "both",
+                  "scope": "document",
+                  "title": "效率验证表单",
+                  "tab_id": "tab-2DDC2DA44175685C1EB5BB1BE11E2185",
+                  "content": "# 受控表单\n\n姓名提交\n\n已提交：林青",
+                  "stages_ms": {
+                    "observation": 7
+                  },
+                  "truncated": false,
+                  "incomplete": false,
+                  "observed_at": "2026-10-08T10:24:06.522949+00:00",
+                  "total_chars": 20,
+                  "action_success": true,
+                  "observation_id": "obs-3b19dc0917",
+                  "total_elements": 2,
+                  "extraction_limits": {
+                    "chars": 1000000,
+                    "nodes": 30000,
+                    "elements": 500
+                  },
+                  "observation_status": "ok",
+                  "interactive_elements": [
+                    {
+                      "ref": "obs-3b19dc0917-382510390177",
+                      "tag": "input",
+                      "href": null,
+                      "name": "姓名",
+                      "role": null,
+                      "type": null,
+                      "index": 382510390177,
+                      "value": "林青",
+                      "checked": false,
+                      "disabled": false,
+                      "expanded": null
+                    },
+                    {
+                      "ref": "obs-3b19dc0917-382510390178",
+                      "tag": "button",
+                      "href": null,
+                      "name": "提交",
+                      "role": null,
+                      "type": null,
+                      "index": 382510390178,
+                      "value": "",
+                      "checked": null,
+                      "disabled": false,
+                      "expanded": null
+                    }
+                  ]
+                }
+              },
+              "url": "http://host.docker.internal:18819/form",
+              "title": "效率验证表单",
+              "tab_id": "tab-2DDC2DA44175685C1EB5BB1BE11E2185",
+              "observation_status": "ok"
+            },
+            "duration_ms": 318,
+            "stages_ms": {
+              "execution": 318,
+              "projection": 0,
+              "postprocess": 0
+            },
+            "shaping": null,
+            "denied_by": null
+          }
+        },
+        {
+          "event": "turn",
+          "data": {
+            "event_id": "b3a7af1c-714f-4c1a-aa92-1967e0199579",
+            "seq": 27,
+            "run_id": "efdf0b10-00ca-426e-a3e3-373a3f71ba8d",
+            "created_at": 1791455046536,
+            "phase": "completed",
+            "index": 3,
+            "context_estimate": null,
+            "context_window": null,
+            "model_ms": 760,
+            "attempts": 1,
+            "ttft_ms": 586,
+            "usage": {
+              "prompt_tokens": 6506,
+              "completion_tokens": 76,
+              "cached_tokens": 6272,
+              "reasoning_tokens": 8
+            },
+            "finish_reason": "tool_calls",
+            "tool_call_ids": [
+              "call_00_nWKiN0dmVoq6lazfiU4P8205"
+            ],
+            "tools_ms": 318,
+            "error": null
+          }
+        },
+        {
+          "event": "turn",
+          "data": {
+            "event_id": "befb8ea1-26ad-491a-8324-dbf4746eb94e",
+            "seq": 28,
+            "run_id": "efdf0b10-00ca-426e-a3e3-373a3f71ba8d",
+            "created_at": 1791455046542,
+            "phase": "started",
+            "index": 4,
+            "context_estimate": {
+              "limit": 157232,
+              "tools": 4792,
+              "total": 6831,
+              "method": "usage",
+              "history": 198,
+              "watermark": 117924,
+              "max_tokens": 32768,
+              "tool_results": 637,
+              "system_prompt": 1204,
+              "context_window": 200000
+            },
+            "context_window": 200000,
+            "model_ms": null,
+            "attempts": null,
+            "ttft_ms": null,
+            "usage": null,
+            "finish_reason": null,
+            "tool_call_ids": [],
+            "tools_ms": null,
+            "error": null
+          }
+        },
+        {
+          "event": "context",
+          "data": {
+            "event_id": "a86d63ad-02a2-4385-af4c-1fcbb3058509",
+            "seq": 29,
+            "run_id": "efdf0b10-00ca-426e-a3e3-373a3f71ba8d",
+            "created_at": 1791455047626,
+            "op": "append",
+            "message_count": 1,
+            "roles": [
+              "assistant"
+            ]
+          }
+        },
+        {
+          "event": "message",
+          "data": {
+            "event_id": "bff56579-e4d7-440f-9f26-6320a7b01aa3",
+            "seq": 30,
+            "run_id": "efdf0b10-00ca-426e-a3e3-373a3f71ba8d",
+            "created_at": 1791455047633,
+            "role": "assistant",
+            "message": "页面已显示\"已提交：林青\"，现在截图留证。",
+            "attachments": [],
+            "attempt": 1
+          }
+        },
+        {
+          "event": "tool",
+          "data": {
+            "event_id": "9df8892c-a7e9-41fe-8745-0bf045cca522",
+            "seq": 31,
+            "run_id": "efdf0b10-00ca-426e-a3e3-373a3f71ba8d",
+            "created_at": 1791455047637,
+            "tool_call_id": "call_00_JtfIMnVAvUz4noAtaxJu6146",
+            "name": "browser",
+            "status": "calling",
+            "function": "browser_screenshot",
+            "args": {
+              "scope": "viewport",
+              "analyze": true,
+              "deliver": true,
+              "purpose": "表单提交结果留证，确认页面显示“已提交：林青”"
+            },
+            "content": null,
+            "duration_ms": null,
+            "stages_ms": {},
+            "shaping": null,
+            "denied_by": null
+          }
+        },
+        {
+          "event": "context",
+          "data": {
+            "event_id": "f7c84676-46fb-4f2d-a0ec-743d15df1573",
+            "seq": 32,
+            "run_id": "efdf0b10-00ca-426e-a3e3-373a3f71ba8d",
+            "created_at": 1791455047780,
+            "op": "append",
+            "message_count": 1,
+            "roles": [
+              "tool"
+            ]
+          }
+        },
+        {
+          "event": "tool",
+          "data": {
+            "event_id": "83232e33-ddba-4c09-a1a4-3bc05986b369",
+            "seq": 33,
+            "run_id": "efdf0b10-00ca-426e-a3e3-373a3f71ba8d",
+            "created_at": 1791455047780,
+            "tool_call_id": "call_00_JtfIMnVAvUz4noAtaxJu6146",
+            "name": "browser",
+            "status": "called",
+            "function": "browser_screenshot",
+            "args": {
+              "scope": "viewport",
+              "analyze": true,
+              "deliver": true,
+              "purpose": "表单提交结果留证，确认页面显示“已提交：林青”"
+            },
+            "content": {
+              "screenshot": "/api/files/32c2490b-a6fe-4655-b41c-cfec18071225/download",
+              "content": "截图已交付为附件，无需再次 deliver_files。像素将在下一请求输入当前模型，请给出具体观察。",
+              "outcome": {
+                "success": true,
+                "message": "截图已交付为附件，无需再次 deliver_files。像素将在下一请求输入当前模型，请给出具体观察。",
+                "data": {
+                  "url": "http://host.docker.internal:18819/form",
+                  "file": {
+                    "id": "32c2490b-a6fe-4655-b41c-cfec18071225",
+                    "key": "2026/10/08/32c2490b-a6fe-4655-b41c-cfec18071225.jpg",
+                    "size": 27079,
+                    "sha256": null,
+                    "visual": null,
+                    "filename": "adf2d95dea70478aa16bb839664f2fe4.jpg",
+                    "filepath": "/home/ubuntu/.rayagent/screenshots/efdf0b10-00ca-426e-a3e3-373a3f71ba8d/adf2d95dea70478aa16bb839664f2fe4.jpg",
+                    "extension": ".jpg",
+                    "mime_type": "",
+                    "project_upload": null,
+                    "project_persistence": null
+                  },
+                  "size": 27079,
+                  "scope": "viewport",
+                  "title": "效率验证表单",
+                  "width": 1279,
+                  "height": 991,
+                  "run_id": "efdf0b10-00ca-426e-a3e3-373a3f71ba8d",
+                  "tab_id": "tab-2DDC2DA44175685C1EB5BB1BE11E2185",
+                  "file_id": "32c2490b-a6fe-4655-b41c-cfec18071225",
+                  "purpose": "表单提交结果留证，确认页面显示“已提交：林青”",
+                  "mime_type": "image/jpeg",
+                  "stages_ms": {
+                    "upload": 22,
+                    "capture": 114
+                  },
+                  "temporary": false,
+                  "screenshot": "/api/files/32c2490b-a6fe-4655-b41c-cfec18071225/download",
+                  "session_id": "bc7aae25-ebce-4918-a54e-2f0e507a4f51",
+                  "captured_at": "2026-10-08T10:24:07.757379+00:00",
+                  "image_input": {
+                    "size": 27079,
+                    "width": 1279,
+                    "detail": "high",
+                    "height": 991,
+                    "run_id": "efdf0b10-00ca-426e-a3e3-373a3f71ba8d",
+                    "sha256": "e39340d6a7a1c34f5d0b00a544bff9a3a6e5d5f8bc08a669e636caaa962060d2",
+                    "file_id": "32c2490b-a6fe-4655-b41c-cfec18071225",
+                    "purpose": "表单提交结果留证，确认页面显示“已提交：林青”",
+                    "mime_type": "image/jpeg",
+                    "temporary": false,
+                    "deleted_at": null,
+                    "expires_at": null,
+                    "session_id": "bc7aae25-ebce-4918-a54e-2f0e507a4f51",
+                    "tool_call_id": "call_00_JtfIMnVAvUz4noAtaxJu6146",
+                    "token_estimate": 1024
+                  },
+                  "observed_at": "2026-10-08T10:24:07.757373+00:00",
+                  "tool_call_id": "call_00_JtfIMnVAvUz4noAtaxJu6146",
+                  "visual_input": true,
+                  "screenshot_usage": {
+                    "bytes": 27079,
+                    "count": 1
+                  }
+                }
+              },
+              "url": "http://host.docker.internal:18819/form",
+              "title": "效率验证表单",
+              "tab_id": "tab-2DDC2DA44175685C1EB5BB1BE11E2185",
+              "observation_status": null
+            },
+            "duration_ms": 142,
+            "stages_ms": {
+              "execution": 142,
+              "projection": 0,
+              "postprocess": 0
+            },
+            "shaping": null,
+            "denied_by": null
+          }
+        },
+        {
+          "event": "message",
+          "data": {
+            "event_id": "42e3d42f-faa8-45a7-8dd5-3e12fb4c4c73",
+            "seq": 34,
+            "run_id": "efdf0b10-00ca-426e-a3e3-373a3f71ba8d",
+            "created_at": 1791455047780,
+            "role": "assistant",
+            "message": "截图已保存",
+            "attachments": [
+              {
+                "id": "32c2490b-a6fe-4655-b41c-cfec18071225",
+                "filename": "adf2d95dea70478aa16bb839664f2fe4.jpg",
+                "filepath": "/home/ubuntu/.rayagent/screenshots/efdf0b10-00ca-426e-a3e3-373a3f71ba8d/adf2d95dea70478aa16bb839664f2fe4.jpg",
+                "key": "2026/10/08/32c2490b-a6fe-4655-b41c-cfec18071225.jpg",
+                "extension": ".jpg",
+                "mime_type": "",
+                "size": 27079,
+                "sha256": null,
+                "visual": null,
+                "project_upload": null,
+                "project_persistence": null
+              }
+            ],
+            "attempt": null
+          }
+        },
+        {
+          "event": "turn",
+          "data": {
+            "event_id": "c435d86e-6c62-4671-93b0-bb1fda43f0e3",
+            "seq": 35,
+            "run_id": "efdf0b10-00ca-426e-a3e3-373a3f71ba8d",
+            "created_at": 1791455047791,
+            "phase": "completed",
+            "index": 4,
+            "context_estimate": null,
+            "context_window": null,
+            "model_ms": 1077,
+            "attempts": 1,
+            "ttft_ms": 764,
+            "usage": {
+              "prompt_tokens": 6900,
+              "completion_tokens": 195,
+              "cached_tokens": 6528,
+              "reasoning_tokens": 75
+            },
+            "finish_reason": "tool_calls",
+            "tool_call_ids": [
+              "call_00_JtfIMnVAvUz4noAtaxJu6146"
+            ],
+            "tools_ms": 142,
+            "error": null
+          }
+        },
+        {
+          "event": "context",
+          "data": {
+            "event_id": "7de4d5fe-38e8-4930-9c97-49a0f49ea593",
+            "seq": 36,
+            "run_id": "efdf0b10-00ca-426e-a3e3-373a3f71ba8d",
+            "created_at": 1791455047794,
+            "op": "replace",
+            "message_count": 10,
+            "roles": [
+              "user",
+              "assistant",
+              "tool",
+              "assistant",
+              "tool",
+              "assistant",
+              "tool",
+              "assistant",
+              "tool",
+              "user"
+            ]
+          }
+        },
+        {
+          "event": "turn",
+          "data": {
+            "event_id": "6461a5af-8ff0-4535-b96c-67d089672100",
+            "seq": 37,
+            "run_id": "efdf0b10-00ca-426e-a3e3-373a3f71ba8d",
+            "created_at": 1791455047800,
+            "phase": "started",
+            "index": 5,
+            "context_estimate": {
+              "limit": 157232,
+              "tools": 5068,
+              "total": 8985,
+              "method": "chars",
+              "history": 1436,
+              "watermark": 117924,
+              "max_tokens": 32768,
+              "tool_results": 1207,
+              "system_prompt": 1274,
+              "context_window": 200000
+            },
+            "context_window": 200000,
+            "model_ms": null,
+            "attempts": null,
+            "ttft_ms": null,
+            "usage": null,
+            "finish_reason": null,
+            "tool_call_ids": [],
+            "tools_ms": null,
+            "error": null
+          }
+        },
+        {
+          "event": "context",
+          "data": {
+            "event_id": "b01b0c6b-495b-436d-8aab-82550154bd11",
+            "seq": 38,
+            "run_id": "efdf0b10-00ca-426e-a3e3-373a3f71ba8d",
+            "created_at": 1791455049050,
+            "op": "append",
+            "message_count": 1,
+            "roles": [
+              "assistant"
+            ]
+          }
+        },
+        {
+          "event": "message",
+          "data": {
+            "event_id": "3f5f784b-dcbf-4fab-945d-5bfc1606fd63",
+            "seq": 39,
+            "run_id": "efdf0b10-00ca-426e-a3e3-373a3f71ba8d",
+            "created_at": 1791455049066,
+            "role": "assistant",
+            "message": "截图确认：输入框中显示的值为\"林青\"，页面下方显示\"已提交：林青\"，提交成功。截图已作为附件保存。\n\n**结果**：已将姓名覆盖为\"林青\"并提交，页面显示\"已提交：林青\"，留证截图已交付。",
+            "attachments": [],
+            "attempt": 1
+          }
+        },
+        {
+          "event": "turn",
+          "data": {
+            "event_id": "3d40f56c-9af2-437a-ad36-87afb56576ac",
+            "seq": 40,
+            "run_id": "efdf0b10-00ca-426e-a3e3-373a3f71ba8d",
+            "created_at": 1791455049074,
+            "phase": "completed",
+            "index": 5,
+            "context_estimate": null,
+            "context_window": null,
+            "model_ms": 1242,
+            "attempts": 1,
+            "ttft_ms": 1009,
+            "usage": {
+              "prompt_tokens": 8649,
+              "completion_tokens": 61,
+              "cached_tokens": 7040,
+              "reasoning_tokens": 0
+            },
+            "finish_reason": "stop",
+            "tool_call_ids": [],
+            "tools_ms": 0,
+            "error": null
+          }
+        },
+        {
+          "event": "done",
+          "data": {
+            "event_id": "3ba0fd81-0202-4259-9a78-7ac9bf95343d",
+            "seq": 41,
+            "run_id": "efdf0b10-00ca-426e-a3e3-373a3f71ba8d",
+            "created_at": 1791455049079
+          }
+        },
+        {
+          "event": "run",
+          "data": {
+            "event_id": "a66483f8-6d70-4389-9688-493fe2e375ed",
+            "seq": 42,
+            "run_id": "efdf0b10-00ca-426e-a3e3-373a3f71ba8d",
+            "created_at": 1791455049084,
+            "status": "completed",
+            "reason": null,
+            "summary": {
+              "turns": 5,
+              "tool_calls": 4,
+              "duration_ms": 14697,
+              "cached_tokens": 31488,
+              "prompt_tokens": 34262,
+              "model_requests": 5,
+              "completion_tokens": 518
+            },
+            "mode": "normal"
+          }
+        }
+      ],
+      "request_model": {
+        "model_id": "deepseek-flash",
+        "reasoning": "high"
+      }
+    }
+  ],
+  "vision": [
+    {
+      "model": "deepseek-flash",
+      "session_id": "c1972105-6259-47fd-80cd-b7cf4d743ba8",
+      "run_id": "b3415fd1-ff97-4202-8312-6bc6d1d9f615",
+      "wall_seconds": 13.644,
+      "status": "completed",
+      "expected": "MVL54TQ",
+      "answers": [
+        "我先打开页面，然后按要求截图并尝试读取图中内容。",
+        "页面正文只有一个图片引用，内容确实只在图片里。现在按要求截图并交给模型读取。",
+        "已打开页面并完成一次带视觉的截图观察（deliver=false，未生成附件）。\n\n图中七位标记为：\n\n**MVL54TQ**\n\n说明：\n- 页面本身只有一张图片（`/asset.png`），正文文本里没有任何可用信息，所以内容只能从图片读取。\n- 截图工具返回 `visual_input: true`，表明当前模型支持视觉，上述 7 位字符是直接看图识别所得，不是猜测，也未使用 OCR、Shell 或网络方式替代读取。\n- 该截图只是临时观察图（24 小时后可回收），未作为文件交付。"
+      ],
+      "exact_match": true,
+      "events": [
+        {
+          "event": "run",
+          "data": {
+            "event_id": "c635d8f6-04b5-414b-b51e-a6a654e6629b",
+            "seq": 1,
+            "run_id": "b3415fd1-ff97-4202-8312-6bc6d1d9f615",
+            "created_at": 1791455103133,
+            "status": "running",
+            "reason": null,
+            "summary": null,
+            "mode": "normal"
+          }
+        },
+        {
+          "event": "message",
+          "data": {
+            "event_id": "0b7316e0-b604-496e-b413-dcde21ef20c4",
+            "seq": 2,
+            "run_id": "b3415fd1-ff97-4202-8312-6bc6d1d9f615",
+            "created_at": 1791455103125,
+            "role": "user",
+            "message": "打开 http://host.docker.internal:18829/ 。只使用浏览器工具：页面内容只存在于图片中，请调用 browser_screenshot(analyze=true, deliver=false, purpose=\"读取图中七位标记\")。支持视觉时读出图中七位字符；若工具明确当前模型不支持视觉，则如实说明，禁止猜测，也不使用 OCR、shell 或网络读取代替。",
+            "attachments": [],
+            "attempt": null
+          }
+        },
+        {
+          "event": "title",
+          "data": {
+            "event_id": "c4113905-47c6-49b9-a64f-f208e741a2c5",
+            "seq": 3,
+            "run_id": "b3415fd1-ff97-4202-8312-6bc6d1d9f615",
+            "created_at": 1791455103129,
+            "title": "打开 http://host.docker.internal"
+          }
+        },
+        {
+          "event": "context",
+          "data": {
+            "event_id": "a3a36893-13cd-4336-9a9f-ab36770a8bcc",
+            "seq": 4,
+            "run_id": "b3415fd1-ff97-4202-8312-6bc6d1d9f615",
+            "created_at": 1791455103172,
+            "op": "append",
+            "message_count": 1,
+            "roles": [
+              "user"
+            ]
+          }
+        },
+        {
+          "event": "turn",
+          "data": {
+            "event_id": "a8d8a995-275a-4161-b439-7425dbb8eba2",
+            "seq": 5,
+            "run_id": "b3415fd1-ff97-4202-8312-6bc6d1d9f615",
+            "created_at": 1791455103180,
+            "phase": "started",
+            "index": 1,
+            "context_estimate": {
+              "limit": 157232,
+              "tools": 5068,
+              "total": 6440,
+              "method": "chars",
+              "history": 98,
+              "watermark": 117924,
+              "max_tokens": 32768,
+              "tool_results": 0,
+              "system_prompt": 1274,
+              "context_window": 200000
+            },
+            "context_window": 200000,
+            "model_ms": null,
+            "attempts": null,
+            "ttft_ms": null,
+            "usage": null,
+            "finish_reason": null,
+            "tool_call_ids": [],
+            "tools_ms": null,
+            "error": null
+          }
+        },
+        {
+          "event": "title",
+          "data": {
+            "event_id": "0e425484-65e5-407e-8588-638bf0f03fd9",
+            "seq": 6,
+            "run_id": null,
+            "created_at": 1791455103645,
+            "title": "读取图中七位标记"
+          }
+        },
+        {
+          "event": "context",
+          "data": {
+            "event_id": "98990fbe-e6a8-4f19-9db8-b993e57a6bd7",
+            "seq": 7,
+            "run_id": "b3415fd1-ff97-4202-8312-6bc6d1d9f615",
+            "created_at": 1791455104472,
+            "op": "append",
+            "message_count": 1,
+            "roles": [
+              "assistant"
+            ]
+          }
+        },
+        {
+          "event": "message",
+          "data": {
+            "event_id": "85bea67d-4afc-4d15-8a2b-f72553a6a35e",
+            "seq": 8,
+            "run_id": "b3415fd1-ff97-4202-8312-6bc6d1d9f615",
+            "created_at": 1791455104490,
+            "role": "assistant",
+            "message": "我先打开页面，然后按要求截图并尝试读取图中内容。",
+            "attachments": [],
+            "attempt": 1
+          }
+        },
+        {
+          "event": "tool",
+          "data": {
+            "event_id": "535013b3-9d35-4b0c-b40e-49a766b99295",
+            "seq": 9,
+            "run_id": "b3415fd1-ff97-4202-8312-6bc6d1d9f615",
+            "created_at": 1791455104499,
+            "tool_call_id": "call_00_z6pOm2pmFxJnraDA4JG37383",
+            "name": "browser",
+            "status": "calling",
+            "function": "browser_navigate",
+            "args": {
+              "url": "http://host.docker.internal:18829/",
+              "observe": "text"
+            },
+            "content": null,
+            "duration_ms": null,
+            "stages_ms": {},
+            "shaping": null,
+            "denied_by": null
+          }
+        },
+        {
+          "event": "environment",
+          "data": {
+            "event_id": "677351e5-8eab-421d-a0ec-077d9f205e7e",
+            "seq": 10,
+            "run_id": "b3415fd1-ff97-4202-8312-6bc6d1d9f615",
+            "created_at": 1791455104505,
+            "status": "preparing",
+            "message": null,
+            "project_file_protection": null
+          }
+        },
+        {
+          "event": "environment",
+          "data": {
+            "event_id": "69a45770-421a-4480-84d1-e9f1aa1cc9b3",
+            "seq": 11,
+            "run_id": "b3415fd1-ff97-4202-8312-6bc6d1d9f615",
+            "created_at": 1791455112867,
+            "status": "ready",
+            "message": null,
+            "project_file_protection": null
+          }
+        },
+        {
+          "event": "context",
+          "data": {
+            "event_id": "a1c06c47-46b0-45fa-ba5d-3da8fa243e3c",
+            "seq": 12,
+            "run_id": "b3415fd1-ff97-4202-8312-6bc6d1d9f615",
+            "created_at": 1791455113328,
+            "op": "append",
+            "message_count": 1,
+            "roles": [
+              "tool"
+            ]
+          }
+        },
+        {
+          "event": "tool",
+          "data": {
+            "event_id": "fc960bbd-57a9-4083-a0b7-1619e9d2cc8e",
+            "seq": 13,
+            "run_id": "b3415fd1-ff97-4202-8312-6bc6d1d9f615",
+            "created_at": 1791455113328,
+            "tool_call_id": "call_00_z6pOm2pmFxJnraDA4JG37383",
+            "name": "browser",
+            "status": "called",
+            "function": "browser_navigate",
+            "args": {
+              "url": "http://host.docker.internal:18829/",
+              "observe": "text"
+            },
+            "content": {
+              "screenshot": null,
+              "content": "![Visual challenge](/asset.png)",
+              "outcome": {
+                "success": true,
+                "message": "",
+                "data": {
+                  "url": "http://host.docker.internal:18829/",
+                  "mode": "text",
+                  "scope": "document",
+                  "title": "Pixel observation",
+                  "tab_id": "tab-54711878C5C4FE94D5118DBD37129A46",
+                  "content": "![Visual challenge](/asset.png)",
+                  "stages_ms": {
+                    "observation": 54
+                  },
+                  "truncated": false,
+                  "incomplete": false,
+                  "observed_at": "2026-10-08T10:25:13.328104+00:00",
+                  "total_chars": 31,
+                  "action_success": true,
+                  "observation_id": "obs-1a0ae93ae5",
+                  "total_elements": 0,
+                  "extraction_limits": {
+                    "chars": 1000000,
+                    "nodes": 30000,
+                    "elements": 500
+                  },
+                  "observation_status": "ok",
+                  "interactive_elements": []
+                }
+              },
+              "url": "http://host.docker.internal:18829/",
+              "title": "Pixel observation",
+              "tab_id": "tab-54711878C5C4FE94D5118DBD37129A46",
+              "observation_status": "ok"
+            },
+            "duration_ms": 8828,
+            "stages_ms": {
+              "execution": 8828,
+              "projection": 0,
+              "postprocess": 0
+            },
+            "shaping": null,
+            "denied_by": null
+          }
+        },
+        {
+          "event": "turn",
+          "data": {
+            "event_id": "2b43d1b9-6ae7-45cc-a401-31b835a91979",
+            "seq": 14,
+            "run_id": "b3415fd1-ff97-4202-8312-6bc6d1d9f615",
+            "created_at": 1791455113341,
+            "phase": "completed",
+            "index": 1,
+            "context_estimate": null,
+            "context_window": null,
+            "model_ms": 1281,
+            "attempts": 1,
+            "ttft_ms": 1019,
+            "usage": {
+              "prompt_tokens": 5942,
+              "completion_tokens": 130,
+              "cached_tokens": 5760,
+              "reasoning_tokens": 52
+            },
+            "finish_reason": "tool_calls",
+            "tool_call_ids": [
+              "call_00_z6pOm2pmFxJnraDA4JG37383"
+            ],
+            "tools_ms": 8828,
+            "error": null
+          }
+        },
+        {
+          "event": "turn",
+          "data": {
+            "event_id": "94a83a76-6d45-4be8-8f1f-d8fc6a810de3",
+            "seq": 15,
+            "run_id": "b3415fd1-ff97-4202-8312-6bc6d1d9f615",
+            "created_at": 1791455113350,
+            "phase": "started",
+            "index": 2,
+            "context_estimate": {
+              "limit": 157232,
+              "tools": 4677,
+              "total": 6233,
+              "method": "usage",
+              "history": 208,
+              "watermark": 117924,
+              "max_tokens": 32768,
+              "tool_results": 173,
+              "system_prompt": 1175,
+              "context_window": 200000
+            },
+            "context_window": 200000,
+            "model_ms": null,
+            "attempts": null,
+            "ttft_ms": null,
+            "usage": null,
+            "finish_reason": null,
+            "tool_call_ids": [],
+            "tools_ms": null,
+            "error": null
+          }
+        },
+        {
+          "event": "context",
+          "data": {
+            "event_id": "d191e306-b77e-47a2-85be-e6f524826cbc",
+            "seq": 16,
+            "run_id": "b3415fd1-ff97-4202-8312-6bc6d1d9f615",
+            "created_at": 1791455114361,
+            "op": "append",
+            "message_count": 1,
+            "roles": [
+              "assistant"
+            ]
+          }
+        },
+        {
+          "event": "message",
+          "data": {
+            "event_id": "229808f0-93e7-4a7b-afd3-9aab2f15ce89",
+            "seq": 17,
+            "run_id": "b3415fd1-ff97-4202-8312-6bc6d1d9f615",
+            "created_at": 1791455114380,
+            "role": "assistant",
+            "message": "页面正文只有一个图片引用，内容确实只在图片里。现在按要求截图并交给模型读取。",
+            "attachments": [],
+            "attempt": 1
+          }
+        },
+        {
+          "event": "tool",
+          "data": {
+            "event_id": "fb029d8e-8f0c-46ab-9982-16b87278df49",
+            "seq": 18,
+            "run_id": "b3415fd1-ff97-4202-8312-6bc6d1d9f615",
+            "created_at": 1791455114388,
+            "tool_call_id": "call_00_j9klwqXG9r91w8bqodV41675",
+            "name": "browser",
+            "status": "calling",
+            "function": "browser_screenshot",
+            "args": {
+              "scope": "viewport",
+              "analyze": true,
+              "deliver": false,
+              "purpose": "读取图中七位标记"
+            },
+            "content": null,
+            "duration_ms": null,
+            "stages_ms": {},
+            "shaping": null,
+            "denied_by": null
+          }
+        },
+        {
+          "event": "context",
+          "data": {
+            "event_id": "c056b95f-18ac-40de-b693-d9e9f3c0b1e3",
+            "seq": 19,
+            "run_id": "b3415fd1-ff97-4202-8312-6bc6d1d9f615",
+            "created_at": 1791455114507,
+            "op": "append",
+            "message_count": 1,
+            "roles": [
+              "tool"
+            ]
+          }
+        },
+        {
+          "event": "tool",
+          "data": {
+            "event_id": "5ec889aa-3f6d-402d-ba83-ea046a755a8d",
+            "seq": 20,
+            "run_id": "b3415fd1-ff97-4202-8312-6bc6d1d9f615",
+            "created_at": 1791455114507,
+            "tool_call_id": "call_00_j9klwqXG9r91w8bqodV41675",
+            "name": "browser",
+            "status": "called",
+            "function": "browser_screenshot",
+            "args": {
+              "scope": "viewport",
+              "analyze": true,
+              "deliver": false,
+              "purpose": "读取图中七位标记"
+            },
+            "content": {
+              "screenshot": "/api/files/9528f69a-1f8a-430b-b28e-9ca16d8e70ab/download",
+              "content": "临时观察图已保存，运行结束且满 24 小时后可回收。像素将在下一请求输入当前模型，请给出具体观察。",
+              "outcome": {
+                "success": true,
+                "message": "临时观察图已保存，运行结束且满 24 小时后可回收。像素将在下一请求输入当前模型，请给出具体观察。",
+                "data": {
+                  "url": "http://host.docker.internal:18829/",
+                  "size": 29362,
+                  "scope": "viewport",
+                  "title": "Pixel observation",
+                  "width": 1279,
+                  "height": 991,
+                  "run_id": "b3415fd1-ff97-4202-8312-6bc6d1d9f615",
+                  "tab_id": "tab-54711878C5C4FE94D5118DBD37129A46",
+                  "file_id": "9528f69a-1f8a-430b-b28e-9ca16d8e70ab",
+                  "purpose": "读取图中七位标记",
+                  "mime_type": "image/jpeg",
+                  "stages_ms": {
+                    "upload": 5,
+                    "capture": 102
+                  },
+                  "temporary": true,
+                  "screenshot": "/api/files/9528f69a-1f8a-430b-b28e-9ca16d8e70ab/download",
+                  "session_id": "c1972105-6259-47fd-80cd-b7cf4d743ba8",
+                  "captured_at": "2026-10-08T10:25:14.501371+00:00",
+                  "image_input": {
+                    "size": 29362,
+                    "width": 1279,
+                    "detail": "high",
+                    "height": 991,
+                    "run_id": "b3415fd1-ff97-4202-8312-6bc6d1d9f615",
+                    "sha256": "c6d42df6d81490d53f42223174666cf871788431bdf8c5f50c526b41f92a6cbf",
+                    "file_id": "9528f69a-1f8a-430b-b28e-9ca16d8e70ab",
+                    "purpose": "读取图中七位标记",
+                    "mime_type": "image/jpeg",
+                    "temporary": true,
+                    "deleted_at": null,
+                    "expires_at": 1791541514.5014584,
+                    "session_id": "c1972105-6259-47fd-80cd-b7cf4d743ba8",
+                    "tool_call_id": "call_00_j9klwqXG9r91w8bqodV41675",
+                    "token_estimate": 1024
+                  },
+                  "observed_at": "2026-10-08T10:25:14.501363+00:00",
+                  "tool_call_id": "call_00_j9klwqXG9r91w8bqodV41675",
+                  "visual_input": true,
+                  "screenshot_usage": {
+                    "bytes": 29362,
+                    "count": 1
+                  }
+                }
+              },
+              "url": "http://host.docker.internal:18829/",
+              "title": "Pixel observation",
+              "tab_id": "tab-54711878C5C4FE94D5118DBD37129A46",
+              "observation_status": null
+            },
+            "duration_ms": 118,
+            "stages_ms": {
+              "execution": 118,
+              "projection": 0,
+              "postprocess": 0
+            },
+            "shaping": null,
+            "denied_by": null
+          }
+        },
+        {
+          "event": "turn",
+          "data": {
+            "event_id": "d18fffb2-af86-424b-a5ef-d9a2cb6154db",
+            "seq": 21,
+            "run_id": "b3415fd1-ff97-4202-8312-6bc6d1d9f615",
+            "created_at": 1791455114515,
+            "phase": "completed",
+            "index": 2,
+            "context_estimate": null,
+            "context_window": null,
+            "model_ms": 1003,
+            "attempts": 1,
+            "ttft_ms": 646,
+            "usage": {
+              "prompt_tokens": 6260,
+              "completion_tokens": 124,
+              "cached_tokens": 6016,
+              "reasoning_tokens": 10
+            },
+            "finish_reason": "tool_calls",
+            "tool_call_ids": [
+              "call_00_j9klwqXG9r91w8bqodV41675"
+            ],
+            "tools_ms": 118,
+            "error": null
+          }
+        },
+        {
+          "event": "context",
+          "data": {
+            "event_id": "8ed0a384-0423-49eb-8579-1383cb317645",
+            "seq": 22,
+            "run_id": "b3415fd1-ff97-4202-8312-6bc6d1d9f615",
+            "created_at": 1791455114519,
+            "op": "replace",
+            "message_count": 6,
+            "roles": [
+              "user",
+              "assistant",
+              "tool",
+              "assistant",
+              "tool",
+              "user"
+            ]
+          }
+        },
+        {
+          "event": "turn",
+          "data": {
+            "event_id": "a38ac45a-4617-4687-8afa-b180cf7553bc",
+            "seq": 23,
+            "run_id": "b3415fd1-ff97-4202-8312-6bc6d1d9f615",
+            "created_at": 1791455114524,
+            "phase": "started",
+            "index": 3,
+            "context_estimate": {
+              "limit": 157232,
+              "tools": 5068,
+              "total": 8291,
+              "method": "chars",
+              "history": 1364,
+              "watermark": 117924,
+              "max_tokens": 32768,
+              "tool_results": 585,
+              "system_prompt": 1274,
+              "context_window": 200000
+            },
+            "context_window": 200000,
+            "model_ms": null,
+            "attempts": null,
+            "ttft_ms": null,
+            "usage": null,
+            "finish_reason": null,
+            "tool_call_ids": [],
+            "tools_ms": null,
+            "error": null
+          }
+        },
+        {
+          "event": "context",
+          "data": {
+            "event_id": "32a773f7-22aa-4b98-9292-c5f640de4d61",
+            "seq": 24,
+            "run_id": "b3415fd1-ff97-4202-8312-6bc6d1d9f615",
+            "created_at": 1791455116528,
+            "op": "append",
+            "message_count": 1,
+            "roles": [
+              "assistant"
+            ]
+          }
+        },
+        {
+          "event": "message",
+          "data": {
+            "event_id": "801ce08f-085c-4254-9a64-9a068374ce7d",
+            "seq": 25,
+            "run_id": "b3415fd1-ff97-4202-8312-6bc6d1d9f615",
+            "created_at": 1791455116540,
+            "role": "assistant",
+            "message": "已打开页面并完成一次带视觉的截图观察（deliver=false，未生成附件）。\n\n图中七位标记为：\n\n**MVL54TQ**\n\n说明：\n- 页面本身只有一张图片（`/asset.png`），正文文本里没有任何可用信息，所以内容只能从图片读取。\n- 截图工具返回 `visual_input: true`，表明当前模型支持视觉，上述 7 位字符是直接看图识别所得，不是猜测，也未使用 OCR、Shell 或网络方式替代读取。\n- 该截图只是临时观察图（24 小时后可回收），未作为文件交付。",
+            "attachments": [],
+            "attempt": 1
+          }
+        },
+        {
+          "event": "turn",
+          "data": {
+            "event_id": "842cd7df-55ef-4ed0-a183-d1ea191f5444",
+            "seq": 26,
+            "run_id": "b3415fd1-ff97-4202-8312-6bc6d1d9f615",
+            "created_at": 1791455116547,
+            "phase": "completed",
+            "index": 3,
+            "context_estimate": null,
+            "context_window": null,
+            "model_ms": 1996,
+            "attempts": 1,
+            "ttft_ms": 1431,
+            "usage": {
+              "prompt_tokens": 7764,
+              "completion_tokens": 214,
+              "cached_tokens": 6272,
+              "reasoning_tokens": 85
+            },
+            "finish_reason": "stop",
+            "tool_call_ids": [],
+            "tools_ms": 0,
+            "error": null
+          }
+        },
+        {
+          "event": "done",
+          "data": {
+            "event_id": "c735ae30-e839-40d8-b037-95828e225c1e",
+            "seq": 27,
+            "run_id": "b3415fd1-ff97-4202-8312-6bc6d1d9f615",
+            "created_at": 1791455116553
+          }
+        },
+        {
+          "event": "run",
+          "data": {
+            "event_id": "326ebf28-b6da-4b88-afd0-6bc7e2e797c2",
+            "seq": 28,
+            "run_id": "b3415fd1-ff97-4202-8312-6bc6d1d9f615",
+            "created_at": 1791455116558,
+            "status": "completed",
+            "reason": null,
+            "summary": {
+              "turns": 3,
+              "tool_calls": 2,
+              "duration_ms": 13429,
+              "cached_tokens": 18048,
+              "prompt_tokens": 19966,
+              "model_requests": 3,
+              "completion_tokens": 468
+            },
+            "mode": "normal"
+          }
+        }
+      ],
+      "image_manifests": [
+        [],
+        [],
+        [
+          {
+            "size": 29362,
+            "width": 1279,
+            "detail": "high",
+            "height": 991,
+            "run_id": "b3415fd1-ff97-4202-8312-6bc6d1d9f615",
+            "sha256": "c6d42df6d81490d53f42223174666cf871788431bdf8c5f50c526b41f92a6cbf",
+            "file_id": "9528f69a-1f8a-430b-b28e-9ca16d8e70ab",
+            "purpose": "读取图中七位标记",
+            "mime_type": "image/jpeg",
+            "temporary": true,
+            "deleted_at": null,
+            "expires_at": 1791541514.5014584,
+            "session_id": "c1972105-6259-47fd-80cd-b7cf4d743ba8",
+            "tool_call_id": "call_00_j9klwqXG9r91w8bqodV41675",
+            "token_estimate": 1024
+          }
+        ]
+      ],
+      "prompt": "打开 http://host.docker.internal:18829/ 。只使用浏览器工具：页面内容只存在于图片中，请调用 browser_screenshot(analyze=true, deliver=false, purpose=\"读取图中七位标记\")。支持视觉时读出图中七位字符；若工具明确当前模型不支持视觉，则如实说明，禁止猜测，也不使用 OCR、shell 或网络读取代替。"
+    },
+    {
+      "model": "deepseek-v4-pro",
+      "session_id": "426ee824-3cb8-4a70-b115-bbf1cd7db66e",
+      "run_id": "39e9dba4-0f36-40e0-9acb-9513c6e69e3e",
+      "wall_seconds": 16.231,
+      "status": "completed",
+      "expected": "MVL54TQ",
+      "answers": [
+        "当前模型不支持视觉，无法读出图中七位标记。\n\n具体依据：调用 `browser_screenshot(analyze=true)` 后，工具明确返回 `visual_input: false`，并提示“当前没有向模型输入图像，仅留证；不能声称已做视觉判断”。因此我无法（也不会）猜测图中的七位字符，也不使用 OCR、Shell 或网络读取等方式替代。"
+      ],
+      "exact_match": false,
+      "events": [
+        {
+          "event": "run",
+          "data": {
+            "event_id": "cce54ab1-908a-444c-a457-d0cb000c23d1",
+            "seq": 1,
+            "run_id": "39e9dba4-0f36-40e0-9acb-9513c6e69e3e",
+            "created_at": 1791455116790,
+            "status": "running",
+            "reason": null,
+            "summary": null,
+            "mode": "normal"
+          }
+        },
+        {
+          "event": "message",
+          "data": {
+            "event_id": "0283a17c-ddb4-4c51-8fcc-5cea48afa681",
+            "seq": 2,
+            "run_id": "39e9dba4-0f36-40e0-9acb-9513c6e69e3e",
+            "created_at": 1791455116785,
+            "role": "user",
+            "message": "打开 http://host.docker.internal:18829/ 。只使用浏览器工具：页面内容只存在于图片中，请调用 browser_screenshot(analyze=true, deliver=false, purpose=\"读取图中七位标记\")。支持视觉时读出图中七位字符；若工具明确当前模型不支持视觉，则如实说明，禁止猜测，也不使用 OCR、shell 或网络读取代替。",
+            "attachments": [],
+            "attempt": null
+          }
+        },
+        {
+          "event": "title",
+          "data": {
+            "event_id": "4ccf7741-778e-4e85-9bf5-314cb157e82f",
+            "seq": 3,
+            "run_id": "39e9dba4-0f36-40e0-9acb-9513c6e69e3e",
+            "created_at": 1791455116788,
+            "title": "打开 http://host.docker.internal"
+          }
+        },
+        {
+          "event": "context",
+          "data": {
+            "event_id": "da619680-47fc-4642-909e-3573316e660c",
+            "seq": 4,
+            "run_id": "39e9dba4-0f36-40e0-9acb-9513c6e69e3e",
+            "created_at": 1791455116816,
+            "op": "append",
+            "message_count": 1,
+            "roles": [
+              "user"
+            ]
+          }
+        },
+        {
+          "event": "turn",
+          "data": {
+            "event_id": "be5c42f8-debb-4ea7-8d29-04350862c73e",
+            "seq": 5,
+            "run_id": "39e9dba4-0f36-40e0-9acb-9513c6e69e3e",
+            "created_at": 1791455116821,
+            "phase": "started",
+            "index": 1,
+            "context_estimate": {
+              "limit": 157232,
+              "tools": 5068,
+              "total": 6440,
+              "method": "chars",
+              "history": 98,
+              "watermark": 117924,
+              "max_tokens": 32768,
+              "tool_results": 0,
+              "system_prompt": 1274,
+              "context_window": 200000
+            },
+            "context_window": 200000,
+            "model_ms": null,
+            "attempts": null,
+            "ttft_ms": null,
+            "usage": null,
+            "finish_reason": null,
+            "tool_call_ids": [],
+            "tools_ms": null,
+            "error": null
+          }
+        },
+        {
+          "event": "title",
+          "data": {
+            "event_id": "8acee094-d3bd-4894-b968-40bf706047d4",
+            "seq": 6,
+            "run_id": null,
+            "created_at": 1791455117533,
+            "title": "读取图中七位标记"
+          }
+        },
+        {
+          "event": "context",
+          "data": {
+            "event_id": "f91652ea-fdee-4ef1-a609-2c271ebe022d",
+            "seq": 7,
+            "run_id": "39e9dba4-0f36-40e0-9acb-9513c6e69e3e",
+            "created_at": 1791455119399,
+            "op": "append",
+            "message_count": 1,
+            "roles": [
+              "assistant"
+            ]
+          }
+        },
+        {
+          "event": "tool",
+          "data": {
+            "event_id": "f94c847d-8a28-4244-bf22-cff10a6065e2",
+            "seq": 8,
+            "run_id": "39e9dba4-0f36-40e0-9acb-9513c6e69e3e",
+            "created_at": 1791455119418,
+            "tool_call_id": "call_00_ORkXOjk4TyBaN6tmts9t6181",
+            "name": "browser",
+            "status": "calling",
+            "function": "browser_navigate",
+            "args": {
+              "url": "http://host.docker.internal:18829/",
+              "observe": "text"
+            },
+            "content": null,
+            "duration_ms": null,
+            "stages_ms": {},
+            "shaping": null,
+            "denied_by": null
+          }
+        },
+        {
+          "event": "environment",
+          "data": {
+            "event_id": "b672a685-15ee-49b6-9817-f392f1feb30e",
+            "seq": 9,
+            "run_id": "39e9dba4-0f36-40e0-9acb-9513c6e69e3e",
+            "created_at": 1791455119422,
+            "status": "preparing",
+            "message": null,
+            "project_file_protection": null
+          }
+        },
+        {
+          "event": "environment",
+          "data": {
+            "event_id": "5e2e5366-79a8-4fa2-a28f-af6f2e2f46b0",
+            "seq": 10,
+            "run_id": "39e9dba4-0f36-40e0-9acb-9513c6e69e3e",
+            "created_at": 1791455127748,
+            "status": "ready",
+            "message": null,
+            "project_file_protection": null
+          }
+        },
+        {
+          "event": "context",
+          "data": {
+            "event_id": "52ee34d5-bed7-4be0-a6e2-7b3e2efd4118",
+            "seq": 11,
+            "run_id": "39e9dba4-0f36-40e0-9acb-9513c6e69e3e",
+            "created_at": 1791455128237,
+            "op": "append",
+            "message_count": 1,
+            "roles": [
+              "tool"
+            ]
+          }
+        },
+        {
+          "event": "tool",
+          "data": {
+            "event_id": "ea3c4063-ea25-40b7-9bdf-951686bfba91",
+            "seq": 12,
+            "run_id": "39e9dba4-0f36-40e0-9acb-9513c6e69e3e",
+            "created_at": 1791455128237,
+            "tool_call_id": "call_00_ORkXOjk4TyBaN6tmts9t6181",
+            "name": "browser",
+            "status": "called",
+            "function": "browser_navigate",
+            "args": {
+              "url": "http://host.docker.internal:18829/",
+              "observe": "text"
+            },
+            "content": {
+              "screenshot": null,
+              "content": "![Visual challenge](/asset.png)",
+              "outcome": {
+                "success": true,
+                "message": "",
+                "data": {
+                  "url": "http://host.docker.internal:18829/",
+                  "mode": "text",
+                  "scope": "document",
+                  "title": "Pixel observation",
+                  "tab_id": "tab-4C4E0016662FB64C1CEBB0F63A50DA68",
+                  "content": "![Visual challenge](/asset.png)",
+                  "stages_ms": {
+                    "observation": 11
+                  },
+                  "truncated": false,
+                  "incomplete": false,
+                  "observed_at": "2026-10-08T10:25:28.237063+00:00",
+                  "total_chars": 31,
+                  "action_success": true,
+                  "observation_id": "obs-e9921758be",
+                  "total_elements": 0,
+                  "extraction_limits": {
+                    "chars": 1000000,
+                    "nodes": 30000,
+                    "elements": 500
+                  },
+                  "observation_status": "ok",
+                  "interactive_elements": []
+                }
+              },
+              "url": "http://host.docker.internal:18829/",
+              "title": "Pixel observation",
+              "tab_id": "tab-4C4E0016662FB64C1CEBB0F63A50DA68",
+              "observation_status": "ok"
+            },
+            "duration_ms": 8819,
+            "stages_ms": {
+              "execution": 8819,
+              "projection": 0,
+              "postprocess": 0
+            },
+            "shaping": null,
+            "denied_by": null
+          }
+        },
+        {
+          "event": "turn",
+          "data": {
+            "event_id": "62b886eb-70ca-4dd9-9a14-abf0012ebc63",
+            "seq": 13,
+            "run_id": "39e9dba4-0f36-40e0-9acb-9513c6e69e3e",
+            "created_at": 1791455128249,
+            "phase": "completed",
+            "index": 1,
+            "context_estimate": null,
+            "context_window": null,
+            "model_ms": 2569,
+            "attempts": 1,
+            "ttft_ms": 2260,
+            "usage": {
+              "prompt_tokens": 6005,
+              "completion_tokens": 158,
+              "cached_tokens": 0,
+              "reasoning_tokens": 86
+            },
+            "finish_reason": "tool_calls",
+            "tool_call_ids": [
+              "call_00_ORkXOjk4TyBaN6tmts9t6181"
+            ],
+            "tools_ms": 8819,
+            "error": null
+          }
+        },
+        {
+          "event": "turn",
+          "data": {
+            "event_id": "de1b6269-e47d-4637-801f-f1c4ea2a1896",
+            "seq": 14,
+            "run_id": "39e9dba4-0f36-40e0-9acb-9513c6e69e3e",
+            "created_at": 1791455128254,
+            "phase": "started",
+            "index": 2,
+            "context_estimate": {
+              "limit": 157232,
+              "tools": 4727,
+              "total": 6329,
+              "method": "usage",
+              "history": 241,
+              "watermark": 117924,
+              "max_tokens": 32768,
+              "tool_results": 173,
+              "system_prompt": 1188,
+              "context_window": 200000
+            },
+            "context_window": 200000,
+            "model_ms": null,
+            "attempts": null,
+            "ttft_ms": null,
+            "usage": null,
+            "finish_reason": null,
+            "tool_call_ids": [],
+            "tools_ms": null,
+            "error": null
+          }
+        },
+        {
+          "event": "context",
+          "data": {
+            "event_id": "a1d068aa-20fb-4d4e-b8b5-fe144bbb52b9",
+            "seq": 15,
+            "run_id": "39e9dba4-0f36-40e0-9acb-9513c6e69e3e",
+            "created_at": 1791455130083,
+            "op": "append",
+            "message_count": 1,
+            "roles": [
+              "assistant"
+            ]
+          }
+        },
+        {
+          "event": "tool",
+          "data": {
+            "event_id": "bc8954c0-1b8b-4bc9-a0e9-3ffea1093998",
+            "seq": 16,
+            "run_id": "39e9dba4-0f36-40e0-9acb-9513c6e69e3e",
+            "created_at": 1791455130096,
+            "tool_call_id": "call_00_UypsUv9num2tRFW4VXNg7278",
+            "name": "browser",
+            "status": "calling",
+            "function": "browser_screenshot",
+            "args": {
+              "analyze": true,
+              "deliver": false,
+              "purpose": "读取图中七位标记"
+            },
+            "content": null,
+            "duration_ms": null,
+            "stages_ms": {},
+            "shaping": null,
+            "denied_by": null
+          }
+        },
+        {
+          "event": "context",
+          "data": {
+            "event_id": "bbeca18b-c91e-4b6a-9bb0-6f175e030f11",
+            "seq": 17,
+            "run_id": "39e9dba4-0f36-40e0-9acb-9513c6e69e3e",
+            "created_at": 1791455130212,
+            "op": "append",
+            "message_count": 1,
+            "roles": [
+              "tool"
+            ]
+          }
+        },
+        {
+          "event": "tool",
+          "data": {
+            "event_id": "d3f2dc22-d6ca-4827-b5af-be2fda6fb8b2",
+            "seq": 18,
+            "run_id": "39e9dba4-0f36-40e0-9acb-9513c6e69e3e",
+            "created_at": 1791455130212,
+            "tool_call_id": "call_00_UypsUv9num2tRFW4VXNg7278",
+            "name": "browser",
+            "status": "called",
+            "function": "browser_screenshot",
+            "args": {
+              "analyze": true,
+              "deliver": false,
+              "purpose": "读取图中七位标记"
+            },
+            "content": {
+              "screenshot": "/api/files/236769d5-26fe-46e6-aa6d-830d5571f5d1/download",
+              "content": "临时观察图已保存，运行结束且满 24 小时后可回收。当前没有向模型输入图像，仅留证；不能声称已做视觉判断。",
+              "outcome": {
+                "success": true,
+                "message": "临时观察图已保存，运行结束且满 24 小时后可回收。当前没有向模型输入图像，仅留证；不能声称已做视觉判断。",
+                "data": {
+                  "url": "http://host.docker.internal:18829/",
+                  "size": 13355,
+                  "scope": "viewport",
+                  "title": "Pixel observation",
+                  "width": 1279,
+                  "height": 991,
+                  "run_id": "39e9dba4-0f36-40e0-9acb-9513c6e69e3e",
+                  "tab_id": "tab-4C4E0016662FB64C1CEBB0F63A50DA68",
+                  "file_id": "236769d5-26fe-46e6-aa6d-830d5571f5d1",
+                  "purpose": "读取图中七位标记",
+                  "mime_type": "image/png",
+                  "stages_ms": {
+                    "upload": 4,
+                    "capture": 100
+                  },
+                  "temporary": true,
+                  "screenshot": "/api/files/236769d5-26fe-46e6-aa6d-830d5571f5d1/download",
+                  "session_id": "426ee824-3cb8-4a70-b115-bbf1cd7db66e",
+                  "captured_at": "2026-10-08T10:25:30.207509+00:00",
+                  "observed_at": "2026-10-08T10:25:30.207501+00:00",
+                  "tool_call_id": "call_00_UypsUv9num2tRFW4VXNg7278",
+                  "visual_input": false,
+                  "screenshot_usage": {
+                    "bytes": 13355,
+                    "count": 1
+                  }
+                }
+              },
+              "url": "http://host.docker.internal:18829/",
+              "title": "Pixel observation",
+              "tab_id": "tab-4C4E0016662FB64C1CEBB0F63A50DA68",
+              "observation_status": null
+            },
+            "duration_ms": 116,
+            "stages_ms": {
+              "execution": 116,
+              "projection": 0,
+              "postprocess": 0
+            },
+            "shaping": null,
+            "denied_by": null
+          }
+        },
+        {
+          "event": "turn",
+          "data": {
+            "event_id": "a7ca0ece-0862-4184-b41b-5beef5861e55",
+            "seq": 19,
+            "run_id": "39e9dba4-0f36-40e0-9acb-9513c6e69e3e",
+            "created_at": 1791455130219,
+            "phase": "completed",
+            "index": 2,
+            "context_estimate": null,
+            "context_window": null,
+            "model_ms": 1820,
+            "attempts": 1,
+            "ttft_ms": 1340,
+            "usage": {
+              "prompt_tokens": 6350,
+              "completion_tokens": 114,
+              "cached_tokens": 6144,
+              "reasoning_tokens": 29
+            },
+            "finish_reason": "tool_calls",
+            "tool_call_ids": [
+              "call_00_UypsUv9num2tRFW4VXNg7278"
+            ],
+            "tools_ms": 116,
+            "error": null
+          }
+        },
+        {
+          "event": "turn",
+          "data": {
+            "event_id": "67cca648-ef7f-458e-b738-a7025861568c",
+            "seq": 20,
+            "run_id": "39e9dba4-0f36-40e0-9acb-9513c6e69e3e",
+            "created_at": 1791455130225,
+            "phase": "started",
+            "index": 3,
+            "context_estimate": {
+              "limit": 157232,
+              "tools": 4760,
+              "total": 6691,
+              "method": "usage",
+              "history": 305,
+              "watermark": 117924,
+              "max_tokens": 32768,
+              "tool_results": 430,
+              "system_prompt": 1196,
+              "context_window": 200000
+            },
+            "context_window": 200000,
+            "model_ms": null,
+            "attempts": null,
+            "ttft_ms": null,
+            "usage": null,
+            "finish_reason": null,
+            "tool_call_ids": [],
+            "tools_ms": null,
+            "error": null
+          }
+        },
+        {
+          "event": "context",
+          "data": {
+            "event_id": "879d4c36-c31c-4bc7-b8bd-5729e83c7e43",
+            "seq": 21,
+            "run_id": "39e9dba4-0f36-40e0-9acb-9513c6e69e3e",
+            "created_at": 1791455132717,
+            "op": "append",
+            "message_count": 1,
+            "roles": [
+              "assistant"
+            ]
+          }
+        },
+        {
+          "event": "message",
+          "data": {
+            "event_id": "d0bf8fcc-cb28-4531-8040-cf89146e818c",
+            "seq": 22,
+            "run_id": "39e9dba4-0f36-40e0-9acb-9513c6e69e3e",
+            "created_at": 1791455132733,
+            "role": "assistant",
+            "message": "当前模型不支持视觉，无法读出图中七位标记。\n\n具体依据：调用 `browser_screenshot(analyze=true)` 后，工具明确返回 `visual_input: false`，并提示“当前没有向模型输入图像，仅留证；不能声称已做视觉判断”。因此我无法（也不会）猜测图中的七位字符，也不使用 OCR、Shell 或网络读取等方式替代。",
+            "attachments": [],
+            "attempt": 1
+          }
+        },
+        {
+          "event": "turn",
+          "data": {
+            "event_id": "287f926d-de76-45a5-952f-ad876b4f9111",
+            "seq": 23,
+            "run_id": "39e9dba4-0f36-40e0-9acb-9513c6e69e3e",
+            "created_at": 1791455132740,
+            "phase": "completed",
+            "index": 3,
+            "context_estimate": null,
+            "context_window": null,
+            "model_ms": 2483,
+            "attempts": 1,
+            "ttft_ms": 1457,
+            "usage": {
+              "prompt_tokens": 6828,
+              "completion_tokens": 142,
+              "cached_tokens": 6400,
+              "reasoning_tokens": 57
+            },
+            "finish_reason": "stop",
+            "tool_call_ids": [],
+            "tools_ms": 0,
+            "error": null
+          }
+        },
+        {
+          "event": "done",
+          "data": {
+            "event_id": "886fb9af-eaae-439b-bd23-c8c1f6ddc7a2",
+            "seq": 24,
+            "run_id": "39e9dba4-0f36-40e0-9acb-9513c6e69e3e",
+            "created_at": 1791455132745
+          }
+        },
+        {
+          "event": "run",
+          "data": {
+            "event_id": "1522c6b2-0072-4397-a29a-1c5cf0e2b48d",
+            "seq": 25,
+            "run_id": "39e9dba4-0f36-40e0-9acb-9513c6e69e3e",
+            "created_at": 1791455132750,
+            "status": "completed",
+            "reason": null,
+            "summary": {
+              "turns": 3,
+              "tool_calls": 2,
+              "duration_ms": 15962,
+              "cached_tokens": 12544,
+              "prompt_tokens": 19183,
+              "model_requests": 3,
+              "completion_tokens": 414
+            },
+            "mode": "normal"
+          }
+        }
+      ],
+      "image_manifests": [
+        [],
+        [],
+        []
+      ],
+      "prompt": "打开 http://host.docker.internal:18829/ 。只使用浏览器工具：页面内容只存在于图片中，请调用 browser_screenshot(analyze=true, deliver=false, purpose=\"读取图中七位标记\")。支持视觉时读出图中七位字符；若工具明确当前模型不支持视觉，则如实说明，禁止猜测，也不使用 OCR、shell 或网络读取代替。"
+    }
+  ],
+  "approval": {
+    "session_id": "60b23f88-36c4-49cb-95dd-11afaface3f0",
+    "run_id": "77e61a95-e6db-4a4c-a610-e58cff1c6374",
+    "status": "completed",
+    "wall_seconds": 11.482,
+    "approvals": [
+      "call_00_Zb9XROcVI8g6Uy1954qu7208"
+    ],
+    "events": [
+      {
+        "event": "run",
+        "data": {
+          "event_id": "b3759a85-245d-4d89-8986-ed470b78ccb0",
+          "seq": 1,
+          "run_id": "77e61a95-e6db-4a4c-a610-e58cff1c6374",
+          "created_at": 1791455157306,
+          "status": "running",
+          "reason": null,
+          "summary": null,
+          "mode": "normal"
+        }
+      },
+      {
+        "event": "message",
+        "data": {
+          "event_id": "54d23fd5-e793-4508-8b4f-e8ae3d13eac9",
+          "seq": 2,
+          "run_id": "77e61a95-e6db-4a4c-a610-e58cff1c6374",
+          "created_at": 1791455157292,
+          "role": "user",
+          "message": "用浏览器打开 http://host.docker.internal:18839/ ，依据观察到的 ref 点击 Apply 按钮一次，核对页面结果并回答。",
+          "attachments": [],
+          "attempt": null
+        }
+      },
+      {
+        "event": "title",
+        "data": {
+          "event_id": "ccb8bc42-aad8-481a-9a9c-8a2f99460e80",
+          "seq": 3,
+          "run_id": "77e61a95-e6db-4a4c-a610-e58cff1c6374",
+          "created_at": 1791455157302,
+          "title": "用浏览器打开 http://host.docker.inte"
+        }
+      },
+      {
+        "event": "context",
+        "data": {
+          "event_id": "f189cf29-6aa7-4aa6-98cc-0451548762b0",
+          "seq": 4,
+          "run_id": "77e61a95-e6db-4a4c-a610-e58cff1c6374",
+          "created_at": 1791455157351,
+          "op": "append",
+          "message_count": 1,
+          "roles": [
+            "user"
+          ]
+        }
+      },
+      {
+        "event": "turn",
+        "data": {
+          "event_id": "bbc734f5-7746-4de2-871b-1bf172e67d47",
+          "seq": 5,
+          "run_id": "77e61a95-e6db-4a4c-a610-e58cff1c6374",
+          "created_at": 1791455157357,
+          "phase": "started",
+          "index": 1,
+          "context_estimate": {
+            "limit": 157232,
+            "tools": 5068,
+            "total": 6381,
+            "method": "chars",
+            "history": 39,
+            "watermark": 117924,
+            "max_tokens": 32768,
+            "tool_results": 0,
+            "system_prompt": 1274,
+            "context_window": 200000
+          },
+          "context_window": 200000,
+          "model_ms": null,
+          "attempts": null,
+          "ttft_ms": null,
+          "usage": null,
+          "finish_reason": null,
+          "tool_call_ids": [],
+          "tools_ms": null,
+          "error": null
+        }
+      },
+      {
+        "event": "title",
+        "data": {
+          "event_id": "d03c386b-717c-4f6f-8c61-a461d74c6648",
+          "seq": 6,
+          "run_id": null,
+          "created_at": 1791455158313,
+          "title": "浏览器点击 Apply 按钮"
+        }
+      },
+      {
+        "event": "context",
+        "data": {
+          "event_id": "4a4d728f-e616-46af-84bc-e254b4b97074",
+          "seq": 7,
+          "run_id": "77e61a95-e6db-4a4c-a610-e58cff1c6374",
+          "created_at": 1791455158504,
+          "op": "append",
+          "message_count": 1,
+          "roles": [
+            "assistant"
+          ]
+        }
+      },
+      {
+        "event": "message",
+        "data": {
+          "event_id": "cb4487f1-5d6b-41ab-a92a-40fae674f04d",
+          "seq": 8,
+          "run_id": "77e61a95-e6db-4a4c-a610-e58cff1c6374",
+          "created_at": 1791455158518,
+          "role": "assistant",
+          "message": "我先打开页面看看。",
+          "attachments": [],
+          "attempt": 1
+        }
+      },
+      {
+        "event": "tool",
+        "data": {
+          "event_id": "48592e6b-e44a-4f4c-a960-8dabf55b40ef",
+          "seq": 9,
+          "run_id": "77e61a95-e6db-4a4c-a610-e58cff1c6374",
+          "created_at": 1791455158524,
+          "tool_call_id": "call_00_KLVj0CO9PTKfIjgDh9cM8647",
+          "name": "browser",
+          "status": "calling",
+          "function": "browser_navigate",
+          "args": {
+            "url": "http://host.docker.internal:18839/",
+            "observe": "both"
+          },
+          "content": null,
+          "duration_ms": null,
+          "stages_ms": {},
+          "shaping": null,
+          "denied_by": null
+        }
+      },
+      {
+        "event": "environment",
+        "data": {
+          "event_id": "1a60f9c2-d498-4513-9335-4e451e9b11a0",
+          "seq": 10,
+          "run_id": "77e61a95-e6db-4a4c-a610-e58cff1c6374",
+          "created_at": 1791455158527,
+          "status": "preparing",
+          "message": null,
+          "project_file_protection": null
+        }
+      },
+      {
+        "event": "environment",
+        "data": {
+          "event_id": "476bf7bd-cac7-4872-8c68-744e16d5afa7",
+          "seq": 11,
+          "run_id": "77e61a95-e6db-4a4c-a610-e58cff1c6374",
+          "created_at": 1791455166798,
+          "status": "ready",
+          "message": null,
+          "project_file_protection": null
+        }
+      },
+      {
+        "event": "context",
+        "data": {
+          "event_id": "fdb60be1-83b4-42d3-ae6f-ef0777a8abad",
+          "seq": 12,
+          "run_id": "77e61a95-e6db-4a4c-a610-e58cff1c6374",
+          "created_at": 1791455167236,
+          "op": "append",
+          "message_count": 1,
+          "roles": [
+            "tool"
+          ]
+        }
+      },
+      {
+        "event": "tool",
+        "data": {
+          "event_id": "093f1275-22aa-4ec2-b327-9b019aaddfc1",
+          "seq": 13,
+          "run_id": "77e61a95-e6db-4a4c-a610-e58cff1c6374",
+          "created_at": 1791455167236,
+          "tool_call_id": "call_00_KLVj0CO9PTKfIjgDh9cM8647",
+          "name": "browser",
+          "status": "called",
+          "function": "browser_navigate",
+          "args": {
+            "url": "http://host.docker.internal:18839/",
+            "observe": "both"
+          },
+          "content": {
+            "screenshot": null,
+            "content": "Apply\n\nBEFORE",
+            "outcome": {
+              "success": true,
+              "message": "",
+              "data": {
+                "url": "http://host.docker.internal:18839/",
+                "mode": "both",
+                "scope": "document",
+                "title": "Approval fixture",
+                "tab_id": "tab-23192D1D97FF5D1F219B798C0AA5674E",
+                "content": "Apply\n\nBEFORE",
+                "stages_ms": {
+                  "observation": 12
+                },
+                "truncated": false,
+                "incomplete": false,
+                "observed_at": "2026-10-08T10:26:07.235182+00:00",
+                "total_chars": 13,
+                "action_success": true,
+                "observation_id": "obs-89d6a99d59",
+                "total_elements": 1,
+                "extraction_limits": {
+                  "chars": 1000000,
+                  "nodes": 30000,
+                  "elements": 500
+                },
+                "observation_status": "ok",
+                "interactive_elements": [
+                  {
+                    "ref": "obs-89d6a99d59-372533756111",
+                    "tag": "button",
+                    "href": null,
+                    "name": "Apply",
+                    "role": null,
+                    "type": null,
+                    "index": 372533756111,
+                    "value": "",
+                    "checked": null,
+                    "disabled": false,
+                    "expanded": null
+                  }
+                ]
+              }
+            },
+            "url": "http://host.docker.internal:18839/",
+            "title": "Approval fixture",
+            "tab_id": "tab-23192D1D97FF5D1F219B798C0AA5674E",
+            "observation_status": "ok"
+          },
+          "duration_ms": 8711,
+          "stages_ms": {
+            "execution": 8711,
+            "projection": 0,
+            "postprocess": 0
+          },
+          "shaping": null,
+          "denied_by": null
+        }
+      },
+      {
+        "event": "turn",
+        "data": {
+          "event_id": "7d29bde2-25ac-4c58-b7f8-8c6ed90685e6",
+          "seq": 14,
+          "run_id": "77e61a95-e6db-4a4c-a610-e58cff1c6374",
+          "created_at": 1791455167251,
+          "phase": "completed",
+          "index": 1,
+          "context_estimate": null,
+          "context_window": null,
+          "model_ms": 1137,
+          "attempts": 1,
+          "ttft_ms": 1032,
+          "usage": {
+            "prompt_tokens": 5892,
+            "completion_tokens": 79,
+            "cached_tokens": 5632,
+            "reasoning_tokens": 9
+          },
+          "finish_reason": "tool_calls",
+          "tool_call_ids": [
+            "call_00_KLVj0CO9PTKfIjgDh9cM8647"
+          ],
+          "tools_ms": 8711,
+          "error": null
+        }
+      },
+      {
+        "event": "turn",
+        "data": {
+          "event_id": "c0d7a4ee-fd3b-455b-8135-453e8b67a35a",
+          "seq": 15,
+          "run_id": "77e61a95-e6db-4a4c-a610-e58cff1c6374",
+          "created_at": 1791455167257,
+          "phase": "started",
+          "index": 2,
+          "context_estimate": {
+            "limit": 157232,
+            "tools": 4680,
+            "total": 6160,
+            "method": "usage",
+            "history": 82,
+            "watermark": 117924,
+            "max_tokens": 32768,
+            "tool_results": 222,
+            "system_prompt": 1176,
+            "context_window": 200000
+          },
+          "context_window": 200000,
+          "model_ms": null,
+          "attempts": null,
+          "ttft_ms": null,
+          "usage": null,
+          "finish_reason": null,
+          "tool_call_ids": [],
+          "tools_ms": null,
+          "error": null
+        }
+      },
+      {
+        "event": "context",
+        "data": {
+          "event_id": "18515c7f-9a83-482b-bd81-761ff2932c99",
+          "seq": 16,
+          "run_id": "77e61a95-e6db-4a4c-a610-e58cff1c6374",
+          "created_at": 1791455168363,
+          "op": "append",
+          "message_count": 1,
+          "roles": [
+            "assistant"
+          ]
+        }
+      },
+      {
+        "event": "message",
+        "data": {
+          "event_id": "a4e20ca8-ac2e-403a-9630-89750350061f",
+          "seq": 17,
+          "run_id": "77e61a95-e6db-4a4c-a610-e58cff1c6374",
+          "created_at": 1791455168376,
+          "role": "assistant",
+          "message": "页面显示一个 Apply 按钮和文本 \"BEFORE\"，现在点击该按钮。",
+          "attachments": [],
+          "attempt": 1
+        }
+      },
+      {
+        "event": "approval",
+        "data": {
+          "event_id": "78f59a1a-e421-476f-8c67-65cf9e262436",
+          "seq": 18,
+          "run_id": "77e61a95-e6db-4a4c-a610-e58cff1c6374",
+          "created_at": 1791455168385,
+          "tool_call_id": "call_00_Zb9XROcVI8g6Uy1954qu7208",
+          "name": "browser",
+          "function": "browser_click",
+          "args": {
+            "ref": "obs-89d6a99d59-372533756111",
+            "observe": "both"
+          },
+          "status": "pending",
+          "rule": "browser_click",
+          "service": null,
+          "service_tool": null,
+          "decided_at": null
+        }
+      },
+      {
+        "event": "turn",
+        "data": {
+          "event_id": "0fc0615e-98e7-4754-9bd4-06ad6b218709",
+          "seq": 19,
+          "run_id": "77e61a95-e6db-4a4c-a610-e58cff1c6374",
+          "created_at": 1791455168390,
+          "phase": "completed",
+          "index": 2,
+          "context_estimate": null,
+          "context_window": null,
+          "model_ms": 1097,
+          "attempts": 1,
+          "ttft_ms": 769,
+          "usage": {
+            "prompt_tokens": 6220,
+            "completion_tokens": 105,
+            "cached_tokens": 5888,
+            "reasoning_tokens": 19
+          },
+          "finish_reason": "tool_calls",
+          "tool_call_ids": [],
+          "tools_ms": 0,
+          "error": null
+        }
+      },
+      {
+        "event": "wait",
+        "data": {
+          "event_id": "c93e1e58-0de9-4820-b2e1-79bd8bfcb773",
+          "seq": 20,
+          "run_id": "77e61a95-e6db-4a4c-a610-e58cff1c6374",
+          "created_at": 1791455168394
+        }
+      },
+      {
+        "event": "run",
+        "data": {
+          "event_id": "c061c81f-8d0e-4456-a60a-329303943d1f",
+          "seq": 21,
+          "run_id": "77e61a95-e6db-4a4c-a610-e58cff1c6374",
+          "created_at": 1791455168399,
+          "status": "waiting",
+          "reason": "approval",
+          "summary": null,
+          "mode": "normal"
+        }
+      },
+      {
+        "event": "run",
+        "data": {
+          "event_id": "88e94dfe-52c7-454a-9648-34e6529a07f7",
+          "seq": 22,
+          "run_id": "77e61a95-e6db-4a4c-a610-e58cff1c6374",
+          "created_at": 1791455212514,
+          "status": "running",
+          "reason": null,
+          "summary": null,
+          "mode": "normal"
+        }
+      },
+      {
+        "event": "approval",
+        "data": {
+          "event_id": "155d0399-aff0-4303-bb7d-450d6a8ed988",
+          "seq": 23,
+          "run_id": "77e61a95-e6db-4a4c-a610-e58cff1c6374",
+          "created_at": 1791455212508,
+          "tool_call_id": "call_00_Zb9XROcVI8g6Uy1954qu7208",
+          "name": "browser",
+          "function": "browser_click",
+          "args": {
+            "ref": "obs-89d6a99d59-372533756111",
+            "observe": "both"
+          },
+          "status": "approved",
+          "rule": "browser_click",
+          "service": null,
+          "service_tool": null,
+          "decided_at": 1791455212507
+        }
+      },
+      {
+        "event": "tool",
+        "data": {
+          "event_id": "a1a740f7-3096-42ad-b761-1fb6199549a3",
+          "seq": 24,
+          "run_id": "77e61a95-e6db-4a4c-a610-e58cff1c6374",
+          "created_at": 1791455212579,
+          "tool_call_id": "call_00_Zb9XROcVI8g6Uy1954qu7208",
+          "name": "browser",
+          "status": "calling",
+          "function": "browser_click",
+          "args": {
+            "ref": "obs-89d6a99d59-372533756111",
+            "observe": "both"
+          },
+          "content": null,
+          "duration_ms": null,
+          "stages_ms": {},
+          "shaping": null,
+          "denied_by": null
+        }
+      },
+      {
+        "event": "environment",
+        "data": {
+          "event_id": "47d3112b-c45e-4303-aa85-fb5b82c834d1",
+          "seq": 25,
+          "run_id": "77e61a95-e6db-4a4c-a610-e58cff1c6374",
+          "created_at": 1791455212584,
+          "status": "preparing",
+          "message": null,
+          "project_file_protection": null
+        }
+      },
+      {
+        "event": "environment",
+        "data": {
+          "event_id": "5eeb624d-02cf-4e47-9d48-c8635530bb8a",
+          "seq": 26,
+          "run_id": "77e61a95-e6db-4a4c-a610-e58cff1c6374",
+          "created_at": 1791455212634,
+          "status": "ready",
+          "message": null,
+          "project_file_protection": null
+        }
+      },
+      {
+        "event": "context",
+        "data": {
+          "event_id": "30514912-febd-4e70-8e02-cb717c4daa52",
+          "seq": 27,
+          "run_id": "77e61a95-e6db-4a4c-a610-e58cff1c6374",
+          "created_at": 1791455213355,
+          "op": "append",
+          "message_count": 1,
+          "roles": [
+            "tool"
+          ]
+        }
+      },
+      {
+        "event": "tool",
+        "data": {
+          "event_id": "8c5333e9-5149-430b-a9d9-43e965f76fee",
+          "seq": 28,
+          "run_id": "77e61a95-e6db-4a4c-a610-e58cff1c6374",
+          "created_at": 1791455213355,
+          "tool_call_id": "call_00_Zb9XROcVI8g6Uy1954qu7208",
+          "name": "browser",
+          "status": "called",
+          "function": "browser_click",
+          "args": {
+            "ref": "obs-89d6a99d59-372533756111",
+            "observe": "both"
+          },
+          "content": {
+            "screenshot": null,
+            "content": "Apply\n\nAPPROVED-ONCE",
+            "outcome": {
+              "success": true,
+              "message": "",
+              "data": {
+                "url": "http://host.docker.internal:18839/",
+                "mode": "both",
+                "scope": "document",
+                "title": "Approval fixture",
+                "tab_id": "tab-23192D1D97FF5D1F219B798C0AA5674E",
+                "content": "Apply\n\nAPPROVED-ONCE",
+                "stages_ms": {
+                  "observation": 13
+                },
+                "truncated": false,
+                "incomplete": false,
+                "observed_at": "2026-10-08T10:26:53.354532+00:00",
+                "total_chars": 20,
+                "action_success": true,
+                "observation_id": "obs-0ebe0caaca",
+                "total_elements": 1,
+                "extraction_limits": {
+                  "chars": 1000000,
+                  "nodes": 30000,
+                  "elements": 500
+                },
+                "observation_status": "ok",
+                "interactive_elements": [
+                  {
+                    "ref": "obs-0ebe0caaca-45740276102",
+                    "tag": "button",
+                    "href": null,
+                    "name": "Apply",
+                    "role": null,
+                    "type": null,
+                    "index": 45740276102,
+                    "value": "",
+                    "checked": null,
+                    "disabled": true,
+                    "expanded": null
+                  }
+                ]
+              }
+            },
+            "url": "http://host.docker.internal:18839/",
+            "title": "Approval fixture",
+            "tab_id": "tab-23192D1D97FF5D1F219B798C0AA5674E",
+            "observation_status": "ok"
+          },
+          "duration_ms": 775,
+          "stages_ms": {
+            "execution": 775,
+            "projection": 0,
+            "postprocess": 0
+          },
+          "shaping": null,
+          "denied_by": null
+        }
+      },
+      {
+        "event": "turn",
+        "data": {
+          "event_id": "1c99393f-f871-45f9-a3d9-49cb78682755",
+          "seq": 29,
+          "run_id": "77e61a95-e6db-4a4c-a610-e58cff1c6374",
+          "created_at": 1791455213378,
+          "phase": "started",
+          "index": 3,
+          "context_estimate": {
+            "limit": 157232,
+            "tools": 5068,
+            "total": 6940,
+            "method": "chars",
+            "history": 152,
+            "watermark": 117924,
+            "max_tokens": 32768,
+            "tool_results": 446,
+            "system_prompt": 1274,
+            "context_window": 200000
+          },
+          "context_window": 200000,
+          "model_ms": null,
+          "attempts": null,
+          "ttft_ms": null,
+          "usage": null,
+          "finish_reason": null,
+          "tool_call_ids": [],
+          "tools_ms": null,
+          "error": null
+        }
+      },
+      {
+        "event": "context",
+        "data": {
+          "event_id": "fe6740fb-8691-4b6d-8441-db8ca2544233",
+          "seq": 30,
+          "run_id": "77e61a95-e6db-4a4c-a610-e58cff1c6374",
+          "created_at": 1791455214810,
+          "op": "append",
+          "message_count": 1,
+          "roles": [
+            "assistant"
+          ]
+        }
+      },
+      {
+        "event": "message",
+        "data": {
+          "event_id": "3f8ee80f-70cf-4c5e-ae80-76738283e6e6",
+          "seq": 31,
+          "run_id": "77e61a95-e6db-4a4c-a610-e58cff1c6374",
+          "created_at": 1791455214820,
+          "role": "assistant",
+          "message": "已按要求用浏览器打开页面并点击了一次 Apply 按钮。\n\n**执行过程**\n1. 打开 `http://host.docker.internal:18839/`，页面标题为 \"Approval fixture\"，正文显示 `Apply`（按钮）和文本 `BEFORE`。观察到按钮 ref：`obs-89d6a99d59-372533756111`。\n2. 用该 ref 点击一次。\n\n**点击后的页面结果（核对）**\n- 正文由 `BEFORE` 变为 `APPROVED-ONCE`。\n- Apply 按钮变为 `disabled: true`（已禁用，无法再次点击）。\n\n**结论**：点击生效且只生效一次——页面进入 \"APPROVED-ONCE\"（已批准一次）状态，按钮随即禁用，防止重复提交。",
+          "attachments": [],
+          "attempt": 1
+        }
+      },
+      {
+        "event": "turn",
+        "data": {
+          "event_id": "b6175199-8c8e-454b-9701-b7ce8bbab82a",
+          "seq": 32,
+          "run_id": "77e61a95-e6db-4a4c-a610-e58cff1c6374",
+          "created_at": 1791455214834,
+          "phase": "completed",
+          "index": 3,
+          "context_estimate": null,
+          "context_window": null,
+          "model_ms": 1423,
+          "attempts": 1,
+          "ttft_ms": 778,
+          "usage": {
+            "prompt_tokens": 6574,
+            "completion_tokens": 171,
+            "cached_tokens": 6272,
+            "reasoning_tokens": 0
+          },
+          "finish_reason": "stop",
+          "tool_call_ids": [],
+          "tools_ms": 0,
+          "error": null
+        }
+      },
+      {
+        "event": "done",
+        "data": {
+          "event_id": "5e517208-2ee3-40a8-a7e8-6e2aed7889f7",
+          "seq": 33,
+          "run_id": "77e61a95-e6db-4a4c-a610-e58cff1c6374",
+          "created_at": 1791455214840
+        }
+      },
+      {
+        "event": "run",
+        "data": {
+          "event_id": "b4bc9c1d-3453-4202-af59-350b52cdab54",
+          "seq": 34,
+          "run_id": "77e61a95-e6db-4a4c-a610-e58cff1c6374",
+          "created_at": 1791455214857,
+          "status": "completed",
+          "reason": null,
+          "summary": {
+            "turns": 3,
+            "tool_calls": 2,
+            "duration_ms": 57555,
+            "cached_tokens": 17792,
+            "prompt_tokens": 18686,
+            "model_requests": 3,
+            "completion_tokens": 355
+          },
+          "mode": "normal"
+        }
+      }
+    ],
+    "resume_seconds": 2.72
+  },
+  "controlled_timing": {
+    "serial": {
+      "wall_ms": 763,
+      "calls": 3
+    },
+    "parallel": {
+      "wall_ms": 260,
+      "calls": 3
+    },
+    "offline_directory_ms": 0.03,
+    "eager_discovery_ms": 251.32,
+    "conditions": "受控替身：三个互不依赖读取各延迟250ms；MCP发现延迟250ms，无真实模型/网络或计费推断"
+  },
+  "expiry_ui": {
+    "expired_text_visible": true,
+    "download_status": 410,
+    "metadata": {
+      "id": "9528f69a-1f8a-430b-b28e-9ca16d8e70ab",
+      "filename": "de8a34be5c364e1ebb86ae20ad7b553a.jpg",
+      "filepath": "",
+      "key": "2026/10/08/9528f69a-1f8a-430b-b28e-9ca16d8e70ab.jpg",
+      "extension": ".jpg",
+      "mime_type": "image/jpeg",
+      "size": 29362,
+      "sha256": "c6d42df6d81490d53f42223174666cf871788431bdf8c5f50c526b41f92a6cbf",
+      "visual": {
+        "size": 29362,
+        "width": 1279,
+        "height": 991,
+        "run_id": "b3415fd1-ff97-4202-8312-6bc6d1d9f615",
+        "sha256": "c6d42df6d81490d53f42223174666cf871788431bdf8c5f50c526b41f92a6cbf",
+        "purpose": "读取图中七位标记",
+        "mime_type": "image/jpeg",
+        "temporary": true,
+        "deleted_at": 1791455298.7342436,
+        "expires_at": 0,
+        "session_id": "c1972105-6259-47fd-80cd-b7cf4d743ba8",
+        "tool_call_id": "call_00_j9klwqXG9r91w8bqodV41675"
+      },
+      "project_upload": null,
+      "project_persistence": null
+    }
+  },
+  "final_smoke": {
+    "session_id": "2b06037a-6e3b-437d-8f74-9ad7d008fa5d",
+    "run_id": "12afb8ea-5ca4-4a88-bf66-30d0061512da",
+    "status": "completed",
+    "wall_seconds": 10.716,
+    "events": [
+      {
+        "event": "run",
+        "data": {
+          "event_id": "f3fd5373-2505-42ee-85a3-badc8ff185c5",
+          "seq": 1,
+          "run_id": "12afb8ea-5ca4-4a88-bf66-30d0061512da",
+          "created_at": 1791455703822,
+          "status": "running",
+          "reason": null,
+          "summary": null,
+          "mode": "normal"
+        }
+      },
+      {
+        "event": "message",
+        "data": {
+          "event_id": "c8aa9ff0-9a5a-46c8-b1bc-74c7f1ca0993",
+          "seq": 2,
+          "run_id": "12afb8ea-5ca4-4a88-bf66-30d0061512da",
+          "created_at": 1791455703810,
+          "role": "user",
+          "message": "请只用 read_file 读取 /etc/hostname，最后只回复读取是否成功。",
+          "attachments": [],
+          "attempt": null
+        }
+      },
+      {
+        "event": "title",
+        "data": {
+          "event_id": "1ccfa52c-2fcf-45ea-9d35-d2a6ce98353f",
+          "seq": 3,
+          "run_id": "12afb8ea-5ca4-4a88-bf66-30d0061512da",
+          "created_at": 1791455703817,
+          "title": "请只用 read_file 读取 /etc/hostname"
+        }
+      },
+      {
+        "event": "context",
+        "data": {
+          "event_id": "6cf50fa2-c476-4c08-859a-f19b235f2361",
+          "seq": 4,
+          "run_id": "12afb8ea-5ca4-4a88-bf66-30d0061512da",
+          "created_at": 1791455704027,
+          "op": "append",
+          "message_count": 1,
+          "roles": [
+            "user"
+          ]
+        }
+      },
+      {
+        "event": "turn",
+        "data": {
+          "event_id": "a5992a64-6736-47dc-809a-ceb8c3d15355",
+          "seq": 5,
+          "run_id": "12afb8ea-5ca4-4a88-bf66-30d0061512da",
+          "created_at": 1791455704037,
+          "phase": "started",
+          "index": 1,
+          "context_estimate": {
+            "limit": 157232,
+            "tools": 5068,
+            "total": 6366,
+            "method": "chars",
+            "history": 24,
+            "watermark": 117924,
+            "max_tokens": 32768,
+            "tool_results": 0,
+            "system_prompt": 1274,
+            "context_window": 200000
+          },
+          "context_window": 200000,
+          "model_ms": null,
+          "attempts": null,
+          "ttft_ms": null,
+          "usage": null,
+          "finish_reason": null,
+          "tool_call_ids": [],
+          "tools_ms": null,
+          "error": null
+        }
+      },
+      {
+        "event": "context",
+        "data": {
+          "event_id": "974f0d53-dc02-4c84-91a2-a3419c9fb983",
+          "seq": 6,
+          "run_id": "12afb8ea-5ca4-4a88-bf66-30d0061512da",
+          "created_at": 1791455704747,
+          "op": "append",
+          "message_count": 1,
+          "roles": [
+            "assistant"
+          ]
+        }
+      },
+      {
+        "event": "title",
+        "data": {
+          "event_id": "0cf51aaa-e2eb-4c00-91eb-83aea2d09c61",
+          "seq": 7,
+          "run_id": null,
+          "created_at": 1791455704757,
+          "title": "读取 /etc/hostname"
+        }
+      },
+      {
+        "event": "tool",
+        "data": {
+          "event_id": "77f70f53-2bb7-4341-ac29-a17de3924f98",
+          "seq": 8,
+          "run_id": "12afb8ea-5ca4-4a88-bf66-30d0061512da",
+          "created_at": 1791455704762,
+          "tool_call_id": "call_00_4QLIkckbdeLaMhGEh7z10124",
+          "name": "file",
+          "status": "calling",
+          "function": "read_file",
+          "args": {
+            "filepath": "/etc/hostname"
+          },
+          "content": null,
+          "duration_ms": null,
+          "stages_ms": {},
+          "shaping": null,
+          "denied_by": null
+        }
+      },
+      {
+        "event": "environment",
+        "data": {
+          "event_id": "3f2f4478-a102-4ec0-a2e2-9cf8e2ecc012",
+          "seq": 9,
+          "run_id": "12afb8ea-5ca4-4a88-bf66-30d0061512da",
+          "created_at": 1791455704767,
+          "status": "preparing",
+          "message": null,
+          "project_file_protection": null
+        }
+      },
+      {
+        "event": "environment",
+        "data": {
+          "event_id": "a5577aeb-d441-4c1c-8ef5-0b43725993a9",
+          "seq": 10,
+          "run_id": "12afb8ea-5ca4-4a88-bf66-30d0061512da",
+          "created_at": 1791455713119,
+          "status": "ready",
+          "message": null,
+          "project_file_protection": null
+        }
+      },
+      {
+        "event": "context",
+        "data": {
+          "event_id": "dc76c006-bf47-423e-9230-545228feeb54",
+          "seq": 11,
+          "run_id": "12afb8ea-5ca4-4a88-bf66-30d0061512da",
+          "created_at": 1791455713135,
+          "op": "append",
+          "message_count": 1,
+          "roles": [
+            "tool"
+          ]
+        }
+      },
+      {
+        "event": "tool",
+        "data": {
+          "event_id": "28d33ff2-e923-42d4-9936-43e9ad91392e",
+          "seq": 12,
+          "run_id": "12afb8ea-5ca4-4a88-bf66-30d0061512da",
+          "created_at": 1791455713135,
+          "tool_call_id": "call_00_4QLIkckbdeLaMhGEh7z10124",
+          "name": "file",
+          "status": "called",
+          "function": "read_file",
+          "args": {
+            "filepath": "/etc/hostname"
+          },
+          "content": {
+            "content": "794fe3223d88\n",
+            "outcome": {
+              "success": true,
+              "message": "文件内容读取成功",
+              "data": {
+                "content": "794fe3223d88\n",
+                "filepath": "/etc/hostname"
+              }
+            }
+          },
+          "duration_ms": 8371,
+          "stages_ms": {
+            "execution": 8371,
+            "projection": 0,
+            "postprocess": 0
+          },
+          "shaping": null,
+          "denied_by": null
+        }
+      },
+      {
+        "event": "turn",
+        "data": {
+          "event_id": "739c60a1-d0dd-40ed-9abe-f39b780a4631",
+          "seq": 13,
+          "run_id": "12afb8ea-5ca4-4a88-bf66-30d0061512da",
+          "created_at": 1791455713147,
+          "phase": "completed",
+          "index": 1,
+          "context_estimate": null,
+          "context_window": null,
+          "model_ms": 700,
+          "attempts": 1,
+          "ttft_ms": 657,
+          "usage": {
+            "prompt_tokens": 5880,
+            "completion_tokens": 67,
+            "cached_tokens": 5632,
+            "reasoning_tokens": 24
+          },
+          "finish_reason": "tool_calls",
+          "tool_call_ids": [
+            "call_00_4QLIkckbdeLaMhGEh7z10124"
+          ],
+          "tools_ms": 8371,
+          "error": null
+        }
+      },
+      {
+        "event": "turn",
+        "data": {
+          "event_id": "23d38971-e77c-4d47-a127-ec116cbc6bb7",
+          "seq": 14,
+          "run_id": "12afb8ea-5ca4-4a88-bf66-30d0061512da",
+          "created_at": 1791455713156,
+          "phase": "started",
+          "index": 2,
+          "context_estimate": {
+            "limit": 157232,
+            "tools": 4682,
+            "total": 5964,
+            "method": "usage",
+            "history": 69,
+            "watermark": 117924,
+            "max_tokens": 32768,
+            "tool_results": 37,
+            "system_prompt": 1176,
+            "context_window": 200000
+          },
+          "context_window": 200000,
+          "model_ms": null,
+          "attempts": null,
+          "ttft_ms": null,
+          "usage": null,
+          "finish_reason": null,
+          "tool_call_ids": [],
+          "tools_ms": null,
+          "error": null
+        }
+      },
+      {
+        "event": "context",
+        "data": {
+          "event_id": "10f2276f-eadc-4958-8383-55b1a3c34560",
+          "seq": 15,
+          "run_id": "12afb8ea-5ca4-4a88-bf66-30d0061512da",
+          "created_at": 1791455714144,
+          "op": "append",
+          "message_count": 1,
+          "roles": [
+            "assistant"
+          ]
+        }
+      },
+      {
+        "event": "message",
+        "data": {
+          "event_id": "09e33a00-ced2-4e7f-ba22-ed6924b7e423",
+          "seq": 16,
+          "run_id": "12afb8ea-5ca4-4a88-bf66-30d0061512da",
+          "created_at": 1791455714160,
+          "role": "assistant",
+          "message": "读取成功。",
+          "attachments": [],
+          "attempt": 1
+        }
+      },
+      {
+        "event": "turn",
+        "data": {
+          "event_id": "1dba5445-7191-496d-ba62-001fa7c8a25d",
+          "seq": 17,
+          "run_id": "12afb8ea-5ca4-4a88-bf66-30d0061512da",
+          "created_at": 1791455714168,
+          "phase": "completed",
+          "index": 2,
+          "context_estimate": null,
+          "context_window": null,
+          "model_ms": 979,
+          "attempts": 1,
+          "ttft_ms": 975,
+          "usage": {
+            "prompt_tokens": 5992,
+            "completion_tokens": 4,
+            "cached_tokens": 5760,
+            "reasoning_tokens": 0
+          },
+          "finish_reason": "stop",
+          "tool_call_ids": [],
+          "tools_ms": 0,
+          "error": null
+        }
+      },
+      {
+        "event": "done",
+        "data": {
+          "event_id": "36b30d1c-231c-4667-bd6d-4c0e9d5530f8",
+          "seq": 18,
+          "run_id": "12afb8ea-5ca4-4a88-bf66-30d0061512da",
+          "created_at": 1791455714174
+        }
+      },
+      {
+        "event": "run",
+        "data": {
+          "event_id": "85cf2ef8-4abe-4dfd-aebd-42e9c14f9334",
+          "seq": 19,
+          "run_id": "12afb8ea-5ca4-4a88-bf66-30d0061512da",
+          "created_at": 1791455714179,
+          "status": "completed",
+          "reason": null,
+          "summary": {
+            "turns": 2,
+            "tool_calls": 1,
+            "duration_ms": 10362,
+            "cached_tokens": 11392,
+            "prompt_tokens": 11872,
+            "model_requests": 2,
+            "completion_tokens": 71
+          },
+          "mode": "normal"
+        }
+      }
+    ]
+  },
+  "stage_logs": [
+    "manus-api  | 2026-10-08 10:23:42 - app.domain.services.agent_task_runner - INFO - run_stage run=9ce23a5d-314b-4b87-bd19-f1013d8af4b4 stage=prepare_run duration_ms=11",
+    "manus-api  | 2026-10-08 10:23:43 - app.domain.services.agent_task_runner - INFO - run_stage run=331f3cc3-6a22-45cd-afa3-d9678837199f stage=prepare_run duration_ms=6",
+    "manus-api  | 2026-10-08 10:23:52 - app.application.services.agent_service - INFO - run_stage run=331f3cc3-6a22-45cd-afa3-d9678837199f stage=resource_prepare status=ready duration_ms=8461",
+    "manus-api  | 2026-10-08 10:23:54 - app.domain.services.agent_task_runner - INFO - run_stage run=efdf0b10-00ca-426e-a3e3-373a3f71ba8d stage=prepare_run duration_ms=40",
+    "manus-api  | 2026-10-08 10:24:03 - app.application.services.agent_service - INFO - run_stage run=efdf0b10-00ca-426e-a3e3-373a3f71ba8d stage=resource_prepare status=ready duration_ms=8344",
+    "manus-api  | 2026-10-08 10:35:04 - app.domain.services.agent_task_runner - INFO - run_stage run=12afb8ea-5ca4-4a88-bf66-30d0061512da stage=prepare_run duration_ms=7",
+    "manus-api  | 2026-10-08 10:35:04 - app.domain.services.run_ledger - INFO - run_stage run=12afb8ea-5ca4-4a88-bf66-30d0061512da stage=event_commit status=committed count=1 duration_ms=5",
+    "manus-api  | 2026-10-08 10:35:04 - app.domain.services.run_ledger - INFO - run_stage run=12afb8ea-5ca4-4a88-bf66-30d0061512da stage=event_commit status=committed count=1 duration_ms=3",
+    "manus-api  | 2026-10-08 10:35:04 - app.domain.services.run_ledger - INFO - run_stage run=12afb8ea-5ca4-4a88-bf66-30d0061512da stage=event_commit status=committed count=1 duration_ms=3",
+    "manus-api  | 2026-10-08 10:35:04 - app.domain.services.run_ledger - INFO - run_stage run=None stage=event_commit status=committed count=1 duration_ms=7",
+    "manus-api  | 2026-10-08 10:35:04 - app.domain.services.run_ledger - INFO - run_stage run=12afb8ea-5ca4-4a88-bf66-30d0061512da stage=event_commit status=committed count=1 duration_ms=4",
+    "manus-api  | 2026-10-08 10:35:04 - app.domain.services.run_ledger - INFO - run_stage run=12afb8ea-5ca4-4a88-bf66-30d0061512da stage=event_commit status=committed count=1 duration_ms=3",
+    "manus-api  | 2026-10-08 10:35:13 - app.domain.services.run_ledger - INFO - run_stage run=12afb8ea-5ca4-4a88-bf66-30d0061512da stage=event_commit status=committed count=1 duration_ms=11",
+    "manus-api  | 2026-10-08 10:35:13 - app.application.services.agent_service - INFO - run_stage run=12afb8ea-5ca4-4a88-bf66-30d0061512da stage=resource_prepare status=ready duration_ms=8362 stages_ms={'ownership_check': 4, 'create_or_reconnect': 267, 'ensure_ready': 8058, 'publish_owner': 31}",
+    "manus-api  | 2026-10-08 10:35:13 - app.domain.services.run_ledger - INFO - run_stage run=12afb8ea-5ca4-4a88-bf66-30d0061512da stage=event_commit status=committed count=1 duration_ms=4",
+    "manus-api  | 2026-10-08 10:35:13 - app.domain.services.run_ledger - INFO - run_stage run=12afb8ea-5ca4-4a88-bf66-30d0061512da stage=event_commit status=committed count=1 duration_ms=4",
+    "manus-api  | 2026-10-08 10:35:13 - app.domain.services.run_ledger - INFO - run_stage run=12afb8ea-5ca4-4a88-bf66-30d0061512da stage=event_commit status=committed count=1 duration_ms=4",
+    "manus-api  | 2026-10-08 10:35:13 - app.domain.services.run_ledger - INFO - run_stage run=12afb8ea-5ca4-4a88-bf66-30d0061512da stage=event_commit status=committed count=1 duration_ms=3",
+    "manus-api  | 2026-10-08 10:35:14 - app.domain.services.run_ledger - INFO - run_stage run=12afb8ea-5ca4-4a88-bf66-30d0061512da stage=event_commit status=committed count=1 duration_ms=7",
+    "manus-api  | 2026-10-08 10:35:14 - app.domain.services.run_ledger - INFO - run_stage run=12afb8ea-5ca4-4a88-bf66-30d0061512da stage=event_commit status=committed count=1 duration_ms=8",
+    "manus-api  | 2026-10-08 10:35:14 - app.domain.services.run_ledger - INFO - run_stage run=12afb8ea-5ca4-4a88-bf66-30d0061512da stage=event_commit status=committed count=1 duration_ms=5"
+  ],
+  "validation": {
+    "final_browser_visual_protocols": "39 passed",
+    "loop_control_context_bundle": "65 passed, 1 optional browser skipped; browser subsequently enabled and passed",
+    "llm_files_loop_events_bundle": "79 passed",
+    "control_persistence_approval_bundle": "42 passed, 1 optional browser skipped; overlaps prior bundle",
+    "project_session_and_docker": "4 + 6 passed",
+    "postgres": "visual ownership 1 passed; project/snapshot 8 passed, stale hardcoded migration head test corrected and rerun 1 passed",
+    "ui": "tsc and check-event-observability passed; actual expired-image UI and HTTP 410 passed",
+    "dependency": "Pillow 12.3.0 in local lock and final container; no unrelated version upgrade"
+  },
+  "conditions": {
+    "models": "deepseek-flash high; visual boundary also deepseek-v4-pro high",
+    "sandbox": "Compose 动态沙箱模式（sandbox_address 未设置）；资源任务各新建沙箱，纯回答不 create/get/ensure",
+    "protocols": "local MCP/A2A fixtures; timed delays are deterministic substitutes",
+    "expiry": "only current test file expiry advanced; maintenance removed bytes; not a 24-hour soak",
+    "pure_answer_sandbox_id": null
+  },
+  "sandbox_bindings": {
+    "1bfd8d45-e487-4ab2-8563-02463856db80": "rayagent-sandbox-da5e9c74",
+    "2b06037a-6e3b-437d-8f74-9ad7d008fa5d": "rayagent-sandbox-30b71f10",
+    "426ee824-3cb8-4a70-b115-bbf1cd7db66e": "rayagent-sandbox-d692a28b",
+    "60b23f88-36c4-49cb-95dd-11afaface3f0": "rayagent-sandbox-a933795c",
+    "bc7aae25-ebce-4918-a54e-2f0e507a4f51": "rayagent-sandbox-73b461db",
+    "c1972105-6259-47fd-80cd-b7cf4d743ba8": "rayagent-sandbox-f5f1d025",
+    "ffe61e1f-9cef-4296-8382-81661d02dd0a": null
+  },
+  "cleanup": "Stopped six completed-task sandboxes listed in sandbox_bindings and isolated test PostgreSQL; preserved sessions, events and durable files."
+}

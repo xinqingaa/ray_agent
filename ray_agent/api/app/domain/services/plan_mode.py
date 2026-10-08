@@ -21,7 +21,8 @@ PLAN_MODE_ALLOWED: Dict[str, str] = {
     "browser_tabs": "browser",
     "update_plan": "plan",
     "message_ask_user": "message",
-    "get_remote_agent_cards": "a2a",  # 只读本地已发现的卡片，不联系远端
+    "get_remote_agent_cards": "a2a",  # 发现元数据，不执行业务调用
+    "discover_mcp_tools": "mcp",
 }
 
 PLAN_MODE_DENIED_PREFIX = "计划模式下不执行"

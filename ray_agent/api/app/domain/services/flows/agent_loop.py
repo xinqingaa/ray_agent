@@ -337,7 +337,8 @@ class AgentLoop(BaseFlow):
         # 计划模式的检查在策略之前：被拒绝的调用不会进入审批
         self._plan_guard = PlanModeGuard()
         self.pipeline.add_before(self._plan_guard)
-        self.pipeline.add_before(ToolPolicyGuard(tool_policy))
+        self._policy_guard = ToolPolicyGuard(tool_policy)
+        self.pipeline.add_before(self._policy_guard)
         self._mode = RunMode.NORMAL
         self.mode = mode
         self.pipeline.add_after(self._emit_plan_event)
@@ -392,6 +393,7 @@ class AgentLoop(BaseFlow):
             "reasoning_effort": getattr(self._llm, "reasoning_effort", None),
             "keep_reasoning": getattr(self._llm, "keep_reasoning", False),
             "tool_batching": getattr(self._llm, "tool_batching", "disabled"),
+            "vision": bool(getattr(self._llm, "supports_vision", False)),
             "agent_config": self._config.model_dump(mode="json"),
             "mode": self._mode.value,
             "system_prompt": self.request_system_prompt or self._with_mode_suffix(system_prompt + self.project_prompt),
@@ -534,6 +536,9 @@ class AgentLoop(BaseFlow):
                     for event in self._take_context():
                         yield event
 
+            async for event in self._sync_visual_history():
+                yield event
+
             if self.model_requests >= self._config.max_iterations:
                 yield self._fail(RunEndReason.MAX_ITERATIONS,
                                  f"模型请求次数达到本次运行上限 {self._config.max_iterations}")
@@ -609,6 +614,22 @@ class AgentLoop(BaseFlow):
                 yield DoneEvent()
                 return
 
+            independent = await self._independent_reads(calls)
+            if independent:
+                started = time.monotonic()
+                async for invocation, event in self.pipeline.read_batch(independent):
+                    if isinstance(event, ToolEvent) and event.status == ToolEventStatus.CALLED:
+                        await self._add_messages([tool_message(invocation.call_id, invocation.function_name, invocation.result)])
+                        for context in self._take_context():
+                            yield context
+                        turn.executed.append(invocation.call_id)
+                        turn.tools_ms += invocation.duration_ms or 0
+                    yield event
+                logger.info('read_batch session=%s calls=%d wall_ms=%d', self._session_id, len(calls),
+                            int((time.monotonic()-started)*1000))
+                yield self._turn_completed(turn)
+                continue
+
             browser_writes = {'browser_navigate', 'browser_restart', 'browser_click', 'browser_input',
                               'browser_move_mouse', 'browser_press_key', 'browser_select_option',
                               'browser_scroll_up', 'browser_scroll_down', 'browser_console_exec'}
@@ -636,12 +657,33 @@ class AgentLoop(BaseFlow):
                     self.end_reason = RunEndReason.APPROVAL
                     yield WaitEvent()
                     return
-                if fail_fast and invocation.result is not None and not invocation.result.success:
+                if fail_fast and invocation.result is not None and (not invocation.result.success or
+                        isinstance(invocation.result.data, dict) and invocation.result.data.get('observation_status') == 'failed'):
                     async for event in self._skip_calls(calls[position+1:],
                             '本批次前序调用失败，依赖状态不再可靠；该调用未执行。请根据结果重新决策。', turn):
                         yield event
                     break
             yield self._turn_completed(turn)
+
+    async def _independent_reads(self, calls):
+        from app.domain.services.plan_mode import PLAN_MODE_ALLOWED
+        allowed = {'web_fetch': 'web', 'read_file': 'file', 'search_in_file': 'file', 'find_files': 'file'}
+        if len(calls) < 2:
+            return []
+        invocations = []
+        for call in calls:
+            invocation = ToolInvocation(call_id=call['id'], function_name=call['function']['name'],
+                                        raw_arguments=call['function']['arguments'])
+            if await self.pipeline.check(invocation) is not None:
+                return []
+            if allowed.get(invocation.function_name) != invocation.toolkit_name:
+                return []
+            if self._plan_guard.enabled and PLAN_MODE_ALLOWED.get(invocation.function_name) != invocation.toolkit_name:
+                return []
+            if self._policy_guard.match(invocation).policy.value != 'allow':
+                return []
+            invocations.append(invocation)
+        return invocations
 
     async def _skip_calls(self, calls, reason, turn=None):
         """跳过仍保留完整 call/result 配对与 called 事件，不执行任何工具或后处理副作用。"""
@@ -938,6 +980,21 @@ class AgentLoop(BaseFlow):
 
     # ---- 容量与压缩 ----
 
+    async def _sync_visual_history(self):
+        from app.domain.services.context.vision import reconcile_visual_history
+        messages = self._memory.get_messages()
+        if find_dangling_calls(messages):
+            return
+        revised = reconcile_visual_history(messages, bool(getattr(self._llm, 'supports_vision', False)),
+                                           getattr(self, 'run_id', None))
+        if revised == messages:
+            return
+        self._memory.replace(revised[1:] if revised and revised[0].get('role') == 'system' else revised)
+        self.budget.reset()
+        async with self._uow:
+            await self._uow.session.save_memory(self._session_id, AGENT_MEMORY_NAME, self._memory)
+        yield ContextEvent(op=ContextOp.REPLACE, messages=copy.deepcopy(self._memory.get_messages()[1:]))
+
     def estimate_context(self) -> ContextEstimate:
         """下一次模型请求的输入量估算（四部分与上限）。"""
         return self.budget.estimate(self._request_messages(), self.pipeline.schemas())
@@ -949,6 +1006,18 @@ class AgentLoop(BaseFlow):
         """
         self._capacity_error = None
         estimate = self.estimate_context()
+        from app.domain.services.context.vision import retire_observed_image
+        while force or estimate.over_watermark:
+            messages = self._memory.get_messages()
+            revised = retire_observed_image(messages)
+            if revised == messages:
+                break
+            self._memory.replace(revised[1:])
+            self.budget.reset()
+            async with self._uow:
+                await self._uow.session.save_memory(self._session_id, AGENT_MEMORY_NAME, self._memory)
+            yield ContextEvent(op=ContextOp.REPLACE, messages=copy.deepcopy(revised[1:]))
+            estimate = self.estimate_context()
         fixed = fixed_input_estimate(self.budget, self._request_messages(), self.pipeline.schemas())
         if fixed.over_limit:
             self._estimate = estimate

@@ -118,7 +118,7 @@ class ToolPolicyConfig(BaseModel):
     - 内置工具：函数名（如 ``shell_execute``），或工具集通配 ``<工具集>:*``（如 ``shell:*``）；
     - MCP：``mcp:<服务名>:<工具名>``、``mcp:<服务名>:*``、``mcp:*``，工具名是服务端的原始名称；
     - A2A：``a2a:<远程 Agent id>:call_remote_agent``、``a2a:<id>:*``、``a2a:*``。
-      ``get_remote_agent_cards`` 只读本地已发现的卡片，按内置工具处理，不受 ``a2a:*`` 约束。
+      ``get_remote_agent_cards`` 按需发现卡片，按内置工具处理，不受 ``a2a:*`` 约束；它不提交业务任务。
 
     没有匹配任何规则的调用为 allow。
     """

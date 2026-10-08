@@ -4,9 +4,10 @@
 import asyncio
 import math
 import struct
+import io
 import time
 import uuid
-from collections import deque
+from collections import deque, OrderedDict
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -23,6 +24,8 @@ def now():
 
 
 class PlaywrightBrowser(BrowserProtocol):
+    # Only CDP target identity is retained; node references live in their document.
+    _selected_tabs = OrderedDict()
     def __init__(self, cdp_url: str, llm=None):
         self.cdp_url = cdp_url
         self.playwright = self.browser = self.page = None
@@ -30,7 +33,8 @@ class PlaywrightBrowser(BrowserProtocol):
         self._refs = {}
         self._logs = {}
         self._log_seq = {}
-        self._next_index = 0
+        self._next_index = int(uuid.uuid4().hex[:10], 16)
+        self._stable_tabs = set()
 
     def _register(self, page):
         for tab, existing in self._tabs.items():
@@ -42,9 +46,9 @@ class PlaywrightBrowser(BrowserProtocol):
         self._logs[tab] = deque(maxlen=300)
         self._log_seq[tab] = 0
         page.set_default_timeout(5000)
-        page.on('console', lambda msg: self._log(tab, msg.type, msg.text))
-        page.on('pageerror', lambda err: self._log(tab, 'pageerror', str(err)))
-        page.on('framenavigated', lambda frame: self._refs[tab].clear() if frame == page.main_frame else None)
+        page.on('console', lambda msg: self._log(self._register(page), msg.type, msg.text))
+        page.on('pageerror', lambda err: self._log(self._register(page), 'pageerror', str(err)))
+        page.on('framenavigated', lambda frame: self._refs[self._register(page)].clear() if frame == page.main_frame else None)
         return tab
 
     def _log(self, tab, level, text):
@@ -59,8 +63,11 @@ class PlaywrightBrowser(BrowserProtocol):
             context.on('page', self._register)
             for page in context.pages:
                 self._register(page)
-            self.page = next((p for p in context.pages if p.url == 'about:blank'), None) or await context.new_page()
-            self._register(self.page)
+            await self._refresh_tabs()
+            self.page = self._tabs.get(self._selected_tabs.get(self.cdp_url))
+            if self.page is None or self.page.is_closed():
+                self.page = next((p for p in context.pages if not p.is_closed()), None) or await context.new_page()
+            await self._refresh_tabs()
             return True
         except Exception:
             await self.cleanup()
@@ -77,10 +84,33 @@ class PlaywrightBrowser(BrowserProtocol):
         self._refs.clear()
         self._logs.clear()
         self._log_seq.clear()
+        self._stable_tabs.clear()
+
+    async def _refresh_tabs(self):
+        """CDP target IDs survive adapter reconstruction; closed tabs are excluded."""
+        for context in self.browser.contexts:
+            for page in context.pages:
+                if page.is_closed():
+                    continue
+                old = self._register(page)
+                if old in self._stable_tabs:
+                    continue
+                session = await context.new_cdp_session(page)
+                try:
+                    tab = 'tab-' + (await session.send('Target.getTargetInfo'))['targetInfo']['targetId']
+                finally:
+                    await session.detach()
+                self._stable_tabs.add(tab)
+                if old != tab:
+                    self._tabs[tab] = self._tabs.pop(old)
+                    self._refs[tab] = self._refs.pop(old)
+                    self._logs[tab] = self._logs.pop(old)
+                    self._log_seq[tab] = self._log_seq.pop(old)
 
     async def _ensure_page(self, tab_id=None):
         if self.browser is None and not await self.initialize():
             raise ValueError('连接浏览器失败')
+        await self._refresh_tabs()
         if tab_id is not None:
             page = self._tabs.get(tab_id)
             if page is None or page.is_closed():
@@ -88,7 +118,12 @@ class PlaywrightBrowser(BrowserProtocol):
             self.page = page
         if self.page is None or self.page.is_closed():
             raise ValueError('当前标签页已关闭，请显式选择其他 tab')
-        return self._register(self.page)
+        tab = self._register(self.page)
+        self._selected_tabs[self.cdp_url] = tab
+        self._selected_tabs.move_to_end(self.cdp_url)
+        while len(self._selected_tabs) > 256:
+            self._selected_tabs.popitem(last=False)
+        return tab
 
     async def _metadata(self, tab):
         return dict(tab_id=tab, url=self.page.url, title=await self.page.title(), observed_at=now())
@@ -102,18 +137,27 @@ class PlaywrightBrowser(BrowserProtocol):
             raise ValueError('ref 与 index 只能提供一个')
         if index is not None and (not isinstance(index, int) or index < 0):
             raise ValueError('index 必须为非负整数')
-        refs = self._refs[tab]
-        entry = refs.get(ref) if ref else next((v for v in refs.values() if v['index'] == index), None)
-        if not entry:
-            raise ValueError('stale_reference：引用已失效或不属于此 tab，请重新观察')
-        locator = self.page.locator(f'[data-ray-ref="{entry["ref"]}"]')
-        if await locator.count() != 1:
-            raise ValueError('stale_reference：目标已移除或不唯一，请重新观察')
-        # 同一 DOM 节点若被复用成另一链接/控件，不沿用旧引用。
-        actual = await locator.evaluate('(el) => [el.tagName.toLowerCase(), el.getAttribute("href"), el.getAttribute("type")]')
-        if actual != [entry['tag'], entry['href'], entry['type']]:
-            raise ValueError('stale_reference：目标属性已变化，请重新观察')
-        return locator
+        handle = await self.page.evaluate_handle(r"""({ref,index}) => {
+            const refs = window.__rayAgentRefs;
+            const entry = ref ? refs?.get(ref) : [...(refs?.values() || [])].find(e => e.index === index);
+            const el = entry?.node;
+            if (!el?.isConnected || el.ownerDocument !== document ||
+                el.tagName.toLowerCase() !== entry.tag || el.getAttribute('href') !== entry.href ||
+                el.getAttribute('type') !== entry.type)
+                throw new Error('stale_reference：原节点已失效，请重新观察');
+            const labelled = (el.getAttribute('aria-labelledby') || '').split(/\s+/)
+                .map(id => document.getElementById(id)?.textContent || '').join(' ').trim();
+            const name = (el.getAttribute('aria-label') || labelled || [...(el.labels || [])].map(l => l.innerText).join(' ') ||
+                el.innerText || el.getAttribute('placeholder') || el.getAttribute('title') || el.getAttribute('alt') || '').trim().slice(0,240);
+            if (name !== entry.name)
+                throw new Error('stale_reference：目标语义已变化，请重新观察');
+            return el;
+        }""", dict(ref=ref, index=index))
+        element = handle.as_element()
+        if element is None:
+            await handle.dispose()
+            raise ValueError('stale_reference：目标已失效')
+        return element
 
     async def view_page(self, mode='both', scope='document', ref=None, tab_id=None, max_chars=6000, max_elements=80, wait_for_text=None, timeout_ms=5000):
         started = time.monotonic()
@@ -218,7 +262,13 @@ class PlaywrightBrowser(BrowserProtocol):
         async def op(tab):
             if coordinate_x is not None:
                 await self.page.mouse.click(coordinate_x, coordinate_y)
-                locator = self.page.locator(':focus')
+                handle = await self.page.evaluate_handle('''([x,y]) => {
+                    const hit=document.elementFromPoint(x,y), focused=document.activeElement;
+                    const target=hit?.closest('input,textarea,[contenteditable="true"]') || hit?.closest('label')?.control;
+                    if (!target || target !== focused) throw new Error('坐标未命中已确认的输入目标；未修改内容');
+                    return target;
+                }''', [coordinate_x,coordinate_y])
+                locator = handle.as_element()
             else:
                 locator = await self._target(tab, ref, index)
             await locator.fill(text)
@@ -283,6 +333,7 @@ class PlaywrightBrowser(BrowserProtocol):
         try:
             if self.browser is None and not await self.initialize():
                 raise ValueError('连接浏览器失败')
+            await self._refresh_tabs()
             if tab_id is not None:
                 await self._ensure_page(tab_id)
             rows = [dict(tab_id=t, url=p.url, title=await p.title(), active=p==self.page)
@@ -291,7 +342,7 @@ class PlaywrightBrowser(BrowserProtocol):
         except Exception as exc:
             return self._failure(exc)
 
-    async def capture_screenshot(self, scope='viewport', ref=None, tab_id=None):
+    async def capture_screenshot(self, scope='viewport', ref=None, tab_id=None, for_model=False):
         tab = await self._ensure_page(tab_id)
         if scope not in ('viewport','full_page','element') or (scope != 'element' and ref is not None):
             raise ValueError('无效截图范围或 ref')
@@ -313,7 +364,20 @@ class PlaywrightBrowser(BrowserProtocol):
         width,height = struct.unpack('>II', data[16:24])
         if len(data)>8*1024*1024 or width*height>16_000_000 or max(width,height)>8192:
             raise ValueError('截图产物超过大小上限，请缩小范围')
-        return data, dict(await self._metadata(tab), width=width, height=height, size=len(data), scope=scope,
+        mime = 'image/png'
+        if for_model:
+            from PIL import Image
+            def normalize():
+                with Image.open(io.BytesIO(data)) as picture:
+                    picture.thumbnail((2048, 2048), Image.Resampling.LANCZOS)
+                    output = io.BytesIO()
+                    picture.convert('RGB').save(output, format='JPEG', quality=90)
+                    return output.getvalue(), picture.size
+            data, (width, height) = await asyncio.to_thread(normalize)
+            mime = 'image/jpeg'
+            if len(data) > 2 * 1024 * 1024:
+                raise ValueError('视觉输入超过 2 MiB，请缩小范围')
+        return data, dict(await self._metadata(tab), width=width, height=height, size=len(data), scope=scope, mime_type=mime,
             captured_at=now(), stages_ms={'capture':int((time.monotonic()-started)*1000)})
 
     async def screenshot(self, full_page: Optional[bool] = None) -> bytes:

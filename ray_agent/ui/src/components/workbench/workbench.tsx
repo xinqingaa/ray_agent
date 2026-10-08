@@ -267,8 +267,18 @@ function BrowserPane({call}: {call: ToolCallView | null}) {
   const [failed, setFailed] = useState(false)
   const [expanded, setExpanded] = useState(false)
   const [originalSize, setOriginalSize] = useState(false)
+  const [expired, setExpired] = useState(false)
+  const data = asRecord(asRecord(asRecord(call?.raw.content)?.outcome)?.data)
+  const imageFileId = typeof data?.file_id === 'string' ? data.file_id : null
+  useEffect(() => {
+    let cancelled = false
+    if (failed && imageFileId) void fileApi.getFileInfo(imageFileId).then(info => {
+      if (!cancelled) setExpired(Boolean(asRecord(asRecord(info)?.visual)?.deleted_at))
+    }).catch(() => {})
+    return () => { cancelled = true }
+  }, [failed, imageFileId])
   const src = screenshotSrc(call)
-  useEffect(() => {setFailed(false); setExpanded(false); setOriginalSize(false)}, [src, call?.callId])
+  useEffect(() => {setFailed(false); setExpired(false); setExpanded(false); setOriginalSize(false)}, [src, call?.callId])
   if (!call) {
     return <EmptyNote>选择浏览器操作，查看页面结果或截图。</EmptyNote>
   }
@@ -291,7 +301,7 @@ function BrowserPane({call}: {call: ToolCallView | null}) {
               <img src={src} alt="浏览器截图" onError={() => setFailed(true)} className="h-auto w-full"/>
             </button>
           </ScrollArea>
-        ) : failed ? <EmptyNote>截图暂不可用，可通过上方链接打开网页。</EmptyNote> : fallback ? (
+        ) : failed ? <EmptyNote>{expired ? '临时截图已过期，历史观察结论仍保留。' : '截图暂不可用，可通过上方链接打开网页。'}</EmptyNote> : fallback ? (
           <ScrollArea className="h-full">
             <pre className="p-3 font-mono text-xs leading-5 whitespace-pre-wrap break-all">{fallback.length > 20000 ? `${fallback.slice(0, 20000)}…` : fallback}</pre>
           </ScrollArea>

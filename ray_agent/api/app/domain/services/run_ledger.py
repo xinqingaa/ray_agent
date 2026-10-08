@@ -7,6 +7,7 @@
 运行计数（轮数、模型请求、工具调用、tokens）在写入对应事件的同一事务里累加，终态 run 事件的汇总直接取自运行行。
 """
 import logging
+import time
 from datetime import datetime
 from typing import Awaitable, Callable, List, Optional, Sequence
 
@@ -51,6 +52,7 @@ class RunLedger:
         """
         if not events:
             return []
+        started = time.monotonic()
         uow = self._uow_factory()
         async with uow:
             await lock_project_session(uow, session_id)
@@ -63,6 +65,8 @@ class RunLedger:
             if apply is not None:
                 await apply(uow)
             await uow.commit()
+        logger.info('run_stage run=%s stage=event_commit status=committed count=%d duration_ms=%d',
+                    run_id, len(events), int((time.monotonic()-started)*1000))
         await self._notify(session_id, events[-1].seq)
         return list(events)
 

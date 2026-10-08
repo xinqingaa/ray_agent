@@ -512,3 +512,30 @@ def test_attempt_ttft_and_message_attempt_survive_jsonb_round_trip():
         message = next(event for event in events if isinstance(event, MessageEvent) and event.role == "assistant")
         assert message.attempt == 2 and message.message == "完成"
     with_db(scenario)
+
+
+def test_visual_ownership_roundtrip_and_expired_query_protects_waiting():
+    from app.domain.models.file import File
+    async def scenario(uow_factory, engine):
+        session = await new_session(uow_factory)
+        ledger = RunLedger(uow_factory, MemoryNotifier())
+        active = await ledger.start(session.id)
+        await ledger.transition(session.id, active.id, RunStatus.WAITING)
+        async with uow_factory() as uow:
+            await uow.file.save(File(id='temp', key='temp', visual={
+                'temporary':True,'run_id':active.id,'session_id':session.id,
+                'expires_at':1,'deleted_at':None,'sha256':'abc'}))
+            await uow.file.save(File(id='permanent', key='permanent'))
+        async with uow_factory() as uow:
+            assert not await uow.file.expired_visual_files(2)
+            assert (await uow.file.get_by_id('temp')).visual['sha256']=='abc'
+        await ledger.transition(session.id, active.id, RunStatus.CANCELLED)
+        async with uow_factory() as uow:
+            expired = await uow.file.expired_visual_files(2)
+            assert [f.id for f in expired]==['temp']
+            expired[0].visual['deleted_at']=2
+            await uow.file.save(expired[0])
+        async with uow_factory() as uow:
+            assert not await uow.file.expired_visual_files(3)
+            assert await uow.file.get_by_id('permanent')
+    with_db(scenario)

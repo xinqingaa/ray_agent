@@ -18,13 +18,17 @@ class A2ATool(BaseTool):
     async def cleanup(self):
         await self.gateway.cleanup()
 
-    @tool(name="get_remote_agent_cards", description="获取已启用且连接成功的远程 Agent；id 是委派调用标识，card 包含技能。",
+    @tool(name="get_remote_agent_cards", description="按需发现已启用远程 Agent；id 是委派调用标识，card 包含技能。",
           parameters={}, required=[])
     async def get_remote_agent_cards(self) -> ToolResult:
+        await self.gateway.initialize()
         return ToolResult(message="远程 Agent 列表", data=self.gateway.cards)
 
     @tool(name="call_remote_agent", description="委派 query 给指定 id 的远程 Agent，并等待完成。检查 success 和远程状态；失败或超时不要自动重复提交。",
           parameters={"id": {"type": "string", "description": "get_remote_agent_cards 返回的 id"},
                       "query": {"type": "string", "description": "委派任务"}}, required=["id", "query"])
     async def call_remote_agent(self, id: str, query: str) -> ToolResult:
+        discover = getattr(self.gateway, "discover", None)
+        if discover is not None:
+            await discover(id)
         return await self.gateway.invoke(id, query)

@@ -1,5 +1,6 @@
 """MCP 2026-07-28 客户端。每个连接由单一后台任务拥有其整个上下文。"""
 import asyncio
+import time
 import hashlib
 import logging
 import os
@@ -168,11 +169,25 @@ class MCPClientManager:
             if isinstance(exc, asyncio.CancelledError):
                 raise
 
+    async def discover(self, name):
+        config = self.config.mcpServers.get(name)
+        if config is None or not config.enabled:
+            raise ValueError('未知或已禁用的 MCP 服务')
+        if name in self.tools:
+            return
+        self.errors.pop(name, None)
+        started = time.monotonic()
+        try:
+            await discover_all({name: self._connect(name, config)}, self.config.discovery_budget, self.errors)
+        finally:
+            logger.info('run_stage stage=mcp_discovery service=%s duration_ms=%d ready=%s',
+                        name, int((time.monotonic()-started)*1000), name in self.tools)
+
     async def initialize(self):
         if self.initialized:
             return
         await discover_all({name: self._connect(name, config) for name, config in self.config.mcpServers.items()
-                            if config.enabled}, self.config.discovery_budget, self.errors)
+                            if config.enabled and name not in self.tools}, self.config.discovery_budget, self.errors)
         self.initialized = True
 
     async def get_all_tools(self) -> list[dict[str, Any]]:

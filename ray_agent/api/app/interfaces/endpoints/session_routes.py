@@ -434,6 +434,7 @@ async def get_turn_request(
             turn_seq=rebuilt.turn_seq,
             messages=rebuilt.messages,
             tools=rebuilt.tools,
+            images=rebuilt.images,
         ),
     )
 

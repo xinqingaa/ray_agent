@@ -1,5 +1,6 @@
 """A2A 1.0 JSON-RPC 接入。SDK 处理协议，产品负责有界轮询与状态解释。"""
 import asyncio
+import time
 import logging
 import uuid
 
@@ -60,10 +61,23 @@ class A2AClientManager:
             if isinstance(exc, asyncio.CancelledError):
                 raise
 
+    async def discover(self, agent_id):
+        config = next((c for c in self.config.a2a_servers if c.enabled and c.id == agent_id), None)
+        if config is None:
+            raise ValueError('未知或已禁用的远程 Agent')
+        if agent_id not in self.clients:
+            self.errors.pop(agent_id, None)
+            started = time.monotonic()
+            try:
+                await discover_all({agent_id: self._connect(config)}, self.config.discovery_budget, self.errors)
+            finally:
+                logger.info('run_stage stage=a2a_discovery service=%s duration_ms=%d ready=%s',
+                            agent_id, int((time.monotonic()-started)*1000), agent_id in self.clients)
+
     async def initialize(self):
         if self.initialized:
             return
-        await discover_all({c.id: self._connect(c) for c in self.config.a2a_servers if c.enabled},
+        await discover_all({c.id: self._connect(c) for c in self.config.a2a_servers if c.enabled and c.id not in self.clients},
                            self.config.discovery_budget, self.errors)
         self.initialized = True
 

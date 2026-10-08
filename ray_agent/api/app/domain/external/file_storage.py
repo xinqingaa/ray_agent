@@ -10,7 +10,7 @@ from app.domain.models.file import File
 class FileStorage(Protocol):
     """文件存储协议，由本地磁盘或对象存储实现"""
 
-    async def upload_file(self, upload_file: UploadFile) -> File:
+    async def upload_file(self, upload_file: UploadFile, *, visual: dict | None = None) -> File:
         """根据传递的文件源上传文件后返回文件信息"""
         ...
 
@@ -20,4 +20,8 @@ class FileStorage(Protocol):
 
     def get_file_url(self, file: File) -> str:
         """返回可供页面访问的文件地址"""
+        ...
+
+    async def delete_visual_file(self, file: File) -> None:
+        """仅删除登记为临时视觉产物的字节；调用方保留元数据。"""
         ...

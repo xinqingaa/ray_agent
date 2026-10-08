@@ -85,11 +85,16 @@ async def lifespan(app: FastAPI):
     from app.interfaces.service_dependencies import get_project_memory_service
     await get_project_memory_service().reconcile_startup()
 
+    from app.application.services.visual_artifacts import expire_visual_artifacts
+    from app.interfaces.service_dependencies import get_file_storage
+    await expire_visual_artifacts(get_uow, get_file_storage())
+
     async def upload_expiry():
         while True:
             await asyncio.sleep(30)
             try:
                 await get_project_file_service().expire_uploads()
+                await expire_visual_artifacts(get_uow, get_file_storage())
             except Exception:
                 logger.exception('上传批次到期核对失败，将在下一轮重试')
     expiry_task = asyncio.create_task(upload_expiry())

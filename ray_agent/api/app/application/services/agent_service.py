@@ -289,7 +289,7 @@ class AgentService:
         return getattr(self, '_project_coordinator', None) or ProjectFileCoordinator(self._uow_factory, self._sandbox_cls)
 
     async def estimate_project_memory(self, memory_view, mode=RunMode.NORMAL):
-        """与执行循环共用工具 schema 和预算；只发现工具，不创建沙箱或执行任务。"""
+        """与首轮执行共用工具 schema 和预算；不连接外部服务或创建沙箱。"""
         from app.domain.services.flows.agent_loop import AgentLoop, build_default_tools
         from app.domain.services.tools.project_notes import ProjectNotesTool
         from app.domain.services.prompts.system import build_system_prompt
@@ -299,7 +299,6 @@ class AgentService:
         async def unavailable(*args, **kwargs):
             raise RuntimeError('容量预览不执行工具')
         try:
-            await mcp.initialize()
             preview_llm = self._llm_for_session(Session())
             loop = AgentLoop(uow_factory=self._uow_factory, llm=preview_llm,
                 agent_config=self._agent_config, session_id='capacity-preview', mode=mode,
@@ -311,7 +310,7 @@ class AgentService:
             estimate = fixed_input_estimate(loop.budget, [{'role':'system','content':prompt}], loop.pipeline.schemas())
             return dict(**memory_view, capacity=dict(**estimate.as_dict(), over_limit=estimate.over_limit,
                 model=preview_llm.model_name, mode=mode.value, tool_count=len(loop.pipeline.schemas()),
-                discovery_errors=dict(mcp.gateway.errors), source='当前配置与发现成功的工具；字符估算，不包含对话历史'))
+                discovery_errors=dict(mcp.gateway.errors), source='内置工具与按需发现入口；字符估算，不包含对话历史'))
         finally:
             await mcp.cleanup()
 
@@ -351,7 +350,6 @@ class AgentService:
             async def unavailable(*args, **kwargs):
                 raise RuntimeError("预览不执行工具")
             try:
-                await mcp.initialize()
                 if mcp.gateway.errors:
                     raise BadRequestError("工具发现失败，暂时无法估算下一次运行，请重试")
                 workspace = SANDBOX_PROJECT_DIR if session.project_id else None
@@ -407,36 +405,42 @@ class AgentService:
             stop_writers = getattr(self._sandbox_cls, 'stop_project_writers', None)
             if stop_writers:
                 await stop_writers(session.project_id)
-        # 1.获取沙箱实例
-        sandbox = None
-        sandbox_id = session.sandbox_id
-        if sandbox_id:
-            sandbox = await self._sandbox_cls.get(sandbox_id)
-
-        created_sandbox = sandbox is None
-        # 2.判断是否能获取到沙箱(如果没有则创建)
-        if not sandbox:
-            # 3.沙箱不存在则创建一个新的(有可能被释放了)。绑定了项目时重新挂载同一个目录
-            try:
-                if session.project_id and hasattr(self._sandbox_cls, 'create_owned'):
-                    sandbox = await self._sandbox_cls.create_owned(session.project_id, session.id, run_id)
-                else:
-                    sandbox = await self._sandbox_cls.create(project_id=session.project_id)
-            except SandboxProjectBindingError as exc:
-                raise ConflictError(str(exc)) from exc
-            session.sandbox_id = sandbox.id
-
-        # 4.从沙箱中获取浏览器实例
-        try:
-            if session.project_id:
-                await sandbox.validate_project(session.project_id)
+        if not session.project_id:
+            from .lazy_resources import LazySandbox
+            sandbox = LazySandbox(lambda: self._acquire_independent_sandbox(session, run_id), session.sandbox_id)
             browser = await sandbox.get_browser()
-            if not browser:
-                raise RuntimeError("执行环境浏览器不可用")
-        except BaseException:
-            if created_sandbox:
-                await sandbox.destroy()
-            raise
+            created_sandbox = False
+        else:
+            # 1.获取沙箱实例
+            sandbox = None
+            sandbox_id = session.sandbox_id
+            if sandbox_id:
+                sandbox = await self._sandbox_cls.get(sandbox_id)
+
+            created_sandbox = sandbox is None
+            # 2.判断是否能获取到沙箱(如果没有则创建)
+            if not sandbox:
+                # 3.沙箱不存在则创建一个新的(有可能被释放了)。绑定了项目时重新挂载同一个目录
+                try:
+                    if session.project_id and hasattr(self._sandbox_cls, 'create_owned'):
+                        sandbox = await self._sandbox_cls.create_owned(session.project_id, session.id, run_id)
+                    else:
+                        sandbox = await self._sandbox_cls.create(project_id=session.project_id)
+                except SandboxProjectBindingError as exc:
+                    raise ConflictError(str(exc)) from exc
+                session.sandbox_id = sandbox.id
+
+            # 4.从沙箱中获取浏览器实例
+            try:
+                if session.project_id:
+                    await sandbox.validate_project(session.project_id)
+                browser = await sandbox.get_browser()
+                if not browser:
+                    raise RuntimeError("执行环境浏览器不可用")
+            except BaseException:
+                if created_sandbox:
+                    await sandbox.destroy()
+                raise
 
         try:
             # 5.创建AgentTaskRunner
@@ -484,6 +488,57 @@ class AgentService:
                 await sandbox.destroy()
             raise
 
+    async def _acquire_independent_sandbox(self, session, run_id):
+        """一次运行的首次资源使用；准备中停止仍按运行所有权收敛。"""
+        import time
+        started = time.monotonic()
+        resource = None
+        created = False
+        status = 'failed'
+        phase = 'ownership_check'
+        phase_started = started
+        stages = {}
+        await self._ledger.append(session.id, [EnvironmentEvent(status='preparing')], run_id=run_id)
+        try:
+            async with self._uow_factory() as uow:
+                run = await uow.run.get(run_id)
+            if run is None or run.status != RunStatus.RUNNING:
+                raise asyncio.CancelledError()
+            stages[phase] = int((time.monotonic()-phase_started)*1000)
+            phase, phase_started = 'create_or_reconnect', time.monotonic()
+            if session.sandbox_id:
+                resource = await self._sandbox_cls.get(session.sandbox_id)
+            if resource is None:
+                resource = await self._sandbox_cls.create(project_id=None)
+                created = True
+            stages[phase] = int((time.monotonic()-phase_started)*1000)
+            phase, phase_started = 'ensure_ready', time.monotonic()
+            await resource.ensure_sandbox()
+            stages[phase] = int((time.monotonic()-phase_started)*1000)
+            phase, phase_started = 'publish_owner', time.monotonic()
+            async with session_lock(session.id):
+                async with self._uow_factory() as uow:
+                    active = await uow.run.get_active(session.id)
+                    if active is None or active.id != run_id or active.status != RunStatus.RUNNING:
+                        raise asyncio.CancelledError()
+                    await uow.session.update_sandbox_id(session.id, resource.id)
+                    session.sandbox_id = resource.id
+            await self._ledger.append(session.id, [EnvironmentEvent(status='ready')], run_id=run_id)
+            status = 'ready'
+            return resource
+        except BaseException as exc:
+            status = 'cancelled' if isinstance(exc, asyncio.CancelledError) else 'failed'
+            if created and resource is not None:
+                await resource.destroy()
+            if isinstance(exc, Exception):
+                await self._ledger.transition(session.id, run_id, RunStatus.FAILED, RunReason.RUNNER_ERROR,
+                    events_before=[ErrorEvent(error='准备执行环境失败：' + format_public_error(exc))])
+            raise
+        finally:
+            stages[phase] = int((time.monotonic()-phase_started)*1000)
+            logger.info('run_stage run=%s stage=resource_prepare status=%s duration_ms=%d stages_ms=%s',
+                        run_id, status, int((time.monotonic()-started)*1000), stages)
+
     def _schedule_start(self, session: Session, run_id: str, prior_status, event: Event) -> None:
         owner = PendingStart(messages=[event.model_dump_json()])
         pending_starts()[run_id] = owner
@@ -517,7 +572,8 @@ class AgentService:
                     await self._uow.session.update_task_id(session.id, task.id)
                 for message in owner.messages:
                     await task.input_stream.put(message)
-                await self._ledger.append(session.id, [EnvironmentEvent(status="ready")], run_id=run_id)
+                if session.project_id:
+                    await self._ledger.append(session.id, [EnvironmentEvent(status="ready")], run_id=run_id)
                 if session.project_id:
                     from app.domain.services.project_file_coordinator import register_writer
                     runner = task.task_runner
@@ -680,7 +736,7 @@ class AgentService:
             # 2.等待回复：同一运行 waiting → running，由新任务续接
             if active is not None and active.status == RunStatus.WAITING:
                 run = await self._ledger.transition(
-                    session_id, active.id, RunStatus.RUNNING, events_after=[message_event, EnvironmentEvent(status="preparing")], apply=touch)
+                    session_id, active.id, RunStatus.RUNNING, events_after=[message_event, *([EnvironmentEvent(status="preparing")] if session.project_id else [])], apply=touch)
                 if run is not None:
                     route, prior_status = "resumed", SessionStatus.WAITING
             elif active is not None:
@@ -691,7 +747,7 @@ class AgentService:
                 if session.title_source == "placeholder" and session.title in ("", "新对话"):
                     provisional_title = TitleEvent(title=message.strip()[:30])
                 run = await self._ledger.start(
-                    session_id, events_after=[message_event, EnvironmentEvent(status="preparing"), *([provisional_title] if provisional_title else [])],
+                    session_id, events_after=[message_event, *([EnvironmentEvent(status="preparing")] if session.project_id else []), *([provisional_title] if provisional_title else [])],
                     apply=touch, mode=mode, before_start=prepare_project, session_to_create=new_session,
                 )
                 if provisional_title is not None:
@@ -726,7 +782,7 @@ class AgentService:
             if session.project_id:
                 self._validate_project_session(session)
             decided = request.decided(ApprovalStatus.APPROVED if approve else ApprovalStatus.REJECTED)
-            run = await self._ledger.transition(session_id, active.id, RunStatus.RUNNING, events_after=[decided, EnvironmentEvent(status="preparing")])
+            run = await self._ledger.transition(session_id, active.id, RunStatus.RUNNING, events_after=[decided, *([EnvironmentEvent(status="preparing")] if session.project_id else [])])
             if run is None:
                 raise ConflictError("运行已结束，审批已失效")
             self._schedule_start(session, run.id, SessionStatus.WAITING, decided)

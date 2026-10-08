@@ -83,12 +83,15 @@ class BrowserTool(BaseTool):
     async def browser_tabs(self, tab_id=None):
         return await self.browser.tabs(tab_id)
 
-    @tool('browser_screenshot', '按明确目的保存并交付截图附件，无需再 deliver_files；仅留证，不向模型输入图像，不能据此声称完成视觉判断。',
+    @tool('browser_screenshot', '按目的截图。analyze=true 将图像交给支持视觉的当前模型；临时视觉观察用 deliver=false，用户要附件则交付，无需再次 deliver_files。',
           {'purpose':{'type':'string'}, 'scope':{'type':'string','enum':['viewport','full_page','element']},
-           'ref':{'type':'string','description':'元素截图需要 ref'}, **TAB}, ['purpose'])
-    async def browser_screenshot(self, purpose, scope='viewport', ref=None, tab_id=None):
+           'ref':{'type':'string','description':'元素截图需要 ref'}, 'analyze':{'type':'boolean','description':'是否将像素输入模型，默认 false'}, 'deliver':{'type':'boolean','description':'是否保留为永久附件，默认 true；临时观察设 false'}, **TAB}, ['purpose'])
+    async def browser_screenshot(self, purpose, scope='viewport', ref=None, tab_id=None, analyze=False, deliver=True):
         if not purpose.strip() or len(purpose)>300:
             return ToolResult(success=False, message='请提供不超过 300 字符的具体截图目的')
         if self.capture is None:
             return ToolResult(success=False, message='当前运行未提供截图存储')
-        return await self.capture(purpose=purpose, scope=scope, ref=ref, tab_id=tab_id)
+        options = dict(purpose=purpose, scope=scope, ref=ref, tab_id=tab_id)
+        if analyze or not deliver:
+            options.update(analyze=analyze, deliver=deliver)
+        return await self.capture(**options)

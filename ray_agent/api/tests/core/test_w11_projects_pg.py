@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 from alembic import command
 from alembic.config import Config
+from alembic.script import ScriptDirectory
 from sqlalchemy import create_engine, text
 from app.application.services.project_service import ProjectService
 from app.domain.models.run import RunStatus
@@ -51,7 +52,8 @@ def test_migration_drops_legacy_project_path_without_backfill():
             assert conn.execute(text("SELECT count(*) FROM projects")).scalar() == 0
             assert conn.execute(text("SELECT count(*) FROM sessions WHERE project_id IS NOT NULL")).scalar() == 0
             assert conn.execute(text("SELECT count(*) FROM information_schema.columns WHERE table_name='sessions' AND column_name='project_path'")).scalar() == 0
-            assert conn.execute(text("SELECT version_num FROM alembic_version")).scalar() == "f6cad3e75b86"
+            head = ScriptDirectory.from_config(Config(str(Path(__file__).resolve().parents[2] / 'alembic.ini'))).get_current_head()
+            assert conn.execute(text("SELECT version_num FROM alembic_version")).scalar() == head
     finally:
         engine.dispose()
 

@@ -14,6 +14,7 @@
 挂起（如等待审批）时管线只发出 ``suspend_event``，不执行、不运行执行后处理、不产生结果，由循环结束本次调用。
 """
 import json
+import asyncio
 import logging
 import time
 from dataclasses import dataclass, field
@@ -210,6 +211,55 @@ class ToolPipeline:
         for event in invocation.events:
             yield event
 
+    async def read_batch(self, invocations, concurrency=3):
+        """只并发执行段；校验、后处理与事件交给调用方串行消费。"""
+        limiter = asyncio.Semaphore(concurrency)
+        tasks = []
+        prepared = []
+        async def execute(invocation):
+            async with limiter:
+                started = time.monotonic()
+                try:
+                    return await self._executor(invocation)
+                finally:
+                    invocation.duration_ms = int((time.monotonic()-started)*1000)
+        try:
+            for invocation in invocations:
+                result = None
+                for handler in self._before:
+                    result = await handler(invocation)
+                    if result is not None or invocation.suspended:
+                        break
+                if invocation.suspended:
+                    # 调用方仅允许 allow 的白名单批次，仍以实际授权结果为准。
+                    raise RuntimeError('并发读取的授权状态发生变化')
+                if result is None:
+                    yield invocation, invocation.tool_event(ToolEventStatus.CALLING)
+                    task = asyncio.create_task(execute(invocation))
+                    tasks.append(task)
+                    prepared.append((invocation, task, None))
+                else:
+                    invocation.short_circuited = True
+                    prepared.append((invocation, None, result))
+            for invocation, task, result in prepared:
+                if task is not None:
+                    result = await task
+                invocation.raw_result = result
+                started = time.monotonic()
+                for handler in self._after:
+                    result = await handler(invocation, result)
+                invocation.stages_ms.update(execution=invocation.duration_ms or 0,
+                    postprocess=int((time.monotonic()-started)*1000))
+                invocation.result = result
+                yield invocation, invocation.tool_event(ToolEventStatus.CALLED, result)
+                for event in invocation.events:
+                    yield invocation, event
+        finally:
+            for task in tasks:
+                if not task.done():
+                    task.cancel()
+            await asyncio.gather(*tasks, return_exceptions=True)
+
     # ---- 内置处理函数 ----
 
     @staticmethod
@@ -251,5 +301,6 @@ class ToolPipeline:
 
     @staticmethod
     async def _record_duration(invocation: ToolInvocation, result: ToolResult) -> ToolResult:
-        invocation.duration_ms = int((time.monotonic() - invocation.started_at) * 1000)
+        if invocation.duration_ms is None:
+            invocation.duration_ms = int((time.monotonic() - invocation.started_at) * 1000)
         return result

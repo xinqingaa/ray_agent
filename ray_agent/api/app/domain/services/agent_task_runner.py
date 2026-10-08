@@ -6,6 +6,7 @@ import json
 import logging
 import uuid
 import time
+import hashlib
 from typing import AsyncGenerator, List, Callable, BinaryIO, Optional, Union
 
 from fastapi import UploadFile
@@ -115,6 +116,9 @@ class AgentTaskRunner(TaskRunner):
             tool_policy=tool_policy,
         )
         self._flow._publish_delta = self._publish_delta
+        self._flow.run_id = self._run_id
+        if hasattr(llm, 'image_loader'):
+            llm.image_loader = self._load_visual_image
 
     @property
     def run_id(self) -> str:
@@ -286,7 +290,21 @@ class AgentTaskRunner(TaskRunner):
         if not result.success:
             raise RuntimeError(result.message or "沙箱写入失败")
 
-    async def _capture_screenshot(self, *, purpose, scope, ref, tab_id) -> ToolResult:
+    async def _load_visual_image(self, ref):
+        if ref.get('session_id') != self._session_id:
+            raise ValueError('图片引用不属于当前会话')
+        stream, file = await self._file_storage.download_file(ref['file_id'])
+        try:
+            if file.visual and file.visual.get('deleted_at'):
+                raise ValueError('图片已过期，请重新观察')
+            data = await asyncio.to_thread(stream.read, 2 * 1024 * 1024 + 1)
+        finally:
+            stream.close()
+        if len(data) > 2 * 1024 * 1024 or hashlib.sha256(data).hexdigest() != ref['sha256']:
+            raise ValueError('图片内容与已登记引用不一致')
+        return data
+
+    async def _capture_screenshot(self, *, purpose, scope, ref, tab_id, analyze=False, deliver=True) -> ToolResult:
         """显式留证：总预算包含捕获、沙箱写入与文件交付；没有隐式补图。"""
         usage = {'count':0, 'bytes':0}
         async def capture():
@@ -304,24 +322,50 @@ class AgentTaskRunner(TaskRunner):
                 raise ValueError("本运行截图配额已用完（8 张 / 24 MiB）")
             self._screenshot_count += 1
             usage['count'] = 1
-            image, metadata = await self._browser.capture_screenshot(scope=scope, ref=ref, tab_id=tab_id)
+            visual_input = analyze and bool(getattr(self._flow._llm, 'supports_vision', False))
+            options = dict(scope=scope, ref=ref, tab_id=tab_id)
+            if visual_input:
+                options['for_model'] = True
+            image, metadata = await self._browser.capture_screenshot(**options)
             if self._screenshot_bytes + len(image) > 24 * 1024 * 1024:
                 raise ValueError("截图超过本运行剩余字节配额")
             # 已捕获即扣配额，上传失败不允许无限重复生成。
             self._screenshot_bytes += len(image)
             usage['bytes'] = len(image)
-            path = f"/home/ubuntu/.rayagent/screenshots/{self._run_id}/{uuid.uuid4().hex}.png"
             started = time.monotonic()
-            uploaded = await self._sandbox.upload_file(io.BytesIO(image), path, filename=path.split('/')[-1])
-            if not uploaded.success:
-                raise ValueError(uploaded.message or '截图写入沙箱失败')
-            delivered = await self._deliver_file(path)
-            file = getattr(delivered, 'file', delivered)
+            mime = metadata.get('mime_type', 'image/png')
+            extension = 'jpg' if mime == 'image/jpeg' else 'png'
+            ownership = dict(session_id=self._session_id, run_id=self._run_id,
+                tool_call_id=getattr(self, '_delivery_call_id', None), sha256=hashlib.sha256(image).hexdigest(),
+                width=metadata['width'], height=metadata['height'], mime_type=mime, size=len(image),
+                purpose=purpose, temporary=not deliver, expires_at=None if deliver else time.time()+86400,
+                deleted_at=None)
+            if deliver:
+                path = f"/home/ubuntu/.rayagent/screenshots/{self._run_id}/{uuid.uuid4().hex}.{extension}"
+                uploaded = await self._sandbox.upload_file(io.BytesIO(image), path, filename=path.split('/')[-1])
+                if not uploaded.success:
+                    raise ValueError(uploaded.message or '截图写入沙箱失败')
+                delivered = await self._deliver_file(path)
+                file = getattr(delivered, 'file', delivered)
+            else:
+                from starlette.datastructures import Headers
+                file = await self._file_storage.upload_file(UploadFile(file=io.BytesIO(image),
+                    filename=f'{uuid.uuid4().hex}.{extension}', size=len(image),
+                    headers=Headers({'content-type': mime})), visual=ownership)
             metadata['stages_ms']['upload'] = int((time.monotonic()-started)*1000)
-            metadata.update(screenshot=self._file_storage.get_file_url(file), file=file.model_dump(mode='json'),
-                purpose=purpose, session_id=self._session_id, run_id=self._run_id,
-                tool_call_id=getattr(self, '_delivery_call_id', None), visual_input=False, screenshot_usage=usage)
-            return ToolResult(message='截图已作为会话附件交付，无需再次调用 deliver_files；本次没有向模型输入图像。', data=metadata)
+            metadata.update(screenshot=f'/api/files/{file.id}/download' if not deliver else self._file_storage.get_file_url(file),
+                file_id=file.id, purpose=purpose,
+                session_id=self._session_id, run_id=self._run_id, tool_call_id=ownership['tool_call_id'],
+                visual_input=visual_input, screenshot_usage=usage, temporary=not deliver)
+            if deliver:
+                metadata['file'] = file.model_dump(mode='json')
+            if visual_input:
+                metadata['image_input'] = dict(ownership, file_id=file.id, token_estimate=1024,
+                                               detail='high')
+            message = '截图已交付为附件，无需再次 deliver_files。' if deliver else '临时观察图已保存，运行结束且满 24 小时后可回收。'
+            message += '像素将在下一请求输入当前模型，请给出具体观察。' if visual_input else '当前没有向模型输入图像，仅留证；不能声称已做视觉判断。'
+            return ToolResult(message=message, data=metadata)
+
         try:
             return await asyncio.wait_for(capture(), timeout=20)
         except Exception as exc:
@@ -454,7 +498,10 @@ class AgentTaskRunner(TaskRunner):
                     self._delivery_call_id = loop_event.tool_call_id
                 self._register_shell(loop_event)
                 await self._handle_tool_event(loop_event)
+                if loop_event.status == ToolEventStatus.CALLED and loop_event.function_name in ('discover_mcp_tools', 'get_remote_agent_cards', 'call_remote_agent'):
+                    await self._record_tool_snapshot(self._next_turn)
             elif isinstance(loop_event, TurnEvent) and loop_event.phase == TurnPhase.STARTED:
+                await self._record_tool_snapshot(loop_event.index)
                 self._next_turn = loop_event.index + 1
             await self._persist(loop_event)
         self._failure_reason = RunReason.RUNNER_ERROR
@@ -482,6 +529,11 @@ class AgentTaskRunner(TaskRunner):
         self._flow.mode = run.mode
         self._next_turn = run.turns + 1
         stored = run.config_snapshot or {}
+        external = stored.get('external_services') or {}
+        for server in external.get('mcp', []):
+            await self._mcp_tool.discover_mcp_tools(server)
+        for agent_id in external.get('a2a', []):
+            await self._a2a_tool.gateway.discover(agent_id)
         if stored.get("system_prompt"):
             self._flow.request_system_prompt = stored["system_prompt"]
         if "project_prompt" in stored:
@@ -497,6 +549,26 @@ class AgentTaskRunner(TaskRunner):
             updated = {**stored, "tool_revisions": revisions}
         async with self._uow:
             await self._uow.run.save_snapshot(self._run_id, updated)
+
+    async def _record_tool_snapshot(self, index):
+        tools = self._flow.pipeline.schemas()
+        mcp = getattr(self._mcp_tool, 'gateway', None)
+        a2a = getattr(self._a2a_tool, 'gateway', None)
+        external = {'mcp': list(getattr(mcp, 'tools', {}) or {}),
+                    'a2a': list(getattr(a2a, 'agent_cards', {}) or {})}
+        async with self._uow:
+            run = await self._uow.run.get(self._run_id)
+            if run is None:
+                return
+            stored = run.config_snapshot or {}
+            if tools_for_turn(stored, index) == tools and stored.get('external_services') == external:
+                return
+            revisions = list(stored.get('tool_revisions', []))
+            if tools_for_turn(stored, index) != tools:
+                revisions = [r for r in revisions if r['from_turn'] < index]
+                revisions.append({'from_turn': index, 'tools': tools})
+            await self._uow.run.save_snapshot(self._run_id, {**stored, 'tool_revisions': revisions,
+                                                            'external_services': external})
 
     async def stop_processes(self, run_id: str, settle_seconds: float = STOP_SETTLE_SECONDS) -> List[CleanupTarget]:
         """停止后的收尾：逐个终止登记的 Shell 会话，等待协程退出后收集 A2A 远端取消结果，写入一条 cleanup 事件。
@@ -546,6 +618,13 @@ class AgentTaskRunner(TaskRunner):
         except Exception as e:
             logger.warning(f"清理A2A工具资源时出错: {e}")
 
+        cleanup = getattr(getattr(self, '_browser', None), 'cleanup', None)
+        if callable(cleanup):
+            try:
+                await cleanup()
+            except Exception as exc:
+                logger.warning('清理浏览器连接失败: %s', exc)
+
     async def invoke(self, task: Task) -> None:
         """处理输入流里的消息并运行 Agent 循环；运行状态的每次变化都经由 RunLedger 与事件同事务写入。"""
         self._invoking = True
@@ -553,10 +632,10 @@ class AgentTaskRunner(TaskRunner):
             # 1.确保沙箱、mcp、a2a均初始化完成，并记录运行的配置快照
             set_log_session_id(self._session_id)
             logger.info(f"会话[{self._session_id}] AgentTaskRunner任务处理开始 run={self._run_id}")
-            for stage, operation in (
-                ('sandbox', self._sandbox.ensure_sandbox), ('mcp_discovery', self._mcp_tool.initialize),
-                ('a2a_discovery', self._a2a_tool.initialize), ('prepare_run', self._prepare_run),
-            ):
+            operations = [('prepare_run', self._prepare_run)]
+            if not getattr(self._sandbox, 'lazy', False):
+                operations.insert(0, ('sandbox', self._sandbox.ensure_sandbox))
+            for stage, operation in operations:
                 started = time.monotonic()
                 try:
                     await operation()

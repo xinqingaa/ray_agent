@@ -33,7 +33,7 @@ class CosFileStorage(FileStorage):
         self._uow_factory = uow_factory
         self._uow = uow_factory()
 
-    async def upload_file(self, upload_file: UploadFile) -> File:
+    async def upload_file(self, upload_file: UploadFile, *, visual: dict | None = None) -> File:
         """根据传递的文件源将文件上传到腾讯云cos"""
         try:
             # 1.生成随机的uuid作为文件id并获取文件扩展名
@@ -46,6 +46,13 @@ class CosFileStorage(FileStorage):
             date_path = datetime.now().strftime("%Y/%m/%d")
             cos_key = f"{date_path}/{file_id}{file_extension}"
 
+            if visual:
+                pending = File(id=file_id, filename=upload_file.filename, key=cos_key, extension=file_extension,
+                    mime_type=upload_file.content_type or '', size=upload_file.size or visual.get('size', 0),
+                    sha256=visual.get('sha256'), visual=visual)
+                async with self._uow_factory() as uow:
+                    await uow.file.save(pending)
+
             # 3.使用fastapi的线程池来上传文件
             await run_in_threadpool(
                 self.cos.client.put_object,
@@ -57,6 +64,8 @@ class CosFileStorage(FileStorage):
 
             # 4.构建file模型并将数据存储到数据库中
             file = File(
+                visual=visual,
+                sha256=visual.get("sha256") if visual else None,
                 id=file_id,
                 filename=upload_file.filename,
                 key=cos_key,
@@ -98,3 +107,8 @@ class CosFileStorage(FileStorage):
         """返回腾讯云 COS 公网访问地址"""
         settings = get_settings()
         return f"https://{self.bucket}.cos.{settings.cos_region}.myqcloud.com/{file.key}"
+
+    async def delete_visual_file(self, file: File) -> None:
+        if not file.visual or not file.visual.get('temporary'):
+            raise ValueError('只能回收登记的临时视觉文件')
+        await run_in_threadpool(self.cos.client.delete_object, Bucket=self.bucket, Key=file.key)

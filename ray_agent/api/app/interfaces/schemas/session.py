@@ -172,6 +172,7 @@ class TurnRequestResponse(BaseModel):
     turn_seq: int
     messages: List[Dict[str, Any]]
     tools: List[Dict[str, Any]]
+    images: List[Dict[str, Any]] = Field(default_factory=list)
 
 
 class GetSessionFilesResponse(BaseModel):

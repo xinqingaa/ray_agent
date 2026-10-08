@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple
 
 from app.domain.models.memory import Memory
+from .vision import content_text
 from app.domain.services.prompts.compact import (
     OMITTED_NOTE,
     SUMMARY_HEADER,
@@ -82,7 +83,9 @@ def user_origins(summarized: Messages) -> List[UserOrigin]:
     origins: List[UserOrigin] = []
     for message in summarized:
         if message.get("role") == "user":
-            content = str(message.get("content") or "")
+            if message.get("_ray_visual"):
+                continue
+            content = content_text(message.get("content"))
             if content and not is_summary_message(message) and not content.startswith(SYSTEM_NOTICE_PREFIX):
                 origins.append(UserOrigin(content=content))
             continue
@@ -131,9 +134,9 @@ def _clip(text: str, limit: int) -> str:
 
 def _entry(message: Dict[str, Any]) -> str:
     role = message.get("role")
-    content = str(message.get("content") or "")
+    content = content_text(message.get("content"))
     if role == "user":
-        label = "上一次摘要" if is_summary_message(message) else "用户"
+        label = "浏览器图像观察" if message.get("_ray_visual") else "上一次摘要" if is_summary_message(message) else "用户"
         return f"[{label}]\n{_clip(content, USER_ENTRY_MAX_CHARS * (3 if label == '上一次摘要' else 1))}"
     if role == "assistant":
         lines = [f"[助手]\n{_clip(content, ENTRY_MAX_CHARS)}" if content.strip() else "[助手]"]

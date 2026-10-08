@@ -164,3 +164,64 @@ def test_event_roundtrip(value):
     replay=ToolEvent.model_validate_json(event.model_dump_json())
     outcome=ToolSSEEvent.from_event(replay).model_dump(mode='json')['data']['content']['outcome']
     assert outcome == {'success':False,'message':'reason','data':value}
+
+
+@pytest.mark.anyio
+async def test_on_demand_directory_selected_discovery_and_policy(servers):
+    from app.domain.services.tools.mcp import MCPTool
+    manager = MCPClientManager(MCPConfig(mcpServers={
+        'selected': MCPServerConfig(url=servers['mcp']+'/mcp'),
+        'unneeded': MCPServerConfig(url='http://127.0.0.1:1/mcp')}))
+    tool = MCPTool(manager)
+    try:
+        assert [x['function']['name'] for x in tool.get_tools()] == ['discover_mcp_tools']
+        directory = await tool.discover_mcp_tools()
+        assert directory.data['servers'] == ['selected','unneeded']
+        assert not manager.connections
+        result = await tool.discover_mcp_tools('selected')
+        assert result.success, result.message
+        assert set(manager.connections) == {'selected'}
+        assert not manager.errors
+        alias = tool_name('selected','add')
+        assert tool.has_tool(alias)
+        connection = manager.connections['selected']
+        await tool.discover_mcp_tools('selected')
+        assert manager.connections['selected'] is connection
+        assert tool.route(alias) == ('selected','add')
+        assert not (await tool.discover_mcp_tools('absent')).success
+    finally:
+        await tool.cleanup()
+
+
+@pytest.mark.anyio
+async def test_discovered_mcp_snapshot_restores_after_new_runner(servers):
+    from app.domain.services.tools.mcp import MCPTool
+    from tests.support.loop_harness import make_loop, make_runner, start_run, input_task
+    config = mcp_config(servers)
+    first = MCPTool(MCPClientManager(config))
+    h = make_loop([], extra_tools=[first])
+    run_row = await start_run(h, input_task(), 'discover')
+    runner = make_runner(h, run=run_row)
+    runner._mcp_tool = first
+    second = None
+    try:
+        await runner._prepare_run()
+        assert not first.gateway.connections
+        await first.discover_mcp_tools('test')
+        await runner._record_tool_snapshot(2)
+        snapshot = h.runs[run_row.id].config_snapshot
+        assert snapshot['external_services']['mcp'] == ['test']
+        assert all(t['function']['name'] != tool_name('test','add') for t in snapshot['tools'])
+        assert any(t['function']['name'] == tool_name('test','add') for t in snapshot['tool_revisions'][-1]['tools'])
+        await first.cleanup()
+        second = MCPTool(MCPClientManager(config))
+        h2 = make_loop([], session=h.session, extra_tools=[second])
+        resumed = make_runner(h2, run=h.runs[run_row.id])
+        resumed._mcp_tool = second
+        await resumed._prepare_run()
+        assert second.has_tool(tool_name('test','add'))
+        assert set(second.gateway.connections) == {'test'}
+    finally:
+        await first.cleanup()
+        if second:
+            await second.cleanup()

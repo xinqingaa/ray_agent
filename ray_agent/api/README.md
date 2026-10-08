@@ -284,3 +284,13 @@ RAY_TEST_BROWSER=1 uv run --locked python -m pytest tests/core/test_browser_effi
 ```
 
 `RAY_TEST_CHROMIUM` 可指定已有测试 Chromium 的可执行文件路径；未设置则使用 Playwright 配套浏览器。场景只操作新建的无头测试浏览器，覆盖正文去重/长尾、表单覆盖与读回、失效引用、标签页、日志、截图边界和观察失败，不访问用户业务网页。完整沙箱 CDP 与存储仍需本地 Compose 任务观察。
+
+### 视觉输入与按需资源检查
+
+```bash
+uv run --locked python -m pytest tests/core/test_visual_resources.py tests/protocols/test_protocols.py
+```
+
+覆盖按需资源单次准备、停止与迟到所有权、最多三项独立读取、图像字节请求/历史与容量边界、引用重建、本地临时图回收，以及真实 MCP 夹具的所选发现和新运行器恢复。浏览器身份、焦点、隐藏根与 CDP 重连用例需设置前文 `RAY_TEST_BROWSER=1`；新增 PG 图像归属与过期查询在 `test_run_events_pg.py`，仍只能指向独立测试库。
+
+截图 `analyze=true` 请求当前模型观察，`deliver=false` 保存临时图；默认 `deliver=true` 继续交付附件。非视觉模型只留证。临时图捕获满 24 小时且运行结束后由启动/30 秒维护任务回收；永久附件和历史自动截图不回收。新增数据库字段由正常启动迁移，无需清库。Pillow 是 API 的图像尺寸/编码依赖，锁文件和容器安装清单同步。

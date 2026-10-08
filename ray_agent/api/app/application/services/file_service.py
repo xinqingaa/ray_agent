@@ -5,7 +5,7 @@ from typing import Tuple, BinaryIO, Callable
 
 from fastapi import UploadFile
 
-from app.application.errors.exceptions import NotFoundError
+from app.application.errors.exceptions import AppException, NotFoundError
 from app.domain.external.file_storage import FileStorage
 from app.domain.models.file import File
 from app.domain.repositories.uow import IUnitOfWork
@@ -78,4 +78,7 @@ class FileService:
 
     async def download_file(self, file_id: str) -> Tuple[BinaryIO, File]:
         """根据传递的文件id下载文件"""
+        file = await self.get_file_info(file_id)
+        if file.visual and file.visual.get('deleted_at'):
+            raise AppException(code=410, status_code=410, msg='临时图片已过期')
         return await self.file_storage.download_file(file_id)

@@ -15,5 +15,6 @@ class File(BaseModel):
     mime_type: str = ""  # mime-type类型
     size: int = 0  # 文件大小，单位为字节
     sha256: str | None = None
+    visual: dict | None = None  # 仅新建视觉产物的归属、输入规格与到期状态
     project_upload: dict | None = None
     project_persistence: dict | None = None  # 事件中的交付状态；全局文件表不保存此投影
