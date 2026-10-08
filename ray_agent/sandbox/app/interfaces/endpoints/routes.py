@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 from fastapi import APIRouter
 
-from . import file, shell, supervisor
+from . import file, shell, supervisor, web
 
 
 def create_api_routes() -> APIRouter:
@@ -11,6 +11,7 @@ def create_api_routes() -> APIRouter:
     api_router = APIRouter()
 
     # 2.将各个模块的路由添加/集成进来
+    api_router.include_router(web.router)
     api_router.include_router(file.router)
     api_router.include_router(shell.router)
     api_router.include_router(supervisor.router)

@@ -65,7 +65,10 @@ class BaseTool:
 
         # 2.循环遍历kwargs的所有数据
         for key, value in kwargs.items():
-            if key in sign.parameters:
+            # **options 工具仍只接受 schema 声明的字段，不放行任意参数。
+            declared = getattr(method, '_tool_schema', {}).get('function', {}).get('parameters', {}).get('properties', {})
+            accepts_options = any(p.kind == inspect.Parameter.VAR_KEYWORD for p in sign.parameters.values())
+            if key in sign.parameters or (accepts_options and key in declared):
                 filtered_kwargs[key] = value
 
         return filtered_kwargs

@@ -6,8 +6,13 @@ annotated-types==0.7.0
     # via pydantic
 anyio==4.12.0
     # via
+    #   httpx
     #   starlette
     #   watchfiles
+certifi==2026.7.22
+    # via
+    #   httpcore
+    #   httpx
 click==8.3.1
     # via uvicorn
 colorama==0.4.6 ; sys_platform == 'win32'
@@ -19,11 +24,19 @@ exceptiongroup==1.3.1 ; python_full_version < '3.11'
 fastapi==0.124.0
     # via sandbox
 h11==0.16.0
-    # via uvicorn
+    # via
+    #   httpcore
+    #   uvicorn
+httpcore==1.0.9
+    # via httpx
 httptools==0.7.1
     # via uvicorn
+httpx==0.28.1
+    # via sandbox
 idna==3.11
-    # via anyio
+    # via
+    #   anyio
+    #   httpx
 pydantic==2.12.5
     # via
     #   fastapi

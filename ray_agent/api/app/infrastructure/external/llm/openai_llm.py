@@ -47,6 +47,7 @@ class OpenAILLM(LLM):
         from app.domain.models.model_catalog import model_list, provider_for
         spec = next((m for m in model_list(provider_for(str(llm_config.base_url)) or "")
                      if m.id == llm_config.model_name), None)
+        self.tool_batching = spec.tool_batching if spec else 'disabled'
         self._send_temperature = spec is None or (spec.temperature_when == "always" or
             spec.temperature_when == "disabled" and thinking != "enabled")
         self._max_tokens = llm_config.max_tokens
@@ -149,7 +150,9 @@ class OpenAILLM(LLM):
         if tools:
             kwargs["tools"] = tools
             kwargs["tool_choice"] = tool_choice
-            kwargs["parallel_tool_calls"] = False  # 关闭并行工具调用(deepseek没有这个参数的)
+            # DeepSeek 官方契约不声明此参数；使用厂商默认值，不伪称保证批量生成。
+            if self.tool_batching != 'provider_default':
+                kwargs['parallel_tool_calls'] = self.tool_batching == 'enabled'
         if stream:
             kwargs["stream"] = True
             if self._include_stream_usage:

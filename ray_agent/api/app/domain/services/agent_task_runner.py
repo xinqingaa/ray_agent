@@ -5,6 +5,7 @@ import io
 import json
 import logging
 import uuid
+import time
 from typing import AsyncGenerator, List, Callable, BinaryIO, Optional, Union
 
 from fastapi import UploadFile
@@ -87,6 +88,9 @@ class AgentTaskRunner(TaskRunner):
         self._next_turn = 1
         self._failure_reason: Optional[str] = None
         self._shell_sessions: List[str] = []  # 本次运行调用过 shell_execute 的 Shell 会话，停止时逐个终止
+        self._screenshot_usage_loaded = False
+        self._screenshot_count = 0
+        self._screenshot_bytes = 0
         self._invoking = False
         self._settled = asyncio.Event()
         default_exec_dir = workspace_dir or "/home/ubuntu"
@@ -102,6 +106,7 @@ class AgentTaskRunner(TaskRunner):
                 mcp_tool=self._mcp_tool,
                 a2a_tool=self._a2a_tool,
                 default_exec_dir=default_exec_dir,
+                capture_screenshot=self._capture_screenshot,
             ),
             deliver_file=self._deliver_file,
             write_output=self._write_output,
@@ -281,63 +286,98 @@ class AgentTaskRunner(TaskRunner):
         if not result.success:
             raise RuntimeError(result.message or "沙箱写入失败")
 
-    async def _get_browser_screenshot(self) -> str:
-        """获取浏览器截图并返回截图文件对应的在线URL"""
-        # 1.调用浏览器完成截图
-        screenshot = await self._browser.screenshot()
-
-        # 2.将浏览器截图上传到文件存储中
-        file = await self._file_storage.upload_file(UploadFile(
-            file=io.BytesIO(screenshot),
-            filename=f"{str(uuid.uuid4())}.png",
-            # bugfix:添加size尺寸
-            size=self._get_stream_size(io.BytesIO(screenshot)),
-        ))
-
-        return self._file_storage.get_file_url(file)
+    async def _capture_screenshot(self, *, purpose, scope, ref, tab_id) -> ToolResult:
+        """显式留证：总预算包含捕获、沙箱写入与文件交付；没有隐式补图。"""
+        usage = {'count':0, 'bytes':0}
+        async def capture():
+            if not self._screenshot_usage_loaded:
+                async with self._uow:
+                    events = await self._uow.event.list(self._session_id, types=['tool'], run_id=self._run_id)
+                for event in events:
+                    data = event.function_result.data if event.function_result else None
+                    if event.function_name == 'browser_screenshot' and isinstance(data, dict):
+                        used = data.get('screenshot_usage', {})
+                        self._screenshot_count += used.get('count', 0)
+                        self._screenshot_bytes += used.get('bytes', 0)
+                self._screenshot_usage_loaded = True
+            if self._screenshot_count >= 8 or self._screenshot_bytes >= 24 * 1024 * 1024:
+                raise ValueError("本运行截图配额已用完（8 张 / 24 MiB）")
+            self._screenshot_count += 1
+            usage['count'] = 1
+            image, metadata = await self._browser.capture_screenshot(scope=scope, ref=ref, tab_id=tab_id)
+            if self._screenshot_bytes + len(image) > 24 * 1024 * 1024:
+                raise ValueError("截图超过本运行剩余字节配额")
+            # 已捕获即扣配额，上传失败不允许无限重复生成。
+            self._screenshot_bytes += len(image)
+            usage['bytes'] = len(image)
+            path = f"/home/ubuntu/.rayagent/screenshots/{self._run_id}/{uuid.uuid4().hex}.png"
+            started = time.monotonic()
+            uploaded = await self._sandbox.upload_file(io.BytesIO(image), path, filename=path.split('/')[-1])
+            if not uploaded.success:
+                raise ValueError(uploaded.message or '截图写入沙箱失败')
+            delivered = await self._deliver_file(path)
+            file = getattr(delivered, 'file', delivered)
+            metadata['stages_ms']['upload'] = int((time.monotonic()-started)*1000)
+            metadata.update(screenshot=self._file_storage.get_file_url(file), file=file.model_dump(mode='json'),
+                purpose=purpose, session_id=self._session_id, run_id=self._run_id,
+                tool_call_id=getattr(self, '_delivery_call_id', None), visual_input=False, screenshot_usage=usage)
+            return ToolResult(message='截图已作为会话附件交付，无需再次调用 deliver_files；本次没有向模型输入图像。', data=metadata)
+        try:
+            return await asyncio.wait_for(capture(), timeout=20)
+        except Exception as exc:
+            return ToolResult(success=False, message=str(exc) or '截图捕获与存储超过 20 秒总时限',
+                              data={'screenshot_usage':usage})
 
     async def _handle_tool_event(self, event: ToolEvent) -> None:
-        """额外处理工具消息，使其前端交互更友好"""
+        """只投影本次结果；不为展示重新读取执行环境。"""
+        if event.status != ToolEventStatus.CALLED:
+            return
+        started = time.monotonic()
         try:
-            # 1.如果事件状态为已调用则执行以下代码；被策略禁止或被用户拒绝的调用没有执行，不读取沙箱生成展示内容
-            if event.status == ToolEventStatus.CALLED and event.denied_by is None:
-                # 2.工具为浏览器则补全工具浏览器工具内容
-                if event.tool_name == "browser":
-                    event.tool_content = BrowserToolContent(
-                        screenshot=await self._get_browser_screenshot(),
-                    )
-                elif event.tool_name == "search":
-                    # 3.工具为搜索则添加搜索工具内容；结果被整形时展示内容取整形前的结果
-                    search_results: ToolResult[SearchResults] = event.raw_result
-                    logger.info(f"搜索工具结果: {search_results}")
-                    event.tool_content = SearchToolContent(results=search_results.data.results)
-                elif event.tool_name == "shell":
-                    # 4.工具为shell则生成shell工具内容
-                    if "session_id" in event.function_args:
-                        shell_result = await self._sandbox.read_shell_output(
-                            event.function_args["session_id"],
-                            console=True,
-                        )
-                        event.tool_content = ShellToolContent(
-                            console=(shell_result.data or {}).get("console_records", [])
-                        )
+            result = event.function_result
+            if result is None:
+                return
+            raw = event.raw_result
+            data = raw.data if raw and isinstance(raw.data, dict) else {}
+            shaped_data = result.data if isinstance(result.data, dict) else {}
+            preview = shaped_data.get('content')
+            if preview is None:
+                preview = result.model_dump_json(indent=2)
+            preview = str(preview)[:8000]
+            if event.tool_name in ('browser', 'web'):
+                if data.get('observation_status') == 'failed':
+                    preview = (result.message or '') + '\n' + str(data.get('observation_error') or '')
+                elif not result.success:
+                    preview = result.message or '调用失败'
+                elif not event.shaping and not data.get('content'):
+                    if 'logs' in data:
+                        preview = '\n'.join(f"[{r['level']}] {r['text']}" for r in data['logs']) or '当前范围内没有日志'
+                    elif 'tabs' in data:
+                        preview = '\n'.join(f"{r['title']} — {r['url']}" for r in data['tabs'])
+                    elif data.get('interactive_elements'):
+                        preview = '\n'.join(f"{r['name'] or r['tag']}：{r.get('value') or ''}" for r in data['interactive_elements'])
                     else:
-                        event.tool_content = ShellToolContent(console="(No console)")
-                elif event.tool_name == "file":
-                    # 5.工具为file则只填充预览；会话文件列表只收录用户上传与 deliver_files 交付的文件
-                    if "filepath" in event.function_args:
-                        filepath = event.function_args["filepath"]
-                        file_read_result = await self._sandbox.read_file(filepath)
-                        file_content: str = (file_read_result.data or {}).get("content", "")
-                        event.tool_content = FileToolContent(content=file_content)
-                    else:
-                        event.tool_content = FileToolContent(content="(No Content)")
-                elif event.tool_name in ["mcp", "a2a"]:
-                    # 协议结果展示进入上下文的内容：整形后是预览，完整内容路径在 event.shaping
-                    if event.function_result is not None:
-                        event.tool_content = ProtocolToolContent(outcome=event.function_result)
-        except Exception as e:
-            logger.exception(f"AgentTaskRunner生成工具内容失败: {str(e)}")
+                        preview = result.message or ('操作已完成' if data.get('action_success') else preview)
+                preview = preview[:8000]
+                event.tool_content = BrowserToolContent(
+                    screenshot=data.get('screenshot'), content=preview, outcome=result,
+                    url=data.get('final_url', data.get('url')), title=data.get('title'), tab_id=data.get('tab_id'),
+                    observation_status=data.get('observation_status'),
+                )
+            elif event.tool_name == 'search' and raw and isinstance(raw.data, SearchResults):
+                event.tool_content = SearchToolContent(results=raw.data.results)
+            elif event.tool_name == 'shell':
+                # console_records 已来自这次 shell 结果；长输出用整形后的预览。
+                console = shaped_data.get('console_records', shaped_data.get('output', preview))
+                if len(json.dumps(console, ensure_ascii=False)) > 8000:
+                    console = preview
+                event.tool_content = ShellToolContent(console=console, outcome=result)
+            elif event.tool_name == 'file':
+                event.tool_content = FileToolContent(content=preview, outcome=result)
+            else:
+                event.tool_content = ProtocolToolContent(outcome=result)
+        finally:
+            event.stages_ms['projection'] = int((time.monotonic()-started)*1000)
 
     @staticmethod
     def _to_message(event: MessageEvent) -> Message:
@@ -410,7 +450,7 @@ class AgentTaskRunner(TaskRunner):
                     self._failure_reason = reason.value if failed else RunReason.RUNNER_ERROR
                 return loop_event
             if isinstance(loop_event, ToolEvent):
-                if loop_event.function_name == 'deliver_files' and loop_event.status == ToolEventStatus.CALLING:
+                if loop_event.function_name in ('deliver_files', 'browser_screenshot') and loop_event.status == ToolEventStatus.CALLING:
                     self._delivery_call_id = loop_event.tool_call_id
                 self._register_shell(loop_event)
                 await self._handle_tool_event(loop_event)
@@ -513,10 +553,16 @@ class AgentTaskRunner(TaskRunner):
             # 1.确保沙箱、mcp、a2a均初始化完成，并记录运行的配置快照
             set_log_session_id(self._session_id)
             logger.info(f"会话[{self._session_id}] AgentTaskRunner任务处理开始 run={self._run_id}")
-            await self._sandbox.ensure_sandbox()
-            await self._mcp_tool.initialize()
-            await self._a2a_tool.initialize()
-            await self._prepare_run()
+            for stage, operation in (
+                ('sandbox', self._sandbox.ensure_sandbox), ('mcp_discovery', self._mcp_tool.initialize),
+                ('a2a_discovery', self._a2a_tool.initialize), ('prepare_run', self._prepare_run),
+            ):
+                started = time.monotonic()
+                try:
+                    await operation()
+                finally:
+                    logger.info('run_stage run=%s stage=%s duration_ms=%d', self._run_id, stage,
+                                int((time.monotonic()-started)*1000))
 
             # 2.逐条处理输入消息；运行中到达的消息由循环在模型请求前取走
             prior_status = self._prior_status

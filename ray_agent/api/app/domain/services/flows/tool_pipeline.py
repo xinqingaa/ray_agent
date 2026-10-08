@@ -38,6 +38,7 @@ class ToolInvocation:
     tool: Optional[BaseTool] = None
     started_at: float = 0.0
     duration_ms: Optional[int] = None
+    stages_ms: Dict[str, int] = field(default_factory=dict)
     short_circuited: bool = False
     result: Optional[ToolResult] = None
     raw_result: Optional[ToolResult] = None  # 执行后处理之前的结果
@@ -65,6 +66,7 @@ class ToolInvocation:
             function_result=result,
             status=status,
             duration_ms=self.duration_ms if called else None,
+            stages_ms=dict(self.stages_ms) if called else {},
             shaping=self.shaping if called else None,
             denied_by=self.denied_by if called else None,
         )
@@ -197,8 +199,11 @@ class ToolPipeline:
             result = await self._executor(invocation)
 
         invocation.raw_result = result
+        post_started = time.monotonic()
         for handler in self._after:
             result = await handler(invocation, result)
+        invocation.stages_ms['execution'] = invocation.duration_ms or 0
+        invocation.stages_ms['postprocess'] = int((time.monotonic()-post_started)*1000)
 
         invocation.result = result
         yield invocation.tool_event(ToolEventStatus.CALLED, result)

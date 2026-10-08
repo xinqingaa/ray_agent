@@ -15,6 +15,10 @@ PLAN_MODE_ALLOWED: Dict[str, str] = {
     "search_in_file": "file",
     "find_files": "file",
     "search_web": "search",
+    "web_fetch": "web",
+    "browser_view": "browser",
+    "browser_console_view": "browser",
+    "browser_tabs": "browser",
     "update_plan": "plan",
     "message_ask_user": "message",
     "get_remote_agent_cards": "a2a",  # 只读本地已发现的卡片，不联系远端

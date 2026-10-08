@@ -176,3 +176,9 @@ data: {"event_id":"…","seq":12,"run_id":"r1","created_at":1759075200000,"turn"
 6. **评测。** 报告由 `scripts/eval --label w6` 写入 `docs/plan/evidence/`，首字延迟在各轮压缩记录的 `ttft_ms`，总耗时是 `wall_seconds`。子计划不设阈值。2026-09-29 对当时 HEAD `33964e0` 跑了 E1、E2。该报告与走查截图在 Git 提交 `2e68aa3`，当前证据目录不再保留；前端改动在这次评测之后，评测不覆盖页面。
 
 浏览器走查同日用 Playwright 无头脚本对 `http://localhost:8088` 完成。长文两帧变长，状态条标出估算速度；停止后临时文本消失并显示已停止；刷新后旧半截不在，重连后的新片段会再进入临时条目。断网补齐、侧栏终态徽标、E3 交付终态和工作台「回到最新」的结果写在[能力与边界](../capabilities.md)的运行视图一行。
+
+## 执行效率修订（2026-10-08，已批准）
+
+保留 duration_ms/tools_ms 的原口径，新增工具 stages_ms（execution、postprocess、projection），浏览器结果记录 observation、截图记录 capture/upload；子阶段不可再与父阶段相加。准备环境、MCP/A2A 发现及运行准备分别写结构化耗时日志，用于定位墙钟差额，不声称各项相加覆盖全部耗时。
+
+验收：覆盖受影响契约的定向检查，与受控页面读数、表单读回和产物展示共同核对；证据和进度只登记总计划。

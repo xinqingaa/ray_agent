@@ -270,10 +270,11 @@ function BrowserPane({call}: {call: ToolCallView | null}) {
   const src = screenshotSrc(call)
   useEffect(() => {setFailed(false); setExpanded(false); setOriginalSize(false)}, [src, call?.callId])
   if (!call) {
-    return <EmptyNote>选择浏览器操作，查看网页地址与截图。</EmptyNote>
+    return <EmptyNote>选择浏览器操作，查看页面结果或截图。</EmptyNote>
   }
   const fallback = !src ? resultExcerpt(call) : null
-  const url = typeof call.raw.args.url === 'string' ? call.raw.args.url : call.target
+  const page = asRecord(call.raw.content)
+  const url = typeof page?.url === 'string' ? page.url : typeof call.raw.args.url === 'string' ? call.raw.args.url : call.target
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-2 p-3">
       {url && (
@@ -295,7 +296,7 @@ function BrowserPane({call}: {call: ToolCallView | null}) {
             <pre className="p-3 font-mono text-xs leading-5 whitespace-pre-wrap break-all">{fallback.length > 20000 ? `${fallback.slice(0, 20000)}…` : fallback}</pre>
           </ScrollArea>
         ) : (
-          <EmptyNote>{call.result?.error ?? (call.status === 'running' ? '等待页面截图或结果。' : '这次调用没有截图或可显示的结果。')}</EmptyNote>
+          <EmptyNote>{call.result?.error ?? (call.status === 'running' ? '等待页面结果。' : '这次调用没有截图或可显示的结果。')}</EmptyNote>
         )}
       </div>
       <Dialog open={expanded} onOpenChange={setExpanded}>

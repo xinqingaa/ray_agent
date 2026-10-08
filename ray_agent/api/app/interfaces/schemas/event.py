@@ -173,9 +173,10 @@ class ToolEventData(BaseEventData):
     args: Dict[str, Any]  # 工具参数
     content: Optional[Any] = None  # 工具调用结果
     duration_ms: Optional[int] = None  # 工具耗时，只在 called 事件上有值
+    stages_ms: Dict[str, int] = Field(default_factory=dict)
     shaping: Optional[ToolResultShaping] = None  # 结果被整形时：原始字符数、是否截断、完整内容路径
     # 未执行：被工具策略禁止 / 被用户拒绝 / 计划模式不允许，只在 called 上
-    denied_by: Optional[Literal["policy", "user", "plan_mode"]] = None
+    denied_by: Optional[Literal["policy", "user", "plan_mode", "batch"]] = None
 
 
 class ToolSSEEvent(BaseSSEEvent):
@@ -195,6 +196,7 @@ class ToolSSEEvent(BaseSSEEvent):
                 args=event.function_args,
                 content=event.tool_content,
                 duration_ms=event.duration_ms,
+                stages_ms=event.stages_ms,
                 shaping=event.shaping,
                 denied_by=event.denied_by,
             )

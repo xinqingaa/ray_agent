@@ -274,3 +274,13 @@ HTTP MCP 与 A2A 对端必须先运行；stdio MCP 由 API 按配置启动子进
 新对话首次运行冻结采样参数。已有对话换模型时采用目标模型当前配置，A→B→A 也读取当前 A 配置；活动运行及 waiting 续接保留运行快照。下一新运行重新估算完整有效消息与工具定义，不用其他模型历史 usage 校准；历史 usage 保持累计统计。厂商目录定义思考档位、顺序、关闭方式、历史回传与温度兼容性，前端不固定等级。合法思考响应没有推理片段时记录空字段，区别于丢失推理历史。
 
 配置文件通过版本标记只迁移一次旧默认 131072→200000，自定义预算与既有会话冻结参数不迁移。模型配置检查包含在 `tests/core/test_model_configuration.py`，沿用本指南 pytest 入口。
+
+### 浏览器与网页读取的定向检查
+
+```bash
+uv run --locked python -m pytest tests/core/test_browser_efficiency.py tests/core/test_tool_approval.py tests/core/test_event_observability.py
+# 受控浏览器：安装与 Playwright 匹配的 Chromium 后显式启用
+RAY_TEST_BROWSER=1 uv run --locked python -m pytest tests/core/test_browser_efficiency.py
+```
+
+`RAY_TEST_CHROMIUM` 可指定已有测试 Chromium 的可执行文件路径；未设置则使用 Playwright 配套浏览器。场景只操作新建的无头测试浏览器，覆盖正文去重/长尾、表单覆盖与读回、失效引用、标签页、日志、截图边界和观察失败，不访问用户业务网页。完整沙箱 CDP 与存储仍需本地 Compose 任务观察。

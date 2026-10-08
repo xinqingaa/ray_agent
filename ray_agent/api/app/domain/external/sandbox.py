@@ -50,6 +50,10 @@ class Sandbox(Protocol):
         """根据传递的文件路径+写入内容+追加模式+前后内容新行+超级权限写入对应的文件"""
         ...
 
+    async def fetch_webpage(self, url: str) -> ToolResult:
+        """沙箱内公开网页抓取，返回正文与抓取元数据。"""
+        ...
+
     async def read_file(
             self,
             filepath: str,

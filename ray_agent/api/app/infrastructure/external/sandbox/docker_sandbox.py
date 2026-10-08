@@ -472,6 +472,12 @@ class DockerSandbox(Sandbox):
         logger.error(f"在经过{max_retries}次尝试后仍无法确认Sandbox Supervisor状态信息")
         raise Exception(f"在经过{max_retries}次尝试后仍无法确认Sandbox Supervisor状态信息")
 
+    async def fetch_webpage(self, url: str) -> ToolResult:
+        from app.infrastructure.external.browser.web_content import extract_webpage
+        response = await self.client.post(f"{self._base_url}/api/web/fetch", json={"url":url}, timeout=20)
+        response.raise_for_status()
+        return extract_webpage(ToolResult.from_sandbox(**response.json()))
+
     async def read_file(
             self,
             filepath: str,

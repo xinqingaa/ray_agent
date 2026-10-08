@@ -1,0 +1,1374 @@
+{
+  "date": "2026-10-08",
+  "baseline": "ffdd9ac360904b41ad17212aab70d8b889cf5e73",
+  "working_tree_files_sha256": {
+    "ray_agent/api/app/domain/services/tools/web.py": "169db4449473c747badfcc3a64ff7e547e45f6289f821e6b30f387eadb813f9e",
+    "ray_agent/api/app/infrastructure/external/browser/web_content.py": "e03cff3bcaad0441b3cfdbf587519345819273e6a50477d57d519bad9f295cfe",
+    "ray_agent/api/tests/core/test_browser_efficiency.py": "2ccc37275bd9b781e489df49ede46e685f51ee777402e5ab4fc60b0e7315b068",
+    "ray_agent/sandbox/app/interfaces/endpoints/web.py": "81d326d2fab3105206d9173b39fd34f6bfdaeb83dc261b2e1b8002f4ffbcbd8e",
+    "ray_agent/sandbox/app/services/web.py": "b905520357f868aa8a5a8f7d65f99f0d9c07a7b6fa62233120b5549c260f9057",
+    "ray_agent/sandbox/tests/test_web_fetch.py": "39ffcc4cb9527d02f565dfe88872e27659a41d5a088aca72289b2bf33dafeb01",
+    "ray_agent/api/README.md": "24daba19a10f9f8bb095f8a43f5e384459ad4ee88fa85c07f7770283acda1d08",
+    "ray_agent/api/app/domain/external/browser.py": "e9749335a415eebeb6152104cc97d6b8718434cb53ce33366444ad4fe2e0c59e",
+    "ray_agent/api/app/domain/external/sandbox.py": "7567b6b1a8c4a5836133cafc308ed3d4ba0174a9a8a588f43d1fa793e1060c21",
+    "ray_agent/api/app/domain/models/event.py": "d037ab10956e079bf8ba80dd92e0380a8ea90e04dbf55c855beef9c03900bd16",
+    "ray_agent/api/app/domain/models/model_catalog.py": "6bc43b4239350ec62d32ebd73f6f97e0c562a20d4ed7d4968ce093e9fd583351",
+    "ray_agent/api/app/domain/services/agent_task_runner.py": "18dd26eafc36d174d039031aa4b692e67a19e854a5e789a0615418b8e6bbd6bb",
+    "ray_agent/api/app/domain/services/context/shaping.py": "648d4c030f5565c7cacbd939fb01c963f853fc2822818040ce6caf555fec1de5",
+    "ray_agent/api/app/domain/services/flows/agent_loop.py": "015a1dfe08a5d000a6ef6ed2e5b8d694bf282c02f59ff442bf6691d4128cd23d",
+    "ray_agent/api/app/domain/services/flows/tool_pipeline.py": "cbc400ad6dce81322e52ef90b0c68a3bc7e1cc25c52720628d9721596ad0e80c",
+    "ray_agent/api/app/domain/services/plan_mode.py": "f4ff688dbe66aee848690cc8c392e6ee9c18168d8e1c297919091084d4676672",
+    "ray_agent/api/app/domain/services/prompts/en/plan_mode.py": "ade45fc3faeca2d963e0054e415c2ef425cdba7925130f2cfe62adcf5625300a",
+    "ray_agent/api/app/domain/services/prompts/en/system.py": "b0cf161780bdf0832aa960f37c5acd1df7344fa4106c09e2ae038f72f34003df",
+    "ray_agent/api/app/domain/services/prompts/plan_mode.py": "b979b8cd99b8a4f4dc4fd38bf0cd2c3bf86fe13536150ca1792cd7d2cb929337",
+    "ray_agent/api/app/domain/services/prompts/system.py": "2985c5cf42bacac00bf6b1a255391eab904ddd4502555d65fa37ef16b87f479c",
+    "ray_agent/api/app/domain/services/run_ledger.py": "5f6eac15eb9612f81a8602c840fc7069cedeabdb8630d7651574319cca5f145c",
+    "ray_agent/api/app/domain/services/tool_policy.py": "bf37adc6bfad4d2ff445914753ac2fc031c103e2eb7beb3bf6ce3a4e3a29759d",
+    "ray_agent/api/app/domain/services/tools/base.py": "1916603f4f105f7b8f34c3db4b76234cdb584b2b20230a6d042c96df8d11099b",
+    "ray_agent/api/app/domain/services/tools/browser.py": "9a09db19ea1a18e69efbd3c47ad7dc43828fb2361b8b41ebaaf49bb2045c8008",
+    "ray_agent/api/app/infrastructure/external/browser/playwright_browser.py": "353b4433568f0b1c9921c7a6eea812d8f8f3d58e6dcd5cb9147f0d41e136dbbe",
+    "ray_agent/api/app/infrastructure/external/browser/playwright_browser_fun.py": "67307157a5f23fa96255139121392b3deab802425e036135b6f9bd3a777009d8",
+    "ray_agent/api/app/infrastructure/external/llm/openai_llm.py": "753e350c6df90a29b244cd34ed3ad66c3972350acb12155fe5b2b6220a6d431e",
+    "ray_agent/api/app/infrastructure/external/sandbox/docker_sandbox.py": "419a2dc26b8c866ee749f67632d31ab3a71c25c4b8f4942daa4f808b83fd534d",
+    "ray_agent/api/app/interfaces/schemas/event.py": "248965142e0a8dd6ec91b6639035384b51f55c4f0295647c73ab38883327b41a",
+    "ray_agent/api/scripts/eval/runner.py": "3bc42f0a532d2c3974e7453790866ab0ec7c659674da4b16d936ee4bf1430fcf",
+    "ray_agent/api/tests/core/test_openai_stream.py": "c9d261b4ccf6976284fb410da6f9a8414a6d42267496087def6f2cc7b16a3680",
+    "ray_agent/api/tests/core/test_tool_approval.py": "5fcb6d1acac5b71b3c7dd4c2f245913d49913766f4f40157794e97beb3a2a1cd",
+    "ray_agent/sandbox/README.md": "e3ef8fe0f00099ead4f5f13394be8a980ad4c3f24a0ed4f46dac6a045ce7466d",
+    "ray_agent/sandbox/app/interfaces/endpoints/routes.py": "04a2427869705a3392d140868bcce0b1ed96b3ad4601724a5b0cd01bf9d614ed",
+    "ray_agent/sandbox/pyproject.toml": "ff086fe6bc5569211c82b8fd31eeb0875e0f43dd0445273949ee5fbd3d169f37",
+    "ray_agent/sandbox/requirements.txt": "24bf2e00d2a47260b05d799eac5667fd7f6935eef8d0cd16203dc3ffdd8986bb",
+    "ray_agent/sandbox/uv.lock": "0521d0d8725b26ef4adb2ffe3596ba03673b8db6f767405341ee86de199dd665",
+    "ray_agent/ui/scripts/check-event-observability.cjs": "3e8d545ed19996fd89f07d02d88aac92a544c19e8b772fbadf4594ae97ed9bc4",
+    "ray_agent/ui/src/components/workbench/workbench.tsx": "676b27024d2681d9bebd9f16935a5f69453ee81833b701eff736990c21d0ffdc",
+    "ray_agent/ui/src/lib/api/types.ts": "ffa6fc9c8a9f19fab6f8b1327a8d6d714826c616d91947dba5a59f27c94c9c11",
+    "ray_agent/ui/src/lib/session-projection.ts": "2e6a0adf335b1ca3de1f02288806175e2a3d3d791f31e4040479dbcf7ee44612"
+  },
+  "conditions": {
+    "provider": "DeepSeek",
+    "model": "deepseek-flash",
+    "reasoning": "high",
+    "same_prompts": true,
+    "repeats": 1,
+    "extra_form_run": "截图附件重复交付修复后仅补验此任务",
+    "poll_seconds": 0.5,
+    "base_url": "http://localhost:8088/api",
+    "scope": "本地 Compose / 每任务新会话 / 无并发模型任务"
+  },
+  "preparation_ms": {
+    "a628693a-6e85-4cd7-a9e3-6f5a9a57e2f8": {
+      "sandbox": 6048,
+      "mcp_discovery": 0,
+      "a2a_discovery": 0,
+      "prepare_run": 24
+    },
+    "6db100f7-e191-4fb3-b339-bf8b6a3d5958": {
+      "sandbox": 8067,
+      "mcp_discovery": 0,
+      "a2a_discovery": 0,
+      "prepare_run": 15
+    },
+    "1a983662-983b-4f50-b06f-850651b93f43": {
+      "sandbox": 6204,
+      "mcp_discovery": 0,
+      "a2a_discovery": 0,
+      "prepare_run": 106
+    },
+    "2dab8912-f894-4c07-b590-53218d025682": {
+      "sandbox": 6041,
+      "mcp_discovery": 0,
+      "a2a_discovery": 0,
+      "prepare_run": 17
+    }
+  },
+  "checks": {
+    "api_distinct_passed": 124,
+    "sandbox_web_passed": 3,
+    "ui_types": "passed",
+    "ui_event_projection": "passed",
+    "docker_build": [
+      "manus-api",
+      "manus-ui",
+      "manus-sandbox"
+    ],
+    "real_fetch": {
+      "url": "https://example.com",
+      "http_status": 200,
+      "title": "Example Domain",
+      "content_chars": 156,
+      "requires_browser": false
+    },
+    "ui_image": {
+      "file_id": "5c994610-672e-448d-87b8-f655a09b3a43",
+      "loaded": true,
+      "width": 1279,
+      "height": 991,
+      "size": 13728
+    }
+  },
+  "runs": [
+    {
+      "task": "answer",
+      "session_id": "b051710f-a9ac-41fa-b832-4c29d2c336da",
+      "run_id": "a1231b8c-9a66-4582-bce2-82062386910b",
+      "wall_seconds": 9.801,
+      "status": "completed",
+      "prompt": "只回复一句：你好，效率验证。不要使用工具。",
+      "calls": [],
+      "screenshots": 0,
+      "model_calls": 1,
+      "model_ms": 675,
+      "tools_ms": 0,
+      "prompt_tokens": 4317,
+      "completion_tokens": 6,
+      "cached_tokens": 4096,
+      "answer": [
+        "你好，效率验证。"
+      ],
+      "request_model": {
+        "model_id": "deepseek-flash",
+        "reasoning": "high"
+      },
+      "phase": "before",
+      "trace": [
+        {
+          "event": "turn",
+          "index": 1,
+          "attempts": 1,
+          "model_ms": 675,
+          "tools_ms": 0,
+          "ttft_ms": 658,
+          "usage": {
+            "prompt_tokens": 4317,
+            "completion_tokens": 6,
+            "cached_tokens": 4096,
+            "reasoning_tokens": 0
+          },
+          "error": null
+        }
+      ]
+    },
+    {
+      "task": "read",
+      "session_id": "71e38696-9e04-4f27-b5d2-abb7a3c3cff8",
+      "run_id": "65f06ac4-550f-4ade-885a-3213b3c1b3ce",
+      "wall_seconds": 12.023,
+      "status": "completed",
+      "prompt": "使用浏览器打开 http://host.docker.internal:18819/read ，读取页面校验码，只回答校验码。",
+      "calls": [
+        "browser_navigate",
+        "browser_view"
+      ],
+      "screenshots": 2,
+      "model_calls": 3,
+      "model_ms": 1862,
+      "tools_ms": 937,
+      "prompt_tokens": 13272,
+      "completion_tokens": 100,
+      "cached_tokens": 12672,
+      "answer": [
+        "I'll open that page and read the verification code.",
+        "QX-7319-LM"
+      ],
+      "request_model": {
+        "model_id": "deepseek-flash",
+        "reasoning": "high"
+      },
+      "phase": "before",
+      "trace": [
+        {
+          "event": "tool",
+          "function": "browser_navigate",
+          "call_id": "call_00_ET_U0C3M2wvThYEH4X9KyEP8270",
+          "args": {
+            "url": "http://host.docker.internal:18819/read"
+          },
+          "duration_ms": 921,
+          "stages_ms": null,
+          "screenshot": "/api/files/35bef05d-619b-4d25-ba39-4b4dd1a10413/download",
+          "success": null,
+          "message": null,
+          "result": {}
+        },
+        {
+          "event": "turn",
+          "index": 1,
+          "attempts": 1,
+          "model_ms": 647,
+          "tools_ms": 921,
+          "ttft_ms": 500,
+          "usage": {
+            "prompt_tokens": 4329,
+            "completion_tokens": 60,
+            "cached_tokens": 4096,
+            "reasoning_tokens": 0
+          },
+          "error": null
+        },
+        {
+          "event": "tool",
+          "function": "browser_view",
+          "call_id": "call_00_eOFvDFVC1ety6MSnTGkd6621",
+          "args": {},
+          "duration_ms": 16,
+          "stages_ms": null,
+          "screenshot": "/api/files/a08f24e8-5295-487b-987d-b9c8168f143d/download",
+          "success": null,
+          "message": null,
+          "result": {}
+        },
+        {
+          "event": "turn",
+          "index": 2,
+          "attempts": 1,
+          "model_ms": 878,
+          "tools_ms": 16,
+          "ttft_ms": 876,
+          "usage": {
+            "prompt_tokens": 4417,
+            "completion_tokens": 33,
+            "cached_tokens": 4224,
+            "reasoning_tokens": 10
+          },
+          "error": null
+        },
+        {
+          "event": "turn",
+          "index": 3,
+          "attempts": 1,
+          "model_ms": 337,
+          "tools_ms": 0,
+          "ttft_ms": 325,
+          "usage": {
+            "prompt_tokens": 4526,
+            "completion_tokens": 7,
+            "cached_tokens": 4352,
+            "reasoning_tokens": 0
+          },
+          "error": null
+        }
+      ]
+    },
+    {
+      "task": "form",
+      "session_id": "ab2d360f-f5fa-4986-9024-90fc8f40fb9c",
+      "run_id": "8bed0f95-3bb0-409a-bf5c-39c143fa582c",
+      "wall_seconds": 34.064,
+      "status": "completed",
+      "prompt": "使用浏览器打开 http://host.docker.internal:18819/form ，将姓名覆盖为林青，点击提交，核对页面显示已提交：林青，并保存一张截图留证。最后简短告知结果。",
+      "calls": [
+        "browser_navigate",
+        "browser_input",
+        "browser_view",
+        "browser_click",
+        "browser_view",
+        "shell_execute",
+        "shell_execute",
+        "shell_execute",
+        "write_file",
+        "shell_execute",
+        "replace_in_file",
+        "shell_execute",
+        "shell_execute",
+        "shell_execute",
+        "deliver_files"
+      ],
+      "screenshots": 5,
+      "model_calls": 16,
+      "model_ms": 19454,
+      "tools_ms": 4695,
+      "prompt_tokens": 126263,
+      "completion_tokens": 2335,
+      "cached_tokens": 119808,
+      "answer": [
+        "我来打开页面并查看表单结构。",
+        "页面已打开，输入框当前值为「旧值」。现在覆盖为「林青」并提交。",
+        "输入框已变为「林青」，现在点击提交。",
+        "页面已显示「已提交：林青」。接下来生成截图留证，先检查可用的浏览器/截图能力。",
+        "CDP 可用，我用它抓取当前页面截图。",
+        "页面文本已确认「已提交：林青」，改一下保存路径。",
+        "截图有效（1279×991 PNG）。现在交付文件。",
+        "表单提交成功页面截图（显示「已提交：林青」）",
+        "任务完成 ✅\n\n- 打开 `http://host.docker.internal:18819/form`，将姓名输入框由「旧值」覆盖为 **林青**\n- 点击「提交」后，页面提示变为 **已提交：林青**（页面文本核验一致）\n- 已保存截图留证：`/home/ubuntu/提交结果截图.png`（1279×991，随附下载）"
+      ],
+      "request_model": {
+        "model_id": "deepseek-flash",
+        "reasoning": "high"
+      },
+      "phase": "before",
+      "trace": [
+        {
+          "event": "tool",
+          "function": "browser_navigate",
+          "call_id": "call_00_7VvrSxcvHQoMhJzHcxhL6321",
+          "args": {
+            "url": "http://host.docker.internal:18819/form"
+          },
+          "duration_ms": 624,
+          "stages_ms": null,
+          "screenshot": "/api/files/2603065b-820f-48c8-a375-5f5fe99e92e9/download",
+          "success": null,
+          "message": null,
+          "result": {}
+        },
+        {
+          "event": "turn",
+          "index": 1,
+          "attempts": 1,
+          "model_ms": 940,
+          "tools_ms": 624,
+          "ttft_ms": 631,
+          "usage": {
+            "prompt_tokens": 4349,
+            "completion_tokens": 65,
+            "cached_tokens": 4096,
+            "reasoning_tokens": 9
+          },
+          "error": null
+        },
+        {
+          "event": "tool",
+          "function": "browser_input",
+          "call_id": "call_00_JXwZM8xtzTFEGYJK0QF91994",
+          "args": {
+            "text": "林青",
+            "index": 0
+          },
+          "duration_ms": 525,
+          "stages_ms": null,
+          "screenshot": "/api/files/633eb0be-433f-4c6e-9135-86b9a038d98c/download",
+          "success": null,
+          "message": null,
+          "result": {}
+        },
+        {
+          "event": "turn",
+          "index": 2,
+          "attempts": 1,
+          "model_ms": 1792,
+          "tools_ms": 525,
+          "ttft_ms": 764,
+          "usage": {
+            "prompt_tokens": 4467,
+            "completion_tokens": 131,
+            "cached_tokens": 4224,
+            "reasoning_tokens": 36
+          },
+          "error": null
+        },
+        {
+          "event": "tool",
+          "function": "browser_view",
+          "call_id": "call_00_sa0qRWaa9SjPOknanIca2153",
+          "args": {},
+          "duration_ms": 12,
+          "stages_ms": null,
+          "screenshot": "/api/files/0deec352-5ca9-486d-bf52-aa4fac049874/download",
+          "success": null,
+          "message": null,
+          "result": {}
+        },
+        {
+          "event": "turn",
+          "index": 3,
+          "attempts": 1,
+          "model_ms": 893,
+          "tools_ms": 12,
+          "ttft_ms": 862,
+          "usage": {
+            "prompt_tokens": 4621,
+            "completion_tokens": 36,
+            "cached_tokens": 4480,
+            "reasoning_tokens": 13
+          },
+          "error": null
+        },
+        {
+          "event": "tool",
+          "function": "browser_click",
+          "call_id": "call_00_ET_2KCczsfEycAyj1BCBe4V3136",
+          "args": {
+            "index": 1
+          },
+          "duration_ms": 468,
+          "stages_ms": null,
+          "screenshot": "/api/files/8d4945e6-6855-4ea8-b061-29a9683b6077/download",
+          "success": null,
+          "message": null,
+          "result": {}
+        },
+        {
+          "event": "turn",
+          "index": 4,
+          "attempts": 1,
+          "model_ms": 545,
+          "tools_ms": 468,
+          "ttft_ms": 420,
+          "usage": {
+            "prompt_tokens": 4744,
+            "completion_tokens": 51,
+            "cached_tokens": 4608,
+            "reasoning_tokens": 0
+          },
+          "error": null
+        },
+        {
+          "event": "tool",
+          "function": "browser_view",
+          "call_id": "call_00_ET_Gh5kEWY1qKVyiVZCtqtW2475",
+          "args": {},
+          "duration_ms": 22,
+          "stages_ms": null,
+          "screenshot": "/api/files/f27d29c6-de25-4b4f-b5de-ec85269dbeae/download",
+          "success": null,
+          "message": null,
+          "result": {}
+        },
+        {
+          "event": "turn",
+          "index": 5,
+          "attempts": 1,
+          "model_ms": 653,
+          "tools_ms": 22,
+          "ttft_ms": 560,
+          "usage": {
+            "prompt_tokens": 4818,
+            "completion_tokens": 23,
+            "cached_tokens": 4608,
+            "reasoning_tokens": 0
+          },
+          "error": null
+        },
+        {
+          "event": "tool",
+          "function": "shell_execute",
+          "call_id": "call_00_HLWwxswGkz0EEXvy2A1A8153",
+          "args": {},
+          "duration_ms": 913,
+          "stages_ms": null,
+          "screenshot": null,
+          "success": null,
+          "message": null,
+          "result": {}
+        },
+        {
+          "event": "turn",
+          "index": 6,
+          "attempts": 1,
+          "model_ms": 2479,
+          "tools_ms": 913,
+          "ttft_ms": 1958,
+          "usage": {
+            "prompt_tokens": 4934,
+            "completion_tokens": 474,
+            "cached_tokens": 4736,
+            "reasoning_tokens": 286
+          },
+          "error": null
+        },
+        {
+          "event": "tool",
+          "function": "shell_execute",
+          "call_id": "call_00_U6xwaq2nCkdyVMxSrxlT9411",
+          "args": {},
+          "duration_ms": 60,
+          "stages_ms": null,
+          "screenshot": null,
+          "success": null,
+          "message": null,
+          "result": {}
+        },
+        {
+          "event": "turn",
+          "index": 7,
+          "attempts": 1,
+          "model_ms": 1437,
+          "tools_ms": 60,
+          "ttft_ms": 1240,
+          "usage": {
+            "prompt_tokens": 7861,
+            "completion_tokens": 240,
+            "cached_tokens": 5376,
+            "reasoning_tokens": 150
+          },
+          "error": null
+        },
+        {
+          "event": "tool",
+          "function": "shell_execute",
+          "call_id": "call_00_4IDrZBPQpaLrU60lT8pB7196",
+          "args": {},
+          "duration_ms": 1706,
+          "stages_ms": null,
+          "screenshot": null,
+          "success": null,
+          "message": null,
+          "result": {}
+        },
+        {
+          "event": "turn",
+          "index": 8,
+          "attempts": 1,
+          "model_ms": 1278,
+          "tools_ms": 1706,
+          "ttft_ms": 1150,
+          "usage": {
+            "prompt_tokens": 8798,
+            "completion_tokens": 135,
+            "cached_tokens": 8064,
+            "reasoning_tokens": 53
+          },
+          "error": null
+        },
+        {
+          "event": "tool",
+          "function": "write_file",
+          "call_id": "call_00_ET_JjJv8ePBTcfRYjKfiVbT0403",
+          "args": {},
+          "duration_ms": 11,
+          "stages_ms": null,
+          "screenshot": null,
+          "success": null,
+          "message": null,
+          "result": {}
+        },
+        {
+          "event": "turn",
+          "index": 9,
+          "attempts": 1,
+          "model_ms": 1805,
+          "tools_ms": 11,
+          "ttft_ms": 809,
+          "usage": {
+            "prompt_tokens": 9032,
+            "completion_tokens": 361,
+            "cached_tokens": 8832,
+            "reasoning_tokens": 0
+          },
+          "error": null
+        },
+        {
+          "event": "tool",
+          "function": "shell_execute",
+          "call_id": "call_00_ET_U52dGvelCatxlbULfb6d8855",
+          "args": {},
+          "duration_ms": 56,
+          "stages_ms": null,
+          "screenshot": null,
+          "success": null,
+          "message": null,
+          "result": {}
+        },
+        {
+          "event": "turn",
+          "index": 10,
+          "attempts": 1,
+          "model_ms": 744,
+          "tools_ms": 56,
+          "ttft_ms": 622,
+          "usage": {
+            "prompt_tokens": 9435,
+            "completion_tokens": 66,
+            "cached_tokens": 9216,
+            "reasoning_tokens": 0
+          },
+          "error": null
+        },
+        {
+          "event": "tool",
+          "function": "replace_in_file",
+          "call_id": "call_00_invLfzYg7qTsvPGp2h7v5907",
+          "args": {},
+          "duration_ms": 10,
+          "stages_ms": null,
+          "screenshot": null,
+          "success": null,
+          "message": null,
+          "result": {}
+        },
+        {
+          "event": "turn",
+          "index": 11,
+          "attempts": 1,
+          "model_ms": 1017,
+          "tools_ms": 10,
+          "ttft_ms": 867,
+          "usage": {
+            "prompt_tokens": 9897,
+            "completion_tokens": 141,
+            "cached_tokens": 9472,
+            "reasoning_tokens": 22
+          },
+          "error": null
+        },
+        {
+          "event": "tool",
+          "function": "shell_execute",
+          "call_id": "call_00_ET_9Fa9gm1OWUXbtPe7Kxp09852",
+          "args": {},
+          "duration_ms": 119,
+          "stages_ms": null,
+          "screenshot": null,
+          "success": null,
+          "message": null,
+          "result": {}
+        },
+        {
+          "event": "turn",
+          "index": 12,
+          "attempts": 1,
+          "model_ms": 1263,
+          "tools_ms": 119,
+          "ttft_ms": 1153,
+          "usage": {
+            "prompt_tokens": 10087,
+            "completion_tokens": 66,
+            "cached_tokens": 9856,
+            "reasoning_tokens": 0
+          },
+          "error": null
+        },
+        {
+          "event": "tool",
+          "function": "shell_execute",
+          "call_id": "call_00_Q12pJqPUAolVwB8PFDIp8083",
+          "args": {},
+          "duration_ms": 109,
+          "stages_ms": null,
+          "screenshot": null,
+          "success": null,
+          "message": null,
+          "result": {}
+        },
+        {
+          "event": "turn",
+          "index": 13,
+          "attempts": 1,
+          "model_ms": 1086,
+          "tools_ms": 109,
+          "ttft_ms": 778,
+          "usage": {
+            "prompt_tokens": 10314,
+            "completion_tokens": 148,
+            "cached_tokens": 10112,
+            "reasoning_tokens": 29
+          },
+          "error": null
+        },
+        {
+          "event": "tool",
+          "function": "shell_execute",
+          "call_id": "call_00_l60lnMuoWnySJFKbm1jc7870",
+          "args": {},
+          "duration_ms": 42,
+          "stages_ms": null,
+          "screenshot": null,
+          "success": null,
+          "message": null,
+          "result": {}
+        },
+        {
+          "event": "turn",
+          "index": 14,
+          "attempts": 1,
+          "model_ms": 1619,
+          "tools_ms": 42,
+          "ttft_ms": 1244,
+          "usage": {
+            "prompt_tokens": 10630,
+            "completion_tokens": 217,
+            "cached_tokens": 10368,
+            "reasoning_tokens": 86
+          },
+          "error": null
+        },
+        {
+          "event": "tool",
+          "function": "deliver_files",
+          "call_id": "call_00_ET_Vm3hZRsLjcIZ5kjvgx5V4485",
+          "args": {},
+          "duration_ms": 18,
+          "stages_ms": null,
+          "screenshot": null,
+          "success": null,
+          "message": null,
+          "result": {}
+        },
+        {
+          "event": "turn",
+          "index": 15,
+          "attempts": 1,
+          "model_ms": 946,
+          "tools_ms": 18,
+          "ttft_ms": 626,
+          "usage": {
+            "prompt_tokens": 10992,
+            "completion_tokens": 91,
+            "cached_tokens": 10752,
+            "reasoning_tokens": 0
+          },
+          "error": null
+        },
+        {
+          "event": "turn",
+          "index": 16,
+          "attempts": 1,
+          "model_ms": 957,
+          "tools_ms": 0,
+          "ttft_ms": 560,
+          "usage": {
+            "prompt_tokens": 11284,
+            "completion_tokens": 90,
+            "cached_tokens": 11008,
+            "reasoning_tokens": 0
+          },
+          "error": null
+        }
+      ]
+    },
+    {
+      "task": "answer",
+      "session_id": "24a91662-4584-4391-906d-113a039dbd38",
+      "run_id": "a628693a-6e85-4cd7-a9e3-6f5a9a57e2f8",
+      "wall_seconds": 7.749,
+      "status": "completed",
+      "prompt": "只回复一句：你好，效率验证。不要使用工具。",
+      "calls": [],
+      "screenshots": 0,
+      "model_calls": 1,
+      "model_ms": 684,
+      "tools_ms": 0,
+      "prompt_tokens": 5625,
+      "completion_tokens": 6,
+      "cached_tokens": 512,
+      "answer": [
+        "你好，效率验证。"
+      ],
+      "request_model": {
+        "model_id": "deepseek-flash",
+        "reasoning": "high"
+      },
+      "phase": "after",
+      "trace": [
+        {
+          "event": "turn",
+          "index": 1,
+          "attempts": 1,
+          "model_ms": 684,
+          "tools_ms": 0,
+          "ttft_ms": 669,
+          "usage": {
+            "prompt_tokens": 5625,
+            "completion_tokens": 6,
+            "cached_tokens": 512,
+            "reasoning_tokens": 0
+          },
+          "error": null
+        }
+      ]
+    },
+    {
+      "task": "read",
+      "session_id": "7972ccdf-5db7-44f5-83b0-d3e3580a96eb",
+      "run_id": "6db100f7-e191-4fb3-b339-bf8b6a3d5958",
+      "wall_seconds": 11.286,
+      "status": "completed",
+      "prompt": "使用浏览器打开 http://host.docker.internal:18819/read ，读取页面校验码，只回答校验码。",
+      "calls": [
+        "browser_navigate"
+      ],
+      "screenshots": 0,
+      "model_calls": 2,
+      "model_ms": 1483,
+      "tools_ms": 436,
+      "prompt_tokens": 11537,
+      "completion_tokens": 83,
+      "cached_tokens": 11008,
+      "answer": [
+        "QX-7319-LM"
+      ],
+      "request_model": {
+        "model_id": "deepseek-flash",
+        "reasoning": "high"
+      },
+      "phase": "after",
+      "trace": [
+        {
+          "event": "tool",
+          "function": "browser_navigate",
+          "call_id": "call_00_hQ8zH4bN0TGg7Lk3dQmW9920",
+          "args": {
+            "url": "http://host.docker.internal:18819/read",
+            "observe": "both"
+          },
+          "duration_ms": 436,
+          "stages_ms": {
+            "execution": 436,
+            "projection": 0,
+            "postprocess": 0
+          },
+          "screenshot": null,
+          "success": true,
+          "message": "",
+          "result": {
+            "url": "http://host.docker.internal:18819/read",
+            "title": "效率验证读取页",
+            "tab_id": "tab-6aa4f3cb",
+            "content": "# 任务资料\n\n校验码：QX-7319-LM",
+            "stages_ms": {
+              "observation": 55
+            },
+            "action_success": true,
+            "observation_status": "ok"
+          }
+        },
+        {
+          "event": "turn",
+          "index": 1,
+          "attempts": 1,
+          "model_ms": 940,
+          "tools_ms": 436,
+          "ttft_ms": 817,
+          "usage": {
+            "prompt_tokens": 5637,
+            "completion_tokens": 76,
+            "cached_tokens": 5376,
+            "reasoning_tokens": 9
+          },
+          "error": null
+        },
+        {
+          "event": "turn",
+          "index": 2,
+          "attempts": 1,
+          "model_ms": 543,
+          "tools_ms": 0,
+          "ttft_ms": 518,
+          "usage": {
+            "prompt_tokens": 5900,
+            "completion_tokens": 7,
+            "cached_tokens": 5632,
+            "reasoning_tokens": 0
+          },
+          "error": null
+        }
+      ]
+    },
+    {
+      "task": "form",
+      "session_id": "fd5ee960-4b94-4ddd-89b4-d6b022641c1d",
+      "run_id": "1a983662-983b-4f50-b06f-850651b93f43",
+      "wall_seconds": 15.37,
+      "status": "completed",
+      "prompt": "使用浏览器打开 http://host.docker.internal:18819/form ，将姓名覆盖为林青，点击提交，核对页面显示已提交：林青，并保存一张截图留证。最后简短告知结果。",
+      "calls": [
+        "browser_navigate",
+        "browser_input",
+        "browser_click",
+        "browser_screenshot",
+        "deliver_files"
+      ],
+      "screenshots": 1,
+      "model_calls": 6,
+      "model_ms": 6003,
+      "tools_ms": 1439,
+      "prompt_tokens": 39381,
+      "completion_tokens": 596,
+      "cached_tokens": 37376,
+      "answer": [
+        "我先用浏览器打开这个表单页面。",
+        "页面已打开，输入框当前值为“旧值”。现在覆盖输入并提交。",
+        "页面已显示“已提交：林青”，现在截图留证。",
+        "截图已保存",
+        "表单提交后页面显示“已提交：林青”的截图留证",
+        "已完成：在 http://host.docker.internal:18819/form 将姓名输入框的“旧值”覆盖为“林青”并点击提交，页面核实结果为“已提交：林青”，输入框值为“林青”。截图留证已保存并交付。"
+      ],
+      "request_model": {
+        "model_id": "deepseek-flash",
+        "reasoning": "high"
+      },
+      "phase": "after",
+      "trace": [
+        {
+          "event": "tool",
+          "function": "browser_navigate",
+          "call_id": "call_00_cadacPZI67EUDKEVFXGn6245",
+          "args": {
+            "url": "http://host.docker.internal:18819/form",
+            "observe": "both"
+          },
+          "duration_ms": 596,
+          "stages_ms": {
+            "execution": 596,
+            "projection": 0,
+            "postprocess": 0
+          },
+          "screenshot": null,
+          "success": true,
+          "message": "",
+          "result": {
+            "url": "http://host.docker.internal:18819/form",
+            "title": "效率验证表单",
+            "tab_id": "tab-c6f36563",
+            "content": "# 受控表单\n\n姓名提交\n\n尚未提交",
+            "stages_ms": {
+              "observation": 126
+            },
+            "action_success": true,
+            "observation_status": "ok"
+          }
+        },
+        {
+          "event": "turn",
+          "index": 1,
+          "attempts": 1,
+          "model_ms": 780,
+          "tools_ms": 596,
+          "ttft_ms": 771,
+          "usage": {
+            "prompt_tokens": 5657,
+            "completion_tokens": 85,
+            "cached_tokens": 5504,
+            "reasoning_tokens": 12
+          },
+          "error": null
+        },
+        {
+          "event": "tool",
+          "function": "browser_input",
+          "call_id": "call_00_NX5UrGKNdCwMGl8uRpRE2165",
+          "args": {
+            "ref": "obs-633bd8a989-0",
+            "text": "林青"
+          },
+          "duration_ms": 241,
+          "stages_ms": {
+            "execution": 241,
+            "projection": 1,
+            "postprocess": 0
+          },
+          "screenshot": null,
+          "success": true,
+          "message": "",
+          "result": {
+            "url": "http://host.docker.internal:18819/form",
+            "title": "效率验证表单",
+            "tab_id": "tab-c6f36563",
+            "action_success": true,
+            "observation_status": "not_requested"
+          }
+        },
+        {
+          "event": "turn",
+          "index": 2,
+          "attempts": 1,
+          "model_ms": 1310,
+          "tools_ms": 241,
+          "ttft_ms": 1043,
+          "usage": {
+            "prompt_tokens": 6027,
+            "completion_tokens": 141,
+            "cached_tokens": 5632,
+            "reasoning_tokens": 60
+          },
+          "error": null
+        },
+        {
+          "event": "tool",
+          "function": "browser_click",
+          "call_id": "call_00_rtGdY3bW2LrnPaNci9I22854",
+          "args": {
+            "ref": "obs-633bd8a989-1",
+            "observe": "both"
+          },
+          "duration_ms": 316,
+          "stages_ms": {
+            "execution": 316,
+            "projection": 0,
+            "postprocess": 0
+          },
+          "screenshot": null,
+          "success": true,
+          "message": "",
+          "result": {
+            "url": "http://host.docker.internal:18819/form",
+            "title": "效率验证表单",
+            "tab_id": "tab-c6f36563",
+            "content": "# 受控表单\n\n姓名提交\n\n已提交：林青",
+            "stages_ms": {
+              "observation": 14
+            },
+            "action_success": true,
+            "observation_status": "ok"
+          }
+        },
+        {
+          "event": "turn",
+          "index": 3,
+          "attempts": 1,
+          "model_ms": 786,
+          "tools_ms": 316,
+          "ttft_ms": 733,
+          "usage": {
+            "prompt_tokens": 6255,
+            "completion_tokens": 82,
+            "cached_tokens": 6016,
+            "reasoning_tokens": 17
+          },
+          "error": null
+        },
+        {
+          "event": "tool",
+          "function": "browser_screenshot",
+          "call_id": "call_00_1wF7EJp09s9AUgKiazc52594",
+          "args": {
+            "scope": "viewport",
+            "purpose": "留证：表单提交后页面显示“已提交：林青”"
+          },
+          "duration_ms": 261,
+          "stages_ms": {
+            "execution": 261,
+            "projection": 0,
+            "postprocess": 0
+          },
+          "screenshot": "/api/files/8211b8de-aa24-4141-bc9d-3245aa89a798/download",
+          "success": true,
+          "message": "截图已留证；本次没有向模型输入图像。",
+          "result": {
+            "url": "http://host.docker.internal:18819/form",
+            "file": {
+              "id": "8211b8de-aa24-4141-bc9d-3245aa89a798",
+              "key": "2026/10/08/8211b8de-aa24-4141-bc9d-3245aa89a798.png",
+              "size": 13728,
+              "sha256": null,
+              "filename": "920f1e3a15e941bba5fb2841701e73b2.png",
+              "filepath": "/home/ubuntu/.rayagent/screenshots/1a983662-983b-4f50-b06f-850651b93f43/920f1e3a15e941bba5fb2841701e73b2.png",
+              "extension": ".png",
+              "mime_type": "",
+              "project_upload": null,
+              "project_persistence": null
+            },
+            "size": 13728,
+            "title": "效率验证表单",
+            "width": 1279,
+            "height": 991,
+            "tab_id": "tab-c6f36563",
+            "stages_ms": {
+              "upload": 40,
+              "capture": 198
+            },
+            "captured_at": "2026-10-08T09:23:01.303760+00:00",
+            "visual_input": false,
+            "screenshot_usage": {
+              "bytes": 13728,
+              "count": 1
+            }
+          }
+        },
+        {
+          "event": "turn",
+          "index": 4,
+          "attempts": 1,
+          "model_ms": 1049,
+          "tools_ms": 261,
+          "ttft_ms": 828,
+          "usage": {
+            "prompt_tokens": 6628,
+            "completion_tokens": 99,
+            "cached_tokens": 6272,
+            "reasoning_tokens": 14
+          },
+          "error": null
+        },
+        {
+          "event": "tool",
+          "function": "deliver_files",
+          "call_id": "call_00_htWQlvUChO9fLn3yBw897722",
+          "args": {},
+          "duration_ms": 25,
+          "stages_ms": {
+            "execution": 25,
+            "projection": 0,
+            "postprocess": 0
+          },
+          "screenshot": null,
+          "success": true,
+          "message": "已交付 1/1 个文件",
+          "result": {}
+        },
+        {
+          "event": "turn",
+          "index": 5,
+          "attempts": 1,
+          "model_ms": 1530,
+          "tools_ms": 25,
+          "ttft_ms": 1508,
+          "usage": {
+            "prompt_tokens": 7188,
+            "completion_tokens": 130,
+            "cached_tokens": 6656,
+            "reasoning_tokens": 6
+          },
+          "error": null
+        },
+        {
+          "event": "turn",
+          "index": 6,
+          "attempts": 1,
+          "model_ms": 548,
+          "tools_ms": 0,
+          "ttft_ms": 352,
+          "usage": {
+            "prompt_tokens": 7626,
+            "completion_tokens": 59,
+            "cached_tokens": 7296,
+            "reasoning_tokens": 0
+          },
+          "error": null
+        }
+      ]
+    },
+    {
+      "task": "form",
+      "session_id": "c8799b68-b984-4b6a-b57a-043b3a46d3c7",
+      "run_id": "2dab8912-f894-4c07-b590-53218d025682",
+      "wall_seconds": 13.499,
+      "status": "completed",
+      "prompt": "使用浏览器打开 http://host.docker.internal:18819/form ，将姓名覆盖为林青，点击提交，核对页面显示已提交：林青，并保存一张截图留证。最后简短告知结果。",
+      "calls": [
+        "browser_navigate",
+        "browser_input",
+        "browser_click",
+        "browser_screenshot"
+      ],
+      "screenshots": 1,
+      "model_calls": 5,
+      "model_ms": 4755,
+      "tools_ms": 1451,
+      "prompt_tokens": 31780,
+      "completion_tokens": 442,
+      "cached_tokens": 24704,
+      "answer": [
+        "我先打开表单页面并查看页面结构。",
+        "表单已打开，姓名输入框当前是「旧值」，我将其覆盖为「林青」。",
+        "输入完成，接着点击「提交」按钮。",
+        "页面已显示「已提交：林青」，现在截图留证。",
+        "截图已保存",
+        "已完成：\n\n- 在 http://host.docker.internal:18819/form 将姓名从「旧值」覆盖为「林青」并点击提交；\n- 页面状态确认为 **已提交：林青**，输入框值也是「林青」；\n- 截图已作为附件保存（页面显示“已提交：林青”的留证画面）。"
+      ],
+      "request_model": {
+        "model_id": "deepseek-flash",
+        "reasoning": "high"
+      },
+      "phase": "final-form",
+      "trace": [
+        {
+          "event": "tool",
+          "function": "browser_navigate",
+          "call_id": "call_00_H6QBcd8aV664uvz0u9Kg2420",
+          "args": {
+            "url": "http://host.docker.internal:18819/form",
+            "observe": "both"
+          },
+          "duration_ms": 685,
+          "stages_ms": {
+            "execution": 685,
+            "projection": 0,
+            "postprocess": 0
+          },
+          "screenshot": null,
+          "success": true,
+          "message": "",
+          "result": {
+            "url": "http://host.docker.internal:18819/form",
+            "title": "效率验证表单",
+            "tab_id": "tab-6a6fd334",
+            "content": "# 受控表单\n\n姓名提交\n\n尚未提交",
+            "stages_ms": {
+              "observation": 40
+            },
+            "action_success": true,
+            "observation_status": "ok"
+          }
+        },
+        {
+          "event": "turn",
+          "index": 1,
+          "attempts": 1,
+          "model_ms": 689,
+          "tools_ms": 685,
+          "ttft_ms": 510,
+          "usage": {
+            "prompt_tokens": 5677,
+            "completion_tokens": 84,
+            "cached_tokens": 0,
+            "reasoning_tokens": 10
+          },
+          "error": null
+        },
+        {
+          "event": "tool",
+          "function": "browser_input",
+          "call_id": "call_00_TvDfbhuGs2pHCXoNx6kd0302",
+          "args": {
+            "ref": "obs-09bcba4722-0",
+            "text": "林青"
+          },
+          "duration_ms": 295,
+          "stages_ms": {
+            "execution": 295,
+            "projection": 0,
+            "postprocess": 0
+          },
+          "screenshot": null,
+          "success": true,
+          "message": "",
+          "result": {
+            "url": "http://host.docker.internal:18819/form",
+            "title": "效率验证表单",
+            "tab_id": "tab-6a6fd334",
+            "action_success": true,
+            "observation_status": "not_requested"
+          }
+        },
+        {
+          "event": "turn",
+          "index": 2,
+          "attempts": 1,
+          "model_ms": 783,
+          "tools_ms": 295,
+          "ttft_ms": 548,
+          "usage": {
+            "prompt_tokens": 6047,
+            "completion_tokens": 113,
+            "cached_tokens": 5760,
+            "reasoning_tokens": 29
+          },
+          "error": null
+        },
+        {
+          "event": "tool",
+          "function": "browser_click",
+          "call_id": "call_00_jjq0Z705dL7v2tFZQbDH6322",
+          "args": {
+            "ref": "obs-09bcba4722-1",
+            "observe": "both"
+          },
+          "duration_ms": 302,
+          "stages_ms": {
+            "execution": 302,
+            "projection": 0,
+            "postprocess": 0
+          },
+          "screenshot": null,
+          "success": true,
+          "message": "",
+          "result": {
+            "url": "http://host.docker.internal:18819/form",
+            "title": "效率验证表单",
+            "tab_id": "tab-6a6fd334",
+            "content": "# 受控表单\n\n姓名提交\n\n已提交：林青",
+            "stages_ms": {
+              "observation": 10
+            },
+            "action_success": true,
+            "observation_status": "ok"
+          }
+        },
+        {
+          "event": "turn",
+          "index": 3,
+          "attempts": 1,
+          "model_ms": 948,
+          "tools_ms": 302,
+          "ttft_ms": 658,
+          "usage": {
+            "prompt_tokens": 6248,
+            "completion_tokens": 81,
+            "cached_tokens": 6016,
+            "reasoning_tokens": 7
+          },
+          "error": null
+        },
+        {
+          "event": "tool",
+          "function": "browser_screenshot",
+          "call_id": "call_00_ET_4vnWzrz3XA6bPErWQy1V9252",
+          "args": {
+            "scope": "viewport",
+            "purpose": "留证：表单提交后页面显示“已提交：林青”"
+          },
+          "duration_ms": 169,
+          "stages_ms": {
+            "execution": 169,
+            "projection": 0,
+            "postprocess": 0
+          },
+          "screenshot": "/api/files/5c994610-672e-448d-87b8-f655a09b3a43/download",
+          "success": true,
+          "message": "截图已作为会话附件交付，无需再次调用 deliver_files；本次没有向模型输入图像。",
+          "result": {
+            "url": "http://host.docker.internal:18819/form",
+            "file": {
+              "id": "5c994610-672e-448d-87b8-f655a09b3a43",
+              "key": "2026/10/08/5c994610-672e-448d-87b8-f655a09b3a43.png",
+              "size": 13728,
+              "sha256": null,
+              "filename": "c430a7c4ffa74fd9b73a4cce4296809b.png",
+              "filepath": "/home/ubuntu/.rayagent/screenshots/2dab8912-f894-4c07-b590-53218d025682/c430a7c4ffa74fd9b73a4cce4296809b.png",
+              "extension": ".png",
+              "mime_type": "",
+              "project_upload": null,
+              "project_persistence": null
+            },
+            "size": 13728,
+            "title": "效率验证表单",
+            "width": 1279,
+            "height": 991,
+            "tab_id": "tab-6a6fd334",
+            "stages_ms": {
+              "upload": 30,
+              "capture": 123
+            },
+            "captured_at": "2026-10-08T09:29:54.652975+00:00",
+            "visual_input": false,
+            "screenshot_usage": {
+              "bytes": 13728,
+              "count": 1
+            }
+          }
+        },
+        {
+          "event": "turn",
+          "index": 4,
+          "attempts": 1,
+          "model_ms": 1100,
+          "tools_ms": 169,
+          "ttft_ms": 805,
+          "usage": {
+            "prompt_tokens": 6624,
+            "completion_tokens": 85,
+            "cached_tokens": 6272,
+            "reasoning_tokens": 0
+          },
+          "error": null
+        },
+        {
+          "event": "turn",
+          "index": 5,
+          "attempts": 1,
+          "model_ms": 1235,
+          "tools_ms": 0,
+          "ttft_ms": 952,
+          "usage": {
+            "prompt_tokens": 7184,
+            "completion_tokens": 79,
+            "cached_tokens": 6656,
+            "reasoning_tokens": 0
+          },
+          "error": null
+        }
+      ]
+    }
+  ]
+}

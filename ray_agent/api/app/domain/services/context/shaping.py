@@ -83,6 +83,15 @@ class ResultShaper:
                 logger.warning(f"工具[{invocation.function_name}]完整结果写入 {candidate} 失败: {error}")
 
         preview = self._preview(result, full_text, path, error)
+        # 适配器已生成有界结构化观察时保留它，让 refs、动作状态与选择的预览长度可用。
+        if result.full_content is not None and isinstance(result.data, dict):
+            bounded = ToolResult(success=result.success, message=result.message, data={
+                **result.data, 'full_output_path':path, 'full_output_error':error,
+                'note': '完整提取已保存，可用 read_file 分段读回。' if path else
+                        '完整提取保存失败，未展示部分不可再读；请缩小范围。',
+            })
+            if len(bounded.model_dump_json()) <= self.max_chars:
+                preview = bounded
         invocation.shaping = ToolResultShaping(
             original_chars=len(full_text),
             preview_chars=len(preview.model_dump_json()),
@@ -109,6 +118,10 @@ class ResultShaper:
                 success=result.success,
                 message=(result.message or "")[:500],
                 data={
+                    **{k: (v[:500] if isinstance(v, str) else v) for k,v in
+                       (result.data.items() if isinstance(result.data, dict) else [])
+                       if k in {'action_success','observation_status','observation_error','url','final_url',
+                                'title','tab_id','observation_id','scope','incomplete','requires_browser','status'}},
                     "truncated": True,
                     "total_chars": len(full_text),
                     "total_lines": lines,

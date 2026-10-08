@@ -37,6 +37,8 @@ class ModelSpec:
     reasoning_family: Optional[str] = None
     temperature_when: Literal["always", "disabled", "never"] = "always"
     temperature_max: Optional[float] = None
+    # enabled 发送 true，provider_default 不发送该可选字段，disabled 发送 false。
+    tool_batching: Literal["enabled", "provider_default", "disabled"] = "disabled"
 
     def choice(self, choice_id: str) -> Optional[ReasoningChoice]:
         return next((item for item in self.choices if item.id == choice_id), None)
@@ -69,7 +71,7 @@ def deepseek_models() -> tuple[ModelSpec, ...]:
     shared = dict(
         provider="deepseek", context_window=1_000_000, max_output=393_216, tools=True,
         choices=choices, default_choice="high", thinking_output_floor=32_768,
-        reasoning_ordered=True, reasoning_family="deepseek-v4", temperature_when="disabled", temperature_max=2,
+        reasoning_ordered=True, reasoning_family="deepseek-v4", tool_batching="provider_default", temperature_when="disabled", temperature_max=2,
     )
     return (
         ModelSpec(id="deepseek-flash", vision=True, auxiliary=True, **shared),

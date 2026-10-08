@@ -66,6 +66,7 @@ from app.domain.services.tool_policy import ToolPolicyGuard
 from app.domain.services.tools.a2a import A2ATool
 from app.domain.services.tools.base import BaseTool
 from app.domain.services.tools.browser import BrowserTool
+from app.domain.services.tools.web import WebTool
 from app.domain.services.tools.deliver import DELIVER_FILES_TOOL, DeliverFileFn, DeliverTool, DeliveryResult
 from app.domain.services.tools.file import FileTool
 from app.domain.services.tools.mcp import MCPTool
@@ -114,12 +115,14 @@ def build_default_tools(
         mcp_tool: MCPTool,
         a2a_tool: A2ATool,
         default_exec_dir: str = "/home/ubuntu",
+        capture_screenshot=None,
 ) -> List[BaseTool]:
     """默认工具集；计划与交付工具由循环自己追加。default_exec_dir 是 shell_execute 省略工作目录时的默认值。"""
     return [
         FileTool(sandbox=sandbox),
         ShellTool(sandbox=sandbox, default_exec_dir=default_exec_dir),
-        BrowserTool(browser=browser),
+        BrowserTool(browser=browser, capture=capture_screenshot),
+        WebTool(sandbox=sandbox),
         SearchTool(search_engine=search_engine),
         MessageTool(),
         mcp_tool,
@@ -388,6 +391,7 @@ class AgentLoop(BaseFlow):
             "reasoning": getattr(self._llm, "reasoning_id", None),
             "reasoning_effort": getattr(self._llm, "reasoning_effort", None),
             "keep_reasoning": getattr(self._llm, "keep_reasoning", False),
+            "tool_batching": getattr(self._llm, "tool_batching", "disabled"),
             "agent_config": self._config.model_dump(mode="json"),
             "mode": self._mode.value,
             "system_prompt": self.request_system_prompt or self._with_mode_suffix(system_prompt + self.project_prompt),
@@ -481,13 +485,8 @@ class AgentLoop(BaseFlow):
             yield event
         if invocation.suspended:
             raise RuntimeError(f"已审批的调用[{call_id}]再次被挂起")
-        rest = [tool_message(c.get("id"), (c.get("function") or {}).get("name", ""),
-                             ToolResult(success=False, message=NOT_EXECUTED_APPROVAL))
-                for c in dangling[position + 1:]]
-        if rest:
-            await self._add_messages(rest)
-            for event in self._take_context():
-                yield event
+        async for event in self._skip_calls(dangling[position + 1:], NOT_EXECUTED_APPROVAL):
+            yield event
         async for event in self._loop(drain, first_turn_index):
             yield event
 
@@ -610,7 +609,11 @@ class AgentLoop(BaseFlow):
                 yield DoneEvent()
                 return
 
-            for call in calls:
+            browser_writes = {'browser_navigate', 'browser_restart', 'browser_click', 'browser_input',
+                              'browser_move_mouse', 'browser_press_key', 'browser_select_option',
+                              'browser_scroll_up', 'browser_scroll_down', 'browser_console_exec'}
+            fail_fast = any(c['function']['name'] in browser_writes for c in calls)
+            for position, call in enumerate(calls):
                 invocation = ToolInvocation(
                     call_id=call["id"],
                     function_name=call["function"]["name"],
@@ -633,7 +636,27 @@ class AgentLoop(BaseFlow):
                     self.end_reason = RunEndReason.APPROVAL
                     yield WaitEvent()
                     return
+                if fail_fast and invocation.result is not None and not invocation.result.success:
+                    async for event in self._skip_calls(calls[position+1:],
+                            '本批次前序调用失败，依赖状态不再可靠；该调用未执行。请根据结果重新决策。', turn):
+                        yield event
+                    break
             yield self._turn_completed(turn)
+
+    async def _skip_calls(self, calls, reason, turn=None):
+        """跳过仍保留完整 call/result 配对与 called 事件，不执行任何工具或后处理副作用。"""
+        for call in calls:
+            function = call.get('function') or {}
+            invocation = ToolInvocation(call_id=call['id'], function_name=function.get('name', ''),
+                raw_arguments=function.get('arguments', ''), denied_by='batch', duration_ms=0)
+            await self.pipeline.check(invocation)
+            result = ToolResult(success=False, message=reason, data={'executed':False})
+            await self._add_messages([tool_message(invocation.call_id, invocation.function_name, result)])
+            for context in self._take_context():
+                yield context
+            if turn is not None:
+                turn.executed.append(invocation.call_id)
+            yield invocation.tool_event(ToolEventStatus.CALLED, result)
 
     async def _execute(self, invocation: ToolInvocation,
                        turn: Optional[_ModelTurn] = None) -> AsyncGenerator[BaseEvent, None]:
@@ -850,6 +873,13 @@ class AgentLoop(BaseFlow):
         return result
 
     async def _record_delivery_state(self, invocation: ToolInvocation, result: ToolResult) -> ToolResult:
+        if invocation.function_name == 'browser_screenshot' and result.success and isinstance(result.data, dict):
+            file = result.data.get('file') or {}
+            if file:
+                self._delivery_state = 'complete'
+                project = file.get('project_persistence') or {}
+                if project.get('state') == 'failed':
+                    self._delivery_failures.add(file.get('filepath', '截图'))
         if invocation.function_name == DELIVER_FILES_TOOL and isinstance(result.data, DeliveryResult):
             self._delivery_state = result.data.state
             for item in result.data.items:
@@ -860,6 +890,16 @@ class AgentLoop(BaseFlow):
         return result
 
     async def _emit_delivery_message(self, invocation: ToolInvocation, result: ToolResult) -> ToolResult:
+        if invocation.function_name == 'browser_screenshot' and result.success and isinstance(result.data, dict):
+            file_data = result.data.get('file')
+            if file_data:
+                from app.domain.models.file import File
+                file = File.model_validate(file_data)
+                message = '截图已保存'
+                if (file.project_persistence or {}).get('state') == 'failed':
+                    message += '；可下载，但未保存到项目'
+                invocation.events.append(MessageEvent(message=message, attachments=[file]))
+            return result
         if invocation.function_name != DELIVER_FILES_TOOL or not isinstance(result.data, DeliveryResult):
             return result
         files = result.data.files

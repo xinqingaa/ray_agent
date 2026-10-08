@@ -5,7 +5,7 @@ from datetime import datetime
 from enum import Enum
 from typing import Literal, List, Union, Optional, Any, Dict, Annotated
 
-from pydantic import BaseModel, Field, PrivateAttr
+from pydantic import field_validator, BaseModel, Field, PrivateAttr
 
 from .file import File
 from .plan import Plan, Step
@@ -73,7 +73,13 @@ class MessageEvent(BaseEvent):
 
 class BrowserToolContent(BaseModel):
     """浏览器工具扩展内容"""
-    screenshot: str  # 浏览器快照截图
+    screenshot: Optional[str] = None
+    content: Optional[str] = None
+    outcome: Optional[ToolResult] = None
+    url: Optional[str] = None
+    title: Optional[str] = None
+    tab_id: Optional[str] = None
+    observation_status: Optional[str] = None
 
 
 class SearchToolContent(BaseModel):
@@ -84,11 +90,13 @@ class SearchToolContent(BaseModel):
 class ShellToolContent(BaseModel):
     """Shell工具内容"""
     console: Any  # 控制台内容
+    outcome: Optional[ToolResult] = None
 
 
 class FileToolContent(BaseModel):
     """文件工具内容"""
     content: str  # 文件内容
+    outcome: Optional[ToolResult] = None
 
 
 class ProtocolToolContent(BaseModel):
@@ -125,10 +133,23 @@ class ToolEvent(BaseEvent):
     function_result: Optional[ToolResult] = None  # 工具调用结果；called 事件上即进入上下文的内容（整形后为预览）
     status: ToolEventStatus = ToolEventStatus.CALLING  # 工具事件状态
     duration_ms: Optional[int] = None  # 工具管线从执行前到执行后的耗时，只在 called 事件上填写
+    stages_ms: Dict[str, int] = Field(default_factory=dict)
     shaping: Optional[ToolResultShaping] = None  # 只在被整形的 called 事件上填写
     # 调用未执行：被工具策略禁止 / 被用户拒绝 / 计划模式不允许，只在 called 上
-    denied_by: Optional[Literal["policy", "user", "plan_mode"]] = None
+    denied_by: Optional[Literal["policy", "user", "plan_mode", "batch"]] = None
     _raw_result: Optional[ToolResult] = PrivateAttr(default=None)  # 整形前的结果，只供运行器生成展示内容
+
+    @field_validator('tool_content', mode='before')
+    @classmethod
+    def parse_content(cls, value, info):
+        if isinstance(value, dict):
+            content_type = {'browser':BrowserToolContent, 'web':BrowserToolContent, 'shell':ShellToolContent, 'file':FileToolContent,
+                            'search':SearchToolContent}.get(info.data.get('tool_name'))
+            if content_type is not None and (info.data.get('tool_name') != 'search' or 'results' in value):
+                return content_type.model_validate(value)
+            if "outcome" in value:
+                return ProtocolToolContent.model_validate(value)
+        return value
 
     @property
     def raw_result(self) -> Optional[ToolResult]:

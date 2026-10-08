@@ -758,3 +758,16 @@ function kinds(view) {
   assert.equal(next.usedTokens, 700);
   console.log('PASS: 固定输入失败无需模型请求，圆环使用失败预算，下一次请求覆盖旧失败');
 }
+
+// 浏览器文本失败与批次跳过沿同一 outcome 契约投影。
+{
+  const view = projectSession({id:'browser-contract', events:[
+    ev(1,'tool',{tool_call_id:'b1',name:'browser',function:'browser_click',status:'called',args:{},content:{content:'引用失效',url:'https://example.org',outcome:{success:false,message:'引用失效'}}}),
+    ev(2,'tool',{tool_call_id:'b2',name:'browser',function:'browser_input',status:'called',denied_by:'batch',args:{text:'不会执行'},content:{outcome:{success:false,message:'前序失败，未执行'}}}),
+    ev(3,'tool',{tool_call_id:'w1',name:'web',function:'web_fetch',status:'called',args:{url:'https://example.org'},content:{content:'正文',outcome:{success:true}}}),
+  ]});
+  const calls = view.timeline.filter(x=>x.kind==='tools').flatMap(x=>x.calls);
+  assert.deepEqual(calls.map(x=>x.status),['failed','skipped','succeeded']);
+  assert.equal(calls[2].family,'browser');
+  console.log('PASS: 浏览器文本失败、批次跳过和网页正文进入一致投影');
+}

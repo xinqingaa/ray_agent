@@ -272,3 +272,9 @@ def test_thinking_choice_is_sent_as_vendor_parameters():
     off = llm._request_kwargs([{"role": "user", "content": "a"}], None, None, None, stream=False)
     assert off["extra_body"] == {"thinking": {"type": "disabled"}}
     assert "reasoning_effort" not in off
+
+
+def test_catalog_batching_uses_provider_default_without_forcing_single_call():
+    llm=OpenAILLM(LLMConfig(base_url='https://api.deepseek.com',api_key='test',model_name='deepseek-flash'))
+    kwargs=llm._request_kwargs([{'role':'user','content':'test'}],[{'type':'function'}],None,'auto',stream=False)
+    assert llm.tool_batching=='provider_default' and 'parallel_tool_calls' not in kwargs

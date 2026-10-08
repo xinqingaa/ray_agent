@@ -20,7 +20,7 @@
 
 - 技术栈：Next 16、React 19、Tailwind 4、Radix 与 shadcn 风格基础组件（`components/ui/`）、lucide 图标、react-markdown、sonner、noVNC（[`package.json`](../../ray_agent/ui/package.json)）。
 - `globals.css` 只有 shadcn 默认的浅色中性 token，没有暗色 token；依赖中有 next-themes，但应用没有挂载主题切换；业务组件中约 110 处直接写 `gray-*` 类名，颜色与间距没有统一来源；布局没有指定字体。
-- 会话页是“对话 + 右侧工具预览”两栏（[`session-detail-view.tsx`](../../ray_agent/ui/src/components/session-detail-view.tsx)），工具预览按工具类型显示 Shell 输出、文件内容、浏览器截图，并可打开 VNC（`tool-preview-panel.tsx`，W5 已删除；[`vnc-overlay.tsx`](../../ray_agent/ui/src/components/vnc-overlay.tsx)）；Shell 输出通过 `GET /sessions/{id}/shell` 读取。
+- 会话页是“对话 + 右侧工具预览”两栏（[`session-detail-view.tsx`](../../ray_agent/ui/src/components/session-detail-view.tsx)），工具预览按工具类型显示 Shell 输出、文件内容、浏览器截图，并可打开 VNC（`tool-preview-panel.tsx`，W5 已删除；`vnc-overlay.tsx`（历史入口，现已移除））；Shell 输出通过 `GET /sessions/{id}/shell` 读取。
 - 工具行只有图标、工具名与参数摘要（`tool-use/`，W5 已删除）；计划面板是独立组件；用量是输入框旁的上下文占用环。
 - 设置页是一个 866 行的单文件，含通用配置、模型提供商、A2A、MCP 四个分区（`manus-settings.tsx`，W5 已删除）。
 
@@ -402,3 +402,9 @@ M06/M07/M08/M12 若需要新只读接口，由应用层统一构造并复用实�
 活动运行只写“本次运行”及当时的模型与档位。菜单不展示下一新运行估算，也不在弹层解释温度。无法打开思考给原因，服务端最终验证。
 
 验收：相关行为检查与类型/lint/build；桌面/390×844、深浅主题、键盘/触屏、模型独立保存与草稿保护、Check、动态刻度、仅一次提交、关闭语义、运行/等待/空闲/首页、刷新/乱序/错误。实际截图评审；完成后同步 UI DESIGN。
+
+## 执行效率修订（2026-10-08，已批准）
+
+这是工作台数据契约修订，不重做布局：默认浏览器调用显示文本/状态与实际 URL，显式截图沿用大预览；观察失败显示动作已执行及观察错误。文件与终端显示该次调用的有界结果，避免当前文件冒充历史快照。
+
+验收：覆盖受影响契约的定向检查，与受控页面读数、表单读回和产物展示共同核对；证据和进度只登记总计划。

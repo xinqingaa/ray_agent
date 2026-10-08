@@ -163,3 +163,9 @@ SSE 事件数据中带上 `seq`、`run_id` 与毫秒 `created_at`。接口 schem
 6. 续接时工具 schema 变化写入 `config_snapshot.tool_revisions`，重建按轮次取对应 schema。
 7. 原因代码补上 `model_error`、`runner_error`、`runner_lost`；`context_limit` 只保留常量。
 8. 验收 5（停止与 Shell 终止）和验收 7（轮次成对与汇总）在内存替身用例里（`test_task_execution_control.py`、`test_turn_events_rebuild.py`）。`test_run_events_pg.py` 覆盖验收 1–4、6 与快照往返；未设置 `RAY_TEST_DATABASE_URI` 时跳过，且会清空目标库的 `public` schema。
+
+## 执行效率修订（2026-10-08，已批准）
+
+浏览器展示扩展为可选截图、正文、页面元信息和 outcome，持久化与 SSE 同源；保留旧截图事件读取。显式截图登记会话文件，事件保存 run/call 关联及尺寸、字节、捕获时间；截图是用户可下载产物，暂不作为模型视觉输入。每运行最多 8 次捕获尝试/24 MiB，单张 8 MiB/1600 万像素/最长边 8192，总捕获与存储预算 20 秒；历史截图不清理。
+
+验收：覆盖受影响契约的定向检查，与受控页面读数、表单读回和产物展示共同核对；证据和进度只登记总计划。

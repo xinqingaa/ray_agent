@@ -197,12 +197,12 @@ def test_approve_executes_once_then_repairs_rest_of_batch_and_rejects_duplicate_
         assert second.recording.calls == ["echo:a"] and first.recording.calls == []
         second.sandbox.read_file.assert_not_awaited()
         assert [e.status.value for e in tools_of(second, "c-a")] == ["calling", "called"]
-        assert not tools_of(second, "c-b")
+        assert [e.denied_by for e in tools_of(second, "c-b")] == ["batch"]
         request = second.llm.requests[0].messages
         assert_no_dangling(request)
         results = tool_results(request)
         assert results["c-a"]["success"] and results["c-a"]["data"] == {"echo": "a"}
-        assert results["c-b"] == {"success": False, "message": NOT_EXECUTED_APPROVAL, "data": None}
+        assert results["c-b"] == {"success": False, "message": NOT_EXECUTED_APPROVAL, "data": {"executed": False}}
         assert approvals_of(second, "c-a") == ["pending", "approved"]
         assert run_events(second, active.id) == [
             ("running", None), ("waiting", "approval"), ("running", None), ("completed", None)]

@@ -118,6 +118,9 @@ const VERBS: Record<string, string> = {
   shell_kill_process: '终止进程',
   search_web: '搜索网页',
   info_search_web: '搜索网页',
+  web_fetch: '读取网页',
+  browser_screenshot: '保存截图',
+  browser_tabs: '查看标签页',
   browser_view: '查看页面',
   browser_navigate: '打开网页',
   browser_restart: '重启浏览器',
@@ -1363,7 +1366,7 @@ function familyOf(name: string, toolset: string): ToolFamily {
   if (name === 'deliver_files' || toolset === 'deliver') return 'deliver'
   if (toolset === 'file' || FILE_NAMES.has(name)) return 'file'
   if (toolset === 'shell' || name.startsWith('shell_')) return 'shell'
-  if (toolset === 'browser' || name.startsWith('browser_')) return 'browser'
+  if (toolset === 'browser' || name === 'web_fetch' || name.startsWith('browser_')) return 'browser'
   if (toolset === 'search' || name === 'search_web' || name === 'info_search_web') return 'search'
   if (toolset === 'a2a' || name === 'call_remote_agent' || name === 'get_remote_agent_cards') return 'a2a'
   if (toolset === 'mcp' || toolset.startsWith('mcp_') || toolset.startsWith('mcp-')) return 'mcp'
@@ -1422,6 +1425,7 @@ const DENIED_TEXT: Record<string, string> = {
 
 function failureOf(data: Record<string, unknown>, content: unknown): {status: ToolCallStatus; error: string | null} | null {
   const deniedBy = str(data.denied_by)
+  if (deniedBy === 'batch') return {status: 'skipped', error: messageOf(data, content) ?? '前序调用失败，本次未执行'}
   if (deniedBy) return {status: 'denied', error: DENIED_TEXT[deniedBy] ?? '调用被拒绝，没有执行'}
   const explicit = str(data.disposition) ?? str(data.outcome_kind)
   if (explicit === 'denied' || explicit === 'rejected') return {status: 'denied', error: messageOf(data, content)}

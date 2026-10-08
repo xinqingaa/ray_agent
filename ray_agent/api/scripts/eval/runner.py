@@ -88,7 +88,7 @@ def _run_totals(session: Dict[str, Any]) -> Dict[str, Dict[str, Any]]:
 def compute_metrics(session: Dict[str, Any]) -> Dict[str, Any]:
     """模型调用次数与 tokens 取自运行汇总，并与 turn(completed) 及带 run_id 的 compact（摘要请求）逐条累加核对；
     不带 run_id 的 compact 是手动压缩，不属于任何运行，另计次数、请求数与 tokens，不参与核对。
-    工具调用按 called 事件计数。"""
+    工具调用按非 batch 跳过的 called 事件计数。"""
     events = session.get("events") or []
     totals = _run_totals(session)
     completed = [e["data"] for e in events if e["event"] == "turn" and e["data"].get("phase") == "completed"]
@@ -114,7 +114,7 @@ def compute_metrics(session: Dict[str, Any]) -> Dict[str, Any]:
         + sum(u.get("prompt_tokens") or 0 for u in compact_usage),
         "completion_tokens": sum((t.get("usage") or {}).get("completion_tokens") or 0 for t in completed)
         + sum(u.get("completion_tokens") or 0 for u in compact_usage),
-        "tool_calls": len(called),
+        "tool_calls": sum(d.get("denied_by") != "batch" for d in called),
     }
     shaped = [d for d in called if d.get("shaping")]
     mismatches = [f"{key}: 运行汇总 {run_sum(key)} ≠ 逐轮 {value}" for key, value in turn_sums.items()
@@ -127,8 +127,8 @@ def compute_metrics(session: Dict[str, Any]) -> Dict[str, Any]:
         "prompt_tokens": run_sum("prompt_tokens"),
         "completion_tokens": run_sum("completion_tokens"),
         "cached_tokens": run_sum("cached_tokens"),
-        "tool_calls": len(called),
-        "tool_calls_by_name": dict(Counter(d.get("function", "") for d in called).most_common()),
+        "tool_calls": sum(d.get("denied_by") != "batch" for d in called),
+        "tool_calls_by_name": dict(Counter(d.get("function", "") for d in called if d.get("denied_by") != "batch").most_common()),
         "tool_calls_unfinished": len(calling_ids - called_ids),
         "unpaired_turns": len(started) - len(completed),
         "compactions": len(compacts),

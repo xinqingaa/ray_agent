@@ -87,7 +87,7 @@ uv run --locked python -m unittest discover -s tests -p 'test_*.py' -v
 
 用例直接调用 `ShellService`：`sleep 10` 在约 5 秒内返回 running，`sleep 1 && echo ok` 返回 completed 与输出；派生一个忽略 SIGTERM 的后台子进程后，终止或在同一会话执行新命令都会让整组进程退出。它不验证容器身份、资源限额或 API 停止传播。执行身份与限额见 API 指南中的沙箱环境观察。
 
-文件用例 `tests/test_file_resolve.py` 使用真实临时文件与父目录/最终链接，核对实际解析路径和普通文件类型；用于项目交付的工作区归属判断，不验证 HTTP 或 Docker。浏览器仍没有自动测试套件。Shell 或文件修改还应在临时工作目录验证请求、结果和错误路径；浏览器相关修改需连同 CDP、VNC 和 API 侧调用一起验证。只启动 Python API 不代表完整沙箱可用。
+文件用例 `tests/test_file_resolve.py` 使用真实临时文件与父目录/最终链接，核对实际解析路径和普通文件类型；用于项目交付的工作区归属判断，不验证 HTTP 或 Docker。API 侧有显式启用的受控 Chromium 场景，见 [API 指南](../api/README.md#浏览器与网页读取的定向检查)。Shell 或文件修改还应在临时工作目录验证请求、结果和错误路径；浏览器相关修改需连同 CDP、VNC 和 API 侧调用一起验证。只启动 Python API 不代表完整沙箱可用。
 
 ### 任务控制观察
 
@@ -110,3 +110,11 @@ uv run --locked python scripts/check_environment_boundaries.py
 ```
 
 脚本在临时目录使用实际 `FileService` 与 `ShellService`，核对 `work/` 外的受控标记可通过 `..` 和符号链接读取、同一 Shell ID 不保留环境变量与 `cd`、子进程能访问本机回环 HTTP，以及实验结束时进程退出、临时目录删除。它不启动 Docker、不连接公网、不是容器逃逸实验。完整容器复用、文件分离、同网络访问与显式删除见 [API 指南](../api/README.md#沙箱环境观察)。
+
+公开网页读取的网络边界可单独检查：
+
+```bash
+uv run --locked python -m unittest discover -s tests -p 'test_web_fetch.py' -v
+```
+
+用例覆盖 URL/DNS/重定向目标限制、固定 IP 连接、传输和解压大小及 MIME；使用受控传输替身。沙箱 `/api/web/fetch` 不复制浏览器凭据，公开 HTTPS 的真实网络连通另行观察。
