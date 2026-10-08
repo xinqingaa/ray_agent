@@ -56,7 +56,7 @@ export function SessionItem({session, isActive, onClick, onDelete, onRename, hre
   )
 
   return (
-    <div className="group/session relative h-8">
+    <div className="group/session relative min-h-8">
       {href ? (
         <Link
           href={href}
@@ -87,8 +87,8 @@ export function SessionItem({session, isActive, onClick, onDelete, onRename, hre
           className={controlClass}
         />
       )}
-      <div className="pointer-events-none relative z-10 flex h-8 items-center gap-2 pl-2">
-        <p className={cn('min-w-0 flex-1 truncate text-sm leading-5', isActive ? 'font-medium' : 'font-normal')} dir="auto">{title}</p>
+      <div className="pointer-events-none relative z-10 flex min-h-8 items-center gap-2 pl-2">
+        <p className="min-w-0 flex-1 truncate text-sm font-medium" dir="auto">{title}</p>
         <RunStatus
           place="sidebar"
           id={statusId}

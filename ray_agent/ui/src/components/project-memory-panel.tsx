@@ -129,12 +129,12 @@ export function ProjectMemoryPanel({projectId, sessionId, open, onClose, onChang
             <Button variant="ghost" size="icon-sm" className={cn('text-muted-foreground', overlay === 'preview' && 'bg-muted text-foreground')} aria-pressed={overlay === 'preview'} aria-label="运行内容预览" title="运行内容预览" onClick={() => toggleOverlay('preview')}><Eye/></Button>
             <Button variant="ghost" size="icon-sm" className="text-muted-foreground" aria-label="关闭项目记忆" onClick={leave}><X/></Button>
           </div>
-          <div role="tablist" aria-label="项目记忆分区" className="flex h-8 rounded-full bg-muted p-0.5">
+          <div role="tablist" aria-label="项目记忆分区" className="flex min-h-8 rounded-full bg-muted p-0.5">
             {sections.map(([id, label]) => (
               <button key={id} type="button" role="tab" id={`memory-tab-${id}`} tabIndex={section === id ? 0 : -1} aria-selected={section === id && overlay === null}
                 onKeyDown={event => {if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) {event.preventDefault(); const index = sections.findIndex(([key]) => key === section); const next = sections[event.key === 'Home' ? 0 : event.key === 'End' ? sections.length - 1 : (index + (event.key === 'ArrowLeft' ? -1 : 1) + sections.length) % sections.length][0]; changeSection(next); document.getElementById(`memory-tab-${next}`)?.focus()}}}
                 onClick={() => changeSection(id)}
-                className={cn('flex-1 rounded-full text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-ring', section === id && overlay === null ? 'bg-card font-medium text-foreground shadow-sm' : 'text-muted-foreground')}>
+                className={cn('flex-1 rounded-full text-meta outline-none focus-visible:ring-2 focus-visible:ring-ring', section === id && overlay === null ? 'bg-card font-medium text-foreground shadow-sm' : 'text-muted-foreground')}>
                 {label}
               </button>
             ))}

@@ -270,7 +270,7 @@ export function DeveloperView({view, loadTurnRequest, className}: DeveloperViewP
     <div className={cn('flex flex-col gap-6 px-4 py-4', className)}>
       <div className="flex flex-wrap items-center gap-2 border-b pb-3">
         <h2 className="text-sm font-medium">开发者视图</h2>
-        <div role="tablist" aria-label="开发者视图分区" className="flex h-8 rounded-full bg-muted p-0.5">
+        <div role="tablist" aria-label="开发者视图分区" className="flex min-h-8 rounded-full bg-muted p-0.5">
           {DEV_TABS.map(([id, label]) => <button key={id} type="button" role="tab" id={`dev-${id}`} aria-controls={`dev-panel-${id}`} aria-selected={section === id} tabIndex={section === id ? 0 : -1}
             onClick={() => setSection(id)}
             onKeyDown={event => {
@@ -282,7 +282,7 @@ export function DeveloperView({view, loadTurnRequest, className}: DeveloperViewP
               setSection(idNext)
               document.getElementById(`dev-${idNext}`)?.focus()
             }}
-            className={cn('rounded-full px-3 text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-ring', section === id ? 'bg-card font-medium text-foreground shadow-sm' : 'text-muted-foreground')}>{label}</button>)}
+            className={cn('rounded-full px-3 text-meta outline-none focus-visible:ring-2 focus-visible:ring-ring', section === id ? 'bg-card font-medium text-foreground shadow-sm' : 'text-muted-foreground')}>{label}</button>)}
         </div>
         <Button type="button" variant="ghost" size="sm" className="ml-auto h-8 px-2.5" onClick={exportJson}>
           <Download aria-hidden/>

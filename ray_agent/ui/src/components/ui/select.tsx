@@ -6,12 +6,16 @@ import {Popover, PopoverContent, PopoverTrigger} from '@/components/ui/popover'
 import {cn} from '@/lib/utils'
 
 /** 与模型菜单一致的列表选择。触发器高度与 size-8 对齐。 */
-export function Select({value, options, disabled = false, label, onChange}: {
+export function Select({value, options, disabled = false, label, onChange, className, id, describedBy}: {
   value: string
   options: {id: string; label?: string}[]
   disabled?: boolean
   label: string
   onChange: (id: string) => void
+  className?: string
+  /** 有外部 label 时用来关联；此时不再用 aria-label 覆盖名称 */
+  id?: string
+  describedBy?: string
 }) {
   const [open, setOpen] = useState(false)
   const current = options.find(option => option.id === value)
@@ -19,10 +23,12 @@ export function Select({value, options, disabled = false, label, onChange}: {
     <Popover open={open} onOpenChange={next => {if (!disabled) setOpen(next)}}>
       <PopoverTrigger asChild>
         <button
+          id={id}
           type="button"
           disabled={disabled}
-          aria-label={label}
-          className="mt-2 inline-flex h-8 w-full items-center justify-between gap-2 rounded-md border bg-background px-2 text-left text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40"
+          aria-label={id ? undefined : label}
+          aria-describedby={describedBy}
+          className={cn('mt-2 inline-flex h-8 w-full items-center justify-between gap-2 rounded-md border bg-background px-2 text-left text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-40', className)}
         >
           <span className="truncate">{current?.label ?? current?.id ?? value}</span>
           <ChevronDown className="size-3.5 shrink-0 text-muted-foreground" aria-hidden/>

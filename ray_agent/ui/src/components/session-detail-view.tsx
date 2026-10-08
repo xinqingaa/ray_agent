@@ -559,7 +559,7 @@ export function SessionDetailView({
 
           {mode === 'conversation' ? (
             <div ref={scrollRef} onScroll={onScroll} className="min-h-0 flex-1 overflow-y-auto">
-              <div className="mx-auto flex w-full max-w-3xl flex-col gap-3 px-4 py-3">
+              <div className="mx-auto flex w-full max-w-(--reading-column) flex-col gap-3 px-4 py-3">
                 {shownTimeline.length === 0 && !showOptimistic && (
                   <p className="py-8 text-center text-meta text-faint">
                     这里会显示你的消息、工具操作和最终回复。在下方输入任务后开始。
@@ -594,12 +594,12 @@ export function SessionDetailView({
             </div>
           ) : (
             <div className="min-h-0 flex-1 overflow-y-auto">
-              <DeveloperView view={view} loadTurnRequest={loadTurnRequest} className="mx-auto w-full max-w-4xl"/>
+              <DeveloperView view={view} loadTurnRequest={loadTurnRequest} className="mx-auto w-full max-w-(--reading-column)"/>
             </div>
           )}
 
           <div className="shrink-0 border-t bg-background px-3 py-3">
-            <div className="mx-auto w-full max-w-3xl">
+            <div className="mx-auto w-full max-w-(--reading-column)">
               {mode === 'conversation' && (
                 <PlanBar plan={view.plan} runStatus={view.status === 'idle' ? null : view.status} className="mb-2"/>
               )}

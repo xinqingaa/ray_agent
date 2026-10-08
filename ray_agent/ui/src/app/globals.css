@@ -9,8 +9,16 @@
     --font-sans: "IBM Plex Sans Variable", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", "Source Han Sans SC", system-ui, sans-serif;
     --font-mono: "IBM Plex Mono", ui-monospace, "SF Mono", Menlo, Consolas, "PingFang SC", monospace;
 
-    --text-meta: 0.8125rem;
-    --text-meta--line-height: 1.25rem;
+    /* 字号随 --font-scale 变化；间距与图标仍用未缩放的 rem */
+    --text-xs: calc(0.75rem * var(--font-scale));
+    --text-sm: calc(0.875rem * var(--font-scale));
+    --text-base: calc(1rem * var(--font-scale));
+    --text-lg: calc(1.125rem * var(--font-scale));
+    --text-xl: calc(1.25rem * var(--font-scale));
+    --text-2xl: calc(1.5rem * var(--font-scale));
+
+    --text-meta: calc(0.8125rem * var(--font-scale));
+    --text-meta--line-height: calc(1.25rem * var(--font-scale));
 
     --radius-sm: calc(var(--radius) - 4px);
     --radius-md: calc(var(--radius) - 2px);
@@ -81,7 +89,11 @@
  * 钴蓝 signal 是唯一强调色，只用于“正在运行”、焦点、当前项与链接。
  */
 :root {
+    /* 1 对应 14px 阅读字号；设置里的选择会在元素上覆盖这个值 */
+    --font-scale: 1;
     --radius: 0.5rem;
+    /* 对话时间线、输入框和开发者视图共用这一条上限 */
+    --reading-column: 64rem;
 
     --background: #fafbfc;
     --foreground: #14181d;
@@ -218,7 +230,7 @@
 
     body {
         @apply bg-background text-foreground font-sans antialiased;
-        font-size: 14px;
+        font-size: calc(14px * var(--font-scale));
         font-weight: 500;
         line-height: 1.6;
     }

@@ -67,7 +67,7 @@ export function SessionList() {
   // 加载态：骨架屏
   if (loading) {
     return (
-      <ItemGroup className="gap-1">
+      <ItemGroup className="gap-2">
         {Array.from({length: 3}).map((_, i) => (
           <div
             key={i}
@@ -111,7 +111,7 @@ export function SessionList() {
 
   return (
     <>
-      <ItemGroup className="gap-1">
+      <ItemGroup className="gap-2">
         {sessions.map((session) => (
           <SessionItem
             key={session.session_id}

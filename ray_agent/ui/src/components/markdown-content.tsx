@@ -27,7 +27,7 @@ function normalizeAutolinks(text: string): string {
 
 const headingClasses: Record<string, string> = {
   h1: 'text-base font-semibold mt-4 mb-2 first:mt-0',
-  h2: 'text-[15px] font-semibold mt-3.5 mb-1.5 first:mt-0',
+  h2: 'text-base font-semibold mt-3.5 mb-1.5 first:mt-0',
   h3: 'text-sm font-semibold mt-3 mb-1 first:mt-0',
   h4: 'text-sm font-medium mt-2 mb-1 first:mt-0',
   h5: 'text-sm font-medium mt-1.5 mb-0.5 first:mt-0 text-muted-foreground',
@@ -75,7 +75,7 @@ const components: React.ComponentProps<typeof ReactMarkdown>['components'] = {
       <code
         className={cn(
           isBlock
-            ? 'block text-[13px] leading-6 font-mono'
+            ? 'block text-meta leading-relaxed font-mono'
             : 'inline px-1 py-px rounded-sm bg-muted text-[0.8125em] font-mono',
           className
         )}

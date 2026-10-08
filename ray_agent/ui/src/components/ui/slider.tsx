@@ -3,6 +3,9 @@
 import {useId, useRef, useState} from 'react'
 import {cn} from '@/lib/utils'
 
+/** 圆点中心离轨道两端的距离。小于它时，圆角会把两端的圆点切成半圆。 */
+const STOP_INSET = 10
+
 /** 离散档位滑块。刻度不可聚焦，滑块是唯一 tab stop。 */
 export function DiscreteSlider({options, value, disabled = false, label = '思考强度', onChange}: {
   options: {id: string}[]
@@ -17,7 +20,10 @@ export function DiscreteSlider({options, value, disabled = false, label = '思�
   const descId = useId()
   const index = Math.max(0, options.findIndex(option => option.id === value))
   const max = Math.max(0, options.length - 1)
-  const pct = max === 0 ? 0 : (index / max) * 100
+  function stopLeft(i: number) {
+    if (max === 0) return '50%'
+    return `calc(${STOP_INSET}px + (100% - ${STOP_INSET * 2}px) * ${i / max})`
+  }
   function move(next: number) {
     const id = options[Math.min(max, Math.max(0, next))]?.id
     if (id) onChange(id)
@@ -26,8 +32,9 @@ export function DiscreteSlider({options, value, disabled = false, label = '思�
     const el = trackRef.current
     if (!el) return 0
     const rect = el.getBoundingClientRect()
-    if (rect.width <= 0 || max === 0) return 0
-    const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width))
+    const inner = rect.width - STOP_INSET * 2
+    if (inner <= 0 || max === 0) return 0
+    const ratio = Math.min(1, Math.max(0, (clientX - rect.left - STOP_INSET) / inner))
     return Math.round(ratio * max)
   }
   const motion = dragging ? 'transition-none' : 'transition-[left,width] duration-200 ease-out motion-reduce:transition-none'
@@ -67,15 +74,18 @@ export function DiscreteSlider({options, value, disabled = false, label = '思�
       }}
       onPointerUp={() => {drag.current = null; setDragging(false)}}
       onPointerCancel={() => {drag.current = null; setDragging(false)}}
-      className={cn('relative flex h-6 touch-none items-center px-[7px] outline-none focus-visible:ring-2 focus-visible:ring-ring', disabled ? 'cursor-default opacity-40' : 'cursor-pointer')}
+      className={cn('relative h-8 touch-none outline-none focus-visible:ring-2 focus-visible:ring-ring', disabled ? 'cursor-default opacity-40' : 'cursor-pointer')}
     >
-      <div ref={trackRef} className="relative h-full w-full">
-        <span className="absolute inset-x-0 top-1/2 h-0.5 -translate-y-1/2 rounded-full bg-border"/>
-        <span className={cn('absolute left-0 top-1/2 h-0.5 -translate-y-1/2 rounded-full bg-signal', motion)} style={{width: `${pct}%`}}/>
-        <span className={cn('absolute top-1/2 size-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-background bg-signal', motion)} style={{left: `${pct}%`}}/>
+      <div ref={trackRef} className="absolute inset-x-3 top-1/2 h-3 -translate-y-1/2">
+        <span className="absolute inset-0 rounded-full bg-muted"/>
+        <span className={cn('absolute inset-y-0 left-0 rounded-full bg-signal', motion)} style={{width: stopLeft(index)}}/>
+        {options.map((option, i) => (
+          <span key={option.id} aria-hidden className={cn('absolute top-1/2 size-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full', !disabled && i < index ? 'bg-white' : 'bg-muted-foreground/45')} style={{left: stopLeft(i)}}/>
+        ))}
+        <span aria-hidden className={cn('absolute top-1/2 z-10 size-5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-white shadow-sm ring-1 ring-foreground/15', motion)} style={{left: stopLeft(index)}}/>
       </div>
     </div>
-    <div aria-hidden className="flex justify-between gap-1 px-[7px]">{options.map(option => <span key={option.id} className={cn('min-h-8 px-1 text-xs leading-8', !disabled && value === option.id ? 'font-semibold text-signal' : 'text-muted-foreground')}>{option.id}</span>)}</div>
+    <div aria-hidden className="px-3"><div className="flex justify-between gap-1" style={{paddingInline: STOP_INSET}}>{options.map(option => <span key={option.id} className={cn('min-h-8 text-xs leading-8', !disabled && value === option.id ? 'font-semibold text-signal' : 'text-muted-foreground')}>{option.id}</span>)}</div></div>
     <p id={descId} className="sr-only">档位 {scale}</p>
   </div>
 }

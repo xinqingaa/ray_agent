@@ -30,8 +30,19 @@ function occupancyValue(ctx: NonNullable<UsageView['context']>): string {
   return `${percent} · ${formatTokens(ctx.usedTokens)} / ${formatTokens(ctx.windowTokens)}`
 }
 
+function contextMarks(ctx: UsageView['context']): {used: string | null; threshold: string | null} {
+  if (!ctx) return {used: null, threshold: null}
+  const compact = ctx.source === 'compact_estimate' || ctx.postCompactEstimate === true
+  const changed = ctx.configChanged === true
+  return {used: compact ? '估算' : changed ? '上次请求' : null, threshold: changed ? '上次请求' : null}
+}
+
+function marked(name: string, mark: string | null): string {
+  return mark ? `${name} · ${mark}` : name
+}
+
 function occupancyLine(ctx: NonNullable<UsageView['context']>): string {
-  return `已用 ${occupancyValue(ctx)}`
+  return `${marked('已用', contextMarks(ctx).used)} ${occupancyValue(ctx)}`
 }
 
 function thresholdText(usage: UsageView): string {
@@ -56,8 +67,8 @@ function usageRows(tokens: TokenCounts): {label: string; value: string}[] {
 function MetricRows({rows}: {rows: {label: string; value: string}[]}) {
   return rows.map((row) => (
     <div key={row.label} className="contents">
-      <dt className="text-muted-foreground">{row.label}</dt>
-      <dd className="text-right text-foreground">{row.value}</dd>
+      <dt className="whitespace-nowrap text-muted-foreground">{row.label}</dt>
+      <dd className="whitespace-nowrap text-right text-foreground">{row.value}</dd>
     </div>
   ))
 }
@@ -65,16 +76,16 @@ function MetricRows({rows}: {rows: {label: string; value: string}[]}) {
 function ContextPanel({usage}: {usage: UsageView}) {
   const ctx = usage.context
   const ready = ctx != null && ctx.windowTokens > 0
+  const marks = contextMarks(ctx)
   const occupancy = ready && ctx ? [
-    {label: '已用', value: occupancyValue(ctx)},
+    {label: marked('已用', marks.used), value: occupancyValue(ctx)},
     {label: '最近一轮', value: formatTokens(ctx.lastTurnTokens)},
-    {label: '压缩阈值', value: thresholdText(usage)},
+    {label: marked('压缩阈值', marks.threshold), value: thresholdText(usage)},
   ] : []
   const totals = hasTokenUsage(usage.session) ? usageRows(usage.session) : []
   return (
     <div className="space-y-2">
-      <p className="text-meta font-medium">最近请求 / 压缩快照</p>
-      {ctx?.configChanged && <p className="text-xs text-state-waiting">这是上次运行的快照。</p>}
+      <p className="text-sm font-semibold">上下文窗口</p>
       {occupancy.length === 0 && <p className="text-meta text-muted-foreground">暂无占用</p>}
       {(occupancy.length > 0 || totals.length > 0) && (
         <dl className="grid grid-cols-[max-content_minmax(0,1fr)] items-baseline gap-x-6 gap-y-1.5 text-meta tabular-nums">
@@ -138,7 +149,7 @@ export function ContextRing({usage, className}: {usage: UsageView; className?: s
         </TooltipTrigger>
         <TooltipContent side="top" className="text-left">{glance}</TooltipContent>
       </Tooltip>
-      <PopoverContent side="top" align="end" className="w-72 max-w-[calc(100vw-2rem)]">
+      <PopoverContent side="top" align="end" className="w-max min-w-72 max-w-[calc(100vw-2rem)]">
         <ContextPanel usage={usage}/>
       </PopoverContent>
     </Popover>

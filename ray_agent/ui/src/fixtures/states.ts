@@ -367,7 +367,7 @@ export const deliveryStates = {
 
 // ==================== 上下文环 ====================
 
-export const usageStates: Record<'none' | 'normal' | 'near' | 'compacted' | 'postCompactEstimate', UsageView> = {
+export const usageStates: Record<'none' | 'normal' | 'near' | 'compacted' | 'postCompactEstimate' | 'configChanged', UsageView> = {
   none: {session: {prompt: null, completion: null, total: null}, context: null, watermarkRatio: 0.75, compactions: 0},
   /** 真实：E2 最后一次请求 */
   normal: e2Delivery.usage,
@@ -381,10 +381,22 @@ export const usageStates: Record<'none' | 'normal' | 'near' | 'compacted' | 'pos
       usedTokens: 8_200,
       windowTokens: 65_536,
       lastTurnTokens: 11_980,
+      source: 'compact_estimate',
       postCompactEstimate: true,
     },
     lastCompaction: {seq: 120, trigger: 'manual', beforeTotal: 15_226, afterTotal: 8_200},
     compactions: 2,
+  },
+  /** 合成：占用仍是上次请求，当前模型预算已经不同 */
+  configChanged: {
+    ...e2Delivery.usage,
+    context: {
+      usedTokens: 6_365,
+      windowTokens: 65_536,
+      lastTurnTokens: 6_469,
+      source: 'prompt_usage',
+      configChanged: true,
+    },
   },
 }
 

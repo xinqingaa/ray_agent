@@ -1,8 +1,17 @@
 'use client'
 
+import {useEffect, useState} from 'react'
 import {useTheme} from 'next-themes'
 import {Monitor, Moon, Sun} from 'lucide-react'
 import {useMounted} from '@/hooks/use-mounted'
+import {Select} from '@/components/ui/select'
+import {
+  FONT_SIZE_DEFAULT,
+  acceptedFontSize,
+  applyFontSize,
+  fontSizeOptions,
+  readFontSize,
+} from '@/lib/font-size'
 import {cn} from '@/lib/utils'
 import {SectionHeader} from './form'
 
@@ -15,10 +24,20 @@ const THEMES = [
 export function AppearanceSection() {
   const {theme, setTheme} = useTheme()
   const mounted = useMounted()
+  const [size, setSize] = useState(FONT_SIZE_DEFAULT)
+
+  useEffect(() => {
+    setSize(readFontSize())
+  }, [])
+
+  const commit = (next: number) => {
+    applyFontSize(next)
+    setSize(next)
+  }
 
   return (
     <section aria-labelledby="settings-appearance-title">
-      <SectionHeader id="settings-appearance-title" title="外观" description="选择界面主题。设置保存在当前浏览器中，切换后立即生效。"/>
+      <SectionHeader id="settings-appearance-title" title="外观" description="主题和文字大小保存在当前浏览器中，切换后立即生效。"/>
       <div role="group" aria-label="界面主题" className="grid gap-2 sm:grid-cols-3">
         {THEMES.map(({value, label, icon: Icon}) => (
           <button key={value} type="button" disabled={!mounted} aria-pressed={mounted && theme === value}
@@ -31,6 +50,26 @@ export function AppearanceSection() {
             {label}
           </button>
         ))}
+      </div>
+
+      <div className="mt-6 flex items-center justify-between gap-8 border-t py-4">
+        <div className="min-w-0">
+          <label htmlFor="settings-font-size" className="text-sm font-medium">字体</label>
+          <p id="settings-font-hint" className="mt-0.5 text-xs leading-5 text-muted-foreground">调整字体大小</p>
+        </div>
+        <Select
+          id="settings-font-size"
+          describedBy="settings-font-hint"
+          className="mt-0 w-40 shrink-0"
+          label="字体"
+          value={String(size)}
+          options={fontSizeOptions(size)}
+          disabled={!mounted}
+          onChange={(id) => {
+            const next = acceptedFontSize(Number(id))
+            if (next != null) commit(next)
+          }}
+        />
       </div>
     </section>
   )

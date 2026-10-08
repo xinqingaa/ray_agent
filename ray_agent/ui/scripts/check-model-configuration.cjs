@@ -31,7 +31,11 @@ async function main(){
  const calls=[];sessionApi.setModel=async(id,next)=>{calls.push(next);return next};
  const {ModelPicker}=load('components/model-picker.tsx');let r;
  await act(async()=>{r=create(React.createElement(ModelPicker,{sessionId:'s',savedModel:'a',savedReasoning:'high',onSelection(){}}))});
- await act(async()=>r.root.findAllByProps({'data-component':'Popover'})[0].props.onOpenChange(true));
+ const popover=()=>r.root.findAllByProps({'data-component':'Popover'})[0];
+ await act(async()=>popover().props.onOpenChange(true));
+ await act(async()=>popover().props.onOpenChange(false));
+ assert.equal(calls.length,0);assert.equal(popover().props.open,false);
+ await act(async()=>popover().props.onOpenChange(true));
  await act(async()=>r.root.findAllByProps({role:'radio'}).find(n=>n.props.children[0]==='b').props.onClick());
  assert.ok(JSON.stringify(r.toJSON()).includes('已改用默认 medium'));
  assert.ok(!JSON.stringify(r.toJSON()).includes('下一次新运行估算'));
@@ -40,17 +44,19 @@ async function main(){
  await act(async()=>slider().props.onKeyDown({key:'End',preventDefault(){}}));
  assert.equal(slider().props['aria-valuetext'],'ultra');assert.equal(calls.length,0);
  await act(async()=>r.root.findAllByProps({'data-component':'Switch'})[0].props.onCheckedChange(false));
- await act(async()=>r.root.findAllByType('button').find(n=>n.props.children==='应用').props.onClick());
- assert.deepEqual(calls,[{model:'b',reasoning:'none'}]);assert.equal(slider().props['aria-disabled'],true);
+ assert.equal(r.root.findAllByType('button').filter(n=>n.props.children==='应用'||n.props.children==='取消'||n.props.children==='关闭').length,0);
+ await act(async()=>popover().props.onOpenChange(false));
+ assert.deepEqual(calls,[{model:'b',reasoning:'none'}]);assert.equal(popover().props.open,false);assert.equal(slider().props['aria-disabled'],true);
  sessionApi.setModel=async()=>{throw Error('rejected effort')};
+ await act(async()=>popover().props.onOpenChange(true));
  await act(async()=>r.root.findAllByProps({'data-component':'Switch'})[0].props.onCheckedChange(true));
- await act(async()=>r.root.findAllByType('button').find(n=>n.props.children==='应用').props.onClick());
- assert.ok(JSON.stringify(r.toJSON()).includes('rejected effort'));await act(async()=>r.unmount());
+ await act(async()=>popover().props.onOpenChange(false));
+ assert.equal(popover().props.open,true);assert.ok(JSON.stringify(r.toJSON()).includes('rejected effort'));await act(async()=>r.unmount());
  const {useConfigForm}=load('components/settings/form.tsx');let form,saved;const base={a:'old A',b:'old B'};
  function Form(){form=useConfigForm({name:'fixture',load:async()=>base,toValues:x=>({...x}),fromValues:x=>({...x}),validate:x=>x.b==='invalid'?{b:'bad'}:{},save:async(next,fields)=>{saved={fields};return {...base,a:next.a}}});return null;}
  await act(async()=>{r=create(React.createElement(Form))});await act(async()=>{form.setValue('a','new A');form.setValue('b','invalid')});
  await act(async()=>form.save(['a']));assert.deepEqual(saved.fields,['a']);assert.equal(form.values.b,'invalid');assert.ok(form.dirty);
  await act(async()=>form.reset(['b']));assert.equal(form.values.a,'new A');assert.equal(form.values.b,'old B');assert.ok(!form.dirty);
- await act(async()=>r.unmount());console.log('PASS: vendor-defined levels and closing id, semantic fallback, draft-only slider, one apply, rejection, scoped save preserves hidden draft');
+ await act(async()=>r.unmount());console.log('PASS: vendor-defined levels and closing id, semantic fallback, draft-only slider, commit on close, rejection keeps menu, scoped save preserves hidden draft');
 }
 main().catch(e=>{console.error(e);process.exitCode=1});

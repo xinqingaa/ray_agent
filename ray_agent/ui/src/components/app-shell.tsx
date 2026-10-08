@@ -24,7 +24,7 @@ export function AppShell({children}: {children: React.ReactNode}) {
     <ProjectsProvider><SessionsProvider>
       <SidebarProvider
         style={{
-          '--sidebar-width': '288px',
+          '--sidebar-width': '22.5rem',
           '--sidebar-width-icon': '3rem',
         } as React.CSSProperties}
       >

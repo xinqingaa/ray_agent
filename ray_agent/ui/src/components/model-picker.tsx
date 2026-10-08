@@ -5,7 +5,6 @@ import {configApi} from '@/lib/api/config'
 import {sessionApi} from '@/lib/api/session'
 import type {ModelCatalog} from '@/lib/api/types'
 import {Popover, PopoverContent, PopoverTrigger} from '@/components/ui/popover'
-import {Button} from '@/components/ui/button'
 import {Switch} from '@/components/ui/switch'
 import {DiscreteSlider} from '@/components/ui/slider'
 import {Select} from '@/components/ui/select'
@@ -78,28 +77,28 @@ export function ModelPicker({sessionId, savedModel, savedReasoning, runModel, ru
     else if (options.some(option => option.id === edit.reasoning)) lastEffort.current[model.id] = edit.reasoning
     setDraft({...edit, reasoning}); setError(null)
   }
-  async function apply() {
-    if (saving) return
+  async function commitClose() {
+    if (!changed) {setDraft(null); setNotice(null); setError(null); setOpen(false); return}
     const id = ++request.current
     setSaving(true); setError(null)
     try {
       const result = sessionId ? await sessionApi.setModel(sessionId, edit) : edit
       if (id !== request.current) return
-      setPicked(result); setDraft(result); setNotice(null)
+      setPicked(result); setDraft(null); setNotice(null); setOpen(false)
     } catch (e) {if (id === request.current) setError(e instanceof Error ? e.message : '模型没有切换')}
     finally {if (id === request.current) setSaving(false)}
   }
   const effort = shownEffort()
   return <Popover open={open} onOpenChange={value => {
     if (saving) return
-    setOpen(value)
-    if (value) {setDraft(selection); setError(null); setNotice(null)}
+    if (value) {setOpen(true); setDraft(selection); setError(null); setNotice(null); return}
+    return commitClose()
   }}>
     <PopoverTrigger asChild><button type="button" aria-label={`模型与思考：${selection.model}，${selection.reasoning}`}
       className="inline-flex h-8 max-w-[14rem] items-center gap-1 rounded-md px-2 text-xs text-muted-foreground outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring">
       <span className="truncate font-mono" title={selection.model}>{selection.model}</span><span>{selection.reasoning}</span><ChevronDown className="size-3 shrink-0"/>
     </button></PopoverTrigger>
-    <PopoverContent side="top" align="end" className="w-80 max-w-[calc(100vw-2rem)] p-3" onEscapeKeyDown={e => {if (saving) e.preventDefault()}}>
+    <PopoverContent side="top" align="end" className="w-80 max-w-[calc(100vw-2rem)] p-3" onEscapeKeyDown={e => {if (saving) e.preventDefault()}} onInteractOutside={e => {if (saving) e.preventDefault()}}>
       <p className="mb-2 text-meta font-medium">模型</p>
       <div role="radiogroup" aria-label="模型">{catalog.models.map(item => <button key={item.id} role="radio" aria-checked={edit.model === item.id} type="button" disabled={saving} title={item.id}
         onClick={() => {const next = selectModel(edit, model, item); setDraft(next); setError(null); setNotice(next.reasoning !== edit.reasoning ? `已改用默认 ${next.reasoning}` : null)}}
@@ -108,7 +107,7 @@ export function ModelPicker({sessionId, savedModel, savedReasoning, runModel, ru
       </button>)}</div>
       {notice && <p className="mt-2 text-xs text-muted-foreground" role="status">{notice}</p>}
       {model.reasoning_options.length > 0 && <div className="mt-3 border-t pt-3">
-        <div className="flex items-center justify-between"><label htmlFor="model-thinking" className="text-meta font-medium">思考{enabled ? ` · ${edit.reasoning}` : '已关闭'}</label>
+        <div className="flex items-center justify-between"><label htmlFor="model-thinking" className="text-meta font-medium">思考强度 {enabled ? ` · ${edit.reasoning}` : '已关闭'}</label>
           {off && options.length > 0 && <Switch id="model-thinking" checked={enabled} disabled={saving} onCheckedChange={value => changeReasoning(value ? lastEffort.current[model.id] || (options.some(o => o.id === model.default_choice) ? model.default_choice : options[0].id) : off.id)}/>}
         </div>
         {options.length > 1 && model.reasoning_ordered
@@ -118,9 +117,8 @@ export function ModelPicker({sessionId, savedModel, savedReasoning, runModel, ru
             : null}
       </div>}
       {runModel && <p className="mt-2 text-xs text-muted-foreground">本次运行 {runModel}{runReasoning ? ` · ${runReasoning}` : ''}</p>}
+      {saving && <p className="mt-2 text-xs text-muted-foreground" role="status">正在保存</p>}
       {error && <p role="alert" className="mt-2 text-xs text-state-failed">{error}</p>}
-      <div className="mt-3 flex justify-end gap-2"><Button type="button" variant="ghost" size="sm" disabled={saving} onClick={() => {setDraft(null); setOpen(false)}}>{changed ? '取消' : '关闭'}</Button>
-        <Button type="button" size="sm" disabled={!changed || saving} onClick={() => void apply()}>{saving ? '正在应用' : '应用'}</Button></div>
     </PopoverContent>
   </Popover>
 }

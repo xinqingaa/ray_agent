@@ -51,7 +51,7 @@ export default function Page() {
 
   return (
     <main className="flex h-full min-h-0 items-center justify-center overflow-y-auto px-4 py-8 sm:px-6">
-      <div className="w-full max-w-2xl space-y-8">
+      <div className="w-full max-w-(--reading-column) space-y-8">
         <div className="space-y-6 text-center">
           <div className="flex items-center justify-center gap-3">
             <BrandMark className="size-8"/>

@@ -103,10 +103,10 @@ export function ProjectNavigation(props: Props) {
     onDelete={props.onSessionDelete} onRename={props.onSessionRename} waitKind={waitKind}/>
   return (
     <nav aria-label="项目与对话" className="flex h-full min-h-0 flex-col">
-      <div role="tablist" aria-label="导航模式" className="mb-3 flex h-8 shrink-0 rounded-full bg-muted p-0.5">
+      <div role="tablist" aria-label="导航模式" className="mb-3 flex min-h-8 shrink-0 rounded-full bg-muted p-0.5">
         {(['conversations', 'projects'] as const).map(value => <button key={value} type="button" role="tab" id={`nav-${value}`} aria-controls="navigation-list" aria-selected={tab === value} tabIndex={tab === value ? 0 : -1}
           onClick={() => switchTab(value)} onKeyDown={event => {if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) {event.preventDefault(); const next = event.key === 'Home' ? 'conversations' : event.key === 'End' ? 'projects' : tab === 'projects' ? 'conversations' : 'projects'; switchTab(next); document.getElementById(`nav-${next}`)?.focus()}}}
-          className={cn('flex-1 rounded-full text-[13px] outline-none focus-visible:ring-2 focus-visible:ring-ring', tab === value ? 'bg-card font-medium text-foreground shadow-sm' : 'font-normal text-muted-foreground')}>{value === 'conversations' ? '对话' : '项目'}</button>)}
+          className={cn('flex-1 rounded-full text-meta outline-none focus-visible:ring-2 focus-visible:ring-ring', tab === value ? 'bg-card font-medium text-foreground shadow-sm' : 'font-normal text-muted-foreground')}>{value === 'conversations' ? '对话' : '项目'}</button>)}
       </div>
       <div ref={scroll} id="navigation-list" role="tabpanel" aria-labelledby={`nav-${tab}`} className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
         <div hidden={tab !== 'projects'} className="flex flex-col gap-1">
@@ -131,8 +131,8 @@ export function ProjectNavigation(props: Props) {
               props.onNewConversation?.(project.id)
             }
             return <div key={project.id}>
-              <div className="group/project relative flex h-8 items-center">
-                <button type="button" aria-expanded={expandable ? open : undefined} aria-current={selected && !selectedSession ? 'page' : undefined} onClick={toggleProject} className="flex h-8 min-w-0 flex-1 items-center gap-2 rounded-md px-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring">
+              <div className="group/project relative flex min-h-8 items-center">
+                <button type="button" aria-expanded={expandable ? open : undefined} aria-current={selected && !selectedSession ? 'page' : undefined} onClick={toggleProject} className="flex min-h-8 min-w-0 flex-1 items-center gap-2 rounded-md px-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring">
                   <Folder className={cn('size-4 shrink-0', selected ? 'text-foreground' : 'text-muted-foreground')}/>
                   <RunStatus
                     place="project"
@@ -171,14 +171,14 @@ export function ProjectNavigation(props: Props) {
                   ))}
                 </div>
               </div>
-              {open && (project.conversations.length > 0 || project.navigationError) && <div className="ml-6 flex flex-col gap-1 py-1">
+              {open && (project.conversations.length > 0 || project.navigationError) && <div className="ml-6 flex flex-col gap-2 py-1">
                 {project.conversations.map(session => sessionRow(session, project.active_run_status === 'waiting' && project.occupying_session_id === session.session_id ? project.active_run_reason === 'approval' ? 'approval' : 'reply' : undefined))}
                 {project.navigationError && <p role="alert" className="px-2 py-1 text-xs text-state-failed">{project.navigationError}</p>}
               </div>}
             </div>})}
           {props.onMoreProjects && <Button size="sm" variant="ghost" className="mt-1" onClick={props.onMoreProjects}>更多项目</Button>}
         </div>
-        <div hidden={tab !== 'conversations'} className="flex flex-col gap-1">
+        <div hidden={tab !== 'conversations'} className="flex flex-col gap-2">
           {conversations.map(session => sessionRow(session))}
         </div>
       </div>

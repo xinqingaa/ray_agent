@@ -129,12 +129,12 @@ export function ProjectWorkspace({projectId}: {projectId: string}) {
         <Button size="icon-sm" variant="ghost" title="项目设置" aria-label="项目设置" onClick={() => setSettings(true)}><Settings/></Button>
         <Button size="icon-sm" variant="ghost" title="关闭项目" aria-label="关闭项目" onClick={() => router.push('/')}><X/></Button>
       </header>
-      <div className="mx-auto w-full max-w-3xl space-y-5 p-4 sm:p-6">
+      <div className="mx-auto w-full max-w-(--reading-column) space-y-5 p-4 sm:p-6">
         {error && <p role="alert" className="text-meta text-state-failed">{error}<Button size="sm" variant="ghost" onClick={() => void refresh()}>重试</Button></p>}
         {(!project.available || project.archived) && <div className="border-l-2 border-state-waiting pl-3 text-meta"><p>{project.archived ? '项目已归档，历史对话仍可查看。' : project.reason ?? '项目目录不可用'}</p><Button size="sm" variant="ghost" onClick={() => void archive()}>{project.archived ? '恢复项目' : '归档项目'}</Button>{!project.available && <Button size="sm" variant="ghost" onClick={registry?.openProject}>打开其他项目</Button>}</div>}
         <ProjectStateNotice project={project} onChanged={() => {void refresh(); void registry?.refresh()}}/>
         <div><div className="mb-2 flex items-center justify-between"><h2 className="text-xs font-medium text-muted-foreground">{all ? '项目对话' : '最近对话'}</h2>{!all && total > 5 && <Button size="sm" variant="ghost" onClick={() => {setAll(true); visibleCount.current = 50; void refreshList()}}>查看全部（{total}）</Button>}</div>
-          {listError ? <p role="alert" className="text-meta text-state-failed">{listError}<Button variant="ghost" size="sm" onClick={() => void refreshList()}>重试</Button></p> : <div className="flex flex-col gap-1">{sessions.map(session => <SessionItem key={session.session_id} session={session} href={`/sessions/${session.session_id}`} isActive={false} onDelete={setRemove} onRename={setRename}/>)}</div>}
+          {listError ? <p role="alert" className="text-meta text-state-failed">{listError}<Button variant="ghost" size="sm" onClick={() => void refreshList()}>重试</Button></p> : <div className="flex flex-col gap-2">{sessions.map(session => <SessionItem key={session.session_id} session={session} href={`/sessions/${session.session_id}`} isActive={false} onDelete={setRemove} onRename={setRename}/>)}</div>}
           {all && sessions.length < total && <Button variant="ghost" size="sm" onClick={() => {visibleCount.current += 50; void refreshList()}}>加载更多</Button>}
         </div>
         <ChatInput draftScope={scope} selectedProject={project} onSend={send} disabled={sending || !project.available || project.archived || !!project.file_operation || !!project.occupying_session_id} placeholder={`在 ${project.name} 中开始新对话`} commandHost={{hasSession: false, hasRuns: false, runStatus: 'idle', waitingApproval: false, waitingReply: false, submitting: sending, compacting: false, actions: {compact: () => toast.message('还没有可压缩的上下文')}}}/>

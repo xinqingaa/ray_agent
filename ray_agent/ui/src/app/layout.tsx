@@ -3,6 +3,7 @@ import type {Metadata} from 'next'
 import {ThemeProvider} from 'next-themes'
 import {Toaster} from '@/components/ui/sonner'
 import {AppShell} from '@/components/app-shell'
+import {FONT_SIZE_BOOT_SCRIPT} from '@/lib/font-size'
 import '@fontsource-variable/ibm-plex-sans/wght.css'
 import '@fontsource/ibm-plex-mono/400.css'
 import '@fontsource/ibm-plex-mono/500.css'
@@ -25,6 +26,9 @@ export default function RootLayout(
 ) {
   return (
     <html lang="zh-CN" suppressHydrationWarning>
+    <head>
+      <script dangerouslySetInnerHTML={{__html: FONT_SIZE_BOOT_SCRIPT}}/>
+    </head>
     <body className="h-screen overflow-hidden">
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
       <AppShell>
