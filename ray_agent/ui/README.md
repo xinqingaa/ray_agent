@@ -1,6 +1,6 @@
 # RayAgent UI 开发指南
 
-前端使用 Next.js、React、TypeScript、Tailwind CSS、Radix UI 和 noVNC。它消费 API 数据与事件，展示会话、计划、工具结果和沙箱画面。项目导航、打开项目、输入命令和上下文环的当前交互不在本指南维护，见[总计划](../../docs/plan/README.md)指向的 W5 修订与 W9、W10、W11。侧栏和导入审核以 W5 修订为准。
+前端使用 Next.js、React、TypeScript、Tailwind CSS 和 Radix UI。它消费 API 数据与事件，展示会话、计划、工具结果和浏览器截图。工作台远程桌面入口与前端弹层已移除。项目导航、打开项目、输入命令和上下文环的当前交互不在本指南维护，见[总计划](../../docs/plan/README.md)指向的 W5 修订与 W9、W10、W11。侧栏和导入审核以 W5 修订为准。
 
 整体数据流见 [架构说明](../../docs/architecture.md)，完整应用部署见 [运行指南](../README.md)。以下命令在 `ray_agent/ui/` 执行，依据项目配置核对，尚未完成运行验证。
 

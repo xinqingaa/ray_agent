@@ -85,7 +85,6 @@ export function processSummary(block: ProcessBlock): string {
   const clipped = line.length > 42 ? `${line.slice(0, 42)}…` : line
   const verbs = [...new Set(calls.map(call => call.verb).filter(Boolean))].slice(0, 3)
   const parts = [
-    block.turnIndex != null ? `第 ${block.turnIndex} 轮` : '过程',
     calls.length > 0 ? `${calls.length} 个工具` : '',
     verbs.join('、'),
     clipped,

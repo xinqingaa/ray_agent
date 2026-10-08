@@ -3,7 +3,7 @@
 import {useCallback, useEffect, useRef, useState} from 'react'
 import {useRouter} from 'next/navigation'
 import Link from 'next/link'
-import {Files, Folder, PanelRightClose, Settings, X} from 'lucide-react'
+import {Files, Folder, PanelRight, Settings, X} from 'lucide-react'
 import {MemoryIcon} from '@/components/nav-icons'
 import {toast} from 'sonner'
 import {Button} from '@/components/ui/button'
@@ -117,7 +117,7 @@ export function ProjectWorkspace({projectId}: {projectId: string}) {
   if (!project) return <div className="p-6"><p role="alert" className="text-state-failed">{error ?? '项目不存在'}</p><Button variant="ghost" onClick={() => void refresh()}>重试</Button><Button variant="ghost" onClick={() => router.push('/')}>返回首页</Button></div>
 
   const contents = <div className="flex h-full min-h-0 flex-col">
-    <div className="flex items-center gap-2 border-b p-2"><span className="px-2 text-sm font-medium">项目文件</span><Button size="icon-sm" variant="ghost" className="ml-auto" aria-label="关闭工作台" onClick={() => setPanel(null)}><PanelRightClose/></Button></div>
+    <div className="flex items-center gap-2 border-b p-2"><span className="px-2 text-sm font-medium">项目文件</span><Button size="icon-sm" variant="ghost" className="ml-auto text-muted-foreground" aria-label="关闭工作台" title="关闭工作台" onClick={() => setPanel(null)}><PanelRight className="size-4"/></Button></div>
     <ManagedProjectPane key={projectId} projectId={projectId}/>
   </div>
   return <div className="flex h-full min-w-0">

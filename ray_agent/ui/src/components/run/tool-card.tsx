@@ -49,7 +49,7 @@ function ClampedText({text, limit, className}: {text: string; limit: number; cla
   return (
     <div className="min-w-0">
       <pre className={cn('whitespace-pre-wrap break-all font-mono text-xs leading-5', className)}>
-        {long && !full ? `${text.slice(0, limit)}…` : text}
+        {(long && !full ? `${text.slice(0, limit)}…` : text).split(/(https?:\/\/[^\s"'<>\\]+)/g).map((part, index) => /^https?:\/\//.test(part) ? <a key={index} href={part.replace(/[),.;，。]+$/, '')} target="_blank" rel="noopener noreferrer" onClick={event => event.stopPropagation()} className="text-signal underline underline-offset-4">{part}</a> : part)}
       </pre>
       {long && (
         <button
@@ -91,7 +91,7 @@ function ToolDetail({call, onOpen}: {call: ToolCallView; onOpen?: (callId: strin
             {args.map(([key, value]) => (
               <div key={key} className="grid grid-cols-[minmax(4.5rem,auto)_1fr] gap-x-3">
                 <dt className="font-mono text-xs leading-5 text-muted-foreground">{key}</dt>
-                <dd className="min-w-0"><ClampedText text={stringify(value)} limit={ARG_CLAMP}/></dd>
+                <dd className="min-w-0">{typeof value === 'string' && /^https?:\/\//.test(value) ? <a href={value} target="_blank" rel="noopener noreferrer" onClick={event => event.stopPropagation()} className="break-all text-signal underline underline-offset-4">{value}</a> : <ClampedText text={stringify(value)} limit={ARG_CLAMP}/>}</dd>
               </div>
             ))}
           </dl>
@@ -198,6 +198,7 @@ export function ToolCard({call, selected, onOpen, defaultExpanded = false, class
           aria-hidden
         />
       </button>
+      {call.target && /^https?:\/\//.test(call.target) && <a href={call.target} target="_blank" rel="noopener noreferrer" className="mx-9 mb-2 block truncate text-xs text-signal underline underline-offset-4" title={call.target} onClick={event => event.stopPropagation()}>{call.target}</a>}
       {note && !expanded && (
         <p className={cn('pb-1 pl-9 pr-2 text-xs', TONE_TEXT[status.tone])}>{note}</p>
       )}

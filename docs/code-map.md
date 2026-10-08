@@ -142,7 +142,6 @@
 | 运行视图 | [`components/run/`](../ray_agent/ui/src/components/run/) | 07、10 |
 | 工作台 | [`components/workbench/workbench.tsx`](../ray_agent/ui/src/components/workbench/workbench.tsx)：终端、浏览器截图、会话文件 | 11、12 |
 | 开发者视图 | [`components/developer/developer-view.tsx`](../ray_agent/ui/src/components/developer/developer-view.tsx) | 10 |
-| 沙箱画面 | [`components/vnc-overlay.tsx`](../ray_agent/ui/src/components/vnc-overlay.tsx)、[`components/vnc-viewer.tsx`](../ray_agent/ui/src/components/vnc-viewer.tsx) | 11 |
 | 设置页 | [`components/settings/`](../ray_agent/ui/src/components/settings/)，路由 `/settings`；工具策略分区为 `tool-policy-section.tsx` | — |
 | 组件状态目录 | [`app/dev/components/page.tsx`](../ray_agent/ui/src/app/dev/components/page.tsx)，仅开发模式 | — |
 

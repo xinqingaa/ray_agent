@@ -2,8 +2,10 @@
 
 import {useEffect, useState} from 'react'
 import {MarkdownContent} from '@/components/markdown-content'
-import {Globe, Monitor, PanelRightClose, Play, Terminal} from 'lucide-react'
+import {Globe, Maximize, PanelRight, Play, Scan, Terminal} from 'lucide-react'
 import {Button} from '@/components/ui/button'
+import {Dialog, DialogContent, DialogDescription, DialogTitle} from '@/components/ui/dialog'
+import {Tooltip, TooltipContent, TooltipTrigger} from '@/components/ui/tooltip'
 import {ScrollArea} from '@/components/ui/scroll-area'
 import {fileApi} from '@/lib/api/file'
 import {sessionApi} from '@/lib/api/session'
@@ -33,7 +35,6 @@ type WorkbenchProps = {
   highlightFileId?: string | null
   onFollowLatest: () => void
   onClose: () => void
-  onOpenVnc?: () => void
   project?: ProjectView | null
   projectRefreshSignal?: number
   className?: string
@@ -87,6 +88,8 @@ function screenshotSrc(call: ToolCallView | null): string | null {
   const raw = content?.screenshot ?? content?.image
   if (typeof raw !== 'string' || !raw) return null
   if (raw.startsWith('data:') || raw.startsWith('http')) return raw
+  if (raw.startsWith('/api/files/')) return fileApi.getFileDownloadUrl(raw.split('/')[3])
+  if (raw.startsWith('/')) return raw
   return `data:image/png;base64,${raw}`
 }
 
@@ -260,11 +263,15 @@ function ShellPane({sessionId, call}: {sessionId: string; call: ToolCallView | n
   )
 }
 
-function BrowserPane({call, onOpenVnc}: {call: ToolCallView | null; onOpenVnc?: () => void}) {
-  if (!call) {
-    return <EmptyNote>这里会显示所选浏览器操作的截图。打开页面后出现，也可以进入远程桌面。</EmptyNote>
-  }
+function BrowserPane({call}: {call: ToolCallView | null}) {
+  const [failed, setFailed] = useState(false)
+  const [expanded, setExpanded] = useState(false)
+  const [originalSize, setOriginalSize] = useState(false)
   const src = screenshotSrc(call)
+  useEffect(() => {setFailed(false); setExpanded(false); setOriginalSize(false)}, [src, call?.callId])
+  if (!call) {
+    return <EmptyNote>选择浏览器操作，查看网页地址与截图。</EmptyNote>
+  }
   const fallback = !src ? resultExcerpt(call) : null
   const url = typeof call.raw.args.url === 'string' ? call.raw.args.url : call.target
   return (
@@ -272,34 +279,39 @@ function BrowserPane({call, onOpenVnc}: {call: ToolCallView | null; onOpenVnc?: 
       {url && (
         <div className="flex items-center gap-2 rounded-md border bg-muted px-2.5 py-1.5 text-xs text-muted-foreground">
           <Globe className="size-3.5 shrink-0" aria-hidden/>
-          <span className="truncate">{url}</span>
+          {/^https?:\/\//.test(url) ? <a href={url} target="_blank" rel="noopener noreferrer" className="truncate text-signal hover:underline" title={url}>{url}</a> : <span className="truncate">{url}</span>}
         </div>
       )}
       <div className="relative min-h-0 flex-1 overflow-hidden rounded-lg border">
-        {src ? (
+        {src && !failed ? (
           <ScrollArea className="h-full">
-            {/* eslint-disable-next-line @next/next/no-img-element -- 沙箱截图是 data URL */}
-            <img src={src} alt="浏览器截图" className="h-auto w-full"/>
+            <button type="button" className="block w-full cursor-zoom-in outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring" aria-label="放大浏览器截图" title="点击放大" onClick={() => setExpanded(true)}>
+              {/* eslint-disable-next-line @next/next/no-img-element -- 工具返回的截图 */}
+              <img src={src} alt="浏览器截图" onError={() => setFailed(true)} className="h-auto w-full"/>
+            </button>
           </ScrollArea>
-        ) : fallback ? (
+        ) : failed ? <EmptyNote>截图暂不可用，可通过上方链接打开网页。</EmptyNote> : fallback ? (
           <ScrollArea className="h-full">
             <pre className="p-3 font-mono text-xs leading-5 whitespace-pre-wrap break-all">{fallback.length > 20000 ? `${fallback.slice(0, 20000)}…` : fallback}</pre>
           </ScrollArea>
         ) : (
           <EmptyNote>{call.result?.error ?? (call.status === 'running' ? '等待页面截图或结果。' : '这次调用没有截图或可显示的结果。')}</EmptyNote>
         )}
-        {onOpenVnc && (
-          <Button
-            type="button"
-            size="sm"
-            className="absolute right-3 bottom-3"
-            onClick={onOpenVnc}
-          >
-            <Monitor aria-hidden/>
-            打开远程桌面
-          </Button>
-        )}
       </div>
+      <Dialog open={expanded} onOpenChange={setExpanded}>
+        <DialogContent className="flex h-[90dvh] w-[95vw] max-w-[95vw] flex-col gap-0 overflow-hidden p-0 sm:max-w-[95vw]">
+          <DialogTitle className="sr-only">浏览器截图预览</DialogTitle>
+          <header className="flex shrink-0 items-center justify-end gap-1 border-b px-3 py-2 pr-12">
+            <Tooltip><TooltipTrigger asChild><Button size="icon-sm" variant="ghost" aria-label="适应窗口" aria-pressed={!originalSize} className={cn('text-muted-foreground', !originalSize && 'bg-muted text-foreground')} onClick={() => setOriginalSize(false)}><Scan className="size-4"/></Button></TooltipTrigger><TooltipContent>适应窗口</TooltipContent></Tooltip>
+            <Tooltip><TooltipTrigger asChild><Button size="icon-sm" variant="ghost" aria-label="原始尺寸" aria-pressed={originalSize} className={cn('text-muted-foreground', originalSize && 'bg-muted text-foreground')} onClick={() => setOriginalSize(true)}><Maximize className="size-4"/></Button></TooltipTrigger><TooltipContent>原始尺寸</TooltipContent></Tooltip>
+          </header>
+          <DialogDescription className="sr-only">网页操作时保存的截图</DialogDescription>
+          <div className={cn('min-h-0 flex-1 overflow-auto bg-muted p-3', !originalSize && 'flex items-center justify-center')}>
+            {/* eslint-disable-next-line @next/next/no-img-element -- 同一截图的放大预览 */}
+            {src && <img src={src} alt="浏览器截图放大预览" className={originalSize ? 'h-auto max-w-none' : 'max-h-full max-w-full object-contain'}/>}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
@@ -500,7 +512,6 @@ export function Workbench({
   highlightFileId,
   onFollowLatest,
   onClose,
-  onOpenVnc,
   project,
   projectRefreshSignal,
   className,
@@ -535,8 +546,8 @@ export function Workbench({
             回到最新
           </Button>
         )}
-        <Button type="button" variant="ghost" size="icon-xs" onClick={onClose} aria-label="收起工作台">
-          <PanelRightClose/>
+        <Button type="button" variant="ghost" size="icon-sm" className="text-muted-foreground" onClick={onClose} aria-label="收起工作台" title="收起工作台">
+          <PanelRight className="size-4"/>
         </Button>
       </header>
       {focus && (
@@ -582,7 +593,7 @@ export function Workbench({
       <div role="tabpanel" id={`workbench-panel-${tab}`} aria-labelledby={`workbench-tab-${tab}`} className="flex min-h-0 flex-1 flex-col">
       {tab === 'result' && hasResultTab && <ResultPane call={focus}/>}
       {tab === 'terminal' && <ShellPane sessionId={sessionId} call={shellCall}/>}
-      {tab === 'browser' && <BrowserPane call={browserCall} onOpenVnc={onOpenVnc}/>}
+      {tab === 'browser' && <BrowserPane call={browserCall}/>}
       {tab === 'files' && <FilesPane focus={focus} files={files} highlightFileId={highlightFileId}/>}
       {tab === 'project' && hasProject && project?.available && (
         <ManagedProjectPane key={project.id} projectId={project.id} refreshSignal={projectRefreshSignal}/>

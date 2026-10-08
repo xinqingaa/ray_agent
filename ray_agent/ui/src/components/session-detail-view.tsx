@@ -2,7 +2,7 @@
 
 import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react'
 import {toast} from 'sonner'
-import {Code2, Folder, MessageCircle, PanelRightOpen, Pencil} from 'lucide-react'
+import {Code2, Folder, MessageCircle, PanelRight, Pencil} from 'lucide-react'
 import {SegmentedControl} from '@/components/ui/segmented-control'
 import {MemoryIcon} from '@/components/nav-icons'
 import Link from 'next/link'
@@ -20,7 +20,6 @@ import {Timeline, type TimelineHandlers} from '@/components/run/timeline-item'
 import {downloadSessionFile, tabForFamily, Workbench, type WorkbenchTab} from '@/components/workbench/workbench'
 import {useWorkbenchWidth, WorkbenchResizeHandle} from '@/components/workbench/resize-handle'
 import {cn} from '@/lib/utils'
-import {VNCOverlay} from '@/components/vnc-overlay'
 import {Button} from '@/components/ui/button'
 import {
   Sheet,
@@ -124,7 +123,6 @@ export function SessionDetailView({
   const [tab, setTab] = useState<WorkbenchTab>('files')
   const [tabForId, setTabForId] = useState<string | null>(null)
   const [highlightFileId, setHighlightFileId] = useState<string | null>(null)
-  const [vncOpen, setVncOpen] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
   const developerScrollRef = useRef<HTMLDivElement>(null)
   const scrollPositions = useRef({conversation: 0, developer: 0})
@@ -263,11 +261,11 @@ export function SessionDetailView({
   }, [retrying, view?.timeline])
 
   useEffect(() => {
-    if (!stickRef.current || vncOpen || mode !== 'conversation') return
+    if (!stickRef.current || mode !== 'conversation') return
     const el = scrollRef.current
     if (!el) return
     el.scrollTo({top: el.scrollHeight, behavior: 'auto'})
-  }, [view?.timeline.length, view?.status, view?.streaming?.text, vncOpen, compacting, outgoing, mode])
+  }, [view?.timeline.length, view?.status, view?.streaming?.text, compacting, outgoing, mode])
 
   const handleCompact = useCallback(async () => {
     if (compacting) return
@@ -504,7 +502,6 @@ export function SessionDetailView({
       highlightFileId={highlightFileId}
       onFollowLatest={() => setPinnedCallId(null)}
       onClose={() => setWorkbenchOpen(false)}
-      onOpenVnc={browserCall ? () => setVncOpen(true) : undefined}
       project={view.project}
       projectRefreshSignal={projectRefreshSignal}
       className={isMobile ? undefined : 'h-full w-full'}
@@ -548,7 +545,7 @@ export function SessionDetailView({
             {!workbenchOpen && (
               <Button type="button" variant="ghost" size="icon-xs" className="size-7 shrink-0"
                 title="打开工作台" aria-label="打开工作台" onClick={() => setWorkbenchOpen(true)}>
-                <PanelRightOpen className="size-4"/>
+                <PanelRight className="size-4"/>
               </Button>
             )}
           </header>
@@ -660,7 +657,6 @@ export function SessionDetailView({
           setRenamedTitle({sessionId, title, previousTitle: view.title})
           patchSession(sessionId, {title})
         }}/>
-      {vncOpen && <VNCOverlay sessionId={sessionId} onClose={() => setVncOpen(false)}/>}
     </>
   )
 }
