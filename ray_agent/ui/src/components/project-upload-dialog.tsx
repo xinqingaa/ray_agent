@@ -8,6 +8,8 @@ import {ApiError} from '@/lib/api/fetch'
 import type {ProjectDetails, ProjectOperationResult, ProjectUploadPreflight, ProjectUploadRules} from '@/lib/api/types'
 import {chooseProjectFolder, isActiveUploadBatch, scanProjectUpload, sourcesFromDrop, sourcesFromFiles, uploadSelection, type UploadScan, type UploadSource} from '@/lib/project-upload'
 import {formatBytes} from '@/components/run/format'
+import {Files} from 'lucide-react'
+import {ImportFolderIcon} from '@/components/nav-icons'
 
 type Props = {open: boolean; projectId?: string; disabledReason?: string | null; onClose: () => void; onUploaded?: () => void; onCreated?: (project: ProjectDetails) => void}
 const batchKey = (id: string) => `rayagent:project-upload:${id}`
@@ -153,7 +155,7 @@ export function ProjectUploadDialog({open, projectId, disabledReason, onClose, o
     <DialogHeader className="shrink-0 pr-7 text-left"><DialogTitle>{projectId ? '上传项目文件' : '从文件夹创建项目'}</DialogTitle><DialogDescription>上传的是副本，本地文件不会自动同步。空文件夹不保留；覆盖前会保存保护快照。</DialogDescription></DialogHeader>
     {!projectId && !target && <label className="shrink-0 text-sm">项目名称<input className="mt-1 w-full rounded-md border bg-background px-3 py-2" maxLength={160} value={name} onChange={event => setName(event.target.value)}/></label>}
     <div className={scan ? 'flex shrink-0 flex-wrap items-center gap-2' : 'flex min-h-28 shrink-0 flex-wrap items-center justify-center gap-2 rounded-md border border-dashed p-3'} onDragOver={event => event.preventDefault()} onDrop={event => {event.preventDefault();if(!busy && !disabledReason && !activeBatch)void inspect(sourcesFromDrop(event.dataTransfer.items))}}>
-      <span className="min-w-0 flex-1 truncate text-meta text-faint">{scan ? `来源：${sourceName}` : '拖入文件或文件夹，或选择本地材料'}</span><Button size="sm" variant="outline" disabled={!!busy || !!disabledReason || !!activeBatch} onClick={() => filesInput.current?.click()}>选择文件</Button><Button size="sm" variant="outline" disabled={!!busy || !!disabledReason || !!activeBatch} onClick={() => void folder()}>选择文件夹</Button>
+      <span className="min-w-0 flex-1 truncate text-meta text-faint">{scan ? `来源：${sourceName}` : '拖入文件或文件夹，或选择本地材料'}</span><Button size="sm" variant="outline" disabled={!!busy || !!disabledReason || !!activeBatch} onClick={() => filesInput.current?.click()}><Files aria-hidden="true"/>选择文件</Button><Button size="sm" variant="outline" disabled={!!busy || !!disabledReason || !!activeBatch} onClick={() => void folder()}><ImportFolderIcon aria-hidden="true"/>选择文件夹</Button>
       <input ref={filesInput} type="file" multiple className="hidden" onChange={event => {const files=Array.from(event.target.files || []);event.target.value='';void inspect(sourcesFromFiles(files))}}/>
       <input ref={element => {folderInput.current=element;element?.setAttribute('webkitdirectory','')}} type="file" multiple className="hidden" {...{webkitdirectory: ''}} onChange={event => {const files=Array.from(event.target.files || []);event.target.value='';if(files.length){setName(files[0].webkitRelativePath.split('/')[0]);setSourceName(files[0].webkitRelativePath.split('/')[0])};void inspect(sourcesFromFiles(files,true))}}/>
     </div>

@@ -1,7 +1,11 @@
 'use client'
 
-import {useEffect, useMemo, useState} from 'react'
-import {ChevronDown, Download, ListFilter} from 'lucide-react'
+import {Fragment, useEffect, useMemo, useState} from 'react'
+import {Activity, AlignLeft, Check, ChevronDown, Code2, Copy, Download, FileText, Layers, ListFilter, ListTree, Minimize2, X} from 'lucide-react'
+import {toast} from 'sonner'
+import {SegmentedControl} from '@/components/ui/segmented-control'
+import {Tooltip, TooltipContent, TooltipTrigger} from '@/components/ui/tooltip'
+import {MarkdownContent} from '@/components/markdown-content'
 import {Button} from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -18,9 +22,9 @@ import {cn} from '@/lib/utils'
 import {formatDuration, formatTime, formatTokens, usageSummary} from '@/components/run/format'
 
 const DEV_TABS = [
-  ['events', '事件'],
-  ['turns', '轮次'],
-  ['compaction', '压缩'],
+  {value: 'events', label: '事件', icon: ListTree},
+  {value: 'turns', label: '轮次', icon: Layers},
+  {value: 'compaction', label: '压缩', icon: Minimize2},
 ] as const
 
 type DeveloperViewProps = {
@@ -56,6 +60,26 @@ const EVENT_LABELS: Record<string, string> = {
   tool: '工具',
   turn: '轮次',
   wait: '等待',
+  environment: '执行环境',
+}
+
+const STATUS_LABELS: Record<string, string> = {
+  running: '运行中', waiting: '等待中', completed: '已完成', failed: '失败',
+  cancelled: '已停止', interrupted: '已中断', calling: '执行中', called: '已返回',
+  started: '开始', stopping: '停止中', pending: '待处理', denied: '已拒绝',
+  expired: '已失效', approved: '已批准', success: '成功', error: '错误',
+  preparing: '准备中', ready: '已就绪', cleaning: '清理中',
+}
+
+function statusLabel(status: string): string {return STATUS_LABELS[status] ?? status}
+
+function StatusTag({status}: {status: string}) {
+  const tone = ['failed', 'error'].includes(status) ? 'text-state-failed bg-state-failed-soft'
+    : ['completed', 'success', 'approved'].includes(status) ? 'text-state-success bg-state-success-soft'
+    : ['running', 'calling', 'started'].includes(status) ? 'text-state-running bg-state-running-soft'
+    : ['waiting', 'pending'].includes(status) ? 'text-state-waiting bg-state-waiting-soft'
+    : status === 'interrupted' ? 'text-state-interrupted bg-state-interrupted-soft' : 'text-muted-foreground bg-muted'
+  return <span title={status} className={cn('inline-flex shrink-0 items-center rounded-sm px-1.5 py-0.5 text-xs font-medium', tone)}>{statusLabel(status)}</span>
 }
 
 function eventSummary(ev: RawEvent): string {
@@ -64,11 +88,11 @@ function eventSummary(ev: RawEvent): string {
     case 'message':
       return `${textOf(p.role) || '消息'} ${clip(textOf(p.message), 72)}`.trim()
     case 'tool':
-      return [textOf(p.function) || textOf(p.function_name) || textOf(p.name), textOf(p.status)].filter(Boolean).join(' ')
+      return [textOf(p.function) || textOf(p.function_name) || textOf(p.name)].filter(Boolean).join(' ')
     case 'run':
-      return [textOf(p.status), textOf(p.reason)].filter(Boolean).join(' ')
+      return textOf(p.reason)
     case 'turn':
-      return `第 ${String(p.index ?? '?')} 轮 ${textOf(p.phase)}`
+      return `第 ${String(p.index ?? '?')} 轮`
     case 'plan':
       return '计划更新'
     case 'error':
@@ -77,6 +101,8 @@ function eventSummary(ev: RawEvent): string {
       return textOf(p.reason) || '等待'
     case 'done':
       return '运行结束'
+    case 'environment':
+      return textOf(p.reason) || '执行环境'
     case 'title':
       return clip(textOf(p.title), 80)
     case 'context': {
@@ -187,6 +213,12 @@ function turnDuration(turn: TurnView): string {
 }
 
 function RawEventDetail({event, open, rendered}: {event: RawEvent; open: boolean; rendered: boolean}) {
+  const [copied, setCopied] = useState(false)
+  useEffect(() => {
+    if (!copied) return
+    const timer = window.setTimeout(() => setCopied(false), 1800)
+    return () => window.clearTimeout(timer)
+  }, [copied])
   return (
     <div
       id={`event-raw-${event.seq}`}
@@ -194,13 +226,22 @@ function RawEventDetail({event, open, rendered}: {event: RawEvent; open: boolean
       inert={!open}
       className={cn(
         'overflow-hidden transition-[max-height,opacity,margin] duration-200 ease-out motion-reduce:transition-none',
-        open ? 'mt-2 max-h-72 opacity-100' : 'mt-0 max-h-0 opacity-0',
+        open ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0',
       )}
     >
       {rendered && (
-        <pre className="max-h-64 overflow-auto rounded-md bg-muted p-2 font-mono whitespace-pre-wrap break-all">
+        <div className="border-t bg-muted/40 px-3 py-3">
+          <div className="mb-2 flex items-center justify-between text-xs text-muted-foreground">
+            <span>事件 #{event.seq} · 原始 JSON</span>
+            <Button type="button" variant="ghost" size="icon-xs" title={copied ? '已复制' : '复制原始 JSON'} aria-label={copied ? '已复制' : '复制原始 JSON'} onClick={async () => {
+              try {await navigator.clipboard.writeText(JSON.stringify(event.payload, null, 2)); setCopied(true)}
+              catch {toast.error('复制失败，请手动选取内容')}
+            }}>{copied ? <Check aria-hidden/> : <Copy aria-hidden/>}</Button>
+          </div>
+        <pre className="max-h-72 overflow-auto rounded-md border bg-background p-3 font-mono text-xs leading-5 whitespace-pre-wrap break-all">
           {JSON.stringify(event.payload, null, 2)}
         </pre>
+        </div>
       )}
     </div>
   )
@@ -212,6 +253,7 @@ export function DeveloperView({view, loadTurnRequest, className}: DeveloperViewP
     return [...set].sort()
   }, [view.events])
   const [section, setSection] = useState<'events' | 'turns' | 'compaction'>('events')
+  const [summaryFormat, setSummaryFormat] = useState<'raw' | 'markdown'>('markdown')
   const [typeFilter, setTypeFilter] = useState('all')
   const [runFilter, setRunFilter] = useState('all')
   const [page, setPage] = useState(0)
@@ -269,32 +311,17 @@ export function DeveloperView({view, loadTurnRequest, className}: DeveloperViewP
   return (
     <div className={cn('flex flex-col gap-6 px-4 py-4', className)}>
       <div className="flex flex-wrap items-center gap-2 border-b pb-3">
-        <h2 className="text-sm font-medium">开发者视图</h2>
-        <div role="tablist" aria-label="开发者视图分区" className="flex min-h-8 rounded-full bg-muted p-0.5">
-          {DEV_TABS.map(([id, label]) => <button key={id} type="button" role="tab" id={`dev-${id}`} aria-controls={`dev-panel-${id}`} aria-selected={section === id} tabIndex={section === id ? 0 : -1}
-            onClick={() => setSection(id)}
-            onKeyDown={event => {
-              if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return
-              event.preventDefault()
-              const index = DEV_TABS.findIndex(([value]) => value === section)
-              const next = event.key === 'Home' ? 0 : event.key === 'End' ? DEV_TABS.length - 1 : event.key === 'ArrowRight' ? (index + 1) % DEV_TABS.length : (index - 1 + DEV_TABS.length) % DEV_TABS.length
-              const idNext = DEV_TABS[next][0]
-              setSection(idNext)
-              document.getElementById(`dev-${idNext}`)?.focus()
-            }}
-            className={cn('rounded-full px-3 text-meta outline-none focus-visible:ring-2 focus-visible:ring-ring', section === id ? 'bg-card font-medium text-foreground shadow-sm' : 'text-muted-foreground')}>{label}</button>)}
-        </div>
-        <Button type="button" variant="ghost" size="sm" className="ml-auto h-8 px-2.5" onClick={exportJson}>
-          <Download aria-hidden/>
-          导出 JSON
-        </Button>
+        <SegmentedControl value={section} onValueChange={setSection} options={DEV_TABS} label="开发者视图分区" idPrefix="dev"/>
+        <Tooltip><TooltipTrigger asChild>
+          <Button type="button" variant="ghost" size="icon-sm" className="ml-auto text-muted-foreground" aria-label="导出全部运行与事件" onClick={exportJson}><Download className="size-4" aria-hidden/></Button>
+        </TooltipTrigger><TooltipContent>导出全部运行与事件 · JSON</TooltipContent></Tooltip>
       </div>
 
       <section id="dev-panel-events" role="tabpanel" aria-labelledby="dev-events" hidden={section !== 'events'}>
-        <div className="mb-2 flex flex-wrap items-center gap-1">
+        <div className="mb-3 flex flex-wrap items-center gap-2">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button type="button" variant="ghost" size="sm" className="h-8 px-2.5" aria-label={`筛选事件类型，当前：${filterLabel}`}>
+              <Button type="button" variant="outline" size="sm" className={cn('h-8 px-2.5 shadow-none', typeFilter !== 'all' && 'border-signal/30 text-signal')} aria-label={`筛选事件类型，当前：${filterLabel}`}>
                 <ListFilter aria-hidden/>
                 {filterLabel}
                 <ChevronDown className="size-3.5 text-muted-foreground" aria-hidden/>
@@ -315,7 +342,8 @@ export function DeveloperView({view, loadTurnRequest, className}: DeveloperViewP
           </DropdownMenu>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button type="button" variant="ghost" size="sm" className="h-8 px-2.5" aria-label={`筛选运行，当前：${runLabel}`}>
+              <Button type="button" variant="outline" size="sm" className={cn('h-8 px-2.5 shadow-none', runFilter !== 'all' && 'border-signal/30 text-signal')} aria-label={`筛选运行，当前：${runLabel}`}>
+                <Activity aria-hidden/>
                 {runLabel}
                 <ChevronDown className="size-3.5 text-muted-foreground" aria-hidden/>
               </Button>
@@ -325,17 +353,19 @@ export function DeveloperView({view, loadTurnRequest, className}: DeveloperViewP
               <DropdownMenuRadioGroup value={runFilter} onValueChange={value => {setRunFilter(value); setPage(0)}}>
                 <DropdownMenuRadioItem value="all">全部运行</DropdownMenuRadioItem>
                 {view.events.some(ev => !ev.runId) && <DropdownMenuRadioItem value="session">会话级</DropdownMenuRadioItem>}
-                {runChoices.map(([id, label]) => <DropdownMenuRadioItem key={id} value={id}>{label}</DropdownMenuRadioItem>)}
+                {runChoices.map(([id, label]) => <DropdownMenuRadioItem key={id} value={id}><span className="font-mono" title={id}>{label}</span>{view.runs.find(run => run.id === id)?.status && <span className="ml-auto text-xs text-muted-foreground">{statusLabel(view.runs.find(run => run.id === id)!.status)}</span>}</DropdownMenuRadioItem>)}
               </DropdownMenuRadioGroup>
             </DropdownMenuContent>
           </DropdownMenu>
+          {(typeFilter !== 'all' || runFilter !== 'all') && <Button type="button" variant="ghost" size="icon-sm" title="清除筛选" aria-label="清除筛选" onClick={() => {setTypeFilter('all'); setRunFilter('all'); setPage(0)}}><X className="size-3.5" aria-hidden/></Button>}
+          <span className="ml-auto text-xs tabular-nums text-muted-foreground" aria-live="polite">{events.length} 条事件</span>
         </div>
         {view.events.length === 0 ? (
           <p className="text-meta text-faint">这里会按序号列出事件。任务开始后出现。</p>
         ) : events.length === 0 ? (
           <p className="text-meta text-faint">没有符合筛选的事件。</p>
         ) : (
-          <div className="overflow-x-auto rounded-lg border">
+          <div className="max-h-[60dvh] overflow-auto rounded-lg border bg-card">
             <table className="w-full min-w-[46rem] table-fixed text-left text-xs">
               <colgroup>
                 <col className="w-16"/>
@@ -345,49 +375,56 @@ export function DeveloperView({view, loadTurnRequest, className}: DeveloperViewP
                 <col/>
                 <col className="w-16"/>
               </colgroup>
-              <thead className="bg-muted/60 text-muted-foreground">
+              <thead className="sticky top-0 z-10 bg-muted text-muted-foreground">
                 <tr>
-                  <th scope="col" className="px-2 py-1.5 font-medium whitespace-nowrap">序号</th>
-                  <th scope="col" className="px-2 py-1.5 font-medium whitespace-nowrap">时间</th>
-                  <th scope="col" className="px-2 py-1.5 font-medium whitespace-nowrap">类型</th>
-                  <th scope="col" className="px-2 py-1.5 font-medium whitespace-nowrap">运行</th>
-                  <th scope="col" className="px-2 py-1.5 font-medium">摘要</th>
-                  <th scope="col" className="px-2 py-1.5 text-right font-medium"><span className="sr-only">原文</span></th>
+                  <th scope="col" className="px-3 py-2.5 font-medium whitespace-nowrap">序号</th>
+                  <th scope="col" className="px-3 py-2.5 font-medium whitespace-nowrap">时间</th>
+                  <th scope="col" className="px-3 py-2.5 font-medium whitespace-nowrap">类型</th>
+                  <th scope="col" className="px-3 py-2.5 font-medium whitespace-nowrap">运行</th>
+                  <th scope="col" className="px-3 py-2.5 font-medium">摘要</th>
+                  <th scope="col" className="px-3 py-2.5 text-right font-medium"><span className="sr-only">原文</span></th>
                 </tr>
               </thead>
               <tbody>
                 {shownEvents.map((ev) => {
                   const open = openSeq === ev.seq
                   return (
-                    <tr key={ev.seq} className="border-t align-top">
-                      <td className="px-2 py-1.5 tabular-nums whitespace-nowrap">{ev.seq}</td>
-                      <td className="px-2 py-1.5 tabular-nums whitespace-nowrap text-muted-foreground">{formatTime(ev.createdAt)}</td>
-                      <td className="px-2 py-1.5 whitespace-nowrap" title={ev.type}>{EVENT_LABELS[ev.type] ?? ev.type}</td>
-                      <td className="px-2 py-1.5 font-mono whitespace-nowrap text-muted-foreground">{ev.runId ? ev.runId.slice(0, 8) : '—'}</td>
-                      <td className="px-2 py-1.5">
-                        <div className="break-words">{eventSummary(ev)}</div>
-                        <RawEventDetail event={ev} open={open} rendered={open || visitedSeqs.has(ev.seq)}/>
+                    <Fragment key={ev.seq}>
+                    <tr className={cn('border-t align-middle transition-colors hover:bg-muted/40', open && 'bg-signal-soft/40')}>
+                      <td className="px-3 py-2.5 tabular-nums whitespace-nowrap text-muted-foreground">{ev.seq}</td>
+                      <td className="px-3 py-2.5 tabular-nums whitespace-nowrap text-muted-foreground">{formatTime(ev.createdAt)}</td>
+                      <td className="px-3 py-2.5 whitespace-nowrap" title={ev.type}>{EVENT_LABELS[ev.type] ?? ev.type}</td>
+                      <td className="px-3 py-2.5 font-mono whitespace-nowrap text-muted-foreground" title={ev.runId ?? '会话级事件'}>{ev.runId ? ev.runId.slice(0, 8) : '—'}</td>
+                      <td className="px-3 py-2.5">
+                        <div className="flex items-start gap-2">
+                          {textOf(ev.payload.status ?? ev.payload.phase) && <StatusTag status={textOf(ev.payload.status ?? ev.payload.phase)}/>}
+                          <span className="line-clamp-2 break-words" title={eventSummary(ev)}>{eventSummary(ev)}</span>
+                        </div>
                       </td>
-                      <td className="px-2 py-1.5 text-right whitespace-nowrap">
+                      <td className="px-3 py-2 text-right whitespace-nowrap">
                         <button
                           type="button"
                           onClick={() => {
                             if (!open) setVisitedSeqs((current) => new Set(current).add(ev.seq))
                             setOpenSeq(open ? null : ev.seq)
                           }}
-                          className="inline-flex whitespace-nowrap rounded-sm text-signal outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+                          className={cn('inline-flex size-7 items-center justify-center rounded-md outline-none transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring', open ? 'bg-signal-soft text-signal' : 'text-muted-foreground hover:text-foreground')}
+                          title={open ? '收起原文' : '查看原文'}
+                          aria-label={open ? `收起事件 ${ev.seq} 原文` : `查看事件 ${ev.seq} 原文`}
                           aria-expanded={open}
                           aria-controls={`event-raw-${ev.seq}`}
                         >
-                          {open ? '收起' : '原文'}
+                          <Code2 className="size-4" aria-hidden/>
                         </button>
                       </td>
                     </tr>
+                    <tr><td colSpan={6} className="p-0"><RawEventDetail event={ev} open={open} rendered={open || visitedSeqs.has(ev.seq)}/></td></tr>
+                    </Fragment>
                   )
                 })}
               </tbody>
             </table>
-            {events.length > 0 && <div className="flex items-center justify-between gap-2 border-t px-2 py-1.5 text-xs text-muted-foreground">
+            {events.length > 0 && <div className="sticky bottom-0 z-10 flex items-center justify-between gap-2 border-t bg-card px-3 py-2 text-xs text-muted-foreground">
               <span className="tabular-nums">第 {currentPage * 50 + 1}–{Math.min(events.length, (currentPage + 1) * 50)} 条，共 {events.length} 条</span>
               <div className="flex gap-1">
                 <Button type="button" variant="ghost" size="xs" disabled={currentPage === 0} onClick={() => setPage(currentPage - 1)}>上一页</Button>
@@ -417,23 +454,32 @@ export function DeveloperView({view, loadTurnRequest, className}: DeveloperViewP
       </section>
 
       <section id="dev-panel-compaction" role="tabpanel" aria-labelledby="dev-compaction" hidden={section !== 'compaction'}>
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <span className="text-sm font-medium">压缩摘要</span>
+          <SegmentedControl value={summaryFormat} onValueChange={setSummaryFormat} label="摘要显示格式" options={[
+            {value: 'raw', label: '原文', icon: AlignLeft},
+            {value: 'markdown', label: 'Markdown', icon: FileText},
+          ]}/>
+        </div>
         <ContextBudget usage={view.usage}/>
         {compactions.length === 0 ? (
           <p className="text-meta text-faint">还没有压缩。上下文超过压缩阈值时，这里列出前后估算量和摘要全文。</p>
         ) : (
-          <ul className="flex flex-col gap-2">
+          <ul className="flex flex-col gap-4">
             {compactions.map((item) => (
-              <li key={item.id} className="rounded-md border bg-card px-3 py-2 text-meta">
-                <p className="tabular-nums">
+              <li key={item.id} className="overflow-hidden rounded-lg border bg-card text-meta">
+                <p className="border-b bg-muted/40 px-4 py-3 font-medium tabular-nums">
                   {item.trigger === 'manual' ? '手动' : item.trigger === 'overflow' ? '溢出' : '阈值'} ·{' '}
                   {formatTokens(item.beforeTokens)} → {formatTokens(item.afterTokens)} tokens
                   {item.summarizedTurns > 0 && `，摘要了 ${item.summarizedTurns} 轮`}
                   {item.runId == null && ' · 会话级'}
                 </p>
                 {item.summary ? (
-                  <pre className="mt-1 whitespace-pre-wrap break-words font-sans text-xs text-muted-foreground">{item.summary}</pre>
+                  <div className="px-4 py-4">
+                    {summaryFormat === 'markdown' ? <MarkdownContent content={item.summary}/> : <pre className="whitespace-pre-wrap break-words font-mono text-xs leading-6 text-muted-foreground">{item.summary}</pre>}
+                  </div>
                 ) : (
-                  <p className="mt-1 text-xs text-faint">这次压缩没有摘要全文</p>
+                  <p className="px-4 py-4 text-xs text-faint">这次压缩没有摘要全文</p>
                 )}
               </li>
             ))}
@@ -503,15 +549,17 @@ function RunTurns({
   onSelect: (index: number) => void
 }) {
   return (
-    <div className="mb-3">
-      <p className="mb-1 font-mono text-xs text-muted-foreground">
-        运行 {run.id.slice(0, 8)} · {run.status}
-        {run.mode === 'plan' && ' · 计划模式'}
+    <div className="mb-6 last:mb-0">
+      <p className="mb-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+        <Activity className="size-3.5" aria-hidden/>
+        运行 <span className="font-mono" title={run.id}>{run.id.slice(0, 8)}</span>
+        <StatusTag status={run.status}/>
+        {run.mode === 'plan' && <span>计划模式</span>}
       </p>
       {run.turns.length === 0 ? (
         <p className="text-xs text-faint">这次运行还没有轮次记录</p>
       ) : (
-        <ul className="flex flex-col gap-1">
+        <ul className="flex flex-col gap-3">
           {run.turns.map((turn) => {
             const active = selected?.runId === run.id && selected.index === turn.index
             const key = `${run.id}:${turn.index}`
@@ -525,23 +573,25 @@ function RunTurns({
                   aria-controls={panelId}
                   onClick={() => onSelect(turn.index)}
                   className={cn(
-                    'w-full rounded-md border px-3 py-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                    'w-full rounded-lg border px-4 py-3 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring',
                     active ? 'border-signal/40 bg-signal-soft/40' : 'bg-card hover:bg-muted/50',
                   )}
                 >
-                  <span className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-xs tabular-nums">
-                    <span className="font-medium text-foreground">第 {turn.index} 轮</span>
+                  <span className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs tabular-nums text-muted-foreground">
+                    <span className="text-sm font-semibold text-foreground">第 {turn.index} 轮</span>
                     <span>用时 {turnDuration(turn)}</span>
                     <span>模型 {formatDuration(turn.modelMs)}</span>
                     <span>工具 {formatDuration(turn.toolsMs)}</span>
-                    <span>{usageSummary(turn.usage)}</span>
-                    <span>结束原因 {turn.finishReason ?? '—'}</span>
                     {turn.ttftMs != null && <span>首字 {formatDuration(turn.ttftMs)}</span>}
                     {turn.attempts != null && <span>尝试 {turn.attempts}</span>}
                     <TurnSpeed turn={turn}/>
                     <ChevronDown className={cn('ml-auto size-3.5 self-center transition-transform duration-200 motion-reduce:transition-none', active && 'rotate-180')} aria-hidden/>
                   </span>
-                  <span className="mt-1.5 block">
+                  <span className="mt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border-t pt-2.5 text-xs tabular-nums text-muted-foreground">
+                    <span>{usageSummary(turn.usage)}</span>
+                    <span>结束原因 <span className="font-mono">{turn.finishReason ?? '—'}</span></span>
+                  </span>
+                  <span className="mt-3 block">
                     <ContextBar estimate={turn.contextEstimate}/>
                   </span>
                 </button>

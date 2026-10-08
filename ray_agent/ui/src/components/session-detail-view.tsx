@@ -1,8 +1,9 @@
 'use client'
 
-import {useCallback, useEffect, useMemo, useRef, useState} from 'react'
+import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react'
 import {toast} from 'sonner'
-import {Folder, PanelRightOpen, Pencil} from 'lucide-react'
+import {Code2, Folder, MessageCircle, PanelRightOpen, Pencil} from 'lucide-react'
+import {SegmentedControl} from '@/components/ui/segmented-control'
 import {MemoryIcon} from '@/components/nav-icons'
 import Link from 'next/link'
 import {ProjectMemoryPanel} from '@/components/project-memory-panel'
@@ -112,6 +113,7 @@ export function SessionDetailView({
   const compacting = localCompacting || session?.context_operation?.status === 'compacting'
 
   const [mode, setMode] = useState<'conversation' | 'developer'>('conversation')
+  const [developerVisited, setDeveloperVisited] = useState(false)
   const [pinnedCallId, setPinnedCallId] = useState<string | null>(null)
   const [workbenchOpen, setWorkbenchOpen] = useState(false)
   const [workbenchRendered, setWorkbenchRendered] = useState(false)
@@ -124,7 +126,14 @@ export function SessionDetailView({
   const [highlightFileId, setHighlightFileId] = useState<string | null>(null)
   const [vncOpen, setVncOpen] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
+  const developerScrollRef = useRef<HTMLDivElement>(null)
+  const scrollPositions = useRef({conversation: 0, developer: 0})
   const stickRef = useRef(true)
+
+  useLayoutEffect(() => {
+    const el = mode === 'conversation' ? scrollRef.current : developerScrollRef.current
+    if (el) el.scrollTop = mode === 'conversation' && stickRef.current ? el.scrollHeight : scrollPositions.current[mode]
+  }, [mode, developerVisited, view?.id])
 
   const sessionStatus = view?.status
   const displayTitle = renamedTitle?.sessionId === sessionId && view?.title === renamedTitle.previousTitle
@@ -254,11 +263,11 @@ export function SessionDetailView({
   }, [retrying, view?.timeline])
 
   useEffect(() => {
-    if (!stickRef.current || vncOpen) return
+    if (!stickRef.current || vncOpen || mode !== 'conversation') return
     const el = scrollRef.current
     if (!el) return
     el.scrollTo({top: el.scrollHeight, behavior: 'auto'})
-  }, [view?.timeline.length, view?.status, view?.streaming?.text, vncOpen, compacting, outgoing])
+  }, [view?.timeline.length, view?.status, view?.streaming?.text, vncOpen, compacting, outgoing, mode])
 
   const handleCompact = useCallback(async () => {
     if (compacting) return
@@ -412,9 +421,11 @@ export function SessionDetailView({
   }), [view?.id, view?.project?.id, view?.timeline, focus?.callId, view?.activeRun, view?.streamingItemId, submitting, retrying, hiddenRunIds, downloadOne, downloadAll, deliver, handleApproval, approvalSubmitting])
 
   const onScroll = () => {
+    if (mode !== 'conversation') return
     const el = scrollRef.current
     if (!el) return
     stickRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80
+    scrollPositions.current.conversation = el.scrollTop
   }
 
   if (loading && !view) {
@@ -524,24 +535,10 @@ export function SessionDetailView({
                 </div>
               )}
             </div>
-            <div role="group" aria-label="会话视图" className="flex shrink-0 rounded-md border p-0.5">
-              <button
-                type="button"
-                aria-pressed={mode === 'conversation'}
-                onClick={() => setMode('conversation')}
-                className={`rounded-sm px-2 py-1 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring ${mode === 'conversation' ? 'bg-muted font-medium' : 'text-muted-foreground'}`}
-              >
-                对话
-              </button>
-              <button
-                type="button"
-                aria-pressed={mode === 'developer'}
-                onClick={() => setMode('developer')}
-                className={`rounded-sm px-2 py-1 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring ${mode === 'developer' ? 'bg-muted font-medium' : 'text-muted-foreground'}`}
-              >
-                开发者
-              </button>
-            </div>
+            <SegmentedControl value={mode} idPrefix="session-mode" label="会话视图" options={[
+              {value: 'conversation', label: '对话', icon: MessageCircle},
+              {value: 'developer', label: '开发者', icon: Code2},
+            ]} onValueChange={next => {setMode(next); if (next === 'developer') setDeveloperVisited(true)}}/>
             {view.project && (
               <Button type="button" variant="ghost" size="icon-xs" className="size-7 shrink-0 text-muted-foreground"
                 title="项目记忆" aria-label="项目记忆" onClick={() => setMemoryOpen(true)}>
@@ -557,8 +554,7 @@ export function SessionDetailView({
           </header>
           {view.project && <ProjectMemoryPanel projectId={view.project.id} sessionId={sessionId} open={memoryOpen} onClose={()=>setMemoryOpen(false)}/>}
 
-          {mode === 'conversation' ? (
-            <div ref={scrollRef} onScroll={onScroll} className="min-h-0 flex-1 overflow-y-auto">
+            <div ref={scrollRef} onScroll={onScroll} id="session-mode-panel-conversation" role="tabpanel" aria-labelledby="session-mode-conversation" hidden={mode !== 'conversation'} className={cn('min-h-0 flex-1 overflow-y-auto', mode !== 'conversation' ? 'hidden' : 'view-enter-left')}>
               <div className="mx-auto flex w-full max-w-(--reading-column) flex-col gap-3 px-4 py-3">
                 {shownTimeline.length === 0 && !showOptimistic && (
                   <p className="py-8 text-center text-meta text-faint">
@@ -592,8 +588,8 @@ export function SessionDetailView({
                 )}
               </div>
             </div>
-          ) : (
-            <div className="min-h-0 flex-1 overflow-y-auto">
+          {developerVisited && (
+            <div ref={developerScrollRef} onScroll={() => {if (mode === 'developer' && developerScrollRef.current) scrollPositions.current.developer = developerScrollRef.current.scrollTop}} id="session-mode-panel-developer" role="tabpanel" aria-labelledby="session-mode-developer" hidden={mode !== 'developer'} className={cn('min-h-0 flex-1 overflow-y-auto', mode !== 'developer' ? 'hidden' : 'view-enter-right')}>
               <DeveloperView view={view} loadTurnRequest={loadTurnRequest} className="mx-auto w-full max-w-(--reading-column)"/>
             </div>
           )}

@@ -7,7 +7,7 @@ import {Button} from '@/components/ui/button'
 import {DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger} from '@/components/ui/dropdown-menu'
 import {RunStatus} from '@/components/run/run-status'
 import {SessionItem} from '@/components/session-item'
-import {NewChatIcon, NewProjectIcon} from '@/components/nav-icons'
+import {ImportFolderIcon, NewChatIcon, NewProjectIcon} from '@/components/nav-icons'
 import type {Session} from '@/lib/api/types'
 import {cn} from '@/lib/utils'
 
@@ -66,7 +66,7 @@ export function NavigationCreateButton({tab, onIndependent, onCreateProject, onI
   if (tab === 'conversations') {
     return (
       <Button variant="ghost" size="icon-sm" className={createButtonClass} aria-label="新对话" title="新对话" onClick={onIndependent}>
-        <NewChatIcon className="size-4"/>
+        <NewChatIcon className="size-[18px]" aria-hidden="true"/>
       </Button>
     )
   }
@@ -74,12 +74,12 @@ export function NavigationCreateButton({tab, onIndependent, onCreateProject, onI
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" size="icon-sm" className={createButtonClass} aria-label="新建项目" title="新建项目">
-          <NewProjectIcon className="size-4"/>
+          <NewProjectIcon className="size-[18px]" aria-hidden="true"/>
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
-        <DropdownMenuItem onSelect={onCreateProject ?? onOpenProject}>空白项目</DropdownMenuItem>
-        <DropdownMenuItem onSelect={onImportProject ?? onOpenProject}>从文件夹创建</DropdownMenuItem>
+        <DropdownMenuItem onSelect={onCreateProject ?? onOpenProject}><NewProjectIcon aria-hidden="true"/>空白项目</DropdownMenuItem>
+        <DropdownMenuItem onSelect={onImportProject ?? onOpenProject}><ImportFolderIcon aria-hidden="true"/>从文件夹创建</DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   )

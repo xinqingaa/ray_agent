@@ -2,6 +2,7 @@
 
 import {useCallback, useEffect, useRef, useState} from 'react'
 import {Folder, Loader2} from 'lucide-react'
+import {ImportFolderIcon} from '@/components/nav-icons'
 import {Button} from '@/components/ui/button'
 import {Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle} from '@/components/ui/dialog'
 import {ApiError} from '@/lib/api/fetch'
@@ -90,7 +91,7 @@ export function ProjectPicker({mode, onSelect, open: controlled, onOpenChange, d
         <Button size="sm" disabled={saving || !name.trim()} type="submit">{saving ? unknown?'正在检查':'正在创建' : unknown?'检查创建结果':'创建并打开'}</Button>
 <Button size="sm" type="button" variant="outline" disabled={saving} onClick={()=>{setCreating(false);setError(null);if(mode==='create')setOpen(false)}}>取消</Button>
       </form> : <Button size="sm" variant="outline" onClick={() => {setCreating(true); setName('');creationId.current=null; setError(null)}}>新建项目</Button>)}
-      {!mode && <Button size="sm" variant="outline" disabled={saving} onClick={()=>setUploadFolder(true)}>从文件夹创建</Button>}
+      {!mode && <Button size="sm" variant="outline" disabled={saving} onClick={()=>setUploadFolder(true)}><ImportFolderIcon aria-hidden="true"/>从文件夹创建</Button>}
       {loading && <p className="flex items-center gap-2 text-meta text-faint"><Loader2 className="size-4 animate-spin"/>正在读取</p>}
       {unknown && <p className="text-meta text-state-waiting">创建结果尚未确认，使用原创建标识检查结果，不会新建第二个项目。</p>}{error && <p role="alert" className="text-meta text-state-failed">{error}<Button variant="ghost" size="sm" onClick={() => creating ? void create() : void load()}>重试</Button></p>}
     </DialogContent></Dialog>

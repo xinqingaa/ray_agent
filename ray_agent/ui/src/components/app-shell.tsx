@@ -8,9 +8,9 @@ import {LeftPanel} from '@/components/left-panel'
 import {ProjectsProvider} from '@/providers/projects-provider'
 import {MainShell} from '@/components/sidebar-chrome'
 
-/** 开发用路由（组件状态目录）不带会话侧栏，也不连接会话列表 */
+/** 独立设置页与开发目录使用完整画布。 */
 function isBareRoute(pathname: string | null): boolean {
-  return pathname?.startsWith('/dev/') ?? false
+  return pathname === '/settings' || (pathname?.startsWith('/dev/') ?? false)
 }
 
 export function AppShell({children}: {children: React.ReactNode}) {

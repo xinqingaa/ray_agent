@@ -2,13 +2,13 @@
 
 import {useEffect, useRef, useState} from 'react'
 import {useRouter, usePathname} from 'next/navigation'
-import Link from 'next/link'
 import {toast} from 'sonner'
 import {Sidebar, SidebarContent, SidebarFooter, SidebarHeader, useSidebar} from '@/components/ui/sidebar'
 import {Button} from '@/components/ui/button'
 import {DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger} from '@/components/ui/dropdown-menu'
 import {Settings} from 'lucide-react'
-import {NewChatIcon, NewProjectIcon} from '@/components/nav-icons'
+import {ImportFolderIcon, NewChatIcon, NewProjectIcon} from '@/components/nav-icons'
+import {SettingsDialog} from '@/components/settings/settings-dialog'
 import {SidebarChrome} from '@/components/sidebar-chrome'
 import {NavigationCreateButton, ProjectNavigation, type NavigationExpansion, type NavigationProject} from '@/components/project-navigation'
 import {ProjectSettingsDialog} from '@/components/project-settings-dialog'
@@ -34,6 +34,7 @@ export function LeftPanel() {
   const [selectedRecord, setSelected] = useState<Session | null>(null)
   const [locatedProject, setLocatedProject] = useState<ProjectView | null>(null)
   const [settings, setSettings] = useState<string | null>(null)
+  const [appSettingsOpen, setAppSettingsOpen] = useState(false)
   const [pendingDelete, setPendingDelete] = useState<Session | null>(null)
   const [pendingRename, setPendingRename] = useState<Session | null>(null)
   const sessionId = pathname.startsWith('/sessions/') ? pathname.split('/')[2] : null
@@ -146,14 +147,14 @@ export function LeftPanel() {
       <SidebarHeader><SidebarChrome action={<NavigationCreateButton tab={workspace.navigationTab} onIndependent={independent} onCreateProject={workspace.createProject} onImportProject={workspace.importProject}/>}/></SidebarHeader>
       <SidebarContent className="min-h-0 overflow-hidden p-2">
         <div className="hidden flex-1 flex-col items-center gap-2 group-data-[collapsible=icon]:flex">
-          <Button variant="ghost" size="icon" className="group/create text-muted-foreground" aria-label="新对话" title="新对话" onClick={independent}><NewChatIcon className="size-4"/></Button>
+          <Button variant="ghost" size="icon-sm" className="group/create text-muted-foreground" aria-label="新对话" title="新对话" onClick={independent}><NewChatIcon className="size-[18px]" aria-hidden="true"/></Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon" className="group/create text-muted-foreground" aria-label="新建项目" title="新建项目"><NewProjectIcon className="size-4"/></Button>
+              <Button variant="ghost" size="icon-sm" className="group/create text-muted-foreground" aria-label="新建项目" title="新建项目"><NewProjectIcon className="size-[18px]" aria-hidden="true"/></Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" side="right">
-              <DropdownMenuItem onSelect={workspace.createProject}>空白项目</DropdownMenuItem>
-              <DropdownMenuItem onSelect={workspace.importProject}>从文件夹创建</DropdownMenuItem>
+              <DropdownMenuItem onSelect={workspace.createProject}><NewProjectIcon aria-hidden="true"/>空白项目</DropdownMenuItem>
+              <DropdownMenuItem onSelect={workspace.importProject}><ImportFolderIcon aria-hidden="true"/>从文件夹创建</DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -164,8 +165,9 @@ export function LeftPanel() {
             onProjectSettings={setSettings} onArchive={id => void archive(id)} onSessionDelete={setPendingDelete} onSessionRename={setPendingRename} onNavigate={() => setOpenMobile(false)}/>
         </div>
       </SidebarContent>
-      <SidebarFooter><Button variant="ghost" asChild className="w-full justify-start gap-2.5 text-muted-foreground group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:self-center group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0"><Link href="/settings" onClick={() => setOpenMobile(false)} title="设置" aria-label="设置"><Settings className="size-4"/><span className="group-data-[collapsible=icon]:hidden">设置</span></Link></Button></SidebarFooter>
+      <SidebarFooter><Button variant="ghost" className="w-full justify-start gap-2.5 text-muted-foreground group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:self-center group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0" onClick={() => {setOpenMobile(false); setAppSettingsOpen(true)}} title="设置" aria-label="设置"><Settings className="size-[18px]" aria-hidden="true"/><span className="group-data-[collapsible=icon]:hidden">设置</span></Button></SidebarFooter>
     </Sidebar>
+    <SettingsDialog open={appSettingsOpen} onOpenChange={setAppSettingsOpen}/>
     <ProjectSettingsDialog id={settings} onClose={() => setSettings(null)} onSaved={() => void workspace.refresh()}/>
     <DeleteSessionDialog open={!!pendingDelete} onOpenChange={open => {if (!open) setPendingDelete(null)}} onConfirm={remove}/>
     {pendingRename && <RenameSessionDialog sessionId={pendingRename.session_id} currentTitle={pendingRename.title} open onOpenChange={open => {if (!open) setPendingRename(null)}} onSaved={title => {

@@ -5,14 +5,14 @@ export function BrandMark({className}: {className?: string}) {
   return (
     <svg viewBox="0 0 32 32" fill="none" className={cn('size-6 shrink-0', className)} aria-hidden="true">
       <path
-        d="M7.5 25V7.5h9a5.5 5.5 0 0 1 0 11h-9"
+        d="M8 24.75V7.25h9a5.5 5.5 0 0 1 0 11H8"
         stroke="currentColor"
         strokeWidth="3.3"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
       <path
-        d="m16 18.5 7.5 6.5"
+        d="m16.5 18.25 7.5 6.5"
         className="text-signal"
         stroke="currentColor"
         strokeWidth="3.3"

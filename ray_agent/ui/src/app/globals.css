@@ -239,6 +239,11 @@
         @apply font-mono;
     }
 
+    /* 图标保留各自尺寸，统一线条重量；品牌标记使用独立描边。 */
+    svg.lucide {
+        stroke-width: 1.75;
+    }
+
     .scrollbar-hide {
         scrollbar-width: none;
     }
@@ -256,3 +261,16 @@
         scroll-behavior: auto !important;
     }
 }
+
+@keyframes view-enter-left {
+    from { opacity: 0; transform: translateX(-8px); }
+    to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes view-enter-right {
+    from { opacity: 0; transform: translateX(8px); }
+    to { opacity: 1; transform: translateX(0); }
+}
+
+.view-enter-left { animation: view-enter-left 200ms ease-out; }
+.view-enter-right { animation: view-enter-right 200ms ease-out; }
