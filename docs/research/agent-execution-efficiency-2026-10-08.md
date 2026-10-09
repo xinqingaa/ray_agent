@@ -1,8 +1,11 @@
 # Agent 执行效率审查与优化方案建议
 
+> 历史分析快照：正文描述 2026-10-08 调研时的实现与建议，后续优化已落地。当前范围与关键结果见[阶段收尾与维护](../plan/README.md)和[综合验证](../plan/evidence/browser-visual-resources-2026-10-08.md)；以下“未实施”“待批准”保留当时语境。
+
+
 核对日期：2026-10-08。代码基线：`0ad50a1df56c5087bdf9520f0435a3d510f668f0`。本次开始时工作区只有文档改动：能力边界、代码地图、调研索引和同日截图调研；以下产品判断按该提交源码核对。
 
-本文是供用户批准的调研与技术方案快照。用户授权本轮审查和文档编写，要求避免过度测试，并明确代码须批准后再改。本轮没有修改产品代码、配置或运行数据，没有启动模型评测、重建容器、清理历史文件或执行全量测试。正式实施时，先将获批范围归入[总计划](../plan/README.md)及对应子计划；本文不维护实施状态。
+本文是供用户批准的调研与技术方案快照。用户授权本轮审查和文档编写，要求避免过度测试，并明确代码须批准后再改。本轮没有修改产品代码、配置或运行数据，没有启动模型评测、重建容器、清理历史文件或执行全量测试。正式实施时，先将获批范围归入获授权的新计划（当时计划见[冻结参考](../background/phase-4/total-plan.md)）；本文不维护实施状态。
 
 ## 1. 背景与结论
 
@@ -23,7 +26,7 @@
 - 查阅 Codex、Cursor、Claude 官方页面，以及 OpenAI 函数调用参数的官方定义。参考资料见第 8 节。
 - 未访问用户业务网站，未接入新的模型厂商，未做平台间同任务性能对比。
 
-代码位置集中在[代码地图](../code-map.md)：Agent 循环与工具管线、上下文与记忆、执行环境、事件投影和前端条目。当前能力及未验证边界集中在[能力与边界](../capabilities.md#执行效率与浏览器观察边界)。
+代码位置集中在[代码地图](../code-map.md)：Agent 循环与工具管线、上下文与记忆、执行环境、事件投影和前端条目。当前能力及未验证边界集中在[能力与边界](../capabilities.md#浏览器与视觉边界)。
 
 ### 2.2 一个小任务提供的证据
 
@@ -300,7 +303,7 @@ Shell 与文件预览先复用 `raw_result` 中已有的数据。写入等确需
 | S4 | [Anthropic：Computer use tool](https://platform.claude.com/docs/en/agents-and-tools/tool-use/computer-use-tool) | 图像回填、顺序批次、截图历史管理和延迟局限；具体历史裁剪建议依模型版本而变 |
 | S5 | [OpenAI：Parallel function calling](https://developers.openai.com/api/docs/guides/function-calling#parallel-function-calling) | `parallel_tool_calls=false` 限制一轮零/一个调用；第三方兼容接口行为需独立确认 |
 | P1 | [截图机制盘点](browser-screenshot-policy-2026-10-08.md) | 同一代码基线的截图触发、展示、存储和边界分析 |
-| P2 | [标准评测报告](../plan/evidence/w9-w11-eval-2026-10-02-89aa642.md)与[原始 JSON](../plan/evidence/w9-w11-eval-2026-10-02-89aa642.json) | E1/E5 历史观察、计时和缓存用量；基线 `89aa642`，不能当当前版本的新测试 |
+| P2 | [项目验收汇总](../plan/evidence/w9-w11-acceptance-2026-10-02.md)与[原始 JSON](../plan/evidence/w9-w11-eval-2026-10-02-89aa642.json) | E1/E5 历史观察、计时和缓存用量；基线 `89aa642`，不能当当前版本的新测试 |
 | P3 | [界面验收原始 JSON](../plan/evidence/w9-w11-acceptance-2026-10-02.json) | 另一浏览器会话三个截图引用与调用参数，未比较图片像素 |
 | P4 | [Harness 工程](../harness.md)、[架构](../architecture.md)、[代码地图](../code-map.md) | 用于定位当前分层；与较早文字不一致之处以本次读取的源码为准 |
-| P5 | [W1](../plan/w1-agent-loop.md)、[W2](../plan/w2-context.md)、[W6](../plan/w6-streaming.md)与[总计划](../plan/README.md) | 复用现有机制与范围归属；本文方案仍待用户批准 |
+| P5 | 原 W1、W2、W6（完整计划见 Git 提交 `06e9f409`）及[阶段入口](../plan/README.md) | 复用现有机制与范围归属；本文方案仍待用户批准 |

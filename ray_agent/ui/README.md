@@ -1,8 +1,6 @@
 # RayAgent UI 开发指南
 
-前端使用 Next.js、React、TypeScript、Tailwind CSS 和 Radix UI。它消费 API 数据与事件，展示会话、计划、工具结果和浏览器截图。工作台远程桌面入口与前端弹层已移除。项目导航、打开项目、输入命令和上下文环的当前交互不在本指南维护，见[总计划](../../docs/plan/README.md)指向的 W5 修订与 W9、W10、W11。侧栏和导入审核以 W5 修订为准。
-
-整体数据流见 [架构说明](../../docs/architecture.md)，完整应用部署见 [运行指南](../README.md)。以下命令在 `ray_agent/ui/` 执行，依据项目配置核对，尚未完成运行验证。
+前端使用 Next.js、React、TypeScript、Tailwind CSS 和 Radix UI，消费 API 数据与事件。用户流程见[产品说明](../../docs/product.md)，设计规则见 [DESIGN.md](DESIGN.md)，整体数据与资源归属见[架构说明](../../docs/architecture.md)。完整部署见[运行指南](../README.md)。本指南维护开发、数据契约及检查入口，命令不表示本轮已执行。
 
 ## 安装与启动
 
@@ -50,13 +48,28 @@ npm run dev
 
 文本增量是没有 `id` 的 `event: delta`，载荷为 `run_id`、`turn`、`attempt`、`delta`。它不写入带序号的事件列表，刷新和重连也不会补发。订阅按 `(run_id, turn, attempt)` 拼成时间线末尾的临时旁白；同一 attempt 的助手消息到达后改由那条已保存消息显示。出现更大的 attempt、另一轮、该轮结束但没有对应助手消息，或运行进入终态时，临时旁白丢掉。断线重连同样丢掉尚未保存的半截文本。
 
-`useSessionDetail` 在原有的会话、文件、事件和 `sendMessage` 之外，返回投影结果 `view`、提交中的 `submitting`（与 `streaming` 相同）、`stop`、`replyApproval` 和 `loadTurnRequest`。某一轮发给模型的请求也可以用 `sessionApi.getTurnRequest`。字段约定见 [W4 子计划](../../docs/plan/w4-ui-data.md#视图模型契约)。
+## 视图契约
 
-会话页只渲染 `view`：状态条、时间线、计划条和上下文环都读这份投影。正在增长的条目 id 放在 `handlers.streamingItemId`。停止调用 `stop()`。运行中按回车仍可发送补充要求；等待回复时占位符说明回复会继续当前任务，发送按钮恢复为发送。消息一经送出，时间线末尾只显示一句「正在思考」，发送按钮改为暂停；沙箱未就绪改为「正在准备执行环境」，停止中改为「正在停止」，出现工具行后不再另写一句。生成过程中，时间线显示逐步增长的文本，这一句随之收起。状态行在输入框上方，进行中和等待只显示用时和轮次。失败、已停止和已中断的原因只在时间线终态条。再发或重试时先收起上一轮终态。已结束轮次的速度在 `completion_tokens`、`ttft_ms` 都有值且 `model_ms` 更大时按 `completion_tokens / (model_ms − ttft_ms)` 计算，`reasoning_tokens` 有值时先从分子扣除，缺少用量时按字符估算。速度只在开发者视图的已结束轮次行显示，并在尝试次数大于 1 或扣除了推理 token 时用提示说明偏差。失败尝试的原因代码在提示里写成「连接中断或超时」「输出流中断」「空回复」「模型拒绝请求」「已停止」；只有传输中断、流中断和空回复在不再重试时才加上「已达到重试上限」。审批事件（`approval`）投影为时间线上的审批条目：挂起的调用在答复前没有工具事件，调用视图从审批事件本身构造，MCP 标题用 `service` 与 `service_tool`；结论事件原地更新同一条目，批准后该调用的 `tool` 事件写回条目里的调用，不另起工具组；`expired` 时调用标为未执行。审批挂起时的 `wait` 不生成提问条目。`run(waiting, reason=approval)` 时 activity 为 `waiting_approval`。审批卡的批准与拒绝调用 `replyApproval(toolCallId, 'approve' | 'deny')`，提交中状态保持到结论事件到达；接口出错时提示并重新拉取详情。等待批准时输入框禁用，占位符引导批准、拒绝或暂停；等待中的调用不进入工作台。设置页工具策略分区经 `getToolPolicy` / `updateToolPolicy` 整表读写 `/app-config/tool-policy`。工作台进入会话时默认关闭，点击顶部入口、工具记录或文件预览后打开；打开后默认跟随最新工具，点开某次调用后固定，直到「回到最新」。搜索、MCP、远程 Agent、计划和其他工具默认落在结果页，Shell、浏览器、文件调用分别落在专属页；没有相应调用时不显示空的终端或浏览器标签。终端在该次 Shell 调用仍为运行中时，按约 1.5 秒调用 `sessionApi.viewShell`（请求体字段为 `session_id`），浏览器 `online` 事件触发时立即重读；读取失败时保留上次输出并提示。开发者视图用 `loadTurnRequest` 显示某一轮重建出的请求。当前会话的运行状态会写回会话列表里的对应项，终态后侧栏不再停在「运行中」。组件状态目录在接入后保留。
+`useSessionDetail` 提供会话数据、投影 `view`、提交状态、`sendMessage`、`stop`、`replyApproval` 与 `loadTurnRequest`。组件消费 `view`，数据结构以 [session-view.ts](src/lib/session-view.ts)为准；事件合并与状态推导维护在投影层，避免各组件重新推断同一事实。
+
+| 契约 | 处理方式 |
+|---|---|
+| 活动与终态 | 由 run、wait、approval 及本地提交状态推导；停止不等于完成，压缩状态独立 |
+| 工具结果 | calling/called 按调用 ID 合并；失败、跳过、拒绝、未知结果分别表达；实时和历史共用归一化 |
+| 审批 | pending 构造调用，结论原地更新，批准后的工具结果合并；expired 为未执行，审批等待不生成提问卡 |
+| 临时文本 | 按 run/turn/attempt 合并，完整消息替换；刷新、重连或终态丢弃尚未保存内容 |
+| 轮次与用量 | 取已结束轮次；速度由输出量与生成耗时推导，扣除可用的推理量，缺失时标估算；不是瞬时速度 |
+| 工作台 | 手选结果后固定，读取失败保留上次结果与原因，旧响应不覆盖当前选择 |
+| 文件上传 | XHR 给出字节进度，发布数量单独确认；扫描中或服务器落盘不可测阶段不伪造百分比 |
+| 项目记忆 | 说明/笔记版本与摘要代次分别处理；冲突保存草稿并取最新值，历史取回用于编辑 |
+
+审批提交调用 `replyApproval(toolCallId, 'approve' | 'deny')`，提交状态保持至结论到达；接口出错时重取详情。等待审批时输入框引导批准、拒绝或停止，待答复调用不进入工作台。工具策略经配置 API 整表读写。
+
+模型请求原文使用 `loadTurnRequest` 或 `sessionApi.getTurnRequest`，只读重建，不重放工具。用户操作可用性由共用命令状态判断，按计划执行要核对有效计划，不能只检查 run.mode。
 
 ## 设计与主题
 
-设计方案、颜色、字体、间距、圆角和组件状态清单见 [DESIGN.md](DESIGN.md)。取值以 [src/app/globals.css](src/app/globals.css) 为准。
+设计原则、视觉语义和交互契约见 [DESIGN.md](DESIGN.md)。取值以 [src/app/globals.css](src/app/globals.css) 为准。
 
 浅色画布、侧栏与弱底色统一由 `:root` token 控制；深色 token 独立保留。品牌标记的界面组件是 [brand-mark.tsx](src/components/brand-mark.tsx)，浏览器图标是 [brand-mark.svg](public/brand-mark.svg)。
 
@@ -68,7 +81,7 @@ npm run dev
 
 开发模式下打开 [http://localhost:3000/dev/components](http://localhost:3000/dev/components)，路由在 [src/app/dev/components/page.tsx](src/app/dev/components/page.tsx)。页面用 [src/fixtures/](src/fixtures/) 里的视图模型夹具，逐个列出运行视图和设置列表的状态，供修改组件时回归。生产构建中该路由返回 404，不带会话侧栏。
 
-夹具里按 W3 契约补写的字段写在 [w1-sessions.ts](src/fixtures/w1-sessions.ts) 文件头；合成终态如何补写 `summary` 与轮次结束时间写在 [states.ts](src/fixtures/states.ts) 文件头。目录页在会话页接入这些组件后保留，供以后改组件时回归。
+历史事件夹具中补写的字段写在 [w1-sessions.ts](src/fixtures/w1-sessions.ts) 文件头；合成终态如何补写 `summary` 与轮次结束时间写在 [states.ts](src/fixtures/states.ts) 文件头。目录页在会话页接入这些组件后保留，供以后改组件时回归。
 
 ## 检查与构建
 
@@ -102,7 +115,7 @@ node scripts/check-project-navigation-recovery.cjs
 node scripts/check-project-upload-tree.cjs
 ```
 
-脚本用项目 TypeScript 转译器加载实际的 SSE 解析与 `projectSession`，不复制实现，也不连接产品服务。它检查 LF 逐字节分块（含中文 UTF-8）、非法 JSON 回调、SSE `id` 保留、重连等待上限、按 seq 去重与补齐、calling/called 合并、一轮多个调用成组、失败轮次保留、activity、轮次用时与用量、计划的 `changed`，以及停止、重启中断和请求上限的可读原因。W6 另检查增量按 `(run_id, turn, attempt)` 累积且不进入带序号的事件列表、同一 attempt 的助手消息替换临时条目、更大 attempt 或另一轮丢弃旧条目、轮次结束或运行终态后没有临时条目，以及没有 usage 时速度标为估算、有 usage 时按公式计算并扣除推理 token。W7.2 另检查只有审批事件时从事件构造调用条目且不生成提问条目、批准后 pending 与结论合并为一条并写回执行结果、拒绝为 denied（`denied_by=user`）、策略禁止在工具组里为 denied 且没有审批条目，以及停止或 API 重启后审批为 expired、调用为未执行。另将两个当前限制明确打印为 `LIMITATION`：EOF 分派未以空行结束的完整 JSON 尾段，以及 CRLF 恰在 CR/LF 之间分块时丢失事件类型。脚本退出成功表示上述行为与限制得到复现，不表示 SSE 标准符合性、hook 挂载或浏览器断线恢复已通过。
+脚本用项目 TypeScript 转译器加载实际的 SSE 解析与 `projectSession`，不复制实现，也不连接产品服务。它检查 LF 逐字节分块（含中文 UTF-8）、非法 JSON 回调、SSE `id` 保留、重连等待上限、按 seq 去重与补齐、calling/called 合并、一轮多个调用成组、失败轮次保留、activity、轮次用时与用量、计划的 `changed`，以及停止、重启中断和请求上限的可读原因。增量检查覆盖增量按 `(run_id, turn, attempt)` 累积且不进入带序号的事件列表、同一 attempt 的助手消息替换临时条目、更大 attempt 或另一轮丢弃旧条目、轮次结束或运行终态后没有临时条目，以及没有 usage 时速度标为估算、有 usage 时按公式计算并扣除推理 token。审批检查覆盖只有审批事件时从事件构造调用条目且不生成提问条目、批准后 pending 与结论合并为一条并写回执行结果、拒绝为 denied（`denied_by=user`）、策略禁止在工具组里为 denied 且没有审批条目，以及停止或 API 重启后审批为 expired、调用为未执行。另将两个当前限制明确打印为 `LIMITATION`：EOF 分派未以空行结束的完整 JSON 尾段，以及 CRLF 恰在 CR/LF 之间分块时丢失事件类型。脚本退出成功表示上述行为与限制得到复现，不表示 SSE 标准符合性、hook 挂载或浏览器断线恢复已通过。
 
 类型检查没有单独的 npm script，在本目录执行 `npx tsc --noEmit`。lint 与生产构建见上一节。
 

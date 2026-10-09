@@ -1,6 +1,8 @@
 # W7：执行控制与安全边界
 
-所属：[二次开发总计划](README.md)。规模：中，1 个对话。三个子项的前置不同：
+> 冻结参考（2026-10-09）：保留原设计、验收条件和阶段记录，来源为提交 `06e9f409` 中的 `docs/plan/w7-control-safety.md`。文中的“当前”“进行中”“后置”和完成状态按原记录时点阅读，不代表现版本或新待办。未实施目标退出本次收尾范围；当前事实以[能力与边界](../../capabilities.md)和源码为准，维护入口见[阶段收尾与维护](../../plan/README.md)。本次仅校正链接和不存在的版本标签，不重新验收。
+
+所属：[二次开发总计划](total-plan.md)。规模：中，1 个对话。三个子项的前置不同：
 
 | 子项 | 内容 | 前置 |
 |---|---|---|
@@ -18,11 +20,11 @@
 
 以下是实施前的代码快照。行号在 W2 给 Shell 输出加了上限之后已经移动；当前行为见文末“实施修正”。
 
-- 沙箱 `exec_command` 创建子进程后直接 `await` 输出读取协程（[`sandbox/app/services/shell.py`](../../ray_agent/sandbox/app/services/shell.py)）。读取协程要到输出结束才返回，推断会让接口阻塞到进程退出，后面的 5 秒等待因此失效；与 2026-09-09 观察到 `sleep 6` 约 6 秒后返回 completed 一致（见[背景](../background/README.md#工作区调研的本地观察)）。该推断尚未经 Docker/HTTP 实测。
-- API 调用沙箱的 HTTP 客户端超时为 600 秒（[`docker_sandbox.py`](../../ray_agent/api/app/infrastructure/external/sandbox/docker_sandbox.py) 第 39 行）；W1 之前工具异常会重试 3 次，长命令可能被重复执行。
+- 沙箱 `exec_command` 创建子进程后直接 `await` 输出读取协程（[`sandbox/app/services/shell.py`](../../../ray_agent/sandbox/app/services/shell.py)）。读取协程要到输出结束才返回，推断会让接口阻塞到进程退出，后面的 5 秒等待因此失效；与 2026-09-09 观察到 `sleep 6` 约 6 秒后返回 completed 一致（见[背景](../README.md#工作区调研的本地观察)）。该推断尚未经 Docker/HTTP 实测。
+- API 调用沙箱的 HTTP 客户端超时为 600 秒（[`docker_sandbox.py`](../../../ray_agent/api/app/infrastructure/external/sandbox/docker_sandbox.py) 第 39 行）；W1 之前工具异常会重试 3 次，长命令可能被重复执行。
 - 子进程用 `create_subprocess_shell` 启动，终止只作用于 bash 进程本身（shell.py 第 60–76、368–404 行），命令派生的子进程可能留下。
-- 沙箱 FastAPI 以 root 运行（[`supervisord.conf`](../../ray_agent/sandbox/supervisord.conf) 第 26–38 行）；镜像创建了带免密 sudo 的 ubuntu 用户（[`Dockerfile`](../../ray_agent/sandbox/Dockerfile) 第 20–22 行）。
-- 创建容器时没有 CPU、内存、进程数限制；API 注入 `SERVICE_TIMEOUT_MINUTES`，沙箱读取 `server_timeout_minutes`（docker_sandbox.py 第 122–134 行；[`sandbox/app/core/config.py`](../../ray_agent/sandbox/app/core/config.py) 第 16 行）。
+- 沙箱 FastAPI 以 root 运行（[`supervisord.conf`](../../../ray_agent/sandbox/supervisord.conf) 第 26–38 行）；镜像创建了带免密 sudo 的 ubuntu 用户（[`Dockerfile`](../../../ray_agent/sandbox/Dockerfile) 第 20–22 行）。
+- 创建容器时没有 CPU、内存、进程数限制；API 注入 `SERVICE_TIMEOUT_MINUTES`，沙箱读取 `server_timeout_minutes`（docker_sandbox.py 第 122–134 行；[`sandbox/app/core/config.py`](../../../ray_agent/sandbox/app/core/config.py) 第 16 行）。
 - 敏感操作前确认只写在提示词里，工具分发前没有策略检查。
 
 ## 设计
@@ -58,7 +60,7 @@
 - 应用服务与路由：审批接口；启动扫描覆盖待审批运行；
 - 前端：视图模型的审批条目、审批卡接入、设置页工具策略分区；
 - 提示词：环境描述；
-- 测试与脚本：[`scripts/check_sandbox_environment.py`](../../ray_agent/api/scripts/check_sandbox_environment.py) 增加执行身份、限额与 TTL 检查。
+- 测试与脚本：[`scripts/check_sandbox_environment.py`](../../../ray_agent/api/scripts/check_sandbox_environment.py) 增加执行身份、限额与 TTL 检查。
 
 ## 验收
 
@@ -78,12 +80,12 @@
 
 ## docs 同步
 
-- [Harness 工程](../harness.md)：工具契约层的“授权”环节；
-- [架构说明](../architecture.md)：沙箱生命周期与限制、控制参数表；
-- [能力与边界](../capabilities.md)：动作授权、沙箱配额与权限、已知不一致中的 TTL 与执行身份两条；
-- [沙箱开发指南](../../ray_agent/sandbox/README.md)、[运行指南](../../ray_agent/README.md)：执行身份、限额配置；
-- [产品说明](../product.md)：审批交互与停止效果；
-- [代码地图](../code-map.md)：执行环境、工具与动作分组。
+- [Harness 工程](../../harness.md)：工具契约层的“授权”环节；
+- [架构说明](../../architecture.md)：沙箱生命周期与限制、控制参数表；
+- [能力与边界](../../capabilities.md)：动作授权、沙箱配额与权限、已知不一致中的 TTL 与执行身份两条；
+- [沙箱开发指南](../../../ray_agent/sandbox/README.md)、[运行指南](../../../ray_agent/README.md)：执行身份、限额配置；
+- [产品说明](../../product.md)：审批交互与停止效果；
+- [代码地图](../../code-map.md)：执行环境、工具与动作分组。
 
 ## 交接
 
@@ -176,7 +178,7 @@
 
 ## 浏览器可靠性收口（2026-10-08，已批准）
 
-针对复核 R1–R3，实施顺序与证据以[总计划](README.md#浏览器与执行效率复核及下一步2026-10-08)为准。
+针对复核 R1–R3，实施顺序与证据以[总计划](total-plan.md#浏览器与执行效率复核及下一步2026-10-08)为准。
 
 - **引用绑定节点身份。** 使用浏览器侧节点身份映射或持有原节点句柄，校验所属文档、连接状态及关键目标信息；页面可复制的 `data-*` 标记只作定位辅助，不能作为身份事实源。节点替换、导航或目标语义变化后拒绝旧引用，不自动重新匹配同名节点执行写操作。新观察失效规则同时覆盖 ref/index。
 - **坐标输入确认目标。** 输入前验证坐标命中的可编辑节点与实际焦点一致，允许明确的标签关联但不能沿用无关旧焦点；只对已确认目标 fill。无法确认时返回未执行，不能清空旧输入框。多阶段动作如 fill 后 Enter 失败，分别说明已完成部分与结果未知，禁止以笼统失败诱导整次重放。

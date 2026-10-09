@@ -1,6 +1,8 @@
 # W3：运行与事件事实源
 
-所属：[二次开发总计划](README.md)。前置：W1。规模：中到大，2 个对话——对话一完成表、写入顺序、状态、停止与启动扫描；对话二完成轮次事件与运行指标、请求重建、SSE 接口与评测脚本适配。可与 W2 并行。
+> 冻结参考（2026-10-09）：保留原设计、验收条件和阶段记录，来源为提交 `06e9f409` 中的 `docs/plan/w3-run-events.md`。文中的“当前”“进行中”“后置”和完成状态按原记录时点阅读，不代表现版本或新待办。未实施目标退出本次收尾范围；当前事实以[能力与边界](../../capabilities.md)和源码为准，维护入口见[阶段收尾与维护](../../plan/README.md)。本次仅校正链接和不存在的版本标签，不重新验收。
+
+所属：[二次开发总计划](total-plan.md)。前置：W1。规模：中到大，2 个对话——对话一完成表、写入顺序、状态、停止与启动扫描；对话二完成轮次事件与运行指标、请求重建、SSE 接口与评测脚本适配。可与 W2 并行。
 
 ## 目标与不做
 
@@ -125,12 +127,12 @@ SSE 事件数据中带上 `seq`、`run_id` 与毫秒 `created_at`。接口 schem
 
 ## docs 同步
 
-- [架构说明](../architecture.md)：“结束路径与控制平面”“状态与持久化”“事件与投影”中的状态、写入顺序与接口；
-- [Harness 工程](../harness.md)：“观测与控制”“状态与持久化”“发布与提交不是一个事务”；
-- [设计取舍](../decisions.md)：“取消不引入独立终态”改写为新选择，保留旧代价说明；
-- [能力与边界](../capabilities.md)：取消、事件流、SSE 重连、恢复相关条目及未验证范围；
-- [代码地图](../code-map.md)：状态与持久化、任务控制、事件分组；
-- [API 开发指南](../../ray_agent/api/README.md)、[运行指南](../../ray_agent/README.md)：新库初始化方式与重建说明；
+- [架构说明](../../architecture.md)：“结束路径与控制平面”“状态与持久化”“事件与投影”中的状态、写入顺序与接口；
+- [Harness 工程](../../harness.md)：“观测与控制”“状态与持久化”“发布与提交不是一个事务”；
+- [设计取舍](../../decisions.md)：“取消不引入独立终态”改写为新选择，保留旧代价说明；
+- [能力与边界](../../capabilities.md)：取消、事件流、SSE 重连、恢复相关条目及未验证范围；
+- [代码地图](../../code-map.md)：状态与持久化、任务控制、事件分组；
+- [API 开发指南](../../../ray_agent/api/README.md)、[运行指南](../../../ray_agent/README.md)：新库初始化方式与重建说明；
 - `state-ownership.svg`、`task-exits.svg`、`architecture-overview.svg` 图注标明旧基线示意，W8 重绘。
 
 ## 交接
@@ -140,8 +142,8 @@ SSE 事件数据中带上 `seq`、`run_id` 与毫秒 `created_at`。接口 schem
 交接接口（2026-09-28 实现）：
 
 - **表：** 迁移 `5b7e2c9d4a10`（修订 `0e0d242438bc`）。`runs` 主键 `id`；`session_id` 外键级联；部分唯一索引 `uq_runs_active_session`（`status IN ('running','waiting')`）。`events` 主键 `(session_id, seq)`；`run_id` 可空且外键级联。`sessions.events` 列删除，不转换旧 JSONB。
-- **写入入口：** [`RunLedger`](../../ray_agent/api/app/domain/services/run_ledger.py)。`append` 同事务写事件；带 `run_id` 时先锁运行行，已是终态则丢弃并返回空列表，`after_terminal=True` 只给 `cleanup`。`start` 创建运行并写 `run(running)`。`transition` 改活动运行；进入终态时用 `turn_closer(index, error)` 补最后一条未完成轮次，汇总取运行行。`interrupt_running` 只处理 running。计数在同一事务累加：`turn(started)` 加 `turns`，`turn(completed)` 按 `attempts` 与 `usage` 加模型请求和 tokens，`tool(called)` 加 `tool_calls`。
-- **通知：** [`EventNotifier`](../../ray_agent/api/app/domain/external/event_notifier.py)。`publish(session_id, seq)` 失败只记日志。Redis 实现频道 `session:events:{session_id}`，载荷 `{"session_id","seq"}`。`subscribe` 在收到订阅确认后返回；`get(timeout)` 返回 seq 或超时 `None`。
+- **写入入口：** [`RunLedger`](../../../ray_agent/api/app/domain/services/run_ledger.py)。`append` 同事务写事件；带 `run_id` 时先锁运行行，已是终态则丢弃并返回空列表，`after_terminal=True` 只给 `cleanup`。`start` 创建运行并写 `run(running)`。`transition` 改活动运行；进入终态时用 `turn_closer(index, error)` 补最后一条未完成轮次，汇总取运行行。`interrupt_running` 只处理 running。计数在同一事务累加：`turn(started)` 加 `turns`，`turn(completed)` 按 `attempts` 与 `usage` 加模型请求和 tokens，`tool(called)` 加 `tool_calls`。
+- **通知：** [`EventNotifier`](../../../ray_agent/api/app/domain/external/event_notifier.py)。`publish(session_id, seq)` 失败只记日志。Redis 实现频道 `session:events:{session_id}`，载荷 `{"session_id","seq"}`。`subscribe` 在收到订阅确认后返回；`get(timeout)` 返回 seq 或超时 `None`。
 - **SSE：** `GET /api/sessions/{id}/events`。查询参数 `after_seq`（≥0）优先于请求头 `Last-Event-ID`；省略时头为数字则用它，否则 0。先按 `seq > N` 补库（每页 200），订阅后再补一次空档，之后通知或每 3 秒再查。SSE `id` 为 `seq`，`event` 为类型，`data` 含 `event_id`、`seq`、`run_id`、毫秒 `created_at` 及类型字段。`context` 的 `data` 只有 `op`、`message_count`、`roles`。`cleanup` 没有专用 SSE 类，走通用映射，`targets` 在 `data` 里。`ping` 15 秒。
 - **chat：** `POST /api/sessions/{id}/chat` 返回 `run_id`、`seq`（用户消息事件）、`route`（`started` / `resumed` / `injected`）。路由在进程内会话锁里决定：running 且本进程任务仍在执行该运行 → `injected`；waiting → 同一运行回到 running，`resumed`；库中 running 但没有执行协程 → 先 `interrupted`/`runner_lost`，再 `started`。
 - **会话详情：** `GET /api/sessions/{id}?after_seq=&limit=`。`runs[]` 含状态、原因、起止毫秒时间与计数字段；`events` 为 `seq > after_seq`；`last_seq` 为当前最大序号。`limit` 默认不限制，上限 5000。
@@ -149,7 +151,7 @@ SSE 事件数据中带上 `seq`、`run_id` 与毫秒 `created_at`。接口 schem
 - **轮次字段：** started：`index`、`context_window`、`context_estimate`（现为 `null`）。completed：`index`、`model_ms`、`attempts`、`usage`（`prompt_tokens`、`completion_tokens`、`cached_tokens`、`reasoning_tokens`）、`finish_reason`、`tool_call_ids`、`tools_ms`、`error`。没有 `ttft_ms`。
 - **运行汇总：** 终态 `run.summary` 与运行行一致：`duration_ms`、`turns`、`model_requests`、`tool_calls`、`prompt_tokens`、`completion_tokens`、`cached_tokens`（全程无缓存数据时为 `null`）。
 - **停止传播：** `POST /api/sessions/{id}/stop`。活动运行改为 `cancelled`/`user_stop` 后 `task.cancel()`；运行器 `stop_processes` 对登记的 Shell 会话调用沙箱 `kill_process`，最多等 10 秒，并把 A2A `last_cancellations` 一并写入 `cleanup`。没有活动运行时响应 `data` 为 `null`。登记发生在 `shell_execute` 的 `calling` 事件，会话 ID 取参数 `session_id`，只活在当前进程。
-- **启动扫描：** [`main.py`](../../ray_agent/api/app/main.py) 在迁移和 Redis、PostgreSQL 初始化之后、`yield` 之前调用 `interrupt_running`，原因 `api_restart`。不终止沙箱进程，不恢复执行。
+- **启动扫描：** [`main.py`](../../../ray_agent/api/app/main.py) 在迁移和 Redis、PostgreSQL 初始化之后、`yield` 之前调用 `interrupt_running`，原因 `api_restart`。不终止沙箱进程，不恢复执行。
 
 ## 实施修正（2026-09-28）
 

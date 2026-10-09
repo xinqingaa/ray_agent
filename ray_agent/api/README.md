@@ -113,13 +113,13 @@ uv run --locked python -m pytest tests/core/test_scripted_llm.py
 
 ### 端到端评测
 
-[scripts/eval/](scripts/eval/) 通过公开 HTTP API 与 SSE 驱动完整产品，运行 E1–E6 基线任务（定义见 [W0 子计划](../../docs/plan/w0-baseline-eval.md#评测脚本)）与长上下文压缩任务 E7（见 [W2 子计划](../../docs/plan/w2-context.md#验收)）。前提：产品 Compose 已启动且各服务健康，模型已按[应用配置](../README.md#模型与工具)配置。每次运行会调用真实模型并产生费用；E6 与 E6-deny 会临时写入并在结束时删除一项 MCP 设置，同时把工具策略表临时设为该服务需要审批，结束时恢复原表；E7 运行期间把模型配置的 `context_window` 与 `max_tokens` 临时调低，结束时恢复，期间同一 API 上的其他会话也使用调低后的值。
+[scripts/eval/](scripts/eval/) 通过公开 HTTP API 与 SSE 驱动完整产品，运行纯回答与记忆、文件交付、提问续接、长命令停止、浏览器取数、MCP 批准/拒绝和长上下文压缩任务。任务定义以脚本为准，历史条件与结果见[基线对比](../../docs/plan/evidence/w8-comparison-2026-09-29.md)。前提：产品 Compose 已启动且各服务健康，模型已按[应用配置](../README.md#模型与工具)配置。每次运行会调用真实模型并产生费用；E6 与 E6-deny 会临时写入并在结束时删除一项 MCP 设置，同时把工具策略表临时设为该服务需要审批，结束时恢复原表；E7 运行期间把模型配置的 `context_window` 与 `max_tokens` 临时调低，结束时恢复，期间同一 API 上的其他会话也使用调低后的值。
 
 ```bash
 uv run --locked python -m scripts.eval --list
-uv run --locked python -m scripts.eval --label w0-baseline
-uv run --locked python -m scripts.eval --tasks E2,E4 --repeat 3 --label w1
-uv run --locked python -m scripts.eval --label w1 --baseline ../../docs/plan/evidence/w0-baseline-2026-09-28-961005d.json
+uv run --locked python -m scripts.eval --label local-baseline
+uv run --locked python -m scripts.eval --tasks E2,E4 --repeat 3 --label local-repeat
+uv run --locked python -m scripts.eval --label local-check --baseline ../../docs/plan/evidence/w0-baseline-2026-09-28-961005d.json
 ```
 
 默认经网关 `http://localhost:8088/api` 访问 API，报告写入 `docs/plan/evidence/<label>-<日期>-<提交短哈希>.{json,md}`，同名文件会被覆盖，调试时用 `--output-dir` 写到临时目录。`--baseline` 指定另一份报告 JSON 时，Markdown 增加按任务与运行序号配对的指标对比表；结论文字不自动生成。E5 在宿主机自启静态页面，E6 以子进程运行 [MCP 夹具](tests/protocols/fixture_server.py)，两者都通过 `--host-address`（默认 Docker Desktop 的 `host.docker.internal`）让沙箱与 API 容器访问宿主机；访问不到时记为跳过。E4 停止后应终止本次运行登记的 Shell 会话；沙箱容器本身仍随 TTL 回收。
@@ -181,7 +181,7 @@ RAY_TEST_DATABASE_URI=postgresql+asyncpg://… uv run --locked python -m pytest 
 uv run --locked python scripts/check_project_file_lifecycle.py --url http://127.0.0.1:8088/api --output /tmp/project-file-check.json
 ```
 
-数据库测试使用独立临时 PostgreSQL（每例重建 `public`），文件使用临时目录，Docker 为替身；覆盖上传批次所有权、规则与实际字节复核、保护快照、故障修复、取消、到期与重启。磁盘测试核对内容对象、无硬链接去重、原地恢复、链接与流式 ZIP。真实部署脚本通过 HTTP 新建唯一测试项目，验证覆盖保护、恢复路径/字节、下载、归档快照清理；不调用模型，不替代浏览器验收。项目输入附件上传使用 `/files` 的 `project_id`、当前 `rule_version` 和可选项明确确认参数；已上传 id 在 chat 受理事务中登记 pending，后台停止旧写入者后发布并纳入运行前快照。附件用例验证原子受理、改名、快照锁、结果未知读回、明确 ready 拒绝、启动孤儿收敛；尚需与真实模型/浏览器完整链路验收。脚本保留测试项目并输出其 id 与限定清理范围；检查记录后仅按该范围清理，不能清空业务库或删除其他项目。
+数据库测试使用独立临时 PostgreSQL（每例重建 `public`），文件使用临时目录，Docker 为替身；覆盖上传批次所有权、规则与实际字节复核、保护快照、故障修复、取消、到期与重启。磁盘测试核对内容对象、无硬链接去重、原地恢复、链接与流式 ZIP。真实部署脚本通过 HTTP 新建唯一测试项目，验证覆盖保护、恢复路径/字节、下载、归档快照清理；不调用模型，不替代浏览器验收。项目输入附件上传使用 `/files` 的 `project_id`、当前 `rule_version` 和可选项明确确认参数；已上传 id 在 chat 受理事务中登记 pending，后台停止旧写入者后发布并纳入运行前快照。附件用例验证原子受理、改名、快照锁、结果未知读回、明确 ready 拒绝、启动孤儿收敛；完整链路的历史覆盖见[项目验收](../../docs/plan/evidence/w9-w11-acceptance-2026-10-02.md)，不由这些用例单独证明。脚本保留测试项目并输出其 id 与限定清理范围；检查记录后仅按该范围清理，不能清空业务库或删除其他项目。
 
 ### 项目交付副本观察
 
@@ -293,4 +293,4 @@ uv run --locked python -m pytest tests/core/test_visual_resources.py tests/proto
 
 覆盖按需资源单次准备、停止与迟到所有权、最多三项独立读取、图像字节请求/历史与容量边界、引用重建、本地临时图回收，以及真实 MCP 夹具的所选发现和新运行器恢复。浏览器身份、焦点、隐藏根与 CDP 重连用例需设置前文 `RAY_TEST_BROWSER=1`；新增 PG 图像归属与过期查询在 `test_run_events_pg.py`，仍只能指向独立测试库。
 
-截图 `analyze=true` 请求当前模型观察，`deliver=false` 保存临时图；默认 `deliver=true` 继续交付附件。非视觉模型只留证。临时图捕获满 24 小时且运行结束后由启动/30 秒维护任务回收；永久附件和历史自动截图不回收。新增数据库字段由正常启动迁移，无需清库。Pillow 是 API 的图像尺寸/编码依赖，锁文件和容器安装清单同步。
+截图 `analyze=true` 请求当前模型观察，`deliver=false` 保存临时图；默认 `deliver=true` 继续交付附件。非视觉模型明确返回不支持视觉，截图仍可留证。临时图捕获满 24 小时且运行结束后由启动/30 秒维护任务回收；永久附件和历史自动截图不回收。新增数据库字段由正常启动迁移，无需清库。Pillow 是 API 的图像尺寸/编码依赖，锁文件和容器安装清单同步。

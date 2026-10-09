@@ -1,6 +1,8 @@
 # W0：基线与评测
 
-所属：[二次开发总计划](README.md)。前置：无。规模：小，1 个对话。
+> 冻结参考（2026-10-09）：保留原设计、验收条件和阶段记录，来源为提交 `06e9f409` 中的 `docs/plan/w0-baseline-eval.md`。文中的“当前”“进行中”“后置”和完成状态按原记录时点阅读，不代表现版本或新待办。未实施目标退出本次收尾范围；当前事实以[能力与边界](../../capabilities.md)和源码为准，维护入口见[阶段收尾与维护](../../plan/README.md)。本次仅校正链接和不存在的版本标签，不重新验收。
+
+所属：[二次开发总计划](total-plan.md)。前置：无。规模：小，1 个对话。
 
 ## 目标与不做
 
@@ -10,10 +12,10 @@
 
 ## 现状
 
-- 模型接口是 `Protocol`，只有 `invoke(messages, tools, response_format, tool_choice)` 与四个只读属性（[`domain/external/llm.py`](../../ray_agent/api/app/domain/external/llm.py)），替身实现成本低。
+- 模型接口是 `Protocol`，只有 `invoke(messages, tools, response_format, tool_choice)` 与四个只读属性（[`domain/external/llm.py`](../../../ray_agent/api/app/domain/external/llm.py)），替身实现成本低。
 - 已有测试替身散落在各测试文件内（如 `test_planner_react_flow.py` 的内联 `invoke`，该文件已在 W1 删除），没有可复用的脚本化模型。
 - 用量已按模型调用发出 `UsageEvent`，工具调用有 `calling/called` 两条 `ToolEvent`，都随会话事件保存，可通过 `GET /sessions/{id}` 读回，足以统计评测指标。
-- [labs/verification](../../labs/verification/README.md) 列有 V01–V05 五条任务样本，没有自动运行入口；协议测试已有可自启的 MCP/A2A 夹具（[`tests/protocols/fixture_server.py`](../../ray_agent/api/tests/protocols/fixture_server.py)）。
+- [labs/verification](../../../labs/verification/README.md) 列有 V01–V05 五条任务样本，没有自动运行入口；协议测试已有可自启的 MCP/A2A 夹具（[`tests/protocols/fixture_server.py`](../../../ray_agent/api/tests/protocols/fixture_server.py)）。
 
 ## 设计
 
@@ -58,7 +60,7 @@ W2 追加 E7（长上下文，改编自 V05）。环境不满足时（例如沙�
 
 - 新增 `tests/support/scripted_llm.py` 及其自测；
 - 新增 `scripts/eval/`：任务定义、运行器、报告生成；
-- [API 开发指南](../../ray_agent/api/README.md) 增加评测的运行前提（Compose 已启动、模型已配置）与命令；
+- [API 开发指南](../../../ray_agent/api/README.md) 增加评测的运行前提（Compose 已启动、模型已配置）与命令；
 - 新增 `docs/plan/evidence/` 下的基线报告。
 
 ## 验收
@@ -68,7 +70,7 @@ W2 追加 E7（长上下文，改编自 V05）。环境不满足时（例如沙�
 
 ## docs 同步
 
-- [API 开发指南](../../ray_agent/api/README.md)：评测命令与前提；
+- [API 开发指南](../../../ray_agent/api/README.md)：评测命令与前提；
 - 本计划第 5、6 节。其他 docs 不变，因为产品行为没有变化。
 
 ## 交接

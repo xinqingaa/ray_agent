@@ -12,7 +12,7 @@
   <rect x="500" y="96" width="600" height="72" rx="8" fill="#ffffff" stroke="#d1d5db" stroke-width="3.5" data-graph-role="node" data-node-id="web"/>
   <rect x="508" y="108" width="6" height="48" rx="3" fill="#475569" data-graph-role="decoration"/>
   <text x="528" y="128" fill="#111827" font-size="16" font-weight="600">Web 会话</text>
-  <text x="528" y="152" fill="#6b7280" font-size="14">计划、时间线、工作台与沙箱画面</text>
+  <text x="528" y="152" fill="#6b7280" font-size="14">会话、项目、计划与工具结果</text>
   <rect x="488" y="196" width="624" height="548" rx="12" fill="#f8fafc" stroke="#e5e7eb" stroke-width="2" stroke-dasharray="7 6" data-graph-role="container"/>
   <text x="504" y="218" fill="#16a34a" font-size="13" font-weight="600">API</text>
   <rect x="28" y="228" width="420" height="516" rx="12" fill="#f8fafc" stroke="#e5e7eb" stroke-width="2" stroke-dasharray="7 6" data-graph-role="container"/>
@@ -21,7 +21,7 @@
   <rect x="516" y="260" width="6" height="84" rx="3" fill="#2563eb" data-graph-role="decoration"/>
   <text x="536" y="280" fill="#111827" font-size="16" font-weight="600">会话与应用协调</text>
   <text x="536" y="304" fill="#6b7280" font-size="13">接收消息与停止</text>
-  <text x="536" y="325" fill="#6b7280" font-size="13">准备沙箱，启动或续接运行</text>
+  <text x="536" y="325" fill="#6b7280" font-size="13">按需资源与项目保护，启动或续接</text>
   <rect x="508" y="396" width="584" height="128" rx="8" fill="#ffffff" stroke="#16a34a" stroke-width="3.5" data-graph-role="node" data-node-id="loop"/>
   <rect x="516" y="408" width="6" height="104" rx="3" fill="#16a34a" data-graph-role="decoration"/>
   <text x="536" y="428" fill="#111827" font-size="16" font-weight="600">单循环任务运行</text>
@@ -42,13 +42,13 @@
   <rect x="48" y="408" width="380" height="128" rx="8" fill="#ffffff" stroke="#16a34a" stroke-width="3.5" data-graph-role="node" data-node-id="pg"/>
   <rect x="56" y="420" width="6" height="104" rx="3" fill="#16a34a" data-graph-role="decoration"/>
   <text x="76" y="440" fill="#111827" font-size="16" font-weight="600">PostgreSQL</text>
-  <text x="76" y="464" fill="#6b7280" font-size="14">会话、记忆、文件元数据</text>
+  <text x="76" y="464" fill="#6b7280" font-size="14">项目、记忆、文件元数据</text>
   <text x="76" y="486" fill="#6b7280" font-size="14">runs 与 events 是事实源</text>
   <text x="76" y="508" fill="#6b7280" font-size="14">先落库，再发通知</text>
   <rect x="48" y="564" width="380" height="120" rx="8" fill="#ffffff" stroke="#16a34a" stroke-width="3.5" data-graph-role="node" data-node-id="files"/>
   <rect x="56" y="576" width="6" height="96" rx="3" fill="#16a34a" data-graph-role="decoration"/>
   <text x="76" y="596" fill="#111827" font-size="16" font-weight="600">文件存储</text>
-  <text x="76" y="620" fill="#6b7280" font-size="13">附件、执行文件与截图</text>
+  <text x="76" y="620" fill="#6b7280" font-size="13">附件、项目文件、快照与图片</text>
   <text x="76" y="641" fill="#6b7280" font-size="13">和数据库不是同一个事务</text>
   <rect x="1188" y="248" width="332" height="108" rx="8" fill="#ffffff" stroke="#dc2626" stroke-width="3.5" data-graph-role="node" data-node-id="ext"/>
   <rect x="1196" y="260" width="6" height="84" rx="3" fill="#dc2626" data-graph-role="decoration"/>
@@ -99,10 +99,7 @@
   <path d="M 1000.0 564.0 L 1000.0 544.0 L 1552.0 544.0 L 1552.0 302.0 L 1520.0 302.0" fill="none" stroke="#dc2626" stroke-width="4" stroke-linejoin="round" stroke-linecap="round" marker-end="url(#arr-dc2626)" data-graph-role="edge"/>
   <rect x="1117" y="518" width="65.41" height="17" rx="2" fill="#ffffff" data-graph-role="decoration"/>
   <text x="1120" y="530" fill="#dc2626" font-size="13" font-weight="600" data-graph-role="label">MCP / A2A</text>
-  <path d="M 1520.0 630.0 L 1584.0 630.0 L 1584.0 132.0 L 1100.0 132.0" fill="none" stroke="#6b7280" stroke-width="3" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="8 6" marker-end="url(#arr-6b7280)" marker-start="url(#arr-6b7280)" data-graph-role="edge"/>
-  <rect x="1157" y="110" width="136.0" height="17" rx="2" fill="#ffffff" data-graph-role="decoration"/>
-  <text x="1160" y="122" fill="#6b7280" font-size="13" font-weight="600" data-graph-role="label">沙箱画面，不经工具层</text>
   <path d="M40 784 H1560" fill="none" stroke="#e5e7eb" stroke-width="2" data-graph-role="decoration"/>
-  <text x="40" y="812" fill="#6b7280" font-size="14">蓝：请求与调度    绿：持久化与事件回传    紫：沙箱操作    红：外部协议    灰虚线：画面转发</text>
+  <text x="40" y="812" fill="#6b7280" font-size="14">蓝：请求与调度    绿：持久化与事件回传    紫：沙箱操作    红：外部协议</text>
   <text x="40" y="836" fill="#6b7280" font-size="14">箭头指向被调用方。存储写入不在同一个事务里；事件先落库，Redis 通知只带序号。</text>
 </svg>

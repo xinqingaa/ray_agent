@@ -1,6 +1,8 @@
 # W4：前端数据层
 
-所属：[二次开发总计划](README.md)。前置：W3（新接口与轮次事件）；W1、W2 的事件语义。上下文环的占用口径以 [W9 U3](w9-input-commands.md#设计契约) 为准。下面 usage 段里「估算优先、压缩后用 after_estimate」的写法是返工前的投影，不作为当前契约。
+> 冻结参考（2026-10-09）：保留原设计、验收条件和阶段记录，来源为提交 `06e9f409` 中的 `docs/plan/w4-ui-data.md`。文中的“当前”“进行中”“后置”和完成状态按原记录时点阅读，不代表现版本或新待办。未实施目标退出本次收尾范围；当前事实以[能力与边界](../../capabilities.md)和源码为准，维护入口见[阶段收尾与维护](../../plan/README.md)。本次仅校正链接和不存在的版本标签，不重新验收。
+
+所属：[二次开发总计划](total-plan.md)。前置：W3（新接口与轮次事件）；W1、W2 的事件语义。上下文环的占用口径以 [W9 U3](w9-input-commands.md#设计契约) 为准。下面 usage 段里「估算优先、压缩后用 after_estimate」的写法是返工前的投影，不作为当前契约。
 
 ## 目标与不做
 
@@ -12,11 +14,11 @@
 
 以下是 W4 实施前的代码事实，行号对应 W3 提交 `c0822dc`，不要再对当前文件。
 
-- [`hooks/use-session-detail.ts`](../../ray_agent/ui/src/hooks/use-session-detail.ts) 同时维护“发送消息的流”和“空消息的补齐流”，流结束后延迟重连（第 102–129 行、第 226–305 行）；会话状态从 step、tool、wait、done、error 事件推断（第 62–99 行），发送时先乐观置为 running。
-- [`lib/session-events.ts`](../../ray_agent/ui/src/lib/session-events.ts) 按 step 分组工具（第 174–259 行），没有 step 时平铺；`collapseRetriedTurns` 与 `trimToLastUserMessage` 会隐藏同内容重试之前的失败轮次（第 427–470 行）。
+- [`hooks/use-session-detail.ts`](../../../ray_agent/ui/src/hooks/use-session-detail.ts) 同时维护“发送消息的流”和“空消息的补齐流”，流结束后延迟重连（第 102–129 行、第 226–305 行）；会话状态从 step、tool、wait、done、error 事件推断（第 62–99 行），发送时先乐观置为 running。
+- [`lib/session-events.ts`](../../../ray_agent/ui/src/lib/session-events.ts) 按 step 分组工具（第 174–259 行），没有 step 时平铺；`collapseRetriedTurns` 与 `trimToLastUserMessage` 会隐藏同内容重试之前的失败轮次（第 427–470 行）。
 - 计划面板读取最新 plan 事件并合并 step 事件的状态（第 333–360 行；`components/plan-panel.tsx`，W5 已删除）。
 - 用量只显示最近一次调用的上下文占用（`components/token-usage.tsx`，W5 已删除）。
-- 已有本地观察脚本 [`scripts/check-event-observability.cjs`](../../ray_agent/ui/scripts/check-event-observability.cjs)，转译并执行真实 UI 模块验证 SSE 解析与时间线构建。
+- 已有本地观察脚本 [`scripts/check-event-observability.cjs`](../../../ray_agent/ui/scripts/check-event-observability.cjs)，转译并执行真实 UI 模块验证 SSE 解析与时间线构建。
 
 ## 设计
 
@@ -30,7 +32,7 @@
 
 ### 视图模型契约
 
-类型在 [`session-view.ts`](../../ray_agent/ui/src/lib/session-view.ts)，投影函数是 [`session-projection.ts`](../../ray_agent/ui/src/lib/session-projection.ts) 的 `projectSession`。W5 只依赖这些类型。时间一律是毫秒时间戳。删改字段需同步本节。
+类型在 [`session-view.ts`](../../../ray_agent/ui/src/lib/session-view.ts)，投影函数是 [`session-projection.ts`](../../../ray_agent/ui/src/lib/session-projection.ts) 的 `projectSession`。W5 只依赖这些类型。时间一律是毫秒时间戳。删改字段需同步本节。
 
 **SessionView：** `id`、`title`、`status`（最新运行的状态；没有运行时为 `idle`。详情里的 `pending` 不进这个字段）、`project`（`{path, name, available, reason}` 或 `null`）、`runs`、`activeRun`（最后一个 `running` 或 `waiting`，没有则为 `null`）、`timeline`、`plan`、`usage`、`files`、`events`（有 seq 的原始事件，按 seq 排序）。
 
@@ -112,10 +114,10 @@
 
 ## docs 同步
 
-- [产品说明](../product.md)：会话与任务、观察与历史、怎么判断任务完成；
-- [UI 开发指南](../../ray_agent/ui/README.md)：订阅方式、视图模型模块与检查脚本；
-- [代码地图](../code-map.md)：前端分组；
-- [能力与边界](../capabilities.md)：SSE 重连与补齐从“未验证”移出（以实际验证结果为准）。
+- [产品说明](../../product.md)：会话与任务、观察与历史、怎么判断任务完成；
+- [UI 开发指南](../../../ray_agent/ui/README.md)：订阅方式、视图模型模块与检查脚本；
+- [代码地图](../../code-map.md)：前端分组；
+- [能力与边界](../../capabilities.md)：SSE 重连与补齐从“未验证”移出（以实际验证结果为准）。
 
 ## 交接
 

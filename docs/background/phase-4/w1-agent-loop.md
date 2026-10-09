@@ -1,6 +1,8 @@
 # W1：单循环执行内核
 
-所属：[二次开发总计划](README.md)。前置：W0。规模：大，建议 2 个对话——对话一完成后端内核与测试；对话二完成前端最小兼容、评测复跑与 docs 更新。
+> 冻结参考（2026-10-09）：保留原设计、验收条件和阶段记录，来源为提交 `06e9f409` 中的 `docs/plan/w1-agent-loop.md`。文中的“当前”“进行中”“后置”和完成状态按原记录时点阅读，不代表现版本或新待办。未实施目标退出本次收尾范围；当前事实以[能力与边界](../../capabilities.md)和源码为准，维护入口见[阶段收尾与维护](../../plan/README.md)。本次仅校正链接和不存在的版本标签，不重新验收。
+
+所属：[二次开发总计划](total-plan.md)。前置：W0。规模：大，建议 2 个对话——对话一完成后端内核与测试；对话二完成前端最小兼容、评测复跑与 docs 更新。
 
 ## 目标与不做
 
@@ -15,15 +17,15 @@
 - `flows/planner_react.py` 以状态机驱动 规划 → 执行步骤 → 更新计划 → 总结；`agents/planner.py` 强制 `json_object` 与 `tool_choice="none"`。
 - `agents/react.py` 要求每步输出 Step JSON（第 82–94 行），解析失败即终止；第 96–102 行的假完成守卫与 `summarize()` 的附件 JSON（第 143–177 行）都依附于这个结构。
 - `agents/base.py` 第 133 行只保留第一个工具调用；第 117–126 行空回复时写入一条伪造的用户消息；第 152–166 行工具异常重试 `max_retries` 次；第 193–226 行 `roll_back` 在续接时补提问结果或删除最后一条消息。Planner 与执行器各有一份记忆。
-- 执行提示词强制每步调用 `message_notify_user`（`prompts/react.py` 第 27–30 行）；系统提示词要求“严禁列表”“至少数千字”，环境描述与镜像不符（[`prompts/system.py`](../../ray_agent/api/app/domain/services/prompts/system.py) 第 26、85–86、93–101 行）。
-- 运行器在每个事件后检查输入流，有新消息就中断当前流程改道（[`agent_task_runner.py`](../../ray_agent/api/app/domain/services/agent_task_runner.py) 第 428–430 行）；文件工具每次 `called` 都会把目标文件同步到存储（第 275–283 行）。
-- `LLMInvokeResult` 只有 message 与 usage，丢弃了 finish_reason（[`openai_llm.py`](../../ray_agent/api/app/infrastructure/external/llm/openai_llm.py) 第 97–106 行）。
+- 执行提示词强制每步调用 `message_notify_user`（`prompts/react.py` 第 27–30 行）；系统提示词要求“严禁列表”“至少数千字”，环境描述与镜像不符（[`prompts/system.py`](../../../ray_agent/api/app/domain/services/prompts/system.py) 第 26、85–86、93–101 行）。
+- 运行器在每个事件后检查输入流，有新消息就中断当前流程改道（[`agent_task_runner.py`](../../../ray_agent/api/app/domain/services/agent_task_runner.py) 第 428–430 行）；文件工具每次 `called` 都会把目标文件同步到存储（第 275–283 行）。
+- `LLMInvokeResult` 只有 message 与 usage，丢弃了 finish_reason（[`openai_llm.py`](../../../ray_agent/api/app/infrastructure/external/llm/openai_llm.py) 第 97–106 行）。
 
 ## 设计
 
 ### 循环
 
-新增 `AgentLoop`（[`domain/services/flows/agent_loop.py`](../../ray_agent/api/app/domain/services/flows/agent_loop.py)），替换 `PlannerReActFlow`。一份记忆，名称 `agent`。简化的控制关系：
+新增 `AgentLoop`（[`domain/services/flows/agent_loop.py`](../../../ray_agent/api/app/domain/services/flows/agent_loop.py)），替换 `PlannerReActFlow`。一份记忆，名称 `agent`。简化的控制关系：
 
 ```python
 async def run(user_message):
@@ -108,7 +110,7 @@ async def run(user_message):
 
 本包不新增事件类型。`StepEvent` 不再产生；`PlanEvent` 由 `update_plan` 产生；助手旁白用现有 `MessageEvent` 发出。前端只做必要修改：
 
-- 时间线在没有 step 事件时已支持工具平铺显示（[`session-events.ts`](../../ray_agent/ui/src/lib/session-events.ts) 第 260–280 行），核对显示正常；
+- 时间线在没有 step 事件时已支持工具平铺显示（[`session-events.ts`](../../../ray_agent/ui/src/lib/session-events.ts) 第 260–280 行），核对显示正常；
 - 计划面板读取最新的 `PlanEvent` 步骤，核对 running 状态的图标与进度文字；
 - 与 `message_notify_user` 相关的显示逻辑若因工具移除而失效则删除。
 
@@ -148,12 +150,12 @@ async def run(user_message):
 
 ## docs 同步
 
-- [架构说明](../architecture.md)：“一次任务的执行”“结束路径与控制平面”中的执行循环、预算参数与结束条件；
-- [Harness 工程](../harness.md)：“规划层”“决策层”“内外层循环的交接契约”改写为单循环与计划工具；
-- [设计取舍](../decisions.md)：“双层循环”条目改为“单循环加计划工具”，保留旧选择的理由与放弃原因；
-- [能力与边界](../capabilities.md)：规划、假完成守卫、并行/多调用、重试相关条目；
-- [代码地图](../code-map.md)：规划与执行循环分组；
-- [产品说明](../product.md)：计划展示、进展旁白、交付方式；
+- [架构说明](../../architecture.md)：“一次任务的执行”“结束路径与控制平面”中的执行循环、预算参数与结束条件；
+- [Harness 工程](../../harness.md)：“规划层”“决策层”“内外层循环的交接契约”改写为单循环与计划工具；
+- [设计取舍](../../decisions.md)：“双层循环”条目改为“单循环加计划工具”，保留旧选择的理由与放弃原因；
+- [能力与边界](../../capabilities.md)：规划、假完成守卫、并行/多调用、重试相关条目；
+- [代码地图](../../code-map.md)：规划与执行循环分组；
+- [产品说明](../../product.md)：计划展示、进展旁白、交付方式；
 - 过时的 `task-lifecycle.svg`、`harness-layers.svg`、`product-overview.svg` 在图注标明旧基线示意，W8 重绘。
 
 ## 交接
@@ -162,10 +164,10 @@ async def run(user_message):
 
 交接接口（2026-09-28 实现）：
 
-- **工具管线注册：** `AgentLoop.pipeline` 是 [`ToolPipeline`](../../ray_agent/api/app/domain/services/flows/tool_pipeline.py)。`add_before(handler)` 注册执行前处理，签名 `async (ToolInvocation) -> Optional[ToolResult]`，返回结果即短路；`add_after(handler)` 注册执行后处理，签名 `async (ToolInvocation, ToolResult) -> ToolResult`，返回值替换结果并进入记忆，需要额外事件时追加到 `invocation.events`。内置执行前处理（记录开始、解析工具、解析参数、校验参数）先于新注册的处理运行，内置耗时记录先于新注册的执行后处理。W7.2 的策略检查用 `add_before`，W2 的结果整形用 `add_after`。
+- **工具管线注册：** `AgentLoop.pipeline` 是 [`ToolPipeline`](../../../ray_agent/api/app/domain/services/flows/tool_pipeline.py)。`add_before(handler)` 注册执行前处理，签名 `async (ToolInvocation) -> Optional[ToolResult]`，返回结果即短路；`add_after(handler)` 注册执行后处理，签名 `async (ToolInvocation, ToolResult) -> ToolResult`，返回值替换结果并进入记忆，需要额外事件时追加到 `invocation.events`。内置执行前处理（记录开始、解析工具、解析参数、校验参数）先于新注册的处理运行，内置耗时记录先于新注册的执行后处理。W7.2 的策略检查用 `add_before`，W2 的结果整形用 `add_after`。
 - **`repair_dangling_calls(status, message=None, started_call_ids=None) -> bool`：** 规则见“提问、续接与悬空调用”；返回用户回复是否已作为提问结果写入。`invoke()` 开头自动调用，`started_call_ids` 取自会话事件中的 `calling` 工具事件。
-- **`deliver_files` 结果：** `ToolResult.data` 为 [`DeliveryResult`](../../ray_agent/api/app/domain/services/tools/deliver.py)（`items: [DeliveryItem(path, success, file, error)]`、`note`、`files` 为成功的文件列表）；`success` 为至少一个文件交付成功，`message` 为“已交付 x/y 个文件；失败：…”。交付函数签名 `async (path) -> File`，失败时抛异常，由运行器注入。
-- **`finish_reason`：** [`LLMInvokeResult.finish_reason`](../../ray_agent/api/app/domain/models/llm.py)，OpenAI 兼容适配从 `choice.finish_reason` 填充；循环只对 `"length"` 做截断处理。
+- **`deliver_files` 结果：** `ToolResult.data` 为 [`DeliveryResult`](../../../ray_agent/api/app/domain/services/tools/deliver.py)（`items: [DeliveryItem(path, success, file, error)]`、`note`、`files` 为成功的文件列表）；`success` 为至少一个文件交付成功，`message` 为“已交付 x/y 个文件；失败：…”。交付函数签名 `async (path) -> File`，失败时抛异常，由运行器注入。
+- **`finish_reason`：** [`LLMInvokeResult.finish_reason`](../../../ray_agent/api/app/domain/models/llm.py)，OpenAI 兼容适配从 `choice.finish_reason` 填充；循环只对 `"length"` 做截断处理。
 - **运行结束原因：** `AgentLoop.end_reason`（`RunEndReason`：completed、waiting、max_iterations、output_truncated、model_error）与 `model_requests`，供 W3 的运行记录使用。
 
 ## 实施修正（2026-09-28）
@@ -194,7 +196,7 @@ async def run(user_message):
 
 针对复核 R4，保留动作和观察的独立结果。`action_success=true` 且 `observation_status=failed` 不改写成动作未执行；包含浏览器写操作的批次应在此处停止余项，逐个补未执行结果及事件，再让模型单独补观察。沿用首轮保守整批停止策略，不引入依赖图；纯读取批次不因此扩大中止范围。
 
-验收：实际 AgentLoop 驱动“写动作成功、观察失败、后续写动作”，确认后续未调用、所有 ID 成对、真实动作成功保留，且下一请求不会被反馈为需重放动作。普通失败、拒绝、审批续接和停止复用相关既有用例。模型合批能力继续按供应商契约配置；没有真实多调用轨迹时，不将单轮减少归因于合批。实施状态见[总计划](README.md#浏览器与执行效率复核及下一步2026-10-08)。
+验收：实际 AgentLoop 驱动“写动作成功、观察失败、后续写动作”，确认后续未调用、所有 ID 成对、真实动作成功保留，且下一请求不会被反馈为需重放动作。普通失败、拒绝、审批续接和停止复用相关既有用例。模型合批能力继续按供应商契约配置；没有真实多调用轨迹时，不将单轮减少归因于合批。实施状态见[总计划](total-plan.md#浏览器与执行效率复核及下一步2026-10-08)。
 
 ## 按需发现、独立读取与视觉消息（2026-10-08，已批准）
 

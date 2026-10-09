@@ -8,13 +8,13 @@
 
 路径写法约定：API 侧相对 [`ray_agent/api/app/`](../ray_agent/api/app/)，测试相对 [`ray_agent/api/tests/`](../ray_agent/api/tests/)，UI 侧相对 [`ray_agent/ui/src/`](../ray_agent/ui/src/)，沙箱侧相对 [`ray_agent/sandbox/app/`](../ray_agent/sandbox/app/)，其余给出仓库根起的完整路径。
 
-每项机制给出三样东西：主要入口、覆盖它的回归测试、讲解它的课程章节。回归测试一栏比正文更适合确认某个行为当前是什么样——测试里写死的期望就是当前契约。
+每项机制给出三样东西：主要入口、覆盖它的回归测试、讲解它的课程章节。回归测试一栏比正文更适合确认某个行为当前是什么样——用例表达当前约定，但测试存在不表示本轮已经运行或完整行为已验证。
 
 ## Agent 循环与工具管线
 
 | 机制 | 主要入口 | 回归测试 | 课程 |
 |---|---|---|---|
-| 单循环：补充消息、模型请求、多调用执行、最终答复 | [`domain/services/flows/agent_loop.py`](../ray_agent/api/app/domain/services/flows/agent_loop.py) 的 `AgentLoop.invoke()` | [`core/test_agent_loop.py`](../ray_agent/api/tests/core/test_agent_loop.py) | 04、07 |
+| 单循环：补充消息、模型请求、多调用执行、有限结束反馈与答复 | [`domain/services/flows/agent_loop.py`](../ray_agent/api/app/domain/services/flows/agent_loop.py) 的 `AgentLoop.invoke()` | [`core/test_agent_loop.py`](../ray_agent/api/tests/core/test_agent_loop.py) | 04、07 |
 | 模型重试、输出截断与请求上限 | [`domain/services/flows/agent_loop.py`](../ray_agent/api/app/domain/services/flows/agent_loop.py) 的 `_request_model()` | [`core/test_agent_loop.py`](../ray_agent/api/tests/core/test_agent_loop.py)、[`core/test_event_observability.py`](../ray_agent/api/tests/core/test_event_observability.py) | 02、04 |
 | 工具三段管线：解析校验、执行一次、耗时 | [`domain/services/flows/tool_pipeline.py`](../ray_agent/api/app/domain/services/flows/tool_pipeline.py) 的 `ToolPipeline.run()`、`add_before()`、`add_after()` | [`core/test_agent_loop.py`](../ray_agent/api/tests/core/test_agent_loop.py) | 03 |
 | 工具策略授权：规则匹配、deny 短路、ask 挂起 | [`domain/services/tool_policy.py`](../ray_agent/api/app/domain/services/tool_policy.py) 的 `resolve_policy()`、`ToolPolicyGuard`（执行前段，挂起写 `invocation.suspend_event`）；规则表模型为 [`domain/models/app_config.py`](../ray_agent/api/app/domain/models/app_config.py) 的 `ToolPolicyConfig`；MCP 别名还原经 [`infrastructure/protocols/mcp.py`](../ray_agent/api/app/infrastructure/protocols/mcp.py) | [`core/test_tool_approval.py`](../ray_agent/api/tests/core/test_tool_approval.py) | — |
@@ -92,15 +92,21 @@
 | 项目路径校验与只读浏览 | [`domain/services/project_paths.py`](../ray_agent/api/app/domain/services/project_paths.py)；文件 [`infrastructure/external/project/local_project_files.py`](../ray_agent/api/app/infrastructure/external/project/local_project_files.py) | [`core/test_project_paths.py`](../ray_agent/api/tests/core/test_project_paths.py)、[`core/test_project_files.py`](../ray_agent/api/tests/core/test_project_files.py) | — |
 | 会话项目绑定与接口 | [`application/services/project_service.py`](../ray_agent/api/app/application/services/project_service.py)；路由 [`interfaces/endpoints/project_routes.py`](../ray_agent/api/app/interfaces/endpoints/project_routes.py) 与会话内 `project/*` 在 [`session_routes.py`](../ray_agent/api/app/interfaces/endpoints/session_routes.py) | [`core/test_w10_project_session.py`](../ray_agent/api/tests/core/test_w10_project_session.py) | — |
 | 浏览器连接（CDP） | [`infrastructure/external/browser/playwright_browser.py`](../ray_agent/api/app/infrastructure/external/browser/playwright_browser.py) | — | 13 |
-| 浏览器正文、元素引用、输入与日志 | [`playwright_browser_fun.py`](../ray_agent/api/app/infrastructure/external/browser/playwright_browser_fun.py) 的 `OBSERVE_PAGE`；[`playwright_browser.py`](../ray_agent/api/app/infrastructure/external/browser/playwright_browser.py) 的 `view_page()`、`_target()`、`input()`、`console_view()`；工具声明在 [`tools/browser.py`](../ray_agent/api/app/domain/services/tools/browser.py) | [`test_browser_efficiency.py`](../ray_agent/api/tests/core/test_browser_efficiency.py) 与[本轮验证](plan/evidence/browser-efficiency-2026-10-08.md) | 13 |
+| 浏览器正文、元素引用、输入与日志 | [`playwright_browser_fun.py`](../ray_agent/api/app/infrastructure/external/browser/playwright_browser_fun.py) 的 `OBSERVE_PAGE`；[`playwright_browser.py`](../ray_agent/api/app/infrastructure/external/browser/playwright_browser.py) 的 `view_page()`、`_target()`、`input()`、`console_view()`；工具声明在 [`tools/browser.py`](../ray_agent/api/app/domain/services/tools/browser.py) | [`test_browser_efficiency.py`](../ray_agent/api/tests/core/test_browser_efficiency.py) 与[历史验证](plan/evidence/browser-visual-resources-2026-10-08.md) | 13 |
 | 公开网页读取 | [`tools/web.py`](../ray_agent/api/app/domain/services/tools/web.py)、[`web_content.py`](../ray_agent/api/app/infrastructure/external/browser/web_content.py)；沙箱 [`services/web.py`](../ray_agent/sandbox/app/services/web.py) 与 [`endpoints/web.py`](../ray_agent/sandbox/app/interfaces/endpoints/web.py) | [`test_web_fetch.py`](../ray_agent/sandbox/tests/test_web_fetch.py) | 13 |
 | 按需资源、图像引用与临时图回收 | [`lazy_resources.py`](../ray_agent/api/app/application/services/lazy_resources.py)、[`context/vision.py`](../ray_agent/api/app/domain/services/context/vision.py)、[`visual_artifacts.py`](../ray_agent/api/app/application/services/visual_artifacts.py)；传输在 [`openai_llm.py`](../ray_agent/api/app/infrastructure/external/llm/openai_llm.py)，并发执行在 [`tool_pipeline.py`](../ray_agent/api/app/domain/services/flows/tool_pipeline.py) | [`test_visual_resources.py`](../ray_agent/api/tests/core/test_visual_resources.py)、[`test_protocols.py`](../ray_agent/api/tests/protocols/test_protocols.py)、[`test_run_events_pg.py`](../ray_agent/api/tests/core/test_run_events_pg.py) | — |
-| 浏览器截图与结果投影 | [`agent_task_runner.py`](../ray_agent/api/app/domain/services/agent_task_runner.py) 的 `_handle_tool_event()`、`_capture_screenshot()` 与 `_drive()`；[`event.py`](../ray_agent/api/app/domain/models/event.py) 的 `BrowserToolContent`；[`interfaces/schemas/event.py`](../ray_agent/api/app/interfaces/schemas/event.py) 的 `ToolSSEEvent`；[`local_file_storage.py`](../ray_agent/api/app/infrastructure/external/file_storage/local_file_storage.py) 与 [`cos_file_storage.py`](../ray_agent/api/app/infrastructure/external/file_storage/cos_file_storage.py) 保存图片 | [本轮验证](plan/evidence/browser-efficiency-2026-10-08.md) | 13 |
+| 浏览器截图与结果投影 | [`agent_task_runner.py`](../ray_agent/api/app/domain/services/agent_task_runner.py) 的 `_handle_tool_event()`、`_capture_screenshot()` 与 `_drive()`；[`event.py`](../ray_agent/api/app/domain/models/event.py) 的 `BrowserToolContent`；[`interfaces/schemas/event.py`](../ray_agent/api/app/interfaces/schemas/event.py) 的 `ToolSSEEvent`；[`local_file_storage.py`](../ray_agent/api/app/infrastructure/external/file_storage/local_file_storage.py) 与 [`cos_file_storage.py`](../ray_agent/api/app/infrastructure/external/file_storage/cos_file_storage.py) 保存图片 | [历史验证](plan/evidence/browser-visual-resources-2026-10-08.md) | 13 |
 | 沙箱画面转发（VNC WebSocket） | [`interfaces/endpoints/session_routes.py`](../ray_agent/api/app/interfaces/endpoints/session_routes.py) 的 `vnc_websocket()` | — | 11 |
 | 沙箱侧文件与 Shell 服务 | [`services/file.py`](../ray_agent/sandbox/app/services/file.py)、[`services/shell.py`](../ray_agent/sandbox/app/services/shell.py)（沙箱）。服务进程以 ubuntu 运行，配置在 [`supervisord.conf`](../ray_agent/sandbox/supervisord.conf) | [`tests/test_shell_service.py`](../ray_agent/sandbox/tests/test_shell_service.py)（沙箱） | 11 |
 | 沙箱侧存活时间与销毁 | [`services/supervisor.py`](../ray_agent/sandbox/app/services/supervisor.py)（沙箱） | — | 11 |
 
-2026-10-08 执行效率核对还涉及：模型批次参数在 [`OpenAILLM._request_kwargs()`](../ray_agent/api/app/infrastructure/external/llm/openai_llm.py)，顺序执行与失败后的批次推进在 [`AgentLoop._loop()`](../ray_agent/api/app/domain/services/flows/agent_loop.py)；准备资源在 [`AgentService._create_task()`](../ray_agent/api/app/application/services/agent_service.py) 与 [`AgentTaskRunner.invoke()`](../ray_agent/api/app/domain/services/agent_task_runner.py)，其中 `DockerSandbox.get_browser()` 仅构造适配器。工具原始耗时在 [`ToolPipeline._record_duration()`](../ray_agent/api/app/domain/services/flows/tool_pipeline.py) 记录；新增 `stages_ms` 区分 execution/postprocess/projection，准备阶段写 run_stage 日志。前端结果/失败投影见 [`session-projection.ts`](../ray_agent/ui/src/lib/session-projection.ts) 的 `buildResult()`、`readSuccess()`。分析与候选方案见[调研快照](research/agent-execution-efficiency-2026-10-08.md)。
+执行批次、阶段耗时与结果投影：模型批次参数在 [`OpenAILLM._request_kwargs()`](../ray_agent/api/app/infrastructure/external/llm/openai_llm.py)，顺序执行与失败后的批次推进在 [`AgentLoop._loop()`](../ray_agent/api/app/domain/services/flows/agent_loop.py)；准备资源在 [`AgentService._create_task()`](../ray_agent/api/app/application/services/agent_service.py) 与 [`AgentTaskRunner.invoke()`](../ray_agent/api/app/domain/services/agent_task_runner.py)，其中 `DockerSandbox.get_browser()` 仅构造适配器。工具原始耗时在 [`ToolPipeline._record_duration()`](../ray_agent/api/app/domain/services/flows/tool_pipeline.py) 记录；新增 `stages_ms` 区分 execution/postprocess/projection，准备阶段写 run_stage 日志。前端结果/失败投影见 [`session-projection.ts`](../ray_agent/ui/src/lib/session-projection.ts) 的 `buildResult()`、`readSuccess()`。
+
+## 会话标题
+
+| 机制 | 主要入口 | 回归测试 |
+|---|---|---|
+| 临时标题、异步生成、手动优先与 AI 建议 | [title_service.py](../ray_agent/api/app/application/services/title_service.py)、[agent_service.py](../ray_agent/api/app/application/services/agent_service.py)；界面 [rename-session-dialog.tsx](../ray_agent/ui/src/components/rename-session-dialog.tsx) | [test_title_service.py](../ray_agent/api/tests/core/test_title_service.py) |
 
 ## 托管项目与记忆
 
@@ -108,9 +114,10 @@
 |---|---|---|
 | 文件操作与旧写入者 | [project_operations.py](../ray_agent/api/app/domain/services/project_operations.py)、[project_file_coordinator.py](../ray_agent/api/app/domain/services/project_file_coordinator.py) | [test_project_operations_pg.py](../ray_agent/api/tests/core/test_project_operations_pg.py) |
 | 上传、快照、恢复与下载 | [project_file_service.py](../ray_agent/api/app/application/services/project_file_service.py)、[snapshot_disk.py](../ray_agent/api/app/infrastructure/external/project/snapshot_disk.py)、[file_io.py](../ray_agent/api/app/infrastructure/external/project/file_io.py) | [test_project_uploads.py](../ray_agent/api/tests/core/test_project_uploads.py)、[test_project_snapshots_pg.py](../ray_agent/api/tests/core/test_project_snapshots_pg.py)、[test_project_download.py](../ray_agent/api/tests/core/test_project_download.py) |
-| 项目背景与笔记摘要 | [project_memory_service.py](../ray_agent/api/app/application/services/project_memory_service.py) | [test_project_memory_pg.py](../ray_agent/api/tests/core/test_project_memory_pg.py) |
+| 项目背景、版本化笔记、摘要与冻结 | [project_memory_service.py](../ray_agent/api/app/application/services/project_memory_service.py)、[summary_material.py](../ray_agent/api/app/domain/services/summary_material.py) | [test_project_memory_pg.py](../ray_agent/api/tests/core/test_project_memory_pg.py) |
 | 附件与交付项目副本 | [project_delivery_service.py](../ray_agent/api/app/application/services/project_delivery_service.py) | [test_project_attachments_pg.py](../ray_agent/api/tests/core/test_project_attachments_pg.py)、[test_project_delivery_pg.py](../ray_agent/api/tests/core/test_project_delivery_pg.py) |
 | 导入审核树 | [project-upload-dialog.tsx](../ray_agent/ui/src/components/project-upload-dialog.tsx)、[project-upload-tree.tsx](../ray_agent/ui/src/components/project-upload-tree.tsx)、[project-upload.ts](../ray_agent/ui/src/lib/project-upload.ts) | [check-project-upload-tree.cjs](../ray_agent/ui/scripts/check-project-upload-tree.cjs) |
+| 记忆编辑、冲突与历史草稿 | [project-memory-panel.tsx](../ray_agent/ui/src/components/project-memory-panel.tsx) | [check-project-memory.cjs](../ray_agent/ui/scripts/check-project-memory.cjs) |
 | 导航与工作台 | [left-panel.tsx](../ray_agent/ui/src/components/left-panel.tsx)、[project-workspace.tsx](../ray_agent/ui/src/components/project-workspace.tsx)、[managed-project-pane.tsx](../ray_agent/ui/src/components/workbench/managed-project-pane.tsx) | [check-project-navigation-recovery.cjs](../ray_agent/ui/scripts/check-project-navigation-recovery.cjs)、[check-workbench-recovery.cjs](../ray_agent/ui/scripts/check-workbench-recovery.cjs) |
 
 ## 外部协议
@@ -139,10 +146,10 @@
 | 事件订阅与视图投影 | [`lib/session-projection.ts`](../ray_agent/ui/src/lib/session-projection.ts) 的 `projectSession` 与 `resolveOutputRate`、[`lib/session-view.ts`](../ray_agent/ui/src/lib/session-view.ts)、[`hooks/use-session-detail.ts`](../ray_agent/ui/src/hooks/use-session-detail.ts)。文本增量不进入带序号的事件列表。[`lib/session-events.ts`](../ray_agent/ui/src/lib/session-events.ts) 只做事件归一化 | 10 |
 | 接口请求 | [`lib/api/`](../ray_agent/ui/src/lib/api/) 的 `session.ts`（含 `compact`、审批答复 `replyApproval`）、`project.ts`、`config.ts`（含工具策略）、`file.ts`、`fetch.ts` | 10 |
 | 输入框命令注册表 | [`lib/commands.ts`](../ray_agent/ui/src/lib/commands.ts)、[`lib/slash-trigger.ts`](../ray_agent/ui/src/lib/slash-trigger.ts)、[`components/input-command-menu.tsx`](../ray_agent/ui/src/components/input-command-menu.tsx) | — |
-| 上下文环详情与立即压缩 | [`components/run/context-ring.tsx`](../ray_agent/ui/src/components/run/context-ring.tsx) | — |
+| 上下文占用与用量详情 | [`components/run/context-ring.tsx`](../ray_agent/ui/src/components/run/context-ring.tsx) | — |
 | 项目选择器与会话标题项目信息 | [`components/project-picker.tsx`](../ray_agent/ui/src/components/project-picker.tsx)；会话页 [`components/session-detail-view.tsx`](../ray_agent/ui/src/components/session-detail-view.tsx) | — |
-| 工作台项目页 | [`components/workbench/project-pane.tsx`](../ray_agent/ui/src/components/workbench/project-pane.tsx)；页签在 [`components/workbench/workbench.tsx`](../ray_agent/ui/src/components/workbench/workbench.tsx)。变更页已在 `ce131c5` 删除 | — |
-| 「按计划执行」 | [`components/run/run-end-bar.tsx`](../ray_agent/ui/src/components/run/run-end-bar.tsx) 的 `PlanExecuteBar` | — |
+| 工作台项目页 | [`components/workbench/project-pane.tsx`](../ray_agent/ui/src/components/workbench/project-pane.tsx)；页签在 [`components/workbench/workbench.tsx`](../ray_agent/ui/src/components/workbench/workbench.tsx) | — |
+| 「按计划执行」 | [`components/run/run-end-bar.tsx`](../ray_agent/ui/src/components/run/run-end-bar.tsx) 的 `PlanExecuteBar`，有效性判断在会话视图投影与会话页 | — |
 | 审批条目与审批卡 | 投影在 [`lib/session-projection.ts`](../ray_agent/ui/src/lib/session-projection.ts) 的 `approval` 分支（从审批事件构造调用、结论原地更新、失效标为未执行）；卡片 [`components/run/approval-card.tsx`](../ray_agent/ui/src/components/run/approval-card.tsx)；提交与输入框引导在 [`components/session-detail-view.tsx`](../ray_agent/ui/src/components/session-detail-view.tsx) 的 `handleApproval` | — |
 | 会话页 | [`components/session-detail-view.tsx`](../ray_agent/ui/src/components/session-detail-view.tsx)：状态条、时间线、计划条、输入框，以及对话与开发者视图切换 | 10 |
 | 运行视图 | [`components/run/`](../ray_agent/ui/src/components/run/) | 07、10 |
@@ -161,11 +168,7 @@
 | 模型、协议、预算与工具策略配置 | [`domain/models/app_config.py`](../ray_agent/api/app/domain/models/app_config.py)、[`application/services/app_config_service.py`](../ray_agent/api/app/application/services/app_config_service.py)；设置接口在 [`interfaces/endpoints/app_config_routes.py`](../ray_agent/api/app/interfaces/endpoints/app_config_routes.py) |
 | 反向代理与路由 | [`ray_agent/nginx/conf.d/default.conf`](../ray_agent/nginx/conf.d/default.conf)（仓库根） |
 
----
-
-本表于 2026-10-02 按 W9–W11 源码补齐托管项目、文件保护与记忆映射。工作包范围和验收证据见[总计划](plan/README.md)，运行命令见服务指南。课程正文仍对应 `baseline-v1`，另行同步。
-
-## 逐模型配置与切换预览
+## 模型配置与切换
 
 | 机制 | 代码 | 验证 |
 |---|---|---|
@@ -173,3 +176,5 @@
 | 默认预算一次迁移 | [file_app_config_repository.py](../ray_agent/api/app/infrastructure/repositories/file_app_config_repository.py) | 同上配置检查 |
 | 会话切换原子保存、完整请求只读估算 | [agent_service.py](../ray_agent/api/app/application/services/agent_service.py) 的 set_model / preview_context | 同上配置检查 |
 | 模型设置草稿、动态思考滑块与选择 | [llm-section.tsx](../ray_agent/ui/src/components/settings/llm-section.tsx)、[model-picker.tsx](../ray_agent/ui/src/components/model-picker.tsx)、[model-selection.ts](../ray_agent/ui/src/lib/model-selection.ts) | [check-model-configuration.cjs](../ray_agent/ui/scripts/check-model-configuration.cjs) |
+
+运行命令维护在所属服务指南；关键历史验收见[阶段收尾与维护](plan/README.md#关键验收)。课程列仅提供主题对应，正文仍基于 `baseline-v1`，不表示已同步当前实现。

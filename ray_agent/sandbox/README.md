@@ -1,6 +1,6 @@
 # RayAgent 沙箱开发指南
 
-沙箱提供 Shell、文件、浏览器与进程管理能力。完整镜像由 Ubuntu、Python、Chromium、虚拟显示与 VNC 组件构成，Supervisor 负责启动各进程。
+沙箱提供 Shell、文件、公开网页抓取、浏览器与进程管理能力。独立对话首次使用或同步附件时才准备沙箱；项目运行沿文件保护与占用链路准备环境。完整镜像由 Ubuntu、Python、Chromium、虚拟显示与 VNC 组件构成，Supervisor 负责启动各进程。
 
 本文区分完整沙箱与 Python 开发环境。架构边界见 [架构说明](../../docs/architecture.md)，整体部署见 [运行指南](../README.md)。部署配置与启动命令已静态核对；下方任务控制脚本已有本地运行记录，不能代替完整沙箱验证。
 
@@ -87,7 +87,7 @@ uv run --locked python -m unittest discover -s tests -p 'test_*.py' -v
 
 用例直接调用 `ShellService`：`sleep 10` 在约 5 秒内返回 running，`sleep 1 && echo ok` 返回 completed 与输出；派生一个忽略 SIGTERM 的后台子进程后，终止或在同一会话执行新命令都会让整组进程退出。它不验证容器身份、资源限额或 API 停止传播。执行身份与限额见 API 指南中的沙箱环境观察。
 
-文件用例 `tests/test_file_resolve.py` 使用真实临时文件与父目录/最终链接，核对实际解析路径和普通文件类型；用于项目交付的工作区归属判断，不验证 HTTP 或 Docker。API 侧有显式启用的受控 Chromium 场景，见 [API 指南](../api/README.md#浏览器与网页读取的定向检查)。Shell 或文件修改还应在临时工作目录验证请求、结果和错误路径；浏览器相关修改需连同 CDP、VNC 和 API 侧调用一起验证。只启动 Python API 不代表完整沙箱可用。
+文件用例 `tests/test_file_resolve.py` 使用真实临时文件与父目录/最终链接，核对实际解析路径和普通文件类型；用于项目交付的工作区归属判断，不验证 HTTP 或 Docker。API 侧有显式启用的受控 Chromium 场景，见 [API 指南](../api/README.md#浏览器与网页读取的定向检查)。Shell 或文件修改还应在临时工作目录验证请求、结果和错误路径；浏览器相关修改需连同 CDP、观察契约和 API 侧调用一起验证；VNC 仅在修改后端画面转发时检查，当前 UI 没有接管入口。只启动 Python API 不代表完整沙箱可用。
 
 ### 任务控制观察
 

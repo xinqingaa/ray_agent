@@ -17,12 +17,12 @@
   <text x="508" y="344.0" fill="#16a34a" font-size="26" font-weight="600">单循环 Agent</text>
   <text x="508" y="368.0" fill="#6b7280" font-size="16">一份记忆，调用工具直到给出答复</text>
   <text x="508" y="392.0" fill="#6b7280" font-size="16">update_plan 只记录清单，不按清单调度</text>
-  <text x="508" y="416.0" fill="#6b7280" font-size="16">没有工具调用的回复就是最终答复</text>
+  <text x="508" y="416.0" fill="#6b7280" font-size="16">有限结束反馈后给出答复</text>
   <text x="508" y="440.0" fill="#6b7280" font-size="16">事件先落库，页面按序号回看</text>
   <rect x="36" y="208" width="400" height="164" rx="8" fill="#ffffff" stroke="#2563eb" stroke-width="3.5" data-graph-role="node" data-node-id="memory"/>
   <rect x="44" y="220" width="6" height="140" rx="3" fill="#2563eb" data-graph-role="decoration"/>
   <text x="64" y="240" fill="#111827" font-size="16" font-weight="600">上下文与记忆</text>
-  <text x="64" y="264" fill="#6b7280" font-size="13">按角色装配提示、历史与工具声明</text>
+  <text x="64" y="264" fill="#6b7280" font-size="13">项目说明、笔记与摘要按运行冻结</text>
   <text x="64" y="285" fill="#6b7280" font-size="13">请求前估算容量，越过水位先压缩</text>
   <text x="64" y="306" fill="#6b7280" font-size="13">超长结果写入沙箱，模型只看预览</text>
   <rect x="36" y="404" width="400" height="164" rx="8" fill="#ffffff" stroke="#ea580c" stroke-width="3.5" data-graph-role="node" data-node-id="control"/>
@@ -35,8 +35,8 @@
   <rect x="1172" y="220" width="6" height="140" rx="3" fill="#7c3aed" data-graph-role="decoration"/>
   <text x="1192" y="240" fill="#111827" font-size="16" font-weight="600">工具与环境</text>
   <text x="1192" y="264" fill="#6b7280" font-size="13">沙箱中的文件、Shell 与浏览器</text>
-  <text x="1192" y="285" fill="#6b7280" font-size="13">以 ubuntu 执行，并设内存与 CPU 配额</text>
-  <text x="1192" y="306" fill="#6b7280" font-size="13">交付之后，文件才成为附件</text>
+  <text x="1192" y="285" fill="#6b7280" font-size="13">托管项目文件、快照与恢复</text>
+  <text x="1192" y="306" fill="#6b7280" font-size="13">文本观察、显式视觉与文件交付</text>
   <rect x="1164" y="404" width="400" height="164" rx="8" fill="#ffffff" stroke="#dc2626" stroke-width="3.5" data-graph-role="node" data-node-id="external"/>
   <rect x="1172" y="416" width="6" height="140" rx="3" fill="#dc2626" data-graph-role="decoration"/>
   <text x="1192" y="436" fill="#111827" font-size="16" font-weight="600">外部协作</text>

@@ -28,11 +28,11 @@
   <text x="916" y="178.0" fill="#ea580c" font-size="16" font-weight="600">有工具调用？</text>
   <rect x="1116" y="118" width="400" height="108" rx="8" fill="#ffffff" stroke="#16a34a" stroke-width="3.5" data-graph-role="node" data-node-id="done"/>
   <rect x="1124" y="130" width="6" height="84" rx="3" fill="#16a34a" data-graph-role="decoration"/>
-  <text x="1144" y="150" fill="#111827" font-size="16" font-weight="600">最终答复 · completed</text>
-  <text x="1144" y="174" fill="#6b7280" font-size="14">没有工具调用，这段文本即结束</text>
-  <text x="1144" y="196" fill="#6b7280" font-size="14">这是模型的陈述，不是目标达成</text>
+  <text x="1144" y="150" fill="#111827" font-size="16" font-weight="600">结束检查与最终答复</text>
+  <text x="1144" y="174" fill="#6b7280" font-size="14">交付与未完成计划：最多反馈一次</text>
+  <text x="1144" y="196" fill="#6b7280" font-size="14">仍有问题则说明，再 completed</text>
   <rect x="304" y="286" width="792" height="176" rx="12" fill="#f8fafc" stroke="#e5e7eb" stroke-width="2" stroke-dasharray="7 6" data-graph-role="container"/>
-  <text x="320" y="308" fill="#16a34a" font-size="13" font-weight="600">同一批次，按返回顺序</text>
+  <text x="320" y="308" fill="#16a34a" font-size="13" font-weight="600">结果按原顺序；独立读取最多并发三项</text>
   <rect x="320" y="322" width="210" height="120" rx="8" fill="#ffffff" stroke="#ea580c" stroke-width="3.5" data-graph-role="node" data-node-id="before"/>
   <rect x="328" y="334" width="6" height="96" rx="3" fill="#ea580c" data-graph-role="decoration"/>
   <text x="348" y="354" fill="#111827" font-size="16" font-weight="600">执行前</text>
@@ -42,8 +42,8 @@
   <rect x="590" y="322" width="200" height="120" rx="8" fill="#ffffff" stroke="#2563eb" stroke-width="3.5" data-graph-role="node" data-node-id="once"/>
   <rect x="598" y="334" width="6" height="96" rx="3" fill="#2563eb" data-graph-role="decoration"/>
   <text x="618" y="354" fill="#111827" font-size="16" font-weight="600">执行一次</text>
-  <text x="618" y="378" fill="#6b7280" font-size="14">异常变成失败结果</text>
-  <text x="618" y="400" fill="#6b7280" font-size="14">调用本身不重试</text>
+  <text x="618" y="378" fill="#6b7280" font-size="14">读取有界并发，其他串行</text>
+  <text x="618" y="400" fill="#6b7280" font-size="14">失败回填；调用不重试</text>
   <rect x="850" y="322" width="220" height="120" rx="8" fill="#ffffff" stroke="#16a34a" stroke-width="3.5" data-graph-role="node" data-node-id="after"/>
   <rect x="858" y="334" width="6" height="96" rx="3" fill="#16a34a" data-graph-role="decoration"/>
   <text x="878" y="354" fill="#111827" font-size="16" font-weight="600">执行后</text>
@@ -101,5 +101,5 @@
   <text x="1100" y="718" fill="#7c3aed" font-size="14" font-weight="600">中断 api_restart</text>
   <text x="52" y="746" fill="#6b7280" font-size="13">失败含请求上限、输出截断、模型错误、上下文与运行器异常。停止和重启可以在任意时刻打断。原因与收尾见结束路径。</text>
   <path d="M40 800 H1560" fill="none" stroke="#e5e7eb" stroke-width="2" data-graph-role="decoration"/>
-  <text x="40" y="828" fill="#6b7280" font-size="14">蓝：主循环    琥珀：等待与策略    紫：压缩    绿：完成与回填。工具失败只回填给模型，不结束运行。</text>
+  <text x="40" y="828" fill="#6b7280" font-size="14">蓝：主循环    琥珀：等待与策略    紫：压缩    绿：结束与回填。有限结束反馈不构成业务目标验收。</text>
 </svg>

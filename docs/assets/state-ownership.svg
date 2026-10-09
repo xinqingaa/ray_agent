@@ -11,7 +11,7 @@
   <text x="40" y="70" fill="#111827" font-size="28" font-weight="700">执行中的信息归谁，能活多久</text>
   <rect x="40" y="104" width="480" height="400" rx="12" fill="#f8fafc" stroke="#e5e7eb" stroke-width="2" stroke-dasharray="7 6" data-graph-role="container"/>
   <text x="60" y="136" fill="#111827" font-size="20" font-weight="700">本次请求内</text>
-  <text x="60" y="160" fill="#2563eb" font-size="13">请求结束即消失，事后不能追溯</text>
+  <text x="60" y="160" fill="#2563eb" font-size="13">装配对象不持久，已记录请求可重建</text>
   <rect x="56" y="184" width="448" height="92" rx="8" fill="#ffffff" stroke="#2563eb" stroke-width="3.5" data-graph-role="node" data-node-id="本次请求内-Context 装配结果"/>
   <rect x="64" y="196" width="6" height="68" rx="3" fill="#2563eb" data-graph-role="decoration"/>
   <text x="84" y="216" fill="#111827" font-size="16" font-weight="600">Context 装配结果</text>
@@ -19,7 +19,7 @@
   <rect x="56" y="288" width="448" height="92" rx="8" fill="#ffffff" stroke="#2563eb" stroke-width="3.5" data-graph-role="node" data-node-id="本次请求内-本轮容量估算"/>
   <rect x="64" y="300" width="6" height="68" rx="3" fill="#2563eb" data-graph-role="decoration"/>
   <text x="84" y="320" fill="#111827" font-size="16" font-weight="600">本轮容量估算</text>
-  <text x="84" y="344" fill="#6b7280" font-size="14">只用来决定压缩或拒绝</text>
+  <text x="84" y="344" fill="#6b7280" font-size="14">随轮次记录，决定压缩或拒绝</text>
   <rect x="56" y="392" width="448" height="92" rx="8" fill="#ffffff" stroke="#2563eb" stroke-width="3.5" data-graph-role="node" data-node-id="本次请求内-页面投影与文本增量"/>
   <rect x="64" y="404" width="6" height="68" rx="3" fill="#2563eb" data-graph-role="decoration"/>
   <text x="84" y="424" fill="#111827" font-size="16" font-weight="600">页面投影与文本增量</text>
@@ -45,7 +45,7 @@
   <rect x="1096" y="184" width="448" height="92" rx="8" fill="#ffffff" stroke="#16a34a" stroke-width="3.5" data-graph-role="node" data-node-id="进程之外-PostgreSQL"/>
   <rect x="1104" y="196" width="6" height="68" rx="3" fill="#16a34a" data-graph-role="decoration"/>
   <text x="1124" y="216" fill="#111827" font-size="16" font-weight="600">PostgreSQL</text>
-  <text x="1124" y="240" fill="#6b7280" font-size="14">runs、events、记忆、文件元数据</text>
+  <text x="1124" y="240" fill="#6b7280" font-size="14">项目、runs、events、记忆与文件</text>
   <rect x="1096" y="288" width="448" height="92" rx="8" fill="#ffffff" stroke="#16a34a" stroke-width="3.5" data-graph-role="node" data-node-id="进程之外-Redis"/>
   <rect x="1104" y="300" width="6" height="68" rx="3" fill="#16a34a" data-graph-role="decoration"/>
   <text x="1124" y="320" fill="#111827" font-size="16" font-weight="600">Redis</text>
@@ -53,7 +53,7 @@
   <rect x="1096" y="392" width="448" height="92" rx="8" fill="#ffffff" stroke="#16a34a" stroke-width="3.5" data-graph-role="node" data-node-id="进程之外-沙箱文件与进程"/>
   <rect x="1104" y="404" width="6" height="68" rx="3" fill="#16a34a" data-graph-role="decoration"/>
   <text x="1124" y="424" fill="#111827" font-size="16" font-weight="600">沙箱文件与进程</text>
-  <text x="1124" y="448" fill="#6b7280" font-size="14">附件则在文件存储里</text>
+  <text x="1124" y="448" fill="#6b7280" font-size="14">项目文件、快照与附件在存储里</text>
   <text x="40" y="540" fill="#111827" font-size="18" font-weight="700">进程之外的数据，可恢复性并不相同</text>
   <rect x="40" y="564" width="480" height="168" rx="8" fill="#ffffff" stroke="#ea580c" stroke-width="3.5" data-graph-role="node" data-node-id="ref"/>
   <rect x="48" y="576" width="6" height="144" rx="3" fill="#ea580c" data-graph-role="decoration"/>
@@ -72,7 +72,7 @@
   <text x="1108" y="596" fill="#dc2626" font-size="20" font-weight="600">真实副作用</text>
   <text x="1108" y="620" fill="#6b7280" font-size="13">沙箱里的文件已经改变</text>
   <text x="1108" y="641" fill="#6b7280" font-size="13">停止和失败都不会回滚</text>
-  <text x="1108" y="662" fill="#6b7280" font-size="13">环境也不随任务结束而销毁</text>
+  <text x="1108" y="662" fill="#6b7280" font-size="13">项目终态需确认旧写入者静止</text>
   <path d="M40 784 H1560" fill="none" stroke="#e5e7eb" stroke-width="2" data-graph-role="decoration"/>
   <text x="40" y="812" fill="#6b7280" font-size="14">保存和回放已经做到。从中断处继续执行，还要有检查点与执行所有权；当前没有。等待提问可以续接。</text>
 </svg>
