@@ -1,0 +1,215 @@
+{
+  "scope": "独立数据及用量核对；最终回复语义、工具依据和视觉观察另见报告",
+  "passed": true,
+  "checks": [
+    {
+      "name": "销售表A.csv 输入条数",
+      "passed": true,
+      "detail": 100
+    },
+    {
+      "name": "销售表B.csv 输入条数",
+      "passed": true,
+      "detail": 100
+    },
+    {
+      "name": "销售表C.csv 输入条数",
+      "passed": true,
+      "detail": 100
+    },
+    {
+      "name": "夹具与登记规格一致",
+      "passed": true,
+      "detail": {
+        "raw": 300,
+        "unique": 288,
+        "valid": 283,
+        "missing": [
+          "S0284",
+          "S0285",
+          "S0286",
+          "S0287",
+          "S0288"
+        ],
+        "amounts": {
+          "线上": "18640.00",
+          "线下": "12760.00"
+        }
+      }
+    },
+    {
+      "name": "交付明细无重复、漏项或额外订单",
+      "passed": true,
+      "detail": {
+        "actual_rows": 288,
+        "expected_rows": 288
+      }
+    },
+    {
+      "name": "288 条明细的渠道、金额/缺失标识及来源逐条一致",
+      "passed": true,
+      "detail": []
+    },
+    {
+      "name": "缺失订单清单及来源准确且未填零",
+      "passed": true,
+      "detail": [
+        [
+          "S0284",
+          "线下",
+          "(空)",
+          "销售表C.csv"
+        ],
+        [
+          "S0285",
+          "线下",
+          "(空)",
+          "销售表C.csv"
+        ],
+        [
+          "S0286",
+          "线下",
+          "(空)",
+          "销售表C.csv"
+        ],
+        [
+          "S0287",
+          "线下",
+          "(空)",
+          "销售表C.csv"
+        ],
+        [
+          "S0288",
+          "线下",
+          "(空)",
+          "销售表C.csv"
+        ]
+      ]
+    },
+    {
+      "name": "渠道计数及总金额与独立 Decimal 计算一致",
+      "passed": true,
+      "detail": {
+        "线上": [
+          160,
+          "18640"
+        ],
+        "线下": [
+          123,
+          "12760"
+        ],
+        "合计": [
+          283,
+          "31400"
+        ]
+      }
+    },
+    {
+      "name": "处理数量及守恒关系正确",
+      "passed": true,
+      "detail": {
+        "原始记录总条数": 300,
+        "合并去重后订单数": 288,
+        "重复订单删除条数": 12,
+        "含有效金额订单数": 283,
+        "金额缺失订单数": 5
+      }
+    },
+    {
+      "name": "工作簿明确缺失金额未计入销售额",
+      "passed": true,
+      "detail": "销售汇总!A15"
+    },
+    {
+      "name": "三份沙箱原始文件字节保持一致",
+      "passed": true,
+      "detail": [
+        {
+          "filename": "销售表A.csv",
+          "expected_sha256": "2e26dd2c0185438a0e5f864036b14eed62fb3b45d19c0b9528ef5e9623d06988",
+          "actual_sha256": "2e26dd2c0185438a0e5f864036b14eed62fb3b45d19c0b9528ef5e9623d06988",
+          "unchanged": true,
+          "method": "公开会话文件接口读回 UTF-8 字节"
+        },
+        {
+          "filename": "销售表B.csv",
+          "expected_sha256": "20dd9f44da0732cec87e9f622a554d5b2928f74e059a3e4dc35d61ff13802b93",
+          "actual_sha256": "20dd9f44da0732cec87e9f622a554d5b2928f74e059a3e4dc35d61ff13802b93",
+          "unchanged": true,
+          "method": "公开会话文件接口读回 UTF-8 字节"
+        },
+        {
+          "filename": "销售表C.csv",
+          "expected_sha256": "9b094732c99ab0bc0cdcb8b754157024d9aff492105aca3613721813b179d1e6",
+          "actual_sha256": "9b094732c99ab0bc0cdcb8b754157024d9aff492105aca3613721813b179d1e6",
+          "unchanged": true,
+          "method": "公开会话文件接口读回 UTF-8 字节"
+        }
+      ]
+    },
+    {
+      "name": "交付副本哈希与下载时一致",
+      "passed": true,
+      "detail": [
+        {
+          "metadata": {
+            "id": "e805037c-c895-4859-a472-deaf8ab360c8",
+            "filename": "销售汇总.xlsx",
+            "filepath": "/home/ubuntu/销售汇总.xlsx",
+            "key": "2026/10/08/e805037c-c895-4859-a472-deaf8ab360c8.xlsx",
+            "extension": ".xlsx",
+            "mime_type": "",
+            "size": 12371,
+            "sha256": null,
+            "visual": null,
+            "project_upload": null,
+            "project_persistence": null
+          },
+          "relative_path": "outputs/销售汇总.xlsx",
+          "sha256": "e4034d42859692d3d36e72e56876e56088d015499d8d7fde816d2d09cf168cac",
+          "size": 12371
+        }
+      ]
+    },
+    {
+      "name": "用量汇总与逐轮事件一致",
+      "passed": true,
+      "detail": {
+        "model_calls": 12,
+        "tool_calls": 11,
+        "prompt_tokens": 126761,
+        "completion_tokens": 4715,
+        "cached_tokens": 119296,
+        "usage_unavailable_calls": 0
+      }
+    },
+    {
+      "name": "没有人工补充或审批续接",
+      "passed": true,
+      "detail": [
+        {
+          "t": 0.0,
+          "kind": "send",
+          "turn": 0,
+          "message": "帮我合并这三份销售表，重复订单只保留一条，按渠道统计销售额。缺少金额的订单单独列出来。生成销售汇总.xlsx 给我下载，不要修改原始文件。",
+          "attachments": 3
+        },
+        {
+          "t": 0.047,
+          "kind": "accepted",
+          "run_id": "43529143-5560-4676-b152-dc43c4bc7629",
+          "seq": 2,
+          "route": "started",
+          "approval": null
+        },
+        {
+          "t": 35.827,
+          "kind": "sse_end",
+          "terminal": "completed",
+          "reason": null,
+          "after_stop": false
+        }
+      ]
+    }
+  ]
+}

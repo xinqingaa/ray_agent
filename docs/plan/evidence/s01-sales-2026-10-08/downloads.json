@@ -1,0 +1,20 @@
+[
+  {
+    "metadata": {
+      "id": "e805037c-c895-4859-a472-deaf8ab360c8",
+      "filename": "销售汇总.xlsx",
+      "filepath": "/home/ubuntu/销售汇总.xlsx",
+      "key": "2026/10/08/e805037c-c895-4859-a472-deaf8ab360c8.xlsx",
+      "extension": ".xlsx",
+      "mime_type": "",
+      "size": 12371,
+      "sha256": null,
+      "visual": null,
+      "project_upload": null,
+      "project_persistence": null
+    },
+    "relative_path": "outputs/销售汇总.xlsx",
+    "sha256": "e4034d42859692d3d36e72e56876e56088d015499d8d7fde816d2d09cf168cac",
+    "size": 12371
+  }
+]

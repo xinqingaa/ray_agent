@@ -1,0 +1,384 @@
+{
+  "wall_seconds": 35.8,
+  "model_ms_sum": 23917,
+  "tool_ms_sum": 2452,
+  "turns": [
+    {
+      "event_id": "023a4ed4-d326-4d94-addd-9d49325ff3f9",
+      "seq": 14,
+      "run_id": "43529143-5560-4676-b152-dc43c4bc7629",
+      "created_at": 1791457317371,
+      "phase": "completed",
+      "index": 1,
+      "context_estimate": null,
+      "context_window": null,
+      "model_ms": 880,
+      "attempts": 1,
+      "ttft_ms": 537,
+      "usage": {
+        "prompt_tokens": 5949,
+        "completion_tokens": 119,
+        "cached_tokens": 5760,
+        "reasoning_tokens": 0
+      },
+      "finish_reason": "tool_calls",
+      "tool_call_ids": [
+        "call_00_ET_yBpqtnnJsw7zYvOfeOWZ2700"
+      ],
+      "tools_ms": 59,
+      "error": null
+    },
+    {
+      "event_id": "153b49d4-25fd-4f95-968f-78e8a88022cc",
+      "seq": 20,
+      "run_id": "43529143-5560-4676-b152-dc43c4bc7629",
+      "created_at": 1791457318416,
+      "phase": "completed",
+      "index": 2,
+      "context_estimate": null,
+      "context_window": null,
+      "model_ms": 948,
+      "attempts": 1,
+      "ttft_ms": 820,
+      "usage": {
+        "prompt_tokens": 6211,
+        "completion_tokens": 127,
+        "cached_tokens": 6016,
+        "reasoning_tokens": 12
+      },
+      "finish_reason": "tool_calls",
+      "tool_call_ids": [
+        "call_00_ZaWYU0e8rs3V0EGy9Zra4940"
+      ],
+      "tools_ms": 38,
+      "error": null
+    },
+    {
+      "event_id": "83b35258-78c5-4593-9dea-e6645e6f5ec6",
+      "seq": 26,
+      "run_id": "43529143-5560-4676-b152-dc43c4bc7629",
+      "created_at": 1791457321282,
+      "phase": "completed",
+      "index": 3,
+      "context_estimate": null,
+      "context_window": null,
+      "model_ms": 2756,
+      "attempts": 1,
+      "ttft_ms": 1569,
+      "usage": {
+        "prompt_tokens": 7003,
+        "completion_tokens": 469,
+        "cached_tokens": 6272,
+        "reasoning_tokens": 152
+      },
+      "finish_reason": "tool_calls",
+      "tool_call_ids": [
+        "call_00_IQoFadoTOZKxh5BWFzj80741"
+      ],
+      "tools_ms": 53,
+      "error": null
+    },
+    {
+      "event_id": "9d67348c-331a-4764-8246-973bece1d366",
+      "seq": 32,
+      "run_id": "43529143-5560-4676-b152-dc43c4bc7629",
+      "created_at": 1791457323764,
+      "phase": "completed",
+      "index": 4,
+      "context_estimate": null,
+      "context_window": null,
+      "model_ms": 2399,
+      "attempts": 1,
+      "ttft_ms": 1252,
+      "usage": {
+        "prompt_tokens": 8041,
+        "completion_tokens": 529,
+        "cached_tokens": 7424,
+        "reasoning_tokens": 34
+      },
+      "finish_reason": "tool_calls",
+      "tool_call_ids": [
+        "call_00_o8nbC6csxlCaknbJ3KpY2407"
+      ],
+      "tools_ms": 41,
+      "error": null
+    },
+    {
+      "event_id": "46e0649c-d0e4-468b-a2f9-007dd79453da",
+      "seq": 38,
+      "run_id": "43529143-5560-4676-b152-dc43c4bc7629",
+      "created_at": 1791457325684,
+      "phase": "completed",
+      "index": 5,
+      "context_estimate": null,
+      "context_window": null,
+      "model_ms": 1831,
+      "attempts": 1,
+      "ttft_ms": 1654,
+      "usage": {
+        "prompt_tokens": 9444,
+        "completion_tokens": 298,
+        "cached_tokens": 8448,
+        "reasoning_tokens": 209
+      },
+      "finish_reason": "tool_calls",
+      "tool_call_ids": [
+        "call_00_7EjjLhcNPtujqis9Ull42078"
+      ],
+      "tools_ms": 35,
+      "error": null
+    },
+    {
+      "event_id": "b3cd9231-ad3e-4fb6-aa2a-3bd8911a8fa0",
+      "seq": 44,
+      "run_id": "43529143-5560-4676-b152-dc43c4bc7629",
+      "created_at": 1791457328635,
+      "phase": "completed",
+      "index": 6,
+      "context_estimate": null,
+      "context_window": null,
+      "model_ms": 1041,
+      "attempts": 1,
+      "ttft_ms": 1008,
+      "usage": {
+        "prompt_tokens": 9849,
+        "completion_tokens": 70,
+        "cached_tokens": 9600,
+        "reasoning_tokens": 0
+      },
+      "finish_reason": "tool_calls",
+      "tool_call_ids": [
+        "call_00_ET_AWMqa5ucOF8WZl7NTt8a3205"
+      ],
+      "tools_ms": 1852,
+      "error": null
+    },
+    {
+      "event_id": "7070a434-92a2-4cdb-aabe-06058e68abeb",
+      "seq": 50,
+      "run_id": "43529143-5560-4676-b152-dc43c4bc7629",
+      "created_at": 1791457335676,
+      "phase": "completed",
+      "index": 7,
+      "context_estimate": null,
+      "context_window": null,
+      "model_ms": 6921,
+      "attempts": 1,
+      "ttft_ms": 968,
+      "usage": {
+        "prompt_tokens": 10014,
+        "completion_tokens": 1975,
+        "cached_tokens": 9856,
+        "reasoning_tokens": 90
+      },
+      "finish_reason": "tool_calls",
+      "tool_call_ids": [
+        "call_00_XCY2qJebbq3Zm8vDY0aV3472"
+      ],
+      "tools_ms": 34,
+      "error": null
+    },
+    {
+      "event_id": "64b5cd3b-0fb2-4d4b-a9a8-086de4607ab5",
+      "seq": 56,
+      "run_id": "43529143-5560-4676-b152-dc43c4bc7629",
+      "created_at": 1791457336412,
+      "phase": "completed",
+      "index": 8,
+      "context_estimate": null,
+      "context_window": null,
+      "model_ms": 538,
+      "attempts": 1,
+      "ttft_ms": 351,
+      "usage": {
+        "prompt_tokens": 12033,
+        "completion_tokens": 85,
+        "cached_tokens": 11776,
+        "reasoning_tokens": 0
+      },
+      "finish_reason": "tool_calls",
+      "tool_call_ids": [
+        "call_00_ET_K64AnJj4dlitdt7uqXGQ0299"
+      ],
+      "tools_ms": 143,
+      "error": null
+    },
+    {
+      "event_id": "4d1aa907-bf4e-4775-a01a-624f8ce792d7",
+      "seq": 62,
+      "run_id": "43529143-5560-4676-b152-dc43c4bc7629",
+      "created_at": 1791457338299,
+      "phase": "completed",
+      "index": 9,
+      "context_estimate": null,
+      "context_window": null,
+      "model_ms": 1803,
+      "attempts": 1,
+      "ttft_ms": 1586,
+      "usage": {
+        "prompt_tokens": 12372,
+        "completion_tokens": 346,
+        "cached_tokens": 12032,
+        "reasoning_tokens": 194
+      },
+      "finish_reason": "tool_calls",
+      "tool_call_ids": [
+        "call_00_VW8nyScC9WO4btvt5uep2497"
+      ],
+      "tools_ms": 37,
+      "error": null
+    },
+    {
+      "event_id": "037872c4-3246-4d29-b3c7-85479eccdbb5",
+      "seq": 68,
+      "run_id": "43529143-5560-4676-b152-dc43c4bc7629",
+      "created_at": 1791457339967,
+      "phase": "completed",
+      "index": 10,
+      "context_estimate": null,
+      "context_window": null,
+      "model_ms": 1519,
+      "attempts": 1,
+      "ttft_ms": 991,
+      "usage": {
+        "prompt_tokens": 12967,
+        "completion_tokens": 196,
+        "cached_tokens": 12672,
+        "reasoning_tokens": 49
+      },
+      "finish_reason": "tool_calls",
+      "tool_call_ids": [
+        "call_00_XjzSmI47iiKzwtd1QHe33972"
+      ],
+      "tools_ms": 103,
+      "error": null
+    },
+    {
+      "event_id": "088ab48f-2e60-44c5-92b1-a966e7aed37a",
+      "seq": 75,
+      "run_id": "43529143-5560-4676-b152-dc43c4bc7629",
+      "created_at": 1791457341258,
+      "phase": "completed",
+      "index": 11,
+      "context_estimate": null,
+      "context_window": null,
+      "model_ms": 1157,
+      "attempts": 1,
+      "ttft_ms": 872,
+      "usage": {
+        "prompt_tokens": 16267,
+        "completion_tokens": 143,
+        "cached_tokens": 13056,
+        "reasoning_tokens": 54
+      },
+      "finish_reason": "tool_calls",
+      "tool_call_ids": [
+        "call_00_Kmz4TmR36GZjJYh76UHS6343"
+      ],
+      "tools_ms": 57,
+      "error": null
+    },
+    {
+      "event_id": "c95fd968-c6c5-4c03-ba80-e5a2463872e9",
+      "seq": 79,
+      "run_id": "43529143-5560-4676-b152-dc43c4bc7629",
+      "created_at": 1791457343427,
+      "phase": "completed",
+      "index": 12,
+      "context_estimate": null,
+      "context_window": null,
+      "model_ms": 2124,
+      "attempts": 1,
+      "ttft_ms": 728,
+      "usage": {
+        "prompt_tokens": 16611,
+        "completion_tokens": 358,
+        "cached_tokens": 16384,
+        "reasoning_tokens": 0
+      },
+      "finish_reason": "stop",
+      "tool_call_ids": [],
+      "tools_ms": 0,
+      "error": null
+    }
+  ],
+  "tool_timings": [
+    {
+      "function": "shell_execute",
+      "tool_call_id": "call_00_ET_yBpqtnnJsw7zYvOfeOWZ2700",
+      "duration_ms": 59,
+      "timestamp": null,
+      "timestamp_ms": null
+    },
+    {
+      "function": "shell_execute",
+      "tool_call_id": "call_00_ZaWYU0e8rs3V0EGy9Zra4940",
+      "duration_ms": 38,
+      "timestamp": null,
+      "timestamp_ms": null
+    },
+    {
+      "function": "shell_execute",
+      "tool_call_id": "call_00_IQoFadoTOZKxh5BWFzj80741",
+      "duration_ms": 53,
+      "timestamp": null,
+      "timestamp_ms": null
+    },
+    {
+      "function": "shell_execute",
+      "tool_call_id": "call_00_o8nbC6csxlCaknbJ3KpY2407",
+      "duration_ms": 41,
+      "timestamp": null,
+      "timestamp_ms": null
+    },
+    {
+      "function": "shell_execute",
+      "tool_call_id": "call_00_7EjjLhcNPtujqis9Ull42078",
+      "duration_ms": 35,
+      "timestamp": null,
+      "timestamp_ms": null
+    },
+    {
+      "function": "shell_execute",
+      "tool_call_id": "call_00_ET_AWMqa5ucOF8WZl7NTt8a3205",
+      "duration_ms": 1852,
+      "timestamp": null,
+      "timestamp_ms": null
+    },
+    {
+      "function": "write_file",
+      "tool_call_id": "call_00_XCY2qJebbq3Zm8vDY0aV3472",
+      "duration_ms": 34,
+      "timestamp": null,
+      "timestamp_ms": null
+    },
+    {
+      "function": "shell_execute",
+      "tool_call_id": "call_00_ET_K64AnJj4dlitdt7uqXGQ0299",
+      "duration_ms": 143,
+      "timestamp": null,
+      "timestamp_ms": null
+    },
+    {
+      "function": "shell_execute",
+      "tool_call_id": "call_00_VW8nyScC9WO4btvt5uep2497",
+      "duration_ms": 37,
+      "timestamp": null,
+      "timestamp_ms": null
+    },
+    {
+      "function": "shell_execute",
+      "tool_call_id": "call_00_XjzSmI47iiKzwtd1QHe33972",
+      "duration_ms": 103,
+      "timestamp": null,
+      "timestamp_ms": null
+    },
+    {
+      "function": "deliver_files",
+      "tool_call_id": "call_00_Kmz4TmR36GZjJYh76UHS6343",
+      "duration_ms": 57,
+      "timestamp": null,
+      "timestamp_ms": null
+    }
+  ]
+}

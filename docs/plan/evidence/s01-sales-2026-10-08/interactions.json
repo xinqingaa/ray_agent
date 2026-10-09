@@ -1,0 +1,24 @@
+[
+  {
+    "t": 0.0,
+    "kind": "send",
+    "turn": 0,
+    "message": "帮我合并这三份销售表，重复订单只保留一条，按渠道统计销售额。缺少金额的订单单独列出来。生成销售汇总.xlsx 给我下载，不要修改原始文件。",
+    "attachments": 3
+  },
+  {
+    "t": 0.047,
+    "kind": "accepted",
+    "run_id": "43529143-5560-4676-b152-dc43c4bc7629",
+    "seq": 2,
+    "route": "started",
+    "approval": null
+  },
+  {
+    "t": 35.827,
+    "kind": "sse_end",
+    "terminal": "completed",
+    "reason": null,
+    "after_stop": false
+  }
+]
