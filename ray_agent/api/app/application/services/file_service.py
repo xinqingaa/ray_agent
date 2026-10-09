@@ -82,3 +82,49 @@ class FileService:
         if file.visual and file.visual.get('deleted_at'):
             raise AppException(code=410, status_code=410, msg='临时图片已过期')
         return await self.file_storage.download_file(file_id)
+
+    async def download_zip(self, file_ids: list[str]):
+        import os
+        import tempfile
+        import zipfile
+        from app.application.errors.exceptions import BadRequestError
+        from app.domain.services.project_file_coordinator import run_file_io
+        ids = list(dict.fromkeys(file_ids))
+        if not ids or len(ids) > 100:
+            raise BadRequestError('每次打包 1–100 个文件')
+        limit, total = 512 * 1024 * 1024, 0
+        output = tempfile.TemporaryFile()
+        names = set()
+        try:
+            with zipfile.ZipFile(output, 'w', compression=zipfile.ZIP_DEFLATED, allowZip64=True) as archive:
+                for file_id in ids:
+                    handle, file = await self.download_file(file_id)
+                    try:
+                        name = file.filename.replace('\\', '/').rsplit('/', 1)[-1]
+                        name = ''.join(c for c in name if ord(c) >= 32).strip() or 'file'
+                        if name in ('.', '..'):
+                            name = 'file'
+                        stem, extension = os.path.splitext(name)
+                        candidate, suffix = name, 2
+                        while candidate in names:
+                            candidate = f'{stem} ({suffix}){extension}'; suffix += 1
+                        names.add(candidate)
+                        def write():
+                            nonlocal total
+                            with archive.open(candidate, 'w', force_zip64=True) as member:
+                                while chunk := handle.read(256*1024):
+                                    total += len(chunk)
+                                    if total > limit:
+                                        raise BadRequestError('打包文件总量过大')
+                                    member.write(chunk)
+                        _, cancelled = await run_file_io(write)
+                        if cancelled:
+                            import asyncio
+                            raise asyncio.CancelledError()
+                    finally:
+                        handle.close()
+            output.seek(0)
+            return output
+        except BaseException:
+            output.close()
+            raise

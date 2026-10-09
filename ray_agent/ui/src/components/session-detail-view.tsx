@@ -17,6 +17,8 @@ import {UserMessage} from '@/components/run/messages'
 import {RUN_INPUT_HINT, RunStatus} from '@/components/run/run-status'
 import {RunStatusBar} from '@/components/run/status-bar'
 import {Timeline, type TimelineHandlers} from '@/components/run/timeline-item'
+import {downloadFileBatch} from '@/lib/api/preview'
+import {FilePreviewDialog} from '@/components/preview/file-preview-dialog'
 import {downloadSessionFile, tabForFamily, Workbench, type WorkbenchTab} from '@/components/workbench/workbench'
 import {useWorkbenchWidth, WorkbenchResizeHandle} from '@/components/workbench/resize-handle'
 import {cn} from '@/lib/utils'
@@ -122,7 +124,8 @@ export function SessionDetailView({
   const [renamedTitle, setRenamedTitle] = useState<{sessionId: string; title: string; previousTitle: string} | null>(null)
   const [tab, setTab] = useState<WorkbenchTab>('files')
   const [tabForId, setTabForId] = useState<string | null>(null)
-  const [highlightFileId, setHighlightFileId] = useState<string | null>(null)
+  const [previewedFile, setPreviewedFile] = useState<FileView | null>(null)
+  const [inspectingFile, setInspectingFile] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
   const developerScrollRef = useRef<HTMLDivElement>(null)
   const scrollPositions = useRef({conversation: 0, developer: 0})
@@ -193,7 +196,7 @@ export function SessionDetailView({
   const latest = calls.length > 0 ? calls[calls.length - 1] : null
   const pin = pinnedCallId && calls.some((call) => call.callId === pinnedCallId) ? pinnedCallId : null
   const focus = pin ? calls.find((call) => call.callId === pin) ?? latest : latest
-  const following = pin == null
+  const following = pin == null && !inspectingFile
   const focusId = focus?.callId ?? null
   const shellCall = focus?.family === 'shell' ? focus : lastOf(calls, 'shell')
   const browserCall = focus?.family === 'browser' ? focus : lastOf(calls, 'browser')
@@ -201,7 +204,7 @@ export function SessionDetailView({
 
   if (focusId !== tabForId) {
     setTabForId(focusId)
-    if (focus && tab !== 'project') setTab(tabForFamily(focus.family))
+    if (focus && tab !== 'project' && !inspectingFile) setTab(tabForFamily(focus.family))
   }
 
   const projectBindable = (view?.runs.length ?? 0) === 0 && (view?.status ?? 'idle') === 'idle'
@@ -219,6 +222,8 @@ export function SessionDetailView({
 
   useEffect(() => {
     setOutgoing(null)
+    setInspectingFile(false)
+    setPreviewedFile(null)
     setHiddenRunIds([])
     setHiddenUserIds([])
     setRetrying(null)
@@ -367,16 +372,12 @@ export function SessionDetailView({
     }
   }, [])
 
+  const packingFiles = useRef(false)
   const downloadAll = useCallback(async (files: FileView[]) => {
-    for (const file of files) {
-      try {
-        await downloadSessionFile(file)
-      } catch (err) {
-        toast.error(`「${file.filename}」下载失败：${err instanceof Error ? err.message : '未知错误'}`)
-        return
-      }
-    }
-    if (files.length > 0) toast.success(`已下载 ${files.length} 个文件`)
+    if(packingFiles.current)return
+    packingFiles.current=true
+    try {await downloadFileBatch(files)} catch(error) {toast.error(error instanceof Error ? error.message : '打包失败')}
+    finally {packingFiles.current=false}
   }, [])
 
   const handlers = useMemo<TimelineHandlers>(() => ({
@@ -384,14 +385,11 @@ export function SessionDetailView({
     sessionId: view?.id,
     selectedCallId: focus?.callId ?? null,
     onOpenCall: (callId) => {
+      setInspectingFile(false)
       setPinnedCallId(callId)
       setWorkbenchOpen(true)
     },
-    onPreviewFile: (file) => {
-      setHighlightFileId(file.id)
-      setTab('files')
-      setWorkbenchOpen(true)
-    },
+    onPreviewFile: (file) => setPreviewedFile(file),
     onDownloadFile: (file) => {
       void downloadOne(file)
     },
@@ -499,8 +497,8 @@ export function SessionDetailView({
       files={view.files}
       tab={tab}
       onTab={setTab}
-      highlightFileId={highlightFileId}
-      onFollowLatest={() => setPinnedCallId(null)}
+      onInspectFile={() => setInspectingFile(true)}
+      onFollowLatest={() => {setPinnedCallId(null);setInspectingFile(false);if(latest)setTab(tabForFamily(latest.family))}}
       onClose={() => setWorkbenchOpen(false)}
       project={view.project}
       projectRefreshSignal={projectRefreshSignal}
@@ -650,6 +648,8 @@ export function SessionDetailView({
           </SheetContent>
         </Sheet>
       )}
+
+      <FilePreviewDialog file={previewedFile} onClose={() => setPreviewedFile(null)} onDownload={file => void downloadOne(file)}/>
 
       <RenameSessionDialog sessionId={sessionId} currentTitle={displayTitle} open={renameOpen}
         onOpenChange={setRenameOpen}

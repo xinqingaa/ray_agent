@@ -4,10 +4,11 @@ import {useCallback, useEffect, useState, useRef} from 'react'
 import {ChevronDown, ChevronRight, FileText, Loader2, RefreshCw} from 'lucide-react'
 import {ScrollArea} from '@/components/ui/scroll-area'
 import {projectApi} from '@/lib/api/project'
-import type {ProjectFile, ProjectListing, ProjectTreeEntry} from '@/lib/api/types'
+import type {ProjectListing, ProjectTreeEntry} from '@/lib/api/types'
 import {cn} from '@/lib/utils'
 import {Button} from '@/components/ui/button'
 import {toast} from 'sonner'
+import {FilePreview} from '@/components/preview/file-preview'
 
 function EmptyNote({children}: {children: string}) {
   return <p className="px-4 py-8 text-center text-meta text-faint">{children}</p>
@@ -24,35 +25,14 @@ type TreeNode = {
 
 export function ProjectPane({sessionId, refreshSignal, projectLevel = false, downloadProjectId}: {sessionId: string; refreshSignal?: number; projectLevel?: boolean; downloadProjectId?: string}) {
   const epoch = useRef(0)
-  const fileRequest = useRef(0)
-  const selectedRef = useRef<string | null>(null)
   const [revision, setRevision] = useState(0)
   const [rootLoading, setRootLoading] = useState(true)
   const [rootError, setRootError] = useState<string | null>(null)
-  const [fileError, setFileError] = useState<string | null>(null)
-  useEffect(() => () => {epoch.current++; fileRequest.current++}, [sessionId, projectLevel])
+  useEffect(() => () => {epoch.current++}, [sessionId, projectLevel])
   const [root, setRoot] = useState<ProjectListing | null>(null)
   const [nodes, setNodes] = useState<Record<string, TreeNode>>({})
   const [selectedPath, setSelectedPath] = useState<string | null>(null)
-  const [file, setFile] = useState<ProjectFile | null>(null)
-  const [fileLoading, setFileLoading] = useState(false)
-
-  const openFile = useCallback(async (path: string) => {
-    const request = ++fileRequest.current
-    selectedRef.current = path
-    setSelectedPath(path)
-    setFileLoading(true)
-    setFile(null)
-    setFileError(null)
-    try {
-      const result = await projectApi.getFile(sessionId, path, projectLevel)
-      if (request === fileRequest.current) setFile(result)
-    } catch (err) {
-      if (request === fileRequest.current) setFileError(err instanceof Error ? err.message : '读取文件失败')
-    } finally {
-      if (request === fileRequest.current) setFileLoading(false)
-    }
-  }, [sessionId, projectLevel])
+  const openFile = useCallback((path: string) => {setSelectedPath(path)}, [])
 
   useEffect(() => {
     const current = ++epoch.current
@@ -64,13 +44,11 @@ export function ProjectPane({sessionId, refreshSignal, projectLevel = false, dow
       const next: Record<string, TreeNode> = {}
       for (const entry of listing.entries) next[entry.path] = {entry, expanded: false, loaded: false}
       setNodes(next)
-      if (selectedRef.current) void openFile(selectedRef.current)
     }).catch((err) => {
       if (current === epoch.current) {setRoot(null); setRootError(err instanceof Error ? err.message : '读取目录失败')}
     }).finally(() => {if (current === epoch.current) setRootLoading(false)})
     const epochCounter = epoch
-    const fileCounter = fileRequest
-    return () => {epochCounter.current++; fileCounter.current++}
+    return () => {epochCounter.current++}
   }, [sessionId, projectLevel, refreshSignal, revision, openFile])
 
   const toggleDir = async (path: string) => {
@@ -152,10 +130,7 @@ export function ProjectPane({sessionId, refreshSignal, projectLevel = false, dow
     <div className="flex min-h-0 flex-1 flex-col">
       <div className="flex items-center border-b px-3 py-2">
         <span className="flex-1 text-meta text-muted-foreground">项目当前文件</span>
-        {downloadProjectId && <Button variant="ghost" size="sm" disabled={!file} onClick={async () => {
-          if(!selectedPath)return
-          try {const value=await projectApi.download(downloadProjectId,selectedPath);if(value.warning)toast.warning(value.warning);const link=document.createElement('a');link.href=value.url;link.download=value.filename;document.body.appendChild(link);link.click();link.remove()}catch(error){toast.error(error instanceof Error ? error.message : '下载失败')}
-        }}>下载所选文件</Button>}
+
         <Button type="button" variant="ghost" size="icon-xs" aria-label="刷新项目文件" disabled={rootLoading} onClick={() => setRevision((n) => n + 1)}>
           {rootLoading ? <Loader2 className="size-4 animate-spin"/> : <RefreshCw className="size-4"/>}
         </Button>
@@ -169,28 +144,14 @@ export function ProjectPane({sessionId, refreshSignal, projectLevel = false, dow
           )}
         </div>
       </ScrollArea>
-      <ScrollArea className="min-h-0 flex-1">
-        <div className="p-3">
-          {!selectedPath && <p className="text-meta text-faint">选中文件以预览内容。</p>}
-          {selectedPath && fileLoading && (
-            <p className="text-meta text-muted-foreground"><Loader2 className="mr-1 inline size-4 animate-spin"/>正在读取</p>
-          )}
-          {fileError && <p role="alert" className="text-meta text-state-failed">{fileError}</p>}
-          {file && file.kind === 'text' && file.content != null && (
-            <pre className="overflow-x-auto rounded-md bg-muted px-3 py-2 font-mono text-xs leading-5 whitespace-pre">
-              {file.content}
-            </pre>
-          )}
-          {file && file.kind === 'binary' && (
-            <p className="text-meta text-faint">这是二进制文件（{file.name}，{file.size} 字节），无法在界面中预览。</p>
-          )}
-          {file && file.kind === 'too_large' && (
-            <p className="text-meta text-faint">
-              文件过大（{file.name}，{file.size} 字节），超过 {file.max_bytes} 字节上限，只显示元数据。
-            </p>
-          )}
-        </div>
-      </ScrollArea>
+      <div className="min-h-0 flex-1">
+        {selectedPath ? <FilePreview key={`${sessionId}:${selectedPath}:${refreshSignal ?? 0}:${revision}`} source={{kind:'project',id:sessionId,path:selectedPath,filename:selectedPath.split('/').pop() || selectedPath,projectLevel}}
+          onDownload={downloadProjectId ? () => {void projectApi.download(downloadProjectId,selectedPath).then(value => {
+            if(value.warning)toast.warning(value.warning)
+            const link=document.createElement('a');link.href=value.url;link.download=value.filename;document.body.appendChild(link);link.click();link.remove()
+          }).catch(error => toast.error(error instanceof Error ? error.message : '下载失败'))} : undefined}/>
+          : <p className="p-4 text-xs text-muted-foreground">选择文件</p>}
+      </div>
     </div>
   )
 }

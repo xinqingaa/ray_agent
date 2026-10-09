@@ -1,12 +1,13 @@
 'use client'
 
 import {AttachmentCopyStatus} from './project-copy-status'
-import {CornerDownRight} from 'lucide-react'
+import {CornerDownRight, Download} from 'lucide-react'
 import {MarkdownContent} from '@/components/markdown-content'
 import {cn} from '@/lib/utils'
 import type {FileView, RunSummary} from '@/lib/session-view'
-import {fileIcon} from './file-icon'
-import {formatBytes, formatDuration, formatTokens, totalTokens} from './format'
+import {FileRow} from '@/components/preview/file-row'
+import {PreviewAction} from '@/components/preview/action'
+import {formatDuration, formatTokens, totalTokens} from './format'
 
 type UserMessageProps = {
   text: string
@@ -14,9 +15,11 @@ type UserMessageProps = {
   /** 运行中发送、作为补充要求注入当前运行 */
   injected?: boolean
   className?: string
+  onPreview?: (file: FileView) => void
+  onDownload?: (file: FileView) => void
 }
 
-export function UserMessage({text, attachments = [], injected = false, className}: UserMessageProps) {
+export function UserMessage({text, attachments = [], injected = false, className, onPreview, onDownload}: UserMessageProps) {
   return (
     <div className={cn('flex flex-col items-end gap-1', className)}>
       {injected && (
@@ -34,17 +37,11 @@ export function UserMessage({text, attachments = [], injected = false, className
         <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">{text}</p>
         {attachments.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-1.5">
-            {attachments.map((file) => {
-              const Icon = fileIcon(file.extension)
-              return (
-                <span key={file.id} className="inline-flex max-w-full flex-wrap items-center gap-1.5 rounded-md border bg-card px-2 py-1 text-xs">
-                  <Icon className="size-3.5 shrink-0 text-muted-foreground" aria-hidden/>
-                  <span className="truncate">{file.filename}</span>
-                  <span className="shrink-0 tabular-nums text-muted-foreground">{formatBytes(file.size)}</span>
-                  <AttachmentCopyStatus attachmentId={file.id}/>
-                </span>
-              )
-            })}
+            {attachments.map(file => <FileRow key={file.id} file={file} compact
+              onOpen={onPreview ? () => onPreview(file) : undefined}
+              actions={onDownload && <PreviewAction label={`下载 ${file.filename}`} icon={Download} onClick={() => onDownload(file)}/>}>
+              <AttachmentCopyStatus attachmentId={file.id}/>
+            </FileRow>)}
           </div>
         )}
       </div>

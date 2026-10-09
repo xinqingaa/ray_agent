@@ -87,6 +87,11 @@ def get_session_service() -> SessionService:
     return SessionService(uow_factory=get_uow, sandbox_cls=DockerSandbox)
 
 
+def get_file_preview_service():
+    from app.application.services.file_preview_service import FilePreviewService
+    return FilePreviewService(get_file_service(), get_project_service())
+
+
 def get_project_service() -> ProjectService:
     """每次请求按当前配置组装。文件读取走 API 容器内的只读挂载，不访问沙箱。"""
     current = get_settings()

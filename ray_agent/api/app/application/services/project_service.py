@@ -225,6 +225,10 @@ class ProjectService:
         path = await self._require_project(identifier, project_level=project_level)
         return await self._read(self._files.list_directory(path, relative or ""))
 
+    async def require_file_root(self, identifier: str, *, project_level: bool = False) -> str:
+        """共用只读来源解析，不创建沙箱或更改项目占用。"""
+        return await self._require_project(identifier, project_level=project_level)
+
     async def read_file(self, identifier: str, relative: str, *, project_level: bool = False) -> ProjectFile:
         path = await self._require_project(identifier, project_level=project_level)
         return await self._read(self._files.read_file(path, relative))

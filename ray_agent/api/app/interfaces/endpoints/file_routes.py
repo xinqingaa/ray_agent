@@ -3,16 +3,50 @@
 import logging
 import urllib.parse
 
-from fastapi import APIRouter, UploadFile, File, Depends, Query
-from starlette.responses import StreamingResponse
+from fastapi import APIRouter, UploadFile, File, Depends, Query, Request
+from starlette.responses import StreamingResponse, Response as RawResponse
+from app.application.errors.exceptions import AppException, BadRequestError
 
 from app.application.services.file_service import FileService
 from app.domain.models.file import File as FileInfo
 from app.interfaces.schemas import Response
 from app.interfaces.service_dependencies import get_file_service
+from pydantic import BaseModel, Field as ModelField
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/files", tags=["文件模块"])
+
+
+class DownloadBatch(BaseModel):
+    file_ids: list[str] = ModelField(min_length=1, max_length=100)
+
+
+@router.post('/download-batch', summary='将选定附件打包为 ZIP')
+async def download_batch(request: DownloadBatch, service: FileService = Depends(get_file_service)):
+    stream = await service.download_zip(request.file_ids)
+    def chunks():
+        try:
+            while chunk := stream.read(256*1024):
+                yield chunk
+        finally:
+            stream.close()
+    return StreamingResponse(chunks(), media_type='application/zip', headers={
+        'Content-Disposition': "attachment; filename*=utf-8''files.zip", 'Cache-Control':'no-store'})
+
+
+@router.api_route('/download-batch', methods=['GET', 'HEAD'], summary='下载选定附件 ZIP')
+async def download_batch_link(request: Request, file_id: list[str] = Query(min_length=1, max_length=100), service: FileService = Depends(get_file_service)):
+    if request.method == 'HEAD':
+        total = 0
+        for identifier in dict.fromkeys(file_id):
+            file = await service.get_file_info(identifier)
+            if file.visual and file.visual.get('deleted_at'):
+                raise AppException(410, 410, '临时图片已过期')
+            total += file.size
+        if total > 512*1024*1024:
+            raise BadRequestError('打包文件总量过大')
+        return RawResponse(media_type='application/zip')
+    return await download_batch(DownloadBatch(file_ids=file_id), service)
 
 
 @router.post(
@@ -54,13 +88,15 @@ async def get_file_info(
     )
 
 
-@router.get(
+@router.api_route(
     path="/{file_id}/download",
+    methods=['GET', 'HEAD'],
     summary="文件下载接口",
     description="从沙箱or对象存储中下载指定的文件到本地",
 )
 async def download_file(
         file_id: str,
+        request: Request,
         file_service: FileService = Depends(get_file_service),
 ) -> StreamingResponse:
     """下载指定会话中的指定文件"""
@@ -70,12 +106,19 @@ async def download_file(
     # 2.对文件中的中文名字进行url编码
     encoded_filename = urllib.parse.quote(fileinfo.filename)
 
-    # 3.返回文件流数据
+    headers = {
+        'Content-Disposition': f"attachment; filename*=utf-8''{encoded_filename}",
+        'Content-Length':str(fileinfo.size), 'Cache-Control':'no-store',
+    }
+    if request.method == 'HEAD':
+        file_data.close()
+        return RawResponse(media_type=fileinfo.mime_type or 'application/octet-stream', headers=headers)
+    def chunks():
+        try:
+            while chunk := file_data.read(256*1024):
+                yield chunk
+        finally:
+            file_data.close()
     return StreamingResponse(
-        content=file_data,
-        media_type=fileinfo.mime_type,
-        headers={
-            "Content-Disposition": f"attachment; filename*=utf-8''{encoded_filename}",
-            "Content-Length": str(fileinfo.size)
-        }
+        content=chunks(), media_type=fileinfo.mime_type or 'application/octet-stream', headers=headers,
     )

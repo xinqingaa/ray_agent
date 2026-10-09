@@ -132,6 +132,18 @@ uv run --locked python -m pytest tests/core/test_eval_script.py
 
 指标来自 `GET /sessions/{id}` 读回的运行与事件：模型调用次数与 tokens 取运行汇总（终态 `run` 事件的 summary，仍活动的运行取运行行计数），并与 `turn(completed)` 逐轮累加核对；工具调用按 `called` 工具事件计数。评测只验证任务结果，不统计成功率，也不代替页面验收。
 
+### 文件预览与打包下载
+
+附件和项目文件共用只读预览服务，不调用模型或准备沙箱。文本有界分段读取；表格与图片在最多三个并发子进程中解析，处理完成或超时后回收进程及临时副本。项目继续采用无符号链接跟随的文件 IO，并校验读取版本；内联内容只开放图片与 PDF，支持 HTTP Range。附件打包使用临时 ZIP，下载分块发送，结束后关闭文件。具体上限集中在[能力与边界](../../docs/capabilities.md#文件预览与下载边界)。
+
+运行依赖 openpyxl、xlrd、defusedxml 与 Pillow 来自锁文件和容器安装清单；xlwt 只用于开发测试生成旧版 XLS，不进入运行镜像。定向检查：
+
+```bash
+uv run --locked python -m pytest tests/core/test_file_preview.py tests/core/test_project_download.py tests/core/test_project_files.py tests/core/test_file_artifacts.py
+```
+
+预览用例使用真实临时文件、现有销售产物和实际解析子进程，核对工作表、样式、合并格、公式缓存缺失、CSV 引号与分页、大于 5 MiB 的文本/工作簿、取消后的句柄寿命、损坏文件、版本冲突、符号链接、Range 和 ZIP 重名。HTTP 用例通过本地 FastAPI 替换存储与项目解析入口，不连接业务数据库或模型；真实浏览器验证另行记录。
+
 ### 文件与产物观察
 
 第十二章的确定性测试：

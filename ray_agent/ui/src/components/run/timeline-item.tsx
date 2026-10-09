@@ -38,7 +38,7 @@ export function TimelineItemView({item, handlers = {}}: {item: TimelineItem; han
   const streaming = handlers.streamingItemId === item.id
   switch (item.kind) {
     case 'user':
-      return <UserMessage text={item.text} attachments={item.attachments} injected={item.injected}/>
+      return <UserMessage text={item.text} attachments={item.attachments} injected={item.injected} onPreview={handlers.onPreviewFile} onDownload={handlers.onDownloadFile}/>
     case 'narration':
       return <NarrationBlock text={item.text} streaming={streaming}/>
     case 'tools':

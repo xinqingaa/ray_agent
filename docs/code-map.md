@@ -139,6 +139,9 @@
 | 文件元数据与仓库 | [`domain/models/file.py`](../ray_agent/api/app/domain/models/file.py)、[`infrastructure/repositories/db_file_repository.py`](../ray_agent/api/app/infrastructure/repositories/db_file_repository.py) | [`core/test_file_artifacts.py`](../ray_agent/api/tests/core/test_file_artifacts.py) | 12 |
 | 存储适配 | [`infrastructure/external/file_storage/`](../ray_agent/api/app/infrastructure/external/file_storage/) 的 `local_file_storage.py`、`cos_file_storage.py` | [`core/test_file_storage_settings.py`](../ray_agent/api/tests/core/test_file_storage_settings.py) | 12 |
 
+| 统一只读预览 | [file_preview_service.py](../ray_agent/api/app/application/services/file_preview_service.py)、[file_preview.py](../ray_agent/api/app/domain/models/file_preview.py)、[file_preview/](../ray_agent/api/app/infrastructure/external/file_preview/)、[preview_routes.py](../ray_agent/api/app/interfaces/endpoints/preview_routes.py) | [test_file_preview.py](../ray_agent/api/tests/core/test_file_preview.py) | — |
+| 附件 ZIP 与原文件下载 | [file_service.py](../ray_agent/api/app/application/services/file_service.py)、[file_routes.py](../ray_agent/api/app/interfaces/endpoints/file_routes.py) | [test_file_preview.py](../ray_agent/api/tests/core/test_file_preview.py) | — |
+
 ## 前端
 
 | 机制 | 主要入口 | 课程 |
@@ -148,6 +151,7 @@
 | 输入框命令注册表 | [`lib/commands.ts`](../ray_agent/ui/src/lib/commands.ts)、[`lib/slash-trigger.ts`](../ray_agent/ui/src/lib/slash-trigger.ts)、[`components/input-command-menu.tsx`](../ray_agent/ui/src/components/input-command-menu.tsx) | — |
 | 上下文占用与用量详情 | [`components/run/context-ring.tsx`](../ray_agent/ui/src/components/run/context-ring.tsx) | — |
 | 项目选择器与会话标题项目信息 | [`components/project-picker.tsx`](../ray_agent/ui/src/components/project-picker.tsx)；会话页 [`components/session-detail-view.tsx`](../ray_agent/ui/src/components/session-detail-view.tsx) | — |
+| 文件与图片共享查看器 | [components/preview/](../ray_agent/ui/src/components/preview/)、[lib/api/preview.ts](../ray_agent/ui/src/lib/api/preview.ts)，恢复检查 [check-workbench-recovery.cjs](../ray_agent/ui/scripts/check-workbench-recovery.cjs) | — |
 | 工作台项目页 | [`components/workbench/project-pane.tsx`](../ray_agent/ui/src/components/workbench/project-pane.tsx)；页签在 [`components/workbench/workbench.tsx`](../ray_agent/ui/src/components/workbench/workbench.tsx) | — |
 | 「按计划执行」 | [`components/run/run-end-bar.tsx`](../ray_agent/ui/src/components/run/run-end-bar.tsx) 的 `PlanExecuteBar`，有效性判断在会话视图投影与会话页 | — |
 | 审批条目与审批卡 | 投影在 [`lib/session-projection.ts`](../ray_agent/ui/src/lib/session-projection.ts) 的 `approval` 分支（从审批事件构造调用、结论原地更新、失效标为未执行）；卡片 [`components/run/approval-card.tsx`](../ray_agent/ui/src/components/run/approval-card.tsx)；提交与输入框引导在 [`components/session-detail-view.tsx`](../ray_agent/ui/src/components/session-detail-view.tsx) 的 `handleApproval` | — |
