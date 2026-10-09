@@ -14,7 +14,8 @@ import {previewUnavailableReason} from '@/components/run/file-icon'
 import {FileRow} from '@/components/preview/file-row'
 import {TOOL_STATUS} from '@/components/run/status-meta'
 import type {ProjectView} from '@/lib/session-view'
-import {ManagedProjectPane} from '@/components/workbench/managed-project-pane'
+import Link from 'next/link'
+import {ProjectPane} from '@/components/workbench/project-pane'
 import {FilePreview} from '@/components/preview/file-preview'
 import {ImagePreview} from '@/components/preview/image-preview'
 import {PreviewAction} from '@/components/preview/action'
@@ -283,7 +284,7 @@ function FilesPane({focus, files, onInspectFile}: {focus: ToolCallView | null; f
   const downloadAll = async () => {
     if(packing)return
     setPacking(true)
-    try {await downloadFileBatch(files)} catch(error) {toast.error(error instanceof Error ? error.message : '打包失败')}
+    try {await downloadFileBatch(files.filter(file => file.source === 'delivery'))} catch(error) {toast.error(error instanceof Error ? error.message : '打包失败')}
     finally {setPacking(false)}
   }
   if(open)return <FilePreview key={open.id} source={{kind:'attachment',id:open.id,filename:open.filename,size:open.size}}
@@ -292,17 +293,19 @@ function FilesPane({focus, files, onInspectFile}: {focus: ToolCallView | null; f
   return <ScrollArea className="min-h-0 flex-1"><div className="space-y-3 p-3">
     {focus?.family==='file' && focus.result?.error && <p className="text-xs text-state-failed">{focus.result.error}</p>}
     {toolText && <section><p className="mb-1 truncate text-xs text-muted-foreground">{focus?.target}</p><pre className="max-h-48 overflow-auto rounded-md bg-muted p-3 font-mono text-xs whitespace-pre-wrap break-all">{toolText.slice(0,20000)}</pre></section>}
-    <section><header className="mb-1 flex items-center gap-2"><h3 className="mr-auto text-xs font-medium text-muted-foreground">会话文件</h3>
-      {files.length>1 && <PreviewAction label={packing ? '正在打包' : `打包下载全部 ${files.length} 个文件`} icon={PackageOpen} disabled={packing} onClick={() => void downloadAll()}/>}</header>
-      {!files.length ? <p className="py-6 text-center text-xs text-muted-foreground">暂无文件</p> : <ul>{files.map(file => {
-        const reason=previewUnavailableReason(file.extension)
-        const inspect=() => {onInspectFile?.();setOpenId(file.id)}
-        return <li key={file.id}><FileRow file={file} onOpen={inspect} actions={<>
-          {!reason && <PreviewAction label={`预览 ${file.filename}`} icon={Eye} onClick={inspect}/>}<PreviewAction label={`下载 ${file.filename}`} icon={Download} onClick={() => void download(file)}/>
-        </>}><span className="ml-2 text-xs text-muted-foreground">{file.source==='delivery' ? '交付' : '上传'}</span></FileRow>
-        </li>
-      })}</ul>}
-    </section>
+    {(['delivery','upload'] as const).map(source => {
+      const group = files.filter(file => source === 'delivery' ? file.source === 'delivery' : file.source !== 'delivery')
+      return <section key={source}><header className="mb-2 flex items-center gap-2"><h3 className="mr-auto text-sm font-medium">{source==='delivery' ? '交付结果' : '输入材料'}</h3>
+        {source==='delivery' && group.length>0 && <PreviewAction label={packing ? '正在打包' : '下载本次交付'} icon={PackageOpen} disabled={packing} onClick={() => void downloadAll()}/>}</header>
+        {!group.length ? <p className="py-3 text-xs text-muted-foreground">{source==='delivery' ? '本次对话尚未交付文件。' : '本次对话没有上传附件。'}</p> : <ul className="flex flex-wrap gap-2">{group.map(file => {
+          const reason=previewUnavailableReason(file.extension)
+          const inspect=() => {onInspectFile?.();setOpenId(file.id)}
+          return <li className="min-w-0 w-full" key={file.id}><FileRow file={file} showThumbnail onOpen={inspect} actions={<>
+            {!reason && <PreviewAction label={`预览 ${file.filename}`} icon={Eye} onClick={inspect}/>}<PreviewAction label={`下载 ${file.filename}`} icon={Download} onClick={() => void download(file)}/>
+          </>}/></li>
+        })}</ul>}
+      </section>
+    })}
   </div></ScrollArea>
 }
 
@@ -341,13 +344,13 @@ export function Workbench({
       (item.id === 'terminal' && visibility.terminal && shellCall) ||
       (item.id === 'browser' && browserCall),
     ),
-    ...(hasProject ? [{id: 'project' as const, label: '项目'}] : []),
+    ...(hasProject ? [{id: 'project' as const, label: '项目文件'}] : []),
   ]
 
   return (
-    <section aria-label={visibility.developerView ? '工作台' : '结果与资料'} className={cn('flex h-full min-h-0 flex-col bg-card', className)}>
+    <section aria-label={visibility.developerView ? '工作台' : '查看'} className={cn('flex h-full min-h-0 flex-col bg-card', className)}>
       <header className="flex items-center gap-2 border-b px-3 py-2">
-        <h2 className="mr-auto text-sm font-medium">{visibility.developerView ? '工作台' : '结果与资料'}</h2>
+        <h2 className="mr-auto text-sm font-medium">{visibility.developerView ? '工作台' : '查看'}</h2>
         {!following && (visibility.developerView || canFollowLatest) && (
           <Button type="button" variant="outline" size="xs" onClick={onFollowLatest}>
             <Play aria-hidden/>
@@ -389,7 +392,7 @@ export function Workbench({
             )}
           >
             {item.id === 'terminal' && <Terminal className="mr-1 inline size-3.5" aria-hidden/>}
-            {item.id === 'browser' && !visibility.developerView ? '页面内容' : item.label}
+            {item.id === 'browser' ? '页面' : item.id === 'files' ? '本次对话' : item.label}
           </button>
         ))}
       </div>
@@ -404,7 +407,7 @@ export function Workbench({
       {tab === 'browser' && <BrowserPane call={browserCall}/>}
       {tab === 'files' && <FilesPane focus={focus} files={files} onInspectFile={onInspectFile}/>}
       {tab === 'project' && hasProject && project?.available && (
-        <ManagedProjectPane key={project.id} projectId={project.id} refreshSignal={projectRefreshSignal}/>
+        <><div className="border-b px-3 py-3"><p className="mb-2 text-xs text-muted-foreground">这些文件供本项目的各次对话继续使用。</p><Link className="text-xs text-signal underline" href={`/projects/${project.id}#files`}>管理项目文件</Link></div><ProjectPane key={project.id} sessionId={project.id} projectLevel downloadProjectId={project.id} refreshSignal={projectRefreshSignal}/></>
       )}
       {tab === 'project' && hasProject && !project?.available && (
         <EmptyNote>{project.reason ?? '项目目录不可用'}</EmptyNote>

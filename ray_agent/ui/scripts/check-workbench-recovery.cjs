@@ -17,6 +17,7 @@ function load(file) {
  const code = ts.transpileModule(fs.readFileSync(root+'/src/'+file, 'utf8'), {compilerOptions: {module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX}}).outputText;
  new Function('require','exports',code)(name => {
   if(name==='react')return React;
+  if(name==='@/hooks/use-developer-mode')return load('hooks/use-developer-mode.ts');
   if(name==='react/jsx-runtime')return require('react/jsx-runtime');
   if(name==='lucide-react')return new Proxy({}, {get:()=>()=>null});
   if(name==='sonner')return {toast:{error(){},warning(){}}};
@@ -75,6 +76,16 @@ async function main(){
  await act(async()=>{reads[5].resolve(result('late original'))});
  assert.ok(text(r).includes('second file'));assert.ok(!text(r).includes('late original'));
  await act(async()=>{r.unmount()});
+ // 普通项目列表省去系统目录一层，预览仍使用真实路径。
+ api.getTree=async(_id,folder,projectLevel)=>{
+  assert.equal(projectLevel,true);
+  return folder==='uploads' ? {entries:[{name:'source.txt',path:'uploads/source.txt',type:'file'}],truncated:false} : {entries:[{name:'uploads',path:'uploads',type:'directory'},{name:'custom',path:'custom',type:'directory'}],truncated:false};
+ };
+ await act(async()=>{r=create(React.createElement(ProjectPane,{sessionId:'p',projectLevel:true}))});
+ assert.ok(text(r).includes('source.txt'));assert.ok(text(r).includes('custom'));assert.ok(!r.root.findAllByType('span').some(node=>node.children.includes('uploads')));
+ await act(async()=>fileButton(r,'source.txt').props.onClick());assert.equal(reads.at(-1).params.get('path'),'uploads/source.txt');
+ await act(async()=>r.unmount());assert.equal(reads.at(-1).signal.aborted,true);
+ console.log('PASS: 普通项目文件平铺系统目录，用户目录保留，预览使用真实路径并取消过期请求');
  console.log('PASS: actual shared viewer rejects late responses; project refresh resets revision; segmented reads preserve version; source switch cancels and resets; errors never show stale content');
 }
 main().catch(e=>{console.error(e);process.exitCode=1});

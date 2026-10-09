@@ -109,16 +109,7 @@ export function LeftPanel() {
       }))
       if (active) {
         setRows(next)
-        const empty = next.filter(project => expansion.items[project.id] && project.conversations.length === 0 && !project.navigationError)
-        if (empty.length) setExpansion(old => {
-          const items = {...old.items}
-          let changed = false
-          for (const project of empty) if (items[project.id]) { items[project.id] = false; changed = true }
-          if (!changed) return old
-          const state = {...old, items}
-          localStorage.setItem('rayagent:navigation', JSON.stringify(state))
-          return state
-        })
+
       }
     }
     void load()

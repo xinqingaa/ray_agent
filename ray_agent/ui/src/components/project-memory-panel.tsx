@@ -21,7 +21,7 @@ type Section = 'instructions' | 'notes' | 'summaries'
 type Overlay = 'history' | 'preview' | null
 const sections = [{value: 'instructions' as const, label: '说明', icon: FileText}, {value: 'notes' as const, label: '笔记', icon: NotebookPen}, {value: 'summaries' as const, label: '摘要', icon: ScrollText}]
 
-export function ProjectMemoryPanel({projectId, sessionId, open, onClose, onChanged}: {projectId: string; sessionId?: string; open: boolean; onClose: () => void; onChanged?: () => void}) {
+export function ProjectMemoryPanel({projectId, sessionId, open, initialSection = 'instructions', onClose, onChanged}: {initialSection?: Section; projectId: string; sessionId?: string; open: boolean; onClose: () => void; onChanged?: () => void}) {
   const {visibility} = useDeveloperMode()
   const [project, setProject] = useState<ProjectDetails | null>(null)
   const [memory, setMemory] = useState<ProjectMemoryView | null>(null)
@@ -66,7 +66,7 @@ export function ProjectMemoryPanel({projectId, sessionId, open, onClose, onChang
     setError(null)
     setHistory([])
     setOverlay(null)
-    setSection('instructions')
+    setSection(initialSection)
     dirty.current = false
     void refresh()
     const visible = () => {if (document.visibilityState !== 'hidden' && !dirty.current) void refresh()}
@@ -81,7 +81,7 @@ export function ProjectMemoryPanel({projectId, sessionId, open, onClose, onChang
     const historyCounter = historyEpoch
     const estimateCounter = estimateEpoch
     return () => {counter.current++; historyCounter.current++; estimateCounter.current++; setEstimating(false); window.clearTimeout(timer); unsubscribe(); window.removeEventListener('focus', visible)}
-  }, [open, projectId, refresh])
+  }, [open, projectId, refresh, initialSection])
 
   useUnsavedNavigation(() => dirty.current, open)
   const leave = () => {if (!dirty.current || window.confirm('项目记忆有未保存的修改，放弃修改并关闭？')) onClose()}
@@ -121,12 +121,12 @@ export function ProjectMemoryPanel({projectId, sessionId, open, onClose, onChang
         <SheetHeader className="shrink-0 gap-3 border-b px-4 py-3">
           <div className="flex items-center gap-1">
             <SheetTitle className="min-w-0 flex-1 truncate text-sm font-medium">
-              {project?.name || '项目记忆'}
+              {visibility.memoryInternals ? project?.name || '项目记忆' : '项目说明与笔记'}
             </SheetTitle>
             <DropdownMenu><DropdownMenuTrigger asChild><Button size="icon-sm" variant="ghost" className="text-muted-foreground" aria-label="项目记忆更多操作" title="更多操作"><MoreHorizontal className="size-4"/></Button></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem onSelect={() => toggleOverlay('history')}><History className="size-4"/>修改记录</DropdownMenuItem><DropdownMenuItem onSelect={() => toggleOverlay('preview')}><Eye className="size-4"/>运行预览</DropdownMenuItem></DropdownMenuContent></DropdownMenu>
             <Button variant="ghost" size="icon-sm" className="text-muted-foreground" aria-label="关闭项目记忆" onClick={leave}><X/></Button>
           </div>
-          {overlay ? <div className="flex items-center gap-2"><Button size="sm" variant="ghost" onClick={() => setOverlay(null)}>返回项目记忆</Button><span className="text-meta font-medium">{overlay === 'history' ? '修改记录' : '运行将使用的内容'}</span></div> : <SegmentedControl value={section} onValueChange={changeSection} options={sections} label="项目记忆分区"/>}
+          {overlay ? <div className="flex items-center gap-2"><Button size="sm" variant="ghost" onClick={() => setOverlay(null)}>返回说明与笔记</Button><span className="text-meta font-medium">{overlay === 'history' ? '修改记录' : '运行将使用的内容'}</span></div> : <SegmentedControl value={section} onValueChange={changeSection} options={sections} label="项目记忆分区"/>}
           <SheetDescription className="sr-only">项目说明、笔记和近期摘要</SheetDescription>
         </SheetHeader>
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">

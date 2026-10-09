@@ -533,7 +533,7 @@ export function SessionDetailView({
                     <Folder className="size-3.5 shrink-0"/><span className="truncate">
                     {view.project.name}
                     {!view.project.available && view.project.reason ? ` · ${view.project.reason}` : ''}
-                  </span></Link>
+                  </span></Link><span className="text-xs text-faint" aria-hidden>/</span>
                 </div>
               )}
             </div>
@@ -549,7 +549,7 @@ export function SessionDetailView({
             )}
             {!workbenchOpen && (
               <Button type="button" variant="ghost" size="icon-xs" className="size-7 shrink-0"
-                title={visibility.developerView ? '打开工作台' : '打开结果与资料'} aria-label={visibility.developerView ? '打开工作台' : '打开结果与资料'} onClick={() => setWorkbenchOpen(true)}>
+                title={visibility.developerView ? '打开工作台' : '打开查看面板'} aria-label={visibility.developerView ? '打开工作台' : '打开查看面板'} onClick={() => setWorkbenchOpen(true)}>
                 <PanelRight className="size-4"/>
               </Button>
             )}

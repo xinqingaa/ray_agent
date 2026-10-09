@@ -9,6 +9,8 @@ const React = require('react');
 const {create, act} = require('react-test-renderer');
 global.IS_REACT_ACT_ENVIRONMENT = true;
 global.document = {visibilityState: 'visible'};
+const browserEvents = new EventTarget();
+global.window = {dispatchEvent:browserEvents.dispatchEvent.bind(browserEvents),addEventListener:browserEvents.addEventListener.bind(browserEvents),removeEventListener:browserEvents.removeEventListener.bind(browserEvents),setTimeout,clearTimeout,setInterval,clearInterval};
 const storage = new Map();
 global.localStorage = {getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value)};
 global.requestAnimationFrame = callback => setImmediate(callback);
@@ -26,11 +28,14 @@ function load(file) {
   }).outputText;
   new Function('require', 'exports', code)(name => {
     if (name === 'react') return React;
+    if (name === '@/hooks/use-developer-mode') return load('hooks/use-developer-mode.ts');
+    if (name === '@/lib/catalog-bus') return load('lib/catalog-bus.ts');
     if (name === 'react/jsx-runtime') return require(name);
     if (name === 'next/link') return {default: props => React.createElement('a', props, props.children)};
     if (name === 'next/navigation') return {useRouter: () => ({push() {}}), usePathname: () => pathname};
     if (name === 'lucide-react') return new Proxy({}, {get: () => empty});
     if (name === 'sonner') return {toast: {error() {}}};
+    if (name === '@/lib/api/fetch') return {ApiError:class extends Error {}};
     if (name === '@/lib/api/project') return {projectApi: api};
     if (name === '@/lib/api/session') return {sessionApi};
     if (name === '@/lib/utils') return {cn: (...values) => values.filter(Boolean).join(' ')};
@@ -63,8 +68,7 @@ async function cleanupRetry() {
     project = {...project, snapshot_gc_pending: false, snapshots_cleaned_at: new Date().toISOString()};
   };
   let renderer;
-  await act(async () => {renderer = create(React.createElement(ManagedProjectPane, {projectId: 'p'}))});
-  await act(async () => button(renderer, '快照').props.onClick());
+  await act(async () => {renderer = create(React.createElement(ManagedProjectPane, {projectId: 'p',section:'snapshots'}))});
   assert.equal(button(renderer, '重试清理快照').props.disabled, false);
   assert.ok(text(renderer).includes('残留对象尚未清理完成'));
   await act(async () => button(renderer, '重试清理快照').props.onClick());
@@ -76,9 +80,8 @@ async function cleanupRetry() {
   await act(async () => renderer.unmount());
   for (const blocked of [{occupying_session_id: 'busy'}, {file_operation: {kind: 'restore', state: 'failed'}}]) {
     project = {id: 'p', available: true, archived: true, snapshot_gc_pending: true, ...blocked};
-    await act(async () => {renderer = create(React.createElement(ManagedProjectPane, {projectId: 'p'}))});
-    await act(async () => button(renderer, '快照').props.onClick());
-    assert.equal(button(renderer, '重试清理快照').props.disabled, true);
+    await act(async () => {renderer = create(React.createElement(ManagedProjectPane, {projectId: 'p',section:'snapshots'}))});
+      assert.equal(button(renderer, '重试清理快照').props.disabled, true);
     await act(async () => renderer.unmount());
   }
   console.log('PASS: 空快照列表待回收可确认重试，成功后禁用；运行/文件占用仍禁止清理');
@@ -162,7 +165,22 @@ async function selectedOutsidePage() {
   console.log('PASS: 当前项目/对话跨分页可见，列表断连保留选中项，用户折叠不被刷新重置，离开路由移除临时定位');
 }
 
+async function navigationActions() {
+ const {ProjectNavigation}=load('components/project-navigation.tsx');let r,expanded,route;
+ const props={projects:[{id:'p',name:'测试项目',available:true,conversations:[]}],conversations:[],expansion:{projects:true,conversations:true,items:{}},tab:'projects',onExpansion:value=>{expanded=value},onOpenProject(){},onProjectSettings(){},onArchive(){},onSessionDelete(){},onSessionRename(){},onNavigate:value=>{route=value}};
+ await act(async()=>{r=create(React.createElement(ProjectNavigation,props))});
+ const home=r.root.findAllByType('a').find(node=>node.props.href==='/projects/p');
+ await act(async()=>home.props.onClick({}));assert.equal(route,'/projects/p');assert.equal(expanded,undefined);
+ const arrow=r.root.findAllByType('button').find(node=>node.props['aria-label']==='展开 测试项目 的对话');
+ await act(async()=>arrow.props.onClick());assert.equal(expanded.items.p,true);assert.equal(route,'/projects/p');
+ await act(async()=>r.update(React.createElement(ProjectNavigation,{...props,expansion:expanded})));
+ assert.ok(text(r).includes('还没有对话'));
+ const createLink=r.root.findAllByType('a').find(node=>node.props['aria-label']==='测试项目 中新对话');assert.equal(createLink.props.href,'/projects/p#new-conversation');
+ await act(async()=>r.unmount());console.log('PASS: 项目名称导航与右侧箭头独立，空项目展开，加号进入输入准备');
+}
+
 async function main() {
+  await navigationActions();
   await cleanupRetry();
   await pickerRace(false); await pickerRace(true); await pickerReopen();
   await selectedOutsidePage();

@@ -2,12 +2,12 @@
 
 import {useRef, useState, type MouseEvent} from 'react'
 import Link from 'next/link'
-import {Folder, MoreHorizontal} from 'lucide-react'
+import {ChevronDown, ChevronUp, MoreHorizontal} from 'lucide-react'
 import {Button} from '@/components/ui/button'
 import {DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger} from '@/components/ui/dropdown-menu'
 import {RunStatus} from '@/components/run/run-status'
 import {SessionItem} from '@/components/session-item'
-import {ImportFolderIcon, NewChatIcon, NewProjectIcon} from '@/components/nav-icons'
+import {ImportFolderIcon, NewChatIcon, NewProjectIcon, ProjectFolderIcon} from '@/components/nav-icons'
 import type {Session} from '@/lib/api/types'
 import {cn} from '@/lib/utils'
 
@@ -115,15 +115,17 @@ export function ProjectNavigation(props: Props) {
           {projects.map(project => {
             const selected = props.selectedProject === project.id
             const open = !!expansion.items[project.id]
-            const expandable = (project.taskCount ?? 0) > 0 || project.conversations.length > 0 || !!project.navigationError
             const toggleProject = () => {
-              if (!open && !expandable) return
               onExpansion({...expansion, items: {...expansion.items, [project.id]: !open}})
             }
             const openProject = (event: MouseEvent) => {
               if (preview) event.preventDefault()
-              if (!expansion.items[project.id]) onExpansion({...expansion, items: {...expansion.items, [project.id]: true}})
+              if (!preview) window.dispatchEvent(new CustomEvent('rayagent:project-home', {detail:project.id}))
               props.onNavigate?.(`/projects/${project.id}`)
+            }
+            const prepareConversation = (event: MouseEvent) => {
+              openProject(event)
+              if (!preview) window.dispatchEvent(new CustomEvent('rayagent:project-compose', {detail:project.id}))
             }
             const startConversation = () => {
               if (!expansion.items[project.id]) onExpansion({...expansion, items: {...expansion.items, [project.id]: true}})
@@ -132,8 +134,8 @@ export function ProjectNavigation(props: Props) {
             }
             return <div key={project.id}>
               <div className="group/project relative flex min-h-8 items-center">
-                <button type="button" aria-expanded={expandable ? open : undefined} aria-current={selected && !selectedSession ? 'page' : undefined} onClick={toggleProject} className="flex min-h-8 min-w-0 flex-1 items-center gap-2 rounded-md px-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                  <Folder className={cn('size-4 shrink-0', selected ? 'text-foreground' : 'text-muted-foreground')}/>
+                <Link href={`/projects/${project.id}`} aria-current={selected && !selectedSession ? 'page' : undefined} onClick={openProject} className="flex min-h-8 min-w-0 flex-1 items-center gap-2 rounded-md px-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                  <ProjectFolderIcon className={cn('size-4 shrink-0', selected ? 'text-foreground' : 'text-muted-foreground')}/>
                   <RunStatus
                     place="project"
                     name={project.name}
@@ -144,7 +146,7 @@ export function ProjectNavigation(props: Props) {
                     fileOperation={project.file_operation}
                     archived={project.archived}
                   />
-                </button>
+                </Link>
                 <div className="relative flex shrink-0 items-center pr-0.5">
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
@@ -154,7 +156,7 @@ export function ProjectNavigation(props: Props) {
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
                       {project.archived || !props.onNewConversation
-                        ? <DropdownMenuItem asChild><Link href={`/projects/${project.id}`} onClick={openProject}>{project.archived ? '打开项目' : '在此项目新对话'}</Link></DropdownMenuItem>
+                        ? <DropdownMenuItem asChild><Link href={`/projects/${project.id}${project.archived ? '' : '#new-conversation'}`} onClick={project.archived ? openProject : prepareConversation}>{project.archived ? '打开项目' : '在此项目新对话'}</Link></DropdownMenuItem>
                         : <DropdownMenuItem onSelect={startConversation}>在此项目新对话</DropdownMenuItem>}
                       <DropdownMenuItem onSelect={() => props.onProjectSettings(project.id)}>项目设置</DropdownMenuItem>
                       {!project.archived && <DropdownMenuItem onSelect={() => props.onArchive(project.id)}>归档项目</DropdownMenuItem>}
@@ -165,13 +167,17 @@ export function ProjectNavigation(props: Props) {
                       <NewChatIcon className="size-4"/>
                     </button>
                   ) : (
-                    <Link href={`/projects/${project.id}`} aria-label={`${project.name} 中新对话`} title="在此项目中新对话" onClick={openProject} className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring">
+                    <Link href={`/projects/${project.id}#new-conversation`} aria-label={`${project.name} 中新对话`} title="在此项目中新对话" onClick={prepareConversation} className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring">
                       <NewChatIcon className="size-4"/>
                     </Link>
                   ))}
+                  <button type="button" aria-expanded={open} aria-label={`${open ? '收起' : '展开'} ${project.name} 的对话`} onClick={toggleProject} className="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                    {open ? <ChevronUp className="size-4"/> : <ChevronDown className="size-4"/>}
+                  </button>
                 </div>
               </div>
-              {open && (project.conversations.length > 0 || project.navigationError) && <div className="ml-6 flex flex-col gap-2 py-1">
+              {open && <div className="ml-6 flex flex-col gap-2 py-1">
+                {!project.conversations.length && !project.navigationError && <p className="px-2 py-2 text-xs text-faint">还没有对话</p>}
                 {project.conversations.map(session => sessionRow(session, project.active_run_status === 'waiting' && project.occupying_session_id === session.session_id ? project.active_run_reason === 'approval' ? 'approval' : 'reply' : undefined))}
                 {project.navigationError && <p role="alert" className="px-2 py-1 text-xs text-state-failed">{project.navigationError}</p>}
               </div>}

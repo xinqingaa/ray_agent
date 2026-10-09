@@ -18,6 +18,7 @@ export function createDeveloperVisibility(enabled: boolean) {
     manualCompaction: enabled,
     terminal: enabled,
     rawResults: enabled,
+    projectPaths: enabled,
     executionSettings: enabled,
     providerSettings: enabled,
     connectionSettings: enabled,
