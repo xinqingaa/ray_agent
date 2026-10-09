@@ -23,6 +23,7 @@ import {clearDraft, readDraft, writeDraft, DRAFT_CHANGED} from '@/lib/drafts'
 import {recoverSubmission, UncertainSubmissionError} from '@/lib/send-recovery'
 import {findSlashTrigger, removeSlashFragment, type SlashFragment} from '@/lib/slash-trigger'
 import {ModelPicker, type ModelSelection} from '@/components/model-picker'
+import {useDeveloperMode} from '@/hooks/use-developer-mode'
 interface ChatInputProps {
   className?: string
   onInputValueChange?: (value: string) => void
@@ -70,6 +71,7 @@ export interface ChatInputRef {
 
 export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
   ({ className, onInputValueChange, onSend, pause = false, onPause, disabled = false, sessionId, placeholder = '分配一个任务或提问任何问题...', accessory, draftScope, commandHost = EMPTY_HOST, projectsEnabled = false, projectBindable = false, selectedProject = null, savedModel = null, savedReasoning = null, runModel = null, runReasoning = null }, ref) => {
+    const {visibility} = useDeveloperMode()
     const [files, setFiles] = useState<FileInfo[]>([])
     const [uploading, setUploading] = useState(false)
     const [sending, setSending] = useState(false)
@@ -169,8 +171,8 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
 
     const slashOpen = slash != null && !blocked
     const matched = useMemo(
-      () => (slashOpen && slash ? matchingCommands(slash.query, {projectsEnabled: resolvedProjectsEnabled}) : []),
-      [slashOpen, slash, resolvedProjectsEnabled],
+      () => (slashOpen && slash ? matchingCommands(slash.query, {projectsEnabled: resolvedProjectsEnabled}).filter(command => visibility.canShowCommand(command.id)) : []),
+      [slashOpen, slash, resolvedProjectsEnabled, visibility],
     )
     const resolvedActiveId = matched.some((command) => command.id === activeId)
       ? activeId

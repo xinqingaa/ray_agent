@@ -10,6 +10,7 @@ import {DiscreteSlider} from '@/components/ui/slider'
 import {Select} from '@/components/ui/select'
 import {cn} from '@/lib/utils'
 import {selectModel, thinkingOptions, type ModelSelection} from '@/lib/model-selection'
+import {useDeveloperMode} from '@/hooks/use-developer-mode'
 export type {ModelSelection} from '@/lib/model-selection'
 
 function usableCatalog(data: ModelCatalog | null | undefined): ModelCatalog | null {
@@ -21,6 +22,7 @@ export function ModelPicker({sessionId, savedModel, savedReasoning, runModel, ru
   runModel?: string | null; runReasoning?: string | null; onSelection: (selection: ModelSelection | null) => void;
   catalog?: ModelCatalog; loadError?: string;
 }) {
+  const {visibility} = useDeveloperMode()
   const [catalog, setCatalog] = useState<ModelCatalog | null>(usableCatalog(providedCatalog))
   const [catalogError, setCatalogError] = useState<string | null>(loadError ?? null)
   const [picked, setPicked] = useState<ModelSelection | null>(null)
@@ -96,7 +98,7 @@ export function ModelPicker({sessionId, savedModel, savedReasoning, runModel, ru
   }}>
     <PopoverTrigger asChild><button type="button" aria-label={`模型与思考：${selection.model}，${selection.reasoning}`}
       className="inline-flex h-8 max-w-[14rem] items-center gap-1 rounded-md px-2 text-xs text-muted-foreground outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring">
-      <span className="truncate font-mono" title={selection.model}>{selection.model}</span><span>{selection.reasoning}</span><ChevronDown className="size-3 shrink-0"/>
+      <span className="truncate font-mono" title={selection.model}>{selection.model}</span>{visibility.reasoningInTrigger && <span>{selection.reasoning}</span>}<ChevronDown className="size-3 shrink-0"/>
     </button></PopoverTrigger>
     <PopoverContent side="top" align="end" className="w-80 max-w-[calc(100vw-2rem)] p-3" onEscapeKeyDown={e => {if (saving) e.preventDefault()}} onInteractOutside={e => {if (saving) e.preventDefault()}}>
       <p className="mb-2 text-meta font-medium">模型</p>

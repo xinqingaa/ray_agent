@@ -1,6 +1,7 @@
 'use client'
 
 import {useEffect, useState} from 'react'
+import {useDeveloperMode} from '@/hooks/use-developer-mode'
 import {Download, Eye, Globe, PackageOpen, PanelRight, Play, Terminal} from 'lucide-react'
 import {Button} from '@/components/ui/button'
 import {ScrollArea} from '@/components/ui/scroll-area'
@@ -34,6 +35,8 @@ type WorkbenchProps = {
   onTab: (tab: WorkbenchTab) => void
   onInspectFile?: () => void
   onFollowLatest: () => void
+  canFollowLatest?: boolean
+  active?: boolean
   onClose: () => void
   project?: ProjectView | null
   projectRefreshSignal?: number
@@ -249,14 +252,17 @@ function ShellPane({sessionId, call}: {sessionId: string; call: ToolCallView | n
 }
 
 function BrowserPane({call}: {call: ToolCallView | null}) {
+  const {visibility} = useDeveloperMode()
   if (!call) return <EmptyNote>选择浏览器操作</EmptyNote>
   const content = asRecord(call.raw.content)
   const data = asRecord(asRecord(content?.outcome)?.data)
   const src = screenshotSrc(call)
   const fileId = typeof data?.file_id === 'string' ? data.file_id : src?.match(/\/files\/([^/]+)\/download/)?.[1]
   const url = typeof content?.url === 'string' ? content.url : typeof call.raw.args.url === 'string' ? call.raw.args.url : null
-  const fallback = !src ? resultExcerpt(call) : null
+  const fallback = !src ? visibility.rawResults ? resultExcerpt(call) : typeof content?.content === 'string' ? content.content : typeof data?.content === 'string' ? data.content : null : null
+  const observationError = typeof data?.observation_error === 'string' ? data.observation_error : null
   return <div className="flex min-h-0 flex-1 flex-col">
+    {observationError && <p role="alert" className="px-3 py-2 text-xs text-state-failed">页面内容读取失败：{observationError}</p>}
     {url && <div className="flex shrink-0 items-center gap-2 border-b px-3 py-2 text-xs text-muted-foreground"><Globe className="size-3.5 shrink-0" aria-hidden/>
       {/^https?:\/\//.test(url) ? <a href={url} target="_blank" rel="noopener noreferrer" className="truncate hover:text-signal" title={url}>{url}</a> : <span className="truncate">{url}</span>}</div>}
     {fileId ? <FilePreview key={fileId} source={{kind:'attachment',id:fileId,filename:'浏览器截图.png'}}/>
@@ -267,6 +273,7 @@ function BrowserPane({call}: {call: ToolCallView | null}) {
 }
 
 function FilesPane({focus, files, onInspectFile}: {focus: ToolCallView | null; files: FileView[]; onInspectFile?: () => void}) {
+  const {visibility} = useDeveloperMode()
   const [openId,setOpenId] = useState<string | null>(null)
   const [packing,setPacking] = useState(false)
   const open = files.find(file => file.id===openId)
@@ -281,7 +288,7 @@ function FilesPane({focus, files, onInspectFile}: {focus: ToolCallView | null; f
   }
   if(open)return <FilePreview key={open.id} source={{kind:'attachment',id:open.id,filename:open.filename,size:open.size}}
     onBack={() => setOpenId(null)} onDownload={() => void download(open)}/>
-  const toolText = focus?.family==='file' ? fileBody(focus) : null
+  const toolText = visibility.rawResults && focus?.family==='file' ? fileBody(focus) : null
   return <ScrollArea className="min-h-0 flex-1"><div className="space-y-3 p-3">
     {focus?.family==='file' && focus.result?.error && <p className="text-xs text-state-failed">{focus.result.error}</p>}
     {toolText && <section><p className="mb-1 truncate text-xs text-muted-foreground">{focus?.target}</p><pre className="max-h-48 overflow-auto rounded-md bg-muted p-3 font-mono text-xs whitespace-pre-wrap break-all">{toolText.slice(0,20000)}</pre></section>}
@@ -307,15 +314,19 @@ export function Workbench({
   shellCall,
   browserCall,
   files,
-  tab,
+  tab: requestedTab,
   onTab,
   onInspectFile,
   onFollowLatest,
+  canFollowLatest = true,
+  active = true,
   onClose,
   project,
   projectRefreshSignal,
   className,
 }: WorkbenchProps) {
+  const {visibility} = useDeveloperMode()
+  const tab = visibility.canShowWorkbenchTab(requestedTab) ? requestedTab : 'files'
   const status = focus ? TOOL_STATUS[focus.status] : null
   const mismatched = focus && (
     (tab === 'terminal' && focus.family !== 'shell' && shellCall && shellCall.callId !== focus.callId) ||
@@ -326,30 +337,30 @@ export function Workbench({
   const availableTabs = [
     ...TABS.filter((item) =>
       item.id === 'files' ||
-      (item.id === 'result' && hasResultTab) ||
-      (item.id === 'terminal' && shellCall) ||
+      (item.id === 'result' && visibility.rawResults && hasResultTab) ||
+      (item.id === 'terminal' && visibility.terminal && shellCall) ||
       (item.id === 'browser' && browserCall),
     ),
     ...(hasProject ? [{id: 'project' as const, label: '项目'}] : []),
   ]
 
   return (
-    <section aria-label="工作台" className={cn('flex h-full min-h-0 flex-col bg-card', className)}>
+    <section aria-label={visibility.developerView ? '工作台' : '结果与资料'} className={cn('flex h-full min-h-0 flex-col bg-card', className)}>
       <header className="flex items-center gap-2 border-b px-3 py-2">
-        <h2 className="mr-auto text-sm font-medium">工作台</h2>
-        {!following && (
+        <h2 className="mr-auto text-sm font-medium">{visibility.developerView ? '工作台' : '结果与资料'}</h2>
+        {!following && (visibility.developerView || canFollowLatest) && (
           <Button type="button" variant="outline" size="xs" onClick={onFollowLatest}>
             <Play aria-hidden/>
-            回到最新
+            {visibility.developerView ? '回到最新' : '查看最新结果'}
           </Button>
         )}
         <Button type="button" variant="ghost" size="icon-sm" className="text-muted-foreground" onClick={onClose} aria-label="收起工作台" title="收起工作台">
           <PanelRight className="size-4"/>
         </Button>
       </header>
-      {focus && tab !== 'files' && (
+      {focus && tab !== 'files' && (visibility.toolDetails || focus.status !== 'succeeded') && (
         <p className="truncate border-b px-3 py-1.5 text-xs text-muted-foreground" title={focus.title}>
-          {status && <span className="mr-2">{status.label}</span>}
+          {status && (visibility.toolDetails || focus.status !== 'succeeded') && <span className="mr-2">{status.label}</span>}
           {focus.title}
         </p>
       )}
@@ -378,7 +389,7 @@ export function Workbench({
             )}
           >
             {item.id === 'terminal' && <Terminal className="mr-1 inline size-3.5" aria-hidden/>}
-            {item.label}
+            {item.id === 'browser' && !visibility.developerView ? '页面内容' : item.label}
           </button>
         ))}
       </div>
@@ -389,7 +400,7 @@ export function Workbench({
       )}
       <div role="tabpanel" id={`workbench-panel-${tab}`} aria-labelledby={`workbench-tab-${tab}`} className="flex min-h-0 flex-1 flex-col">
       {tab === 'result' && hasResultTab && <ResultPane call={focus}/>}
-      {tab === 'terminal' && <ShellPane sessionId={sessionId} call={shellCall}/>}
+      {tab === 'terminal' && active && <ShellPane sessionId={sessionId} call={shellCall}/>}
       {tab === 'browser' && <BrowserPane call={browserCall}/>}
       {tab === 'files' && <FilesPane focus={focus} files={files} onInspectFile={onInspectFile}/>}
       {tab === 'project' && hasProject && project?.available && (

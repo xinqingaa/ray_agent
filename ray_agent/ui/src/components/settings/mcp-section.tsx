@@ -1,6 +1,7 @@
 'use client'
 
 import {useState} from 'react'
+import {useDeveloperMode} from '@/hooks/use-developer-mode'
 import {Loader2, Plus} from 'lucide-react'
 import {toast} from 'sonner'
 import {Button} from '@/components/ui/button'
@@ -162,6 +163,7 @@ export function McpServerRow({server, toggling, onToggle, onDelete}: {
   onToggle?: (enabled: boolean) => void
   onDelete?: () => void
 }) {
+  const {visibility} = useDeveloperMode()
   return (
     <ServerRow
       title={<span className="font-mono text-[13px]">{server.server_name}</span>}
@@ -170,8 +172,8 @@ export function McpServerRow({server, toggling, onToggle, onDelete}: {
       error={server.error}
       enabled={server.enabled}
       toggling={toggling}
-      meta={<span className="rounded-sm bg-muted px-1.5 text-xs text-muted-foreground">{TRANSPORT_LABEL[server.transport] ?? server.transport}</span>}
-      detail={server.connection_status === 'connected' ? toolsSummary(server.tools) : null}
+      meta={visibility.connectionSettings ? <span className="rounded-sm bg-muted px-1.5 text-xs text-muted-foreground">{TRANSPORT_LABEL[server.transport] ?? server.transport}</span> : null}
+      detail={server.connection_status === 'connected' ? visibility.connectionSettings ? toolsSummary(server.tools) : `提供 ${server.tools.length} 项能力` : null}
       onToggle={onToggle}
       onDelete={onDelete}
     />
@@ -179,6 +181,7 @@ export function McpServerRow({server, toggling, onToggle, onDelete}: {
 }
 
 export function McpSection() {
+  const {visibility} = useDeveloperMode()
   const list = useServerList(MCP_LIST)
   const [adding, setAdding] = useState(false)
   const [pendingDelete, setPendingDelete] = useState<ListMCPServerItem | null>(null)
@@ -187,10 +190,10 @@ export function McpSection() {
     <section aria-labelledby="settings-mcp-title">
       <SectionHeader
         id="settings-mcp-title"
-        title="MCP 服务器"
-        description="通过 MCP 接入的外部工具。停用后，下一次运行起不再提供该服务器的工具。"
+        title={visibility.connectionSettings ? 'MCP 服务器' : '外部工具'}
+        description={visibility.connectionSettings ? '通过 MCP 接入的外部工具。停用后，下一次运行起不再提供该服务器的工具。' : '已配置的外部工具及连接状态。'}
         action={
-          <Button type="button" size="sm" onClick={() => setAdding(true)} disabled={list.phase.phase !== 'ready'}>
+          visibility.connectionSettings && <Button type="button" size="sm" onClick={() => setAdding(true)} disabled={list.phase.phase !== 'ready'}>
             <Plus aria-hidden/>
             添加服务器
           </Button>
@@ -200,7 +203,7 @@ export function McpSection() {
         {list.phase.phase === 'loading' && <ListSkeleton/>}
         {list.phase.phase === 'error' && <div className="py-3"><LoadError message={list.phase.message} onRetry={list.reload}/></div>}
         {list.phase.phase === 'ready' && list.items.length === 0 && (
-          <div className="py-3"><EmptyList>还没有 MCP 服务器。点击“添加服务器”粘贴配置。</EmptyList></div>
+          <div className="py-3"><EmptyList>{visibility.connectionSettings ? '还没有 MCP 服务器。点击“添加服务器”粘贴配置。' : '还没有配置外部工具。'}</EmptyList></div>
         )}
         {list.phase.phase === 'ready' && list.items.length > 0 && (
           <ul className="divide-y">
@@ -216,9 +219,9 @@ export function McpSection() {
           </ul>
         )}
       </div>
-      <AddMcpDialog open={adding} onOpenChange={setAdding} onAdded={list.refresh}/>
+      <AddMcpDialog open={visibility.connectionSettings && adding} onOpenChange={setAdding} onAdded={list.refresh}/>
       <DeleteDialog
-        title={pendingDelete ? `删除 MCP 服务器「${pendingDelete.server_name}」？` : null}
+        title={visibility.connectionSettings && pendingDelete ? `删除 MCP 服务器「${pendingDelete.server_name}」？` : null}
         onCancel={() => setPendingDelete(null)}
         onConfirm={() => (pendingDelete ? list.remove(pendingDelete) : Promise.resolve())}
       />

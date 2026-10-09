@@ -1,6 +1,7 @@
 'use client'
 
 import {Input} from '@/components/ui/input'
+import {useDeveloperMode} from '@/hooks/use-developer-mode'
 import {configApi} from '@/lib/api/config'
 import type {AgentConfig} from '@/lib/api/types'
 import {checkInteger, collect, FormField, FormSkeleton, LoadError, SaveBar, SectionHeader, type ConfigForm, type Values} from './form'
@@ -56,13 +57,14 @@ export const generalFormOptions = {
 }
 
 export function GeneralSection({form}: {form: GeneralForm}) {
+  const {visibility} = useDeveloperMode()
   const values = form.values
   return (
     <section aria-labelledby="settings-general-title">
       <SectionHeader
         id="settings-general-title"
         title="通用"
-        description="Agent 执行循环的上限。修改后从下一次运行开始生效，正在进行的运行不受影响。"
+        description={visibility.executionSettings ? 'Agent 执行循环的上限。修改后从下一次运行开始生效，正在进行的运行不受影响。' : '项目文件保护设置。'}
       />
       {form.load.phase === 'loading' && <FormSkeleton rows={3}/>}
       {form.load.phase === 'error' && <div className="py-5"><LoadError message={form.load.message} onRetry={form.reload}/></div>}
@@ -75,7 +77,7 @@ export function GeneralSection({form}: {form: GeneralForm}) {
           }}
         >
           <div className="divide-y">
-            {FIELDS.map(({field, label, hint, min, max}) => (
+            {FIELDS.filter(item => visibility.executionSettings || item.field === 'project_snapshot_retention').map(({field, label, hint, min, max}) => (
               <FormField
                 key={field}
                 id={form.fieldId(field)}

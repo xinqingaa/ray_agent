@@ -158,6 +158,7 @@
 | 会话页 | [`components/session-detail-view.tsx`](../ray_agent/ui/src/components/session-detail-view.tsx)：状态条、时间线、计划条、输入框，以及对话与开发者视图切换 | 10 |
 | 运行视图 | [`components/run/`](../ray_agent/ui/src/components/run/) | 07、10 |
 | 工作台 | [`components/workbench/workbench.tsx`](../ray_agent/ui/src/components/workbench/workbench.tsx)：终端、浏览器正文/状态/按需截图、会话文件 | 11、12 |
+| 开发者显隐策略 | [use-developer-mode.ts](../ray_agent/ui/src/hooks/use-developer-mode.ts)：hook、区域工厂与浏览器偏好；检查 [check-developer-mode.cjs](../ray_agent/ui/scripts/check-developer-mode.cjs) | — |
 | 开发者视图 | [`components/developer/developer-view.tsx`](../ray_agent/ui/src/components/developer/developer-view.tsx) | 10 |
 | 设置页 | [`components/settings/`](../ray_agent/ui/src/components/settings/)，路由 `/settings`；工具策略分区为 `tool-policy-section.tsx` | — |
 | 组件状态目录 | [`app/dev/components/page.tsx`](../ray_agent/ui/src/app/dev/components/page.tsx)，仅开发模式 | — |

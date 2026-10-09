@@ -1,6 +1,7 @@
 'use client'
 
 import {useState} from 'react'
+import {useDeveloperMode} from '@/hooks/use-developer-mode'
 import {Loader2, Plus} from 'lucide-react'
 import {toast} from 'sonner'
 import {Button} from '@/components/ui/button'
@@ -119,7 +120,8 @@ export function A2aServerRow({server, toggling, onToggle, onDelete}: {
   onToggle?: (enabled: boolean) => void
   onDelete?: () => void
 }) {
-  const name = server.name || server.base_url
+  const {visibility} = useDeveloperMode()
+  const name = server.name || (visibility.connectionSettings ? server.base_url : '远程 Agent')
   return (
     <ServerRow
       title={name}
@@ -130,9 +132,9 @@ export function A2aServerRow({server, toggling, onToggle, onDelete}: {
       toggling={toggling}
       detail={
         <>
-          <span className="block truncate font-mono" title={server.base_url}>{server.base_url}</span>
+          {visibility.connectionSettings && <span className="block truncate font-mono" title={server.base_url}>{server.base_url}</span>}
           {server.description && <span className="block">{server.description}</span>}
-          <span className="block">{capabilities(server)}</span>
+          {visibility.connectionSettings && <span className="block">{capabilities(server)}</span>}
         </>
       }
       onToggle={onToggle}
@@ -142,6 +144,7 @@ export function A2aServerRow({server, toggling, onToggle, onDelete}: {
 }
 
 export function A2aSection() {
+  const {visibility} = useDeveloperMode()
   const list = useServerList(A2A_LIST)
   const [adding, setAdding] = useState(false)
   const [pendingDelete, setPendingDelete] = useState<ListA2AServerItem | null>(null)
@@ -150,10 +153,10 @@ export function A2aSection() {
     <section aria-labelledby="settings-a2a-title">
       <SectionHeader
         id="settings-a2a-title"
-        title="远程 Agent（A2A）"
-        description="通过 A2A 协议接入的远程 Agent，Agent 可以把子任务委托给它们。停用后，下一次运行起不再提供。"
+        title={visibility.connectionSettings ? '远程 Agent（A2A）' : '远程协作'}
+        description={visibility.connectionSettings ? '通过 A2A 协议接入的远程 Agent，Agent 可以把子任务委托给它们。停用后，下一次运行起不再提供。' : '已配置的远程协作能力及连接状态。'}
         action={
-          <Button type="button" size="sm" onClick={() => setAdding(true)} disabled={list.phase.phase !== 'ready'}>
+          visibility.connectionSettings && <Button type="button" size="sm" onClick={() => setAdding(true)} disabled={list.phase.phase !== 'ready'}>
             <Plus aria-hidden/>
             添加远程 Agent
           </Button>
@@ -163,7 +166,7 @@ export function A2aSection() {
         {list.phase.phase === 'loading' && <ListSkeleton/>}
         {list.phase.phase === 'error' && <div className="py-3"><LoadError message={list.phase.message} onRetry={list.reload}/></div>}
         {list.phase.phase === 'ready' && list.items.length === 0 && (
-          <div className="py-3"><EmptyList>还没有远程 Agent。点击“添加远程 Agent”填写地址。</EmptyList></div>
+          <div className="py-3"><EmptyList>{visibility.connectionSettings ? '还没有远程 Agent。点击“添加远程 Agent”填写地址。' : '还没有配置远程协作。'}</EmptyList></div>
         )}
         {list.phase.phase === 'ready' && list.items.length > 0 && (
           <ul className="divide-y">
@@ -179,9 +182,9 @@ export function A2aSection() {
           </ul>
         )}
       </div>
-      <AddA2aDialog open={adding} onOpenChange={setAdding} onAdded={list.refresh}/>
+      <AddA2aDialog open={visibility.connectionSettings && adding} onOpenChange={setAdding} onAdded={list.refresh}/>
       <DeleteDialog
-        title={pendingDelete ? `删除远程 Agent「${pendingDelete.name || pendingDelete.base_url}」？` : null}
+        title={visibility.connectionSettings && pendingDelete ? `删除远程 Agent「${pendingDelete.name || pendingDelete.base_url}」？` : null}
         onCancel={() => setPendingDelete(null)}
         onConfirm={() => (pendingDelete ? list.remove(pendingDelete) : Promise.resolve())}
       />

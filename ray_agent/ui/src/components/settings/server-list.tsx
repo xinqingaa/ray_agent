@@ -1,6 +1,7 @@
 'use client'
 
 import {useCallback, useEffect, useState, type ReactNode} from 'react'
+import {useDeveloperMode} from '@/hooks/use-developer-mode'
 import {Loader2, Trash2} from 'lucide-react'
 import {toast} from 'sonner'
 import {Button} from '@/components/ui/button'
@@ -131,6 +132,7 @@ type ServerRowProps = {
 }
 
 export function ServerRow({title, name, status, error, enabled, toggling, meta, detail, onToggle, onDelete}: ServerRowProps) {
+  const {visibility} = useDeveloperMode()
   return (
     <li className="flex gap-4 py-3.5">
       <div className="min-w-0 flex-1">
@@ -142,7 +144,7 @@ export function ServerRow({title, name, status, error, enabled, toggling, meta, 
         {detail && <div className="mt-1 text-xs leading-5 text-muted-foreground">{detail}</div>}
         {error && <p className="mt-1 break-words text-xs leading-5 text-state-failed">{error}</p>}
       </div>
-      <div className="flex shrink-0 items-start gap-1 pt-0.5">
+      {visibility.connectionSettings && <div className="flex shrink-0 items-start gap-1 pt-0.5">
         <Switch
           checked={enabled}
           onCheckedChange={onToggle}
@@ -161,7 +163,7 @@ export function ServerRow({title, name, status, error, enabled, toggling, meta, 
         >
           <Trash2 aria-hidden/>
         </Button>
-      </div>
+      </div>}
     </li>
   )
 }

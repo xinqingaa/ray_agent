@@ -11,6 +11,8 @@ import {McpSection} from './mcp-section'
 import {A2aSection} from './a2a-section'
 import {ToolPolicySection, useToolPolicyForm} from './tool-policy-section'
 import {AppearanceSection} from './appearance-section'
+import {useDeveloperMode} from '@/hooks/use-developer-mode'
+import {Switch} from '@/components/ui/switch'
 
 type SectionKey = 'general' | 'appearance' | 'llm' | 'mcp' | 'a2a' | 'tool-policy'
 
@@ -25,7 +27,9 @@ const SECTIONS: {key: SectionKey; label: string; icon: LucideIcon}[] = [
 
 /** 设置页：左侧切换分区；表单草稿保存在这里，切换分区不丢失 */
 export function SettingsView({onClose, onDirtyChange}: {onClose?: () => void; onDirtyChange?: (dirty: boolean) => void} = {}) {
-  const [active, setActive] = useState<SectionKey>('general')
+  const {enabled, setEnabled, visibility} = useDeveloperMode()
+  const [selectedSection, setActive] = useState<SectionKey>('general')
+  const active = selectedSection === 'llm' && !visibility.providerSettings ? 'general' : selectedSection
   const general = useConfigForm(generalFormOptions)
   const llm = useConfigForm(llmFormOptions)
   const toolPolicy = useToolPolicyForm()
@@ -44,7 +48,8 @@ export function SettingsView({onClose, onDirtyChange}: {onClose?: () => void; on
         <div className="flex h-full min-h-0 flex-col @3xl/settings:flex-row">
           <nav aria-label="设置分区" className="shrink-0 overflow-x-auto border-b bg-sidebar px-3 py-2 @3xl/settings:w-52 @3xl/settings:overflow-y-auto @3xl/settings:border-r @3xl/settings:border-b-0 @3xl/settings:p-3">
             <ul className="flex gap-1 @3xl/settings:flex-col">
-              {SECTIONS.map(({key, label, icon: Icon}) => {
+              {SECTIONS.filter(item => item.key !== 'llm' || visibility.providerSettings).map(({key, label, icon: Icon}) => {
+                const shownLabel = !visibility.connectionSettings && key === 'mcp' ? '外部工具' : !visibility.connectionSettings && key === 'a2a' ? '远程协作' : key === 'tool-policy' ? '执行权限' : label
                 const current = key === active
                 return (
                   <li key={key} className="shrink-0">
@@ -61,7 +66,7 @@ export function SettingsView({onClose, onDirtyChange}: {onClose?: () => void; on
                       )}
                     >
                       <Icon className={cn('size-[18px] shrink-0', current ? 'text-signal' : 'text-muted-foreground')} aria-hidden="true"/>
-                      {label}
+                      {shownLabel}
                       {dirty[key] && (
                         <>
                           <span className="ml-auto size-1.5 shrink-0 rounded-full bg-state-waiting" aria-hidden/>
@@ -77,7 +82,13 @@ export function SettingsView({onClose, onDirtyChange}: {onClose?: () => void; on
 
           <div className="min-h-0 min-w-0 flex-1 overflow-y-auto overscroll-contain px-5 py-6 md:px-8">
           <div className="@container/form mx-auto w-full max-w-4xl">
-            {active === 'general' && <GeneralSection form={general}/>}
+            {active === 'general' && <>
+              <div className="mb-6 flex items-center justify-between gap-4 border-b pb-5">
+                <div><label htmlFor="developer-mode" className="text-sm font-medium">开发者模式</label><p id="developer-mode-hint" className="mt-1 text-xs text-muted-foreground">{enabled && hasUnsavedChanges ? '请先保存或撤销设置修改，再关闭开发者模式。' : '显示执行细节、终端和高级配置。'}</p></div>
+                <Switch id="developer-mode" aria-describedby="developer-mode-hint" checked={enabled} disabled={enabled && hasUnsavedChanges} onCheckedChange={setEnabled}/>
+              </div>
+              <GeneralSection form={general}/>
+            </>}
             {active === 'appearance' && <AppearanceSection/>}
             {active === 'llm' && <LlmSection form={llm}/>}
             {active === 'mcp' && <McpSection/>}

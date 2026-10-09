@@ -254,7 +254,7 @@ export function SaveBar({dirty, saving, invalid, savedAt, saveError, onReset, la
   return (
     <div className="sticky bottom-0 -mx-1 mt-2 flex flex-wrap items-center gap-3 border-t bg-background/95 px-1 py-3 backdrop-blur">
       <p className="min-w-0 flex-1 text-meta" aria-live="polite">{status}</p>
-      <Button type="button" variant="ghost" size="sm" onClick={onReset} disabled={!dirty || saving}>
+      <Button type="button" variant="ghost" size="sm" onClick={() => onReset()} disabled={!dirty || saving}>
         撤销修改
       </Button>
       <Button type="submit" size="sm" disabled={!dirty || saving}>

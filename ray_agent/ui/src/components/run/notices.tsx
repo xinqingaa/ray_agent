@@ -1,4 +1,7 @@
+'use client'
+
 import {Layers, RotateCw, TriangleAlert} from 'lucide-react'
+import {useDeveloperMode} from '@/hooks/use-developer-mode'
 import {cn} from '@/lib/utils'
 import type {CompactTrigger} from '@/lib/session-view'
 import {formatTokens} from './format'
@@ -33,13 +36,14 @@ export function ProtectionNotice({message, state, className}: {message: string; 
 
 /** 压缩提示：一行说明触发原因与前后估算量；摘要全文在开发者视图 */
 export function CompactionNotice({beforeTokens, afterTokens, summarizedTurns, trigger, className}: CompactionNoticeProps) {
+  const {visibility} = useDeveloperMode()
   return (
     <div role="note" className={cn('flex items-center gap-3 text-xs text-muted-foreground', className)}>
       <span className="h-px flex-1 bg-border" aria-hidden/>
       <span className="inline-flex flex-wrap items-center justify-center gap-x-1.5 gap-y-0.5 text-center">
         <Layers className="size-3.5 shrink-0" aria-hidden/>
-        <span>{trigger === 'manual' && afterTokens >= beforeTokens ? '已摘要，估算空间未减少' : HEADLINE[trigger]}</span>
-        {summarizedTurns > 0 && (
+        <span>{visibility.requestMetrics ? trigger === 'manual' && afterTokens >= beforeTokens ? '已摘要，估算空间未减少' : HEADLINE[trigger] : '已整理对话记录'}</span>
+        {visibility.requestMetrics && summarizedTurns > 0 && (
           <>
             <span>，摘要 {summarizedTurns} 轮，约</span>
             <span className="tabular-nums text-foreground">{formatTokens(beforeTokens)}</span>
@@ -90,6 +94,7 @@ function attemptSentence(attempt: number, reason: string, retried: boolean, char
 
 /** 失败尝试提示：模型请求失败、被取消或不进入模型历史的半截输出 */
 export function AttemptNotice({attempt, reason, retried, chars, className}: AttemptNoticeProps) {
+  const {visibility} = useDeveloperMode()
   const stopped = reason === 'cancelled'
   const Icon = retried ? RotateCw : TriangleAlert
   return (
@@ -102,7 +107,7 @@ export function AttemptNotice({attempt, reason, retried, chars, className}: Atte
       )}
     >
       <Icon className="mt-0.5 size-3.5 shrink-0" aria-hidden/>
-      <span>{attemptSentence(attempt, reason, retried, chars)}</span>
+      <span>{visibility.requestMetrics ? attemptSentence(attempt, reason, retried, chars) : `${ATTEMPT_REASON[reason] ?? reason}${retried ? '，正在重试' : ''}`}</span>
     </p>
   )
 }

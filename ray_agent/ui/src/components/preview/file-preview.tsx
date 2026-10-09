@@ -127,6 +127,7 @@ function FilePreviewContent({source, onBack, onDownload, canExpand = true}: File
         onClick={()=> {setTextHistory([...textHistory,page.offset]);changePage({...page,offset:preview.next_offset!})}}/></>}
   </footer>
   const toolbar = <>
+    {preview?.kind === 'image' && <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{formatBytes(preview.size)}</span>}
     {preview?.partial && <span className="shrink-0 text-xs text-muted-foreground">部分预览</span>}
     {preview?.cells_truncated && <span className="shrink-0 text-xs text-muted-foreground">内容截断</span>}
     {preview?.formula_missing && <span className="shrink-0 text-xs text-muted-foreground" title="部分公式没有已保存的计算结果">公式未计算</span>}

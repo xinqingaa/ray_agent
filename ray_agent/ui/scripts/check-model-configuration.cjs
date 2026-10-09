@@ -57,6 +57,11 @@ async function main(){
  await act(async()=>{r=create(React.createElement(Form))});await act(async()=>{form.setValue('a','new A');form.setValue('b','invalid')});
  await act(async()=>form.save(['a']));assert.deepEqual(saved.fields,['a']);assert.equal(form.values.b,'invalid');assert.ok(form.dirty);
  await act(async()=>form.reset(['b']));assert.equal(form.values.a,'new A');assert.equal(form.values.b,'old B');assert.ok(!form.dirty);
- await act(async()=>r.unmount());console.log('PASS: vendor-defined levels and closing id, semantic fallback, draft-only slider, commit on close, rejection keeps menu, scoped save preserves hidden draft');
+ await act(async()=>r.unmount());
+ const {SaveBar}=load('components/settings/form.tsx');let resetArguments;
+ await act(async()=>{r=create(React.createElement(SaveBar,{dirty:true,saving:false,invalid:false,onReset:(...args)=>{resetArguments=args}}))});
+ await act(async()=>r.root.findAllByType('button').find(n=>n.children.includes('撤销修改')).props.onClick({type:'click'}));
+ assert.deepEqual(resetArguments,[]);await act(async()=>r.unmount());
+ console.log('PASS: vendor-defined levels and closing id, semantic fallback, draft-only slider, commit on close, rejection keeps menu, scoped save preserves hidden draft, reset excludes click event');
 }
 main().catch(e=>{console.error(e);process.exitCode=1});

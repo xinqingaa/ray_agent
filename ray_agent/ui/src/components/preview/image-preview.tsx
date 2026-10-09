@@ -1,7 +1,7 @@
 'use client'
 
 import {useRef, useState} from 'react'
-import {Download, Expand, Maximize, Minus, Plus, Scan} from 'lucide-react'
+import {Download, Expand, Minus, Plus, Scan, SquareDashed} from 'lucide-react'
 import {Dialog, DialogContent, DialogDescription, DialogTitle} from '@/components/ui/dialog'
 import {PreviewAction} from './action'
 
@@ -44,7 +44,7 @@ function ImagePreviewContent({src, originalSrc, title, onDownload, onError, dime
     <PreviewAction label="适应窗口" icon={Scan} pressed={scale==null} onClick={() => setScale(null)}/>
     <PreviewAction label="缩小" icon={Minus} onClick={() => setScale(value => Math.max(.1,(value ?? 1)-.25))}/>
     <PreviewAction label="放大" icon={Plus} onClick={() => setScale(value => Math.min(4,(value ?? 1)+.25))}/>
-    <PreviewAction label="原始尺寸" icon={Maximize} pressed={scale===1} onClick={() => setScale(1)}/>
+    <PreviewAction label="原始尺寸" icon={SquareDashed} pressed={scale===1} onClick={() => setScale(1)}/>
   </>
   if (mode === 'canvas') return <div className="flex h-full min-h-0 flex-col">
     <div className="flex shrink-0 items-center justify-end gap-1 border-b px-2 py-1">

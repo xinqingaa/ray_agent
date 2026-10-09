@@ -13,6 +13,7 @@ import {FinalReply, NarrationBlock, UserMessage} from './messages'
 import {AttemptNotice, CompactionNotice, ProtectionNotice} from './notices'
 import {RunEndBar} from './run-end-bar'
 import {ToolGroup} from './tool-group'
+import {useDeveloperMode} from '@/hooks/use-developer-mode'
 
 export type TimelineHandlers = {
   projectId?: string
@@ -91,6 +92,7 @@ export function TimelineItemView({item, handlers = {}}: {item: TimelineItem; han
 }
 
 function ProcessBlockView({block, settled, streaming, handlers}: {block: ProcessBlock; settled: boolean; streaming: boolean; handlers?: TimelineHandlers}) {
+  const {visibility} = useDeveloperMode()
   const [override, setOverride] = useState<boolean | null>(null)
   const open = processBlockOpen(settled, override, streaming)
   const panelId = `process-${block.id}`
@@ -104,7 +106,7 @@ function ProcessBlockView({block, settled, streaming, handlers}: {block: Process
         className="flex min-h-8 w-full items-center gap-2 rounded-md px-1 text-left text-meta text-muted-foreground outline-none hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring"
       >
         <ChevronRight className={cn('size-3.5 shrink-0 transition-transform duration-200 motion-reduce:transition-none', open && 'rotate-90')} aria-hidden/>
-        <span className="min-w-0 truncate">{processSummary(block)}</span>
+        <span className="min-w-0 truncate">{processSummary(block, {counts: visibility.toolCounts, narration: !open})}</span>
       </button>
       {open && (
         <div id={panelId} className="mt-2 flex flex-col gap-3">

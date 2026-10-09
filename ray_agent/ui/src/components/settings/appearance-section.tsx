@@ -1,6 +1,6 @@
 'use client'
 
-import {useEffect, useState} from 'react'
+import {useState, useSyncExternalStore} from 'react'
 import {useTheme} from 'next-themes'
 import {Monitor, Moon, Sun} from 'lucide-react'
 import {useMounted} from '@/hooks/use-mounted'
@@ -21,14 +21,14 @@ const THEMES = [
   {value: 'dark', label: '深色', icon: Moon},
 ] as const
 
+const subscribeFontSize = () => () => {}
+
 export function AppearanceSection() {
   const {theme, setTheme} = useTheme()
   const mounted = useMounted()
-  const [size, setSize] = useState(FONT_SIZE_DEFAULT)
-
-  useEffect(() => {
-    setSize(readFontSize())
-  }, [])
+  const storedSize = useSyncExternalStore(subscribeFontSize, readFontSize, () => FONT_SIZE_DEFAULT)
+  const [selectedSize, setSize] = useState<number | null>(null)
+  const size = selectedSize ?? storedSize
 
   const commit = (next: number) => {
     applyFontSize(next)

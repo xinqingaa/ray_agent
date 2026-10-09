@@ -33,6 +33,7 @@ import {
 import {useSessionDetail} from '@/hooks/use-session-detail'
 import {useSessions} from '@/hooks/use-sessions'
 import {useIsMobile} from '@/hooks/use-mobile'
+import {useDeveloperMode} from '@/hooks/use-developer-mode'
 import {sessionApi} from '@/lib/api/session'
 import {createProjectRefreshWatcher} from '@/lib/project-refresh'
 import {readDraft, writeDraft} from '@/lib/drafts'
@@ -84,6 +85,7 @@ function lastOf(calls: ToolCallView[], family: ToolFamily): ToolCallView | null 
 export function SessionDetailView({
   sessionId,
 }: SessionDetailViewProps) {
+  const {visibility} = useDeveloperMode()
   const isMobile = useIsMobile()
   const {sessions, patchSession, setCompactingSessionId, setWaitKind} = useSessions()
   const {
@@ -113,7 +115,8 @@ export function SessionDetailView({
   const compactArmed = useRef(false)
   const compacting = localCompacting || session?.context_operation?.status === 'compacting'
 
-  const [mode, setMode] = useState<'conversation' | 'developer'>('conversation')
+  const [selectedMode, setMode] = useState<'conversation' | 'developer'>('conversation')
+  const mode = visibility.developerView ? selectedMode : 'conversation'
   const [developerVisited, setDeveloperVisited] = useState(false)
   const [pinnedCallId, setPinnedCallId] = useState<string | null>(null)
   const [workbenchOpen, setWorkbenchOpen] = useState(false)
@@ -126,6 +129,7 @@ export function SessionDetailView({
   const [tabForId, setTabForId] = useState<string | null>(null)
   const [previewedFile, setPreviewedFile] = useState<FileView | null>(null)
   const [inspectingFile, setInspectingFile] = useState(false)
+  const [inspectedAtCallId, setInspectedAtCallId] = useState<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const developerScrollRef = useRef<HTMLDivElement>(null)
   const scrollPositions = useRef({conversation: 0, developer: 0})
@@ -193,9 +197,10 @@ export function SessionDetailView({
   // 请求返回后仍保持“提交中”，直到结论事件到达、卡片不再是 pending
   const approvalSubmitting = approvalRequest && pendingApprovals.has(approvalRequest.callId) ? approvalRequest : null
   const waitingApproval = view?.activeRun?.activity.kind === 'waiting_approval'
-  const latest = calls.length > 0 ? calls[calls.length - 1] : null
-  const pin = pinnedCallId && calls.some((call) => call.callId === pinnedCallId) ? pinnedCallId : null
-  const focus = pin ? calls.find((call) => call.callId === pin) ?? latest : latest
+  const visibleCalls = calls.filter(call => visibility.canInspectTool(call.family))
+  const latest = visibleCalls.length > 0 ? visibleCalls[visibleCalls.length - 1] : null
+  const pin = pinnedCallId && visibleCalls.some((call) => call.callId === pinnedCallId) ? pinnedCallId : null
+  const focus = pin ? visibleCalls.find((call) => call.callId === pin) ?? latest : latest
   const following = pin == null && !inspectingFile
   const focusId = focus?.callId ?? null
   const shellCall = focus?.family === 'shell' ? focus : lastOf(calls, 'shell')
@@ -489,6 +494,7 @@ export function SessionDetailView({
 
   const workbench = (
     <Workbench
+      active={workbenchOpen}
       sessionId={sessionId}
       focus={focus}
       following={following}
@@ -497,7 +503,8 @@ export function SessionDetailView({
       files={view.files}
       tab={tab}
       onTab={setTab}
-      onInspectFile={() => setInspectingFile(true)}
+      onInspectFile={() => {setInspectingFile(true);setInspectedAtCallId(latest?.callId ?? null)}}
+      canFollowLatest={!!latest && (inspectingFile ? latest.callId !== inspectedAtCallId : pin !== latest.callId)}
       onFollowLatest={() => {setPinnedCallId(null);setInspectingFile(false);if(latest)setTab(tabForFamily(latest.family))}}
       onClose={() => setWorkbenchOpen(false)}
       project={view.project}
@@ -530,10 +537,10 @@ export function SessionDetailView({
                 </div>
               )}
             </div>
-            <SegmentedControl value={mode} idPrefix="session-mode" label="会话视图" options={[
+            {visibility.developerView && <SegmentedControl value={mode} idPrefix="session-mode" label="会话视图" options={[
               {value: 'conversation', label: '对话', icon: MessageCircle},
               {value: 'developer', label: '开发者', icon: Code2},
-            ]} onValueChange={next => {setMode(next); if (next === 'developer') setDeveloperVisited(true)}}/>
+            ]} onValueChange={next => {setMode(next); if (next === 'developer') setDeveloperVisited(true)}}/>}
             {view.project && (
               <Button type="button" variant="ghost" size="icon-xs" className="size-7 shrink-0 text-muted-foreground"
                 title="项目记忆" aria-label="项目记忆" onClick={() => setMemoryOpen(true)}>
@@ -542,14 +549,14 @@ export function SessionDetailView({
             )}
             {!workbenchOpen && (
               <Button type="button" variant="ghost" size="icon-xs" className="size-7 shrink-0"
-                title="打开工作台" aria-label="打开工作台" onClick={() => setWorkbenchOpen(true)}>
+                title={visibility.developerView ? '打开工作台' : '打开结果与资料'} aria-label={visibility.developerView ? '打开工作台' : '打开结果与资料'} onClick={() => setWorkbenchOpen(true)}>
                 <PanelRight className="size-4"/>
               </Button>
             )}
           </header>
           {view.project && <ProjectMemoryPanel projectId={view.project.id} sessionId={sessionId} open={memoryOpen} onClose={()=>setMemoryOpen(false)}/>}
 
-            <div ref={scrollRef} onScroll={onScroll} id="session-mode-panel-conversation" role="tabpanel" aria-labelledby="session-mode-conversation" hidden={mode !== 'conversation'} className={cn('min-h-0 flex-1 overflow-y-auto', mode !== 'conversation' ? 'hidden' : 'view-enter-left')}>
+            <div ref={scrollRef} onScroll={onScroll} id="session-mode-panel-conversation" role={visibility.developerView ? "tabpanel" : undefined} aria-label="对话" aria-labelledby={visibility.developerView ? "session-mode-conversation" : undefined} hidden={mode !== 'conversation'} className={cn('min-h-0 flex-1 overflow-y-auto', mode !== 'conversation' ? 'hidden' : 'view-enter-left')}>
               <div className="mx-auto flex w-full max-w-(--reading-column) flex-col gap-3 px-4 py-3">
                 {shownTimeline.length === 0 && !showOptimistic && (
                   <p className="py-8 text-center text-meta text-faint">
@@ -606,7 +613,7 @@ export function SessionDetailView({
                 savedReasoning={session?.reasoning}
                 runModel={session?.run_model}
                 runReasoning={session?.run_reasoning}
-                accessory={() => <ContextRing usage={view.usage}/>}
+                accessory={() => visibility.contextUsage ? <ContextRing usage={view.usage}/> : null}
                 projectsEnabled={projectsEnabled}
                 projectBindable={projectBindable}
                 selectedProject={view.project}

@@ -6,6 +6,7 @@ import {cn} from '@/lib/utils'
 import type {ToolCallView} from '@/lib/session-view'
 import {ToolCard} from './tool-card'
 import {TONE_TEXT, type Tone} from './status-meta'
+import {useDeveloperMode} from '@/hooks/use-developer-mode'
 
 type ToolGroupProps = {
   calls: ToolCallView[]
@@ -29,6 +30,7 @@ function groupStatus(calls: ToolCallView[]): {tone: Tone; text: string} {
 
 /** 同一轮的多个工具调用：分组标题显示数量与整体状态，可整体折叠 */
 export function ToolGroup({calls, selectedCallId, onOpen, defaultCollapsed = false, className}: ToolGroupProps) {
+  const {visibility} = useDeveloperMode()
   const [collapsed, setCollapsed] = useState(defaultCollapsed)
   const listId = useId()
 
@@ -48,7 +50,7 @@ export function ToolGroup({calls, selectedCallId, onOpen, defaultCollapsed = fal
         className="flex min-h-7 w-full items-center gap-2 rounded-md px-1.5 text-left outline-none hover:bg-muted/70 focus-visible:ring-2 focus-visible:ring-ring"
       >
         <ChevronRight className={cn('size-3.5 text-faint transition-transform', !collapsed && 'rotate-90')} aria-hidden/>
-        <span className="text-xs font-medium text-muted-foreground">{calls.length} 个操作</span>
+        <span className="text-xs font-medium text-muted-foreground">{visibility.toolCounts ? `${calls.length} 个操作` : '操作记录'}</span>
         <span className={cn('text-xs', TONE_TEXT[status.tone])}>{status.text}</span>
       </button>
       <div id={listId} hidden={collapsed} className="relative ml-[13px] border-l pl-1.5">

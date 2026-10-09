@@ -4,6 +4,7 @@ import {useCallback, useEffect, useRef, useState} from 'react'
 import Link from 'next/link'
 import {Eye, FileText, History, MoreHorizontal, NotebookPen, Pencil, ScrollText, X} from 'lucide-react'
 import {useUnsavedNavigation} from '@/hooks/use-unsaved-navigation'
+import {useDeveloperMode} from '@/hooks/use-developer-mode'
 import {Button} from '@/components/ui/button'
 import {SegmentedControl} from '@/components/ui/segmented-control'
 import {MarkdownContent} from '@/components/markdown-content'
@@ -21,6 +22,7 @@ type Overlay = 'history' | 'preview' | null
 const sections = [{value: 'instructions' as const, label: '说明', icon: FileText}, {value: 'notes' as const, label: '笔记', icon: NotebookPen}, {value: 'summaries' as const, label: '摘要', icon: ScrollText}]
 
 export function ProjectMemoryPanel({projectId, sessionId, open, onClose, onChanged}: {projectId: string; sessionId?: string; open: boolean; onClose: () => void; onChanged?: () => void}) {
+  const {visibility} = useDeveloperMode()
   const [project, setProject] = useState<ProjectDetails | null>(null)
   const [memory, setMemory] = useState<ProjectMemoryView | null>(null)
   const [candidates, setCandidates] = useState<ProjectMemorySummary[]>([])
@@ -158,9 +160,9 @@ export function ProjectMemoryPanel({projectId, sessionId, open, onClose, onChang
               {history.map(event => (
                 <details key={event.seq} className="border-b py-2">
                   <summary className="cursor-pointer text-sm">{historyLabel(event.type)} · {new Date(event.created_at).toLocaleString()}</summary>
-                  <p className="mt-2 text-xs text-faint">{historySource(event)}{event.payload.notes_version != null && ` · 版本 ${event.payload.notes_version}`}</p>
+                  <p className="mt-2 text-xs text-faint">{historySource(event)}{visibility.memoryInternals && event.payload.notes_version != null && ` · 版本 ${event.payload.notes_version}`}</p>
                   {typeof event.payload.session_id === 'string' && <Link className="mt-1 block text-xs text-signal underline" href={`/sessions/${event.payload.session_id}`}>打开来源对话</Link>}
-                  {!!event.payload.auxiliary && typeof event.payload.auxiliary === 'object' && <p className="mt-1 text-xs text-faint">{auxiliaryLine(event.payload.auxiliary as Record<string, unknown>)}</p>}
+                  {visibility.memoryInternals && !!event.payload.auxiliary && typeof event.payload.auxiliary === 'object' && <p className="mt-1 text-xs text-faint">{auxiliaryLine(event.payload.auxiliary as Record<string, unknown>)}</p>}
                   <pre className="my-2 whitespace-pre-wrap break-words text-sm">{String(event.payload.content ?? event.payload.instructions ?? event.payload.summary ?? event.payload.error ?? event.payload.reason ?? '')}</pre>
                   {event.type === 'project_notes' && typeof event.payload.content === 'string' && (
                     <Button size="sm" variant="outline" title="取回为笔记草稿。文件恢复不会改这里。" onClick={() => {
@@ -181,7 +183,7 @@ export function ProjectMemoryPanel({projectId, sessionId, open, onClose, onChang
             <div className="space-y-3">
               <p className="text-meta text-muted-foreground">新运行预览。受理时会重新读取项目内容。</p>
               <MemoryPreview snapshot={memory.project}/>
-              <details className="rounded-md border p-3"><summary className="cursor-pointer text-meta">查看完整原文（含系统固定说明）</summary><pre className="mt-3 whitespace-pre-wrap break-words font-mono text-xs leading-6">{memory.project_prompt}</pre></details>
+              {visibility.memoryInternals && <details className="rounded-md border p-3"><summary className="cursor-pointer text-meta">查看完整原文（含系统固定说明）</summary><pre className="mt-3 whitespace-pre-wrap break-words font-mono text-xs leading-6">{memory.project_prompt}</pre></details>}
               {memory.frozen && (
                 <details>
                   <summary className="cursor-pointer text-sm">当前运行已固定的内容</summary>
@@ -189,7 +191,7 @@ export function ProjectMemoryPanel({projectId, sessionId, open, onClose, onChang
                   <MemoryPreview snapshot={memory.frozen}/>
                 </details>
               )}
-              <Button variant="outline" size="sm" disabled={estimating} onClick={async () => {
+              {visibility.memoryInternals && <Button variant="outline" size="sm" disabled={estimating} onClick={async () => {
                 const token = ++estimateEpoch.current
                 setEstimating(true)
                 try {
@@ -200,8 +202,8 @@ export function ProjectMemoryPanel({projectId, sessionId, open, onClose, onChang
                 } finally {
                   if (token === estimateEpoch.current) setEstimating(false)
                 }
-              }}>{estimating ? '正在估算' : '估算容量'}</Button>
-              {memory.capacity && (
+              }}>{estimating ? '正在估算' : '估算容量'}</Button>}
+              {visibility.memoryInternals && memory.capacity && (
                 <div role="status" className="space-y-1 text-meta">
                   <p>{memory.capacity.model} · {memory.capacity.total} / {memory.capacity.limit} tokens</p>
                   <p className="text-faint">系统内容 {memory.capacity.system_prompt}，工具 {memory.capacity.tools}（{memory.capacity.tool_count} 个）</p>
@@ -250,6 +252,7 @@ function auxiliaryLine(auxiliary: Record<string, unknown>) {
 }
 
 function MemoryEditor({field, project, restored, onDirty, onSaved}: {field: 'instructions' | 'notes'; project: ProjectDetails; restored: string | null; onDirty: (value: boolean) => void; onSaved: () => void}) {
+  const {visibility} = useDeveloperMode()
   const current = field === 'notes' ? project.notes : project.instructions || ''
   const version = field === 'notes' ? project.notes_version : project.settings_version
   const [draft, setDraft] = useState(restored ?? current)
@@ -296,7 +299,7 @@ function MemoryEditor({field, project, restored, onDirty, onSaved}: {field: 'ins
 
   return (
     <section className="flex min-h-[50vh] flex-col gap-3">
-      {editing ? <p className="text-xs text-faint">版本 {version}</p> : current && <div className="flex justify-end"><Button size="icon-sm" variant="ghost" className="text-muted-foreground" aria-label={field === 'notes' ? '编辑笔记' : '编辑说明'} title="编辑" onClick={() => setEditing(true)}><Pencil className="size-4"/></Button></div>}
+      {editing ? visibility.memoryInternals && <p className="text-xs text-faint">版本 {version}</p> : current && <div className="flex justify-end"><Button size="icon-sm" variant="ghost" className="text-muted-foreground" aria-label={field === 'notes' ? '编辑笔记' : '编辑说明'} title="编辑" onClick={() => setEditing(true)}><Pencil className="size-4"/></Button></div>}
       <label className="sr-only" htmlFor={`memory-${field}`}>{field === 'notes' ? '项目笔记' : '项目说明'}</label>
       {editing ? <>
       <textarea id={`memory-${field}`} disabled={busy} maxLength={8000} placeholder={placeholder} className="min-h-[45vh] w-full flex-1 resize-none rounded-md border bg-background p-3 text-sm leading-7 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" value={draft} onChange={event => {setDraft(event.target.value); setSaved(false)}}/>
@@ -308,7 +311,7 @@ function MemoryEditor({field, project, restored, onDirty, onSaved}: {field: 'ins
       </> : current ? <MarkdownContent content={current}/> : <Button size="sm" variant="ghost" className="self-start text-muted-foreground" onClick={() => setEditing(true)}><Pencil className="size-3.5"/>{field === 'notes' ? '添加笔记' : '添加说明'}</Button>}
       {conflict && (
         <div className="space-y-3 rounded-md border border-state-waiting p-3">
-          <p className="text-meta">最新版本 {conflict.version}，草稿已保留。</p>
+          <p className="text-meta">{visibility.memoryInternals ? `最新版本 ${conflict.version}` : '内容已被更新'}，草稿已保留。</p>
           <details><summary className="cursor-pointer text-meta">编辑前的内容</summary><pre className="whitespace-pre-wrap break-words text-sm">{original}</pre></details>
           <details open><summary className="cursor-pointer text-meta">最新内容</summary><pre className="whitespace-pre-wrap break-words text-sm">{conflict.text || '（空）'}</pre></details>
           <Button size="sm" variant="outline" onClick={() => {setBase(conflict.version); setOriginal(conflict.text); setConflict(null); setError(null)}}>按最新版本继续</Button>

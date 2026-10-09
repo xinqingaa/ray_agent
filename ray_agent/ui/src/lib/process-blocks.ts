@@ -76,7 +76,7 @@ export function processBlockOpen(settled: boolean, override: boolean | null, str
   return override ?? !settled
 }
 
-export function processSummary(block: ProcessBlock): string {
+export function processSummary(block: ProcessBlock, options = {counts: true, narration: true}): string {
   const calls = block.items.flatMap(item => item.kind === 'tools' ? item.calls : [])
   const narration = block.items.find(item => item.kind === 'narration')
   const line = narration?.kind === 'narration'
@@ -85,9 +85,9 @@ export function processSummary(block: ProcessBlock): string {
   const clipped = line.length > 42 ? `${line.slice(0, 42)}…` : line
   const verbs = [...new Set(calls.map(call => call.verb).filter(Boolean))].slice(0, 3)
   const parts = [
-    calls.length > 0 ? `${calls.length} 个工具` : '',
+    options.counts && calls.length > 0 ? `${calls.length} 个工具` : '',
     verbs.join('、'),
-    clipped,
+    options.narration ? clipped : '',
   ].filter(Boolean)
-  return parts.join(' · ')
+  return parts.join(' · ') || '执行进展'
 }

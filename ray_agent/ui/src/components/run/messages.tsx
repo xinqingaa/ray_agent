@@ -6,8 +6,10 @@ import {MarkdownContent} from '@/components/markdown-content'
 import {cn} from '@/lib/utils'
 import type {FileView, RunSummary} from '@/lib/session-view'
 import {FileRow} from '@/components/preview/file-row'
+import {previewBodyKind} from './file-icon'
 import {PreviewAction} from '@/components/preview/action'
 import {formatDuration, formatTokens, totalTokens} from './format'
+import {useDeveloperMode} from '@/hooks/use-developer-mode'
 
 type UserMessageProps = {
   text: string
@@ -37,10 +39,10 @@ export function UserMessage({text, attachments = [], injected = false, className
         <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">{text}</p>
         {attachments.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-1.5">
-            {attachments.map(file => <FileRow key={file.id} file={file} compact
+            {attachments.map(file => <FileRow key={file.id} file={file} compact showThumbnail
               onOpen={onPreview ? () => onPreview(file) : undefined}
               actions={onDownload && <PreviewAction label={`下载 ${file.filename}`} icon={Download} onClick={() => onDownload(file)}/>}>
-              <AttachmentCopyStatus attachmentId={file.id}/>
+              <AttachmentCopyStatus attachmentId={file.id} hideReady={previewBodyKind(file.extension) === 'image'}/>
             </FileRow>)}
           </div>
         )}
@@ -70,6 +72,7 @@ export function NarrationBlock({text, streaming, className}: {text: string; clas
 }
 
 export function RunSummaryLine({summary, className}: {summary: RunSummary; className?: string}) {
+  const {visibility} = useDeveloperMode()
   const items: Array<[string, string]> = [
     ['用时', formatDuration(summary.durationMs)],
     ['轮次', String(summary.turns)],
@@ -78,7 +81,7 @@ export function RunSummaryLine({summary, className}: {summary: RunSummary; class
   ]
   return (
     <dl className={cn('flex flex-wrap gap-x-5 gap-y-1 text-xs', className)} aria-label="运行汇总">
-      {items.map(([label, value]) => (
+      {items.filter(([label]) => visibility.requestMetrics || label === '用时').map(([label, value]) => (
         <div key={label} className="flex items-baseline gap-1.5">
           <dt className="text-muted-foreground">{label}</dt>
           <dd className="font-medium tabular-nums">{value}</dd>

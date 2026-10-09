@@ -60,10 +60,11 @@ function ProjectCopiesState({projectId, children}: {projectId?: string; children
   </Context.Provider>
 }
 
-export function AttachmentCopyStatus({attachmentId}: {attachmentId: string}) {
+export function AttachmentCopyStatus({attachmentId, hideReady = false}: {attachmentId: string; hideReady?: boolean}) {
   const state = useProjectCopies()
   if (!state) return null
   const copy = state.copies.find(item => item.copy_key === `attachment:${attachmentId}` && item.kind === 'attachment')
+  if (hideReady && copy?.state === 'ready' && !state.error) return null
   const text = state.error ? '项目副本状态未确认' : !state.loaded ? '正在读取项目副本' : !copy ? '未找到项目持久副本关联' : copy.state === 'ready' ? `已存入项目 · ${copy.path}` : copy.error ? `未存入项目：${copy.error}` : '已受理，等待存入项目'
   return <span className={copy?.state === 'ready' && !state.error ? 'text-muted-foreground' : 'text-state-waiting'}>{text}</span>
 }

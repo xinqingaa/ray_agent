@@ -40,6 +40,8 @@ npm run dev
 | 共享会话状态 | [src/providers/](src/providers/) |
 | 交互与结果展示 | [src/components/](src/components/) |
 
+开发者模式通过统一 hook 与区域可见性工厂控制，默认关闭、浏览器存储、同源标签页同步。后续显隐微调集中修改区域策略；入口见[代码地图](../../docs/code-map.md)。模式切换不修改配置、工具权限或事件订阅；关闭/隐藏终端停止轮询，隐藏设置保留草稿及原值。
+
 组件消费 hooks 和 providers 提供的状态。事件契约变化时，同时核对后端映射、前端类型和归一化逻辑，避免只调整展示组件。
 
 进入会话先取详情里的全部运行与事件，记下最大序号，再保持一条 `GET /sessions/{id}/events?after_seq=`。SSE 的 `id` 即序号。断开后按最后收到的序号重连，等待从 500 毫秒翻倍，上限 4 秒。发送消息只调用 `POST /sessions/{id}/chat`，返回 `run_id`、`seq` 与 `route`（`started`、`resumed` 或 `injected`），不再为发送单独开流。
@@ -95,6 +97,7 @@ CSV/TSV 与 XLSX/XLS 使用表格窗口，工作簿可切换工作表；文本�
 node scripts/check-model-configuration.cjs
 node scripts/check-effort-slider.cjs
 node scripts/check-process-block.cjs
+node scripts/check-developer-mode.cjs
 node scripts/check-workbench-width.cjs
 node scripts/check-markdown-preview.cjs
 npm run lint

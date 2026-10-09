@@ -1,6 +1,7 @@
 'use client'
 
 import {useState} from 'react'
+import {useDeveloperMode} from '@/hooks/use-developer-mode'
 import {Info, Loader2, Plus} from 'lucide-react'
 import {Button} from '@/components/ui/button'
 import {
@@ -55,9 +56,10 @@ function CommandRow({
 }
 
 export function PlusCommandMenu({context}: {context: CommandContext}) {
+  const {visibility} = useDeveloperMode()
   const [open, setOpen] = useState(false)
   const [reason, setReason] = useState<string | null>(null)
-  const items = matchingCommands('', undefined, 'plus')
+  const items = matchingCommands('', undefined, 'plus').filter(command => visibility.canShowCommand(command.id))
   return (
     <DropdownMenu open={open} onOpenChange={(next) => {setOpen(next); setReason(null)}}>
       <DropdownMenuTrigger asChild>
@@ -108,7 +110,8 @@ export function SlashCommandList({
   onActiveIdChange: (id: string) => void
   onRun: (command: InputCommand) => void
 }) {
-  const items = matchingCommands(query, {projectsEnabled: context.projectsEnabled})
+  const {visibility} = useDeveloperMode()
+  const items = matchingCommands(query, {projectsEnabled: context.projectsEnabled}).filter(command => visibility.canShowCommand(command.id))
   return (
     <Command
       shouldFilter={false}

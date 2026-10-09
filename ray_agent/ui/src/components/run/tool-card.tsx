@@ -8,6 +8,7 @@ import type {ToolCallView} from '@/lib/session-view'
 import {useNow} from './clock'
 import {formatClock, formatCount, formatDuration} from './format'
 import {FAMILY, TONE_TEXT, TOOL_STATUS} from './status-meta'
+import {useDeveloperMode} from '@/hooks/use-developer-mode'
 
 const ARG_CLAMP = 400
 const RESULT_CLAMP = 4000
@@ -36,6 +37,29 @@ function resultText(call: ToolCallView): string | null {
     if (typeof c.content === 'string') return c.content
   }
   return JSON.stringify(content, null, 2)
+}
+
+/** 普通记录保留可读结果，不把协议 JSON 或命令日志作为正文。 */
+function readableResult(call: ToolCallView): string | null {
+  if (call.family === 'shell') return null
+  const content = call.raw.content
+  if (typeof content === 'string') return content
+  if (!content || typeof content !== 'object') return null
+  const envelope = content as Record<string, unknown>
+  for (const key of ['content', 'text', 'message']) if (typeof envelope[key] === 'string') return envelope[key] as string
+  const outcome = envelope.outcome as {data?: unknown} | undefined
+  const payload = outcome?.data ?? content
+  if (typeof payload === 'string') return payload
+  if (!payload || typeof payload !== 'object') return null
+  const data = payload as Record<string, unknown>
+  for (const key of ['content', 'text', 'message']) if (typeof data[key] === 'string') return data[key] as string
+  const results = data.results
+  if (!Array.isArray(results)) return outcome?.data != null ? JSON.stringify(payload, null, 2) : null
+  return results.map(item => {
+    if (!item || typeof item !== 'object') return ''
+    const result = item as Record<string, unknown>
+    return ['title', 'url', 'snippet', 'description'].flatMap(key => typeof result[key] === 'string' ? [result[key]] : []).join('\n')
+  }).filter(Boolean).join('\n\n') || null
 }
 
 function stringify(value: unknown): string {
@@ -126,6 +150,7 @@ function ToolDetail({call, onOpen}: {call: ToolCallView; onOpen?: (callId: strin
  * 点击行同时在工作台打开该调用。运行中只走秒，不加动画（动画留给状态条的当前动作）。
  */
 export function ToolCard({call, selected, onOpen, defaultExpanded = false, className}: ToolCardProps) {
+  const {visibility} = useDeveloperMode()
   const [expanded, setExpanded] = useState(defaultExpanded)
   const detailId = useId()
   const running = call.status === 'running'
@@ -135,6 +160,9 @@ export function ToolCard({call, selected, onOpen, defaultExpanded = false, class
   const StatusIcon = status.icon
   const FamilyIcon = family.icon
   const result = call.result
+  const url = call.target && /^https?:\/\//.test(call.target) ? call.target : null
+  const canOpen = visibility.canInspectTool(call.family)
+  const readable = readableResult(call)
 
   const duration = running
     ? (now != null ? formatClock(now - call.startedAt) : '--:--')
@@ -167,7 +195,7 @@ export function ToolCard({call, selected, onOpen, defaultExpanded = false, class
         aria-controls={expanded ? detailId : undefined}
         onClick={() => {
           setExpanded((v) => !v)
-          onOpen?.(call.callId)
+          if (canOpen) onOpen?.(call.callId)
         }}
         className="flex min-h-8 w-full items-center gap-2 rounded-md px-1.5 py-1 text-left outline-none hover:bg-muted/70 focus-visible:ring-2 focus-visible:ring-ring"
       >
@@ -178,34 +206,39 @@ export function ToolCard({call, selected, onOpen, defaultExpanded = false, class
         <FamilyIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden/>
         <span className="flex min-w-24 flex-1 items-baseline gap-2">
           <span className="shrink-0 text-meta font-medium">{call.verb}</span>
-          {call.target && (
+          {call.target && !url && (visibility.toolDetails || call.family !== 'shell') && (
             <span className="min-w-0 truncate font-mono text-xs text-muted-foreground" title={call.argSummary || call.target}>
               {call.target}
             </span>
           )}
         </span>
-        {result?.truncated && call.status === 'succeeded' && (
+        {visibility.toolMetrics && result?.truncated && call.status === 'succeeded' && (
           <span className="hidden shrink-0 rounded-sm bg-state-waiting-soft px-1.5 text-xs text-state-waiting @md/tool:inline">
             {result.fullOutputPath ? '完整输出已保存' : '结果已截断'}
           </span>
         )}
-        {summary && <span className="hidden shrink-0 text-xs text-muted-foreground @lg/tool:inline">{summary}</span>}
-        <span className={cn('w-14 shrink-0 text-right text-xs tabular-nums', running ? 'text-state-running' : 'text-muted-foreground')}>
+        {visibility.toolMetrics && summary && <span className="hidden shrink-0 text-xs text-muted-foreground @lg/tool:inline">{summary}</span>}
+        {visibility.toolMetrics && <span className={cn('w-14 shrink-0 text-right text-xs tabular-nums', running ? 'text-state-running' : 'text-muted-foreground')}>
           {duration}
-        </span>
+        </span>}
         <ChevronRight
           className={cn('size-3.5 shrink-0 text-faint transition-transform', expanded && 'rotate-90')}
           aria-hidden
         />
       </button>
-      {call.target && /^https?:\/\//.test(call.target) && <a href={call.target} target="_blank" rel="noopener noreferrer" className="mx-9 mb-2 block truncate text-xs text-signal underline underline-offset-4" title={call.target} onClick={event => event.stopPropagation()}>{call.target}</a>}
+      {url && <a href={url} target="_blank" rel="noopener noreferrer" className="mx-9 mb-2 block truncate text-xs text-signal underline underline-offset-4" title={url} onClick={event => event.stopPropagation()}>{url}</a>}
       {note && !expanded && (
         <p className={cn('pb-1 pl-9 pr-2 text-xs', TONE_TEXT[status.tone])}>{note}</p>
       )}
       {expanded && (
         <div id={detailId}>
           {note && <p className={cn('pl-9 pr-2 text-xs', TONE_TEXT[status.tone])}>{note}</p>}
-          <ToolDetail call={call} onOpen={onOpen}/>
+          {visibility.toolDetails ? <ToolDetail call={call} onOpen={onOpen}/> : <div className="space-y-2 pb-2 pl-9 text-xs text-muted-foreground">
+            {result?.truncated && <p>内容未完整展示</p>}
+            {readable && <ClampedText text={readable} limit={RESULT_CLAMP}/>}
+            {canOpen && onOpen && <Button type="button" variant="ghost" size="xs" onClick={() => onOpen(call.callId)}>查看内容</Button>}
+            {!readable && !note && !canOpen && <p>{running ? '正在执行' : status.label}</p>}
+          </div>}
         </div>
       )}
     </div>

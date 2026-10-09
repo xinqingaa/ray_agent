@@ -9,7 +9,7 @@ import {Button} from '@/components/ui/button'
 import {PreviewAction} from '@/components/preview/action'
 import {cn} from '@/lib/utils'
 import type {FileView, TimelineItem} from '@/lib/session-view'
-import {previewUnavailableReason} from './file-icon'
+import {previewBodyKind, previewUnavailableReason} from './file-icon'
 import {FileRow} from '@/components/preview/file-row'
 
 type DeliveryCardProps = {
@@ -37,37 +37,41 @@ export function DeliveryCard({projectId, files, note, onPreview, onDownload, onD
       await state?.refresh().catch(() => {})
     } finally {setRetrying(null)}
   }
-  return (
-    <section aria-label="交付文件" className={cn('rounded-lg border bg-card', className)}>
-      <header className="flex items-center gap-2 border-b px-3.5 py-2">
-        <Package className="size-4 text-state-success" aria-hidden/>
-        <h3 className="text-meta font-medium">交付 {files.length} 个文件</h3>
-        {files.length > 1 && <span className="ml-auto"><PreviewAction label={`打包下载 ${files.length} 个交付文件`} icon={PackageOpen} onClick={() => onDownloadAll?.(files)} disabled={!onDownloadAll}/></span>}
-      </header>
-      {note && <p className="px-3.5 pt-2 text-meta text-muted-foreground">{note}</p>}
-      <ul className="p-1.5">
-        {files.map((file) => {
+  const images = files.filter(file => previewBodyKind(file.extension) === 'image')
+  const documents = files.filter(file => previewBodyKind(file.extension) !== 'image')
+  const renderFiles = (items: FileView[]) => items.map((file) => {
           const receipt = file.projectPersistence
           const current = receipt && copies.find(copy => copy.copy_key === receipt.copy_key && copy.kind === 'delivery')
           const persistence = current ? {state: current.state === 'ready' && current.resolved_path?.startsWith('/workspace/') ? 'in_workspace' : current.state, path: current.path, error: current.error, can_retry: current.state !== 'ready'} : receipt
           const unavailable = previewUnavailableReason(file.extension)
+          const image = previewBodyKind(file.extension) === 'image'
           return (
             <li key={file.id}>
-              <FileRow file={file} onOpen={onPreview ? () => onPreview(file) : undefined} actions={<>
+              <FileRow file={file} showThumbnail onOpen={onPreview ? () => onPreview(file) : undefined} actions={<>
                 {projectId && receipt?.copy_key && persistence?.can_retry && <Button size="sm" variant="outline" disabled={!!retrying || !!state?.error || !state?.loaded} onClick={() => void retry(receipt.copy_key)}>{retrying === receipt.copy_key ? '正在写入' : '重试项目副本'}</Button>}
                 {!unavailable && <PreviewAction label={`预览 ${file.filename}`} icon={Eye} onClick={() => onPreview?.(file)} disabled={!onPreview}/>}
                 <PreviewAction label={`下载 ${file.filename}`} icon={Download} onClick={() => onDownload?.(file)} disabled={!onDownload}/>
               </>}>
-                {persistence && <p className={cn('text-xs', persistence.can_retry ? 'text-state-failed' : 'text-muted-foreground')}>
+                {image && projectId && receipt?.copy_key && persistence?.can_retry && <Button size="sm" variant="outline" disabled={!!retrying || !!state?.error || !state?.loaded} onClick={() => void retry(receipt.copy_key)}>{retrying === receipt.copy_key ? '正在写入' : '重试项目副本'}</Button>}
+                {persistence && (!image || persistence.can_retry) && <p className={cn('text-xs', persistence.can_retry ? 'text-state-failed' : 'text-muted-foreground')}>
                   {persistence.state === 'in_workspace' ? '项目文件引用' : persistence.state === 'ready' ? '项目副本已保存' : persistence.error ? `交付可下载，但未保存到项目：${persistence.error}` : '交付可下载，项目副本等待写入'}{persistence.path && ` · ${persistence.path}`}
                 </p>}
               </FileRow>
             </li>
           )
-        })}
-      </ul>
-    </section>
-  )
+        })
+  return <div className={cn('min-w-0 space-y-3', className)}>
+    {images.length > 0 && <ul aria-label="交付图片" className="flex flex-wrap items-start gap-3">{renderFiles(images)}</ul>}
+    {documents.length > 0 && <section aria-label="交付文件" className="rounded-lg border bg-card">
+      <header className="flex items-center gap-2 border-b px-3.5 py-2">
+        <Package className="size-4 text-state-success" aria-hidden/>
+        <h3 className="text-meta font-medium">交付 {documents.length} 个文件</h3>
+        {documents.length > 1 && <span className="ml-auto"><PreviewAction label={`打包下载 ${documents.length} 个交付文件`} icon={PackageOpen} onClick={() => onDownloadAll?.(documents)} disabled={!onDownloadAll}/></span>}
+      </header>
+      {note && <p className="px-3.5 pt-2 text-meta text-muted-foreground">{note}</p>}
+      <ul className="p-1.5">{renderFiles(documents)}</ul>
+    </section>}
+  </div>
 }
 
 /** 服务已记下的交付副本。工具消息没发出时，失败副本仍要能下载并按原 key 补存。 */
