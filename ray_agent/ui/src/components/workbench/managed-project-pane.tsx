@@ -1,4 +1,6 @@
 'use client'
+import {RefreshCw} from 'lucide-react'
+import {IconAction} from '@/components/ui/icon-action'
 import {useCallback,useEffect,useRef,useState} from 'react'
 import Link from 'next/link'
 import {toast} from 'sonner'
@@ -22,10 +24,12 @@ export function ManagedProjectPane({projectId,refreshSignal,section = 'files',co
   const tab = section
   const [upload,setUpload]=useState(false)
   const [error,setError]=useState<string | null>(null),[busy,setBusy]=useState<string | null>(null),[revision,setRevision]=useState(0)
-  const [events,setEvents]=useState<ProjectAuditEvent[]>([]),[auditOpen,setAuditOpen]=useState(false),[moreEvents,setMoreEvents]=useState(true),[auditError,setAuditError]=useState<string | null>(null)
+  const [events,setEvents]=useState<ProjectAuditEvent[]>([]),[moreEvents,setMoreEvents]=useState(true),[auditError,setAuditError]=useState<string | null>(null)
   const [confirmation,setConfirmation]=useState<{name:string;text:string;run:()=>Promise<unknown>} | null>(null)
   const confirm=(name:string,text:string,run:()=>Promise<unknown>)=>setConfirmation({name,text,run})
   const request=useRef(0),auditRequest=useRef(0)
+  const latestEvents=useRef(events); latestEvents.current=events
+  const [auditLoading,setAuditLoading]=useState(section==='audit')
   const refresh=useCallback(async () => {
     const token=++request.current
     try {const [detail,list]=await Promise.all([projectApi.detail(projectId),projectApi.snapshots(projectId)]);if(token===request.current){setProject(detail);setSnapshots(list);setError(null)}}
@@ -54,19 +58,21 @@ export function ManagedProjectPane({projectId,refreshSignal,section = 'files',co
     catch(error){setError(error instanceof Error ? error.message : '操作失败，请核对状态后重试')}
     finally {setBusy(null);void refresh()}
   }
-  const audit=async (append=false) => {
-    const token=++auditRequest.current;setAuditError(null)
-    try {const page=await projectApi.events(projectId,append ? events.at(-1)?.seq || 0 : 0);if(token===auditRequest.current){setEvents(previous=>append ? [...previous,...page] : page);setMoreEvents(page.length===50)}}
+  const audit=useCallback(async (append=false) => {
+    const token=++auditRequest.current;setAuditError(null);setAuditLoading(true)
+    try {const page=await projectApi.events(projectId,append ? latestEvents.current.at(-1)?.seq || 0 : 0);if(token===auditRequest.current){setEvents(previous=>append ? [...previous,...page] : page);setMoreEvents(page.length===50)}}
     catch(error){if(token===auditRequest.current)setAuditError(error instanceof Error ? error.message : '读取记录失败')}
-  }
+    finally {if(token===auditRequest.current)setAuditLoading(false)}
+  },[projectId])
+  useEffect(() => {if(section !== 'audit')return; const frame=requestAnimationFrame(() => {void audit()}); return () => cancelAnimationFrame(frame)},[section,audit])
   const download=async () => {
     try {const value=await projectApi.download(projectId);if(value.warning)toast.warning(value.warning);const a=document.createElement('a');a.href=value.url;a.download=value.filename;document.body.appendChild(a);a.click();a.remove()}
     catch(error){toast.error(error instanceof Error ? error.message : '下载失败')}
   }
   const reason=projectWriteReason(project),op=project?.file_operation
   return <div className="flex min-h-0 flex-1 flex-col">
-    <div className="flex items-center border-b px-3 py-2"><h2 className="mr-auto text-sm font-medium">{section==='files' ? '管理项目文件' : section==='snapshots' ? '恢复项目文件' : '项目操作记录'}</h2><Button variant="ghost" size="sm" onClick={()=>void refresh()}>刷新状态</Button></div>
-    {project && <div className="border-b px-3 py-2"><ProjectStateNotice project={project} onChanged={changed}/></div>}
+    <div className="flex items-center border-b pl-5 pr-12 py-3"><h2 className="mr-auto text-sm font-medium">{section==='files' ? '管理项目文件' : section==='snapshots' ? '恢复项目文件' : '项目操作记录'}</h2><IconAction label={section==='audit' ? '刷新操作记录' : '刷新项目状态'} onClick={()=>{if(section==='audit')void audit();else void refresh()}}><RefreshCw/></IconAction></div>
+    {project && section !== 'audit' && <div className="border-b px-3 py-2"><ProjectStateNotice project={project} onChanged={changed}/></div>}
     {error && <p role="alert" className="px-3 py-2 text-meta text-state-failed">{error}<Button variant="ghost" size="sm" onClick={()=>void refresh()}>重新读取状态</Button></p>}
     {!project && !error && <p className="px-3 py-4 text-meta text-faint">正在读取项目状态</p>}
     {tab==='files' && <><p className="px-3 pt-3 text-xs text-muted-foreground">添加的材料供后续任务使用，不会自动发送消息或开始任务。导出包含当前全部文件，不包含对话历史。</p><div className="flex flex-wrap gap-2 px-3 py-2"><Button variant="outline" size="sm" disabled={!!reason || !!busy} title={reason || undefined} onClick={()=>setUpload(true)}>添加材料</Button><Button variant="outline" size="sm" disabled={!project?.available} onClick={()=>void download()}>导出全部项目文件</Button>{reason && <p className="w-full text-meta text-faint">{reason}</p>}</div><ProjectPane sessionId={projectId} projectLevel downloadProjectId={projectId} refreshSignal={(refreshSignal||0)+revision}/></>}
@@ -81,7 +87,8 @@ export function ManagedProjectPane({projectId,refreshSignal,section = 'files',co
       {busy && <p role="status" className="text-state-running">{busy==='cleanup'?'正在清理快照':busy==='restore'?'正在恢复项目文件':'正在修复恢复'}，请稍候。断线后请重新读取状态。</p>}
 
     </div>}
-    {section==='audit' && <div className="min-h-0 flex-1 overflow-y-auto p-3">      <details open={auditOpen} onToggle={event=>{const open=event.currentTarget.open;setAuditOpen(open);if(open && !events.length)void audit()}} className="border-t pt-3"><summary className="cursor-pointer">项目操作记录</summary><p className="my-2 text-faint">记录供追溯，可从笔记原文取回误改内容；不会自动回放。</p>{events.map(event=>visibility.rawResults ? <details key={event.seq} className="border-b py-2"><summary className="cursor-pointer">#{event.seq} {eventNames[event.type]||event.type} · {new Date(event.created_at).toLocaleString()}</summary><pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-all rounded-md bg-muted p-2 text-xs">{JSON.stringify(event.payload,null,2)}</pre></details> : <p key={event.seq} className="border-b py-3 text-sm">{eventNames[event.type] || '项目更新'} · {new Date(event.created_at).toLocaleString()}</p>)}{auditError && <p role="alert" className="text-state-failed">{auditError}</p>}<Button variant="ghost" size="sm" onClick={()=>void audit()}>刷新记录</Button>{moreEvents && !!events.length && <Button variant="ghost" size="sm" onClick={()=>void audit(true)}>加载更多记录</Button>}</details><Button variant="outline" onClick={()=>{setAuditOpen(true);void audit()}}>读取操作记录</Button></div>}
+    {section==='audit' && <div className="min-h-0 flex-1 overflow-y-auto px-5 py-3">{auditLoading && <p role="status" className="py-3 text-sm text-muted-foreground">正在读取操作记录……</p>}{events.map(event=>visibility.rawResults ? <details key={event.seq} className="border-b py-3 text-sm"><summary className="cursor-pointer">{eventNames[event.type]||'项目更新'} · {new Date(event.created_at).toLocaleString()}</summary><pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap break-all rounded-md bg-muted p-2 text-xs">{JSON.stringify(event.payload,null,2)}</pre></details> : <p key={event.seq} className="border-b py-3 text-sm">{eventNames[event.type] || '项目更新'} · {new Date(event.created_at).toLocaleString()}</p>)}{!auditLoading && !auditError && !events.length && <p className="py-5 text-sm text-muted-foreground">尚无操作记录。</p>}{auditError && <p role="alert" className="py-3 text-sm text-state-failed">{auditError}</p>}{moreEvents && !!events.length && <Button variant="ghost" size="sm" disabled={auditLoading} onClick={()=>void audit(true)}>加载更多</Button>}</div>}
+
     <Dialog open={!!confirmation} onOpenChange={open=>{if(!open)setConfirmation(null)}}><DialogContent>
       <DialogHeader><DialogTitle>确认项目文件操作</DialogTitle><DialogDescription>{confirmation?.text}</DialogDescription></DialogHeader>
       <div className="flex justify-end gap-2"><Button variant="outline" onClick={()=>setConfirmation(null)}>取消</Button><Button disabled={!!busy} onClick={()=>{const pending=confirmation;if(!pending)return;setConfirmation(null);void action(pending.name,pending.run)}}>确认{confirmation?.name==='cleanup' ? '清理快照' : confirmation?.name==='restore' ? '恢复' : '修复'}</Button></div>

@@ -1,7 +1,7 @@
 'use client'
 
 import {useEffect, useRef, useState, type CSSProperties} from 'react'
-import {ChevronLeft, ChevronRight, Code, Download, Expand, FileText, RefreshCw} from 'lucide-react'
+import {ChevronLeft, ChevronRight, Code, Download, Expand, FileText, RefreshCw, X} from 'lucide-react'
 import {toast} from 'sonner'
 import {MarkdownContent} from '@/components/markdown-content'
 import {Button} from '@/components/ui/button'
@@ -49,7 +49,7 @@ function TablePreview({preview}: {preview: Preview}) {
       })}</tr>)}</tbody></table></div>
 }
 
-type FilePreviewProps = {source: PreviewSource; onBack?: () => void; onDownload?: () => void; canExpand?: boolean}
+type FilePreviewProps = {source: PreviewSource; onBack?: () => void; onDownload?: () => void; onClose?: () => void; canExpand?: boolean}
 
 export function FilePreview(props: FilePreviewProps) {
   const source=props.source
@@ -57,7 +57,7 @@ export function FilePreview(props: FilePreviewProps) {
   return <FilePreviewContent key={identity} {...props}/>
 }
 
-function FilePreviewContent({source, onBack, onDownload, canExpand = true}: FilePreviewProps) {
+function FilePreviewContent({source, onBack, onDownload, onClose, canExpand = true}: FilePreviewProps) {
   const [preview,setPreview] = useState<Preview | null>(null)
   const [error,setError] = useState<string | null>(null)
   const [errorCode,setErrorCode] = useState<number | null>(null)
@@ -140,17 +140,18 @@ function FilePreviewContent({source, onBack, onDownload, canExpand = true}: File
       className={`rounded-md px-3 py-1 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring ${page.sheet===i ? 'bg-muted font-medium' : 'text-muted-foreground hover:bg-muted/50'}`}
       onClick={()=>changePage({sheet:i,row:0,column:0,offset:0})}>{sheet}</button>)}</div></div>
   return <section aria-label={`预览 ${source.filename}`} className="flex h-full min-h-0 flex-col">
-    <header className={`flex shrink-0 items-center gap-1 border-b px-2 py-1 ${!canExpand ? 'pr-12' : ''}`}>
+    <header className="flex shrink-0 items-center gap-1 border-b px-3 py-2">
       {onBack && <PreviewAction label="返回文件列表" icon={ChevronLeft} onClick={onBack}/>}
       {canExpand ? <button type="button" aria-label={`展开 ${filename}`} className="mr-auto min-w-0 cursor-pointer truncate rounded-sm text-left text-sm outline-none hover:text-signal focus-visible:ring-2 focus-visible:ring-ring" title={filename} onClick={()=>setExpanded(true)}>{filename}</button>
         : <span className="mr-auto min-w-0 truncate text-sm" title={filename}>{filename}</span>}{toolbar}
       {canExpand && preview?.kind!=='image' && <PreviewAction label="展开预览" icon={Expand} onClick={()=>setExpanded(true)}/>}
+      {onClose && <PreviewAction label="关闭预览" icon={X} onClick={onClose}/>}
     </header>
     {sheetTabs}
     <div className="min-h-0 flex-1">{body()}</div>{navigation}
-    <Dialog open={expanded} onOpenChange={setExpanded}><DialogContent className="flex h-[90dvh] w-[95vw] max-w-[95vw] flex-col gap-0 overflow-hidden p-0 sm:max-w-[95vw]">
+    <Dialog open={expanded} onOpenChange={setExpanded}><DialogContent showCloseButton={false} className="flex h-[90dvh] w-[95vw] max-w-[95vw] flex-col gap-0 overflow-hidden p-0 sm:max-w-[95vw]">
       <DialogTitle className="sr-only">{filename}</DialogTitle><DialogDescription className="sr-only">文件预览</DialogDescription>
-      <header className="flex shrink-0 items-center gap-1 border-b px-3 py-2 pr-12"><span className="mr-auto min-w-0 truncate text-sm">{filename}</span>{toolbar}</header>
+      <header className="flex shrink-0 items-center gap-1 border-b px-3 py-2"><span className="mr-auto min-w-0 truncate text-sm">{filename}</span>{toolbar}<PreviewAction label="关闭预览" icon={X} onClick={()=>setExpanded(false)}/></header>
       {sheetTabs}<div className="min-h-0 flex-1">{body(true)}</div>{navigation}
     </DialogContent></Dialog>
   </section>

@@ -9,9 +9,10 @@ import {SettingsView} from './settings-view'
 export function SettingsDialog({open, onOpenChange}: {open: boolean; onOpenChange: (open: boolean) => void}) {
   const [dirty, setDirty] = useState(false)
   const close = () => {
-    if (dirty && !window.confirm('有未保存的修改，关闭后会丢失。确定关闭吗？')) return
+    if (dirty && !window.confirm('有未保存的修改，关闭后会丢失。确定关闭吗？')) return false
     setDirty(false)
     onOpenChange(false)
+    return true
   }
 
   return (
@@ -24,7 +25,7 @@ export function SettingsDialog({open, onOpenChange}: {open: boolean; onOpenChang
         onInteractOutside={event => event.preventDefault()}
       >
         <DialogTitle className="sr-only">设置</DialogTitle>
-        <SettingsView onClose={close} onDirtyChange={setDirty}/>
+        <SettingsView onNavigate={close} onClose={close} onDirtyChange={setDirty}/>
       </DialogContent>
     </Dialog>
   )
@@ -35,7 +36,7 @@ export function SettingsPageView() {
   const router = useRouter()
   const [dirty, setDirty] = useState(false)
   return <SettingsView onDirtyChange={setDirty} onClose={() => {
-    if (dirty && !window.confirm('有未保存的修改，关闭后会丢失。确定关闭吗？')) return
+    if (dirty && !window.confirm('有未保存的修改，关闭后会丢失。确定关闭吗？')) return false
     router.push('/')
   }}/>
 }

@@ -5,6 +5,7 @@ import Link from 'next/link'
 import {SidebarTrigger, useSidebar} from '@/components/ui/sidebar'
 import {BrandMark} from '@/components/brand-mark'
 import {cn} from '@/lib/utils'
+import {DataCleanupNotice} from './data-cleanup-notice'
 
 /** 侧栏顶部是产品入口、当前列表的新建按钮和折叠控制。 */
 export function SidebarChrome({action}: {action?: ReactNode}) {
@@ -37,8 +38,9 @@ export function MainShell({children}: {children: ReactNode}) {
           <SidebarTrigger aria-label="打开侧栏"/>
         </div>
       )}
-      <div className={cn('h-full', isMobile && 'pt-11')}>
-        {children}
+      <div className={cn('flex h-full flex-col', isMobile && 'pt-11')}>
+        <DataCleanupNotice/>
+        <div className="min-h-0 flex-1">{children}</div>
       </div>
     </div>
   )

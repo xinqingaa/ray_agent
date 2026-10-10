@@ -1,11 +1,12 @@
 'use client'
 
-import {useCallback, useEffect, useRef, useState} from 'react'
+import {useCallback, useEffect, useRef, useState, type ReactNode} from 'react'
 import Link from 'next/link'
 import {Eye, FileText, History, MoreHorizontal, NotebookPen, Pencil, ScrollText, X} from 'lucide-react'
 import {useUnsavedNavigation} from '@/hooks/use-unsaved-navigation'
 import {useDeveloperMode} from '@/hooks/use-developer-mode'
 import {Button} from '@/components/ui/button'
+import {IconAction} from '@/components/ui/icon-action'
 import {SegmentedControl} from '@/components/ui/segmented-control'
 import {MarkdownContent} from '@/components/markdown-content'
 import {DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger} from '@/components/ui/dropdown-menu'
@@ -21,7 +22,7 @@ type Section = 'instructions' | 'notes' | 'summaries'
 type Overlay = 'history' | 'preview' | null
 const sections = [{value: 'instructions' as const, label: '说明', icon: FileText}, {value: 'notes' as const, label: '笔记', icon: NotebookPen}, {value: 'summaries' as const, label: '摘要', icon: ScrollText}]
 
-export function ProjectMemoryPanel({projectId, sessionId, open, initialSection = 'instructions', onClose, onChanged}: {initialSection?: Section; projectId: string; sessionId?: string; open: boolean; onClose: () => void; onChanged?: () => void}) {
+export function ProjectMemoryPanel({projectId, sessionId, open, initialSection = 'instructions', initialOverlay = null, onClose, onChanged}: {initialSection?: Section; initialOverlay?: Overlay; projectId: string; sessionId?: string; open: boolean; onClose: () => void; onChanged?: () => void}) {
   const {visibility} = useDeveloperMode()
   const [project, setProject] = useState<ProjectDetails | null>(null)
   const [memory, setMemory] = useState<ProjectMemoryView | null>(null)
@@ -65,7 +66,7 @@ export function ProjectMemoryPanel({projectId, sessionId, open, initialSection =
     setSessions([])
     setError(null)
     setHistory([])
-    setOverlay(null)
+    setOverlay(initialOverlay)
     setSection(initialSection)
     dirty.current = false
     void refresh()
@@ -81,7 +82,7 @@ export function ProjectMemoryPanel({projectId, sessionId, open, initialSection =
     const historyCounter = historyEpoch
     const estimateCounter = estimateEpoch
     return () => {counter.current++; historyCounter.current++; estimateCounter.current++; setEstimating(false); window.clearTimeout(timer); unsubscribe(); window.removeEventListener('focus', visible)}
-  }, [open, projectId, refresh, initialSection])
+  }, [open, projectId, refresh, initialSection, initialOverlay])
 
   useUnsavedNavigation(() => dirty.current, open)
   const leave = () => {if (!dirty.current || window.confirm('项目记忆有未保存的修改，放弃修改并关闭？')) onClose()}
@@ -251,7 +252,7 @@ function auxiliaryLine(auxiliary: Record<string, unknown>) {
   return `${model} · ${duration} ms · ${usage}`
 }
 
-function MemoryEditor({field, project, restored, onDirty, onSaved}: {field: 'instructions' | 'notes'; project: ProjectDetails; restored: string | null; onDirty: (value: boolean) => void; onSaved: () => void}) {
+export function MemoryEditor({field, project, restored, onDirty, onSaved, toolbar}: {field: 'instructions' | 'notes'; project: ProjectDetails; restored: string | null; onDirty: (value: boolean) => void; onSaved: () => void; toolbar?: ReactNode}) {
   const {visibility} = useDeveloperMode()
   const current = field === 'notes' ? project.notes : project.instructions || ''
   const version = field === 'notes' ? project.notes_version : project.settings_version
@@ -299,16 +300,17 @@ function MemoryEditor({field, project, restored, onDirty, onSaved}: {field: 'ins
 
   return (
     <section className="flex min-h-[50vh] flex-col gap-3">
-      {editing ? visibility.memoryInternals && <p className="text-xs text-faint">版本 {version}</p> : current && <div className="flex justify-end"><Button size="icon-sm" variant="ghost" className="text-muted-foreground" aria-label={field === 'notes' ? '编辑笔记' : '编辑说明'} title="编辑" onClick={() => setEditing(true)}><Pencil className="size-4"/></Button></div>}
+      {toolbar ? <div className="flex min-h-8 items-center gap-1 border-b pb-3">{toolbar}<IconAction label={field === 'notes' ? '编辑笔记' : '编辑说明'} disabled={editing || !!project.file_operation || project.archived} onClick={() => setEditing(true)}><Pencil/></IconAction></div> : !editing && current && <div className="flex justify-end"><IconAction label={field === 'notes' ? '编辑笔记' : '编辑说明'} onClick={() => setEditing(true)}><Pencil/></IconAction></div>}
+      {editing && visibility.memoryInternals && <p className="text-xs text-faint">版本 {version}</p>}
       <label className="sr-only" htmlFor={`memory-${field}`}>{field === 'notes' ? '项目笔记' : '项目说明'}</label>
       {editing ? <>
       <textarea id={`memory-${field}`} disabled={busy} maxLength={8000} placeholder={placeholder} className="min-h-[45vh] w-full flex-1 resize-none rounded-md border bg-background p-3 text-sm leading-7 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" value={draft} onChange={event => {setDraft(event.target.value); setSaved(false)}}/>
       <div className="sticky bottom-0 flex items-center gap-3 border-t bg-card py-3">
         <p className="text-xs tabular-nums text-faint">{draft.length} / 8000</p>
         <Button size="sm" variant="ghost" className="ml-auto" disabled={busy} onClick={() => {if (!dirty || window.confirm('放弃未保存的修改？')) {setDraft(original); setConflict(null); setError(null); setEditing(false); onDirtyRef.current(false)}}}>取消</Button>
-        <Button className="ml-auto" size="sm" disabled={busy || !dirty || !!conflict} onClick={() => void save()}>{busy ? '正在保存' : '保存'}</Button>
+        <Button size="sm" disabled={busy || !dirty || !!conflict} onClick={() => void save()}>{busy ? '正在保存' : '保存'}</Button>
       </div>
-      </> : current ? <MarkdownContent content={current}/> : <Button size="sm" variant="ghost" className="self-start text-muted-foreground" onClick={() => setEditing(true)}><Pencil className="size-3.5"/>{field === 'notes' ? '添加笔记' : '添加说明'}</Button>}
+      </> : current ? <MarkdownContent content={current}/> : toolbar ? <p className="py-5 text-sm text-muted-foreground">{field === 'notes' ? '尚无笔记。' : '尚未设置项目说明。'}点击右上角编辑开始添加。</p> : <Button size="sm" variant="ghost" className="self-start text-muted-foreground" onClick={() => setEditing(true)}><Pencil className="size-3.5"/>{field === 'notes' ? '添加笔记' : '添加说明'}</Button>}
       {conflict && (
         <div className="space-y-3 rounded-md border border-state-waiting p-3">
           <p className="text-meta">{visibility.memoryInternals ? `最新版本 ${conflict.version}` : '内容已被更新'}，草稿已保留。</p>

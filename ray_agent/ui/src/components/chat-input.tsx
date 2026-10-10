@@ -19,7 +19,7 @@ import {useProjects} from '@/providers/projects-provider'
 import {useRouter} from 'next/navigation'
 import type {ProjectView} from '@/lib/api/types'
 import {commandById, matchingCommands, type CommandContext, type CommandHost, type InputCommand} from '@/lib/commands'
-import {clearDraft, readDraft, writeDraft, DRAFT_CHANGED} from '@/lib/drafts'
+import {clearDraft, readDraft, writeDraft, DRAFT_CHANGED, DATA_CLEARED} from '@/lib/drafts'
 import {recoverSubmission, UncertainSubmissionError} from '@/lib/send-recovery'
 import {findSlashTrigger, removeSlashFragment, type SlashFragment} from '@/lib/slash-trigger'
 import {ModelPicker, type ModelSelection} from '@/components/model-picker'
@@ -114,6 +114,16 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
     }, [scope, loadedScope, inputValue, files, planMode])
 
     const blocked = disabled || sending || commandHost.compacting || uncertain
+    useEffect(() => {
+      const cleared = (event: Event) => {
+        const data = (event as CustomEvent).detail
+        if (data.scope === 'all' || data.project_ids.some((id: string) => scope === `project:${id}`) || data.session_ids.some((id: string) => scope === `session:${id}`)) {
+          setInputValue(''); setFiles([]); setPlanMode(false); setUncertain(false)
+        }
+      }
+      window.addEventListener(DATA_CLEARED, cleared)
+      return () => window.removeEventListener(DATA_CLEARED, cleared)
+    }, [scope])
     const [wasBlocked, setWasBlocked] = useState(blocked)
     if (blocked !== wasBlocked) {
       setWasBlocked(blocked)

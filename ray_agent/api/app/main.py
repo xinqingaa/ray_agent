@@ -7,7 +7,7 @@ from pathlib import Path
 
 from alembic import command
 from alembic.config import Config
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.domain.services.approvals import interrupt_waiting_approvals
@@ -67,6 +67,11 @@ async def lifespan(app: FastAPI):
         logger.warning(storage.reason)
     else:
         logger.info("托管项目存储可用")
+
+    # 未完成的固定清单需要显式重试，不在启动时扩大删除范围。
+    from app.interfaces.service_dependencies import get_data_cleanup_service
+    cleanup = get_data_cleanup_service()
+    await cleanup.repository.interrupt()
 
     # 4.启动扫描：执行协程只存在于本进程，上次进程留下的 running 运行不会再推进，置为 interrupted；
     # 等待审批的运行同样置为 interrupted，待审批的调用补为未执行；等待提问的运行保持 waiting
@@ -150,4 +155,5 @@ app.add_middleware(
 register_exception_handlers(app)
 
 # 7.集成路由
-app.include_router(router, prefix="/api")
+from app.interfaces.data_admission import data_admission
+app.include_router(router, prefix="/api", dependencies=[Depends(data_admission)])

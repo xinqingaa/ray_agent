@@ -25,3 +25,7 @@ class FileStorage(Protocol):
     async def delete_visual_file(self, file: File) -> None:
         """仅删除登记为临时视觉产物的字节；调用方保留元数据。"""
         ...
+
+    async def delete_file(self, file: File) -> None:
+        """按已登记的文件清单删除字节；不存在时幂等成功。"""
+        ...

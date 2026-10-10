@@ -2,7 +2,7 @@
 
 import {useRef, useState, type MouseEvent} from 'react'
 import Link from 'next/link'
-import {ChevronDown, ChevronUp, MoreHorizontal} from 'lucide-react'
+import {ChevronRight, MoreHorizontal} from 'lucide-react'
 import {Button} from '@/components/ui/button'
 import {DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger} from '@/components/ui/dropdown-menu'
 import {RunStatus} from '@/components/run/run-status'
@@ -22,7 +22,7 @@ export type NavigationProject = {
   occupying_session_id?: string | null
   file_operation?: import("@/lib/api/types").ProjectFileOperation | null
   conversations: Session[]
-  /** 项目里的对话数。0 表示点项目行不展开。 */
+  /** 项目里的对话总数。0 时禁用展开；未提供时依据已加载对话判断。 */
   taskCount?: number
   navigationError?: string
 }
@@ -45,6 +45,7 @@ type Props = {
   onMoreProjects?: () => void
   onProjectSettings: (id: string) => void
   onArchive: (id: string) => void
+  onProjectDelete?: (id: string) => void
   onSessionDelete: (session: Session) => void
   onSessionRename: (session: Session) => void
   onNavigate?: (path: string) => void
@@ -114,8 +115,10 @@ export function ProjectNavigation(props: Props) {
           {props.error && <div className="px-2 py-3"><p role="alert" className="text-meta text-state-failed">{props.error}</p><Button size="sm" variant="ghost" onClick={props.onRetry}>重试</Button></div>}
           {projects.map(project => {
             const selected = props.selectedProject === project.id
-            const open = !!expansion.items[project.id]
+            const canExpand = project.taskCount == null ? project.conversations.length > 0 || !!project.navigationError : project.taskCount > 0
+            const open = canExpand && !!expansion.items[project.id]
             const toggleProject = () => {
+              if (!canExpand) return
               onExpansion({...expansion, items: {...expansion.items, [project.id]: !open}})
             }
             const openProject = (event: MouseEvent) => {
@@ -133,7 +136,10 @@ export function ProjectNavigation(props: Props) {
               props.onNewConversation?.(project.id)
             }
             return <div key={project.id}>
-              <div className="group/project relative flex min-h-8 items-center">
+              <div className={cn("group/project relative flex min-h-9 items-center rounded-md", selected && !selectedSession && "bg-sidebar-accent")}>
+                  <button type="button" aria-expanded={open} aria-controls={`project-conversations-${project.id}`} disabled={!canExpand} title={canExpand ? undefined : '还没有对话'} aria-label={`${open ? '收起' : '展开'} ${project.name} 的对话`} onClick={toggleProject} className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground enabled:hover:bg-muted disabled:cursor-default disabled:opacity-30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                    <ChevronRight className={cn("size-3.5 transition-transform duration-200 motion-reduce:transition-none", open && "rotate-90")}/>
+                  </button>
                 <Link href={`/projects/${project.id}`} aria-current={selected && !selectedSession ? 'page' : undefined} onClick={openProject} className="flex min-h-8 min-w-0 flex-1 items-center gap-2 rounded-md px-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring">
                   <ProjectFolderIcon className={cn('size-4 shrink-0', selected ? 'text-foreground' : 'text-muted-foreground')}/>
                   <RunStatus
@@ -160,6 +166,7 @@ export function ProjectNavigation(props: Props) {
                         : <DropdownMenuItem onSelect={startConversation}>在此项目新对话</DropdownMenuItem>}
                       <DropdownMenuItem onSelect={() => props.onProjectSettings(project.id)}>项目设置</DropdownMenuItem>
                       {!project.archived && <DropdownMenuItem onSelect={() => props.onArchive(project.id)}>归档项目</DropdownMenuItem>}
+                      {props.onProjectDelete && <DropdownMenuItem variant="destructive" onSelect={() => props.onProjectDelete?.(project.id)}>删除项目</DropdownMenuItem>}
                     </DropdownMenuContent>
                   </DropdownMenu>
                   {!project.archived && (props.onNewConversation ? (
@@ -171,16 +178,14 @@ export function ProjectNavigation(props: Props) {
                       <NewChatIcon className="size-4"/>
                     </Link>
                   ))}
-                  <button type="button" aria-expanded={open} aria-label={`${open ? '收起' : '展开'} ${project.name} 的对话`} onClick={toggleProject} className="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
-                    {open ? <ChevronUp className="size-4"/> : <ChevronDown className="size-4"/>}
-                  </button>
+
                 </div>
               </div>
-              {open && <div className="ml-6 flex flex-col gap-2 py-1">
-                {!project.conversations.length && !project.navigationError && <p className="px-2 py-2 text-xs text-faint">还没有对话</p>}
+              <div id={`project-conversations-${project.id}`} aria-hidden={!open} inert={!open} className={cn("grid transition-[grid-template-rows,opacity] duration-200 ease-out motion-reduce:transition-none", open ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0")}><div className="min-h-0 overflow-hidden"><div className="ml-8 flex flex-col gap-2 py-1">
+                {!project.conversations.length && !project.navigationError && <p className="px-2 py-2 text-xs text-faint">正在读取对话</p>}
                 {project.conversations.map(session => sessionRow(session, project.active_run_status === 'waiting' && project.occupying_session_id === session.session_id ? project.active_run_reason === 'approval' ? 'approval' : 'reply' : undefined))}
                 {project.navigationError && <p role="alert" className="px-2 py-1 text-xs text-state-failed">{project.navigationError}</p>}
-              </div>}
+              </div></div></div>
             </div>})}
           {props.onMoreProjects && <Button size="sm" variant="ghost" className="mt-1" onClick={props.onMoreProjects}>更多项目</Button>}
         </div>

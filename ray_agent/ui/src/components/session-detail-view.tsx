@@ -543,7 +543,7 @@ export function SessionDetailView({
             ]} onValueChange={next => {setMode(next); if (next === 'developer') setDeveloperVisited(true)}}/>}
             {view.project && (
               <Button type="button" variant="ghost" size="icon-xs" className="size-7 shrink-0 text-muted-foreground"
-                title="项目记忆" aria-label="项目记忆" onClick={() => setMemoryOpen(true)}>
+                title="项目说明与笔记" aria-label="项目说明与笔记" onClick={() => setMemoryOpen(true)}>
                 <MemoryIcon className="size-4"/>
               </Button>
             )}

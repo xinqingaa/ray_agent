@@ -167,16 +167,27 @@ async function selectedOutsidePage() {
 
 async function navigationActions() {
  const {ProjectNavigation}=load('components/project-navigation.tsx');let r,expanded,route;
- const props={projects:[{id:'p',name:'测试项目',available:true,conversations:[]}],conversations:[],expansion:{projects:true,conversations:true,items:{}},tab:'projects',onExpansion:value=>{expanded=value},onOpenProject(){},onProjectSettings(){},onArchive(){},onSessionDelete(){},onSessionRename(){},onNavigate:value=>{route=value}};
+ const props={projects:[{id:'p',name:'测试项目',available:true,taskCount:0,conversations:[]}],conversations:[],expansion:{projects:true,conversations:true,items:{}},tab:'projects',onExpansion:value=>{expanded=value},onOpenProject(){},onProjectSettings(){},onArchive(){},onSessionDelete(){},onSessionRename(){},onNavigate:value=>{route=value}};
  await act(async()=>{r=create(React.createElement(ProjectNavigation,props))});
  const home=r.root.findAllByType('a').find(node=>node.props.href==='/projects/p');
  await act(async()=>home.props.onClick({}));assert.equal(route,'/projects/p');assert.equal(expanded,undefined);
  const arrow=r.root.findAllByType('button').find(node=>node.props['aria-label']==='展开 测试项目 的对话');
- await act(async()=>arrow.props.onClick());assert.equal(expanded.items.p,true);assert.equal(route,'/projects/p');
- await act(async()=>r.update(React.createElement(ProjectNavigation,{...props,expansion:expanded})));
- assert.ok(text(r).includes('还没有对话'));
+ assert.equal(arrow.props.disabled,true);
+ await act(async()=>arrow.props.onClick());assert.equal(expanded,undefined);
+ const populated={...props,projects:[{...props.projects[0],taskCount:2}]};
+ await act(async()=>r.update(React.createElement(ProjectNavigation,populated)));
+ const enabled=r.root.findAllByType('button').find(node=>node.props['aria-label']==='展开 测试项目 的对话');
+ assert.equal(enabled.props.disabled,false);
+ await act(async()=>enabled.props.onClick());assert.equal(expanded.items.p,true);assert.equal(route,'/projects/p');
+ await act(async()=>r.update(React.createElement(ProjectNavigation,{...populated,expansion:expanded})));
+ const content=r.root.findByProps({id:'project-conversations-p'});assert.equal(content.props.inert,false);
+ const collapse=r.root.findAllByType('button').find(node=>node.props['aria-label']==='收起 测试项目 的对话');
+ await act(async()=>collapse.props.onClick());
+ await act(async()=>r.update(React.createElement(ProjectNavigation,{...populated,expansion:expanded})));
+ assert.equal(r.root.findByProps({id:'project-conversations-p'}).props.inert,true);
+ assert.equal(r.root.findByProps({id:'project-conversations-p'}).props['aria-hidden'],true);
  const createLink=r.root.findAllByType('a').find(node=>node.props['aria-label']==='测试项目 中新对话');assert.equal(createLink.props.href,'/projects/p#new-conversation');
- await act(async()=>r.unmount());console.log('PASS: 项目名称导航与右侧箭头独立，空项目展开，加号进入输入准备');
+ await act(async()=>r.unmount());console.log('PASS: 项目名称导航与箭头独立，空项目禁用展开，有对话项目可展开/收起并隔离隐藏焦点，新对话图标进入输入准备');
 }
 
 async function main() {

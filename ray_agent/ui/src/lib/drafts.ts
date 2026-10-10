@@ -18,6 +18,7 @@ export type ChatDraft = {
   creationId?: string
   sessionId?: string
   submission?: Submission
+  savedAt?: number
   compactionAfterSeq?: number
 }
 export const EMPTY_DRAFT: ChatDraft = {text: '', files: [], planMode: false}
@@ -33,12 +34,15 @@ export function readDraft(scope: string): ChatDraft {
   if (typeof window === 'undefined') return {...EMPTY_DRAFT}
   try {
     const parsed = JSON.parse(sessionStorage.getItem(prefix + scope) ?? 'null')
+    const resetAt = Number(localStorage.getItem('rayagent:data-reset-at') || 0)
+    const deleted = JSON.parse(localStorage.getItem('rayagent:deleted-scopes') || '[]') as string[]
+    if (deleted.includes(scope) || (resetAt && (parsed?.savedAt || 0) <= resetAt)) return {...EMPTY_DRAFT}
     return parsed && typeof parsed.text === 'string' && Array.isArray(parsed.files)
       ? parsed : volatileDrafts.get(scope) ?? {...EMPTY_DRAFT}
   } catch { return volatileDrafts.get(scope) ?? {...EMPTY_DRAFT} }
 }
 export function writeDraft(scope: string, changes: Partial<ChatDraft>): void {
-  const next={...readDraft(scope),...changes}
+  const next={...readDraft(scope),...changes,savedAt:Date.now()}
   volatileDrafts.set(scope,next)
   try{sessionStorage.setItem(prefix + scope, JSON.stringify(next))}catch{/* 当前标签内存仍保留草稿 */}
   changed(scope)
@@ -47,6 +51,30 @@ export function clearDraft(scope: string): void {
   volatileDrafts.delete(scope)
   try{sessionStorage.removeItem(prefix + scope)}catch{}
   changed(scope)
+}
+
+export const DATA_CLEARED = 'rayagent-data-cleared'
+const appliedCleanupIds = new Set<string>()
+type ClearedData = {id: string; scope: string; project_ids: string[]; session_ids: string[]}
+export function applyDataCleared(data: ClearedData): void {
+  if (appliedCleanupIds.has(data.id)) return
+  appliedCleanupIds.add(data.id)
+  const affected = (scope: string) => data.scope === 'all' || data.project_ids.some(id => scope === `project:${id}`) || data.session_ids.some(id => scope === `session:${id}`)
+  const scopes = new Set(volatileDrafts.keys())
+  try {for (let index = 0; index < sessionStorage.length; index++) {const key = sessionStorage.key(index); if (key?.startsWith(prefix)) scopes.add(key.slice(prefix.length))}} catch {}
+  for (const scope of scopes) if (affected(scope)) clearDraft(scope)
+  window.dispatchEvent(new CustomEvent(DATA_CLEARED, {detail: data}))
+}
+export function notifyDataCleared(data: ClearedData): void {
+  if (appliedCleanupIds.has(data.id)) return
+  applyDataCleared(data)
+  try {
+    if (data.scope === 'all') localStorage.setItem('rayagent:data-reset-at', String(Date.now()))
+    const deleted = new Set<string>(JSON.parse(localStorage.getItem('rayagent:deleted-scopes') || '[]'))
+    data.project_ids.forEach(id => deleted.add(`project:${id}`)); data.session_ids.forEach(id => deleted.add(`session:${id}`))
+    localStorage.setItem('rayagent:deleted-scopes', JSON.stringify([...deleted]))
+    localStorage.setItem('rayagent:data-cleared', JSON.stringify(data))
+  } catch {}
 }
 
 export type Acceptance = {kind: 'accepted'; runId: string; seq: number}

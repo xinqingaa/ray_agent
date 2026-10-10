@@ -11,10 +11,11 @@ import {McpSection} from './mcp-section'
 import {A2aSection} from './a2a-section'
 import {ToolPolicySection, useToolPolicyForm} from './tool-policy-section'
 import {AppearanceSection} from './appearance-section'
+import {DataSection} from './data-section'
 import {useDeveloperMode} from '@/hooks/use-developer-mode'
 import {Switch} from '@/components/ui/switch'
 
-type SectionKey = 'general' | 'appearance' | 'llm' | 'mcp' | 'a2a' | 'tool-policy'
+type SectionKey = 'general' | 'appearance' | 'llm' | 'mcp' | 'a2a' | 'tool-policy' | 'data'
 
 const SECTIONS: {key: SectionKey; label: string; icon: LucideIcon}[] = [
   {key: 'general', label: '通用', icon: SlidersHorizontal},
@@ -23,10 +24,11 @@ const SECTIONS: {key: SectionKey; label: string; icon: LucideIcon}[] = [
   {key: 'mcp', label: 'MCP 服务器', icon: Cable},
   {key: 'a2a', label: '远程 Agent', icon: Globe},
   {key: 'tool-policy', label: '工具策略', icon: ShieldCheck},
+  {key: 'data', label: '数据管理', icon: SlidersHorizontal},
 ]
 
 /** 设置页：左侧切换分区；表单草稿保存在这里，切换分区不丢失 */
-export function SettingsView({onClose, onDirtyChange}: {onClose?: () => void; onDirtyChange?: (dirty: boolean) => void} = {}) {
+export function SettingsView({onClose, onDirtyChange, onNavigate}: {onClose?: () => void; onDirtyChange?: (dirty: boolean) => void; onNavigate?: () => void | boolean} = {}) {
   const {enabled, setEnabled, visibility} = useDeveloperMode()
   const [selectedSection, setActive] = useState<SectionKey>('general')
   const active = selectedSection === 'llm' && !visibility.providerSettings ? 'general' : selectedSection
@@ -90,6 +92,7 @@ export function SettingsView({onClose, onDirtyChange}: {onClose?: () => void; on
               <GeneralSection form={general}/>
             </>}
             {active === 'appearance' && <AppearanceSection/>}
+            {active === 'data' && <DataSection onNavigate={onNavigate} disabledReason={hasUnsavedChanges ? '请先保存或撤销设置修改，再清空数据。' : undefined}/>}
             {active === 'llm' && <LlmSection form={llm}/>}
             {active === 'mcp' && <McpSection/>}
             {active === 'a2a' && <A2aSection/>}

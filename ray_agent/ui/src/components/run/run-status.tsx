@@ -173,7 +173,7 @@ export const RUN_INPUT_HINT = {
   reply: '回复将继续当前任务',
   approval: '先批准或拒绝，或点暂停结束运行',
   running: '补充要求，会在当前这批操作结束后读取',
-  idle: '描述下一步，或开始一次新的运行',
+  idle: '继续这次对话……',
 } as const
 
 export function RunStatus(props: RunStatusProps): ReactNode {
@@ -237,7 +237,7 @@ export function RunStatus(props: RunStatusProps): ReactNode {
               )}
             />
           ) : <span ref={markRef} className="hidden"/>}
-          <span className="min-w-0 flex-1 truncate text-sm font-medium" title={mark.buttonTitle}>{props.name}</span>
+          <span className="min-w-0 flex-1 truncate text-sm font-semibold" title={mark.buttonTitle}>{props.name}</span>
         </>
       )
     }

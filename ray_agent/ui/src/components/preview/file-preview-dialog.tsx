@@ -13,7 +13,7 @@ export function FilePreviewDialog({file, onClose, onDownload}: {
   const content = useRef<HTMLDivElement>(null)
   const returnFocus = useRef<HTMLElement | null>(null)
   return <Dialog open={file != null} onOpenChange={open => {if (!open) onClose()}}>
-    <DialogContent ref={content} onOpenAutoFocus={event => {
+    <DialogContent showCloseButton={false} ref={content} onOpenAutoFocus={event => {
       returnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
       event.preventDefault();content.current?.focus()
     }} onCloseAutoFocus={event => {event.preventDefault();returnFocus.current?.focus({preventScroll:true})}}
@@ -21,7 +21,7 @@ export function FilePreviewDialog({file, onClose, onDownload}: {
       <DialogTitle className="sr-only">{file?.filename}</DialogTitle>
       <DialogDescription className="sr-only">文件预览</DialogDescription>
       {file && <FilePreview source={{kind:'attachment',id:file.id,filename:file.filename,size:file.size}}
-        canExpand={false} onDownload={() => onDownload(file)}/>}
+        canExpand={false} onClose={onClose} onDownload={() => onDownload(file)}/>}
     </DialogContent>
   </Dialog>
 }

@@ -3,11 +3,13 @@
 import {useCallback, useEffect, useRef, useState} from 'react'
 import {useRouter} from 'next/navigation'
 import Link from 'next/link'
-import {ArrowLeft, MoreHorizontal, Settings, X} from 'lucide-react'
-import {ProjectFolderIcon} from '@/components/nav-icons'
-import {ProjectPane} from '@/components/workbench/project-pane'
-import {ProjectUploadDialog} from '@/components/project-upload-dialog'
-import {projectWriteReason} from '@/components/project-state-notice'
+import {MoreHorizontal, FolderOpen, FileText, NotebookPen} from 'lucide-react'
+import {ProjectFolderIcon, NewChatIcon} from '@/components/nav-icons'
+import {ProjectFilesPage} from '@/components/project-files-page'
+import {ProjectMemoryPage} from '@/components/project-memory-page'
+import {DataCleanupDialog} from '@/components/data-cleanup-dialog'
+import {Dialog, DialogContent, DialogTitle, DialogDescription} from '@/components/ui/dialog'
+import {SegmentedControl} from '@/components/ui/segmented-control'
 import {DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger} from '@/components/ui/dropdown-menu'
 import {toast} from 'sonner'
 import {Button} from '@/components/ui/button'
@@ -39,19 +41,23 @@ export function ProjectWorkspace({projectId}: {projectId: string}) {
   const [all, setAll] = useState(false)
   const [settings, setSettings] = useState(false)
   const [memoryOpen,setMemoryOpen]=useState(false)
-  const [memorySection,setMemorySection]=useState<'instructions' | 'notes'>('instructions')
+  const [memorySection,setMemorySection]=useState<'instructions' | 'notes' | 'summaries'>('instructions')
+  const [memoryHistory,setMemoryHistory]=useState(false)
+  const [deleteProject,setDeleteProject]=useState(false)
+  const [search,setSearch]=useState('')
   const [sending, setSending] = useState(false)
   const [sendError, setSendError] = useState<string | null>(null)
   const [occupier, setOccupier] = useState<string | null>(null)
-  const [panel, setPanel] = useState<'files' | 'snapshots' | 'audit' | null>(null)
-  const [upload, setUpload] = useState(false)
+  const [panel, setPanel] = useState<'files' | 'instructions' | 'notes' | null>(null)
+  const [management, setManagement] = useState<'snapshots' | 'audit' | null>(null)
   const composerRef = useRef<HTMLDivElement>(null)
   const focusComposer = useCallback(() => {
     setPanel(null)
+    window.history.replaceState(null, '', window.location.pathname)
     requestAnimationFrame(() => {composerRef.current?.scrollIntoView({block:'center'});composerRef.current?.querySelector('textarea')?.focus()})
   }, [])
   useEffect(() => {
-    const navigate = () => {if(window.location.hash === '#new-conversation') focusComposer();else if(window.location.hash === '#files') setPanel('files')}
+    const navigate = () => {if(window.location.hash === '#new-conversation') focusComposer();else if(['#files','#instructions','#notes'].includes(window.location.hash)) setPanel(window.location.hash.slice(1) as 'files' | 'instructions' | 'notes')}
     const frame = requestAnimationFrame(navigate)
     const compose = (event: Event) => {if((event as CustomEvent<string>).detail === projectId) focusComposer()}
     const home = (event: Event) => {if((event as CustomEvent<string>).detail === projectId) setPanel(null)}
@@ -130,45 +136,53 @@ export function ProjectWorkspace({projectId}: {projectId: string}) {
   if (loading) return <div className="p-6 text-meta text-faint">正在打开项目</div>
   if (!project) return <div className="p-6"><p role="alert" className="text-state-failed">{error ?? '项目不存在'}</p><Button variant="ghost" onClick={() => void refresh()}>重试</Button><Button variant="ghost" onClick={() => router.push('/')}>返回首页</Button></div>
 
-  return <div className="flex h-full min-w-0">
-    <main className="flex min-w-0 flex-1 flex-col">
-      <header className="flex flex-wrap items-center gap-2 border-b px-4 py-3">
-        <div className="min-w-0 flex-1"><h1 className="flex min-w-0 items-center gap-1.5 text-base font-semibold"><ProjectFolderIcon className="size-5 shrink-0 text-muted-foreground"/><span className="truncate" title={project.name}>{project.name}</span></h1></div>
-        <DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="icon-sm" aria-label="项目管理"><MoreHorizontal/></Button></DropdownMenuTrigger><DropdownMenuContent align="end">
-          <DropdownMenuItem onSelect={()=>setPanel('files')}>管理项目文件与导出</DropdownMenuItem>
-          <DropdownMenuItem onSelect={()=>setPanel('snapshots')}>恢复项目文件</DropdownMenuItem>
-          <DropdownMenuItem onSelect={()=>setPanel('audit')}>项目操作记录</DropdownMenuItem>
-          <DropdownMenuItem onSelect={()=>void archive()}>{project.archived ? '恢复已归档项目' : '归档项目'}</DropdownMenuItem>
-        </DropdownMenuContent></DropdownMenu>
-        <Button size="icon-sm" variant="ghost" title="项目设置" aria-label="项目设置" onClick={() => setSettings(true)}><Settings/></Button>
-        <Button size="icon-sm" variant="ghost" title="关闭项目" aria-label="关闭项目" onClick={() => router.push('/')}><X/></Button>
-      </header>
-      {panel && <div className="flex min-h-0 flex-1 flex-col"><Button variant="ghost" className="m-3 self-start" onClick={()=>setPanel(null)}><ArrowLeft className="size-4"/>返回项目主页</Button><ManagedProjectPane key={`${projectId}:${panel}`} projectId={projectId} section={panel} conversationTitles={Object.fromEntries(sessions.map(session=>[session.session_id,session.title]))}/></div>}<div hidden={!!panel} className={panel ? "hidden" : "min-h-0 flex-1 overflow-y-auto"}><div className="mx-auto w-full max-w-(--reading-column) space-y-6 px-5 py-6 sm:px-8 sm:py-8">
-        {error && <p role="alert" className="text-meta text-state-failed">{error}<Button size="sm" variant="ghost" onClick={() => void refresh()}>重试</Button></p>}
-        {(!project.available || project.archived) && <div className="border-l-2 border-state-waiting pl-3 text-meta"><p>{project.archived ? '项目已归档，历史对话仍可查看。' : project.reason ?? '项目目录不可用'}</p><Button size="sm" variant="ghost" onClick={() => void archive()}>{project.archived ? '恢复项目' : '归档项目'}</Button>{!project.available && <Button size="sm" variant="ghost" onClick={registry?.openProject}>打开其他项目</Button>}</div>}
-        <ProjectStateNotice showStats={false} project={project} onChanged={() => {void refresh(); void registry?.refresh()}}/>
-        <section id="new-conversation" aria-label="开始新对话" ref={composerRef}><ChatInput draftScope={scope} selectedProject={project} onSend={send} disabled={sending || !project.available || project.archived || !!project.file_operation || !!project.occupying_session_id} placeholder="描述这次希望完成的任务……" commandHost={{hasSession: false, hasRuns: false, runStatus: 'idle', waitingApproval: false, waitingReply: false, submitting: sending, compacting: false, actions: {compact: () => toast.message('还没有可压缩的上下文')}}}/></section>
-        <div className="grid gap-8 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] lg:gap-10">
-          <section className="min-w-0" aria-labelledby="project-conversations-heading">
-            <div className="mb-4 flex min-h-8 items-center justify-between gap-2"><h2 id="project-conversations-heading" className="text-sm font-semibold">{all ? '项目对话' : '最近对话'}</h2>{!all && total > 5 && <Button size="sm" variant="ghost" className="text-muted-foreground" onClick={() => {setAll(true); visibleCount.current = 50; void refreshList()}}>查看全部（{total}）</Button>}</div>
-            {listError ? <p role="alert" className="text-meta text-state-failed">{listError}<Button variant="ghost" size="sm" onClick={() => void refreshList()}>重试</Button></p> : sessions.length ? <div className="space-y-2">{sessions.map(session => <div key={session.session_id} className="py-1"><SessionItem session={session} href={`/sessions/${session.session_id}`} isActive={false} onDelete={setRemove} onRename={setRename}/></div>)}</div> : <p className="py-6 text-sm text-muted-foreground">还没有对话。从上方输入任务开始。</p>}
-            {all && sessions.length < total && <Button variant="ghost" size="sm" className="mt-3" onClick={() => {visibleCount.current += 50; void refreshList()}}>加载更多</Button>}
+  const changed = () => {void refresh(); void refreshList(); void registry?.refresh()}
+  const tabs = [{value: 'conversations', label: '对话', icon: NewChatIcon}, {value: 'files', label: '文件', icon: FolderOpen}, {value: 'instructions', label: '说明', icon: FileText}, {value: 'notes', label: '笔记', icon: NotebookPen}] as const
+  const selectedTab = panel === 'files' || panel === 'instructions' || panel === 'notes' ? panel : 'conversations'
+  const switchTab = (next: 'conversations' | 'files' | 'instructions' | 'notes') => {
+    setPanel(next === 'conversations' ? null : next)
+    window.history.replaceState(null, '', next === 'conversations' ? window.location.pathname : `#${next}`)
+  }
+  const history = (field: 'instructions' | 'notes') => {setMemorySection(field); setMemoryHistory(true); setMemoryOpen(true)}
+  return <div className="flex h-full min-w-0 flex-col">
+    <header className="flex shrink-0 items-center gap-3 border-b px-5 py-3 sm:px-8">
+      <h1 className="flex min-w-0 flex-1 items-center gap-2 text-base font-semibold"><ProjectFolderIcon className="size-5 shrink-0 text-muted-foreground"/><span className="truncate" title={project.name}>{project.name}</span>{project.archived && <span className="shrink-0 text-xs font-normal text-muted-foreground">已归档</span>}</h1>
+      <DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="icon-sm" aria-label="项目操作" title="项目操作"><MoreHorizontal/></Button></DropdownMenuTrigger><DropdownMenuContent align="end">
+        <DropdownMenuItem onSelect={() => setSettings(true)}>项目设置</DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => setManagement('snapshots')}>恢复项目文件</DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => setManagement('audit')}>项目操作记录</DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => {setMemorySection('summaries'); setMemoryHistory(false); setMemoryOpen(true)}}>对话摘要与记忆预览</DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => void archive()}>{project.archived ? '取消归档' : '归档项目'}</DropdownMenuItem>
+        <DropdownMenuItem variant="destructive" onSelect={() => setDeleteProject(true)}>删除项目</DropdownMenuItem>
+      </DropdownMenuContent></DropdownMenu>
+    </header>
+    <div className="min-h-0 flex-1 overflow-y-auto">
+      <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-5 py-5 sm:px-8 sm:py-6">
+        <SegmentedControl value={selectedTab} onValueChange={switchTab} options={tabs} label="项目页面" idPrefix="project-page" className="w-full sm:w-[360px]"/>
+        {error && <p role="alert" className="text-sm text-state-failed">{error}<Button size="sm" variant="ghost" onClick={() => void refresh()}>重试</Button></p>}
+        {(!project.available || project.archived) && <div className="border-l-2 border-state-waiting pl-3 text-sm"><p>{project.archived ? '项目已归档，历史内容仍可查看。' : project.reason ?? '项目目录不可用'}</p>{project.archived && <Button size="sm" variant="ghost" onClick={() => void archive()}>取消归档</Button>}</div>}
+        <section hidden={!!panel} id="project-page-panel-conversations" role="tabpanel" aria-labelledby="project-page-conversations" className="space-y-7">
+          <div id="new-conversation" aria-label="开始新对话" ref={composerRef} className="space-y-3">
+            <h2 className="text-sm font-semibold">开始新对话</h2>
+            <ProjectStateNotice showStats={false} project={project} onChanged={changed}/>
+            <ChatInput draftScope={scope} selectedProject={project} onSend={send} disabled={sending || !project.available || project.archived || !!project.file_operation || !!project.occupying_session_id} placeholder="描述希望完成的任务……" commandHost={{hasSession: false, hasRuns: false, runStatus: 'idle', waitingApproval: false, waitingReply: false, submitting: sending, compacting: false, actions: {compact: () => toast.message('还没有可压缩的上下文')}}}/>
+            {(sendError || project.occupying_session_id) && <p className="text-sm text-muted-foreground">{sendError ?? '此项目有正在运行或等待处理的对话。'}{(occupier || project.occupying_session_id) && <><Link className="ml-2 text-signal underline" href={`/sessions/${occupier ?? project.occupying_session_id}`}>打开占用对话</Link><Button variant="ghost" size="sm" disabled={stopping} onClick={async () => {setStopping(true);try {await sessionApi.stopSession(occupier || project.occupying_session_id!);setOccupier(null);setSendError(null);changed()} catch (error) {toast.error(error instanceof Error ? error.message : '停止失败')} finally {setStopping(false)}}}>停止运行</Button></>}</p>}
+          </div>
+          <section aria-labelledby="project-conversations-heading"><div className="mb-3 flex flex-wrap min-h-8 items-center justify-between gap-3"><h2 id="project-conversations-heading" className="text-sm font-semibold">项目对话</h2>{total > 5 && <div className="flex items-center gap-2">{!all && <Button size="sm" variant="ghost" onClick={() => {setAll(true); visibleCount.current=50; void refreshList()}}>查看全部（{total}）</Button>}{all && <input type="search" aria-label="搜索已加载的项目对话" placeholder="搜索已加载的对话" value={search} onChange={event => setSearch(event.target.value)} className="w-56 rounded-md border bg-card px-3 py-1.5 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"/>}</div>}</div>
+            {listError ? <p role="alert" className="text-sm text-state-failed">{listError}<Button variant="ghost" size="sm" onClick={() => void refreshList()}>重试</Button></p> : sessions.length ? <div className="space-y-2">{sessions.filter(session => !search || session.title.toLowerCase().includes(search.toLowerCase())).map(session => <SessionItem key={session.session_id} session={session} href={`/sessions/${session.session_id}`} isActive={false} onDelete={setRemove} onRename={setRename}/>)}{search && !sessions.some(session => session.title.toLowerCase().includes(search.toLowerCase())) && <p className="py-4 text-sm text-muted-foreground">已加载的对话中没有匹配结果。</p>}</div> : <p className="py-5 text-sm text-muted-foreground">还没有对话。从上方输入开始。</p>}
+            {all && sessions.length < total && <Button variant="ghost" size="sm" className="mt-3" onClick={() => {visibleCount.current+=50; void refreshList()}}>加载更多</Button>}
           </section>
-          <aside aria-label="项目资料" className="min-w-0 space-y-6 border-t pt-6 lg:border-t-0 lg:border-l lg:pt-0 lg:pl-6">
-            <section aria-labelledby="project-files-heading"><div className="mb-3 flex min-h-8 items-center justify-between gap-2"><h2 id="project-files-heading" className="text-sm font-semibold">项目文件</h2><Button size="sm" variant="ghost" className="text-muted-foreground" disabled={!!projectWriteReason(project)} title={projectWriteReason(project) || '添加供本项目后续任务使用的材料'} onClick={()=>setUpload(true)}>添加</Button></div><ProjectPane key={projectId} sessionId={projectId} projectLevel downloadProjectId={projectId} overview refreshSignal={project.updated_at ? Date.parse(project.updated_at) : 0}/><Button variant="ghost" size="sm" className="mt-2 text-muted-foreground" onClick={()=>setPanel('files')}>查看全部文件</Button></section>
-            <section className="border-t pt-4"><div className="mb-2 flex items-center justify-between gap-2"><h2 className="text-sm font-semibold">项目说明</h2><Button variant="ghost" size="sm" className="text-muted-foreground" onClick={()=>{setMemorySection('instructions');setMemoryOpen(true)}}>编辑</Button></div><p className="line-clamp-2 text-sm leading-relaxed text-muted-foreground">{project.instructions || '尚未设置长期要求'}</p></section>
-            <section className="border-t pt-4"><div className="flex items-center justify-between gap-2"><h2 className="text-sm font-semibold">项目笔记</h2><Button variant="ghost" size="sm" className="text-muted-foreground" onClick={()=>{setMemorySection('notes');setMemoryOpen(true)}}>查看</Button></div><p className="mt-1 text-sm text-muted-foreground">{project.notes?.trim() ? '已有笔记' : '尚无笔记'}</p></section>
-          </aside>
-        </div>
+        </section>
+        <div hidden={panel !== 'files'} id="project-page-panel-files" role="tabpanel" aria-labelledby="project-page-files"><ProjectFilesPage project={project} onChanged={changed}/></div>
+        {(['instructions', 'notes'] as const).map(field => <div key={field} hidden={panel !== field} id={`project-page-panel-${field}`} role="tabpanel" aria-labelledby={`project-page-${field}`}><ProjectMemoryPage project={project} field={field} onSaved={changed} onHistory={() => history(field)}/></div>)}
 
-        {(sendError || project.occupying_session_id) && <p className="text-meta text-muted-foreground">{sendError ?? '此项目有正在运行或等待处理的对话。'}{(occupier || project.occupying_session_id) && <Link className="ml-2 text-signal underline" href={`/sessions/${occupier ?? project.occupying_session_id}`}>返回占用对话</Link>}{(occupier || project.occupying_session_id) && <Button variant="ghost" size="sm" disabled={stopping} onClick={async () => {setStopping(true);try{await sessionApi.stopSession(occupier || project.occupying_session_id!);setOccupier(null);setSendError(null);await refresh();await registry?.refresh()}catch(error){toast.error(error instanceof Error ? error.message : '停止失败')}finally{setStopping(false)}}}>停止占用运行</Button>}</p>}
-
-      </div></div>
-    </main>
-    <ProjectUploadDialog open={upload} projectId={projectId} disabledReason={projectWriteReason(project)} onClose={()=>setUpload(false)} onUploaded={()=>{void refresh();void registry?.refresh()}}/>
-    <ProjectMemoryPanel projectId={projectId} open={memoryOpen} initialSection={memorySection} onClose={()=>setMemoryOpen(false)} onChanged={()=>{void refresh();void refreshList();void registry?.refresh()}}/>
-    <ProjectSettingsDialog id={settings ? projectId : null} onClose={() => setSettings(false)} onSaved={() => {void refresh(); void registry?.refresh()}}/>
-    {rename && <RenameSessionDialog open sessionId={rename.session_id} currentTitle={rename.title} onOpenChange={open => {if (!open) setRename(null)}} onSaved={() => {void refreshList(); void registry?.refresh()}}/>}
-    <DeleteSessionDialog open={!!remove} onOpenChange={open => {if (!open) setRemove(null)}} onConfirm={async () => {if (remove) {try {await sessionApi.deleteSession(remove.session_id); setRemove(null); await refreshList(); await registry?.refresh()} catch (err) {toast.error(err instanceof Error ? err.message : '删除失败')}}}}/>
+      </div>
+    </div>
+    <Dialog open={!!management} onOpenChange={open => {if (!open) setManagement(null)}}><DialogContent className="flex h-[85dvh] w-[calc(100%-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-4xl"><DialogTitle className="sr-only">{management === 'audit' ? '项目操作记录' : '恢复项目文件'}</DialogTitle><DialogDescription className="sr-only">{project.name}</DialogDescription><div className="min-h-0 flex-1 overflow-y-auto">{management && <ManagedProjectPane projectId={projectId} section={management} conversationTitles={Object.fromEntries(sessions.map(session => [session.session_id, session.title]))}/>}</div></DialogContent></Dialog>
+    <ProjectMemoryPanel projectId={projectId} open={memoryOpen} initialSection={memorySection} initialOverlay={memoryHistory ? 'history' : null} onClose={() => setMemoryOpen(false)} onChanged={changed}/>
+    <ProjectSettingsDialog id={settings ? projectId : null} onClose={() => setSettings(false)} onSaved={changed}/>
+    <DataCleanupDialog open={deleteProject} projectId={projectId} onClose={() => setDeleteProject(false)} onCompleted={() => {void registry?.refresh(); router.replace('/')}}/>
+    {rename && <RenameSessionDialog open sessionId={rename.session_id} currentTitle={rename.title} onOpenChange={open => {if (!open) setRename(null)}} onSaved={changed}/>}
+    <DeleteSessionDialog open={!!remove} onOpenChange={open => {if (!open) setRemove(null)}} onConfirm={async () => {if (remove) {try {await sessionApi.deleteSession(remove.session_id); setRemove(null); changed()} catch (err) {toast.error(err instanceof Error ? err.message : '删除失败')}}}}/>
   </div>
 }

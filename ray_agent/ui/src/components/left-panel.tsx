@@ -12,6 +12,7 @@ import {SettingsDialog} from '@/components/settings/settings-dialog'
 import {SidebarChrome} from '@/components/sidebar-chrome'
 import {NavigationCreateButton, ProjectNavigation, type NavigationExpansion, type NavigationProject} from '@/components/project-navigation'
 import {ProjectSettingsDialog} from '@/components/project-settings-dialog'
+import {DataCleanupDialog} from '@/components/data-cleanup-dialog'
 import {DeleteSessionDialog} from '@/components/delete-session-dialog'
 import {RenameSessionDialog} from '@/components/rename-session-dialog'
 import {useProjects} from '@/providers/projects-provider'
@@ -34,6 +35,7 @@ export function LeftPanel() {
   const [selectedRecord, setSelected] = useState<Session | null>(null)
   const [locatedProject, setLocatedProject] = useState<ProjectView | null>(null)
   const [settings, setSettings] = useState<string | null>(null)
+  const [projectDelete, setProjectDelete] = useState<string | null>(null)
   const [appSettingsOpen, setAppSettingsOpen] = useState(false)
   const [pendingDelete, setPendingDelete] = useState<Session | null>(null)
   const [pendingRename, setPendingRename] = useState<Session | null>(null)
@@ -108,7 +110,12 @@ export function LeftPanel() {
         } catch (err) {return {...project, taskCount: project.task_count, conversations: selected?.project?.id === project.id ? [selected] : [], navigationError: err instanceof Error ? err.message : '读取对话失败'}}
       }))
       if (active) {
-        setRows(next)
+        // 收起时保留已加载条目，让退出动画完成；总数归零后立即清除旧内容。
+        setRows(currentRows => next.map(project => {
+          if (project.taskCount === 0 || (expansion.projects && expansion.items[project.id])) return project
+          const previous = currentRows.find(item => item.id === project.id)
+          return previous ? {...project, conversations: previous.conversations, navigationError: previous.navigationError} : project
+        }))
 
       }
     }
@@ -153,13 +160,14 @@ export function LeftPanel() {
           <ProjectNavigation projects={projectRows} conversations={conversations} expansion={expansion} onExpansion={expand} selectedProject={projectId} selectedSession={sessionId}
             tab={workspace.navigationTab} onTabChange={workspace.setNavigationTab} onOpenArchived={workspace.openArchived} onMoreProjects={workspace.projects.length < workspace.total ? () => void workspace.more() : undefined}
             loading={workspace.loading} error={workspace.error} onRetry={() => void workspace.refresh()} onOpenProject={workspace.openProject}
-            onProjectSettings={setSettings} onArchive={id => void archive(id)} onSessionDelete={setPendingDelete} onSessionRename={setPendingRename} onNavigate={() => setOpenMobile(false)}/>
+            onProjectSettings={setSettings} onProjectDelete={setProjectDelete} onArchive={id => void archive(id)} onSessionDelete={setPendingDelete} onSessionRename={setPendingRename} onNavigate={() => setOpenMobile(false)}/>
         </div>
       </SidebarContent>
       <SidebarFooter><Button variant="ghost" className="w-full justify-start gap-2.5 text-muted-foreground group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:self-center group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0" onClick={() => {setOpenMobile(false); setAppSettingsOpen(true)}} title="设置" aria-label="设置"><Settings className="size-[18px]" aria-hidden="true"/><span className="group-data-[collapsible=icon]:hidden">设置</span></Button></SidebarFooter>
     </Sidebar>
     <SettingsDialog open={appSettingsOpen} onOpenChange={setAppSettingsOpen}/>
     <ProjectSettingsDialog id={settings} onClose={() => setSettings(null)} onSaved={() => void workspace.refresh()}/>
+    <DataCleanupDialog open={!!projectDelete} projectId={projectDelete || undefined} onClose={() => setProjectDelete(null)} onCompleted={() => {setProjectDelete(null); void workspace.refresh(); void refresh(); router.replace('/')}}/>
     <DeleteSessionDialog open={!!pendingDelete} onOpenChange={open => {if (!open) setPendingDelete(null)}} onConfirm={remove}/>
     {pendingRename && <RenameSessionDialog sessionId={pendingRename.session_id} currentTitle={pendingRename.title} open onOpenChange={open => {if (!open) setPendingRename(null)}} onSaved={title => {
       const id = pendingRename.session_id

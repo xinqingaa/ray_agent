@@ -123,6 +123,7 @@ node scripts/check-command-state.cjs
 node scripts/check-send-recovery.cjs
 node scripts/check-workbench-recovery.cjs
 node scripts/check-project-navigation-recovery.cjs
+node scripts/check-project-ui-actions.cjs
 node scripts/check-project-upload-tree.cjs
 ```
 
@@ -133,3 +134,7 @@ node scripts/check-project-upload-tree.cjs
 项目导航恢复脚本通过实际组件检查分页请求过期、首屏之外的当前项目与对话定位、读取失败保留当前对话，以及清单为空但对象回收待重试时的清理入口；请求与基础 UI 为替身，真实数据库和浏览器需另行验证。
 
 导入审核树检查使用实际扫描器与 React 组件、合成文件和规则，核对筛选不改变上传集合、禁止项无确认入口、未知大小与确认后扫描、覆盖和失败状态。组件状态目录增加“项目导入审核树”，多层和长列表数据明确为合成，不替代真实文件选择与上传验收。
+
+项目主页使用对话、文件、说明、笔记页签，项目对话与独立对话共用 `SessionItem`。文件管理默认平铺系统目录，不暴露系统目录入口；说明与笔记复用既有草稿、版本冲突及历史编辑器。危险操作确认由 `DataCleanupDialog` 统一处理，`DataCleanupNotice` 在弹窗关闭后继续读取进度；清理完成通过同源通知刷新导航并清除目标草稿。组件检查不能替代永久删除的隔离数据库验证。
+
+项目操作检查使用固定占用响应挂载实际数据确认与设置数据分区，验证查看占用时同时退出父层设置与清空确认再导航，离开被拒绝时不导航、不触发清理；不修改真实任务状态。

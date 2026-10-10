@@ -7,6 +7,7 @@ import {subscribeCatalog} from '@/lib/catalog-bus'
 import {ProjectUploadDialog} from '@/components/project-upload-dialog'
 import type {ProjectView} from '@/lib/api/types'
 import {ProjectPicker} from '@/components/project-picker'
+import {applyDataCleared, DATA_CLEARED} from '@/lib/drafts'
 
 function projectSignature(project: ProjectView) {
   const operation = project.file_operation
@@ -78,6 +79,17 @@ export function ProjectsProvider({children}: {children: ReactNode}) {
     return () => {generation.current++; window.clearTimeout(timer); unsubscribe(); window.removeEventListener('focus', visible); document.removeEventListener('visibilitychange', onVisibility)}
   }, [refresh])
   const more = useCallback(async () => {count.current += 50; await refresh()}, [refresh])
+  useEffect(() => {
+    const cleared = (event: Event) => {
+      const data = (event as CustomEvent).detail
+      void refresh()
+      const path = window.location.pathname
+      if (data.scope === 'all' || data.project_ids.some((id: string) => path === `/projects/${id}`) || data.session_ids.some((id: string) => path === `/sessions/${id}`)) router.replace('/')
+    }
+    const storage = (event: StorageEvent) => {if (event.key === 'rayagent:data-cleared' && event.newValue) {try {applyDataCleared(JSON.parse(event.newValue))} catch {}}}
+    window.addEventListener(DATA_CLEARED, cleared); window.addEventListener('storage', storage)
+    return () => {window.removeEventListener(DATA_CLEARED, cleared); window.removeEventListener('storage', storage)}
+  }, [refresh, router])
   const openProject = useCallback(() => {setNavigationTab('projects'); setNavigationRequest(n => n + 1)}, [])
   const createProject = () => {setPickerMode('create'); setOpen(true)}
   const openArchived = () => {setPickerMode('archived'); setOpen(true)}

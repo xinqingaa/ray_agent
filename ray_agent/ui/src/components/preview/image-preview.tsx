@@ -1,7 +1,7 @@
 'use client'
 
 import {useRef, useState} from 'react'
-import {Download, Expand, Minus, Plus, Scan, SquareDashed} from 'lucide-react'
+import {Download, Expand, Minus, Plus, Scan, SquareDashed, X} from 'lucide-react'
 import {Dialog, DialogContent, DialogDescription, DialogTitle} from '@/components/ui/dialog'
 import {PreviewAction} from './action'
 
@@ -65,12 +65,13 @@ function ImagePreviewContent({src, originalSrc, title, onDownload, onError, dime
       </button>}
     </div>
     <Dialog open={expanded} onOpenChange={setExpanded}>
-      <DialogContent className="flex h-[90dvh] w-[95vw] max-w-[95vw] flex-col gap-0 overflow-hidden p-0 sm:max-w-[95vw]">
+      <DialogContent showCloseButton={false} className="flex h-[90dvh] w-[95vw] max-w-[95vw] flex-col gap-0 overflow-hidden p-0 sm:max-w-[95vw]">
         <DialogTitle className="sr-only">{title}</DialogTitle><DialogDescription className="sr-only">图片预览</DialogDescription>
-        <header className="flex shrink-0 items-center gap-1 border-b px-3 py-2 pr-12">
+        <header className="flex shrink-0 items-center gap-1 border-b px-3 py-2">
           <span className="mr-auto min-w-0 truncate text-sm">{title}</span>
           {controls}
           {onDownload && <PreviewAction label={`下载 ${title}`} icon={Download} onClick={onDownload}/>} 
+          <PreviewAction label="关闭预览" icon={X} onClick={()=>setExpanded(false)}/>
         </header>
         <ImageCanvas src={expandedSrc} title={title} scale={scale}/>
       </DialogContent>

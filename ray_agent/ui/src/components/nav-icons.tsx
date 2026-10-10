@@ -1,6 +1,6 @@
 /** 导航统一使用 Lucide 图标，不维护独立 SVG。 */
 export {
-  MessageCirclePlus as NewChatIcon,
+  MessagesSquare as NewChatIcon,
   FolderPlus as NewProjectIcon,
   FolderOpen as ImportFolderIcon,
   Files as MemoryIcon,

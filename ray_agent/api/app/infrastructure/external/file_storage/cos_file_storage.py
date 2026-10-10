@@ -111,4 +111,9 @@ class CosFileStorage(FileStorage):
     async def delete_visual_file(self, file: File) -> None:
         if not file.visual or not file.visual.get('temporary'):
             raise ValueError('只能回收登记的临时视觉文件')
+        await self.delete_file(file)
+
+    async def delete_file(self, file: File) -> None:
+        if not file.key:
+            raise ValueError('缺少文件存储位置')
         await run_in_threadpool(self.cos.client.delete_object, Bucket=self.bucket, Key=file.key)

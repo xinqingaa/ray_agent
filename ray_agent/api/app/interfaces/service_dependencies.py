@@ -87,6 +87,15 @@ def get_session_service() -> SessionService:
     return SessionService(uow_factory=get_uow, sandbox_cls=DockerSandbox)
 
 
+def get_data_cleanup_service():
+    from app.application.services.data_cleanup_service import DataCleanupService
+    from app.infrastructure.repositories.db_data_cleanup_repository import DBDataCleanupRepository
+    from app.infrastructure.external.project.data_cleanup_resources import DataCleanupResources
+    from app.infrastructure.storage.postgres import get_session_factory
+    return DataCleanupService(DBDataCleanupRepository(get_session_factory()),
+        DataCleanupResources(get_managed_storage(), get_file_storage(), get_settings(), get_redis().client))
+
+
 def get_file_preview_service():
     from app.application.services.file_preview_service import FilePreviewService
     return FilePreviewService(get_file_service(), get_project_service())

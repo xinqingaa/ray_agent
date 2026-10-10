@@ -38,10 +38,10 @@ export function DeleteSessionDialog({open, onOpenChange, onConfirm}: DeleteSessi
       <DialogContent className="sm:max-w-[440px]">
         <DialogHeader>
           <DialogTitle className="text-lg font-semibold">
-            要删除任务信息吗？
+            永久删除这段对话？
           </DialogTitle>
           <DialogDescription className="text-sm text-muted-foreground leading-relaxed">
-            删除任务信息后，该任务下的所有聊天记录将被永远删除，无法找回，所上传的文件与生成文件均无法查看&下载。
+            对话历史将永久删除，无法恢复。项目共享文件、说明与笔记会保留。
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
@@ -54,11 +54,12 @@ export function DeleteSessionDialog({open, onOpenChange, onConfirm}: DeleteSessi
             取消
           </Button>
           <Button
+            variant="destructive"
             className="cursor-pointer"
             onClick={handleConfirm}
             disabled={deleting}
           >
-            {deleting ? '删除中...' : '确认'}
+            {deleting ? '正在删除' : '永久删除对话'}
           </Button>
         </DialogFooter>
       </DialogContent>

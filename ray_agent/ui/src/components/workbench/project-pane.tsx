@@ -11,6 +11,7 @@ import {toast} from 'sonner'
 import {useDeveloperMode} from '@/hooks/use-developer-mode'
 import {FilePreview} from '@/components/preview/file-preview'
 import {Dialog, DialogContent, DialogDescription, DialogTitle} from '@/components/ui/dialog'
+import {formatBytes} from '@/components/run/format'
 
 function EmptyNote({children}: {children: string}) {
   return <p className="px-4 py-8 text-center text-meta text-faint">{children}</p>
@@ -25,8 +26,9 @@ type TreeNode = {
   error?: string
 }
 
-export function ProjectPane({sessionId, refreshSignal, projectLevel = false, downloadProjectId, overview = false}: {sessionId: string; refreshSignal?: number; projectLevel?: boolean; downloadProjectId?: string; overview?: boolean}) {
+export function ProjectPane({sessionId, refreshSignal, projectLevel = false, downloadProjectId, overview = false, fullPage = false, query = ''}: {sessionId: string; refreshSignal?: number; projectLevel?: boolean; downloadProjectId?: string; overview?: boolean; fullPage?: boolean; query?: string}) {
   const {visibility} = useDeveloperMode()
+  const modalPreview = overview || fullPage
   const epoch = useRef(0)
   const [revision, setRevision] = useState(0)
   const [rootLoading, setRootLoading] = useState(true)
@@ -42,7 +44,7 @@ export function ProjectPane({sessionId, refreshSignal, projectLevel = false, dow
     setRootLoading(true)
     setRootError(null)
     void projectApi.getTree(sessionId, '', projectLevel).then(async (listing) => {
-      if (projectLevel && !visibility.projectPaths) {
+      if (projectLevel) {
         const groups = await Promise.all(listing.entries.map(async entry => {
           if (entry.type !== 'directory' || !['uploads', 'outputs'].includes(entry.path)) return {entries:[entry], truncated:false}
           const children = await projectApi.getTree(sessionId, entry.path, projectLevel)
@@ -61,7 +63,7 @@ export function ProjectPane({sessionId, refreshSignal, projectLevel = false, dow
     }).finally(() => {if (current === epoch.current) setRootLoading(false)})
     const epochCounter = epoch
     return () => {epochCounter.current++}
-  }, [sessionId, projectLevel, refreshSignal, revision, openFile, visibility.projectPaths])
+  }, [sessionId, projectLevel, refreshSignal, revision, openFile])
 
   const toggleDir = async (path: string) => {
     const node = nodes[path]
@@ -97,6 +99,7 @@ export function ProjectPane({sessionId, refreshSignal, projectLevel = false, dow
     }
   }
 
+  const displayPath = (path: string) => projectLevel ? path.replace(/^(uploads|outputs)\//, '') : path
   const renderEntry = (entry: ProjectTreeEntry, depth: number) => {
     const node = nodes[entry.path]
     const isDir = entry.type === 'directory'
@@ -111,7 +114,8 @@ export function ProjectPane({sessionId, refreshSignal, projectLevel = false, dow
             else void openFile(entry.path)
           }}
           className={cn(
-            'flex w-full items-center gap-1 py-1 pr-2 text-left text-sm outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring',
+            'flex w-full items-center gap-2 py-1 pr-2 text-left text-sm outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring',
+            fullPage && 'min-h-11 border-b py-2',
             selectedPath === entry.path && 'bg-muted',
           )}
         >
@@ -120,7 +124,9 @@ export function ProjectPane({sessionId, refreshSignal, projectLevel = false, dow
           ) : (
             <FileText className="size-3.5 shrink-0 text-muted-foreground"/>
           )}
-          <span className="min-w-0 truncate text-sm" title={visibility.projectPaths ? entry.path : entry.name}>{entry.name}</span>
+          <span className="min-w-0 flex-1 truncate text-sm" title={visibility.projectPaths ? displayPath(entry.path) : entry.name}>{entry.name}</span>
+          {fullPage && !isDir && <span className="w-20 shrink-0 text-right text-xs font-normal tabular-nums text-muted-foreground">{entry.size == null ? '—' : formatBytes(entry.size)}</span>}
+          {fullPage && !isDir && <span className="hidden w-24 shrink-0 text-right text-xs font-normal tabular-nums text-muted-foreground xl:block">{entry.modified_at ? new Date(entry.modified_at).toLocaleDateString() : '—'}</span>}
           {entry.is_symlink && <span className="text-[10px] text-faint">链接</span>}
         </button>
         {isDir && expanded && node?.loading && (
@@ -139,35 +145,37 @@ export function ProjectPane({sessionId, refreshSignal, projectLevel = false, dow
   if (!root) return <EmptyNote>正在读取项目文件</EmptyNote>
 
   return (
-    <div className={cn("flex min-h-0 flex-1 flex-col", overview && "max-h-96")}>
-      {!overview && <div className="flex items-center border-b px-3 py-2">
+    <div className={cn("flex min-h-0 min-w-0 flex-1 flex-col", overview && "max-h-96" )}>
+      {!overview && !fullPage && <div className="flex items-center border-b px-3 py-2">
         <span className="flex-1 text-meta text-muted-foreground">文件列表</span>
 
         <Button type="button" variant="ghost" size="icon-xs" aria-label="刷新项目文件" disabled={rootLoading} onClick={() => setRevision((n) => n + 1)}>
           {rootLoading ? <Loader2 className="size-4 animate-spin"/> : <RefreshCw className="size-4"/>}
         </Button>
       </div>}
-      <ScrollArea className={cn("min-h-0 shrink-0", selectedPath && !overview ? "max-h-40 border-b" : overview ? "max-h-48" : "flex-1")}>
+      <ScrollArea className={cn("min-h-0 min-w-0 shrink-0 [&_[data-slot=scroll-area-viewport]>div]:block!", fullPage ? 'max-h-[65vh] lg:min-h-80' : selectedPath && !modalPreview ? "max-h-40 border-b" : overview ? "max-h-48" : "flex-1")}>
         <div className="py-1">
-          {root.entries.length === 0 && <p className="px-3 py-4 text-meta text-faint">还没有可查看的文件。</p>}
-          {(overview ? root.entries.slice(0, 4) : root.entries).map((entry) => renderEntry(entry, 0))}
+          {fullPage && root.entries.length > 0 && <div className="flex items-center gap-2 border-b px-2 pb-2 text-xs text-muted-foreground"><span className="flex-1">名称</span><span className="w-20 text-right">大小</span><span className="hidden w-24 text-right xl:block">更新时间</span></div>}
+          {root.entries.length === 0 && <p className="px-3 py-8 text-sm text-muted-foreground">还没有项目文件。可通过“添加文件”供后续对话使用。</p>}
+          {query && !root.entries.some(entry => entry.name.toLowerCase().includes(query.toLowerCase())) && <p className="px-3 py-8 text-sm text-muted-foreground">当前列表没有匹配文件。可清除搜索或展开目录查看。</p>}
+          {(overview ? root.entries.slice(0, 4) : root.entries).filter(entry => !query || entry.name.toLowerCase().includes(query.toLowerCase())).map((entry) => renderEntry(entry, 0))}
           {root.truncated && (
             <p className="px-3 py-2 text-xs text-muted-foreground">条目过多，只显示前 {root.limit} 项。</p>
           )}
         </div>
       </ScrollArea>
-      {overview ? <Dialog open={!!selectedPath} onOpenChange={open=>{if(!open)setSelectedPath(null)}}><DialogContent className="flex h-[90dvh] w-[95vw] flex-col gap-0 overflow-hidden p-0 sm:max-w-[95vw]"><DialogTitle className="sr-only">{selectedPath?.split('/').pop()}</DialogTitle><DialogDescription className="sr-only">项目文件预览</DialogDescription>{selectedPath && <div className="min-h-0 flex-1"><FilePreview key={`${sessionId}:${selectedPath}:${refreshSignal ?? 0}:${revision}`} source={{kind:'project',id:sessionId,path:selectedPath,filename:selectedPath.split('/').pop() || selectedPath,projectLevel}}
-          canExpand={!overview} onBack={() => setSelectedPath(null)} onDownload={downloadProjectId ? () => {void projectApi.download(downloadProjectId,selectedPath).then(value => {
+      {modalPreview ? <Dialog open={!!selectedPath} onOpenChange={open=>{if(!open)setSelectedPath(null)}}><DialogContent showCloseButton={false} className="flex h-[90dvh] w-[95vw] flex-col gap-0 overflow-hidden p-0 sm:max-w-[95vw]"><DialogTitle className="sr-only">{selectedPath?.split('/').pop()}</DialogTitle><DialogDescription className="sr-only">项目文件预览</DialogDescription>{selectedPath && <div className="min-h-0 flex-1"><FilePreview key={`${sessionId}:${selectedPath}:${refreshSignal ?? 0}:${revision}`} source={{kind:'project',id:sessionId,path:selectedPath,filename:selectedPath.split('/').pop() || selectedPath,projectLevel}}
+          canExpand={false} onClose={() => setSelectedPath(null)} onDownload={downloadProjectId ? () => {void projectApi.download(downloadProjectId,selectedPath).then(value => {
             if(value.warning)toast.warning(value.warning)
             const link=document.createElement('a');link.href=value.url;link.download=value.filename;document.body.appendChild(link);link.click();link.remove()
-          }).catch(error => toast.error(error instanceof Error ? error.message : '下载失败'))} : undefined}/></div>}</DialogContent></Dialog> : <div className={cn("min-h-0", selectedPath && "flex min-h-64 flex-1 flex-col")}>
-        {selectedPath && <details className="px-3 py-2 text-xs text-muted-foreground"><summary className="cursor-pointer">文件位置</summary><code className="mt-1 block break-all">{selectedPath}</code></details>}
+          }).catch(error => toast.error(error instanceof Error ? error.message : '下载失败'))} : undefined}/></div>}</DialogContent></Dialog> : <div className={cn("min-h-0", selectedPath && "flex min-h-64 flex-1 flex-col" )}>
+        {selectedPath && displayPath(selectedPath).includes('/') && <details className="px-3 py-2 text-xs text-muted-foreground"><summary className="cursor-pointer">文件位置</summary><code className="mt-1 block break-all">{displayPath(selectedPath)}</code></details>}
         {selectedPath ? <div className="min-h-0 flex-1"><FilePreview key={`${sessionId}:${selectedPath}:${refreshSignal ?? 0}:${revision}`} source={{kind:'project',id:sessionId,path:selectedPath,filename:selectedPath.split('/').pop() || selectedPath,projectLevel}}
-          canExpand={!overview} onBack={() => setSelectedPath(null)} onDownload={downloadProjectId ? () => {void projectApi.download(downloadProjectId,selectedPath).then(value => {
+          canExpand={!modalPreview} onBack={() => setSelectedPath(null)} onDownload={downloadProjectId ? () => {void projectApi.download(downloadProjectId,selectedPath).then(value => {
             if(value.warning)toast.warning(value.warning)
             const link=document.createElement('a');link.href=value.url;link.download=value.filename;document.body.appendChild(link);link.click();link.remove()
           }).catch(error => toast.error(error instanceof Error ? error.message : '下载失败'))} : undefined}/></div>
-          : !overview && <p className="p-4 text-xs text-muted-foreground">点击文件查看内容与下载。</p>}
+          : !overview && !fullPage && <p className="p-4 text-xs text-muted-foreground">点击文件查看内容与下载。</p>}
       </div>}
 
     </div>

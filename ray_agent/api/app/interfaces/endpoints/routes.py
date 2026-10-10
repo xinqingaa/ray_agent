@@ -18,6 +18,8 @@ def create_api_routes() -> APIRouter:
     api_router.include_router(preview_routes.router)
     api_router.include_router(session_routes.router)
     api_router.include_router(project_routes.router)
+    from . import data_routes
+    api_router.include_router(data_routes.router)
 
     # 3.返回api路由实例
     return api_router

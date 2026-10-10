@@ -9,6 +9,8 @@ from app.domain.models.file import File
 from app.domain.repositories.file_repository import FileRepository
 from app.infrastructure.models import FileModel
 from app.infrastructure.models.run import RunModel
+from app.infrastructure.models.data_cleanup import DataCleanupModel
+from app.application.errors.exceptions import ConflictError
 
 
 class DBFileRepository(FileRepository):
@@ -20,6 +22,11 @@ class DBFileRepository(FileRepository):
 
     async def save(self, file: File) -> None:
         """根据传递的文件模型存储or更新数据"""
+        # 清理清单也是删除标识，防止迟到的视觉到期回调重新插入已删除附件。
+        removed = await self.db_session.scalar(select(DataCleanupModel.id).where(
+            DataCleanupModel.manifest['file_ids'].contains([file.id])).limit(1))
+        if removed:
+            raise ConflictError('附件正在清理或已删除')
         # 1.根据id查询记录是否存在
         stmt = select(FileModel).where(FileModel.id == file.id)
         result = await self.db_session.execute(stmt)
