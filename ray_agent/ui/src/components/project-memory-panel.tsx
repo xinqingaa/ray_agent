@@ -1,28 +1,27 @@
 'use client'
 
-import {useCallback, useEffect, useRef, useState, type ReactNode} from 'react'
+import {useCallback, useEffect, useId, useRef, useState, type ReactNode} from 'react'
 import Link from 'next/link'
-import {Eye, FileText, History, MoreHorizontal, NotebookPen, Pencil, ScrollText, X} from 'lucide-react'
+import {ArrowLeft, FileText, History, NotebookPen, Pencil, RefreshCw, ScrollText, X} from 'lucide-react'
 import {useUnsavedNavigation} from '@/hooks/use-unsaved-navigation'
 import {useDeveloperMode} from '@/hooks/use-developer-mode'
 import {Button} from '@/components/ui/button'
 import {IconAction} from '@/components/ui/icon-action'
 import {SegmentedControl} from '@/components/ui/segmented-control'
 import {MarkdownContent} from '@/components/markdown-content'
-import {DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger} from '@/components/ui/dropdown-menu'
+import {ProjectSummaryList} from '@/components/project-summary-list'
 import {Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle} from '@/components/ui/sheet'
 import {subscribeCatalog} from '@/lib/catalog-bus'
 import {projectApi} from '@/lib/api/project'
 import {ApiError} from '@/lib/api/fetch'
-import type {ProjectAuditEvent, ProjectDetails, ProjectMemorySummary, ProjectMemorySnapshot, ProjectMemoryView, Session} from '@/lib/api/types'
+import type {ProjectAuditEvent, ProjectDetails, ProjectMemorySummary, ProjectMemoryView, Session} from '@/lib/api/types'
 import {ProjectSummaryDialog} from '@/components/project-summary-dialog'
-import {cn} from '@/lib/utils'
 
 type Section = 'instructions' | 'notes' | 'summaries'
-type Overlay = 'history' | 'preview' | null
+type Overlay = 'history' | null
 const sections = [{value: 'instructions' as const, label: '说明', icon: FileText}, {value: 'notes' as const, label: '笔记', icon: NotebookPen}, {value: 'summaries' as const, label: '摘要', icon: ScrollText}]
 
-export function ProjectMemoryPanel({projectId, sessionId, open, initialSection = 'instructions', initialOverlay = null, onClose, onChanged}: {initialSection?: Section; initialOverlay?: Overlay; projectId: string; sessionId?: string; open: boolean; onClose: () => void; onChanged?: () => void}) {
+export function ProjectMemoryPanel({projectId, sessionId, open, initialSection = 'instructions', initialOverlay = null, onClose, onChanged, fallbackFocus}: {fallbackFocus?:()=>void; initialSection?: Section; initialOverlay?: Overlay; projectId: string; sessionId?: string; open: boolean; onClose: () => void; onChanged?: () => void}) {
   const {visibility} = useDeveloperMode()
   const [project, setProject] = useState<ProjectDetails | null>(null)
   const [memory, setMemory] = useState<ProjectMemoryView | null>(null)
@@ -34,13 +33,14 @@ export function ProjectMemoryPanel({projectId, sessionId, open, initialSection =
   const [history, setHistory] = useState<ProjectAuditEvent[]>([])
   const [more, setMore] = useState(false)
   const [historyLoading, setHistoryLoading] = useState(false)
-  const [estimating, setEstimating] = useState(false)
   const [summary, setSummary] = useState<{id: string; title: string} | null>(null)
+  const [summaryBusy,setSummaryBusy]=useState(false)
   const [restore, setRestore] = useState<string | null>(null)
+  const panelContent = useRef<HTMLDivElement>(null)
+  const returnFocus = useRef<HTMLElement | null>(null)
   const dirty = useRef(false)
   const epoch = useRef(0)
   const historyEpoch = useRef(0)
-  const estimateEpoch = useRef(0)
 
   const refresh = useCallback(async () => {
     const token = ++epoch.current
@@ -61,6 +61,7 @@ export function ProjectMemoryPanel({projectId, sessionId, open, initialSection =
   useEffect(() => {
     if (!open) return
     setProject(null)
+    setSummary(null)
     setMemory(null)
     setCandidates([])
     setSessions([])
@@ -80,18 +81,18 @@ export function ProjectMemoryPanel({projectId, sessionId, open, initialSection =
     window.addEventListener('focus', visible)
     const counter = epoch
     const historyCounter = historyEpoch
-    const estimateCounter = estimateEpoch
-    return () => {counter.current++; historyCounter.current++; estimateCounter.current++; setEstimating(false); window.clearTimeout(timer); unsubscribe(); window.removeEventListener('focus', visible)}
+    return () => {counter.current++; historyCounter.current++; window.clearTimeout(timer); unsubscribe(); window.removeEventListener('focus', visible)}
   }, [open, projectId, refresh, initialSection, initialOverlay])
 
-  useUnsavedNavigation(() => dirty.current, open)
-  const leave = () => {if (!dirty.current || window.confirm('项目记忆有未保存的修改，放弃修改并关闭？')) onClose()}
+  useUnsavedNavigation(() => dirty.current || summaryBusy, open)
+  const leave = () => {if(summaryBusy)return;if (!dirty.current || window.confirm('项目记忆有未保存的修改，放弃修改并关闭？')) onClose()}
 
   const changeSection = (next: Section) => {
     if (next === section && overlay === null) return
     if (next !== section && dirty.current && !window.confirm('放弃当前未保存的修改并切换分区？')) return
     if (next !== section) {dirty.current = false; setRestore(null)}
     setSection(next)
+    setSummary(null)
     setOverlay(null)
   }
 
@@ -118,42 +119,27 @@ export function ProjectMemoryPanel({projectId, sessionId, open, initialSection =
 
   return (
     <Sheet open={open} onOpenChange={value => {if (!value) leave()}}>
-      <SheetContent showCloseButton={false} className="w-full gap-0 overflow-hidden p-0 sm:max-w-[480px]">
+      <SheetContent ref={panelContent} onOpenAutoFocus={event=>{returnFocus.current=document.activeElement instanceof HTMLElement ? document.activeElement : null;event.preventDefault();panelContent.current?.focus()}} onCloseAutoFocus={event=>{if(returnFocus.current?.isConnected){event.preventDefault();returnFocus.current.focus({preventScroll:true})}else if(fallbackFocus){event.preventDefault();fallbackFocus()}}} showCloseButton={false} className="w-full gap-0 overflow-hidden p-0 sm:max-w-[480px]">
         <SheetHeader className="shrink-0 gap-3 border-b px-4 py-3">
           <div className="flex items-center gap-1">
-            <SheetTitle className="min-w-0 flex-1 truncate text-sm font-medium">
-              {visibility.memoryInternals ? project?.name || '项目记忆' : '项目说明与笔记'}
-            </SheetTitle>
-            <DropdownMenu><DropdownMenuTrigger asChild><Button size="icon-sm" variant="ghost" className="text-muted-foreground" aria-label="项目记忆更多操作" title="更多操作"><MoreHorizontal className="size-4"/></Button></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem onSelect={() => toggleOverlay('history')}><History className="size-4"/>修改记录</DropdownMenuItem><DropdownMenuItem onSelect={() => toggleOverlay('preview')}><Eye className="size-4"/>运行预览</DropdownMenuItem></DropdownMenuContent></DropdownMenu>
-            <Button variant="ghost" size="icon-sm" className="text-muted-foreground" aria-label="关闭项目记忆" onClick={leave}><X/></Button>
+            <div className="flex min-w-0 flex-1 items-center gap-2"><SheetTitle className="shrink-0 text-sm font-medium">项目记忆</SheetTitle><p className="truncate text-xs text-muted-foreground">{project?.name || '正在读取'}</p></div>
+            {overlay === 'history' && <IconAction label="刷新修改记录" disabled={historyLoading} onClick={()=>void loadHistory()}><RefreshCw/></IconAction>}
+            <IconAction label="关闭项目记忆" disabled={summaryBusy} className="text-muted-foreground" onClick={leave}><X/></IconAction>
           </div>
-          {overlay ? <div className="flex items-center gap-2"><Button size="sm" variant="ghost" onClick={() => setOverlay(null)}>返回说明与笔记</Button><span className="text-meta font-medium">{overlay === 'history' ? '修改记录' : '运行将使用的内容'}</span></div> : <SegmentedControl value={section} onValueChange={changeSection} options={sections} label="项目记忆分区"/>}
+          <div className="flex items-center gap-2">
+            {overlay || summary ? <><IconAction label={`返回${sections.find(item=>item.value===section)?.label}`} disabled={summaryBusy} onClick={()=>{if(summary && dirty.current && !window.confirm('放弃未保存的摘要修改？'))return;if(summary)dirty.current=false;setSummary(null);setOverlay(null)}}><ArrowLeft/></IconAction><span className="min-w-0 flex-1 text-meta font-medium">{summary ? '编辑摘要' : '修改记录'}</span></> : <><SegmentedControl className="min-w-0 flex-1" value={section} onValueChange={changeSection} options={sections} label="项目记忆分区"/>{section === 'summaries' && <IconAction label="查看修改记录" onClick={()=>toggleOverlay('history')}><History/></IconAction>}</>}
+          </div>
           <SheetDescription className="sr-only">项目说明、笔记和近期摘要</SheetDescription>
         </SheetHeader>
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
           {error && <div role="alert" className="mb-3 text-meta text-state-failed">{error}<Button size="sm" variant="ghost" onClick={() => void refresh()}>重新读取</Button></div>}
           {!project && !error && <p className="text-meta text-faint">正在读取</p>}
-          {project && (section === 'instructions' || section === 'notes') && <div hidden={overlay !== null}>
-            <MemoryEditor key={`${projectId}:${section}:${restore ?? 'live'}`} field={section} project={project} restored={restore} onDirty={value => {dirty.current = value}} onSaved={changed}/>
+          {project && (section === 'instructions' || section === 'notes') && <div hidden={overlay !== null || summary !== null}>
+            <MemoryEditor key={`${projectId}:${section}:${restore ?? 'live'}`} toolbar={<><p className="mr-auto text-xs text-muted-foreground">{section === 'notes' ? '背景与结论' : '后续对话遵守的要求'}</p><IconAction label="查看修改记录" onClick={()=>toggleOverlay('history')}><History/></IconAction></>} field={section} project={project} restored={restore} onDirty={value => {dirty.current = value}} onSaved={changed}/>
           </div>}
-          {overlay === null && section === 'summaries' && memory && (
+          {!summary && overlay === null && section === 'summaries' && memory && (
             <div>
-              {!candidates.length && <p className="py-6 text-meta text-faint">暂无摘要</p>}
-              {candidates.map(item => {
-                const status = summaryStatus(item)
-                return (
-                  <article key={item.session_id} className="group/summary border-b py-3">
-                    <div className="flex items-center gap-2">
-                      <Link href={`/sessions/${item.session_id}`} className="min-w-0 flex-1 truncate text-sm">{item.title || '项目对话'}</Link>
-                      {status && <span className={cn('shrink-0 text-xs', item.state === 'failed' ? 'text-state-failed' : 'text-faint')}>{status}</span>}
-                      <DropdownMenu><DropdownMenuTrigger asChild><Button size="icon-sm" variant="ghost" className="shrink-0 text-muted-foreground" aria-label={`${item.title || '项目对话'}摘要操作`} title="摘要操作"><MoreHorizontal className="size-4"/></Button></DropdownMenuTrigger><DropdownMenuContent align="end"><DropdownMenuItem onSelect={() => setSummary({id: item.session_id, title: item.title})}><Pencil className="size-4"/>编辑摘要</DropdownMenuItem></DropdownMenuContent></DropdownMenu>
-                    </div>
-                    <div className="mt-3"><MarkdownContent content={item.summary}/></div>
-                    {item.error && <p className="mt-1 text-xs text-state-failed">{item.error}</p>}
-                  </article>
-                )
-              })}
-              {sessions.filter(item => !candidates.some(candidate => candidate.session_id === item.session_id)).length > 0 && <DropdownMenu><DropdownMenuTrigger asChild><Button size="sm" variant="ghost" className="mt-4 text-muted-foreground">添加摘要</Button></DropdownMenuTrigger><DropdownMenuContent align="start" className="max-h-64 max-w-80 overflow-y-auto">{sessions.filter(item => !candidates.some(candidate => candidate.session_id === item.session_id)).map(item => <DropdownMenuItem key={item.session_id} onSelect={() => setSummary({id: item.session_id, title: item.title})}><span className="truncate">{item.title || '项目对话'}</span></DropdownMenuItem>)}</DropdownMenuContent></DropdownMenu>}
+              <ProjectSummaryList candidates={candidates} sessions={sessions} onEdit={setSummary}/>
             </div>
           )}
           {overlay === 'history' && (
@@ -180,56 +166,11 @@ export function ProjectMemoryPanel({projectId, sessionId, open, initialSection =
               {more && <Button variant="outline" size="sm" onClick={() => void loadHistory(true)}>加载更早记录</Button>}
             </div>
           )}
-          {overlay === 'preview' && memory && (
-            <div className="space-y-3">
-              <p className="text-meta text-muted-foreground">新运行预览。受理时会重新读取项目内容。</p>
-              <MemoryPreview snapshot={memory.project}/>
-              {visibility.memoryInternals && <details className="rounded-md border p-3"><summary className="cursor-pointer text-meta">查看完整原文（含系统固定说明）</summary><pre className="mt-3 whitespace-pre-wrap break-words font-mono text-xs leading-6">{memory.project_prompt}</pre></details>}
-              {memory.frozen && (
-                <details>
-                  <summary className="cursor-pointer text-sm">当前运行已固定的内容</summary>
-                  <p className="my-2 text-meta text-muted-foreground">当前运行及续接仍使用此版本。</p>
-                  <MemoryPreview snapshot={memory.frozen}/>
-                </details>
-              )}
-              {visibility.memoryInternals && <Button variant="outline" size="sm" disabled={estimating} onClick={async () => {
-                const token = ++estimateEpoch.current
-                setEstimating(true)
-                try {
-                  const result = await projectApi.estimateMemory(projectId, sessionId)
-                  if (token === estimateEpoch.current) {setMemory(result); setError(null)}
-                } catch (err) {
-                  if (token === estimateEpoch.current) setError(err instanceof Error ? err.message : '估算失败')
-                } finally {
-                  if (token === estimateEpoch.current) setEstimating(false)
-                }
-              }}>{estimating ? '正在估算' : '估算容量'}</Button>}
-              {visibility.memoryInternals && memory.capacity && (
-                <div role="status" className="space-y-1 text-meta">
-                  <p>{memory.capacity.model} · {memory.capacity.total} / {memory.capacity.limit} tokens</p>
-                  <p className="text-faint">系统内容 {memory.capacity.system_prompt}，工具 {memory.capacity.tools}（{memory.capacity.tool_count} 个）</p>
-                  {memory.capacity.over_limit && <p className="text-state-failed">固定内容已超限。请精简说明或笔记后重新估算。</p>}
-                  {Object.entries(memory.capacity.discovery_errors).map(([name, message]) => <p className="text-state-waiting" key={name}>{name}：{message}</p>)}
-                </div>
-              )}
-            </div>
-          )}
+          {summary && <ProjectSummaryDialog embedded onBusy={setSummaryBusy} sessionId={summary.id} title={summary.title} onDirty={value=>{dirty.current=value}} onClose={()=>setSummary(null)} onChanged={changed}/>}
         </div>
-        <ProjectSummaryDialog sessionId={summary?.id || null} title={summary?.title || ''} onClose={() => setSummary(null)} onChanged={changed}/>
       </SheetContent>
     </Sheet>
   )
-}
-
-function summaryStatus(item: ProjectMemorySummary) {
-  if (item.state === 'failed') return '生成失败'
-  if (item.state === 'generating') return '正在生成'
-  if (item.stale) return '可能过时'
-  return null
-}
-
-function MemoryPreview({snapshot}: {snapshot: ProjectMemorySnapshot}) {
-  return <div className="space-y-4">{[['项目说明', snapshot.instructions], ['共同笔记', snapshot.notes]].map(([label, text]) => <section key={label} className="rounded-lg border p-3"><h3 className="mb-2 text-meta font-medium">{label}</h3>{text ? <MarkdownContent content={text}/> : <p className="text-meta text-faint">未设置</p>}</section>)}<section className="rounded-lg border p-3"><h3 className="mb-2 text-meta font-medium">已纳入的对话摘要 · {snapshot.summaries.length} 段</h3>{snapshot.summaries.length ? snapshot.summaries.map(item => <div key={item.session_id} className="border-t py-3 first:border-0 first:pt-0"><Link href={`/sessions/${item.session_id}`} className="text-meta font-medium text-signal">{item.title || '来源对话'}</Link>{item.truncated && <p className="mt-1 text-xs text-faint">部分纳入</p>}<div className="mt-2"><MarkdownContent content={item.truncated && item.injected_text ? item.injected_text : item.summary}/></div></div>) : <p className="text-meta text-faint">未纳入摘要</p>}</section></div>
 }
 
 function historyLabel(type: string) {
@@ -253,6 +194,7 @@ function auxiliaryLine(auxiliary: Record<string, unknown>) {
 }
 
 export function MemoryEditor({field, project, restored, onDirty, onSaved, toolbar}: {field: 'instructions' | 'notes'; project: ProjectDetails; restored: string | null; onDirty: (value: boolean) => void; onSaved: () => void; toolbar?: ReactNode}) {
+  const editorId = useId()
   const {visibility} = useDeveloperMode()
   const current = field === 'notes' ? project.notes : project.instructions || ''
   const version = field === 'notes' ? project.notes_version : project.settings_version
@@ -302,9 +244,9 @@ export function MemoryEditor({field, project, restored, onDirty, onSaved, toolba
     <section className="flex min-h-[50vh] flex-col gap-3">
       {toolbar ? <div className="flex min-h-8 items-center gap-1 border-b pb-3">{toolbar}<IconAction label={field === 'notes' ? '编辑笔记' : '编辑说明'} disabled={editing || !!project.file_operation || project.archived} onClick={() => setEditing(true)}><Pencil/></IconAction></div> : !editing && current && <div className="flex justify-end"><IconAction label={field === 'notes' ? '编辑笔记' : '编辑说明'} onClick={() => setEditing(true)}><Pencil/></IconAction></div>}
       {editing && visibility.memoryInternals && <p className="text-xs text-faint">版本 {version}</p>}
-      <label className="sr-only" htmlFor={`memory-${field}`}>{field === 'notes' ? '项目笔记' : '项目说明'}</label>
+      <label className="sr-only" htmlFor={editorId}>{field === 'notes' ? '项目笔记' : '项目说明'}</label>
       {editing ? <>
-      <textarea id={`memory-${field}`} disabled={busy} maxLength={8000} placeholder={placeholder} className="min-h-[45vh] w-full flex-1 resize-none rounded-md border bg-background p-3 text-sm leading-7 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" value={draft} onChange={event => {setDraft(event.target.value); setSaved(false)}}/>
+      <textarea id={editorId} disabled={busy} maxLength={8000} placeholder={placeholder} className="min-h-[45vh] w-full flex-1 resize-none rounded-md border bg-background p-3 text-sm leading-7 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" value={draft} onChange={event => {setDraft(event.target.value); setSaved(false)}}/>
       <div className="sticky bottom-0 flex items-center gap-3 border-t bg-card py-3">
         <p className="text-xs tabular-nums text-faint">{draft.length} / 8000</p>
         <Button size="sm" variant="ghost" className="ml-auto" disabled={busy} onClick={() => {if (!dirty || window.confirm('放弃未保存的修改？')) {setDraft(original); setConflict(null); setError(null); setEditing(false); onDirtyRef.current(false)}}}>取消</Button>

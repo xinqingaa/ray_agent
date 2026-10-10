@@ -23,6 +23,7 @@ import {downloadSessionFile, tabForFamily, Workbench, type WorkbenchTab} from '@
 import {useWorkbenchWidth, WorkbenchResizeHandle} from '@/components/workbench/resize-handle'
 import {cn} from '@/lib/utils'
 import {Button} from '@/components/ui/button'
+import {IconAction} from '@/components/ui/icon-action'
 import {
   Sheet,
   SheetContent,
@@ -542,10 +543,7 @@ export function SessionDetailView({
               {value: 'developer', label: '开发者', icon: Code2},
             ]} onValueChange={next => {setMode(next); if (next === 'developer') setDeveloperVisited(true)}}/>}
             {view.project && (
-              <Button type="button" variant="ghost" size="icon-xs" className="size-7 shrink-0 text-muted-foreground"
-                title="项目说明与笔记" aria-label="项目说明与笔记" onClick={() => setMemoryOpen(true)}>
-                <MemoryIcon className="size-4"/>
-              </Button>
+              <IconAction label="项目记忆" className="shrink-0 text-muted-foreground" onClick={() => setMemoryOpen(true)}><MemoryIcon className="size-4"/></IconAction>
             )}
             {!workbenchOpen && (
               <Button type="button" variant="ghost" size="icon-xs" className="size-7 shrink-0"

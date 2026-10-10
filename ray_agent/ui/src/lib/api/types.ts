@@ -665,7 +665,7 @@ export type ViewShellParams = {
 export type ProjectMemorySummary = {stale?:boolean;latest_seq?:number;session_id:string; title:string; summary:string; source:string; source_seq:number; generation:number; state?:string; error?:string|null; injected_text?:string; truncated?:boolean};
 export type ProjectMemorySnapshot = {instructions:string|null; notes:string; settings_version:number; notes_version:number; summaries:ProjectMemorySummary[]};
 export type ProjectMemoryCapacity = {total:number;limit:number;over_limit:boolean;model:string;mode:string;tool_count:number;discovery_errors:Record<string,string>;source:string;system_prompt:number;tools:number};
-export type ProjectMemoryView = {capacity?:ProjectMemoryCapacity;project:ProjectMemorySnapshot; candidates:ProjectMemorySummary[]; project_prompt:string; frozen:ProjectMemorySnapshot|null; active_run_id:string|null};
+export type ProjectMemoryView = {capacity?:ProjectMemoryCapacity;project:ProjectMemorySnapshot; candidates:ProjectMemorySummary[]; project_prompt:string; frozen:ProjectMemorySnapshot|null; occupying_session_id?:string|null; active_run_id:string|null};
 
 export type ContextPreview = {
   model: string; reasoning: string | null; total: number; context_window: number;

@@ -2,7 +2,7 @@
 
 import {useRef, useState, type MouseEvent} from 'react'
 import Link from 'next/link'
-import {ChevronRight, MoreHorizontal} from 'lucide-react'
+import {ChevronRight} from 'lucide-react'
 import {Button} from '@/components/ui/button'
 import {DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger} from '@/components/ui/dropdown-menu'
 import {RunStatus} from '@/components/run/run-status'
@@ -154,21 +154,6 @@ export function ProjectNavigation(props: Props) {
                   />
                 </Link>
                 <div className="relative flex shrink-0 items-center pr-0.5">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="icon-xs" aria-label={`${project.name} 的操作`} className="absolute right-full z-10 mr-0.5 text-muted-foreground opacity-0 pointer-events-none hover:bg-muted group-hover/project:pointer-events-auto group-hover/project:opacity-100 focus-visible:pointer-events-auto focus-visible:opacity-100 data-[state=open]:pointer-events-auto data-[state=open]:opacity-100 max-md:pointer-events-auto max-md:opacity-100">
-                        <MoreHorizontal className="size-3.5"/>
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      {project.archived || !props.onNewConversation
-                        ? <DropdownMenuItem asChild><Link href={`/projects/${project.id}${project.archived ? '' : '#new-conversation'}`} onClick={project.archived ? openProject : prepareConversation}>{project.archived ? '打开项目' : '在此项目新对话'}</Link></DropdownMenuItem>
-                        : <DropdownMenuItem onSelect={startConversation}>在此项目新对话</DropdownMenuItem>}
-                      <DropdownMenuItem onSelect={() => props.onProjectSettings(project.id)}>项目设置</DropdownMenuItem>
-                      {!project.archived && <DropdownMenuItem onSelect={() => props.onArchive(project.id)}>归档项目</DropdownMenuItem>}
-                      {props.onProjectDelete && <DropdownMenuItem variant="destructive" onSelect={() => props.onProjectDelete?.(project.id)}>删除项目</DropdownMenuItem>}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
                   {!project.archived && (props.onNewConversation ? (
                     <button type="button" aria-label={`${project.name} 中新对话`} title="在此项目中新对话" onClick={startConversation} className="flex size-6 shrink-0 items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring">
                       <NewChatIcon className="size-4"/>

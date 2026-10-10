@@ -46,6 +46,7 @@ function load(file) {
     if (name === '@/components/run/format') return {formatBytes: String};
     if (name === '@/components/ui/sidebar') return {...elements, Sidebar: elements.Sidebar, SidebarContent: elements.SidebarContent,
       SidebarFooter: elements.SidebarFooter, SidebarHeader: elements.SidebarHeader, useSidebar: () => ({setOpenMobile() {}})};
+    if (name === '@/components/ui/overlay-toolbar') return {OverlayToolbar: props => React.createElement('header', null, props.title)};
     if (name.startsWith('@/components/ui/')) return elements;
     if (name.startsWith('@/components/') || name === './project-pane') return new Proxy({}, {get: () => empty});
     throw Error('未提供替身：' + name);
