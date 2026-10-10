@@ -14,8 +14,8 @@ RUN curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && \
 # 5.安装uv, 使用uv来同步依赖环境
 RUN pip install uv
 
-# 6.配置uv使用阿里云镜像源
-ENV UV_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/
+# 6.配置uv使用官方 PyPI
+ENV UV_INDEX_URL=https://pypi.org/simple/
 
 # 7.拷贝requirements.txt并安装依赖
 COPY requirements.txt .
