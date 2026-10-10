@@ -416,6 +416,8 @@ export const sessionItemStates = {
   failed: session('fx-s3', '统计 logs/ 下所有构建日志的失败原因', 'failed', today),
   interrupted: session('fx-s6', '整理本周构建日志并写出失败原因', 'interrupted', today),
   completed: session('fx-s4', e2Delivery.title, 'completed', today),
+  /** 合成：运行完成时用户不在这个会话，打开前时间前带圆点 */
+  completedUnread: {...session('fx-s9', e2Delivery.title, 'completed', today), unread_message_count: 1},
   /** 合成：用户停止；与已完成一样不显示徽标 */
   cancelled: session('fx-s8', '统计 logs/ 下所有构建日志的失败原因', 'cancelled', today),
   longTitle: session('fx-s5', '把 inventory.csv 按 item 分组统计 amount 的总和、平均值与最大值，生成带图表的 Markdown 报告，并把报告和图表一起打包交付给我下载', 'completed', '2026-09-26T21:10:44'),

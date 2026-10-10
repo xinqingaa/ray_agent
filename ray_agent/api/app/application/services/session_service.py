@@ -66,8 +66,8 @@ class SessionService:
             return await self._uow.session.get_all()
 
     async def clear_unread_message_count(self, session_id: str) -> None:
-        """清空指定会话未读消息数"""
-        logger.info(f"清除会话[{session_id}]未读消息数")
+        """用户已查看会话，清空未查看的完成运行数"""
+        logger.info(f"清除会话[{session_id}]未读完成标记")
         async with self._uow:
             await self._uow.session.update_unread_message_count(session_id, 0)
 

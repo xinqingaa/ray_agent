@@ -12,6 +12,7 @@ import {useDeveloperMode} from '@/hooks/use-developer-mode'
 import {FilePreview} from '@/components/preview/file-preview'
 import {Dialog, DialogContent, DialogDescription, DialogTitle} from '@/components/ui/dialog'
 import {formatBytes} from '@/components/run/format'
+import {isWebPage, openPreviewTab} from '@/lib/api/preview'
 
 function EmptyNote({children}: {children: string}) {
   return <p className="px-4 py-8 text-center text-meta text-faint">{children}</p>
@@ -37,7 +38,11 @@ export function ProjectPane({sessionId, refreshSignal, projectLevel = false, dow
   const [root, setRoot] = useState<ProjectListing | null>(null)
   const [nodes, setNodes] = useState<Record<string, TreeNode>>({})
   const [selectedPath, setSelectedPath] = useState<string | null>(null)
-  const openFile = useCallback((path: string) => {setSelectedPath(path)}, [])
+  // 网页同时在新标签页渲染；列表里仍选中它，返回后可看源码或下载
+  const openFile = useCallback((path: string) => {
+    if (isWebPage(path)) openPreviewTab({kind: 'project', id: sessionId, path, filename: path.split('/').pop() || path, projectLevel})
+    setSelectedPath(path)
+  }, [sessionId, projectLevel])
 
   useEffect(() => {
     const current = ++epoch.current

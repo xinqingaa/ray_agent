@@ -1,7 +1,7 @@
 """只读预览契约；资源预算属于预览，不改变下载与 Agent 工具限制。"""
 from pydantic import BaseModel, Field
 
-TEXT_EXTENSIONS = {'.json', '.txt', '.py', '.js', '.jsx', '.ts', '.tsx', '.html', '.css',
+TEXT_EXTENSIONS = {'.json', '.txt', '.py', '.js', '.jsx', '.ts', '.tsx', '.html', '.htm', '.css',
     '.sh', '.yaml', '.yml', '.log', '.xml', '.sql', '.toml', '.ini', '.rst', '.diff'}
 MARKDOWN_EXTENSIONS = {'.md', '.mdx', '.markdown'}
 TABLE_EXTENSIONS = {'.csv', '.tsv', '.xlsx', '.xls'}

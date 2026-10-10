@@ -1,7 +1,7 @@
 'use client'
 
 import {useLayoutEffect, useRef, type ReactNode} from 'react'
-import {Loader2} from 'lucide-react'
+import {CirclePause, CircleX, Loader2, type LucideIcon, ShieldQuestion, Unplug} from 'lucide-react'
 import {cn} from '@/lib/utils'
 import type {ProjectFileOperation, SessionStatus} from '@/lib/api/types'
 import type {Activity, RunStatus as RunState} from '@/lib/session-view'
@@ -20,6 +20,7 @@ const TEXT = {
   compactingShort: '压缩中',
   running: '运行中',
   completed: '已完成',
+  completedUnread: '已完成，尚未查看',
   failed: '失败',
   cancelled: '已停止',
   interrupted: '已中断',
@@ -34,7 +35,7 @@ const TEXT = {
   archived: '已归档',
 } as const
 
-const SIDEBAR_META = 'w-[4.75rem] shrink-0 truncate pr-2 text-right text-xs font-normal tabular-nums group-hover/session:invisible group-has-[[data-state=open]]/session:invisible'
+const SIDEBAR_META = 'flex w-[4.75rem] shrink-0 items-center justify-end gap-1.5 pr-2 text-xs font-normal tabular-nums group-hover/session:invisible group-has-[[data-state=open]]/session:invisible'
 
 type TimelineProps = {
   place: 'timeline'
@@ -55,6 +56,8 @@ type SidebarProps = {
   status: SessionStatus
   waitKind: WaitKind | null
   compacting: boolean
+  /** 运行完成后用户还没打开过这个会话 */
+  unread: boolean
   time: string
   showTime: boolean
 }
@@ -112,22 +115,31 @@ function timelineSentence(input: TimelineProps): string | null {
   return null
 }
 
-function sidebarWord(status: SessionStatus, waitKind: WaitKind | null, compacting: boolean): {label: string; attention: boolean; tone: string | null} {
-  if (compacting) return {label: TEXT.compactingShort, attention: true, tone: TONE_TEXT.running}
+/** 侧栏状态：需要处理或正在进行的状态用图标占住时间位，未查看的完成在时间前加圆点；词只进提示和读屏。 */
+type SidebarMark = {label: string; icon?: LucideIcon; spin?: boolean; dot?: boolean; tone?: string}
+
+function sidebarMark(status: SessionStatus, waitKind: WaitKind | null, compacting: boolean, unread: boolean): SidebarMark {
+  if (compacting) return {label: TEXT.compactingShort, icon: Loader2, spin: true, tone: TONE_TEXT.running}
   switch (status) {
-    case 'pending': return {label: '', attention: false, tone: null}
-    case 'running': return {label: TEXT.running, attention: true, tone: TONE_TEXT.running}
+    case 'pending': return {label: ''}
+    case 'running': return {label: TEXT.running, icon: Loader2, spin: true, tone: TONE_TEXT.running}
     case 'waiting':
       return {
         label: waitKind === 'approval' ? TEXT.waitApproval : waitKind === 'reply' ? TEXT.waitReply : TEXT.waitUnknown,
-        attention: true,
+        icon: waitKind === 'approval' ? ShieldQuestion : CirclePause,
         tone: TONE_TEXT.waiting,
       }
-    case 'failed': return {label: TEXT.failed, attention: true, tone: TONE_TEXT.failed}
-    case 'interrupted': return {label: TEXT.interrupted, attention: true, tone: TONE_TEXT.interrupted}
-    case 'completed': return {label: TEXT.completed, attention: false, tone: null}
-    case 'cancelled': return {label: TEXT.cancelled, attention: false, tone: null}
+    case 'failed': return {label: TEXT.failed, icon: CircleX, tone: TONE_TEXT.failed}
+    case 'interrupted': return {label: TEXT.interrupted, icon: Unplug, tone: TONE_TEXT.interrupted}
+    case 'completed': return unread ? {label: TEXT.completedUnread, dot: true} : {label: TEXT.completed}
+    case 'cancelled': return {label: TEXT.cancelled}
   }
+}
+
+/** 会话行的悬停提示：标题加上状态词 */
+export function sidebarTitle(title: string, status: SessionStatus, waitKind: WaitKind | null, compacting: boolean, unread: boolean): string {
+  const {label} = sidebarMark(status, waitKind, compacting, unread)
+  return label ? `${title}（${label}）` : title
 }
 
 function projectMark(input: ProjectProps): {tone: 'failed' | 'waiting' | 'running' | null; dotTitle?: string; buttonTitle: string} {
@@ -197,14 +209,23 @@ export function RunStatus(props: RunStatusProps): ReactNode {
       )
     }
     case 'sidebar': {
-      const word = sidebarWord(props.status, props.waitKind, props.compacting)
+      const mark = sidebarMark(props.status, props.waitKind, props.compacting, props.unread)
+      const Icon = mark.icon
+      const time = props.showTime && props.time ? <span className="truncate">{props.time}</span> : null
       return (
         <>
-          <span id={props.id} className="sr-only">{word.label ? `${props.title}，${word.label}` : props.title}</span>
-          {word.attention ? (
-            <span aria-hidden className={cn(SIDEBAR_META, word.tone)}>{word.label}</span>
-          ) : props.showTime && props.time ? (
-            <span className={cn(SIDEBAR_META, 'text-muted-foreground')}>{props.time}</span>
+          <span id={props.id} className="sr-only">{mark.label ? `${props.title}，${mark.label}` : props.title}</span>
+          {Icon ? (
+            <span aria-hidden className={cn(SIDEBAR_META, mark.tone)}>
+              <Icon className={cn('size-4 shrink-0', mark.spin && 'animate-spin motion-reduce:animate-none')} strokeWidth={2.25}/>
+            </span>
+          ) : mark.dot ? (
+            <span aria-hidden className={cn(SIDEBAR_META, 'font-medium text-foreground')}>
+              <span className="size-2 shrink-0 rounded-full bg-state-success ring-2 ring-state-success-soft"/>
+              {time}
+            </span>
+          ) : time ? (
+            <span aria-hidden className={cn(SIDEBAR_META, 'text-muted-foreground')}>{time}</span>
           ) : null}
         </>
       )

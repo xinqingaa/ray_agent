@@ -1,13 +1,13 @@
 'use client'
 
 import {useEffect, useRef, useState, type CSSProperties} from 'react'
-import {ChevronLeft, ChevronRight, Code, Download, Expand, FileText, RefreshCw, X} from 'lucide-react'
+import {ChevronLeft, ChevronRight, Code, Download, Expand, ExternalLink, FileText, RefreshCw, X} from 'lucide-react'
 import {toast} from 'sonner'
 import {MarkdownContent} from '@/components/markdown-content'
 import {Button} from '@/components/ui/button'
 import {Dialog, DialogContent, DialogDescription, DialogTitle} from '@/components/ui/dialog'
 import {ApiError} from '@/lib/api/fetch'
-import {downloadPreviewSource, previewContentUrl, previewEndpoint, readPreview, type FilePreview as Preview, type PreviewCell, type PreviewSource} from '@/lib/api/preview'
+import {downloadPreviewSource, isWebPage, openPreviewTab, previewContentUrl, previewEndpoint, readPreview, type FilePreview as Preview, type PreviewCell, type PreviewSource} from '@/lib/api/preview'
 import {formatBytes} from '@/components/run/format'
 import {PreviewAction} from './action'
 import {ImagePreview} from './image-preview'
@@ -132,6 +132,7 @@ function FilePreviewContent({source, onBack, onDownload, onClose, canExpand = tr
     {preview?.cells_truncated && <span className="shrink-0 text-xs text-muted-foreground">内容截断</span>}
     {preview?.formula_missing && <span className="shrink-0 text-xs text-muted-foreground" title="部分公式没有已保存的计算结果">公式未计算</span>}
     {(preview?.kind==='markdown' || source.filename.toLowerCase().endsWith('.json')) && <PreviewAction label={raw ? '格式化阅读' : '查看原文'} icon={raw ? FileText : Code} pressed={raw} onClick={()=>setRaw(!raw)}/>}
+    {isWebPage(source.filename) && <PreviewAction label="在新标签页打开网页" icon={ExternalLink} onClick={()=>openPreviewTab(source)}/>}
     <PreviewAction label="刷新预览" icon={RefreshCw} disabled={loading} onClick={refresh}/>
     <PreviewAction label={`下载 ${preview?.filename || source.filename}`} icon={Download} disabled={errorCode===410} onClick={download}/>
   </>

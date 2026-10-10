@@ -59,6 +59,8 @@ def test_wait_then_reply_resumes_same_run_with_reply_as_ask_result():
         first.sandbox.read_file.assert_not_awaited()
         r._mcp_tool.cleanup.assert_awaited_once()
         assert memory_messages(first.session)[-1]["tool_calls"][0]["id"] == "ask-1"
+        # 未查看标记只在运行完成时累加，等待回复和普通消息不算
+        first.loop._uow_factory().session.increment_unread_message_count.assert_not_awaited()
 
         # chat 对 waiting 运行的处理：同一运行 waiting → running，回复写入该运行，由新任务续接
         second = make_loop([tool_call("read_file", {"filepath": "/hello.txt"}, id="read-1"), text("核对完成")],
@@ -91,6 +93,7 @@ def test_wait_then_reply_resumes_same_run_with_reply_as_ask_result():
         assert second.sandbox.read_file.await_args.kwargs["filepath"] == "/hello.txt"
         assert isinstance(second.events[-2], DoneEvent)
         assert run_statuses(second, waiting_run.id) == ["running", "waiting", "running", "completed"]
+        second.loop._uow_factory().session.increment_unread_message_count.assert_awaited_once_with(first.session.id)
         # 轮次序号在同一运行内连续
         assert [e.index for e in second.events if e.type == "turn" and e.phase == "started"] == [1, 2, 3]
     asyncio.run(asyncio.wait_for(run(), 5))

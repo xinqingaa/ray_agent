@@ -144,7 +144,6 @@ class AgentTaskRunner(TaskRunner):
         elif isinstance(event, MessageEvent):
             async def apply(uow: IUnitOfWork) -> None:
                 await uow.session.update_latest_message(self._session_id, event.message, event.created_at)
-                await uow.session.increment_unread_message_count(self._session_id)
         if (isinstance(event, ToolEvent) and event.tool_name in ('shell', 'file', 'browser', 'mcp', 'a2a')
                 and event.status == ToolEventStatus.CALLING and getattr(self, '_project_id', None)):
             previous_apply = apply
@@ -531,7 +530,11 @@ class AgentTaskRunner(TaskRunner):
             status, reason = RunStatus.WAITING, RunReason.APPROVAL if self._waiting_approval else None
         else:
             status, reason = RunStatus.FAILED, self._failure_reason or RunReason.RUNNER_ERROR
-        committed = await self._ledger.transition(self._session_id, self._run_id, status, reason, events_before=[outcome])
+        async def mark_unread(uow: IUnitOfWork) -> None:
+            await uow.session.increment_unread_message_count(self._session_id)
+        committed = await self._ledger.transition(
+            self._session_id, self._run_id, status, reason, events_before=[outcome],
+            apply=mark_unread if status == RunStatus.COMPLETED else None)
         memory = getattr(self, '_project_memory_service', None)
         if committed and status == RunStatus.COMPLETED and memory and getattr(self, '_project_id', None):
             asyncio.create_task(memory.auto_summary(self._session_id))

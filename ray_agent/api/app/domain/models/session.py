@@ -47,7 +47,7 @@ class Session(BaseModel):
     summary_generation: int = 0
     summary_source_seq: int = 0
     title_source: str = "placeholder"  # placeholder / provisional / auto / manual
-    unread_message_count: int = 0  # 未读消息数
+    unread_message_count: int = 0  # 用户尚未查看的已完成运行数，打开会话时清零
     latest_message: str = ""  # 最新消息
     latest_message_at: Optional[datetime] = None  # 最新消息时间
     files: List[File] = Field(default_factory=list)  # 文件列表

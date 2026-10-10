@@ -36,6 +36,7 @@ const BY_EXTENSION: Record<string, LucideIcon> = {
   '.ts': FileCode,
   '.tsx': FileCode,
   '.html': FileCode,
+  '.htm': FileCode,
   '.css': FileCode,
   '.sh': FileCode,
 }
@@ -51,7 +52,7 @@ export function fileIcon(extension: string): LucideIcon {
 }
 
 const PREVIEWABLE = new Set([
-  '.json', '.csv', '.tsv', '.md', '.mdx', '.markdown', '.txt', '.py', '.js', '.ts', '.tsx', '.html', '.css', '.sh', '.yaml', '.yml', '.log',
+  '.json', '.csv', '.tsv', '.md', '.mdx', '.markdown', '.txt', '.py', '.js', '.ts', '.tsx', '.html', '.htm', '.css', '.sh', '.yaml', '.yml', '.log',
   '.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.bmp', '.pdf', '.xlsx', '.xls',
   '.jsx', '.xml', '.sql', '.toml', '.ini', '.rst', '.diff',
 ])

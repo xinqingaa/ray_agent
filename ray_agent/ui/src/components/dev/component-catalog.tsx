@@ -472,7 +472,7 @@ export function ComponentCatalog() {
           <ProjectWorkspaceCatalog/>
         </Section>
 
-        <Section id="session-item" title="会话列表项" note="一行：标题在左，时间在右。运行中、压缩中、等你回复、等你批准、失败和已中断替换时间。还不知道是回复还是批准时写「等你」。尚无运行、已完成和已停止只显示时间。">
+        <Section id="session-item" title="会话列表项" note="一行：标题在左，时间在右。运行中和压缩中显示旋转图标，等你回复、等你批准、失败和已中断显示状态图标，替换时间；状态词只在悬停提示和读屏名称里。完成时用户不在该会话，时间前加圆点，打开后消失。尚无运行、已查看的完成和已停止只显示时间。">
           <div className="w-[22.5rem] max-w-full space-y-3 rounded-lg bg-sidebar p-2">
             <State label="运行中" source="合成"><SessionItem session={sessionItemStates.running} isActive={false} onClick={noop} onDelete={noop}/></State>
             <State label="尚无运行" source="合成"><SessionItem session={sessionItemStates.pending} isActive={false} onClick={noop} onDelete={noop}/></State>
@@ -482,6 +482,7 @@ export function ComponentCatalog() {
             <State label="失败" source="合成"><SessionItem session={sessionItemStates.failed} isActive={false} onClick={noop} onDelete={noop}/></State>
             <State label="已中断" source="合成"><SessionItem session={sessionItemStates.interrupted} isActive={false} onClick={noop} onDelete={noop}/></State>
             <State label="已完成" source="真实"><SessionItem session={sessionItemStates.completed} isActive={false} onClick={noop} onDelete={noop}/></State>
+            <State label="已完成，未查看" source="合成"><SessionItem session={sessionItemStates.completedUnread} isActive={false} onClick={noop} onDelete={noop}/></State>
             <State label="压缩中" source="合成"><SessionItem session={sessionItemStates.completed} isActive compacting onClick={noop} onDelete={noop}/></State>
             <State label="已停止" source="合成"><SessionItem session={sessionItemStates.cancelled} isActive={false} onClick={noop} onDelete={noop}/></State>
             <State label="选中" source="真实"><SessionItem session={sessionItemStates.completed} isActive onClick={noop} onDelete={noop}/></State>

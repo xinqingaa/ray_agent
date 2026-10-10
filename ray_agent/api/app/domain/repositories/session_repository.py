@@ -74,7 +74,7 @@ class SessionRepository(Protocol):
         ...
 
     async def increment_unread_message_count(self, session_id: str) -> None:
-        """根据传递的会话id新增未读消息数"""
+        """运行完成时加一，表示有用户尚未查看的完成结果"""
         ...
 
     async def decrement_unread_message_count(self, session_id: str) -> None:

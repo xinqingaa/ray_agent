@@ -10,7 +10,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import {RunStatus} from '@/components/run/run-status'
+import {RunStatus, sidebarTitle} from '@/components/run/run-status'
 import {useMounted} from '@/hooks/use-mounted'
 import {useCompactingSessionId, useSessionWaitKind, type WaitKind} from '@/providers/sessions-provider'
 import {cn, formatSidebarTime} from '@/lib/utils'
@@ -31,7 +31,7 @@ type SessionItemProps = {
   waitKind?: WaitKind | null
 }
 
-/** 会话一行：标题在左，时间或需要处理的状态在右。悬停时操作为时间让位。 */
+/** 会话一行：标题在左，时间或状态图标在右，未查看的完成结果在时间前加圆点。悬停时操作为时间让位。 */
 export function SessionItem({session, isActive, onClick, onDelete, onRename, href, compacting: compactingProp, showTime = true, waitKind: waitKindProp}: SessionItemProps) {
   const mounted = useMounted()
   const statusId = useId()
@@ -50,6 +50,8 @@ export function SessionItem({session, isActive, onClick, onDelete, onRename, hre
   }, [onDelete, session])
 
   const title = session.title || '新任务'
+  const unread = !isActive && session.status === 'completed' && (session.unread_message_count ?? 0) > 0
+  const hint = sidebarTitle(title, session.status, waitKind, compacting, unread)
   const controlClass = cn(
     'absolute inset-0 z-0 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring',
     isActive ? 'bg-sidebar-accent' : 'hover:bg-sidebar-accent/70',
@@ -62,7 +64,7 @@ export function SessionItem({session, isActive, onClick, onDelete, onRename, hre
           href={href}
           data-navigate
           prefetch={false}
-          title={title}
+          title={hint}
           onClick={(event) => {
             if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return
             handleSelect()
@@ -80,7 +82,7 @@ export function SessionItem({session, isActive, onClick, onDelete, onRename, hre
         <button
           type="button"
           data-navigate
-          title={title}
+          title={hint}
           onClick={handleSelect}
           aria-current={isActive ? 'page' : undefined}
           aria-labelledby={statusId}
@@ -96,6 +98,7 @@ export function SessionItem({session, isActive, onClick, onDelete, onRename, hre
           status={session.status}
           waitKind={waitKind}
           compacting={compacting}
+          unread={unread}
           time={formatSidebarTime(session.latest_message_at)}
           showTime={showTime}
         />

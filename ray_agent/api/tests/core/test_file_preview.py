@@ -169,7 +169,7 @@ def test_project_source_revision_and_symlinks(tmp_path):
     asyncio.run(run())
 
 
-def test_inline_range_and_no_active_html(tmp_path):
+def test_inline_range_and_sandboxed_html(tmp_path):
     from app.interfaces.endpoints.preview_routes import router
     from app.interfaces.service_dependencies import get_file_preview_service
     from app.interfaces.schemas import Response
@@ -188,8 +188,26 @@ def test_inline_range_and_no_active_html(tmp_path):
         assert response.headers['Content-Range']=='bytes 2-5/10'
         assert client.get('/files/test.pdf/preview/content',headers={'Range':'bytes=-3'}).content==b'789'
         assert client.get('/files/test.pdf/preview/content',headers={'Range':'bytes=20-30'}).status_code==416
-        assert client.get('/files/test.html/preview/content').status_code==400
+        assert response.headers['Content-Security-Policy']=="sandbox; default-src 'none'"
+        # 网页在不透明来源里运行脚本，不能请求本站接口或提交表单
+        page=client.get('/files/report.HTML/preview/content')
+        assert page.status_code==200 and page.headers['content-type']=='text/html; charset=utf-8'
+        # 不支持范围读取；存储替身插在 doctype 之后
+        assert page.content.startswith(b'<script>') and page.content.endswith(b'</script>0123456789')
+        policy=[item.strip() for item in page.headers['Content-Security-Policy'].split(';')]
+        sandbox=policy[0].split()
+        assert sandbox[0]=='sandbox' and 'allow-scripts' in sandbox and 'allow-same-origin' not in sandbox
+        assert "connect-src 'none'" in policy and "form-action 'none'" in policy and "frame-src 'none'" in policy
+        assert page.headers['X-Content-Type-Options']=='nosniff'
+        assert client.get('/files/test.js/preview/content').status_code==400
+        assert client.get('/files/test.svg.txt/preview/content').status_code==400
         assert client.get('/files/test.pdf/preview?row=-1').status_code==422
+
+
+def test_storage_shim_keeps_doctype_first():
+    from app.interfaces.endpoints.preview_routes import STORAGE_SHIM, with_storage_shim
+    assert with_storage_shim(b'\xef\xbb\xbf\n<!DOCTYPE html><html></html>') == b'\xef\xbb\xbf\n<!DOCTYPE html>'+STORAGE_SHIM+b'<html></html>'
+    assert with_storage_shim(b'<html><body>x</body></html>') == STORAGE_SHIM+b'<html><body>x</body></html>'
 
 
 def test_zip_duplicate_names_sanitized_and_failure_closes():

@@ -17,7 +17,7 @@ import {UserMessage} from '@/components/run/messages'
 import {RUN_INPUT_HINT, RunStatus} from '@/components/run/run-status'
 import {RunStatusBar} from '@/components/run/status-bar'
 import {Timeline, type TimelineHandlers} from '@/components/run/timeline-item'
-import {downloadFileBatch} from '@/lib/api/preview'
+import {downloadFileBatch, isWebPage, openPreviewTab} from '@/lib/api/preview'
 import {FilePreviewDialog} from '@/components/preview/file-preview-dialog'
 import {downloadSessionFile, tabForFamily, Workbench, type WorkbenchTab} from '@/components/workbench/workbench'
 import {useWorkbenchWidth, WorkbenchResizeHandle} from '@/components/workbench/resize-handle'
@@ -164,6 +164,23 @@ export function SessionDetailView({
     }
     setWaitKind(sessionId, view.activeRun?.activity.kind === 'waiting_approval' ? 'approval' : 'reply')
   }, [sessionId, view, outgoing, retrying, setWaitKind])
+
+  // 页面可见时看到了完成结果，清掉侧栏的未查看圆点；项目子列表不在 sessions 里，按每次完成清一次
+  const completedRunId = view?.status === 'completed' ? view.runs.at(-1)?.id ?? null : null
+  const listedUnread = sessions.find((item) => item.session_id === sessionId)?.unread_message_count
+  const clearedRun = useRef<string | null>(null)
+  useEffect(() => {
+    if (!completedRunId || listedUnread === 0) return
+    const key = `${sessionId}:${completedRunId}:${listedUnread ?? ''}`
+    const clear = () => {
+      if (document.visibilityState !== 'visible' || clearedRun.current === key) return
+      clearedRun.current = key
+      void sessionApi.clearUnreadMessageCount(sessionId).catch(() => {clearedRun.current = null})
+    }
+    clear()
+    document.addEventListener('visibilitychange', clear)
+    return () => document.removeEventListener('visibilitychange', clear)
+  }, [sessionId, completedRunId, listedUnread])
 
   useEffect(() => {
     if (!compacting) {
@@ -395,7 +412,10 @@ export function SessionDetailView({
       setPinnedCallId(callId)
       setWorkbenchOpen(true)
     },
-    onPreviewFile: (file) => setPreviewedFile(file),
+    onPreviewFile: (file) => {
+      if (isWebPage(file.filename)) openPreviewTab({kind: 'attachment', id: file.id, filename: file.filename, size: file.size})
+      else setPreviewedFile(file)
+    },
     onDownloadFile: (file) => {
       void downloadOne(file)
     },

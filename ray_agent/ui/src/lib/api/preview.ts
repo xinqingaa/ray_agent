@@ -36,6 +36,17 @@ export function previewContentUrl(source: PreviewSource, revision?: string) {
   return base + previewEndpoint(source) + '/content?' + params
 }
 
+/** 网页文件单击即在新标签页渲染；服务端用 CSP sandbox 隔离，页面读不到本站接口与存储 */
+export function isWebPage(filename: string) {
+  return /\.html?$/i.test(filename)
+}
+
+export function openPreviewTab(source: PreviewSource) {
+  const link = document.createElement('a')
+  link.href = previewContentUrl(source); link.target = '_blank'; link.rel = 'noopener noreferrer'
+  document.body.appendChild(link); link.click(); link.remove()
+}
+
 export async function readPreview(endpoint: string, params: URLSearchParams, signal: AbortSignal): Promise<FilePreview> {
   const response = await fetch(`${base}${endpoint}?${params}`, {signal, cache: 'no-store'})
   const body = await response.json().catch(() => null)

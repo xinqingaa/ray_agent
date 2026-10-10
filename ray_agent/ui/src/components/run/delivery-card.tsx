@@ -4,7 +4,8 @@ import {useState} from 'react'
 import {projectApi} from '@/lib/api/project'
 import {useProjectCopies} from './project-copy-status'
 import {toast} from 'sonner'
-import {Download, Eye, Package, PackageOpen} from 'lucide-react'
+import {Download, ExternalLink, Eye, Package, PackageOpen} from 'lucide-react'
+import {isWebPage} from '@/lib/api/preview'
 import {Button} from '@/components/ui/button'
 import {PreviewAction} from '@/components/preview/action'
 import {cn} from '@/lib/utils'
@@ -49,7 +50,7 @@ export function DeliveryCard({projectId, files, note, onPreview, onDownload, onD
             <li key={file.id}>
               <FileRow file={file} showThumbnail onOpen={onPreview ? () => onPreview(file) : undefined} actions={<>
                 {projectId && receipt?.copy_key && persistence?.can_retry && <Button size="sm" variant="outline" disabled={!!retrying || !!state?.error || !state?.loaded} onClick={() => void retry(receipt.copy_key)}>{retrying === receipt.copy_key ? '正在写入' : '重试项目副本'}</Button>}
-                {!unavailable && <PreviewAction label={`预览 ${file.filename}`} icon={Eye} onClick={() => onPreview?.(file)} disabled={!onPreview}/>}
+                {!unavailable && <PreviewAction label={isWebPage(file.filename) ? `在新标签页打开 ${file.filename}` : `预览 ${file.filename}`} icon={isWebPage(file.filename) ? ExternalLink : Eye} onClick={() => onPreview?.(file)} disabled={!onPreview}/>}
                 <PreviewAction label={`下载 ${file.filename}`} icon={Download} onClick={() => onDownload?.(file)} disabled={!onDownload}/>
               </>}>
                 {image && projectId && receipt?.copy_key && persistence?.can_retry && <Button size="sm" variant="outline" disabled={!!retrying || !!state?.error || !state?.loaded} onClick={() => void retry(receipt.copy_key)}>{retrying === receipt.copy_key ? '正在写入' : '重试项目副本'}</Button>}
