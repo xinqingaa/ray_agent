@@ -15,7 +15,7 @@
 | 本轮开发是否收尾，关键验收在哪里 | [阶段收尾与维护](plan/README.md) |
 | 旧方案与当前方案的关系 | [演进背景](background/README.md) |
 | 追溯原工作包设计、验收条件与依赖 | [二次开发历史参考](background/phase-4/README.md) |
-| 两次问题调研的原始分析 | [调研快照](research/README.md) |
+| 问题调研的原始分析与方案建议 | [调研快照](research/README.md) |
 | 部署和本地开发 | [运行指南](../ray_agent/README.md)及各服务指南 |
 | 课程阅读与后续同步 | [课程目录](../lessons/README.md)、[课程同步范围](course-sync.md) |
 
