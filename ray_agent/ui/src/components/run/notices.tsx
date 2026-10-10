@@ -1,6 +1,6 @@
 'use client'
 
-import {Layers, RotateCw, TriangleAlert} from 'lucide-react'
+import {Layers, RotateCw, Square, TriangleAlert} from 'lucide-react'
 import {useDeveloperMode} from '@/hooks/use-developer-mode'
 import {cn} from '@/lib/utils'
 import type {CompactTrigger} from '@/lib/session-view'
@@ -96,7 +96,8 @@ function attemptSentence(attempt: number, reason: string, retried: boolean, char
 export function AttemptNotice({attempt, reason, retried, chars, className}: AttemptNoticeProps) {
   const {visibility} = useDeveloperMode()
   const stopped = reason === 'cancelled'
-  const Icon = retried ? RotateCw : TriangleAlert
+  if (stopped && !visibility.requestMetrics) return null
+  const Icon = stopped ? Square : retried ? RotateCw : TriangleAlert
   return (
     <p
       role="note"

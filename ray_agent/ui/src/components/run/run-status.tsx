@@ -22,7 +22,7 @@ const TEXT = {
   completed: '已完成',
   completedUnread: '已完成，尚未查看',
   failed: '失败',
-  cancelled: '已停止',
+  cancelled: '已停止生成',
   interrupted: '已中断',
   waitReply: '等你回复',
   waitApproval: '等你批准',
@@ -183,7 +183,7 @@ function terminalWord(status: TerminalProps['status']): string {
 /** 输入框的 placeholder 只能是字符串，所以这四句和组件放在同一处，不另起判断函数。 */
 export const RUN_INPUT_HINT = {
   reply: '回复将继续当前任务',
-  approval: '先批准或拒绝，或点暂停结束运行',
+  approval: '先批准或拒绝，或点停止生成结束运行',
   running: '补充要求，会在当前这批操作结束后读取',
   idle: '继续这次对话……',
 } as const
@@ -231,10 +231,10 @@ export function RunStatus(props: RunStatusProps): ReactNode {
       )
     }
     case 'headline': {
-      if (props.compacting || (props.status !== 'completed' && props.status !== 'cancelled')) return null
+      if (props.compacting || props.status !== 'completed') return null
       return (
         <span role="status" className={cn('shrink-0 text-xs text-muted-foreground', props.className)}>
-          {props.status === 'completed' ? TEXT.completed : TEXT.cancelled}
+          {TEXT.completed}
         </span>
       )
     }

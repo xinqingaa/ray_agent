@@ -10,6 +10,7 @@
  * RunView.summary（用时、轮数、工具数、tokens）和未结束轮次的 endedAt
  * 同样按 W3 契约由夹具时间戳推算，不是事件原文。
  */
+import {projectSession} from '@/lib/session-projection'
 import type {ListA2AServerItem, ListMCPServerItem, Session} from '@/lib/api'
 import type {
   FileView,
@@ -152,7 +153,7 @@ export const planStates = {
     items: [
       {...planInProgress.items[0], status: 'completed', completedAt: planInProgress.updatedAt + 1100},
       {...planInProgress.items[1], status: 'in_progress', startedAt: planInProgress.updatedAt + 1100},
-      {text: '校验 amount 列没有缺失值', status: 'pending', startedAt: null, completedAt: null},
+      {id: 'synthetic-validation', text: '校验 amount 列没有缺失值', status: 'pending', startedAt: null, completedAt: null},
       planInProgress.items[3],
     ],
     currentIndex: 1,
@@ -505,3 +506,18 @@ export const settingsListStates: {mcp: ListMCPServerItem[]; a2a: ListA2AServerIt
     },
   ],
 }
+
+/** 合成：新契约的两版计划，保留相同步骤身份。 */
+export const planRevisionState = projectSession({id: 'plan-contract', events: [
+  {event: 'run', data: {seq: 1, run_id: 'r', created_at: 1000, status: 'running'}},
+  {event: 'plan', data: {seq: 2, run_id: 'r', created_at: 2000, plan_id: 'p', steps: [
+    {id: 'a', description: '确认需求', status: 'completed'},
+    {id: 'b', description: '设计课程结构', status: 'running'},
+    {id: 'c', description: '编写交互页面', status: 'pending'},
+  ]}},
+  {event: 'plan', data: {seq: 3, run_id: 'r', created_at: 3000, plan_id: 'p', explanation: '结构确定，开始编写页面', steps: [
+    {id: 'a', description: '确认需求', status: 'completed'},
+    {id: 'b', description: '设计课程结构', status: 'completed'},
+    {id: 'c', description: '编写单文件交互页面', status: 'running'},
+  ]}},
+]}).plan

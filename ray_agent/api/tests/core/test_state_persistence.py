@@ -93,7 +93,7 @@ def test_wait_resume_after_serialization_keeps_plan_snapshot_and_identity():
         snapshot = latest_plan(store_of(restored).events)
         assert [s.status for s in snapshot.steps] == ['running', 'pending']
 
-        done_plan = [{'step': '确认路径', 'status': 'completed'}, {'step': '读取文件', 'status': 'completed'}]
+        done_plan = [{'id': step.id, 'step': step.description, 'status': 'completed'} for step in snapshot.steps]
         second = make_loop([
             ScriptedResponse(tool_calls=[
                 ScriptedToolCall('read_file', {'filepath': '/hello.txt'}, id='read-1'),
@@ -110,6 +110,7 @@ def test_wait_resume_after_serialization_keeps_plan_snapshot_and_identity():
         assert first.session.status == 'waiting'
         plans = [e.plan for e in second.events if isinstance(e, PlanEvent)]
         assert len(plans) == 2 and plans[0].id == plans[1].id
+        assert [step.id for step in plans[0].steps] == [step.id for step in plans[1].steps]
         assert [s.status for s in plans[-1].steps] == ['completed', 'completed']
         assert tool_results(second.llm.requests[0].messages)['ask-1']['data']['reply'] == '/hello.txt'
         second.sandbox.read_file.assert_awaited_once()

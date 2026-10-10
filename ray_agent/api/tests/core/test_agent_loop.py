@@ -82,10 +82,10 @@ def test_batch_with_two_calls_and_update_plan_runs_in_order_and_pairs_by_id():
     assert kinds == [("ToolEvent", "c-a"), ("ToolEvent", "c-plan"), ("PlanEvent", None), ("ToolEvent", "c-b")]
     plan_event = next(e for e in events if isinstance(e, PlanEvent))
     assert plan_event.status == PlanEventStatus.UPDATED
-    assert [(s.id, s.description, s.status) for s in plan_event.plan.steps] == [
-        ("1", "读取资料", ExecutionStatus.COMPLETED),
-        ("2", "整理结论", ExecutionStatus.RUNNING),
-        ("3", "交付", ExecutionStatus.PENDING),
+    assert [(s.description, s.status) for s in plan_event.plan.steps] == [
+        ("读取资料", ExecutionStatus.COMPLETED),
+        ("整理结论", ExecutionStatus.RUNNING),
+        ("交付", ExecutionStatus.PENDING),
     ]
 
     second = h.llm.requests[1].messages
@@ -95,6 +95,8 @@ def test_batch_with_two_calls_and_update_plan_runs_in_order_and_pairs_by_id():
     results = tool_results(second)
     assert results["c-a"]["data"] == {"echo": "a"} and results["c-b"]["data"] == {"echo": "b"}
     assert results["c-plan"]["success"] is True
+    assert [item["id"] for item in results["c-plan"]["data"]["plan"]] == [step.id for step in plan_event.plan.steps]
+    assert len(set(step.id for step in plan_event.plan.steps)) == 3
     assert isinstance(events[-1], DoneEvent) and h.loop.end_reason == RunEndReason.COMPLETED
     assert [e.message for e in events if isinstance(e, MessageEvent)][0] == "先读两份资料并写计划"
     assert "执行记录仍有未完成项" in [e.message for e in events if isinstance(e, MessageEvent)][-1]

@@ -58,6 +58,7 @@ from app.domain.models.run import RunMode
 from app.domain.services.context.budget import ContextBudget, ContextEstimate, fixed_input_estimate, FIXED_INPUT_GUIDANCE
 from app.domain.services.context.compactor import CompactionStatus, Compactor
 from app.domain.services.context.shaping import ResultShaper, WriteOutputFn
+from app.domain.services.plan_progress import PlanProgress, PLAN_PROGRESS_PREFIX, PLAN_PROGRESS_NOTICE
 from app.domain.services.plan_mode import PlanModeGuard
 from app.domain.services.prompts.plan_mode import PLAN_MODE_SUFFIX
 from app.domain.services.prompts.system import SYSTEM_PROMPT
@@ -461,6 +462,7 @@ class AgentLoop(BaseFlow):
         self._delivery_failures.clear()
         self._delivery_required=False
         self._plan_changed=False
+        self._plan_progress = PlanProgress()
 
     def _set_budget_phase(self, phase: BudgetPhase) -> None:
         self._budget_phase = phase
@@ -475,7 +477,7 @@ class AgentLoop(BaseFlow):
             phase = noticed_phase(content)
             if phase is not None:
                 return phase
-            if content == TRUNCATION_PROMPT or content.startswith(COMPLETION_FEEDBACK_PREFIX):
+            if content == TRUNCATION_PROMPT or content.startswith((COMPLETION_FEEDBACK_PREFIX, PLAN_PROGRESS_PREFIX)):
                 continue
             return BudgetPhase.NORMAL
         return BudgetPhase.NORMAL
@@ -498,16 +500,23 @@ class AgentLoop(BaseFlow):
             yield event
 
     async def _load(self) -> List[BaseEvent]:
-        """读会话与已有工具、计划事件，准备记忆与计划工具；返回这些事件。"""
+        """读会话与工具、计划；计划核对计数只回放本运行的事件。"""
+        run_id = getattr(self, "run_id", None)
         async with self._uow:
             session = await self._uow.session.get_by_id(self._session_id)
             history = await self._uow.event.list(self._session_id, types=["tool", "plan"])
+            progress_history = await self._uow.event.list(
+                self._session_id, types=["tool", "plan", "turn", "context"], run_id=run_id,
+            ) if run_id is not None else []
         if not session:
             raise ValueError(f"会话[{self._session_id}]不存在, 请核实后尝试")
         await self._ensure_memory()
         if self.plan_tool.latest_plan is None:
             self.plan_tool.latest_plan = latest_plan(history)
         self._session_status = session.status
+        self._plan_progress = PlanProgress()
+        for event in progress_history:
+            self._plan_progress.observe(event)
         return history
 
     async def _resume(
@@ -588,6 +597,12 @@ class AgentLoop(BaseFlow):
 
             async for event in self._sync_visual_history():
                 yield event
+
+            if self._plan_progress.due(self.plan_tool.latest_plan):
+                await self._add_messages([{"role": "user", "content": PLAN_PROGRESS_NOTICE}])
+                for event in self._take_context():
+                    self._plan_progress.observe(event)
+                    yield event
 
             async for event in self._advance_budget():
                 yield event
@@ -670,6 +685,7 @@ class AgentLoop(BaseFlow):
             if independent:
                 started = time.monotonic()
                 async for invocation, event in self.pipeline.read_batch(independent):
+                    self._plan_progress.observe(event)
                     if isinstance(event, ToolEvent) and event.status == ToolEventStatus.CALLED:
                         await self._add_messages([tool_message(invocation.call_id, invocation.function_name, invocation.result)])
                         for context in self._take_context():
@@ -756,6 +772,7 @@ class AgentLoop(BaseFlow):
                        turn: Optional[_ModelTurn] = None) -> AsyncGenerator[BaseEvent, None]:
         """经管线执行一次调用；结果先写记忆再发 called，在 called 之后停止时续接不会把已执行的调用补成未执行。"""
         async for event in self.pipeline.run(invocation):
+            self._plan_progress.observe(event)
             if isinstance(event, ToolEvent) and event.status == ToolEventStatus.CALLED \
                     and event.tool_call_id == invocation.call_id:
                 await self._add_messages([
@@ -903,6 +920,7 @@ class AgentLoop(BaseFlow):
     def _turn_completed(self, turn: _ModelTurn, error: Optional[str] = None) -> TurnEvent:
         self._open_turn = None
         self._last_completed = self._completion(turn, error)
+        self._plan_progress.observe(self._last_completed)
         return self._last_completed.model_copy(deep=True)
 
     def turn_snapshot(self, index: int, error: str) -> Optional[TurnEvent]:

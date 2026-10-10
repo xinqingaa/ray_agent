@@ -280,3 +280,21 @@
 
 .view-enter-left { animation: view-enter-left 200ms ease-out; }
 .view-enter-right { animation: view-enter-right 200ms ease-out; }
+
+/* 计划卡片只改变清单高度，底边与宽度始终固定。 */
+.plan-reveal {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.plan-card[data-open="true"] > .plan-reveal {
+    grid-template-rows: 1fr;
+}
+@starting-style {
+    .plan-card[data-open="true"] > .plan-reveal {
+        grid-template-rows: 0fr;
+    }
+}
+@media (prefers-reduced-motion: reduce) {
+    .plan-reveal { transition: none; }
+}

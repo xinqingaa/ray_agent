@@ -42,6 +42,7 @@ import {
   PLAN_TOOL_RUNNING_NOW,
   PLAN_WALKTHROUGH_NOW,
   planStates,
+  planRevisionState,
   planToolRunning,
   planWalkthrough,
   runStates,
@@ -288,7 +289,7 @@ export function ComponentCatalog() {
           标“合成”的是这些事件里不会出现的状态，按视图模型契约改写。运行中的计时从夹具记录的时刻开始走秒。
         </p>
 
-        <Section id="status-bar" title="运行状态条" note="放在输入框上方，进行中只保留用时和轮次。当前一句在时间线末尾。终态原因只在终态条。暂停在发送按钮上。">
+        <Section id="status-bar" title="运行状态条" note="放在输入框上方，进行中只保留用时和轮次。当前一句在时间线末尾。终态原因只在终态条。停止生成在发送按钮上。">
           <State label="空闲（不占位）" source="真实"><RunStatusBar run={runStates.idle}/></State>
           <State label="正在思考" source="真实"><FixtureClock at={runStates.modelNow}><div className="flex flex-col gap-2"><RunStatus place="timeline" compacting={false} pendingSend={false} activity="model" streaming={false} running tailQuiet/><RunStatusBar run={runStates.model}/></div></FixtureClock></State>
           <State label="工具执行中（动词在工具行）" source="真实"><FixtureClock at={runStates.toolNow}><RunStatusBar run={runStates.tool}/></FixtureClock></State>
@@ -303,7 +304,7 @@ export function ComponentCatalog() {
           <State label="已中断（状态行收起）" source="合成"><Surface className="text-meta text-faint"><RunStatus place="headline" status="interrupted" compacting={false}/>原因只在时间线终态条。</Surface></State>
         </Section>
 
-        <Section id="plan-bar" title="计划条" columns={2} note="折叠时显示进度、当前项与其用时；展开为完整清单与说明。计划更新时，变化的项带左侧标记与说明。">
+        <Section id="plan-bar" title="计划条" columns={2} note="进度入口显示当前步骤序号；点击浮动弹层，只显示最新计划与完成数量，不占据页面布局。">
           <State label="无计划（不占位）" source="真实">
             <Surface className="text-meta text-faint">
               <PlanBar plan={planStates.none} runStatus="running"/>
@@ -313,20 +314,23 @@ export function ComponentCatalog() {
           <State label="进行中（折叠）" source="真实">
             <FixtureClock at={planStates.inProgressNow}><PlanBar plan={planStates.inProgress} runStatus="running"/></FixtureClock>
           </State>
-          <State label="进行中（展开）" source="真实">
-            <FixtureClock at={planStates.inProgressNow}><PlanBar plan={planStates.inProgress} runStatus="running" defaultExpanded/></FixtureClock>
+          <State label="进行中（点击打开弹层）" source="真实">
+            <FixtureClock at={planStates.inProgressNow}><PlanBar plan={planStates.inProgress} runStatus="running"/></FixtureClock>
           </State>
           <State label="全部完成" source="真实">
-            <PlanBar plan={planStates.allDone} runStatus="completed" defaultExpanded/>
+            <PlanBar plan={planStates.allDone} runStatus="completed"/>
           </State>
           <State label="运行结束时有未完成项" source="合成">
-            <PlanBar plan={planStates.endedUnfinished} runStatus="cancelled" defaultExpanded/>
+            <PlanBar plan={planStates.endedUnfinished} runStatus="cancelled"/>
           </State>
           <State label="计划被修改（状态变化）" source="真实">
-            <FixtureClock at={PLAN_CHANGED_NOW}><PlanBar plan={planStates.changed} runStatus="running" defaultExpanded/></FixtureClock>
+            <FixtureClock at={PLAN_CHANGED_NOW}><PlanBar plan={planStates.changed} runStatus="running"/></FixtureClock>
+          </State>
+          <State label="计划调整后只显示最新清单" source="合成">
+            <PlanBar plan={planRevisionState} runStatus="running"/>
           </State>
           <State label="计划被修改（新增与删除）" source="合成">
-            <FixtureClock at={planStates.inProgressNow + 1500}><PlanBar plan={planStates.rewritten} runStatus="running" defaultExpanded/></FixtureClock>
+            <FixtureClock at={planStates.inProgressNow + 1500}><PlanBar plan={planStates.rewritten} runStatus="running"/></FixtureClock>
           </State>
         </Section>
 

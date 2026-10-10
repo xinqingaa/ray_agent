@@ -617,7 +617,7 @@ export function SessionDetailView({
           <div className="shrink-0 border-t bg-background px-3 py-3">
             <div className="mx-auto w-full max-w-(--reading-column)">
               {mode === 'conversation' && (
-                <PlanBar plan={view.plan} runStatus={view.status === 'idle' ? null : view.status} className="mb-2"/>
+                <PlanBar plan={view.plan} runStatus={view.runs.find(item => item.id === view.plan?.sourceRunId)?.status ?? null} previousRun={!!view.plan?.sourceRunId && view.plan.sourceRunId !== run?.id} className="mb-2"/>
               )}
               <RunStatusBar run={pendingSend && !view.activeRun ? null : view.activeRun} className="mb-2"/>
               <ChatInput

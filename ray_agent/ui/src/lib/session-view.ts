@@ -146,6 +146,7 @@ export type ToolCallView = {
 export type PlanItemStatus = 'pending' | 'in_progress' | 'completed'
 
 export type PlanItem = {
+  id: string
   text: string
   status: PlanItemStatus
   /** 首次变为 in_progress 的时间 */
@@ -155,10 +156,10 @@ export type PlanItem = {
 }
 
 export type PlanChange = {
-  /** added、status 为新清单中的下标；removed 为上一版中的下标 */
+  /** removed 为上一版中的下标；其余变化为新清单中的下标 */
   index: number
   text: string
-  kind: 'added' | 'removed' | 'status'
+  kind: 'added' | 'removed' | 'status' | 'text' | 'order'
   from?: PlanItemStatus
   to?: PlanItemStatus
 }

@@ -5,7 +5,7 @@ import {cn, formatFileSize} from '@/lib/utils'
 import {ScrollArea, ScrollBar} from '@/components/ui/scroll-area'
 import {Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle} from '@/components/ui/item'
 import {Avatar, AvatarGroupCount} from '@/components/ui/avatar'
-import {ArrowUp, FileText, Loader2, Paperclip, Pause, XCircle} from 'lucide-react'
+import {ArrowUp, FileText, Loader2, Paperclip, Square, XCircle} from 'lucide-react'
 import {Button} from '@/components/ui/button'
 import {Popover, PopoverAnchor, PopoverContent} from '@/components/ui/popover'
 import {PlusCommandMenu, SlashCommandList} from '@/components/input-command-menu'
@@ -32,7 +32,7 @@ interface ChatInputProps {
   savedReasoning?: string | null
   runModel?: string | null
   runReasoning?: string | null
-  /** 运行中或消息刚送出时，发送位改为暂停。停止中按钮禁用，转圈留在时间线那一句。 */
+  /** 运行中或消息刚送出时，发送位改为停止生成。停止中按钮禁用，转圈留在时间线那一句。 */
   pause?: false | 'ready' | 'stopping'
   onPause?: () => void
   disabled?: boolean
@@ -562,7 +562,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
             </button>
           )}
         </div>
-        {/* 发送/暂停按钮 */}
+        {/* 发送/停止生成按钮 */}
         <div className="flex items-center gap-1">
           <ModelPicker
             sessionId={sessionId}
@@ -579,11 +579,11 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
             className="rounded-full w-8 h-8 cursor-pointer"
             onClick={showPause ? onPause : handleSend}
             disabled={showPause ? pause === 'stopping' || !onPause : blocked || uploading || !inputValue.trim()}
-            aria-label={showPause ? (pause === 'stopping' ? '停止中' : '暂停') : '发送'}
-            title={showPause ? (pause === 'stopping' ? '停止中' : '暂停') : '发送'}
+            aria-label={showPause ? (pause === 'stopping' ? '正在停止' : '停止生成') : '发送'}
+            title={showPause ? (pause === 'stopping' ? '正在停止' : '停止生成') : '发送'}
           >
             {showPause ? (
-              <Pause className="size-3.5 fill-current"/>
+              <Square className="size-3.5 fill-current"/>
             ) : sending ? (
               <Loader2 className="size-4 animate-spin"/>
             ) : (

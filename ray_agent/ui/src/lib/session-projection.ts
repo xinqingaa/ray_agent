@@ -87,7 +87,7 @@ const REASON_TEXT: Record<string, string> = {
   output_truncated: '模型输出连续两次超过长度上限被截断',
   model_error: '模型请求失败，运行已停止',
   runner_error: '任务执行出错，运行已停止',
-  user_stop: '你停止了这次运行',
+  user_stop: '已停止生成',
   api_restart: '服务重启导致运行中断',
   runner_lost: '执行过程已丢失，运行已中断',
 }
@@ -833,6 +833,8 @@ export function projectSession(input: ProjectSessionInput): SessionView {
     }
 
     if (ev.type === 'plan') {
+      const samePlan = plan?.planId === str(data.plan_id)
+      if (!samePlan) { plan = null; previousPlan = null; planExplanation = null }
       const items = readPlanItems(data.steps, previousPlan, ev.createdAt)
       const changed = previousPlan ? diffPlan(previousPlan, items) : []
       const incoming = str(data.explanation) ?? str(data.message) ?? planExplanation
@@ -1085,7 +1087,7 @@ function reasonText(track: RunTrack, maxTurns: number | null): string | null {
     return `模型请求次数达到本次运行上限 ${maxTurns} 次。确认任务没有陷入重复后，可在设置中调高“单次运行最大模型请求次数”再重试`
   }
   if (track.reason && REASON_TEXT[track.reason]) return REASON_TEXT[track.reason]
-  if (track.status === 'cancelled') return '你停止了这次运行'
+  if (track.status === 'cancelled') return '已停止生成'
   if (track.status === 'interrupted') return '运行已中断'
   return track.reason ? `运行已结束（${track.reason}）` : '运行失败'
 }
@@ -1243,15 +1245,16 @@ function sumUsage(list: Array<TokenCounts | null>): TokenCounts {
 function readPlanItems(raw: unknown, previous: PlanItem[] | null, at: number): PlanItem[] {
   if (!Array.isArray(raw)) return []
   return raw.map((step) => {
-    if (!isRecord(step)) return {text: '', status: 'pending' as const, startedAt: null, completedAt: null}
+    if (!isRecord(step)) return {id: '', text: '', status: 'pending' as const, startedAt: null, completedAt: null}
     const text = str(step.description) ?? str(step.step) ?? str(step.text) ?? ''
+    const id = str(step.id) ?? ''
     const status = planStatus(step.status)
-    const old = previous?.find((item) => item.text === text && text)
+    const old = previous?.find((item) => item.id === id && id)
     let startedAt = old?.startedAt ?? null
     let completedAt = status === 'completed' ? old?.completedAt ?? null : null
     if (status === 'in_progress' && startedAt == null) startedAt = at
     if (status === 'completed' && completedAt == null) completedAt = at
-    return {text, status, startedAt, completedAt}
+    return {id, text, status, startedAt, completedAt}
   })
 }
 
@@ -1268,13 +1271,12 @@ function nextPlan(
   incoming: string | null,
   at: number,
 ): PlanView {
-  const kept = current?.explanation ?? null
   const currentIndex = items.findIndex((item) => item.status === 'in_progress')
   return {
     items,
     currentIndex: currentIndex >= 0 ? currentIndex : null,
     completedCount: items.filter((item) => item.status === 'completed').length,
-    explanation: incoming && incoming.trim() ? incoming : kept,
+    explanation: incoming?.trim() || null,
     updatedAt: at,
     changed,
     version: (current?.version ?? 0) + 1,
@@ -1285,12 +1287,14 @@ function diffPlan(prev: PlanItem[], next: PlanItem[]): PlanChange[] {
   const used = new Set<number>()
   const changes: PlanChange[] = []
   next.forEach((item, index) => {
-    const oldIndex = prev.findIndex((old, i) => !used.has(i) && old.text === item.text)
+    const oldIndex = prev.findIndex((old, i) => !used.has(i) && old.id === item.id)
     if (oldIndex < 0) {
       changes.push({index, text: item.text, kind: 'added'})
       return
     }
     used.add(oldIndex)
+    if (prev[oldIndex].text !== item.text) changes.push({index, text: item.text, kind: 'text'})
+    if (oldIndex !== index) changes.push({index, text: item.text, kind: 'order'})
     if (prev[oldIndex].status !== item.status) {
       changes.push({index, text: item.text, kind: 'status', from: prev[oldIndex].status, to: item.status})
     }

@@ -19,7 +19,7 @@ type RunEndBarProps = {
 
 const NEXT_STEP: Record<RunEndBarProps['status'], string> = {
   failed: '已写入的文件保留在沙箱中。',
-  cancelled: '已写入的文件保留在沙箱中，可以继续发送消息开始新的运行。',
+  cancelled: '可以补充要求，或发送“继续”接着处理。',
   interrupted: '这次运行不会自动恢复，可以重新发送任务。',
 }
 
@@ -40,7 +40,7 @@ export function RunEndBar({status, reasonText, retryText, onRetry, retrying = fa
   const meta = RUN_PHASE[status]
   const Icon = meta.icon
   const showRetry = status === 'failed' && !!retryText && !!onRetry
-  const reason = status === 'failed' ? failureReason(reasonText) : reasonText
+  const reason = status === 'cancelled' ? '' : status === 'failed' ? failureReason(reasonText) : reasonText
   return (
     <div
       role="status"

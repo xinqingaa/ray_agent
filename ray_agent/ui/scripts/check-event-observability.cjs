@@ -341,7 +341,7 @@ function kinds(view) {
   const expired = stoppedApproval.timeline.find((item) => item.kind === 'approval');
   assert.equal(expired.status, 'expired');
   assert.equal(expired.call.status, 'skipped');
-  assert.equal(stoppedApproval.timeline.find((item) => item.kind === 'run_end').reasonText, '你停止了这次运行');
+  assert.equal(stoppedApproval.timeline.find((item) => item.kind === 'run_end').reasonText, '已停止生成');
   assert.equal(stoppedApproval.activeRun, null);
   const restarted = projectSession({
     id: 's',
@@ -383,8 +383,8 @@ function kinds(view) {
       ev(4, 'run', {status: 'cancelled', reason: 'user_stop', summary: summary({tool_calls: 0})}),
     ],
   });
-  assert.equal(stopped.runs[0].reasonText, '你停止了这次运行');
-  assert.equal(stopped.timeline.find((item) => item.kind === 'run_end').reasonText, '你停止了这次运行');
+  assert.equal(stopped.runs[0].reasonText, '已停止生成');
+  assert.equal(stopped.timeline.find((item) => item.kind === 'run_end').reasonText, '已停止生成');
   assert.equal(stopped.timeline.find((item) => item.kind === 'tools').calls[0].status, 'cancelled');
   assert.equal(stopped.activeRun, null);
   assert.equal(stopped.status, 'cancelled');
@@ -422,11 +422,11 @@ function kinds(view) {
           ],
         },
       }),
-      ev(3, 'plan', {steps: [
+      ev(3, 'plan', {plan_id: 'stable-plan', explanation: '先读再写', steps: [
         {id: '1', description: '读取', status: 'running'},
         {id: '2', description: '写入', status: 'pending'},
       ]}),
-      ev(4, 'plan', {steps: [
+      ev(4, 'plan', {plan_id: 'stable-plan', explanation: '先读再写', steps: [
         {id: '1', description: '读取', status: 'completed'},
         {id: '2', description: '校验', status: 'running'},
       ]}),
@@ -438,13 +438,14 @@ function kinds(view) {
   assert.equal(plan.plan.completedCount, 1);
   assert.equal(plan.plan.items[0].startedAt, 1_700_000_000_000 + 3000);
   assert.equal(plan.plan.items[0].completedAt, 1_700_000_000_000 + 4000);
-  assert.deepEqual(plan.plan.changed.map((change) => change.kind), ['status', 'added', 'removed']);
+  assert.deepEqual(plan.plan.changed.map((change) => change.kind), ['status', 'text', 'status']);
   assert.equal(plan.plan.changed[0].from, 'in_progress');
   assert.equal(plan.plan.changed[0].to, 'completed');
   assert.equal(plan.plan.changed[1].text, '校验');
-  assert.equal(plan.plan.changed[2].text, '写入');
+  assert.equal(plan.plan.changed[2].to, 'in_progress');
+  assert.equal(plan.plan.items[1].id, '2');
   assert.equal(plan.timeline.find((item) => item.kind === 'tools').calls[0].title, '更新计划 0/2 已完成');
-  console.log('PASS: 计划第二版标出状态变化、新增和删除');
+  console.log('PASS: 计划第二版按稳定 ID 识别改名与状态变化，只投影最新清单');
 
   const delivered = projectSession({
     id: 's',

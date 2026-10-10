@@ -11,6 +11,7 @@
  * - planChanged     同上，截到第二版计划（计划被修改）
  *
  * 真实字段：消息与附件、工具参数与结果原文、工具耗时、每次调用的 tokens、上下文窗口、计划清单、时间戳（取自 event_id 的毫秒）。
+ * 新计划契约补写：步骤使用 fixture-step-* ID，历史版本留空，不作为真实身份或历史证据。
  * 补写字段（W1 事件中没有，按 W3/W2 契约推算或填默认值）：
  * - RawEvent.seq、runId；RunView 全部字段（单个运行，status 由 done/wait 推断）；
  * - TurnView：startedAt 取上一轮最后一个事件时间（第一轮取标题事件），modelMs = usage 事件时间 − startedAt，
@@ -2057,24 +2058,28 @@ export const planWalkthrough: SessionView = {
   "plan": {
     "items": [
       {
+        "id": "fixture-step-1",
         "text": "读取并检查 inventory.csv 数据",
         "status": "completed",
         "startedAt": 1790587925735,
         "completedAt": 1790587927726
       },
       {
+        "id": "fixture-step-2",
         "text": "计算 amount 总和及最大值对应 item",
         "status": "completed",
         "startedAt": null,
         "completedAt": 1790587927726
       },
       {
+        "id": "fixture-step-3",
         "text": "写入 report.json（total、max_item）",
         "status": "completed",
         "startedAt": null,
         "completedAt": 1790587927726
       },
       {
+        "id": "fixture-step-4",
         "text": "交付 report.json 附件",
         "status": "completed",
         "startedAt": 1790587927726,
@@ -3119,24 +3124,28 @@ export const planToolRunning: SessionView = {
   "plan": {
     "items": [
       {
+        "id": "fixture-step-1",
         "text": "读取并检查 inventory.csv 数据",
         "status": "in_progress",
         "startedAt": 1790587925735,
         "completedAt": null
       },
       {
+        "id": "fixture-step-2",
         "text": "计算 amount 总和及最大值对应 item",
         "status": "pending",
         "startedAt": null,
         "completedAt": null
       },
       {
+        "id": "fixture-step-3",
         "text": "写入 report.json（total、max_item）",
         "status": "pending",
         "startedAt": null,
         "completedAt": null
       },
       {
+        "id": "fixture-step-4",
         "text": "交付 report.json 附件",
         "status": "pending",
         "startedAt": null,
@@ -3766,24 +3775,28 @@ export const planModelThinking: SessionView = {
   "plan": {
     "items": [
       {
+        "id": "fixture-step-1",
         "text": "读取并检查 inventory.csv 数据",
         "status": "in_progress",
         "startedAt": 1790587925735,
         "completedAt": null
       },
       {
+        "id": "fixture-step-2",
         "text": "计算 amount 总和及最大值对应 item",
         "status": "pending",
         "startedAt": null,
         "completedAt": null
       },
       {
+        "id": "fixture-step-3",
         "text": "写入 report.json（total、max_item）",
         "status": "pending",
         "startedAt": null,
         "completedAt": null
       },
       {
+        "id": "fixture-step-4",
         "text": "交付 report.json 附件",
         "status": "pending",
         "startedAt": null,
@@ -4529,24 +4542,28 @@ export const planChanged: SessionView = {
   "plan": {
     "items": [
       {
+        "id": "fixture-step-1",
         "text": "读取并检查 inventory.csv 数据",
         "status": "completed",
         "startedAt": 1790587925735,
         "completedAt": 1790587927726
       },
       {
+        "id": "fixture-step-2",
         "text": "计算 amount 总和及最大值对应 item",
         "status": "completed",
         "startedAt": null,
         "completedAt": 1790587927726
       },
       {
+        "id": "fixture-step-3",
         "text": "写入 report.json（total、max_item）",
         "status": "completed",
         "startedAt": null,
         "completedAt": 1790587927726
       },
       {
+        "id": "fixture-step-4",
         "text": "交付 report.json 附件",
         "status": "in_progress",
         "startedAt": 1790587927726,

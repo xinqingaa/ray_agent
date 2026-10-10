@@ -136,6 +136,7 @@ class StepSSEEvent(BaseSSEEvent):
 
 class PlanEventData(BaseEventData):
     plan_id: str
+    explanation: str = ""
     """计划事件数据"""
     steps: List[StepEventData]
 
@@ -151,6 +152,7 @@ class PlanSSEEvent(BaseSSEEvent):
             data=PlanEventData(
                 **BaseEventData.base_event_data(event),
                 plan_id=event.plan.id,
+                explanation=event.plan.message,
                 steps=[
                     StepEventData(
                         **BaseEventData.base_event_data(event),
