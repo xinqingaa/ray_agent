@@ -22,7 +22,7 @@ from app.domain.models.app_config import AgentConfig, ToolPolicyConfig
 from app.domain.models.event import ErrorEvent, Event, MessageEvent, BaseEvent, ToolEvent, ToolEventStatus, \
     BrowserToolContent, SearchToolContent, ShellToolContent, FileToolContent, ProtocolToolContent, \
     TitleEvent, WaitEvent, DoneEvent, TurnEvent, TurnPhase, CleanupEvent, CleanupTarget, ApprovalEvent, \
-    ApprovalStatus
+    ApprovalStatus, CompactEvent
 from app.domain.models.file import File
 from app.domain.models.message import Message
 from app.domain.models.run import RunReason, RunStatus, tools_for_turn
@@ -477,7 +477,23 @@ class AgentTaskRunner(TaskRunner):
             event.status,
             drain_injected_messages=drain,
             first_turn_index=self._next_turn,
+            budget_used=await self._budget_used_before_approval(),
         ))
+
+    async def _budget_used_before_approval(self) -> int:
+        """本运行最近一条用户消息之后已发出的模型请求数（逐轮尝试与压缩摘要请求），续接审批时沿用。"""
+        async with self._uow:
+            history = await self._uow.event.list(self._session_id, types=["message", "turn", "compact"],
+                                                 run_id=self._run_id)
+        used = 0
+        for item in history:
+            if isinstance(item, MessageEvent) and item.role == "user":
+                used = 0
+            elif isinstance(item, TurnEvent) and item.phase == TurnPhase.COMPLETED:
+                used += item.attempts or 0
+            elif isinstance(item, CompactEvent):
+                used += item.usage.attempts
+        return used
 
     @property
     def _waiting_approval(self) -> bool:

@@ -61,6 +61,7 @@ from app.domain.services.context.shaping import ResultShaper, WriteOutputFn
 from app.domain.services.plan_mode import PlanModeGuard
 from app.domain.services.prompts.plan_mode import PLAN_MODE_SUFFIX
 from app.domain.services.prompts.system import SYSTEM_PROMPT
+from app.domain.services.run_budget import BudgetPhase, FinalizeGuard, budget_notice, budget_phase, noticed_phase
 from app.domain.services.task_error import format_public_error_text
 from app.domain.services.tool_policy import ToolPolicyGuard
 from app.domain.services.tools.a2a import A2ATool
@@ -92,6 +93,7 @@ TRUNCATION_PROMPT = (
     "[系统提示] 上一次回复超过输出长度上限被截断，已被丢弃，其中的工具调用均未执行。"
     "请缩短输出后重试：长内容分段写入文件，每次只提交必要的工具调用。"
 )
+COMPLETION_FEEDBACK_PREFIX = "结束前一致性核对："
 
 # 运行中补充的用户消息：循环在每次模型请求前取出全部待处理消息
 DrainFn = Callable[[], Awaitable[List[Message]]]
@@ -314,6 +316,8 @@ class AgentLoop(BaseFlow):
         self._delivery_failures = set()
         self._plan_changed = False
         self.model_requests = 0  # 本次调用已发出的模型请求数（含重试与摘要请求）
+        self.budget_used = 0  # 计入 max_iterations 的请求数，口径见 run_budget
+        self._budget_phase = BudgetPhase.NORMAL
         self.budget = ContextBudget(
             context_window=llm.context_window,
             max_tokens=llm.max_tokens,
@@ -337,6 +341,8 @@ class AgentLoop(BaseFlow):
         # 计划模式的检查在策略之前：被拒绝的调用不会进入审批
         self._plan_guard = PlanModeGuard()
         self.pipeline.add_before(self._plan_guard)
+        self._finalize_guard = FinalizeGuard()
+        self.pipeline.add_before(self._finalize_guard)
         self._policy_guard = ToolPolicyGuard(tool_policy)
         self.pipeline.add_before(self._policy_guard)
         self._mode = RunMode.NORMAL
@@ -427,20 +433,26 @@ class AgentLoop(BaseFlow):
             decision: ApprovalStatus,
             drain_injected_messages: Optional[DrainFn] = None,
             first_turn_index: int = 1,
+            budget_used: int = 0,
     ) -> AsyncGenerator[BaseEvent, None]:
         """审批回复后续接：批准时经管线执行该调用一次，拒绝时回填“用户拒绝执行”；
-        同一批次中它之后仍悬空的调用补为未执行，然后照常请求模型。"""
-        self._begin()
+        同一批次中它之后仍悬空的调用补为未执行，然后照常请求模型。
+
+        budget_used 是审批前已计入预算的请求数；已注入过的预算提示从记忆恢复，不重复注入。
+        """
+        self._begin(budget_used)
         try:
             async for event in self._resume(call_id, decision, drain_injected_messages, first_turn_index):
                 yield event
         finally:
             self._running = False
 
-    def _begin(self) -> None:
+    def _begin(self, budget_used: int = 0) -> None:
         self._running = True
         self.end_reason = None
         self.model_requests = 0
+        self.budget_used = budget_used
+        self._set_budget_phase(BudgetPhase.NORMAL)
         self._inflight = None
         self._deltas_closed = False
         self.pending_approval = None
@@ -449,6 +461,41 @@ class AgentLoop(BaseFlow):
         self._delivery_failures.clear()
         self._delivery_required=False
         self._plan_changed=False
+
+    def _set_budget_phase(self, phase: BudgetPhase) -> None:
+        self._budget_phase = phase
+        self._finalize_guard.enabled = phase == BudgetPhase.FINALIZE
+
+    def _noticed_budget_phase(self) -> BudgetPhase:
+        """最近一条用户原话之后已注入的预算阶段；截断与结束核对等循环自己追加的 user 消息跳过。"""
+        for message in reversed(self._memory.get_messages()):
+            if message.get("role") != "user":
+                continue
+            content = str(message.get("content") or "")
+            phase = noticed_phase(content)
+            if phase is not None:
+                return phase
+            if content == TRUNCATION_PROMPT or content.startswith(COMPLETION_FEEDBACK_PREFIX):
+                continue
+            return BudgetPhase.NORMAL
+        return BudgetPhase.NORMAL
+
+    async def _advance_budget(self) -> AsyncGenerator[BaseEvent, None]:
+        """请求前按已用预算推进阶段；进入新阶段时向记忆追加一条提示，系统提示词保持不变。"""
+        limit = self._config.max_iterations
+        phase = budget_phase(self.budget_used, limit)
+        if phase == self._budget_phase:
+            return
+        order = list(BudgetPhase)
+        raised = order.index(phase) > order.index(self._budget_phase)
+        self._set_budget_phase(phase)
+        notice = budget_notice(phase, self.budget_used, limit, plan_mode=self.mode == RunMode.PLAN) if raised else None
+        if notice is None:
+            return
+        logger.info(f"会话[{self._session_id}] 预算进入 {phase.value}：{self.budget_used}/{limit}")
+        await self._add_messages([{"role": "user", "content": notice}])
+        for event in self._take_context():
+            yield event
 
     async def _load(self) -> List[BaseEvent]:
         """读会话与已有工具、计划事件，准备记忆与计划工具；返回这些事件。"""
@@ -471,6 +518,7 @@ class AgentLoop(BaseFlow):
             first_turn_index: int,
     ) -> AsyncGenerator[BaseEvent, None]:
         await self._load()
+        self._set_budget_phase(self._noticed_budget_phase())
         dangling = find_dangling_calls(self._memory.get_messages())
         position = next((i for i, call in enumerate(dangling) if call.get("id") == call_id), None)
         if position is None:
@@ -535,11 +583,15 @@ class AgentLoop(BaseFlow):
                     await self._add_messages([{"role": "user", "content": _user_content(m)} for m in injected])
                     for event in self._take_context():
                         yield event
+                    self.budget_used = 0
+                    self._set_budget_phase(BudgetPhase.NORMAL)
 
             async for event in self._sync_visual_history():
                 yield event
 
-            if self.model_requests >= self._config.max_iterations:
+            async for event in self._advance_budget():
+                yield event
+            if self.budget_used >= self._config.max_iterations:
                 yield self._fail(RunEndReason.MAX_ITERATIONS,
                                  f"模型请求次数达到本次运行上限 {self._config.max_iterations}")
                 return
@@ -600,7 +652,7 @@ class AgentLoop(BaseFlow):
                 if issues and self._completion_feedbacks < 1:
                     self._completion_feedbacks+=1
                     yield self._turn_completed(turn)
-                    await self._add_messages([{'role':'user','content':'结束前一致性核对：'+'；'.join(issues)+'。不能把路径、计划或部分成功当成全部完成。无法补齐时如实交代缺口。'}])
+                    await self._add_messages([{'role':'user','content':COMPLETION_FEEDBACK_PREFIX+'；'.join(issues)+'。不能把路径、计划或部分成功当成全部完成。无法补齐时如实交代缺口。'}])
                     for event in self._take_context():
                         yield event
                     continue
@@ -764,11 +816,12 @@ class AgentLoop(BaseFlow):
         失败的尝试产出 AttemptEvent，不写入记忆。没有 finish_reason 的结果视为流中断。
         """
         while True:
-            if self.model_requests >= self._config.max_iterations:
+            if self.budget_used >= self._config.max_iterations:
                 turn.failure = RunEndReason.MAX_ITERATIONS
                 turn.error = f"模型请求次数达到本次运行上限 {self._config.max_iterations}"
                 return
             self.model_requests += 1
+            self.budget_used += 1
             turn.attempts += 1
             started = time.monotonic()
             self._inflight = _Inflight(turn=turn.index, attempt=turn.attempts, started=started)
@@ -872,6 +925,8 @@ class AgentLoop(BaseFlow):
         logger.warning(f"会话[{self._session_id}] Agent循环失败结束 reason={reason.value}: {detail}")
         if reason == RunEndReason.MODEL_ERROR:
             text = format_public_error_text(detail)
+        elif reason == RunEndReason.MAX_ITERATIONS:
+            text = f"{detail}，任务未完成。回复“继续”可在当前对话中接着执行。"
         else:
             text = f"{detail}，任务未完成。可在本任务中重试。"
         return ErrorEvent(error=f"{text}（原因：{reason.value}）",
@@ -1055,6 +1110,7 @@ class AgentLoop(BaseFlow):
             self._request_messages(), self.pipeline.schemas(), before, trigger, load_user_events,
             min_gain=trigger == "watermark")
         self.model_requests += result.usage.attempts
+        self.budget_used += result.usage.attempts
         if result.status == CompactionStatus.SKIPPED:
             return
         if result.status == CompactionStatus.FAILED:

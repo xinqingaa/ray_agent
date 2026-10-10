@@ -58,10 +58,10 @@ uv run --locked python -m pytest
 Agent 循环与工具管线可定向运行：
 
 ```bash
-uv run --locked python -m pytest tests/core/test_agent_loop.py tests/core/test_llm_usage.py
+uv run --locked python -m pytest tests/core/test_agent_loop.py tests/core/test_llm_usage.py tests/core/test_run_budget.py
 ```
 
-循环用例用 `ScriptedLLM` 驱动实际 `AgentLoop` 与工具三段管线，存储与沙箱用内存替身（夹具在 [tests/support/loop_harness.py](tests/support/loop_harness.py)），覆盖多调用按 ID 配对与计划事件、未知工具与非法参数、工具异常不重试、提问位于批次中间与续接、运行中补充消息、文件交付、输出截断、请求预算、停止或失败后的悬空调用补结果，以及管线短路、结果替换和处理顺序；用量用例核对解析与累计。它们不连接外部服务，也不证明真实模型的任务质量或计费结果。
+循环用例用 `ScriptedLLM` 驱动实际 `AgentLoop` 与工具三段管线，存储与沙箱用内存替身（夹具在 [tests/support/loop_harness.py](tests/support/loop_harness.py)），覆盖多调用按 ID 配对与计划事件、未知工具与非法参数、工具异常不重试、提问位于批次中间与续接、运行中补充消息、文件交付、输出截断、请求预算、停止或失败后的悬空调用补结果，以及管线短路、结果替换和处理顺序；用量用例核对解析与累计。预算用例覆盖提醒与收尾的阈值、提示只追加在记忆而系统消息不变、收尾阶段拒绝非白名单调用但可交付并完成、补充消息重置计数、审批续接沿用计数并补发缺失的收尾提示，以及 `shell_wait_process` 合并输出。它们不连接外部服务，也不证明真实模型的任务质量或计费结果。
 
 执行控制可定向运行：
 

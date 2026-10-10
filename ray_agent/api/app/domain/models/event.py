@@ -135,8 +135,8 @@ class ToolEvent(BaseEvent):
     duration_ms: Optional[int] = None  # 工具管线从执行前到执行后的耗时，只在 called 事件上填写
     stages_ms: Dict[str, int] = Field(default_factory=dict)
     shaping: Optional[ToolResultShaping] = None  # 只在被整形的 called 事件上填写
-    # 调用未执行：被工具策略禁止 / 被用户拒绝 / 计划模式不允许，只在 called 上
-    denied_by: Optional[Literal["policy", "user", "plan_mode", "batch"]] = None
+    # 调用未执行：被工具策略禁止 / 被用户拒绝 / 计划模式不允许 / 预算收尾阶段不允许，只在 called 上
+    denied_by: Optional[Literal["policy", "user", "plan_mode", "budget", "batch"]] = None
     _raw_result: Optional[ToolResult] = PrivateAttr(default=None)  # 整形前的结果，只供运行器生成展示内容
 
     @field_validator('tool_content', mode='before')

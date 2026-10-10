@@ -51,9 +51,17 @@ docker compose stop manus-api
 | 进程重启，不重读 `.env` | `docker compose restart manus-api` |
 | 只改了 `.env`（密钥、服务连接等） | `docker compose up -d --force-recreate --no-deps manus-api` |
 | 改了 API 代码或 `config.yaml` | `docker compose up -d --build manus-api` |
+| 改了 UI 代码 | `docker compose up -d --build manus-ui` |
 | 整套重启 | `docker compose restart` |
+| 只重建了 API 或 UI，页面变成 502 | `docker compose restart manus-nginx` |
 
 只执行 `restart` 时，容器创建时写入的环境变量不会更新。模型名、地址与环境变量的区别见[模型与工具配置](README.md#模型与工具)。
+
+`docker compose up -d --build manus-api manus-ui` 只重建点名的服务。网关配置里的 `upstream` 在 Nginx 进程启动时解析一次 `manus-api`、`manus-ui` 的地址；这两个容器重建后地址变了，已经在跑的 `manus-nginx` 仍连旧地址，于是页面和 `/api` 返回 502。`depends_on` 只在网关自己创建或启动时生效，不会在上游重建后把它拉起来。上游变为 healthy 之后执行：
+
+```bash
+docker compose restart manus-nginx
+```
 
 ## 看日志
 
@@ -89,5 +97,6 @@ docker compose logs --since 30m manus-api 2>&1 | grep 会话
 |---|---|
 | `no configuration file provided` | 当前目录是不是内层 `ray_agent/` |
 | 构建成功但页面打不开 | `docker compose ps`，再看 `manus-nginx` / `manus-api` |
+| 重建 API 或 UI 后 502 | 先确认上游 healthy，再 `docker compose restart manus-nginx`。原因见[重启](#重启) |
 | API 不是 healthy | `docker compose logs --tail=80 manus-api` |
 | 配置修改未生效 | 先核对[配置位置](README.md#模型与工具)，再按上表选择重建容器或镜像 |

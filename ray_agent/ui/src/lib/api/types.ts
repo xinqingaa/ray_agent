@@ -470,7 +470,7 @@ export type ToolEvent = {
   content?: unknown;
   status?: ToolEventStatus;
   /** 未执行：被工具策略禁止 / 被用户拒绝，只在 called 上；有值时 content 为空 */
-  denied_by?: "policy" | "user" | "plan_mode" | "batch" | null;
+  denied_by?: "policy" | "user" | "plan_mode" | "budget" | "batch" | null;
   stages_ms?: Record<string, number>;
   [key: string]: unknown;
 };

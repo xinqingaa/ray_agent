@@ -175,8 +175,8 @@ class ToolEventData(BaseEventData):
     duration_ms: Optional[int] = None  # 工具耗时，只在 called 事件上有值
     stages_ms: Dict[str, int] = Field(default_factory=dict)
     shaping: Optional[ToolResultShaping] = None  # 结果被整形时：原始字符数、是否截断、完整内容路径
-    # 未执行：被工具策略禁止 / 被用户拒绝 / 计划模式不允许，只在 called 上
-    denied_by: Optional[Literal["policy", "user", "plan_mode", "batch"]] = None
+    # 未执行：被工具策略禁止 / 被用户拒绝 / 计划模式不允许 / 预算收尾阶段不允许，只在 called 上
+    denied_by: Optional[Literal["policy", "user", "plan_mode", "budget", "batch"]] = None
 
 
 class ToolSSEEvent(BaseSSEEvent):

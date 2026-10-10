@@ -79,7 +79,8 @@ class ShellTool(BaseTool):
 
     @tool(
         name="shell_wait_process",
-        description="等待指定 Shell 会话中正在运行的进程返回。在运行耗时较长的命令后使用。",
+        description="等待指定 Shell 会话中正在运行的进程返回，进程结束时直接返回退出码与输出；超时时返回目前的输出。"
+                    "在运行耗时较长的命令后使用。",
         parameters={
             "session_id": {
                 "type": "string",
@@ -96,8 +97,25 @@ class ShellTool(BaseTool):
         """等待指定shell会话中正在运行的进程返回。
 
         过长的 seconds 由沙箱适配按 HTTP 超时减去余量截断，避免客户端先于业务超时断开。
+        结束或超时后再读一次会话输出并入结果，读取失败时只返回等待结果。
         """
-        return await self.sandbox.wait_process(session_id, seconds)
+        waited = await self.sandbox.wait_process(session_id, seconds)
+        timed_out = not waited.success and "超时" in (waited.message or "")
+        if not waited.success and not timed_out:
+            return waited
+        try:
+            read = await self.sandbox.read_shell_output(session_id)
+        except Exception:
+            return waited
+        output = read.data.get("output") if read.success and isinstance(read.data, dict) else None
+        if output is None:
+            return waited
+        data = dict(waited.data) if isinstance(waited.data, dict) else {}
+        data["output"] = output
+        if waited.success:
+            return ToolResult(success=True, message=waited.message, data=data)
+        data["status"] = "running"
+        return ToolResult(success=False, message=f"{waited.message}；进程仍在运行，以下是目前的输出", data=data)
 
     @tool(
         name="shell_write_input",

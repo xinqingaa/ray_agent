@@ -1421,6 +1421,7 @@ const DENIED_TEXT: Record<string, string> = {
   user: '你拒绝了这次调用，它没有执行',
   policy: '工具策略禁止这次调用，它没有执行',
   plan_mode: '计划模式下不执行',
+  budget: '请求预算即将用完，收尾阶段不执行',
 }
 
 function failureOf(data: Record<string, unknown>, content: unknown): {status: ToolCallStatus; error: string | null} | null {

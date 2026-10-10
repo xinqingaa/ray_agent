@@ -104,12 +104,15 @@ docker compose ps
 
 启动、停止、重启、查看状态和日志见 [Docker 操作说明](DOCKER.md)。不要在仓库根执行 `docker compose`。
 
+只重建 `manus-api` 或 `manus-ui` 时，已经在跑的网关不会跟着换上游地址，页面和接口会返回 502。重建后要再执行 `docker compose restart manus-nginx`，原因和命令见 [Docker 操作说明](DOCKER.md#重启)。
+
 ## 排查入口
 
 | 现象 | 优先检查 |
 |---|---|
 | API 无法启动 | 数据库连接、迁移日志、Redis；`FILE_STORAGE_BACKEND=cos` 时检查 COS 配置 |
 | UI 或网关等待启动 | API 健康状态与日志 |
+| 重建 API 或 UI 后页面 502 | 网关仍连重建前的容器地址。重建后重启 `manus-nginx`，见 [Docker 操作说明](DOCKER.md#重启) |
 | 环境准备失败 | 首次使用或同步附件时检查 Docker Socket、沙箱镜像、容器网络和浏览器连接 |
 | 模型调用失败 | API 地址、凭据、模型名称与工具调用支持 |
 | 附件或截图失败 | 本地目录与数据卷，或 COS 地域、存储桶、访问权限，以及沙箱文件操作 |
