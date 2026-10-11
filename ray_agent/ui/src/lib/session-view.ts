@@ -143,7 +143,8 @@ export type ToolCallView = {
   raw: {args: Record<string, unknown>; content: unknown}
 }
 
-export type PlanItemStatus = 'pending' | 'in_progress' | 'completed'
+/** later：后续阶段，已记录但本阶段不处理，不计入未完成 */
+export type PlanItemStatus = 'pending' | 'in_progress' | 'completed' | 'later'
 
 export type PlanItem = {
   id: string

@@ -128,4 +128,6 @@ docker compose restart manus-nginx
 python3 scripts/check-builds.py http://localhost:8088
 ```
 
+沙箱镜像不在上述构建身份内，也不随 `up -d --build manus-api` 更新：改了沙箱源码后需单独执行 `docker compose build manus-sandbox`，之后新建的对话沙箱使用新镜像，已运行的沙箱容器沿用旧镜像直到回收；API 报沙箱接口 404（如 `/api/web/fetch`）先核对镜像是否早于源码。
+
 构建可另外传 `BUILD_DIRTY=true/false`；未提供且构建环境拿不到 Git 时记为未知，不能用 SHA 代替内容核对。更新后再检查一个新运行的快照身份与实际系统提示，旧等待运行继续使用原冻结提示。确认配置保留与服务正常后，删除上述临时配置备份；失败时先保留用于恢复，不把备份提交到仓库。

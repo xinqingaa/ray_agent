@@ -1287,6 +1287,7 @@ function readPlanItems(raw: unknown, previous: PlanItem[] | null, at: number): P
 function planStatus(raw: unknown): PlanItemStatus {
   if (raw === 'in_progress' || raw === 'running') return 'in_progress'
   if (raw === 'completed') return 'completed'
+  if (raw === 'later') return 'later'
   return 'pending'
 }
 

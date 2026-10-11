@@ -58,8 +58,10 @@ from app.domain.models.run import RunMode
 from app.domain.services.context.budget import ContextBudget, ContextEstimate, fixed_input_estimate, FIXED_INPUT_GUIDANCE
 from app.domain.services.context.compactor import CompactionStatus, Compactor
 from app.domain.services.context.shaping import ResultShaper, WriteOutputFn
-from app.domain.models.plan import Plan
-from app.domain.services.plan_progress import PlanProgress, PLAN_PROGRESS_PREFIX
+from app.domain.models.plan import ExecutionStatus, Plan
+from app.domain.services.plan_progress import (
+    COMPLETION_FEEDBACK_PREFIX, INTERNAL_CHECK_NOTE, OPEN_ITEMS_ISSUE, PlanProgress, PLAN_PROGRESS_PREFIX, staged_feedback,
+)
 from app.domain.services.plan_mode import PlanModeGuard
 from app.domain.services.prompts.plan_mode import PLAN_MODE_SUFFIX
 from app.domain.services.prompts.system import SYSTEM_PROMPT
@@ -96,8 +98,6 @@ TRUNCATION_PROMPT = (
     "[系统提示] 上一次回复超过输出长度上限被截断，已被丢弃，其中的工具调用均未执行。"
     "请缩短输出后重试：长内容分段写入文件，每次只提交必要的工具调用。"
 )
-COMPLETION_FEEDBACK_PREFIX = "结束前一致性核对："
-
 # 运行中补充的用户消息：循环在每次模型请求前取出全部待处理消息
 DrainFn = Callable[[], Awaitable[List[Message]]]
 
@@ -328,6 +328,7 @@ class AgentLoop(BaseFlow):
         self._delivery_state = None
         self._delivery_failures = set()
         self._plan_changed = False
+        self._completed_before: set = set()
         self.model_requests = 0  # 本次调用已发出的模型请求数（含重试与摘要请求）
         self.budget_used = 0  # 计入 max_iterations 的请求数，口径见 run_budget
         self._budget_phase = BudgetPhase.NORMAL
@@ -522,10 +523,15 @@ class AgentLoop(BaseFlow):
         await self._ensure_memory()
         if self.plan_tool.latest_plan is None:
             self.plan_tool.latest_plan = latest_plan(history)
+        # 本次运行之前已完成的步骤；后续阶段反馈只看本次运行新完成的步骤
+        earlier = latest_plan([e for e in history if run_id is not None and getattr(e, "run_id", None) != run_id])
+        self._completed_before = {s.id for s in earlier.steps if s.status == ExecutionStatus.COMPLETED} if earlier else set()
         self._session_status = session.status
         self._plan_progress = PlanProgress()
         for event in progress_history:
             self._plan_progress.observe(event)
+        # 结束反馈的“最多一次”按运行计，审批或提问续接后不重新获得机会
+        self._completion_feedbacks = int(self._plan_progress.feedback_sent)
         return history
 
     async def _resume(
@@ -675,12 +681,21 @@ class AgentLoop(BaseFlow):
                 if (self._delivery_required and self._delivery_state != 'complete') or self._delivery_failures:
                     issues.append('文件交付尚未完整成功；核对工具结果，只补交失败项')
                 plan=self.plan_tool.latest_plan
-                if self._plan_changed and not self._plan_progress.not_needed and plan and any(not step.done for step in plan.steps):
-                    issues.append('当前计划还有未完成条目；完成后更新计划，或明确说明未完成原因')
-                if issues and self._completion_feedbacks < 1:
+                if self._plan_changed and not self._plan_progress.not_needed and plan and any(step.open for step in plan.steps):
+                    issues.append(OPEN_ITEMS_ISSUE)
+                # 反馈共用一次机会；预算已用尽时再请求只会让已有答复丢失，不发
+                can_feedback = self._completion_feedbacks < 1 and self.budget_used < self._config.max_iterations
+                staged = bool(can_feedback and self._plan_progress.plan_updated and not self._plan_progress.not_needed
+                              and plan and any(step.deferred for step in plan.steps)
+                              and any(step.status == ExecutionStatus.COMPLETED and step.id not in self._completed_before
+                                      for step in plan.steps))
+                if (issues or staged) and can_feedback:
                     self._completion_feedbacks+=1
+                    body = ('；'.join(issues)+'。不能把路径、计划或部分成功当成全部完成。无法补齐时如实交代缺口。') if issues else ''
+                    if staged:
+                        body += ('\n' if body else '') + staged_feedback(plan)
                     yield self._turn_completed(turn)
-                    await self._add_messages([{'role':'user','content':COMPLETION_FEEDBACK_PREFIX+'；'.join(issues)+'。不能把路径、计划或部分成功当成全部完成。无法补齐时如实交代缺口。'}])
+                    await self._add_messages([{'role':'user','content':COMPLETION_FEEDBACK_PREFIX+body+'\n'+INTERNAL_CHECK_NOTE}])
                     for event in self._take_context():
                         yield event
                     continue

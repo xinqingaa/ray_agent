@@ -13,6 +13,46 @@ export type TimelineRow =
   | {type: 'item'; item: TimelineItem}
   | {type: 'process'; block: ProcessBlock}
 
+export type RunFold = {id: string; runId: string; rows: TimelineRow[]}
+
+export type FoldedRow = TimelineRow | {type: 'fold'; fold: RunFold}
+
+const FOLDED_NOTICES = new Set<TimelineItem['kind']>(['compaction', 'attempt'])
+
+const rowRunId = (row: TimelineRow) => row.type === 'process' ? row.block.runId : row.item.runId
+
+/** 已有最终回复或结束记录的运行：之前连续的过程块与压缩、重试提示收进折叠块，交付、提问等结果条目保持可见 */
+export function foldSettledRuns(rows: TimelineRow[]): FoldedRow[] {
+  const settled = new Set(rows.flatMap(row =>
+    row.type === 'item' && (row.item.kind === 'final' || row.item.kind === 'run_end') && row.item.runId ? [row.item.runId] : []))
+  const ended = new Set<string>()
+  const result: FoldedRow[] = []
+  for (const row of rows) {
+    const runId = rowRunId(row)
+    if (row.type === 'item' && (row.item.kind === 'final' || row.item.kind === 'run_end') && runId) ended.add(runId)
+    const foldable = row.type === 'process' || FOLDED_NOTICES.has(row.item.kind)
+    if (!runId || !settled.has(runId) || ended.has(runId) || !foldable) {
+      result.push(row)
+      continue
+    }
+    const previous = result.at(-1)
+    let fold = previous?.type === 'fold' && previous.fold.runId === runId ? previous.fold : undefined
+    if (!fold) {
+      const firstId = row.type === 'process' ? row.block.id : row.item.id
+      fold = {id: `fold-${runId}-${firstId}`, runId, rows: []}
+      result.push({type: 'fold', fold})
+    }
+    fold.rows.push(row)
+  }
+  return result.map(row => row.type === 'fold' && row.fold.rows.length === 1 ? row.fold.rows[0] : row)
+}
+
+export function foldSummary(fold: RunFold, counts: boolean): string {
+  const blocks = fold.rows.flatMap(row => row.type === 'process' ? [row.block] : [])
+  const tools = blocks.reduce((sum, block) => sum + block.items.reduce((n, item) => n + (item.kind === 'tools' ? item.calls.length : 0), 0), 0)
+  return ['执行过程', `${blocks.length} 轮`, counts && tools > 0 ? `${tools} 个工具` : ''].filter(Boolean).join(' · ')
+}
+
 export function groupProcessBlocks(items: TimelineItem[]): TimelineRow[] {
   const rows: TimelineRow[] = []
   let index = 0

@@ -328,6 +328,9 @@ export function ComponentCatalog() {
           <State label="计划调整后只显示最新清单" source="合成">
             <PlanBar plan={planRevisionState} runStatus="running"/>
           </State>
+          <State label="本阶段已完成，仍有后续阶段" source="合成">
+            <PlanBar plan={planStates.staged} runStatus="completed" defaultOpen/>
+          </State>
           <State label="计划被修改（新增与删除）" source="合成">
             <FixtureClock at={planStates.inProgressNow + 1500}><PlanBar plan={planStates.rewritten} runStatus="running"/></FixtureClock>
           </State>

@@ -3,7 +3,7 @@
 import {useState, type ReactNode} from 'react'
 import {ChevronRight} from 'lucide-react'
 import type {FileView, RunView, StreamingDraft, TimelineItem} from '@/lib/session-view'
-import {groupProcessBlocks, processBlockOpen, processSettled, processSummary, type ProcessBlock} from '@/lib/process-blocks'
+import {foldSettledRuns, foldSummary, groupProcessBlocks, processBlockOpen, processSettled, processSummary, type ProcessBlock, type RunFold, type TimelineRow} from '@/lib/process-blocks'
 import {cn} from '@/lib/utils'
 import {ProjectCopiesProvider} from './project-copy-status'
 import {ApprovalCard} from './approval-card'
@@ -118,7 +118,46 @@ function ProcessBlockView({block, settled, streaming, handlers}: {block: Process
   )
 }
 
-/** 时间线：同一轮的旁白和工具组收成过程块；运行中展开，结束后收起 */
+function RowView({row, items, handlers}: {row: TimelineRow; items: TimelineItem[]; handlers?: TimelineHandlers}) {
+  if (row.type === 'item') return <TimelineItemView item={row.item} handlers={handlers}/>
+  return (
+    <ProcessBlockView
+      block={row.block}
+      settled={processSettled(items, row.block)}
+      streaming={row.block.items.some(item => item.id === handlers?.streamingItemId)}
+      handlers={handlers}
+    />
+  )
+}
+
+function RunFoldView({fold, items, handlers}: {fold: RunFold; items: TimelineItem[]; handlers?: TimelineHandlers}) {
+  const {visibility} = useDeveloperMode()
+  const [open, setOpen] = useState(false)
+  const panelId = fold.id
+  return (
+    <div>
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls={open ? panelId : undefined}
+        onClick={() => setOpen(!open)}
+        className="flex min-h-8 w-full items-center gap-2 rounded-md px-1 text-left text-meta text-muted-foreground outline-none hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        <ChevronRight className={cn('size-3.5 shrink-0 transition-transform duration-200 motion-reduce:transition-none', open && 'rotate-90')} aria-hidden/>
+        <span className="min-w-0 truncate">{foldSummary(fold, visibility.toolCounts)}</span>
+      </button>
+      {open && (
+        <ol id={panelId} className="mt-2 ml-[13px] flex flex-col gap-3 border-l pl-3">
+          {fold.rows.map(row => (
+            <li key={row.type === 'process' ? row.block.id : row.item.id}><RowView row={row} items={items} handlers={handlers}/></li>
+          ))}
+        </ol>
+      )}
+    </div>
+  )
+}
+
+/** 时间线：同一轮的旁白和工具组收成过程块，运行中逐轮展开；运行结束后按连续过程段默认收起，保留提问、用户补充与交付的先后顺序，最终回复始终可见 */
 export function Timeline({items, runs = [], streaming, activeStatus, handlers, className}: {
   items: TimelineItem[]
   runs?: RunView[]
@@ -127,10 +166,10 @@ export function Timeline({items, runs = [], streaming, activeStatus, handlers, c
   handlers?: TimelineHandlers
   className?: string
 }) {
-  const rows = groupProcessBlocks(items)
+  const rows = foldSettledRuns(groupProcessBlocks(items))
   const positions = new Map<string, {last: number; final?: number; end?: number}>()
   rows.forEach((row, index) => {
-    const runId = row.type === 'process' ? row.block.runId : row.item.runId
+    const runId = row.type === 'fold' ? row.fold.runId : row.type === 'process' ? row.block.runId : row.item.runId
     if (!runId) return
     const position = positions.get(runId) ?? {last: index}
     position.last = index
@@ -161,19 +200,10 @@ export function Timeline({items, runs = [], streaming, activeStatus, handlers, c
   return (
     <ProjectCopiesProvider projectId={handlers?.projectId}><ol className={className ?? 'flex flex-col gap-3'}>
       {rows.flatMap((row, index) => {
-        const content = row.type === 'process' ? (
-          <li key={row.block.id}>
-            <ProcessBlockView
-              block={row.block}
-              settled={processSettled(items, row.block)}
-              streaming={row.block.items.some(item => item.id === handlers?.streamingItemId)}
-              handlers={handlers}
-            />
-          </li>
+        const content = row.type === 'fold' ? (
+          <li key={row.fold.id}><RunFoldView fold={row.fold} items={items} handlers={handlers}/></li>
         ) : (
-          <li key={row.item.id}>
-            <TimelineItemView item={row.item} handlers={handlers}/>
-          </li>
+          <li key={row.type === 'process' ? row.block.id : row.item.id}><RowView row={row} items={items} handlers={handlers}/></li>
         )
         const run = anchors.get(index)
         return run ? [content, metrics(run)] : [content]

@@ -13,6 +13,7 @@ class ExecutionStatus(str, Enum):
     RUNNING = "running"  # 执行中
     COMPLETED = "completed"  # 执行完成
     FAILED = "failed"  # 失败
+    LATER = "later"  # 后续阶段：已记录但本阶段不展开，不算未完成，也不算失败；仅用于计划步骤
 
 
 class Step(BaseModel):
@@ -29,6 +30,16 @@ class Step(BaseModel):
     def done(self) -> bool:
         """只读属性，返回步骤是否结束"""
         return self.status in [ExecutionStatus.COMPLETED, ExecutionStatus.FAILED]
+
+    @property
+    def open(self) -> bool:
+        """本阶段仍需处理：待办或进行中；后续阶段（later）不计入"""
+        return self.status in [ExecutionStatus.PENDING, ExecutionStatus.RUNNING]
+
+    @property
+    def deferred(self) -> bool:
+        """属于后续阶段，尚未展开"""
+        return self.status == ExecutionStatus.LATER
 
 
 class Plan(BaseModel):
@@ -49,4 +60,4 @@ class Plan(BaseModel):
 
     def get_next_step(self) -> Optional[Step]:
         """获取需要执行的下一个步骤"""
-        return next((step for step in self.steps if not step.done), None)
+        return next((step for step in self.steps if step.open), None)
