@@ -45,11 +45,10 @@ export function CompactionNotice({beforeTokens, afterTokens, summarizedTurns, tr
         <span>{visibility.requestMetrics ? trigger === 'manual' && afterTokens >= beforeTokens ? '已摘要，估算空间未减少' : HEADLINE[trigger] : '已整理对话记录'}</span>
         {visibility.requestMetrics && summarizedTurns > 0 && (
           <>
-            <span>，摘要 {summarizedTurns} 轮，约</span>
+            <span>，摘要 {summarizedTurns} 轮，占用约</span>
             <span className="tabular-nums text-foreground">{formatTokens(beforeTokens)}</span>
             <span>→</span>
             <span className="tabular-nums text-foreground">{formatTokens(afterTokens)}</span>
-            <span>tokens</span>
           </>
         )}
       </span>

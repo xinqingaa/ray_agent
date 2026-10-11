@@ -5,7 +5,7 @@ import {toast} from 'sonner'
 import {ThemeToggle} from '@/components/theme-toggle'
 import {SessionItem} from '@/components/session-item'
 import {cn} from '@/lib/utils'
-import type {ApprovalStatus, TimelineItem} from '@/lib/session-view'
+import type {ApprovalStatus, RunView, TimelineItem} from '@/lib/session-view'
 import {FixtureClock} from '@/components/run/clock'
 import {RunStatusBar} from '@/components/run/status-bar'
 import {PlanBar} from '@/components/run/plan-bar'
@@ -149,16 +149,15 @@ function InteractiveApproval() {
   )
 }
 
-function ComposedSession({items, statusBar, plan, usage}: {items: TimelineItem[]; statusBar: ReactNode; plan: ReactNode; usage: ReactNode}) {
+function ComposedSession({items, runs, plan, usage}: {items: TimelineItem[]; runs: RunView[]; plan: ReactNode; usage: ReactNode}) {
   const [selected, setSelected] = useState<string | null>(null)
   return (
     <div className="flex flex-col overflow-hidden rounded-lg border bg-background">
       <div className="max-h-[560px] overflow-y-auto px-4 py-4">
-        <Timeline items={items} handlers={{selectedCallId: selected, onOpenCall: setSelected}}/>
+        <Timeline items={items} runs={runs} handlers={{selectedCallId: selected, onOpenCall: setSelected}}/>
       </div>
       <div className="space-y-2 border-t bg-card/60 p-3">
         {plan}
-        {statusBar}
         <div className="flex items-center justify-between rounded-lg border bg-card px-3 py-2 text-meta text-faint">
           <span>输入框（阶段二接入）</span>
           {usage}
@@ -289,7 +288,7 @@ export function ComponentCatalog() {
           标“合成”的是这些事件里不会出现的状态，按视图模型契约改写。运行中的计时从夹具记录的时刻开始走秒。
         </p>
 
-        <Section id="status-bar" title="运行状态条" note="输入框上方显示时长、轮次与生成速度；结束后保留统计并补上累计 Token。所有模式一致。终态原因仍在时间线。">
+        <Section id="status-bar" title="运行统计" note="生成时跟随当前过程，完成后附在回复下方；停止和失败附在结束记录下方。结束后补上本次运行 Token，所有模式一致。">
           <State label="空闲（不占位）" source="真实"><RunStatusBar run={runStates.idle}/></State>
           <State label="正在思考" source="真实"><FixtureClock at={runStates.modelNow}><div className="flex flex-col gap-2"><RunStatus place="timeline" compacting={false} pendingSend={false} activity="model" streaming={false} running tailQuiet/><RunStatusBar run={runStates.model}/></div></FixtureClock></State>
           <State label="工具执行中（动词在工具行）" source="真实"><FixtureClock at={runStates.toolNow}><RunStatusBar run={runStates.tool}/></FixtureClock></State>
@@ -304,12 +303,15 @@ export function ComponentCatalog() {
           <State label="已中断（原因在时间线）" source="合成"><Surface className="text-meta text-faint"><RunStatus place="headline" status="interrupted" compacting={false}/>原因只在时间线终态条。</Surface></State>
         </Section>
 
-        <Section id="plan-bar" title="计划条" columns={2} note="进度入口显示当前步骤序号；点击浮动弹层，只显示最新计划与完成数量，不占据页面布局。">
+        <Section id="plan-bar" title="计划条" columns={2} note="只在本次运行已写出自己的计划时出现，或计划模式结束后等待确认执行；其余时候完全不占位。进度入口显示当前步骤序号；点击浮动弹层，只显示最新计划与完成数量。">
           <State label="无计划（不占位）" source="真实">
             <Surface className="text-meta text-faint">
               <PlanBar plan={planStates.none} runStatus="running"/>
-              短任务不调用 update_plan，计划条不渲染。
+              短任务、新运行尚未写计划、运行结束后，计划条都不渲染。
             </Surface>
+          </State>
+          <State label="计划模式结束（待确认执行）" source="合成">
+            <PlanBar plan={planStates.inProgress} proposal/>
           </State>
           <State label="进行中（折叠）" source="真实">
             <FixtureClock at={planStates.inProgressNow}><PlanBar plan={planStates.inProgress} runStatus="running"/></FixtureClock>
@@ -317,11 +319,8 @@ export function ComponentCatalog() {
           <State label="进行中（点击打开弹层）" source="真实">
             <FixtureClock at={planStates.inProgressNow}><PlanBar plan={planStates.inProgress} runStatus="running"/></FixtureClock>
           </State>
-          <State label="全部完成" source="真实">
-            <PlanBar plan={planStates.allDone} runStatus="completed"/>
-          </State>
-          <State label="运行结束时有未完成项" source="合成">
-            <PlanBar plan={planStates.endedUnfinished} runStatus="cancelled"/>
+          <State label="全部完成（运行尚未结束）" source="真实">
+            <PlanBar plan={planStates.allDone} runStatus="running"/>
           </State>
           <State label="计划被修改（状态变化）" source="真实">
             <FixtureClock at={PLAN_CHANGED_NOW}><PlanBar plan={planStates.changed} runStatus="running"/></FixtureClock>
@@ -352,7 +351,7 @@ export function ComponentCatalog() {
           <State label="含未成功" source="合成"><Surface><ToolGroup calls={toolGroups.withFailure}/></Surface></State>
         </Section>
 
-        <Section id="replies" title="旁白与最终回复" columns={2} note="旁白比最终回复弱一级；运行统计统一放在输入区，正文下方不重复展示。">
+        <Section id="replies" title="旁白与最终回复" columns={2} note="旁白比最终回复弱一级；时间线将本次运行统计附在回复下方。此处只展示正文。">
           <State label="旁白" source="真实"><Surface><NarrationBlock text={messageStates.narration}/></Surface></State>
           <State label="旁白（W6 增量渲染入口）" source="合成"><Surface><NarrationBlock text={messageStates.narration.slice(0, 18)} streaming/></Surface></State>
           <State label="短文本" source="真实"><Surface><FinalReply text={messageStates.finalShort.text} summary={messageStates.finalShort.summary}/></Surface></State>
@@ -523,7 +522,7 @@ export function ComponentCatalog() {
             <FixtureClock at={PLAN_TOOL_RUNNING_NOW}>
               <ComposedSession
                 items={planToolRunning.timeline}
-                statusBar={<RunStatusBar run={planToolRunning.runs[0]} />}
+                runs={planToolRunning.runs}
                 plan={<PlanBar plan={planToolRunning.plan} runStatus="running"/>}
                 usage={<ContextRing usage={planToolRunning.usage}/>}
               />
@@ -533,8 +532,8 @@ export function ComponentCatalog() {
             <FixtureClock at={PLAN_WALKTHROUGH_NOW}>
               <ComposedSession
                 items={planWalkthrough.timeline}
-                statusBar={<RunStatusBar run={planWalkthrough.runs[0]}/>}
-                plan={<PlanBar plan={planWalkthrough.plan} runStatus="completed"/>}
+                runs={planWalkthrough.runs}
+                plan={null}
                 usage={<ContextRing usage={planWalkthrough.usage}/>}
               />
             </FixtureClock>

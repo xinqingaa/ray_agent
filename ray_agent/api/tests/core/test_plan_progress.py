@@ -59,14 +59,79 @@ def test_plan_reminder_is_bounded_and_does_not_complete_steps():
     run(check())
 
 
-def test_no_plan_or_completed_plan_does_not_get_reminder():
+def _notices(events):
+    return [m['content'] for e in events if isinstance(e, ContextEvent) for m in e.messages
+            if str(m.get('content', '')).startswith(PLAN_PROGRESS_PREFIX)]
+
+
+def test_completed_plan_written_in_this_run_does_not_get_reminder():
     async def check():
-        for plan in (None, [{'step': '已完成', 'status': 'completed'}]):
-            script = ([tool_call('update_plan', {'plan': plan})] if plan else [])
-            h = make_loop([*script, *[tool_call('echo', {'text': 'x'}) for _ in range(6)], text('完成')], max_iterations=100)
-            events = [e async for e in h.loop.invoke(Message(message='测试'))]
-            assert not any(isinstance(e, ContextEvent) and any(
-                str(m.get('content', '')).startswith(PLAN_PROGRESS_PREFIX) for m in e.messages) for e in events)
+        h = make_loop([tool_call('update_plan', {'plan': [{'step': '已完成', 'status': 'completed'}]}),
+                       *[tool_call('echo', {'text': 'x'}) for _ in range(6)], text('完成')], max_iterations=100)
+        events = [e async for e in h.loop.invoke(Message(message='测试'))]
+        assert _notices(events) == []
+    run(check())
+
+
+def test_run_without_own_plan_gets_one_missing_plan_notice():
+    from app.domain.services.plan_progress import PLAN_MISSING_NOTICE
+    async def check():
+        h = make_loop([*[tool_call('echo', {'text': 'x'}) for _ in range(14)], text('完成')], max_iterations=100)
+        events = [e async for e in h.loop.invoke(Message(message='测试'))]
+        assert _notices(events) == [PLAN_MISSING_NOTICE]
+        assert h.llm.exhausted_calls == 0
+    run(check())
+
+
+def test_short_run_without_plan_is_not_reminded():
+    async def check():
+        h = make_loop([*[tool_call('echo', {'text': 'x'}) for _ in range(4)], text('完成')], max_iterations=100)
+        events = [e async for e in h.loop.invoke(Message(message='测试'))]
+        assert _notices(events) == []
+    run(check())
+
+
+def test_completed_plan_from_previous_run_counts_as_missing():
+    from app.domain.models.plan import ExecutionStatus, Plan, Step
+    from app.domain.services.plan_progress import PlanProgress, PLAN_MISSING_NOTICE, PLAN_PROGRESS_NOTICE
+    from app.domain.models.event import TurnEvent, TurnPhase, ToolEvent, ToolEventStatus
+    from app.domain.models.tool_result import ToolResult
+
+    def batch(progress, i):
+        progress.observe(ToolEvent(tool_call_id=str(i), tool_name='test', function_name='write_file',
+                                   function_args={}, status=ToolEventStatus.CALLED,
+                                   function_result=ToolResult(success=True)))
+        progress.observe(TurnEvent(index=i + 1, phase=TurnPhase.COMPLETED))
+
+    old_done = Plan(steps=[Step(description='旧任务', status=ExecutionStatus.COMPLETED)])
+    old_open = Plan(steps=[Step(description='旧任务', status=ExecutionStatus.RUNNING)])
+    progress = PlanProgress()
+    for i in range(4):
+        batch(progress, i)
+    assert progress.notice(old_done) is None
+    batch(progress, 4)
+    assert progress.notice(old_done) == PLAN_MISSING_NOTICE
+    assert progress.notice(None) == PLAN_MISSING_NOTICE
+    # 上一次留下的未完成清单沿用原来的更新提醒
+    assert progress.notice(old_open) == PLAN_PROGRESS_NOTICE
+    # 本次已提交计划后不再按缺失提醒
+    progress.observe(PlanEvent(plan=old_done))
+    for i in range(5, 10):
+        batch(progress, i)
+    assert progress.notice(old_done) is None
+
+
+def test_missing_notice_shares_the_two_notice_cap():
+    from app.domain.services.plan_progress import PlanProgress, PLAN_MISSING_NOTICE, PLAN_PROGRESS_NOTICE
+    async def check():
+        h = make_loop([*[tool_call('echo', {'text': 'x'}) for _ in range(5)],
+                       tool_call('update_plan', {'plan': [{'step': '编写', 'status': 'in_progress'}]}),
+                       *[tool_call('echo', {'text': 'x'}) for _ in range(30)], text('收尾'), text('未完成')], max_iterations=100)
+        events = [e async for e in h.loop.invoke(Message(message='测试'))]
+        notices = _notices(events)
+        assert notices[0] == PLAN_MISSING_NOTICE
+        assert notices[1:] == [PLAN_PROGRESS_NOTICE]
+        assert h.loop._plan_progress.notices == 2
     run(check())
 
 

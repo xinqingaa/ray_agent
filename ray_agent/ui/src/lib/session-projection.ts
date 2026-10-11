@@ -1671,6 +1671,17 @@ function readTime(value: unknown): number {
 }
 
 
+/**
+ * 计划条只在两种情况出现：当前运行已写出自己的计划（live），或计划模式刚结束、清单等待确认执行（proposal）。
+ * 其余时候不占位，包括上一次运行留下的清单、运行结束后的清单和尚未写计划的新运行。
+ */
+export function planBarMode(view: Pick<SessionView, 'activeRun' | 'runs' | 'plan'>): 'live' | 'proposal' | null {
+  const plan = view.plan
+  if (!plan || plan.items.length === 0) return null
+  if (view.activeRun) return plan.sourceRunId === view.activeRun.id ? 'live' : null
+  return canExecutePlan(view) ? 'proposal' : null
+}
+
 /** 最新计划运行确实产出带身份的可执行清单，才提供后续执行。 */
 export function canExecutePlan(view: Pick<SessionView, 'activeRun' | 'runs' | 'plan'>): boolean {
   const run = view.runs[view.runs.length - 1]

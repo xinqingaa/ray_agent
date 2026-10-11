@@ -28,7 +28,7 @@ class SearchTool(BaseTool):
             "date_range": {
                 "type": "string",
                 "enum": ["all", "past_hour", "past_day", "past_week", "past_month", "past_year"],
-                "description": "（可选）搜索结果的时间范围过滤。当用户询问特定时效性的新闻或事件时（如'昨天'、'上周'），必须指定此参数。默认为 'all'。"
+                "description": "（可选）搜索结果的时间范围过滤。问题明显取决于时效（如最新消息、近期事件）时再指定；否则保持默认 'all'，避免滤掉相关的较早资料。默认为 'all'。"
             }
         },
         required=["query"]

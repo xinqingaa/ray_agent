@@ -58,7 +58,7 @@ from app.domain.models.run import RunMode
 from app.domain.services.context.budget import ContextBudget, ContextEstimate, fixed_input_estimate, FIXED_INPUT_GUIDANCE
 from app.domain.services.context.compactor import CompactionStatus, Compactor
 from app.domain.services.context.shaping import ResultShaper, WriteOutputFn
-from app.domain.services.plan_progress import PlanProgress, PLAN_PROGRESS_PREFIX, PLAN_PROGRESS_NOTICE
+from app.domain.services.plan_progress import PlanProgress, PLAN_PROGRESS_PREFIX
 from app.domain.services.plan_mode import PlanModeGuard
 from app.domain.services.prompts.plan_mode import PLAN_MODE_SUFFIX
 from app.domain.services.prompts.system import SYSTEM_PROMPT
@@ -609,8 +609,9 @@ class AgentLoop(BaseFlow):
             async for event in self._sync_visual_history():
                 yield event
 
-            if self._plan_progress.due(self.plan_tool.latest_plan):
-                await self._add_messages([{"role": "user", "content": PLAN_PROGRESS_NOTICE}])
+            plan_notice = self._plan_progress.notice(self.plan_tool.latest_plan)
+            if plan_notice is not None:
+                await self._add_messages([{"role": "user", "content": plan_notice}])
                 for event in self._take_context():
                     self._plan_progress.observe(event)
                     yield event

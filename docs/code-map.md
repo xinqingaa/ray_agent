@@ -163,7 +163,7 @@
 | 「按计划执行」 | [`components/run/run-end-bar.tsx`](../ray_agent/ui/src/components/run/run-end-bar.tsx) 的 `PlanExecuteBar`，有效性判断在会话视图投影与会话页 | — |
 | 审批条目与审批卡 | 投影在 [`lib/session-projection.ts`](../ray_agent/ui/src/lib/session-projection.ts) 的 `approval` 分支（从审批事件构造调用、结论原地更新、失效标为未执行）；卡片 [`components/run/approval-card.tsx`](../ray_agent/ui/src/components/run/approval-card.tsx)；提交与输入框引导在 [`components/session-detail-view.tsx`](../ray_agent/ui/src/components/session-detail-view.tsx) 的 `handleApproval` | — |
 | 会话页 | [`components/session-detail-view.tsx`](../ray_agent/ui/src/components/session-detail-view.tsx)：状态条、时间线、计划条、输入框，以及对话与开发者视图切换 | 10 |
-| 对话底部统计 | [run/status-bar.tsx](../ray_agent/ui/src/components/run/status-bar.tsx) 接入流式文本、轮次用量及对话累计值，显示时长/轮次/速度和终态 Token；估算与统计函数复用 [session-projection.ts](../ray_agent/ui/src/lib/session-projection.ts) 的 `resolveOutputRate`；工具数量由统一区域策略隐藏 | — |
+| 回复下方统计 | [run/timeline-item.tsx](../ray_agent/ui/src/components/run/timeline-item.tsx) 按运行将统计附在当前过程、最终回复或结束记录下方；[run/status-bar.tsx](../ray_agent/ui/src/components/run/status-bar.tsx) 接入流式文本、轮次用量与本次运行汇总，显示时长/轮次/速度和终态 Token；估算与统计函数复用 [session-projection.ts](../ray_agent/ui/src/lib/session-projection.ts) 的 `resolveOutputRate`；上下文圆环保留会话累计值，工具数量由统一区域策略隐藏 | — |
 | 运行视图 | [`components/run/`](../ray_agent/ui/src/components/run/) | 07、10 |
 | 工作台 | [`components/workbench/workbench.tsx`](../ray_agent/ui/src/components/workbench/workbench.tsx)：终端、浏览器正文/状态/按需截图、会话文件 | 11、12 |
 | 开发者显隐策略 | [use-developer-mode.ts](../ray_agent/ui/src/hooks/use-developer-mode.ts)：hook、区域工厂与浏览器偏好；检查 [check-developer-mode.cjs](../ray_agent/ui/scripts/check-developer-mode.cjs) | — |

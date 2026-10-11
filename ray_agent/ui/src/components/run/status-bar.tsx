@@ -2,7 +2,7 @@
 
 import {useEffect, useState} from 'react'
 import {cn} from '@/lib/utils'
-import type {RunView, StreamingDraft, TokenCounts} from '@/lib/session-view'
+import type {RunView, StreamingDraft} from '@/lib/session-view'
 import {resolveOutputRate, type OutputRate} from '@/lib/session-projection'
 import {Tooltip, TooltipContent, TooltipTrigger} from '@/components/ui/tooltip'
 import {useNow} from './clock'
@@ -10,10 +10,9 @@ import {formatCount, totalTokens, usageSummary} from './format'
 import {runPhase, type RunPhase} from './status-meta'
 
 type RunStatusBarProps = {
-  /** 活动运行，或最新一次已结束运行 */
+  /** 这条统计所属的运行 */
   run: RunView | null
   streaming?: StreamingDraft | null
-  sessionTokens?: TokenCounts
   className?: string
 }
 
@@ -38,8 +37,8 @@ function elapsedText(ms: number | null): string {
   return `${Math.floor(seconds / 3600)}h ${Math.floor(seconds % 3600 / 60)}m ${seconds % 60}s`
 }
 
-/** 简洁统计独立于开发者模式；累计消耗只在运行进入终态后显示。 */
-export function RunStatusBar({run, streaming, sessionTokens, className}: RunStatusBarProps) {
+/** 简洁统计独立于开发者模式；本次消耗只在运行进入终态后显示。 */
+export function RunStatusBar({run, streaming, className}: RunStatusBarProps) {
   const phase = runPhase(run?.status, run?.activity)
   const live = LIVE_PHASES.includes(phase)
   const now = useNow(live && run != null)
@@ -76,19 +75,19 @@ export function RunStatusBar({run, streaming, sessionTokens, className}: RunStat
   }
   const rate = currentRate ?? (cached && (!recent || cached.turn > recent.turn) ? cached.rate : recent?.rate ?? cached?.rate)
   const speed = rate ? rate.tokensPerSecond < 1 ? '<1' : String(Math.round(rate.tokensPerSecond)) : '—'
-  const speedNote = rate?.estimated ? '最近生成速度，按可见文本估算' : rate ? '最近已结束模型轮次的平均生成速度，扣除可用的推理 Token；工具耗时不计入' : '尚无可用的生成速度'
-  const tokens = sessionTokens ?? run.summary?.tokens ?? run.tokens
+  const speedNote = rate?.estimated ? '按可见文本估算' : rate ? '最近一轮输出速度，不含工具等待' : '尚无速度'
+  const tokens = run.summary?.tokens ?? run.tokens
   const total = totalTokens(tokens)
 
   return (
     <div className={cn('@container/status', className)}>
-      <div className="flex min-h-8 items-center gap-3 py-1">
+      <div className="flex min-h-8 items-center justify-end gap-3 py-1">
         {planMode && (
           <span className="shrink-0 rounded-sm bg-signal-soft px-1.5 py-0.5 text-xs font-medium text-signal">
             计划模式
           </span>
         )}
-        <div role="group" aria-label="运行统计" className="ml-auto flex flex-wrap items-center justify-end gap-x-2 gap-y-1 text-xs tabular-nums text-muted-foreground">
+        <div role="group" aria-label="本次运行统计" className="flex flex-wrap items-center justify-end gap-x-2 gap-y-1 text-xs tabular-nums text-muted-foreground">
           <Field label={`用时 ${elapsedText(elapsed)}`} note="本次运行用时">
             <time dateTime={elapsed != null ? `PT${Math.floor(elapsed / 1000)}S` : undefined}>{elapsedText(elapsed)}</time>
           </Field>
@@ -98,7 +97,7 @@ export function RunStatusBar({run, streaming, sessionTokens, className}: RunStat
           <Field label={`${speed} tokens 每秒，${speedNote}`} note={speedNote}>{speed} tok/s</Field>
           {ended && <>
             <span aria-hidden>·</span>
-            <Field label={`对话累计 ${total != null ? formatCount(total) : '未知'} tokens`} note={`${usageSummary(tokens)}`}>
+            <Field label={`本次运行已记录 ${total != null ? formatCount(total) : '未知'} tokens`} note={`${usageSummary(tokens)}`}>
               {total != null ? formatCount(total) : '—'} tokens
             </Field>
           </>}

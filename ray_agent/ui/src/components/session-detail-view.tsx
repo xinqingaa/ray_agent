@@ -15,7 +15,6 @@ import {PlanExecuteBar} from '@/components/run/run-end-bar'
 import {PlanBar} from '@/components/run/plan-bar'
 import {UserMessage} from '@/components/run/messages'
 import {RUN_INPUT_HINT, RunStatus} from '@/components/run/run-status'
-import {RunStatusBar} from '@/components/run/status-bar'
 import {Timeline, type TimelineHandlers} from '@/components/run/timeline-item'
 import {downloadFileBatch, isWebPage, openPreviewTab} from '@/lib/api/preview'
 import {FilePreviewDialog} from '@/components/preview/file-preview-dialog'
@@ -39,7 +38,7 @@ import {sessionApi} from '@/lib/api/session'
 import {createProjectRefreshWatcher} from '@/lib/project-refresh'
 import {readDraft, writeDraft} from '@/lib/drafts'
 import {normalizeEvents} from '@/lib/session-events'
-import {canExecutePlan} from '@/lib/session-projection'
+import {canExecutePlan, planBarMode} from '@/lib/session-projection'
 import {ApiError} from '@/lib/api/fetch'
 import type {FileInfo} from '@/lib/api/types'
 import type {FileView, TimelineItem, ToolCallView, ToolFamily} from '@/lib/session-view'
@@ -495,6 +494,8 @@ export function SessionDetailView({
     ? [...visibleTimeline].reverse().find((item) => item.kind === 'run_end')?.id ?? null
     : null
   const shownTimeline = hideEndId ? visibleTimeline.filter((item) => item.id !== hideEndId) : visibleTimeline
+  const hiddenEndRunId = hideEndId ? view.timeline.find(item => item.id === hideEndId)?.runId : null
+  const shownRuns = view.runs.filter(item => !hiddenRunIds.includes(item.id) && item.id !== hiddenEndRunId)
   const lastItem = shownTimeline[shownTimeline.length - 1]
   const tailQuiet = !lastItem || lastItem.kind === 'user' || lastItem.kind === 'protection'
   const retrySettled = retrying != null && view.timeline.some((item) => item.runId && item.runId !== retrying.fromRunId && item.kind !== 'user' && item.kind !== 'protection')
@@ -512,6 +513,18 @@ export function SessionDetailView({
       : RUN_INPUT_HINT.idle
 
   const showPlanExecute = canExecutePlan(view)
+  const planBarState = planBarMode(view)
+  const timelineStatus = (
+    <RunStatus
+      place="timeline"
+      compacting={compacting && latestCompactionId(view.timeline) === compactAnchor}
+      pendingSend={pendingSend}
+      activity={activityKind}
+      streaming={!!view.streaming?.text}
+      running={view.activeRun?.status === 'running'}
+      tailQuiet={tailQuiet}
+    />
+  )
 
   const workbench = (
     <Workbench
@@ -581,17 +594,9 @@ export function SessionDetailView({
                     这里会显示你的消息、工具操作和最终回复。在下方输入任务后开始。
                   </p>
                 )}
-                <Timeline items={shownTimeline} handlers={handlers}/>
+                <Timeline items={shownTimeline} runs={shownRuns} streaming={view.streaming} activeStatus={timelineStatus} handlers={handlers}/>
                 {showOptimistic && outgoing ? <UserMessage text={outgoing.text}/> : null}
-                <RunStatus
-                  place="timeline"
-                  compacting={compacting && latestCompactionId(view.timeline) === compactAnchor}
-                  pendingSend={pendingSend}
-                  activity={activityKind}
-                  streaming={!!view.streaming?.text}
-                  running={view.activeRun?.status === 'running'}
-                  tailQuiet={tailQuiet}
-                />
+                {!view.activeRun && timelineStatus}
                 {showPlanExecute && (
                   <PlanExecuteBar
                     disabled={submitting}
@@ -616,10 +621,9 @@ export function SessionDetailView({
 
           <div className="shrink-0 border-t bg-background px-3 py-3">
             <div className="mx-auto w-full max-w-(--reading-column)">
-              {mode === 'conversation' && (
-                <PlanBar plan={view.plan} runStatus={view.runs.find(item => item.id === view.plan?.sourceRunId)?.status ?? null} previousRun={!!view.plan?.sourceRunId && view.plan.sourceRunId !== run?.id} className="mb-2"/>
+              {mode === 'conversation' && planBarState && (
+                <PlanBar plan={view.plan} runStatus={view.activeRun?.status ?? null} proposal={planBarState === 'proposal'} className="mb-2"/>
               )}
-              <RunStatusBar run={pendingSend && !view.activeRun ? null : view.activeRun ?? run} streaming={view.streaming} sessionTokens={view.usage.session} className="mb-2"/>
               <ChatInput
                 sessionId={sessionId}
                 onSend={handleSend}

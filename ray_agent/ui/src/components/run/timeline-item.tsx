@@ -1,8 +1,8 @@
 'use client'
 
-import {useState} from 'react'
+import {useState, type ReactNode} from 'react'
 import {ChevronRight} from 'lucide-react'
-import type {FileView, TimelineItem} from '@/lib/session-view'
+import type {FileView, RunView, StreamingDraft, TimelineItem} from '@/lib/session-view'
 import {groupProcessBlocks, processBlockOpen, processSettled, processSummary, type ProcessBlock} from '@/lib/process-blocks'
 import {cn} from '@/lib/utils'
 import {ProjectCopiesProvider} from './project-copy-status'
@@ -12,6 +12,7 @@ import {DeliveryCard, SessionDeliveryCopies} from './delivery-card'
 import {FinalReply, NarrationBlock, UserMessage} from './messages'
 import {AttemptNotice, CompactionNotice, ProtectionNotice} from './notices'
 import {RunEndBar} from './run-end-bar'
+import {RunStatusBar} from './status-bar'
 import {ToolGroup} from './tool-group'
 import {useDeveloperMode} from '@/hooks/use-developer-mode'
 
@@ -118,24 +119,66 @@ function ProcessBlockView({block, settled, streaming, handlers}: {block: Process
 }
 
 /** 时间线：同一轮的旁白和工具组收成过程块；运行中展开，结束后收起 */
-export function Timeline({items, handlers, className}: {items: TimelineItem[]; handlers?: TimelineHandlers; className?: string}) {
+export function Timeline({items, runs = [], streaming, activeStatus, handlers, className}: {
+  items: TimelineItem[]
+  runs?: RunView[]
+  streaming?: StreamingDraft | null
+  activeStatus?: ReactNode
+  handlers?: TimelineHandlers
+  className?: string
+}) {
   const rows = groupProcessBlocks(items)
+  const positions = new Map<string, {last: number; final?: number; end?: number}>()
+  rows.forEach((row, index) => {
+    const runId = row.type === 'process' ? row.block.runId : row.item.runId
+    if (!runId) return
+    const position = positions.get(runId) ?? {last: index}
+    position.last = index
+    if (row.type === 'item' && row.item.kind === 'final') position.final = index
+    if (row.type === 'item' && row.item.kind === 'run_end') position.end = index
+    positions.set(runId, position)
+  })
+  const anchors = new Map<number, RunView>()
+  const unanchored: RunView[] = []
+  for (const run of runs) {
+    const position = positions.get(run.id)
+    if (!position) {
+      if (run.status === 'running' || run.status === 'waiting') unanchored.push(run)
+      continue
+    }
+    const anchor = run.status === 'completed' ? position.final ?? position.last
+      : run.status === 'running' || run.status === 'waiting' ? position.last
+      : position.end ?? position.final ?? position.last
+    anchors.set(anchor, run)
+  }
+  const metrics = (run: RunView) => (
+    // 同一运行保持同一个列表 key，移动到最新过程/最终回复时保留已观察到的速度。
+    <li key={`run-metrics:${run.id}`}>
+      {(run.status === 'running' || run.status === 'waiting') && activeStatus}
+      <RunStatusBar run={run} streaming={streaming}/>
+    </li>
+  )
   return (
     <ProjectCopiesProvider projectId={handlers?.projectId}><ol className={className ?? 'flex flex-col gap-3'}>
-      {rows.map(row => row.type === 'process' ? (
-        <li key={row.block.id}>
-          <ProcessBlockView
-            block={row.block}
-            settled={processSettled(items, row.block)}
-            streaming={row.block.items.some(item => item.id === handlers?.streamingItemId)}
-            handlers={handlers}
-          />
-        </li>
-      ) : (
-        <li key={row.item.id}>
-          <TimelineItemView item={row.item} handlers={handlers}/>
-        </li>
-      ))}
+      {rows.flatMap((row, index) => {
+        const content = row.type === 'process' ? (
+          <li key={row.block.id}>
+            <ProcessBlockView
+              block={row.block}
+              settled={processSettled(items, row.block)}
+              streaming={row.block.items.some(item => item.id === handlers?.streamingItemId)}
+              handlers={handlers}
+            />
+          </li>
+        ) : (
+          <li key={row.item.id}>
+            <TimelineItemView item={row.item} handlers={handlers}/>
+          </li>
+        )
+        const run = anchors.get(index)
+        return run ? [content, metrics(run)] : [content]
+      })}
+      {unanchored.map(metrics)}
       <SessionDeliveryCopies sessionId={handlers?.sessionId} items={items} onPreview={handlers?.onPreviewFile} onDownload={handlers?.onDownloadFile} onDownloadAll={handlers?.onDownloadAll}/>
     </ol></ProjectCopiesProvider>
   )

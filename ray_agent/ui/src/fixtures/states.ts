@@ -142,8 +142,6 @@ export const planStates = {
   inProgressNow: PLAN_TOOL_RUNNING_NOW,
   /** 真实：走查结束时的第三版，全部完成 */
   allDone: planWalkthrough.plan as PlanView,
-  /** 合成：同一计划，运行被停止时仍有未完成项 */
-  endedUnfinished: planInProgress,
   /** 真实：第二版计划，前三项完成、第四项开始 */
   changed: planChanged.plan as PlanView,
   changedNow: PLAN_CHANGED_NOW,

@@ -75,7 +75,7 @@ type FinalReplyProps = {
   className?: string
 } & StreamingProps
 
-/** 最终回复正文；运行统计统一在输入区显示。 */
+/** 最终回复正文；时间线将本次运行统计附在回复下方。 */
 export function FinalReply({text, streaming, className}: FinalReplyProps) {
   return (
     <div className={cn('space-y-3', className)} aria-busy={streaming || undefined}>

@@ -8,7 +8,8 @@ import type {PlanItem, PlanView, RunStatus} from '@/lib/session-view'
 type PlanBarProps = {
   plan: PlanView | null
   runStatus?: RunStatus | null
-  previousRun?: boolean
+  /** 计划模式结束后等待确认执行的清单：不显示进度，只列出步骤 */
+  proposal?: boolean
   defaultOpen?: boolean
   className?: string
 }
@@ -44,7 +45,7 @@ export function PlanContent({plan, active, ended}: {plan: PlanView; active: bool
   </>
 }
 
-export function PlanBar({plan, runStatus, previousRun = false, defaultOpen = false, className}: PlanBarProps) {
+export function PlanBar({plan, runStatus, proposal = false, defaultOpen = false, className}: PlanBarProps) {
   const [expanded, setExpanded] = useState(defaultOpen)
   const [mounted, setMounted] = useState(defaultOpen)
   const [barHeight, setBarHeight] = useState<number>()
@@ -87,22 +88,23 @@ export function PlanBar({plan, runStatus, previousRun = false, defaultOpen = fal
     }
   }, [expanded, setOpen])
   if (!plan || plan.items.length === 0) return null
-  const active = !previousRun && (runStatus === 'running' || runStatus === 'waiting')
-  const ended = !active && runStatus != null
+  const active = !proposal && (runStatus === 'running' || runStatus === 'waiting')
+  const ended = !proposal && !active && runStatus != null
   const current = plan.currentIndex != null ? plan.items[plan.currentIndex] : null
   const total = plan.items.length
   const allDone = plan.completedCount === total
   const unfinished = total - plan.completedCount
-  const progress = previousRun ? '上次计划'
+  const progress = proposal ? `计划 ${total} 项`
     : allDone ? `计划 ${total}/${total} 项已完成`
       : ended ? `计划已完成 ${plan.completedCount}/${total} 项`
         : current ? `第 ${(plan.currentIndex ?? 0) + 1}/${total} 步` : '计划'
-  const headline = allDone ? (previousRun ? `已完成 ${total}/${total} 项` : '')
-    : ended ? `${unfinished} 项未完成`
-      : current ? current.text : `下一步：${plan.items.find(item => item.status === 'pending')?.text ?? '—'}`
+  const headline = proposal ? '确认后按计划执行'
+    : allDone ? ''
+      : ended ? `${unfinished} 项未完成`
+        : current ? current.text : `下一步：${plan.items.find(item => item.status === 'pending')?.text ?? '—'}`
 
   return (
-    <div className={cn('relative', className)} style={mounted ? {height: barHeight} : undefined}>
+    <div className={cn('relative animate-in fade-in-0 slide-in-from-bottom-1 duration-200 motion-reduce:animate-none', className)} style={mounted ? {height: barHeight} : undefined}>
       <div ref={cardRef} data-open={expanded} className={cn('plan-card overflow-hidden rounded-lg border bg-card text-card-foreground shadow-sm', mounted && 'absolute inset-x-0 bottom-0 z-50 shadow-lg')}>
         {mounted && <div id={contentId} role="region" aria-label="当前计划" aria-hidden={!expanded} inert={!expanded} className="plan-reveal">
           <div className="min-h-0 overflow-hidden">

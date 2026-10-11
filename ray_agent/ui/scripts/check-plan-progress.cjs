@@ -23,7 +23,7 @@ function load(relative) {
   }, m, m.exports);
   return m.exports;
 }
-const {projectSession} = load('src/lib/session-projection.ts');
+const {projectSession, planBarMode} = load('src/lib/session-projection.ts');
 const {PlanBar, PlanContent} = load('src/components/run/plan-bar.tsx');
 const {RunEndBar} = load('src/components/run/run-end-bar.tsx');
 const {AttemptNotice} = load('src/components/run/notices.tsx');
@@ -59,8 +59,21 @@ const reset = projectSession({id: 's', events: [...final, ev(6, 'plan', {plan_id
   {id: 'new-step', description: '新任务', status: 'running'},
 ]})]});
 assert.equal(reset.plan.version, 1); assert.deepEqual(reset.plan.changed, []);
-html = markup(PlanBar, {plan: view.plan, runStatus: 'completed', previousRun: true});
-assert.match(html, /上次计划/); assert.doesNotMatch(html, /第 .*步/);
+// 计划条只在本次运行有自己的计划（live）或计划模式结束待确认（proposal）时出现
+const active = (id) => ({id, status: 'running', mode: 'normal', activity: {kind: 'model'}});
+const barMode = (extra) => planBarMode({runs: [], plan: view.plan, activeRun: null, ...extra});
+const done = (over) => ({id: 'r', status: 'completed', mode: 'normal', startedAt: 1000, endedAt: 9000, ...over});
+assert.equal(barMode({activeRun: active('r'), runs: [active('r')]}), 'live');
+assert.equal(barMode({activeRun: active('r2'), runs: [done(), active('r2')]}), null, '新运行尚未写计划时不沿用上一次的清单');
+assert.equal(barMode({runs: [done()]}), null, '普通模式运行结束后不显示');
+assert.equal(barMode({runs: [done({status: 'cancelled'})]}), null, '停止后不显示');
+assert.equal(barMode({activeRun: null, plan: null, runs: [done()]}), null);
+const proposalView = projectSession({id: 'p', events: [ev(1, 'run', {status: 'running', mode: 'plan'}),
+  ev(2, 'plan', {plan_id: 'q', steps: [{id: 'a', description: '分析', status: 'pending'}, {id: 'b', description: '方案', status: 'pending'}]}),
+  ev(3, 'run', {status: 'completed', mode: 'plan'})]});
+assert.equal(planBarMode(proposalView), 'proposal', '计划模式结束且有待执行清单时保留');
+html = markup(PlanBar, {plan: proposalView.plan, runStatus: null, proposal: true});
+assert.match(html, /计划 2 项/); assert.match(html, /确认后按计划执行/); assert.doesNotMatch(html, /未完成|上次计划|第 .*步/);
 html = markup(RunEndBar, {status: 'cancelled', reasonText: '已停止生成'});
 assert.equal((html.match(/已停止生成/g) || []).length, 1);
 assert.doesNotMatch(html, /沙箱|你停止了|新的运行/); assert.match(html, /接着处理/);
@@ -68,4 +81,4 @@ assert.equal(markup(AttemptNotice, {attempt: 1, reason: 'cancelled', retried: fa
 assert.equal(markup(RunStatus, {place: 'headline', status: 'cancelled', compacting: false}), '');
 metrics = true;
 assert.match(markup(AttemptNotice, {attempt: 1, reason: 'cancelled', retried: false}), /第 1 次请求已停止/);
-console.log('PASS: 当前步骤/完成数量、身份与重排、重置、最终有效清单、关闭时无清单 DOM、只显示最新快照和停止记录通过实际组件检查');
+console.log('PASS: 当前步骤/完成数量、身份与重排、重置、最终有效清单、关闭时无清单 DOM、只显示最新快照、计划条出现条件和停止记录通过实际组件检查');
