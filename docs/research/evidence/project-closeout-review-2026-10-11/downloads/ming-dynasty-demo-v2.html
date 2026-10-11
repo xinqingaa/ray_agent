@@ -1,0 +1,521 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>明朝关键事件 · 互动小样</title>
+<style>
+  :root{
+    --ink:#2b2723;
+    --ink-soft:#5c544b;
+    --paper:#f7f3ea;
+    --card:#fffdf8;
+    --line:#e2d9c8;
+    --red:#9a3324;
+    --red-soft:#c25a49;
+    --gold:#b3873a;
+    --ok:#2f6b46;
+    --bad:#a5342c;
+    --radius:14px;
+  }
+  *{box-sizing:border-box;}
+  html{-webkit-text-size-adjust:100%;}
+  body{
+    margin:0;
+    padding:28px 16px 48px;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Source Han Sans SC","Noto Sans CJK SC",system-ui,-apple-system,"Segoe UI",sans-serif;
+    line-height:1.7;
+    font-size:16px;
+  }
+  .wrap{max-width:720px;margin:0 auto;}
+
+  /* 页眉 */
+  header.page{
+    text-align:center;
+    padding-bottom:22px;
+    border-bottom:1px solid var(--line);
+    margin-bottom:26px;
+  }
+  header.page h1{
+    margin:0 0 6px;
+    font-size:26px;
+    letter-spacing:2px;
+  }
+  header.page h1::after{
+    content:"";
+    display:block;
+    width:54px;
+    height:3px;
+    margin:12px auto 0;
+    background:var(--red);
+    border-radius:2px;
+  }
+  header.page p{
+    margin:10px 0 0;
+    color:var(--ink-soft);
+    font-size:14px;
+  }
+
+  /* 卡片 */
+  .cards{display:grid;grid-template-columns:1fr;gap:14px;}
+  .card{
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    overflow:hidden;
+    box-shadow:0 1px 2px rgba(43,39,35,.05);
+    transition:border-color .2s, box-shadow .2s;
+  }
+  .card.open{
+    border-color:var(--red-soft);
+    box-shadow:0 4px 14px rgba(154,51,36,.12);
+  }
+  .card-toggle{
+    display:flex;
+    align-items:flex-start;
+    gap:14px;
+    width:100%;
+    padding:16px 16px 16px 16px;
+    border:0;
+    background:none;
+    font:inherit;
+    color:inherit;
+    text-align:left;
+    cursor:pointer;
+  }
+  .card-toggle:focus-visible{
+    outline:2px solid var(--red);
+    outline-offset:-2px;
+  }
+  .year{
+    flex:0 0 auto;
+    min-width:64px;
+    text-align:center;
+    padding:4px 8px;
+    border-radius:8px;
+    background:#f4e9e6;
+    color:var(--red);
+    font-size:14px;
+    font-weight:700;
+    letter-spacing:.5px;
+    font-variant-numeric:tabular-nums;
+  }
+  .card-main{flex:1 1 auto;min-width:0;}
+  .card-title{
+    display:block;
+    font-size:18px;
+    font-weight:700;
+    letter-spacing:.5px;
+  }
+  .card-brief{
+    display:block;
+    margin-top:4px;
+    font-size:14px;
+    color:var(--ink-soft);
+  }
+  .chev{
+    flex:0 0 auto;
+    width:22px;height:22px;
+    margin-top:3px;
+    color:var(--red);
+    transition:transform .25s ease;
+  }
+  .card.open .chev{transform:rotate(180deg);}
+  .card-body{
+    max-height:0;
+    overflow:hidden;
+    transition:max-height .28s ease;
+  }
+  .card-inner{
+    padding:0 16px 18px;
+    border-top:1px dashed var(--line);
+    margin:0 16px;
+    padding-left:0;
+    padding-right:0;
+  }
+  .card-inner p{margin:14px 0 0;font-size:15px;}
+  .card-inner .label{
+    display:inline-block;
+    margin-right:6px;
+    padding:1px 7px;
+    border-radius:6px;
+    background:#f2ece0;
+    color:var(--gold);
+    font-size:13px;
+    font-weight:700;
+  }
+  .card-inner ul{margin:12px 0 0;padding-left:20px;font-size:15px;color:var(--ink);}
+  .card-inner li{margin:4px 0;}
+
+  /* 题目 */
+  section.quiz{
+    margin-top:34px;
+    padding:20px 16px;
+    background:var(--card);
+    border:1px solid var(--line);
+    border-radius:var(--radius);
+    box-shadow:0 1px 2px rgba(43,39,35,.05);
+  }
+  .quiz-head{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:10px;
+    flex-wrap:wrap;
+  }
+  .quiz h2{
+    margin:0;
+    font-size:18px;
+    letter-spacing:.5px;
+  }
+  .score{
+    margin:0;
+    padding:3px 11px;
+    border-radius:999px;
+    background:#f4e9e6;
+    color:var(--red);
+    font-size:13.5px;
+    font-weight:700;
+    font-variant-numeric:tabular-nums;
+  }
+  .quiz-item + .quiz-item{
+    margin-top:22px;
+    padding-top:20px;
+    border-top:1px dashed var(--line);
+  }
+  .quiz h2 span{
+    display:inline-block;
+    margin-right:8px;
+    padding:1px 8px;
+    border-radius:6px;
+    background:var(--red);
+    color:#fff;
+    font-size:13px;
+    vertical-align:2px;
+  }
+  .quiz .q{
+    margin:12px 0 14px;
+    font-size:16px;
+  }
+  .options{display:flex;flex-direction:column;gap:10px;}
+  .opt{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    width:100%;
+    padding:11px 13px;
+    border:1px solid var(--line);
+    border-radius:10px;
+    background:#fbf8f1;
+    font:inherit;
+    font-size:15px;
+    color:var(--ink);
+    text-align:left;
+    cursor:pointer;
+    transition:background .15s, border-color .15s, transform .1s;
+  }
+  .opt:hover:not(:disabled){background:#f5efe3;border-color:var(--gold);}
+  .opt:active:not(:disabled){transform:scale(.995);}
+  .opt:focus-visible{outline:2px solid var(--red);outline-offset:2px;}
+  .opt .key{
+    flex:0 0 auto;
+    width:24px;height:24px;
+    display:flex;align-items:center;justify-content:center;
+    border-radius:50%;
+    background:#efe7d8;
+    color:var(--ink-soft);
+    font-size:13px;
+    font-weight:700;
+  }
+  .opt:disabled{cursor:default;}
+  .opt.right{background:#eaf4ed;border-color:var(--ok);}
+  .opt.right .key{background:var(--ok);color:#fff;}
+  .opt.wrong{background:#fbeceb;border-color:var(--bad);}
+  .opt.wrong .key{background:var(--bad);color:#fff;}
+  .opt.dim{opacity:.55;}
+
+  .feedback{
+    margin-top:14px;
+    padding:12px 13px;
+    border-radius:10px;
+    font-size:14.5px;
+    display:none;
+  }
+  .feedback.show{display:block;}
+  .feedback.ok{background:#eaf4ed;border-left:4px solid var(--ok);}
+  .feedback.bad{background:#fbeceb;border-left:4px solid var(--bad);}
+  .feedback strong{display:block;margin-bottom:2px;font-size:15px;}
+  .retry{
+    margin-top:12px;
+    padding:8px 16px;
+    border:1px solid var(--red);
+    border-radius:999px;
+    background:none;
+    color:var(--red);
+    font:inherit;
+    font-size:14px;
+    cursor:pointer;
+  }
+  .retry:hover{background:#f4e9e6;}
+  .retry:focus-visible{outline:2px solid var(--red);outline-offset:2px;}
+
+  footer.page{
+    margin-top:26px;
+    text-align:center;
+    font-size:12.5px;
+    color:#8b8378;
+  }
+
+  /* 桌面：三张卡片并排；窄屏自动回到单列竖排 */
+  @media (min-width:760px){
+    .cards{
+      grid-template-columns:repeat(3,1fr);
+      align-items:start;
+    }
+    .card-toggle{
+      position:relative;
+      flex-direction:column;
+      align-items:flex-start;
+      gap:10px;
+      padding:16px 46px 16px 16px;
+    }
+    .year{min-width:0;}
+    .chev{
+      position:absolute;
+      top:16px;
+      right:14px;
+      margin:0;
+    }
+    .card-title{font-size:17px;}
+    .card-brief{font-size:13.5px;}
+    .card-inner p,.card-inner ul{font-size:14px;}
+  }
+
+  @media (max-width:420px){
+    body{padding:20px 12px 40px;font-size:15.5px;}
+    header.page h1{font-size:22px;}
+    .card-toggle{gap:10px;padding:14px 12px;}
+    .year{min-width:56px;font-size:13px;}
+    .card-title{font-size:16.5px;}
+    .card-inner{margin:0 12px;}
+  }
+  @media (prefers-reduced-motion:reduce){
+    *{transition:none!important;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="page">
+    <h1>明朝关键事件</h1>
+    <p>点击卡片查看详情 · 读完做一道小题</p>
+  </header>
+
+  <main class="cards" id="cards">
+
+    <!-- 卡片 1 -->
+    <article class="card">
+      <button class="card-toggle" type="button" aria-expanded="false" aria-controls="detail-1">
+        <span class="year">1368</span>
+        <span class="card-main">
+          <span class="card-title">明朝建立</span>
+          <span class="card-brief">朱元璋称帝，元朝统治结束</span>
+        </span>
+        <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg>
+      </button>
+      <div class="card-body" id="detail-1" role="region">
+        <div class="card-inner">
+          <p>元末农民起义中崛起的朱元璋，于 1368 年在应天（今江苏南京）称帝，国号大明，年号洪武。同年明军攻入大都，元朝在全国的统治结束。</p>
+          <ul>
+            <li><span class="label">要点</span>定都应天，后来明成祖时迁都北京。</li>
+            <li><span class="label">为什么重要</span>这是中国历史上最后一个由汉族建立的大一统王朝的开端，此后明朝延续了 276 年。</li>
+          </ul>
+        </div>
+      </div>
+    </article>
+
+    <!-- 卡片 2 -->
+    <article class="card">
+      <button class="card-toggle" type="button" aria-expanded="false" aria-controls="detail-2">
+        <span class="year">1405<br>—1433</span>
+        <span class="card-main">
+          <span class="card-title">郑和下西洋</span>
+          <span class="card-brief">七次远航，海上丝路的高峰</span>
+        </span>
+        <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg>
+      </button>
+      <div class="card-body" id="detail-2" role="region">
+        <div class="card-inner">
+          <p>明成祖在位期间，宦官郑和率庞大船队先后七次下西洋，最远到达非洲东海岸和红海沿岸，比欧洲航海家的远洋航行早了大半个世纪。</p>
+          <ul>
+            <li><span class="label">要点</span>船队带去丝绸、瓷器，换回香料、珍宝，也带回了各国使者。</li>
+            <li><span class="label">为什么重要</span>它是世界航海史上的壮举，增进了中国与亚非国家的往来；但它以宣扬国威为主，与后来欧洲的殖民扩张性质不同。</li>
+          </ul>
+        </div>
+      </div>
+    </article>
+
+    <!-- 卡片 3 -->
+    <article class="card">
+      <button class="card-toggle" type="button" aria-expanded="false" aria-controls="detail-3">
+        <span class="year">1644</span>
+        <span class="card-main">
+          <span class="card-title">明朝灭亡</span>
+          <span class="card-brief">李自成入北京，崇祯帝自缢</span>
+        </span>
+        <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"></polyline></svg>
+      </button>
+      <div class="card-body" id="detail-3" role="region">
+        <div class="card-inner">
+          <p>明末政治腐败、赋税沉重，加上连年灾荒，农民起义不断。1644 年，李自成率军攻入北京，崇祯帝在煤山自缢，明朝灭亡。同年清军入关，逐步确立对全国的统治。</p>
+          <ul>
+            <li><span class="label">要点</span>明亡的直接原因是农民起义，随后是清军入关。</li>
+            <li><span class="label">为什么重要</span>它标志着中国历史由明朝进入清朝，也提醒后人：一个王朝的衰亡往往由内部问题开始。</li>
+          </ul>
+        </div>
+      </div>
+    </article>
+
+  </main>
+
+    <section class="quiz">
+    <div class="quiz-head">
+      <h2><span>练一练</span>选一选</h2>
+      <p class="score" id="score">已答 0/2 · 答对 0</p>
+    </div>
+
+    <div class="quiz-item" data-answer="B"
+         data-ok="答对了。郑和下西洋发生在明成祖（朱棣）在位期间，从 1405 年首次出海到 1433 年最后一次结束，共七次。"
+         data-bad="再想想。正确答案是 B 明成祖。朱元璋（明太祖）是明朝的建立者，郑和下西洋始于他之后的明成祖时期。">
+      <p class="q">1. 郑和下西洋发生在哪位皇帝在位期间？</p>
+      <div class="options">
+        <button class="opt" type="button" data-key="A"><span class="key">A</span><span>明太祖</span></button>
+        <button class="opt" type="button" data-key="B"><span class="key">B</span><span>明成祖</span></button>
+        <button class="opt" type="button" data-key="C"><span class="key">C</span><span>明英宗</span></button>
+        <button class="opt" type="button" data-key="D"><span class="key">D</span><span>明神宗</span></button>
+      </div>
+      <div class="feedback" role="status" aria-live="polite"></div>
+    </div>
+
+    <div class="quiz-item" data-answer="A"
+         data-ok="答对了。1368 年朱元璋在应天（今南京）称帝，国号大明，明朝由此建立。"
+         data-bad="再想想。正确答案是 A 1368 年。1279 年是元朝统一全国的年份，1405 年是郑和首次出海，1644 年是明朝灭亡。">
+      <p class="q">2. 明朝建立于哪一年？</p>
+      <div class="options">
+        <button class="opt" type="button" data-key="A"><span class="key">A</span><span>1368 年</span></button>
+        <button class="opt" type="button" data-key="B"><span class="key">B</span><span>1279 年</span></button>
+        <button class="opt" type="button" data-key="C"><span class="key">C</span><span>1405 年</span></button>
+        <button class="opt" type="button" data-key="D"><span class="key">D</span><span>1644 年</span></button>
+      </div>
+      <div class="feedback" role="status" aria-live="polite"></div>
+    </div>
+
+    <button class="retry" type="button" id="retry" hidden>全部重做</button>
+  </section>
+
+  <footer class="page">离线小样 · 内容按中学教科书通行表述整理</footer>
+
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ---------- 卡片展开 / 收起 ---------- */
+  var cards = Array.prototype.slice.call(document.querySelectorAll(".card"));
+
+  function setHeight(card) {
+    var body = card.querySelector(".card-body");
+    if (card.classList.contains("open")) {
+      body.style.maxHeight = body.scrollHeight + "px";
+    } else {
+      body.style.maxHeight = "0px";
+    }
+  }
+
+  cards.forEach(function (card) {
+    var toggle = card.querySelector(".card-toggle");
+    toggle.addEventListener("click", function () {
+      var isOpen = card.classList.toggle("open");
+      toggle.setAttribute("aria-expanded", isOpen ? "true" : "false");
+      setHeight(card);
+    });
+  });
+
+  window.addEventListener("resize", function () {
+    cards.forEach(setHeight);
+  });
+
+  /* ---------- 选择题：两道，实时显示答对题数 ---------- */
+  var items = Array.prototype.slice.call(document.querySelectorAll(".quiz-item"));
+  var scoreEl = document.getElementById("score");
+  var retry = document.getElementById("retry");
+  var state = items.map(function () {
+    return { answered: false, correct: false };
+  });
+
+  function renderScore() {
+    var answered = state.filter(function (s) { return s.answered; }).length;
+    var right = state.filter(function (s) { return s.correct; }).length;
+    scoreEl.textContent = "已答 " + answered + "/" + items.length + " · 答对 " + right;
+    retry.hidden = answered === 0;
+  }
+
+  items.forEach(function (item, i) {
+    var answer = item.getAttribute("data-answer");
+    var opts = Array.prototype.slice.call(item.querySelectorAll(".opt"));
+    var fb = item.querySelector(".feedback");
+
+    opts.forEach(function (opt) {
+      opt.addEventListener("click", function () {
+        if (state[i].answered) { return; }
+        var picked = opt.getAttribute("data-key");
+        var isRight = picked === answer;
+        state[i] = { answered: true, correct: isRight };
+
+        opts.forEach(function (o) {
+          o.disabled = true;
+          var k = o.getAttribute("data-key");
+          if (k === answer) {
+            o.classList.add("right");
+          } else if (o === opt) {
+            o.classList.add("wrong");
+          } else {
+            o.classList.add("dim");
+          }
+        });
+
+        fb.className = "feedback show " + (isRight ? "ok" : "bad");
+        fb.textContent = isRight
+          ? item.getAttribute("data-ok")
+          : item.getAttribute("data-bad");
+
+        renderScore();
+      });
+    });
+  });
+
+  retry.addEventListener("click", function () {
+    items.forEach(function (item, i) {
+      state[i] = { answered: false, correct: false };
+      var fb = item.querySelector(".feedback");
+      fb.className = "feedback";
+      fb.textContent = "";
+      Array.prototype.forEach.call(item.querySelectorAll(".opt"), function (o) {
+        o.disabled = false;
+        o.classList.remove("right", "wrong", "dim");
+      });
+    });
+    renderScore();
+    var first = items[0].querySelector(".opt");
+    if (first) { first.focus(); }
+  });
+
+  renderScore();
+})();
+</script>
+</body>
+</html>

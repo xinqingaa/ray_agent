@@ -94,5 +94,13 @@ async function main() {
   await assert.rejects(sendRecoverably('s', 's1', payload), /busy/);
   assert.equal(readDraft('s').submission, undefined);
   console.log('PASS: 明确 409 未受理，解除待核对状态，允许手动改稿重试');
+  const reference = {source_run_id:'proposal', plan_id:'p', source_seq:4, request_id:'stable-request'};
+  const planPending = {...pending, execute_plan:reference};
+  assert.equal(checkAcceptance({...accepted, events:[event, {event:'plan',data:{seq:7,run_id:'r1',accepted_from:reference}}]}, planPending).kind, 'accepted');
+  writeDraft('s', {submission: planPending});
+  sessionApi.chat = async (id, body) => {assert.equal(body.execute_plan.request_id,'stable-request'); posts++};
+  await sendRecoverably('s', 's1', {...payload, execute_plan:{...reference, request_id:'new-click'}});
+  assert.equal(readDraft('s').submission, undefined);
+  console.log('PASS: 计划响应丢失后沿用持久请求标识，结构化承接记录可读回');
 }
 main().catch((error) => {console.error(error); process.exitCode = 1;});

@@ -1,0 +1,57 @@
+{
+  "api": {
+    "command": "RAY_TEST_BROWSER=1 RAY_TEST_CHROMIUM=<controlled Chromium> uv run --locked python -m pytest tests/core/test_plan_progress.py tests/core/test_plan_mode_and_compact.py tests/core/test_run_budget.py tests/core/test_task_execution_control.py tests/core/test_tool_approval.py tests/core/test_visual_resources.py tests/core/test_browser_efficiency.py tests/core/test_build_identity.py tests/core/test_model_catalog.py tests/core/test_model_configuration.py -q",
+    "passed": 100,
+    "warnings": 3,
+    "seconds": 8.24
+  },
+  "prompt_upgrade_followup": {
+    "files": [
+      "test_plan_progress.py",
+      "test_plan_mode_and_compact.py",
+      "test_model_configuration.py"
+    ],
+    "passed": 34,
+    "warnings": 2,
+    "seconds": 5.58,
+    "overlaps_prior_suite": true
+  },
+  "postgres": {
+    "isolated_database": true,
+    "test": "test_plan_acceptance_atomic_replay_stale_and_concurrent_requests",
+    "passed": 1,
+    "concurrent_same_request": 6
+  },
+  "ui": {
+    "typecheck": "passed",
+    "lint_errors": 0,
+    "lint_warnings": 24,
+    "docker_production_build": "passed",
+    "scripts": [
+      "check-plan-progress.cjs",
+      "check-send-recovery.cjs",
+      "check-process-block.cjs",
+      "check-command-state.cjs",
+      "check-event-observability.cjs"
+    ]
+  },
+  "deployment": {
+    "config_bytes_preserved": true,
+    "active_or_waiting_runs_before_each_recreate": 0,
+    "nginx_restarted": true
+  },
+  "live": {
+    "planned_runs": 7,
+    "focused_followups": 2,
+    "all_business_samples_completed": true,
+    "efficiency_fully_resolved": false,
+    "effective_profile": {
+      "model": "deepseek-flash",
+      "reasoning": "high",
+      "temperature": 0.7,
+      "max_tokens": 32768,
+      "context_window": 200000,
+      "source": "run config snapshots"
+    }
+  }
+}

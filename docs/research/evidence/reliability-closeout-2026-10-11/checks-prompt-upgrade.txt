@@ -1,0 +1,21 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.12.10, pytest-8.4.2, pluggy-1.6.0
+cachedir: tmp/.pytest_cache
+rootdir: /Users/linruiqiang/work/ray_agent/ray_agent/api
+configfile: pytest.ini
+plugins: anyio-4.10.0
+collected 34 items
+
+tests/core/test_plan_progress.py ..........
+tests/core/test_plan_mode_and_compact.py ...................
+tests/core/test_model_configuration.py .....
+
+=============================== warnings summary ===============================
+tests/core/test_model_configuration.py::test_partial_model_save_preserves_other_model_and_validates_capacity
+tests/core/test_model_configuration.py::test_preview_is_server_budget_and_never_changes_saved_config
+  /Users/linruiqiang/work/ray_agent/ray_agent/api/.venv/lib/python3.12/site-packages/pydantic/main.py:475: UserWarning: Pydantic serializer warnings:
+    PydanticSerializationUnexpectedValue(Expected `<class 'pydantic.networks.HttpUrl'>` but got `<class 'str'>` with value `'https://api.deepseek.com'` - serialized value may not be as expected.)
+    return self.__pydantic_serializer__.to_python(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+======================== 34 passed, 2 warnings in 5.58s ========================

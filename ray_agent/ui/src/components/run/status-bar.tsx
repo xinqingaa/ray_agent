@@ -1,6 +1,6 @@
 'use client'
 
-import {useEffect, useState} from 'react'
+import {useState} from 'react'
 import {cn} from '@/lib/utils'
 import type {RunView, StreamingDraft} from '@/lib/session-view'
 import {resolveOutputRate, type OutputRate} from '@/lib/session-projection'
@@ -51,13 +51,15 @@ export function RunStatusBar({run, streaming, className}: RunStatusBarProps) {
   const streamRunId = currentStream?.runId
   const streamTurn = currentStream?.turn
   const streamAttempt = currentStream?.attempt
-  const [lastStreamRate, setLastStreamRate] = useState<{runId: string; turn: number; rate: OutputRate} | null>(null)
+  const [lastStreamRate, setLastStreamRate] = useState<{runId: string; turn: number; attempt?: number; rate: OutputRate} | null>(null)
   // 完整助手消息会替换临时文本；工具等待期间保留最后一次观察到的生成速度。
-  useEffect(() => {
-    if (streamRunId && streamTurn != null && rateValue != null) {
-      setLastStreamRate({runId: streamRunId, turn: streamTurn, rate: {tokensPerSecond: rateValue, estimated: true}})
-    }
-  }, [streamRunId, streamTurn, streamAttempt, rateValue])
+  if (streamRunId && streamTurn != null && rateValue != null && (
+    lastStreamRate?.runId !== streamRunId || lastStreamRate.turn !== streamTurn ||
+    lastStreamRate.attempt !== streamAttempt || lastStreamRate.rate.tokensPerSecond !== rateValue
+  )) {
+    setLastStreamRate({runId: streamRunId, turn: streamTurn, attempt: streamAttempt,
+      rate: {tokensPerSecond: rateValue, estimated: true}})
+  }
   if (!run) return null
 
   const ended = run.endedAt != null || ['completed', 'failed', 'cancelled', 'interrupted'].includes(run.status)

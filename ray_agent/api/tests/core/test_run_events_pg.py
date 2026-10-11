@@ -539,3 +539,46 @@ def test_visual_ownership_roundtrip_and_expired_query_protects_waiting():
             assert not await uow.file.expired_visual_files(3)
             assert await uow.file.get_by_id('permanent')
     with_db(scenario)
+
+
+def test_plan_acceptance_atomic_replay_stale_and_concurrent_requests():
+    from app.domain.models.event import PlanEvent
+    from app.domain.models.plan import Plan, Step
+    from app.domain.models.plan_acceptance import PlanAcceptance, PlanAlreadyAccepted, PlanAcceptanceConflict
+    from app.domain.models.run import RunMode
+    async def scenario(factory, engine):
+        session = await new_session(factory)
+        ledger = RunLedger(factory)
+        proposal = await ledger.start(session.id, mode=RunMode.PLAN)
+        event = PlanEvent(plan=Plan(steps=[Step(description='执行')]))
+        await ledger.append(session.id, [event], run_id=proposal.id)
+        await ledger.transition(session.id, proposal.id, RunStatus.COMPLETED)
+        ref = PlanAcceptance(source_run_id=proposal.id, plan_id=event.plan.id, source_seq=event.seq, request_id='confirm-1')
+        for wrong in [ref.model_copy(update={'source_seq':1}), ref.model_copy(update={'source_run_id':'other'})]:
+            with pytest.raises(PlanAcceptanceConflict):
+                await ledger.start(session.id, events_after=[MessageEvent(role='user',message='执行')], execute_plan=wrong)
+        async def accept(reference):
+            try:
+                run = await RunLedger(factory).start(session.id,
+                    events_after=[MessageEvent(role='user',message='执行')], execute_plan=reference)
+                return run.id
+            except PlanAlreadyAccepted as replay:
+                return replay.run.id
+        ids = await asyncio.gather(*[accept(ref) for _ in range(6)])
+        assert len(set(ids)) == 1
+        async with factory() as uow:
+            runs = await uow.run.list_by_session(session.id)
+            events = await uow.event.list(session.id, run_id=ids[0])
+        assert len(runs) == 2
+        adopted = next(e for e in events if isinstance(e, PlanEvent))
+        assert adopted.plan == event.plan and adopted.progress_state == 'preparing'
+        assert adopted.accepted_from == ref
+        assert len([e for e in events if isinstance(e, MessageEvent)]) == 1
+        with pytest.raises(PlanAcceptanceConflict):
+            await accept(ref.model_copy(update={'request_id':'second-click'}))
+        await ledger.transition(session.id, ids[0], RunStatus.COMPLETED)
+        assert await accept(ref) == ids[0]  # 终态之后依然返回原受理，不再执行
+        other = await new_session(factory, 'other-session')
+        with pytest.raises(PlanAcceptanceConflict):
+            await ledger.start(other.id, events_after=[MessageEvent(role='user',message='执行')], execute_plan=ref)
+    with_db(scenario)

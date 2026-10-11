@@ -99,11 +99,12 @@ def test_wait_then_reply_resumes_same_run_with_reply_as_ask_result():
     asyncio.run(asyncio.wait_for(run(), 5))
 
 
-def test_new_input_during_tool_is_injected_without_interrupting_or_replanning():
+def test_new_input_during_tool_rechecks_scope_without_interrupting():
     async def run():
         h = make_loop([
             tool_call("read_file", {"filepath": "/old.txt"}, id="old"),
-            tool_call("read_file", {"filepath": "/new.txt"}, id="new"),
+            ScriptedResponse(tool_calls=[ScriptedToolCall("update_plan", {"action":"not_needed"}),
+                ScriptedToolCall("read_file", {"filepath":"/new.txt"}, id="new")]),
             text("两个文件都核对完成"),
         ])
         task = input_task()
@@ -122,8 +123,8 @@ def test_new_input_during_tool_is_injected_without_interrupting_or_replanning():
         old = [e for e in h.events if isinstance(e, ToolEvent) and e.tool_call_id == "old"]
         assert [e.status for e in old] == ["calling", "called"]
         second = h.llm.requests[1].messages
-        assert [m["role"] for m in second[-3:]] == ["assistant", "tool", "user"]
-        assert second[-1]["content"] == "再核对 /new.txt"
+        assert second[-2]["content"] == "再核对 /new.txt"
+        assert second[-1]["content"].startswith("[计划核对]")
         assert h.session.status == SessionStatus.COMPLETED
         assert sum(isinstance(e, DoneEvent) for e in h.events) == 1
         assert {e.run_id for e in h.events} == {active.id}

@@ -565,6 +565,14 @@ class AgentTaskRunner(TaskRunner):
         self._flow.mode = run.mode
         self._next_turn = run.turns + 1
         stored = run.config_snapshot or {}
+        configure = getattr(self._browser, 'configure_viewports', None)
+        if callable(configure):
+            async def save_viewports(records):
+                async with self._uow_factory() as uow:
+                    current = await uow.run.lock(self._run_id)
+                    await uow.run.save_snapshot(self._run_id, {**(current.config_snapshot or {}), 'browser_viewports': records})
+                    await uow.commit()
+            await configure(self._run_id, stored.get('browser_viewports') or {}, save_viewports)
         external = stored.get('external_services') or {}
         for server in external.get('mcp', []):
             await self._mcp_tool.discover_mcp_tools(server)
@@ -576,7 +584,8 @@ class AgentTaskRunner(TaskRunner):
             self._flow.project_prompt = stored["project_prompt"]
         snapshot = await self._flow.config_snapshot()
         if not stored.get("system_prompt"):
-            updated = {**stored, **snapshot}
+            from build_identity import read_manifest
+            updated = {**stored, **snapshot, "api_build": read_manifest()}
         elif tools_for_turn(stored, self._next_turn) == snapshot["tools"]:
             return
         else:
@@ -653,6 +662,19 @@ class AgentTaskRunner(TaskRunner):
                 await self._a2a_tool.cleanup()
         except Exception as e:
             logger.warning(f"清理A2A工具资源时出错: {e}")
+
+        try:
+            async with self._uow_factory() as uow:
+                run = await uow.run.get(self._run_id)
+            restore = getattr(self._browser, 'restore_viewports', None)
+            if run and run.status.terminal and callable(restore):
+                results = await restore()
+                if results:
+                    await self._ledger.append(self._session_id, [CleanupEvent(targets=[
+                        CleanupTarget(kind='browser', id=r['tab_id'], success=r['success'], message=r['message'])
+                        for r in results])], run_id=self._run_id, after_terminal=True)
+        except Exception:
+            logger.exception('恢复运行视口失败')
 
         cleanup = getattr(getattr(self, '_browser', None), 'cleanup', None)
         if callable(cleanup):

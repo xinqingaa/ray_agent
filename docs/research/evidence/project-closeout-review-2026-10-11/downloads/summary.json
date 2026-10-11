@@ -1,0 +1,57 @@
+{
+  "source_file": "orders.csv",
+  "generated_by": "RayAgent",
+  "rules": {
+    "dedupe": "相同订单号只保留一条（保留首次出现）",
+    "missing_amount": "金额为空或无法解析的订单不计入渠道金额，单独列出",
+    "negative": "负数金额按退款计入，已从净额中扣除并单独统计"
+  },
+  "totals": {
+    "raw_rows": 7,
+    "unique_orders": 6,
+    "duplicates_removed": 1,
+    "priced_orders": 5,
+    "missing_amount_orders": 1,
+    "net_amount": 38.0
+  },
+  "by_channel": {
+    "线上": {
+      "order_count": 4,
+      "priced_order_count": 3,
+      "gross_amount": 32.3,
+      "refund_count": 1,
+      "refund_amount": -2.5,
+      "net_amount": 29.8,
+      "zero_amount_count": 0
+    },
+    "线下": {
+      "order_count": 2,
+      "priced_order_count": 2,
+      "gross_amount": 8.2,
+      "refund_count": 0,
+      "refund_amount": 0.0,
+      "net_amount": 8.2,
+      "zero_amount_count": 1
+    }
+  },
+  "missing_amount_orders": [
+    {
+      "订单号": "A03",
+      "渠道": "线上"
+    }
+  ],
+  "refund_orders": [
+    {
+      "订单号": "A04",
+      "渠道": "线上",
+      "金额": -2.5
+    }
+  ],
+  "removed_duplicates": [
+    {
+      "订单号": "A01",
+      "渠道": "线上",
+      "金额": "12.50"
+    }
+  ]
+}

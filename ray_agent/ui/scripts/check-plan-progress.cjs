@@ -82,3 +82,15 @@ assert.equal(markup(RunStatus, {place: 'headline', status: 'cancelled', compacti
 metrics = true;
 assert.match(markup(AttemptNotice, {attempt: 1, reason: 'cancelled', retried: false}), /第 1 次请求已停止/);
 console.log('PASS: 当前步骤/完成数量、身份与重排、重置、最终有效清单、关闭时无清单 DOM、只显示最新快照、计划条出现条件和停止记录通过实际组件检查');
+
+const adopted = projectSession({id:'s',events:[ev(1,'run',{status:'running'}), ev(2,'plan',{
+  plan_id:'accepted', progress_state:'preparing', steps:[{id:'step',description:'执行',status:'pending'}]})]});
+assert.equal(adopted.plan.sourceSeq,2);
+assert.match(markup(PlanBar,{plan:adopted.plan,runStatus:'running'}),/准备执行/);
+const reviewed = projectSession({id:'s',events:[...initial,ev(3,'plan',{plan_id:'p',review_only:true,progress_state:'confirmed',steps:initial[1].data.steps})]});
+assert.equal(reviewed.plan.version,1);
+const uncertain = {...adopted.plan,progressState:'unconfirmed'};
+assert.match(markup(PlanBar,{plan:uncertain,runStatus:'running',defaultOpen:true}),/进度未确认/);
+assert.doesNotMatch(markup(PlanBar,{plan:uncertain,runStatus:'running',defaultOpen:true}),/aria-current="step"/);
+assert.equal(planBarMode({plan:{...uncertain,progressState:'not_needed'},activeRun:active('r'),runs:[]}),null);
+console.log('PASS: 承接序号、准备执行、轻量核对不增版本、未确认不暗示当前步骤、无需计划隐藏');

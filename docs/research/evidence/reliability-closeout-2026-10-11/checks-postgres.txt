@@ -1,0 +1,43 @@
+============================= test session starts ==============================
+platform darwin -- Python 3.12.10, pytest-8.4.2, pluggy-1.6.0
+cachedir: tmp/.pytest_cache
+rootdir: /Users/linruiqiang/work/ray_agent/ray_agent/api
+configfile: pytest.ini
+plugins: anyio-4.10.0
+collected 12 items / 11 deselected / 1 selected
+
+tests/core/test_run_events_pg.py INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+INFO  [alembic.runtime.migration] Will assume transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 87ed1cbb1088, create sessions table
+INFO  [alembic.runtime.migration] Running upgrade 87ed1cbb1088 -> 0e0d242438bc, create files table
+INFO  [alembic.runtime.migration] Running upgrade 0e0d242438bc -> 5b7e2c9d4a10, create runs and events tables, drop sessions.events
+INFO  [alembic.runtime.migration] Running upgrade 5b7e2c9d4a10 -> a7d9215bc8e0, Track session title ownership for asynchronous generation.
+INFO  [alembic.runtime.migration] Running upgrade a7d9215bc8e0 -> c3f8e1a2b7d4, Record whether a run was started in plan mode.
+INFO  [alembic.runtime.migration] Running upgrade c3f8e1a2b7d4 -> e7b1c4d9a2f6, Bind a session to one host project directory.
+INFO  [alembic.runtime.migration] Running upgrade e7b1c4d9a2f6 -> f9c2a7b4d110, 长期项目、会话归属与首次受理快照。不兼容旧数据：旧 project_path 直接删除，不回填。
+INFO  [alembic.runtime.migration] Running upgrade f9c2a7b4d110 -> a1d4e8f20c31, 持久化项目文件操作。既有迁移已在产品库执行，追加单 head 迁移，不重写已执行版本。
+INFO  [alembic.runtime.migration] Running upgrade a1d4e8f20c31 -> b2e6f9a31d42, 项目内容快照、大小与保护状态；保留已执行版本，追加单 head。
+Revision ID: b2e6f9a31d42
+Revises: a1d4e8f20c31
+INFO  [alembic.runtime.migration] Running upgrade b2e6f9a31d42 -> c3f7a0b42e53, 附件受理与项目副本关联；上传对象保存实际哈希和确认规则。
+Revision ID: c3f7a0b42e53
+Revises: b2e6f9a31d42
+INFO  [alembic.runtime.migration] Running upgrade c3f7a0b42e53 -> d4a8b1c53f64, 持久交付调用来源，按 run/call/path 补存而不重新交付。
+Revision ID: d4a8b1c53f64
+Revises: c3f7a0b42e53
+INFO  [alembic.runtime.migration] Running upgrade d4a8b1c53f64 -> e5b9c2d64a75, 工作区内交付是原文件引用，可由不同调用共享路径；发布副本路径仍排他。
+Revision ID: e5b9c2d64a75
+Revises: d4a8b1c53f64
+INFO  [alembic.runtime.migration] Running upgrade e5b9c2d64a75 -> f6cad3e75b86, 项目设置/笔记共享版本与对话摘要代次。
+Revision ID: f6cad3e75b86
+Revises: e5b9c2d64a75
+INFO  [alembic.runtime.migration] Running upgrade f6cad3e75b86 -> b8c1e4a90d27, Remember the model id and reasoning choice on a session.
+INFO  [alembic.runtime.migration] Running upgrade b8c1e4a90d27 -> c4e8a1b72d09, Remember the context window, output budget and temperature on a session.
+INFO  [alembic.runtime.migration] Running upgrade c4e8a1b72d09 -> d5f9b2c83e10, Owned visual artifacts and expiry metadata.
+INFO  [alembic.runtime.migration] Running upgrade d5f9b2c83e10 -> e6a0c3d94f21, Persistent cleanup manifests, independent from deleted business records.
+INFO  [alembic.runtime.migration] Running upgrade e6a0c3d94f21 -> f7b1d4e85a32, unread_message_count now counts completed runs the user has not opened; drop old per-message counts.
+2026-10-11 12:36:56 - root - INFO - 日志系统初始化完成 log_level=INFO sqlalchemy_echo=False
+2026-10-11 12:36:56 - app.domain.services.run_ledger - INFO - run_stage run=63a1838f-030b-40c7-8c57-266a4169a32b stage=event_commit status=committed count=1 duration_ms=4
+.
+
+======================= 1 passed, 11 deselected in 1.00s =======================

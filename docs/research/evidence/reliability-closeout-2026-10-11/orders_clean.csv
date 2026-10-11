@@ -1,0 +1,6 @@
+order_id,channel,amount,refund,net
+A001,online,19.90,0.00,19.90
+A002,offline,10.00,1.80,8.20
+A003,online,12.40,2.50,9.90
+A005,offline,0.00,0.00,0.00
+A006,online,5.00,5.00,0.00

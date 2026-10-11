@@ -33,10 +33,10 @@ export function PlanContent({plan, active, ended}: {plan: PlanView; active: bool
         return (
           <li key={item.id} aria-current={isCurrent ? 'step' : undefined} className={cn('flex items-start gap-2 rounded-md py-1 pr-1 pl-2', isCurrent && 'bg-signal-soft/60')}>
             <span className="w-4 shrink-0 pt-px text-right text-xs tabular-nums text-faint">{i + 1}</span>
-            <span className="pt-0.5"><ItemIcon item={item} ended={ended}/></span>
+            <span className="pt-0.5"><ItemIcon item={item} ended={ended || plan.progressState === 'unconfirmed' || plan.progressState === 'preparing'}/></span>
             <span className={cn('min-w-0 flex-1 text-meta break-words', item.status === 'completed' ? 'text-muted-foreground' : 'text-foreground', isCurrent && 'font-medium')}>{item.text}</span>
             <span className={cn('shrink-0 text-xs', isCurrent ? 'text-signal' : 'text-muted-foreground')}>
-              {ended && item.status !== 'completed' ? '未完成' : STATUS_TEXT[item.status]}
+              {plan.progressState === 'preparing' && item.status !== 'completed' ? '未开始' : plan.progressState === 'unconfirmed' && item.status !== 'completed' ? '待核对' : ended && item.status !== 'completed' ? '未完成' : STATUS_TEXT[item.status]}
             </span>
           </li>
         )
@@ -87,18 +87,20 @@ export function PlanBar({plan, runStatus, proposal = false, defaultOpen = false,
       document.removeEventListener('keydown', escape)
     }
   }, [expanded, setOpen])
-  if (!plan || plan.items.length === 0) return null
-  const active = !proposal && (runStatus === 'running' || runStatus === 'waiting')
-  const ended = !proposal && !active && runStatus != null
+  if (!plan || (plan.items.length === 0 && plan.progressState !== 'unconfirmed')) return null
+  const unconfirmed = plan.progressState === 'unconfirmed'
+  const preparing = plan.progressState === 'preparing'
+  const active = !proposal && !unconfirmed && !preparing && (runStatus === 'running' || runStatus === 'waiting')
+  const ended = !proposal && runStatus != null && !['running', 'waiting'].includes(runStatus)
   const current = plan.currentIndex != null ? plan.items[plan.currentIndex] : null
   const total = plan.items.length
   const allDone = plan.completedCount === total
   const unfinished = total - plan.completedCount
-  const progress = proposal ? `计划 ${total} 项`
+  const progress = unconfirmed ? '进度未确认' : preparing ? '准备执行' : proposal ? `计划 ${total} 项`
     : allDone ? `计划 ${total}/${total} 项已完成`
       : ended ? `计划已完成 ${plan.completedCount}/${total} 项`
         : current ? `第 ${(plan.currentIndex ?? 0) + 1}/${total} 步` : '计划'
-  const headline = proposal ? '确认后按计划执行'
+  const headline = unconfirmed ? '清单尚未核对，请以实际执行记录为准' : preparing ? `已承接 ${total} 项计划` : proposal ? '确认后按计划执行'
     : allDone ? ''
       : ended ? `${unfinished} 项未完成`
         : current ? current.text : `下一步：${plan.items.find(item => item.status === 'pending')?.text ?? '—'}`

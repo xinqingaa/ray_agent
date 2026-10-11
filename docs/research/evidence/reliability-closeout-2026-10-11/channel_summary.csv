@@ -1,0 +1,4 @@
+channel,order_count,amount,refund,net
+online,3,37.30,7.50,29.80
+offline,2,10.00,1.80,8.20
+TOTAL,5,47.30,9.30,38.00

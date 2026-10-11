@@ -28,13 +28,15 @@ class PlanTool(BaseTool):
     @tool(
         name=UPDATE_PLAN_TOOL,
         description=(
-            "写入或更新当前任务的计划清单。每次提交完整清单（会整体替换上一版）。"
+            "维护当前任务计划。action=update 提交完整清单；review 携 step_id 核对仍在当前步骤；not_needed 声明本次是简单任务无需计划。"
             "适用于需要多个阶段或多次工具调用的任务；简单任务不必使用。"
             "推进时及时更新状态，同一时间最多一项 in_progress。本工具只记录清单，不会执行任何步骤。"
             "新步骤省略 id，结果会返回分配的 id；后续更新、改标题或重排必须复用该 id。"
             "清单只描述当前这次请求；与已有清单无关的新任务或新阶段用 reset=true，延续原任务则不用。"
         ),
         parameters={
+            "action": {"type": "string", "enum": ["update", "review", "not_needed"], "description": "默认 update；review 不重写清单，not_needed 不表示旧计划已完成"},
+            "step_id": {"type": "string", "description": "review 时提供当前进行中的步骤 id"},
             "plan": {
                 "type": "array",
                 "description": "完整的计划清单，按执行顺序排列",
@@ -58,10 +60,18 @@ class PlanTool(BaseTool):
             },
             "reset": {"type": "boolean", "description": "新任务建立全新计划时为 true；延续当前任务为 false"},
         },
-        required=["plan"],
+        required=[],
     )
-    async def update_plan(self, plan: List[Dict[str, Any]], explanation: Optional[str] = None,
-                          reset: bool = False) -> ToolResult:
+    async def update_plan(self, plan: Optional[List[Dict[str, Any]]] = None, explanation: Optional[str] = None,
+                          reset: bool = False, action: str = "update", step_id: Optional[str] = None) -> ToolResult:
+        if action == "not_needed":
+            return ToolResult(success=True, message="本次无需计划；旧清单不作为本次进度", data={"action": action})
+        if action == "review":
+            if not self.latest_plan or not any(s.id == step_id and s.status == ExecutionStatus.RUNNING for s in self.latest_plan.steps):
+                return ToolResult(success=False, message="请提供当前进行中的 step_id；开始或转入步骤时先用 update 更新状态")
+            return ToolResult(success=True, message="已核对：仍在当前步骤", data={"action": action, "step_id": step_id})
+        if action != "update" or plan is None:
+            return ToolResult(success=False, message="update 需要完整 plan；轻量核对使用 review 或 not_needed")
         steps: List[Step] = []
         in_progress = 0
         existing = {step.id: step for step in self.latest_plan.steps} if self.latest_plan and not reset else {}

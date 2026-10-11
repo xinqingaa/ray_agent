@@ -1,0 +1,10 @@
+{
+  "real_viewport_width": 390,
+  "tab_order": [
+    "expand-all",
+    "collapse-all"
+  ],
+  "enter_collapses_all": true,
+  "shift_tab_enter_expands_all": true,
+  "no_overflow": true
+}

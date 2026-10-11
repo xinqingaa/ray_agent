@@ -833,12 +833,17 @@ export function projectSession(input: ProjectSessionInput): SessionView {
     }
 
     if (ev.type === 'plan') {
+      const reviewedPlan: PlanView | null = plan as PlanView | null
+      if (data.review_only === true && reviewedPlan && reviewedPlan.planId === str(data.plan_id)) {
+        plan = {...reviewedPlan, progressState: str(data.progress_state) ?? 'confirmed', sourceRunId: ev.runId, sourceSeq: readEventSeq(ev) ?? undefined}
+        continue
+      }
       const samePlan = plan?.planId === str(data.plan_id)
       if (!samePlan) { plan = null; previousPlan = null; planExplanation = null }
       const items = readPlanItems(data.steps, previousPlan, ev.createdAt)
       const changed = previousPlan ? diffPlan(previousPlan, items) : []
       const incoming = str(data.explanation) ?? str(data.message) ?? planExplanation
-      plan = {...nextPlan(plan, items, changed, incoming, ev.createdAt), planId: str(data.plan_id), sourceRunId: ev.runId}
+      plan = {...nextPlan(plan, items, changed, incoming, ev.createdAt), planId: str(data.plan_id), sourceRunId: ev.runId, sourceSeq: readEventSeq(ev) ?? undefined, progressState: str(data.progress_state) ?? 'confirmed'}
       previousPlan = items.map((item) => ({...item}))
       planExplanation = null
       continue
@@ -1677,7 +1682,8 @@ function readTime(value: unknown): number {
  */
 export function planBarMode(view: Pick<SessionView, 'activeRun' | 'runs' | 'plan'>): 'live' | 'proposal' | null {
   const plan = view.plan
-  if (!plan || plan.items.length === 0) return null
+  if (!plan || (plan.items.length === 0 && plan.progressState !== 'unconfirmed')) return null
+  if (plan.progressState === 'not_needed') return null
   if (view.activeRun) return plan.sourceRunId === view.activeRun.id ? 'live' : null
   return canExecutePlan(view) ? 'proposal' : null
 }

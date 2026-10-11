@@ -61,7 +61,7 @@ Agent 循环与工具管线可定向运行：
 uv run --locked python -m pytest tests/core/test_agent_loop.py tests/core/test_llm_usage.py tests/core/test_run_budget.py tests/core/test_plan_progress.py
 ```
 
-循环用例用 `ScriptedLLM` 驱动实际 `AgentLoop` 与工具三段管线，存储与沙箱用内存替身（夹具在 [tests/support/loop_harness.py](tests/support/loop_harness.py)），覆盖多调用按 ID 配对与计划事件、未知工具与非法参数、工具异常不重试、提问位于批次中间与续接、运行中补充消息、文件交付、输出截断、请求预算、停止或失败后的悬空调用补结果，以及管线短路、结果替换和处理顺序；用量用例核对解析与累计。预算用例覆盖提醒与收尾的阈值、提示只追加在记忆而系统消息不变、收尾阶段拒绝非白名单调用但可交付并完成、补充消息重置计数、审批续接沿用计数并补发缺失的收尾提示，以及 `shell_wait_process` 合并输出。计划核对用例检查稳定 ID 的改名、重排、重复与重置，批次计数、轮询与失败排除、每运行两次提醒上限，本次运行没有自己的计划（无清单或清单是上一次已完成的）时五批后的一次缺失提醒及其共用上限，以及等待续接后的事件还原；不会自动将步骤标为完成。它们不连接外部服务，也不证明真实模型的任务质量或计费结果。
+循环用例用 `ScriptedLLM` 驱动实际 `AgentLoop` 与工具三段管线，存储与沙箱用内存替身（夹具在 [tests/support/loop_harness.py](tests/support/loop_harness.py)），覆盖多调用按 ID 配对与计划事件、未知工具与非法参数、工具异常不重试、提问位于批次中间与续接、运行中补充消息、文件交付、输出截断、请求预算、停止或失败后的悬空调用补结果，以及管线短路、结果替换和处理顺序；用量用例核对解析与累计。预算用例覆盖提醒与收尾的阈值、提示只追加在记忆而系统消息不变、收尾阶段拒绝非白名单调用但可交付并完成、补充消息重置计数、审批续接沿用计数并补发缺失的收尾提示，以及 `shell_wait_process` 合并输出。计划核对用例检查稳定 ID、有效批次、同批轻量核对、单次纠正未执行与调用配对、透明降级、范围变化、等待续接和压缩后的恢复；不会自动将步骤标为完成。它们不连接外部服务，也不证明真实模型的任务质量或计费结果。
 
 执行控制可定向运行：
 
@@ -321,3 +321,19 @@ RAY_TEST_DATABASE_URI=postgresql+asyncpg://USER:PASSWORD@HOST:PORT/TEST_DB uv ru
 ```
 
 PG 检查覆盖真实数据库与本地附件/项目目录删除、共享引用保护、失败重试、占用及并发准入；沙箱销毁和 Redis 使用替身，不能外推真实 COS 或多实例端到端。失败任务不会自动继续删除，需在数据管理中读回并重试；全局清空仅扫描符合本地存储命名约定的残留对象，不扫描 COS 未登记对象。
+
+
+## 构建身份、计划承接与真实视口
+
+`POST /sessions/{id}/chat` 可附 `execute_plan`：`source_run_id`、`plan_id`、`source_seq`、`request_id`。仅用于普通模式确认清单；事务内校验最新可执行版本，无活动运行时原子创建运行和承接事件。相同请求返回原 run_id/seq，过期、跨会话或冲突请求返回 409；普通消息不做关键词确认。事件新增 `progress_state`、`review_only` 和可选 `accepted_from`，旧事件按 confirmed 解读。轻量核对不增加清单版本。
+
+API 容器构建生成内容身份，`GET /api/status/build` 读回；新运行快照保存 `api_build` 并使用当前系统提示，旧会话记忆中的 system 不覆盖它；等待续接仍用已有冻结提示，不改写历史。部署核对与配置保留见 Docker 指南。新增检查入口：
+
+```bash
+uv run --locked python -m pytest tests/core/test_build_identity.py tests/core/test_plan_progress.py tests/core/test_run_budget.py tests/core/test_task_execution_control.py
+# 独立临时数据库；绝不可指向产品库
+RAY_TEST_DATABASE_URI=postgresql+asyncpg://USER:PASSWORD@HOST:PORT/TEST_DB uv run --locked python -m pytest tests/core/test_run_events_pg.py -k plan_acceptance
+RAY_TEST_BROWSER=1 uv run --locked python -m pytest tests/core/test_browser_efficiency.py
+```
+
+真实浏览器检查支持 `RAY_TEST_CHROMIUM` 指向已有 Chromium。视口检查包含真实媒体查询、其他标签页不变、尺寸校验、所有权冲突、关闭页、CDP 重连、等待与取消收尾；不以改 CSS 替代视口变更。

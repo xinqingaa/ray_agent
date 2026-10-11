@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 
 from app.domain.models.file import File
 from app.domain.models.project import ProjectView
+from app.domain.models.plan_acceptance import PlanAcceptance
 from app.domain.models.run import Run
 from app.domain.models.session import SessionStatus
 from app.interfaces.schemas.event import AgentSSEEvent, to_epoch_ms
@@ -45,6 +46,7 @@ class ListSessionResponse(BaseModel):
 
 class ChatRequest(BaseModel):
     """聊天请求结构"""
+    execute_plan: Optional[PlanAcceptance] = None
     message: Optional[str] = None  # 人类消息，不能为空
     attachments: Optional[List[str]] = Field(default_factory=list)  # 附件列表(传递的是文件id列表)
     timestamp: Optional[int] = None  # 当前时间戳（秒）

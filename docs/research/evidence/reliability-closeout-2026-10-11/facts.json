@@ -1,0 +1,206 @@
+{
+  "session_id": "7dab5f63-605a-4df7-b544-3933f4249739",
+  "title": "维护验收·facts",
+  "status": "completed",
+  "runs": [
+    {
+      "run_id": "a4ad2613-693e-42a1-b463-e83e12854157",
+      "status": "completed",
+      "reason": null,
+      "mode": "normal",
+      "started_at": 1791694087677,
+      "ended_at": 1791694090332,
+      "turns": 1,
+      "model_requests": 1,
+      "tool_calls": 0,
+      "prompt_tokens": 7347,
+      "completion_tokens": 538,
+      "cached_tokens": 512
+    }
+  ],
+  "events": [
+    {
+      "event": "title",
+      "data": {
+        "event_id": "c1e9d9ec-0d1b-40fc-bc9b-59b58ab43e5a",
+        "seq": 1,
+        "run_id": null,
+        "created_at": 1791694087647,
+        "title": "维护验收·facts"
+      }
+    },
+    {
+      "event": "run",
+      "data": {
+        "event_id": "f6f3e6f8-b7db-4728-a0a4-b8dd855e5dad",
+        "seq": 2,
+        "run_id": "a4ad2613-693e-42a1-b463-e83e12854157",
+        "created_at": 1791694087680,
+        "status": "running",
+        "reason": null,
+        "summary": null,
+        "mode": "normal"
+      }
+    },
+    {
+      "event": "message",
+      "data": {
+        "event_id": "3e5d761b-239e-4215-89b1-4ed2db92f911",
+        "seq": 3,
+        "run_id": "a4ad2613-693e-42a1-b463-e83e12854157",
+        "created_at": 1791694087671,
+        "role": "user",
+        "message": "仅依据以下材料写 100 字以内的郑和下西洋简介，不联网、不调用工具。材料：七次远航从 1405 年持续至 1433 年；前六次由永乐皇帝派遣；第七次于宣德年间出发并在 1433 年返回；路线到达东南亚、南亚和东非部分地区；材料没有给出每次航行的经济收益。简介须交代年代和皇帝范围，不能添加收益结论。",
+        "attachments": [],
+        "image_mode": "auto",
+        "attempt": null
+      }
+    },
+    {
+      "event": "context",
+      "data": {
+        "event_id": "1e1659b5-1928-4e1c-98ab-fdfd9a0a44aa",
+        "seq": 4,
+        "run_id": "a4ad2613-693e-42a1-b463-e83e12854157",
+        "created_at": 1791694087712,
+        "op": "append",
+        "message_count": 1,
+        "roles": [
+          "user"
+        ]
+      }
+    },
+    {
+      "event": "turn",
+      "data": {
+        "event_id": "59113cdf-c92f-4006-8c1e-d96b51b1633d",
+        "seq": 5,
+        "run_id": "a4ad2613-693e-42a1-b463-e83e12854157",
+        "created_at": 1791694087720,
+        "phase": "started",
+        "index": 1,
+        "context_estimate": {
+          "limit": 157232,
+          "tools": 5533,
+          "total": 7985,
+          "method": "chars",
+          "history": 100,
+          "watermark": 117924,
+          "max_tokens": 32768,
+          "tool_results": 0,
+          "system_prompt": 2352,
+          "context_window": 200000
+        },
+        "context_window": 200000,
+        "model_ms": null,
+        "attempts": null,
+        "ttft_ms": null,
+        "usage": null,
+        "finish_reason": null,
+        "tool_call_ids": [],
+        "tools_ms": null,
+        "error": null
+      }
+    },
+    {
+      "event": "context",
+      "data": {
+        "event_id": "55fe935e-411d-4170-a0f9-c52eaf9f8c88",
+        "seq": 6,
+        "run_id": "a4ad2613-693e-42a1-b463-e83e12854157",
+        "created_at": 1791694090286,
+        "op": "append",
+        "message_count": 1,
+        "roles": [
+          "assistant"
+        ]
+      }
+    },
+    {
+      "event": "message",
+      "data": {
+        "event_id": "ce10414b-bc8a-46d7-94fa-c2aee44cd103",
+        "seq": 7,
+        "run_id": "a4ad2613-693e-42a1-b463-e83e12854157",
+        "created_at": 1791694090312,
+        "role": "assistant",
+        "message": "郑和下西洋共七次，自 1405 年持续至 1433 年。前六次由永乐皇帝派遣，第七次于宣德年间出发，1433 年返回。航线抵达东南亚、南亚及东非部分地区。材料未提供各次航行的经济收益。\n\n（约 87 字）",
+        "attachments": [],
+        "image_mode": "auto",
+        "attempt": 1
+      }
+    },
+    {
+      "event": "turn",
+      "data": {
+        "event_id": "ef6858e5-eff1-401b-a6cb-7638af173327",
+        "seq": 8,
+        "run_id": "a4ad2613-693e-42a1-b463-e83e12854157",
+        "created_at": 1791694090320,
+        "phase": "completed",
+        "index": 1,
+        "context_estimate": null,
+        "context_window": null,
+        "model_ms": 2555,
+        "attempts": 1,
+        "ttft_ms": 2379,
+        "usage": {
+          "prompt_tokens": 7347,
+          "completion_tokens": 538,
+          "cached_tokens": 512,
+          "reasoning_tokens": 467
+        },
+        "finish_reason": "stop",
+        "tool_call_ids": [],
+        "tools_ms": 0,
+        "error": null
+      }
+    },
+    {
+      "event": "done",
+      "data": {
+        "event_id": "8ac992fd-16e9-40cf-8c14-2420a27cbddf",
+        "seq": 9,
+        "run_id": "a4ad2613-693e-42a1-b463-e83e12854157",
+        "created_at": 1791694090326
+      }
+    },
+    {
+      "event": "run",
+      "data": {
+        "event_id": "ebf26e92-82f7-4e02-a495-7c8c3b107033",
+        "seq": 10,
+        "run_id": "a4ad2613-693e-42a1-b463-e83e12854157",
+        "created_at": 1791694090332,
+        "status": "completed",
+        "reason": null,
+        "summary": {
+          "turns": 1,
+          "tool_calls": 0,
+          "duration_ms": 2655,
+          "cached_tokens": 512,
+          "prompt_tokens": 7347,
+          "model_requests": 1,
+          "completion_tokens": 538
+        },
+        "mode": "normal"
+      }
+    }
+  ],
+  "last_seq": 10,
+  "context_operation": {
+    "status": "idle",
+    "started_at": null
+  },
+  "context_config": {
+    "context_window": 200000,
+    "max_tokens": 32768,
+    "limit": 157232,
+    "watermark": 117924
+  },
+  "project": null,
+  "model_id": "deepseek-flash",
+  "reasoning": "high",
+  "run_model": null,
+  "run_reasoning": null
+}

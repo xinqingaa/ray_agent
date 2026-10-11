@@ -402,12 +402,14 @@ def make_runner(h: SimpleNamespace, run: Optional[Run] = None,
         h.runs[run.id] = run.model_copy(deep=True)
         h.session.status = SessionStatus.RUNNING
     r = AgentTaskRunner.__new__(AgentTaskRunner)
+    r._browser = None
     r._session_id, r._uow_factory, r._flow = h.session.id, h.loop._uow_factory, h.loop
     r._uow, r._sandbox = r._uow_factory(), h.sandbox
     r._sandbox.ensure_sandbox, r._sandbox.destroy = AsyncMock(), AsyncMock()
     r._mcp_tool = SimpleNamespace(initialize=AsyncMock(), cleanup=AsyncMock())
     r._a2a_tool = SimpleNamespace(initialize=AsyncMock(), cleanup=AsyncMock())
     r._ledger, r._run_id, r._prior_status = h.ledger, run.id, prior_status
+    h.loop.run_id = run.id
     r._next_turn, r._failure_reason, r._shell_sessions = 1, None, []
     r._invoking, r._settled = False, asyncio.Event()
     r._sync_message_attachments_to_sandbox = AsyncMock()

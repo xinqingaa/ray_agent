@@ -1,0 +1,31 @@
+{
+  "checks": [
+    {
+      "width": 1280,
+      "innerWidth": 1280,
+      "facts": [
+        "北京是中国的首都。",
+        "巴黎是法国的首都。",
+        "东京是日本的首都。"
+      ],
+      "wrong_then_right": true,
+      "reset": true,
+      "all_correct": true,
+      "no_overflow": true
+    },
+    {
+      "width": 390,
+      "innerWidth": 390,
+      "facts": [
+        "北京是中国的首都。",
+        "巴黎是法国的首都。",
+        "东京是日本的首都。"
+      ],
+      "wrong_then_right": true,
+      "reset": true,
+      "all_correct": true,
+      "no_overflow": true
+    }
+  ],
+  "page_errors": []
+}

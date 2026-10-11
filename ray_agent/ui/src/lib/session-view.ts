@@ -165,6 +165,8 @@ export type PlanChange = {
 }
 
 export type PlanView = {
+  sourceSeq?: number
+  progressState?: string
   planId?: string | null
   sourceRunId?: string | null
   items: PlanItem[]

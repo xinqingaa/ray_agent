@@ -1,5 +1,7 @@
 'use client'
 
+import type {PlanAcceptance} from '@/lib/api/types'
+
 import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react'
 import {toast} from 'sonner'
 import {Code2, Folder, MessageCircle, PanelRight, Pencil} from 'lucide-react'
@@ -259,13 +261,13 @@ export function SessionDetailView({
     if (count > outgoing.userCount && (view?.activeRun || endCount > outgoing.endCount)) setOutgoing(null)
   }, [outgoing, view?.activeRun, view?.timeline])
 
-  const deliver = useCallback(async (message: string, attachmentIds: string[], options?: {mode?: 'plan' | 'normal'; model?: string; reasoning?: string; image_mode?: 'auto' | 'files'; echo?: boolean}) => {
+  const deliver = useCallback(async (message: string, attachmentIds: string[], options?: {mode?: 'plan' | 'normal'; model?: string; reasoning?: string; execute_plan?: PlanAcceptance; image_mode?: 'auto' | 'files'; echo?: boolean}) => {
     const items = view?.timeline ?? []
     const userCount = items.filter((item) => item.kind === 'user').length
     const endCount = items.filter((item) => item.kind === 'run_end').length
     setOutgoing({text: message, userCount, endCount, echo: options?.echo !== false})
     try {
-      await sendMessage(message, attachmentIds, {mode: options?.mode, model: options?.model, reasoning: options?.reasoning, image_mode: options?.image_mode})
+      await sendMessage(message, attachmentIds, {mode: options?.mode, model: options?.model, reasoning: options?.reasoning, image_mode: options?.image_mode, execute_plan: options?.execute_plan})
     } catch (err) {
       setOutgoing(null)
       throw err
@@ -601,7 +603,7 @@ export function SessionDetailView({
                   <PlanExecuteBar
                     disabled={submitting}
                     onExecute={() => {
-                      void deliver('按计划执行', [], {mode: 'normal'}).catch((err: unknown) => {
+                      void deliver('按计划执行', [], {mode: 'normal', execute_plan: {source_run_id: view.plan!.sourceRunId!, plan_id: view.plan!.planId!, source_seq: view.plan!.sourceSeq!, request_id: crypto.randomUUID()}}).catch((err: unknown) => {
                         if (err instanceof ApiError && err.code === 409) {
                           toast.error(err.msg)
                           return

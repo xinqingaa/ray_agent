@@ -1,0 +1,13 @@
+{
+  "raw_rows": 7,
+  "duplicates_removed": 1,
+  "missing_excluded": 1,
+  "valid_rows": 5,
+  "online_net": "29.80",
+  "offline_net": "8.20",
+  "total_net": "38.00",
+  "decimal_crosscheck": true,
+  "uploaded_source_unchanged": true,
+  "sandbox_source_unchanged": true,
+  "source_sha256": "f3ea398aabecf5ced828e3ff129403edaadb8df954007958c2f0d8ad44bcad8c"
+}

@@ -8,6 +8,16 @@ from app.domain.models.tool_result import ToolResult
 class Browser(Protocol):
     """浏览器服务扩展，涵盖：访问页面、URL跳转、输入、移动鼠标、滚动、截图、执行js代码等"""
 
+    async def configure_viewports(self, owner: str, records: dict, save) -> None:
+        """由运行器提供持久记录与保存回调；不提前分配浏览器。"""
+        ...
+
+    async def set_viewport(self, tab_id: str, **options) -> ToolResult:
+        ...
+
+    async def restore_viewports(self) -> list[dict]:
+        ...
+
     async def view_page(self, **options) -> ToolResult:
         """浏览获取当前浏览器的页面内容"""
         ...

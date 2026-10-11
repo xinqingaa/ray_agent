@@ -7,11 +7,14 @@ class LazyBrowser:
         self.sandbox = sandbox
         self.browser = None
         self._lock = asyncio.Lock()
+        self._viewport_config = None
 
     async def _get(self):
         async with self._lock:
             if self.browser is None:
                 self.browser = await (await self.sandbox.acquire()).get_browser()
+                if self._viewport_config:
+                    await self.browser.configure_viewports(*self._viewport_config)
             return self.browser
 
     def __getattr__(self, name):
@@ -20,6 +23,16 @@ class LazyBrowser:
         async def call(*args, **kwargs):
             return await getattr(await self._get(), name)(*args, **kwargs)
         return call
+
+    async def configure_viewports(self, owner, records, save):
+        self._viewport_config = (owner, records, save)
+        if self.browser is not None:
+            await self.browser.configure_viewports(owner, records, save)
+
+    async def restore_viewports(self):
+        if self.browser is None and not (self._viewport_config and self._viewport_config[1]):
+            return []
+        return await (await self._get()).restore_viewports()
 
     async def cleanup(self):
         if self.browser is not None:

@@ -58,6 +58,7 @@ from app.domain.models.run import RunMode
 from app.domain.services.context.budget import ContextBudget, ContextEstimate, fixed_input_estimate, FIXED_INPUT_GUIDANCE
 from app.domain.services.context.compactor import CompactionStatus, Compactor
 from app.domain.services.context.shaping import ResultShaper, WriteOutputFn
+from app.domain.models.plan import Plan
 from app.domain.services.plan_progress import PlanProgress, PLAN_PROGRESS_PREFIX
 from app.domain.services.plan_mode import PlanModeGuard
 from app.domain.services.prompts.plan_mode import PLAN_MODE_SUFFIX
@@ -386,21 +387,18 @@ class AgentLoop(BaseFlow):
         return system_prompt + PLAN_MODE_SUFFIX if self._mode == RunMode.PLAN else system_prompt
 
     def _request_messages(self) -> List[Dict[str, Any]]:
-        """基础 system 留在记忆，运行冻结的项目段/模式只进入实际请求。"""
+        """历史 system 不改写；新运行使用当前提示，续接使用冻结的实际提示。"""
         messages = self._memory.get_messages()
         if not messages or messages[0].get("role") != "system":
             return messages
-        system = self.request_system_prompt or self._with_mode_suffix(with_user_image_rules(str(messages[0].get("content") or "") + self.project_prompt))
+        system = self.request_system_prompt or self._with_mode_suffix(with_user_image_rules(self._system_prompt + self.project_prompt))
         return [{**messages[0], "content": system}, *messages[1:]]
 
     async def config_snapshot(self) -> Dict[str, Any]:
         """本次运行的配置快照：模型参数、Agent 配置、运行模式、实际发送的系统提示词全文（计划模式含后缀）
         与工具 schema，供请求重建使用。"""
         await self._ensure_memory()
-        messages = self._memory.get_messages()
         system_prompt = self._system_prompt
-        if messages and messages[0].get("role") == "system":
-            system_prompt = messages[0].get("content")
         return {
             "model_name": self._llm.model_name,
             "temperature": self._llm.temperature,
@@ -602,6 +600,8 @@ class AgentLoop(BaseFlow):
                     logger.info(f"会话[{self._session_id}] 追加运行中补充的消息 {len(injected)} 条")
                     await self._add_messages([{"role": "user", "content": _user_content(m)} for m in injected])
                     for event in self._take_context():
+                        event.plan_check = "scope"
+                        self._plan_progress.observe(event)
                         yield event
                     self.budget_used = 0
                     self._set_budget_phase(BudgetPhase.NORMAL)
@@ -609,10 +609,11 @@ class AgentLoop(BaseFlow):
             async for event in self._sync_visual_history():
                 yield event
 
-            plan_notice = self._plan_progress.notice(self.plan_tool.latest_plan)
+            plan_notice = self._plan_progress.notice(self.plan_tool.latest_plan) if self.mode != RunMode.PLAN else None
             if plan_notice is not None:
                 await self._add_messages([{"role": "user", "content": plan_notice}])
                 for event in self._take_context():
+                    event.plan_check = "notice"
                     self._plan_progress.observe(event)
                     yield event
 
@@ -674,7 +675,7 @@ class AgentLoop(BaseFlow):
                 if (self._delivery_required and self._delivery_state != 'complete') or self._delivery_failures:
                     issues.append('文件交付尚未完整成功；核对工具结果，只补交失败项')
                 plan=self.plan_tool.latest_plan
-                if self._plan_changed and plan and any(not step.done for step in plan.steps):
+                if self._plan_changed and not self._plan_progress.not_needed and plan and any(not step.done for step in plan.steps):
                     issues.append('当前计划还有未完成条目；完成后更新计划，或明确说明未完成原因')
                 if issues and self._completion_feedbacks < 1:
                     self._completion_feedbacks+=1
@@ -693,6 +694,30 @@ class AgentLoop(BaseFlow):
                 yield DoneEvent()
                 return
 
+            # 允许先核对再在同批执行；不把后置核对提前到业务动作之前。
+            if self.mode != RunMode.PLAN and self._plan_progress.reason(self.plan_tool.latest_plan):
+                while calls and calls[0]["function"]["name"] == UPDATE_PLAN_TOOL:
+                    call, calls = calls[0], calls[1:]
+                    invocation = ToolInvocation(call_id=call["id"], function_name=UPDATE_PLAN_TOOL,
+                                                raw_arguments=call["function"]["arguments"])
+                    async for event in self._execute(invocation, turn):
+                        yield event
+                if self._plan_progress.blocks(calls, self.plan_tool.latest_plan):
+                    if not self._plan_progress.corrected:
+                        reason = "计划尚未核对，本批调用未执行；请先用 update_plan 更新/核对当前步骤或声明无需计划，再重新决定动作。"
+                        async for event in self._skip_calls(calls, reason, turn):
+                            yield event
+                        await self._add_messages([{"role": "user", "content": PLAN_PROGRESS_PREFIX + reason}])
+                        for event in self._take_context():
+                            event.plan_check = "corrected"
+                            self._plan_progress.observe(event)
+                            yield event
+                        yield self._turn_completed(turn)
+                        continue
+                    event = PlanEvent(plan=self.plan_tool.latest_plan.model_copy(deep=True) if self.plan_tool.latest_plan else Plan(steps=[]),
+                                      progress_state="unconfirmed", review_only=True)
+                    self._plan_progress.observe(event)
+                    yield event
             independent = await self._independent_reads(calls)
             if independent:
                 started = time.monotonic()
@@ -712,7 +737,7 @@ class AgentLoop(BaseFlow):
 
             browser_writes = {'browser_navigate', 'browser_restart', 'browser_click', 'browser_input',
                               'browser_move_mouse', 'browser_press_key', 'browser_select_option',
-                              'browser_scroll_up', 'browser_scroll_down', 'browser_console_exec'}
+                              'browser_scroll_up', 'browser_scroll_down', 'browser_console_exec', 'browser_set_viewport'}
             fail_fast = any(c['function']['name'] in browser_writes for c in calls)
             for position, call in enumerate(calls):
                 invocation = ToolInvocation(
@@ -990,12 +1015,18 @@ class AgentLoop(BaseFlow):
     # ---- 执行后处理 ----
 
     async def _emit_plan_event(self, invocation: ToolInvocation, result: ToolResult) -> ToolResult:
-        if (invocation.function_name == UPDATE_PLAN_TOOL and not invocation.short_circuited
-                and result.success and self.plan_tool.latest_plan is not None):
-            self._plan_changed=True
+        if invocation.function_name == UPDATE_PLAN_TOOL and not invocation.short_circuited and result.success:
+            action = invocation.arguments.get("action", "update")
+            # 已确认的清单必须先选定步骤；不能以“无需计划”取消用户的结构化确认。
+            if action == "not_needed" and self._plan_progress.required == "adopted":
+                return ToolResult(success=False, message="用户已确认这份清单；请先选定当前步骤。范围改变时更新计划并说明原因。")
+            if action == "update":
+                self._plan_changed = True
             invocation.events.append(PlanEvent(
                 status=PlanEventStatus.UPDATED,
-                plan=self.plan_tool.latest_plan.model_copy(deep=True),
+                plan=self.plan_tool.latest_plan.model_copy(deep=True) if self.plan_tool.latest_plan else Plan(steps=[]),
+                progress_state="not_needed" if action == "not_needed" else "confirmed",
+                review_only=action != "update",
             ))
         return result
 

@@ -25,9 +25,14 @@ export async function recoverSubmission(scope: string, sessionId: string): Promi
 }
 
 export async function sendRecoverably(scope: string, sessionId: string, payload: Omit<Submission, 'afterSeq' | 'state'>): Promise<void> {
-  if (readDraft(scope).submission) {
-    if (await recoverSubmission(scope, sessionId)) return
+  const previous = readDraft(scope).submission
+  if (previous?.execute_plan) {
+    // 保留原请求标识；服务端持久幂等，响应丢失时可以安全重试。
+    await sessionApi.chat(sessionId, previous)
+    writeDraft(scope, {submission: undefined})
+    return
   }
+  if (previous && await recoverSubmission(scope, sessionId)) return
   // 读取失败时不发出一条无法建立核对边界的消息。
   const before = await sessionApi.getSessionDetail(sessionId)
   const pending: Submission = {...payload, afterSeq: before.last_seq ?? 0, state: 'sending'}

@@ -37,3 +37,7 @@ tmp/
 .cache/
 
 # Screenshots, tokenizer data, and dependency locks are tracked.
+
+# Generated build identities
+ray_agent/api/build-manifest.json
+ray_agent/ui/public/build-manifest.json

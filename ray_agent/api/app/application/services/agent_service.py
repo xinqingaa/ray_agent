@@ -21,6 +21,7 @@ from app.domain.models.model_catalog import (
 )
 from app.domain.models.event import ApprovalStatus, EnvironmentEvent, ErrorEvent, Event, MessageEvent, TitleEvent
 from app.domain.models.project import SANDBOX_PROJECT_DIR
+from app.domain.models.plan_acceptance import PlanAcceptance, PlanAlreadyAccepted, PlanAcceptanceConflict
 from app.domain.models.run import Run, RunMode, RunReason, RunStatus, tools_for_turn
 from app.domain.models.session import Session, SessionStatus
 from app.domain.repositories.uow import IUnitOfWork
@@ -624,6 +625,7 @@ class AgentService:
             model: Optional[str] = None,
             reasoning: Optional[str] = None,
             image_mode: str = 'auto',
+            execute_plan: Optional[PlanAcceptance] = None,
     ) -> ChatAccepted:
         """受理一条用户消息并立即返回；执行过程只通过事件流（stream_events）观察。
 
@@ -707,6 +709,21 @@ class AgentService:
                     new_session = session
             if not session:
                 raise NotFoundError("任务会话不存在, 请核实后重试")
+            if execute_plan is not None:
+                # 独立受理路径：不能误入运行中注入/等待续接；数据库会话行锁串行化重试。
+                if mode != RunMode.NORMAL or attachments or create_project_id:
+                    raise BadRequestError("确认计划只能以普通模式、不附带附件提交")
+                await self._remember_model(session, model, reasoning, creating=False)
+                await self._bind_sampling(session, creating=False, model_changed=False)
+                try:
+                    run = await self._ledger.start(session_id, events_after=[message_event],
+                        apply=touch, before_start=prepare_project, execute_plan=execute_plan)
+                except PlanAlreadyAccepted as prior:
+                    return ChatAccepted(run_id=prior.run.id, seq=prior.seq, route="started")
+                except PlanAcceptanceConflict as error:
+                    raise ConflictError(str(error)) from error
+                self._schedule_start(session, run.id, session.status, message_event)
+                return ChatAccepted(run_id=run.id, seq=message_event.seq, route="started")
             previous_model = session.model_id
             await self._remember_model(session, model, reasoning, creating=new_session is not None)
             await self._bind_sampling(
@@ -878,6 +895,35 @@ class AgentService:
                 except (asyncio.CancelledError, Exception) as e:
                     logger.debug(f"会话[{session_id}]关闭事件订阅: {e!r}")
 
+    async def _restore_stopped_viewports(self, session: Session, run: Run) -> None:
+        """等待中的运行没有执行协程：仅连接现有沙箱恢复持久记录，不创建新沙箱。"""
+        records = (run.config_snapshot or {}).get('browser_viewports') or {}
+        if not records or not session.sandbox_id:
+            return
+        browser = None
+        try:
+            sandbox = await self._sandbox_cls.get(session.sandbox_id)
+            if sandbox is None:
+                return
+            browser = await sandbox.get_browser()
+            async def save(records):
+                async with self._uow_factory() as uow:
+                    current = await uow.run.lock(run.id)
+                    await uow.run.save_snapshot(run.id, {**(current.config_snapshot or {}), 'browser_viewports': records})
+                    await uow.commit()
+            await browser.configure_viewports(run.id, records, save)
+            results = await browser.restore_viewports()
+            from app.domain.models.event import CleanupEvent, CleanupTarget
+            if results:
+                await self._ledger.append(session.id, [CleanupEvent(targets=[CleanupTarget(kind='browser',
+                    id=r['tab_id'], success=r['success'], message=r['message']) for r in results])],
+                    run_id=run.id, after_terminal=True)
+        except Exception:
+            logger.exception('停止后恢复浏览器视口失败')
+        finally:
+            if browser is not None:
+                await browser.cleanup()
+
     async def stop_session(self, session_id: str) -> Optional[Run]:
         """停止会话当前的运行：同一事务写入 cancelled 与终态事件，再取消执行协程并终止登记的 Shell 会话。
 
@@ -897,6 +943,7 @@ class AgentService:
                 # 没有执行协程：审批失效，待审批与同批后续调用补为未执行，与终态同一事务
                 result = await close_waiting_approval(self._uow_factory, self._ledger, session_id, active.id,
                                                     RunStatus.CANCELLED, RunReason.USER_STOP)
+                await self._restore_stopped_viewports(session, active)
                 if session.project_id:
                     from app.domain.services.project_file_coordinator import ProjectFileCoordinator
                     asyncio.create_task(self._file_coordinator().settle(session.project_id))
@@ -920,6 +967,8 @@ class AgentService:
             )
             if task is not None:
                 task.cancel()
+            if run is not None and (task is None or task.done):
+                await self._restore_stopped_viewports(session, run)
         if run is not None and runner is not None and hasattr(runner, "stop_processes"):
             await runner.stop_processes(active.id)
         if session.project_id:

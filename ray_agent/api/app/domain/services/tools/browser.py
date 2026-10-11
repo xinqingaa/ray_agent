@@ -30,10 +30,18 @@ class BrowserTool(BaseTool):
     async def browser_view(self, **options):
         return await self.browser.view_page(**options)
 
-    @tool('browser_navigate', '打开网址并在同一次调用返回观察，默认正文。交互任务可选 both。',
+    @tool('browser_navigate', '打开 HTTP(S) 或 about:blank；不支持 file://，本地 HTML 请通过沙箱内 HTTP 静态服务访问。默认返回正文，交互可选 both。',
           {'url':{'type':'string'}, **TAB, **OBSERVE}, ['url'])
     async def browser_navigate(self, url, **options):
         return await self.browser.navigate(url, **options)
+
+    @tool('browser_set_viewport', '设置指定标签页的真实浏览器视口以检查媒体查询与溢出；不要改业务 CSS 模拟手机。restore=true 恢复本运行修改前视口。等待时保留，结束时自动恢复。', {
+        'tab_id': {'type': 'string', 'description': 'browser_tabs 返回的明确标签页 id'},
+        'width': {'type': 'integer', 'minimum': 240, 'maximum': 3840},
+        'height': {'type': 'integer', 'minimum': 240, 'maximum': 3840},
+        'restore': {'type': 'boolean'}, **OBSERVE}, ['tab_id'])
+    async def browser_set_viewport(self, tab_id, **options):
+        return await self.browser.set_viewport(tab_id, **options)
 
     @tool('browser_restart', '断开并重连浏览器，打开网址；仅连接故障时使用。', {'url':{'type':'string'}}, ['url'])
     async def browser_restart(self, url):

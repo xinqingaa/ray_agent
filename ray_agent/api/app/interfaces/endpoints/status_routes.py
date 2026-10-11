@@ -30,3 +30,9 @@ async def get_status(
         return Response.fail(503, "系统存在服务异常", statues)
 
     return Response.success(msg="系统健康检查成功", data=statues)
+
+
+@router.get('/build', summary='读取 API 构建身份')
+async def get_build() -> Response:
+    from build_identity import read_manifest
+    return Response.success(data=read_manifest())

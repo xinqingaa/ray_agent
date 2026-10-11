@@ -1,0 +1,18 @@
+{
+  "csv": {
+    "preserved": true,
+    "sha256": "f2c2491b346ce678d84738c09fa366a25073ec283d2eec0267e0588eb0e9bc6e"
+  },
+  "html_v1": {
+    "preserved": true,
+    "sha256": "7da37bff7e394876b88e4f44e5fd6c63fd455151e0edba31570fed85911b09a1",
+    "size": 13634,
+    "container": "234f06ccb296",
+    "method": "docker read bytes vs originally delivered download"
+  },
+  "html_v2": {
+    "matches_download": true,
+    "size": 16745
+  },
+  "probe_note": "最初 /sessions/id/file 返回截断预览，不能用于大文件字节比较；最终用 Docker 只读原字节验证。"
+}

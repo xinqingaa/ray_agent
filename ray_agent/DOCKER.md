@@ -100,3 +100,32 @@ docker compose logs --since 30m manus-api 2>&1 | grep 会话
 | 重建 API 或 UI 后 502 | 先确认上游 healthy，再 `docker compose restart manus-nginx`。原因见[重启](#重启) |
 | API 不是 healthy | `docker compose logs --tail=80 manus-api` |
 | 配置修改未生效 | 先核对[配置位置](README.md#模型与工具)，再按上表选择重建容器或镜像 |
+
+## 更新产物并核对构建身份
+
+健康不代表源码已更新。API/UI 的实际构建输入分别生成清单，可读回 `/api/status/build` 与 `/build-manifest.json`；配置、凭据和文档不进入指纹。只读核对当前工作树与服务：
+
+```bash
+python3 scripts/check-builds.py http://localhost:8088
+```
+
+失配或旧产物没有身份时返回非零；输出只包含身份，不包含密钥。UI 默认核对 Compose 的 `/api` 编译地址，其他构建地址需设置对应 `NEXT_PUBLIC_API_BASE_URL`。本地 API 开发没有生成清单时身份为 unknown；不把运行时重算当作已构建身份。
+
+当前 Compose 没有挂载 `config.yaml`，页面保存的配置位于 API 容器内。更新前确认没有活动运行（包括等待回复/审批），保留实际配置；不要用仓库默认配置覆盖页面设置。以下过程保留现有数据卷，重建期间会短暂停机：
+
+```bash
+umask 077
+ray_deploy_backup=$(mktemp -d)
+docker cp manus-api:/app/config.yaml "$ray_deploy_backup/config.yaml"
+# Git 字段只辅助定位；是否与源码相同由内容指纹决定。
+docker compose build --build-arg BUILD_REVISION="$(git rev-parse HEAD)" manus-api manus-ui
+docker compose stop manus-api manus-ui
+docker compose up --no-start --no-deps --force-recreate manus-api manus-ui
+docker cp "$ray_deploy_backup/config.yaml" manus-api:/app/config.yaml
+docker compose start manus-api manus-ui
+# 等 API/UI healthy 后刷新上游地址
+docker compose restart manus-nginx
+python3 scripts/check-builds.py http://localhost:8088
+```
+
+构建可另外传 `BUILD_DIRTY=true/false`；未提供且构建环境拿不到 Git 时记为未知，不能用 SHA 代替内容核对。更新后再检查一个新运行的快照身份与实际系统提示，旧等待运行继续使用原冻结提示。确认配置保留与服务正常后，删除上述临时配置备份；失败时先保留用于恢复，不把备份提交到仓库。

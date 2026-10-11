@@ -191,3 +191,89 @@ def test_screenshot_is_already_delivered_without_completion_retry():
         messages=[e for e in events if e.type=='message' and e.attachments]
         assert len(messages)==1 and messages[0].attachments[0].id=='shot'
     asyncio.run(scenario())
+
+
+@pytest.mark.skipif(os.environ.get('RAY_TEST_BROWSER') != '1', reason='显式启用受控 Chromium')
+def test_real_viewport_media_query_restore_and_run_ownership():
+    from playwright.async_api import async_playwright
+    async def scenario():
+        async with async_playwright() as pw:
+            chromium = await pw.chromium.launch(headless=True, executable_path=os.environ.get('RAY_TEST_CHROMIUM'))
+            context = await chromium.new_context(viewport={'width':900,'height':700})
+            page = await context.new_page()
+            other = await context.new_page()
+            browser = PlaywrightBrowser('viewport-test')
+            browser.browser, browser.page = chromium, page
+            saved = {}
+            async def save(records):
+                saved.clear(); saved.update(records)
+            await browser.configure_viewports('run-a', {}, save)
+            try:
+                await page.set_content('<style>@media(max-width:500px){#test{display:none}}</style><p id="test">content</p>')
+                tab = await browser._ensure_page()
+                assert not (await browser.set_viewport(tab, 10, 844)).success
+                mobile = await browser.set_viewport(tab, 390, 844)
+                assert mobile.success and mobile.data['innerWidth'] == 390 and mobile.data['innerHeight'] == 844
+                assert await page.evaluate('matchMedia("(max-width:500px)").matches')
+                assert not await page.locator('#test').is_visible()
+                assert await other.evaluate('innerWidth') == 900
+                # 运行器重建：仅持久记录与同一 target 身份仍足以恢复。
+                resumed = PlaywrightBrowser('viewport-test')
+                resumed.browser, resumed.page = chromium, page
+                await resumed.configure_viewports('run-a', saved, save)
+                assert all(r['success'] for r in await resumed.restore_viewports())
+                assert await page.evaluate('innerWidth') == 900 and await page.locator('#test').is_visible()
+                assert not saved
+                await browser.configure_viewports('run-a', {}, save)
+                assert (await browser.set_viewport(tab, 390, 844)).success
+                contender = PlaywrightBrowser('viewport-test')
+                contender.browser, contender.page = chromium, page
+                await contender.configure_viewports('run-b', {}, save)
+                assert not (await contender.set_viewport(tab, 600, 800)).success
+                await page.close()
+                assert all(r['success'] for r in await browser.restore_viewports())
+                assert not saved
+            finally:
+                await chromium.close()
+    asyncio.run(scenario())
+
+
+@pytest.mark.skipif(os.environ.get('RAY_TEST_BROWSER') != '1', reason='显式启用受控 Chromium')
+def test_cdp_viewport_wait_reconnect_and_terminal_cleanup(tmp_path):
+    from playwright.async_api import async_playwright
+    from app.domain.models.run import RunStatus
+    async def scenario():
+        async with async_playwright() as pw:
+            context = await pw.chromium.launch_persistent_context(str(tmp_path/'profile'), headless=True,
+                executable_path=os.environ.get('RAY_TEST_CHROMIUM'), args=['--remote-debugging-port=0'])
+            port = (tmp_path/'profile'/'DevToolsActivePort').read_text().splitlines()[0]
+            url = f'http://127.0.0.1:{port}'
+            first = PlaywrightBrowser(url)
+            try:
+                h = make_loop([])
+                runner = make_runner(h)
+                runner._browser = first
+                await runner._prepare_run()
+                await first.initialize()
+                await first.page.set_content('<meta name="viewport" content="width=device-width"><p>viewport</p>')
+                original = await first.page.evaluate('innerWidth')
+                tab = await first._ensure_page()
+                assert (await first.set_viewport(tab,390,844)).data['innerWidth'] == 390
+                await h.ledger.transition(h.session.id, runner.run_id, RunStatus.WAITING)
+                await runner._cleanup_tools()
+                second = PlaywrightBrowser(url)
+                runner._browser = second
+                await runner._prepare_run()
+                await second.initialize()
+                assert await second.page.evaluate('innerWidth') == 390
+                await h.ledger.transition(h.session.id, runner.run_id, RunStatus.CANCELLED)
+                await runner._cleanup_tools()
+                third = PlaywrightBrowser(url)
+                await third.initialize()
+                assert await third.page.evaluate('innerWidth') == original
+                assert h.runs[runner.run_id].config_snapshot['browser_viewports'] == {}
+                assert any(e.type == 'cleanup' and e.targets[0].success for e in h.events)
+                await third.cleanup()
+            finally:
+                await context.close()
+    asyncio.run(scenario())

@@ -1,0 +1,22 @@
+{
+  "session_id": "d2fbb9d9-2a01-4319-9622-7eccf12c02fe",
+  "payload": {
+    "message": "按计划执行",
+    "attachments": [],
+    "mode": "normal",
+    "image_mode": "auto",
+    "execute_plan": {
+      "source_run_id": "199aa64b-af18-4e4c-bb01-c84ce257443a",
+      "plan_id": "47f0b6a8-e3aa-4510-bfb0-03bb4808e2f9",
+      "source_seq": 21,
+      "request_id": "dd910a69-3ad5-45a6-b1e8-bdbb385961cf"
+    }
+  },
+  "accepted": {
+    "run_id": "a1acc04d-a9b3-44be-8a62-46e03a4d893b",
+    "seq": 30,
+    "route": "started"
+  },
+  "preparing_visible": true,
+  "page_errors": []
+}

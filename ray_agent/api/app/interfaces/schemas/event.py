@@ -138,6 +138,9 @@ class StepSSEEvent(BaseSSEEvent):
 
 class PlanEventData(BaseEventData):
     plan_id: str
+    progress_state: str = "confirmed"
+    review_only: bool = False
+    accepted_from: Optional[dict] = None
     explanation: str = ""
     """计划事件数据"""
     steps: List[StepEventData]
@@ -154,6 +157,9 @@ class PlanSSEEvent(BaseSSEEvent):
             data=PlanEventData(
                 **BaseEventData.base_event_data(event),
                 plan_id=event.plan.id,
+                progress_state=event.progress_state,
+                review_only=event.review_only,
+                accepted_from=event.accepted_from.model_dump() if event.accepted_from else None,
                 explanation=event.plan.message,
                 steps=[
                     StepEventData(

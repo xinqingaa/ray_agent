@@ -1,0 +1,20 @@
+{
+  "cards": 3,
+  "card_clicks": [
+    "true",
+    "true",
+    "true"
+  ],
+  "wrong_feedback": "再想想。\n正确答案是 B 明成祖。朱元璋（明太祖）是明朝的建立者，郑和下西洋始于他之后的明成祖时期。",
+  "right_feedback": "答对了。\n郑和下西洋发生在明成祖（朱棣）在位期间，从 1405 年首次出海，到 1433 年最后一次结束，共七次。",
+  "mobile": {
+    "width": 390,
+    "scroll": 390
+  },
+  "errors": [],
+  "reload_has_total": true,
+  "product_mobile": {
+    "width": 390,
+    "scroll": 390
+  }
+}

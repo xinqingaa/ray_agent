@@ -1,3 +1,5 @@
+
+import type {PlanAcceptance} from '@/lib/api/types'
 import type {FileInfo, SessionDetail} from '@/lib/api/types'
 import {normalizeEvents} from '@/lib/session-events'
 import {readEventSeq} from '@/lib/session-projection'
@@ -8,6 +10,7 @@ export type Submission = {
   mode: 'normal' | 'plan'
   model?: string
   reasoning?: string
+  execute_plan?: PlanAcceptance
   image_mode?: 'auto' | 'files'
   afterSeq: number
   state: 'sending' | 'unknown'
@@ -84,6 +87,15 @@ export type Acceptance = {kind: 'accepted'; runId: string; seq: number}
 
 /** 仅比较提交前序号之后的用户消息。重复文本/附件存在多条时不猜。 */
 export function checkAcceptance(detail: SessionDetail, pending: Submission): Acceptance {
+  if (pending.execute_plan) {
+    const plan = normalizeEvents(detail.events).find(event => event.type === 'plan' &&
+      (event.data as {accepted_from?: PlanAcceptance})?.accepted_from?.request_id === pending.execute_plan!.request_id)
+    if (!plan) return {kind: 'absent'}
+    const data = plan.data as {run_id: string}
+    const message = normalizeEvents(detail.events).find(event => event.type === 'message' &&
+      (event.data as {run_id?: string; role?: string}).run_id === data.run_id && (event.data as {role?: string}).role === 'user')
+    return message ? {kind: 'accepted', runId: data.run_id, seq: readEventSeq(message)!} : {kind: 'ambiguous'}
+  }
   const matches = normalizeEvents(detail.events).filter((event) => {
     if (event.type !== 'message' || !event.data || typeof event.data !== 'object') return false
     const data = event.data as Record<string, unknown>

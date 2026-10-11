@@ -26,6 +26,7 @@ def now():
 class PlaywrightBrowser(BrowserProtocol):
     # Only CDP target identity is retained; node references live in their document.
     _selected_tabs = OrderedDict()
+    _viewport_owners = {}
     def __init__(self, cdp_url: str, llm=None):
         self.cdp_url = cdp_url
         self.playwright = self.browser = self.page = None
@@ -35,6 +36,9 @@ class PlaywrightBrowser(BrowserProtocol):
         self._log_seq = {}
         self._next_index = int(uuid.uuid4().hex[:10], 16)
         self._stable_tabs = set()
+        self._viewport_owner = None
+        self._viewports = {}
+        self._save_viewports = None
 
     def _register(self, page):
         for tab, existing in self._tabs.items():
@@ -220,6 +224,84 @@ class PlaywrightBrowser(BrowserProtocol):
         except Exception:
             metadata = dict(tab_id=tab, url=self.page.url)
         return ToolResult(data=dict(metadata, action_success=True, observation_status='not_requested'))
+
+    async def configure_viewports(self, owner, records, save):
+        self._viewport_owner, self._viewports, self._save_viewports = owner, records.copy(), save
+
+    async def _persist_viewports(self):
+        if self._save_viewports:
+            await self._save_viewports(self._viewports.copy())
+
+    async def _restore_viewport(self, tab):
+        record = self._viewports.get(tab)
+        if not record:
+            raise ValueError('本运行没有修改此标签页的视口')
+        key = (self.cdp_url, tab)
+        if self._viewport_owners.get(key, self._viewport_owner) != self._viewport_owner:
+            raise ValueError('此标签页视口已由另一运行持有，未恢复')
+        page = self._tabs.get(tab)
+        if page and not page.is_closed():
+            if record['viewport'] is not None:
+                await page.set_viewport_size(record['viewport'])
+            else:
+                cdp = await page.context.new_cdp_session(page)
+                try:
+                    await cdp.send('Emulation.clearDeviceMetricsOverride')
+                finally:
+                    await cdp.detach()
+                actual = await page.evaluate('() => ({width:innerWidth,height:innerHeight})')
+                if record.get('size') and actual != record['size']:
+                    await page.set_viewport_size(record['size'])
+        self._viewports.pop(tab, None)
+        self._viewport_owners.pop(key, None)
+        await self._persist_viewports()
+
+    async def restore_viewports(self):
+        if not self._viewports:
+            return []
+        if self.browser is None and not await self.initialize():
+            return [{'tab_id': tab, 'success': False, 'message': '连接浏览器失败'} for tab in self._viewports]
+        await self._refresh_tabs()
+        results = []
+        for tab in list(self._viewports):
+            try:
+                await self._restore_viewport(tab)
+                results.append(dict(tab_id=tab, success=True, message='视口已恢复或标签页已关闭'))
+            except Exception as exc:
+                results.append(dict(tab_id=tab, success=False, message=str(exc)))
+        return results
+
+    async def set_viewport(self, tab_id, width=None, height=None, restore=False, observe='none'):
+        if not tab_id or not self._viewport_owner:
+            return self._failure('需要明确的 tab_id 与运行所有权', 'invalid_arguments')
+        if not restore and any(type(v) is not int or not 240 <= v <= 3840 for v in (width, height)):
+            return self._failure('width/height 必须为 240–3840 的整数', 'invalid_arguments')
+        if restore and (width is not None or height is not None):
+            return self._failure('restore 不同时指定尺寸', 'invalid_arguments')
+        async def operation(tab):
+            if restore:
+                await self._restore_viewport(tab)
+                return
+            key = (self.cdp_url, tab)
+            owner = self._viewport_owners.get(key)
+            if owner and owner != self._viewport_owner:
+                raise ValueError('此标签页视口由另一运行持有')
+            if tab not in self._viewports:
+                self._viewports[tab] = {'owner': self._viewport_owner, 'viewport': self.page.viewport_size,
+                    'size': await self.page.evaluate('() => ({width:innerWidth,height:innerHeight})')}
+                # 先登记再执行，取消/异常时仍能恢复；等待时保存在运行快照。
+                await self._persist_viewports()
+            self._viewport_owners[key] = self._viewport_owner
+            await self.page.set_viewport_size({'width': width, 'height': height})
+        result = await self._action(operation, tab_id=tab_id, observe=observe)
+        if result.success:
+            try:
+                result.data = {**(result.data or {}), **await self.page.evaluate("""() => ({
+                    innerWidth, innerHeight, pageWidth: document.documentElement.scrollWidth,
+                    pageHeight: document.documentElement.scrollHeight})""")}
+            except Exception as exc:
+                result.data = {**(result.data or {}), 'observation_status': 'failed', 'observation_error': str(exc)}
+        return result
 
     async def navigate(self, url, observe='text', tab_id=None):
         async def op(tab):

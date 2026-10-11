@@ -72,7 +72,7 @@ def test_reminder_then_finalize_restricts_tools_and_still_delivers_and_completes
     events = run(collect(h.loop))
 
     assert h.loop.end_reason == RunEndReason.COMPLETED
-    assert h.recording.calls == [f"echo:{i}" for i in range(1, 9)]
+    assert h.recording.calls == [f"echo:{i}" for i in range(1, 9) if i != 4]
     requests = h.llm.requests
     assert len(requests) == 10
     # 提示追加在记忆里，系统消息逐次相同，缓存前缀不变
@@ -98,7 +98,7 @@ def test_reaching_limit_keeps_max_iterations_and_offers_continue():
     assert h.llm.call_count == 10
     assert "max_iterations" in events[-1].error and "继续" in events[-1].error
     # 收尾阶段的 echo 被拒绝，不执行
-    assert h.recording.calls == [f"echo:{i}" for i in range(1, 9)]
+    assert h.recording.calls == [f"echo:{i}" for i in range(1, 9) if i != 4]
 
 
 def test_injected_user_message_resets_budget():
@@ -114,7 +114,7 @@ def test_injected_user_message_resets_budget():
     run(collect(h.loop, drain_injected_messages=drain))
 
     assert h.loop.end_reason == RunEndReason.COMPLETED
-    assert h.recording.calls == [f"echo:{i}" for i in range(1, 13)]
+    assert h.recording.calls == [f"echo:{i}" for i in range(1, 13) if i not in (4, 6)]
     found = notices(memory_messages(h.session))
     assert len(found) == 1 and "7/10" in found[0]
     assert h.llm.requests[12].messages[-1]["content"] == found[0]

@@ -333,7 +333,10 @@ export type ChatMessage = {
 /**
  * 聊天请求参数；事件通过 GET /sessions/:id/events 订阅
  */
+export type PlanAcceptance = {source_run_id: string; plan_id: string; source_seq: number; request_id: string};
+
 export type ChatParams = {
+  execute_plan?: PlanAcceptance;
   message: string;
   attachments?: string[];
   mode?: "normal" | "plan";

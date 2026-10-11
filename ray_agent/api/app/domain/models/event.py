@@ -9,6 +9,7 @@ from pydantic import field_validator, BaseModel, Field, PrivateAttr
 
 from .file import File
 from .plan import Plan, Step
+from .plan_acceptance import PlanAcceptance
 from .search import SearchResultItem
 from .tool_result import ToolResult
 
@@ -46,6 +47,10 @@ class PlanEvent(BaseEvent):
     """规划事件类型"""
     type: Literal["plan"] = "plan"
     plan: Plan  # 规划
+    accepted_from: Optional[PlanAcceptance] = None
+    accepted_message: Optional[str] = None
+    progress_state: Literal["confirmed", "preparing", "unconfirmed", "not_needed"] = "confirmed"
+    review_only: bool = False
     status: PlanEventStatus = PlanEventStatus.CREATED  # 规划事件状态
 
 
@@ -282,6 +287,7 @@ class ContextOp(str, Enum):
 class ContextEvent(BaseEvent):
     """模型可见即已记录：模型历史的每次变化都先成为事件，请求重建按序回放这些事件。"""
     type: Literal["context"] = "context"
+    plan_check: Optional[Literal["scope", "notice", "corrected"]] = None
     op: ContextOp = ContextOp.APPEND
     messages: List[Dict[str, Any]] = Field(default_factory=list)
 
@@ -313,7 +319,7 @@ class CompactEvent(BaseEvent):
 
 
 class CleanupTarget(BaseModel):
-    kind: Literal["shell", "a2a"] = "shell"
+    kind: Literal["shell", "a2a", "browser"] = "shell"
     id: str
     success: bool
     message: str = ""
