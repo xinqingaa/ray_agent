@@ -619,7 +619,7 @@ export function SessionDetailView({
               {mode === 'conversation' && (
                 <PlanBar plan={view.plan} runStatus={view.runs.find(item => item.id === view.plan?.sourceRunId)?.status ?? null} previousRun={!!view.plan?.sourceRunId && view.plan.sourceRunId !== run?.id} className="mb-2"/>
               )}
-              <RunStatusBar run={pendingSend && !view.activeRun ? null : view.activeRun} className="mb-2"/>
+              <RunStatusBar run={pendingSend && !view.activeRun ? null : view.activeRun ?? run} streaming={view.streaming} sessionTokens={view.usage.session} className="mb-2"/>
               <ChatInput
                 sessionId={sessionId}
                 onSend={handleSend}

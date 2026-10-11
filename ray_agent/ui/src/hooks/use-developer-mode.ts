@@ -12,7 +12,7 @@ export function createDeveloperVisibility(enabled: boolean) {
     developerView: enabled,
     toolDetails: enabled,
     toolMetrics: enabled,
-    toolCounts: enabled,
+    toolCounts: false,
     contextUsage: enabled,
     requestMetrics: enabled,
     manualCompaction: enabled,

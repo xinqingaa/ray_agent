@@ -54,7 +54,7 @@ export function usageSummary(tokens: TokenCounts | null | undefined): string {
   const rate = cacheHitRate(tokens)
   const cached = tokens?.cached == null ? '—' : formatTokens(tokens.cached)
   const rateText = rate == null ? '—' : `${Math.round(rate * 100)}%`
-  return `输入 ${formatTokens(tokens?.prompt)} · 输出 ${formatTokens(tokens?.completion)} · 缓存命中 ${cached} · 命中率 ${rateText}`
+  return `输入 ${formatTokens(tokens?.prompt)} · 输出 ${formatTokens(tokens?.completion)} · 缓存命中 ${cached} · 缓存命中率 ${rateText}`
 }
 
 export function formatCount(n: number): string {

@@ -289,7 +289,7 @@ export function ComponentCatalog() {
           标“合成”的是这些事件里不会出现的状态，按视图模型契约改写。运行中的计时从夹具记录的时刻开始走秒。
         </p>
 
-        <Section id="status-bar" title="运行状态条" note="放在输入框上方，进行中只保留用时和轮次。当前一句在时间线末尾。终态原因只在终态条。停止生成在发送按钮上。">
+        <Section id="status-bar" title="运行状态条" note="输入框上方显示时长、轮次与生成速度；结束后保留统计并补上累计 Token。所有模式一致。终态原因仍在时间线。">
           <State label="空闲（不占位）" source="真实"><RunStatusBar run={runStates.idle}/></State>
           <State label="正在思考" source="真实"><FixtureClock at={runStates.modelNow}><div className="flex flex-col gap-2"><RunStatus place="timeline" compacting={false} pendingSend={false} activity="model" streaming={false} running tailQuiet/><RunStatusBar run={runStates.model}/></div></FixtureClock></State>
           <State label="工具执行中（动词在工具行）" source="真实"><FixtureClock at={runStates.toolNow}><RunStatusBar run={runStates.tool}/></FixtureClock></State>
@@ -298,10 +298,10 @@ export function ComponentCatalog() {
           <State label="等你批准（句子在审批卡）" source="合成"><FixtureClock at={runStates.toolNow}><RunStatusBar run={runStates.waitingApproval}/></FixtureClock></State>
           <State label="正在停止" source="合成"><FixtureClock at={runStates.toolNow}><div className="flex flex-col gap-2"><RunStatus place="timeline" compacting={false} pendingSend={false} activity="stopping" streaming={false} running={false} tailQuiet/><RunStatusBar run={runStates.stopping}/></div></FixtureClock></State>
           <State label="正在准备执行环境" source="合成"><Surface><RunStatus place="timeline" compacting={false} pendingSend={false} activity="preparing_environment" streaming={false} running={false} tailQuiet/></Surface></State>
-          <State label="已完成（状态行收起）" source="真实"><Surface className="flex items-center gap-2 text-sm"><span className="font-medium">会话标题</span><RunStatus place="headline" status="completed" compacting={false}/><span className="text-meta text-faint">运行汇总留在时间线。</span></Surface></State>
-          <State label="失败（状态行收起）" source="合成"><Surface className="text-meta text-faint"><RunStatus place="headline" status="failed" compacting={false}/>原因和重试只在时间线终态条。</Surface></State>
-          <State label="已停止（状态行收起）" source="合成"><Surface className="flex items-center gap-2 text-sm"><span className="font-medium">会话标题</span><RunStatus place="headline" status="cancelled" compacting={false}/><span className="text-meta text-faint">停止记录留在时间线。</span></Surface></State>
-          <State label="已中断（状态行收起）" source="合成"><Surface className="text-meta text-faint"><RunStatus place="headline" status="interrupted" compacting={false}/>原因只在时间线终态条。</Surface></State>
+          <State label="已完成（保留统计）" source="合成"><RunStatusBar run={{...runStates.tool, status: 'completed', endedAt: runStates.toolNow, summary: messageStates.finalShort.summary}}/></State>
+          <State label="失败（原因在时间线）" source="合成"><Surface className="text-meta text-faint"><RunStatus place="headline" status="failed" compacting={false}/>原因和重试只在时间线终态条。</Surface></State>
+          <State label="已停止（记录在时间线）" source="合成"><Surface className="flex items-center gap-2 text-sm"><span className="font-medium">会话标题</span><RunStatus place="headline" status="cancelled" compacting={false}/><span className="text-meta text-faint">停止记录留在时间线。</span></Surface></State>
+          <State label="已中断（原因在时间线）" source="合成"><Surface className="text-meta text-faint"><RunStatus place="headline" status="interrupted" compacting={false}/>原因只在时间线终态条。</Surface></State>
         </Section>
 
         <Section id="plan-bar" title="计划条" columns={2} note="进度入口显示当前步骤序号；点击浮动弹层，只显示最新计划与完成数量，不占据页面布局。">
@@ -352,7 +352,7 @@ export function ComponentCatalog() {
           <State label="含未成功" source="合成"><Surface><ToolGroup calls={toolGroups.withFailure}/></Surface></State>
         </Section>
 
-        <Section id="replies" title="旁白与最终回复" columns={2} note="旁白比最终回复弱一级；最终回复下方附所属运行的汇总。">
+        <Section id="replies" title="旁白与最终回复" columns={2} note="旁白比最终回复弱一级；运行统计统一放在输入区，正文下方不重复展示。">
           <State label="旁白" source="真实"><Surface><NarrationBlock text={messageStates.narration}/></Surface></State>
           <State label="旁白（W6 增量渲染入口）" source="合成"><Surface><NarrationBlock text={messageStates.narration.slice(0, 18)} streaming/></Surface></State>
           <State label="短文本" source="真实"><Surface><FinalReply text={messageStates.finalShort.text} summary={messageStates.finalShort.summary}/></Surface></State>

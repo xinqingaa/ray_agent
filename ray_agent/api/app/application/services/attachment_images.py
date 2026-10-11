@@ -1,4 +1,4 @@
-"""按实际模型能力准备像素，不能直接输入的图片保留为文件工具材料。"""
+"""按实际模型能力准备像素，保留原文件并说明未输入像素的实际原因。"""
 import asyncio
 
 from app.application.errors.exceptions import BadRequestError
@@ -8,13 +8,16 @@ from app.infrastructure.external.file_storage.image_input import is_image_attach
 async def prepare_attachment_images(storage, event, session_id, supports_vision):
     event.image_input_note = None
     images = [file for file in event.attachments if is_image_attachment(file)]
-    if not images or event.image_mode == 'files':
+    if not images:
         return []
     if not supports_vision:
-        event.image_input_note = '本次模型请求未提供图片像素，图片原文件可通过附件路径处理。请自行选择工具读取或识别；无法分析时说明实际限制，不能仅凭文件名描述图片内容。'
+        event.image_input_note = '当前运行未启用模型原生视觉能力，本次模型请求未提供图片像素。原文件已作为附件提供；普通识图请求应直接说明当前模型无法直接看图，建议切换支持视觉的模型，不尝试工具识图。'
+        return []
+    if event.image_mode == 'files':
+        event.image_input_note = '当前运行已启用模型原生视觉能力，但本条消息使用仅文件模式，只提供附件路径，未提供图片像素。需要直接看图时请以自动图片输入方式重新发送。'
         return []
     if len(images) > MAX_MESSAGE_IMAGES:
-        event.image_input_note = '图片数量超过本次像素输入预算，所有图片均作为原文件提供，未输入像素。请按附件路径自行选择工具处理，不能声称已直接看过图片。'
+        event.image_input_note = f'当前运行已启用模型原生视觉能力，但图片数量超过本次像素输入预算，所有图片均作为原文件提供，未输入像素。需要直接看图时请每条消息最多发送 {MAX_MESSAGE_IMAGES} 张图片。'
         return []
     refs = []
     notes = []
@@ -34,5 +37,5 @@ async def prepare_attachment_images(storage, event, session_id, supports_vision)
         refs.append(dict(metadata, source='user_attachment', file_id=file.id, session_id=session_id,
             filename=file.filename, purpose='用户提供的图片材料', temporary=False, detail='high'))
     if notes:
-        event.image_input_note = '\n'.join(notes) + '\n请自行选择工具处理未提供像素的附件，并依据实际读取结果回答。'
+        event.image_input_note = '当前运行已启用模型原生视觉能力。\n' + '\n'.join(notes) + '\n请说明对应图片的输入限制，建议重新提供支持的图片；不能声称已看过未提供像素的附件。'
     return refs

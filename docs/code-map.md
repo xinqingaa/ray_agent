@@ -145,7 +145,7 @@
 | 统一只读预览 | [file_preview_service.py](../ray_agent/api/app/application/services/file_preview_service.py)、[file_preview.py](../ray_agent/api/app/domain/models/file_preview.py)、[file_preview/](../ray_agent/api/app/infrastructure/external/file_preview/)、[preview_routes.py](../ray_agent/api/app/interfaces/endpoints/preview_routes.py) | [test_file_preview.py](../ray_agent/api/tests/core/test_file_preview.py) | — |
 | 附件 ZIP 与原文件下载 | [file_service.py](../ray_agent/api/app/application/services/file_service.py)、[file_routes.py](../ray_agent/api/app/interfaces/endpoints/file_routes.py) | [test_file_preview.py](../ray_agent/api/tests/core/test_file_preview.py) | — |
 
-用户图片的受理与编码入口为 [attachment_images.py](../ray_agent/api/app/application/services/attachment_images.py) 与 [image_input.py](../ray_agent/api/app/infrastructure/external/file_storage/image_input.py)；受理模型能力校验在 [agent_service.py](../ray_agent/api/app/application/services/agent_service.py)，沙箱同步与像素加载在 [agent_task_runner.py](../ray_agent/api/app/domain/services/agent_task_runner.py)，消息装配与容量治理分别在 [agent_loop.py](../ray_agent/api/app/domain/services/flows/agent_loop.py) 和 [vision.py](../ray_agent/api/app/domain/services/context/vision.py)。专项检查为 [test_attachment_images.py](../ray_agent/api/tests/core/test_attachment_images.py)。
+用户图片的受理与编码入口为 [attachment_images.py](../ray_agent/api/app/application/services/attachment_images.py) 与 [image_input.py](../ray_agent/api/app/infrastructure/external/file_storage/image_input.py)；受理模型能力校验在 [agent_service.py](../ray_agent/api/app/application/services/agent_service.py)，沙箱同步与像素加载在 [agent_task_runner.py](../ray_agent/api/app/domain/services/agent_task_runner.py)，消息装配与容量治理分别在 [agent_loop.py](../ray_agent/api/app/domain/services/flows/agent_loop.py) 和 [vision.py](../ray_agent/api/app/domain/services/context/vision.py)。普通识图与明确工具识别的边界在 [prompts/image_input.py](../ray_agent/api/app/domain/services/prompts/image_input.py)，由系统提示与图片消息共同传递。专项检查为 [test_attachment_images.py](../ray_agent/api/tests/core/test_attachment_images.py)。
 
 ## 前端
 
@@ -163,6 +163,7 @@
 | 「按计划执行」 | [`components/run/run-end-bar.tsx`](../ray_agent/ui/src/components/run/run-end-bar.tsx) 的 `PlanExecuteBar`，有效性判断在会话视图投影与会话页 | — |
 | 审批条目与审批卡 | 投影在 [`lib/session-projection.ts`](../ray_agent/ui/src/lib/session-projection.ts) 的 `approval` 分支（从审批事件构造调用、结论原地更新、失效标为未执行）；卡片 [`components/run/approval-card.tsx`](../ray_agent/ui/src/components/run/approval-card.tsx)；提交与输入框引导在 [`components/session-detail-view.tsx`](../ray_agent/ui/src/components/session-detail-view.tsx) 的 `handleApproval` | — |
 | 会话页 | [`components/session-detail-view.tsx`](../ray_agent/ui/src/components/session-detail-view.tsx)：状态条、时间线、计划条、输入框，以及对话与开发者视图切换 | 10 |
+| 对话底部统计 | [run/status-bar.tsx](../ray_agent/ui/src/components/run/status-bar.tsx) 接入流式文本、轮次用量及对话累计值，显示时长/轮次/速度和终态 Token；估算与统计函数复用 [session-projection.ts](../ray_agent/ui/src/lib/session-projection.ts) 的 `resolveOutputRate`；工具数量由统一区域策略隐藏 | — |
 | 运行视图 | [`components/run/`](../ray_agent/ui/src/components/run/) | 07、10 |
 | 工作台 | [`components/workbench/workbench.tsx`](../ray_agent/ui/src/components/workbench/workbench.tsx)：终端、浏览器正文/状态/按需截图、会话文件 | 11、12 |
 | 开发者显隐策略 | [use-developer-mode.ts](../ray_agent/ui/src/hooks/use-developer-mode.ts)：hook、区域工厂与浏览器偏好；检查 [check-developer-mode.cjs](../ray_agent/ui/scripts/check-developer-mode.cjs) | — |

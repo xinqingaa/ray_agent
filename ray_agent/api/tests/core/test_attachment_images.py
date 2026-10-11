@@ -12,11 +12,14 @@ from app.application.services.attachment_images import prepare_attachment_images
 from app.domain.models.event import MessageEvent
 from app.domain.models.file import File
 from app.domain.models.message import Message
+from app.domain.models.memory import Memory
 from app.domain.models.run import Run
 from app.domain.services.agent_task_runner import AgentTaskRunner
 from app.domain.services.context.compaction import user_origins, match_events
 from app.domain.services.context.vision import image_refs, reconcile_visual_history
 from app.domain.services.request_rebuild import rebuild_request
+from app.domain.services.prompts.image_input import USER_IMAGE_RULES
+from app.domain.services.flows.agent_loop import AGENT_MEMORY_NAME
 from app.infrastructure.external.file_storage.image_input import encode_image, MAX_SOURCE_BYTES
 from app.infrastructure.external.llm.openai_llm import OpenAILLM
 from app.domain.models.app_config import LLMConfig
@@ -75,19 +78,25 @@ def test_gif_first_frame_and_exif_orientation():
     assert (spec['width'], spec['height']) == (20, 40)
 
 
-def test_preflight_selects_pixels_or_file_tools_automatically():
+def test_preflight_reports_actual_pixel_limits_without_automatic_tool_fallback():
     async def scenario():
         file = File(id='f', filename='image.png', extension='.png', mime_type='image/png')
         store = storage(png(), file)
         event = MessageEvent(role='user', message='看图', attachments=[file])
         assert await prepare_attachment_images(store, event, 's', False) == []
         assert event.image_mode == 'auto' and '未提供图片像素' in event.image_input_note
+        assert '未启用模型原生视觉能力' in event.image_input_note
         store.download_file.assert_not_awaited()
         event.image_mode = 'files'
         assert await prepare_attachment_images(store, event, 's', False) == []
+        assert '未启用模型原生视觉能力' in event.image_input_note
+        assert await prepare_attachment_images(store, event, 's', True) == []
+        assert '已启用模型原生视觉能力' in event.image_input_note
+        assert '仅文件模式' in event.image_input_note
         event.image_mode = 'auto'; event.attachments = [file] * 3
         assert await prepare_attachment_images(store, event, 's', True) == []
         assert '数量超过' in event.image_input_note
+        assert '已启用模型原生视觉能力' in event.image_input_note
         event.attachments = [file]
         refs = await prepare_attachment_images(store, event, 's', True)
         assert refs[0]['source'] == 'user_attachment'
@@ -96,6 +105,7 @@ def test_preflight_selects_pixels_or_file_tools_automatically():
         assert event.image_input_note is None
         assert await prepare_attachment_images(storage(b'broken', file), event, 's', True) == []
         assert '未生成像素' in event.image_input_note
+        assert '已启用模型原生视觉能力' in event.image_input_note
         missing = SimpleNamespace(download_file=AsyncMock(side_effect=OSError('unavailable')))
         with pytest.raises(BadRequestError, match='读取失败'):
             await prepare_attachment_images(missing, event, 's', True)
@@ -113,6 +123,8 @@ def test_pixels_reach_adapter_and_context_rebuild_with_owned_reference():
         h.llm.supports_vision = True
         events = [e async for e in h.loop.invoke(message)]
         request = h.llm.requests[0].messages
+        assert USER_IMAGE_RULES in request[0]['content']
+        assert USER_IMAGE_RULES in request[-1]['content'][0]['text']
         assert list(image_refs(request))[0]['file_id'] == 'f'
         origins = user_origins(request[1:])
         match_events(origins, [(1, event.message)])
@@ -155,6 +167,35 @@ def test_waiting_reply_and_running_injection_include_user_images():
         with pytest.raises(ValueError, match='未静默丢弃'):
             reconcile_visual_history(fresh, True)
         assert not list(image_refs(reconcile_visual_history(fresh, False)))
+    execute(scenario())
+
+
+def test_image_rules_reach_legacy_memory_frozen_waiting_and_injected_messages():
+    async def scenario():
+        legacy = '旧系统提示'
+        h = make_loop([text('直接答复')])
+        h.session.memories[AGENT_MEMORY_NAME] = Memory(messages=[{'role':'system', 'content':legacy}])
+        snapshot = await h.loop.config_snapshot()
+        assert USER_IMAGE_RULES in snapshot['system_prompt']
+        _ = [e async for e in h.loop.invoke(Message(message='继续看刚才的图片'))]
+        assert h.llm.requests[0].messages[0]['content'] == snapshot['system_prompt']
+        # 已冻结运行不改写快照，补图消息自身携带当前规则。
+        file = File(id='f', filename='image.png', extension='.png', mime_type='image/png')
+        event = MessageEvent(role='user', message='看看图片', attachments=[file])
+        await prepare_attachment_images(storage(png(), file), event, 's', False)
+        message = AgentTaskRunner._to_message(event)
+        h = make_loop([tool_call('message_ask_user', {'text':'请补图'}), text('当前模型无法直接看图')])
+        h.loop.request_system_prompt = legacy
+        _ = [e async for e in h.loop.invoke(Message(message='先提问'))]
+        _ = [e async for e in h.loop.invoke(message, prior_status=h.session.status)]
+        assert h.llm.requests[-1].messages[0]['content'] == legacy
+        assert USER_IMAGE_RULES in h.llm.requests[-1].messages[-1]['content']
+        assert '未启用模型原生视觉能力' in h.llm.requests[-1].messages[-1]['content']
+        h = make_loop([text('当前模型无法直接看图')])
+        h.loop.request_system_prompt = legacy
+        drain = AsyncMock(side_effect=[[message], []])
+        _ = [e async for e in h.loop.invoke(Message(message='开始'), drain_injected_messages=drain)]
+        assert USER_IMAGE_RULES in h.llm.requests[0].messages[-1]['content']
     execute(scenario())
 
 

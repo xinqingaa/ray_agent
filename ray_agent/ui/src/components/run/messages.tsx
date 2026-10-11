@@ -8,8 +8,6 @@ import type {FileView, RunSummary} from '@/lib/session-view'
 import {FileRow} from '@/components/preview/file-row'
 import {previewBodyKind} from './file-icon'
 import {PreviewAction} from '@/components/preview/action'
-import {formatDuration, formatTokens, totalTokens} from './format'
-import {useDeveloperMode} from '@/hooks/use-developer-mode'
 
 type UserMessageProps = {
   text: string
@@ -71,40 +69,19 @@ export function NarrationBlock({text, streaming, className}: {text: string; clas
   )
 }
 
-export function RunSummaryLine({summary, className}: {summary: RunSummary; className?: string}) {
-  const {visibility} = useDeveloperMode()
-  const items: Array<[string, string]> = [
-    ['用时', formatDuration(summary.durationMs)],
-    ['轮次', String(summary.turns)],
-    ['工具调用', String(summary.toolCalls)],
-    ['tokens', formatTokens(totalTokens(summary.tokens))],
-  ]
-  return (
-    <dl className={cn('flex flex-wrap gap-x-5 gap-y-1 text-xs', className)} aria-label="运行汇总">
-      {items.filter(([label]) => visibility.requestMetrics || label === '用时').map(([label, value]) => (
-        <div key={label} className="flex items-baseline gap-1.5">
-          <dt className="text-muted-foreground">{label}</dt>
-          <dd className="font-medium tabular-nums">{value}</dd>
-        </div>
-      ))}
-    </dl>
-  )
-}
-
 type FinalReplyProps = {
   text: string
   summary?: RunSummary | null
   className?: string
 } & StreamingProps
 
-/** 最终回复：没有工具调用的助手消息，下方附所属运行的汇总 */
-export function FinalReply({text, summary, streaming, className}: FinalReplyProps) {
+/** 最终回复正文；运行统计统一在输入区显示。 */
+export function FinalReply({text, streaming, className}: FinalReplyProps) {
   return (
     <div className={cn('space-y-3', className)} aria-busy={streaming || undefined}>
       <div className={cn(streaming && STREAMING_CARET)}>
         <MarkdownContent content={text}/>
       </div>
-      {summary && !streaming && <RunSummaryLine summary={summary} className="border-t pt-2"/>}
     </div>
   )
 }

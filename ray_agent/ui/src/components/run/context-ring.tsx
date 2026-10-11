@@ -60,7 +60,7 @@ function usageRows(tokens: TokenCounts): {label: string; value: string}[] {
     {label: '累计输入', value: formatTokens(tokens.prompt)},
     {label: '累计输出', value: formatTokens(tokens.completion)},
     {label: '缓存命中', value: tokens.cached == null ? '—' : formatTokens(tokens.cached)},
-    {label: '命中率', value: rate == null ? '—' : `${Math.round(rate * 100)}%`},
+    {label: '缓存命中率', value: rate == null ? '—' : `${Math.round(rate * 100)}%`},
   ]
 }
 
@@ -87,12 +87,19 @@ function ContextPanel({usage}: {usage: UsageView}) {
     <div className="space-y-2">
       <p className="text-sm font-semibold">上下文窗口</p>
       {occupancy.length === 0 && <p className="text-meta text-muted-foreground">暂无占用</p>}
-      {(occupancy.length > 0 || totals.length > 0) && (
+      {occupancy.length > 0 && (
         <dl className="grid grid-cols-[max-content_minmax(0,1fr)] items-baseline gap-x-6 gap-y-1.5 text-meta tabular-nums">
           <MetricRows rows={occupancy}/>
-          {occupancy.length > 0 && totals.length > 0 && <div className="col-span-2 border-t"/>}
-          <MetricRows rows={totals}/>
         </dl>
+      )}
+      {totals.length > 0 && (
+        <>
+          <div className="border-t"/>
+          <p className="text-sm font-semibold">用量统计</p>
+          <dl className="grid grid-cols-[max-content_minmax(0,1fr)] items-baseline gap-x-6 gap-y-1.5 text-meta tabular-nums">
+            <MetricRows rows={totals}/>
+          </dl>
+        </>
       )}
       {ctx?.fixedInputExceeded && (
         <p className="text-meta text-state-failed">项目说明或笔记超过容量，压缩历史无法解决。请精简项目设置或调大上下文窗口。</p>
