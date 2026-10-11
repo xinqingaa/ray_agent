@@ -38,7 +38,17 @@ def reconcile_visual_history(messages, supports_vision, current_run_id=None):
             *[{'type': 'image_ref', 'image_ref': ref} for ref in pending],
         ]})
     refs = list(image_refs(result))
-    keep = {ref['file_id'] for ref in refs[-MAX_ACTIVE_IMAGES:]} if supports_vision else set()
+    # 首次等待模型观察的用户图与工具图不能因为“只留最新两张”而被静默挤掉。
+    last_assistant = max((i for i, message in enumerate(result) if message.get('role') == 'assistant'), default=-1)
+    fresh = {ref['file_id'] for ref in image_refs(result[last_assistant + 1:])} if supports_vision else set()
+    if len(fresh) > MAX_ACTIVE_IMAGES:
+        raise ValueError('本次待观察图片超过两张，未静默丢弃图片；请分批发送或仅作为文件发送')
+    keep = set(fresh)
+    if supports_vision:
+        for ref in reversed(refs):
+            if len(keep) >= MAX_ACTIVE_IMAGES:
+                break
+            keep.add(ref['file_id'])
     for message in result:
         if not isinstance(message.get('content'), list):
             continue

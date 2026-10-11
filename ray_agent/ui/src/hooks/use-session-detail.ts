@@ -29,7 +29,7 @@ export type UseSessionDetailResult = {
   refresh: () => Promise<void>
   refreshFiles: () => Promise<void>
   /** 只提交消息。retry 不再裁掉已有事件。提交期间 streaming 为 true，不改写运行状态 */
-  sendMessage: (message: string, attachmentIds: string[], options?: { retry?: boolean; mode?: 'plan' | 'normal'; model?: string; reasoning?: string }) => Promise<void>
+  sendMessage: (message: string, attachmentIds: string[], options?: { retry?: boolean; mode?: 'plan' | 'normal'; model?: string; reasoning?: string; image_mode?: 'auto' | 'files' }) => Promise<void>
   /** 与 submitting 相同：chat 请求未返回时为 true，不是运行中 */
   streaming: boolean
   submitting: boolean
@@ -307,7 +307,7 @@ export function useSessionDetail(
   }, [sessionId, loaded, appendEvent])
 
   const sendMessage = useCallback(
-    async (message: string, attachmentIds: string[], options?: { retry?: boolean; mode?: 'plan' | 'normal'; model?: string; reasoning?: string }) => {
+    async (message: string, attachmentIds: string[], options?: { retry?: boolean; mode?: 'plan' | 'normal'; model?: string; reasoning?: string; image_mode?: 'auto' | 'files' }) => {
       void options?.retry
       if (!sessionId) return
       setSubmitting(true)
@@ -316,6 +316,7 @@ export function useSessionDetail(
           message,
           attachments: attachmentIds,
           mode: options?.mode ?? 'normal',
+          image_mode: options?.image_mode ?? 'auto',
           ...(options?.model && options?.reasoning ? {model: options.model, reasoning: options.reasoning} : {}),
         })
       } catch (e) {

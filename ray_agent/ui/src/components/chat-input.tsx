@@ -5,7 +5,7 @@ import {cn, formatFileSize} from '@/lib/utils'
 import {ScrollArea, ScrollBar} from '@/components/ui/scroll-area'
 import {Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle} from '@/components/ui/item'
 import {Avatar, AvatarGroupCount} from '@/components/ui/avatar'
-import {ArrowUp, FileText, Loader2, Paperclip, Square, XCircle} from 'lucide-react'
+import {ArrowUp, Eye, FileText, Loader2, Paperclip, Square, X, XCircle} from 'lucide-react'
 import {Button} from '@/components/ui/button'
 import {Popover, PopoverAnchor, PopoverContent} from '@/components/ui/popover'
 import {PlusCommandMenu, SlashCommandList} from '@/components/input-command-menu'
@@ -24,10 +24,14 @@ import {recoverSubmission, UncertainSubmissionError} from '@/lib/send-recovery'
 import {findSlashTrigger, removeSlashFragment, type SlashFragment} from '@/lib/slash-trigger'
 import {ModelPicker, type ModelSelection} from '@/components/model-picker'
 import {useDeveloperMode} from '@/hooks/use-developer-mode'
+import {clipboardImages, isImageFile} from '@/lib/composer-images'
+import {AttachmentThumbnail} from '@/components/preview/attachment-thumbnail'
+import {FilePreviewDialog} from '@/components/preview/file-preview-dialog'
+import type {FileView} from '@/lib/session-view'
 interface ChatInputProps {
   className?: string
   onInputValueChange?: (value: string) => void
-  onSend?: (message: string, files: FileInfo[], options?: {mode?: 'plan' | 'normal'; model?: string; reasoning?: string}) => Promise<void>
+  onSend?: (message: string, files: FileInfo[], options?: {mode?: 'plan' | 'normal'; model?: string; reasoning?: string; image_mode?: 'auto' | 'files'}) => Promise<void>
   savedModel?: string | null
   savedReasoning?: string | null
   runModel?: string | null
@@ -36,6 +40,7 @@ interface ChatInputProps {
   pause?: false | 'ready' | 'stopping'
   onPause?: () => void
   disabled?: boolean
+  autoFocus?: boolean
   /** 当前会话 ID，上传附件时会关联到该会话 */
   sessionId?: string | null
   placeholder?: string
@@ -70,7 +75,7 @@ export interface ChatInputRef {
 }
 
 export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
-  ({ className, onInputValueChange, onSend, pause = false, onPause, disabled = false, sessionId, placeholder = '分配一个任务或提问任何问题...', accessory, draftScope, commandHost = EMPTY_HOST, projectsEnabled = false, projectBindable = false, selectedProject = null, savedModel = null, savedReasoning = null, runModel = null, runReasoning = null }, ref) => {
+  ({ className, onInputValueChange, onSend, pause = false, onPause, disabled = false, autoFocus = false, sessionId, placeholder = '分配一个任务或提问任何问题...', accessory, draftScope, commandHost = EMPTY_HOST, projectsEnabled = false, projectBindable = false, selectedProject = null, savedModel = null, savedReasoning = null, runModel = null, runReasoning = null }, ref) => {
     const {visibility} = useDeveloperMode()
     const [files, setFiles] = useState<FileInfo[]>([])
     const [uploading, setUploading] = useState(false)
@@ -94,11 +99,19 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
     const [loadedScope, setLoadedScope] = useState<string | null>(null)
     const [uncertain, setUncertain] = useState(false)
     const [modelChoice, setModelChoice] = useState<ModelSelection | null>(null)
+    const [preview, setPreview] = useState<FileView | null>(null)
+    const mountedRef = useRef(false)
+    const scopeRef = useRef(scope)
+    scopeRef.current = scope
+    const uploadRef = useRef<{scope: string; cancelled: boolean} | null>(null)
+    const focusedScope = useRef<string | null>(null)
+    useEffect(() => {mountedRef.current = true; return () => {mountedRef.current = false}}, [])
     useEffect(() => {
       const draft = readDraft(scope)
       setInputValue(draft.text)
       setFiles(draft.files)
       setPlanMode(draft.planMode)
+      setPreview(null)
       setUncertain(!!draft.submission)
       setLoadedScope(scope)
     }, [scope])
@@ -110,7 +123,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
       return () => window.removeEventListener(DRAFT_CHANGED, check)
     }, [scope])
     useEffect(() => {
-      if (loadedScope === scope) writeDraft(scope, {text: inputValue, files, planMode})
+      if (loadedScope === scope) writeDraft(scope, {text: inputValue, files, planMode, imageMode: 'auto'})
     }, [scope, loadedScope, inputValue, files, planMode])
 
     const blocked = disabled || sending || commandHost.compacting || uncertain
@@ -119,11 +132,70 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
         const data = (event as CustomEvent).detail
         if (data.scope === 'all' || data.project_ids.some((id: string) => scope === `project:${id}`) || data.session_ids.some((id: string) => scope === `session:${id}`)) {
           setInputValue(''); setFiles([]); setPlanMode(false); setUncertain(false)
+          if (uploadRef.current) uploadRef.current.cancelled = true
         }
       }
       window.addEventListener(DATA_CLEARED, cleared)
       return () => window.removeEventListener(DATA_CLEARED, cleared)
     }, [scope])
+    const hasImages = files.some(isImageFile)
+
+    useEffect(() => {
+      if (!autoFocus || loadedScope !== scope || blocked || focusedScope.current === scope) return
+      let frame = 0
+      const focusOnce = () => {
+        const node = textareaRef.current
+        if (focusedScope.current === scope || !node || node.disabled || node.getClientRects().length === 0 || document.visibilityState === 'hidden') return
+        focusedScope.current = scope
+        const active = document.activeElement
+        if (document.querySelector('[role="dialog"]') || (active && active !== document.body && active !== node)) return
+        node.focus({preventScroll: true})
+        node.setSelectionRange(node.value.length, node.value.length)
+      }
+      const schedule = () => {cancelAnimationFrame(frame); frame = requestAnimationFrame(focusOnce)}
+      schedule()
+      document.addEventListener('visibilitychange', schedule)
+      return () => {cancelAnimationFrame(frame); document.removeEventListener('visibilitychange', schedule)}
+    }, [autoFocus, loadedScope, scope, blocked])
+
+    const resizeInput = useCallback(() => {
+      const node = textareaRef.current
+      if (!node) return
+      const style = getComputedStyle(node)
+      const line = parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.5
+      const padding = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom)
+      const minimum = line * 2 + padding
+      const viewport = window.visualViewport?.height ?? window.innerHeight
+      const maximum = Math.max(minimum, Math.min(line * 12 + padding, viewport * 0.35))
+      node.style.height = 'auto'
+      const contentHeight = node.scrollHeight
+      node.style.height = `${Math.max(minimum, Math.min(contentHeight, maximum))}px`
+      node.style.overflowY = contentHeight > maximum ? 'auto' : 'hidden'
+    }, [])
+    useLayoutEffect(resizeInput, [resizeInput, inputValue, loadedScope])
+    useEffect(() => {
+      const node = textareaRef.current
+      if (!node) return
+      let width = -1
+      let frame = 0
+      const schedule = () => {cancelAnimationFrame(frame); frame = requestAnimationFrame(resizeInput)}
+      const observer = new ResizeObserver(entries => {
+        const next = entries[0]?.contentRect.width
+        if (next !== width) {width = next; schedule()}
+      })
+      observer.observe(node)
+      const fonts = new MutationObserver(schedule)
+      fonts.observe(document.documentElement, {attributes: true, attributeFilter: ['style', 'class']})
+      window.addEventListener('resize', schedule)
+      window.visualViewport?.addEventListener('resize', schedule)
+      document.fonts?.addEventListener('loadingdone', schedule)
+      return () => {
+        observer.disconnect(); fonts.disconnect(); cancelAnimationFrame(frame)
+        window.removeEventListener('resize', schedule)
+        window.visualViewport?.removeEventListener('resize', schedule)
+        document.fonts?.removeEventListener('loadingdone', schedule)
+      }
+    }, [resizeInput])
     const [wasBlocked, setWasBlocked] = useState(blocked)
     if (blocked !== wasBlocked) {
       setWasBlocked(blocked)
@@ -256,16 +328,14 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
       return () => cancelAnimationFrame(frame)
     }, [slashOpen, slashListId, resolvedActiveId, slash?.query])
 
-    const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
-      const selectedFiles = event.target.files
-      if (!selectedFiles || selectedFiles.length === 0) {
-        return
-      }
-
+    const uploadFiles = async (selectedFiles: File[]) => {
+      if (!selectedFiles.length || blocked || uploadRef.current || loadedScope !== scope) return
+      const operation = {scope, cancelled: false}
+      uploadRef.current = operation
       setUploading(true)
 
       try {
-        let chosen=Array.from(selectedFiles)
+        let chosen=selectedFiles
         const rule=selectedProject ? await projectApi.uploadRules() : null
         const optional=new Set<string>()
         if(rule) {
@@ -300,14 +370,19 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
           (file): file is FileInfo => file !== null
         )
 
-        if (uploadedFiles.length > 0) {
-          setFiles((prev) => [...prev, ...uploadedFiles])
-          toast.success(`成功上传 ${uploadedFiles.length} 个文件`)
+        if (uploadedFiles.length > 0 && !operation.cancelled && readDraft(operation.scope).savedAt) {
+          const next = [...readDraft(operation.scope).files, ...uploadedFiles]
+          writeDraft(operation.scope, {files: next})
+          if (mountedRef.current && scopeRef.current === operation.scope) {
+            setFiles(next)
+            toast.success(`成功上传 ${uploadedFiles.length} 个文件`)
+          }
         }
       } catch (error) {
         toast.error(error instanceof Error ? error.message : '文件上传过程中发生错误')
       } finally {
-        setUploading(false)
+        uploadRef.current = null
+        if (mountedRef.current) setUploading(false)
         // 重置input，以便可以重复选择同一文件
         if (fileInputRef.current) {
           fileInputRef.current.value = ''
@@ -315,17 +390,29 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
       }
     }
 
+    const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+      void uploadFiles(Array.from(event.target.files ?? []))
+    }
+    const handlePaste = (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
+      const images = clipboardImages(event.clipboardData)
+      if (!images.length) return
+      if (!event.clipboardData.getData('text/plain')) event.preventDefault()
+      if (blocked || uploadRef.current) {toast.message('当前不能添加图片，请稍后再粘贴'); return}
+      void uploadFiles(images)
+    }
+
     const handleRemoveFile = (fileId: string) => {
       setFiles((prev) => prev.filter((file) => file.id !== fileId))
     }
+    const previewFile = (file: FileInfo) => setPreview({id: file.id, filename: file.filename, size: file.size, extension: file.extension, contentType: file.mime_type ?? file.content_type ?? '', source: 'upload', path: file.filepath ?? null})
 
     const handleSend = async () => {
-      if (blocked || uploading) return
+      if (blocked || uploading || uploadRef.current) return
       const trimmedMessage = inputValue.trim()
       
       // 验证消息不为空
       if (!trimmedMessage) {
-        toast.error('请输入消息内容')
+        toast.error(hasImages ? '请补充要对图片做什么' : '请输入消息内容')
         textareaRef.current?.focus()
         return
       }
@@ -336,6 +423,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
         try {
           await onSend(trimmedMessage, files, {
             mode: planMode ? 'plan' : 'normal',
+            image_mode: 'auto',
             ...(modelChoice ? {model: modelChoice.model, reasoning: modelChoice.reasoning} : {}),
           })
           clearDraft(scope)
@@ -399,7 +487,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
       }
 
       if (e.key !== 'Enter') return
-      if (e.altKey) {
+      if (e.shiftKey || e.altKey) {
         e.preventDefault()
         const el = textareaRef.current
         if (!el) return
@@ -456,8 +544,22 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
       {files.length > 0 && (
         <div className="w-full px-4 mb-1">
           <ScrollArea className="w-full whitespace-nowrap">
-            <div className="flex w-max space-x-4 pb-4">
-              {files.map((file) => (
+            <div className="flex w-max items-start gap-3 pb-2">
+              {files.map((file) => isImageFile(file) ? (
+                <div key={file.id} className="group relative shrink-0 rounded-lg">
+                  <button type="button" aria-label={`查看图片 ${file.filename}`} className="block rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => previewFile(file)}>
+                    <AttachmentThumbnail id={file.id} filename={file.filename}/>
+                  </button>
+                  <div className="pointer-events-none absolute right-1 top-1 flex gap-1 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100 [@media(hover:none)]:pointer-events-auto [@media(hover:none)]:opacity-100">
+                    <Button type="button" variant="secondary" size="icon-xs" aria-label={`预览 ${file.filename}`} title="预览图片" className="cursor-pointer bg-background/95 shadow-sm" onClick={() => previewFile(file)}>
+                      <Eye className="size-3.5"/>
+                    </Button>
+                    <Button type="button" variant="secondary" size="icon-xs" aria-label={`移除 ${file.filename}`} title="移除图片" className="cursor-pointer bg-background/95 shadow-sm" disabled={blocked || uploading} onClick={() => handleRemoveFile(file.id)}>
+                      <X className="size-3.5"/>
+                    </Button>
+                  </div>
+                </div>
+              ) : (
                 <Item
                   key={file.id}
                   variant="muted"
@@ -498,6 +600,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
           </ScrollArea>
         </div>
       )}
+      {uploading && <p role="status" className="mx-4 mb-2 flex items-center gap-2 text-meta text-muted-foreground"><Loader2 className="size-3.5 animate-spin"/>正在上传附件</p>}
       {/* 中间输入框 */}
       <PopoverAnchor asChild>
       <div className="px-4 mb-3">
@@ -506,6 +609,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
           rows={2}
           value={inputValue}
           onChange={handleInputChange}
+          onPaste={handlePaste}
           onKeyDown={handleKeyDown}
           onKeyUp={(event) => {
             if (event.nativeEvent.isComposing || composingRef.current) return
@@ -523,10 +627,12 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
             syncFromTextarea(event.currentTarget, false)
           }}
           placeholder={placeholder}
+          title="Enter 发送，Shift + Enter 换行"
+          aria-label="任务输入"
           aria-expanded={slashOpen}
           aria-autocomplete={slashOpen ? 'list' : undefined}
           role={slashOpen ? 'combobox' : undefined}
-          className="scrollbar-hide outline-none w-full text-sm resize-none h-[46px] min-h-[40px]"
+          className="outline-none w-full text-sm leading-relaxed resize-none min-h-[3em]"
           disabled={blocked}
         />
       </div>
@@ -592,6 +698,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
           </Button>
         </div>
       </footer>
+      <FilePreviewDialog file={preview} onClose={() => setPreview(null)} onDownload={file => {const link = document.createElement('a');link.href = fileApi.getFileDownloadUrl(file.id);link.download = file.filename;link.click()}}/>
     </div>
     <PopoverContent
       align="start"

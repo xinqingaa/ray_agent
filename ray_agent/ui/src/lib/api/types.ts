@@ -179,6 +179,7 @@ export type FileInfo = {
   key: string;
   extension: string;
   content_type: string;
+  mime_type?: string;
   size: number;
   [key: string]: unknown;
   project_persistence?: {state: string; copy_key: string; path?: string | null; error?: string | null; can_retry: boolean};
@@ -338,6 +339,7 @@ export type ChatParams = {
   mode?: "normal" | "plan";
   model?: string;
   reasoning?: string;
+  image_mode?: 'auto' | 'files';
   [key: string]: unknown;
 };
 
@@ -346,6 +348,7 @@ export type ModelCatalog = {
   default_model: string | null;
   models: Array<{
     id: string;
+    vision?: boolean;
     context_window: number;
     max_output: number;
     choices: string[];
@@ -642,6 +645,7 @@ export type SessionFile = {
   key: string;
   extension: string;
   content_type: string;
+  mime_type?: string;
   size: number;
   [key: string]: unknown;
 };

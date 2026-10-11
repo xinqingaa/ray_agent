@@ -241,7 +241,7 @@ def auxiliary_call(
 
 def public_capabilities(spec: ModelSpec) -> dict:
     """前端只读取展示能力，厂商请求编码仍由模型目录/适配层负责。"""
-    return dict(id=spec.id, context_window=spec.context_window, max_output=spec.max_output,
+    return dict(id=spec.id, vision=spec.vision, context_window=spec.context_window, max_output=spec.max_output,
         choices=[c.id for c in spec.choices], default_choice=spec.default_choice,
         reasoning_options=[dict(id=c.id, enabled=c.thinking == "enabled") for c in spec.choices],
         reasoning_ordered=spec.reasoning_ordered, reasoning_family=spec.reasoning_family,

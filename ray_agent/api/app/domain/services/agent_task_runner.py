@@ -4,6 +4,7 @@ import asyncio
 import io
 import json
 import logging
+import os
 import uuid
 import time
 import hashlib
@@ -201,6 +202,13 @@ class AgentTaskRunner(TaskRunner):
             if filename in ("", ".", "..") or "\x00" in filename:
                 raise ValueError("附件名称无效")
             filepath = f"/home/ubuntu/upload/{filename}"
+            if project_filename is None:
+                async with self._uow:
+                    existing = await self._uow.session.get_file_by_path(self._session_id, filepath)
+                if existing and existing.id != file_id:
+                    stem, extension = os.path.splitext(filename)
+                    filename = f'{stem[:180]}-{file_id}{extension}'
+                    filepath = f"/home/ubuntu/upload/{filename}"
             result = await self._sandbox.upload_file(file_data=file_data, filepath=filepath, filename=filename)
             if not result.success:
                 raise RuntimeError(result.message or "沙箱拒绝附件上传")
@@ -296,6 +304,12 @@ class AgentTaskRunner(TaskRunner):
         try:
             if file.visual and file.visual.get('deleted_at'):
                 raise ValueError('图片已过期，请重新观察')
+            if ref.get('source') == 'user_attachment':
+                from app.infrastructure.external.file_storage.image_input import read_image
+                data, metadata = await asyncio.to_thread(read_image, stream)
+                if metadata['original_sha256'] != ref['original_sha256'] or metadata['sha256'] != ref['sha256']:
+                    raise ValueError('用户图片内容已变化，请重新上传')
+                return data
             data = await asyncio.to_thread(stream.read, 2 * 1024 * 1024 + 1)
         finally:
             stream.close()
@@ -427,6 +441,9 @@ class AgentTaskRunner(TaskRunner):
         return Message(
             message=event.message or "",
             attachments=[attachment.filepath for attachment in event.attachments],
+            images=event.image_inputs,
+            image_mode=event.image_mode,
+            image_input_note=event.image_input_note,
         )
 
     async def _drain_injected_messages(self, task: Task) -> List[Message]:

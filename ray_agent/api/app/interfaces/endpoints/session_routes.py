@@ -223,6 +223,7 @@ async def chat(
         mode=RunMode(request.mode),
         model=request.model,
         reasoning=request.reasoning,
+        image_mode=request.image_mode,
     )
     return Response.success(
         msg="消息已受理",

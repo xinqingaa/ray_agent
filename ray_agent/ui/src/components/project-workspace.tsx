@@ -121,11 +121,11 @@ export function ProjectWorkspace({projectId}: {projectId: string}) {
     const listGeneration = listRequest
     return () => {detailGeneration.current++; listGeneration.current++; window.clearTimeout(timer); unsubscribe(); window.removeEventListener('focus', visible); document.removeEventListener('visibilitychange', onVisibility)}
   }, [projectId, refresh, refreshList])
-  const send = async (message: string, files: FileInfo[], options?: {mode?: 'normal' | 'plan'; model?: string; reasoning?: string}) => {
+  const send = async (message: string, files: FileInfo[], options?: {mode?: 'normal' | 'plan'; model?: string; reasoning?: string; image_mode?: 'auto' | 'files'}) => {
     if (sending || !project?.available || project.archived || project.file_operation || project.occupying_session_id) return
     setSending(true); setSendError(null); setOccupier(null)
     try {
-      const id=await startProjectRecoverably(scope,projectId,{message,attachments:files.map(file=>file.id),mode:options?.mode ?? 'normal',...(options?.model && options?.reasoning ? {model:options.model,reasoning:options.reasoning} : {})})
+      const id=await startProjectRecoverably(scope,projectId,{message,attachments:files.map(file=>file.id),mode:options?.mode ?? 'normal',image_mode:options?.image_mode ?? 'auto',...(options?.model && options?.reasoning ? {model:options.model,reasoning:options.reasoning} : {})})
       void registry?.refresh(); router.push(`/sessions/${id}`)
     } catch (err) {
       const message = err instanceof Error ? err.message : '发送失败'

@@ -25,18 +25,20 @@ const model=(id,family,levels,off)=>({id,context_window:1000000,max_output:39321
  reasoning_options:[{id:off,enabled:false},...levels.map(id=>({id,enabled:true}))],reasoning_ordered:true,reasoning_family:family,temperature_when:'disabled',temperature_max:2});
 async function main(){
  const a=model('a','one',['low','high','max'],'disabled'),b=model('b','two',['low','medium','high','xhigh','ultra'],'none');
+ a.vision=true;b.vision=false;
  const helpers=load('lib/model-selection.ts');assert.equal(helpers.selectModel({model:'a',reasoning:'high'},a,b).reasoning,'medium');
  assert.deepEqual(helpers.thinkingOptions(b).map(o=>o.id),['low','medium','high','xhigh','ultra']);
  configApi.getModels=async()=>({provider:'fixture',default_model:'a',models:[a,b]});
  const calls=[];sessionApi.setModel=async(id,next)=>{calls.push(next);return next};
  const {ModelPicker}=load('components/model-picker.tsx');let r;
- await act(async()=>{r=create(React.createElement(ModelPicker,{sessionId:'s',savedModel:'a',savedReasoning:'high',onSelection(){}}))});
+ const pickerProps={sessionId:'s',savedModel:'a',savedReasoning:'high',onSelection(){}};
+ await act(async()=>{r=create(React.createElement(ModelPicker,pickerProps))});
  const popover=()=>r.root.findAllByProps({'data-component':'Popover'})[0];
  await act(async()=>popover().props.onOpenChange(true));
  await act(async()=>popover().props.onOpenChange(false));
  assert.equal(calls.length,0);assert.equal(popover().props.open,false);
  await act(async()=>popover().props.onOpenChange(true));
- await act(async()=>r.root.findAllByProps({role:'radio'}).find(n=>n.props.children[0]==='b').props.onClick());
+ await act(async()=>r.root.findByProps({role:'radio',title:'b'}).props.onClick());
  assert.ok(JSON.stringify(r.toJSON()).includes('已改用默认 medium'));
  assert.ok(!JSON.stringify(r.toJSON()).includes('下一次新运行估算'));
  const slider=()=>r.root.findByProps({role:'slider'});
@@ -51,7 +53,10 @@ async function main(){
  await act(async()=>popover().props.onOpenChange(true));
  await act(async()=>r.root.findAllByProps({'data-component':'Switch'})[0].props.onCheckedChange(true));
  await act(async()=>popover().props.onOpenChange(false));
- assert.equal(popover().props.open,true);assert.ok(JSON.stringify(r.toJSON()).includes('rejected effort'));await act(async()=>r.unmount());
+ assert.equal(popover().props.open,true);assert.ok(JSON.stringify(r.toJSON()).includes('rejected effort'));
+ await act(async()=>r.update(React.createElement(ModelPicker,{...pickerProps,runModel:'a'})));
+ assert.ok(JSON.stringify(r.toJSON()).includes('本次运行 '));
+ await act(async()=>r.unmount());
  const {useConfigForm}=load('components/settings/form.tsx');let form,saved;const base={a:'old A',b:'old B'};
  function Form(){form=useConfigForm({name:'fixture',load:async()=>base,toValues:x=>({...x}),fromValues:x=>({...x}),validate:x=>x.b==='invalid'?{b:'bad'}:{},save:async(next,fields)=>{saved={fields};return {...base,a:next.a}}});return null;}
  await act(async()=>{r=create(React.createElement(Form))});await act(async()=>{form.setValue('a','new A');form.setValue('b','invalid')});

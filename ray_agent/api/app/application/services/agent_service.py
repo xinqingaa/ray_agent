@@ -17,7 +17,7 @@ from app.domain.external.search import SearchEngine
 from app.domain.external.task import Task
 from app.domain.models.app_config import AgentConfig, LLMConfig, MCPConfig, A2AConfig, ModelSampling, ToolPolicyConfig
 from app.domain.models.model_catalog import (
-    choose_sampling, current_sampling, missing_reasoning, model_request, provider_for, resolve_selection,
+    choose_sampling, current_sampling, missing_reasoning, model_request, provider_for, resolve_selection, model_list,
 )
 from app.domain.models.event import ApprovalStatus, EnvironmentEvent, ErrorEvent, Event, MessageEvent, TitleEvent
 from app.domain.models.project import SANDBOX_PROJECT_DIR
@@ -623,6 +623,7 @@ class AgentService:
             create_project_id: str | None = None,
             model: Optional[str] = None,
             reasoning: Optional[str] = None,
+            image_mode: str = 'auto',
     ) -> ChatAccepted:
         """受理一条用户消息并立即返回；执行过程只通过事件流（stream_events）观察。
 
@@ -635,6 +636,8 @@ class AgentService:
         if not message or not message.strip():
             raise BadRequestError("消息不能为空")
         mode = RunMode(mode)
+        if image_mode not in ('auto', 'files'):
+            raise BadRequestError('未知图片输入方式')
         ensure_context_idle(session_id)
 
         async with self._uow:
@@ -644,6 +647,7 @@ class AgentService:
         message_event = MessageEvent(
             role="user",
             message=message,
+            image_mode=image_mode,
             attachments=[attachment for attachment in db_attachments if attachment is not None],
         )
         sent_at = timestamp or datetime.now()
@@ -691,7 +695,7 @@ class AgentService:
                         original_run = await self._uow.run.get(first.run_id) if first else None
                     if first and original_run:
                         if (first.message != message or [f.id for f in first.attachments] != (attachments or [])
-                                or original_run.mode != mode):
+                                or original_run.mode != mode or first.image_mode != image_mode):
                             raise ConflictError('此首发标识已受理其他内容，请核对原对话')
                         return ChatAccepted(run_id=original_run.id, seq=first.seq, route='started')
                 else:
@@ -718,6 +722,19 @@ class AgentService:
             if mode == RunMode.PLAN and active is not None and (
                     active.status == RunStatus.WAITING or starting is not None or self._task_runs(task, active.id)):
                 raise ConflictError("当前运行还没有结束，计划模式只能在新运行开始时选择；请等运行结束或停止后再发送")
+
+            from app.infrastructure.external.file_storage.image_input import is_image_attachment
+            if image_mode == 'auto' and any(is_image_attachment(file) for file in message_event.attachments):
+                from app.application.services.attachment_images import prepare_attachment_images
+                consumes_active = active is not None and (active.status == RunStatus.WAITING or (
+                    active.status == RunStatus.RUNNING and (starting is not None or self._task_runs(task, active.id))))
+                snapshot = (active.config_snapshot or {}) if consumes_active else {}
+                config = getattr(self, '_llm_config', None)
+                models = model_list(provider_for(str(config.base_url)) or '') if config else ()
+                selected_id = snapshot.get('model_name') or session.model_id
+                spec = next((item for item in models if item.id == selected_id), None) if selected_id else next((item for item in models if item.auxiliary), None)
+                supports_vision = snapshot.get('vision', spec.vision if spec else bool(getattr(self._llm, 'supports_vision', False)))
+                message_event.image_inputs = await prepare_attachment_images(self._file_storage, message_event, session_id, supports_vision)
 
             # 1.运行中且执行协程仍在：消息注入当前运行，循环在下一次模型请求前取走
             if active is not None and active.status == RunStatus.RUNNING and (starting is not None or self._task_runs(task, active.id)):

@@ -105,7 +105,7 @@ export function ModelPicker({sessionId, savedModel, savedReasoning, runModel, ru
       <div role="radiogroup" aria-label="模型">{catalog.models.map(item => <button key={item.id} role="radio" aria-checked={edit.model === item.id} type="button" disabled={saving} title={item.id}
         onClick={() => {const next = selectModel(edit, model, item); setDraft(next); setError(null); setNotice(next.reasoning !== edit.reasoning ? `已改用默认 ${next.reasoning}` : null)}}
         className={cn('flex min-h-10 w-full items-center justify-between rounded-md px-2 text-left font-mono text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring', edit.model === item.id ? 'bg-muted font-medium' : 'hover:bg-muted/50')}>
-        {item.id}{edit.model === item.id && <Check className="size-4 text-signal" aria-hidden/>}
+        <span className="flex min-w-0 items-center gap-2"><span className="truncate">{item.id}</span>{item.vision && <span className="shrink-0 font-sans text-faint">支持看图</span>}</span>{edit.model === item.id && <Check className="size-4 text-signal" aria-hidden/>}
       </button>)}</div>
       {notice && <p className="mt-2 text-xs text-muted-foreground" role="status">{notice}</p>}
       {model.reasoning_options.length > 0 && <div className="mt-3 border-t pt-3">

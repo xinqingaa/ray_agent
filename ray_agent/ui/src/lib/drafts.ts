@@ -8,6 +8,7 @@ export type Submission = {
   mode: 'normal' | 'plan'
   model?: string
   reasoning?: string
+  image_mode?: 'auto' | 'files'
   afterSeq: number
   state: 'sending' | 'unknown'
 }
@@ -15,6 +16,7 @@ export type ChatDraft = {
   text: string
   files: FileInfo[]
   planMode: boolean
+  imageMode?: 'auto' | 'files'
   creationId?: string
   sessionId?: string
   submission?: Submission
@@ -85,7 +87,8 @@ export function checkAcceptance(detail: SessionDetail, pending: Submission): Acc
   const matches = normalizeEvents(detail.events).filter((event) => {
     if (event.type !== 'message' || !event.data || typeof event.data !== 'object') return false
     const data = event.data as Record<string, unknown>
-    if (data.role !== 'user' || data.message !== pending.message || (readEventSeq(event) ?? 0) <= pending.afterSeq) return false
+    if (data.role !== 'user' || data.message !== pending.message || (readEventSeq(event) ?? 0) <= pending.afterSeq
+      || (data.image_mode ?? 'auto') !== (pending.image_mode ?? 'auto')) return false
     const ids = Array.isArray(data.attachments)
       ? data.attachments.map((file) => typeof file === 'object' && file ? (file as {id?: string}).id : null) : []
     return ids.length === pending.attachments.length && ids.every((id, index) => id === pending.attachments[index])

@@ -78,6 +78,7 @@ class MessageEventData(BaseEventData):
     role: Literal["user", "assistant"] = "assistant"
     message: str = ""
     attachments: List[File] = Field(default_factory=list)
+    image_mode: Literal['auto', 'files'] = 'auto'
     attempt: Optional[int] = None  # 助手正文对应的本轮模型请求序号
 
 
@@ -94,6 +95,7 @@ class MessageSSEEvent(BaseSSEEvent):
                 role=event.role,
                 message=event.message,
                 attachments=event.attachments,
+                image_mode=event.image_mode,
                 attempt=event.attempt,
             )
         )

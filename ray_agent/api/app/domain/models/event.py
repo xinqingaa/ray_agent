@@ -68,6 +68,9 @@ class MessageEvent(BaseEvent):
     role: Literal["user", "assistant"] = "assistant"  # 消息角色
     message: str = ""  # 消息本身
     attachments: List[File] = Field(default_factory=list)  # 附件列表信息
+    image_mode: Literal['auto', 'files'] = 'auto'
+    image_inputs: List[dict] = Field(default_factory=list)  # 用户图片的确定性输入规格
+    image_input_note: Optional[str] = None  # 自动文件处理的事实说明，只用于模型上下文
     attempt: Optional[int] = None  # 助手正文对应的本轮模型请求序号；用户消息与交付通知为空
 
 

@@ -52,6 +52,7 @@ class ChatRequest(BaseModel):
     mode: Literal["normal", "plan"] = "normal"
     model: Optional[str] = None  # 厂商模型 id；与 reasoning 一起提交
     reasoning: Optional[str] = None  # 思考参数原词
+    image_mode: Literal['auto', 'files'] = 'auto'  # files 明确只交给文件工具
 
 
 class ChatResponse(BaseModel):

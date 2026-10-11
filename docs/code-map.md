@@ -145,6 +145,8 @@
 | 统一只读预览 | [file_preview_service.py](../ray_agent/api/app/application/services/file_preview_service.py)、[file_preview.py](../ray_agent/api/app/domain/models/file_preview.py)、[file_preview/](../ray_agent/api/app/infrastructure/external/file_preview/)、[preview_routes.py](../ray_agent/api/app/interfaces/endpoints/preview_routes.py) | [test_file_preview.py](../ray_agent/api/tests/core/test_file_preview.py) | — |
 | 附件 ZIP 与原文件下载 | [file_service.py](../ray_agent/api/app/application/services/file_service.py)、[file_routes.py](../ray_agent/api/app/interfaces/endpoints/file_routes.py) | [test_file_preview.py](../ray_agent/api/tests/core/test_file_preview.py) | — |
 
+用户图片的受理与编码入口为 [attachment_images.py](../ray_agent/api/app/application/services/attachment_images.py) 与 [image_input.py](../ray_agent/api/app/infrastructure/external/file_storage/image_input.py)；受理模型能力校验在 [agent_service.py](../ray_agent/api/app/application/services/agent_service.py)，沙箱同步与像素加载在 [agent_task_runner.py](../ray_agent/api/app/domain/services/agent_task_runner.py)，消息装配与容量治理分别在 [agent_loop.py](../ray_agent/api/app/domain/services/flows/agent_loop.py) 和 [vision.py](../ray_agent/api/app/domain/services/context/vision.py)。专项检查为 [test_attachment_images.py](../ray_agent/api/tests/core/test_attachment_images.py)。
+
 ## 前端
 
 | 机制 | 主要入口 | 课程 |
@@ -152,6 +154,7 @@
 | 事件订阅与视图投影 | [`lib/session-projection.ts`](../ray_agent/ui/src/lib/session-projection.ts) 的 `projectSession` 与 `resolveOutputRate`、[`lib/session-view.ts`](../ray_agent/ui/src/lib/session-view.ts)、[`hooks/use-session-detail.ts`](../ray_agent/ui/src/hooks/use-session-detail.ts)。文本增量不进入带序号的事件列表。[`lib/session-events.ts`](../ray_agent/ui/src/lib/session-events.ts) 只做事件归一化 | 10 |
 | 接口请求 | [`lib/api/`](../ray_agent/ui/src/lib/api/) 的 `session.ts`（含 `compact`、审批答复 `replyApproval`）、`project.ts`、`config.ts`（含工具策略）、`file.ts`、`fetch.ts` | 10 |
 | 输入框命令注册表 | [`lib/commands.ts`](../ray_agent/ui/src/lib/commands.ts)、[`lib/slash-trigger.ts`](../ray_agent/ui/src/lib/slash-trigger.ts)、[`components/input-command-menu.tsx`](../ray_agent/ui/src/components/input-command-menu.tsx) | — |
+| 首页与图片输入 | [app/page.tsx](../ray_agent/ui/src/app/page.tsx) 简化首页并启用一次聚焦；[chat-input.tsx](../ray_agent/ui/src/components/chat-input.tsx) 共用上传、图片缩略图与通用预览、高度测量；[composer-images.ts](../ray_agent/ui/src/lib/composer-images.ts) 提取剪贴板文件；[model-picker.tsx](../ray_agent/ui/src/components/model-picker.tsx) 选择任务模型，草稿与受理核对在 [drafts.ts](../ray_agent/ui/src/lib/drafts.ts)；检查 [check-composer-images.cjs](../ray_agent/ui/scripts/check-composer-images.cjs) | — |
 | 上下文占用与用量详情 | [`components/run/context-ring.tsx`](../ray_agent/ui/src/components/run/context-ring.tsx) | — |
 | 项目选择器与会话标题项目信息 | [`components/project-picker.tsx`](../ray_agent/ui/src/components/project-picker.tsx)；会话页 [`components/session-detail-view.tsx`](../ray_agent/ui/src/components/session-detail-view.tsx) | — |
 | 文件与图片共享查看器 | [components/preview/](../ray_agent/ui/src/components/preview/)、[lib/api/preview.ts](../ray_agent/ui/src/lib/api/preview.ts)（HTML 新标签页打开为 `openPreviewTab`，隔离响应头为 [preview_routes.py](../ray_agent/api/app/interfaces/endpoints/preview_routes.py) 的 `HTML_CSP`），恢复检查 [check-workbench-recovery.cjs](../ray_agent/ui/scripts/check-workbench-recovery.cjs) | — |
