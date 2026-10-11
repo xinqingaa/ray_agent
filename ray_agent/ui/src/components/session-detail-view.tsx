@@ -15,6 +15,7 @@ import {DeveloperView} from '@/components/developer/developer-view'
 import {ContextRing} from '@/components/run/context-ring'
 import {PlanExecuteBar} from '@/components/run/run-end-bar'
 import {PlanBar} from '@/components/run/plan-bar'
+import {PlanListDialog} from '@/components/run/plan-list-dialog'
 import {UserMessage} from '@/components/run/messages'
 import {RUN_INPUT_HINT, RunStatus} from '@/components/run/run-status'
 import {Timeline, type TimelineHandlers} from '@/components/run/timeline-item'
@@ -580,6 +581,7 @@ export function SessionDetailView({
             {view.project && (
               <IconAction label="项目记忆" className="shrink-0 text-muted-foreground" onClick={() => setMemoryOpen(true)}><MemoryIcon className="size-4"/></IconAction>
             )}
+            <PlanListDialog key={sessionId} plans={view.planHistory ?? []} runs={view.runs}/>
             {!workbenchOpen && (
               <Button type="button" variant="ghost" size="icon-xs" className="size-7 shrink-0"
                 title={visibility.developerView ? '打开工作台' : '打开查看面板'} aria-label={visibility.developerView ? '打开工作台' : '打开查看面板'} onClick={() => setWorkbenchOpen(true)}>

@@ -10,6 +10,7 @@ import type {
   ContextEstimate,
   FileView,
   PlanChange,
+  PlanHistoryEntry,
   PlanItem,
   PlanItemStatus,
   PlanView,
@@ -378,6 +379,7 @@ export function projectSession(input: ProjectSessionInput): SessionView {
   let openGroup: {runId: string | null; turnIndex: number | null; calls: ToolCallView[]} | null = null
   let title = input.title?.trim() ? input.title : ''
   let plan: PlanView | null = null
+  const planHistory = new Map<string, PlanHistoryEntry>()
   let previousPlan: PlanItem[] | null = null
   let planExplanation: string | null = null
   let compactions = 0
@@ -833,6 +835,24 @@ export function projectSession(input: ProjectSessionInput): SessionView {
     }
 
     if (ev.type === 'plan') {
+      // 历史独立于当前计划条：无需计划的声明不能覆盖旧计划的归属或结论。
+      if (str(data.progress_state) !== 'not_needed' && Array.isArray(data.steps) && data.steps.length) {
+        const id = str(data.plan_id) || `legacy:${ev.runId ?? 'unknown'}`
+        const history = planHistory.get(id)
+        const old = history?.latest ?? null
+        const items = readPlanItems(data.steps, old?.items ?? null, ev.createdAt)
+        const changed = old ? diffPlan(old.items, items) : []
+        const review = data.review_only === true
+        const state = str(data.progress_state) ?? 'confirmed'
+        const snapshot: PlanView = {
+          ...nextPlan(old, items, changed, review ? old?.explanation ?? null : str(data.explanation) ?? str(data.message), ev.createdAt),
+          planId: str(data.plan_id), sourceRunId: ev.runId, sourceSeq: readEventSeq(ev) ?? undefined,
+          progressState: state,
+        }
+        // 每份计划仅投影最新清单，完整事件仍由服务端保存。
+        if (review && old) snapshot.version = old.version
+        planHistory.set(id, {id, latest: snapshot})
+      }
       const reviewedPlan: PlanView | null = plan as PlanView | null
       if (data.review_only === true && reviewedPlan && reviewedPlan.planId === str(data.plan_id)) {
         plan = {...reviewedPlan, progressState: str(data.progress_state) ?? 'confirmed', sourceRunId: ev.runId, sourceSeq: readEventSeq(ev) ?? undefined}
@@ -963,6 +983,7 @@ export function projectSession(input: ProjectSessionInput): SessionView {
     activeRun,
     timeline,
     plan,
+    planHistory: [...planHistory.values()],
     usage: {
       session: sessionTokens,
       context,

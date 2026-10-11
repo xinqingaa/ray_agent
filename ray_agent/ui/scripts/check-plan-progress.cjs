@@ -94,3 +94,55 @@ assert.match(markup(PlanBar,{plan:uncertain,runStatus:'running',defaultOpen:true
 assert.doesNotMatch(markup(PlanBar,{plan:uncertain,runStatus:'running',defaultOpen:true}),/aria-current="step"/);
 assert.equal(planBarMode({plan:{...uncertain,progressState:'not_needed'},activeRun:active('r'),runs:[]}),null);
 console.log('PASS: 承接序号、准备执行、轻量核对不增版本、未确认不暗示当前步骤、无需计划隐藏');
+
+// 历史跨运行承接、重复核对归并、新任务隔离和删除项回看。
+const historyEvents = [
+  ev(1, 'run', {status:'running', mode:'plan'}),
+  ev(2, 'message', {role:'user', message:'准备旧任务'}),
+  ev(3, 'plan', {plan_id:'old',steps:[{id:'a',description:'保留项',status:'pending'},{id:'b',description:'后来移除',status:'pending'}]}),
+  ev(4, 'run', {status:'completed',mode:'plan'}),
+  ev(5, 'run', {run_id:'execute',status:'running'}),
+  ev(6, 'plan', {run_id:'execute',plan_id:'old',accepted_from:{source_run_id:'r'},progress_state:'preparing',steps:[{id:'a',description:'保留项',status:'pending'},{id:'b',description:'后来移除',status:'pending'}]}),
+  ev(7, 'plan', {run_id:'execute',plan_id:'old',steps:[{id:'a',description:'改名后的项',status:'completed'}]}),
+  ...Array.from({length:37},(_,i)=>ev(8+i,'plan',{run_id:'execute',plan_id:'old',review_only:true,progress_state:'confirmed',steps:[{id:'a',description:'改名后的项',status:'completed'}]})),
+  ev(45,'run',{run_id:'execute',status:'completed'}),
+  ev(46,'plan',{run_id:'question',plan_id:'old',review_only:true,progress_state:'not_needed',steps:[{id:'a',description:'改名后的项',status:'completed'}]}),
+  ev(47,'plan',{run_id:'new-run',plan_id:'new',steps:[{id:'c',description:'新任务',status:'running'}]}),
+  ev(48,'run',{run_id:'new-run',status:'cancelled'}),
+];
+const historyView = projectSession({id:'s',events:historyEvents});
+assert.equal(historyView.planHistory.length,2);
+const oldHistory = historyView.planHistory[0];
+assert.equal(oldHistory.latest.sourceRunId,'execute','无需计划不覆盖旧计划归属');
+assert.equal(oldHistory.latest.items.length,1);
+assert.equal(oldHistory.latest.items[0].text,'改名后的项');
+const {PlanChecklist} = load('src/components/run/plan-list-dialog.tsx');
+html = markup(PlanChecklist,{plans:historyView.planHistory,runs:historyView.runs});
+assert.match(html,/已停止/); assert.match(html,/未完成/);
+assert.match(html,/上一份清单/);
+assert.doesNotMatch(html,/按计划执行|调整与进展|最近核对|查看对应消息/);
+const empty = markup(PlanChecklist,{plans:[],runs:[]});
+assert.match(empty,/当前对话暂无计划清单/);
+assert.doesNotMatch(empty,/<ol|<button/);
+const single = markup(PlanChecklist,{plans:[oldHistory],runs:historyView.runs});
+assert.doesNotMatch(single,/<button|上一份|下一份|初始安排|后来移除/);
+console.log('PASS: 每份计划只保留最新清单、无需计划不覆盖历史、单份无导航、空态提示');
+
+async function checkPinnedHistory() {
+  global.IS_REACT_ACT_ENVIRONMENT = true;
+  const {create, act} = req('react-test-renderer');
+  let rendered;
+  const props = {plans:[oldHistory],runs:historyView.runs};
+  await act(async()=>{rendered=create(React.createElement(PlanChecklist,props))});
+  await act(async()=>{rendered.update(React.createElement(PlanChecklist,{...props,plans:historyView.planHistory}))});
+  assert.match(JSON.stringify(rendered.toJSON()),/改名后的项/);
+  const next=()=>rendered.root.findAllByType('button').find(b=>b.props['aria-label']==='下一份清单');
+  await act(async()=>next().props.onClick());
+  assert.match(JSON.stringify(rendered.toJSON()),/新任务/);
+  assert.equal(next().props.disabled,true);
+  await act(async()=>rendered.root.findAllByType('button').find(b=>b.props['aria-label']==='上一份清单').props.onClick());
+  assert.match(JSON.stringify(rendered.toJSON()),/改名后的项/);
+  await act(async()=>rendered.unmount());
+  console.log('PASS: 新计划到达保持当前选择、前后切换及边界禁用');
+}
+checkPinnedHistory().catch(error=>{console.error(error);process.exitCode=1});

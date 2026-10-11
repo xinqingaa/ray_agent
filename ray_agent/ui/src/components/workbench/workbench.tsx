@@ -371,7 +371,7 @@ export function Workbench({
           {focus.title}
         </p>
       )}
-      <div role="tablist" aria-label="工作台内容" className="flex gap-1 border-b px-2 py-1">
+      <div role="tablist" aria-label="工作台内容" className="flex shrink-0 gap-1 overflow-x-auto border-b px-2 py-1">
         {availableTabs.map((item, index) => (
           <button
             key={item.id}
@@ -391,7 +391,7 @@ export function Workbench({
               document.getElementById(`workbench-tab-${id}`)?.focus()
             }}
             className={cn(
-              'rounded-md px-2.5 py-1 text-meta outline-none focus-visible:ring-2 focus-visible:ring-ring',
+              'shrink-0 rounded-md px-2.5 py-1 text-meta outline-none focus-visible:ring-2 focus-visible:ring-ring',
               tab === item.id ? 'bg-muted font-medium text-foreground' : 'text-muted-foreground hover:bg-muted/60',
             )}
           >

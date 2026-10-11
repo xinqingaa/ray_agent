@@ -180,6 +180,11 @@ export type PlanView = {
   version: number
 }
 
+export type PlanHistoryEntry = {
+  id: string
+  latest: PlanView
+}
+
 export type FileView = {
   id: string
   filename: string
@@ -292,6 +297,8 @@ export type SessionView = {
   activeRun: RunView | null
   timeline: TimelineItem[]
   plan: PlanView | null
+  /** 按计划身份归并的只读历史；手写夹具可省略。 */
+  planHistory?: PlanHistoryEntry[]
   usage: UsageView
   files: FileView[]
   events: RawEvent[]

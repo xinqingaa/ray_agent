@@ -22,11 +22,11 @@ function ItemIcon({item, ended}: {item: PlanItem; ended: boolean}) {
   return <Circle className={cn('size-4', ended ? 'text-state-waiting' : 'text-faint')} aria-hidden/>
 }
 
-/** 浮动展开卡片只展示最新快照；事件历史仍可在开发者视图核对。 */
-export function PlanContent({plan, active, ended}: {plan: PlanView; active: boolean; ended: boolean}) {
+/** 当前进度条展开的最新清单。 */
+export function PlanContent({plan, active, ended, showExplanation = true}: {plan: PlanView; active: boolean; ended: boolean; showExplanation?: boolean}) {
   return <>
     <p className="mb-2 text-xs text-muted-foreground tabular-nums">已完成 {plan.completedCount}/{plan.items.length} 项</p>
-    {plan.explanation && <p className="mb-2 text-meta text-muted-foreground">{plan.explanation}</p>}
+    {showExplanation && plan.explanation && <p className="mb-2 text-meta text-muted-foreground">{plan.explanation}</p>}
     <ol className="space-y-0.5">
       {plan.items.map((item, i) => {
         const isCurrent = i === plan.currentIndex && active
