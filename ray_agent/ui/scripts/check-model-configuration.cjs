@@ -21,24 +21,41 @@ function load(file){
   throw Error(name);
  },exports);return exports;
 }
-const model=(id,family,levels,off)=>({id,context_window:1000000,max_output:393216,choices:[off,...levels],default_choice:levels[1],
+const model=(id,family,levels,off)=>({id,vendor:'fixture',vendor_label:'Fixture',context_window:1000000,max_output:393216,choices:[off,...levels],default_choice:levels[1],
  reasoning_options:[{id:off,enabled:false},...levels.map(id=>({id,enabled:true}))],reasoning_ordered:true,reasoning_family:family,temperature_when:'disabled',temperature_max:2});
 async function main(){
  const a=model('a','one',['low','high','max'],'disabled'),b=model('b','two',['low','medium','high','xhigh','ultra'],'none');
  a.vision=true;b.vision=false;
  const helpers=load('lib/model-selection.ts');assert.equal(helpers.selectModel({model:'a',reasoning:'high'},a,b).reasoning,'medium');
  assert.deepEqual(helpers.thinkingOptions(b).map(o=>o.id),['low','medium','high','xhigh','ultra']);
- configApi.getModels=async()=>({provider:'fixture',default_model:'a',models:[a,b]});
+ const c={...model('new-model-from-server','three',['low','high'],'none'),vendor:'openai',vendor_label:'OpenAI'};
+ const catalog={provider:'fixture',default_model:'a',models:[a,b,c]};
+ assert.deepEqual(helpers.modelsForVendor(catalog.models,'openai').map(m=>m.id),['new-model-from-server']);
+ configApi.getModels=async()=>catalog;
  const calls=[];sessionApi.setModel=async(id,next)=>{calls.push(next);return next};
  const {ModelPicker}=load('components/model-picker.tsx');let r;
  const pickerProps={sessionId:'s',savedModel:'a',savedReasoning:'high',onSelection(){}};
  await act(async()=>{r=create(React.createElement(ModelPicker,pickerProps))});
  const popover=()=>r.root.findAllByProps({'data-component':'Popover'})[0];
  await act(async()=>popover().props.onOpenChange(true));
+ const tabs=()=>r.root.findByProps({'data-component':'SegmentedControl'});
+ assert.ok(!JSON.stringify(r.toJSON()).includes('支持看图'));
  await act(async()=>popover().props.onOpenChange(false));
- assert.equal(calls.length,0);assert.equal(popover().props.open,false);
+ assert.equal(calls.length,0);
  await act(async()=>popover().props.onOpenChange(true));
+ await act(async()=>tabs().props.onValueChange('openai'));
+ assert.equal(r.root.findByProps({role:'radio',title:'new-model-from-server'}).props['aria-checked'],true);
+ assert.equal(r.root.findByProps({role:'slider'}).props['aria-valuetext'],'high');
+ assert.equal(calls.length,0);
+ await act(async()=>popover().props.onOpenChange(false));
+ assert.deepEqual(calls,[{model:'new-model-from-server',reasoning:'high'}]);
+ assert.equal(popover().props.open,false);calls.length=0;
+ await act(async()=>popover().props.onOpenChange(true));
+ await act(async()=>tabs().props.onValueChange('fixture'));
+ assert.equal(r.root.findByProps({role:'radio',title:'a'}).props['aria-checked'],true);
  await act(async()=>r.root.findByProps({role:'radio',title:'b'}).props.onClick());
+ await act(async()=>tabs().props.onValueChange('fixture'));
+ assert.equal(r.root.findByProps({role:'radio',title:'b'}).props['aria-checked'],true);
  assert.ok(JSON.stringify(r.toJSON()).includes('已改用默认 medium'));
  assert.ok(!JSON.stringify(r.toJSON()).includes('下一次新运行估算'));
  const slider=()=>r.root.findByProps({role:'slider'});
@@ -55,7 +72,8 @@ async function main(){
  await act(async()=>popover().props.onOpenChange(false));
  assert.equal(popover().props.open,true);assert.ok(JSON.stringify(r.toJSON()).includes('rejected effort'));
  await act(async()=>r.update(React.createElement(ModelPicker,{...pickerProps,runModel:'a'})));
- assert.ok(JSON.stringify(r.toJSON()).includes('本次运行 '));
+ assert.ok(!JSON.stringify(r.toJSON()).includes('本次运行 '));
+ assert.ok(!JSON.stringify(r.toJSON()).includes('渠道'));
  await act(async()=>r.unmount());
  const {useConfigForm}=load('components/settings/form.tsx');let form,saved;const base={a:'old A',b:'old B'};
  function Form(){form=useConfigForm({name:'fixture',load:async()=>base,toValues:x=>({...x}),fromValues:x=>({...x}),validate:x=>x.b==='invalid'?{b:'bad'}:{},save:async(next,fields)=>{saved={fields};return {...base,a:next.a}}});return null;}
@@ -67,6 +85,6 @@ async function main(){
  await act(async()=>{r=create(React.createElement(SaveBar,{dirty:true,saving:false,invalid:false,onReset:(...args)=>{resetArguments=args}}))});
  await act(async()=>r.root.findAllByType('button').find(n=>n.children.includes('撤销修改')).props.onClick({type:'click'}));
  assert.deepEqual(resetArguments,[]);await act(async()=>r.unmount());
- console.log('PASS: vendor-defined levels and closing id, semantic fallback, draft-only slider, commit on close, rejection keeps menu, scoped save preserves hidden draft, reset excludes click event');
+ console.log('PASS: vendor switch selects first model, same tab preserves selection, no vision/run/channel labels, server-defined model list, semantic fallback, commit on close, rejection keeps menu, scoped save preserves hidden draft, reset excludes click event');
 }
 main().catch(e=>{console.error(e);process.exitCode=1});

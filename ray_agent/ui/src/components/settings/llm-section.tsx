@@ -120,7 +120,7 @@ function ApiKeyStatus({configured}: {configured: boolean}) {
       <div>
         <p className="text-sm font-medium">API Key</p>
         <p className="mt-0.5 text-xs leading-5 text-muted-foreground">
-          只从 API 服务的环境变量 <code className="font-mono">LLM_API_KEY</code> 读取，页面不显示、不保存。
+          DeepSeek 使用 <code className="font-mono">DEEPSEEK_URL</code> 与 <code className="font-mono">DEEPSEEK_API_KEY</code>。小易使用 <code className="font-mono">XIAOYI_URL</code> 与 <code className="font-mono">XIAOYI_API_KEY</code>。页面不显示、不保存密钥。
         </p>
       </div>
       <p
@@ -130,7 +130,7 @@ function ApiKeyStatus({configured}: {configured: boolean}) {
         )}
       >
         {configured ? <CheckCircle2 className="size-4" aria-hidden/> : <KeyRound className="size-4" aria-hidden/>}
-        {configured ? '已从环境变量读取' : '未配置：在 API 服务的环境中设置 LLM_API_KEY 后重启'}
+        {configured ? '已从环境变量读取' : '未配置：在 API 服务的环境中设置 DEEPSEEK_API_KEY 后重启'}
       </p>
     </div>
   )
@@ -266,7 +266,8 @@ export function LlmSection({form}: {form: LlmForm}) {
     {form.load.phase === 'loading' && <FormSkeleton rows={5}/>}
     {form.load.phase === 'error' && <LoadError message={form.load.message} onRetry={form.reload}/>}
     {form.load.phase === 'ready' && values && <>
-      <form noValidate onSubmit={e => {e.preventDefault(); void form.save(['base_url'])}} className="py-4">
+      {/* 连接设置暂时不展示，保存逻辑保留。 */}
+      <form hidden noValidate onSubmit={e => {e.preventDefault(); void form.save(['base_url'])}} className="py-4">
         <details className="rounded-md border px-4">
         <summary className="cursor-pointer py-3 text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring">连接设置 <span className="ml-2 text-xs font-normal text-muted-foreground">{form.config?.base_url} · {form.config?.has_api_key ? '密钥已配置' : '未配置密钥'}</span></summary>
         {renderField(FIELDS[0])}
@@ -274,7 +275,7 @@ export function LlmSection({form}: {form: LlmForm}) {
         {saveBar(['base_url'], '保存连接设置')}
         </details>
       </form>
-      <div className="border-t pt-5">
+      <div className="pt-2">
         {catalogError && <LoadError message={catalogError} onRetry={() => setRetry(n => n + 1)}/>}
         <div className="grid gap-6 @xl/form:grid-cols-[minmax(0,10rem)_minmax(0,1fr)]">
           {ids.length > 0 && <nav aria-label="正在编辑的模型">

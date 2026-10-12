@@ -25,16 +25,16 @@ class LLMConfigPublic(BaseModel):
 
     @classmethod
     def from_llm(cls, llm: LLMConfig) -> "LLMConfigPublic":
-        from app.domain.models.model_catalog import configured_sampling, model_list, provider_for
+        from app.domain.models.model_catalog import active_models, configured_sampling
         key = (llm.api_key or "").strip()
         profiles: Dict[str, ModelSamplingPublic] = {}
-        provider = provider_for(str(llm.base_url))
-        if provider:
-            for spec in model_list(provider):
-                sampling = configured_sampling(llm, spec.id)
-                profiles[spec.id] = ModelSamplingPublic(
-                    temperature=sampling.temperature, max_tokens=sampling.max_tokens, context_window=sampling.context_window,
-                )
+        for spec in active_models(llm):
+            sampling = configured_sampling(llm, spec.id)
+            profiles[spec.id] = ModelSamplingPublic(
+                temperature=sampling.temperature,
+                max_tokens=min(sampling.max_tokens, spec.max_output),
+                context_window=min(sampling.context_window, spec.context_window),
+            )
         return cls(
             base_url=str(llm.base_url),
             model_name=llm.model_name,
@@ -48,6 +48,9 @@ class LLMConfigPublic(BaseModel):
 
 class ModelCatalogItem(BaseModel):
     id: str
+    vendor: str
+    vendor_label: str
+    vision: bool = False
     context_window: int
     max_output: int
     choices: List[str]

@@ -16,9 +16,6 @@ class Settings(BaseSettings):
     sqlalchemy_echo: bool = False  # 对应 SQLALCHEMY_ECHO，默认关闭 SQL 回显
     app_config_filepath: str = "config.yaml"
 
-    # 仅密钥走环境变量；模型名、地址等由 config.yaml / 设置页保存
-    llm_api_key: str = ""
-
     # 数据库相关配置
     sqlalchemy_database_uri: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/manus"
 

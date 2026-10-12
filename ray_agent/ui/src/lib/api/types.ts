@@ -351,6 +351,8 @@ export type ModelCatalog = {
   default_model: string | null;
   models: Array<{
     id: string;
+    vendor: string;
+    vendor_label: string;
     vision?: boolean;
     context_window: number;
     max_output: number;

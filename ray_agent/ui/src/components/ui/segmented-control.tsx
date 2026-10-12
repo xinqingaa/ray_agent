@@ -7,7 +7,7 @@ import {cn} from '@/lib/utils'
 export function SegmentedControl<T extends string>({value, onValueChange, options, label, idPrefix, className}: {
   value: T
   onValueChange: (value: T) => void
-  options: readonly {value: T; label: string; icon: LucideIcon}[]
+  options: readonly {value: T; label: string; icon?: LucideIcon}[]
   label: string
   idPrefix?: string
   className?: string
@@ -31,7 +31,7 @@ export function SegmentedControl<T extends string>({value, onValueChange, option
             document.getElementById(`${prefix}-${options[next].value}`)?.focus()
           }}
           className={cn('flex min-h-8 items-center justify-center gap-1.5 whitespace-nowrap rounded-sm px-2.5 text-meta outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring', value === option.value ? 'font-medium text-foreground' : 'text-muted-foreground hover:text-foreground')}>
-          <Icon className="size-3.5 shrink-0" aria-hidden="true"/>{option.label}
+          {Icon ? <Icon className="size-3.5 shrink-0" aria-hidden="true"/> : null}{option.label}
         </button>
       })}
     </div>

@@ -14,7 +14,7 @@ uv sync --locked --group dev
 
 依赖由 [pyproject.toml](pyproject.toml) 声明、[uv.lock](uv.lock) 锁定；[Dockerfile](Dockerfile) 从 [requirements.txt](requirements.txt) 安装。升级时同步核对三者，本地开发不另维护一套手工安装版本。
 
-本地 API 从当前目录 `.env` 加载环境变量，字段定义见 [core/config.py](core/config.py)。模型、密钥与工具配置的职责见[应用配置](../README.md#模型与工具)；宿主机运行时使用本目录的 `config.yaml` 与 `.env`，与产品 Compose 的配置位置区分。
+本地 API 从当前目录 `.env` 加载环境变量，系统字段定义见 [core/config.py](core/config.py)，模型端点的变量名称由 `config.yaml` 的 `llm_endpoints` 声明并统一读取。模型、密钥与工具配置的职责见[应用配置](../README.md#模型与工具)；宿主机运行时使用本目录的 `config.yaml` 与 `.env`，与产品 Compose 的配置位置区分。
 
 在宿主机运行 API 前，先准备可访问的 PostgreSQL、Redis、文件存储，以及沙箱与浏览器连接：
 

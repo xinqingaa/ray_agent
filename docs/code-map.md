@@ -191,6 +191,7 @@
 | 机制 | 代码 | 验证 |
 |---|---|---|
 | 厂商档位、温度兼容性与采样优先级 | [model_catalog.py](../ray_agent/api/app/domain/models/model_catalog.py)、[app_config_service.py](../ray_agent/api/app/application/services/app_config_service.py) | [test_model_configuration.py](../ray_agent/api/tests/core/test_model_configuration.py)、[test_model_catalog.py](../ray_agent/api/tests/core/test_model_catalog.py) |
+| 内部端点环境读取、模型到端点映射与 GPT 续接 | [llm_endpoints.py](../ray_agent/api/app/domain/models/llm_endpoints.py)、[endpoint_settings.py](../ray_agent/api/app/infrastructure/external/llm/endpoint_settings.py)、[model_catalog.py](../ray_agent/api/app/domain/models/model_catalog.py) | [test_llm_endpoints.py](../ray_agent/api/tests/core/test_llm_endpoints.py)、[test_llm_api_key.py](../ray_agent/api/tests/core/test_llm_api_key.py) |
 | 默认预算一次迁移 | [file_app_config_repository.py](../ray_agent/api/app/infrastructure/repositories/file_app_config_repository.py) | 同上配置检查 |
 | 会话切换原子保存、完整请求只读估算 | [agent_service.py](../ray_agent/api/app/application/services/agent_service.py) 的 set_model / preview_context | 同上配置检查 |
 | 模型设置草稿、动态思考滑块与选择 | [llm-section.tsx](../ray_agent/ui/src/components/settings/llm-section.tsx)、[model-picker.tsx](../ray_agent/ui/src/components/model-picker.tsx)、[model-selection.ts](../ray_agent/ui/src/lib/model-selection.ts) | [check-model-configuration.cjs](../ray_agent/ui/scripts/check-model-configuration.cjs) |

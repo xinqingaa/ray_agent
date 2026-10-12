@@ -45,11 +45,12 @@ class OpenAILLM(LLM):
         )
 
         self._model_name = llm_config.model_name
+        self._has_api_key = bool(llm_config.api_key.strip()) and llm_config.api_key.strip() != "xxxx"
         self._temperature = llm_config.temperature
-        from app.domain.models.model_catalog import model_list, provider_for
-        spec = next((m for m in model_list(provider_for(str(llm_config.base_url)) or "")
-                     if m.id == llm_config.model_name), None)
+        from app.domain.models.model_catalog import find_model
+        spec = find_model(llm_config.model_name)
         self.tool_batching = spec.tool_batching if spec else 'disabled'
+        self._emit_thinking = True if spec is None else spec.emit_thinking
         self.supports_vision = bool(spec and spec.vision)
         self.image_loader = None
         self._send_temperature = spec is None or (spec.temperature_when == "always" or
@@ -115,6 +116,8 @@ class OpenAILLM(LLM):
             f"tool_choice={tool_choice} response_format={response_type}"
         )
         try:
+            if not self._has_api_key:
+                raise LLMRequestError(f"{self._model_name} 未配置 API Key")
             messages = await self._materialize_images(messages)
             if self._streaming:
                 return await self._invoke_stream(messages, tools, response_format, tool_choice, on_delta, prefix)
@@ -180,7 +183,7 @@ class OpenAILLM(LLM):
             kwargs["stream"] = True
             if self._include_stream_usage:
                 kwargs["stream_options"] = {"include_usage": True}
-        if self._thinking in ("enabled", "disabled"):
+        if self._emit_thinking and self._thinking in ("enabled", "disabled"):
             kwargs["extra_body"] = {"thinking": {"type": self._thinking}}
         if self._reasoning_effort:
             kwargs["reasoning_effort"] = self._reasoning_effort

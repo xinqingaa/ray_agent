@@ -30,7 +30,8 @@ cd ray_agent
 | 配置项 | Compose 部署取值或要求 |
 |---|---|
 | `APP_CONFIG_FILEPATH` | `config.yaml` |
-| `LLM_API_KEY` | 模型服务凭据；只写在本文件，不要写进 `config.yaml` 或页面 |
+| `DEEPSEEK_URL` / `DEEPSEEK_API_KEY` | DeepSeek 地址与凭据；只写在本文件。未写地址时沿用 `api/config.yaml` |
+| `XIAOYI_URL` / `XIAOYI_API_KEY` | 可选。配置地址后，代码目录里的 GPT 模型与 DeepSeek 出现在同一列表。窗口仍按应用预算，默认 200000 |
 | `LOG_LEVEL` | API 日志等级，例如 `INFO` 或 `DEBUG` |
 | `SQLALCHEMY_ECHO` | `1` 时在 API 日志中回显 SQL；默认关闭 |
 | `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | 数据库初始化设置；与下面的连接 URI 一致 |
@@ -64,7 +65,28 @@ cd ray_agent
 
 ### 模型与工具
 
-模型调用使用 OpenAI 兼容的 Chat Completions 协议。密钥只读 `LLM_API_KEY`。模型名、地址、温度、`max_tokens`、`context_window` 写在 [api/config.yaml](api/config.yaml)，也可在页面设置中修改；设置接口不返回密钥明文。首次验证使用内置工具即可，仓库中的 MCP/A2A 配置已是空集合。启用外部 MCP/A2A、以及本地验收夹具的步骤见 [API 开发指南](api/README.md#mcpa2a)。
+模型调用使用 OpenAI 兼容的 Chat Completions 协议。默认 DeepSeek 读 `DEEPSEEK_URL` 与 `DEEPSEEK_API_KEY`，GPT 读 `XIAOYI_URL` 与 `XIAOYI_API_KEY`；端点名称仅用于内部配置，用户只选择模型。未设置 `DEEPSEEK_URL` 时保留 YAML 中的全局地址。模型默认值、温度、`max_tokens`、`context_window` 与逐模型参数写在 [api/config.yaml](api/config.yaml)，设置页保留逐模型参数编辑，不展示连接设置。密钥和内部路由不返回模型选择接口。
+
+更换已有上游时修改对应 URL 和 Key；新增兼容上游时在 `llm_config` 内增加端点环境变量引用，并调整模型映射。例如只把现有 GPT Luna 转到新上游：
+
+```yaml
+llm_config:
+  # 保留其他配置与映射项，以下展示需要新增或调整的部分
+  llm_endpoints:
+    deepseek: {url_env: DEEPSEEK_URL, key_env: DEEPSEEK_API_KEY}
+    gpt: {url_env: XIAOYI_URL, key_env: XIAOYI_API_KEY}
+    extra: {url_env: EXTRA_LLM_URL, key_env: EXTRA_LLM_API_KEY}
+  model_endpoints:
+    deepseek-flash: deepseek
+    deepseek-v4-pro: deepseek
+    gpt-6.1-sol: gpt
+    gpt-6-luna: extra
+    gpt-6-astra: gpt
+```
+
+端点配置和模型映射未填写时使用内置默认值；填写字典时需保留仍要使用的项。URL 与 Key 的真实值写入所属 API 的环境配置，YAML 只保存变量名称。新上游必须接受当前模型 ID 与请求参数；新模型能力或不同协议仍需要适配，不能仅凭接口地址认定兼容。目录可读取模型能力，缺 Key 在调用前明确拒绝；已知模型端点缺失不回退到其他地址。标题与项目摘要仍按默认模型所属系列选择辅助模型，读取对应内部端点。
+
+首次验证使用内置工具即可，仓库中的 MCP/A2A 配置已是空集合。启用外部 MCP/A2A、以及本地验收夹具的步骤见 [API 开发指南](api/README.md#mcpa2a)。
 
 Compose 中 API 读写容器内 `/app/config.yaml`，当前未挂载仓库配置文件。页面设置写入运行中容器；仓库的 `api/config.yaml` 是镜像默认值，修改后需要重新构建 API 镜像，重建容器时应核对页面设置是否需要重新配置。仓库 yaml 由 Git 跟踪，不写入真实凭据。
 

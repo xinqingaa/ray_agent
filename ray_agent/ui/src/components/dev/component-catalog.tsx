@@ -169,26 +169,33 @@ function ComposedSession({items, runs, plan, usage}: {items: TimelineItem[]; run
 
 const noop = () => toast.info('目录页中的操作不会调用接口')
 
+function pickerModel(id: string, family: string, choices: {id: string; enabled: boolean}[], defaultChoice: string, vision = false): ModelCatalog['models'][number] {
+  return {
+    id, vendor: family === 'gpt-6' ? 'openai' : 'deepseek', vendor_label: family === 'gpt-6' ? 'OpenAI' : 'DeepSeek',
+    vision, context_window: family === 'gpt-6' ? 200_000 : 1_000_000, max_output: family === 'gpt-6' ? 128_000 : 393_216,
+    choices: choices.map(choice => choice.id), default_choice: defaultChoice, reasoning_options: choices,
+    reasoning_ordered: true, reasoning_family: family, temperature_when: family === 'gpt-6' ? 'always' : 'disabled', temperature_max: 2,
+  }
+}
+
+const deepseekChoices = [
+  {id: 'disabled', enabled: false},
+  {id: 'low', enabled: true},
+  {id: 'high', enabled: true},
+  {id: 'max', enabled: true},
+]
+const gptOpened = ['low', 'medium', 'high', 'xhigh', 'max'].map(id => ({id, enabled: true}))
+
 const pickerCatalog: ModelCatalog = {
   provider: 'fixture',
   default_model: 'deepseek-v4-pro',
-  models: [{
-    id: 'deepseek-v4-pro',
-    context_window: 1_000_000,
-    max_output: 393_216,
-    choices: ['disabled', 'low', 'high', 'max'],
-    default_choice: 'high',
-    reasoning_options: [
-      {id: 'disabled', enabled: false},
-      {id: 'low', enabled: true},
-      {id: 'high', enabled: true},
-      {id: 'max', enabled: true},
-    ],
-    reasoning_ordered: true,
-    reasoning_family: 'deepseek-v4',
-    temperature_when: 'disabled',
-    temperature_max: 2,
-  }],
+  models: [
+    pickerModel('deepseek-flash', 'deepseek-v4', deepseekChoices, 'high', true),
+    pickerModel('deepseek-v4-pro', 'deepseek-v4', deepseekChoices, 'high'),
+    pickerModel('gpt-6.1-sol', 'gpt-6', gptOpened, 'medium', true),
+    pickerModel('gpt-6-luna', 'gpt-6', [{id: 'none', enabled: false}, ...gptOpened], 'medium', true),
+    pickerModel('gpt-6-astra', 'gpt-6', gptOpened, 'medium', true),
+  ],
 }
 
 function processFixture(settled: boolean): TimelineItem[] {
@@ -367,7 +374,7 @@ export function ComponentCatalog() {
           <State label="已收起" source="合成"><Surface><Timeline items={processFixture(true)}/></Surface></State>
         </Section>
 
-        <Section id="model-picker" title="模型菜单" columns={2} note="有序档位只有滑块可以聚焦。目录读取失败时触发器仍在。">
+        <Section id="model-picker" title="模型菜单" columns={2} note="DeepSeek 与 OpenAI 分栏。有关闭档时用开关，滑块只含开启档。目录读取失败时触发器仍在。">
           <State label="有序档位" source="合成"><Surface><ModelPicker catalog={pickerCatalog} savedModel="deepseek-v4-pro" savedReasoning="high" onSelection={noop}/></Surface></State>
           <State label="目录读取失败" source="合成"><Surface><ModelPicker loadError="模型能力读取失败" onSelection={noop}/></Surface></State>
         </Section>

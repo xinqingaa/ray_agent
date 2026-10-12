@@ -31,18 +31,16 @@ class AppConfigService:
             self, model_id: str | None = None, reasoning: str | None = None, sampling: ModelSampling | None = None,
     ) -> Dict[str, int]:
         """返回这条对话实际使用的容量。已记下数值时用记下的，否则用该模型当前配置。"""
-        from app.domain.models.model_catalog import configured_sampling, provider_for, resolve_selection, tuned_limits
+        from app.domain.models.model_catalog import configured_sampling, resolve_active, tuned_limits
         config = await self._load_app_config()
         llm, agent = config.llm_config, config.agent_config
         base = sampling or configured_sampling(llm, model_id)
         window, tokens = base.context_window, base.max_tokens
-        provider = provider_for(str(llm.base_url))
-        if provider:
-            try:
-                spec, choice = resolve_selection(provider, model_id, reasoning)
-                window, tokens = tuned_limits(base.max_tokens, base.context_window, spec, choice)
-            except ValueError:
-                pass
+        try:
+            spec, choice = resolve_active(llm, model_id, reasoning)
+            window, tokens = tuned_limits(base.max_tokens, base.context_window, spec, choice)
+        except ValueError:
+            pass
         budget = ContextBudget(window, tokens, agent.context_safety_ratio, agent.compact_watermark)
         return {"context_window": budget.context_window, "max_tokens": budget.max_tokens,
                 "limit": budget.limit, "watermark": budget.watermark}
@@ -54,7 +52,7 @@ class AppConfigService:
 
     async def update_llm_config(self, fields: Dict) -> LLMConfig:
         """更新调用方提交的字段。未提交的保持原值；密钥、流式和超时不从页面写入。"""
-        from app.domain.models.model_catalog import model_list, provider_for
+        from app.domain.models.model_catalog import find_model
         app_config = await self._load_app_config()
         current = app_config.llm_config
         data = dict(fields)
@@ -64,7 +62,7 @@ class AppConfigService:
                 data.pop("model_profiles")
             else:
                 data["model_profiles"] = self._cap_profiles(
-                    str(data.get("base_url", current.base_url)), data["model_profiles"], provider_for, model_list,
+                    data["model_profiles"], find_model,
                 )
         if "model_profiles" in data:
             data["model_profiles"] = {**current.model_profiles, **data["model_profiles"]}
@@ -74,21 +72,18 @@ class AppConfigService:
             "api_key": current.api_key,
             "streaming": current.streaming,
             "request_timeout": current.request_timeout,
+            "resolved_endpoints": current.resolved_endpoints,
         })
         self._validate_sampling(app_config.llm_config, app_config.agent_config)
         self.app_config_repository.save(app_config)
         return app_config.llm_config
 
     @staticmethod
-    def _cap_profiles(base_url: str, profiles: dict, provider_for, model_list) -> dict:
-        """已知模型的窗口和输出不超过目录上限。目录里没有的 id 不保留。"""
-        provider = provider_for(base_url)
-        if provider is None:
-            return {key: ModelSampling.model_validate(value) for key, value in profiles.items()}
-        specs = {item.id: item for item in model_list(provider)}
+    def _cap_profiles(profiles: dict, find_model) -> dict:
+        """按已知能力校验；端点暂不可用不删除模型已有的采样配置。"""
         capped = {}
         for model_id, raw in profiles.items():
-            spec = specs.get(model_id)
+            spec = find_model(model_id)
             if spec is None:
                 raise BadRequestError(f"未知模型 {model_id}")
             profile = ModelSampling.model_validate(raw)
@@ -99,8 +94,8 @@ class AppConfigService:
 
     @staticmethod
     def _validate_sampling(llm: LLMConfig, agent: AgentConfig) -> None:
-        from app.domain.models.model_catalog import model_list, provider_for, configured_sampling, tuned_limits
-        models = model_list(provider_for(str(llm.base_url)) or "")
+        from app.domain.models.model_catalog import active_models, configured_sampling, tuned_limits
+        models = active_models(llm)
         for spec in models:
             base = configured_sampling(llm, spec.id)
             if spec.temperature_max is not None and base.temperature > spec.temperature_max:
@@ -114,13 +109,10 @@ class AppConfigService:
             raise BadRequestError("没有可用输入空间，请增大窗口或减少生成预算")
 
     async def preview_sampling(self, model: str, sampling: ModelSampling) -> dict:
-        from app.domain.models.model_catalog import provider_for, resolve_selection
+        from app.domain.models.model_catalog import resolve_active
         config = await self._load_app_config()
-        provider = provider_for(str(config.llm_config.base_url))
-        if provider is None:
-            raise BadRequestError("当前接口没有模型能力目录")
         try:
-            spec, _ = resolve_selection(provider, model, None)
+            spec, _ = resolve_active(config.llm_config, model, None)
         except ValueError as exc:
             raise BadRequestError(str(exc)) from exc
         return {choice.id: await self.get_context_config(model, choice.id, sampling) for choice in spec.choices}

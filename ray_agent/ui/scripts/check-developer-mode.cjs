@@ -19,7 +19,7 @@ function load(file) {
   if(name === '@/lib/utils') return {cn:(...xs)=>xs.filter(Boolean).join(' ')};
   if(name === '@/lib/api/session') return {sessionApi:{viewShell:async()=>{pulls++; return {output:'stdout'}}}};
   if(name === '@/lib/api/file') return {fileApi:{}};
-  if(name === '@/lib/api/preview') return {downloadFileBatch:async files=>{downloaded=files}};
+  if(name === '@/lib/api/preview') return {...load('lib/api/preview.ts'),downloadFileBatch:async files=>{downloaded=files}};
   if(name === '@/components/run/file-icon') return {previewUnavailableReason:()=>null};
   if(name === './clock') return {useNow:()=>0};
   if(name === '@/components/preview/file-row') return {FileRow:props=>React.createElement('div',{},props.file.filename,props.actions,props.children)};

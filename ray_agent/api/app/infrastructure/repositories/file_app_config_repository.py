@@ -10,7 +10,7 @@ from filelock import FileLock
 from app.application.errors.exceptions import ServerRequestsError
 from app.domain.models.app_config import AppConfig, LLMConfig, AgentConfig, MCPConfig, A2AConfig
 from app.domain.repositories.app_config_repository import AppConfigRepository
-from core.config import get_settings
+from app.infrastructure.external.llm.endpoint_settings import load_llm_endpoints
 
 logger = logging.getLogger(__name__)
 
@@ -40,17 +40,15 @@ class FileAppConfigRepository(AppConfigRepository):
             self.save(default_app_config)
 
     @staticmethod
-    def _env_api_key() -> str:
-        """只从环境变量取密钥；占位符视为未配置。"""
-        api_key = get_settings().llm_api_key.strip()
-        if not api_key or api_key == "xxxx":
-            return ""
-        return api_key
-
-    @classmethod
-    def _apply_llm_env(cls, app_config: AppConfig) -> AppConfig:
-        """内存中的密钥只来自 LLM_API_KEY，忽略 yaml 里的 api_key。"""
-        app_config.llm_config.api_key = cls._env_api_key()
+    def _apply_llm_env(app_config: AppConfig) -> AppConfig:
+        """统一解析端点，并保留旧全局兼容客户端需要的默认连接字段。"""
+        llm = app_config.llm_config
+        endpoints = load_llm_endpoints(llm)
+        legacy = endpoints.get("deepseek")
+        updates = {"resolved_endpoints": endpoints, "api_key": legacy.api_key if legacy else ""}
+        if legacy is not None:
+            updates["base_url"] = legacy.base_url
+        app_config.llm_config = llm.model_copy(update=updates)
         return app_config
 
     @staticmethod

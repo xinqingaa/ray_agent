@@ -17,7 +17,8 @@ from app.domain.external.search import SearchEngine
 from app.domain.external.task import Task
 from app.domain.models.app_config import AgentConfig, LLMConfig, MCPConfig, A2AConfig, ModelSampling, ToolPolicyConfig
 from app.domain.models.model_catalog import (
-    choose_sampling, current_sampling, missing_reasoning, model_request, provider_for, resolve_selection, model_list,
+    choose_sampling, client_config, current_sampling, find_model, missing_reasoning, model_request,
+    default_model, resolve_active, active_models,
 )
 from app.domain.models.event import ApprovalStatus, EnvironmentEvent, ErrorEvent, Event, MessageEvent, TitleEvent
 from app.domain.models.project import SANDBOX_PROJECT_DIR
@@ -193,7 +194,7 @@ class AgentService:
 
     def _open_llm(self, profile):
         from app.infrastructure.external.llm.openai_llm import OpenAILLM
-        tuned = self._llm_config.model_copy(update={
+        tuned = client_config(self._llm_config, profile.model_name).model_copy(update={
             "model_name": profile.model_name,
             "context_window": profile.context_window,
             "max_tokens": profile.max_tokens,
@@ -248,8 +249,7 @@ class AgentService:
         """把选择写到会话上。旧对话没有思考字段时，未指定选择则先用 disabled，避免下一次请求被拒绝。"""
         if getattr(self, "_llm_config", None) is None:
             return
-        provider = provider_for(str(self._llm_config.base_url))
-        if provider is None:
+        if default_model(self._llm_config) is None and model is None and session.model_id is None:
             if model or reasoning:
                 raise BadRequestError("当前接口没有可选模型")
             return
@@ -260,10 +260,12 @@ class AgentService:
         if model is None and session.model_id and session.reasoning:
             return
         chosen_reasoning = reasoning
-        if model is None and missing_reasoning(messages):
+        target_id = model or session.model_id
+        target = find_model(target_id) if target_id else default_model(self._llm_config)
+        if model is None and missing_reasoning(messages) and target is not None and target.choice("disabled"):
             chosen_reasoning = "disabled"
         try:
-            spec, choice = resolve_selection(provider, model or session.model_id, chosen_reasoning or session.reasoning)
+            spec, choice = resolve_active(self._llm_config, target_id, chosen_reasoning or session.reasoning)
         except ValueError as exc:
             raise BadRequestError(str(exc)) from exc
         if choice.replay == "all_turns" and missing_reasoning(messages):
@@ -747,7 +749,7 @@ class AgentService:
                     active.status == RunStatus.RUNNING and (starting is not None or self._task_runs(task, active.id))))
                 snapshot = (active.config_snapshot or {}) if consumes_active else {}
                 config = getattr(self, '_llm_config', None)
-                models = model_list(provider_for(str(config.base_url)) or '') if config else ()
+                models = active_models(config) if config else ()
                 selected_id = snapshot.get('model_name') or session.model_id
                 spec = next((item for item in models if item.id == selected_id), None) if selected_id else next((item for item in models if item.auxiliary), None)
                 supports_vision = snapshot.get('vision', spec.vision if spec else bool(getattr(self._llm, 'supports_vision', False)))

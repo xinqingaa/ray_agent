@@ -11,7 +11,7 @@ from app.application.services.app_config_service import AppConfigService
 from app.domain.models.app_config import AgentConfig, MCPConfig, ToolPolicyConfig, \
     default_tool_policy_rules
 from app.domain.services.tool_policy import builtin_tool_catalog
-from app.domain.models.model_catalog import model_list, provider_for, resolve_selection, public_capabilities
+from app.domain.models.model_catalog import active_models, default_model, public_capabilities
 from app.interfaces.schemas.app_config import (
     LLMConfigPublic,
     LLMConfigUpdate,
@@ -48,19 +48,18 @@ async def get_llm_config(
     path="/models",
     response_model=Response[ModelCatalogResponse],
     summary="当前接口可选的模型",
-    description="已知厂商返回模型 id 与思考参数原词。未知地址的 provider 为空，页面不提供切换。",
+    description="返回已配置模型的能力与厂商信息，不返回内部端点或密钥。",
 )
 async def get_model_catalog(
         app_config_service: AppConfigService = Depends(get_app_config_service),
 ) -> Response[ModelCatalogResponse]:
     llm = await app_config_service.get_llm_config()
-    provider = provider_for(str(llm.base_url))
-    if provider is None:
+    models = active_models(llm)
+    if not models or default_model(llm) is None:
         return Response.success(data=ModelCatalogResponse())
-    models = model_list(provider)
-    default = resolve_selection(provider, None, None)[0]
+    default = default_model(llm)
     return Response.success(data=ModelCatalogResponse(
-        provider=provider,
+        provider=default.provider,
         default_model=default.id,
         models=[ModelCatalogItem(**public_capabilities(item)) for item in models],
     ))

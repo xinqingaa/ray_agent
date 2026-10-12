@@ -26,7 +26,7 @@ function load(file){
   throw Error(name+' from '+file);
  },exports);return exports;
 }
-const model=(id,levels,ordered)=>({id,context_window:1000000,max_output:393216,choices:['disabled',...levels],default_choice:levels[0],
+const model=(id,levels,ordered)=>({id,vendor:'fixture',vendor_label:'Fixture',context_window:1000000,max_output:393216,choices:['disabled',...levels],default_choice:levels[0],
  reasoning_options:[{id:'disabled',enabled:false},...levels.map(id=>({id,enabled:true}))],reasoning_ordered:ordered,reasoning_family:'one',temperature_when:'disabled',temperature_max:2});
 async function main(){
  configApi.getModels=async()=>({provider:'fixture',default_model:'a',models:[model('a',['low','high','max'],true)]});

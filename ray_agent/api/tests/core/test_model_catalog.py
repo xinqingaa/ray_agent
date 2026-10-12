@@ -1,7 +1,9 @@
 from app.domain.models.app_config import LLMConfig, ModelSampling
 from app.domain.models.model_catalog import (
+    active_models,
     auxiliary_call,
     choose_sampling,
+    client_config,
     current_sampling,
     missing_reasoning,
     model_list,
@@ -10,6 +12,8 @@ from app.domain.models.model_catalog import (
     resolve_selection,
     tuned_limits,
 )
+from app.infrastructure.external.llm.endpoint_settings import load_llm_endpoints
+from app.infrastructure.external.llm.openai_llm import OpenAILLM
 
 
 def test_deepseek_catalog_uses_request_ids_and_vendor_efforts():
@@ -108,6 +112,66 @@ def test_auxiliary_call_uses_flash_without_thinking():
     wide = auxiliary_call(
         config.model_copy(update={"context_window": 2_000_000}), max_tokens=256, temperature=0.2, timeout=20)
     assert wide[0].context_window == 1_000_000
+
+
+def test_extra_endpoint_uses_app_window_and_openai_effort(monkeypatch):
+    monkeypatch.setenv("XIAOYI_URL", "https://api.xiaoyiapi.xyz/v1")
+    monkeypatch.setenv("XIAOYI_API_KEY", "sk-test")
+    config = LLMConfig(api_key="sk-deepseek")
+    config.resolved_endpoints = load_llm_endpoints(config)
+    ids = [item.id for item in active_models(config)]
+    assert ids[:2] == ["deepseek-flash", "deepseek-v4-pro"]
+    assert [item for item in ids if item.startswith("gpt-")] == ["gpt-6.1-sol", "gpt-6-luna", "gpt-6-astra"]
+    luna = next(item for item in active_models(config) if item.id == "gpt-6-luna")
+    none = luna.choice("none")
+    assert none is not None and (none.thinking, none.effort) == ("disabled", "none")
+    assert [choice.id for choice in luna.choices if choice.thinking == "enabled"] == ["low", "medium", "high", "xhigh", "max"]
+    astra = next(item for item in active_models(config) if item.id == "gpt-6-astra")
+    assert astra.choice("none") is None
+    assert [choice.id for choice in astra.choices] == ["low", "medium", "high", "xhigh", "max"]
+    config = config.model_copy(update={"context_window": 2_000_000})
+    profile = model_request(config, model_id="gpt-6-luna", reasoning="low")
+    assert profile is not None
+    assert (profile.model_name, profile.context_window, profile.max_tokens, profile.thinking, profile.reasoning_effort, profile.keep_reasoning) == (
+        "gpt-6-luna", 200_000, 8192, None, "low", False)
+    closed = model_request(config, model_id="gpt-6-luna", reasoning="none")
+    assert closed is not None and (closed.thinking, closed.reasoning_effort) == (None, "none")
+    closed_kwargs = OpenAILLM(
+        config.model_copy(update={"model_name": "gpt-6-luna"}), thinking=closed.thinking, reasoning_effort=closed.reasoning_effort,
+    )._request_kwargs([{"role": "user", "content": "ok"}], None, None, None, stream=False)
+    assert closed_kwargs["reasoning_effort"] == "none" and "extra_body" not in closed_kwargs
+    bound = client_config(config, "gpt-6-luna")
+    assert str(bound.base_url).rstrip("/") == "https://api.xiaoyiapi.xyz/v1"
+    assert bound.api_key == "sk-test"
+    assert str(client_config(config, "deepseek-flash").base_url).rstrip("/") == "https://api.deepseek.com"
+    llm = OpenAILLM(
+        bound.model_copy(update={"model_name": "gpt-6-luna", "max_tokens": profile.max_tokens}),
+        thinking="enabled", reasoning_effort=profile.reasoning_effort,
+    )
+    kwargs = llm._request_kwargs([{"role": "user", "content": "ok"}], None, None, None, stream=True)
+    assert "extra_body" not in kwargs
+    assert kwargs["reasoning_effort"] == "low"
+    assert kwargs["stream_options"] == {"include_usage": True}
+    deepseek = OpenAILLM(LLMConfig(base_url="https://api.deepseek.com", api_key="sk", model_name="deepseek-flash"), thinking="enabled", reasoning_effort="high")
+    assert deepseek._request_kwargs([{"role": "user", "content": "ok"}], None, None, None, stream=False)["extra_body"] == {"thinking": {"type": "enabled"}}
+
+
+def test_configured_url_enables_the_gpt_catalog(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("XIAOYI_URL", raising=False)
+    monkeypatch.delenv("XIAOYI_API_KEY", raising=False)
+    config = LLMConfig()
+    config.resolved_endpoints = load_llm_endpoints(config)
+    assert config.resolved_endpoints["gpt"] is None
+    assert all(item.provider != "openai" for item in active_models(config))
+    monkeypatch.setenv("XIAOYI_URL", "https://upstream.test/v1")
+    monkeypatch.setenv("XIAOYI_API_KEY", "sk")
+    config.resolved_endpoints = load_llm_endpoints(config)
+    assert "gpt" in config.resolved_endpoints
+    ids = [item.id for item in active_models(config)]
+    assert ids.count("deepseek-flash") == 1
+    assert [item for item in ids if item.startswith("gpt-")] == ["gpt-6.1-sol", "gpt-6-luna", "gpt-6-astra"]
+    assert "not-a-model" not in ids and "chat-latest" not in ids
 
 
 def test_snapshot_preserves_request_encoding_separately_from_display_choice():
