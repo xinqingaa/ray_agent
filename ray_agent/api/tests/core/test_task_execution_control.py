@@ -123,8 +123,8 @@ def test_new_input_during_tool_rechecks_scope_without_interrupting():
         old = [e for e in h.events if isinstance(e, ToolEvent) and e.tool_call_id == "old"]
         assert [e.status for e in old] == ["calling", "called"]
         second = h.llm.requests[1].messages
-        assert second[-2]["content"] == "再核对 /new.txt"
-        assert second[-1]["content"].startswith("[计划核对]")
+        assert second[-1]["content"] == "再核对 /new.txt"
+        assert not any(str(m.get("content", "")).startswith("[计划核对]") for m in second)
         assert h.session.status == SessionStatus.COMPLETED
         assert sum(isinstance(e, DoneEvent) for e in h.events) == 1
         assert {e.run_id for e in h.events} == {active.id}

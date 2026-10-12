@@ -13,6 +13,7 @@ import type {
   PlanHistoryEntry,
   PlanItem,
   PlanItemStatus,
+  PlanArtifact,
   PlanView,
   ProjectView,
   RawEvent,
@@ -104,6 +105,7 @@ const VERBS: Record<string, string> = {
   read_file: '读取文件',
   file_read: '读取文件',
   write_file: '写入文件',
+  finalize_artifact: '整理交付文件',
   file_write: '写入文件',
   replace_in_file: '替换文件内容',
   file_str_replace: '替换文件内容',
@@ -150,6 +152,8 @@ type StoredEvent = {
 }
 
 type RunTrack = {
+  outcome?: string
+  missing?: string[]
   id: string
   status: RunStatus | null
   mode: RunMode
@@ -766,6 +770,7 @@ export function projectSession(input: ProjectSessionInput): SessionView {
         const explicit = asToolStatus(phase)
         live.view.status = failure?.status ?? (explicit && explicit !== 'running' ? explicit : 'succeeded')
         live.view.result = buildResult(name, data, content, failure?.error ?? null)
+        if (data.denied_by === 'verification_cache') { live.view.verb = '复用'; live.view.title = '复用已有核验结果' }
         if (data.content !== undefined) live.view.raw = {...live.view.raw, content}
       }
       continue
@@ -847,7 +852,7 @@ export function projectSession(input: ProjectSessionInput): SessionView {
         const snapshot: PlanView = {
           ...nextPlan(old, items, changed, review ? old?.explanation ?? null : str(data.explanation) ?? str(data.message), ev.createdAt),
           planId: str(data.plan_id), sourceRunId: ev.runId, sourceSeq: readEventSeq(ev) ?? undefined,
-          progressState: state,
+          progressState: state, title: str(data.title) ?? '', description: str(data.description) ?? '', goal: str(data.goal) ?? '', scope: str(data.scope) ?? '', artifacts: readArtifacts(data.artifacts),
         }
         // 每份计划仅投影最新清单，完整事件仍由服务端保存。
         if (review && old) snapshot.version = old.version
@@ -855,7 +860,7 @@ export function projectSession(input: ProjectSessionInput): SessionView {
       }
       const reviewedPlan: PlanView | null = plan as PlanView | null
       if (data.review_only === true && reviewedPlan && reviewedPlan.planId === str(data.plan_id)) {
-        plan = {...reviewedPlan, progressState: str(data.progress_state) ?? 'confirmed', sourceRunId: ev.runId, sourceSeq: readEventSeq(ev) ?? undefined}
+        plan = {...reviewedPlan, progressState: str(data.progress_state) ?? 'confirmed', sourceRunId: ev.runId, sourceSeq: readEventSeq(ev) ?? undefined, title: str(data.title) ?? reviewedPlan.title, description: str(data.description) ?? reviewedPlan.description, goal: str(data.goal) ?? reviewedPlan.goal, scope: str(data.scope) ?? reviewedPlan.scope, artifacts: readArtifacts(data.artifacts)}
         continue
       }
       const samePlan = plan?.planId === str(data.plan_id)
@@ -863,7 +868,7 @@ export function projectSession(input: ProjectSessionInput): SessionView {
       const items = readPlanItems(data.steps, previousPlan, ev.createdAt)
       const changed = previousPlan ? diffPlan(previousPlan, items) : []
       const incoming = str(data.explanation) ?? str(data.message) ?? planExplanation
-      plan = {...nextPlan(plan, items, changed, incoming, ev.createdAt), planId: str(data.plan_id), sourceRunId: ev.runId, sourceSeq: readEventSeq(ev) ?? undefined, progressState: str(data.progress_state) ?? 'confirmed'}
+      plan = {...nextPlan(plan, items, changed, incoming, ev.createdAt), title: str(data.title) ?? '', description: str(data.description) ?? '', goal: str(data.goal) ?? '', scope: str(data.scope) ?? '', artifacts: readArtifacts(data.artifacts), planId: str(data.plan_id), sourceRunId: ev.runId, sourceSeq: readEventSeq(ev) ?? undefined, progressState: str(data.progress_state) ?? 'confirmed'}
       previousPlan = items.map((item) => ({...item}))
       planExplanation = null
       continue
@@ -877,6 +882,8 @@ export function projectSession(input: ProjectSessionInput): SessionView {
     }
 
     if (ev.type === 'done') {
+      const track = ev.runId ? runs.get(ev.runId) : null
+      if (track) { track.outcome = str(data.outcome) ?? undefined; track.missing = Array.isArray(data.missing) ? data.missing.filter((v): v is string => typeof v === 'string') : [] }
       flushFinal(ev.runId)
     }
   }
@@ -1020,6 +1027,7 @@ function toRunView(
     turns: turnViews,
     maxTurns: input.maxTurns ?? null,
     summary: isTerminalRunStatus(status) ? track.summary : null,
+    outcome: track.outcome, missing: track.missing,
     tokens: sumUsage(mine.map((turn) => turn.usage)),
     activity: active ? activityOf(track, mine, liveCalls, timeline, input.stoppingRequestedAt ?? null) : {kind: 'idle'},
   }
@@ -1268,6 +1276,11 @@ function sumUsage(list: Array<TokenCounts | null>): TokenCounts {
   )
 }
 
+function readArtifacts(raw: unknown): PlanArtifact[] {
+  if (!Array.isArray(raw)) return []
+  return raw.filter(isRecord).map(a => ({id: str(a.id) ?? '', name: str(a.name) ?? '', path: str(a.path), delivery: str(a.delivery) ?? 'file', required: a.required !== false, schedule: str(a.schedule) ?? 'current', state: str(a.state) ?? 'pending', error: str(a.error)}))
+}
+
 function readPlanItems(raw: unknown, previous: PlanItem[] | null, at: number): PlanItem[] {
   if (!Array.isArray(raw)) return []
   return raw.map((step) => {
@@ -1280,14 +1293,15 @@ function readPlanItems(raw: unknown, previous: PlanItem[] | null, at: number): P
     let completedAt = status === 'completed' ? old?.completedAt ?? null : null
     if (status === 'in_progress' && startedAt == null) startedAt = at
     if (status === 'completed' && completedAt == null) completedAt = at
-    return {id, text, status, startedAt, completedAt}
+    return {id, text, status, startedAt, completedAt, kind: step.kind === 'step' ? 'step' : 'stage', parentId: str(step.parent_id), schedule: step.schedule === 'future' ? 'future' : 'current', reason: str(step.reason) ?? ''}
   })
 }
 
 function planStatus(raw: unknown): PlanItemStatus {
   if (raw === 'in_progress' || raw === 'running') return 'in_progress'
   if (raw === 'completed') return 'completed'
-  if (raw === 'later') return 'later'
+  if (raw === 'blocked' || raw === 'failed') return 'blocked'
+  if (raw === 'cancelled') return 'cancelled'
   return 'pending'
 }
 
@@ -1298,11 +1312,11 @@ function nextPlan(
   incoming: string | null,
   at: number,
 ): PlanView {
-  const currentIndex = items.findIndex((item) => item.status === 'in_progress')
+  const currentIndex = items.findIndex((item) => item.kind !== 'step' && item.status === 'in_progress')
   return {
     items,
     currentIndex: currentIndex >= 0 ? currentIndex : null,
-    completedCount: items.filter((item) => item.status === 'completed').length,
+    completedCount: items.filter((item) => item.kind !== 'step' && item.status === 'completed').length,
     explanation: incoming?.trim() || null,
     updatedAt: at,
     changed,
@@ -1351,13 +1365,14 @@ function presentTool(name: string, toolset: string, args: Record<string, unknown
     const verb = server ? `调用 MCP 工具 ${server} / ${name}` : `调用 MCP 工具 ${name}`
     return {family, verb, target: '', title: verb, argSummary: primitivePairs(args)}
   }
-  const verb = VERBS[name] ?? (family === 'a2a' ? '调用远程 Agent' : `调用 ${name || '工具'}`)
+  let verb = VERBS[name] ?? (family === 'a2a' ? '调用远程 Agent' : `调用 ${name || '工具'}`)
   let target = ''
   let argSummary = ''
   if (name === 'update_plan' && Array.isArray(args.plan)) {
-    const total = args.plan.length
-    const done = args.plan.filter((step) => isRecord(step) && step.status === 'completed').length
-    target = `${done}/${total} 已完成`
+    const stages = args.plan.filter((step) => isRecord(step) && step.kind !== 'step')
+    const total = stages.length
+    const done = stages.filter((step) => isRecord(step) && step.status === 'completed').length
+    target = `整体阶段 ${done}/${total} 已完成`
     argSummary = target
   } else if (name === 'deliver_files') {
     const paths = Array.isArray(args.paths) ? args.paths.map((item) => basename(String(item))) : []
@@ -1387,6 +1402,10 @@ function presentTool(name: string, toolset: string, args: Record<string, unknown
   } else {
     argSummary = primitivePairs(args)
     target = ''
+  }
+  if (isRecord(args.verification) && ['verify', 'repair'].includes(String(args.verification.purpose))) {
+    verb = args.verification.purpose === 'verify' ? '核验' : '修复'
+    target = clip(str(args.verification.condition) ?? target, 80)
   }
   const title = target ? `${verb} ${target}` : verb
   return {family, verb, target, title, argSummary: argSummary || target}
@@ -1457,12 +1476,17 @@ const DENIED_TEXT: Record<string, string> = {
 
 function failureOf(data: Record<string, unknown>, content: unknown): {status: ToolCallStatus; error: string | null} | null {
   const deniedBy = str(data.denied_by)
+  if (deniedBy === 'verification_cache') return null
+  if (deniedBy === 'verification_limit') return {status:'skipped', error:messageOf(data, content) ?? '核验需要换方法'}
   if (deniedBy === 'batch') return {status: 'skipped', error: messageOf(data, content) ?? '前序调用失败，本次未执行'}
   if (deniedBy) return {status: 'denied', error: DENIED_TEXT[deniedBy] ?? '调用被拒绝，没有执行'}
   const explicit = str(data.disposition) ?? str(data.outcome_kind)
   if (explicit === 'denied' || explicit === 'rejected') return {status: 'denied', error: messageOf(data, content)}
   if (explicit === 'skipped') return {status: 'skipped', error: messageOf(data, content)}
   if (explicit === 'cancelled' || explicit === 'canceled') return {status: 'cancelled', error: messageOf(data, content)}
+  const result = isRecord(data.function_result) ? data.function_result : isRecord(content) && isRecord(content.outcome) ? content.outcome : null
+  const check = result && isRecord(result.data) && isRecord(result.data._ray_verification) ? result.data._ray_verification : null
+  if (check?.state === 'failed') return {status: 'failed', error: `核验未通过：${str(check.condition) ?? '检查条件未满足'}`}
   if (readSuccess(data, content) !== false) return null
   const message = messageOf(data, content) ?? '调用失败'
   if (/拒绝/.test(message)) return {status: 'denied', error: message}
@@ -1704,7 +1728,7 @@ function readTime(value: unknown): number {
  */
 export function planBarMode(view: Pick<SessionView, 'activeRun' | 'runs' | 'plan'>): 'live' | 'proposal' | null {
   const plan = view.plan
-  if (!plan || (plan.items.length === 0 && plan.progressState !== 'unconfirmed')) return null
+  if (!plan || plan.items.length === 0) return null
   if (plan.progressState === 'not_needed') return null
   if (view.activeRun) return plan.sourceRunId === view.activeRun.id ? 'live' : null
   return canExecutePlan(view) ? 'proposal' : null

@@ -195,7 +195,11 @@ def test_plan_mode_denials_never_ask_for_approval():
 def test_following_normal_run_executes_tools_and_snapshot_has_no_suffix():
     first, plan = plan_run()
     # 默认策略下 MCP 需要审批；这里放行，只验证计划模式不影响随后的普通运行
-    second = loop_with_tools([SIDE_EFFECTS, text("已执行")], session=first.session, policy={"mcp:*": "allow"},
+    execute = ScriptedResponse(tool_calls=[ScriptedToolCall('update_plan', {'plan': [
+        {'id':stage.id, 'step':stage.description, 'status':'in_progress' if index == 0 else 'pending'}
+        for index, stage in enumerate(first.loop.plan_tool.latest_plan.stages)
+    ]}), *SIDE_EFFECTS.tool_calls])
+    second = loop_with_tools([execute, text("已执行"), text("已执行，清单状态尚未更新")], session=first.session, policy={"mcp:*": "allow"},
                              sandbox=first.sandbox, gateway=first.gateway)
     normal = run(run_once(second, "按计划执行"))
 

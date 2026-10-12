@@ -1,213 +1,142 @@
-"""稳定计划身份与有界更新核对；模型与存储使用替身。"""
+"""稳定阶段与范围协议，实际计划工具和循环。"""
 import asyncio
-
-from app.domain.models.event import ContextEvent, PlanEvent, latest_plan, MessageEvent
+from app.domain.models.event import ContextEvent, PlanEvent, ToolEvent
 from app.domain.models.message import Message
-from app.domain.models.run import RunStatus
-from app.domain.models.session import SessionStatus
-from app.domain.services.plan_progress import PLAN_PROGRESS_PREFIX
+from app.domain.models.plan import ExecutionStatus, Plan, Step
+from app.domain.services.plan_progress import PlanProgress
 from app.domain.services.tools.plan import PlanTool
-from app.interfaces.schemas.event import EventMapper
-from tests.support.loop_harness import make_loop, input_task, start_run, make_runner, restore_session, submit
-from tests.support.scripted_llm import text, tool_call
+from tests.support.loop_harness import make_loop, assert_no_dangling, memory_messages
+from tests.support.scripted_llm import tool_call, text
 
+def run(c):
+    return asyncio.run(asyncio.wait_for(c, 5))
 
-def run(coro):
-    return asyncio.run(asyncio.wait_for(coro, 5))
+def test_stage_and_steps_identity_and_atomic_validation():
 
-
-def test_plan_identity_rename_reorder_duplicate_and_reset():
     async def check():
-        tool = PlanTool()
-        first = await tool.update_plan([{'step': '同名', 'status': 'in_progress'},
-                                        {'step': '同名', 'status': 'pending'}])
-        a, b = first.data['plan']
-        assert a['id'] != b['id']
-        original_plan_id = first.data['plan_id']
-        changed = await tool.update_plan([{**b, 'step': '验证', 'status': 'in_progress'},
-                                         {**a, 'step': '正文', 'status': 'completed'}], '调整顺序')
-        assert changed.data['plan_id'] == original_plan_id
-        assert [s['id'] for s in changed.data['plan']] == [b['id'], a['id']]
-        snapshot = tool.latest_plan.model_copy(deep=True)
-        for invalid in ([a, a], [{'id': 'unknown', 'step': 'x', 'status': 'pending'}]):
-            failed = await tool.update_plan(invalid)
-            assert not failed.success
-            assert tool.latest_plan == snapshot
-        deleted = await tool.update_plan([{**a, 'status': 'completed'}])
-        assert not (await tool.update_plan([b])).success
-        new = await tool.update_plan([{'step': '新任务', 'status': 'pending'}], reset=True)
-        assert new.data['plan_id'] != deleted.data['plan_id']
-        mapped = EventMapper.event_to_sse_event(PlanEvent(plan=snapshot))
-        assert mapped.data.explanation == '调整顺序'
-        assert [s.id for s in mapped.data.steps] == [b['id'], a['id']]
+        t = PlanTool()
+        r = await t.update_plan([{'step': '整体阶段', 'status': 'in_progress'}], goal='目标')
+        stage = r.data['plan'][0]
+        r2 = await t.update_plan([stage, {'step': '执行', 'status': 'in_progress', 'kind': 'step', 'parent_id': stage['id']}])
+        assert r2.success and len(t.latest_plan.stages) == 1 and (len(t.latest_plan.steps) == 2)
+        saved = t.latest_plan.model_copy(deep=True)
+        assert not (await t.update_plan([{**stage, 'status': 'completed'}, r2.data['plan'][1]])).success
+        assert not (await t.update_plan([stage, {'step': '坏引用', 'kind': 'step', 'parent_id': 'missing', 'status': 'pending'}])).success
+        assert t.latest_plan == saved
     run(check())
 
+def test_required_scope_cannot_disappear_or_defer_without_new_user_source():
 
-def test_polling_and_failed_calls_do_not_advance_reminder():
-    from app.domain.models.event import ToolEvent, ToolEventStatus, TurnEvent, TurnPhase
-    from app.domain.models.plan import Plan, Step
-    from app.domain.models.tool_result import ToolResult
-    from app.domain.services.plan_progress import PlanProgress, POLL_TOOLS
-
-    progress = PlanProgress()
-    for i, name in enumerate([*POLL_TOOLS, 'write_file'] * 4):
-        progress.observe(ToolEvent(tool_call_id=str(i), tool_name='test', function_name=name,
-                                   function_args={}, status=ToolEventStatus.CALLED,
-                                   function_result=ToolResult(success=name != 'write_file')))
-        progress.observe(TurnEvent(index=i + 1, phase=TurnPhase.COMPLETED))
-    assert not progress.due(Plan(steps=[Step(description='编写')]))
-    assert progress.batches == 0
-
-
-def test_due_skips_one_batch_then_degrades_without_fake_completion():
-    from app.domain.models.event import ToolEvent
-    from tests.support.loop_harness import assert_no_dangling, memory_messages
     async def check():
-        h = make_loop([tool_call('update_plan', {'plan': [{'step': '编写', 'status': 'in_progress'}]}),
-                       *[tool_call('echo', {'text': str(i)}) for i in range(12)], text('未完成'), text('未完成')], max_iterations=100)
-        events = [e async for e in h.loop.invoke(Message(message='测试'))]
-        assert h.recording.calls == [f'echo:{i}' for i in range(12) if i != 3]
-        skipped = [e for e in events if isinstance(e, ToolEvent) and e.denied_by == 'batch']
-        assert len(skipped) == 1 and skipped[0].function_result.data['executed'] is False
-        assert len([e for e in events if isinstance(e, PlanEvent) and e.progress_state == 'unconfirmed']) == 1
-        assert len([e for e in events if isinstance(e, ContextEvent) and e.plan_check == 'corrected']) == 1
-        assert h.loop.plan_tool.latest_plan.steps[0].status == 'running'
+        t = PlanTool()
+        t.user_seqs = {2, 40}
+        t.current_user_seq = 2
+        r = await t.update_plan([{'step': '阶段', 'status': 'in_progress'}], goal='目标', artifacts=[{'name': '成果', 'delivery': 'file', 'path': '/out.md'}])
+        node = r.data['plan'][0]
+        a = r.data['artifacts'][0]
+        assert not (await t.update_plan([{**node, 'schedule': 'future', 'status': 'pending'}], explanation='预算不足')).success
+        assert not (await t.update_plan([node], artifacts=[])).success
+        assert not (await t.update_plan([node], artifacts=[{'id': a['id'], 'name': '成果', 'path': '/out.md', 'delivery': 'file', 'state': 'delivered'}])).success
+        assert not (await t.update_plan(action='not_needed')).success
+        assert not (await t.update_plan([{'step': '替换', 'status': 'pending'}], explanation='删掉')).success
+        t.current_user_seq = 40
+        assert (await t.update_plan([{**node, 'schedule': 'future', 'status': 'pending'}], source_seq=40, explanation='用户安排下一轮')).success
+        assert t.latest_plan.id == r.data['plan_id']
+        assert not (await t.update_plan([node], source_seq=999)).success
+    run(check())
+
+def test_blocked_stays_current_and_later_is_not_a_lifecycle():
+
+    async def check():
+        t = PlanTool()
+        assert not (await t.update_plan([{'step': '任务', 'status': 'blocked'}])).success
+        assert (await t.update_plan([{'step': '任务', 'status': 'blocked', 'reason': '环境不可用'}])).success
+        assert t.latest_plan.stages[0].open and (not t.latest_plan.done)
+        assert not (await t.update_plan([{'step': '任务', 'status': 'later'}])).success
+    run(check())
+
+def test_many_business_batches_need_no_periodic_review_or_unconfirmed():
+
+    async def check():
+        h = make_loop([tool_call('update_plan', {'plan': [{'step': '工作', 'status': 'in_progress'}]}), *[tool_call('echo', {'text': str(i)}) for i in range(12)], text('未完成'), text('未完成')], max_iterations=100)
+        events = [e async for e in h.loop.invoke(Message(message='执行'))]
+        assert h.recording.calls == [f'echo:{i}' for i in range(12)]
+        assert not any((isinstance(e, ToolEvent) and e.denied_by == 'batch' for e in events))
+        assert not any((isinstance(e, PlanEvent) and e.progress_state == 'unconfirmed' for e in events))
         assert_no_dangling(memory_messages(h.session))
-        assert h.loop.budget_used == h.llm.call_count
     run(check())
 
+def test_adopted_plan_requires_stage_selection():
+    p = PlanProgress()
+    plan = Plan(steps=[Step(description='任务')])
+    p.observe(PlanEvent(plan=plan, progress_state='preparing'))
+    assert p.reason(plan) == 'adopted'
+    plan.steps[0].status = ExecutionStatus.RUNNING
+    p.observe(PlanEvent(plan=plan))
+    assert p.reason(plan) is None
+    for _ in range(12):
+        p.observe(ContextEvent(messages=[]))
+    assert p.reason(plan) is None
 
-def test_light_review_and_business_in_same_batch_resets_interval():
-    from tests.support.scripted_llm import Dynamic, ScriptedResponse, ScriptedToolCall
+
+def test_first_update_can_create_stage_and_children_with_stable_ids():
     async def check():
-        def review(request):
-            step = h.loop.plan_tool.latest_plan.steps[0]
-            return ScriptedResponse(tool_calls=[ScriptedToolCall('update_plan', {'action':'review', 'step_id':step.id}),
-                                                ScriptedToolCall('echo', {'text':'after-review'})])
-        h = make_loop([tool_call('update_plan', {'plan':[{'step':'编写', 'status':'in_progress'}]}),
-                       *[tool_call('echo', {'text':'work'}) for _ in range(3)], Dynamic(review),
-                       text('未完成'), text('未完成')], max_iterations=100)
-        events = [e async for e in h.loop.invoke(Message(message='测试'))]
-        assert h.recording.calls[-1] == 'echo:after-review'
-        assert not h.loop._plan_progress.corrected
-        reviews = [e for e in events if isinstance(e, PlanEvent) and e.review_only]
-        assert len(reviews) == 1 and reviews[0].progress_state == 'confirmed'
-    run(check())
+        t = PlanTool()
+        result = await t.update_plan(title='整理资料', description='汇总并交付资料。', goal='保留完整原始要求', plan=[
+            {'id':'stage','step':'整体阶段','kind':'stage','status':'in_progress'},
+            {'id':'child','step':'具体步骤','kind':'step','parent_id':'stage','status':'in_progress'},
+        ], artifacts=[{'id':'artifact','name':'成果','delivery':'file','path':'/a'}])
+        assert result.success
+        assert t.latest_plan.steps[1].parent_id == 'stage'
+        assert t.latest_plan.artifacts[0].id == 'artifact'
+        renewed = await t.update_plan(result.data['plan'], explanation='状态更新')
+        assert renewed.success and t.latest_plan.title == '整理资料'
+        assert t.latest_plan.description == '汇总并交付资料。' and t.latest_plan.goal == '保留完整原始要求'
+        duplicate = await t.update_plan(plan=[
+            {'id':'stage','step':'整体阶段','status':'in_progress'},
+            {'id':'stage','step':'重复阶段','status':'pending'},
+        ])
+        assert not duplicate.success
+        assert len(t.latest_plan.steps) == 2
+    asyncio.run(check())
 
 
-def test_completed_prior_plan_requires_decision_before_write_but_simple_reply_does_not():
-    from app.domain.models.plan import Plan, Step, ExecutionStatus
-    from tests.support.scripted_llm import ScriptedResponse, ScriptedToolCall
-    async def check():
-        old = Plan(steps=[Step(description='旧任务', status=ExecutionStatus.COMPLETED)])
-        h = make_loop([text('直接回答')])
-        h.loop.plan_tool.latest_plan = old
-        _ = [e async for e in h.loop.invoke(Message(message='一句话'))]
-        assert h.llm.call_count == 1
-        h = make_loop([ScriptedResponse(tool_calls=[ScriptedToolCall('update_plan', {'action':'not_needed'}),
-                       ScriptedToolCall('echo', {'text':'small-change'})]), text('完成')])
-        h.loop.plan_tool.latest_plan = old
-        events = [e async for e in h.loop.invoke(Message(message='小改'))]
-        assert h.recording.calls == ['echo:small-change']
-        assert any(isinstance(e, PlanEvent) and e.progress_state == 'not_needed' for e in events)
-        assert not h.loop._plan_progress.corrected
-    run(check())
+def test_resume_stage_requires_plan_before_business_but_direct_answers_do_not():
+    p = PlanProgress()
+    plan = Plan(steps=[Step(description='后续', schedule='future')])
+    assert p.blocks([{'function':{'name':'write_file'}}], plan)
+    assert not p.blocks([], plan)
+    assert not p.blocks([{'function':{'name':'update_plan'}}], plan)
 
 
-def test_wait_resume_restores_correction_and_degrades_only_once():
-    async def check():
-        first = make_loop([*[tool_call('echo', {'text':str(i)}) for i in range(4)],
-                           tool_call('message_ask_user', {'text':'缺少哪份材料？'})], max_iterations=100)
-        task = input_task()
-        active = await start_run(first, task, '编写')
-        await make_runner(first, run=active).invoke(task)
-        assert first.loop._plan_progress.corrected
-        restored = restore_session(first.session)
-        second = make_loop([tool_call('echo', {'text':'resumed'}), text('结束')], session=restored, max_iterations=100)
-        task = input_task()
-        resumed = await second.ledger.transition(restored.id, active.id, RunStatus.RUNNING,
-            events_after=[MessageEvent(role='user', message='材料')])
-        await submit(task, '材料')
-        await make_runner(second, run=resumed, prior_status=SessionStatus.WAITING).invoke(task)
-        assert second.recording.calls == ['echo:resumed']
-        assert second.loop._plan_progress.degraded
-        assert len([e for e in second.events if isinstance(e, ContextEvent) and e.plan_check == 'corrected']) == 1
-    run(check())
-
-
-def test_adopted_plan_requires_selection_and_keeps_identity():
-    from app.domain.models.plan import Plan, Step
-    from tests.support.scripted_llm import ScriptedResponse, ScriptedToolCall
-    async def check():
-        plan = Plan(steps=[Step(description='执行')])
-        h = make_loop([ScriptedResponse(tool_calls=[
-            ScriptedToolCall('update_plan', {'plan':[{'id':plan.steps[0].id,'step':'执行','status':'in_progress'}]}),
-            ScriptedToolCall('echo', {'text':'first'})]), text('未完成'), text('未完成')])
-        task = input_task()
-        active = await start_run(h, task, '执行')
-        await h.ledger.append(h.session.id, [PlanEvent(plan=plan, progress_state='preparing')], run_id=active.id)
-        await make_runner(h, run=active).invoke(task)
-        assert h.recording.calls == ['echo:first']
-        assert h.loop.plan_tool.latest_plan.id == plan.id
-        assert not h.loop._plan_progress.corrected
-    run(check())
-
-
-def test_acceptance_service_routes_retries_without_injection():
-    from unittest.mock import Mock
-    from tests.core.test_task_execution_control import make_service
-    from app.domain.models.run import RunMode
-    from app.domain.models.plan import Plan, Step
-    from app.domain.models.plan_acceptance import PlanAcceptance
-    async def check():
-        h = make_loop([])
-        proposal = await h.ledger.start(h.session.id, mode=RunMode.PLAN)
-        event = PlanEvent(plan=Plan(steps=[Step(description='执行')]))
-        await h.ledger.append(h.session.id, [event], run_id=proposal.id)
-        await h.ledger.transition(h.session.id, proposal.id, RunStatus.COMPLETED)
-        service = make_service(h)
-        service._schedule_start = Mock()
-        ref = PlanAcceptance(source_run_id=proposal.id, plan_id=event.plan.id, source_seq=event.seq, request_id='r')
-        first = await service.chat(h.session.id, '按计划执行', execute_plan=ref)
-        second = await service.chat(h.session.id, '按计划执行', execute_plan=ref)
-        assert first == second and first.route == 'started'
-        service._schedule_start.assert_called_once()
-        assert len(h.runs) == 2
-    run(check())
-
-
-def test_compaction_does_not_reset_review_state():
+def test_unregistered_checks_have_one_nonblocking_notice_and_restore_it():
+    from app.domain.models.plan import Artifact
     from app.domain.models.event import ContextOp
-    from app.domain.services.plan_progress import PlanProgress
-    state = PlanProgress()
-    state.batches = 3
-    state.observe(ContextEvent(plan_check='corrected'))
-    state.observe(ContextEvent(op=ContextOp.REPLACE, messages=[{'role':'user','content':'摘要'}]))
-    assert state.corrected and state.batches == 3
-    state.observe(ContextEvent(plan_check='scope',messages=[{'role':'user','content':'新范围'}]))
-    assert not state.corrected and state.required == 'scope'
+    from app.domain.services.plan_progress import VERIFICATION_NOTICE_PREFIX
+    p = PlanProgress()
+    plan = Plan(artifacts=[Artifact(name='成果',path='/a')])
+    p.observe(PlanEvent(plan=plan))
+    for i in range(6):
+        p.observe(ToolEvent(tool_call_id=str(i), tool_name='shell', function_name='shell_execute', function_args={}, status='called'))
+    notice = p.verification_notice(plan)
+    assert notice and notice.startswith(VERIFICATION_NOTICE_PREFIX)
+    assert not p.blocks([{'function':{'name':'shell_execute'}}], plan)
+    recorded = ContextEvent(op=ContextOp.APPEND, messages=[{'role':'user','content':notice}])
+    p.observe(recorded)
+    assert p.verification_notice(plan) is None
+    restored = PlanProgress()
+    restored.unrecorded_calls = 20
+    restored.observe(recorded)
+    assert restored.verification_notice(plan) is None
 
 
-def test_new_run_uses_current_prompt_but_waiting_run_keeps_frozen_prompt():
-    from app.domain.models.memory import Memory
-    from app.domain.services.flows.agent_loop import AGENT_MEMORY_NAME
-    from tests.support.loop_harness import assert_no_dangling
+def test_user_arranged_future_file_can_have_unknown_path_until_activated():
     async def check():
-        h = make_loop([tool_call('message_ask_user', {'text':'请补充材料'})])
-        h.session.memories[AGENT_MEMORY_NAME] = Memory(messages=[{'role':'system','content':'旧会话提示'}, {'role':'user','content':'历史内容'}, {'role':'assistant','content':'历史答复'}])
-        h.loop._system_prompt = '当前版本提示'
-        task = input_task(); active = await start_run(h, task, '新任务')
-        await make_runner(h,run=active).invoke(task)
-        frozen = h.runs[active.id].config_snapshot['system_prompt']
-        assert frozen.startswith('当前版本提示') and '旧会话提示' not in frozen
-        assert h.llm.requests[0].messages[0]['content'] == frozen
-        restored = restore_session(h.session)
-        second = make_loop([text('完成')],session=restored)
-        second.loop._system_prompt = '又一次更新后的提示'
-        task = input_task()
-        resumed = await second.ledger.transition(restored.id,active.id,RunStatus.RUNNING,events_after=[MessageEvent(role='user',message='补充材料')])
-        await submit(task,'补充材料')
-        await make_runner(second,run=resumed,prior_status=SessionStatus.WAITING).invoke(task)
-        assert second.llm.requests[0].messages[0]['content'] == frozen
-        assert_no_dangling(second.llm.requests[0].messages)
+        t=PlanTool();t.user_seqs={1,20};t.current_user_seq=1
+        first=await t.update_plan([{'id':'stage','step':'后续','status':'pending','schedule':'future'}],
+            artifacts=[{'id':'future','name':'后续文件','delivery':'file','schedule':'future'}])
+        assert first.success
+        t.current_user_seq=20
+        assert not (await t.update_plan(first.data['plan'],artifacts=[{'id':'future','name':'后续文件','delivery':'file','schedule':'current'}])).success
+        assert (await t.update_plan(first.data['plan'],artifacts=[{'id':'future','name':'后续文件','delivery':'file','schedule':'current','path':'/a.md'}])).success
     run(check())

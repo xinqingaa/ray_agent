@@ -66,7 +66,7 @@ def test_resolved_workspace_boundary_and_same_call_reuses_delivery(tmp_path, sou
         if inside:
             fresh = await fs.delivery.deliver(project.id,session.id,run.id,'call-next',source,sandbox)
             assert fresh.project['state'] == 'in_workspace' and fresh.project['path'] == copy.path
-            assert fresh.file.id != result.file.id
+            assert fresh.file.id == result.file.id and fresh.reused
     with_db(scenario)
 
 
@@ -122,6 +122,9 @@ def test_same_name_different_calls_and_pending_result_unknown_reuses_bytes(tmp_p
         assert second.project['path']=='outputs/file (1).txt'
         assert first.file.id != second.file.id and sandbox.downloads==2
         async with factory() as uow:
+            stored = await uow.session.get_by_id(session.id)
+        assert {f.id for f in stored.files} == {first.file.id, second.file.id}
+        async with factory() as uow:
             await uow.project.get(project.id,lock=True)
             copy=await uow.project.file_copy(project.id,second.project['copy_key'])
             copy.state='pending'
@@ -168,4 +171,28 @@ def test_cancelled_copy_thread_holds_run_writer_until_actual_exit(tmp_path):
                 worker.cancel()
                 try:await worker
                 except asyncio.CancelledError:pass
+    with_db(scenario)
+
+
+def test_failed_project_copy_new_call_reuses_attachment_and_only_retries_copy(tmp_path):
+    async def scenario(factory, engine):
+        _, fs, uploads, project, session, run = await context(factory, tmp_path)
+        sandbox = Sandbox('/tmp/report.csv', b'answer,42\n')
+        original = fs.delivery._persist
+        async def fail(copy):
+            raise OSError('本次项目副本失败')
+        fs.delivery._persist = fail
+        first = await fs.delivery.deliver(project.id,session.id,run.id,'first','/tmp/report.csv',sandbox)
+        assert first.project['state'] == 'failed' and not first.reused
+        fs.delivery._persist = original
+        async def deliver(path):
+            return await fs.delivery.deliver(project.id,session.id,run.id,'retry-new-call',path,sandbox)
+        result = await DeliverTool(deliver).deliver_files(['/tmp/report.csv'])
+        item = result.data.items[0]
+        assert result.success and item.reused and item.file.id == first.file.id
+        assert item.project['copy_key'] == first.project['copy_key']
+        async with factory() as uow:
+            stored = await uow.session.get_by_id(session.id)
+        assert len(stored.files) == 1
+        assert (Path(fs.file_io(project.id).root)/item.project['path']).read_bytes() == sandbox.data
     with_db(scenario)

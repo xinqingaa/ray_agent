@@ -33,7 +33,7 @@ class FileListSessionRepo:
         self.files = [f for f in self.files if f.id != file_id]
 
     async def get_file_by_path(self, session_id, filepath):
-        for file in self.files:
+        for file in reversed(self.files):
             if file.filepath == filepath:
                 return file
         return None
@@ -88,7 +88,7 @@ def make_runner(session_id, sandbox, storage):
     return runner, repo
 
 
-def test_same_path_sync_replaces_record_instead_of_accumulating():
+def test_same_version_reuses_record_and_upload():
     async def run():
         sandbox = sandbox_with(AsyncMock(side_effect=lambda _: io.BytesIO(b"v1")))
         runner, repo = make_runner("lesson-12", sandbox, FakeStorage())
@@ -98,11 +98,13 @@ def test_same_path_sync_replaces_record_instead_of_accumulating():
         second = await runner._deliver_file(path)
         third = await runner._deliver_file(path)
 
-        assert [f.id for f in repo.files] == [third.id]
-        assert repo.removed == [first.id, second.id], "旧记录必须按文件id移除"
-        assert third.filepath == path
-        # 存储每次仍上传一份、不按内容去重；此处只断言未把去重误写成存储层保证。
-        assert len(runner._file_storage.contents) == 3
+        assert [f.id for f in repo.files] == [third.file.id]
+        assert first.id == second.file.id == third.file.id
+        assert second.reused and third.reused
+        assert repo.removed == []
+        assert third.file.filepath == path
+        assert len(runner._file_storage.contents) == 1
+        assert third.file.sha256 is not None
 
     asyncio.run(asyncio.wait_for(run(), 5))
 
@@ -159,7 +161,7 @@ def test_remove_file_filters_by_id_not_path():
 @pytest.mark.parametrize("failure", ["upload", "association"])
 def test_failed_replacement_keeps_previous_file(failure):
     async def run():
-        sandbox = sandbox_with(AsyncMock(side_effect=lambda _: io.BytesIO(b"v1")))
+        sandbox = sandbox_with(AsyncMock(side_effect=[io.BytesIO(b"v1"), io.BytesIO(b"v2")]))
         runner, repo = make_runner("lesson-12", sandbox, FakeStorage())
         first = await runner._deliver_file("/a.txt")
         if failure == "upload":
@@ -190,14 +192,14 @@ def test_delivery_failure_distinguishes_all_and_partial(fail_all):
     asyncio.run(asyncio.wait_for(run(), 5))
 
 
-def test_current_list_replacement_does_not_rewrite_historical_attachment():
+def test_new_version_preserves_current_and_historical_attachments():
     async def run():
         sandbox = sandbox_with(AsyncMock(side_effect=[io.BytesIO(b"v1"), io.BytesIO(b"v2")]))
         runner, repo = make_runner("lesson-12", sandbox, FakeStorage())
         first = await runner._deliver_file("/a.txt")
         history = MessageEvent.model_validate_json(MessageEvent(attachments=[first]).model_dump_json())
         second = await runner._deliver_file("/a.txt")
-        assert [f.id for f in repo.files] == [second.id]
+        assert [f.id for f in repo.files] == [first.id, second.id]
         assert history.attachments[0].id == first.id
         assert runner._file_storage.contents == [b"v1", b"v2"]
     asyncio.run(asyncio.wait_for(run(), 5))
@@ -209,5 +211,17 @@ def test_existing_duplicate_records_are_not_a_migration():
         runner, repo = make_runner("lesson-12", sandbox, FakeStorage())
         repo.files = [File(id="old1", filepath="/a.txt"), File(id="old2", filepath="/a.txt")]
         new_file = await runner._deliver_file("/a.txt")
-        assert [f.id for f in repo.files] == ["old2", new_file.id]
+        assert [f.id for f in repo.files] == ["old1", "old2", new_file.id]
     asyncio.run(asyncio.wait_for(run(), 5))
+
+
+def test_duplicate_paths_and_repeated_delivery_do_not_add_attachment_notices():
+    async def check():
+        runner, repo = make_runner('lesson-12', sandbox_with(AsyncMock(side_effect=lambda _:io.BytesIO(b'v1'))), FakeStorage())
+        tool = DeliverTool(runner._deliver_file)
+        first = await tool.deliver_files(['/a.txt','/a.txt'])
+        assert first.success and len(first.data.files)==1 and first.data.items[1].reused
+        again = await tool.deliver_files(['/a.txt'])
+        assert again.data.items[0].reused and len(repo.files)==1
+        assert len(runner._file_storage.contents)==1
+    asyncio.run(asyncio.wait_for(check(),5))

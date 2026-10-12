@@ -562,7 +562,7 @@ export function SessionDetailView({
                 title="重命名会话" aria-label="重命名会话" onClick={() => setRenameOpen(true)}>
                 <Pencil className="size-3.5"/>
               </Button>
-              <RunStatus place="headline" status={run?.status} compacting={compacting}/>
+              <RunStatus place="headline" status={run?.status} outcome={run?.outcome} compacting={compacting}/>
               </div>
               {view.project && (
                 <div className="order-first flex min-w-0 items-center gap-1">

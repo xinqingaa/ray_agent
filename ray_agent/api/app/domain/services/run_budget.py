@@ -27,6 +27,7 @@ FINALIZE_ALLOWED: Dict[str, str] = {
     "find_files": "file",
     "deliver_files": "deliver",
     "update_plan": "plan",
+    "finalize_artifact": "file",
 }
 
 
@@ -55,7 +56,7 @@ def budget_notice(phase: BudgetPhase, used: int, limit: int, plan_mode: bool = F
         return (f"{BUDGET_NOTICE_PREFIX} 本次运行已使用 {used}/{limit} 次模型请求。请判断主要成果是否已经可用："
                 "已可用就先交付，剩余预算只用于必要修复，不要开始新的可选扩展。")
     if phase == BudgetPhase.FINALIZE:
-        allowed = "读取文件和更新计划" if plan_mode else "读取文件、交付文件和更新计划"
+        allowed = "读取文件和更新计划" if plan_mode else "读取文件、补写已登记文本成果(finalize_artifact)、交付文件和更新计划"
         goal = "给出计划与说明" if plan_mode else "交付已有成果并给出最终答复"
         return (f"{BUDGET_NOTICE_PREFIX} 剩余 {max(0, limit - used)} 次模型请求，{BUDGET_FINALIZE_MARK}：只能{allowed}，"
                 f"其他工具会被拒绝。请{goal}，说明已验证的内容和未完成的部分。")

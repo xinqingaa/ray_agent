@@ -327,7 +327,9 @@ PG 检查覆盖真实数据库与本地附件/项目目录删除、共享引用�
 
 `POST /sessions/{id}/chat` 可附 `execute_plan`：`source_run_id`、`plan_id`、`source_seq`、`request_id`。仅用于普通模式确认清单；事务内校验最新可执行版本，无活动运行时原子创建运行和承接事件。相同请求返回原 run_id/seq，过期、跨会话或冲突请求返回 409；普通消息不做关键词确认。事件新增 `progress_state`、`review_only` 和可选 `accepted_from`，旧事件按 confirmed 解读。轻量核对不增加清单版本。
 
-`update_plan` 步骤状态为 `pending / in_progress / completed / later`：`later` 是后续阶段，已记录但本阶段不展开，不计入未完成，也不使整个计划算失败；领域层是 `ExecutionStatus.LATER`，`Step.open`（待办或进行中）与 `Step.deferred` 供调用方区分，`Step.done` 语义不变，`Plan.status` 仍只在全部步骤完成时为已完成。旧事件没有该状态，无迁移。未使用 `reset` 的更新若移除已有 later 步骤，必须提供非空 `explanation`，以支持用户取消要求或阶段重组并保留计划身份；程序只检查说明是否存在，不判断说明是否代表真实授权；id 写错的报错带出当前有效 id。计划核对：仅剩已完成与 later 步骤的计划在新运行开始时提示延续同一计划并展开下一阶段（不要求 reset），全部完成且没有 later 时仍提示上一份计划已结束。结束反馈在已有的“最多一次”内增加一类：本次运行更新过计划、仍有 later 步骤且本次运行至少新完成一个步骤时提醒（全部是 later 的纯方案轮次不提醒）在答复开头说明阶段位置并附当前清单；later 不计入“计划还有未完成条目”与结尾补述，没有 open 步骤时三批核对不触发；无计划、声明无需计划、计划模式不触发，预算已用尽时不再发起额外请求，审批或提问续接不重新获得机会。检查入口：
+`update_plan` 用 `title` 与 `description` 分别保存简短标题和一句任务说明，完整要求保存在 `goal/scope`；状态更新省略标题和描述时保留原值。清单条目使用简短动作标题，简单任务平铺，必要时分组。使用 `kind=stage/step` 与 `parent_id` 表示两层，分别计数；生命周期为 pending/in_progress/completed/blocked/cancelled，安排为 schedule=current/future。目标、范围及必要成果关联真实用户消息 seq。整体阶段不能直接删除，取消和推迟已有范围需新用户来源及原因；预算不足保留受阻。完整更新原子校验，省略 artifacts 保留原清单，版本及交付状态由实际工具结果填写。
+
+关键检查随业务工具附 verification，绑定成果、条件及真实版本；显式 passed 布尔断言才算通过，同版同条件复用，连续两次失败后再次执行需说明新条件。收尾工具只补写预登记文本成果，已有文件保留原字节并另存系统预留的新版本路径；结果未知时先读回，不自动重复写入。仍受计划模式与策略限制。运行结束分别记录 complete/partial 及缺失成果、阶段和明确失败的核验，不把运行 completed 当作完整业务验收。旧 later 对话不兼容，不迁移或自动删除。检查入口：
 
 ```bash
 uv run --locked python -m pytest tests/core/test_staged_plan.py tests/core/test_plan_progress.py tests/core/test_agent_loop.py

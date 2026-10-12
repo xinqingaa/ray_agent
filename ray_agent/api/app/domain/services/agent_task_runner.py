@@ -40,6 +40,7 @@ from app.infrastructure.logging import set_log_session_id
 from app.domain.services.tools.a2a import A2ATool
 from app.domain.services.tools.mcp import MCPTool
 from app.domain.services.tools.project_notes import ProjectNotesTool
+from app.domain.services.tools.deliver import DeliveredFile
 
 logger = logging.getLogger(__name__)
 
@@ -256,7 +257,7 @@ class AgentTaskRunner(TaskRunner):
 
         return size
 
-    async def _deliver_file(self, filepath: str) -> File:
+    async def _deliver_file(self, filepath: str) -> Union[File, DeliveredFile]:
         """deliver_files 的交付函数：校验沙箱文件存在，上传存储并关联会话。失败抛出异常，文本即错误原因。"""
         service = getattr(self, '_project_delivery_service', None)
         if service and getattr(self, '_project_id', None):
@@ -274,6 +275,13 @@ class AgentTaskRunner(TaskRunner):
 
         # 3.从沙箱中下载文件
         file_data = await self._sandbox.download_file(filepath)
+        digest = hashlib.sha256()
+        while chunk := file_data.read(65536): digest.update(chunk)
+        sha = digest.hexdigest()
+        file_data.seek(0)
+        if old_file and old_file.sha256 == sha:
+            file_data.close()
+            return DeliveredFile(file=old_file, reused=True)
 
         # 4.先上传新副本；上传失败时保留旧会话记录
         filename = filepath.split("/")[-1]
@@ -283,11 +291,10 @@ class AgentTaskRunner(TaskRunner):
             size=self._get_stream_size(file_data),
         ))
         file.filepath = filepath
+        file.sha256 = sha
 
-        # 5.在同一事务中替换关联，按旧文件id删除，不删除存储副本或历史附件
+        # 5.保留旧版关联和存储；同路径新字节仍登记新版本，不移除用户已取得的成果
         async with self._uow:
-            if old_file:
-                await self._uow.session.remove_file(self._session_id, old_file.id)
             await self._uow.session.add_file(self._session_id, file)
         return file
 

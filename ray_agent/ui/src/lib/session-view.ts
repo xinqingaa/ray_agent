@@ -76,6 +76,8 @@ export type Activity =
 export type RunMode = 'normal' | 'plan'
 
 export type RunView = {
+  outcome?: string
+  missing?: string[]
   id: string
   status: RunStatus
   /** 运行模式；缺省为 normal */
@@ -143,13 +145,17 @@ export type ToolCallView = {
   raw: {args: Record<string, unknown>; content: unknown}
 }
 
-/** later：后续阶段，已记录但本阶段不处理，不计入未完成 */
-export type PlanItemStatus = 'pending' | 'in_progress' | 'completed' | 'later'
+/** 阶段生命周期；后续安排独立于完成状态。 */
+export type PlanItemStatus = 'pending' | 'in_progress' | 'completed' | 'blocked' | 'cancelled'
 
 export type PlanItem = {
   id: string
   text: string
   status: PlanItemStatus
+  kind?: 'stage' | 'step'
+  parentId?: string | null
+  schedule?: 'current' | 'future'
+  reason?: string
   /** 首次变为 in_progress 的时间 */
   startedAt: number | null
   /** 变为 completed 的时间 */
@@ -165,7 +171,14 @@ export type PlanChange = {
   to?: PlanItemStatus
 }
 
+export type PlanArtifact = {id: string; name: string; path?: string | null; delivery: string; required: boolean; schedule: string; state: string; error?: string | null}
+
 export type PlanView = {
+  title?: string
+  description?: string
+  goal?: string
+  scope?: string
+  artifacts?: PlanArtifact[]
   sourceSeq?: number
   progressState?: string
   planId?: string | null

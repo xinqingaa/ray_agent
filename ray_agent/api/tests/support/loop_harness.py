@@ -97,7 +97,7 @@ class FakeSessionRepository:
         self.s.files = [f for f in self.s.files if f.id != file_id]
 
     async def get_file_by_path(self, session_id, filepath):
-        return next((f for f in self.s.files if f.filepath == filepath), None)
+        return next((f for f in reversed(self.s.files) if f.filepath == filepath), None)
 
 
 _EVENT = TypeAdapter(Event)

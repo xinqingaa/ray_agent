@@ -1,109 +1,81 @@
-"""可回放的有界计划核对；只计有效业务批次，不推断业务完成。"""
-from app.domain.models.event import ContextEvent, PlanEvent, ToolEvent, ToolEventStatus, TurnEvent, TurnPhase
+"""事件驱动范围核对；阶段推进由模型负责，没有定时批次核对。"""
+from app.domain.models.event import ContextEvent, PlanEvent, ToolEvent
 
 PLAN_PROGRESS_PREFIX = "[计划核对]"
 COMPLETION_FEEDBACK_PREFIX = "结束前一致性核对："
-INTERNAL_CHECK_NOTE = ("这是内部核对：最终答复直接面向用户说明结果，不要提及或复述核对本身。"
-                       "上一条无工具调用的草稿尚未作为最终答复交给用户；本次答复必须能独立阅读，保留用户需要的正文，"
-                       "不能只写总结或让用户参见上一条草稿。")
-OPEN_ITEMS_ISSUE = "当前计划还有未完成条目；完成后更新计划，本轮不再处理的条目可改标 later 并按阶段说明，或明确说明未完成原因"
-BATCH_THRESHOLD = 3
-POLL_TOOLS = {"shell_wait_process", "shell_read_output", "browser_view", "browser_tabs"}
-NON_BUSINESS = POLL_TOOLS | {"update_plan", "message_ask_user", "discover_mcp_tools", "get_remote_agent_cards"}
+TASK_STATE_PREFIX = "[任务状态]"
+VERIFICATION_NOTICE_PREFIX = "[系统提示]核验记录提醒："
+INTERNAL_CHECK_NOTE = ("这是内部核对，不在最终答复复述。上一条草稿尚未交给用户；最终答复必须独立阅读，"
+                       "保留用户需要的正文。文件交付说明累计成果、可用能力、关键核验及真实缺口；"
+                       "并列信息用短段落或列表，较长正文用标题，遵从用户指定的格式和篇幅。")
+OPEN_ITEMS_ISSUE = "本次范围仍有未完成项；完成后更新状态，资源不足标 blocked 并说明，不能改为后续以消除缺口"
+NON_BUSINESS = {"update_plan", "message_ask_user", "discover_mcp_tools", "get_remote_agent_cards",
+                "shell_wait_process", "shell_read_output", "browser_view", "browser_tabs"}
 
 
-def staged_feedback(plan) -> str:
-    """计划仍有后续阶段时的结束反馈；只写与任务类型无关的原则，当前清单取自计划。"""
-    current = [{"id": s.id, "step": s.description, "status": s.status.value} for s in plan.steps]
-    return ("本次计划仍有后续阶段（later）。最终答复写成简洁总结：本轮做了什么、实现了什么（用户现在能用什么）、还欠缺什么，"
-            "以及本轮完成的是哪个阶段、剩余阶段与建议的下一步；不复述执行过程，不需要表格，不要把本阶段完成说成整个任务完成。"
-            f"当前清单：{current}")
+def staged_feedback(plan):
+    return "仍有用户安排的后续阶段，说明整体目标位置、本次成果和后续范围，不称整个目标完成。"
 
 
 class PlanProgress:
-    """本次运行的计划核对状态；同时记录结束反馈所需的事实（计划更新、已发出的结束反馈），随事件回放恢复。"""
-
     def __init__(self):
-        self.batches = 0
-        self.activity = self.updated = self.planned = False
         self.required = None
-        self.corrected = self.degraded = self.noticed = self.not_needed = False
+        self.corrected = self.noticed = self.not_needed = False
         self.plan_updated = self.feedback_sent = False
+        self.planned = False
+        self.unrecorded_calls = 0
+        self.verification_noticed = False
 
     def observe(self, event):
         if isinstance(event, PlanEvent):
-            if event.progress_state == "unconfirmed":
-                self.degraded, self.required = True, None
-            elif event.progress_state == "preparing":
-                self.required = "adopted"
-                self.planned = True
+            if event.progress_state == 'preparing':
+                self.required = 'adopted'
             else:
-                if not event.review_only and event.progress_state == "confirmed":
-                    self.plan_updated = True
-                self.batches = 0
-                self.updated = True
                 self.planned = True
-                self.not_needed = event.progress_state == "not_needed"
-                self.degraded = self.noticed = False
-                self.required = ("adopted" if self.required == "adopted" and
-                    not any(s.status.value == "running" for s in event.plan.steps) else None)
-        elif isinstance(event, ToolEvent) and event.status == ToolEventStatus.CALLED:
-            if (event.function_name not in NON_BUSINESS and not event.denied_by
-                    and event.function_result and event.function_result.success):
-                self.activity = True
-        elif isinstance(event, TurnEvent) and event.phase == TurnPhase.COMPLETED:
-            if self.activity and not self.updated:
-                self.batches += 1
-            self.activity = self.updated = False
-        elif isinstance(event, ContextEvent) and event.op.value == "append":
-            action = event.plan_check
-            if any(str(m.get("content") or "").startswith(COMPLETION_FEEDBACK_PREFIX) for m in event.messages or []):
-                self.feedback_sent = True
-            if action == "scope":
-                self.corrected = self.degraded = self.noticed = self.not_needed = False
-                self.required = "scope"
-            elif action == "notice":
-                self.noticed = True
-            elif action == "corrected":
-                self.corrected = True
+                self.plan_updated |= not event.review_only
+                self.not_needed = event.progress_state == 'not_needed'
+                if self.required != 'adopted' or any(s.status.value == 'running' for s in event.plan.stages):
+                    self.required = None
+        elif isinstance(event, ContextEvent) and event.op.value == 'append':
+            self.feedback_sent |= any(str(m.get('content') or '').startswith(COMPLETION_FEEDBACK_PREFIX) for m in event.messages or [])
+            self.verification_noticed |= any(str(m.get('content') or '').startswith(VERIFICATION_NOTICE_PREFIX) for m in event.messages or [])
+            if event.plan_check == 'scope':
+                self.required, self.corrected, self.noticed = 'scope', False, False
+            elif event.plan_check == 'notice': self.noticed = True
+            elif event.plan_check == 'corrected': self.corrected = True
+        elif isinstance(event, ToolEvent) and event.status.value == 'called':
+            if event.function_name in {'shell_execute', 'browser_console_exec', 'read_file'} and not (event.function_args or {}).get('verification'):
+                self.unrecorded_calls += 1
+
+    def verification_notice(self, plan):
+        if self.verification_noticed or self.unrecorded_calls < 6 or not plan or not plan.artifacts:
+            return None
+        return VERIFICATION_NOTICE_PREFIX + '已有成果且最近多次调用未登记关键核验。若这些动作是核验，随必要业务调用附 verification 记录成果、条件和通过断言，复用同版本同条件的证据；真实缺陷定向修复，主要成果已满足时交付。普通执行无需伪造通过，不为登记另开核对调用。'
 
     def reason(self, plan):
-        if self.degraded or self.not_needed:
-            return None
-        if self.required:
-            return self.required
-        if plan and plan.steps and not self.planned and not any(s.open for s in plan.steps):
-            # 本阶段已做完：有后续阶段时延续同一计划，否则视为上一份计划已结束
-            return "staged" if any(s.deferred for s in plan.steps) else "closed"
-        if self.batches >= BATCH_THRESHOLD and (not plan or any(s.open for s in plan.steps) or not self.planned):
-            return "due"
+        if self.not_needed: return None
+        if self.required: return self.required
+        if plan and not self.planned and plan.done: return 'closed'
+        if plan and not self.planned and any(s.deferred for s in plan.stages) and not any(s.open for s in plan.stages): return 'staged'
+        if plan and not self.planned: return 'continuation'
         return None
 
     def notice(self, plan):
         reason = self.reason(plan)
-        if not reason or self.noticed:
-            return None
+        if not reason or self.noticed or (reason == 'scope' and not plan): return None
         instruction = {
-            "adopted": "用户已确认这份计划；首批业务动作前用 update_plan 选定进行中的步骤，保留步骤 id。",
-            "closed": "上一份计划已结束；本次首个写操作前建立新计划(reset=true)，或声明 action=not_needed。",
-            "staged": "上一份计划本阶段已完成，仍有后续阶段（later）；本次若延续该任务，先用 update_plan（不要 reset）保留全部条目并把下一阶段展开为子步骤，再继续；若是无关的新任务，用 reset=true 建立新计划，或声明 action=not_needed。",
-            "scope": "用户补充了要求；继续动作前核对范围，延续/调整计划，或声明本次无需计划。不要自动清空已完成项。",
-            "due": "已连续完成 3 批业务工具；继续前更新计划、用 action=review 与当前 step_id 确认仍在此步骤，或声明 action=not_needed。",
+            'adopted': '用户已确认这份清单，首批业务动作前选定当前阶段，复用阶段 id。',
+            'scope': '用户补充了要求，更新相关范围和步骤，保留有效成果；实现细节无需反复确认。',
+            'staged': '延续时复用计划，展开本次安排的阶段；无关新任务注明新目标再 reset。',
+            'closed': '原计划已经结束；延续修改时说明重新打开的原因，无关新任务才 reset。',
+            'continuation': '先判断当前用户指令是否延续既有任务。延续时复用清单并更新当前范围；无关任务用新目标 reset，或 action=not_needed 携新目标和原因。直接回答无需计划。',
         }[reason]
-        current = ([{"id": s.id, "step": s.description, "status": s.status.value} for s in plan.steps] if plan else [])
-        return (f"{PLAN_PROGRESS_PREFIX} {instruction} 可先核对再在同一回复中执行动作；若本次工作已经完成，直接最终答复，无需为核对追加工具。"
-                f"不要虚报完成。当前清单：{current}")
+        return PLAN_PROGRESS_PREFIX + instruction + ' 可以与业务动作同批更新；直接回答无需额外核对。'
 
     def blocks(self, calls, plan):
         reason = self.reason(plan)
-        if not reason:
-            return False
-        from app.domain.services.plan_mode import PLAN_MODE_ALLOWED
-        names = [c["function"]["name"] for c in calls if c["function"]["name"] not in NON_BUSINESS]
-        return any(name not in PLAN_MODE_ALLOWED for name in names) if reason in ("closed", "staged") else bool(names)
+        if reason not in ('adopted', 'scope', 'staged', 'closed', 'continuation'): return False
+        return any(c['function']['name'] not in NON_BUSINESS for c in calls)
 
-    def missing(self, plan):
-        return not self.planned and not (plan and any(s.open for s in plan.steps))
-
-    def due(self, plan):
-        return self.reason(plan) is not None
+    def due(self, plan): return self.reason(plan) is not None
+    def missing(self, plan): return not self.planned and not plan

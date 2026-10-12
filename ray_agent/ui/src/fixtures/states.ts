@@ -171,8 +171,8 @@ export const planStates = {
     ...planInProgress,
     items: [
       ...planInProgress.items.slice(0, 2).map((item) => ({...item, status: 'completed' as const, completedAt: planInProgress.updatedAt + 1000})),
-      {id: 'synthetic-later-1', text: '后续阶段一', status: 'later', startedAt: null, completedAt: null},
-      {id: 'synthetic-later-2', text: '后续阶段二', status: 'later', startedAt: null, completedAt: null},
+      {id: 'synthetic-later-1', text: '后续阶段一', status: 'pending', schedule: 'future', startedAt: null, completedAt: null},
+      {id: 'synthetic-later-2', text: '后续阶段二', status: 'pending', schedule: 'future', startedAt: null, completedAt: null},
     ],
     currentIndex: null,
     completedCount: 2,

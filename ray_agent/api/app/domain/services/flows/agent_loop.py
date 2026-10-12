@@ -60,7 +60,7 @@ from app.domain.services.context.compactor import CompactionStatus, Compactor
 from app.domain.services.context.shaping import ResultShaper, WriteOutputFn
 from app.domain.models.plan import ExecutionStatus, Plan
 from app.domain.services.plan_progress import (
-    COMPLETION_FEEDBACK_PREFIX, INTERNAL_CHECK_NOTE, OPEN_ITEMS_ISSUE, PlanProgress, PLAN_PROGRESS_PREFIX, staged_feedback,
+    COMPLETION_FEEDBACK_PREFIX, INTERNAL_CHECK_NOTE, OPEN_ITEMS_ISSUE, PlanProgress, PLAN_PROGRESS_PREFIX, TASK_STATE_PREFIX, staged_feedback,
 )
 from app.domain.services.plan_mode import PlanModeGuard
 from app.domain.services.prompts.plan_mode import PLAN_MODE_SUFFIX
@@ -328,7 +328,9 @@ class AgentLoop(BaseFlow):
         self._delivery_state = None
         self._delivery_failures = set()
         self._plan_changed = False
+        self._task_active = False
         self._completed_before: set = set()
+        self._task_context = None
         self.model_requests = 0  # 本次调用已发出的模型请求数（含重试与摘要请求）
         self.budget_used = 0  # 计入 max_iterations 的请求数，口径见 run_budget
         self._budget_phase = BudgetPhase.NORMAL
@@ -348,9 +350,13 @@ class AgentLoop(BaseFlow):
         self._compactor = Compactor(llm, agent_config, retry_interval, label=f"会话[{session_id}]")
 
         self.plan_tool = PlanTool()
+        from app.domain.services.task_outcomes import TaskOutcomes, ArtifactWriter
+        sandbox = next((t.sandbox for t in tools if isinstance(t, FileTool)), None)
+        self._outcomes = TaskOutcomes(self.plan_tool, sandbox)
         toolkits = [*tools, self.plan_tool]
+        if sandbox is not None: toolkits.append(ArtifactWriter(self._outcomes))
         if deliver_file is not None:
-            toolkits.append(DeliverTool(deliver_file))
+            toolkits.append(DeliverTool(deliver_file, self._outcomes.existing_delivery))
         self.pipeline = ToolPipeline(toolkits)
         # 计划模式的检查在策略之前：被拒绝的调用不会进入审批
         self._plan_guard = PlanModeGuard()
@@ -359,10 +365,12 @@ class AgentLoop(BaseFlow):
         self.pipeline.add_before(self._finalize_guard)
         self._policy_guard = ToolPolicyGuard(tool_policy)
         self.pipeline.add_before(self._policy_guard)
+        self.pipeline.add_before(self._outcomes.before)
         self._mode = RunMode.NORMAL
         self.mode = mode
         self.pipeline.add_after(self._emit_plan_event)
         self.pipeline.add_after(self._record_delivery_state)
+        self.pipeline.add_after(self._outcomes.after)
         self.pipeline.add_after(self._emit_delivery_message)
         # 整形放在最后：前面的处理函数读的是工具的原始结果
         self.pipeline.add_after(ResultShaper(agent_config.tool_result_max_chars, write_output))
@@ -472,11 +480,14 @@ class AgentLoop(BaseFlow):
         self._delivery_failures.clear()
         self._delivery_required=False
         self._plan_changed=False
+        self._task_active=False
         self._plan_progress = PlanProgress()
 
     def _set_budget_phase(self, phase: BudgetPhase) -> None:
         self._budget_phase = phase
+        self.plan_tool.finalizing = phase == BudgetPhase.FINALIZE
         self._finalize_guard.enabled = phase == BudgetPhase.FINALIZE
+        if phase == BudgetPhase.FINALIZE: self._outcomes.freeze(f"{getattr(self, 'run_id', '')}:{self.plan_tool.current_user_seq}")
 
     def _noticed_budget_phase(self) -> BudgetPhase:
         """最近一条用户原话之后已注入的预算阶段；截断与结束核对等循环自己追加的 user 消息跳过。"""
@@ -487,7 +498,7 @@ class AgentLoop(BaseFlow):
             phase = noticed_phase(content)
             if phase is not None:
                 return phase
-            if content == TRUNCATION_PROMPT or content.startswith((COMPLETION_FEEDBACK_PREFIX, PLAN_PROGRESS_PREFIX)):
+            if content == TRUNCATION_PROMPT or content.startswith((COMPLETION_FEEDBACK_PREFIX, PLAN_PROGRESS_PREFIX, TASK_STATE_PREFIX, '[系统提示]')):
                 continue
             return BudgetPhase.NORMAL
         return BudgetPhase.NORMAL
@@ -526,6 +537,11 @@ class AgentLoop(BaseFlow):
         # 本次运行之前已完成的步骤；后续阶段反馈只看本次运行新完成的步骤
         earlier = latest_plan([e for e in history if run_id is not None and getattr(e, "run_id", None) != run_id])
         self._completed_before = {s.id for s in earlier.steps if s.status == ExecutionStatus.COMPLETED} if earlier else set()
+        async with self._uow_factory() as uow:
+            user_events = await uow.event.list(self._session_id, types=["message"])
+        self.plan_tool.user_seqs = {e.seq for e in user_events if isinstance(e, MessageEvent) and e.role == 'user' and e.seq is not None}
+        self.plan_tool.current_user_seq = max(self.plan_tool.user_seqs, default=None)
+        self.plan_tool.plan_mode = self.mode == RunMode.PLAN
         self._session_status = session.status
         self._plan_progress = PlanProgress()
         for event in progress_history:
@@ -609,6 +625,10 @@ class AgentLoop(BaseFlow):
                         event.plan_check = "scope"
                         self._plan_progress.observe(event)
                         yield event
+                    async with self._uow_factory() as uow:
+                        sources = await uow.event.list(self._session_id, types=['message'])
+                    self.plan_tool.user_seqs = {e.seq for e in sources if isinstance(e, MessageEvent) and e.role == 'user' and e.seq is not None}
+                    self.plan_tool.current_user_seq = max(self.plan_tool.user_seqs, default=None)
                     self.budget_used = 0
                     self._set_budget_phase(BudgetPhase.NORMAL)
 
@@ -623,6 +643,15 @@ class AgentLoop(BaseFlow):
                     self._plan_progress.observe(event)
                     yield event
 
+            self.plan_tool.adopted = self._plan_progress.required == 'adopted'
+            verification_notice = self._plan_progress.verification_notice(self.plan_tool.latest_plan)
+            if verification_notice and self.mode != RunMode.PLAN:
+                await self._add_messages([{'role': 'user', 'content': verification_notice}])
+                for event in self._take_context():
+                    self._plan_progress.observe(event)
+                    yield event
+            async for event in self._sync_task_state():
+                yield event
             async for event in self._advance_budget():
                 yield event
             if self.budget_used >= self._config.max_iterations:
@@ -676,13 +705,22 @@ class AgentLoop(BaseFlow):
                 yield event
             content = (assistant.get("content") or "").strip()
             calls = assistant.get("tool_calls") or []
+            plan = self.plan_tool.latest_plan
+            active_scope = not self._plan_progress.not_needed and (self._plan_changed or self._task_active or self.plan_tool.adopted)
             if not calls and self.mode != RunMode.PLAN:
                 issues=[]
                 if (self._delivery_required and self._delivery_state != 'complete') or self._delivery_failures:
                     issues.append('文件交付尚未完整成功；核对工具结果，只补交失败项')
                 plan=self.plan_tool.latest_plan
-                if self._plan_changed and not self._plan_progress.not_needed and plan and any(step.open for step in plan.steps):
+                if active_scope and plan and any(step.open for step in plan.stages):
                     issues.append(OPEN_ITEMS_ISSUE)
+                if active_scope and plan:
+                    missing = plan.missing_artifacts()
+                    if missing:
+                        issues.append('本次必要文件尚未全部交付：' + '、'.join(a.name for a in missing))
+                    failed_checks = self._outcomes.failed_checks()
+                    if failed_checks:
+                        issues.append('当前成果的关键核验未通过：' + '；'.join(c.condition for c in failed_checks))
                 # 反馈共用一次机会；预算已用尽时再请求只会让已有答复丢失，不发
                 can_feedback = self._completion_feedbacks < 1 and self.budget_used < self._config.max_iterations
                 staged = bool(can_feedback and self._plan_progress.plan_updated and not self._plan_progress.not_needed
@@ -700,13 +738,31 @@ class AgentLoop(BaseFlow):
                         yield event
                     continue
                 if issues:
-                    content += '\n\n执行记录仍有未完成项：'+'；'.join(issues)+'。请以上述工具事实为准。'
+                    gaps = []
+                    if active_scope and plan:
+                        gaps += ['尚未交付：' + a.name for a in plan.missing_artifacts()]
+                        gaps += ['尚未完成：' + s.description + ('（' + s.reason + '）' if s.reason else '')
+                                 for s in plan.stages if s.open]
+                        gaps += ['核验未通过：' + c.condition for c in self._outcomes.failed_checks()]
+                    if self._delivery_failures:
+                        gaps += ['文件交付失败：' + failure for failure in sorted(self._delivery_failures)]
+                    if not gaps:
+                        gaps.append('所需文件尚未完整交付')
+                    content += '\n\n本次仍有缺口：\n\n' + '\n'.join('- ' + gap for gap in gaps)
             if content:
                 yield MessageEvent(role="assistant", message=content, attempt=turn.attempts)
             if not calls:
+                if active_scope:
+                    reply_event = self._outcomes.reply_delivered(content)
+                    if reply_event is not None:
+                        yield reply_event
                 yield self._turn_completed(turn)
                 self.end_reason = RunEndReason.COMPLETED
-                yield DoneEvent()
+                missing = plan.missing_artifacts() if plan and active_scope and self.mode != RunMode.PLAN else []
+                incomplete = [s.description for s in plan.stages if s.open] if plan and active_scope and self.mode != RunMode.PLAN else []
+                failures = ['核验未通过：' + c.condition for c in self._outcomes.failed_checks()] if active_scope and self.mode != RunMode.PLAN else []
+                yield DoneEvent(outcome='partial' if missing or incomplete or failures else 'complete',
+                                missing=[a.name for a in missing] + incomplete + failures)
                 return
 
             # 允许先核对再在同批执行；不把后置核对提前到业务动作之前。
@@ -719,7 +775,7 @@ class AgentLoop(BaseFlow):
                         yield event
                 if self._plan_progress.blocks(calls, self.plan_tool.latest_plan):
                     if not self._plan_progress.corrected:
-                        reason = "计划尚未核对，本批调用未执行；请先用 update_plan 更新/核对当前步骤或声明无需计划，再重新决定动作。"
+                        reason = "范围尚未承接，本批业务调用未执行；请先更新当前阶段及范围，再同批继续动作。"
                         async for event in self._skip_calls(calls, reason, turn):
                             yield event
                         await self._add_messages([{"role": "user", "content": PLAN_PROGRESS_PREFIX + reason}])
@@ -729,10 +785,6 @@ class AgentLoop(BaseFlow):
                             yield event
                         yield self._turn_completed(turn)
                         continue
-                    event = PlanEvent(plan=self.plan_tool.latest_plan.model_copy(deep=True) if self.plan_tool.latest_plan else Plan(steps=[]),
-                                      progress_state="unconfirmed", review_only=True)
-                    self._plan_progress.observe(event)
-                    yield event
             independent = await self._independent_reads(calls)
             if independent:
                 started = time.monotonic()
@@ -1030,8 +1082,11 @@ class AgentLoop(BaseFlow):
     # ---- 执行后处理 ----
 
     async def _emit_plan_event(self, invocation: ToolInvocation, result: ToolResult) -> ToolResult:
+        if not invocation.short_circuited and invocation.function_name not in {'update_plan','message_ask_user','discover_mcp_tools','get_remote_agent_cards'}:
+            self._task_active = True
         if invocation.function_name == UPDATE_PLAN_TOOL and not invocation.short_circuited and result.success:
             action = invocation.arguments.get("action", "update")
+            self.plan_tool.adopted = self._plan_progress.required == "adopted"
             # 已确认的清单必须先选定步骤；不能以“无需计划”取消用户的结构化确认。
             if action == "not_needed" and self._plan_progress.required == "adopted":
                 return ToolResult(success=False, message="用户已确认这份清单；请先选定当前步骤。范围改变时更新计划并说明原因。")
@@ -1075,7 +1130,7 @@ class AgentLoop(BaseFlow):
             return result
         if invocation.function_name != DELIVER_FILES_TOOL or not isinstance(result.data, DeliveryResult):
             return result
-        files = result.data.files
+        files = [item.file for item in result.data.items if item.success and item.file and not item.reused]
         if files:
             names = "、".join(file.filename or file.filepath for file in files)
             message = result.data.note or f"已交付文件：{names}"
@@ -1193,11 +1248,27 @@ class AgentLoop(BaseFlow):
             self._capacity_error = f"上下文压缩的摘要请求连续 {result.usage.attempts} 次失败或返回空内容，未压缩历史"
             return
         self._memory.replace(result.messages)
+        self._task_context = None
         self.budget.reset()
         self._pending_context.append(result.context)
         async with self._uow:
             await self._uow.session.save_memory(self._session_id, AGENT_MEMORY_NAME, self._memory)
         yield result.compact
+        for event in self._take_context():
+            yield event
+        async for event in self._sync_task_state():
+            yield event
+
+    async def _sync_task_state(self) -> AsyncGenerator[BaseEvent, None]:
+        context = self._outcomes.context() if not self._plan_progress.not_needed else None
+        if context is None:
+            return
+        state = json.dumps(context, ensure_ascii=False)
+        if state == self._task_context:
+            return
+        self._task_context = state
+        await self._add_messages([{'role': 'user', 'content': TASK_STATE_PREFIX + state +
+            '\n这是既有任务的内部事实，不自动授权本次继续；当前真实用户指令优先。阶段完成为模型声明，checks 区分实际执行和断言通过。继续时围绕原目标；交付时总结累计成果和真实缺口，保留所需正文。'}])
         for event in self._take_context():
             yield event
 

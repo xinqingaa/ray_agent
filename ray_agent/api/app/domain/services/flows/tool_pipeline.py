@@ -14,6 +14,7 @@
 挂起（如等待审批）时管线只发出 ``suspend_event``，不执行、不运行执行后处理、不产生结果，由循环结束本次调用。
 """
 import json
+import copy
 import asyncio
 import logging
 import time
@@ -45,6 +46,8 @@ class ToolInvocation:
     raw_result: Optional[ToolResult] = None  # 执行后处理之前的结果
     shaping: Optional[ToolResultShaping] = None  # 结果整形处理函数写入
     events: List[BaseEvent] = field(default_factory=list)
+    verification: Optional[dict] = None
+    verified_version: Optional[str] = None
     approval: Optional[str] = None  # 用户对本次调用的审批结果（ApprovalStatus 取值），续接审批时由循环写入
     suspend_event: Optional[BaseEvent] = None  # 执行前处理写入即挂起
     denied_by: Optional[str] = None  # 短路原因：policy（策略禁止）/ user（用户拒绝）/ plan_mode（计划模式不允许）/ budget（收尾阶段不允许）
@@ -63,7 +66,7 @@ class ToolInvocation:
             tool_call_id=self.call_id,
             tool_name=self.toolkit_name,
             function_name=self.function_name,
-            function_args=self.arguments,
+            function_args={**self.arguments, **({"verification": self.verification} if self.verification else {})},
             function_result=result,
             status=status,
             duration_ms=self.duration_ms if called else None,
@@ -160,7 +163,13 @@ class ToolPipeline:
     def schemas(self) -> List[Dict[str, Any]]:
         schemas: List[Dict[str, Any]] = []
         for toolkit in self._tools:
-            schemas.extend(toolkit.get_tools())
+            entries = copy.deepcopy(toolkit.get_tools())
+            from app.domain.services.task_outcomes import VERIFICATION_SCHEMA, VERIFICATION_TOOLS
+            for entry in entries:
+                fn = entry['function']
+                if toolkit.name in ('file', 'shell', 'browser') and fn['name'] in VERIFICATION_TOOLS:
+                    fn['parameters']['properties']['verification'] = VERIFICATION_SCHEMA
+            schemas.extend(entries)
         return schemas
 
     def find_toolkit(self, function_name: str) -> Optional[BaseTool]:
@@ -277,6 +286,9 @@ class ToolPipeline:
     async def _parse_arguments(invocation: ToolInvocation) -> Optional[ToolResult]:
         try:
             invocation.arguments = parse_arguments(invocation.raw_arguments)
+            from app.domain.services.task_outcomes import VERIFICATION_TOOLS
+            if invocation.toolkit_name in ('file','shell','browser') and invocation.function_name in VERIFICATION_TOOLS:
+                invocation.verification = invocation.arguments.pop('verification', None)
         except ValueError as e:
             invocation.arguments = {}
             return ToolResult(success=False, message=f"{e}。请修正参数后重新调用")

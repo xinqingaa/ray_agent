@@ -43,6 +43,7 @@ class ProjectDeliveryService:
                     raise ConflictError('项目文件操作尚未结束，不能交付')
                 copy = await uow.project.file_copy(project_id, key)
                 file = await uow.file.get_by_id(copy.attachment_id) if copy else None
+            reused = copy is not None
             if not copy:
                 checked = await sandbox.check_file_exists(source_path)
                 info = checked.data if isinstance(checked.data, dict) else {}
@@ -55,47 +56,55 @@ class ProjectDeliveryService:
                 source = await sandbox.download_file(resolved)
                 try:
                     (digest, size), cancelled = await run_file_io(self._digest, source)
-                    file, was_cancelled = await run_async_io(self.file_storage.upload_file(UploadFile(file=source, filename=PurePosixPath(source_path).name, size=size)))
-                    cancelled |= was_cancelled
+                    # 同会话、同来源和实际字节复用附件，只补未完成的项目副本。
+                    async with self.factory() as uow:
+                        old = await uow.session.get_file_by_path(session_id, source_path)
+                        candidates = await uow.project.file_copies(project_id) if old and old.sha256 == digest else []
+                        copy = next((c for c in candidates if c.kind == 'delivery' and c.attachment_id == old.id
+                                     and c.session_id == session_id and c.source_path == source_path and c.resolved_path == resolved
+                                     and c.sha256 == digest and c.size == size), None)
+                    if copy:
+                        file, key, reused = old, copy.copy_key, True
+                    else:
+                        file, was_cancelled = await run_async_io(self.file_storage.upload_file(UploadFile(file=source, filename=PurePosixPath(source_path).name, size=size)))
+                        cancelled |= was_cancelled
                 finally:
                     source.close()
-                measured_size = None
-                if relative:
-                    measured_size, was_cancelled = await run_file_io(self.files.file_io(project_id).size)
-                    cancelled |= was_cancelled
-                file.filepath, file.sha256, file.size = source_path, digest, size
-                copy = ProjectFileCopy(project_id=project_id, copy_key=key, kind='delivery', attachment_id=file.id,
-                    session_id=session_id, run_id=run_id, source_path=source_path, resolved_path=resolved, tool_call_id=call_id,
-                    path=relative, sha256=digest, size=size, state='ready' if relative else 'pending')
-                async with self.factory() as uow:
-                    project = await uow.project.get(project_id, lock=True)
-                    if measured_size is not None:
-                        project.files_size, project.files_size_at, project.files_size_stale = measured_size, datetime.now(), False
-                        await uow.project.save(project)
-                    old = await uow.session.get_file_by_path(session_id, source_path)
-                    await uow.file.save(file)
-                    if old:
-                        await uow.session.remove_file(session_id, old.id)
-                    await uow.session.add_file(session_id, file)
-                    await uow.project.save_file_copy(copy)
-                    await uow.project.audit(project_id, 'delivery_accepted', copy.model_dump(mode='json'))
+                if not copy:
+                    measured_size = None
+                    if relative:
+                        measured_size, was_cancelled = await run_file_io(self.files.file_io(project_id).size)
+                        cancelled |= was_cancelled
+                    file.filepath, file.sha256, file.size = source_path, digest, size
+                    copy = ProjectFileCopy(project_id=project_id, copy_key=key, kind='delivery', attachment_id=file.id,
+                        session_id=session_id, run_id=run_id, source_path=source_path, resolved_path=resolved, tool_call_id=call_id,
+                        path=relative, sha256=digest, size=size, state='ready' if relative else 'pending')
+                    async with self.factory() as uow:
+                        project = await uow.project.get(project_id, lock=True)
+                        if measured_size is not None:
+                            project.files_size, project.files_size_at, project.files_size_stale = measured_size, datetime.now(), False
+                            await uow.project.save(project)
+                        await uow.file.save(file)
+                        await uow.session.add_file(session_id, file)
+                        await uow.project.save_file_copy(copy)
+                        await uow.project.audit(project_id, 'delivery_accepted', copy.model_dump(mode='json'))
                 if cancelled:
                     raise asyncio.CancelledError()
             if file is None:
                 raise NotFoundError('已有交付附件不可用；不会重新执行整次交付')
             if copy.state == 'ready':
-                return self.delivered(file, self.result(copy))
+                return self.delivered(file, self.result(copy), reused=reused)
             try:
                 copy = await self._persist(copy)
-                return self.delivered(file, self.result(copy))
+                return self.delivered(file, self.result(copy), reused=reused)
             except Exception as exc:
                 await self._record_failure(copy, exc)
                 return self.delivered(file, {'state':'failed', 'copy_key':key, 'path':copy.path,
-                    'error':str(exc) or type(exc).__name__, 'can_retry':True})
+                    'error':str(exc) or type(exc).__name__, 'can_retry':True}, reused=reused)
 
     @staticmethod
-    def delivered(file, status):
-        return DeliveredFile(file=file.model_copy(update={'project_persistence':status}), project=status)
+    def delivered(file, status, reused=False):
+        return DeliveredFile(file=file.model_copy(update={'project_persistence':status}), project=status, reused=reused)
 
     @staticmethod
     def result(copy):

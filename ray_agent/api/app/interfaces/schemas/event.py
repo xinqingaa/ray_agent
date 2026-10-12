@@ -117,6 +117,10 @@ class StepEventData(BaseEventData):
     id: str  # 步骤id
     status: ExecutionStatus  # 步骤执行状态
     description: str  # 步骤描述
+    kind: str = "stage"
+    parent_id: Optional[str] = None
+    schedule: str = "current"
+    reason: str = ""
 
 
 class StepSSEEvent(BaseSSEEvent):
@@ -131,13 +135,22 @@ class StepSSEEvent(BaseSSEEvent):
                 **BaseEventData.base_event_data(event),
                 status=event.step.status,
                 id=event.step.id,
-                description=event.step.description
+                description=event.step.description,
+                kind=event.step.kind,
+                parent_id=event.step.parent_id,
+                schedule=event.step.schedule,
+                reason=event.step.reason,
             )
         )
 
 
 class PlanEventData(BaseEventData):
     plan_id: str
+    title: str = ""
+    description: str = ""
+    goal: str = ""
+    scope: str = ""
+    artifacts: List[dict] = Field(default_factory=list)
     progress_state: str = "confirmed"
     review_only: bool = False
     accepted_from: Optional[dict] = None
@@ -156,7 +169,9 @@ class PlanSSEEvent(BaseSSEEvent):
         return cls(
             data=PlanEventData(
                 **BaseEventData.base_event_data(event),
-                plan_id=event.plan.id,
+                plan_id=event.plan.id, title=event.plan.title, description=event.plan.description,
+                goal=event.plan.goal, scope=event.plan.scope,
+                artifacts=[a.model_dump() for a in event.plan.artifacts],
                 progress_state=event.progress_state,
                 review_only=event.review_only,
                 accepted_from=event.accepted_from.model_dump() if event.accepted_from else None,
@@ -166,7 +181,8 @@ class PlanSSEEvent(BaseSSEEvent):
                         **BaseEventData.base_event_data(event),
                         id=step.id,
                         status=step.status,
-                        description=step.description,
+                        description=step.description, kind=step.kind, parent_id=step.parent_id,
+                        schedule=step.schedule, reason=step.reason,
                     )
                     for step in event.plan.steps
                 ]
@@ -186,7 +202,7 @@ class ToolEventData(BaseEventData):
     stages_ms: Dict[str, int] = Field(default_factory=dict)
     shaping: Optional[ToolResultShaping] = None  # 结果被整形时：原始字符数、是否截断、完整内容路径
     # 未执行：被工具策略禁止 / 被用户拒绝 / 计划模式不允许 / 预算收尾阶段不允许，只在 called 上
-    denied_by: Optional[Literal["policy", "user", "plan_mode", "budget", "batch"]] = None
+    denied_by: Optional[Literal["policy", "user", "plan_mode", "budget", "batch", "verification_cache", "verification_limit"]] = None
 
 
 class ToolSSEEvent(BaseSSEEvent):
@@ -249,9 +265,19 @@ class ApprovalSSEEvent(BaseSSEEvent):
         )
 
 
+class DoneEventData(BaseEventData):
+    outcome: str = "complete"
+    missing: List[str] = Field(default_factory=list)
+
+
 class DoneSSEEvent(BaseSSEEvent):
     """停止流式事件"""
     event: Literal["done"] = "done"
+    data: DoneEventData
+
+    @classmethod
+    def from_event(cls, event):
+        return cls(data=DoneEventData(**BaseEventData.base_event_data(event), outcome=event.outcome, missing=event.missing))
 
 
 class WaitSSEEvent(BaseSSEEvent):

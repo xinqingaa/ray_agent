@@ -582,3 +582,25 @@ def test_plan_acceptance_atomic_replay_stale_and_concurrent_requests():
         with pytest.raises(PlanAcceptanceConflict):
             await ledger.start(other.id, events_after=[MessageEvent(role='user',message='执行')], execute_plan=ref)
     with_db(scenario)
+
+
+def test_hierarchical_plan_artifacts_checks_and_partial_done_round_trip():
+    from app.domain.models.event import PlanEvent
+    from app.domain.models.plan import Artifact, ExecutionStatus, Plan, Step, Verification
+    async def scenario(factory, engine):
+        session = await new_session(factory, 'pg-task-state')
+        ledger = RunLedger(factory)
+        active = await ledger.start(session.id)
+        plan = Plan(title='简短标题', description='一句任务说明', goal='整体目标与完整要求', scope='本轮范围', source_seq=1,
+            steps=[Step(id='stage', description='稳定阶段', status=ExecutionStatus.RUNNING),
+                   Step(id='child', kind='step', parent_id='stage', description='所属步骤')],
+            artifacts=[Artifact(id='output', name='文件成果', path='/a', version='actual-version', state='generated')],
+            verifications=[Verification(key='check', artifact_id='output', condition='预期条件', version='actual-version', call_id='call', state='passed')])
+        await ledger.transition(session.id, active.id, RunStatus.COMPLETED,
+            events_after=[PlanEvent(plan=plan), DoneEvent(outcome='partial', missing=['文件成果'])])
+        _, _, events = await read(factory, session.id)
+        stored = next(e for e in events if isinstance(e, PlanEvent))
+        assert stored.plan.model_dump() == plan.model_dump()
+        done = next(e for e in events if isinstance(e, DoneEvent))
+        assert done.outcome == 'partial' and done.missing == ['文件成果']
+    with_db(scenario)

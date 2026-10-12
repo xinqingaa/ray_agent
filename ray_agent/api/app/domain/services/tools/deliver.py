@@ -15,6 +15,7 @@ DELIVER_FILES_TOOL = "deliver_files"
 class DeliveredFile(BaseModel):
     file: File
     project: Optional[dict] = None
+    reused: bool = False
 
 
 DeliverFileFn = Callable[[str], Awaitable[Union[File, DeliveredFile]]]
@@ -23,6 +24,7 @@ DeliverFileFn = Callable[[str], Awaitable[Union[File, DeliveredFile]]]
 class DeliveryItem(BaseModel):
     """单个路径的交付结果：success 为 True 时 file 有值，否则 error 说明原因。"""
     path: str
+    reused: bool = False
     success: bool
     file: Optional[File] = None
     error: Optional[str] = None
@@ -37,15 +39,16 @@ class DeliveryResult(BaseModel):
 
     @property
     def files(self) -> List[File]:
-        return [item.file for item in self.items if item.success and item.file is not None]
+        return list({item.file.id: item.file for item in self.items if item.success and item.file is not None}.values())
 
 
 class DeliverTool(BaseTool):
     name: str = "deliver"
 
-    def __init__(self, deliver_file: DeliverFileFn) -> None:
+    def __init__(self, deliver_file: DeliverFileFn, existing_delivery=None) -> None:
         super().__init__()
         self._deliver_file = deliver_file
+        self._existing_delivery = existing_delivery
 
     @tool(
         name=DELIVER_FILES_TOOL,
@@ -76,21 +79,27 @@ class DeliverTool(BaseTool):
                 items.append(DeliveryItem(path=str(path), success=False, error="路径必须是沙箱中的绝对路径"))
                 continue
             try:
-                file = await self._deliver_file(path)
+                file = await self._existing_delivery(path) if self._existing_delivery else None
+                reused = file is not None
+                if file is None: file = await self._deliver_file(path)
             except Exception as e:
                 items.append(DeliveryItem(path=path, success=False, error=str(e) or type(e).__name__))
                 continue
             if isinstance(file, DeliveredFile):
-                items.append(DeliveryItem(path=path, success=True, file=file.file, project=file.project))
+                repeated = any(i.file and i.file.id == file.file.id for i in items)
+                items.append(DeliveryItem(path=path, reused=reused or file.reused or repeated, success=True, file=file.file, project=file.project))
             else:
-                items.append(DeliveryItem(path=path, success=True, file=file))
+                repeated = any(i.file and i.file.id == file.id for i in items)
+                items.append(DeliveryItem(path=path, reused=reused or repeated, success=True, file=file))
 
         project_failed = [item for item in items if item.project and item.project.get('state') == 'failed']
         count = sum(item.success for item in items)
         result = DeliveryResult(items=items, note=note, state='complete' if count == len(items) and not project_failed else 'partial' if count else 'failed')
         delivered = len(result.files)
         failed = [f"{item.path}（{item.error}）" for item in items if not item.success]
-        message = f"已交付 {delivered}/{len(items)} 个文件"
+        message = f"已交付 {delivered}/{len({str(path) for path in paths})} 个文件"
+        reused_count = sum(i.reused for i in items)
+        if reused_count: message += f"；复用已有交付 {reused_count} 项"
         if failed:
             message += "；失败：" + "；".join(failed)
         project_failed = [item for item in items if item.project and item.project.get('state') == 'failed']

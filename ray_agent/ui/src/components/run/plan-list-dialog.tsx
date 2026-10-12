@@ -18,7 +18,7 @@ export function PlanChecklist({plans, runs}: {plans: PlanHistoryEntry[]; runs: R
   const active = !!run && ['running', 'waiting'].includes(run.status) && selected === plans.at(-1)
     && plan?.progressState === 'confirmed'
   const notice = run?.status === 'cancelled' ? '已停止' : run?.status === 'failed' ? '执行失败'
-    : run?.status === 'interrupted' ? '执行中断' : plan?.progressState === 'unconfirmed' ? '进度未确认' : null
+    : run?.status === 'interrupted' ? '执行中断' : null
 
   const ended = !!run && !['running', 'waiting'].includes(run.status) && run.mode !== 'plan'
 
@@ -32,7 +32,7 @@ export function PlanChecklist({plans, runs}: {plans: PlanHistoryEntry[]; runs: R
       {notice && <span className="ml-auto text-xs text-muted-foreground">{notice}</span>}
     </div>}
     <div className="min-h-0 overflow-y-auto overscroll-contain">
-      {plan ? <PlanContent plan={plan} active={active} ended={ended} showExplanation={false}/>
+      {plan ? <PlanContent plan={plan} active={active} ended={ended}/>
         : <p className="py-8 text-center text-sm text-muted-foreground">当前对话暂无计划清单</p>}
     </div>
   </>

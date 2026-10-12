@@ -86,7 +86,7 @@ def user_origins(summarized: Messages) -> List[UserOrigin]:
             if message.get("_ray_visual"):
                 continue
             content = content_text(message.get("content"))
-            if content and not is_summary_message(message) and not content.startswith(SYSTEM_NOTICE_PREFIX):
+            if content and not is_summary_message(message) and not content.startswith((SYSTEM_NOTICE_PREFIX, "[计划核对]", "[运行预算]", "[任务状态]", "结束前一致性核对：")):
                 origins.append(UserOrigin(content=content))
             continue
         reply = _ask_reply(message)
@@ -136,7 +136,7 @@ def _entry(message: Dict[str, Any]) -> str:
     role = message.get("role")
     content = content_text(message.get("content"))
     if role == "user":
-        label = "浏览器图像观察" if message.get("_ray_visual") else "上一次摘要" if is_summary_message(message) else "用户"
+        label = "浏览器图像观察" if message.get("_ray_visual") else "上一次摘要" if is_summary_message(message) else "内部运行信息" if content.startswith((SYSTEM_NOTICE_PREFIX, "[计划核对]", "[运行预算]", "[任务状态]", "结束前一致性核对：")) else "用户"
         return f"[{label}]\n{_clip(content, USER_ENTRY_MAX_CHARS * (3 if label == '上一次摘要' else 1))}"
     if role == "assistant":
         lines = [f"[助手]\n{_clip(content, ENTRY_MAX_CHARS)}" if content.strip() else "[助手]"]

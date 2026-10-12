@@ -72,7 +72,7 @@ def test_reminder_then_finalize_restricts_tools_and_still_delivers_and_completes
     events = run(collect(h.loop))
 
     assert h.loop.end_reason == RunEndReason.COMPLETED
-    assert h.recording.calls == [f"echo:{i}" for i in range(1, 9) if i != 4]
+    assert h.recording.calls == [f"echo:{i}" for i in range(1, 9)]
     requests = h.llm.requests
     assert len(requests) == 10
     # 提示追加在记忆里，系统消息逐次相同，缓存前缀不变
@@ -98,7 +98,7 @@ def test_reaching_limit_keeps_max_iterations_and_offers_continue():
     assert h.llm.call_count == 10
     assert "max_iterations" in events[-1].error and "继续" in events[-1].error
     # 收尾阶段的 echo 被拒绝，不执行
-    assert h.recording.calls == [f"echo:{i}" for i in range(1, 9) if i != 4]
+    assert h.recording.calls == [f"echo:{i}" for i in range(1, 9)]
 
 
 def test_injected_user_message_resets_budget():
@@ -114,7 +114,7 @@ def test_injected_user_message_resets_budget():
     run(collect(h.loop, drain_injected_messages=drain))
 
     assert h.loop.end_reason == RunEndReason.COMPLETED
-    assert h.recording.calls == [f"echo:{i}" for i in range(1, 13) if i not in (4, 6)]
+    assert h.recording.calls == [f"echo:{i}" for i in range(1, 13) if i != 6]
     found = notices(memory_messages(h.session))
     assert len(found) == 1 and "7/10" in found[0]
     assert h.llm.requests[12].messages[-1]["content"] == found[0]
@@ -163,3 +163,15 @@ def test_shell_wait_merges_output_on_finish_and_timeout_and_passes_other_failure
     sandbox.wait_process.return_value = missing
     assert run(shell.shell_wait_process("s", 5)) is missing
     sandbox.read_shell_output.assert_not_awaited()
+
+
+def test_internal_task_state_and_check_notice_do_not_reset_restored_budget_phase():
+    from app.domain.models.memory import Memory
+    h = make_loop([])
+    h.loop._memory = Memory(messages=[
+        {'role':'user','content':'真实任务'},
+        {'role':'user','content':budget_notice(BudgetPhase.FINALIZE,90,100)},
+        {'role':'user','content':'[任务状态]最新成果事实'},
+        {'role':'user','content':'[系统提示]核验记录提醒：内部状态'},
+    ])
+    assert h.loop._noticed_budget_phase() == BudgetPhase.FINALIZE

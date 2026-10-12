@@ -63,6 +63,7 @@ type SidebarProps = {
 }
 
 type HeadlineProps = {
+  outcome?: string
   place: 'headline'
   status?: RunState | null
   compacting: boolean
@@ -234,7 +235,7 @@ export function RunStatus(props: RunStatusProps): ReactNode {
       if (props.compacting || props.status !== 'completed') return null
       return (
         <span role="status" className={cn('shrink-0 text-xs text-muted-foreground', props.className)}>
-          {TEXT.completed}
+          {props.outcome === 'partial' ? '仍有未完成项' : TEXT.completed}
         </span>
       )
     }

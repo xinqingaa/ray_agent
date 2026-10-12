@@ -38,12 +38,16 @@ def test_live_and_history_projection_preserves_correlation_but_omits_internal_re
     assert restored[1].function_result.success is False
 
 
-def test_plan_projection_supplies_identity_without_goal_or_phase():
-    event = PlanEvent(plan=Plan(id='plan-1', goal='目标', steps=[Step(id='step-1')]), status='updated')
+def test_plan_projection_supplies_identity_goal_and_structure():
+    event = PlanEvent(plan=Plan(id='plan-1', title='任务标题', description='一句说明', goal='完整目标', steps=[Step(id='step-1')]), status='updated')
     projected = EventMapper.event_to_sse_event(event).data.model_dump(mode='json')
     assert projected['steps'][0]['id'] == 'step-1'
     assert projected['plan_id'] == 'plan-1'
-    assert not {'goal', 'status'} & projected.keys()
+    assert projected['goal'] == '完整目标'
+    assert projected['title'] == '任务标题' and projected['description'] == '一句说明'
+    assert projected['steps'][0]['kind'] == 'stage'
+    assert projected['steps'][0]['schedule'] == 'current'
+    assert 'status' not in projected
 
 
 @pytest.mark.parametrize('eventually_valid', [True, False])
@@ -76,3 +80,12 @@ def test_one_tool_event_pair_is_one_execution_attempt():
         assert '受控首次失败' in tool_events[-1].function_result.message
         assert tool_events[-1].duration_ms is not None
     asyncio.run(asyncio.wait_for(run(), 5))
+
+
+def test_step_projection_keeps_hierarchy_and_blocker_fields():
+    from app.domain.models.event import StepEvent
+    from app.domain.models.plan import Step, ExecutionStatus
+    from app.interfaces.schemas.event import StepSSEEvent
+    projected = StepSSEEvent.from_event(StepEvent(step=Step(kind='step',parent_id='stage',schedule='current',reason='工具不可用',status=ExecutionStatus.BLOCKED)))
+    assert projected.data.kind=='step' and projected.data.parent_id=='stage'
+    assert projected.data.reason=='工具不可用' and projected.data.status==ExecutionStatus.BLOCKED

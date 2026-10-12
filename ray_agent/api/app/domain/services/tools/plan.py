@@ -1,140 +1,192 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
-"""计划清单工具：模型整表提交计划，工具只校验并保存，不参与调度。"""
+"""计划工具：原子更新稳定阶段与步骤，不调度、不推断业务完成。"""
 from typing import Any, Dict, List, Optional
-
-from app.domain.models.plan import ExecutionStatus, Plan, Step
+from pydantic import ValidationError
+from app.domain.models.plan import Artifact, ExecutionStatus, Plan, Step
 from app.domain.models.tool_result import ToolResult
 from .base import BaseTool, tool
 
 UPDATE_PLAN_TOOL = "update_plan"
-
-# 模型可见的状态 → 现有 Plan 模型的执行状态
-_STATUS_MAP = {
-    "pending": ExecutionStatus.PENDING,
-    "in_progress": ExecutionStatus.RUNNING,
-    "completed": ExecutionStatus.COMPLETED,
-    "later": ExecutionStatus.LATER,
-}
+STATUS = {"pending": ExecutionStatus.PENDING, "in_progress": ExecutionStatus.RUNNING,
+          "completed": ExecutionStatus.COMPLETED, "blocked": ExecutionStatus.BLOCKED,
+          "cancelled": ExecutionStatus.CANCELLED}
 
 
 class PlanTool(BaseTool):
-    """维护单次会话内的计划清单。latest_plan 保存最近一次成功提交的结果，供循环发出 PlanEvent。"""
-    name: str = "plan"
+    name = "plan"
 
-    def __init__(self, plan: Optional[Plan] = None) -> None:
+    def __init__(self):
         super().__init__()
-        self.latest_plan: Optional[Plan] = plan
+        self.latest_plan: Optional[Plan] = None
+        self.user_seqs: set[int] = set()
+        self.current_user_seq: Optional[int] = None
+        self.evidence_calls: set[str] = set()
+        self.finalizing = False
+        self.plan_mode = False
+        self.adopted = False
 
-    @tool(
-        name=UPDATE_PLAN_TOOL,
-        description=(
-            "维护当前任务计划。action=update 提交完整清单；review 携 step_id 核对仍在当前步骤；not_needed 声明本次是简单任务无需计划。"
-            "适用于需要多个阶段或多次工具调用的任务；简单任务不必使用。"
-            "推进时及时更新状态，同一时间最多一项 in_progress。本工具只记录清单，不会执行任何步骤。"
-            "新步骤省略 id，结果会返回分配的 id；后续更新、改标题或重排必须复用该 id。"
-            "清单只描述当前这次请求；与已有清单无关的新任务用 reset=true，延续原任务（包括进入下一阶段）不用。"
-            "任务分多个阶段时，当前阶段展开为子步骤；pending 只用于本轮打算执行的步骤，本轮不执行的阶段用 later 保留；进入下一阶段时把它展开为子步骤，并按本轮安排改为 pending 或 in_progress。"
-            "只给方案、本轮不执行时，各阶段都标 later，不要把撰写方案、查资料、交付等自身动作列为步骤；已有后续阶段（later）不要无故省略或用自身动作替换；用户取消要求或阶段拆分、合并时可移除，但须在 explanation 说明原因，沿用原计划身份。"
-        ),
-        parameters={
-            "action": {"type": "string", "enum": ["update", "review", "not_needed"], "description": "默认 update；review 不重写清单，not_needed 不表示旧计划已完成"},
-            "step_id": {"type": "string", "description": "review 时提供当前进行中的步骤 id"},
-            "plan": {
-                "type": "array",
-                "description": "完整的计划清单，按执行顺序排列",
-                "items": {
-                    "type": "object",
-                    "properties": {
-                        "id": {"type": "string", "description": "已有步骤返回的稳定 ID；新增步骤省略，不要自行编造"},
-                        "step": {"type": "string", "description": "步骤的简短描述"},
-                        "status": {
-                            "type": "string",
-                            "enum": list(_STATUS_MAP),
-                            "description": "pending 本轮打算执行但未开始 / in_progress 进行中 / completed 已完成 / later 本轮不执行的后续阶段，保留",
-                        },
-                    },
-                    "required": ["step", "status"],
-                },
-            },
-            "explanation": {
-                "type": "string",
-                "description": "本次调整计划的原因；移除已有 later 条目时必填，说明用户范围变更或阶段重组",
-            },
-            "reset": {"type": "boolean", "description": "新任务建立全新计划时为 true；延续当前任务为 false"},
-        },
-        required=[],
-    )
+    def _source(self, seq):
+        return seq is not None and seq in self.user_seqs
+
+    @tool(name=UPDATE_PLAN_TOOL, description=(
+        "记录目标、稳定整体阶段及当前阶段步骤，完整替换清单，不执行步骤。"
+        "kind=stage 为整体阶段；kind=step 携 parent_id 从属于阶段，两层分开计数。新增项可提供稳定 id 或省略，后续复用原 id；同批创建步骤用 parent_id 引用阶段 id。"
+        "最多一个阶段和一个子步骤 in_progress；阶段展开不能删除或改成自身步骤。"
+        "schedule=current 本轮处理，future 仅用于用户安排的后续，不表示预算不足或已完成；资源不足用 blocked 和 reason。"
+        "结构调整、重新打开完成项、取消或改变本轮范围须 explanation；source_seq 引用用户消息，不能把自己的建议当授权。"
+        "title 是简短任务标题，description 是一句任务说明；step 写简短动作标题，不堆叠规格、来源和执行说明；简单任务平铺，只有必要时展开子步骤。goal 完整保存整体目标，scope 描述本次范围；artifacts 登记必要或已承诺成果，file 携沙箱绝对 path，reply 为回复正文。"
+        "首次登记成果后继续复用 id；不为核对增加工具往返。无关新任务 reset=true 并说明新目标；简单直接回答不必调用。"
+    ), parameters={
+        "action": {"type": "string", "enum": ["update", "review", "not_needed"]},
+        "step_id": {"type": "string"},
+        "title": {"type": "string", "description": "简短任务标题"},
+        "description": {"type": "string", "description": "一句任务说明，详细要求保留在 goal/scope"},
+        "goal": {"type": "string"}, "scope": {"type": "string"},
+        "source_seq": {"type": "integer", "description": "仅已知时填写真实用户消息 seq；省略自动采用当前消息，不能猜测序号"},
+        "explanation": {"type": "string"}, "reset": {"type": "boolean"},
+        "plan": {"type": "array", "items": {"type": "object", "properties": {
+            "id": {"type": "string"}, "step": {"type": "string"},
+            "kind": {"type": "string", "enum": ["stage", "step"]},
+            "parent_id": {"type": "string"},
+            "status": {"type": "string", "enum": list(STATUS)},
+            "schedule": {"type": "string", "enum": ["current", "future"]},
+            "reason": {"type": "string"},
+        }, "required": ["step", "status"]}},
+        "artifacts": {"type": "array", "description": "提供时为完整成果清单，省略则保留原清单", "items": {
+            "type": "object", "properties": {
+                "id": {"type": "string"}, "name": {"type": "string"}, "path": {"type": "string"},
+                "delivery": {"type": "string", "enum": ["file", "reply"]},
+                "required": {"type": "boolean"}, "source": {"type": "string", "enum": ["user", "agent"]},
+                "schedule": {"type": "string", "enum": ["current", "future"]},
+            }, "required": ["name", "delivery"]}},
+    }, required=[])
     async def update_plan(self, plan: Optional[List[Dict[str, Any]]] = None, explanation: Optional[str] = None,
-                          reset: bool = False, action: str = "update", step_id: Optional[str] = None) -> ToolResult:
+                          reset: bool = False, action: str = "update", step_id: Optional[str] = None,
+                          goal: Optional[str] = None, scope: Optional[str] = None,
+                          title: Optional[str] = None, description: Optional[str] = None,
+                          source_seq: Optional[int] = None, artifacts: Optional[List[Dict[str, Any]]] = None):
+        old = self.latest_plan
+        seq = source_seq if source_seq is not None else self.current_user_seq
+        if source_seq is not None and not self._source(seq):
+            return ToolResult(success=False, message=f"source_seq 必须引用已保存的真实用户消息 {sorted(self.user_seqs)}；不知道时省略，自动采用当前消息")
         if action == "not_needed":
-            return ToolResult(success=True, message="本次无需计划；旧清单不作为本次进度", data={"action": action})
+            unrelated = bool(old and goal and goal.strip() != old.goal and explanation and self._source(seq) and seq != old.source_seq)
+            if self.adopted or (old and not old.done and not unrelated):
+                return ToolResult(success=False, message="原任务仍有未完成范围；延续时保留清单，无关新任务用 reset 并提供新目标")
+            return ToolResult(data={"action": action}, message="本次无需计划")
         if action == "review":
-            if not self.latest_plan or not any(s.id == step_id and s.status == ExecutionStatus.RUNNING for s in self.latest_plan.steps):
-                running = [s.id for s in self.latest_plan.steps if s.status == ExecutionStatus.RUNNING] if self.latest_plan else []
-                return ToolResult(success=False, message="请提供当前进行中的 step_id；开始或转入步骤时先用 update 更新状态"
-                                  + (f"。当前进行中：{', '.join(running)}" if running else "。当前没有进行中的步骤"))
-            return ToolResult(success=True, message="已核对：仍在当前步骤", data={"action": action, "step_id": step_id})
-        if action != "update" or plan is None:
-            return ToolResult(success=False, message="update 需要完整 plan；轻量核对使用 review 或 not_needed")
-        steps: List[Step] = []
-        in_progress = 0
-        existing = {step.id: step for step in self.latest_plan.steps} if self.latest_plan and not reset else {}
-        used = set()
-        for index, item in enumerate(plan):
-            if not isinstance(item, dict):
-                return ToolResult(success=False, message=f"plan[{index}] 必须是包含 step 与 status 的对象")
-            description = item.get("step")
-            status = item.get("status")
-            if not isinstance(description, str) or not description.strip():
-                return ToolResult(success=False, message=f"plan[{index}].step 必须是非空字符串")
-            if not isinstance(status, str) or status not in _STATUS_MAP:
-                return ToolResult(
-                    success=False,
-                    message=f"plan[{index}].status 必须是 {' / '.join(_STATUS_MAP)} 之一，实际为 {status!r}",
-                )
-            in_progress += status == "in_progress"
-            step_id = item.get("id")
-            if step_id is not None:
-                if not isinstance(step_id, str) or step_id not in existing:
-                    return ToolResult(success=False, message=f"plan[{index}].id {step_id!r} 不属于当前计划；"
-                                      f"请逐字复制当前 id：{self._valid_ids(existing)}；新增步骤请省略 id")
-                if step_id in used:
-                    return ToolResult(success=False, message=f"plan[{index}].id 重复，同一步骤只能出现一次")
-                used.add(step_id)
-                step = existing[step_id].model_copy(deep=True)
-                step.description, step.status = description.strip(), _STATUS_MAP[status]
-            else:
-                step = Step(description=description.strip(), status=_STATUS_MAP[status])
-            steps.append(step)
-        if in_progress > 1:
-            return ToolResult(success=False, message=f"同一时间最多一项 in_progress，本次提交了 {in_progress} 项")
-        dropped = [step for step in existing.values() if step.deferred and step.id not in used]
-        if dropped and (not isinstance(explanation, str) or not explanation.strip()):
-            return ToolResult(success=False, message="移除已有后续阶段（later）需要说明原因：" + "；".join(
-                f"{step.id}（{step.description[:20]}）" for step in dropped)
-                + "。若用户取消要求或阶段拆分、合并，请在 explanation 说明原因；否则保留这些条目，不要为移除条目重置同一任务")
-
-        all_done = bool(steps) and all(step.status == ExecutionStatus.COMPLETED for step in steps)
-        updated = Plan(
-            steps=steps,
-            message=explanation or "",
-            status=ExecutionStatus.COMPLETED if all_done else ExecutionStatus.RUNNING,
-        )
-        if self.latest_plan is not None and not reset:
-            updated.id = self.latest_plan.id
+            if old and any(s.id == step_id and s.status == ExecutionStatus.RUNNING for s in old.steps):
+                return ToolResult(data={"action": action}, message="已确认当前步骤；正常执行无需定时 review")
+            return ToolResult(success=False, message="当前步骤 id 无效；复用清单中进行中项的 id")
+        if action != "update" or not isinstance(plan, list) or not plan:
+            return ToolResult(success=False, message="update 需要非空完整 plan")
+        if reset and old and (not goal or not goal.strip() or not explanation or goal.strip() == old.goal or not self._source(seq) or seq == old.source_seq):
+            return ToolResult(success=False, message="新任务 reset 需要不同的新 goal 与 explanation，不能重置同一目标以隐藏缺口")
+        if self.finalizing and (reset or (artifacts and any(not a.get('id') for a in artifacts))):
+            return ToolResult(success=False, message="收尾阶段只能更新已有任务和已登记成果，不能新增范围")
+        existing = {s.id: s for s in old.steps} if old and not reset else {}
+        steps, used = [], set()
+        try:
+            for i, item in enumerate(plan):
+                if not isinstance(item, dict) or not isinstance(item.get("step"), str) or not item["step"].strip():
+                    raise ValueError(f"plan[{i}].step 需要非空文本")
+                if item.get("status") not in STATUS:
+                    raise ValueError(f"plan[{i}].status 只允许 {list(STATUS)}；后续安排使用 schedule=future")
+                sid = item.get("id")
+                if sid is not None and (not isinstance(sid, str) or not sid.strip() or sid in used):
+                    raise ValueError(f"id {sid!r} 无效或重复；当前有效 id：" + "；".join(existing))
+                prior = existing.get(sid)
+                if sid: used.add(sid)
+                data = prior.model_dump() if prior else {}
+                if sid is not None: data["id"] = sid
+                data.update(description=item["step"].strip(), status=STATUS[item["status"]])
+                for key in ("kind", "parent_id", "schedule", "reason"):
+                    if key in item: data[key] = item[key]
+                node = Step.model_validate(data)
+                node.source_seq = prior.source_seq if prior else seq
+                if node.schedule == 'future' and node.status not in (ExecutionStatus.PENDING, ExecutionStatus.CANCELLED):
+                    raise ValueError("后续阶段只能未开始；预算或环境不足用 blocked，不能改为 future")
+                if node.status in (ExecutionStatus.BLOCKED, ExecutionStatus.CANCELLED) and not node.reason.strip():
+                    raise ValueError("受阻或取消需 reason")
+                if prior and (node.kind != prior.kind or node.parent_id != prior.parent_id):
+                    raise ValueError("已有项不能改变层级归属；拆分请保留阶段 id 并调整子步骤")
+                if prior and (prior.done and not node.done or prior.schedule != node.schedule or node.status == ExecutionStatus.CANCELLED and prior.status != node.status):
+                    if not explanation or not explanation.strip(): raise ValueError("重新打开、取消或改变范围需要 explanation")
+                    if node.schedule == 'future' or node.status == ExecutionStatus.CANCELLED:
+                        if not self._source(seq) or seq == prior.source_seq:
+                            raise ValueError("推迟本轮要求或取消需要新的真实用户范围来源；资源不足保留为 blocked")
+                        node.source_seq = seq
+                steps.append(node)
+            stages = {s.id: s for s in steps if s.kind == 'stage'}
+            if not stages: raise ValueError("清单至少包含一个整体 stage")
+            for s in steps:
+                if s.kind == 'stage' and s.parent_id: raise ValueError("stage 不能携 parent_id")
+                if s.kind == 'step' and s.parent_id not in stages: raise ValueError("step 的 parent_id 必须属于当前 stage")
+                if s.kind == 'step' and s.status == ExecutionStatus.RUNNING and stages[s.parent_id].status != ExecutionStatus.RUNNING:
+                    raise ValueError("进行中步骤所属阶段也必须 in_progress")
+            for kind in ('stage', 'step'):
+                if sum(s.kind == kind and s.status == ExecutionStatus.RUNNING for s in steps) > 1:
+                    raise ValueError(f"最多一个 {kind} in_progress")
+            for s in stages.values():
+                if s.status == ExecutionStatus.COMPLETED and any(c.parent_id == s.id and not c.done for c in steps):
+                    raise ValueError("阶段还有未完成子步骤，不能标 completed")
+            dropped = [s for s in existing.values() if s.id not in used]
+            if dropped and (not explanation or not explanation.strip()): raise ValueError("删除或拆并清单项需要 explanation")
+            if any(s.kind == 'stage' for s in dropped):
+                raise ValueError("整体阶段不能直接删除；保留稳定身份，用户取消时保留取消项及来源")
+            if old and not reset and goal is not None and goal != old.goal and not explanation:
+                raise ValueError("修改整体目标需要 explanation")
+            outs = self._artifacts(artifacts, old if not reset else None, seq, explanation)
+        except (ValueError, ValidationError) as e:
+            return ToolResult(success=False, message=str(e))
+        updated = Plan(title=(title if title is not None else old.title if old and not reset else ""),
+                       description=(description if description is not None else old.description if old and not reset else ""),
+                       steps=steps, artifacts=outs, goal=(goal if goal is not None else old.goal if old and not reset else ''),
+                       scope=(scope if scope is not None else old.scope if old and not reset else ''), source_seq=seq,
+                       message=explanation or '', verifications=old.verifications if old and not reset else [])
+        if old and not reset: updated.id = old.id
+        updated.status = ExecutionStatus.COMPLETED if updated.done else ExecutionStatus.RUNNING
         self.latest_plan = updated
+        return ToolResult(message=f"计划已更新：整体阶段 {len(updated.stages)} 项，已完成 {sum(s.status == ExecutionStatus.COMPLETED for s in updated.stages)} 项",
+                          data={"plan_id": updated.id, "source_seq": seq, "title": updated.title,
+                                "description": updated.description, "plan": [self._node(s) for s in steps],
+                                "artifacts": [a.model_dump() for a in outs]})
 
-        completed = sum(step.status == ExecutionStatus.COMPLETED for step in steps)
-        later = sum(step.status == ExecutionStatus.LATER for step in steps)
-        message = f"计划已更新：共 {len(steps)} 项，已完成 {completed} 项" + (f"，后续阶段 {later} 项" if later else "")
-        return ToolResult(success=True, message=message, data={
-            "plan_id": updated.id,
-            "plan": [{"id": step.id, "step": step.description,
-                      "status": next(key for key, value in _STATUS_MAP.items() if value == step.status)}
-                     for step in steps],
-        })
+    def _artifacts(self, items, old, seq, explanation):
+        previous = {a.id: a for a in old.artifacts} if old else {}
+        if items is None: return [a.model_copy(deep=True) for a in previous.values()]
+        out, seen, paths = [], set(), set()
+        for item in items:
+            aid = item.get('id')
+            if aid is not None and (not isinstance(aid, str) or not aid.strip() or aid in seen): raise ValueError("成果 id 无效或重复")
+            if aid: seen.add(aid)
+            prior = previous.get(aid)
+            data = prior.model_dump() if prior else {}
+            if any(k not in {'id','name','path','delivery','required','source','schedule'} for k in item):
+                raise ValueError("成果只声明身份和要求，版本及交付状态由实际工具结果填写")
+            data.update(item)
+            a = Artifact.model_validate(data)
+            if not a.name.strip(): raise ValueError("成果 name 不能为空")
+            if a.delivery == 'file' and ((not a.path and a.schedule == 'current') or
+                    (a.path and (not a.path.startswith('/') or a.path.endswith('/') or '..' in a.path.split('/')))):
+                raise ValueError("文件成果需明确的沙箱绝对 path，不能包含 ..")
+            if a.delivery == 'file':
+                if a.path and a.path in paths: raise ValueError("不同成果不能共用同一文件路径")
+                if a.path: paths.add(a.path)
+            if prior and (prior.required and not a.required or prior.schedule == 'current' and a.schedule == 'future' or prior.delivery != a.delivery):
+                if not explanation or not self._source(seq) or seq == prior.source_seq:
+                    raise ValueError("改变既有成果要求需要新的用户范围来源与 explanation")
+            if self.finalizing and prior and (prior.path != a.path or prior.delivery != a.delivery or prior.required != a.required or prior.schedule != a.schedule):
+                raise ValueError('收尾不能改变已登记成果要求')
+            if prior and prior.path != a.path:
+                if self.finalizing: raise ValueError("收尾不能更换已登记路径")
+                a.version, a.state, a.error = None, 'pending', None
+            a.source_seq = prior.source_seq if prior else seq
+            out.append(a)
+        if any(a.required and a.id not in seen for a in previous.values()):
+            raise ValueError("必要成果不能省略；保留记录并按用户范围更新安排")
+        return out
 
     @staticmethod
-    def _valid_ids(existing: Dict[str, Step]) -> str:
-        return "；".join(f"{step.id}（{step.description[:12]}）" for step in existing.values())
+    def _node(s):
+        return {"id": s.id, "step": s.description, "status": 'in_progress' if s.status == ExecutionStatus.RUNNING else s.status.value,
+                "kind": s.kind, "parent_id": s.parent_id, "schedule": s.schedule, "reason": s.reason}

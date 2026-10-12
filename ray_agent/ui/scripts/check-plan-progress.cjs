@@ -36,7 +36,7 @@ const initial = [ev(1, 'run', {status: 'running'}), ev(2, 'plan', {plan_id: 'p',
 ]})];
 let view = projectSession({id: 's', events: initial});
 let html = markup(PlanBar, {plan: view.plan, runStatus: 'running', defaultOpen: false});
-assert.match(html, /第 2\/3 步/); assert.doesNotMatch(html, /<ol|初始安排/);
+assert.match(html, /已完成 1\/3 项/); assert.doesNotMatch(html, /<ol|初始安排/);
 assert.match(markup(PlanContent, {plan: view.plan, active: true, ended: false}), /已完成 1\/3 项/);
 const renamed = [...initial, ev(3, 'plan', {plan_id: 'p', explanation: '调整标题与顺序', steps: [
   {id: 'a', description: '需求', status: 'completed'}, {id: 'c', description: '编写页面', status: 'running'},
@@ -53,7 +53,7 @@ view = projectSession({id: 's', events: final});
 html = markup(PlanBar, {plan: view.plan, runStatus: 'completed', defaultOpen: false});
 const mainList = markup(PlanContent, {plan: view.plan, active: false, ended: true});
 assert.equal((mainList.match(/<li /g) || []).length, 2); assert.doesNotMatch(mainList, /已删除|新增|刚完成|结构/);
-assert.match(html, /计划 2\/2 项已完成/); assert.doesNotMatch(mainList, /计划更新记录|第 .*版|<details/);
+assert.match(html, /已完成 2\/2 项/); assert.doesNotMatch(mainList, /计划更新记录|第 .*版|<details/);
 assert.equal(view.plan.explanation, null);
 const reset = projectSession({id: 's', events: [...final, ev(6, 'plan', {plan_id: 'new', steps: [
   {id: 'new-step', description: '新任务', status: 'running'},
@@ -89,35 +89,40 @@ assert.equal(adopted.plan.sourceSeq,2);
 assert.match(markup(PlanBar,{plan:adopted.plan,runStatus:'running'}),/准备执行/);
 const reviewed = projectSession({id:'s',events:[...initial,ev(3,'plan',{plan_id:'p',review_only:true,progress_state:'confirmed',steps:initial[1].data.steps})]});
 assert.equal(reviewed.plan.version,1);
-const uncertain = {...adopted.plan,progressState:'unconfirmed'};
-assert.match(markup(PlanBar,{plan:uncertain,runStatus:'running',defaultOpen:true}),/进度未确认/);
-assert.doesNotMatch(markup(PlanBar,{plan:uncertain,runStatus:'running',defaultOpen:true}),/aria-current="step"/);
-assert.equal(planBarMode({plan:{...uncertain,progressState:'not_needed'},activeRun:active('r'),runs:[]}),null);
-console.log('PASS: 承接序号、准备执行、轻量核对不增版本、未确认不暗示当前步骤、无需计划隐藏');
+assert.equal(planBarMode({plan:{...adopted.plan,progressState:'not_needed'},activeRun:active('r'),runs:[]}),null);
+console.log('PASS: 承接序号、准备执行、轻量记录不增版本');
 
-// 后续阶段：later 投影、淡化与“后续”标注、本阶段完成的中性标题，旧状态不受影响。
-const stagedSteps = [{id: 'a', description: '本阶段一', status: 'completed'}, {id: 'b', description: '本阶段二', status: 'completed'},
-  {id: 'c', description: '后续一', status: 'later'}, {id: 'd', description: '后续二', status: 'later'}];
-const stagedView = projectSession({id: 's', events: [ev(1, 'run', {status: 'running'}), ev(2, 'plan', {plan_id: 'g', steps: stagedSteps}), ev(3, 'run', {status: 'completed'})]});
-assert.deepEqual(stagedView.plan.items.map(i => i.status), ['completed', 'completed', 'later', 'later']);
-assert.equal(stagedView.plan.completedCount, 2);
-html = markup(PlanBar, {plan: stagedView.plan, runStatus: 'completed'});
-assert.match(html, /本阶段已完成 · 后续 2 项/); assert.doesNotMatch(html, /未完成|text-state-waiting/);
-html = markup(PlanContent, {plan: stagedView.plan, active: false, ended: true});
-assert.match(html, /本阶段已完成 · 后续 2 项/); assert.equal((html.match(/>后续</g) || []).length, 2); assert.doesNotMatch(html, /未完成/);
-const stageOpen = projectSession({id: 's', events: [ev(1, 'run', {status: 'running'}), ev(2, 'plan', {plan_id: 'g', steps: [
-  {id: 'a', description: '本阶段一', status: 'completed'}, {id: 'b', description: '本阶段二', status: 'running'}, {id: 'c', description: '后续一', status: 'later'}]})]});
-assert.match(markup(PlanBar, {plan: stageOpen.plan, runStatus: 'running'}), /第 2\/2 步/);
-assert.match(markup(PlanContent, {plan: stageOpen.plan, active: true, ended: false}), /已完成 1\/2 项 · 后续 1 项/);
-assert.match(markup(PlanBar, {plan: stageOpen.plan, runStatus: 'failed'}), /1 项未完成/);
-const {PlanChecklist: StagedChecklist} = load('src/components/run/plan-list-dialog.tsx');
-assert.match(markup(StagedChecklist, {plans: stagedView.planHistory, runs: stagedView.runs}), /后续一/);
-const onlyLater = projectSession({id: 's', events: [ev(1, 'run', {status: 'running'}), ev(2, 'plan', {plan_id: 'g2', steps: [
-  {id: 'a', description: '阶段一', status: 'later'}, {id: 'b', description: '阶段二', status: 'later'}]}), ev(3, 'run', {status: 'completed'})]});
-html = markup(PlanBar, {plan: onlyLater.plan, runStatus: 'completed'});
-assert.match(html, /后续 2 项/); assert.doesNotMatch(html, /未完成|下一步|text-state-waiting/);
-assert.match(markup(PlanContent, {plan: onlyLater.plan, active: false, ended: true}), /后续 2 项/);
-console.log('PASS: 后续阶段投影、淡化标注、本阶段完成标题与计数、弹框清单');
+const hierarchical = projectSession({id:'s',events:[ev(1,'run',{status:'running'}),ev(2,'plan',{plan_id:'g',title:'资料整理',description:'整理材料并交付结果。',goal:'完整目标与全部约束',scope:'内部范围说明',explanation:'内部核对说明',artifacts:[{id:'output',name:'内部成果记录',state:'pending'}],steps:[
+  {id:'a',description:'第一阶段',kind:'stage',status:'running'},
+  {id:'b',description:'第二阶段',kind:'stage',status:'pending',schedule:'future'},
+  {id:'c',description:'第三阶段',kind:'stage',status:'pending',schedule:'future'},
+  ...Array.from({length:4},(_,i)=>({id:`sub${i}`,description:`步骤${i}`,kind:'step',parent_id:'a',status:'completed'})),
+]})]});
+assert.equal(hierarchical.plan.completedCount,0);
+html=markup(PlanBar,{plan:hierarchical.plan,runStatus:'running'});
+assert.match(html,/已完成 0\/3 组/);assert.doesNotMatch(html,/第 .*步|进度未确认/);
+html=markup(PlanContent,{plan:hierarchical.plan,active:true,ended:false});
+assert.match(html,/已完成 0\/3 组/);assert.doesNotMatch(html,/阶段步骤已完成/);
+assert.match(html,/资料整理/);assert.match(html,/整理材料并交付结果/);assert.doesNotMatch(html,/内部范围说明|内部核对说明|内部成果记录|完整目标与全部约束|本次范围|整体阶段/);assert.equal((html.match(/已完成 0\/3 组/g)||[]).length,1);assert.equal((html.match(/>后续</g)||[]).length,2);
+const incomplete=projectSession({id:'s',events:[ev(1,'run',{status:'running'}),ev(2,'plan',{plan_id:'f',steps:[{id:'s',description:'完成制作',status:'completed'}],artifacts:[{id:'a',name:'必要文档',delivery:'file',required:true,schedule:'current',state:'pending'}]}),ev(3,'done',{outcome:'partial',missing:['必要文档']}),ev(4,'run',{status:'completed'})]});
+assert.equal(incomplete.runs[0].outcome,'partial');
+assert.match(markup(PlanBar,{plan:incomplete.plan,runStatus:'completed'}),/已交付部分成果/);
+assert.match(markup(RunStatus,{place:'headline',status:'completed',compacting:false,outcome:'partial'}),/仍有未完成项/);
+const {PlanChecklist: StagedChecklist}=load('src/components/run/plan-list-dialog.tsx');
+assert.match(markup(StagedChecklist,{plans:hierarchical.planHistory,runs:hierarchical.runs}),/第一阶段/);
+const toolCounts = projectSession({id:'s',events:[ev(1,'run',{status:'running'}),ev(2,'tool',{
+  name:'plan',function:'update_plan',tool_call_id:'pc',status:'calling',args:{plan:[
+    {kind:'stage',status:'completed'},{kind:'stage',status:'pending'},{kind:'stage',status:'pending'},
+    ...Array.from({length:4},()=>({kind:'step',status:'completed'}))
+  ]}})]});
+assert.ok(JSON.stringify(toolCounts).includes('整体阶段 1/3 已完成'));
+assert.ok(!JSON.stringify(toolCounts).includes('5/7 已完成'));
+const failedAssertion = projectSession({id:'s',events:[ev(1,'run',{status:'running'}),ev(2,'tool',{
+  name:'shell',function:'shell_execute',tool_call_id:'failed-check',status:'called',args:{command:'check',verification:{purpose:'verify',condition:'符合输入要求'}},
+  content:{outcome:{success:true,data:{_ray_verification:{state:'failed',condition:'符合输入要求'}}}}
+})]});
+assert.ok(JSON.stringify(failedAssertion).includes('核验未通过：符合输入要求'));
+console.log('PASS: 三个阶段与四个步骤分层计数、后续范围、部分交付、普通视图没有核对噪声');
 
 // 历史跨运行承接、重复核对归并、新任务隔离和删除项回看。
 const historyEvents = [

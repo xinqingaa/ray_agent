@@ -99,7 +99,9 @@ def test_batch_with_two_calls_and_update_plan_runs_in_order_and_pairs_by_id():
     assert len(set(step.id for step in plan_event.plan.steps)) == 3
     assert isinstance(events[-1], DoneEvent) and h.loop.end_reason == RunEndReason.COMPLETED
     assert [e.message for e in events if isinstance(e, MessageEvent)][0] == "先读两份资料并写计划"
-    assert "执行记录仍有未完成项" in [e.message for e in events if isinstance(e, MessageEvent)][-1]
+    final = [e.message for e in events if isinstance(e, MessageEvent)][-1]
+    assert "尚未完成：整理结论" in final and "尚未完成：交付" in final
+    assert events[-1].outcome == 'partial' and events[-1].missing == ['整理结论', '交付']
     assert h.loop._completion_feedbacks == 1
     assert not any(isinstance(e, TitleEvent) for e in events)
 

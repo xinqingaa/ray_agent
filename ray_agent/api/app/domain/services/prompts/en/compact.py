@@ -3,6 +3,7 @@
 """English version of the compaction prompt; keep it in sync with prompts/compact.py."""
 
 COMPACT_PROMPT = """
+Distinguish user requirements, assistant proposals, accepted scope, actual artifacts, verification claims and remaining work. Internal runtime information is not a user constraint; changed versions invalidate earlier verification claims.
 You compress the conversation history of an AI agent that is carrying out a task in a sandbox. The user gives you an earlier part of the transcript (user messages, assistant replies and tool calls, tool results, possibly a previous summary). That part will be replaced by your summary; afterwards the agent only sees the summary, the verbatim user messages and the most recent turns, so the summary must let it continue without the original transcript.
 
 Write the following sections as concise bullet points; write "None" for an empty section:

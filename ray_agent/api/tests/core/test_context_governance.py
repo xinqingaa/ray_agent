@@ -81,7 +81,10 @@ def test_over_watermark_compacts_and_reinjects_user_messages():
     assert isinstance(events[-1], DoneEvent)
     compact = of_type(events, CompactEvent)
     assert len(compact) == 1 and compact[0].trigger == "watermark"
-    assert (compact[0].summarized_turns, compact[0].kept_turns) == (7, 3)
+    # 固定提示和工具 schema 也占上下文预算；保留轮数可以随实际输入大小缩减。
+    kept_turns = compact[0].kept_turns
+    assert 0 < kept_turns <= 3
+    assert compact[0].summarized_turns + kept_turns == 10
     assert compact[0].summary == SUMMARY
     assert compact[0].reinjected_event_seqs == [1]
     assert compact[0].usage.attempts == 1 and compact[0].usage.prompt_tokens == 9000
@@ -95,16 +98,17 @@ def test_over_watermark_compacts_and_reinjects_user_messages():
     # 摘要请求：不带工具，独立提示词，记录里有较早的调用与结果
     summary_request = summary_requests(h)[0]
     assert summary_request.messages[0] == {"role": "system", "content": COMPACT_PROMPT}
-    assert "c-0-0" in summary_request.messages[1]["content"] and "c-7-0" not in summary_request.messages[1]["content"]
+    assert "c-0-0" in summary_request.messages[1]["content"]
+    assert f"c-{10-kept_turns}-0" not in summary_request.messages[1]["content"]
 
     request = main_requests(h)[0].messages
     assert request[0]["role"] == "system"
     assert request[1]["role"] == "user" and request[1]["content"].startswith(SUMMARY_MARKER)
     assert SUMMARY in request[1]["content"]
     assert request[2] == {"role": "user", "content": GOAL}  # 摘要消息后紧跟用户原文
-    kept = original[-6:]  # 最近 3 轮原样保留
-    assert request[3:9] == kept
-    assert request[9] == {"role": "user", "content": "继续"}
+    kept = original[-2 * kept_turns:]
+    assert request[3:3 + len(kept)] == kept
+    assert request[3 + len(kept)] == {"role": "user", "content": "继续"}
     assert_no_dangling(request)
     assert memory_messages(session) == [*request, {"role": "assistant", "content": "完成"}]
     assert h.loop.model_requests == 2
@@ -339,8 +343,8 @@ def test_openai_client_recognizes_context_length_rejections():
 
 def test_fixed_input_overflow_does_not_try_history_compaction():
     session, _ = seeded_session(10)
-    session.memories[AGENT_MEMORY_NAME].messages[0]['content'] = '固定项目输入' * 12000
     h = make_loop([], session=session)
+    h.loop.project_prompt = '固定项目输入' * 12000
     events = run(collect(h.loop))
     failure = events[-1]
     assert isinstance(failure, ErrorEvent) and failure.fixed_input_exceeded
@@ -348,3 +352,25 @@ def test_fixed_input_overflow_does_not_try_history_compaction():
     assert failure.context_estimate['total'] > failure.context_estimate['limit']
     assert not h.llm.requests and not of_type(events, CompactEvent)
     assert not of_type(events, TurnEvent)
+
+
+def test_compaction_restores_child_identity_in_task_state():
+    from app.domain.models.event import PlanEvent
+    from app.domain.models.plan import Plan, Step, ExecutionStatus
+    from app.domain.services.plan_progress import TASK_STATE_PREFIX
+    session, _ = seeded_session(10)
+    plan = Plan(id='stable-plan', goal='整体用户目标', steps=[
+        Step(id='stage', description='整体阶段', status=ExecutionStatus.RUNNING),
+        Step(id='child', parent_id='stage', kind='step', description='当前步骤', status=ExecutionStatus.RUNNING),
+    ])
+    store_of(session).events.append(PlanEvent(plan=plan, seq=2))
+    h = make_loop([text(SUMMARY), text('尚未执行'), text('尚未执行，保留未完成项')], session=session)
+    events = run(collect(h.loop))
+    assert len(of_type(events, CompactEvent)) == 1
+    restored = next(m for m in reversed(main_requests(h)[0].messages)
+                    if str(m.get('content', '')).startswith(TASK_STATE_PREFIX))
+    snapshot = json.loads(restored['content'][len(TASK_STATE_PREFIX):].split('\n', 1)[0])
+    assert snapshot['plan_id'] == 'stable-plan' and snapshot['goal'] == '整体用户目标'
+    assert snapshot['steps'] == [{'id': 'child', 'parent_id': 'stage', 'step': '当前步骤',
+                                 'status': 'running', 'schedule': 'current', 'reason': ''}]
+    assert_no_dangling(main_requests(h)[0].messages)

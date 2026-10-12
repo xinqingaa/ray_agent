@@ -122,7 +122,8 @@ def test_ask_aborted_batch_completes_turn_and_resume_rebuilds():
         assert first.runs[active.id].status == RunStatus.WAITING
 
         second = make_loop([tool_call("read_file", {"filepath": "/x.txt"}, id="c-read", usage=usage(80, 5)),
-                            text("完成", usage=usage(90, 3))], session=first.session)
+                            text("完成", usage=usage(90, 3)),
+                            text("文件已读取，计划状态尚未更新", usage=usage(95, 4))], session=first.session)
         reply = MessageEvent(role="user", message="/x.txt")
         await second.ledger.transition(first.session.id, active.id, RunStatus.RUNNING, events_after=[reply])
         task2 = input_task()
@@ -132,7 +133,7 @@ def test_ask_aborted_batch_completes_turn_and_resume_rebuilds():
         assert_turns_well_formed(events, active.id)
         run_model = stored_run(second, active.id)
         assert_rebuild_matches(events, run_model, first.llm, [1])
-        assert_rebuild_matches(events, run_model, second.llm, [2, 3])
+        assert_rebuild_matches(events, run_model, second.llm, [2, 3, 4])
     asyncio.run(asyncio.wait_for(run(), 5))
 
 

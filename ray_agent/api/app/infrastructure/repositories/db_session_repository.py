@@ -255,7 +255,7 @@ class DBSessionRepository(SessionRepository):
         await self.db_session.flush()
 
     async def get_file_by_path(self, session_id: str, filepath: str) -> Optional[File]:
-        """根据文件路径获取文件信息"""
+        """根据文件路径获取最近登记的版本，保留旧版关联"""
         # 1.构建语句查询文件列表
         stmt = select(SessionModel.files).where(SessionModel.id == session_id)
         result = await self.db_session.execute(stmt)
@@ -266,7 +266,7 @@ class DBSessionRepository(SessionRepository):
             return None
 
         # 3.遍历查找数据，如果最后没找到则返回空
-        for file in files:
+        for file in reversed(files):
             if file.get("filepath", "") == filepath:
                 return File(**file)
 
