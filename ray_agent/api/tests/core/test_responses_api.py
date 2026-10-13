@@ -189,6 +189,59 @@ def test_peer_closed_mid_stream_retries_in_loop_and_keeps_only_complete_reply():
     asyncio.run(case())
 
 
+def connect_failing_llm(failures):
+    calls = []
+    def handler(request):
+        calls.append(request.url.path)
+        if len(calls) <= failures:
+            raise httpx.ConnectError('[Errno -2] Name or service not known', request=request)
+        return httpx.Response(200, text=sse([{'type':'response.completed','response':output()}]), headers={'content-type':'text/event-stream'})
+    llm = OpenAILLM(LLMConfig(api_key='fixture', base_url='https://fixture.test/v1', model_name='gpt-6.1-sol'), reasoning_effort='high')
+    llm._client = AsyncOpenAI(api_key='fixture', base_url='https://fixture.test/v1', max_retries=0,
+                              http_client=httpx.AsyncClient(transport=httpx.MockTransport(handler)))
+    return llm, calls
+
+
+def test_connect_failure_is_flagged_and_logs_underlying_cause():
+    from app.infrastructure.external.llm.openai_llm import _cause_chain
+    async def case():
+        llm, _ = connect_failing_llm(1)
+        try:
+            with pytest.raises(LLMRequestError) as caught: await llm.invoke([{'role':'user','content':'任务'}])
+            assert caught.value.retryable and caught.value.connect_failed and caught.value.reason == 'transport'
+            assert _cause_chain(caught.value.__cause__).startswith('ConnectError: [Errno -2] Name or service not known')
+        finally: await llm._client.close()
+    asyncio.run(case())
+
+
+@pytest.mark.parametrize('failures,completed', [(4, True), (6, False)])
+def test_connect_failures_back_off_without_spending_max_retries(failures, completed):
+    async def case():
+        llm, calls = connect_failing_llm(failures)
+        h = make_loop([], max_retries=2); h.loop._llm = llm
+        events = [event async for event in h.loop.invoke(Message(message='任务'))]
+        attempts = [event for event in events if isinstance(event, AttemptEvent)]
+        assert all(event.reason == AttemptReason.TRANSPORT and event.chars == 0 for event in attempts)
+        if completed:
+            assert len(calls) == 5 and all(event.retried for event in attempts)
+            assert [m['content'] for m in memory_messages(h.session) if m['role']=='assistant'] == ['完成']
+        else:
+            assert len(calls) == 6 and [event.retried for event in attempts] == [True] * 5 + [False]
+        await llm._client.close()
+    asyncio.run(case())
+
+
+def test_model_clients_share_one_long_lived_pool_per_event_loop():
+    async def build():
+        first = OpenAILLM(LLMConfig(api_key='fixture', model_name='gpt-6.1-sol'))
+        second = OpenAILLM(LLMConfig(api_key='fixture', model_name='deepseek-flash'))
+        return first._client._client, second._client._client
+    a, b = asyncio.run(build())
+    c, _ = asyncio.run(build())
+    assert a is b and a is not c
+    assert a._transport._pool._keepalive_expiry == 30
+
+
 @pytest.mark.parametrize('ended', [False,True])
 def test_truncated_or_missing_terminal_never_becomes_complete(ended):
     async def case():

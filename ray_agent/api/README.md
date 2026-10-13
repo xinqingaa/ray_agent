@@ -351,7 +351,7 @@ RAY_TEST_BROWSER=1 uv run --locked python -m pytest tests/core/test_browser_effi
 
 GPT 与 DeepSeek 默认使用 Responses；端点引用中的 `api_protocol` 可显式设为 `chat_completions` 兼容旧上游，缺省为 `responses`。标题、摘要和压缩沿同一适配入口。Responses 不引入托管工具或服务端会话：OpenAI 使用 `store:false` 并回传推理条目，DeepSeek 回传明文推理条目和完整历史。对应助手消息携带模型归属的协议条目；同模型恢复，换模型不转发其他模型的原始推理。工具结果继续按调用身份配对。
 
-语义流只在完整终态后返回结果；截断走现有输出缩短流程，失败或缺少终态不执行半截调用。连接、限流、服务错误、已识别的暂时中断，以及读流途中的连接断开（SDK 不包装、原样抛出的 httpx 传输异常）有限重试；鉴权、额度、参数与未知错误不重试。SDK 内部自动重试关闭，模型请求预算由 Harness 统一计数。只读请求重建返回协议和适配前消息/工具，图像字节在真正发请求时加载。
+语义流只在完整终态后返回结果；截断走现有输出缩短流程，失败或缺少终态不执行半截调用。连接、限流、服务错误、已识别的暂时中断，以及读流途中的连接断开（SDK 不包装、原样抛出的 httpx 传输异常）有限重试；鉴权、额度、参数与未知错误不重试。连接没有建立（DNS、TCP、TLS 握手失败，请求未到达上游）时按 1、2、4、8、15 秒递增等待，最多再试 5 次，不占 `max_retries`；失败日志的 `cause=` 记录底层异常链。同一事件循环内的模型客户端共用一个连接池，空闲连接保留 30 秒，避免每轮重新解析域名和握手。SDK 内部自动重试关闭，模型请求预算由 Harness 统一计数。只读请求重建返回协议和适配前消息/工具，图像字节在真正发请求时加载。
 
 ```bash
 uv run --locked python -m pytest tests/core/test_responses_api.py tests/core/test_openai_stream.py tests/core/test_streaming_loop.py tests/core/test_turn_events_rebuild.py

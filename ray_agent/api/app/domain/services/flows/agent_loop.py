@@ -240,6 +240,10 @@ def _user_content(message: Message):
     return [{'type': 'text', 'text': text}, *[{'type': 'image_ref', 'image_ref': ref} for ref in message.images]]
 
 
+# 连接未建立时请求没有到达上游，重发不会重复执行；DNS 或握手抖动常持续数秒到数十秒，按递增间隔多等几次。
+_CONNECT_BACKOFF = (1, 2, 4, 8, 15)
+
+
 def _attempt_reason(error: BaseException) -> str:
     if isinstance(error, LLMRequestError) and error.reason:
         return error.reason
@@ -270,9 +274,14 @@ class _ModelTurn:
     error: str = ""
     finish_reason: Optional[str] = None
     attempts: int = 0
+    connect_failures: int = 0  # 连接未建立的尝试，不占 max_retries
     model_ms: int = 0
     ttft_ms: Optional[int] = None
     usage: TurnUsage = field(default_factory=TurnUsage)
+
+    @property
+    def counted_attempts(self) -> int:
+        return self.attempts - self.connect_failures
 
     def add_usage(self, usage: Optional[LLMUsage]) -> None:
         if usage is None:
@@ -950,6 +959,7 @@ class AgentLoop(BaseFlow):
 
     async def _request_model(self, turn: _ModelTurn) -> AsyncGenerator[BaseEvent, None]:
         """发出一次模型请求；传输类错误、流中断与空回复按 max_retries 重试，每次尝试都计入 max_iterations。
+        连接未建立的失败另按 _CONNECT_BACKOFF 递增等待重试，不占 max_retries。
 
         失败的尝试产出 AttemptEvent，不写入记忆。没有 finish_reason 的结果视为流中断。
         """
@@ -983,13 +993,18 @@ class AgentLoop(BaseFlow):
                     turn.overflow = True
                     turn.error = str(e)
                     return
-                will_retry = _is_retryable(e) and turn.attempts < self._config.max_retries
+                connect = isinstance(e, LLMRequestError) and e.connect_failed
+                if connect:
+                    turn.connect_failures += 1
+                    will_retry = turn.connect_failures <= len(_CONNECT_BACKOFF)
+                else:
+                    will_retry = _is_retryable(e) and turn.counted_attempts < self._config.max_retries
                 yield self._attempt_event(turn, _attempt_reason(e), will_retry)
                 if not will_retry:
                     turn.failure = RunEndReason.MODEL_ERROR
                     turn.error = str(e) or type(e).__name__
                     return
-                await asyncio.sleep(self._retry_interval)
+                await asyncio.sleep(self._retry_interval * (_CONNECT_BACKOFF[turn.connect_failures - 1] if connect else 1))
                 continue
 
             turn.model_ms += int((time.monotonic() - started) * 1000)
@@ -1011,7 +1026,7 @@ class AgentLoop(BaseFlow):
                 response.setdefault("reasoning_content", "")
             if not (response.get("content") or "").strip() and not response.get("tool_calls"):
                 logger.warning(f"会话[{self._session_id}] 模型返回空回复（第 {turn.attempts} 次）")
-                will_retry = turn.attempts < self._config.max_retries
+                will_retry = turn.counted_attempts < self._config.max_retries
                 yield self._attempt_event(turn, AttemptReason.EMPTY.value, will_retry)
                 if not will_retry:
                     turn.failure = RunEndReason.MODEL_ERROR

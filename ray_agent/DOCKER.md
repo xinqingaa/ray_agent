@@ -100,6 +100,7 @@ docker compose logs --since 30m manus-api 2>&1 | grep 会话
 | 重建 API 或 UI 后 502 | 先确认上游 healthy，再 `docker compose restart manus-nginx`。原因见[重启](#重启) |
 | API 不是 healthy | `docker compose logs --tail=80 manus-api` |
 | 配置修改未生效 | 先核对[配置位置](README.md#模型与工具)，再按上表选择重建容器或镜像 |
+| 模型请求报 `Connection error.`，上游后台没有记录 | 看 `manus-api` 日志里同一行的 `cause=`。`gaierror` 是容器解析不了域名，`ConnectError` 接 `EndOfStream` 是 TLS 握手被断开，两者都没到达上游，与 Nginx 无关（Nginx 只转发浏览器入站请求）。解析不稳定时在 `.env` 设置 `API_DNS_PRIMARY` / `API_DNS_SECONDARY`，再按[重启](#重启)的只改 `.env` 一行重建 API 容器 |
 
 ## 更新产物并核对构建身份
 

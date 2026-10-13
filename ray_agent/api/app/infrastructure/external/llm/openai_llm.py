@@ -7,7 +7,8 @@ import logging
 from typing import Any, Dict, List, Optional
 
 import httpx
-from openai import APIConnectionError, APIError, APIStatusError, AsyncOpenAI, InternalServerError, RateLimitError
+from openai import (APIConnectionError, APIError, APIStatusError, AsyncOpenAI, DefaultAsyncHttpxClient,
+                    InternalServerError, RateLimitError)
 
 from app.domain.external.llm import LLM, LLMRequestError, DeltaCallback
 from app.domain.models.app_config import LLMConfig
@@ -21,6 +22,22 @@ logger = logging.getLogger(__name__)
 _STREAM_END = object()
 # 400 正文里出现这些字样，才认为是供应商拒绝 stream_options，而不是别的参数错误。
 _STREAM_OPTION_MARKERS = ("stream_options", "include_usage")
+# httpx 默认空闲 5 秒就丢弃连接，工具稍慢一点下一轮就要重新解析域名和握手。
+_KEEPALIVE_SECONDS = 30
+_shared_http: Optional[tuple[asyncio.AbstractEventLoop, httpx.AsyncClient]] = None
+
+
+def _http_client() -> httpx.AsyncClient:
+    """同一事件循环内的模型请求共用连接池；连接绑定事件循环，不能跨循环复用。"""
+    global _shared_http
+    limits = httpx.Limits(max_connections=1000, max_keepalive_connections=100, keepalive_expiry=_KEEPALIVE_SECONDS)
+    try:
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        return DefaultAsyncHttpxClient(limits=limits)
+    if _shared_http is None or _shared_http[0] is not loop or _shared_http[1].is_closed:
+        _shared_http = (loop, DefaultAsyncHttpxClient(limits=limits))
+    return _shared_http[1]
 
 
 class OpenAILLM(LLM):
@@ -42,6 +59,8 @@ class OpenAILLM(LLM):
         """
         # 重试由 Harness 统一计数；SDK 内部重试不能绕过请求预算。
         kwargs.setdefault('max_retries', 0)
+        if 'http_client' not in kwargs:
+            kwargs['http_client'] = _http_client()
         self._client = AsyncOpenAI(
             base_url=str(llm_config.base_url),
             api_key=llm_config.api_key,
@@ -140,7 +159,8 @@ class OpenAILLM(LLM):
             status_code = getattr(e, "status_code", None)
             logger.error(
                 f"{prefix}LLM请求失败 status={status_code} "
-                f"protocol={self.api_protocol} code={getattr(e, 'code', None)} request_id={getattr(e, 'request_id', None)} error={e}"
+                f"protocol={self.api_protocol} code={getattr(e, 'code', None)} request_id={getattr(e, 'request_id', None)} "
+                f"error={e} cause={_cause_chain(e)}"
             )
             if isinstance(e, APIError) and not isinstance(e, APIStatusError):
                 classified = response_error(getattr(e, 'code', None), str(e))
@@ -151,6 +171,7 @@ class OpenAILLM(LLM):
                 retryable=_is_transport_error(e),
                 status_code=status_code,
                 context_exceeded=_is_context_exceeded(e),
+                connect_failed=_connect_failed(e),
             ) from e
 
     def _responses_kwargs(self, messages, tools, response_format, tool_choice):
@@ -495,6 +516,24 @@ def _rejects_stream_options(error: Exception) -> bool:
         return False
     text = f"{getattr(error, 'code', '') or ''} {error}".lower()
     return any(marker in text for marker in _STREAM_OPTION_MARKERS)
+
+
+def _causes(error: BaseException):
+    seen = set()
+    while error is not None and id(error) not in seen:
+        seen.add(id(error))
+        yield error
+        error = error.__cause__ or error.__context__
+
+
+def _cause_chain(error: BaseException) -> Optional[str]:
+    """SDK 的 Connection error. 不说明是 DNS、TCP 还是 TLS；底层异常链才能区分。"""
+    return ' <- '.join(f'{type(item).__name__}: {item}'[:160] for item in list(_causes(error))[1:5]) or None
+
+
+def _connect_failed(error: BaseException) -> bool:
+    """httpx 的 ConnectError / ConnectTimeout 只在连接建立阶段抛出，此时请求还没有发出。"""
+    return any(isinstance(item, (httpx.ConnectError, httpx.ConnectTimeout)) for item in _causes(error))
 
 
 def _is_transport_error(error: Exception) -> bool:

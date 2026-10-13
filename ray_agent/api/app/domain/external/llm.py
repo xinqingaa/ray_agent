@@ -15,15 +15,17 @@ class LLMRequestError(Exception):
 
     reason 是给失败尝试事件用的稳定代码：transport、stream_interrupted、model_error。
     空回复与用户停止由循环层另行记录，不经过这个异常。
+    connect_failed 为 True 表示连接没有建立（DNS、TCP 或 TLS 握手失败），请求没有到达上游。
     """
 
     def __init__(self, message: str, *, retryable: bool = False, status_code: Optional[int] = None,
-                 context_exceeded: bool = False, reason: Optional[str] = None) -> None:
+                 context_exceeded: bool = False, reason: Optional[str] = None, connect_failed: bool = False) -> None:
         super().__init__(message)
         self.retryable = retryable
         self.status_code = status_code
         self.context_exceeded = context_exceeded
         self.reason = reason or ("transport" if retryable else "model_error")
+        self.connect_failed = connect_failed
 
 
 def is_retryable(error: BaseException) -> bool:

@@ -60,6 +60,10 @@ services:
     restart: unless-stopped
     env_file:
       - .env
+    # 未设置时为空项并被省略，沿用 Docker 默认的宿主机解析链路
+    dns:
+      - ${API_DNS_PRIMARY:-}
+      - ${API_DNS_SECONDARY:-}
     # 如需动态创建沙箱容器，取消以下注释以挂载 Docker Socket
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
