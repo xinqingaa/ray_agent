@@ -1,5 +1,6 @@
 'use client'
 
+import type {ReactNode} from 'react'
 import {useCallback, useEffect, useId, useRef, useState} from 'react'
 import {ChevronUp, Circle, CircleCheck, CircleDot, Loader2} from 'lucide-react'
 import {cn} from '@/lib/utils'
@@ -38,7 +39,7 @@ function StageTrack({completed, total}: {completed: number; total: number}) {
   )
 }
 
-export function PlanContent({plan, active, ended}: {plan: PlanView; active: boolean; ended: boolean}) {
+export function PlanContent({plan, active, ended, status}: {plan: PlanView; active: boolean; ended: boolean; status?: ReactNode}) {
   const stages = planStages(plan)
   const renderItem = (item: PlanItem, step: boolean, spinning = active) => <li key={item.id} className={cn('flex items-start gap-2 py-1.5', item.schedule === 'future' && 'opacity-60')}>
     <span className="pt-0.5"><ItemIcon item={item} spinning={spinning}/></span>
@@ -46,7 +47,7 @@ export function PlanContent({plan, active, ended}: {plan: PlanView; active: bool
     <span className="shrink-0 pt-0.5 text-xs text-muted-foreground" title={item.status === 'blocked' || item.status === 'cancelled' ? item.reason : undefined}>{item.schedule === 'future' && item.status === 'pending' ? '后续' : ended && item.status === 'in_progress' ? '未完成' : !active && item.status === 'in_progress' ? '未完成' : STATUS_TEXT[item.status]}</span>
   </li>
   return <>
-    <p className="text-lg font-semibold leading-6 break-words">{plan.title || '任务计划'}</p>
+    <div className="flex items-start gap-3"><p className="min-w-0 flex-1 text-lg font-semibold leading-6 break-words">{plan.title || '任务计划'}</p>{status}</div>
     {plan.description && <p className="mt-1 text-meta leading-5 text-muted-foreground break-words">{plan.description}</p>}
     <ol className="mt-3 space-y-1">{stages.map(stage => {
       const children = plan.items.filter(s => s.kind === 'step' && s.parentId === stage.id)
@@ -130,6 +131,17 @@ export function PlanBar({plan, runStatus, proposal = false, defaultOpen = false,
   return (
     <div className={cn('relative animate-in fade-in-0 slide-in-from-bottom-1 duration-200 motion-reduce:animate-none', className)} style={mounted ? {height: barHeight} : undefined}>
       <div ref={cardRef} data-open={expanded} className={cn('plan-card overflow-hidden rounded-lg border bg-card text-card-foreground shadow-sm', mounted && 'absolute inset-x-0 bottom-0 z-50 shadow-lg')}>
+      <button ref={buttonRef} type="button" aria-expanded={expanded} aria-controls={mounted ? contentId : undefined} onClick={() => setOpen(!expanded)}
+        className="flex h-10 w-full min-w-0 flex-nowrap items-center gap-3 overflow-hidden px-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">
+        <StageTrack completed={completed} total={total}/>
+        <span className="shrink-0 whitespace-nowrap text-meta font-medium tabular-nums">{progress}</span>
+        <span className="flex min-w-0 flex-1 flex-nowrap items-center gap-2 overflow-hidden" title={[headline, showChildren && currentStep?.text].filter(Boolean).join(' › ')}>
+          <span className={cn('truncate whitespace-nowrap text-meta', showChildren && currentStep && 'max-w-[45%]', ended && !allDone ? 'text-state-waiting' : 'text-muted-foreground')}>{headline}</span>
+          {showChildren && currentStep && <><span className="shrink-0 text-faint" aria-hidden>›</span><span className="min-w-0 flex-1 truncate whitespace-nowrap text-meta font-medium text-foreground">{currentStep.text}</span></>}
+        </span>
+        <ChevronUp className={cn('size-4 shrink-0 text-muted-foreground transition-transform', expanded && 'rotate-180')} aria-hidden/>
+        <span className="sr-only">{expanded ? '收起计划' : '展开计划'}</span>
+      </button>
         {mounted && <div id={contentId} role="region" aria-label="当前计划" aria-hidden={!expanded} inert={!expanded} className="plan-reveal">
           <div className="min-h-0 overflow-hidden">
             <div className="max-h-[min(28rem,60vh)] overflow-y-auto p-3">
@@ -137,19 +149,7 @@ export function PlanBar({plan, runStatus, proposal = false, defaultOpen = false,
             </div>
           </div>
         </div>}
-      <button ref={buttonRef} type="button" aria-expanded={expanded} aria-controls={mounted ? contentId : undefined} onClick={() => setOpen(!expanded)}
-        className="flex h-10 w-full min-w-0 flex-nowrap items-center gap-3 overflow-hidden px-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">
-        {!expanded && <StageTrack completed={completed} total={total}/>}
-        {expanded ? <span className="min-w-0 flex-1 truncate text-meta font-medium">收起计划</span> : <>
-        <span className="shrink-0 whitespace-nowrap text-meta font-medium tabular-nums">{progress}</span>
-        <span className="flex min-w-0 flex-1 flex-nowrap items-center gap-2 overflow-hidden" title={[headline, showChildren && currentStep?.text].filter(Boolean).join(' › ')}>
-          <span className={cn('truncate whitespace-nowrap text-meta', showChildren && currentStep && 'max-w-[45%]', ended && !allDone ? 'text-state-waiting' : 'text-muted-foreground')}>{headline}</span>
-          {showChildren && currentStep && <><span className="shrink-0 text-faint" aria-hidden>›</span><span className="min-w-0 flex-1 truncate whitespace-nowrap text-meta font-medium text-foreground">{currentStep.text}</span></>}
-        </span>
-        </>}
-        <ChevronUp className={cn('size-4 shrink-0 text-muted-foreground transition-transform', expanded && 'rotate-180')} aria-hidden/>
-        {!expanded && <span className="sr-only">展开计划</span>}
-      </button>
+
       </div>
     </div>
   )

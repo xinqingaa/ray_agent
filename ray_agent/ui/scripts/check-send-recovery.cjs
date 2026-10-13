@@ -104,3 +104,26 @@ async function main() {
   console.log('PASS: 计划响应丢失后沿用持久请求标识，结构化承接记录可读回');
 }
 main().catch((error) => {console.error(error); process.exitCode = 1;});
+
+// 展示关联独立于受理记录，刷新后恢复。
+const localValues = new Map();
+global.localStorage = {getItem: key => localValues.get(key) ?? null, setItem: (key, value) => localValues.set(key, value)};
+const {readRetryDisplay, writeRetryDisplay, retryEcho} = load('src/lib/retry-display.ts');
+const retryPending = {text: '重新检查', fromRunId: 'failed-run', knownUserIds: ['original']};
+const display = {hiddenRunIds: ['failed-run'], hiddenUserIds: ['retry-user'], pending: retryPending};
+writeRetryDisplay('s', display);
+assert.deepEqual(readRetryDisplay('s'), display);
+assert.deepEqual(readRetryDisplay('another'), {hiddenRunIds: [], hiddenUserIds: [], pending: null});
+const retryItems = [
+  {kind: 'user', id: 'original', runId: 'failed-run', text: retryPending.text},
+  {kind: 'user', id: 'retry-user', runId: 'new-run', text: retryPending.text},
+  {kind: 'run_end', id: 'end', runId: 'new-run'},
+  {kind: 'user', id: 'manual-repeat', runId: 'manual-run', text: retryPending.text},
+];
+assert.deepEqual(retryEcho(retryItems, retryPending), {userId: 'retry-user', settled: true});
+assert.deepEqual(retryEcho(retryItems.slice(0, 2), retryPending), {userId: 'retry-user', settled: false});
+writeRetryDisplay('s', {hiddenRunIds: [], hiddenUserIds: [], pending: null});
+assert.equal(readRetryDisplay('s').pending, null);
+localValues.set('rayagent:retry-display:s', '{invalid');
+assert.deepEqual(readRetryDisplay('s').hiddenRunIds, []);
+console.log('PASS: 重试展示关联可刷新恢复、会话隔离、回滚；仅隐藏一次重试回显，主动重复发送保留');

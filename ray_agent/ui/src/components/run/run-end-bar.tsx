@@ -44,9 +44,9 @@ export function RunEndBar({status, reasonText, retryText, onRetry, retrying = fa
   return (
     <div
       role="status"
-      className={cn('flex flex-wrap items-start gap-x-3 gap-y-2 rounded-lg px-3.5 py-2.5', TONE_SOFT[meta.tone], className)}
+      className={cn('flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg px-3.5 py-2.5', TONE_SOFT[meta.tone], className)}
     >
-      <Icon className={cn('mt-0.5 size-4 shrink-0', TONE_TEXT[meta.tone])} aria-hidden/>
+      <Icon className={cn('size-4 shrink-0', TONE_TEXT[meta.tone])} aria-hidden/>
       <div className="min-w-0 flex-1">
         <p className="text-sm">
           <span className={cn('font-medium', TONE_TEXT[meta.tone])}><RunStatus place="terminal" status={status}/></span>
@@ -57,7 +57,8 @@ export function RunEndBar({status, reasonText, retryText, onRetry, retrying = fa
       {showRetry && (
         <Button
           type="button"
-          size="sm"
+          size="icon-sm"
+          aria-label="重试"
           variant="outline"
           className="bg-transparent"
           onClick={() => onRetry?.(retryText)}

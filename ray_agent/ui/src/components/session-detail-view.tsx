@@ -4,7 +4,7 @@ import type {PlanAcceptance} from '@/lib/api/types'
 
 import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react'
 import {toast} from 'sonner'
-import {Code2, Folder, MessageCircle, PanelRight, Pencil} from 'lucide-react'
+import {ArrowDown, Code2, Folder, MessageCircle, PanelRight, Pencil} from 'lucide-react'
 import {SegmentedControl} from '@/components/ui/segmented-control'
 import {MemoryIcon} from '@/components/nav-icons'
 import Link from 'next/link'
@@ -39,6 +39,7 @@ import {useIsMobile} from '@/hooks/use-mobile'
 import {useDeveloperMode} from '@/hooks/use-developer-mode'
 import {sessionApi} from '@/lib/api/session'
 import {createProjectRefreshWatcher} from '@/lib/project-refresh'
+import {readRetryDisplay, writeRetryDisplay, retryEcho} from '@/lib/retry-display'
 import {readDraft, writeDraft} from '@/lib/drafts'
 import {normalizeEvents} from '@/lib/session-events'
 import {canExecutePlan, planBarMode} from '@/lib/session-projection'
@@ -109,6 +110,7 @@ export function SessionDetailView({
   const [hiddenRunIds, setHiddenRunIds] = useState<string[]>([])
   const [hiddenUserIds, setHiddenUserIds] = useState<string[]>([])
   const [retrying, setRetrying] = useState<{text: string; knownUserIds: string[]; fromRunId: string} | null>(null)
+  const [retrySessionId, setRetrySessionId] = useState<string | null>(null)
   const projectsEnabled = true
   const [projectRefreshSignal, setProjectRefreshSignal] = useState(0)
   const projectRefreshRef = useRef<ReturnType<typeof createProjectRefreshWatcher> | null>(null)
@@ -137,6 +139,8 @@ export function SessionDetailView({
   const developerScrollRef = useRef<HTMLDivElement>(null)
   const scrollPositions = useRef({conversation: 0, developer: 0})
   const stickRef = useRef(true)
+  const [awayFromBottom, setAwayFromBottom] = useState(false)
+  const messageContentRef = useRef<HTMLDivElement>(null)
 
   useLayoutEffect(() => {
     const el = mode === 'conversation' ? scrollRef.current : developerScrollRef.current
@@ -148,7 +152,7 @@ export function SessionDetailView({
     ? renamedTitle.title : view?.title || '新任务'
   useEffect(() => {
     const items = view?.timeline ?? []
-    const retrySettled = retrying != null && items.some((item) => item.runId && item.runId !== retrying.fromRunId && item.kind !== 'user' && item.kind !== 'protection')
+    const retrySettled = retrying != null && retryEcho(items, retrying).settled
     const holdRunning = outgoing != null || (retrying != null && !retrySettled)
     const status = holdRunning ? 'running' : sessionStatus === 'idle' ? 'pending' : sessionStatus
     if (!status) return
@@ -158,7 +162,7 @@ export function SessionDetailView({
   }, [sessionId, sessionStatus, sessions, patchSession, outgoing, retrying, view?.timeline])
   useEffect(() => {
     if (!view) return
-    const retrySettled = retrying != null && view.timeline.some((item) => item.runId && item.runId !== retrying.fromRunId && item.kind !== 'user' && item.kind !== 'protection')
+    const retrySettled = retrying != null && retryEcho(view.timeline, retrying).settled
     const holdRunning = outgoing != null || (retrying != null && !retrySettled)
     if (holdRunning || view.status !== 'waiting') {
       setWaitKind(sessionId, null)
@@ -249,10 +253,18 @@ export function SessionDetailView({
     setOutgoing(null)
     setInspectingFile(false)
     setPreviewedFile(null)
-    setHiddenRunIds([])
-    setHiddenUserIds([])
-    setRetrying(null)
+    const saved = readRetryDisplay(sessionId)
+    setHiddenRunIds(saved.hiddenRunIds)
+    setHiddenUserIds(saved.hiddenUserIds)
+    setRetrying(saved.pending)
+    setRetrySessionId(sessionId)
+    stickRef.current = true
+    setAwayFromBottom(false)
   }, [sessionId])
+
+  useEffect(() => {
+    if (retrySessionId === sessionId) writeRetryDisplay(sessionId, {hiddenRunIds, hiddenUserIds, pending: retrying})
+  }, [sessionId, retrySessionId, hiddenRunIds, hiddenUserIds, retrying])
 
   useEffect(() => {
     if (!outgoing) return
@@ -276,19 +288,13 @@ export function SessionDetailView({
   }, [sendMessage, view?.timeline])
 
   useEffect(() => {
-    if (!retrying) return
+    if (!retrying || retrySessionId !== sessionId) return
     const items = view?.timeline ?? []
-    const extra = items.filter((item) => item.kind === 'user' && item.text === retrying.text && !retrying.knownUserIds.includes(item.id))
-    if (extra.length) {
-      setHiddenUserIds((prev) => {
-        const ids = extra.map((item) => item.id).filter((id) => !prev.includes(id))
-        return ids.length ? [...prev, ...ids] : prev
-      })
-    }
-    const echoedRuns = new Set(extra.map((item) => item.runId).filter((id): id is string => !!id))
-    const outcome = items.some((item) => item.runId && echoedRuns.has(item.runId) && item.kind !== 'user')
-    if (outcome) setRetrying(null)
-  }, [retrying, view?.timeline])
+    const echo = retryEcho(items, retrying)
+    const userId = echo.userId
+    if (userId) setHiddenUserIds(prev => prev.includes(userId) ? prev : [...prev, userId])
+    if (echo.settled) setRetrying(null)
+  }, [retrying, view?.timeline, retrySessionId, sessionId])
 
   useEffect(() => {
     if (!stickRef.current || mode !== 'conversation') return
@@ -296,6 +302,18 @@ export function SessionDetailView({
     if (!el) return
     el.scrollTo({top: el.scrollHeight, behavior: 'auto'})
   }, [view?.timeline.length, view?.status, view?.streaming?.text, compacting, outgoing, mode])
+
+  useEffect(() => {
+    const content = messageContentRef.current
+    const el = scrollRef.current
+    if (!content || !el || mode !== 'conversation') return
+    const observer = new ResizeObserver(() => {
+      if (stickRef.current) el.scrollTop = el.scrollHeight
+      else setAwayFromBottom(el.scrollHeight - el.scrollTop - el.clientHeight >= 200)
+    })
+    observer.observe(content)
+    return () => observer.disconnect()
+  }, [mode, view?.id])
 
   const handleCompact = useCallback(async () => {
     if (compacting) return
@@ -432,8 +450,13 @@ export function SessionDetailView({
     onRetry: view?.activeRun || submitting || retrying ? undefined : (text, runId) => {
       const knownUserIds = (view?.timeline ?? []).filter((item) => item.kind === 'user').map((item) => item.id)
       setHiddenRunIds((prev) => prev.includes(runId) ? prev : [...prev, runId])
-      setRetrying({text, knownUserIds, fromRunId: runId})
-      void deliver(text, [], {echo: false}).catch((err: unknown) => {
+      const pending = {text, knownUserIds, fromRunId: runId}
+      writeRetryDisplay(sessionId, {hiddenRunIds: [...hiddenRunIds, runId], hiddenUserIds, pending})
+      setRetrying(pending)
+      const source = view?.timeline.find(item => item.kind === 'user' && item.runId === runId)
+      const attachmentIds = source?.kind === 'user' ? source.attachments.map(file => file.id) : []
+      const mode = view?.runs.find(run => run.id === runId)?.mode ?? 'normal'
+      void deliver(text, attachmentIds, {echo: false, mode}).catch((err: unknown) => {
         setHiddenRunIds((prev) => prev.filter((id) => id !== runId))
         setRetrying((current) => current?.fromRunId === runId ? null : current)
         toast.error(err instanceof Error ? err.message : '重试失败')
@@ -442,13 +465,14 @@ export function SessionDetailView({
     onApprove: (callId) => void handleApproval(callId, 'approve'),
     onReject: (callId) => void handleApproval(callId, 'reject'),
     approvalSubmitting,
-  }), [view?.id, view?.project?.id, view?.timeline, focus?.callId, view?.activeRun, view?.streamingItemId, submitting, retrying, hiddenRunIds, downloadOne, downloadAll, deliver, handleApproval, approvalSubmitting])
+  }), [view?.id, view?.project?.id, view?.runs, view?.timeline, focus?.callId, view?.activeRun, view?.streamingItemId, submitting, retrying, hiddenRunIds, hiddenUserIds, sessionId, downloadOne, downloadAll, deliver, handleApproval, approvalSubmitting])
 
   const onScroll = () => {
     if (mode !== 'conversation') return
     const el = scrollRef.current
     if (!el) return
-    stickRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80
+    stickRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 200
+    setAwayFromBottom(!stickRef.current)
     scrollPositions.current.conversation = el.scrollTop
   }
 
@@ -490,7 +514,7 @@ export function SessionDetailView({
   const endCount = view.timeline.filter((item) => item.kind === 'run_end').length
   const visibleTimeline = view.timeline.filter((item) => {
     if (item.kind === 'run_end' && item.runId && hiddenRunIds.includes(item.runId)) return false
-    if (item.kind === 'user' && (hiddenUserIds.includes(item.id) || (retrying != null && item.text === retrying.text && !retrying.knownUserIds.includes(item.id)))) return false
+    if (item.kind === 'user' && (hiddenUserIds.includes(item.id) || (retrying != null && item.id === retryEcho(view.timeline, retrying).userId))) return false
     return true
   })
   const hideEndId = outgoing != null && endCount <= outgoing.endCount
@@ -499,7 +523,7 @@ export function SessionDetailView({
   const shownTimeline = hideEndId ? visibleTimeline.filter((item) => item.id !== hideEndId) : visibleTimeline
   const hiddenEndRunId = hideEndId ? view.timeline.find(item => item.id === hideEndId)?.runId : null
   const shownRuns = view.runs.filter(item => !hiddenRunIds.includes(item.id) && item.id !== hiddenEndRunId)
-  const retrySettled = retrying != null && view.timeline.some((item) => item.runId && item.runId !== retrying.fromRunId && item.kind !== 'user' && item.kind !== 'protection')
+  const retrySettled = retrying != null && retryEcho(view.timeline, retrying).settled
   const pendingSend = outgoing != null || (retrying != null && !retrySettled)
   const showOptimistic = outgoing != null && outgoing.echo !== false && !echoed && !submitting
   const waitingReply = activityKind === 'waiting_reply'
@@ -589,7 +613,7 @@ export function SessionDetailView({
           {view.project && <ProjectMemoryPanel projectId={view.project.id} sessionId={sessionId} open={memoryOpen} onClose={()=>setMemoryOpen(false)}/>}
 
             <div ref={scrollRef} onScroll={onScroll} id="session-mode-panel-conversation" role={visibility.developerView ? "tabpanel" : undefined} aria-label="对话" aria-labelledby={visibility.developerView ? "session-mode-conversation" : undefined} hidden={mode !== 'conversation'} className={cn('min-h-0 flex-1 overflow-y-auto', mode !== 'conversation' ? 'hidden' : 'view-enter-left')}>
-              <div className="mx-auto flex w-full max-w-(--reading-column) flex-col gap-3 px-4 py-3">
+              <div ref={messageContentRef} className="mx-auto flex w-full max-w-(--reading-column) flex-col gap-3 px-4 py-3">
                 {shownTimeline.length === 0 && !showOptimistic && (
                   <p className="py-8 text-center text-meta text-faint">
                     这里会显示你的消息、工具操作和最终回复。在下方输入任务后开始。
@@ -620,7 +644,15 @@ export function SessionDetailView({
             </div>
           )}
 
-          <div className="shrink-0 border-t bg-background px-3 py-3">
+          <div className="relative shrink-0 border-t bg-background px-3 py-3">
+            {mode === 'conversation' && awayFromBottom && <div className="absolute -top-12 inset-x-0 flex justify-center pointer-events-none">
+              <IconAction label="回到底部" variant="outline" className="pointer-events-auto rounded-full bg-card shadow-sm" onClick={() => {
+                stickRef.current = true
+                setAwayFromBottom(false)
+                const el = scrollRef.current
+                if (el) {el.scrollTop = el.scrollHeight; scrollPositions.current.conversation = el.scrollTop}
+              }}><ArrowDown className="size-4" aria-hidden/></IconAction>
+            </div>}
             <div className="mx-auto w-full max-w-(--reading-column)">
               {mode === 'conversation' && planBarState && (
                 <PlanBar plan={view.plan} runStatus={view.activeRun?.status ?? null} proposal={planBarState === 'proposal'} className="mb-2"/>
