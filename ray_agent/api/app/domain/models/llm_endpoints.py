@@ -1,13 +1,18 @@
 """内部端点配置；不包含环境读取或用户渠道选择。"""
+from typing import Literal
 from pydantic import BaseModel, Field, HttpUrl
+
+ApiProtocol = Literal['responses', 'chat_completions']
 
 
 class LlmEndpointConfig(BaseModel):
+    api_protocol: ApiProtocol = 'responses'
     url_env: str = Field(pattern=r"^[A-Za-z_][A-Za-z0-9_]*$")
     key_env: str = Field(pattern=r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 
 class LlmEndpoint(BaseModel):
+    api_protocol: ApiProtocol = 'responses'
     base_url: HttpUrl
     api_key: str = Field(default="", repr=False)
 

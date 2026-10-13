@@ -345,3 +345,16 @@ RAY_TEST_BROWSER=1 uv run --locked python -m pytest tests/core/test_browser_effi
 ```
 
 真实浏览器检查支持 `RAY_TEST_CHROMIUM` 指向已有 Chromium。视口检查包含真实媒体查询、其他标签页不变、尺寸校验、所有权冲突、关闭页、CDP 重连、等待与取消收尾；不以改 CSS 替代视口变更。
+
+
+### Responses 模型通信
+
+GPT 与 DeepSeek 默认使用 Responses；端点引用中的 `api_protocol` 可显式设为 `chat_completions` 兼容旧上游，缺省为 `responses`。标题、摘要和压缩沿同一适配入口。Responses 不引入托管工具或服务端会话：OpenAI 使用 `store:false` 并回传推理条目，DeepSeek 回传明文推理条目和完整历史。对应助手消息携带模型归属的协议条目；同模型恢复，换模型不转发其他模型的原始推理。工具结果继续按调用身份配对。
+
+语义流只在完整终态后返回结果；截断走现有输出缩短流程，失败或缺少终态不执行半截调用。连接、限流、服务错误、已识别的暂时中断，以及读流途中的连接断开（SDK 不包装、原样抛出的 httpx 传输异常）有限重试；鉴权、额度、参数与未知错误不重试。SDK 内部自动重试关闭，模型请求预算由 Harness 统一计数。只读请求重建返回协议和适配前消息/工具，图像字节在真正发请求时加载。
+
+```bash
+uv run --locked python -m pytest tests/core/test_responses_api.py tests/core/test_openai_stream.py tests/core/test_streaming_loop.py tests/core/test_turn_events_rebuild.py
+```
+
+Responses 检查使用真实 SDK 与 HTTP 替身，覆盖厂商编码、多轮推理、图片、错误分类、截断与半截调用隔离；实际上游支持与部署验收另记关键证据。

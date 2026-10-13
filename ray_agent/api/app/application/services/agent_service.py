@@ -186,13 +186,13 @@ class AgentService:
             if stored.get("model_name"):
                 profile = model_request(
                     self._llm_config, model_id=session.model_id, reasoning=session.reasoning, snapshot=stored)
-                return self._llm if profile is None else self._open_llm(profile)
+                return self._llm if profile is None else self._open_llm(profile, api_protocol=stored.get('api_protocol'))
         sampling = self._session_sampling(session)
         profile = model_request(
             self._llm_config, model_id=session.model_id, reasoning=session.reasoning, sampling=sampling)
         return self._open_plain(sampling) if profile is None else self._open_llm(profile)
 
-    def _open_llm(self, profile):
+    def _open_llm(self, profile, *, api_protocol=None):
         from app.infrastructure.external.llm.openai_llm import OpenAILLM
         tuned = client_config(self._llm_config, profile.model_name).model_copy(update={
             "model_name": profile.model_name,
@@ -200,6 +200,8 @@ class AgentService:
             "max_tokens": profile.max_tokens,
             "temperature": profile.temperature,
         })
+        if api_protocol:
+            tuned = tuned.model_copy(update={'api_protocol': api_protocol})
         return OpenAILLM(
             tuned, thinking=profile.thinking, reasoning_effort=profile.reasoning_effort, reasoning_id=profile.reasoning_id,
             keep_reasoning=profile.keep_reasoning,

@@ -3,6 +3,11 @@ const fs=require('node:fs'),path=require('node:path'),assert=require('node:asser
 const React=require('react'),{create,act}=require('react-test-renderer');
 const root=path.resolve(__dirname,'..'),ts=require(root+'/node_modules/typescript');
 global.IS_REACT_ACT_ENVIRONMENT=true;
+const preferenceStorage = new Map();
+global.window = Object.assign(new EventTarget(), {localStorage: {
+ getItem: key => preferenceStorage.get(key) ?? null,
+ setItem: (key,value) => preferenceStorage.set(key,value),
+}});
 const configApi={},sessionApi={},cache={};
 const ui=new Proxy({}, {get:(_,name)=>props=>React.createElement(name==='Button'?'button':name==='Input'?'input':'div',{...props,'data-component':name},props.children)});
 function load(file){
@@ -75,6 +80,26 @@ async function main(){
  assert.ok(!JSON.stringify(r.toJSON()).includes('本次运行 '));
  assert.ok(!JSON.stringify(r.toJSON()).includes('渠道'));
  await act(async()=>r.unmount());
+ const preference=load('lib/model-preference.ts');
+ assert.deepEqual(preference.readModelPreference(),{model:'b',reasoning:'none'},'失败切换不能改最近偏好');
+ const sent=[];
+ let sentChoice;
+ await act(async()=>{r=create(React.createElement(ModelPicker,{onSelection:next=>{sent.push(next);sentChoice=next}}))});
+ assert.deepEqual(sentChoice,{model:'b',reasoning:'none'},'新对话恢复值进入发送选择');
+ assert.ok(!sent.some(item=>item&&item.model==='a'&&item.reasoning==='high'),'读到本地记录前不发出目录默认');
+ assert.ok(JSON.stringify(r.toJSON()).includes('模型与思考：b，none'));
+ await act(async()=>r.unmount());
+ await act(async()=>{r=create(React.createElement(ModelPicker,{...pickerProps,onSelection:next=>{sentChoice=next}}))});
+ assert.deepEqual(sentChoice,{model:'a',reasoning:'high'},'已有会话优先自身选择');
+ assert.deepEqual(preference.readModelPreference(),{model:'b',reasoning:'none'},'浏览已有会话不改最近偏好');
+ await act(async()=>r.unmount());
+ assert.deepEqual(preference.validModelPreference({model:'retired',reasoning:'max'},catalog),{model:'a',reasoning:'high'});
+ assert.deepEqual(preference.validModelPreference({model:'b',reasoning:'removed'},catalog),{model:'b',reasoning:'medium'});
+ const getStored=window.localStorage.getItem,setStored=window.localStorage.setItem;
+ window.localStorage.getItem=()=>{throw Error('denied')};window.localStorage.setItem=()=>{throw Error('denied')};
+ preference.rememberModelPreference({model:'a',reasoning:'low'});
+ assert.deepEqual(preference.readModelPreference(),{model:'a',reasoning:'low'});
+ window.localStorage.getItem=getStored;window.localStorage.setItem=setStored;
  const {useConfigForm}=load('components/settings/form.tsx');let form,saved;const base={a:'old A',b:'old B'};
  function Form(){form=useConfigForm({name:'fixture',load:async()=>base,toValues:x=>({...x}),fromValues:x=>({...x}),validate:x=>x.b==='invalid'?{b:'bad'}:{},save:async(next,fields)=>{saved={fields};return {...base,a:next.a}}});return null;}
  await act(async()=>{r=create(React.createElement(Form))});await act(async()=>{form.setValue('a','new A');form.setValue('b','invalid')});
@@ -85,6 +110,6 @@ async function main(){
  await act(async()=>{r=create(React.createElement(SaveBar,{dirty:true,saving:false,invalid:false,onReset:(...args)=>{resetArguments=args}}))});
  await act(async()=>r.root.findAllByType('button').find(n=>n.children.includes('撤销修改')).props.onClick({type:'click'}));
  assert.deepEqual(resetArguments,[]);await act(async()=>r.unmount());
- console.log('PASS: vendor switch selects first model, same tab preserves selection, no vision/run/channel labels, server-defined model list, semantic fallback, commit on close, rejection keeps menu, scoped save preserves hidden draft, reset excludes click event');
+ console.log('PASS: recent model/effort restore, actual send selection, session precedence, invalid preference fallback, storage failure, rejected selection isolation; vendor switch selects first model, same tab preserves selection, no vision/run/channel labels, server-defined model list, semantic fallback, commit on close, rejection keeps menu, scoped save preserves hidden draft, reset excludes click event');
 }
 main().catch(e=>{console.error(e);process.exitCode=1});

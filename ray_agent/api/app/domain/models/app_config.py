@@ -5,7 +5,7 @@ from enum import Enum
 from typing import Dict, Optional, List, Any
 
 from pydantic import BaseModel, HttpUrl, Field, ConfigDict, model_validator
-from app.domain.models.llm_endpoints import LlmEndpoint, LlmEndpointConfig, default_endpoints, default_model_endpoints
+from app.domain.models.llm_endpoints import ApiProtocol, LlmEndpoint, LlmEndpointConfig, default_endpoints, default_model_endpoints
 
 
 class ModelSampling(BaseModel):
@@ -16,6 +16,7 @@ class ModelSampling(BaseModel):
 
 
 class LLMConfig(BaseModel):
+    api_protocol: ApiProtocol = 'responses'
     """LLM提供商配置"""
     base_url: HttpUrl = Field(default="https://api.deepseek.com", validate_default=True)  # 模型基础URL地址
     api_key: str = ""  # 仅从 DEEPSEEK_API_KEY 注入，不写配置文件、不返回给页面

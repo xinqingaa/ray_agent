@@ -83,7 +83,8 @@ def test_custom_environment_reference_cannot_use_legacy_fallback(tmp_path, monke
         client_config(config, "deepseek-flash")
 
 
-def test_waiting_agent_restores_gpt_client_without_default_host_detection(tmp_path, monkeypatch):
+@pytest.mark.parametrize("protocol", ["responses", "chat_completions"])
+def test_waiting_agent_restores_gpt_client_without_default_host_detection(tmp_path, monkeypatch, protocol):
     from types import SimpleNamespace
     from app.application.services.agent_service import AgentService
     from app.domain.models.session import Session, SessionStatus
@@ -96,7 +97,7 @@ def test_waiting_agent_restores_gpt_client_without_default_host_detection(tmp_pa
         async def __aenter__(self):
             async def get(_):
                 return SimpleNamespace(config_snapshot={"model_name": "gpt-6-luna", "thinking": None,
-                    "reasoning": "high", "reasoning_effort": "high", "keep_reasoning": False})
+                    "reasoning": "high", "reasoning_effort": "high", "keep_reasoning": False, "api_protocol": protocol})
             self.run = SimpleNamespace(get=get)
             return self
         async def __aexit__(self, *args):
@@ -106,6 +107,7 @@ def test_waiting_agent_restores_gpt_client_without_default_host_detection(tmp_pa
     llm = asyncio.run(service._llm_for_run(Session(model_id="deepseek-flash", reasoning="disabled"),
                                          SessionStatus.WAITING, "run"))
     assert (llm.model_name, llm.reasoning_effort) == ("gpt-6-luna", "high")
+    assert llm.api_protocol == protocol
     assert str(llm._client.base_url).rstrip("/") == "https://gpt.test/v1"
 
 

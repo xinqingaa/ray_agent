@@ -96,6 +96,7 @@ def _llm(items, *, streaming=True, timeout=30.0):
         base_url="https://example.test/v1",
         api_key="test-key",
         model_name="fake",
+        api_protocol="chat_completions",
         streaming=streaming,
         request_timeout=timeout,
     ))

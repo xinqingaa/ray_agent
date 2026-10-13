@@ -103,7 +103,18 @@ html=markup(PlanBar,{plan:hierarchical.plan,runStatus:'running'});
 assert.match(html,/已完成 0\/3 阶段/);assert.doesNotMatch(html,/第 .*步|进度未确认/);
 html=markup(PlanContent,{plan:hierarchical.plan,active:true,ended:false});
 assert.doesNotMatch(html,/已完成 \d+\/\d+|子步骤已完成/);
-assert.match(html,/资料整理/);assert.match(html,/整理材料并交付结果/);assert.doesNotMatch(html,/内部范围说明|内部核对说明|内部成果记录|完整目标与全部约束|本次范围|整体阶段/);assert.equal((html.match(/<li /g)||[]).length,7);assert.equal((html.match(/>后续</g)||[]).length,2);
+assert.match(html,/资料整理/);assert.match(html,/整理材料并交付结果/);
+assert.match(html,/text-lg font-semibold/);assert.match(html,/text-meta leading-5/);assert.doesNotMatch(html,/内部范围说明|内部核对说明|内部成果记录|完整目标与全部约束|本次范围|整体阶段/);assert.equal((html.match(/<li /g)||[]).length,7);assert.equal((html.match(/>后续</g)||[]).length,2);
+const spins=h=>(h.match(/animate-spin/g)||[]).length;
+assert.equal(spins(html),1);
+const nested=projectSession({id:'s',events:[ev(1,'run',{status:'running'}),ev(2,'plan',{plan_id:'n',steps:[
+  {id:'a',description:'第一阶段',kind:'stage',status:'running'},
+  {id:'s1',description:'已做步骤',kind:'step',parent_id:'a',status:'completed'},
+  {id:'s2',description:'当前步骤',kind:'step',parent_id:'a',status:'running'},
+]})]});
+html=markup(PlanContent,{plan:nested.plan,active:true,ended:false});
+assert.equal(spins(html),1);assert.match(html,/animate-spin[^]*?当前步骤/);assert.doesNotMatch(html,/animate-spin[^]*?第一阶段/);
+assert.equal(spins(markup(PlanContent,{plan:nested.plan,active:false,ended:true})),0);
 const incomplete=projectSession({id:'s',events:[ev(1,'run',{status:'running'}),ev(2,'plan',{plan_id:'f',steps:[{id:'s',description:'完成制作',status:'completed'}],artifacts:[{id:'a',name:'必要文档',delivery:'file',required:true,schedule:'current',state:'pending'}]}),ev(3,'done',{outcome:'partial',missing:['必要文档']}),ev(4,'run',{status:'completed'})]});
 assert.equal(incomplete.runs[0].outcome,'partial');
 assert.match(markup(PlanBar,{plan:incomplete.plan,runStatus:'completed'}),/已交付部分成果/);

@@ -27,6 +27,7 @@ class RebuiltRequest:
     turn_seq: int
     messages: List[Dict[str, Any]]
     tools: List[Dict[str, Any]]
+    api_protocol: str = 'chat_completions'
     images: List[Dict[str, Any]] = field(default_factory=list)
 
 
@@ -59,5 +60,6 @@ def rebuild_request(events: Sequence[BaseEvent], run: Run, index: int) -> Rebuil
         turn_seq=turn_seq,
         messages=memory.messages,
         tools=copy.deepcopy(tools_for_turn(run.config_snapshot, index)),
+        api_protocol=run.config_snapshot.get('api_protocol', 'chat_completions'),
         images=copy.deepcopy(list(image_refs(memory.messages))),
     )

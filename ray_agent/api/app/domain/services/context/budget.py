@@ -41,6 +41,10 @@ def _message_text(message: Dict[str, Any]) -> str:
         parts.extend(str(item.get("text", "")) if isinstance(item, dict) else str(item) for item in content)
     if message.get("reasoning_content"):
         parts.append(str(message["reasoning_content"]))
+    # 不重复统计可见正文；未有 usage 校准时保守估算要回传的不透明推理载荷。
+    for item in (message.get('_ray_responses') or {}).get('items', []):
+        if item.get('type') == 'reasoning' and item.get('encrypted_content'):
+            parts.append(str(item['encrypted_content']))
     for call in message.get("tool_calls") or []:
         function = call.get("function") or {}
         parts.append(str(function.get("name", "")))

@@ -40,6 +40,8 @@ class Memory(BaseModel):
     def strip_reasoning(self) -> None:
         """删除此前各条消息的推理字段；新用户消息到达时调用，回复提问属于同一轮，不调用。"""
         for message in self.messages:
+            if saved := message.get('_ray_responses'):
+                saved['items'] = [item for item in saved['items'] if item.get('type') != 'reasoning']
             if "reasoning_content" in message:
                 logger.debug(f"从记忆中移除工具思考结果: {message['reasoning_content'][:50]}...")
                 del message["reasoning_content"]

@@ -39,7 +39,7 @@ def load_llm_endpoints(config: LLMConfig) -> dict[str, LlmEndpoint | None]:
         endpoints[name] = None
         if url:
             try:
-                endpoints[name] = LlmEndpoint(base_url=url, api_key="" if key == "xxxx" else key)
+                endpoints[name] = LlmEndpoint(base_url=url, api_key="" if key == "xxxx" else key, api_protocol=reference.api_protocol)
             except ValidationError:
                 # 不记录原始 URL 或异常内容，避免配置中误填的凭据进入日志。
                 logger.warning("模型端点 %s 的 URL 不合法，该端点不可用", name)

@@ -85,16 +85,21 @@ const plan = projectSession({id: 's', events: [ev(1, 'run', {status: 'running'})
   {id: 'a', kind: 'step', parent_id: 'stage', description: '内容', status: 'completed'},
   {id: 'b', kind: 'step', parent_id: 'stage', description: '交互', status: 'running'},
   {id: 'c', kind: 'step', parent_id: 'stage', description: '核验', status: 'pending'}]})]});
-assert.match(markup(PlanBar, {plan: plan.plan, runStatus: 'running'}), />制作<\/span>/);
-assert.match(markup(PlanBar, {plan: plan.plan, runStatus: 'running'}), />交互<\/span>/);
-assert.match(markup(PlanBar, {plan: plan.plan, runStatus: 'running'}), /已完成 0\/1 阶段/);
-assert.doesNotMatch(markup(PlanBar, {plan: plan.plan, runStatus: 'running'}), /子步骤已完成/);
+const collapsed = markup(PlanBar, {plan: plan.plan, runStatus: 'running'});
+assert.match(collapsed, />制作<\/span>/);
+assert.match(collapsed, />交互<\/span>/);
+assert.match(collapsed, /已完成 0\/1 阶段/);
+assert.match(collapsed, /flex-nowrap/);
+assert.doesNotMatch(collapsed, /子步骤已完成|bg-state-running|bg-state-success|bg-signal/);
 const expanded = markup(PlanBar, {plan: plan.plan, runStatus: 'running', defaultOpen: true});
 assert.doesNotMatch(expanded, /已完成 \d+\/\d+|子步骤已完成/);
 assert.match(expanded, /收起计划/);
+assert.match(expanded, /animate-spin/); assert.doesNotMatch(expanded, /text-signal|bg-signal/);
+assert.doesNotMatch(markup(PlanContent, {plan: plan.plan, active: false, ended: true}), /animate-spin/);
 const contentMarkup = markup(PlanContent, {plan: plan.plan, active: true, ended: false});
 assert.doesNotMatch(contentMarkup, /已完成 \d+\/\d+|子步骤已完成/);
 assert.equal((contentMarkup.match(/<li /g) || []).length, 4);
+assert.match(contentMarkup, /text-lg font-semibold/);
 assert.match(contentMarkup, />进行中</); assert.match(contentMarkup, />已完成</); assert.match(contentMarkup, />未开始</);
 assert.doesNotMatch(markup(PlanBar, {plan: plan.plan, proposal: true}), /子步骤已完成/);
 console.log('PASS: 工具后的思考状态、状态切换与终态；实际 Markdown 文件链接、交付时序/版本/中文/协议与安全边界；当前子步骤、收起整体进度与展开不重复计数');

@@ -179,7 +179,7 @@ function TurnRequestPanel({request, loading, error}: {request: TurnRequest | nul
   return (
     <div className="flex flex-col gap-2">
       <p className="text-xs text-muted-foreground">
-        运行 {request.run_id.slice(0, 8)} · 第 {request.index} 轮 · {request.messages.length} 条消息 · {request.tools.length} 个工具定义
+        运行 {request.run_id.slice(0, 8)} · 第 {request.index} 轮 · {request.api_protocol ?? 'chat_completions'} · 适配前 {request.messages.length} 条消息 · {request.tools.length} 个工具定义
       </p>
       <ol className="flex flex-col gap-2">
         {request.messages.map((message, i) => {

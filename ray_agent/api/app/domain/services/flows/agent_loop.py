@@ -193,6 +193,8 @@ def normalize_assistant_message(raw: Dict[str, Any]) -> Dict[str, Any]:
     """保留全部工具调用；缺失的 ID 在这里生成一次，随消息写入记忆后不再改变。"""
     message = extract_embedded_tool_calls(raw)
     normalized: Dict[str, Any] = {"role": "assistant", "content": message.get("content")}
+    if message.get('_ray_responses'):
+        normalized['_ray_responses'] = copy.deepcopy(message['_ray_responses'])
     if message.get("reasoning_content"):
         normalized["reasoning_content"] = message["reasoning_content"]
     calls = []
@@ -210,6 +212,14 @@ def normalize_assistant_message(raw: Dict[str, Any]) -> Dict[str, Any]:
         })
     if calls:
         normalized["tool_calls"] = calls
+    if saved := normalized.get('_ray_responses'):
+        # 兼容正文内嵌调用：归一化生成的身份必须进入协议回传，不能回传原 JSON 正文。
+        if [item.get('call_id') for item in saved['items'] if item.get('type') == 'function_call'] != [call['id'] for call in calls]:
+            items = [item for item in saved['items'] if item.get('type') == 'reasoning']
+            if normalized.get('content'):
+                items.append({'role': 'assistant', 'content': normalized['content']})
+            items.extend({'type': 'function_call', 'call_id': call['id'], **call['function']} for call in calls)
+            saved['items'] = items
     return normalized
 
 
@@ -410,6 +420,7 @@ class AgentLoop(BaseFlow):
         system_prompt = self._system_prompt
         return {
             "model_name": self._llm.model_name,
+            "api_protocol": getattr(self._llm, 'api_protocol', 'chat_completions'),
             "temperature": self._llm.temperature,
             "max_tokens": self._llm.max_tokens,
             "context_window": self._llm.context_window,

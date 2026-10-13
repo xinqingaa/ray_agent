@@ -96,7 +96,7 @@ def _gpt_spec(model_id: str, efforts: tuple[str, ...], default: str) -> ModelSpe
         id=model_id, provider="openai", context_window=200_000, max_output=128_000, tools=True, vision=True,
         auxiliary=False, choices=_gpt_choices(efforts),
         default_choice=default, thinking_output_floor=0, reasoning_ordered=True, reasoning_family="gpt-6",
-        temperature_when="always", temperature_max=2, tool_batching="provider_default", emit_thinking=False,
+        temperature_when="disabled", temperature_max=2, tool_batching="provider_default", emit_thinking=False,
     )
 
 
@@ -122,7 +122,7 @@ def endpoint_for(config: LLMConfig, model_id: str) -> Optional[LlmEndpoint]:
     if name in config.resolved_endpoints:
         return config.resolved_endpoints[name]
     if name == "deepseek" and config.llm_endpoints[name].url_env == "DEEPSEEK_URL":
-        return LlmEndpoint(base_url=config.base_url, api_key=config.api_key)
+        return LlmEndpoint(base_url=config.base_url, api_key=config.api_key, api_protocol=config.llm_endpoints[name].api_protocol)
     return None
 
 
@@ -310,7 +310,7 @@ def client_config(config: LLMConfig, model_name: str) -> LLMConfig:
     endpoint = endpoint_for(config, model_name)
     if endpoint is None:
         raise ValueError(f"{model_name} 未配置模型接口")
-    return config.model_copy(update={"base_url": endpoint.base_url, "api_key": endpoint.api_key})
+    return config.model_copy(update={"base_url": endpoint.base_url, "api_key": endpoint.api_key, "api_protocol": endpoint.api_protocol})
 
 
 def public_capabilities(spec: ModelSpec) -> dict:

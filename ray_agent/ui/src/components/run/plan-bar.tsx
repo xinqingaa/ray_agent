@@ -1,7 +1,7 @@
 'use client'
 
 import {useCallback, useEffect, useId, useRef, useState} from 'react'
-import {ChevronUp, Circle, CircleCheck, CircleDot} from 'lucide-react'
+import {ChevronUp, Circle, CircleCheck, CircleDot, Loader2} from 'lucide-react'
 import {cn} from '@/lib/utils'
 import type {PlanItem, PlanView, RunStatus} from '@/lib/session-view'
 
@@ -16,29 +16,42 @@ type PlanBarProps = {
 
 const STATUS_TEXT = {pending: '未开始', in_progress: '进行中', completed: '已完成', blocked: '受阻', cancelled: '已取消'}
 
-function ItemIcon({item}: {item: PlanItem}) {
+/** spinning 只给最深一层的进行中项；子步骤在进行时，阶段本身保持静态。 */
+function ItemIcon({item, spinning}: {item: PlanItem; spinning: boolean}) {
   if (item.status === 'completed') return <CircleCheck className="size-4 text-state-success" aria-hidden/>
-  if (item.status === 'in_progress') return <CircleDot className="size-4 text-signal" aria-hidden/>
+  if (item.status === 'in_progress') return spinning
+    ? <Loader2 className="size-4 animate-spin text-muted-foreground motion-reduce:animate-none" aria-hidden/>
+    : <CircleDot className="size-4 text-muted-foreground" aria-hidden/>
   return <Circle className={cn('size-4', item.status === 'blocked' ? 'text-state-waiting' : 'text-faint')} aria-hidden/>
 }
 
 export function planStages(plan: PlanView) { return plan.items.filter(item => item.kind !== 'step') }
 function progressUnit(plan: PlanView) { return plan.items.some(item => item.kind === 'step') ? '阶段' : '项' }
 
+/** 一条轨道，填充长度只表示已完成比例，不随进行中改色。 */
+function StageTrack({completed, total}: {completed: number; total: number}) {
+  const ratio = total > 0 ? Math.min(100, Math.max(0, (completed / total) * 100)) : 0
+  return (
+    <span className="relative hidden h-1 w-14 shrink-0 overflow-hidden rounded-full bg-border sm:inline-block" aria-hidden>
+      <span className="absolute inset-y-0 left-0 rounded-full bg-foreground/70" style={{width: `${ratio}%`}}/>
+    </span>
+  )
+}
+
 export function PlanContent({plan, active, ended}: {plan: PlanView; active: boolean; ended: boolean}) {
   const stages = planStages(plan)
-  const renderItem = (item: PlanItem, step: boolean) => <li key={item.id} className={cn('flex items-start gap-2 py-1.5', item.schedule === 'future' && 'opacity-60')}>
-    <span className="pt-0.5"><ItemIcon item={item}/></span>
-    <span className={cn('min-w-0 flex-1 text-meta break-words', (!step || active && item.status === 'in_progress') && 'font-medium', active && item.status === 'in_progress' && 'text-signal')}>{item.text}</span>
+  const renderItem = (item: PlanItem, step: boolean, spinning = active) => <li key={item.id} className={cn('flex items-start gap-2 py-1.5', item.schedule === 'future' && 'opacity-60')}>
+    <span className="pt-0.5"><ItemIcon item={item} spinning={spinning}/></span>
+    <span className={cn('min-w-0 flex-1 text-meta break-words', (!step || active && item.status === 'in_progress') && 'font-medium')}>{item.text}</span>
     <span className="shrink-0 pt-0.5 text-xs text-muted-foreground" title={item.status === 'blocked' || item.status === 'cancelled' ? item.reason : undefined}>{item.schedule === 'future' && item.status === 'pending' ? '后续' : ended && item.status === 'in_progress' ? '未完成' : !active && item.status === 'in_progress' ? '未完成' : STATUS_TEXT[item.status]}</span>
   </li>
   return <>
-    <p className="text-meta font-medium break-words">{plan.title || '任务计划'}</p>
-    {plan.description && <p className="mt-1 text-meta text-muted-foreground break-words">{plan.description}</p>}
+    <p className="text-lg font-semibold leading-6 break-words">{plan.title || '任务计划'}</p>
+    {plan.description && <p className="mt-1 text-meta leading-5 text-muted-foreground break-words">{plan.description}</p>}
     <ol className="mt-3 space-y-1">{stages.map(stage => {
       const children = plan.items.filter(s => s.kind === 'step' && s.parentId === stage.id)
       return <li key={stage.id}>
-        <ol>{renderItem(stage, false)}</ol>
+        <ol>{renderItem(stage, false, active && !children.some(child => child.status === 'in_progress'))}</ol>
         {children.length > 0 && <div className="ml-2 border-l pl-4">
           <ol>{children.map(child => renderItem(child, true))}</ol>
         </div>}
@@ -125,15 +138,13 @@ export function PlanBar({plan, runStatus, proposal = false, defaultOpen = false,
           </div>
         </div>}
       <button ref={buttonRef} type="button" aria-expanded={expanded} aria-controls={mounted ? contentId : undefined} onClick={() => setOpen(!expanded)}
-        className="flex w-full items-center gap-3 px-3 py-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">
-        <span className={cn('hidden items-center gap-0.5', !expanded && 'sm:flex')} aria-hidden>
-          {stages.map(item => <span key={item.id} className={cn('h-1.5 w-3 rounded-[2px]', item.status === 'completed' ? 'bg-state-success' : item.status === 'in_progress' && active ? 'bg-signal' : item.schedule === 'future' ? 'bg-border/50' : 'bg-border')}/>)}
-        </span>
-        {expanded ? <span className="flex-1 text-meta font-medium">收起计划</span> : <>
-        <span className="shrink-0 text-meta font-medium tabular-nums">{progress}</span>
-        <span className="min-w-0 flex-1">
-          <span className={cn('block truncate text-meta', ended && !allDone ? 'text-state-waiting' : 'text-foreground')}>{headline}</span>
-          {showChildren && currentStep && <span className={cn('block truncate text-meta font-medium', active ? 'text-signal' : 'text-muted-foreground')}>{currentStep.text}</span>}
+        className="flex h-10 w-full min-w-0 flex-nowrap items-center gap-3 overflow-hidden px-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">
+        {!expanded && <StageTrack completed={completed} total={total}/>}
+        {expanded ? <span className="min-w-0 flex-1 truncate text-meta font-medium">收起计划</span> : <>
+        <span className="shrink-0 whitespace-nowrap text-meta font-medium tabular-nums">{progress}</span>
+        <span className="flex min-w-0 flex-1 flex-nowrap items-center gap-2 overflow-hidden" title={[headline, showChildren && currentStep?.text].filter(Boolean).join(' › ')}>
+          <span className={cn('truncate whitespace-nowrap text-meta', showChildren && currentStep && 'max-w-[45%]', ended && !allDone ? 'text-state-waiting' : 'text-muted-foreground')}>{headline}</span>
+          {showChildren && currentStep && <><span className="shrink-0 text-faint" aria-hidden>›</span><span className="min-w-0 flex-1 truncate whitespace-nowrap text-meta font-medium text-foreground">{currentStep.text}</span></>}
         </span>
         </>}
         <ChevronUp className={cn('size-4 shrink-0 text-muted-foreground transition-transform', expanded && 'rotate-180')} aria-hidden/>

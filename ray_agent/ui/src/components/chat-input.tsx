@@ -23,6 +23,7 @@ import {clearDraft, readDraft, writeDraft, DRAFT_CHANGED, DATA_CLEARED} from '@/
 import {recoverSubmission, UncertainSubmissionError} from '@/lib/send-recovery'
 import {findSlashTrigger, removeSlashFragment, type SlashFragment} from '@/lib/slash-trigger'
 import {ModelPicker, type ModelSelection} from '@/components/model-picker'
+import {rememberModelPreference} from '@/lib/model-preference'
 import {useDeveloperMode} from '@/hooks/use-developer-mode'
 import {clipboardImages, isImageFile} from '@/lib/composer-images'
 import {AttachmentThumbnail} from '@/components/preview/attachment-thumbnail'
@@ -426,6 +427,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
             image_mode: 'auto',
             ...(modelChoice ? {model: modelChoice.model, reasoning: modelChoice.reasoning} : {}),
           })
+          if (modelChoice) rememberModelPreference(modelChoice)
           clearDraft(scope)
           // 发送成功后清空输入框和文件列表
           setInputValue('')

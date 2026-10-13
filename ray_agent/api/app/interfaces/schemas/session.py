@@ -173,6 +173,7 @@ class TurnRequestResponse(BaseModel):
     run_id: str
     index: int
     turn_seq: int
+    api_protocol: str = 'chat_completions'
     messages: List[Dict[str, Any]]
     tools: List[Dict[str, Any]]
     images: List[Dict[str, Any]] = Field(default_factory=list)

@@ -148,3 +148,5 @@ docker compose ps
 - [沙箱](sandbox/README.md)：浏览器、终端和文件操作服务。
 
 各服务 README 分别维护本地开发、依赖安装和验证命令；本指南只维护完整部署的配置与运行检查。
+
+模型端点引用支持 `api_protocol: responses`（默认）和显式 `chat_completions`。当前 GPT 与 DeepSeek 默认均使用 Responses；上游需实际支持 `/responses` 及工具流式事件。协议由部署配置决定，普通用户菜单只选择模型与思考。

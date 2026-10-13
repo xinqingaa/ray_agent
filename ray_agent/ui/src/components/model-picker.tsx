@@ -12,6 +12,7 @@ import {SegmentedControl} from '@/components/ui/segmented-control'
 import {cn} from '@/lib/utils'
 import {modelsForVendor, selectModel, thinkingOptions, vendorOf, vendorTabs, type CatalogModel, type ModelSelection, type VendorId} from '@/lib/model-selection'
 import {useDeveloperMode} from '@/hooks/use-developer-mode'
+import {MODEL_PREFERENCE_CHANGED, readModelPreference, rememberModelPreference, validModelPreference} from '@/lib/model-preference'
 export type {ModelSelection} from '@/lib/model-selection'
 
 function usableCatalog(data: ModelCatalog | null | undefined): ModelCatalog | null {
@@ -51,6 +52,8 @@ export function ModelPicker({sessionId, savedModel, savedReasoning, onSelection,
   const [catalog, setCatalog] = useState<ModelCatalog | null>(usableCatalog(providedCatalog))
   const [catalogError, setCatalogError] = useState<string | null>(loadError ?? null)
   const [picked, setPicked] = useState<ModelSelection | null>(null)
+  const [recent, setRecent] = useState<ModelSelection | null>(null)
+  const [preferenceRead, setPreferenceRead] = useState(false)
   const [draft, setDraft] = useState<ModelSelection | null>(null)
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -60,6 +63,17 @@ export function ModelPicker({sessionId, savedModel, savedReasoning, onSelection,
   const [scope, setScope] = useState(sessionId)
   const request = useRef(0)
   const lastEffort = useRef<Record<string, string>>({})
+  useLayoutEffect(() => {
+    const refresh = () => setRecent(readModelPreference())
+    refresh()
+    setPreferenceRead(true)
+    window.addEventListener('storage', refresh)
+    window.addEventListener(MODEL_PREFERENCE_CHANGED, refresh)
+    return () => {
+      window.removeEventListener('storage', refresh)
+      window.removeEventListener(MODEL_PREFERENCE_CHANGED, refresh)
+    }
+  }, [])
   if (scope !== sessionId) {setScope(sessionId); setPicked(null); setDraft(null); setVendor(null); setOpen(false); setSaving(false); setError(null)}
   useEffect(() => {
     if (loadError) {setCatalog(null); setCatalogError(loadError); return}
@@ -70,12 +84,18 @@ export function ModelPicker({sessionId, savedModel, savedReasoning, onSelection,
     return () => {cancelled = true}
   }, [providedCatalog, loadError])
   useEffect(() => {request.current += 1; return () => {request.current += 1}}, [sessionId])
-  const selection = picked ?? (catalog?.default_model ? {
-    model: savedModel || catalog.default_model,
-    reasoning: savedReasoning || catalog.models.find(item => item.id === (savedModel || catalog.default_model))?.default_choice || '',
-  } : null)
-  const committed = useMemo(() => picked ?? (savedModel && savedReasoning ? {model: savedModel, reasoning: savedReasoning} : null), [picked, savedModel, savedReasoning])
-  useEffect(() => {onSelection(committed)}, [onSelection, committed])
+  const selection = useMemo(() => {
+    if (picked) return picked
+    if (!catalog) return null
+    if (savedModel) return {
+      model: savedModel,
+      reasoning: savedReasoning || catalog.models.find(item => item.id === savedModel)?.default_choice || '',
+    }
+    // 本地记录读完之前不发出目录默认值，避免新对话把 deepseek-flash / high 写回去。
+    if (!preferenceRead) return null
+    return validModelPreference(recent, catalog)
+  }, [picked, catalog, savedModel, savedReasoning, recent, preferenceRead])
+  useEffect(() => {if (selection) onSelection(selection)}, [onSelection, selection])
   if (catalogError && !catalog) {
     return <Popover>
       <PopoverTrigger asChild><button type="button" aria-label={`模型目录不可用：${catalogError}`}
@@ -113,6 +133,7 @@ export function ModelPicker({sessionId, savedModel, savedReasoning, onSelection,
     try {
       const result = sessionId ? await sessionApi.setModel(sessionId, edit) : edit
       if (id !== request.current) return
+      rememberModelPreference(result)
       setPicked(result); setDraft(null); setNotice(null); setOpen(false)
     } catch (e) {if (id === request.current) setError(e instanceof Error ? e.message : '模型没有切换')}
     finally {if (id === request.current) setSaving(false)}

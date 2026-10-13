@@ -391,6 +391,7 @@ export type ChatAccepted = {
  * 某一轮实际发给模型的请求（只读重建）
  */
 export type TurnRequest = {
+  api_protocol?: string;
   run_id: string;
   index: number;
   turn_seq: number;
