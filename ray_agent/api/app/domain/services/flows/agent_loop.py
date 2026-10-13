@@ -644,6 +644,12 @@ class AgentLoop(BaseFlow):
                     yield event
 
             self.plan_tool.adopted = self._plan_progress.required == 'adopted'
+            step_notice = self._plan_progress.step_notice(self.plan_tool.latest_plan)
+            if step_notice and self.mode != RunMode.PLAN:
+                await self._add_messages([{'role': 'user', 'content': step_notice}])
+                for event in self._take_context():
+                    self._plan_progress.observe(event)
+                    yield event
             verification_notice = self._plan_progress.verification_notice(self.plan_tool.latest_plan)
             if verification_notice and self.mode != RunMode.PLAN:
                 await self._add_messages([{'role': 'user', 'content': verification_notice}])

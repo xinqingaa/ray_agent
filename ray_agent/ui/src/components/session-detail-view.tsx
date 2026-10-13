@@ -499,8 +499,6 @@ export function SessionDetailView({
   const shownTimeline = hideEndId ? visibleTimeline.filter((item) => item.id !== hideEndId) : visibleTimeline
   const hiddenEndRunId = hideEndId ? view.timeline.find(item => item.id === hideEndId)?.runId : null
   const shownRuns = view.runs.filter(item => !hiddenRunIds.includes(item.id) && item.id !== hiddenEndRunId)
-  const lastItem = shownTimeline[shownTimeline.length - 1]
-  const tailQuiet = !lastItem || lastItem.kind === 'user' || lastItem.kind === 'protection'
   const retrySettled = retrying != null && view.timeline.some((item) => item.runId && item.runId !== retrying.fromRunId && item.kind !== 'user' && item.kind !== 'protection')
   const pendingSend = outgoing != null || (retrying != null && !retrySettled)
   const showOptimistic = outgoing != null && outgoing.echo !== false && !echoed && !submitting
@@ -525,7 +523,6 @@ export function SessionDetailView({
       activity={activityKind}
       streaming={!!view.streaming?.text}
       running={view.activeRun?.status === 'running'}
-      tailQuiet={tailQuiet}
     />
   )
 

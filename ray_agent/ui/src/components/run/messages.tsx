@@ -52,19 +52,21 @@ export function UserMessage({text, attachments = [], injected = false, className
 type StreamingProps = {
   /** W6 增量渲染入口：为 true 时文本仍在增长，末尾显示输入光标 */
   streaming?: boolean
+  deliveredFiles?: FileView[]
+  onDownloadFile?: (file: FileView) => void
 }
 
 /** 增量生成时在最后一个块的末尾显示静态光标（不闪烁，动画只留给状态条） */
 const STREAMING_CARET = "[&_.markdown-content>:last-child]:after:ml-0.5 [&_.markdown-content>:last-child]:after:text-foreground/60 [&_.markdown-content>:last-child]:after:content-['▍']"
 
 /** 旁白：伴随工具调用的助手文本，比最终回复弱一级 */
-export function NarrationBlock({text, streaming, className}: {text: string; className?: string} & StreamingProps) {
+export function NarrationBlock({text, streaming, className, deliveredFiles, onDownloadFile}: {text: string; className?: string} & StreamingProps) {
   return (
     <div
       className={cn('text-muted-foreground [&_p]:text-meta [&_li]:text-meta', streaming && STREAMING_CARET, className)}
       aria-busy={streaming || undefined}
     >
-      <MarkdownContent content={text}/>
+      <MarkdownContent content={text} deliveredFiles={deliveredFiles} onDownloadFile={onDownloadFile}/>
     </div>
   )
 }
@@ -76,11 +78,11 @@ type FinalReplyProps = {
 } & StreamingProps
 
 /** 最终回复正文；时间线将本次运行统计附在回复下方。 */
-export function FinalReply({text, streaming, className}: FinalReplyProps) {
+export function FinalReply({text, streaming, className, deliveredFiles, onDownloadFile}: FinalReplyProps) {
   return (
     <div className={cn('space-y-3', className)} aria-busy={streaming || undefined}>
       <div className={cn(streaming && STREAMING_CARET)}>
-        <MarkdownContent content={text}/>
+        <MarkdownContent content={text} deliveredFiles={deliveredFiles} onDownloadFile={onDownloadFile}/>
       </div>
     </div>
   )

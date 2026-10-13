@@ -444,7 +444,7 @@ function kinds(view) {
   assert.equal(plan.plan.changed[1].text, '校验');
   assert.equal(plan.plan.changed[2].to, 'in_progress');
   assert.equal(plan.plan.items[1].id, '2');
-  assert.equal(plan.timeline.find((item) => item.kind === 'tools').calls[0].title, '更新计划 0/2 已完成');
+  assert.equal(plan.timeline.find((item) => item.kind === 'tools').calls[0].title, '更新计划 整体阶段 0/2 已完成');
   console.log('PASS: 计划第二版按稳定 ID 识别改名与状态变化，只投影最新清单');
 
   const delivered = projectSession({

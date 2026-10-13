@@ -488,6 +488,8 @@ export function projectSession(input: ProjectSessionInput): SessionView {
     pending = []
   }
 
+  const deliveredByPath = new Map<string, FileView>()
+  const deliveriesAtMessage = new Map<string, FileView[]>()
   for (const ev of normalized) {
     const data = ev.data
     if (ev.type === 'title') {
@@ -684,6 +686,14 @@ export function projectSession(input: ProjectSessionInput): SessionView {
         }
       }
       if (role === 'assistant' && attachments.length > 0) {
+        const attachedByPath = new Map<string, FileView[]>()
+        for (const file of attachments) if (file.path) {
+          attachedByPath.set(file.path, [...(attachedByPath.get(file.path) ?? []), file])
+        }
+        for (const [path, candidates] of attachedByPath) {
+          if (new Set(candidates.map(file => file.id)).size === 1) deliveredByPath.set(path, candidates[0])
+          else deliveredByPath.delete(path) // 同一事件无法确定版本顺序时不猜测。
+        }
         timeline.push({
           kind: 'delivery',
           id: idOf(ev.seq, timeline.length),
@@ -695,6 +705,7 @@ export function projectSession(input: ProjectSessionInput): SessionView {
         continue
       }
       if (role === 'assistant' && text.trim()) {
+        deliveriesAtMessage.set(idOf(ev.seq, timeline.length), [...deliveredByPath.values()])
         pending.push({seq: ev.seq, at: ev.createdAt, runId: ev.runId, text, turnIndex: ev.runId ? currentTurn.get(ev.runId) ?? null : null})
       }
       continue
@@ -919,6 +930,13 @@ export function projectSession(input: ProjectSessionInput): SessionView {
       attempt: streamingDraft.attempt,
       text: streamingDraft.text,
       startedAt,
+    }
+  }
+
+  // 旁白可能延迟归并；以消息原始事件顺序冻结交付版本，不能以渲染位置关联未来版本。
+  for (const item of timeline) {
+    if (item.kind === 'narration' || item.kind === 'final') {
+      item.deliveredFiles = deliveriesAtMessage.get(item.id) ?? (item.id === streamingItemId ? [...deliveredByPath.values()] : [])
     }
   }
 

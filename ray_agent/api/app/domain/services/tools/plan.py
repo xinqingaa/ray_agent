@@ -33,7 +33,7 @@ class PlanTool(BaseTool):
         "最多一个阶段和一个子步骤 in_progress；阶段展开不能删除或改成自身步骤。"
         "schedule=current 本轮处理，future 仅用于用户安排的后续，不表示预算不足或已完成；资源不足用 blocked 和 reason。"
         "结构调整、重新打开完成项、取消或改变本轮范围须 explanation；source_seq 引用用户消息，不能把自己的建议当授权。"
-        "title 是简短任务标题，description 是一句任务说明；step 写简短动作标题，不堆叠规格、来源和执行说明；简单任务平铺，只有必要时展开子步骤。goal 完整保存整体目标，scope 描述本次范围；artifacts 登记必要或已承诺成果，file 携沙箱绝对 path，reply 为回复正文。"
+        "title 是简短任务标题，description 是一句任务说明；step 写简短动作标题，不堆叠规格、来源和执行说明。多步小任务可平铺，但每项表达一个独立动作；跨阶段任务默认分层，阶段内多个可独立推进或核验的动作必须用 step 展开，不能将整个阶段当成一个执行步骤。已知关键步骤首次列出，其余在进入阶段时补充。开始、完成、切换或受阻时更新当前子步骤，可与业务动作同批；不按每次工具调用拆分，不凑固定数量。goal 完整保存整体目标，scope 描述本次范围；artifacts 登记必要或已承诺成果，file 携沙箱绝对 path，reply 为回复正文。"
         "首次登记成果后继续复用 id；不为核对增加工具往返。无关新任务 reset=true 并说明新目标；简单直接回答不必调用。"
     ), parameters={
         "action": {"type": "string", "enum": ["update", "review", "not_needed"]},
@@ -43,7 +43,7 @@ class PlanTool(BaseTool):
         "goal": {"type": "string"}, "scope": {"type": "string"},
         "source_seq": {"type": "integer", "description": "仅已知时填写真实用户消息 seq；省略自动采用当前消息，不能猜测序号"},
         "explanation": {"type": "string"}, "reset": {"type": "boolean"},
-        "plan": {"type": "array", "items": {"type": "object", "properties": {
+        "plan": {"type": "array", "description": "完整清单。跨阶段任务保留 stage，并将阶段内独立动作列为携 parent_id 的 step；开始执行时选定当前子步骤。小任务可平铺，不按工具调用或固定数量拆分。", "items": {"type": "object", "properties": {
             "id": {"type": "string"}, "step": {"type": "string"},
             "kind": {"type": "string", "enum": ["stage", "step"]},
             "parent_id": {"type": "string"},
@@ -146,7 +146,8 @@ class PlanTool(BaseTool):
         if old and not reset: updated.id = old.id
         updated.status = ExecutionStatus.COMPLETED if updated.done else ExecutionStatus.RUNNING
         self.latest_plan = updated
-        return ToolResult(message=f"计划已更新：整体阶段 {len(updated.stages)} 项，已完成 {sum(s.status == ExecutionStatus.COMPLETED for s in updated.stages)} 项",
+        children = [s for s in updated.steps if s.kind == 'step']
+        return ToolResult(message=f"计划已更新：整体阶段 {len(updated.stages)} 项，已完成 {sum(s.status == ExecutionStatus.COMPLETED for s in updated.stages)} 项；子步骤 {len(children)} 项，已完成 {sum(s.status == ExecutionStatus.COMPLETED for s in children)} 项",
                           data={"plan_id": updated.id, "source_seq": seq, "title": updated.title,
                                 "description": updated.description, "plan": [self._node(s) for s in steps],
                                 "artifacts": [a.model_dump() for a in outs]})

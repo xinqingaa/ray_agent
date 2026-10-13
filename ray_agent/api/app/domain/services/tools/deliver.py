@@ -55,6 +55,7 @@ class DeliverTool(BaseTool):
         description=(
             "把沙箱中已经写好的文件作为附件交付给用户下载。需要文件成果时必须调用本工具；"
             "只在回复里写出路径不算交付。路径必须是已写入文件的绝对路径。"
+            "成功后用户通过交付附件查看或下载；沙箱路径仅供工具定位，不编成用户下载链接。"
         ),
         parameters={
             "paths": {
@@ -98,6 +99,8 @@ class DeliverTool(BaseTool):
         delivered = len(result.files)
         failed = [f"{item.path}（{item.error}）" for item in items if not item.success]
         message = f"已交付 {delivered}/{len({str(path) for path in paths})} 个文件"
+        if delivered:
+            message += "；用户通过交付附件查看或下载，最终回复引用附件名称，不将沙箱路径编成链接"
         reused_count = sum(i.reused for i in items)
         if reused_count: message += f"；复用已有交付 {reused_count} 项"
         if failed:

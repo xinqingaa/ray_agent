@@ -42,7 +42,7 @@ export function TimelineItemView({item, handlers = {}}: {item: TimelineItem; han
     case 'user':
       return <UserMessage text={item.text} attachments={item.attachments} injected={item.injected} onPreview={handlers.onPreviewFile} onDownload={handlers.onDownloadFile}/>
     case 'narration':
-      return <NarrationBlock text={item.text} streaming={streaming}/>
+      return <NarrationBlock text={item.text} streaming={streaming} deliveredFiles={item.deliveredFiles} onDownloadFile={handlers.onDownloadFile}/>
     case 'tools':
       return <ToolGroup calls={item.calls} selectedCallId={handlers.selectedCallId} onOpen={handlers.onOpenCall}/>
     case 'ask':
@@ -86,7 +86,7 @@ export function TimelineItemView({item, handlers = {}}: {item: TimelineItem; han
     case 'protection':
       return <ProtectionNotice message={item.message} state={item.state}/>
     case 'final':
-      return <FinalReply text={item.text} summary={item.summary} streaming={streaming}/>
+      return <FinalReply text={item.text} summary={item.summary} streaming={streaming} deliveredFiles={item.deliveredFiles} onDownloadFile={handlers.onDownloadFile}/>
     case 'run_end':
       return <RunEndBar status={item.status} reasonText={item.reasonText} retryText={item.retryText} onRetry={handlers.onRetry && (handlers.retryRunId == null || handlers.retryRunId === item.runId) ? (text) => handlers.onRetry?.(text, item.runId ?? '') : undefined}/>
   }

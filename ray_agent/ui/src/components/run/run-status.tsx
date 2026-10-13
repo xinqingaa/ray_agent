@@ -44,7 +44,6 @@ type TimelineProps = {
   activity?: Activity['kind'] | null
   streaming: boolean
   running: boolean
-  tailQuiet: boolean
   className?: string
 }
 
@@ -110,7 +109,7 @@ function timelineSentence(input: TimelineProps): string | null {
   }
   if (specific) return specific
   if (activity === 'waiting_reply' || activity === 'waiting_approval') return null
-  if (!input.streaming && input.tailQuiet && input.running && (activity === 'model' || activity === 'idle' || activity == null)) {
+  if (!input.streaming && input.running && (activity === 'model' || activity === 'idle' || activity == null)) {
     return TEXT.thinking
   }
   return null

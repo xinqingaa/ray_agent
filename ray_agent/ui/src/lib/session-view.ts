@@ -218,7 +218,7 @@ type ItemBase = {id: string; runId: string | null; at: number}
 
 export type TimelineItem =
   | (ItemBase & {kind: 'user'; text: string; attachments: FileView[]; injected: boolean})
-  | (ItemBase & {kind: 'narration'; text: string; turnIndex?: number | null})
+  | (ItemBase & {kind: 'narration'; text: string; turnIndex?: number | null; deliveredFiles?: FileView[]})
   | (ItemBase & {kind: 'tools'; turnIndex: number | null; calls: ToolCallView[]})
   | (ItemBase & {kind: 'ask'; question: string; answered: boolean})
   | (ItemBase & {kind: 'approval'; call: ToolCallView; status: ApprovalStatus; decidedAt: number | null})
@@ -233,7 +233,7 @@ export type TimelineItem =
     })
   | (ItemBase & {kind: 'attempt'; turnIndex: number; attempt: number; reason: string; retried: boolean; chars?: number | null})
   | (ItemBase & {kind: 'protection'; state: 'skipped' | 'failed'; message: string})
-  | (ItemBase & {kind: 'final'; text: string; summary: RunSummary | null})
+  | (ItemBase & {kind: 'final'; text: string; summary: RunSummary | null; deliveredFiles?: FileView[]})
   | (ItemBase & {kind: 'run_end'; status: Exclude<RunStatus, 'running' | 'waiting' | 'completed'>; reason: RunReason | null; reasonText: string; retryText: string | null})
 
 export type TimelineItemKind = TimelineItem['kind']

@@ -1,13 +1,18 @@
 'use client'
 
 import { useMemo } from 'react'
-import ReactMarkdown from 'react-markdown'
+import ReactMarkdown, {defaultUrlTransform} from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { cn } from '@/lib/utils'
+import type {FileView} from '@/lib/session-view'
+import {resolveMessageFileLink} from '@/lib/message-file-links'
+import {fileApi} from '@/lib/api/file'
 
 export interface MarkdownContentProps {
   content: string
   className?: string
+  deliveredFiles?: readonly FileView[]
+  onDownloadFile?: (file: FileView) => void
 }
 
 /**
@@ -32,6 +37,13 @@ const headingClasses: Record<string, string> = {
   h4: 'text-sm font-medium mt-2 mb-1 first:mt-0',
   h5: 'text-sm font-medium mt-1.5 mb-0.5 first:mt-0 text-muted-foreground',
   h6: 'text-sm font-medium mt-1 mb-0.5 first:mt-0 text-muted-foreground',
+}
+
+function MarkdownLink({node, className, href, children, ...props}: React.ComponentProps<'a'> & {node?: unknown}) {
+  // CJK autolink 兜底。已交付文件在调用方先匹配，因此中文文件名不受此限制。
+  if (href && /[\u4E00-\u9FFF\u3000-\u303F\uFF00-\uFFEF]/.test(href)) return <span className="text-sm">{children}</span>
+  return <a className={cn('text-sm text-signal underline-offset-2 hover:underline', className)}
+    href={href} target="_blank" rel="noopener noreferrer" {...props}>{children}</a>
 }
 
 const components: React.ComponentProps<typeof ReactMarkdown>['components'] = {
@@ -114,31 +126,24 @@ const components: React.ComponentProps<typeof ReactMarkdown>['components'] = {
       {...props}
     />
   ),
-  a: ({ node, className, href, children, ...props }) => {
-    // 安全兜底：如果 href 包含 CJK 字符，说明 autolink 仍然误判，降级为纯文本
-    if (href && /[\u4E00-\u9FFF\u3000-\u303F\uFF00-\uFFEF]/.test(href)) {
-      return <span className="text-sm">{children}</span>
-    }
-    return (
-      <a
-        className={cn('text-sm text-signal underline-offset-2 hover:underline', className)}
-        href={href}
-        target="_blank"
-        rel="noopener noreferrer"
-        {...props}
-      >
-        {children}
-      </a>
-    )
-  },
+  a: MarkdownLink,
 }
 
-export function MarkdownContent({ content, className }: MarkdownContentProps) {
+export function MarkdownContent({ content, className, deliveredFiles, onDownloadFile }: MarkdownContentProps) {
   const normalized = useMemo(() => normalizeAutolinks(content), [content])
 
   return (
     <div className={cn('markdown-content break-words', className)}>
-      <ReactMarkdown remarkPlugins={[remarkGfm]} components={components}>
+      <ReactMarkdown remarkPlugins={[remarkGfm]}
+        urlTransform={(url, key) => key === 'href' && deliveredFiles && resolveMessageFileLink(url, deliveredFiles) !== null ? url : defaultUrlTransform(url)}
+        components={deliveredFiles ? {...components, a: ({node, className, href, children, ...props}) => {
+          const file = href ? resolveMessageFileLink(href, deliveredFiles) : null
+          if (file === 'unavailable') return <span className="text-sm" title="此路径没有可用的交付附件">{children}</span>
+          if (file) return <a {...props} className={cn('text-sm text-signal underline-offset-2 hover:underline', className)}
+            href={fileApi.getFileDownloadUrl(file.id)} download={file.filename}
+            onClick={onDownloadFile ? event => {event.preventDefault(); onDownloadFile(file)} : undefined}>{children}</a>
+          return <MarkdownLink node={node} className={className} href={href} {...props}>{children}</MarkdownLink>
+        }} : components}>
         {normalized}
       </ReactMarkdown>
     </div>

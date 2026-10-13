@@ -130,6 +130,80 @@ def test_unregistered_checks_have_one_nonblocking_notice_and_restore_it():
     assert restored.verification_notice(plan) is None
 
 
+def test_child_progress_notice_is_once_per_stage_and_restores_from_context():
+    from app.domain.models.event import ContextOp
+    from app.domain.services.plan_progress import STEP_NOTICE_PREFIX
+    p = PlanProgress()
+    plan = Plan(steps=[Step(id='a', status='running'), Step(id='b'),
+                       Step(id='child', kind='step', parent_id='a')])
+    assert p.step_notice(plan) is None  # 本次尚未采用的历史清单不触发。
+    p.observe(PlanEvent(plan=plan))
+    notice = p.step_notice(plan)
+    assert notice and notice.startswith(STEP_NOTICE_PREFIX)
+    assert not p.blocks([{'function': {'name': 'write_file'}}], plan)
+    recorded = ContextEvent(op=ContextOp.APPEND, messages=[{'role': 'user', 'content': notice}])
+    p.observe(recorded)
+    assert p.step_notice(plan) is None
+    restored = PlanProgress()
+    restored.observe(PlanEvent(plan=plan))
+    restored.observe(recorded)
+    assert restored.step_notice(plan) is None
+    # 另一个阶段独立提醒；真实当前步骤或受阻步骤不触发。
+    plan.steps[0].status = ExecutionStatus.COMPLETED
+    plan.steps[1].status = ExecutionStatus.RUNNING
+    plan.steps.append(Step(id='next', kind='step', parent_id='b', status='running'))
+    assert restored.step_notice(plan) is None
+    plan.steps[-1].status = ExecutionStatus.BLOCKED
+    assert restored.step_notice(plan) is None
+    plan.steps[-1].status = ExecutionStatus.PENDING
+    assert restored.step_notice(plan)
+    restored.not_needed = True
+    assert restored.step_notice(plan) is None
+
+
+def test_loop_child_notice_does_not_block_or_add_model_requests():
+    from app.domain.services.plan_progress import STEP_NOTICE_PREFIX
+    async def check():
+        nodes = [{'id': 'stage', 'step': '阶段', 'status': 'in_progress'},
+                 {'id': 'child', 'step': '执行', 'kind': 'step', 'parent_id': 'stage', 'status': 'pending'}]
+        h = make_loop([tool_call('update_plan', {'plan': nodes}),
+                       tool_call('echo', {'text': 'a'}), tool_call('echo', {'text': 'b'}),
+                       tool_call('update_plan', {'plan': [{**n, 'status': 'completed'} for n in nodes]}), text('已完成')])
+        events = [e async for e in h.loop.invoke(Message(message='执行'))]
+        notices = [m for e in events if isinstance(e, ContextEvent) for m in e.messages or []
+                   if str(m.get('content') or '').startswith(STEP_NOTICE_PREFIX)]
+        assert len(notices) == 1
+        assert len(h.llm.requests) == 5
+        assert h.recording.calls == ['echo:a', 'echo:b']
+        assert_no_dangling(memory_messages(h.session))
+    run(check())
+
+
+def test_multistage_expansion_notice_is_nonblocking_and_single_flat_action_is_exempt():
+    from app.domain.models.event import ContextOp
+    p = PlanProgress()
+    flat = Plan(steps=[Step(id='only', status='running')])
+    p.observe(PlanEvent(plan=flat))
+    assert p.step_notice(flat) is None
+    staged = Plan(steps=[Step(id='a', status='running'), Step(id='b')])
+    p.observe(PlanEvent(plan=staged))
+    notice = p.step_notice(staged)
+    assert notice and 'kind=step' in notice
+    assert not p.blocks([{'function': {'name': 'write_file'}}], staged)
+    p.observe(ContextEvent(op=ContextOp.APPEND, messages=[{'role': 'user', 'content': notice}]))
+    assert p.step_notice(staged) is None
+
+
+def test_direct_answer_and_single_operation_can_finish_without_a_plan():
+    async def check():
+        for script in ([text('回答')], [tool_call('echo', {'text': '结果'}), text('回答')]):
+            h = make_loop(script)
+            events = [e async for e in h.loop.invoke(Message(message='简单请求'))]
+            assert not any(isinstance(e, PlanEvent) for e in events)
+            assert h.llm.remaining == 0
+    run(check())
+
+
 def test_user_arranged_future_file_can_have_unknown_path_until_activated():
     async def check():
         t=PlanTool();t.user_seqs={1,20};t.current_user_seq=1

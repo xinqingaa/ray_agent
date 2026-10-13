@@ -1,12 +1,15 @@
 """事件驱动范围核对；阶段推进由模型负责，没有定时批次核对。"""
+import json
+
 from app.domain.models.event import ContextEvent, PlanEvent, ToolEvent
 
 PLAN_PROGRESS_PREFIX = "[计划核对]"
 COMPLETION_FEEDBACK_PREFIX = "结束前一致性核对："
 TASK_STATE_PREFIX = "[任务状态]"
 VERIFICATION_NOTICE_PREFIX = "[系统提示]核验记录提醒："
+STEP_NOTICE_PREFIX = "[系统提示]步骤进度提醒："
 INTERNAL_CHECK_NOTE = ("这是内部核对，不在最终答复复述。上一条草稿尚未交给用户；最终答复必须独立阅读，"
-                       "保留用户需要的正文。文件交付说明累计成果、可用能力、关键核验及真实缺口；"
+                       "保留用户需要的正文。文件交付说明累计成果、关键结果、使用方式、关键核验及真实缺口，使用已交付附件入口；"
                        "并列信息用短段落或列表，较长正文用标题，遵从用户指定的格式和篇幅。")
 OPEN_ITEMS_ISSUE = "本次范围仍有未完成项；完成后更新状态，资源不足标 blocked 并说明，不能改为后续以消除缺口"
 NON_BUSINESS = {"update_plan", "message_ask_user", "discover_mcp_tools", "get_remote_agent_cards",
@@ -25,6 +28,7 @@ class PlanProgress:
         self.planned = False
         self.unrecorded_calls = 0
         self.verification_noticed = False
+        self.step_noticed: set[tuple[str, str]] = set()
 
     def observe(self, event):
         if isinstance(event, PlanEvent):
@@ -39,6 +43,14 @@ class PlanProgress:
         elif isinstance(event, ContextEvent) and event.op.value == 'append':
             self.feedback_sent |= any(str(m.get('content') or '').startswith(COMPLETION_FEEDBACK_PREFIX) for m in event.messages or [])
             self.verification_noticed |= any(str(m.get('content') or '').startswith(VERIFICATION_NOTICE_PREFIX) for m in event.messages or [])
+            for message in event.messages or []:
+                content = str(message.get('content') or '')
+                if content.startswith(STEP_NOTICE_PREFIX):
+                    try:
+                        identity = json.loads(content[len(STEP_NOTICE_PREFIX):].split('\n', 1)[0])
+                        self.step_noticed.add((identity['plan_id'], identity['stage_id']))
+                    except (ValueError, KeyError, TypeError):
+                        pass
             if event.plan_check == 'scope':
                 self.required, self.corrected, self.noticed = 'scope', False, False
             elif event.plan_check == 'notice': self.noticed = True
@@ -46,6 +58,26 @@ class PlanProgress:
         elif isinstance(event, ToolEvent) and event.status.value == 'called':
             if event.function_name in {'shell_execute', 'browser_console_exec', 'read_file'} and not (event.function_args or {}).get('verification'):
                 self.unrecorded_calls += 1
+
+    def step_notice(self, plan):
+        if self.not_needed or not self.planned or not plan:
+            return None
+        for stage in plan.stages:
+            identity = (plan.id, stage.id)
+            if stage.status.value != 'running' or identity in self.step_noticed:
+                continue
+            children = [step for step in plan.steps if step.kind == 'step' and step.parent_id == stage.id and step.open]
+            all_children = [step for step in plan.steps if step.kind == 'step' and step.parent_id == stage.id]
+            expand = not all_children and len(plan.stages) > 1
+            if not expand and (not children or any(step.status.value in ('running', 'blocked') for step in children)):
+                continue
+            instruction = ('分阶段清单的当前阶段尚无子步骤。若包含多个可独立推进或核验的动作，在继续前以 kind=step、parent_id 引用当前阶段 id 展开，并选定实际当前项；'
+                           '保留整体阶段及稳定 id。只有实际不可再分的独立动作才可保持平铺，不凑数量。') if expand else (
+                           '当前阶段已有未完成子步骤，但没有进行中步骤。继续执行时选定实际当前步骤，完成后及时更新并选定下一项；')
+            return (STEP_NOTICE_PREFIX + json.dumps({'plan_id': plan.id, 'stage_id': stage.id}, ensure_ascii=False) + '\n'
+                    + instruction +
+                    '可与业务动作同批调用 update_plan。已实际完成的短操作可以同批完成，不为提醒增加额外核对，不伪造进度。')
+        return None
 
     def verification_notice(self, plan):
         if self.verification_noticed or self.unrecorded_calls < 6 or not plan or not plan.artifacts:

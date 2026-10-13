@@ -297,20 +297,20 @@ export function ComponentCatalog() {
 
         <Section id="status-bar" title="运行统计" note="生成时跟随当前过程，完成后附在回复下方；停止和失败附在结束记录下方。结束后补上本次运行 Token，所有模式一致。">
           <State label="空闲（不占位）" source="真实"><RunStatusBar run={runStates.idle}/></State>
-          <State label="正在思考" source="真实"><FixtureClock at={runStates.modelNow}><div className="flex flex-col gap-2"><RunStatus place="timeline" compacting={false} pendingSend={false} activity="model" streaming={false} running tailQuiet/><RunStatusBar run={runStates.model}/></div></FixtureClock></State>
+          <State label="正在思考" source="真实"><FixtureClock at={runStates.modelNow}><div className="flex flex-col gap-2"><RunStatus place="timeline" compacting={false} pendingSend={false} activity="model" streaming={false} running/><RunStatusBar run={runStates.model}/></div></FixtureClock></State>
           <State label="工具执行中（动词在工具行）" source="真实"><FixtureClock at={runStates.toolNow}><RunStatusBar run={runStates.tool}/></FixtureClock></State>
           <State label="计划模式" source="合成"><FixtureClock at={runStates.toolNow}><RunStatusBar run={runStates.planMode}/></FixtureClock></State>
           <State label="等你回复（句子在提问卡）" source="真实"><FixtureClock at={runStates.waitingReplyNow}><RunStatusBar run={runStates.waitingReply}/></FixtureClock></State>
           <State label="等你批准（句子在审批卡）" source="合成"><FixtureClock at={runStates.toolNow}><RunStatusBar run={runStates.waitingApproval}/></FixtureClock></State>
-          <State label="正在停止" source="合成"><FixtureClock at={runStates.toolNow}><div className="flex flex-col gap-2"><RunStatus place="timeline" compacting={false} pendingSend={false} activity="stopping" streaming={false} running={false} tailQuiet/><RunStatusBar run={runStates.stopping}/></div></FixtureClock></State>
-          <State label="正在准备执行环境" source="合成"><Surface><RunStatus place="timeline" compacting={false} pendingSend={false} activity="preparing_environment" streaming={false} running={false} tailQuiet/></Surface></State>
+          <State label="正在停止" source="合成"><FixtureClock at={runStates.toolNow}><div className="flex flex-col gap-2"><RunStatus place="timeline" compacting={false} pendingSend={false} activity="stopping" streaming={false} running={false}/><RunStatusBar run={runStates.stopping}/></div></FixtureClock></State>
+          <State label="正在准备执行环境" source="合成"><Surface><RunStatus place="timeline" compacting={false} pendingSend={false} activity="preparing_environment" streaming={false} running={false}/></Surface></State>
           <State label="已完成（保留统计）" source="合成"><RunStatusBar run={{...runStates.tool, status: 'completed', endedAt: runStates.toolNow, summary: messageStates.finalShort.summary}}/></State>
           <State label="失败（原因在时间线）" source="合成"><Surface className="text-meta text-faint"><RunStatus place="headline" status="failed" compacting={false}/>原因和重试只在时间线终态条。</Surface></State>
           <State label="已停止（记录在时间线）" source="合成"><Surface className="flex items-center gap-2 text-sm"><span className="font-medium">会话标题</span><RunStatus place="headline" status="cancelled" compacting={false}/><span className="text-meta text-faint">停止记录留在时间线。</span></Surface></State>
           <State label="已中断（原因在时间线）" source="合成"><Surface className="text-meta text-faint"><RunStatus place="headline" status="interrupted" compacting={false}/>原因只在时间线终态条。</Surface></State>
         </Section>
 
-        <Section id="plan-bar" title="计划条" columns={2} note="只在本次运行已写出自己的计划时出现，或计划模式结束后等待确认执行；其余时候完全不占位。进度入口显示当前步骤序号；点击浮动弹层，只显示最新计划与完成数量。">
+        <Section id="plan-bar" title="计划条" columns={2} note="只在本次运行已写出自己的计划时出现，或计划模式结束后等待确认执行；其余时候完全不占位。收起时显示整体进度及当前阶段和子步骤；点击浮动弹层，只显示最新清单的分层任务与状态，不重复计数。">
           <State label="无计划（不占位）" source="真实">
             <Surface className="text-meta text-faint">
               <PlanBar plan={planStates.none} runStatus="running"/>
@@ -413,7 +413,7 @@ export function ComponentCatalog() {
         </Section>
 
         <Section id="compaction" title="压缩提示" note="W2 合入后由 compact 事件产生；摘要全文在开发者视图。点击压缩后、结果到达前，时间线末尾显示「正在压缩上下文」。侧栏写「压缩中」。">
-          <State label="正在压缩上下文" source="合成"><Surface><RunStatus place="timeline" compacting pendingSend={false} activity={null} streaming={false} running={false} tailQuiet/></Surface></State>
+          <State label="正在压缩上下文" source="合成"><Surface><RunStatus place="timeline" compacting pendingSend={false} activity={null} streaming={false} running={false}/></Surface></State>
           <State label="一次压缩（自动）" source="合成"><Surface><CompactionNotice beforeTokens={41_236} afterTokens={6_310} summarizedTurns={8} trigger="watermark"/></Surface></State>
           <State label="手动压缩" source="合成"><Surface><CompactionNotice beforeTokens={18_200} afterTokens={9_400} summarizedTurns={4} trigger="manual"/></Surface></State>
         </Section>
