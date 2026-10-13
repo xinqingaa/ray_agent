@@ -1,10 +1,18 @@
-# 调研快照
+# 调研入口
 
-本目录保留带日期、代码基线与适用范围的问题分析，不维护实施进度。两份 2026-10-08 调研描述的是当时的实现与待批准建议；相关优化随后落地，当前机制见[Harness 工程](../harness.md)、[能力与边界](../capabilities.md)，关键结果见[浏览器、视觉与资源验证](../plan/evidence/browser-visual-resources-2026-10-08.md)。
+本目录用于需要独立分析的问题。调研标明日期、代码基线，区分观察、源码事实、影响推断与建议；方案是否实施由授权和源码决定，不因出现在调研里就成为待办。
 
-- [浏览器截图机制盘点与按需截图建议](browser-screenshot-policy-2026-10-08.md)：自动截图用途、开销和保存边界。
-- [Agent 执行效率审查与优化方案建议](agent-execution-efficiency-2026-10-08.md)：正文、批次、动作反馈、结果同源与隐藏等待。
-- [任务请求预算与异常结束成果交付分析](run-budget-and-artifact-finalization-2026-10-10.md)：明朝 HTML 任务的请求耗尽证据、范围收敛、预算收尾与阶段成果保存建议；首批预算收尾随后获授权实现，通用成果契约等长期部分仍为建议。
-- [真实服务收尾评估](project-closeout-review-2026-10-11.md)：核对历史验收与现有部署，记录六次真实运行、独立产物检查、部署差异、计划进度问题及收尾建议；属于当次评估快照，不代表建议已实施。
+## 已完成调研的承接
 
-引用分析前重新核对当前实现；原快照中的缺口、方案和状态不自动代表当前事实或待办。更早的阶段调研与逐包计划可从 Git 历史查阅，关键演进关系见[背景说明](../background/README.md)。新增调研写明日期和基线，不在旧快照追加过程日志。
+2026-10-13 按问题合并 Git `b62fda5` 中的四份调研，分析依据与方案设计分别进入背景和专题计划。正文保留理解选择所需的深度，原件通过 `git show b62fda5:<原路径>` 追溯。
+
+| 原调研 | 分析与背景 | 设计与实施方案 |
+|---|---|---|
+| 2026-10-08 执行效率 | [循环与上下文](../background/execution-and-context.md)、[工具观察](../background/tools-and-interface.md) | [执行与效率](../plan/execution-and-context.md)、[浏览器与视觉](../plan/browser-and-visual-resources.md) |
+| 2026-10-08 截图策略 | [工具观察](../background/tools-and-interface.md) | [浏览器与视觉](../plan/browser-and-visual-resources.md) |
+| 2026-10-10 请求预算与异常交付 | [长任务交付](../background/plans-and-delivery.md) | [计划、核验与成果收尾](../plan/long-task-trust-and-delivery.md) |
+| 2026-10-11 项目收尾复审 | [运行事实](../background/runtime-and-progress.md)、[长任务](../background/plans-and-delivery.md) | [运行可靠性](../plan/runtime-and-control.md)、[成果收尾](../plan/long-task-trust-and-delivery.md) |
+
+关键验证结果统一进入 [维护入口](../plan/README.md#关键验收)所指报告，不各建证据目录。未采纳的历史方向不列为当前待办。
+
+当前没有另行授权的独立调研。实际能力与限制见 [能力与边界](../capabilities.md)，需要新分析时再建立材料。

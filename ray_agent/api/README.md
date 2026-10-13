@@ -61,7 +61,7 @@ Agent 循环与工具管线可定向运行：
 uv run --locked python -m pytest tests/core/test_agent_loop.py tests/core/test_llm_usage.py tests/core/test_run_budget.py tests/core/test_plan_progress.py
 ```
 
-循环用例用 `ScriptedLLM` 驱动实际 `AgentLoop` 与工具三段管线，存储与沙箱用内存替身（夹具在 [tests/support/loop_harness.py](tests/support/loop_harness.py)），覆盖多调用按 ID 配对与计划事件、未知工具与非法参数、工具异常不重试、提问位于批次中间与续接、运行中补充消息、文件交付、输出截断、请求预算、停止或失败后的悬空调用补结果，以及管线短路、结果替换和处理顺序；用量用例核对解析与累计。预算用例覆盖提醒与收尾的阈值、提示只追加在记忆而系统消息不变、收尾阶段拒绝非白名单调用但可交付并完成、补充消息重置计数、审批续接沿用计数并补发缺失的收尾提示，以及 `shell_wait_process` 合并输出。计划核对用例检查稳定 ID、有效批次、同批轻量核对、单次纠正未执行与调用配对、透明降级、范围变化、等待续接和压缩后的恢复；不会自动将步骤标为完成。它们不连接外部服务，也不证明真实模型的任务质量或计费结果。
+循环用例用 `ScriptedLLM` 驱动实际 `AgentLoop` 与工具三段管线，存储与沙箱用内存替身（夹具在 [tests/support/loop_harness.py](tests/support/loop_harness.py)），覆盖多调用按 ID 配对与计划事件、未知工具与非法参数、工具异常不重试、提问位于批次中间与续接、运行中补充消息、文件交付、输出截断、请求预算、停止或失败后的悬空调用补结果，以及管线短路、结果替换和处理顺序；用量用例核对解析与累计。预算用例覆盖提醒与收尾的阈值、提示只追加在记忆而系统消息不变、收尾阶段拒绝非白名单调用但可交付并完成、补充消息重置计数、审批续接沿用计数并补发缺失的收尾提示，以及 `shell_wait_process` 合并输出。计划用例检查稳定阶段/步骤身份、范围来源、同批更新与业务动作、承接或范围核对的单次纠正及调用配对、等待续接和压缩后的恢复；核验与成果检查覆盖实际版本、显式通过、分项交付及受限收尾；不会自动将步骤标为完成。它们不连接外部服务，也不证明真实模型的任务质量或计费结果。
 
 执行控制可定向运行：
 
@@ -113,7 +113,7 @@ uv run --locked python -m pytest tests/core/test_scripted_llm.py
 
 ### 端到端评测
 
-[scripts/eval/](scripts/eval/) 通过公开 HTTP API 与 SSE 驱动完整产品，运行纯回答与记忆、文件交付、提问续接、长命令停止、浏览器取数、MCP 批准/拒绝和长上下文压缩任务。任务定义以脚本为准，历史条件与结果见[基线对比](../../docs/plan/evidence/w8-comparison-2026-09-29.md)。前提：产品 Compose 已启动且各服务健康，模型已按[应用配置](../README.md#模型与工具)配置。每次运行会调用真实模型并产生费用；E6 与 E6-deny 会临时写入并在结束时删除一项 MCP 设置，同时把工具策略表临时设为该服务需要审批，结束时恢复原表；E7 运行期间把模型配置的 `context_window` 与 `max_tokens` 临时调低，结束时恢复，期间同一 API 上的其他会话也使用调低后的值。
+[scripts/eval/](scripts/eval) 通过公开 HTTP API 与 SSE 驱动完整产品，运行纯回答与记忆、文件交付、提问续接、长命令停止、浏览器取数、MCP 批准/拒绝和长上下文压缩任务。任务定义以脚本为准，历史条件与结果见[基线对比](../../docs/plan/evidence/execution-and-control.md#基线与单循环对照)。前提：产品 Compose 已启动且各服务健康，模型已按[应用配置](../README.md#模型与工具)配置。每次运行会调用真实模型并产生费用；E6 与 E6-deny 会临时写入并在结束时删除一项 MCP 设置，同时把工具策略表临时设为该服务需要审批，结束时恢复原表；E7 运行期间把模型配置的 `context_window` 与 `max_tokens` 临时调低，结束时恢复，期间同一 API 上的其他会话也使用调低后的值。
 
 ```bash
 uv run --locked python -m scripts.eval --list
@@ -193,7 +193,7 @@ RAY_TEST_DATABASE_URI=postgresql+asyncpg://… uv run --locked python -m pytest 
 uv run --locked python scripts/check_project_file_lifecycle.py --url http://127.0.0.1:8088/api --output /tmp/project-file-check.json
 ```
 
-数据库测试使用独立临时 PostgreSQL（每例重建 `public`），文件使用临时目录，Docker 为替身；覆盖上传批次所有权、规则与实际字节复核、保护快照、故障修复、取消、到期与重启。磁盘测试核对内容对象、无硬链接去重、原地恢复、链接与流式 ZIP。真实部署脚本通过 HTTP 新建唯一测试项目，验证覆盖保护、恢复路径/字节、下载、归档快照清理；不调用模型，不替代浏览器验收。项目输入附件上传使用 `/files` 的 `project_id`、当前 `rule_version` 和可选项明确确认参数；已上传 id 在 chat 受理事务中登记 pending，后台停止旧写入者后发布并纳入运行前快照。附件用例验证原子受理、改名、快照锁、结果未知读回、明确 ready 拒绝、启动孤儿收敛；完整链路的历史覆盖见[项目验收](../../docs/plan/evidence/w9-w11-acceptance-2026-10-02.md)，不由这些用例单独证明。脚本保留测试项目并输出其 id 与限定清理范围；检查记录后仅按该范围清理，不能清空业务库或删除其他项目。
+数据库测试使用独立临时 PostgreSQL（每例重建 `public`），文件使用临时目录，Docker 为替身；覆盖上传批次所有权、规则与实际字节复核、保护快照、故障修复、取消、到期与重启。磁盘测试核对内容对象、无硬链接去重、原地恢复、链接与流式 ZIP。真实部署脚本通过 HTTP 新建唯一测试项目，验证覆盖保护、恢复路径/字节、下载、归档快照清理；不调用模型，不替代浏览器验收。项目输入附件上传使用 `/files` 的 `project_id`、当前 `rule_version` 和可选项明确确认参数；已上传 id 在 chat 受理事务中登记 pending，后台停止旧写入者后发布并纳入运行前快照。附件用例验证原子受理、改名、快照锁、结果未知读回、明确 ready 拒绝、启动孤儿收敛；完整链路的历史覆盖见[项目验收](../../docs/plan/evidence/projects-and-files.md)，不由这些用例单独证明。脚本保留测试项目并输出其 id 与限定清理范围；检查记录后仅按该范围清理，不能清空业务库或删除其他项目。
 
 ### 项目交付副本观察
 
@@ -329,7 +329,7 @@ PG 检查覆盖真实数据库与本地附件/项目目录删除、共享引用�
 
 `update_plan` 用 `title` 与 `description` 分别保存简短标题和一句任务说明，完整要求保存在 `goal/scope`；状态更新省略标题和描述时保留原值。清单条目使用简短动作标题，简单任务平铺，必要时分组。使用 `kind=stage/step` 与 `parent_id` 表示两层，分别计数；生命周期为 pending/in_progress/completed/blocked/cancelled，安排为 schedule=current/future。目标、范围及必要成果关联真实用户消息 seq。整体阶段不能直接删除，取消和推迟已有范围需新用户来源及原因；预算不足保留受阻。完整更新原子校验，省略 artifacts 保留原清单，版本及交付状态由实际工具结果填写。
 
-关键检查随业务工具附 verification，绑定成果、条件及真实版本；显式 passed 布尔断言才算通过，同版同条件复用，连续两次失败后再次执行需说明新条件。收尾工具只补写预登记文本成果，已有文件保留原字节并另存系统预留的新版本路径；结果未知时先读回，不自动重复写入。仍受计划模式与策略限制。运行结束分别记录 complete/partial 及缺失成果、阶段和明确失败的核验，不把运行 completed 当作完整业务验收。旧 later 对话不兼容，不迁移或自动删除。检查入口：
+关键检查随业务工具附 verification，绑定成果、条件及真实版本；显式 passed 布尔断言才算通过，同版同条件复用，同一核验身份执行两次仍未通过时，再执行需说明新条件或新方法。收尾工具只补写预登记文本成果，已有文件保留原字节并另存系统预留的新版本路径；结果未知时先读回，不自动重复写入。仍受计划模式与策略限制。运行结束分别记录 complete/partial 及缺失成果、阶段和明确失败的核验，不把运行 completed 当作完整业务验收。相关历史协议对话不兼容，不迁移或自动删除。检查入口：
 
 ```bash
 uv run --locked python -m pytest tests/core/test_staged_plan.py tests/core/test_plan_progress.py tests/core/test_agent_loop.py

@@ -1,9 +1,0 @@
-{
-  "session_id": "d2fbb9d9-2a01-4319-9622-7eccf12c02fe",
-  "prompt": "只回复“已核对当前运行”，不要调用工具。",
-  "accepted": {
-    "run_id": "36fa1c09-cdbf-46f0-92e3-f38364ce49bc",
-    "seq": 315,
-    "route": "started"
-  }
-}

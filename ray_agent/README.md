@@ -2,7 +2,7 @@
 
 本文说明完整应用的配置、部署和运行检查。产品能力见 [项目首页](../README.md)，执行与数据流见 [架构说明](../docs/architecture.md)。
 
-以下说明已对照部署配置和启动代码核对；关键历史运行验收见 [阶段收尾与维护](../PLAN.md#关键验收)，课程阅读入口见 [lessons](../lessons/README.md)。
+以下说明已对照部署配置和启动代码核对；关键历史运行验收见 [关键验收](../docs/plan/README.md#关键验收)，课程阅读入口见 [lessons](../lessons/README.md)。
 
 ## 环境要求
 

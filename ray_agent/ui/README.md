@@ -33,14 +33,14 @@ npm run dev
 
 | 职责 | 入口 |
 |---|---|
-| 页面与路由 | [src/app/](src/app/) |
-| HTTP、流式请求和类型 | [src/lib/api/](src/lib/api/) |
+| 页面与路由 | [src/app/](src/app) |
+| HTTP、流式请求和类型 | [src/lib/api/](src/lib/api) |
 | 会话视图模型 | [session-view.ts](src/lib/session-view.ts) |
 | 事件投影 | [session-projection.ts](src/lib/session-projection.ts) |
 | 事件归一化 | [session-events.ts](src/lib/session-events.ts) |
 | 会话详情与实时订阅 | [use-session-detail.ts](src/hooks/use-session-detail.ts) |
-| 共享会话状态 | [src/providers/](src/providers/) |
-| 交互与结果展示 | [src/components/](src/components/) |
+| 共享会话状态 | [src/providers/](src/providers) |
+| 交互与结果展示 | [src/components/](src/components) |
 
 开发者模式通过统一 hook 与区域可见性工厂控制，默认关闭、浏览器存储、同源标签页同步。后续显隐微调集中修改区域策略；入口见[代码地图](../../docs/code-map.md)。模式切换不修改配置、工具权限或事件订阅；关闭/隐藏终端停止轮询，隐藏设置保留草稿及原值。
 
@@ -62,7 +62,7 @@ npm run dev
 | 工具结果 | calling/called 按调用 ID 合并；失败、跳过、拒绝、未知结果分别表达；实时和历史共用归一化 |
 | 审批 | pending 构造调用，结论原地更新，批准后的工具结果合并；expired 为未执行，审批等待不生成提问卡 |
 | 临时文本 | 按 run/turn/attempt 合并，完整消息替换；刷新、重连或终态丢弃尚未保存内容 |
-| 计划条 | `planBarMode` 决定出现与否：当前运行的计划来自本次运行（`sourceRunId` 等于活动运行）为 live，计划模式结束且有可执行清单为 proposal，承接后先显示“准备执行”，声明无需计划则隐藏；整体阶段与所属步骤分层计数，目标、范围及成果一同展示，正常执行不显示进度未确认；其余为空，不渲染也不占位 |
+| 计划条 | `planBarMode` 决定出现与否：当前运行的计划来自本次运行（`sourceRunId` 等于活动运行）为 live，计划模式结束且有可执行清单为 proposal，承接后先显示“准备执行”，声明无需计划则隐藏；整体阶段与所属步骤保持层级，展示一个顶层进度及简短标题、描述、任务项和状态；完整目标、范围及成果保留内部，核对依据范围与执行边界触发；其余为空，不渲染也不占位 |
 | 轮次与用量 | 所有模式下，时长、轮次和速度跟随当前回复或执行过程并靠右排列，输入框上方不显示统计；生成中按流式可见文本及首段到达后的用时估算，轮次结束后优先使用输出用量与生成耗时，扣除可用推理量；估算来源在悬浮与读屏说明。工具等待保留最近速度，运行完成后统计留在最终回复下方，停止、失败和中断留在结束记录下方；终态 Token 取本次运行已记录的输入与输出（含自动压缩），上下文圆环详情仍是会话累计值。过程标题与分组不显示工具数量 |
 | 计划历史 | `planHistory` 按计划身份保留每份最新清单；承接跨运行归并，后续无需计划声明不覆盖旧清单。图标入口打开独立弹框，多份前后切换，单份无导航，无计划显示“当前对话暂无计划清单”；不显示旧版本或调整记录，原始事件仍保留。关闭再打开默认最新，打开期间手选保持 |
 | 工作台 | 手选结果或打开文件后固定，回到最新恢复跟随；预览失败显示当前对象错误，旧响应不覆盖当前选择；终端读取失败保留已取得输出 |
@@ -93,7 +93,7 @@ CSV/TSV 与 XLSX/XLS 使用表格窗口，工作簿可切换工作表；文本�
 
 ## 组件状态目录
 
-开发模式下打开 [http://localhost:3000/dev/components](http://localhost:3000/dev/components)，路由在 [src/app/dev/components/page.tsx](src/app/dev/components/page.tsx)。页面用 [src/fixtures/](src/fixtures/) 里的视图模型夹具，逐个列出运行视图和设置列表的状态，供修改组件时回归。生产构建中该路由返回 404，不带会话侧栏。
+开发模式下打开 [http://localhost:3000/dev/components](http://localhost:3000/dev/components)，路由在 [src/app/dev/components/page.tsx](src/app/dev/components/page.tsx)。页面用 [src/fixtures/](src/fixtures) 里的视图模型夹具，逐个列出运行视图和设置列表的状态，供修改组件时回归。生产构建中该路由返回 404，不带会话侧栏。
 
 历史事件夹具中补写的字段写在 [w1-sessions.ts](src/fixtures/w1-sessions.ts) 文件头；合成终态如何补写 `summary` 与轮次结束时间写在 [states.ts](src/fixtures/states.ts) 文件头。目录页在会话页接入这些组件后保留，供以后改组件时回归。
 
@@ -149,4 +149,4 @@ node scripts/check-project-upload-tree.cjs
 
 项目操作检查使用固定占用响应挂载实际数据确认与设置数据分区，验证查看占用时同时退出父层设置与清空确认再导航，离开被拒绝时不导航、不触发清理；不修改真实任务状态。
 
-构建时生成公开 `build-manifest.json`，随 standalone 最终镜像提供；其输入指纹覆盖源文件、public、构建配置、依赖清单和编译使用的公开 API 地址。轻量计划核对只更新可信状态，不新增清单版本；相关检查包含结构化确认读回、沿用请求标识和承接准备、分层计数和部分交付显示。
+构建时生成公开 `build-manifest.json`，随 standalone 最终镜像提供；其输入指纹覆盖源文件、public、构建配置、依赖清单和编译使用的公开 API 地址。轻量计划核对不新增清单版本，正常工具活动不触发定时声明；相关检查包含结构化确认读回、沿用请求标识和承接准备、分层计数和部分交付显示。
