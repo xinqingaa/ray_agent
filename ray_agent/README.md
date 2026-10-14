@@ -2,7 +2,7 @@
 
 本文说明完整应用的配置、部署和运行检查。产品能力见 [项目首页](../README.md)，执行与数据流见 [架构说明](../docs/architecture.md)。
 
-以下说明已对照部署配置和启动代码核对；关键历史运行验收见 [关键验收](../docs/plan/README.md#关键验收)，课程阅读入口见 [lessons](../lessons/README.md)。
+以下说明已对照部署配置和启动代码核对；历史验证概况见 [维护入口](../docs/plan/README.md#关键验收)，课程阅读入口见 [lessons](../lessons/README.md)。
 
 ## 适用范围
 
@@ -69,7 +69,7 @@ cd ray_agent
 
 ### 模型与工具
 
-模型调用默认使用 Responses；端点引用可显式设为 `chat_completions` 以兼容旧上游。DeepSeek 读 `DEEPSEEK_URL` 与 `DEEPSEEK_API_KEY`，GPT 读 `XIAOYI_URL` 与 `XIAOYI_API_KEY`；端点名称仅用于内部配置，用户只选择模型。未设置 `DEEPSEEK_URL` 时保留 YAML 中的全局地址。模型默认值、温度、`max_tokens`、`context_window` 与逐模型参数写在 [api/config.yaml](api/config.yaml)，当前数字见[运行参数与限额](../docs/limits.md)。设置页保留逐模型参数编辑，不展示连接设置。密钥和内部路由不返回模型选择接口。上游需实际支持所配协议及工具流式事件。
+模型调用默认使用 Responses；端点引用可显式设为 `chat_completions` 用于支持该协议的上游。DeepSeek 读 `DEEPSEEK_URL` 与 `DEEPSEEK_API_KEY`，GPT 读 `XIAOYI_URL` 与 `XIAOYI_API_KEY`；端点名称仅用于内部配置，用户只选择模型。未设置 `DEEPSEEK_URL` 时保留 YAML 中的全局地址。模型默认值、温度、`max_tokens`、`context_window` 与逐模型参数写在 [api/config.yaml](api/config.yaml)，当前数字见[运行参数与限额](../docs/limits.md)。设置页保留逐模型参数编辑，不展示连接设置。密钥和内部路由不返回模型选择接口。上游需实际支持所配协议及工具流式事件。
 
 更换已有上游时修改对应 URL 和 Key；新增兼容上游时在 `llm_config` 内增加端点环境变量引用，并调整模型映射。例如只把现有 GPT Luna 转到新上游：
 

@@ -214,6 +214,6 @@
 | 会话切换原子保存、完整请求只读估算 | [agent_service.py](../ray_agent/api/app/application/services/agent_service.py) 的 set_model / preview_context | 同上配置检查 |
 | 模型设置草稿、动态思考滑块与选择 | [llm-section.tsx](../ray_agent/ui/src/components/settings/llm-section.tsx)、[model-picker.tsx](../ray_agent/ui/src/components/model-picker.tsx)、[model-selection.ts](../ray_agent/ui/src/lib/model-selection.ts) | [check-model-configuration.cjs](../ray_agent/ui/scripts/check-model-configuration.cjs) |
 
-运行命令维护在所属服务指南；历史验证概况见[维护与优化计划](plan/README.md#关键验收)。课程列仅提供主题对应，正文仍基于 `baseline-v1`，不表示已同步当前实现。
+运行命令维护在所属服务指南；历史验证概况见[维护与优化计划](plan/README.md#关键验收)。课程列仅提供主题对应，课程基线与当前实现的关系见[课程同步范围](course-sync.md)。
 
 最近模型偏好：[`model-preference.ts`](../ray_agent/ui/src/lib/model-preference.ts) 管理同源本地选择，[`model-picker.tsx`](../ray_agent/ui/src/components/model-picker.tsx) 恢复并在确认后保存，[`chat-input.tsx`](../ray_agent/ui/src/components/chat-input.tsx) 传递实际发送选择。
