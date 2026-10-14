@@ -2,7 +2,7 @@
 
 RayAgent 通过 Web 会话承接任务，组织目标、输入资料、计划、工具记录和产物。独立对话适合单项任务；托管项目让多次对话共享文件、说明、笔记与有来源的摘要。
 
-![RayAgent 产品能力与 Harness 职责](assets/product-overview.svg)
+![RayAgent 产品任务全景：目标与资料、持续执行、答复与文件，以及支撑任务的四组能力](assets/product-task-map.svg)
 
 ## 会话与执行
 
