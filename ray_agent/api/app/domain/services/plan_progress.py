@@ -71,8 +71,8 @@ class PlanProgress:
             expand = not all_children and len(plan.stages) > 1
             if not expand and (not children or any(step.status.value in ('running', 'blocked') for step in children)):
                 continue
-            instruction = ('分阶段清单的当前阶段尚无子步骤。若包含多个可独立推进或核验的动作，在继续前以 kind=step、parent_id 引用当前阶段 id 展开，并选定实际当前项；'
-                           '保留整体阶段及稳定 id。只有实际不可再分的独立动作才可保持平铺，不凑数量。') if expand else (
+            instruction = ('当前阶段尚无子步骤。有多个独立关键工作时以 kind=step、parent_id 引用阶段 id 展开，选定当前项；'
+                           '保留阶段与 id，按成果合并相关动作。条目只写动作与对象或结果的短标题，不重复父阶段或分列细节；独立短操作可平铺。') if expand else (
                            '当前阶段已有未完成子步骤，但没有进行中步骤。继续执行时选定实际当前步骤，完成后及时更新并选定下一项；')
             return (STEP_NOTICE_PREFIX + json.dumps({'plan_id': plan.id, 'stage_id': stage.id}, ensure_ascii=False) + '\n'
                     + instruction +

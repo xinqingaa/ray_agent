@@ -141,6 +141,17 @@ export function SessionDetailView({
   const stickRef = useRef(true)
   const [awayFromBottom, setAwayFromBottom] = useState(false)
   const messageContentRef = useRef<HTMLDivElement>(null)
+  const [planColumn, setPlanColumn] = useState<HTMLDivElement | null>(null)
+  const [planPanelWidth, setPlanPanelWidth] = useState<number>()
+
+  useEffect(() => {
+    if (!planColumn) return
+    const measure = () => setPlanPanelWidth(planColumn.getBoundingClientRect().width)
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(planColumn)
+    return () => observer.disconnect()
+  }, [planColumn])
 
   useLayoutEffect(() => {
     const el = mode === 'conversation' ? scrollRef.current : developerScrollRef.current
@@ -602,7 +613,7 @@ export function SessionDetailView({
             {view.project && (
               <IconAction label="项目记忆" className="shrink-0 text-muted-foreground" onClick={() => setMemoryOpen(true)}><MemoryIcon className="size-4"/></IconAction>
             )}
-            <PlanListDialog key={sessionId} plans={view.planHistory ?? []} runs={view.runs}/>
+            <PlanListDialog key={sessionId} plans={view.planHistory ?? []} runs={view.runs} panelWidth={planPanelWidth}/>
             {!workbenchOpen && (
               <Button type="button" variant="ghost" size="icon-xs" className="size-7 shrink-0"
                 title={visibility.developerView ? '打开工作台' : '打开查看面板'} aria-label={visibility.developerView ? '打开工作台' : '打开查看面板'} onClick={() => setWorkbenchOpen(true)}>
@@ -622,20 +633,15 @@ export function SessionDetailView({
                 <Timeline items={shownTimeline} runs={shownRuns} streaming={view.streaming} activeStatus={timelineStatus} handlers={handlers}/>
                 {showOptimistic && outgoing ? <UserMessage text={outgoing.text}/> : null}
                 {!view.activeRun && timelineStatus}
-                {showPlanExecute && (
-                  <PlanExecuteBar
-                    disabled={submitting}
-                    onExecute={() => {
-                      void deliver('按计划执行', [], {mode: 'normal', execute_plan: {source_run_id: view.plan!.sourceRunId!, plan_id: view.plan!.planId!, source_seq: view.plan!.sourceSeq!, request_id: crypto.randomUUID()}}).catch((err: unknown) => {
-                        if (err instanceof ApiError && err.code === 409) {
-                          toast.error(err.msg)
-                          return
-                        }
-                        toast.error(err instanceof Error ? err.message : '发送失败')
-                      })
-                    }}
-                  />
-                )}
+                {showPlanExecute && <PlanExecuteBar disabled={submitting || pendingSend} onExecute={() => {
+                    void deliver('按计划执行', [], {mode: 'normal', execute_plan: {source_run_id: view.plan!.sourceRunId!, plan_id: view.plan!.planId!, source_seq: view.plan!.sourceSeq!, request_id: crypto.randomUUID()}}).catch((err: unknown) => {
+                      if (err instanceof ApiError && err.code === 409) {
+                        toast.error(err.msg)
+                        return
+                      }
+                      toast.error(err instanceof Error ? err.message : '发送失败')
+                    })
+                  }}/>}
               </div>
             </div>
           {developerVisited && (
@@ -653,7 +659,7 @@ export function SessionDetailView({
                 if (el) {el.scrollTop = el.scrollHeight; scrollPositions.current.conversation = el.scrollTop}
               }}><ArrowDown className="size-4" aria-hidden/></IconAction>
             </div>}
-            <div className="mx-auto w-full max-w-(--reading-column)">
+            <div ref={setPlanColumn} className="mx-auto w-full max-w-(--reading-column)">
               {mode === 'conversation' && planBarState && (
                 <PlanBar plan={view.plan} runStatus={view.activeRun?.status ?? null} proposal={planBarState === 'proposal'} className="mb-2"/>
               )}

@@ -28,13 +28,13 @@ class PlanTool(BaseTool):
         return seq is not None and seq in self.user_seqs
 
     @tool(name=UPDATE_PLAN_TOOL, description=(
-        "记录目标、稳定整体阶段及当前阶段步骤，完整替换清单，不执行步骤。"
-        "kind=stage 为整体阶段；kind=step 携 parent_id 从属于阶段，两层分开计数。新增项可提供稳定 id 或省略，后续复用原 id；同批创建步骤用 parent_id 引用阶段 id。"
-        "最多一个阶段和一个子步骤 in_progress；阶段展开不能删除或改成自身步骤。"
-        "schedule=current 本轮处理，future 仅用于用户安排的后续，不表示预算不足或已完成；资源不足用 blocked 和 reason。"
-        "结构调整、重新打开完成项、取消或改变本轮范围须 explanation；source_seq 引用用户消息，不能把自己的建议当授权。"
-        "title 是简短任务标题，description 是一句任务说明；step 写简短动作标题，不堆叠规格、来源和执行说明。多步小任务可平铺，但每项表达一个独立动作；跨阶段任务默认分层，阶段内多个可独立推进或核验的动作必须用 step 展开，不能将整个阶段当成一个执行步骤。已知关键步骤首次列出，其余在进入阶段时补充。开始、完成、切换或受阻时更新当前子步骤，可与业务动作同批；不按每次工具调用拆分，不凑固定数量。goal 完整保存整体目标，scope 描述本次范围；artifacts 登记必要或已承诺成果，file 携沙箱绝对 path，reply 为回复正文。"
-        "首次登记成果后继续复用 id；不为核对增加工具往返。无关新任务 reset=true 并说明新目标；简单直接回答不必调用。"
+        "记录目标、稳定阶段与步骤，替换完整清单，不执行步骤。"
+        "stage 为整体阶段，step 携 parent_id 从属阶段，两层分开计数。新增 id 可省略，后续复用；步骤以 parent_id 引用阶段。"
+        "最多一个 stage 和 step in_progress；展开不删除阶段或改为步骤。"
+        "current 为本轮，future 仅为用户安排的后续；资源不足用 blocked 和 reason。"
+        "结构调整、重开、取消或改范围须 explanation；source_seq 引用用户消息，自身建议不算授权。"
+        "主要工作前登记问题、判断与路径，可与首批业务动作同轮。title 简短，description 一句说明，step 用动作与具体对象或结果组成短标题，不枚举正文或附解释；goal/scope 保留目标与本次范围；大纲、规格与核验条件不放标题。推导、选择与内容设计和制作、核验、交付按目标组织，不套固定阶段；产物建议、讲解、模拟不算实际完成。小任务可平铺；跨阶段保留 stage，独立关键工作用 step。按阶段成果合并相关动作，不笼统、重复或分列内容、组件、检查细节。首次列全部阶段与首阶段关键步骤，其余进入时展开。开始、完成、切换或受阻时更新子步骤，可与业务动作同批；如实记录，不补造计划，不按页面、工具或固定数量拆分。artifacts 登记必要或承诺成果，file 携沙箱绝对 path，reply 为回复正文。"
+        "成果复用 id；不增加纯核对往返。无关新任务 reset=true 并说明目标；简单回答不必调用。"
     ), parameters={
         "action": {"type": "string", "enum": ["update", "review", "not_needed"]},
         "step_id": {"type": "string"},
@@ -43,8 +43,8 @@ class PlanTool(BaseTool):
         "goal": {"type": "string"}, "scope": {"type": "string"},
         "source_seq": {"type": "integer", "description": "仅已知时填写真实用户消息 seq；省略自动采用当前消息，不能猜测序号"},
         "explanation": {"type": "string"}, "reset": {"type": "boolean"},
-        "plan": {"type": "array", "description": "完整清单。跨阶段任务保留 stage，并将阶段内独立动作列为携 parent_id 的 step；开始执行时选定当前子步骤。小任务可平铺，不按工具调用或固定数量拆分。", "items": {"type": "object", "properties": {
-            "id": {"type": "string"}, "step": {"type": "string"},
+        "plan": {"type": "array", "description": "完整路径承接问题、判断与交付。保留 stage，独立关键工作用携 parent_id 的 step；选定当前项，不复述父阶段或铺开细节。", "items": {"type": "object", "properties": {
+            "id": {"type": "string"}, "step": {"type": "string", "description": "动作与具体对象或结果组成短标题，不附内容列表、规格或解释"},
             "kind": {"type": "string", "enum": ["stage", "step"]},
             "parent_id": {"type": "string"},
             "status": {"type": "string", "enum": list(STATUS)},

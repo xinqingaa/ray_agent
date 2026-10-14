@@ -39,7 +39,7 @@ function StageTrack({completed, total}: {completed: number; total: number}) {
   )
 }
 
-export function PlanContent({plan, active, ended, status}: {plan: PlanView; active: boolean; ended: boolean; status?: ReactNode}) {
+export function PlanContent({plan, active, ended, status, headerClassName}: {plan: PlanView; active: boolean; ended: boolean; status?: ReactNode; headerClassName?: string}) {
   const stages = planStages(plan)
   const renderItem = (item: PlanItem, step: boolean, spinning = active) => <li key={item.id} className={cn('flex items-start gap-2 py-1.5', item.schedule === 'future' && 'opacity-60')}>
     <span className="pt-0.5"><ItemIcon item={item} spinning={spinning}/></span>
@@ -47,7 +47,7 @@ export function PlanContent({plan, active, ended, status}: {plan: PlanView; acti
     <span className="shrink-0 pt-0.5 text-xs text-muted-foreground" title={item.status === 'blocked' || item.status === 'cancelled' ? item.reason : undefined}>{item.schedule === 'future' && item.status === 'pending' ? '后续' : ended && item.status === 'in_progress' ? '未完成' : !active && item.status === 'in_progress' ? '未完成' : STATUS_TEXT[item.status]}</span>
   </li>
   return <>
-    <div className="flex items-start gap-3"><p className="min-w-0 flex-1 text-lg font-semibold leading-6 break-words">{plan.title || '任务计划'}</p>{status}</div>
+    <div className={cn('flex items-start gap-3', headerClassName)}><p className="min-w-0 flex-1 text-lg font-semibold leading-6 break-words">{plan.title || '任务计划'}</p>{status}</div>
     {plan.description && <p className="mt-1 text-meta leading-5 text-muted-foreground break-words">{plan.description}</p>}
     <ol className="mt-3 space-y-1">{stages.map(stage => {
       const children = plan.items.filter(s => s.kind === 'step' && s.parentId === stage.id)
@@ -82,10 +82,10 @@ export function PlanBar({plan, runStatus, proposal = false, defaultOpen = false,
   }, [])
   useEffect(() => () => clearTimeout(closeTimer.current), [])
   useEffect(() => {
-    const button = buttonRef.current
-    if (!button) return
-    const observer = new ResizeObserver(() => setBarHeight(button.getBoundingClientRect().height + 2))
-    observer.observe(button)
+    const summary = buttonRef.current
+    if (!summary) return
+    const observer = new ResizeObserver(() => setBarHeight(summary.getBoundingClientRect().height + 2))
+    observer.observe(summary)
     return () => observer.disconnect()
   }, [hasPlan])
   useEffect(() => {

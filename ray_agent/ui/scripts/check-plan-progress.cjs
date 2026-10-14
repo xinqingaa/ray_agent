@@ -25,7 +25,7 @@ function load(relative) {
 }
 const {projectSession, planBarMode} = load('src/lib/session-projection.ts');
 const {PlanBar, PlanContent} = load('src/components/run/plan-bar.tsx');
-const {RunEndBar} = load('src/components/run/run-end-bar.tsx');
+const {PlanExecuteBar, RunEndBar} = load('src/components/run/run-end-bar.tsx');
 const {AttemptNotice} = load('src/components/run/notices.tsx');
 const {RunStatus} = load('src/components/run/run-status.tsx');
 const ev = (seq, event, data) => ({event, data: {seq, run_id: 'r', created_at: 1000 + seq, ...data}});
@@ -74,6 +74,12 @@ const proposalView = projectSession({id: 'p', events: [ev(1, 'run', {status: 'ru
 assert.equal(planBarMode(proposalView), 'proposal', '计划模式结束且有待执行清单时保留');
 html = markup(PlanBar, {plan: proposalView.plan, runStatus: null, proposal: true});
 assert.match(html, /计划 2 项/); assert.match(html, /确认后按计划执行/); assert.doesNotMatch(html, /未完成|上次计划|第 .*步/);
+assert.doesNotMatch(html, /aria-label="按计划执行"/, '底部摘要只负责展开清单');
+const executable = markup(PlanExecuteBar, {onExecute: () => {}});
+assert.equal((executable.match(/<button[^>]*aria-label="按计划执行"/g) || []).length, 1);
+assert.doesNotMatch(executable, /副作用|普通模式|>按计划执行<|<button\b(?:(?!<\/button>).)*<button\b/s);
+assert.match(markup(PlanExecuteBar, {onExecute: () => {}, disabled: true}), /disabled=""/);
+assert.match(markup(PlanExecuteBar, {}), /disabled=""/);
 html = markup(RunEndBar, {status: 'cancelled', reasonText: '已停止生成'});
 assert.equal((html.match(/已停止生成/g) || []).length, 1);
 assert.doesNotMatch(html, /沙箱|你停止了|新的运行/); assert.match(html, /接着处理/);
