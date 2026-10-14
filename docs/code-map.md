@@ -1,6 +1,6 @@
 # 代码地图
 
-这份文件回答一个问题：在文档或课程里读到的某个机制，代码在哪。它按机制索引，跨 API、UI、沙箱三个服务，是从扫描层与推导层进入事实层的入口。
+这份文件回答一个问题：在文档或课程里读到的某个机制，代码在哪。它按机制索引，跨 API、UI、沙箱三个服务，用于从机制说明定位到真实实现。
 
 想按目录职责浏览某个服务，用该服务 README 的「代码导航」；这份地图不重复那件事。
 
@@ -8,7 +8,17 @@
 
 路径写法约定：API 侧相对 [`ray_agent/api/app/`](../ray_agent/api/app)，测试相对 [`ray_agent/api/tests/`](../ray_agent/api/tests)，UI 侧相对 [`ray_agent/ui/src/`](../ray_agent/ui/src)，沙箱侧相对 [`ray_agent/sandbox/app/`](../ray_agent/sandbox/app)，其余给出仓库根起的完整路径。
 
-每项机制给出三样东西：主要入口、覆盖它的回归测试、讲解它的课程章节。回归测试一栏比正文更适合确认某个行为当前是什么样——用例表达当前约定，但测试存在不表示当前版本已通过运行验证。
+每项机制列出主入口、关联实现、定向检查及课程主题。源码是当前行为的最终依据，测试帮助理解约定与覆盖范围；测试存在不表示当前版本已通过运行验证。先沿下表定位主路径，再按本次影响查看后续主题索引。
+
+## 主执行路径
+
+| 路径环节 | 主入口 | 继续核对 |
+|---|---|---|
+| 接收会话请求 | [session_routes.py](../ray_agent/api/app/interfaces/endpoints/session_routes.py) 的 `chat()` | [agent_service.py](../ray_agent/api/app/application/services/agent_service.py) 的 `chat()` 受理消息与运行，`_create_task()` 组装执行资源 |
+| 组织一次执行 | [agent_task_runner.py](../ray_agent/api/app/domain/services/agent_task_runner.py) 的 `invoke()` | `_prepare_run()` 准备快照，`_process()` 进入循环，`_finish()` 保存等待或终态；项目保护经应用协调器处理 |
+| 请求模型与决定下一动作 | [agent_loop.py](../ray_agent/api/app/domain/services/flows/agent_loop.py) 的 `invoke()`、`_loop()` | 模型请求、容量、计划及成果反馈分别查下方主题；模型参数与通信编码在基础设施适配 |
+| 执行工具 | [tool_pipeline.py](../ray_agent/api/app/domain/services/flows/tool_pipeline.py) 的 `run()` | 执行前处理模式与策略，工具声明连接具体适配，结果按调用 ID 回填 |
+| 保存事实与展示 | [run_ledger.py](../ray_agent/api/app/domain/services/run_ledger.py) | 运行器提交事件，前端 [session-projection.ts](../ray_agent/ui/src/lib/session-projection.ts) 派生视图；数据库提交和外部副作用分别判断 |
 
 ## Agent 循环与工具管线
 
@@ -27,7 +37,7 @@
 | 计划事务承接 | [`plan_acceptance.py`](../ray_agent/api/app/domain/models/plan_acceptance.py)、[`run_ledger.py`](../ray_agent/api/app/domain/services/run_ledger.py) 的 `start()` 与 [`agent_service.py`](../ray_agent/api/app/application/services/agent_service.py) 的 `chat()` | [`test_run_events_pg.py`](../ray_agent/api/tests/core/test_run_events_pg.py) 的计划承接并发用例 | — |
 | 构建身份 | [`build_identity.py`](../ray_agent/api/build_identity.py)、[`build-identity.cjs`](../ray_agent/ui/scripts/build-identity.cjs)、[`check-builds.py`](../ray_agent/scripts/check-builds.py) | [`test_build_identity.py`](../ray_agent/api/tests/core/test_build_identity.py) | — |
 | 计划核对与稳定身份展示 | [`plan_progress.py`](../ray_agent/api/app/domain/services/plan_progress.py) 的 `PlanProgress`；前端 [`session-projection.ts`](../ray_agent/ui/src/lib/session-projection.ts) 与 [`plan-bar.tsx`](../ray_agent/ui/src/components/run/plan-bar.tsx) | [`core/test_plan_progress.py`](../ray_agent/api/tests/core/test_plan_progress.py)、[`check-plan-progress.cjs`](../ray_agent/ui/scripts/check-plan-progress.cjs) | — |
-| 提示词与任务语义规划 | [`system.py`](../ray_agent/api/app/domain/services/prompts/system.py)、[`英文系统提示`](../ray_agent/api/app/domain/services/prompts/en/system.py)；按阶段展开同步于 [`plan_mode.py`](../ray_agent/api/app/domain/services/prompts/plan_mode.py) 与 [`英文计划模式`](../ray_agent/api/app/domain/services/prompts/en/plan_mode.py)；条目语义与粒度同步于 [`plan.py`](../ray_agent/api/app/domain/services/tools/plan.py) 的工具描述、schema 文案及 [`plan_progress.py`](../ray_agent/api/app/domain/services/plan_progress.py) 的步骤提醒 | [`test_plan_progress.py`](../ray_agent/api/tests/core/test_plan_progress.py)、[`test_plan_mode_and_compact.py`](../ray_agent/api/tests/core/test_plan_mode_and_compact.py)；[设计与真实任务条件](plan/long-task-trust-and-delivery.md#规划语义时机与清单粒度) | 02 |
+| 提示词与任务语义规划 | [`system.py`](../ray_agent/api/app/domain/services/prompts/system.py)、[`英文系统提示`](../ray_agent/api/app/domain/services/prompts/en/system.py)；按阶段展开同步于 [`plan_mode.py`](../ray_agent/api/app/domain/services/prompts/plan_mode.py) 与 [`英文计划模式`](../ray_agent/api/app/domain/services/prompts/en/plan_mode.py)；条目语义与粒度同步于 [`plan.py`](../ray_agent/api/app/domain/services/tools/plan.py) 的工具描述、schema 文案及 [`plan_progress.py`](../ray_agent/api/app/domain/services/plan_progress.py) 的步骤提醒 | [`test_plan_progress.py`](../ray_agent/api/tests/core/test_plan_progress.py)、[`test_plan_mode_and_compact.py`](../ray_agent/api/tests/core/test_plan_mode_and_compact.py)；[规划语义设计](plan/long-task-trust-and-delivery.md#规划语义时机与清单粒度) | 02 |
 | 脚本化模型与循环测试夹具 | [`tests/support/scripted_llm.py`](../ray_agent/api/tests/support/scripted_llm.py)、[`tests/support/loop_harness.py`](../ray_agent/api/tests/support/loop_harness.py)（相对 `ray_agent/api/`） | [`core/test_scripted_llm.py`](../ray_agent/api/tests/core/test_scripted_llm.py) | — |
 
 ## 上下文与记忆
@@ -108,7 +118,7 @@
 
 ### 批次与耗时观察
 
-执行批次、阶段耗时与结果投影：模型批次参数在 [`OpenAILLM._request_kwargs()`](../ray_agent/api/app/infrastructure/external/llm/openai_llm.py)，顺序执行与失败后的批次推进在 [`AgentLoop._loop()`](../ray_agent/api/app/domain/services/flows/agent_loop.py)；准备资源在 [`AgentService._create_task()`](../ray_agent/api/app/application/services/agent_service.py) 与 [`AgentTaskRunner.invoke()`](../ray_agent/api/app/domain/services/agent_task_runner.py)，其中 `DockerSandbox.get_browser()` 仅构造适配器。工具原始耗时在 [`ToolPipeline._record_duration()`](../ray_agent/api/app/domain/services/flows/tool_pipeline.py) 记录；新增 `stages_ms` 区分 execution/postprocess/projection，准备阶段写 run_stage 日志。前端结果/失败投影见 [`session-projection.ts`](../ray_agent/ui/src/lib/session-projection.ts) 的 `buildResult()`、`readSuccess()`。
+执行批次、阶段耗时与结果投影：模型批次参数在 [`openai_llm.py`](../ray_agent/api/app/infrastructure/external/llm/openai_llm.py)：默认 Responses 经 `_responses_kwargs()` 编码，Chat Completions 兼容分支经 `_request_kwargs()` 编码，顺序执行与失败后的批次推进在 [`AgentLoop._loop()`](../ray_agent/api/app/domain/services/flows/agent_loop.py)；准备资源在 [`AgentService._create_task()`](../ray_agent/api/app/application/services/agent_service.py) 与 [`AgentTaskRunner.invoke()`](../ray_agent/api/app/domain/services/agent_task_runner.py)，其中 `DockerSandbox.get_browser()` 仅构造适配器。工具原始耗时在 [`ToolPipeline._record_duration()`](../ray_agent/api/app/domain/services/flows/tool_pipeline.py) 记录；`stages_ms` 区分 execution/postprocess/projection，准备阶段写 run_stage 日志。前端结果/失败投影见 [`session-projection.ts`](../ray_agent/ui/src/lib/session-projection.ts) 的 `buildResult()`、`readSuccess()`。
 
 ## 会话标题
 
@@ -204,6 +214,6 @@
 | 会话切换原子保存、完整请求只读估算 | [agent_service.py](../ray_agent/api/app/application/services/agent_service.py) 的 set_model / preview_context | 同上配置检查 |
 | 模型设置草稿、动态思考滑块与选择 | [llm-section.tsx](../ray_agent/ui/src/components/settings/llm-section.tsx)、[model-picker.tsx](../ray_agent/ui/src/components/model-picker.tsx)、[model-selection.ts](../ray_agent/ui/src/lib/model-selection.ts) | [check-model-configuration.cjs](../ray_agent/ui/scripts/check-model-configuration.cjs) |
 
-运行命令维护在所属服务指南；关键历史验收见[维护与优化计划](plan/README.md#关键验收)。课程列仅提供主题对应，正文仍基于 `baseline-v1`，不表示已同步当前实现。
+运行命令维护在所属服务指南；历史验证概况见[维护与优化计划](plan/README.md#关键验收)。课程列仅提供主题对应，正文仍基于 `baseline-v1`，不表示已同步当前实现。
 
 最近模型偏好：[`model-preference.ts`](../ray_agent/ui/src/lib/model-preference.ts) 管理同源本地选择，[`model-picker.tsx`](../ray_agent/ui/src/components/model-picker.tsx) 恢复并在确认后保存，[`chat-input.tsx`](../ray_agent/ui/src/components/chat-input.tsx) 传递实际发送选择。
