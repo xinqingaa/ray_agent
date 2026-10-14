@@ -1,5 +1,4 @@
-"""E1–E6 基线评测任务（定义见 docs/plan/w0-baseline-eval.md）、W2 的 E7（见 docs/plan/w2-context.md）
-与 W7.2 的 E6-deny（见 docs/plan/w7-control-safety.md）。"""
+"""端到端评测任务：纯回答、文件、等待、停止、浏览器、MCP 与压缩。"""
 import asyncio
 import json
 from contextlib import asynccontextmanager

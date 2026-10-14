@@ -1,11 +1,9 @@
 """真实解析器与 HTTP 契约；临时文件，不调用模型或业务数据库。"""
 import asyncio
-import hashlib
 import io
 import os
 import threading
 import zipfile
-from pathlib import Path
 from types import SimpleNamespace
 
 import openpyxl
@@ -25,21 +23,6 @@ from app.infrastructure.external.file_preview.worker import parse
 
 def query(**values):
     return PreviewQuery(**values).model_dump()
-
-
-def test_sales_workbook_real_values_styles_and_source_unchanged():
-    path = Path(__file__).resolve().parents[4] / 'docs/plan/evidence/s01-sales-2026-10-08/outputs/销售汇总.xlsx'
-    before = hashlib.sha256(path.read_bytes()).hexdigest()
-    result = parse(str(path), query())
-    assert result['sheets'] == ['销售汇总', '去重后明细', '金额缺失订单']
-    text = '\n'.join(cell['text'] for row in result['rows'] for cell in row)
-    assert '18,640.00' in text and '31,400.00' in text
-    assert result['rows'][0][0]['style']['bold']
-    details = parse(str(path), query(sheet=1))
-    assert details['next_row'] == 200 and len(details['rows']) == 200
-    last = parse(str(path), query(sheet=1, row=200))
-    assert last['next_row'] is None and len(last['rows']) == 89
-    assert hashlib.sha256(path.read_bytes()).hexdigest() == before
 
 
 def test_xlsx_merged_cells_formula_and_forged_dimensions(tmp_path):

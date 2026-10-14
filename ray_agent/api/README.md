@@ -113,16 +113,16 @@ uv run --locked python -m pytest tests/core/test_scripted_llm.py
 
 ### 端到端评测
 
-[scripts/eval/](scripts/eval) 通过公开 HTTP API 与 SSE 驱动完整产品，运行纯回答与记忆、文件交付、提问续接、长命令停止、浏览器取数、MCP 批准/拒绝和长上下文压缩任务。任务定义以脚本为准，历史条件与结果见[基线对比](../../docs/plan/evidence/execution-and-control.md#基线与单循环对照)。前提：产品 Compose 已启动且各服务健康，模型已按[应用配置](../README.md#模型与工具)配置。每次运行会调用真实模型并产生费用；E6 与 E6-deny 会临时写入并在结束时删除一项 MCP 设置，同时把工具策略表临时设为该服务需要审批，结束时恢复原表；E7 运行期间把模型配置的 `context_window` 与 `max_tokens` 临时调低，结束时恢复，期间同一 API 上的其他会话也使用调低后的值。
+[scripts/eval/](scripts/eval) 通过公开 HTTP API 与 SSE 驱动完整产品，运行纯回答与记忆、文件交付、提问续接、长命令停止、浏览器取数、MCP 批准/拒绝和长上下文压缩任务。任务定义以脚本为准，历史验证种类见[维护入口](../../docs/plan/README.md#关键验收)，当前结果需重新运行。前提：产品 Compose 已启动且各服务健康，模型已按[应用配置](../README.md#模型与工具)配置。每次运行会调用真实模型并产生费用；E6 与 E6-deny 会临时写入并在结束时删除一项 MCP 设置，同时把工具策略表临时设为该服务需要审批，结束时恢复原表；E7 运行期间把模型配置的 `context_window` 与 `max_tokens` 临时调低，结束时恢复，期间同一 API 上的其他会话也使用调低后的值。
 
 ```bash
 uv run --locked python -m scripts.eval --list
-uv run --locked python -m scripts.eval --label local-baseline
-uv run --locked python -m scripts.eval --tasks E2,E4 --repeat 3 --label local-repeat
-uv run --locked python -m scripts.eval --label local-check --baseline ../../docs/plan/evidence/w0-baseline-2026-09-28-961005d.json
+uv run --locked python -m scripts.eval --label local-baseline --output-dir /tmp/rayagent-eval
+uv run --locked python -m scripts.eval --tasks E2,E4 --repeat 3 --label local-repeat --output-dir /tmp/rayagent-eval
+uv run --locked python -m scripts.eval --label local-check --output-dir /tmp/rayagent-eval --baseline /tmp/rayagent-eval/<本次基线报告>.json
 ```
 
-默认经网关 `http://localhost:8088/api` 访问 API，报告写入 `docs/plan/evidence/<label>-<日期>-<提交短哈希>.{json,md}`，同名文件会被覆盖，调试时用 `--output-dir` 写到临时目录。`--baseline` 指定另一份报告 JSON 时，Markdown 增加按任务与运行序号配对的指标对比表；结论文字不自动生成。E5 在宿主机自启静态页面，E6 以子进程运行 [MCP 夹具](tests/protocols/fixture_server.py)，两者都通过 `--host-address`（默认 Docker Desktop 的 `host.docker.internal`）让沙箱与 API 容器访问宿主机；访问不到时记为跳过。E4 停止后应终止本次运行登记的 Shell 会话；沙箱容器本身仍随 TTL 回收。
+默认经网关 `http://localhost:8088/api` 访问 API，默认输出到系统临时目录的 `rayagent-eval/`，也可用 `--output-dir` 指定其他临时目录，报告文件名为 `<label>-<日期>-<提交短哈希>.{json,md}`，同名文件会被覆盖，不提交报告与产物。`--baseline` 指定另一份报告 JSON 时，Markdown 增加按任务与运行序号配对的指标对比表；结论文字不自动生成。E5 在宿主机自启静态页面，E6 以子进程运行 [MCP 夹具](tests/protocols/fixture_server.py)，两者都通过 `--host-address`（默认 Docker Desktop 的 `host.docker.internal`）让沙箱与 API 容器访问宿主机；访问不到时记为跳过。E4 停止后应终止本次运行登记的 Shell 会话；沙箱容器本身仍随 TTL 回收。
 
 新任务在 `scripts/eval/tasks.py` 用 `@register("E7")` 注册返回 `TaskSpec` 的函数：声明各轮消息、上传材料、提问回复（`ReplyOnWait`）、定时停止（`StopAfter`）、环境准备与检查函数。离线部分（SSE 解析、指标统计、注册顺序、基线对比表）的测试不连接服务：
 
@@ -134,7 +134,7 @@ uv run --locked python -m pytest tests/core/test_eval_script.py
 
 ### 文件预览与打包下载
 
-附件和项目文件共用只读预览服务，不调用模型或准备沙箱。文本有界分段读取；表格与图片在最多三个并发子进程中解析，处理完成或超时后回收进程及临时副本。项目继续采用无符号链接跟随的文件 IO，并校验读取版本；内联内容开放图片、PDF 与 HTML：图片与 PDF 支持 HTTP Range；HTML 带隔离用的 CSP sandbox 整份返回，并插入内存存储替身。附件打包使用临时 ZIP，下载分块发送，结束后关闭文件。具体上限集中在[能力与边界](../../docs/capabilities.md#文件预览与下载边界)。
+附件和项目文件共用只读预览服务，不调用模型或准备沙箱。文本有界分段读取；表格与图片在有界并发子进程中解析，处理完成或超时后回收进程及临时副本。项目继续采用无符号链接跟随的文件 IO，并校验读取版本；内联内容开放图片、PDF 与 HTML：图片与 PDF 支持 HTTP Range；HTML 带隔离用的 CSP sandbox 整份返回，并插入内存存储替身。附件打包使用临时 ZIP，下载分块发送，结束后关闭文件。具体上限集中在[运行参数与限额](../../docs/limits.md)。
 
 运行依赖 openpyxl、xlrd、defusedxml 与 Pillow 来自锁文件和容器安装清单；xlwt 只用于开发测试生成旧版 XLS，不进入运行镜像。定向检查：
 
@@ -142,7 +142,7 @@ uv run --locked python -m pytest tests/core/test_eval_script.py
 uv run --locked python -m pytest tests/core/test_file_preview.py tests/core/test_project_download.py tests/core/test_project_files.py tests/core/test_file_artifacts.py
 ```
 
-预览用例使用真实临时文件、现有销售产物和实际解析子进程，核对工作表、样式、合并格、公式缓存缺失、CSV 引号与分页、大于 5 MiB 的文本/工作簿、取消后的句柄寿命、损坏文件、版本冲突、符号链接、Range 和 ZIP 重名。HTTP 用例通过本地 FastAPI 替换存储与项目解析入口，不连接业务数据库或模型；真实浏览器验证另行记录。
+预览用例使用真实临时文件和实际解析子进程，核对工作表、样式、合并格、公式缓存缺失、CSV 引号与分页、大于 5 MiB 的文本/工作簿、取消后的句柄寿命、损坏文件、版本冲突、符号链接、Range 和 ZIP 重名。HTTP 用例通过本地 FastAPI 替换存储与项目解析入口，不连接业务数据库或模型；真实浏览器验证另行记录。
 
 ### 文件与产物观察
 
@@ -193,7 +193,7 @@ RAY_TEST_DATABASE_URI=postgresql+asyncpg://… uv run --locked python -m pytest 
 uv run --locked python scripts/check_project_file_lifecycle.py --url http://127.0.0.1:8088/api --output /tmp/project-file-check.json
 ```
 
-数据库测试使用独立临时 PostgreSQL（每例重建 `public`），文件使用临时目录，Docker 为替身；覆盖上传批次所有权、规则与实际字节复核、保护快照、故障修复、取消、到期与重启。磁盘测试核对内容对象、无硬链接去重、原地恢复、链接与流式 ZIP。真实部署脚本通过 HTTP 新建唯一测试项目，验证覆盖保护、恢复路径/字节、下载、归档快照清理；不调用模型，不替代浏览器验收。项目输入附件上传使用 `/files` 的 `project_id`、当前 `rule_version` 和可选项明确确认参数；已上传 id 在 chat 受理事务中登记 pending，后台停止旧写入者后发布并纳入运行前快照。附件用例验证原子受理、改名、快照锁、结果未知读回、明确 ready 拒绝、启动孤儿收敛；完整链路的历史覆盖见[项目验收](../../docs/plan/evidence/projects-and-files.md)，不由这些用例单独证明。脚本保留测试项目并输出其 id 与限定清理范围；检查记录后仅按该范围清理，不能清空业务库或删除其他项目。
+数据库测试使用独立临时 PostgreSQL（每例重建 `public`），文件使用临时目录，Docker 为替身；覆盖上传批次所有权、规则与实际字节复核、保护快照、故障修复、取消、到期与重启。磁盘测试核对内容对象、无硬链接去重、原地恢复、链接与流式 ZIP。真实部署脚本通过 HTTP 新建唯一测试项目，验证覆盖保护、恢复路径/字节、下载、归档快照清理；不调用模型，不替代浏览器验收。项目输入附件上传使用 `/files` 的 `project_id`、当前 `rule_version` 和可选项明确确认参数；已上传 id 在 chat 受理事务中登记 pending，后台停止旧写入者后发布并纳入运行前快照。附件用例验证原子受理、改名、快照锁、结果未知读回、明确 ready 拒绝、启动孤儿收敛；这些用例不单独证明完整链路。脚本保留测试项目并输出其 id 与限定清理范围；检查记录后仅按该范围清理，不能清空业务库或删除其他项目。
 
 ### 项目交付副本观察
 
@@ -277,15 +277,15 @@ HTTP MCP 与 A2A 对端必须先运行；stdio MCP 由 API 按配置启动子进
 
 `start` 会打印设置里应粘贴的地址。添加后两项应为「已连接」，MCP 能看到 `add`。新建独立对话验证调用，不要发在旧对话里。做完：设置里删除临时项，再 `stop`。不要把 `9911`/`9912` 写进仓库 yaml。
 
-每个服务可设 `connect_timeout`、`discovery_timeout`、`call_timeout`（秒），A2A 另有 `cancel_timeout`；配置根节点有 `discovery_budget`。静态认证用 `headers`，stdio 环境用 `env`。
+每个服务可设 `connect_timeout`、`discovery_timeout`、`call_timeout`（秒），A2A 另有 `cancel_timeout`；配置根节点有 `discovery_budget`。未写时的默认见[运行参数与限额](../../docs/limits.md)。静态认证用 `headers`，stdio 环境用 `env`。
 
 ## 模型配置与预算
 
-默认应用窗口为 200000 tokens。已知模型的独立配置覆盖全局默认；实际窗口取应用配置与模型目录上限的较小值，输入上限再扣除生成预留与安全余量。思考模式的生成预算包含推理与回答。设置接口按模型合并更新，校验官方上限、温度与正数输入余量；预算预览由服务端共用规则计算。
+已知模型的独立配置覆盖全局默认；实际窗口取应用配置与模型目录上限的较小值，输入上限再扣除生成预留与安全余量。思考模式的生成预算包含推理与回答。当前窗口、预留和安全余量见[运行参数与限额](../../docs/limits.md)。设置接口按模型合并更新，校验官方上限、温度与正数输入余量；预算预览由服务端共用规则计算。
 
 新对话首次运行冻结采样参数。已有对话换模型时采用目标模型当前配置，A→B→A 也读取当前 A 配置；活动运行及 waiting 续接保留运行快照。下一新运行重新估算完整有效消息与工具定义，不用其他模型历史 usage 校准；历史 usage 保持累计统计。厂商目录定义思考档位、顺序、关闭方式、历史回传与温度兼容性，前端不固定等级。合法思考响应没有推理片段时记录空字段，区别于丢失推理历史。
 
-配置文件通过版本标记只迁移一次旧默认 131072→200000，自定义预算与既有会话冻结参数不迁移。模型配置检查包含在 `tests/core/test_model_configuration.py`，沿用本指南 pytest 入口。
+配置加载时按版本标记把仍为旧全局默认的窗口迁移一次；自定义预算与既有会话冻结参数不迁移。迁移的具体数值见运行参数说明。模型配置检查包含在 `tests/core/test_model_configuration.py`，沿用本指南 pytest 入口。
 
 ### 浏览器与网页读取的定向检查
 
@@ -308,7 +308,7 @@ uv run --locked python -m pytest tests/core/test_attachment_images.py
 
 截图 `analyze=true` 请求当前模型观察，`deliver=false` 保存临时图；默认 `deliver=true` 继续交付附件。非视觉模型明确返回不支持视觉，截图仍可留证。临时图捕获满 24 小时且运行结束后由启动/30 秒维护任务回收；永久附件和历史自动截图不回收。新增数据库字段由正常启动迁移，无需清库。Pillow 是 API 的图像尺寸/编码依赖，锁文件和容器安装清单同步。
 
-用户图片默认 `image_mode=auto`，受理时按实际模型能力和图片预算组织像素或文件材料：非视觉/未知模型、超过单条消息像素数量预算、格式或编码限制时保留原附件，不拒绝图片消息。原文件读取失败仍明确报错；`files` 为旧客户端兼容方式。事件中的 `image_input_note` 记录未提供像素的实际原因并传入模型上下文；图片任务规则同时进入系统提示及图片消息，普通识图有像素时直接回答，未启用视觉时及时说明，工具使用以用户明确要求为边界。用户图引用保存在消息/上下文 JSON 事件中，无新增数据库迁移；请求时按摘要和相同编码规则重建有界副本。图片专项使用真实 PNG/GIF/EXIF 编码与实际适配层，存储、数据库、模型和沙箱为替身，覆盖引用校验、请求重建、等待回复与注入、冻结能力、像素限制原因及同名路径保护；补充用例核对旧会话新运行规则与冻结运行补图规则的传递。实际执行记录与真实模型验证边界见[能力与边界](../../docs/capabilities.md#用户图片输入)。
+用户图片默认 `image_mode=auto`，受理时按实际模型能力和图片预算组织像素或文件材料：非视觉/未知模型、超过单条消息像素数量预算、格式或编码限制时保留原附件，不拒绝图片消息。原文件读取失败仍明确报错；`files` 为旧客户端兼容方式。事件中的 `image_input_note` 记录未提供像素的实际原因并传入模型上下文；图片任务规则同时进入系统提示及图片消息，普通识图有像素时直接回答，未启用视觉时及时说明，工具使用以用户明确要求为边界。用户图引用保存在消息/上下文 JSON 事件中，无新增数据库迁移；请求时按摘要和相同编码规则重建有界副本。图片专项使用真实 PNG/GIF/EXIF 编码与实际适配层，存储、数据库、模型和沙箱为替身，覆盖引用校验、请求重建、等待回复与注入、冻结能力、像素限制原因及同名路径保护；补充用例核对旧会话新运行规则与冻结运行补图规则的传递。这些检查不证明真实模型的识图质量或规则遵循。
 
 ### 数据删除与清空检查
 
@@ -329,7 +329,7 @@ PG 检查覆盖真实数据库与本地附件/项目目录删除、共享引用�
 
 `update_plan` 用 `title` 与 `description` 分别保存简短标题和一句任务说明，完整要求保存在 `goal/scope`；状态更新省略标题和描述时保留原值。清单条目用动作与具体对象或结果组成短标题，不附大纲、规格或解释；需要计划时先登记执行路径，再生成初版。多步小任务可平铺，复杂阶段按成果合并相关动作，首次只展开首阶段关键步骤，其余进入时展开；不重复父阶段或铺开细节，随业务动作维护当前状态。分阶段清单的当前阶段尚未展开，或已登记子步骤但没有当前步骤时，每份计划的每阶段有一次非阻断提醒，记录从持久上下文恢复；直接回答和单次明确操作可无清单。使用 `kind=stage/step` 与 `parent_id` 表示两层，分别计数；生命周期为 pending/in_progress/completed/blocked/cancelled，安排为 schedule=current/future。目标、范围及必要成果关联真实用户消息 seq。整体阶段不能直接删除，取消和推迟已有范围需新用户来源及原因；预算不足保留受阻。完整更新原子校验，省略 artifacts 保留原清单，版本及交付状态由实际工具结果填写。
 
-关键检查随业务工具附 verification，绑定成果、条件及真实版本；显式 passed 布尔断言才算通过，同版同条件复用，同一核验身份执行两次仍未通过时，再执行需说明新条件或新方法。收尾工具只补写预登记文本成果，已有文件保留原字节并另存系统预留的新版本路径；结果未知时先读回，不自动重复写入。仍受计划模式与策略限制。运行结束分别记录 complete/partial 及缺失成果、阶段和明确失败的核验，不把运行 completed 当作完整业务验收。相关历史协议对话不兼容，不迁移或自动删除。检查入口：
+关键检查随业务工具附 verification，绑定成果、条件及真实版本；显式 passed 布尔断言才算通过，同版同条件复用，同一核验身份达到失败阈值且仍未通过时，再执行需说明新条件或新方法。收尾工具只补写预登记文本成果，已有文件保留原字节并另存系统预留的新版本路径；结果未知时先读回，不自动重复写入。仍受计划模式与策略限制。运行结束分别记录 complete/partial 及缺失成果、阶段和明确失败的核验，不把运行 completed 当作完整业务验收。相关历史协议对话不兼容，不迁移或自动删除。检查入口：
 
 ```bash
 uv run --locked python -m pytest tests/core/test_staged_plan.py tests/core/test_plan_progress.py tests/core/test_agent_loop.py
@@ -351,10 +351,10 @@ RAY_TEST_BROWSER=1 uv run --locked python -m pytest tests/core/test_browser_effi
 
 GPT 与 DeepSeek 默认使用 Responses；端点引用中的 `api_protocol` 可显式设为 `chat_completions` 兼容旧上游，缺省为 `responses`。标题、摘要和压缩沿同一适配入口。Responses 不引入托管工具或服务端会话：OpenAI 使用 `store:false` 并回传推理条目，DeepSeek 回传明文推理条目和完整历史。对应助手消息携带模型归属的协议条目；同模型恢复，换模型不转发其他模型的原始推理。工具结果继续按调用身份配对。
 
-语义流只在完整终态后返回结果；截断走现有输出缩短流程，失败或缺少终态不执行半截调用。连接、限流、服务错误、已识别的暂时中断，以及读流途中的连接断开（SDK 不包装、原样抛出的 httpx 传输异常）有限重试；鉴权、额度、参数与未知错误不重试。连接没有建立（DNS、TCP、TLS 握手失败，请求未到达上游）时按 1、2、4、8、15 秒递增等待，最多再试 5 次，不占 `max_retries`；失败日志的 `cause=` 记录底层异常链。同一事件循环内的模型客户端共用一个连接池，空闲连接保留 30 秒，避免每轮重新解析域名和握手。SDK 内部自动重试关闭，模型请求预算由 Harness 统一计数。只读请求重建返回协议和适配前消息/工具，图像字节在真正发请求时加载。
+语义流只在完整终态后返回结果；截断走现有输出缩短流程，失败或缺少终态不执行半截调用。连接、限流、服务错误、已识别的暂时中断，以及读流途中的连接断开（SDK 不包装、原样抛出的 httpx 传输异常）有限重试；鉴权、额度、参数与未知错误不重试。连接没有建立（DNS、TCP、TLS 握手失败，请求未到达上游）时有独立的有界退避，不占普通尝试额度，但计入模型请求上限；失败日志的 `cause=` 记录底层异常链。同一事件循环内的模型客户端共用一个连接池，空闲连接按保留期限复用，避免每轮重新解析域名和握手。SDK 内部自动重试关闭，模型请求预算由 Harness 统一计数，具体数值见[运行参数与限额](../../docs/limits.md)。只读请求重建返回协议和适配前消息/工具，图像字节在真正发请求时加载。
 
 ```bash
 uv run --locked python -m pytest tests/core/test_responses_api.py tests/core/test_openai_stream.py tests/core/test_streaming_loop.py tests/core/test_turn_events_rebuild.py
 ```
 
-Responses 检查使用真实 SDK 与 HTTP 替身，覆盖厂商编码、多轮推理、图片、错误分类、截断与半截调用隔离；实际上游支持与部署验收另记关键证据。
+Responses 检查使用真实 SDK 与 HTTP 替身，覆盖厂商编码、多轮推理、图片、错误分类、截断与半截调用隔离；实际上游支持与部署需单独运行验证。

@@ -4,6 +4,10 @@
 
 以下说明已对照部署配置和启动代码核对；关键历史运行验收见 [关键验收](../docs/plan/README.md#关键验收)，课程阅读入口见 [lessons](../lessons/README.md)。
 
+## 适用范围
+
+当前应用面向可信使用者，没有用户认证或多租户权限。工具策略按工具匹配，不限制参数、沙箱路径或全部出站网络；动态容器的资源配额不能代替这些访问边界。部署默认只向本机发布，公开使用需另行设计身份与访问控制。模型目录声明的能力仍需在实际配置的上游验证。
+
 ## 环境要求
 
 - Docker Engine 或 Docker Desktop，以及 Docker Compose 插件。
@@ -31,7 +35,7 @@ cd ray_agent
 |---|---|
 | `APP_CONFIG_FILEPATH` | `config.yaml` |
 | `DEEPSEEK_URL` / `DEEPSEEK_API_KEY` | DeepSeek 地址与凭据；只写在本文件。未写地址时沿用 `api/config.yaml` |
-| `XIAOYI_URL` / `XIAOYI_API_KEY` | 可选。配置地址后，代码目录里的 GPT 模型与 DeepSeek 出现在同一列表。窗口仍按应用预算，默认 200000 |
+| `XIAOYI_URL` / `XIAOYI_API_KEY` | 可选。配置地址后，代码目录里的 GPT 模型与 DeepSeek 出现在同一列表。窗口仍按应用预算，默认值见[运行参数与限额](../docs/limits.md) |
 | `LOG_LEVEL` | API 日志等级，例如 `INFO` 或 `DEBUG` |
 | `SQLALCHEMY_ECHO` | `1` 时在 API 日志中回显 SQL；默认关闭 |
 | `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | 数据库初始化设置；与下面的连接 URI 一致 |
@@ -42,10 +46,10 @@ cd ray_agent
 | `SANDBOX_IMAGE` | `manus-sandbox` |
 | `SANDBOX_NETWORK` | `manus-network` |
 | `SANDBOX_NAME_PREFIX` | 动态容器名称前缀，例如 `rayagent-sandbox` |
-| `SANDBOX_TTL_MINUTES` | 沙箱存活时间，例如 `60`。创建动态容器时注入为沙箱读取的 `SERVER_TIMEOUT_MINUTES` |
-| `SANDBOX_MEMORY_MB` | 动态容器内存上限，默认 `2048`。swap 不超过同一上限 |
-| `SANDBOX_CPUS` | 动态容器 CPU 上限，默认 `2` |
-| `SANDBOX_PIDS_LIMIT` | 动态容器进程数上限，默认 `512` |
+| `SANDBOX_TTL_MINUTES` | 沙箱存活时间。创建动态容器时注入为沙箱读取的 `SERVER_TIMEOUT_MINUTES`。未设置时的默认见[运行参数与限额](../docs/limits.md) |
+| `SANDBOX_MEMORY_MB` | 动态容器内存上限，swap 不超过同一上限。未设置时的默认见运行参数说明 |
+| `SANDBOX_CPUS` | 动态容器 CPU 上限。未设置时的默认见运行参数说明 |
+| `SANDBOX_PIDS_LIMIT` | 动态容器进程数上限。未设置时的默认见运行参数说明 |
 | `SANDBOX_ADDRESS` | 使用动态沙箱时不设置此项。设置后连接已有沙箱，不套用上面的限额 |
 | `FILE_STORAGE_BACKEND` | `local`（默认，写本地磁盘）或 `cos`（腾讯云对象存储） |
 | `FILE_STORAGE_LOCAL_DIR` | 本地模式的目录；Compose 部署使用 `/data/files` |
@@ -65,7 +69,7 @@ cd ray_agent
 
 ### 模型与工具
 
-模型调用使用 OpenAI 兼容的 Chat Completions 协议。默认 DeepSeek 读 `DEEPSEEK_URL` 与 `DEEPSEEK_API_KEY`，GPT 读 `XIAOYI_URL` 与 `XIAOYI_API_KEY`；端点名称仅用于内部配置，用户只选择模型。未设置 `DEEPSEEK_URL` 时保留 YAML 中的全局地址。模型默认值、温度、`max_tokens`、`context_window` 与逐模型参数写在 [api/config.yaml](api/config.yaml)，设置页保留逐模型参数编辑，不展示连接设置。密钥和内部路由不返回模型选择接口。
+模型调用默认使用 Responses；端点引用可显式设为 `chat_completions` 以兼容旧上游。DeepSeek 读 `DEEPSEEK_URL` 与 `DEEPSEEK_API_KEY`，GPT 读 `XIAOYI_URL` 与 `XIAOYI_API_KEY`；端点名称仅用于内部配置，用户只选择模型。未设置 `DEEPSEEK_URL` 时保留 YAML 中的全局地址。模型默认值、温度、`max_tokens`、`context_window` 与逐模型参数写在 [api/config.yaml](api/config.yaml)，当前数字见[运行参数与限额](../docs/limits.md)。设置页保留逐模型参数编辑，不展示连接设置。密钥和内部路由不返回模型选择接口。上游需实际支持所配协议及工具流式事件。
 
 更换已有上游时修改对应 URL 和 Key；新增兼容上游时在 `llm_config` 内增加端点环境变量引用，并调整模型映射。例如只把现有 GPT Luna 转到新上游：
 
@@ -147,6 +151,4 @@ docker compose ps
 - [UI](ui/README.md)：Next.js 前端。
 - [沙箱](sandbox/README.md)：浏览器、终端和文件操作服务。
 
-各服务 README 分别维护本地开发、依赖安装和验证命令；本指南只维护完整部署的配置与运行检查。
-
-模型端点引用支持 `api_protocol: responses`（默认）和显式 `chat_completions`。当前 GPT 与 DeepSeek 默认均使用 Responses；上游需实际支持 `/responses` 及工具流式事件。协议由部署配置决定，普通用户菜单只选择模型与思考。
+各服务 README 分别维护本地开发、依赖安装和验证命令；本指南只维护完整部署的配置与运行检查。默认可调数值集中在[运行参数与限额](../docs/limits.md)。协议由部署配置决定，普通用户菜单只选择模型与思考。

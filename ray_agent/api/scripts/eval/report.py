@@ -1,13 +1,14 @@
 """评测报告：JSON 原始数据与 Markdown 汇总。"""
 import json
 import subprocess
+import tempfile
 from pathlib import Path
 from typing import Any, Dict, List
 
 from .fixtures import API_DIR
 
 REPO_DIR = API_DIR.parents[1]
-EVIDENCE_DIR = REPO_DIR / "docs" / "plan" / "evidence"
+REPORT_DIR = Path(tempfile.gettempdir()) / "rayagent-eval"
 
 OUTCOME_TEXT = {"passed": "通过", "failed": "未通过", "skipped": "跳过", "error": "运行出错"}
 
@@ -175,7 +176,7 @@ def render_markdown(report: Dict[str, Any]) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
-def write_report(report: Dict[str, Any], output_dir: Path = EVIDENCE_DIR) -> Dict[str, Path]:
+def write_report(report: Dict[str, Any], output_dir: Path = REPORT_DIR) -> Dict[str, Path]:
     meta = report["meta"]
     paths = report_paths(output_dir, meta["label"], meta["date"], meta["git"]["short"])
     output_dir.mkdir(parents=True, exist_ok=True)
