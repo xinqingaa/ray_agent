@@ -607,8 +607,8 @@ export function SessionDetailView({
               )}
             </div>
             {visibility.developerView && <SegmentedControl value={mode} idPrefix="session-mode" label="会话视图" options={[
-              {value: 'conversation', label: '对话', icon: MessageCircle},
-              {value: 'developer', label: '开发者', icon: Code2},
+              {value: 'conversation', label: '聊天', icon: MessageCircle},
+              {value: 'developer', label: '日志', icon: Code2},
             ]} onValueChange={next => {setMode(next); if (next === 'developer') setDeveloperVisited(true)}}/>}
             {view.project && (
               <IconAction label="项目记忆" className="shrink-0 text-muted-foreground" onClick={() => setMemoryOpen(true)}><MemoryIcon className="size-4"/></IconAction>
@@ -623,74 +623,77 @@ export function SessionDetailView({
           </header>
           {view.project && <ProjectMemoryPanel projectId={view.project.id} sessionId={sessionId} open={memoryOpen} onClose={()=>setMemoryOpen(false)}/>}
 
-            <div ref={scrollRef} onScroll={onScroll} id="session-mode-panel-conversation" role={visibility.developerView ? "tabpanel" : undefined} aria-label="对话" aria-labelledby={visibility.developerView ? "session-mode-conversation" : undefined} hidden={mode !== 'conversation'} className={cn('min-h-0 flex-1 overflow-y-auto', mode !== 'conversation' ? 'hidden' : 'view-enter-left')}>
-              <div ref={messageContentRef} className="mx-auto flex w-full max-w-(--reading-column) flex-col gap-3 px-4 py-3">
-                {shownTimeline.length === 0 && !showOptimistic && (
-                  <p className="py-8 text-center text-meta text-faint">
-                    这里会显示你的消息、工具操作和最终回复。在下方输入任务后开始。
-                  </p>
-                )}
-                <Timeline items={shownTimeline} runs={shownRuns} streaming={view.streaming} activeStatus={timelineStatus} handlers={handlers}/>
-                {showOptimistic && outgoing ? <UserMessage text={outgoing.text}/> : null}
-                {!view.activeRun && timelineStatus}
-                {showPlanExecute && <PlanExecuteBar disabled={submitting || pendingSend} onExecute={() => {
-                    void deliver('按计划执行', [], {mode: 'normal', execute_plan: {source_run_id: view.plan!.sourceRunId!, plan_id: view.plan!.planId!, source_seq: view.plan!.sourceSeq!, request_id: crypto.randomUUID()}}).catch((err: unknown) => {
-                      if (err instanceof ApiError && err.code === 409) {
-                        toast.error(err.msg)
-                        return
-                      }
-                      toast.error(err instanceof Error ? err.message : '发送失败')
-                    })
-                  }}/>}
+          <div className="min-h-0 flex-1 overflow-hidden">
+            <div className={cn('flex h-full w-[200%] transition-transform duration-200 ease-out motion-reduce:transition-none', mode === 'developer' && '-translate-x-1/2')}>
+              <div id="session-mode-panel-conversation" role={visibility.developerView ? 'tabpanel' : undefined} aria-label="聊天" aria-labelledby={visibility.developerView ? 'session-mode-conversation' : undefined} aria-hidden={mode !== 'conversation'} inert={mode !== 'conversation'} className="flex h-full min-w-0 w-1/2 shrink-0 flex-col">
+                <div ref={scrollRef} onScroll={onScroll} className="min-h-0 flex-1 overflow-y-auto">
+                  <div ref={messageContentRef} className="mx-auto flex w-full max-w-(--reading-column) flex-col gap-3 px-4 py-3">
+                    {shownTimeline.length === 0 && !showOptimistic && (
+                      <p className="py-8 text-center text-meta text-faint">
+                        这里会显示你的消息、工具操作和最终回复。在下方输入任务后开始。
+                      </p>
+                    )}
+                    <Timeline items={shownTimeline} runs={shownRuns} streaming={view.streaming} activeStatus={timelineStatus} handlers={handlers}/>
+                    {showOptimistic && outgoing ? <UserMessage text={outgoing.text}/> : null}
+                    {!view.activeRun && timelineStatus}
+                    {showPlanExecute && <PlanExecuteBar disabled={submitting || pendingSend} onExecute={() => {
+                        void deliver('按计划执行', [], {mode: 'normal', execute_plan: {source_run_id: view.plan!.sourceRunId!, plan_id: view.plan!.planId!, source_seq: view.plan!.sourceSeq!, request_id: crypto.randomUUID()}}).catch((err: unknown) => {
+                          if (err instanceof ApiError && err.code === 409) {
+                            toast.error(err.msg)
+                            return
+                          }
+                          toast.error(err instanceof Error ? err.message : '发送失败')
+                        })
+                      }}/>}
+                  </div>
+                </div>
+                <div hidden={mode !== 'conversation'} className="relative shrink-0 border-t bg-background px-3 py-3">
+                  {mode === 'conversation' && awayFromBottom && <div className="absolute -top-12 inset-x-0 flex justify-center pointer-events-none">
+                    <IconAction label="回到底部" variant="outline" className="pointer-events-auto rounded-full bg-card shadow-sm" onClick={() => {
+                      stickRef.current = true
+                      setAwayFromBottom(false)
+                      const el = scrollRef.current
+                      if (el) {el.scrollTop = el.scrollHeight; scrollPositions.current.conversation = el.scrollTop}
+                    }}><ArrowDown className="size-4" aria-hidden/></IconAction>
+                  </div>}
+                  <div ref={setPlanColumn} className="mx-auto w-full max-w-(--reading-column)">
+                    {mode === 'conversation' && planBarState && (
+                      <PlanBar plan={view.plan} runStatus={view.activeRun?.status ?? null} proposal={planBarState === 'proposal'} className="mb-2"/>
+                    )}
+                    <ChatInput
+                      sessionId={sessionId}
+                      onSend={handleSend}
+                      pause={pauseMode}
+                      onPause={() => void handleStop()}
+                      disabled={submitting || waitingApproval}
+                      placeholder={placeholder}
+                      savedModel={session?.model_id}
+                      savedReasoning={session?.reasoning}
+                      runModel={session?.run_model}
+                      runReasoning={session?.run_reasoning}
+                      accessory={() => visibility.contextUsage ? <ContextRing usage={view.usage}/> : null}
+                      projectsEnabled={projectsEnabled}
+                      projectBindable={projectBindable}
+                      selectedProject={view.project}
+                      commandHost={{
+                        hasSession: true,
+                        hasRuns: view.runs.length > 0,
+                        runStatus: view.status,
+                        waitingApproval,
+                        waitingReply: view.activeRun?.activity.kind === 'waiting_reply',
+                        submitting,
+                        compacting,
+                        projectsEnabled,
+                        projectBindable,
+                        actions: {compact: () => { void handleCompact() }},
+                      }}
+                    />
+                  </div>
+                </div>
               </div>
-            </div>
-          {developerVisited && (
-            <div ref={developerScrollRef} onScroll={() => {if (mode === 'developer' && developerScrollRef.current) scrollPositions.current.developer = developerScrollRef.current.scrollTop}} id="session-mode-panel-developer" role="tabpanel" aria-labelledby="session-mode-developer" hidden={mode !== 'developer'} className={cn('min-h-0 flex-1 overflow-y-auto', mode !== 'developer' ? 'hidden' : 'view-enter-right')}>
-              <DeveloperView view={view} loadTurnRequest={loadTurnRequest} className="mx-auto w-full max-w-(--reading-column)"/>
-            </div>
-          )}
-
-          <div className="relative shrink-0 border-t bg-background px-3 py-3">
-            {mode === 'conversation' && awayFromBottom && <div className="absolute -top-12 inset-x-0 flex justify-center pointer-events-none">
-              <IconAction label="回到底部" variant="outline" className="pointer-events-auto rounded-full bg-card shadow-sm" onClick={() => {
-                stickRef.current = true
-                setAwayFromBottom(false)
-                const el = scrollRef.current
-                if (el) {el.scrollTop = el.scrollHeight; scrollPositions.current.conversation = el.scrollTop}
-              }}><ArrowDown className="size-4" aria-hidden/></IconAction>
-            </div>}
-            <div ref={setPlanColumn} className="mx-auto w-full max-w-(--reading-column)">
-              {mode === 'conversation' && planBarState && (
-                <PlanBar plan={view.plan} runStatus={view.activeRun?.status ?? null} proposal={planBarState === 'proposal'} className="mb-2"/>
-              )}
-              <ChatInput
-                sessionId={sessionId}
-                onSend={handleSend}
-                pause={pauseMode}
-                onPause={() => void handleStop()}
-                disabled={submitting || waitingApproval}
-                placeholder={placeholder}
-                savedModel={session?.model_id}
-                savedReasoning={session?.reasoning}
-                runModel={session?.run_model}
-                runReasoning={session?.run_reasoning}
-                accessory={() => visibility.contextUsage ? <ContextRing usage={view.usage}/> : null}
-                projectsEnabled={projectsEnabled}
-                projectBindable={projectBindable}
-                selectedProject={view.project}
-                commandHost={{
-                  hasSession: true,
-                  hasRuns: view.runs.length > 0,
-                  runStatus: view.status,
-                  waitingApproval,
-                  waitingReply: view.activeRun?.activity.kind === 'waiting_reply',
-                  submitting,
-                  compacting,
-                  projectsEnabled,
-                  projectBindable,
-                  actions: {compact: () => { void handleCompact() }},
-                }}
-              />
+              <div ref={developerScrollRef} onScroll={() => {if (mode === 'developer' && developerScrollRef.current) scrollPositions.current.developer = developerScrollRef.current.scrollTop}} id="session-mode-panel-developer" role="tabpanel" aria-label="日志" aria-labelledby="session-mode-developer" aria-hidden={mode !== 'developer'} inert={mode !== 'developer'} className="h-full w-1/2 shrink-0 overflow-y-auto">
+                {developerVisited && <DeveloperView view={view} loadTurnRequest={loadTurnRequest} className="mx-auto w-full max-w-(--reading-column)"/>}
+              </div>
             </div>
           </div>
         </div>

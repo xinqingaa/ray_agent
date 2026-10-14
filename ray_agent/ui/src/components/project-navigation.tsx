@@ -1,9 +1,11 @@
 'use client'
 
-import {useRef, useState, type MouseEvent} from 'react'
+import {useState, type MouseEvent, type ReactNode} from 'react'
 import Link from 'next/link'
 import {ChevronRight} from 'lucide-react'
 import {Button} from '@/components/ui/button'
+import {SegmentedControl} from '@/components/ui/segmented-control'
+import {Tooltip, TooltipContent, TooltipTrigger} from '@/components/ui/tooltip'
 import {DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger} from '@/components/ui/dropdown-menu'
 import {RunStatus} from '@/components/run/run-status'
 import {SessionItem} from '@/components/session-item'
@@ -29,6 +31,7 @@ export type NavigationProject = {
 export type NavigationExpansion = {projects: boolean; conversations: boolean; items: Record<string, boolean>}
 
 type Props = {
+  createAction?: ReactNode
   projects: NavigationProject[]
   conversations: Session[]
   expansion: NavigationExpansion
@@ -54,9 +57,9 @@ type Props = {
   preview?: boolean
 }
 
-const createButtonClass = 'group/create size-8 text-muted-foreground hover:bg-sidebar-accent data-[state=open]:bg-sidebar-accent'
+const createButtonClass = 'group/create text-muted-foreground hover:bg-sidebar-accent hover:text-foreground data-[state=open]:bg-sidebar-accent'
 
-/** 侧栏顶部的新建图标。对话标签打开首页草稿，项目标签选择空白项目或从文件夹创建。 */
+/** 当前列表的新建入口，与导航同排并靠右，悬停时显示底色。 */
 export function NavigationCreateButton({tab, onIndependent, onCreateProject, onImportProject, onOpenProject}: {
   tab: 'conversations' | 'projects'
   onIndependent: () => void
@@ -66,18 +69,24 @@ export function NavigationCreateButton({tab, onIndependent, onCreateProject, onI
 }) {
   if (tab === 'conversations') {
     return (
-      <Button variant="ghost" size="icon-sm" className={createButtonClass} aria-label="新对话" title="新对话" onClick={onIndependent}>
-        <NewChatIcon className="size-[18px]" aria-hidden="true"/>
-      </Button>
+      <Tooltip>
+        <TooltipTrigger asChild><Button variant="ghost" size="icon-sm" className={createButtonClass} aria-label="新建对话" onClick={onIndependent}>
+          <NewChatIcon className="size-[18px]" aria-hidden="true"/>
+        </Button></TooltipTrigger>
+        <TooltipContent side="bottom">新建对话</TooltipContent>
+      </Tooltip>
     )
   }
   return (
     <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon-sm" className={createButtonClass} aria-label="新建项目" title="新建项目">
-          <NewProjectIcon className="size-[18px]" aria-hidden="true"/>
-        </Button>
-      </DropdownMenuTrigger>
+      <Tooltip>
+        <TooltipTrigger asChild><DropdownMenuTrigger asChild>
+          <Button variant="ghost" size="icon-sm" className={createButtonClass} aria-label="新建项目">
+            <NewProjectIcon className="size-[18px]" aria-hidden="true"/>
+          </Button>
+        </DropdownMenuTrigger></TooltipTrigger>
+        <TooltipContent side="bottom">新建项目</TooltipContent>
+      </Tooltip>
       <DropdownMenuContent align="end">
         <DropdownMenuItem onSelect={onCreateProject ?? onOpenProject}><NewProjectIcon aria-hidden="true"/>空白项目</DropdownMenuItem>
         <DropdownMenuItem onSelect={onImportProject ?? onOpenProject}><ImportFolderIcon aria-hidden="true"/>从文件夹创建</DropdownMenuItem>
@@ -91,12 +100,8 @@ export function ProjectNavigation(props: Props) {
   const {projects, conversations, expansion, onExpansion, selectedSession, preview} = props
   const [localTab, setLocalTab] = useState<'conversations' | 'projects'>(props.selectedProject ? 'projects' : 'conversations')
   const tab = props.tab ?? localTab
-  const scroll = useRef<HTMLDivElement>(null)
-  const positions = useRef({projects: 0, conversations: 0})
   const switchTab = (next: 'conversations' | 'projects') => {
-    if (scroll.current) positions.current[tab] = scroll.current.scrollTop
     setLocalTab(next); props.onTabChange?.(next)
-    requestAnimationFrame(() => {if (scroll.current) scroll.current.scrollTop = positions.current[next]})
   }
   const sessionRow = (session: Session, waitKind?: 'reply' | 'approval') => <SessionItem key={session.session_id} session={session} isActive={selectedSession === session.session_id}
     href={preview ? undefined : `/sessions/${session.session_id}`}
@@ -104,13 +109,18 @@ export function ProjectNavigation(props: Props) {
     onDelete={props.onSessionDelete} onRename={props.onSessionRename} waitKind={waitKind}/>
   return (
     <nav aria-label="项目与对话" className="flex h-full min-h-0 flex-col">
-      <div role="tablist" aria-label="导航模式" className="mb-3 flex min-h-8 shrink-0 rounded-full bg-muted p-0.5">
-        {(['conversations', 'projects'] as const).map(value => <button key={value} type="button" role="tab" id={`nav-${value}`} aria-controls="navigation-list" aria-selected={tab === value} tabIndex={tab === value ? 0 : -1}
-          onClick={() => switchTab(value)} onKeyDown={event => {if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) {event.preventDefault(); const next = event.key === 'Home' ? 'conversations' : event.key === 'End' ? 'projects' : tab === 'projects' ? 'conversations' : 'projects'; switchTab(next); document.getElementById(`nav-${next}`)?.focus()}}}
-          className={cn('flex-1 rounded-full text-meta outline-none focus-visible:ring-2 focus-visible:ring-ring', tab === value ? 'bg-card font-medium text-foreground shadow-sm' : 'font-normal text-muted-foreground')}>{value === 'conversations' ? '对话' : '项目'}</button>)}
+      <div className="mb-3 flex shrink-0 items-center justify-between gap-3">
+      <SegmentedControl value={tab} onValueChange={switchTab} idPrefix="navigation" label="导航模式"
+        className="min-w-0 flex-1" options={[
+          {value: 'conversations', label: '对话'},
+          {value: 'projects', label: '项目'},
+        ]}/>
+      {props.createAction && <div className="shrink-0">{props.createAction}</div>}
       </div>
-      <div ref={scroll} id="navigation-list" role="tabpanel" aria-labelledby={`nav-${tab}`} className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-        <div hidden={tab !== 'projects'} className="flex flex-col gap-1">
+      <div className="min-h-0 flex-1 overflow-hidden">
+        {/* 两页各自保留滚动容器，滑动过程中不卸载；非当前页不参与焦点和读屏。 */}
+        <div className={cn('flex h-full w-[200%] transition-transform duration-200 ease-out motion-reduce:transition-none', tab === 'projects' && '-translate-x-1/2')}>
+        <div id="navigation-panel-projects" role="tabpanel" aria-labelledby="navigation-projects" aria-hidden={tab !== 'projects'} inert={tab !== 'projects'} className="order-2 flex h-full w-1/2 shrink-0 flex-col gap-1 overflow-y-auto overscroll-contain">
           {props.loading && <p className="px-2 py-3 text-meta text-faint">正在读取项目</p>}
           {props.error && <div className="px-2 py-3"><p role="alert" className="text-meta text-state-failed">{props.error}</p><Button size="sm" variant="ghost" onClick={props.onRetry}>重试</Button></div>}
           {projects.map(project => {
@@ -174,8 +184,9 @@ export function ProjectNavigation(props: Props) {
             </div>})}
           {props.onMoreProjects && <Button size="sm" variant="ghost" className="mt-1" onClick={props.onMoreProjects}>更多项目</Button>}
         </div>
-        <div hidden={tab !== 'conversations'} className="flex flex-col gap-2">
+        <div id="navigation-panel-conversations" role="tabpanel" aria-labelledby="navigation-conversations" aria-hidden={tab !== 'conversations'} inert={tab !== 'conversations'} className="order-1 flex h-full w-1/2 shrink-0 flex-col gap-2 overflow-y-auto overscroll-contain">
           {conversations.map(session => sessionRow(session))}
+        </div>
         </div>
       </div>
       {tab === 'projects' && <Button size="sm" variant="ghost" className="mt-2 shrink-0 justify-start text-muted-foreground" onClick={props.onOpenArchived ?? props.onOpenProject}>已归档项目</Button>}

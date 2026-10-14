@@ -47,6 +47,7 @@ function load(file) {
     if (name === '@/components/ui/sidebar') return {...elements, Sidebar: elements.Sidebar, SidebarContent: elements.SidebarContent,
       SidebarFooter: elements.SidebarFooter, SidebarHeader: elements.SidebarHeader, useSidebar: () => ({setOpenMobile() {}})};
     if (name === '@/components/ui/overlay-toolbar') return {OverlayToolbar: props => React.createElement('header', null, props.title)};
+    if (name === '@/components/ui/segmented-control') return load('components/ui/segmented-control.tsx');
     if (name.startsWith('@/components/ui/')) return elements;
     if (name.startsWith('@/components/') || name === './project-pane') return new Proxy({}, {get: () => empty});
     throw Error('未提供替身：' + name);
@@ -188,6 +189,15 @@ async function navigationActions() {
  assert.equal(r.root.findByProps({id:'project-conversations-p'}).props.inert,true);
  assert.equal(r.root.findByProps({id:'project-conversations-p'}).props['aria-hidden'],true);
  const createLink=r.root.findAllByType('a').find(node=>node.props['aria-label']==='测试项目 中新对话');assert.equal(createLink.props.href,'/projects/p#new-conversation');
+ const projectPage=r.root.findByProps({id:'navigation-panel-projects'});
+ assert.equal(projectPage.props.inert,false);
+ assert.equal(r.root.findByProps({id:'navigation-panel-conversations'}).props.inert,true);
+ await act(async()=>r.update(React.createElement(ProjectNavigation,{...populated,tab:'conversations',expansion:expanded})));
+ assert.equal(r.root.findByProps({id:'navigation-panel-projects'}),projectPage,'切页保留原列表容器及其滚动状态');
+ assert.equal(projectPage.props.inert,true);
+ assert.equal(projectPage.props['aria-hidden'],true);
+ assert.equal(r.root.findByProps({id:'navigation-panel-conversations'}).props.inert,false);
+ assert.equal(r.root.findByProps({id:'navigation-conversations'}).props['aria-controls'],'navigation-panel-conversations');
  await act(async()=>r.unmount());console.log('PASS: 项目名称导航与箭头独立，空项目禁用展开，有对话项目可展开/收起并隔离隐藏焦点，新对话图标进入输入准备');
 }
 

@@ -7,20 +7,19 @@ import {BrandMark} from '@/components/brand-mark'
 import {cn} from '@/lib/utils'
 import {DataCleanupNotice} from './data-cleanup-notice'
 
-/** 侧栏顶部是产品入口、当前列表的新建按钮和折叠控制。 */
-export function SidebarChrome({action}: {action?: ReactNode}) {
+/** 侧栏顶部是产品入口和折叠控制。 */
+export function SidebarChrome() {
   const {state, isMobile, setOpenMobile} = useSidebar()
   const iconRail = state === 'collapsed' && !isMobile
 
   return (
-    <div className={cn('flex h-9 items-center justify-between gap-1', iconRail && 'justify-center')}>
+    <div className={cn('flex h-10 items-center justify-between gap-1', iconRail && 'justify-center')}>
       <Link href="/" onClick={() => setOpenMobile(false)}
-        className={cn('flex min-w-0 items-center gap-2 rounded-sm px-1 text-sm font-semibold tracking-tight outline-none focus-visible:ring-2 focus-visible:ring-ring', iconRail && 'hidden')}>
-        <BrandMark className="size-5"/>
+        className={cn('flex min-w-0 items-center gap-2.5 rounded-sm px-1 text-base font-semibold tracking-tight outline-none focus-visible:ring-2 focus-visible:ring-ring', iconRail && 'hidden')}>
+        <BrandMark className="size-[22px]"/>
         <span className="truncate">RayAgent</span>
       </Link>
       <div className={cn('flex shrink-0 items-center', iconRail && 'contents')}>
-        {!iconRail && action}
         <SidebarTrigger aria-label={iconRail ? '展开侧栏' : '收起侧栏'} className="shrink-0"/>
       </div>
     </div>

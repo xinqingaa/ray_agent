@@ -142,8 +142,8 @@ export function LeftPanel() {
   }))
   return <>
     <Sidebar collapsible="icon">
-      <SidebarHeader><SidebarChrome action={<NavigationCreateButton tab={workspace.navigationTab} onIndependent={independent} onCreateProject={workspace.createProject} onImportProject={workspace.importProject}/>}/></SidebarHeader>
-      <SidebarContent className="min-h-0 overflow-hidden p-2">
+      <SidebarHeader className="px-3 pb-1 pt-2 group-data-[collapsible=icon]:px-2"><SidebarChrome/></SidebarHeader>
+      <SidebarContent className="min-h-0 overflow-hidden px-3 pb-2 pt-1 group-data-[collapsible=icon]:px-2">
         <div className="hidden flex-1 flex-col items-center gap-2 group-data-[collapsible=icon]:flex">
           <Button variant="ghost" size="icon-sm" className="group/create text-muted-foreground" aria-label="新对话" title="新对话" onClick={independent}><NewChatIcon className="size-[18px]" aria-hidden="true"/></Button>
           <DropdownMenu>
@@ -158,6 +158,7 @@ export function LeftPanel() {
         </div>
         <div className="flex min-h-0 flex-1 flex-col group-data-[collapsible=icon]:hidden">
           <ProjectNavigation projects={projectRows} conversations={conversations} expansion={expansion} onExpansion={expand} selectedProject={projectId} selectedSession={sessionId}
+            createAction={<NavigationCreateButton tab={workspace.navigationTab} onIndependent={independent} onCreateProject={workspace.createProject} onImportProject={workspace.importProject}/>}
             tab={workspace.navigationTab} onTabChange={workspace.setNavigationTab} onOpenArchived={workspace.openArchived} onMoreProjects={workspace.projects.length < workspace.total ? () => void workspace.more() : undefined}
             loading={workspace.loading} error={workspace.error} onRetry={() => void workspace.refresh()} onOpenProject={workspace.openProject}
             onProjectSettings={setSettings} onProjectDelete={setProjectDelete} onArchive={id => void archive(id)} onSessionDelete={setPendingDelete} onSessionRename={setPendingRename} onNavigate={() => setOpenMobile(false)}/>

@@ -202,8 +202,8 @@ export function RunStatus(props: RunStatusProps): ReactNode {
       const text = timelineSentence(props)
       if (!text) return null
       return (
-        <div role="status" aria-live="polite" className={cn('flex min-w-0 items-center gap-2 text-sm text-muted-foreground', props.className)}>
-          <Loader2 className="size-4 shrink-0 animate-spin text-state-running" aria-hidden/>
+        <div role="status" aria-live="polite" className={cn('flex w-full min-w-0 items-center justify-center gap-2 py-2 text-sm text-muted-foreground', props.className)}>
+          <Loader2 className="size-4 shrink-0 animate-spin text-state-running motion-reduce:animate-none" aria-hidden/>
           <span className="min-w-0 truncate" title={text}>{text}</span>
         </div>
       )

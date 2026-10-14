@@ -91,11 +91,15 @@ export function ModelPicker({sessionId, savedModel, savedReasoning, onSelection,
       model: savedModel,
       reasoning: savedReasoning || catalog.models.find(item => item.id === savedModel)?.default_choice || '',
     }
+    // 已有会话缺少选择时也不能读全局偏好；目录默认只用于菜单展示。
+    if (sessionId) return validModelPreference(null, catalog)
     // 本地记录读完之前不发出目录默认值，避免新对话把 deepseek-flash / high 写回去。
     if (!preferenceRead) return null
     return validModelPreference(recent, catalog)
-  }, [picked, catalog, savedModel, savedReasoning, recent, preferenceRead])
-  useEffect(() => {if (selection) onSelection(selection)}, [onSelection, selection])
+  }, [picked, catalog, savedModel, savedReasoning, recent, preferenceRead, sessionId])
+  const inheritSession = !!sessionId && !picked && !(savedModel && savedReasoning)
+  // 缺失字段交给服务端解析，避免发送目录默认值覆盖旧会话，或沿用上个会话的选择。
+  useEffect(() => {onSelection(inheritSession ? null : selection)}, [onSelection, selection, inheritSession])
   if (catalogError && !catalog) {
     return <Popover>
       <PopoverTrigger asChild><button type="button" aria-label={`模型目录不可用：${catalogError}`}
@@ -160,9 +164,9 @@ export function ModelPicker({sessionId, savedModel, savedReasoning, onSelection,
     if (value) {setOpen(true); setDraft(selection); setVendor(vendorOf(selection.model, catalog.models)); setError(null); setNotice(null); return}
     return commitClose()
   }}>
-    <PopoverTrigger asChild><button type="button" aria-label={`模型与思考：${selection.model}，${selection.reasoning}`}
+    <PopoverTrigger asChild><button type="button" aria-label={inheritSession ? '模型与思考：沿用对话设置' : `模型与思考：${selection.model}，${selection.reasoning}`}
       className="inline-flex h-8 max-w-[14rem] items-center gap-1 rounded-md px-2 text-xs text-muted-foreground outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring">
-      <span className="truncate font-mono" title={selection.model}>{selection.model}</span>{visibility.reasoningInTrigger && <span>{selection.reasoning}</span>}<ChevronDown className="size-3 shrink-0"/>
+      <span className="truncate font-mono" title={inheritSession ? '沿用对话设置' : selection.model}>{inheritSession ? '沿用对话设置' : selection.model}</span>{!inheritSession && visibility.reasoningInTrigger && <span>{selection.reasoning}</span>}<ChevronDown className="size-3 shrink-0"/>
     </button></PopoverTrigger>
     <PopoverContent side="top" align="end" className="w-80 max-w-[calc(100vw-2rem)] p-3" onEscapeKeyDown={e => {if (saving) e.preventDefault()}} onInteractOutside={e => {if (saving) e.preventDefault()}}>
       {tabs.length > 1 && activeVendor && <SegmentedControl className="mb-2 w-full" value={activeVendor} onValueChange={changeVendor} label="模型厂商" options={tabs.map(item => ({value: item.id, label: item.label}))}/>}
