@@ -1,4 +1,5 @@
 {
   "python.defaultInterpreterPath": "${workspaceFolder}/ray_agent/api/.venv/bin/python",
-  "python.analysis.extraPaths": ["${workspaceFolder}/ray_agent/api"]
+  "python.analysis.extraPaths": ["${workspaceFolder}/ray_agent/api"],
+  "python.terminal.activateEnvironment": false
 }
