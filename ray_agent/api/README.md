@@ -142,7 +142,7 @@ uv run --locked python -m pytest tests/core/test_eval_script.py
 uv run --locked python -m pytest tests/core/test_file_preview.py tests/core/test_project_download.py tests/core/test_project_files.py tests/core/test_file_artifacts.py
 ```
 
-预览用例使用真实临时文件和实际解析子进程，核对工作表、样式、合并格、公式缓存缺失、CSV 引号与分页、大于 5 MiB 的文本/工作簿、取消后的句柄寿命、损坏文件、版本冲突、符号链接、Range 和 ZIP 重名。HTTP 用例通过本地 FastAPI 替换存储与项目解析入口，不连接业务数据库或模型；真实浏览器验证另行记录。
+预览用例使用真实临时文件和实际解析子进程，核对工作表、样式、合并格、公式缓存缺失、CSV 引号与分页、大于 5 MiB 的文本/工作簿、取消后的句柄寿命、损坏文件、版本冲突、符号链接、Range 和 ZIP 重名。HTTP 用例通过本地 FastAPI 替换存储与项目解析入口，不连接业务数据库或模型；真实浏览器需另行验证。
 
 ### 文件与产物观察
 
@@ -304,9 +304,9 @@ uv run --locked python -m pytest tests/core/test_visual_resources.py tests/proto
 uv run --locked python -m pytest tests/core/test_attachment_images.py
 ```
 
-覆盖按需资源单次准备、停止与迟到所有权、最多三项独立读取、图像字节请求/历史与容量边界、引用重建、本地临时图回收，以及真实 MCP 夹具的所选发现和新运行器恢复。浏览器身份、焦点、隐藏根与 CDP 重连用例需设置前文 `RAY_TEST_BROWSER=1`；新增 PG 图像归属与过期查询在 `test_run_events_pg.py`，仍只能指向独立测试库。
+覆盖按需资源单次准备、停止与迟到所有权、有界独立读取、图像字节请求/历史与容量边界、引用重建、本地临时图回收，以及真实 MCP 夹具的所选发现和新运行器恢复。浏览器身份、焦点、隐藏根与 CDP 重连用例需设置前文 `RAY_TEST_BROWSER=1`；PG 图像归属与过期查询在 `test_run_events_pg.py`，仍只能指向独立测试库。
 
-截图 `analyze=true` 请求当前模型观察，`deliver=false` 保存临时图；默认 `deliver=true` 继续交付附件。非视觉模型明确返回不支持视觉，截图仍可留证。临时图捕获满 24 小时且运行结束后由启动/30 秒维护任务回收；永久附件和历史自动截图不回收。新增数据库字段由正常启动迁移，无需清库。Pillow 是 API 的图像尺寸/编码依赖，锁文件和容器安装清单同步。
+截图 `analyze=true` 请求当前模型观察，`deliver=false` 保存临时图；默认 `deliver=true` 继续交付附件。非视觉模型明确返回不支持视觉，截图仍可留证。临时图保留期满且运行结束后由启动及周期维护回收，期限见[运行参数与限额](../../docs/limits.md)；永久附件和历史自动截图不回收。图像元数据字段由正常启动迁移，无需清库。Pillow 是 API 的图像尺寸/编码依赖，锁文件和容器安装清单同步。
 
 用户图片默认 `image_mode=auto`，受理时按实际模型能力和图片预算组织像素或文件材料：非视觉/未知模型、超过单条消息像素数量预算、格式或编码限制时保留原附件，不拒绝图片消息。原文件读取失败仍明确报错；`files` 为旧客户端兼容方式。事件中的 `image_input_note` 记录未提供像素的实际原因并传入模型上下文；图片任务规则同时进入系统提示及图片消息，普通识图有像素时直接回答，未启用视觉时及时说明，工具使用以用户明确要求为边界。用户图引用保存在消息/上下文 JSON 事件中，无新增数据库迁移；请求时按摘要和相同编码规则重建有界副本。图片专项使用真实 PNG/GIF/EXIF 编码与实际适配层，存储、数据库、模型和沙箱为替身，覆盖引用校验、请求重建、等待回复与注入、冻结能力、像素限制原因及同名路径保护；补充用例核对旧会话新运行规则与冻结运行补图规则的传递。这些检查不证明真实模型的识图质量或规则遵循。
 
@@ -335,7 +335,7 @@ PG 检查覆盖真实数据库与本地附件/项目目录删除、共享引用�
 uv run --locked python -m pytest tests/core/test_staged_plan.py tests/core/test_plan_progress.py tests/core/test_agent_loop.py
 ```
 
-API 容器构建生成内容身份，`GET /api/status/build` 读回；新运行快照保存 `api_build` 并使用当前系统提示，旧会话记忆中的 system 不覆盖它；等待续接仍用已有冻结提示，不改写历史。部署核对与配置保留见 Docker 指南。新增检查入口：
+API 容器构建生成内容身份，`GET /api/status/build` 读回；新运行快照保存 `api_build` 并使用当前系统提示，旧会话记忆中的 system 不覆盖它；等待续接仍用已有冻结提示，不改写历史。部署核对与配置保留见 Docker 指南。检查入口：
 
 ```bash
 uv run --locked python -m pytest tests/core/test_build_identity.py tests/core/test_plan_progress.py tests/core/test_run_budget.py tests/core/test_task_execution_control.py
