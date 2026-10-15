@@ -1,0 +1,73 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc"><title id="title">RayAgent：上下文压缩与信息保留</title><desc id="desc">请求前估算容量，按完整轮次摘要较早历史，重组摘要、原文及近期轮次并补回任务状态，复查后继续或明确失败。</desc>
+<style>text {font-family:'PingFang SC','Hiragino Sans GB','Noto Sans CJK SC','Noto Sans SC','Source Han Sans SC','Songti SC','Microsoft YaHei','Helvetica Neue',Helvetica,Arial,sans-serif;fill:#17263c} .sub {fill:#63748a}</style>
+<defs xmlns="http://www.w3.org/2000/svg">
+<marker id="arrow-orange" markerUnits="userSpaceOnUse" markerWidth="20" markerHeight="20" refX="17" refY="10" orient="auto"><path d="M3 3Q11 6 17 10Q11 14 3 17" fill="none" stroke="#e68728" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" /></marker>
+<marker id="arrow-blue" markerUnits="userSpaceOnUse" markerWidth="20" markerHeight="20" refX="17" refY="10" orient="auto"><path d="M3 3Q11 6 17 10Q11 14 3 17" fill="none" stroke="#5394c6" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" /></marker>
+<marker id="arrow-green" markerUnits="userSpaceOnUse" markerWidth="20" markerHeight="20" refX="17" refY="10" orient="auto"><path d="M3 3Q11 6 17 10Q11 14 3 17" fill="none" stroke="#518e73" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" /></marker>
+<marker id="arrow-purple" markerUnits="userSpaceOnUse" markerWidth="20" markerHeight="20" refX="17" refY="10" orient="auto"><path d="M3 3Q11 6 17 10Q11 14 3 17" fill="none" stroke="#9980b5" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" /></marker>
+<marker id="arrow-red" markerUnits="userSpaceOnUse" markerWidth="20" markerHeight="20" refX="17" refY="10" orient="auto"><path d="M3 3Q11 6 17 10Q11 14 3 17" fill="none" stroke="#c66968" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" /></marker>
+</defs>
+<rect width="1600" height="900" fill="#fffefb" data-graph-role="background"/>
+<path d="M58 60Q580 33 1240 55L1226 69L1260 80L1230 91L1252 110Q650 133 65 120L81 106L56 93L80 78Z" fill="#fff0ce" data-graph-role="decoration"/>
+<text x="80" y="106" font-size="46" text-anchor="start" font-weight="700" class="">RayAgent：上下文压缩与信息保留</text>
+<path d="M82 151Q410 145 810 151" stroke="#dceefa" stroke-width="21" stroke-linecap="round" data-graph-role="decoration"/>
+<text x="80" y="159" font-size="24" text-anchor="start" font-weight="400" class="sub">先判断容量与收益，再替换工作记忆</text>
+<text x="500" y="209" font-size="22" text-anchor="middle" font-weight="400" class="sub">水位 · 范围 · 收益</text>
+<rect id="capacity" data-graph-role="node" x="60" y="250" width="280" height="120" rx="24" fill="#fff0ce" stroke="#e9a139" stroke-width="3.5"/>
+<path data-graph-role="decoration" d="M85 257Q200.0 251 312 257" fill="none" stroke="#e9a139" stroke-width="1.5" opacity=".23"/>
+<g xmlns="http://www.w3.org/2000/svg" transform="translate(82 270) scale(0.6)" stroke="#26364b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" data-graph-role="decoration"><rect x="8" y="13" width="42" height="54" rx="5" fill="#dceefa" transform="rotate(-9 29 40)" /><path d="M22 3H56L70 18V65Q70 70 65 70H22Q17 70 17 65V8Q17 3 22 3Z" fill="#fff" /><path d="M56 3V18H70" fill="#ffdc92" /><path d="M29 30H58M29 42H58M29 54H48" stroke="#5d8bb5" /></g>
+<text x="145" y="297" font-size="28" text-anchor="start" font-weight="700" class="">容量检查</text>
+<text x="200.0" y="345" font-size="23" text-anchor="middle" font-weight="400" class="sub">固定输入 · 总量估算</text>
+<polygon id="compact-decision" data-graph-role="node" data-bounds="400 235 600 385" points="500,235 600,310 500,385 400,310" fill="#fff0ce" stroke="#e9a139" stroke-width="3.5"/>
+<text x="500" y="304" font-size="25" text-anchor="middle" font-weight="700" class="">执行</text>
+<text x="500" y="337" font-size="25" text-anchor="middle" font-weight="700" class="">摘要？</text>
+<rect id="range" data-graph-role="node" x="770" y="250" width="320" height="120" rx="24" fill="#e3f1ff" stroke="#5394c6" stroke-width="3.5"/>
+<path data-graph-role="decoration" d="M795 257Q930.0 251 1062 257" fill="none" stroke="#5394c6" stroke-width="1.5" opacity=".23"/>
+<g xmlns="http://www.w3.org/2000/svg" transform="translate(792 270) scale(0.6)" stroke="#26364b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" data-graph-role="decoration"><rect x="8" y="13" width="42" height="54" rx="5" fill="#dceefa" transform="rotate(-9 29 40)" /><path d="M22 3H56L70 18V65Q70 70 65 70H22Q17 70 17 65V8Q17 3 22 3Z" fill="#fff" /><path d="M56 3V18H70" fill="#ffdc92" /><path d="M29 30H58M29 42H58M29 54H48" stroke="#5d8bb5" /></g>
+<text x="855" y="297" font-size="28" text-anchor="start" font-weight="700" class="">选择完整轮次</text>
+<text x="930.0" y="345" font-size="23" text-anchor="middle" font-weight="400" class="sub">保留近期，摘要较早历史</text>
+<rect id="summary" data-graph-role="node" x="1200" y="250" width="330" height="120" rx="24" fill="#f0ebf7" stroke="#ad9cc2" stroke-width="3.5"/>
+<path data-graph-role="decoration" d="M1225 257Q1365.0 251 1502 257" fill="none" stroke="#ad9cc2" stroke-width="1.5" opacity=".23"/>
+<g xmlns="http://www.w3.org/2000/svg" transform="translate(1222 270) scale(0.6)" stroke="#26364b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" data-graph-role="decoration"><path d="M39 16V7" /><circle cx="39" cy="5" r="5" fill="#ffd280" /><rect x="4" y="29" width="12" height="22" rx="6" fill="#ffd280" /><rect x="63" y="29" width="12" height="22" rx="6" fill="#ffd280" /><rect x="12" y="16" width="55" height="49" rx="18" fill="#fff" /><rect x="20" y="27" width="39" height="26" rx="10" fill="#263e59" /><path d="M27 39Q31 33 35 39M44 39Q48 33 52 39" stroke="#fff" /><path d="M28 65L22 75M51 65L57 75" /></g>
+<text x="1285" y="297" font-size="28" text-anchor="start" font-weight="700" class="">独立摘要请求</text>
+<text x="1365.0" y="345" font-size="23" text-anchor="middle" font-weight="400" class="sub">不带业务工具</text>
+<rect id="replace" data-graph-role="node" x="1200" y="505" width="330" height="150" rx="24" fill="#e2f3e7" stroke="#70a58a" stroke-width="3.5"/>
+<path data-graph-role="decoration" d="M1225 512Q1365.0 506 1502 512" fill="none" stroke="#70a58a" stroke-width="1.5" opacity=".23"/>
+<g xmlns="http://www.w3.org/2000/svg" transform="translate(1222 525) scale(0.6)" stroke="#26364b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" data-graph-role="decoration"><rect x="8" y="13" width="42" height="54" rx="5" fill="#dceefa" transform="rotate(-9 29 40)" /><path d="M22 3H56L70 18V65Q70 70 65 70H22Q17 70 17 65V8Q17 3 22 3Z" fill="#fff" /><path d="M56 3V18H70" fill="#ffdc92" /><path d="M29 30H58M29 42H58M29 54H48" stroke="#5d8bb5" /></g>
+<text x="1285" y="552" font-size="28" text-anchor="start" font-weight="700" class="">重组工作记忆</text>
+<text x="1365.0" y="590" font-size="23" text-anchor="middle" font-weight="400" class="sub">摘要 · 原文 · 近期轮次</text>
+<text x="1365" y="628" font-size="22" text-anchor="middle" font-weight="400" class="sub">补回最新任务状态</text>
+<rect id="recheck" data-graph-role="node" x="770" y="505" width="320" height="125" rx="24" fill="#e3f1ff" stroke="#5394c6" stroke-width="3.5"/>
+<path data-graph-role="decoration" d="M795 512Q930.0 506 1062 512" fill="none" stroke="#5394c6" stroke-width="1.5" opacity=".23"/>
+<g xmlns="http://www.w3.org/2000/svg" transform="translate(792 525) scale(0.6)" stroke="#26364b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" data-graph-role="decoration"><rect x="8" y="13" width="42" height="54" rx="5" fill="#dceefa" transform="rotate(-9 29 40)" /><path d="M22 3H56L70 18V65Q70 70 65 70H22Q17 70 17 65V8Q17 3 22 3Z" fill="#fff" /><path d="M56 3V18H70" fill="#ffdc92" /><path d="M29 30H58M29 42H58M29 54H48" stroke="#5d8bb5" /></g>
+<text x="855" y="552" font-size="28" text-anchor="start" font-weight="700" class="">复查输入容量</text>
+<text x="930.0" y="605" font-size="23" text-anchor="middle" font-weight="400" class="sub">按新消息重新估算</text>
+<rect id="continue" data-graph-role="node" x="380" y="505" width="280" height="125" rx="24" fill="#e2f3e7" stroke="#70a58a" stroke-width="3.5"/>
+<path data-graph-role="decoration" d="M405 512Q520.0 506 632 512" fill="none" stroke="#70a58a" stroke-width="1.5" opacity=".23"/>
+<g xmlns="http://www.w3.org/2000/svg" transform="translate(402 525) scale(0.6)" stroke="#26364b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" data-graph-role="decoration"><path d="M39 16V7" /><circle cx="39" cy="5" r="5" fill="#ffd280" /><rect x="4" y="29" width="12" height="22" rx="6" fill="#ffd280" /><rect x="63" y="29" width="12" height="22" rx="6" fill="#ffd280" /><rect x="12" y="16" width="55" height="49" rx="18" fill="#fff" /><rect x="20" y="27" width="39" height="26" rx="10" fill="#263e59" /><path d="M27 39Q31 33 35 39M44 39Q48 33 52 39" stroke="#fff" /><path d="M28 65L22 75M51 65L57 75" /></g>
+<text x="465" y="552" font-size="28" text-anchor="start" font-weight="700" class="">请求模型</text>
+<text x="520.0" y="605" font-size="23" text-anchor="middle" font-weight="400" class="sub">容量可用才继续</text>
+<rect id="failed" data-graph-role="node" x="770" y="740" width="760" height="100" rx="24" fill="#fbe9e9" stroke="#d79a98" stroke-width="3.5"/>
+<path data-graph-role="decoration" d="M795 747Q1150.0 741 1502 747" fill="none" stroke="#d79a98" stroke-width="1.5" opacity=".23"/>
+<g transform="translate(792 760) scale(.6)" data-graph-role="decoration" stroke="#b45d5d" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><path d="M36 2L72 64H1Z" fill="#fff"/><path d="M36 22V40M36 51V53"/></g>
+<text x="855" y="787" font-size="28" text-anchor="start" font-weight="700" class="">容量失败</text>
+<text x="1150.0" y="815" font-size="23" text-anchor="middle" font-weight="400" class="sub">保留明确原因，不盲目继续</text>
+<path id="check-decision" data-graph-role="edge" d="M340 310 H400" fill="none" stroke="#e68728" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-orange)"/>
+<path id="decision-range" data-graph-role="edge" d="M600 310 H770" fill="none" stroke="#e68728" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-orange)"/>
+<text x="685" y="293" font-size="22" text-anchor="middle" font-weight="400" class="sub">需要</text>
+<path id="range-summary" data-graph-role="edge" d="M1090 310 H1200" fill="none" stroke="#e68728" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-orange)"/>
+<path id="summary-replace" data-graph-role="edge" d="M1365 370 V505" fill="none" stroke="#e68728" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-orange)"/>
+<text x="1385" y="453" font-size="22" text-anchor="start" font-weight="400" class="sub">摘要成功</text>
+<path id="replace-recheck" data-graph-role="edge" d="M1200 567 H1090" fill="none" stroke="#e68728" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-orange)"/>
+<path id="recheck-continue" data-graph-role="edge" d="M770 567 H660" fill="none" stroke="#e68728" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-orange)"/>
+<text x="714" y="550" font-size="22" text-anchor="middle" font-weight="400" class="sub">可用</text>
+<path id="skip-summary" data-graph-role="edge" d="M500 385 V440 H930 V505" fill="none" stroke="#5394c6" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-blue)"/>
+<text x="720" y="425" font-size="22" text-anchor="middle" font-weight="400" class="sub">无需摘要 / 跳过</text>
+<path id="fixed-failure" data-graph-role="edge" d="M200 370 V790 H770" fill="none" stroke="#c66968" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-red)"/>
+<text x="222" y="700" font-size="22" text-anchor="start" font-weight="400" class="sub">固定输入超限</text>
+<path id="summary-failure" data-graph-role="edge" d="M1470 370 V430 H1560 V790 H1530" fill="none" stroke="#c66968" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-red)"/>
+<text x="1550" y="416" font-size="22" text-anchor="end" font-weight="400" class="sub">摘要失败</text>
+<path id="capacity-failure" data-graph-role="edge" d="M930 630 V740" fill="none" stroke="#c66968" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-red)"/>
+<text x="950" y="687" font-size="22" text-anchor="start" font-weight="400" class="sub">仍超限</text>
+<text x="80" y="882" font-size="21" text-anchor="start" font-weight="400" class="sub">橙：处理路径    蓝：跳过摘要    红：失败出口；持久历史不删除</text>
+</svg>

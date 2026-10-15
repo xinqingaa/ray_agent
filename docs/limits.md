@@ -45,7 +45,10 @@
 | 手动压缩期限 | 服务端 60 秒，前端等待 70 秒 | [agent_service.py](../ray_agent/api/app/application/services/agent_service.py)、[api/session.ts](../ray_agent/ui/src/lib/api/session.ts) |
 | 压缩水位 | 默认可用输入上限的 75%，配置允许大于 0 且不超过 1 | `AgentConfig.compact_watermark` |
 | 压缩保留轮数 | 默认 3，允许 1–20；保留区过大时减到 1 | `compact_keep_turns` |
-| 重新注入的用户原文 | 16000 字符 | `compact_user_chars` |
+| 近期保留区目标 | 系统提示、工具声明及近期保留区不超过压缩水位的 60%；不足时减少保留轮数，最后一轮仍保留 | [compactor.py](../ray_agent/api/app/domain/services/context/compactor.py) 的 `KEPT_WATERMARK_SHARE` |
+| 普通水位压缩最小收益 | 可摘要历史减去原文重注入成本的估算，不少于可用输入上限的 15%；强制及手动压缩不使用该门槛 | [compaction.py](../ray_agent/api/app/domain/services/context/compaction.py) 的 `MIN_GAIN_RATIO` |
+| 摘要请求单条材料 | 助手正文、调用参数及工具正文各按 2000 字符裁剪；用户正文 4000，旧摘要 12000；保留首部 75% 与尾部 25% | `ENTRY_MAX_CHARS`、`USER_ENTRY_MAX_CHARS`、`_clip()` |
+| 重新注入的用户原文 | 总计 16000 字符，从最近向前整条选取，遇超额停止 | `compact_user_chars`、`select_reinjection()` |
 | 单条工具结果 | 8000 字符，超出落盘并给首尾预览 | `tool_result_max_chars` |
 | 独立读取并发 | 整批都是允许的独立读取时最多 3 项 | [tool_pipeline.py](../ray_agent/api/app/domain/services/flows/tool_pipeline.py) 的 `read_batch()` |
 | 同一核验再执行 | 记录尝试数不少于 2 且当前未通过时，需说明新条件或换方法；修复改版的必要复验有例外 | [task_outcomes.py](../ray_agent/api/app/domain/services/task_outcomes.py) |
@@ -121,6 +124,17 @@
 | 项目上传 | 单文件 50 MiB，单次最多 2000 个文件或 200 MiB，项目总量 500 MiB | `core/config.py` |
 
 预览不按单一文件大小整份禁用。超限时 CSV 可看已取得前缀，其他二进制降级为下载。原文件下载不受预览预算限制。
+
+## 项目记忆
+
+| 项 | 当前值 | 来源 |
+|---|---|---|
+| 项目说明 / 笔记 | 各最多 8000 字符；笔记整体替换，按基础版本比较 | [workspace_project.py](../ray_agent/api/app/domain/models/workspace_project.py)、[project_memory_service.py](../ray_agent/api/app/application/services/project_memory_service.py) |
+| 单份对话摘要编辑 | 最多 1500 字符 | `ProjectMemoryService.edit_summary()` |
+| 近期摘要选择 / 注入 | 排除当前会话，最多选近期 10 份；注入文字总计 1500 字符，包含来源前缀 | [db_session_repository.py](../ray_agent/api/app/infrastructure/repositories/db_session_repository.py) 的 `recent_summaries()`、[project.py](../ray_agent/api/app/domain/services/prompts/project.py) 的 `bounded_summaries()` |
+| 生成摘要的材料 | 消息正文合计最多 6000 字符；首条用户消息最多 1600；近期更新、完成回复和运行状态各取最多 12 项，更新每项最多 300、完成回复每项最多 600 字符 | [summary_material.py](../ray_agent/api/app/domain/services/summary_material.py) 的 `bound_material()` |
+
+说明与笔记的上限约束内容写入，不自动替用户做语义去重；历史材料保留与本次注入预算是不同问题。辅助生成的期限与输出上限见下节。
 
 ## 辅助请求
 
