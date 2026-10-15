@@ -119,9 +119,9 @@ uv run --locked python -m unittest discover -s tests -p 'test_web_fetch.py' -v
 
 用例覆盖 URL/DNS/重定向目标限制、固定 IP 连接、传输和解压大小及 MIME；使用受控传输替身。沙箱 `/api/web/fetch` 不复制浏览器凭据，公开 HTTPS 的真实网络连通另行观察。
 
-## 技能材料
+## skill 材料
 
-API 通过受限的技能材料端点发布完整包，不通过 Shell 解压。目标目录由运行、技能名和不可变版本确定，发布核对文件大小与哈希；重复准备会核对并恢复被修改或缺失的副本。请求体在 JSON 解析前限制，资源上限见[参数页](../../docs/limits.md#技能)。材料准备不安装依赖，也不执行脚本；脚本仍由普通工具受控执行。
+API 通过受限的 skill 材料端点发布完整包，不通过 Shell 解压。目标目录由运行、skill 名和不可变版本确定，发布核对文件大小与哈希；重复准备会核对并恢复被修改或缺失的副本。请求体在 JSON 解析前限制，资源上限见[参数页](../../docs/limits.md#skill)。材料准备不安装依赖，也不执行脚本；脚本仍由普通工具受控执行。
 
 ```bash
 uv run --locked python -m unittest discover -s tests -p test_skill_resources.py

@@ -29,7 +29,7 @@ class Settings(BaseSettings):
     file_storage_backend: Literal["local", "cos"] = "local"
     file_storage_local_dir: str = "data/files"
 
-    # 技能包独立于附件与项目存储。
+    # skill 独立于附件与项目存储。
     skill_storage_dir: str = "data/skills"
     skill_download_bytes: int = Field(default=20 * 1024 * 1024, gt=0)
     skill_package_bytes: int = Field(default=50 * 1024 * 1024, gt=0)

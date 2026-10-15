@@ -1,4 +1,4 @@
-"""全局技能与运行版本引用。"""
+"""全局 skill 与运行版本引用。"""
 from alembic import op
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import JSONB

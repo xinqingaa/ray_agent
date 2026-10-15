@@ -1,4 +1,4 @@
-"""技能仓储替身，保留事务回滚及持久运行引用契约。"""
+"""skill 仓储替身，保留事务回滚及持久运行引用契约。"""
 import asyncio
 import copy
 from contextlib import asynccontextmanager

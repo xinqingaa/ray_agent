@@ -1,4 +1,4 @@
-"""单运行技能端口，与目录、正文和沙箱材料的版本绑定。"""
+"""单运行 skill 端口，与目录、正文和沙箱材料的版本绑定。"""
 import asyncio
 import base64
 import uuid
@@ -21,13 +21,13 @@ class SkillRuntime:
                 if entry.get("prepared"):
                     result = await self.prepare(entry["name"])
                     if not result.success:
-                        raise SkillError("等待续接的技能材料恢复失败：" + (result.message or "未知错误"), 409)
+                        raise SkillError("等待续接的 Skill 材料恢复失败：" + (result.message or "未知错误"), 409)
 
     async def load(self, name):
         try:
             version = await self.service.load(self.run_id, name)
             # 正文以内部类型资料块进入下一次请求，不伪造工具调用，也不经通用结果截断。
-            return ToolResult(success=True, message='完整正文已激活，将作为技能资料提供；不表示任务已完成',
+            return ToolResult(success=True, message='完整正文已激活，将作为 Skill 资料提供；不表示任务已完成',
                               data={'name': name, 'version': version['version'], 'active': True})
         except SkillError as exc:
             return ToolResult(success=False, message=str(exc))
@@ -43,7 +43,7 @@ class SkillRuntime:
             entries = await self.service.bindings(self.run_id)
             entry = next((e for e in entries if e['name'] == name and e['active']), None)
             if not entry:
-                raise SkillError('请先加载技能')
+                raise SkillError('请先加载 Skill')
             async with self.service.repository.transaction() as tx:
                 version = await tx.get('versions', entry['version'])
             payload = []
@@ -85,7 +85,7 @@ class SkillRuntime:
             entry = op['result']
             latest = next((e for e in await self.service.list() if e['name'] == entry['name']), None)
             if not latest or not latest['enabled'] or latest['version'] != entry['version']:
-                return ToolResult(success=True, message='该导入操作曾完成，但技能当前已删除、停用或更新；未追加本运行。请核对设置或发起新的安装操作。',
+                return ToolResult(success=True, message='该导入操作曾完成，但 Skill 当前已删除、停用或更新；未追加本运行。请核对设置或发起新的安装操作。',
                     data={'operation_id': op['id'], 'historical_result': entry, 'current': latest, 'available_this_run': False})
             append_error = None
             if use_now:
@@ -94,7 +94,7 @@ class SkillRuntime:
                     self.entries = await self.service.bindings(self.run_id)
                 except SkillError as exc:
                     append_error = str(exc)
-            return ToolResult(success=True, message='技能已安装；需要使用时调用 load_skill。安装不代表执行环境或任务成果已验证。',
+            return ToolResult(success=True, message='Skill 已安装；需要使用时调用 load_skill。安装不代表执行环境或任务成果已验证。',
                               data={'operation_id': op['id'], **entry, 'available_this_run': use_now and not append_error, 'use_error': append_error})
         except (SkillError, ValueError) as exc:
             return ToolResult(success=False, message=str(exc), data={'operation_id': operation_id})

@@ -1,4 +1,4 @@
-"""API 发布的技能材料；不执行包内容。"""
+"""API 发布的 skill 材料；不执行包内容。"""
 import base64
 import hashlib
 import os
@@ -19,7 +19,7 @@ def _safe_path(path):
         path = unicodedata.normalize('NFC', path)
     if (not isinstance(path, str) or not path or '\\' in path or path.startswith('/') or len(path.split('/')) > 20 or len(path) > 4096
             or any(p in ('', '.', '..') or re.match(r'(?i)^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\.|$)', p) or ':' in p or p.endswith((' ', '.')) or any(ord(c) < 32 for c in p) for p in path.split('/'))):
-        raise ValueError('非法技能资源路径')
+        raise ValueError('非法 Skill 资源路径')
     return path
 
 
@@ -31,7 +31,7 @@ def _check_ancestors(path):
 
 def prepare_resources(run_id, name, version, files, root=ROOT):
     if not re.fullmatch(r'[a-f0-9-]{32,36}', run_id) or not re.fullmatch(r'[a-z][a-z0-9]*(?:-[a-z0-9]+)*', name) or not re.fullmatch('[a-f0-9]{64}', version):
-        raise ValueError('无效运行、技能或版本身份')
+        raise ValueError('无效运行、Skill 或版本身份')
     if not files or len(files) > MAX_FILES:
         raise ValueError('材料文件数量超限')
     parsed, seen, total = {}, set(), 0

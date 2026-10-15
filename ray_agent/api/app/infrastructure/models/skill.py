@@ -1,4 +1,4 @@
-"""技能目录、不可变版本、导入与持久运行引用。"""
+"""skill 目录、不可变版本、导入与持久运行引用。"""
 from sqlalchemy import ForeignKey, String
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column

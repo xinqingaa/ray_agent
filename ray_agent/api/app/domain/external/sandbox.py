@@ -96,7 +96,7 @@ class Sandbox(Protocol):
         ...
 
     async def prepare_skill_resources(self, run_id: str, name: str, version: str, files: list[dict]) -> ToolResult:
-        """受限发布并核对本运行技能材料。"""
+        """受限发布并核对本运行 skill 材料。"""
         ...
 
     async def upload_file(

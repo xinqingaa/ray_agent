@@ -1,4 +1,4 @@
-"""技能管理 HTTP 适配，安装逻辑全部委托共享服务。"""
+"""skill 管理 HTTP 适配，安装逻辑全部委托共享服务。"""
 from typing import Literal
 from fastapi import APIRouter, Depends, UploadFile, File, Form
 from pydantic import BaseModel, Field
@@ -6,7 +6,7 @@ from app.interfaces.schemas import Response
 from app.interfaces.service_dependencies import get_skill_service
 from app.domain.services.skill_packages import SkillError
 
-router = APIRouter(prefix='/skills', tags=['技能'])
+router = APIRouter(prefix='/skills', tags=['skill'])
 
 
 class ImportRequest(BaseModel):

@@ -40,7 +40,7 @@ export function TimelineItemView({item, handlers = {}}: {item: TimelineItem; han
   const streaming = handlers.streamingItemId === item.id
   switch (item.kind) {
     case 'user':
-      return <div>{item.skill && <p className="mb-1 text-right text-xs text-muted-foreground">技能：{item.skill.id}</p>}<UserMessage text={item.text} attachments={item.attachments} injected={item.injected} onPreview={handlers.onPreviewFile} onDownload={handlers.onDownloadFile}/></div>
+      return <UserMessage text={item.text} skillName={item.skill?.id} attachments={item.attachments} injected={item.injected} onPreview={handlers.onPreviewFile} onDownload={handlers.onDownloadFile}/>
     case 'narration':
       return <NarrationBlock text={item.text} streaming={streaming} deliveredFiles={item.deliveredFiles} onDownloadFile={handlers.onDownloadFile}/>
     case 'tools':

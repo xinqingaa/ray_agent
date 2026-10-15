@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
-// 运行实际技能设置组件；网络、弹层宿主与 Markdown 渲染使用替身。焦点与渲染由浏览器走查。
+// 运行实际 Skills 设置组件；网络、弹层宿主与 Markdown 渲染使用替身。焦点与渲染由浏览器走查。
 const fs = require('node:fs'), path = require('node:path'), assert = require('node:assert/strict');
 const React = require('react'), {create, act} = require('react-test-renderer'), ts = require('typescript');
 global.IS_REACT_ACT_ENVIRONMENT = true;
@@ -24,19 +24,30 @@ const ui = new Proxy({}, {get:(_,name)=>props=>{
   const tag = name==='Input'?'input':name==='Textarea'?'textarea':name==='Button'?'button':'div';
   return React.createElement(tag,props,props.children);
 }});
-const filename = path.resolve(__dirname,'../src/components/settings/skills-section.tsx');
-const code = ts.transpileModule(fs.readFileSync(filename,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX}}).outputText;
-const m = {exports:{}};
-new Function('require','module','exports',code)(name=>{
-  if(name==='react' || name==='react/jsx-runtime')return require(name);
-  if(name==='lucide-react')return new Proxy({}, {get:()=>()=>null});
-  if(name.startsWith('@/components/ui/'))return ui;
-  if(name==='@/components/markdown-content')return {MarkdownContent:props=>React.createElement('article',{'data-markdown':props.content})};
-  if(name==='@/lib/utils')return {cn:(...x)=>x.filter(Boolean).join(' '),formatFileSize:n=>`${n} B`};
-  if(name==='@/lib/api/skills')return {skillsApi:api,skillsChanged:()=>changed++};
-  if(name==='sonner')return {toast:{success(){}}};
-  throw Error(name);
-},m,m.exports);
+const root = path.resolve(__dirname, '..'), cache = new Map();
+function load(filename) {
+  if(cache.has(filename))return cache.get(filename).exports;
+  const m={exports:{}};cache.set(filename,m);
+  const code=ts.transpileModule(fs.readFileSync(filename,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX}}).outputText;
+  new Function('require','module','exports',code)(name=>{
+    if(name==='react' || name==='react/jsx-runtime')return require(name);
+    if(name==='lucide-react')return new Proxy({}, {get:()=>()=>null});
+    if(name.startsWith('@/components/ui/'))return ui;
+    if(name==='@/components/markdown-content')return {MarkdownContent:props=>React.createElement('article',{'data-markdown':props.content})};
+    if(name==='@/lib/utils')return {cn:(...x)=>x.filter(Boolean).join(' '),formatFileSize:n=>`${n} B`};
+    if(name==='@/lib/api/skills')return {skillsApi:api,skillsChanged:()=>changed++};
+    if(name==='sonner')return {toast:{success(){}}};
+    if(name.startsWith('@/')){
+      const base=path.join(root,'src',name.slice(2));
+      const found=['.ts','.tsx'].map(ext=>base+ext).find(candidate=>fs.existsSync(candidate));
+      if(!found)throw Error(name);
+      return load(found);
+    }
+    throw Error(name);
+  },m,m.exports);
+  return m.exports;
+}
+const m = {exports: load(path.join(root,'src/components/settings/skills-section.tsx'))};
 const text = node=>typeof node==='string'?node:Array.isArray(node)?node.map(text).join(''):node?.children?.map(text).join('')??'';
 async function main(){
   let c,dirty=false;
@@ -53,10 +64,10 @@ async function main(){
   await click('SKILL.md');assert.equal(c.root.findAllByType('article').length,1);
   await act(async()=>c.root.findByType('dialog').parent.props.onOpenChange(false));
   assert.equal(c.root.findAllByType('dialog').length,0);
-  await click('新增技能');await click('创建');
+  await click('新增 Skill');await click('创建');
   await act(async()=>{
     input('my-skill').props.onChange({target:{value:'sample-skill'}});
-    input('什么时候使用这个技能').props.onChange({target:{value:'可复用方法'}});
+    input('什么时候使用这个 Skill').props.onChange({target:{value:'可复用方法'}});
     c.root.findByType('textarea').props.onChange({target:{value:'# 方法\n\n**核对目标**'}});
   });
   assert.equal(dirty,true);
@@ -68,10 +79,10 @@ async function main(){
   await click('预览');assert.equal(c.root.findAllByType('article').length,1);
   await click('返回来源');assert.equal(input('my-skill').props.value,'sample-skill');
   await click('预览');assert.equal(imports[0].operation_id,imports[1].operation_id,'同一输入重试沿用身份');
-  await click('安装技能');assert.ok(c.root.findByProps({role:'alert'}));
-  await click('安装技能');assert.equal(publishes[0].id,publishes[1].id);assert.equal(publishes[0].path,'','支持根目录候选');
+  await click('安装 Skill');assert.ok(c.root.findByProps({role:'alert'}));
+  await click('安装 Skill');assert.equal(publishes[0].id,publishes[1].id);assert.equal(publishes[0].path,'','支持根目录候选');
   assert.equal(c.root.findAllByType('dialog').length,0);assert.equal(dirty,false);assert.equal(changed,1);
-  await click('新增技能');await click('创建');assert.equal(input('my-skill').props.value,'','新建不继承上次输入');
+  await click('新增 Skill');await click('创建');assert.equal(input('my-skill').props.value,'','新建不继承上次输入');
   discard=true;await click('取消');assert.equal(c.root.findAllByType('dialog').length,0);
   await act(async()=>c.unmount());
   console.log('PASS: 内置只读、Markdown 正文、文件往返、分区草稿、关闭保护、预览返回、幂等重试、失败恢复、安装清理');

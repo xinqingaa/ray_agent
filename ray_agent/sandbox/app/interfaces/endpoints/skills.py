@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field
 from app.interfaces.schemas.base import Response
 from app.services.skill_resources import prepare_resources
 
-router = APIRouter(prefix='/skills', tags=['技能材料'])
+router = APIRouter(prefix='/skills', tags=['skill 材料'])
 
 
 class ResourceFile(BaseModel):

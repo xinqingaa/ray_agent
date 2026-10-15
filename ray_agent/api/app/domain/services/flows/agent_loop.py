@@ -586,7 +586,7 @@ class AgentLoop(BaseFlow):
             entries = await self.skill_runtime.service.bindings(self.run_id)
             entry = next((e for e in entries if e['name'] == name), None)
             if entry is None:
-                yield ErrorEvent(error='所选技能绑定缺失')
+                yield ErrorEvent(error='所选 Skill 绑定缺失')
                 return
             async for event in self._preload_skill({'id': name, 'version': entry['version']}, decision.value, call_id):
                 yield event
@@ -1238,13 +1238,13 @@ class AgentLoop(BaseFlow):
         self._skill_blocked = False
         if self.skill_runtime is None:
             self._skill_blocked = True
-            yield ErrorEvent(error='技能服务不可用，所选技能未加载')
+            yield ErrorEvent(error='Skill 服务不可用，所选 Skill 未加载')
             return
         entries = await self.skill_runtime.service.bindings(self.run_id)
         entry = next((e for e in entries if e['name'] == selection['id']), None)
         if not entry or entry['version'] != selection['version']:
             self._skill_blocked = True
-            yield ErrorEvent(error='所选技能不在本运行固定目录中，请开始新运行')
+            yield ErrorEvent(error='所选 Skill 不在本运行固定目录中，请开始新运行')
             return
         invocation = ToolInvocation(call_id=call_id or f"skill-select:{selection['id']}:{uuid.uuid4().hex}",
             function_name='load_skill', raw_arguments=json.dumps({'name': selection['id']}), approval=approval)
@@ -1263,7 +1263,7 @@ class AgentLoop(BaseFlow):
         if not result.success:
             self._skill_blocked = True
             self.end_reason = RunEndReason.MODEL_ERROR
-            yield ErrorEvent(error='所选技能未加载：' + (result.message or '加载失败'))
+            yield ErrorEvent(error='所选 Skill 未加载：' + (result.message or '加载失败'))
 
     async def _sync_skill_history(self):
         if self.skill_runtime is None or find_dangling_calls(self._memory.get_messages()):
@@ -1276,14 +1276,14 @@ class AgentLoop(BaseFlow):
             result_marker = message.get('_ray_skill_result')
             if result_marker and result_marker.get('run_id') != self.run_id and not result_marker.get('historical'):
                 revised.append({**message, '_ray_skill_result': {**result_marker, 'historical': True},
-                    'content': json.dumps({'message': '历史技能工具引用，不在本运行激活。', 'data': result_marker}, ensure_ascii=False)})
+                    'content': json.dumps({'message': '历史 Skill 工具引用，不在本运行激活。', 'data': result_marker}, ensure_ascii=False)})
                 continue
             marker = message.get('_ray_skill')
             if not marker:
                 revised.append(message)
             elif marker.get('run_id') != self.run_id and marker.get('kind') != 'history':
                 revised.append({'role': 'user', '_ray_skill': {'kind': 'history', 'run_id': marker.get('run_id')},
-                    'content': '[历史技能引用] ' + str(marker.get('name') or '目录') + '@' + str(marker.get('version') or '') + '；未在本运行激活。'})
+                    'content': '[历史 Skill 引用] ' + str(marker.get('name') or '目录') + '@' + str(marker.get('version') or '') + '；未在本运行激活。'})
             elif marker.get('kind') == 'history':
                 revised.append(message)
             else:

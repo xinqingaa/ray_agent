@@ -1,4 +1,4 @@
-"""技能管理与运行绑定协调；所有入口共享此服务。"""
+"""skill 管理与运行绑定协调；所有入口共享此服务。"""
 import asyncio
 import hashlib
 import json
@@ -24,7 +24,7 @@ class SkillService:
             entry = await tx.get('skills', name)
             version = await tx.get('versions', entry['version']) if entry else None
         if not entry or not version:
-            raise SkillError('技能不存在', 404)
+            raise SkillError('Skill 不存在', 404)
         raw = await asyncio.to_thread(self.storage.read, version['version'], version['files'], 'SKILL.md')
         return {**version, **entry, 'text': raw.decode('utf-8-sig')}
 
@@ -97,7 +97,7 @@ class SkillService:
             entries.pop(remove, None)
         size = len(catalog_message('', [e for e in entries.values() if e['enabled']])['content'])
         if size > self.settings.skill_catalog_chars:
-            raise SkillError('技能目录超过上下文预算，请缩短描述或停用部分技能', 409)
+            raise SkillError('Skill 目录超过上下文预算，请缩短描述或停用部分 Skill', 409)
 
     async def publish(self, operation_id, candidate_path, fingerprint, *, owner=None):
         op = await self.operation(operation_id)
@@ -134,12 +134,12 @@ class SkillService:
                 raise SkillError('导入已取消或中断', 409)
             existing = await tx.get('skills', name)
             if existing and existing.get('builtin'):
-                raise SkillError('同名内置技能只能由应用升级更新', 409)
+                raise SkillError('同名内置 Skill 只能由应用升级更新', 409)
             if op['update_name']:
                 if name != op['update_name'] or not existing or existing['version'] != op['expected_version']:
-                    raise SkillError('技能已更新或名称改变，请刷新后重试', 409)
+                    raise SkillError('Skill 已更新或名称改变，请刷新后重试', 409)
             elif existing and existing['version'] != fingerprint:
-                raise SkillError('同名技能内容不同，请使用更新入口', 409)
+                raise SkillError('同名 Skill 内容不同，请使用更新入口', 409)
             entry = existing if existing and existing['version'] == fingerprint else {
                 'id': name, 'name': name, 'description': candidate['description'], 'version': fingerprint,
                 'enabled': existing['enabled'] if existing else True, 'builtin': False, 'source': version['source']}
@@ -156,7 +156,7 @@ class SkillService:
     async def edit(self, name, expected_version, text):
         detail = await self.detail(name)
         if detail['builtin']:
-            raise SkillError('内置技能由应用升级更新', 409)
+            raise SkillError('内置 Skill 由应用升级更新', 409)
         files = {f['path']: await asyncio.to_thread(self.storage.read, detail['version'], detail['files'], f['path']) for f in detail['files']}
         files['SKILL.md'] = text.encode()
         import io, zipfile
@@ -176,12 +176,12 @@ class SkillService:
             if not entry:
                 if delete:
                     return
-                raise SkillError('技能不存在', 404)
+                raise SkillError('Skill 不存在', 404)
             if entry['version'] != expected_version:
-                raise SkillError('技能版本已变化，请刷新', 409)
+                raise SkillError('Skill 版本已变化，请刷新', 409)
             if delete:
                 if entry['builtin']:
-                    raise SkillError('内置技能可以停用，不能删除', 409)
+                    raise SkillError('内置 Skill 可以停用，不能删除', 409)
                 await tx.delete('skills', name)
             else:
                 entry = {**entry, 'enabled': enabled}
@@ -200,7 +200,7 @@ class SkillService:
                     await tx.put('imports', op['id'], {**op, 'stage': 'interrupted', 'error': '服务重启，导入中断，请重新获取'})
             old = await tx.get('skills', candidate['name'])
             if old and not old.get('builtin'):
-                raise SkillError('内置 find-skills 与用户技能同名，请先更名用户技能', 409)
+                raise SkillError('内置 find-skills 与用户 Skill 同名，请先更名用户 Skill', 409)
             version = {**candidate, 'source': {'kind': 'builtin'}}
             version['context_chars'] = len(body_message('', version, self.settings.skill_resource_chars)['content'])
             version.pop('text', None)
@@ -234,7 +234,7 @@ class SkillService:
         async with self.repository.transaction() as tx:
             entry = await tx.get('skills', selection['id'])
         if not entry or not entry['enabled'] or entry['version'] != selection['version']:
-            raise SkillError('所选技能已删除、停用或更新，请刷新选择；草稿已保留', 409)
+            raise SkillError('所选 Skill 已删除、停用或更新，请刷新选择；草稿已保留', 409)
 
     async def accept(self, uow, session_id, selection):
         """在消息与运行的同一受理事务中校验选择、固定目录和登记版本引用。"""
@@ -246,7 +246,7 @@ class SkillService:
         entries = await tx.all('skills')
         selected = next((e for e in entries if selection and e['name'] == selection.id), None)
         if selection and (not selected or not selected['enabled'] or selected['version'] != selection.version):
-            raise SkillError('所选技能已删除、停用或更新，请刷新选择', 409)
+            raise SkillError('所选 Skill 已删除、停用或更新，请刷新选择', 409)
         if not run.config_snapshot.get('skills_frozen'):
             bound = [e for e in entries if e['enabled']]
             for entry in bound:
@@ -255,14 +255,14 @@ class SkillService:
         else:
             bound = await tx.bindings(run.id)
         if selection and not any(e['name'] == selection.id and e['version'] == selection.version for e in bound):
-            raise SkillError('本运行目录已经固定，请在新运行选择此技能版本', 409)
+            raise SkillError('本运行目录已经固定，请在新运行选择此 Skill 版本', 409)
 
     async def bind_run(self, run_id):
         async with self.repository.transaction(run_id=run_id) as tx:
             from_snapshot = await tx.bindings(run_id)
             if from_snapshot:
                 return from_snapshot
-            # 空目录也必须冻结；由运行快照标志处理，首次至少含内置技能或空标志。
+            # 空目录也必须冻结；由运行快照标志处理，首次至少含内置 skill 或空标志。
             entries = [e for e in await tx.all('skills') if e['enabled']]
             for entry in entries:
                 await tx.bind(run_id, entry['name'], entry['version'], {**entry, 'active': False})
@@ -284,7 +284,7 @@ class SkillService:
                     raise SkillError('本运行已固定同名旧版本，新版本在新运行生效', 409)
                 return old
             if len(catalog_message('', [*bound, entry])['content']) > self.settings.skill_catalog_chars:
-                raise SkillError('本运行技能目录容量不足', 409)
+                raise SkillError('本运行 Skill 目录容量不足', 409)
             await tx.bind(run_id, entry['name'], entry['version'], {**entry, 'active': False})
         return {**entry, 'active': False}
 
@@ -293,7 +293,7 @@ class SkillService:
             bound = await tx.bindings(run_id)
             entry = next((e for e in bound if e['name'] == name), None)
             if not entry:
-                raise SkillError('技能不在本运行启用目录中', 404)
+                raise SkillError('Skill 不在本运行启用目录中', 404)
             version = await tx.get('versions', entry['version'])
             if not version:
                 raise SkillError('绑定版本缺失，请重新导入', 409)
@@ -309,7 +309,7 @@ class SkillService:
                     v = await tx.get('versions', item['version'])
                     total += v.get('context_chars', self.settings.skill_body_chars + self.settings.skill_resource_chars + 2048)
             if total > self.settings.skill_active_chars:
-                raise SkillError('活动技能正文容量不足，请在新运行减少加载的技能', 409)
+                raise SkillError('活动 Skill 正文容量不足，请在新运行减少加载的 Skill', 409)
             await tx.bind(run_id, name, entry['version'], {**entry, 'active': True})
         return {**version, 'text': parsed['text']}
 
@@ -317,7 +317,7 @@ class SkillService:
         entries = await self.bindings(run_id)
         entry = next((e for e in entries if e['name'] == name and e['active']), None)
         if not entry:
-            raise SkillError('请先加载本运行技能', 409)
+            raise SkillError('请先加载本运行 Skill', 409)
         async with self.repository.transaction() as tx:
             version = await tx.get('versions', entry['version'])
         raw = await asyncio.to_thread(self.storage.read, entry['version'], version['files'], path)
@@ -326,7 +326,7 @@ class SkillService:
             if '\x00' in text:
                 raise UnicodeError()
         except UnicodeError:
-            return {'path': path, 'binary': True, 'size': len(raw), 'note': '请准备技能资源后使用文件工具'}
+            return {'path': path, 'binary': True, 'size': len(raw), 'note': '请准备 Skill 资源后使用文件工具'}
         lines = text.splitlines(keepends=True)
         if start_line < 1 or (end_line is not None and end_line < start_line):
             raise SkillError('无效行范围')
@@ -345,7 +345,7 @@ class SkillService:
         async with self.repository.transaction() as tx:
             entry = next((e for e in await tx.bindings(run_id) if e['name'] == name), None)
             if not entry or not entry['active']:
-                raise SkillError('材料准备没有对应的活动技能', 409)
+                raise SkillError('材料准备没有对应的活动 Skill', 409)
             await tx.bind(run_id, name, entry['version'], {**entry, 'prepared': True})
 
     async def cancel_run(self, run_id):

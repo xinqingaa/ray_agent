@@ -34,6 +34,7 @@ function load(relative) {
     if(name==='@/components/preview/attachment-thumbnail')return {AttachmentThumbnail:()=>null};
     if(name==='@/components/preview/file-preview-dialog')return {FilePreviewDialog:()=>null};
     if(name==='@/components/input-command-menu')return {PlusCommandMenu:()=>null,SlashCommandList:()=>null};
+    if(name==='@/components/markdown-content')return {MarkdownContent:()=>null};
     if(name.startsWith('@/components/ui/'))return ui;
     if(name==='@/lib/utils')return {cn:(...x)=>x.filter(Boolean).join(' '),formatFileSize:n=>String(n)};
     if(name==='@/lib/api/skills')return {SKILLS_CHANGED:'skills-changed',skillsApi:{list:async()=>[{id:'example',name:'example',version:'a'.repeat(64),description:'适用方法',enabled:true}]}};
@@ -125,7 +126,7 @@ async function main(){
   await act(async()=>component.root.findByProps({'aria-label':'发送'}).props.onClick());
   assert.equal(sent.at(-1)[0],'按照方法处理');
   assert.deepEqual(sent.at(-1)[2].skill,{id:'example',name:'example',version:'a'.repeat(64)});
-  assert.equal(component.root.findAllByProps({'aria-label':'移除所选技能'}).length,0);
+  assert.equal(component.root.findAllByProps({'aria-label':'预览 example'}).length,0);
   const withSkill={...detail,events:[{event:'message',data:{...detail.events[0].data,image_mode:'auto',skill:{id:'example',version:'a'.repeat(64)}}}]};
   const pendingSkill={message:'same',attachments:[],mode:'normal',afterSeq:1,skill:{id:'example',version:'b'.repeat(64)}};
   assert.equal(checkAcceptance(withSkill,pendingSkill).kind,'absent');
@@ -138,8 +139,8 @@ async function main(){
   assert.equal(readDraft('skill-input').skill.id,'example');
   await act(async()=>component.unmount());
   await act(async()=>{component=create(React.createElement(ChatInput,{...props,draftScope:'skill-input'}))});
-  assert.equal(component.root.findAllByType('button').filter(n=>n.props['aria-label']==='移除所选技能').length,1);
+  assert.equal(component.root.findAllByType('button').filter(n=>n.props['aria-label']==='预览 example').length,1);
   await act(async()=>component.unmount());
-  console.log('PASS: 技能快捷输入、完整结构化版本、无正文保留草稿、选择恢复、相同文字不同技能受理隔离');
+  console.log('PASS: Skill 快捷输入、完整结构化版本、无正文保留草稿、选择恢复、相同文字不同 Skill 受理隔离');
 }
 main().catch(error=>{console.error(error);process.exitCode=1});

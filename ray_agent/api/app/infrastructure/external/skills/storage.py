@@ -21,7 +21,7 @@ class SkillStorage:
             raise SkillError('无效存储身份')
         path = self.root / namespace / key
         if path.is_symlink() or path.resolve().parent != self.root / namespace:
-            raise SkillError('技能存储路径异常')
+            raise SkillError('Skill 存储路径异常')
         return path
 
     def write(self, namespace, key, files):
@@ -65,7 +65,7 @@ class SkillStorage:
                         backup = None
                         raise
                     if self.read_all(namespace, key) != files:
-                        raise SkillError('技能材料修复竞争，请重试')
+                        raise SkillError('Skill 材料修复竞争，请重试')
         finally:
             if tmp.exists():
                 shutil.rmtree(tmp)
@@ -78,11 +78,11 @@ class SkillStorage:
     def read_all(self, namespace, key):
         base = self._dir(namespace, key)
         if not base.is_dir():
-            raise SkillError('技能包缺失，请重新导入', 409)
+            raise SkillError('Skill 缺失，请重新导入', 409)
         result = {}
         for path in base.rglob('*'):
             if path.is_symlink():
-                raise SkillError('技能包出现符号链接', 409)
+                raise SkillError('Skill 出现符号链接', 409)
             if path.is_file():
                 if path.stat().st_size > self.settings.skill_file_bytes:
                     raise SkillError('存储文件大小超限', 409)
@@ -93,18 +93,18 @@ class SkillStorage:
         path = safe_path(path)
         entry = next((f for f in manifest if f['path'] == path), None)
         if entry is None:
-            raise SkillError('资源不属于当前技能包', 404)
+            raise SkillError('资源不属于当前 Skill', 404)
         target = self._dir('versions', version) / path
         if any(p.is_symlink() for p in [target, *target.parents] if p != self.root.parent):
-            raise SkillError('技能资源路径异常', 409)
+            raise SkillError('Skill 资源路径异常', 409)
         try:
             if target.stat().st_size > self.settings.skill_file_bytes:
                 raise SkillError('存储文件大小超限', 409)
             raw = target.read_bytes()
         except OSError as exc:
-            raise SkillError('技能资源缺失，请重新导入', 409) from exc
+            raise SkillError('Skill 资源缺失，请重新导入', 409) from exc
         if len(raw) != entry['size'] or hashlib.sha256(raw).hexdigest() != entry['sha256']:
-            raise SkillError('技能资源完整性校验失败', 409)
+            raise SkillError('Skill 资源完整性校验失败', 409)
         return raw
 
     def remove(self, namespace, key):

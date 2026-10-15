@@ -53,7 +53,7 @@ cd ray_agent
 | `SANDBOX_ADDRESS` | 使用动态沙箱时不设置此项。设置后连接已有沙箱，不套用上面的限额 |
 | `FILE_STORAGE_BACKEND` | `local`（默认，写本地磁盘）或 `cos`（腾讯云对象存储） |
 | `FILE_STORAGE_LOCAL_DIR` | 本地模式的目录；Compose 部署使用 `/data/files` |
-| `SKILL_STORAGE_DIR` | 技能包独立持久目录；Compose 固定为 `/data/skills` 并挂载 `skill_data` |
+| `SKILL_STORAGE_DIR` | skill 独立持久目录；Compose 固定为 `/data/skills` 并挂载 `skill_data` |
 | `COS_SECRET_ID` / `COS_SECRET_KEY` | 仅 `FILE_STORAGE_BACKEND=cos` 时必填 |
 | `COS_REGION` / `COS_BUCKET` | 仅云端模式需要，填存储桶地域与名称 |
 | `COS_SCHEME` | `https` |
@@ -154,8 +154,8 @@ docker compose ps
 
 各服务 README 分别维护本地开发、依赖安装和验证命令；本指南只维护完整部署的配置与运行检查。默认可调数值集中在[运行参数与限额](../docs/limits.md)。协议由部署配置决定，普通用户菜单只选择模型与思考。
 
-## 技能包持久化
+## skill 持久化
 
-Compose 的 `skill_data` 卷独立保存全局技能包，数据库保存目录、版本、导入操作与运行引用。数据库与该卷应配套备份和恢复；仅恢复数据库会使缺失的包无法加载。附件采用 COS 也仍需保留技能卷。清空项目和对话不删除全局技能，`docker compose down -v` 则会删除 Compose 数据卷。
+Compose 的 `skill_data` 卷独立保存全局 skill，数据库保存目录、版本、导入操作与运行引用。数据库与该卷应配套备份和恢复；仅恢复数据库会使缺失的包无法加载。附件采用 COS 也仍需保留 skill 卷。清空项目和对话不删除全局 skill，`docker compose down -v` 则会删除 Compose 数据卷。
 
-技能导入、发现入口及本机 CLI 不同步的边界见[技能机制](../docs/skills.md)。API 和沙箱都需要更新到含技能材料端点的版本，前端需要重新构建；只升级前端不能提供安装和加载能力。
+skill 导入、发现入口及本机 CLI 不同步的边界见[skill 机制](../docs/skills.md)。API 和沙箱都需要更新到含 skill 材料端点的版本，前端需要重新构建；只升级前端不能提供安装和加载能力。

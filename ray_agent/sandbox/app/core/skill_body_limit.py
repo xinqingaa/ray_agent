@@ -1,4 +1,4 @@
-"""在 JSON 解析之前限制技能材料请求体，包含分块传输。"""
+"""在 JSON 解析之前限制 skill 材料请求体，包含分块传输。"""
 from starlette.responses import JSONResponse
 
 MAX_BODY_BYTES = 75 * 1024 * 1024
@@ -18,7 +18,7 @@ class SkillBodyLimit:
                 return
             total += len(message.get('body', b''))
             if total > self.max_bytes:
-                return await JSONResponse(status_code=413, content={'code': 413, 'msg': '技能材料请求体超限', 'data': {}})(scope, receive, send)
+                return await JSONResponse(status_code=413, content={'code': 413, 'msg': 'Skill 材料请求体超限', 'data': {}})(scope, receive, send)
             chunks.append(message.get('body', b''))
             if not message.get('more_body'):
                 break

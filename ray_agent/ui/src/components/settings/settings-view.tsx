@@ -25,7 +25,7 @@ const SECTIONS: {key: SectionKey; label: string; icon: LucideIcon}[] = [
   {key: 'mcp', label: 'MCP 服务器', icon: Cable},
   {key: 'a2a', label: '远程 Agent', icon: Globe},
   {key: 'tool-policy', label: '工具策略', icon: ShieldCheck},
-  {key: 'skills', label: '技能', icon: BookOpen},
+  {key: 'skills', label: 'Skills', icon: BookOpen},
   {key: 'data', label: '数据管理', icon: SlidersHorizontal},
 ]
 

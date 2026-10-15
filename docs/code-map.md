@@ -242,12 +242,12 @@
 
 模型偏好的前端链路：[model-preference.ts](../ray_agent/ui/src/lib/model-preference.ts) 管理同源本地选择，[model-picker.tsx](../ray_agent/ui/src/components/model-picker.tsx) 恢复并在确认后保存，[chat-input.tsx](../ray_agent/ui/src/components/chat-input.tsx) 传递实际发送选择。
 
-## 全局技能
+## 全局 skill
 
 | 机制 | 主要入口 | 定向检查 |
 |---|---|---|
 | 包契约、目录与正文资料块 | [skill_packages.py](../ray_agent/api/app/domain/services/skill_packages.py)、[skill_context.py](../ray_agent/api/app/domain/services/skill_context.py) | [test_skills.py](../ray_agent/api/tests/core/test_skills.py) |
-| 共享安装、管理与运行绑定 | [skill_service.py](../ray_agent/api/app/application/services/skill_service.py)、[skill_runtime.py](../ray_agent/api/app/application/services/skill_runtime.py)、[技能工具](../ray_agent/api/app/domain/services/tools/skill.py)、[内置 find-skills](../ray_agent/api/app/builtin_skills/find-skills/SKILL.md) | 同上；[test_skills_pg.py](../ray_agent/api/tests/core/test_skills_pg.py) |
+| 共享安装、管理与运行绑定 | [skill_service.py](../ray_agent/api/app/application/services/skill_service.py)、[skill_runtime.py](../ray_agent/api/app/application/services/skill_runtime.py)、[skill 工具](../ray_agent/api/app/domain/services/tools/skill.py)、[内置 find-skills](../ray_agent/api/app/builtin_skills/find-skills/SKILL.md) | 同上；[test_skills_pg.py](../ray_agent/api/tests/core/test_skills_pg.py) |
 | GitHub、不可变文件与数据库 | [github.py](../ray_agent/api/app/infrastructure/external/skills/github.py)、[storage.py](../ray_agent/api/app/infrastructure/external/skills/storage.py)、[DBSkillRepository](../ray_agent/api/app/infrastructure/repositories/db_skill_repository.py)、[ORM](../ray_agent/api/app/infrastructure/models/skill.py)、[迁移](../ray_agent/api/alembic/versions/a7c3e9f15b20_skills.py) | 同上 |
 | HTTP 与设置维护 | [skill_routes.py](../ray_agent/api/app/interfaces/endpoints/skill_routes.py)、[skills-section.tsx](../ray_agent/ui/src/components/settings/skills-section.tsx)、[客户端](../ray_agent/ui/src/lib/api/skills.ts) | 浏览器走查；[输入与受理脚本](../ray_agent/ui/scripts/check-composer-images.cjs) |
 | 沙箱材料发布与请求体上限 | [skill_resources.py](../ray_agent/sandbox/app/services/skill_resources.py)、[skills.py](../ray_agent/sandbox/app/interfaces/endpoints/skills.py)、[skill_body_limit.py](../ray_agent/sandbox/app/core/skill_body_limit.py) | [test_skill_resources.py](../ray_agent/sandbox/tests/test_skill_resources.py) |

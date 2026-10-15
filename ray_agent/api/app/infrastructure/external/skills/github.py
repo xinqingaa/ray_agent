@@ -19,7 +19,7 @@ class GitHubSkills:
         if (u.scheme != 'https' or u.netloc != 'github.com' or u.query or u.fragment or len(parts) < 2
                 or any(not p or p in ('.', '..') or '\\' in p or '/' in p or any(ord(c) < 32 for c in p) for p in parts)
                 or not re.fullmatch(r'[\w.-]+', parts[0]) or not re.fullmatch(r'[\w.-]+', parts[1])):
-            raise SkillError('仅支持 https://github.com 的公开仓库、技能目录或 SKILL.md 地址')
+            raise SkillError('仅支持 https://github.com 的公开仓库、Skill 目录或 SKILL.md 地址')
         if len(parts) > 2 and (parts[2] not in ('tree', 'blob') or len(parts) < 4):
             raise SkillError('GitHub 地址格式不支持')
         return parts
@@ -42,7 +42,7 @@ class GitHubSkills:
                     async for chunk in response.aiter_bytes():
                         total += len(chunk)
                         if total > self.settings.skill_download_bytes:
-                            raise SkillError('GitHub 下载大小超限，请上传较小的技能 ZIP')
+                            raise SkillError('GitHub 下载大小超限，请上传较小的 Skill ZIP')
                         chunks.append(chunk)
                     raw = b''.join(chunks)
                     if binary:
@@ -85,7 +85,7 @@ class GitHubSkills:
                             ref, directory = info['sha'], '/'.join(rest[length:])
                             break
                     if ref is None:
-                        raise SkillError('无法解析 GitHub 引用与技能目录')
+                        raise SkillError('无法解析 GitHub 引用与 Skill 目录')
                     if parts[2] == 'blob':
                         if not directory.endswith('SKILL.md'):
                             raise SkillError('文件地址必须指向 SKILL.md')

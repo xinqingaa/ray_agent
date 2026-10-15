@@ -1,4 +1,4 @@
-"""真实 PostgreSQL 的技能并发、受理事务与引用释放。"""
+"""真实 PostgreSQL 的 skill 并发、受理事务与引用释放。"""
 import asyncio
 from pathlib import Path
 from sqlalchemy import text
@@ -37,7 +37,7 @@ def test_skill_publication_acceptance_and_reference_lifetime(tmp_path):
         async with uow_factory() as uow:
             stored = await uow.run.get(run.id)
         assert stored.config_snapshot['skills_frozen']
-        # 删技能仍保留旧运行版本，删运行由外键释放引用。
+        # 删 skill 仍保留旧运行版本，删运行由外键释放引用。
         latest = await s.detail('example')
         await s.change('example', latest['version'], delete=True)
         assert (await s.load(run.id, 'example'))['version'] == installed['version']
@@ -46,7 +46,7 @@ def test_skill_publication_acceptance_and_reference_lifetime(tmp_path):
         assert await s.bindings(run.id) == []
         async with s.repository.transaction() as tx:
             assert installed['version'] not in await tx.references()
-        # 数据清理保留全局内置技能。
+        # 数据清理保留全局内置 skill。
         assert (await s.list())[0]['builtin']
     with_db(scenario)
 

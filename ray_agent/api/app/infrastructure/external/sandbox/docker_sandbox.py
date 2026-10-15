@@ -592,7 +592,7 @@ class DockerSandbox(Sandbox):
         response = await self.client.post(f"{self._base_url}/api/skills/prepare", json={
             'run_id': run_id, 'name': name, 'version': version, 'files': files})
         if response.status_code != 200:
-            return ToolResult(success=False, message='技能材料准备失败：' + response.text[:1000])
+            return ToolResult(success=False, message='Skill 材料准备失败：' + response.text[:1000])
         payload = response.json()
         return ToolResult(success=payload.get('code') == 200, message=payload.get('msg'), data=payload.get('data'))
 

@@ -10,6 +10,7 @@ import {Button} from '@/components/ui/button'
 import {Popover, PopoverAnchor, PopoverContent} from '@/components/ui/popover'
 import {PlusCommandMenu, SlashCommandList} from '@/components/input-command-menu'
 import {skillsApi, SKILLS_CHANGED, type Skill, type SkillSelection} from '@/lib/api/skills'
+import {SkillMark} from '@/components/skill-mark'
 import {fileApi} from '@/lib/api/file'
 import {projectApi} from '@/lib/api/project'
 import {classifyUpload} from '@/lib/project-upload'
@@ -19,10 +20,10 @@ import {ProjectPicker} from '@/components/project-picker'
 import {useProjects} from '@/providers/projects-provider'
 import {useRouter} from 'next/navigation'
 import type {ProjectView} from '@/lib/api/types'
-import {commandById, matchingCommands, type CommandContext, type CommandHost, type InputCommand} from '@/lib/commands'
+import {commandById, commandSearchFields, matchingCommands, type CommandContext, type CommandHost, type InputCommand} from '@/lib/commands'
 import {clearDraft, readDraft, writeDraft, DRAFT_CHANGED, DATA_CLEARED} from '@/lib/drafts'
 import {recoverSubmission, UncertainSubmissionError} from '@/lib/send-recovery'
-import {findSlashTrigger, removeSlashFragment, type SlashFragment} from '@/lib/slash-trigger'
+import {findSlashTrigger, matchesCommandQuery, removeSlashFragment, type SlashFragment} from '@/lib/slash-trigger'
 import {ModelPicker, type ModelSelection} from '@/components/model-picker'
 import {rememberModelPreference} from '@/lib/model-preference'
 import {useDeveloperMode} from '@/hooks/use-developer-mode'
@@ -98,6 +99,13 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
     const [activeId, setActiveId] = useState<string | null>(null)
     const fileInputRef = useRef<HTMLInputElement>(null)
     const textareaRef = useRef<HTMLTextAreaElement>(null)
+    const skillMarkRef = useRef<HTMLButtonElement>(null)
+    const [skillIndent, setSkillIndent] = useState(0)
+    const skillLabel = selectedSkill?.name ?? selectedSkill?.id ?? ''
+    useLayoutEffect(() => {
+      const width = skillMarkRef.current?.offsetWidth ?? 0
+      setSkillIndent(width > 0 ? width + 6 : 0)
+    }, [skillLabel])
     const composingRef = useRef(false)
     const pendingCursor = useRef<number | null>(null)
     /** Esc 或执行命令后，同一片段不要被随后的 keyup 重新打开。 */
@@ -269,7 +277,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
       run: () => setSelectedSkill({id: s.id, name: s.name, version: s.version}),
     })), [skills])
     const matched = useMemo(
-      () => (slashOpen && slash ? [...matchingCommands(slash.query, {projectsEnabled: resolvedProjectsEnabled}).filter(command => visibility.canShowCommand(command.id)), ...skillCommands.filter(c => `${c.title} ${c.description}`.toLowerCase().includes(slash.query.toLowerCase()))] : []),
+      () => (slashOpen && slash ? [...matchingCommands(slash.query, {projectsEnabled: resolvedProjectsEnabled}).filter(command => visibility.canShowCommand(command.id)), ...skillCommands.filter(command => matchesCommandQuery(slash.query, commandSearchFields(command)))] : []),
       [slashOpen, slash, resolvedProjectsEnabled, visibility, skillCommands],
     )
     const resolvedActiveId = matched.some((command) => command.id === activeId)
@@ -430,12 +438,12 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
       const found = shortcut && skills.find(s => s.enabled && s.name === shortcut[1])
       if (found) {
         skill = {id: found.id, name: found.name, version: found.version}
-        setSelectedSkill(skill)
         trimmedMessage = trimmedMessage.slice(shortcut![0].length).trim()
       }
       
       // 验证消息不为空
       if (!trimmedMessage) {
+        if (skill) setSelectedSkill(skill)
         toast.error(hasImages ? '请补充要对图片做什么' : '请输入消息内容')
         textareaRef.current?.focus()
         return
@@ -513,6 +521,11 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
         }
       }
 
+      const caret = e.currentTarget
+      const atSkill = !!selectedSkill && !slashOpen && caret.selectionStart === 0 && caret.selectionEnd === 0
+      if (atSkill && e.key === 'ArrowLeft') {e.preventDefault(); skillMarkRef.current?.focus(); return}
+      if (atSkill && e.key === 'Backspace') {e.preventDefault(); setSelectedSkill(null); return}
+
       if (e.key !== 'Enter') return
       if (e.shiftKey || e.altKey) {
         e.preventDefault()
@@ -544,7 +557,6 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
     return (
     <Popover open={slashOpen} onOpenChange={(open) => { if (!open) setSlash(null) }}>
     <div className={cn('flex flex-col bg-card w-full rounded-lg py-3 border', className)}>
-      {selectedSkill && <div className="flex items-center gap-2 px-3 py-1 text-xs text-muted-foreground"><span className="rounded bg-muted px-2 py-1">技能：{selectedSkill.name ?? selectedSkill.id}</span><Button type="button" size="icon-sm" variant="ghost" aria-label="移除所选技能" disabled={blocked} onClick={() => setSelectedSkill(null)}><X className="size-3"/></Button></div>}
       {uncertain && !sending && !commandHost.submitting && (
         <div role="status" className="mx-4 mb-2 space-y-2 text-meta text-state-waiting">
           <p>正在确认是否发送成功，文字、附件和模式已保留。请检查结果或核对对话历史。</p>
@@ -631,11 +643,13 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
       {uploading && <p role="status" className="mx-4 mb-2 flex items-center gap-2 text-meta text-muted-foreground"><Loader2 className="size-3.5 animate-spin"/>正在上传附件</p>}
       {/* 中间输入框 */}
       <PopoverAnchor asChild>
-      <div className="px-4 mb-3">
+      <div className="relative px-4 mb-3">
+        {selectedSkill && <SkillMark ref={skillMarkRef} name={selectedSkill.name ?? selectedSkill.id} className="absolute left-4 top-0 z-10" onRemove={blocked ? undefined : () => setSelectedSkill(null)} onExit={() => {const node = textareaRef.current; node?.focus(); node?.setSelectionRange(0, 0)}}/>}
         <textarea
           ref={textareaRef}
           rows={2}
           value={inputValue}
+          style={selectedSkill ? {textIndent: skillIndent} : undefined}
           onChange={handleInputChange}
           onPaste={handlePaste}
           onKeyDown={handleKeyDown}
@@ -733,7 +747,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
       side="top"
       sideOffset={8}
       collisionPadding={8}
-      className="w-[min(20rem,calc(100vw-2rem))] p-0"
+      className="w-[min(60rem,calc(100vw-2rem))] overflow-hidden rounded-xl border-0 p-0"
       onOpenAutoFocus={(event) => event.preventDefault()}
       onCloseAutoFocus={(event) => event.preventDefault()}
     >

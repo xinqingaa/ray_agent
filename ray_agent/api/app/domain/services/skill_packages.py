@@ -1,4 +1,4 @@
-"""技能包的纯校验：不访问网络，不执行包内容。"""
+"""skill 的纯校验：不访问网络，不执行包内容。"""
 import hashlib
 import io
 import json
@@ -98,7 +98,7 @@ def unzip(raw: bytes, settings, *, github_archive=False, directory=None) -> dict
                 else:
                     selected_prefixes = [p[:-len('SKILL.md')] for p in paths if p.endswith('/SKILL.md')]
                     if len(selected_prefixes) > settings.skill_max_candidates:
-                        raise SkillError('候选数量超限，请提供具体技能目录地址')
+                        raise SkillError('候选数量超限，请提供具体 Skill 目录地址')
             for info in entries:
                 path = safe_path(info.filename.rstrip('/'))
                 if selected_prefixes is not None and not any(path.startswith(prefix) for prefix in selected_prefixes):
@@ -133,7 +133,7 @@ def candidates(files, settings, directory=None):
     if not roots:
         raise SkillError('来源中没有 SKILL.md')
     if len(roots) > settings.skill_max_candidates:
-        raise SkillError('候选数量超限，请提供具体技能目录地址')
+        raise SkillError('候选数量超限，请提供具体 Skill 目录地址')
     result = []
     for root in roots:
         prefix = root + '/' if root else ''

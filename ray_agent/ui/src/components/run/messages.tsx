@@ -3,6 +3,7 @@
 import {AttachmentCopyStatus} from './project-copy-status'
 import {CornerDownRight, Download} from 'lucide-react'
 import {MarkdownContent} from '@/components/markdown-content'
+import {SkillMark} from '@/components/skill-mark'
 import {cn} from '@/lib/utils'
 import type {FileView, RunSummary} from '@/lib/session-view'
 import {FileRow} from '@/components/preview/file-row'
@@ -11,6 +12,8 @@ import {PreviewAction} from '@/components/preview/action'
 
 type UserMessageProps = {
   text: string
+  /** 显式选择的 skill 名称，与输入框共用整段标记 */
+  skillName?: string
   attachments?: FileView[]
   /** 运行中发送、作为补充要求注入当前运行 */
   injected?: boolean
@@ -19,7 +22,7 @@ type UserMessageProps = {
   onDownload?: (file: FileView) => void
 }
 
-export function UserMessage({text, attachments = [], injected = false, className, onPreview, onDownload}: UserMessageProps) {
+export function UserMessage({text, skillName, attachments = [], injected = false, className, onPreview, onDownload}: UserMessageProps) {
   return (
     <div className={cn('flex flex-col items-end gap-1', className)}>
       {injected && (
@@ -34,7 +37,7 @@ export function UserMessage({text, attachments = [], injected = false, className
           injected ? 'border border-dashed border-signal/50 bg-signal-soft/40' : 'bg-secondary',
         )}
       >
-        <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">{text}</p>
+        <div className="whitespace-pre-wrap break-words text-sm leading-relaxed">{skillName && <SkillMark name={skillName} className="mr-1.5"/>}{text}</div>
         {attachments.length > 0 && (
           <div className="mt-2 flex flex-wrap gap-1.5">
             {attachments.map(file => <FileRow key={file.id} file={file} compact showThumbnail

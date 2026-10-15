@@ -68,7 +68,7 @@ function clampCursor(cursor: number, length: number): number {
   return cursor
 }
 
-/** 空查询匹配全部。否则对关键字、别名、搜索词和标题做不区分大小写的包含判断。 */
+/** 空查询匹配全部。查询只含斜杠后的文字；对关键字、别名、搜索词和标题做不区分大小写的包含判断。 */
 export function matchesCommandQuery(query: string, fields: readonly string[]): boolean {
   if (query === '') return true
   const needle = query.toLowerCase()

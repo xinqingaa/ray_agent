@@ -106,7 +106,7 @@ export function SessionDetailView({
     replyApproval,
   } = useSessionDetail(sessionId)
   const [memoryOpen,setMemoryOpen]=useState(false)
-  const [outgoing, setOutgoing] = useState<{text: string; userCount: number; endCount: number; echo?: boolean} | null>(null)
+  const [outgoing, setOutgoing] = useState<{text: string; skillName?: string; userCount: number; endCount: number; echo?: boolean} | null>(null)
   const [hiddenRunIds, setHiddenRunIds] = useState<string[]>([])
   const [hiddenUserIds, setHiddenUserIds] = useState<string[]>([])
   const [retrying, setRetrying] = useState<{text: string; knownUserIds: string[]; fromRunId: string} | null>(null)
@@ -289,7 +289,7 @@ export function SessionDetailView({
     const items = view?.timeline ?? []
     const userCount = items.filter((item) => item.kind === 'user').length
     const endCount = items.filter((item) => item.kind === 'run_end').length
-    setOutgoing({text: message, userCount, endCount, echo: options?.echo !== false})
+    setOutgoing({text: message, skillName: options?.skill?.id, userCount, endCount, echo: options?.echo !== false})
     try {
       await sendMessage(message, attachmentIds, {mode: options?.mode, model: options?.model, reasoning: options?.reasoning, image_mode: options?.image_mode, skill: options?.skill, execute_plan: options?.execute_plan})
     } catch (err) {
@@ -634,7 +634,7 @@ export function SessionDetailView({
                       </p>
                     )}
                     <Timeline items={shownTimeline} runs={shownRuns} streaming={view.streaming} activeStatus={timelineStatus} handlers={handlers}/>
-                    {showOptimistic && outgoing ? <UserMessage text={outgoing.text}/> : null}
+                    {showOptimistic && outgoing ? <UserMessage text={outgoing.text} skillName={outgoing.skillName}/> : null}
                     {!view.activeRun && timelineStatus}
                     {showPlanExecute && <PlanExecuteBar disabled={submitting || pendingSend} onExecute={() => {
                         void deliver('按计划执行', [], {mode: 'normal', execute_plan: {source_run_id: view.plan!.sourceRunId!, plan_id: view.plan!.planId!, source_seq: view.plan!.sourceSeq!, request_id: crypto.randomUUID()}}).catch((err: unknown) => {

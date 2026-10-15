@@ -729,7 +729,7 @@ class AgentService:
                     bound = await self._skills.bindings(active.id)
                     selected = next((e for e in bound if e["name"] == skill.id), None)
                     if not selected or selected["version"] != skill.version:
-                        raise ConflictError("本运行技能目录已固定，请在新运行中选择此版本")
+                        raise ConflictError("本运行 Skill 目录已固定，请在新运行中选择此版本")
             if execute_plan is not None:
                 # 独立受理路径：不能误入运行中注入/等待续接；数据库会话行锁串行化重试。
                 if mode != RunMode.NORMAL or attachments or create_project_id or skill is not None:
