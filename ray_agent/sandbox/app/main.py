@@ -95,6 +95,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+from app.core.skill_body_limit import SkillBodyLimit
+app.add_middleware(SkillBodyLimit)
+
 # 5.注册错误并处理
 register_exception_handlers(app)
 

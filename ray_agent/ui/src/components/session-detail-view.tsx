@@ -285,13 +285,13 @@ export function SessionDetailView({
     if (count > outgoing.userCount && (view?.activeRun || endCount > outgoing.endCount)) setOutgoing(null)
   }, [outgoing, view?.activeRun, view?.timeline])
 
-  const deliver = useCallback(async (message: string, attachmentIds: string[], options?: {mode?: 'plan' | 'normal'; model?: string; reasoning?: string; execute_plan?: PlanAcceptance; image_mode?: 'auto' | 'files'; echo?: boolean}) => {
+  const deliver = useCallback(async (message: string, attachmentIds: string[], options?: {mode?: 'plan' | 'normal'; model?: string; reasoning?: string; execute_plan?: PlanAcceptance; skill?: {id: string; version: string}; image_mode?: 'auto' | 'files'; echo?: boolean}) => {
     const items = view?.timeline ?? []
     const userCount = items.filter((item) => item.kind === 'user').length
     const endCount = items.filter((item) => item.kind === 'run_end').length
     setOutgoing({text: message, userCount, endCount, echo: options?.echo !== false})
     try {
-      await sendMessage(message, attachmentIds, {mode: options?.mode, model: options?.model, reasoning: options?.reasoning, image_mode: options?.image_mode, execute_plan: options?.execute_plan})
+      await sendMessage(message, attachmentIds, {mode: options?.mode, model: options?.model, reasoning: options?.reasoning, image_mode: options?.image_mode, skill: options?.skill, execute_plan: options?.execute_plan})
     } catch (err) {
       setOutgoing(null)
       throw err
@@ -393,7 +393,7 @@ export function SessionDetailView({
     }
   }, [stop])
 
-  const handleSend = useCallback(async (message: string, uploaded: FileInfo[], options?: {mode?: 'plan' | 'normal'; model?: string; reasoning?: string; image_mode?: 'auto' | 'files'}) => {
+  const handleSend = useCallback(async (message: string, uploaded: FileInfo[], options?: {mode?: 'plan' | 'normal'; model?: string; reasoning?: string; skill?: {id: string; version: string}; image_mode?: 'auto' | 'files'}) => {
     try {
       await deliver(message, uploaded.map((file) => file.id), options)
     } catch (err) {

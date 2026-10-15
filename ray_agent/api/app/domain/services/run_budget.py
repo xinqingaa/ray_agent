@@ -22,6 +22,8 @@ BUDGET_FINALIZE_MARK = "已进入收尾"
 BUDGET_DENIED_PREFIX = "收尾阶段不执行"
 
 FINALIZE_ALLOWED: Dict[str, str] = {
+    "load_skill": "skill",
+    "read_skill_resource": "skill",
     "read_file": "file",
     "search_in_file": "file",
     "find_files": "file",

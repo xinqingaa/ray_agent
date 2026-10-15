@@ -21,6 +21,9 @@ def create_api_routes() -> APIRouter:
     from . import data_routes
     api_router.include_router(data_routes.router)
 
+    from . import skill_routes
+    api_router.include_router(skill_routes.router)
+
     # 3.返回api路由实例
     return api_router
 

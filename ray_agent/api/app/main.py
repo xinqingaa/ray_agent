@@ -61,6 +61,9 @@ async def lifespan(app: FastAPI):
         Path(settings.file_storage_local_dir).mkdir(parents=True, exist_ok=True)
         logger.info(f"文件存储使用本地磁盘: {settings.file_storage_local_dir}")
 
+    from app.interfaces.service_dependencies import get_skill_service
+    await get_skill_service().initialize()
+
     # 项目功能单独自检，不因项目卷不可用阻止独立对话。
     storage = await asyncio.to_thread(get_managed_storage)
     if storage.reason:
@@ -98,6 +101,7 @@ async def lifespan(app: FastAPI):
         while True:
             await asyncio.sleep(30)
             try:
+                await get_skill_service().collect()
                 await get_project_file_service().expire_uploads()
                 await expire_visual_artifacts(get_uow, get_file_storage())
             except Exception:

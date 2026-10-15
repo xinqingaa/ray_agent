@@ -98,6 +98,10 @@ class BaseTool:
                 return True
         return False
 
+    async def invoke_for_call(self, tool_name: str, call_id: str, **kwargs) -> ToolResult:
+        """提供服务端调用身份；普通工具仍走原有分发。身份不进入模型参数。"""
+        return await self.invoke(tool_name, **kwargs)
+
     async def invoke(self, tool_name: str, **kwargs) -> ToolResult:
         """根据传递的工具名+kwargs调用指定工具并获取结果"""
         # 1.循环遍历工具集的所有方法

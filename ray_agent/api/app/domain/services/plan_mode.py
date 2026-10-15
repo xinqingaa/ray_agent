@@ -11,6 +11,8 @@ from app.domain.models.tool_result import ToolResult
 from app.domain.services.flows.tool_pipeline import ToolInvocation
 
 PLAN_MODE_ALLOWED: Dict[str, str] = {
+    "load_skill": "skill",
+    "read_skill_resource": "skill",
     "read_file": "file",
     "search_in_file": "file",
     "find_files": "file",

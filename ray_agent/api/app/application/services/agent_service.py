@@ -113,6 +113,7 @@ class ManualCompaction:
 
 class AgentService:
     """Manus智能体服务"""
+    _skills = None
 
     def __init__(
             self,
@@ -134,9 +135,11 @@ class AgentService:
             project_file_coordinator=None,
             project_attachments=None,
             project_delivery=None,
+            skill_service=None,
             llm_config: Optional[LLMConfig] = None,
     ) -> None:
         """构造函数，完成Agent服务初始化"""
+        self._skills = skill_service
         self._uow_factory = uow_factory
         self._uow = uow_factory()
         self._llm = llm
@@ -460,6 +463,8 @@ class AgentService:
                     return ToolResult(success=True, message='项目笔记已更新', data=data)
                 except AppException as exc:
                     return ToolResult(success=False, message=str(exc), data=exc.data)
+            from app.application.services.skill_runtime import SkillRuntime
+            skill_runtime = SkillRuntime(self._skills, run_id, sandbox) if self._skills else None
             task_runner = AgentTaskRunner(
                 uow_factory=self._uow_factory,
                 llm=await self._llm_for_run(session, prior_status, run_id),
@@ -475,6 +480,7 @@ class AgentService:
                 run_id=run_id,
                 prior_status=prior_status,
                 tool_policy=self._tool_policy,
+                skill_runtime=skill_runtime,
                 project_notes_update=notes_update if session.project_id else None,
                 workspace_dir=SANDBOX_PROJECT_DIR if session.project_id else None,
                 project_prompt=build_project_prompt(session.project.instructions) if session.project else "",
@@ -630,6 +636,7 @@ class AgentService:
             reasoning: Optional[str] = None,
             image_mode: str = 'auto',
             execute_plan: Optional[PlanAcceptance] = None,
+            skill=None,
     ) -> ChatAccepted:
         """受理一条用户消息并立即返回；执行过程只通过事件流（stream_events）观察。
 
@@ -654,6 +661,7 @@ class AgentService:
             role="user",
             message=message,
             image_mode=image_mode,
+            skill=skill,
             attachments=[attachment for attachment in db_attachments if attachment is not None],
         )
         sent_at = timestamp or datetime.now()
@@ -662,6 +670,8 @@ class AgentService:
             if accepted_project_prompt is not None:
                 accepted = await uow.run.get_active(session_id)
                 await uow.run.save_snapshot(accepted.id, {"project_prompt": accepted_project_prompt, "project_context": session.project_snapshot.model_dump(mode="json") if session.project_snapshot else None})
+            if self._skills is not None:
+                await self._skills.accept(uow, session_id, skill)
             attachments_service = getattr(self, '_project_attachments', None)
             if attachments_service and session.project_id:
                 accepted = await uow.run.get_active(session_id)
@@ -701,7 +711,7 @@ class AgentService:
                         original_run = await self._uow.run.get(first.run_id) if first else None
                     if first and original_run:
                         if (first.message != message or [f.id for f in first.attachments] != (attachments or [])
-                                or original_run.mode != mode or first.image_mode != image_mode):
+                                or original_run.mode != mode or first.image_mode != image_mode or first.skill != skill):
                             raise ConflictError('此首发标识已受理其他内容，请核对原对话')
                         return ChatAccepted(run_id=original_run.id, seq=first.seq, route='started')
                 else:
@@ -713,9 +723,16 @@ class AgentService:
                     new_session = session
             if not session:
                 raise NotFoundError("任务会话不存在, 请核实后重试")
+            if skill is not None and self._skills is not None:
+                await self._skills.validate_selection(skill.model_dump())
+                if active is not None and active.status.active and (active.config_snapshot or {}).get("skills_frozen"):
+                    bound = await self._skills.bindings(active.id)
+                    selected = next((e for e in bound if e["name"] == skill.id), None)
+                    if not selected or selected["version"] != skill.version:
+                        raise ConflictError("本运行技能目录已固定，请在新运行中选择此版本")
             if execute_plan is not None:
                 # 独立受理路径：不能误入运行中注入/等待续接；数据库会话行锁串行化重试。
-                if mode != RunMode.NORMAL or attachments or create_project_id:
+                if mode != RunMode.NORMAL or attachments or create_project_id or skill is not None:
                     raise BadRequestError("确认计划只能以普通模式、不附带附件提交")
                 await self._remember_model(session, model, reasoning, creating=False)
                 await self._bind_sampling(session, creating=False, model_changed=False)
@@ -947,6 +964,8 @@ class AgentService:
                 # 没有执行协程：审批失效，待审批与同批后续调用补为未执行，与终态同一事务
                 result = await close_waiting_approval(self._uow_factory, self._ledger, session_id, active.id,
                                                     RunStatus.CANCELLED, RunReason.USER_STOP)
+                if result is not None and self._skills is not None:
+                    await self._skills.cancel_run(active.id)
                 await self._restore_stopped_viewports(session, active)
                 if session.project_id:
                     from app.domain.services.project_file_coordinator import ProjectFileCoordinator
@@ -973,6 +992,8 @@ class AgentService:
                 task.cancel()
             if run is not None and (task is None or task.done):
                 await self._restore_stopped_viewports(session, run)
+        if run is not None and self._skills is not None:
+            await self._skills.cancel_run(active.id)
         if run is not None and runner is not None and hasattr(runner, "stop_processes"):
             await runner.stop_processes(active.id)
         if session.project_id:

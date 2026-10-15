@@ -102,6 +102,7 @@ npm run dev
 ```bash
 node scripts/check-model-configuration.cjs
 node scripts/check-composer-images.cjs
+node scripts/check-skills-settings.cjs
 node scripts/check-effort-slider.cjs
 node scripts/check-process-block.cjs
 node scripts/check-developer-mode.cjs
@@ -153,3 +154,9 @@ node scripts/check-project-upload-tree.cjs
 构建时生成公开 `build-manifest.json`，随 standalone 最终镜像提供；其输入指纹覆盖源文件、public、构建配置、依赖清单和编译使用的公开 API 地址。轻量计划核对不新增清单版本，正常工具活动不触发定时声明；相关检查包含结构化确认读回、沿用请求标识和承接准备、分层展示、收起计数和部分交付显示。
 
 模型与思考强度以版本化的同源 localStorage 偏好成对保存；新对话使用有效最近选择，本地记录读完前不采用目录默认值，已有会话只沿用自身的服务端选择；字段未加载或历史字段缺失时，发送不携带模型与思考参数，由后端沿用会话设置及兼容解析，输入区显示“沿用对话设置”。全局偏好变化不覆盖已有会话，用户仍可在会话内主动切换。仅浏览历史不覆盖偏好，菜单保存失败不记忆，发送成功才更新实际使用的选择；存储不可用时保留标签页内存。`check-model-configuration.cjs` 覆盖恢复值传入发送选择、会话隔离、字段缺失与迟到详情、同源偏好变化、会话切换、失效目录回退和存储失败，不代替真实刷新与多标签操作。
+
+## 技能输入与设置
+
+设置的技能分区独立于开发者模式，切换分区保留未保存正文和导入操作；关闭仍使用统一未保存提示。导入响应未知时沿原操作查询，同一输入重试沿用操作身份。内置技能仅可查看和启停。
+
+输入框的技能标签、`/技能名 任务`、草稿和受理读回携带技能 ID 与版本；`check-composer-images.cjs` 同时核对快捷输入、无正文保留草稿、选择恢复和相同正文不同技能的受理隔离。`check-skills-settings.cjs` 使用实际技能设置组件，替换网络、弹层宿主与 Markdown 渲染，覆盖只读边界、说明与文件往返、草稿保留、预览返回、关闭保护和安装重试。Markdown 实际渲染、叠层焦点、窄屏布局、社区导航及文件选择需在真实浏览器核对。

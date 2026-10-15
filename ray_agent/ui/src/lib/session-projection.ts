@@ -669,6 +669,7 @@ export function projectSession(input: ProjectSessionInput): SessionView {
         if (track) track.sawUser = true
         timeline.push({
           kind: 'user',
+          skill: data.skill as {id: string; version: string} | undefined,
           id: idOf(ev.seq, timeline.length),
           runId: ev.runId,
           at: ev.createdAt,

@@ -336,6 +336,8 @@ class AgentLoop(BaseFlow):
         self.project_prompt = project_prompt
         self.request_system_prompt: Optional[str] = None
         self._retry_interval = retry_interval
+        self.skill_runtime = None
+        self._skill_blocked = False
         self._memory: Optional[Memory] = None
         self._pending_context: List[ContextEvent] = []
         self._open_turn: Optional[_ModelTurn] = None
@@ -579,6 +581,20 @@ class AgentLoop(BaseFlow):
     ) -> AsyncGenerator[BaseEvent, None]:
         await self._load()
         self._set_budget_phase(self._noticed_budget_phase())
+        if call_id.startswith('skill-select:'):
+            name = call_id.split(':')[1]
+            entries = await self.skill_runtime.service.bindings(self.run_id)
+            entry = next((e for e in entries if e['name'] == name), None)
+            if entry is None:
+                yield ErrorEvent(error='所选技能绑定缺失')
+                return
+            async for event in self._preload_skill({'id': name, 'version': entry['version']}, decision.value, call_id):
+                yield event
+            if self._skill_blocked:
+                return
+            async for event in self._loop(drain, first_turn_index):
+                yield event
+            return
         dangling = find_dangling_calls(self._memory.get_messages())
         position = next((i for i, call in enumerate(dangling) if call.get("id") == call_id), None)
         if position is None:
@@ -626,6 +642,11 @@ class AgentLoop(BaseFlow):
             await self._add_messages([{"role": "user", "content": _user_content(message)}])
         for event in self._take_context():
             yield event
+        if message.skill:
+            async for event in self._preload_skill(message.skill.model_dump()):
+                yield event
+            if self._skill_blocked:
+                return
         logger.info(f"会话[{self._session_id}] Agent循环接收消息: {message.message[:50]}...")
         async for event in self._loop(drain, first_turn_index):
             yield event
@@ -649,9 +670,17 @@ class AgentLoop(BaseFlow):
                         sources = await uow.event.list(self._session_id, types=['message'])
                     self.plan_tool.user_seqs = {e.seq for e in sources if isinstance(e, MessageEvent) and e.role == 'user' and e.seq is not None}
                     self.plan_tool.current_user_seq = max(self.plan_tool.user_seqs, default=None)
+                    for item in injected:
+                        if item.skill:
+                            async for event in self._preload_skill(item.skill.model_dump()):
+                                yield event
+                            if self._skill_blocked:
+                                return
                     self.budget_used = 0
                     self._set_budget_phase(BudgetPhase.NORMAL)
 
+            async for event in self._sync_skill_history():
+                yield event
             async for event in self._sync_visual_history():
                 yield event
 
@@ -906,7 +935,7 @@ class AgentLoop(BaseFlow):
             if isinstance(event, ToolEvent) and event.status == ToolEventStatus.CALLED \
                     and event.tool_call_id == invocation.call_id:
                 await self._add_messages([
-                    tool_message(invocation.call_id, invocation.function_name, invocation.result),
+                    self._result_message(invocation),
                 ])
                 for context in self._take_context():
                     yield context
@@ -1197,6 +1226,78 @@ class AgentLoop(BaseFlow):
         self._pending_context.append(ContextEvent(op=ContextOp.STRIP_REASONING))
 
     # ---- 容量与压缩 ----
+
+    def _result_message(self, invocation):
+        message = tool_message(invocation.call_id, invocation.function_name, invocation.result)
+        if invocation.toolkit_name == 'skill' and self.skill_runtime:
+            message['_ray_skill_result'] = {'run_id': self.run_id, 'name': invocation.arguments.get('name')}
+        return message
+
+    async def _preload_skill(self, selection, approval=None, call_id=None):
+        """用户选择触发程序加载，可审批但不伪造 assistant 工具调用。"""
+        self._skill_blocked = False
+        if self.skill_runtime is None:
+            self._skill_blocked = True
+            yield ErrorEvent(error='技能服务不可用，所选技能未加载')
+            return
+        entries = await self.skill_runtime.service.bindings(self.run_id)
+        entry = next((e for e in entries if e['name'] == selection['id']), None)
+        if not entry or entry['version'] != selection['version']:
+            self._skill_blocked = True
+            yield ErrorEvent(error='所选技能不在本运行固定目录中，请开始新运行')
+            return
+        invocation = ToolInvocation(call_id=call_id or f"skill-select:{selection['id']}:{uuid.uuid4().hex}",
+            function_name='load_skill', raw_arguments=json.dumps({'name': selection['id']}), approval=approval)
+        result = await self.pipeline.check(invocation)
+        if result is None:
+            result = await self._policy_guard(invocation)
+        if invocation.suspended:
+            self._skill_blocked = True
+            self.pending_approval = invocation.suspend_event
+            yield invocation.suspend_event
+            self.end_reason = RunEndReason.APPROVAL
+            yield WaitEvent()
+            return
+        if result is None:
+            result = await self.skill_runtime.load(selection['id'])
+        if not result.success:
+            self._skill_blocked = True
+            self.end_reason = RunEndReason.MODEL_ERROR
+            yield ErrorEvent(error='所选技能未加载：' + (result.message or '加载失败'))
+
+    async def _sync_skill_history(self):
+        if self.skill_runtime is None or find_dangling_calls(self._memory.get_messages()):
+            return
+        messages = self._memory.get_messages()
+        blocks = await self.skill_runtime.context()
+        revised = []
+        remaining = {((m.get('_ray_skill') or {}).get('kind'), (m.get('_ray_skill') or {}).get('name')): m for m in blocks}
+        for message in messages:
+            result_marker = message.get('_ray_skill_result')
+            if result_marker and result_marker.get('run_id') != self.run_id and not result_marker.get('historical'):
+                revised.append({**message, '_ray_skill_result': {**result_marker, 'historical': True},
+                    'content': json.dumps({'message': '历史技能工具引用，不在本运行激活。', 'data': result_marker}, ensure_ascii=False)})
+                continue
+            marker = message.get('_ray_skill')
+            if not marker:
+                revised.append(message)
+            elif marker.get('run_id') != self.run_id and marker.get('kind') != 'history':
+                revised.append({'role': 'user', '_ray_skill': {'kind': 'history', 'run_id': marker.get('run_id')},
+                    'content': '[历史技能引用] ' + str(marker.get('name') or '目录') + '@' + str(marker.get('version') or '') + '；未在本运行激活。'})
+            elif marker.get('kind') == 'history':
+                revised.append(message)
+            else:
+                current = remaining.pop((marker.get('kind'), marker.get('name')), None)
+                if current is not None:
+                    revised.append(current)
+        revised.extend(remaining.values())
+        if revised == messages:
+            return
+        self._memory.replace(revised[1:] if revised and revised[0].get('role') == 'system' else revised)
+        self.budget.reset()
+        async with self._uow:
+            await self._uow.session.save_memory(self._session_id, AGENT_MEMORY_NAME, self._memory)
+        yield ContextEvent(op=ContextOp.REPLACE, messages=copy.deepcopy(self._memory.get_messages()[1:]))
 
     async def _sync_visual_history(self):
         from app.domain.services.context.vision import reconcile_visual_history

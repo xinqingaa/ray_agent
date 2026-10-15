@@ -11,7 +11,7 @@ export type Submission = {
   model?: string
   reasoning?: string
   execute_plan?: PlanAcceptance
-  image_mode?: 'auto' | 'files'
+  skill?: {id: string; version: string}; image_mode?: 'auto' | 'files'
   afterSeq: number
   state: 'sending' | 'unknown'
 }
@@ -19,6 +19,7 @@ export type ChatDraft = {
   text: string
   files: FileInfo[]
   planMode: boolean
+  skill?: {id: string; version: string; name?: string}
   imageMode?: 'auto' | 'files'
   creationId?: string
   sessionId?: string
@@ -101,6 +102,8 @@ export function checkAcceptance(detail: SessionDetail, pending: Submission): Acc
     const data = event.data as Record<string, unknown>
     if (data.role !== 'user' || data.message !== pending.message || (readEventSeq(event) ?? 0) <= pending.afterSeq
       || (data.image_mode ?? 'auto') !== (pending.image_mode ?? 'auto')) return false
+    const selected = data.skill as {id?: string; version?: string} | undefined
+    if ((selected?.id ?? null) !== (pending.skill?.id ?? null) || (selected?.version ?? null) !== (pending.skill?.version ?? null)) return false
     const ids = Array.isArray(data.attachments)
       ? data.attachments.map((file) => typeof file === 'object' && file ? (file as {id?: string}).id : null) : []
     return ids.length === pending.attachments.length && ids.every((id, index) => id === pending.attachments[index])

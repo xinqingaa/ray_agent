@@ -1,7 +1,7 @@
 'use client'
 
 import {useEffect, useState} from 'react'
-import {Bot, Cable, Globe, Palette, ShieldCheck, SlidersHorizontal, X, type LucideIcon} from 'lucide-react'
+import {BookOpen, Bot, Cable, Globe, Palette, ShieldCheck, SlidersHorizontal, X, type LucideIcon} from 'lucide-react'
 import {Button} from '@/components/ui/button'
 import {cn} from '@/lib/utils'
 import {useConfigForm, useUnsavedGuard} from './form'
@@ -10,12 +10,13 @@ import {LlmSection, llmFormOptions} from './llm-section'
 import {McpSection} from './mcp-section'
 import {A2aSection} from './a2a-section'
 import {ToolPolicySection, useToolPolicyForm} from './tool-policy-section'
+import {SkillsSection} from './skills-section'
 import {AppearanceSection} from './appearance-section'
 import {DataSection} from './data-section'
 import {useDeveloperMode} from '@/hooks/use-developer-mode'
 import {Switch} from '@/components/ui/switch'
 
-type SectionKey = 'general' | 'appearance' | 'llm' | 'mcp' | 'a2a' | 'tool-policy' | 'data'
+type SectionKey = 'general' | 'appearance' | 'llm' | 'mcp' | 'a2a' | 'tool-policy' | 'data' | 'skills'
 
 const SECTIONS: {key: SectionKey; label: string; icon: LucideIcon}[] = [
   {key: 'general', label: '通用', icon: SlidersHorizontal},
@@ -24,6 +25,7 @@ const SECTIONS: {key: SectionKey; label: string; icon: LucideIcon}[] = [
   {key: 'mcp', label: 'MCP 服务器', icon: Cable},
   {key: 'a2a', label: '远程 Agent', icon: Globe},
   {key: 'tool-policy', label: '工具策略', icon: ShieldCheck},
+  {key: 'skills', label: '技能', icon: BookOpen},
   {key: 'data', label: '数据管理', icon: SlidersHorizontal},
 ]
 
@@ -35,8 +37,9 @@ export function SettingsView({onClose, onDirtyChange, onNavigate}: {onClose?: ()
   const general = useConfigForm(generalFormOptions)
   const llm = useConfigForm(llmFormOptions)
   const toolPolicy = useToolPolicyForm()
-  const dirty: Partial<Record<SectionKey, boolean>> = {general: general.dirty, llm: llm.dirty, 'tool-policy': toolPolicy.dirty}
-  const hasUnsavedChanges = general.dirty || llm.dirty || toolPolicy.dirty
+  const [skillsDirty, setSkillsDirty] = useState(false)
+  const dirty: Partial<Record<SectionKey, boolean>> = {general: general.dirty, llm: llm.dirty, 'tool-policy': toolPolicy.dirty, skills: skillsDirty}
+  const hasUnsavedChanges = general.dirty || llm.dirty || toolPolicy.dirty || skillsDirty
   useUnsavedGuard(hasUnsavedChanges)
   useEffect(() => {onDirtyChange?.(hasUnsavedChanges)}, [hasUnsavedChanges, onDirtyChange])
 
@@ -91,6 +94,7 @@ export function SettingsView({onClose, onDirtyChange, onNavigate}: {onClose?: ()
               </div>
               <GeneralSection form={general}/>
             </>}
+            <div hidden={active !== 'skills'}><SkillsSection active={active === 'skills'} onDirtyChange={setSkillsDirty}/></div>
             {active === 'appearance' && <AppearanceSection/>}
             {active === 'data' && <DataSection onNavigate={onNavigate} disabledReason={hasUnsavedChanges ? '请先保存或撤销设置修改，再清空数据。' : undefined}/>}
             {active === 'llm' && <LlmSection form={llm}/>}

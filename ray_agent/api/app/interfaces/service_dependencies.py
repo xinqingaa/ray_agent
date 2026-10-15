@@ -151,6 +151,7 @@ def get_agent_service() -> AgentService:
         ledger=get_run_ledger(),
         notifier=RedisEventNotifier(),
         tool_policy=app_config.tool_policy,
+        skill_service=get_skill_service(),
         project_validator=get_project_service().validate_start,
         project_prepare=get_project_service().prepare_snapshot,
         project_file_prepare=get_project_file_service().prepare_run,
@@ -171,3 +172,13 @@ def get_project_file_service() -> ProjectFileService:
     service.attachments = ProjectAttachmentService(service, get_file_storage())
     service.delivery = ProjectDeliveryService(service, get_file_storage())
     return service
+
+
+def get_skill_service():
+    from app.application.services.skill_service import SkillService
+    from app.infrastructure.repositories.db_skill_repository import DBSkillRepository
+    from app.infrastructure.external.skills.storage import SkillStorage
+    from app.infrastructure.external.skills.github import GitHubSkills
+    from app.infrastructure.storage.postgres import get_session_factory
+    current = get_settings()
+    return SkillService(DBSkillRepository(get_session_factory()), SkillStorage(current.skill_storage_dir, current), GitHubSkills(current), current)

@@ -16,6 +16,9 @@ def create_api_routes() -> APIRouter:
     api_router.include_router(shell.router)
     api_router.include_router(supervisor.router)
 
+    from . import skills
+    api_router.include_router(skills.router)
+
     return api_router
 
 

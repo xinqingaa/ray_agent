@@ -224,6 +224,7 @@ async def chat(
         model=request.model,
         reasoning=request.reasoning,
         image_mode=request.image_mode,
+        skill=request.skill,
         execute_plan=request.execute_plan,
     )
     return Response.success(

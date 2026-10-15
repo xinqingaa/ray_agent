@@ -29,6 +29,22 @@ class Settings(BaseSettings):
     file_storage_backend: Literal["local", "cos"] = "local"
     file_storage_local_dir: str = "data/files"
 
+    # 技能包独立于附件与项目存储。
+    skill_storage_dir: str = "data/skills"
+    skill_download_bytes: int = Field(default=20 * 1024 * 1024, gt=0)
+    skill_package_bytes: int = Field(default=50 * 1024 * 1024, gt=0)
+    skill_file_bytes: int = Field(default=5 * 1024 * 1024, gt=0)
+    skill_max_files: int = Field(default=2000, gt=0)
+    skill_max_candidates: int = Field(default=100, gt=0)
+    skill_name_chars: int = Field(default=64, gt=0, le=64)
+    skill_description_chars: int = Field(default=1024, gt=0)
+    skill_body_chars: int = Field(default=60000, gt=0)
+    skill_catalog_chars: int = Field(default=24000, gt=0)
+    skill_active_chars: int = Field(default=100000, gt=0)
+    skill_resource_chars: int = Field(default=8000, gt=0)
+    skill_fetch_seconds: int = Field(default=90, gt=0)
+    skill_preview_seconds: int = Field(default=3600, gt=0)
+
     # Cos腾讯云对象存储配置（仅 file_storage_backend=cos 时必填）
     cos_secret_id: str = ""
     cos_secret_key: str = ""

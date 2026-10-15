@@ -9,6 +9,7 @@ import {ArrowUp, Eye, FileText, Loader2, Paperclip, Square, X, XCircle} from 'lu
 import {Button} from '@/components/ui/button'
 import {Popover, PopoverAnchor, PopoverContent} from '@/components/ui/popover'
 import {PlusCommandMenu, SlashCommandList} from '@/components/input-command-menu'
+import {skillsApi, SKILLS_CHANGED, type Skill, type SkillSelection} from '@/lib/api/skills'
 import {fileApi} from '@/lib/api/file'
 import {projectApi} from '@/lib/api/project'
 import {classifyUpload} from '@/lib/project-upload'
@@ -32,7 +33,7 @@ import type {FileView} from '@/lib/session-view'
 interface ChatInputProps {
   className?: string
   onInputValueChange?: (value: string) => void
-  onSend?: (message: string, files: FileInfo[], options?: {mode?: 'plan' | 'normal'; model?: string; reasoning?: string; image_mode?: 'auto' | 'files'}) => Promise<void>
+  onSend?: (message: string, files: FileInfo[], options?: {mode?: 'plan' | 'normal'; model?: string; reasoning?: string; skill?: {id: string; version: string}; image_mode?: 'auto' | 'files'}) => Promise<void>
   savedModel?: string | null
   savedReasoning?: string | null
   runModel?: string | null
@@ -82,6 +83,13 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
     const [uploading, setUploading] = useState(false)
     const [sending, setSending] = useState(false)
     const [inputValue, setInputValue] = useState('')
+    const [selectedSkill, setSelectedSkill] = useState<(SkillSelection & {name?: string}) | null>(null)
+    const [skills, setSkills] = useState<Skill[]>([])
+    useEffect(() => {
+      const refresh = () => {skillsApi.list().then(setSkills).catch(() => setSkills([]))}
+      refresh(); window.addEventListener(SKILLS_CHANGED, refresh); window.addEventListener('focus', refresh)
+      return () => {window.removeEventListener(SKILLS_CHANGED, refresh); window.removeEventListener('focus', refresh)}
+    }, [])
     const [planMode, setPlanMode] = useState(false)
     const [slash, setSlash] = useState<SlashFragment | null>(null)
     const workspace = useProjects()
@@ -112,6 +120,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
       setInputValue(draft.text)
       setFiles(draft.files)
       setPlanMode(draft.planMode)
+      setSelectedSkill(draft.skill ?? null)
       setPreview(null)
       setUncertain(!!draft.submission)
       setLoadedScope(scope)
@@ -124,15 +133,15 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
       return () => window.removeEventListener(DRAFT_CHANGED, check)
     }, [scope])
     useEffect(() => {
-      if (loadedScope === scope) writeDraft(scope, {text: inputValue, files, planMode, imageMode: 'auto'})
-    }, [scope, loadedScope, inputValue, files, planMode])
+      if (loadedScope === scope) writeDraft(scope, {text: inputValue, files, planMode, skill: selectedSkill ?? undefined, imageMode: 'auto'})
+    }, [scope, loadedScope, inputValue, files, planMode, selectedSkill])
 
     const blocked = disabled || sending || commandHost.compacting || uncertain
     useEffect(() => {
       const cleared = (event: Event) => {
         const data = (event as CustomEvent).detail
         if (data.scope === 'all' || data.project_ids.some((id: string) => scope === `project:${id}`) || data.session_ids.some((id: string) => scope === `session:${id}`)) {
-          setInputValue(''); setFiles([]); setPlanMode(false); setUncertain(false)
+          setInputValue(''); setFiles([]); setPlanMode(false); setSelectedSkill(null); setUncertain(false)
           if (uploadRef.current) uploadRef.current.cancelled = true
         }
       }
@@ -253,9 +262,15 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
     ])
 
     const slashOpen = slash != null && !blocked
+    const skillCommands = useMemo<InputCommand[]>(() => skills.filter(s => s.enabled).map(s => ({
+      id: `skill:${s.name}`, surfaces: ['slash'], keyword: s.name, title: s.name, description: s.description,
+      aliases: [], keywords: [s.description], icon: FileText,
+      available: (context: CommandContext) => context.waitingApproval ? {available: false as const, reason: '请先回复审批'} : {available: true as const},
+      run: () => setSelectedSkill({id: s.id, name: s.name, version: s.version}),
+    })), [skills])
     const matched = useMemo(
-      () => (slashOpen && slash ? matchingCommands(slash.query, {projectsEnabled: resolvedProjectsEnabled}).filter(command => visibility.canShowCommand(command.id)) : []),
-      [slashOpen, slash, resolvedProjectsEnabled, visibility],
+      () => (slashOpen && slash ? [...matchingCommands(slash.query, {projectsEnabled: resolvedProjectsEnabled}).filter(command => visibility.canShowCommand(command.id)), ...skillCommands.filter(c => `${c.title} ${c.description}`.toLowerCase().includes(slash.query.toLowerCase()))] : []),
+      [slashOpen, slash, resolvedProjectsEnabled, visibility, skillCommands],
     )
     const resolvedActiveId = matched.some((command) => command.id === activeId)
       ? activeId
@@ -409,7 +424,15 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
 
     const handleSend = async () => {
       if (blocked || uploading || uploadRef.current) return
-      const trimmedMessage = inputValue.trim()
+      let trimmedMessage = inputValue.trim()
+      let skill = selectedSkill
+      const shortcut = /^\/([a-z][a-z0-9-]*)(?:\s+|$)/.exec(trimmedMessage)
+      const found = shortcut && skills.find(s => s.enabled && s.name === shortcut[1])
+      if (found) {
+        skill = {id: found.id, name: found.name, version: found.version}
+        setSelectedSkill(skill)
+        trimmedMessage = trimmedMessage.slice(shortcut![0].length).trim()
+      }
       
       // 验证消息不为空
       if (!trimmedMessage) {
@@ -425,6 +448,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
           await onSend(trimmedMessage, files, {
             mode: planMode ? 'plan' : 'normal',
             image_mode: 'auto',
+            skill: skill ?? undefined,
             ...(modelChoice ? {model: modelChoice.model, reasoning: modelChoice.reasoning} : {}),
           })
           if (modelChoice) rememberModelPreference(modelChoice)
@@ -433,6 +457,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
           setInputValue('')
           setFiles([])
           setPlanMode(false)
+          setSelectedSkill(null)
           setSlash(null)
           onInputValueChange?.('')
         } catch (error) {
@@ -519,6 +544,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
     return (
     <Popover open={slashOpen} onOpenChange={(open) => { if (!open) setSlash(null) }}>
     <div className={cn('flex flex-col bg-card w-full rounded-lg py-3 border', className)}>
+      {selectedSkill && <div className="flex items-center gap-2 px-3 py-1 text-xs text-muted-foreground"><span className="rounded bg-muted px-2 py-1">技能：{selectedSkill.name ?? selectedSkill.id}</span><Button type="button" size="icon-sm" variant="ghost" aria-label="移除所选技能" disabled={blocked} onClick={() => setSelectedSkill(null)}><X className="size-3"/></Button></div>}
       {uncertain && !sending && !commandHost.submitting && (
         <div role="status" className="mx-4 mb-2 space-y-2 text-meta text-state-waiting">
           <p>正在确认是否发送成功，文字、附件和模式已保留。请检查结果或核对对话历史。</p>
@@ -528,7 +554,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
               if (!id) return
               try {
                 if (await recoverSubmission(scope, id)) {
-                  clearDraft(scope); setInputValue(''); setFiles([]); setPlanMode(false); setUncertain(false)
+                  clearDraft(scope); setInputValue(''); setFiles([]); setPlanMode(false); setSelectedSkill(null); setUncertain(false)
                   toast.success('已确认消息受理，可以继续查看运行')
                   window.location.assign(`/sessions/${id}`)
                 }
@@ -715,6 +741,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
         {slashOpen && slash && (
           <SlashCommandList
             query={slash.query}
+            extraCommands={skillCommands}
             context={commandContext}
             activeId={resolvedActiveId}
             onActiveIdChange={setActiveId}

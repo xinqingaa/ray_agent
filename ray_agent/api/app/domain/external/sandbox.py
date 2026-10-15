@@ -95,6 +95,10 @@ class Sandbox(Protocol):
         """根据传递的文件夹路径+匹配规则查找文件"""
         ...
 
+    async def prepare_skill_resources(self, run_id: str, name: str, version: str, files: list[dict]) -> ToolResult:
+        """受限发布并核对本运行技能材料。"""
+        ...
+
     async def upload_file(
             self,
             file_data: BinaryIO,

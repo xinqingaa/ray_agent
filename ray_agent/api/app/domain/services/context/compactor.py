@@ -98,10 +98,12 @@ class Compactor:
         把保留区之前的历史换成摘要并重新注入其中的用户原文；摘要失败时返回 FAILED，调用方不改记忆。
         替换后的估算按字符计算（记忆被替换后没有 usage 可校准）。
         """
+        pinned = [copy.deepcopy(m) for m in messages[1:] if (m.get("_ray_skill") or {}).get("kind") in ("catalog", "body")]
+        messages = [m for m in messages if (m.get("_ray_skill") or {}).get("kind") not in ("catalog", "body")]
         system = messages[:1]
         plan = plan_compaction(
             messages, self._config.compact_keep_turns,
-            lambda kept: sum(raw_parts([*system, *kept], tools).values()) <= before.watermark * KEPT_WATERMARK_SHARE)
+            lambda kept: sum(raw_parts([*system, *pinned, *kept], tools).values()) <= before.watermark * KEPT_WATERMARK_SHARE)
         if plan is None:
             logger.info(f"{self._label} 没有可摘要的完整轮次，跳过压缩")
             return CompactionResult(CompactionStatus.SKIPPED, reason=SkipReason.NO_ROUNDS)
@@ -124,7 +126,7 @@ class Compactor:
             return CompactionResult(CompactionStatus.FAILED, usage=usage)
 
         replaced = [summary_message(summary, plan.summarized_turns, reinjection.omitted),
-                    *reinjection.messages, *copy.deepcopy(kept)]
+                    *reinjection.messages, *copy.deepcopy(kept), *pinned]
         after = self.fresh_budget().estimate([*system, *replaced], tools)
         logger.info(f"{self._label} 压缩完成（{trigger}）：摘要 {plan.summarized_turns} 轮，保留 {plan.kept_turns} 轮，"
                     f"估算 {before.total} → {after.total} tokens")

@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 from dataclasses import dataclass
+from app.domain.models.message import SkillSelection
 from datetime import datetime
 from typing import Optional, Dict, Any, Self, Type, Literal, List, Union, get_args
 
@@ -78,6 +79,7 @@ class MessageEventData(BaseEventData):
     role: Literal["user", "assistant"] = "assistant"
     message: str = ""
     attachments: List[File] = Field(default_factory=list)
+    skill: SkillSelection | None = None
     image_mode: Literal['auto', 'files'] = 'auto'
     attempt: Optional[int] = None  # 助手正文对应的本轮模型请求序号
 
@@ -96,6 +98,7 @@ class MessageSSEEvent(BaseSSEEvent):
                 message=event.message,
                 attachments=event.attachments,
                 image_mode=event.image_mode,
+                skill=event.skill,
                 attempt=event.attempt,
             )
         )

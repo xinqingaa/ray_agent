@@ -83,7 +83,7 @@ def user_origins(summarized: Messages) -> List[UserOrigin]:
     origins: List[UserOrigin] = []
     for message in summarized:
         if message.get("role") == "user":
-            if message.get("_ray_visual"):
+            if message.get("_ray_visual") or message.get("_ray_skill"):
                 continue
             content = content_text(message.get("content"))
             if content and not is_summary_message(message) and not content.startswith((SYSTEM_NOTICE_PREFIX, "[计划核对]", "[运行预算]", "[任务状态]", "结束前一致性核对：")):

@@ -320,6 +320,7 @@ export type CreateSessionParams = {
  * 聊天消息
  */
 export type ChatMessage = {
+  skill?: {id: string; version: string} | null;
   role: "user" | "assistant" | "system";
   message: string;
   attachments?: Array<{
@@ -342,7 +343,7 @@ export type ChatParams = {
   mode?: "normal" | "plan";
   model?: string;
   reasoning?: string;
-  image_mode?: 'auto' | 'files';
+  skill?: {id: string; version: string}; image_mode?: 'auto' | 'files';
   [key: string]: unknown;
 };
 

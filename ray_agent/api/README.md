@@ -358,3 +358,14 @@ uv run --locked python -m pytest tests/core/test_responses_api.py tests/core/tes
 ```
 
 Responses 检查使用真实 SDK 与 HTTP 替身，覆盖厂商编码、多轮推理、图片、错误分类、截断与半截调用隔离；实际上游支持与部署需单独运行验证。
+
+### 技能安装与运行检查
+
+```bash
+uv run --locked python -m pytest tests/core/test_skills.py
+RAY_TEST_DATABASE_URI=postgresql+asyncpg://USER@HOST:PORT/TEST_DB uv run --locked python -m pytest tests/core/test_skills_pg.py
+```
+
+纯核心用例使用临时磁盘、事务仓储和脚本化模型，覆盖包安全、哈希、幂等、故障重试、固定版本、显式与自动加载、模式、审批和压缩。数据库检查会清空指定库的 `public` schema 并迁移，只能使用独立测试库；它验证并发更新、受理事务冻结及外键引用释放，不调用真实模型。
+
+技能目录由 `SKILL_STORAGE_DIR` 管理，开发环境回退目录及各项预算见[参数页](../../docs/limits.md#技能)。私有仓库和 CLI 安装不受理，错误需通过操作身份查询；真实 GitHub、模型与沙箱条件分别验证，不能由替身测试推断。

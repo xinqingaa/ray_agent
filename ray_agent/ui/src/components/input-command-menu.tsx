@@ -99,19 +99,23 @@ export function PlusCommandMenu({context}: {context: CommandContext}) {
 
 export function SlashCommandList({
   query,
+  extraCommands = [],
   context,
   activeId,
   onActiveIdChange,
   onRun,
 }: {
   query: string
+  extraCommands?: InputCommand[]
   context: CommandContext
   activeId: string | null
   onActiveIdChange: (id: string) => void
   onRun: (command: InputCommand) => void
 }) {
   const {visibility} = useDeveloperMode()
-  const items = matchingCommands(query, {projectsEnabled: context.projectsEnabled}).filter(command => visibility.canShowCommand(command.id))
+  const commands = matchingCommands(query, {projectsEnabled: context.projectsEnabled}).filter(command => visibility.canShowCommand(command.id))
+  const skills = extraCommands.filter(c => `${c.title} ${c.description}`.toLowerCase().includes(query.toLowerCase()))
+  const items = [...commands, ...skills]
   return (
     <Command
       shouldFilter={false}
@@ -126,11 +130,14 @@ export function SlashCommandList({
         {items.length === 0 ? (
           <CommandEmpty className="py-4 text-center text-meta text-muted-foreground">没有匹配的命令</CommandEmpty>
         ) : (
-          <CommandGroup>
-            {items.map((command) => (
+          <>
+          <CommandGroup heading="命令">
+            {commands.map((command) => (
               <CommandRow key={command.id} command={command} context={context} onRun={onRun}/>
             ))}
           </CommandGroup>
+          {skills.length > 0 && <CommandGroup heading="技能">{skills.map(command => <CommandRow key={command.id} command={command} context={context} onRun={onRun}/>)}</CommandGroup>}
+          </>
         )}
       </CommandList>
     </Command>

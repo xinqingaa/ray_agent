@@ -74,6 +74,7 @@ class AgentTaskRunner(TaskRunner):
             tool_policy: Optional[ToolPolicyConfig] = None,  # 工具策略表，为空时用默认策略
             project_prompt: str = "",
             project_notes_update=None,
+            skill_runtime=None,
             workspace_dir: Optional[str] = None,  # 绑定项目时为 /workspace，否则为空
     ) -> None:
         """构造函数，完成Agent任务运行器的创建"""
@@ -97,12 +98,14 @@ class AgentTaskRunner(TaskRunner):
         self._invoking = False
         self._settled = asyncio.Event()
         default_exec_dir = workspace_dir or "/home/ubuntu"
+        self._skill_runtime = skill_runtime
+        from app.domain.services.tools.skill import SkillTool
         self._flow = AgentLoop(
             uow_factory=uow_factory,
             llm=llm,
             agent_config=agent_config,
             session_id=session_id,
-            tools=([ProjectNotesTool(project_notes_update)] if project_notes_update else []) + build_default_tools(
+            tools=([SkillTool(self._skill_runtime)] if self._skill_runtime else []) + ([ProjectNotesTool(project_notes_update)] if project_notes_update else []) + build_default_tools(
                 sandbox=sandbox,
                 browser=browser,
                 search_engine=search_engine,
@@ -119,6 +122,7 @@ class AgentTaskRunner(TaskRunner):
         )
         self._flow._publish_delta = self._publish_delta
         self._flow.run_id = self._run_id
+        self._flow.skill_runtime = self._skill_runtime
         if hasattr(llm, 'image_loader'):
             llm.image_loader = self._load_visual_image
 
@@ -450,6 +454,7 @@ class AgentTaskRunner(TaskRunner):
             attachments=[attachment.filepath for attachment in event.attachments],
             images=event.image_inputs,
             image_mode=event.image_mode,
+            skill=event.skill,
             image_input_note=event.image_input_note,
         )
 
@@ -572,6 +577,8 @@ class AgentTaskRunner(TaskRunner):
         self._flow.mode = run.mode
         self._next_turn = run.turns + 1
         stored = run.config_snapshot or {}
+        if getattr(self, "_skill_runtime", None):
+            await self._skill_runtime.initialize(frozen=bool(stored.get("skills_frozen")))
         configure = getattr(self._browser, 'configure_viewports', None)
         if callable(configure):
             async def save_viewports(records):
@@ -590,6 +597,8 @@ class AgentTaskRunner(TaskRunner):
         if "project_prompt" in stored:
             self._flow.project_prompt = stored["project_prompt"]
         snapshot = await self._flow.config_snapshot()
+        if getattr(self, "_skill_runtime", None):
+            snapshot["skills_frozen"] = True
         if not stored.get("system_prompt"):
             from build_identity import read_manifest
             updated = {**stored, **snapshot, "api_build": read_manifest()}
@@ -627,6 +636,8 @@ class AgentTaskRunner(TaskRunner):
 
         收尾失败只记录在事件里，不改变运行终态。
         """
+        if getattr(self, "_skill_runtime", None):
+            await self._skill_runtime.service.cancel_run(run_id)
         targets: List[CleanupTarget] = []
         for shell_session in list(self._shell_sessions):
             try:

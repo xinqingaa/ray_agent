@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+from app.domain.models.message import SkillSelection
 from datetime import datetime
 from typing import Any, Dict, List, Literal, Optional
 
@@ -54,6 +55,7 @@ class ChatRequest(BaseModel):
     mode: Literal["normal", "plan"] = "normal"
     model: Optional[str] = None  # 厂商模型 id；与 reasoning 一起提交
     reasoning: Optional[str] = None  # 思考参数原词
+    skill: SkillSelection | None = None
     image_mode: Literal['auto', 'files'] = 'auto'  # files 明确只交给文件工具
 
 

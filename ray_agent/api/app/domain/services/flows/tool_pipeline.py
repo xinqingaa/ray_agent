@@ -303,7 +303,11 @@ class ToolPipeline:
     @staticmethod
     async def _execute_once(invocation: ToolInvocation) -> ToolResult:
         try:
-            result = await invocation.tool.invoke(invocation.function_name, **invocation.arguments)
+            contextual = getattr(invocation.tool, "invoke_for_call", None)
+            if contextual is not None:
+                result = await contextual(invocation.function_name, invocation.call_id, **invocation.arguments)
+            else:
+                result = await invocation.tool.invoke(invocation.function_name, **invocation.arguments)
         except Exception as e:
             logger.exception(f"工具[{invocation.function_name}]执行异常: {e}")
             return ToolResult(success=False, message=f"工具执行异常：{type(e).__name__}: {e}")

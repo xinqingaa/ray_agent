@@ -15,7 +15,7 @@ export default function Page() {
   const router = useRouter()
   const input=useRef<ChatInputRef>(null)
   const [sending, setSending] = useState(false)
-  const startTask = async (message: string, files: FileInfo[], options?: {mode?: 'plan' | 'normal'; model?: string; reasoning?: string; image_mode?: 'auto' | 'files'}) => {
+  const startTask = async (message: string, files: FileInfo[], options?: {mode?: 'plan' | 'normal'; model?: string; reasoning?: string; skill?: {id: string; version: string}; image_mode?: 'auto' | 'files'}) => {
     if (sending) return
     setSending(true)
     try {
@@ -32,6 +32,7 @@ export default function Page() {
         attachments: files.map((file) => file.id),
         mode: options?.mode ?? 'normal',
         image_mode: options?.image_mode ?? 'auto',
+        skill: options?.skill,
         ...(options?.model && options?.reasoning ? {model: options.model, reasoning: options.reasoning} : {}),
       })
       router.push(`/sessions/${id}`)

@@ -49,6 +49,8 @@ class DBUnitOfWork(IUnitOfWork):
         self.db_session = self.session_factory()
 
         # 2.初始化所有数据库仓库
+        from .db_skill_repository import DBSkillTransaction
+        self.skills = DBSkillTransaction(self.db_session)
         self.project = DBProjectRepository(db_session=self.db_session)
         self.file = DBFileRepository(db_session=self.db_session)
         self.session = DBSessionRepository(db_session=self.db_session)

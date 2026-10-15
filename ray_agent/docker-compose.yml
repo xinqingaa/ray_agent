@@ -60,6 +60,8 @@ services:
     restart: unless-stopped
     env_file:
       - .env
+    environment:
+      SKILL_STORAGE_DIR: /data/skills
     # 未设置时为空项并被省略，沿用 Docker 默认的宿主机解析链路
     dns:
       - ${API_DNS_PRIMARY:-}
@@ -68,6 +70,7 @@ services:
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - file_data:/data/files
+      - skill_data:/data/skills
     depends_on:
       manus-redis:
         condition: service_healthy
@@ -128,6 +131,7 @@ services:
 
 # ==================== 数据卷 ====================
 volumes:
+  skill_data:
   redis_data:
     driver: local
   postgres_data:

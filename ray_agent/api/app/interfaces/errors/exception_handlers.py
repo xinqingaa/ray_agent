@@ -16,6 +16,12 @@ logger = logging.getLogger(__name__)
 def register_exception_handlers(app: FastAPI) -> None:
     """处理MoocManus项目中所有的异常并进行统一处理，涵盖：自定义业务状态异常、HTTP异常、通用异常"""
 
+    from app.domain.services.skill_packages import SkillError
+
+    @app.exception_handler(SkillError)
+    async def skill_exception_handler(req: Request, e: SkillError) -> JSONResponse:
+        return JSONResponse(status_code=e.status, content=Response(code=e.status, msg=str(e), data={}).model_dump())
+
     @app.exception_handler(ProjectRunConflict)
     async def project_conflict_handler(req: Request, e: ProjectRunConflict) -> JSONResponse:
         data = {"occupying_session_id": e.occupying_session_id} if e.occupying_session_id else {}

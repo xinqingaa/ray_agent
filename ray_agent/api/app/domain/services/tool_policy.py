@@ -68,7 +68,8 @@ def policy_candidates(
 
 def builtin_tool_catalog() -> List[Dict[str, Any]]:
     """设置页可配置的内置工具：工具集与函数名。MCP 与 A2A 的服务和工具由各自的列表接口提供。"""
-    toolkits = [FileTool(None), ShellTool(None), BrowserTool(None), WebTool(None), SearchTool(None), DeliverTool(None)]
+    from app.domain.services.tools.skill import SkillTool
+    toolkits = [SkillTool(None), FileTool(None), ShellTool(None), BrowserTool(None), WebTool(None), SearchTool(None), DeliverTool(None)]
     catalog = [{"toolset": t.name, "functions": [s["function"]["name"] for s in t.get_tools()]} for t in toolkits]
     catalog.append({"toolset": "mcp", "functions": ["discover_mcp_tools"]})
     catalog.append({"toolset": A2ATool.name, "functions": [

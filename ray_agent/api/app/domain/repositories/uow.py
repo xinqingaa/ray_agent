@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 from typing import TypeVar
 
 from .project_repository import ProjectRepository
+from .skills import SkillTransaction
 from .event_repository import EventRepository
 from .file_repository import FileRepository
 from .run_repository import RunRepository
@@ -14,6 +15,7 @@ T = TypeVar("T", bound="IUnitOfWork")
 
 class IUnitOfWork(ABC):
     """Uow模式协议接口"""
+    skills: SkillTransaction
     project: ProjectRepository
     file: FileRepository
     session: SessionRepository
