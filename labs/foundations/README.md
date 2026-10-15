@@ -1,6 +1,6 @@
 # 基础实验
 
-通过独立脚本观察模型调用、工具执行、异步服务和浏览器操作。教学顺序见 [lessons](../../lessons/README.md)，实验总体说明见 [labs](../README.md)。
+通过独立脚本观察模型调用、工具执行、异步服务和浏览器操作。实验总体说明见 [labs](../README.md)。
 
 ## 主题导航
 
@@ -158,7 +158,7 @@ uv run --locked python 6_9_mcp-code.py
 uv run --locked python 6_9_mcp-client.py
 ```
 
-客户端应发现 `run_code` 并得到结果 `42`。以上 stdio 与 HTTP 闭环已在 macOS/Python 3.12 下实际验证，不需要模型密钥或外部网络。stdio 两例用于比较资源作用域，HTTP 一例用于观察独立服务通信；计算器的 `eval` 与 HTTP 的代码执行都不等于产品沙箱隔离。协议机制和产品对照见[第十四章](../../lessons/14-external-tools-with-mcp.md)。
+客户端应发现 `run_code` 并得到结果 `42`。以上 stdio 与 HTTP 闭环已在 macOS/Python 3.12 下实际验证，不需要模型密钥或外部网络。stdio 两例用于比较资源作用域，HTTP 一例用于观察独立服务通信；计算器的 `eval` 与 HTTP 的代码执行都不等于产品沙箱隔离。
 
 ## 对照与非基线示例
 
@@ -167,4 +167,4 @@ uv run --locked python 6_9_mcp-client.py
 - `6_8_mcp-bash.py`、`6_10_mcp-external-api.py` 和 `6_11_mcp-client-connect-api.py` 分别依赖本机 Shell 或外部服务，不作为离线验收条件；`6_11` 需要 `BAIDU_MCP_TOKEN`，且对端必须支持目标协议。
 - `demo-code/`、`2-2 code/weather/` 和 `2-2 code/ui/` 是独立历史综合环境，不属于阶段 3 的协议教学基线。其中 UI 示例还依赖仓库未包含的上游模块，不能表述为当前可运行示例。
 
-本文件只声明实际验证过的入口；具体概念与产品对照由 lessons 讲解。
+本文件只声明实际验证过的入口；产品中的协议接入见 [API 指南](../../ray_agent/api/README.md#mcpa2a)。

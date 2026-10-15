@@ -2,6 +2,13 @@
 
 本页登记当前源码里的默认值和硬编码限额。调整时只改本页和对应源码；产品说明、Harness、架构与设计说明不重复这些数字。界面像素、颜色和动效以 `ray_agent/ui` 的样式与组件为准。背景里的窗口、模型和采样是当次实验条件，不随默认值改写。
 
+| 数值类型 | 阅读方式 |
+|---|---|
+| 默认值 | 未显式配置时采用，可被配置或运行快照改变 |
+| 允许范围与目录上限 | 配置校验或模型能力封顶，不等于当前实际值 |
+| 实现限制 | 由代码固定，修改需要同步实现与本页 |
+| 派生预算 | 根据模型、输出预留与当前输入计算，不能只看一个默认窗口 |
+
 配置文件是 [`ray_agent/api/config.yaml`](../ray_agent/api/config.yaml)。未写入的字段使用代码默认。部署用环境变量的名称见[运行指南](../ray_agent/README.md)。
 
 ## 模型与上下文
@@ -10,11 +17,11 @@
 |---|---|---|
 | 默认协议 | `responses`；端点可显式改为 `chat_completions` | [app_config.py](../ray_agent/api/app/domain/models/app_config.py) 的 `LLMConfig.api_protocol` |
 | 默认模型 | `deepseek-flash` | `config.yaml` |
-| 应用默认窗口 / 输出上限 / 温度 | 200000 / 8192 / 0.7 | `config.yaml` 与 `LLMConfig`、`ModelSampling` |
+| 应用默认窗口 / 输出上限 / 温度 | 200000 tokens / 8192 tokens / 0.7 | `config.yaml` 与 `LLMConfig`、`ModelSampling` |
 | 请求超时 | 默认 3600 秒，配置允许大于 0 且不超过 86400 秒。非流式是整次等待；流式是首个分片以及相邻分片的空闲间隔 | `LLMConfig.request_timeout` |
-| DeepSeek 目录窗口 / 最大输出 | 1000000 / 393216 | [model_catalog.py](../ray_agent/api/app/domain/models/model_catalog.py) 的 `deepseek_models()` |
+| DeepSeek 目录窗口 / 最大输出 | 1000000 / 393216 tokens | [model_catalog.py](../ray_agent/api/app/domain/models/model_catalog.py) 的 `deepseek_models()` |
 | DeepSeek 思考开启时的输出下限 | 32768 | 同上，`thinking_output_floor` |
-| GPT 目录窗口 / 最大输出 | 200000 / 128000。应用配置再高也会封顶到目录窗口 | `model_catalog.py` 的 `_gpt_spec()` |
+| GPT 目录窗口 / 最大输出 | 200000 / 128000 tokens。应用配置再高也会封顶到目录窗口 | `model_catalog.py` 的 `_gpt_spec()` |
 | GPT 思考输出下限 | 0 | 同上 |
 | 已知模型温度校验 | 0–2；思考开启时不发送温度 | `model_catalog.py`、配置服务 |
 | 容量字符估算 | 中日韩字符 0.7 token/字符，其余 0.3；每条消息附加 4 tokens；获得 usage 后校准 | [context/budget.py](../ray_agent/api/app/domain/services/context/budget.py) |
@@ -23,7 +30,7 @@
 
 已知模型用 `model_profiles` 里的窗口、输出上限和温度，再封顶到目录。对话第一次运行记下当时的三项；之后改设置只影响新对话，对话里换模型则用目标模型当前的数值。
 
-加载配置时，版本标记会把 DeepSeek 地址下仍为 131072 的全局窗口，以及 `deepseek-flash`、`deepseek-v4-pro` 里相同的旧窗口，迁到 200000 一次。已经改过的预算和会话里冻结的参数不迁移。来源是 [file_app_config_repository.py](../ray_agent/api/app/infrastructure/repositories/file_app_config_repository.py)。
+配置兼容迁移仅发生一次：加载配置时，版本标记把 DeepSeek 地址下仍为 131072 的全局窗口，以及 `deepseek-flash`、`deepseek-v4-pro` 里相同的旧窗口，迁到 200000 一次。已经改过的预算和会话里冻结的参数不迁移。来源是 [file_app_config_repository.py](../ray_agent/api/app/infrastructure/repositories/file_app_config_repository.py)。
 
 ## 请求预算、压缩与结果
 
@@ -64,7 +71,7 @@
 
 | 项 | 当前值 | 来源 |
 |---|---|---|
-| MCP 连接 / 发现 / 调用 | 10 / 15 / 120 秒 | `ProtocolTimeouts` |
+| MCP 连接 / 发现 / 调用 | 10 / 15 / 120 秒 | [app_config.py](../ray_agent/api/app/domain/models/app_config.py) 的 `ProtocolTimeouts` |
 | MCP / A2A 全局发现预算 | 20 秒 | `MCPConfig`、`A2AConfig.discovery_budget` |
 | A2A 连接 / 发现 | 10 / 15 秒 | `ProtocolTimeouts` |
 | A2A 调用 / 取消 | 600 / 5 秒 | `A2A` 配置字段 |

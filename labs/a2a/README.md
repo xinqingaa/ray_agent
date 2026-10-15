@@ -1,6 +1,6 @@
 # A2A 实验
 
-使用 `a2a-sdk==1.1.2` 比较 SDK 与手写 HTTP 客户端如何按 A2A 1.0 JSON-RPC 发现并调用同一个 Agent。教学讲解见[第十五章](../../lessons/15-agent-collaboration-with-a2a.md)，产品协议接入见 [API 指南](../../ray_agent/api/README.md#mcpa2a)。
+使用 `a2a-sdk==1.1.2` 比较 SDK 与手写 HTTP 客户端如何按 A2A 1.0 JSON-RPC 发现并调用同一个 Agent。产品协议接入见 [API 指南](../../ray_agent/api/README.md#mcpa2a)。
 
 | 入口 | 作用 |
 |---|---|
