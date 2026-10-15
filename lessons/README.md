@@ -1,6 +1,6 @@
 # RayAgent：Agent Harness 工程课程
 
-课程正文对应 tag `baseline-v1` 的旧实现（Plan + ReAct）。当前产品以 [docs](../docs/README.md)与源码为准，`v2` 仅是单循环阶段的历史版本。课程尚未同步后续实现，按[课程同步范围](../docs/course-sync.md)另行授权；旧方案作为[演进背景](../docs/background/README.md)保留。
+课程正文对应 tag `baseline-v1` 的上一版实现（Plan + ReAct），已冻结，短期不更新。没有特别说明时，了解、维护或评估当前项目无需阅读本目录。当前产品以 [docs](../docs/README.md)与源码为准，`v2` 仅是单循环阶段的历史版本；旧方案作为[演进背景](../docs/background/README.md)保留。
 
 以 RayAgent 为实践载体，学习 Agent Harness 的核心机制、系统设计与工程验证。课程研究模型之外的运行系统如何组织 Context、行动与反馈，让任务持续执行、受到控制，并交付可验证的结果。
 

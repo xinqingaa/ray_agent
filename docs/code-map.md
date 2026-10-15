@@ -64,7 +64,10 @@
 
 | 机制 | 主要入口 | 回归测试 |
 |---|---|---|
-| 工具声明装饰器与基类 | [tool.py](../ray_agent/api/app/domain/services/tools/tool.py)、[base.py](../ray_agent/api/app/domain/services/tools/base.py) | — |
+| 工具声明、反射收集与方法分发 | [base.py](../ray_agent/api/app/domain/services/tools/base.py) 的 `tool()`、`BaseTool.get_tools()`、`has_tool()`、`invoke()` 与 `_filter_parameters()` | — |
+| 工具集装配与模型声明汇总 | [agent_loop.py](../ray_agent/api/app/domain/services/flows/agent_loop.py) 的 `build_default_tools()` 与 `AgentLoop` 构造；[agent_task_runner.py](../ray_agent/api/app/domain/services/agent_task_runner.py) 加入项目笔记；[tool_pipeline.py](../ray_agent/api/app/domain/services/flows/tool_pipeline.py) 的 `schemas()`、`find_toolkit()` | [test_agent_loop.py](../ray_agent/api/tests/core/test_agent_loop.py) |
+| 参数解析、顶层校验与执行短路 | [tool_pipeline.py](../ray_agent/api/app/domain/services/flows/tool_pipeline.py) 的 `parse_arguments()`、`validate_arguments()`；内置参数过滤在 [base.py](../ray_agent/api/app/domain/services/tools/base.py)，核验参数检查在 [task_outcomes.py](../ray_agent/api/app/domain/services/task_outcomes.py) | [test_agent_loop.py](../ray_agent/api/tests/core/test_agent_loop.py)、[test_staged_plan.py](../ray_agent/api/tests/core/test_staged_plan.py) |
+| 模式、策略与读取并发的独立判断 | [plan_mode.py](../ray_agent/api/app/domain/services/plan_mode.py) 的 `PLAN_MODE_ALLOWED`、[tool_policy.py](../ray_agent/api/app/domain/services/tool_policy.py) 的 `resolve_policy()`；[agent_loop.py](../ray_agent/api/app/domain/services/flows/agent_loop.py) 的 `_independent_reads()`，执行段并发在 [tool_pipeline.py](../ray_agent/api/app/domain/services/flows/tool_pipeline.py) 的 `read_batch()` | [test_plan_mode_and_compact.py](../ray_agent/api/tests/core/test_plan_mode_and_compact.py)、[test_tool_approval.py](../ray_agent/api/tests/core/test_tool_approval.py)、[test_visual_resources.py](../ray_agent/api/tests/core/test_visual_resources.py) |
 | 文件、Shell、浏览器、检索工具 | [tools](../ray_agent/api/app/domain/services/tools) 的 `file.py`、`shell.py`、`browser.py`、`search.py`、`web.py`。Shell 等待秒数经沙箱适配截断到 HTTP 超时以内 | [test_shell_service.py](../ray_agent/sandbox/tests/test_shell_service.py)（沙箱，覆盖执行返回与进程组） |
 | 用户提问工具 | [message.py](../ray_agent/api/app/domain/services/tools/message.py)（调用由 `AgentLoop` 拦截为等待） | [test_agent_loop.py](../ray_agent/api/tests/core/test_agent_loop.py) |
 | 工具结果结构 | [tool_result.py](../ray_agent/api/app/domain/models/tool_result.py) | — |
@@ -223,12 +226,16 @@
 
 ## 模型配置与切换
 
+选择时机、冻结边界与主循环、压缩、辅助请求的分工见 [Harness 模型选择与请求分工](harness.md#模型选择与请求分工)。
+
 | 机制 | 代码 | 验证 |
 |---|---|---|
 | 厂商档位、温度兼容性与采样优先级 | [model_catalog.py](../ray_agent/api/app/domain/models/model_catalog.py)、[app_config_service.py](../ray_agent/api/app/application/services/app_config_service.py) | [test_model_configuration.py](../ray_agent/api/tests/core/test_model_configuration.py)、[test_model_catalog.py](../ray_agent/api/tests/core/test_model_catalog.py) |
 | 内部端点环境读取、模型到端点映射与 GPT 续接 | [llm_endpoints.py](../ray_agent/api/app/domain/models/llm_endpoints.py)、[endpoint_settings.py](../ray_agent/api/app/infrastructure/external/llm/endpoint_settings.py)、[model_catalog.py](../ray_agent/api/app/domain/models/model_catalog.py) | [test_llm_endpoints.py](../ray_agent/api/tests/core/test_llm_endpoints.py)、[test_llm_api_key.py](../ray_agent/api/tests/core/test_llm_api_key.py) |
 | 默认预算一次迁移 | [file_app_config_repository.py](../ray_agent/api/app/infrastructure/repositories/file_app_config_repository.py) | 同上配置检查 |
 | 会话切换原子保存、完整请求只读估算 | [agent_service.py](../ray_agent/api/app/application/services/agent_service.py) 的 set_model / preview_context | 同上配置检查 |
+| 会话参数绑定与运行模型恢复 | [agent_service.py](../ray_agent/api/app/application/services/agent_service.py) 的 `_remember_model()`、`_bind_sampling()`、`_llm_for_run()`；[model_catalog.py](../ray_agent/api/app/domain/models/model_catalog.py) 的 `choose_sampling()`、`model_request()` | [test_model_configuration.py](../ray_agent/api/tests/core/test_model_configuration.py)、[test_llm_endpoints.py](../ray_agent/api/tests/core/test_llm_endpoints.py) |
+| 标题与项目摘要的辅助请求选择 | [model_catalog.py](../ray_agent/api/app/domain/models/model_catalog.py) 的 `auxiliary_call()`；调用方 [title_service.py](../ray_agent/api/app/application/services/title_service.py)、[project_memory_service.py](../ray_agent/api/app/application/services/project_memory_service.py)；历史压缩另查[上下文与记忆](#上下文与记忆) | [test_title_service.py](../ray_agent/api/tests/core/test_title_service.py)、[test_model_catalog.py](../ray_agent/api/tests/core/test_model_catalog.py)、[test_project_memory_pg.py](../ray_agent/api/tests/core/test_project_memory_pg.py) |
 | 模型设置草稿、动态思考滑块与选择 | [llm-section.tsx](../ray_agent/ui/src/components/settings/llm-section.tsx)、[model-picker.tsx](../ray_agent/ui/src/components/model-picker.tsx)、[model-selection.ts](../ray_agent/ui/src/lib/model-selection.ts) | [check-model-configuration.cjs](../ray_agent/ui/scripts/check-model-configuration.cjs) |
 
 运行命令维护在所属服务指南；历史验证概况见[维护与优化计划](plan/README.md#关键验收)。
