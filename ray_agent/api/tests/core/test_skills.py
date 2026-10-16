@@ -13,7 +13,7 @@ from app.domain.models.message import Message, SkillSelection
 from app.domain.models.event import ApprovalEvent, ErrorEvent
 from app.domain.models.app_config import ToolPolicyConfig
 from app.domain.models.run import RunMode
-from app.domain.services.skill_packages import SkillError, unzip, candidates, parse_skill
+from app.domain.services.skill_packages import SkillError, prepare_local, unzip, candidates, parse_skill
 from app.application.services.skill_service import SkillService
 from app.application.services.skill_runtime import SkillRuntime
 from app.infrastructure.external.skills.storage import SkillStorage
@@ -73,6 +73,38 @@ def test_archive_links_duplicates_size_and_hash():
 @pytest.mark.parametrize('raw', [source('compress'), source('plan-mode'), b'no frontmatter', b'---\nname: ../bad\ndescription: text\n---\nbody', b'---\nname: example\ndescription: !!python/object/apply:os.system [echo]\n---\nbody'])
 def test_frontmatter_rejected(raw):
     with pytest.raises(SkillError): parse_skill(raw, Settings(_env_file=None))
+
+
+def test_prepare_local_shapes():
+    settings = Settings(_env_file=None)
+    renamed = prepare_local({'notes.md': source(), 'a.txt': b'hi'}, settings)
+    assert set(renamed) == {'SKILL.md', 'a.txt'} and renamed['SKILL.md'] == source()
+    packed = prepare_local({'bundle.zip': zipped({'outer/SKILL.md': source(), 'outer/a.txt': b'z'})}, settings, unpack_zip=True)
+    assert packed['outer/SKILL.md'] == source() and packed['outer/a.txt'] == b'z'
+    kept = prepare_local({'pack.zip': zipped({'SKILL.md': source()})}, settings)
+    assert set(kept) == {'pack.zip'}
+    folder = prepare_local({'skill/SKILL.md': source(), 'skill/scripts/run.py': b'print(1)\n', 'skill/assets/data.zip': b'PK'}, settings)
+    assert 'skill/scripts/run.py' in folder and 'skill/assets/data.zip' in folder
+    with pytest.raises(SkillError): prepare_local({'a.md': source(), 'b.md': source()}, settings)
+    with pytest.raises(SkillError): prepare_local({'SKILL.md': source(), 'guide.md': '# notes\n'.encode()}, settings)
+    with pytest.raises(SkillError): prepare_local({'SKILL.md': source(), '.git/config': b'x'}, settings)
+    with pytest.raises(SkillError): prepare_local({'repo.zip': zipped({'SKILL.md': source(), 'node_modules/pkg/index.js': b'1'})}, settings, unpack_zip=True)
+    with pytest.raises(SkillError): prepare_local({'pack.zip': b'zip', 'a.txt': b'x'}, settings, unpack_zip=True)
+
+
+def test_local_import_matches_normalized_files(tmp_path):
+    async def run():
+        s = service(tmp_path)
+        files = {'notes.md': source(), 'a.txt': b'one'}
+        op = await s.create_import(uuid.uuid4().hex, kind='local', files=files)
+        assert op['source']['kind'] == 'local'
+        assert {item['path'] for item in op['candidates'][0]['files']} == {'SKILL.md', 'a.txt'}
+        again = await s.create_import(op['id'], kind='local', files=files)
+        assert again == op
+        with pytest.raises(SkillError): await s.create_import(op['id'], kind='local', files={'notes.md': source(body='different')})
+        wrapped = await s.create_import(uuid.uuid4().hex, kind='local', files={'bundle.zip': zipped({'outer/SKILL.md': source()})}, unpack_zip=True)
+        assert wrapped['candidates'][0]['path'] == 'outer'
+    asyncio.run(run())
 
 
 def test_service_management_versions_and_restart(tmp_path):

@@ -7,16 +7,21 @@ const values = new Map();
 global.sessionStorage = {getItem:k=>values.get(k) ?? null,setItem:(k,v)=>values.set(k,v),removeItem:k=>values.delete(k)};
 let discard = false;
 global.window = {confirm:()=>discard};
-const candidate = {path:'', name:'sample-skill',description:'可复用方法',version:'a'.repeat(64),text:'---\nname: sample-skill\ndescription: 可复用方法\n---\n# 方法\n\n**核对目标**',files:[{path:'SKILL.md',size:110,sha256:'a'}],warnings:[]};
+const candidate = {path:'', name:'sample-skill',description:'可复用方法',version:'a'.repeat(64),text:'---\nname: sample-skill\ndescription: 可复用方法\n---\n# 方法\n\n**核对目标**',files:[{path:'SKILL.md',size:110,sha256:'a'},{path:'agents/openai.yaml',size:10,sha256:'b'}],warnings:[]};
 const builtin = {...candidate,id:'builtin',name:'find-skills',builtin:true,enabled:true,source:{kind:'builtin'}};
 const installed = {...candidate,id:'installed',builtin:false,enabled:true,source:{kind:'manual'}};
+let lostPublish = false, completed = null;
 let items = [builtin], imports = [], publishes = [], details = 0, failPublish = true, changed = 0;
 const api = {
   list:async()=>items,
   detail:async(name)=>{details++; return items.find(s=>s.name===name)},
   import:async(payload)=>{imports.push(payload); return {...ready,id:payload.operation_id}},
-  operation:async(id)=>({...ready,id}),
-  publish:async(id,c)=>{publishes.push({id,path:c.path}); if(failPublish){failPublish=false;throw Error('暂时无法安装')} items=[builtin,installed];return {...ready,stage:'completed',result:installed}},
+  uploadLocal:async(data)=>{const operation_id=data.get('operation_id'); imports.push({operation_id}); return {...ready,id:operation_id}},
+  operation:async(id)=>completed?.id===id?completed:({...ready,id}),
+  file:async()=>new Blob(['interface: test']),
+  importFile:async()=>new Blob(['interface: test']),
+  delete:async()=>{items=[builtin]},
+  publish:async(id,c)=>{publishes.push({id,path:c.path}); if(failPublish){failPublish=false;throw Error('暂时无法安装')} items=[builtin,installed];if(lostPublish){lostPublish=false;completed={...ready,id,stage:'completed',result:installed};throw Error('响应丢失')}return {...ready,stage:'completed',result:installed}},
 };
 const ready = {id:'operation',stage:'ready',source:{kind:'manual'},candidates:[candidate],error:null,result:null};
 const ui = new Proxy({}, {get:(_,name)=>props=>{
@@ -60,11 +65,25 @@ async function main(){
   await click('find-skills内置可复用方法');
   assert.equal(details,1);assert.equal(c.root.findAllByType('textarea').length,0);assert.equal(button('编辑正文'),undefined);
   assert.equal(c.root.findByType('article').props['data-markdown'],'# 方法\n\n**核对目标**');
-  await click('文件1');assert.equal(c.root.findAllByType('article').length,0);
+  await click('agents/openai.yaml');assert.equal(c.root.findAllByType('article').length,0);
+  assert.ok(c.root.findAllByType('pre').some(n=>text(n).includes('interface: test')));
   await click('SKILL.md');assert.equal(c.root.findAllByType('article').length,1);
   await act(async()=>c.root.findByType('dialog').parent.props.onOpenChange(false));
   assert.equal(c.root.findAllByType('dialog').length,0);
-  await click('新增 Skill');await click('创建');
+  const local = load(path.join(root,'src/lib/skill-local.ts'));
+  const loose = local.classifyLocalPaths(['notes.md','a.txt'], 'loose');
+  assert.equal(loose.ok, true);
+  assert.deepEqual(loose.files.map(item => item.path).sort(), ['SKILL.md','a.txt']);
+  assert.equal(local.classifyLocalPaths(['a.md','b.md'], 'loose').ok, false);
+  assert.equal(local.classifyLocalPaths(['pack.zip','a.txt'], 'loose').ok, false);
+  assert.equal(local.classifyLocalPaths(['SKILL.md','guide.md'], 'loose').ok, false);
+  assert.equal(local.classifyLocalPaths(['pack.zip'], 'loose').zip, true);
+  const folder = local.classifyLocalPaths(['skill/SKILL.md','skill/run.py','skill/.DS_Store','__MACOSX/x'], 'folder');
+  assert.deepEqual(folder.files.map(item => item.path), ['skill/SKILL.md','skill/run.py']);
+  assert.equal(local.classifyLocalPaths(['skill/.git/config'], 'folder').ok, false);
+  assert.equal(local.hasSkillFrontmatter('---\nname: a\n---\nbody\n'), true);
+  assert.equal(local.hasSkillFrontmatter('# 标题\n'), false);
+  await click('新增 Skill');await click('本地内容');await click('直接编写从空白正文开始');
   await act(async()=>{
     input('my-skill').props.onChange({target:{value:'sample-skill'}});
     input('什么时候使用这个 Skill').props.onChange({target:{value:'可复用方法'}});
@@ -76,15 +95,41 @@ async function main(){
   await act(async()=>c.update(React.createElement(m.exports.SkillsSection,{...props,active:true})));
   assert.equal(input('my-skill').props.value,'sample-skill');
   await click('取消');assert.equal(c.root.findAllByType('dialog').length,1,'拒绝放弃后保留表单');
-  await click('预览');assert.equal(c.root.findAllByType('article').length,1);
-  await click('返回来源');assert.equal(input('my-skill').props.value,'sample-skill');
-  await click('预览');assert.equal(imports[0].operation_id,imports[1].operation_id,'同一输入重试沿用身份');
+  await click('GitHub');assert.ok(button('获取'));assert.equal(button('安装 Skill'),undefined);assert.equal(button('改用文件'),undefined);
+  await click('本地内容');assert.equal(input('my-skill').props.value,'sample-skill');
+  await click('查看排版');assert.equal(c.root.findAllByType('article').length,1);
+  await click('继续编辑');assert.equal(c.root.findAllByType('textarea').length,1);
   await click('安装 Skill');assert.ok(c.root.findByProps({role:'alert'}));
-  await click('安装 Skill');assert.equal(publishes[0].id,publishes[1].id);assert.equal(publishes[0].path,'','支持根目录候选');
-  assert.equal(c.root.findAllByType('dialog').length,0);assert.equal(dirty,false);assert.equal(changed,1);
-  await click('新增 Skill');await click('创建');assert.equal(input('my-skill').props.value,'','新建不继承上次输入');
-  discard=true;await click('取消');assert.equal(c.root.findAllByType('dialog').length,0);
+  await click('安装 Skill');assert.equal(publishes[0].id,publishes[1].id);assert.equal(publishes[0].path,'');
+  assert.equal(c.root.findAllByType('dialog').length,1,'成功后留在详情');assert.equal(dirty,false);assert.equal(changed,1);
+  await click('删除 Skill');await click('删除');assert.equal(c.root.findAllByType('dialog').length,0);
+  await click('新增 Skill');await click('本地内容');
+  assert.equal(button('预览'),undefined);
+  const fileInput=c.root.findAllByType('input').find(n=>n.props.type==='file' && n.props.accept);
+  await act(async()=>{await fileInput.props.onChange({target:{files:[new File(['---\nname: sample-skill\n---\nbody'],'SKILL.md')],value:''}});await new Promise(r=>setTimeout(r,0))});
+  assert.ok(c.root.findAllByType('article').length,'选择文件后自动打开正文');
+  assert.equal(button('获取'),undefined);
+  lostPublish=true;await click('安装 Skill');
+  assert.equal(c.root.findAllByType('dialog').length,1,'响应丢失后读回完成结果并打开详情');
+  assert.equal(c.root.findAllByProps({role:'alert'}).length,0);
   await act(async()=>c.unmount());
-  console.log('PASS: 内置只读、Markdown 正文、文件往返、分区草稿、关闭保护、预览返回、幂等重试、失败恢复、安装清理');
+  // 快速切换文件时，迟到的读取不能覆盖当前对象。
+  const Reader=load(path.join(root,'src/components/skill-reader.tsx')).SkillReader;
+  let completeYaml;
+  const yaml=new Promise(resolve=>{completeYaml=resolve});
+  const reading={...installed,files:[...installed.files,{path:'scripts/run.py',size:5,sha256:'c'}]};
+  await act(async()=>{c=create(React.createElement(Reader,{skill:reading,readFile:p=>p==='agents/openai.yaml'?yaml:Promise.resolve(new Blob(['print(1)']))}))});
+  await click('agents/openai.yaml');await click('scripts/run.py');
+  await act(async()=>{completeYaml(new Blob(['late yaml']));await Promise.resolve()});
+  assert.ok(c.root.findAllByType('pre').some(n=>text(n).includes('print(1)')));
+  assert.ok(!c.root.findAllByType('pre').some(n=>text(n).includes('late yaml')));
+  await act(async()=>c.unmount());
+  const previousFetch=global.fetch;let sent;
+  global.fetch=async(_url,options)=>{sent=options;return new Response(JSON.stringify({code:200,data:{}}),{headers:{'content-type':'application/json'}})};
+  await load(path.join(root,'src/lib/api/fetch.ts')).request('/skills/example',{method:'DELETE'});
+  assert.equal(sent.headers['Content-Type'],undefined,'无正文删除不标为 JSON');
+  global.fetch=previousFetch;
+
+  console.log('PASS: 内置只读、包文件读取、草稿排版、关闭保护、失败重试、安装留在详情、删除、选择文件后自动打开');
 }
 main().catch(error=>{console.error(error);process.exitCode=1});

@@ -115,6 +115,8 @@ npm run start
 
 `start` 需要已有构建产物。当前没有覆盖完整交互的自动化测试套件；lint 和构建不验证完整交互。本地事件观察见下节。涉及事件的修改还需检查实时消息、历史详情、计划更新与工具结果展示。
 
+`check-slash-command-menu.cjs` 挂载实际菜单与圆环，使用 DOM 几何替身检查鼠标高亮不滚动、键盘最小滚动、滚轮位置不回拉、静止指针不抢选择、未知态及禁用压缩；`check-composer-images.cjs` 另核对关闭后松键不重开、查询变化可重新打开。长列表的实际滚动、锚定、搜索高度与键盘交互仍需浏览器走查。
+
 图片输入检查使用实际输入组件、剪贴板提取和草稿模块，替换上传、模型目录与基础 UI；覆盖单次提取不重复、混合文字、部分成功、迟到响应归属、缩略图操作入口、不依赖模型目录发送、多图自动提交和旧模式受理核对。高度、聚焦、悬浮样式与系统剪贴板行为需实际浏览器核对，不能由组件替身推导。
 
 容器使用多阶段构建并输出 standalone 应用。整体启动见 [运行指南](../README.md)，启停与日志见 [Docker 操作说明](../DOCKER.md)。
@@ -130,6 +132,7 @@ node scripts/check-plan-progress.cjs
 node scripts/check-chat-progress.cjs
 node scripts/check-slash-trigger.cjs
 node scripts/check-command-state.cjs
+node scripts/check-slash-command-menu.cjs
 node scripts/check-send-recovery.cjs
 node scripts/check-workbench-recovery.cjs
 node scripts/check-project-navigation-recovery.cjs
@@ -157,6 +160,6 @@ node scripts/check-project-upload-tree.cjs
 
 ## skill 输入与设置
 
-设置的 skill 分区独立于开发者模式，切换分区保留未保存正文和导入操作；关闭仍使用统一未保存提示。导入响应未知时沿原操作查询，同一输入重试沿用操作身份。内置 skill 仅可查看和启停。
+设置的 skill 分区独立于开发者模式，切换分区保留未保存正文和导入操作；关闭仍使用统一未保存提示。导入响应未知时沿原操作查询，结果未知时同一输入重试沿用操作身份，明确失败或过期后重新获取。内置 skill 仅可查看和启停。
 
-输入框把所选 skill 显示为正文开头的整段名称，`/skill 名 任务`、草稿和受理读回携带 skill ID 与版本；`check-composer-images.cjs` 同时核对快捷输入、无正文保留草稿、选择恢复和相同正文不同 skill 的受理隔离。`check-skills-settings.cjs` 使用实际 skill 设置组件，替换网络、弹层宿主与 Markdown 渲染，覆盖只读边界、说明与文件往返、草稿保留、预览返回、关闭保护和安装重试。Markdown 实际渲染、名称选中与预览、菜单跟随滚动、来源切换动画、叠层焦点、窄屏布局、社区导航及文件选择需在真实浏览器核对。
+输入框把所选 skill 显示为正文开头的整段名称，`/skill 名 任务`、草稿和受理读回携带 skill ID 与版本；`check-composer-images.cjs` 同时核对快捷输入、无正文保留草稿、选择恢复和相同正文不同 skill 的受理隔离。`check-skills-settings.cjs` 使用实际 skill 设置组件，替换网络、弹层宿主与 Markdown 渲染，覆盖只读边界、包文件阅读与迟到响应隔离、草稿排版与保留、关闭保护、安装重试及详情收尾、直接编写、本地文件分类与选入后自动打开，以及无正文 DELETE 请求头。Markdown 实际渲染、名称选中与预览、菜单的键盘跟随与鼠标独立滚动、来源切换动画、叠层焦点、窄屏布局、社区导航及文件夹、ZIP 与 Markdown 选择需在真实浏览器核对。

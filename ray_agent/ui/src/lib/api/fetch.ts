@@ -123,7 +123,7 @@ export async function request<T = unknown>(
 
   // 合并请求头
   const mergedHeaders: HeadersInit = {
-    "Content-Type": "application/json",
+    ...(fetchOptions.body != null && !(fetchOptions.body instanceof FormData) ? {"Content-Type": "application/json"} : {}),
     ...headers,
   };
 
@@ -503,4 +503,16 @@ export function uploadRequest<T>(endpoint:string, body:FormData, onProgress?:(lo
     }
     xhr.send(body)
   })
+}
+
+/** 包资源保留原始字节，复用 API 错误与超时处理。 */
+export async function requestBlob(endpoint: string): Promise<Blob> {
+  try {
+    const response = await fetchWithTimeout(`${API_CONFIG.baseURL}${endpoint}`)
+    if (!response.ok) await handleErrorResponse(response)
+    return await response.blob()
+  } catch (error) {
+    if (error instanceof ApiError) throw error
+    throw new ApiError(500, '文件读取连接中断，请重试')
+  }
 }

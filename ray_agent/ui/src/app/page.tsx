@@ -72,8 +72,6 @@ export default function Page() {
               waitingReply: false,
               submitting: sending,
               compacting: false,
-              projectsEnabled: true,
-              projectBindable: true,
               actions: {compact: () => toast.message('还没有可压缩的上下文')},
             }}
           />

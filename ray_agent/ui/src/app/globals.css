@@ -298,3 +298,12 @@
 @media (prefers-reduced-motion: reduce) {
     .plan-reveal { transition: none; }
 }
+
+/* 保留原有菜单阴影，仅在顶部补一层轻微投影。 */
+.slash-command-elevation {
+    box-shadow: 0 -4px 10px -5px rgb(0 0 0 / 0.08), var(--tw-shadow);
+}
+
+.dark .slash-command-elevation {
+    box-shadow: 0 -4px 10px -5px rgb(0 0 0 / 0.12), var(--tw-shadow);
+}

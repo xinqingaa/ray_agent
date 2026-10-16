@@ -111,7 +111,6 @@ export function SessionDetailView({
   const [hiddenUserIds, setHiddenUserIds] = useState<string[]>([])
   const [retrying, setRetrying] = useState<{text: string; knownUserIds: string[]; fromRunId: string} | null>(null)
   const [retrySessionId, setRetrySessionId] = useState<string | null>(null)
-  const projectsEnabled = true
   const [projectRefreshSignal, setProjectRefreshSignal] = useState(0)
   const projectRefreshRef = useRef<ReturnType<typeof createProjectRefreshWatcher> | null>(null)
   const [approvalRequest, setApprovalRequest] = useState<ApprovalSubmitting | null>(null)
@@ -247,7 +246,6 @@ export function SessionDetailView({
     if (focus && tab !== 'project' && !inspectingFile) setTab(tabForFamily(focus.family))
   }
 
-  const projectBindable = (view?.runs.length ?? 0) === 0 && (view?.status ?? 'idle') === 'idle'
 
 
   useEffect(() => {
@@ -672,8 +670,6 @@ export function SessionDetailView({
                       runModel={session?.run_model}
                       runReasoning={session?.run_reasoning}
                       accessory={() => visibility.contextUsage ? <ContextRing usage={view.usage}/> : null}
-                      projectsEnabled={projectsEnabled}
-                      projectBindable={projectBindable}
                       selectedProject={view.project}
                       commandHost={{
                         hasSession: true,
@@ -683,8 +679,7 @@ export function SessionDetailView({
                         waitingReply: view.activeRun?.activity.kind === 'waiting_reply',
                         submitting,
                         compacting,
-                        projectsEnabled,
-                        projectBindable,
+                        contextUsage: view.usage,
                         actions: {compact: () => { void handleCompact() }},
                       }}
                     />

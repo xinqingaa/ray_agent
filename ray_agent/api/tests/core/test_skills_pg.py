@@ -39,7 +39,21 @@ def test_skill_publication_acceptance_and_reference_lifetime(tmp_path):
         assert stored.config_snapshot['skills_frozen']
         # 删 skill 仍保留旧运行版本，删运行由外键释放引用。
         latest = await s.detail('example')
-        await s.change('example', latest['version'], delete=True)
+        # 无正文 DELETE 经过真实 HTTP 依赖及 PostgreSQL 受理锁。
+        from fastapi import FastAPI, Depends
+        from httpx import AsyncClient, ASGITransport
+        from unittest.mock import patch
+        from app.interfaces.endpoints.skill_routes import router
+        from app.interfaces.data_admission import data_admission
+        from app.interfaces.service_dependencies import get_skill_service
+        app = FastAPI()
+        app.include_router(router, prefix='/api', dependencies=[Depends(data_admission)])
+        app.dependency_overrides[get_skill_service] = lambda: s
+        with patch('app.interfaces.data_admission.get_session_factory', return_value=uow_factory().session_factory):
+            async with AsyncClient(transport=ASGITransport(app=app), base_url='http://test') as client:
+                response = await client.delete('/api/skills/example', params={'expected_version': latest['version']},
+                                               headers={'content-type': 'application/json'})
+                assert response.status_code == 200
         assert (await s.load(run.id, 'example'))['version'] == installed['version']
         async with engine.begin() as conn:
             await conn.execute(text('DELETE FROM sessions WHERE id=:id'), {'id': session.id})

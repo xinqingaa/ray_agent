@@ -1,16 +1,10 @@
 'use client'
 
-import {useLayoutEffect, useRef, useState} from 'react'
+import {useId, useLayoutEffect, useRef, useState, type PointerEvent} from 'react'
 import {useDeveloperMode} from '@/hooks/use-developer-mode'
 import {Info, Loader2, Plus} from 'lucide-react'
 import {Button} from '@/components/ui/button'
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandItem,
-  CommandList,
-} from '@/components/ui/command'
+import {ContextRingGlyph} from '@/components/run/context-ring'
 import {commandSearchFields, matchingCommands, type CommandContext, type InputCommand} from '@/lib/commands'
 import {matchesCommandQuery} from '@/lib/slash-trigger'
 import {cn} from '@/lib/utils'
@@ -18,34 +12,30 @@ import {Tooltip, TooltipTrigger, TooltipContent} from '@/components/ui/tooltip'
 import {DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem} from '@/components/ui/dropdown-menu'
 
 
-function CommandRow({
-  command,
-  context,
-  onRun,
-}: {
+function CommandRow({command, context, active, onPointerMove, onRun}: {
   command: InputCommand
   context: CommandContext
+  active: boolean
+  onPointerMove: (event: PointerEvent<HTMLDivElement>) => void
   onRun: (command: InputCommand) => void
 }) {
+  const id = useId()
   const availability = command.available(context)
   const Icon = command.icon
-  return (
-    <CommandItem
-      value={command.id}
-      onMouseDown={(event) => event.preventDefault()}
-      onSelect={() => {
-        if (!availability.available) return
-        onRun(command)
-      }}
-      className={cn('rounded-lg px-3 py-2.5', !availability.available && 'text-muted-foreground')}
-    >
-      <Icon className="size-4"/>
-      <span className="max-w-[55%] shrink-0 truncate font-medium">{command.title}</span>
-      <span className="min-w-0 flex-1 truncate text-meta text-muted-foreground">
-        {availability.available ? command.description : <><span className="sr-only">不可用，</span>{availability.reason}</>}
-      </span>
-    </CommandItem>
-  )
+  const compact = command.id === 'compact'
+  const label = !availability.available ? `${command.title}，不可用：${availability.reason}` : command.title
+  const row = <div id={id} role="option" aria-selected={active} aria-disabled={!availability.available}
+    aria-label={!availability.available ? label : undefined} data-value={command.id} data-slot="command-item"
+    onPointerMove={onPointerMove} onMouseDown={event => event.preventDefault()}
+    onClick={() => {if (availability.available) onRun(command)}}
+    className={cn('flex cursor-default select-none items-center gap-2 rounded-lg px-3 py-2.5 text-sm', active && 'bg-accent text-accent-foreground', !availability.available && 'text-muted-foreground')}>
+    <Icon className="size-4 shrink-0 text-muted-foreground"/>
+    <span className="max-w-[55%] shrink-0 truncate font-medium">{command.title}</span>
+    <span className="min-w-0 flex-1 truncate text-meta text-muted-foreground">
+      {compact ? <ContextRingGlyph usage={context.contextUsage}/> : availability.available ? command.description : <><span className="sr-only">不可用，</span>{availability.reason}</>}
+    </span>
+  </div>
+  return !availability.available ? <Tooltip><TooltipTrigger asChild>{row}</TooltipTrigger><TooltipContent>{availability.reason}</TooltipContent></Tooltip> : row
 }
 
 export function PlusCommandMenu({context}: {context: CommandContext}) {
@@ -90,90 +80,49 @@ export function PlusCommandMenu({context}: {context: CommandContext}) {
   )
 }
 
-export function SlashCommandList({
-  query,
-  extraCommands = [],
-  context,
-  activeId,
-  onActiveIdChange,
-  onRun,
-}: {
+/** 鼠标只改高亮；键盘导航才允许调整列表内部的可视位置。 */
+export function SlashCommandList({query, extraCommands = [], context, activeId, keyboardStep = 0, onActiveIdChange, onRun}: {
   query: string
   extraCommands?: InputCommand[]
   context: CommandContext
   activeId: string | null
+  keyboardStep?: number
   onActiveIdChange: (id: string) => void
   onRun: (command: InputCommand) => void
 }) {
   const {visibility} = useDeveloperMode()
-  const frameRef = useRef<HTMLDivElement>(null)
+  const listId = useId()
   const listRef = useRef<HTMLDivElement>(null)
-  const heightReady = useRef(false)
-  const commands = matchingCommands(query, {projectsEnabled: context.projectsEnabled}).filter(command => visibility.canShowCommand(command.id))
+  const seenKeyboardStep = useRef(keyboardStep)
+  const lastPointer = useRef<{x: number; y: number} | null>(null)
+  const commands = matchingCommands(query).filter(command => visibility.canShowCommand(command.id))
   const skills = extraCommands.filter(command => matchesCommandQuery(query, commandSearchFields(command)))
-  const items = [...commands, ...skills]
-  const heightKey = items.map(item => item.id).join('\n')
   useLayoutEffect(() => {
-    const frame = frameRef.current
-    const content = listRef.current
-    if (!frame || !content) return
-    const next = content.offsetHeight
-    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    if (!heightReady.current || reduce) {
-      heightReady.current = true
-      frame.style.height = `${next}px`
-      return
-    }
-    const prev = frame.getBoundingClientRect().height
-    if (Math.abs(prev - next) < 1) return
-    frame.style.height = `${prev}px`
-    void frame.offsetHeight
-    frame.style.height = `${next}px`
-  }, [heightKey])
+    if (listRef.current) listRef.current.scrollTop = 0
+  }, [query])
   useLayoutEffect(() => {
-    const root = listRef.current
-    if (!root || !activeId) return
-    const reveal = () => {
-      const list = root.querySelector<HTMLElement>('[data-slot="command-list"]')
-      const selected = root.querySelector<HTMLElement>(`[cmdk-item][data-value="${CSS.escape(activeId)}"]`)
-      if (!list || !selected) return
-      const listBox = list.getBoundingClientRect()
-      const itemBox = selected.getBoundingClientRect()
-      if (itemBox.top < listBox.top) list.scrollTop -= listBox.top - itemBox.top
-      else if (itemBox.bottom > listBox.bottom) list.scrollTop += itemBox.bottom - listBox.bottom
-    }
-    reveal()
-    const frame = requestAnimationFrame(reveal)
-    return () => cancelAnimationFrame(frame)
-  }, [activeId, items.length, query])
-  return (
-    <div ref={frameRef} className="overflow-hidden transition-[height] duration-200 ease-out motion-reduce:transition-none">
-    <div ref={listRef}>
-    <Command
-      shouldFilter={false}
-      loop
-      label="命令"
-      value={activeId ?? ''}
-      onValueChange={(id) => {
-        if (id) onActiveIdChange(id)
-      }}
-    >
-      <CommandList label="命令">
-        {items.length === 0 ? (
-          <CommandEmpty className="py-4 text-center text-meta text-muted-foreground">没有匹配的命令</CommandEmpty>
-        ) : (
-          <>
-          <CommandGroup heading="命令" className="p-2">
-            {commands.map((command) => (
-              <CommandRow key={command.id} command={command} context={context} onRun={onRun}/>
-            ))}
-          </CommandGroup>
-          {skills.length > 0 && <CommandGroup heading="Skills" className="p-2">{skills.map(command => <CommandRow key={command.id} command={command} context={context} onRun={onRun}/>)}</CommandGroup>}
-          </>
-        )}
-      </CommandList>
-    </Command>
-    </div>
-    </div>
-  )
+    if (keyboardStep === seenKeyboardStep.current) return
+    seenKeyboardStep.current = keyboardStep
+    const list = listRef.current
+    if (!list || !activeId) return
+    const selected = list.querySelector<HTMLElement>(`[role="option"][data-value="${CSS.escape(activeId)}"]`)
+    if (!selected) return
+    const viewport = list.getBoundingClientRect(), item = selected.getBoundingClientRect()
+    if (item.top < viewport.top) list.scrollTop -= viewport.top - item.top
+    else if (item.bottom > viewport.bottom) list.scrollTop += item.bottom - viewport.bottom
+  }, [keyboardStep, activeId])
+  const point = (id: string, event: PointerEvent<HTMLDivElement>) => {
+    if (event.pointerType === 'touch') return
+    const previous = lastPointer.current
+    lastPointer.current = {x: event.clientX, y: event.clientY}
+    if (previous ? previous.x === event.clientX && previous.y === event.clientY : !event.movementX && !event.movementY) return
+    onActiveIdChange(id)
+  }
+  return <div ref={listRef} id={listId} role="listbox" aria-label="命令" data-slot="command-list"
+    className="h-[min(20rem,var(--radix-popover-content-available-height,20rem))] overflow-y-auto overscroll-contain p-2">
+    {commands.length + skills.length === 0 ? <p className="py-4 text-center text-meta text-muted-foreground">没有匹配的命令</p> : <>
+      {commands.length > 0 && <div role="group" aria-label="命令"><p aria-hidden className="px-2 py-1.5 text-xs text-muted-foreground">命令</p>{commands.map(command => <CommandRow key={command.id} command={command} context={context} active={activeId === command.id} onPointerMove={event => point(command.id, event)} onRun={onRun}/>)}</div>}
+      {skills.length > 0 && <div role="group" aria-label="Skills" className={cn(commands.length > 0 && 'mt-2')}><p aria-hidden className="px-2 py-1.5 text-xs text-muted-foreground">Skills</p>{skills.map(command => <CommandRow key={command.id} command={command} context={context} active={activeId === command.id} onPointerMove={event => point(command.id, event)} onRun={onRun}/>)}</div>}
+    </>}
+  </div>
 }

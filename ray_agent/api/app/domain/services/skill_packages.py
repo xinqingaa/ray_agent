@@ -123,6 +123,57 @@ def unzip(raw: bytes, settings, *, github_archive=False, directory=None) -> dict
         raise SkillError(f'ZIP 无法读取：{exc}') from exc
 
 
+def local_request_bytes(files: dict[str, bytes]) -> bytes:
+    chunks = []
+    for path in sorted(files):
+        data = files[path]
+        chunks.extend((path.encode(), b'\0', str(len(data)).encode(), b'\0', data, b'\0'))
+    return b''.join(chunks)
+
+
+def _reject_skill_roots(files: dict[str, bytes]) -> None:
+    for path in files:
+        if any(part in {'.git', 'node_modules'} for part in path.split('/')):
+            raise SkillError('请选择 Skill 目录，不要包含 .git 或 node_modules')
+
+
+def _promote_skill_markdown(files: dict[str, bytes]) -> dict[str, bytes]:
+    if any(path == 'SKILL.md' or path.endswith('/SKILL.md') for path in files):
+        flat_text = all('/' not in path and path.lower().endswith(('.md', '.txt')) for path in files)
+        if flat_text and any(path != 'SKILL.md' and path.lower().endswith('.md') for path in files):
+            raise SkillError('请只保留一个 SKILL.md；其他 Markdown 请放入文件夹或 ZIP')
+        return files
+    if any('/' in path for path in files):
+        return files
+    markdown = [path for path in files if path.lower().endswith('.md')]
+    if any(not path.lower().endswith(('.md', '.txt')) for path in files):
+        return files
+    if len(markdown) == 1:
+        renamed = dict(files)
+        renamed['SKILL.md'] = renamed.pop(markdown[0])
+        return renamed
+    if len(markdown) > 1:
+        raise SkillError('请保留一个名为 SKILL.md 的文件')
+    return files
+
+
+def prepare_local(files: dict[str, bytes], settings, *, unpack_zip=False) -> dict[str, bytes]:
+    """把设置页的本地材料归一成包。单个 ZIP 才解压；文件夹里的 ZIP 保持为普通文件。"""
+    if not files:
+        raise SkillError('请选择 Skill 文件')
+    if unpack_zip:
+        if len(files) != 1:
+            raise SkillError('请只上传一个 ZIP，或改为选择文件夹')
+        path, data = next(iter(files.items()))
+        if '/' in path or not path.lower().endswith('.zip'):
+            raise SkillError('请选择 ZIP 文件')
+        unpacked = unzip(data, settings)
+        _reject_skill_roots(unpacked)
+        return unpacked
+    _reject_skill_roots(files)
+    return _promote_skill_markdown(validate_files(files, settings))
+
+
 def candidates(files, settings, directory=None):
     roots = sorted(p[:-len('SKILL.md')].rstrip('/') for p in files if p.split('/')[-1] == 'SKILL.md')
     if directory is not None:

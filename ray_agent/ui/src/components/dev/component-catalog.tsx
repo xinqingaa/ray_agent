@@ -222,9 +222,7 @@ const commandIdle: CommandContext = {
   uploading: false,
   compacting: false,
   planMode: false,
-  projectsEnabled: true,
-  projectBindable: true,
-  actions: {openFilePicker: noop, togglePlan: noop, openProjectPicker: noop, compact: noop},
+  actions: {openFilePicker: noop, togglePlan: noop, compact: noop},
 }
 
 const commandRunning: CommandContext = {

@@ -89,12 +89,12 @@ class SkillStorage:
                 result[path.relative_to(base).as_posix()] = path.read_bytes()
         return validate_files(result, self.settings)
 
-    def read(self, version, manifest, path):
+    def read(self, version, manifest, path, *, namespace="versions", prefix=""):
         path = safe_path(path)
         entry = next((f for f in manifest if f['path'] == path), None)
         if entry is None:
             raise SkillError('资源不属于当前 Skill', 404)
-        target = self._dir('versions', version) / path
+        target = self._dir(namespace, version) / (prefix + path)
         if any(p.is_symlink() for p in [target, *target.parents] if p != self.root.parent):
             raise SkillError('Skill 资源路径异常', 409)
         try:

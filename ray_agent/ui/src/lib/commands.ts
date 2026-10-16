@@ -1,5 +1,5 @@
-import {ClipboardList, Folder, Layers, Paperclip, type LucideIcon} from 'lucide-react'
-import type {RunStatus} from '@/lib/session-view'
+import {ClipboardList, Layers, Paperclip, type LucideIcon} from 'lucide-react'
+import type {UsageView, RunStatus} from '@/lib/session-view'
 import {matchesCommandQuery} from '@/lib/slash-trigger'
 
 export type CommandAvailability =
@@ -34,21 +34,15 @@ export type CommandContext = {
   compacting: boolean
   /** 输入框是否带计划模式标记。 */
   planMode: boolean
-  /** 托管项目入口可发现；可用性由项目选择器说明。 */
-  projectsEnabled: boolean
-  /** 首页，或会话尚未开始首次运行时可绑定项目。 */
-  projectBindable: boolean
+  contextUsage?: Pick<UsageView, 'context' | 'watermarkRatio'>
   actions: CommandHostActions & {
     openFilePicker: () => void
     togglePlan: () => void
-    openProjectPicker: () => void
   }
 }
 
 /** 页面能提供的部分。上传、计划标记与文件选择由输入框补上。 */
-export type CommandHost = Omit<CommandContext, 'uploading' | 'planMode' | 'actions' | 'projectsEnabled' | 'projectBindable'> & {
-  projectsEnabled?: boolean
-  projectBindable?: boolean
+export type CommandHost = Omit<CommandContext, 'uploading' | 'planMode' | 'actions'> & {
   actions: CommandHostActions
 }
 
@@ -144,26 +138,6 @@ function compactAvailable(context: CommandContext): CommandAvailability {
   return {available: true}
 }
 
-function projectAvailable(): CommandAvailability {
-  return {available: true}
-}
-
-const projectCommand: InputCommand = {
-  id: 'project',
-  surfaces: ['slash'],
-  title: '打开项目',
-  description: '打开项目导航，保留当前草稿',
-  keyword: 'project',
-  aliases: [],
-  keywords: ['项目', '目录', '仓库'],
-  icon: Folder,
-  available: projectAvailable,
-  run(context) {
-    if (!projectAvailable().available) return
-    context.actions.openProjectPicker()
-  },
-}
-
 const compactCommand: InputCommand = {
   id: 'compact',
   surfaces: ['plus', 'slash'],
@@ -189,14 +163,14 @@ export function commandById(id: string): InputCommand | undefined {
  * `+` 菜单与 `/` 提示只读这个数组，顺序即展示顺序。
  * 展示入口由 surfaces 定义，执行状态由 available 统一判断。
  */
-export const inputCommands: readonly InputCommand[] = [uploadCommand, planCommand, compactCommand, projectCommand]
+export const inputCommands: readonly InputCommand[] = [uploadCommand, planCommand, compactCommand]
 
 export function commandSearchFields(command: InputCommand): readonly string[] {
   return [command.keyword, ...command.aliases, ...command.keywords, command.title]
 }
 
 /** 按注册表顺序返回查询命中的命令。空查询返回全部。 */
-export function matchingCommands(query: string, _context?: Pick<CommandContext, 'projectsEnabled'>, surface: 'plus' | 'slash' = 'slash'): readonly InputCommand[] {
+export function matchingCommands(query: string, _context?: object, surface: 'plus' | 'slash' = 'slash'): readonly InputCommand[] {
   return inputCommands.filter((command) => {
     if (!command.surfaces.includes(surface)) return false
     return matchesCommandQuery(query, commandSearchFields(command))

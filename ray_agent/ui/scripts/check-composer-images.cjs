@@ -141,6 +141,19 @@ async function main(){
   await act(async()=>{component=create(React.createElement(ChatInput,{...props,draftScope:'skill-input'}))});
   assert.equal(component.root.findAllByType('button').filter(n=>n.props['aria-label']==='预览 example').length,1);
   await act(async()=>component.unmount());
+  await act(async()=>{component=create(React.createElement(ChatInput,{...props,draftScope:'slash-close'}))});
+  await act(async()=>textarea().props.onChange({target:{value:'/example',selectionStart:8}}));
+  assert.equal(textarea().props.role,'combobox');
+  const popup=component.root.findAllByProps({'data-component':'Popover'}).find(n=>n.props.open===true);
+  await act(async()=>popup.props.onOpenChange(false));
+  await act(async()=>textarea().props.onKeyUp({nativeEvent:{isComposing:false},currentTarget:{value:'/example',selectionStart:8}}));
+  assert.notEqual(textarea().props.role,'combobox','弹层关闭后松键不能重开同一片段');
+  await act(async()=>textarea().props.onChange({target:{value:'/exampl',selectionStart:7}}));
+  assert.equal(textarea().props.role,'combobox','修改查询后可重新打开');
+  await act(async()=>textarea().props.onKeyDown({key:'Escape',nativeEvent:{isComposing:false},preventDefault(){},stopPropagation(){}}));
+  await act(async()=>textarea().props.onKeyUp({nativeEvent:{isComposing:false},currentTarget:{value:'/exampl',selectionStart:7}}));
+  assert.notEqual(textarea().props.role,'combobox');assert.equal(ref.current.getInputValue(),'/exampl');
+  await act(async()=>component.unmount());
   console.log('PASS: Skill 快捷输入、完整结构化版本、无正文保留草稿、选择恢复、相同文字不同 Skill 受理隔离');
 }
 main().catch(error=>{console.error(error);process.exitCode=1});

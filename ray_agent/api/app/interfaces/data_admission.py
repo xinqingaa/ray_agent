@@ -1,5 +1,6 @@
 """写请求先取得共享锁；清理受理以独占锁固定清单，拒绝迟到的目标写入。"""
-from fastapi import Request
+import json
+from fastapi import Request, HTTPException
 from app.infrastructure.storage.postgres import get_session_factory
 from app.infrastructure.repositories.db_data_cleanup_repository import DBDataCleanupRepository
 
@@ -12,7 +13,11 @@ async def data_admission(request: Request):
     factory = get_session_factory()
     project_id = request.query_params.get('project_id')
     if request.headers.get('content-type', '').startswith('application/json'):
-        body = await request.json()
+        raw = await request.body()
+        try:
+            body = json.loads(raw) if raw.strip() else None
+        except (ValueError, UnicodeDecodeError) as exc:
+            raise HTTPException(status_code=400, detail="JSON 正文格式错误") from exc
         if isinstance(body, dict):
             project_id = body.get('project_id', project_id)
     async with DBDataCleanupRepository(factory).admission(path, project_id):

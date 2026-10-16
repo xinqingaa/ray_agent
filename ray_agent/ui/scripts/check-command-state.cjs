@@ -41,11 +41,11 @@ const calls = [];
 const context = {
   hasSession: true, hasRuns: true, runStatus: 'completed', waitingApproval: false,
   waitingReply: false, submitting: false, uploading: false, compacting: false, planMode: true,
-  projectsEnabled: false, projectBindable: false,
-  actions: {compact: () => calls.push('compact'), openFilePicker: () => calls.push('upload'), togglePlan: () => calls.push('plan'), openProjectPicker: () => calls.push('project')},
+  actions: {compact: () => calls.push('compact'), openFilePicker: () => calls.push('upload'), togglePlan: () => calls.push('plan')},
 };
 assert.deepEqual(matchingCommands('', context, 'plus').map(x => x.id), ['plan','compact']);
-assert.equal(matchingCommands('project', context)[0].title, '打开项目');
+assert.deepEqual(matchingCommands('project', context), []);
+assert.equal(commandById('project'), undefined);
 assert.equal(commandById('plan').title, '计划模式');
 for (const busy of ['submitting','uploading','compacting']) {
   for (const id of ['upload','plan','compact']) {
@@ -63,10 +63,9 @@ for (const status of ['running','waiting']) {
 assert.equal(commandById('upload').available({...context, waitingApproval: true}).available, false);
 assert.equal(commandById('compact').available({...context, hasRuns: false}).available, false);
 assert.equal(commandById('compact').available({...context, hasSession: false}).available, false);
-assert.equal(commandById('project').available({...context, runStatus:'running', submitting:true}).available, true);
 for (const command of inputCommands) command.run(context);
-assert.deepEqual(calls, ['upload','plan','compact','project']);
-console.log('PASS: plus/slash surfaces share guarded actions; busy/waiting disables mutation, project navigation remains discoverable');
+assert.deepEqual(calls, ['upload','plan','compact']);
+console.log('PASS: plus/slash surfaces share guarded actions; busy/waiting disables mutation, project command removed');
 
 const {createProjectRefreshWatcher} = load('src/lib/project-refresh.ts');
 const realSetTimeout = global.setTimeout;

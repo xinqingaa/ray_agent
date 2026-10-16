@@ -16,9 +16,6 @@ import {projectApi} from '@/lib/api/project'
 import {classifyUpload} from '@/lib/project-upload'
 import type {FileInfo} from '@/lib/api/types'
 import {toast} from 'sonner'
-import {ProjectPicker} from '@/components/project-picker'
-import {useProjects} from '@/providers/projects-provider'
-import {useRouter} from 'next/navigation'
 import type {ProjectView} from '@/lib/api/types'
 import {commandById, commandSearchFields, matchingCommands, type CommandContext, type CommandHost, type InputCommand} from '@/lib/commands'
 import {clearDraft, readDraft, writeDraft, DRAFT_CHANGED, DATA_CLEARED} from '@/lib/drafts'
@@ -52,8 +49,6 @@ interface ChatInputProps {
   draftScope?: string
   /** 页面状态。上传中与文件选择由输入框补进命令上下文。 */
   commandHost?: CommandHost
-  projectsEnabled?: boolean
-  projectBindable?: boolean
   selectedProject?: ProjectView | null
   onProjectSelect?: (project: ProjectView | null) => void
 }
@@ -67,8 +62,6 @@ const EMPTY_HOST: CommandHost = {
   submitting: false,
   compacting: false,
   actions: {compact: () => {}},
-  projectsEnabled: false,
-  projectBindable: false,
 }
 
 export interface ChatInputRef {
@@ -78,7 +71,7 @@ export interface ChatInputRef {
 }
 
 export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
-  ({ className, onInputValueChange, onSend, pause = false, onPause, disabled = false, autoFocus = false, sessionId, placeholder = '分配一个任务或提问任何问题...', accessory, draftScope, commandHost = EMPTY_HOST, projectsEnabled = false, projectBindable = false, selectedProject = null, savedModel = null, savedReasoning = null, runModel = null, runReasoning = null }, ref) => {
+  ({ className, onInputValueChange, onSend, pause = false, onPause, disabled = false, autoFocus = false, sessionId, placeholder = '分配一个任务或提问任何问题...', accessory, draftScope, commandHost = EMPTY_HOST, selectedProject = null, savedModel = null, savedReasoning = null, runModel = null, runReasoning = null }, ref) => {
     const {visibility} = useDeveloperMode()
     const [files, setFiles] = useState<FileInfo[]>([])
     const [uploading, setUploading] = useState(false)
@@ -93,9 +86,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
     }, [])
     const [planMode, setPlanMode] = useState(false)
     const [slash, setSlash] = useState<SlashFragment | null>(null)
-    const workspace = useProjects()
-    const router = useRouter()
-    const [projectPickerOpen, setProjectPickerOpen] = useState(false)
+    const [keyboardStep, setKeyboardStep] = useState(0)
     const [activeId, setActiveId] = useState<string | null>(null)
     const fileInputRef = useRef<HTMLInputElement>(null)
     const textareaRef = useRef<HTMLTextAreaElement>(null)
@@ -228,8 +219,6 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
       setPlanMode((prev) => !prev)
     }, [])
 
-    const resolvedProjectsEnabled = commandHost.projectsEnabled ?? projectsEnabled
-    const resolvedProjectBindable = commandHost.projectBindable ?? projectBindable
 
     const commandContext = useMemo<CommandContext>(() => ({
       hasSession: commandHost.hasSession,
@@ -240,17 +229,14 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
       submitting: commandHost.submitting || sending || uncertain,
       uploading,
       compacting: commandHost.compacting,
+      contextUsage: commandHost.contextUsage,
       planMode,
-      projectsEnabled: resolvedProjectsEnabled,
-      projectBindable: resolvedProjectBindable,
       actions: {
         openFilePicker,
         togglePlan,
-        openProjectPicker: () => workspace ? workspace.openProject() : setProjectPickerOpen(true),
         compact: commandHost.actions.compact,
       },
     }), [
-      workspace,
       commandHost.hasSession,
       commandHost.hasRuns,
       commandHost.runStatus,
@@ -258,13 +244,12 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
       commandHost.waitingReply,
       commandHost.submitting,
       commandHost.compacting,
+      commandHost.contextUsage,
       commandHost.actions.compact,
       sending,
       uncertain,
       uploading,
       planMode,
-      resolvedProjectsEnabled,
-      resolvedProjectBindable,
       openFilePicker,
       togglePlan,
     ])
@@ -277,8 +262,8 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
       run: () => setSelectedSkill({id: s.id, name: s.name, version: s.version}),
     })), [skills])
     const matched = useMemo(
-      () => (slashOpen && slash ? [...matchingCommands(slash.query, {projectsEnabled: resolvedProjectsEnabled}).filter(command => visibility.canShowCommand(command.id)), ...skillCommands.filter(command => matchesCommandQuery(slash.query, commandSearchFields(command)))] : []),
-      [slashOpen, slash, resolvedProjectsEnabled, visibility, skillCommands],
+      () => (slashOpen && slash ? [...matchingCommands(slash.query).filter(command => visibility.canShowCommand(command.id)), ...skillCommands.filter(command => matchesCommandQuery(slash.query, commandSearchFields(command)))] : []),
+      [slashOpen, slash, visibility, skillCommands],
     )
     const resolvedActiveId = matched.some((command) => command.id === activeId)
       ? activeId
@@ -294,6 +279,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
         return
       }
       dismissedRef.current = null
+      if (!sameFragment(slash, next)) setActiveId(null)
       setSlash((prev) => sameFragment(prev, next) ? prev : next)
     }
 
@@ -340,7 +326,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
         }
         const root = document.getElementById(slashListId)
         const list = root?.querySelector<HTMLElement>('[role="listbox"]')
-        const selected = root?.querySelector<HTMLElement>(`[cmdk-item][data-value="${CSS.escape(resolvedActiveId)}"]`)
+        const selected = root?.querySelector<HTMLElement>(`[role="option"][data-value="${CSS.escape(resolvedActiveId)}"]`)
         if (list?.id) node.setAttribute('aria-controls', list.id)
         else node.removeAttribute('aria-controls')
         if (selected?.id) node.setAttribute('aria-activedescendant', selected.id)
@@ -501,7 +487,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
             const current = matched.findIndex((command) => command.id === resolvedActiveId)
             const delta = e.key === 'ArrowDown' ? 1 : -1
             const next = matched[(current + delta + matched.length) % matched.length]
-            if (next) setActiveId(next.id)
+            if (next) {setActiveId(next.id); setKeyboardStep(step => step + 1)}
           }
           return
         }
@@ -555,7 +541,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
     const showPause = pause === 'stopping' || pause === 'ready' || (sending && !!onPause)
 
     return (
-    <Popover open={slashOpen} onOpenChange={(open) => { if (!open) setSlash(null) }}>
+    <Popover open={slashOpen} onOpenChange={(open) => {if (!open) {dismissedRef.current = slash; setSlash(null)}}}>
     <div className={cn('flex flex-col bg-card w-full rounded-lg py-3 border', className)}>
       {uncertain && !sending && !commandHost.submitting && (
         <div role="status" className="mx-4 mb-2 space-y-2 text-meta text-state-waiting">
@@ -697,7 +683,6 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
             onClick={() => commandById('upload')?.run(commandContext)}>
             <Paperclip className="size-4"/>
           </Button>
-          {!workspace && <ProjectPicker hideTrigger open={projectPickerOpen} onOpenChange={setProjectPickerOpen} onSelect={project => {if (!project) return; router.push(`/projects/${project.id}`)}}/>}
           {planMode && (
             <button
               type="button"
@@ -747,7 +732,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
       side="top"
       sideOffset={8}
       collisionPadding={8}
-      className="w-[min(60rem,calc(100vw-2rem))] overflow-hidden rounded-xl border-0 p-0"
+      className="w-[min(60rem,calc(100vw-2rem))] overflow-hidden rounded-xl border-0 p-0 slash-command-elevation"
       onOpenAutoFocus={(event) => event.preventDefault()}
       onCloseAutoFocus={(event) => event.preventDefault()}
     >
@@ -759,6 +744,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
             context={commandContext}
             activeId={resolvedActiveId}
             onActiveIdChange={setActiveId}
+            keyboardStep={keyboardStep}
             onRun={runSlash}
           />
         )}

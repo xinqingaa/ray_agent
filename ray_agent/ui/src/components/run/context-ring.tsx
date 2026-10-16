@@ -14,7 +14,9 @@ const C = 2 * Math.PI * R
 
 export type ContextLevel = 'none' | 'normal' | 'near' | 'over'
 
-export function contextLevel(usage: UsageView): ContextLevel {
+export type ContextUsage = Pick<UsageView, 'context' | 'watermarkRatio'>
+
+export function contextLevel(usage: ContextUsage): ContextLevel {
   const ctx = usage.context
   if (!ctx || ctx.windowTokens <= 0) return 'none'
   if (ctx.fixedInputExceeded) return 'over'
@@ -114,10 +116,6 @@ export function ContextRing({usage, className}: {usage: UsageView; className?: s
   const [hover, setHover] = useState(false)
   const ctx = usage.context
   const level = contextLevel(usage)
-  const ratio = ctx && ctx.windowTokens > 0 ? Math.min(1, Math.max(0, ctx.usedTokens / ctx.windowTokens)) : null
-  const watermark = usage.watermarkRatio
-  const tick = ctx && watermark != null && watermark > 0 && watermark < 1
-    ? 2 * Math.PI * watermark : null
   const glance = ctx && ctx.windowTokens > 0 ? occupancyLine(ctx) : '暂无占用'
   const label = hasTokenUsage(usage.session) ? `${glance}，${usageSummary(usage.session)}` : glance
   return (
@@ -134,23 +132,7 @@ export function ContextRing({usage, className}: {usage: UsageView; className?: s
                 className,
               )}
             >
-              <svg width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`} className="-rotate-90" aria-hidden>
-                <circle cx={SIZE / 2} cy={SIZE / 2} r={R} fill="none" stroke="currentColor" strokeWidth={STROKE} strokeDasharray={ctx ? undefined : '2 2.4'} className="opacity-25"/>
-                {ratio != null && ratio > 0 && (
-                  <circle cx={SIZE / 2} cy={SIZE / 2} r={R} fill="none" stroke="currentColor" strokeWidth={STROKE} strokeLinecap="round" strokeDasharray={C} strokeDashoffset={C * (1 - ratio)}/>
-                )}
-                {tick != null && (
-                  <line
-                    x1={SIZE / 2 + 3.4 * Math.cos(tick)}
-                    y1={SIZE / 2 + 3.4 * Math.sin(tick)}
-                    x2={SIZE / 2 + (R - STROKE / 2 + 0.6) * Math.cos(tick)}
-                    y2={SIZE / 2 + (R - STROKE / 2 + 0.6) * Math.sin(tick)}
-                    stroke="currentColor"
-                    strokeWidth={1.75}
-                    className="text-foreground"
-                  />
-                )}
-              </svg>
+              <ContextRingGlyph usage={usage}/>
             </button>
           </PopoverTrigger>
         </TooltipTrigger>
@@ -161,4 +143,33 @@ export function ContextRing({usage, className}: {usage: UsageView; className?: s
       </PopoverContent>
     </Popover>
   )
+}
+
+/** 无按钮或弹层的圆环，菜单与输入框入口共用同一显示规则。 */
+export function ContextRingGlyph({usage, className}: {usage?: ContextUsage; className?: string}) {
+  const ctx = usage?.context ?? null
+  const level = usage ? contextLevel(usage) : 'none'
+  const ratio = ctx && ctx.windowTokens > 0 ? Math.min(1, Math.max(0, ctx.usedTokens / ctx.windowTokens)) : null
+  const watermark = usage?.watermarkRatio
+  const tick = ratio != null && watermark != null && watermark > 0 && watermark < 1
+    ? 2 * Math.PI * watermark : null
+  return <span role="img" aria-label={ctx && ctx.windowTokens > 0 ? occupancyLine(ctx) : '暂无占用'} className={cn('inline-flex shrink-0', level === 'over' ? 'text-state-failed' : level === 'near' ? 'text-state-waiting' : 'text-muted-foreground', className)}>
+    <svg width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`} className="-rotate-90" aria-hidden>
+      <circle cx={SIZE / 2} cy={SIZE / 2} r={R} fill="none" stroke="currentColor" strokeWidth={STROKE} strokeDasharray={ratio == null ? '2 2.4' : undefined} className="opacity-25"/>
+      {ratio != null && ratio > 0 && (
+        <circle cx={SIZE / 2} cy={SIZE / 2} r={R} fill="none" stroke="currentColor" strokeWidth={STROKE} strokeLinecap="round" strokeDasharray={C} strokeDashoffset={C * (1 - ratio)}/>
+      )}
+      {tick != null && (
+        <line
+          x1={SIZE / 2 + 3.4 * Math.cos(tick)}
+          y1={SIZE / 2 + 3.4 * Math.sin(tick)}
+          x2={SIZE / 2 + (R - STROKE / 2 + 0.6) * Math.cos(tick)}
+          y2={SIZE / 2 + (R - STROKE / 2 + 0.6) * Math.sin(tick)}
+          stroke="currentColor"
+          strokeWidth={1.75}
+          className="text-foreground"
+        />
+      )}
+    </svg>
+  </span>
 }

@@ -11,6 +11,7 @@ import {fileApi} from '@/lib/api/file'
 export interface MarkdownContentProps {
   content: string
   className?: string
+  components?: React.ComponentProps<typeof ReactMarkdown>['components']
   deliveredFiles?: readonly FileView[]
   onDownloadFile?: (file: FileView) => void
 }
@@ -129,21 +130,21 @@ const components: React.ComponentProps<typeof ReactMarkdown>['components'] = {
   a: MarkdownLink,
 }
 
-export function MarkdownContent({ content, className, deliveredFiles, onDownloadFile }: MarkdownContentProps) {
+export function MarkdownContent({ content, className, deliveredFiles, onDownloadFile, components: overrides }: MarkdownContentProps) {
   const normalized = useMemo(() => normalizeAutolinks(content), [content])
 
   return (
     <div className={cn('markdown-content break-words', className)}>
       <ReactMarkdown remarkPlugins={[remarkGfm]}
         urlTransform={(url, key) => key === 'href' && deliveredFiles && resolveMessageFileLink(url, deliveredFiles) !== null ? url : defaultUrlTransform(url)}
-        components={deliveredFiles ? {...components, a: ({node, className, href, children, ...props}) => {
+        components={{...(deliveredFiles ? {...components, a: ({node, className, href, children, ...props}) => {
           const file = href ? resolveMessageFileLink(href, deliveredFiles) : null
           if (file === 'unavailable') return <span className="text-sm" title="此路径没有可用的交付附件">{children}</span>
           if (file) return <a {...props} className={cn('text-sm text-signal underline-offset-2 hover:underline', className)}
             href={fileApi.getFileDownloadUrl(file.id)} download={file.filename}
             onClick={onDownloadFile ? event => {event.preventDefault(); onDownloadFile(file)} : undefined}>{children}</a>
           return <MarkdownLink node={node} className={className} href={href} {...props}>{children}</MarkdownLink>
-        }} : components}>
+        }} : components), ...overrides}}>
         {normalized}
       </ReactMarkdown>
     </div>

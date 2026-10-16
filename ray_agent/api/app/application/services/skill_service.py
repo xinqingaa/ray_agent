@@ -8,7 +8,7 @@ from pathlib import Path
 
 from app.domain.repositories.skills import SkillRepository
 from app.domain.services.skill_context import catalog_message, body_message
-from app.domain.services.skill_packages import SkillError, candidates, parse_skill, safe_path, unzip
+from app.domain.services.skill_packages import SkillError, candidates, local_request_bytes, parse_skill, prepare_local, safe_path, unzip
 
 
 class SkillService:
@@ -17,7 +17,7 @@ class SkillService:
 
     async def list(self):
         async with self.repository.transaction() as tx:
-            return sorted(await tx.all('skills'), key=lambda r: r['name'])
+            return sorted(await tx.all('skills'), key=lambda r: (not r.get('builtin', False), r['name']))
 
     async def detail(self, name):
         async with self.repository.transaction() as tx:
@@ -35,19 +35,68 @@ class SkillService:
             raise SkillError('导入操作不存在', 404)
         return op
 
-    async def create_import(self, operation_id, *, kind, url=None, raw=None, text=None, update_name=None, expected_version=None, owner=None, tool_call_id=None):
+    async def file(self, name, expected_version, path):
+        async with self.repository.transaction() as tx:
+            entry = await tx.get('skills', name)
+            version = await tx.get('versions', expected_version) if entry else None
+        if not entry:
+            raise SkillError('Skill 不存在', 404)
+        if entry['version'] != expected_version:
+            raise SkillError('Skill 版本已变化，请刷新', 409)
+        if not version:
+            raise SkillError('Skill 版本缺失，请重新导入', 409)
+        return await asyncio.to_thread(self.storage.read, expected_version, version['files'], path)
+
+    async def import_file(self, operation_id, candidate_path, fingerprint, path):
+        op, candidate = await self.readable_import(operation_id, candidate_path, fingerprint)
+        prefix = candidate_path + '/' if candidate_path else ''
+        return await asyncio.to_thread(self.storage.read, operation_id, candidate['files'], path,
+                                       namespace='previews', prefix=prefix)
+
+    async def readable_import(self, operation_id, candidate_path, fingerprint):
+        op = await self.operation(operation_id)
+        if op.get('owner') is not None:
+            raise SkillError('此导入属于聊天运行，请在原对话中续接', 403)
+        if op['stage'] != 'ready' or time.time() - op['created_at'] > self.settings.skill_preview_seconds:
+            raise SkillError('材料已失效，请重新获取', 409)
+        candidate = next((c for c in op['candidates'] if c['path'] == candidate_path and c['version'] == fingerprint), None)
+        if not candidate:
+            raise SkillError('候选或内容指纹不匹配', 409)
+        return op, candidate
+
+    async def revise_import(self, operation_id, candidate_path, fingerprint, text, revision_id):
+        op, candidate = await self.readable_import(operation_id, candidate_path, fingerprint)
+        prefix = candidate_path + '/' if candidate_path else ''
+        files = {f['path']: await asyncio.to_thread(self.storage.read, operation_id, candidate['files'], f['path'],
+                 namespace='previews', prefix=prefix) for f in candidate['files']}
+        files['SKILL.md'] = text.encode()
+        revised = await self.create_import(revision_id, kind='local', files=files,
+            update_name=op.get('update_name'), expected_version=op.get('expected_version'))
+        async with self.repository.transaction() as tx:
+            revised = {**revised, 'source': {**op['source'], 'path': candidate_path, 'edited': True}}
+            await tx.put('imports', revised['id'], revised)
+        return revised
+
+    async def create_import(self, operation_id, *, kind, url=None, raw=None, text=None, files=None, unpack_zip=False, update_name=None, expected_version=None, owner=None, tool_call_id=None):
         try:
             operation_id = uuid.UUID(operation_id).hex
         except (ValueError, TypeError):
             raise SkillError('需要有效的导入操作 ID')
-        if kind not in ('github', 'zip', 'manual'):
+        if kind not in ('github', 'zip', 'manual', 'local'):
             raise SkillError('不支持的来源')
         if kind == 'github' and not url:
             raise SkillError('请提供公开 GitHub 地址')
         if kind == 'zip' and not raw:
             raise SkillError('请选择非空 ZIP 包')
-        content = raw if kind == 'zip' else (url if kind == 'github' else text or '').encode()
-        fingerprint = hashlib.sha256(content + json.dumps([kind, update_name, expected_version, owner]).encode()).hexdigest()
+        if kind == 'local' and not files:
+            raise SkillError('请选择 Skill 文件')
+        identity = [kind, update_name, expected_version, owner]
+        if kind == 'local':
+            identity.append(bool(unpack_zip))
+            content = local_request_bytes(files)
+        else:
+            content = raw if kind == 'zip' else (url if kind == 'github' else text or '').encode()
+        fingerprint = hashlib.sha256(content + json.dumps(identity).encode()).hexdigest()
         async with self.repository.transaction(run_id=owner) as tx:
             existing = await tx.get('imports', operation_id)
             if existing:
@@ -64,6 +113,9 @@ class SkillService:
             elif kind == 'zip':
                 files = await asyncio.to_thread(unzip, raw, self.settings)
                 directory, source = None, {'kind': 'zip'}
+            elif kind == 'local':
+                files = await asyncio.to_thread(prepare_local, files, self.settings, unpack_zip=unpack_zip)
+                directory, source = None, {'kind': 'local'}
             else:
                 files, directory, source = {'SKILL.md': (text or '').encode()}, None, {'kind': 'manual'}
             async with self.repository.transaction() as tx:

@@ -21,7 +21,7 @@ export const SkillMark = forwardRef<HTMLButtonElement, {name: string; className?
         if (onRemove && (event.key === 'Backspace' || event.key === 'Delete')) {event.preventDefault(); onRemove(); onExit?.()}
       }}
     >{name}</button>
-    <SkillPreviewDialog name={open ? name : null} onClose={() => {setOpen(false); onExit?.()}}/>
+    <SkillPreviewDialog key={open ? name : 'closed'} name={open ? name : null} onClose={() => {setOpen(false); onExit?.()}}/>
   </>
 })
 
@@ -31,12 +31,11 @@ function SkillPreviewDialog({name, onClose}: {name: string | null; onClose: () =
   useEffect(() => {
     if (!name) return
     let disposed = false
-    setDetail(null); setError('')
     skillsApi.detail(name).then(data => {if (!disposed) setDetail(data)}).catch(reason => {if (!disposed) setError(reason instanceof Error ? reason.message : '无法打开预览')})
     return () => {disposed = true}
   }, [name])
   return <Dialog open={!!name} onOpenChange={open => {if (!open) onClose()}}>
-    <DialogContent aria-describedby={undefined} className="flex h-[min(42rem,calc(100dvh-3rem))] flex-col gap-0 overflow-hidden p-0 sm:max-w-3xl motion-reduce:animate-none">
+    <DialogContent aria-describedby={undefined} className="flex h-[min(48rem,calc(100dvh-3rem))] flex-col gap-0 overflow-hidden p-0 sm:max-w-[min(80rem,calc(100vw-3rem))] motion-reduce:animate-none">
       <div className="shrink-0 px-6 pb-4 pt-6 pr-14"><DialogTitle className="min-w-0 break-all leading-snug">{name}</DialogTitle></div>
       {error ? <p role="alert" className="px-6 pb-6 text-sm text-state-failed">{error}</p> : detail ? <SkillReader skill={detail}/> : <div role="status" className="flex flex-1 items-center justify-center pb-8"><Loader2 className="size-5 animate-spin text-muted-foreground"/><span className="sr-only">正在打开预览</span></div>}
     </DialogContent>
