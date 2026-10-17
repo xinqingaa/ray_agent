@@ -1,69 +1,103 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc">
-<title id="title">RayAgent：从用户目标到可用成果</title>
-<desc id="desc">用户提交目标与资料，Agent 通过单循环决策与工具反馈推进，返回答复与文件，并说明完成成果和缺口。计划与控制、沙箱工具、外部协作、项目与记忆支撑执行。</desc>
-<style>text { font-family: 'PingFang SC','Hiragino Sans GB','Noto Sans CJK SC','Noto Sans SC','Source Han Sans SC','Songti SC','Microsoft YaHei','Helvetica Neue',Helvetica,Arial,sans-serif; fill:#17263c; } .sub { fill:#63748a; } </style>
-<defs><marker id="arrow" markerUnits="userSpaceOnUse" markerWidth="22" markerHeight="22" refX="19" refY="11" orient="auto"><path d="M3 3 Q12 7 19 11 Q12 15 3 19" fill="none" stroke="#e68728" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></marker></defs>
-<rect width="1600" height="900" fill="#fffefb"/>
-<path d="M58 60 Q580 33 1190 55 L1176 69 L1210 80 L1180 91 L1202 110 Q650 133 65 120 L81 106 L56 93 L80 78Z" fill="#fff0ce"/>
-<text x="80" y="106" font-size="48" font-weight="700">RayAgent：从用户目标到可用成果</text>
-<path d="M82 151 Q410 145 745 151" stroke="#dceefa" stroke-width="21" stroke-linecap="round"/>
-<text x="80" y="159" font-size="25" class="sub">在同一会话中组织输入、执行过程与成果</text>
-
-<text x="78" y="221" font-size="24" font-weight="700" text-anchor="start" class="sub">01</text>
-<rect x="70" y="244" width="360" height="151" rx="24" fill="#fff0ce" stroke="#e9a139" stroke-width="3.5"/>
-<path d="M95 251 Q250.0 245 402 251" fill="none" stroke="#e9a139" stroke-width="1.5" opacity=".23"/>
-<g transform="translate(94 278) scale(1.03)" stroke="#26364b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="13" width="42" height="54" rx="5" fill="#dceefa" transform="rotate(-9 29 40)"/><path d="M22 3H56L70 18V65Q70 70 65 70H22Q17 70 17 65V8Q17 3 22 3Z" fill="#fff"/><path d="M56 3V18H70" fill="#ffdc92"/><path d="M29 30H58M29 42H58M29 54H48" stroke="#5d8bb5"/></g>
-<text x="196" y="311" font-size="32" font-weight="700" text-anchor="start" class="">目标与资料</text>
-<text x="196" y="351" font-size="24" font-weight="400" text-anchor="start" class="sub">提出任务</text>
-<text x="250" y="440" font-size="25" font-weight="400" text-anchor="middle" class="sub">文字、文件与图片</text>
-<text x="250" y="475" font-size="25" font-weight="400" text-anchor="middle" class="sub">独立对话或托管项目</text>
-<text x="628" y="221" font-size="24" font-weight="700" text-anchor="start" class="sub">02</text>
-<rect x="620" y="244" width="360" height="151" rx="24" fill="#e3f1ff" stroke="#5394c6" stroke-width="3.5"/>
-<path d="M645 251 Q800.0 245 952 251" fill="none" stroke="#5394c6" stroke-width="1.5" opacity=".23"/>
-<g transform="translate(644 278) scale(1.03)" stroke="#26364b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M39 16V7"/><circle cx="39" cy="5" r="5" fill="#ffd280"/><rect x="4" y="29" width="12" height="22" rx="6" fill="#ffd280"/><rect x="63" y="29" width="12" height="22" rx="6" fill="#ffd280"/><rect x="12" y="16" width="55" height="49" rx="18" fill="#fff"/><rect x="20" y="27" width="39" height="26" rx="10" fill="#263e59"/><path d="M27 39Q31 33 35 39M44 39Q48 33 52 39" stroke="#fff"/><path d="M28 65L22 75M51 65L57 75"/></g>
-<text x="746" y="311" font-size="32" font-weight="700" text-anchor="start" class="">持续推进任务</text>
-<text x="746" y="351" font-size="24" font-weight="400" text-anchor="start" class="sub">决策 · 行动 · 反馈</text>
-<text x="800" y="440" font-size="25" font-weight="400" text-anchor="middle" class="sub">单循环决策与工具反馈</text>
-<text x="800" y="475" font-size="25" font-weight="400" text-anchor="middle" class="sub">计划记录目标、范围与进度</text>
-<text x="1178" y="221" font-size="24" font-weight="700" text-anchor="start" class="sub">03</text>
-<rect x="1170" y="244" width="360" height="151" rx="24" fill="#e2f3e7" stroke="#70a58a" stroke-width="3.5"/>
-<path d="M1195 251 Q1350.0 245 1502 251" fill="none" stroke="#70a58a" stroke-width="1.5" opacity=".23"/>
-<g transform="translate(1194 278) scale(1.03)" stroke="#26364b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4H45L59 18V67H9Z" fill="#fff"/><path d="M45 4V18H59" fill="#def2e6"/><path d="M22 31H43M22 42H38" stroke="#81a591"/><circle cx="56" cy="57" r="18" fill="#d6efdf"/><path d="M46 57L53 64L66 49" stroke="#338367" stroke-width="5"/></g>
-<text x="1296" y="311" font-size="32" font-weight="700" text-anchor="start" class="">答复与文件</text>
-<text x="1296" y="351" font-size="24" font-weight="400" text-anchor="start" class="sub">呈现结果</text>
-<text x="1350" y="440" font-size="25" font-weight="400" text-anchor="middle" class="sub">预览、下载与继续交流</text>
-<text x="1350" y="475" font-size="25" font-weight="400" text-anchor="middle" class="sub">说明已完成成果和实际缺口</text>
-<path d="M435 318 Q525.0 315 608 318" stroke="#e68728" stroke-width="4" fill="none" marker-end="url(#arrow)"/>
-<text x="525.0" y="294" font-size="22" font-weight="400" text-anchor="middle" class="sub">开始运行</text>
-<path d="M985 318 Q1075.0 315 1158 318" stroke="#e68728" stroke-width="4" fill="none" marker-end="url(#arrow)"/>
-<text x="1075.0" y="294" font-size="22" font-weight="400" text-anchor="middle" class="sub">成果交付</text>
-<rect x="60" y="527" width="1480" height="293" rx="32" fill="#f7fbff" stroke="#a8c4dc" stroke-width="2" stroke-dasharray="10 8"/>
-<text x="91" y="573" font-size="26" font-weight="700" text-anchor="start" class="">支撑任务的能力</text>
-<text x="1510" y="573" font-size="22" font-weight="400" text-anchor="end" class="sub">按任务调用与使用</text>
-<rect x="90" y="604" width="310" height="182" rx="24" fill="#fff2da" stroke="#e4b263" stroke-width="3.5"/>
-<path d="M115 611 Q245.0 605 372 611" fill="none" stroke="#e4b263" stroke-width="1.5" opacity=".23"/>
-<g transform="translate(112 626) scale(0.78)" stroke="#26364b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><rect x="12" y="8" width="48" height="62" rx="6" fill="#fff"/><rect x="24" y="3" width="24" height="12" rx="4" fill="#ffdaa0"/><path d="M22 29L25 32L31 25M22 45L25 48L31 41" stroke="#c27c31"/><path d="M38 29H51M38 45H51M22 59H51" stroke="#8292a3"/></g>
-<text x="187" y="664" font-size="28" font-weight="700" text-anchor="start" class="">计划与控制</text>
-<text x="245" y="724" font-size="23" font-weight="400" text-anchor="middle" class="sub">记录范围与进度</text>
-<text x="245" y="758" font-size="23" font-weight="400" text-anchor="middle" class="sub">提问、审批与停止</text>
-<rect x="460" y="604" width="310" height="182" rx="24" fill="#e9f3ff" stroke="#85acd0" stroke-width="3.5"/>
-<path d="M485 611 Q615.0 605 742 611" fill="none" stroke="#85acd0" stroke-width="1.5" opacity=".23"/>
-<g transform="translate(482 626) scale(0.78)" stroke="#26364b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="9" width="69" height="55" rx="8" fill="#fff"/><path d="M3 24H72" stroke="#5c8ebd"/><circle cx="12" cy="17" r="2" fill="#5c8ebd" stroke="none"/><circle cx="21" cy="17" r="2" fill="#5c8ebd" stroke="none"/><path d="M16 36L25 44L16 52M36 52H52" stroke="#3f7eae"/></g>
-<text x="557" y="664" font-size="28" font-weight="700" text-anchor="start" class="">沙箱工具</text>
-<text x="615" y="724" font-size="23" font-weight="400" text-anchor="middle" class="sub">文件、Shell 与浏览器</text>
-<text x="615" y="758" font-size="23" font-weight="400" text-anchor="middle" class="sub">读取观察与执行动作</text>
-<rect x="830" y="604" width="310" height="182" rx="24" fill="#e7f5eb" stroke="#87b69c" stroke-width="3.5"/>
-<path d="M855 611 Q985.0 605 1112 611" fill="none" stroke="#87b69c" stroke-width="1.5" opacity=".23"/>
-<g transform="translate(852 626) scale(0.78)" stroke="#26364b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="26" width="25" height="28" rx="6" fill="#fff"/><rect x="48" y="4" width="25" height="28" rx="6" fill="#fff"/><rect x="48" y="49" width="25" height="28" rx="6" fill="#fff"/><path d="M27 40H37V18H48M37 40V63H48" stroke="#36846b"/></g>
-<text x="927" y="664" font-size="28" font-weight="700" text-anchor="start" class="">外部协作</text>
-<text x="985" y="724" font-size="23" font-weight="400" text-anchor="middle" class="sub">MCP 外部工具</text>
-<text x="985" y="758" font-size="23" font-weight="400" text-anchor="middle" class="sub">A2A 远程 Agent</text>
-<rect x="1200" y="604" width="310" height="182" rx="24" fill="#f0ebf7" stroke="#ad9cc2" stroke-width="3.5"/>
-<path d="M1225 611 Q1355.0 605 1482 611" fill="none" stroke="#ad9cc2" stroke-width="1.5" opacity=".23"/>
-<g transform="translate(1222 626) scale(0.78)" stroke="#26364b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V12Q4 7 10 7H28L37 19H66Q72 19 72 25V64Q72 69 66 69H10Q4 69 4 63Z" fill="#fff"/><path d="M4 29H72" stroke="#8573a8"/><path d="M19 42H56M19 54H46" stroke="#aa9abc"/></g>
-<text x="1297" y="664" font-size="28" font-weight="700" text-anchor="start" class="">项目与记忆</text>
-<text x="1355" y="724" font-size="23" font-weight="400" text-anchor="middle" class="sub">共享文件、说明与笔记</text>
-<text x="1355" y="758" font-size="23" font-weight="400" text-anchor="middle" class="sub">有来源的对话摘要</text>
-<path d="M1260 847Q1375 827 1499 840M1291 856Q1395 836 1487 849" stroke="#ee9b3b" stroke-width="3" fill="none" stroke-linecap="round"/>
-<text x="80" y="859" font-size="23" font-weight="400" text-anchor="start" class="sub">任务结束与成果完整分别记录</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc" data-generator="fireworks-tech-graph" data-quality-profile="showcase">
+  <title id="title">RayAgent：从用户目标到可用成果</title>
+  <desc id="desc">用户提交目标与资料，Agent 通过单循环决策与工具反馈推进，返回答复与文件，并说明完成成果和缺口。计划与控制、沙箱工具、外部协作、项目与记忆支撑执行。</desc>
+  <style>text { font-family: 'PingFang SC','Hiragino Sans GB','Noto Sans CJK SC','Noto Sans SC','Source Han Sans SC','Songti SC','Microsoft YaHei','Helvetica Neue',Helvetica,Arial,sans-serif; fill:#17263c; } .sub { fill:#63748a; } </style>
+  <defs>
+    <marker id="arrow" markerUnits="userSpaceOnUse" markerWidth="14" markerHeight="14" refX="12" refY="7" orient="auto">
+      <path d="M3 2L12 7L3 12" fill="none" stroke="#e68728" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" />
+    </marker>
+  </defs>
+  <rect width="1600" height="900" fill="#fffefb" />
+  <path d="M58 60 Q580 33 1190 55 L1176 69 L1210 80 L1180 91 L1202 110 Q650 133 65 120 L81 106 L56 93 L80 78Z" fill="#fff0ce" />
+  <text x="80" y="106" font-size="48" font-weight="700" data-graph-role="label">RayAgent：从用户目标到可用成果</text>
+  <text x="80" y="159" font-size="25" class="sub" data-graph-role="label">在同一会话中组织输入、执行过程与成果</text>
+  <text x="78" y="221" font-size="24" font-weight="700" text-anchor="start" class="sub" data-graph-role="label">01</text>
+  <rect x="70" y="244" width="360" height="151" rx="24" fill="#fff5df" stroke="#d9b779" stroke-width="2.5" data-graph-role="node" id="node-1" />
+  <g transform="translate(94 278) scale(1.03)" stroke="#26364b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="8" y="13" width="42" height="54" rx="5" fill="#dceefa" transform="rotate(-9 29 40)" />
+    <path d="M22 3H56L70 18V65Q70 70 65 70H22Q17 70 17 65V8Q17 3 22 3Z" fill="#fff" />
+    <path d="M56 3V18H70" fill="#ffdc92" />
+    <path d="M29 30H58M29 42H58M29 54H48" stroke="#5d8bb5" />
+  </g>
+  <text x="196" y="311" font-size="32" font-weight="700" text-anchor="start" class="" data-graph-role="decoration" data-owner="node-1">目标与资料</text>
+  <text x="196" y="351" font-size="24" font-weight="400" text-anchor="start" class="sub" data-graph-role="decoration" data-owner="node-1">提出任务</text>
+  <text x="250" y="440" font-size="25" font-weight="400" text-anchor="middle" class="sub" data-graph-role="label">文字、文件与图片</text>
+  <text x="250" y="475" font-size="25" font-weight="400" text-anchor="middle" class="sub" data-graph-role="label">独立对话或托管项目</text>
+  <text x="628" y="221" font-size="24" font-weight="700" text-anchor="start" class="sub" data-graph-role="label">02</text>
+  <rect x="620" y="244" width="360" height="151" rx="24" fill="#eff6fc" stroke="#94b5ce" stroke-width="2.5" data-graph-role="node" id="node-2" />
+  <g transform="translate(644 278) scale(1.03)" stroke="#26364b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M39 16V7" />
+    <circle cx="39" cy="5" r="5" fill="#ffd280" />
+    <rect x="4" y="29" width="12" height="22" rx="6" fill="#ffd280" />
+    <rect x="63" y="29" width="12" height="22" rx="6" fill="#ffd280" />
+    <rect x="12" y="16" width="55" height="49" rx="18" fill="#fff" />
+    <rect x="20" y="27" width="39" height="26" rx="10" fill="#263e59" />
+    <path d="M27 39Q31 33 35 39M44 39Q48 33 52 39" stroke="#fff" />
+    <path d="M28 65L22 75M51 65L57 75" />
+  </g>
+  <text x="746" y="311" font-size="32" font-weight="700" text-anchor="start" class="" data-graph-role="decoration" data-owner="node-2">持续推进任务</text>
+  <text x="746" y="351" font-size="24" font-weight="400" text-anchor="start" class="sub" data-graph-role="decoration" data-owner="node-2">决策 · 行动 · 反馈</text>
+  <text x="800" y="440" font-size="25" font-weight="400" text-anchor="middle" class="sub" data-graph-role="label">单循环决策与工具反馈</text>
+  <text x="800" y="475" font-size="25" font-weight="400" text-anchor="middle" class="sub" data-graph-role="label">计划记录目标、范围与进度</text>
+  <text x="1178" y="221" font-size="24" font-weight="700" text-anchor="start" class="sub" data-graph-role="label">03</text>
+  <rect x="1170" y="244" width="360" height="151" rx="24" fill="#eef7f0" stroke="#9dbfa9" stroke-width="2.5" data-graph-role="node" id="node-3" />
+  <g transform="translate(1194 278) scale(1.03)" stroke="#26364b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M9 4H45L59 18V67H9Z" fill="#fff" />
+    <path d="M45 4V18H59" fill="#def2e6" />
+    <path d="M22 31H43M22 42H38" stroke="#81a591" />
+    <circle cx="56" cy="57" r="18" fill="#d6efdf" />
+    <path d="M46 57L53 64L66 49" stroke="#338367" stroke-width="5" />
+  </g>
+  <text x="1296" y="311" font-size="32" font-weight="700" text-anchor="start" class="" data-graph-role="decoration" data-owner="node-3">答复与文件</text>
+  <text x="1296" y="351" font-size="24" font-weight="400" text-anchor="start" class="sub" data-graph-role="decoration" data-owner="node-3">呈现结果</text>
+  <text x="1350" y="440" font-size="25" font-weight="400" text-anchor="middle" class="sub" data-graph-role="label">预览、下载与继续交流</text>
+  <text x="1350" y="475" font-size="25" font-weight="400" text-anchor="middle" class="sub" data-graph-role="label">说明已完成成果和实际缺口</text>
+  <path d="M430 318H620" stroke="#e68728" stroke-width="3" fill="none" marker-end="url(#arrow)" stroke-linecap="round" stroke-linejoin="round" data-graph-role="edge" id="start-run" data-source="node-1" data-target="node-2" />
+  <text x="525.0" y="294" font-size="22" font-weight="400" text-anchor="middle" class="sub" data-graph-role="label">开始运行</text>
+  <path d="M980 318H1170" stroke="#e68728" stroke-width="3" fill="none" marker-end="url(#arrow)" stroke-linecap="round" stroke-linejoin="round" data-graph-role="edge" id="deliver" data-source="node-2" data-target="node-3" />
+  <text x="1075.0" y="294" font-size="22" font-weight="400" text-anchor="middle" class="sub" data-graph-role="label">成果交付</text>
+  <rect x="60" y="527" width="1480" height="293" rx="32" fill="#f7fbff" stroke="#a8c4dc" stroke-width="2" stroke-dasharray="10 8" />
+  <text x="91" y="573" font-size="26" font-weight="700" text-anchor="start" class="" data-graph-role="label">支撑任务的能力</text>
+  <text x="1510" y="573" font-size="22" font-weight="400" text-anchor="end" class="sub" data-graph-role="label">工具执行 · skill 按需加载</text>
+  <rect x="90" y="604" width="310" height="182" rx="24" fill="#fff2da" stroke="#e4b263" stroke-width="2.5" data-graph-role="node" id="node-4" />
+  <g transform="translate(112 626) scale(0.78)" stroke="#26364b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="12" y="8" width="48" height="62" rx="6" fill="#fff" />
+    <rect x="24" y="3" width="24" height="12" rx="4" fill="#ffdaa0" />
+    <path d="M22 29L25 32L31 25M22 45L25 48L31 41" stroke="#c27c31" />
+    <path d="M38 29H51M38 45H51M22 59H51" stroke="#8292a3" />
+  </g>
+  <text x="187" y="664" font-size="28" font-weight="700" text-anchor="start" class="" data-graph-role="decoration" data-owner="node-4">计划与控制</text>
+  <text x="245" y="724" font-size="23" font-weight="400" text-anchor="middle" class="sub" data-graph-role="decoration" data-owner="node-4">记录范围与进度</text>
+  <text x="245" y="758" font-size="23" font-weight="400" text-anchor="middle" class="sub" data-graph-role="decoration" data-owner="node-4">提问、审批与停止</text>
+  <rect x="460" y="604" width="310" height="182" rx="24" fill="#f1f7fc" stroke="#85acd0" stroke-width="2.5" data-graph-role="node" id="node-5" />
+  <g transform="translate(482 626) scale(0.78)" stroke="#26364b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="3" y="9" width="69" height="55" rx="8" fill="#fff" />
+    <path d="M3 24H72" stroke="#5c8ebd" />
+    <circle cx="12" cy="17" r="2" fill="#5c8ebd" stroke="none" />
+    <circle cx="21" cy="17" r="2" fill="#5c8ebd" stroke="none" />
+    <path d="M16 36L25 44L16 52M36 52H52" stroke="#3f7eae" />
+  </g>
+  <text x="557" y="664" font-size="28" font-weight="700" text-anchor="start" class="" data-graph-role="decoration" data-owner="node-5">沙箱工具</text>
+  <text x="615" y="724" font-size="23" font-weight="400" text-anchor="middle" class="sub" data-graph-role="decoration" data-owner="node-5">文件、Shell 与浏览器</text>
+  <text x="615" y="758" font-size="23" font-weight="400" text-anchor="middle" class="sub" data-graph-role="decoration" data-owner="node-5">读取观察与执行动作</text>
+  <rect x="830" y="604" width="310" height="182" rx="24" fill="#e7f5eb" stroke="#87b69c" stroke-width="2.5" data-graph-role="node" id="node-6" />
+  <g transform="translate(852 626) scale(0.78)" stroke="#26364b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="2" y="26" width="25" height="28" rx="6" fill="#fff" />
+    <rect x="48" y="4" width="25" height="28" rx="6" fill="#fff" />
+    <rect x="48" y="49" width="25" height="28" rx="6" fill="#fff" />
+    <path d="M27 40H37V18H48M37 40V63H48" stroke="#36846b" />
+  </g>
+  <text x="927" y="664" font-size="28" font-weight="700" text-anchor="start" class="" data-graph-role="decoration" data-owner="node-6">外部协作</text>
+  <text x="985" y="724" font-size="23" font-weight="400" text-anchor="middle" class="sub" data-graph-role="decoration" data-owner="node-6">MCP 外部工具</text>
+  <text x="985" y="758" font-size="23" font-weight="400" text-anchor="middle" class="sub" data-graph-role="decoration" data-owner="node-6">A2A 远程 Agent</text>
+  <rect x="1200" y="604" width="310" height="182" rx="24" fill="#f5f1f9" stroke="#b6a5c7" stroke-width="2.5" data-graph-role="node" id="node-7" />
+  <g transform="translate(1222 626) scale(0.78)" stroke="#26364b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M4 20V12Q4 7 10 7H28L37 19H66Q72 19 72 25V64Q72 69 66 69H10Q4 69 4 63Z" fill="#fff" />
+    <path d="M4 29H72" stroke="#8573a8" />
+    <path d="M19 42H56M19 54H46" stroke="#aa9abc" />
+  </g>
+  <text x="1297" y="664" font-size="28" font-weight="700" text-anchor="start" class="" data-graph-role="decoration" data-owner="node-7">项目与记忆</text>
+  <text x="1355" y="724" font-size="23" font-weight="400" text-anchor="middle" class="sub" data-graph-role="decoration" data-owner="node-7">共享文件、说明与笔记</text>
+  <text x="1355" y="758" font-size="23" font-weight="400" text-anchor="middle" class="sub" data-graph-role="decoration" data-owner="node-7">有来源的对话摘要</text>
+  <text x="80" y="859" font-size="23" font-weight="400" text-anchor="start" class="sub" data-graph-role="label">任务结束与成果完整分别记录</text>
 </svg>

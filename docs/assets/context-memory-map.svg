@@ -1,60 +1,103 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc"><title id="title">RayAgent：记忆分层与请求装配</title><desc id="desc">会话工作记忆、冻结项目背景与结构化任务状态进入本次请求；持久事件用于回放和重建，不逐轮全量注入。</desc>
-<style>text {font-family:'PingFang SC','Hiragino Sans GB','Noto Sans CJK SC','Noto Sans SC','Source Han Sans SC','Songti SC','Microsoft YaHei','Helvetica Neue',Helvetica,Arial,sans-serif;fill:#17263c} .sub {fill:#63748a}</style>
-<defs xmlns="http://www.w3.org/2000/svg">
-<marker id="arrow-orange" markerUnits="userSpaceOnUse" markerWidth="20" markerHeight="20" refX="17" refY="10" orient="auto"><path d="M3 3Q11 6 17 10Q11 14 3 17" fill="none" stroke="#e68728" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" /></marker>
-<marker id="arrow-blue" markerUnits="userSpaceOnUse" markerWidth="20" markerHeight="20" refX="17" refY="10" orient="auto"><path d="M3 3Q11 6 17 10Q11 14 3 17" fill="none" stroke="#5394c6" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" /></marker>
-<marker id="arrow-green" markerUnits="userSpaceOnUse" markerWidth="20" markerHeight="20" refX="17" refY="10" orient="auto"><path d="M3 3Q11 6 17 10Q11 14 3 17" fill="none" stroke="#518e73" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" /></marker>
-<marker id="arrow-purple" markerUnits="userSpaceOnUse" markerWidth="20" markerHeight="20" refX="17" refY="10" orient="auto"><path d="M3 3Q11 6 17 10Q11 14 3 17" fill="none" stroke="#9980b5" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" /></marker>
-<marker id="arrow-red" markerUnits="userSpaceOnUse" markerWidth="20" markerHeight="20" refX="17" refY="10" orient="auto"><path d="M3 3Q11 6 17 10Q11 14 3 17" fill="none" stroke="#c66968" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" /></marker>
-</defs>
-<rect width="1600" height="900" fill="#fffefb" data-graph-role="background"/>
-<path d="M58 60Q580 33 1240 55L1226 69L1260 80L1230 91L1252 110Q650 133 65 120L81 106L56 93L80 78Z" fill="#fff0ce" data-graph-role="decoration"/>
-<text x="80" y="106" font-size="46" text-anchor="start" font-weight="700" class="">RayAgent：记忆分层与请求装配</text>
-<path d="M82 151Q410 145 810 151" stroke="#dceefa" stroke-width="21" stroke-linecap="round" data-graph-role="decoration"/>
-<text x="80" y="159" font-size="24" text-anchor="start" font-weight="400" class="sub">保存的内容，不必全部进入下一次请求</text>
-<rect id="events" data-graph-role="node" x="70" y="235" width="400" height="130" rx="24" fill="#f0ebf7" stroke="#ad9cc2" stroke-width="3.5"/>
-<path data-graph-role="decoration" d="M95 242Q270.0 236 442 242" fill="none" stroke="#ad9cc2" stroke-width="1.5" opacity=".23"/>
-<g xmlns="http://www.w3.org/2000/svg" transform="translate(92 255) scale(0.6)" stroke="#26364b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" data-graph-role="decoration"><rect x="8" y="13" width="42" height="54" rx="5" fill="#dceefa" transform="rotate(-9 29 40)" /><path d="M22 3H56L70 18V65Q70 70 65 70H22Q17 70 17 65V8Q17 3 22 3Z" fill="#fff" /><path d="M56 3V18H70" fill="#ffdc92" /><path d="M29 30H58M29 42H58M29 54H48" stroke="#5d8bb5" /></g>
-<text x="155" y="282" font-size="28" text-anchor="start" font-weight="700" class="">持久记录</text>
-<text x="270.0" y="340" font-size="23" text-anchor="middle" font-weight="400" class="sub">消息 · 事件 · 运行快照</text>
-<rect id="replay" data-graph-role="node" x="70" y="505" width="400" height="130" rx="24" fill="#f0ebf7" stroke="#ad9cc2" stroke-width="3.5"/>
-<path data-graph-role="decoration" d="M95 512Q270.0 506 442 512" fill="none" stroke="#ad9cc2" stroke-width="1.5" opacity=".23"/>
-<g xmlns="http://www.w3.org/2000/svg" transform="translate(92 525) scale(0.6)" stroke="#26364b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" data-graph-role="decoration"><rect x="8" y="13" width="42" height="54" rx="5" fill="#dceefa" transform="rotate(-9 29 40)" /><path d="M22 3H56L70 18V65Q70 70 65 70H22Q17 70 17 65V8Q17 3 22 3Z" fill="#fff" /><path d="M56 3V18H70" fill="#ffdc92" /><path d="M29 30H58M29 42H58M29 54H48" stroke="#5d8bb5" /></g>
-<text x="155" y="552" font-size="28" text-anchor="start" font-weight="700" class="">回放与请求重建</text>
-<text x="270.0" y="610" font-size="23" text-anchor="middle" font-weight="400" class="sub">还原记录，不重放动作</text>
-<rect id="working" data-graph-role="node" x="610" y="235" width="430" height="130" rx="24" fill="#e3f1ff" stroke="#5394c6" stroke-width="3.5"/>
-<path data-graph-role="decoration" d="M635 242Q825.0 236 1012 242" fill="none" stroke="#5394c6" stroke-width="1.5" opacity=".23"/>
-<g xmlns="http://www.w3.org/2000/svg" transform="translate(632 255) scale(0.6)" stroke="#26364b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" data-graph-role="decoration"><rect x="8" y="13" width="42" height="54" rx="5" fill="#dceefa" transform="rotate(-9 29 40)" /><path d="M22 3H56L70 18V65Q70 70 65 70H22Q17 70 17 65V8Q17 3 22 3Z" fill="#fff" /><path d="M56 3V18H70" fill="#ffdc92" /><path d="M29 30H58M29 42H58M29 54H48" stroke="#5d8bb5" /></g>
-<text x="695" y="282" font-size="28" text-anchor="start" font-weight="700" class="">会话工作记忆</text>
-<text x="825.0" y="340" font-size="23" text-anchor="middle" font-weight="400" class="sub">原文 · 工具反馈 · 压缩摘要</text>
-<rect id="project" data-graph-role="node" x="610" y="440" width="430" height="130" rx="24" fill="#e2f3e7" stroke="#70a58a" stroke-width="3.5"/>
-<path data-graph-role="decoration" d="M635 447Q825.0 441 1012 447" fill="none" stroke="#70a58a" stroke-width="1.5" opacity=".23"/>
-<g xmlns="http://www.w3.org/2000/svg" transform="translate(632 460) scale(0.6)" stroke="#26364b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" data-graph-role="decoration"><rect x="12" y="8" width="48" height="62" rx="6" fill="#fff" /><rect x="24" y="3" width="24" height="12" rx="4" fill="#ffdaa0" /><path d="M22 29L25 32L31 25M22 45L25 48L31 41" stroke="#c27c31" /><path d="M38 29H51M38 45H51M22 59H51" stroke="#8292a3" /></g>
-<text x="695" y="487" font-size="28" text-anchor="start" font-weight="700" class="">项目长期背景</text>
-<text x="825.0" y="545" font-size="23" text-anchor="middle" font-weight="400" class="sub">说明 · 笔记 · 其他对话摘要</text>
-<rect id="state" data-graph-role="node" x="610" y="645" width="430" height="130" rx="24" fill="#fff0ce" stroke="#e9a139" stroke-width="3.5"/>
-<path data-graph-role="decoration" d="M635 652Q825.0 646 1012 652" fill="none" stroke="#e9a139" stroke-width="1.5" opacity=".23"/>
-<g xmlns="http://www.w3.org/2000/svg" transform="translate(632 665) scale(0.6)" stroke="#26364b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" data-graph-role="decoration"><rect x="12" y="8" width="48" height="62" rx="6" fill="#fff" /><rect x="24" y="3" width="24" height="12" rx="4" fill="#ffdaa0" /><path d="M22 29L25 32L31 25M22 45L25 48L31 41" stroke="#c27c31" /><path d="M38 29H51M38 45H51M22 59H51" stroke="#8292a3" /></g>
-<text x="695" y="692" font-size="28" text-anchor="start" font-weight="700" class="">结构化任务状态</text>
-<text x="825.0" y="750" font-size="23" text-anchor="middle" font-weight="400" class="sub">计划 · 范围 · 成果 · 核验</text>
-<rect id="request" data-graph-role="node" x="1200" y="440" width="330" height="130" rx="24" fill="#fff0ce" stroke="#e9a139" stroke-width="3.5"/>
-<path data-graph-role="decoration" d="M1225 447Q1365.0 441 1502 447" fill="none" stroke="#e9a139" stroke-width="1.5" opacity=".23"/>
-<g xmlns="http://www.w3.org/2000/svg" transform="translate(1222 460) scale(0.6)" stroke="#26364b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" data-graph-role="decoration"><rect x="8" y="13" width="42" height="54" rx="5" fill="#dceefa" transform="rotate(-9 29 40)" /><path d="M22 3H56L70 18V65Q70 70 65 70H22Q17 70 17 65V8Q17 3 22 3Z" fill="#fff" /><path d="M56 3V18H70" fill="#ffdc92" /><path d="M29 30H58M29 42H58M29 54H48" stroke="#5d8bb5" /></g>
-<text x="1285" y="487" font-size="28" text-anchor="start" font-weight="700" class="">本次请求</text>
-<text x="1365.0" y="545" font-size="23" text-anchor="middle" font-weight="400" class="sub">系统提示 · 工具声明</text>
-<rect id="model" data-graph-role="node" x="1200" y="670" width="330" height="105" rx="24" fill="#e3f1ff" stroke="#5394c6" stroke-width="3.5"/>
-<path data-graph-role="decoration" d="M1225 677Q1365.0 671 1502 677" fill="none" stroke="#5394c6" stroke-width="1.5" opacity=".23"/>
-<g xmlns="http://www.w3.org/2000/svg" transform="translate(1222 690) scale(0.6)" stroke="#26364b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" data-graph-role="decoration"><path d="M39 16V7" /><circle cx="39" cy="5" r="5" fill="#ffd280" /><rect x="4" y="29" width="12" height="22" rx="6" fill="#ffd280" /><rect x="63" y="29" width="12" height="22" rx="6" fill="#ffd280" /><rect x="12" y="16" width="55" height="49" rx="18" fill="#fff" /><rect x="20" y="27" width="39" height="26" rx="10" fill="#263e59" /><path d="M27 39Q31 33 35 39M44 39Q48 33 52 39" stroke="#fff" /><path d="M28 65L22 75M51 65L57 75" /></g>
-<text x="1285" y="717" font-size="28" text-anchor="start" font-weight="700" class="">模型决策</text>
-<text x="1365.0" y="750" font-size="23" text-anchor="middle" font-weight="400" class="sub">根据本次输入判断</text>
-<path id="events-replay" data-graph-role="edge" d="M270 365 V505" fill="none" stroke="#5394c6" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-blue)"/>
-<text x="290" y="438" font-size="22" text-anchor="start" font-weight="400" class="sub">按记录读取</text>
-<path id="working-request" data-graph-role="edge" d="M1040 300 H1130 V470 H1200" fill="none" stroke="#518e73" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-green)"/>
-<path id="project-request" data-graph-role="edge" d="M1040 510 H1200" fill="none" stroke="#518e73" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-green)"/>
-<path id="state-request" data-graph-role="edge" d="M1040 705 H1150 V550 H1200" fill="none" stroke="#518e73" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-green)"/>
-<path id="request-model" data-graph-role="edge" d="M1365 570 V670" fill="none" stroke="#e68728" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-orange)"/>
-<text x="825" y="611" font-size="22" text-anchor="middle" font-weight="400" class="sub">新运行冻结 · 等待沿用</text>
-<text x="1378" y="619" font-size="21" text-anchor="start" font-weight="400" class="sub">请求</text>
-<text x="80" y="842" font-size="24" text-anchor="start" font-weight="400" class="sub">持久历史不全量注入，压缩摘要不自动写入长期笔记</text>
-<text x="80" y="882" font-size="21" text-anchor="start" font-weight="400" class="sub">绿：选取输入    蓝：读取记录    橙：请求模型</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc" data-generator="fireworks-tech-graph" data-quality-profile="showcase">
+  <title id="title">RayAgent：记忆分层与请求装配</title>
+  <desc id="desc">会话工作记忆、冻结项目背景与结构化任务状态进入本次请求；持久事件用于回放和重建，不逐轮全量注入。 工作记忆包含当前激活的 skill 资料。</desc>
+  <style>text {font-family:'PingFang SC','Hiragino Sans GB','Noto Sans CJK SC','Noto Sans SC','Source Han Sans SC','Songti SC','Microsoft YaHei','Helvetica Neue',Helvetica,Arial,sans-serif;fill:#17263c} .sub {fill:#63748a}</style>
+  <defs>
+    <marker id="arrow-orange" markerUnits="userSpaceOnUse" markerWidth="14" markerHeight="14" refX="12" refY="7" orient="auto">
+      <path d="M3 2L12 7L3 12" fill="none" stroke="#e68728" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" />
+    </marker>
+    <marker id="arrow-blue" markerUnits="userSpaceOnUse" markerWidth="14" markerHeight="14" refX="12" refY="7" orient="auto">
+      <path d="M3 2L12 7L3 12" fill="none" stroke="#5394c6" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" />
+    </marker>
+    <marker id="arrow-green" markerUnits="userSpaceOnUse" markerWidth="14" markerHeight="14" refX="12" refY="7" orient="auto">
+      <path d="M3 2L12 7L3 12" fill="none" stroke="#518e73" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" />
+    </marker>
+    <marker id="arrow-purple" markerUnits="userSpaceOnUse" markerWidth="14" markerHeight="14" refX="12" refY="7" orient="auto">
+      <path d="M3 2L12 7L3 12" fill="none" stroke="#9980b5" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" />
+    </marker>
+    <marker id="arrow-red" markerUnits="userSpaceOnUse" markerWidth="14" markerHeight="14" refX="12" refY="7" orient="auto">
+      <path d="M3 2L12 7L3 12" fill="none" stroke="#c66968" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" />
+    </marker>
+  </defs>
+  <rect width="1600" height="900" fill="#fffefb" data-graph-role="background" />
+  <path d="M58 60Q580 33 1240 55L1226 69L1260 80L1230 91L1252 110Q650 133 65 120L81 106L56 93L80 78Z" fill="#fff0ce" data-graph-role="decoration" />
+  <text x="80" y="106" font-size="46" text-anchor="start" font-weight="700" class="" data-graph-role="label">RayAgent：记忆分层与请求装配</text>
+  <text x="80" y="159" font-size="24" text-anchor="start" font-weight="400" class="sub" data-graph-role="label">保存的内容，不必全部进入下一次请求</text>
+  <rect id="events" data-graph-role="node" x="70" y="235" width="400" height="130" rx="24" fill="#f5f1f9" stroke="#b6a5c7" stroke-width="2.5" />
+  <g transform="translate(92 255) scale(0.6)" stroke="#26364b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" data-graph-role="decoration">
+    <rect x="8" y="13" width="42" height="54" rx="5" fill="#dceefa" transform="rotate(-9 29 40)" />
+    <path d="M22 3H56L70 18V65Q70 70 65 70H22Q17 70 17 65V8Q17 3 22 3Z" fill="#fff" />
+    <path d="M56 3V18H70" fill="#ffdc92" />
+    <path d="M29 30H58M29 42H58M29 54H48" stroke="#5d8bb5" />
+  </g>
+  <text x="155" y="282" font-size="28" text-anchor="start" font-weight="700" class="" data-graph-role="decoration" data-owner="events">持久记录</text>
+  <text x="270.0" y="340" font-size="23" text-anchor="middle" font-weight="400" class="sub" data-graph-role="decoration" data-owner="events">消息 · 事件 · 运行快照</text>
+  <rect id="replay" data-graph-role="node" x="70" y="505" width="400" height="130" rx="24" fill="#f5f1f9" stroke="#b6a5c7" stroke-width="2.5" />
+  <g transform="translate(92 525) scale(0.6)" stroke="#26364b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" data-graph-role="decoration">
+    <rect x="8" y="13" width="42" height="54" rx="5" fill="#dceefa" transform="rotate(-9 29 40)" />
+    <path d="M22 3H56L70 18V65Q70 70 65 70H22Q17 70 17 65V8Q17 3 22 3Z" fill="#fff" />
+    <path d="M56 3V18H70" fill="#ffdc92" />
+    <path d="M29 30H58M29 42H58M29 54H48" stroke="#5d8bb5" />
+  </g>
+  <text x="155" y="552" font-size="28" text-anchor="start" font-weight="700" class="" data-graph-role="decoration" data-owner="replay">回放与请求重建</text>
+  <text x="270.0" y="610" font-size="23" text-anchor="middle" font-weight="400" class="sub" data-graph-role="decoration" data-owner="replay">还原记录，不重放动作</text>
+  <rect id="working" data-graph-role="node" x="610" y="235" width="430" height="130" rx="24" fill="#eff6fc" stroke="#94b5ce" stroke-width="2.5" />
+  <g transform="translate(632 255) scale(0.6)" stroke="#26364b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" data-graph-role="decoration">
+    <rect x="8" y="13" width="42" height="54" rx="5" fill="#dceefa" transform="rotate(-9 29 40)" />
+    <path d="M22 3H56L70 18V65Q70 70 65 70H22Q17 70 17 65V8Q17 3 22 3Z" fill="#fff" />
+    <path d="M56 3V18H70" fill="#ffdc92" />
+    <path d="M29 30H58M29 42H58M29 54H48" stroke="#5d8bb5" />
+  </g>
+  <text x="695" y="282" font-size="28" text-anchor="start" font-weight="700" class="" data-graph-role="decoration" data-owner="working">会话工作记忆</text>
+  <text x="825.0" y="340" font-size="23" text-anchor="middle" font-weight="400" class="sub" data-graph-role="decoration" data-owner="working">原文 · 工具反馈 · 摘要与 skill 资料</text>
+  <rect id="project" data-graph-role="node" x="610" y="440" width="430" height="130" rx="24" fill="#eef7f0" stroke="#9dbfa9" stroke-width="2.5" />
+  <g transform="translate(632 460) scale(0.6)" stroke="#26364b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" data-graph-role="decoration">
+    <rect x="12" y="8" width="48" height="62" rx="6" fill="#fff" />
+    <rect x="24" y="3" width="24" height="12" rx="4" fill="#ffdaa0" />
+    <path d="M22 29L25 32L31 25M22 45L25 48L31 41" stroke="#c27c31" />
+    <path d="M38 29H51M38 45H51M22 59H51" stroke="#8292a3" />
+  </g>
+  <text x="695" y="487" font-size="28" text-anchor="start" font-weight="700" class="" data-graph-role="decoration" data-owner="project">项目长期背景</text>
+  <text x="825.0" y="545" font-size="23" text-anchor="middle" font-weight="400" class="sub" data-graph-role="decoration" data-owner="project">说明 · 笔记 · 其他对话摘要</text>
+  <rect id="state" data-graph-role="node" x="610" y="645" width="430" height="130" rx="24" fill="#fff5df" stroke="#d9b779" stroke-width="2.5" />
+  <g transform="translate(632 665) scale(0.6)" stroke="#26364b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" data-graph-role="decoration">
+    <rect x="12" y="8" width="48" height="62" rx="6" fill="#fff" />
+    <rect x="24" y="3" width="24" height="12" rx="4" fill="#ffdaa0" />
+    <path d="M22 29L25 32L31 25M22 45L25 48L31 41" stroke="#c27c31" />
+    <path d="M38 29H51M38 45H51M22 59H51" stroke="#8292a3" />
+  </g>
+  <text x="695" y="692" font-size="28" text-anchor="start" font-weight="700" class="" data-graph-role="decoration" data-owner="state">结构化任务状态</text>
+  <text x="825.0" y="750" font-size="23" text-anchor="middle" font-weight="400" class="sub" data-graph-role="decoration" data-owner="state">计划 · 范围 · 成果 · 核验</text>
+  <rect id="request" data-graph-role="node" x="1200" y="440" width="330" height="130" rx="24" fill="#fff5df" stroke="#d9b779" stroke-width="2.5" />
+  <g transform="translate(1222 460) scale(0.6)" stroke="#26364b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" data-graph-role="decoration">
+    <rect x="8" y="13" width="42" height="54" rx="5" fill="#dceefa" transform="rotate(-9 29 40)" />
+    <path d="M22 3H56L70 18V65Q70 70 65 70H22Q17 70 17 65V8Q17 3 22 3Z" fill="#fff" />
+    <path d="M56 3V18H70" fill="#ffdc92" />
+    <path d="M29 30H58M29 42H58M29 54H48" stroke="#5d8bb5" />
+  </g>
+  <text x="1285" y="487" font-size="28" text-anchor="start" font-weight="700" class="" data-graph-role="decoration" data-owner="request">本次请求</text>
+  <text x="1365.0" y="545" font-size="23" text-anchor="middle" font-weight="400" class="sub" data-graph-role="decoration" data-owner="request">系统提示 · 工具声明</text>
+  <rect id="model" data-graph-role="node" x="1200" y="670" width="330" height="105" rx="24" fill="#eff6fc" stroke="#94b5ce" stroke-width="2.5" />
+  <g transform="translate(1222 690) scale(0.6)" stroke="#26364b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" data-graph-role="decoration">
+    <path d="M39 16V7" />
+    <circle cx="39" cy="5" r="5" fill="#ffd280" />
+    <rect x="4" y="29" width="12" height="22" rx="6" fill="#ffd280" />
+    <rect x="63" y="29" width="12" height="22" rx="6" fill="#ffd280" />
+    <rect x="12" y="16" width="55" height="49" rx="18" fill="#fff" />
+    <rect x="20" y="27" width="39" height="26" rx="10" fill="#263e59" />
+    <path d="M27 39Q31 33 35 39M44 39Q48 33 52 39" stroke="#fff" />
+    <path d="M28 65L22 75M51 65L57 75" />
+  </g>
+  <text x="1285" y="717" font-size="28" text-anchor="start" font-weight="700" class="" data-graph-role="decoration" data-owner="model">模型决策</text>
+  <text x="1365.0" y="750" font-size="23" text-anchor="middle" font-weight="400" class="sub" data-graph-role="decoration" data-owner="model">根据本次输入判断</text>
+  <path id="events-replay" data-graph-role="edge" d="M270 365 V505" fill="none" stroke="#5394c6" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-blue)" />
+  <text x="290" y="438" font-size="22" text-anchor="start" font-weight="400" class="sub" data-graph-role="label">按记录读取</text>
+  <path id="working-request" data-graph-role="edge" d="M1040 300 H1130 V470 H1200" fill="none" stroke="#518e73" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-green)" />
+  <path id="project-request" data-graph-role="edge" d="M1040 510 H1200" fill="none" stroke="#518e73" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-green)" />
+  <path id="state-request" data-graph-role="edge" d="M1040 705H1130V550H1200" fill="none" stroke="#518e73" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-green)" />
+  <path id="request-model" data-graph-role="edge" d="M1365 570 V670" fill="none" stroke="#e68728" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-orange)" />
+  <text x="825" y="611" font-size="22" text-anchor="middle" font-weight="400" class="sub" data-graph-role="label">新运行冻结 · 等待沿用</text>
+  <text x="1378" y="619" font-size="21" text-anchor="start" font-weight="400" class="sub" data-graph-role="label">请求</text>
+  <text x="80" y="842" font-size="24" text-anchor="start" font-weight="400" class="sub" data-graph-role="label">持久历史不全量注入，压缩摘要不自动写入长期笔记</text>
+  <text x="80" y="882" font-size="21" text-anchor="start" font-weight="400" class="sub" data-graph-role="label">绿：选取输入    蓝：读取记录    橙：请求模型</text>
 </svg>

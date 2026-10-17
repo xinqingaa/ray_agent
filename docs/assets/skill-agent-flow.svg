@@ -1,0 +1,59 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc" data-generator="fireworks-tech-graph" data-quality-profile="showcase">
+<title id="title">RayAgent：skill 如何参与 Agent 执行</title>
+<desc id="desc">用户任务进入上下文，Agent 根据任务、历史与运行内 skill 目录决策。用户显式选择的 skill 在业务决策前加载；Agent 也可按需加载，完整正文及按需读取的参考资料进入上下文，供后续决策使用。工具调用经校验与授权执行，结果反馈给下一次决策；skill 脚本与素材先准备到运行沙箱，再沿普通工具执行。Agent 在形成最终答复时交付文件与说明。skill 沿用同一个 Agent 循环和工具权限。</desc>
+<style>text{font-family:'PingFang SC','Hiragino Sans GB','Noto Sans CJK SC','Noto Sans SC','Source Han Sans SC','Microsoft YaHei','Helvetica Neue',Helvetica,Arial,sans-serif}</style>
+<defs>
+<marker id="ae68728" markerUnits="userSpaceOnUse" markerWidth="14" markerHeight="14" refX="12" refY="7" orient="auto"><path d="M3 2L12 7L3 12" fill="none" stroke="#e68728" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></marker>
+<marker id="a518e73" markerUnits="userSpaceOnUse" markerWidth="14" markerHeight="14" refX="12" refY="7" orient="auto"><path d="M3 2L12 7L3 12" fill="none" stroke="#518e73" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></marker>
+<marker id="a5394c6" markerUnits="userSpaceOnUse" markerWidth="14" markerHeight="14" refX="12" refY="7" orient="auto"><path d="M3 2L12 7L3 12" fill="none" stroke="#5394c6" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></marker>
+</defs><rect width="1600" height="900" fill="#fffefb" data-graph-role="background"/>
+<path d="M65 66Q440 48 1140 62L1127 79L1152 94Q540 115 69 109L79 91Z" fill="#fff0ce" data-graph-role="decoration"/>
+<text x="80" y="104" font-size="46" font-weight="700" fill="#17263c" data-graph-role="label">RayAgent：skill 如何参与 Agent 执行</text>
+<text x="80" y="159" font-size="25" font-weight="400" fill="#63748a" data-graph-role="label">方法进入上下文，资源沿工具管线使用</text>
+<rect id="skill" x="430" y="220" width="710" height="120" rx="24" fill="#f5f1f9" stroke="#b6a5c7" stroke-width="2.5" data-graph-role="node"/>
+<rect id="task" x="70" y="440" width="250" height="140" rx="24" fill="#fffaf0" stroke="#d9bf8e" stroke-width="2.5" data-graph-role="node"/>
+<rect id="context" x="430" y="440" width="300" height="140" rx="24" fill="#f0f7fd" stroke="#94b5ce" stroke-width="2.5" data-graph-role="node"/>
+<rect id="decision" x="840" y="440" width="300" height="140" rx="24" fill="#fff5df" stroke="#d9b779" stroke-width="2.5" data-graph-role="node"/>
+<rect id="delivery" x="1250" y="440" width="280" height="140" rx="24" fill="#eef7f0" stroke="#9dbfa9" stroke-width="2.5" data-graph-role="node"/>
+<rect id="tools" x="840" y="690" width="690" height="120" rx="24" fill="#f6f9fc" stroke="#a5b9cc" stroke-width="2.5" data-graph-role="node"/>
+<g transform="translate(455 237)" stroke="#31465d" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" data-graph-role="decoration" data-owner="skill"><path d="M4 10q13-5 25 3q13-8 26-3v39q-13-5-26 3q-12-8-25-3Z" fill="#fff"/><path d="M29 13v39M12 22l10 2M12 32l10 2M37 24l10-2M37 34l10-2" fill="none"/></g>
+<text x="531" y="271" font-size="31" font-weight="600" fill="#17263c" data-graph-role="decoration" data-owner="skill">skill 方法与资料</text>
+<text x="458" y="313" font-size="24" font-weight="400" fill="#63748a" data-graph-role="decoration" data-owner="skill">用户 / 显式选择 · Agent 按需加载</text>
+<g transform="translate(92 460)" stroke="#31465d" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" data-graph-role="decoration" data-owner="task"><path d="M9 4h28l14 14v38H9Z" fill="#fff"/><path d="M37 4v14h14M19 29h22M19 39h22M19 49h14" fill="none"/></g>
+<text x="158" y="495" font-size="29" font-weight="600" fill="#17263c" data-graph-role="decoration" data-owner="task">用户任务</text>
+<text x="94" y="548" font-size="23" font-weight="400" fill="#63748a" data-graph-role="decoration" data-owner="task">目标 · 资料 · 要求</text>
+<g transform="translate(452 460)" stroke="#31465d" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" data-graph-role="decoration" data-owner="context"><rect x="7" y="9" width="44" height="47" rx="6" fill="#fff"/><path d="M18 6h22v10H18Z" fill="#fff0ce"/><path d="M18 29h22M18 39h22M18 49h13" fill="none"/></g>
+<text x="518" y="495" font-size="29" font-weight="600" fill="#17263c" data-graph-role="decoration" data-owner="context">组织上下文</text>
+<text x="454" y="548" font-size="23" font-weight="400" fill="#63748a" data-graph-role="decoration" data-owner="context">任务 · 历史 · skill 目录</text>
+<g transform="translate(864 460)" stroke="#31465d" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" data-graph-role="decoration" data-owner="decision"><path d="M28 12V4" fill="none"/><path d="M24 4h8"/><rect x="5" y="13" width="48" height="38" rx="13" fill="#fff"/><rect x="13" y="23" width="32" height="18" rx="7" fill="#31465d"/><path d="M21 31h2M35 31h2" stroke="#fff"/><path d="M19 51l-4 7M39 51l4 7" fill="none"/></g>
+<text x="930" y="495" font-size="29" font-weight="600" fill="#17263c" data-graph-role="decoration" data-owner="decision">Agent 决策</text>
+<text x="864" y="548" font-size="23" font-weight="400" fill="#63748a" data-graph-role="decoration" data-owner="decision">依据上下文选择下一步</text>
+<g transform="translate(1272 460)" stroke="#31465d" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" data-graph-role="decoration" data-owner="delivery"><path d="M4 14V8h16l7 8h29v37H4Z" fill="#fff"/><path d="M4 24h52M16 34h27M16 43h20" fill="none"/></g>
+<text x="1338" y="495" font-size="29" font-weight="600" fill="#17263c" data-graph-role="decoration" data-owner="delivery">答复与文件</text>
+<text x="1274" y="548" font-size="23" font-weight="400" fill="#63748a" data-graph-role="decoration" data-owner="delivery">交付成果，说明缺口</text>
+<g transform="translate(864 720)" stroke="#31465d" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" data-graph-role="decoration" data-owner="tools"><rect x="3" y="8" width="54" height="44" rx="7" fill="#fff"/><path d="M3 19h54M15 29l8 7-8 7M30 43h14" fill="none"/></g>
+<text x="942" y="737" font-size="29" font-weight="600" fill="#17263c" data-graph-role="decoration" data-owner="tools">工具执行</text>
+<text x="942" y="782" font-size="23" font-weight="400" fill="#63748a" data-graph-role="decoration" data-owner="tools">校验与授权 · 文件 / 浏览器 · skill 资源与脚本</text>
+<path id="task-context" data-graph-role="edge" data-source="task" data-target="context" d="M320 510H430" fill="none" stroke="#e68728" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#ae68728)"/>
+<path id="context-decision" data-graph-role="edge" data-source="context" data-target="decision" d="M730 510H840" fill="none" stroke="#e68728" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#ae68728)"/>
+<path id="decision-delivery" data-graph-role="edge" data-source="decision" data-target="delivery" d="M1140 510H1250" fill="none" stroke="#e68728" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#ae68728)"/>
+<text x="1155" y="490" font-size="21" font-weight="400" fill="#63748a" data-graph-role="label" data-owner="decision-delivery">形成答复</text>
+<path id="skill-context" data-graph-role="edge" data-source="skill" data-target="context" d="M580 340V440" fill="none" stroke="#518e73" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#a518e73)"/>
+<text x="600" y="385" font-size="23" font-weight="400" fill="#63748a" data-graph-role="label" data-owner="skill-context">正文与参考</text>
+<path id="decision-load" data-graph-role="edge" data-source="decision" data-target="skill" d="M990 440V340" fill="none" stroke="#e68728" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#ae68728)"/>
+<text x="1010" y="385" font-size="23" font-weight="400" fill="#63748a" data-graph-role="label" data-owner="decision-load">按需加载</text>
+<path id="decision-tools" data-graph-role="edge" data-source="decision" data-target="tools" d="M930 580V690" fill="none" stroke="#e68728" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#ae68728)"/>
+<text x="865" y="639" font-size="23" font-weight="400" fill="#63748a" data-graph-role="label" data-owner="decision-tools">调用</text>
+<path id="tools-feedback" data-graph-role="edge" data-source="tools" data-target="decision" d="M1050 690V580" fill="none" stroke="#5394c6" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#a5394c6)"/>
+<text x="1070" y="639" font-size="23" font-weight="400" fill="#63748a" data-graph-role="label" data-owner="tools-feedback">执行反馈</text>
+<text x="80" y="727" font-size="25" font-weight="600" fill="#31465d" data-graph-role="label">正文与参考资料，供 Agent 判断如何做</text>
+<text x="80" y="773" font-size="23" font-weight="400" fill="#63748a" data-graph-role="label">脚本与素材准备到沙箱后，由普通工具使用</text>
+<path d="M70 847H1530" stroke="#e3e7e7" stroke-width="1" data-graph-role="decoration"/>
+<path d="M74 872H108" stroke="#e68728" stroke-width="3" stroke-linecap="round" data-graph-role="legend"/>
+<text x="120" y="880" font-size="21" font-weight="400" fill="#63748a" data-graph-role="label">决策与调用</text>
+<path d="M294 872H328" stroke="#518e73" stroke-width="3" stroke-linecap="round" data-graph-role="legend"/>
+<text x="340" y="880" font-size="21" font-weight="400" fill="#63748a" data-graph-role="label">资料输入</text>
+<path d="M494 872H528" stroke="#5394c6" stroke-width="3" stroke-linecap="round" data-graph-role="legend"/>
+<text x="540" y="880" font-size="21" font-weight="400" fill="#63748a" data-graph-role="label">工具反馈</text>
+<text x="985" y="880" font-size="23" font-weight="400" fill="#63748a" data-graph-role="label">沿用同一 Agent 循环与工具权限</text>
+</svg>

@@ -362,10 +362,10 @@ Responses 检查使用真实 SDK 与 HTTP 替身，覆盖厂商编码、多轮�
 ### skill 安装与运行检查
 
 ```bash
-uv run --locked python -m pytest tests/core/test_skills.py
+uv run --locked python -m pytest tests/core/test_skills.py tests/core/test_skill_management_http.py
 RAY_TEST_DATABASE_URI=postgresql+asyncpg://USER@HOST:PORT/TEST_DB uv run --locked python -m pytest tests/core/test_skills_pg.py
 ```
 
-纯核心用例使用临时磁盘、事务仓储和脚本化模型，覆盖包安全、哈希、幂等、故障重试、固定版本、显式与自动加载、模式、审批和压缩。数据库检查会清空指定库的 `public` schema 并迁移，只能使用独立测试库；它验证并发更新、受理事务冻结及外键引用释放，不调用真实模型。
+纯核心用例使用临时磁盘、事务仓储和脚本化模型，覆盖包安全、哈希、幂等、故障重试、固定版本、显式与自动加载、模式、审批和压缩；HTTP 用例走真实路由与公共受理依赖，覆盖安装前读取、正文修订、无正文 DELETE 与空正文契约。数据库检查会清空指定库的 `public` schema 并迁移，只能使用独立测试库；它验证并发更新、受理事务冻结及外键引用释放，不调用真实模型。
 
 skill 目录由 `SKILL_STORAGE_DIR` 管理，开发环境回退目录及各项预算见[参数页](../../docs/limits.md#skill)。私有仓库和 CLI 安装不受理，错误需通过操作身份查询；真实 GitHub、模型与沙箱条件分别验证，不能由替身测试推断。

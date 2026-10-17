@@ -1,77 +1,62 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc"><title id="title">RayAgent：任务循环与退出路径</title><desc id="desc">模型决策与工具反馈形成循环；无调用时经结束反馈完成，提问或审批进入等待。底部单独展示运行期间的终止条件。</desc><style>text {font-family:'PingFang SC','Hiragino Sans GB','Noto Sans CJK SC','Noto Sans SC','Source Han Sans SC','Songti SC','Microsoft YaHei','Helvetica Neue',Helvetica,Arial,sans-serif;fill:#17263c} .sub {fill:#63748a}</style>
-<defs xmlns="http://www.w3.org/2000/svg">
-<marker id="arrow-orange" markerUnits="userSpaceOnUse" markerWidth="20" markerHeight="20" refX="17" refY="10" orient="auto"><path d="M3 3Q11 6 17 10Q11 14 3 17" fill="none" stroke="#e68728" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" /></marker>
-<marker id="arrow-blue" markerUnits="userSpaceOnUse" markerWidth="20" markerHeight="20" refX="17" refY="10" orient="auto"><path d="M3 3Q11 6 17 10Q11 14 3 17" fill="none" stroke="#5394c6" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" /></marker>
-<marker id="arrow-green" markerUnits="userSpaceOnUse" markerWidth="20" markerHeight="20" refX="17" refY="10" orient="auto"><path d="M3 3Q11 6 17 10Q11 14 3 17" fill="none" stroke="#518e73" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" /></marker>
-<marker id="arrow-purple" markerUnits="userSpaceOnUse" markerWidth="20" markerHeight="20" refX="17" refY="10" orient="auto"><path d="M3 3Q11 6 17 10Q11 14 3 17" fill="none" stroke="#9980b5" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" /></marker>
-<marker id="arrow-red" markerUnits="userSpaceOnUse" markerWidth="20" markerHeight="20" refX="17" refY="10" orient="auto"><path d="M3 3Q11 6 17 10Q11 14 3 17" fill="none" stroke="#c66968" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" /></marker>
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc" data-generator="fireworks-tech-graph" data-quality-profile="showcase">
+<title id="title">RayAgent：任务循环与退出路径</title><desc id="desc">运行组织上下文并请求模型。有工具调用时进入工具管线，结果回填上下文；无调用时经过有限结束反馈，保存答复与成果状态。提问和审批保存状态并退出当前协程，答复处理后恢复原上下文与待处理调用。其他运行终止条件独立列出。</desc>
+<style>text{font-family:'PingFang SC','Hiragino Sans GB','Noto Sans CJK SC','Noto Sans SC','Source Han Sans SC','Microsoft YaHei','Helvetica Neue',Helvetica,Arial,sans-serif}</style>
+<defs>
+<marker id="arrow-orange" markerUnits="userSpaceOnUse" markerWidth="14" markerHeight="14" refX="12" refY="7" orient="auto"><path d="M3 2L12 7L3 12" fill="none" stroke="#e68728" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></marker>
+<marker id="arrow-blue" markerUnits="userSpaceOnUse" markerWidth="14" markerHeight="14" refX="12" refY="7" orient="auto"><path d="M3 2L12 7L3 12" fill="none" stroke="#5394c6" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></marker>
+<marker id="arrow-green" markerUnits="userSpaceOnUse" markerWidth="14" markerHeight="14" refX="12" refY="7" orient="auto"><path d="M3 2L12 7L3 12" fill="none" stroke="#518e73" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></marker>
+<marker id="arrow-purple" markerUnits="userSpaceOnUse" markerWidth="14" markerHeight="14" refX="12" refY="7" orient="auto"><path d="M3 2L12 7L3 12" fill="none" stroke="#9980b5" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></marker>
+<marker id="arrow-red" markerUnits="userSpaceOnUse" markerWidth="14" markerHeight="14" refX="12" refY="7" orient="auto"><path d="M3 2L12 7L3 12" fill="none" stroke="#c66968" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/></marker>
 </defs>
-
-<rect width="1600" height="900" fill="#fffefb" data-graph-role="background"/><path d="M58 60Q580 33 1240 55L1226 69L1260 80L1230 91L1252 110Q650 133 65 120L81 106L56 93L80 78Z" fill="#fff0ce" data-graph-role="decoration"/>
-<text x="80" y="106" font-size="46" font-weight="700" text-anchor="start" class="">RayAgent：任务循环与退出路径</text>
-<path d="M82 151Q410 145 680 151" stroke="#dceefa" stroke-width="21" stroke-linecap="round" data-graph-role="decoration"/>
-<text x="80" y="159" font-size="24" font-weight="400" text-anchor="start" class="sub">同一运行持续决策、读取反馈与等待续接</text>
-<rect id="context" data-graph-role="node" x="70" y="285" width="300" height="130" rx="24" fill="#fff0ce" stroke="#e9a139" stroke-width="3.5"/>
-<path d="M95 292Q220.0 286 342 292" fill="none" stroke="#e9a139" stroke-width="1.5" opacity=".23" data-graph-role="decoration"/>
-<g xmlns="http://www.w3.org/2000/svg" transform="translate(94 306) scale(0.62)" stroke="#26364b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" data-graph-role="decoration"><rect x="8" y="13" width="42" height="54" rx="5" fill="#dceefa" transform="rotate(-9 29 40)" /><path d="M22 3H56L70 18V65Q70 70 65 70H22Q17 70 17 65V8Q17 3 22 3Z" fill="#fff" /><path d="M56 3V18H70" fill="#ffdc92" /><path d="M29 30H58M29 42H58M29 54H48" stroke="#5d8bb5" /></g>
-
-<text x="180" y="337" font-size="28" font-weight="700" text-anchor="start" class="">组织上下文</text>
-<text x="220.0" y="390" font-size="23" font-weight="400" text-anchor="middle" class="sub">补充消息 · 容量治理</text>
-<rect id="model" data-graph-role="node" x="480" y="285" width="280" height="130" rx="24" fill="#e3f1ff" stroke="#5394c6" stroke-width="3.5"/>
-<path d="M505 292Q620.0 286 732 292" fill="none" stroke="#5394c6" stroke-width="1.5" opacity=".23" data-graph-role="decoration"/>
-<g xmlns="http://www.w3.org/2000/svg" transform="translate(504 306) scale(0.62)" stroke="#26364b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" data-graph-role="decoration"><path d="M39 16V7" /><circle cx="39" cy="5" r="5" fill="#ffd280" /><rect x="4" y="29" width="12" height="22" rx="6" fill="#ffd280" /><rect x="63" y="29" width="12" height="22" rx="6" fill="#ffd280" /><rect x="12" y="16" width="55" height="49" rx="18" fill="#fff" /><rect x="20" y="27" width="39" height="26" rx="10" fill="#263e59" /><path d="M27 39Q31 33 35 39M44 39Q48 33 52 39" stroke="#fff" /><path d="M28 65L22 75M51 65L57 75" /></g>
-
-<text x="590" y="337" font-size="28" font-weight="700" text-anchor="start" class="">请求模型</text>
-<text x="620.0" y="390" font-size="23" font-weight="400" text-anchor="middle" class="sub">解析文本与工具调用</text>
-<rect id="tools" data-graph-role="node" x="1150" y="285" width="380" height="130" rx="24" fill="#e9f3ff" stroke="#85acd0" stroke-width="3.5"/>
-<path d="M1175 292Q1340.0 286 1502 292" fill="none" stroke="#85acd0" stroke-width="1.5" opacity=".23" data-graph-role="decoration"/>
-<g xmlns="http://www.w3.org/2000/svg" transform="translate(1174 306) scale(0.62)" stroke="#26364b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" data-graph-role="decoration"><rect x="3" y="9" width="69" height="55" rx="8" fill="#fff" /><path d="M3 24H72" stroke="#5c8ebd" /><circle cx="12" cy="17" r="2" fill="#5c8ebd" stroke="none" /><circle cx="21" cy="17" r="2" fill="#5c8ebd" stroke="none" /><path d="M16 36L25 44L16 52M36 52H52" stroke="#3f7eae" /></g>
-
-<text x="1260" y="337" font-size="28" font-weight="700" text-anchor="start" class="">工具管线</text>
-<text x="1340.0" y="390" font-size="23" font-weight="400" text-anchor="middle" class="sub">校验 · 授权 · 执行 · 整形</text>
-<polygon id="decision" data-graph-role="node" data-bounds="830 280 1030 420" points="930,280 1030,350 930,420 830,350" fill="#fff0ce" stroke="#e9a139" stroke-width="3.5"/>
-<text x="930" y="344" font-size="25" font-weight="700" text-anchor="middle" class="">有工具</text>
-<text x="930" y="377" font-size="25" font-weight="700" text-anchor="middle" class="">调用？</text>
-<path id="context-model" data-graph-role="edge" d="M370 350 L480 350" fill="none" stroke="#e68728" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-orange)"/>
-<path id="decision-request" data-graph-role="edge" d="M760 350 L830 350" fill="none" stroke="#e68728" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-orange)"/>
-<path id="has-tools" data-graph-role="edge" d="M1030 350 L1150 350" fill="none" stroke="#e68728" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-orange)"/>
-<text x="1090" y="332" font-size="22" font-weight="400" text-anchor="middle" class="sub">有</text>
-<path id="feedback" data-graph-role="edge" d="M1340 285 L1340 220 L220 220 L220 285" fill="none" stroke="#5394c6" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-blue)"/>
-<text x="780" y="207" font-size="23" font-weight="400" text-anchor="middle" class="sub">工具结果回填，由模型决定后续</text>
-<rect id="complete" data-graph-role="node" x="760" y="505" width="340" height="125" rx="24" fill="#e2f3e7" stroke="#70a58a" stroke-width="3.5"/>
-<path d="M785 512Q930.0 506 1072 512" fill="none" stroke="#70a58a" stroke-width="1.5" opacity=".23" data-graph-role="decoration"/>
-<g xmlns="http://www.w3.org/2000/svg" transform="translate(785 523) scale(0.55)" stroke="#26364b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" data-graph-role="decoration"><path d="M9 4H45L59 18V67H9Z" fill="#fff" /><path d="M45 4V18H59" fill="#def2e6" /><path d="M22 31H43M22 42H38" stroke="#81a591" /><circle cx="56" cy="57" r="18" fill="#d6efdf" /><path d="M46 57L53 64L66 49" stroke="#338367" stroke-width="5" /></g>
-
-<text x="875" y="553" font-size="26" font-weight="700" text-anchor="start" class="">完成 · completed</text>
-<text x="930" y="605" font-size="23" font-weight="400" text-anchor="middle" class="sub">保存答复与成果状态</text>
-<path id="no-tools" data-graph-role="edge" d="M930 420 L930 505" fill="none" stroke="#e68728" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-orange)"/>
-<text x="948" y="466" font-size="22" font-weight="400" text-anchor="start" class="sub">无 · 结束反馈</text>
-<rect id="wait" data-graph-role="node" x="1170" y="505" width="370" height="125" rx="24" fill="#fff2da" stroke="#e4b263" stroke-width="3.5"/>
-<path d="M1195 512Q1355.0 506 1512 512" fill="none" stroke="#e4b263" stroke-width="1.5" opacity=".23" data-graph-role="decoration"/>
-<g xmlns="http://www.w3.org/2000/svg" transform="translate(1195 523) scale(0.55)" stroke="#26364b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" data-graph-role="decoration"><rect x="12" y="8" width="48" height="62" rx="6" fill="#fff" /><rect x="24" y="3" width="24" height="12" rx="4" fill="#ffdaa0" /><path d="M22 29L25 32L31 25M22 45L25 48L31 41" stroke="#c27c31" /><path d="M38 29H51M38 45H51M22 59H51" stroke="#8292a3" /></g>
-
-<text x="1274" y="553" font-size="27" font-weight="700" text-anchor="start" class="">等待 · waiting</text>
-<text x="1355" y="605" font-size="23" font-weight="400" text-anchor="middle" class="sub">保存状态，退出当前协程</text>
-<path id="wait-tools" data-graph-role="edge" d="M1340 415 L1340 505" fill="none" stroke="#9980b5" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-purple)"/>
-<text x="1360" y="466" font-size="22" font-weight="400" text-anchor="start" class="sub">提问 / 审批</text>
-<path id="resume" data-graph-role="edge" d="M1355 630 L1355 691 L220 691 L220 415" fill="none" stroke="#9980b5" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-purple)"/>
-<text x="735" y="680" font-size="23" font-weight="400" text-anchor="middle" class="sub">答复或审批处理后，沿同一运行续接</text>
-<rect id="termination" data-graph-role="container" x="55" y="735" width="1490" height="120" rx="24" fill="#fffafa" stroke="#dfc1bf" stroke-width="2" stroke-dasharray="10 8"/>
-<text x="80" y="769" font-size="25" font-weight="700" text-anchor="start" class="">运行期间的终止条件</text>
-<text x="80" y="820" font-size="23" font-weight="400" text-anchor="start" class="sub">运行错误</text>
-<path id="exit-failed" data-graph-role="edge" d="M220 813 L280 813" fill="none" stroke="#c66968" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-red)"/>
-<rect id="failed" data-graph-role="node" x="280" y="785" width="220" height="57" rx="24" fill="#fbe9e9" stroke="#d79a98" stroke-width="3.5"/>
-<path d="M305 792Q390.0 786 472 792" fill="none" stroke="#d79a98" stroke-width="1.5" opacity=".23" data-graph-role="decoration"/>
-<text x="390" y="824" font-size="27" font-weight="700" text-anchor="middle" class="">失败</text>
-<text x="585" y="820" font-size="23" font-weight="400" text-anchor="start" class="sub">用户停止</text>
-<path id="exit-cancelled" data-graph-role="edge" d="M725 813 L785 813" fill="none" stroke="#c66968" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-red)"/>
-<rect id="cancelled" data-graph-role="node" x="785" y="785" width="220" height="57" rx="24" fill="#fff0ce" stroke="#e4b263" stroke-width="3.5"/>
-<path d="M810 792Q895.0 786 977 792" fill="none" stroke="#e4b263" stroke-width="1.5" opacity=".23" data-graph-role="decoration"/>
-<text x="895" y="824" font-size="27" font-weight="700" text-anchor="middle" class="">停止</text>
-<text x="1090" y="820" font-size="23" font-weight="400" text-anchor="start" class="sub">重启 / 失联</text>
-<path id="exit-interrupted" data-graph-role="edge" d="M1230 813 L1290 813" fill="none" stroke="#c66968" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-red)"/>
-<rect id="interrupted" data-graph-role="node" x="1290" y="785" width="220" height="57" rx="24" fill="#f0ebf7" stroke="#ad9cc2" stroke-width="3.5"/>
-<path d="M1315 792Q1400.0 786 1482 792" fill="none" stroke="#ad9cc2" stroke-width="1.5" opacity=".23" data-graph-role="decoration"/>
-<text x="1400" y="824" font-size="27" font-weight="700" text-anchor="middle" class="">中断</text>
-<text x="70" y="887" font-size="21" font-weight="400" text-anchor="start" class="sub">橙：决策路径    蓝：工具反馈    紫：等待与续接    红：运行终止</text>
+<rect width="1600" height="900" fill="#fffefb" data-graph-role="background"/>
+<path d="M65 66Q440 48 1190 62L1177 79L1202 94Q540 115 69 109L79 91Z" fill="#fff0ce" data-graph-role="decoration"/>
+<text x="80" y="104" font-size="46" font-weight="700" fill="#17263c" text-anchor="start" data-graph-role="label">RayAgent：任务循环与退出路径</text>
+<text x="80" y="159" font-size="25" font-weight="400" fill="#63748a" text-anchor="start" data-graph-role="label">模型读取工具反馈持续决策，等待后沿原运行续接</text>
+<rect id="context" x="70" y="320" width="300" height="130" rx="24" fill="#fff5df" stroke="#d9b779" stroke-width="2.5" data-graph-role="node"/>
+<g transform="translate(92 341) scale(.64)" stroke="#31465d" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" data-graph-role="decoration" data-owner="context"><rect xmlns="http://www.w3.org/2000/svg" x="8" y="13" width="42" height="54" rx="5" fill="#dceefa" transform="rotate(-9 29 40)" /><path xmlns="http://www.w3.org/2000/svg" d="M22 3H56L70 18V65Q70 70 65 70H22Q17 70 17 65V8Q17 3 22 3Z" fill="#fff" /><path xmlns="http://www.w3.org/2000/svg" d="M56 3V18H70" fill="#ffdc92" /><path xmlns="http://www.w3.org/2000/svg" d="M29 30H58M29 42H58M29 54H48" stroke="#5d8bb5" /></g>
+<text x="152" y="368" font-size="29" font-weight="600" fill="#17263c" text-anchor="start" data-graph-role="decoration" data-owner="context">组织上下文</text>
+<text x="94" y="426" font-size="23" font-weight="400" fill="#63748a" text-anchor="start" data-graph-role="decoration" data-owner="context">纳入消息 · 检查容量</text>
+<rect id="model" x="480" y="320" width="300" height="130" rx="24" fill="#eff6fc" stroke="#94b5ce" stroke-width="2.5" data-graph-role="node"/>
+<g transform="translate(502 341) scale(.64)" stroke="#31465d" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" data-graph-role="decoration" data-owner="model"><path xmlns="http://www.w3.org/2000/svg" d="M31 12V4" fill="none" /><circle xmlns="http://www.w3.org/2000/svg" cx="31" cy="3" r="3" fill="#ffdc92" /><rect xmlns="http://www.w3.org/2000/svg" x="6" y="12" width="50" height="43" rx="15" fill="#fff" /><rect xmlns="http://www.w3.org/2000/svg" x="15" y="24" width="32" height="19" rx="7" fill="#263e59" /><path xmlns="http://www.w3.org/2000/svg" d="M21 33H24M38 33H41" stroke="#fff" /><path xmlns="http://www.w3.org/2000/svg" d="M23 55L18 62M40 55L45 62" fill="none" /></g>
+<text x="562" y="368" font-size="29" font-weight="600" fill="#17263c" text-anchor="start" data-graph-role="decoration" data-owner="model">请求模型</text>
+<text x="504" y="426" font-size="23" font-weight="400" fill="#63748a" text-anchor="start" data-graph-role="decoration" data-owner="model">解析文本与工具调用</text>
+<rect id="tools" x="890" y="320" width="300" height="130" rx="24" fill="#eff6fc" stroke="#94b5ce" stroke-width="2.5" data-graph-role="node"/>
+<g transform="translate(912 341) scale(.64)" stroke="#31465d" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" data-graph-role="decoration" data-owner="tools"><rect xmlns="http://www.w3.org/2000/svg" x="3" y="9" width="69" height="55" rx="8" fill="#fff" /><path xmlns="http://www.w3.org/2000/svg" d="M3 24H72" stroke="#5c8ebd" /><circle xmlns="http://www.w3.org/2000/svg" cx="12" cy="17" r="2" fill="#5c8ebd" stroke="none" /><circle xmlns="http://www.w3.org/2000/svg" cx="21" cy="17" r="2" fill="#5c8ebd" stroke="none" /><path xmlns="http://www.w3.org/2000/svg" d="M16 36L25 44L16 52M36 52H52" stroke="#3f7eae" /></g>
+<text x="972" y="368" font-size="29" font-weight="600" fill="#17263c" text-anchor="start" data-graph-role="decoration" data-owner="tools">工具管线</text>
+<text x="914" y="426" font-size="23" font-weight="400" fill="#63748a" text-anchor="start" data-graph-role="decoration" data-owner="tools">校验授权 · 执行整形</text>
+<path id="context-model" data-graph-role="edge" data-source="context" data-target="model" d="M370 385H480" fill="none" stroke="#e68728" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-orange)"/>
+<path id="model-tools" data-graph-role="edge" data-source="model" data-target="tools" d="M780 385H890" fill="none" stroke="#e68728" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-orange)"/>
+<text x="791" y="367" font-size="22" font-weight="400" fill="#63748a" text-anchor="start" data-graph-role="label" data-owner="model-tools">有调用</text>
+<path id="feedback" data-graph-role="edge" data-source="tools" data-target="context" d="M1040 320V245H220V320" fill="none" stroke="#5394c6" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-blue)"/>
+<text x="470" y="228" font-size="23" font-weight="400" fill="#63748a" text-anchor="start" data-graph-role="label" data-owner="feedback">工具结果进入下一轮上下文</text>
+<rect id="complete" x="480" y="620" width="300" height="120" rx="24" fill="#eef7f0" stroke="#9dbfa9" stroke-width="2.5" data-graph-role="node"/>
+<g transform="translate(502 641) scale(.64)" stroke="#31465d" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" data-graph-role="decoration" data-owner="complete"><path xmlns="http://www.w3.org/2000/svg" d="M9 4H45L59 18V67H9Z" fill="#fff" /><path xmlns="http://www.w3.org/2000/svg" d="M45 4V18H59" fill="#def2e6" /><path xmlns="http://www.w3.org/2000/svg" d="M22 31H43M22 42H38" stroke="#81a591" /><circle xmlns="http://www.w3.org/2000/svg" cx="56" cy="57" r="18" fill="#d6efdf" /><path xmlns="http://www.w3.org/2000/svg" d="M46 57L53 64L66 49" stroke="#338367" stroke-width="5" /></g>
+<text x="562" y="668" font-size="29" font-weight="600" fill="#17263c" text-anchor="start" data-graph-role="decoration" data-owner="complete">完成</text>
+<text x="504" y="716" font-size="23" font-weight="400" fill="#63748a" text-anchor="start" data-graph-role="decoration" data-owner="complete">保存答复与成果状态</text>
+<path id="model-complete" data-graph-role="edge" data-source="model" data-target="complete" d="M630 450V620" fill="none" stroke="#e68728" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-orange)"/>
+<text x="650" y="539" font-size="22" font-weight="400" fill="#63748a" text-anchor="start" data-graph-role="label" data-owner="model-complete">无调用 · 结束反馈</text>
+<rect id="waiting" x="890" y="620" width="640" height="120" rx="24" fill="#f5f1f9" stroke="#b6a5c7" stroke-width="2.5" data-graph-role="node"/>
+<g transform="translate(912 641) scale(.64)" stroke="#31465d" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" data-graph-role="decoration" data-owner="waiting"><rect xmlns="http://www.w3.org/2000/svg" x="8" y="6" width="46" height="51" rx="12" fill="#fff" /><path xmlns="http://www.w3.org/2000/svg" d="M25 20V43M38 20V43" fill="none" stroke="#9980b5" /></g>
+<text x="972" y="668" font-size="29" font-weight="600" fill="#17263c" text-anchor="start" data-graph-role="decoration" data-owner="waiting">等待与续接</text>
+<text x="914" y="716" font-size="23" font-weight="400" fill="#63748a" text-anchor="start" data-graph-role="decoration" data-owner="waiting">提问 / 审批 · 保存状态，退出当前协程</text>
+<path id="tools-wait" data-graph-role="edge" data-source="tools" data-target="waiting" d="M980 450V620" fill="none" stroke="#9980b5" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-purple)"/>
+<text x="850" y="565" font-size="22" font-weight="400" fill="#63748a" text-anchor="start" data-graph-role="label" data-owner="tools-wait">提问 / 审批</text>
+<path id="wait-resume" data-graph-role="edge" data-source="waiting" data-target="tools" d="M1110 620V450" fill="none" stroke="#9980b5" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-purple)"/>
+<text x="1130" y="565" font-size="22" font-weight="400" fill="#63748a" text-anchor="start" data-graph-role="label" data-owner="wait-resume">答复处理后续接</text>
+<text x="80" y="660" font-size="23" font-weight="400" fill="#63748a" text-anchor="start" data-graph-role="label">等待续接恢复原上下文</text>
+<text x="80" y="701" font-size="23" font-weight="400" fill="#63748a" text-anchor="start" data-graph-role="label">与尚待处理的工具调用</text>
+<text x="1290" y="357" font-size="24" font-weight="600" fill="#31465d" text-anchor="start" data-graph-role="label">正常结束与</text>
+<text x="1290" y="396" font-size="24" font-weight="600" fill="#31465d" text-anchor="start" data-graph-role="label">成果完整分别记录</text>
+<rect id="termination" x="55" y="775" width="1490" height="65" rx="24" fill="#fcf1f0" fill-opacity=".32" stroke="#d5aaa7" stroke-width="1.6" stroke-dasharray="9 8" data-graph-role="container"/>
+<text x="79" y="810" font-size="24" font-weight="600" fill="#31465d" text-anchor="start" data-graph-role="decoration" data-owner="termination">其他终态</text>
+<text x="300" y="815" font-size="24" font-weight="400" fill="#63748a" text-anchor="start" data-graph-role="decoration" data-owner="termination">运行错误 → 失败</text>
+<text x="700" y="815" font-size="24" font-weight="400" fill="#63748a" text-anchor="start" data-graph-role="decoration" data-owner="termination">用户停止 → 停止</text>
+<text x="1100" y="815" font-size="24" font-weight="400" fill="#63748a" text-anchor="start" data-graph-role="decoration" data-owner="termination">重启 / 失联 → 中断</text>
+<path d="M70 847H1530" stroke="#e3e7e7" stroke-width="1" data-graph-role="decoration"/>
+<path d="M74 872H108" stroke="#e68728" stroke-width="3" stroke-linecap="round" data-graph-role="legend"/>
+<text x="120" y="880" font-size="21" font-weight="400" fill="#63748a" text-anchor="start" data-graph-role="label">决策路径</text>
+<path d="M294 872H328" stroke="#5394c6" stroke-width="3" stroke-linecap="round" data-graph-role="legend"/>
+<text x="340" y="880" font-size="21" font-weight="400" fill="#63748a" text-anchor="start" data-graph-role="label">工具反馈</text>
+<path d="M514 872H548" stroke="#9980b5" stroke-width="3" stroke-linecap="round" data-graph-role="legend"/>
+<text x="560" y="880" font-size="21" font-weight="400" fill="#63748a" text-anchor="start" data-graph-role="label">等待与续接</text>
 </svg>
