@@ -57,8 +57,8 @@
     <path d="M22 29L25 32L31 25M22 45L25 48L31 41" stroke="#c27c31" />
     <path d="M38 29H51M38 45H51M22 59H51" stroke="#8292a3" />
   </g>
-  <text x="695" y="487" font-size="28" text-anchor="start" font-weight="700" class="" data-graph-role="decoration" data-owner="project">项目长期背景</text>
-  <text x="825.0" y="545" font-size="23" text-anchor="middle" font-weight="400" class="sub" data-graph-role="decoration" data-owner="project">说明 · 笔记 · 其他对话摘要</text>
+  <text x="695" y="487" font-size="28" text-anchor="start" font-weight="700" class="" data-graph-role="decoration" data-owner="project">长期背景段</text>
+  <text x="825.0" y="545" font-size="23" text-anchor="middle" font-weight="400" class="sub" data-graph-role="decoration" data-owner="project">工作方式与记忆接入前为空</text>
   <rect id="state" data-graph-role="node" x="610" y="645" width="430" height="130" rx="24" fill="#fff5df" stroke="#d9b779" stroke-width="2.5" />
   <g transform="translate(632 665) scale(0.6)" stroke="#26364b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" data-graph-role="decoration">
     <rect x="12" y="8" width="48" height="62" rx="6" fill="#fff" />
@@ -98,6 +98,6 @@
   <path id="request-model" data-graph-role="edge" d="M1365 570 V670" fill="none" stroke="#e68728" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-orange)" />
   <text x="825" y="611" font-size="22" text-anchor="middle" font-weight="400" class="sub" data-graph-role="label">新运行冻结 · 等待沿用</text>
   <text x="1378" y="619" font-size="21" text-anchor="start" font-weight="400" class="sub" data-graph-role="label">请求</text>
-  <text x="80" y="842" font-size="24" text-anchor="start" font-weight="400" class="sub" data-graph-role="label">持久历史不全量注入，压缩摘要不自动写入长期笔记</text>
+  <text x="80" y="842" font-size="24" text-anchor="start" font-weight="400" class="sub" data-graph-role="label">持久历史不全量注入，压缩摘要不自动成为长期背景</text>
   <text x="80" y="882" font-size="21" text-anchor="start" font-weight="400" class="sub" data-graph-role="label">绿：选取输入    蓝：读取记录    橙：请求模型</text>
 </svg>

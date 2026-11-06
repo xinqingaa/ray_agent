@@ -602,7 +602,8 @@ class AgentService:
                 )
                 if provisional_title is not None:
                     from app.application.services.title_service import TitleService
-                    asyncio.create_task(TitleService(self._uow_factory, self._ledger).auto_generate(session_id, message))
+                    asyncio.create_task(TitleService(self._uow_factory, self._ledger, read_uow_factory=self._reader())
+                                        .auto_generate(session_id, message))
 
             self._schedule_start(session, run.id, prior_status)
         logger.info(f"会话[{session_id}]运行[{run.id}]受理消息({route}): {message[:50]}...")

@@ -629,6 +629,61 @@ def test_session_delete_records_cleanup_and_removes_workdir_and_objects(tmp_path
     with_database(tmp_path, scenario)
 
 
+def test_data_reset_is_blocked_by_active_runs_then_clears_everything_through_one_job(tmp_path):
+    from app.application.errors.exceptions import BadRequestError
+    from app.application.services.data_service import RESET_CONFIRMATION, DataService
+    from app.infrastructure.external.file_storage.local_file_storage import LocalFileStorage
+    from fastapi import UploadFile
+    import io
+
+    async def scenario(uow_factory, read_factory, database):
+        workdirs = SessionWorkdirs(tmp_path)
+        storage = LocalFileStorage(tmp_path / "objects", tmp_path / "tmp", uow_factory)
+        jobs = BackgroundJobRunner(uow_factory, "instance", read_uow_factory=read_factory, poll_seconds=0.05)
+        jobs.register(OperationKind.DATA_CLEANUP, cleanup_handler(storage.remove_key, workdirs.remove),
+                      requeue_on_restart=True)
+        sessions = SessionService(uow_factory, read_factory, workdirs=workdirs, jobs=jobs)
+        data = DataService(uow_factory, jobs)
+        first, second = await sessions.create_session(), await sessions.create_session()
+        directories = []
+        for session in (first, second):
+            async with read_factory() as uow:
+                root, location = await uow.root.session_workdir(session.id)
+            directories.append(workdirs.resolve(root, location).ensure().path)
+        file = await storage.upload_file(UploadFile(filename="a.txt", file=io.BytesIO(b"attachment")),
+                                         session_id=first.id)
+        ledger = RunLedger(uow_factory, MemoryNotifier())
+        run = await ledger.start(second.id)
+
+        preview = await data.preview()
+        assert preview.counts["sessions"] == 2 and preview.counts["files"] == 1
+        assert preview.blocked_reason and preview.occupying_session_id == second.id
+        with pytest.raises(ConflictError):
+            await data.start(RESET_CONFIRMATION)
+        await ledger.transition(second.id, run.id, RunStatus.CANCELLED)
+        with pytest.raises(BadRequestError):
+            await data.start("清空")
+
+        jobs.start()
+        task = await data.start(RESET_CONFIRMATION)
+        assert set(task.session_ids) == {first.id, second.id}
+        with pytest.raises(ConflictError):
+            await data.start(RESET_CONFIRMATION)
+        for _ in range(100):
+            task = await data.get(task.id)
+            if task.state != "running":
+                break
+            await asyncio.sleep(0.02)
+        await jobs.stop()
+        assert task.state == "completed"
+        assert all(not path.exists() for path in directories) and not storage.object_path(file.key).exists()
+        async with read_factory() as uow:
+            assert (await uow.session.page(offset=0, limit=10))[1] == 0
+            assert await uow.file.list_all() == []
+        assert (await data.preview()).blocked_reason is None
+    with_database(tmp_path, scenario)
+
+
 def test_instance_lock_and_newer_schema_are_refused(tmp_path):
     lock = InstanceLock(tmp_path / "core.lock")
     lock.acquire()

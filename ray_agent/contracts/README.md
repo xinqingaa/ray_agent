@@ -59,7 +59,7 @@ npm run check      # 重新生成并与 generated/ 比对，任何文件过期�
 
 - **协议版本** `PROTOCOL_VERSION`：HTTP、SSE 与启动协议不兼容地变化时递增，例如删除或改义字段、改变类型、移除路由；新增可选字段或新增路由不递增。握手与状态都返回它，宿主据此判断能否继续连接，核对在桌面骨架阶段接入。
 - **事件版本** `EVENT_VERSION`：事件结构不兼容地变化时递增；新增字段或事件类型不递增。每条事件的 `data.event_version` 都带上它。
-- **存储版本**：桌面业务库建立后由其迁移版本提供；在此之前握手与状态中的 `storage` 为空。
+- **存储版本**：握手与状态中的 `storage.schema_revision` 是业务库当前的迁移版本。业务库版本高于程序已知版本时核心拒绝启动；结构变化只新增迁移，不改写已发布的迁移。
 - **构建身份**：沿用 API 的构建清单，`fingerprint` 为空表示未知。
 
 ## 后续工作包怎样使用契约
@@ -83,7 +83,12 @@ npm run check      # 重新生成并与 generated/ 比对，任何文件过期�
 - 受理接口先持久保存操作再返回 `OperationView`，其中有 `operation_id`；查询、取消与重试都沿同一身份，并按操作的范围核对来源。
 - 状态只用 `queued / running / succeeded / failed / cancelled`。运行中收到取消时记 `cancel_requested_at`，它不是终态；失败必须带结构化错误，成功结果放在 `result`。原操作已完成时取消或重试返回完成结果，不制造另一份副作用。
 - 操作被重试或替换时 `generation` 递增；执行端写回结果前核对代次，代次不符的迟到结果不得写回。
-- 新的操作类型在 `OperationKind` 中登记；能否重试由类型决定（`retry_supported`）。持久化与路由由使用它的工作包实现，模型进入 OpenAPI 后 UI 自动得到类型。
+- 新的操作类型在 `OperationKind` 中登记；能否重试由类型决定（`retry_supported`）。持久化与执行沿用核心的后台任务框架（任务行即操作，见[架构说明](../../docs/architecture.md#后台任务)），通用的 `GET /api/operations/{id}`、`POST /api/operations/{id}/cancel` 与 `/retry` 已经提供；使用它的工作包登记任务类型与处理函数，模型进入 OpenAPI 后 UI 自动得到类型。
+
+### 新接口的请求身份
+
+- 会产生副作用且调用方可能重发的写请求带 `request_id`（`RequestId` 身份类型）。核心在受理事务里按 `request_id`（全局唯一）保存请求种类、内容摘要（包含目标会话）与受理结果：同一身份同一内容返回原结果，内容不同返回 `conflict`。
+- 结果未知（超时、断连）时先用身份读回，例如发送消息的 `GET /api/sessions/{id}/requests/{request_id}`，不能直接再发一次新身份的请求。
 
 ### 能力与事件
 

@@ -80,7 +80,7 @@ def get_run_ledger() -> RunLedger:
 
 
 def get_title_service() -> TitleService:
-    return TitleService(uow_factory=get_uow, ledger=get_run_ledger())
+    return TitleService(uow_factory=get_uow, ledger=get_run_ledger(), read_uow_factory=get_read_uow)
 
 
 async def get_agent_service() -> AgentService:

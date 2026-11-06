@@ -9,15 +9,15 @@
 | 实现限制 | 由代码固定，修改需要同步实现与本页 |
 | 派生预算 | 根据模型、输出预留与当前输入计算，不能只看一个默认窗口 |
 
-配置文件是 [`ray_agent/api/config.yaml`](../ray_agent/api/config.yaml)。未写入的字段使用代码默认。部署用环境变量的名称见[运行指南](../ray_agent/README.md)。
+应用配置（模型、Agent、工具策略、MCP、A2A）保存在业务库，首次启动按代码默认值写入，未保存的分区使用代码默认；模型密钥只从环境读取。核心进程设置与环境变量名称见 [config.py](../ray_agent/api/core/config.py) 与 [API 开发指南](../ray_agent/api/README.md)。
 
 ## 模型与上下文
 
 | 项 | 当前值 | 来源 |
 |---|---|---|
 | 默认协议 | `responses`；端点可显式改为 `chat_completions` | [app_config.py](../ray_agent/api/app/domain/models/app_config.py) 的 `LLMConfig.api_protocol` |
-| 默认模型 | `deepseek-flash` | `config.yaml` |
-| 应用默认窗口 / 输出上限 / 温度 | 200000 tokens / 8192 tokens / 0.7 | `config.yaml` 与 `LLMConfig`、`ModelSampling` |
+| 默认模型 | `deepseek-flash` | [app_config.py](../ray_agent/api/app/domain/models/app_config.py) 的 `LLMConfig.model_name` |
+| 应用默认窗口 / 输出上限 / 温度 | 200000 tokens / 8192 tokens / 0.7 | `LLMConfig`、`ModelSampling` |
 | 请求超时 | 默认 3600 秒，配置允许大于 0 且不超过 86400 秒。非流式是整次等待；流式是首个分片以及相邻分片的空闲间隔 | `LLMConfig.request_timeout` |
 | DeepSeek 目录窗口 / 最大输出 | 1000000 / 393216 tokens | [model_catalog.py](../ray_agent/api/app/domain/models/model_catalog.py) 的 `deepseek_models()` |
 | DeepSeek 思考开启时的输出下限 | 32768 | 同上，`thinking_output_floor` |
@@ -30,7 +30,6 @@
 
 已知模型用 `model_profiles` 里的窗口、输出上限和温度，再封顶到目录。对话第一次运行记下当时的三项；之后改设置只影响新对话，对话里换模型则用目标模型当前的数值。
 
-配置兼容迁移仅发生一次：加载配置时，版本标记把 DeepSeek 地址下仍为 131072 的全局窗口，以及 `deepseek-flash`、`deepseek-v4-pro` 里相同的旧窗口，迁到 200000 一次。已经改过的预算和会话里冻结的参数不迁移。来源是 [file_app_config_repository.py](../ray_agent/api/app/infrastructure/repositories/file_app_config_repository.py)。
 
 ## 请求预算、压缩与结果
 
@@ -49,7 +48,7 @@
 | 普通水位压缩最小收益 | 可摘要历史减去原文重注入成本的估算，不少于可用输入上限的 15%；强制及手动压缩不使用该门槛 | [compaction.py](../ray_agent/api/app/domain/services/context/compaction.py) 的 `MIN_GAIN_RATIO` |
 | 摘要请求单条材料 | 助手正文、调用参数及工具正文各按 2000 字符裁剪；用户正文 4000，旧摘要 12000；保留首部 75% 与尾部 25% | `ENTRY_MAX_CHARS`、`USER_ENTRY_MAX_CHARS`、`_clip()` |
 | 重新注入的用户原文 | 总计 16000 字符，从最近向前整条选取，遇超额停止 | `compact_user_chars`、`select_reinjection()` |
-| 单条工具结果 | 8000 字符，超出落盘并给首尾预览 | `tool_result_max_chars` |
+| 单条工具结果 | 8000 字符，超出写入会话工作目录并给首尾预览 | `tool_result_max_chars` |
 | 独立读取并发 | 整批都是允许的独立读取时最多 3 项 | [tool_pipeline.py](../ray_agent/api/app/domain/services/flows/tool_pipeline.py) 的 `read_batch()` |
 | 同一核验再执行 | 记录尝试数不少于 2 且当前未通过时，需说明新条件或换方法；修复改版的必要复验有例外 | [task_outcomes.py](../ray_agent/api/app/domain/services/task_outcomes.py) |
 | 收尾补写 | 每项成功写入 1 次，或尝试达到 2 次后拒绝；单次内容最多 1000000 字符 | `finalize_artifact()` |
@@ -57,18 +56,19 @@
 
 收尾只放行读取、交付、更新计划和受限文本补写。识别等待「不超过 15 秒、最多等一次」写在图片提示词 [图片提示词](../ray_agent/api/app/domain/services/prompts/image_input.py)，不是独立配置项。
 
-## 沙箱与 Shell
+## 本机存储与后台任务
 
 | 项 | 当前值 | 来源 |
 |---|---|---|
-| 内存 / CPU / 进程数 | 2048 MiB / 2 / 512。环境变量 `SANDBOX_MEMORY_MB`、`SANDBOX_CPUS`、`SANDBOX_PIDS_LIMIT`；已有地址模式不套用 | [core/config.py](../ray_agent/api/core/config.py) |
-| 存活时间 | 60 分钟，`SANDBOX_TTL_MINUTES` 注入为沙箱的 `SERVER_TIMEOUT_MINUTES` | 同上 |
-| 沙箱 HTTP 超时 | 600 秒 | [docker_sandbox.py](../ray_agent/api/app/infrastructure/external/sandbox/docker_sandbox.py) 的 `SANDBOX_HTTP_TIMEOUT_SECONDS` |
-| 命令初次等待 | 5 秒，未结束则返回 running | [shell.py](../ray_agent/sandbox/app/services/shell.py) 的 `EXEC_FOREGROUND_SECONDS` |
-| 等待进程 | 未指定时 60 秒；上限 570 秒（HTTP 超时减 30 秒） | `shell.py`；`SHELL_WAIT_MAX_SECONDS` |
-| 会话输出 | 1 MB（按字符计），超出保留尾部 | `OUTPUT_LIMIT_CHARS` |
-| 进程组宽限 | SIGTERM 后 3 秒仍有进程则 SIGKILL | `PROCESS_GROUP_GRACE_SECONDS` |
+| 业务库 busy 等待 | 每条语句 5000 毫秒，`SQLITE_BUSY_TIMEOUT_MS` | [core/config.py](../ray_agent/api/core/config.py)、[sqlite.py](../ray_agent/api/app/infrastructure/storage/sqlite.py) |
+| 开始写事务的尝试 | 最多 3 次（含首次），`SQLITE_BEGIN_ATTEMPTS`；第 n 次失败后等待 0.2 × n 秒；用尽后返回 503，建议 1 秒后重试 | 同上，`_RETRY_DELAY_SECONDS`；[exception_handlers.py](../ray_agent/api/app/interfaces/errors/exception_handlers.py) |
+| 连接 | 写连接 1 个；读连接 4 个，`SQLITE_READ_POOL_SIZE`；取连接最多等待 30 秒 | `sqlite.py` |
+| 后台任务 | 同时执行 2 个，`BACKGROUND_JOB_CONCURRENCY`；无唤醒时每 30 秒检查一次，`BACKGROUND_JOB_POLL_SECONDS` | [background_jobs.py](../ray_agent/api/app/application/services/background_jobs.py)、`core/config.py` |
+| 周期回收 | 启动时及每 30 秒回收过期 skill 包与临时图 | [app/main.py](../ray_agent/api/app/main.py) |
+| 关闭等待 | 受理后未登记的启动最多等 10 秒；运行任务收尾最多等 20 秒 | `app/main.py` |
 | 停止后等待协程 | 10 秒 | [agent_task_runner.py](../ray_agent/api/app/domain/services/agent_task_runner.py) 的 `STOP_SETTLE_SECONDS` |
+
+保留但核心不再装配的 Docker 沙箱适配仍带有内存、CPU、进程数与存活时间设置（[core/config.py](../ray_agent/api/core/config.py) 的 `sandbox_*`），只在重新接入时生效。
 
 ## 协议
 
@@ -85,9 +85,10 @@
 
 | 项 | 当前值 | 来源 |
 |---|---|---|
-| 传输及解压内容 | 各最多 2 MiB | 沙箱 [services/web.py](../ray_agent/sandbox/app/services/web.py) 的 `MAX_BYTES` |
+| 传输及解压内容 | 各最多 2 MiB | [public_page.py](../ray_agent/api/app/infrastructure/external/web/public_page.py) 的 `MAX_BYTES` |
 | 重定向 | 最多 3 跳 | 同上，`MAX_REDIRECTS` |
 | 单跳 HTTP / 全过程 | 8 秒 / 15 秒 | 同上 |
+| 返回正文 | 最多 6000 字符 | 同上，`CONTENT_CHARS` |
 
 ## 浏览器、截图与用户图片
 
@@ -108,7 +109,7 @@
 | 用户原图 | 20 MiB、4000 万像素；PNG、JPEG、WebP、GIF 首帧 | [image_input.py](../ray_agent/api/app/infrastructure/external/file_storage/image_input.py) |
 | 用户图输入副本 | 最长边 2048、2 MiB；每条消息最多 2 张进入像素输入 | 同上，`MAX_MESSAGE_IMAGES` |
 
-## 预览、下载与项目文件
+## 预览与下载
 
 | 项 | 当前值 | 来源 |
 |---|---|---|
@@ -120,29 +121,22 @@
 | 派生缓存 | 64 项或 32 MiB，保留 60 秒；单项 JSON 长度小于 8 MiB 才缓存 | `parser.py` |
 | 表格文字 | CSV 字段解析上限 65536；单元格显示 4096 字符，整窗口显示 1048576 字符 | `worker.py` |
 | 附件 ZIP | 1–100 个文件，实际总量 512 MiB | [file_service.py](../ray_agent/api/app/application/services/file_service.py)、[file_routes.py](../ray_agent/api/app/interfaces/endpoints/file_routes.py) |
-| 运行前快照 | 默认 5 份，允许 1–7 份 | `AgentConfig.project_snapshot_retention` |
-| 项目上传 | 单文件 50 MiB，单次最多 2000 个文件或 200 MiB，项目总量 500 MiB | `core/config.py` |
 
 预览不按单一文件大小整份禁用。超限时 CSV 可看已取得前缀，其他二进制降级为下载。原文件下载不受预览预算限制。
 
-## 项目记忆
+## 会话摘要（尚未接入运行）
 
 | 项 | 当前值 | 来源 |
 |---|---|---|
-| 项目说明 / 笔记 | 各最多 8000 字符；笔记整体替换，按基础版本比较 | [workspace_project.py](../ray_agent/api/app/domain/models/workspace_project.py)、[project_memory_service.py](../ray_agent/api/app/application/services/project_memory_service.py) |
-| 单份对话摘要编辑 | 最多 1500 字符 | `ProjectMemoryService.edit_summary()` |
-| 近期摘要选择 / 注入 | 排除当前会话，最多选近期 10 份；注入文字总计 1500 字符，包含来源前缀 | [db_session_repository.py](../ray_agent/api/app/infrastructure/repositories/db_session_repository.py) 的 `recent_summaries()`、[project.py](../ray_agent/api/app/domain/services/prompts/project.py) 的 `bounded_summaries()` |
+| 单份摘要 / 多会话注入 | 单份最多 1500 字符；最多取 10 份，注入文字总计 1500 字符，包含来源前缀 | [session_summary.py](../ray_agent/api/app/application/services/session_summary.py) 的 `SUMMARY_MAX_CHARS`、`bounded_summaries()` |
 | 生成摘要的材料 | 消息正文合计最多 6000 字符；首条用户消息最多 1600；近期更新、完成回复和运行状态各取最多 12 项，更新每项最多 300、完成回复每项最多 600 字符 | [summary_material.py](../ray_agent/api/app/domain/services/summary_material.py) 的 `bound_material()` |
-
-说明与笔记的上限约束内容写入，不自动替用户做语义去重；历史材料保留与本次注入预算是不同问题。辅助生成的期限与输出上限见下节。
 
 ## 辅助请求
 
 | 项 | 当前值 | 来源 |
 |---|---|---|
 | 会话标题 | 输出上限 256，温度 0.2，请求超时 20 秒，外层等待 23 秒 | [title_service.py](../ray_agent/api/app/application/services/title_service.py) |
-| 项目对话摘要 | 输出上限 512，温度 0.2，请求超时 20 秒，调用等待 23 秒，生成任务等待 25 秒 | [project_memory_service.py](../ray_agent/api/app/application/services/project_memory_service.py) |
-| 配置保存锁 | 等待 5 秒 | `file_app_config_repository.py` |
+| 会话摘要（尚未接入） | 输出上限 512，温度 0.2，请求超时 20 秒，调用等待 23 秒 | [session_summary.py](../ray_agent/api/app/application/services/session_summary.py) 的 `generate_summary()` |
 
 辅助请求是否发送温度仍按模型目录规则决定。
 
@@ -151,9 +145,9 @@
 | 项 | 当前值 | 来源 |
 |---|---|---|
 | 事件补查分页 | 每页 200 项 | `agent_service.py` 的 `EVENT_PAGE_SIZE` |
-| 临时图维护 | 启动时及每 30 秒检查一次 | [app/main.py](../ray_agent/api/app/main.py) |
 | 事件流兜底 | 有活动或刚有进展时 3 秒；连续空闲 2 次后 30 秒 | `agent_service.py` 的 `FALLBACK_POLL_SECONDS`、`IDLE_POLL_SECONDS` |
-| 目录通知兜底 | 30 秒 | [catalog_notifier.py](../ray_agent/api/app/infrastructure/external/message_queue/catalog_notifier.py) 的 `CATALOG_FALLBACK_SECONDS` |
+| 进程内通知队列 | 每个订阅者 256 项，满时丢弃最旧一项，订阅者按序号补读 | [local_notifier.py](../ray_agent/api/app/infrastructure/external/notification/local_notifier.py) 的 `QUEUE_SIZE` |
+| 目录通知兜底 | 30 秒 | [session_routes.py](../ray_agent/api/app/interfaces/endpoints/session_routes.py) 的 `CATALOG_FALLBACK_SECONDS` |
 | 前端断线重连 | 500 毫秒起，每次翻倍，上限 4 秒 | [session-projection.ts](../ray_agent/ui/src/lib/session-projection.ts) |
 | 压缩状态轮询 | 进行中每 3 秒读一次会话详情 | [use-session-detail.ts](../ray_agent/ui/src/hooks/use-session-detail.ts) |
 | 终端输出轮询 | 命令运行中每 1.5 秒 | [workbench.tsx](../ray_agent/ui/src/components/workbench/workbench.tsx) |
@@ -166,7 +160,6 @@
 |---|---|---|
 | 身份长度 | 不透明身份 1–128 个字符 | [identity.py](../ray_agent/api/app/domain/models/identity.py) 的 `ID_MAX_LENGTH` |
 | 相对路径长度 | 最长 4096 个字符 | 同上，`RELATIVE_PATH_MAX_LENGTH` |
-| 能力声明的沙箱探测 | 握手与每次读取核心状态时探测一次 Docker，连接与请求各 3 秒；连接已有沙箱地址时不探测 | [docker_sandbox.py](../ray_agent/api/app/infrastructure/external/sandbox/docker_sandbox.py) 的 `DOCKER_PROBE_TIMEOUT_SECONDS` |
 
 ## 桌面宿主与核心进程
 
@@ -189,7 +182,7 @@ API 设置来自 `core/config.py`，环境变量使用对应大写名称；正�
 
 | 项 | 当前默认值或硬边界 | 来源 |
 |---|---|---|
-| skill 持久目录 | `data/skills`；Compose 指定 `/data/skills` | `skill_storage_dir`、产品 Compose |
+| skill 持久目录 | 数据根下的 `skills/` | [paths.py](../ray_agent/api/core/paths.py) |
 | 下载 / 解压累计 / 单文件 | 20 MiB / 50 MiB / 5 MiB | `skill_download_bytes`、`skill_package_bytes`、`skill_file_bytes` |
 | 普通文件 / ZIP 条目 / 候选 | 2000 / 文件限额的两倍 / 100 | `skill_max_files`、`skill_max_candidates`、包解析器 |
 | 路径 | 最多 20 层、4096 字符 | 包解析器与沙箱材料服务 |
@@ -198,7 +191,7 @@ API 设置来自 `core/config.py`，环境变量使用对应大写名称；正�
 | 资源单次文本及正文资源清单 | 8000 字符 | `skill_resource_chars`；超长单行转材料准备后读取 |
 | 获取总时限 / 单次网络等待 / 尝试 | 90 秒 / 20 秒 / 最多 3 次 | `skill_fetch_seconds`、GitHub 适配器；引用不存在不重试 |
 | 预览与孤立包保留门槛 | 3600 秒；启动和维护循环检查 | `skill_preview_seconds`、应用生命周期 |
-| 沙箱材料 | 2000 文件、单文件 5 MiB、累计 50 MiB、JSON 请求体 75 MiB | 沙箱材料服务与请求体中间件，先限制流再解析 JSON |
+| 沙箱材料（核心不装配） | 2000 文件、单文件 5 MiB、累计 50 MiB、JSON 请求体 75 MiB | 沙箱材料服务与请求体中间件，先限制流再解析 JSON |
 | 设置导入 | 请求等待 120 秒，处理中每 1.5 秒查询原操作 | skill 客户端及设置组件 |
 
 提高 API 文件限额时同时核对沙箱的独立硬边界；不会自动扩大沙箱接收范围。导入操作和版本元数据可供查询，回收文件不删除历史操作记录。

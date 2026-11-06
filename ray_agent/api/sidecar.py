@@ -120,7 +120,10 @@ def main() -> int:
     if not line:
         return 2
     apply_launch(CoreLaunch.model_validate_json(line))
-    return serve(channel)
+    code = serve(channel)
+    # 生命周期已收尾；stdin 监视线程可能仍阻塞在读取上，常规的解释器退出会因它持有 stdin 锁而中止。
+    sys.stderr.flush()
+    os._exit(code)
 
 
 if __name__ == '__main__':

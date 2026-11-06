@@ -24,7 +24,7 @@
   <text x="80" y="106" font-size="46" font-weight="700" text-anchor="start" class="" data-graph-role="label">RayAgent：系统协作与数据归属</text>
   <text x="80" y="159" font-size="24" font-weight="400" text-anchor="start" class="sub" data-graph-role="label">Harness 连接模型、工具与执行环境</text>
   <rect id="api" data-graph-role="container" x="470" y="185" width="610" height="435" rx="24" fill="#f7fbff" stroke="#a8c4dc" stroke-width="1.6" stroke-dasharray="10 8" />
-  <text x="510" y="224" font-size="27" font-weight="700" text-anchor="start" class="" data-graph-role="label">API · Harness</text>
+  <text x="510" y="224" font-size="27" font-weight="700" text-anchor="start" class="" data-graph-role="label">本机核心 · Harness</text>
   <rect id="ui" data-graph-role="node" x="55" y="255" width="300" height="135" rx="24" fill="#fff5df" stroke="#d9b779" stroke-width="2.5" />
   <g transform="translate(77 282) scale(0.8)" stroke="#26364b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" data-graph-role="decoration">
     <rect x="3" y="9" width="69" height="55" rx="8" fill="#fff" />
@@ -93,8 +93,8 @@
     <circle cx="21" cy="17" r="2" fill="#5c8ebd" stroke="none" />
     <path d="M16 36L25 44L16 52M36 52H52" stroke="#3f7eae" />
   </g>
-  <text x="1340" y="403" font-size="27" font-weight="700" text-anchor="start" class="" data-graph-role="decoration" data-owner="sandbox">沙箱环境</text>
-  <text x="1272" y="456" font-size="21" font-weight="400" text-anchor="start" class="sub" data-graph-role="decoration" data-owner="sandbox">文件 · Shell · Chromium</text>
+  <text x="1340" y="403" font-size="27" font-weight="700" text-anchor="start" class="" data-graph-role="decoration" data-owner="sandbox">执行环境</text>
+  <text x="1272" y="456" font-size="21" font-weight="400" text-anchor="start" class="sub" data-graph-role="decoration" data-owner="sandbox">文件 · 命令 · 浏览器</text>
   <rect id="external" data-graph-role="node" x="1250" y="520" width="300" height="100" rx="24" fill="#e7f5eb" stroke="#87b69c" stroke-width="2.5" />
   <g transform="translate(1268 535) scale(0.52)" stroke="#26364b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" data-graph-role="decoration">
     <rect x="2" y="26" width="25" height="28" rx="6" fill="#fff" />
@@ -107,10 +107,10 @@
   <path id="llm" data-graph-role="edge" d="M1040 397 L1175 397 L1175 262 L1250 262" stroke="#e68728" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-orange)" />
   <text x="1138" y="246" font-size="20" font-weight="400" text-anchor="middle" class="sub" data-graph-role="label">模型请求</text>
   <path id="sandbox-call" data-graph-role="edge" d="M1040 515 L1125 515 L1125 423 L1250 423" stroke="#e68728" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-orange)" />
-  <text x="1190" y="459" font-size="21" font-weight="400" text-anchor="middle" class="sub" data-graph-role="label">HTTP/CDP</text>
+  <text x="1190" y="459" font-size="21" font-weight="400" text-anchor="middle" class="sub" data-graph-role="label">端口待接入</text>
   <path id="protocol" data-graph-role="edge" d="M1040 551 L1180 551 L1180 574 L1250 574" stroke="#e68728" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-orange)" />
   <text x="1130" y="601" font-size="20" font-weight="400" text-anchor="middle" class="sub" data-graph-role="label">协议调用</text>
-  <text x="585" y="681" font-size="21" font-weight="400" text-anchor="start" class="sub" data-graph-role="label">API 访问与管理</text>
+  <text x="585" y="681" font-size="21" font-weight="400" text-anchor="start" class="sub" data-graph-role="label">核心访问与管理</text>
   <rect id="data" data-graph-role="container" x="35" y="690" width="1530" height="155" rx="24" fill="#f9fcfa" stroke="#b0cbb9" stroke-width="1.6" stroke-dasharray="10 8" />
   <path id="pg-access" data-graph-role="edge" d="M510 620V710" stroke="#518e73" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-green)" />
   <path id="redis-access" data-graph-role="edge" d="M800 620V710" stroke="#518e73" stroke-width="3" fill="none" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow-green)" />
@@ -122,8 +122,8 @@
     <path d="M56 3V18H70" fill="#ffdc92" />
     <path d="M29 30H58M29 42H58M29 54H48" stroke="#5d8bb5" />
   </g>
-  <text x="145" y="750" font-size="28" font-weight="700" text-anchor="start" class="" data-graph-role="decoration" data-owner="pg">PostgreSQL</text>
-  <text x="79" y="798" font-size="23" font-weight="400" text-anchor="start" class="sub" data-graph-role="decoration" data-owner="pg">会话 · 运行 · 事件 · 元数据</text>
+  <text x="145" y="750" font-size="28" font-weight="700" text-anchor="start" class="" data-graph-role="decoration" data-owner="pg">SQLite 业务库</text>
+  <text x="79" y="798" font-size="23" font-weight="400" text-anchor="start" class="sub" data-graph-role="decoration" data-owner="pg">会话 · 运行 · 事件 · 输入 · 配置</text>
   <rect id="redis" data-graph-role="node" x="575" y="710" width="450" height="115" rx="24" fill="#e7f5eb" stroke="#87b69c" stroke-width="2.5" />
   <g transform="translate(595 722) scale(0.48)" stroke="#26364b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" data-graph-role="decoration">
     <rect x="2" y="26" width="25" height="28" rx="6" fill="#fff" />
@@ -131,16 +131,16 @@
     <rect x="48" y="49" width="25" height="28" rx="6" fill="#fff" />
     <path d="M27 40H37V18H48M37 40V63H48" stroke="#36846b" />
   </g>
-  <text x="665" y="750" font-size="28" font-weight="700" text-anchor="start" class="" data-graph-role="decoration" data-owner="redis">Redis</text>
-  <text x="599" y="798" font-size="23" font-weight="400" text-anchor="start" class="sub" data-graph-role="decoration" data-owner="redis">输入流 · 通知 · 文本增量</text>
+  <text x="665" y="750" font-size="28" font-weight="700" text-anchor="start" class="" data-graph-role="decoration" data-owner="redis">进程内通知</text>
+  <text x="599" y="798" font-size="23" font-weight="400" text-anchor="start" class="sub" data-graph-role="decoration" data-owner="redis">事件唤醒 · 目录变化 · 文本增量</text>
   <rect id="files" data-graph-role="node" x="1095" y="710" width="450" height="115" rx="24" fill="#e7f5eb" stroke="#87b69c" stroke-width="2.5" />
   <g transform="translate(1115 722) scale(0.48)" stroke="#26364b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" data-graph-role="decoration">
     <path d="M4 20V12Q4 7 10 7H28L37 19H66Q72 19 72 25V64Q72 69 66 69H10Q4 69 4 63Z" fill="#fff" />
     <path d="M4 29H72" stroke="#8573a8" />
     <path d="M19 42H56M19 54H46" stroke="#aa9abc" />
   </g>
-  <text x="1185" y="750" font-size="28" font-weight="700" text-anchor="start" class="" data-graph-role="decoration" data-owner="files">文件资源</text>
-  <text x="1119" y="781" font-size="21" font-weight="400" text-anchor="start" class="sub" data-graph-role="decoration" data-owner="files">附件与截图：文件存储适配</text>
-  <text x="1119" y="810" font-size="21" font-weight="400" text-anchor="start" class="sub" data-graph-role="decoration" data-owner="files">项目文件与快照：API 本地文件卷</text>
+  <text x="1185" y="750" font-size="28" font-weight="700" text-anchor="start" class="" data-graph-role="decoration" data-owner="files">数据根文件</text>
+  <text x="1119" y="781" font-size="21" font-weight="400" text-anchor="start" class="sub" data-graph-role="decoration" data-owner="files">内容对象：附件 · 交付 · 截图</text>
+  <text x="1119" y="810" font-size="21" font-weight="400" text-anchor="start" class="sub" data-graph-role="decoration" data-owner="files">会话工作目录：上传 · 超长结果 · 截图</text>
   <text x="55" y="876" font-size="21" font-weight="400" text-anchor="start" class="sub" data-graph-role="label">橙：调用与调度，结果原路返回    蓝：页面事件    绿：数据访问</text>
 </svg>

@@ -7,7 +7,7 @@
 | 为什么用单循环，上下文为什么分层治理 | [执行循环与上下文](execution-and-context.md) | [决策层](../harness.md#决策层)、[上下文治理](../harness.md#上下文与记忆治理) |
 | 为什么要区分运行记录、执行进程和外部资源 | [运行记录与控制](runtime-and-progress.md) | [控制平面](../architecture.md#结束路径与控制平面)、[构建身份](../architecture.md#构建身份与运行快照) |
 | 为什么清单完成不等于成果完整 | [计划与成果交付](plans-and-delivery.md) | [计划清单](../harness.md#计划清单)、[核验与交付](../harness.md#核验与成果交付) |
-| 为什么共享文件还需要占用、保护和恢复协调 | [托管项目与数据保护](projects-and-artifacts.md) | [项目执行与文件保护](../architecture.md#托管项目执行与文件保护) |
+| 为什么共享文件还需要占用、保护和恢复协调 | [托管项目与数据保护](projects-and-artifacts.md) | 已删除；后续见[工作区与长期记忆](../plan/workspaces-and-memory.md) |
 | 为什么动作、观察和视觉输入要分别处理 | [工具观察与执行效率](tools-and-interface.md) | [浏览器与视觉资源](../harness.md#浏览器动作与视觉资源) |
 | 为什么阅读、编辑、技术观察和模型连接各有入口 | [用户交互与模型接入](interaction-and-configuration.md) | [产品说明](../product.md)、[UI 设计](../../ray_agent/ui/DESIGN.md)、[模型请求分工](../harness.md#模型选择与请求分工) |
 | 为什么 skill 需要完整包、固定版本和运行引用 | [skill 安装与运行](skills.md) | [skill 机制](../skills.md) |

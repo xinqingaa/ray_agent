@@ -75,8 +75,12 @@ impl CoreHost {
     fn spawn(&self, app: &AppHandle) -> Result<(), String> {
         let core_dir = app.path().resource_dir().map_err(|e| e.to_string())?.join(CORE_DIR);
         let executable = core_dir.join(CORE_DIR);
-        let data_dir = app.path().app_data_dir().map_err(|e| e.to_string())?.join("probe-core");
-        // 开发阶段的连接与模型配置文件，P2 由设置页与钥匙串取代。
+        // 开发检查可用 RAYAGENT_CORE_DATA_DIR 换用独立数据根，避免与同机其他宿主共用一个实例锁。
+        let data_dir = match std::env::var_os("RAYAGENT_CORE_DATA_DIR") {
+            Some(dir) => PathBuf::from(dir),
+            None => app.path().app_data_dir().map_err(|e| e.to_string())?.join("probe-core"),
+        };
+        // 开发阶段的模型配置文件，P2 由设置页与钥匙串取代。
         let env_files: Vec<PathBuf> = std::env::var_os("RAYAGENT_CORE_ENV")
             .map(|paths| std::env::split_paths(&paths).collect())
             .unwrap_or_default();

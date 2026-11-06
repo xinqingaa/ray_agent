@@ -3,7 +3,7 @@ import asyncio
 import logging
 import re
 import unicodedata
-from typing import Callable
+from typing import Callable, Optional
 
 from app.application.errors.exceptions import BadRequestError, NotFoundError
 from app.domain.models.event import TitleEvent
@@ -44,10 +44,12 @@ def generated_title(value: str) -> str:
 
 
 class TitleService:
-    def __init__(self, uow_factory: Callable[[], IUnitOfWork], ledger: RunLedger, load_config=None) -> None:
-        """load_config 返回当前应用配置；为空时读取业务库中的配置。"""
+    def __init__(self, uow_factory: Callable[[], IUnitOfWork], ledger: RunLedger, load_config=None,
+                 read_uow_factory: Optional[Callable[[], IUnitOfWork]] = None) -> None:
+        """load_config 返回当前应用配置；为空时经同一组工作单元读取业务库中的配置。"""
         self._load_config = load_config
         self._uow_factory = uow_factory
+        self._read_uow_factory = read_uow_factory or uow_factory
         self._ledger = ledger
 
     async def _session(self, session_id: str):
@@ -61,8 +63,7 @@ class TitleService:
         if self._load_config is not None:
             return await self._load_config()
         from app.infrastructure.repositories.db_app_config_repository import DBAppConfigRepository
-        from app.infrastructure.storage.sqlite import get_read_uow, get_uow
-        return await DBAppConfigRepository(get_uow, get_read_uow).load()
+        return await DBAppConfigRepository(self._uow_factory, self._read_uow_factory).load()
 
     async def suggest(self, session_id: str, source: str | None = None) -> str:
         session = await self._session(session_id)

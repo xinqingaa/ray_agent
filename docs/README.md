@@ -86,7 +86,7 @@
 | 图 | 回答的问题 | 使用位置 |
 |---|---|---|
 | [产品任务全景](assets/product-task-map.svg) | 用户如何输入目标，依靠哪些能力推进，得到什么成果 | 项目首页、产品说明 |
-| [系统协作与数据归属](assets/system-data-map.svg) | UI、Harness、模型、沙箱及外部能力如何协作，数据归谁 | 架构说明；Harness 链接到该说明 |
+| [系统协作与数据归属](assets/system-data-map.svg) | UI、本机核心、模型、执行环境及外部能力如何协作，数据归谁 | 架构说明；Harness 链接到该说明 |
 | [任务循环与退出路径](assets/task-run-flow.svg) | 决策与反馈如何循环，什么时候等待、完成或进入其他终态 | Harness 决策层；架构链接到该小节 |
 | [工具从声明到执行](assets/tool-contract-flow.svg) | 工具声明如何进入请求，具体调用如何校验、放行并回填 | Harness 工具声明、装配与分发 |
 | [记忆分层与请求装配](assets/context-memory-map.svg) | 哪些信息被保存，哪些进入下一次请求 | Harness 记忆分层与请求装配 |
