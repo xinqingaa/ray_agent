@@ -1,6 +1,6 @@
 # 本机核心与存储
 
-本专题按 Python sidecar、SQLite 与本机持久消息协调制定待授权设计，尚未开始实现。产品范围见[决策清单](decisions.md)，共同身份与事务规则见[共享契约](shared-contracts.md)。
+本专题按 Python sidecar、SQLite 与本机持久消息协调制定设计，按计划实施中，进度见[实施状态](implementation.md#实施状态)。产品范围见[决策清单](decisions.md)，共同身份与事务规则见[共享契约](shared-contracts.md)。
 
 ## 目标与现状
 
