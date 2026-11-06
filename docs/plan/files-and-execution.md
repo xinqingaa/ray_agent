@@ -31,7 +31,7 @@
 
 文档修订、写前备份、交付版本与 Skill 快照保存为应用内容对象，按工作区或用户级 Skill 库归属管理；相同内容哈希不跨工作区提供存在性查询。索引、缩略图与临时预览是可重建数据。磁盘不足时停止新发布，保留当前有效对象和可恢复状态，不先删已引用版本腾空间。
 
-原 Sandbox 职责拆为 WorkspaceFiles、ProcessExecutor、BrowserSession 和 RuntimeComponents 端口。文件工具、Shell 工具、浏览器工具、公开网页读取、截图、预览与交付分别依赖所需端口；纯对话和公开 HTTP 读取不创建浏览器或进程。
+原 Sandbox 职责拆为 WorkspaceFiles、ProcessExecutor、BrowserSession 和 RuntimeComponents 端口。文件工具、Shell 工具、浏览器工具、公开网页读取、截图、预览与交付分别依赖所需端口；纯对话和公开 HTTP 读取不创建浏览器或进程。四个端口的接口与值类型已在核心定义（位置见[代码地图](../code-map.md#共享契约)），尚无实现与调用方，P3、P4 接入时按实际需要调整。
 
 ## 跨平台 IO
 

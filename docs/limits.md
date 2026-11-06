@@ -160,6 +160,14 @@
 
 跟随底部的距离、缩略图边长和图标尺寸在组件里，不在本页登记。
 
+## 共享契约
+
+| 项 | 当前值 | 来源 |
+|---|---|---|
+| 身份长度 | 不透明身份 1–128 个字符 | [identity.py](../ray_agent/api/app/domain/models/identity.py) 的 `ID_MAX_LENGTH` |
+| 相对路径长度 | 最长 4096 个字符 | 同上，`RELATIVE_PATH_MAX_LENGTH` |
+| 能力声明的沙箱探测 | 握手与每次读取核心状态时探测一次 Docker，连接与请求各 3 秒；连接已有沙箱地址时不探测 | [docker_sandbox.py](../ray_agent/api/app/infrastructure/external/sandbox/docker_sandbox.py) 的 `DOCKER_PROBE_TIMEOUT_SECONDS` |
+
 ## 桌面宿主与核心进程
 
 当前为 M0 宿主探针的取值，P2 接入正式宿主时复核。

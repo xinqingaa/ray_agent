@@ -50,7 +50,7 @@ docker exec manus-postgres sh -c 'createdb -U "$POSTGRES_USER" rayagent_probe'
 RAYAGENT_CORE_ENV="$PWD/../.env:$PWD/dev/.env.core" npx tauri dev
 ```
 
-探针页面由 Tauri CLI 提供，直接运行 `target/debug/rayagent-desktop` 时窗口为空白，但宿主照常拉起核心。窗口显示核心状态、端口、启动到握手的耗时、构建身份和健康检查；就绪后点“发起一次会话”，页面创建会话、发送一条消息并显示模型回复。终端里 `[core]` 前缀是核心日志，`[host]` 前缀是宿主日志。没有设置 `RAYAGENT_CORE_ENV` 或服务不可达时，核心在初始化阶段失败，页面显示启动失败与日志尾部。
+探针页面由 Tauri CLI 提供，直接运行 `target/debug/rayagent-desktop` 时窗口为空白，但宿主照常拉起核心。窗口显示核心状态、端口、启动到握手的耗时、协议与事件版本、实例身份、构建身份、健康检查和能力声明；就绪后点“发起一次会话”，页面创建会话、发送一条消息并显示模型回复。终端里 `[core]` 前缀是核心日志，`[host]` 前缀是宿主日志。没有设置 `RAYAGENT_CORE_ENV` 或服务不可达时，核心在初始化阶段失败，页面显示启动失败与日志尾部。
 
 探针数据写在 `~/Library/Application Support/com.rayagent.desktop/probe-core/`（配置副本、附件与 skill 目录），可以直接删除；P2 起的正式数据根不沿用该目录。
 
@@ -69,13 +69,16 @@ RAYAGENT_CORE_ENV="$PWD/../.env:$PWD/dev/.env.core" target/release/bundle/macos/
 ## 宿主与核心的约定
 
 - 宿主以资源目录中的 `rayagent-core/rayagent-core` 为可执行文件、该目录为工作目录，在独立进程组中启动核心，并移除可能改变冻结解释器或动态库查找的 `PYTHON*`、`VIRTUAL_ENV` 与 `DYLD_*` 变量。
-- 启动参数是写入核心 stdin 的一行 JSON：`data_dir` 为可写数据目录，`env_files` 为要叠加的环境文件。参数和其中的凭据都不经命令行传递；写完后宿主保持 stdin 打开。
-- 核心在 `127.0.0.1` 上监听系统分配的端口，完成数据库迁移与初始化后向 stdout 写一行握手 JSON（`event` 为 `ready` 或 `failed`，就绪时带 `port`、`pid` 与构建身份）。stdout 只用于握手，日志写 stderr。
+- 启动参数与握手都是[契约](../contracts/README.md)类型，宿主的对应类型在 `src/contract.rs`。
+- 启动参数（`CoreLaunch`）是写入核心 stdin 的一行 JSON：`data_dir` 为可写数据目录，`env_files` 为要叠加的环境文件，`env` 为最后叠加的显式环境。参数和其中的凭据都不经命令行传递；写完后宿主保持 stdin 打开。
+- 核心在 `127.0.0.1` 上监听系统分配的端口，完成数据库迁移与初始化后向 stdout 写一行握手（`CoreHandshake`）：`event` 为 `ready` 时带协议与事件版本、实例身份（`instance_id`、`pid`、启动时间）、构建身份、存储版本（桌面业务库建立前为空）、能力声明与端口，`instance_token` 预留、目前为空；为 `failed` 时带结构化错误。宿主按类型解析，不符合契约的握手按启动失败处理；协议版本目前只显示，不做兼容核对。stdout 只用于握手，日志写 stderr。
+- 握手后宿主请求一次 `/api/status`，它返回与握手相同的身份与能力，另带依赖服务检查与 `healthy`。
 - 退出时宿主关闭核心 stdin，核心随即正常停止；超过等待期限再发送 SIGTERM，最后对整个进程组发送 SIGKILL 并回收首进程。宿主被强制结束时，核心同样因 stdin 关闭而自行退出。等待期限见[运行参数与限额](../../docs/limits.md#桌面宿主与核心进程)。
 
 ## 检查
 
-- 启动：页面显示“已就绪”，健康检查为 HTTP 200 且 postgres、redis 正常。新复制或新构建的核心首次启动要等 macOS 逐个检查原生库，握手明显慢于再次启动；这不是失败，以页面状态为准。
+- 契约对齐：在本目录运行 `cargo test`。它内嵌 `../contracts/generated` 中的 `core.schema.json` 与样例，核对宿主的启动参数、握手、能力与错误代码类型和契约的字段、枚举取值一致；契约变化后先按[契约指南](../contracts/README.md)重新生成，再修改宿主类型。
+- 启动：页面显示“已就绪”，协议、实例与能力有值，健康检查为 HTTP 200、依赖正常且 postgres、redis 正常。新复制或新构建的核心首次启动要等 macOS 逐个检查原生库，握手明显慢于再次启动；这不是失败，以页面状态为准。
 - 会话：“发起一次会话”得到助手回复，运行状态为 `completed`。
 - 退出：关闭窗口或 Cmd+Q 后，确认没有残留进程：
 
@@ -85,4 +88,4 @@ RAYAGENT_CORE_ENV="$PWD/../.env:$PWD/dev/.env.core" target/release/bundle/macos/
 
   也可以在宿主运行时用 `kill -9 <宿主 PID>` 模拟宿主崩溃，核心应在数秒内自行退出。
 
-这些检查只覆盖宿主拉起、通信和退出；业务行为仍按 [API 开发指南](../api/README.md) 的测试入口检查。
+这些检查只覆盖宿主拉起、通信、契约对齐和退出；业务行为仍按 [API 开发指南](../api/README.md) 的测试入口检查。

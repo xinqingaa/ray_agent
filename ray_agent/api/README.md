@@ -33,6 +33,19 @@ uv run --locked uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
 容器部署从产品目录 `ray_agent/` 运行，使用该目录的 `.env`；它与本地 API 目录中的 `.env` 是两个配置位置。
 
+### 接口契约
+
+请求、响应、错误与事件以 Pydantic 模型为唯一来源，导出的 OpenAPI、JSON Schema 与 TypeScript 类型提交在 [ray_agent/contracts](../contracts/README.md)。改了路由或模型后在契约目录运行 `npm run generate` 并提交生成结果；只核对 JSON 产物是否过期可在本目录运行：
+
+```bash
+uv run --locked python scripts/contracts.py --check
+```
+
+- 成功响应是 `{"data": …}`，HTTP 状态为 2xx。
+- 失败响应一律是 `{"error": {"code", "message", "retryable", "retry_after_ms", "resource_version", "details"}}`，HTTP 状态由 `code` 决定；业务代码抛应用异常，请求参数校验失败为 `validation_failed` 并在 `details.errors` 给出明细。错误与长操作的使用约定见[契约指南](../contracts/README.md#后续工作包怎样使用契约)。
+- `GET /api/status` 返回协议与事件版本、构建与实例身份、存储版本、能力声明和依赖服务检查；依赖异常时仍为 200，`healthy` 为 false。`GET /api/status/build` 只返回构建身份。
+- SSE 帧即事件信封：`event` 行为事件类型，`data` 行带 `seq`、`run_id`、毫秒时间 `created_at`、`event_version` 与该类型字段，`id` 行为 `seq`；会话详情的 `events` 返回同一信封。
+
 ## 冻结桌面核心
 
 桌面宿主随包分发的核心由 [rayagent-core.spec](rayagent-core.spec) 冻结为 PyInstaller onedir，入口是 [sidecar.py](sidecar.py)。PyInstaller 只在 dev 依赖组，不进入 `requirements.txt` 与容器镜像。
@@ -44,7 +57,7 @@ uv run --locked pyinstaller --noconfirm --clean rayagent-core.spec
 
 产物在 `dist/rayagent-core/`：入口 `rayagent-core` 与 `_internal/` 依赖目录必须整体分发，`build/` 与 `dist/` 不提交。spec 按文件枚举 `app/`、`core/` 的全部模块（`collect_submodules` 会漏掉没有 `__init__.py` 的目录），并把 Alembic 配置与迁移脚本、默认 `config.yaml`、内置 skill 和构建身份作为数据文件随包。
 
-入口从 stdin 读取一行 JSON 启动参数，以资源目录为工作目录，配置副本、附件与 skill 目录写入参数中的 `data_dir`，就绪后在 stdout 写一行握手；宿主侧约定见[桌面宿主指南](../desktop/README.md#宿主与核心的约定)。开发时可以不冻结直接运行入口，用管道保持 stdin 打开，关闭管道即正常停止：
+入口从 stdin 读取一行 JSON 启动参数（契约类型 `CoreLaunch`），以资源目录为工作目录，配置副本、附件与 skill 目录写入参数中的 `data_dir`，就绪后在 stdout 写一行握手（`CoreHandshake`）；宿主侧约定见[桌面宿主指南](../desktop/README.md#宿主与核心的约定)。开发时可以不冻结直接运行入口，用管道保持 stdin 打开，关闭管道即正常停止：
 
 ```bash
 (echo "{\"data_dir\": \"/tmp/rayagent-core-data\", \"env_files\": [\"$PWD/../.env\", \"$PWD/../desktop/dev/.env.core\"]}"; cat) | uv run --locked python sidecar.py
@@ -72,7 +85,9 @@ uv run --locked pyinstaller --noconfirm --clean rayagent-core.spec
 uv run --locked python -m pytest
 ```
 
-测试配置见 [pytest.ini](pytest.ini)。纯核心与协议用例不会启动应用或连接数据库。只有使用 [conftest.py](tests/conftest.py) 中 `client` fixture 的接口测试会进入应用生命周期、迁移和初始化外部服务，运行它们前需准备独立的测试数据库与 Redis 配置。协议自动测试不能替代真实模型的页面验收。
+测试配置见 [pytest.ini](pytest.ini)。纯核心与协议用例不会启动应用或连接数据库。只有使用 [conftest.py](tests/conftest.py) 中 `client` fixture 的接口测试会进入应用生命周期、迁移和初始化外部服务，运行它们前需用 `SQLALCHEMY_DATABASE_URI`、`REDIS_HOST`/`REDIS_PORT`/`REDIS_DB` 指向独立的测试数据库与 Redis，并把 `APP_CONFIG_FILEPATH`、`FILE_STORAGE_LOCAL_DIR`、`SKILL_STORAGE_DIR` 指到临时位置。这个应用会话贯穿整个 pytest 进程并占用数据库连接，与下文 `RAY_TEST_DATABASE_URI` 的并发用例放在同一进程时可能耗尽测试库连接，退出时还会报事件循环已关闭；两类用例分开运行（`tests/app` 与 `--ignore=tests/app`）。协议自动测试不能替代真实模型的页面验收。
+
+[tests/core/test_contracts.py](tests/core/test_contracts.py) 随全量测试运行，先核对 `ray_agent/contracts/generated` 中的 JSON 产物是否与 Pydantic 定义一致（过期即失败），再检查身份与相对路径校验、所有失败的结构化错误形状、事件联合是否覆盖每种领域事件、能力上报、长操作状态与握手解析。
 
 Agent 循环与工具管线可定向运行：
 
@@ -247,7 +262,7 @@ uv run --locked alembic revision --autogenerate -m "描述本次结构变化"
 uv run --locked alembic upgrade head
 ```
 
-生成后检查迁移内容再应用。接口或事件变化还需验证客户端解析；任务与协议变化需运行对应真实流程，不能只依赖状态接口测试。
+生成后检查迁移内容再应用。接口或事件变化需重新生成[契约](../contracts/README.md)并验证客户端解析；任务与协议变化需运行对应真实流程，不能只依赖状态接口测试。
 
 迁移 `5b7e2c9d4a10` 建立 `runs`、`events` 表并删除 `sessions.events`，不把旧 JSONB 事件搬进新表。已有库执行 `alembic upgrade head` 后会话行仍在，事件历史会被丢掉。要清空后重新初始化，只能在明确要删除数据库和文件卷时按 [Docker 操作说明](../DOCKER.md) 使用 `docker compose down -v`，再重新启动。
 

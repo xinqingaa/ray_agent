@@ -26,7 +26,7 @@
 
 ## 工程布局
 
-保留 `ray_agent/ui` 作为共享 React 工程，保留 `ray_agent/api` 作为 Python 核心，`ray_agent/desktop` 管理 Tauri／Rust 原生宿主及移动目标，`ray_agent/contracts` 保存生成类型与协议校验输入。`ray_agent/desktop` 由 M0 宿主探针建立，其指南已登记到根工作指南的任务表，P2 接入共享界面时扩展为桌面开发指南；`ray_agent/contracts` 尚未创建，在 P0 建立服务指南并同样登记。
+保留 `ray_agent/ui` 作为共享 React 工程，保留 `ray_agent/api` 作为 Python 核心，`ray_agent/desktop` 管理 Tauri／Rust 原生宿主及移动目标，`ray_agent/contracts` 保存生成类型与协议校验输入。`ray_agent/desktop` 由 M0 宿主探针建立，其指南已登记到根工作指南的任务表，P2 接入共享界面时扩展为桌面开发指南；`ray_agent/contracts` 保存由核心 Pydantic 契约生成的 OpenAPI、JSON Schema、样例与 TypeScript 类型，[契约指南](../../ray_agent/contracts/README.md)同样已登记。
 
 前端迁移只替换 Next 的路由、入口、环境和构建耦合。保留消息投影、草稿、Markdown、组件和样式；项目入口改为工作区入口，项目说明与笔记页面不再保留。所有 API、SSE、上传、预览和下载统一进入 CoreClient，移除散落的固定服务地址。开发服务器不能成为正式包的依赖。
 
@@ -79,7 +79,7 @@ UI 负责共享页面与平台适配接口；原生外壳负责窗口、系统�
 
 ## 实施任务
 
-M0 验证 Tauri 宿主与冻结核心；P0 固化生成类型和平台端口；P2 完成前端、Tauri 与 sidecar 的真实产品启动链路；P3、P5、P6 分别接入文件夹、记忆与检索界面；P9 产出 Mac 内部包并完成首个交付检查。后续 P10 完成 Mac 签名、公证与更新，P11 完成 Windows 构建与签名安装，P12 按 D2 交付移动端。具体依赖见[实施工作包](implementation.md#工作包与依赖)。
+M0 验证了 Tauri 宿主与冻结核心，P0 建立了生成类型链路与平台端口接口；P2 完成前端、Tauri 与 sidecar 的真实产品启动链路；P3、P5、P6 分别接入文件夹、记忆与检索界面；P9 产出 Mac 内部包并完成首个交付检查。后续 P10 完成 Mac 签名、公证与更新，P11 完成 Windows 构建与签名安装，P12 按 D2 交付移动端。具体依赖见[实施工作包](implementation.md#工作包与依赖)。
 
 除原有完成条件外，还需检查未装开发环境的机器、不兼容核心、崩溃后重连、输入法组合输入、PDF 与 HTML 预览、长列表滚动、下载与分享、脏草稿和桌面退出。首个交付在 Mac 内部包上执行，后续平台各自重复，不从浏览器开发模式结果推断原生包通过。
 

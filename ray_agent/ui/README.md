@@ -46,7 +46,13 @@ npm run dev
 
 组件消费 hooks 和 providers 提供的状态。事件契约变化时，同时核对后端映射、前端类型和归一化逻辑，避免只调整展示组件。确认计划按钮附带来源运行、计划 ID、计划事件序号和持久请求标识；响应丢失后的重试沿用草稿里的原标识。
 
-进入会话先取详情里的全部运行与事件，记下最大序号，再保持一条 `GET /sessions/{id}/events?after_seq=`。SSE 的 `id` 即序号。断开后按最后收到的序号重连，等待从较短间隔翻倍，直到上限。间隔见[运行参数与限额](../../docs/limits.md)。发送消息只调用 `POST /sessions/{id}/chat`，返回 `run_id`、`seq` 与 `route`（`started`、`resumed` 或 `injected`），不再为发送单独开流。
+### 契约类型与错误
+
+事件、错误、响应包装与核心状态的类型来自 [ray_agent/contracts](../contracts/README.md) 的生成结果，经路径别名 `@contracts/*` 引用，在 [types.ts](src/lib/api/types.ts) 中派生为界面使用的名称：前端把事件信封 `{event, data}` 统一为 `{type, data}`（`SSEEventData`，按类型取单个事件用 `SSEEventOf`）。只用 `import type` 引用生成文件，它们不进入打包产物，检查脚本的转译也不需要解析这些路径。其余接口类型仍为手写，修改对应接口时替换为生成类型；契约变化后先重新生成，再运行下文的类型检查与构建。
+
+请求封装把失败统一为 `ApiError`：`status` 为 HTTP 状态，没有收到响应（超时、断网）时为 0；`code` 是核心返回的机器可读代码（如 `conflict`、`gone`），另有 `retryable`、`retryAfterMs`、`resourceVersion` 与 `details`。`rejected` 为真表示核心已明确拒绝，可以解除待核对状态；其余失败结果未知，先读回再决定是否重试。按冲突、过期等情况分支时判断 `code`，不要比较 HTTP 状态数字。
+
+进入会话先取详情里的全部运行与事件，记下最大序号，再保持一条 `GET /sessions/{id}/events?after_seq=`。SSE 的 `id` 即序号，每帧的 `data` 带 `seq` 与 `event_version`。断开后按最后收到的序号重连，等待从较短间隔翻倍，直到上限。间隔见[运行参数与限额](../../docs/limits.md)。发送消息只调用 `POST /sessions/{id}/chat`，返回 `run_id`、`seq` 与 `route`（`started`、`resumed` 或 `injected`），不再为发送单独开流。
 
 侧栏列表走 `POST /sessions/stream?independent=true`。可见标签共用这一条连接；服务端在目录有写入时重读一页，内容没变不推送，没有通知时按较长间隔兜底。项目列表、展开项目里的对话、项目文件和记忆跟随同一条目录通知，页面重新可见时再核对一次。压缩进行中才定期读会话详情里的临时状态，结束后停止。终端仍只在命令运行中定期读取。间隔见[运行参数与限额](../../docs/limits.md)。
 
@@ -113,18 +119,18 @@ npm run build
 npm run start
 ```
 
-`start` 需要已有构建产物。当前没有覆盖完整交互的自动化测试套件；lint 和构建不验证完整交互。本地事件观察见下节。涉及事件的修改还需检查实时消息、历史详情、计划更新与工具结果展示。
+`start` 需要已有构建产物。构建与 `npx tsc --noEmit` 的类型检查会读取 `../contracts/generated` 中的生成类型，契约过期时先在契约目录运行 `npm run generate`。当前没有覆盖完整交互的自动化测试套件；lint 和构建不验证完整交互。本地事件观察见下节。涉及事件的修改还需检查实时消息、历史详情、计划更新与工具结果展示。
 
 `check-slash-command-menu.cjs` 挂载实际菜单与圆环，使用 DOM 几何替身检查鼠标高亮不滚动、键盘最小滚动、滚轮位置不回拉、静止指针不抢选择、未知态及禁用压缩；`check-composer-images.cjs` 另核对关闭后松键不重开、查询变化可重新打开。长列表的实际滚动、锚定、搜索高度与键盘交互仍需浏览器走查。
 
 图片输入检查使用实际输入组件、剪贴板提取和草稿模块，替换上传、模型目录与基础 UI；覆盖单次提取不重复、混合文字、部分成功、迟到响应归属、缩略图操作入口、不依赖模型目录发送、多图自动提交和旧模式受理核对。高度、聚焦、悬浮样式与系统剪贴板行为需实际浏览器核对，不能由组件替身推导。
 
-容器使用多阶段构建并输出 standalone 应用。整体启动见 [运行指南](../README.md)，启停与日志见 [Docker 操作说明](../DOCKER.md)。
+容器使用多阶段构建并输出 standalone 应用。镜像的构建上下文是产品目录 `ray_agent/`，由 [Dockerfile.dockerignore](Dockerfile.dockerignore) 只带入本工程与 `contracts/generated`。整体启动见 [运行指南](../README.md)，启停与日志见 [Docker 操作说明](../DOCKER.md)。
 
 
 ## 事件观察
 
-安装锁定依赖后，可直接运行本地观察脚本，无需启动 Next.js。命令脚本检查共用可用性；发送脚本模拟响应丢失和受理读回；工作台脚本通过实际共享查看器与项目组件检查乱序响应、取消、分段读取版本、项目刷新与读取失败，传输及基础 UI 元素为替身，不能替代浏览器布局和真实服务验收。React renderer 会输出既有弃用提示：
+安装锁定依赖后，可直接运行本地观察脚本，无需启动 Next.js。命令脚本检查共用可用性；发送脚本用实际的 `ApiError` 构造模拟响应丢失、网关失败与核心明确拒绝，检查受理读回；工作台脚本通过实际共享查看器与项目组件检查乱序响应、取消、分段读取版本、项目刷新与读取失败，传输及基础 UI 元素为替身，不能替代浏览器布局和真实服务验收。React renderer 会输出既有弃用提示：
 
 ```bash
 node scripts/check-event-observability.cjs
@@ -154,7 +160,7 @@ node scripts/check-project-upload-tree.cjs
 
 项目操作检查使用固定占用响应挂载实际数据确认与设置数据分区，验证查看占用时同时退出父层设置与清空确认再导航，离开被拒绝时不导航、不触发清理；不修改真实任务状态。
 
-构建时生成公开 `build-manifest.json`，随 standalone 镜像提供；输入指纹覆盖源文件、public、构建配置、依赖清单和编译使用的公开 API 地址。部署核对见 [Docker 指南](../DOCKER.md)。
+构建时生成公开 `build-manifest.json`，随 standalone 镜像提供；输入指纹覆盖源文件、public、构建配置、依赖清单、契约生成结果和编译使用的公开 API 地址。部署核对见 [Docker 指南](../DOCKER.md)。
 
 `check-model-configuration.cjs` 覆盖模型与思考选择的恢复、发送传递、会话隔离、字段缺失、迟到详情、同源偏好变化、目录回退和存储失败。选择与草稿契约见 [UI 设计](DESIGN.md#草稿弹层与视图连续性)；脚本不代替真实刷新与多标签操作。
 

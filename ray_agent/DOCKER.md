@@ -51,7 +51,7 @@ docker compose stop manus-api
 | 进程重启，不重读 `.env` | `docker compose restart manus-api` |
 | 只改了 `.env`（密钥、服务连接等） | `docker compose up -d --force-recreate --no-deps manus-api` |
 | 改了 API 代码或 `config.yaml` | `docker compose up -d --build manus-api` |
-| 改了 UI 代码 | `docker compose up -d --build manus-ui` |
+| 改了 UI 代码或契约生成结果（UI 镜像以本目录为构建上下文，带入 `contracts/generated`） | `docker compose up -d --build manus-ui` |
 | 整套重启 | `docker compose restart` |
 | 只重建了 API 或 UI，页面变成 502 | `docker compose restart manus-nginx` |
 

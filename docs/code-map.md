@@ -1,6 +1,6 @@
 # 代码地图
 
-本文按机制索引 API、UI、沙箱与桌面宿主的实现及定向检查。首次接手从主执行路径开始，具体改动按主题追查；服务内部目录职责见所属 README 的代码导航。
+本文按机制索引 API、UI、沙箱、桌面宿主与共享契约的实现及定向检查。首次接手从主执行路径开始，具体改动按主题追查；服务内部目录职责见所属 README 的代码导航。
 
 ## 怎么读
 
@@ -9,7 +9,8 @@
 | API | [api/app](../ray_agent/api/app) | [api/tests](../ray_agent/api/tests) |
 | UI | [ui/src](../ray_agent/ui/src) | [ui/scripts](../ray_agent/ui/scripts) |
 | 沙箱 | [sandbox/app](../ray_agent/sandbox/app) | [sandbox/tests](../ray_agent/sandbox/tests) |
-| 桌面宿主 | [desktop/src](../ray_agent/desktop/src) | 尚无自动检查，见[桌面开发指南](../ray_agent/desktop/README.md#检查) |
+| 桌面宿主 | [desktop/src](../ray_agent/desktop/src) | [contract.rs](../ray_agent/desktop/src/contract.rs) 的 `cargo test`；运行检查见[桌面开发指南](../ray_agent/desktop/README.md#检查) |
+| 共享契约 | 契约模型在 API 中，生成结果在 [contracts/generated](../ray_agent/contracts/generated) | [test_contracts.py](../ray_agent/api/tests/core/test_contracts.py)、[generate.mjs](../ray_agent/contracts/scripts/generate.mjs) 的 `npm run check` |
 
 各主题列出实现入口与定向检查；[主执行路径](#主执行路径)用于首次定位，专题索引用于按影响继续追查。源码是当前行为的最终依据，测试帮助理解约定与覆盖范围；测试存在不表示当前版本已通过运行验证。
 
@@ -22,6 +23,24 @@
 | 请求模型与决定下一动作 | [agent_loop.py](../ray_agent/api/app/domain/services/flows/agent_loop.py) 的 `invoke()`、`_loop()` | 模型请求、容量、计划及成果反馈分别查下方主题；模型参数与通信编码在基础设施适配 |
 | 执行工具 | [tool_pipeline.py](../ray_agent/api/app/domain/services/flows/tool_pipeline.py) 的 `run()` | 执行前处理模式与策略，工具声明连接具体适配，结果按调用 ID 回填 |
 | 保存事实与展示 | [run_ledger.py](../ray_agent/api/app/domain/services/run_ledger.py) | 运行器提交事件，前端 [session-projection.ts](../ray_agent/ui/src/lib/session-projection.ts) 派生视图；数据库提交和外部副作用分别判断 |
+
+## 共享契约
+
+契约的分层、生成命令、版本规则与使用约定见[契约指南](../ray_agent/contracts/README.md)。
+
+| 机制 | 主要入口 | 定向检查 |
+|---|---|---|
+| 身份类型、相对路径、可访问根与版本引用 | [identity.py](../ray_agent/api/app/domain/models/identity.py) | [test_contracts.py](../ray_agent/api/tests/core/test_contracts.py) |
+| 结构化错误：代码、异常与 HTTP 状态映射 | [error.py](../ray_agent/api/app/domain/models/error.py)、[exceptions.py](../ray_agent/api/app/application/errors/exceptions.py)、[exception_handlers.py](../ray_agent/api/app/interfaces/errors/exception_handlers.py)；界面 [fetch.ts](../ray_agent/ui/src/lib/api/fetch.ts) 的 `ApiError` | 同上；[check-send-recovery.cjs](../ray_agent/ui/scripts/check-send-recovery.cjs) |
+| 响应包装 | [base.py](../ray_agent/api/app/interfaces/schemas/base.py) | [test_contracts.py](../ray_agent/api/tests/core/test_contracts.py) |
+| 长操作 | 模型 [operation.py](../ray_agent/api/app/domain/models/operation.py)，接口视图 [operation.py](../ray_agent/api/app/interfaces/schemas/operation.py) | 同上 |
+| 能力声明与当前上报 | [capability.py](../ray_agent/api/app/domain/models/capability.py)、[capability_service.py](../ray_agent/api/app/application/services/capability_service.py)；沙箱探测为 [docker_sandbox.py](../ray_agent/api/app/infrastructure/external/sandbox/docker_sandbox.py) 的 `sandbox_problem()` | 同上 |
+| 版本、启动参数、握手与状态 | [core.py](../ray_agent/api/app/interfaces/schemas/core.py)、[core_descriptor.py](../ray_agent/api/app/interfaces/core_descriptor.py)、[status_routes.py](../ray_agent/api/app/interfaces/endpoints/status_routes.py)、[sidecar.py](../ray_agent/api/sidecar.py) | 同上；[test_status_routes.py](../ray_agent/api/tests/app/interfaces/endpoints/test_status_routes.py)（真实生命周期） |
+| 事件信封与联合类型 | [event.py](../ray_agent/api/app/interfaces/schemas/event.py) 的 `SessionEvent`、`StreamEvent`、`EventMapper` | 同上；[test_event_observability.py](../ray_agent/api/tests/core/test_event_observability.py) |
+| 执行与平台端口 | [workspace_files.py](../ray_agent/api/app/domain/external/workspace_files.py)、[process_executor.py](../ray_agent/api/app/domain/external/process_executor.py)、[browser_session.py](../ray_agent/api/app/domain/external/browser_session.py)、[runtime_components.py](../ray_agent/api/app/domain/external/runtime_components.py) | [test_contracts.py](../ray_agent/api/tests/core/test_contracts.py)（值类型） |
+| 导出与生成 | [contracts.py](../ray_agent/api/scripts/contracts.py)、[generate.mjs](../ray_agent/contracts/scripts/generate.mjs) | `npm run check`；API 契约测试中的过期检查 |
+| 界面引用生成类型 | [types.ts](../ray_agent/ui/src/lib/api/types.ts)，路径别名在 [tsconfig.json](../ray_agent/ui/tsconfig.json) | UI 的 lint 与构建 |
+| 宿主对齐 | [contract.rs](../ray_agent/desktop/src/contract.rs) | `cargo test` |
 
 ## Agent 循环与工具管线
 
@@ -189,7 +208,7 @@
 | 机制 | 主要入口 |
 |---|---|
 | 事件订阅与视图投影 | [session-projection.ts](../ray_agent/ui/src/lib/session-projection.ts) 的 `projectSession` 与 `resolveOutputRate`、[session-view.ts](../ray_agent/ui/src/lib/session-view.ts)、[use-session-detail.ts](../ray_agent/ui/src/hooks/use-session-detail.ts)。文本增量不进入带序号的事件列表。[session-events.ts](../ray_agent/ui/src/lib/session-events.ts) 只做事件归一化 |
-| 接口请求 | [api](../ray_agent/ui/src/lib/api) 的 `session.ts`（含 `compact`、审批答复 `replyApproval`）、`project.ts`、`config.ts`（含工具策略）、`file.ts`、`fetch.ts` |
+| 接口请求 | [api](../ray_agent/ui/src/lib/api) 的 `session.ts`（含 `compact`、审批答复 `replyApproval`）、`project.ts`、`config.ts`（含工具策略）、`file.ts`、`fetch.ts`（结构化错误 `ApiError`）；事件、错误、响应包装与核心状态的类型来自[共享契约](#共享契约)的生成结果 |
 | 输入框命令注册表 | [commands.ts](../ray_agent/ui/src/lib/commands.ts)、[slash-trigger.ts](../ray_agent/ui/src/lib/slash-trigger.ts)、[input-command-menu.tsx](../ray_agent/ui/src/components/input-command-menu.tsx)、[上下文圆环](../ray_agent/ui/src/components/run/context-ring.tsx)；[菜单检查](../ray_agent/ui/scripts/check-slash-command-menu.cjs) |
 | 首页与图片输入 | [page.tsx](../ray_agent/ui/src/app/page.tsx)、[chat-input.tsx](../ray_agent/ui/src/components/chat-input.tsx)、[composer-images.ts](../ray_agent/ui/src/lib/composer-images.ts)；选择 [model-picker.tsx](../ray_agent/ui/src/components/model-picker.tsx)，草稿 [drafts.ts](../ray_agent/ui/src/lib/drafts.ts)；[检查](../ray_agent/ui/scripts/check-composer-images.cjs) |
 | 上下文占用与用量详情 | [context-ring.tsx](../ray_agent/ui/src/components/run/context-ring.tsx) |
@@ -230,10 +249,10 @@
 
 | 机制 | 主要入口 |
 |---|---|
-| 核心入口：stdin 启动参数、数据目录、系统分配端口、stdout 握手、stdin 关闭即停止 | [sidecar.py](../ray_agent/api/sidecar.py) 的 `main()`、`apply_launch()`、`serve()`、`watch_host()` |
+| 核心入口：stdin 启动参数、数据目录、系统分配端口、stdout 握手、stdin 关闭即停止 | [sidecar.py](../ray_agent/api/sidecar.py) 的 `main()`、`apply_launch()`、`serve()`、`watch_host()`；参数与握手类型见[共享契约](#共享契约) |
 | 冻结进程的子进程入口 | `sidecar.py` 的 `WORKER_MODULES`、`run_worker()`；调用方为 [parser.py](../ray_agent/api/app/infrastructure/external/file_preview/parser.py) 的 `parse_preview()` |
 | onedir 冻结清单：模块枚举、数据文件与构建身份 | [rayagent-core.spec](../ray_agent/api/rayagent-core.spec) |
-| 宿主拉起、握手、健康检查与进程组回收 | [sidecar.rs](../ray_agent/desktop/src/sidecar.rs) 的 `CoreHost::spawn()`、`stop()`、`wait_exit()`；应用入口与退出事件在 [lib.rs](../ray_agent/desktop/src/lib.rs) |
+| 宿主拉起、握手、健康检查与进程组回收 | [sidecar.rs](../ray_agent/desktop/src/sidecar.rs) 的 `CoreHost::spawn()`、`stop()`、`wait_exit()`；启动参数与握手的宿主类型在 [contract.rs](../ray_agent/desktop/src/contract.rs)；应用入口与退出事件在 [lib.rs](../ray_agent/desktop/src/lib.rs) |
 | 资源分发、窗口、CSP 与能力 | [tauri.conf.json](../ray_agent/desktop/tauri.conf.json)、[default.json](../ray_agent/desktop/capabilities/default.json) |
 | 探针页面 | [probe](../ray_agent/desktop/probe) 的 `main.js` |
 | P1 前连接 Compose 中的 PostgreSQL 与 Redis | [services.compose.yml](../ray_agent/desktop/dev/services.compose.yml)、[.env.core.example](../ray_agent/desktop/dev/.env.core.example) |
