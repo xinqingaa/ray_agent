@@ -160,6 +160,21 @@
 
 跟随底部的距离、缩略图边长和图标尺寸在组件里，不在本页登记。
 
+## 桌面宿主与核心进程
+
+当前为 M0 宿主探针的取值，P2 接入正式宿主时复核。
+
+| 项 | 当前值 | 来源 |
+|---|---|---|
+| 核心连接收尾 | 正常停止时最多等待开放连接 5 秒 | [sidecar.py](../ray_agent/api/sidecar.py) 的 `GRACEFUL_SHUTDOWN_SECONDS` |
+| 宿主失联后的核心自退 | stdin 关闭后 20 秒仍未退出则直接结束进程 | 同上，`EXIT_DEADLINE_SECONDS` |
+| 宿主退出等待 | 关闭核心 stdin 后等待 15 秒，再发 SIGTERM 等待 3 秒，随后 SIGKILL 整个进程组 | [sidecar.rs](../ray_agent/desktop/src/sidecar.rs) 的 `EXIT_GRACE`、`TERM_GRACE` |
+| 健康检查 | 握手后请求一次 `/api/status`，连接与读写各 5 秒 | 同上，`HEALTH_TIMEOUT` |
+| 宿主保留的核心日志 | 最近 200 行 | 同上，`LOG_LINES` |
+| 探针页面等待回复 | 120 秒，每秒读一次会话详情 | [main.js](../ray_agent/desktop/probe/main.js) 的 `REPLY_TIMEOUT_MS` |
+
+宿主不限制核心从启动到握手的时间：新复制的 onedir 首次启动要经过 macOS 对原生库的首次加载检查，明显慢于再次启动。
+
 ## skill
 
 API 设置来自 `core/config.py`，环境变量使用对应大写名称；正文、目录及活动资料仍受实际模型窗口约束。

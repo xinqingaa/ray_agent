@@ -1,0 +1,9 @@
+# 让宿主机上的核心连接 Compose 中的 PostgreSQL 与 Redis，端口只发布到本机回环。
+# 在 ray_agent/ 下与 docker-compose.yml 叠加使用，见 ray_agent/desktop/README.md。
+services:
+  manus-postgres:
+    ports:
+      - "127.0.0.1:15432:5432"
+  manus-redis:
+    ports:
+      - "127.0.0.1:16379:6379"

@@ -20,6 +20,10 @@ out/
 coverage/
 *.tsbuildinfo
 
+# Desktop host: Cargo/Tauri build output and generated capability schemas
+ray_agent/desktop/target/
+ray_agent/desktop/gen/schemas/
+
 # Local configuration and credentials (keep sanitized examples)
 .env
 .env.*

@@ -1,6 +1,6 @@
 # 代码地图
 
-本文按机制索引 API、UI 与沙箱的实现及定向检查。首次接手从主执行路径开始，具体改动按主题追查；服务内部目录职责见所属 README 的代码导航。
+本文按机制索引 API、UI、沙箱与桌面宿主的实现及定向检查。首次接手从主执行路径开始，具体改动按主题追查；服务内部目录职责见所属 README 的代码导航。
 
 ## 怎么读
 
@@ -9,6 +9,7 @@
 | API | [api/app](../ray_agent/api/app) | [api/tests](../ray_agent/api/tests) |
 | UI | [ui/src](../ray_agent/ui/src) | [ui/scripts](../ray_agent/ui/scripts) |
 | 沙箱 | [sandbox/app](../ray_agent/sandbox/app) | [sandbox/tests](../ray_agent/sandbox/tests) |
+| 桌面宿主 | [desktop/src](../ray_agent/desktop/src) | 尚无自动检查，见[桌面开发指南](../ray_agent/desktop/README.md#检查) |
 
 各主题列出实现入口与定向检查；[主执行路径](#主执行路径)用于首次定位，专题索引用于按影响继续追查。源码是当前行为的最终依据，测试帮助理解约定与覆盖范围；测试存在不表示当前版本已通过运行验证。
 
@@ -222,6 +223,20 @@
 | 运行时配置 | [config.py](../ray_agent/api/core/config.py) |
 | 模型、协议、预算与工具策略配置 | [app_config.py](../ray_agent/api/app/domain/models/app_config.py)、[app_config_service.py](../ray_agent/api/app/application/services/app_config_service.py)；设置接口在 [app_config_routes.py](../ray_agent/api/app/interfaces/endpoints/app_config_routes.py) |
 | 反向代理与路由 | [default.conf](../ray_agent/nginx/conf.d/default.conf)（仓库根） |
+
+## 桌面宿主与核心打包
+
+当前为 M0 宿主探针，运行命令与检查条件见[桌面开发指南](../ray_agent/desktop/README.md)。
+
+| 机制 | 主要入口 |
+|---|---|
+| 核心入口：stdin 启动参数、数据目录、系统分配端口、stdout 握手、stdin 关闭即停止 | [sidecar.py](../ray_agent/api/sidecar.py) 的 `main()`、`apply_launch()`、`serve()`、`watch_host()` |
+| 冻结进程的子进程入口 | `sidecar.py` 的 `WORKER_MODULES`、`run_worker()`；调用方为 [parser.py](../ray_agent/api/app/infrastructure/external/file_preview/parser.py) 的 `parse_preview()` |
+| onedir 冻结清单：模块枚举、数据文件与构建身份 | [rayagent-core.spec](../ray_agent/api/rayagent-core.spec) |
+| 宿主拉起、握手、健康检查与进程组回收 | [sidecar.rs](../ray_agent/desktop/src/sidecar.rs) 的 `CoreHost::spawn()`、`stop()`、`wait_exit()`；应用入口与退出事件在 [lib.rs](../ray_agent/desktop/src/lib.rs) |
+| 资源分发、窗口、CSP 与能力 | [tauri.conf.json](../ray_agent/desktop/tauri.conf.json)、[default.json](../ray_agent/desktop/capabilities/default.json) |
+| 探针页面 | [probe](../ray_agent/desktop/probe) 的 `main.js` |
+| P1 前连接 Compose 中的 PostgreSQL 与 Redis | [services.compose.yml](../ray_agent/desktop/dev/services.compose.yml)、[.env.core.example](../ray_agent/desktop/dev/.env.core.example) |
 
 ## 模型配置与切换
 

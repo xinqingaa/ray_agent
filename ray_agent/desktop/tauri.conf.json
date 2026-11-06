@@ -1,0 +1,46 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "RayAgent",
+  "version": "0.1.0",
+  "identifier": "com.rayagent.desktop",
+  "build": {
+    "frontendDist": "probe",
+    "beforeBuildCommand": {
+      "script": "uv run --locked pyinstaller --noconfirm --clean rayagent-core.spec",
+      "cwd": "../api"
+    }
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "label": "main",
+        "title": "RayAgent 宿主探针",
+        "width": 760,
+        "height": 640,
+        "minWidth": 560,
+        "minHeight": 480
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; connect-src 'self' ipc: http://ipc.localhost http://127.0.0.1:*; img-src 'self' data:; style-src 'self'"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["app"],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.png"
+    ],
+    "resources": {
+      "../api/dist/rayagent-core/": "rayagent-core/"
+    },
+    "macOS": {
+      "signingIdentity": "-"
+    }
+  }
+}

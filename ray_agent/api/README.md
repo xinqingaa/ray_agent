@@ -33,6 +33,25 @@ uv run --locked uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 
 容器部署从产品目录 `ray_agent/` 运行，使用该目录的 `.env`；它与本地 API 目录中的 `.env` 是两个配置位置。
 
+## 冻结桌面核心
+
+桌面宿主随包分发的核心由 [rayagent-core.spec](rayagent-core.spec) 冻结为 PyInstaller onedir，入口是 [sidecar.py](sidecar.py)。PyInstaller 只在 dev 依赖组，不进入 `requirements.txt` 与容器镜像。
+
+```bash
+uv sync --locked --group dev
+uv run --locked pyinstaller --noconfirm --clean rayagent-core.spec
+```
+
+产物在 `dist/rayagent-core/`：入口 `rayagent-core` 与 `_internal/` 依赖目录必须整体分发，`build/` 与 `dist/` 不提交。spec 按文件枚举 `app/`、`core/` 的全部模块（`collect_submodules` 会漏掉没有 `__init__.py` 的目录），并把 Alembic 配置与迁移脚本、默认 `config.yaml`、内置 skill 和构建身份作为数据文件随包。
+
+入口从 stdin 读取一行 JSON 启动参数，以资源目录为工作目录，配置副本、附件与 skill 目录写入参数中的 `data_dir`，就绪后在 stdout 写一行握手；宿主侧约定见[桌面宿主指南](../desktop/README.md#宿主与核心的约定)。开发时可以不冻结直接运行入口，用管道保持 stdin 打开，关闭管道即正常停止：
+
+```bash
+(echo "{\"data_dir\": \"/tmp/rayagent-core-data\", \"env_files\": [\"$PWD/../.env\", \"$PWD/../desktop/dev/.env.core\"]}"; cat) | uv run --locked python sidecar.py
+```
+
+冻结后 `sys.executable` 指向入口本身。预览解析等以 `sys.executable -m 模块` 启动的子进程由入口按 `WORKER_MODULES` 放行，新增这类子进程时同时登记。
+
 ## 代码导航
 
 以下路径相对于本目录的 `app/`：

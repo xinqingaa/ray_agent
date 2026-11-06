@@ -149,6 +149,7 @@ docker compose ps
 - [API](api/README.md)：FastAPI、数据库迁移和后端分层。
 - [UI](ui/README.md)：Next.js 前端。
 - [沙箱](sandbox/README.md)：浏览器、终端和文件操作服务。
+- [桌面宿主](desktop/README.md)：Tauri 宿主与冻结核心的拉起、通信和退出，当前为宿主探针阶段。
 
 各服务 README 分别维护本地开发、依赖安装和验证命令；本指南只维护完整部署的配置与运行检查。默认可调数值集中在[运行参数与限额](../docs/limits.md)。协议由部署配置决定，普通用户菜单只选择模型与思考。
 

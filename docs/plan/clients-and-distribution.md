@@ -26,7 +26,7 @@
 
 ## 工程布局
 
-保留 `ray_agent/ui` 作为共享 React 工程，保留 `ray_agent/api` 作为 Python 核心，新建 `ray_agent/desktop` 管理 Tauri／Rust 原生宿主及移动目标，`ray_agent/contracts` 保存生成类型与协议校验输入。它们是计划目录，尚未创建；`ray_agent/contracts` 在 P0、`ray_agent/desktop` 在 P2 建立各自的服务指南，并登记到根工作指南的任务表。
+保留 `ray_agent/ui` 作为共享 React 工程，保留 `ray_agent/api` 作为 Python 核心，`ray_agent/desktop` 管理 Tauri／Rust 原生宿主及移动目标，`ray_agent/contracts` 保存生成类型与协议校验输入。`ray_agent/desktop` 由 M0 宿主探针建立，其指南已登记到根工作指南的任务表，P2 接入共享界面时扩展为桌面开发指南；`ray_agent/contracts` 尚未创建，在 P0 建立服务指南并同样登记。
 
 前端迁移只替换 Next 的路由、入口、环境和构建耦合。保留消息投影、草稿、Markdown、组件和样式；项目入口改为工作区入口，项目说明与笔记页面不再保留。所有 API、SSE、上传、预览和下载统一进入 CoreClient，移除散落的固定服务地址。开发服务器不能成为正式包的依赖。
 
@@ -53,7 +53,7 @@ CoreClient 根据平台选择桌面回环传输或移动原生传输，解析同
 
 ## 打包、组件与更新
 
-采用 PyInstaller onedir 作为核心产物，Tauri 将入口和依赖目录按清单一同分发，不能只带入口文件。冻结进程的 worker 使用同一可执行文件的明确子命令，不沿用 `sys.executable -m` 假设系统 Python；启动早期处理冻结进程的多进程入口。外部 Node／Shell 运行时清理冻结环境的动态库变量，避免加载核心私有库。M0 宿主探针用现有依赖集先行验证这些约束。
+采用 PyInstaller onedir 作为核心产物，Tauri 将入口和依赖目录按清单一同分发，不能只带入口文件。冻结进程的 worker 使用同一可执行文件的明确子命令，不沿用 `sys.executable -m` 假设系统 Python；启动早期处理冻结进程的多进程入口。外部 Node／Shell 运行时清理冻结环境的动态库变量，避免加载核心私有库。M0 宿主探针用现有依赖集检验了这些约束，实际结果与留给后续工作包的处理见[宿主探针结论](implementation.md#宿主探针结论)。
 
 基础包提供冻结核心、正常 CPython 工具解释器和 Node 运行时；工具解释器与核心依赖隔离，解析 worker 使用核心的明确子命令。Node 支持内置 JS 脚本及依赖它的 MCP，不要求用户安装 Node。浏览器与本地模型按 D6 分发，由随包发布的资源清单锁定版本与哈希；组件安装状态必须经哈希和实际可启动检查确认。第三方 Skill 的任意 Python／npm 依赖不视为基础包已包含，安装是独立授权动作，不在主环境里自动执行包管理器。
 
