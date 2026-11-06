@@ -1,4 +1,4 @@
-import { get, put, post, uploadRequest, ApiError } from "./fetch";
+import { get, put, post, uploadRequest, errorFromBody } from "./fetch";
 import type {
   ChatAccepted, ProjectMemoryView, ProjectFile,
   ProjectListing,
@@ -42,10 +42,7 @@ export const projectApi = {
     const base = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8088/api';
     const url = `${base}/projects/${id}/download${path == null ? '' : '?path=' + encodeURIComponent(path)}`;
     const response = await fetch(url, {method: 'HEAD'});
-    if (!response.ok) {
-      const body = await response.json().catch(() => null);
-      throw new ApiError(response.status, body?.msg || `下载不可用（HTTP ${response.status}），请重新读取项目文件状态`);
-    }
+    if (!response.ok) throw errorFromBody(response.status, null, `下载不可用（HTTP ${response.status}），请重新读取项目文件状态`);
     const header = response.headers.get('Content-Disposition') || '';
     const match = header.match(/filename\*=utf-8''(.+)/i);
     return {url, filename: match ? decodeURIComponent(match[1]) : path?.split('/').pop() || 'project.zip',

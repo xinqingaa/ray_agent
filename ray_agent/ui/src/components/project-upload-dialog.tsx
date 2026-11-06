@@ -90,7 +90,7 @@ export function ProjectUploadDialog({open, projectId, disabledReason, onClose, o
     try {
       if(!id) {
         try {const project=await projectApi.create(name.trim(),undefined,creationId.current ?? (creationId.current=crypto.randomUUID()));id=project.id;setTarget(id);setCreated(project)}
-        catch(error) {if(!(error instanceof ApiError) || error.code>=500 || error.code===408)setCreationUnknown(true);throw error}
+        catch(error) {if(!(error instanceof ApiError) || !error.rejected)setCreationUnknown(true);throw error}
       }
       const selection=uploadSelection(scan,rules,overwrite,onlyFailed)
       const checked=await projectApi.preflight(id,selection);setPreflight(checked)
@@ -107,7 +107,7 @@ export function ProjectUploadDialog({open, projectId, disabledReason, onClose, o
         if(checked.items.find(value => value.path===item.path)?.reuse){finishedBytes+=item.size;published++;setTransfer({loaded:finishedBytes,total:selection.items.reduce((sum,item)=>sum+item.size,0),published,count:selection.items.length,path:item.path});continue}
         const source=scan.files.find(value => value.path===item.path)!
         try {await projectApi.uploadItem(id,op,item.path,source.file,(loaded,total)=>setTransfer({loaded:finishedBytes+item.size*(total?loaded/total:0),total:selection.items.reduce((sum,item)=>sum+item.size,0),published,count:selection.items.length,path:item.path}));published++}catch(error) {
-          if(error instanceof ApiError && error.code<500 && error.code!==408)continue
+          if(error instanceof ApiError && error.rejected)continue
           // 网络未知先读回，不盲目重传副本；断线时保留批次，提供读回和取消。
           const value=await readback(id,op)
           if(!value.results.received?.[item.path]?.published)throw error
@@ -120,7 +120,7 @@ export function ProjectUploadDialog({open, projectId, disabledReason, onClose, o
     } catch(error) {
       setError(message(error))
       if(id) {
-        try {const detail=await projectApi.detail(id);if(!op && (!(error instanceof ApiError) || error.code>=500 || error.code===408) && detail.file_operation?.kind==='upload'){
+        try {const detail=await projectApi.detail(id);if(!op && (!(error instanceof ApiError) || !error.rejected) && detail.file_operation?.kind==='upload'){
           op=detail.file_operation.operation_id;setOperation(op);rememberBatch(id,op)
         }if(op)await readback(id,op)}catch{/* 读回不可达时维持未知状态，不自动开始新批次。 */}
       }

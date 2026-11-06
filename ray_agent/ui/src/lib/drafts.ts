@@ -1,6 +1,6 @@
 
 import type {PlanAcceptance} from '@/lib/api/types'
-import type {FileInfo, SessionDetail} from '@/lib/api/types'
+import type {FileInfo, SessionDetail, SSEEventOf} from '@/lib/api/types'
 import {normalizeEvents} from '@/lib/session-events'
 import {readEventSeq} from '@/lib/session-projection'
 
@@ -90,35 +90,31 @@ export type Acceptance = {kind: 'accepted'; runId: string; seq: number}
 export function checkAcceptance(detail: SessionDetail, pending: Submission): Acceptance {
   if (pending.execute_plan) {
     const plan = normalizeEvents(detail.events).find(event => event.type === 'plan' &&
-      (event.data as {accepted_from?: PlanAcceptance})?.accepted_from?.request_id === pending.execute_plan!.request_id)
+      event.data.accepted_from?.request_id === pending.execute_plan!.request_id)
+    const runId = plan?.data.run_id
     if (!plan) return {kind: 'absent'}
-    const data = plan.data as {run_id: string}
     const message = normalizeEvents(detail.events).find(event => event.type === 'message' &&
-      (event.data as {run_id?: string; role?: string}).run_id === data.run_id && (event.data as {role?: string}).role === 'user')
-    return message ? {kind: 'accepted', runId: data.run_id, seq: readEventSeq(message)!} : {kind: 'ambiguous'}
+      event.data.run_id === runId && event.data.role === 'user')
+    return message && runId ? {kind: 'accepted', runId, seq: readEventSeq(message)!} : {kind: 'ambiguous'}
   }
-  const matches = normalizeEvents(detail.events).filter((event) => {
-    if (event.type !== 'message' || !event.data || typeof event.data !== 'object') return false
-    const data = event.data as Record<string, unknown>
+  const matches = normalizeEvents(detail.events).filter((event): event is SSEEventOf<'message'> => {
+    if (event.type !== 'message') return false
+    const data = event.data
     if (data.role !== 'user' || data.message !== pending.message || (readEventSeq(event) ?? 0) <= pending.afterSeq
       || (data.image_mode ?? 'auto') !== (pending.image_mode ?? 'auto')) return false
-    const selected = data.skill as {id?: string; version?: string} | undefined
+    const selected = data.skill
     if ((selected?.id ?? null) !== (pending.skill?.id ?? null) || (selected?.version ?? null) !== (pending.skill?.version ?? null)) return false
-    const ids = Array.isArray(data.attachments)
-      ? data.attachments.map((file) => typeof file === 'object' && file ? (file as {id?: string}).id : null) : []
+    const ids = data.attachments.map((file) => file.id)
     return ids.length === pending.attachments.length && ids.every((id, index) => id === pending.attachments[index])
   })
   if (matches.length === 0) return {kind: 'absent'}
   if (matches.length !== 1) return {kind: 'ambiguous'}
-  const data = matches[0].data as Record<string, unknown>
-  const runId = typeof data.run_id === 'string' ? data.run_id : null
+  const runId = matches[0].data.run_id ?? null
   const seq = readEventSeq(matches[0])
   const run = detail.runs?.find(run => run.run_id === runId)
-  const continuation = normalizeEvents(detail.events).some(event => {
-    if (event.type !== 'message' || !event.data || typeof event.data !== 'object') return false
-    const data = event.data as Record<string, unknown>
-    return data.run_id === runId && data.role === 'user' && (readEventSeq(event) ?? Infinity) <= pending.afterSeq
-  })
+  const continuation = normalizeEvents(detail.events).some(event =>
+    event.type === 'message' && event.data.run_id === runId && event.data.role === 'user'
+      && (readEventSeq(event) ?? Infinity) <= pending.afterSeq)
   if (!runId || seq == null || !run || (continuation ? pending.mode !== 'normal' : run.mode !== pending.mode)) return {kind: 'ambiguous'}
   return {kind: 'accepted', runId, seq}
 }

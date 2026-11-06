@@ -40,7 +40,10 @@ async def main() -> int:
         return 2
 
     async with RayAgentClient(args.base_url) as client:
-        await client.status()
+        status = await client.status()
+        if not status.get("healthy"):
+            print(f"核心依赖服务异常：{status.get('services')}", file=sys.stderr)
+            return 2
         meta = {
             "label": args.label,
             "date": datetime.now().strftime("%Y-%m-%d"),

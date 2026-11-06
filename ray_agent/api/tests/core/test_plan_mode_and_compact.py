@@ -10,6 +10,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 from app.application.errors.exceptions import AppException, ConflictError, NotFoundError
+from app.domain.models.error import ErrorCode
 from app.domain.models.event import (
     ApprovalEvent,
     CompactEvent,
@@ -346,7 +347,7 @@ def test_manual_compaction_summary_failure_is_502_and_changes_nothing():
     events_before = len(h.events)
     with pytest.raises(AppException) as raised:
         run(service.compact_session(session.id))
-    assert raised.value.status_code == 502 and "2 次" in raised.value.msg
+    assert raised.value.info.code == ErrorCode.UPSTREAM_ERROR and "2 次" in raised.value.info.message
     assert len(h.llm.requests) == 2 and len(h.events) == events_before and h.notifier.published == []
     assert memory_messages(session) == original and session.status == SessionStatus.COMPLETED
 
@@ -418,23 +419,25 @@ def test_compact_route_response_shapes():
     ok = client.post(f"/api/sessions/{session.id}/compact")
     assert ok.status_code == 200
     body = ok.json()
-    assert body["code"] == 200 and body["msg"] == body["data"]["message"]
+    assert set(body) == {"data"} and body["data"]["message"].startswith("已")
     assert body["data"]["status"] == "compacted" and body["data"]["reason"] is None
     assert set(body["data"]) == {"status", "reason", "message", "compact_seq", "context_seq", "before_total",
                                  "after_total", "summarized_turns", "kept_turns"}
     assert (body["data"]["compact_seq"], body["data"]["context_seq"]) == (2, 3)
 
     failed = client.post(f"/api/sessions/{session.id}/compact")
-    assert failed.status_code == 502 and failed.json()["code"] == 502 and failed.json()["data"] == {}
+    error = failed.json()["error"]
+    assert failed.status_code == 502 and set(failed.json()) == {"error"}
+    assert error["code"] == "upstream_error" and error["retryable"] is True and "上下文没有改变" in error["message"]
 
     small, _ = seeded_session(1)
     skipped = http_client(compact_service(small, [])[1]).post(f"/api/sessions/{small.id}/compact").json()
-    assert skipped["code"] == 200 and skipped["data"]["status"] == "skipped"
+    assert skipped["data"]["status"] == "skipped"
     assert skipped["data"]["reason"] == "no_rounds" and skipped["data"]["compact_seq"] is None
 
     run(h.ledger.start(session.id))
     conflict = client.post(f"/api/sessions/{session.id}/compact")
-    assert conflict.status_code == 409 and conflict.json()["code"] == 409
+    assert conflict.status_code == 409 and conflict.json()["error"]["code"] == "conflict"
 
 
 def test_chat_route_accepts_mode_and_rejects_unknown_values():
@@ -446,7 +449,8 @@ def test_chat_route_accepts_mode_and_rejects_unknown_values():
     assert set(accepted.json()["data"]) == {"run_id", "seq", "route"}
     assert h.runs[accepted.json()["data"]["run_id"]].mode == RunMode.PLAN
     invalid = client.post(f"/api/sessions/{h.session.id}/chat", json={"message": "x", "mode": "readonly"})
-    assert invalid.status_code == 422
+    assert invalid.status_code == 422 and invalid.json()["error"]["code"] == "validation_failed"
+    assert invalid.json()["error"]["details"]["errors"][0]["loc"] == ["body", "mode"]
 
 def test_compact_sse_payload_uses_estimate_objects():
     session, _ = seeded_session(10)

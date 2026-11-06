@@ -20,7 +20,7 @@ export function AttachmentThumbnail({id, filename}: {id: string; filename: strin
         if (preview.kind !== 'image') throw new Error(preview.reason || '图片无法预览')
         setSrc(preview.thumbnail || previewContentUrl(source, preview.revision))
       }).catch(error => {
-        if (!controller.signal.aborted) setError(error instanceof ApiError && error.code === 410 ? '图片已过期' : '图片加载失败')
+        if (!controller.signal.aborted) setError(error instanceof ApiError && error.code === 'gone' ? '图片已过期' : '图片加载失败')
       })
     }
     let observer: IntersectionObserver | undefined

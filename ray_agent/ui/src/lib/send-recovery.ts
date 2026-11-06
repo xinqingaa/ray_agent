@@ -41,7 +41,7 @@ export async function sendRecoverably(scope: string, sessionId: string, payload:
     await sessionApi.chat(sessionId, payload)
     writeDraft(scope, {submission: undefined})
   } catch (error) {
-    if (error instanceof ApiError && error.code >= 400 && error.code < 500 && error.code !== 408) {
+    if (error instanceof ApiError && error.rejected) {
       writeDraft(scope, {submission: undefined})
       throw error
     }
@@ -60,7 +60,7 @@ export async function startProjectRecoverably(scope:string, projectId:string, pa
   writeDraft(scope,{creationId:id,sessionId:id,submission:pending})
   try {await projectApi.startChat(projectId,id,payload);writeDraft(scope,{submission:undefined});return id}
   catch(error){
-    if(error instanceof ApiError && error.code>=400 && error.code<500 && error.code!==408){writeDraft(scope,{submission:undefined});throw error}
+    if(error instanceof ApiError && error.rejected){writeDraft(scope,{submission:undefined});throw error}
     writeDraft(scope,{submission:{...pending,state:'unknown'}})
     if(await recoverSubmission(scope,id))return id
     throw new UncertainSubmissionError()

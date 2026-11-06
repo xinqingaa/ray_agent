@@ -1,11 +1,23 @@
-/**
- * API 统一响应格式
- */
-export type ApiResponse<T = unknown> = {
-  code: number;
-  msg: string;
-  data: T | null;
-};
+import type {components} from "@contracts/openapi";
+import type {StreamEvent} from "@contracts/events";
+
+// ==================== 契约生成类型 ====================
+// 来自 ray_agent/contracts 的生成结果；改动在核心的 Pydantic 模型里进行并重新生成。
+
+type Schemas = components["schemas"];
+
+/** 成功响应包装：业务数据在 data，其余字段与契约中的包装一致 */
+export type ApiResponse<T = unknown> = Omit<Schemas["Response_dict_"], "data"> & { data: T };
+
+/** 失败响应：HTTP 状态表达类别，error 为结构化错误 */
+export type ErrorResponse = Schemas["ErrorResponse"];
+export type ErrorInfo = Schemas["ErrorInfo"];
+export type ErrorCode = Schemas["ErrorCode"];
+
+/** 核心状态与能力声明 */
+export type CoreStatus = Schemas["CoreStatus"];
+export type CapabilityStatus = Schemas["CapabilityStatus"];
+export type BuildIdentity = Schemas["BuildIdentity"];
 
 /**
  * 会话状态
@@ -40,12 +52,12 @@ export function isRunSettled(status?: string | null): boolean {
 /**
  * 执行状态
  */
-export type ExecutionStatus = "pending" | "running" | "completed" | "failed";
+export type ExecutionStatus = Schemas["ExecutionStatus"];
 
 /**
  * 工具事件状态
  */
-export type ToolEventStatus = "calling" | "called";
+export type ToolEventStatus = Schemas["ToolEventStatus"];
 
 /**
  * MCP 传输类型
@@ -317,21 +329,6 @@ export type CreateSessionParams = {
 };
 
 /**
- * 聊天消息
- */
-export type ChatMessage = {
-  skill?: {id: string; version: string} | null;
-  role: "user" | "assistant" | "system";
-  message: string;
-  attachments?: Array<{
-    file_id: string;
-    filename: string;
-    [key: string]: unknown;
-  }>;
-  [key: string]: unknown;
-};
-
-/**
  * 聊天请求参数；事件通过 GET /sessions/:id/events 订阅
  */
 export type PlanAcceptance = {source_run_id: string; plan_id: string; source_seq: number; request_id: string};
@@ -434,79 +431,34 @@ export type SessionDetail = Session & {
   run_reasoning?: string | null;
 };
 
-/** 所有持久化事件共有的字段 */
-export type EventMeta = {
-  event_id?: string;
-  seq?: number;
-  run_id?: string | null;
-  created_at?: number;
-};
+// ==================== 会话事件（契约生成） ====================
+
+/** 前端统一使用 `{type, data}`：type 为信封的 event，data 为信封的 data（含 seq、run_id、created_at 与 event_version） */
+type Normalized<E> = E extends { event: infer T; data: infer D } ? { type: T; data: D } : never;
+
+export type SSEEventData = Normalized<StreamEvent>;
+export type SSEEventType = SSEEventData["type"];
+export type SSEEventOf<T extends SSEEventType> = Extract<SSEEventData, { type: T }>;
+type EventData<T extends SSEEventType> = SSEEventOf<T>["data"];
+
+/** 所有持久化事件共有的元数据 */
+export type EventMeta = Pick<EventData<"message">, "event_id" | "seq" | "run_id" | "created_at" | "event_version">;
+export type ChatMessage = EventData<"message">;
+export type PlanEvent = EventData<"plan">;
+export type PlanStep = PlanEvent["steps"][number];
+export type StepEvent = EventData<"step">;
+export type ToolEvent = EventData<"tool">;
+/** 工具级审批：同一调用先有 pending，再有一条结论；MCP 的 function 是哈希别名，展示用 service + service_tool */
+export type ApprovalEvent = EventData<"approval">;
+export type ApprovalStatus = ApprovalEvent["status"];
+export type TurnEvent = EventData<"turn">;
+export type TokenUsage = NonNullable<TurnEvent["usage"]>;
+export type RunEvent = EventData<"run">;
 
 /**
- * 计划步骤
+ * SSE 事件处理器
  */
-export type PlanStep = {
-  id: string;
-  description: string;
-  status: ExecutionStatus;
-  [key: string]: unknown;
-};
-
-/**
- * 计划事件
- */
-export type PlanEvent = {
-  steps: PlanStep[];
-  [key: string]: unknown;
-};
-
-/**
- * 步骤事件
- */
-export type StepEvent = {
-  id: string;
-  status: ExecutionStatus;
-  description: string;
-  [key: string]: unknown;
-};
-
-/**
- * 工具调用事件
- */
-export type ToolEvent = {
-  name: string;
-  function: string;
-  args: Record<string, unknown>;
-  content?: unknown;
-  status?: ToolEventStatus;
-  /** 未执行：被工具策略禁止 / 被用户拒绝，只在 called 上；有值时 content 为空 */
-  denied_by?: "policy" | "user" | "plan_mode" | "budget" | "batch" | null;
-  stages_ms?: Record<string, number>;
-  [key: string]: unknown;
-};
-
-export type ApprovalStatus = "pending" | "approved" | "rejected" | "expired";
-
-/**
- * 工具级审批事件：同一调用先有 pending，再有一条结论。
- * name / function / args 与工具事件同义；MCP 的 function 是哈希别名，展示用 service + service_tool。
- */
-export type ApprovalEvent = {
-  tool_call_id: string;
-  name: string;
-  function: string;
-  args: Record<string, unknown>;
-  status: ApprovalStatus;
-  /** 命中的策略规则键 */
-  rule?: string | null;
-  /** MCP 服务名或 A2A 远程 Agent id */
-  service?: string | null;
-  /** MCP 服务端原始工具名；A2A 为 call_remote_agent */
-  service_tool?: string | null;
-  /** 毫秒时间戳 */
-  decided_at?: number | null;
-  [key: string]: unknown;
-};
+export type SSEEventHandler = (event: SSEEventData) => void;
 
 /** 审批受理结果：seq 是结论事件的序号，续接过程从事件流观察 */
 export type ApprovalAccepted = {
@@ -538,41 +490,6 @@ export type ToolPolicyConfig = {
   builtin_toolsets: BuiltinToolset[];
 };
 
-export type TokenUsage = {
-  prompt_tokens?: number | null;
-  completion_tokens?: number | null;
-  cached_tokens?: number | null;
-  reasoning_tokens?: number | null;
-};
-
-/**
- * 模型轮次事件：started 在请求前，completed 在响应或失败后
- */
-export type TurnEvent = {
-  phase: "started" | "completed";
-  index: number;
-  context_estimate?: Record<string, unknown> | null;
-  context_window?: number | null;
-  model_ms?: number | null;
-  attempts?: number | null;
-  usage?: TokenUsage | null;
-  finish_reason?: string | null;
-  tool_call_ids?: string[];
-  tools_ms?: number | null;
-  error?: string | null;
-  [key: string]: unknown;
-};
-
-/**
- * 运行状态事件；终态附带汇总
- */
-export type RunEvent = {
-  status: RunStatus;
-  reason?: string | null;
-  summary?: Record<string, number | null> | null;
-  [key: string]: unknown;
-};
-
 /** 由 turn 事件推导的用量展示数据 */
 export type UsageEvent = {
   agent?: string;
@@ -589,58 +506,6 @@ export type UsageEvent = {
   context_window?: number | null;
   [key: string]: unknown;
 };
-
-/**
- * SSE 事件类型
- */
-export type SSEEventType =
-  | "message"
-  | "title"
-  | "plan"
-  | "step"
-  | "tool"
-  | "wait"
-  | "done"
-  | "error"
-  | "turn"
-  | "run"
-  | "environment"
-  | "project_notes"
-  | "context"
-  | "cleanup"
-  | "attempt"
-  | "approval"
-  | "delta";
-
-/**
- * SSE 事件数据
- */
-export type SSEEventData =
-  | { type: "message"; data: ChatMessage }
-  | { type: "title"; data: { title: string } }
-  | { type: "plan"; data: PlanEvent }
-  | { type: "step"; data: StepEvent }
-  | { type: "tool"; data: ToolEvent }
-  | { type: "wait"; data: Record<string, unknown> }
-  | { type: "done"; data: Record<string, unknown> }
-  | { type: "error"; data: { error: string } }
-  | { type: "turn"; data: TurnEvent }
-  | { type: "run"; data: RunEvent }
-  | { type: "environment"; data: EventMeta & { status: "preparing" | "ready"; message?: string; project_file_protection?: Record<string, unknown> } }
-  | { type: "project_notes"; data: EventMeta & {project_id: string; content: string; notes_version: number; source: "user" | "agent"} }
-  | { type: "context"; data: Record<string, unknown> }
-  | { type: "cleanup"; data: Record<string, unknown> }
-  | { type: "attempt"; data: Record<string, unknown> }
-  | { type: "approval"; data: ApprovalEvent }
-  | {
-      type: "delta";
-      data: { session_id?: string; run_id: string; turn: number; attempt: number; delta: string };
-    };
-
-/**
- * SSE 事件处理器
- */
-export type SSEEventHandler = (event: SSEEventData) => void;
 
 /**
  * 会话文件信息

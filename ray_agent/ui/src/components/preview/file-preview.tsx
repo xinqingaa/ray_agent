@@ -7,6 +7,7 @@ import {MarkdownContent} from '@/components/markdown-content'
 import {Button} from '@/components/ui/button'
 import {Dialog, DialogContent, DialogDescription, DialogTitle} from '@/components/ui/dialog'
 import {ApiError} from '@/lib/api/fetch'
+import type {ErrorCode} from '@/lib/api/types'
 import {downloadPreviewSource, isWebPage, openPreviewTab, previewContentUrl, previewEndpoint, readPreview, type FilePreview as Preview, type PreviewCell, type PreviewSource} from '@/lib/api/preview'
 import {formatBytes} from '@/components/run/format'
 import {PreviewAction} from './action'
@@ -60,7 +61,7 @@ export function FilePreview(props: FilePreviewProps) {
 function FilePreviewContent({source, onBack, onDownload, onClose, canExpand = true}: FilePreviewProps) {
   const [preview,setPreview] = useState<Preview | null>(null)
   const [error,setError] = useState<string | null>(null)
-  const [errorCode,setErrorCode] = useState<number | null>(null)
+  const [errorCode,setErrorCode] = useState<ErrorCode | null>(null)
   const [loading,setLoading] = useState(true)
   const [page,setPage] = useState({sheet:0,row:0,column:0,offset:0})
   const [textHistory,setTextHistory] = useState<number[]>([])
@@ -96,8 +97,8 @@ function FilePreviewContent({source, onBack, onDownload, onClose, canExpand = tr
   const contentUrl=previewContentUrl(source,preview?.revision)
   const body = (full = false) => {
     if(loading)return <p className="p-4 text-xs text-muted-foreground" role="status">正在读取</p>
-    if(error)return <div className="p-4"><p role="alert" className="text-xs text-state-failed">{errorCode===410 ? '图片已过期' : error}</p>
-      {errorCode!==410 && <Button variant="ghost" size="sm" onClick={refresh}>{errorCode===409 ? '刷新' : '重试'}</Button>}</div>
+    if(error)return <div className="p-4"><p role="alert" className="text-xs text-state-failed">{errorCode==='gone' ? '图片已过期' : error}</p>
+      {errorCode!=='gone' && <Button variant="ghost" size="sm" onClick={refresh}>{errorCode==='conflict' ? '刷新' : '重试'}</Button>}</div>
     if(!preview)return null
     if(preview.kind==='unavailable')return <div className="flex h-full flex-col items-center justify-center gap-2 p-6 text-center">
       <FileText className="size-8 text-muted-foreground" aria-hidden/><p className="text-sm">{preview.reason || '暂不支持预览'}</p>
@@ -134,7 +135,7 @@ function FilePreviewContent({source, onBack, onDownload, onClose, canExpand = tr
     {(preview?.kind==='markdown' || source.filename.toLowerCase().endsWith('.json')) && <PreviewAction label={raw ? '格式化阅读' : '查看原文'} icon={raw ? FileText : Code} pressed={raw} onClick={()=>setRaw(!raw)}/>}
     {isWebPage(source.filename) && <PreviewAction label="在新标签页打开网页" icon={ExternalLink} onClick={()=>openPreviewTab(source)}/>}
     <PreviewAction label="刷新预览" icon={RefreshCw} disabled={loading} onClick={refresh}/>
-    <PreviewAction label={`下载 ${preview?.filename || source.filename}`} icon={Download} disabled={errorCode===410} onClick={download}/>
+    <PreviewAction label={`下载 ${preview?.filename || source.filename}`} icon={Download} disabled={errorCode==='gone'} onClick={download}/>
   </>
   const sheetTabs = !!preview?.sheets?.length && <div className="shrink-0 overflow-x-auto border-b px-2 py-1"><div role="tablist" aria-label="工作表" className="flex w-max gap-1">
     {preview.sheets.map((sheet,i)=><button key={i} type="button" role="tab" aria-selected={page.sheet===i} disabled={loading}

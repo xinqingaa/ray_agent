@@ -1,6 +1,6 @@
-//! 拉起随包分发的冻结核心：经 stdin 私有管道传入启动参数，从 stdout 读取握手端口并做健康检查；
-//! 退出时只回收本宿主创建的核心进程组。
-use std::collections::VecDeque;
+//! 拉起随包分发的冻结核心：经 stdin 私有管道传入启动参数，从 stdout 读取握手并做健康检查；
+//! 退出时只回收本宿主创建的核心进程组。启动参数与握手的结构见 contract 模块。
+use std::collections::{BTreeMap, VecDeque};
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{SocketAddr, TcpStream};
 use std::os::unix::process::CommandExt;
@@ -13,6 +13,8 @@ use std::time::{Duration, Instant};
 use serde::Serialize;
 use serde_json::{json, Value};
 use tauri::{AppHandle, Manager};
+
+use crate::contract::{CoreHandshake, CoreLaunch, CoreReady};
 
 const CORE_DIR: &str = "rayagent-core";
 const LOG_LINES: usize = 200;
@@ -31,13 +33,13 @@ const SCRUBBED_ENV: &[&str] = &[
     "DYLD_INSERT_LIBRARIES",
 ];
 
+/// 宿主对核心进程的观察，供页面读取；ready 为核心的握手内容。
 #[derive(Clone, Default, Serialize)]
-pub struct CoreStatus {
+pub struct HostStatus {
     state: String,
-    port: Option<u16>,
     pid: Option<u32>,
     startup_ms: Option<u128>,
-    build: Option<Value>,
+    ready: Option<CoreReady>,
     health: Option<Value>,
     detail: Option<String>,
     logs: Vec<String>,
@@ -50,13 +52,13 @@ struct Running {
 
 #[derive(Default)]
 pub struct CoreHost {
-    status: Arc<Mutex<CoreStatus>>,
+    status: Arc<Mutex<HostStatus>>,
     logs: Arc<Mutex<VecDeque<String>>>,
     process: Mutex<Option<Running>>,
 }
 
 impl CoreHost {
-    pub fn status(&self) -> CoreStatus {
+    pub fn status(&self) -> HostStatus {
         let mut status = self.status.lock().unwrap().clone();
         status.logs = self.logs.lock().unwrap().iter().cloned().collect();
         status
@@ -101,8 +103,11 @@ impl CoreHost {
             status.state = "starting".into();
             status.pid = Some(child.id());
         }
-        let launch = json!({ "data_dir": data_dir, "env_files": env_files });
-        let written = writeln!(stdin, "{launch}").and_then(|_| stdin.flush());
+        let launch = CoreLaunch { data_dir, env_files, env: BTreeMap::new() };
+        let written = serde_json::to_string(&launch)
+            .map_err(std::io::Error::other)
+            .and_then(|line| writeln!(stdin, "{line}"))
+            .and_then(|_| stdin.flush());
         *self.process.lock().unwrap() = Some(Running { child, stdin: Some(stdin) });
         if let Err(error) = written {
             self.stop();
@@ -124,27 +129,27 @@ impl CoreHost {
         let status = self.status.clone();
         thread::spawn(move || {
             let mut lines = BufReader::new(stdout).lines();
-            let handshake = lines
-                .next()
-                .and_then(Result::ok)
-                .and_then(|line| serde_json::from_str::<Value>(&line).ok());
+            let handshake = lines.next().and_then(Result::ok).map(|line| serde_json::from_str::<CoreHandshake>(&line));
             match handshake {
-                Some(message) if message["event"] == "ready" => {
-                    let port = message["port"].as_u64().and_then(|port| u16::try_from(port).ok());
+                Some(Ok(CoreHandshake::Ready(ready))) => {
                     let elapsed = started.elapsed().as_millis();
-                    eprintln!("[host] core ready on 127.0.0.1:{} after {elapsed} ms", port.unwrap_or(0));
-                    let health = port.map(check_health);
+                    eprintln!(
+                        "[host] core ready on 127.0.0.1:{} after {elapsed} ms (protocol {}, instance {})",
+                        ready.port, ready.protocol_version, ready.instance.instance_id
+                    );
+                    let health = check_health(ready.port);
                     let mut status = status.lock().unwrap();
                     status.state = "ready".into();
-                    status.port = port;
                     status.startup_ms = Some(elapsed);
-                    status.build = Some(message["build"].clone());
-                    status.health = health;
+                    status.ready = Some(ready);
+                    status.health = Some(health);
                 }
                 other => {
-                    let reason = other
-                        .and_then(|message| message["reason"].as_str().map(str::to_owned))
-                        .unwrap_or_else(|| "核心未完成握手即退出".into());
+                    let reason = match other {
+                        Some(Ok(CoreHandshake::Failed(failed))) => failed.error.message,
+                        Some(Err(error)) => format!("握手不符合核心契约：{error}"),
+                        _ => "核心未完成握手即退出".into(),
+                    };
                     let mut status = status.lock().unwrap();
                     status.state = "failed".into();
                     status.detail = Some(reason);

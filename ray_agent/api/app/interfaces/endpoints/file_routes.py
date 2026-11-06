@@ -5,7 +5,7 @@ import urllib.parse
 
 from fastapi import APIRouter, UploadFile, File, Depends, Query, Request
 from starlette.responses import StreamingResponse, Response as RawResponse
-from app.application.errors.exceptions import AppException, BadRequestError
+from app.application.errors.exceptions import BadRequestError, GoneError
 
 from app.application.services.file_service import FileService
 from app.domain.models.file import File as FileInfo
@@ -34,14 +34,15 @@ async def download_batch(request: DownloadBatch, service: FileService = Depends(
         'Content-Disposition': "attachment; filename*=utf-8''files.zip", 'Cache-Control':'no-store'})
 
 
-@router.api_route('/download-batch', methods=['GET', 'HEAD'], summary='下载选定附件 ZIP')
+@router.get('/download-batch', summary='下载选定附件 ZIP')
+@router.head('/download-batch', summary='核对选定附件 ZIP 能否下载')
 async def download_batch_link(request: Request, file_id: list[str] = Query(min_length=1, max_length=100), service: FileService = Depends(get_file_service)):
     if request.method == 'HEAD':
         total = 0
         for identifier in dict.fromkeys(file_id):
             file = await service.get_file_info(identifier)
             if file.visual and file.visual.get('deleted_at'):
-                raise AppException(410, 410, '临时图片已过期')
+                raise GoneError('临时图片已过期')
             total += file.size
         if total > 512*1024*1024:
             raise BadRequestError('打包文件总量过大')
@@ -65,7 +66,6 @@ async def upload_file(
     """文件上传接口，传递文件返回文件的File信息"""
     fileinfo = await file_service.upload_file(upload_file=file, project_id=project_id, rule_version=rule_version, include_optional=include_optional)
     return Response.success(
-        msg="上传文件成功",
         data=fileinfo,
     )
 
@@ -83,17 +83,16 @@ async def get_file_info(
     """获取指定会话中对应文件的基础信息"""
     fileinfo = await file_service.get_file_info(file_id)
     return Response.success(
-        msg="获取文件信息成功",
         data=fileinfo,
     )
 
 
-@router.api_route(
+@router.get(
     path="/{file_id}/download",
-    methods=['GET', 'HEAD'],
     summary="文件下载接口",
     description="从沙箱or对象存储中下载指定的文件到本地",
 )
+@router.head(path="/{file_id}/download", summary="核对文件能否下载")
 async def download_file(
         file_id: str,
         request: Request,

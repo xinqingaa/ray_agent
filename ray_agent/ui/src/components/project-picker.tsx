@@ -64,7 +64,7 @@ export function ProjectPicker({mode, onSelect, open: controlled, onOpenChange, d
     if (!name.trim() || saving) return
     setSaving(true); setError(null)
     try {const item = await projectApi.create(name.trim(),undefined,creationId.current ?? (creationId.current=crypto.randomUUID())); onChanged?.(); pick(item)}
-    catch (err) {setUnknown(!(err instanceof ApiError && err.code>=400 && err.code<500 && err.code!==408));setError(err instanceof Error ? err.message : '新建项目失败')}
+    catch (err) {setUnknown(!(err instanceof ApiError && err.rejected));setError(err instanceof Error ? err.message : '新建项目失败')}
     finally {setSaving(false)}
   }
   const restore = async (item: ProjectView) => {

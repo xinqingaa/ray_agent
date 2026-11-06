@@ -159,7 +159,8 @@ async def operation_result(project_id: str, operation_id: str, service: ProjectF
     return Response.success(data=await service.operation_result(project_id, operation_id))
 
 
-@router.api_route('/{project_id}/download', methods=['GET', 'HEAD'])
+@router.get('/{project_id}/download')
+@router.head('/{project_id}/download')
 async def download_project(project_id: str, request: Request, path: str | None = Query(None), service: ProjectFileService = Depends(get_project_file_service)):
     from urllib.parse import quote
     from starlette.responses import StreamingResponse, Response as RawResponse

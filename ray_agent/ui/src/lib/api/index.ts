@@ -18,6 +18,12 @@ export {
 // 类型定义
 export type {
   ApiResponse,
+  ErrorResponse,
+  ErrorInfo,
+  ErrorCode,
+  CoreStatus,
+  CapabilityStatus,
+  BuildIdentity,
   SessionStatus,
   ExecutionStatus,
   ToolEventStatus,

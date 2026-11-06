@@ -5,7 +5,7 @@ const path = require('node:path')
 const crypto = require('node:crypto')
 const {execFileSync} = require('node:child_process')
 const root = path.resolve(__dirname, '..')
-const inputs = ['src', 'public', 'package.json', 'package-lock.json', 'next.config.ts', 'tsconfig.json', 'postcss.config.mjs', 'Dockerfile', '.dockerignore', 'scripts/build-identity.cjs']
+const inputs = ['src', 'public', 'package.json', 'package-lock.json', 'next.config.ts', 'tsconfig.json', 'postcss.config.mjs', 'Dockerfile', 'Dockerfile.dockerignore', 'scripts/build-identity.cjs', '../contracts/generated']
 function fingerprint(base = root) {
   const files = []
   function visit(rel) {

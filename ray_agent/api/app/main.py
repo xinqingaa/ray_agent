@@ -18,6 +18,8 @@ from app.infrastructure.storage.postgres import get_postgres, get_uow
 from app.infrastructure.storage.redis import get_redis
 from app.interfaces.endpoints.routes import router
 from app.interfaces.errors.exception_handlers import register_exception_handlers
+from app.interfaces.schemas import ErrorResponse
+from app.interfaces.schemas.core import PROTOCOL_VERSION
 from app.interfaces.service_dependencies import get_agent_service, get_run_ledger, get_project_file_service
 from core.config import get_settings
 
@@ -142,7 +144,7 @@ app = FastAPI(
     description="RayAgent是一个通用的AI Agent系统，可以完全私有部署，使用A2A+MCP连接Agent/Tool，同时支持在沙箱中运行各种内置工具和操作",
     lifespan=lifespan,
     openapi_tags=openapi_tags,
-    version="1.0.0",
+    version=str(PROTOCOL_VERSION),
 )
 
 # 5.配置CORS中间件，解决跨域问题
@@ -158,6 +160,7 @@ app.add_middleware(
 # 6.注册错误处理器
 register_exception_handlers(app)
 
-# 7.集成路由
+# 7.集成路由；失败响应统一为 ErrorResponse
 from app.interfaces.data_admission import data_admission
-app.include_router(router, prefix="/api", dependencies=[Depends(data_admission)])
+app.include_router(router, prefix="/api", dependencies=[Depends(data_admission)],
+                   responses={"default": {"model": ErrorResponse, "description": "结构化错误"}})

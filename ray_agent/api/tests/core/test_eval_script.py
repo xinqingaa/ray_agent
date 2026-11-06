@@ -92,8 +92,7 @@ def test_chat_posts_json_and_events_parse_sse_frames():
     def handler(request: httpx.Request) -> httpx.Response:
         if request.method == "POST":
             seen["payload"] = json.loads(request.content)
-            return httpx.Response(200, json={"code": 200, "msg": "ok", "data": {"run_id": "r1", "seq": 1,
-                                                                             "route": "started"}})
+            return httpx.Response(200, json={"data": {"run_id": "r1", "seq": 1, "route": "started"}})
         seen["after_seq"] = request.url.params.get("after_seq")
         return httpx.Response(200, content=body.encode("utf-8"), headers={"content-type": "text/event-stream"})
 

@@ -230,7 +230,7 @@ export function MemoryEditor({field, project, restored, onDirty, onSaved, toolba
     } catch (err) {
       if (alive.current) {
         setError(err instanceof Error ? err.message : '保存失败，草稿已保留')
-        if (err instanceof ApiError && err.code === 409) {
+        if (err instanceof ApiError && err.code === 'conflict') {
           const latest = await projectApi.detail(project.id).catch(() => null)
           if (alive.current && latest) setConflict({text: field === 'notes' ? latest.notes : latest.instructions || '', version: field === 'notes' ? latest.notes_version : latest.settings_version})
         }

@@ -1,14 +1,16 @@
+# 构建上下文为产品目录 ray_agent/：界面类型引用 contracts/generated 中的契约生成结果
 # Stage 1: 安装依赖
 FROM node:22-alpine AS deps
 WORKDIR /app
-COPY package.json package-lock.json ./
+COPY ui/package.json ui/package-lock.json ./
 RUN npm ci
 
 # Stage 2: 构建应用
 FROM node:22-alpine AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
-COPY . .
+COPY ui/ .
+COPY contracts/generated /contracts/generated
 
 ARG NEXT_PUBLIC_API_BASE_URL=/api
 ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL

@@ -12,7 +12,7 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from PIL import Image
 
-from app.application.errors.exceptions import AppException, BadRequestError, ConflictError
+from app.application.errors.exceptions import AppException, BadRequestError, ConflictError, GoneError
 from app.application.services.file_preview_service import FilePreviewService
 from app.application.services.file_service import FileService
 from app.domain.models.file import File
@@ -154,23 +154,21 @@ def test_project_source_revision_and_symlinks(tmp_path):
 
 def test_inline_range_and_sandboxed_html(tmp_path):
     from app.interfaces.endpoints.preview_routes import router
+    from app.interfaces.errors.exception_handlers import register_exception_handlers
     from app.interfaces.service_dependencies import get_file_preview_service
-    from app.interfaces.schemas import Response
-    from fastapi.responses import JSONResponse
     class Files:
         async def download_file(self,id):
             return io.BytesIO(b'0123456789'),File(id=id,filename=id,size=10)
     service=FilePreviewService(Files(),None)
-    app=FastAPI();app.include_router(router)
+    app=FastAPI();app.include_router(router);register_exception_handlers(app)
     app.dependency_overrides[get_file_preview_service]=lambda:service
-    @app.exception_handler(AppException)
-    async def error(request,exc):return JSONResponse({'msg':exc.msg},status_code=exc.status_code)
     with TestClient(app) as client:
         response=client.get('/files/test.pdf/preview/content',headers={'Range':'bytes=2-5'})
         assert response.status_code==206 and response.content==b'2345'
         assert response.headers['Content-Range']=='bytes 2-5/10'
         assert client.get('/files/test.pdf/preview/content',headers={'Range':'bytes=-3'}).content==b'789'
-        assert client.get('/files/test.pdf/preview/content',headers={'Range':'bytes=20-30'}).status_code==416
+        invalid=client.get('/files/test.pdf/preview/content',headers={'Range':'bytes=20-30'})
+        assert invalid.status_code==416 and invalid.json()['error']['code']=='range_not_satisfiable'
         assert response.headers['Content-Security-Policy']=="sandbox; default-src 'none'"
         # 网页在不透明来源里运行脚本，不能请求本站接口或提交表单
         page=client.get('/files/report.HTML/preview/content')
@@ -212,7 +210,7 @@ def test_zip_duplicate_names_sanitized_and_failure_closes():
                 assert archive.read('相同 (2).csv')==b'second'
         finally:stream.close()
         assert all(handle.closed for handle in handles)
-        async def missing(id):raise AppException(410,410,'临时图片已过期')
+        async def missing(id):raise GoneError('临时图片已过期')
         service.get_file_info=missing
         with pytest.raises(AppException):await service.download_zip(['expired'])
     asyncio.run(run())
@@ -221,8 +219,8 @@ def test_zip_duplicate_names_sanitized_and_failure_closes():
 def test_download_http_head_zip_and_expired_preview():
     from app.interfaces.endpoints.file_routes import router as downloads
     from app.interfaces.endpoints.preview_routes import router as previews
+    from app.interfaces.errors.exception_handlers import register_exception_handlers
     from app.interfaces.service_dependencies import get_file_service, get_file_preview_service
-    from fastapi.responses import JSONResponse
     class Storage:
         async def download_file(self,id):
             return io.BytesIO(b'original bytes'),File(id=id,filename='原文件.csv',size=14)
@@ -230,11 +228,9 @@ def test_download_http_head_zip_and_expired_preview():
     async def info(id):
         return File(id=id,filename='原文件.csv',size=14,visual={'deleted_at':'expired'} if id=='expired' else None)
     service.get_file_info=info
-    app=FastAPI();app.include_router(downloads);app.include_router(previews)
+    app=FastAPI();app.include_router(downloads);app.include_router(previews);register_exception_handlers(app)
     app.dependency_overrides[get_file_service]=lambda:service
     app.dependency_overrides[get_file_preview_service]=lambda:FilePreviewService(service,None)
-    @app.exception_handler(AppException)
-    async def error(request,exc):return JSONResponse({'msg':exc.msg},status_code=exc.status_code)
     with TestClient(app) as client:
         assert client.head('/files/one/download').status_code==200
         assert client.get('/files/one/download').content==b'original bytes'
@@ -242,5 +238,6 @@ def test_download_http_head_zip_and_expired_preview():
         result=client.get('/files/download-batch?file_id=one&file_id=two')
         with zipfile.ZipFile(io.BytesIO(result.content)) as archive:
             assert archive.namelist()==['原文件.csv','原文件 (2).csv']
-        assert client.get('/files/expired/preview').status_code==410
+        expired=client.get('/files/expired/preview')
+        assert expired.status_code==410 and expired.json()['error']['code']=='gone'
         assert client.head('/files/download-batch?file_id=expired').status_code==410

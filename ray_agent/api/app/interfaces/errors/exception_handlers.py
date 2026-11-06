@@ -1,70 +1,90 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+"""所有失败响应都是 ErrorResponse：HTTP 状态由错误代码决定，原有异常按状态或类型映射到代码。"""
 import logging
+import math
 
 from fastapi import FastAPI, Request
+from fastapi.encoders import jsonable_encoder
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException
 
 from app.application.errors.exceptions import AppException
-from app.interfaces.schemas import Response
+from app.domain.models.error import ErrorCode, ErrorInfo
 from app.domain.services.project_transactions import ProjectRunConflict
+from app.interfaces.schemas import ErrorResponse
 
 logger = logging.getLogger(__name__)
 
+HTTP_STATUS: dict[ErrorCode, int] = {
+    ErrorCode.INVALID_REQUEST: 400,
+    ErrorCode.FORBIDDEN: 403,
+    ErrorCode.NOT_FOUND: 404,
+    ErrorCode.METHOD_NOT_ALLOWED: 405,
+    ErrorCode.CONFLICT: 409,
+    ErrorCode.GONE: 410,
+    ErrorCode.PAYLOAD_TOO_LARGE: 413,
+    ErrorCode.RANGE_NOT_SATISFIABLE: 416,
+    ErrorCode.VALIDATION_FAILED: 422,
+    ErrorCode.CONTEXT_LIMIT: 422,
+    ErrorCode.RATE_LIMITED: 429,
+    ErrorCode.INTERNAL_ERROR: 500,
+    ErrorCode.UPSTREAM_ERROR: 502,
+    ErrorCode.UNAVAILABLE: 503,
+    ErrorCode.TIMEOUT: 504,
+}
+_STATUS_CODES = {status: code for code, status in HTTP_STATUS.items() if code is not ErrorCode.CONTEXT_LIMIT}
+
+
+def code_for_status(status: int) -> ErrorCode:
+    return _STATUS_CODES.get(status) or (ErrorCode.INTERNAL_ERROR if status >= 500 else ErrorCode.INVALID_REQUEST)
+
+
+def error_response(info: ErrorInfo, status: int | None = None, headers: dict[str, str] | None = None) -> JSONResponse:
+    headers = dict(headers or {})
+    if info.retry_after_ms is not None:
+        headers["Retry-After"] = str(math.ceil(info.retry_after_ms / 1000))
+    return JSONResponse(status_code=status or HTTP_STATUS[info.code],
+                        content=ErrorResponse(error=info).model_dump(mode="json"), headers=headers or None)
+
 
 def register_exception_handlers(app: FastAPI) -> None:
-    """处理MoocManus项目中所有的异常并进行统一处理，涵盖：自定义业务状态异常、HTTP异常、通用异常"""
+    """业务异常、请求校验、HTTP 异常与未处理异常统一为结构化错误。"""
 
     from app.domain.services.skill_packages import SkillError
 
     @app.exception_handler(SkillError)
     async def skill_exception_handler(req: Request, e: SkillError) -> JSONResponse:
-        return JSONResponse(status_code=e.status, content=Response(code=e.status, msg=str(e), data={}).model_dump())
+        return error_response(ErrorInfo.of(code_for_status(e.status), str(e)), e.status)
 
     @app.exception_handler(ProjectRunConflict)
     async def project_conflict_handler(req: Request, e: ProjectRunConflict) -> JSONResponse:
-        data = {"occupying_session_id": e.occupying_session_id} if e.occupying_session_id else {}
+        details = {"occupying_session_id": e.occupying_session_id} if e.occupying_session_id else {}
         if e.operation:
-            data.update(project_id=e.project_id, file_operation=e.operation.model_dump(mode="json"),
+            details.update(project_id=e.project_id, file_operation=e.operation.model_dump(mode="json"),
                 repair_action="retry_settling" if e.operation.kind == "settling" else "repair_restore" if e.operation.kind == "restore" else "read_operation")
-        return JSONResponse(status_code=409, content=Response(code=409, msg=str(e), data=data).model_dump())
+        return error_response(ErrorInfo.of(ErrorCode.CONFLICT, str(e), details=details))
 
     @app.exception_handler(AppException)
     async def app_exception_handler(req: Request, e: AppException) -> JSONResponse:
-        """处理MoocManus业务异常，将所有状态统一响应结构"""
-        logger.error(f"AppException: {e.msg}")
-        return JSONResponse(
-            status_code=e.code,
-            content=Response(
-                code=e.status_code,
-                msg=e.msg,
-                data=e.data if e.data is not None else {}
-            ).model_dump(),
-        )
+        logger.error(f"AppException[{e.info.code}]: {e.info.message}")
+        return error_response(e.info)
+
+    @app.exception_handler(RequestValidationError)
+    async def validation_exception_handler(req: Request, e: RequestValidationError) -> JSONResponse:
+        return error_response(ErrorInfo.of(ErrorCode.VALIDATION_FAILED, "请求参数校验失败，请核实后重试",
+                                           details={"errors": jsonable_encoder(e.errors())}))
 
     @app.exception_handler(HTTPException)
     async def http_exception_handler(req: Request, e: HTTPException) -> JSONResponse:
-        """处理FastAPI抛出的http异常，将所有状态统一响应结构"""
         logger.error(f"HTTPException: {e.detail}")
-        return JSONResponse(
-            status_code=e.status_code,
-            content=Response(
-                code=e.status_code,
-                msg=e.detail,
-                data={}
-            ).model_dump(),
-        )
+        message = e.detail if isinstance(e.detail, str) else "请求失败"
+        details = {} if isinstance(e.detail, str) else {"detail": jsonable_encoder(e.detail)}
+        return error_response(ErrorInfo.of(code_for_status(e.status_code), message, details=details),
+                              e.status_code, e.headers)
 
     @app.exception_handler(Exception)
     async def exception_handler(req: Request, e: Exception) -> JSONResponse:
-        """处理MoocManus中抛出的未定义的任意一场，将状态码统一设置为500"""
         logger.error(f"Exception: {str(e)}")
-        return JSONResponse(
-            status_code=500,
-            content=Response(
-                code=500,
-                msg="服务器出现异常请稍后重试",
-                data={},
-            ).model_dump()
-        )
+        return error_response(ErrorInfo.of(ErrorCode.INTERNAL_ERROR, "服务器出现异常请稍后重试"))

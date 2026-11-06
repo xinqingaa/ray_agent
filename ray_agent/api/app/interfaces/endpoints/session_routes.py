@@ -27,7 +27,7 @@ from app.domain.models.run import RunMode
 from app.domain.models.app_config import ModelSampling
 from app.domain.models.session import Session
 from app.interfaces.schemas import Response
-from app.interfaces.schemas.event import EventMapper
+from app.interfaces.schemas.event import DeltaSSEEvent, EventMapper
 from app.interfaces.schemas.session import (
     CreateSessionRequest, CreateSessionResponse,
     ListSessionResponse,
@@ -95,7 +95,6 @@ async def create_session(
     creation_id = str(request.creation_id) if request and request.creation_id else None
     session = await project_service.create_session(request.project_id, creation_id) if request and request.project_id else await session_service.create_session(creation_id)
     return Response.success(
-        msg="创建任务会话成功",
         data=CreateSessionResponse(session_id=session.id)
     )
 
@@ -167,7 +166,6 @@ async def get_all_sessions(
     project_views = project_service.describe_sessions(sessions)
     session_items = [session_list_item(session, project_service, project_views) for session in sessions]
     return Response.success(
-        msg="获取任务会话列表成功",
         data=ListSessionResponse(sessions=session_items, total=total, offset=offset, limit=limit)
     )
 
@@ -184,7 +182,7 @@ async def clear_unread_message_count(
 ) -> Response[Optional[Dict]]:
     """根据传递的会话id清空未读消息数"""
     await session_service.clear_unread_message_count(session_id)
-    return Response.success(msg="清除未读消息数成功")
+    return Response.success()
 
 
 @router.post(
@@ -199,7 +197,7 @@ async def delete_session(
 ) -> Response[Optional[Dict]]:
     """根据传递的会话id删除指定任务会话"""
     await session_service.delete_session(session_id)
-    return Response.success(msg="删除任务会话成功")
+    return Response.success()
 
 
 @router.post(
@@ -228,7 +226,6 @@ async def chat(
         execute_plan=request.execute_plan,
     )
     return Response.success(
-        msg="消息已受理",
         data=ChatResponse(run_id=accepted.run_id, seq=accepted.seq, route=accepted.route),
     )
 
@@ -262,12 +259,12 @@ async def compact_session(
 ) -> Response[CompactResponse]:
     result = await agent_service.compact_session(session_id)
     if result.status == "skipped":
-        return Response.success(msg="没有可压缩的较早轮次", data=CompactResponse(
+        return Response.success(data=CompactResponse(
             status="skipped", reason=result.reason, message="没有可压缩的较早轮次"))
     message = f"已把较早的 {result.summarized_turns} 轮对话压缩为摘要"
     if result.after_total is not None and result.before_total is not None and result.after_total >= result.before_total:
         message = "已摘要，估算空间未减少"
-    return Response.success(msg=message, data=CompactResponse(
+    return Response.success(data=CompactResponse(
         status="compacted",
         message=message,
         compact_seq=result.compact_seq,
@@ -313,7 +310,6 @@ async def reply_approval(
 ) -> Response[ApprovalResponse]:
     accepted = await agent_service.reply_approval(session_id, tool_call_id, approve=request.decision == "approve")
     return Response.success(
-        msg="审批已受理",
         data=ApprovalResponse(run_id=accepted.run_id, seq=accepted.seq, status=accepted.status),
     )
 
@@ -339,29 +335,17 @@ async def stream_events(
 
     async def event_generator() -> AsyncGenerator[ServerSentEvent, None]:
         async for item in agent_service.stream_events(session_id, after_seq=start):
-            sse_event = to_session_sse(item)
-            if sse_event:
-                yield sse_event
+            yield to_session_sse(item)
 
     return EventSourceResponse(event_generator(), ping=15)
 
 
-def to_session_sse(item: Union[Event, OutputDelta]) -> Optional[ServerSentEvent]:
-    """落库事件带 seq 作为 SSE id；文本增量没有 id，重连不会补发。"""
+def to_session_sse(item: Union[Event, OutputDelta]) -> ServerSentEvent:
+    """信封的 event 写入 SSE event 行、data 写入 data 行；落库事件带 seq 作为 SSE id，文本增量没有 id，重连不会补发。"""
     if isinstance(item, OutputDelta):
-        return ServerSentEvent(
-            event="delta",
-            data=json.dumps({
-                "session_id": item.session_id,
-                "run_id": item.run_id,
-                "turn": item.turn,
-                "attempt": item.attempt,
-                "delta": item.delta,
-            }, ensure_ascii=False),
-        )
+        delta = DeltaSSEEvent.from_delta(item)
+        return ServerSentEvent(event=delta.event, data=delta.data.model_dump_json())
     sse_event = EventMapper.event_to_sse_event(item)
-    if not sse_event:
-        return None
     return ServerSentEvent(
         id=str(item.seq) if item.seq is not None else None,
         event=sse_event.event,
@@ -390,7 +374,6 @@ async def get_session(
     active = next((run for run in detail.runs if run.status.active), None)
     snapshot = (active.config_snapshot or {}) if active is not None else {}
     return Response.success(
-        msg="获取会话详情成功",
         data=GetSessionResponse(
             session_id=detail.session.id,
             title=detail.session.title,
@@ -430,7 +413,6 @@ async def get_turn_request(
 ) -> Response[TurnRequestResponse]:
     rebuilt = await agent_service.get_turn_request(session_id, run_id, index)
     return Response.success(
-        msg="重建请求成功",
         data=TurnRequestResponse(
             run_id=rebuilt.run_id,
             index=rebuilt.index,
@@ -455,7 +437,7 @@ async def stop_session(
 ) -> Response[Optional[Dict]]:
     """根据传递的指定会话id停止对应任务会话；返回被停止的运行 id，没有进行中的运行时为空"""
     run = await agent_service.stop_session(session_id)
-    return Response.success(msg="停止任务会话成功", data={"run_id": run.id} if run else None)
+    return Response.success(data={"run_id": run.id} if run else None)
 
 
 @router.get(
@@ -471,7 +453,6 @@ async def get_session_files(
     """获取指定任务会话文件列表信息"""
     files = await session_service.get_session_files(session_id)
     return Response.success(
-        msg="获取会话文件列表成功",
         data=GetSessionFilesResponse(files=files)
     )
 
@@ -490,7 +471,6 @@ async def read_file(
     """根据传递的会话id+文件路径查看沙箱中文件的内容信息"""
     result = await session_service.read_file(session_id, request.filepath)
     return Response.success(
-        msg="获取会话文件内容成功",
         data=result
     )
 
@@ -509,7 +489,6 @@ async def read_shell_output(
     """查看会话的shell内容输出"""
     result = await session_service.read_shell_output(session_id, request.session_id)
     return Response.success(
-        msg="获取Shell内容输出结果成功",
         data=result,
     )
 
@@ -527,7 +506,7 @@ async def project_tree(
         project_service: ProjectService = Depends(get_project_service),
 ) -> Response[ProjectListing]:
     listing = await project_service.tree(session_id, path)
-    return Response.success(msg="获取项目目录成功", data=listing)
+    return Response.success(data=listing)
 
 
 @router.get(
@@ -542,7 +521,7 @@ async def project_file(
         project_service: ProjectService = Depends(get_project_service),
 ) -> Response[ProjectFile]:
     project_file_result = await project_service.read_file(session_id, path)
-    return Response.success(msg="读取项目文件成功", data=project_file_result)
+    return Response.success(data=project_file_result)
 
 
 @router.websocket(

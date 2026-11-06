@@ -133,6 +133,18 @@ pre {
   color: var(--state-failed);
 }
 
+.capabilities {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 2px;
+}
+
+.capabilities [data-state="unavailable"] {
+  color: var(--muted-foreground);
+}
+
 .detail:empty {
   display: none;
 }

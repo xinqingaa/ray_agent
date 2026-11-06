@@ -12,7 +12,7 @@ from app.domain.models.project import ProjectView
 from app.domain.models.plan_acceptance import PlanAcceptance
 from app.domain.models.run import Run
 from app.domain.models.session import SessionStatus
-from app.interfaces.schemas.event import AgentSSEEvent, to_epoch_ms
+from app.interfaces.schemas.event import SessionEvent, to_epoch_ms
 
 
 class CreateSessionResponse(BaseModel):
@@ -149,7 +149,7 @@ class GetSessionResponse(BaseModel):
     title: Optional[str] = None
     status: SessionStatus
     runs: List[RunItem] = Field(default_factory=list)
-    events: List[AgentSSEEvent] = Field(default_factory=list)
+    events: List[SessionEvent] = Field(default_factory=list)
     last_seq: int = 0
     context_operation: ContextOperation = Field(default_factory=ContextOperation)
     context_config: Dict[str, int] = Field(default_factory=dict)

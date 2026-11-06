@@ -1,10 +1,11 @@
+mod contract;
 mod sidecar;
 
-use sidecar::{CoreHost, CoreStatus};
+use sidecar::{CoreHost, HostStatus};
 use tauri::{Manager, RunEvent};
 
 #[tauri::command]
-fn core_status(host: tauri::State<'_, CoreHost>) -> CoreStatus {
+fn core_status(host: tauri::State<'_, CoreHost>) -> HostStatus {
     host.status()
 }
 

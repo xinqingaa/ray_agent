@@ -1,18 +1,33 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-from dataclasses import dataclass
+"""会话事件信封与联合类型。
+
+信封是 `{event, data}`：event 为事件类型，data 先带公共元数据（event_id、会话内序号 seq、run_id、
+毫秒时间 created_at、事件版本 event_version），再带各类型字段。SSE 帧的 event 行就是信封的 event，
+data 行是信封的 data，id 行是 seq；会话详情的 events 列表直接返回信封。文本增量只走 SSE，没有 seq。
+"""
 from app.domain.models.message import SkillSelection
 from datetime import datetime
-from typing import Optional, Dict, Any, Self, Type, Literal, List, Union, get_args
+from typing import Annotated, Optional, Dict, Any, Self, Type, Literal, List, Union
 
 from pydantic import BaseModel, Field, ConfigDict
 
+from app.domain.external.event_notifier import OutputDelta
 from app.domain.models.event import Event, PlanEvent, ToolEventStatus, ToolEvent, StepEvent, ContextEvent, \
-    TurnUsage, ToolResultShaping, CompactUsage, ApprovalEvent
+    TurnUsage, ToolResultShaping, CompactUsage, ApprovalEvent, CleanupTarget
 from app.domain.models.file import File
+from app.domain.models.identity import RunId, SessionId
 from app.domain.models.plan import ExecutionStatus
+from app.domain.models.plan_acceptance import PlanAcceptance
+from app.domain.models.run import RunMode, RunStatus
+
+# 事件结构不兼容地变化（删除或改义字段、改变类型）时递增；只新增字段或新增事件类型不递增。
+EVENT_VERSION = 1
+
+type EventVersion = Annotated[int, Field(ge=1, description="事件结构版本")]
 
 _BASE_FIELDS = {"id", "type", "created_at", "seq", "run_id"}
+_RESPONSE_SCHEMA = ConfigDict(json_schema_serialization_defaults_required=True)
 
 
 def to_epoch_ms(value: datetime) -> int:
@@ -20,11 +35,14 @@ def to_epoch_ms(value: datetime) -> int:
 
 
 class BaseEventData(BaseModel):
-    """基础事件数据。seq 是会话内序号（SSE 的 id），created_at 是毫秒时间戳。"""
+    """信封的公共元数据。seq 是会话内序号（SSE 的 id），created_at 是毫秒时间戳。"""
+    model_config = _RESPONSE_SCHEMA
+
     event_id: Optional[str] = None  # 事件id
     seq: Optional[int] = None
-    run_id: Optional[str] = None
+    run_id: Optional[RunId] = None
     created_at: int = 0  # 事件时间，毫秒时间戳
+    event_version: EventVersion = EVENT_VERSION
 
     @classmethod
     def base_event_data(cls, event: Event) -> Dict[str, Any]:
@@ -46,7 +64,9 @@ class BaseEventData(BaseModel):
 
 
 class BaseSSEEvent(BaseModel):
-    """基础流式事件数据类型"""
+    """事件信封：event 为事件类型，data 为元数据与该类型的字段"""
+    model_config = _RESPONSE_SCHEMA
+
     event: str  # 事件类型
     data: BaseEventData  # 数据
 
@@ -61,17 +81,6 @@ class BaseSSEEvent(BaseModel):
             event=event.type,
             data=data_class.from_event(event),
         )
-
-
-class CommonEventData(BaseEventData):
-    """通用事件数据，让结构允许填充额外的数据"""
-    model_config = ConfigDict(extra="allow")
-
-
-class CommonSSEEvent(BaseSSEEvent):
-    """通用事件"""
-    event: str
-    data: CommonEventData
 
 
 class MessageEventData(BaseEventData):
@@ -156,7 +165,7 @@ class PlanEventData(BaseEventData):
     artifacts: List[dict] = Field(default_factory=list)
     progress_state: str = "confirmed"
     review_only: bool = False
-    accepted_from: Optional[dict] = None
+    accepted_from: Optional[PlanAcceptance] = None
     explanation: str = ""
     """计划事件数据"""
     steps: List[StepEventData]
@@ -177,7 +186,7 @@ class PlanSSEEvent(BaseSSEEvent):
                 artifacts=[a.model_dump() for a in event.plan.artifacts],
                 progress_state=event.progress_state,
                 review_only=event.review_only,
-                accepted_from=event.accepted_from.model_dump() if event.accepted_from else None,
+                accepted_from=event.accepted_from,
                 explanation=event.plan.message,
                 steps=[
                     StepEventData(
@@ -363,10 +372,10 @@ class EnvironmentSSEEvent(BaseSSEEvent):
 
 class RunEventData(BaseEventData):
     """运行状态变化事件数据；终态时 summary 为运行汇总，mode 为运行模式（normal / plan）。"""
-    status: str
+    status: RunStatus
     reason: Optional[str] = None
     summary: Optional[Dict[str, Any]] = None
-    mode: Optional[str] = None
+    mode: Optional[RunMode] = None
 
 
 class RunSSEEvent(BaseSSEEvent):
@@ -418,9 +427,41 @@ class ContextSSEEvent(BaseSSEEvent):
         )
 
 
-# 定义Agent流式事件类型集合
-AgentSSEEvent = Union[
-    CommonSSEEvent,
+class CleanupEventData(BaseEventData):
+    """停止后的收尾结果，失败不改变运行终态。"""
+    targets: List[CleanupTarget] = Field(default_factory=list)
+
+
+class CleanupSSEEvent(BaseSSEEvent):
+    event: Literal["cleanup"] = "cleanup"
+    data: CleanupEventData
+
+
+class DeltaEventData(BaseModel):
+    """文本增量：不落库，没有 seq，重连不补发；按 (run_id, turn, attempt) 拼接。"""
+    model_config = _RESPONSE_SCHEMA
+
+    session_id: SessionId
+    run_id: RunId
+    turn: int
+    attempt: int
+    delta: str
+    event_version: EventVersion = EVENT_VERSION
+
+
+class DeltaSSEEvent(BaseModel):
+    model_config = _RESPONSE_SCHEMA
+
+    event: Literal["delta"] = "delta"
+    data: DeltaEventData
+
+    @classmethod
+    def from_delta(cls, item: OutputDelta) -> Self:
+        return cls(data=DeltaEventData(session_id=item.session_id, run_id=item.run_id, turn=item.turn,
+                                       attempt=item.attempt, delta=item.delta))
+
+
+SESSION_EVENT_CLASSES: tuple[Type[BaseSSEEvent], ...] = (
     MessageSSEEvent,
     TitleSSEEvent,
     StepSSEEvent,
@@ -436,85 +477,29 @@ AgentSSEEvent = Union[
     ProjectNotesSSEEvent,
     ContextSSEEvent,
     CompactSSEEvent,
+    CleanupSSEEvent,
     ApprovalSSEEvent,
-]
+)
 
-
-@dataclass
-class EventMapping:
-    """事件映射数据类，用于存储事件映射信息，涵盖流式事件类型、数据类、事件类型字符串"""
-    sse_event_class: Type[BaseSSEEvent]
-    data_class: Type[BaseEventData]
-    event_type: str
+# 落库事件的联合类型：会话详情的 events 与 SSE 中带 id 的帧
+type SessionEvent = Annotated[Union[*SESSION_EVENT_CLASSES], Field(discriminator="event")]
+# SSE 可能出现的全部帧
+type StreamEvent = Annotated[Union[*SESSION_EVENT_CLASSES, DeltaSSEEvent], Field(discriminator="event")]
 
 
 class EventMapper:
-    """事件映射类，利用Python自身提供的自省机制，将业务逻辑中的Event转换成适合流式传输的AgentSSEEvent"""
-    # 缓存映射(type: EventMapping)
-    _cache_mapping: Optional[Dict[str, EventMapping]] = None
+    """把领域事件映射为信封；每种领域事件都必须有对应的信封类型。"""
+    _mapping: Dict[str, Type[BaseSSEEvent]] = {
+        cls.model_fields["event"].default: cls for cls in SESSION_EVENT_CLASSES
+    }
 
     @staticmethod
-    def _get_event_type_mapping() -> Dict[str, EventMapping]:
-        """通过反射动态构建从事件类型字符串到AgentSSEEvent的映射"""
-        # 1.判断缓存映射是否存在，如果存在则直接返回
-        if EventMapper._cache_mapping is not None:
-            return EventMapper._cache_mapping
-
-        # 2.获取AgentSSEEvent的所有可能存在类
-        sse_event_classes = get_args(AgentSSEEvent)
-        mapping = {}
-
-        # 3.循环遍历AgentSSEEvent可能的所有类逐个处理
-        for sse_event_class in sse_event_classes:
-            # 4.跳过基类
-            if sse_event_class == BaseSSEEvent:
-                continue
-
-            # 5.检查类是否包含event属性
-            if hasattr(sse_event_class, "__annotations__") and "event" in sse_event_class.__annotations__:
-                # 6.提取事件字段
-                event_field = sse_event_class.__annotations__["event"]
-
-                # 7.提取事件的具体值(Literal的值)
-                if hasattr(event_field, "__args__") and len(event_field.__args__) > 0:
-                    event_type = event_field.__args__[0]
-
-                    # 8.提取sse的载荷数据
-                    data_class = None
-                    if hasattr(sse_event_class, "__annotations__") and "data" in sse_event_class.__annotations__:
-                        data_class = sse_event_class.__annotations__["data"]
-
-                    # 9.构建并注册映射关系
-                    mapping[event_type] = EventMapping(
-                        sse_event_class=sse_event_class,
-                        data_class=data_class,
-                        event_type=event_type
-                    )
-
-        # 10.更新类级缓存
-        EventMapper._cache_mapping = mapping
-        return mapping
+    def event_to_sse_event(event: Event) -> BaseSSEEvent:
+        sse_event_class = EventMapper._mapping.get(event.type)
+        if sse_event_class is None:
+            raise ValueError(f"事件类型 {event.type} 没有对应的信封")
+        return sse_event_class.from_event(event)
 
     @staticmethod
-    def event_to_sse_event(event: Event) -> AgentSSEEvent:
-        """将领域事件转换为Agent流式事件模型"""
-        # 1.获取事件映射表
-        event_type_mapping = EventMapper._get_event_type_mapping()
-
-        # 2.根据传递进来的事件获取映射类
-        event_mapping = event_type_mapping.get(event.type)
-
-        # 3.如果找到了类型映射则进行转换
-        if event_mapping:
-            sse_event = event_mapping.sse_event_class.from_event(event)
-            return sse_event
-
-        # 4.如果没找到类型则使用通用类型
-        return CommonSSEEvent.from_event(event)
-
-    @staticmethod
-    def events_to_sse_events(events: List[Event]) -> List[AgentSSEEvent]:
-        """将领域事件模型列表转换为SSE流式事件列表"""
-        return list(filter(lambda x: x is not None, [
-            EventMapper.event_to_sse_event(event) for event in events
-        ]))
+    def events_to_sse_events(events: List[Event]) -> List[BaseSSEEvent]:
+        return [EventMapper.event_to_sse_event(event) for event in events]

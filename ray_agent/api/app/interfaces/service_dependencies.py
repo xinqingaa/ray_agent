@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.application.services.agent_service import AgentService
 from app.application.services.app_config_service import AppConfigService
+from app.application.services.capability_service import CapabilityService
 from app.application.services.file_service import FileService
 from app.application.services.project_service import ProjectService
 from app.application.services.project_file_service import ProjectFileService
@@ -24,7 +25,7 @@ from app.infrastructure.external.llm.openai_llm import OpenAILLM
 from app.infrastructure.external.message_queue.redis_event_notifier import RedisEventNotifier
 from app.infrastructure.external.project.local_project_files import LocalProjectFiles
 from app.infrastructure.external.project.managed_storage import get_managed_storage
-from app.infrastructure.external.sandbox.docker_sandbox import DockerSandbox
+from app.infrastructure.external.sandbox.docker_sandbox import DockerSandbox, sandbox_problem
 from app.infrastructure.external.search.bing_search import BingSearchEngine
 from app.infrastructure.external.task.redis_stream_task import RedisStreamTask
 from app.infrastructure.repositories.file_app_config_repository import FileAppConfigRepository
@@ -59,6 +60,10 @@ def get_status_service(
     # 2.创建服务并返回
     logger.debug("加载获取StatusService")
     return StatusService(checkers=[postgres_checker, redis_checker])
+
+
+def get_capability_service() -> CapabilityService:
+    return CapabilityService(sandbox_problem)
 
 
 def get_file_storage() -> FileStorage:

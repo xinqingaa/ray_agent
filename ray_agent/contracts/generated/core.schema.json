@@ -1,0 +1,536 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "RayAgentCore",
+  "description": "核心启动参数、stdout 握手行与状态接口数据",
+  "anyOf": [
+    {
+      "$ref": "#/$defs/CoreLaunch"
+    },
+    {
+      "$ref": "#/$defs/CoreHandshake"
+    },
+    {
+      "$ref": "#/$defs/CoreStatus"
+    }
+  ],
+  "$defs": {
+    "BuildIdentity": {
+      "description": "构建身份；fingerprint 为空表示未知，不能用 Git 提交代替内容依据。",
+      "properties": {
+        "service": {
+          "type": "string"
+        },
+        "algorithm": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "fingerprint": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "revision": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "dirty": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "built_at": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "service",
+        "algorithm",
+        "fingerprint",
+        "revision",
+        "dirty",
+        "built_at"
+      ],
+      "title": "BuildIdentity",
+      "type": "object"
+    },
+    "Capability": {
+      "enum": [
+        "file_access",
+        "local_command",
+        "browser",
+        "full_text_search",
+        "semantic_index",
+        "ocr",
+        "remote_control"
+      ],
+      "title": "Capability",
+      "type": "string"
+    },
+    "CapabilityState": {
+      "enum": [
+        "available",
+        "unavailable"
+      ],
+      "title": "CapabilityState",
+      "type": "string"
+    },
+    "CapabilityStatus": {
+      "properties": {
+        "capability": {
+          "$ref": "#/$defs/Capability"
+        },
+        "state": {
+          "$ref": "#/$defs/CapabilityState"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/UnavailableReason"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "recoverable": {
+          "default": false,
+          "type": "boolean"
+        },
+        "detail": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "capability",
+        "state",
+        "reason",
+        "recoverable",
+        "detail"
+      ],
+      "title": "CapabilityStatus",
+      "type": "object"
+    },
+    "CoreFailed": {
+      "properties": {
+        "event": {
+          "const": "failed",
+          "default": "failed",
+          "type": "string"
+        },
+        "protocol_version": {
+          "$ref": "#/$defs/ProtocolVersion",
+          "default": 1
+        },
+        "error": {
+          "$ref": "#/$defs/ErrorInfo"
+        }
+      },
+      "required": [
+        "event",
+        "protocol_version",
+        "error"
+      ],
+      "title": "CoreFailed",
+      "type": "object"
+    },
+    "CoreHandshake": {
+      "discriminator": {
+        "mapping": {
+          "failed": "#/$defs/CoreFailed",
+          "ready": "#/$defs/CoreReady"
+        },
+        "propertyName": "event"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/$defs/CoreReady"
+        },
+        {
+          "$ref": "#/$defs/CoreFailed"
+        }
+      ]
+    },
+    "CoreInstance": {
+      "properties": {
+        "instance_id": {
+          "$ref": "#/$defs/InstanceId"
+        },
+        "pid": {
+          "type": "integer"
+        },
+        "started_at": {
+          "description": "核心进程启动时间，毫秒时间戳",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "instance_id",
+        "pid",
+        "started_at"
+      ],
+      "title": "CoreInstance",
+      "type": "object"
+    },
+    "CoreLaunch": {
+      "description": "宿主写入核心 stdin 的启动参数；凭据只经这条私有管道或环境文件传递，不进命令行。",
+      "properties": {
+        "data_dir": {
+          "description": "可写数据目录",
+          "type": "string"
+        },
+        "env_files": {
+          "description": "依次叠加的环境文件，后者覆盖前者",
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "env": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "description": "最后叠加的显式环境",
+          "type": "object"
+        }
+      },
+      "required": [
+        "data_dir"
+      ],
+      "title": "CoreLaunch",
+      "type": "object"
+    },
+    "CoreReady": {
+      "properties": {
+        "protocol_version": {
+          "$ref": "#/$defs/ProtocolVersion",
+          "default": 1
+        },
+        "event_version": {
+          "$ref": "#/$defs/EventVersion",
+          "default": 1
+        },
+        "instance": {
+          "$ref": "#/$defs/CoreInstance"
+        },
+        "build": {
+          "$ref": "#/$defs/BuildIdentity"
+        },
+        "storage": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StorageVersion"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "桌面业务库版本；尚未建立桌面业务库时为空"
+        },
+        "capabilities": {
+          "items": {
+            "$ref": "#/$defs/CapabilityStatus"
+          },
+          "type": "array"
+        },
+        "event": {
+          "const": "ready",
+          "default": "ready",
+          "type": "string"
+        },
+        "port": {
+          "maximum": 65535,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "instance_token": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "实例令牌；尚未启用实例认证，目前为空"
+        }
+      },
+      "required": [
+        "protocol_version",
+        "event_version",
+        "instance",
+        "build",
+        "storage",
+        "capabilities",
+        "event",
+        "port",
+        "instance_token"
+      ],
+      "title": "CoreReady",
+      "type": "object"
+    },
+    "CoreStatus": {
+      "properties": {
+        "protocol_version": {
+          "$ref": "#/$defs/ProtocolVersion",
+          "default": 1
+        },
+        "event_version": {
+          "$ref": "#/$defs/EventVersion",
+          "default": 1
+        },
+        "instance": {
+          "$ref": "#/$defs/CoreInstance"
+        },
+        "build": {
+          "$ref": "#/$defs/BuildIdentity"
+        },
+        "storage": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StorageVersion"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "桌面业务库版本；尚未建立桌面业务库时为空"
+        },
+        "capabilities": {
+          "items": {
+            "$ref": "#/$defs/CapabilityStatus"
+          },
+          "type": "array"
+        },
+        "healthy": {
+          "description": "全部依赖服务检查通过",
+          "type": "boolean"
+        },
+        "services": {
+          "items": {
+            "$ref": "#/$defs/HealthStatus"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "protocol_version",
+        "event_version",
+        "instance",
+        "build",
+        "storage",
+        "capabilities",
+        "healthy",
+        "services"
+      ],
+      "title": "CoreStatus",
+      "type": "object"
+    },
+    "ErrorCode": {
+      "description": "机器可读的错误代码，按客户端的处理方式区分；具体原因写在 message 与 details。",
+      "enum": [
+        "invalid_request",
+        "validation_failed",
+        "forbidden",
+        "not_found",
+        "method_not_allowed",
+        "conflict",
+        "gone",
+        "payload_too_large",
+        "range_not_satisfiable",
+        "context_limit",
+        "rate_limited",
+        "internal_error",
+        "upstream_error",
+        "unavailable",
+        "timeout"
+      ],
+      "title": "ErrorCode",
+      "type": "string"
+    },
+    "ErrorInfo": {
+      "description": "retryable 表示原样重试不会制造重复副作用；结果未知的失败为 false，需要先读回。",
+      "properties": {
+        "code": {
+          "$ref": "#/$defs/ErrorCode"
+        },
+        "message": {
+          "description": "给用户看的原因",
+          "type": "string"
+        },
+        "retryable": {
+          "default": false,
+          "type": "boolean"
+        },
+        "retry_after_ms": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "建议的最短重试等待"
+        },
+        "resource_version": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ResourceVersion"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "冲突时资源的当前版本"
+        },
+        "details": {
+          "additionalProperties": true,
+          "description": "与代码相关的补充字段",
+          "type": "object"
+        }
+      },
+      "required": [
+        "code",
+        "message",
+        "retryable",
+        "retry_after_ms",
+        "resource_version",
+        "details"
+      ],
+      "title": "ErrorInfo",
+      "type": "object"
+    },
+    "EventVersion": {
+      "description": "事件结构版本",
+      "minimum": 1,
+      "type": "integer"
+    },
+    "HealthStatus": {
+      "description": "健康检查状态",
+      "properties": {
+        "service": {
+          "default": "",
+          "description": "健康检查对应的服务名字",
+          "type": "string"
+        },
+        "status": {
+          "default": "ok",
+          "description": "ok 表示正常，error 表示出错",
+          "enum": [
+            "ok",
+            "error"
+          ],
+          "type": "string"
+        },
+        "details": {
+          "default": "",
+          "description": "出错时的详情提示",
+          "type": "string"
+        }
+      },
+      "required": [
+        "service",
+        "status",
+        "details"
+      ],
+      "title": "HealthStatus",
+      "type": "object"
+    },
+    "InstanceId": {
+      "description": "核心进程的一次启动",
+      "maxLength": 128,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+      "type": "string"
+    },
+    "ProtocolVersion": {
+      "description": "核心协议版本",
+      "minimum": 1,
+      "type": "integer"
+    },
+    "ResourceVersion": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "string"
+        }
+      ]
+    },
+    "StorageVersion": {
+      "properties": {
+        "schema_revision": {
+          "description": "业务库当前迁移版本",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_revision"
+      ],
+      "title": "StorageVersion",
+      "type": "object"
+    },
+    "UnavailableReason": {
+      "enum": [
+        "not_implemented",
+        "component_missing",
+        "component_failed",
+        "disabled",
+        "permission_denied",
+        "dependency_unavailable"
+      ],
+      "title": "UnavailableReason",
+      "type": "string"
+    }
+  }
+}

@@ -1,0 +1,2513 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "RayAgentEvents",
+  "description": "会话事件信封：SessionEvent 为落库事件，StreamEvent 另含文本增量",
+  "anyOf": [
+    {
+      "$ref": "#/$defs/StreamEvent"
+    },
+    {
+      "$ref": "#/$defs/SessionEvent"
+    }
+  ],
+  "$defs": {
+    "ApprovalEventData": {
+      "description": "工具级审批。字段名与工具事件一致（name 为工具集、function 为函数名、args 为参数）；decided_at 为毫秒时间戳。",
+      "properties": {
+        "event_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "seq": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "run_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RunId"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "created_at": {
+          "default": 0,
+          "type": "integer"
+        },
+        "event_version": {
+          "$ref": "#/$defs/EventVersion",
+          "default": 1
+        },
+        "tool_call_id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "function": {
+          "type": "string"
+        },
+        "args": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "status": {
+          "enum": [
+            "pending",
+            "approved",
+            "rejected",
+            "expired"
+          ],
+          "type": "string"
+        },
+        "rule": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "service": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "service_tool": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "decided_at": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "event_id",
+        "seq",
+        "run_id",
+        "created_at",
+        "event_version",
+        "tool_call_id",
+        "name",
+        "function",
+        "args",
+        "status",
+        "rule",
+        "service",
+        "service_tool",
+        "decided_at"
+      ],
+      "title": "ApprovalEventData",
+      "type": "object"
+    },
+    "ApprovalSSEEvent": {
+      "description": "工具级审批流式事件",
+      "properties": {
+        "event": {
+          "const": "approval",
+          "default": "approval",
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/ApprovalEventData"
+        }
+      },
+      "required": [
+        "event",
+        "data"
+      ],
+      "title": "ApprovalSSEEvent",
+      "type": "object"
+    },
+    "AttemptEventData": {
+      "description": "失败的模型请求。reason 是稳定代码，chars 是已推送的文本字符数。",
+      "properties": {
+        "event_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "seq": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "run_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RunId"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "created_at": {
+          "default": 0,
+          "type": "integer"
+        },
+        "event_version": {
+          "$ref": "#/$defs/EventVersion",
+          "default": 1
+        },
+        "turn": {
+          "type": "integer"
+        },
+        "attempt": {
+          "type": "integer"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "chars": {
+          "default": 0,
+          "type": "integer"
+        },
+        "retried": {
+          "default": false,
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "event_id",
+        "seq",
+        "run_id",
+        "created_at",
+        "event_version",
+        "turn",
+        "attempt",
+        "reason",
+        "chars",
+        "retried"
+      ],
+      "title": "AttemptEventData",
+      "type": "object"
+    },
+    "AttemptSSEEvent": {
+      "description": "失败尝试流式事件",
+      "properties": {
+        "event": {
+          "const": "attempt",
+          "default": "attempt",
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/AttemptEventData"
+        }
+      },
+      "required": [
+        "event",
+        "data"
+      ],
+      "title": "AttemptSSEEvent",
+      "type": "object"
+    },
+    "BaseEventData": {
+      "description": "信封的公共元数据。seq 是会话内序号（SSE 的 id），created_at 是毫秒时间戳。",
+      "properties": {
+        "event_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "seq": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "run_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RunId"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "created_at": {
+          "default": 0,
+          "type": "integer"
+        },
+        "event_version": {
+          "$ref": "#/$defs/EventVersion",
+          "default": 1
+        }
+      },
+      "required": [
+        "event_id",
+        "seq",
+        "run_id",
+        "created_at",
+        "event_version"
+      ],
+      "title": "BaseEventData",
+      "type": "object"
+    },
+    "CleanupEventData": {
+      "description": "停止后的收尾结果，失败不改变运行终态。",
+      "properties": {
+        "event_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "seq": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "run_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RunId"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "created_at": {
+          "default": 0,
+          "type": "integer"
+        },
+        "event_version": {
+          "$ref": "#/$defs/EventVersion",
+          "default": 1
+        },
+        "targets": {
+          "items": {
+            "$ref": "#/$defs/CleanupTarget"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "event_id",
+        "seq",
+        "run_id",
+        "created_at",
+        "event_version",
+        "targets"
+      ],
+      "title": "CleanupEventData",
+      "type": "object"
+    },
+    "CleanupSSEEvent": {
+      "properties": {
+        "event": {
+          "const": "cleanup",
+          "default": "cleanup",
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/CleanupEventData"
+        }
+      },
+      "required": [
+        "event",
+        "data"
+      ],
+      "title": "CleanupSSEEvent",
+      "type": "object"
+    },
+    "CleanupTarget": {
+      "properties": {
+        "kind": {
+          "default": "shell",
+          "enum": [
+            "shell",
+            "a2a",
+            "browser"
+          ],
+          "type": "string"
+        },
+        "id": {
+          "type": "string"
+        },
+        "success": {
+          "type": "boolean"
+        },
+        "message": {
+          "default": "",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "success"
+      ],
+      "title": "CleanupTarget",
+      "type": "object"
+    },
+    "CompactEventData": {
+      "description": "压缩事件数据，字段含义见领域模型 CompactEvent；摘要全文随事件推送，供开发者视图显示。manual 时 run_id 为空。",
+      "properties": {
+        "event_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "seq": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "run_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RunId"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "created_at": {
+          "default": 0,
+          "type": "integer"
+        },
+        "event_version": {
+          "$ref": "#/$defs/EventVersion",
+          "default": 1
+        },
+        "trigger": {
+          "enum": [
+            "watermark",
+            "overflow",
+            "manual"
+          ],
+          "type": "string"
+        },
+        "before_estimate": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "after_estimate": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "summarized_turns": {
+          "default": 0,
+          "type": "integer"
+        },
+        "kept_turns": {
+          "default": 0,
+          "type": "integer"
+        },
+        "summary": {
+          "default": "",
+          "type": "string"
+        },
+        "reinjected_event_seqs": {
+          "items": {
+            "type": "integer"
+          },
+          "type": "array"
+        },
+        "omitted_user_messages": {
+          "default": 0,
+          "type": "integer"
+        },
+        "usage": {
+          "$ref": "#/$defs/CompactUsage"
+        }
+      },
+      "required": [
+        "event_id",
+        "seq",
+        "run_id",
+        "created_at",
+        "event_version",
+        "trigger",
+        "before_estimate",
+        "after_estimate",
+        "summarized_turns",
+        "kept_turns",
+        "summary",
+        "reinjected_event_seqs",
+        "omitted_user_messages",
+        "usage"
+      ],
+      "title": "CompactEventData",
+      "type": "object"
+    },
+    "CompactSSEEvent": {
+      "description": "压缩流式事件",
+      "properties": {
+        "event": {
+          "const": "compact",
+          "default": "compact",
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/CompactEventData"
+        }
+      },
+      "required": [
+        "event",
+        "data"
+      ],
+      "title": "CompactSSEEvent",
+      "type": "object"
+    },
+    "CompactUsage": {
+      "description": "摘要请求各次尝试的用量合计；属于运行时计入运行的模型请求数与 tokens，不算一轮。",
+      "properties": {
+        "attempts": {
+          "default": 0,
+          "type": "integer"
+        },
+        "prompt_tokens": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "completion_tokens": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "cached_tokens": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "CompactUsage",
+      "type": "object"
+    },
+    "ContextEventData": {
+      "description": "模型历史变化的轻量投影：消息全文只在数据库与请求重建接口里，推送时只给条数与角色。",
+      "properties": {
+        "event_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "seq": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "run_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RunId"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "created_at": {
+          "default": 0,
+          "type": "integer"
+        },
+        "event_version": {
+          "$ref": "#/$defs/EventVersion",
+          "default": 1
+        },
+        "op": {
+          "enum": [
+            "append",
+            "strip_reasoning",
+            "replace"
+          ],
+          "type": "string"
+        },
+        "message_count": {
+          "default": 0,
+          "type": "integer"
+        },
+        "roles": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "event_id",
+        "seq",
+        "run_id",
+        "created_at",
+        "event_version",
+        "op",
+        "message_count",
+        "roles"
+      ],
+      "title": "ContextEventData",
+      "type": "object"
+    },
+    "ContextSSEEvent": {
+      "description": "模型历史变化流式事件",
+      "properties": {
+        "event": {
+          "const": "context",
+          "default": "context",
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/ContextEventData"
+        }
+      },
+      "required": [
+        "event",
+        "data"
+      ],
+      "title": "ContextSSEEvent",
+      "type": "object"
+    },
+    "DeltaEventData": {
+      "description": "文本增量：不落库，没有 seq，重连不补发；按 (run_id, turn, attempt) 拼接。",
+      "properties": {
+        "session_id": {
+          "$ref": "#/$defs/SessionId"
+        },
+        "run_id": {
+          "$ref": "#/$defs/RunId"
+        },
+        "turn": {
+          "type": "integer"
+        },
+        "attempt": {
+          "type": "integer"
+        },
+        "delta": {
+          "type": "string"
+        },
+        "event_version": {
+          "$ref": "#/$defs/EventVersion",
+          "default": 1
+        }
+      },
+      "required": [
+        "session_id",
+        "run_id",
+        "turn",
+        "attempt",
+        "delta",
+        "event_version"
+      ],
+      "title": "DeltaEventData",
+      "type": "object"
+    },
+    "DeltaSSEEvent": {
+      "properties": {
+        "event": {
+          "const": "delta",
+          "default": "delta",
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/DeltaEventData"
+        }
+      },
+      "required": [
+        "event",
+        "data"
+      ],
+      "title": "DeltaSSEEvent",
+      "type": "object"
+    },
+    "DoneEventData": {
+      "properties": {
+        "event_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "seq": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "run_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RunId"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "created_at": {
+          "default": 0,
+          "type": "integer"
+        },
+        "event_version": {
+          "$ref": "#/$defs/EventVersion",
+          "default": 1
+        },
+        "outcome": {
+          "default": "complete",
+          "type": "string"
+        },
+        "missing": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "event_id",
+        "seq",
+        "run_id",
+        "created_at",
+        "event_version",
+        "outcome",
+        "missing"
+      ],
+      "title": "DoneEventData",
+      "type": "object"
+    },
+    "DoneSSEEvent": {
+      "description": "停止流式事件",
+      "properties": {
+        "event": {
+          "const": "done",
+          "default": "done",
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/DoneEventData"
+        }
+      },
+      "required": [
+        "event",
+        "data"
+      ],
+      "title": "DoneSSEEvent",
+      "type": "object"
+    },
+    "EnvironmentEventData": {
+      "properties": {
+        "event_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "seq": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "run_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RunId"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "created_at": {
+          "default": 0,
+          "type": "integer"
+        },
+        "event_version": {
+          "$ref": "#/$defs/EventVersion",
+          "default": 1
+        },
+        "status": {
+          "enum": [
+            "preparing",
+            "ready"
+          ],
+          "type": "string"
+        },
+        "message": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "project_file_protection": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "event_id",
+        "seq",
+        "run_id",
+        "created_at",
+        "event_version",
+        "status",
+        "message",
+        "project_file_protection"
+      ],
+      "title": "EnvironmentEventData",
+      "type": "object"
+    },
+    "EnvironmentSSEEvent": {
+      "properties": {
+        "event": {
+          "const": "environment",
+          "default": "environment",
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/EnvironmentEventData"
+        }
+      },
+      "required": [
+        "event",
+        "data"
+      ],
+      "title": "EnvironmentSSEEvent",
+      "type": "object"
+    },
+    "ErrorEventData": {
+      "description": "错误事件数据",
+      "properties": {
+        "event_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "seq": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "run_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RunId"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "created_at": {
+          "default": 0,
+          "type": "integer"
+        },
+        "event_version": {
+          "$ref": "#/$defs/EventVersion",
+          "default": 1
+        },
+        "error": {
+          "type": "string"
+        },
+        "context_estimate": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "fixed_input_exceeded": {
+          "default": false,
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "event_id",
+        "seq",
+        "run_id",
+        "created_at",
+        "event_version",
+        "error",
+        "context_estimate",
+        "fixed_input_exceeded"
+      ],
+      "title": "ErrorEventData",
+      "type": "object"
+    },
+    "ErrorSSEEvent": {
+      "description": "错误流式事件",
+      "properties": {
+        "event": {
+          "const": "error",
+          "default": "error",
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/ErrorEventData"
+        }
+      },
+      "required": [
+        "event",
+        "data"
+      ],
+      "title": "ErrorSSEEvent",
+      "type": "object"
+    },
+    "EventVersion": {
+      "description": "事件结构版本",
+      "minimum": 1,
+      "type": "integer"
+    },
+    "ExecutionStatus": {
+      "enum": [
+        "pending",
+        "running",
+        "completed",
+        "failed",
+        "blocked",
+        "cancelled"
+      ],
+      "title": "ExecutionStatus",
+      "type": "string"
+    },
+    "File": {
+      "description": "文件信息Domain模型，用于记录Manus/Human上传or生成的文件",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "filename": {
+          "default": "",
+          "type": "string"
+        },
+        "filepath": {
+          "default": "",
+          "type": "string"
+        },
+        "key": {
+          "default": "",
+          "type": "string"
+        },
+        "extension": {
+          "default": "",
+          "type": "string"
+        },
+        "mime_type": {
+          "default": "",
+          "type": "string"
+        },
+        "size": {
+          "default": 0,
+          "type": "integer"
+        },
+        "sha256": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "visual": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "project_upload": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "project_persistence": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "File",
+      "type": "object"
+    },
+    "MessageEventData": {
+      "description": "消息事件数据",
+      "properties": {
+        "event_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "seq": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "run_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RunId"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "created_at": {
+          "default": 0,
+          "type": "integer"
+        },
+        "event_version": {
+          "$ref": "#/$defs/EventVersion",
+          "default": 1
+        },
+        "role": {
+          "default": "assistant",
+          "enum": [
+            "user",
+            "assistant"
+          ],
+          "type": "string"
+        },
+        "message": {
+          "default": "",
+          "type": "string"
+        },
+        "attachments": {
+          "items": {
+            "$ref": "#/$defs/File"
+          },
+          "type": "array"
+        },
+        "skill": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/SkillSelection"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "image_mode": {
+          "default": "auto",
+          "enum": [
+            "auto",
+            "files"
+          ],
+          "type": "string"
+        },
+        "attempt": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "event_id",
+        "seq",
+        "run_id",
+        "created_at",
+        "event_version",
+        "role",
+        "message",
+        "attachments",
+        "skill",
+        "image_mode",
+        "attempt"
+      ],
+      "title": "MessageEventData",
+      "type": "object"
+    },
+    "MessageSSEEvent": {
+      "description": "流式消息事件数据响应结构",
+      "properties": {
+        "event": {
+          "const": "message",
+          "default": "message",
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/MessageEventData"
+        }
+      },
+      "required": [
+        "event",
+        "data"
+      ],
+      "title": "MessageSSEEvent",
+      "type": "object"
+    },
+    "PlanAcceptance": {
+      "properties": {
+        "source_run_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        },
+        "plan_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        },
+        "source_seq": {
+          "exclusiveMinimum": 0,
+          "type": "integer"
+        },
+        "request_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_run_id",
+        "plan_id",
+        "source_seq",
+        "request_id"
+      ],
+      "title": "PlanAcceptance",
+      "type": "object"
+    },
+    "PlanEventData": {
+      "properties": {
+        "event_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "seq": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "run_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RunId"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "created_at": {
+          "default": 0,
+          "type": "integer"
+        },
+        "event_version": {
+          "$ref": "#/$defs/EventVersion",
+          "default": 1
+        },
+        "plan_id": {
+          "type": "string"
+        },
+        "title": {
+          "default": "",
+          "type": "string"
+        },
+        "description": {
+          "default": "",
+          "type": "string"
+        },
+        "goal": {
+          "default": "",
+          "type": "string"
+        },
+        "scope": {
+          "default": "",
+          "type": "string"
+        },
+        "artifacts": {
+          "items": {
+            "additionalProperties": true,
+            "type": "object"
+          },
+          "type": "array"
+        },
+        "progress_state": {
+          "default": "confirmed",
+          "type": "string"
+        },
+        "review_only": {
+          "default": false,
+          "type": "boolean"
+        },
+        "accepted_from": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/PlanAcceptance"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "explanation": {
+          "default": "",
+          "type": "string"
+        },
+        "steps": {
+          "items": {
+            "$ref": "#/$defs/StepEventData"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "event_id",
+        "seq",
+        "run_id",
+        "created_at",
+        "event_version",
+        "plan_id",
+        "title",
+        "description",
+        "goal",
+        "scope",
+        "artifacts",
+        "progress_state",
+        "review_only",
+        "accepted_from",
+        "explanation",
+        "steps"
+      ],
+      "title": "PlanEventData",
+      "type": "object"
+    },
+    "PlanSSEEvent": {
+      "description": "计划流式事件",
+      "properties": {
+        "event": {
+          "const": "plan",
+          "default": "plan",
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/PlanEventData"
+        }
+      },
+      "required": [
+        "event",
+        "data"
+      ],
+      "title": "PlanSSEEvent",
+      "type": "object"
+    },
+    "ProjectNotesEventData": {
+      "properties": {
+        "event_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "seq": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "run_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RunId"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "created_at": {
+          "default": 0,
+          "type": "integer"
+        },
+        "event_version": {
+          "$ref": "#/$defs/EventVersion",
+          "default": 1
+        },
+        "project_id": {
+          "type": "string"
+        },
+        "content": {
+          "type": "string"
+        },
+        "notes_version": {
+          "type": "integer"
+        },
+        "source": {
+          "enum": [
+            "user",
+            "agent"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "event_id",
+        "seq",
+        "run_id",
+        "created_at",
+        "event_version",
+        "project_id",
+        "content",
+        "notes_version",
+        "source"
+      ],
+      "title": "ProjectNotesEventData",
+      "type": "object"
+    },
+    "ProjectNotesSSEEvent": {
+      "properties": {
+        "event": {
+          "const": "project_notes",
+          "default": "project_notes",
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/ProjectNotesEventData"
+        }
+      },
+      "required": [
+        "event",
+        "data"
+      ],
+      "title": "ProjectNotesSSEEvent",
+      "type": "object"
+    },
+    "RunEventData": {
+      "description": "运行状态变化事件数据；终态时 summary 为运行汇总，mode 为运行模式（normal / plan）。",
+      "properties": {
+        "event_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "seq": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "run_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RunId"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "created_at": {
+          "default": 0,
+          "type": "integer"
+        },
+        "event_version": {
+          "$ref": "#/$defs/EventVersion",
+          "default": 1
+        },
+        "status": {
+          "$ref": "#/$defs/RunStatus"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "summary": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "mode": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RunMode"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "event_id",
+        "seq",
+        "run_id",
+        "created_at",
+        "event_version",
+        "status",
+        "reason",
+        "summary",
+        "mode"
+      ],
+      "title": "RunEventData",
+      "type": "object"
+    },
+    "RunId": {
+      "description": "运行身份；一个会话至多一个活动运行",
+      "maxLength": 128,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+      "type": "string"
+    },
+    "RunMode": {
+      "description": "运行模式：只在新建运行时由 chat 选择，续接沿用。",
+      "enum": [
+        "normal",
+        "plan"
+      ],
+      "title": "RunMode",
+      "type": "string"
+    },
+    "RunSSEEvent": {
+      "description": "运行状态流式事件",
+      "properties": {
+        "event": {
+          "const": "run",
+          "default": "run",
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/RunEventData"
+        }
+      },
+      "required": [
+        "event",
+        "data"
+      ],
+      "title": "RunSSEEvent",
+      "type": "object"
+    },
+    "RunStatus": {
+      "description": "运行状态。running/waiting 是活动状态，其余是终态，终态不可再改。",
+      "enum": [
+        "running",
+        "waiting",
+        "completed",
+        "failed",
+        "cancelled",
+        "interrupted"
+      ],
+      "title": "RunStatus",
+      "type": "string"
+    },
+    "SessionEvent": {
+      "discriminator": {
+        "mapping": {
+          "approval": "#/$defs/ApprovalSSEEvent",
+          "attempt": "#/$defs/AttemptSSEEvent",
+          "cleanup": "#/$defs/CleanupSSEEvent",
+          "compact": "#/$defs/CompactSSEEvent",
+          "context": "#/$defs/ContextSSEEvent",
+          "done": "#/$defs/DoneSSEEvent",
+          "environment": "#/$defs/EnvironmentSSEEvent",
+          "error": "#/$defs/ErrorSSEEvent",
+          "message": "#/$defs/MessageSSEEvent",
+          "plan": "#/$defs/PlanSSEEvent",
+          "project_notes": "#/$defs/ProjectNotesSSEEvent",
+          "run": "#/$defs/RunSSEEvent",
+          "step": "#/$defs/StepSSEEvent",
+          "title": "#/$defs/TitleSSEEvent",
+          "tool": "#/$defs/ToolSSEEvent",
+          "turn": "#/$defs/TurnSSEEvent",
+          "wait": "#/$defs/WaitSSEEvent"
+        },
+        "propertyName": "event"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/$defs/MessageSSEEvent"
+        },
+        {
+          "$ref": "#/$defs/TitleSSEEvent"
+        },
+        {
+          "$ref": "#/$defs/StepSSEEvent"
+        },
+        {
+          "$ref": "#/$defs/PlanSSEEvent"
+        },
+        {
+          "$ref": "#/$defs/ToolSSEEvent"
+        },
+        {
+          "$ref": "#/$defs/DoneSSEEvent"
+        },
+        {
+          "$ref": "#/$defs/ErrorSSEEvent"
+        },
+        {
+          "$ref": "#/$defs/WaitSSEEvent"
+        },
+        {
+          "$ref": "#/$defs/TurnSSEEvent"
+        },
+        {
+          "$ref": "#/$defs/AttemptSSEEvent"
+        },
+        {
+          "$ref": "#/$defs/RunSSEEvent"
+        },
+        {
+          "$ref": "#/$defs/EnvironmentSSEEvent"
+        },
+        {
+          "$ref": "#/$defs/ProjectNotesSSEEvent"
+        },
+        {
+          "$ref": "#/$defs/ContextSSEEvent"
+        },
+        {
+          "$ref": "#/$defs/CompactSSEEvent"
+        },
+        {
+          "$ref": "#/$defs/CleanupSSEEvent"
+        },
+        {
+          "$ref": "#/$defs/ApprovalSSEEvent"
+        }
+      ]
+    },
+    "SessionId": {
+      "description": "会话身份",
+      "maxLength": 128,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+      "type": "string"
+    },
+    "SkillSelection": {
+      "properties": {
+        "id": {
+          "maxLength": 64,
+          "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$",
+          "type": "string"
+        },
+        "version": {
+          "pattern": "^[a-f0-9]{64}$",
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "version"
+      ],
+      "title": "SkillSelection",
+      "type": "object"
+    },
+    "StepEventData": {
+      "description": "步骤事件数据",
+      "properties": {
+        "event_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "seq": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "run_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RunId"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "created_at": {
+          "default": 0,
+          "type": "integer"
+        },
+        "event_version": {
+          "$ref": "#/$defs/EventVersion",
+          "default": 1
+        },
+        "id": {
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/ExecutionStatus"
+        },
+        "description": {
+          "type": "string"
+        },
+        "kind": {
+          "default": "stage",
+          "type": "string"
+        },
+        "parent_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "schedule": {
+          "default": "current",
+          "type": "string"
+        },
+        "reason": {
+          "default": "",
+          "type": "string"
+        }
+      },
+      "required": [
+        "event_id",
+        "seq",
+        "run_id",
+        "created_at",
+        "event_version",
+        "id",
+        "status",
+        "description",
+        "kind",
+        "parent_id",
+        "schedule",
+        "reason"
+      ],
+      "title": "StepEventData",
+      "type": "object"
+    },
+    "StepSSEEvent": {
+      "description": "步骤流式事件",
+      "properties": {
+        "event": {
+          "const": "step",
+          "default": "step",
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/StepEventData"
+        }
+      },
+      "required": [
+        "event",
+        "data"
+      ],
+      "title": "StepSSEEvent",
+      "type": "object"
+    },
+    "StreamEvent": {
+      "discriminator": {
+        "mapping": {
+          "approval": "#/$defs/ApprovalSSEEvent",
+          "attempt": "#/$defs/AttemptSSEEvent",
+          "cleanup": "#/$defs/CleanupSSEEvent",
+          "compact": "#/$defs/CompactSSEEvent",
+          "context": "#/$defs/ContextSSEEvent",
+          "delta": "#/$defs/DeltaSSEEvent",
+          "done": "#/$defs/DoneSSEEvent",
+          "environment": "#/$defs/EnvironmentSSEEvent",
+          "error": "#/$defs/ErrorSSEEvent",
+          "message": "#/$defs/MessageSSEEvent",
+          "plan": "#/$defs/PlanSSEEvent",
+          "project_notes": "#/$defs/ProjectNotesSSEEvent",
+          "run": "#/$defs/RunSSEEvent",
+          "step": "#/$defs/StepSSEEvent",
+          "title": "#/$defs/TitleSSEEvent",
+          "tool": "#/$defs/ToolSSEEvent",
+          "turn": "#/$defs/TurnSSEEvent",
+          "wait": "#/$defs/WaitSSEEvent"
+        },
+        "propertyName": "event"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/$defs/MessageSSEEvent"
+        },
+        {
+          "$ref": "#/$defs/TitleSSEEvent"
+        },
+        {
+          "$ref": "#/$defs/StepSSEEvent"
+        },
+        {
+          "$ref": "#/$defs/PlanSSEEvent"
+        },
+        {
+          "$ref": "#/$defs/ToolSSEEvent"
+        },
+        {
+          "$ref": "#/$defs/DoneSSEEvent"
+        },
+        {
+          "$ref": "#/$defs/ErrorSSEEvent"
+        },
+        {
+          "$ref": "#/$defs/WaitSSEEvent"
+        },
+        {
+          "$ref": "#/$defs/TurnSSEEvent"
+        },
+        {
+          "$ref": "#/$defs/AttemptSSEEvent"
+        },
+        {
+          "$ref": "#/$defs/RunSSEEvent"
+        },
+        {
+          "$ref": "#/$defs/EnvironmentSSEEvent"
+        },
+        {
+          "$ref": "#/$defs/ProjectNotesSSEEvent"
+        },
+        {
+          "$ref": "#/$defs/ContextSSEEvent"
+        },
+        {
+          "$ref": "#/$defs/CompactSSEEvent"
+        },
+        {
+          "$ref": "#/$defs/CleanupSSEEvent"
+        },
+        {
+          "$ref": "#/$defs/ApprovalSSEEvent"
+        },
+        {
+          "$ref": "#/$defs/DeltaSSEEvent"
+        }
+      ]
+    },
+    "TitleEventData": {
+      "description": "标题事件数据",
+      "properties": {
+        "event_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "seq": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "run_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RunId"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "created_at": {
+          "default": 0,
+          "type": "integer"
+        },
+        "event_version": {
+          "$ref": "#/$defs/EventVersion",
+          "default": 1
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "event_id",
+        "seq",
+        "run_id",
+        "created_at",
+        "event_version",
+        "title"
+      ],
+      "title": "TitleEventData",
+      "type": "object"
+    },
+    "TitleSSEEvent": {
+      "description": "标题流式事件",
+      "properties": {
+        "event": {
+          "const": "title",
+          "default": "title",
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/TitleEventData"
+        }
+      },
+      "required": [
+        "event",
+        "data"
+      ],
+      "title": "TitleSSEEvent",
+      "type": "object"
+    },
+    "ToolEventData": {
+      "description": "工具事件数据",
+      "properties": {
+        "event_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "seq": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "run_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RunId"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "created_at": {
+          "default": 0,
+          "type": "integer"
+        },
+        "event_version": {
+          "$ref": "#/$defs/EventVersion",
+          "default": 1
+        },
+        "tool_call_id": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/ToolEventStatus"
+        },
+        "function": {
+          "type": "string"
+        },
+        "args": {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        "content": {
+          "anyOf": [
+            {},
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "duration_ms": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "stages_ms": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "type": "object"
+        },
+        "shaping": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ToolResultShaping"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "denied_by": {
+          "anyOf": [
+            {
+              "enum": [
+                "policy",
+                "user",
+                "plan_mode",
+                "budget",
+                "batch",
+                "verification_cache",
+                "verification_limit"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "event_id",
+        "seq",
+        "run_id",
+        "created_at",
+        "event_version",
+        "tool_call_id",
+        "name",
+        "status",
+        "function",
+        "args",
+        "content",
+        "duration_ms",
+        "stages_ms",
+        "shaping",
+        "denied_by"
+      ],
+      "title": "ToolEventData",
+      "type": "object"
+    },
+    "ToolEventStatus": {
+      "description": "工具事件状态类型枚举",
+      "enum": [
+        "calling",
+        "called"
+      ],
+      "title": "ToolEventStatus",
+      "type": "string"
+    },
+    "ToolResultShaping": {
+      "description": "结果整形元数据：结果序列化后超过单条上限时，进入上下文的只是首尾预览。",
+      "properties": {
+        "original_chars": {
+          "type": "integer"
+        },
+        "preview_chars": {
+          "type": "integer"
+        },
+        "truncated": {
+          "default": true,
+          "type": "boolean"
+        },
+        "full_output_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "original_chars",
+        "preview_chars"
+      ],
+      "title": "ToolResultShaping",
+      "type": "object"
+    },
+    "ToolSSEEvent": {
+      "description": "工具流式事件",
+      "properties": {
+        "event": {
+          "const": "tool",
+          "default": "tool",
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/ToolEventData"
+        }
+      },
+      "required": [
+        "event",
+        "data"
+      ],
+      "title": "ToolSSEEvent",
+      "type": "object"
+    },
+    "TurnEventData": {
+      "description": "轮次边界事件数据，字段含义见领域模型 TurnEvent。",
+      "properties": {
+        "event_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "seq": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "run_id": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RunId"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "created_at": {
+          "default": 0,
+          "type": "integer"
+        },
+        "event_version": {
+          "$ref": "#/$defs/EventVersion",
+          "default": 1
+        },
+        "phase": {
+          "enum": [
+            "started",
+            "completed"
+          ],
+          "type": "string"
+        },
+        "index": {
+          "type": "integer"
+        },
+        "context_estimate": {
+          "anyOf": [
+            {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "context_window": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "model_ms": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "attempts": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "ttft_ms": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "usage": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TurnUsage"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "finish_reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "tool_call_ids": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "tools_ms": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "error": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "event_id",
+        "seq",
+        "run_id",
+        "created_at",
+        "event_version",
+        "phase",
+        "index",
+        "context_estimate",
+        "context_window",
+        "model_ms",
+        "attempts",
+        "ttft_ms",
+        "usage",
+        "finish_reason",
+        "tool_call_ids",
+        "tools_ms",
+        "error"
+      ],
+      "title": "TurnEventData",
+      "type": "object"
+    },
+    "TurnSSEEvent": {
+      "description": "轮次边界流式事件",
+      "properties": {
+        "event": {
+          "const": "turn",
+          "default": "turn",
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/TurnEventData"
+        }
+      },
+      "required": [
+        "event",
+        "data"
+      ],
+      "title": "TurnSSEEvent",
+      "type": "object"
+    },
+    "TurnUsage": {
+      "description": "一轮内返回了响应的各次尝试的用量合计；服务未返回的项为空。",
+      "properties": {
+        "prompt_tokens": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "completion_tokens": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "cached_tokens": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "reasoning_tokens": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "TurnUsage",
+      "type": "object"
+    },
+    "WaitSSEEvent": {
+      "description": "等待人类输入流式事件",
+      "properties": {
+        "event": {
+          "const": "wait",
+          "default": "wait",
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/BaseEventData"
+        }
+      },
+      "required": [
+        "event",
+        "data"
+      ],
+      "title": "WaitSSEEvent",
+      "type": "object"
+    }
+  }
+}

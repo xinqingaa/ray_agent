@@ -10,7 +10,7 @@ const {create, act} = require('react-test-renderer');
 global.IS_REACT_ACT_ENVIRONMENT = true;
 const api = {}, previewApi = {}, cache = {};
 const elements = new Proxy({}, {get: (_, name) => props => React.createElement(name === 'Button' ? 'button' : 'div', props, props.children)});
-class ApiError extends Error {constructor(code,msg){super(msg);this.code=code}}
+class ApiError extends Error {constructor(status,code,msg){super(msg);this.status=status;this.code=code}}
 function load(file) {
  if(cache[file])return cache[file];
  const exports = {};cache[file]=exports;
@@ -67,7 +67,7 @@ async function main(){
  await act(async()=>{reads[3].resolve(result('page one',{partial:true,next_offset:65535}))});
  await act(async()=>{button(r,'下一段').props.onClick()});
  assert.equal(reads[4].params.get('offset'),'65535');assert.equal(reads[4].params.get('revision'),'v1');
- await act(async()=>{reads[4].reject(new ApiError(409,'文件已更新，请刷新'))});
+ await act(async()=>{reads[4].reject(new ApiError(409,'conflict','文件已更新，请刷新'))});
  await act(async()=>{r.root.findAllByType('button').find(b=>b.children.includes('刷新')).props.onClick()});
  assert.equal(reads[5].params.has('revision'),false);assert.equal(reads[5].params.get('offset'),'0');
  await act(async()=>{r.update(React.createElement(FilePreview,{source:{kind:'attachment',id:'two',filename:'two.txt'}}))});

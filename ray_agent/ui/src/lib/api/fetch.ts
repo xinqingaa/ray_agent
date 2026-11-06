@@ -1,4 +1,4 @@
-import type { ApiResponse } from "./types";
+import type { ApiResponse, ErrorCode, ErrorInfo, ErrorResponse } from "./types";
 
 /**
  * API 配置
@@ -9,17 +9,54 @@ const API_CONFIG = {
 } as const;
 
 /**
- * 自定义错误类
+ * 接口失败：status 为 HTTP 状态，没有收到响应时为 0；其余字段来自核心返回的结构化错误。
  */
 export class ApiError extends Error {
-  constructor(
-    public code: number,
-    public msg: string,
-    public data: unknown = null
-  ) {
-    super(msg);
+  readonly status: number;
+  readonly code: ErrorCode;
+  readonly retryable: boolean;
+  readonly retryAfterMs: number | null;
+  readonly resourceVersion: number | string | null;
+  readonly details: Record<string, unknown>;
+
+  constructor(status: number, info: ErrorInfo) {
+    super(info.message);
     this.name = "ApiError";
+    this.status = status;
+    this.code = info.code;
+    this.retryable = info.retryable;
+    this.retryAfterMs = info.retry_after_ms;
+    this.resourceVersion = info.resource_version;
+    this.details = info.details;
   }
+
+  /** 核心已处理并明确拒绝；没有响应、超时与 5xx 的结果未知，需要先读回 */
+  get rejected(): boolean {
+    return this.status >= 400 && this.status < 500;
+  }
+}
+
+/** 没有收到核心响应时的失败；结果未知，不能直接视为未执行 */
+export function clientError(code: "timeout" | "unavailable", message: string): ApiError {
+  return new ApiError(0, {code, message, retryable: false, retry_after_ms: null, resource_version: null, details: {}});
+}
+
+function isErrorResponse(body: unknown): body is ErrorResponse {
+  const error = (body as ErrorResponse | null)?.error;
+  return !!error && typeof error.code === "string" && typeof error.message === "string";
+}
+
+/** 按失败响应体构造错误；不是结构化错误（如网关返回的页面）时按状态给出通用原因 */
+export function errorFromBody(status: number, body: unknown, fallback?: string): ApiError {
+  if (isErrorResponse(body)) return new ApiError(status, body.error);
+  return new ApiError(status, {
+    code: status >= 500 ? "unavailable" : "invalid_request",
+    message: fallback || (status >= 500 ? "服务暂时不可用，请核对最新状态后重试" : "请求失败，请重试"),
+    retryable: false,
+    retry_after_ms: null,
+    resource_version: null,
+    details: {},
+  });
 }
 
 /**
@@ -27,46 +64,28 @@ export class ApiError extends Error {
  */
 type RequestOptions = RequestInit & {
   timeout?: number;
-  skipErrorHandler?: boolean;
 };
 
 /**
- * 解析响应
+ * 解析成功响应
  */
-async function parseResponse<T>(response: Response): Promise<ApiResponse<T>> {
+async function parseResponse<T>(response: Response): Promise<T> {
   const contentType = response.headers.get("content-type");
-  
+
   if (contentType?.includes("application/json")) {
-    return await response.json();
+    return ((await response.json()) as ApiResponse<T>).data;
   }
-  
+
   // 处理非 JSON 响应（如文件下载）
-  const text = await response.text();
-  return {
-    code: response.ok ? 0 : response.status,
-    msg: response.ok ? "success" : response.status >= 500
-      ? "服务暂时不可用，请核对最新状态后重试" : "请求失败，请重试",
-    data: (response.ok ? text : null) as unknown as T,
-  };
+  return (await response.text()) as unknown as T;
 }
 
 /**
  * 处理错误响应
  */
-async function handleErrorResponse(response: Response): Promise<never> {
-  let errorData: ApiResponse;
-  
-  try {
-    errorData = await parseResponse(response);
-  } catch {
-    errorData = {
-      code: response.status,
-      msg: response.statusText || "请求失败",
-      data: null,
-    };
-  }
-  
-  throw new ApiError(errorData.code, errorData.msg, errorData.data);
+export async function handleErrorResponse(response: Response, fallback?: string): Promise<never> {
+  const body = await response.json().catch(() => null);
+  throw errorFromBody(response.status, body, fallback);
 }
 
 /**
@@ -81,7 +100,7 @@ function fetchWithTimeout(
     const controller = new AbortController();
     const timeoutId = setTimeout(() => {
       controller.abort();
-      reject(new ApiError(408, "请求超时"));
+      reject(clientError("timeout", "请求超时"));
     }, timeout);
 
     fetch(url, {
@@ -95,7 +114,7 @@ function fetchWithTimeout(
       .catch((error) => {
         clearTimeout(timeoutId);
         if (error.name === "AbortError") {
-          reject(new ApiError(408, "请求超时"));
+          reject(clientError("timeout", "请求超时"));
         } else {
           reject(error);
         }
@@ -116,7 +135,6 @@ export async function request<T = unknown>(
 
   const {
     timeout = API_CONFIG.timeout,
-    skipErrorHandler = false,
     headers = {},
     ...fetchOptions
   } = options;
@@ -142,25 +160,11 @@ export async function request<T = unknown>(
       timeout
     );
 
-    // 处理 HTTP 错误状态码
     if (!response.ok) {
-      if (skipErrorHandler) {
-        return parseResponse<T>(response) as Promise<T>;
-      }
       await handleErrorResponse(response);
     }
 
-    const result = await parseResponse<T>(response);
-
-    // 处理业务错误（code 不在成功范围内）
-    if (result.code !== 0 && result.code !== 200) {
-      if (skipErrorHandler) {
-        return result.data as T;
-      }
-      throw new ApiError(result.code, result.msg, result.data);
-    }
-
-    return result.data as T;
+    return await parseResponse<T>(response);
   } catch (error) {
     if (error instanceof ApiError) {
       throw error;
@@ -168,10 +172,10 @@ export async function request<T = unknown>(
 
     // 处理网络错误
     if (error instanceof TypeError && error.message === "Failed to fetch") {
-      throw new ApiError(500, "网络连接失败，请检查网络设置");
+      throw clientError("unavailable", "网络连接失败，请检查网络设置");
     }
 
-    throw new ApiError(500, error instanceof Error ? error.message : "未知错误");
+    throw clientError("unavailable", error instanceof Error ? error.message : "未知错误");
   }
 }
 
@@ -341,7 +345,7 @@ export async function createSSEStream(
     }
 
     if (!response.body) {
-      throw new ApiError(500, "响应体为空");
+      throw clientError("unavailable", "响应体为空");
     }
 
     return response.body;
@@ -354,7 +358,7 @@ export async function createSSEStream(
     if (error instanceof ApiError) {
       throw error;
     }
-    throw new ApiError(500, error instanceof Error ? error.message : "未知错误");
+    throw clientError("unavailable", error instanceof Error ? error.message : "未知错误");
   }
 }
 
@@ -491,15 +495,14 @@ export function uploadRequest<T>(endpoint:string, body:FormData, onProgress?:(lo
     xhr.timeout=timeout
     xhr.responseType='json'
     xhr.upload.onprogress=event=>{if(event.lengthComputable)onProgress?.(event.loaded,event.total)}
-    xhr.onerror=()=>reject(new ApiError(500,'上传连接中断，结果需读回确认'))
-    xhr.ontimeout=()=>reject(new ApiError(408,'上传请求超时，结果需读回确认'))
-    xhr.onabort=()=>reject(new ApiError(408,'上传已中断，结果需读回确认'))
+    xhr.onerror=()=>reject(clientError('unavailable','上传连接中断，结果需读回确认'))
+    xhr.ontimeout=()=>reject(clientError('timeout','上传请求超时，结果需读回确认'))
+    xhr.onabort=()=>reject(clientError('timeout','上传已中断，结果需读回确认'))
     xhr.onload=()=>{
+      if(xhr.status<200 || xhr.status>=300){reject(errorFromBody(xhr.status,xhr.response,xhr.status>=500?'服务暂时不可用，请读回上传结果':'上传被拒绝'));return}
       const result=xhr.response as ApiResponse<T>|null
-      if(xhr.status<200 || xhr.status>=300){reject(new ApiError(xhr.status,result?.msg || (xhr.status>=500?'服务暂时不可用，请读回上传结果':'上传被拒绝'),result?.data));return}
-      if(!result){reject(new ApiError(500,'上传响应无法识别，请读回批次结果'));return}
-      if(result.code!==0 && result.code!==200){reject(new ApiError(result.code,result.msg,result.data));return}
-      resolve(result.data as T)
+      if(!result){reject(clientError('unavailable','上传响应无法识别，请读回批次结果'));return}
+      resolve(result.data)
     }
     xhr.send(body)
   })
@@ -513,6 +516,6 @@ export async function requestBlob(endpoint: string): Promise<Blob> {
     return await response.blob()
   } catch (error) {
     if (error instanceof ApiError) throw error
-    throw new ApiError(500, '文件读取连接中断，请重试')
+    throw clientError('unavailable', '文件读取连接中断，请重试')
   }
 }

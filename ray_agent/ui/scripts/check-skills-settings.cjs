@@ -125,7 +125,7 @@ async function main(){
   assert.ok(!c.root.findAllByType('pre').some(n=>text(n).includes('late yaml')));
   await act(async()=>c.unmount());
   const previousFetch=global.fetch;let sent;
-  global.fetch=async(_url,options)=>{sent=options;return new Response(JSON.stringify({code:200,data:{}}),{headers:{'content-type':'application/json'}})};
+  global.fetch=async(_url,options)=>{sent=options;return new Response(JSON.stringify({data:{}}),{headers:{'content-type':'application/json'}})};
   await load(path.join(root,'src/lib/api/fetch.ts')).request('/skills/example',{method:'DELETE'});
   assert.equal(sent.headers['Content-Type'],undefined,'无正文删除不标为 JSON');
   global.fetch=previousFetch;

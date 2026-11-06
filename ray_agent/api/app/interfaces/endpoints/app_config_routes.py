@@ -86,7 +86,6 @@ async def update_llm_config(
         new_llm_config.model_dump(mode="json", exclude_unset=True)
     )
     return Response.success(
-        msg="更新LLM信息配置成功",
         data=LLMConfigPublic.from_llm(updated_llm_config)
     )
 
@@ -118,7 +117,6 @@ async def update_llm_config(
     """更新Agent配置信息"""
     updated_agent_config = await app_config_service.update_agent_config(new_agent_config)
     return Response.success(
-        msg="更新Agent信息配置成功",
         data=updated_agent_config.model_dump()
     )
 
@@ -161,7 +159,7 @@ async def update_tool_policy(
     except PydanticValidationError as e:
         raise BadRequestError("; ".join(str(err.get("msg", "")) for err in e.errors()) or "工具策略格式不正确")
     updated = await app_config_service.update_tool_policy(tool_policy)
-    return Response.success(msg="更新工具策略成功", data=_tool_policy_response(updated))
+    return Response.success(data=_tool_policy_response(updated))
 
 
 @router.get(
@@ -176,7 +174,6 @@ async def get_mcp_servers(
     """获取当前系统的MCP服务器工具列表"""
     mcp_servers = await app_config_service.get_mcp_servers()
     return Response.success(
-        msg="获取mcp服务器列表成功",
         data=ListMCPServerResponse(mcp_servers=mcp_servers)
     )
 
@@ -193,7 +190,7 @@ async def create_mcp_servers(
 ) -> Response[Optional[Dict]]:
     """根据传递的配置信息创建mcp服务"""
     await app_config_service.update_and_create_mcp_servers(mcp_config)
-    return Response.success(msg="新增MCP服务配置成功")
+    return Response.success()
 
 
 @router.post(
@@ -208,7 +205,7 @@ async def delete_mcp_server(
 ) -> Response[Optional[Dict]]:
     """根据服务名字删除MCP服务器"""
     await app_config_service.delete_mcp_server(server_name)
-    return Response.success(msg="删除MCP服务配置成功")
+    return Response.success()
 
 
 @router.post(
@@ -224,7 +221,7 @@ async def set_mcp_server_enabled(
 ) -> Response[Optional[Dict]]:
     """根据传递的server_name+enabled更新服务的启用状态"""
     await app_config_service.set_mcp_server_enabled(server_name, enabled)
-    return Response.success(msg="更新MCP服务启用状态成功")
+    return Response.success()
 
 
 @router.get(
@@ -239,7 +236,6 @@ async def get_a2a_servers(
     """获取a2a服务列表"""
     a2a_servers = await app_config_service.get_a2a_servers()
     return Response.success(
-        msg="获取a2a服务列表成功",
         data=ListA2AServerResponse(a2a_servers=a2a_servers)
     )
 
@@ -256,7 +252,7 @@ async def create_a2a_server(
 ) -> Response[Optional[Dict]]:
     """新增a2a服务器"""
     await app_config_service.create_a2a_server(base_url)
-    return Response.success(msg="新增A2A服务配置成功")
+    return Response.success()
 
 
 @router.post(
@@ -271,7 +267,7 @@ async def delete_a2a_server(
 ) -> Response[Optional[Dict]]:
     """删除a2a服务器"""
     await app_config_service.delete_a2a_server(a2a_id)
-    return Response.success(msg="删除a2a服务器成功")
+    return Response.success()
 
 
 @router.post(
@@ -287,4 +283,4 @@ async def set_a2a_server_enabled(
 ) -> Response[Optional[Dict]]:
     """更新A2A服务的启用状态"""
     await app_config_service.set_a2a_server_enabled(a2a_id, enabled)
-    return Response.success(msg="更新a2a服务器启用状态成功")
+    return Response.success()

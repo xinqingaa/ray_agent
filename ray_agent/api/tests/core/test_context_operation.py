@@ -7,6 +7,7 @@ import pytest
 from app.application.errors.exceptions import AppException, ConflictError
 from app.application.services import agent_service as module
 from app.application.services.context_operations import context_operation
+from app.domain.models.error import ErrorCode
 from app.domain.models.event import CompactEvent
 from app.domain.models.run import Run, RunStatus
 from app.domain.models.workspace_project import WorkspaceProject
@@ -56,7 +57,7 @@ def test_total_deadline_rolls_back_and_releases_state(monkeypatch):
         monkeypatch.setattr(module, "MANUAL_COMPACT_TIMEOUT_SECONDS", 0.01)
         with pytest.raises(AppException) as raised:
             await service.compact_session(session.id)
-        assert raised.value.status_code == 504
+        assert raised.value.info.code == ErrorCode.TIMEOUT and raised.value.info.retryable is False
         assert memory_messages(session) == original and len(h.events) == before_events
         assert context_operation(session.id)["status"] == "idle"
     asyncio.run(scenario())
@@ -71,9 +72,8 @@ def test_manual_fixed_input_overflow_has_budget_and_no_side_effects():
         before_events = len(h.events)
         with pytest.raises(AppException) as raised:
             await service.compact_session(session.id)
-        assert raised.value.status_code == 422
-        assert raised.value.data['reason'] == 'context_limit'
-        budget = raised.value.data['fixed_input']
+        assert raised.value.info.code == ErrorCode.CONTEXT_LIMIT
+        budget = raised.value.info.details['fixed_input']
         assert budget['total'] > budget['limit']
         assert memory_messages(session) == original
         assert len(h.events) == before_events and not h.llm.requests
@@ -121,6 +121,6 @@ def test_manual_project_notes_overflow_does_not_touch_memory():
         before = [dict(m) for m in memory_messages(session)]
         with pytest.raises(AppException) as raised:
             await service.compact_session(session.id)
-        assert raised.value.status_code==422 and raised.value.data['reason']=='context_limit'
+        assert raised.value.info.code==ErrorCode.CONTEXT_LIMIT and 'fixed_input' in raised.value.info.details
         assert memory_messages(session)==before and h.events==events_before and not h.llm.requests
     asyncio.run(scenario())

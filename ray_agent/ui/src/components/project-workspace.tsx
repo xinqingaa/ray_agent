@@ -130,7 +130,7 @@ export function ProjectWorkspace({projectId}: {projectId: string}) {
     } catch (err) {
       const message = err instanceof Error ? err.message : '发送失败'
       setSendError(message)
-      if (err instanceof ApiError && err.data && typeof err.data === 'object' && 'occupying_session_id' in err.data) setOccupier(String(err.data.occupying_session_id))
+      if (err instanceof ApiError && err.details.occupying_session_id) setOccupier(String(err.details.occupying_session_id))
       setSending(false); throw err
     }
   }

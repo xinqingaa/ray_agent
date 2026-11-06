@@ -55,7 +55,7 @@ export function ProjectSummaryDialog({sessionId,title,onClose,onChanged,embedded
     if(kind==='generate' && (dirty.current || summary?.summary_state==='generating') && !window.confirm('重新生成会使此前生成失效，并放弃未保存的改写。是否继续？'))return
     const scope=epoch.current;mutating.current=true;if(kind==='save'){setSaving(true)}else{setGenerating(true)};setError(null)
     try {const value=kind==='save'?await sessionApi.editSummary(sessionId,draft,base):await sessionApi.regenerateSummary(sessionId);if(scope===epoch.current){accept(value,true);onChanged()}}
-    catch(error){if(scope===epoch.current){setError(error instanceof Error?error.message:(kind==='save'?'保存失败':'生成失败')+'，结果尚未确认，草稿保留，请读取最新状态');if(error instanceof ApiError && error.code===409){const latest=await sessionApi.summary(sessionId).catch(()=>null);if(latest && scope===epoch.current)setConflict(latest)}}}
+    catch(error){if(scope===epoch.current){setError(error instanceof Error?error.message:(kind==='save'?'保存失败':'生成失败')+'，结果尚未确认，草稿保留，请读取最新状态');if(error instanceof ApiError && error.code==='conflict'){const latest=await sessionApi.summary(sessionId).catch(()=>null);if(latest && scope===epoch.current)setConflict(latest)}}}
     finally{if(scope===epoch.current){setSaving(false);setGenerating(false);mutating.current=false}}
   }
   const content = <>

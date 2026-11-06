@@ -78,6 +78,29 @@ def bound_shell_wait_seconds(seconds: Optional[int]) -> Optional[int]:
     return value
 
 
+DOCKER_PROBE_TIMEOUT_SECONDS = 3
+
+
+async def sandbox_problem() -> Optional[str]:
+    """沙箱执行环境不可用的原因，可用时返回 None。连接已有沙箱地址时不做探测。"""
+    if get_settings().sandbox_address:
+        return None
+
+    def ping() -> None:
+        client = docker.from_env(timeout=DOCKER_PROBE_TIMEOUT_SECONDS)
+        try:
+            client.ping()
+        finally:
+            client.close()
+
+    try:
+        await asyncio.to_thread(ping)
+        return None
+    except Exception as exc:
+        logger.warning(f"Docker 不可用，沙箱无法创建: {exc}")
+        return "Docker 不可用，沙箱无法创建"
+
+
 class DockerSandbox(Sandbox):
     """基于Docker的沙箱服务"""
 

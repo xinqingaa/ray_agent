@@ -28,7 +28,7 @@ def read_manifest():
     try:
         return json.loads((ROOT / 'build-manifest.json').read_text())
     except (OSError, ValueError):
-        return {'service': 'api', 'status': 'unknown'}
+        return {'service': 'api'}
 
 
 def manifest():

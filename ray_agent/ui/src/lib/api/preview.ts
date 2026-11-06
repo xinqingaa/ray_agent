@@ -1,4 +1,4 @@
-import {ApiError} from './fetch'
+import {clientError, errorFromBody} from './fetch'
 
 const base = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8088/api'
 
@@ -50,7 +50,8 @@ export function openPreviewTab(source: PreviewSource) {
 export async function readPreview(endpoint: string, params: URLSearchParams, signal: AbortSignal): Promise<FilePreview> {
   const response = await fetch(`${base}${endpoint}?${params}`, {signal, cache: 'no-store'})
   const body = await response.json().catch(() => null)
-  if (!response.ok || !body?.data) throw new ApiError(response.status, body?.msg || '读取失败')
+  if (!response.ok) throw errorFromBody(response.status, body, '读取失败')
+  if (!body?.data) throw clientError('unavailable', '读取失败')
   return body.data
 }
 
@@ -59,10 +60,7 @@ export async function downloadPreviewSource(source: PreviewSource) {
     : `${base}/projects/${encodeURIComponent(source.id)}/download?path=${encodeURIComponent(source.path)}`
   if (source.kind === 'project' && !source.projectLevel) throw new Error('无法确定项目下载入口')
   const response = await fetch(url, {method:'HEAD'})
-  if (!response.ok) {
-    const body = await response.json().catch(() => null)
-    throw new ApiError(response.status, body?.msg || '下载失败')
-  }
+  if (!response.ok) throw errorFromBody(response.status, null, '下载失败')
   startDownload(url, source.filename)
 }
 
@@ -83,9 +81,6 @@ export async function downloadFileBatch(files: {id: string}[]) {
   files.forEach(file=>params.append('file_id',file.id))
   const url=`${base}/files/download-batch?${params}`
   const response = await fetch(url, {method:'HEAD'})
-  if (!response.ok) {
-    const body = await response.json().catch(() => null)
-    throw new ApiError(response.status, body?.msg || '打包失败')
-  }
+  if (!response.ok) throw errorFromBody(response.status, null, '打包失败')
   startDownload(url, '会话文件.zip')
 }

@@ -32,7 +32,7 @@ def test_notes_settings_and_frozen_run(tmp_path):
             await service.update(p.id, ProjectSettings(name=p.name,instructions='丢失写入'), base_version=0)
         with pytest.raises(NotesConflict) as exc:
             await memory.update_notes(p.id, '过时工具', 0, session_id=session.id,run_id=run.id)
-        assert exc.value.data == dict(content='用户笔记',notes_version=1)
+        assert exc.value.info.details == dict(content='用户笔记',notes_version=1) and exc.value.info.resource_version == 1
         async with factory() as uow:
             assert not await uow.event.list(session.id,types=['project_notes'])
             assert len(await uow.project.events(p.id)) == 2

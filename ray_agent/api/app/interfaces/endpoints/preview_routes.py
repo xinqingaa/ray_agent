@@ -8,6 +8,7 @@ from fastapi import APIRouter, Depends, Query, Request
 from starlette.responses import Response as StarletteResponse, StreamingResponse
 
 from app.application.errors.exceptions import BadRequestError, AppException
+from app.domain.models.error import ErrorCode
 from app.domain.models.file_preview import PreviewQuery, preview_kind
 from app.domain.services.project_file_coordinator import run_file_io
 from app.interfaces.schemas import Response
@@ -80,14 +81,14 @@ async def inline_content(request, service, revision=None, **source):
         if range_header:
             match = re.fullmatch(r'bytes=(\d*)-(\d*)', range_header)
             if not match or not any(match.groups()):
-                raise AppException(416, 416, '读取范围无效')
+                raise AppException(ErrorCode.RANGE_NOT_SATISFIABLE, '读取范围无效')
             left, right = match.groups()
             if left:
                 start = int(left); end = min(int(right), end) if right else end
             else:
                 start = max(0, size-int(right))
             if start > end or start >= size:
-                raise AppException(416, 416, '读取范围无效')
+                raise AppException(ErrorCode.RANGE_NOT_SATISFIABLE, '读取范围无效')
             status = 206
         handle.seek(start)
         headers = {'Content-Disposition': "inline; filename*=utf-8''"+quote(filename, safe=''),

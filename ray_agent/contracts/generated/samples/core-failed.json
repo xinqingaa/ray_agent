@@ -1,0 +1,14 @@
+{
+  "event": "failed",
+  "protocol_version": 1,
+  "error": {
+    "code": "unavailable",
+    "message": "核心初始化失败，详见 stderr 日志",
+    "retryable": true,
+    "retry_after_ms": 1000,
+    "resource_version": 3,
+    "details": {
+      "stage": "lifespan"
+    }
+  }
+}

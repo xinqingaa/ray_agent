@@ -79,7 +79,7 @@ services:
     networks:
       - manus-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://127.0.0.1:8000/api/status"]
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8000/api/status | grep -q '\"healthy\":true'"]
       interval: 15s
       timeout: 10s
       retries: 5
@@ -89,8 +89,8 @@ services:
 
   manus-ui:
     build:
-      context: ./ui
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ui/Dockerfile
       args:
         NEXT_PUBLIC_API_BASE_URL: /api
     container_name: manus-ui

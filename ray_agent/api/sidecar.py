@@ -1,11 +1,10 @@
 """桌面宿主拉起的核心入口，开发运行与 PyInstaller 冻结共用。
 
-宿主先经 stdin 写入一行 JSON 启动参数并保持管道打开；核心在回环随机端口上启动 API，
-完成生命周期初始化后经 stdout 写一行 JSON 握手。stdout 只留给握手，日志及其他输出改走 stderr。
+宿主先经 stdin 写入一行 JSON 启动参数（CoreLaunch）并保持管道打开；核心在回环随机端口上启动 API，
+完成生命周期初始化后经 stdout 写一行 JSON 握手（CoreHandshake）。stdout 只留给握手，日志及其他输出改走 stderr。
 stdin 关闭（含宿主崩溃）即视为宿主退出，核心开始正常停止。启动参数不经命令行传递。
 """
 import asyncio
-import json
 import multiprocessing
 import os
 import runpy
@@ -32,19 +31,19 @@ def run_worker(module: str, args: list[str]) -> None:
     runpy.run_module(module, run_name='__main__', alter_sys=True)
 
 
-def apply_launch(launch: dict, root: Path) -> None:
+def apply_launch(launch, root: Path) -> None:
     """依次叠加环境文件、数据目录与显式环境。资源目录只读，配置、附件与 skill 都写入数据目录。"""
     from dotenv import dotenv_values
-    for path in launch.get('env_files', []):
+    for path in launch.env_files:
         os.environ.update({key: value for key, value in dotenv_values(path).items() if value is not None})
-    data = Path(launch['data_dir']).expanduser().resolve()
+    data = Path(launch.data_dir).expanduser().resolve()
     data.mkdir(parents=True, exist_ok=True)
     config = data / 'config.yaml'
     if not config.exists():
         shutil.copyfile(root / 'config.yaml', config)
     os.environ.update(APP_CONFIG_FILEPATH=str(config), FILE_STORAGE_LOCAL_DIR=str(data / 'files'),
                       SKILL_STORAGE_DIR=str(data / 'skills'))
-    os.environ.update({key: str(value) for key, value in launch.get('env', {}).items()})
+    os.environ.update(launch.env)
 
 
 def watch_host(server) -> None:
@@ -63,7 +62,10 @@ def watch_host(server) -> None:
 def serve(channel) -> int:
     import uvicorn
     from app.main import app
-    from build_identity import read_manifest
+    from app.domain.models.error import ErrorCode, ErrorInfo
+    from app.interfaces.core_descriptor import describe_core
+    from app.interfaces.schemas.core import CoreFailed, CoreReady
+    from app.interfaces.service_dependencies import get_capability_service
 
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     sock.bind(('127.0.0.1', 0))
@@ -73,8 +75,8 @@ def serve(channel) -> int:
     server = uvicorn.Server(config)
     threading.Thread(target=watch_host, args=(server,), daemon=True).start()
 
-    def report(**message):
-        channel.write(json.dumps(message, ensure_ascii=False) + '\n')
+    def report(handshake) -> None:
+        channel.write(handshake.model_dump_json() + '\n')
         channel.flush()
 
     async def run():
@@ -82,11 +84,10 @@ def serve(channel) -> int:
         while not server.started and not task.done():
             await asyncio.sleep(0.05)
         if server.started:
-            build = read_manifest()
-            report(event='ready', port=port, pid=os.getpid(),
-                   build={key: build.get(key) for key in ('fingerprint', 'revision', 'dirty', 'status')})
+            capabilities = await get_capability_service().current()
+            report(CoreReady(port=port, **describe_core(capabilities)))
         else:
-            report(event='failed', reason='核心初始化失败，详见 stderr 日志')
+            report(CoreFailed(error=ErrorInfo.of(ErrorCode.INTERNAL_ERROR, '核心初始化失败，详见 stderr 日志')))
         await task
 
     config.setup_event_loop()
@@ -107,7 +108,9 @@ def main() -> int:
         return 2
     root = resource_root()
     os.chdir(root)
-    apply_launch(json.loads(line), root)
+    # 启动参数必须在任何模块读取配置之前生效；契约模块只依赖领域模型，不读取配置。
+    from app.interfaces.schemas.core import CoreLaunch
+    apply_launch(CoreLaunch.model_validate_json(line), root)
     return serve(channel)
 
 

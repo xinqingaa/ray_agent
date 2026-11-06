@@ -8,7 +8,7 @@ global.window={setTimeout,clearTimeout,setInterval,clearInterval,confirm:()=>con
 global.document={visibilityState:'visible',addEventListener(){},removeEventListener(){}};
 const elementCache={};
 const elements=new Proxy({}, {get:(_,name)=>elementCache[name] ??= props=>React.createElement(name==='Button'?'button':'div',props,props.children)});
-class ApiError extends Error{constructor(code,msg){super(msg);this.code=code}}
+class ApiError extends Error{constructor(status,code,msg){super(msg);this.status=status;this.code=code}}
 function load(file){if(cache.has(file))return cache.get(file);const exports={};cache.set(file,exports);
 const code=ts.transpileModule(fs.readFileSync(root+'/src/'+file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX}}).outputText;
 new Function('require','exports',code)(name=>{
@@ -42,7 +42,7 @@ await act(async()=>button(r,'笔记').props.onClick());await act(async()=>button
 await act(async()=>r.root.findByType('textarea').props.onChange({target:{value:'我的草稿'}}));
 await act(async()=>r.root.findAllByType('button').find(b=>b.props['aria-label']==='关闭项目记忆').props.onClick());assert.equal(closed,0);
 await act(async()=>button(r,'查看修改记录').props.onClick());assert.ok(button(r,'刷新修改记录'));await act(async()=>button(r,'返回笔记').props.onClick());assert.equal(r.root.findByType('textarea').props.value,'我的草稿');
-api.updateNotes=async()=>{throw new ApiError(409,'版本冲突')};project={...project,notes:'Agent新结论',notes_version:4};
+api.updateNotes=async()=>{throw new ApiError(409,'conflict','版本冲突')};project={...project,notes:'Agent新结论',notes_version:4};
 await act(async()=>button(r,'保存').props.onClick());assert.equal(r.root.findByType('textarea').props.value,'我的草稿');assert.ok(text(r).includes('Agent新结论'));
 await act(async()=>button(r,'按最新版本继续').props.onClick());
 api.updateNotes=async(id,content,base)=>{writes.push({id,content,base});project={...project,notes:content,notes_version:base+1}};

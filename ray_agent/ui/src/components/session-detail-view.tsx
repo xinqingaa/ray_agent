@@ -44,7 +44,7 @@ import {readDraft, writeDraft} from '@/lib/drafts'
 import {normalizeEvents} from '@/lib/session-events'
 import {canExecutePlan, planBarMode} from '@/lib/session-projection'
 import {ApiError} from '@/lib/api/fetch'
-import type {FileInfo} from '@/lib/api/types'
+import type {FileInfo, SSEEventOf} from '@/lib/api/types'
 import type {FileView, TimelineItem, ToolCallView, ToolFamily} from '@/lib/session-view'
 
 export interface SessionDetailViewProps {
@@ -345,14 +345,12 @@ export function SessionDetailView({
       // 超时/断连后读取已提交事件和临时状态，不再发出第二次 compact。
       try {
         const detail = await sessionApi.getSessionDetail(sessionId)
-        const records = normalizeEvents(detail.events).filter((event) => {
-          const data = event.data as Record<string, unknown>
-          return String(event.type) === 'compact' && data.trigger === 'manual' && Number(data.seq) > beforeSeq
-        })
+        const records = normalizeEvents(detail.events).filter((event): event is SSEEventOf<'compact'> =>
+          event.type === 'compact' && event.data.trigger === 'manual' && (event.data.seq ?? 0) > beforeSeq)
         if (records.length === 1) {
-          const data = records[0].data as Record<string, unknown>
-          const before = (data.before_estimate as {total?: number})?.total
-          const after = (data.after_estimate as {total?: number})?.total
+          const data = records[0].data
+          const before = (data.before_estimate as {total?: number}).total
+          const after = (data.after_estimate as {total?: number}).total
           writeDraft(scope, {compactionAfterSeq: undefined})
           toast.success(before != null && after != null && after >= before ? '已摘要，估算空间未减少' : '已确认上下文摘要完成')
         } else if (detail.context_operation?.status === 'compacting') {
@@ -373,10 +371,8 @@ export function SessionDetailView({
     const scope = `session:${sessionId}`
     const after = readDraft(scope).compactionAfterSeq
     if (after == null) return
-    const records = events.filter((event) => {
-      const data = event.data as Record<string, unknown>
-      return String(event.type) === 'compact' && data.trigger === 'manual' && Number(data.seq) > after
-    })
+    const records = events.filter((event) =>
+      event.type === 'compact' && event.data.trigger === 'manual' && (event.data.seq ?? 0) > after)
     if (records.length === 1) {
       writeDraft(scope, {compactionAfterSeq: undefined})
       toast.success('已确认上下文摘要完成，请查看压缩记录')
@@ -395,8 +391,8 @@ export function SessionDetailView({
     try {
       await deliver(message, uploaded.map((file) => file.id), options)
     } catch (err) {
-      if (err instanceof ApiError && err.code === 409) {
-        toast.error(err.msg)
+      if (err instanceof ApiError && err.code === 'conflict') {
+        toast.error(err.message)
       } else {
         toast.error(err instanceof Error ? err.message : '发送失败，请重试')
       }
@@ -636,8 +632,8 @@ export function SessionDetailView({
                     {!view.activeRun && timelineStatus}
                     {showPlanExecute && <PlanExecuteBar disabled={submitting || pendingSend} onExecute={() => {
                         void deliver('按计划执行', [], {mode: 'normal', execute_plan: {source_run_id: view.plan!.sourceRunId!, plan_id: view.plan!.planId!, source_seq: view.plan!.sourceSeq!, request_id: crypto.randomUUID()}}).catch((err: unknown) => {
-                          if (err instanceof ApiError && err.code === 409) {
-                            toast.error(err.msg)
+                          if (err instanceof ApiError && err.code === 'conflict') {
+                            toast.error(err.message)
                             return
                           }
                           toast.error(err instanceof Error ? err.message : '发送失败')

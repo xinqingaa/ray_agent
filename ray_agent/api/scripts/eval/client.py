@@ -29,9 +29,10 @@ class RayAgentClient:
             body = response.json()
         except ValueError:
             raise ApiError(f"HTTP {response.status_code} {response.request.url}: {response.text[:300]}")
-        if response.status_code != 200 or body.get("code") != 200:
+        if not response.is_success:
+            error = body.get("error") or {}
             raise ApiError(
-                f"HTTP {response.status_code} {response.request.url}: code={body.get('code')} msg={body.get('msg')}"
+                f"HTTP {response.status_code} {response.request.url}: code={error.get('code')} {error.get('message')}"
             )
         return body.get("data")
 

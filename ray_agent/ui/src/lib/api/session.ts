@@ -182,26 +182,9 @@ export const sessionApi = {
         await parseSSEStream(
           stream,
           (messageEvent) => {
-            if (controller.signal.aborted) return;
-            const data =
-              typeof messageEvent.data === "string"
-                ? JSON.parse(messageEvent.data)
-                : messageEvent.data;
-            if (messageEvent.type === "ping") return;
-            const seqFromId = /^\d+$/.test(messageEvent.lastEventId)
-              ? Number(messageEvent.lastEventId)
-              : undefined;
-            const withSeq =
-              data &&
-              typeof data === "object" &&
-              (data as { seq?: unknown }).seq == null &&
-              seqFromId !== undefined
-                ? { ...(data as Record<string, unknown>), seq: seqFromId }
-                : data;
-            onEvent({
-              type: messageEvent.type as SSEEventData["type"],
-              data: withSeq,
-            } as SSEEventData);
+            if (controller.signal.aborted || messageEvent.type === "ping") return;
+            // SSE 帧即事件信封：event 行为类型，data 行为带 seq 与 event_version 的数据
+            onEvent({type: messageEvent.type, data: messageEvent.data} as SSEEventData);
           },
           (error) => {
             if (!controller.signal.aborted && onError) {
@@ -247,7 +230,7 @@ export const sessionApi = {
 
   /**
    * 答复工具审批：approve 执行该调用一次，deny 回填“用户拒绝执行”。
-   * 已答复或已失效返回 409（ApiError.code 为 409），不会重复执行
+   * 已答复或已失效返回 409（ApiError.code 为 conflict），不会重复执行
    */
   replyApproval: (
     sessionId: string,

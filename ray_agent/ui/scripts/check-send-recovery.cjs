@@ -36,7 +36,7 @@ function load(relative) {
   return loaded.exports;
 }
 
-const {ApiError} = load('src/lib/api/fetch.ts');
+const {clientError, errorFromBody} = load('src/lib/api/fetch.ts');
 const {sessionApi} = load('src/lib/api/session.ts');
 const {readDraft, writeDraft, checkAcceptance, clearDraft} = load('src/lib/drafts.ts');
 const {sendRecoverably, recoverSubmission, UncertainSubmissionError} = load('src/lib/send-recovery.ts');
@@ -64,7 +64,7 @@ async function main() {
   let posts = 0;
   let gets = 0;
   sessionApi.getSessionDetail = async () => ++gets === 1 ? {last_seq: 5, events: []} : accepted;
-  sessionApi.chat = async () => {posts++; throw new ApiError(408, 'lost response');};
+  sessionApi.chat = async () => {posts++; throw clientError('timeout', 'lost response');};
   await sendRecoverably('s', 's1', payload);
   assert.equal(posts, 1);
   assert.equal(gets, 2);
@@ -79,7 +79,7 @@ async function main() {
 
   clearDraft('s');
   sessionApi.getSessionDetail = async () => ({last_seq: 5, events: []});
-  sessionApi.chat = async () => {posts++; throw new ApiError(502, 'gateway');};
+  sessionApi.chat = async () => {posts++; throw errorFromBody(502, '<html>gateway</html>');};
   await assert.rejects(sendRecoverably('s', 's1', payload), UncertainSubmissionError);
   assert.equal(readDraft('s').submission.state, 'unknown');
   assert.equal(posts, 2);
@@ -90,7 +90,7 @@ async function main() {
 
   clearDraft('s');
   sessionApi.getSessionDetail = async () => ({last_seq: 5, events: []});
-  sessionApi.chat = async () => {posts++; throw new ApiError(409, 'busy');};
+  sessionApi.chat = async () => {posts++; throw errorFromBody(409, {error: {code: 'conflict', message: 'busy', retryable: false, retry_after_ms: null, resource_version: null, details: {}}});};
   await assert.rejects(sendRecoverably('s', 's1', payload), /busy/);
   assert.equal(readDraft('s').submission, undefined);
   console.log('PASS: 明确 409 未受理，解除待核对状态，允许手动改稿重试');

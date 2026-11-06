@@ -308,7 +308,7 @@ def test_delta_sse_has_no_seq_and_is_not_replayed():
         delta_sse = to_session_sse(OutputDelta(session.id, "run-1", 3, 2, "你"))
         assert delta_sse.event == "delta" and not delta_sse.id
         assert json.loads(delta_sse.data) == {
-            "session_id": session.id, "run_id": "run-1", "turn": 3, "attempt": 2, "delta": "你",
+            "session_id": session.id, "run_id": "run-1", "turn": 3, "attempt": 2, "delta": "你", "event_version": 1,
         }
         stored = MessageEvent(role="assistant", message="你好", attempt=2)
         stored.seq, stored.run_id = message.seq, active.id

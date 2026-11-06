@@ -1,0 +1,14 @@
+# 构建上下文为 ray_agent/，只带入界面工程与契约生成结果
+*
+!ui/
+!contracts/generated/
+ui/node_modules/
+ui/.next/
+ui/.env
+ui/.env.*
+ui/**/*.log
+ui/.git/
+ui/.gitignore
+ui/.idea/
+ui/.vscode/
+ui/README.md

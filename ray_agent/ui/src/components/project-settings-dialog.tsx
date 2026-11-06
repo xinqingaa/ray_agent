@@ -28,7 +28,7 @@ export function ProjectSettingsDialog({id, onClose, onSaved, onReturnFocus}: {on
     if(!id || !project || saving || !dirty)return
     const token=epoch.current;setSaving(true);setError(null)
     try {const updated=await projectApi.update(id,{name:name.trim(),instructions:project.instructions,settings_version:project.settings_version});if(token===epoch.current){setProject(updated);setName(updated.name);onSaved();onClose()}}
-    catch(error){if(token===epoch.current){setError(error instanceof Error?error.message:'保存失败，草稿已保留');if(error instanceof ApiError && error.code===409){const latest=await projectApi.detail(id).catch(()=>null);if(latest && token===epoch.current){setProject(latest);setError(`设置已更新，最新名称为“${latest.name}”。你的名称草稿已保留，确认后可再次保存。`)}}}}
+    catch(error){if(token===epoch.current){setError(error instanceof Error?error.message:'保存失败，草稿已保留');if(error instanceof ApiError && error.code==='conflict'){const latest=await projectApi.detail(id).catch(()=>null);if(latest && token===epoch.current){setProject(latest);setError(`设置已更新，最新名称为“${latest.name}”。你的名称草稿已保留，确认后可再次保存。`)}}}}
     finally{if(token===epoch.current)setSaving(false)}
   }
   const archive = async () => {

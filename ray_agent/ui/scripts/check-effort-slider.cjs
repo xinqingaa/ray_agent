@@ -3,6 +3,7 @@ const fs=require('node:fs'),path=require('node:path'),assert=require('node:asser
 const React=require('react'),{create,act}=require('react-test-renderer');
 const root=path.resolve(__dirname,'..'),ts=require(root+'/node_modules/typescript');
 global.IS_REACT_ACT_ENVIRONMENT=true;
+global.window={matchMedia:()=>({matches:false}),addEventListener(){},removeEventListener(){},dispatchEvent(){},localStorage:{getItem:()=>null,setItem(){}}};
 const configApi={},sessionApi={},cache={};
 const ui=new Proxy({}, {get:(_,name)=>props=>React.createElement(name==='Button'?'button':name==='Input'?'input':'div',{...props,'data-component':name},props.children)});
 function load(file){

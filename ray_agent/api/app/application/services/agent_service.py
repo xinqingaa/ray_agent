@@ -16,6 +16,7 @@ from app.domain.external.sandbox import Sandbox, SandboxProjectBindingError
 from app.domain.external.search import SearchEngine
 from app.domain.external.task import Task
 from app.domain.models.app_config import AgentConfig, LLMConfig, MCPConfig, A2AConfig, ModelSampling, ToolPolicyConfig
+from app.domain.models.error import ErrorCode
 from app.domain.models.model_catalog import (
     choose_sampling, client_config, current_sampling, find_model, missing_reasoning, model_request,
     default_model, resolve_active, active_models,
@@ -462,7 +463,7 @@ class AgentService:
                         session_id=session.id, run_id=run_id)
                     return ToolResult(success=True, message='项目笔记已更新', data=data)
                 except AppException as exc:
-                    return ToolResult(success=False, message=str(exc), data=exc.data)
+                    return ToolResult(success=False, message=str(exc), data=exc.info.details or None)
             from app.application.services.skill_runtime import SkillRuntime
             skill_runtime = SkillRuntime(self._skills, run_id, sandbox) if self._skills else None
             task_runner = AgentTaskRunner(
@@ -1007,8 +1008,8 @@ class AgentService:
                 async with asyncio.timeout(MANUAL_COMPACT_TIMEOUT_SECONDS):
                     return await self._compact_session(session_id)
             except TimeoutError as exc:
-                raise AppException(code=504, status_code=504,
-                                   msg="摘要超过总期限，请核对最新操作状态和压缩记录后再决定是否重试") from exc
+                raise AppException(ErrorCode.TIMEOUT,
+                                   "摘要超过总期限，请核对最新操作状态和压缩记录后再决定是否重试") from exc
 
     async def _compact_session(self, session_id: str) -> ManualCompaction:
         """手动压缩：在没有活动运行时把较早的轮次替换为摘要，不新建运行、不改会话状态。
@@ -1051,8 +1052,8 @@ class AgentService:
             budget = compactor.fresh_budget()
             fixed = fixed_input_estimate(budget, messages, tools)
             if fixed.over_limit:
-                raise AppException(code=422, status_code=422, msg=FIXED_INPUT_GUIDANCE,
-                                   data={"reason": "context_limit", "fixed_input": fixed.as_dict()})
+                raise AppException(ErrorCode.CONTEXT_LIMIT, FIXED_INPUT_GUIDANCE,
+                                   details={"fixed_input": fixed.as_dict()})
             before = budget.estimate(messages, tools)
 
             async def load_user_events():
@@ -1063,8 +1064,8 @@ class AgentService:
             if result.status == CompactionStatus.SKIPPED:
                 return ManualCompaction(status="skipped", reason=result.reason)
             if result.status == CompactionStatus.FAILED:
-                raise AppException(code=502, status_code=502, msg=(
-                    f"摘要请求连续 {result.usage.attempts} 次失败或返回空内容，上下文没有改变"))
+                raise AppException(ErrorCode.UPSTREAM_ERROR, (
+                    f"摘要请求连续 {result.usage.attempts} 次失败或返回空内容，上下文没有改变"), retryable=True)
 
             memory.replace(result.messages)
 

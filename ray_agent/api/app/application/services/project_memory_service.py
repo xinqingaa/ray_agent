@@ -17,8 +17,8 @@ SUMMARY_FIELDS = ('summary', 'summary_source', 'summary_state', 'summary_error',
 
 class NotesConflict(ConflictError):
     def __init__(self, project):
-        super().__init__('项目笔记版本冲突，请按当前全文合并后重试')
-        self.data = dict(content=project.notes, notes_version=project.notes_version)
+        super().__init__('项目笔记版本冲突，请按当前全文合并后重试', resource_version=project.notes_version,
+                         details=dict(content=project.notes, notes_version=project.notes_version))
 
 
 class ProjectMemoryService:
