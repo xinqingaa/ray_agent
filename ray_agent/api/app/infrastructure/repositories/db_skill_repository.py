@@ -59,9 +59,7 @@ class DBSkillRepository:
 
     @asynccontextmanager
     async def transaction(self, run_id=None):
-        session = await self.database.open_write()
-        committed = False
-        try:
+        async with self.database.write_session() as session:
             if run_id is not None:
                 from app.infrastructure.models.run import RunModel
                 from app.domain.services.skill_packages import SkillError
@@ -69,6 +67,3 @@ class DBSkillRepository:
                 if run is None or run.status != 'running':
                     raise SkillError('所属运行已停止或不在执行中，本次写入未提交', 409)
             yield DBSkillTransaction(session)
-            committed = True
-        finally:
-            await self.database.close_write(session, commit=committed)

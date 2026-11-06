@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+import asyncio
 import json
 import logging
 from datetime import datetime, timezone
@@ -101,7 +102,7 @@ async def stream_sessions(
         limit: int = Query(default=50, ge=1, le=100),
         session_service: SessionService = Depends(get_session_service),
 ) -> EventSourceResponse:
-    """列表流：通知驱动，附带慢速兜底。"""
+    """列表流：通知驱动，附带慢速兜底。每次查询用一个短的只读工作单元，等待通知与推送时不持有连接。"""
 
     async def event_generator() -> AsyncGenerator[ServerSentEvent, None]:
         subscription = catalog_notifier().subscribe()

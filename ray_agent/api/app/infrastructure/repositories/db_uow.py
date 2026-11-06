@@ -1,6 +1,10 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""业务库工作单元：写事务经写协调器串行进入，只读事务使用读连接池。提交成功后才发布目录通知。"""
+"""业务库工作单元：写事务经写协调器串行进入，只读事务使用读连接池。提交成功后才发布目录通知。
+
+取消不会打断进行中的数据库调用，在下一个不访问数据库的等待点生效：在主体内生效则事务回滚，主体已经做完则照常提交后再交出取消。
+收尾总会做完：连接归还、写入权释放。
+"""
 import logging
 from typing import Optional
 
@@ -26,6 +30,7 @@ class DBUnitOfWork(IUnitOfWork):
         self.database = database
         self.readonly = readonly
         self.db_session: Optional[AsyncSession] = None
+        self._scope = None
 
     async def commit(self):
         if self.readonly:
@@ -44,8 +49,10 @@ class DBUnitOfWork(IUnitOfWork):
         take(self.db_session)
 
     async def __aenter__(self) -> "DBUnitOfWork":
-        session = await (self.database.open_read() if self.readonly else self.database.open_write())
-        self.db_session = session
+        scope = (self.database.read_session() if self.readonly
+                 else self.database.write_session(after_commit=lambda session: self._publish_catalog(take(session))))
+        session = await scope.__aenter__()
+        self._scope, self.db_session = scope, session
         self.skills = DBSkillTransaction(session)
         self.file = DBFileRepository(db_session=session)
         self.session = DBSessionRepository(db_session=session)
@@ -58,13 +65,8 @@ class DBUnitOfWork(IUnitOfWork):
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):
-        session, self.db_session = self.db_session, None
-        if session is None:
+        scope, self._scope, self.db_session = self._scope, None, None
+        if scope is None:
             return False
-        if self.readonly:
-            await self.database.close_read(session)
-            return False
-        hints = take(session) if exc_type is None else set()
-        await self.database.close_write(session, commit=exc_type is None)
-        self._publish_catalog(hints)
+        await scope.__aexit__(exc_type, exc_val, exc_tb)
         return False

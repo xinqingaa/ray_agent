@@ -14,11 +14,8 @@ class SQLiteHealthChecker(HealthChecker):
         try:
             if not self._database.ready:
                 return HealthStatus(service="sqlite", status="error", details="业务库未初始化")
-            session = await self._database.open_read()
-            try:
+            async with self._database.read_session() as session:
                 mode = (await session.execute(text("PRAGMA journal_mode"))).scalar_one()
-            finally:
-                await self._database.close_read(session)
             if str(mode).lower() != "wal":
                 return HealthStatus(service="sqlite", status="error", details=f"业务库日志模式异常：{mode}")
             return HealthStatus(service="sqlite", status="ok")

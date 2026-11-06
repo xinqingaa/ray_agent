@@ -162,10 +162,12 @@ class AgentService:
         self._web_reader = web_reader
         self._capabilities = capabilities
 
+    def _read_factory(self) -> Callable[[], IUnitOfWork]:
+        """只读工作单元的工厂；没有读连接池时退回普通工作单元。"""
+        return getattr(self, "_read_uow_factory", None) or self._uow_factory
+
     def _reader(self) -> IUnitOfWork:
-        """只读事务；没有读连接池时退回普通工作单元。"""
-        factory = getattr(self, "_read_uow_factory", None) or self._uow_factory
-        return factory()
+        return self._read_factory()()
 
     def _session_sampling(self, session: Session) -> Optional[ModelSampling]:
         if session.context_window is None or session.max_tokens is None or session.temperature is None:
@@ -602,7 +604,8 @@ class AgentService:
                 )
                 if provisional_title is not None:
                     from app.application.services.title_service import TitleService
-                    asyncio.create_task(TitleService(self._uow_factory, self._ledger, read_uow_factory=self._reader())
+                    asyncio.create_task(TitleService(self._uow_factory, self._ledger,
+                                                     read_uow_factory=self._read_factory())
                                         .auto_generate(session_id, message))
 
             self._schedule_start(session, run.id, prior_status)
@@ -692,6 +695,7 @@ class AgentService:
         """按 seq 推送 after_seq 之后的事件：先补查数据库，再订阅通知，订阅建立后再补查一次覆盖空档；
         订阅期间收到落库通知就按最后 seq 查库。没有通知时，有活动运行仍按短间隔查；连续空闲后改为长间隔。通知丢失时由这次查库补齐。
         文本增量随通知立刻交出，不查库、不分配 seq，重连不会补发。
+        每次查库用一个短的只读工作单元，读完即关；等待通知、sleep 与 yield 时不持有连接。
         不结束，由客户端断开。
         """
         set_log_session_id(session_id)

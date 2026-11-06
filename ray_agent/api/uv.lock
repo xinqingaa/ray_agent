@@ -118,6 +118,7 @@ dependencies = [
     { name = "a2a-sdk" },
     { name = "aiosqlite" },
     { name = "alembic" },
+    { name = "anyio" },
     { name = "async-lru" },
     { name = "beautifulsoup4" },
     { name = "defusedxml" },
@@ -153,8 +154,9 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "a2a-sdk", specifier = ">=1.1.2,<2" },
-    { name = "aiosqlite", specifier = ">=0.21" },
+    { name = "aiosqlite", specifier = ">=0.22,<0.23" },
     { name = "alembic", specifier = ">=1.16.5" },
+    { name = "anyio", specifier = ">=4.10" },
     { name = "async-lru", specifier = ">=2.0.5" },
     { name = "beautifulsoup4", specifier = ">=4.14.2" },
     { name = "defusedxml", specifier = ">=0.7.1,<1" },

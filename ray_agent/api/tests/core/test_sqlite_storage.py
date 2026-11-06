@@ -274,6 +274,30 @@ def test_double_request_race_accepts_once_and_conflicts_on_different_content(tmp
     with_database(tmp_path, scenario)
 
 
+def test_first_message_title_reads_config_through_the_service_factories(tmp_path, monkeypatch):
+    from app.application.services import title_service
+    loaded = []
+
+    async def auto_generate(self, session_id, first_message):
+        loaded.append((await self._config()).llm_config.model_name)
+
+    monkeypatch.setattr(title_service.TitleService, "auto_generate", auto_generate)
+
+    async def scenario(uow_factory, read_factory, database):
+        session = await new_session(uow_factory)
+        service = service_for(uow_factory, read_factory, RunLedger(uow_factory, MemoryNotifier()))
+        service._create_task = AsyncMock(return_value=SimpleNamespace(invoke=AsyncMock(), cancel=lambda: True))
+        await service.chat(session.id, "第一条消息")
+        for start in list(pending_starts().values()):
+            await start.worker
+        for _ in range(50):
+            if loaded:
+                break
+            await asyncio.sleep(0.02)
+        assert loaded == ["deepseek-flash"]
+    with_database(tmp_path, scenario)
+
+
 # 崩溃窗口：输入受理与消费之间 ------------------------------------------------------
 
 def test_crash_between_acceptance_and_consumption_keeps_input_visible_and_resumable(tmp_path):
