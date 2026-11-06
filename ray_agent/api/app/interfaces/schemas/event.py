@@ -347,22 +347,9 @@ class AttemptSSEEvent(BaseSSEEvent):
     data: AttemptEventData
 
 
-class ProjectNotesEventData(BaseEventData):
-    project_id: str
-    content: str
-    notes_version: int
-    source: Literal['user', 'agent']
-
-
-class ProjectNotesSSEEvent(BaseSSEEvent):
-    event: Literal['project_notes'] = 'project_notes'
-    data: ProjectNotesEventData
-
-
 class EnvironmentEventData(BaseEventData):
     status: Literal["preparing", "ready"]
     message: Optional[str] = None
-    project_file_protection: Optional[Dict[str, Any]] = None
 
 
 class EnvironmentSSEEvent(BaseSSEEvent):
@@ -474,7 +461,6 @@ SESSION_EVENT_CLASSES: tuple[Type[BaseSSEEvent], ...] = (
     AttemptSSEEvent,
     RunSSEEvent,
     EnvironmentSSEEvent,
-    ProjectNotesSSEEvent,
     ContextSSEEvent,
     CompactSSEEvent,
     CleanupSSEEvent,

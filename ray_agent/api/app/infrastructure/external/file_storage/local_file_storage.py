@@ -1,10 +1,14 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+"""数据根中的内容对象。
+
+字节先写入临时文件并计算摘要，改名发布后再由短事务登记元数据；登记失败只留下可辨认的孤立对象，不会出现有记录
+却没有字节的文件。对象按文件身份存放，删除会话或清空数据时由清理任务按登记清单回收。
+"""
+import hashlib
 import logging
-import os.path
-import shutil
+import os
 import uuid
-from datetime import datetime
 from pathlib import Path
 from typing import BinaryIO, Callable, Tuple
 
@@ -19,93 +23,70 @@ logger = logging.getLogger(__name__)
 
 
 class LocalFileStorage(FileStorage):
-    """基于本地磁盘的文件存储"""
 
-    def __init__(
-            self,
-            root_dir: str,
-            uow_factory: Callable[[], IUnitOfWork],
-    ) -> None:
-        """构造函数，完成本地目录与仓库初始化"""
-        self._root = Path(root_dir)
+    def __init__(self, objects_dir: Path, tmp_dir: Path, uow_factory: Callable[[], IUnitOfWork]) -> None:
+        self._root = Path(objects_dir)
+        self._tmp = Path(tmp_dir)
         self._uow_factory = uow_factory
-        self._uow = uow_factory()
 
-    def _resolve_key_path(self, key: str) -> Path:
-        """将存储key解析为根目录下的绝对路径，并拒绝目录穿越"""
+    def object_path(self, key: str) -> Path:
         root = self._root.resolve()
         path = (root / key).resolve()
-        if not path.is_relative_to(root):
-            raise ValueError(f"非法的文件存储路径: {key}")
+        if not path.is_relative_to(root) or path == root:
+            raise ValueError(f"非法的内容对象位置: {key}")
         return path
 
-    async def upload_file(self, upload_file: UploadFile, *, visual: dict | None = None) -> File:
-        """根据传递的文件源将文件写入本地磁盘"""
+    def _publish(self, source: BinaryIO, key: str) -> Tuple[int, str]:
+        self._tmp.mkdir(parents=True, exist_ok=True)
+        target = self.object_path(key)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        partial = self._tmp / f"{uuid.uuid4().hex}.part"
+        digest, size = hashlib.sha256(), 0
         try:
-            file_id = str(uuid.uuid4())
-            filename = upload_file.filename or file_id
-            _, file_extension = os.path.splitext(filename)
-            if not file_extension:
-                file_extension = ""
+            with partial.open("wb") as output:
+                while chunk := source.read(1024 * 1024):
+                    output.write(chunk)
+                    digest.update(chunk)
+                    size += len(chunk)
+                output.flush()
+                os.fsync(output.fileno())
+            os.replace(partial, target)
+        finally:
+            partial.unlink(missing_ok=True)
+        return size, digest.hexdigest()
 
-            date_path = datetime.now().strftime("%Y/%m/%d")
-            storage_key = f"{date_path}/{file_id}{file_extension}"
-            dest = self._resolve_key_path(storage_key)
-            dest.parent.mkdir(parents=True, exist_ok=True)
-
-            if visual:
-                # 先登记归属，上传取消或写入失败也能由到期回收处理。
-                pending = File(id=file_id, filename=filename, key=storage_key, extension=file_extension,
-                    mime_type=upload_file.content_type or '', size=upload_file.size or visual.get('size', 0),
-                    sha256=visual.get('sha256'), visual=visual)
-                async with self._uow_factory() as uow:
-                    await uow.file.save(pending)
-
-            def _write() -> int:
-                with dest.open("wb") as output:
-                    shutil.copyfileobj(upload_file.file, output)
-                return dest.stat().st_size
-
-            written_size = await run_in_threadpool(_write)
-            logger.info(f"文件上传成功: {filename} (ID: {file_id})")
-
-            file = File(
-                visual=visual,
-                sha256=visual.get("sha256") if visual else None,
-                id=file_id,
-                filename=filename,
-                key=storage_key,
-                extension=file_extension,
-                mime_type=upload_file.content_type or "",
-                size=upload_file.size or written_size,
-            )
-            async with self._uow:
-                await self._uow.file.save(file)
-
-            return file
-        except Exception as e:
-            logger.error(f"上传文件[{upload_file.filename}]失败: {str(e)}")
-            raise
+    async def upload_file(self, upload_file: UploadFile, *, visual: dict | None = None,
+                          session_id: str | None = None) -> File:
+        file_id = str(uuid.uuid4())
+        filename = upload_file.filename or file_id
+        _, extension = os.path.splitext(filename)
+        key = f"{file_id[:2]}/{file_id}"
+        owner = session_id or (visual or {}).get("session_id")
+        file = File(id=file_id, filename=filename, key=key, extension=extension or "",
+                    mime_type=upload_file.content_type or "", size=upload_file.size or 0,
+                    sha256=(visual or {}).get("sha256"), visual=visual, session_id=owner)
+        if visual:
+            # 先登记归属，写入失败或被取消时到期回收仍能找到它。
+            async with self._uow_factory() as uow:
+                await uow.file.save(file)
+        size, digest = await run_in_threadpool(self._publish, upload_file.file, key)
+        file.size, file.sha256 = size, digest
+        async with self._uow_factory() as uow:
+            await uow.file.save(file)
+        logger.info(f"文件已保存为内容对象: {filename} (ID: {file_id})")
+        return file
 
     async def download_file(self, file_id: str) -> Tuple[BinaryIO, File]:
-        """根据文件id查询数据并打开本地文件"""
-        try:
-            async with self._uow:
-                file = await self._uow.file.get_by_id(file_id)
-            if not file:
-                raise ValueError(f"该文件不存在, 文件id: {file_id}")
-
-            path = self._resolve_key_path(file.key)
-            if not path.is_file():
-                raise ValueError(f"本地文件不存在, 文件id: {file_id}")
-
-            return path.open("rb"), file
-        except Exception as e:
-            logger.error(f"下载文件[{file_id}]失败: {str(e)}")
-            raise
+        async with self._uow_factory() as uow:
+            file = await uow.file.get_by_id(file_id)
+        if not file:
+            raise ValueError(f"该文件不存在, 文件id: {file_id}")
+        path = self.object_path(file.key)
+        if not path.is_file():
+            raise ValueError(f"内容对象不存在, 文件id: {file_id}")
+        return path.open("rb"), file
 
     def get_file_url(self, file: File) -> str:
-        """返回经 API 下载接口访问的相对地址"""
         return f"/api/files/{file.id}/download"
 
     async def delete_visual_file(self, file: File) -> None:
@@ -115,5 +96,8 @@ class LocalFileStorage(FileStorage):
 
     async def delete_file(self, file: File) -> None:
         if not file.key:
-            raise ValueError('缺少文件存储位置')
-        await run_in_threadpool(self._resolve_key_path(file.key).unlink, missing_ok=True)
+            raise ValueError('缺少内容对象位置')
+        await run_in_threadpool(self.remove_key, file.key)
+
+    def remove_key(self, key: str) -> None:
+        self.object_path(key).unlink(missing_ok=True)

@@ -10,6 +10,21 @@ class SkillTool(BaseTool):
         super().__init__()
         self.runtime = runtime
 
+    def _materials_unavailable(self) -> bool:
+        """运行没有执行环境时不提供材料准备，目录与正文读取照常。"""
+        return self.runtime is not None and getattr(self.runtime, 'sandbox', None) is None
+
+    def get_tools(self):
+        tools = super().get_tools()
+        if self._materials_unavailable():
+            return [t for t in tools if t['function']['name'] != 'prepare_skill_resources']
+        return tools
+
+    def has_tool(self, tool_name: str) -> bool:
+        if tool_name == 'prepare_skill_resources' and self._materials_unavailable():
+            return False
+        return super().has_tool(tool_name)
+
     async def invoke_for_call(self, tool_name, call_id, **kwargs):
         if tool_name == 'install_skill':
             return await self.runtime.install(kwargs['source_url'], kwargs.get('candidate_path'),
@@ -26,7 +41,7 @@ class SkillTool(BaseTool):
     async def read_skill_resource(self, name, path, start_line=1, end_line=None):
         return await self.runtime.resource(name, path, start_line, end_line)
 
-    @tool('prepare_skill_resources', '将已加载 Skill 的完整包准备到本运行沙箱目录，完整校验后返回路径；不安装依赖或执行脚本。',
+    @tool('prepare_skill_resources', '将已加载 Skill 的完整包准备到本运行的执行环境目录，完整校验后返回路径；不安装依赖或执行脚本。',
           {'name': {'type': 'string'}}, ['name'])
     async def prepare_skill_resources(self, name):
         return await self.runtime.prepare(name)

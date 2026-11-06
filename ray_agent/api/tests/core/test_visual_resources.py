@@ -196,11 +196,11 @@ def test_owned_temporary_file_gc_protects_active_runs_and_keeps_metadata(tmp_pat
             async def __aenter__(self): return self
             async def __aexit__(self,*args): pass
         uow = Uow()
-        storage = LocalFileStorage(str(tmp_path),lambda:uow)
+        storage = LocalFileStorage(tmp_path/'objects', tmp_path/'tmp', lambda:uow)
         visual = {**ref(), 'temporary':True,'expires_at':1,'deleted_at':None}
         file = await storage.upload_file(UploadFile(filename='image.png',file=io.BytesIO(b'pixels'),size=6),visual=visual)
         assert await expire_visual_artifacts(lambda:uow,storage,now=2)==[]
-        assert storage._resolve_key_path(file.key).exists()
+        assert storage.object_path(file.key).exists()
         uow.run.get.return_value = SimpleNamespace(status='completed')
         original_delete = storage.delete_visual_file
         storage.delete_visual_file = AsyncMock(side_effect=OSError('controlled delete failure'))
@@ -208,7 +208,7 @@ def test_owned_temporary_file_gc_protects_active_runs_and_keeps_metadata(tmp_pat
         assert files[file.id].visual['deleted_at'] is None
         storage.delete_visual_file = original_delete
         assert await expire_visual_artifacts(lambda:uow,storage,now=2)==[file.id]
-        assert not storage._resolve_key_path(file.key).exists()
+        assert not storage.object_path(file.key).exists()
         assert files[file.id].visual['deleted_at']==2
         with pytest.raises(ValueError):
             await storage.delete_visual_file(File(id='permanent',key='do-not-delete'))
@@ -272,35 +272,6 @@ def test_current_images_never_silently_dropped_and_old_pixels_retire_first():
     assert len(list(image_refs(messages))) == 2
 
 
-def test_lazy_application_late_resource_is_destroyed_without_changing_new_owner():
-    from tests.core.test_task_execution_control import make_service
-    from app.domain.models.run import RunStatus
-    async def scenario():
-        h = make_loop([])
-        service = make_service(h)
-        accepted = await h.ledger.start(h.session.id)
-        gate, entered = asyncio.Event(), asyncio.Event()
-        box = SimpleNamespace(id='late', ensure_sandbox=AsyncMock(), destroy=AsyncMock())
-        async def create(**kwargs):
-            entered.set()
-            await gate.wait()
-            return box
-        service._sandbox_cls = SimpleNamespace(create=create)
-        worker = asyncio.create_task(service._acquire_independent_sandbox(h.session, accepted.id))
-        await entered.wait()
-        await h.ledger.transition(h.session.id, accepted.id, RunStatus.CANCELLED)
-        newer = await h.ledger.start(h.session.id)
-        h.session.sandbox_id = 'new-owner'
-        gate.set()
-        with pytest.raises(asyncio.CancelledError):
-            await worker
-        box.destroy.assert_awaited_once()
-        assert h.session.sandbox_id == 'new-owner'
-        assert h.runs[newer.id].status == RunStatus.RUNNING
-        assert not [e for e in h.events if e.type == 'environment' and e.status == 'ready']
-    run(scenario())
-
-
 def test_visual_request_rebuild_preserves_manifest_and_tool_definitions():
     from app.domain.models.event import ContextEvent, ContextOp, TurnEvent, TurnPhase
     from app.domain.models.run import Run
@@ -316,23 +287,3 @@ def test_visual_request_rebuild_preserves_manifest_and_tool_definitions():
     assert 'base64' not in json.dumps(rebuilt.messages)
 
 
-def test_attachments_and_large_output_acquire_lazy_resource_once():
-    from tests.core.test_w10_project_session import _runner
-    from tests.support.loop_harness import InMemorySandbox
-    from app.domain.services.context.shaping import ResultShaper
-    from app.domain.services.flows.tool_pipeline import ToolInvocation
-    async def scenario():
-        box = InMemorySandbox()
-        box.upload_file = AsyncMock(return_value=ToolResult())
-        factory = AsyncMock(return_value=box)
-        lazy = LazySandbox(factory)
-        storage = SimpleNamespace(download_file=AsyncMock(return_value=(io.BytesIO(b'input'),File(filename='input.txt'))))
-        runner = _runner(lazy,storage,workspace_dir=None)
-        await runner._sync_file_to_sandbox('input')
-        shaper = next(h for h in runner._flow.pipeline._after if isinstance(h,ResultShaper))
-        invocation = ToolInvocation(call_id='large',function_name='web_search',raw_arguments='{}')
-        await shaper(invocation,ToolResult(message='x'*20000))
-        assert invocation.shaping.full_output_path in box.files
-        factory.assert_awaited_once()
-        box.upload_file.assert_awaited_once()
-    run(scenario())

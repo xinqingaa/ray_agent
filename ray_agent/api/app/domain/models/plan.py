@@ -54,7 +54,6 @@ class Artifact(BaseModel):
     delivered_version: Optional[str] = None
     file_id: Optional[str] = None
     delivered_file: Optional[dict] = None
-    delivery_project: Optional[dict] = None
     state: Literal["pending", "generated", "delivered", "failed"] = "pending"
     error: Optional[str] = None
     final_scope: Optional[str] = None

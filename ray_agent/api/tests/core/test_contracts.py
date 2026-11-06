@@ -20,7 +20,7 @@ from app.domain.models.event import Event, MessageEvent, ToolEvent
 from app.domain.models.health_status import HealthStatus
 from app.domain.models.identity import RelativePath, RootKind, RootRef, RootedPath, relative_parts
 from app.domain.models.operation import Operation, OperationKind, OperationScope, OperationStatus
-from app.domain.services.project_transactions import ProjectRunConflict
+from app.infrastructure.storage.sqlite import DatabaseBusyError
 from app.domain.services.skill_packages import SkillError
 from app.interfaces.endpoints.session_routes import to_session_sse
 from app.interfaces.errors.exception_handlers import HTTP_STATUS, register_exception_handlers
@@ -83,9 +83,9 @@ def error_app() -> TestClient:
     async def skill():
         raise SkillError("上传过大", 413)
 
-    @app.get("/project")
-    async def project():
-        raise ProjectRunConflict("项目被占用", "session-9")
+    @app.get("/database-busy")
+    async def database_busy():
+        raise DatabaseBusyError("业务库被其他连接占用，请稍后重试")
 
     @app.post("/body")
     async def body(payload: Body):
@@ -105,7 +105,7 @@ def test_every_failure_is_one_structured_error_shape():
         ("get", "/stale"): (409, "conflict"),
         ("get", "/busy"): (429, "rate_limited"),
         ("get", "/skill"): (413, "payload_too_large"),
-        ("get", "/project"): (409, "conflict"),
+        ("get", "/database-busy"): (503, "unavailable"),
         ("post", "/body"): (422, "validation_failed"),
         ("get", "/no-such-route"): (404, "not_found"),
         ("post", "/missing"): (405, "method_not_allowed"),
@@ -123,7 +123,8 @@ def test_every_failure_is_one_structured_error_shape():
     assert stale_error["retryable"] is False
     busy = client.get("/busy")
     assert busy.json()["error"]["retryable"] is True and busy.headers["retry-after"] == "2"
-    assert client.get("/project").json()["error"]["details"] == {"occupying_session_id": "session-9"}
+    database_busy = client.get("/database-busy")
+    assert database_busy.json()["error"]["retryable"] is True and database_busy.headers["retry-after"] == "1"
     assert client.post("/body", json={"count": "x"}).json()["error"]["details"]["errors"][0]["loc"] == ["body", "count"]
 
 
@@ -157,22 +158,13 @@ def test_sse_frames_are_the_envelope_with_version_and_sequence():
     assert TypeAdapter(list[SessionEvent]).validate_python([item.model_dump() for item in detail])[1].data.seq == 8
 
 
-def test_capabilities_report_sandbox_and_unimplemented_features():
-    async def available():
-        return None
-
-    async def docker_down():
-        return "Docker 不可用，沙箱无法创建"
-
-    current = asyncio.run(CapabilityService(available).current())
+def test_capabilities_report_execution_closed_until_ports_and_unimplemented_features():
+    current = asyncio.run(CapabilityService().current())
     assert [item.capability for item in current] == list(Capability)
     by_name = {item.capability: item for item in current}
-    assert by_name[Capability.FILE_ACCESS].state is CapabilityState.AVAILABLE
-    for name in (Capability.FULL_TEXT_SEARCH, Capability.SEMANTIC_INDEX, Capability.OCR, Capability.REMOTE_CONTROL):
+    for name in Capability:
+        assert by_name[name].state is CapabilityState.UNAVAILABLE and by_name[name].detail
         assert by_name[name].reason is UnavailableReason.NOT_IMPLEMENTED and by_name[name].recoverable is False
-    down = {item.capability: item for item in asyncio.run(CapabilityService(docker_down).current())}
-    assert down[Capability.BROWSER].reason is UnavailableReason.DEPENDENCY_UNAVAILABLE
-    assert down[Capability.BROWSER].recoverable is True and "Docker" in down[Capability.BROWSER].detail
     with pytest.raises(ValidationError):
         CapabilityStatus(capability=Capability.OCR, state=CapabilityState.UNAVAILABLE)
     with pytest.raises(ValidationError):
@@ -230,22 +222,20 @@ def test_handshake_is_discriminated_and_launch_is_validated():
         CoreLaunch.model_validate_json('{"env_files": []}')
 
 
-def test_status_route_reports_degraded_services_without_failing():
+def test_status_route_reports_degraded_services_without_failing(monkeypatch):
+    from app.interfaces import core_descriptor
     from app.interfaces.endpoints import status_routes
+    monkeypatch.setattr(core_descriptor, "_storage", None)
     from app.interfaces.service_dependencies import get_capability_service, get_status_service
 
     class Checks:
         async def check_all(self):
-            return [HealthStatus(service="postgres", status="ok"),
-                    HealthStatus(service="redis", status="error", details="连接被拒绝")]
-
-    async def no_problem():
-        return None
+            return [HealthStatus(service="sqlite", status="error", details="业务库未初始化")]
 
     app = FastAPI()
     app.include_router(status_routes.router, prefix="/api")
     app.dependency_overrides[get_status_service] = lambda: Checks()
-    app.dependency_overrides[get_capability_service] = lambda: CapabilityService(no_problem)
+    app.dependency_overrides[get_capability_service] = lambda: CapabilityService()
     response = TestClient(app).get("/api/status")
     status = response.json()["data"]
     assert response.status_code == 200 and status["healthy"] is False

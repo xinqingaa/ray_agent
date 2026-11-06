@@ -1,36 +1,33 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 from functools import lru_cache
-from typing import Literal, Optional
+from typing import Optional
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    """MoocManus后端中控配置信息，从.env或者环境变量中加载数据"""
+    """核心的系统配置，只从进程环境读取；环境文件由启动参数显式叠加，不按当前目录查找。"""
 
     # 项目基础配置
     env: str = "development"
     log_level: str = "INFO"
     sqlalchemy_echo: bool = False  # 对应 SQLALCHEMY_ECHO，默认关闭 SQL 回显
-    app_config_filepath: str = "config.yaml"
 
-    # 数据库相关配置
-    sqlalchemy_database_uri: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/manus"
+    # 数据根：业务库、内容对象、会话工作目录与 skill 存储都在其中，由启动参数传入
+    data_root: Optional[str] = Field(default=None, validation_alias="RAYAGENT_DATA_ROOT")
 
-    # Redis缓存配置
-    redis_host: str = "localhost"
-    redis_port: int = 6379
-    redis_db: int = 0
-    redis_password: str | None = None
+    # 业务库：写协调器独占一条写连接，读取走连接池
+    sqlite_busy_timeout_ms: int = Field(default=5000, gt=0)
+    sqlite_begin_attempts: int = Field(default=3, ge=1)
+    sqlite_read_pool_size: int = Field(default=4, ge=1)
 
-    # 文件存储：local 写本地磁盘，cos 使用腾讯云对象存储
-    file_storage_backend: Literal["local", "cos"] = "local"
-    file_storage_local_dir: str = "data/files"
+    # 后台任务
+    background_job_concurrency: int = Field(default=2, ge=1)
+    background_job_poll_seconds: float = Field(default=30, gt=0)
 
-    # skill 独立于附件与项目存储。
-    skill_storage_dir: str = "data/skills"
+    # skill 存储在数据根的 skills 目录
     skill_download_bytes: int = Field(default=20 * 1024 * 1024, gt=0)
     skill_package_bytes: int = Field(default=50 * 1024 * 1024, gt=0)
     skill_file_bytes: int = Field(default=5 * 1024 * 1024, gt=0)
@@ -45,15 +42,7 @@ class Settings(BaseSettings):
     skill_fetch_seconds: int = Field(default=90, gt=0)
     skill_preview_seconds: int = Field(default=3600, gt=0)
 
-    # Cos腾讯云对象存储配置（仅 file_storage_backend=cos 时必填）
-    cos_secret_id: str = ""
-    cos_secret_key: str = ""
-    cos_region: str = ""
-    cos_scheme: str = "https"
-    cos_bucket: str = ""
-    cos_domain: str = ""
-
-    # Sandbox配置
+    # Docker 沙箱适配保留到本机执行端口接入，核心不再装配它
     sandbox_address: Optional[str] = None
     sandbox_image: Optional[str] = None
     sandbox_name_prefix: Optional[str] = None
@@ -63,26 +52,11 @@ class Settings(BaseSettings):
     sandbox_https_proxy: Optional[str] = None
     sandbox_http_proxy: Optional[str] = None
     sandbox_no_proxy: Optional[str] = None
-    # 动态沙箱的 cgroup 上限。已有沙箱地址模式不创建容器，这些值不生效
     sandbox_memory_mb: int = 2048
     sandbox_cpus: float = 2
     sandbox_pids_limit: int = 512
 
-    # 仅宿主机开发 API 的托管存储回退；产品 Compose 自动解析命名卷。
-    project_local_bind: Optional[str] = None
-    project_uid: int = 1000
-    project_gid: int = 1000
-    project_upload_max_bytes: int = Field(default=200 * 1024 * 1024, gt=0)
-    project_upload_max_files: int = Field(default=2000, gt=0)
-    project_file_max_bytes: int = Field(default=50 * 1024 * 1024, gt=0)
-    project_max_bytes: int = Field(default=500 * 1024 * 1024, gt=0)
-
-    # 使用pydantic v2的写法来完成环境变量信息的告知
-    model_config = SettingsConfigDict(
-        env_file=".env",
-        env_file_encoding="utf-8",
-        extra="ignore",
-    )
+    model_config = SettingsConfigDict(extra="ignore", populate_by_name=True)
 
     @field_validator("sandbox_memory_mb", "sandbox_pids_limit")
     @classmethod
@@ -98,36 +72,7 @@ class Settings(BaseSettings):
             raise ValueError("沙箱 CPU 上限必须为正数")
         return value
 
-    @field_validator("file_storage_backend", mode="before")
-    @classmethod
-    def normalize_file_storage_backend(cls, value):
-        """空值回落到本地磁盘，显式取值统一为小写。"""
-        if value is None or (isinstance(value, str) and not value.strip()):
-            return "local"
-        if isinstance(value, str):
-            return value.strip().lower()
-        return value
-
-    @model_validator(mode="after")
-    def validate_file_storage(self):
-        """云端模式必须提供腾讯云 COS 访问配置。"""
-        if self.file_storage_backend == "cos":
-            missing = [
-                name for name, value in (
-                    ("COS_SECRET_ID", self.cos_secret_id),
-                    ("COS_SECRET_KEY", self.cos_secret_key),
-                    ("COS_REGION", self.cos_region),
-                    ("COS_BUCKET", self.cos_bucket),
-                )
-                if not value
-            ]
-            if missing:
-                raise ValueError(f"FILE_STORAGE_BACKEND=cos 时必须配置: {', '.join(missing)}")
-        return self
-
 
 @lru_cache()
 def get_settings() -> Settings:
-    """获取当前MoocManus项目的配置信息，并对内容进行缓存，避免重复读取"""
-    settings = Settings()
-    return settings
+    return Settings()

@@ -19,11 +19,10 @@ from app.domain.models.run import RunStatus
 from app.domain.models.session import Session
 from app.domain.services.request_rebuild import rebuild_request
 from app.domain.services.run_ledger import RunLedger
-from app.infrastructure.external.task import redis_stream_task as task_module
+from app.infrastructure.external.task.local_task import LocalRunTask
 from app.interfaces.endpoints.session_routes import to_session_sse
 from tests.support.loop_harness import (
     MemoryNotifier,
-    MemoryQueue,
     input_task,
     make_loop,
     make_runner,
@@ -199,9 +198,7 @@ def test_rebuild_ignores_attempt_events():
     run(scenario())
 
 
-def test_stop_during_stream_persists_cancelled_attempt(monkeypatch):
-    monkeypatch.setattr(task_module, "RedisStreamMessageQueue", MemoryQueue)
-
+def test_stop_during_stream_persists_cancelled_attempt():
     async def scenario():
         hold = asyncio.Event()
         h = make_loop([ScriptedResponse(
@@ -214,10 +211,9 @@ def test_stop_during_stream_persists_cancelled_attempt(monkeypatch):
         service._uow = service._uow_factory()
         service._ledger = h.ledger
         service._notifier = h.notifier
-        task = task_module.RedisStreamTask(None)
-        active = await start_run(h, task, "生成中停止")
+        active = await start_run(h, input_task(), "生成中停止")
         runner = make_runner(h, run=active)
-        task._task_runner = runner
+        task = LocalRunTask(runner)
         service._get_task = AsyncMock(return_value=task)
         await task.invoke()
         for _ in range(50):

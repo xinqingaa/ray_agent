@@ -10,8 +10,6 @@ from app.domain.models.event import TitleEvent
 from app.domain.repositories.uow import IUnitOfWork
 from app.domain.services.run_ledger import RunLedger
 from app.infrastructure.external.llm.openai_llm import OpenAILLM
-from app.infrastructure.repositories.file_app_config_repository import FileAppConfigRepository
-from core.config import get_settings
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +44,9 @@ def generated_title(value: str) -> str:
 
 
 class TitleService:
-    def __init__(self, uow_factory: Callable[[], IUnitOfWork], ledger: RunLedger) -> None:
+    def __init__(self, uow_factory: Callable[[], IUnitOfWork], ledger: RunLedger, load_config=None) -> None:
+        """load_config 返回当前应用配置；为空时读取业务库中的配置。"""
+        self._load_config = load_config
         self._uow_factory = uow_factory
         self._ledger = ledger
 
@@ -56,6 +56,13 @@ class TitleService:
         if session is None:
             raise NotFoundError("该会话不存在")
         return session
+
+    async def _config(self):
+        if self._load_config is not None:
+            return await self._load_config()
+        from app.infrastructure.repositories.db_app_config_repository import DBAppConfigRepository
+        from app.infrastructure.storage.sqlite import get_read_uow, get_uow
+        return await DBAppConfigRepository(get_uow, get_read_uow).load()
 
     async def suggest(self, session_id: str, source: str | None = None) -> str:
         session = await self._session(session_id)
@@ -72,7 +79,7 @@ class TitleService:
         if not material:
             raise BadRequestError("会话还没有消息")
         from app.domain.models.model_catalog import auxiliary_call
-        config = FileAppConfigRepository(get_settings().app_config_filepath).load().llm_config
+        config = (await self._config()).llm_config
         short_config, thinking, effort = auxiliary_call(
             config, max_tokens=256, temperature=0.2, timeout=20)
         prompt = (

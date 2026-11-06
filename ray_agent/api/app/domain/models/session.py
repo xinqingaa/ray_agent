@@ -7,9 +7,9 @@ from typing import Optional, List, Dict
 
 from pydantic import BaseModel, Field
 
+from .clock import utc_now
 from .file import File
 from .memory import Memory
-from .workspace_project import WorkspaceProject, ProjectTaskSnapshot
 
 
 class SessionStatus(str, Enum):
@@ -20,7 +20,7 @@ class SessionStatus(str, Enum):
     COMPLETED = "completed"  # 最新运行正常结束
     FAILED = "failed"  # 最新运行失败，同一会话可再发消息
     CANCELLED = "cancelled"  # 最新运行被用户停止
-    INTERRUPTED = "interrupted"  # 最新运行因 API 重启中断
+    INTERRUPTED = "interrupted"  # 最新运行因核心重启中断
 
 
 DEFAULT_SESSION_TITLE = "新对话"  # 创建会话时的占位标题，Agent 循环首次运行时替换
@@ -29,23 +29,12 @@ DEFAULT_SESSION_TITLE = "新对话"  # 创建会话时的占位标题，Agent �
 class Session(BaseModel):
     """会话领域模型；事件与运行分别存放在 events、runs 表，不在会话行上。"""
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))  # 会话id
-    sandbox_id: Optional[str] = None  # 沙箱id
-    project_id: Optional[str] = None
-    project: Optional[WorkspaceProject] = Field(default=None, exclude=True)  # 仓库装配；只保存项目归属
-    project_snapshot: Optional[ProjectTaskSnapshot] = None  # 最新新 run 受理快照；各 run 冻结全文另保存在运行快照
-    task_id: Optional[str] = None  # 任务id
     title: str = ""  # 标题
     model_id: Optional[str] = None  # 厂商模型 id；空则在已知厂商上用目录默认
     reasoning: Optional[str] = None  # 思考参数原词，如 disabled / high
     context_window: Optional[int] = None  # 第一次运行时记下的上下文窗口；空表示还没记下
     max_tokens: Optional[int] = None  # 同时记下的单次回复上限，不含思考时临时抬高的部分
     temperature: Optional[float] = None  # 同时记下的温度
-    summary: Optional[str] = None
-    summary_source: Optional[str] = None
-    summary_state: str = 'idle'
-    summary_error: Optional[str] = None
-    summary_generation: int = 0
-    summary_source_seq: int = 0
     title_source: str = "placeholder"  # placeholder / provisional / auto / manual
     unread_message_count: int = 0  # 用户尚未查看的已完成运行数，打开会话时清零
     latest_message: str = ""  # 最新消息
@@ -53,5 +42,5 @@ class Session(BaseModel):
     files: List[File] = Field(default_factory=list)  # 文件列表
     memories: Dict[str, Memory] = Field(default_factory=dict)  # 记忆
     status: SessionStatus = SessionStatus.PENDING  # 状态
-    updated_at: datetime = Field(default_factory=datetime.now)  # 更新时间
-    created_at: datetime = Field(default_factory=datetime.now)  # 创建时间
+    updated_at: datetime = Field(default_factory=utc_now)  # 更新时间
+    created_at: datetime = Field(default_factory=utc_now)  # 创建时间

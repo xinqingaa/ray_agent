@@ -8,6 +8,7 @@ from typing import Literal, List, Union, Optional, Any, Dict, Annotated
 
 from pydantic import field_validator, BaseModel, Field, PrivateAttr
 
+from .clock import utc_now
 from .file import File
 from .plan import Plan, Step
 from .plan_acceptance import PlanAcceptance
@@ -39,7 +40,7 @@ class BaseEvent(BaseModel):
     """基础事件类型。seq 与 run_id 由事件仓库在写入时赋值，数据库是事实源。"""
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))  # 事件id
     type: Literal[""] = ""  # 事件的类型
-    created_at: datetime = Field(default_factory=datetime.now)  # 事件创建时间，毫秒精度落库
+    created_at: datetime = Field(default_factory=utc_now)  # 事件创建时间，UTC，毫秒精度落库
     seq: Optional[int] = None  # 会话内序号，从 1 递增
     run_id: Optional[str] = None  # 所属运行；用户消息属于它触发的运行
 
@@ -192,8 +193,8 @@ class ApprovalEvent(BaseEvent):
         return self.model_copy(update={
             "id": str(uuid.uuid4()),
             "status": status,
-            "decided_at": datetime.now(),
-            "created_at": datetime.now(),
+            "decided_at": utc_now(),
+            "created_at": utc_now(),
             "seq": None,
         }, deep=True)
 
@@ -294,6 +295,8 @@ class ContextEvent(BaseEvent):
     plan_check: Optional[Literal["scope", "notice", "corrected"]] = None
     op: ContextOp = ContextOp.APPEND
     messages: List[Dict[str, Any]] = Field(default_factory=list)
+    # 本批上下文首次写入时随之消费的持久输入；不落库，由运行器在同一事务中标记消费
+    _input_ids: List[int] = PrivateAttr(default_factory=list)
 
 
 class CompactUsage(BaseModel):
@@ -340,15 +343,6 @@ class EnvironmentEvent(BaseEvent):
     type: Literal["environment"] = "environment"
     status: Literal["preparing", "ready"]
     message: Optional[str] = None
-    project_file_protection: Optional[Dict[str, Any]] = None
-
-
-class ProjectNotesEvent(BaseEvent):
-    type: Literal['project_notes'] = 'project_notes'
-    project_id: str
-    content: str
-    notes_version: int
-    source: Literal['user', 'agent']
 
 
 # 定义应用事件类型声明
@@ -369,7 +363,6 @@ Event = Annotated[
         CompactEvent,
         CleanupEvent,
         EnvironmentEvent,
-        ProjectNotesEvent,
         ApprovalEvent,
     ],
     Field(discriminator="type"),

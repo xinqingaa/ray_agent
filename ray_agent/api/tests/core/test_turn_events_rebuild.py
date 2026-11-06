@@ -20,7 +20,7 @@ from tests.support.loop_harness import (
     make_loop,
     make_runner,
     start_run,
-    submit,
+    resume_run,
 )
 from tests.support.scripted_llm import ScriptedResponse, ScriptedToolCall, ScriptedLLM, text, tool_call, usage
 
@@ -124,10 +124,8 @@ def test_ask_aborted_batch_completes_turn_and_resume_rebuilds():
         second = make_loop([tool_call("read_file", {"filepath": "/x.txt"}, id="c-read", usage=usage(80, 5)),
                             text("完成", usage=usage(90, 3)),
                             text("文件已读取，计划状态尚未更新", usage=usage(95, 4))], session=first.session)
-        reply = MessageEvent(role="user", message="/x.txt")
-        await second.ledger.transition(first.session.id, active.id, RunStatus.RUNNING, events_after=[reply])
+        await resume_run(second, active.id, "/x.txt")
         task2 = input_task()
-        await submit(task2, "/x.txt")
         await make_runner(second, run=first.runs[active.id], prior_status=SessionStatus.WAITING).invoke(task2)
         events = second.events
         assert_turns_well_formed(events, active.id)
@@ -257,10 +255,8 @@ def test_tool_set_change_on_resume_is_recorded_as_revision():
         await make_runner(first, run=active).invoke(task)
 
         second = make_loop([text("好的")], session=first.session, extra_tools=[ExtraTool()])
-        await second.ledger.transition(first.session.id, active.id, RunStatus.RUNNING,
-                                       events_after=[MessageEvent(role="user", message="继续")])
+        await resume_run(second, active.id, "继续")
         task2 = input_task()
-        await submit(task2, "继续")
         await make_runner(second, run=first.runs[active.id], prior_status=SessionStatus.WAITING).invoke(task2)
         snapshot = second.runs[active.id].config_snapshot
         assert [r["from_turn"] for r in snapshot["tool_revisions"]] == [2]

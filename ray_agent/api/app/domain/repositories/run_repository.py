@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""运行仓库：每个会话最多一个 running/waiting 运行，由部分唯一索引保证。"""
+"""运行仓库：每个会话最多一个 running/waiting 运行，由条件唯一索引与写事务内的复核保证。"""
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Protocol
 
@@ -21,17 +21,11 @@ class RunRepository(Protocol):
         ...
 
     async def lock(self, run_id: str) -> Optional[Run]:
-        """读取并对运行行加排他锁直到事务结束：同一运行的写入按此串行，终态判断与写入之间不会插入状态变化。"""
+        """在写事务中读取运行：写事务串行，终态判断与写入之间不会插入其他状态变化。"""
         ...
 
     async def get_active(self, session_id: str) -> Optional[Run]:
         """会话当前 running 或 waiting 的运行。"""
-        ...
-
-    async def get_active_project(self, project_id: str, exclude_session: Optional[str] = None) -> Optional[Run]:
-        ...
-
-    async def active_projects(self, project_ids: list[str]) -> dict[str, Run]:
         ...
 
     async def list_by_session(self, session_id: str) -> List[Run]:

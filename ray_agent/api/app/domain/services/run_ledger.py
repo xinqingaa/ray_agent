@@ -2,24 +2,23 @@
 # -*- coding: utf-8 -*-
 """运行与事件的唯一写入入口。
 
-写入顺序：事件与需要同步更新的状态在同一事务里提交 → 提交成功后发布通知（只含 session_id 与 seq）
-→ 通知失败只记日志，不回滚事件，也不重放动作。
+写入顺序：事件与需要同步更新的状态在同一写事务里提交 → 提交成功后发布通知（只含 session_id 与 seq）
+→ 通知失败只记日志，不回滚事件，也不重放动作；订阅方按序号补读。
 运行计数（轮数、模型请求、工具调用、tokens）在写入对应事件的同一事务里累加，终态 run 事件的汇总直接取自运行行。
 """
 import logging
 import time
-from datetime import datetime
 from typing import Awaitable, Callable, List, Optional, Sequence
 
 from app.domain.external.event_notifier import EventNotifier
 from app.domain.models.event import BaseEvent, CompactEvent, RunEvent, ToolEvent, ToolEventStatus, TurnEvent, \
     TurnPhase
+from app.domain.models.clock import utc_now
 from app.domain.models.event import PlanEvent, MessageEvent
 from app.domain.models.plan_acceptance import PlanAcceptance, PlanAlreadyAccepted, PlanAcceptanceConflict
 from app.domain.models.run import Run, RunMode, RunReason, RunStatus
-from app.domain.models.session import Session, SessionStatus
+from app.domain.models.session import SessionStatus
 from app.domain.repositories.uow import IUnitOfWork
-from app.domain.services.project_transactions import lock_project_session, ensure_project_start
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +48,7 @@ class RunLedger:
     ) -> List[BaseEvent]:
         """同一事务写入事件与附带的状态更新；提交成功后通知。
 
-        带 run_id 时先锁住运行行：运行已是终态则整笔丢弃并返回空列表（停止后迟到的事件不写入），
+        带 run_id 时在写事务内复核运行：运行已是终态则整笔丢弃并返回空列表（停止后迟到的事件不写入），
         after_terminal=True 只用于终态之后的收尾记录（cleanup）。
         """
         if not events:
@@ -57,7 +56,6 @@ class RunLedger:
         started = time.monotonic()
         uow = self._uow_factory()
         async with uow:
-            await lock_project_session(uow, session_id)
             if run_id is not None:
                 run = await uow.run.lock(run_id)
                 if run is None or (run.status.terminal and not after_terminal):
@@ -81,19 +79,14 @@ class RunLedger:
             apply: Optional[Apply] = None,
             mode: RunMode = RunMode.NORMAL,
             before_start: Optional[Apply] = None,
-            session_to_create: Optional[Session] = None,
             execute_plan: Optional[PlanAcceptance] = None,
     ) -> Run:
         """创建运行并写入 run(running) 事件与随后的事件；会话已有活动运行时抛 ActiveRunExistsError。"""
         run = Run(session_id=session_id, mode=mode)
         uow = self._uow_factory()
         async with uow:
-            if session_to_create is not None:
-                # 锁项目后检查准入，创建与消息/运行提交同一事务，409 不留空会话。
-                await uow.project.get(session_to_create.project_id, lock=True)
-                await ensure_project_start(uow, session_to_create)
-                await uow.session.save(session_to_create)
-            session = await lock_project_session(uow, session_id)
+            if await uow.session.lock(session_id) is None:
+                raise ValueError(f"会话[{session_id}]不存在")
             if execute_plan is not None:
                 message = next(e for e in events_after if isinstance(e, MessageEvent))
                 plans = await uow.event.list(session_id, types=["plan"])
@@ -116,7 +109,6 @@ class RunLedger:
                     raise PlanAcceptanceConflict("计划引用已过期或当前不可执行，请刷新后核对")
                 events_after = [*events_after, PlanEvent(plan=source.plan.model_copy(deep=True),
                     accepted_from=execute_plan, accepted_message=message.message, progress_state="preparing")]
-            await ensure_project_start(uow, session)
             if before_start is not None:
                 await before_start(uow)
             await uow.run.create(run)
@@ -150,24 +142,15 @@ class RunLedger:
         uow = self._uow_factory()
         try:
             async with uow:
-                session = await lock_project_session(uow, session_id)
                 current = await uow.run.lock(run_id)
                 if current is None or current.status.terminal:
                     raise _StaleRun()
-                if status == RunStatus.RUNNING and session and session.project_id:
-                    from app.domain.services.project_operations import require_writable
-                    project = await uow.project.get(session.project_id)
-                    require_writable(project)
                 if status.terminal:
-                    if session and session.project_id:
-                        from app.domain.services.project_operations import mark_settling
-                        project = await uow.project.get(session.project_id)
-                        await mark_settling(uow, project, run_id, session_id)
                     closing = await self._close_open_turn(uow, session_id, run_id, reason or status.value, turn_closer)
                     if closing is not None:
                         events_before = [closing, *events_before]
                 await self._write(uow, session_id, events_before, run_id)
-                ended_at = datetime.now() if status.terminal else None
+                ended_at = utc_now() if status.terminal else None
                 run = await uow.run.transition(run_id, status, reason, ended_at)
                 if run is None:
                     raise _StaleRun()
@@ -192,7 +175,7 @@ class RunLedger:
         return run
 
     async def interrupt_running(self) -> List[Run]:
-        """启动扫描：running 的运行置为 interrupted；waiting 保持，用户回复后照常续接。"""
+        """启动扫描：上次进程遗留的 running 运行置为 interrupted；waiting 保持，用户回复后照常续接。"""
         uow = self._uow_factory()
         async with uow:
             running = await uow.run.list_by_status(RunStatus.RUNNING)

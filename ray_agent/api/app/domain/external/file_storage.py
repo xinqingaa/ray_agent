@@ -8,10 +8,11 @@ from app.domain.models.file import File
 
 
 class FileStorage(Protocol):
-    """文件存储协议，由本地磁盘或对象存储实现"""
+    """文件字节存储协议：字节保存为数据根中的内容对象，元数据登记在业务库"""
 
-    async def upload_file(self, upload_file: UploadFile, *, visual: dict | None = None) -> File:
-        """根据传递的文件源上传文件后返回文件信息"""
+    async def upload_file(self, upload_file: UploadFile, *, visual: dict | None = None,
+                          session_id: str | None = None) -> File:
+        """保存文件字节并登记元数据；session_id 为所属会话，上传后尚未发送时为空"""
         ...
 
     async def download_file(self, file_id: str) -> Tuple[BinaryIO, File]:

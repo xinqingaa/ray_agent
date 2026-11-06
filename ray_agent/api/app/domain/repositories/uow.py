@@ -3,24 +3,29 @@
 from abc import ABC, abstractmethod
 from typing import TypeVar
 
-from .project_repository import ProjectRepository
-from .skills import SkillTransaction
 from .event_repository import EventRepository
 from .file_repository import FileRepository
+from .input_repository import AcceptedRequestRepository, RunInputRepository
+from .job_repository import BackgroundJobRepository
+from .root_repository import RootRepository
 from .run_repository import RunRepository
 from .session_repository import SessionRepository
+from .skills import SkillTransaction
 
 T = TypeVar("T", bound="IUnitOfWork")
 
 
 class IUnitOfWork(ABC):
-    """Uow模式协议接口"""
+    """一个业务事务。写事务按进入顺序串行提交；只读事务读取一致快照，不能写入。"""
     skills: SkillTransaction
-    project: ProjectRepository
     file: FileRepository
     session: SessionRepository
     run: RunRepository
     event: EventRepository
+    run_input: RunInputRepository
+    request: AcceptedRequestRepository
+    job: BackgroundJobRepository
+    root: RootRepository
 
     @abstractmethod
     async def commit(self):

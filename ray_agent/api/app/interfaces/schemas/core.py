@@ -23,7 +23,7 @@ _RESPONSE_SCHEMA = ConfigDict(json_schema_serialization_defaults_required=True)
 
 class CoreLaunch(BaseModel):
     """宿主写入核心 stdin 的启动参数；凭据只经这条私有管道或环境文件传递，不进命令行。"""
-    data_dir: str = Field(description="可写数据目录")
+    data_dir: str = Field(description="数据根：业务库、内容对象、会话工作目录与 skill 存储都在其中")
     env_files: list[str] = Field(default_factory=list, description="依次叠加的环境文件，后者覆盖前者")
     env: dict[str, str] = Field(default_factory=dict, description="最后叠加的显式环境")
 
@@ -62,7 +62,7 @@ class CoreDescriptor(BaseModel):
     event_version: EventVersion = EVENT_VERSION
     instance: CoreInstance
     build: BuildIdentity
-    storage: StorageVersion | None = Field(default=None, description="桌面业务库版本；尚未建立桌面业务库时为空")
+    storage: StorageVersion | None = Field(default=None, description="业务库 schema 版本；业务库尚未打开时为空")
     capabilities: list[CapabilityStatus]
 
 

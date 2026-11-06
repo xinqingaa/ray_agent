@@ -10,9 +10,8 @@ from app.domain.models.event import DoneEvent, MessageEvent, RunEvent, ToolEvent
 from app.domain.models.run import Run, RunStatus
 from app.domain.models.session import SessionStatus
 from app.domain.services.flows.agent_loop import INTERRUPTED_STOPPED, NOT_EXECUTED_STOPPED
-from app.infrastructure.external.task import redis_stream_task as task_module
+from app.infrastructure.external.task.local_task import LocalRunTask
 from tests.support.loop_harness import (
-    MemoryQueue,
     assert_no_dangling,
     event_at,
     inject,
@@ -197,8 +196,8 @@ def test_chat_routes_by_active_run_and_does_not_deduplicate(prior, live_task, ro
         assert [(m.message, m.run_id) for m in messages] == [("同一请求", first.run_id)] * 2
         assert [m.seq for m in messages] == [first.seq, second.seq]
         assert len(created) == (0 if route == "injected" else 1)
-        queued = (running_task if route == "injected" else created[0]).input_stream.items
-        assert len(queued) == 2
+        queued = [item for item in h.inputs if item.run_id == first.run_id and item.status == "pending"]
+        assert [item.message_seq for item in queued] == [first.seq, second.seq]
     asyncio.run(asyncio.wait_for(run(), 5))
 
 
@@ -219,7 +218,6 @@ def make_shell_sandbox(started: asyncio.Event):
 
 def test_stop_cancels_run_kills_registered_shell_and_late_completion_is_ignored(monkeypatch):
     """验收 5：停止 → cancelled；登记的 Shell 会话收到终止请求；迟到的完成与事件不覆盖终态。"""
-    monkeypatch.setattr(task_module, "RedisStreamMessageQueue", MemoryQueue)
     from app.domain.services.tools.shell import ShellTool
 
     async def run():
@@ -228,10 +226,9 @@ def test_stop_cancels_run_kills_registered_shell_and_late_completion_is_ignored(
         h = make_loop([tool_call("shell_execute", {"session_id": "sh-1", "exec_dir": "/", "command": "sleep 999"},
                                  id="c-sleep")], sandbox=sandbox, extra_tools=[ShellTool(sandbox)])
         service = make_service(h)
-        task = task_module.RedisStreamTask(None)
-        active = await start_run(h, task, "长命令")
+        active = await start_run(h, input_task(), "长命令")
         r = make_runner(h, run=active)
-        task._task_runner = r
+        task = LocalRunTask(r)
         service._get_task = AsyncMock(return_value=task)
         await task.invoke()
         execution = task._execution_task
@@ -287,7 +284,6 @@ def test_runner_stops_writing_when_run_became_terminal_without_cancellation():
 
 
 def test_stop_mid_batch_then_new_message_repairs_through_runner(monkeypatch):
-    monkeypatch.setattr(task_module, "RedisStreamMessageQueue", MemoryQueue)
 
     async def run():
         first = make_loop([ScriptedResponse(tool_calls=[
@@ -301,9 +297,8 @@ def test_stop_mid_batch_then_new_message_repairs_through_runner(monkeypatch):
             await asyncio.Event().wait()
         first.recording.hook = block
         service = make_service(first)
-        task = task_module.RedisStreamTask(None)
-        active = await start_run(first, task, "长任务")
-        task._task_runner = make_runner(first, run=active)
+        active = await start_run(first, input_task(), "长任务")
+        task = LocalRunTask(make_runner(first, run=active))
         service._get_task = AsyncMock(return_value=task)
         await task.invoke()
         await started.wait()
@@ -322,3 +317,48 @@ def test_stop_mid_batch_then_new_message_repairs_through_runner(monkeypatch):
         assert first.runs[active.id].status == RunStatus.CANCELLED
         assert second.runs[next_run.id].status == RunStatus.COMPLETED
     asyncio.run(asyncio.wait_for(run(), 5))
+
+
+def test_stop_during_start_prevents_invoke_and_keeps_input_unconsumed():
+    """受理后到任务登记之间停止：启动撤销，任务不执行；尚未进入模型历史的输入保持已受理未消费。"""
+    async def run():
+        h = make_loop([])
+        service = make_service(h)
+        service._get_task = AsyncMock(return_value=None)
+        entered, release = asyncio.Event(), asyncio.Event()
+        task = input_task()
+        task.invoke = AsyncMock()
+        cancelled = []
+        task.cancel = lambda: cancelled.append(True) or True
+
+        async def create(session, run_id, prior):
+            entered.set()
+            await release.wait()
+            return task
+        service._create_task = create
+        accepted = await service.chat(h.session.id, "第一条")
+        worker = pending_starts()[accepted.run_id].worker
+        await entered.wait()
+        injected = await service.chat(h.session.id, "补充")
+        assert injected.run_id == accepted.run_id and injected.route == "injected"
+        stopped = await service.stop_session(h.session.id)
+        assert stopped.status == RunStatus.CANCELLED
+        release.set()
+        await worker
+        task.invoke.assert_not_awaited()
+        assert cancelled and accepted.run_id not in pending_starts()
+        assert [(i.message_seq, i.status) for i in h.inputs] == [(accepted.seq, "pending"), (injected.seq, "pending")]
+    asyncio.run(asyncio.wait_for(run(), 3))
+
+
+def test_start_failure_is_observed_after_acceptance():
+    async def run():
+        h = make_loop([])
+        service = make_service(h)
+        service._get_task = AsyncMock(return_value=None)
+        service._create_task = AsyncMock(side_effect=RuntimeError("组件不可用"))
+        accepted = await service.chat(h.session.id, "开始")
+        await pending_starts()[accepted.run_id].worker
+        assert h.runs[accepted.run_id].status == RunStatus.FAILED
+        assert any(e.type == "error" and "启动运行失败" in e.error for e in h.events)
+    asyncio.run(asyncio.wait_for(run(), 3))

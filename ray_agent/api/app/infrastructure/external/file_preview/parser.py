@@ -10,7 +10,7 @@ from collections import OrderedDict
 from pathlib import Path
 
 from app.domain.models.file_preview import PREVIEW_INPUT_BYTES, TEXT_PAGE_BYTES, preview_kind
-from app.domain.services.project_file_coordinator import run_file_io
+from app.domain.services.file_io import run_file_io
 
 _slots = asyncio.Semaphore(3)
 _cache = OrderedDict()

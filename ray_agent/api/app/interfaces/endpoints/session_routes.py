@@ -1,28 +1,23 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-import asyncio
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, Dict, Any, AsyncGenerator, Union
 
-import websockets
 from app.application.services.context_operations import context_operation
 
 from fastapi import APIRouter, Depends, Header, Query, Body
 from sse_starlette import EventSourceResponse, ServerSentEvent
-from starlette.websockets import WebSocket, WebSocketDisconnect
-from websockets import ConnectionClosed
 
 from app.application.errors.exceptions import NotFoundError
 from app.application.services.app_config_service import AppConfigService
-from app.application.services.agent_service import AgentService
-from app.application.services.project_service import ProjectService
+from app.application.services.agent_service import AgentService, ChatAccepted
 from app.application.services.session_service import SessionService
 from app.application.services.title_service import TitleService
 from app.domain.external.event_notifier import OutputDelta
 from app.domain.models.event import Event
-from app.domain.models.project import ProjectFile, ProjectListing, ProjectView
+from app.domain.models.identity import RequestId
 from app.domain.models.run import RunMode
 from app.domain.models.app_config import ModelSampling
 from app.domain.models.session import Session
@@ -36,24 +31,24 @@ from app.interfaces.schemas.session import (
     ChatResponse,
     ModelSelectionRequest,
     ModelSelectionResponse,
-    GetSessionResponse, GetSessionFilesResponse, FileReadResponse, FileReadRequest, ShellReadResponse, ShellReadRequest,
+    GetSessionResponse, GetSessionFilesResponse,
     RunItem,
+    UnconsumedInputItem,
     TurnRequestResponse,
     ApprovalRequest,
     ApprovalResponse,
     CompactResponse,
     RenameTitleRequest, TitleResponse,
 )
-from app.infrastructure.external.message_queue.catalog_notifier import (
-    CATALOG_FALLBACK_SECONDS,
-    subscribe_catalog,
-)
+from app.infrastructure.external.notification.local_notifier import catalog_notifier
 from app.interfaces.service_dependencies import (
     get_app_config_service,
-    get_session_service, get_agent_service, get_title_service, get_project_service, get_project_memory_service,
+    get_session_service, get_agent_service, get_title_service,
 )
 
 logger = logging.getLogger(__name__)
+
+CATALOG_FALLBACK_SECONDS = 30.0  # 列表流没有目录通知时的兜底查询间隔
 
 
 def _saved_sampling(session: Session) -> Optional[ModelSampling]:
@@ -66,8 +61,8 @@ def _saved_sampling(session: Session) -> Optional[ModelSampling]:
 router = APIRouter(prefix="/sessions", tags=["会话模块"])
 
 
-def session_list_item(session: Session, project_service: ProjectService, project_views=None) -> ListSessionItem:
-    """列表与列表流共用。project 每次用路径校验实时计算，不缓存。"""
+def session_list_item(session: Session) -> ListSessionItem:
+    """列表与列表流共用。"""
     return ListSessionItem(
         session_id=session.id,
         title=session.title,
@@ -75,8 +70,6 @@ def session_list_item(session: Session, project_service: ProjectService, project
         latest_message_at=session.latest_message_at,
         status=session.status,
         unread_message_count=session.unread_message_count,
-        **session.model_dump(include={'summary', 'summary_source', 'summary_state', 'summary_error', 'summary_generation', 'summary_source_seq'}),
-        project=project_views.get(session.id) if project_views is not None else project_service.describe(session.project),
     )
 
 
@@ -88,12 +81,11 @@ def session_list_item(session: Session, project_service: ProjectService, project
 )
 async def create_session(
         request: Optional[CreateSessionRequest] = Body(default=None),
-        project_service: ProjectService = Depends(get_project_service),
         session_service: SessionService = Depends(get_session_service),
 ) -> Response[CreateSessionResponse]:
-    """创建一个空白的新任务会话"""
+    """创建一个空白的新任务会话；同一创建标识重复提交返回同一会话"""
     creation_id = str(request.creation_id) if request and request.creation_id else None
-    session = await project_service.create_session(request.project_id, creation_id) if request and request.project_id else await session_service.create_session(creation_id)
+    session = await session_service.create_session(creation_id)
     return Response.success(
         data=CreateSessionResponse(session_id=session.id)
     )
@@ -105,24 +97,19 @@ async def create_session(
     description="连接后先推送一页列表。目录有写入时再查；没有通知时最多每 30 秒兜底一次。内容没变不重复推送。",
 )
 async def stream_sessions(
-        project_id: Optional[str] = Query(default=None),
-        independent: bool = Query(default=False),
         offset: int = Query(default=0, ge=0),
         limit: int = Query(default=50, ge=1, le=100),
         session_service: SessionService = Depends(get_session_service),
-        project_service: ProjectService = Depends(get_project_service),
 ) -> EventSourceResponse:
     """列表流：通知驱动，附带慢速兜底。"""
 
     async def event_generator() -> AsyncGenerator[ServerSentEvent, None]:
-        subscription = await subscribe_catalog()
+        subscription = catalog_notifier().subscribe()
         last_payload = None
         try:
             while True:
-                sessions, total = await session_service.page(
-                    project_id=project_id, independent=independent, offset=offset, limit=limit)
-                project_views = project_service.describe_sessions(sessions)
-                session_items = [session_list_item(session, project_service, project_views) for session in sessions]
+                sessions, total = await session_service.page(offset=offset, limit=limit)
+                session_items = [session_list_item(session) for session in sessions]
                 payload = ListSessionResponse(
                     sessions=session_items, total=total, offset=offset, limit=limit).model_dump_json()
                 if payload != last_payload:
@@ -154,17 +141,13 @@ async def stream_sessions(
     description="获取MoocManus项目中所有任务会话基础信息列表",
 )
 async def get_all_sessions(
-        project_id: Optional[str] = Query(default=None),
-        independent: bool = Query(default=False),
         offset: int = Query(default=0, ge=0),
         limit: int = Query(default=50, ge=1, le=100),
         session_service: SessionService = Depends(get_session_service),
-        project_service: ProjectService = Depends(get_project_service),
 ) -> Response[ListSessionResponse]:
-    """获取MoocManus项目中所有任务会话基础信息列表"""
-    sessions, total = await session_service.page(project_id=project_id, independent=independent, offset=offset, limit=limit)
-    project_views = project_service.describe_sessions(sessions)
-    session_items = [session_list_item(session, project_service, project_views) for session in sessions]
+    """会话列表基础信息，按最新消息时间倒序"""
+    sessions, total = await session_service.page(offset=offset, limit=limit)
+    session_items = [session_list_item(session) for session in sessions]
     return Response.success(
         data=ListSessionResponse(sessions=session_items, total=total, offset=offset, limit=limit)
     )
@@ -205,7 +188,8 @@ async def delete_session(
     response_model=Response[ChatResponse],
     summary="向指定任务会话发送消息",
     description="受理一条用户消息并立即返回 run_id 与消息事件的 seq；执行过程通过事件流接口观察。"
-                "mode 为 plan 时新运行以计划模式执行；会话有活动运行（会注入或续接）时带 plan 返回 409",
+                "mode 为 plan 时新运行以计划模式执行；会话有活动运行（会注入或续接）时带 plan 返回 409。"
+                "带 request_id 时同身份同内容返回原受理结果，内容不同返回 409；结果未知时按身份读回",
 )
 async def chat(
         session_id: str,
@@ -217,17 +201,49 @@ async def chat(
         session_id=session_id,
         message=request.message,
         attachments=request.attachments,
-        timestamp=datetime.fromtimestamp(request.timestamp) if request.timestamp else None,
+        timestamp=datetime.fromtimestamp(request.timestamp, timezone.utc) if request.timestamp else None,
         mode=RunMode(request.mode),
         model=request.model,
         reasoning=request.reasoning,
         image_mode=request.image_mode,
         skill=request.skill,
         execute_plan=request.execute_plan,
+        request_id=request.request_id,
     )
-    return Response.success(
-        data=ChatResponse(run_id=accepted.run_id, seq=accepted.seq, route=accepted.route),
-    )
+    return Response.success(data=chat_response(accepted))
+
+
+def chat_response(accepted: ChatAccepted) -> ChatResponse:
+    return ChatResponse(run_id=accepted.run_id, seq=accepted.seq, route=accepted.route)
+
+
+@router.get(
+    path="/{session_id}/requests/{request_id}",
+    response_model=Response[ChatResponse],
+    summary="按请求身份读回受理结果",
+    description="发送结果未知时先读回；没有受理记录返回 404，此时原请求尚未被核心受理，可以按同一身份重新发送",
+)
+async def get_accepted_request(
+        session_id: str,
+        request_id: RequestId,
+        agent_service: AgentService = Depends(get_agent_service),
+) -> Response[ChatResponse]:
+    return Response.success(data=chat_response(await agent_service.accepted_request(session_id, request_id)))
+
+
+@router.post(
+    path="/{session_id}/inputs/{input_id}/resume",
+    response_model=Response[ChatResponse],
+    summary="重新发起未处理的消息",
+    description="所属运行已结束（如核心重启中断或被停止）而尚未进入模型历史的消息，明确交给一个新运行处理；"
+                "消息不重复写入。已处理、正在处理或会话已有活动运行时返回 409",
+)
+async def resume_input(
+        session_id: str,
+        input_id: int,
+        agent_service: AgentService = Depends(get_agent_service),
+) -> Response[ChatResponse]:
+    return Response.success(data=chat_response(await agent_service.resume_input(session_id, input_id)))
 
 
 @router.put(
@@ -364,7 +380,6 @@ async def get_session(
         after_seq: int = Query(default=0, ge=0),
         limit: Optional[int] = Query(default=None, ge=1, le=5000),
         session_service: SessionService = Depends(get_session_service),
-        project_service: ProjectService = Depends(get_project_service),
         config_service: AppConfigService = Depends(get_app_config_service),
 ) -> Response[GetSessionResponse]:
     """传递指定会话id获取该会话的对话详情"""
@@ -384,7 +399,8 @@ async def get_session(
             context_operation=context_operation(session_id),
             context_config=await config_service.get_context_config(
                 detail.session.model_id, detail.session.reasoning, _saved_sampling(detail.session)),
-            project=project_service.describe(detail.session.project),
+            unconsumed_inputs=[UnconsumedInputItem(input_id=item.id, run_id=item.run_id, message_seq=item.message_seq,
+                                                   request_id=item.request_id) for item in detail.unconsumed_inputs],
             model_id=detail.session.model_id,
             reasoning=detail.session.reasoning,
             run_model=snapshot.get("model_name"),
@@ -455,166 +471,3 @@ async def get_session_files(
     return Response.success(
         data=GetSessionFilesResponse(files=files)
     )
-
-
-@router.post(
-    path="/{session_id}/file",
-    response_model=Response[FileReadResponse],
-    summary="查看会话沙箱中指定文件的内容",
-    description="根据传递的会话id+文件路径查看沙箱中文件的内容信息"
-)
-async def read_file(
-        session_id: str,
-        request: FileReadRequest,
-        session_service: SessionService = Depends(get_session_service),
-) -> Response[FileReadResponse]:
-    """根据传递的会话id+文件路径查看沙箱中文件的内容信息"""
-    result = await session_service.read_file(session_id, request.filepath)
-    return Response.success(
-        data=result
-    )
-
-
-@router.post(
-    path="/{session_id}/shell",
-    response_model=Response[ShellReadResponse],
-    summary="查看会话的shell内容输出",
-    description="传递指定会话id与shell会话标识，查看shell内容输出",
-)
-async def read_shell_output(
-        session_id: str,
-        request: ShellReadRequest,
-        session_service: SessionService = Depends(get_session_service),
-) -> Response[ShellReadResponse]:
-    """查看会话的shell内容输出"""
-    result = await session_service.read_shell_output(session_id, request.session_id)
-    return Response.success(
-        data=result,
-    )
-
-
-@router.get(
-    path="/{session_id}/project/tree",
-    response_model=Response[ProjectListing],
-    summary="列出项目目录的一层子项",
-    description="path 为相对项目根的路径，省略时列出项目根。会话未绑定项目 404；路径校验失败 400。"
-                "读的是 API 侧只读挂载，不依赖沙箱",
-)
-async def project_tree(
-        session_id: str,
-        path: str = Query(default=""),
-        project_service: ProjectService = Depends(get_project_service),
-) -> Response[ProjectListing]:
-    listing = await project_service.tree(session_id, path)
-    return Response.success(data=listing)
-
-
-@router.get(
-    path="/{session_id}/project/file",
-    response_model=Response[ProjectFile],
-    summary="读取项目内文件",
-    description="二进制与超过上限的文件只返回元数据。会话未绑定项目 404；路径校验失败 400",
-)
-async def project_file(
-        session_id: str,
-        path: str = Query(),
-        project_service: ProjectService = Depends(get_project_service),
-) -> Response[ProjectFile]:
-    project_file_result = await project_service.read_file(session_id, path)
-    return Response.success(data=project_file_result)
-
-
-@router.websocket(
-    path="/{session_id}/vnc",
-)
-async def vnc_websocket(
-        websocket: WebSocket,
-        session_id: str,
-        session_service: SessionService = Depends(get_session_service),
-) -> None:
-    """VNC Websocket端点，用于建立与沙箱环境的vnc连接，并双向转发数据"""
-    # 1.从客户端noVNC接收子协议
-    protocols_str = websocket.headers.get("sec-websocket-protocol", "")
-    protocols = [p.strip() for p in protocols_str.split(",")]
-
-    # 2.判断使用不同协议(noVNC首选binary)
-    selected_protocol = None
-    if "binary" in protocols:
-        selected_protocol = "binary"
-    elif "base64" in protocols:
-        selected_protocol = "base64"
-
-    # 3.使用对应协议接收websocket连接
-    logger.info(f"为会话[{session_id}]开启WebSocket连接")
-    await websocket.accept(subprotocol=selected_protocol)
-
-    try:
-        # 4.获取对应会话的vnc链接
-        sandbox_vnc_url = await session_service.get_vnc_url(session_id)
-        logger.info(f"连接WebSocket VNC： {sandbox_vnc_url}")
-
-        # 5.创建上下文并连接到vnc
-        async with websockets.connect(sandbox_vnc_url) as sandbox_ws:
-            # 6.创建两个异步协程来完成数据的双向转发
-            async def forward_to_sandbox():
-                try:
-                    while True:
-                        # 接收来自客户端的数据
-                        data = await websocket.receive_bytes()
-                        await sandbox_ws.send(data)
-                except WebSocketDisconnect:
-                    logger.info(f"Web->VNC连接终端")
-                except Exception as forward_e:
-                    logger.error(f"forward_to_sandbox出错: {str(forward_e)}")
-
-            async def forward_from_sandbox():
-                try:
-                    while True:
-                        # 接收来自沙箱的数据并转发
-                        data = await sandbox_ws.recv()
-                        await websocket.send_bytes(data)
-                except ConnectionClosed:
-                    logger.info("VNC->Web连接关闭")
-                except Exception as forward_e:
-                    logger.error(f"forward_from_sandbox出错: {str(forward_e)}")
-
-            # 7.并行运行两个任务
-            forward_task1 = asyncio.create_task(forward_to_sandbox())
-            forward_task2 = asyncio.create_task(forward_from_sandbox())
-
-            # 8.等待任意任务结束意味WebSocket连接终端
-            done, pending = await asyncio.wait(
-                [forward_task1, forward_task2],
-                return_when=asyncio.FIRST_COMPLETED,
-            )
-            logger.info("WebSocket连接已关闭")
-
-            # 9.如果任一任务完成则取消其他任务(关闭全部链接)
-            for task in pending:
-                task.cancel()
-    except ConnectionError as connection_e:
-        # 连接沙箱环境失败，关闭websocket
-        logger.error(f"连接沙箱环境失败: {str(connection_e)}")
-        await websocket.close(code=1011, reason=f"连接沙箱环境失败: {str(connection_e)}")
-    except Exception as e:
-        # 其他错误记录日志并关闭websocket
-        logger.error(f"WebSocket异常: {str(e)}")
-        await websocket.close(code=1011, reason=f"WebSocket异常: {str(e)}")
-
-
-from app.interfaces.schemas.session import EditSummaryRequest
-
-
-@router.get('/{session_id}/summary', response_model=Response[dict])
-async def get_summary(session_id: str, service=Depends(get_project_memory_service)):
-    return Response.success(data=await service.get_summary(session_id))
-
-
-@router.put('/{session_id}/summary', response_model=Response[dict])
-async def edit_summary(session_id: str, request: EditSummaryRequest, service=Depends(get_project_memory_service)):
-    return Response.success(data=await service.edit_summary(session_id, request.content, request.base_generation))
-
-
-@router.post('/{session_id}/summary/regenerate', response_model=Response[dict])
-async def regenerate_summary(session_id: str, service=Depends(get_project_memory_service)):
-    return Response.success(data=await service.regenerate(session_id))

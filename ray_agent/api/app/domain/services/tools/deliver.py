@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-"""交付工具：把沙箱中的文件交给用户。存储与会话关联由运行器注入的交付函数完成。"""
+"""交付工具：把工作目录中的文件交给用户。存储与会话关联由运行器注入的交付函数完成。"""
 from typing import Awaitable, Callable, List, Optional, Union, Literal
 
 from pydantic import BaseModel, Field
@@ -11,10 +11,9 @@ from .base import BaseTool, tool
 
 DELIVER_FILES_TOOL = "deliver_files"
 
-# 交付单个沙箱路径：成功返回已关联会话的文件记录，失败抛出异常，异常文本作为错误原因回填模型
+# 交付单个文件路径：成功返回已关联会话的文件记录，失败抛出异常，异常文本作为错误原因回填模型
 class DeliveredFile(BaseModel):
     file: File
-    project: Optional[dict] = None
     reused: bool = False
 
 
@@ -28,7 +27,6 @@ class DeliveryItem(BaseModel):
     success: bool
     file: Optional[File] = None
     error: Optional[str] = None
-    project: Optional[dict] = None
 
 
 class DeliveryResult(BaseModel):
@@ -53,9 +51,9 @@ class DeliverTool(BaseTool):
     @tool(
         name=DELIVER_FILES_TOOL,
         description=(
-            "把沙箱中已经写好的文件作为附件交付给用户下载。需要文件成果时必须调用本工具；"
+            "把已经写好的文件作为附件交付给用户下载。需要文件成果时必须调用本工具；"
             "只在回复里写出路径不算交付。路径必须是已写入文件的绝对路径。"
-            "成功后用户通过交付附件查看或下载；沙箱路径仅供工具定位，不编成用户下载链接。"
+            "成功后用户通过交付附件查看或下载；文件路径仅供工具定位，不编成用户下载链接。"
         ),
         parameters={
             "paths": {
@@ -77,7 +75,7 @@ class DeliverTool(BaseTool):
         items: List[DeliveryItem] = []
         for path in paths:
             if not isinstance(path, str) or not path.startswith("/"):
-                items.append(DeliveryItem(path=str(path), success=False, error="路径必须是沙箱中的绝对路径"))
+                items.append(DeliveryItem(path=str(path), success=False, error="路径必须是绝对路径"))
                 continue
             try:
                 file = await self._existing_delivery(path) if self._existing_delivery else None
@@ -88,25 +86,20 @@ class DeliverTool(BaseTool):
                 continue
             if isinstance(file, DeliveredFile):
                 repeated = any(i.file and i.file.id == file.file.id for i in items)
-                items.append(DeliveryItem(path=path, reused=reused or file.reused or repeated, success=True, file=file.file, project=file.project))
+                items.append(DeliveryItem(path=path, reused=reused or file.reused or repeated, success=True, file=file.file))
             else:
                 repeated = any(i.file and i.file.id == file.id for i in items)
                 items.append(DeliveryItem(path=path, reused=reused or repeated, success=True, file=file))
 
-        project_failed = [item for item in items if item.project and item.project.get('state') == 'failed']
         count = sum(item.success for item in items)
-        result = DeliveryResult(items=items, note=note, state='complete' if count == len(items) and not project_failed else 'partial' if count else 'failed')
+        result = DeliveryResult(items=items, note=note, state='complete' if count == len(items) else 'partial' if count else 'failed')
         delivered = len(result.files)
         failed = [f"{item.path}（{item.error}）" for item in items if not item.success]
         message = f"已交付 {delivered}/{len({str(path) for path in paths})} 个文件"
         if delivered:
-            message += "；用户通过交付附件查看或下载，最终回复引用附件名称，不将沙箱路径编成链接"
+            message += "；用户通过交付附件查看或下载，最终回复引用附件名称，不将文件路径编成链接"
         reused_count = sum(i.reused for i in items)
         if reused_count: message += f"；复用已有交付 {reused_count} 项"
         if failed:
             message += "；失败：" + "；".join(failed)
-        project_failed = [item for item in items if item.project and item.project.get('state') == 'failed']
-        if project_failed:
-            message += '；部分失败：交付可下载，但未保存到项目：' + '；'.join(
-                f"{item.path}（{item.project.get('error') or '项目副本失败'}）" for item in project_failed)
         return ToolResult(success=result.state == 'complete', message=message, data=result)

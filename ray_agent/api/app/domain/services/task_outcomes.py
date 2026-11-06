@@ -47,7 +47,7 @@ class TaskOutcomes:
             if a.path != path or not a.delivered_file or a.state != 'delivered': continue
             actual = await self.fingerprint(path)
             if actual and actual == a.delivered_version:
-                return DeliveredFile(file=File.model_validate(a.delivered_file), project=a.delivery_project)
+                return DeliveredFile(file=File.model_validate(a.delivered_file))
         return None
 
     def freeze(self, scope=None):
@@ -177,10 +177,8 @@ class TaskOutcomes:
                         artifact.delivered_version = version
                         artifact.file_id = item.file.id
                         artifact.delivered_file = item.file.model_dump()
-                        artifact.delivery_project = item.project
-                    if item.success and not (item.project and item.project.get('state') == 'failed'):
                         artifact.state, artifact.error = 'delivered', None
-                    else: artifact.state, artifact.error = 'failed', item.error or '项目副本未保存'
+                    else: artifact.state, artifact.error = 'failed', item.error
                     changed = True
         if changed: invocation.events.append(self.event())
         return result

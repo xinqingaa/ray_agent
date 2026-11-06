@@ -45,7 +45,7 @@ export type ResourceVersion = number | string;
  */
 export interface CoreLaunch {
   /**
-   * 可写数据目录
+   * 数据根：业务库、内容对象、会话工作目录与 skill 存储都在其中
    */
   data_dir: string;
   /**
@@ -71,7 +71,7 @@ export interface CoreReady {
   instance: CoreInstance;
   build: BuildIdentity;
   /**
-   * 桌面业务库版本；尚未建立桌面业务库时为空
+   * 业务库 schema 版本；业务库尚未打开时为空
    */
   storage: StorageVersion | null;
   capabilities: CapabilityStatus[];
@@ -159,7 +159,7 @@ export interface CoreStatus {
   instance: CoreInstance;
   build: BuildIdentity;
   /**
-   * 桌面业务库版本；尚未建立桌面业务库时为空
+   * 业务库 schema 版本；业务库尚未打开时为空
    */
   storage: StorageVersion | null;
   capabilities: CapabilityStatus[];

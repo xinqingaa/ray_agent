@@ -8,7 +8,7 @@ from uuid import UUID
 from pydantic import BaseModel, Field
 
 from app.domain.models.file import File
-from app.domain.models.project import ProjectView
+from app.domain.models.identity import RequestId
 from app.domain.models.plan_acceptance import PlanAcceptance
 from app.domain.models.run import Run
 from app.domain.models.session import SessionStatus
@@ -25,16 +25,9 @@ class ListSessionItem(BaseModel):
     session_id: str = ""
     title: str = ""
     latest_message: str = ""
-    latest_message_at: Optional[datetime] = Field(default_factory=datetime.now)
+    latest_message_at: Optional[datetime] = None
     status: SessionStatus = SessionStatus.PENDING
     unread_message_count: int = 0
-    summary: Optional[str] = None
-    summary_source: Optional[Literal['auto', 'manual']] = None
-    summary_state: str = 'idle'
-    summary_error: Optional[str] = None
-    summary_generation: int = 0
-    summary_source_seq: int = 0
-    project: Optional[ProjectView] = None  # 未绑定项目时为 null；available/reason 每次请求实时计算
 
 
 class ListSessionResponse(BaseModel):
@@ -57,6 +50,8 @@ class ChatRequest(BaseModel):
     reasoning: Optional[str] = None  # 思考参数原词
     skill: SkillSelection | None = None
     image_mode: Literal['auto', 'files'] = 'auto'  # files 明确只交给文件工具
+    # 业务幂等身份：同身份同内容返回原受理结果，内容不同返回 409；结果未知时按身份读回
+    request_id: Optional[RequestId] = None
 
 
 class ChatResponse(BaseModel):
@@ -68,11 +63,6 @@ class ChatResponse(BaseModel):
 
 class RenameTitleRequest(BaseModel):
     title: str
-
-
-class EditSummaryRequest(BaseModel):
-    content: str = Field(max_length=1500)
-    base_generation: int = Field(ge=0)
 
 
 class TitleResponse(BaseModel):
@@ -153,7 +143,7 @@ class GetSessionResponse(BaseModel):
     last_seq: int = 0
     context_operation: ContextOperation = Field(default_factory=ContextOperation)
     context_config: Dict[str, int] = Field(default_factory=dict)
-    project: Optional[ProjectView] = None  # 未绑定项目时为 null；available/reason 每次请求实时计算
+    unconsumed_inputs: List["UnconsumedInputItem"] = Field(default_factory=list)  # 所属运行已结束、尚未处理的消息
     model_id: Optional[str] = None
     reasoning: Optional[str] = None
     run_model: Optional[str] = None  # 活动运行快照里的模型；与选择不同时，下次新运行才切换
@@ -186,36 +176,16 @@ class GetSessionFilesResponse(BaseModel):
     files: List[File] = Field(default_factory=list)
 
 
-class FileReadRequest(BaseModel):
-    """需要读取的沙箱文件请求结构"""
-    filepath: str
-
-
-class FileReadResponse(BaseModel):
-    """需要读取的沙箱文件响应结构体"""
-    filepath: str
-    content: str
-
-
-class ShellReadRequest(BaseModel):
-    """需要读取的沙箱shell请求结构体"""
-    session_id: str  # Shell会话id
-
-
-class ConsoleRecord(BaseModel):
-    """控制台记录模型，包含ps1、command、output"""
-    ps1: str
-    command: str
-    output: str
-
-
-class ShellReadResponse(BaseModel):
-    """需要读取的沙箱shell响应结构体"""
-    session_id: str
-    output: str
-    console_records: List[ConsoleRecord] = Field(default_factory=list)
+class UnconsumedInputItem(BaseModel):
+    """已受理但所属运行已结束、尚未进入模型历史的消息；可经重新发起接口交给新运行。"""
+    input_id: int
+    run_id: str
+    message_seq: int
+    request_id: Optional[str] = None
 
 
 class CreateSessionRequest(BaseModel):
     creation_id: UUID | None = None
-    project_id: Optional[str] = Field(default=None, min_length=1, max_length=255)
+
+
+GetSessionResponse.model_rebuild()

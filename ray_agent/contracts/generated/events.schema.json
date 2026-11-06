@@ -880,18 +880,6 @@
             }
           ],
           "default": null
-        },
-        "project_file_protection": {
-          "anyOf": [
-            {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
         }
       },
       "required": [
@@ -901,8 +889,7 @@
         "created_at",
         "event_version",
         "status",
-        "message",
-        "project_file_protection"
+        "message"
       ],
       "title": "EnvironmentEventData",
       "type": "object"
@@ -1039,7 +1026,7 @@
       "type": "string"
     },
     "File": {
-      "description": "文件信息Domain模型，用于记录Manus/Human上传or生成的文件",
+      "description": "文件信息Domain模型，用于记录用户上传或 Agent 交付的文件；字节保存为数据根中的内容对象",
       "properties": {
         "id": {
           "type": "string"
@@ -1080,30 +1067,6 @@
           "default": null
         },
         "visual": {
-          "anyOf": [
-            {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
-        },
-        "project_upload": {
-          "anyOf": [
-            {
-              "additionalProperties": true,
-              "type": "object"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
-        },
-        "project_persistence": {
           "anyOf": [
             {
               "additionalProperties": true,
@@ -1417,98 +1380,6 @@
       "title": "PlanSSEEvent",
       "type": "object"
     },
-    "ProjectNotesEventData": {
-      "properties": {
-        "event_id": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
-        },
-        "seq": {
-          "anyOf": [
-            {
-              "type": "integer"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
-        },
-        "run_id": {
-          "anyOf": [
-            {
-              "$ref": "#/$defs/RunId"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null
-        },
-        "created_at": {
-          "default": 0,
-          "type": "integer"
-        },
-        "event_version": {
-          "$ref": "#/$defs/EventVersion",
-          "default": 1
-        },
-        "project_id": {
-          "type": "string"
-        },
-        "content": {
-          "type": "string"
-        },
-        "notes_version": {
-          "type": "integer"
-        },
-        "source": {
-          "enum": [
-            "user",
-            "agent"
-          ],
-          "type": "string"
-        }
-      },
-      "required": [
-        "event_id",
-        "seq",
-        "run_id",
-        "created_at",
-        "event_version",
-        "project_id",
-        "content",
-        "notes_version",
-        "source"
-      ],
-      "title": "ProjectNotesEventData",
-      "type": "object"
-    },
-    "ProjectNotesSSEEvent": {
-      "properties": {
-        "event": {
-          "const": "project_notes",
-          "default": "project_notes",
-          "type": "string"
-        },
-        "data": {
-          "$ref": "#/$defs/ProjectNotesEventData"
-        }
-      },
-      "required": [
-        "event",
-        "data"
-      ],
-      "title": "ProjectNotesSSEEvent",
-      "type": "object"
-    },
     "RunEventData": {
       "description": "运行状态变化事件数据；终态时 summary 为运行汇总，mode 为运行模式（normal / plan）。",
       "properties": {
@@ -1666,7 +1537,6 @@
           "error": "#/$defs/ErrorSSEEvent",
           "message": "#/$defs/MessageSSEEvent",
           "plan": "#/$defs/PlanSSEEvent",
-          "project_notes": "#/$defs/ProjectNotesSSEEvent",
           "run": "#/$defs/RunSSEEvent",
           "step": "#/$defs/StepSSEEvent",
           "title": "#/$defs/TitleSSEEvent",
@@ -1712,9 +1582,6 @@
         },
         {
           "$ref": "#/$defs/EnvironmentSSEEvent"
-        },
-        {
-          "$ref": "#/$defs/ProjectNotesSSEEvent"
         },
         {
           "$ref": "#/$defs/ContextSSEEvent"
@@ -1883,7 +1750,6 @@
           "error": "#/$defs/ErrorSSEEvent",
           "message": "#/$defs/MessageSSEEvent",
           "plan": "#/$defs/PlanSSEEvent",
-          "project_notes": "#/$defs/ProjectNotesSSEEvent",
           "run": "#/$defs/RunSSEEvent",
           "step": "#/$defs/StepSSEEvent",
           "title": "#/$defs/TitleSSEEvent",
@@ -1929,9 +1795,6 @@
         },
         {
           "$ref": "#/$defs/EnvironmentSSEEvent"
-        },
-        {
-          "$ref": "#/$defs/ProjectNotesSSEEvent"
         },
         {
           "$ref": "#/$defs/ContextSSEEvent"

@@ -21,6 +21,7 @@ from app.domain.models.event import (
     ToolEvent,
     ToolEventStatus,
 )
+from app.domain.models.run_input import RunInput
 from app.domain.models.run import Run, RunMode, RunReason, RunStatus
 from app.domain.models.session import Session, SessionStatus
 from app.domain.models.tool_result import ToolResult
@@ -127,8 +128,10 @@ def loop_with_tools(script, *, session=None, policy=None, sandbox=None, gateway=
 async def run_once(h, message, mode=RunMode.NORMAL):
     task = input_task()
     event = MessageEvent(role="user", message=message)
-    started = await h.ledger.start(h.session.id, events_after=[event], mode=mode)
-    await task.input_stream.put(event.model_dump_json())
+
+    async def add_input(uow):
+        await uow.run_input.add(RunInput(session_id=h.session.id, run_id=event.run_id, message_seq=event.seq))
+    started = await h.ledger.start(h.session.id, events_after=[event], mode=mode, apply=add_input)
     await make_runner(h, run=started).invoke(task)
     return h.runs[started.id]
 

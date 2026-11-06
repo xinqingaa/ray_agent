@@ -114,25 +114,25 @@ class RunEndReason(str, Enum):
 
 
 def build_default_tools(
-        sandbox: Sandbox,
-        browser: Browser,
+        sandbox: Optional[Sandbox],
+        browser: Optional[Browser],
         search_engine: SearchEngine,
         mcp_tool: MCPTool,
         a2a_tool: A2ATool,
-        default_exec_dir: str = "/home/ubuntu",
+        default_exec_dir: Optional[str] = None,
         capture_screenshot=None,
+        web_reader=None,
 ) -> List[BaseTool]:
-    """默认工具集；计划与交付工具由循环自己追加。default_exec_dir 是 shell_execute 省略工作目录时的默认值。"""
-    return [
-        FileTool(sandbox=sandbox),
-        ShellTool(sandbox=sandbox, default_exec_dir=default_exec_dir),
-        BrowserTool(browser=browser, capture=capture_screenshot),
-        WebTool(sandbox=sandbox),
-        SearchTool(search_engine=search_engine),
-        MessageTool(),
-        mcp_tool,
-        a2a_tool,
-    ]
+    """默认工具集；计划与交付工具由循环自己追加。依赖执行环境的工具只在对应资源提供时加入：
+    文件与 Shell 需要 sandbox，浏览器需要 browser。default_exec_dir 是 shell_execute 省略工作目录时的默认值。"""
+    tools: List[BaseTool] = []
+    if sandbox is not None:
+        tools += [FileTool(sandbox=sandbox), ShellTool(sandbox=sandbox, default_exec_dir=default_exec_dir)]
+    if browser is not None:
+        tools.append(BrowserTool(browser=browser, capture=capture_screenshot))
+    if web_reader is not None:
+        tools.append(WebTool(web_reader))
+    return [*tools, SearchTool(search_engine=search_engine), MessageTool(), mcp_tool, a2a_tool]
 
 
 def find_dangling_calls(messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
@@ -321,8 +321,9 @@ class AgentLoop(BaseFlow):
             tool_policy: Optional[ToolPolicyConfig] = None,
             mode: RunMode = RunMode.NORMAL,
             project_prompt: str = "",
+            output_dir: Optional[str] = None,
     ) -> None:
-        """write_output 把超长工具结果的完整内容写入沙箱，由运行器注入；为空时超长结果只截断。
+        """write_output 把超长工具结果的完整内容写入 output_dir（会话工作目录中），由运行器注入；为空时超长结果只截断。
 
         tool_policy 为空时用默认策略表（MCP 与 A2A 需要批准，其余直接执行）。
         mode 是运行模式；运行器在记录配置快照前按运行行改写（见 mode 属性）。
@@ -339,6 +340,9 @@ class AgentLoop(BaseFlow):
         self.skill_runtime = None
         self._skill_blocked = False
         self._memory: Optional[Memory] = None
+        # 由运行器把记忆与随后的事件在同一事务写入；为空时每次改动记忆立即单独保存
+        self.persist_memory_with_events = False
+        self.memory_dirty = False
         self._pending_context: List[ContextEvent] = []
         self._open_turn: Optional[_ModelTurn] = None
         self._last_completed: Optional[TurnEvent] = None
@@ -376,6 +380,7 @@ class AgentLoop(BaseFlow):
         self._outcomes = TaskOutcomes(self.plan_tool, sandbox)
         toolkits = [*tools, self.plan_tool]
         if sandbox is not None: toolkits.append(ArtifactWriter(self._outcomes))
+        self._can_deliver = deliver_file is not None
         if deliver_file is not None:
             toolkits.append(DeliverTool(deliver_file, self._outcomes.existing_delivery))
         self.pipeline = ToolPipeline(toolkits)
@@ -394,7 +399,8 @@ class AgentLoop(BaseFlow):
         self.pipeline.add_after(self._outcomes.after)
         self.pipeline.add_after(self._emit_delivery_message)
         # 整形放在最后：前面的处理函数读的是工具的原始结果
-        self.pipeline.add_after(ResultShaper(agent_config.tool_result_max_chars, write_output))
+        self.pipeline.add_after(ResultShaper(agent_config.tool_result_max_chars, write_output,
+                                             **({'output_dir': output_dir} if output_dir else {})))
 
     @property
     def done(self) -> bool:
@@ -624,7 +630,7 @@ class AgentLoop(BaseFlow):
             first_turn_index: int,
     ) -> AsyncGenerator[BaseEvent, None]:
         history = await self._load()
-        self._delivery_required=bool(re.search(r'(交付|下载|deliver).{0,25}(文件|file)|(文件|file).{0,25}(交付|下载|deliver)',message.message or '', re.I)) and self.mode != RunMode.PLAN
+        self._delivery_required=self._can_deliver and bool(re.search(r'(交付|下载|deliver).{0,25}(文件|file)|(文件|file).{0,25}(交付|下载|deliver)',message.message or '', re.I)) and self.mode != RunMode.PLAN
 
         started = {
             e.tool_call_id for e in history
@@ -632,7 +638,8 @@ class AgentLoop(BaseFlow):
         }
         status = prior_status if prior_status is not None else self._session_status
         reply_consumed = await self.repair_dangling_calls(status, message, started)
-        for event in self._take_context():
+        consumed = [message.input_id] if message.input_id is not None else []
+        for event in self._take_context(consumed if reply_consumed else ()):
             yield event
         if not reply_consumed or message.images or message.image_input_note:
             # 新用户消息开始新的一问。关闭思考时删除此前的思考内容；开启思考且厂商要求跨问回放时保留。
@@ -640,7 +647,7 @@ class AgentLoop(BaseFlow):
             if not getattr(self._llm, "keep_reasoning", False):
                 self._strip_reasoning()
             await self._add_messages([{"role": "user", "content": _user_content(message)}])
-        for event in self._take_context():
+        for event in self._take_context(consumed):
             yield event
         if message.skill:
             async for event in self._preload_skill(message.skill.model_dump()):
@@ -662,7 +669,7 @@ class AgentLoop(BaseFlow):
                 if injected:
                     logger.info(f"会话[{self._session_id}] 追加运行中补充的消息 {len(injected)} 条")
                     await self._add_messages([{"role": "user", "content": _user_content(m)} for m in injected])
-                    for event in self._take_context():
+                    for event in self._take_context([m.input_id for m in injected if m.input_id is not None]):
                         event.plan_check = "scope"
                         self._plan_progress.observe(event)
                         yield event
@@ -1166,13 +1173,10 @@ class AgentLoop(BaseFlow):
             file = result.data.get('file') or {}
             if file:
                 self._delivery_state = 'complete'
-                project = file.get('project_persistence') or {}
-                if project.get('state') == 'failed':
-                    self._delivery_failures.add(file.get('filepath', '截图'))
         if invocation.function_name == DELIVER_FILES_TOOL and isinstance(result.data, DeliveryResult):
             self._delivery_state = result.data.state
             for item in result.data.items:
-                if not item.success or (item.project and item.project.get('state') == 'failed'):
+                if not item.success:
                     self._delivery_failures.add(item.path)
                 else:
                     self._delivery_failures.discard(item.path)
@@ -1184,10 +1188,7 @@ class AgentLoop(BaseFlow):
             if file_data:
                 from app.domain.models.file import File
                 file = File.model_validate(file_data)
-                message = '截图已保存'
-                if (file.project_persistence or {}).get('state') == 'failed':
-                    message += '；可下载，但未保存到项目'
-                invocation.events.append(MessageEvent(message=message, attachments=[file]))
+                invocation.events.append(MessageEvent(message='截图已保存', attachments=[file]))
             return result
         if invocation.function_name != DELIVER_FILES_TOOL or not isinstance(result.data, DeliveryResult):
             return result
@@ -1198,9 +1199,6 @@ class AgentLoop(BaseFlow):
             failed=[item.path for item in result.data.items if not item.success]
             if failed:
                 message += '；未交付：'+'、'.join(failed)
-            partial = [item for item in result.data.items if item.project and item.project.get('state') == 'failed']
-            if partial:
-                message += '；交付可下载，但未保存到项目：' + '、'.join(item.path for item in partial)
             invocation.events.append(MessageEvent(
                 role="assistant",
                 message=message,
@@ -1215,9 +1213,21 @@ class AgentLoop(BaseFlow):
             async with self._uow:
                 self._memory = await self._uow.session.get_memory(self._session_id, AGENT_MEMORY_NAME)
 
-    def _take_context(self) -> Iterator[ContextEvent]:
-        """取出尚未发出的上下文事件；调用方在下一次模型请求前把它们全部发出。"""
+    async def _save_memory(self) -> None:
+        if self.persist_memory_with_events:
+            self.memory_dirty = True
+            return
+        async with self._uow:
+            await self._uow.session.save_memory(self._session_id, AGENT_MEMORY_NAME, self._memory)
+
+    def _take_context(self, input_ids=()) -> Iterator[ContextEvent]:
+        """取出尚未发出的上下文事件；调用方在下一次模型请求前把它们全部发出。
+
+        input_ids 是本批已写入记忆的持久输入：本批任一事件首次落库时，它们与记忆在同一事务中标记消费。
+        """
         pending, self._pending_context = self._pending_context, []
+        for event in pending:
+            event._input_ids = list(input_ids)
         return iter(pending)
 
     def _strip_reasoning(self) -> None:
@@ -1295,8 +1305,7 @@ class AgentLoop(BaseFlow):
             return
         self._memory.replace(revised[1:] if revised and revised[0].get('role') == 'system' else revised)
         self.budget.reset()
-        async with self._uow:
-            await self._uow.session.save_memory(self._session_id, AGENT_MEMORY_NAME, self._memory)
+        await self._save_memory()
         yield ContextEvent(op=ContextOp.REPLACE, messages=copy.deepcopy(self._memory.get_messages()[1:]))
 
     async def _sync_visual_history(self):
@@ -1310,8 +1319,7 @@ class AgentLoop(BaseFlow):
             return
         self._memory.replace(revised[1:] if revised and revised[0].get('role') == 'system' else revised)
         self.budget.reset()
-        async with self._uow:
-            await self._uow.session.save_memory(self._session_id, AGENT_MEMORY_NAME, self._memory)
+        await self._save_memory()
         yield ContextEvent(op=ContextOp.REPLACE, messages=copy.deepcopy(self._memory.get_messages()[1:]))
 
     def estimate_context(self) -> ContextEstimate:
@@ -1333,8 +1341,7 @@ class AgentLoop(BaseFlow):
                 break
             self._memory.replace(revised[1:])
             self.budget.reset()
-            async with self._uow:
-                await self._uow.session.save_memory(self._session_id, AGENT_MEMORY_NAME, self._memory)
+            await self._save_memory()
             yield ContextEvent(op=ContextOp.REPLACE, messages=copy.deepcopy(revised[1:]))
             estimate = self.estimate_context()
         fixed = fixed_input_estimate(self.budget, self._request_messages(), self.pipeline.schemas())
@@ -1384,8 +1391,7 @@ class AgentLoop(BaseFlow):
         self._task_context = None
         self.budget.reset()
         self._pending_context.append(result.context)
-        async with self._uow:
-            await self._uow.session.save_memory(self._session_id, AGENT_MEMORY_NAME, self._memory)
+        await self._save_memory()
         yield result.compact
         for event in self._take_context():
             yield event
@@ -1412,5 +1418,4 @@ class AgentLoop(BaseFlow):
             self._memory.add_message({"role": "system", "content": self._system_prompt})
         self._memory.add_messages(messages)
         self._pending_context.append(ContextEvent(op=ContextOp.APPEND, messages=copy.deepcopy(messages)))
-        async with self._uow:
-            await self._uow.session.save_memory(self._session_id, AGENT_MEMORY_NAME, self._memory)
+        await self._save_memory()

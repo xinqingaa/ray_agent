@@ -8,13 +8,9 @@ from app.application.errors.exceptions import AppException, ConflictError
 from app.application.services import agent_service as module
 from app.application.services.context_operations import context_operation
 from app.domain.models.error import ErrorCode
-from app.domain.models.event import CompactEvent
-from app.domain.models.run import Run, RunStatus
-from app.domain.models.workspace_project import WorkspaceProject
-from tests.core.test_context_governance import SUMMARY, seeded_session
+from tests.core.test_context_governance import seeded_session
 from tests.core.test_plan_mode_and_compact import compact_service
 from tests.support.loop_harness import memory_messages
-from tests.support.scripted_llm import text, usage
 
 
 def test_compaction_busy_read_and_cancel_are_atomic():
@@ -78,49 +74,4 @@ def test_manual_fixed_input_overflow_has_budget_and_no_side_effects():
         assert memory_messages(session) == original
         assert len(h.events) == before_events and not h.llm.requests
         assert context_operation(session.id)['status'] == 'idle'
-    asyncio.run(scenario())
-
-
-def test_manual_compact_counts_live_project_segment_without_storing_it():
-    async def scenario():
-        async def remember_completed_run(h):
-            snapshot = await h.loop.config_snapshot()
-            done = Run(session_id=h.session.id, status=RunStatus.COMPLETED, turns=10, config_snapshot=snapshot)
-            h.runs[done.id] = done
-
-        plain, _ = seeded_session(10)
-        plain_h, plain_service = compact_service(plain, [text(SUMMARY, usage=usage(9000, 300))])
-        await remember_completed_run(plain_h)
-        await plain_service.compact_session(plain.id)
-        plain_compact = next(event for event in plain_h.events if isinstance(event, CompactEvent))
-
-        session, _ = seeded_session(10)
-        session.project = WorkspaceProject(id="project-1", name="验收", instructions="项目固定说明甲" * 40)
-        h, service = compact_service(session, [text(SUMMARY, usage=usage(9000, 300))])
-        await remember_completed_run(h)
-        system_before = memory_messages(session)[0]["content"]
-        result = await service.compact_session(session.id)
-        assert result.status == "compacted"
-        compact = next(event for event in h.events if isinstance(event, CompactEvent))
-        assert compact.before_estimate["includes_project_context"] is True
-        assert compact.after_estimate["includes_project_context"] is True
-        assert compact.before_estimate["system_prompt"] > plain_compact.before_estimate["system_prompt"]
-        assert "includes_project_context" not in plain_compact.before_estimate
-        assert memory_messages(session)[0]["content"] == system_before
-        assert all("项目固定说明甲" not in str(message.get("content") or "") for message in memory_messages(session))
-    asyncio.run(scenario())
-
-
-def test_manual_project_notes_overflow_does_not_touch_memory():
-    async def scenario():
-        session, _ = seeded_session(10)
-        session.project = WorkspaceProject(id='notes-capacity',name='容量',instructions='说'*8000,notes='记'*8000,notes_version=12)
-        h, service = compact_service(session, [])
-        service._llm._context_window=4000
-        events_before = list(h.events)
-        before = [dict(m) for m in memory_messages(session)]
-        with pytest.raises(AppException) as raised:
-            await service.compact_session(session.id)
-        assert raised.value.info.code==ErrorCode.CONTEXT_LIMIT and 'fixed_input' in raised.value.info.details
-        assert memory_messages(session)==before and h.events==events_before and not h.llm.requests
     asyncio.run(scenario())

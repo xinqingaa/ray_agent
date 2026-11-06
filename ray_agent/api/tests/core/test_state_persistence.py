@@ -19,7 +19,7 @@ from tests.support.loop_harness import (
     restore_session,
     start_run,
     store_of,
-    submit,
+    resume_run,
     tool_results,
 )
 from tests.support.scripted_llm import ScriptedResponse, ScriptedToolCall, text, tool_call
@@ -102,9 +102,7 @@ def test_wait_resume_after_serialization_keeps_plan_snapshot_and_identity():
             text('完成'),
         ], session=restored)
         task2 = input_task()
-        reply = MessageEvent(role='user', message='/hello.txt')
-        resumed = await second.ledger.transition(restored.id, waiting.id, RunStatus.RUNNING, events_after=[reply])
-        await submit(task2, '/hello.txt')
+        resumed = await resume_run(second, waiting.id, '/hello.txt')
         await make_runner(second, run=resumed, prior_status=SessionStatus.WAITING).invoke(task2)
         assert restored.status == 'completed'
         assert first.session.status == 'waiting'

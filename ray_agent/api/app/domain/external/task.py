@@ -3,8 +3,6 @@
 from abc import ABC, abstractmethod
 from typing import Protocol, Optional
 
-from app.domain.external.message_queue import MessageQueue
-
 
 class TaskRunner(ABC):
     """任务运行器，负责任务的执行、关心的是如何执行任务、销毁任务释放资源"""
@@ -26,7 +24,7 @@ class TaskRunner(ABC):
 
 
 class Task(Protocol):
-    """定义任务相关的操作接口协议"""
+    """进程内执行一次运行的任务；身份是运行 id。输入来自持久输入记录，不经过任务对象传递。"""
 
     async def invoke(self) -> None:
         """运行当前任务"""
@@ -37,18 +35,13 @@ class Task(Protocol):
         ...
 
     @property
-    def input_stream(self) -> MessageQueue:
-        """只读属性，返回任务的输入流：提交消息与运行中补充消息；输出不再经过 Redis 流，事件以数据库为事实源"""
-        ...
-
-    @property
     def task_runner(self) -> TaskRunner:
         """只读属性，返回执行本任务的运行器"""
         ...
 
     @property
     def id(self) -> str:
-        """只读属性，返回任务的id"""
+        """只读属性，返回任务的id（即运行 id）"""
         ...
 
     @property
@@ -58,7 +51,7 @@ class Task(Protocol):
 
     @classmethod
     def get(cls, task_id: str) -> Optional["Task"]:
-        """类方法，根据任务id获取对应任务"""
+        """类方法，根据运行 id 获取本进程中的任务"""
         ...
 
     @classmethod

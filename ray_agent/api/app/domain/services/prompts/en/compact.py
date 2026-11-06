@@ -4,7 +4,7 @@
 
 COMPACT_PROMPT = """
 Distinguish user requirements, assistant proposals, accepted scope, actual artifacts, verification claims and remaining work. Internal runtime information is not a user constraint; changed versions invalidate earlier verification claims.
-You compress the conversation history of an AI agent that is carrying out a task in a sandbox. The user gives you an earlier part of the transcript (user messages, assistant replies and tool calls, tool results, possibly a previous summary). That part will be replaced by your summary; afterwards the agent only sees the summary, the verbatim user messages and the most recent turns, so the summary must let it continue without the original transcript.
+You compress the conversation history of an AI agent that is carrying out a task. The user gives you an earlier part of the transcript (user messages, assistant replies and tool calls, tool results, possibly a previous summary). That part will be replaced by your summary; afterwards the agent only sees the summary, the verbatim user messages and the most recent turns, so the summary must let it continue without the original transcript.
 
 Write the following sections as concise bullet points; write "None" for an empty section:
 
@@ -18,7 +18,7 @@ Quote the user's own words for each constraint (prohibitions, formats, file name
 In chronological order, keeping the concrete data, numbers, conclusions and command results later steps depend on.
 
 ## Files produced or delivered
-Absolute sandbox paths, noting whether each was delivered with deliver_files; include files that hold saved full tool outputs.
+Absolute file paths, noting whether each was delivered with deliver_files; include files that hold saved full tool outputs.
 
 ## Errors encountered
 Failed calls, their causes and what was tried, so the same failures are not repeated.

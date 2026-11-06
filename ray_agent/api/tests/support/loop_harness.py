@@ -12,6 +12,7 @@ from app.domain.external.event_notifier import OutputDelta
 from app.domain.models.event import BaseEvent, Event, MessageEvent
 from app.domain.models.memory import Memory
 from app.domain.models.run import ACTIVE_RUN_STATUSES, Run, RunStatus
+from app.domain.models.run_input import RunInput, RunInputStatus
 from app.domain.models.session import Session, SessionStatus
 from app.domain.models.tool_result import ToolResult
 from app.domain.repositories.run_repository import ActiveRunExistsError
@@ -66,14 +67,7 @@ class FakeSessionRepository:
     lock = get_by_id
 
     async def save(self, session):
-        self.s.sandbox_id, self.s.task_id = session.sandbox_id, session.task_id
-
-    async def update_sandbox_id(self, session_id, sandbox_id):
-        self.s.sandbox_id = sandbox_id
-
-
-    async def update_task_id(self, session_id, task_id):
-        self.s.task_id = task_id
+        pass
 
     async def set_title(self, session_id, title, source, expected_source=None):
         if expected_source is not None and self.s.title_source != expected_source:
@@ -113,6 +107,10 @@ class FakeEventRepository:
         event.seq = len(self.events) + 1
         self.events.append(_EVENT.validate_json(event.model_dump_json()))
         return event.seq
+
+    async def get(self, session_id, seq):
+        found = next((e for e in self.events if e.seq == seq), None)
+        return found.model_copy(deep=True) if found else None
 
     async def list(self, session_id, after_seq=0, limit=None, types=None, run_id=None):
         found = [e.model_copy(deep=True) for e in self.events
@@ -172,6 +170,38 @@ class FakeRunRepository:
         self.runs[run_id].config_snapshot = json.loads(json.dumps(snapshot))
 
 
+class FakeRunInputRepository:
+    """内存持久输入：保留受理顺序、按运行取待消费输入与只消费一次的约束。"""
+
+    def __init__(self, inputs: List[RunInput]) -> None:
+        self.inputs = inputs
+
+    async def add(self, run_input):
+        run_input.id = len(self.inputs) + 1
+        self.inputs.append(run_input.model_copy(deep=True))
+        return run_input.id
+
+    async def get(self, input_id):
+        found = next((item for item in self.inputs if item.id == input_id), None)
+        return found.model_copy(deep=True) if found else None
+
+    async def pending(self, run_id, exclude=()):
+        return [item.model_copy(deep=True) for item in self.inputs
+                if item.run_id == run_id and item.status == RunInputStatus.PENDING and item.id not in exclude]
+
+    async def consume(self, input_ids, consumed_seq):
+        changed = 0
+        for item in self.inputs:
+            if item.id in input_ids and item.status == RunInputStatus.PENDING:
+                item.status, item.consumed_seq, changed = RunInputStatus.CONSUMED, consumed_seq, changed + 1
+        return changed
+
+    async def reassign(self, input_id, run_id):
+        for item in self.inputs:
+            if item.id == input_id:
+                item.run_id = run_id
+
+
 class Store:
     """一个会话的全部内存状态；同一 Session 对象的多个夹具共享同一份。"""
 
@@ -179,6 +209,7 @@ class Store:
         self.session = session
         self.events: List[BaseEvent] = []
         self.runs: Dict[str, Run] = {}
+        self.inputs: List[RunInput] = []
 
 
 _STORES: Dict[int, Store] = {}
@@ -197,6 +228,7 @@ def restore_session(session: Session) -> Session:
     old, new = store_of(session), store_of(restored)
     new.events.extend(e.model_copy(deep=True) for e in old.events)
     new.runs.update({k: v.model_copy(deep=True) for k, v in old.runs.items()})
+    new.inputs.extend(i.model_copy(deep=True) for i in old.inputs)
     return restored
 
 
@@ -207,10 +239,13 @@ def make_uow_factory(session: Session):
     class FakeUow:
         def __init__(self):
             self.session = repository
-            self.project = SimpleNamespace(get=AsyncMock(return_value=session.project))
             self.event = FakeEventRepository(store.events)
             self.run = FakeRunRepository(store.runs)
-            self.file = SimpleNamespace(get_by_id=AsyncMock(return_value=None), save=AsyncMock())
+            self.run_input = FakeRunInputRepository(store.inputs)
+            self.request = SimpleNamespace(get=AsyncMock(return_value=None), add=AsyncMock())
+            self.root = SimpleNamespace(session_workdir=AsyncMock(return_value=None))
+            self.file = SimpleNamespace(get_by_id=AsyncMock(return_value=None), save=AsyncMock(),
+                                        bind_session=AsyncMock())
 
         async def __aenter__(self):
             return self
@@ -311,7 +346,7 @@ def make_loop(script: List[ScriptItem], *, session: Optional[Session] = None, de
               extra_tools: Sequence[BaseTool] = (), uow_factory=None, write_output=None,
               context_window: int = 32000, max_tokens: int = 4096,
               agent_config: Optional[Dict[str, Any]] = None,
-              tool_policy: Optional[Dict[str, str]] = None) -> SimpleNamespace:
+              tool_policy: Optional[Dict[str, str]] = None, output_dir: Optional[str] = None) -> SimpleNamespace:
     """uow_factory 为空时使用内存仓库；传入真实数据库的 UoW 工厂时 store/events/runs 为空。
 
     write_output 为结果整形的落盘函数（为空时超长结果只截断）；agent_config 覆盖 AgentConfig 的其他字段；
@@ -332,13 +367,14 @@ def make_loop(script: List[ScriptItem], *, session: Optional[Session] = None, de
         write_output=write_output,
         retry_interval=0,
         tool_policy=ToolPolicyConfig(rules=tool_policy) if tool_policy is not None else None,
+        output_dir=output_dir,
     )
     store = getattr(uow_factory, "store", None)
     notifier = MemoryNotifier()
     return SimpleNamespace(loop=loop, llm=llm, session=session, sandbox=sandbox, recording=recording,
                            store=store, events=store.events if store else None,
-                           runs=store.runs if store else None, notifier=notifier,
-                           ledger=RunLedger(uow_factory, notifier))
+                           runs=store.runs if store else None, inputs=store.inputs if store else None,
+                           notifier=notifier, ledger=RunLedger(uow_factory, notifier))
 
 
 def of_run(events: Sequence[BaseEvent], run_id: str) -> List[BaseEvent]:
@@ -370,32 +406,12 @@ def assert_no_dangling(messages: List[Dict[str, Any]]) -> None:
 
 # ---------------- 运行器夹具 ----------------
 
-class MemoryQueue:
-    """只替换传输，不模拟 Redis 锁与多进程。"""
-
-    def __init__(self, name=""):
-        self.items, self.history, self.on_put = [], [], None
-
-    async def put(self, value):
-        key = str(len(self.history) + 1)
-        self.items.append((key, value))
-        self.history.append(value)
-        if self.on_put:
-            await self.on_put(value)
-        return key
-
-    async def pop(self):
-        return self.items.pop(0) if self.items else (None, None)
-
-    async def is_empty(self):
-        return not self.items
-
-
 def make_runner(h: SimpleNamespace, run: Optional[Run] = None,
-                prior_status: Optional[SessionStatus] = None) -> AgentTaskRunner:
-    """用 make_loop 的结果组装运行器；附件同步与工具展示内容不属于这些实验。
+                prior_status: Optional[SessionStatus] = None, approval=None) -> AgentTaskRunner:
+    """用 make_loop 的结果组装运行器；附件放置与工具展示内容不属于这些实验。
 
     没有传入运行时直接在内存表里建一个 running 运行（相当于 chat 已受理），不写 run 事件。
+    记忆与事件同事务保存，与生产运行器一致。
     """
     if run is None:
         run = Run(session_id=h.session.id)
@@ -409,36 +425,45 @@ def make_runner(h: SimpleNamespace, run: Optional[Run] = None,
     r._mcp_tool = SimpleNamespace(initialize=AsyncMock(), cleanup=AsyncMock())
     r._a2a_tool = SimpleNamespace(initialize=AsyncMock(), cleanup=AsyncMock())
     r._ledger, r._run_id, r._prior_status = h.ledger, run.id, prior_status
+    r._approval, r._workdir, r._claimed = approval, None, set()
     h.loop.run_id = run.id
+    h.loop.persist_memory_with_events = True
     r._next_turn, r._failure_reason, r._shell_sessions = 1, None, []
     r._invoking, r._settled = False, asyncio.Event()
-    r._sync_message_attachments_to_sandbox = AsyncMock()
+    r._place_attachments = AsyncMock()
     r._handle_tool_event = AsyncMock()
     r._flow._publish_delta = r._publish_delta
     return r
 
 
 def input_task() -> SimpleNamespace:
-    return SimpleNamespace(id="test-task", input_stream=MemoryQueue(), done=False, cancel=lambda: True)
+    """进程内任务的替身；输入经持久输入记录传递，任务对象只承载身份。"""
+    return SimpleNamespace(id="test-task", done=False, cancel=lambda: True)
 
 
-async def submit(task, text: str) -> None:
-    await task.input_stream.put(MessageEvent(role="user", message=text).model_dump_json())
+def _add_input(session_id: str, message: MessageEvent):
+    async def add(uow) -> None:
+        await uow.run_input.add(RunInput(session_id=session_id, run_id=message.run_id, message_seq=message.seq))
+    return add
 
 
 async def start_run(h: SimpleNamespace, task, text: str) -> Run:
-    """与 chat 新建运行一致：同一事务写 run(running) 与用户消息，再放进输入流。"""
+    """与 chat 新建运行一致：同一事务写 run(running)、用户消息与待消费输入。"""
     message = MessageEvent(role="user", message=text)
-    run = await h.ledger.start(h.session.id, events_after=[message])
-    await task.input_stream.put(message.model_dump_json())
-    return run
+    return await h.ledger.start(h.session.id, events_after=[message], apply=_add_input(h.session.id, message))
+
+
+async def resume_run(h: SimpleNamespace, run_id: str, text: str) -> Optional[Run]:
+    """与 chat 续接等待中的运行一致：waiting → running、回复消息与待消费输入同事务提交。"""
+    message = MessageEvent(role="user", message=text)
+    return await h.ledger.transition(h.session.id, run_id, RunStatus.RUNNING, events_after=[message],
+                                     apply=_add_input(h.session.id, message))
 
 
 async def inject(h: SimpleNamespace, task, run_id: str, text: str) -> None:
-    """与 chat 注入一致：消息写入当前运行后放进输入流。"""
+    """与 chat 注入一致：消息与待消费输入同事务写入当前运行，循环在下一次模型请求前取走。"""
     message = MessageEvent(role="user", message=text)
-    await h.ledger.append(h.session.id, [message], run_id=run_id)
-    await task.input_stream.put(message.model_dump_json())
+    await h.ledger.append(h.session.id, [message], run_id=run_id, apply=_add_input(h.session.id, message))
 
 
 def event_at(h: SimpleNamespace, seq: int) -> BaseEvent:

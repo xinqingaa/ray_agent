@@ -2,7 +2,7 @@ import asyncio
 import json
 import time
 from copy import deepcopy
-from unittest.mock import Mock
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 
@@ -82,8 +82,8 @@ async def test_config_offline_manageable_and_correct_return_type(servers):
         'a2a_config':{'a2a_servers':[{'id':'offline','base_url':servers['a2a']+'/invalid'},
                                      {'id':'disabled','base_url':servers['a2a'], 'enabled':False}]}})
     repository=Mock()
-    repository.load.side_effect=lambda:deepcopy(config)
-    repository.save.side_effect=lambda value:config.__dict__.update(deepcopy(value.__dict__))
+    repository.load=AsyncMock(side_effect=lambda:deepcopy(config))
+    repository.save=AsyncMock(side_effect=lambda value:config.__dict__.update(deepcopy(value.__dict__)))
     service=AppConfigService(repository)
     mcp_rows=await service.get_mcp_servers()
     assert [(r.server_name,r.connection_status) for r in mcp_rows]==[

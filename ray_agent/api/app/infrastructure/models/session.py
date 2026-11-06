@@ -1,138 +1,63 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-import uuid
+"""会话 ORM 模型。next_event_seq 在写事务中分配并与事件同提交；记忆与已交付文件清单是 JSON 文本列。"""
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from sqlalchemy import (
-    BigInteger,
-    Float,
-    ForeignKey,
-    String,
-    Integer,
-    DateTime,
-    Text,
-    text,
-    PrimaryKeyConstraint,
-)
-from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy import JSON, Float, Index, Integer, String, Text
+from sqlalchemy.orm import Mapped, mapped_column
 
-from .base import Base
-from .project import ProjectModel
+from .base import Base, UTCDateTime
+from ...domain.models.clock import utc_now
 from ...domain.models.session import Session
+
+_JSON_FIELDS = {"memories", "files"}
+_DOMAIN_FIELDS = {"id", "title", "title_source", "status", "model_id", "reasoning", "context_window", "max_tokens",
+                  "temperature", "unread_message_count", "latest_message", "latest_message_at", "created_at",
+                  "updated_at"}
 
 
 class SessionModel(Base):
-    """会话ORM模型"""
     __tablename__ = "sessions"
     __table_args__ = (
-        PrimaryKeyConstraint("id", name="pk_sessions_id"),
+        Index("ix_sessions_latest", "latest_message_at", "created_at"),
     )
 
-    id: Mapped[str] = mapped_column(
-        String(255),
-        nullable=False,
-        primary_key=True,
-        default=lambda: str(uuid.uuid4()),
-    )  # 会话id
-    sandbox_id: Mapped[str] = mapped_column(String(255), nullable=True)  # 沙箱id
-    project_id: Mapped[Optional[str]] = mapped_column(String(255), ForeignKey("projects.id", ondelete="RESTRICT"), nullable=True, index=True)
-    project: Mapped[Optional[ProjectModel]] = relationship(lazy="joined")
-    project_snapshot: Mapped[Optional[Dict[str, Any]]] = mapped_column(JSONB, nullable=True)
-    task_id: Mapped[str] = mapped_column(String(255), nullable=True)  # 任务id
-    title: Mapped[str] = mapped_column(
-        String(255),
-        nullable=False,
-        server_default=text("''::character varying"),
-    )  # 会话标题
-    summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    summary_source: Mapped[Optional[str]] = mapped_column(String(16), nullable=True)
-    summary_state: Mapped[str] = mapped_column(String(16), nullable=False, default='idle', server_default='idle')
-    summary_error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    summary_generation: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0, server_default='0')
-    summary_source_seq: Mapped[int] = mapped_column(BigInteger, nullable=False, default=0, server_default='0')
-    title_source: Mapped[str] = mapped_column(String(16), nullable=False, server_default=text("'placeholder'"))
+    id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    title: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    title_source: Mapped[str] = mapped_column(String(16), nullable=False, default="placeholder")
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="pending")
     model_id: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
     reasoning: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
-    context_window: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
-    max_tokens: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
+    context_window: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    max_tokens: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     temperature: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
-    unread_message_count: Mapped[int] = mapped_column(
-        Integer,
-        nullable=False,
-        server_default=text("0"),
-    )  # 未读消息数
-    latest_message: Mapped[str] = mapped_column(
-        Text,
-        nullable=False,
-        server_default=text("''::text"),
-    )  # 最后一条消息
-    latest_message_at: Mapped[datetime] = mapped_column(
-        DateTime,
-        nullable=True,
-    )  # 最后一条消息时间
-    files: Mapped[List[Dict[str, Any]]] = mapped_column(
-        JSONB,
-        nullable=False,
-        server_default=text("'[]'::jsonb"),
-    )
-    memories: Mapped[Dict[str, Any]] = mapped_column(
-        JSONB,
-        nullable=False,
-        server_default=text("'{}'::jsonb"),
-    )  # 会话 Agent 的记忆
-    status: Mapped[str] = mapped_column(
-        String(255),
-        nullable=False,
-        server_default=text("''::character varying"),
-    )  # 会话状态
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime,
-        nullable=False,
-        onupdate=datetime.now,
-        server_default=text("CURRENT_TIMESTAMP(0)"),
-    )  # 更新时间
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime,
-        nullable=False,
-        server_default=text("CURRENT_TIMESTAMP(0)"),
-    )  # 创建时间
+    unread_message_count: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    latest_message: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    latest_message_at: Mapped[Optional[datetime]] = mapped_column(UTCDateTime, nullable=True)
+    next_event_seq: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    memories: Mapped[Dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    files: Mapped[List[Dict[str, Any]]] = mapped_column(JSON, nullable=False, default=list)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime, nullable=False, default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(UTCDateTime, nullable=False, default=utc_now, onupdate=utc_now)
+
+    @staticmethod
+    def _values(session: Session, fields) -> Dict[str, Any]:
+        values = {**session.model_dump(mode="python", include=fields),
+                  **session.model_dump(mode="json", include=_JSON_FIELDS)}
+        values["status"] = session.status.value
+        return values
 
     @classmethod
     def from_domain(cls, session: Session) -> "SessionModel":
-        """从会话领域模型构建ORM模型"""
-        return cls(
-            # 1.基础字段: 使用BaseModel提供的python字典转换格式
-            **session.model_dump(
-                mode="python",
-                exclude={"project", "project_snapshot", "memories", "files", "updated_at", "created_at"},
-            ),
-            # 2.复杂字段: 使用BaseModel提供的json字典转换格式
-            **session.model_dump(
-                mode="json",
-                include={"project_snapshot", "memories", "files"},
-            )
-        )
-
-    def to_domain(self) -> Session:
-        """将会话ORM模型转换成领域模型"""
-        return Session.model_validate(self, from_attributes=True)
+        return cls(**cls._values(session, _DOMAIN_FIELDS))
 
     def update_from_domain(self, session: Session) -> None:
-        """从传递的领域模型更新ORM数据"""
-        # 1.基础字段: Python模式
-        base_data = session.model_dump(
-            mode="python",
-            exclude={"project", "project_snapshot", "memories", "files", "updated_at", "created_at", "summary", "summary_source", "summary_state", "summary_error", "summary_generation", "summary_source_seq"},
-        )
-
-        # 2.复杂字段: JSON模式
-        json_data = session.model_dump(
-            mode="json",
-            include={"project_snapshot", "memories", "files"},
-        )
-
-        # 3.合并更新
-        for field, value in {**base_data, **json_data}.items():
+        for field, value in self._values(session, _DOMAIN_FIELDS - {"id", "created_at", "updated_at"}).items():
             setattr(self, field, value)
+
+    def to_domain(self, *, with_content: bool = True) -> Session:
+        data = {field: getattr(self, field) for field in _DOMAIN_FIELDS}
+        if with_content:
+            data.update(memories=self.memories or {}, files=self.files or [])
+        return Session.model_validate(data)

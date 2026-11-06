@@ -33,7 +33,7 @@ class PlanTool(BaseTool):
         "最多一个 stage 和 step in_progress；展开不删除阶段或改为步骤。"
         "current 为本轮，future 仅为用户安排的后续；资源不足用 blocked 和 reason。"
         "结构调整、重开、取消或改范围须 explanation；source_seq 引用用户消息，自身建议不算授权。"
-        "主要工作前登记问题、判断与路径，可与首批业务动作同轮。title 简短，description 一句说明，step 用动作与具体对象或结果组成短标题，不枚举正文或附解释；goal/scope 保留目标与本次范围；大纲、规格与核验条件不放标题。推导、选择与内容设计和制作、核验、交付按目标组织，不套固定阶段；产物建议、讲解、模拟不算实际完成。小任务可平铺；跨阶段保留 stage，独立关键工作用 step。按阶段成果合并相关动作，不笼统、重复或分列内容、组件、检查细节。首次列全部阶段与首阶段关键步骤，其余进入时展开。开始、完成、切换或受阻时更新子步骤，可与业务动作同批；如实记录，不补造计划，不按页面、工具或固定数量拆分。artifacts 登记必要或承诺成果，file 携沙箱绝对 path，reply 为回复正文。"
+        "主要工作前登记问题、判断与路径，可与首批业务动作同轮。title 简短，description 一句说明，step 用动作与具体对象或结果组成短标题，不枚举正文或附解释；goal/scope 保留目标与本次范围；大纲、规格与核验条件不放标题。推导、选择与内容设计和制作、核验、交付按目标组织，不套固定阶段；产物建议、讲解、模拟不算实际完成。小任务可平铺；跨阶段保留 stage，独立关键工作用 step。按阶段成果合并相关动作，不笼统、重复或分列内容、组件、检查细节。首次列全部阶段与首阶段关键步骤，其余进入时展开。开始、完成、切换或受阻时更新子步骤，可与业务动作同批；如实记录，不补造计划，不按页面、工具或固定数量拆分。artifacts 登记必要或承诺成果，file 携绝对 path，reply 为回复正文。"
         "成果复用 id；不增加纯核对往返。无关新任务 reset=true 并说明目标；简单回答不必调用。"
     ), parameters={
         "action": {"type": "string", "enum": ["update", "review", "not_needed"]},
@@ -169,7 +169,7 @@ class PlanTool(BaseTool):
             if not a.name.strip(): raise ValueError("成果 name 不能为空")
             if a.delivery == 'file' and ((not a.path and a.schedule == 'current') or
                     (a.path and (not a.path.startswith('/') or a.path.endswith('/') or '..' in a.path.split('/')))):
-                raise ValueError("文件成果需明确的沙箱绝对 path，不能包含 ..")
+                raise ValueError("文件成果需明确的绝对 path，不能包含 ..")
             if a.delivery == 'file':
                 if a.path and a.path in paths: raise ValueError("不同成果不能共用同一文件路径")
                 if a.path: paths.add(a.path)

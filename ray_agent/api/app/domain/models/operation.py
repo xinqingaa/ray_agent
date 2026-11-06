@@ -9,6 +9,7 @@ from typing import Any, Self
 
 from pydantic import BaseModel, Field, model_validator
 
+from app.domain.models.clock import utc_now
 from app.domain.models.error import ErrorInfo
 from app.domain.models.identity import Generation, OperationId, RequestId, SessionId, WorkspaceId
 
@@ -75,8 +76,8 @@ class Operation(BaseModel):
     progress: OperationProgress | None = None
     request_id: RequestId | None = None
     cancel_requested_at: datetime | None = None
-    created_at: datetime = Field(default_factory=datetime.now)
-    updated_at: datetime = Field(default_factory=datetime.now)
+    created_at: datetime = Field(default_factory=utc_now)
+    updated_at: datetime = Field(default_factory=utc_now)
     finished_at: datetime | None = None
     result: dict[str, Any] | None = None
     error: ErrorInfo | None = None

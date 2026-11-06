@@ -17,7 +17,6 @@ export type StreamEvent =
   | AttemptSSEEvent
   | RunSSEEvent
   | EnvironmentSSEEvent
-  | ProjectNotesSSEEvent
   | ContextSSEEvent
   | CompactSSEEvent
   | CleanupSSEEvent
@@ -57,7 +56,6 @@ export type SessionEvent =
   | AttemptSSEEvent
   | RunSSEEvent
   | EnvironmentSSEEvent
-  | ProjectNotesSSEEvent
   | ContextSSEEvent
   | CompactSSEEvent
   | CleanupSSEEvent
@@ -90,7 +88,7 @@ export interface MessageEventData {
   attempt: number | null;
 }
 /**
- * 文件信息Domain模型，用于记录Manus/Human上传or生成的文件
+ * 文件信息Domain模型，用于记录用户上传或 Agent 交付的文件；字节保存为数据根中的内容对象
  */
 export interface File {
   id?: string;
@@ -102,12 +100,6 @@ export interface File {
   size?: number;
   sha256?: string | null;
   visual?: {
-    [k: string]: unknown;
-  } | null;
-  project_upload?: {
-    [k: string]: unknown;
-  } | null;
-  project_persistence?: {
     [k: string]: unknown;
   } | null;
 }
@@ -417,27 +409,6 @@ export interface EnvironmentEventData {
   event_version: number;
   status: "preparing" | "ready";
   message: string | null;
-  project_file_protection: {
-    [k: string]: unknown;
-  } | null;
-}
-export interface ProjectNotesSSEEvent {
-  event: "project_notes";
-  data: ProjectNotesEventData;
-}
-export interface ProjectNotesEventData {
-  event_id: string | null;
-  seq: number | null;
-  run_id: RunId | null;
-  created_at: number;
-  /**
-   * 事件结构版本
-   */
-  event_version: number;
-  project_id: string;
-  content: string;
-  notes_version: number;
-  source: "user" | "agent";
 }
 /**
  * 模型历史变化流式事件

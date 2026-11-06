@@ -54,17 +54,14 @@ async def download_batch_link(request: Request, file_id: list[str] = Query(min_l
     path="",
     response_model=Response[FileInfo],
     summary="对话文件上传接口",
-    description="在对话接口中，将文件上传到文件存储和沙箱中"
+    description="上传附件并保存为内容对象；发送消息时附件放入该会话的工作目录"
 )
 async def upload_file(
         file: UploadFile = File(...),
-        project_id: str | None = Query(None),
-        rule_version: str | None = Query(None),
-        include_optional: bool = Query(False),
         file_service: FileService = Depends(get_file_service),
 ) -> Response[FileInfo]:
-    """文件上传接口，传递文件返回文件的File信息"""
-    fileinfo = await file_service.upload_file(upload_file=file, project_id=project_id, rule_version=rule_version, include_optional=include_optional)
+    """文件上传接口：保存为内容对象，随消息发送时归属该会话"""
+    fileinfo = await file_service.upload_file(upload_file=file)
     return Response.success(
         data=fileinfo,
     )
@@ -90,7 +87,7 @@ async def get_file_info(
 @router.get(
     path="/{file_id}/download",
     summary="文件下载接口",
-    description="从沙箱or对象存储中下载指定的文件到本地",
+    description="下载附件或交付文件的内容对象",
 )
 @router.head(path="/{file_id}/download", summary="核对文件能否下载")
 async def download_file(

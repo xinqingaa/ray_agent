@@ -1,5 +1,5 @@
 from contextlib import asynccontextmanager
-from sqlalchemy import select, text, delete
+from sqlalchemy import select
 from app.infrastructure.models.skill import SkillRecord, SkillVersion, SkillImport, RunSkill
 
 TABLES = {'skills': SkillRecord, 'versions': SkillVersion, 'imports': SkillImport}
@@ -10,14 +10,15 @@ class DBSkillTransaction:
         self.session = session
 
     async def lock(self):
-        await self.session.execute(text("SELECT pg_advisory_xact_lock(727941503)"))
+        """目录、预算与版本提交在写事务内完成；写事务本身串行，不需要另外加锁。"""
 
     async def get(self, table, key):
-        row = await self.session.get(TABLES[table], key)
+        row = await self.session.get(TABLES[table], key, populate_existing=True)
         return dict(row.data) if row else None
 
     async def all(self, table):
-        return [dict(r.data) for r in (await self.session.scalars(select(TABLES[table]))).all()]
+        rows = await self.session.scalars(select(TABLES[table]).execution_options(populate_existing=True))
+        return [dict(r.data) for r in rows.all()]
 
     async def put(self, table, key, value):
         model = TABLES[table]
@@ -32,9 +33,11 @@ class DBSkillTransaction:
         row = await self.session.get(TABLES[table], key)
         if row:
             await self.session.delete(row)
+            await self.session.flush()
 
     async def bindings(self, run_id):
-        return [dict(r.data) for r in (await self.session.scalars(select(RunSkill).where(RunSkill.run_id == run_id))).all()]
+        rows = await self.session.scalars(select(RunSkill).where(RunSkill.run_id == run_id))
+        return [dict(r.data) for r in rows.all()]
 
     async def bind(self, run_id, name, version, data):
         row = await self.session.get(RunSkill, (run_id, name))
@@ -51,19 +54,21 @@ class DBSkillTransaction:
 
 
 class DBSkillRepository:
-    def __init__(self, session_factory):
-        self.factory = session_factory
+    def __init__(self, database):
+        self.database = database
 
     @asynccontextmanager
     async def transaction(self, run_id=None):
-        async with self.factory() as session, session.begin():
+        session = await self.database.open_write()
+        committed = False
+        try:
             if run_id is not None:
                 from app.infrastructure.models.run import RunModel
                 from app.domain.services.skill_packages import SkillError
-                run = await session.scalar(select(RunModel).where(RunModel.id == run_id).with_for_update())
+                run = await session.get(RunModel, run_id, populate_existing=True)
                 if run is None or run.status != 'running':
                     raise SkillError('所属运行已停止或不在执行中，本次写入未提交', 409)
-            # 与消息受理一致，先锁运行再锁 skill 目录，避免反向等待。
-            # 串行化短暂的目录/预算/版本提交；不能以进程锁替代数据库并发约束。
-            await session.execute(text('SELECT pg_advisory_xact_lock(727941503)'))
             yield DBSkillTransaction(session)
+            committed = True
+        finally:
+            await self.database.close_write(session, commit=committed)

@@ -9,7 +9,7 @@ from app.domain.models.event import BaseEvent, Event
 class EventRepository(Protocol):
 
     async def add(self, session_id: str, event: BaseEvent) -> int:
-        """在当前事务内追加事件，seq 取会话内最大值加一，主键冲突时重试；写回 event.seq 并返回。"""
+        """在当前写事务内追加事件，seq 取自会话的下一个序号并与事件同提交；写回 event.seq 并返回。"""
         ...
 
     async def list(
@@ -21,6 +21,9 @@ class EventRepository(Protocol):
             run_id: Optional[str] = None,
     ) -> List[Event]:
         """按 seq 升序读取 seq > after_seq 的事件，可按类型与运行过滤。"""
+        ...
+
+    async def get(self, session_id: str, seq: int) -> Optional[Event]:
         ...
 
     async def first_user_message(self, session_id: str) -> Optional[Event]:

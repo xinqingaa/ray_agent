@@ -17,10 +17,8 @@ from docker.models.resource import Model
 from docker.types import Mount
 
 from app.domain.external.browser import Browser
-from app.domain.external.sandbox import Sandbox, SandboxProjectBindingError
-from app.domain.models.project import SANDBOX_PROJECT_DIR, ProjectPathError
+from app.domain.external.sandbox import Sandbox
 from app.domain.models.tool_result import ToolResult
-from app.infrastructure.external.project.managed_storage import get_managed_storage
 from app.infrastructure.external.browser.playwright_browser import PlaywrightBrowser
 from core.config import get_settings
 
@@ -177,8 +175,8 @@ class DockerSandbox(Sandbox):
         return ip_address
 
     @classmethod
-    def _create_task(cls, project_id: Optional[str] = None, session_id: Optional[str] = None, run_id: Optional[str] = None) -> Self:
-        """创建沙箱容器的异步任务。project_id 指向托管项目 files 子目录"""
+    def _create_task(cls) -> Self:
+        """创建沙箱容器的异步任务"""
         # 1.获取系统配置信息
         settings = get_settings()
 
@@ -227,12 +225,6 @@ class DockerSandbox(Sandbox):
             if settings.sandbox_network:
                 container_config["network"] = settings.sandbox_network
 
-            if project_id:
-                container_config["mounts"] = [get_managed_storage().mount(project_id)]
-                container_config["labels"] = {"rayagent.project_id": project_id,
-                    **({"rayagent.session_id": session_id} if session_id else {}),
-                    **({"rayagent.run_id": run_id} if run_id else {})}
-
             # 6.调用docker客户端容器运行参数创建沙箱
             container = docker_client.containers.run(**container_config)
 
@@ -254,25 +246,19 @@ class DockerSandbox(Sandbox):
             raise SandboxSetupError(describe_sandbox_create_failure(e, image, settings.sandbox_network)) from e
 
     @classmethod
-    async def create(cls, project_id: Optional[str] = None, *, session_id: Optional[str] = None, run_id: Optional[str] = None) -> Self:
-        """类方法，创建沙箱容器。传入项目目录时读写挂载到 /workspace"""
+    async def create(cls) -> Self:
+        """类方法，创建沙箱容器"""
         # 1.获取系统配置信息
         settings = get_settings()
 
         # 2.判断是否使用现成的沙箱
         if settings.sandbox_address:
-            # 共享沙箱不是为这个会话创建的，不能为它挂载项目，直接报错而不是悄悄不挂载
-            if project_id:
-                raise SandboxProjectBindingError("共享沙箱模式（已设置 SANDBOX_ADDRESS）不支持绑定项目")
             # 3.将沙箱主机/地址解析成ip
             ip = await cls._resolve_hostname_to_ip(settings.sandbox_address)
             return DockerSandbox(ip=ip)
 
-        if project_id:
-            get_managed_storage().validate(project_id)
-
         # 5.使用子线程创建一个容器后返回
-        creation = asyncio.create_task(asyncio.to_thread(cls._create_task, project_id, session_id, run_id))
+        creation = asyncio.create_task(asyncio.to_thread(cls._create_task))
         try:
             return await asyncio.shield(creation)
         except asyncio.CancelledError:
@@ -280,52 +266,6 @@ class DockerSandbox(Sandbox):
             sandbox = await creation
             await sandbox.destroy()
             raise
-
-    @classmethod
-    async def stop_project_writers(cls, project_id: str, keep_container_id: Optional[str] = None) -> None:
-        """正常停止项目容器，10 秒后强制终止；使用 inspect 的 Running 核对。"""
-        def stop():
-            client = docker.from_env()
-            try:
-                containers = client.containers.list(all=True,
-                    filters={"label": f"rayagent.project_id={project_id}"})
-                for container in containers:
-                    if container.name == keep_container_id:
-                        continue
-                    try:
-                        container.reload()
-                        if container.attrs['State']['Running']:
-                            try:
-                                container.stop(timeout=10)
-                            except APIError:
-                                # 自动移除与停止可能交叉，先读回再决定是否需要 kill。
-                                container.reload()
-                                if container.attrs['State']['Running']:
-                                    container.kill()
-                        container.reload()
-                        if container.attrs['State']['Running']:
-                            try:
-                                container.kill()
-                            except APIError:
-                                container.reload()
-                                if container.attrs['State']['Running']:
-                                    raise
-                            container.reload()
-                        if container.attrs['State']['Running']:
-                            raise RuntimeError(f"项目容器 {container.name} 仍在写入")
-                    except NotFound:
-                        pass
-            finally:
-                client.close()
-        await asyncio.to_thread(stop)
-
-    @classmethod
-    async def stop_other_project_writers(cls, project_id: str, keep_container_id: Optional[str]) -> None:
-        await cls.stop_project_writers(project_id, keep_container_id)
-
-    @classmethod
-    async def create_owned(cls, project_id: str, session_id: str, run_id: str) -> Self:
-        return await cls.create(project_id, session_id=session_id, run_id=run_id)
 
     async def destroy(self) -> bool:
         """销毁当前的DockerSandbox实例"""
@@ -398,47 +338,6 @@ class DockerSandbox(Sandbox):
         """获取沙箱中的浏览器实例"""
         return PlaywrightBrowser(self.cdp_url)
 
-    async def validate_project(self, project_id: str) -> None:
-        """检查托管挂载与读写；探针仅使用独占临时文件，结束后删除。"""
-        settings = get_settings()
-        storage = get_managed_storage()
-        storage.validate(project_id)
-        if settings.sandbox_address or not self._container_name:
-            raise SandboxProjectBindingError("共享沙箱不支持项目挂载")
-
-        def probe():
-            container = docker.from_env().containers.get(self._container_name)
-            container.reload()
-            mounts = container.attrs.get("Mounts", [])
-            expected = storage.mount(project_id)
-            if not any(m.get("Type") == expected["Type"] and m.get("Destination") == SANDBOX_PROJECT_DIR
-                       and (m.get("Name") == expected["Source"] if storage.volume else m.get("Source") == expected["Source"])
-                       and m.get("RW") for m in mounts):
-                raise SandboxProjectBindingError("项目挂载与当前托管存储不一致")
-            host_config = container.attrs.get("HostConfig", {}).get("Mounts", [])
-            if storage.volume and not any(m.get("VolumeOptions", {}).get("Subpath") == f"projects/{project_id}/files"
-                for m in host_config):
-                raise SandboxProjectBindingError("项目卷子路径与当前归属不一致")
-            name = ".rayagent-probe-" + uuid.uuid4().hex
-            marker = uuid.uuid4().hex
-            target = shlex.quote(SANDBOX_PROJECT_DIR + "/" + name)
-            # noclobber 防止覆盖已有文件；通过 API 托管目录读回，检测同路径替换导致的旧挂载。
-            command = "set -C; printf %s " + shlex.quote(marker) + " > " + target
-            result = container.exec_run(["sh", "-c", command], user="ubuntu")
-            if result.exit_code != 0:
-                raise SandboxProjectBindingError("沙箱不能写入项目目录，请检查 Docker 文件共享及目录权限")
-            try:
-                with open(os.path.join(storage.files_path(project_id), name), encoding="utf-8") as handle:
-                    if handle.read() != marker:
-                        raise SandboxProjectBindingError("项目挂载读回不一致")
-            except OSError as exc:
-                raise SandboxProjectBindingError("项目路径已替换或 API 与沙箱挂载不一致，请恢复挂载") from exc
-            finally:
-                cleanup = container.exec_run(["rm", "-f", "--", SANDBOX_PROJECT_DIR + "/" + name], user="ubuntu")
-                if cleanup.exit_code != 0:
-                    raise SandboxProjectBindingError("项目挂载探针清理失败，请检查目录权限")
-        await asyncio.to_thread(probe)
-
     async def ensure_sandbox(self) -> None:
         """确保沙箱一定存在/服务全部都开启了才执行后续步骤"""
         # 1.定义最大重试次数+重试间隔
@@ -496,7 +395,7 @@ class DockerSandbox(Sandbox):
         raise Exception(f"在经过{max_retries}次尝试后仍无法确认Sandbox Supervisor状态信息")
 
     async def fetch_webpage(self, url: str) -> ToolResult:
-        from app.infrastructure.external.browser.web_content import extract_webpage
+        from app.infrastructure.external.web.public_page import extract_webpage
         response = await self.client.post(f"{self._base_url}/api/web/fetch", json={"url":url}, timeout=20)
         response.raise_for_status()
         return extract_webpage(ToolResult.from_sandbox(**response.json()))

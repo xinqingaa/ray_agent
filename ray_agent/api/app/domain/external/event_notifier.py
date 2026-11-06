@@ -32,7 +32,7 @@ class EventSubscription(Protocol):
 class EventNotifier(Protocol):
 
     async def publish(self, session_id: str, seq: int) -> None:
-        """发布落库通知；失败时抛异常，由调用方记日志，不回滚事件。"""
+        """发布落库通知；失败时抛异常，由调用方记日志，不回滚事件。订阅方按序号补读覆盖丢失的通知。"""
         ...
 
     async def publish_delta(self, session_id: str, run_id: str, turn: int, attempt: int, delta: str) -> None:

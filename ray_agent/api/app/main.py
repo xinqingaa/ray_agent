@@ -3,34 +3,21 @@
 import asyncio
 import logging
 from contextlib import asynccontextmanager
-from pathlib import Path
 
-from alembic import command
-from alembic.config import Config
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.domain.services.approvals import interrupt_waiting_approvals
-from app.infrastructure.external.project.managed_storage import get_managed_storage
 from app.infrastructure.logging import setup_logging
-from app.infrastructure.storage.cos import get_cos
-from app.infrastructure.storage.postgres import get_postgres, get_uow
-from app.infrastructure.storage.redis import get_redis
 from app.interfaces.endpoints.routes import router
 from app.interfaces.errors.exception_handlers import register_exception_handlers
 from app.interfaces.schemas import ErrorResponse
 from app.interfaces.schemas.core import PROTOCOL_VERSION
-from app.interfaces.service_dependencies import get_agent_service, get_run_ledger, get_project_file_service
 from core.config import get_settings
 
-# 1.加载配置信息
 settings = get_settings()
-
-# 2.初始化日志系统
 setup_logging()
 logger = logging.getLogger()
 
-# 3.定义FastAPI路由tags标签
 openapi_tags = [
     {
         "name": "状态模块",
@@ -39,115 +26,124 @@ openapi_tags = [
 ]
 
 
+async def start_core():
+    """打开数据根：实例锁、业务库迁移与连接、默认配置、启动扫描与后台任务。返回关闭时需要的资源。"""
+    from app.application.services.background_jobs import BackgroundJobRunner, cleanup_handler, set_job_runner
+    from app.domain.models.operation import OperationKind
+    from app.domain.services.approvals import interrupt_waiting_approvals
+    from app.infrastructure.storage.sqlite import InstanceLock, migrate, open_database, set_database, get_uow, \
+        get_read_uow
+    from app.interfaces.core_descriptor import INSTANCE, set_storage_revision
+    from app.interfaces.service_dependencies import get_app_config_repository, get_file_storage, get_run_ledger, \
+        get_skill_service, get_workdirs
+    from core.paths import data_root
+
+    root = data_root()
+    root.prepare()
+    lock = InstanceLock(root.lock)
+    lock.acquire()
+    database = None
+    try:
+        revision = await asyncio.to_thread(migrate, root.database)
+        # alembic 的日志配置会改动根日志，迁移后恢复业务日志
+        setup_logging()
+        database = open_database(root.database)
+        await database.init()
+        set_database(database)
+        set_storage_revision(revision)
+        logger.info(f"业务库就绪 schema={revision} 数据根={root.root}")
+
+        await get_app_config_repository().seed()
+        await get_skill_service().initialize()
+
+        storage, workdirs = get_file_storage(), get_workdirs()
+        jobs = BackgroundJobRunner(get_uow, INSTANCE.instance_id, concurrency=settings.background_job_concurrency,
+                                   poll_seconds=settings.background_job_poll_seconds, read_uow_factory=get_read_uow)
+        jobs.register(OperationKind.DATA_CLEANUP, cleanup_handler(storage.remove_key, workdirs.remove),
+                      requeue_on_restart=True)
+        set_job_runner(jobs)
+
+        # 启动扫描：执行协程只存在于本进程，上次遗留的 running 运行置为 interrupted，其未消费输入保持可见；
+        # 等待审批的运行同样中断并使审批失效；等待提问的运行保持 waiting，回复后沿原运行续接。
+        ledger = get_run_ledger()
+        interrupted = await ledger.interrupt_running()
+        interrupted += await interrupt_waiting_approvals(get_uow, ledger)
+        if interrupted:
+            logger.info(f"启动扫描将 {len(interrupted)} 个运行置为 interrupted: {[run.id for run in interrupted]}")
+        recovered = await jobs.recover()
+        if recovered:
+            logger.info(f"启动扫描接管 {len(recovered)} 个后台任务")
+        jobs.start()
+        return lock, database, jobs
+    except BaseException:
+        if database is not None:
+            await database.shutdown()
+            set_database(None)
+        lock.release()
+        raise
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """创建FastAPI应用生命周期上下文管理器"""
-    # 0.重新初始化日志系统(uvicorn启动时dictConfig会影响根日志处理器，需要在此重新配置)
     setup_logging()
-
-    # 1.日志打印代码已经开始执行了
     logger.info("RayAgent正在初始化")
-
-    # 2.运行数据库迁移(将数据同步到生产环境)
-    alembic_cfg = Config("alembic.ini")
-    command.upgrade(alembic_cfg, "head")
-    # alembic.ini 的 dictConfig 会把根日志改成 WARNING，迁移后恢复业务日志
-    setup_logging()
-
-    # 3.初始化Redis/Postgres，按配置决定是否初始化COS
-    await get_redis().init()
-    await get_postgres().init()
-    if settings.file_storage_backend == "cos":
-        await get_cos().init()
-    else:
-        Path(settings.file_storage_local_dir).mkdir(parents=True, exist_ok=True)
-        logger.info(f"文件存储使用本地磁盘: {settings.file_storage_local_dir}")
-
-    from app.interfaces.service_dependencies import get_skill_service
-    await get_skill_service().initialize()
-
-    # 项目功能单独自检，不因项目卷不可用阻止独立对话。
-    storage = await asyncio.to_thread(get_managed_storage)
-    if storage.reason:
-        logger.warning(storage.reason)
-    else:
-        logger.info("托管项目存储可用")
-
-    # 未完成的固定清单需要显式重试，不在启动时扩大删除范围。
-    from app.interfaces.service_dependencies import get_data_cleanup_service
-    cleanup = get_data_cleanup_service()
-    await cleanup.repository.interrupt()
-
-    # 4.启动扫描：执行协程只存在于本进程，上次进程留下的 running 运行不会再推进，置为 interrupted；
-    # 等待审批的运行同样置为 interrupted，待审批的调用补为未执行；等待提问的运行保持 waiting
-    ledger = get_run_ledger()
-    interrupted = await ledger.interrupt_running()
-    interrupted += await interrupt_waiting_approvals(get_uow, ledger)
-    if interrupted:
-        logger.info(f"启动扫描将 {len(interrupted)} 个运行置为 interrupted: {[run.id for run in interrupted]}")
-
-    from app.domain.services.project_file_coordinator import ProjectFileCoordinator
-    from app.infrastructure.external.sandbox.docker_sandbox import DockerSandbox
-    await get_project_file_service().reconcile_startup()
-    await ProjectFileCoordinator(get_uow, DockerSandbox, get_project_file_service().measure_size).reconcile_startup()
-    await get_project_file_service().attachments.reconcile_startup()
-    await get_project_file_service().reconcile_orphans()
-    from app.interfaces.service_dependencies import get_project_memory_service
-    await get_project_memory_service().reconcile_startup()
-
+    from app.application.services.background_jobs import set_job_runner
     from app.application.services.visual_artifacts import expire_visual_artifacts
-    from app.interfaces.service_dependencies import get_file_storage
+    from app.infrastructure.external.task.local_task import LocalRunTask
+    from app.infrastructure.storage.sqlite import get_uow, set_database
+    from app.interfaces.service_dependencies import get_file_storage, get_skill_service
+
+    lock, database, jobs = await start_core()
     await expire_visual_artifacts(get_uow, get_file_storage())
 
-    async def upload_expiry():
+    async def sweep():
         while True:
             await asyncio.sleep(30)
             try:
                 await get_skill_service().collect()
-                await get_project_file_service().expire_uploads()
                 await expire_visual_artifacts(get_uow, get_file_storage())
             except Exception:
-                logger.exception('上传批次到期核对失败，将在下一轮重试')
-    expiry_task = asyncio.create_task(upload_expiry())
+                logger.exception('定期回收失败，将在下一轮重试')
+    sweeper = asyncio.create_task(sweep())
 
     try:
-        # 4.lifespan分界点
         yield
     finally:
-        expiry_task.cancel()
+        sweeper.cancel()
         try:
-            await expiry_task
+            await sweeper
         except asyncio.CancelledError:
             pass
         try:
-            # 5.等待agent服务关闭
             logger.info("RayAgent正在关闭")
-            await asyncio.wait_for(get_agent_service().shutdown(), timeout=30.0)
-            logger.info("Agent服务成功关闭")
+            from app.application.services.agent_service import pending_starts
+            owners = list(pending_starts().values())
+            for owner in owners:
+                owner.cancelled = True
+            await asyncio.wait_for(asyncio.gather(
+                *(owner.worker for owner in owners if owner.worker is not None), return_exceptions=True), timeout=10)
+            await asyncio.wait_for(LocalRunTask.destroy(), timeout=20.0)
+            logger.info("运行任务已停止")
         except asyncio.TimeoutError:
-            logger.warning("Agent服务关闭超时, 强制关闭, 部分任务将被释放")
+            logger.warning("运行任务停止超时，遗留运行由下次启动扫描处理")
         except Exception as e:
-            logger.error(f"Agent服务关闭期间出现错误: {str(e)}")
-
-        # 6.关闭其他应用
-        await get_redis().shutdown()
-        await get_postgres().shutdown()
-        if settings.file_storage_backend == "cos":
-            await get_cos().shutdown()
-
+            logger.error(f"停止运行任务期间出现错误: {str(e)}")
+        await jobs.stop()
+        set_job_runner(None)
+        await database.shutdown()
+        set_database(None)
+        lock.release()
         logger.info("RayAgent应用关闭成功")
 
 
-# 4.创建RayAgent应用实例
 app = FastAPI(
     title="RayAgent通用智能体",
-    description="RayAgent是一个通用的AI Agent系统，可以完全私有部署，使用A2A+MCP连接Agent/Tool，同时支持在沙箱中运行各种内置工具和操作",
+    description="RayAgent 本机核心：会话、运行与事件保存在本机业务库，经 MCP 与 A2A 连接外部工具与远程 Agent",
     lifespan=lifespan,
     openapi_tags=openapi_tags,
     version=str(PROTOCOL_VERSION),
 )
 
-# 5.配置CORS中间件，解决跨域问题
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -157,10 +153,6 @@ app.add_middleware(
     expose_headers=["Content-Disposition", "X-RayAgent-Download-Warning"],
 )
 
-# 6.注册错误处理器
 register_exception_handlers(app)
 
-# 7.集成路由；失败响应统一为 ErrorResponse
-from app.interfaces.data_admission import data_admission
-app.include_router(router, prefix="/api", dependencies=[Depends(data_admission)],
-                   responses={"default": {"model": ErrorResponse, "description": "结构化错误"}})
+app.include_router(router, prefix="/api", responses={"default": {"model": ErrorResponse, "description": "结构化错误"}})

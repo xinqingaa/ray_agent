@@ -4,6 +4,7 @@
 """
 import asyncio
 import json
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -249,16 +250,24 @@ def test_server_side_overflow_again_after_compaction_fails():
 LONG_FILE = "\n".join(f"第 {i:04d} 行：" + "数据" * 20 for i in range(600)) + "\nTAIL-MARKER-W2"
 
 
-def _runner_writer(sandbox):
-    """与运行器相同的落盘函数（AgentTaskRunner._write_output）。"""
-    return lambda path, content: AgentTaskRunner._write_output(SimpleNamespace(_sandbox=sandbox), path, content)
+def _runner_writer(workdir, fail=False):
+    """与运行器相同的落盘函数（AgentTaskRunner._write_output）；fail 时模拟磁盘写满。"""
+    async def write(path, content):
+        if fail:
+            raise OSError("磁盘已满")
+        await AgentTaskRunner._write_output(SimpleNamespace(_workdir=workdir), path, content)
+    return write
 
 
 @pytest.mark.parametrize("fail_writes", [False, True])
-def test_oversized_result_becomes_preview_with_full_copy_in_sandbox(fail_writes):
-    sandbox = InMemorySandbox({"/data/big.txt": LONG_FILE}, fail_writes=fail_writes)
+def test_oversized_result_becomes_preview_with_full_copy_in_workdir(tmp_path, fail_writes):
+    from app.infrastructure.external.workdir.session_workdir import SessionWorkdirs
+    workdirs = SessionWorkdirs(tmp_path)
+    workdir = workdirs.resolve(*workdirs.new_root("w2"))
+    sandbox = InMemorySandbox({"/data/big.txt": LONG_FILE})
     h = make_loop([tool_call("read_file", {"filepath": "/data/big.txt", "max_length": 100000}, id="c-big"),
-                   text("完成")], sandbox=sandbox, write_output=_runner_writer(sandbox))
+                   text("完成")], sandbox=sandbox, write_output=_runner_writer(workdir, fail_writes),
+                  output_dir=str(workdir.outputs))
     events = run(collect(h.loop, message="读取大文件"))
 
     content = main_requests(h)[1].last_tool_content
@@ -270,15 +279,15 @@ def test_oversized_result_becomes_preview_with_full_copy_in_sandbox(fail_writes)
     called = [e for e in events if isinstance(e, ToolEvent) and e.status == ToolEventStatus.CALLED][0]
     assert called.function_result.model_dump(mode="json") == preview  # called 事件记录的就是进入上下文的预览
     assert called.shaping.original_chars == preview["data"]["total_chars"] > 8000
-    path = output_path("c-big")
+    path = output_path("c-big", str(workdir.outputs))
     if fail_writes:
         assert called.shaping.full_output_path is None and "磁盘已满" in called.shaping.error
-        assert "不可再读" in preview["data"]["note"] and path not in sandbox.files
+        assert "不可再读" in preview["data"]["note"] and not Path(path).exists()
     else:
-        assert path == "/home/ubuntu/.rayagent/outputs/c-big.txt"
+        assert workdir.contains(Path(path)) and path.endswith("/outputs/c-big.txt")
         assert called.shaping.full_output_path == path and preview["data"]["full_output_path"] == path
         assert path in preview["data"]["note"] and "read_file" in preview["data"]["note"]
-        assert LONG_FILE in sandbox.files[path]  # 完整内容原样落盘
+        assert LONG_FILE in Path(path).read_text(encoding="utf-8")  # 完整内容原样落盘
 
 
 def test_small_result_is_not_shaped():

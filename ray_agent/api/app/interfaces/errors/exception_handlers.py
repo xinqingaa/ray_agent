@@ -12,7 +12,6 @@ from starlette.exceptions import HTTPException
 
 from app.application.errors.exceptions import AppException
 from app.domain.models.error import ErrorCode, ErrorInfo
-from app.domain.services.project_transactions import ProjectRunConflict
 from app.interfaces.schemas import ErrorResponse
 
 logger = logging.getLogger(__name__)
@@ -58,13 +57,11 @@ def register_exception_handlers(app: FastAPI) -> None:
     async def skill_exception_handler(req: Request, e: SkillError) -> JSONResponse:
         return error_response(ErrorInfo.of(code_for_status(e.status), str(e)), e.status)
 
-    @app.exception_handler(ProjectRunConflict)
-    async def project_conflict_handler(req: Request, e: ProjectRunConflict) -> JSONResponse:
-        details = {"occupying_session_id": e.occupying_session_id} if e.occupying_session_id else {}
-        if e.operation:
-            details.update(project_id=e.project_id, file_operation=e.operation.model_dump(mode="json"),
-                repair_action="retry_settling" if e.operation.kind == "settling" else "repair_restore" if e.operation.kind == "restore" else "read_operation")
-        return error_response(ErrorInfo.of(ErrorCode.CONFLICT, str(e), details=details))
+    from app.infrastructure.storage.sqlite import DatabaseBusyError
+
+    @app.exception_handler(DatabaseBusyError)
+    async def database_busy_handler(req: Request, e: DatabaseBusyError) -> JSONResponse:
+        return error_response(ErrorInfo.of(ErrorCode.UNAVAILABLE, str(e), retry_after_ms=1000))
 
     @app.exception_handler(AppException)
     async def app_exception_handler(req: Request, e: AppException) -> JSONResponse:

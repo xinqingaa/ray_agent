@@ -7,7 +7,7 @@ import type {StreamEvent} from "@contracts/events";
 type Schemas = components["schemas"];
 
 /** 成功响应包装：业务数据在 data，其余字段与契约中的包装一致 */
-export type ApiResponse<T = unknown> = Omit<Schemas["Response_dict_"], "data"> & { data: T };
+export type ApiResponse<T = unknown> = Omit<Schemas["Response_Dict_"], "data"> & { data: T };
 
 /** 失败响应：HTTP 状态表达类别，error 为结构化错误 */
 export type ErrorResponse = Schemas["ErrorResponse"];

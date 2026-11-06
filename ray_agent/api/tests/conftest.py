@@ -4,14 +4,13 @@ import pytest
 from fastapi.testclient import TestClient
 
 
-
 @pytest.fixture(scope="session")
-def client() -> TestClient:
-    """
-    创建一个可供所有测试用例使用的 TestClient 客户端。
-    scope="session" 表示这个fixture 在整个测试用例只会实例一次，这样可以提高效率
-    :return: TestClient
-    """
+def client(tmp_path_factory) -> TestClient:
+    """进入真实应用生命周期的客户端：数据根在 pytest 临时目录，不连接外部服务。"""
+    import os
+    from core.config import get_settings
+    os.environ["RAYAGENT_DATA_ROOT"] = str(tmp_path_factory.mktemp("core-data"))
+    get_settings.cache_clear()
     from app.main import app
 
     with TestClient(app) as c:

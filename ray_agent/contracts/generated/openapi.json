@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "RayAgent通用智能体",
-    "description": "RayAgent是一个通用的AI Agent系统，可以完全私有部署，使用A2A+MCP连接Agent/Tool，同时支持在沙箱中运行各种内置工具和操作",
+    "description": "RayAgent 本机核心：会话、运行与事件保存在本机业务库，经 MCP 与 A2A 连接外部工具与远程 Agent",
     "version": "1"
   },
   "paths": {
@@ -825,61 +825,17 @@
           "文件模块"
         ],
         "summary": "对话文件上传接口",
-        "description": "在对话接口中，将文件上传到文件存储和沙箱中",
+        "description": "上传附件并保存为内容对象；发送消息时附件放入该会话的工作目录",
         "operationId": "upload_file_api_files_post",
-        "parameters": [
-          {
-            "name": "project_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Project Id"
-            }
-          },
-          {
-            "name": "rule_version",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Rule Version"
-            }
-          },
-          {
-            "name": "include_optional",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "boolean",
-              "default": false,
-              "title": "Include Optional"
-            }
-          }
-        ],
         "requestBody": {
-          "required": true,
           "content": {
             "multipart/form-data": {
               "schema": {
                 "$ref": "#/components/schemas/Body_upload_file_api_files_post"
               }
             }
-          }
+          },
+          "required": true
         },
         "responses": {
           "200": {
@@ -993,7 +949,7 @@
           "文件模块"
         ],
         "summary": "文件下载接口",
-        "description": "从沙箱or对象存储中下载指定的文件到本地",
+        "description": "下载附件或交付文件的内容对象",
         "operationId": "download_file_api_files__file_id__download_get",
         "parameters": [
           {
@@ -1043,232 +999,6 @@
             "schema": {
               "type": "string",
               "title": "File Id"
-            }
-          },
-          {
-            "name": "sheet",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 1023,
-              "minimum": 0,
-              "default": 0,
-              "title": "Sheet"
-            }
-          },
-          {
-            "name": "row",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 100000,
-              "minimum": 0,
-              "default": 0,
-              "title": "Row"
-            }
-          },
-          {
-            "name": "column",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 16383,
-              "minimum": 0,
-              "default": 0,
-              "title": "Column"
-            }
-          },
-          {
-            "name": "offset",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 1099511627776,
-              "minimum": 0,
-              "default": 0,
-              "title": "Offset"
-            }
-          },
-          {
-            "name": "revision",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Revision"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "default": {
-            "description": "结构化错误",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/projects/{identifier}/preview": {
-      "get": {
-        "tags": [
-          "文件预览"
-        ],
-        "summary": "Project Preview",
-        "operationId": "project_preview_api_projects__identifier__preview_get",
-        "parameters": [
-          {
-            "name": "identifier",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Identifier"
-            }
-          },
-          {
-            "name": "path",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Path"
-            }
-          },
-          {
-            "name": "sheet",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 1023,
-              "minimum": 0,
-              "default": 0,
-              "title": "Sheet"
-            }
-          },
-          {
-            "name": "row",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 100000,
-              "minimum": 0,
-              "default": 0,
-              "title": "Row"
-            }
-          },
-          {
-            "name": "column",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 16383,
-              "minimum": 0,
-              "default": 0,
-              "title": "Column"
-            }
-          },
-          {
-            "name": "offset",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 1099511627776,
-              "minimum": 0,
-              "default": 0,
-              "title": "Offset"
-            }
-          },
-          {
-            "name": "revision",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Revision"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "default": {
-            "description": "结构化错误",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/sessions/{identifier}/project/preview": {
-      "get": {
-        "tags": [
-          "文件预览"
-        ],
-        "summary": "Session Project Preview",
-        "operationId": "session_project_preview_api_sessions__identifier__project_preview_get",
-        "parameters": [
-          {
-            "name": "identifier",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Identifier"
-            }
-          },
-          {
-            "name": "path",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Path"
             }
           },
           {
@@ -1414,136 +1144,6 @@
         }
       }
     },
-    "/api/projects/{identifier}/preview/content": {
-      "get": {
-        "tags": [
-          "文件预览"
-        ],
-        "summary": "Project Content",
-        "operationId": "project_content_api_projects__identifier__preview_content_get",
-        "parameters": [
-          {
-            "name": "identifier",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Identifier"
-            }
-          },
-          {
-            "name": "path",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Path"
-            }
-          },
-          {
-            "name": "revision",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Revision"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "default": {
-            "description": "结构化错误",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/sessions/{identifier}/project/preview/content": {
-      "get": {
-        "tags": [
-          "文件预览"
-        ],
-        "summary": "Session Project Content",
-        "operationId": "session_project_content_api_sessions__identifier__project_preview_content_get",
-        "parameters": [
-          {
-            "name": "identifier",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Identifier"
-            }
-          },
-          {
-            "name": "path",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Path"
-            }
-          },
-          {
-            "name": "revision",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Revision"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "default": {
-            "description": "结构化错误",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/sessions": {
       "post": {
         "tags": [
@@ -1601,32 +1201,6 @@
         "operationId": "get_all_sessions_api_sessions_get",
         "parameters": [
           {
-            "name": "project_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Project Id"
-            }
-          },
-          {
-            "name": "independent",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "boolean",
-              "default": false,
-              "title": "Independent"
-            }
-          },
-          {
             "name": "offset",
             "in": "query",
             "required": false,
@@ -1683,32 +1257,6 @@
         "description": "连接后先推送一页列表。目录有写入时再查；没有通知时最多每 30 秒兜底一次。内容没变不重复推送。",
         "operationId": "stream_sessions_api_sessions_stream_post",
         "parameters": [
-          {
-            "name": "project_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Project Id"
-            }
-          },
-          {
-            "name": "independent",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "boolean",
-              "default": false,
-              "title": "Independent"
-            }
-          },
           {
             "name": "offset",
             "in": "query",
@@ -1847,7 +1395,7 @@
           "会话模块"
         ],
         "summary": "向指定任务会话发送消息",
-        "description": "受理一条用户消息并立即返回 run_id 与消息事件的 seq；执行过程通过事件流接口观察。mode 为 plan 时新运行以计划模式执行；会话有活动运行（会注入或续接）时带 plan 返回 409",
+        "description": "受理一条用户消息并立即返回 run_id 与消息事件的 seq；执行过程通过事件流接口观察。mode 为 plan 时新运行以计划模式执行；会话有活动运行（会注入或续接）时带 plan 返回 409。带 request_id 时同身份同内容返回原受理结果，内容不同返回 409；结果未知时按身份读回",
         "operationId": "chat_api_sessions__session_id__chat_post",
         "parameters": [
           {
@@ -1870,6 +1418,109 @@
             }
           }
         },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_ChatResponse_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sessions/{session_id}/requests/{request_id}": {
+      "get": {
+        "tags": [
+          "会话模块"
+        ],
+        "summary": "按请求身份读回受理结果",
+        "description": "发送结果未知时先读回；没有受理记录返回 404，此时原请求尚未被核心受理，可以按同一身份重新发送",
+        "operationId": "get_accepted_request_api_sessions__session_id__requests__request_id__get",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          },
+          {
+            "name": "request_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/RequestId"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_ChatResponse_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sessions/{session_id}/inputs/{input_id}/resume": {
+      "post": {
+        "tags": [
+          "会话模块"
+        ],
+        "summary": "重新发起未处理的消息",
+        "description": "所属运行已结束（如核心重启中断或被停止）而尚未进入模型历史的消息，明确交给一个新运行处理；消息不重复写入。已处理、正在处理或会话已有活动运行时返回 409",
+        "operationId": "resume_input_api_sessions__session_id__inputs__input_id__resume_post",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          },
+          {
+            "name": "input_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "title": "Input Id"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -2490,1956 +2141,13 @@
         }
       }
     },
-    "/api/sessions/{session_id}/file": {
-      "post": {
-        "tags": [
-          "会话模块"
-        ],
-        "summary": "查看会话沙箱中指定文件的内容",
-        "description": "根据传递的会话id+文件路径查看沙箱中文件的内容信息",
-        "operationId": "read_file_api_sessions__session_id__file_post",
-        "parameters": [
-          {
-            "name": "session_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Session Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/FileReadRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Response_FileReadResponse_"
-                }
-              }
-            }
-          },
-          "default": {
-            "description": "结构化错误",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/sessions/{session_id}/shell": {
-      "post": {
-        "tags": [
-          "会话模块"
-        ],
-        "summary": "查看会话的shell内容输出",
-        "description": "传递指定会话id与shell会话标识，查看shell内容输出",
-        "operationId": "read_shell_output_api_sessions__session_id__shell_post",
-        "parameters": [
-          {
-            "name": "session_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Session Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ShellReadRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Response_ShellReadResponse_"
-                }
-              }
-            }
-          },
-          "default": {
-            "description": "结构化错误",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/sessions/{session_id}/project/tree": {
-      "get": {
-        "tags": [
-          "会话模块"
-        ],
-        "summary": "列出项目目录的一层子项",
-        "description": "path 为相对项目根的路径，省略时列出项目根。会话未绑定项目 404；路径校验失败 400。读的是 API 侧只读挂载，不依赖沙箱",
-        "operationId": "project_tree_api_sessions__session_id__project_tree_get",
-        "parameters": [
-          {
-            "name": "session_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Session Id"
-            }
-          },
-          {
-            "name": "path",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "default": "",
-              "title": "Path"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Response_ProjectListing_"
-                }
-              }
-            }
-          },
-          "default": {
-            "description": "结构化错误",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/sessions/{session_id}/project/file": {
-      "get": {
-        "tags": [
-          "会话模块"
-        ],
-        "summary": "读取项目内文件",
-        "description": "二进制与超过上限的文件只返回元数据。会话未绑定项目 404；路径校验失败 400",
-        "operationId": "project_file_api_sessions__session_id__project_file_get",
-        "parameters": [
-          {
-            "name": "session_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Session Id"
-            }
-          },
-          {
-            "name": "path",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Path"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Response_ProjectFile_"
-                }
-              }
-            }
-          },
-          "default": {
-            "description": "结构化错误",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/sessions/{session_id}/summary": {
-      "get": {
-        "tags": [
-          "会话模块"
-        ],
-        "summary": "Get Summary",
-        "operationId": "get_summary_api_sessions__session_id__summary_get",
-        "parameters": [
-          {
-            "name": "session_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Session Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Response_dict_"
-                }
-              }
-            }
-          },
-          "default": {
-            "description": "结构化错误",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      },
-      "put": {
-        "tags": [
-          "会话模块"
-        ],
-        "summary": "Edit Summary",
-        "operationId": "edit_summary_api_sessions__session_id__summary_put",
-        "parameters": [
-          {
-            "name": "session_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Session Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/EditSummaryRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Response_dict_"
-                }
-              }
-            }
-          },
-          "default": {
-            "description": "结构化错误",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/sessions/{session_id}/summary/regenerate": {
-      "post": {
-        "tags": [
-          "会话模块"
-        ],
-        "summary": "Regenerate Summary",
-        "operationId": "regenerate_summary_api_sessions__session_id__summary_regenerate_post",
-        "parameters": [
-          {
-            "name": "session_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Session Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Response_dict_"
-                }
-              }
-            }
-          },
-          "default": {
-            "description": "结构化错误",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/projects/upload-rules": {
-      "get": {
-        "tags": [
-          "项目模块"
-        ],
-        "summary": "Upload Rules",
-        "operationId": "upload_rules_api_projects_upload_rules_get",
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Response_dict_"
-                }
-              }
-            }
-          },
-          "default": {
-            "description": "结构化错误",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/projects": {
-      "get": {
-        "tags": [
-          "项目模块"
-        ],
-        "summary": "分页列出长期项目",
-        "operationId": "list_projects_api_projects_get",
-        "parameters": [
-          {
-            "name": "archived",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "boolean",
-              "default": false,
-              "title": "Archived"
-            }
-          },
-          {
-            "name": "offset",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "minimum": 0,
-              "default": 0,
-              "title": "Offset"
-            }
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 100,
-              "minimum": 1,
-              "default": 50,
-              "title": "Limit"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Response_ProjectPage_"
-                }
-              }
-            }
-          },
-          "default": {
-            "description": "结构化错误",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      },
-      "post": {
-        "tags": [
-          "项目模块"
-        ],
-        "summary": "新建托管项目，不创建对话或沙箱",
-        "operationId": "create_project_api_projects_post",
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateProjectRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Response_ProjectDetails_"
-                }
-              }
-            }
-          },
-          "default": {
-            "description": "结构化错误",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/projects/{project_id}": {
-      "get": {
-        "tags": [
-          "项目模块"
-        ],
-        "summary": "读取项目与当前可用性",
-        "operationId": "get_project_api_projects__project_id__get",
-        "parameters": [
-          {
-            "name": "project_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Project Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Response_ProjectDetails_"
-                }
-              }
-            }
-          },
-          "default": {
-            "description": "结构化错误",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      },
-      "put": {
-        "tags": [
-          "项目模块"
-        ],
-        "summary": "保存项目名称与说明",
-        "operationId": "update_project_api_projects__project_id__put",
-        "parameters": [
-          {
-            "name": "project_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Project Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateProjectRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Response_ProjectDetails_"
-                }
-              }
-            }
-          },
-          "default": {
-            "description": "结构化错误",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/projects/{project_id}/notes": {
-      "put": {
-        "tags": [
-          "项目模块"
-        ],
-        "summary": "Update Notes",
-        "operationId": "update_notes_api_projects__project_id__notes_put",
-        "parameters": [
-          {
-            "name": "project_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Project Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpdateProjectNotesRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Response_dict_"
-                }
-              }
-            }
-          },
-          "default": {
-            "description": "结构化错误",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/projects/{project_id}/archive": {
-      "post": {
-        "tags": [
-          "项目模块"
-        ],
-        "summary": "归档或恢复，保留历史与目录",
-        "operationId": "archive_project_api_projects__project_id__archive_post",
-        "parameters": [
-          {
-            "name": "project_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Project Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ArchiveProjectRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Response_ProjectDetails_"
-                }
-              }
-            }
-          },
-          "default": {
-            "description": "结构化错误",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/projects/{project_id}/sessions": {
-      "get": {
-        "tags": [
-          "项目模块"
-        ],
-        "summary": "分页读取项目对话，不加载历史事件",
-        "operationId": "project_sessions_api_projects__project_id__sessions_get",
-        "parameters": [
-          {
-            "name": "project_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Project Id"
-            }
-          },
-          {
-            "name": "offset",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "minimum": 0,
-              "default": 0,
-              "title": "Offset"
-            }
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 100,
-              "minimum": 1,
-              "default": 50,
-              "title": "Limit"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Response_ListSessionResponse_"
-                }
-              }
-            }
-          },
-          "default": {
-            "description": "结构化错误",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/projects/{project_id}/tree": {
-      "get": {
-        "tags": [
-          "项目模块"
-        ],
-        "summary": "Project Tree",
-        "operationId": "project_tree_api_projects__project_id__tree_get",
-        "parameters": [
-          {
-            "name": "project_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Project Id"
-            }
-          },
-          {
-            "name": "path",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "default": "",
-              "title": "Path"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Response_ProjectListing_"
-                }
-              }
-            }
-          },
-          "default": {
-            "description": "结构化错误",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/projects/{project_id}/file": {
-      "get": {
-        "tags": [
-          "项目模块"
-        ],
-        "summary": "Project File",
-        "operationId": "project_file_api_projects__project_id__file_get",
-        "parameters": [
-          {
-            "name": "project_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Project Id"
-            }
-          },
-          {
-            "name": "path",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Path"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Response_ProjectFile_"
-                }
-              }
-            }
-          },
-          "default": {
-            "description": "结构化错误",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/projects/{project_id}/settling/retry": {
-      "post": {
-        "tags": [
-          "项目模块"
-        ],
-        "summary": "Retry Settling",
-        "operationId": "retry_settling_api_projects__project_id__settling_retry_post",
-        "parameters": [
-          {
-            "name": "project_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Project Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Response_ProjectDetails_"
-                }
-              }
-            }
-          },
-          "default": {
-            "description": "结构化错误",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/projects/{project_id}/events": {
-      "get": {
-        "tags": [
-          "项目模块"
-        ],
-        "summary": "Project Events",
-        "operationId": "project_events_api_projects__project_id__events_get",
-        "parameters": [
-          {
-            "name": "project_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Project Id"
-            }
-          },
-          {
-            "name": "after_seq",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "minimum": 0,
-              "default": 0,
-              "title": "After Seq"
-            }
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 100,
-              "minimum": 1,
-              "default": 50,
-              "title": "Limit"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Response_list_dict__"
-                }
-              }
-            }
-          },
-          "default": {
-            "description": "结构化错误",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/projects/{project_id}/snapshots": {
-      "get": {
-        "tags": [
-          "项目模块"
-        ],
-        "summary": "Snapshots",
-        "operationId": "snapshots_api_projects__project_id__snapshots_get",
-        "parameters": [
-          {
-            "name": "project_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Project Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Response_list_"
-                }
-              }
-            }
-          },
-          "default": {
-            "description": "结构化错误",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/projects/{project_id}/snapshots/{snapshot_id}/restore": {
-      "post": {
-        "tags": [
-          "项目模块"
-        ],
-        "summary": "Restore Snapshot",
-        "operationId": "restore_snapshot_api_projects__project_id__snapshots__snapshot_id__restore_post",
-        "parameters": [
-          {
-            "name": "project_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Project Id"
-            }
-          },
-          {
-            "name": "snapshot_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Snapshot Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Response_dict_"
-                }
-              }
-            }
-          },
-          "default": {
-            "description": "结构化错误",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/projects/{project_id}/restore/repair": {
-      "post": {
-        "tags": [
-          "项目模块"
-        ],
-        "summary": "Repair Restore",
-        "operationId": "repair_restore_api_projects__project_id__restore_repair_post",
-        "parameters": [
-          {
-            "name": "project_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Project Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/RepairRestoreRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Response_dict_"
-                }
-              }
-            }
-          },
-          "default": {
-            "description": "结构化错误",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/projects/{project_id}/snapshots/cleanup": {
-      "post": {
-        "tags": [
-          "项目模块"
-        ],
-        "summary": "Cleanup Snapshots",
-        "operationId": "cleanup_snapshots_api_projects__project_id__snapshots_cleanup_post",
-        "parameters": [
-          {
-            "name": "project_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Project Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Response_dict_"
-                }
-              }
-            }
-          },
-          "default": {
-            "description": "结构化错误",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/projects/{project_id}/operations/reconcile": {
-      "post": {
-        "tags": [
-          "项目模块"
-        ],
-        "summary": "Reconcile Files",
-        "operationId": "reconcile_files_api_projects__project_id__operations_reconcile_post",
-        "parameters": [
-          {
-            "name": "project_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Project Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/RepairRestoreRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Response_dict_"
-                }
-              }
-            }
-          },
-          "default": {
-            "description": "结构化错误",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/projects/{project_id}/uploads/preflight": {
-      "post": {
-        "tags": [
-          "项目模块"
-        ],
-        "summary": "Preflight Upload",
-        "operationId": "preflight_upload_api_projects__project_id__uploads_preflight_post",
-        "parameters": [
-          {
-            "name": "project_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Project Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ProjectUploadSelection"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Response_dict_"
-                }
-              }
-            }
-          },
-          "default": {
-            "description": "结构化错误",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/projects/{project_id}/uploads": {
-      "post": {
-        "tags": [
-          "项目模块"
-        ],
-        "summary": "Start Upload",
-        "operationId": "start_upload_api_projects__project_id__uploads_post",
-        "parameters": [
-          {
-            "name": "project_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Project Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ProjectUploadSelection"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Response_dict_"
-                }
-              }
-            }
-          },
-          "default": {
-            "description": "结构化错误",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/projects/{project_id}/uploads/{operation_id}/file": {
-      "put": {
-        "tags": [
-          "项目模块"
-        ],
-        "summary": "Upload Item",
-        "operationId": "upload_item_api_projects__project_id__uploads__operation_id__file_put",
-        "parameters": [
-          {
-            "name": "project_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Project Id"
-            }
-          },
-          {
-            "name": "operation_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Operation Id"
-            }
-          },
-          {
-            "name": "path",
-            "in": "query",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Path"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "multipart/form-data": {
-              "schema": {
-                "$ref": "#/components/schemas/Body_upload_item_api_projects__project_id__uploads__operation_id__file_put"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Response_dict_"
-                }
-              }
-            }
-          },
-          "default": {
-            "description": "结构化错误",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/projects/{project_id}/uploads/{operation_id}/finish": {
-      "post": {
-        "tags": [
-          "项目模块"
-        ],
-        "summary": "Finish Upload",
-        "operationId": "finish_upload_api_projects__project_id__uploads__operation_id__finish_post",
-        "parameters": [
-          {
-            "name": "project_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Project Id"
-            }
-          },
-          {
-            "name": "operation_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Operation Id"
-            }
-          },
-          {
-            "name": "cancel",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "boolean",
-              "default": false,
-              "title": "Cancel"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Response_dict_"
-                }
-              }
-            }
-          },
-          "default": {
-            "description": "结构化错误",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/projects/{project_id}/operations/{operation_id}": {
-      "get": {
-        "tags": [
-          "项目模块"
-        ],
-        "summary": "Operation Result",
-        "operationId": "operation_result_api_projects__project_id__operations__operation_id__get",
-        "parameters": [
-          {
-            "name": "project_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Project Id"
-            }
-          },
-          {
-            "name": "operation_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Operation Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Response_dict_"
-                }
-              }
-            }
-          },
-          "default": {
-            "description": "结构化错误",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/projects/{project_id}/download": {
-      "head": {
-        "tags": [
-          "项目模块"
-        ],
-        "summary": "Download Project",
-        "operationId": "download_project_api_projects__project_id__download_head",
-        "parameters": [
-          {
-            "name": "project_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Project Id"
-            }
-          },
-          {
-            "name": "path",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Path"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "default": {
-            "description": "结构化错误",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      },
-      "get": {
-        "tags": [
-          "项目模块"
-        ],
-        "summary": "Download Project",
-        "operationId": "download_project_api_projects__project_id__download_get",
-        "parameters": [
-          {
-            "name": "project_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Project Id"
-            }
-          },
-          {
-            "name": "path",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Path"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {}
-              }
-            }
-          },
-          "default": {
-            "description": "结构化错误",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/projects/{project_id}/file-copies": {
-      "get": {
-        "tags": [
-          "项目模块"
-        ],
-        "summary": "File Copies",
-        "operationId": "file_copies_api_projects__project_id__file_copies_get",
-        "parameters": [
-          {
-            "name": "project_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Project Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Response_list_"
-                }
-              }
-            }
-          },
-          "default": {
-            "description": "结构化错误",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/projects/{project_id}/deliveries/retry": {
-      "post": {
-        "tags": [
-          "项目模块"
-        ],
-        "summary": "Retry Delivery",
-        "operationId": "retry_delivery_api_projects__project_id__deliveries_retry_post",
-        "parameters": [
-          {
-            "name": "project_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Project Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/RetryDeliveryRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Response_dict_"
-                }
-              }
-            }
-          },
-          "default": {
-            "description": "结构化错误",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/projects/{project_id}/memory": {
-      "get": {
-        "tags": [
-          "项目模块"
-        ],
-        "summary": "Memory View",
-        "operationId": "memory_view_api_projects__project_id__memory_get",
-        "parameters": [
-          {
-            "name": "project_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Project Id"
-            }
-          },
-          {
-            "name": "session_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Session Id"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Response_dict_"
-                }
-              }
-            }
-          },
-          "default": {
-            "description": "结构化错误",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/projects/{project_id}/memory/history": {
-      "get": {
-        "tags": [
-          "项目模块"
-        ],
-        "summary": "Memory History",
-        "operationId": "memory_history_api_projects__project_id__memory_history_get",
-        "parameters": [
-          {
-            "name": "project_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Project Id"
-            }
-          },
-          {
-            "name": "before_seq",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "minimum": 0,
-              "default": 0,
-              "title": "Before Seq"
-            }
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "maximum": 50,
-              "minimum": 1,
-              "default": 20,
-              "title": "Limit"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Response_list_dict__"
-                }
-              }
-            }
-          },
-          "default": {
-            "description": "结构化错误",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/projects/{project_id}/chat": {
-      "post": {
-        "tags": [
-          "项目模块"
-        ],
-        "summary": "First Chat",
-        "operationId": "first_chat_api_projects__project_id__chat_post",
-        "parameters": [
-          {
-            "name": "project_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Project Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ProjectFirstChatRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Response_dict_"
-                }
-              }
-            }
-          },
-          "default": {
-            "description": "结构化错误",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/projects/{project_id}/memory/estimate": {
-      "get": {
-        "tags": [
-          "项目模块"
-        ],
-        "summary": "Estimate Memory",
-        "operationId": "estimate_memory_api_projects__project_id__memory_estimate_get",
-        "parameters": [
-          {
-            "name": "project_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Project Id"
-            }
-          },
-          {
-            "name": "session_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Session Id"
-            }
-          },
-          {
-            "name": "mode",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "pattern": "^(normal|plan)$",
-              "default": "normal",
-              "title": "Mode"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Response_dict_"
-                }
-              }
-            }
-          },
-          "default": {
-            "description": "结构化错误",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/data/preview": {
       "get": {
         "tags": [
           "数据管理"
         ],
-        "summary": "Preview",
+        "summary": "读取清空范围",
         "operationId": "preview_api_data_preview_get",
-        "parameters": [
-          {
-            "name": "project_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Project Id"
-            }
-          }
-        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -4469,26 +2177,8 @@
         "tags": [
           "数据管理"
         ],
-        "summary": "Latest",
+        "summary": "读取最近一次清空",
         "operationId": "latest_api_data_tasks_latest_get",
-        "parameters": [
-          {
-            "name": "project_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "anyOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "null"
-                }
-              ],
-              "title": "Project Id"
-            }
-          }
-        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -4518,7 +2208,7 @@
         "tags": [
           "数据管理"
         ],
-        "summary": "Read",
+        "summary": "读取清空进度",
         "operationId": "read_api_data_tasks__identifier__get",
         "parameters": [
           {
@@ -4555,64 +2245,13 @@
         }
       }
     },
-    "/api/data/projects/{project_id}/delete": {
-      "post": {
-        "tags": [
-          "数据管理"
-        ],
-        "summary": "Delete Project",
-        "operationId": "delete_project_api_data_projects__project_id__delete_post",
-        "parameters": [
-          {
-            "name": "project_id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string",
-              "title": "Project Id"
-            }
-          }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CleanupRequest"
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "Successful Response",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Response_CleanupTask_"
-                }
-              }
-            }
-          },
-          "default": {
-            "description": "结构化错误",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/data/reset": {
       "post": {
         "tags": [
           "数据管理"
         ],
-        "summary": "Reset",
+        "summary": "清空所有对话与附件",
+        "description": "删除全部会话与文件记录并登记持久清理任务回收字节；有运行中或等待中的对话时返回 409",
         "operationId": "reset_api_data_reset_post",
         "requestBody": {
           "content": {
@@ -4653,7 +2292,7 @@
         "tags": [
           "数据管理"
         ],
-        "summary": "Retry",
+        "summary": "按原清单重试回收",
         "operationId": "retry_api_data_tasks__identifier__retry_post",
         "parameters": [
           {
@@ -4673,6 +2312,134 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Response_CleanupTask_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/operations/{operation_id}": {
+      "get": {
+        "tags": [
+          "长操作"
+        ],
+        "summary": "查询操作状态",
+        "operationId": "get_operation_api_operations__operation_id__get",
+        "parameters": [
+          {
+            "name": "operation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Operation Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_OperationView_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/operations/{operation_id}/cancel": {
+      "post": {
+        "tags": [
+          "长操作"
+        ],
+        "summary": "请求取消操作",
+        "description": "排队中的操作直接取消；运行中的操作记录取消请求，由执行端在安全点确认。已结束的操作原样返回",
+        "operationId": "cancel_operation_api_operations__operation_id__cancel_post",
+        "parameters": [
+          {
+            "name": "operation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Operation Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_OperationView_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/operations/{operation_id}/retry": {
+      "post": {
+        "tags": [
+          "长操作"
+        ],
+        "summary": "重试操作",
+        "description": "失败或取消且类型支持重试时按同一身份重新排队并递增代次；其他状态原样返回",
+        "operationId": "retry_operation_api_operations__operation_id__retry_post",
+        "parameters": [
+          {
+            "name": "operation_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Operation Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_OperationView_"
                 }
               }
             }
@@ -5309,13 +3076,6 @@
     "schemas": {
       "AgentConfig": {
         "properties": {
-          "project_snapshot_retention": {
-            "type": "integer",
-            "maximum": 7.0,
-            "minimum": 1.0,
-            "title": "Project Snapshot Retention",
-            "default": 5
-          },
           "max_iterations": {
             "type": "integer",
             "exclusiveMaximum": 1000.0,
@@ -5576,19 +3336,6 @@
         "title": "ApprovalSSEEvent",
         "description": "工具级审批流式事件"
       },
-      "ArchiveProjectRequest": {
-        "properties": {
-          "archived": {
-            "type": "boolean",
-            "title": "Archived"
-          }
-        },
-        "type": "object",
-        "required": [
-          "archived"
-        ],
-        "title": "ArchiveProjectRequest"
-      },
       "AttemptEventData": {
         "properties": {
           "event_id": {
@@ -5839,20 +3586,6 @@
           "file"
         ],
         "title": "Body_upload_import_api_skills_imports_zip_post"
-      },
-      "Body_upload_item_api_projects__project_id__uploads__operation_id__file_put": {
-        "properties": {
-          "file": {
-            "type": "string",
-            "format": "binary",
-            "title": "File"
-          }
-        },
-        "type": "object",
-        "required": [
-          "file"
-        ],
-        "title": "Body_upload_item_api_projects__project_id__uploads__operation_id__file_put"
       },
       "Body_upload_local_api_skills_imports_local_post": {
         "properties": {
@@ -6168,6 +3901,16 @@
             ],
             "title": "Image Mode",
             "default": "auto"
+          },
+          "request_id": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RequestId"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -6386,7 +4129,8 @@
           },
           "scope": {
             "type": "string",
-            "title": "Scope"
+            "title": "Scope",
+            "default": "all"
           },
           "project_id": {
             "anyOf": [
@@ -6401,17 +4145,16 @@
           },
           "name": {
             "type": "string",
-            "title": "Name"
+            "title": "Name",
+            "default": "所有对话与附件"
           },
           "state": {
             "type": "string",
-            "title": "State",
-            "default": "running"
+            "title": "State"
           },
           "phase": {
             "type": "string",
-            "title": "Phase",
-            "default": "resources"
+            "title": "Phase"
           },
           "completed": {
             "type": "integer",
@@ -6469,8 +4212,8 @@
         "type": "object",
         "required": [
           "id",
-          "scope",
-          "name",
+          "state",
+          "phase",
           "created_at",
           "updated_at"
         ],
@@ -6755,30 +4498,6 @@
         "title": "CompactUsage",
         "description": "摘要请求各次尝试的用量合计；属于运行时计入运行的模型请求数与 tokens，不算一轮。"
       },
-      "ConsoleRecord": {
-        "properties": {
-          "ps1": {
-            "type": "string",
-            "title": "Ps1"
-          },
-          "command": {
-            "type": "string",
-            "title": "Command"
-          },
-          "output": {
-            "type": "string",
-            "title": "Output"
-          }
-        },
-        "type": "object",
-        "required": [
-          "ps1",
-          "command",
-          "output"
-        ],
-        "title": "ConsoleRecord",
-        "description": "控制台记录模型，包含ps1、command、output"
-      },
       "ContextEventData": {
         "properties": {
           "event_id": {
@@ -6953,7 +4672,7 @@
                 "type": "null"
               }
             ],
-            "description": "桌面业务库版本；尚未建立桌面业务库时为空"
+            "description": "业务库 schema 版本；业务库尚未打开时为空"
           },
           "capabilities": {
             "items": {
@@ -6988,46 +4707,6 @@
         ],
         "title": "CoreStatus"
       },
-      "CreateProjectRequest": {
-        "properties": {
-          "creation_id": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "uuid"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Creation Id"
-          },
-          "name": {
-            "type": "string",
-            "maxLength": 160,
-            "minLength": 1,
-            "title": "Name"
-          },
-          "instructions": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 8000
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Instructions"
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "required": [
-          "name"
-        ],
-        "title": "CreateProjectRequest"
-      },
       "CreateSessionRequest": {
         "properties": {
           "creation_id": {
@@ -7041,19 +4720,6 @@
               }
             ],
             "title": "Creation Id"
-          },
-          "project_id": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 255,
-                "minLength": 1
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Project Id"
           }
         },
         "type": "object",
@@ -7198,26 +4864,6 @@
         ],
         "title": "EditRequest"
       },
-      "EditSummaryRequest": {
-        "properties": {
-          "content": {
-            "type": "string",
-            "maxLength": 1500,
-            "title": "Content"
-          },
-          "base_generation": {
-            "type": "integer",
-            "minimum": 0.0,
-            "title": "Base Generation"
-          }
-        },
-        "type": "object",
-        "required": [
-          "content",
-          "base_generation"
-        ],
-        "title": "EditSummaryRequest"
-      },
       "EnvironmentEventData": {
         "properties": {
           "event_id": {
@@ -7279,18 +4925,6 @@
               }
             ],
             "title": "Message"
-          },
-          "project_file_protection": {
-            "anyOf": [
-              {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Project File Protection"
           }
         },
         "type": "object",
@@ -7301,8 +4935,7 @@
           "created_at",
           "event_version",
           "status",
-          "message",
-          "project_file_protection"
+          "message"
         ],
         "title": "EnvironmentEventData"
       },
@@ -7592,68 +5225,16 @@
               }
             ],
             "title": "Visual"
-          },
-          "project_upload": {
-            "anyOf": [
-              {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Project Upload"
-          },
-          "project_persistence": {
-            "anyOf": [
-              {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Project Persistence"
           }
         },
         "type": "object",
         "title": "File",
-        "description": "文件信息Domain模型，用于记录Manus/Human上传or生成的文件"
+        "description": "文件信息Domain模型，用于记录用户上传或 Agent 交付的文件；字节保存为数据根中的内容对象"
       },
-      "FileReadRequest": {
-        "properties": {
-          "filepath": {
-            "type": "string",
-            "title": "Filepath"
-          }
-        },
-        "type": "object",
-        "required": [
-          "filepath"
-        ],
-        "title": "FileReadRequest",
-        "description": "需要读取的沙箱文件请求结构"
-      },
-      "FileReadResponse": {
-        "properties": {
-          "filepath": {
-            "type": "string",
-            "title": "Filepath"
-          },
-          "content": {
-            "type": "string",
-            "title": "Content"
-          }
-        },
-        "type": "object",
-        "required": [
-          "filepath",
-          "content"
-        ],
-        "title": "FileReadResponse",
-        "description": "需要读取的沙箱文件响应结构体"
+      "Generation": {
+        "type": "integer",
+        "minimum": 1.0,
+        "description": "代次：对象被重试或替换时递增，迟到结果代次不符时不得写回"
       },
       "GetSessionFilesResponse": {
         "properties": {
@@ -7718,15 +5299,12 @@
             "type": "object",
             "title": "Context Config"
           },
-          "project": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/ProjectView"
-              },
-              {
-                "type": "null"
-              }
-            ]
+          "unconsumed_inputs": {
+            "items": {
+              "$ref": "#/components/schemas/UnconsumedInputItem"
+            },
+            "type": "array",
+            "title": "Unconsumed Inputs"
           },
           "model_id": {
             "anyOf": [
@@ -8194,68 +5772,6 @@
             "type": "integer",
             "title": "Unread Message Count",
             "default": 0
-          },
-          "summary": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Summary"
-          },
-          "summary_source": {
-            "anyOf": [
-              {
-                "type": "string",
-                "enum": [
-                  "auto",
-                  "manual"
-                ]
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Summary Source"
-          },
-          "summary_state": {
-            "type": "string",
-            "title": "Summary State",
-            "default": "idle"
-          },
-          "summary_error": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Summary Error"
-          },
-          "summary_generation": {
-            "type": "integer",
-            "title": "Summary Generation",
-            "default": 0
-          },
-          "summary_source_seq": {
-            "type": "integer",
-            "title": "Summary Source Seq",
-            "default": 0
-          },
-          "project": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/ProjectView"
-              },
-              {
-                "type": "null"
-              }
-            ]
           }
         },
         "type": "object",
@@ -8764,6 +6280,232 @@
         ],
         "title": "ModelSelectionResponse"
       },
+      "OperationId": {
+        "type": "string",
+        "maxLength": 128,
+        "minLength": 1,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+        "description": "长操作身份；查询、取消与重试沿同一身份"
+      },
+      "OperationKind": {
+        "type": "string",
+        "enum": [
+          "component_install",
+          "document_index",
+          "memory_extraction",
+          "session_summary",
+          "data_cleanup"
+        ],
+        "title": "OperationKind",
+        "description": "新增类型在这里登记，各工作包不另起同义名称。"
+      },
+      "OperationProgress": {
+        "properties": {
+          "completed": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Completed",
+            "default": 0
+          },
+          "total": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total"
+          }
+        },
+        "type": "object",
+        "title": "OperationProgress"
+      },
+      "OperationScope": {
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/OperationScopeKind"
+          },
+          "workspace_id": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WorkspaceId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "session_id": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SessionId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind"
+        ],
+        "title": "OperationScope",
+        "description": "操作的所有者范围；查询、取消与重试按范围核对来源。"
+      },
+      "OperationScopeKind": {
+        "type": "string",
+        "enum": [
+          "app",
+          "workspace",
+          "session"
+        ],
+        "title": "OperationScopeKind"
+      },
+      "OperationStatus": {
+        "type": "string",
+        "enum": [
+          "queued",
+          "running",
+          "succeeded",
+          "failed",
+          "cancelled"
+        ],
+        "title": "OperationStatus"
+      },
+      "OperationView": {
+        "properties": {
+          "operation_id": {
+            "$ref": "#/components/schemas/OperationId"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/OperationKind"
+          },
+          "scope": {
+            "$ref": "#/components/schemas/OperationScope"
+          },
+          "generation": {
+            "$ref": "#/components/schemas/Generation"
+          },
+          "status": {
+            "$ref": "#/components/schemas/OperationStatus"
+          },
+          "phase": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phase"
+          },
+          "progress": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OperationProgress"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "request_id": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RequestId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cancel_requested_at": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cancel Requested At"
+          },
+          "created_at": {
+            "type": "integer",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "integer",
+            "title": "Updated At"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Result"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ErrorInfo"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "can_cancel": {
+            "type": "boolean",
+            "title": "Can Cancel"
+          },
+          "can_retry": {
+            "type": "boolean",
+            "title": "Can Retry"
+          }
+        },
+        "type": "object",
+        "required": [
+          "operation_id",
+          "kind",
+          "scope",
+          "generation",
+          "status",
+          "phase",
+          "progress",
+          "request_id",
+          "cancel_requested_at",
+          "created_at",
+          "updated_at",
+          "finished_at",
+          "result",
+          "error",
+          "can_cancel",
+          "can_retry"
+        ],
+        "title": "OperationView"
+      },
       "PlanAcceptance": {
         "properties": {
           "source_run_id": {
@@ -8948,985 +6690,6 @@
         "title": "PlanSSEEvent",
         "description": "计划流式事件"
       },
-      "ProjectDetails": {
-        "properties": {
-          "id": {
-            "type": "string",
-            "title": "Id"
-          },
-          "name": {
-            "type": "string",
-            "title": "Name"
-          },
-          "available": {
-            "type": "boolean",
-            "title": "Available"
-          },
-          "archived": {
-            "type": "boolean",
-            "title": "Archived",
-            "default": false
-          },
-          "files_size": {
-            "type": "integer",
-            "title": "Files Size",
-            "default": 0
-          },
-          "files_size_at": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Files Size At"
-          },
-          "files_size_stale": {
-            "type": "boolean",
-            "title": "Files Size Stale",
-            "default": false
-          },
-          "protection": {
-            "anyOf": [
-              {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Protection"
-          },
-          "snapshot_gc_pending": {
-            "type": "boolean",
-            "title": "Snapshot Gc Pending",
-            "default": false
-          },
-          "snapshots_cleaned_at": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Snapshots Cleaned At"
-          },
-          "snapshots_released_bytes": {
-            "type": "integer",
-            "title": "Snapshots Released Bytes",
-            "default": 0
-          },
-          "file_operation": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/ProjectOperation"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "write_blocked_reason": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Write Blocked Reason"
-          },
-          "occupying_session_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Occupying Session Id"
-          },
-          "active_run_status": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Active Run Status"
-          },
-          "active_run_reason": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Active Run Reason"
-          },
-          "task_count": {
-            "type": "integer",
-            "title": "Task Count",
-            "default": 0
-          },
-          "last_active_at": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Last Active At"
-          },
-          "reason": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Reason"
-          },
-          "instructions": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Instructions"
-          },
-          "notes": {
-            "type": "string",
-            "title": "Notes",
-            "default": ""
-          },
-          "notes_version": {
-            "type": "integer",
-            "title": "Notes Version",
-            "default": 0
-          },
-          "settings_version": {
-            "type": "integer",
-            "title": "Settings Version",
-            "default": 0
-          },
-          "created_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Created At"
-          },
-          "updated_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Updated At"
-          },
-          "archived_at": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Archived At"
-          }
-        },
-        "type": "object",
-        "required": [
-          "id",
-          "name",
-          "available",
-          "created_at",
-          "updated_at"
-        ],
-        "title": "ProjectDetails"
-      },
-      "ProjectEntry": {
-        "properties": {
-          "name": {
-            "type": "string",
-            "title": "Name"
-          },
-          "path": {
-            "type": "string",
-            "title": "Path"
-          },
-          "type": {
-            "type": "string",
-            "enum": [
-              "file",
-              "directory",
-              "symlink",
-              "other"
-            ],
-            "title": "Type"
-          },
-          "size": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Size"
-          },
-          "modified_at": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Modified At"
-          },
-          "is_symlink": {
-            "type": "boolean",
-            "title": "Is Symlink",
-            "default": false
-          },
-          "link": {
-            "anyOf": [
-              {
-                "type": "string",
-                "enum": [
-                  "inside",
-                  "outside",
-                  "broken"
-                ]
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Link"
-          }
-        },
-        "type": "object",
-        "required": [
-          "name",
-          "path",
-          "type"
-        ],
-        "title": "ProjectEntry",
-        "description": "文件树中的一个直接子项。\n\n符号链接统一作为链接显示，不展开或读取目标。"
-      },
-      "ProjectFile": {
-        "properties": {
-          "path": {
-            "type": "string",
-            "title": "Path"
-          },
-          "name": {
-            "type": "string",
-            "title": "Name"
-          },
-          "size": {
-            "type": "integer",
-            "title": "Size"
-          },
-          "modified_at": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Modified At"
-          },
-          "kind": {
-            "type": "string",
-            "enum": [
-              "text",
-              "binary",
-              "too_large",
-              "symlink",
-              "other"
-            ],
-            "title": "Kind"
-          },
-          "content": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Content"
-          },
-          "max_bytes": {
-            "type": "integer",
-            "title": "Max Bytes",
-            "default": 1048576
-          }
-        },
-        "type": "object",
-        "required": [
-          "path",
-          "name",
-          "size",
-          "kind"
-        ],
-        "title": "ProjectFile",
-        "description": "读文件的结果。二进制与超过上限的文件只有元数据，``content`` 为空。"
-      },
-      "ProjectFirstChatRequest": {
-        "properties": {
-          "execute_plan": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/PlanAcceptance"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "message": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Message"
-          },
-          "attachments": {
-            "anyOf": [
-              {
-                "items": {
-                  "type": "string"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Attachments"
-          },
-          "timestamp": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Timestamp"
-          },
-          "mode": {
-            "type": "string",
-            "enum": [
-              "normal",
-              "plan"
-            ],
-            "title": "Mode",
-            "default": "normal"
-          },
-          "model": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Model"
-          },
-          "reasoning": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Reasoning"
-          },
-          "skill": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/SkillSelection"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "image_mode": {
-            "type": "string",
-            "enum": [
-              "auto",
-              "files"
-            ],
-            "title": "Image Mode",
-            "default": "auto"
-          },
-          "creation_id": {
-            "type": "string",
-            "format": "uuid",
-            "title": "Creation Id"
-          }
-        },
-        "type": "object",
-        "required": [
-          "creation_id"
-        ],
-        "title": "ProjectFirstChatRequest"
-      },
-      "ProjectListing": {
-        "properties": {
-          "path": {
-            "type": "string",
-            "title": "Path"
-          },
-          "entries": {
-            "items": {
-              "$ref": "#/components/schemas/ProjectEntry"
-            },
-            "type": "array",
-            "title": "Entries"
-          },
-          "total": {
-            "type": "integer",
-            "title": "Total",
-            "default": 0
-          },
-          "truncated": {
-            "type": "boolean",
-            "title": "Truncated",
-            "default": false
-          },
-          "limit": {
-            "type": "integer",
-            "title": "Limit",
-            "default": 1000
-          }
-        },
-        "type": "object",
-        "required": [
-          "path"
-        ],
-        "title": "ProjectListing",
-        "description": "某个项目目录的一层子项。"
-      },
-      "ProjectNotesEventData": {
-        "properties": {
-          "event_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Event Id"
-          },
-          "seq": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Seq"
-          },
-          "run_id": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/RunId"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "created_at": {
-            "type": "integer",
-            "title": "Created At",
-            "default": 0
-          },
-          "event_version": {
-            "$ref": "#/components/schemas/EventVersion",
-            "default": 1
-          },
-          "project_id": {
-            "type": "string",
-            "title": "Project Id"
-          },
-          "content": {
-            "type": "string",
-            "title": "Content"
-          },
-          "notes_version": {
-            "type": "integer",
-            "title": "Notes Version"
-          },
-          "source": {
-            "type": "string",
-            "enum": [
-              "user",
-              "agent"
-            ],
-            "title": "Source"
-          }
-        },
-        "type": "object",
-        "required": [
-          "event_id",
-          "seq",
-          "run_id",
-          "created_at",
-          "event_version",
-          "project_id",
-          "content",
-          "notes_version",
-          "source"
-        ],
-        "title": "ProjectNotesEventData"
-      },
-      "ProjectNotesSSEEvent": {
-        "properties": {
-          "event": {
-            "type": "string",
-            "const": "project_notes",
-            "title": "Event",
-            "default": "project_notes"
-          },
-          "data": {
-            "$ref": "#/components/schemas/ProjectNotesEventData"
-          }
-        },
-        "type": "object",
-        "required": [
-          "event",
-          "data"
-        ],
-        "title": "ProjectNotesSSEEvent"
-      },
-      "ProjectOperation": {
-        "properties": {
-          "operation_id": {
-            "type": "string",
-            "title": "Operation Id"
-          },
-          "kind": {
-            "type": "string",
-            "enum": [
-              "settling",
-              "upload",
-              "snapshot",
-              "restore",
-              "cleanup",
-              "delivery"
-            ],
-            "title": "Kind"
-          },
-          "state": {
-            "type": "string",
-            "enum": [
-              "running",
-              "failed"
-            ],
-            "title": "State",
-            "default": "running"
-          },
-          "run_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Run Id"
-          },
-          "session_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Session Id"
-          },
-          "phase": {
-            "type": "string",
-            "title": "Phase",
-            "default": "preparing"
-          },
-          "target_snapshot_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Target Snapshot Id"
-          },
-          "before_snapshot_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Before Snapshot Id"
-          },
-          "started_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Started At"
-          },
-          "last_active_at": {
-            "type": "string",
-            "format": "date-time",
-            "title": "Last Active At"
-          },
-          "error": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Error"
-          },
-          "results": {
-            "additionalProperties": true,
-            "type": "object",
-            "title": "Results"
-          }
-        },
-        "type": "object",
-        "required": [
-          "kind"
-        ],
-        "title": "ProjectOperation"
-      },
-      "ProjectPage": {
-        "properties": {
-          "projects": {
-            "items": {
-              "$ref": "#/components/schemas/ProjectView"
-            },
-            "type": "array",
-            "title": "Projects"
-          },
-          "total": {
-            "type": "integer",
-            "title": "Total"
-          },
-          "offset": {
-            "type": "integer",
-            "title": "Offset"
-          },
-          "limit": {
-            "type": "integer",
-            "title": "Limit"
-          }
-        },
-        "type": "object",
-        "required": [
-          "projects",
-          "total",
-          "offset",
-          "limit"
-        ],
-        "title": "ProjectPage"
-      },
-      "ProjectUploadItem": {
-        "properties": {
-          "path": {
-            "type": "string",
-            "maxLength": 4096,
-            "minLength": 1,
-            "title": "Path"
-          },
-          "size": {
-            "type": "integer",
-            "minimum": 0.0,
-            "title": "Size"
-          },
-          "sha256": {
-            "type": "string",
-            "pattern": "^[0-9a-f]{64}$",
-            "title": "Sha256"
-          },
-          "overwrite": {
-            "type": "boolean",
-            "title": "Overwrite",
-            "default": false
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "required": [
-          "path",
-          "size",
-          "sha256"
-        ],
-        "title": "ProjectUploadItem"
-      },
-      "ProjectUploadSelection": {
-        "properties": {
-          "rule_version": {
-            "type": "string",
-            "title": "Rule Version"
-          },
-          "items": {
-            "items": {
-              "$ref": "#/components/schemas/ProjectUploadItem"
-            },
-            "type": "array",
-            "maxItems": 2000,
-            "title": "Items"
-          },
-          "include_optional": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "maxItems": 2000,
-            "title": "Include Optional"
-          },
-          "inventory": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array",
-            "maxItems": 10000,
-            "title": "Inventory"
-          },
-          "fingerprint": {
-            "additionalProperties": true,
-            "type": "object",
-            "title": "Fingerprint"
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "required": [
-          "rule_version",
-          "items"
-        ],
-        "title": "ProjectUploadSelection"
-      },
-      "ProjectView": {
-        "properties": {
-          "id": {
-            "type": "string",
-            "title": "Id"
-          },
-          "name": {
-            "type": "string",
-            "title": "Name"
-          },
-          "available": {
-            "type": "boolean",
-            "title": "Available"
-          },
-          "archived": {
-            "type": "boolean",
-            "title": "Archived",
-            "default": false
-          },
-          "files_size": {
-            "type": "integer",
-            "title": "Files Size",
-            "default": 0
-          },
-          "files_size_at": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Files Size At"
-          },
-          "files_size_stale": {
-            "type": "boolean",
-            "title": "Files Size Stale",
-            "default": false
-          },
-          "protection": {
-            "anyOf": [
-              {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Protection"
-          },
-          "snapshot_gc_pending": {
-            "type": "boolean",
-            "title": "Snapshot Gc Pending",
-            "default": false
-          },
-          "snapshots_cleaned_at": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Snapshots Cleaned At"
-          },
-          "snapshots_released_bytes": {
-            "type": "integer",
-            "title": "Snapshots Released Bytes",
-            "default": 0
-          },
-          "file_operation": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/ProjectOperation"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          },
-          "write_blocked_reason": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Write Blocked Reason"
-          },
-          "occupying_session_id": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Occupying Session Id"
-          },
-          "active_run_status": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Active Run Status"
-          },
-          "active_run_reason": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Active Run Reason"
-          },
-          "task_count": {
-            "type": "integer",
-            "title": "Task Count",
-            "default": 0
-          },
-          "last_active_at": {
-            "anyOf": [
-              {
-                "type": "string",
-                "format": "date-time"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Last Active At"
-          },
-          "reason": {
-            "anyOf": [
-              {
-                "type": "string"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Reason"
-          }
-        },
-        "type": "object",
-        "required": [
-          "id",
-          "name",
-          "available"
-        ],
-        "title": "ProjectView",
-        "description": "会话对外的项目摘要。available 与 reason 来自托管存储自检，不入库。"
-      },
       "ProtocolVersion": {
         "type": "integer",
         "minimum": 1.0,
@@ -9963,23 +6726,12 @@
         ],
         "title": "RenameTitleRequest"
       },
-      "RepairRestoreRequest": {
-        "properties": {
-          "operation_id": {
-            "type": "string",
-            "title": "Operation Id"
-          },
-          "return_before": {
-            "type": "boolean",
-            "title": "Return Before",
-            "default": false
-          }
-        },
-        "type": "object",
-        "required": [
-          "operation_id"
-        ],
-        "title": "RepairRestoreRequest"
+      "RequestId": {
+        "type": "string",
+        "maxLength": 128,
+        "minLength": 1,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+        "description": "业务幂等请求身份；同身份不同内容返回冲突"
       },
       "ResourceVersion": {
         "anyOf": [
@@ -10204,25 +6956,6 @@
         ],
         "title": "Response[Dict[str, Any]]"
       },
-      "Response_FileReadResponse_": {
-        "properties": {
-          "data": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/FileReadResponse"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        },
-        "type": "object",
-        "required": [
-          "data"
-        ],
-        "title": "Response[FileReadResponse]"
-      },
       "Response_File_": {
         "properties": {
           "data": {
@@ -10394,12 +7127,12 @@
         ],
         "title": "Response[ModelSelectionResponse]"
       },
-      "Response_ProjectDetails_": {
+      "Response_OperationView_": {
         "properties": {
           "data": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/ProjectDetails"
+                "$ref": "#/components/schemas/OperationView"
               },
               {
                 "type": "null"
@@ -10411,83 +7144,7 @@
         "required": [
           "data"
         ],
-        "title": "Response[ProjectDetails]"
-      },
-      "Response_ProjectFile_": {
-        "properties": {
-          "data": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/ProjectFile"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        },
-        "type": "object",
-        "required": [
-          "data"
-        ],
-        "title": "Response[ProjectFile]"
-      },
-      "Response_ProjectListing_": {
-        "properties": {
-          "data": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/ProjectListing"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        },
-        "type": "object",
-        "required": [
-          "data"
-        ],
-        "title": "Response[ProjectListing]"
-      },
-      "Response_ProjectPage_": {
-        "properties": {
-          "data": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/ProjectPage"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        },
-        "type": "object",
-        "required": [
-          "data"
-        ],
-        "title": "Response[ProjectPage]"
-      },
-      "Response_ShellReadResponse_": {
-        "properties": {
-          "data": {
-            "anyOf": [
-              {
-                "$ref": "#/components/schemas/ShellReadResponse"
-              },
-              {
-                "type": "null"
-              }
-            ]
-          }
-        },
-        "type": "object",
-        "required": [
-          "data"
-        ],
-        "title": "Response[ShellReadResponse]"
+        "title": "Response[OperationView]"
       },
       "Response_TitleResponse_": {
         "properties": {
@@ -10585,85 +7242,6 @@
           "data"
         ],
         "title": "Response[Union[Dict, NoneType]]"
-      },
-      "Response_dict_": {
-        "properties": {
-          "data": {
-            "anyOf": [
-              {
-                "additionalProperties": true,
-                "type": "object"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Data"
-          }
-        },
-        "type": "object",
-        "required": [
-          "data"
-        ],
-        "title": "Response[dict]"
-      },
-      "Response_list_": {
-        "properties": {
-          "data": {
-            "anyOf": [
-              {
-                "items": {},
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Data"
-          }
-        },
-        "type": "object",
-        "required": [
-          "data"
-        ],
-        "title": "Response[list]"
-      },
-      "Response_list_dict__": {
-        "properties": {
-          "data": {
-            "anyOf": [
-              {
-                "items": {
-                  "additionalProperties": true,
-                  "type": "object"
-                },
-                "type": "array"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Data"
-          }
-        },
-        "type": "object",
-        "required": [
-          "data"
-        ],
-        "title": "Response[list[dict]]"
-      },
-      "RetryDeliveryRequest": {
-        "properties": {
-          "copy_key": {
-            "type": "string",
-            "title": "Copy Key"
-          }
-        },
-        "type": "object",
-        "required": [
-          "copy_key"
-        ],
-        "title": "RetryDeliveryRequest"
       },
       "ReviseRequest": {
         "properties": {
@@ -10985,9 +7563,6 @@
             "$ref": "#/components/schemas/EnvironmentSSEEvent"
           },
           {
-            "$ref": "#/components/schemas/ProjectNotesSSEEvent"
-          },
-          {
             "$ref": "#/components/schemas/ContextSSEEvent"
           },
           {
@@ -11013,7 +7588,6 @@
             "error": "#/components/schemas/ErrorSSEEvent",
             "message": "#/components/schemas/MessageSSEEvent",
             "plan": "#/components/schemas/PlanSSEEvent",
-            "project_notes": "#/components/schemas/ProjectNotesSSEEvent",
             "run": "#/components/schemas/RunSSEEvent",
             "step": "#/components/schemas/StepSSEEvent",
             "title": "#/components/schemas/TitleSSEEvent",
@@ -11022,6 +7596,13 @@
             "wait": "#/components/schemas/WaitSSEEvent"
           }
         }
+      },
+      "SessionId": {
+        "type": "string",
+        "maxLength": 128,
+        "minLength": 1,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+        "description": "会话身份"
       },
       "SessionStatus": {
         "type": "string",
@@ -11036,46 +7617,6 @@
         ],
         "title": "SessionStatus",
         "description": "会话状态：最新运行状态的冗余副本，与运行状态在同一事务更新，供会话列表使用。"
-      },
-      "ShellReadRequest": {
-        "properties": {
-          "session_id": {
-            "type": "string",
-            "title": "Session Id"
-          }
-        },
-        "type": "object",
-        "required": [
-          "session_id"
-        ],
-        "title": "ShellReadRequest",
-        "description": "需要读取的沙箱shell请求结构体"
-      },
-      "ShellReadResponse": {
-        "properties": {
-          "session_id": {
-            "type": "string",
-            "title": "Session Id"
-          },
-          "output": {
-            "type": "string",
-            "title": "Output"
-          },
-          "console_records": {
-            "items": {
-              "$ref": "#/components/schemas/ConsoleRecord"
-            },
-            "type": "array",
-            "title": "Console Records"
-          }
-        },
-        "type": "object",
-        "required": [
-          "session_id",
-          "output"
-        ],
-        "title": "ShellReadResponse",
-        "description": "需要读取的沙箱shell响应结构体"
       },
       "SkillSelection": {
         "properties": {
@@ -11943,82 +8484,40 @@
         ],
         "title": "UnavailableReason"
       },
-      "UpdateProjectNotesRequest": {
+      "UnconsumedInputItem": {
         "properties": {
-          "content": {
-            "type": "string",
-            "maxLength": 8000,
-            "title": "Content"
-          },
-          "base_version": {
+          "input_id": {
             "type": "integer",
-            "minimum": 0.0,
-            "title": "Base Version"
+            "title": "Input Id"
+          },
+          "run_id": {
+            "type": "string",
+            "title": "Run Id"
+          },
+          "message_seq": {
+            "type": "integer",
+            "title": "Message Seq"
+          },
+          "request_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Request Id"
           }
         },
         "type": "object",
         "required": [
-          "content",
-          "base_version"
+          "input_id",
+          "run_id",
+          "message_seq"
         ],
-        "title": "UpdateProjectNotesRequest"
-      },
-      "UpdateProjectRequest": {
-        "properties": {
-          "name": {
-            "type": "string",
-            "maxLength": 160,
-            "minLength": 1,
-            "title": "Name"
-          },
-          "instructions": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 8000
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Instructions"
-          },
-          "settings_version": {
-            "type": "integer",
-            "minimum": 0.0,
-            "title": "Settings Version"
-          },
-          "notes": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 8000
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Notes"
-          },
-          "notes_version": {
-            "anyOf": [
-              {
-                "type": "integer",
-                "minimum": 0.0
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Notes Version"
-          }
-        },
-        "type": "object",
-        "required": [
-          "name",
-          "settings_version"
-        ],
-        "title": "UpdateProjectRequest"
+        "title": "UnconsumedInputItem",
+        "description": "已受理但所属运行已结束、尚未进入模型历史的消息；可经重新发起接口交给新运行。"
       },
       "WaitSSEEvent": {
         "properties": {
@@ -12039,6 +8538,13 @@
         ],
         "title": "WaitSSEEvent",
         "description": "等待人类输入流式事件"
+      },
+      "WorkspaceId": {
+        "type": "string",
+        "maxLength": 128,
+        "minLength": 1,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+        "description": "工作区身份；独立对话没有工作区"
       }
     }
   },

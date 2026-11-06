@@ -304,7 +304,7 @@ export interface paths {
         put?: never;
         /**
          * 对话文件上传接口
-         * @description 在对话接口中，将文件上传到文件存储和沙箱中
+         * @description 上传附件并保存为内容对象；发送消息时附件放入该会话的工作目录
          */
         post: operations["upload_file_api_files_post"];
         delete?: never;
@@ -342,7 +342,7 @@ export interface paths {
         };
         /**
          * 文件下载接口
-         * @description 从沙箱or对象存储中下载指定的文件到本地
+         * @description 下载附件或交付文件的内容对象
          */
         get: operations["download_file_api_files__file_id__download_get"];
         put?: never;
@@ -374,40 +374,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/projects/{identifier}/preview": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Project Preview */
-        get: operations["project_preview_api_projects__identifier__preview_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/sessions/{identifier}/project/preview": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Session Project Preview */
-        get: operations["session_project_preview_api_sessions__identifier__project_preview_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/files/{file_id}/preview/content": {
         parameters: {
             query?: never;
@@ -417,40 +383,6 @@ export interface paths {
         };
         /** Attachment Content */
         get: operations["attachment_content_api_files__file_id__preview_content_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/projects/{identifier}/preview/content": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Project Content */
-        get: operations["project_content_api_projects__identifier__preview_content_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/sessions/{identifier}/project/preview/content": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Session Project Content */
-        get: operations["session_project_content_api_sessions__identifier__project_preview_content_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -554,9 +486,49 @@ export interface paths {
         put?: never;
         /**
          * 向指定任务会话发送消息
-         * @description 受理一条用户消息并立即返回 run_id 与消息事件的 seq；执行过程通过事件流接口观察。mode 为 plan 时新运行以计划模式执行；会话有活动运行（会注入或续接）时带 plan 返回 409
+         * @description 受理一条用户消息并立即返回 run_id 与消息事件的 seq；执行过程通过事件流接口观察。mode 为 plan 时新运行以计划模式执行；会话有活动运行（会注入或续接）时带 plan 返回 409。带 request_id 时同身份同内容返回原受理结果，内容不同返回 409；结果未知时按身份读回
          */
         post: operations["chat_api_sessions__session_id__chat_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/sessions/{session_id}/requests/{request_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 按请求身份读回受理结果
+         * @description 发送结果未知时先读回；没有受理记录返回 404，此时原请求尚未被核心受理，可以按同一身份重新发送
+         */
+        get: operations["get_accepted_request_api_sessions__session_id__requests__request_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/sessions/{session_id}/inputs/{input_id}/resume": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 重新发起未处理的消息
+         * @description 所属运行已结束（如核心重启中断或被停止）而尚未进入模型历史的消息，明确交给一个新运行处理；消息不重复写入。已处理、正在处理或会话已有活动运行时返回 409
+         */
+        post: operations["resume_input_api_sessions__session_id__inputs__input_id__resume_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -774,583 +746,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/sessions/{session_id}/file": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * 查看会话沙箱中指定文件的内容
-         * @description 根据传递的会话id+文件路径查看沙箱中文件的内容信息
-         */
-        post: operations["read_file_api_sessions__session_id__file_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/sessions/{session_id}/shell": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * 查看会话的shell内容输出
-         * @description 传递指定会话id与shell会话标识，查看shell内容输出
-         */
-        post: operations["read_shell_output_api_sessions__session_id__shell_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/sessions/{session_id}/project/tree": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * 列出项目目录的一层子项
-         * @description path 为相对项目根的路径，省略时列出项目根。会话未绑定项目 404；路径校验失败 400。读的是 API 侧只读挂载，不依赖沙箱
-         */
-        get: operations["project_tree_api_sessions__session_id__project_tree_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/sessions/{session_id}/project/file": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * 读取项目内文件
-         * @description 二进制与超过上限的文件只返回元数据。会话未绑定项目 404；路径校验失败 400
-         */
-        get: operations["project_file_api_sessions__session_id__project_file_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/sessions/{session_id}/summary": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Get Summary */
-        get: operations["get_summary_api_sessions__session_id__summary_get"];
-        /** Edit Summary */
-        put: operations["edit_summary_api_sessions__session_id__summary_put"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/sessions/{session_id}/summary/regenerate": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Regenerate Summary */
-        post: operations["regenerate_summary_api_sessions__session_id__summary_regenerate_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/projects/upload-rules": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Upload Rules */
-        get: operations["upload_rules_api_projects_upload_rules_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/projects": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** 分页列出长期项目 */
-        get: operations["list_projects_api_projects_get"];
-        put?: never;
-        /** 新建托管项目，不创建对话或沙箱 */
-        post: operations["create_project_api_projects_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/projects/{project_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** 读取项目与当前可用性 */
-        get: operations["get_project_api_projects__project_id__get"];
-        /** 保存项目名称与说明 */
-        put: operations["update_project_api_projects__project_id__put"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/projects/{project_id}/notes": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** Update Notes */
-        put: operations["update_notes_api_projects__project_id__notes_put"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/projects/{project_id}/archive": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 归档或恢复，保留历史与目录 */
-        post: operations["archive_project_api_projects__project_id__archive_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/projects/{project_id}/sessions": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** 分页读取项目对话，不加载历史事件 */
-        get: operations["project_sessions_api_projects__project_id__sessions_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/projects/{project_id}/tree": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Project Tree */
-        get: operations["project_tree_api_projects__project_id__tree_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/projects/{project_id}/file": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Project File */
-        get: operations["project_file_api_projects__project_id__file_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/projects/{project_id}/settling/retry": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Retry Settling */
-        post: operations["retry_settling_api_projects__project_id__settling_retry_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/projects/{project_id}/events": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Project Events */
-        get: operations["project_events_api_projects__project_id__events_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/projects/{project_id}/snapshots": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Snapshots */
-        get: operations["snapshots_api_projects__project_id__snapshots_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/projects/{project_id}/snapshots/{snapshot_id}/restore": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Restore Snapshot */
-        post: operations["restore_snapshot_api_projects__project_id__snapshots__snapshot_id__restore_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/projects/{project_id}/restore/repair": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Repair Restore */
-        post: operations["repair_restore_api_projects__project_id__restore_repair_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/projects/{project_id}/snapshots/cleanup": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Cleanup Snapshots */
-        post: operations["cleanup_snapshots_api_projects__project_id__snapshots_cleanup_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/projects/{project_id}/operations/reconcile": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Reconcile Files */
-        post: operations["reconcile_files_api_projects__project_id__operations_reconcile_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/projects/{project_id}/uploads/preflight": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Preflight Upload */
-        post: operations["preflight_upload_api_projects__project_id__uploads_preflight_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/projects/{project_id}/uploads": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Start Upload */
-        post: operations["start_upload_api_projects__project_id__uploads_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/projects/{project_id}/uploads/{operation_id}/file": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** Upload Item */
-        put: operations["upload_item_api_projects__project_id__uploads__operation_id__file_put"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/projects/{project_id}/uploads/{operation_id}/finish": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Finish Upload */
-        post: operations["finish_upload_api_projects__project_id__uploads__operation_id__finish_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/projects/{project_id}/operations/{operation_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Operation Result */
-        get: operations["operation_result_api_projects__project_id__operations__operation_id__get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/projects/{project_id}/download": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Download Project */
-        get: operations["download_project_api_projects__project_id__download_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        /** Download Project */
-        head: operations["download_project_api_projects__project_id__download_head"];
-        patch?: never;
-        trace?: never;
-    };
-    "/api/projects/{project_id}/file-copies": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** File Copies */
-        get: operations["file_copies_api_projects__project_id__file_copies_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/projects/{project_id}/deliveries/retry": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Retry Delivery */
-        post: operations["retry_delivery_api_projects__project_id__deliveries_retry_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/projects/{project_id}/memory": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Memory View */
-        get: operations["memory_view_api_projects__project_id__memory_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/projects/{project_id}/memory/history": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Memory History */
-        get: operations["memory_history_api_projects__project_id__memory_history_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/projects/{project_id}/chat": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** First Chat */
-        post: operations["first_chat_api_projects__project_id__chat_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/projects/{project_id}/memory/estimate": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Estimate Memory */
-        get: operations["estimate_memory_api_projects__project_id__memory_estimate_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/data/preview": {
         parameters: {
             query?: never;
@@ -1358,7 +753,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Preview */
+        /** 读取清空范围 */
         get: operations["preview_api_data_preview_get"];
         put?: never;
         post?: never;
@@ -1375,7 +770,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Latest */
+        /** 读取最近一次清空 */
         get: operations["latest_api_data_tasks_latest_get"];
         put?: never;
         post?: never;
@@ -1392,27 +787,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Read */
+        /** 读取清空进度 */
         get: operations["read_api_data_tasks__identifier__get"];
         put?: never;
         post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/data/projects/{project_id}/delete": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Delete Project */
-        post: operations["delete_project_api_data_projects__project_id__delete_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1428,7 +806,10 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Reset */
+        /**
+         * 清空所有对话与附件
+         * @description 删除全部会话与文件记录并登记持久清理任务回收字节；有运行中或等待中的对话时返回 409
+         */
         post: operations["reset_api_data_reset_post"];
         delete?: never;
         options?: never;
@@ -1445,8 +826,65 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Retry */
+        /** 按原清单重试回收 */
         post: operations["retry_api_data_tasks__identifier__retry_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/operations/{operation_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 查询操作状态 */
+        get: operations["get_operation_api_operations__operation_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/operations/{operation_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 请求取消操作
+         * @description 排队中的操作直接取消；运行中的操作记录取消请求，由执行端在安全点确认。已结束的操作原样返回
+         */
+        post: operations["cancel_operation_api_operations__operation_id__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/operations/{operation_id}/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 重试操作
+         * @description 失败或取消且类型支持重试时按同一身份重新排队并递增代次；其他状态原样返回
+         */
+        post: operations["retry_operation_api_operations__operation_id__retry_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1636,11 +1074,6 @@ export interface components {
          */
         AgentConfig: {
             /**
-             * Project Snapshot Retention
-             * @default 5
-             */
-            project_snapshot_retention: number;
-            /**
              * Max Iterations
              * @default 100
              */
@@ -1760,11 +1193,6 @@ export interface components {
             event: "approval";
             data: components["schemas"]["ApprovalEventData"];
         };
-        /** ArchiveProjectRequest */
-        ArchiveProjectRequest: {
-            /** Archived */
-            archived: boolean;
-        };
         /**
          * AttemptEventData
          * @description 失败的模型请求。reason 是稳定代码，chars 是已推送的文本字符数。
@@ -1866,14 +1294,6 @@ export interface components {
             /** Expected Version */
             expected_version?: string | null;
         };
-        /** Body_upload_item_api_projects__project_id__uploads__operation_id__file_put */
-        Body_upload_item_api_projects__project_id__uploads__operation_id__file_put: {
-            /**
-             * File
-             * Format: binary
-             */
-            file: string;
-        };
         /** Body_upload_local_api_skills_imports_local_post */
         Body_upload_local_api_skills_imports_local_post: {
             /** Paths */
@@ -1969,6 +1389,7 @@ export interface components {
              * @enum {string}
              */
             image_mode: "auto" | "files";
+            request_id?: components["schemas"]["RequestId"] | null;
         };
         /**
          * ChatResponse
@@ -2055,21 +1476,21 @@ export interface components {
         CleanupTask: {
             /** Id */
             id: string;
-            /** Scope */
+            /**
+             * Scope
+             * @default all
+             */
             scope: string;
             /** Project Id */
             project_id?: string | null;
-            /** Name */
+            /**
+             * Name
+             * @default 所有对话与附件
+             */
             name: string;
-            /**
-             * State
-             * @default running
-             */
+            /** State */
             state: string;
-            /**
-             * Phase
-             * @default resources
-             */
+            /** Phase */
             phase: string;
             /**
              * Completed
@@ -2214,18 +1635,6 @@ export interface components {
             cached_tokens?: number | null;
         };
         /**
-         * ConsoleRecord
-         * @description 控制台记录模型，包含ps1、command、output
-         */
-        ConsoleRecord: {
-            /** Ps1 */
-            ps1: string;
-            /** Command */
-            command: string;
-            /** Output */
-            output: string;
-        };
-        /**
          * ContextEventData
          * @description 模型历史变化的轻量投影：消息全文只在数据库与请求重建接口里，推送时只给条数与角色。
          */
@@ -2297,7 +1706,7 @@ export interface components {
             event_version: components["schemas"]["EventVersion"];
             instance: components["schemas"]["CoreInstance"];
             build: components["schemas"]["BuildIdentity"];
-            /** @description 桌面业务库版本；尚未建立桌面业务库时为空 */
+            /** @description 业务库 schema 版本；业务库尚未打开时为空 */
             storage: components["schemas"]["StorageVersion"] | null;
             /** Capabilities */
             capabilities: components["schemas"]["CapabilityStatus"][];
@@ -2309,21 +1718,10 @@ export interface components {
             /** Services */
             services: components["schemas"]["HealthStatus"][];
         };
-        /** CreateProjectRequest */
-        CreateProjectRequest: {
-            /** Creation Id */
-            creation_id?: string | null;
-            /** Name */
-            name: string;
-            /** Instructions */
-            instructions?: string | null;
-        };
         /** CreateSessionRequest */
         CreateSessionRequest: {
             /** Creation Id */
             creation_id?: string | null;
-            /** Project Id */
-            project_id?: string | null;
         };
         /**
          * CreateSessionResponse
@@ -2379,13 +1777,6 @@ export interface components {
             /** Text */
             text: string;
         };
-        /** EditSummaryRequest */
-        EditSummaryRequest: {
-            /** Content */
-            content: string;
-            /** Base Generation */
-            base_generation: number;
-        };
         /** EnvironmentEventData */
         EnvironmentEventData: {
             /** Event Id */
@@ -2407,10 +1798,6 @@ export interface components {
             status: "preparing" | "ready";
             /** Message */
             message: string | null;
-            /** Project File Protection */
-            project_file_protection: {
-                [key: string]: unknown;
-            } | null;
         };
         /** EnvironmentSSEEvent */
         EnvironmentSSEEvent: {
@@ -2515,7 +1902,7 @@ export interface components {
         ExecutionStatus: "pending" | "running" | "completed" | "failed" | "blocked" | "cancelled";
         /**
          * File
-         * @description 文件信息Domain模型，用于记录Manus/Human上传or生成的文件
+         * @description 文件信息Domain模型，用于记录用户上传或 Agent 交付的文件；字节保存为数据根中的内容对象
          */
         File: {
             /** Id */
@@ -2556,33 +1943,9 @@ export interface components {
             visual?: {
                 [key: string]: unknown;
             } | null;
-            /** Project Upload */
-            project_upload?: {
-                [key: string]: unknown;
-            } | null;
-            /** Project Persistence */
-            project_persistence?: {
-                [key: string]: unknown;
-            } | null;
         };
-        /**
-         * FileReadRequest
-         * @description 需要读取的沙箱文件请求结构
-         */
-        FileReadRequest: {
-            /** Filepath */
-            filepath: string;
-        };
-        /**
-         * FileReadResponse
-         * @description 需要读取的沙箱文件响应结构体
-         */
-        FileReadResponse: {
-            /** Filepath */
-            filepath: string;
-            /** Content */
-            content: string;
-        };
+        /** @description 代次：对象被重试或替换时递增，迟到结果代次不符时不得写回 */
+        Generation: number;
         /**
          * GetSessionFilesResponse
          * @description 获取会话文件列表响应结构
@@ -2615,7 +1978,8 @@ export interface components {
             context_config?: {
                 [key: string]: number;
             };
-            project?: components["schemas"]["ProjectView"] | null;
+            /** Unconsumed Inputs */
+            unconsumed_inputs?: components["schemas"]["UnconsumedInputItem"][];
             /** Model Id */
             model_id?: string | null;
             /** Reasoning */
@@ -2842,28 +2206,6 @@ export interface components {
              * @default 0
              */
             unread_message_count: number;
-            /** Summary */
-            summary?: string | null;
-            /** Summary Source */
-            summary_source?: ("auto" | "manual") | null;
-            /**
-             * Summary State
-             * @default idle
-             */
-            summary_state: string;
-            /** Summary Error */
-            summary_error?: string | null;
-            /**
-             * Summary Generation
-             * @default 0
-             */
-            summary_generation: number;
-            /**
-             * Summary Source Seq
-             * @default 0
-             */
-            summary_source_seq: number;
-            project?: components["schemas"]["ProjectView"] | null;
         };
         /**
          * ListSessionResponse
@@ -3092,6 +2434,72 @@ export interface components {
             /** Reasoning */
             reasoning: string;
         };
+        /** @description 长操作身份；查询、取消与重试沿同一身份 */
+        OperationId: string;
+        /**
+         * OperationKind
+         * @description 新增类型在这里登记，各工作包不另起同义名称。
+         * @enum {string}
+         */
+        OperationKind: "component_install" | "document_index" | "memory_extraction" | "session_summary" | "data_cleanup";
+        /** OperationProgress */
+        OperationProgress: {
+            /**
+             * Completed
+             * @default 0
+             */
+            completed: number;
+            /** Total */
+            total?: number | null;
+        };
+        /**
+         * OperationScope
+         * @description 操作的所有者范围；查询、取消与重试按范围核对来源。
+         */
+        OperationScope: {
+            kind: components["schemas"]["OperationScopeKind"];
+            workspace_id?: components["schemas"]["WorkspaceId"] | null;
+            session_id?: components["schemas"]["SessionId"] | null;
+        };
+        /**
+         * OperationScopeKind
+         * @enum {string}
+         */
+        OperationScopeKind: "app" | "workspace" | "session";
+        /**
+         * OperationStatus
+         * @enum {string}
+         */
+        OperationStatus: "queued" | "running" | "succeeded" | "failed" | "cancelled";
+        /** OperationView */
+        OperationView: {
+            operation_id: components["schemas"]["OperationId"];
+            kind: components["schemas"]["OperationKind"];
+            scope: components["schemas"]["OperationScope"];
+            generation: components["schemas"]["Generation"];
+            status: components["schemas"]["OperationStatus"];
+            /** Phase */
+            phase: string | null;
+            progress: components["schemas"]["OperationProgress"] | null;
+            request_id: components["schemas"]["RequestId"] | null;
+            /** Cancel Requested At */
+            cancel_requested_at: number | null;
+            /** Created At */
+            created_at: number;
+            /** Updated At */
+            updated_at: number;
+            /** Finished At */
+            finished_at: number | null;
+            /** Result */
+            result: {
+                [key: string]: unknown;
+            } | null;
+            error: components["schemas"]["ErrorInfo"] | null;
+            /** Can Cancel */
+            can_cancel: boolean;
+            /** Can Retry */
+            can_retry: boolean;
+        };
         /** PlanAcceptance */
         PlanAcceptance: {
             /** Source Run Id */
@@ -3174,389 +2582,6 @@ export interface components {
             event: "plan";
             data: components["schemas"]["PlanEventData"];
         };
-        /** ProjectDetails */
-        ProjectDetails: {
-            /** Id */
-            id: string;
-            /** Name */
-            name: string;
-            /** Available */
-            available: boolean;
-            /**
-             * Archived
-             * @default false
-             */
-            archived: boolean;
-            /**
-             * Files Size
-             * @default 0
-             */
-            files_size: number;
-            /** Files Size At */
-            files_size_at?: string | null;
-            /**
-             * Files Size Stale
-             * @default false
-             */
-            files_size_stale: boolean;
-            /** Protection */
-            protection?: {
-                [key: string]: unknown;
-            } | null;
-            /**
-             * Snapshot Gc Pending
-             * @default false
-             */
-            snapshot_gc_pending: boolean;
-            /** Snapshots Cleaned At */
-            snapshots_cleaned_at?: string | null;
-            /**
-             * Snapshots Released Bytes
-             * @default 0
-             */
-            snapshots_released_bytes: number;
-            file_operation?: components["schemas"]["ProjectOperation"] | null;
-            /** Write Blocked Reason */
-            write_blocked_reason?: string | null;
-            /** Occupying Session Id */
-            occupying_session_id?: string | null;
-            /** Active Run Status */
-            active_run_status?: string | null;
-            /** Active Run Reason */
-            active_run_reason?: string | null;
-            /**
-             * Task Count
-             * @default 0
-             */
-            task_count: number;
-            /** Last Active At */
-            last_active_at?: string | null;
-            /** Reason */
-            reason?: string | null;
-            /** Instructions */
-            instructions?: string | null;
-            /**
-             * Notes
-             * @default
-             */
-            notes: string;
-            /**
-             * Notes Version
-             * @default 0
-             */
-            notes_version: number;
-            /**
-             * Settings Version
-             * @default 0
-             */
-            settings_version: number;
-            /**
-             * Created At
-             * Format: date-time
-             */
-            created_at: string;
-            /**
-             * Updated At
-             * Format: date-time
-             */
-            updated_at: string;
-            /** Archived At */
-            archived_at?: string | null;
-        };
-        /**
-         * ProjectEntry
-         * @description 文件树中的一个直接子项。
-         *
-         *     符号链接统一作为链接显示，不展开或读取目标。
-         */
-        ProjectEntry: {
-            /** Name */
-            name: string;
-            /** Path */
-            path: string;
-            /**
-             * Type
-             * @enum {string}
-             */
-            type: "file" | "directory" | "symlink" | "other";
-            /** Size */
-            size?: number | null;
-            /** Modified At */
-            modified_at?: number | null;
-            /**
-             * Is Symlink
-             * @default false
-             */
-            is_symlink: boolean;
-            /** Link */
-            link?: ("inside" | "outside" | "broken") | null;
-        };
-        /**
-         * ProjectFile
-         * @description 读文件的结果。二进制与超过上限的文件只有元数据，``content`` 为空。
-         */
-        ProjectFile: {
-            /** Path */
-            path: string;
-            /** Name */
-            name: string;
-            /** Size */
-            size: number;
-            /** Modified At */
-            modified_at?: number | null;
-            /**
-             * Kind
-             * @enum {string}
-             */
-            kind: "text" | "binary" | "too_large" | "symlink" | "other";
-            /** Content */
-            content?: string | null;
-            /**
-             * Max Bytes
-             * @default 1048576
-             */
-            max_bytes: number;
-        };
-        /** ProjectFirstChatRequest */
-        ProjectFirstChatRequest: {
-            execute_plan?: components["schemas"]["PlanAcceptance"] | null;
-            /** Message */
-            message?: string | null;
-            /** Attachments */
-            attachments?: string[] | null;
-            /** Timestamp */
-            timestamp?: number | null;
-            /**
-             * Mode
-             * @default normal
-             * @enum {string}
-             */
-            mode: "normal" | "plan";
-            /** Model */
-            model?: string | null;
-            /** Reasoning */
-            reasoning?: string | null;
-            skill?: components["schemas"]["SkillSelection"] | null;
-            /**
-             * Image Mode
-             * @default auto
-             * @enum {string}
-             */
-            image_mode: "auto" | "files";
-            /**
-             * Creation Id
-             * Format: uuid
-             */
-            creation_id: string;
-        };
-        /**
-         * ProjectListing
-         * @description 某个项目目录的一层子项。
-         */
-        ProjectListing: {
-            /** Path */
-            path: string;
-            /** Entries */
-            entries?: components["schemas"]["ProjectEntry"][];
-            /**
-             * Total
-             * @default 0
-             */
-            total: number;
-            /**
-             * Truncated
-             * @default false
-             */
-            truncated: boolean;
-            /**
-             * Limit
-             * @default 1000
-             */
-            limit: number;
-        };
-        /** ProjectNotesEventData */
-        ProjectNotesEventData: {
-            /** Event Id */
-            event_id: string | null;
-            /** Seq */
-            seq: number | null;
-            run_id: components["schemas"]["RunId"] | null;
-            /**
-             * Created At
-             * @default 0
-             */
-            created_at: number;
-            /** @default 1 */
-            event_version: components["schemas"]["EventVersion"];
-            /** Project Id */
-            project_id: string;
-            /** Content */
-            content: string;
-            /** Notes Version */
-            notes_version: number;
-            /**
-             * Source
-             * @enum {string}
-             */
-            source: "user" | "agent";
-        };
-        /** ProjectNotesSSEEvent */
-        ProjectNotesSSEEvent: {
-            /**
-             * @description discriminator enum property added by openapi-typescript
-             * @enum {string}
-             */
-            event: "project_notes";
-            data: components["schemas"]["ProjectNotesEventData"];
-        };
-        /** ProjectOperation */
-        ProjectOperation: {
-            /** Operation Id */
-            operation_id?: string;
-            /**
-             * Kind
-             * @enum {string}
-             */
-            kind: "settling" | "upload" | "snapshot" | "restore" | "cleanup" | "delivery";
-            /**
-             * State
-             * @default running
-             * @enum {string}
-             */
-            state: "running" | "failed";
-            /** Run Id */
-            run_id?: string | null;
-            /** Session Id */
-            session_id?: string | null;
-            /**
-             * Phase
-             * @default preparing
-             */
-            phase: string;
-            /** Target Snapshot Id */
-            target_snapshot_id?: string | null;
-            /** Before Snapshot Id */
-            before_snapshot_id?: string | null;
-            /**
-             * Started At
-             * Format: date-time
-             */
-            started_at?: string;
-            /**
-             * Last Active At
-             * Format: date-time
-             */
-            last_active_at?: string;
-            /** Error */
-            error?: string | null;
-            /** Results */
-            results?: {
-                [key: string]: unknown;
-            };
-        };
-        /** ProjectPage */
-        ProjectPage: {
-            /** Projects */
-            projects: components["schemas"]["ProjectView"][];
-            /** Total */
-            total: number;
-            /** Offset */
-            offset: number;
-            /** Limit */
-            limit: number;
-        };
-        /** ProjectUploadItem */
-        ProjectUploadItem: {
-            /** Path */
-            path: string;
-            /** Size */
-            size: number;
-            /** Sha256 */
-            sha256: string;
-            /**
-             * Overwrite
-             * @default false
-             */
-            overwrite: boolean;
-        };
-        /** ProjectUploadSelection */
-        ProjectUploadSelection: {
-            /** Rule Version */
-            rule_version: string;
-            /** Items */
-            items: components["schemas"]["ProjectUploadItem"][];
-            /** Include Optional */
-            include_optional?: string[];
-            /** Inventory */
-            inventory?: string[];
-            /** Fingerprint */
-            fingerprint?: {
-                [key: string]: unknown;
-            };
-        };
-        /**
-         * ProjectView
-         * @description 会话对外的项目摘要。available 与 reason 来自托管存储自检，不入库。
-         */
-        ProjectView: {
-            /** Id */
-            id: string;
-            /** Name */
-            name: string;
-            /** Available */
-            available: boolean;
-            /**
-             * Archived
-             * @default false
-             */
-            archived: boolean;
-            /**
-             * Files Size
-             * @default 0
-             */
-            files_size: number;
-            /** Files Size At */
-            files_size_at?: string | null;
-            /**
-             * Files Size Stale
-             * @default false
-             */
-            files_size_stale: boolean;
-            /** Protection */
-            protection?: {
-                [key: string]: unknown;
-            } | null;
-            /**
-             * Snapshot Gc Pending
-             * @default false
-             */
-            snapshot_gc_pending: boolean;
-            /** Snapshots Cleaned At */
-            snapshots_cleaned_at?: string | null;
-            /**
-             * Snapshots Released Bytes
-             * @default 0
-             */
-            snapshots_released_bytes: number;
-            file_operation?: components["schemas"]["ProjectOperation"] | null;
-            /** Write Blocked Reason */
-            write_blocked_reason?: string | null;
-            /** Occupying Session Id */
-            occupying_session_id?: string | null;
-            /** Active Run Status */
-            active_run_status?: string | null;
-            /** Active Run Reason */
-            active_run_reason?: string | null;
-            /**
-             * Task Count
-             * @default 0
-             */
-            task_count: number;
-            /** Last Active At */
-            last_active_at?: string | null;
-            /** Reason */
-            reason?: string | null;
-        };
         /** @description 核心协议版本 */
         ProtocolVersion: number;
         /** PublishRequest */
@@ -3571,16 +2596,8 @@ export interface components {
             /** Title */
             title: string;
         };
-        /** RepairRestoreRequest */
-        RepairRestoreRequest: {
-            /** Operation Id */
-            operation_id: string;
-            /**
-             * Return Before
-             * @default false
-             */
-            return_before: boolean;
-        };
+        /** @description 业务幂等请求身份；同身份不同内容返回冲突 */
+        RequestId: string;
         ResourceVersion: number | string;
         /** Response[AgentConfig] */
         Response_AgentConfig_: {
@@ -3632,10 +2649,6 @@ export interface components {
                 [key: string]: unknown;
             } | null;
         };
-        /** Response[FileReadResponse] */
-        Response_FileReadResponse_: {
-            data: components["schemas"]["FileReadResponse"] | null;
-        };
         /** Response[File] */
         Response_File_: {
             data: components["schemas"]["File"] | null;
@@ -3672,25 +2685,9 @@ export interface components {
         Response_ModelSelectionResponse_: {
             data: components["schemas"]["ModelSelectionResponse"] | null;
         };
-        /** Response[ProjectDetails] */
-        Response_ProjectDetails_: {
-            data: components["schemas"]["ProjectDetails"] | null;
-        };
-        /** Response[ProjectFile] */
-        Response_ProjectFile_: {
-            data: components["schemas"]["ProjectFile"] | null;
-        };
-        /** Response[ProjectListing] */
-        Response_ProjectListing_: {
-            data: components["schemas"]["ProjectListing"] | null;
-        };
-        /** Response[ProjectPage] */
-        Response_ProjectPage_: {
-            data: components["schemas"]["ProjectPage"] | null;
-        };
-        /** Response[ShellReadResponse] */
-        Response_ShellReadResponse_: {
-            data: components["schemas"]["ShellReadResponse"] | null;
+        /** Response[OperationView] */
+        Response_OperationView_: {
+            data: components["schemas"]["OperationView"] | null;
         };
         /** Response[TitleResponse] */
         Response_TitleResponse_: {
@@ -3714,30 +2711,6 @@ export interface components {
             data: {
                 [key: string]: unknown;
             } | null;
-        };
-        /** Response[dict] */
-        Response_dict_: {
-            /** Data */
-            data: {
-                [key: string]: unknown;
-            } | null;
-        };
-        /** Response[list] */
-        Response_list_: {
-            /** Data */
-            data: unknown[] | null;
-        };
-        /** Response[list[dict]] */
-        Response_list_dict__: {
-            /** Data */
-            data: {
-                [key: string]: unknown;
-            }[] | null;
-        };
-        /** RetryDeliveryRequest */
-        RetryDeliveryRequest: {
-            /** Copy Key */
-            copy_key: string;
         };
         /** ReviseRequest */
         ReviseRequest: {
@@ -3857,33 +2830,15 @@ export interface components {
             model: string;
             sampling: components["schemas"]["ModelSampling"];
         };
-        SessionEvent: components["schemas"]["MessageSSEEvent"] | components["schemas"]["TitleSSEEvent"] | components["schemas"]["StepSSEEvent"] | components["schemas"]["PlanSSEEvent"] | components["schemas"]["ToolSSEEvent"] | components["schemas"]["DoneSSEEvent"] | components["schemas"]["ErrorSSEEvent"] | components["schemas"]["WaitSSEEvent"] | components["schemas"]["TurnSSEEvent"] | components["schemas"]["AttemptSSEEvent"] | components["schemas"]["RunSSEEvent"] | components["schemas"]["EnvironmentSSEEvent"] | components["schemas"]["ProjectNotesSSEEvent"] | components["schemas"]["ContextSSEEvent"] | components["schemas"]["CompactSSEEvent"] | components["schemas"]["CleanupSSEEvent"] | components["schemas"]["ApprovalSSEEvent"];
+        SessionEvent: components["schemas"]["MessageSSEEvent"] | components["schemas"]["TitleSSEEvent"] | components["schemas"]["StepSSEEvent"] | components["schemas"]["PlanSSEEvent"] | components["schemas"]["ToolSSEEvent"] | components["schemas"]["DoneSSEEvent"] | components["schemas"]["ErrorSSEEvent"] | components["schemas"]["WaitSSEEvent"] | components["schemas"]["TurnSSEEvent"] | components["schemas"]["AttemptSSEEvent"] | components["schemas"]["RunSSEEvent"] | components["schemas"]["EnvironmentSSEEvent"] | components["schemas"]["ContextSSEEvent"] | components["schemas"]["CompactSSEEvent"] | components["schemas"]["CleanupSSEEvent"] | components["schemas"]["ApprovalSSEEvent"];
+        /** @description 会话身份 */
+        SessionId: string;
         /**
          * SessionStatus
          * @description 会话状态：最新运行状态的冗余副本，与运行状态在同一事务更新，供会话列表使用。
          * @enum {string}
          */
         SessionStatus: "pending" | "running" | "waiting" | "completed" | "failed" | "cancelled" | "interrupted";
-        /**
-         * ShellReadRequest
-         * @description 需要读取的沙箱shell请求结构体
-         */
-        ShellReadRequest: {
-            /** Session Id */
-            session_id: string;
-        };
-        /**
-         * ShellReadResponse
-         * @description 需要读取的沙箱shell响应结构体
-         */
-        ShellReadResponse: {
-            /** Session Id */
-            session_id: string;
-            /** Output */
-            output: string;
-            /** Console Records */
-            console_records?: components["schemas"]["ConsoleRecord"][];
-        };
         /** SkillSelection */
         SkillSelection: {
             /** Id */
@@ -4212,25 +3167,19 @@ export interface components {
          * @enum {string}
          */
         UnavailableReason: "not_implemented" | "component_missing" | "component_failed" | "disabled" | "permission_denied" | "dependency_unavailable";
-        /** UpdateProjectNotesRequest */
-        UpdateProjectNotesRequest: {
-            /** Content */
-            content: string;
-            /** Base Version */
-            base_version: number;
-        };
-        /** UpdateProjectRequest */
-        UpdateProjectRequest: {
-            /** Name */
-            name: string;
-            /** Instructions */
-            instructions?: string | null;
-            /** Settings Version */
-            settings_version: number;
-            /** Notes */
-            notes?: string | null;
-            /** Notes Version */
-            notes_version?: number | null;
+        /**
+         * UnconsumedInputItem
+         * @description 已受理但所属运行已结束、尚未进入模型历史的消息；可经重新发起接口交给新运行。
+         */
+        UnconsumedInputItem: {
+            /** Input Id */
+            input_id: number;
+            /** Run Id */
+            run_id: string;
+            /** Message Seq */
+            message_seq: number;
+            /** Request Id */
+            request_id?: string | null;
         };
         /**
          * WaitSSEEvent
@@ -4244,6 +3193,8 @@ export interface components {
             event: "wait";
             data: components["schemas"]["BaseEventData"];
         };
+        /** @description 工作区身份；独立对话没有工作区 */
+        WorkspaceId: string;
     };
     responses: never;
     parameters: never;
@@ -4912,11 +3863,7 @@ export interface operations {
     };
     upload_file_api_files_post: {
         parameters: {
-            query?: {
-                project_id?: string | null;
-                rule_version?: string | null;
-                include_optional?: boolean;
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
@@ -5077,82 +4024,6 @@ export interface operations {
             };
         };
     };
-    project_preview_api_projects__identifier__preview_get: {
-        parameters: {
-            query: {
-                path: string;
-                sheet?: number;
-                row?: number;
-                column?: number;
-                offset?: number;
-                revision?: string | null;
-            };
-            header?: never;
-            path: {
-                identifier: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description 结构化错误 */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    session_project_preview_api_sessions__identifier__project_preview_get: {
-        parameters: {
-            query: {
-                path: string;
-                sheet?: number;
-                row?: number;
-                column?: number;
-                offset?: number;
-                revision?: string | null;
-            };
-            header?: never;
-            path: {
-                identifier: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description 结构化错误 */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
     attachment_content_api_files__file_id__preview_content_get: {
         parameters: {
             query?: {
@@ -5186,79 +4057,9 @@ export interface operations {
             };
         };
     };
-    project_content_api_projects__identifier__preview_content_get: {
-        parameters: {
-            query: {
-                path: string;
-                revision?: string | null;
-            };
-            header?: never;
-            path: {
-                identifier: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description 结构化错误 */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    session_project_content_api_sessions__identifier__project_preview_content_get: {
-        parameters: {
-            query: {
-                path: string;
-                revision?: string | null;
-            };
-            header?: never;
-            path: {
-                identifier: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description 结构化错误 */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
     get_all_sessions_api_sessions_get: {
         parameters: {
             query?: {
-                project_id?: string | null;
-                independent?: boolean;
                 offset?: number;
                 limit?: number;
             };
@@ -5324,8 +4125,6 @@ export interface operations {
     stream_sessions_api_sessions_stream_post: {
         parameters: {
             query?: {
-                project_id?: string | null;
-                independent?: boolean;
                 offset?: number;
                 limit?: number;
             };
@@ -5431,6 +4230,70 @@ export interface operations {
                 "application/json": components["schemas"]["ChatRequest"];
             };
         };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_ChatResponse_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_accepted_request_api_sessions__session_id__requests__request_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+                request_id: components["schemas"]["RequestId"];
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_ChatResponse_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    resume_input_api_sessions__session_id__inputs__input_id__resume_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+                input_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description Successful Response */
             200: {
@@ -5817,1246 +4680,9 @@ export interface operations {
             };
         };
     };
-    read_file_api_sessions__session_id__file_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                session_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["FileReadRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Response_FileReadResponse_"];
-                };
-            };
-            /** @description 结构化错误 */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    read_shell_output_api_sessions__session_id__shell_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                session_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ShellReadRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Response_ShellReadResponse_"];
-                };
-            };
-            /** @description 结构化错误 */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    project_tree_api_sessions__session_id__project_tree_get: {
-        parameters: {
-            query?: {
-                path?: string;
-            };
-            header?: never;
-            path: {
-                session_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Response_ProjectListing_"];
-                };
-            };
-            /** @description 结构化错误 */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    project_file_api_sessions__session_id__project_file_get: {
-        parameters: {
-            query: {
-                path: string;
-            };
-            header?: never;
-            path: {
-                session_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Response_ProjectFile_"];
-                };
-            };
-            /** @description 结构化错误 */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    get_summary_api_sessions__session_id__summary_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                session_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Response_dict_"];
-                };
-            };
-            /** @description 结构化错误 */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    edit_summary_api_sessions__session_id__summary_put: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                session_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["EditSummaryRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Response_dict_"];
-                };
-            };
-            /** @description 结构化错误 */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    regenerate_summary_api_sessions__session_id__summary_regenerate_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                session_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Response_dict_"];
-                };
-            };
-            /** @description 结构化错误 */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    upload_rules_api_projects_upload_rules_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Response_dict_"];
-                };
-            };
-            /** @description 结构化错误 */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    list_projects_api_projects_get: {
-        parameters: {
-            query?: {
-                archived?: boolean;
-                offset?: number;
-                limit?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Response_ProjectPage_"];
-                };
-            };
-            /** @description 结构化错误 */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    create_project_api_projects_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CreateProjectRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Response_ProjectDetails_"];
-                };
-            };
-            /** @description 结构化错误 */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    get_project_api_projects__project_id__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                project_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Response_ProjectDetails_"];
-                };
-            };
-            /** @description 结构化错误 */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    update_project_api_projects__project_id__put: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                project_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["UpdateProjectRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Response_ProjectDetails_"];
-                };
-            };
-            /** @description 结构化错误 */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    update_notes_api_projects__project_id__notes_put: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                project_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["UpdateProjectNotesRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Response_dict_"];
-                };
-            };
-            /** @description 结构化错误 */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    archive_project_api_projects__project_id__archive_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                project_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ArchiveProjectRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Response_ProjectDetails_"];
-                };
-            };
-            /** @description 结构化错误 */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    project_sessions_api_projects__project_id__sessions_get: {
-        parameters: {
-            query?: {
-                offset?: number;
-                limit?: number;
-            };
-            header?: never;
-            path: {
-                project_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Response_ListSessionResponse_"];
-                };
-            };
-            /** @description 结构化错误 */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    project_tree_api_projects__project_id__tree_get: {
-        parameters: {
-            query?: {
-                path?: string;
-            };
-            header?: never;
-            path: {
-                project_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Response_ProjectListing_"];
-                };
-            };
-            /** @description 结构化错误 */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    project_file_api_projects__project_id__file_get: {
-        parameters: {
-            query: {
-                path: string;
-            };
-            header?: never;
-            path: {
-                project_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Response_ProjectFile_"];
-                };
-            };
-            /** @description 结构化错误 */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    retry_settling_api_projects__project_id__settling_retry_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                project_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Response_ProjectDetails_"];
-                };
-            };
-            /** @description 结构化错误 */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    project_events_api_projects__project_id__events_get: {
-        parameters: {
-            query?: {
-                after_seq?: number;
-                limit?: number;
-            };
-            header?: never;
-            path: {
-                project_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Response_list_dict__"];
-                };
-            };
-            /** @description 结构化错误 */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    snapshots_api_projects__project_id__snapshots_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                project_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Response_list_"];
-                };
-            };
-            /** @description 结构化错误 */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    restore_snapshot_api_projects__project_id__snapshots__snapshot_id__restore_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                project_id: string;
-                snapshot_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Response_dict_"];
-                };
-            };
-            /** @description 结构化错误 */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    repair_restore_api_projects__project_id__restore_repair_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                project_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["RepairRestoreRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Response_dict_"];
-                };
-            };
-            /** @description 结构化错误 */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    cleanup_snapshots_api_projects__project_id__snapshots_cleanup_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                project_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Response_dict_"];
-                };
-            };
-            /** @description 结构化错误 */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    reconcile_files_api_projects__project_id__operations_reconcile_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                project_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["RepairRestoreRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Response_dict_"];
-                };
-            };
-            /** @description 结构化错误 */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    preflight_upload_api_projects__project_id__uploads_preflight_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                project_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ProjectUploadSelection"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Response_dict_"];
-                };
-            };
-            /** @description 结构化错误 */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    start_upload_api_projects__project_id__uploads_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                project_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ProjectUploadSelection"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Response_dict_"];
-                };
-            };
-            /** @description 结构化错误 */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    upload_item_api_projects__project_id__uploads__operation_id__file_put: {
-        parameters: {
-            query: {
-                path: string;
-            };
-            header?: never;
-            path: {
-                project_id: string;
-                operation_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "multipart/form-data": components["schemas"]["Body_upload_item_api_projects__project_id__uploads__operation_id__file_put"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Response_dict_"];
-                };
-            };
-            /** @description 结构化错误 */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    finish_upload_api_projects__project_id__uploads__operation_id__finish_post: {
-        parameters: {
-            query?: {
-                cancel?: boolean;
-            };
-            header?: never;
-            path: {
-                project_id: string;
-                operation_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Response_dict_"];
-                };
-            };
-            /** @description 结构化错误 */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    operation_result_api_projects__project_id__operations__operation_id__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                project_id: string;
-                operation_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Response_dict_"];
-                };
-            };
-            /** @description 结构化错误 */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    download_project_api_projects__project_id__download_get: {
-        parameters: {
-            query?: {
-                path?: string | null;
-            };
-            header?: never;
-            path: {
-                project_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description 结构化错误 */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    download_project_api_projects__project_id__download_head: {
-        parameters: {
-            query?: {
-                path?: string | null;
-            };
-            header?: never;
-            path: {
-                project_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": unknown;
-                };
-            };
-            /** @description 结构化错误 */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    file_copies_api_projects__project_id__file_copies_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                project_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Response_list_"];
-                };
-            };
-            /** @description 结构化错误 */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    retry_delivery_api_projects__project_id__deliveries_retry_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                project_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["RetryDeliveryRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Response_dict_"];
-                };
-            };
-            /** @description 结构化错误 */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    memory_view_api_projects__project_id__memory_get: {
-        parameters: {
-            query?: {
-                session_id?: string | null;
-            };
-            header?: never;
-            path: {
-                project_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Response_dict_"];
-                };
-            };
-            /** @description 结构化错误 */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    memory_history_api_projects__project_id__memory_history_get: {
-        parameters: {
-            query?: {
-                before_seq?: number;
-                limit?: number;
-            };
-            header?: never;
-            path: {
-                project_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Response_list_dict__"];
-                };
-            };
-            /** @description 结构化错误 */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    first_chat_api_projects__project_id__chat_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                project_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["ProjectFirstChatRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Response_dict_"];
-                };
-            };
-            /** @description 结构化错误 */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    estimate_memory_api_projects__project_id__memory_estimate_get: {
-        parameters: {
-            query?: {
-                session_id?: string | null;
-                mode?: string;
-            };
-            header?: never;
-            path: {
-                project_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Response_dict_"];
-                };
-            };
-            /** @description 结构化错误 */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
     preview_api_data_preview_get: {
         parameters: {
-            query?: {
-                project_id?: string | null;
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
@@ -7085,9 +4711,7 @@ export interface operations {
     };
     latest_api_data_tasks_latest_get: {
         parameters: {
-            query?: {
-                project_id?: string | null;
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
@@ -7124,41 +4748,6 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Response_CleanupTask_"];
-                };
-            };
-            /** @description 结构化错误 */
-            default: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ErrorResponse"];
-                };
-            };
-        };
-    };
-    delete_project_api_data_projects__project_id__delete_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                project_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["CleanupRequest"];
-            };
-        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -7231,6 +4820,99 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Response_CleanupTask_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_operation_api_operations__operation_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                operation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_OperationView_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    cancel_operation_api_operations__operation_id__cancel_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                operation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_OperationView_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    retry_operation_api_operations__operation_id__retry_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                operation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_OperationView_"];
                 };
             };
             /** @description 结构化错误 */

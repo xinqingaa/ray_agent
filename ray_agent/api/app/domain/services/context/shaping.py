@@ -1,6 +1,6 @@
 """工具结果整形：挂在工具管线执行后段，所有工具的结果写入记忆前都经过这里。
 
-结果序列化后超过单条上限（或协议适配层截断过内容）时，完整内容写入沙箱文件，模型只收到首尾预览、总长度、
+结果序列化后超过单条上限（或协议适配层截断过内容）时，完整内容写入会话工作目录中的文件，模型只收到首尾预览、总长度、
 文件路径与分段读取提示；写文件失败时退回纯截断，并在结果中注明完整内容不可再读。
 """
 import json
@@ -14,13 +14,13 @@ from app.domain.services.flows.tool_pipeline import ToolInvocation
 
 logger = logging.getLogger(__name__)
 
-# 沙箱内普通用户可写的目录；W7.3 调整执行身份时同步（见 W2 子计划交接）
-OUTPUT_DIR = "/home/ubuntu/.rayagent/outputs"
+# 运行器传入会话工作目录中的输出目录；这里只是没有工作目录时的相对占位
+OUTPUT_DIR = "outputs"
 HEAD_RATIO = 0.45  # 预览开头占单条上限的比例
 TAIL_RATIO = 0.2  # 预览结尾占单条上限的比例
 INLINE_STRING_CHARS = 200  # 渲染完整内容时，短于此长度且不含换行的字符串与键写在同一行
 
-WriteOutputFn = Callable[[str, str], Awaitable[None]]  # (沙箱路径, 文本) -> None，失败抛异常
+WriteOutputFn = Callable[[str, str], Awaitable[None]]  # (文件路径, 文本) -> None，失败抛异常
 
 
 def output_path(call_id: str, output_dir: str = OUTPUT_DIR) -> str:
@@ -72,7 +72,7 @@ class ResultShaper:
         path: Optional[str] = None
         error: Optional[str] = None
         if self._write_output is None:
-            error = "当前运行没有可写的沙箱"
+            error = "当前运行没有可写的工作目录"
         else:
             candidate = output_path(invocation.call_id, self._output_dir)
             try:

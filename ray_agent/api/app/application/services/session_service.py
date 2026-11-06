@@ -1,17 +1,17 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List, Callable, Optional, Type
 
-from app.application.errors.exceptions import NotFoundError, ServerRequestsError
-from app.domain.external.sandbox import Sandbox
+from app.application.errors.exceptions import ConflictError, NotFoundError
+from app.domain.external.task import Task
 from app.domain.models.event import Event
 from app.domain.models.file import File
 from app.domain.models.run import Run
+from app.domain.models.run_input import RunInput
 from app.domain.models.session import DEFAULT_SESSION_TITLE, Session
 from app.domain.repositories.uow import IUnitOfWork
-from app.interfaces.schemas.session import FileReadResponse, ShellReadResponse
 
 logger = logging.getLogger(__name__)
 
@@ -22,74 +22,79 @@ class SessionDetail:
     runs: List[Run]
     events: List[Event]
     last_seq: int  # 会话当前最大 seq；分页读取时用于判断是否还有后续
+    unconsumed_inputs: List[RunInput] = field(default_factory=list)  # 所属运行已结束、尚未进入模型历史的消息
 
 
 class SessionService:
-    """会话服务"""
+    """会话服务：创建时同事务登记会话工作目录根，删除时同事务登记回收清单并交给后台清理。"""
 
     def __init__(
             self,
             uow_factory: Callable[[], IUnitOfWork],
-            sandbox_cls: Type[Sandbox],
+            read_uow_factory: Optional[Callable[[], IUnitOfWork]] = None,
+            task_cls: Optional[Type[Task]] = None,
+            workdirs=None,
+            jobs=None,
     ) -> None:
-        """构造函数，完成会话服务初始化"""
         self._uow_factory = uow_factory
-        self._uow = uow_factory()
-        self._sandbox_cls = sandbox_cls
+        self._read_uow_factory = read_uow_factory or uow_factory
+        self._task_cls = task_cls
+        self._workdirs = workdirs
+        self._jobs = jobs
 
     async def create_session(self, creation_id: str | None = None) -> Session:
-        """创建一个空白的新任务会话"""
-        logger.info(f"创建一个空白新任务会话")
+        """创建一个空白会话；带创建标识时重复请求返回同一会话。"""
         session = Session(title=DEFAULT_SESSION_TITLE)
         if creation_id:
             session.id = creation_id
         async with self._uow_factory() as uow:
             if creation_id:
-                await uow.session.lock_creation('session:' + creation_id)
                 existing = await uow.session.get_by_id(creation_id)
                 if existing:
-                    if existing.project_id:
-                        from app.application.errors.exceptions import ConflictError
-                        raise ConflictError('创建标识已用于项目对话')
                     return existing
             await uow.session.save(session)
+            if self._workdirs is not None:
+                root, location = self._workdirs.new_root(session.id)
+                await uow.root.add(root, location)
         logger.info(f"成功创建一个新任务会话: {session.id}")
         return session
 
-    async def page(self, *, project_id: Optional[str] = None, independent: bool = False, offset: int = 0, limit: int = 50):
-        async with self._uow_factory() as uow:
-            return await uow.session.page(project_id=project_id, independent=independent, offset=offset, limit=limit)
-
-    async def get_all_sessions(self) -> List[Session]:
-        """获取项目所有任务会话列表"""
-        async with self._uow:
-            return await self._uow.session.get_all()
+    async def page(self, *, offset: int = 0, limit: int = 50):
+        async with self._read_uow_factory() as uow:
+            return await uow.session.page(offset=offset, limit=limit)
 
     async def clear_unread_message_count(self, session_id: str) -> None:
         """用户已查看会话，清空未查看的完成运行数"""
-        logger.info(f"清除会话[{session_id}]未读完成标记")
-        async with self._uow:
-            await self._uow.session.update_unread_message_count(session_id, 0)
+        async with self._uow_factory() as uow:
+            await uow.session.update_unread_message_count(session_id, 0)
 
     async def delete_session(self, session_id: str) -> None:
-        """根据传递的会话id删除任务会话"""
-        # 1.先检查会话是否存在
-        logger.info(f"正在删除会话, 会话id: {session_id}")
-        async with self._uow:
-            session = await self._uow.session.get_by_id(session_id)
-        if not session:
-            logger.error(f"会话[{session_id}]不存在, 删除失败")
-            raise NotFoundError(f"会话[{session_id}]不存在, 删除失败")
-
-        # 2.根据传递的会话id删除会话
-        async with self._uow:
-            await self._uow.session.delete_by_id(session_id)
+        """删除会话记录，并在同一事务登记回收会话工作目录与内容对象的清理任务。正在执行的运行先取消。"""
+        from app.application.services.background_jobs import cleanup_job
+        async with self._uow_factory() as uow:
+            session = await uow.session.get_by_id(session_id)
+            if not session:
+                raise NotFoundError(f"会话[{session_id}]不存在, 删除失败")
+            active = await uow.run.get_active(session_id)
+        task = self._task_cls.get(active.id) if active is not None and self._task_cls is not None else None
+        if task is not None and not task.done:
+            task.cancel()
+        async with self._uow_factory() as uow:
+            files = await uow.file.list_by_session(session_id)
+            registered = await uow.root.session_workdir(session_id)
+            await uow.session.delete_by_id(session_id)
+            job = None
+            if self._jobs is not None:
+                job = await self._jobs.submit(uow, cleanup_job(
+                    objects=[file.key for file in files if file.key],
+                    directories=[registered[1]] if registered else [], session_id=session_id))
+        if job is not None:
+            self._jobs.wake()
         logger.info(f"删除会话[{session_id}]成功")
 
-    async def get_session(self, session_id: str) -> Session:
-        """获取指定会话详情信息"""
-        async with self._uow:
-            return await self._uow.session.get_by_id(session_id)
+    async def get_session(self, session_id: str) -> Optional[Session]:
+        async with self._read_uow_factory() as uow:
+            return await uow.session.get_by_id(session_id)
 
     async def get_session_detail(
             self,
@@ -97,85 +102,21 @@ class SessionService:
             after_seq: int = 0,
             limit: Optional[int] = None,
     ) -> Optional[SessionDetail]:
-        """会话详情：会话行、全部运行，以及 after_seq 之后按 seq 升序的事件（limit 为空时读到最新）。"""
-        async with self._uow:
-            session = await self._uow.session.get_by_id(session_id)
+        """会话详情：会话行、全部运行、after_seq 之后按 seq 升序的事件（limit 为空时读到最新）与未消费的输入。"""
+        async with self._read_uow_factory() as uow:
+            session = await uow.session.get_by_id(session_id)
             if not session:
                 return None
-            runs = await self._uow.run.list_by_session(session_id)
-            events = await self._uow.event.list(session_id, after_seq=after_seq, limit=limit)
-            last_seq = await self._uow.event.max_seq(session_id)
-        return SessionDetail(session=session, runs=runs, events=events, last_seq=last_seq)
+            runs = await uow.run.list_by_session(session_id)
+            events = await uow.event.list(session_id, after_seq=after_seq, limit=limit)
+            last_seq = await uow.event.max_seq(session_id)
+            unconsumed = await uow.run_input.unconsumed(session_id)
+        return SessionDetail(session=session, runs=runs, events=events, last_seq=last_seq,
+                             unconsumed_inputs=unconsumed)
 
     async def get_session_files(self, session_id: str) -> List[File]:
-        """根据传递的会话id获取指定会话的文件列表信息"""
-        logger.info(f"获取指定会话[{session_id}]下的文件列表信息")
-        async with self._uow:
-            session = await self._uow.session.get_by_id(session_id)
+        async with self._read_uow_factory() as uow:
+            session = await uow.session.get_by_id(session_id)
         if not session:
-            raise RuntimeError(f"当前会话不存在[{session_id}], 请核实后重试")
+            raise NotFoundError(f"当前会话不存在[{session_id}], 请核实后重试")
         return session.files
-
-    async def read_file(self, session_id: str, filepath: str) -> FileReadResponse:
-        """根据传递的信息查看会话中指定文件的内容"""
-        # 1.检查会话是否存在
-        logger.info(f"获取会话[{session_id}]中的文件内容, 文件路径: {filepath}")
-        async with self._uow:
-            session = await self._uow.session.get_by_id(session_id)
-        if not session:
-            raise RuntimeError(f"当前会话不存在[{session_id}], 请核实后重试")
-
-        # 2.根据沙箱id获取沙箱并判断是否存在
-        if not session.sandbox_id:
-            raise NotFoundError("当前会话无沙箱环境")
-        sandbox = await self._sandbox_cls.get(session.sandbox_id)
-        if not sandbox:
-            raise NotFoundError("当前会话沙箱不存在或已销毁")
-
-        # 3.调用沙箱读取文件内容
-        result = await sandbox.read_file(filepath)
-        if result.success:
-            return FileReadResponse(**result.data)
-
-        raise ServerRequestsError(result.message)
-
-    async def read_shell_output(self, session_id: str, shell_session_id: str) -> ShellReadResponse:
-        """根据传递的任务会话id+Shell会话id获取Shell执行结果"""
-        # 1.检查会话是否存在
-        logger.info(f"获取会话[{session_id}]中的Shell内容输出, Shell标识符: {shell_session_id}")
-        async with self._uow:
-            session = await self._uow.session.get_by_id(session_id)
-        if not session:
-            raise RuntimeError(f"当前会话不存在[{session_id}], 请核实后重试")
-
-        # 2.根据沙箱id获取沙箱并判断是否存在
-        if not session.sandbox_id:
-            raise NotFoundError("当前会话无沙箱环境")
-        sandbox = await self._sandbox_cls.get(session.sandbox_id)
-        if not sandbox:
-            raise NotFoundError("当前会话沙箱不存在或已销毁")
-
-        # 3.调用沙箱查看shell内容
-        result = await sandbox.read_shell_output(session_id=shell_session_id, console=True)
-        if result.success:
-            return ShellReadResponse(**result.data)
-
-        raise ServerRequestsError(result.message)
-
-    async def get_vnc_url(self, session_id: str) -> str:
-        """获取指定会话的vnc链接"""
-        # 1.检查会话是否存在
-        logger.info(f"获取会话[{session_id}]的VNC链接")
-        async with self._uow:
-            session = await self._uow.session.get_by_id(session_id)
-        if not session:
-            raise RuntimeError(f"当前会话不存在[{session_id}], 请核实后重试")
-
-        # 2.根据沙箱id获取沙箱并判断是否存在
-        if not session.sandbox_id:
-            raise NotFoundError("当前会话无沙箱环境")
-        sandbox = await self._sandbox_cls.get(session.sandbox_id)
-        if not sandbox:
-            raise NotFoundError("当前会话沙箱不存在或已销毁")
-
-        return sandbox.vnc_url

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# 本地 MCP/A2A 验收夹具。不写仓库 config.yaml，不代替 pytest。
+# 本地 MCP/A2A 验收夹具。设置经页面写入核心的业务库，不改仓库文件，不代替 pytest。
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -58,7 +58,7 @@ print_settings() {
 「A2A Agent 配置」添加：
   ${a2a_url}
 
-不要改仓库里的 config.yaml。会话详情页没有设置入口。做完后删除这两项设置，再执行 stop。
+设置保存在核心的业务库中。会话详情页没有设置入口。做完后删除这两项设置，再执行 stop。
 调用日志：${LOG_FILE}
 EOF
 }

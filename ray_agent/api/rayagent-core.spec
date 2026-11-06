@@ -25,11 +25,9 @@ manifest = Path(workpath) / 'build-manifest.json'
 manifest.parent.mkdir(parents=True, exist_ok=True)
 manifest.write_text(json.dumps(build_identity.manifest(), indent=2) + '\n')
 
-# Alembic 在运行时按文件路径加载 env.py 与迁移脚本，它们以源码形式随包；
-# 内置 skill 正文由 skill_service 按模块相对路径读取。
+# Alembic 在运行时按资源目录加载 env.py 与迁移脚本，它们以源码形式随包；
+# 内置 skill 正文由 skill_service 按模块相对路径读取。可写数据都在启动参数指定的数据根中。
 datas = [
-    ('alembic.ini', '.'),
-    ('config.yaml', '.'),
     (str(manifest), '.'),
 ]
 for base in ('alembic', 'app/builtin_skills'):
@@ -43,8 +41,9 @@ hiddenimports = [
     *WORKER_MODULES,
     # 迁移脚本与 env.py 只在运行时导入，静态分析看不到它们的依赖。
     *collect_submodules('alembic', filter=lambda name: not name.startswith('alembic.testing')),
-    'sqlalchemy.dialects.postgresql.psycopg2',
-    'sqlalchemy.dialects.postgresql.asyncpg',
+    'sqlalchemy.dialects.sqlite.aiosqlite',
+    'sqlalchemy.dialects.sqlite.pysqlite',
+    'aiosqlite',
 ]
 
 a = Analysis(

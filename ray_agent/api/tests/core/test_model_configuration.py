@@ -9,7 +9,6 @@ from app.application.services.app_config_service import AppConfigService
 from app.domain.models.app_config import AppConfig, LLMConfig, AgentConfig, MCPConfig, A2AConfig, ModelSampling
 from app.domain.models.model_catalog import ReasoningChoice, deepseek_models, public_capabilities
 from app.domain.services.context.budget import ContextBudget
-from app.infrastructure.repositories.file_app_config_repository import FileAppConfigRepository
 
 
 def service():
@@ -18,8 +17,8 @@ def service():
         'deepseek-v4-pro': ModelSampling(temperature=.3, context_window=100000),
     }), agent_config=AgentConfig(), mcp_config=MCPConfig(), a2a_config=A2AConfig())
     class Repo:
-        def load(self): return copy.deepcopy(config)
-        def save(self, new): config.__dict__.update(copy.deepcopy(new.__dict__))
+        async def load(self): return copy.deepcopy(config)
+        async def save(self, new): config.__dict__.update(copy.deepcopy(new.__dict__))
     return AppConfigService(Repo())
 
 
@@ -44,17 +43,6 @@ def test_preview_is_server_budget_and_never_changes_saved_config():
     assert result['high'] == dict(context_window=200000, max_tokens=32768, limit=157232, watermark=117924)
     assert result['disabled']['max_tokens'] == 8192
     assert asyncio.run(s.get_llm_config()).model_dump() == before
-
-
-def test_migration_preserves_custom_values_and_only_runs_once():
-    data = {'llm_config': {'base_url':'https://api.deepseek.com', 'context_window':131072,
-        'model_profiles': {'deepseek-flash': {'context_window':131072}, 'deepseek-v4-pro': {'context_window':90000}}}}
-    assert FileAppConfigRepository._migrate_default_budget(data)
-    assert data['llm_config']['context_window'] == 200000
-    assert data['llm_config']['model_profiles']['deepseek-v4-pro']['context_window'] == 90000
-    data['llm_config']['context_window'] = 131072
-    assert not FileAppConfigRepository._migrate_default_budget(data)
-    assert data['llm_config']['context_window'] == 131072
 
 
 def test_vendor_efforts_are_data_and_new_budget_does_not_reuse_prior_usage():

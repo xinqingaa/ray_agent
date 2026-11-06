@@ -8,6 +8,8 @@ from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
+from .clock import utc_now
+
 
 class RunStatus(str, Enum):
     """运行状态。running/waiting 是活动状态，其余是终态，终态不可再改。"""
@@ -16,7 +18,7 @@ class RunStatus(str, Enum):
     COMPLETED = "completed"  # 循环正常结束，得到最终回复；不表示目标达成
     FAILED = "failed"  # 预算、上下文、截断或未处理异常
     CANCELLED = "cancelled"  # 用户停止
-    INTERRUPTED = "interrupted"  # API 进程在运行中退出，启动扫描写入
+    INTERRUPTED = "interrupted"  # 核心进程在运行中退出，启动扫描写入
 
     @property
     def active(self) -> bool:
@@ -44,7 +46,7 @@ class RunReason:
     MODEL_ERROR = "model_error"
     RUNNER_ERROR = "runner_error"  # 运行器未处理的异常
     USER_STOP = "user_stop"
-    API_RESTART = "api_restart"
+    API_RESTART = "api_restart"  # 核心重启：启动扫描中断遗留的执行与审批
     RUNNER_LOST = "runner_lost"  # 数据库里仍是 running，但本进程已没有执行协程
     APPROVAL = "approval"  # waiting 的原因：工具调用等待用户批准或拒绝
 
@@ -67,7 +69,7 @@ class Run(BaseModel):
     status: RunStatus = RunStatus.RUNNING
     reason: Optional[str] = None
     mode: RunMode = RunMode.NORMAL
-    started_at: datetime = Field(default_factory=datetime.now)
+    started_at: datetime = Field(default_factory=utc_now)
     ended_at: Optional[datetime] = None
     turns: int = 0
     model_requests: int = 0

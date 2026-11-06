@@ -35,26 +35,12 @@ class SessionRepository(Protocol):
         """按来源条件更新标题；异步结果不能覆盖手动标题。"""
         ...
 
-    async def update_sandbox_id(self, session_id: str, sandbox_id: str) -> None:
-        ...
-
     async def lock(self, session_id: str) -> Optional[Session]:
-        """锁会话行；项目行须先按固定顺序加锁。"""
+        """在写事务中读取会话；写事务按进入顺序串行，读到的状态在提交前不会被其他写入改变。"""
         ...
 
-    async def set_project_id(self, session_id: str, project_id: Optional[str]) -> None:
-        ...
-
-    async def save_project_snapshot(self, session_id: str, snapshot: dict) -> None:
-        ...
-
-    async def page(self, *, project_id: Optional[str] = None, independent: bool = False, offset: int = 0, limit: int = 50) -> tuple[List[Session], int]:
-        ...
-
-    async def project_counts(self, project_ids: List[str]) -> dict[str, int]:
-        ...
-
-    async def update_task_id(self, session_id: str, task_id: str) -> None:
+    async def page(self, *, offset: int = 0, limit: int = 50) -> tuple[List[Session], int]:
+        """侧栏列表：不读取记忆与文件清单。"""
         ...
 
     async def update_model(self, session_id: str, model_id: str, reasoning: str) -> None:
@@ -105,15 +91,6 @@ class SessionRepository(Protocol):
         """根据传递的会话id+Agent名字获取记忆"""
         ...
 
-    async def recent_summaries(self, project_id, exclude_session_id):
+    async def summary_material(self, session_id: str) -> dict:
+        """会话摘要的有界材料与截止序号，供会话摘要生成使用。"""
         ...
-
-    async def summary_material(self, session_id):
-        ...
-
-    async def set_summary_fields(self, session_id, **values):
-        ...
-
-    async def interrupt_summaries(self, project_id: str) -> None: ...
-
-    async def lock_creation(self, key): ...

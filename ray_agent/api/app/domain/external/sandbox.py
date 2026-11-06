@@ -6,12 +6,8 @@ from app.domain.external.browser import Browser
 from app.domain.models.tool_result import ToolResult
 
 
-class SandboxProjectBindingError(RuntimeError):
-    """当前沙箱模式不能绑定项目目录，例如连接已有沙箱的共享模式。"""
-
-
 class Sandbox(Protocol):
-    """沙箱服务扩展协议，包含文件工具协议、Shell工具协议以及沙箱本身的扩展"""
+    """Docker 沙箱协议：文件、Shell 与浏览器由同一沙箱提供。核心不再装配沙箱，本机执行端口接入后删除。"""
 
     async def exec_command(self, session_id: str, exec_dir: str, command: str) -> ToolResult:
         """根据传递的会话id+目录+命令执行对应的命令"""
@@ -112,10 +108,6 @@ class Sandbox(Protocol):
         """根据传递的文件路径下载沙箱中的文件"""
         ...
 
-    async def validate_project(self, project_id: str) -> None:
-        """核对实际挂载来源和沙箱用户读写权限；失败禁止执行。"""
-        ...
-
     async def ensure_sandbox(self) -> None:
         """确保当前沙箱存在，如果不存在会创建"""
         ...
@@ -144,9 +136,8 @@ class Sandbox(Protocol):
         ...
 
     @classmethod
-    async def create(cls, project_id: Optional[str] = None) -> Self:
-        """类方法，用于快速创建一个沙箱。传入宿主机项目目录时读写挂载到 SANDBOX_PROJECT_DIR，
-        当前模式不支持绑定时抛出 SandboxProjectBindingError"""
+    async def create(cls) -> Self:
+        """类方法，用于快速创建一个沙箱"""
         ...
 
     @classmethod

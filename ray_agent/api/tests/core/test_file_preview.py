@@ -122,7 +122,7 @@ def test_cancelled_preview_waits_for_file_read_before_closing():
         async def download_file(self,id):
             return handle,File(id=id,filename='slow.txt',size=11)
     async def run():
-        service=FilePreviewService(Files(),None)
+        service=FilePreviewService(Files())
         task=asyncio.create_task(service.preview(PreviewQuery(),file_id='cancelled-test'))
         await asyncio.to_thread(started.wait,2)
         task.cancel()
@@ -134,24 +134,6 @@ def test_cancelled_preview_waits_for_file_read_before_closing():
     asyncio.run(run())
 
 
-def test_project_source_revision_and_symlinks(tmp_path):
-    path=tmp_path/'file.txt';path.write_text('first')
-    class Projects:
-        async def require_file_root(self,*args,**kwargs):return str(tmp_path)
-    service=FilePreviewService(None,Projects())
-    async def run():
-        first=await service.preview(PreviewQuery(),identifier='p',path='file.txt',project_level=True)
-        path.write_text('second')
-        with pytest.raises(ConflictError):
-            await service.preview(PreviewQuery(revision=first['revision']),identifier='p',path='file.txt',project_level=True)
-        second=await service.preview(PreviewQuery(),identifier='p',path='file.txt',project_level=True)
-        assert second['content']=='second' and second['revision']!=first['revision']
-        os.symlink(path,tmp_path/'link')
-        with pytest.raises((OSError,BadRequestError)):
-            await service.preview(PreviewQuery(),identifier='p',path='link',project_level=True)
-    asyncio.run(run())
-
-
 def test_inline_range_and_sandboxed_html(tmp_path):
     from app.interfaces.endpoints.preview_routes import router
     from app.interfaces.errors.exception_handlers import register_exception_handlers
@@ -159,7 +141,7 @@ def test_inline_range_and_sandboxed_html(tmp_path):
     class Files:
         async def download_file(self,id):
             return io.BytesIO(b'0123456789'),File(id=id,filename=id,size=10)
-    service=FilePreviewService(Files(),None)
+    service=FilePreviewService(Files())
     app=FastAPI();app.include_router(router);register_exception_handlers(app)
     app.dependency_overrides[get_file_preview_service]=lambda:service
     with TestClient(app) as client:
@@ -230,7 +212,7 @@ def test_download_http_head_zip_and_expired_preview():
     service.get_file_info=info
     app=FastAPI();app.include_router(downloads);app.include_router(previews);register_exception_handlers(app)
     app.dependency_overrides[get_file_service]=lambda:service
-    app.dependency_overrides[get_file_preview_service]=lambda:FilePreviewService(service,None)
+    app.dependency_overrides[get_file_preview_service]=lambda:FilePreviewService(service)
     with TestClient(app) as client:
         assert client.head('/files/one/download').status_code==200
         assert client.get('/files/one/download').content==b'original bytes'

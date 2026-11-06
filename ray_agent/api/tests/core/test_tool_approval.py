@@ -19,7 +19,8 @@ from app.domain.services.flows.tool_pipeline import ToolInvocation
 from app.domain.services.request_rebuild import rebuild_request
 from app.domain.services.tool_policy import USER_REJECTED, ToolPolicyGuard, resolve_policy
 from app.domain.services.tools.mcp import MCPTool
-from app.infrastructure.repositories.file_app_config_repository import FileAppConfigRepository
+from app.infrastructure.repositories.db_app_config_repository import DBAppConfigRepository
+from tests.support.sqlite_db import with_database
 from app.interfaces.endpoints.app_config_routes import update_tool_policy
 from app.interfaces.schemas.app_config import ToolPolicyUpdate
 from app.interfaces.schemas.event import EventMapper
@@ -92,17 +93,18 @@ async def reply(first, run_id, call_id, approve, script, policy=None):
     service = make_service(second)
     created = []
 
-    async def create_task(session, rid, prior_status):
+    async def create_task(session, rid, prior_status, approval=None):
         task = input_task()
         task.invoke = AsyncMock()
-        created.append((task, rid, prior_status))
+        created.append((task, rid, prior_status, approval))
         return task
     service._create_task = create_task
     accepted = await service.reply_approval(first.session.id, call_id, approve=approve)
     await pending_starts()[accepted.run_id].worker
-    task, rid, prior_status = created[0]
+    task, rid, prior_status, approval = created[0]
     assert rid == run_id and prior_status == SessionStatus.WAITING
-    await make_runner(second, run=second.runs[rid], prior_status=prior_status).invoke(task)
+    assert approval is not None and approval.tool_call_id == call_id and approval.seq == accepted.seq
+    await make_runner(second, run=second.runs[rid], prior_status=prior_status, approval=approval).invoke(task)
     return second, service, accepted
 
 
@@ -375,8 +377,8 @@ def test_approval_sse_event_carries_call_fields_and_epoch_decided_at():
 
 
 def test_tool_policy_settings_round_trip_and_validation(tmp_path):
-    async def run():
-        service = AppConfigService(FileAppConfigRepository(str(tmp_path / "config.yaml")))
+    async def run(uow_factory, read_factory, database):
+        service = AppConfigService(DBAppConfigRepository(uow_factory, read_factory))
         assert (await service.get_tool_policy()).rules == {"mcp:*": ToolPolicy.ASK, "a2a:*": ToolPolicy.ASK}
         response = await update_tool_policy(
             ToolPolicyUpdate(rules={"mcp:*": "allow", "mcp:fs:delete": "deny", "shell_execute": "ask"}), service)
@@ -385,9 +387,9 @@ def test_tool_policy_settings_round_trip_and_validation(tmp_path):
         assert response.data.fallback == "allow"
         toolsets = {t.toolset: t.functions for t in response.data.builtin_toolsets}
         assert "shell_execute" in toolsets["shell"] and toolsets["a2a"] == ["get_remote_agent_cards"]
-        reloaded = AppConfigService(FileAppConfigRepository(str(tmp_path / "config.yaml")))
+        reloaded = AppConfigService(DBAppConfigRepository(uow_factory, read_factory))
         assert (await reloaded.get_tool_policy()).rules["mcp:fs:delete"] == ToolPolicy.DENY
         with pytest.raises(BadRequestError):
             await update_tool_policy(ToolPolicyUpdate(rules={"shell:foo": "ask"}), service)
         assert (await reloaded.get_tool_policy()).rules["shell_execute"] == ToolPolicy.ASK
-    asyncio.run(run())
+    with_database(tmp_path, run)

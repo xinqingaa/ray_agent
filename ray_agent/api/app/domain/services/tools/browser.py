@@ -30,7 +30,7 @@ class BrowserTool(BaseTool):
     async def browser_view(self, **options):
         return await self.browser.view_page(**options)
 
-    @tool('browser_navigate', '打开 HTTP(S) 或 about:blank；不支持 file://，本地 HTML 请通过沙箱内 HTTP 静态服务访问。默认返回正文，交互可选 both。',
+    @tool('browser_navigate', '打开 HTTP(S) 或 about:blank；不支持 file://，本地 HTML 请通过本机 HTTP 静态服务访问。默认返回正文，交互可选 both。',
           {'url':{'type':'string'}, **TAB, **OBSERVE}, ['url'])
     async def browser_navigate(self, url, **options):
         return await self.browser.navigate(url, **options)

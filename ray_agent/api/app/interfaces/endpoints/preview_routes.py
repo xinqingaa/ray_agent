@@ -10,7 +10,7 @@ from starlette.responses import Response as StarletteResponse, StreamingResponse
 from app.application.errors.exceptions import BadRequestError, AppException
 from app.domain.models.error import ErrorCode
 from app.domain.models.file_preview import PreviewQuery, preview_kind
-from app.domain.services.project_file_coordinator import run_file_io
+from app.domain.services.file_io import run_file_io
 from app.interfaces.schemas import Response
 from app.interfaces.service_dependencies import get_file_preview_service
 
@@ -43,16 +43,6 @@ def with_storage_shim(page: bytes) -> bytes:
 @router.get('/files/{file_id}/preview')
 async def attachment_preview(file_id: str, query: PreviewQuery = Depends(), service=Depends(get_file_preview_service)):
     return Response.success(data=await service.preview(query, file_id=file_id))
-
-
-@router.get('/projects/{identifier}/preview')
-async def project_preview(identifier: str, path: str = Query(), query: PreviewQuery = Depends(), service=Depends(get_file_preview_service)):
-    return Response.success(data=await service.preview(query, identifier=identifier, path=path, project_level=True))
-
-
-@router.get('/sessions/{identifier}/project/preview')
-async def session_project_preview(identifier: str, path: str = Query(), query: PreviewQuery = Depends(), service=Depends(get_file_preview_service)):
-    return Response.success(data=await service.preview(query, identifier=identifier, path=path))
 
 
 async def inline_content(request, service, revision=None, **source):
@@ -123,11 +113,3 @@ async def attachment_content(file_id: str, request: Request, revision: str | Non
     return await inline_content(request, service, revision, file_id=file_id)
 
 
-@router.get('/projects/{identifier}/preview/content')
-async def project_content(identifier: str, request: Request, path: str = Query(), revision: str | None = None, service=Depends(get_file_preview_service)):
-    return await inline_content(request, service, revision, identifier=identifier, path=path, project_level=True)
-
-
-@router.get('/sessions/{identifier}/project/preview/content')
-async def session_project_content(identifier: str, request: Request, path: str = Query(), revision: str | None = None, service=Depends(get_file_preview_service)):
-    return await inline_content(request, service, revision, identifier=identifier, path=path)

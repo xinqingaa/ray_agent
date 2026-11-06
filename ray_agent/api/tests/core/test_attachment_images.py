@@ -1,3 +1,4 @@
+from pathlib import Path
 """真实图片编码、附件受理、循环输入和请求重建；存储/沙箱/模型使用替身。"""
 import asyncio
 import io
@@ -227,16 +228,21 @@ def test_chat_uses_active_model_capability_and_persists_files_choice():
     execute(scenario())
 
 
-def test_same_named_images_get_distinct_sandbox_paths():
+def test_same_named_attachments_get_distinct_workdir_paths(tmp_path):
+    from app.infrastructure.external.workdir.session_workdir import SessionWorkdirs
     async def scenario():
         h = make_loop([text('done')])
         runner = make_runner(h)
+        workdirs = SessionWorkdirs(tmp_path)
+        runner._workdir = workdirs.resolve(*workdirs.new_root(h.session.id))
         files = {str(i): File(id=str(i), filename='clipboard.png', extension='.png') for i in range(2)}
         runner._file_storage = SimpleNamespace(download_file=AsyncMock(side_effect=lambda file_id: (io.BytesIO(png()), files[file_id])))
-        runner._sandbox.upload_file = AsyncMock(return_value=SimpleNamespace(success=True))
         event = MessageEvent(role='user', message='比较两张图', attachments=list(files.values()))
-        await AgentTaskRunner._sync_message_attachments_to_sandbox(runner, event)
-        assert len({file.filepath for file in event.attachments}) == 2
-        assert event.attachments[0].filepath.endswith('/clipboard.png')
-        assert event.attachments[1].filepath.endswith('/clipboard-1.png')
+        await AgentTaskRunner._place_attachments(runner, event)
+        paths = [file.filepath for file in event.attachments]
+        assert len(set(paths)) == 2 and all(runner._workdir.contains(Path(path)) for path in paths)
+        assert paths[0].endswith('/uploads/clipboard.png')
+        assert paths[1].endswith('/uploads/clipboard-1.png')
+        assert Path(paths[1]).read_bytes() == png()
+        assert [file.id for file in h.session.files] == ['0', '1']
     execute(scenario())

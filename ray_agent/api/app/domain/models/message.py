@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
-from typing import List
+from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -18,3 +18,4 @@ class Message(BaseModel):
     images: List[dict] = Field(default_factory=list)  # 已校验的用户图片引用，不存像素
     image_mode: str = 'auto'
     image_input_note: str | None = None
+    input_id: Optional[int] = None  # 来自持久输入时的输入身份，进入模型历史时随上下文事件消费

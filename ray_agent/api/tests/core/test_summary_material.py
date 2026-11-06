@@ -1,6 +1,6 @@
 from types import SimpleNamespace as Item
 from app.domain.services.summary_material import bound_material, MAX_MATERIAL_CHARS
-from app.domain.services.prompts.project import bounded_summaries
+from app.application.services.session_summary import bounded_summaries
 
 
 def test_material_is_bounded_and_preserves_recent_corrections():

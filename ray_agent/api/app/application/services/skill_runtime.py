@@ -1,4 +1,4 @@
-"""单运行 skill 端口，与目录、正文和沙箱材料的版本绑定。"""
+"""单运行 skill 端口，与目录、正文和执行环境中材料的版本绑定。"""
 import asyncio
 import base64
 import uuid
@@ -39,6 +39,8 @@ class SkillRuntime:
             return ToolResult(success=False, message=str(exc))
 
     async def prepare(self, name):
+        if self.sandbox is None:
+            return ToolResult(success=False, message='Skill 材料需要本机执行环境，当前版本尚未提供；可先读取正文与资源')
         try:
             entries = await self.service.bindings(self.run_id)
             entry = next((e for e in entries if e['name'] == name and e['active']), None)

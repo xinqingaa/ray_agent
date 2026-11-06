@@ -1,3 +1,4 @@
+from pathlib import Path
 """本轮契约验证；浏览器行为用单个受控 Chromium 场景，不接触用户页面。"""
 import asyncio
 import json
@@ -17,7 +18,7 @@ from app.domain.services.context.shaping import ResultShaper
 from app.domain.services.flows.tool_pipeline import ToolInvocation
 from app.domain.services.tools.browser import BrowserTool
 from app.infrastructure.external.browser.playwright_browser import PlaywrightBrowser
-from app.infrastructure.external.browser.web_content import extract_webpage
+from app.infrastructure.external.web.public_page import extract_webpage
 from app.interfaces.schemas.event import EventMapper
 from tests.support.loop_harness import make_loop, make_runner, assert_no_dangling, tool_results
 from tests.support.scripted_llm import ScriptedResponse, ScriptedToolCall, text
@@ -72,7 +73,7 @@ def test_display_uses_result_and_round_trips_browser_file_and_shell():
     asyncio.run(scenario())
 
 
-def test_screenshot_quota_resumes_from_run_and_returns_owned_artifact():
+def test_screenshot_quota_resumes_from_run_and_returns_owned_artifact(tmp_path):
     async def scenario():
         h = make_loop([])
         runner = make_runner(h)
@@ -81,13 +82,17 @@ def test_screenshot_quota_resumes_from_run_and_returns_owned_artifact():
         runner._delivery_call_id = 'shot'
         runner._browser = SimpleNamespace(capture_screenshot=AsyncMock(return_value=(b'png',{
             'width':1,'height':1,'size':3,'url':'https://example.org','stages_ms':{'capture':2}})))
-        runner._sandbox.upload_file = AsyncMock(return_value=ToolResult())
+        from app.infrastructure.external.workdir.session_workdir import SessionWorkdirs
+        workdirs = SessionWorkdirs(tmp_path)
+        runner._workdir = workdirs.resolve(*workdirs.new_root(h.session.id))
         runner._deliver_file = AsyncMock(return_value=File(id='image',filepath='/tmp/img.png'))
         runner._file_storage = SimpleNamespace(get_file_url=lambda f:'/api/files/image/download')
         result = await runner._capture_screenshot(purpose='保留提交状态',scope='viewport',ref=None,tab_id=None)
         assert result.success and result.data['visual_input'] is False
         assert result.data['run_id'] == runner.run_id and result.data['tool_call_id']=='shot'
         assert result.data['screenshot_usage'] == {'count':1,'bytes':3}
+        written = runner._deliver_file.await_args.args[0]
+        assert runner._workdir.contains(Path(written)) and Path(written).read_bytes() == b'png'
         h.events.append(ToolEvent(run_id=runner.run_id, tool_call_id='prior',tool_name='browser',
             function_name='browser_screenshot', function_args={}, status='called',
             function_result=ToolResult(data={'screenshot_usage':{'count':8,'bytes':100}}), seq=1))
