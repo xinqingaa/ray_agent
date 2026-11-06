@@ -1,12 +1,12 @@
 /**
- * 会话视图模型类型：W4 投影函数的输出，W5 组件只消费这些类型。
- * 字段约定见 docs/plan/w4-ui-data.md 的“视图模型契约”；删改字段需同步契约。
+ * 会话视图模型类型：事件投影函数的输出，界面组件消费这些类型。
+ * 状态与事件契约见 docs/architecture.md 的“事件与投影”，展示契约见 ray_agent/ui/DESIGN.md。
  * 投影函数在 session-projection.ts（`projectSession`）。本文件只有类型。时间一律为毫秒时间戳。
  */
 
 export type RunStatus = 'running' | 'waiting' | 'completed' | 'failed' | 'cancelled' | 'interrupted'
 
-/** W3 定义的运行原因；未知取值原样保留 */
+/** 后端事件记录的运行原因；未知取值原样保留 */
 export type RunReason =
   | 'max_iterations'
   | 'context_limit'

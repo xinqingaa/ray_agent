@@ -1,4 +1,4 @@
-"""确定性协议验收服务，独立于模型和 labs；只在本地测试中运行。"""
+"""独立于模型的确定性协议验收服务；只在本地测试中运行。"""
 import argparse
 import asyncio
 import json

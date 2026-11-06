@@ -91,7 +91,7 @@ uv run --locked python -m unittest discover -s tests -p 'test_*.py' -v
 
 ### 任务控制观察
 
-在本目录运行第八章的单进程实验：
+在本目录运行单进程任务控制实验：
 
 ```bash
 uv run --locked python scripts/check_shell_control.py

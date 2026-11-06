@@ -113,7 +113,7 @@ uv run --locked python -m pytest tests/core/test_scripted_llm.py
 
 ### 端到端评测
 
-[scripts/eval/](scripts/eval) 通过公开 HTTP API 与 SSE 驱动完整产品，运行纯回答与记忆、文件交付、提问续接、长命令停止、浏览器取数、MCP 批准/拒绝和长上下文压缩任务。任务定义以脚本为准，历史验证种类见[维护入口](../../docs/plan/README.md#关键验收)，当前结果需重新运行。前提：产品 Compose 已启动且各服务健康，模型已按[应用配置](../README.md#模型与工具)配置。每次运行会调用真实模型并产生费用；E6 与 E6-deny 会临时写入并在结束时删除一项 MCP 设置，同时把工具策略表临时设为该服务需要审批，结束时恢复原表；E7 运行期间把模型配置的 `context_window` 与 `max_tokens` 临时调低，结束时恢复，期间同一 API 上的其他会话也使用调低后的值。
+[scripts/eval/](scripts/eval) 通过公开 HTTP API 与 SSE 驱动完整产品，运行纯回答与记忆、文件交付、提问续接、长命令停止、浏览器取数、MCP 批准/拒绝和长上下文压缩任务。任务定义与断言以脚本为准，结果以实际运行为准。前提：产品 Compose 已启动且各服务健康，模型已按[应用配置](../README.md#模型与工具)配置。每次运行会调用真实模型并产生费用；E6 与 E6-deny 会临时写入并在结束时删除一项 MCP 设置，同时把工具策略表临时设为该服务需要审批，结束时恢复原表；E7 运行期间把模型配置的 `context_window` 与 `max_tokens` 临时调低，结束时恢复，期间同一 API 上的其他会话也使用调低后的值。
 
 ```bash
 uv run --locked python -m scripts.eval --list
@@ -134,7 +134,7 @@ uv run --locked python -m pytest tests/core/test_eval_script.py
 
 ### 文件预览与打包下载
 
-附件和项目文件共用只读预览服务，不调用模型或准备沙箱。文本有界分段读取；表格与图片在有界并发子进程中解析，处理完成或超时后回收进程及临时副本。项目继续采用无符号链接跟随的文件 IO，并校验读取版本；内联内容开放图片、PDF 与 HTML：图片与 PDF 支持 HTTP Range；HTML 带隔离用的 CSP sandbox 整份返回，并插入内存存储替身。附件打包使用临时 ZIP，下载分块发送，结束后关闭文件。具体上限集中在[运行参数与限额](../../docs/limits.md)。
+附件和项目文件共用只读预览服务，不调用模型或准备沙箱。文本有界分段读取；表格与图片在有界并发子进程中解析，处理完成或超时后回收进程及临时副本。项目文件 IO 不跟随符号链接，并校验读取版本；内联内容开放图片、PDF 与 HTML：图片与 PDF 支持 HTTP Range；HTML 带隔离用的 CSP sandbox 整份返回，并插入内存存储替身。附件打包使用临时 ZIP，下载分块发送，结束后关闭文件。具体上限集中在[运行参数与限额](../../docs/limits.md)。
 
 运行依赖 openpyxl、xlrd、defusedxml 与 Pillow 来自锁文件和容器安装清单；xlwt 只用于开发测试生成旧版 XLS，不进入运行镜像。定向检查：
 
@@ -152,7 +152,7 @@ uv run --locked python -m pytest tests/core/test_file_preview.py tests/core/test
 uv run --locked python -m pytest tests/core/test_file_artifacts.py
 ```
 
-8 项用例覆盖同路径串行替换、按 ID 删除、上传或关联失败保留旧条目、经 `deliver_files` 的全部与部分交付失败、历史附件保留原 ID，以及已有重复数据不被自动迁移。使用实际运行器交付函数、交付工具和仓库过滤方法，存储与数据库为替身；其中事务回滚用内存快照模拟，不代替数据库验证。
+用例覆盖同路径串行替换、按 ID 删除、上传或关联失败保留旧条目、经 `deliver_files` 的全部与部分交付失败、历史附件保留原 ID，以及已有重复数据不被自动迁移。使用实际运行器交付函数、交付工具和仓库过滤方法，存储与数据库为替身；其中事务回滚用内存快照模拟，不代替数据库验证。
 
 连接可用的 PostgreSQL 后，另运行真实事务与本地存储观察：
 
@@ -174,7 +174,7 @@ uv run --locked python scripts/check_file_artifacts.py
 docker compose run --rm --no-deps -T manus-api python scripts/check_managed_project_mount.py
 ```
 
-该脚本创建一次性托管目录与真实沙箱，检查卷子路径、ubuntu 修改/删除与快照目录不可见，并清理本次资源；不连接数据库或模型，不验证运行终态收尾与恢复。脚本尚未打进镜像时可把该脚本通过 stdin 送给同一命令的 `python -`；不能把旧镜像中的文件缺失算通过。
+该脚本创建一次性托管目录与真实沙箱，检查卷子路径、ubuntu 修改/删除与快照目录不可见，并清理本次资源；不连接数据库或模型，不验证运行终态收尾与恢复。容器中缺少脚本时，可通过 stdin 送给同一命令的 `python -`；文件缺失不能记为检查通过。
 
 ### 项目旧写入者停止观察
 
@@ -201,7 +201,7 @@ uv run --locked python scripts/check_project_file_lifecycle.py --url http://127.
 RAY_TEST_DATABASE_URI=postgresql+asyncpg://… uv run --locked python -m pytest tests/core/test_project_delivery_pg.py tests/core/test_delivery_projection.py tests/core/test_file_artifacts.py
 ```
 
-真实 PG 与临时磁盘覆盖按 run/call/path 复用、同名改名、部分失败保留下载、无沙箱补存、复制线程取消与收尾占用；沙箱和模型是替身。工作区归属使用沙箱检查返回的实际解析路径，需要 API 与沙箱镜像同时更新。
+真实 PG 与临时磁盘覆盖按 run/call/path 复用、同名改名、部分失败保留下载、无沙箱补存、复制线程取消与收尾占用；沙箱和模型是替身。工作区归属使用沙箱检查返回的实际解析路径，API 与沙箱需使用配套协议。
 
 真实 Docker 观察脚本在 API 容器内运行，需要先通过 API 新建本次唯一空项目和项目会话，传入其 id（脚本直接受理并准备环境，不调用模型）：
 
@@ -281,11 +281,7 @@ HTTP MCP 与 A2A 对端必须先运行；stdio MCP 由 API 按配置启动子进
 
 ## 模型配置与预算
 
-已知模型的独立配置覆盖全局默认；实际窗口取应用配置与模型目录上限的较小值，输入上限再扣除生成预留与安全余量。思考模式的生成预算包含推理与回答。当前窗口、预留和安全余量见[运行参数与限额](../../docs/limits.md)。设置接口按模型合并更新，校验官方上限、温度与正数输入余量；预算预览由服务端共用规则计算。
-
-新对话首次运行冻结采样参数。已有对话换模型时采用目标模型当前配置，A→B→A 也读取当前 A 配置；活动运行及 waiting 续接保留运行快照。下一新运行重新估算完整有效消息与工具定义，不用其他模型历史 usage 校准；历史 usage 保持累计统计。厂商目录定义思考档位、顺序、关闭方式、历史回传与温度兼容性，前端不固定等级。合法思考响应没有推理片段时记录空字段，区别于丢失推理历史。
-
-配置加载时按版本标记把仍为旧全局默认的窗口迁移一次；自定义预算与既有会话冻结参数不迁移。迁移的具体数值见运行参数说明。模型配置检查包含在 `tests/core/test_model_configuration.py`，沿用本指南 pytest 入口。
+逐模型参数在应用设置中维护，端点地址与密钥按[运行指南](../README.md#模型与工具)配置。选择、参数冻结与容量口径见 [Harness 模型请求分工](../../docs/harness.md#模型选择与请求分工)，默认值及配置兼容转换见[运行参数](../../docs/limits.md#模型与上下文)。模型配置检查包含在 `tests/core/test_model_configuration.py`，沿用本指南 pytest 入口。
 
 ### 浏览器与网页读取的定向检查
 
@@ -306,13 +302,13 @@ uv run --locked python -m pytest tests/core/test_attachment_images.py
 
 覆盖按需资源单次准备、停止与迟到所有权、有界独立读取、图像字节请求/历史与容量边界、引用重建、本地临时图回收，以及真实 MCP 夹具的所选发现和新运行器恢复。浏览器身份、焦点、隐藏根与 CDP 重连用例需设置前文 `RAY_TEST_BROWSER=1`；PG 图像归属与过期查询在 `test_run_events_pg.py`，仍只能指向独立测试库。
 
-截图 `analyze=true` 请求当前模型观察，`deliver=false` 保存临时图；默认 `deliver=true` 继续交付附件。非视觉模型明确返回不支持视觉，截图仍可留证。临时图保留期满且运行结束后由启动及周期维护回收，期限见[运行参数与限额](../../docs/limits.md)；永久附件和历史自动截图不回收。图像元数据字段由正常启动迁移，无需清库。Pillow 是 API 的图像尺寸/编码依赖，锁文件和容器安装清单同步。
+截图的分析、交付与临时资源回收见 [Harness 视觉资源](../../docs/harness.md#浏览器动作与视觉资源)，用户图片行为见[产品说明](../../docs/product.md#发起任务与输入材料)。API 图片参数支持 `image_mode=auto` 与 `files`，分别按模型能力组织输入或只提供文件材料；`image_input_note` 记录未提供像素的原因并进入模型上下文。
 
-用户图片默认 `image_mode=auto`，受理时按实际模型能力和图片预算组织像素或文件材料：非视觉/未知模型、超过单条消息像素数量预算、格式或编码限制时保留原附件，不拒绝图片消息。原文件读取失败仍明确报错；`files` 为旧客户端兼容方式。事件中的 `image_input_note` 记录未提供像素的实际原因并传入模型上下文；图片任务规则同时进入系统提示及图片消息，普通识图有像素时直接回答，未启用视觉时及时说明，工具使用以用户明确要求为边界。用户图引用保存在消息/上下文 JSON 事件中；请求时按摘要和相同编码规则重建有界副本。图片专项使用真实 PNG/GIF/EXIF 编码与实际适配层，存储、数据库、模型和沙箱为替身，覆盖引用校验、请求重建、等待回复与注入、冻结能力、像素限制原因及同名路径保护；补充用例核对旧会话新运行规则与冻结运行补图规则的传递。这些检查不证明真实模型的识图质量或规则遵循。
+图片检查使用真实 PNG/GIF/EXIF 编码与实际适配层，存储、数据库、模型和沙箱为替身，覆盖引用校验、请求重建、等待与注入、冻结能力、容量原因、同名路径及规则传递。这些检查不证明真实模型的识图质量或规则遵循。
 
 ### 数据删除与清空检查
 
-`/api/data/preview` 读取确认范围，`/api/data/tasks/latest` 及任务 ID 接口读回进度；项目删除与全局清空的受理、重试都经 `/api/data`。该功能使用追加迁移保存清理清单，不要求清空数据库。配置文件不在删除范围内。
+`/api/data/preview` 读取确认范围，`/api/data/tasks/latest` 及任务 ID 接口读回进度；项目删除与全局清空的受理、重试都经 `/api/data`。配置文件不在删除范围内。
 
 ```bash
 uv run --locked python -m pytest tests/core/test_data_cleanup_resources.py tests/core/test_data_cleanup_routes.py
@@ -327,15 +323,13 @@ PG 检查覆盖真实数据库与本地附件/项目目录删除、共享引用�
 
 `POST /sessions/{id}/chat` 可附 `execute_plan`：`source_run_id`、`plan_id`、`source_seq`、`request_id`。仅用于普通模式确认清单；事务内校验最新可执行版本，无活动运行时原子创建运行和承接事件。相同请求返回原 run_id/seq，过期、跨会话或冲突请求返回 409；普通消息不做关键词确认。计划事件包含 `progress_state`、`review_only` 和可选 `accepted_from`；缺失状态字段时按 confirmed 兼容解读。轻量核对不增加清单版本。
 
-`update_plan` 用 `title` 与 `description` 分别保存简短标题和一句任务说明，完整要求保存在 `goal/scope`；状态更新省略标题和描述时保留原值。清单条目用动作与具体对象或结果组成短标题，不附大纲、规格或解释；需要计划时先登记执行路径，再生成初版。多步小任务可平铺，复杂阶段按成果合并相关动作，首次只展开首阶段关键步骤，其余进入时展开；不重复父阶段或铺开细节，随业务动作维护当前状态。分阶段清单的当前阶段尚未展开，或已登记子步骤但没有当前步骤时，每份计划的每阶段有一次非阻断提醒，记录从持久上下文恢复；直接回答和单次明确操作可无清单。使用 `kind=stage/step` 与 `parent_id` 表示两层，分别计数；生命周期为 pending/in_progress/completed/blocked/cancelled，安排为 schedule=current/future。目标、范围及必要成果关联真实用户消息 seq。整体阶段不能直接删除，取消和推迟已有范围需新用户来源及原因；预算不足保留受阻。完整更新原子校验，省略 artifacts 保留原清单，版本及交付状态由实际工具结果填写。
-
-关键检查随业务工具附 verification，绑定成果、条件及真实版本；显式 passed 布尔断言才算通过，同版同条件复用，同一核验身份达到失败阈值且仍未通过时，再执行需说明新条件或新方法。收尾工具只补写预登记文本成果，已有文件保留原字节并另存系统预留的新版本路径；结果未知时先读回，不自动重复写入。仍受计划模式与策略限制。运行结束分别记录 complete/partial 及缺失成果、阶段和明确失败的核验，不把运行 completed 当作完整业务验收。相关历史协议对话不兼容，不迁移或自动删除。检查入口：
+计划层级、范围来源、更新约束与核验收尾统一见 [Harness 计划清单](../../docs/harness.md#计划清单)及[成果交付](../../docs/harness.md#核验与成果交付)。旧结构的计划记录不自动转换或删除，排查时核对保存的事件与工具 Schema。检查入口：
 
 ```bash
 uv run --locked python -m pytest tests/core/test_staged_plan.py tests/core/test_plan_progress.py tests/core/test_agent_loop.py
 ```
 
-API 容器构建生成内容身份，`GET /api/status/build` 读回；新运行快照保存 `api_build` 并使用当前系统提示，旧会话记忆中的 system 不覆盖它；等待续接仍用已有冻结提示，不改写历史。部署核对与配置保留见 Docker 指南。检查入口：
+API 容器构建生成内容身份，`GET /api/status/build` 读回，运行快照保存 `api_build`。身份与提示的关系见[架构说明](../../docs/architecture.md#构建身份与运行快照)，部署核对与配置保留见 [Docker 指南](../DOCKER.md)。检查入口：
 
 ```bash
 uv run --locked python -m pytest tests/core/test_build_identity.py tests/core/test_plan_progress.py tests/core/test_run_budget.py tests/core/test_task_execution_control.py
@@ -349,9 +343,7 @@ RAY_TEST_BROWSER=1 uv run --locked python -m pytest tests/core/test_browser_effi
 
 ### Responses 模型通信
 
-GPT 与 DeepSeek 默认使用 Responses；端点引用中的 `api_protocol` 可显式设为 `chat_completions` 连接支持该协议的上游，缺省为 `responses`。标题、摘要和压缩沿同一适配入口。Responses 不引入托管工具或服务端会话：OpenAI 使用 `store:false` 并回传推理条目，DeepSeek 回传明文推理条目和完整历史。对应助手消息携带模型归属的协议条目；同模型恢复，换模型不转发其他模型的原始推理。工具结果继续按调用身份配对。
-
-语义流只在完整终态后返回结果；截断走现有输出缩短流程，失败或缺少终态不执行半截调用。连接、限流、服务错误、已识别的暂时中断，以及读流途中的连接断开（SDK 不包装、原样抛出的 httpx 传输异常）有限重试；鉴权、额度、参数与未知错误不重试。连接没有建立（DNS、TCP、TLS 握手失败，请求未到达上游）时有独立的有界退避，不占普通尝试额度，但计入模型请求上限；失败日志的 `cause=` 记录底层异常链。同一事件循环内的模型客户端共用一个连接池，空闲连接按保留期限复用，避免每轮重新解析域名和握手。SDK 内部自动重试关闭，模型请求预算由 Harness 统一计数，具体数值见[运行参数与限额](../../docs/limits.md)。只读请求重建返回协议和适配前消息/工具，图像字节在真正发请求时加载。
+端点的 `api_protocol` 支持 `responses` 与 `chat_completions`，缺省为 `responses`。协议编码、完整终态与错误分类见 [Harness 通信边界](../../docs/harness.md#模型通信与失败隔离)，重试及连接池参数见[运行参数](../../docs/limits.md#请求预算压缩与结果)。诊断连接失败时检查日志中的 `cause=` 异常链；只读请求重建返回适配前消息与工具，不能据此判断图像字节已发送。
 
 ```bash
 uv run --locked python -m pytest tests/core/test_responses_api.py tests/core/test_openai_stream.py tests/core/test_streaming_loop.py tests/core/test_turn_events_rebuild.py
@@ -369,3 +361,5 @@ RAY_TEST_DATABASE_URI=postgresql+asyncpg://USER@HOST:PORT/TEST_DB uv run --locke
 纯核心用例使用临时磁盘、事务仓储和脚本化模型，覆盖包安全、哈希、幂等、故障重试、固定版本、显式与自动加载、模式、审批和压缩；HTTP 用例走真实路由与公共受理依赖，覆盖安装前读取、正文修订、无正文 DELETE 与空正文契约。数据库检查会清空指定库的 `public` schema 并迁移，只能使用独立测试库；它验证并发更新、受理事务冻结及外键引用释放，不调用真实模型。
 
 skill 目录由 `SKILL_STORAGE_DIR` 管理，开发环境回退目录及各项预算见[参数页](../../docs/limits.md#skill)。私有仓库和 CLI 安装不受理，错误需通过操作身份查询；真实 GitHub、模型与沙箱条件分别验证，不能由替身测试推断。
+
+真实效果检查需在相同模型和工具条件下，比较无 skill、显式选择和自动加载，并预先给出独立成果预期。任务分别覆盖正文方法、参考资料、脚本或素材使用及无关任务，核对是否选中相关方法、读取必要资源并实际遵循；同时区分成果质量、人工纠正、耗时与用量。内置 `find-skills` 另检查发现相关性、兼容性和不必要搜索，不能由加载成功或 `completed` 推断质量提升。公开 GitHub 来源需固定提交并核对清单，沙箱需实际检查相对资源、脚本、材料缺失与篡改恢复；网络或模型不可用时明确范围，不用本地替身冒充真实来源或效果对照。

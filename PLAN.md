@@ -1,3 +1,7 @@
 # 维护与优化计划
 
-阶段结论、验证概况和按问题归并的专题方案统一维护在 [维护入口](docs/plan/README.md)。当前机制见 [Harness 工程](docs/harness.md)与 [架构说明](docs/architecture.md)。
+当前无活动计划。
+
+新工作在此明确目标、授权范围、设计、模块责任、依赖、完成条件与实施状态；较大专题可按需拆分。制定计划不自动授权实施。
+
+机制与文档入口见[文档地图](docs/README.md)，设计依据见[设计背景](docs/background/README.md)。

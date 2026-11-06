@@ -1,26 +1,13 @@
-# 演进背景
+# 设计背景
 
-这里解释 RayAgent 为什么走到当前 Harness 设计。主体文档讲当前系统如何工作，本目录保留形成方案所需的问题、观察、分析和重要转折；对应的设计契约、模块责任、实施依赖与完成条件见 [专题优化方案](../plan/README.md#专题优化方案)。历史方案的范围不自动成为新的待办。
+本目录解释核心设计面对的问题、备选方向与取舍。产品行为和详细机制维护在正文，操作与检查方法维护在服务指南，新工作见 [PLAN.md](../../PLAN.md)。
 
-## 按问题阅读
-
-| 问题线索 | 背景与分析 | 对应方案 |
+| 阅读问题 | 背景分析 | 机制说明 |
 |---|---|---|
-| 持续行动为何不再依赖外层步骤调度，上下文如何保持可用 | [执行循环与上下文](execution-and-context.md) | [循环、上下文与效率](../plan/execution-and-context.md) |
-| 如何解释受理、等待、停止、重启和实际运行版本 | [运行事实与控制](runtime-and-progress.md) | [生命周期、事件与可靠性](../plan/runtime-and-control.md) |
-| 计划显示完成为何仍可能没有完整成果 | [长任务计划与交付](plans-and-delivery.md) | [计划可信度、核验与成果收尾](../plan/long-task-trust-and-delivery.md) |
-| 跨对话保存材料为何还需要写入协调、快照和记忆来源 | [托管项目与数据保护](projects-and-artifacts.md) | [项目、文件与记忆](../plan/projects-and-data.md) |
-| 工具调用为何产生重复观察和额外等待 | [工具观察与执行效率](tools-and-interface.md) | [浏览器观察与视觉资源](../plan/browser-and-visual-resources.md) |
-| 功能增加后怎样保持界面可理解，模型接入如何简化 | [交互与配置演进](interaction-and-configuration.md) | [交互与文件阅读](../plan/interface-and-preview.md)、[模型与端点](../plan/model-connections-and-selection.md) |
-
-各篇从问题现象进入，说明分析依据及其限制，再解释方案形成与后续调整。较早实现的机制名称按当时语境阅读；最新事实以 [Harness 工程](../harness.md)、[架构说明](../architecture.md)及源码为准。短暂协议、逐轮排障和局部样式记录不承担背景叙事。
-
-## 较早比较留下的认识
-
-- 技术栈迁移不直接解决执行契约，因此优先沿现有技术栈改造核心链路。
-- 项目、会话、运行和环境寿命不同，需要分别保存身份、状态与资源归属。
-- 计划划分不等于用户授权，任务范围必须保留来源。
-- 文件任务中的上下文、过程状态和交付问题需要分别验证。
-- 固定评测数量缺乏充分依据，因此撤回统一门槛，按改动与任务建立条件。
-
-这些分析没有实际运行 Codex，源码比较不能视为其恢复、权限或副作用机制均已验证。较早统一改造计划里有解释价值的选择已进入主题背景，不作为现行工作清单。
+| 为什么用单循环，上下文为什么分层治理 | [执行循环与上下文](execution-and-context.md) | [决策层](../harness.md#决策层)、[上下文治理](../harness.md#上下文与记忆治理) |
+| 为什么要区分运行记录、执行进程和外部资源 | [运行记录与控制](runtime-and-progress.md) | [控制平面](../architecture.md#结束路径与控制平面)、[构建身份](../architecture.md#构建身份与运行快照) |
+| 为什么清单完成不等于成果完整 | [计划与成果交付](plans-and-delivery.md) | [计划清单](../harness.md#计划清单)、[核验与交付](../harness.md#核验与成果交付) |
+| 为什么共享文件还需要占用、保护和恢复协调 | [托管项目与数据保护](projects-and-artifacts.md) | [项目执行与文件保护](../architecture.md#托管项目执行与文件保护) |
+| 为什么动作、观察和视觉输入要分别处理 | [工具观察与执行效率](tools-and-interface.md) | [浏览器与视觉资源](../harness.md#浏览器动作与视觉资源) |
+| 为什么阅读、编辑、技术观察和模型连接各有入口 | [用户交互与模型接入](interaction-and-configuration.md) | [产品说明](../product.md)、[UI 设计](../../ray_agent/ui/DESIGN.md)、[模型请求分工](../harness.md#模型选择与请求分工) |
+| 为什么 skill 需要完整包、固定版本和运行引用 | [skill 安装与运行](skills.md) | [skill 机制](../skills.md) |

@@ -2,8 +2,6 @@
 
 本文说明完整应用的配置、部署和运行检查。产品能力见 [项目首页](../README.md)，执行与数据流见 [架构说明](../docs/architecture.md)。
 
-以下说明已对照部署配置和启动代码核对；历史验证概况见 [维护入口](../docs/plan/README.md#关键验收)。
-
 ## 适用范围
 
 当前应用面向可信使用者，没有用户认证或多租户权限。工具策略按工具匹配，不限制参数、沙箱路径或全部出站网络；动态容器的资源配额不能代替这些访问边界。部署默认只向本机发布，公开使用需另行设计身份与访问控制。模型目录声明的能力仍需在实际配置的上游验证。
@@ -117,7 +115,7 @@ docker compose ps
 
 打开 [http://localhost:8088](http://localhost:8088)。如果设置了 `NGINX_PORT`，使用对应端口。
 
-首次启动会构建 API、UI 和沙箱镜像。API 启动时执行数据库迁移，再初始化 Redis、PostgreSQL，并按 `FILE_STORAGE_BACKEND` 初始化本地目录或 COS。迁移 `5b7e2c9d4a10` 建立运行与事件表并删除会话行上的旧事件列，不转换已有 JSONB 事件；已有数据卷升级后事件历史不会保留。要清空数据库再初始化，只能在明确要删除数据时按 [Docker 操作说明](DOCKER.md) 使用 `docker compose down -v`。API 就绪后，UI 和网关才会按依赖条件启动。迁移完成、开始接收请求之前，启动扫描会把上次进程留下的 running 运行，以及正在等待审批的运行，标为 interrupted；等待提问的运行保持 waiting。
+首次启动会构建 API、UI 和沙箱镜像。API 启动时执行数据库迁移，再初始化 Redis、PostgreSQL，并按 `FILE_STORAGE_BACKEND` 初始化本地目录或 COS。使用已有数据卷升级时，先核对 [API 指南的数据库兼容说明](api/README.md#测试与数据库迁移)，确认事件数据影响；需要删除数据并重新初始化时，再按 [Docker 操作说明](DOCKER.md) 操作。API 就绪后，UI 和网关才会按依赖条件启动。迁移完成、开始接收请求之前，启动扫描会把上次进程留下的 running 运行，以及正在等待审批的运行，标为 interrupted；等待提问的运行保持 waiting。
 
 检查顺序：
 

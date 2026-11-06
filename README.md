@@ -44,8 +44,6 @@ RayAgent 通过自研 Harness 统一这些职责，保持任务执行、工具�
 | 理解系统结构 | [架构说明](docs/architecture.md) | 组件协作、状态、事务与资源归属 |
 | 维护或扩展功能 | [代码地图](docs/code-map.md#主执行路径)、[文档地图](docs/README.md#持续维护与审阅) | 实现定位、检查入口与说明更新归属 |
 | 部署与本地开发 | [运行指南](ray_agent/README.md) | 配置、启动及各服务开发入口 |
-| 查询设计形成过程 | [演进背景](docs/background/README.md) | 问题、证据、方案比较与重要转折 |
+| 查询设计形成过程 | [设计背景](docs/background/README.md) | 问题、证据、方案比较与重要转折 |
 
-项目当前处于维护阶段，阶段结论、验证概况与专题方案见[维护入口](PLAN.md)。文档分工见[文档地图](docs/README.md)；背景和已完成方案按问题查询，无需作为理解当前系统的前置阅读。
-
-[课程目录](lessons/README.md)对应上一版实现，已冻结，短期不更新。没有特别说明时，了解、维护或评估当前项目无需阅读 `lessons/`，以当前文档和源码为准。
+新工作见[维护与优化计划](PLAN.md)，文档分工见[文档地图](docs/README.md)，问题分析与设计取舍见[设计背景](docs/background/README.md)。

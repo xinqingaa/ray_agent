@@ -39,7 +39,7 @@
 | 计划事务承接 | [plan_acceptance.py](../ray_agent/api/app/domain/models/plan_acceptance.py)、[run_ledger.py](../ray_agent/api/app/domain/services/run_ledger.py) 的 `start()` 与 [agent_service.py](../ray_agent/api/app/application/services/agent_service.py) 的 `chat()` | [test_run_events_pg.py](../ray_agent/api/tests/core/test_run_events_pg.py) 的计划承接并发用例 |
 | 构建身份 | [build_identity.py](../ray_agent/api/build_identity.py)、[build-identity.cjs](../ray_agent/ui/scripts/build-identity.cjs)、[check-builds.py](../ray_agent/scripts/check-builds.py) | [test_build_identity.py](../ray_agent/api/tests/core/test_build_identity.py) |
 | 计划核对与稳定身份展示 | [plan_progress.py](../ray_agent/api/app/domain/services/plan_progress.py) 的 `PlanProgress`；前端 [session-projection.ts](../ray_agent/ui/src/lib/session-projection.ts) 与 [plan-bar.tsx](../ray_agent/ui/src/components/run/plan-bar.tsx) | [test_plan_progress.py](../ray_agent/api/tests/core/test_plan_progress.py)、[check-plan-progress.cjs](../ray_agent/ui/scripts/check-plan-progress.cjs) |
-| 提示词与任务语义规划 | [system.py](../ray_agent/api/app/domain/services/prompts/system.py)、[计划模式](../ray_agent/api/app/domain/services/prompts/plan_mode.py)及 [英文提示](../ray_agent/api/app/domain/services/prompts/en/)；[工具说明](../ray_agent/api/app/domain/services/tools/plan.py)与 [plan_progress.py](../ray_agent/api/app/domain/services/plan_progress.py) | [test_plan_progress.py](../ray_agent/api/tests/core/test_plan_progress.py)、[test_plan_mode_and_compact.py](../ray_agent/api/tests/core/test_plan_mode_and_compact.py)；[规划语义设计](plan/long-task-trust-and-delivery.md#规划语义时机与清单粒度) |
+| 提示词与任务语义规划 | [system.py](../ray_agent/api/app/domain/services/prompts/system.py)、[计划模式](../ray_agent/api/app/domain/services/prompts/plan_mode.py)及 [英文提示](../ray_agent/api/app/domain/services/prompts/en/)；[工具说明](../ray_agent/api/app/domain/services/tools/plan.py)与 [plan_progress.py](../ray_agent/api/app/domain/services/plan_progress.py) | [test_plan_progress.py](../ray_agent/api/tests/core/test_plan_progress.py)、[test_plan_mode_and_compact.py](../ray_agent/api/tests/core/test_plan_mode_and_compact.py)；[规划语义](harness.md#计划清单) |
 | 脚本化模型与循环测试夹具 | [scripted_llm.py](../ray_agent/api/tests/support/scripted_llm.py)、[loop_harness.py](../ray_agent/api/tests/support/loop_harness.py)（相对 `ray_agent/api/`） | [test_scripted_llm.py](../ray_agent/api/tests/core/test_scripted_llm.py) |
 
 ## 上下文与记忆
@@ -161,7 +161,6 @@
 | A2A 卡片读取、委派、轮询、取消 | [a2a.py](../ray_agent/api/app/infrastructure/protocols/a2a.py) | — |
 | 结果截断与错误归一 | [common.py](../ray_agent/api/app/infrastructure/protocols/common.py) 的 `describe_content()` | — |
 | 协议工具与网关 | [tools](../ray_agent/api/app/domain/services/tools) 的 `mcp.py`、`a2a.py`、`protocol_gateway.py` | — |
-| 可运行实验 | [a2a](../labs/a2a)（仓库根） | — |
 
 ## 文件与交付
 
@@ -238,7 +237,7 @@
 | 标题与项目摘要的辅助请求选择 | [model_catalog.py](../ray_agent/api/app/domain/models/model_catalog.py) 的 `auxiliary_call()`；调用方 [title_service.py](../ray_agent/api/app/application/services/title_service.py)、[project_memory_service.py](../ray_agent/api/app/application/services/project_memory_service.py)；历史压缩另查[上下文与记忆](#上下文与记忆) | [test_title_service.py](../ray_agent/api/tests/core/test_title_service.py)、[test_model_catalog.py](../ray_agent/api/tests/core/test_model_catalog.py)、[test_project_memory_pg.py](../ray_agent/api/tests/core/test_project_memory_pg.py) |
 | 模型设置草稿、动态思考滑块与选择 | [llm-section.tsx](../ray_agent/ui/src/components/settings/llm-section.tsx)、[model-picker.tsx](../ray_agent/ui/src/components/model-picker.tsx)、[model-selection.ts](../ray_agent/ui/src/lib/model-selection.ts) | [check-model-configuration.cjs](../ray_agent/ui/scripts/check-model-configuration.cjs) |
 
-运行命令维护在所属服务指南；历史验证概况见[维护与优化计划](plan/README.md#关键验收)。
+运行命令、检查条件与覆盖边界维护在所属服务指南。
 
 模型偏好的前端链路：[model-preference.ts](../ray_agent/ui/src/lib/model-preference.ts) 管理同源本地选择，[model-picker.tsx](../ray_agent/ui/src/components/model-picker.tsx) 恢复并在确认后保存，[chat-input.tsx](../ray_agent/ui/src/components/chat-input.tsx) 传递实际发送选择。
 
