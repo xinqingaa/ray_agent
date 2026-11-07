@@ -81,11 +81,16 @@ def scrub_env(
 
 
 def detect_posix_shell() -> str:
-    # 优先 /bin/sh：macOS 的 zsh 会读 /etc/zshenv（path_helper），改写我们传入的 PATH
-    for candidate in ("/bin/sh", "/bin/zsh"):
-        if Path(candidate).is_file():
+    """平台系统 Shell：优先 zsh（macOS 默认），否则 /bin/sh；不要求 bash。"""
+    for candidate in ("/bin/zsh", "/bin/sh"):
+        if Path(candidate).is_file() and os.access(candidate, os.X_OK):
             return candidate
     return "/bin/sh"
+
+
+def shell_flags(program: str) -> list[str]:
+    """执行 `-c` 命令前的附加参数。zsh 加 -f 跳过用户 rc 文件：~/.zshenv 会往 PATH 前面插目录，破坏受控 PATH。"""
+    return ["-f"] if os.path.basename(program) == "zsh" else []
 
 
 posix_shell_program = detect_posix_shell

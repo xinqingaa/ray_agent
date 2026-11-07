@@ -5,7 +5,9 @@ import asyncio
 import logging
 import os
 import signal
+import subprocess
 import sys
+import threading
 import time
 from pathlib import Path
 from typing import Optional
@@ -57,24 +59,27 @@ async def ensure_supervisor(data_root: str | Path, runtime_bin_dirs: list | tupl
     child_env = strip_pyinstaller_markers(os.environ)
     for key in ("PYTHONHOME", "PYTHONPATH", "PYTHONSTARTUP", "PYTHONSAFEPATH", "VIRTUAL_ENV"):
         child_env.pop(key, None)
-    proc = await asyncio.create_subprocess_exec(
-        *command,
-        cwd=str(Path(__file__).resolve().parents[4]),
-        env=child_env,
-        start_new_session=True,
-        stdout=asyncio.subprocess.DEVNULL,
-        stderr=asyncio.subprocess.PIPE,
-    )
+    log_path = root / "execution" / "supervisor.log"
+    with open(log_path, "ab") as log:
+        # Popen 而非 asyncio 子进程：supervisor 的生命周期不绑定在某个事件循环上
+        proc = subprocess.Popen(
+            command,
+            cwd=str(Path(__file__).resolve().parents[4]),
+            env=child_env,
+            start_new_session=True,  # setsid：不在核心进程组内
+            stdin=subprocess.DEVNULL,
+            stdout=log,
+            stderr=log,
+            close_fds=True,
+        )
     _children[sock] = proc.pid
-    for _ in range(50):
+    threading.Thread(target=proc.wait, name="execution-supervisor-reaper", daemon=True).start()  # 退出后回收，不留僵尸
+    for _ in range(100):
         if await ping(sock) is not None:
             logger.info("执行 supervisor 已启动 pid=%s socket=%s", proc.pid, sock)
             return sock
-        if proc.returncode is not None:
-            err = b""
-            if proc.stderr:
-                err = await proc.stderr.read()
-            raise RuntimeError(f"执行 supervisor 启动失败: {err.decode(errors='replace')}")
+        if proc.poll() is not None:
+            raise RuntimeError(f"执行 supervisor 启动失败（退出码 {proc.returncode}），日志见 {log_path}")
         await asyncio.sleep(0.1)
     raise RuntimeError("执行 supervisor 启动后未能握手")
 

@@ -25,10 +25,10 @@ from datetime import datetime, timezone
 from typing import Any, Awaitable, Callable, Optional
 
 if __package__:
-    from .env import build_process_env, detect_posix_shell
+    from .env import build_process_env, detect_posix_shell, shell_flags
 else:  # 作为脚本直接运行时与 env.py 同目录
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-    from env import build_process_env, detect_posix_shell  # type: ignore[no-redef]
+    from env import build_process_env, detect_posix_shell, shell_flags  # type: ignore[no-redef]
 
 logger = logging.getLogger("execution.supervisor")
 
@@ -353,7 +353,7 @@ class Supervisor:
         if (argv is None) == (command is None):
             raise RpcError("bad_request", "argv 与 shell_command 必须且只能给出一个")
         if command is not None:
-            argv = [self.shell, "-c", command]
+            argv = [self.shell, *shell_flags(self.shell), "-c", command]
         if not isinstance(argv, list) or not argv or not all(isinstance(item, str) for item in argv):
             raise RpcError("bad_request", "argv 必须是非空字符串列表")
         cwd = params.get("cwd")
