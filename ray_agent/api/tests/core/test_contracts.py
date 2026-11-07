@@ -168,12 +168,15 @@ def test_capabilities_report_files_available_and_execution_closed_until_ports():
     assert by_name[Capability.LOCAL_COMMAND].recoverable is True
     assert by_name[Capability.BROWSER].reason is UnavailableReason.COMPONENT_MISSING
     assert by_name[Capability.BROWSER].recoverable is True
-    # P5：全文检索底座随业务库迁移建立，始终可用；语义索引、OCR 与远程控制仍未实现
+    # 全文检索始终可用；语义／OCR 缺组件时可恢复；远程控制尚未实现
     assert by_name[Capability.FULL_TEXT_SEARCH].state is CapabilityState.AVAILABLE
     assert by_name[Capability.FULL_TEXT_SEARCH].reason is None and by_name[Capability.FULL_TEXT_SEARCH].detail
-    for name in (Capability.SEMANTIC_INDEX, Capability.OCR, Capability.REMOTE_CONTROL):
+    for name in (Capability.SEMANTIC_INDEX, Capability.OCR):
         assert by_name[name].state is CapabilityState.UNAVAILABLE and by_name[name].detail
-        assert by_name[name].reason is UnavailableReason.NOT_IMPLEMENTED and by_name[name].recoverable is False
+        assert by_name[name].reason is UnavailableReason.COMPONENT_MISSING and by_name[name].recoverable is True
+    assert by_name[Capability.REMOTE_CONTROL].state is CapabilityState.UNAVAILABLE
+    assert by_name[Capability.REMOTE_CONTROL].reason is UnavailableReason.NOT_IMPLEMENTED
+    assert by_name[Capability.REMOTE_CONTROL].recoverable is False
     with pytest.raises(ValidationError):
         CapabilityStatus(capability=Capability.OCR, state=CapabilityState.UNAVAILABLE)
     with pytest.raises(ValidationError):

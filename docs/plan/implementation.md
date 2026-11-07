@@ -28,7 +28,7 @@ D1—D9 已确认，首个交付已获实施授权。实施时先用宿主探针
 | P4 本机执行与浏览器 | 已实施 | supervisor＋ProcessExecutor＋Shell 桥、RuntimeComponents／BrowserSession、工具装配与能力声明、工作区／独立对话执行开关 UI、MCP stdio 受控环境与进程登记、删除 Docker 沙箱／VNC／novnc；浏览器组件经 Playwright 真实下载与双工作区资料目录隔离已核对；冻结核心握手本机命令可用并完成短 Shell，supervisor 无残留。真实桌面窗口端到端与含浏览器的冻结短任务未在本机窗口中完整跑通，机制见[文件与执行](files-and-execution.md)与[代码地图](../code-map.md) |
 | P5 工作方式与记忆 | 已实施 | 工作方式版本／提议／模板、记忆条目与提炼、会话摘要任务、检索端口与 FTS5／Jieba（记忆与摘要）、上下文装配与运行背景清单、记忆／检索工具、记忆面板与「本次参考」；文件片段索引留给 P6。机制见[工作区与长期记忆](workspaces-and-memory.md)与[代码地图](../code-map.md#上下文与记忆) |
 | P6 全文知识 | 已实施 | 文件登记与排除、可取消解析 worker、结构块／片段接入同一 FTS 端口、初始召回与 `knowledge_read`、文件夹索引状态与引用路径；扫描件标待 OCR（P7）。机制见[文档知识与检索](knowledge-and-retrieval.md)与[代码地图](../code-map.md#上下文与记忆) |
-| P7 语义检索与 OCR | 未开始 | — |
+| P7 语义检索与 OCR | 已实施 | ONNX E5 Embedding、LanceDB 按工作区／配置隔离、RRF 混合召回、OCR 组件与解析重入、`SEMANTIC_INDEX` 长操作；语义／OCR 缺组件时全文照常。机制见[文档知识与检索](knowledge-and-retrieval.md)与[代码地图](../code-map.md#上下文与记忆) |
 | P8 Skill 多来源 | 已实施 | 用户／工作区／额外目录发现、同名与软链接边界、内容快照与运行冻结、设置启停与稳定身份选择；机制见[Skill 说明](../skills.md) |
 | P9 Mac 闭环交付 | 未开始 | — |
 

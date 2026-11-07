@@ -106,6 +106,24 @@ async def start_core():
         document_index = get_document_index_service()
         jobs.register(OperationKind.DOCUMENT_INDEX, document_index_handler(document_index),
                       requeue_on_restart=True)
+        from app.application.services.semantic_index_service import semantic_index_handler
+        from app.interfaces.service_dependencies import get_semantic_index_service
+        from app.infrastructure.external.execution.runtime import get_components, set_components_callback
+        semantic = get_semantic_index_service()
+        jobs.register(OperationKind.SEMANTIC_INDEX, semantic_index_handler(semantic),
+                      requeue_on_restart=True)
+
+        def _on_component_available(component_id: str) -> None:
+            import asyncio
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                return
+            loop.create_task(semantic.on_component_available(component_id))
+
+        set_components_callback(_on_component_available)
+        # 触发装配，使回调挂到组件管理器
+        get_components()
         root.install_id()
         set_job_runner(jobs)
 

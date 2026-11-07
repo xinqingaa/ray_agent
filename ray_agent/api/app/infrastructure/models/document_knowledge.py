@@ -143,6 +143,10 @@ class IndexPublicationModel(Base):
     active_operation_id: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime, nullable=False, default=utc_now)
     last_error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    embedding_config: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    vector_generation: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    vector_table_version: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    semantic_operation_id: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
 
     @classmethod
     def from_domain(cls, pub: IndexPublication) -> "IndexPublicationModel":
@@ -152,5 +156,7 @@ class IndexPublicationModel(Base):
         return IndexPublication(
             workspace_id=self.workspace_id, generation=self.generation, status=self.status,
             active_operation_id=self.active_operation_id, updated_at=self.updated_at,
-            last_error=self.last_error,
+            last_error=self.last_error, embedding_config=self.embedding_config,
+            vector_generation=self.vector_generation, vector_table_version=self.vector_table_version,
+            semantic_operation_id=self.semantic_operation_id,
         )

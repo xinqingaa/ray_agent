@@ -474,7 +474,7 @@ def test_workspace_migration_keeps_existing_rows_and_downgrades(tmp_path):
             "('s1', 't', 'default', 'pending', 0, '', 1, '{}', '[]', '2026-01-01 00:00:00', '2026-01-01 00:00:00')")
         connection.execute("INSERT INTO roots (id, kind, session_id, location, created_at) VALUES "
                            "('r1', 'session_workdir', 's1', 'sessions/s1', '2026-01-01 00:00:00')")
-    assert migrate(database) == "0006_document_knowledge"
+    assert migrate(database) == "0007_semantic_index"
     with sqlite3.connect(database) as connection:
         assert connection.execute("SELECT workspace_id FROM sessions WHERE id='s1'").fetchone() == (None,)
         assert connection.execute("SELECT location, fs_dev, fs_ino FROM roots WHERE id='r1'").fetchone() == (
@@ -482,6 +482,8 @@ def test_workspace_migration_keeps_existing_rows_and_downgrades(tmp_path):
         assert connection.execute("SELECT count(*) FROM workspaces").fetchone() == (0,)
         tables = {row[0] for row in connection.execute("SELECT name FROM sqlite_master WHERE type='table'")}
         assert "documents" in tables and "document_chunks" in tables
+        cols = {row[1] for row in connection.execute("PRAGMA table_info(index_publications)")}
+        assert "vector_generation" in cols and "embedding_config" in cols
     # 文档知识迁移可回退到 Skill 多来源；再往前 P8 起业务库不回退
     command.downgrade(config, "0005_skill_multi_source")
     with sqlite3.connect(database) as connection:
@@ -490,7 +492,7 @@ def test_workspace_migration_keeps_existing_rows_and_downgrades(tmp_path):
         assert "documents" not in tables and "workspaces" in tables
     with pytest.raises(NotImplementedError, match="不回退"):
         command.downgrade(config, "0004_working_style_memory")
-    assert migrate(database) == "0006_document_knowledge"
+    assert migrate(database) == "0007_semantic_index"
 
 
 def test_attachments_are_copied_into_the_workspace_folder_without_overwriting(tmp_path):

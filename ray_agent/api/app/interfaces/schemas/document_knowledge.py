@@ -41,6 +41,9 @@ class IndexSummaryView(BaseModel):
     truncated_scan: bool
     active_operation_id: Optional[str] = None
     publication_generation: int
+    vector_generation: Optional[int] = None
+    embedding_config: Optional[str] = None
+    semantic_ready: bool = False
 
     @classmethod
     def of(cls, summary: WorkspaceIndexSummary) -> "IndexSummaryView":

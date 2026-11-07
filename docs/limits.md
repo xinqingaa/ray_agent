@@ -171,6 +171,10 @@
 | 表格行组 | 每组最多 40 行（保留表头） | `DOCUMENT_TABLE_ROWS_PER_CHUNK` |
 | 解析进程 | 最多 2 个并发；墙钟 120 秒 | [runner.py](../ray_agent/api/app/infrastructure/external/document_parse/runner.py) 的 `DOCUMENT_PARSE_SLOTS`、`DOCUMENT_PARSE_TIMEOUT_SECONDS` |
 | 解析配置指纹 | `p6-parse-v1`／`p6-chunk-v1` | `PARSE_CONFIG_FINGERPRINT`、`CHUNK_CONFIG_FINGERPRINT` |
+| Embedding 配置指纹／维度／上限 | `e5-small-onnx-v1`；384 维；512 tokens；批大小 8 | [semantic_index.py](../ray_agent/api/app/domain/models/semantic_index.py) 的 `EMBEDDING_*` |
+| RRF 融合 | `k=60`；向量候选最多 40；语义写入批 32 | `RRF_K`、`VECTOR_SEARCH_LIMIT`、`SEMANTIC_INDEX_CHUNK_BATCH` |
+| 组件身份 | `embedding-e5`、`ocr` | 同文件；清单 [component_manifest.json](../ray_agent/api/resources/component_manifest.json) |
+| LanceDB 路径 | `<data_root>/indexes/lancedb/<workspace_id>/<embedding_config>/` | [lancedb_store.py](../ray_agent/api/app/infrastructure/external/vector_store/lancedb_store.py)、[paths.py](../ray_agent/api/core/paths.py) 的 `indexes` |
 | 索引重扫 | 与文件夹兜底重扫同间隔（默认 30 秒） | [document_index_scheduler.py](../ray_agent/api/app/application/services/document_index_scheduler.py)、`workspace_rescan_seconds` |
 | 自动提炼 | 每次最多提出 5 条候选、最多落地 8 条；每条候选判定时参考最多 5 条相似活动条目 | [memory_extractor.py](../ray_agent/api/app/application/services/memory_extractor.py) 的 `PROPOSE_MAX_FACTS`、[memory_service.py](../ray_agent/api/app/application/services/memory_service.py) 的 `EXTRACTION_MAX_ITEMS`、[memory_jobs.py](../ray_agent/api/app/application/services/memory_jobs.py) 的 `SIMILAR_LIMIT` |
 | 提炼与判定请求 | 输出上限 800，温度 0.1，请求超时 30 秒，调用等待 35 秒；用量单独记录 | `memory_extractor.py` 的 `LLMMemoryExtractor` |

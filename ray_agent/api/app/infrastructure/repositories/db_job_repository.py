@@ -13,6 +13,7 @@ from app.infrastructure.models import BackgroundJobModel
 
 RETRY_SUPPORTED = frozenset({
     OperationKind.DATA_CLEANUP, OperationKind.WORKSPACE_DELETE, OperationKind.DOCUMENT_INDEX,
+    OperationKind.SEMANTIC_INDEX,
 })
 
 

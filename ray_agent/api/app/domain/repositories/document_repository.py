@@ -46,6 +46,16 @@ class DocumentRepository(ABC):
     ) -> list[DocumentRevision]: ...
 
     @abstractmethod
+    async def list_pending_component(
+            self, *, component: str, limit: int = 500,
+    ) -> list[DocumentRevision]:
+        """跨工作区列出等待某组件的修订。"""
+        ...
+
+    @abstractmethod
+    async def list_publication_workspace_ids(self) -> list[str]: ...
+
+    @abstractmethod
     async def replace_blocks(self, revision_id: str, blocks: Sequence[ContentBlock]) -> None: ...
 
     @abstractmethod
@@ -56,6 +66,9 @@ class DocumentRepository(ABC):
 
     @abstractmethod
     async def list_chunks(self, revision_id: str, *, published_only: bool = False) -> list[DocumentChunk]: ...
+
+    @abstractmethod
+    async def list_published_chunks(self, workspace_id: str) -> list[DocumentChunk]: ...
 
     @abstractmethod
     async def get_chunk(self, chunk_id: str) -> Optional[DocumentChunk]: ...

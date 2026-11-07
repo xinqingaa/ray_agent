@@ -61,6 +61,11 @@ class DataRoot:
         return self.root / "components"
 
     @property
+    def indexes(self) -> Path:
+        """检索派生数据：LanceDB 等可重建索引。"""
+        return self.root / "indexes"
+
+    @property
     def browser_profiles(self) -> Path:
         return self.root / "browser-profiles"
 
@@ -74,7 +79,7 @@ class DataRoot:
 
     def prepare(self) -> None:
         for path in (self.root, self.objects, self.sessions, self.skills, self.tmp,
-                     self.components, self.browser_profiles, self.runtimes, self.execution):
+                     self.components, self.indexes, self.browser_profiles, self.runtimes, self.execution):
             path.mkdir(parents=True, exist_ok=True)
 
     def install_id(self) -> str:

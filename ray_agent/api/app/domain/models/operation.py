@@ -33,6 +33,7 @@ class OperationKind(StrEnum):
     """新增类型在这里登记，各工作包不另起同义名称。"""
     COMPONENT_INSTALL = "component_install"
     DOCUMENT_INDEX = "document_index"
+    SEMANTIC_INDEX = "semantic_index"
     MEMORY_EXTRACTION = "memory_extraction"
     SESSION_SUMMARY = "session_summary"
     DATA_CLEANUP = "data_cleanup"

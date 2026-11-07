@@ -9468,6 +9468,33 @@
           "publication_generation": {
             "type": "integer",
             "title": "Publication Generation"
+          },
+          "vector_generation": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vector Generation"
+          },
+          "embedding_config": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Embedding Config"
+          },
+          "semantic_ready": {
+            "type": "boolean",
+            "title": "Semantic Ready",
+            "default": false
           }
         },
         "type": "object",
@@ -9482,7 +9509,10 @@
           "withdrawn",
           "truncated_scan",
           "active_operation_id",
-          "publication_generation"
+          "publication_generation",
+          "vector_generation",
+          "embedding_config",
+          "semantic_ready"
         ],
         "title": "IndexSummaryView"
       },
@@ -10996,6 +11026,7 @@
         "enum": [
           "component_install",
           "document_index",
+          "semantic_index",
           "memory_extraction",
           "session_summary",
           "data_cleanup",

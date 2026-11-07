@@ -8,7 +8,7 @@ from __future__ import annotations
 import csv
 import io
 import json
-import re
+import os
 import resource
 import sys
 from pathlib import Path
@@ -124,6 +124,14 @@ def parse_html(path: Path) -> dict:
     return {"status": "ok", "format": DocumentFormat.HTML.value, "blocks": blocks}
 
 
+def _ocr_component() -> Path | None:
+    raw = os.environ.get("RAYAGENT_OCR_COMPONENT", "").strip()
+    if not raw:
+        return None
+    path = Path(raw)
+    return path if path.is_dir() else None
+
+
 def parse_pdf(path: Path) -> dict:
     try:
         from pypdf import PdfReader
@@ -145,10 +153,22 @@ def parse_pdf(path: Path) -> dict:
         if text:
             pages_with_text += 1
             blocks.append(block("text", text, page=index))
-    if not pages_with_text:
-        # 扫描件：本包标待 OCR，不阻塞其他材料
+    if pages_with_text:
+        return {"status": "ok", "format": DocumentFormat.PDF.value, "blocks": blocks}
+    # 扫描件：有 OCR 组件则渲染识别；否则待组件
+    ocr_dir = _ocr_component()
+    if ocr_dir is None:
         return fail("PDF 无可提取文本层，待 OCR 组件", component="ocr")
-    return {"status": "ok", "format": DocumentFormat.PDF.value, "blocks": blocks}
+    try:
+        from app.infrastructure.external.ocr.rapid_ocr import recognize_pdf_pages
+        ocr_blocks = recognize_pdf_pages(path, ocr_dir)
+    except Exception as error:  # noqa: BLE001
+        return fail(f"OCR 失败：{error}", component="ocr")
+    if not ocr_blocks:
+        return fail("OCR 未识别到文字")
+    return {"status": "ok", "format": DocumentFormat.PDF.value, "blocks": [
+        block(item["kind"], item["text"], **item.get("locator") or {}) for item in ocr_blocks
+    ]}
 
 
 def parse_docx(path: Path) -> dict:
@@ -224,8 +244,20 @@ def parse_delimited(path: Path, fmt: str) -> dict:
     return {"status": "ok", "format": fmt, "blocks": [block("table", "\n".join(rows), header=rows[0])]}
 
 
-def parse_image(_path: Path) -> dict:
-    return fail("图片需 OCR 组件识别", component="ocr")
+def parse_image(path: Path) -> dict:
+    ocr_dir = _ocr_component()
+    if ocr_dir is None:
+        return fail("图片需 OCR 组件识别", component="ocr")
+    try:
+        from app.infrastructure.external.ocr.rapid_ocr import recognize_image
+        ocr_blocks = recognize_image(path, ocr_dir)
+    except Exception as error:  # noqa: BLE001
+        return fail(f"OCR 失败：{error}", component="ocr")
+    if not ocr_blocks:
+        return fail("OCR 未识别到文字")
+    return {"status": "ok", "format": DocumentFormat.IMAGE.value, "blocks": [
+        block(item["kind"], item["text"], **item.get("locator") or {}) for item in ocr_blocks
+    ]}
 
 
 PARSERS = {

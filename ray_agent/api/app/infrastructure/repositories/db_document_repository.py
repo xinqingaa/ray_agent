@@ -99,6 +99,21 @@ class DBDocumentRepository(DocumentRepository):
         )).scalars().all()
         return [row.to_domain() for row in rows]
 
+    async def list_pending_component(
+            self, *, component: str, limit: int = 500,
+    ) -> list[DocumentRevision]:
+        rows = (await self.db_session.execute(
+            select(DocumentRevisionModel).where(
+                DocumentRevisionModel.status == DocumentIndexStatus.PENDING_COMPONENT.value,
+                DocumentRevisionModel.component_needed == component,
+            ).order_by(DocumentRevisionModel.updated_at).limit(limit)
+        )).scalars().all()
+        return [row.to_domain() for row in rows]
+
+    async def list_publication_workspace_ids(self) -> list[str]:
+        rows = (await self.db_session.execute(select(IndexPublicationModel.workspace_id))).scalars().all()
+        return list(rows)
+
     async def replace_blocks(self, revision_id: str, blocks: Sequence[ContentBlock]) -> None:
         await self.db_session.execute(delete(ContentBlockModel).where(ContentBlockModel.revision_id == revision_id))
         for block in blocks:
@@ -164,7 +179,20 @@ class DBDocumentRepository(DocumentRepository):
             existing.active_operation_id = publication.active_operation_id
             existing.updated_at = publication.updated_at
             existing.last_error = publication.last_error
+            existing.embedding_config = publication.embedding_config
+            existing.vector_generation = publication.vector_generation
+            existing.vector_table_version = publication.vector_table_version
+            existing.semantic_operation_id = publication.semantic_operation_id
         await self.db_session.flush()
+
+    async def list_published_chunks(self, workspace_id: str) -> list[DocumentChunk]:
+        rows = (await self.db_session.execute(
+            select(DocumentChunkModel).where(
+                DocumentChunkModel.workspace_id == workspace_id,
+                DocumentChunkModel.published.is_(True),
+            ).order_by(DocumentChunkModel.document_id, DocumentChunkModel.ordinal)
+        )).scalars().all()
+        return [row.to_domain() for row in rows]
 
     async def summary(self, workspace_id: str) -> WorkspaceIndexSummary:
         rows = (await self.db_session.execute(
@@ -177,6 +205,8 @@ class DBDocumentRepository(DocumentRepository):
             DocumentIndexStatus.REGISTERED, DocumentIndexStatus.PENDING_PARSE,
             DocumentIndexStatus.INDEXING,
         )
+        vector_gen = pub.vector_generation if pub else None
+        generation = pub.generation if pub else 0
         return WorkspaceIndexSummary(
             workspace_id=workspace_id,
             total=sum(counts.values()),
@@ -187,7 +217,10 @@ class DBDocumentRepository(DocumentRepository):
             failed=counts.get(DocumentIndexStatus.FAILED.value, 0),
             withdrawn=counts.get(DocumentIndexStatus.WITHDRAWN.value, 0),
             active_operation_id=pub.active_operation_id if pub else None,
-            publication_generation=pub.generation if pub else 0,
+            publication_generation=generation,
+            vector_generation=vector_gen,
+            embedding_config=pub.embedding_config if pub else None,
+            semantic_ready=bool(vector_gen is not None and vector_gen == generation and generation > 0),
         )
 
     async def delete_workspace(self, workspace_id: str) -> None:

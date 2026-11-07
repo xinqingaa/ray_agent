@@ -3446,6 +3446,15 @@ export interface components {
             active_operation_id: string | null;
             /** Publication Generation */
             publication_generation: number;
+            /** Vector Generation */
+            vector_generation: number | null;
+            /** Embedding Config */
+            embedding_config: string | null;
+            /**
+             * Semantic Ready
+             * @default false
+             */
+            semantic_ready: boolean;
         };
         /** @description 核心进程的一次启动 */
         InstanceId: string;
@@ -4088,7 +4097,7 @@ export interface components {
          * @description 新增类型在这里登记，各工作包不另起同义名称。
          * @enum {string}
          */
-        OperationKind: "component_install" | "document_index" | "memory_extraction" | "session_summary" | "data_cleanup" | "workspace_delete";
+        OperationKind: "component_install" | "document_index" | "semantic_index" | "memory_extraction" | "session_summary" | "data_cleanup" | "workspace_delete";
         /** OperationProgress */
         OperationProgress: {
             /**

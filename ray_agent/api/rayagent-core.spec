@@ -45,6 +45,14 @@ hiddenimports = [
     'sqlalchemy.dialects.sqlite.aiosqlite',
     'sqlalchemy.dialects.sqlite.pysqlite',
     'aiosqlite',
+    # P7：语义索引与 OCR 原生依赖；隐式导入与数据文件需在冻结产物中复查
+    *collect_submodules('onnxruntime'),
+    *collect_submodules('tokenizers'),
+    *collect_submodules('lancedb'),
+    *collect_submodules('pyarrow'),
+    *collect_submodules('pypdfium2'),
+    *collect_submodules('rapidocr_onnxruntime'),
+    'numpy',
 ]
 
 a = Analysis(

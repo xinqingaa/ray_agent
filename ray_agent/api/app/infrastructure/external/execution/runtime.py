@@ -22,6 +22,7 @@ from core.paths import data_root
 logger = logging.getLogger(__name__)
 
 _components: LocalRuntimeComponents | None = None
+_on_available = None
 
 
 def runtime_bin_dirs() -> list[Path]:
@@ -37,10 +38,17 @@ def runtime_bin_dirs() -> list[Path]:
     return found
 
 
+def set_components_callback(callback) -> None:
+    global _on_available, _components
+    _on_available = callback
+    if _components is not None:
+        _components._on_available = callback  # noqa: SLF001
+
+
 def get_components() -> LocalRuntimeComponents:
     global _components
     if _components is None:
-        _components = LocalRuntimeComponents(data_root().components)
+        _components = LocalRuntimeComponents(data_root().components, on_available=_on_available)
     return _components
 
 

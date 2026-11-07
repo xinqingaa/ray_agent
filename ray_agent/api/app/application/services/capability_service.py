@@ -1,4 +1,4 @@
-"""按当前实现上报能力：文件始终可用；本机命令与浏览器依赖执行开关与组件状态；其余尚未实现。"""
+"""按当前实现上报能力：文件、全文始终可用；本机命令／浏览器／语义／OCR 依赖开关与组件。"""
 from typing import Awaitable, Callable, Optional
 
 from app.domain.models.capability import Capability, CapabilityStatus, UnavailableReason
@@ -6,17 +6,20 @@ from app.domain.models.execution_settings import workspace_execution_enabled
 
 FILE_ACCESS_DETAIL = "工作区文件夹与会话工作目录；某个工作区文件夹失联时只影响该工作区的会话"
 
-FULL_TEXT_DETAIL = "工作区记忆与会话摘要的全文检索（SQLite FTS5，应用层中文分词）；文件内容检索随后续阶段提供"
+FULL_TEXT_DETAIL = "工作区记忆、会话摘要与文件片段的全文检索（SQLite FTS5，应用层中文分词）"
+
+SEMANTIC_DETAIL = "工作区文件片段语义召回（ONNX E5＋LanceDB）；与全文 RRF 融合"
+
+OCR_DETAIL = "扫描 PDF／图片本机 OCR（RapidOCR＋ONNX）"
 
 NOT_IMPLEMENTED = {
-    Capability.SEMANTIC_INDEX: "工作区语义索引尚未实现",
-    Capability.OCR: "OCR 尚未实现",
     Capability.REMOTE_CONTROL: "远程控制尚未实现",
 }
 
-# 可选探测：返回 (本机命令是否可装配, 原因说明)；浏览器组件是否可用
+# 可选探测：返回 (本机命令是否可装配, 原因说明)；浏览器／语义／OCR 组件是否可用
 CommandProbe = Callable[[], Awaitable[tuple[bool, str]]]
 BrowserProbe = Callable[[], Awaitable[tuple[bool, UnavailableReason | None, str]]]
+ComponentProbe = Callable[[], Awaitable[tuple[bool, UnavailableReason | None, str]]]
 StandaloneFlag = Callable[[], Awaitable[bool]]
 WorkspaceSettings = Callable[[str], Awaitable[dict | None]]
 
@@ -27,11 +30,15 @@ class CapabilityService:
             *,
             command_probe: Optional[CommandProbe] = None,
             browser_probe: Optional[BrowserProbe] = None,
+            semantic_probe: Optional[ComponentProbe] = None,
+            ocr_probe: Optional[ComponentProbe] = None,
             standalone_enabled: Optional[StandaloneFlag] = None,
             workspace_settings: Optional[WorkspaceSettings] = None,
     ) -> None:
         self._command_probe = command_probe
         self._browser_probe = browser_probe
+        self._semantic_probe = semantic_probe
+        self._ocr_probe = ocr_probe
         self._standalone_enabled = standalone_enabled
         self._workspace_settings = workspace_settings
 
@@ -42,6 +49,8 @@ class CapabilityService:
             await self._local_command(session_enabled=True),
             await self._browser(),
             await self._full_text(),
+            await self._semantic(),
+            await self._ocr(),
             *[CapabilityStatus.unavailable(capability, UnavailableReason.NOT_IMPLEMENTED, detail)
               for capability, detail in NOT_IMPLEMENTED.items()],
         ]
@@ -54,6 +63,8 @@ class CapabilityService:
             await self._local_command(session_enabled=enabled),
             await self._browser(),
             await self._full_text(),
+            await self._semantic(),
+            await self._ocr(),
             *[CapabilityStatus.unavailable(capability, UnavailableReason.NOT_IMPLEMENTED, detail)
               for capability, detail in NOT_IMPLEMENTED.items()],
         ]
@@ -75,7 +86,6 @@ class CapabilityService:
         return CapabilityStatus.available(Capability.FILE_ACCESS, FILE_ACCESS_DETAIL)
 
     async def _full_text(self) -> CapabilityStatus:
-        # FTS 底座随业务库迁移建立，核心启动成功即可用
         return CapabilityStatus.available(Capability.FULL_TEXT_SEARCH, FULL_TEXT_DETAIL)
 
     async def _local_command(self, *, session_enabled: bool) -> CapabilityStatus:
@@ -101,3 +111,24 @@ class CapabilityService:
             return CapabilityStatus.available(Capability.BROWSER, detail)
         return CapabilityStatus.unavailable(
             Capability.BROWSER, reason or UnavailableReason.COMPONENT_MISSING, detail)
+
+    async def _semantic(self) -> CapabilityStatus:
+        if self._semantic_probe is None:
+            return CapabilityStatus.unavailable(
+                Capability.SEMANTIC_INDEX, UnavailableReason.COMPONENT_MISSING, "语义索引组件尚未装配")
+        ok, reason, detail = await self._semantic_probe()
+        if ok:
+            return CapabilityStatus.available(Capability.SEMANTIC_INDEX, detail or SEMANTIC_DETAIL)
+        return CapabilityStatus.unavailable(
+            Capability.SEMANTIC_INDEX, reason or UnavailableReason.COMPONENT_MISSING,
+            detail or "Embedding 组件未安装")
+
+    async def _ocr(self) -> CapabilityStatus:
+        if self._ocr_probe is None:
+            return CapabilityStatus.unavailable(
+                Capability.OCR, UnavailableReason.COMPONENT_MISSING, "OCR 组件尚未装配")
+        ok, reason, detail = await self._ocr_probe()
+        if ok:
+            return CapabilityStatus.available(Capability.OCR, detail or OCR_DETAIL)
+        return CapabilityStatus.unavailable(
+            Capability.OCR, reason or UnavailableReason.COMPONENT_MISSING, detail or "OCR 组件未安装")

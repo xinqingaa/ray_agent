@@ -719,8 +719,8 @@ def test_instance_lock_and_newer_schema_are_refused(tmp_path):
     again.release()
 
     database = tmp_path / "rayagent.db"
-    assert migrate(database) == "0006_document_knowledge"
-    assert migrate(database) == "0006_document_knowledge"
+    assert migrate(database) == "0007_semantic_index"
+    assert migrate(database) == "0007_semantic_index"
     with sqlite3.connect(database) as connection:
         assert connection.execute("PRAGMA journal_mode").fetchone()[0] == "wal"
         connection.execute("UPDATE alembic_version SET version_num = '9999_future'")

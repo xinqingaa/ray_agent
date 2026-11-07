@@ -1,6 +1,6 @@
 """工作区文档知识：登记、修订、结构块、片段与索引发布。
 
-索引发布与权威可见状态在 SQLite；片段经检索端口写入 FTS。向量与 OCR 留给 P7。
+索引发布与权威可见状态在 SQLite；片段经检索端口写入 FTS；向量代次对齐 generation。
 """
 from datetime import datetime
 from enum import StrEnum
@@ -10,8 +10,9 @@ from pydantic import BaseModel, Field
 
 from .clock import utc_now
 from .identity import WorkspaceId
+from .semantic_index import EMBEDDING_CONFIG_FINGERPRINT
 
-# 解析／切分配置指纹：任一变化需重建派生索引；P7 Embedding 配置另起空间
+# 解析／切分配置指纹：任一变化需重建派生索引；Embedding 配置另起空间
 PARSE_CONFIG_FINGERPRINT = "p6-parse-v1"
 CHUNK_CONFIG_FINGERPRINT = "p6-chunk-v1"
 
@@ -108,13 +109,21 @@ class DocumentChunk(BaseModel):
 
 
 class IndexPublication(BaseModel):
-    """每个工作区一份发布指针；generation 在每次成功发布时递增。"""
+    """每个工作区一份发布指针；generation 在每次成功 FTS 发布时递增。
+
+    向量侧：embedding_config 隔离索引空间；vector_generation／vector_table_version
+    对齐已写入 LanceDB 的代次与表版本，查询固定该表版本。
+    """
     workspace_id: WorkspaceId
     generation: int = 0
-    status: str = "idle"  # idle / publishing / failed
+    status: str = "idle"  # idle / publishing / failed / semantic_indexing
     active_operation_id: Optional[str] = None
     updated_at: datetime = Field(default_factory=utc_now)
     last_error: Optional[str] = None
+    embedding_config: Optional[str] = EMBEDDING_CONFIG_FINGERPRINT
+    vector_generation: Optional[int] = None
+    vector_table_version: Optional[int] = None
+    semantic_operation_id: Optional[str] = None
 
 
 class WorkspaceIndexSummary(BaseModel):
@@ -129,3 +138,6 @@ class WorkspaceIndexSummary(BaseModel):
     truncated_scan: bool = False
     active_operation_id: Optional[str] = None
     publication_generation: int = 0
+    vector_generation: Optional[int] = None
+    embedding_config: Optional[str] = None
+    semantic_ready: bool = False

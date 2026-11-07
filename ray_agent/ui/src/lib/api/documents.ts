@@ -12,6 +12,9 @@ export type IndexSummary = {
   truncated_scan: boolean
   active_operation_id?: string | null
   publication_generation: number
+  vector_generation?: number | null
+  embedding_config?: string | null
+  semantic_ready?: boolean
 }
 
 export type DocumentItem = {

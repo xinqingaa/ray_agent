@@ -49,6 +49,36 @@ def get_capability_service() -> CapabilityService:
         from app.infrastructure.external.execution.runtime import browser_available
         return await browser_available()
 
+    async def semantic_probe():
+        from app.domain.models.capability import UnavailableReason
+        from app.domain.models.semantic_index import EMBEDDING_COMPONENT_ID
+        from app.infrastructure.external.execution.runtime import get_components
+        try:
+            status = await get_components().status(EMBEDDING_COMPONENT_ID)
+        except Exception as error:  # noqa: BLE001
+            return False, UnavailableReason.COMPONENT_MISSING, str(error)
+        if status.state.value == "available":
+            return True, None, "语义索引 Embedding 组件可用"
+        if status.state.value in ("fetching", "verifying"):
+            return False, UnavailableReason.COMPONENT_MISSING, "Embedding 组件安装中"
+        return False, UnavailableReason.COMPONENT_MISSING, (
+            status.error.message if status.error else "Embedding 组件未安装")
+
+    async def ocr_probe():
+        from app.domain.models.capability import UnavailableReason
+        from app.domain.models.semantic_index import OCR_COMPONENT_ID
+        from app.infrastructure.external.execution.runtime import get_components
+        try:
+            status = await get_components().status(OCR_COMPONENT_ID)
+        except Exception as error:  # noqa: BLE001
+            return False, UnavailableReason.COMPONENT_MISSING, str(error)
+        if status.state.value == "available":
+            return True, None, "OCR 组件可用"
+        if status.state.value in ("fetching", "verifying"):
+            return False, UnavailableReason.COMPONENT_MISSING, "OCR 组件安装中"
+        return False, UnavailableReason.COMPONENT_MISSING, (
+            status.error.message if status.error else "OCR 组件未安装")
+
     async def standalone_enabled() -> bool:
         config = await get_app_config_repository().load()
         return bool(config.agent_config.standalone_execution_enabled)
@@ -61,6 +91,8 @@ def get_capability_service() -> CapabilityService:
     return CapabilityService(
         command_probe=command_probe,
         browser_probe=browser_probe,
+        semantic_probe=semantic_probe,
+        ocr_probe=ocr_probe,
         standalone_enabled=standalone_enabled,
         workspace_settings=workspace_settings,
     )
@@ -250,12 +282,31 @@ def get_title_service() -> TitleService:
     return TitleService(uow_factory=get_uow, ledger=get_run_ledger(), read_uow_factory=get_read_uow)
 
 
+_retrieval_singleton = None
+_document_index_singleton = None
+_semantic_index_singleton = None
+
+
 def get_retrieval_service():
+    global _retrieval_singleton
     from app.application.services.retrieval_service import RetrievalService
-    return RetrievalService(get_uow, get_read_uow)
+    if _retrieval_singleton is None:
+        _retrieval_singleton = RetrievalService(get_uow, get_read_uow)
+    return _retrieval_singleton
+
+
+def _ocr_dir_probe():
+    from pathlib import Path
+    from app.domain.models.semantic_index import OCR_COMPONENT_ID
+    from core.paths import data_root
+    root = data_root().components / OCR_COMPONENT_ID
+    if (root / ".ready").is_file() and (root / "det.onnx").is_file():
+        return root
+    return None
 
 
 def get_document_index_service():
+    global _document_index_singleton
     from app.application.services.background_jobs import get_job_runner
     from app.application.services.document_index_service import DocumentIndexService
 
@@ -265,9 +316,35 @@ def get_document_index_service():
         except RuntimeError:
             pass
 
-    return DocumentIndexService(
-        get_uow, get_read_uow, get_folder_access(), get_root_files(), get_retrieval_service(), wake=wake,
-    )
+    if _document_index_singleton is None:
+        _document_index_singleton = DocumentIndexService(
+            get_uow, get_read_uow, get_folder_access(), get_root_files(), get_retrieval_service(),
+            wake=wake, ocr_dir_probe=_ocr_dir_probe,
+        )
+    return _document_index_singleton
+
+
+def get_semantic_index_service():
+    global _semantic_index_singleton
+    from app.application.services.background_jobs import get_job_runner
+    from app.application.services.semantic_index_service import SemanticIndexService
+    from app.infrastructure.external.execution.runtime import get_components
+
+    def wake() -> None:
+        try:
+            get_job_runner().wake()
+        except RuntimeError:
+            pass
+
+    if _semantic_index_singleton is None:
+        service = SemanticIndexService(
+            get_uow, get_read_uow, components=get_components(), wake=wake,
+            document_index=get_document_index_service(),
+        )
+        get_document_index_service()._semantic = service  # noqa: SLF001
+        get_retrieval_service().bind_semantic(service)
+        _semantic_index_singleton = service
+    return _semantic_index_singleton
 
 
 def get_memory_service():

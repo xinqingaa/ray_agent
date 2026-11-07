@@ -1,6 +1,6 @@
 {
   "platform": "macos-arm64",
-  "notes": "浏览器组件使用 Playwright 官方 Chromium；OCR／Embedding 留给 P7。Playwright 驱动自带的 Node 随核心 Python 依赖提供，基础包另附的 Node 只给工具脚本与 MCP，不把驱动 Node 再打一份进组件包。playwright:// 与 pending:// 来源的 sha256 占位为零；实际完整性由可启动检查（浏览器）或后续工作包补齐。",
+  "notes": "浏览器经 Playwright 官方 Chromium；Embedding 为 HF intfloat/multilingual-e5-small 的 ONNX O4 导出；OCR 模型从 rapidocr_onnxruntime 包内复制并校验。文件级清单见 component_files.json。playwright:// 与 package://／huggingface 来源的顶层 sha256 为文件清单合成摘要。散装原生库首次加载可能较慢，可启动检查须容忍。",
   "components": [
     {
       "component_id": "browser-chromium",
@@ -13,21 +13,21 @@
     },
     {
       "component_id": "ocr",
-      "version": "pending",
+      "version": "rapidocr-ppocrv4-1.4",
       "platform": "macos-arm64",
-      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
-      "size": 0,
-      "source_url": "pending://ocr",
-      "license": "pending"
+      "sha256": "bee84dd9de886b80649567f7f6d823b10c0c0f7905d0b0cf4a19460d41788db1",
+      "size": 16189007,
+      "source_url": "package://rapidocr_onnxruntime",
+      "license": "Apache-2.0"
     },
     {
       "component_id": "embedding-e5",
-      "version": "pending",
+      "version": "multilingual-e5-small-onnx-o4",
       "platform": "macos-arm64",
-      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
-      "size": 0,
-      "source_url": "pending://embedding-e5",
-      "license": "pending"
+      "sha256": "a6031dd8accc21e9bf28584e42f5f2c67ed0bbf625fc354cc06e1d00c103a11d",
+      "size": 252136524,
+      "source_url": "https://huggingface.co/intfloat/multilingual-e5-small",
+      "license": "MIT"
     }
   ]
 }

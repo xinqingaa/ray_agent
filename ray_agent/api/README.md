@@ -119,6 +119,7 @@ uv run --locked pyinstaller --noconfirm --clean rayagent-core.spec
 | 写入租约、写前备份、撤销与外部变更 | `application/services/write_leases.py`、`workspace_writer.py`、`file_history.py`、`workspace_changes.py`、`infrastructure/external/file_storage/workspace_objects.py`、`infrastructure/external/workspace_files/watcher.py` |
 | 工作方式、记忆、检索与上下文装配 | `application/services/working_style_service.py`、`memory_service.py`、`retrieval_service.py`、`context_assembly.py`、`memory_jobs.py`、`workspace_memory_runtime.py`；路由 `instruction_routes.py`、`memory_routes.py`、`retrieval_routes.py` |
 | 文档登记、解析与全文索引 | `document_index_service.py`、`document_index_scheduler.py`、`infrastructure/external/document_parse/`；路由 `document_routes.py`；`OperationKind.DOCUMENT_INDEX`；迁移 `0006_document_knowledge` |
+| 语义索引与 OCR | `semantic_index_service.py`、`embedding/e5_onnx.py`、`vector_store/lancedb_store.py`、`ocr/rapid_ocr.py`；组件 `local_components.py` 与 `resources/component_*.json`；`OperationKind.SEMANTIC_INDEX`；迁移 `0007_semantic_index` |
 | 外部服务与执行资源 | `domain/external/`、`infrastructure/external/` |
 
 ## 测试与数据库迁移

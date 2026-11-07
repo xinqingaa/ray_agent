@@ -50,6 +50,7 @@ class DocumentIndexService:
     def __init__(
             self, uow_factory: Callable[[], IUnitOfWork], read_uow_factory: Callable[[], IUnitOfWork],
             folder_access, files, retrieval: RetrievalService, *, wake: Optional[Callable[[], None]] = None,
+            semantic=None, ocr_dir_probe: Optional[Callable[[], Optional[Path]]] = None,
     ) -> None:
         self._uow_factory = uow_factory
         self._read_uow_factory = read_uow_factory
@@ -57,6 +58,8 @@ class DocumentIndexService:
         self._files = files
         self._retrieval = retrieval
         self._wake = wake
+        self._semantic = semantic
+        self._ocr_dir_probe = ocr_dir_probe
 
     def wake(self) -> None:
         if self._wake is not None:
@@ -189,9 +192,14 @@ class DocumentIndexService:
                         uow, doc, content_hash=content_hash, size=size, modified_ns=modified_ns, fmt=fmt,
                         status=DocumentIndexStatus.FAILED, error="不支持的文件格式")
                     continue
-                status = DocumentIndexStatus.PENDING_COMPONENT if fmt is DocumentFormat.IMAGE \
-                    else DocumentIndexStatus.PENDING_PARSE
-                component = "ocr" if status is DocumentIndexStatus.PENDING_COMPONENT else None
+                # 图片默认待 OCR；组件已装则直接进解析队列
+                ocr_ready = self._ocr_dir_probe is not None and self._ocr_dir_probe() is not None
+                if fmt is DocumentFormat.IMAGE and not ocr_ready:
+                    status = DocumentIndexStatus.PENDING_COMPONENT
+                    component = "ocr"
+                else:
+                    status = DocumentIndexStatus.PENDING_PARSE
+                    component = None
                 await self._open_revision(
                     uow, doc, content_hash=content_hash, size=size, modified_ns=modified_ns, fmt=fmt,
                     status=status, component=component)
@@ -428,7 +436,9 @@ class DocumentIndexService:
                             await uow.document.save_revision(current)
                     return "skipped"
 
-                result = await run_document_parse(src, rev.format.value, cancel_event=cancel)
+                ocr_dir = self._ocr_dir_probe() if self._ocr_dir_probe is not None else None
+                result = await run_document_parse(
+                    src, rev.format.value, cancel_event=cancel, ocr_component_dir=ocr_dir)
         except asyncio.CancelledError:
             aborted = True
             raise
@@ -523,6 +533,13 @@ class DocumentIndexService:
             pub.status = "publishing"
             pub.updated_at = utc_now()
             await uow.document.save_publication(pub)
+            workspace_id = document.workspace_id
+        # FTS 已发布：排队语义索引（组件缺失时 enqueue 直接返回）
+        if self._semantic is not None:
+            try:
+                await self._semantic.enqueue(workspace_id)
+            except Exception:  # noqa: BLE001
+                logger.exception("排队语义索引失败 workspace=%s", workspace_id)
         return "ok"
 
     async def _fail_revision(self, rev: DocumentRevision, message: str) -> None:
