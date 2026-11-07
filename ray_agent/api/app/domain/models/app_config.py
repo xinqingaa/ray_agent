@@ -46,6 +46,8 @@ class AgentConfig(BaseModel):
     compact_keep_turns: int = Field(default=3, ge=1, le=20)  # 压缩时原样保留的最近轮数
     compact_user_chars: int = Field(default=16000, ge=1000)  # 压缩后重新注入的用户消息原文总字符上限
     tool_result_max_chars: int = Field(default=8000, ge=1000)  # 单条工具结果序列化后的字符上限，超出只给首尾预览
+    # 独立对话的本机执行：默认关闭；工作区会话用工作区 settings.local_execution_enabled
+    standalone_execution_enabled: bool = False
 
 
 class ProtocolTimeouts(BaseModel):
