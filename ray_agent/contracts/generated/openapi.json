@@ -3501,6 +3501,59 @@
         }
       }
     },
+    "/api/workspaces/{workspace_id}/local-execution": {
+      "post": {
+        "tags": [
+          "工作区"
+        ],
+        "summary": "设置工作区本机执行开关",
+        "description": "启用后该工作区会话可使用 Shell／脚本；文件工具不受影响。version 不符返回 409",
+        "operationId": "set_local_execution_api_workspaces__workspace_id__local_execution_post",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workspace Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LocalExecutionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_WorkspaceItem_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/workspaces/{workspace_id}/archive": {
       "post": {
         "tags": [
@@ -4746,6 +4799,11 @@
             "minimum": 1000.0,
             "title": "Tool Result Max Chars",
             "default": 8000
+          },
+          "standalone_execution_enabled": {
+            "type": "boolean",
+            "title": "Standalone Execution Enabled",
+            "default": false
           }
         },
         "type": "object",
@@ -7972,6 +8030,25 @@
         ],
         "title": "ListSessionResponse",
         "description": "获取会话列表基础信息响应结构"
+      },
+      "LocalExecutionRequest": {
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "enabled",
+          "version"
+        ],
+        "title": "LocalExecutionRequest"
       },
       "MCPConfig": {
         "properties": {
@@ -11755,6 +11832,12 @@
             ],
             "description": "文件夹当前的写入租约；为空表示没有写入者"
           },
+          "local_execution_enabled": {
+            "type": "boolean",
+            "title": "Local Execution Enabled",
+            "description": "本工作区是否启用本机 Shell／脚本；默认关闭",
+            "default": false
+          },
           "created_at": {
             "type": "integer",
             "title": "Created At"
@@ -11772,6 +11855,7 @@
           "version",
           "folder",
           "write_lease",
+          "local_execution_enabled",
           "created_at",
           "updated_at"
         ],

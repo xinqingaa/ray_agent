@@ -341,12 +341,12 @@ skill 存储在数据根的 `skills/` 目录，各项预算见[参数页](../../
 
 真实效果检查需在相同模型和工具条件下，比较无 skill、显式选择和自动加载，并预先给出独立成果预期。任务分别覆盖正文方法、参考资料、脚本或素材使用及无关任务，核对是否选中相关方法、读取必要资源并实际遵循；同时区分成果质量、人工纠正、耗时与用量。内置 `find-skills` 另检查发现相关性、兼容性和不必要搜索，不能由加载成功或 `completed` 推断质量提升。公开 GitHub 来源需固定提交并核对清单；网络或模型不可用时明确范围，不用本地替身冒充真实来源或效果对照。
 
-## Docker 沙箱适配
+## 本机执行
 
-`infrastructure/external/sandbox/docker_sandbox.py` 与 docker SDK 依赖保留到本机执行端口接入，核心启动不初始化 Docker，也不把它装配进运行。需要单独观察适配本身时（需可访问 Docker），可运行：
+Shell 与脚本经执行 supervisor（Unix 套接字 IPC）启动，进程树由 supervisor 回收；工作区用 `local_execution_enabled`，独立对话用应用配置 `standalone_execution_enabled`（默认关闭）。浏览器 Chromium 作为数据根组件按需安装。定向检查：
 
 ```bash
-uv run --locked python scripts/check_sandbox_environment.py
+uv run --locked python -m pytest tests/core/test_process_executor.py
 ```
 
-脚本用实际 `DockerSandbox` 创建两个一次性容器，核对按 ID 重连、容器之间隔离、资源上限与 TTL 设置，并显式销毁；它不代表核心当前的运行能力。沙箱侧的实现与检查见[沙箱指南](../sandbox/README.md)。
+实现入口见[代码地图](../../docs/code-map.md)。

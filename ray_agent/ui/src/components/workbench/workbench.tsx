@@ -1,9 +1,8 @@
-import {useEffect, useState} from 'react'
+import {useState} from 'react'
 import {useDeveloperMode} from '@/hooks/use-developer-mode'
 import {Download, ExternalLink, Eye, Globe, PackageOpen, PanelRight, Play, Terminal} from 'lucide-react'
 import {Button} from '@/components/ui/button'
 import {ScrollArea} from '@/components/ui/scroll-area'
-import {sessionApi} from '@/lib/api/session'
 import type {FileView, ToolCallView, ToolFamily} from '@/lib/session-view'
 import {cn} from '@/lib/utils'
 import {toast} from 'sonner'
@@ -155,41 +154,9 @@ function ResultPane({call}: {call: ToolCallView}) {
   )
 }
 
-function ShellPane({sessionId, call}: {sessionId: string; call: ToolCallView | null}) {
+function ShellPane({call}: {call: ToolCallView | null}) {
   const running = call?.status === 'running'
   const session = shellSessionId(call)
-  const pullKey = `${call?.callId ?? ''}:${session ?? ''}`
-  // 输出与错误都记下所属调用，切换调用后旧状态不再显示
-  const [pulled, setPulled] = useState<{key: string; output: string | null; error: string | null} | null>(null)
-  const current = pulled?.key === pullKey ? pulled : null
-  const live = current?.output ?? null
-  const liveError = current?.error ?? null
-
-  useEffect(() => {
-    if (!running || !session) return
-    let cancelled = false
-    const pull = async () => {
-      try {
-        const res = await sessionApi.viewShell(sessionId, {session_id: session})
-        if (cancelled) return
-        setPulled({key: pullKey, output: typeof res.output === 'string' ? res.output : '', error: null})
-      } catch (err) {
-        if (cancelled) return
-        const message = err instanceof Error ? err.message : '读取终端输出失败'
-        setPulled((prev) => ({key: pullKey, output: prev?.key === pullKey ? prev.output : null, error: message}))
-      }
-    }
-    void pull()
-    const timer = window.setInterval(() => void pull(), 1500)
-    // 断网恢复后立即重拉，不等下一次轮询
-    const onOnline = () => void pull()
-    window.addEventListener('online', onOnline)
-    return () => {
-      cancelled = true
-      window.clearInterval(timer)
-      window.removeEventListener('online', onOnline)
-    }
-  }, [running, session, sessionId, pullKey])
 
   if (!call) {
     return <EmptyNote>这里会显示所选或最新的命令输出。运行命令后出现。</EmptyNote>
@@ -197,7 +164,6 @@ function ShellPane({sessionId, call}: {sessionId: string; call: ToolCallView | n
 
   const rows = consoleRows(call)
   const fallback = rows.length === 0 ? resultExcerpt(call) : null
-  const showLive = running && (live != null || liveError != null || !session)
 
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-2 p-3">
@@ -211,17 +177,8 @@ function ShellPane({sessionId, call}: {sessionId: string; call: ToolCallView | n
             {call.result?.error && (
               <p className="mb-2 text-state-failed">{call.result.error}</p>
             )}
-            {showLive && !session && (
-              <p className="text-terminal-foreground/70">这次调用没有终端会话编号。长命令可能要等结束后才返回输出。</p>
-            )}
-            {showLive && session && liveError && (
-              <p className="mb-2 text-terminal-foreground/70">暂时读不到实时输出（{liveError}），连接恢复后会自动刷新。</p>
-            )}
-            {showLive && session && live != null && live.length > 0 && (
-              <pre className="whitespace-pre-wrap break-all">{live}</pre>
-            )}
-            {showLive && session && !liveError && live != null && live.length === 0 && rows.length === 0 && (
-              <p className="text-terminal-foreground/70">命令还在运行。长命令可能要等结束后才返回输出。</p>
+            {running && (
+              <p className="mb-2 text-terminal-foreground/70">命令仍在运行；输出随工具事件更新。</p>
             )}
             {rows.map((row, i) => (
               <div key={i} className="mb-2">
@@ -232,7 +189,7 @@ function ShellPane({sessionId, call}: {sessionId: string; call: ToolCallView | n
               </div>
             ))}
             {fallback && <pre className="whitespace-pre-wrap break-all">{fallback.length > 20000 ? `${fallback.slice(0, 20000)}…` : fallback}</pre>}
-            {!showLive && rows.length === 0 && !fallback && !call.result?.error && (
+            {rows.length === 0 && !fallback && !call.result?.error && (
               <p className="text-terminal-foreground/70">
                 {call.status === 'running' ? '等待命令输出。' : '这次调用没有终端记录。'}
               </p>
@@ -393,7 +350,7 @@ export function Workbench({
       )}
       <div role="tabpanel" id={`workbench-panel-${tab}`} aria-labelledby={`workbench-tab-${tab}`} className="flex min-h-0 flex-1 flex-col">
       {tab === 'result' && hasResultTab && <ResultPane call={focus}/>}
-      {tab === 'terminal' && active && <ShellPane sessionId={sessionId} call={shellCall}/>}
+      {tab === 'terminal' && active && <ShellPane call={shellCall}/>}
       {tab === 'browser' && <BrowserPane call={browserCall}/>}
       {tab === 'files' && <FilesPane focus={focus} files={files} onInspectFile={onInspectFile}/>}
       </div>

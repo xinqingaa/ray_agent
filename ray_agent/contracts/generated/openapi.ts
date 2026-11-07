@@ -1206,6 +1206,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/workspaces/{workspace_id}/local-execution": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 设置工作区本机执行开关
+         * @description 启用后该工作区会话可使用 Shell／脚本；文件工具不受影响。version 不符返回 409
+         */
+        post: operations["set_local_execution_api_workspaces__workspace_id__local_execution_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/workspaces/{workspace_id}/archive": {
         parameters: {
             query?: never;
@@ -1663,6 +1683,11 @@ export interface components {
              * @default 8000
              */
             tool_result_max_chars: number;
+            /**
+             * Standalone Execution Enabled
+             * @default false
+             */
+            standalone_execution_enabled: boolean;
         };
         /**
          * ApprovalEventData
@@ -3003,6 +3028,13 @@ export interface components {
              */
             limit: number;
         };
+        /** LocalExecutionRequest */
+        LocalExecutionRequest: {
+            /** Enabled */
+            enabled: boolean;
+            /** Version */
+            version: number;
+        };
         /** MCPConfig */
         MCPConfig: {
             /** Mcpservers */
@@ -4337,6 +4369,12 @@ export interface components {
             folder: components["schemas"]["FolderView"] | null;
             /** @description 文件夹当前的写入租约；为空表示没有写入者 */
             write_lease: components["schemas"]["WriteLeaseView"] | null;
+            /**
+             * Local Execution Enabled
+             * @description 本工作区是否启用本机 Shell／脚本；默认关闭
+             * @default false
+             */
+            local_execution_enabled: boolean;
             /** Created At */
             created_at: number;
             /** Updated At */
@@ -6830,6 +6868,41 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["RenameWorkspaceRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_WorkspaceItem_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    set_local_execution_api_workspaces__workspace_id__local_execution_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LocalExecutionRequest"];
             };
         };
         responses: {

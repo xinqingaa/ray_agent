@@ -25,7 +25,6 @@ AI 按当前任务授权协助设计、实现、验证与文档维护；计划�
 | 配置模型连接、运行与排查桌面应用 | [运行指南](ray_agent/README.md) |
 | 修改后端、处理依赖和测试 | [API 开发指南](ray_agent/api/README.md) |
 | 修改前端、处理请求与展示 | [UI 开发指南](ray_agent/ui/README.md) |
-| 排查沙箱内执行与浏览器 | [沙箱开发指南](ray_agent/sandbox/README.md) |
 | 修改桌面宿主、冻结核心与桌面打包 | [桌面开发指南](ray_agent/desktop/README.md) |
 | 修改接口、事件或握手契约，重新生成共享类型 | [契约指南](ray_agent/contracts/README.md) |
 | 制定或确认新工作范围 | [维护与优化计划](PLAN.md) |

@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 import asyncio
+import contextlib
 import hashlib
 import io
 import json
@@ -16,7 +17,6 @@ from fastapi import UploadFile
 from app.domain.external.browser import Browser
 from app.domain.external.file_storage import FileStorage
 from app.domain.external.llm import LLM
-from app.domain.external.sandbox import Sandbox
 from app.domain.external.workspace_files import FileKind, WorkspaceFileError
 from app.domain.models.error import ErrorCode
 from app.domain.external.search import SearchEngine
@@ -95,8 +95,9 @@ class AgentTaskRunner(TaskRunner):
             workdir=None,  # 会话工作目录：附件、超长结果、截图与临时文件
             environment: Optional[RuntimeEnvironment] = None,
             web_reader=None,
-            sandbox: Optional[Sandbox] = None,
+            sandbox=None,  # ShellHost | None
             browser: Optional[Browser] = None,
+            browser_session=None,  # LocalBrowserSession | None：运行结束时 stop
             approval: Optional[ApprovalEvent] = None,  # 审批续接时的答复；为空时从持久输入取第一条消息
             files: Optional[FileScope] = None,  # 文件工具与交付可访问的范围；为空时没有文件能力
             write_leases: Optional[RunWriteLeases] = None,
@@ -111,6 +112,7 @@ class AgentTaskRunner(TaskRunner):
         self._a2a_tool = a2a_tool
         self._file_storage = file_storage
         self._browser = browser
+        self._browser_session = browser_session
         self._ledger = ledger
         self._run_id = run_id
         self._prior_status = prior_status
@@ -766,6 +768,12 @@ class AgentTaskRunner(TaskRunner):
                 await cleanup()
             except Exception as exc:
                 logger.warning('清理浏览器连接失败: %s', exc)
+        session = getattr(self, '_browser_session', None)
+        if session is not None:
+            try:
+                await session.stop()
+            except Exception as exc:
+                logger.warning('停止浏览器会话失败: %s', exc)
 
     async def invoke(self, task: Optional[Task] = None) -> None:
         """处理本运行的输入并运行 Agent 循环；运行状态的每次变化都经由 RunLedger 与事件同事务写入。"""
@@ -774,8 +782,9 @@ class AgentTaskRunner(TaskRunner):
             set_log_session_id(self._session_id)
             logger.info(f"会话[{self._session_id}] AgentTaskRunner任务处理开始 run={self._run_id}")
             operations = [('prepare_run', self._prepare_run)]
-            if self._sandbox is not None and not getattr(self._sandbox, 'lazy', False):
-                operations.insert(0, ('sandbox', self._sandbox.ensure_sandbox))
+            ensure = getattr(self._sandbox, 'ensure_sandbox', None)
+            if self._sandbox is not None and callable(ensure) and not getattr(self._sandbox, 'lazy', False):
+                operations.insert(0, ('sandbox', ensure))
             for stage, operation in operations:
                 started = time.monotonic()
                 try:
@@ -854,8 +863,13 @@ class AgentTaskRunner(TaskRunner):
 
     async def destroy(self) -> None:
         """销毁任务运行器并释放资源"""
-        if self._sandbox:
-            await self._sandbox.destroy()
+        destroy = getattr(self._sandbox, 'destroy', None) if self._sandbox else None
+        if callable(destroy):
+            await destroy()
+        session = getattr(self, '_browser_session', None)
+        if session is not None:
+            with contextlib.suppress(Exception):
+                await session.stop()
         await self._cleanup_tools()
 
     async def on_done(self, task: Task) -> None:

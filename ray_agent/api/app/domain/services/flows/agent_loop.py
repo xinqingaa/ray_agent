@@ -22,7 +22,6 @@ from typing import Any, AsyncGenerator, Awaitable, Callable, Dict, Iterator, Lis
 
 from app.domain.external.browser import Browser
 from app.domain.external.llm import LLM, LLMRequestError, is_retryable as _is_retryable
-from app.domain.external.sandbox import Sandbox
 from app.domain.services.file_scope import FileScope
 from app.domain.external.search import SearchEngine
 from app.domain.models.app_config import AgentConfig, ToolPolicyConfig
@@ -115,7 +114,7 @@ class RunEndReason(str, Enum):
 
 
 def build_default_tools(
-        sandbox: Optional[Sandbox],
+        sandbox,  # ShellHost | None：本机 LocalShellBridge 或测试替身
         browser: Optional[Browser],
         search_engine: SearchEngine,
         mcp_tool: MCPTool,
@@ -126,12 +125,13 @@ def build_default_tools(
         files: Optional[FileScope] = None,
 ) -> List[BaseTool]:
     """默认工具集；计划与交付工具由循环自己追加。依赖执行环境的工具只在对应资源提供时加入：
-    文件需要 files（可访问范围），Shell 需要 sandbox，浏览器需要 browser。default_exec_dir 是 shell_execute 省略工作目录时的默认值。"""
+    文件需要 files（可访问范围），Shell 需要本机执行宿主，浏览器需要 browser。
+    default_exec_dir 是 shell_execute 省略工作目录时的默认值。"""
     tools: List[BaseTool] = []
     if files is not None:
         tools.append(FileTool(files))
     if sandbox is not None:
-        tools.append(ShellTool(sandbox=sandbox, default_exec_dir=default_exec_dir))
+        tools.append(ShellTool(sandbox=sandbox, default_exec_dir=default_exec_dir or "."))
     if browser is not None:
         tools.append(BrowserTool(browser=browser, capture=capture_screenshot))
     if web_reader is not None:

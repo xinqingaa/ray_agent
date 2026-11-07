@@ -5,7 +5,7 @@ const React = require('react'), {create, act} = require('react-test-renderer');
 const root = path.resolve(__dirname, '..'), ts = require('typescript'), cache = {};
 global.IS_REACT_ACT_ENVIRONMENT = true;
 const events = new EventTarget(), storage = new Map(), timers = new Set();
-let writeBlocked = false, pulls = 0, downloaded;
+let writeBlocked = false, downloaded;
 global.window = {localStorage: {getItem: key => storage.get(key) ?? null, setItem: (key,value) => {if(writeBlocked) throw Error('blocked'); storage.set(key,value)}}, addEventListener: events.addEventListener.bind(events), removeEventListener: events.removeEventListener.bind(events), dispatchEvent: events.dispatchEvent.bind(events), setInterval: fn => {timers.add(fn); return fn}, clearInterval: fn => timers.delete(fn)};
 const ui = new Proxy({}, {get: (_,name) => props => React.createElement(name === 'Button' ? 'button' : 'div', props, props.children)});
 function load(file) {
@@ -17,7 +17,7 @@ function load(file) {
   if(name === '@/lib/navigation') return {Link:props=>React.createElement('a',props,props.children)};
   if(name === 'sonner') return {toast:{error(){}}};
   if(name === '@/lib/utils') return {cn:(...xs)=>xs.filter(Boolean).join(' ')};
-  if(name === '@/lib/api/session') return {sessionApi:{viewShell:async()=>{pulls++; return {output:'stdout'}}}};
+  if(name === '@/lib/api/session') return {sessionApi:{}};
   if(name === '@/lib/api/file') return {fileApi:{}};
   if(name === '@/lib/api/preview') return {...load('lib/api/preview.ts'),downloadFileBatch:async files=>{downloaded=files}};
   if(name === '@/components/run/file-icon') return {previewUnavailableReason:()=>null};
@@ -41,10 +41,10 @@ async function main(){
  await act(async()=>setDeveloperMode(true)); assert.equal(mode.enabled,true);assert.equal(storage.get('rayagent:developer-mode'),'true');
  const {Workbench}=load('components/workbench/workbench.tsx');
  const props={sessionId:'s',focus:call,following:true,shellCall:call,browserCall:null,files:[],tab:'terminal',onTab(){},onFollowLatest(){},onClose(){}};
- await act(async()=>{r=create(React.createElement(Workbench,props))}); assert.equal(pulls,1); assert.equal(timers.size,1); assert.ok(text(r).includes('终端'));
- await act(async()=>setDeveloperMode(false)); assert.equal(timers.size,0);assert.ok(!text(r).includes('终端'));assert.ok(text(r).includes('查看'));
- await act(async()=>setDeveloperMode(true)); assert.equal(timers.size,1);
- await act(async()=>r.update(React.createElement(Workbench,{...props,active:false}))); assert.equal(timers.size,0);
+ await act(async()=>{r=create(React.createElement(Workbench,props))}); assert.ok(text(r).includes('终端'));
+ await act(async()=>setDeveloperMode(false)); assert.ok(!text(r).includes('终端'));assert.ok(text(r).includes('查看'));
+ await act(async()=>setDeveloperMode(true)); assert.ok(text(r).includes('终端'));
+ await act(async()=>r.update(React.createElement(Workbench,{...props,active:false})));
  await act(async()=>r.unmount());
  await act(async()=>setDeveloperMode(false));
  const files=[{id:'input',filename:'input.txt',extension:'txt',source:'upload',size:1},{id:'output',filename:'output.txt',extension:'txt',source:'delivery',size:1}];
@@ -64,6 +64,6 @@ async function main(){
  await act(async()=>{r=create(React.createElement(ToolCard,{call:browser}))}); assert.equal(r.root.findAllByType('a').length,1);await act(async()=>r.unmount());
  const mcp={...call,family:'mcp',status:'succeeded',raw:{args:{},content:{outcome:{data:{text:'业务结果 42'}}}}};
  await act(async()=>{r=create(React.createElement(ToolCard,{call:mcp,defaultExpanded:true}))});assert.ok(text(r).includes('业务结果 42'));assert.ok(!text(r).includes('private-call-id'));await act(async()=>r.unmount());await act(async()=>probe.unmount());
- console.log('PASS: 实际 hook 存储/跨页事件/写入失败回退；工作台关闭模式或面板时停止终端轮询；隐藏标签回退；错误和业务结果保留；网址单入口');
+ console.log('PASS: 实际 hook 存储/跨页事件/写入失败回退；工作台按开发者模式切换终端标签；隐藏标签回退；错误和业务结果保留；网址单入口');
 }
 main().catch(error=>{console.error(error);process.exitCode=1});

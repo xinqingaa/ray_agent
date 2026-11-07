@@ -1,26 +1,45 @@
 """MCP 2026-07-28 客户端。每个连接由单一后台任务拥有其整个上下文。"""
 import asyncio
+import contextvars
 import time
 import hashlib
 import logging
 import os
 import re
 from contextlib import AsyncExitStack
-from typing import Any
+from typing import Any, Callable, Optional
 
 import httpx2
 from mcp import Client, StdioServerParameters, Tool, types
+import mcp.client.stdio as mcp_stdio
 from mcp.client.streamable_http import streamable_http_client
 from mcp.shared.exceptions import MCPError
 from pydantic import ValidationError
 
 from app.domain.models.app_config import MCPConfig, MCPServerConfig, MCPTransport
 from app.domain.models.tool_result import ToolResult
+from app.infrastructure.external.execution.env import scrub_env
 from .common import describe_content, discover_all, failure, keep_full_content
 
 logger = logging.getLogger(__name__)
 
 PROTOCOL_VERSION = "2026-07-28"
+
+# stdio 子进程在 SDK 内 start_new_session；用钩子拿到 pid 交给执行 supervisor 登记回收
+_stdio_spawn_hook: contextvars.ContextVar[Optional[Callable[[Any], None]]] = contextvars.ContextVar(
+    "mcp_stdio_spawn_hook", default=None)
+_orig_create_process = mcp_stdio._create_platform_compatible_process
+
+
+async def _create_process_and_notify(*args, **kwargs):
+    process = await _orig_create_process(*args, **kwargs)
+    hook = _stdio_spawn_hook.get()
+    if hook is not None:
+        hook(process)
+    return process
+
+
+mcp_stdio._create_platform_compatible_process = _create_process_and_notify
 
 
 def tool_name(server: str, name: str) -> str:
@@ -30,11 +49,14 @@ def tool_name(server: str, name: str) -> str:
 
 
 class MCPConnection:
-    def __init__(self, config: MCPServerConfig):
+    def __init__(self, config: MCPServerConfig, *, owner=None, on_spawn: Callable[[int], None] | None = None):
         self.config = config
+        self.owner = owner  # ProcessOwner；stdio 启动后登记到执行 supervisor
+        self.on_spawn = on_spawn
         self.tools: list[Tool] = []
         self.ready = asyncio.get_running_loop().create_future()
         self.queue: asyncio.Queue = asyncio.Queue()
+        self.external_pid: int | None = None
         self.task = asyncio.create_task(self._run(), name="mcp-connection-owner")
 
     async def _run(self):
@@ -44,15 +66,32 @@ class MCPConnection:
             async with asyncio.timeout(self.config.discovery_timeout) as deadline:
                 async with AsyncExitStack() as stack:
                     if self.config.transport == MCPTransport.STDIO:
-                        target = StdioServerParameters(command=self.config.command, args=self.config.args,
-                                                       env={**os.environ, **self.config.env})
+                        # 受控继承：不把模型密钥与冻结标记传给 MCP；配置 env 可显式覆盖
+                        env = scrub_env(os.environ, extra=self.config.env or {})
+                        params = StdioServerParameters(
+                            command=self.config.command, args=self.config.args, env=env)
+
+                        def _capture(process) -> None:
+                            pid = getattr(process, "pid", None)
+                            if isinstance(pid, int):
+                                self.external_pid = pid
+                                if self.on_spawn is not None:
+                                    self.on_spawn(pid)
+
+                        token = _stdio_spawn_hook.set(_capture)
+                        try:
+                            # Client(StdioServerParameters) 由 SDK 拉起子进程；钩子只登记 pid
+                            client = await stack.enter_async_context(
+                                Client(params, mode=PROTOCOL_VERSION, cache=None))
+                        finally:
+                            _stdio_spawn_hook.reset(token)
                     else:
                         http = await stack.enter_async_context(httpx2.AsyncClient(
                             headers=self.config.headers,
                             timeout=httpx2.Timeout(None, connect=self.config.connect_timeout,
                                                    write=self.config.connect_timeout, pool=self.config.connect_timeout)))
                         target = streamable_http_client(str(self.config.url), http_client=http)
-                    client = await stack.enter_async_context(Client(target, mode=PROTOCOL_VERSION, cache=None))
+                        client = await stack.enter_async_context(Client(target, mode=PROTOCOL_VERSION, cache=None))
                     # pin 只采用版本、不探测；单独发送官方新版发现方法验证对端。
                     discovery = types.DiscoverResult.model_validate(await client.session.send_discover(PROTOCOL_VERSION))
                     if PROTOCOL_VERSION not in discovery.supported_versions:
@@ -143,8 +182,11 @@ class MCPConnection:
 
 
 class MCPClientManager:
-    def __init__(self, mcp_config: MCPConfig):
+    def __init__(self, mcp_config: MCPConfig, *, process_owner=None,
+                 register_pid: Callable[[int], Any] | None = None):
         self.config = mcp_config
+        self.process_owner = process_owner
+        self.register_pid = register_pid
         self.tools: dict[str, list[Tool]] = {}
         self.errors: dict[str, str] = {}
         self.connections: dict[str, MCPConnection] = {}
@@ -152,7 +194,17 @@ class MCPClientManager:
         self.initialized = False
 
     async def _connect(self, name: str, config: MCPServerConfig):
-        connection = MCPConnection(config)
+        def on_spawn(pid: int) -> None:
+            if self.register_pid is None:
+                return
+            try:
+                result = self.register_pid(pid)
+                if asyncio.iscoroutine(result):
+                    asyncio.create_task(result)
+            except Exception:
+                logger.exception("MCP stdio 进程登记回调失败 pid=%s", pid)
+
+        connection = MCPConnection(config, owner=self.process_owner, on_spawn=on_spawn)
         self.connections[name] = connection
         try:
             await asyncio.shield(connection.ready)
@@ -162,6 +214,13 @@ class MCPClientManager:
                 if alias in self.routes:
                     raise ValueError("工具名称哈希冲突")
                 self.routes[alias] = (name, item.name)
+            if connection.external_pid and self.register_pid is not None:
+                try:
+                    result = self.register_pid(connection.external_pid)
+                    if asyncio.iscoroutine(result):
+                        await result
+                except Exception:
+                    logger.exception("MCP stdio 进程登记失败 pid=%s", connection.external_pid)
         except BaseException as exc:
             self.errors.setdefault(name, "发现超时" if isinstance(exc, TimeoutError) else "连接或新版协议发现失败")
             await connection.close()

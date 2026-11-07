@@ -460,6 +460,13 @@ class WorkspaceService:
     async def rename(self, workspace_id: str, name: str, version: int) -> WorkspaceView:
         return await self._update(workspace_id, version, name=valid_name(name))
 
+    async def set_local_execution(self, workspace_id: str, enabled: bool, version: int) -> WorkspaceView:
+        """工作区本机执行开关：写入 settings.local_execution_enabled。"""
+        from app.domain.models.execution_settings import with_workspace_execution
+        view = await self.get(workspace_id, refresh=False)
+        settings = with_workspace_execution(view.workspace.settings, enabled)
+        return await self._update(workspace_id, version, settings=settings)
+
     async def archive(self, workspace_id: str, version: int) -> WorkspaceView:
         return await self._update(workspace_id, version, status=WorkspaceStatus.ARCHIVED)
 

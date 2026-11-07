@@ -53,8 +53,15 @@ class WorkspaceItem(BaseModel):
     version: int = Field(description="重命名、归档等修改时回传，用于并发修改核对")
     folder: Optional[FolderView] = None
     write_lease: Optional[WriteLeaseView] = Field(default=None, description="文件夹当前的写入租约；为空表示没有写入者")
+    local_execution_enabled: bool = Field(
+        default=False, description="本工作区是否启用本机 Shell／脚本；默认关闭")
     created_at: int
     updated_at: int
+
+
+class LocalExecutionRequest(BaseModel):
+    enabled: bool
+    version: int = Field(ge=1)
 
 
 class WorkspaceListResponse(BaseModel):
@@ -145,11 +152,13 @@ class RootEntryResponse(BaseModel):
 
 
 def workspace_item(view) -> WorkspaceItem:
+    from app.domain.models.execution_settings import workspace_execution_enabled
     folder = view.folder
     return WorkspaceItem(
         id=view.workspace.id, name=view.workspace.name, status=view.workspace.status,
         version=view.workspace.version, created_at=to_epoch_ms(view.workspace.created_at),
         updated_at=to_epoch_ms(view.workspace.updated_at),
+        local_execution_enabled=workspace_execution_enabled(view.workspace.settings),
         folder=FolderView(root_id=folder.ref.root_id, path=folder.location, status=folder.status,
                           marker_writable=folder.marker_writable,
                           checked_at=to_epoch_ms(folder.checked_at) if folder.checked_at else None)

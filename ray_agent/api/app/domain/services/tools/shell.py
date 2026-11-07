@@ -3,16 +3,32 @@
 import copy
 from typing import Any, Dict, List, Optional
 
-from app.domain.external.sandbox import Sandbox
+from typing import Protocol
+
 from app.domain.models.tool_result import ToolResult
 from .base import BaseTool, tool
+
+
+class ShellHost(Protocol):
+    """Shell 工具依赖的会话式执行宿主（本机 LocalShellBridge 或测试替身）。"""
+
+    async def exec_command(self, session_id: str, exec_dir: str, command: str) -> ToolResult: ...
+
+    async def read_shell_output(self, session_id: str, console: bool = False) -> ToolResult: ...
+
+    async def wait_process(self, session_id: str, seconds: Optional[int] = None) -> ToolResult: ...
+
+    async def write_shell_input(
+            self, session_id: str, input_text: str, press_enter: bool = True) -> ToolResult: ...
+
+    async def kill_process(self, session_id: str) -> ToolResult: ...
 
 
 class ShellTool(BaseTool):
     """Shell工具箱，提供Shell交互相关功能"""
     name: str = "shell"
 
-    def __init__(self, sandbox: Sandbox, default_exec_dir: str = "/home/ubuntu") -> None:
+    def __init__(self, sandbox: ShellHost, default_exec_dir: str = ".") -> None:
         """构造函数，完成Shell工具箱初始化。default_exec_dir 是省略 exec_dir 时的工作目录。"""
         super().__init__()
         self.sandbox = sandbox

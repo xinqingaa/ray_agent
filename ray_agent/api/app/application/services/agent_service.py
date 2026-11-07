@@ -302,9 +302,12 @@ class AgentService:
                 model_changed=previous_model is not None and session.model_id != previous_model)
         return session.model_id or model, session.reasoning or reasoning
 
-    async def _environment(self, workdir=None, run_files=None) -> RuntimeEnvironment:
+    async def _environment(self, workdir=None, run_files=None, workspace_id: str | None = None) -> RuntimeEnvironment:
         provider = getattr(self, "_capabilities", None)
-        capabilities = await provider.current() if provider is not None else []
+        if provider is not None and hasattr(provider, "for_session"):
+            capabilities = await provider.for_session(workspace_id)
+        else:
+            capabilities = await provider.current() if provider is not None else []
         statuses = {status.capability: status for status in capabilities}
         if run_files is not None and run_files.workspace is not None:
             # 工作区会话：工作目录是工作区文件夹，会话工作目录只放超长结果与截图
@@ -362,7 +365,8 @@ class AgentService:
                     raise BadRequestError("工具发现失败，暂时无法估算下一次运行，请重试")
                 workdir = await self._workdir(session_id)
                 run_files = await self._run_files(session, None)
-                system_prompt = build_system_prompt(await self._environment(workdir, run_files))
+                system_prompt = build_system_prompt(
+                    await self._environment(workdir, run_files, session.workspace_id))
                 loop = AgentLoop(uow_factory=self._uow_factory, llm=llm,
                     agent_config=self._agent_config, session_id=session.id, mode=mode,
                     tools=build_default_tools(None, None, self._search_engine, mcp, a2a,
@@ -392,17 +396,54 @@ class AgentService:
     async def _create_task(self, session: Session, run_id: str, prior_status: Optional[SessionStatus],
                            approval: Optional[ApprovalEvent] = None) -> Task:
         """组装执行 run_id 的任务。依赖执行环境的工具按能力声明关闭，纯对话不准备任何执行资源。"""
+        from app.domain.models.capability import Capability
+        from app.domain.external.process_executor import ProcessOwner
+        from app.infrastructure.external.execution.runtime import (
+            browser_available, open_browser_session, open_shell, register_external_pid,
+        )
         workdir = await self._workdir(session.id)
         run_files = await self._run_files(session, run_id, ensure=True)
         if run_files is not None:
             workdir = run_files.workdir
+        environment = await self._environment(workdir, run_files, session.workspace_id)
+        shell = None
+        browser = None
+        browser_session = None
+        if environment.available(Capability.LOCAL_COMMAND) and run_files is not None and run_files.scope is not None:
+            try:
+                shell = await open_shell(
+                    files=run_files.scope, session_id=session.id, run_id=run_id)
+            except Exception:
+                logger.exception("装配本机 Shell 失败，本次运行不提供 Shell 工具")
+                shell = None
+        if environment.available(Capability.BROWSER):
+            ok, _reason, _detail = await browser_available()
+            if ok:
+                try:
+                    download = workdir.tmp if workdir is not None else None
+                    browser_session = await open_browser_session(
+                        workspace_id=session.workspace_id,
+                        session_id=None if session.workspace_id else session.id,
+                        download_dir=download,
+                    )
+                    browser = await browser_session.browser()
+                except Exception:
+                    logger.exception("装配浏览器会话失败，本次运行不提供浏览器工具")
+                    browser_session = None
+                    browser = None
+        owner = ProcessOwner(session_id=session.id, run_id=run_id)
+
+        async def _register_mcp(pid: int):
+            await register_external_pid(pid, owner)
+
         from app.application.services.skill_runtime import SkillRuntime
         skill_runtime = SkillRuntime(self._skills, run_id, None) if self._skills else None
         task_runner = AgentTaskRunner(
             uow_factory=self._uow_factory,
             llm=await self._llm_for_run(session, prior_status, run_id),
             agent_config=self._agent_config,
-            mcp_tool=MCPTool(MCPClientManager(self._mcp_config)),
+            mcp_tool=MCPTool(MCPClientManager(
+                self._mcp_config, process_owner=owner, register_pid=_register_mcp)),
             a2a_tool=A2ATool(A2AClientManager(self._a2a_config)),
             session_id=session.id,
             file_storage=self._file_storage,
@@ -413,8 +454,11 @@ class AgentService:
             tool_policy=self._tool_policy,
             skill_runtime=skill_runtime,
             workdir=workdir,
-            environment=await self._environment(workdir, run_files),
+            environment=environment,
             web_reader=getattr(self, '_web_reader', None),
+            sandbox=shell,
+            browser=browser,
+            browser_session=browser_session,
             approval=approval,
             files=run_files.scope if run_files is not None else None,
             write_leases=getattr(self, "_write_leases", None),

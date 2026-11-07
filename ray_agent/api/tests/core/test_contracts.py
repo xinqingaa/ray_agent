@@ -163,9 +163,12 @@ def test_capabilities_report_files_available_and_execution_closed_until_ports():
     assert [item.capability for item in current] == list(Capability)
     by_name = {item.capability: item for item in current}
     assert by_name[Capability.FILE_ACCESS].state is CapabilityState.AVAILABLE and by_name[Capability.FILE_ACCESS].detail
-    for name in Capability:
-        if name is Capability.FILE_ACCESS:
-            continue
+    # 未装配 probe 时：本机命令与浏览器给出可恢复依赖原因，其余仍是未实现
+    assert by_name[Capability.LOCAL_COMMAND].reason is UnavailableReason.DEPENDENCY_UNAVAILABLE
+    assert by_name[Capability.LOCAL_COMMAND].recoverable is True
+    assert by_name[Capability.BROWSER].reason is UnavailableReason.COMPONENT_MISSING
+    assert by_name[Capability.BROWSER].recoverable is True
+    for name in (Capability.FULL_TEXT_SEARCH, Capability.SEMANTIC_INDEX, Capability.OCR, Capability.REMOTE_CONTROL):
         assert by_name[name].state is CapabilityState.UNAVAILABLE and by_name[name].detail
         assert by_name[name].reason is UnavailableReason.NOT_IMPLEMENTED and by_name[name].recoverable is False
     with pytest.raises(ValidationError):

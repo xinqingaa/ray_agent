@@ -1,8 +1,9 @@
 import {useState} from 'react'
-import {Archive, ArchiveRestore, ChevronLeft, MoreHorizontal, Pencil, Trash} from 'lucide-react'
+import {Archive, ArchiveRestore, ChevronLeft, MoreHorizontal, Pencil, Trash, Terminal} from 'lucide-react'
 import {toast} from 'sonner'
 import {Button} from '@/components/ui/button'
 import {DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger} from '@/components/ui/dropdown-menu'
+import {Switch} from '@/components/ui/switch'
 import {useRouter, Link} from '@/lib/navigation'
 import {workspaceApi} from '@/lib/api/workspace'
 import type {WorkspaceItem} from '@/lib/api/types'
@@ -14,7 +15,7 @@ import {DeleteWorkspaceDialog} from './delete-workspace-dialog'
 import {RenameWorkspaceDialog} from './rename-workspace-dialog'
 import {WorkspaceStatus} from './workspace-status'
 
-/** 工作区页顶部的位置条：返回全部工作区、名称与状态、重命名/归档/删除。 */
+/** 工作区页顶部的位置条：返回全部工作区、名称与状态、本机执行开关、重命名/归档/删除。 */
 export function WorkspaceBar({workspace}: {workspace: WorkspaceItem}) {
   const router = useRouter()
   const {upsert, refresh} = useWorkspaces()
@@ -23,6 +24,7 @@ export function WorkspaceBar({workspace}: {workspace: WorkspaceItem}) {
   const [deleting, setDeleting] = useState(false)
   const [busy, setBusy] = useState(false)
   const condition = describeWorkspace(workspace)
+  const executionOn = workspace.local_execution_enabled === true
 
   const toggleArchive = async () => {
     if (busy) return
@@ -35,6 +37,17 @@ export function WorkspaceBar({workspace}: {workspace: WorkspaceItem}) {
     } finally {setBusy(false)}
   }
 
+  const toggleExecution = async (enabled: boolean) => {
+    if (busy || condition.archived || condition.deleting) return
+    setBusy(true)
+    try {
+      upsert(await workspaceApi.setLocalExecution(workspace, enabled))
+      toast.success(enabled ? '已启用本机执行' : '已关闭本机执行')
+    } catch (error) {
+      reportWorkspaceError(error, '更新本机执行开关失败', () => void refresh())
+    } finally {setBusy(false)}
+  }
+
   return <div className="flex h-10 shrink-0 items-center gap-2 border-b px-3">
     <nav aria-label="位置" className="flex min-w-0 flex-1 items-center gap-1 text-sm">
       <Link href="/" className="inline-flex shrink-0 items-center gap-0.5 rounded-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring">
@@ -44,6 +57,17 @@ export function WorkspaceBar({workspace}: {workspace: WorkspaceItem}) {
       <span className="min-w-0 truncate font-medium" dir="auto" title={workspace.folder?.path}>{workspace.name}</span>
       <WorkspaceStatus workspace={workspace} className="ml-2"/>
     </nav>
+    <label className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground" title="启用后本工作区会话可使用 Shell 与脚本">
+      <Terminal className="size-3.5" aria-hidden/>
+      <span className="hidden sm:inline">本机执行</span>
+      <Switch
+        size="sm"
+        checked={executionOn}
+        disabled={busy || condition.archived || condition.deleting}
+        onCheckedChange={(checked) => void toggleExecution(checked)}
+        aria-label="本机执行"
+      />
+    </label>
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button type="button" variant="ghost" size="icon-xs" className="size-7 shrink-0 text-muted-foreground" aria-label="工作区操作" disabled={condition.deleting}>

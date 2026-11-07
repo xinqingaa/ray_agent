@@ -18,6 +18,10 @@ export const workspaceApi = {
     post<{path: string}>('/workspaces/default-location', {grant_id: grantId}).then(data => data.path),
   rename: (workspace: WorkspaceItem, name: string) =>
     post<WorkspaceItem>(`/workspaces/${encodeURIComponent(workspace.id)}/rename`, {name, version: workspace.version}),
+  setLocalExecution: (workspace: WorkspaceItem, enabled: boolean) =>
+    post<WorkspaceItem>(`/workspaces/${encodeURIComponent(workspace.id)}/local-execution`, {
+      enabled, version: workspace.version,
+    }),
   archive: (workspace: WorkspaceItem) =>
     post<WorkspaceItem>(`/workspaces/${encodeURIComponent(workspace.id)}/archive`, {version: workspace.version}),
   unarchive: (workspace: WorkspaceItem) =>

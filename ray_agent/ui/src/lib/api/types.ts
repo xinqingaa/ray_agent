@@ -453,14 +453,6 @@ export type ViewFileParams = {
   [key: string]: unknown;
 };
 
-/**
- * 查看 Shell 输出请求参数
- */
-export type ViewShellParams = {
-  session_id: string;
-  [key: string]: unknown;
-};
-
 export type ContextPreview = {
   model: string; reasoning: string | null; total: number; context_window: number;
   max_tokens: number; limit: number; watermark: number; method: string;

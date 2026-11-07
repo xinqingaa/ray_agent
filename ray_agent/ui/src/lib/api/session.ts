@@ -15,7 +15,6 @@ import type {
   TurnRequest,
   SessionFile,
   ViewFileParams,
-  ViewShellParams,
   SSEEventData,
   SSEEventHandler,
 } from "./types";
@@ -290,16 +289,4 @@ export const sessionApi = {
     );
   },
 
-  /**
-   * 查看 Shell 输出
-   */
-  viewShell: (
-    sessionId: string,
-    params: ViewShellParams
-  ): Promise<{ output: string; [key: string]: unknown }> => {
-    return post<{ output: string; [key: string]: unknown }>(
-      `/sessions/${sessionId}/shell`,
-      params
-    );
-  },
 };

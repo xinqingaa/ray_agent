@@ -3,7 +3,7 @@
 from functools import lru_cache
 from typing import Optional
 
-from pydantic import Field, field_validator
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -73,35 +73,9 @@ class Settings(BaseSettings):
     skill_fetch_seconds: int = Field(default=90, gt=0)
     skill_preview_seconds: int = Field(default=3600, gt=0)
 
-    # Docker 沙箱适配保留到本机执行端口接入，核心不再装配它
-    sandbox_address: Optional[str] = None
-    sandbox_image: Optional[str] = None
-    sandbox_name_prefix: Optional[str] = None
-    sandbox_ttl_minutes: Optional[int] = 60
-    sandbox_network: Optional[str] = None
-    sandbox_chrome_args: Optional[str] = ""
-    sandbox_https_proxy: Optional[str] = None
-    sandbox_http_proxy: Optional[str] = None
-    sandbox_no_proxy: Optional[str] = None
-    sandbox_memory_mb: int = 2048
-    sandbox_cpus: float = 2
-    sandbox_pids_limit: int = 512
 
     model_config = SettingsConfigDict(extra="ignore", populate_by_name=True)
 
-    @field_validator("sandbox_memory_mb", "sandbox_pids_limit")
-    @classmethod
-    def positive_sandbox_limit(cls, value: int) -> int:
-        if value <= 0:
-            raise ValueError("沙箱资源上限必须为正整数")
-        return value
-
-    @field_validator("sandbox_cpus")
-    @classmethod
-    def positive_sandbox_cpus(cls, value: float) -> float:
-        if value <= 0:
-            raise ValueError("沙箱 CPU 上限必须为正数")
-        return value
 
 
 @lru_cache()

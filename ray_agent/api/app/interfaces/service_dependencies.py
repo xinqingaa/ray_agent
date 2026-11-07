@@ -41,7 +41,29 @@ def get_status_service() -> StatusService:
 
 
 def get_capability_service() -> CapabilityService:
-    return CapabilityService()
+    async def command_probe():
+        from app.infrastructure.external.execution.runtime import command_available
+        return await command_available()
+
+    async def browser_probe():
+        from app.infrastructure.external.execution.runtime import browser_available
+        return await browser_available()
+
+    async def standalone_enabled() -> bool:
+        config = await get_app_config_repository().load()
+        return bool(config.agent_config.standalone_execution_enabled)
+
+    async def workspace_settings(workspace_id: str) -> dict | None:
+        async with get_read_uow() as uow:
+            workspace = await uow.workspace.get(workspace_id)
+        return None if workspace is None else dict(workspace.settings or {})
+
+    return CapabilityService(
+        command_probe=command_probe,
+        browser_probe=browser_probe,
+        standalone_enabled=standalone_enabled,
+        workspace_settings=workspace_settings,
+    )
 
 
 def get_file_storage() -> FileStorage:

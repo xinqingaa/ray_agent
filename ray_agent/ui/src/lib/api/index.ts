@@ -58,7 +58,6 @@ export type {
   SSEEventHandler,
   SessionFile,
   ViewFileParams,
-  ViewShellParams,
   WorkspaceItem,
   WorkspaceStatus,
   FolderView,

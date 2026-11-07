@@ -1,6 +1,6 @@
 # 代码地图
 
-本文按机制索引核心（API）、UI、沙箱、桌面宿主与共享契约的实现及定向检查。首次接手从主执行路径开始，具体改动按主题追查；服务内部目录职责见所属 README 的代码导航。
+本文按机制索引核心（API）、UI、桌面宿主与共享契约的实现及定向检查。首次接手从主执行路径开始，具体改动按主题追查；服务内部目录职责见所属 README 的代码导航。
 
 ## 怎么读
 
@@ -8,7 +8,6 @@
 |---|---|---|
 | API | [api/app](../ray_agent/api/app) | [api/tests](../ray_agent/api/tests) |
 | UI | [ui/src](../ray_agent/ui/src) | [ui/scripts](../ray_agent/ui/scripts) |
-| 沙箱（核心不再装配，随本机执行接入删除） | [sandbox/app](../ray_agent/sandbox/app) | [sandbox/tests](../ray_agent/sandbox/tests) |
 | 桌面宿主 | [desktop/src](../ray_agent/desktop/src) | [contract.rs](../ray_agent/desktop/src/contract.rs) 的 `cargo test`；运行检查见[桌面开发指南](../ray_agent/desktop/README.md#检查) |
 | 共享契约 | 契约模型在 API 中，生成结果在 [contracts/generated](../ray_agent/contracts/generated) | [test_contracts.py](../ray_agent/api/tests/core/test_contracts.py)、[generate.mjs](../ray_agent/contracts/scripts/generate.mjs) 的 `npm run check` |
 
@@ -141,7 +140,8 @@
 
 | 机制 | 主要入口 | 回归测试 |
 |---|---|---|
-| Docker 沙箱适配（保留，核心不装配） | [docker_sandbox.py](../ray_agent/api/app/infrastructure/external/sandbox/docker_sandbox.py)、[lazy_resources.py](../ray_agent/api/app/application/services/lazy_resources.py) | [test_docker_sandbox_ip.py](../ray_agent/api/tests/core/test_docker_sandbox_ip.py) |
+| 本机执行 supervisor 与 ProcessExecutor | [execution/](../ray_agent/api/app/infrastructure/external/execution/)、[runtime.py](../ray_agent/api/app/infrastructure/external/execution/runtime.py) | [test_process_executor.py](../ray_agent/api/tests/core/test_process_executor.py) |
+| 浏览器组件与会话 | [components/](../ray_agent/api/app/infrastructure/external/components/)、[local_session.py](../ray_agent/api/app/infrastructure/external/browser/local_session.py) | 能力声明与组件安装走 RuntimeComponents；浏览器资料目录在数据根 `browser-profiles/` |
 | 浏览器连接（CDP，核心不装配） | [playwright_browser.py](../ray_agent/api/app/infrastructure/external/browser/playwright_browser.py) | — |
 | 浏览器真实视口与恢复 | [playwright_browser.py](../ray_agent/api/app/infrastructure/external/browser/playwright_browser.py) 的 `set_viewport()` / `restore_viewports()`；[agent_task_runner.py](../ray_agent/api/app/domain/services/agent_task_runner.py) 的运行快照与收尾 | [test_browser_efficiency.py](../ray_agent/api/tests/core/test_browser_efficiency.py) 的真实视口与 CDP 续接检查 |
 | 浏览器正文、元素引用、输入与日志 | [playwright_browser_fun.py](../ray_agent/api/app/infrastructure/external/browser/playwright_browser_fun.py) 的 `OBSERVE_PAGE`；[playwright_browser.py](../ray_agent/api/app/infrastructure/external/browser/playwright_browser.py) 的 `view_page()`、`_target()`、`input()`、`console_view()`；工具声明在 [browser.py](../ray_agent/api/app/domain/services/tools/browser.py) | [test_browser_efficiency.py](../ray_agent/api/tests/core/test_browser_efficiency.py) |
@@ -150,7 +150,6 @@
 | 系统提示中的运行环境 | [system.py](../ray_agent/api/app/domain/services/prompts/system.py) 的 `RuntimeEnvironment`、`build_system_prompt()`，英文版在 `prompts/en/` | [test_system_prompt.py](../ray_agent/api/tests/core/test_system_prompt.py) |
 | 按需资源、图像引用与临时图回收 | [vision.py](../ray_agent/api/app/domain/services/context/vision.py)、[visual_artifacts.py](../ray_agent/api/app/application/services/visual_artifacts.py)；传输在 [openai_llm.py](../ray_agent/api/app/infrastructure/external/llm/openai_llm.py)，并发执行在 [tool_pipeline.py](../ray_agent/api/app/domain/services/flows/tool_pipeline.py) | [test_visual_resources.py](../ray_agent/api/tests/core/test_visual_resources.py)、[test_protocols.py](../ray_agent/api/tests/protocols/test_protocols.py)、[test_sqlite_round_trips.py](../ray_agent/api/tests/core/test_sqlite_round_trips.py) |
 | 浏览器截图与结果投影 | [agent_task_runner.py](../ray_agent/api/app/domain/services/agent_task_runner.py)：`_handle_tool_event()`、`_capture_screenshot()`（交付截图先写入会话工作目录）；内容 [event.py](../ray_agent/api/app/domain/models/event.py)、[SSE 映射](../ray_agent/api/app/interfaces/schemas/event.py) | [test_browser_efficiency.py](../ray_agent/api/tests/core/test_browser_efficiency.py) |
-| 沙箱侧文件、Shell 与存活时间（核心不装配） | [file.py](../ray_agent/sandbox/app/services/file.py)、[shell.py](../ray_agent/sandbox/app/services/shell.py)、[supervisor.py](../ray_agent/sandbox/app/services/supervisor.py)（沙箱） | [test_shell_service.py](../ray_agent/sandbox/tests/test_shell_service.py)（沙箱） |
 
 ### 批次与耗时观察
 
@@ -290,4 +289,3 @@
 | 共享安装、管理与运行绑定 | [skill_service.py](../ray_agent/api/app/application/services/skill_service.py)、[skill_runtime.py](../ray_agent/api/app/application/services/skill_runtime.py)、[skill 工具](../ray_agent/api/app/domain/services/tools/skill.py)、[内置 find-skills](../ray_agent/api/app/builtin_skills/find-skills/SKILL.md) | 同上；[test_skills_sqlite.py](../ray_agent/api/tests/core/test_skills_sqlite.py) |
 | GitHub、不可变文件与数据库 | [github.py](../ray_agent/api/app/infrastructure/external/skills/github.py)、[storage.py](../ray_agent/api/app/infrastructure/external/skills/storage.py)、[DBSkillRepository](../ray_agent/api/app/infrastructure/repositories/db_skill_repository.py)、[ORM](../ray_agent/api/app/infrastructure/models/skill.py)、[迁移基线](../ray_agent/api/alembic/versions/0001_baseline.py) | 同上 |
 | HTTP 与设置维护 | [skill_routes.py](../ray_agent/api/app/interfaces/endpoints/skill_routes.py)、[skills-section.tsx](../ray_agent/ui/src/components/settings/skills-section.tsx)、[本地文件分类](../ray_agent/ui/src/lib/skill-local.ts)、[统一阅读器](../ray_agent/ui/src/components/skill-reader.tsx)、[客户端](../ray_agent/ui/src/lib/api/skills.ts) | [HTTP 与资源检查](../ray_agent/api/tests/core/test_skill_management_http.py)；浏览器走查；[设置脚本](../ray_agent/ui/scripts/check-skills-settings.cjs)；[输入与受理脚本](../ray_agent/ui/scripts/check-composer-images.cjs) |
-| 沙箱材料发布与请求体上限（核心不装配） | [skill_resources.py](../ray_agent/sandbox/app/services/skill_resources.py)、[skills.py](../ray_agent/sandbox/app/interfaces/endpoints/skills.py)、[skill_body_limit.py](../ray_agent/sandbox/app/core/skill_body_limit.py) | [test_skill_resources.py](../ray_agent/sandbox/tests/test_skill_resources.py) |

@@ -76,6 +76,5 @@ RayAgent 是单机桌面应用：Tauri 宿主随包带上冻结的 Python 核心
 - [API](api/README.md)：核心、业务库迁移、后端分层与测试。
 - [UI](ui/README.md)：Vite 与 React 共享界面、请求封装与检查脚本。
 - [契约](contracts/README.md)：由核心 Pydantic 模型生成的 OpenAPI、JSON Schema 与 TypeScript 类型。
-- [沙箱](sandbox/README.md)：保留到本机执行端口接入的原沙箱代码，核心不再装配。
 
 默认可调数值集中在[运行参数与限额](../docs/limits.md)。

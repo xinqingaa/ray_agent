@@ -6,9 +6,9 @@ from app.application.services.workspace_service import WorkspaceService
 from app.interfaces.schemas import Response
 from app.interfaces.schemas.operation import OperationView
 from app.interfaces.schemas.workspace import (
-    CreateWorkspaceRequest, DefaultLocationRequest, DefaultLocationResponse, OpenWorkspaceRequest,
-    OpenWorkspaceResult, RelocateWorkspaceRequest, RenameWorkspaceRequest, ResolveConflictRequest, WorkspaceItem,
-    WorkspaceListResponse, WorkspaceVersionRequest, workspace_item,
+    CreateWorkspaceRequest, DefaultLocationRequest, DefaultLocationResponse, LocalExecutionRequest,
+    OpenWorkspaceRequest, OpenWorkspaceResult, RelocateWorkspaceRequest, RenameWorkspaceRequest,
+    ResolveConflictRequest, WorkspaceItem, WorkspaceListResponse, WorkspaceVersionRequest, workspace_item,
 )
 from app.interfaces.service_dependencies import get_change_feed, get_workspace_service
 
@@ -68,6 +68,15 @@ async def get_workspace(workspace_id: str, service: WorkspaceService = Depends(g
 async def rename_workspace(workspace_id: str, request: RenameWorkspaceRequest,
                            service: WorkspaceService = Depends(get_workspace_service)):
     return Response.success(workspace_item(await service.rename(workspace_id, request.name, request.version)))
+
+
+@router.post("/{workspace_id}/local-execution", response_model=Response[WorkspaceItem],
+             summary="设置工作区本机执行开关",
+             description="启用后该工作区会话可使用 Shell／脚本；文件工具不受影响。version 不符返回 409")
+async def set_local_execution(workspace_id: str, request: LocalExecutionRequest,
+                              service: WorkspaceService = Depends(get_workspace_service)):
+    return Response.success(workspace_item(
+        await service.set_local_execution(workspace_id, request.enabled, request.version)))
 
 
 @router.post("/{workspace_id}/archive", response_model=Response[WorkspaceItem], summary="归档工作区",
