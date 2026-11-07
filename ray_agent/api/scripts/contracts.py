@@ -40,10 +40,13 @@ def _bundle(title: str, description: str, inputs: list[tuple[str, str, Any]]) ->
 
 
 def event_schema() -> dict[str, Any]:
+    from app.domain.models.workspace_change import WorkspaceChangeEvent
     from app.interfaces.schemas.event import SessionEvent, StreamEvent
-    return _bundle("RayAgentEvents", "会话事件信封：SessionEvent 为落库事件，StreamEvent 另含文本增量", [
+    return _bundle("RayAgentEvents", "会话事件信封：SessionEvent 为落库事件，StreamEvent 另含文本增量；"
+                                     "WorkspaceChangeEvent 是工作区文件夹变更流的事件数据", [
         ("stream", "serialization", StreamEvent),
         ("session", "serialization", SessionEvent),
+        ("workspace_changes", "serialization", WorkspaceChangeEvent),
     ])
 
 
@@ -64,15 +67,15 @@ def samples() -> dict[str, Any]:
         StorageVersion
 
     launch = CoreLaunch(data_dir="/Users/example/Library/Application Support/com.rayagent.desktop/core",
-                        env={"LOG_LEVEL": "INFO"})
+                        env={"LOG_LEVEL": "INFO"}, host_secret="0123456789abcdef0123456789abcdef")
     ready = CoreReady(
         port=53117,
         instance=CoreInstance(instance_id="7f3c2a9e-5b1d-4e8f-9a6c-2d4b8e1f0a35", pid=48213, started_at=1762400000000),
         build=BuildIdentity(service="api", algorithm="sha256-path-content-v1", fingerprint="0" * 64,
                             revision="1" * 40, dirty=False, built_at="2026-11-06T00:00:00+00:00"),
-        storage=StorageVersion(schema_revision="0001_baseline"),
+        storage=StorageVersion(schema_revision="0003_write_protection"),
         capabilities=[
-            CapabilityStatus.available(Capability.FILE_ACCESS, "由 Docker 沙箱提供"),
+            CapabilityStatus.available(Capability.FILE_ACCESS, "工作区文件夹与会话工作目录"),
             CapabilityStatus.unavailable(Capability.LOCAL_COMMAND, UnavailableReason.DISABLED, "本机执行未启用"),
             CapabilityStatus.unavailable(Capability.BROWSER, UnavailableReason.COMPONENT_MISSING, "浏览器组件未安装"),
             CapabilityStatus.unavailable(Capability.FULL_TEXT_SEARCH, UnavailableReason.DEPENDENCY_UNAVAILABLE,

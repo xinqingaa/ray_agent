@@ -1,4 +1,4 @@
-export type CatalogHint = {kind: 'session' | 'project'; id: string}
+export type CatalogHint = {kind: 'session'; id: string}
 
 type Listener = (hint: CatalogHint) => void
 

@@ -1,4 +1,4 @@
-"""Agent 循环测试夹具：保留真实 AgentLoop、工具管线与运行器，替换模型、存储、传输与沙箱。"""
+"""Agent 循环测试夹具：保留真实 AgentLoop、工具管线与运行器，替换模型、存储与传输；文件工具使用真实的临时目录。"""
 import asyncio
 import json
 from types import SimpleNamespace
@@ -309,40 +309,81 @@ class MemoryNotifier:
         return Subscription()
 
 
-def make_sandbox():
-    return SimpleNamespace(read_file=AsyncMock(
-        return_value=ToolResult(success=True, data={"content": "fixture observation"}),
-    ))
+class RecordingFiles:
+    """包住真实的根内文件实现，记录读写调用；断言“没有读过/写过某文件”时看 calls。"""
+    RECORDED = ("stat", "list_dir", "read_bytes", "open_reader", "write_bytes", "write_stream", "mkdir", "move",
+                "delete")
+
+    def __init__(self, inner) -> None:
+        self._inner = inner
+        self.calls: list = []
+
+    def __getattr__(self, name):
+        attribute = getattr(self._inner, name)
+        if name not in self.RECORDED:
+            return attribute
+
+        async def recorded(path, *args, **kwargs):
+            self.calls.append((name, path.relative_path))
+            return await attribute(path, *args, **kwargs)
+        return recorded
+
+    def wrote(self) -> list:
+        return [call for call in self.calls if call[0] in ("write_bytes", "write_stream", "mkdir", "move", "delete")]
+
+    def read(self) -> list:
+        return [call for call in self.calls if call[0] in ("read_bytes", "open_reader")]
 
 
-class InMemorySandbox:
-    """文件读写按真实沙箱的语义（按行切片、max_length 截断、失败返回 success=False）保存在内存里。"""
+class FileFixture:
+    """一个真实的临时目录作为工作目录根：循环里的文件工具走真实实现，测试用相对路径（相对工作目录）。"""
 
-    def __init__(self, files: Optional[Dict[str, str]] = None, fail_writes: bool = False) -> None:
-        self.files: Dict[str, str] = dict(files or {})
-        self.fail_writes = fail_writes
+    def __init__(self, files: Optional[Dict[str, Any]] = None, root=None) -> None:
+        import os
+        import tempfile
+        from pathlib import Path
+        from app.application.services.root_access import StaticBindings, accessible
+        from app.domain.external.workspace_files import RootBinding
+        from app.domain.models.identity import RootKind
+        from app.domain.services.file_scope import FileScope
+        from app.infrastructure.external.workspace_files.posix import PosixWorkspaceFiles
+        if root is None:
+            self._directory = tempfile.TemporaryDirectory(prefix="rayagent-loop-")
+            root = self._directory.name
+        self.root = Path(os.path.realpath(root))
+        binding = RootBinding(root_id="r1", kind=RootKind.SESSION_WORKDIR, path=str(self.root))
+        self.files = RecordingFiles(PosixWorkspaceFiles(StaticBindings([binding])))
+        self.scope = FileScope(self.files, [accessible(binding)], working=accessible(binding))
+        for name, content in (files or {}).items():
+            self.put(name, content)
 
-    async def read_file(self, filepath, start_line=None, end_line=None, sudo=False, max_length=10000):
-        if filepath not in self.files:
-            return ToolResult(success=False, message=f"要读取的文件不存在或无权限: {filepath}")
-        content = self.files[filepath]
-        if start_line is not None or end_line is not None:
-            lines = content.splitlines()
-            content = "\n".join(lines[start_line or 0:end_line if end_line is not None else len(lines)])
-        if max_length is not None and 0 < max_length < len(content):
-            content = content[:max_length] + "(truncated)"
-        return ToolResult(success=True, data={"filepath": filepath, "content": content})
+    def path(self, name: str) -> str:
+        return str(self.root / name)
 
-    async def write_file(self, filepath, content, append=False, leading_newline=False, trailing_newline=False,
-                         sudo=False):
-        if self.fail_writes:
-            return ToolResult(success=False, message="文件内容写入失败: 磁盘已满")
-        self.files[filepath] = (self.files.get(filepath, "") if append else "") + content
-        return ToolResult(success=True, data={"filepath": filepath, "bytes_written": len(content)})
+    def put(self, name: str, content) -> str:
+        target = self.root / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_bytes(content if isinstance(content, bytes) else content.encode("utf-8"))
+        return str(target)
+
+    def get(self, name: str) -> Optional[bytes]:
+        target = self.root / name
+        return target.read_bytes() if target.is_file() else None
+
+    def text(self, name: str) -> Optional[str]:
+        data = self.get(name)
+        return data.decode("utf-8") if data is not None else None
+
+    def exists(self, name: str) -> bool:
+        return (self.root / name).exists()
+
+    @property
+    def calls(self) -> list:
+        return self.files.calls
 
 
 def make_loop(script: List[ScriptItem], *, session: Optional[Session] = None, deliver_file=None,
-              max_iterations: int = 10, max_retries: int = 2, sandbox=None,
+              max_iterations: int = 10, max_retries: int = 2, sandbox=None, files: Optional[FileFixture] = None,
               extra_tools: Sequence[BaseTool] = (), uow_factory=None, write_output=None,
               context_window: int = 32000, max_tokens: int = 4096,
               agent_config: Optional[Dict[str, Any]] = None,
@@ -353,7 +394,7 @@ def make_loop(script: List[ScriptItem], *, session: Optional[Session] = None, de
     tool_policy 为工具策略规则表（为空时用默认策略）。
     """
     session = session if session is not None else Session(id="w1-loop")
-    sandbox = sandbox if sandbox is not None else make_sandbox()
+    files = files if files is not None else FileFixture()
     llm = ScriptedLLM(script, context_window=context_window, max_tokens=max_tokens)
     recording = RecordingTool()
     uow_factory = uow_factory or make_uow_factory(session)
@@ -362,7 +403,7 @@ def make_loop(script: List[ScriptItem], *, session: Optional[Session] = None, de
         llm=llm,
         agent_config=AgentConfig(max_iterations=max_iterations, max_retries=max_retries, **(agent_config or {})),
         session_id=session.id,
-        tools=[FileTool(sandbox=sandbox), MessageTool(), recording, *extra_tools],
+        tools=[FileTool(files.scope), MessageTool(), recording, *extra_tools],
         deliver_file=deliver_file,
         write_output=write_output,
         retry_interval=0,
@@ -371,7 +412,7 @@ def make_loop(script: List[ScriptItem], *, session: Optional[Session] = None, de
     )
     store = getattr(uow_factory, "store", None)
     notifier = MemoryNotifier()
-    return SimpleNamespace(loop=loop, llm=llm, session=session, sandbox=sandbox, recording=recording,
+    return SimpleNamespace(loop=loop, llm=llm, session=session, sandbox=sandbox, files=files, recording=recording,
                            store=store, events=store.events if store else None,
                            runs=store.runs if store else None, inputs=store.inputs if store else None,
                            notifier=notifier, ledger=RunLedger(uow_factory, notifier))
@@ -420,8 +461,9 @@ def make_runner(h: SimpleNamespace, run: Optional[Run] = None,
     r = AgentTaskRunner.__new__(AgentTaskRunner)
     r._browser = None
     r._session_id, r._uow_factory, r._flow = h.session.id, h.loop._uow_factory, h.loop
-    r._uow, r._sandbox = r._uow_factory(), h.sandbox
-    r._sandbox.ensure_sandbox, r._sandbox.destroy = AsyncMock(), AsyncMock()
+    r._uow, r._sandbox, r._files = r._uow_factory(), h.sandbox, h.files.scope
+    if r._sandbox is not None:
+        r._sandbox.ensure_sandbox, r._sandbox.destroy = AsyncMock(), AsyncMock()
     r._mcp_tool = SimpleNamespace(initialize=AsyncMock(), cleanup=AsyncMock())
     r._a2a_tool = SimpleNamespace(initialize=AsyncMock(), cleanup=AsyncMock())
     r._ledger, r._run_id, r._prior_status = h.ledger, run.id, prior_status

@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc" data-generator="fireworks-tech-graph" data-quality-profile="showcase">
   <title id="title">RayAgent：从用户目标到可用成果</title>
-  <desc id="desc">用户提交目标与资料，Agent 通过单循环决策与工具反馈推进，返回答复与文件，并说明完成成果和缺口。计划与控制、外部协作支撑执行；本机执行与工作区记忆尚未接入。</desc>
+  <desc id="desc">用户提交目标与资料，Agent 通过单循环决策与工具反馈推进，返回答复与文件，并说明完成成果和缺口。计划与控制、外部协作支撑执行；Shell 与浏览器的本机执行端口、工作方式与记忆尚未接入；文件读写限于工作区文件夹与会话工作目录。</desc>
   <style>text { font-family: 'PingFang SC','Hiragino Sans GB','Noto Sans CJK SC','Noto Sans SC','Source Han Sans SC','Songti SC','Microsoft YaHei','Helvetica Neue',Helvetica,Arial,sans-serif; fill:#17263c; } .sub { fill:#63748a; } </style>
   <defs>
     <marker id="arrow" markerUnits="userSpaceOnUse" markerWidth="14" markerHeight="14" refX="12" refY="7" orient="auto">
@@ -78,7 +78,7 @@
     <path d="M16 36L25 44L16 52M36 52H52" stroke="#3f7eae" />
   </g>
   <text x="557" y="664" font-size="28" font-weight="700" text-anchor="start" class="" data-graph-role="decoration" data-owner="node-5">本机执行</text>
-  <text x="615" y="724" font-size="23" font-weight="400" text-anchor="middle" class="sub" data-graph-role="decoration" data-owner="node-5">文件、Shell 与浏览器</text>
+  <text x="615" y="724" font-size="23" font-weight="400" text-anchor="middle" class="sub" data-graph-role="decoration" data-owner="node-5">Shell 与浏览器</text>
   <text x="615" y="758" font-size="23" font-weight="400" text-anchor="middle" class="sub" data-graph-role="decoration" data-owner="node-5">执行端口待接入</text>
   <rect x="830" y="604" width="310" height="182" rx="24" fill="#e7f5eb" stroke="#87b69c" stroke-width="2.5" data-graph-role="node" id="node-6" />
   <g transform="translate(852 626) scale(0.78)" stroke="#26364b" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
@@ -97,7 +97,7 @@
     <path d="M19 42H56M19 54H46" stroke="#aa9abc" />
   </g>
   <text x="1297" y="664" font-size="28" font-weight="700" text-anchor="start" class="" data-graph-role="decoration" data-owner="node-7">工作区与记忆</text>
-  <text x="1355" y="724" font-size="23" font-weight="400" text-anchor="middle" class="sub" data-graph-role="decoration" data-owner="node-7">托管项目已移除</text>
-  <text x="1355" y="758" font-size="23" font-weight="400" text-anchor="middle" class="sub" data-graph-role="decoration" data-owner="node-7">工作区与记忆待接入</text>
+  <text x="1355" y="724" font-size="23" font-weight="400" text-anchor="middle" class="sub" data-graph-role="decoration" data-owner="node-7">文件夹工作区已接入</text>
+  <text x="1355" y="758" font-size="23" font-weight="400" text-anchor="middle" class="sub" data-graph-role="decoration" data-owner="node-7">记忆待接入</text>
   <text x="80" y="859" font-size="23" font-weight="400" text-anchor="start" class="sub" data-graph-role="label">任务结束与成果完整分别记录</text>
 </svg>

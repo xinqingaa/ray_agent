@@ -13,6 +13,7 @@ logger = logging.getLogger(__name__)
 class LocalRunTask(Task):
 
     _task_registry: Dict[str, "LocalRunTask"] = {}
+    _executing: Dict[str, asyncio.Task] = {}  # 执行协程真正退出前一直保留：取消会先把任务移出注册表
 
     def __init__(self, task_runner: TaskRunner) -> None:
         self._task_runner = task_runner
@@ -35,10 +36,13 @@ class LocalRunTask(Task):
         finally:
             asyncio.create_task(self._task_runner.on_done(self))
             self._cleanup_registry()
+            if LocalRunTask._executing.get(self._id) is asyncio.current_task():
+                del LocalRunTask._executing[self._id]
 
     async def invoke(self) -> None:
         if self.done:
             self._execution_task = asyncio.create_task(self._execute_task())
+            LocalRunTask._executing[self._id] = self._execution_task
 
     def cancel(self) -> bool:
         if not self.done:
@@ -61,6 +65,15 @@ class LocalRunTask(Task):
     @property
     def execution(self) -> Optional[asyncio.Task]:
         return self._execution_task
+
+    @classmethod
+    def executing(cls, run_id: str) -> Optional[asyncio.Task]:
+        """仍未退出的执行协程；取消之后到它真正结束之前仍能找到。"""
+        task = cls._executing.get(run_id)
+        if task is not None and task.done():
+            del cls._executing[run_id]
+            return None
+        return task
 
     @classmethod
     def get(cls, task_id: str) -> Optional["LocalRunTask"]:

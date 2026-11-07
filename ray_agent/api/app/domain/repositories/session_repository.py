@@ -39,8 +39,12 @@ class SessionRepository(Protocol):
         """在写事务中读取会话；写事务按进入顺序串行，读到的状态在提交前不会被其他写入改变。"""
         ...
 
-    async def page(self, *, offset: int = 0, limit: int = 50) -> tuple[List[Session], int]:
-        """侧栏列表：不读取记忆与文件清单。"""
+    async def page(self, *, offset: int = 0, limit: int = 50,
+                   workspace_id: Optional[str] = None, independent: bool = False) -> tuple[List[Session], int]:
+        """侧栏列表：不读取记忆与文件清单；workspace_id 不为空时只列该工作区的会话，independent 为真时只列没有工作区的独立对话。"""
+        ...
+
+    async def ids_by_workspace(self, workspace_id: str) -> List[str]:
         ...
 
     async def update_model(self, session_id: str, model_id: str, reasoning: str) -> None:

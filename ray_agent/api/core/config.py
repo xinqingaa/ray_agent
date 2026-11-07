@@ -31,6 +31,33 @@ class Settings(BaseSettings):
     background_job_concurrency: int = Field(default=2, ge=1)
     background_job_poll_seconds: float = Field(default=30, gt=0)
 
+    # 文件夹工作区与限根文件 IO
+    workspace_default_location: str = "~/RayAgent"  # 新建工作区文件夹所在的默认位置；用户改动后存入应用配置
+    workspace_blocked_paths: list[str] = Field(default_factory=lambda: [
+        "/System", "/Library", "/usr", "/bin", "/sbin", "/private", "/etc", "/var", "/Applications",
+        "/dev", "/proc", "/sys", "/boot", "/lib", "/lib64", "/run"])
+    folder_grant_seconds: int = Field(default=300, gt=0)  # 宿主选择文件夹后的一次性凭证有效期
+    folder_grant_capacity: int = Field(default=64, gt=0)
+    marker_conflict_seconds: int = Field(default=600, gt=0)  # 复制文件夹冲突等待用户选择的期限
+    file_read_bytes: int = Field(default=4 * 1024 * 1024, gt=0)
+    file_list_entries: int = Field(default=2000, gt=0)
+    file_scan_entries: int = Field(default=50_000, gt=0)
+    file_scan_depth: int = Field(default=32, gt=0)
+    file_write_bytes: int = Field(default=2 * 1024 * 1024 * 1024, gt=0)
+    file_search_matches: int = Field(default=200, gt=0)
+    file_find_results: int = Field(default=500, gt=0)
+    file_find_entries: int = Field(default=20_000, gt=0)
+
+    # 写前备份、撤销预览与外部变更监听
+    backup_free_reserve_bytes: int = Field(default=64 * 1024 * 1024, ge=0)  # 数据卷可用空间低于它加备份大小时停止新发布
+    change_preview_bytes: int = Field(default=256 * 1024, gt=0)  # 撤销预览的统一 diff 每侧最多读取的字节数
+    change_preview_lines: int = Field(default=2000, gt=0)  # 统一 diff 最多输出的行数
+    change_runs_default: int = Field(default=20, ge=1)  # 最近有修改的运行列表默认条数（最多 100）
+    watch_debounce_ms: int = Field(default=300, gt=0)  # 文件系统通知合并窗口
+    workspace_probe_seconds: float = Field(default=2.0, gt=0)  # 监听期间核对文件夹可用性的间隔
+    workspace_rescan_seconds: float = Field(default=30.0, gt=0)  # 兜底重扫间隔，通知不是唯一依据
+    change_paths_per_event: int = Field(default=200, gt=0)  # 一次变化事件最多列出的路径，超出改为整体刷新
+
     # skill 存储在数据根的 skills 目录
     skill_download_bytes: int = Field(default=20 * 1024 * 1024, gt=0)
     skill_package_bytes: int = Field(default=50 * 1024 * 1024, gt=0)

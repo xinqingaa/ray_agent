@@ -25,6 +25,10 @@ def access_app():
     async def content(file_id: str):
         return {"file": file_id}
 
+    @app.get("/api/roots/{root_id}/preview/content/{relative_path:path}", name="root_content")
+    async def root_content(root_id: str, relative_path: str):
+        return {"path": relative_path}
+
     @app.post("/api/files/{file_id}/ticket")
     async def ticket(file_id: str, request: Request):
         value, expires = instance_access.issue_ticket(request.app.url_path_for("content", file_id=file_id))
@@ -72,6 +76,17 @@ def test_ticket_only_opens_its_path_for_reads_until_it_expires(access_app, monke
     clock = instance_access.time.monotonic() + 10_000
     monkeypatch.setattr(instance_access.time, "monotonic", lambda: clock)
     assert access_app.get(url).status_code == 401
+
+
+def test_non_ascii_paths_and_credentials_are_compared_without_errors(access_app):
+    """中文等非 ASCII 文件名的票据照常放行，其他路径与含非 ASCII 的凭据按拒绝处理，而不是 500。"""
+    token = instance_access.enable_instance_token()
+    path = access_app.app.url_path_for("root_content", root_id="r1", relative_path="报告/结论 100%.md")
+    ticket, _ = instance_access.issue_ticket(path)
+    url = "/api/roots/r1/preview/content/%E6%8A%A5%E5%91%8A/%E7%BB%93%E8%AE%BA%20100%25.md"
+    assert access_app.get(f"{url}?ticket={ticket}").json() == {"path": "报告/结论 100%.md"}
+    assert access_app.get("/api/roots/r1/preview/content/%E5%85%B6%E4%BB%96.md?ticket=" + ticket).status_code == 401
+    assert access_app.get("/api/ping", headers={"Authorization": "Bearer 令牌".encode("utf-8")}).status_code == 401
 
 
 def test_new_token_revokes_old_token_and_tickets(access_app):

@@ -1,13 +1,16 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "RayAgentEvents",
-  "description": "会话事件信封：SessionEvent 为落库事件，StreamEvent 另含文本增量",
+  "description": "会话事件信封：SessionEvent 为落库事件，StreamEvent 另含文本增量；WorkspaceChangeEvent 是工作区文件夹变更流的事件数据",
   "anyOf": [
     {
       "$ref": "#/$defs/StreamEvent"
     },
     {
       "$ref": "#/$defs/SessionEvent"
+    },
+    {
+      "$ref": "#/$defs/WorkspaceChangeEvent"
     }
   ],
   "$defs": {
@@ -1038,6 +1041,28 @@
         "filepath": {
           "default": "",
           "type": "string"
+        },
+        "root_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "relative_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "key": {
           "default": "",
@@ -2370,6 +2395,57 @@
         "data"
       ],
       "title": "WaitSSEEvent",
+      "type": "object"
+    },
+    "WorkspaceChangeEvent": {
+      "description": "kind=ready 在订阅建立时给出当前可用性；changed 带变化的相对路径，refresh 为真表示变化太多或来源不明，\n需要整体刷新；availability 在文件夹失联或恢复时给出。应用自己的写入同样会触发 changed。",
+      "properties": {
+        "kind": {
+          "enum": [
+            "ready",
+            "changed",
+            "availability"
+          ],
+          "type": "string"
+        },
+        "workspace_id": {
+          "type": "string"
+        },
+        "available": {
+          "type": "boolean"
+        },
+        "paths": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "refresh": {
+          "default": false,
+          "type": "boolean"
+        },
+        "reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "不可用时的原因"
+        }
+      },
+      "required": [
+        "kind",
+        "workspace_id",
+        "available",
+        "paths",
+        "refresh",
+        "reason"
+      ],
+      "title": "WorkspaceChangeEvent",
       "type": "object"
     }
   }

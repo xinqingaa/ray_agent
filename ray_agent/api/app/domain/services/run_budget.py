@@ -27,6 +27,7 @@ FINALIZE_ALLOWED: Dict[str, str] = {
     "read_file": "file",
     "search_in_file": "file",
     "find_files": "file",
+    "list_dir": "file",
     "deliver_files": "deliver",
     "update_plan": "plan",
     "finalize_artifact": "file",

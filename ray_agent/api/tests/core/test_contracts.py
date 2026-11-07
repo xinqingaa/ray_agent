@@ -158,11 +158,14 @@ def test_sse_frames_are_the_envelope_with_version_and_sequence():
     assert TypeAdapter(list[SessionEvent]).validate_python([item.model_dump() for item in detail])[1].data.seq == 8
 
 
-def test_capabilities_report_execution_closed_until_ports_and_unimplemented_features():
+def test_capabilities_report_files_available_and_execution_closed_until_ports():
     current = asyncio.run(CapabilityService().current())
     assert [item.capability for item in current] == list(Capability)
     by_name = {item.capability: item for item in current}
+    assert by_name[Capability.FILE_ACCESS].state is CapabilityState.AVAILABLE and by_name[Capability.FILE_ACCESS].detail
     for name in Capability:
+        if name is Capability.FILE_ACCESS:
+            continue
         assert by_name[name].state is CapabilityState.UNAVAILABLE and by_name[name].detail
         assert by_name[name].reason is UnavailableReason.NOT_IMPLEMENTED and by_name[name].recoverable is False
     with pytest.raises(ValidationError):
@@ -216,10 +219,14 @@ def test_handshake_is_discriminated_and_launch_is_validated():
     assert isinstance(ready, CoreReady) and ready.protocol_version == PROTOCOL_VERSION
     failed = TypeAdapter(CoreHandshake).validate_json(artifacts()["samples/core-failed.json"])
     assert failed.event == "failed" and failed.error.code is ErrorCode.UNAVAILABLE
-    launch = CoreLaunch.model_validate_json('{"data_dir": "/tmp/core"}')
+    launch = CoreLaunch.model_validate_json('{"data_dir": "/tmp/core", "host_secret": "0123456789abcdef"}')
     assert launch.env == {}
     with pytest.raises(ValidationError):
-        CoreLaunch.model_validate_json('{"env": {}}')
+        CoreLaunch.model_validate_json('{"env": {}, "host_secret": "0123456789abcdef"}')
+    with pytest.raises(ValidationError):
+        CoreLaunch.model_validate_json('{"data_dir": "/tmp/core"}')
+    with pytest.raises(ValidationError):
+        CoreLaunch.model_validate_json('{"data_dir": "/tmp/core", "host_secret": "short"}')
     with pytest.raises(ValidationError):
         TypeAdapter(CoreHandshake).validate_python({**sample, "instance_token": None})
 

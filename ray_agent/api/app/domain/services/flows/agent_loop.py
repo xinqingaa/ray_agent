@@ -23,6 +23,7 @@ from typing import Any, AsyncGenerator, Awaitable, Callable, Dict, Iterator, Lis
 from app.domain.external.browser import Browser
 from app.domain.external.llm import LLM, LLMRequestError, is_retryable as _is_retryable
 from app.domain.external.sandbox import Sandbox
+from app.domain.services.file_scope import FileScope
 from app.domain.external.search import SearchEngine
 from app.domain.models.app_config import AgentConfig, ToolPolicyConfig
 from app.domain.models.event import (
@@ -122,12 +123,15 @@ def build_default_tools(
         default_exec_dir: Optional[str] = None,
         capture_screenshot=None,
         web_reader=None,
+        files: Optional[FileScope] = None,
 ) -> List[BaseTool]:
     """默认工具集；计划与交付工具由循环自己追加。依赖执行环境的工具只在对应资源提供时加入：
-    文件与 Shell 需要 sandbox，浏览器需要 browser。default_exec_dir 是 shell_execute 省略工作目录时的默认值。"""
+    文件需要 files（可访问范围），Shell 需要 sandbox，浏览器需要 browser。default_exec_dir 是 shell_execute 省略工作目录时的默认值。"""
     tools: List[BaseTool] = []
+    if files is not None:
+        tools.append(FileTool(files))
     if sandbox is not None:
-        tools += [FileTool(sandbox=sandbox), ShellTool(sandbox=sandbox, default_exec_dir=default_exec_dir)]
+        tools.append(ShellTool(sandbox=sandbox, default_exec_dir=default_exec_dir))
     if browser is not None:
         tools.append(BrowserTool(browser=browser, capture=capture_screenshot))
     if web_reader is not None:
@@ -227,7 +231,7 @@ def _user_content(message: Message):
     text = message.message
     if message.attachments:
         listed = "\n".join(f"- {path}" for path in message.attachments)
-        text += f"\n\n用户上传的附件（沙箱路径）：\n{listed}"
+        text += f"\n\n用户上传的附件：\n{listed}"
     if message.image_input_note:
         text += f'\n\n[系统提示] {message.image_input_note}'
     if message.images or message.image_input_note or message.image_mode == 'files':
@@ -376,10 +380,10 @@ class AgentLoop(BaseFlow):
 
         self.plan_tool = PlanTool()
         from app.domain.services.task_outcomes import TaskOutcomes, ArtifactWriter
-        sandbox = next((t.sandbox for t in tools if isinstance(t, FileTool)), None)
-        self._outcomes = TaskOutcomes(self.plan_tool, sandbox)
+        files = next((t.scope for t in tools if isinstance(t, FileTool)), None)
+        self._outcomes = TaskOutcomes(self.plan_tool, files)
         toolkits = [*tools, self.plan_tool]
-        if sandbox is not None: toolkits.append(ArtifactWriter(self._outcomes))
+        if files is not None: toolkits.append(ArtifactWriter(self._outcomes))
         self._can_deliver = deliver_file is not None
         if deliver_file is not None:
             toolkits.append(DeliverTool(deliver_file, self._outcomes.existing_delivery))
@@ -901,7 +905,7 @@ class AgentLoop(BaseFlow):
 
     async def _independent_reads(self, calls):
         from app.domain.services.plan_mode import PLAN_MODE_ALLOWED
-        allowed = {'web_fetch': 'web', 'read_file': 'file', 'search_in_file': 'file', 'find_files': 'file'}
+        allowed = {'web_fetch': 'web', 'read_file': 'file', 'search_in_file': 'file', 'find_files': 'file', 'list_dir': 'file'}
         if len(calls) < 2:
             return []
         invocations = []

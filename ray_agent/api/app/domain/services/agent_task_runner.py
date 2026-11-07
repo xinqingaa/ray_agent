@@ -9,7 +9,7 @@ import shutil
 import time
 import uuid
 from pathlib import Path
-from typing import AsyncGenerator, List, Callable, Optional, Set, Tuple, Union
+from typing import AsyncGenerator, List, Callable, Optional, Protocol, Set, Tuple, Union
 
 from fastapi import UploadFile
 
@@ -17,6 +17,8 @@ from app.domain.external.browser import Browser
 from app.domain.external.file_storage import FileStorage
 from app.domain.external.llm import LLM
 from app.domain.external.sandbox import Sandbox
+from app.domain.external.workspace_files import FileKind, WorkspaceFileError
+from app.domain.models.error import ErrorCode
 from app.domain.external.search import SearchEngine
 from app.domain.external.task import TaskRunner, Task
 from app.domain.models.app_config import AgentConfig, ToolPolicyConfig
@@ -26,6 +28,7 @@ from app.domain.models.event import ErrorEvent, MessageEvent, BaseEvent, ToolEve
     TitleEvent, WaitEvent, DoneEvent, TurnEvent, TurnPhase, CleanupEvent, CleanupTarget, ApprovalEvent, \
     ApprovalStatus, CompactEvent, ContextEvent
 from app.domain.models.file import File
+from app.domain.models.identity import RootKind
 from app.domain.models.message import Message
 from app.domain.models.run import RunReason, RunStatus, tools_for_turn
 from app.domain.models.run_input import RunInput
@@ -33,6 +36,8 @@ from app.domain.models.search import SearchResults
 from app.domain.models.session import SessionStatus
 from app.domain.models.tool_result import ToolResult
 from app.domain.repositories.uow import IUnitOfWork
+from app.domain.services.file_rules import denied_reason, safe_filename
+from app.domain.services.file_scope import FileScope
 from app.domain.services.flows.agent_loop import AGENT_MEMORY_NAME, AgentLoop, RunEndReason, build_default_tools
 from app.domain.services.prompts.system import RuntimeEnvironment, build_system_prompt
 from app.domain.services.run_ledger import RunLedger
@@ -50,6 +55,16 @@ STOP_SETTLE_SECONDS = 10.0  # 停止后等待执行协程退出的上限，A2A �
 _LOOP_TERMINALS = (DoneEvent, WaitEvent, ErrorEvent)
 
 
+class RunWriteLeases(Protocol):
+    """运行持有的工作区写入租约的收尾：停止时转 settling，确认执行协程退出后释放，期限内无法确认则转 blocked。"""
+
+    async def begin_settle(self, run_id: str) -> None:
+        ...
+
+    async def finish_settle(self, run_id: str, confirmed: bool) -> list:
+        ...
+
+
 class _RunClosed(Exception):
     """运行已被停止或改为终态：本协程不再写入任何事件。"""
 
@@ -59,6 +74,7 @@ class AgentTaskRunner(TaskRunner):
 
     记忆随事件同事务保存；用户消息进入模型历史时，对应输入与那批上下文事件同事务标记消费。
     """
+    _write_leases: Optional[RunWriteLeases] = None
 
     def __init__(
             self,
@@ -82,11 +98,15 @@ class AgentTaskRunner(TaskRunner):
             sandbox: Optional[Sandbox] = None,
             browser: Optional[Browser] = None,
             approval: Optional[ApprovalEvent] = None,  # 审批续接时的答复；为空时从持久输入取第一条消息
+            files: Optional[FileScope] = None,  # 文件工具与交付可访问的范围；为空时没有文件能力
+            write_leases: Optional[RunWriteLeases] = None,
     ) -> None:
         self._uow_factory = uow_factory
         self._uow = uow_factory()
         self._session_id = session_id
         self._sandbox = sandbox
+        self._files = files
+        self._write_leases = write_leases
         self._mcp_tool = mcp_tool
         self._a2a_tool = a2a_tool
         self._file_storage = file_storage
@@ -115,6 +135,7 @@ class AgentTaskRunner(TaskRunner):
             session_id=session_id,
             tools=([SkillTool(self._skill_runtime)] if self._skill_runtime else []) + build_default_tools(
                 sandbox=sandbox,
+                files=files,
                 browser=browser,
                 search_engine=search_engine,
                 mcp_tool=self._mcp_tool,
@@ -123,7 +144,7 @@ class AgentTaskRunner(TaskRunner):
                 capture_screenshot=self._capture_screenshot,
                 web_reader=web_reader,
             ),
-            deliver_file=self._deliver_file if environment.available(Capability.FILE_ACCESS) else None,
+            deliver_file=self._deliver_file if files is not None and environment.available(Capability.FILE_ACCESS) else None,
             write_output=self._write_output if workdir else None,
             output_dir=str(workdir.outputs) if workdir else None,
             system_prompt=build_system_prompt(environment),
@@ -218,7 +239,8 @@ class AgentTaskRunner(TaskRunner):
         return None
 
     async def _place_attachments(self, event: MessageEvent) -> None:
-        """把附件的内容对象复制到会话工作目录，成功后替换本次输入的附件路径；失败终止运行，不静默移出模型输入。"""
+        """把附件的内容对象复制到可访问的位置，成功后替换本次输入的附件路径；失败终止运行，不静默移出模型输入。
+        工作区会话放进工作区文件夹根目录（同名不覆盖，用不冲突的名称），其余放进会话工作目录的 uploads。"""
         if self._workdir is None or not event.attachments:
             return
         placed: List[File] = []
@@ -230,31 +252,78 @@ class AgentTaskRunner(TaskRunner):
                 raise RuntimeError(f"附件 {attachment.id} 放入会话工作目录失败；本次运行未完成，请核对后重试") from exc
         event.attachments = placed
 
+    def _workspace_root(self):
+        files = self._files
+        if files is not None and files.working is not None and files.working.kind is RootKind.WORKSPACE_FOLDER:
+            return files.working
+        return None
+
     async def _place_attachment(self, attachment: File) -> File:
         source, file = await self._file_storage.download_file(attachment.id)
         try:
-            name = (file.filename or file.id).replace("\\", "/").split("/")[-1]
-            if name in ("", ".", "..") or "\x00" in name:
-                raise ValueError("附件名称无效")
-            uploads = self._workdir.ensure().uploads
-            target = uploads / name
-            async with self._uow_factory() as uow:
-                existing = await uow.session.get_file_by_path(self._session_id, str(target))
-            if existing is not None and existing.id != file.id:
-                stem, suffix = Path(name).stem, Path(name).suffix
-                target = uploads / f"{stem[:180]}-{file.id}{suffix}"
-            if existing is None or existing.id != file.id or not target.exists():
-                def copy() -> None:
-                    partial = self._workdir.tmp / f"{uuid.uuid4().hex}.part"
-                    try:
-                        with partial.open("wb") as output:
-                            shutil.copyfileobj(source, output)
-                        partial.replace(target)
-                    finally:
-                        partial.unlink(missing_ok=True)
-                await asyncio.to_thread(copy)
+            name = safe_filename(file.filename or file.id)
+            workspace = self._workspace_root()
+            if workspace is not None and (reason := denied_reason((name,))):
+                # 模型的文件工具读不了这类名字（凭据、数据库等），放进文件夹它也看不到：留在会话工作目录
+                logger.info("附件 %s 命中文件夹禁止规则（%s），改放会话工作目录", file.id, reason)
+                workspace = None
+            if workspace is not None:
+                placed = await self._place_in_workspace(workspace, source, file, name)
+                if placed is not None:
+                    return placed
+            return await self._place_in_workdir(source, file, name)
         finally:
             source.close()
+
+    async def _place_in_workspace(self, workspace, source, file: File, name: str) -> Optional[File]:
+        """放进工作区文件夹；文件夹不可用时返回空，由调用方退回会话工作目录。"""
+        from app.domain.models.identity import RootedPath
+        async with self._uow_factory() as uow:
+            session = await uow.session.get_by_id(self._session_id)
+        previous = next((item for item in (session.files if session else [])
+                         if item.id == file.id and item.root_id == workspace.root_id and item.relative_path), None)
+        if previous is not None:
+            try:
+                entry = await self._files.files.stat(RootedPath(root_id=workspace.root_id,
+                                                                relative_path=previous.relative_path))
+                if entry.kind is FileKind.FILE:
+                    return previous  # 重新取用同一条输入：附件已在文件夹里，不再放第二份
+            except WorkspaceFileError:
+                pass
+        try:
+            target, _ = await self._files.write_unique(RootedPath(root_id=workspace.root_id, relative_path=""),
+                                                       name, source)
+        except WorkspaceFileError as error:
+            if error.code.value == "unavailable":
+                logger.warning("工作区文件夹不可用，附件改放会话工作目录：%s", error)
+                source.seek(0)
+                return None
+            raise
+        placed = file.model_copy(update={"filepath": self._files.display(target), "root_id": target.root_id,
+                                         "relative_path": target.relative_path})
+        async with self._uow_factory() as uow:
+            await uow.file.save(placed)
+            await uow.session.add_file(self._session_id, placed)
+        return placed
+
+    async def _place_in_workdir(self, source, file: File, name: str) -> File:
+        uploads = self._workdir.ensure().uploads
+        target = uploads / name
+        async with self._uow_factory() as uow:
+            existing = await uow.session.get_file_by_path(self._session_id, str(target))
+        if existing is not None and existing.id != file.id:
+            stem, suffix = Path(name).stem, Path(name).suffix
+            target = uploads / f"{stem[:180]}-{file.id}{suffix}"
+        if existing is None or existing.id != file.id or not target.exists():
+            def copy() -> None:
+                partial = self._workdir.tmp / f"{uuid.uuid4().hex}.part"
+                try:
+                    with partial.open("wb") as output:
+                        shutil.copyfileobj(source, output)
+                    partial.replace(target)
+                finally:
+                    partial.unlink(missing_ok=True)
+            await asyncio.to_thread(copy)
         placed = file.model_copy(update={"filepath": str(target)})
         async with self._uow_factory() as uow:
             await uow.file.save(placed)
@@ -263,31 +332,37 @@ class AgentTaskRunner(TaskRunner):
         return placed
 
     async def _deliver_file(self, filepath: str) -> Union[File, DeliveredFile]:
-        """deliver_files 的交付函数：工作目录内的文件复制为内容对象并关联会话。失败抛出异常，文本即错误原因。"""
-        if self._workdir is None:
-            raise RuntimeError("当前运行没有会话工作目录")
-        path = Path(filepath)
-        if not path.is_absolute():
-            path = self._workdir.path / path
-        if not self._workdir.contains(path) or not path.is_file():
-            raise FileNotFoundError(f"工作目录中不存在文件 {filepath}，请先写入文件再交付")
-        resolved = str(path.resolve())
+        """deliver_files 的交付函数：可访问范围内的文件在交付时保存为内容对象并关联会话，之后再改文件不影响已交付版本。
+        记录来源根与相对路径，供预览与打开位置使用。失败抛出异常，文本即错误原因。"""
+        if self._files is None:
+            raise RuntimeError("当前运行没有可访问的文件范围")
+        scope = self._files
+        rooted = scope.resolve(filepath)
+        try:
+            entry = await scope.files.stat(rooted)
+        except WorkspaceFileError as error:
+            if error.code is ErrorCode.NOT_FOUND:
+                raise FileNotFoundError(f"不存在文件 {filepath}，请先写入文件再交付")
+            raise
+        if entry.kind is not FileKind.FILE:
+            if entry.kind is FileKind.DIRECTORY:
+                raise FileNotFoundError(f"{filepath} 是目录，不是文件，请交付其中的文件")
+            raise WorkspaceFileError(ErrorCode.INVALID_REQUEST, f"{filepath} 不是普通文件（链接或特殊文件），不交付")
+        resolved = scope.display(rooted)
         async with self._uow:
             old_file = await self._uow.session.get_file_by_path(self._session_id, resolved)
-
-        def digest() -> str:
-            hasher = hashlib.sha256()
-            with path.open("rb") as handle:
-                while chunk := handle.read(1024 * 1024):
-                    hasher.update(chunk)
-            return hasher.hexdigest()
-        sha = await asyncio.to_thread(digest)
+        sha = await scope.fingerprint(resolved)
         if old_file and old_file.sha256 == sha:
             return DeliveredFile(file=old_file, reused=True)
-        with path.open("rb") as handle:
+        reader = await scope.files.open_reader(rooted, entry.version)
+        try:
             file = await self._file_storage.upload_file(
-                UploadFile(file=handle, filename=path.name, size=path.stat().st_size), session_id=self._session_id)
+                UploadFile(file=reader, filename=Path(resolved).name, size=entry.version.size),
+                session_id=self._session_id)
+        finally:
+            reader.close()
         file.filepath, file.sha256 = resolved, sha
+        file.root_id, file.relative_path = rooted.root_id, rooted.relative_path
         async with self._uow:
             await self._uow.file.save(file)
             await self._uow.session.add_file(self._session_id, file)
@@ -623,6 +698,8 @@ class AgentTaskRunner(TaskRunner):
         if getattr(self, "_skill_runtime", None):
             await self._skill_runtime.service.cancel_run(run_id)
         targets: List[CleanupTarget] = []
+        if self._write_leases is not None:
+            await self._write_leases.begin_settle(run_id)
         for shell_session in list(self._shell_sessions) if self._sandbox is not None else []:
             try:
                 result = await self._sandbox.kill_process(shell_session)
@@ -636,6 +713,11 @@ class AgentTaskRunner(TaskRunner):
                 await asyncio.wait_for(self._settled.wait(), settle_seconds)
             except asyncio.TimeoutError:
                 logger.warning(f"会话[{self._session_id}] 停止后 {settle_seconds}s 内执行协程未退出")
+        if self._write_leases is not None:
+            try:
+                await self._write_leases.finish_settle(run_id, confirmed=self._settled.is_set() or not self._invoking)
+            except Exception:
+                logger.exception(f"会话[{self._session_id}] 收尾写入租约失败")
         gateway = getattr(self._a2a_tool, "gateway", None)
         for agent_id, outcome in dict(getattr(gateway, "last_cancellations", None) or {}).items():
             targets.append(CleanupTarget(
@@ -754,11 +836,21 @@ class AgentTaskRunner(TaskRunner):
                 logger.warning(f"会话[{self._session_id}] 写入运行失败状态失败: {persist_error}")
         finally:
             self._settled.set()
+            await self._release_write_leases()
             # 在同一个asyncio Task上下文中清理MCP/A2A工具资源
             # 这是关键：streamablehttp_client内部使用anyio.create_task_group()，
             # 要求在同一个Task中进入和退出cancel scope，
             # 所以必须在invoke()的finally块（即初始化MCP的同一个Task）中清理
             await self._cleanup_tools()
+
+    async def _release_write_leases(self) -> None:
+        """执行协程退出：本运行持有的租约不再有写入者，释放它们；租约身份按运行核对，不影响其他运行。"""
+        if self._write_leases is None:
+            return
+        try:
+            await self._write_leases.finish_settle(self._run_id, confirmed=True)
+        except Exception:
+            logger.exception(f"会话[{self._session_id}] 释放写入租约失败，将由停止收尾或启动扫描处理")
 
     async def destroy(self) -> None:
         """销毁任务运行器并释放资源"""

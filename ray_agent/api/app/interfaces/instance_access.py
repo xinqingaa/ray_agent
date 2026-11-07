@@ -49,6 +49,11 @@ def issue_ticket(path: str) -> tuple[str, int]:
     return ticket, int((time.time() + settings.resource_ticket_seconds) * 1000)
 
 
+def _same(left: str, right: str) -> bool:
+    """按 UTF-8 字节做常量时间比较：compare_digest 不接受含非 ASCII 字符的 str。"""
+    return hmac.compare_digest(left.encode("utf-8", "surrogateescape"), right.encode("utf-8", "surrogateescape"))
+
+
 def _ticket_allows(ticket: str, path: str, method: str) -> bool:
     entry = _tickets.get(ticket)
     if entry is None or method not in _READ_METHODS:
@@ -57,7 +62,7 @@ def _ticket_allows(ticket: str, path: str, method: str) -> bool:
     if expires <= time.monotonic():
         del _tickets[ticket]
         return False
-    return hmac.compare_digest(allowed, path)
+    return _same(allowed, path)
 
 
 def _bearer(scope) -> Optional[str]:
@@ -80,7 +85,7 @@ class InstanceAccessMiddleware:
                 or not scope["path"].startswith("/api/")):
             return await self.app(scope, receive, send)
         presented = _bearer(scope)
-        if presented is not None and hmac.compare_digest(presented, token):
+        if presented is not None and _same(presented, token):
             return await self.app(scope, receive, send)
         tickets = parse_qs(scope.get("query_string", b"").decode("latin-1")).get(TICKET_PARAM)
         if tickets and _ticket_allows(tickets[0], scope["path"], scope["method"]):

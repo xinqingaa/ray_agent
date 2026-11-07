@@ -61,14 +61,22 @@ export function clearDraft(scope: string): void {
 
 export const DATA_CLEARED = 'rayagent-data-cleared'
 const appliedCleanupIds = new Set<string>()
-type ClearedData = {id: string; scope: string; project_ids: string[]; session_ids: string[]}
+/** 草稿作用域：独立首页、工作区首页、具体会话各自一份，互不覆盖。 */
+export const INDEPENDENT_SCOPE = 'independent'
+export const workspaceDraftScope = (workspaceId: string) => `workspace:${workspaceId}`
+export const sessionDraftScope = (sessionId: string) => `session:${sessionId}`
+
+export type ClearedData = {id: string; scope: string; workspace_ids?: string[]; session_ids: string[]}
+/** 清理完成后哪些草稿失效：全部清空，或所列工作区首页与会话的草稿。 */
+export function draftClearedBy(data: ClearedData, scope: string): boolean {
+  return data.scope === 'all' || (data.workspace_ids ?? []).some(id => scope === workspaceDraftScope(id)) || data.session_ids.some(id => scope === sessionDraftScope(id))
+}
 export function applyDataCleared(data: ClearedData): void {
   if (appliedCleanupIds.has(data.id)) return
   appliedCleanupIds.add(data.id)
-  const affected = (scope: string) => data.scope === 'all' || data.project_ids.some(id => scope === `project:${id}`) || data.session_ids.some(id => scope === `session:${id}`)
   const scopes = new Set(volatileDrafts.keys())
   try {for (let index = 0; index < sessionStorage.length; index++) {const key = sessionStorage.key(index); if (key?.startsWith(prefix)) scopes.add(key.slice(prefix.length))}} catch {}
-  for (const scope of scopes) if (affected(scope)) clearDraft(scope)
+  for (const scope of scopes) if (draftClearedBy(data, scope)) clearDraft(scope)
   window.dispatchEvent(new CustomEvent(DATA_CLEARED, {detail: data}))
 }
 export function notifyDataCleared(data: ClearedData): void {
@@ -77,7 +85,7 @@ export function notifyDataCleared(data: ClearedData): void {
   try {
     if (data.scope === 'all') localStorage.setItem('rayagent:data-reset-at', String(Date.now()))
     const deleted = new Set<string>(JSON.parse(localStorage.getItem('rayagent:deleted-scopes') || '[]'))
-    data.project_ids.forEach(id => deleted.add(`project:${id}`)); data.session_ids.forEach(id => deleted.add(`session:${id}`))
+    ;(data.workspace_ids ?? []).forEach(id => deleted.add(workspaceDraftScope(id))); data.session_ids.forEach(id => deleted.add(sessionDraftScope(id)))
     localStorage.setItem('rayagent:deleted-scopes', JSON.stringify([...deleted]))
     localStorage.setItem('rayagent:data-cleared', JSON.stringify(data))
   } catch {}

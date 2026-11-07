@@ -1,5 +1,5 @@
 import {useEffect, useState} from 'react'
-import {BookOpen, Bot, Cable, Globe, Palette, ShieldCheck, SlidersHorizontal, X, type LucideIcon} from 'lucide-react'
+import {BookOpen, Bot, Cable, FolderOpen, Globe, Palette, ShieldCheck, SlidersHorizontal, X, type LucideIcon} from 'lucide-react'
 import {Button} from '@/components/ui/button'
 import {cn} from '@/lib/utils'
 import {useConfigForm, useUnsavedGuard} from './form'
@@ -11,13 +11,15 @@ import {ToolPolicySection, useToolPolicyForm} from './tool-policy-section'
 import {SkillsSection} from './skills-section'
 import {AppearanceSection} from './appearance-section'
 import {DataSection} from './data-section'
+import {WorkspaceSection} from './workspace-section'
 import {useDeveloperMode} from '@/hooks/use-developer-mode'
 import {Switch} from '@/components/ui/switch'
 
-type SectionKey = 'general' | 'appearance' | 'llm' | 'mcp' | 'a2a' | 'tool-policy' | 'data' | 'skills'
+type SectionKey = 'general' | 'workspace' | 'appearance' | 'llm' | 'mcp' | 'a2a' | 'tool-policy' | 'data' | 'skills'
 
 const SECTIONS: {key: SectionKey; label: string; icon: LucideIcon}[] = [
   {key: 'general', label: '通用', icon: SlidersHorizontal},
+  {key: 'workspace', label: '工作区', icon: FolderOpen},
   {key: 'appearance', label: '外观', icon: Palette},
   {key: 'llm', label: '模型提供商', icon: Bot},
   {key: 'mcp', label: 'MCP 服务器', icon: Cable},
@@ -93,6 +95,7 @@ export function SettingsView({onClose, onDirtyChange, onNavigate}: {onClose?: ()
               <GeneralSection form={general}/>
             </>}
             <div hidden={active !== 'skills'}><SkillsSection active={active === 'skills'} onDirtyChange={setSkillsDirty}/></div>
+            {active === 'workspace' && <WorkspaceSection/>}
             {active === 'appearance' && <AppearanceSection/>}
             {active === 'data' && <DataSection onNavigate={onNavigate} disabledReason={hasUnsavedChanges ? '请先保存或撤销设置修改，再清空数据。' : undefined}/>}
             {active === 'llm' && <LlmSection form={llm}/>}

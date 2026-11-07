@@ -25,7 +25,7 @@ type SessionItemProps = {
   /** 目录夹具直接标出压缩中；产品页由列表里的当前压缩会话决定 */
   showTime?: boolean
   compacting?: boolean
-  /** 目录夹具直接标明等回复还是等批准；产品页优先用项目占用，其次用已打开会话记下的原因 */
+  /** 目录夹具直接标明等回复还是等批准；产品页用已打开会话记下的原因 */
   waitKind?: WaitKind | null
 }
 

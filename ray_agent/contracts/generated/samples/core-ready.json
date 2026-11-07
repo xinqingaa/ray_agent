@@ -1,5 +1,5 @@
 {
-  "protocol_version": 2,
+  "protocol_version": 3,
   "event_version": 1,
   "instance": {
     "instance_id": "7f3c2a9e-5b1d-4e8f-9a6c-2d4b8e1f0a35",
@@ -15,7 +15,7 @@
     "built_at": "2026-11-06T00:00:00+00:00"
   },
   "storage": {
-    "schema_revision": "0001_baseline"
+    "schema_revision": "0003_write_protection"
   },
   "capabilities": [
     {
@@ -23,7 +23,7 @@
       "state": "available",
       "reason": null,
       "recoverable": false,
-      "detail": "由 Docker 沙箱提供"
+      "detail": "工作区文件夹与会话工作目录"
     },
     {
       "capability": "local_command",

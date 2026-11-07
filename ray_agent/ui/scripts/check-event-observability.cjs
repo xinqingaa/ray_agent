@@ -721,11 +721,6 @@ function kinds(view) {
   assert.equal(compacted.windowTokens, 16000);
   assert.equal(compacted.maxTokens, 2000);
   assert.equal(compacted.source, 'compact_estimate');
-  assert.equal(compacted.includesProjectContext, undefined);
-  const projectAfter = {...after, includes_project_context: true};
-  const projectCompacted = projectSession({id: 's', events: [...done, ev(4, 'compact', {trigger: 'manual', before_estimate: {...estimate, includes_project_context: true}, after_estimate: projectAfter})]}).usage.context;
-  assert.equal(projectCompacted.includesProjectContext, true);
-  assert.equal(projectCompacted.source, 'compact_estimate');
   assert.equal(projectSession({id: 's', events: [...done, ev(4, 'compact', {trigger: 'manual', before_tokens: 1000, after_tokens: 1900})]}).usage.context, null);
   assert.equal(projectSession({id: 's', events: []}).usage.context, null);
   const over = projectSession({id: 's', events: [...request, ev(3, 'turn', {phase: 'completed', index: 1, usage: {prompt_tokens: 9000}})]}).usage.context;

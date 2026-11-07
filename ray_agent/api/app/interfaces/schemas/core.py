@@ -14,7 +14,7 @@ from app.domain.models.identity import InstanceId
 from app.interfaces.schemas.event import EVENT_VERSION, EventVersion
 
 # HTTP、SSE 与启动协议整体不兼容地变化时递增；宿主与客户端按它判断能否继续连接。
-PROTOCOL_VERSION = 2
+PROTOCOL_VERSION = 3
 
 type ProtocolVersion = Annotated[int, Field(ge=1, description="核心协议版本")]
 
@@ -25,6 +25,7 @@ class CoreLaunch(BaseModel):
     """宿主写入核心 stdin 的启动参数，不进命令行；模型连接由核心从用户配置文件读取，不经启动参数传递。"""
     data_dir: str = Field(description="数据根：业务库、内容对象、会话工作目录与 skill 存储都在其中")
     env: dict[str, str] = Field(default_factory=dict, description="叠加到核心进程的显式环境")
+    host_secret: str = Field(min_length=16, description="宿主密钥：只有宿主持有；宿主专用接口要求它，实例令牌不能代替")
 
 
 class BuildIdentity(BaseModel):

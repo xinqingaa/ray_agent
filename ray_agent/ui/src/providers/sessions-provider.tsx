@@ -1,7 +1,8 @@
-import React, {createContext, useCallback, useContext, useEffect, useRef, useState} from 'react'
+import React, {createContext, useCallback, useContext, useEffect, useMemo, useRef, useState} from 'react'
 import {sessionApi} from '@/lib/api'
 import type {Session, SessionStatus} from '@/lib/api'
 import {emitCatalog} from '@/lib/catalog-bus'
+import {sessionScope} from '@/lib/workspace-state'
 
 function sessionSignature(item: Session) {
   return [
@@ -53,7 +54,7 @@ type SessionsContextValue = {
   refresh: () => Promise<void>
   /** 用详情里的状态更新列表中的一项，避免徽标停在旧的「运行中」 */
   patchSession: (sessionId: string, patch: Partial<Pick<Session, 'status' | 'title'>>) => void
-  /** 当前打开的会话刚写入的状态；项目子列表不在独立对话数组里，靠它覆盖 */
+  /** 当前打开的会话刚写入的状态；当前会话不在已加载分页里时，靠它覆盖 */
   liveSession: {id: string; status: SessionStatus} | null
   deleteSession: (sessionId: string) => Promise<boolean>
 }
@@ -66,6 +67,7 @@ const SessionsContext = createContext<SessionsContextValue | null>(null)
  * 会话列表数据 Provider
  *
  * 放置在 root layout 中，确保不会因为侧边栏展开/折叠而重新挂载。
+ * workspaceId 为空时是独立对话列表，有值时只列该工作区的会话，两者都由核心过滤。切换范围时调用方用 key 让 Provider 重新挂载。
  *
  * 数据流:
  *  1. 挂载后立即通过 REST GET /sessions 获取初始数据（仅一次）
@@ -73,7 +75,7 @@ const SessionsContext = createContext<SessionsContextValue | null>(null)
  *  3. SSE 断开后自动指数退避重连
  *  4. refresh() 可手动通过 REST 拉取
  */
-export function SessionsProvider({children}: { children: React.ReactNode }) {
+export function SessionsProvider({children, workspaceId = null}: { children: React.ReactNode; workspaceId?: string | null }) {
   const [sessions, setSessions] = useState<Session[]>([])
   const [liveSession, setLiveSession] = useState<{id: string; status: SessionStatus} | null>(null)
   const [compactingSessionId, setCompactingSessionId] = useState<string | null>(null)
@@ -85,6 +87,7 @@ export function SessionsProvider({children}: { children: React.ReactNode }) {
   const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   /** 确保 REST 初始请求只发起一次（防止 Strict Mode 重复） */
   const initialFetchedRef = useRef(false)
+  const scope = useMemo(() => sessionScope(workspaceId), [workspaceId])
   /** 标记 SSE 是否已经推送过数据，防止 REST 回调覆盖更新的 SSE 数据 */
   const sseReceivedRef = useRef(false)
 
@@ -93,7 +96,7 @@ export function SessionsProvider({children}: { children: React.ReactNode }) {
     try {
       setLoading(true)
       setError(null)
-      const raw = await sessionApi.getSessions()
+      const raw = await sessionApi.getSessions(0, scope)
       const next = normalizeSessions(raw)
       setSessions((current) => sameSessions(current, next) ? current : next)
     } catch (err) {
@@ -102,7 +105,7 @@ export function SessionsProvider({children}: { children: React.ReactNode }) {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [scope])
 
   // ---------- 初始 REST 请求（仅一次） ----------
   useEffect(() => {
@@ -110,7 +113,7 @@ export function SessionsProvider({children}: { children: React.ReactNode }) {
     initialFetchedRef.current = true
 
     sessionApi
-      .getSessions()
+      .getSessions(0, scope)
       .then((raw) => {
         // 仅在 SSE 尚未推送过数据时更新，防止用旧数据覆盖 SSE 已推送的新数据
         if (!sseReceivedRef.current) {
@@ -125,7 +128,7 @@ export function SessionsProvider({children}: { children: React.ReactNode }) {
         setError(err instanceof Error ? err.message : '获取会话列表失败')
         setLoading(false)
       })
-  }, [])
+  }, [scope])
 
   // ---------- SSE 实时订阅 ----------
   // 同源 HTTP/1.1 只有 6 条连接。每个标签页各开一条列表流时，三个会话页会把连接占满，
@@ -136,7 +139,7 @@ export function SessionsProvider({children}: { children: React.ReactNode }) {
     let leader = false
     let lastLeaderAt = 0
     const tabId = crypto.randomUUID()
-    const channel = typeof BroadcastChannel === 'undefined' ? null : new BroadcastChannel('ray-agent-sessions')
+    const channel = typeof BroadcastChannel === 'undefined' ? null : new BroadcastChannel(workspaceId ? `ray-agent-sessions:${workspaceId}` : 'ray-agent-sessions')
 
     const disconnect = () => {
       if (cleanupRef.current) {
@@ -191,6 +194,7 @@ export function SessionsProvider({children}: { children: React.ReactNode }) {
           emitCatalog(hint)
           channel?.postMessage({type: 'catalog', tabId, hint})
         },
+        scope,
       )
     }
 
@@ -220,9 +224,9 @@ export function SessionsProvider({children}: { children: React.ReactNode }) {
       } else if (msg.type === 'sessions' && Array.isArray(msg.sessions)) {
         lastLeaderAt = Date.now()
         if (!leader) applySessions(msg.sessions)
-      } else if (msg.type === 'catalog' && msg.hint && (msg.hint.kind === 'session' || msg.hint.kind === 'project') && msg.hint.id) {
+      } else if (msg.type === 'catalog' && msg.hint && msg.hint.kind === 'session' && msg.hint.id) {
         lastLeaderAt = Date.now()
-        if (!leader) emitCatalog({kind: msg.hint.kind, id: String(msg.hint.id)})
+        if (!leader) emitCatalog({kind: 'session', id: String(msg.hint.id)})
       } else if (msg.type === 'resign') {
         if (leader) return
         window.setTimeout(claim, 80 + Math.random() * 120)
@@ -263,7 +267,7 @@ export function SessionsProvider({children}: { children: React.ReactNode }) {
       channel?.removeEventListener('message', onMessage)
       channel?.close()
     }
-  }, [])
+  }, [workspaceId, scope])
 
   const setWaitKind = useCallback((sessionId: string, kind: WaitKind | null) => {
     setWaitKinds((prev) => {

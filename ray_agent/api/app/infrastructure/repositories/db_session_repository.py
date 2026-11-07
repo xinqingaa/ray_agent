@@ -72,10 +72,18 @@ class DBSessionRepository(SessionRepository):
             note(self.db_session, "session", session_id)
         return result.rowcount > 0
 
-    async def page(self, *, offset: int = 0, limit: int = 50) -> tuple[List[Session], int]:
-        total = (await self.db_session.execute(select(func.count()).select_from(SessionModel))).scalar_one()
+    async def ids_by_workspace(self, workspace_id: str) -> List[str]:
+        return list((await self.db_session.execute(
+            select(SessionModel.id).where(SessionModel.workspace_id == workspace_id))).scalars())
+
+    async def page(self, *, offset: int = 0, limit: int = 50,
+                   workspace_id: Optional[str] = None, independent: bool = False) -> tuple[List[Session], int]:
+        scope = [SessionModel.workspace_id == workspace_id] if workspace_id else \
+            [SessionModel.workspace_id.is_(None)] if independent else []
+        total = (await self.db_session.execute(
+            select(func.count()).select_from(SessionModel).where(*scope))).scalar_one()
         stmt = (
-            select(SessionModel)
+            select(SessionModel).where(*scope)
             .options(defer(SessionModel.memories), defer(SessionModel.files))
             .order_by(SessionModel.latest_message_at.desc().nullslast(), SessionModel.created_at.desc(),
                       SessionModel.id)

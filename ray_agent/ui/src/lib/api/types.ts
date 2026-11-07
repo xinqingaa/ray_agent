@@ -1,5 +1,7 @@
 import type {components} from "@contracts/openapi";
-import type {StreamEvent} from "@contracts/events";
+import type {StreamEvent, WorkspaceChangeEvent} from "@contracts/events";
+
+export type {WorkspaceChangeEvent};
 
 // ==================== 契约生成类型 ====================
 // 来自 ray_agent/contracts 的生成结果；改动在核心的 Pydantic 模型里进行并重新生成。
@@ -219,6 +221,8 @@ export type ConversationSummary = {
 
 export type Session = Partial<ConversationSummary> & {
   session_id: string;
+  /** 所属工作区；独立对话为空，创建后不变 */
+  workspace_id?: string | null;
   title: string;
   latest_message: string;
   latest_message_at: string;
@@ -242,6 +246,7 @@ export type SessionsData = {
  */
 export type CreateSessionParams = {
   creation_id?: string;
+  workspace_id?: string;
   title?: string;
   [key: string]: unknown;
 };
@@ -462,3 +467,27 @@ export type ContextPreview = {
   over_watermark: boolean; over_limit: boolean; fixed_input_exceeded: boolean;
 };
 export type SamplingBudget = {context_window: number; max_tokens: number; limit: number; watermark: number};
+
+// ==================== 工作区与文件夹 ====================
+
+export type WorkspaceItem = Schemas["WorkspaceItem"];
+export type WorkspaceStatus = Schemas["WorkspaceStatus"];
+export type FolderView = Schemas["FolderView"];
+export type FolderStatus = Schemas["FolderStatus"];
+export type OpenWorkspaceResult = Schemas["OpenWorkspaceResult"];
+export type MarkerConflict = Schemas["MarkerConflict"];
+export type ConflictResolution = Schemas["ConflictResolution"];
+export type ScanSummary = Schemas["ScanSummary"];
+export type RootEntry = Schemas["RootEntryView"];
+export type RootListing = Schemas["RootListing"];
+export type OperationView = Schemas["OperationView"];
+
+export type WriteLease = Schemas["WriteLeaseView"];
+export type ModifiedRun = Schemas["RunSummaryView"];
+export type RunChanges = Schemas["RunChangesResponse"];
+export type ChangeEntry = Schemas["ChangeEntryView"];
+export type FileVersion = Schemas["FileVersionView"];
+export type ChangePreview = Schemas["ChangePreviewResponse"];
+export type UndoItemRequest = Schemas["UndoItemRequest"];
+export type ForceCurrent = Schemas["ForceCurrentRequest"];
+export type UndoItemResult = Schemas["UndoItemResult"];

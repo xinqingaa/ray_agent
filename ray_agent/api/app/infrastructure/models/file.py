@@ -11,7 +11,7 @@ from .base import Base, NullableJSON, UTCDateTime
 from ...domain.models.clock import utc_now
 from ...domain.models.file import File
 
-_FIELDS = {"id", "filename", "filepath", "key", "extension", "mime_type", "size", "sha256", "visual"}
+_FIELDS = {"id", "filename", "filepath", "root_id", "relative_path", "key", "extension", "mime_type", "size", "sha256", "visual"}
 
 
 class FileModel(Base):
@@ -25,6 +25,8 @@ class FileModel(Base):
                                                       nullable=True)
     filename: Mapped[str] = mapped_column(Text, nullable=False, default="")
     filepath: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    root_id: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    relative_path: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     key: Mapped[str] = mapped_column(Text, nullable=False, default="")
     extension: Mapped[str] = mapped_column(String(64), nullable=False, default="")
     mime_type: Mapped[str] = mapped_column(String(255), nullable=False, default="")

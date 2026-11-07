@@ -16,7 +16,7 @@ uv sync --locked --group dev
 
 核心只从进程环境读取系统配置，不查找 `.env`；字段定义见 [core/config.py](core/config.py)。应用配置（逐模型参数、Agent、工具策略、MCP、A2A）保存在业务库，首次启动写入代码默认值，之后经设置接口修改。模型地址与密钥只从用户配置文件读取（默认 `~/.config/rayagent/config.toml`，`RAYAGENT_CONFIG` 可另指，格式见[配置示例](config.example.toml)），按文件身份重新读取；密钥不写入业务库，`GET /api/app-config/llm` 只返回配置文件状态、各提供商的地址、协议、模型与密钥掩码。测试不读用户目录，夹具把配置文件指向临时目录。
 
-运行核心不需要 PostgreSQL、Redis、Docker 或对象存储。本机执行端口接入前，能力声明把文件访问、本机命令与浏览器报告为未实现，核心不装配这些工具，独立对话仍可使用对话、检索、公开网页读取与计划。保留的 Docker 沙箱适配不再装配，见下文[Docker 沙箱适配](#docker-沙箱适配)。
+运行核心不需要 PostgreSQL、Redis、Docker 或对象存储。文件访问由核心经限根文件端口提供（工作区文件夹与会话工作目录）；本机执行端口接入前，能力声明把本机命令与浏览器报告为未实现，核心不装配这些工具。保留的 Docker 沙箱适配不再装配，见下文[Docker 沙箱适配](#docker-沙箱适配)。
 
 ## 数据根
 
@@ -25,12 +25,15 @@ uv sync --locked --group dev
 ```text
 <数据根>/
 ├── core.lock                 实例锁：同一数据根同时只允许一个核心
+├── install_id                本机安装身份：首次启动生成，工作区文件夹的身份标记按它区分本机条目
 ├── rayagent.db               业务库（WAL 模式，另有 -wal、-shm 文件）
 ├── objects/<身份前两位>/<身份>  内容对象：附件、交付文件、截图
 ├── sessions/<root_id>/       会话工作目录：uploads/、outputs/、screenshots/、tmp/
 ├── skills/                   skill 存储
 └── tmp/                      上传暂存
 ```
+
+开发模式（不经宿主）还会写入仅本人可读的 `dev_host_secret`，内容是本次启动的宿主密钥，调试宿主专用接口时从这里取。
 
 会话工作目录随会话创建登记为可访问根（`root_id`），目录在首次写入时创建，删除会话时与内容对象一起交给清理任务回收。各目录的职责与回收规则见[架构说明的数据归属](../../docs/architecture.md#数据归属)，数值上限见[运行参数与限额](../../docs/limits.md#本机存储与后台任务)。
 
@@ -42,9 +45,25 @@ uv sync --locked --group dev
 uv run --locked python sidecar.py --data-root /tmp/rayagent-dev
 ```
 
-`--port` 默认 8000，传 0 由系统分配。启动时依次取得实例锁、执行迁移、打开业务库、写入默认应用配置、初始化 skill、执行启动扫描并恢复后台任务，完成后才接收请求，并在 stdout 写一行握手；Ctrl-C 停止。同一数据根已有核心运行时启动失败；业务库版本高于程序已知版本时拒绝启动，不降级迁移。
+`--port` 默认 8000，传 0 由系统分配。开发模式没有宿主，启动时随机生成宿主密钥并写入数据根的 `dev_host_secret`。启动时依次取得实例锁、执行迁移、打开业务库、写入默认应用配置、初始化 skill、执行启动扫描并恢复后台任务，完成后才接收请求，并在 stdout 写一行握手；Ctrl-C 停止。同一数据根已有核心运行时启动失败；业务库版本高于程序已知版本时拒绝启动，不降级迁移。
 
 每次启动生成新的实例令牌并写在握手的 `instance_token` 中，`/api/` 下的请求都要带 `Authorization: Bearer <令牌>`，CORS 预检除外；令牌不进 URL 与日志。图片、PDF 与网页预览由 WebView 按 URL 直接加载，无法带请求头：先用 `POST /api/files/{id}/preview/ticket` 申请短期票据，再把 `ticket` 参数加到 `/api/files/{id}/preview/content`。票据只放行签发时那条路径的 GET 与 HEAD，到期作废，只存在进程内存；有效期与容量见[运行参数与限额](../../docs/limits.md#桌面宿主与核心进程)。
+
+### 工作区与文件夹授权
+
+工作区文件夹的来源只有两个：在默认位置（`GET/POST /api/workspaces/default-location`）下新建，或打开宿主选择器选中的已有文件夹。核心不接受界面提交的桌面绝对路径：宿主在启动参数里把宿主密钥交给核心（不进环境变量），选择文件夹后带 `X-RayAgent-Host-Secret` 头调用 `POST /api/host/folder-grants` 登记路径，得到一次性、短期有效的 `grant_id`；界面用它调用 `POST /api/workspaces/open` 或更改默认位置，凭证用过即作废。实例令牌不能代替宿主密钥。打开已有文件夹返回扫描摘要；标记指向本机已知工作区且原文件夹仍在（复制）时返回 `status=conflict` 与 `conflict`，用 `POST /api/workspaces/open/resolve` 选择 `as_new` 或 `rebind`。文件按 `root_id` 加相对路径访问（`/api/roots/{root_id}/…`），会话创建时可带 `workspace_id`，会话列表（`GET /api/sessions`）与列表流（`POST /api/sessions/stream`）可按 `workspace_id` 过滤，或用 `independent=true` 只取没有工作区的独立对话（两者同用返回 400，过滤发生在分页之前）。
+
+重新定位：`POST /api/workspaces/{id}/relocate`，body `{grant_id, version}`，把工作区改绑到宿主选中的另一个文件夹，不依赖身份标记，标记不可写时仍可用。校验同打开（嵌套、数据根与系统目录返回 400，`details.reason` 同打开）；目标已绑定其他工作区（`details.reason=already_bound`）、目标标记属于本机另一个工作区（`marker_other_workspace`，带 `workspace_id` 与 `workspace_name`）、`version` 过期（带 `resource_version`）、有未释放的写入租约（`details.lease`）或活动运行（`details.session_id`、`details.run_id`）时返回 409，`grant_id` 无效返回 410。成功返回工作区详情：根与 `root_id` 不变，位置、文件系统身份与可用性更新，目标内尽力写入标记并移除旧位置的本机条目；外部变更订阅自动切到新位置并推送一次整体刷新。
+
+显示位置：宿主带 `X-RayAgent-Host-Secret` 调用 `POST /api/host/roots/{root_id}/resolve`，body `{relative_path}`（空表示根本身），返回 `{path}`，只供宿主在系统文件管理器里定位。适用于会话工作目录与工作区文件夹两类根，按根身份与路径规则核对：不越出根，`.rayagent`、版本控制内部与凭据、数据库文件返回 403，目标不存在返回 404，根不存在返回 404，路径非法返回 400，只放行普通文件与目录；交付文件的 `root_id` 与 `relative_path` 即可直接传入。绝对路径不进入界面。
+
+### 工作区写入保护、撤销与外部变更
+
+工作区详情与列表的 `write_lease` 给出文件夹当前的写入者（为空表示没有）；也可单独读 `GET /api/workspaces/{id}/write-lease`。其他会话写入被占用时，文件工具得到可读的失败，接口得到 409 且 `details.lease` 带持有者、阶段与原因。`state` 为 `settling` 或 `blocked`（停止后未能确认写入结束）时，`POST /api/workspaces/{id}/write-lease/retry-settle` 重试收尾，确认后释放，仍未确认返回 409。
+
+撤销：`GET /api/workspaces/{id}/modified-runs` 列出最近修改过文件夹的运行与撤销操作（项里的 `kind` 为 `run` / `undo`，撤销操作的 `run_id` 是它自己的操作身份，`undo_of_run_id` 指向被撤销的运行，其变更同样可查看与撤回）；`GET …/runs/{run_id}/changes` 给出每个文件的净操作、运行前版本、运行最后写入版本、当前版本与 `status`（`undoable` / `restored` / `conflict`；冲突原因 `conflict_reason` 含 `modified_during_run`：运行期间文件被外部修改过，可强制恢复）；`GET …/runs/{run_id}/changes/preview?path=` 返回当前版本到撤销后版本的统一 diff（二进制或过大只给大小；`warning` 非空时说明撤销会丢掉运行期间的外部修改）；`POST …/runs/{run_id}/undo` 带 `items[{relative_path, force?}]`，逐个返回 `restored` / `removed` / `unchanged` / `conflict` / `failed`。冲突项带当前版本与 `can_force`，把当前版本原样放进 `force` 再提交才会覆盖；运行新建的文件被改动后不提供覆盖。租约被占用、运行仍在进行时整体返回 409。
+
+外部变更：`GET /api/workspaces/{id}/changes/stream` 是 SSE，先发 `ready`（当前是否可用），之后发 `changed`（`paths` 或 `refresh`）与 `availability`；事件数据结构见契约里的 `WorkspaceChangeEvent`，应用自己的写入也会触发 `changed`。
 
 接口说明由应用生成：启动后访问 `/docs` 查看 OpenAPI 文档（文档页本身不需要令牌，从页面调用接口需要），无需另外维护完整路由表。
 
@@ -77,7 +96,7 @@ uv run --locked pyinstaller --noconfirm --clean rayagent-core.spec
 不带参数时入口从 stdin 读取一行 JSON 启动参数（契约类型 `CoreLaunch`），其中的 `data_dir` 就是数据根，就绪后在 stdout 写一行握手（`CoreHandshake`）；宿主侧约定见[桌面宿主指南](../desktop/README.md#宿主与核心的约定)。不冻结时也可以按宿主方式运行入口，用管道保持 stdin 打开，关闭管道即正常停止：
 
 ```bash
-(echo '{"data_dir": "/tmp/rayagent-core-data"}'; cat) | uv run --locked python sidecar.py
+(echo '{"data_dir": "/tmp/rayagent-core-data", "host_secret": "0123456789abcdef0123456789abcdef"}'; cat) | uv run --locked python sidecar.py
 ```
 
 冻结后 `sys.executable` 指向入口本身。预览解析等以 `sys.executable -m 模块` 启动的子进程由入口按 `WORKER_MODULES` 放行，新增这类子进程时同时登记。
@@ -96,6 +115,8 @@ uv run --locked pyinstaller --noconfirm --clean rayagent-core.spec
 | 业务库、迁移与工作单元 | `infrastructure/storage/sqlite.py`、`../alembic/`、`domain/repositories/`、`infrastructure/repositories/`、`infrastructure/models/` |
 | 后台任务与清理 | `application/services/background_jobs.py`、`application/services/data_service.py` |
 | 数据根、会话工作目录与内容对象 | `../core/paths.py`、`infrastructure/external/workdir/`、`infrastructure/external/file_storage/` |
+| 工作区、文件夹授权与限根文件访问 | `application/services/workspace_service.py`、`application/services/root_access.py`、`domain/services/file_scope.py`、`infrastructure/external/workspace_files/` |
+| 写入租约、写前备份、撤销与外部变更 | `application/services/write_leases.py`、`workspace_writer.py`、`file_history.py`、`workspace_changes.py`、`infrastructure/external/file_storage/workspace_objects.py`、`infrastructure/external/workspace_files/watcher.py` |
 | 外部服务与执行资源 | `domain/external/`、`infrastructure/external/` |
 
 ## 测试与数据库迁移
@@ -178,9 +199,17 @@ uv run --locked python -m pytest tests/core/test_file_preview.py tests/core/test
 
 预览用例使用真实临时文件和实际解析子进程，核对工作表、样式、合并格、公式缓存缺失、CSV 引号与分页、大于 5 MiB 的文本/工作簿、取消后的句柄寿命、损坏文件、Range 和 ZIP 重名。交付用例使用实际运行器交付函数、交付工具和本地内容对象，覆盖只接受会话工作目录内的文件、相同路径与字节复用附件、改版保留旧附件、替换失败保留旧条目、全部与部分交付失败的区分；事务回滚用内存快照模拟，真实提交见本机存储用例。
 
+### 工作区写保护检查
+
+```bash
+uv run --locked python -m pytest tests/core/test_write_protection.py tests/core/test_agent_task_runner_cancel.py
+```
+
+用例使用真实临时目录与真实业务库，覆盖两个会话争用同一文件夹的立即冲突与同一运行重入、停止后释放、确认期限内未确认转阻止并重试、迟到结果不释放新租约、启动扫描旧实例租约、覆盖前备份与同内容去重、备份失败不写入、撤销成功与运行新建文件的移除、外部改动后的冲突与显式覆盖、被改动的新建文件不删除、运行进行中拒绝撤销、真实文件系统通知（辅以重扫）与文件夹移走后的不可用、运行期间外部改动的撤销冲突与撤销操作本身的撤回、文件工具对凭据与版本控制内部路径及其 Unicode 等价名的拒绝，以及清空业务数据不删除用户文件。边界用例见 `test_workspace_integrity.py`：失联工作区的嵌套检查、改绑期间的写入、外接卷设备号变化、标记兼容、删除与写入的竞态、租约残留恢复、监视异常恢复；描述符紧张下的遍历与残留临时文件见 `test_workspace_files.py`。它们不覆盖多个核心进程争用同一数据根（实例锁拒绝第二个核心）、外部进程写入者（尚无调用方，其租约的用户确认释放入口留给本机执行工作包）和非 POSIX 文件系统的原子替换与通知差异。覆盖发布用 `rename` 替换目标，最后一次核对与替换之间仍有很小的竞争窗口（尚未改用 macOS 的 `renamex_np` 条件替换），测试无法证明窗口被消除。
+
 ### 数据删除与清空检查
 
-删除会话（`POST /api/sessions/{id}/delete`）在一个写事务中删除会话、运行、事件、输入与附件记录并登记清理任务，内容对象与会话工作目录由后台任务回收。全局清空经 `/api/data`：`GET /api/data/preview` 读取确认范围，`POST /api/data/reset` 受理，`GET /api/data/tasks/latest` 与 `/api/data/tasks/{id}` 读回进度，失败后 `POST /api/data/tasks/{id}/retry` 按原清单重试。应用配置与 skill 不在清空范围内。
+删除会话（`POST /api/sessions/{id}/delete`）在一个写事务中删除会话、运行、事件、输入与附件记录并登记清理任务，内容对象与会话工作目录由后台任务回收。全局清空经 `/api/data`：`GET /api/data/preview` 读取确认范围，`POST /api/data/reset` 受理，`GET /api/data/tasks/latest` 与 `/api/data/tasks/{id}` 读回进度，失败后 `POST /api/data/tasks/{id}/retry` 按原清单重试。同一事务还删除全部工作区登记、写前备份与写入租约，不删除任何工作区文件夹或其中的文件，本机标记条目由回收任务尽力移除。应用配置与 skill 不在清空范围内。
 
 ```bash
 uv run --locked python -m pytest tests/core/test_sqlite_storage.py -k "delete or reset or background_job"

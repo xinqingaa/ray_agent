@@ -17,8 +17,8 @@ VERIFICATION_TOOLS = {"shell_execute", "browser_console_exec", "read_file", "wri
 
 
 class TaskOutcomes:
-    def __init__(self, plan_tool, sandbox):
-        self.plan_tool, self.sandbox = plan_tool, sandbox
+    def __init__(self, plan_tool, files):
+        self.plan_tool, self.files = plan_tool, files  # files 是 FileScope；没有文件能力时为空
         self.frozen_ids = None
 
     def artifact(self, aid):
@@ -26,17 +26,11 @@ class TaskOutcomes:
         return next((a for a in plan.artifacts if a.id == aid), None) if plan else None
 
     async def fingerprint(self, path):
-        if not path or self.sandbox is None: return None
-        stream = None
+        if not path or self.files is None: return None
         try:
-            stream = await self.sandbox.download_file(path)
-            digest = hashlib.sha256()
-            while chunk := stream.read(65536): digest.update(chunk)
-            return digest.hexdigest()
+            return await self.files.fingerprint(path)
         except Exception:
             return None
-        finally:
-            if stream is not None: stream.close()
 
     async def existing_delivery(self, path):
         from app.domain.models.file import File
@@ -236,26 +230,26 @@ class ArtifactWriter(BaseTool):
         # 原路径存在时只写冻结时预留的新版；任何既有字节都不覆盖。
         target = a.path
         try:
-            checked = await o.sandbox.check_file_exists(target)
+            exists = await o.files.exists(target)
         except Exception:
             return ToolResult(success=False, message="无法确认目标文件是否存在，保留现有文件；恢复检查后再交付")
-        exists = checked.data.get('exists') if isinstance(checked.data, dict) else None
-        if not checked.success or type(exists) is not bool:
-            return ToolResult(success=False, message="无法确认目标文件是否存在，收尾未写入")
         if exists:
             target = a.final_path
             if not target:
                 return ToolResult(success=False, message="未预留新版路径，保留现有文件")
             try:
-                checked = await o.sandbox.check_file_exists(target)
+                exists = await o.files.exists(target)
             except Exception:
                 return ToolResult(success=False, message="无法确认新版路径，收尾未写入")
-            if not checked.success or not isinstance(checked.data, dict) or checked.data.get('exists') is not False:
+            if exists:
                 return ToolResult(success=False, message="新版路径已存在或无法确认，不覆盖任何文件")
         a.final_attempts += 1
-        result = await o.sandbox.write_file(filepath=target, content=content)
-        if result.success:
-            a.final_writes += 1
-            a.path = target
-        return ToolResult(success=result.success, message=result.message,
-                          data={'artifact_id': artifact_id, 'filepath': target, 'result': result.data})
+        try:
+            version = await o.files.write_text_new(target, content)
+        except Exception as error:
+            return ToolResult(success=False, message=str(error) or "写入失败",
+                              data={'artifact_id': artifact_id, 'filepath': target})
+        a.final_writes += 1
+        a.path = target
+        return ToolResult(message="写入成功", data={'artifact_id': artifact_id, 'filepath': target,
+                                                    'result': {'size': version.size}})

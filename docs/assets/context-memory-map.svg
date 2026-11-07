@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900" role="img" aria-labelledby="title desc" data-generator="fireworks-tech-graph" data-quality-profile="showcase">
   <title id="title">RayAgent：记忆分层与请求装配</title>
-  <desc id="desc">会话工作记忆、冻结项目背景与结构化任务状态进入本次请求；持久事件用于回放和重建，不逐轮全量注入。 工作记忆包含当前激活的 skill 资料。</desc>
+  <desc id="desc">会话工作记忆、冻结长期背景与结构化任务状态进入本次请求；持久事件用于回放和重建，不逐轮全量注入。 工作记忆包含当前激活的 skill 资料。</desc>
   <style>text {font-family:'PingFang SC','Hiragino Sans GB','Noto Sans CJK SC','Noto Sans SC','Source Han Sans SC','Songti SC','Microsoft YaHei','Helvetica Neue',Helvetica,Arial,sans-serif;fill:#17263c} .sub {fill:#63748a}</style>
   <defs>
     <marker id="arrow-orange" markerUnits="userSpaceOnUse" markerWidth="14" markerHeight="14" refX="12" refY="7" orient="auto">

@@ -162,7 +162,7 @@
         },
         "protocol_version": {
           "$ref": "#/$defs/ProtocolVersion",
-          "default": 2
+          "default": 3
         },
         "error": {
           "$ref": "#/$defs/ErrorInfo"
@@ -227,10 +227,16 @@
           },
           "description": "叠加到核心进程的显式环境",
           "type": "object"
+        },
+        "host_secret": {
+          "description": "宿主密钥：只有宿主持有；宿主专用接口要求它，实例令牌不能代替",
+          "minLength": 16,
+          "type": "string"
         }
       },
       "required": [
-        "data_dir"
+        "data_dir",
+        "host_secret"
       ],
       "title": "CoreLaunch",
       "type": "object"
@@ -239,7 +245,7 @@
       "properties": {
         "protocol_version": {
           "$ref": "#/$defs/ProtocolVersion",
-          "default": 2
+          "default": 3
         },
         "event_version": {
           "$ref": "#/$defs/EventVersion",
@@ -302,7 +308,7 @@
       "properties": {
         "protocol_version": {
           "$ref": "#/$defs/ProtocolVersion",
-          "default": 2
+          "default": 3
         },
         "event_version": {
           "$ref": "#/$defs/EventVersion",

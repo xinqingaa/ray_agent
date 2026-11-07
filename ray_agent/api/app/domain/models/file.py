@@ -9,7 +9,9 @@ class File(BaseModel):
     """文件信息Domain模型，用于记录用户上传或 Agent 交付的文件；字节保存为数据根中的内容对象"""
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))  # 文件id
     filename: str = ""  # 文件名字
-    filepath: str = ""  # 会话工作目录中的位置；尚未放入工作目录时为空
+    filepath: str = ""  # 文件所在的绝对位置（工作区文件夹或会话工作目录）；尚未放入时为空
+    root_id: str | None = None  # 来源可访问根；交付自工作区文件夹时与 relative_path 一起记录位置
+    relative_path: str | None = None  # 根内相对路径，用于预览与打开位置；字节以交付时保存的内容对象为准
     key: str = ""  # 内容对象位置
     extension: str = ""  # 扩展名
     mime_type: str = ""  # mime-type类型

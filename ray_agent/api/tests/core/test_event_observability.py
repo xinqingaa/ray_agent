@@ -69,11 +69,17 @@ def test_usage_counts_returned_attempts_but_not_failed_transport(eventually_vali
 
 def test_one_tool_event_pair_is_one_execution_attempt():
     async def run():
-        h = make_loop([tool_call('read_file', {'filepath': '/hello.txt'}, id='call-read'), text('完成')])
-        h.sandbox.read_file.side_effect = [RuntimeError('受控首次失败'), ToolResult(success=True)]
+        h = make_loop([tool_call('read_file', {'filepath': 'hello.txt'}, id='call-read'), text('完成')])
+        attempts = []
+
+        async def failing(path, expected=None):
+            attempts.append(path.relative_path)
+            raise RuntimeError('受控首次失败')
+        h.files.files._inner.open_reader = failing
+        h.files.put('hello.txt', 'hi')
         events = [e async for e in h.loop.invoke(Message(message='读取文件'))]
         tool_events = [e for e in events if isinstance(e, ToolEvent)]
-        assert h.sandbox.read_file.await_count == 1
+        assert attempts == ['hello.txt']
         assert [e.status for e in tool_events] == ['calling', 'called']
         assert len({e.tool_call_id for e in tool_events}) == 1
         assert tool_events[-1].function_result.success is False

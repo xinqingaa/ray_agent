@@ -10,6 +10,7 @@ from app.domain.models.run import RunStatus
 from app.domain.models.session import Session, SessionStatus
 from app.domain.models.tool_result import ToolResult
 from tests.support.loop_harness import (
+    FileFixture,
     FakeEventRepository,
     assert_no_dangling,
     input_task,
@@ -28,14 +29,10 @@ from tests.support.scripted_llm import ScriptedResponse, ScriptedToolCall, text,
 @pytest.mark.parametrize('resume', [False, True])
 def test_tool_result_is_saved_before_called_event_and_stop_keeps_it(tmp_path, resume):
     async def run():
-        target = tmp_path / 'hello.txt'
+        files = FileFixture()
+        target = files.root / 'hello.txt'
         h = make_loop([tool_call('write_file', {'filepath': str(target), 'content': 'hello'}, id='write-1'),
-                       text('完成')])
-
-        async def write_file(filepath, content, **kwargs):
-            target.write_text(content)
-            return ToolResult(success=True)
-        h.sandbox.write_file = AsyncMock(side_effect=write_file)
+                       text('完成')], files=files)
         events = h.loop.invoke(Message(message='写入文件'))
         saved = None
         async for event in events:
@@ -96,11 +93,11 @@ def test_wait_resume_after_serialization_keeps_plan_snapshot_and_identity():
         done_plan = [{'id': step.id, 'step': step.description, 'status': 'completed'} for step in snapshot.steps]
         second = make_loop([
             ScriptedResponse(tool_calls=[
-                ScriptedToolCall('read_file', {'filepath': '/hello.txt'}, id='read-1'),
+                ScriptedToolCall('read_file', {'filepath': 'hello.txt'}, id='read-1'),
                 ScriptedToolCall('update_plan', {'plan': done_plan}, id='plan-2'),
             ]),
             text('完成'),
-        ], session=restored)
+        ], session=restored, files=FileFixture({'hello.txt': 'hi'}))
         task2 = input_task()
         resumed = await resume_run(second, waiting.id, '/hello.txt')
         await make_runner(second, run=resumed, prior_status=SessionStatus.WAITING).invoke(task2)
@@ -111,6 +108,6 @@ def test_wait_resume_after_serialization_keeps_plan_snapshot_and_identity():
         assert [step.id for step in plans[0].steps] == [step.id for step in plans[1].steps]
         assert [s.status for s in plans[-1].steps] == ['completed', 'completed']
         assert tool_results(second.llm.requests[0].messages)['ask-1']['data']['reply'] == '/hello.txt'
-        second.sandbox.read_file.assert_awaited_once()
+        assert len(second.files.files.read()) == 1
         assert second.llm.remaining == 0
     asyncio.run(asyncio.wait_for(run(), 5))

@@ -3,7 +3,7 @@
   "info": {
     "title": "RayAgent通用智能体",
     "description": "RayAgent 本机核心：会话、运行与事件保存在本机业务库，经 MCP 与 A2A 连接外部工具与远程 Agent",
-    "version": "2"
+    "version": "3"
   },
   "paths": {
     "/api/status": {
@@ -1265,6 +1265,36 @@
               "default": 50,
               "title": "Limit"
             }
+          },
+          {
+            "name": "workspace_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "只列出该工作区的会话",
+              "title": "Workspace Id"
+            },
+            "description": "只列出该工作区的会话"
+          },
+          {
+            "name": "independent",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "只列出没有工作区的独立对话；不能与 workspace_id 同时使用",
+              "default": false,
+              "title": "Independent"
+            },
+            "description": "只列出没有工作区的独立对话；不能与 workspace_id 同时使用"
           }
         ],
         "responses": {
@@ -1322,6 +1352,36 @@
               "default": 50,
               "title": "Limit"
             }
+          },
+          {
+            "name": "workspace_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "只列出该工作区的会话",
+              "title": "Workspace Id"
+            },
+            "description": "只列出该工作区的会话"
+          },
+          {
+            "name": "independent",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "只列出没有工作区的独立对话；不能与 workspace_id 同时使用",
+              "default": false,
+              "title": "Independent"
+            },
+            "description": "只列出没有工作区的独立对话；不能与 workspace_id 同时使用"
           }
         ],
         "responses": {
@@ -3118,6 +3178,1515 @@
           }
         }
       }
+    },
+    "/api/workspaces": {
+      "get": {
+        "tags": [
+          "工作区"
+        ],
+        "summary": "工作区列表",
+        "description": "按需核对每个文件夹的可用性：路径缺失或文件系统身份不符为 unavailable，会话仍可用",
+        "operationId": "list_workspaces_api_workspaces_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_WorkspaceListResponse_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "工作区"
+        ],
+        "summary": "新建工作区",
+        "description": "在默认工作区位置下按名称新建文件夹（重名加序号，不复用已有目录）",
+        "operationId": "create_workspace_api_workspaces_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateWorkspaceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_WorkspaceItem_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workspaces/open": {
+      "post": {
+        "tags": [
+          "工作区"
+        ],
+        "summary": "打开已有文件夹为工作区",
+        "description": "需要宿主选择器产生的一次性 grant_id。打开新文件夹会写入身份标记；识别出移动则改绑；复制出的文件夹返回 conflict，用 /workspaces/open/resolve 选择",
+        "operationId": "open_workspace_api_workspaces_open_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OpenWorkspaceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_OpenWorkspaceResult_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workspaces/open/resolve": {
+      "post": {
+        "tags": [
+          "工作区"
+        ],
+        "summary": "处理复制文件夹的冲突",
+        "description": "as_new：在此文件夹重写本机标记条目并成为新工作区；rebind：原工作区改绑到这里，原文件夹解除绑定",
+        "operationId": "resolve_conflict_api_workspaces_open_resolve_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolveConflictRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_OpenWorkspaceResult_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workspaces/default-location": {
+      "get": {
+        "tags": [
+          "工作区"
+        ],
+        "summary": "默认工作区位置",
+        "operationId": "get_default_location_api_workspaces_default_location_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_DefaultLocationResponse_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "工作区"
+        ],
+        "summary": "更改默认工作区位置",
+        "description": "需要宿主选择器产生的一次性 grant_id",
+        "operationId": "set_default_location_api_workspaces_default_location_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DefaultLocationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_DefaultLocationResponse_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workspaces/{workspace_id}": {
+      "get": {
+        "tags": [
+          "工作区"
+        ],
+        "summary": "工作区详情",
+        "operationId": "get_workspace_api_workspaces__workspace_id__get",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workspace Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_WorkspaceItem_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workspaces/{workspace_id}/rename": {
+      "post": {
+        "tags": [
+          "工作区"
+        ],
+        "summary": "重命名工作区",
+        "description": "只改名称，不改文件夹名；version 不符返回 409",
+        "operationId": "rename_workspace_api_workspaces__workspace_id__rename_post",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workspace Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RenameWorkspaceRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_WorkspaceItem_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workspaces/{workspace_id}/archive": {
+      "post": {
+        "tags": [
+          "工作区"
+        ],
+        "summary": "归档工作区",
+        "description": "归档后不能新建会话，也不会写入文件夹；已有会话可读",
+        "operationId": "archive_workspace_api_workspaces__workspace_id__archive_post",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workspace Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkspaceVersionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_WorkspaceItem_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workspaces/{workspace_id}/unarchive": {
+      "post": {
+        "tags": [
+          "工作区"
+        ],
+        "summary": "取消归档",
+        "operationId": "unarchive_workspace_api_workspaces__workspace_id__unarchive_post",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workspace Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkspaceVersionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_WorkspaceItem_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workspaces/{workspace_id}/relocate": {
+      "post": {
+        "tags": [
+          "工作区"
+        ],
+        "summary": "重新定位工作区的文件夹",
+        "description": "用宿主选择器产生的 grant_id 把工作区改绑到另一个文件夹，不依赖身份标记；校验同打开。version 不符、目标已绑定其他工作区（details.reason=already_bound）、目标标记属于本机另一个工作区（marker_other_workspace）、有未释放的写入租约（details.lease）或活动运行（details.run_id）时返回 409；嵌套、数据根与系统目录返回 400/403 同打开。成功后外部变更订阅自动切到新位置",
+        "operationId": "relocate_workspace_api_workspaces__workspace_id__relocate_post",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workspace Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RelocateWorkspaceRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_WorkspaceItem_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workspaces/{workspace_id}/recheck": {
+      "post": {
+        "tags": [
+          "工作区"
+        ],
+        "summary": "重新核对文件夹可用性",
+        "operationId": "recheck_workspace_api_workspaces__workspace_id__recheck_post",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workspace Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_WorkspaceItem_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workspaces/{workspace_id}/delete": {
+      "post": {
+        "tags": [
+          "工作区"
+        ],
+        "summary": "删除工作区",
+        "description": "删除工作区记录与它的全部会话，后台回收会话文件并尽力移除文件夹里的本机标记条目；不删除文件夹和其中的任何用户文件。返回长操作，用 /operations/{id} 读回",
+        "operationId": "delete_workspace_api_workspaces__workspace_id__delete_post",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workspace Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_OperationView_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workspaces/{workspace_id}/write-lease": {
+      "get": {
+        "tags": [
+          "工作区文件变更"
+        ],
+        "summary": "文件夹写入租约",
+        "description": "文件夹当前的写入者；没有租约表示没有写入者。其他会话的写入被占用时得到 409，details.lease 带同样信息。",
+        "operationId": "get_write_lease_api_workspaces__workspace_id__write_lease_get",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workspace Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_WriteLeaseResponse_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workspaces/{workspace_id}/write-lease/retry-settle": {
+      "post": {
+        "tags": [
+          "工作区文件变更"
+        ],
+        "summary": "重试写入租约收尾",
+        "description": "租约处于 settling 或 blocked（停止后未能确认写入结束）时，再次要求写入者退出并确认；确认后释放租约，仍未确认返回 409 并保持阻止状态。正常写入中的租约不可收尾（409）。",
+        "operationId": "retry_settle_api_workspaces__workspace_id__write_lease_retry_settle_post",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workspace Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_WriteLeaseResponse_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workspaces/{workspace_id}/modified-runs": {
+      "get": {
+        "tags": [
+          "工作区文件变更"
+        ],
+        "summary": "最近修改过文件夹的运行",
+        "description": "按最近修改时间倒序，供文件夹面板展示「最近一次修改」入口；只含有净变化的运行",
+        "operationId": "modified_runs_api_workspaces__workspace_id__modified_runs_get",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 100,
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_ModifiedRunsResponse_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workspaces/{workspace_id}/runs/{run_id}/changes": {
+      "get": {
+        "tags": [
+          "工作区文件变更"
+        ],
+        "summary": "一次运行在文件夹里的文件变更",
+        "description": "每个文件给出运行前版本、运行最后写入版本、当前版本与撤销状态（undoable/restored/conflict）；run_active 为真时不能撤销",
+        "operationId": "run_changes_api_workspaces__workspace_id__runs__run_id__changes_get",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_RunChangesResponse_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workspaces/{workspace_id}/runs/{run_id}/changes/preview": {
+      "get": {
+        "tags": [
+          "工作区文件变更"
+        ],
+        "summary": "预览撤销后的内容",
+        "description": "当前版本到撤销后版本的统一 diff；二进制或超过预览上限的文件只返回大小",
+        "operationId": "preview_change_api_workspaces__workspace_id__runs__run_id__changes_preview_get",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run Id"
+            }
+          },
+          {
+            "name": "path",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "description": "相对文件夹的路径",
+              "title": "Path"
+            },
+            "description": "相对文件夹的路径"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_ChangePreviewResponse_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workspaces/{workspace_id}/runs/{run_id}/undo": {
+      "post": {
+        "tags": [
+          "工作区文件变更"
+        ],
+        "summary": "撤销本次修改",
+        "description": "只处理选中的文件，逐个返回结果：restored/removed 已处理，unchanged 本来就是运行前状态，conflict 文件在运行之后被改动（带当前版本；can_force 时可带 force=当前版本再次提交以仍要恢复），failed 其他原因。恢复与移除前会备份当前版本，并占用文件夹写入租约；租约被占用、运行仍在进行或工作区不可写时整体返回 409。撤销不回滚会话与记忆。",
+        "operationId": "undo_run_api_workspaces__workspace_id__runs__run_id__undo_post",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UndoRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_UndoResponse_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workspaces/{workspace_id}/changes/stream": {
+      "get": {
+        "tags": [
+          "工作区文件变更"
+        ],
+        "summary": "订阅文件夹的外部变更",
+        "description": "SSE：先推送 ready（当前是否可用），之后推送 changed（paths 为变化的相对路径，refresh 为真表示需要整体刷新）与 availability（文件夹失联或恢复）。应用自己的写入同样会触发 changed。只在有订阅者时监视；通知之外还有定期重扫兜底。事件数据见 WorkspaceChangeEvent。",
+        "operationId": "stream_changes_api_workspaces__workspace_id__changes_stream_get",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workspace Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/roots/{root_id}/entries": {
+      "get": {
+        "tags": [
+          "工作区文件"
+        ],
+        "summary": "列出目录",
+        "operationId": "list_entries_api_roots__root_id__entries_get",
+        "parameters": [
+          {
+            "name": "root_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Root Id"
+            }
+          },
+          {
+            "name": "path",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 4096,
+              "description": "根内相对路径，空串为根本身",
+              "default": "",
+              "title": "Path"
+            },
+            "description": "根内相对路径，空串为根本身"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_RootListing_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/roots/{root_id}/entry": {
+      "get": {
+        "tags": [
+          "工作区文件"
+        ],
+        "summary": "读取文件或目录的元数据",
+        "operationId": "get_entry_api_roots__root_id__entry_get",
+        "parameters": [
+          {
+            "name": "root_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Root Id"
+            }
+          },
+          {
+            "name": "path",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 4096,
+              "description": "根内相对路径，空串为根本身",
+              "default": "",
+              "title": "Path"
+            },
+            "description": "根内相对路径，空串为根本身"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_RootEntryResponse_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/roots/{root_id}/content": {
+      "get": {
+        "tags": [
+          "工作区文件"
+        ],
+        "summary": "读取文件的原始字节",
+        "description": "按 offset 与 length 分段读取，单次有上限；始终作为附件返回，不内联渲染",
+        "operationId": "read_content_api_roots__root_id__content_get",
+        "parameters": [
+          {
+            "name": "root_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Root Id"
+            }
+          },
+          {
+            "name": "path",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 4096,
+              "description": "根内相对路径，空串为根本身",
+              "default": "",
+              "title": "Path"
+            },
+            "description": "根内相对路径，空串为根本身"
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          },
+          {
+            "name": "length",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Length"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/roots/{root_id}/preview": {
+      "get": {
+        "tags": [
+          "工作区文件"
+        ],
+        "summary": "文件预览",
+        "description": "与附件预览同一协议；revision 随文件大小与修改时间变化",
+        "operationId": "preview_api_roots__root_id__preview_get",
+        "parameters": [
+          {
+            "name": "root_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Root Id"
+            }
+          },
+          {
+            "name": "path",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 4096,
+              "description": "根内相对路径，空串为根本身",
+              "default": "",
+              "title": "Path"
+            },
+            "description": "根内相对路径，空串为根本身"
+          },
+          {
+            "name": "sheet",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1023,
+              "minimum": 0,
+              "default": 0,
+              "title": "Sheet"
+            }
+          },
+          {
+            "name": "row",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100000,
+              "minimum": 0,
+              "default": 0,
+              "title": "Row"
+            }
+          },
+          {
+            "name": "column",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 16383,
+              "minimum": 0,
+              "default": 0,
+              "title": "Column"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 1099511627776,
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          },
+          {
+            "name": "revision",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Revision"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/roots/{root_id}/preview/ticket": {
+      "post": {
+        "tags": [
+          "工作区文件"
+        ],
+        "summary": "签发原始内容的读取票据",
+        "description": "图片、PDF 与网页按 URL 加载：用 /roots/{root_id}/preview/content/{path} 并带 ticket 参数",
+        "operationId": "content_ticket_api_roots__root_id__preview_ticket_post",
+        "parameters": [
+          {
+            "name": "root_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Root Id"
+            }
+          },
+          {
+            "name": "path",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 4096,
+              "title": "Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_ResourceTicket_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/roots/{root_id}/preview/content/{relative_path}": {
+      "get": {
+        "tags": [
+          "工作区文件"
+        ],
+        "summary": "原始内容的内联读取",
+        "description": "只放行图片、PDF 与网页；需要票据",
+        "operationId": "root_content_api_roots__root_id__preview_content__relative_path__get",
+        "parameters": [
+          {
+            "name": "root_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Root Id"
+            }
+          },
+          {
+            "name": "relative_path",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Relative Path"
+            }
+          },
+          {
+            "name": "revision",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Revision"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/roots/{root_id}/upload": {
+      "post": {
+        "tags": [
+          "工作区文件"
+        ],
+        "summary": "把文件放进工作区文件夹",
+        "description": "复制到根目录，directory 可指定子目录；同名文件不覆盖，自动取不冲突的名称。归档的工作区不可写",
+        "operationId": "upload_api_roots__root_id__upload_post",
+        "parameters": [
+          {
+            "name": "root_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Root Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_api_roots__root_id__upload_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_RootEntryResponse_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/host/folder-grants": {
+      "post": {
+        "tags": [
+          "宿主接口"
+        ],
+        "summary": "登记宿主选中的文件夹",
+        "description": "返回一次性、短期有效的 grant_id；界面凭它打开工作区或更改默认位置。需要宿主密钥头 X-RayAgent-Host-Secret",
+        "operationId": "create_folder_grant_api_host_folder_grants_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FolderGrantRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_FolderGrantResponse_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/host/roots/{root_id}/resolve": {
+      "post": {
+        "tags": [
+          "宿主接口"
+        ],
+        "summary": "解析根内路径的本机绝对位置",
+        "description": "供宿主「在文件管理器中显示」：按根身份与路径规则核对（不越出根、拒绝 .rayagent、版本控制内部与凭据文件，目标必须存在），返回绝对路径；会话工作目录与工作区文件夹都适用。需要宿主密钥头 X-RayAgent-Host-Secret",
+        "operationId": "resolve_root_path_api_host_roots__root_id__resolve_post",
+        "parameters": [
+          {
+            "name": "root_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Root Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResolveRootPathRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_ResolveRootPathResponse_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -3580,6 +5149,25 @@
         ],
         "title": "Body_set_mcp_server_enabled_api_app_config_mcp_servers__server_name__enabled_post"
       },
+      "Body_upload_api_roots__root_id__upload_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          },
+          "directory": {
+            "type": "string",
+            "title": "Directory",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_upload_api_roots__root_id__upload_post"
+      },
       "Body_upload_file_api_files_post": {
         "properties": {
           "file": {
@@ -3851,6 +5439,205 @@
           "detail"
         ],
         "title": "CapabilityStatus"
+      },
+      "ChangeEntryView": {
+        "properties": {
+          "root_id": {
+            "type": "string",
+            "title": "Root Id"
+          },
+          "relative_path": {
+            "type": "string",
+            "title": "Relative Path"
+          },
+          "operation": {
+            "$ref": "#/components/schemas/ChangeOperation",
+            "description": "折叠后的净操作：运行前不存在为 create，运行前存在且最后被删除为 delete，其余为 modify"
+          },
+          "writes": {
+            "type": "integer",
+            "title": "Writes",
+            "description": "运行对该文件的写入次数"
+          },
+          "first_at": {
+            "type": "integer",
+            "title": "First At"
+          },
+          "last_at": {
+            "type": "integer",
+            "title": "Last At"
+          },
+          "before": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FileVersionView"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "运行前版本；create 为空"
+          },
+          "after": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FileVersionView"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "运行最后写入的版本；delete 为空"
+          },
+          "current": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FileVersionView"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "文件夹里当前的版本；不存在为空"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "undoable",
+              "restored",
+              "conflict"
+            ],
+            "title": "Status",
+            "description": "undoable：当前版本仍是运行最后写入的，可直接撤销；restored：已经是运行前状态；conflict：之后被改动过，只有明确仍要恢复才会覆盖"
+          },
+          "conflict_reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "modified",
+                  "missing",
+                  "appeared",
+                  "not_file",
+                  "modified_during_run"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Conflict Reason"
+          },
+          "can_force": {
+            "type": "boolean",
+            "title": "Can Force",
+            "description": "冲突时是否允许仍要恢复；运行新建的文件与非普通文件不允许"
+          },
+          "preview_kind": {
+            "type": "string",
+            "enum": [
+              "restore",
+              "remove"
+            ],
+            "title": "Preview Kind",
+            "description": "撤销会恢复运行前内容，或移除运行新建的文件"
+          }
+        },
+        "type": "object",
+        "required": [
+          "root_id",
+          "relative_path",
+          "operation",
+          "writes",
+          "first_at",
+          "last_at",
+          "before",
+          "after",
+          "current",
+          "status",
+          "conflict_reason",
+          "can_force",
+          "preview_kind"
+        ],
+        "title": "ChangeEntryView"
+      },
+      "ChangeOperation": {
+        "type": "string",
+        "enum": [
+          "create",
+          "modify",
+          "delete"
+        ],
+        "title": "ChangeOperation"
+      },
+      "ChangePreviewResponse": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "diff",
+              "binary",
+              "too_large",
+              "unchanged"
+            ],
+            "title": "Kind",
+            "description": "diff：当前版本到撤销后版本的统一 diff；binary 与 too_large 只给大小；unchanged：撤销不会改变内容"
+          },
+          "diff": {
+            "type": "string",
+            "title": "Diff",
+            "default": ""
+          },
+          "truncated": {
+            "type": "boolean",
+            "title": "Truncated",
+            "default": false
+          },
+          "current_size": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Size"
+          },
+          "restore_size": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Restore Size"
+          },
+          "removes_file": {
+            "type": "boolean",
+            "title": "Removes File",
+            "description": "撤销会移除文件（运行新建的文件）"
+          },
+          "warning": {
+            "type": "string",
+            "title": "Warning",
+            "description": "撤销会丢掉运行期间的外部修改等需要用户知道的情况；为空表示没有",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "diff",
+          "truncated",
+          "current_size",
+          "restore_size",
+          "removes_file",
+          "warning"
+        ],
+        "title": "ChangePreviewResponse"
       },
       "ChatRequest": {
         "properties": {
@@ -4546,6 +6333,14 @@
         "title": "CompactUsage",
         "description": "摘要请求各次尝试的用量合计；属于运行时计入运行的模型请求数与 tokens，不算一轮。"
       },
+      "ConflictResolution": {
+        "type": "string",
+        "enum": [
+          "as_new",
+          "rebind"
+        ],
+        "title": "ConflictResolution"
+      },
       "ConnectionSource": {
         "properties": {
           "path": {
@@ -4745,7 +6540,7 @@
         "properties": {
           "protocol_version": {
             "$ref": "#/components/schemas/ProtocolVersion",
-            "default": 2
+            "default": 3
           },
           "event_version": {
             "$ref": "#/components/schemas/EventVersion",
@@ -4814,6 +6609,18 @@
               }
             ],
             "title": "Creation Id"
+          },
+          "workspace_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Workspace Id",
+            "description": "会话所属的工作区；创建后不再改变，省略为独立对话"
           }
         },
         "type": "object",
@@ -4832,6 +6639,48 @@
         ],
         "title": "CreateSessionResponse",
         "description": "创建会话响应结构"
+      },
+      "CreateWorkspaceRequest": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name",
+            "description": "工作区名称，同时是默认位置下新建文件夹的名称"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "CreateWorkspaceRequest"
+      },
+      "DefaultLocationRequest": {
+        "properties": {
+          "grant_id": {
+            "type": "string",
+            "title": "Grant Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "grant_id"
+        ],
+        "title": "DefaultLocationRequest"
+      },
+      "DefaultLocationResponse": {
+        "properties": {
+          "path": {
+            "type": "string",
+            "title": "Path"
+          }
+        },
+        "type": "object",
+        "required": [
+          "path"
+        ],
+        "title": "DefaultLocationResponse"
       },
       "DoneEventData": {
         "properties": {
@@ -5278,6 +7127,28 @@
             "title": "Filepath",
             "default": ""
           },
+          "root_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Root Id"
+          },
+          "relative_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Relative Path"
+          },
           "key": {
             "type": "string",
             "title": "Key",
@@ -5325,6 +7196,180 @@
         "type": "object",
         "title": "File",
         "description": "文件信息Domain模型，用于记录用户上传或 Agent 交付的文件；字节保存为数据根中的内容对象"
+      },
+      "FileKind": {
+        "type": "string",
+        "enum": [
+          "file",
+          "directory",
+          "symlink",
+          "other"
+        ],
+        "title": "FileKind"
+      },
+      "FileVersionView": {
+        "properties": {
+          "size": {
+            "type": "integer",
+            "title": "Size"
+          },
+          "modified_ns": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Modified Ns",
+            "description": "仍要恢复时原样回传的版本核对值"
+          },
+          "sha256": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sha256"
+          }
+        },
+        "type": "object",
+        "required": [
+          "size",
+          "modified_ns",
+          "sha256"
+        ],
+        "title": "FileVersionView"
+      },
+      "FolderGrantRequest": {
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Path",
+            "description": "宿主在系统选择器里选中的文件夹绝对路径"
+          }
+        },
+        "type": "object",
+        "required": [
+          "path"
+        ],
+        "title": "FolderGrantRequest"
+      },
+      "FolderGrantResponse": {
+        "properties": {
+          "grant_id": {
+            "type": "string",
+            "title": "Grant Id",
+            "description": "一次性、短期有效的凭证；界面用它打开工作区或更改默认位置"
+          },
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "expires_at": {
+            "type": "integer",
+            "title": "Expires At",
+            "description": "毫秒时间戳"
+          }
+        },
+        "type": "object",
+        "required": [
+          "grant_id",
+          "path",
+          "expires_at"
+        ],
+        "title": "FolderGrantResponse"
+      },
+      "FolderStatus": {
+        "type": "string",
+        "enum": [
+          "available",
+          "unavailable"
+        ],
+        "title": "FolderStatus"
+      },
+      "FolderView": {
+        "properties": {
+          "root_id": {
+            "type": "string",
+            "title": "Root Id",
+            "description": "文件接口使用的可访问根"
+          },
+          "path": {
+            "type": "string",
+            "title": "Path",
+            "description": "绑定的文件夹位置，用于展示与打开位置"
+          },
+          "status": {
+            "$ref": "#/components/schemas/FolderStatus"
+          },
+          "marker_writable": {
+            "type": "boolean",
+            "title": "Marker Writable",
+            "description": "身份标记写入失败为假：移动文件夹后需要手动重新选择"
+          },
+          "checked_at": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Checked At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "root_id",
+          "path",
+          "status",
+          "marker_writable",
+          "checked_at"
+        ],
+        "title": "FolderView"
+      },
+      "ForceCurrentRequest": {
+        "properties": {
+          "exists": {
+            "type": "boolean",
+            "title": "Exists"
+          },
+          "size": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Size"
+          },
+          "modified_ns": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Modified Ns"
+          }
+        },
+        "type": "object",
+        "required": [
+          "exists"
+        ],
+        "title": "ForceCurrentRequest",
+        "description": "用户看到的当前版本；与实际不一致时不覆盖，重新返回冲突。"
       },
       "Generation": {
         "type": "integer",
@@ -5660,6 +7705,16 @@
         "title": "LLMConfigUpdate",
         "description": "更新默认模型与采样参数；模型连接只在配置文件中修改。未提交的字段保持原值。"
       },
+      "LeaseState": {
+        "type": "string",
+        "enum": [
+          "preparing",
+          "held",
+          "settling",
+          "blocked"
+        ],
+        "title": "LeaseState"
+      },
       "ListA2AServerItem": {
         "properties": {
           "connection_status": {
@@ -5823,6 +7878,17 @@
             "type": "string",
             "title": "Session Id",
             "default": ""
+          },
+          "workspace_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Workspace Id"
           },
           "title": {
             "type": "string",
@@ -6014,6 +8080,51 @@
           "streamable_http"
         ],
         "title": "MCPTransport"
+      },
+      "MarkerConflict": {
+        "properties": {
+          "conflict_id": {
+            "type": "string",
+            "title": "Conflict Id"
+          },
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "workspace_id": {
+            "$ref": "#/components/schemas/WorkspaceId"
+          },
+          "workspace_name": {
+            "type": "string",
+            "title": "Workspace Name"
+          },
+          "bound_path": {
+            "type": "string",
+            "title": "Bound Path"
+          },
+          "options": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "as_new",
+                "rebind"
+              ]
+            },
+            "type": "array",
+            "title": "Options"
+          }
+        },
+        "type": "object",
+        "required": [
+          "conflict_id",
+          "path",
+          "workspace_id",
+          "workspace_name",
+          "bound_path",
+          "options"
+        ],
+        "title": "MarkerConflict",
+        "description": "复制出的文件夹：标记指向一个仍绑定在别处的已知工作区。"
       },
       "MessageEventData": {
         "properties": {
@@ -6362,6 +8473,116 @@
         ],
         "title": "ModelSelectionResponse"
       },
+      "ModifiedRunsResponse": {
+        "properties": {
+          "runs": {
+            "items": {
+              "$ref": "#/components/schemas/RunSummaryView"
+            },
+            "type": "array",
+            "title": "Runs"
+          }
+        },
+        "type": "object",
+        "required": [
+          "runs"
+        ],
+        "title": "ModifiedRunsResponse"
+      },
+      "OpenWorkspaceRequest": {
+        "properties": {
+          "grant_id": {
+            "type": "string",
+            "title": "Grant Id"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name",
+            "description": "新工作区的名称；省略时用文件夹名"
+          }
+        },
+        "type": "object",
+        "required": [
+          "grant_id"
+        ],
+        "title": "OpenWorkspaceRequest"
+      },
+      "OpenWorkspaceResult": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "opened",
+              "conflict"
+            ],
+            "title": "Status"
+          },
+          "workspace": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WorkspaceItem"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "scan": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ScanSummary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "recognized": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "new",
+                  "existing",
+                  "moved"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recognized"
+          },
+          "conflict": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MarkerConflict"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "workspace",
+          "scan",
+          "recognized",
+          "conflict"
+        ],
+        "title": "OpenWorkspaceResult",
+        "description": "status=opened：workspace 为打开的工作区，recognized 说明是新工作区、已有工作区，还是识别出移动并改绑；\nstatus=conflict：文件夹是复制出来的，调用 resolve 带 conflict.conflict_id 选择作为新工作区或改绑到这里。"
+      },
       "OperationId": {
         "type": "string",
         "maxLength": 128,
@@ -6376,7 +8597,8 @@
           "document_index",
           "memory_extraction",
           "session_summary",
-          "data_cleanup"
+          "data_cleanup",
+          "workspace_delete"
         ],
         "title": "OperationKind",
         "description": "新增类型在这里登记，各工作包不另起同义名称。"
@@ -6865,6 +9087,30 @@
         ],
         "title": "PublishRequest"
       },
+      "RelativePath": {
+        "type": "string",
+        "maxLength": 4096,
+        "description": "根内相对路径：以 / 分隔，空串表示根本身；不含绝对路径、盘符、反斜杠、空段、. 与 ..，不含控制字符"
+      },
+      "RelocateWorkspaceRequest": {
+        "properties": {
+          "grant_id": {
+            "type": "string",
+            "title": "Grant Id"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "grant_id",
+          "version"
+        ],
+        "title": "RelocateWorkspaceRequest"
+      },
       "RenameTitleRequest": {
         "properties": {
           "title": {
@@ -6878,12 +9124,77 @@
         ],
         "title": "RenameTitleRequest"
       },
+      "RenameWorkspaceRequest": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "version"
+        ],
+        "title": "RenameWorkspaceRequest"
+      },
       "RequestId": {
         "type": "string",
         "maxLength": 128,
         "minLength": 1,
         "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
         "description": "业务幂等请求身份；同身份不同内容返回冲突"
+      },
+      "ResolveConflictRequest": {
+        "properties": {
+          "conflict_id": {
+            "type": "string",
+            "title": "Conflict Id"
+          },
+          "resolution": {
+            "$ref": "#/components/schemas/ConflictResolution"
+          }
+        },
+        "type": "object",
+        "required": [
+          "conflict_id",
+          "resolution"
+        ],
+        "title": "ResolveConflictRequest"
+      },
+      "ResolveRootPathRequest": {
+        "properties": {
+          "relative_path": {
+            "type": "string",
+            "maxLength": 4096,
+            "title": "Relative Path",
+            "description": "根内相对路径；空表示根目录本身",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "ResolveRootPathRequest"
+      },
+      "ResolveRootPathResponse": {
+        "properties": {
+          "path": {
+            "type": "string",
+            "title": "Path",
+            "description": "目标在本机的绝对路径，只供宿主在文件管理器中显示位置"
+          }
+        },
+        "type": "object",
+        "required": [
+          "path"
+        ],
+        "title": "ResolveRootPathResponse"
       },
       "ResourceTicket": {
         "properties": {
@@ -6971,6 +9282,25 @@
           "data"
         ],
         "title": "Response[BuildIdentity]"
+      },
+      "Response_ChangePreviewResponse_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ChangePreviewResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "Response[ChangePreviewResponse]"
       },
       "Response_ChatResponse_": {
         "properties": {
@@ -7086,6 +9416,25 @@
         ],
         "title": "Response[CreateSessionResponse]"
       },
+      "Response_DefaultLocationResponse_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DefaultLocationResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "Response[DefaultLocationResponse]"
+      },
       "Response_Dict_": {
         "properties": {
           "data": {
@@ -7146,6 +9495,25 @@
           "data"
         ],
         "title": "Response[File]"
+      },
+      "Response_FolderGrantResponse_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FolderGrantResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "Response[FolderGrantResponse]"
       },
       "Response_GetSessionFilesResponse_": {
         "properties": {
@@ -7299,6 +9667,44 @@
         ],
         "title": "Response[ModelSelectionResponse]"
       },
+      "Response_ModifiedRunsResponse_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ModifiedRunsResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "Response[ModifiedRunsResponse]"
+      },
+      "Response_OpenWorkspaceResult_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OpenWorkspaceResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "Response[OpenWorkspaceResult]"
+      },
       "Response_OperationView_": {
         "properties": {
           "data": {
@@ -7318,6 +9724,25 @@
         ],
         "title": "Response[OperationView]"
       },
+      "Response_ResolveRootPathResponse_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ResolveRootPathResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "Response[ResolveRootPathResponse]"
+      },
       "Response_ResourceTicket_": {
         "properties": {
           "data": {
@@ -7336,6 +9761,63 @@
           "data"
         ],
         "title": "Response[ResourceTicket]"
+      },
+      "Response_RootEntryResponse_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RootEntryResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "Response[RootEntryResponse]"
+      },
+      "Response_RootListing_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RootListing"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "Response[RootListing]"
+      },
+      "Response_RunChangesResponse_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RunChangesResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "Response[RunChangesResponse]"
       },
       "Response_TitleResponse_": {
         "properties": {
@@ -7394,6 +9876,25 @@
         ],
         "title": "Response[TurnRequestResponse]"
       },
+      "Response_UndoResponse_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UndoResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "Response[UndoResponse]"
+      },
       "Response_Union_CleanupTask__NoneType__": {
         "properties": {
           "data": {
@@ -7434,6 +9935,63 @@
         ],
         "title": "Response[Union[Dict, NoneType]]"
       },
+      "Response_WorkspaceItem_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WorkspaceItem"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "Response[WorkspaceItem]"
+      },
+      "Response_WorkspaceListResponse_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WorkspaceListResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "Response[WorkspaceListResponse]"
+      },
+      "Response_WriteLeaseResponse_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WriteLeaseResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "Response[WriteLeaseResponse]"
+      },
       "ReviseRequest": {
         "properties": {
           "candidate_path": {
@@ -7462,6 +10020,186 @@
           "revision_id"
         ],
         "title": "ReviseRequest"
+      },
+      "RootEntryResponse": {
+        "properties": {
+          "entry": {
+            "$ref": "#/components/schemas/RootEntryView"
+          }
+        },
+        "type": "object",
+        "required": [
+          "entry"
+        ],
+        "title": "RootEntryResponse"
+      },
+      "RootEntryView": {
+        "properties": {
+          "path": {
+            "$ref": "#/components/schemas/RootedPath"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/FileKind"
+          },
+          "size": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Size"
+          },
+          "modified_at": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Modified At",
+            "description": "毫秒时间戳；只有普通文件有"
+          },
+          "link_target": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Link Target",
+            "description": "符号链接的目标文本；链接不被展开或跟随"
+          }
+        },
+        "type": "object",
+        "required": [
+          "path",
+          "name",
+          "kind",
+          "size",
+          "modified_at",
+          "link_target"
+        ],
+        "title": "RootEntryView"
+      },
+      "RootId": {
+        "type": "string",
+        "maxLength": 128,
+        "minLength": 1,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+        "description": "可访问根：工作区文件夹或会话工作目录"
+      },
+      "RootListing": {
+        "properties": {
+          "path": {
+            "$ref": "#/components/schemas/RootedPath"
+          },
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/RootEntryView"
+            },
+            "type": "array",
+            "title": "Entries"
+          },
+          "truncated": {
+            "type": "boolean",
+            "title": "Truncated",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "path",
+          "entries",
+          "truncated"
+        ],
+        "title": "RootListing"
+      },
+      "RootedPath": {
+        "properties": {
+          "root_id": {
+            "$ref": "#/components/schemas/RootId"
+          },
+          "relative_path": {
+            "$ref": "#/components/schemas/RelativePath",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "root_id"
+        ],
+        "title": "RootedPath",
+        "description": "文件接口与执行端口使用的位置；客户端不提交桌面绝对路径。"
+      },
+      "RunChangesResponse": {
+        "properties": {
+          "run_id": {
+            "type": "string",
+            "title": "Run Id"
+          },
+          "session_id": {
+            "type": "string",
+            "title": "Session Id"
+          },
+          "session_title": {
+            "type": "string",
+            "title": "Session Title"
+          },
+          "run_active": {
+            "type": "boolean",
+            "title": "Run Active",
+            "description": "运行仍在进行时不能撤销"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "run",
+              "undo"
+            ],
+            "title": "Kind",
+            "default": "run"
+          },
+          "undo_of_run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Undo Of Run Id"
+          },
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/ChangeEntryView"
+            },
+            "type": "array",
+            "title": "Entries"
+          }
+        },
+        "type": "object",
+        "required": [
+          "run_id",
+          "session_id",
+          "session_title",
+          "run_active",
+          "kind",
+          "undo_of_run_id",
+          "entries"
+        ],
+        "title": "RunChangesResponse"
       },
       "RunEventData": {
         "properties": {
@@ -7698,6 +10436,74 @@
         "title": "RunStatus",
         "description": "运行状态。running/waiting 是活动状态，其余是终态，终态不可再改。"
       },
+      "RunSummaryView": {
+        "properties": {
+          "run_id": {
+            "type": "string",
+            "title": "Run Id"
+          },
+          "session_id": {
+            "type": "string",
+            "title": "Session Id"
+          },
+          "session_title": {
+            "type": "string",
+            "title": "Session Title"
+          },
+          "run_status": {
+            "type": "string",
+            "title": "Run Status"
+          },
+          "changed_files": {
+            "type": "integer",
+            "title": "Changed Files",
+            "description": "净变化的文件数；运行里新建后又删除的文件不计"
+          },
+          "first_at": {
+            "type": "integer",
+            "title": "First At"
+          },
+          "last_at": {
+            "type": "integer",
+            "title": "Last At"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "run",
+              "undo"
+            ],
+            "title": "Kind",
+            "description": "run：Agent 运行；undo：一次撤销操作，它的 run_id 是操作身份，可像运行一样查看变更并撤回",
+            "default": "run"
+          },
+          "undo_of_run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Undo Of Run Id",
+            "description": "kind=undo 时被撤销的运行"
+          }
+        },
+        "type": "object",
+        "required": [
+          "run_id",
+          "session_id",
+          "session_title",
+          "run_status",
+          "changed_files",
+          "first_at",
+          "last_at",
+          "kind",
+          "undo_of_run_id"
+        ],
+        "title": "RunSummaryView"
+      },
       "SamplingPreviewRequest": {
         "properties": {
           "model": {
@@ -7714,6 +10520,39 @@
           "sampling"
         ],
         "title": "SamplingPreviewRequest"
+      },
+      "ScanSummary": {
+        "properties": {
+          "files": {
+            "type": "integer",
+            "title": "Files",
+            "default": 0
+          },
+          "directories": {
+            "type": "integer",
+            "title": "Directories",
+            "default": 0
+          },
+          "bytes": {
+            "type": "integer",
+            "title": "Bytes",
+            "default": 0
+          },
+          "truncated": {
+            "type": "boolean",
+            "title": "Truncated",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "files",
+          "directories",
+          "bytes",
+          "truncated"
+        ],
+        "title": "ScanSummary",
+        "description": "文件夹规模：排除规则之外的文件数与总大小；达到扫描上限时截断。"
       },
       "SessionEvent": {
         "oneOf": [
@@ -8710,6 +11549,131 @@
         "title": "UnconsumedInputItem",
         "description": "已受理但所属运行已结束、尚未进入模型历史的消息；可经重新发起接口交给新运行。"
       },
+      "UndoItemRequest": {
+        "properties": {
+          "relative_path": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Relative Path"
+          },
+          "force": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ForceCurrentRequest"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "仍要恢复：带上冲突结果里的当前版本"
+          }
+        },
+        "type": "object",
+        "required": [
+          "relative_path"
+        ],
+        "title": "UndoItemRequest"
+      },
+      "UndoItemResult": {
+        "properties": {
+          "relative_path": {
+            "type": "string",
+            "title": "Relative Path"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "restored",
+              "removed",
+              "unchanged",
+              "conflict",
+              "failed"
+            ],
+            "title": "Status"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "current": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FileVersionView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "conflict_reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "modified",
+                  "missing",
+                  "appeared",
+                  "not_file",
+                  "modified_during_run"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Conflict Reason"
+          },
+          "can_force": {
+            "type": "boolean",
+            "title": "Can Force",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "relative_path",
+          "status",
+          "message",
+          "current",
+          "conflict_reason",
+          "can_force"
+        ],
+        "title": "UndoItemResult"
+      },
+      "UndoRequest": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/UndoItemRequest"
+            },
+            "type": "array",
+            "maxItems": 500,
+            "minItems": 1,
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "UndoRequest"
+      },
+      "UndoResponse": {
+        "properties": {
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/UndoItemResult"
+            },
+            "type": "array",
+            "title": "Results"
+          }
+        },
+        "type": "object",
+        "required": [
+          "results"
+        ],
+        "title": "UndoResponse"
+      },
       "WaitSSEEvent": {
         "properties": {
           "event": {
@@ -8736,6 +11700,202 @@
         "minLength": 1,
         "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
         "description": "工作区身份；独立对话没有工作区"
+      },
+      "WorkspaceItem": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "status": {
+            "$ref": "#/components/schemas/WorkspaceStatus"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version",
+            "description": "重命名、归档等修改时回传，用于并发修改核对"
+          },
+          "folder": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FolderView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "write_lease": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WriteLeaseView"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "文件夹当前的写入租约；为空表示没有写入者"
+          },
+          "created_at": {
+            "type": "integer",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "integer",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "status",
+          "version",
+          "folder",
+          "write_lease",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "WorkspaceItem"
+      },
+      "WorkspaceListResponse": {
+        "properties": {
+          "workspaces": {
+            "items": {
+              "$ref": "#/components/schemas/WorkspaceItem"
+            },
+            "type": "array",
+            "title": "Workspaces"
+          }
+        },
+        "type": "object",
+        "required": [
+          "workspaces"
+        ],
+        "title": "WorkspaceListResponse"
+      },
+      "WorkspaceStatus": {
+        "type": "string",
+        "enum": [
+          "active",
+          "archived",
+          "deleting"
+        ],
+        "title": "WorkspaceStatus"
+      },
+      "WorkspaceVersionRequest": {
+        "properties": {
+          "version": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "version"
+        ],
+        "title": "WorkspaceVersionRequest"
+      },
+      "WriteLeaseResponse": {
+        "properties": {
+          "lease": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WriteLeaseView"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "没有租约表示文件夹当前没有写入者"
+          }
+        },
+        "type": "object",
+        "required": [
+          "lease"
+        ],
+        "title": "WriteLeaseResponse"
+      },
+      "WriteLeaseView": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "state": {
+            "$ref": "#/components/schemas/LeaseState",
+            "description": "preparing/held 正常写入中；settling 已请求停止；blocked 停止后未能确认写入结束，需重试收尾"
+          },
+          "writer_kind": {
+            "$ref": "#/components/schemas/WriterKind"
+          },
+          "owner_session_id": {
+            "type": "string",
+            "title": "Owner Session Id",
+            "description": "持有者会话；上传等不属于会话的写入为空串"
+          },
+          "owner_run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Run Id"
+          },
+          "operation": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Operation"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "acquired_at": {
+            "type": "integer",
+            "title": "Acquired At"
+          },
+          "updated_at": {
+            "type": "integer",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "state",
+          "writer_kind",
+          "owner_session_id",
+          "owner_run_id",
+          "operation",
+          "reason",
+          "acquired_at",
+          "updated_at"
+        ],
+        "title": "WriteLeaseView",
+        "description": "文件夹当前的写入租约；被占用时其他会话的写入立即得到带这些信息的 409。"
+      },
+      "WriterKind": {
+        "type": "string",
+        "enum": [
+          "core_tool",
+          "process"
+        ],
+        "title": "WriterKind"
       }
     }
   },

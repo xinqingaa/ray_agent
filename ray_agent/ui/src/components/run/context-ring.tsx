@@ -102,7 +102,7 @@ function ContextPanel({usage}: {usage: UsageView}) {
         </>
       )}
       {ctx?.fixedInputExceeded && (
-        <p className="text-meta text-state-failed">项目说明或笔记超过容量，压缩历史无法解决。请精简项目设置或调大上下文窗口。</p>
+        <p className="text-meta text-state-failed">固定上下文（系统提示与工具说明）超过容量，压缩历史无法解决。请调大上下文窗口。</p>
       )}
     </div>
   )

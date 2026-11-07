@@ -32,7 +32,8 @@ type WorkbenchProps = {
   onFollowLatest: () => void
   canFollowLatest?: boolean
   active?: boolean
-  onClose: () => void
+  /** 面板由外层统一收起时不传，不显示自己的收起按钮 */
+  onClose?: () => void
   className?: string
 }
 
@@ -346,9 +347,9 @@ export function Workbench({
             {visibility.developerView ? '回到最新' : '查看最新结果'}
           </Button>
         )}
-        <Button type="button" variant="ghost" size="icon-sm" className="text-muted-foreground" onClick={onClose} aria-label="收起工作台" title="收起工作台">
+        {onClose && <Button type="button" variant="ghost" size="icon-sm" className="text-muted-foreground" onClick={onClose} aria-label="收起工作台" title="收起工作台">
           <PanelRight className="size-4"/>
-        </Button>
+        </Button>}
       </header>
       {focus && tab !== 'files' && (visibility.toolDetails || focus.status !== 'succeeded') && (
         <p className="truncate border-b px-3 py-1.5 text-xs text-muted-foreground" title={focus.title}>

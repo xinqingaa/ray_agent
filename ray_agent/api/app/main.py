@@ -31,18 +31,38 @@ openapi_tags = [
 ]
 
 
+# 文件描述符软上限的目标值：macOS 默认只有 256，目录遍历、多会话读写与子进程很容易触顶；只提高到不超过硬上限
+NOFILE_TARGET = 4096
+
+
+def raise_fd_limit(target: int = NOFILE_TARGET) -> None:
+    """把本进程的文件描述符软上限提高到目标值（不超过硬上限）；失败只记日志，遍历与文件夹核对在描述符紧张时也能正确降级。"""
+    try:
+        import resource
+        soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
+        wanted = target if hard == resource.RLIM_INFINITY else min(target, hard)
+        if soft != resource.RLIM_INFINITY and soft < wanted:
+            resource.setrlimit(resource.RLIMIT_NOFILE, (wanted, hard))
+            logger.info(f"文件描述符软上限 {soft} -> {wanted}")
+    except (ImportError, ValueError, OSError) as error:
+        logger.warning(f"无法调整文件描述符上限：{error}")
+
+
 async def start_core():
     """打开数据根：实例锁、业务库迁移与连接、默认配置、启动扫描与后台任务。返回关闭时需要的资源。"""
-    from app.application.services.background_jobs import BackgroundJobRunner, cleanup_handler, set_job_runner
+    from app.application.services.background_jobs import BackgroundJobRunner, set_job_runner
+    from app.application.services.data_service import data_cleanup_handler
+    from app.application.services.workspace_service import workspace_delete_handler
     from app.domain.models.operation import OperationKind
     from app.domain.services.approvals import interrupt_waiting_approvals
     from app.infrastructure.storage.sqlite import InstanceLock, migrate, open_database, set_database, get_uow, \
         get_read_uow
     from app.interfaces.core_descriptor import INSTANCE, set_storage_revision
     from app.interfaces.service_dependencies import get_app_config_repository, get_file_storage, get_run_ledger, \
-        get_skill_service, get_workdirs
+        get_skill_service, get_workdirs, get_folder_access, get_write_leases
     from core.paths import data_root
 
+    raise_fd_limit()
     root = data_root()
     root.prepare()
     lock = InstanceLock(root.lock)
@@ -64,14 +84,20 @@ async def start_core():
         storage, workdirs = get_file_storage(), get_workdirs()
         jobs = BackgroundJobRunner(get_uow, INSTANCE.instance_id, concurrency=settings.background_job_concurrency,
                                    poll_seconds=settings.background_job_poll_seconds, read_uow_factory=get_read_uow)
-        jobs.register(OperationKind.DATA_CLEANUP, cleanup_handler(storage.remove_key, workdirs.remove),
+        jobs.register(OperationKind.DATA_CLEANUP,
+                      data_cleanup_handler(get_folder_access(), storage.remove_key, workdirs.remove),
                       requeue_on_restart=True)
+        jobs.register(OperationKind.WORKSPACE_DELETE,
+                      workspace_delete_handler(get_folder_access(), get_uow, storage.remove_key, workdirs.remove),
+                      requeue_on_restart=True)
+        root.install_id()
         set_job_runner(jobs)
 
         # 启动扫描：执行协程只存在于本进程，上次遗留的 running 运行置为 interrupted，其未消费输入保持可见；
         # 等待审批的运行同样中断并使审批失效；等待提问的运行保持 waiting，回复后沿原运行续接。
         ledger = get_run_ledger()
         interrupted = await ledger.interrupt_running()
+        await get_write_leases().scan_startup()
         interrupted += await interrupt_waiting_approvals(get_uow, ledger)
         if interrupted:
             logger.info(f"启动扫描将 {len(interrupted)} 个运行置为 interrupted: {[run.id for run in interrupted]}")
@@ -96,7 +122,7 @@ async def lifespan(app: FastAPI):
     from app.application.services.visual_artifacts import expire_visual_artifacts
     from app.infrastructure.external.task.local_task import LocalRunTask
     from app.infrastructure.storage.sqlite import get_uow, set_database
-    from app.interfaces.service_dependencies import get_file_storage, get_skill_service
+    from app.interfaces.service_dependencies import close_change_feed, get_file_storage, get_skill_service
 
     try:
         lock, database, jobs = await start_core()
@@ -116,14 +142,24 @@ async def lifespan(app: FastAPI):
                 logger.exception('定期回收失败，将在下一轮重试')
     sweeper = asyncio.create_task(sweep())
 
+    async def tidy():
+        try:
+            from app.interfaces.service_dependencies import get_workspace_service
+            await get_workspace_service().tidy_folders()
+        except Exception:
+            logger.exception('清理工作区文件夹的写入残留失败')
+    tidier = asyncio.create_task(tidy())
+
     try:
         yield
     finally:
         sweeper.cancel()
-        try:
-            await sweeper
-        except asyncio.CancelledError:
-            pass
+        tidier.cancel()
+        for task in (sweeper, tidier):
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
         try:
             logger.info("RayAgent正在关闭")
             from app.application.services.agent_service import pending_starts
@@ -139,6 +175,7 @@ async def lifespan(app: FastAPI):
             logger.warning("运行任务停止超时，遗留运行由下次启动扫描处理")
         except Exception as e:
             logger.error(f"停止运行任务期间出现错误: {str(e)}")
+        await close_change_feed()
         await jobs.stop()
         set_job_runner(None)
         await database.shutdown()

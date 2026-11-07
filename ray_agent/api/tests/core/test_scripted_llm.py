@@ -149,7 +149,7 @@ def test_drives_agent_loop():
     """替身可直接替换产品模型对象：真实 Agent 循环按分支读完文件并结束。"""
     session = Session(id="scripted")
     llm = ScriptedLLM([
-        tool_call("read_file", {"filepath": "/records.txt"}, id="read-1", usage=usage(100, 20)),
+        tool_call("read_file", {"filepath": "records.txt"}, id="read-1", usage=usage(100, 20)),
         when_last_tool_contains(
             "fixture observation",
             then=text("已读取"),
@@ -180,15 +180,14 @@ def test_drives_agent_loop():
         async def __aexit__(self, *args):
             return False
 
-    sandbox = SimpleNamespace(read_file=AsyncMock(
-        return_value=ToolResult(success=True, data={"content": "fixture observation"}),
-    ))
+    from tests.support.loop_harness import FileFixture
+    files = FileFixture({"records.txt": "fixture observation"})
     loop = AgentLoop(
         uow_factory=FakeUow,
         llm=llm,
         agent_config=AgentConfig(max_retries=2, max_iterations=4),
         session_id=session.id,
-        tools=[FileTool(sandbox=sandbox)],
+        tools=[FileTool(files.scope)],
         retry_interval=0,
     )
 

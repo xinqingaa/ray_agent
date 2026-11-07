@@ -1,8 +1,8 @@
-import type {PlanAcceptance} from '@/lib/api/types'
+import type {PlanAcceptance, WorkspaceItem} from '@/lib/api/types'
 
-import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react'
+import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode} from 'react'
 import {toast} from 'sonner'
-import {ArrowDown, Code2, MessageCircle, PanelRight, Pencil} from 'lucide-react'
+import {ArrowDown, Code2, Folder, MessageCircle, PanelRight, Pencil} from 'lucide-react'
 import {SegmentedControl} from '@/components/ui/segmented-control'
 import {ChatInput} from '@/components/chat-input'
 import {RenameSessionDialog} from '@/components/rename-session-dialog'
@@ -17,6 +17,8 @@ import {Timeline, type TimelineHandlers} from '@/components/run/timeline-item'
 import {downloadFileBatch, isWebPage, openPreviewTab} from '@/lib/api/preview'
 import {FilePreviewDialog} from '@/components/preview/file-preview-dialog'
 import {downloadSessionFile, tabForFamily, Workbench, type WorkbenchTab} from '@/components/workbench/workbench'
+import {describeWorkspace} from '@/lib/workspace-state'
+import {FolderPanel} from '@/components/workspace/folder-panel'
 import {useWorkbenchWidth, WorkbenchResizeHandle} from '@/components/workbench/resize-handle'
 import {cn} from '@/lib/utils'
 import {Button} from '@/components/ui/button'
@@ -43,6 +45,10 @@ import type {FileView, TimelineItem, ToolCallView, ToolFamily} from '@/lib/sessi
 
 export interface SessionDetailViewProps {
   sessionId: string
+  /** 工作区会话：右侧面板在文件夹与工作台之间切换，输入框随工作区状态只读 */
+  workspace?: WorkspaceItem
+  /** 运行结束后显示在时间线末尾的内容（如撤销本次修改）；参数是最近一次运行的 id，还没有运行时为 null */
+  runFooter?: (runId: string | null) => ReactNode
 }
 
 type ApprovalSubmitting = {callId: string; decision: 'approve' | 'reject'}
@@ -82,6 +88,8 @@ function lastOf(calls: ToolCallView[], family: ToolFamily): ToolCallView | null 
 
 export function SessionDetailView({
   sessionId,
+  workspace,
+  runFooter,
 }: SessionDetailViewProps) {
   const {visibility} = useDeveloperMode()
   const isMobile = useIsMobile()
@@ -114,8 +122,9 @@ export function SessionDetailView({
   const mode = visibility.developerView ? selectedMode : 'conversation'
   const [developerVisited, setDeveloperVisited] = useState(false)
   const [pinnedCallId, setPinnedCallId] = useState<string | null>(null)
-  const [workbenchOpen, setWorkbenchOpen] = useState(false)
+  const [workbenchOpen, setWorkbenchOpen] = useState(() => workspace != null && window.innerWidth >= 1024)
   const [workbenchRendered, setWorkbenchRendered] = useState(false)
+  const [panelView, setPanelView] = useState<'folder' | 'workbench'>('folder')
   const [draggingWorkbench, setDraggingWorkbench] = useState(false)
   const workbenchWidth = useWorkbenchWidth()
   const [renameOpen, setRenameOpen] = useState(false)
@@ -172,7 +181,7 @@ export function SessionDetailView({
     setWaitKind(sessionId, view.activeRun?.activity.kind === 'waiting_approval' ? 'approval' : 'reply')
   }, [sessionId, view, outgoing, retrying, setWaitKind])
 
-  // 页面可见时看到了完成结果，清掉侧栏的未查看圆点；项目子列表不在 sessions 里，按每次完成清一次
+  // 页面可见时看到了完成结果，清掉侧栏的未查看圆点；侧栏列表可能不含当前会话，按每次完成清一次
   const completedRunId = view?.status === 'completed' ? view.runs.at(-1)?.id ?? null : null
   const listedUnread = sessions.find((item) => item.session_id === sessionId)?.unread_message_count
   const clearedRun = useRef<string | null>(null)
@@ -412,9 +421,11 @@ export function SessionDetailView({
   const handlers = useMemo<TimelineHandlers>(() => ({
     sessionId: view?.id,
     selectedCallId: focus?.callId ?? null,
+    // 工作区会话的右侧面板也带工作台：点工具卡片切到工作台并选中该工具
     onOpenCall: (callId) => {
       setInspectingFile(false)
       setPinnedCallId(callId)
+      setPanelView('workbench')
       setWorkbenchOpen(true)
     },
     onPreviewFile: (file) => {
@@ -538,7 +549,7 @@ export function SessionDetailView({
 
   const workbench = (
     <Workbench
-      active={workbenchOpen}
+      active={workbenchOpen && (workspace == null || panelView === 'workbench')}
       sessionId={sessionId}
       focus={focus}
       following={following}
@@ -550,10 +561,27 @@ export function SessionDetailView({
       onInspectFile={() => {setInspectingFile(true);setInspectedAtCallId(latest?.callId ?? null)}}
       canFollowLatest={!!latest && (inspectingFile ? latest.callId !== inspectedAtCallId : pin !== latest.callId)}
       onFollowLatest={() => {setPinnedCallId(null);setInspectingFile(false);if(latest)setTab(tabForFamily(latest.family))}}
-      onClose={() => setWorkbenchOpen(false)}
-      className={isMobile ? undefined : 'h-full w-full'}
+      onClose={workspace ? undefined : () => setWorkbenchOpen(false)}
+      className={isMobile && !workspace ? undefined : 'h-full w-full'}
     />
   )
+  // 工作区会话：两块内容都保持挂载，切换只改显示，文件夹里的展开与预览不会因看了工具详情而丢失
+  const panel = workspace ? (
+    <div className={cn('flex min-h-0 flex-col bg-background', isMobile ? 'h-full' : 'h-full w-full')}>
+      <div className="flex h-12 shrink-0 items-center gap-2 border-b px-3">
+        <SegmentedControl<'folder' | 'workbench'> value={panelView} onValueChange={setPanelView} label="右侧面板内容" className="min-w-0 flex-1"
+          options={[{value: 'folder', label: '文件夹'}, {value: 'workbench', label: visibility.developerView ? '工作台' : '查看'}]}/>
+        <IconAction label="收起右侧面板" onClick={() => setWorkbenchOpen(false)} className="text-muted-foreground"><PanelRight className="size-4" aria-hidden/></IconAction>
+      </div>
+      <div className={cn('min-h-0 flex-1 flex-col', panelView === 'folder' ? 'flex' : 'hidden')}>
+        <FolderPanel workspace={workspace} embedded deliveries={view.files.filter(file => file.source === 'delivery')} className="h-full w-full"/>
+      </div>
+      <div className={cn('min-h-0 flex-1 flex-col', panelView === 'workbench' ? 'flex' : 'hidden')}>{workbench}</div>
+    </div>
+  ) : workbench
+  const workspaceState = workspace ? describeWorkspace(workspace) : null
+  const readOnlyReason = workspaceState?.deleting ? '工作区正在删除，对话不可再发送。' : workspaceState?.archived ? '工作区已归档，对话为只读。取消归档后可以继续。' : null
+  const panelName = workspace ? '右侧面板' : visibility.developerView ? '工作台' : '查看面板'
 
   return (
     <>
@@ -577,8 +605,8 @@ export function SessionDetailView({
             <PlanListDialog key={sessionId} plans={view.planHistory ?? []} runs={view.runs} panelWidth={planPanelWidth}/>
             {!workbenchOpen && (
               <Button type="button" variant="ghost" size="icon-xs" className="size-7 shrink-0"
-                title={visibility.developerView ? '打开工作台' : '打开查看面板'} aria-label={visibility.developerView ? '打开工作台' : '打开查看面板'} onClick={() => setWorkbenchOpen(true)}>
-                <PanelRight className="size-4"/>
+                title={`打开${panelName}`} aria-label={`打开${panelName}`} onClick={() => setWorkbenchOpen(true)}>
+                {workspace ? <Folder className="size-4"/> : <PanelRight className="size-4"/>}
               </Button>
             )}
           </header>
@@ -596,6 +624,7 @@ export function SessionDetailView({
                     <Timeline items={shownTimeline} runs={shownRuns} streaming={view.streaming} activeStatus={timelineStatus} handlers={handlers}/>
                     {showOptimistic && outgoing ? <UserMessage text={outgoing.text} skillName={outgoing.skillName}/> : null}
                     {!view.activeRun && timelineStatus}
+                    {!view.activeRun && runFooter?.(run?.id ?? null)}
                     {showPlanExecute && <PlanExecuteBar disabled={submitting || pendingSend} onExecute={() => {
                         void deliver('按计划执行', [], {mode: 'normal', execute_plan: {source_run_id: view.plan!.sourceRunId!, plan_id: view.plan!.planId!, source_seq: view.plan!.sourceSeq!, request_id: crypto.randomUUID()}}).catch((err: unknown) => {
                           if (err instanceof ApiError && err.code === 'conflict') {
@@ -620,6 +649,7 @@ export function SessionDetailView({
                     {mode === 'conversation' && planBarState && (
                       <PlanBar plan={view.plan} runStatus={view.activeRun?.status ?? null} proposal={planBarState === 'proposal'} className="mb-2"/>
                     )}
+                    {readOnlyReason ? <p role="status" className="rounded-lg border bg-muted/40 px-3.5 py-3 text-center text-sm text-muted-foreground">{readOnlyReason}</p> : (
                     <ChatInput
                       sessionId={sessionId}
                       onSend={handleSend}
@@ -644,6 +674,7 @@ export function SessionDetailView({
                         actions: {compact: () => { void handleCompact() }},
                       }}
                     />
+                    )}
                   </div>
                 </div>
               </div>
@@ -658,8 +689,8 @@ export function SessionDetailView({
           <div aria-hidden={!workbenchOpen} inert={!workbenchOpen}
             className={cn('relative h-full shrink-0 overflow-hidden', workbenchOpen && 'border-l', draggingWorkbench ? 'transition-none' : 'transition-[width] duration-[220ms] ease-in-out motion-reduce:transition-none')}
             style={{width: workbenchOpen ? workbenchWidth.width : 0}}>
-            {(workbenchOpen || workbenchRendered) && workbench}
-            {workbenchOpen && <WorkbenchResizeHandle width={workbenchWidth.width} min={workbenchWidth.min} max={workbenchWidth.max} onWidth={workbenchWidth.setWidth} onReset={workbenchWidth.reset} onDragging={setDraggingWorkbench}/>}
+            {(workbenchOpen || workbenchRendered) && panel}
+            {workbenchOpen && <WorkbenchResizeHandle width={workbenchWidth.width} min={workbenchWidth.min} max={workbenchWidth.max} onWidth={workbenchWidth.setWidth} onReset={workbenchWidth.reset} onDragging={setDraggingWorkbench} label={workspace ? '调整右侧面板宽度' : undefined}/>}
           </div>
         )}
       </div>
@@ -668,10 +699,10 @@ export function SessionDetailView({
         <Sheet open={workbenchOpen} onOpenChange={setWorkbenchOpen}>
           <SheetContent side="right" className="w-full gap-0 p-0 sm:max-w-md data-[state=closed]:duration-[220ms] data-[state=open]:duration-[220ms]" showCloseButton={false}>
             <SheetHeader className="sr-only">
-              <SheetTitle>操作详情</SheetTitle>
-              <SheetDescription>查看工具结果、终端、浏览器和文件</SheetDescription>
+              <SheetTitle>{workspace ? '文件夹与工作台' : '操作详情'}</SheetTitle>
+              <SheetDescription>{workspace ? '查看文件夹内容、本次成果，或切换到工作台查看工具结果、终端与浏览器' : '查看工具结果、终端、浏览器和文件'}</SheetDescription>
             </SheetHeader>
-            {workbench}
+            {panel}
           </SheetContent>
         </Sheet>
       )}

@@ -1,9 +1,9 @@
 /* 由 ray_agent/contracts 从 events.schema.json 生成，勿手改；改 Pydantic 契约后运行 npm run generate。 */
 
 /**
- * 会话事件信封：SessionEvent 为落库事件，StreamEvent 另含文本增量
+ * 会话事件信封：SessionEvent 为落库事件，StreamEvent 另含文本增量；WorkspaceChangeEvent 是工作区文件夹变更流的事件数据
  */
-export type RayAgentEvents = StreamEvent | SessionEvent;
+export type RayAgentEvents = StreamEvent | SessionEvent | WorkspaceChangeEvent;
 export type StreamEvent =
   | MessageSSEEvent
   | TitleSSEEvent
@@ -94,6 +94,8 @@ export interface File {
   id?: string;
   filename?: string;
   filepath?: string;
+  root_id?: string | null;
+  relative_path?: string | null;
   key?: string;
   extension?: string;
   mime_type?: string;
@@ -547,4 +549,19 @@ export interface DeltaEventData {
    * 事件结构版本
    */
   event_version: number;
+}
+/**
+ * kind=ready 在订阅建立时给出当前可用性；changed 带变化的相对路径，refresh 为真表示变化太多或来源不明，
+ * 需要整体刷新；availability 在文件夹失联或恢复时给出。应用自己的写入同样会触发 changed。
+ */
+export interface WorkspaceChangeEvent {
+  kind: "ready" | "changed" | "availability";
+  workspace_id: string;
+  available: boolean;
+  paths: string[];
+  refresh: boolean;
+  /**
+   * 不可用时的原因
+   */
+  reason: string | null;
 }

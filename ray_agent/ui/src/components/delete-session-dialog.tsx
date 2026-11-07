@@ -39,7 +39,7 @@ export function DeleteSessionDialog({open, onOpenChange, onConfirm}: DeleteSessi
             永久删除这段对话？
           </DialogTitle>
           <DialogDescription className="text-sm text-muted-foreground leading-relaxed">
-            对话历史将永久删除，无法恢复。项目共享文件、说明与笔记会保留。
+            对话历史与附件将永久删除，无法恢复。工作区文件夹里的文件不受影响。
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>

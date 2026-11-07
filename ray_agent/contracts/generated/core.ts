@@ -55,6 +55,10 @@ export interface CoreLaunch {
   env?: {
     [k: string]: string;
   };
+  /**
+   * 宿主密钥：只有宿主持有；宿主专用接口要求它，实例令牌不能代替
+   */
+  host_secret: string;
 }
 export interface CoreReady {
   /**

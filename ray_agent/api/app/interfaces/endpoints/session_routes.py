@@ -11,7 +11,7 @@ from app.application.services.context_operations import context_operation
 from fastapi import APIRouter, Depends, Header, Query, Body
 from sse_starlette import EventSourceResponse, ServerSentEvent
 
-from app.application.errors.exceptions import NotFoundError
+from app.application.errors.exceptions import BadRequestError, NotFoundError
 from app.application.services.app_config_service import AppConfigService
 from app.application.services.agent_service import AgentService, ChatAccepted
 from app.application.services.session_service import SessionService
@@ -66,6 +66,7 @@ def session_list_item(session: Session) -> ListSessionItem:
     """列表与列表流共用。"""
     return ListSessionItem(
         session_id=session.id,
+        workspace_id=session.workspace_id,
         title=session.title,
         latest_message=session.latest_message,
         latest_message_at=session.latest_message_at,
@@ -86,7 +87,7 @@ async def create_session(
 ) -> Response[CreateSessionResponse]:
     """创建一个空白的新任务会话；同一创建标识重复提交返回同一会话"""
     creation_id = str(request.creation_id) if request and request.creation_id else None
-    session = await session_service.create_session(creation_id)
+    session = await session_service.create_session(creation_id, request.workspace_id if request else None)
     return Response.success(
         data=CreateSessionResponse(session_id=session.id)
     )
@@ -100,16 +101,21 @@ async def create_session(
 async def stream_sessions(
         offset: int = Query(default=0, ge=0),
         limit: int = Query(default=50, ge=1, le=100),
+        workspace_id: Optional[str] = Query(default=None, description="只列出该工作区的会话"),
+        independent: bool = Query(default=False, description="只列出没有工作区的独立对话；不能与 workspace_id 同时使用"),
         session_service: SessionService = Depends(get_session_service),
 ) -> EventSourceResponse:
     """列表流：通知驱动，附带慢速兜底。每次查询用一个短的只读工作单元，等待通知与推送时不持有连接。"""
+    if workspace_id and independent:
+        raise BadRequestError("workspace_id 与 independent 不能同时指定")
 
     async def event_generator() -> AsyncGenerator[ServerSentEvent, None]:
         subscription = catalog_notifier().subscribe()
         last_payload = None
         try:
             while True:
-                sessions, total = await session_service.page(offset=offset, limit=limit)
+                sessions, total = await session_service.page(offset=offset, limit=limit,
+                                                            workspace_id=workspace_id, independent=independent)
                 session_items = [session_list_item(session) for session in sessions]
                 payload = ListSessionResponse(
                     sessions=session_items, total=total, offset=offset, limit=limit).model_dump_json()
@@ -144,10 +150,13 @@ async def stream_sessions(
 async def get_all_sessions(
         offset: int = Query(default=0, ge=0),
         limit: int = Query(default=50, ge=1, le=100),
+        workspace_id: Optional[str] = Query(default=None, description="只列出该工作区的会话"),
+        independent: bool = Query(default=False, description="只列出没有工作区的独立对话；不能与 workspace_id 同时使用"),
         session_service: SessionService = Depends(get_session_service),
 ) -> Response[ListSessionResponse]:
     """会话列表基础信息，按最新消息时间倒序"""
-    sessions, total = await session_service.page(offset=offset, limit=limit)
+    sessions, total = await session_service.page(offset=offset, limit=limit, workspace_id=workspace_id,
+                                                    independent=independent)
     session_items = [session_list_item(session) for session in sessions]
     return Response.success(
         data=ListSessionResponse(sessions=session_items, total=total, offset=offset, limit=limit)

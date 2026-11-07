@@ -41,6 +41,7 @@ hiddenimports = [
     *WORKERS.values(),
     # 迁移脚本与 env.py 只在运行时导入，静态分析看不到它们的依赖。
     *collect_submodules('alembic', filter=lambda name: not name.startswith('alembic.testing')),
+    *collect_submodules('watchfiles'),
     'sqlalchemy.dialects.sqlite.aiosqlite',
     'sqlalchemy.dialects.sqlite.pysqlite',
     'aiosqlite',

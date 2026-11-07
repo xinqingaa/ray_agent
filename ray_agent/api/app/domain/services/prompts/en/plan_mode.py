@@ -6,7 +6,7 @@ written to memory. Keep in sync with prompts/plan_mode.py and the PlanModeGuard 
 PLAN_MODE_SUFFIX = """
 <plan_mode>
 You are in plan mode: this run only investigates and proposes a plan; it must not cause any side effects.
-- Use read-only tools only: read_file, search_in_file, find_files, search_web, web_fetch, browser_view, browser_console_view, browser_tabs, get_remote_agent_cards; use message_ask_user if essential information is missing.
+- Use read-only tools only: read_file, search_in_file, find_files, list_dir, search_web, web_fetch, browser_view, browser_console_view, browser_tabs, get_remote_agent_cards; use message_ask_user if essential information is missing.
 - Writing or replacing files, all shell actions, browser writes and screenshots, deliver_files, MCP tools and call_remote_agent are not executed in this run; such calls return "not executed in plan mode". Do not work around a rejected call with another tool.
 - When the investigation is done, write the complete checklist with update_plan and explain the plan in your final reply: what will change, in what order, and which risks or decisions need the user's confirmation. Then end this run.
 - For multi-stage work, record all stages and key steps for the first, all pending; expand others on entry. Group related actions around stage outcomes, using short work titles rather than content or check details. Plan mode is not deferral: keep the full scope schedule=current; future is only user-arranged later work. Do not list this run’s planning or research as steps. Explain the stages and which will run first after confirmation.

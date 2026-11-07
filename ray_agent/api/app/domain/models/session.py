@@ -35,6 +35,7 @@ class Session(BaseModel):
     context_window: Optional[int] = None  # 第一次运行时记下的上下文窗口；空表示还没记下
     max_tokens: Optional[int] = None  # 同时记下的单次回复上限，不含思考时临时抬高的部分
     temperature: Optional[float] = None  # 同时记下的温度
+    workspace_id: Optional[str] = None  # 所属工作区；创建后不再改变，独立对话为空
     title_source: str = "placeholder"  # placeholder / provisional / auto / manual
     unread_message_count: int = 0  # 用户尚未查看的已完成运行数，打开会话时清零
     latest_message: str = ""  # 最新消息

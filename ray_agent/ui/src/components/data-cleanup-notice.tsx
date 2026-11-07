@@ -29,5 +29,5 @@ export function DataCleanupNotice() {
     return () => {alive=false; counter.current++; window.clearInterval(timer); window.removeEventListener('focus', refresh); window.removeEventListener('rayagent-cleanup-started', refresh)}
   }, [read, task?.state])
   if (!task) return null
-  return <><div role="status" className="flex shrink-0 flex-wrap items-center gap-2 border-b bg-state-waiting-soft px-5 py-2 text-sm"><span className="min-w-0 flex-1">{task.name}：{task.state === 'failed' ? '数据清理未完成，需重试' : '正在清理数据'}</span><Button variant="ghost" size="sm" onClick={() => setOpen(true)}>查看清理任务</Button></div><DataCleanupDialog open={open} projectId={task.project_id || undefined} onClose={() => {setOpen(false); void read()}} onCompleted={() => {setOpen(false); void read()}}/></>
+  return <><div role="status" className="flex shrink-0 flex-wrap items-center gap-2 border-b bg-state-waiting-soft px-5 py-2 text-sm"><span className="min-w-0 flex-1">{task.name}：{task.state === 'failed' ? '数据清理未完成，需重试' : '正在清理数据'}</span><Button variant="ghost" size="sm" onClick={() => setOpen(true)}>查看清理任务</Button></div><DataCleanupDialog open={open} onClose={() => {setOpen(false); void read()}} onCompleted={() => {setOpen(false); void read()}}/></>
 }

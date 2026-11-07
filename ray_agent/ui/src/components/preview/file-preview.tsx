@@ -6,7 +6,7 @@ import {Button} from '@/components/ui/button'
 import {Dialog, DialogContent, DialogDescription, DialogTitle} from '@/components/ui/dialog'
 import {ApiError} from '@/lib/api/fetch'
 import type {ErrorCode} from '@/lib/api/types'
-import {downloadPreviewSource, isWebPage, openPreviewTab, previewContentUrl, previewEndpoint, readPreview, type FilePreview as Preview, type PreviewCell, type PreviewSource} from '@/lib/api/preview'
+import {canDownload, downloadPreviewSource, isWebPage, openPreviewTab, previewContentUrl, previewEndpoint, readPreview, type FilePreview as Preview, type PreviewCell, type PreviewSource} from '@/lib/api/preview'
 import {formatBytes} from '@/components/run/format'
 import {PreviewAction} from './action'
 import {ImagePreview} from './image-preview'
@@ -85,14 +85,13 @@ function FilePreviewContent({source, onBack, onDownload, onClose, canExpand = tr
   },[endpoint,page,reload])
   const needsContent = preview?.kind==='image' || preview?.kind==='pdf'
   const contentRevision = needsContent ? preview.revision : null
-  const fileId = source.id
   useEffect(() => {
     if(contentRevision==null)return
     let active=true
-    previewContentUrl(fileId,contentRevision).then(url=> {if(active)setContent({revision:contentRevision,url})})
+    previewContentUrl(source,contentRevision).then(url=> {if(active)setContent({revision:contentRevision,url})})
       .catch(error=> {if(active){setError(error instanceof Error ? error.message : '读取失败');setErrorCode(error instanceof ApiError ? error.code : null)}})
     return ()=> {active=false}
-  },[fileId,contentRevision])
+  },[endpoint,contentRevision]) // eslint-disable-line react-hooks/exhaustive-deps -- source 与 endpoint 一一对应
   const changePage = (next: typeof page) => {setLoading(true);setError(null);setErrorCode(null);setPage(next)}
   const refresh = () => {setLoading(true);setError(null);setErrorCode(null);revision.current=null;setPage({sheet:0,row:0,column:0,offset:0});setTextHistory([]);setReload(value=>value+1)}
   const download = () => {
@@ -108,9 +107,9 @@ function FilePreviewContent({source, onBack, onDownload, onClose, canExpand = tr
     if(!preview)return null
     if(preview.kind==='unavailable')return <div className="flex h-full flex-col items-center justify-center gap-2 p-6 text-center">
       <FileText className="size-8 text-muted-foreground" aria-hidden/><p className="text-sm">{preview.reason || '暂不支持预览'}</p>
-      <span className="text-xs tabular-nums text-muted-foreground">{formatBytes(preview.size)}</span><Button variant="outline" size="sm" onClick={download}><Download/>下载</Button></div>
+      <span className="text-xs tabular-nums text-muted-foreground">{formatBytes(preview.size)}</span>{canDownload(source) && <Button variant="outline" size="sm" onClick={download}><Download/>下载</Button>}</div>
     if((preview.kind==='pdf' || (preview.kind==='image' && !preview.thumbnail)) && !contentUrl)return <p className="p-4 text-xs text-muted-foreground" role="status">正在读取</p>
-    if(preview.kind==='image')return <ImagePreview src={preview.thumbnail || contentUrl!} originalSrc={contentUrl ?? undefined} title={filename} onDownload={download} mode={full || !canExpand ? 'canvas' : 'thumbnail'}
+    if(preview.kind==='image')return <ImagePreview src={preview.thumbnail || contentUrl!} originalSrc={contentUrl ?? undefined} title={filename} onDownload={canDownload(source) ? download : undefined} mode={full || !canExpand ? 'canvas' : 'thumbnail'}
       dimensions={preview.width && preview.height ? `${preview.width} × ${preview.height}` : undefined}/>
     if(preview.kind==='pdf')return <iframe title={filename} src={contentUrl!} className="h-full w-full border-0 bg-card"/>
     if(preview.kind==='table')return <TablePreview key={`${preview.sheet}:${preview.row}:${preview.column}`} preview={preview}/>
@@ -142,7 +141,7 @@ function FilePreviewContent({source, onBack, onDownload, onClose, canExpand = tr
     {(preview?.kind==='markdown' || source.filename.toLowerCase().endsWith('.json')) && <PreviewAction label={raw ? '格式化阅读' : '查看原文'} icon={raw ? FileText : Code} pressed={raw} onClick={()=>setRaw(!raw)}/>}
     {isWebPage(source.filename) && <PreviewAction label="在浏览器中打开网页" icon={ExternalLink} onClick={()=>void openPreviewTab(source).catch(error=>toast.error(error instanceof Error ? error.message : '打开失败'))}/>}
     <PreviewAction label="刷新预览" icon={RefreshCw} disabled={loading} onClick={refresh}/>
-    <PreviewAction label={`下载 ${preview?.filename || source.filename}`} icon={Download} disabled={errorCode==='gone'} onClick={download}/>
+    {canDownload(source) && <PreviewAction label={`下载 ${preview?.filename || source.filename}`} icon={Download} disabled={errorCode==='gone'} onClick={download}/>}
   </>
   const sheetTabs = !!preview?.sheets?.length && <div className="shrink-0 overflow-x-auto border-b px-2 py-1"><div role="tablist" aria-label="工作表" className="flex w-max gap-1">
     {preview.sheets.map((sheet,i)=><button key={i} type="button" role="tab" aria-selected={page.sheet===i} disabled={loading}

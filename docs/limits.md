@@ -9,7 +9,7 @@
 | 实现限制 | 由代码固定，修改需要同步实现与本页 |
 | 派生预算 | 根据模型、输出预留与当前输入计算，不能只看一个默认窗口 |
 
-应用配置（模型、Agent、工具策略、MCP、A2A）保存在业务库，首次启动按代码默认值写入，未保存的分区使用代码默认；模型密钥只从环境读取。核心进程设置与环境变量名称见 [config.py](../ray_agent/api/core/config.py) 与 [API 开发指南](../ray_agent/api/README.md)。
+应用配置（模型、Agent、工具策略、MCP、A2A）保存在业务库，首次启动按代码默认值写入，未保存的分区使用代码默认；模型地址与密钥只从用户配置文件读取。核心进程设置与环境变量名称见 [config.py](../ray_agent/api/core/config.py) 与 [API 开发指南](../ray_agent/api/README.md)。
 
 ## 模型与上下文
 
@@ -66,7 +66,35 @@
 | 后台任务 | 同时执行 2 个，`BACKGROUND_JOB_CONCURRENCY`；无唤醒时每 30 秒检查一次，`BACKGROUND_JOB_POLL_SECONDS` | [background_jobs.py](../ray_agent/api/app/application/services/background_jobs.py)、`core/config.py` |
 | 周期回收 | 启动时及每 30 秒回收过期 skill 包与临时图 | [app/main.py](../ray_agent/api/app/main.py) |
 | 关闭等待 | 受理后未登记的启动最多等 10 秒；运行任务收尾最多等 20 秒 | `app/main.py` |
-| 停止后等待协程 | 10 秒 | [agent_task_runner.py](../ray_agent/api/app/domain/services/agent_task_runner.py) 的 `STOP_SETTLE_SECONDS` |
+| 停止后等待协程 | 10 秒；也是工作区写入租约确认写入者已退出的期限，期限内未确认租约转为阻止状态，等用户重试收尾 | [agent_task_runner.py](../ray_agent/api/app/domain/services/agent_task_runner.py) 的 `STOP_SETTLE_SECONDS` |
+
+## 工作区文件夹与文件访问
+
+| 项 | 当前值 | 来源 |
+|---|---|---|
+| 默认工作区位置 | `~/RayAgent`；用户经宿主选择器更改后保存在应用配置 | [core/config.py](../ray_agent/api/core/config.py) 的 `workspace_default_location` |
+| 不能作为工作区的系统目录 | `/System`、`/Library`、`/usr`、`/bin`、`/sbin`、`/private`、`/etc`、`/var`、`/Applications`、`/dev`、`/proc`、`/sys`、`/boot`、`/lib`、`/lib64`、`/run`；另外拒绝文件系统根、用户主目录及其上级、数据根及其上级与下级、与已有工作区嵌套的位置 | `workspace_blocked_paths`、[folder_policy.py](../ray_agent/api/app/application/services/folder_policy.py) |
+| 文件夹授权凭证 | 有效 300 秒、一次使用；内存最多 64 个，超出时丢弃最早的 | `folder_grant_seconds`、`folder_grant_capacity` |
+| 复制冲突等待选择 | 600 秒；内存最多 32 个 | `marker_conflict_seconds`、[workspace_service.py](../ray_agent/api/app/application/services/workspace_service.py) 的 `CONFLICT_CAPACITY` |
+| 工作区名称与新建文件夹名 | 名称最多 80 个字符；文件夹名最多 60 个字符，重名加序号 | [workspace.py](../ray_agent/api/app/domain/models/workspace.py) 的 `WORKSPACE_NAME_MAX_LENGTH`、`workspace_service.py` 的 `FOLDER_NAME_MAX_LENGTH` |
+| 身份标记读取 | 最多读 64 KiB；无法解析的标记不改写 | [folders.py](../ray_agent/api/app/infrastructure/external/workspace_files/folders.py) |
+| 单次读取 | 4 MiB（调用方可要求更小）；`read_file` 用 `max_length` 截断并标记 `truncated`，大文件不整体读入内存 | `file_read_bytes` |
+| 单个目录列举 | 2000 项，超出标记截断 | `file_list_entries` |
+| 打开文件夹的规模扫描 | 访问最多 50000 项、深度 32 层，超出标记截断；只统计排除规则之外的内容 | `file_scan_entries`、`file_scan_depth` |
+| 单个文件写入 | 2 GiB | `file_write_bytes` |
+| 文件内搜索 | 最多 200 个匹配行 | `file_search_matches` |
+| 按名称查找 | 最多返回 500 条、访问最多 20000 项 | `file_find_results`、`file_find_entries` |
+| 文件名 | 最多 255 个字符；放入文件夹时同名加序号，最多尝试 500 次 | [file_rules.py](../ray_agent/api/app/domain/services/file_rules.py)、[file_scope.py](../ray_agent/api/app/domain/services/file_scope.py) 的 `UNIQUE_NAME_ATTEMPTS` |
+| 写前备份的空间预留 | 数据卷可用空间低于 64 MiB 加本次备份大小时停止发布新版本，不删除任何已保存的版本 | `backup_free_reserve_bytes` |
+| 撤销预览 | 当前版本与将恢复版本每侧最多读 256 KiB，统一 diff 最多 2000 行；超出只给大小 | `change_preview_bytes`、`change_preview_lines` |
+| 最近修改的运行 | 默认返回 20 条，最多 100 条 | `change_runs_default` |
+| 写入临时文件残留 | 核心启动后与打开文件夹时，清理超过 1 小时的 `.rayagent-write-*.tmp`（只处理本应用命名的普通文件）；这类文件在列举、扫描与监视中一律不可见 | [workspace_service.py](../ray_agent/api/app/application/services/workspace_service.py) 的 `TEMP_MAX_AGE_SECONDS` |
+| 删除工作区等待写入者 | 最多 10 秒等待文件夹的写入租约结束，期限内仍有写入者则返回冲突，不删除 | `workspace_service.py` 的 `DELETE_QUIESCE_SECONDS` |
+| 文件描述符软上限 | 核心启动时提高到 4096（不超过系统硬上限）；目录遍历按相对路径逐层打开，不依赖这个值 | [app/main.py](../ray_agent/api/app/main.py) 的 `NOFILE_TARGET` |
+| 外部变更监视 | 通知合并窗口 300 毫秒；监听期间每 2 秒核对文件夹是否仍在原处；每 30 秒兜底重扫一次（规模上限同打开文件夹的扫描）；一次事件最多列 200 个路径，超出改为整体刷新 | `watch_debounce_ms`、`workspace_probe_seconds`、`workspace_rescan_seconds`、`change_paths_per_event` |
+| 外部变更订阅者队列 | 每个订阅者 64 条，写满时合并为一次整体刷新 | [workspace_changes.py](../ray_agent/api/app/application/services/workspace_changes.py) 的 `queue_size` |
+
+列举、搜索与扫描共用排除规则（版本控制目录、依赖目录、常见凭证与数据库文件）和保留目录 `.rayagent`。模型文件工具对工作区文件夹内的 `.rayagent`、版本控制内部目录（任一路径段）、凭据与数据库文件（最后一段）显式读写同样拒绝并给出原因；依赖缓存目录只从列举、搜索与扫描中排除，显式读取仍允许；会话工作目录不适用这条规则。`/api/roots/…` 文件接口只拒绝 `.rayagent`、符号链接与特殊文件。
 
 保留但核心不再装配的 Docker 沙箱适配仍带有内存、CPU、进程数与存活时间设置（[core/config.py](../ray_agent/api/core/config.py) 的 `sandbox_*`），只在重新接入时生效。
 
@@ -149,7 +177,10 @@
 | 事件流兜底 | 有活动或刚有进展时 3 秒；连续空闲 2 次后 30 秒 | `agent_service.py` 的 `FALLBACK_POLL_SECONDS`、`IDLE_POLL_SECONDS` |
 | 进程内通知队列 | 每个订阅者 256 项，满时丢弃最旧一项，订阅者按序号补读 | [local_notifier.py](../ray_agent/api/app/infrastructure/external/notification/local_notifier.py) 的 `QUEUE_SIZE` |
 | 目录通知兜底 | 30 秒 | [session_routes.py](../ray_agent/api/app/interfaces/endpoints/session_routes.py) 的 `CATALOG_FALLBACK_SECONDS` |
-| 前端断线重连 | 500 毫秒起，每次翻倍，上限 4 秒 | [session-projection.ts](../ray_agent/ui/src/lib/session-projection.ts) |
+| 前端断线重连 | 500 毫秒起，每次翻倍，上限 4 秒；会话事件流与文件夹变更流共用 | [session-projection.ts](../ray_agent/ui/src/lib/session-projection.ts) |
+| 文件夹变更合并窗口 | 最后一次通知后 300 毫秒才交出一批刷新 | [workspace-live-provider.tsx](../ray_agent/ui/src/providers/workspace-live-provider.tsx) 的 `CHANGE_DEBOUNCE_MS` |
+| 写入租约轮询 | 有租约时每 3 秒读一次，直到释放；回到前台再读一次 | [workspace-live-provider.tsx](../ray_agent/ui/src/providers/workspace-live-provider.tsx) 的 `LEASE_POLL_MS` |
+| 回到前台的重新核对 | 文件夹树与工作区列表距上次读取超过 5 秒才重读 | [use-folder-tree.ts](../ray_agent/ui/src/hooks/use-folder-tree.ts)、[workspaces-provider.tsx](../ray_agent/ui/src/providers/workspaces-provider.tsx) 的 `FOCUS_RELOAD_MS`、`FOCUS_REFRESH_MS` |
 | 压缩状态轮询 | 进行中每 3 秒读一次会话详情 | [use-session-detail.ts](../ray_agent/ui/src/hooks/use-session-detail.ts) |
 | 终端输出轮询 | 命令运行中每 1.5 秒 | [workbench.tsx](../ray_agent/ui/src/components/workbench/workbench.tsx) |
 

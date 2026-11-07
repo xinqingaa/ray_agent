@@ -37,7 +37,6 @@ export type ContextEstimate = {
   inputLimit?: number | null
   watermarkTokens?: number | null
   method?: string | null
-  includesProjectContext?: boolean
 }
 
 export type TurnView = {
@@ -206,8 +205,11 @@ export type FileView = {
   extension: string
   contentType: string
   source: 'upload' | 'delivery'
-  /** 沙箱内路径；上传文件可能为空 */
+  /** 文件所在位置的原始路径；上传文件可能为空 */
   path: string | null
+  /** 交付自工作区文件夹时的位置（root_id 加根内相对路径）；字节以交付时保存的版本为准 */
+  rootId?: string
+  relativePath?: string
 }
 
 type ItemBase = {id: string; runId: string | null; at: number}
@@ -253,7 +255,6 @@ export type UsageView = {
     source?: 'prompt_usage' | 'request_estimate' | 'compact_estimate'
     configChanged?: boolean
     fixedInputExceeded?: boolean
-    includesProjectContext?: boolean
     snapshotAt?: number
     inputLimit?: number | null
     maxTokens?: number | null

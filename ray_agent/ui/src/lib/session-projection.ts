@@ -558,7 +558,7 @@ export function projectSession(input: ProjectSessionInput): SessionView {
           runId: track.id,
           at: ev.createdAt,
           state: protectionState,
-          message: str(protection.reason) ?? str(protection.error) ?? (protectionState === 'skipped' ? '项目超过快照上限，本次运行没有快照' : '运行前保护失败'),
+          message: str(protection.reason) ?? str(protection.error) ?? (protectionState === 'skipped' ? '文件超过快照上限，本次运行没有快照' : '运行前保护失败'),
         })
       }
       continue
@@ -1167,7 +1167,6 @@ function usageContext(
     windowTokens: window,
     lastTurnTokens: prompt != null && completion != null ? prompt + completion : null,
     source: postCompact ? 'compact_estimate' : hasUsage ? 'prompt_usage' : 'request_estimate',
-    ...(estimate?.includesProjectContext ? {includesProjectContext: true} : {}),
     snapshotAt: postCompact ? lastCompaction?.at : last?.startedAt,
     inputLimit, maxTokens, safetyTokens,
     watermarkTokens: estimate?.watermarkTokens ?? null,
@@ -1263,8 +1262,6 @@ function readEstimate(raw: unknown): ContextEstimate | null {
     inputLimit: num(raw.limit ?? raw.inputLimit),
     watermarkTokens: num(raw.watermark ?? raw.watermarkTokens),
     method: str(raw.method),
-    ...(raw.includes_project_context === true || raw.includesProjectContext === true
-      ? {includesProjectContext: true} : {}),
   }
 }
 
@@ -1596,6 +1593,7 @@ function readFiles(raw: unknown, source: 'upload' | 'delivery'): FileView[] {
       contentType: str(item.mime_type) ?? str(item.content_type) ?? str(item.contentType) ?? '',
       source,
       path: path || null,
+      ...(str(item.root_id) && str(item.relative_path) ? {rootId: str(item.root_id)!, relativePath: str(item.relative_path)!} : {}),
     })
   }
   return files

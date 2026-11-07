@@ -23,7 +23,7 @@ from app.domain.services.context.shaping import output_path
 from app.domain.services.flows.agent_loop import AGENT_MEMORY_NAME, RunEndReason, tool_message
 from app.domain.services.prompts.compact import COMPACT_PROMPT, SUMMARY_MARKER
 from app.domain.services.prompts.system import SYSTEM_PROMPT
-from tests.support.loop_harness import InMemorySandbox, assert_no_dangling, make_loop, memory_messages, store_of
+from tests.support.loop_harness import FileFixture, assert_no_dangling, make_loop, memory_messages, store_of
 from tests.support.scripted_llm import ScriptedResponse, ScriptedToolCall, text, tool_call, usage
 
 GOAL = "任务：逐份读取材料并汇总。约束：不得覆盖 source.csv。"
@@ -264,9 +264,9 @@ def test_oversized_result_becomes_preview_with_full_copy_in_workdir(tmp_path, fa
     from app.infrastructure.external.workdir.session_workdir import SessionWorkdirs
     workdirs = SessionWorkdirs(tmp_path)
     workdir = workdirs.resolve(*workdirs.new_root("w2"))
-    sandbox = InMemorySandbox({"/data/big.txt": LONG_FILE})
-    h = make_loop([tool_call("read_file", {"filepath": "/data/big.txt", "max_length": 100000}, id="c-big"),
-                   text("完成")], sandbox=sandbox, write_output=_runner_writer(workdir, fail_writes),
+    files = FileFixture({"data/big.txt": LONG_FILE})
+    h = make_loop([tool_call("read_file", {"filepath": "data/big.txt", "max_length": 100000}, id="c-big"),
+                   text("完成")], files=files, write_output=_runner_writer(workdir, fail_writes),
                   output_dir=str(workdir.outputs))
     events = run(collect(h.loop, message="读取大文件"))
 

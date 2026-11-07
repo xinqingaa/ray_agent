@@ -129,7 +129,7 @@ class ToolResultShaping(BaseModel):
     original_chars: int  # 完整内容（落盘文本，协议结果为适配层截断前的内容）的字符数
     preview_chars: int  # 进入上下文的预览序列化后的字符数
     truncated: bool = True
-    full_output_path: Optional[str] = None  # 完整内容在沙箱中的路径；写入失败时为空，完整内容不可再读
+    full_output_path: Optional[str] = None  # 完整内容保存的文件路径（会话工作目录）；写入失败时为空，完整内容不可再读
     error: Optional[str] = None  # 写入失败的原因
 
 

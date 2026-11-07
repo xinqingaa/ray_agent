@@ -12,6 +12,7 @@ from app.domain.models.session import SessionStatus
 from app.domain.services.flows.agent_loop import INTERRUPTED_STOPPED, NOT_EXECUTED_STOPPED
 from app.infrastructure.external.task.local_task import LocalRunTask
 from tests.support.loop_harness import (
+    FileFixture,
     assert_no_dangling,
     event_at,
     inject,
@@ -55,15 +56,15 @@ def test_wait_then_reply_resumes_same_run_with_reply_as_ask_result():
         assert isinstance(first.events[-2], WaitEvent) and first.events[-1].status == "waiting"
         assert first.llm.remaining == 0
         assert not any(isinstance(e, DoneEvent) for e in first.events)
-        first.sandbox.read_file.assert_not_awaited()
+        assert not first.files.files.read()
         r._mcp_tool.cleanup.assert_awaited_once()
         assert memory_messages(first.session)[-1]["tool_calls"][0]["id"] == "ask-1"
         # 未查看标记只在运行完成时累加，等待回复和普通消息不算
         first.loop._uow_factory().session.increment_unread_message_count.assert_not_awaited()
 
         # chat 对 waiting 运行的处理：同一运行 waiting → running，回复写入该运行，由新任务续接
-        second = make_loop([tool_call("read_file", {"filepath": "/hello.txt"}, id="read-1"), text("核对完成")],
-                           session=first.session)
+        second = make_loop([tool_call("read_file", {"filepath": "hello.txt"}, id="read-1"), text("核对完成")],
+                           session=first.session, files=FileFixture({"hello.txt": "hi"}))
         service = make_service(second)
         created = []
 
@@ -88,8 +89,7 @@ def test_wait_then_reply_resumes_same_run_with_reply_as_ask_result():
         request = second.llm.requests[0].messages
         assert_no_dangling(request)
         assert tool_results(request)["ask-1"]["data"]["reply"] == "/hello.txt"
-        second.sandbox.read_file.assert_awaited_once()
-        assert second.sandbox.read_file.await_args.kwargs["filepath"] == "/hello.txt"
+        assert second.files.files.read() == [("open_reader", "hello.txt")]
         assert isinstance(second.events[-2], DoneEvent)
         assert run_statuses(second, waiting_run.id) == ["running", "waiting", "running", "completed"]
         second.loop._uow_factory().session.increment_unread_message_count.assert_awaited_once_with(first.session.id)
@@ -101,11 +101,11 @@ def test_wait_then_reply_resumes_same_run_with_reply_as_ask_result():
 def test_new_input_during_tool_rechecks_scope_without_interrupting():
     async def run():
         h = make_loop([
-            tool_call("read_file", {"filepath": "/old.txt"}, id="old"),
+            tool_call("read_file", {"filepath": "old.txt"}, id="old"),
             ScriptedResponse(tool_calls=[ScriptedToolCall("update_plan", {"action":"not_needed"}),
-                ScriptedToolCall("read_file", {"filepath":"/new.txt"}, id="new")]),
+                ScriptedToolCall("read_file", {"filepath":"new.txt"}, id="new")]),
             text("两个文件都核对完成"),
-        ])
+        ], files=FileFixture({"old.txt": "o", "new.txt": "n"}))
         task = input_task()
         active = await start_run(h, task, "核对 /old.txt")
         r = make_runner(h, run=active)
@@ -118,7 +118,7 @@ def test_new_input_during_tool_rechecks_scope_without_interrupting():
         await r.invoke(task)
 
         assert h.llm.remaining == 0
-        assert [c.kwargs["filepath"] for c in h.sandbox.read_file.await_args_list] == ["/old.txt", "/new.txt"]
+        assert [c[1] for c in h.files.files.read()] == ["old.txt", "new.txt"]
         old = [e for e in h.events if isinstance(e, ToolEvent) and e.tool_call_id == "old"]
         assert [e.status for e in old] == ["calling", "called"]
         second = h.llm.requests[1].messages

@@ -4,6 +4,7 @@ import {SidebarTrigger, useSidebar} from '@/components/ui/sidebar'
 import {BrandMark} from '@/components/brand-mark'
 import {cn} from '@/lib/utils'
 import {DataCleanupNotice} from './data-cleanup-notice'
+import {WorkspaceDeletionNotice} from './workspace/workspace-deletion-notice'
 
 /** 侧栏顶部是产品入口和折叠控制。 */
 export function SidebarChrome() {
@@ -37,6 +38,7 @@ export function MainShell({children}: {children: ReactNode}) {
       )}
       <div className={cn('flex h-full flex-col', isMobile && 'pt-11')}>
         <DataCleanupNotice/>
+        <WorkspaceDeletionNotice/>
         <div className="min-h-0 flex-1">{children}</div>
       </div>
     </div>

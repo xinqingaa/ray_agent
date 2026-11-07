@@ -104,9 +104,9 @@ class ResultShaper:
         head = f"结果共 {total} 字符（{lines} 行），超过单条上限 {self.max_chars} 字符，这里只给出开头与结尾。"
         if path:
             segment = int(self.max_chars * 0.6)
-            return (f"{head}完整内容已保存到沙箱文件 {path}，需要其余部分时用 read_file 按行分段读取"
+            return (f"{head}完整内容已保存到文件 {path}，需要其余部分时用 read_file 按行分段读取"
                     f"（设置 start_line/end_line，每段不超过约 {segment} 字符），或用 Shell 的 grep、sed 定位。")
-        return f"{head}完整内容写入沙箱失败（{error}），不可再读；需要完整结果时请缩小范围后重新调用。"
+        return f"{head}完整内容写入文件失败（{error}），不可再读；需要完整结果时请缩小范围后重新调用。"
 
     def _preview(self, result: ToolResult, full_text: str, path: Optional[str], error: Optional[str]) -> ToolResult:
         lines = full_text.count("\n") + 1

@@ -11,7 +11,7 @@ from app.domain.models.operation import OperationKind, OperationProgress, Operat
 from app.domain.repositories.job_repository import BackgroundJobRepository
 from app.infrastructure.models import BackgroundJobModel
 
-RETRY_SUPPORTED = frozenset({OperationKind.DATA_CLEANUP})
+RETRY_SUPPORTED = frozenset({OperationKind.DATA_CLEANUP, OperationKind.WORKSPACE_DELETE})
 
 
 def _job(record: BackgroundJobModel) -> BackgroundJob:

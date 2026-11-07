@@ -193,6 +193,8 @@ pub fn run() {
             platform::open_external,
             platform::save_resource,
             platform::save_bytes,
+            platform::select_folder_grant,
+            platform::reveal_in_file_manager,
         ])
         .build(tauri::generate_context!())
         .expect("failed to build the RayAgent desktop host")

@@ -1084,6 +1084,536 @@ export interface paths {
         patch: operations["change_skill_api_skills__name__patch"];
         trace?: never;
     };
+    "/api/workspaces": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 工作区列表
+         * @description 按需核对每个文件夹的可用性：路径缺失或文件系统身份不符为 unavailable，会话仍可用
+         */
+        get: operations["list_workspaces_api_workspaces_get"];
+        put?: never;
+        /**
+         * 新建工作区
+         * @description 在默认工作区位置下按名称新建文件夹（重名加序号，不复用已有目录）
+         */
+        post: operations["create_workspace_api_workspaces_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/open": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 打开已有文件夹为工作区
+         * @description 需要宿主选择器产生的一次性 grant_id。打开新文件夹会写入身份标记；识别出移动则改绑；复制出的文件夹返回 conflict，用 /workspaces/open/resolve 选择
+         */
+        post: operations["open_workspace_api_workspaces_open_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/open/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 处理复制文件夹的冲突
+         * @description as_new：在此文件夹重写本机标记条目并成为新工作区；rebind：原工作区改绑到这里，原文件夹解除绑定
+         */
+        post: operations["resolve_conflict_api_workspaces_open_resolve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/default-location": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 默认工作区位置 */
+        get: operations["get_default_location_api_workspaces_default_location_get"];
+        put?: never;
+        /**
+         * 更改默认工作区位置
+         * @description 需要宿主选择器产生的一次性 grant_id
+         */
+        post: operations["set_default_location_api_workspaces_default_location_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 工作区详情 */
+        get: operations["get_workspace_api_workspaces__workspace_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/rename": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 重命名工作区
+         * @description 只改名称，不改文件夹名；version 不符返回 409
+         */
+        post: operations["rename_workspace_api_workspaces__workspace_id__rename_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/archive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 归档工作区
+         * @description 归档后不能新建会话，也不会写入文件夹；已有会话可读
+         */
+        post: operations["archive_workspace_api_workspaces__workspace_id__archive_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/unarchive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 取消归档 */
+        post: operations["unarchive_workspace_api_workspaces__workspace_id__unarchive_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/relocate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 重新定位工作区的文件夹
+         * @description 用宿主选择器产生的 grant_id 把工作区改绑到另一个文件夹，不依赖身份标记；校验同打开。version 不符、目标已绑定其他工作区（details.reason=already_bound）、目标标记属于本机另一个工作区（marker_other_workspace）、有未释放的写入租约（details.lease）或活动运行（details.run_id）时返回 409；嵌套、数据根与系统目录返回 400/403 同打开。成功后外部变更订阅自动切到新位置
+         */
+        post: operations["relocate_workspace_api_workspaces__workspace_id__relocate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/recheck": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 重新核对文件夹可用性 */
+        post: operations["recheck_workspace_api_workspaces__workspace_id__recheck_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 删除工作区
+         * @description 删除工作区记录与它的全部会话，后台回收会话文件并尽力移除文件夹里的本机标记条目；不删除文件夹和其中的任何用户文件。返回长操作，用 /operations/{id} 读回
+         */
+        post: operations["delete_workspace_api_workspaces__workspace_id__delete_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/write-lease": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 文件夹写入租约
+         * @description 文件夹当前的写入者；没有租约表示没有写入者。其他会话的写入被占用时得到 409，details.lease 带同样信息。
+         */
+        get: operations["get_write_lease_api_workspaces__workspace_id__write_lease_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/write-lease/retry-settle": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 重试写入租约收尾
+         * @description 租约处于 settling 或 blocked（停止后未能确认写入结束）时，再次要求写入者退出并确认；确认后释放租约，仍未确认返回 409 并保持阻止状态。正常写入中的租约不可收尾（409）。
+         */
+        post: operations["retry_settle_api_workspaces__workspace_id__write_lease_retry_settle_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/modified-runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 最近修改过文件夹的运行
+         * @description 按最近修改时间倒序，供文件夹面板展示「最近一次修改」入口；只含有净变化的运行
+         */
+        get: operations["modified_runs_api_workspaces__workspace_id__modified_runs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/runs/{run_id}/changes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 一次运行在文件夹里的文件变更
+         * @description 每个文件给出运行前版本、运行最后写入版本、当前版本与撤销状态（undoable/restored/conflict）；run_active 为真时不能撤销
+         */
+        get: operations["run_changes_api_workspaces__workspace_id__runs__run_id__changes_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/runs/{run_id}/changes/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 预览撤销后的内容
+         * @description 当前版本到撤销后版本的统一 diff；二进制或超过预览上限的文件只返回大小
+         */
+        get: operations["preview_change_api_workspaces__workspace_id__runs__run_id__changes_preview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/runs/{run_id}/undo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 撤销本次修改
+         * @description 只处理选中的文件，逐个返回结果：restored/removed 已处理，unchanged 本来就是运行前状态，conflict 文件在运行之后被改动（带当前版本；can_force 时可带 force=当前版本再次提交以仍要恢复），failed 其他原因。恢复与移除前会备份当前版本，并占用文件夹写入租约；租约被占用、运行仍在进行或工作区不可写时整体返回 409。撤销不回滚会话与记忆。
+         */
+        post: operations["undo_run_api_workspaces__workspace_id__runs__run_id__undo_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/changes/stream": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 订阅文件夹的外部变更
+         * @description SSE：先推送 ready（当前是否可用），之后推送 changed（paths 为变化的相对路径，refresh 为真表示需要整体刷新）与 availability（文件夹失联或恢复）。应用自己的写入同样会触发 changed。只在有订阅者时监视；通知之外还有定期重扫兜底。事件数据见 WorkspaceChangeEvent。
+         */
+        get: operations["stream_changes_api_workspaces__workspace_id__changes_stream_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/roots/{root_id}/entries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 列出目录 */
+        get: operations["list_entries_api_roots__root_id__entries_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/roots/{root_id}/entry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 读取文件或目录的元数据 */
+        get: operations["get_entry_api_roots__root_id__entry_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/roots/{root_id}/content": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 读取文件的原始字节
+         * @description 按 offset 与 length 分段读取，单次有上限；始终作为附件返回，不内联渲染
+         */
+        get: operations["read_content_api_roots__root_id__content_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/roots/{root_id}/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 文件预览
+         * @description 与附件预览同一协议；revision 随文件大小与修改时间变化
+         */
+        get: operations["preview_api_roots__root_id__preview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/roots/{root_id}/preview/ticket": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 签发原始内容的读取票据
+         * @description 图片、PDF 与网页按 URL 加载：用 /roots/{root_id}/preview/content/{path} 并带 ticket 参数
+         */
+        post: operations["content_ticket_api_roots__root_id__preview_ticket_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/roots/{root_id}/preview/content/{relative_path}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 原始内容的内联读取
+         * @description 只放行图片、PDF 与网页；需要票据
+         */
+        get: operations["root_content_api_roots__root_id__preview_content__relative_path__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/roots/{root_id}/upload": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 把文件放进工作区文件夹
+         * @description 复制到根目录，directory 可指定子目录；同名文件不覆盖，自动取不冲突的名称。归档的工作区不可写
+         */
+        post: operations["upload_api_roots__root_id__upload_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/host/folder-grants": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 登记宿主选中的文件夹
+         * @description 返回一次性、短期有效的 grant_id；界面凭它打开工作区或更改默认位置。需要宿主密钥头 X-RayAgent-Host-Secret
+         */
+        post: operations["create_folder_grant_api_host_folder_grants_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/host/roots/{root_id}/resolve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 解析根内路径的本机绝对位置
+         * @description 供宿主「在文件管理器中显示」：按根身份与路径规则核对（不越出根、拒绝 .rayagent、版本控制内部与凭据文件，目标必须存在），返回绝对路径；会话工作目录与工作区文件夹都适用。需要宿主密钥头 X-RayAgent-Host-Secret
+         */
+        post: operations["resolve_root_path_api_host_roots__root_id__resolve_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1292,6 +1822,16 @@ export interface components {
             /** Enabled */
             enabled: boolean;
         };
+        /** Body_upload_api_roots__root_id__upload_post */
+        Body_upload_api_roots__root_id__upload_post: {
+            /** File */
+            file: string;
+            /**
+             * Directory
+             * @default
+             */
+            directory: string;
+        };
         /** Body_upload_file_api_files_post */
         Body_upload_file_api_files_post: {
             /** File */
@@ -1373,6 +1913,88 @@ export interface components {
             recoverable: boolean;
             /** Detail */
             detail: string | null;
+        };
+        /** ChangeEntryView */
+        ChangeEntryView: {
+            /** Root Id */
+            root_id: string;
+            /** Relative Path */
+            relative_path: string;
+            /** @description 折叠后的净操作：运行前不存在为 create，运行前存在且最后被删除为 delete，其余为 modify */
+            operation: components["schemas"]["ChangeOperation"];
+            /**
+             * Writes
+             * @description 运行对该文件的写入次数
+             */
+            writes: number;
+            /** First At */
+            first_at: number;
+            /** Last At */
+            last_at: number;
+            /** @description 运行前版本；create 为空 */
+            before: components["schemas"]["FileVersionView"] | null;
+            /** @description 运行最后写入的版本；delete 为空 */
+            after: components["schemas"]["FileVersionView"] | null;
+            /** @description 文件夹里当前的版本；不存在为空 */
+            current: components["schemas"]["FileVersionView"] | null;
+            /**
+             * Status
+             * @description undoable：当前版本仍是运行最后写入的，可直接撤销；restored：已经是运行前状态；conflict：之后被改动过，只有明确仍要恢复才会覆盖
+             * @enum {string}
+             */
+            status: "undoable" | "restored" | "conflict";
+            /** Conflict Reason */
+            conflict_reason: ("modified" | "missing" | "appeared" | "not_file" | "modified_during_run") | null;
+            /**
+             * Can Force
+             * @description 冲突时是否允许仍要恢复；运行新建的文件与非普通文件不允许
+             */
+            can_force: boolean;
+            /**
+             * Preview Kind
+             * @description 撤销会恢复运行前内容，或移除运行新建的文件
+             * @enum {string}
+             */
+            preview_kind: "restore" | "remove";
+        };
+        /**
+         * ChangeOperation
+         * @enum {string}
+         */
+        ChangeOperation: "create" | "modify" | "delete";
+        /** ChangePreviewResponse */
+        ChangePreviewResponse: {
+            /**
+             * Kind
+             * @description diff：当前版本到撤销后版本的统一 diff；binary 与 too_large 只给大小；unchanged：撤销不会改变内容
+             * @enum {string}
+             */
+            kind: "diff" | "binary" | "too_large" | "unchanged";
+            /**
+             * Diff
+             * @default
+             */
+            diff: string;
+            /**
+             * Truncated
+             * @default false
+             */
+            truncated: boolean;
+            /** Current Size */
+            current_size: number | null;
+            /** Restore Size */
+            restore_size: number | null;
+            /**
+             * Removes File
+             * @description 撤销会移除文件（运行新建的文件）
+             */
+            removes_file: boolean;
+            /**
+             * Warning
+             * @description 撤销会丢掉运行期间的外部修改等需要用户知道的情况；为空表示没有
+             * @default
+             */
+            warning: string;
         };
         /**
          * ChatRequest
@@ -1649,6 +2271,11 @@ export interface components {
             cached_tokens?: number | null;
         };
         /**
+         * ConflictResolution
+         * @enum {string}
+         */
+        ConflictResolution: "as_new" | "rebind";
+        /**
          * ConnectionSource
          * @description 模型连接配置文件的读取结果。
          */
@@ -1739,7 +2366,7 @@ export interface components {
         };
         /** CoreStatus */
         CoreStatus: {
-            /** @default 2 */
+            /** @default 3 */
             protocol_version: components["schemas"]["ProtocolVersion"];
             /** @default 1 */
             event_version: components["schemas"]["EventVersion"];
@@ -1761,6 +2388,11 @@ export interface components {
         CreateSessionRequest: {
             /** Creation Id */
             creation_id?: string | null;
+            /**
+             * Workspace Id
+             * @description 会话所属的工作区；创建后不再改变，省略为独立对话
+             */
+            workspace_id?: string | null;
         };
         /**
          * CreateSessionResponse
@@ -1769,6 +2401,24 @@ export interface components {
         CreateSessionResponse: {
             /** Session Id */
             session_id: string;
+        };
+        /** CreateWorkspaceRequest */
+        CreateWorkspaceRequest: {
+            /**
+             * Name
+             * @description 工作区名称，同时是默认位置下新建文件夹的名称
+             */
+            name: string;
+        };
+        /** DefaultLocationRequest */
+        DefaultLocationRequest: {
+            /** Grant Id */
+            grant_id: string;
+        };
+        /** DefaultLocationResponse */
+        DefaultLocationResponse: {
+            /** Path */
+            path: string;
         };
         /** DoneEventData */
         DoneEventData: {
@@ -1956,6 +2606,10 @@ export interface components {
              * @default
              */
             filepath: string;
+            /** Root Id */
+            root_id?: string | null;
+            /** Relative Path */
+            relative_path?: string | null;
             /**
              * Key
              * @default
@@ -1982,6 +2636,84 @@ export interface components {
             visual?: {
                 [key: string]: unknown;
             } | null;
+        };
+        /**
+         * FileKind
+         * @enum {string}
+         */
+        FileKind: "file" | "directory" | "symlink" | "other";
+        /** FileVersionView */
+        FileVersionView: {
+            /** Size */
+            size: number;
+            /**
+             * Modified Ns
+             * @description 仍要恢复时原样回传的版本核对值
+             */
+            modified_ns: number | null;
+            /** Sha256 */
+            sha256: string | null;
+        };
+        /** FolderGrantRequest */
+        FolderGrantRequest: {
+            /**
+             * Path
+             * @description 宿主在系统选择器里选中的文件夹绝对路径
+             */
+            path: string;
+        };
+        /** FolderGrantResponse */
+        FolderGrantResponse: {
+            /**
+             * Grant Id
+             * @description 一次性、短期有效的凭证；界面用它打开工作区或更改默认位置
+             */
+            grant_id: string;
+            /** Path */
+            path: string;
+            /**
+             * Expires At
+             * @description 毫秒时间戳
+             */
+            expires_at: number;
+        };
+        /**
+         * FolderStatus
+         * @enum {string}
+         */
+        FolderStatus: "available" | "unavailable";
+        /** FolderView */
+        FolderView: {
+            /**
+             * Root Id
+             * @description 文件接口使用的可访问根
+             */
+            root_id: string;
+            /**
+             * Path
+             * @description 绑定的文件夹位置，用于展示与打开位置
+             */
+            path: string;
+            status: components["schemas"]["FolderStatus"];
+            /**
+             * Marker Writable
+             * @description 身份标记写入失败为假：移动文件夹后需要手动重新选择
+             */
+            marker_writable: boolean;
+            /** Checked At */
+            checked_at: number | null;
+        };
+        /**
+         * ForceCurrentRequest
+         * @description 用户看到的当前版本；与实际不一致时不覆盖，重新返回冲突。
+         */
+        ForceCurrentRequest: {
+            /** Exists */
+            exists: boolean;
+            /** Size */
+            size?: number | null;
+            /** Modified Ns */
+            modified_ns?: number | null;
         };
         /** @description 代次：对象被重试或替换时递增，迟到结果代次不符时不得写回 */
         Generation: number;
@@ -2120,6 +2852,11 @@ export interface components {
                 [key: string]: components["schemas"]["ModelSampling"];
             } | null;
         };
+        /**
+         * LeaseState
+         * @enum {string}
+         */
+        LeaseState: "preparing" | "held" | "settling" | "blocked";
         /** ListA2AServerItem */
         ListA2AServerItem: {
             /**
@@ -2219,6 +2956,8 @@ export interface components {
              * @default
              */
             session_id: string;
+            /** Workspace Id */
+            workspace_id?: string | null;
             /**
              * Title
              * @default
@@ -2320,6 +3059,23 @@ export interface components {
          * @enum {string}
          */
         MCPTransport: "stdio" | "streamable_http";
+        /**
+         * MarkerConflict
+         * @description 复制出的文件夹：标记指向一个仍绑定在别处的已知工作区。
+         */
+        MarkerConflict: {
+            /** Conflict Id */
+            conflict_id: string;
+            /** Path */
+            path: string;
+            workspace_id: components["schemas"]["WorkspaceId"];
+            /** Workspace Name */
+            workspace_name: string;
+            /** Bound Path */
+            bound_path: string;
+            /** Options */
+            options: ("as_new" | "rebind")[];
+        };
         /**
          * MessageEventData
          * @description 消息事件数据
@@ -2466,6 +3222,38 @@ export interface components {
             /** Reasoning */
             reasoning: string;
         };
+        /** ModifiedRunsResponse */
+        ModifiedRunsResponse: {
+            /** Runs */
+            runs: components["schemas"]["RunSummaryView"][];
+        };
+        /** OpenWorkspaceRequest */
+        OpenWorkspaceRequest: {
+            /** Grant Id */
+            grant_id: string;
+            /**
+             * Name
+             * @description 新工作区的名称；省略时用文件夹名
+             */
+            name?: string | null;
+        };
+        /**
+         * OpenWorkspaceResult
+         * @description status=opened：workspace 为打开的工作区，recognized 说明是新工作区、已有工作区，还是识别出移动并改绑；
+         *     status=conflict：文件夹是复制出来的，调用 resolve 带 conflict.conflict_id 选择作为新工作区或改绑到这里。
+         */
+        OpenWorkspaceResult: {
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "opened" | "conflict";
+            workspace: components["schemas"]["WorkspaceItem"] | null;
+            scan: components["schemas"]["ScanSummary"] | null;
+            /** Recognized */
+            recognized: ("new" | "existing" | "moved") | null;
+            conflict: components["schemas"]["MarkerConflict"] | null;
+        };
         /** @description 长操作身份；查询、取消与重试沿同一身份 */
         OperationId: string;
         /**
@@ -2473,7 +3261,7 @@ export interface components {
          * @description 新增类型在这里登记，各工作包不另起同义名称。
          * @enum {string}
          */
-        OperationKind: "component_install" | "document_index" | "memory_extraction" | "session_summary" | "data_cleanup";
+        OperationKind: "component_install" | "document_index" | "memory_extraction" | "session_summary" | "data_cleanup" | "workspace_delete";
         /** OperationProgress */
         OperationProgress: {
             /**
@@ -2656,13 +3444,52 @@ export interface components {
             /** Fingerprint */
             fingerprint: string;
         };
+        /** @description 根内相对路径：以 / 分隔，空串表示根本身；不含绝对路径、盘符、反斜杠、空段、. 与 ..，不含控制字符 */
+        RelativePath: string;
+        /** RelocateWorkspaceRequest */
+        RelocateWorkspaceRequest: {
+            /** Grant Id */
+            grant_id: string;
+            /** Version */
+            version: number;
+        };
         /** RenameTitleRequest */
         RenameTitleRequest: {
             /** Title */
             title: string;
         };
+        /** RenameWorkspaceRequest */
+        RenameWorkspaceRequest: {
+            /** Name */
+            name: string;
+            /** Version */
+            version: number;
+        };
         /** @description 业务幂等请求身份；同身份不同内容返回冲突 */
         RequestId: string;
+        /** ResolveConflictRequest */
+        ResolveConflictRequest: {
+            /** Conflict Id */
+            conflict_id: string;
+            resolution: components["schemas"]["ConflictResolution"];
+        };
+        /** ResolveRootPathRequest */
+        ResolveRootPathRequest: {
+            /**
+             * Relative Path
+             * @description 根内相对路径；空表示根目录本身
+             * @default
+             */
+            relative_path: string;
+        };
+        /** ResolveRootPathResponse */
+        ResolveRootPathResponse: {
+            /**
+             * Path
+             * @description 目标在本机的绝对路径，只供宿主在文件管理器中显示位置
+             */
+            path: string;
+        };
         /**
          * ResourceTicket
          * @description 按 URL 加载资源时代替实例令牌；只对签发路径的 GET 与 HEAD 有效，到期前可重复使用。
@@ -2689,6 +3516,10 @@ export interface components {
         Response_BuildIdentity_: {
             data: components["schemas"]["BuildIdentity"] | null;
         };
+        /** Response[ChangePreviewResponse] */
+        Response_ChangePreviewResponse_: {
+            data: components["schemas"]["ChangePreviewResponse"] | null;
+        };
         /** Response[ChatResponse] */
         Response_ChatResponse_: {
             data: components["schemas"]["ChatResponse"] | null;
@@ -2713,6 +3544,10 @@ export interface components {
         Response_CreateSessionResponse_: {
             data: components["schemas"]["CreateSessionResponse"] | null;
         };
+        /** Response[DefaultLocationResponse] */
+        Response_DefaultLocationResponse_: {
+            data: components["schemas"]["DefaultLocationResponse"] | null;
+        };
         /** Response[Dict] */
         Response_Dict_: {
             /** Data */
@@ -2730,6 +3565,10 @@ export interface components {
         /** Response[File] */
         Response_File_: {
             data: components["schemas"]["File"] | null;
+        };
+        /** Response[FolderGrantResponse] */
+        Response_FolderGrantResponse_: {
+            data: components["schemas"]["FolderGrantResponse"] | null;
         };
         /** Response[GetSessionFilesResponse] */
         Response_GetSessionFilesResponse_: {
@@ -2763,13 +3602,37 @@ export interface components {
         Response_ModelSelectionResponse_: {
             data: components["schemas"]["ModelSelectionResponse"] | null;
         };
+        /** Response[ModifiedRunsResponse] */
+        Response_ModifiedRunsResponse_: {
+            data: components["schemas"]["ModifiedRunsResponse"] | null;
+        };
+        /** Response[OpenWorkspaceResult] */
+        Response_OpenWorkspaceResult_: {
+            data: components["schemas"]["OpenWorkspaceResult"] | null;
+        };
         /** Response[OperationView] */
         Response_OperationView_: {
             data: components["schemas"]["OperationView"] | null;
         };
+        /** Response[ResolveRootPathResponse] */
+        Response_ResolveRootPathResponse_: {
+            data: components["schemas"]["ResolveRootPathResponse"] | null;
+        };
         /** Response[ResourceTicket] */
         Response_ResourceTicket_: {
             data: components["schemas"]["ResourceTicket"] | null;
+        };
+        /** Response[RootEntryResponse] */
+        Response_RootEntryResponse_: {
+            data: components["schemas"]["RootEntryResponse"] | null;
+        };
+        /** Response[RootListing] */
+        Response_RootListing_: {
+            data: components["schemas"]["RootListing"] | null;
+        };
+        /** Response[RunChangesResponse] */
+        Response_RunChangesResponse_: {
+            data: components["schemas"]["RunChangesResponse"] | null;
         };
         /** Response[TitleResponse] */
         Response_TitleResponse_: {
@@ -2783,6 +3646,10 @@ export interface components {
         Response_TurnRequestResponse_: {
             data: components["schemas"]["TurnRequestResponse"] | null;
         };
+        /** Response[UndoResponse] */
+        Response_UndoResponse_: {
+            data: components["schemas"]["UndoResponse"] | null;
+        };
         /** Response[Union[CleanupTask, NoneType]] */
         Response_Union_CleanupTask__NoneType__: {
             data: components["schemas"]["CleanupTask"] | null;
@@ -2794,6 +3661,18 @@ export interface components {
                 [key: string]: unknown;
             } | null;
         };
+        /** Response[WorkspaceItem] */
+        Response_WorkspaceItem_: {
+            data: components["schemas"]["WorkspaceItem"] | null;
+        };
+        /** Response[WorkspaceListResponse] */
+        Response_WorkspaceListResponse_: {
+            data: components["schemas"]["WorkspaceListResponse"] | null;
+        };
+        /** Response[WriteLeaseResponse] */
+        Response_WriteLeaseResponse_: {
+            data: components["schemas"]["WriteLeaseResponse"] | null;
+        };
         /** ReviseRequest */
         ReviseRequest: {
             /** Candidate Path */
@@ -2804,6 +3683,75 @@ export interface components {
             text: string;
             /** Revision Id */
             revision_id: string;
+        };
+        /** RootEntryResponse */
+        RootEntryResponse: {
+            entry: components["schemas"]["RootEntryView"];
+        };
+        /** RootEntryView */
+        RootEntryView: {
+            path: components["schemas"]["RootedPath"];
+            /** Name */
+            name: string;
+            kind: components["schemas"]["FileKind"];
+            /** Size */
+            size: number | null;
+            /**
+             * Modified At
+             * @description 毫秒时间戳；只有普通文件有
+             */
+            modified_at: number | null;
+            /**
+             * Link Target
+             * @description 符号链接的目标文本；链接不被展开或跟随
+             */
+            link_target: string | null;
+        };
+        /** @description 可访问根：工作区文件夹或会话工作目录 */
+        RootId: string;
+        /** RootListing */
+        RootListing: {
+            path: components["schemas"]["RootedPath"];
+            /** Entries */
+            entries: components["schemas"]["RootEntryView"][];
+            /**
+             * Truncated
+             * @default false
+             */
+            truncated: boolean;
+        };
+        /**
+         * RootedPath
+         * @description 文件接口与执行端口使用的位置；客户端不提交桌面绝对路径。
+         */
+        RootedPath: {
+            root_id: components["schemas"]["RootId"];
+            /** @default  */
+            relative_path: components["schemas"]["RelativePath"];
+        };
+        /** RunChangesResponse */
+        RunChangesResponse: {
+            /** Run Id */
+            run_id: string;
+            /** Session Id */
+            session_id: string;
+            /** Session Title */
+            session_title: string;
+            /**
+             * Run Active
+             * @description 运行仍在进行时不能撤销
+             */
+            run_active: boolean;
+            /**
+             * Kind
+             * @default run
+             * @enum {string}
+             */
+            kind: "run" | "undo";
+            /** Undo Of Run Id */
+            undo_of_run_id: string | null;
+            /** Entries */
+            entries: components["schemas"]["ChangeEntryView"][];
         };
         /**
          * RunEventData
@@ -2906,11 +3854,69 @@ export interface components {
          * @enum {string}
          */
         RunStatus: "running" | "waiting" | "completed" | "failed" | "cancelled" | "interrupted";
+        /** RunSummaryView */
+        RunSummaryView: {
+            /** Run Id */
+            run_id: string;
+            /** Session Id */
+            session_id: string;
+            /** Session Title */
+            session_title: string;
+            /** Run Status */
+            run_status: string;
+            /**
+             * Changed Files
+             * @description 净变化的文件数；运行里新建后又删除的文件不计
+             */
+            changed_files: number;
+            /** First At */
+            first_at: number;
+            /** Last At */
+            last_at: number;
+            /**
+             * Kind
+             * @description run：Agent 运行；undo：一次撤销操作，它的 run_id 是操作身份，可像运行一样查看变更并撤回
+             * @default run
+             * @enum {string}
+             */
+            kind: "run" | "undo";
+            /**
+             * Undo Of Run Id
+             * @description kind=undo 时被撤销的运行
+             */
+            undo_of_run_id: string | null;
+        };
         /** SamplingPreviewRequest */
         SamplingPreviewRequest: {
             /** Model */
             model: string;
             sampling: components["schemas"]["ModelSampling"];
+        };
+        /**
+         * ScanSummary
+         * @description 文件夹规模：排除规则之外的文件数与总大小；达到扫描上限时截断。
+         */
+        ScanSummary: {
+            /**
+             * Files
+             * @default 0
+             */
+            files: number;
+            /**
+             * Directories
+             * @default 0
+             */
+            directories: number;
+            /**
+             * Bytes
+             * @default 0
+             */
+            bytes: number;
+            /**
+             * Truncated
+             * @default false
+             */
+            truncated: boolean;
         };
         SessionEvent: components["schemas"]["MessageSSEEvent"] | components["schemas"]["TitleSSEEvent"] | components["schemas"]["StepSSEEvent"] | components["schemas"]["PlanSSEEvent"] | components["schemas"]["ToolSSEEvent"] | components["schemas"]["DoneSSEEvent"] | components["schemas"]["ErrorSSEEvent"] | components["schemas"]["WaitSSEEvent"] | components["schemas"]["TurnSSEEvent"] | components["schemas"]["AttemptSSEEvent"] | components["schemas"]["RunSSEEvent"] | components["schemas"]["EnvironmentSSEEvent"] | components["schemas"]["ContextSSEEvent"] | components["schemas"]["CompactSSEEvent"] | components["schemas"]["CleanupSSEEvent"] | components["schemas"]["ApprovalSSEEvent"];
         /** @description 会话身份 */
@@ -3263,6 +4269,43 @@ export interface components {
             /** Request Id */
             request_id?: string | null;
         };
+        /** UndoItemRequest */
+        UndoItemRequest: {
+            /** Relative Path */
+            relative_path: string;
+            /** @description 仍要恢复：带上冲突结果里的当前版本 */
+            force?: components["schemas"]["ForceCurrentRequest"] | null;
+        };
+        /** UndoItemResult */
+        UndoItemResult: {
+            /** Relative Path */
+            relative_path: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "restored" | "removed" | "unchanged" | "conflict" | "failed";
+            /** Message */
+            message: string;
+            current: components["schemas"]["FileVersionView"] | null;
+            /** Conflict Reason */
+            conflict_reason: ("modified" | "missing" | "appeared" | "not_file" | "modified_during_run") | null;
+            /**
+             * Can Force
+             * @default false
+             */
+            can_force: boolean;
+        };
+        /** UndoRequest */
+        UndoRequest: {
+            /** Items */
+            items: components["schemas"]["UndoItemRequest"][];
+        };
+        /** UndoResponse */
+        UndoResponse: {
+            /** Results */
+            results: components["schemas"]["UndoItemResult"][];
+        };
         /**
          * WaitSSEEvent
          * @description 等待人类输入流式事件
@@ -3277,6 +4320,77 @@ export interface components {
         };
         /** @description 工作区身份；独立对话没有工作区 */
         WorkspaceId: string;
+        /** WorkspaceItem */
+        WorkspaceItem: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            status: components["schemas"]["WorkspaceStatus"];
+            /**
+             * Version
+             * @description 重命名、归档等修改时回传，用于并发修改核对
+             */
+            version: number;
+            folder: components["schemas"]["FolderView"] | null;
+            /** @description 文件夹当前的写入租约；为空表示没有写入者 */
+            write_lease: components["schemas"]["WriteLeaseView"] | null;
+            /** Created At */
+            created_at: number;
+            /** Updated At */
+            updated_at: number;
+        };
+        /** WorkspaceListResponse */
+        WorkspaceListResponse: {
+            /** Workspaces */
+            workspaces: components["schemas"]["WorkspaceItem"][];
+        };
+        /**
+         * WorkspaceStatus
+         * @enum {string}
+         */
+        WorkspaceStatus: "active" | "archived" | "deleting";
+        /** WorkspaceVersionRequest */
+        WorkspaceVersionRequest: {
+            /** Version */
+            version: number;
+        };
+        /** WriteLeaseResponse */
+        WriteLeaseResponse: {
+            /** @description 没有租约表示文件夹当前没有写入者 */
+            lease: components["schemas"]["WriteLeaseView"] | null;
+        };
+        /**
+         * WriteLeaseView
+         * @description 文件夹当前的写入租约；被占用时其他会话的写入立即得到带这些信息的 409。
+         */
+        WriteLeaseView: {
+            /** Id */
+            id: string;
+            /** @description preparing/held 正常写入中；settling 已请求停止；blocked 停止后未能确认写入结束，需重试收尾 */
+            state: components["schemas"]["LeaseState"];
+            writer_kind: components["schemas"]["WriterKind"];
+            /**
+             * Owner Session Id
+             * @description 持有者会话；上传等不属于会话的写入为空串
+             */
+            owner_session_id: string;
+            /** Owner Run Id */
+            owner_run_id: string | null;
+            /** Operation */
+            operation: string | null;
+            /** Reason */
+            reason: string;
+            /** Acquired At */
+            acquired_at: number;
+            /** Updated At */
+            updated_at: number;
+        };
+        /**
+         * WriterKind
+         * @enum {string}
+         */
+        WriterKind: "core_tool" | "process";
     };
     responses: never;
     parameters: never;
@@ -4175,6 +5289,10 @@ export interface operations {
             query?: {
                 offset?: number;
                 limit?: number;
+                /** @description 只列出该工作区的会话 */
+                workspace_id?: string | null;
+                /** @description 只列出没有工作区的独立对话；不能与 workspace_id 同时使用 */
+                independent?: boolean;
             };
             header?: never;
             path?: never;
@@ -4240,6 +5358,10 @@ export interface operations {
             query?: {
                 offset?: number;
                 limit?: number;
+                /** @description 只列出该工作区的会话 */
+                workspace_id?: string | null;
+                /** @description 只列出没有工作区的独立对话；不能与 workspace_id 同时使用 */
+                independent?: boolean;
             };
             header?: never;
             path?: never;
@@ -5460,6 +6582,971 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    list_workspaces_api_workspaces_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_WorkspaceListResponse_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    create_workspace_api_workspaces_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateWorkspaceRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_WorkspaceItem_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    open_workspace_api_workspaces_open_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OpenWorkspaceRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_OpenWorkspaceResult_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    resolve_conflict_api_workspaces_open_resolve_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResolveConflictRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_OpenWorkspaceResult_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_default_location_api_workspaces_default_location_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_DefaultLocationResponse_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    set_default_location_api_workspaces_default_location_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DefaultLocationRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_DefaultLocationResponse_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_workspace_api_workspaces__workspace_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_WorkspaceItem_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    rename_workspace_api_workspaces__workspace_id__rename_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RenameWorkspaceRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_WorkspaceItem_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    archive_workspace_api_workspaces__workspace_id__archive_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WorkspaceVersionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_WorkspaceItem_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    unarchive_workspace_api_workspaces__workspace_id__unarchive_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WorkspaceVersionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_WorkspaceItem_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    relocate_workspace_api_workspaces__workspace_id__relocate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RelocateWorkspaceRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_WorkspaceItem_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    recheck_workspace_api_workspaces__workspace_id__recheck_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_WorkspaceItem_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    delete_workspace_api_workspaces__workspace_id__delete_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_OperationView_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_write_lease_api_workspaces__workspace_id__write_lease_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_WriteLeaseResponse_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    retry_settle_api_workspaces__workspace_id__write_lease_retry_settle_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_WriteLeaseResponse_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    modified_runs_api_workspaces__workspace_id__modified_runs_get: {
+        parameters: {
+            query?: {
+                limit?: number | null;
+            };
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_ModifiedRunsResponse_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    run_changes_api_workspaces__workspace_id__runs__run_id__changes_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_RunChangesResponse_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    preview_change_api_workspaces__workspace_id__runs__run_id__changes_preview_get: {
+        parameters: {
+            query: {
+                /** @description 相对文件夹的路径 */
+                path: string;
+            };
+            header?: never;
+            path: {
+                workspace_id: string;
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_ChangePreviewResponse_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    undo_run_api_workspaces__workspace_id__runs__run_id__undo_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UndoRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_UndoResponse_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    stream_changes_api_workspaces__workspace_id__changes_stream_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    list_entries_api_roots__root_id__entries_get: {
+        parameters: {
+            query?: {
+                /** @description 根内相对路径，空串为根本身 */
+                path?: string;
+            };
+            header?: never;
+            path: {
+                root_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_RootListing_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_entry_api_roots__root_id__entry_get: {
+        parameters: {
+            query?: {
+                /** @description 根内相对路径，空串为根本身 */
+                path?: string;
+            };
+            header?: never;
+            path: {
+                root_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_RootEntryResponse_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    read_content_api_roots__root_id__content_get: {
+        parameters: {
+            query?: {
+                /** @description 根内相对路径，空串为根本身 */
+                path?: string;
+                offset?: number;
+                length?: number | null;
+            };
+            header?: never;
+            path: {
+                root_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    preview_api_roots__root_id__preview_get: {
+        parameters: {
+            query?: {
+                /** @description 根内相对路径，空串为根本身 */
+                path?: string;
+                sheet?: number;
+                row?: number;
+                column?: number;
+                offset?: number;
+                revision?: string | null;
+            };
+            header?: never;
+            path: {
+                root_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    content_ticket_api_roots__root_id__preview_ticket_post: {
+        parameters: {
+            query: {
+                path: string;
+            };
+            header?: never;
+            path: {
+                root_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_ResourceTicket_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    root_content_api_roots__root_id__preview_content__relative_path__get: {
+        parameters: {
+            query?: {
+                revision?: string | null;
+            };
+            header?: never;
+            path: {
+                root_id: string;
+                relative_path: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    upload_api_roots__root_id__upload_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                root_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_api_roots__root_id__upload_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_RootEntryResponse_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    create_folder_grant_api_host_folder_grants_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FolderGrantRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_FolderGrantResponse_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    resolve_root_path_api_host_roots__root_id__resolve_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                root_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResolveRootPathRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_ResolveRootPathResponse_"];
                 };
             };
             /** @description 结构化错误 */

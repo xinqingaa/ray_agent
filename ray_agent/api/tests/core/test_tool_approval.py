@@ -171,7 +171,7 @@ def test_ask_suspends_batch_and_enters_waiting_approval():
         assert h.runs[active.id].status == RunStatus.WAITING and h.runs[active.id].reason == "approval"
         assert h.session.status == SessionStatus.WAITING
         assert h.recording.calls == [] and not tools_of(h, "c-a") and not tools_of(h, "c-b")
-        h.sandbox.read_file.assert_not_awaited()
+        assert not h.files.files.read()
         request = next(e for e in h.events if isinstance(e, ApprovalEvent))
         assert (request.tool_call_id, request.function_name, request.function_args, request.rule) == (
             "c-a", "echo", {"text": "a"}, "echo")
@@ -197,7 +197,7 @@ def test_approve_executes_once_then_repairs_rest_of_batch_and_rejects_duplicate_
         assert (accepted.run_id, accepted.status) == (active.id, "approved")
         assert event_at(second, accepted.seq).status == ApprovalStatus.APPROVED
         assert second.recording.calls == ["echo:a"] and first.recording.calls == []
-        second.sandbox.read_file.assert_not_awaited()
+        assert not second.files.files.read()
         assert [e.status.value for e in tools_of(second, "c-a")] == ["calling", "called"]
         assert [e.denied_by for e in tools_of(second, "c-b")] == ["batch"]
         request = second.llm.requests[0].messages
@@ -230,7 +230,7 @@ def test_reject_does_not_execute_and_backfills_user_rejection():
         second, service, accepted = await reply(first, active.id, "c-a", False, [text("好的，不回显，改为说明")])
         assert accepted.status == "rejected"
         assert second.recording.calls == [] and first.recording.calls == []
-        second.sandbox.read_file.assert_not_awaited()
+        assert not second.files.files.read()
         called = tools_of(second, "c-a")
         assert [(e.status.value, e.denied_by) for e in called] == [("called", "user")]
         request = second.llm.requests[0].messages

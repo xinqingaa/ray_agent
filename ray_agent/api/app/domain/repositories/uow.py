@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 from typing import TypeVar
 
 from .event_repository import EventRepository
+from .file_change_repository import FileChangeRepository
 from .file_repository import FileRepository
 from .input_repository import AcceptedRequestRepository, RunInputRepository
 from .job_repository import BackgroundJobRepository
@@ -11,6 +12,8 @@ from .root_repository import RootRepository
 from .run_repository import RunRepository
 from .session_repository import SessionRepository
 from .skills import SkillTransaction
+from .workspace_repository import WorkspaceRepository
+from .write_lease_repository import WriteLeaseRepository
 
 T = TypeVar("T", bound="IUnitOfWork")
 
@@ -26,6 +29,9 @@ class IUnitOfWork(ABC):
     request: AcceptedRequestRepository
     job: BackgroundJobRepository
     root: RootRepository
+    workspace: WorkspaceRepository
+    lease: WriteLeaseRepository
+    change: FileChangeRepository
 
     @abstractmethod
     async def commit(self):

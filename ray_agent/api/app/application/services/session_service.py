@@ -4,13 +4,14 @@ import logging
 from dataclasses import dataclass, field
 from typing import List, Callable, Optional, Type
 
-from app.application.errors.exceptions import ConflictError, NotFoundError
+from app.application.errors.exceptions import BadRequestError, ConflictError, NotFoundError
 from app.domain.external.task import Task
 from app.domain.models.event import Event
 from app.domain.models.file import File
 from app.domain.models.run import Run
 from app.domain.models.run_input import RunInput
 from app.domain.models.session import DEFAULT_SESSION_TITLE, Session
+from app.domain.models.workspace import WorkspaceStatus
 from app.domain.repositories.uow import IUnitOfWork
 
 logger = logging.getLogger(__name__)
@@ -42,16 +43,24 @@ class SessionService:
         self._workdirs = workdirs
         self._jobs = jobs
 
-    async def create_session(self, creation_id: str | None = None) -> Session:
-        """创建一个空白会话；带创建标识时重复请求返回同一会话。"""
-        session = Session(title=DEFAULT_SESSION_TITLE)
+    async def create_session(self, creation_id: str | None = None, workspace_id: str | None = None) -> Session:
+        """创建一个空白会话；带创建标识时重复请求返回同一会话。会话所属的工作区创建后不再改变，独立对话没有工作区。"""
+        session = Session(title=DEFAULT_SESSION_TITLE, workspace_id=workspace_id)
         if creation_id:
             session.id = creation_id
         async with self._uow_factory() as uow:
             if creation_id:
                 existing = await uow.session.get_by_id(creation_id)
                 if existing:
+                    if existing.workspace_id != workspace_id:
+                        raise ConflictError("该创建标识已用于另一个工作区的会话")
                     return existing
+            if workspace_id:
+                workspace = await uow.workspace.get(workspace_id)
+                if workspace is None or workspace.status is WorkspaceStatus.DELETING:
+                    raise NotFoundError("工作区不存在")
+                if workspace.status is WorkspaceStatus.ARCHIVED:
+                    raise ConflictError("工作区已归档，不能新建会话；取消归档后再试")
             await uow.session.save(session)
             if self._workdirs is not None:
                 root, location = self._workdirs.new_root(session.id)
@@ -59,9 +68,13 @@ class SessionService:
         logger.info(f"成功创建一个新任务会话: {session.id}")
         return session
 
-    async def page(self, *, offset: int = 0, limit: int = 50):
+    async def page(self, *, offset: int = 0, limit: int = 50, workspace_id: str | None = None,
+                   independent: bool = False):
+        if workspace_id and independent:
+            raise BadRequestError("workspace_id 与 independent 不能同时指定")
         async with self._read_uow_factory() as uow:
-            return await uow.session.page(offset=offset, limit=limit)
+            return await uow.session.page(offset=offset, limit=limit, workspace_id=workspace_id,
+                                          independent=independent)
 
     async def clear_unread_message_count(self, session_id: str) -> None:
         """用户已查看会话，清空未查看的完成运行数"""

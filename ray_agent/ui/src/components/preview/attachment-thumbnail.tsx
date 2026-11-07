@@ -14,7 +14,7 @@ export function AttachmentThumbnail({id, filename}: {id: string; filename: strin
       void readPreview(previewEndpoint(source), new URLSearchParams(), controller.signal).then(preview => {
         if (controller.signal.aborted) return
         if (preview.kind !== 'image') throw new Error(preview.reason || '图片无法预览')
-        return preview.thumbnail || previewContentUrl(id, preview.revision)
+        return preview.thumbnail || previewContentUrl({kind: 'attachment', id, filename}, preview.revision)
       }).then(url => {
         if (!controller.signal.aborted && url) setSrc(url)
       }).catch(error => {

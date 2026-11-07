@@ -59,10 +59,22 @@ export type {
   SessionFile,
   ViewFileParams,
   ViewShellParams,
+  WorkspaceItem,
+  WorkspaceStatus,
+  FolderView,
+  FolderStatus,
+  OpenWorkspaceResult,
+  MarkerConflict,
+  ConflictResolution,
+  ScanSummary,
+  RootEntry,
+  RootListing,
+  OperationView,
 } from "./types";
 
 // 模块 API
 export { configApi } from "./config";
 export { fileApi } from "./file";
 export { sessionApi } from "./session";
+export { workspaceApi, operationApi, rootApi, historyApi } from "./workspace";
 

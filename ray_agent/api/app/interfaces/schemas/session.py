@@ -23,6 +23,7 @@ class CreateSessionResponse(BaseModel):
 class ListSessionItem(BaseModel):
     """会话列表条目基础信息"""
     session_id: str = ""
+    workspace_id: Optional[str] = None  # 所属工作区；独立对话为空
     title: str = ""
     latest_message: str = ""
     latest_message_at: Optional[datetime] = None
@@ -186,6 +187,7 @@ class UnconsumedInputItem(BaseModel):
 
 class CreateSessionRequest(BaseModel):
     creation_id: UUID | None = None
+    workspace_id: str | None = Field(default=None, description="会话所属的工作区；创建后不再改变，省略为独立对话")
 
 
 GetSessionResponse.model_rebuild()

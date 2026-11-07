@@ -1,4 +1,5 @@
 import type {ContextPreview} from "./types";
+import {sessionScopeParams, type SessionScope} from "@/lib/workspace-state";
 import { get, post, put, createSSEStream, parseSSEStream } from "./fetch";
 import type {
   Session,
@@ -37,10 +38,10 @@ export const sessionApi = {
   suggestTitle: (sessionId: string): Promise<{title: string}> =>
     post<{title: string}>(`/sessions/${sessionId}/title/suggestion`, {}, {timeout: 28000}),
   /**
-   * 获取会话列表
+   * 获取会话列表；`scope` 由核心过滤：某个工作区的会话，或没有工作区的独立对话，省略时返回全部会话
    */
-  getSessions: (offset = 0, independent = true, limit = 50): Promise<SessionsData> => {
-    return get<SessionsData>("/sessions", {offset, independent, limit});
+  getSessions: (offset = 0, scope?: SessionScope, limit = 50): Promise<SessionsData> => {
+    return get<SessionsData>("/sessions", {offset, limit, ...sessionScopeParams(scope)});
   },
 
   /**
@@ -66,13 +67,15 @@ export const sessionApi = {
   streamSessions: (
     onSessions: SessionsStreamCallback,
     onError?: (error: Error) => void,
-    onCatalog?: (hint: {kind: 'session' | 'project'; id: string}) => void,
+    onCatalog?: (hint: {kind: 'session'; id: string}) => void,
+    scope?: SessionScope,
   ): (() => void) => {
     const controller = new AbortController();
 
     const startStream = async () => {
       try {
-        const stream = await createSSEStream("/sessions/stream?independent=true", {}, {
+        const query = new URLSearchParams(Object.entries(sessionScopeParams(scope)).map(([key, value]) => [key, String(value)])).toString();
+        const stream = await createSSEStream(`/sessions/stream${query ? `?${query}` : ''}`, {}, {
           signal: controller.signal,
         });
 
@@ -86,7 +89,7 @@ export const sessionApi = {
                 ? JSON.parse(messageEvent.data)
                 : messageEvent.data;
 
-            if (messageEvent.type === "catalog" && (data?.kind === "session" || data?.kind === "project") && data?.id) {
+            if (messageEvent.type === "catalog" && data?.kind === "session" && data?.id) {
               onCatalog?.({kind: data.kind, id: String(data.id)});
               return;
             }

@@ -30,6 +30,7 @@ dependencies = [
     "defusedxml>=0.7.1,<1",
     "aiosqlite>=0.22,<0.23",
     "anyio>=4.10",
+    "watchfiles>=1.1,<2",
 ]
 
 [dependency-groups]

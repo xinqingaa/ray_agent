@@ -138,6 +138,7 @@ dependencies = [
     { name = "sqlalchemy" },
     { name = "sse-starlette" },
     { name = "uvicorn", extra = ["standard"] },
+    { name = "watchfiles" },
     { name = "xlrd" },
 ]
 
@@ -176,6 +177,7 @@ requires-dist = [
     { name = "sqlalchemy", specifier = ">=2.0.43" },
     { name = "sse-starlette", specifier = ">=3.6,<4" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.35.0" },
+    { name = "watchfiles", specifier = ">=1.1,<2" },
     { name = "xlrd", specifier = ">=2.0.2,<3" },
 ]
 

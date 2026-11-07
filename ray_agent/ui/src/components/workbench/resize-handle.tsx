@@ -34,7 +34,8 @@ export function useWorkbenchWidth() {
   return {width, setWidth, reset: () => setWidth(WORKBENCH_DEFAULT_PX), min: bounds.min, max: bounds.max}
 }
 
-export function WorkbenchResizeHandle({width, min, max, onWidth, onReset, onDragging}: {
+export function WorkbenchResizeHandle({width, min, max, onWidth, onReset, onDragging, label = '调整工作台宽度'}: {
+  label?: string
   width: number
   min: number
   max: number
@@ -47,7 +48,7 @@ export function WorkbenchResizeHandle({width, min, max, onWidth, onReset, onDrag
     <div
       role="separator"
       aria-orientation="vertical"
-      aria-label="调整工作台宽度"
+      aria-label={label}
       aria-valuemin={Math.round(min)}
       aria-valuemax={Math.round(max)}
       aria-valuenow={Math.round(width)}

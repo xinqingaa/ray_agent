@@ -16,6 +16,7 @@ PLAN_MODE_ALLOWED: Dict[str, str] = {
     "read_file": "file",
     "search_in_file": "file",
     "find_files": "file",
+    "list_dir": "file",
     "search_web": "search",
     "web_fetch": "web",
     "browser_view": "browser",

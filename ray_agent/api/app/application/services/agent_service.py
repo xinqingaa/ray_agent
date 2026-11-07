@@ -142,6 +142,8 @@ class AgentService:
             web_reader=None,
             capabilities=None,
             read_uow_factory: Optional[Callable[[], IUnitOfWork]] = None,
+            file_access=None,
+            write_leases=None,
     ) -> None:
         self._skills = skill_service
         self._uow_factory = uow_factory
@@ -161,6 +163,8 @@ class AgentService:
         self._workdirs = workdirs
         self._web_reader = web_reader
         self._capabilities = capabilities
+        self._file_access = file_access
+        self._write_leases = write_leases
 
     def _read_factory(self) -> Callable[[], IUnitOfWork]:
         """只读工作单元的工厂；没有读连接池时退回普通工作单元。"""
@@ -298,14 +302,29 @@ class AgentService:
                 model_changed=previous_model is not None and session.model_id != previous_model)
         return session.model_id or model, session.reasoning or reasoning
 
-    async def _environment(self, workdir=None) -> RuntimeEnvironment:
+    async def _environment(self, workdir=None, run_files=None) -> RuntimeEnvironment:
         provider = getattr(self, "_capabilities", None)
         capabilities = await provider.current() if provider is not None else []
+        statuses = {status.capability: status for status in capabilities}
+        if run_files is not None and run_files.workspace is not None:
+            # 工作区会话：工作目录是工作区文件夹，会话工作目录只放超长结果与截图
+            if run_files.workspace_problem is None:
+                return RuntimeEnvironment(workdir=run_files.workspace.path, uploads=run_files.workspace.path,
+                                          scratch=str(run_files.workdir.path), capabilities=statuses)
+            return RuntimeEnvironment(workdir=str(run_files.workdir.path), uploads=str(run_files.workdir.uploads),
+                                      scratch=str(run_files.workdir.path), capabilities=statuses,
+                                      workspace_problem=run_files.workspace_problem)
         return RuntimeEnvironment(
             workdir=str(workdir.path) if workdir is not None else None,
             uploads=str(workdir.uploads) if workdir is not None else None,
-            capabilities={status.capability: status for status in capabilities},
+            capabilities=statuses,
         )
+
+    async def _run_files(self, session: Session, run_id: Optional[str], *, ensure: bool = False):
+        access = getattr(self, "_file_access", None)
+        if access is None:
+            return None
+        return await access.open(session.id, session.workspace_id, run_id, ensure=ensure)
 
     async def _workdir(self, session_id: str):
         if getattr(self, "_workdirs", None) is None:
@@ -342,11 +361,13 @@ class AgentService:
                 if mcp.gateway.errors:
                     raise BadRequestError("工具发现失败，暂时无法估算下一次运行，请重试")
                 workdir = await self._workdir(session_id)
-                system_prompt = build_system_prompt(await self._environment(workdir))
+                run_files = await self._run_files(session, None)
+                system_prompt = build_system_prompt(await self._environment(workdir, run_files))
                 loop = AgentLoop(uow_factory=self._uow_factory, llm=llm,
                     agent_config=self._agent_config, session_id=session.id, mode=mode,
                     tools=build_default_tools(None, None, self._search_engine, mcp, a2a,
-                                             web_reader=getattr(self, '_web_reader', None)),
+                                             web_reader=getattr(self, '_web_reader', None),
+                                             files=run_files.scope if run_files is not None else None),
                     system_prompt=system_prompt, tool_policy=self._tool_policy)
                 messages = copy.deepcopy(memory.get_messages()) if memory else []
                 if not messages or messages[0].get("role") != "system":
@@ -372,6 +393,9 @@ class AgentService:
                            approval: Optional[ApprovalEvent] = None) -> Task:
         """组装执行 run_id 的任务。依赖执行环境的工具按能力声明关闭，纯对话不准备任何执行资源。"""
         workdir = await self._workdir(session.id)
+        run_files = await self._run_files(session, run_id, ensure=True)
+        if run_files is not None:
+            workdir = run_files.workdir
         from app.application.services.skill_runtime import SkillRuntime
         skill_runtime = SkillRuntime(self._skills, run_id, None) if self._skills else None
         task_runner = AgentTaskRunner(
@@ -389,9 +413,11 @@ class AgentService:
             tool_policy=self._tool_policy,
             skill_runtime=skill_runtime,
             workdir=workdir,
-            environment=await self._environment(workdir),
+            environment=await self._environment(workdir, run_files),
             web_reader=getattr(self, '_web_reader', None),
             approval=approval,
+            files=run_files.scope if run_files is not None else None,
+            write_leases=getattr(self, "_write_leases", None),
         )
         return self._task_cls.create(task_runner=task_runner)
 

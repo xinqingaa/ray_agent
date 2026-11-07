@@ -12,6 +12,7 @@ pub struct CoreLaunch {
     pub data_dir: PathBuf,
     #[serde(default)]
     pub env: BTreeMap<String, String>,
+    pub host_secret: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -197,8 +198,9 @@ mod tests {
         let schema = schema();
         let (_, value) = round_trip::<CoreLaunch>(LAUNCH);
         assert_fields(&value, &schema, "CoreLaunch");
-        let minimal: CoreLaunch = serde_json::from_str(r#"{"data_dir": "/tmp/core"}"#).unwrap();
+        let minimal: CoreLaunch = serde_json::from_str(r#"{"data_dir": "/tmp/core", "host_secret": "0123456789abcdef"}"#).unwrap();
         assert!(minimal.env.is_empty());
+        assert!(serde_json::from_str::<CoreLaunch>(r#"{"data_dir": "/tmp/core"}"#).is_err(), "宿主密钥必填");
     }
 
     #[test]

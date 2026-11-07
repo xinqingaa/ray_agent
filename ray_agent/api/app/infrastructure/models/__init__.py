@@ -9,8 +9,10 @@ from .request import AcceptedRequestModel, RunInputModel
 from .root import RootModel
 from .run import RunModel
 from .session import SessionModel
+from .workspace import WorkspaceModel
+from .write_protection import FileChangeModel, WorkspaceObjectModel, WriteLeaseModel
 from .skill import SkillRecord, SkillVersion, SkillImport, RunSkill
 
 __all__ = ["Base", "AppConfigModel", "EventModel", "FileModel", "BackgroundJobModel", "AcceptedRequestModel",
            "RunInputModel", "RootModel", "RunModel", "SessionModel", "SkillRecord", "SkillVersion", "SkillImport",
-           "RunSkill"]
+           "RunSkill", "WorkspaceModel", "FileChangeModel", "WorkspaceObjectModel", "WriteLeaseModel"]

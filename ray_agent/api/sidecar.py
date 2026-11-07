@@ -13,6 +13,7 @@ import asyncio
 import multiprocessing
 import os
 import runpy
+import secrets
 import socket
 import sys
 import threading
@@ -37,6 +38,9 @@ def apply_launch(launch) -> None:
     data.mkdir(parents=True, exist_ok=True)
     os.environ['RAYAGENT_DATA_ROOT'] = str(data)
     os.environ.update(launch.env)
+    # 宿主密钥不进环境变量：核心启动的 MCP 子进程会继承环境。
+    from app.interfaces.host_access import set_host_secret
+    set_host_secret(launch.host_secret)
 
 
 def watch_host(server) -> None:
@@ -97,7 +101,16 @@ def development_launch(argv: list[str]):
     parser.add_argument('--port', type=int, default=8000, help='监听 127.0.0.1 的端口，0 表示由系统分配')
     args = parser.parse_args(argv)
     from app.interfaces.schemas.core import CoreLaunch
-    return CoreLaunch(data_dir=args.data_root), args.port
+    # 没有宿主时随机生成并写入数据根里仅本人可读的文件，开发调试宿主专用接口时从那里取。
+    secret = secrets.token_urlsafe(32)
+    data = Path(args.data_root).expanduser().resolve()
+    data.mkdir(parents=True, exist_ok=True)
+    file = data / 'dev_host_secret'
+    descriptor = os.open(file, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    with os.fdopen(descriptor, 'w', encoding='utf-8') as handle:
+        handle.write(secret)
+    os.chmod(file, 0o600)
+    return CoreLaunch(data_dir=args.data_root, host_secret=secret), args.port
 
 
 def main() -> int:

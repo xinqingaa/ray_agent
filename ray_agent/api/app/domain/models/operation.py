@@ -36,6 +36,7 @@ class OperationKind(StrEnum):
     MEMORY_EXTRACTION = "memory_extraction"
     SESSION_SUMMARY = "session_summary"
     DATA_CLEANUP = "data_cleanup"
+    WORKSPACE_DELETE = "workspace_delete"
 
 
 class OperationScopeKind(StrEnum):

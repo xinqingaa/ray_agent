@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.domain.repositories.uow import IUnitOfWork
 from app.infrastructure.repositories.catalog_hints import take
 from .db_event_repository import DBEventRepository
+from .db_file_change_repository import DBFileChangeRepository
 from .db_file_repository import DBFileRepository
 from .db_input_repository import DBAcceptedRequestRepository, DBRunInputRepository
 from .db_job_repository import DBBackgroundJobRepository
@@ -20,6 +21,8 @@ from .db_root_repository import DBRootRepository
 from .db_run_repository import DBRunRepository
 from .db_session_repository import DBSessionRepository
 from .db_skill_repository import DBSkillTransaction
+from .db_workspace_repository import DBWorkspaceRepository
+from .db_write_lease_repository import DBWriteLeaseRepository
 
 logger = logging.getLogger(__name__)
 
@@ -62,6 +65,9 @@ class DBUnitOfWork(IUnitOfWork):
         self.request = DBAcceptedRequestRepository(db_session=session)
         self.job = DBBackgroundJobRepository(db_session=session)
         self.root = DBRootRepository(db_session=session)
+        self.workspace = DBWorkspaceRepository(db_session=session)
+        self.lease = DBWriteLeaseRepository(db_session=session)
+        self.change = DBFileChangeRepository(db_session=session)
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):

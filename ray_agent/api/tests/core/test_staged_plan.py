@@ -1,5 +1,5 @@
 """成果版本、核验复用与收尾；保留实际循环及工具管线。"""
-import asyncio, io, hashlib
+import asyncio, hashlib
 from unittest.mock import AsyncMock
 from app.domain.models.message import Message
 from app.domain.models.event import DoneEvent, ToolEvent
@@ -8,28 +8,15 @@ from app.domain.models.tool_result import ToolResult
 from app.domain.services.task_outcomes import TaskOutcomes, ArtifactWriter
 from app.domain.services.tools.plan import PlanTool
 from app.domain.services.flows.tool_pipeline import ToolInvocation
-from tests.support.loop_harness import make_loop, make_sandbox, memory_messages, assert_no_dangling
+from tests.support.loop_harness import make_loop, memory_messages, assert_no_dangling
 from tests.support.scripted_llm import tool_call, text, Dynamic, ScriptedResponse, ScriptedToolCall
 
 def run(c):
     return asyncio.run(asyncio.wait_for(c, 5))
 
-def sandbox_files():
-    files = {}
-    s = make_sandbox()
-
-    async def download(p):
-        if p not in files:
-            raise FileNotFoundError(p)
-        return io.BytesIO(files[p])
-
-    async def write(filepath, content, **kw):
-        files[filepath] = content.encode()
-        return ToolResult()
-    s.download_file = AsyncMock(side_effect=download)
-    s.write_file = AsyncMock(side_effect=write)
-    s.check_file_exists = AsyncMock(side_effect=lambda filepath: ToolResult(data={'exists': filepath in files}))
-    return (s, files)
+def fixture():
+    from tests.support.loop_harness import FileFixture
+    return FileFixture()
 
 def test_future_is_not_entire_goal_completed():
 
@@ -51,11 +38,11 @@ def test_missing_registered_files_force_partial_and_one_feedback():
 def test_cache_requires_actual_version_conditions_and_explicit_pass():
 
     async def check():
-        s, files = sandbox_files()
-        files['/a'] = b'v1'
+        fx = fixture()
+        a_path = fx.put('a', b'v1')
         t = PlanTool()
-        t.latest_plan = Plan(artifacts=[Artifact(id='a', name='成果', path='/a')])
-        o = TaskOutcomes(t, s)
+        t.latest_plan = Plan(artifacts=[Artifact(id='a', name='成果', path=a_path)])
+        o = TaskOutcomes(t, fx.scope)
         meta = {'key': '核验', 'artifact_id': 'a', 'condition': '符合输入', 'purpose': 'verify'}
         inv = ToolInvocation('c1', 'shell_execute', '{}', verification=meta)
         assert await o.before(inv) is None
@@ -63,7 +50,7 @@ def test_cache_requires_actual_version_conditions_and_explicit_pass():
         assert t.latest_plan.verifications[0].state == 'passed'
         cached = await o.before(ToolInvocation('c2', 'shell_execute', '{}', verification=meta))
         assert cached.success and (not cached.data['executed'])
-        files['/a'] = b'v2'
+        fx.put('a', b'v2')
         inv = ToolInvocation('c3', 'shell_execute', '{}', verification=meta)
         assert await o.before(inv) is None
         await o.after(inv, ToolResult(data={'output': 'executed'}))
@@ -74,11 +61,11 @@ def test_cache_requires_actual_version_conditions_and_explicit_pass():
 def test_two_failures_require_new_reason():
 
     async def check():
-        s, files = sandbox_files()
-        files['/a'] = b'x'
+        fx = fixture()
+        a_path = fx.put('a', b'x')
         t = PlanTool()
-        t.latest_plan = Plan(artifacts=[Artifact(id='a', name='成果', path='/a')])
-        o = TaskOutcomes(t, s)
+        t.latest_plan = Plan(artifacts=[Artifact(id='a', name='成果', path=a_path)])
+        o = TaskOutcomes(t, fx.scope)
         meta = {'key': '问题', 'artifact_id': 'a', 'condition': '预期', 'purpose': 'verify'}
         for i in range(2):
             inv = ToolInvocation(str(i), 'read_file', '{}', verification=meta)
@@ -91,10 +78,11 @@ def test_two_failures_require_new_reason():
 def test_finalizer_only_registered_text_and_never_overwrites():
 
     async def check():
-        s, files = sandbox_files()
+        fx = fixture()
+        a_md = fx.path('a.md')
         t = PlanTool()
-        t.latest_plan = Plan(artifacts=[Artifact(id='a', name='正文', path='/a.md')])
-        o = TaskOutcomes(t, s)
+        t.latest_plan = Plan(artifacts=[Artifact(id='a', name='正文', path=a_md)])
+        o = TaskOutcomes(t, fx.scope)
         w = ArtifactWriter(o)
         assert not (await w.finalize_artifact('a', '内容')).success
         t.finalizing = True
@@ -104,14 +92,17 @@ def test_finalizer_only_registered_text_and_never_overwrites():
         assert not (await w.finalize_artifact('a', '改写')).success
         o.freeze('run:2')
         revised = await w.finalize_artifact('a', '改写')
-        assert revised.success and revised.data['filepath'] != '/a.md'
-        assert files[revised.data['filepath']] == '改写'.encode()
-        assert files['/a.md'] == '内容'.encode()
+        assert revised.success and revised.data['filepath'] != a_md
+        assert open(revised.data['filepath'], 'rb').read() == '改写'.encode()
+        assert fx.get('a.md') == '内容'.encode()
         o.freeze('run:3')
-        files.clear()
-        s.check_file_exists = AsyncMock(return_value=ToolResult(success=False))
+        before = sorted(p.name for p in fx.root.iterdir())
+
+        async def unknown(raw):
+            raise OSError('无法确认')
+        fx.scope.exists = unknown
         assert not (await w.finalize_artifact('a', '内容')).success
-        assert not files
+        assert sorted(p.name for p in fx.root.iterdir()) == before
     run(check())
 
 def test_verification_waits_for_process_exit_and_reads_json_content():
@@ -124,18 +115,19 @@ def test_budget_finalizer_and_delivery_use_actual_version():
     from app.domain.models.file import File
 
     async def check():
-        s, files = sandbox_files()
+        fx = fixture()
+        a_md = fx.path('a.md')
 
         async def deliver(p):
             return File(id='f1', filepath=p, filename='a.md')
 
         def finish(req):
             aid = h.loop.plan_tool.latest_plan.artifacts[0].id
-            return ScriptedResponse(tool_calls=[ScriptedToolCall('finalize_artifact', {'artifact_id': aid, 'content': '最终正文'}), ScriptedToolCall('deliver_files', {'paths': ['/a.md']})])
-        h = make_loop([tool_call('update_plan', {'plan': [{'step': '交付', 'status': 'completed'}], 'artifacts': [{'name': '正文', 'delivery': 'file', 'path': '/a.md'}]}), *[tool_call('echo', {'text': str(i)}) for i in range(9)], Dynamic(finish), text('已交付')], max_iterations=12, sandbox=s, deliver_file=deliver)
+            return ScriptedResponse(tool_calls=[ScriptedToolCall('finalize_artifact', {'artifact_id': aid, 'content': '最终正文'}), ScriptedToolCall('deliver_files', {'paths': [a_md]})])
+        h = make_loop([tool_call('update_plan', {'plan': [{'step': '交付', 'status': 'completed'}], 'artifacts': [{'name': '正文', 'delivery': 'file', 'path': a_md}]}), *[tool_call('echo', {'text': str(i)}) for i in range(9)], Dynamic(finish), text('已交付')], max_iterations=12, files=fx, deliver_file=deliver)
         events = [e async for e in h.loop.invoke(Message(message='制作'))]
         a = h.loop.plan_tool.latest_plan.artifacts[0]
-        assert a.state == 'delivered' and a.version == hashlib.sha256(files['/a.md']).hexdigest() == a.delivered_version
+        assert a.state == 'delivered' and a.version == hashlib.sha256(fx.get('a.md')).hexdigest() == a.delivered_version
         assert any((isinstance(e, DoneEvent) and e.outcome == 'complete' for e in events))
         assert_no_dangling(memory_messages(h.session))
     run(check())
@@ -143,10 +135,9 @@ def test_budget_finalizer_and_delivery_use_actual_version():
 def test_finalizer_still_respects_policy():
 
     async def check():
-        s, files = sandbox_files()
-        h = make_loop([tool_call('finalize_artifact', {'artifact_id': 'a', 'content': 'x'}), text('结束')], sandbox=s, tool_policy={'finalize_artifact': 'deny'})
+        h = make_loop([tool_call('finalize_artifact', {'artifact_id': 'a', 'content': 'x'}), text('结束')], tool_policy={'finalize_artifact': 'deny'})
         events = [e async for e in h.loop.invoke(Message(message='任务'))]
-        assert any((isinstance(e, ToolEvent) and e.denied_by == 'policy' for e in events)) and h.sandbox.write_file.await_count == 0
+        assert any((isinstance(e, ToolEvent) and e.denied_by == 'policy' for e in events)) and not h.files.files.wrote()
     run(check())
 
 
@@ -165,7 +156,8 @@ def test_pipeline_reuses_evidence_but_reexecutes_after_real_file_change():
             return ToolResult(data={'output': '{"passed":true}'})
 
     async def check():
-        sandbox, files = sandbox_files()
+        fx = fixture()
+        a_txt = fx.path('a.txt')
         checker = CheckTool()
         async def deliver(path):
             return File(id='verified-file', filepath=path, filename='a.txt')
@@ -174,20 +166,20 @@ def test_pipeline_reuses_evidence_but_reexecutes_after_real_file_change():
             return ScriptedResponse(tool_calls=[ScriptedToolCall('shell_execute', {'command':'check', 'verification': {'key':'计算核验','artifact_id':aid,'condition':'固定输入结果','purpose':'verify'}})])
         def write_and_verify(request):
             response = verify(request)
-            response.tool_calls.insert(0, ScriptedToolCall('write_file', {'filepath':'/a.txt','content':'版本二'}))
+            response.tool_calls.insert(0, ScriptedToolCall('write_file', {'filepath':a_txt,'content':'版本二'}))
             return response
         h = make_loop([
-            tool_call('update_plan', {'goal':'交付正确成果','plan':[{'step':'交付','status':'completed'}], 'artifacts':[{'name':'结果','delivery':'file','path':'/a.txt'}]}),
-            tool_call('write_file', {'filepath':'/a.txt','content':'版本一'}), Dynamic(verify), Dynamic(verify), Dynamic(write_and_verify),
-            tool_call('deliver_files', {'paths':['/a.txt']}), tool_call('deliver_files', {'paths':['/a.txt']}), text('累计结果已交付'),
-        ], max_iterations=20, sandbox=sandbox, deliver_file=deliver, extra_tools=[checker])
+            tool_call('update_plan', {'goal':'交付正确成果','plan':[{'step':'交付','status':'completed'}], 'artifacts':[{'name':'结果','delivery':'file','path':a_txt}]}),
+            tool_call('write_file', {'filepath':a_txt,'content':'版本一'}), Dynamic(verify), Dynamic(verify), Dynamic(write_and_verify),
+            tool_call('deliver_files', {'paths':[a_txt]}), tool_call('deliver_files', {'paths':[a_txt]}), text('累计结果已交付'),
+        ], max_iterations=20, files=fx, deliver_file=deliver, extra_tools=[checker])
         events = [e async for e in h.loop.invoke(Message(message='处理并交付'))]
         assert checker.calls == 2
         assert any(isinstance(e, ToolEvent) and e.denied_by == 'verification_cache' for e in events)
         notices = [e for e in events if e.type == 'message' and e.attachments]
         assert len(notices) == 1, '同版重复交付不新增附件通知'
         a = h.loop.plan_tool.latest_plan.artifacts[0]
-        assert a.version == a.delivered_version == hashlib.sha256(files['/a.txt']).hexdigest()
+        assert a.version == a.delivered_version == hashlib.sha256(fx.get('a.txt')).hexdigest()
         assert_no_dangling(memory_messages(h.session))
     run(check())
 
@@ -213,12 +205,11 @@ def test_internal_runtime_messages_are_not_reinjected_user_requirements():
 def test_finalizer_plan_mode_denial_precedes_policy_and_never_writes():
     from app.domain.models.run import RunMode
     async def check():
-        sandbox, files = sandbox_files()
-        h = make_loop([tool_call('finalize_artifact',{'artifact_id':'a','content':'正文'}),text('方案')], sandbox=sandbox, tool_policy={'finalize_artifact':'ask'})
+        h = make_loop([tool_call('finalize_artifact',{'artifact_id':'a','content':'正文'}),text('方案')], tool_policy={'finalize_artifact':'ask'})
         h.loop.mode = RunMode.PLAN
         events = [e async for e in h.loop.invoke(Message(message='先规划'))]
         assert any(isinstance(e,ToolEvent) and e.denied_by == 'plan_mode' for e in events)
-        assert sandbox.write_file.await_count == 0
+        assert not h.files.files.wrote()
         assert not any(e.type == 'approval' for e in events)
     run(check())
 
@@ -241,7 +232,8 @@ def test_published_reply_tracks_actual_body_without_claiming_semantic_validation
 def test_finalizer_revises_existing_artifact_at_reserved_path_and_delivers_new_version():
     from app.domain.models.file import File
     async def check():
-        sandbox, files = sandbox_files()
+        fx = fixture()
+        a_md = fx.path('a.md')
         deliveries = []
         async def deliver(path):
             deliveries.append(path)
@@ -253,16 +245,16 @@ def test_finalizer_revises_existing_artifact_at_reserved_path_and_delivers_new_v
                 ScriptedToolCall('deliver_files',{'paths':[a.final_path]}),
             ])
         h = make_loop([
-            tool_call('update_plan',{'plan':[{'step':'交付','status':'completed'}],'artifacts':[{'name':'说明','path':'/a.md','delivery':'file'}]}),
-            tool_call('write_file',{'filepath':'/a.md','content':'初版'}),
-            tool_call('deliver_files',{'paths':['/a.md']}),
+            tool_call('update_plan',{'plan':[{'step':'交付','status':'completed'}],'artifacts':[{'name':'说明','path':a_md,'delivery':'file'}]}),
+            tool_call('write_file',{'filepath':a_md,'content':'初版'}),
+            tool_call('deliver_files',{'paths':[a_md]}),
             *[tool_call('echo',{'text':str(i)}) for i in range(7)], Dynamic(finish),text('初版与修订版均已交付'),
-        ],max_iterations=12,sandbox=sandbox,deliver_file=deliver)
+        ],max_iterations=12,files=fx,deliver_file=deliver)
         events=[e async for e in h.loop.invoke(Message(message='交付说明'))]
         a=h.loop.plan_tool.latest_plan.artifacts[0]
-        assert deliveries == ['/a.md',a.final_path]
-        assert files['/a.md'] == '初版'.encode()
-        assert files[a.path] == '完整修订版'.encode()
+        assert deliveries == [a_md,a.final_path]
+        assert fx.get('a.md') == '初版'.encode()
+        assert open(a.path,'rb').read() == '完整修订版'.encode()
         assert a.path == a.final_path and a.version == a.delivered_version
         assert any(isinstance(e,DoneEvent) and e.outcome=='complete' for e in events)
     run(check())
@@ -297,18 +289,18 @@ def test_explicit_failed_check_prevents_complete_claim_even_after_all_files_deli
         async def shell_execute(self,command):
             return ToolResult(data={'passed':False})
     async def check():
-        sandbox,files=sandbox_files()
+        fx=fixture();a_txt=fx.path('a.txt')
         async def deliver(path):return File(id='f',filename='a.txt',filepath=path)
         def verify(request):
             a=h.loop.plan_tool.latest_plan.artifacts[0]
             return ScriptedResponse(tool_calls=[
                 ScriptedToolCall('shell_execute',{'command':'check','verification':{'key':'condition','artifact_id':a.id,'condition':'符合固定输入要求','purpose':'verify'}}),
-                ScriptedToolCall('deliver_files',{'paths':['/a.txt']}),
+                ScriptedToolCall('deliver_files',{'paths':[a_txt]}),
             ])
         h=make_loop([
-            tool_call('update_plan',{'plan':[{'step':'交付','status':'completed'}],'artifacts':[{'name':'文件','path':'/a.txt','delivery':'file'}]}),
-            tool_call('write_file',{'filepath':'/a.txt','content':'实际内容'}),Dynamic(verify),text('全部完成'),text('文件已交付但核验未通过'),
-        ],sandbox=sandbox,deliver_file=deliver,extra_tools=[Checker()])
+            tool_call('update_plan',{'plan':[{'step':'交付','status':'completed'}],'artifacts':[{'name':'文件','path':a_txt,'delivery':'file'}]}),
+            tool_call('write_file',{'filepath':a_txt,'content':'实际内容'}),Dynamic(verify),text('全部完成'),text('文件已交付但核验未通过'),
+        ],files=fx,deliver_file=deliver,extra_tools=[Checker()])
         events=[e async for e in h.loop.invoke(Message(message='核验并交付'))]
         done=next(e for e in events if isinstance(e,DoneEvent))
         assert done.outcome=='partial' and done.missing==['核验未通过：符合固定输入要求']
@@ -319,9 +311,9 @@ def test_explicit_failed_check_prevents_complete_claim_even_after_all_files_deli
 
 def test_real_repair_after_two_failures_allows_necessary_new_version_recheck():
     async def check():
-        sandbox,files=sandbox_files();files['/a']=b'v1'
-        t=PlanTool();t.latest_plan=Plan(artifacts=[Artifact(id='a',name='成果',path='/a')])
-        outcomes=TaskOutcomes(t,sandbox)
+        fx=fixture();a_path=fx.put('a',b'v1')
+        t=PlanTool();t.latest_plan=Plan(artifacts=[Artifact(id='a',name='成果',path=a_path)])
+        outcomes=TaskOutcomes(t,fx.scope)
         meta={'key':'问题','artifact_id':'a','condition':'预期结果','purpose':'verify'}
         for i in range(2):
             inv=ToolInvocation(str(i),'shell_execute','{}',verification={**meta})
@@ -329,7 +321,7 @@ def test_real_repair_after_two_failures_allows_necessary_new_version_recheck():
             await outcomes.after(inv,ToolResult(data={'passed':False}))
         repair=ToolInvocation('repair','shell_execute','{}',verification={**meta,'purpose':'repair','repeat_reason':'定位并修复原因'})
         assert await outcomes.before(repair) is None
-        files['/a']=b'v2'
+        fx.put('a',b'v2')
         await outcomes.after(repair,ToolResult())
         assert await outcomes.before(ToolInvocation('recheck','shell_execute','{}',verification={**meta})) is None
     run(check())
@@ -339,20 +331,23 @@ def test_unknown_final_write_can_be_read_back_and_delivered_without_overwrite():
     from app.domain.models.file import File
     from app.domain.services.tools.deliver import DeliveryItem, DeliveryResult
     async def check():
-        sandbox, files=sandbox_files(); files['/a.md']=b'old'
-        t=PlanTool();t.latest_plan=Plan(artifacts=[Artifact(id='a',name='正文',path='/a.md')]);t.finalizing=True
-        o=TaskOutcomes(t,sandbox);o.freeze('run:1');a=t.latest_plan.artifacts[0]
-        async def uncertain(filepath,content):
-            files[filepath]=content.encode()
+        fx=fixture(); a_md=fx.put('a.md',b'old')
+        t=PlanTool();t.latest_plan=Plan(artifacts=[Artifact(id='a',name='正文',path=a_md)]);t.finalizing=True
+        o=TaskOutcomes(t,fx.scope);o.freeze('run:1');a=t.latest_plan.artifacts[0]
+        real_write=fx.scope.write_bytes
+        writes=[]
+        async def uncertain(path,data,expected):
+            writes.append(path)
+            await real_write(path,data,expected)
             raise TimeoutError('写入响应丢失')
-        sandbox.write_file=AsyncMock(side_effect=uncertain)
+        fx.scope.write_bytes=uncertain
         try: await ArtifactWriter(o).finalize_artifact('a','完整正文')
         except TimeoutError: pass
-        assert a.final_attempts==1 and a.path=='/a.md' and o.context()['artifacts'][0]['final_path']==a.final_path
-        assert files[a.final_path]=='完整正文'.encode()
+        assert a.final_attempts==1 and a.path==a_md and o.context()['artifacts'][0]['final_path']==a.final_path
+        assert open(a.final_path,'rb').read()=='完整正文'.encode()
         inv=ToolInvocation('deliver','deliver_files','{}')
         result=ToolResult(data=DeliveryResult(items=[DeliveryItem(path=a.final_path,success=True,file=File(id='f',filename='a-final.md',filepath=a.final_path))]))
         await o.after(inv,result)
         assert a.state=='delivered' and a.path==a.final_path and a.version==a.delivered_version
-        assert files['/a.md']==b'old' and sandbox.write_file.await_count==1
+        assert fx.get('a.md')==b'old' and len(writes)==1
     run(check())

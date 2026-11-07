@@ -20,7 +20,7 @@ use tauri::{AppHandle, Manager};
 use crate::contract::{CoreHandshake, CoreLaunch, CoreReady, ErrorInfo};
 
 /// 宿主支持的核心协议与事件版本；与生成的契约样例不一致时对齐检查失败。
-pub const PROTOCOL_VERSION: u32 = 2;
+pub const PROTOCOL_VERSION: u32 = 3;
 pub const EVENT_VERSION: u32 = 1;
 
 const CORE_DIR: &str = "rayagent-core";
@@ -72,6 +72,15 @@ pub struct CoreConnection {
 struct Running {
     child: Child,
     stdin: Option<ChildStdin>,
+    /// 宿主密钥只存在于宿主进程内存；登记所选文件夹的请求带它，界面拿不到。
+    host_secret: String,
+}
+
+/// 32 字节系统随机数的十六进制串，每次启动核心重新生成。
+fn generate_host_secret() -> Result<String, String> {
+    let mut bytes = [0u8; 32];
+    getrandom::fill(&mut bytes).map_err(|e| format!("无法生成宿主密钥：{e}"))?;
+    Ok(bytes.iter().map(|byte| format!("{byte:02x}")).collect())
 }
 
 #[derive(Default)]
@@ -164,12 +173,13 @@ impl CoreHost {
         let stdout = child.stdout.take().expect("piped stdout");
         let stderr = child.stderr.take().expect("piped stderr");
         self.connection.lock().unwrap().pid = Some(child.id());
-        let launch = CoreLaunch { data_dir, env: BTreeMap::new() };
+        let host_secret = generate_host_secret()?;
+        let launch = CoreLaunch { data_dir, env: BTreeMap::new(), host_secret: host_secret.clone() };
         let written = serde_json::to_string(&launch)
             .map_err(std::io::Error::other)
             .and_then(|line| writeln!(stdin, "{line}"))
             .and_then(|_| stdin.flush());
-        *self.process.lock().unwrap() = Some(Running { child, stdin: Some(stdin) });
+        *self.process.lock().unwrap() = Some(Running { child, stdin: Some(stdin), host_secret });
         if let Err(error) = written {
             self.stop();
             return Err(format!("无法写入启动参数：{error}"));
@@ -245,6 +255,11 @@ impl CoreHost {
             });
         });
         Ok(())
+    }
+
+    /// 当前核心的宿主密钥；供宿主调用 `POST /api/host/folder-grants` 时附带，不得传给界面。
+    pub fn host_secret(&self) -> Option<String> {
+        self.process.lock().unwrap().as_ref().map(|running| running.host_secret.clone())
     }
 
     /// 关闭 stdin 让核心正常停止：核心停止受理、结束活动运行后退出。超时后发送 SIGTERM，最后结束组内残留进程再回收首进程。

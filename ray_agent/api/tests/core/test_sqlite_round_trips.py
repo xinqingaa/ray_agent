@@ -51,7 +51,7 @@ def test_compaction_and_shaping_survive_json_round_trip(tmp_path):
     from app.domain.services.flows.agent_loop import AGENT_MEMORY_NAME
     from app.infrastructure.external.workdir.session_workdir import SessionWorkdirs
     from tests.core.test_context_governance import LONG_FILE, SUMMARY, seeded_session
-    from tests.support.loop_harness import InMemorySandbox
+    from tests.support.loop_harness import FileFixture
 
     async def scenario(uow_factory, read_factory, database):
         session = await new_session(uow_factory, "sqlite-w2")
@@ -60,16 +60,16 @@ def test_compaction_and_shaping_survive_json_round_trip(tmp_path):
             await uow.session.save_memory(session.id, AGENT_MEMORY_NAME, Memory(messages=seeded))
         workdirs = SessionWorkdirs(tmp_path / "data")
         workdir = workdirs.resolve(*workdirs.new_root(session.id))
-        sandbox = InMemorySandbox({"/data/big.txt": LONG_FILE})
+        files = FileFixture({"data/big.txt": LONG_FILE})
 
         async def write_output(path, content):
             await AgentTaskRunner._write_output(type("R", (), {"_workdir": workdir})(), path, content)
 
         h = make_loop([reply(SUMMARY, usage=usage(8000, 100)),
-                       tool_call("read_file", {"filepath": "/data/big.txt", "max_length": 100000}, id="c-big",
+                       tool_call("read_file", {"filepath": "data/big.txt", "max_length": 100000}, id="c-big",
                                  usage=usage(9000, 5)),
                        reply("完成", usage=usage(9500, 3))],
-                      session=session, uow_factory=uow_factory, sandbox=sandbox, write_output=write_output,
+                      session=session, uow_factory=uow_factory, files=files, write_output=write_output,
                       output_dir=str(workdir.outputs))
         run = await start_run(h, input_task(), "继续")
         await make_runner(h, run=run, prior_status=SessionStatus.COMPLETED).invoke(input_task())

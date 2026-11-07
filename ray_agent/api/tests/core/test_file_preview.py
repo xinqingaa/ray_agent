@@ -223,3 +223,29 @@ def test_download_http_head_zip_and_expired_preview():
         expired=client.get('/files/expired/preview')
         assert expired.status_code==410 and expired.json()['error']['code']=='gone'
         assert client.head('/files/download-batch?file_id=expired').status_code==410
+
+
+def test_preview_revision_differs_across_workspaces_even_with_same_name_size_and_mtime(tmp_path):
+    """版本标识含根、路径与 inode：同名同大小同修改时间的另一工作区文件，不能拿到前一个的缓存。"""
+    from app.application.services.root_access import StaticBindings
+    from app.domain.external.workspace_files import FileLimits, RootBinding
+    from app.domain.models.identity import RootKind
+    from app.infrastructure.external.workspace_files.posix import PosixWorkspaceFiles
+
+    bindings = []
+    for root_id, text in (("wsA", "secret of workspace A\n"), ("wsB", "public text of ws B!!\n")):
+        folder = tmp_path / root_id
+        folder.mkdir()
+        (folder / "notes.txt").write_text(text)
+        os.utime(folder / "notes.txt", ns=(1_700_000_000_000_000_000,) * 2)
+        info = os.stat(folder)
+        bindings.append(RootBinding(root_id=root_id, kind=RootKind.WORKSPACE_FOLDER, path=str(folder),
+                                    dev=info.st_dev, ino=info.st_ino))
+    assert len(bindings[0].path) == len(bindings[1].path) and len("secret of workspace A\n") == len("public text of ws B!!\n")
+    service = FilePreviewService(None, PosixWorkspaceFiles(StaticBindings(bindings), FileLimits()))
+
+    async def revisions():
+        return [(await service.preview(PreviewQuery(), root_id=root_id, relative_path="notes.txt"))["revision"]
+                for root_id in ("wsA", "wsB")]
+    first, second = asyncio.run(revisions())
+    assert first != second

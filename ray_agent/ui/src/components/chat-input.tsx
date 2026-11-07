@@ -14,7 +14,7 @@ import {downloadFile} from '@/lib/api/preview'
 import type {FileInfo} from '@/lib/api/types'
 import {toast} from 'sonner'
 import {commandById, commandSearchFields, matchingCommands, type CommandContext, type CommandHost, type InputCommand} from '@/lib/commands'
-import {clearDraft, readDraft, writeDraft, DRAFT_CHANGED, DATA_CLEARED} from '@/lib/drafts'
+import {clearDraft, draftClearedBy, readDraft, writeDraft, DRAFT_CHANGED, DATA_CLEARED} from '@/lib/drafts'
 import {recoverSubmission, UncertainSubmissionError} from '@/lib/send-recovery'
 import {findSlashTrigger, matchesCommandQuery, removeSlashFragment, type SlashFragment} from '@/lib/slash-trigger'
 import {ModelPicker, type ModelSelection} from '@/components/model-picker'
@@ -133,7 +133,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
     useEffect(() => {
       const cleared = (event: Event) => {
         const data = (event as CustomEvent).detail
-        if (data.scope === 'all' || data.project_ids.some((id: string) => scope === `project:${id}`) || data.session_ids.some((id: string) => scope === `session:${id}`)) {
+        if (draftClearedBy(data, scope)) {
           setInputValue(''); setFiles([]); setPlanMode(false); setSelectedSkill(null); setUncertain(false)
           if (uploadRef.current) uploadRef.current.cancelled = true
         }

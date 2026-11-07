@@ -2,5 +2,6 @@
   "data_dir": "/Users/example/Library/Application Support/com.rayagent.desktop/core",
   "env": {
     "LOG_LEVEL": "INFO"
-  }
+  },
+  "host_secret": "0123456789abcdef0123456789abcdef"
 }

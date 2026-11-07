@@ -56,7 +56,7 @@ target/release/bundle/macos/RayAgent.app/Contents/MacOS/rayagent-desktop
 ## 宿主与核心的约定
 
 - 正式包以资源目录中的 `rayagent-core/rayagent-core` 为可执行文件，开发构建以源码核心为入口，两者都不依赖工作目录。核心在独立进程组中启动，宿主移除可能改变冻结解释器或动态库查找的 `PYTHON*`、`VIRTUAL_ENV` 与 `DYLD_*` 变量。
-- 启动参数与握手都是[契约](../contracts/README.md)类型，宿主的对应类型在 `src/contract.rs`。启动参数（`CoreLaunch`）是写入核心 stdin 的一行 JSON，只有数据根 `data_dir` 与预留的显式环境 `env`，不经命令行传递；模型连接由核心自己读取用户配置文件。写完后宿主保持 stdin 打开。
+- 启动参数与握手都是[契约](../contracts/README.md)类型，宿主的对应类型在 `src/contract.rs`。启动参数（`CoreLaunch`）是写入核心 stdin 的一行 JSON，只有数据根 `data_dir`、预留的显式环境 `env` 与宿主密钥 `host_secret`（每次启动随机生成，只在宿主内存与核心内存中，不进环境变量，也不交给界面；宿主选择文件夹或显示位置时带它调用核心的 `/api/host/` 接口，见下文宿主命令），不经命令行传递；模型连接由核心自己读取用户配置文件。写完后宿主保持 stdin 打开。
 - 核心在 `127.0.0.1` 的系统分配端口上监听，就绪后向 stdout 写一行握手（`CoreHandshake`），带协议与事件版本、实例与构建身份、存储版本、能力声明、端口和本次生成的实例令牌；失败时带结构化错误。stdout 只用于握手，日志写 stderr。
 - 宿主只接受协议与事件版本都与自身一致的核心，不一致时状态为 `incompatible`，界面显示版本不匹配。版本一致时带令牌请求一次 `/api/status` 作为健康检查。
 
@@ -72,9 +72,11 @@ target/release/bundle/macos/RayAgent.app/Contents/MacOS/rayagent-desktop
 | `open_external` | 用系统浏览器打开 http、https 或 mailto 链接，其他协议拒绝 |
 | `save_resource` | 让用户选择位置后，由宿主带令牌下载核心 `/api/` 下的资源；临时文件写完再改名，取消时不留文件 |
 | `save_bytes` | 保存界面已持有的内容，文件名放在 `x-filename` 请求头 |
+| `select_folder_grant` | 参数 `purpose` 取 `open_workspace`、`default_location` 或 `relocate_workspace`（只决定选择器标题，其他取值拒绝）：弹出系统文件夹选择器，取消返回空；选中后由宿主带实例令牌与宿主密钥向核心的 `/api/host/folder-grants` 登记路径，只把一次性 `grant_id` 与文件夹显示名交给界面。宿主密钥与桌面路径不经过界面，凭证的用法与期限见 [API 开发指南](../api/README.md#工作区与文件夹授权) |
+| `reveal_in_file_manager` | 参数 `root_id` 与根内 `relative_path`（空表示根目录本身）：宿主带实例令牌与宿主密钥向核心的 `/api/host/roots/{root_id}/resolve` 取目标的绝对路径（核心按根身份与路径规则核对，不越出根，拒绝保留目录与凭据文件，目标须存在），再在系统文件管理器中显示：macOS 执行 `open -R`，其他平台走打开插件的显示文件。界面不接触也不能指定绝对路径；`root_id` 只接受核心签发的字符 |
 | `rayagent://quit-requested`、`quit_ack`、`quit_confirm` | 退出确认，见下文 |
 
-实例令牌只经 `core_connection` 交给界面，由界面放进请求头，不进 URL。图片、PDF 与网页预览由 WebView 按 URL 直接加载，界面先为该资源申请短期票据再拼进地址；票据的范围与有效期见 [API 开发指南](../api/README.md#启动与接口)。界面中的跨源链接一律交给 `open_external`，WebView 本身不打开外部页面。
+宿主命令失败时返回字符串，界面在 [platform.ts](../ui/src/lib/platform.ts) 统一转为 `Error`。实例令牌只经 `core_connection` 交给界面，由界面放进请求头，不进 URL。图片、PDF 与网页预览由 WebView 按 URL 直接加载，界面先为该资源申请短期票据再拼进地址；票据的范围与有效期见 [API 开发指南](../api/README.md#启动与接口)。界面中的跨源链接一律交给 `open_external`，WebView 本身不打开外部页面。
 
 ## 关闭与退出
 
@@ -86,6 +88,7 @@ target/release/bundle/macos/RayAgent.app/Contents/MacOS/rayagent-desktop
 ## 检查
 
 - 契约对齐与宿主单元测试：在本目录运行 `cargo test`。它内嵌 `../contracts/generated` 中的 `core.schema.json` 与样例，核对启动参数、握手、能力与错误代码类型和契约一致，并检查协议与事件版本常量与样例相同；契约变化后先按[契约指南](../contracts/README.md)重新生成，再修改宿主类型。
+- 选择文件夹与显示位置：`cargo test` 覆盖选择器用途的封闭取值、核心响应的解析（只保留凭证与显示名）、根身份只允许核心签发的字符、解析出的位置必须是绝对路径；原生选择器、取消路径与登记失败的提示只能在宿主窗口里走查，步骤见[运行指南的运行检查](../README.md#运行检查)。`reveal_in_file_manager` 在 macOS 以外的平台走打开插件的显示文件分支，该分支没有编译验证，也没有在 Windows 或 Linux 上运行过。
 - 启动与界面：开发运行或打开内部包，界面进入首页；设置页能看到模型连接状态，按[运行指南的运行检查](../README.md#运行检查)完成独立对话、导航与草稿检查。
 - 退出：有活动任务时 Cmd+Q 先确认；退出后确认没有残留进程：
 

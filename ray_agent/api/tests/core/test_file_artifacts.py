@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock
 import pytest
 from fastapi import UploadFile
 
+from app.domain.external.workspace_files import WorkspaceFileError
 from app.domain.models.event import MessageEvent
 from app.domain.models.file import File
 from app.domain.services.agent_task_runner import AgentTaskRunner
@@ -56,6 +57,8 @@ def make_runner(tmp_path, storage):
     workdirs = SessionWorkdirs(tmp_path)
     runner._workdir = workdirs.resolve(*workdirs.new_root("lesson-12")).ensure()
     runner._file_storage = storage
+    from tests.support.loop_harness import FileFixture
+    runner._files = FileFixture(root=runner._workdir.path).scope
     repo = FileListSessionRepo()
 
     class FakeUow:
@@ -110,7 +113,7 @@ def test_delivery_rejects_paths_outside_the_session_workdir(tmp_path):
         outside.write_bytes(b"secret")
         (runner._workdir.path / "link.txt").symlink_to(outside)
         for path in (str(outside), "../../outside.txt", str(runner._workdir.path / "link.txt")):
-            with pytest.raises(FileNotFoundError):
+            with pytest.raises(WorkspaceFileError):
                 await runner._deliver_file(path)
         assert repo.files == [] and runner._file_storage.contents == []
 
