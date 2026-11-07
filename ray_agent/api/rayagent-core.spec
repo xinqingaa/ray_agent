@@ -30,7 +30,7 @@ manifest.write_text(json.dumps(build_identity.manifest(), indent=2) + '\n')
 datas = [
     (str(manifest), '.'),
 ]
-for base in ('alembic', 'app/builtin_skills'):
+for base in ('alembic', 'app/builtin_skills', 'resources'):
     for path in sorted((ROOT / base).rglob('*')):
         if path.is_file() and '__pycache__' not in path.parts:
             datas.append((str(path), str(path.parent.relative_to(ROOT))))

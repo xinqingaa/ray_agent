@@ -1,12 +1,12 @@
 {
   "platform": "macos-arm64",
-  "notes": "浏览器组件使用 Playwright 官方 Chromium；OCR／Embedding 留给 P7。Playwright 驱动自带的 Node 随核心 Python 依赖提供，基础包另附的 Node 只给工具脚本与 MCP，不把驱动 Node 再打一份进组件包。",
+  "notes": "浏览器组件使用 Playwright 官方 Chromium；OCR／Embedding 留给 P7。Playwright 驱动自带的 Node 随核心 Python 依赖提供，基础包另附的 Node 只给工具脚本与 MCP，不把驱动 Node 再打一份进组件包。playwright:// 与 pending:// 来源的 sha256 占位为零；实际完整性由可启动检查（浏览器）或后续工作包补齐。",
   "components": [
     {
       "component_id": "browser-chromium",
       "version": "playwright-1.56",
       "platform": "macos-arm64",
-      "sha256": "sha256:playwright-managed",
+      "sha256": "00000000000000000000000000000000000000000000000000000000c1a00001",
       "size": 0,
       "source_url": "playwright://chromium",
       "license": "BSD-3-Clause"
@@ -15,7 +15,7 @@
       "component_id": "ocr",
       "version": "pending",
       "platform": "macos-arm64",
-      "sha256": "sha256:pending",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
       "size": 0,
       "source_url": "pending://ocr",
       "license": "pending"
@@ -24,7 +24,7 @@
       "component_id": "embedding-e5",
       "version": "pending",
       "platform": "macos-arm64",
-      "sha256": "sha256:pending",
+      "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
       "size": 0,
       "source_url": "pending://embedding-e5",
       "license": "pending"

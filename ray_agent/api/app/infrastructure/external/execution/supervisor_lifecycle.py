@@ -47,12 +47,13 @@ async def ensure_supervisor(data_root: str | Path, runtime_bin_dirs: list | tupl
     if await ping(sock) is not None:
         return sock
     Path(sock).unlink(missing_ok=True)
-    command = [
-        sys.executable, "-m", "app.infrastructure.external.execution.supervisor_server",
+    from core.workers import worker_command
+    command = worker_command(
+        "execution-supervisor",
         "--socket", sock,
         "--pid-file", str(pid_path_for(root)),
         "--core-pid", str(os.getpid()),
-    ]
+    )
     for path in runtime_bin_dirs or ():
         command.extend(["--runtime-bin", str(path)])
     # supervisor 自身是核心解释器进程，仍需清掉测试／宿主注入的 PYTHONHOME 等，否则无法启动
@@ -61,11 +62,13 @@ async def ensure_supervisor(data_root: str | Path, runtime_bin_dirs: list | tupl
     for key in ("PYTHONHOME", "PYTHONPATH", "PYTHONSTARTUP", "PYTHONSAFEPATH", "VIRTUAL_ENV"):
         child_env.pop(key, None)
     log_path = root / "execution" / "supervisor.log"
+    # 源码：api 根；冻结：_MEIPASS（入口旁的依赖目录）
+    cwd = Path(getattr(sys, "_MEIPASS", Path(__file__).resolve().parents[4]))
     with open(log_path, "ab") as log:
         # Popen 而非 asyncio 子进程：supervisor 的生命周期不绑定在某个事件循环上
         proc = subprocess.Popen(
             command,
-            cwd=str(Path(__file__).resolve().parents[4]),
+            cwd=str(cwd),
             env=child_env,
             start_new_session=True,  # setsid：不在核心进程组内
             stdin=subprocess.DEVNULL,
