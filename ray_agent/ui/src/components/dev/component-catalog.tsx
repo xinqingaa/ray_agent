@@ -284,12 +284,12 @@ export function ComponentCatalog() {
 
         <Section id="status-bar" title="运行统计" note="生成时跟随当前过程，完成后附在回复下方；停止和失败附在结束记录下方。结束后补上本次运行 Token，所有模式一致。">
           <State label="空闲（不占位）" source="真实"><RunStatusBar run={runStates.idle}/></State>
-          <State label="正在思考" source="真实"><FixtureClock at={runStates.modelNow}><div className="flex flex-col gap-2"><RunStatus place="timeline" compacting={false} pendingSend={false} activity="model" streaming={false} running/><RunStatusBar run={runStates.model}/></div></FixtureClock></State>
+          <State label="正在思考" source="真实"><FixtureClock at={runStates.modelNow}><div className="flex flex-wrap items-center gap-x-3"><div className="min-w-0 flex-1"><RunStatus place="timeline" compacting={false} pendingSend={false} activity="model" since={runStates.modelNow - 6000} streaming={false} running/></div><RunStatusBar run={runStates.model} className="ml-auto"/></div></FixtureClock></State>
           <State label="工具执行中（动词在工具行）" source="真实"><FixtureClock at={runStates.toolNow}><RunStatusBar run={runStates.tool}/></FixtureClock></State>
           <State label="计划模式" source="合成"><FixtureClock at={runStates.toolNow}><RunStatusBar run={runStates.planMode}/></FixtureClock></State>
           <State label="等你回复（句子在提问卡）" source="真实"><FixtureClock at={runStates.waitingReplyNow}><RunStatusBar run={runStates.waitingReply}/></FixtureClock></State>
           <State label="等你批准（句子在审批卡）" source="合成"><FixtureClock at={runStates.toolNow}><RunStatusBar run={runStates.waitingApproval}/></FixtureClock></State>
-          <State label="正在停止" source="合成"><FixtureClock at={runStates.toolNow}><div className="flex flex-col gap-2"><RunStatus place="timeline" compacting={false} pendingSend={false} activity="stopping" streaming={false} running={false}/><RunStatusBar run={runStates.stopping}/></div></FixtureClock></State>
+          <State label="正在停止" source="合成"><FixtureClock at={runStates.toolNow}><div className="flex flex-wrap items-center gap-x-3"><div className="min-w-0 flex-1"><RunStatus place="timeline" compacting={false} pendingSend={false} activity="stopping" since={runStates.toolNow - 2000} streaming={false} running={false}/></div><RunStatusBar run={runStates.stopping} className="ml-auto"/></div></FixtureClock></State>
           <State label="正在准备执行环境" source="合成"><Surface><RunStatus place="timeline" compacting={false} pendingSend={false} activity="preparing_environment" streaming={false} running={false}/></Surface></State>
           <State label="已完成（保留统计）" source="合成"><RunStatusBar run={{...runStates.tool, status: 'completed', endedAt: runStates.toolNow, summary: messageStates.finalShort.summary}}/></State>
           <State label="失败（原因在时间线）" source="合成"><Surface className="text-meta text-faint"><RunStatus place="headline" status="failed" compacting={false}/>原因和重试只在时间线终态条。</Surface></State>
@@ -353,6 +353,7 @@ export function ComponentCatalog() {
           <State label="旁白（W6 增量渲染入口）" source="合成"><Surface><NarrationBlock text={messageStates.narration.slice(0, 18)} streaming/></Surface></State>
           <State label="短文本" source="真实"><Surface><FinalReply text={messageStates.finalShort.text} summary={messageStates.finalShort.summary}/></Surface></State>
           <State label="表格" source="真实"><Surface><FinalReply text={messageStates.finalTable.text} summary={messageStates.finalTable.summary}/></Surface></State>
+          <State label="排版全集" source="合成" className="lg:col-span-2"><Surface><FinalReply text={messageStates.typography}/></Surface></State>
           <State label="长文本与代码块" source="合成" className="lg:col-span-2"><Surface><FinalReply text={messageStates.finalLong.text} summary={messageStates.finalLong.summary}/></Surface></State>
         </Section>
 
@@ -361,7 +362,7 @@ export function ComponentCatalog() {
           <State label="已收起" source="合成"><Surface><Timeline items={processFixture(true)}/></Surface></State>
         </Section>
 
-        <Section id="model-picker" title="模型菜单" columns={2} note="DeepSeek 与 OpenAI 分栏。有关闭档时用开关，滑块只含开启档。目录读取失败时触发器仍在。">
+        <Section id="model-picker" title="模型菜单" columns={2} note="全部模型按厂商分组同列，思考区位置固定，换模型不改变菜单高度。不能关闭思考的模型开关置灰。目录读取失败时触发器仍在。">
           <State label="有序档位" source="合成"><Surface><ModelPicker catalog={pickerCatalog} savedModel="deepseek-v4-pro" savedReasoning="high" onSelection={noop}/></Surface></State>
           <State label="目录读取失败" source="合成"><Surface><ModelPicker loadError="模型能力读取失败" onSelection={noop}/></Surface></State>
         </Section>

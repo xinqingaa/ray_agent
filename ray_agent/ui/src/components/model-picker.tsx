@@ -1,45 +1,21 @@
-import {useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode} from 'react'
+import {useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react'
 import {Check, ChevronDown} from 'lucide-react'
 import {configApi} from '@/lib/api/config'
 import {sessionApi} from '@/lib/api/session'
 import type {ModelCatalog} from '@/lib/api/types'
 import {Popover, PopoverContent, PopoverTrigger} from '@/components/ui/popover'
 import {Switch} from '@/components/ui/switch'
-import {DiscreteSlider} from '@/components/ui/slider'
+import {LevelSlider} from '@/components/ui/level-slider'
 import {Select} from '@/components/ui/select'
-import {SegmentedControl} from '@/components/ui/segmented-control'
+import {VendorIcon} from '@/components/vendor-icon'
 import {cn} from '@/lib/utils'
-import {modelsForVendor, selectModel, thinkingOptions, vendorOf, vendorTabs, type CatalogModel, type ModelSelection, type VendorId} from '@/lib/model-selection'
+import {contextLabel, modelFacts, modelsForVendor, reasoningLabel, selectModel, thinkingOptions, vendorOf, vendorTabs, type CatalogModel, type ModelSelection} from '@/lib/model-selection'
 import {useDeveloperMode} from '@/hooks/use-developer-mode'
 import {MODEL_PREFERENCE_CHANGED, readModelPreference, rememberModelPreference, validModelPreference} from '@/lib/model-preference'
 export type {ModelSelection} from '@/lib/model-selection'
 
 function usableCatalog(data: ModelCatalog | null | undefined): ModelCatalog | null {
   return data?.provider && data.models.length ? data : null
-}
-
-function AnimatedBody({watch, children}: {watch: string; children: ReactNode}) {
-  const outer = useRef<HTMLDivElement>(null)
-  const inner = useRef<HTMLDivElement>(null)
-  const seen = useRef(false)
-  useLayoutEffect(() => {
-    const box = outer.current
-    const content = inner.current
-    if (!box || !content) return
-    const next = content.offsetHeight
-    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    if (!seen.current || reduce) {
-      seen.current = true
-      box.style.height = `${next}px`
-      return
-    }
-    const prev = box.getBoundingClientRect().height
-    if (Math.abs(prev - next) < 1) return
-    box.style.height = `${prev}px`
-    void box.offsetHeight
-    box.style.height = `${next}px`
-  }, [watch])
-  return <div ref={outer} className="overflow-hidden transition-[height] duration-200 ease-out motion-reduce:transition-none"><div ref={inner}>{children}</div></div>
 }
 
 export function ModelPicker({sessionId, savedModel, savedReasoning, onSelection, catalog: providedCatalog, loadError}: {
@@ -58,7 +34,6 @@ export function ModelPicker({sessionId, savedModel, savedReasoning, onSelection,
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
-  const [vendor, setVendor] = useState<VendorId | null>(null)
   const [scope, setScope] = useState(sessionId)
   const request = useRef(0)
   const lastEffort = useRef<Record<string, string>>({})
@@ -73,7 +48,7 @@ export function ModelPicker({sessionId, savedModel, savedReasoning, onSelection,
       window.removeEventListener(MODEL_PREFERENCE_CHANGED, refresh)
     }
   }, [])
-  if (scope !== sessionId) {setScope(sessionId); setPicked(null); setDraft(null); setVendor(null); setOpen(false); setSaving(false); setError(null)}
+  if (scope !== sessionId) {setScope(sessionId); setPicked(null); setDraft(null); setOpen(false); setSaving(false); setError(null)}
   useEffect(() => {
     if (loadError) {setCatalog(null); setCatalogError(loadError); return}
     if (providedCatalog) {setCatalog(usableCatalog(providedCatalog)); setCatalogError(null); return}
@@ -142,63 +117,76 @@ export function ModelPicker({sessionId, savedModel, savedReasoning, onSelection,
     finally {if (id === request.current) setSaving(false)}
   }
   const effort = shownEffort()
-  const catalogModels = catalog.models
-  const tabs = vendorTabs(catalog.models)
-  const activeVendor = tabs.find(item => item.id === vendor)?.id ?? vendorOf(edit.model, catalog.models) ?? tabs[0]?.id ?? null
-  const listed = activeVendor ? modelsForVendor(catalog.models, activeVendor) : catalog.models
+  const groups = vendorTabs(catalog.models).map(vendor => ({...vendor, models: modelsForVendor(catalog.models, vendor.id)}))
+  const listed = groups.flatMap(group => group.models)
+  const triggerVendor = vendorOf(selection.model, catalog.models)
   function applyModel(target: CatalogModel) {
     const next = selectModel(edit, model, target)
     setDraft(next)
     setError(null)
-    setNotice(next.reasoning !== edit.reasoning ? `已改用默认 ${next.reasoning}` : null)
+    setNotice(next.reasoning !== edit.reasoning ? '已改用该模型默认档' : null)
   }
-  function changeVendor(next: VendorId) {
-    if (saving || next === activeVendor) return
-    setVendor(next)
-    const first = modelsForVendor(catalogModels, next)[0]
-    if (first) applyModel(first)
+  function row(item: CatalogModel) {
+    const selected = edit.model === item.id
+    return <button key={item.id} role="radio" aria-checked={selected} type="button" disabled={saving} title={item.id}
+      tabIndex={selected || (!listed.some(candidate => candidate.id === edit.model) && listed[0] === item) ? 0 : -1}
+      onKeyDown={event => {
+        if (!['ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) return
+        event.preventDefault()
+        const index = listed.indexOf(item)
+        const next = event.key === 'Home' ? 0 : event.key === 'End' ? listed.length - 1 : (index + (event.key === 'ArrowDown' ? 1 : listed.length - 1)) % listed.length
+        event.currentTarget.closest('[role="radiogroup"]')?.querySelectorAll<HTMLButtonElement>('[role="radio"]')[next]?.focus()
+        applyModel(listed[next])
+      }}
+      onClick={() => applyModel(item)}
+      className={cn('flex h-8 w-full items-center gap-2 rounded-md pl-7 pr-2 text-left text-meta outline-none focus-visible:ring-2 focus-visible:ring-ring', selected ? 'bg-signal-soft/60' : 'hover:bg-muted')}>
+      <span className={cn('min-w-0 flex-1 truncate', selected ? 'font-medium text-foreground' : 'text-foreground/85')}>{item.id}</span>
+      <span className="shrink-0 text-xs tabular-nums text-faint" title={modelFacts(item)}>{contextLabel(item.context_window)}</span>
+      <Check className={cn('size-3.5 shrink-0 text-signal', !selected && 'invisible')} aria-hidden/>
+    </button>
   }
+  const defaultEffort = model && options.some(option => option.id === model.default_choice) ? model.default_choice : options[0]?.id
+  const status = error ?? (saving ? '正在保存' : notice ?? (enabled ? null : '已关闭'))
   return <Popover open={open} onOpenChange={value => {
     if (saving) return
-    if (value) {setOpen(true); setDraft(selection); setVendor(vendorOf(selection.model, catalog.models)); setError(null); setNotice(null); return}
+    if (value) {setOpen(true); setDraft(selection); setError(null); setNotice(null); return}
     return commitClose()
   }}>
-    <PopoverTrigger asChild><button type="button" aria-label={inheritSession ? '模型与思考：沿用对话设置' : `模型与思考：${selection.model}，${selection.reasoning}`}
-      className="inline-flex h-8 max-w-[14rem] items-center gap-1 rounded-md px-2 text-xs text-muted-foreground outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring">
-      <span className="truncate font-mono" title={inheritSession ? '沿用对话设置' : selection.model}>{inheritSession ? '沿用对话设置' : selection.model}</span>{!inheritSession && visibility.reasoningInTrigger && <span>{selection.reasoning}</span>}<ChevronDown className="size-3 shrink-0"/>
+    <PopoverTrigger asChild><button type="button" aria-label={inheritSession ? '模型与思考：沿用对话设置' : `模型与思考：${selection.model}，思考${reasoningLabel(selection.reasoning)}`}
+      className="group/trigger inline-flex h-8 max-w-[15rem] items-center gap-1.5 rounded-md px-2 text-xs text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:bg-muted data-[state=open]:text-foreground">
+      {!inheritSession && triggerVendor && <VendorIcon vendor={triggerVendor} className="size-3"/>}
+      <span className="truncate font-medium" title={inheritSession ? '沿用对话设置' : selection.model}>{inheritSession ? '沿用对话设置' : selection.model}</span>
+      {!inheritSession && visibility.reasoningInTrigger && <span className="shrink-0 text-faint group-hover/trigger:text-muted-foreground">{reasoningLabel(selection.reasoning)}</span>}
+      <ChevronDown className="size-3 shrink-0 transition-transform duration-150 group-data-[state=open]/trigger:rotate-180 motion-reduce:transition-none"/>
     </button></PopoverTrigger>
-    <PopoverContent side="top" align="end" className="w-80 max-w-[calc(100vw-2rem)] p-3" onEscapeKeyDown={e => {if (saving) e.preventDefault()}} onInteractOutside={e => {if (saving) e.preventDefault()}}>
-      {tabs.length > 1 && activeVendor && <SegmentedControl className="mb-2 w-full" value={activeVendor} onValueChange={changeVendor} label="模型厂商" options={tabs.map(item => ({value: item.id, label: item.label}))}/>}
-      <AnimatedBody watch={[activeVendor, edit.model, edit.reasoning, notice, error, saving, listed.map(item => item.id).join('|')].join('\n')}>
-      <div role="radiogroup" aria-label="模型">{listed.map(item => <button key={item.id} role="radio" aria-checked={edit.model === item.id} type="button" disabled={saving} title={item.id}
-        tabIndex={edit.model === item.id || (!listed.some(candidate => candidate.id === edit.model) && listed[0] === item) ? 0 : -1}
-        onKeyDown={event => {
-          if (!['ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) return
-          event.preventDefault()
-          const index = listed.indexOf(item)
-          const next = event.key === 'Home' ? 0 : event.key === 'End' ? listed.length - 1 : (index + (event.key === 'ArrowDown' ? 1 : listed.length - 1)) % listed.length
-          event.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role="radio"]')[next]?.focus()
-          applyModel(listed[next])
-        }}
-        onClick={() => applyModel(item)}
-        className={cn('flex min-h-10 w-full items-center justify-between rounded-md px-2 text-left font-mono text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring', edit.model === item.id ? 'bg-muted font-medium' : 'hover:bg-muted/50')}>
-        <span className="truncate">{item.id}</span>{edit.model === item.id && <Check className="size-4 text-signal" aria-hidden/>}
-      </button>)}</div>
-      {!model && <p role="alert" className="mt-2 text-xs text-state-failed">所选模型暂不可用，请选择其他模型</p>}
-      {model?.vendor === activeVendor && notice && <p className="mt-2 text-xs text-muted-foreground" role="status">{notice}</p>}
-      {model && model.vendor === activeVendor && model.reasoning_options.length > 0 && <div className="mt-3 border-t pt-3">
-        <div className="flex items-center justify-between"><label htmlFor="model-thinking" className="text-meta font-medium">思考强度 {enabled ? ` · ${edit.reasoning}` : '已关闭'}</label>
-          {off && options.length > 0 && <Switch id="model-thinking" checked={enabled} disabled={saving} onCheckedChange={value => changeReasoning(value ? lastEffort.current[model.id] || (options.some(o => o.id === model.default_choice) ? model.default_choice : options[0].id) : off.id)}/>}
+    <PopoverContent side="top" align="end" className="w-80 max-w-[calc(100vw-2rem)] p-1.5" onEscapeKeyDown={e => {if (saving) e.preventDefault()}} onInteractOutside={e => {if (saving) e.preventDefault()}}>
+      <div role="radiogroup" aria-label="模型" className="space-y-1">{groups.map(group => <div key={group.id} role="group" aria-label={group.label}>
+        <div aria-hidden className="flex h-7 items-center gap-2 px-2 text-xs font-medium text-muted-foreground">
+          <VendorIcon vendor={group.id}/>{group.label}
         </div>
-        {options.length > 1 && model.reasoning_ordered
-          ? <DiscreteSlider options={options} value={effort} disabled={!enabled || saving} onChange={changeReasoning}/>
-          : options.length > 1
-            ? <Select label="思考选项" value={options.some(option => option.id === edit.reasoning) ? edit.reasoning : effort} disabled={!enabled || saving} options={options} onChange={changeReasoning}/>
-            : null}
+        {group.models.map(row)}
+      </div>)}</div>
+      {!model && <p role="alert" className="mx-2 mt-2 text-xs text-state-failed">所选模型暂不可用，请选择其他模型</p>}
+      {model && model.reasoning_options.length > 0 && <div className="mt-1.5 border-t px-2 pt-2">
+        <div className="flex h-7 items-center gap-2">
+          <label htmlFor="model-thinking" className="shrink-0 text-meta font-medium">思考强度</label>
+          {enabled && options.length > 0 && <span className="shrink-0 text-meta font-medium text-signal">{reasoningLabel(effort)}</span>}
+          <span className="ml-auto flex min-w-0 items-center gap-2">
+            <span role={error ? 'alert' : 'status'} title={status ?? undefined}
+              className={cn('min-w-0 truncate text-xs', error ? 'text-state-failed' : notice || saving ? 'text-muted-foreground' : 'text-faint')}>{status}</span>
+            <Switch id="model-thinking" aria-label="开启思考" title={off ? undefined : '该模型不能关闭思考'} checked={enabled} disabled={saving || !off || !options.length}
+              onCheckedChange={value => off && changeReasoning(value ? lastEffort.current[model.id] || defaultEffort || off.id : off.id)}/>
+          </span>
+        </div>
+        <div className="flex h-11 flex-col justify-center pb-1">
+          {options.length > 1 && model.reasoning_ordered
+            ? <LevelSlider label="思考强度" options={options} value={effort} describe={reasoningLabel} disabled={!enabled || saving} onChange={changeReasoning}/>
+            : options.length > 1
+              ? <Select label="思考选项" value={options.some(option => option.id === edit.reasoning) ? edit.reasoning : effort} disabled={!enabled || saving} options={options.map(option => ({...option, label: reasoningLabel(option.id)}))} onChange={changeReasoning}/>
+              : <p className="text-xs text-muted-foreground">{options.length ? `该模型只有「${reasoningLabel(options[0].id)}」一档` : '该模型不支持思考'}</p>}
+        </div>
       </div>}
-      {saving && <p className="mt-2 text-xs text-muted-foreground" role="status">正在保存</p>}
-      {error && <p role="alert" className="mt-2 text-xs text-state-failed">{error}</p>}
-      </AnimatedBody>
+      {!(model && model.reasoning_options.length > 0) && (saving || error) && <p role={error ? 'alert' : 'status'} className={cn('mx-2 mb-1 mt-2 text-xs', error ? 'text-state-failed' : 'text-muted-foreground')}>{error ?? '正在保存'}</p>}
     </PopoverContent>
   </Popover>
 }

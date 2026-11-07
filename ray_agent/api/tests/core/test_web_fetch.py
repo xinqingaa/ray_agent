@@ -20,6 +20,52 @@ def test_rejects_private_destinations_and_url_credentials():
     asyncio.run(scenario())
 
 
+DOH_RECORDS = {'docs.example': ['151.101.2.132', '2a04:4e42::644'], 'lan.example': ['192.168.1.10'],
+               'mixed.example': ['151.101.2.132', '10.0.0.1']}
+
+
+async def resolve_through_fake_ip_proxy(url, failing_endpoints=()):
+    """本机 DNS 把域名都解析到 fake-IP 段；DoH 按 DOH_RECORDS 返回真实地址。返回 public_address 结果与查询过的端点。"""
+    queried = []
+
+    async def handler(request):
+        endpoint = str(request.url.copy_with(query=None))
+        queried.append(endpoint)
+        if endpoint in failing_endpoints:
+            return httpx.Response(503)
+        name, record_type = request.url.params['name'], request.url.params['type']
+        answers = [{'type': 28 if ':' in addr else 1, 'data': addr} for addr in DOH_RECORDS.get(name, [])
+                   if (':' in addr) == (record_type == 'AAAA')]
+        return httpx.Response(200, json={'Status': 0 if name in DOH_RECORDS else 3, 'Answer': answers})
+    client = httpx.AsyncClient
+
+    def factory(**kwargs):
+        return client(transport=httpx.MockTransport(handler), **kwargs)
+
+    async def resolve(host, port, **kwargs):
+        address = host if host[0].isdigit() else '198.18.0.7'
+        return [(socket.AF_INET, socket.SOCK_STREAM, 6, '', (address, port)),
+                (socket.AF_INET6, socket.SOCK_STREAM, 6, '', ('2001:2::1e0', port, 0, 0))]
+    with patch.object(public_page.httpx, 'AsyncClient', factory), \
+            patch.object(asyncio.get_running_loop(), 'getaddrinfo', resolve):
+        return await public_address(url), queried
+
+
+def test_proxy_fake_ip_is_accepted_only_when_doh_confirms_public_target():
+    endpoints = public_page.DOH_ENDPOINTS
+    address, queried = asyncio.run(resolve_through_fake_ip_proxy('https://docs.example/guide'))
+    assert address == ('198.18.0.7', 'docs.example', 443) and set(queried) == {endpoints[0]}
+
+    address, queried = asyncio.run(resolve_through_fake_ip_proxy('https://docs.example', endpoints[:1]))
+    assert address[0] == '198.18.0.7' and endpoints[1] in queried
+
+    with pytest.raises(ValueError, match='无法核对'):
+        asyncio.run(resolve_through_fake_ip_proxy('https://docs.example', endpoints))
+    for url in ('https://lan.example', 'https://mixed.example', 'https://missing.example', 'http://198.18.0.7'):
+        with pytest.raises(ValueError, match='非公开'):
+            asyncio.run(resolve_through_fake_ip_proxy(url))
+
+
 def test_redirects_revalidate_and_requests_pin_ip_without_cookies():
     async def scenario():
         seen = []

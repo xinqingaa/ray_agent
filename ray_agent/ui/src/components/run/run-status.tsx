@@ -5,6 +5,7 @@ import type {SessionStatus} from '@/lib/api/types'
 import type {Activity, RunStatus as RunState} from '@/lib/session-view'
 import type {WaitKind} from '@/providers/sessions-provider'
 import {TONE_TEXT} from './status-meta'
+import {useNow} from './clock'
 
 /**
  * 用户看见的运行状态只在这里维护。
@@ -36,6 +37,8 @@ type TimelineProps = {
   compacting: boolean
   pendingSend: boolean
   activity?: Activity['kind'] | null
+  /** 当前模型请求或停止请求的开始时刻；有值时在状态词后走秒 */
+  since?: number | null
   streaming: boolean
   running: boolean
   className?: string
@@ -138,17 +141,28 @@ export const RUN_INPUT_HINT = {
   idle: '继续这次对话……',
 } as const
 
+/** 进行中的状态行与工具行左对齐；文字微光表示仍在处理，走秒只算当前这次请求。 */
+function TimelineStatus({text, since, className}: {text: string; since?: number | null; className?: string}) {
+  const now = useNow(since != null)
+  const waited = since != null && now != null ? Math.max(0, Math.floor((now - since) / 1000)) : null
+  return (
+    <div role="status" aria-live="polite" className={cn('flex min-h-8 w-full min-w-0 items-center gap-2 px-1.5 text-meta', className)}>
+      <span aria-hidden className="relative flex size-3.5 shrink-0 items-center justify-center">
+        <span className="absolute size-2 rounded-full bg-state-running/25 animate-[status-halo_1.8s_ease-out_infinite] motion-reduce:hidden"/>
+        <span className="size-1.5 rounded-full bg-state-running"/>
+      </span>
+      <span className="text-shimmer min-w-0 truncate" title={text}>{text}</span>
+      {waited != null && waited > 0 && <span className="shrink-0 text-xs tabular-nums text-faint" aria-hidden>{waited}s</span>}
+    </div>
+  )
+}
+
 export function RunStatus(props: RunStatusProps): ReactNode {
   switch (props.place) {
     case 'timeline': {
       const text = timelineSentence(props)
       if (!text) return null
-      return (
-        <div role="status" aria-live="polite" className={cn('flex w-full min-w-0 items-center justify-center gap-2 py-2 text-sm text-muted-foreground', props.className)}>
-          <Loader2 className="size-4 shrink-0 animate-spin text-state-running motion-reduce:animate-none" aria-hidden/>
-          <span className="min-w-0 truncate" title={text}>{text}</span>
-        </div>
-      )
+      return <TimelineStatus text={text} since={props.since} className={props.className}/>
     }
     case 'sidebar': {
       const mark = sidebarMark(props.status, props.waitKind, props.compacting, props.unread)

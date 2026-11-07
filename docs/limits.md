@@ -88,6 +88,7 @@
 | 传输及解压内容 | 各最多 2 MiB | [public_page.py](../ray_agent/api/app/infrastructure/external/web/public_page.py) 的 `MAX_BYTES` |
 | 重定向 | 最多 3 跳 | 同上，`MAX_REDIRECTS` |
 | 单跳 HTTP / 全过程 | 8 秒 / 15 秒 | 同上 |
+| 代理假地址核对 | 每个 DNS-over-HTTPS 端点 3 秒，三个端点依次回退，计入全过程时限 | 同上，`DOH_TIMEOUT_SECONDS`、`DOH_ENDPOINTS` |
 | 返回正文 | 最多 6000 字符 | 同上，`CONTENT_CHARS` |
 
 ## 浏览器、截图与用户图片

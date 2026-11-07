@@ -20,7 +20,7 @@ function load(file){
   if(name==='@/lib/api/config')return {configApi};if(name==='@/lib/api/session')return {sessionApi};
   if(name==='@/lib/utils')return {cn:(...xs)=>xs.filter(Boolean).join(' ')};
   if(name==='@/components/run/format')return {formatTime:()=> 'now'};
-  if(name==='@/components/ui/slider')return load('components/ui/slider.tsx');
+  if(name==='@/components/ui/level-slider')return load('components/ui/level-slider.tsx');
   if(name.startsWith('@/components/ui/'))return ui;
   if(name.startsWith('@/'))return load(name.slice(2)+'.'+(name.includes('components/')?'tsx':'ts'));
   throw Error(name);
@@ -43,27 +43,31 @@ async function main(){
  await act(async()=>{r=create(React.createElement(ModelPicker,pickerProps))});
  const popover=()=>r.root.findAllByProps({'data-component':'Popover'})[0];
  await act(async()=>popover().props.onOpenChange(true));
- const tabs=()=>r.root.findByProps({'data-component':'SegmentedControl'});
+ const pick=id=>r.root.findByProps({role:'radio',title:id}).props.onClick();
+ // 所有厂商的模型同时列出、按厂商分组，切换厂商不改变列表
+ assert.deepEqual(r.root.findAllByProps({role:'group'}).map(n=>n.props['aria-label']),['Fixture','OpenAI']);
+ assert.deepEqual(r.root.findAll(n=>n.type==='button'&&n.props.role==='radio').map(n=>n.props.title),['a','b','new-model-from-server']);
+ assert.equal(r.root.findAllByProps({'data-component':'SegmentedControl'}).length,0);
  assert.ok(!JSON.stringify(r.toJSON()).includes('支持看图'));
  await act(async()=>popover().props.onOpenChange(false));
  assert.equal(calls.length,0);
  await act(async()=>popover().props.onOpenChange(true));
- await act(async()=>tabs().props.onValueChange('openai'));
+ await act(async()=>pick('new-model-from-server'));
  assert.equal(r.root.findByProps({role:'radio',title:'new-model-from-server'}).props['aria-checked'],true);
- assert.equal(r.root.findByProps({role:'slider'}).props['aria-valuetext'],'high');
+ const slider=()=>r.root.findByProps({role:'slider'});
+ assert.equal(slider().props['aria-valuetext'],'高');
  assert.equal(calls.length,0);
  await act(async()=>popover().props.onOpenChange(false));
  assert.deepEqual(calls,[{model:'new-model-from-server',reasoning:'high'}]);
  assert.equal(popover().props.open,false);calls.length=0;
  await act(async()=>popover().props.onOpenChange(true));
- await act(async()=>tabs().props.onValueChange('fixture'));
+ assert.equal(r.root.findByProps({role:'radio',title:'new-model-from-server'}).props['aria-checked'],true,'重新打开保留已确认的选择');
+ await act(async()=>pick('a'));
  assert.equal(r.root.findByProps({role:'radio',title:'a'}).props['aria-checked'],true);
- await act(async()=>r.root.findByProps({role:'radio',title:'b'}).props.onClick());
- await act(async()=>tabs().props.onValueChange('fixture'));
+ await act(async()=>pick('b'));
  assert.equal(r.root.findByProps({role:'radio',title:'b'}).props['aria-checked'],true);
- assert.ok(JSON.stringify(r.toJSON()).includes('已改用默认 medium'));
+ assert.ok(JSON.stringify(r.toJSON()).includes('已改用该模型默认档'));
  assert.ok(!JSON.stringify(r.toJSON()).includes('下一次新运行估算'));
- const slider=()=>r.root.findByProps({role:'slider'});
  assert.equal(slider().props['aria-valuemax'],4);
  await act(async()=>slider().props.onKeyDown({key:'End',preventDefault(){}}));
  assert.equal(slider().props['aria-valuetext'],'ultra');assert.equal(calls.length,0);
@@ -87,7 +91,7 @@ async function main(){
  await act(async()=>{r=create(React.createElement(ModelPicker,{onSelection:next=>{sent.push(next);sentChoice=next}}))});
  assert.deepEqual(sentChoice,{model:'b',reasoning:'none'},'新对话恢复值进入发送选择');
  assert.ok(!sent.some(item=>item&&item.model==='a'&&item.reasoning==='high'),'读到本地记录前不发出目录默认');
- assert.ok(JSON.stringify(r.toJSON()).includes('模型与思考：b，none'));
+ assert.ok(JSON.stringify(r.toJSON()).includes('模型与思考：b，思考关闭'));
  await act(async()=>r.unmount());
  await act(async()=>{r=create(React.createElement(ModelPicker,{...pickerProps,onSelection:next=>{sentChoice=next}}))});
  assert.deepEqual(sentChoice,{model:'a',reasoning:'high'},'已有会话优先自身选择');
@@ -123,6 +127,6 @@ async function main(){
  await act(async()=>{r=create(React.createElement(SaveBar,{dirty:true,saving:false,invalid:false,onReset:(...args)=>{resetArguments=args}}))});
  await act(async()=>r.root.findAllByType('button').find(n=>n.children.includes('撤销修改')).props.onClick({type:'click'}));
  assert.deepEqual(resetArguments,[]);await act(async()=>r.unmount());
- console.log('PASS: recent model/effort restore, actual send selection, session precedence, invalid preference fallback, storage failure, rejected selection isolation; vendor switch selects first model, same tab preserves selection, no vision/run/channel labels, server-defined model list, semantic fallback, commit on close, rejection keeps menu, scoped save preserves hidden draft, reset excludes click event');
+ console.log('PASS: recent model/effort restore, actual send selection, session precedence, invalid preference fallback, storage failure, rejected selection isolation; all vendors listed in fixed groups, no vision/run/channel labels, server-defined model list, semantic fallback, commit on close, rejection keeps menu, scoped save preserves hidden draft, reset excludes click event');
 }
 main().catch(e=>{console.error(e);process.exitCode=1});

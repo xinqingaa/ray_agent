@@ -530,6 +530,7 @@ export function SessionDetailView({
       compacting={compacting && latestCompactionId(view.timeline) === compactAnchor}
       pendingSend={pendingSend}
       activity={activityKind}
+      since={activity?.kind === 'model' ? activity.startedAt : activity?.kind === 'stopping' ? activity.requestedAt : null}
       streaming={!!view.streaming?.text}
       running={view.activeRun?.status === 'running'}
     />

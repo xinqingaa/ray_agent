@@ -281,6 +281,27 @@
 .view-enter-left { animation: view-enter-left 200ms ease-out; }
 .view-enter-right { animation: view-enter-right 200ms ease-out; }
 
+/* 进行中的状态词：一道亮光从左扫到右，只用于时间线里仍在处理的那一行。 */
+.text-shimmer {
+    background: linear-gradient(90deg, var(--muted-foreground) 0%, var(--muted-foreground) 38%, var(--foreground) 50%, var(--muted-foreground) 62%, var(--muted-foreground) 100%);
+    background-size: 250% 100%;
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    animation: text-shimmer 2.2s linear infinite;
+}
+@keyframes text-shimmer {
+    from { background-position: 100% 0; }
+    to { background-position: 0 0; }
+}
+@keyframes status-halo {
+    from { transform: scale(1); opacity: 1; }
+    to { transform: scale(2.2); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .text-shimmer { animation: none; background: none; color: var(--muted-foreground); }
+}
+
 /* 计划卡片只改变清单高度，底边与宽度始终固定。 */
 .plan-reveal {
     display: grid;
@@ -298,6 +319,33 @@
 @media (prefers-reduced-motion: reduce) {
     .plan-reveal { transition: none; }
 }
+
+/* 代码高亮沿用图表色阶，深浅主题随 token 切换；注释与元信息降为弱色。 */
+.markdown-content .hljs-keyword,
+.markdown-content .hljs-selector-tag,
+.markdown-content .hljs-literal,
+.markdown-content .hljs-doctag { color: var(--chart-1); }
+.markdown-content .hljs-string,
+.markdown-content .hljs-regexp,
+.markdown-content .hljs-addition,
+.markdown-content .hljs-template-tag { color: var(--chart-2); }
+.markdown-content .hljs-number,
+.markdown-content .hljs-symbol,
+.markdown-content .hljs-bullet,
+.markdown-content .hljs-attr,
+.markdown-content .hljs-attribute,
+.markdown-content .hljs-variable.language_ { color: var(--chart-3); }
+.markdown-content .hljs-title,
+.markdown-content .hljs-section,
+.markdown-content .hljs-name,
+.markdown-content .hljs-built_in,
+.markdown-content .hljs-type { color: var(--chart-4); }
+.markdown-content .hljs-comment,
+.markdown-content .hljs-quote,
+.markdown-content .hljs-meta { color: var(--muted-foreground); font-style: italic; }
+.markdown-content .hljs-deletion { color: var(--state-failed); }
+.markdown-content .hljs-emphasis { font-style: italic; }
+.markdown-content .hljs-strong { font-weight: 600; }
 
 /* 保留原有菜单阴影，仅在顶部补一层轻微投影。 */
 .slash-command-elevation {

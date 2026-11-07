@@ -2,6 +2,9 @@
 
 每跳解析后固定连接到公开 IP，只允许 80/443 端口，不携带代理、Cookie 或认证；传输与解压后的字节、重定向次数和
 总时长都有上限。正文按 HTML 主体转为 Markdown，不调用模型。
+
+本机代理的 TUN fake-IP 模式把域名解析到基准测试保留段，此时经 DNS-over-HTTPS 核对真实地址全为公开地址后，
+仍连接代理给出的地址，由代理按域名转发。
 """
 import asyncio
 import ipaddress
@@ -22,6 +25,52 @@ MAX_REDIRECTS = 3
 CONNECT_TIMEOUT_SECONDS = 8
 TOTAL_TIMEOUT_SECONDS = 15
 CONTENT_CHARS = 6000
+# 基准测试保留段不会出现在公网路由上，解析结果落在这里只可能是本机代理合成的地址。
+FAKE_IP_NETWORKS = (ipaddress.ip_network('198.18.0.0/15'), ipaddress.ip_network('2001:2::/48'))
+# 用 IP 字面量访问，核对本身不依赖本机 DNS；按顺序回退。
+DOH_ENDPOINTS = ('https://223.5.5.5/resolve', 'https://1.12.12.12/resolve', 'https://1.1.1.1/dns-query')
+DOH_TIMEOUT_SECONDS = 3
+
+
+def is_public(address: str) -> bool:
+    ip = ipaddress.ip_address(address)
+    return ip.is_global and getattr(ip, 'ipv4_mapped', None) is None
+
+
+def is_fake_ip(address: str) -> bool:
+    ip = ipaddress.ip_address(address)
+    return any(ip in network for network in FAKE_IP_NETWORKS)
+
+
+def is_ip_literal(host: str) -> bool:
+    try:
+        ipaddress.ip_address(host)
+    except ValueError:
+        return False
+    return True
+
+
+async def resolve_via_doh(host: str) -> list[str]:
+    async def query(client: httpx.AsyncClient, endpoint: str, record_type: str) -> list[str]:
+        response = await client.get(endpoint, params={'name': host, 'type': record_type},
+                                    headers={'Accept': 'application/dns-json'})
+        response.raise_for_status()
+        data = response.json()
+        if data.get('Status') not in (0, 3):
+            raise ValueError(f'DNS 状态 {data.get("Status")}')
+        answers = [item['data'] for item in data.get('Answer') or [] if item.get('type') in (1, 28)]
+        for answer in answers:
+            ipaddress.ip_address(answer)
+        return answers
+
+    for endpoint in DOH_ENDPOINTS:
+        try:
+            async with httpx.AsyncClient(trust_env=False, timeout=DOH_TIMEOUT_SECONDS, follow_redirects=False) as client:
+                v4, v6 = await asyncio.gather(query(client, endpoint, 'A'), query(client, endpoint, 'AAAA'))
+            return list(dict.fromkeys(v4 + v6))
+        except (httpx.HTTPError, ValueError, KeyError, TypeError):
+            continue
+    raise ValueError('目标经本机代理解析，无法核对真实地址，已拒绝请求')
 
 
 async def public_address(url: str) -> tuple[str, str, int]:
@@ -34,8 +83,13 @@ async def public_address(url: str) -> tuple[str, str, int]:
         raise ValueError('公开网页读取只允许 80/443 端口')
     records = await asyncio.get_running_loop().getaddrinfo(host, port, type=socket.SOCK_STREAM)
     addresses = list(dict.fromkeys(record[4][0] for record in records))
-    if not addresses or any(not ipaddress.ip_address(addr).is_global or
-                            getattr(ipaddress.ip_address(addr), 'ipv4_mapped', None) is not None for addr in addresses):
+    proxied = (not is_ip_literal(host) and any(is_fake_ip(addr) for addr in addresses)
+               and all(is_fake_ip(addr) or is_public(addr) for addr in addresses))
+    if proxied:
+        real = await resolve_via_doh(host)
+        if not real or not all(is_public(addr) for addr in real):
+            raise ValueError('目标解析到非公开地址，已拒绝请求')
+    elif not addresses or not all(is_public(addr) for addr in addresses):
         raise ValueError('目标解析到非公开地址，已拒绝请求')
     return addresses[0], host, port
 

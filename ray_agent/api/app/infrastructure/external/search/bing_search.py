@@ -1,9 +1,12 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+import base64
+import binascii
 import logging
 import re
 import time
 from typing import Optional
+from urllib.parse import parse_qs, urlsplit
 
 import httpx
 from bs4 import BeautifulSoup
@@ -13,6 +16,23 @@ from app.domain.models.search import SearchResults, SearchResultItem
 from app.domain.models.tool_result import ToolResult
 
 logger = logging.getLogger(__name__)
+
+
+def unwrap_result_url(url: str) -> str:
+    """Bing 用 /ck/a 点击跟踪包装结果链接，页面靠脚本跳转；真实地址在 u 参数里，为 a1 前缀加 URL 安全 base64。"""
+    parts = urlsplit(url)
+    host = parts.hostname or ''
+    if not (host == 'bing.com' or host.endswith('.bing.com')) or parts.path != '/ck/a':
+        return url
+    encoded = parse_qs(parts.query).get('u', [''])[0]
+    if not encoded.startswith('a1'):
+        return url
+    payload = encoded[2:]
+    try:
+        target = base64.urlsafe_b64decode(payload + '=' * (-len(payload) % 4)).decode()
+    except (binascii.Error, ValueError):
+        return url
+    return target if target.startswith(('http://', 'https://')) else url
 
 
 class BingSearchEngine(SearchEngine):
@@ -140,6 +160,7 @@ class BingSearchEngine(SearchEngine):
                                 url = "https:" + url
                             elif url.startswith("/"):
                                 url = "https://www.bing.com" + url
+                        url = unwrap_result_url(url)
 
                         # 22.如果标题和链接都存在则添加数据
                         search_results.append(SearchResultItem(

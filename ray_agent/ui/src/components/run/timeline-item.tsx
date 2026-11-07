@@ -187,9 +187,10 @@ export function Timeline({items, runs = [], streaming, activeStatus, handlers, c
   }
   const metrics = (run: RunView) => (
     // 同一运行保持同一个列表 key，移动到最新过程/最终回复时保留已观察到的速度。
-    <li key={`run-metrics:${run.id}`}>
-      {(run.status === 'running' || run.status === 'waiting') && activeStatus}
-      <RunStatusBar run={run} streaming={streaming}/>
+    // 进行中的状态词靠左、统计靠右，共用一行。
+    <li key={`run-metrics:${run.id}`} className="flex flex-wrap items-center gap-x-3">
+      {(run.status === 'running' || run.status === 'waiting') && activeStatus ? <div className="min-w-0 flex-1">{activeStatus}</div> : null}
+      <RunStatusBar run={run} streaming={streaming} className="ml-auto"/>
     </li>
   )
   return (
