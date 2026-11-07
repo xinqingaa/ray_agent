@@ -5281,7 +5281,7 @@
           "检索"
         ],
         "summary": "在工作区内全文检索",
-        "description": "范围固定为路径里的工作区；当前只检索记忆与会话摘要，请求文件内容类来源会被拒绝",
+        "description": "范围固定为路径里的工作区；可检索记忆、会话摘要与已发布的文件片段",
         "operationId": "search_workspace_api_workspaces__workspace_id__search_post",
         "parameters": [
           {
@@ -5354,6 +5354,193 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Response_ContextManifestView_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workspaces/{workspace_id}/documents/index": {
+      "get": {
+        "tags": [
+          "文档知识"
+        ],
+        "summary": "工作区文档索引汇总",
+        "operationId": "document_index_summary_api_workspaces__workspace_id__documents_index_get",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workspace Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_IndexSummaryView_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workspaces/{workspace_id}/documents": {
+      "get": {
+        "tags": [
+          "文档知识"
+        ],
+        "summary": "工作区已登记文档列表",
+        "operationId": "list_documents_api_workspaces__workspace_id__documents_get",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workspace Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_list_DocumentView__"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workspaces/{workspace_id}/documents/sync": {
+      "post": {
+        "tags": [
+          "文档知识"
+        ],
+        "summary": "触发工作区文档登记与索引",
+        "operationId": "sync_documents_api_workspaces__workspace_id__documents_sync_post",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workspace Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SyncIndexRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_dict_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workspaces/{workspace_id}/documents/chunks/{chunk_id}": {
+      "get": {
+        "tags": [
+          "文档知识"
+        ],
+        "summary": "读回已发布文件片段原文",
+        "operationId": "read_document_chunk_api_workspaces__workspace_id__documents_chunks__chunk_id__get",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "chunk_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Chunk Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_DocumentSourceView_"
                 }
               }
             }
@@ -8176,6 +8363,112 @@
         ],
         "title": "DefaultLocationResponse"
       },
+      "DocumentIndexStatus": {
+        "type": "string",
+        "enum": [
+          "registered",
+          "pending_parse",
+          "parsing",
+          "pending_component",
+          "indexing",
+          "searchable",
+          "failed",
+          "withdrawn"
+        ],
+        "title": "DocumentIndexStatus",
+        "description": "界面与 API 可见的索引状态；扫描件在缺 OCR 时停在 pending_component。"
+      },
+      "DocumentSourceView": {
+        "properties": {
+          "source_type": {
+            "type": "string",
+            "title": "Source Type"
+          },
+          "source_id": {
+            "type": "string",
+            "title": "Source Id"
+          },
+          "document_id": {
+            "type": "string",
+            "title": "Document Id"
+          },
+          "revision": {
+            "type": "integer",
+            "title": "Revision"
+          },
+          "relative_path": {
+            "type": "string",
+            "title": "Relative Path"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "body": {
+            "type": "string",
+            "title": "Body"
+          },
+          "locator": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Locator"
+          },
+          "stale": {
+            "type": "boolean",
+            "title": "Stale"
+          }
+        },
+        "type": "object",
+        "required": [
+          "source_type",
+          "source_id",
+          "document_id",
+          "revision",
+          "relative_path",
+          "title",
+          "body",
+          "locator",
+          "stale"
+        ],
+        "title": "DocumentSourceView"
+      },
+      "DocumentView": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "relative_path": {
+            "type": "string",
+            "title": "Relative Path"
+          },
+          "current_revision": {
+            "type": "integer",
+            "title": "Current Revision"
+          },
+          "status": {
+            "$ref": "#/components/schemas/DocumentIndexStatus"
+          },
+          "format": {
+            "type": "string",
+            "title": "Format"
+          },
+          "updated_at": {
+            "type": "integer",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "relative_path",
+          "current_revision",
+          "status",
+          "format",
+          "updated_at"
+        ],
+        "title": "DocumentView"
+      },
       "DoneEventData": {
         "properties": {
           "event_id": {
@@ -9122,6 +9415,76 @@
           "kind"
         ],
         "title": "ImportRequest"
+      },
+      "IndexSummaryView": {
+        "properties": {
+          "workspace_id": {
+            "type": "string",
+            "title": "Workspace Id"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "searchable": {
+            "type": "integer",
+            "title": "Searchable"
+          },
+          "pending": {
+            "type": "integer",
+            "title": "Pending"
+          },
+          "parsing": {
+            "type": "integer",
+            "title": "Parsing"
+          },
+          "pending_component": {
+            "type": "integer",
+            "title": "Pending Component"
+          },
+          "failed": {
+            "type": "integer",
+            "title": "Failed"
+          },
+          "withdrawn": {
+            "type": "integer",
+            "title": "Withdrawn"
+          },
+          "truncated_scan": {
+            "type": "boolean",
+            "title": "Truncated Scan"
+          },
+          "active_operation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active Operation Id"
+          },
+          "publication_generation": {
+            "type": "integer",
+            "title": "Publication Generation"
+          }
+        },
+        "type": "object",
+        "required": [
+          "workspace_id",
+          "total",
+          "searchable",
+          "pending",
+          "parsing",
+          "pending_component",
+          "failed",
+          "withdrawn",
+          "truncated_scan",
+          "active_operation_id",
+          "publication_generation"
+        ],
+        "title": "IndexSummaryView"
       },
       "InstanceId": {
         "type": "string",
@@ -11722,6 +12085,25 @@
         ],
         "title": "Response[Dict[str, Any]]"
       },
+      "Response_DocumentSourceView_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DocumentSourceView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "Response[DocumentSourceView]"
+      },
       "Response_File_": {
         "properties": {
           "data": {
@@ -11797,6 +12179,25 @@
           "data"
         ],
         "title": "Response[GetSessionResponse]"
+      },
+      "Response_IndexSummaryView_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/IndexSummaryView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "Response[IndexSummaryView]"
       },
       "Response_InstructionProposalList_": {
         "properties": {
@@ -12447,6 +12848,29 @@
           "data"
         ],
         "title": "Response[dict]"
+      },
+      "Response_list_DocumentView__": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/DocumentView"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "Response[list[DocumentView]]"
       },
       "ReviseRequest": {
         "properties": {
@@ -13111,7 +13535,8 @@
                   "type": "string",
                   "enum": [
                     "memory",
-                    "session_summary"
+                    "session_summary",
+                    "document_chunk"
                   ]
                 },
                 "type": "array"
@@ -13121,7 +13546,7 @@
               }
             ],
             "title": "Source Types",
-            "description": "省略为记忆与会话摘要都查"
+            "description": "省略为记忆、会话摘要与文件片段都查"
           },
           "limit": {
             "type": "integer",
@@ -13136,7 +13561,7 @@
           "query"
         ],
         "title": "SearchRequest",
-        "description": "范围固定为路径里的工作区；当前只能检索记忆与会话摘要，文件内容检索尚未提供。"
+        "description": "范围固定为路径里的工作区；可检索记忆、会话摘要与文件片段。"
       },
       "SearchResponse": {
         "properties": {
@@ -13475,6 +13900,27 @@
           "schema_revision"
         ],
         "title": "StorageVersion"
+      },
+      "SyncIndexRequest": {
+        "properties": {
+          "paths": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Paths",
+            "description": "省略则全量对照文件夹重扫"
+          }
+        },
+        "type": "object",
+        "title": "SyncIndexRequest"
       },
       "TemplateListResponse": {
         "properties": {

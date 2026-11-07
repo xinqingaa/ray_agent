@@ -1821,7 +1821,7 @@ export interface paths {
         put?: never;
         /**
          * 在工作区内全文检索
-         * @description 范围固定为路径里的工作区；当前只检索记忆与会话摘要，请求文件内容类来源会被拒绝
+         * @description 范围固定为路径里的工作区；可检索记忆、会话摘要与已发布的文件片段
          */
         post: operations["search_workspace_api_workspaces__workspace_id__search_post"];
         delete?: never;
@@ -1842,6 +1842,74 @@ export interface paths {
          * @description 工作方式版本、常驻记忆、初始召回与未采用的原因；独立对话的运行没有清单（404）
          */
         get: operations["run_context_manifest_api_runs__run_id__context_manifest_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/documents/index": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 工作区文档索引汇总 */
+        get: operations["document_index_summary_api_workspaces__workspace_id__documents_index_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/documents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 工作区已登记文档列表 */
+        get: operations["list_documents_api_workspaces__workspace_id__documents_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/documents/sync": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 触发工作区文档登记与索引 */
+        post: operations["sync_documents_api_workspaces__workspace_id__documents_sync_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/documents/chunks/{chunk_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 读回已发布文件片段原文 */
+        get: operations["read_document_chunk_api_workspaces__workspace_id__documents_chunks__chunk_id__get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2921,6 +2989,49 @@ export interface components {
             /** Path */
             path: string;
         };
+        /**
+         * DocumentIndexStatus
+         * @description 界面与 API 可见的索引状态；扫描件在缺 OCR 时停在 pending_component。
+         * @enum {string}
+         */
+        DocumentIndexStatus: "registered" | "pending_parse" | "parsing" | "pending_component" | "indexing" | "searchable" | "failed" | "withdrawn";
+        /** DocumentSourceView */
+        DocumentSourceView: {
+            /** Source Type */
+            source_type: string;
+            /** Source Id */
+            source_id: string;
+            /** Document Id */
+            document_id: string;
+            /** Revision */
+            revision: number;
+            /** Relative Path */
+            relative_path: string;
+            /** Title */
+            title: string;
+            /** Body */
+            body: string;
+            /** Locator */
+            locator: {
+                [key: string]: unknown;
+            };
+            /** Stale */
+            stale: boolean;
+        };
+        /** DocumentView */
+        DocumentView: {
+            /** Id */
+            id: string;
+            /** Relative Path */
+            relative_path: string;
+            /** Current Revision */
+            current_revision: number;
+            status: components["schemas"]["DocumentIndexStatus"];
+            /** Format */
+            format: string;
+            /** Updated At */
+            updated_at: number;
+        };
         /** DoneEventData */
         DoneEventData: {
             /** Event Id */
@@ -3310,6 +3421,31 @@ export interface components {
             update_name?: string | null;
             /** Expected Version */
             expected_version?: string | null;
+        };
+        /** IndexSummaryView */
+        IndexSummaryView: {
+            /** Workspace Id */
+            workspace_id: string;
+            /** Total */
+            total: number;
+            /** Searchable */
+            searchable: number;
+            /** Pending */
+            pending: number;
+            /** Parsing */
+            parsing: number;
+            /** Pending Component */
+            pending_component: number;
+            /** Failed */
+            failed: number;
+            /** Withdrawn */
+            withdrawn: number;
+            /** Truncated Scan */
+            truncated_scan: boolean;
+            /** Active Operation Id */
+            active_operation_id: string | null;
+            /** Publication Generation */
+            publication_generation: number;
         };
         /** @description 核心进程的一次启动 */
         InstanceId: string;
@@ -4321,6 +4457,10 @@ export interface components {
                 [key: string]: unknown;
             } | null;
         };
+        /** Response[DocumentSourceView] */
+        Response_DocumentSourceView_: {
+            data: components["schemas"]["DocumentSourceView"] | null;
+        };
         /** Response[File] */
         Response_File_: {
             data: components["schemas"]["File"] | null;
@@ -4336,6 +4476,10 @@ export interface components {
         /** Response[GetSessionResponse] */
         Response_GetSessionResponse_: {
             data: components["schemas"]["GetSessionResponse"] | null;
+        };
+        /** Response[IndexSummaryView] */
+        Response_IndexSummaryView_: {
+            data: components["schemas"]["IndexSummaryView"] | null;
         };
         /** Response[InstructionProposalList] */
         Response_InstructionProposalList_: {
@@ -4478,6 +4622,11 @@ export interface components {
             data: {
                 [key: string]: unknown;
             } | null;
+        };
+        /** Response[list[DocumentView]] */
+        Response_list_DocumentView__: {
+            /** Data */
+            data: components["schemas"]["DocumentView"][] | null;
         };
         /** ReviseRequest */
         ReviseRequest: {
@@ -4761,16 +4910,16 @@ export interface components {
         };
         /**
          * SearchRequest
-         * @description 范围固定为路径里的工作区；当前只能检索记忆与会话摘要，文件内容检索尚未提供。
+         * @description 范围固定为路径里的工作区；可检索记忆、会话摘要与文件片段。
          */
         SearchRequest: {
             /** Query */
             query: string;
             /**
              * Source Types
-             * @description 省略为记忆与会话摘要都查
+             * @description 省略为记忆、会话摘要与文件片段都查
              */
-            source_types?: ("memory" | "session_summary")[] | null;
+            source_types?: ("memory" | "session_summary" | "document_chunk")[] | null;
             /**
              * Limit
              * @default 20
@@ -4898,6 +5047,14 @@ export interface components {
              * @description 业务库当前迁移版本
              */
             schema_revision: string;
+        };
+        /** SyncIndexRequest */
+        SyncIndexRequest: {
+            /**
+             * Paths
+             * @description 省略则全量对照文件夹重扫
+             */
+            paths?: string[] | null;
         };
         /** TemplateListResponse */
         TemplateListResponse: {
@@ -9046,6 +9203,135 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Response_ContextManifestView_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    document_index_summary_api_workspaces__workspace_id__documents_index_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_IndexSummaryView_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    list_documents_api_workspaces__workspace_id__documents_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_list_DocumentView__"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    sync_documents_api_workspaces__workspace_id__documents_sync_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SyncIndexRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_dict_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    read_document_chunk_api_workspaces__workspace_id__documents_chunks__chunk_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                chunk_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_DocumentSourceView_"];
                 };
             };
             /** @description 结构化错误 */

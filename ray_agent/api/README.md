@@ -118,6 +118,7 @@ uv run --locked pyinstaller --noconfirm --clean rayagent-core.spec
 | 工作区、文件夹授权与限根文件访问 | `application/services/workspace_service.py`、`application/services/root_access.py`、`domain/services/file_scope.py`、`infrastructure/external/workspace_files/` |
 | 写入租约、写前备份、撤销与外部变更 | `application/services/write_leases.py`、`workspace_writer.py`、`file_history.py`、`workspace_changes.py`、`infrastructure/external/file_storage/workspace_objects.py`、`infrastructure/external/workspace_files/watcher.py` |
 | 工作方式、记忆、检索与上下文装配 | `application/services/working_style_service.py`、`memory_service.py`、`retrieval_service.py`、`context_assembly.py`、`memory_jobs.py`、`workspace_memory_runtime.py`；路由 `instruction_routes.py`、`memory_routes.py`、`retrieval_routes.py` |
+| 文档登记、解析与全文索引 | `document_index_service.py`、`document_index_scheduler.py`、`infrastructure/external/document_parse/`；路由 `document_routes.py`；`OperationKind.DOCUMENT_INDEX`；迁移 `0006_document_knowledge` |
 | 外部服务与执行资源 | `domain/external/`、`infrastructure/external/` |
 
 ## 测试与数据库迁移
@@ -215,6 +216,10 @@ uv run --locked python -m pytest tests/core/test_write_protection.py tests/core/
 ### 工作方式与记忆检查
 
 覆盖两个工作区与独立对话的隔离、常驻记忆与工作方式进入新运行、D4 提炼规则（用户保护条目转候选、迟到代次拒绝、撤回抑制）、运行结束登记摘要／提炼任务、续接前移除已撤回条目，以及 HTTP 冒烟。提炼与摘要的模型调用在测试中用注入替身，不证明真实模型质量。
+
+### 文档知识检查
+
+`test_document_knowledge.py` 覆盖 TXT／Markdown／CSV 解析、图片标待 OCR 组件、两工作区文件片段检索不串、修改后旧片段撤出 FTS、删除后撤回，以及按 chunk 读回来源。解析在真实子进程 worker 中执行；不覆盖 Embedding／LanceDB 与 OCR 识别（P7）。
 
 ```bash
 uv run --locked python -m pytest \
