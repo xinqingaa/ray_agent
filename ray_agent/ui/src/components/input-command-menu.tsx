@@ -1,5 +1,3 @@
-'use client'
-
 import {useId, useLayoutEffect, useRef, useState, type PointerEvent} from 'react'
 import {useDeveloperMode} from '@/hooks/use-developer-mode'
 import {Info, Loader2, Plus} from 'lucide-react'

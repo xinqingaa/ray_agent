@@ -117,12 +117,13 @@ def find_model(model_id: Optional[str]) -> Optional[ModelSpec]:
 
 def endpoint_for(config: LLMConfig, model_id: str) -> Optional[LlmEndpoint]:
     name = config.model_endpoints.get(model_id)
-    if not name or name not in config.llm_endpoints:
+    if not name:
         return None
-    if name in config.resolved_endpoints:
-        return config.resolved_endpoints[name]
-    if name == "deepseek" and config.llm_endpoints[name].url_env == "DEEPSEEK_URL":
-        return LlmEndpoint(base_url=config.base_url, api_key=config.api_key, api_protocol=config.llm_endpoints[name].api_protocol)
+    if config.connections is not None or name in config.resolved_endpoints:
+        return config.resolved_endpoints.get(name)
+    # 没有读取配置文件的直接构造配置：DeepSeek 模型沿用全局连接
+    if name == "deepseek":
+        return LlmEndpoint(base_url=config.base_url, api_key=config.api_key, api_protocol=config.api_protocol)
     return None
 
 

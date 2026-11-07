@@ -57,7 +57,7 @@
 | 计划清单工具 | [plan.py](../ray_agent/api/app/domain/services/tools/plan.py) 的 `PlanTool`，数据结构见 [plan.py](../ray_agent/api/app/domain/models/plan.py) | [test_agent_loop.py](../ray_agent/api/tests/core/test_agent_loop.py)、[test_state_persistence.py](../ray_agent/api/tests/core/test_state_persistence.py)、[test_plan_progress.py](../ray_agent/api/tests/core/test_plan_progress.py) |
 | 稳定阶段、范围与成果核验 | [plan.py 模型](../ray_agent/api/app/domain/models/plan.py)、[plan.py 工具](../ray_agent/api/app/domain/services/tools/plan.py)、[task_outcomes.py](../ray_agent/api/app/domain/services/task_outcomes.py)；循环 [agent_loop.py](../ray_agent/api/app/domain/services/flows/agent_loop.py) | [test_staged_plan.py](../ray_agent/api/tests/core/test_staged_plan.py)、[check-plan-progress.cjs](../ray_agent/ui/scripts/check-plan-progress.cjs)；[成果机制](harness.md#核验与成果交付) |
 | 计划事务承接 | [plan_acceptance.py](../ray_agent/api/app/domain/models/plan_acceptance.py)、[run_ledger.py](../ray_agent/api/app/domain/services/run_ledger.py) 的 `start()` 与 [agent_service.py](../ray_agent/api/app/application/services/agent_service.py) 的 `chat()` | [test_sqlite_round_trips.py](../ray_agent/api/tests/core/test_sqlite_round_trips.py) 的计划承接并发用例 |
-| 构建身份 | [build_identity.py](../ray_agent/api/build_identity.py)、[build-identity.cjs](../ray_agent/ui/scripts/build-identity.cjs)、[check-builds.py](../ray_agent/scripts/check-builds.py) | [test_build_identity.py](../ray_agent/api/tests/core/test_build_identity.py) |
+| 构建身份 | [build_identity.py](../ray_agent/api/build_identity.py)，冻结时由 [rayagent-core.spec](../ray_agent/api/rayagent-core.spec) 写入清单 | [test_build_identity.py](../ray_agent/api/tests/core/test_build_identity.py) |
 | 计划核对与稳定身份展示 | [plan_progress.py](../ray_agent/api/app/domain/services/plan_progress.py) 的 `PlanProgress`；前端 [session-projection.ts](../ray_agent/ui/src/lib/session-projection.ts) 与 [plan-bar.tsx](../ray_agent/ui/src/components/run/plan-bar.tsx) | [test_plan_progress.py](../ray_agent/api/tests/core/test_plan_progress.py)、[check-plan-progress.cjs](../ray_agent/ui/scripts/check-plan-progress.cjs) |
 | 提示词与任务语义规划 | [system.py](../ray_agent/api/app/domain/services/prompts/system.py)、[计划模式](../ray_agent/api/app/domain/services/prompts/plan_mode.py)及 [英文提示](../ray_agent/api/app/domain/services/prompts/en/)；[工具说明](../ray_agent/api/app/domain/services/tools/plan.py)与 [plan_progress.py](../ray_agent/api/app/domain/services/plan_progress.py) | [test_plan_progress.py](../ray_agent/api/tests/core/test_plan_progress.py)、[test_plan_mode_and_compact.py](../ray_agent/api/tests/core/test_plan_mode_and_compact.py)；[规划语义](harness.md#计划清单) |
 | 脚本化模型与循环测试夹具 | [scripted_llm.py](../ray_agent/api/tests/support/scripted_llm.py)、[loop_harness.py](../ray_agent/api/tests/support/loop_harness.py)（相对 `ray_agent/api/`） | [test_scripted_llm.py](../ray_agent/api/tests/core/test_scripted_llm.py) |
@@ -163,16 +163,6 @@
 |---|---|---|
 | 临时标题、异步生成、手动优先与 AI 建议 | [title_service.py](../ray_agent/api/app/application/services/title_service.py)、[agent_service.py](../ray_agent/api/app/application/services/agent_service.py)；界面 [rename-session-dialog.tsx](../ray_agent/ui/src/components/rename-session-dialog.tsx) | [test_title_service.py](../ray_agent/api/tests/core/test_title_service.py) |
 
-## 托管项目界面
-
-核心的托管项目接口、服务与存储已经删除；界面中仍保留的页面调用这些接口会失败。
-
-| 界面 | 入口 | 静态检查 |
-|---|---|---|
-| 导入审核树 | [project-upload-dialog.tsx](../ray_agent/ui/src/components/project-upload-dialog.tsx)、[project-upload-tree.tsx](../ray_agent/ui/src/components/project-upload-tree.tsx)、[project-upload.ts](../ray_agent/ui/src/lib/project-upload.ts) | [check-project-upload.cjs](../ray_agent/ui/scripts/check-project-upload.cjs)、[check-project-upload-tree.cjs](../ray_agent/ui/scripts/check-project-upload-tree.cjs) |
-| 记忆编辑、冲突与历史草稿 | [project-memory-panel.tsx](../ray_agent/ui/src/components/project-memory-panel.tsx) | [check-project-memory.cjs](../ray_agent/ui/scripts/check-project-memory.cjs) |
-| 导航与工作台 | [left-panel.tsx](../ray_agent/ui/src/components/left-panel.tsx)、[project-workspace.tsx](../ray_agent/ui/src/components/project-workspace.tsx)、[managed-project-pane.tsx](../ray_agent/ui/src/components/workbench/managed-project-pane.tsx) | [check-project-navigation-recovery.cjs](../ray_agent/ui/scripts/check-project-navigation-recovery.cjs)、[check-project-ui-actions.cjs](../ray_agent/ui/scripts/check-project-ui-actions.cjs) |
-
 ## 外部协议
 
 | 机制 | 主要入口 | 回归测试 |
@@ -208,14 +198,12 @@
 | 机制 | 主要入口 |
 |---|---|
 | 事件订阅与视图投影 | [session-projection.ts](../ray_agent/ui/src/lib/session-projection.ts) 的 `projectSession` 与 `resolveOutputRate`、[session-view.ts](../ray_agent/ui/src/lib/session-view.ts)、[use-session-detail.ts](../ray_agent/ui/src/hooks/use-session-detail.ts)。文本增量不进入带序号的事件列表。[session-events.ts](../ray_agent/ui/src/lib/session-events.ts) 只做事件归一化 |
-| 接口请求 | [api](../ray_agent/ui/src/lib/api) 的 `session.ts`（含 `compact`、审批答复 `replyApproval`）、`project.ts`、`config.ts`（含工具策略）、`file.ts`、`fetch.ts`（结构化错误 `ApiError`）；事件、错误、响应包装与核心状态的类型来自[共享契约](#共享契约)的生成结果 |
+| 接口请求 | [api](../ray_agent/ui/src/lib/api) 的 `session.ts`（含 `compact`、审批答复 `replyApproval`）、`config.ts`（含工具策略）、`file.ts`、`preview.ts`（预览、票据与下载）、`fetch.ts`（结构化错误 `ApiError`，地址与令牌经 [core-client.ts](../ray_agent/ui/src/lib/core-client.ts)）；事件、错误、响应包装与核心状态的类型来自[共享契约](#共享契约)的生成结果 |
 | 输入框命令注册表 | [commands.ts](../ray_agent/ui/src/lib/commands.ts)、[slash-trigger.ts](../ray_agent/ui/src/lib/slash-trigger.ts)、[input-command-menu.tsx](../ray_agent/ui/src/components/input-command-menu.tsx)、[上下文圆环](../ray_agent/ui/src/components/run/context-ring.tsx)；[菜单检查](../ray_agent/ui/scripts/check-slash-command-menu.cjs) |
-| 首页与图片输入 | [page.tsx](../ray_agent/ui/src/app/page.tsx)、[chat-input.tsx](../ray_agent/ui/src/components/chat-input.tsx)、[composer-images.ts](../ray_agent/ui/src/lib/composer-images.ts)；选择 [model-picker.tsx](../ray_agent/ui/src/components/model-picker.tsx)，草稿 [drafts.ts](../ray_agent/ui/src/lib/drafts.ts)；[检查](../ray_agent/ui/scripts/check-composer-images.cjs) |
+| 首页与图片输入 | [home.tsx](../ray_agent/ui/src/pages/home.tsx)、[chat-input.tsx](../ray_agent/ui/src/components/chat-input.tsx)、[composer-images.ts](../ray_agent/ui/src/lib/composer-images.ts)；选择 [model-picker.tsx](../ray_agent/ui/src/components/model-picker.tsx)，草稿 [drafts.ts](../ray_agent/ui/src/lib/drafts.ts)；[检查](../ray_agent/ui/scripts/check-composer-images.cjs) |
 | 上下文占用与用量详情 | [context-ring.tsx](../ray_agent/ui/src/components/run/context-ring.tsx) |
-| 项目选择器与会话标题项目信息 | [project-picker.tsx](../ray_agent/ui/src/components/project-picker.tsx)；会话页 [session-detail-view.tsx](../ray_agent/ui/src/components/session-detail-view.tsx) |
-| 文件与图片共享查看器 | [preview](../ray_agent/ui/src/components/preview)、[preview.ts](../ray_agent/ui/src/lib/api/preview.ts)（HTML 新标签页打开为 `openPreviewTab`，隔离响应头为 [preview_routes.py](../ray_agent/api/app/interfaces/endpoints/preview_routes.py) 的 `HTML_CSP`），恢复检查 [check-workbench-recovery.cjs](../ray_agent/ui/scripts/check-workbench-recovery.cjs) |
+| 文件与图片共享查看器 | [preview](../ray_agent/ui/src/components/preview)、[preview.ts](../ray_agent/ui/src/lib/api/preview.ts)（图片与 PDF 的票据地址为 `previewContentUrl`，HTML 交给系统浏览器为 `openPreviewTab`，隔离响应头为 [preview_routes.py](../ray_agent/api/app/interfaces/endpoints/preview_routes.py) 的 `HTML_CSP`），恢复检查 [check-workbench-recovery.cjs](../ray_agent/ui/scripts/check-workbench-recovery.cjs) |
 | 侧栏会话状态与未查看圆点 | [run-status.tsx](../ray_agent/ui/src/components/run/run-status.tsx)、[session-item.tsx](../ray_agent/ui/src/components/session-item.tsx)；完成计数 [agent_task_runner.py](../ray_agent/api/app/domain/services/agent_task_runner.py)；清除 [session-detail-view.tsx](../ray_agent/ui/src/components/session-detail-view.tsx) |
-| 工作台项目页 | [project-pane.tsx](../ray_agent/ui/src/components/workbench/project-pane.tsx)；页签在 [workbench.tsx](../ray_agent/ui/src/components/workbench/workbench.tsx) |
 | 历史计划查看 | [plan-list-dialog.tsx](../ray_agent/ui/src/components/run/plan-list-dialog.tsx)，历史归并在 [session-projection.ts](../ray_agent/ui/src/lib/session-projection.ts) |
 | 「按计划执行」 | [run-end-bar.tsx](../ray_agent/ui/src/components/run/run-end-bar.tsx) 的 `PlanExecuteBar`，有效性判断在会话视图投影与会话页 |
 | 审批条目与审批卡 | [session-projection.ts](../ray_agent/ui/src/lib/session-projection.ts) 的 `approval` 分支；[approval-card.tsx](../ray_agent/ui/src/components/run/approval-card.tsx)；提交 [session-detail-view.tsx](../ray_agent/ui/src/components/session-detail-view.tsx) 的 `handleApproval` |
@@ -224,14 +212,13 @@
 | 回复下方统计 | [timeline-item.tsx](../ray_agent/ui/src/components/run/timeline-item.tsx)、[status-bar.tsx](../ray_agent/ui/src/components/run/status-bar.tsx)；口径函数 [session-projection.ts](../ray_agent/ui/src/lib/session-projection.ts) 的 `resolveOutputRate` |
 | 运行视图 | [run](../ray_agent/ui/src/components/run) |
 | 工作台 | [workbench.tsx](../ray_agent/ui/src/components/workbench/workbench.tsx)：终端、浏览器正文/状态/按需截图、会话文件 |
-| 开发者显隐策略 | [use-developer-mode.ts](../ray_agent/ui/src/hooks/use-developer-mode.ts)：hook、区域工厂与浏览器偏好；检查 [check-developer-mode.cjs](../ray_agent/ui/scripts/check-developer-mode.cjs) |
+| 开发者显隐策略 | [use-developer-mode.ts](../ray_agent/ui/src/hooks/use-developer-mode.ts)：hook、区域工厂与本地偏好；检查 [check-developer-mode.cjs](../ray_agent/ui/scripts/check-developer-mode.cjs) |
 | 开发者视图 | [developer-view.tsx](../ray_agent/ui/src/components/developer/developer-view.tsx) |
 | 设置页 | [settings](../ray_agent/ui/src/components/settings)，路由 `/settings`；工具策略分区为 `tool-policy-section.tsx` |
-| 组件状态目录 | [page.tsx](../ray_agent/ui/src/app/dev/components/page.tsx)，仅开发模式 |
-
-### 项目界面入口
-
-项目主页、文件与记忆分区见 [project-workspace.tsx](../ray_agent/ui/src/components/project-workspace.tsx)、[project-files-page.tsx](../ray_agent/ui/src/components/project-files-page.tsx)、[project-memory-page.tsx](../ray_agent/ui/src/components/project-memory-page.tsx)；数据确认与后台进度见 [data-cleanup-dialog.tsx](../ray_agent/ui/src/components/data-cleanup-dialog.tsx)、[data-cleanup-notice.tsx](../ray_agent/ui/src/components/data-cleanup-notice.tsx)。
+| 应用入口、路由与页面标题 | [main.tsx](../ray_agent/ui/src/main.tsx)、[app.tsx](../ray_agent/ui/src/app.tsx)、[pages](../ray_agent/ui/src/pages)；组件取路由能力统一经 [navigation.tsx](../ray_agent/ui/src/lib/navigation.tsx) |
+| 侧栏对话列表 | [left-panel.tsx](../ray_agent/ui/src/components/left-panel.tsx)、[session-item.tsx](../ray_agent/ui/src/components/session-item.tsx) |
+| 数据清空确认与后台进度 | [data-cleanup-dialog.tsx](../ray_agent/ui/src/components/data-cleanup-dialog.tsx)、[data-cleanup-notice.tsx](../ray_agent/ui/src/components/data-cleanup-notice.tsx) |
+| 组件状态目录 | [component-catalog.tsx](../ray_agent/ui/src/components/dev/component-catalog.tsx)，路由在 `app.tsx`，仅开发模式，不经核心门 |
 
 ## 装配与配置
 
@@ -241,20 +228,22 @@
 | 应用启动与关闭：实例锁、迁移、配置播种、启动扫描、后台任务与周期回收 | [main.py](../ray_agent/api/app/main.py) 的 `start_core()` 与 `lifespan()` |
 | 运行时配置与数据根 | [config.py](../ray_agent/api/core/config.py)、[paths.py](../ray_agent/api/core/paths.py) |
 | 模型、协议、预算与工具策略配置 | [app_config.py](../ray_agent/api/app/domain/models/app_config.py)、[app_config_service.py](../ray_agent/api/app/application/services/app_config_service.py)，存于业务库 [db_app_config_repository.py](../ray_agent/api/app/infrastructure/repositories/db_app_config_repository.py)；设置接口在 [app_config_routes.py](../ray_agent/api/app/interfaces/endpoints/app_config_routes.py) |
-| 原部署的反向代理（核心不再使用） | [default.conf](../ray_agent/nginx/conf.d/default.conf) |
 
 ## 桌面宿主与核心打包
 
-当前为 M0 宿主探针，运行命令与检查条件见[桌面开发指南](../ray_agent/desktop/README.md)。
+运行命令与检查条件见[桌面开发指南](../ray_agent/desktop/README.md)。
 
 | 机制 | 主要入口 |
 |---|---|
 | 核心入口：stdin 启动参数、数据根、系统分配端口、stdout 握手、stdin 关闭即停止；开发启动参数 | [sidecar.py](../ray_agent/api/sidecar.py) 的 `main()`、`apply_launch()`、`serve()`、`watch_host()`、`development_launch()`；参数与握手类型见[共享契约](#共享契约) |
 | 冻结进程的子进程入口 | `sidecar.py` 的 `WORKER_MODULES`、`run_worker()`；调用方为 [parser.py](../ray_agent/api/app/infrastructure/external/file_preview/parser.py) 的 `parse_preview()` |
 | onedir 冻结清单：模块枚举、数据文件与构建身份 | [rayagent-core.spec](../ray_agent/api/rayagent-core.spec) |
-| 宿主拉起、数据目录、握手、健康检查与进程组回收 | [sidecar.rs](../ray_agent/desktop/src/sidecar.rs) 的 `CoreHost::spawn()`、`stop()`、`wait_exit()`；启动参数与握手的宿主类型在 [contract.rs](../ray_agent/desktop/src/contract.rs)；应用入口与退出事件在 [lib.rs](../ray_agent/desktop/src/lib.rs) |
-| 资源分发、窗口、CSP 与能力 | [tauri.conf.json](../ray_agent/desktop/tauri.conf.json)、[default.json](../ray_agent/desktop/capabilities/default.json) |
-| 探针页面 | [probe](../ray_agent/desktop/probe) 的 `main.js` |
+| 宿主拉起（正式包为冻结核心，开发构建为源码核心）、数据目录、握手与版本核对、健康检查、重启与进程组回收 | [sidecar.rs](../ray_agent/desktop/src/sidecar.rs) 的 `CoreHost::command()`、`spawn()`、`restart()`、`stop()`、`wait_exit()`；启动参数与握手的宿主类型在 [contract.rs](../ray_agent/desktop/src/contract.rs) |
+| 宿主命令、退出确认、窗口隐藏与终止信号 | [lib.rs](../ray_agent/desktop/src/lib.rs) 的 `core_connection`、`restart_core`、`request_quit()`、`quit_ack`、`quit_confirm`、`watch_signals()` |
+| 平台能力：模型配置文件、外部链接、保存下载 | [platform.rs](../ray_agent/desktop/src/platform.rs) 的 `open_model_config`、`open_external`、`save_resource`、`save_bytes` |
+| 界面侧的核心连接、宿主调用、外部链接与退出 | [core-client.ts](../ray_agent/ui/src/lib/core-client.ts)、[platform.ts](../ray_agent/ui/src/lib/platform.ts)、[external-links.ts](../ray_agent/ui/src/lib/external-links.ts)、[core-gate.tsx](../ray_agent/ui/src/components/core-gate.tsx)、[quit-guard.tsx](../ray_agent/ui/src/components/quit-guard.tsx) |
+| 实例令牌与资源票据 | [instance_access.py](../ray_agent/api/app/interfaces/instance_access.py)；票据签发在 [preview_routes.py](../ray_agent/api/app/interfaces/endpoints/preview_routes.py)；检查 [test_instance_access.py](../ray_agent/api/tests/core/test_instance_access.py) |
+| 窗口、开发服务器、CSP 与能力；打包时的界面产物与核心资源 | [tauri.conf.json](../ray_agent/desktop/tauri.conf.json)、[default.json](../ray_agent/desktop/capabilities/default.json)、[tauri.bundle.json](../ray_agent/desktop/tauri.bundle.json) |
 
 ## 模型配置与切换
 
@@ -263,11 +252,11 @@
 | 机制 | 代码 | 验证 |
 |---|---|---|
 | 厂商档位、温度兼容性与采样优先级 | [model_catalog.py](../ray_agent/api/app/domain/models/model_catalog.py)、[app_config_service.py](../ray_agent/api/app/application/services/app_config_service.py) | [test_model_configuration.py](../ray_agent/api/tests/core/test_model_configuration.py)、[test_model_catalog.py](../ray_agent/api/tests/core/test_model_catalog.py) |
-| 内部端点环境读取、模型到端点映射与 GPT 续接 | [llm_endpoints.py](../ray_agent/api/app/domain/models/llm_endpoints.py)、[endpoint_settings.py](../ray_agent/api/app/infrastructure/external/llm/endpoint_settings.py)、[model_catalog.py](../ray_agent/api/app/domain/models/model_catalog.py) | [test_llm_endpoints.py](../ray_agent/api/tests/core/test_llm_endpoints.py)、[test_llm_api_key.py](../ray_agent/api/tests/core/test_llm_api_key.py) |
+| 模型连接配置文件读取、模型到提供商映射与 GPT 续接 | [model_connections.py](../ray_agent/api/app/infrastructure/external/llm/model_connections.py)、[llm_endpoints.py](../ray_agent/api/app/domain/models/llm_endpoints.py)、[config.example.toml](../ray_agent/api/config.example.toml)、[model_catalog.py](../ray_agent/api/app/domain/models/model_catalog.py) | [test_llm_endpoints.py](../ray_agent/api/tests/core/test_llm_endpoints.py)、[test_llm_api_key.py](../ray_agent/api/tests/core/test_llm_api_key.py) |
 | 会话切换原子保存、完整请求只读估算 | [agent_service.py](../ray_agent/api/app/application/services/agent_service.py) 的 set_model / preview_context | 同上配置检查 |
 | 会话参数绑定与运行模型恢复 | [agent_service.py](../ray_agent/api/app/application/services/agent_service.py) 的 `_remember_model()`、`_bind_sampling()`、`_llm_for_run()`；[model_catalog.py](../ray_agent/api/app/domain/models/model_catalog.py) 的 `choose_sampling()`、`model_request()` | [test_model_configuration.py](../ray_agent/api/tests/core/test_model_configuration.py)、[test_llm_endpoints.py](../ray_agent/api/tests/core/test_llm_endpoints.py) |
 | 标题与会话摘要的辅助请求选择 | [model_catalog.py](../ray_agent/api/app/domain/models/model_catalog.py) 的 `auxiliary_call()`；调用方 [title_service.py](../ray_agent/api/app/application/services/title_service.py)、[session_summary.py](../ray_agent/api/app/application/services/session_summary.py)（尚未接入）；历史压缩另查[上下文与记忆](#上下文与记忆) | [test_title_service.py](../ray_agent/api/tests/core/test_title_service.py)、[test_model_catalog.py](../ray_agent/api/tests/core/test_model_catalog.py) |
-| 模型设置草稿、动态思考滑块与选择 | [llm-section.tsx](../ray_agent/ui/src/components/settings/llm-section.tsx)、[model-picker.tsx](../ray_agent/ui/src/components/model-picker.tsx)、[model-selection.ts](../ray_agent/ui/src/lib/model-selection.ts) | [check-model-configuration.cjs](../ray_agent/ui/scripts/check-model-configuration.cjs) |
+| 模型设置草稿、只读连接状态、动态思考滑块与选择 | [llm-section.tsx](../ray_agent/ui/src/components/settings/llm-section.tsx)、[model-picker.tsx](../ray_agent/ui/src/components/model-picker.tsx)、[model-selection.ts](../ray_agent/ui/src/lib/model-selection.ts) | [check-model-configuration.cjs](../ray_agent/ui/scripts/check-model-configuration.cjs) |
 
 运行命令、检查条件与覆盖边界维护在所属服务指南。
 

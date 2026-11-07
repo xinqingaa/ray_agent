@@ -63,11 +63,14 @@ const old = view.timeline.find(item => item.id === 'e5');
 const latest = view.timeline.find(item => item.id === 'e10');
 assert.deepEqual(before.deliveredFiles, []); // 延迟归并的早期旁白也不能关联未来交付。
 assert.equal(old.deliveredFiles[0].id, 'old'); assert.equal(latest.deliveredFiles[0].id, 'new');
-assert.doesNotMatch(markup(MarkdownContent, {content, deliveredFiles: before.deliveredFiles}), /href=/);
-assert.match(markup(MarkdownContent, {content, deliveredFiles: old.deliveredFiles}), /files\/old\/download/);
-assert.doesNotMatch(markup(MarkdownContent, {content, deliveredFiles: old.deliveredFiles}), /files\/new/);
+const {resolveMessageFileLink} = load('src/lib/message-file-links.ts');
+const download = /<button type="button" title="下载 结果 演示.html"/;
+assert.doesNotMatch(markup(MarkdownContent, {content, deliveredFiles: before.deliveredFiles}), /href=|<button/);
+assert.match(markup(MarkdownContent, {content, deliveredFiles: old.deliveredFiles}), download);
+assert.equal(resolveMessageFileLink('/home/ubuntu/结果 演示.html', old.deliveredFiles).id, 'old');
 for (const url of ['/home/ubuntu/%E7%BB%93%E6%9E%9C%20%E6%BC%94%E7%A4%BA.html', 'sandbox:/home/ubuntu/结果%20演示.html', 'file:///home/ubuntu/结果%20演示.html']) {
-  assert.match(markup(MarkdownContent, {content: `[下载](<${url}>)`, deliveredFiles: latest.deliveredFiles}), /files\/new\/download/);
+  assert.match(markup(MarkdownContent, {content: `[下载](<${url}>)`, deliveredFiles: latest.deliveredFiles}), download);
+  assert.equal(resolveMessageFileLink(url, latest.deliveredFiles).id, 'new');
 }
 for (const url of ['/home/ubuntu/missing.html', 'sandbox:/unknown/missing', 'file://remote/share']) {
   assert.doesNotMatch(markup(MarkdownContent, {content: `[下载](${url})`, deliveredFiles: []}), /href=/);

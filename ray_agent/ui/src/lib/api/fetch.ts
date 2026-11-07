@@ -1,10 +1,7 @@
+import { coreHeaders, coreUrl } from "@/lib/core-client";
 import type { ApiResponse, ErrorCode, ErrorInfo, ErrorResponse } from "./types";
 
-/**
- * API 配置
- */
 const API_CONFIG = {
-  baseURL: process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8088/api",
   timeout: 30000, // 30秒
 } as const;
 
@@ -103,8 +100,9 @@ function fetchWithTimeout(
       reject(clientError("timeout", "请求超时"));
     }, timeout);
 
-    fetch(url, {
+    fetch(coreUrl(url), {
       ...options,
+      headers: coreHeaders(options.headers),
       signal: controller.signal,
     })
       .then((response) => {
@@ -129,9 +127,7 @@ export async function request<T = unknown>(
   endpoint: string,
   options: RequestOptions = {}
 ): Promise<T> {
-  const url = endpoint.startsWith("http")
-    ? endpoint
-    : `${API_CONFIG.baseURL}${endpoint}`;
+  const url = endpoint;
 
   const {
     timeout = API_CONFIG.timeout,
@@ -252,28 +248,6 @@ export function del<T = unknown>(
 }
 
 /**
- * 创建 SSE 连接
- */
-export function createSSEConnection(
-  endpoint: string,
-  data?: unknown,
-  options?: RequestOptions
-): EventSource {
-  const url = endpoint.startsWith("http")
-    ? endpoint
-    : `${API_CONFIG.baseURL}${endpoint}`;
-
-  // 对于 POST 请求，使用 fetch + ReadableStream 方式
-  if (data !== undefined) {
-    throw new Error(
-      "带数据的 SSE 连接请使用 createSSEStream 函数"
-    );
-  }
-
-  return new EventSource(url);
-}
-
-/**
  * 创建流式 SSE 连接（默认 POST；`method: "GET"` 时不发送请求体）
  *
  * @param endpoint  接口路径
@@ -285,9 +259,7 @@ export async function createSSEStream(
   data?: unknown,
   options?: RequestOptions
 ): Promise<ReadableStream<Uint8Array>> {
-  const url = endpoint.startsWith("http")
-    ? endpoint
-    : `${API_CONFIG.baseURL}${endpoint}`;
+  const url = coreUrl(endpoint);
 
   const {
     timeout = API_CONFIG.timeout,
@@ -332,7 +304,7 @@ export async function createSSEStream(
     const response = await fetch(url, {
       ...fetchOptions,
       method,
-      headers: mergedHeaders,
+      headers: coreHeaders(mergedHeaders),
       body: hasBody ? JSON.stringify(data) : undefined,
       signal: controller.signal,
     });
@@ -487,31 +459,10 @@ function processSSEBuffer(
 }
 
 
-/** 上传字节来自浏览器传输事件；100% 仅表示传输完成，发布结果由响应确认。 */
-export function uploadRequest<T>(endpoint:string, body:FormData, onProgress?:(loaded:number,total:number)=>void, timeout=120000):Promise<T> {
-  return new Promise((resolve,reject)=>{
-    const xhr=new XMLHttpRequest()
-    xhr.open('PUT',`${API_CONFIG.baseURL}${endpoint}`)
-    xhr.timeout=timeout
-    xhr.responseType='json'
-    xhr.upload.onprogress=event=>{if(event.lengthComputable)onProgress?.(event.loaded,event.total)}
-    xhr.onerror=()=>reject(clientError('unavailable','上传连接中断，结果需读回确认'))
-    xhr.ontimeout=()=>reject(clientError('timeout','上传请求超时，结果需读回确认'))
-    xhr.onabort=()=>reject(clientError('timeout','上传已中断，结果需读回确认'))
-    xhr.onload=()=>{
-      if(xhr.status<200 || xhr.status>=300){reject(errorFromBody(xhr.status,xhr.response,xhr.status>=500?'服务暂时不可用，请读回上传结果':'上传被拒绝'));return}
-      const result=xhr.response as ApiResponse<T>|null
-      if(!result){reject(clientError('unavailable','上传响应无法识别，请读回批次结果'));return}
-      resolve(result.data)
-    }
-    xhr.send(body)
-  })
-}
-
 /** 包资源保留原始字节，复用 API 错误与超时处理。 */
 export async function requestBlob(endpoint: string): Promise<Blob> {
   try {
-    const response = await fetchWithTimeout(`${API_CONFIG.baseURL}${endpoint}`)
+    const response = await fetchWithTimeout(endpoint)
     if (!response.ok) await handleErrorResponse(response)
     return await response.blob()
   } catch (error) {

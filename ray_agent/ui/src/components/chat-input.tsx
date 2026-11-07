@@ -1,5 +1,3 @@
-'use client'
-
 import {useState, useEffect, useRef, useMemo, useCallback, useId, useLayoutEffect, forwardRef, useImperativeHandle, type ReactNode} from 'react'
 import {cn, formatFileSize} from '@/lib/utils'
 import {ScrollArea, ScrollBar} from '@/components/ui/scroll-area'
@@ -12,11 +10,9 @@ import {PlusCommandMenu, SlashCommandList} from '@/components/input-command-menu
 import {skillsApi, SKILLS_CHANGED, type Skill, type SkillSelection} from '@/lib/api/skills'
 import {SkillMark} from '@/components/skill-mark'
 import {fileApi} from '@/lib/api/file'
-import {projectApi} from '@/lib/api/project'
-import {classifyUpload} from '@/lib/project-upload'
+import {downloadFile} from '@/lib/api/preview'
 import type {FileInfo} from '@/lib/api/types'
 import {toast} from 'sonner'
-import type {ProjectView} from '@/lib/api/types'
 import {commandById, commandSearchFields, matchingCommands, type CommandContext, type CommandHost, type InputCommand} from '@/lib/commands'
 import {clearDraft, readDraft, writeDraft, DRAFT_CHANGED, DATA_CLEARED} from '@/lib/drafts'
 import {recoverSubmission, UncertainSubmissionError} from '@/lib/send-recovery'
@@ -49,8 +45,6 @@ interface ChatInputProps {
   draftScope?: string
   /** 页面状态。上传中与文件选择由输入框补进命令上下文。 */
   commandHost?: CommandHost
-  selectedProject?: ProjectView | null
-  onProjectSelect?: (project: ProjectView | null) => void
 }
 
 const EMPTY_HOST: CommandHost = {
@@ -71,7 +65,7 @@ export interface ChatInputRef {
 }
 
 export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
-  ({ className, onInputValueChange, onSend, pause = false, onPause, disabled = false, autoFocus = false, sessionId, placeholder = '分配一个任务或提问任何问题...', accessory, draftScope, commandHost = EMPTY_HOST, selectedProject = null, savedModel = null, savedReasoning = null, runModel = null, runReasoning = null }, ref) => {
+  ({ className, onInputValueChange, onSend, pause = false, onPause, disabled = false, autoFocus = false, sessionId, placeholder = '分配一个任务或提问任何问题...', accessory, draftScope, commandHost = EMPTY_HOST, savedModel = null, savedReasoning = null, runModel = null, runReasoning = null }, ref) => {
     const {visibility} = useDeveloperMode()
     const [files, setFiles] = useState<FileInfo[]>([])
     const [uploading, setUploading] = useState(false)
@@ -345,28 +339,11 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
       setUploading(true)
 
       try {
-        let chosen=selectedFiles
-        const rule=selectedProject ? await projectApi.uploadRules() : null
-        const optional=new Set<string>()
-        if(rule) {
-          chosen=chosen.filter(file => {
-            const decision=classifyUpload(file.name.normalize('NFC'),false,chosen.map(item=>item.name.normalize('NFC')),rule)
-            if(decision.policy==='always' || file.size>rule.max_file_bytes){toast.error(`文件「${file.name}」已排除：${decision.reason || '超过单文件大小上限'}`);return false}
-            if(decision.policy==='optional') {
-              if(!window.confirm(`「${file.name}」可能包含密钥或凭据，默认不上传。确认将此文件作为项目附件上传？`))return false
-              optional.add(file.name)
-            }
-            return true
-          })
-          const total=chosen.reduce((sum,file)=>sum+file.size,0)
-          if(chosen.length>rule.max_files || total>rule.max_batch_bytes)throw new Error('最终待上传附件超过数量或单次大小上限，请减少材料')
-        }
-        const uploadPromises = chosen.map(async (file) => {
+        const uploadPromises = selectedFiles.map(async (file) => {
           try {
             const fileInfo = await fileApi.uploadFile({
               file,
               ...(sessionId && { session_id: sessionId }),
-              ...(selectedProject && rule && {project_id:selectedProject.id,rule_version:rule.version,include_optional:optional.has(file.name)}),
             })
             return fileInfo
           } catch (error) {
@@ -725,7 +702,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
           </Button>
         </div>
       </footer>
-      <FilePreviewDialog file={preview} onClose={() => setPreview(null)} onDownload={file => {const link = document.createElement('a');link.href = fileApi.getFileDownloadUrl(file.id);link.download = file.filename;link.click()}}/>
+      <FilePreviewDialog file={preview} onClose={() => setPreview(null)} onDownload={file => void downloadFile(file.id, file.filename).catch(error => toast.error(error instanceof Error ? error.message : '下载失败'))}/>
     </div>
     <PopoverContent
       align="start"

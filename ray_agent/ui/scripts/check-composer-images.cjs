@@ -26,11 +26,9 @@ function load(relative) {
     if(name==='react/jsx-runtime')return require(name);
     if(name==='lucide-react')return new Proxy({}, {get:()=>()=>null});
     if(name==='sonner')return {toast:new Proxy({}, {get:()=>message=>messages.push(message)})};
-    if(name==='next/navigation')return {useRouter:()=>({push(){}})};
+    if(name==='@/lib/navigation')return {useRouter:()=>({push(){}})};
     if(name==='@/hooks/use-developer-mode')return {useDeveloperMode:()=>({visibility:{canShowCommand:()=>true}})};
-    if(name==='@/providers/projects-provider')return {useProjects:()=>null};
     if(name==='@/components/model-picker')return {ModelPicker};
-    if(name==='@/components/project-picker')return {ProjectPicker:()=>null};
     if(name==='@/components/preview/attachment-thumbnail')return {AttachmentThumbnail:()=>null};
     if(name==='@/components/preview/file-preview-dialog')return {FilePreviewDialog:()=>null};
     if(name==='@/components/input-command-menu')return {PlusCommandMenu:()=>null,SlashCommandList:()=>null};

@@ -1,4 +1,4 @@
-// 事件观察：转译并执行实际 UI 模块，不启动 Next.js，默认不连接服务。
+// 事件观察：转译并执行实际 UI 模块，不启动开发服务器，默认不连接服务。
 // 覆盖 SSE 分块，以及 W4 投影：按 seq 去重、重连补齐、工具合并与成组、
 // 失败轮次保留、activity、轮次用量、计划变化、终态原因。
 // W6：增量累积与丢弃、速度估算。W7.2：审批条目合并、拒绝与策略禁止、失效。
@@ -453,7 +453,7 @@ function kinds(view) {
       ev(1, 'run', {status: 'running'}),
       ev(2, 'message', {role: 'user', message: '交给我', attachments: [{id: 'up-1', filename: 'source.csv', size: 27, extension: '.csv', mime_type: 'text/csv'}]}),
       ev(3, 'message', {role: 'user', message: '再补一句'}),
-      ev(4, 'message', {role: 'assistant', message: '结果在这里', attachments: [{id: 'out-1', filename: 'summary.json', size: 12, extension: 'json', filepath: '/home/ubuntu/summary.json', project_persistence: {state: 'failed', copy_key: 'delivery-run-call', path: 'outputs/summary.json', error: 'disk full', can_retry: true}}]}),
+      ev(4, 'message', {role: 'assistant', message: '结果在这里', attachments: [{id: 'out-1', filename: 'summary.json', size: 12, extension: 'json', filepath: '/home/ubuntu/summary.json'}]}),
       ev(5, 'message', {role: 'assistant', message: '已经交付。'}),
       ev(6, 'turn', {phase: 'completed', index: 1, model_ms: 8, finish_reason: 'stop', tool_call_ids: [], usage: {prompt_tokens: 3, completion_tokens: 1}}),
       ev(7, 'done', {}),
@@ -466,8 +466,6 @@ function kinds(view) {
   assert.equal(delivered.files.find((file) => file.id === 'up-1').source, 'upload');
   assert.equal(delivered.files.find((file) => file.id === 'out-1').source, 'delivery');
   assert.equal(delivered.files.find((file) => file.id === 'out-1').extension, '.json');
-  assert.deepEqual(delivered.files.find((file) => file.id === 'out-1').projectPersistence, {state: 'failed', copy_key: 'delivery-run-call', path: 'outputs/summary.json', error: 'disk full', can_retry: true});
-  assert.equal(delivered.timeline.find((item) => item.kind === 'delivery').files[0].projectPersistence.can_retry, true);
   assert.equal(delivered.timeline.filter((item) => item.kind === 'user')[1].injected, true);
   console.log('PASS: 交付与最终回复分开；运行中的后一条用户消息标为注入');
 

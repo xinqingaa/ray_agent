@@ -11,7 +11,9 @@ from app.application.errors.exceptions import BadRequestError, AppException
 from app.domain.models.error import ErrorCode
 from app.domain.models.file_preview import PreviewQuery, preview_kind
 from app.domain.services.file_io import run_file_io
+from app.interfaces.instance_access import issue_ticket
 from app.interfaces.schemas import Response
+from app.interfaces.schemas.core import ResourceTicket
 from app.interfaces.service_dependencies import get_file_preview_service
 
 router = APIRouter(tags=['文件预览'])
@@ -111,5 +113,12 @@ async def inline_content(request, service, revision=None, **source):
 @router.get('/files/{file_id}/preview/content')
 async def attachment_content(file_id: str, request: Request, revision: str | None = None, service=Depends(get_file_preview_service)):
     return await inline_content(request, service, revision, file_id=file_id)
+
+
+@router.post('/files/{file_id}/preview/ticket', response_model=Response[ResourceTicket],
+             summary='签发原始内容的读取票据', description='图片、PDF 与网页按 URL 加载时把票据放在 ticket 参数里')
+async def attachment_content_ticket(file_id: str, request: Request) -> Response[ResourceTicket]:
+    ticket, expires_at = issue_ticket(request.app.url_path_for('attachment_content', file_id=file_id))
+    return Response.success(data=ResourceTicket(ticket=ticket, expires_at=expires_at))
 
 

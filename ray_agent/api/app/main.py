@@ -10,6 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.infrastructure.logging import setup_logging
 from app.interfaces.endpoints.routes import router
 from app.interfaces.errors.exception_handlers import register_exception_handlers
+from app.interfaces.instance_access import InstanceAccessMiddleware
 from app.interfaces.schemas import ErrorResponse
 from app.interfaces.schemas.core import PROTOCOL_VERSION
 from core.config import get_settings
@@ -17,6 +18,10 @@ from core.config import get_settings
 settings = get_settings()
 setup_logging()
 logger = logging.getLogger()
+
+# 停止时先等正在启动的运行，再停活动运行；两段加上 HTTP 收尾要短于核心的自退期限与宿主的退出等待
+PENDING_START_STOP_SECONDS = 4
+RUN_STOP_SECONDS = 8
 
 openapi_tags = [
     {
@@ -93,7 +98,12 @@ async def lifespan(app: FastAPI):
     from app.infrastructure.storage.sqlite import get_uow, set_database
     from app.interfaces.service_dependencies import get_file_storage, get_skill_service
 
-    lock, database, jobs = await start_core()
+    try:
+        lock, database, jobs = await start_core()
+    except BaseException as exc:
+        from app.interfaces.core_descriptor import record_startup_failure
+        record_startup_failure(exc)
+        raise
     await expire_visual_artifacts(get_uow, get_file_storage())
 
     async def sweep():
@@ -121,8 +131,9 @@ async def lifespan(app: FastAPI):
             for owner in owners:
                 owner.cancelled = True
             await asyncio.wait_for(asyncio.gather(
-                *(owner.worker for owner in owners if owner.worker is not None), return_exceptions=True), timeout=10)
-            await asyncio.wait_for(LocalRunTask.destroy(), timeout=20.0)
+                *(owner.worker for owner in owners if owner.worker is not None), return_exceptions=True),
+                timeout=PENDING_START_STOP_SECONDS)
+            await asyncio.wait_for(LocalRunTask.destroy(), timeout=RUN_STOP_SECONDS)
             logger.info("运行任务已停止")
         except asyncio.TimeoutError:
             logger.warning("运行任务停止超时，遗留运行由下次启动扫描处理")
@@ -144,10 +155,12 @@ app = FastAPI(
     version=str(PROTOCOL_VERSION),
 )
 
+# 实例令牌走请求头，不用 Cookie；CORS 在最外层，令牌被拒绝的响应也带跨域头，界面能读到结构化错误
+app.add_middleware(InstanceAccessMiddleware)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
     expose_headers=["Content-Disposition", "X-RayAgent-Download-Warning"],

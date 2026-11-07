@@ -1,5 +1,3 @@
-'use client'
-
 import React, {createContext, useCallback, useContext, useEffect, useRef, useState} from 'react'
 import {sessionApi} from '@/lib/api'
 import type {Session, SessionStatus} from '@/lib/api'

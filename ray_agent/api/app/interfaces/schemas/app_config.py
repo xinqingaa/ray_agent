@@ -2,9 +2,10 @@
 # -*- coding: utf-8 -*-
 from typing import Dict, List, Literal, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, HttpUrl
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.domain.models.app_config import LLMConfig, ModelSampling, MCPTransport, ToolPolicy
+from app.domain.models.llm_endpoints import ConnectionSource
 
 
 class ModelSamplingPublic(BaseModel):
@@ -14,19 +15,17 @@ class ModelSamplingPublic(BaseModel):
 
 
 class LLMConfigPublic(BaseModel):
-    """设置页可见的 LLM 配置；不含密钥明文。"""
-    base_url: str
+    """设置页可见的 LLM 配置；模型连接只给地址、掩码与可用状态，不含密钥明文。"""
     model_name: str
     temperature: float
     max_tokens: int
     context_window: int
     model_profiles: Dict[str, ModelSamplingPublic] = Field(default_factory=dict)
-    has_api_key: bool = False
+    connections: Optional[ConnectionSource] = Field(default=None, description="模型连接配置文件的读取结果")
 
     @classmethod
     def from_llm(cls, llm: LLMConfig) -> "LLMConfigPublic":
         from app.domain.models.model_catalog import active_models, configured_sampling
-        key = (llm.api_key or "").strip()
         profiles: Dict[str, ModelSamplingPublic] = {}
         for spec in active_models(llm):
             sampling = configured_sampling(llm, spec.id)
@@ -36,13 +35,12 @@ class LLMConfigPublic(BaseModel):
                 context_window=min(sampling.context_window, spec.context_window),
             )
         return cls(
-            base_url=str(llm.base_url),
             model_name=llm.model_name,
             temperature=llm.temperature,
             max_tokens=llm.max_tokens,
             context_window=llm.context_window,
             model_profiles=profiles,
-            has_api_key=bool(key) and key != "xxxx",
+            connections=llm.connections,
         )
 
 
@@ -69,9 +67,8 @@ class ModelCatalogResponse(BaseModel):
 
 
 class LLMConfigUpdate(BaseModel):
-    """更新 LLM 配置时忽略密钥字段。未提交的字段保持原值。"""
+    """更新默认模型与采样参数；模型连接只在配置文件中修改。未提交的字段保持原值。"""
     model_config = ConfigDict(extra="ignore")
-    base_url: Optional[HttpUrl] = None
     model_name: Optional[str] = None
     temperature: float = Field(0.7, ge=0)
     max_tokens: int = Field(8192, ge=1)

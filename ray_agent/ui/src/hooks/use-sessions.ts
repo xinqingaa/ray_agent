@@ -1,5 +1,3 @@
-'use client'
-
 /**
  * 会话列表 Hook
  *

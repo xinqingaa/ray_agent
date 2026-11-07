@@ -75,14 +75,17 @@ export type ModelSampling = {
   context_window: number;
 };
 
+/** 模型连接配置文件的读取结果；只含掩码与可用性，不含密钥 */
+export type ConnectionSource = Schemas["ConnectionSource"];
+export type ProviderStatus = Schemas["ProviderStatus"];
+
 export type LLMConfig = {
-  base_url?: string;
   model_name?: string;
   temperature?: number;
   max_tokens?: number;
   context_window?: number;
   model_profiles?: Record<string, ModelSampling>;
-  has_api_key?: boolean;
+  connections?: ConnectionSource | null;
 };
 
 /**
@@ -92,7 +95,6 @@ export type AgentConfig = {
   max_iterations?: number;
   max_retries?: number;
   max_search_results?: number;
-  project_snapshot_retention?: number;
   [key: string]: unknown;
 };
 
@@ -194,7 +196,6 @@ export type FileInfo = {
   mime_type?: string;
   size: number;
   [key: string]: unknown;
-  project_persistence?: {state: string; copy_key: string; path?: string | null; error?: string | null; can_retry: boolean};
 };
 
 /**
@@ -203,87 +204,6 @@ export type FileInfo = {
 export type FileUploadParams = {
   file: File;
   session_id?: string;
-  project_id?: string;
-  rule_version?: string;
-  include_optional?: boolean;
-};
-
-// ==================== 本地项目模块类型 ====================
-
-export type ProjectView = {
-  id: string;
-  name: string;
-  available: boolean;
-  reason?: string | null;
-  archived?: boolean;
-  occupying_session_id?: string | null;
-  active_run_status?: string | null; active_run_reason?: string | null;
-  task_count?: number;
-  last_active_at?: string | null;
-  files_size?: number; files_size_at?: string | null; files_size_stale?: boolean;
-  protection?: ProjectProtection | null; file_operation?: ProjectFileOperation | null; write_blocked_reason?: string | null;
-  snapshot_gc_pending?: boolean; snapshots_cleaned_at?: string | null; snapshots_released_bytes?: number;
-
-};
-
-export type ProjectFileOperation = {
-  operation_id: string; kind: 'settling' | 'upload' | 'snapshot' | 'restore' | 'cleanup' | 'delivery';
-  state: 'running' | 'failed'; phase: string; error: string | null;
-  run_id: string | null; session_id: string | null;
-  target_snapshot_id: string | null; before_snapshot_id: string | null;
-  started_at: string; last_active_at: string; results: Record<string, unknown>;
-};
-export type ProjectProtection = {state: 'ready' | 'skipped' | 'failed'; reason?: string; error?: string; snapshot_id?: string; run_id?: string};
-export type ProjectSnapshot = {id: string; project_id: string; source: 'run' | 'upload' | 'restore'; run_id: string | null; session_id: string | null; total_bytes: number; manifest_sha256: string; created_at: string};
-export type ProjectAuditEvent = {seq: number; type: string; payload: Record<string, unknown>; created_at: string};
-export type ProjectUploadRules = {
-  version: string; max_batch_bytes: number; max_files: number; max_file_bytes: number; max_project_bytes: number;
-  always_exclude: string[]; dependency_directories: string[]; conditional_directories: Record<string, string[]>;
-  sensitive_patterns: string[]; venv_marker: string; preserve_empty_directories: boolean;
-  idle_timeout_seconds: number; total_timeout_seconds: number;
-};
-export type ProjectUploadItem = {path: string; size: number; sha256: string; overwrite: boolean};
-export type ProjectUploadSelection = {rule_version: string; items: ProjectUploadItem[]; include_optional: string[]; inventory: string[]; fingerprint: Record<string, unknown>};
-export type ProjectUploadPreflight = {rule_version: string; items: Array<ProjectUploadItem & {included: boolean; reuse: boolean; conflict?: boolean; policy: string; reason?: string; confirmation_path?: string}>; fingerprint: Record<string, unknown>; current_bytes: number; projected_bytes: number; upload_bytes: number; upload_count: number; warnings: Array<{path: string; case_conflicts: string[]}>; errors: string[]; empty_directories: string};
-export type ProjectUploadResult = {path: string; size?: number; sha256?: string; published: boolean; reused?: boolean; error?: string};
-export type ProjectOperationResult = {operation_id: string; kind?: string; state?: string; status?: string; phase?: string; error?: string | null; results: {received?: Record<string, ProjectUploadResult>; failures?: Record<string, string>; batch_status?: string; [key: string]: unknown}};
-
-export type ProjectSettings = {name: string; instructions: string | null};
-export type ProjectUpdate = ProjectSettings & {settings_version: number; notes?: string; notes_version?: number};
-export type ProjectDetails = ProjectView & ProjectSettings & {notes: string; notes_version: number; settings_version: number; created_at: string; updated_at: string; archived_at: string | null; occupying_session_id: string | null};
-export type ProjectPage = {projects: ProjectView[]; total: number; offset: number; limit: number};
-
-export type ProjectEntryType = "file" | "directory" | "symlink" | "other";
-export type ProjectLinkState = "inside" | "outside" | "broken";
-
-export type ProjectTreeEntry = {
-  name: string;
-  path: string;
-  type: ProjectEntryType;
-  size?: number | null;
-  modified_at?: number | null;
-  is_symlink: boolean;
-  link?: ProjectLinkState | null;
-};
-
-export type ProjectListing = {
-  path: string;
-  entries: ProjectTreeEntry[];
-  total: number;
-  truncated: boolean;
-  limit: number;
-};
-
-export type ProjectFileKind = "text" | "binary" | "too_large" | "symlink" | "other";
-
-export type ProjectFile = {
-  path: string;
-  name: string;
-  size: number;
-  modified_at?: number | null;
-  kind: ProjectFileKind;
-  content?: string | null;
-  max_bytes: number;
 };
 
 // ==================== 会话模块类型 ====================
@@ -304,7 +224,6 @@ export type Session = Partial<ConversationSummary> & {
   latest_message_at: string;
   status: SessionStatus;
   unread_message_count: number;
-  project?: ProjectView | null;
   [key: string]: unknown;
 };
 
@@ -322,7 +241,6 @@ export type SessionsData = {
  * 创建会话请求参数
  */
 export type CreateSessionParams = {
-  project_id?: string;
   creation_id?: string;
   title?: string;
   [key: string]: unknown;
@@ -537,11 +455,6 @@ export type ViewShellParams = {
   session_id: string;
   [key: string]: unknown;
 };
-
-export type ProjectMemorySummary = {stale?:boolean;latest_seq?:number;session_id:string; title:string; summary:string; source:string; source_seq:number; generation:number; state?:string; error?:string|null; injected_text?:string; truncated?:boolean};
-export type ProjectMemorySnapshot = {instructions:string|null; notes:string; settings_version:number; notes_version:number; summaries:ProjectMemorySummary[]};
-export type ProjectMemoryCapacity = {total:number;limit:number;over_limit:boolean;model:string;mode:string;tool_count:number;discovery_errors:Record<string,string>;source:string;system_prompt:number;tools:number};
-export type ProjectMemoryView = {capacity?:ProjectMemoryCapacity;project:ProjectMemorySnapshot; candidates:ProjectMemorySummary[]; project_prompt:string; frozen:ProjectMemorySnapshot|null; occupying_session_id?:string|null; active_run_id:string|null};
 
 export type ContextPreview = {
   model: string; reasoning: string | null; total: number; context_window: number;

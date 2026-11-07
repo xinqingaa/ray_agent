@@ -9,6 +9,7 @@ class ErrorCode(StrEnum):
     """机器可读的错误代码，按客户端的处理方式区分；具体原因写在 message 与 details。"""
     INVALID_REQUEST = "invalid_request"  # 请求本身不成立，修改后再提交
     VALIDATION_FAILED = "validation_failed"  # 参数未通过校验
+    UNAUTHORIZED = "unauthorized"  # 缺少或无效的实例令牌、资源票据
     FORBIDDEN = "forbidden"  # 当前调用方或范围不允许
     NOT_FOUND = "not_found"
     METHOD_NOT_ALLOWED = "method_not_allowed"

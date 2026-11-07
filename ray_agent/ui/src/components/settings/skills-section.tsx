@@ -1,4 +1,3 @@
-'use client'
 import {useCallback, useEffect, useRef, useState} from 'react'
 import {ArrowLeft, BookOpen, Check, ChevronRight, Compass, Files, Folder, Github, Info, Loader2, Pencil, Plus, RefreshCw, Search, Trash2, Upload} from 'lucide-react'
 import type {ReactNode} from 'react'

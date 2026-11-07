@@ -1,4 +1,3 @@
-'use client'
 import {useEffect, useRef} from 'react'
 
 /** 编辑视图关闭外，应用链接及离开页面同样保护草稿。 */

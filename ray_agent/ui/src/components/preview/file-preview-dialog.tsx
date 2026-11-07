@@ -1,5 +1,3 @@
-'use client'
-
 import {Dialog, DialogContent, DialogDescription, DialogTitle} from '@/components/ui/dialog'
 import {useRef} from 'react'
 import type {FileView} from '@/lib/session-view'

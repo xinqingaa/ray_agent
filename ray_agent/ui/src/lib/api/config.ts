@@ -30,7 +30,7 @@ export const configApi = {
   getModels: (): Promise<ModelCatalog> => get<ModelCatalog>("/app-config/models"),
 
   updateLLMConfig: (config: Partial<LLMConfig>): Promise<LLMConfig> => {
-    const { has_api_key: _hasApiKey, ...writable } = config;
+    const { connections: _connections, ...writable } = config;
     return post<LLMConfig>("/app-config/llm", writable);
   },
 

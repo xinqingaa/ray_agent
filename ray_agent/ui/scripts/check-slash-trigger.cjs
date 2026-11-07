@@ -1,4 +1,4 @@
-// `/` 提示的触发判定与片段移除。转译实际模块，不启动 Next.js，不连接服务。
+// `/` 提示的触发判定与片段移除。转译实际模块，不启动开发服务器，不连接服务。
 /* eslint-disable @typescript-eslint/no-require-imports */
 const assert = require('node:assert/strict');
 const fs = require('node:fs');

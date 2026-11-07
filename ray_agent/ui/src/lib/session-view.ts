@@ -206,13 +206,9 @@ export type FileView = {
   extension: string
   contentType: string
   source: 'upload' | 'delivery'
-  projectPersistence?: import('@/lib/api/types').FileInfo['project_persistence']
   /** 沙箱内路径；上传文件可能为空 */
   path: string | null
 }
-
-/** 会话绑定的本地项目；与 API ProjectView 一致 */
-export type ProjectView = import('@/lib/api/types').ProjectView
 
 type ItemBase = {id: string; runId: string | null; at: number}
 
@@ -305,8 +301,6 @@ export type SessionView = {
   title: string
   /** 最新运行的状态；没有运行时为 idle */
   status: RunStatus | 'idle'
-  /** 绑定的本地项目；未绑定为 null */
-  project: ProjectView | null
   runs: RunView[]
   activeRun: RunView | null
   timeline: TimelineItem[]

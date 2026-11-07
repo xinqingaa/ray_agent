@@ -1,9 +1,7 @@
-'use client'
-
-import {useLayoutEffect, useRef, type ReactNode} from 'react'
+import type {ReactNode} from 'react'
 import {CirclePause, CircleX, Loader2, type LucideIcon, ShieldQuestion, Unplug} from 'lucide-react'
 import {cn} from '@/lib/utils'
-import type {ProjectFileOperation, SessionStatus} from '@/lib/api/types'
+import type {SessionStatus} from '@/lib/api/types'
 import type {Activity, RunStatus as RunState} from '@/lib/session-view'
 import type {WaitKind} from '@/providers/sessions-provider'
 import {TONE_TEXT} from './status-meta'
@@ -29,10 +27,6 @@ const TEXT = {
   waitUnknown: '等你',
   replied: '已回复',
   approvalRecord: '审批记录',
-  unavailable: '不可用',
-  needsRepair: '需修复',
-  filesBusy: '文件处理中',
-  archived: '已归档',
 } as const
 
 const SIDEBAR_META = 'flex w-[4.75rem] shrink-0 items-center justify-end gap-1.5 pr-2 text-xs font-normal tabular-nums group-hover/session:invisible group-has-[[data-state=open]]/session:invisible'
@@ -73,17 +67,6 @@ type AskProps = {place: 'ask'; answered: boolean}
 type ApprovalProps = {place: 'approval'; pending: boolean}
 type TerminalProps = {place: 'terminal'; status: Exclude<RunState, 'running' | 'waiting' | 'completed'>}
 
-type ProjectProps = {
-  place: 'project'
-  name: string
-  available: boolean
-  reason?: string | null
-  activeRunStatus?: string | null
-  activeRunReason?: string | null
-  fileOperation?: Pick<ProjectFileOperation, 'state' | 'error'> | null
-  archived?: boolean
-}
-
 type RunStatusProps =
   | TimelineProps
   | SidebarProps
@@ -91,7 +74,6 @@ type RunStatusProps =
   | AskProps
   | ApprovalProps
   | TerminalProps
-  | ProjectProps
 
 function timelineSentence(input: TimelineProps): string | null {
   const activity = input.activity
@@ -142,38 +124,6 @@ export function sidebarTitle(title: string, status: SessionStatus, waitKind: Wai
   return label ? `${title}（${label}）` : title
 }
 
-function projectMark(input: ProjectProps): {tone: 'failed' | 'waiting' | 'running' | null; dotTitle?: string; buttonTitle: string} {
-  const label = !input.available
-    ? TEXT.unavailable
-    : input.fileOperation?.state === 'failed'
-      ? TEXT.needsRepair
-      : input.activeRunStatus === 'waiting'
-        ? input.activeRunReason === 'approval' ? TEXT.waitApproval : TEXT.waitReply
-        : input.activeRunStatus
-          ? TEXT.running
-          : input.fileOperation
-            ? TEXT.filesBusy
-            : null
-  const tone = !input.available || input.fileOperation?.state === 'failed'
-    ? 'failed' as const
-    : input.activeRunStatus === 'waiting'
-      ? 'waiting' as const
-      : input.activeRunStatus || input.fileOperation
-        ? 'running' as const
-        : null
-  const details = [
-    !input.available ? input.reason : null,
-    input.fileOperation?.error,
-    label,
-    input.archived ? TEXT.archived : null,
-  ].filter((item): item is string => !!item).join('；')
-  return {
-    tone,
-    dotTitle: details || label || undefined,
-    buttonTitle: details ? `${input.name}：${details}` : input.name,
-  }
-}
-
 function terminalWord(status: TerminalProps['status']): string {
   if (status === 'failed') return TEXT.failed
   if (status === 'cancelled') return TEXT.cancelled
@@ -189,14 +139,6 @@ export const RUN_INPUT_HINT = {
 } as const
 
 export function RunStatus(props: RunStatusProps): ReactNode {
-  const markRef = useRef<HTMLSpanElement>(null)
-  const buttonTitle = props.place === 'project' ? projectMark(props).buttonTitle : null
-  useLayoutEffect(() => {
-    if (!buttonTitle) return
-    const button = markRef.current?.closest('button')
-    if (button) button.title = buttonTitle
-  }, [buttonTitle])
-
   switch (props.place) {
     case 'timeline': {
       const text = timelineSentence(props)
@@ -244,23 +186,5 @@ export function RunStatus(props: RunStatusProps): ReactNode {
       return props.pending ? TEXT.waitApproval : TEXT.approvalRecord
     case 'terminal':
       return terminalWord(props.status)
-    case 'project': {
-      const mark = projectMark(props)
-      return (
-        <>
-          {mark.tone ? (
-            <span
-              ref={markRef}
-              title={mark.dotTitle}
-              className={cn(
-                'size-1.5 shrink-0 rounded-full',
-                mark.tone === 'failed' ? 'bg-state-failed' : mark.tone === 'waiting' ? 'bg-state-waiting' : 'bg-state-running',
-              )}
-            />
-          ) : <span ref={markRef} className="hidden"/>}
-          <span className="min-w-0 flex-1 truncate text-sm font-semibold" title={mark.buttonTitle}>{props.name}</span>
-        </>
-      )
-    }
   }
 }

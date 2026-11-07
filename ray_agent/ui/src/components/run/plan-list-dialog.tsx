@@ -1,5 +1,3 @@
-'use client'
-
 import {useState} from 'react'
 import {ChevronLeft, ChevronRight, ListTodo, CircleX, CirclePause, X} from 'lucide-react'
 import {Dialog, DialogClose, DialogContent, DialogTitle, DialogTrigger} from '@/components/ui/dialog'

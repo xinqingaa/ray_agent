@@ -11,8 +11,6 @@ use serde_json::{Map, Value};
 pub struct CoreLaunch {
     pub data_dir: PathBuf,
     #[serde(default)]
-    pub env_files: Vec<PathBuf>,
-    #[serde(default)]
     pub env: BTreeMap<String, String>,
 }
 
@@ -33,7 +31,7 @@ pub struct CoreReady {
     pub storage: Option<StorageVersion>,
     pub capabilities: Vec<CapabilityStatus>,
     pub port: u16,
-    pub instance_token: Option<String>,
+    pub instance_token: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -135,6 +133,7 @@ contract_enum!(UnavailableReason {
 contract_enum!(ErrorCode {
     InvalidRequest,
     ValidationFailed,
+    Unauthorized,
     Forbidden,
     NotFound,
     MethodNotAllowed,
@@ -199,7 +198,14 @@ mod tests {
         let (_, value) = round_trip::<CoreLaunch>(LAUNCH);
         assert_fields(&value, &schema, "CoreLaunch");
         let minimal: CoreLaunch = serde_json::from_str(r#"{"data_dir": "/tmp/core"}"#).unwrap();
-        assert!(minimal.env_files.is_empty() && minimal.env.is_empty());
+        assert!(minimal.env.is_empty());
+    }
+
+    #[test]
+    fn host_supports_the_contract_versions() {
+        let ready: Value = serde_json::from_str(READY).unwrap();
+        assert_eq!(ready["protocol_version"], crate::sidecar::PROTOCOL_VERSION, "宿主支持的协议版本与核心契约不一致");
+        assert_eq!(ready["event_version"], crate::sidecar::EVENT_VERSION, "宿主支持的事件版本与核心契约不一致");
     }
 
     #[test]

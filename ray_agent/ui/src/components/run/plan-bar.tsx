@@ -1,5 +1,3 @@
-'use client'
-
 import type {ReactNode} from 'react'
 import {useCallback, useEffect, useId, useRef, useState} from 'react'
 import {ChevronUp, Circle, CircleCheck, CircleDot, Loader2} from 'lucide-react'

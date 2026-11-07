@@ -1,13 +1,14 @@
-'use client'
-
 import {useEffect, useState} from 'react'
-import {Check, CheckCircle2, KeyRound} from 'lucide-react'
+import {Check, FileCog, RefreshCw} from 'lucide-react'
+import {toast} from 'sonner'
+import {Button} from '@/components/ui/button'
+import {IconAction} from '@/components/ui/icon-action'
 import {Input} from '@/components/ui/input'
 import {configApi} from '@/lib/api/config'
-import type {LLMConfig, ModelCatalog, ModelSampling} from '@/lib/api/types'
+import type {ConnectionSource, LLMConfig, ModelCatalog, ModelSampling} from '@/lib/api/types'
+import {isDesktop, openModelConfig} from '@/lib/platform'
 import {cn} from '@/lib/utils'
 import {
-  checkHttpUrl,
   checkInteger,
   collect,
   FormField,
@@ -20,7 +21,7 @@ import {
 } from './form'
 
 type ProfilePart = 'temperature' | 'max_tokens' | 'context_window'
-export type LlmField = 'base_url' | 'model_name' | 'temperature' | 'max_tokens' | 'context_window' | `p:${string}:${ProfilePart}`
+export type LlmField = 'model_name' | 'temperature' | 'max_tokens' | 'context_window' | `p:${string}:${ProfilePart}`
 export type LlmForm = ConfigForm<LLMConfig, LlmField>
 
 function profileField(id: string, part: ProfilePart): LlmField {
@@ -61,7 +62,6 @@ export const llmFormOptions = {
   },
   toValues: (c: LLMConfig): Values<LlmField> => {
     const values: Values<LlmField> = {
-      base_url: c.base_url ?? '',
       model_name: c.model_name ?? '',
       temperature: c.temperature == null ? '' : String(c.temperature),
       max_tokens: c.max_tokens == null ? '' : String(c.max_tokens),
@@ -85,7 +85,6 @@ export const llmFormOptions = {
     }
     return {
       ...base,
-      base_url: v.base_url.trim(),
       model_name: v.model_name.trim(),
       temperature: Number(v.temperature),
       max_tokens: Number(v.max_tokens),
@@ -96,7 +95,6 @@ export const llmFormOptions = {
   validate: (v: Values<LlmField>) => {
     const ids = profileIds(v)
     const errors = collect<LlmField>({
-      base_url: checkHttpUrl(v.base_url),
       model_name: ids.length > 0 || v.model_name.trim() !== '' ? null : '必填',
       temperature: ids.length > 0 ? null : checkTemperature(v.temperature),
       max_tokens: ids.length > 0 ? null : checkInteger(v.max_tokens, 1),
@@ -114,25 +112,58 @@ export const llmFormOptions = {
   },
 }
 
-function ApiKeyStatus({configured}: {configured: boolean}) {
+const PROTOCOL_LABELS: Record<string, string> = {responses: 'Responses', chat_completions: 'Chat Completions'}
+
+/** 模型连接来自用户配置文件，这里只读：显示读取结果与掩码，编辑交给系统文本编辑器。 */
+function ConnectionStatus({initial, onChange}: {initial: ConnectionSource | null; onChange: (source: ConnectionSource | null) => void}) {
+  const [source, setSource] = useState(initial)
+  const [busy, setBusy] = useState<'open' | 'reload' | null>(null)
+  useEffect(() => {onChange(source)}, [source, onChange])
+  const open = async () => {
+    setBusy('open')
+    try {await openModelConfig()}
+    catch (error) {toast.error(typeof error === 'string' ? error : error instanceof Error ? error.message : '无法打开配置文件')}
+    finally {setBusy(null)}
+  }
+  const reload = async () => {
+    setBusy('reload')
+    try {setSource((await configApi.getLLMConfig()).connections ?? null)}
+    catch (error) {toast.error(error instanceof Error ? error.message : '读取失败')}
+    finally {setBusy(null)}
+  }
+  const providers = source?.providers ?? []
   return (
-    <div className="grid gap-x-8 gap-y-1.5 py-4 @xl/form:grid-cols-[minmax(0,15rem)_minmax(0,28rem)]">
-      <div>
-        <p className="text-sm font-medium">API Key</p>
-        <p className="mt-0.5 text-xs leading-5 text-muted-foreground">
-          DeepSeek 使用 <code className="font-mono">DEEPSEEK_URL</code> 与 <code className="font-mono">DEEPSEEK_API_KEY</code>。小易使用 <code className="font-mono">XIAOYI_URL</code> 与 <code className="font-mono">XIAOYI_API_KEY</code>。页面不显示、不保存密钥。
-        </p>
+    <section aria-labelledby="settings-connections-title" className="border-b py-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <h3 id="settings-connections-title" className="mr-auto text-sm font-medium">模型连接</h3>
+        <Button type="button" variant="outline" size="sm" disabled={!isDesktop() || busy !== null} onClick={() => void open()}>
+          <FileCog aria-hidden/>打开配置文件
+        </Button>
+        <IconAction label="重新读取配置文件" className="text-muted-foreground" disabled={busy !== null} onClick={() => void reload()}>
+          <RefreshCw className={cn('size-4', busy === 'reload' && 'animate-spin motion-reduce:animate-none')} aria-hidden/>
+        </IconAction>
       </div>
-      <p
-        className={cn(
-          'flex h-9 items-center gap-2 text-sm',
-          configured ? 'text-state-success' : 'text-state-waiting',
-        )}
-      >
-        {configured ? <CheckCircle2 className="size-4" aria-hidden/> : <KeyRound className="size-4" aria-hidden/>}
-        {configured ? '已从环境变量读取' : '未配置：在 API 服务的环境中设置 DEEPSEEK_API_KEY 后重启'}
-      </p>
-    </div>
+      {source && <p className="mt-1 break-all font-mono text-xs text-muted-foreground">{source.path}</p>}
+      {!source ? <p className="mt-2 text-meta text-state-waiting">核心没有返回连接状态</p>
+        : !source.exists ? <p className="mt-2 text-meta text-state-waiting">配置文件不存在。打开后按示例填写接口地址与密钥，保存后重新读取。</p>
+          : source.issue ? <p role="alert" className="mt-2 text-meta text-state-failed">{source.issue}</p>
+            : !providers.length ? <p className="mt-2 text-meta text-state-waiting">配置文件中没有可用的提供商</p> : null}
+      {(source?.notices ?? []).map(notice => <p key={notice} className="mt-2 text-meta text-state-waiting">{notice}</p>)}
+      {providers.length > 0 && <ul aria-label="提供商" className="mt-3 divide-y rounded-md border">
+        {providers.map(provider => <li key={provider.name} className="space-y-1 px-3 py-2.5">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <span className="font-mono text-xs font-medium">{provider.name}</span>
+            <span className={cn('text-xs', provider.has_key ? 'text-muted-foreground' : 'text-state-waiting')}>
+              {provider.has_key ? <>密钥 <span className="font-mono">{provider.key_hint}</span></> : '未填写密钥'}
+            </span>
+            <span className="text-xs text-muted-foreground">{PROTOCOL_LABELS[provider.api_protocol] ?? provider.api_protocol}</span>
+          </div>
+          <p className="break-all font-mono text-xs text-muted-foreground">{provider.base_url ?? '未填写接口地址'}</p>
+          {!!provider.models?.length && <p className="break-all font-mono text-xs text-muted-foreground">{provider.models.join(' · ')}</p>}
+          {provider.issue && <p className="text-xs text-state-failed">{provider.issue}</p>}
+        </li>)}
+      </ul>}
+    </section>
   )
 }
 
@@ -143,14 +174,6 @@ const PROFILE_FIELDS: {part: ProfilePart; label: string; numeric: true; width: s
 ]
 
 const FIELDS: {field: LlmField; label: string; hint?: string; placeholder?: string; mono?: boolean; numeric?: boolean; width: string}[] = [
-  {
-    field: 'base_url',
-    label: '接口地址',
-    hint: 'OpenAI 兼容接口的基础地址。',
-    placeholder: 'https://api.deepseek.com',
-    mono: true,
-    width: 'w-full',
-  },
   {
     field: 'model_name',
     label: '模型名称',
@@ -234,17 +257,19 @@ export function LlmSection({form}: {form: LlmForm}) {
   const [catalog, setCatalog] = useState<ModelCatalog | null>(null)
   const [catalogError, setCatalogError] = useState<string | null>(null)
   const [retry, setRetry] = useState(0)
+  const [connections, setConnections] = useState<ConnectionSource | null>(null)
+  const connectionKey = JSON.stringify(connections?.providers?.map(item => [item.name, item.models, item.issue, item.has_key]) ?? null)
   useEffect(() => {
     let cancelled = false
     configApi.getModels().then(value => {if (!cancelled) {setCatalog(value); setCatalogError(null)}})
       .catch(error => {if (!cancelled) setCatalogError(error instanceof Error ? error.message : '模型能力读取失败')})
     return () => {cancelled = true}
-  }, [form.config?.base_url, retry])
+  }, [connectionKey, retry])
   const values = form.values
   const ids = profileIds(values)
   const current = ids.includes(selected ?? '') ? selected! : ids[0]
   const spec = catalog?.models.find(model => model.id === (current || values?.model_name.trim() || catalog.default_model || ''))
-  const fields = current ? PROFILE_FIELDS.map(item => profileField(current, item.part)) : FIELDS.slice(1).map(item => item.field)
+  const fields = current ? PROFILE_FIELDS.map(item => profileField(current, item.part)) : FIELDS.map(item => item.field)
   function dirtyFor(scope: LlmField[]) {
     if (!form.config || !values) return false
     const base = llmFormOptions.toValues(form.config)
@@ -266,15 +291,7 @@ export function LlmSection({form}: {form: LlmForm}) {
     {form.load.phase === 'loading' && <FormSkeleton rows={5}/>}
     {form.load.phase === 'error' && <LoadError message={form.load.message} onRetry={form.reload}/>}
     {form.load.phase === 'ready' && values && <>
-      {/* 连接设置暂时不展示，保存逻辑保留。 */}
-      <form hidden noValidate onSubmit={e => {e.preventDefault(); void form.save(['base_url'])}} className="py-4">
-        <details className="rounded-md border px-4">
-        <summary className="cursor-pointer py-3 text-sm font-medium outline-none focus-visible:ring-2 focus-visible:ring-ring">连接设置 <span className="ml-2 text-xs font-normal text-muted-foreground">{form.config?.base_url} · {form.config?.has_api_key ? '密钥已配置' : '未配置密钥'}</span></summary>
-        {renderField(FIELDS[0])}
-        <ApiKeyStatus configured={form.config?.has_api_key === true}/>
-        {saveBar(['base_url'], '保存连接设置')}
-        </details>
-      </form>
+      <ConnectionStatus initial={form.config?.connections ?? null} onChange={setConnections}/>
       <div className="pt-2">
         {catalogError && <LoadError message={catalogError} onRetry={() => setRetry(n => n + 1)}/>}
         <div className="grid gap-6 @xl/form:grid-cols-[minmax(0,10rem)_minmax(0,1fr)]">
@@ -293,7 +310,7 @@ export function LlmSection({form}: {form: LlmForm}) {
             {ids.length > 0 ? [...PROFILE_FIELDS].sort((a, b) => ['context_window', 'max_tokens', 'temperature'].indexOf(a.part) - ['context_window', 'max_tokens', 'temperature'].indexOf(b.part)).map(item => {
               const copy = profileCopy(item.part, spec, reserve)
               return renderField({...item, field: profileField(current, item.part), label: copy.label, hint: copy.hint})
-            }) : FIELDS.slice(1).map(item => {
+            }) : FIELDS.map(item => {
               if (item.field === 'temperature' || item.field === 'max_tokens' || item.field === 'context_window') {
                 const copy = profileCopy(item.field, spec, reserve)
                 return renderField({...item, label: copy.label, hint: copy.hint ?? item.hint})
@@ -311,8 +328,8 @@ export function LlmSection({form}: {form: LlmForm}) {
     field: LlmField; label: string; hint?: string; placeholder?: string; mono?: boolean; numeric?: boolean; width: string;
   }) {
     return <FormField key={field} id={form.fieldId(field)} label={label} hint={hint} error={form.visibleErrors[field]}>
-      {aria => <Input {...aria} name={field} inputMode={numeric ? 'decimal' : field === 'base_url' ? 'url' : undefined}
-        type={field === 'base_url' ? 'url' : 'text'} autoComplete="off" spellCheck={false} placeholder={placeholder}
+      {aria => <Input {...aria} name={field} inputMode={numeric ? 'decimal' : undefined}
+        type="text" autoComplete="off" spellCheck={false} placeholder={placeholder}
         className={cn(width, mono && 'font-mono text-xs', numeric && 'tabular-nums')}
         value={values?.[field] ?? ''} onChange={e => form.setValue(field, e.target.value)} disabled={form.saving}/>}
     </FormField>

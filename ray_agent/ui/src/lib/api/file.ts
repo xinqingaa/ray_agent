@@ -2,7 +2,7 @@ import { get, post } from "./fetch";
 import type { FileInfo, FileUploadParams } from "./types";
 
 /**
- * 文件模块 API
+ * 文件模块 API；下载与预览内容见 preview.ts
  */
 export const fileApi = {
   /**
@@ -13,14 +13,12 @@ export const fileApi = {
   uploadFile: async (params: FileUploadParams): Promise<FileInfo> => {
     const formData = new FormData();
     formData.append("file", params.file);
-    
+
     if (params.session_id) {
       formData.append("session_id", params.session_id);
     }
 
-    const query = params.project_id ? new URLSearchParams({project_id: params.project_id,
-      rule_version: params.rule_version || '', include_optional: String(params.include_optional || false)}) : null;
-    return post<FileInfo>(query ? `/files?${query}` : '/files', formData);
+    return post<FileInfo>('/files', formData);
   },
 
   /**
@@ -31,33 +29,4 @@ export const fileApi = {
   getFileInfo: (fileId: string): Promise<FileInfo> => {
     return get<FileInfo>(`/files/${fileId}`);
   },
-
-  /**
-   * 下载文件
-   * @param fileId 文件 ID
-   * @returns Blob 对象
-   */
-  downloadFile: async (fileId: string): Promise<Blob> => {
-    const response = await fetch(
-      `${process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8088/api"}/files/${fileId}/download`
-    );
-
-    if (!response.ok) {
-      throw new Error(`下载失败: ${response.statusText}`);
-    }
-
-    return response.blob();
-  },
-
-  /**
-   * 下载文件并获取 URL（用于直接下载或预览）
-   * @param fileId 文件 ID
-   * @returns 文件下载 URL
-   */
-  getFileDownloadUrl: (fileId: string): string => {
-    const baseURL =
-      process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8088/api";
-    return `${baseURL}/files/${fileId}/download`;
-  },
 };
-

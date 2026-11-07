@@ -23,6 +23,10 @@ class Settings(BaseSettings):
     sqlite_begin_attempts: int = Field(default=3, ge=1)
     sqlite_read_pool_size: int = Field(default=4, ge=1)
 
+    # 图片、PDF 与网页预览按 URL 加载，用短期票据代替实例令牌
+    resource_ticket_seconds: int = Field(default=600, gt=0)
+    resource_ticket_capacity: int = Field(default=1024, gt=0)
+
     # 后台任务
     background_job_concurrency: int = Field(default=2, ge=1)
     background_job_poll_seconds: float = Field(default=30, gt=0)

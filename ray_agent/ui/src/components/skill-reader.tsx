@@ -1,4 +1,3 @@
-'use client'
 import {useCallback, useEffect, useRef, useState, type ReactNode} from 'react'
 import {Code2, Copy, Download, FileCode2, FileText, Files, Loader2, RefreshCw} from 'lucide-react'
 import {MarkdownContent} from '@/components/markdown-content'
@@ -43,7 +42,6 @@ function PackageImage({path, read}: {path: string; read: (path: string) => Promi
     }).catch(e => {if (active) setError(e.message)})
     return () => {active = false; if (objectUrl) URL.revokeObjectURL(objectUrl)}
   }, [path, read])
-  // eslint-disable-next-line @next/next/no-img-element
   return error ? <span className="text-xs text-muted-foreground">{path}：{error}</span> : url ? <img src={url} alt={path} className="max-h-full max-w-full object-contain"/> : <span role="status">正在读取图片</span>
 }
 

@@ -1,5 +1,3 @@
-'use client'
-
 import type {PlanAcceptance} from '@/lib/api/types'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -371,7 +369,6 @@ export function useSessionDetail(
     return projectSession({
       id: sessionId,
       title: session.title,
-      project: session.project ?? null,
       runs: session.runs,
       contextConfig: session.context_config,
       events,

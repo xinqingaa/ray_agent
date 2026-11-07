@@ -42,6 +42,3 @@ export function fontSizeOptions(size: number): {id: string; label: string}[] {
   if (presets.some(item => item.id === id)) return presets
   return [...presets, {id, label: id}].sort((a, b) => Number(a.id) - Number(b.id))
 }
-
-/** 首屏绘制前写上比例，避免先按默认字号画一帧再跳大 */
-export const FONT_SIZE_BOOT_SCRIPT = `(function(){try{var n=Number(localStorage.getItem(${JSON.stringify(FONT_SIZE_KEY)}));if(Number.isInteger(n)&&n>=${FONT_SIZE_MIN}&&n<=${FONT_SIZE_MAX})document.documentElement.style.setProperty("--font-scale",String(n/${FONT_SIZE_BASE}))}catch(e){}})();`

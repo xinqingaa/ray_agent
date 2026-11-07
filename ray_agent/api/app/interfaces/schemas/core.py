@@ -14,7 +14,7 @@ from app.domain.models.identity import InstanceId
 from app.interfaces.schemas.event import EVENT_VERSION, EventVersion
 
 # HTTP、SSE 与启动协议整体不兼容地变化时递增；宿主与客户端按它判断能否继续连接。
-PROTOCOL_VERSION = 1
+PROTOCOL_VERSION = 2
 
 type ProtocolVersion = Annotated[int, Field(ge=1, description="核心协议版本")]
 
@@ -22,10 +22,9 @@ _RESPONSE_SCHEMA = ConfigDict(json_schema_serialization_defaults_required=True)
 
 
 class CoreLaunch(BaseModel):
-    """宿主写入核心 stdin 的启动参数；凭据只经这条私有管道或环境文件传递，不进命令行。"""
+    """宿主写入核心 stdin 的启动参数，不进命令行；模型连接由核心从用户配置文件读取，不经启动参数传递。"""
     data_dir: str = Field(description="数据根：业务库、内容对象、会话工作目录与 skill 存储都在其中")
-    env_files: list[str] = Field(default_factory=list, description="依次叠加的环境文件，后者覆盖前者")
-    env: dict[str, str] = Field(default_factory=dict, description="最后叠加的显式环境")
+    env: dict[str, str] = Field(default_factory=dict, description="叠加到核心进程的显式环境")
 
 
 class BuildIdentity(BaseModel):
@@ -69,7 +68,7 @@ class CoreDescriptor(BaseModel):
 class CoreReady(CoreDescriptor):
     event: Literal["ready"] = "ready"
     port: int = Field(ge=1, le=65535)
-    instance_token: str | None = Field(default=None, description="实例令牌；尚未启用实例认证，目前为空")
+    instance_token: str = Field(description="实例令牌：/api 请求带 Authorization: Bearer <令牌>；只经这条握手传出")
 
 
 class CoreFailed(BaseModel):
@@ -86,3 +85,11 @@ type CoreHandshake = Annotated[CoreReady | CoreFailed, Field(discriminator="even
 class CoreStatus(CoreDescriptor):
     healthy: bool = Field(description="全部依赖服务检查通过")
     services: list[HealthStatus]
+
+
+class ResourceTicket(BaseModel):
+    """按 URL 加载资源时代替实例令牌；只对签发路径的 GET 与 HEAD 有效，到期前可重复使用。"""
+    model_config = _RESPONSE_SCHEMA
+
+    ticket: str
+    expires_at: int = Field(description="到期时间，毫秒时间戳")

@@ -1,11 +1,8 @@
-'use client'
-
 import {useEffect, useState} from 'react'
 import {useDeveloperMode} from '@/hooks/use-developer-mode'
 import {Download, ExternalLink, Eye, Globe, PackageOpen, PanelRight, Play, Terminal} from 'lucide-react'
 import {Button} from '@/components/ui/button'
 import {ScrollArea} from '@/components/ui/scroll-area'
-import {fileApi} from '@/lib/api/file'
 import {sessionApi} from '@/lib/api/session'
 import type {FileView, ToolCallView, ToolFamily} from '@/lib/session-view'
 import {cn} from '@/lib/utils'
@@ -13,15 +10,12 @@ import {toast} from 'sonner'
 import {previewUnavailableReason} from '@/components/run/file-icon'
 import {FileRow} from '@/components/preview/file-row'
 import {TOOL_STATUS} from '@/components/run/status-meta'
-import type {ProjectView} from '@/lib/session-view'
-import Link from 'next/link'
-import {ProjectPane} from '@/components/workbench/project-pane'
 import {FilePreview} from '@/components/preview/file-preview'
 import {ImagePreview} from '@/components/preview/image-preview'
 import {PreviewAction} from '@/components/preview/action'
-import {downloadFileBatch, downloadPreviewSource, isWebPage, openPreviewTab, startDownload} from '@/lib/api/preview'
+import {downloadFileBatch, downloadPreviewSource, isWebPage, openPreviewTab, saveImage} from '@/lib/api/preview'
 
-export type WorkbenchTab = 'result' | 'terminal' | 'browser' | 'files' | 'project'
+export type WorkbenchTab = 'result' | 'terminal' | 'browser' | 'files'
 
 type WorkbenchProps = {
   sessionId: string
@@ -39,8 +33,6 @@ type WorkbenchProps = {
   canFollowLatest?: boolean
   active?: boolean
   onClose: () => void
-  project?: ProjectView | null
-  projectRefreshSignal?: number
   className?: string
 }
 
@@ -92,7 +84,6 @@ function screenshotSrc(call: ToolCallView | null): string | null {
   const raw = content?.screenshot ?? content?.image
   if (typeof raw !== 'string' || !raw) return null
   if (raw.startsWith('data:') || raw.startsWith('http')) return raw
-  if (raw.startsWith('/api/files/')) return fileApi.getFileDownloadUrl(raw.split('/')[3])
   if (raw.startsWith('/')) return raw
   return `data:image/png;base64,${raw}`
 }
@@ -258,7 +249,7 @@ function BrowserPane({call}: {call: ToolCallView | null}) {
   const content = asRecord(call.raw.content)
   const data = asRecord(asRecord(content?.outcome)?.data)
   const src = screenshotSrc(call)
-  const fileId = typeof data?.file_id === 'string' ? data.file_id : src?.match(/\/files\/([^/]+)\/download/)?.[1]
+  const fileId = typeof data?.file_id === 'string' ? data.file_id : src?.match(/^\/api\/files\/([^/?#]+)/)?.[1]
   const url = typeof content?.url === 'string' ? content.url : typeof call.raw.args.url === 'string' ? call.raw.args.url : null
   const fallback = !src ? visibility.rawResults ? resultExcerpt(call) : typeof content?.content === 'string' ? content.content : typeof data?.content === 'string' ? data.content : null : null
   const observationError = typeof data?.observation_error === 'string' ? data.observation_error : null
@@ -267,7 +258,7 @@ function BrowserPane({call}: {call: ToolCallView | null}) {
     {url && <div className="flex shrink-0 items-center gap-2 border-b px-3 py-2 text-xs text-muted-foreground"><Globe className="size-3.5 shrink-0" aria-hidden/>
       {/^https?:\/\//.test(url) ? <a href={url} target="_blank" rel="noopener noreferrer" className="truncate hover:text-signal" title={url}>{url}</a> : <span className="truncate">{url}</span>}</div>}
     {fileId ? <FilePreview key={fileId} source={{kind:'attachment',id:fileId,filename:'浏览器截图.png'}}/>
-      : src ? <ImagePreview key={call.callId} src={src} title="浏览器截图" onDownload={()=>startDownload(src,src.startsWith('data:image/jpeg') ? '浏览器截图.jpg' : '浏览器截图.png')}/>
+      : src ? <ImagePreview key={call.callId} src={src} title="浏览器截图" onDownload={()=>void saveImage(src,src.startsWith('data:image/jpeg') ? '浏览器截图.jpg' : '浏览器截图.png').catch(error=>toast.error(error instanceof Error ? error.message : '保存失败'))}/>
       : fallback ? <ScrollArea className="min-h-0 flex-1"><pre className="p-3 font-mono text-xs leading-5 whitespace-pre-wrap break-all">{fallback.length>20000 ? `${fallback.slice(0,20000)}…` : fallback}</pre></ScrollArea>
       : <EmptyNote>{call.result?.error ?? (call.status==='running' ? '正在读取页面' : '没有截图')}</EmptyNote>}
   </div>
@@ -301,11 +292,11 @@ function FilesPane({focus, files, onInspectFile}: {focus: ToolCallView | null; f
           const reason=previewUnavailableReason(file.extension)
           const page=isWebPage(file.filename)
           const inspect=() => {
-            if(page)return openPreviewTab({kind:'attachment',id:file.id,filename:file.filename,size:file.size})
+            if(page)return void openPreviewTab({kind:'attachment',id:file.id,filename:file.filename,size:file.size}).catch(error=>toast.error(error instanceof Error ? error.message : '打开失败'))
             onInspectFile?.();setOpenId(file.id)
           }
           return <li className="min-w-0 w-full" key={file.id}><FileRow file={file} showThumbnail onOpen={inspect} actions={<>
-            {!reason && <PreviewAction label={page ? `在新标签页打开 ${file.filename}` : `预览 ${file.filename}`} icon={page ? ExternalLink : Eye} onClick={inspect}/>}<PreviewAction label={`下载 ${file.filename}`} icon={Download} onClick={() => void download(file)}/>
+            {!reason && <PreviewAction label={page ? `在浏览器中打开 ${file.filename}` : `预览 ${file.filename}`} icon={page ? ExternalLink : Eye} onClick={inspect}/>}<PreviewAction label={`下载 ${file.filename}`} icon={Download} onClick={() => void download(file)}/>
           </>}/></li>
         })}</ul>}
       </section>
@@ -328,8 +319,6 @@ export function Workbench({
   canFollowLatest = true,
   active = true,
   onClose,
-  project,
-  projectRefreshSignal,
   className,
 }: WorkbenchProps) {
   const {visibility} = useDeveloperMode()
@@ -340,16 +329,12 @@ export function Workbench({
     (tab === 'browser' && focus.family !== 'browser' && browserCall && browserCall.callId !== focus.callId)
   )
   const hasResultTab = focus && !['shell', 'browser', 'file', 'deliver'].includes(focus.family)
-  const hasProject = project != null
-  const availableTabs = [
-    ...TABS.filter((item) =>
-      item.id === 'files' ||
-      (item.id === 'result' && visibility.rawResults && hasResultTab) ||
-      (item.id === 'terminal' && visibility.terminal && shellCall) ||
-      (item.id === 'browser' && browserCall),
-    ),
-    ...(hasProject ? [{id: 'project' as const, label: '项目文件'}] : []),
-  ]
+  const availableTabs = TABS.filter((item) =>
+    item.id === 'files' ||
+    (item.id === 'result' && visibility.rawResults && hasResultTab) ||
+    (item.id === 'terminal' && visibility.terminal && shellCall) ||
+    (item.id === 'browser' && browserCall),
+  )
 
   return (
     <section aria-label={visibility.developerView ? '工作台' : '查看'} className={cn('flex h-full min-h-0 flex-col bg-card', className)}>
@@ -410,12 +395,6 @@ export function Workbench({
       {tab === 'terminal' && active && <ShellPane sessionId={sessionId} call={shellCall}/>}
       {tab === 'browser' && <BrowserPane call={browserCall}/>}
       {tab === 'files' && <FilesPane focus={focus} files={files} onInspectFile={onInspectFile}/>}
-      {tab === 'project' && hasProject && project?.available && (
-        <><div className="border-b px-3 py-3"><p className="mb-2 text-xs text-muted-foreground">这些文件供本项目的各次对话继续使用。</p><Link className="text-xs text-signal underline" href={`/projects/${project.id}#files`}>管理项目文件</Link></div><ProjectPane key={project.id} sessionId={project.id} projectLevel downloadProjectId={project.id} refreshSignal={projectRefreshSignal}/></>
-      )}
-      {tab === 'project' && hasProject && !project?.available && (
-        <EmptyNote>{project.reason ?? '项目目录不可用'}</EmptyNote>
-      )}
       </div>
     </section>
   )

@@ -1,4 +1,3 @@
-import {projectApi} from '@/lib/api/project'
 import {ApiError} from '@/lib/api/fetch'
 import {sessionApi} from '@/lib/api/session'
 import {checkAcceptance, readDraft, writeDraft, type Submission} from '@/lib/drafts'
@@ -50,19 +49,3 @@ export async function sendRecoverably(scope: string, sessionId: string, payload:
   }
 }
 
-
-/** 项目首发原子受理；同创建标识可重放受理结果，不能产生第二个运行。 */
-export async function startProjectRecoverably(scope:string, projectId:string, payload:Omit<Submission,'afterSeq'|'state'>):Promise<string> {
-  const prior=readDraft(scope)
-  const id=prior.sessionId || prior.creationId || crypto.randomUUID()
-  if(prior.submission){if(await recoverSubmission(scope,id))return id}
-  const pending:Submission={...payload,afterSeq:0,state:'sending'}
-  writeDraft(scope,{creationId:id,sessionId:id,submission:pending})
-  try {await projectApi.startChat(projectId,id,payload);writeDraft(scope,{submission:undefined});return id}
-  catch(error){
-    if(error instanceof ApiError && error.rejected){writeDraft(scope,{submission:undefined});throw error}
-    writeDraft(scope,{submission:{...pending,state:'unknown'}})
-    if(await recoverSubmission(scope,id))return id
-    throw new UncertainSubmissionError()
-  }
-}

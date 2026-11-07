@@ -1,4 +1,4 @@
-"""应用配置的业务库实现：按分区一行保存，每次保存递增版本；模型密钥只从环境读取，不写入业务库。"""
+"""应用配置的业务库实现：按分区一行保存，每次保存递增版本；模型连接来自用户配置文件，不写入业务库。"""
 from typing import Callable, Optional
 
 from sqlalchemy import select
@@ -7,7 +7,7 @@ from app.domain.models.app_config import AppConfig, LLMConfig, AgentConfig, MCPC
 from app.domain.models.clock import utc_now
 from app.domain.repositories.app_config_repository import AppConfigRepository
 from app.domain.repositories.uow import IUnitOfWork
-from app.infrastructure.external.llm.endpoint_settings import load_llm_endpoints
+from app.infrastructure.external.llm.model_connections import load_model_connections
 from app.infrastructure.models import AppConfigModel
 
 SECTIONS = {
@@ -24,23 +24,26 @@ def default_app_config() -> AppConfig:
                      a2a_config=A2AConfig())
 
 
-def apply_llm_env(app_config: AppConfig) -> AppConfig:
-    """统一解析端点密钥，并保留旧全局兼容客户端需要的默认连接字段。"""
+def apply_model_connections(app_config: AppConfig) -> AppConfig:
+    """接上配置文件中的模型连接；全局兼容客户端用默认模型所在的提供商，没有时用第一个可用提供商。"""
+    from app.domain.models.model_catalog import default_model
     llm = app_config.llm_config
-    endpoints = load_llm_endpoints(llm)
-    legacy = endpoints.get("deepseek")
-    updates = {"resolved_endpoints": endpoints, "api_key": legacy.api_key if legacy else ""}
+    connections = load_model_connections()
+    llm = llm.model_copy(update={"resolved_endpoints": connections.endpoints,
+                                 "model_endpoints": connections.model_endpoints,
+                                 "connections": connections.source})
+    spec = default_model(llm)
+    legacy = connections.endpoints.get(connections.model_endpoints.get(spec.id, "")) if spec else None
+    legacy = legacy or next((endpoint for endpoint in connections.endpoints.values() if endpoint), None)
+    updates = {"api_key": legacy.api_key if legacy else ""}
     if legacy is not None:
-        updates["base_url"] = legacy.base_url
+        updates.update(base_url=legacy.base_url, api_protocol=legacy.api_protocol)
     app_config.llm_config = llm.model_copy(update=updates)
     return app_config
 
 
 def section_data(app_config: AppConfig, key: str) -> dict:
-    data = getattr(app_config, key).model_dump(mode="json")
-    if key == "llm_config":
-        data.pop("api_key", None)
-    return data
+    return getattr(app_config, key).model_dump(mode="json")
 
 
 class DBAppConfigRepository(AppConfigRepository):
@@ -56,7 +59,7 @@ class DBAppConfigRepository(AppConfigRepository):
         defaults = default_app_config()
         values = {key: model.model_validate(rows[key]) if key in rows else getattr(defaults, key)
                   for key, model in SECTIONS.items()}
-        return apply_llm_env(AppConfig(**values))
+        return apply_model_connections(AppConfig(**values))
 
     async def save(self, app_config: AppConfig) -> None:
         async with self._uow_factory() as uow:

@@ -1,10 +1,11 @@
-import {clientError, errorFromBody} from './fetch'
+import {coreHeaders, coreUrl} from '@/lib/core-client'
+import {openExternal, saveBytes, saveResource} from '@/lib/platform'
+import {clientError, errorFromBody, post} from './fetch'
+import type {components} from '@contracts/openapi'
 
-const base = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:8088/api'
+type ResourceTicket = components['schemas']['ResourceTicket']
 
-export type PreviewSource =
-  | {kind: 'attachment'; id: string; filename: string; size?: number | null}
-  | {kind: 'project'; id: string; path: string; filename: string; projectLevel: boolean; version?: string}
+export type PreviewSource = {kind: 'attachment'; id: string; filename: string; size?: number | null}
 
 export type PreviewCell = {
   text: string; formula?: string | null; uncached?: boolean
@@ -22,65 +23,70 @@ export type FilePreview = {
 }
 
 export function previewEndpoint(source: PreviewSource) {
-  return source.kind === 'attachment' ? `/files/${encodeURIComponent(source.id)}/preview`
-    : `${source.projectLevel ? '/projects' : '/sessions'}/${encodeURIComponent(source.id)}${source.projectLevel ? '' : '/project'}/preview`
+  return `/files/${encodeURIComponent(source.id)}/preview`
 }
 
-export function previewParams(source: PreviewSource) {
-  return source.kind === 'project' ? new URLSearchParams({path: source.path}) : new URLSearchParams()
+/** 剩余有效期不足时换新票据，避免页面加载途中失效 */
+const TICKET_REFRESH_MS = 60_000
+const tickets = new Map<string, Promise<ResourceTicket>>()
+
+async function ticketFor(fileId: string): Promise<string> {
+  const cached = await tickets.get(fileId)?.catch(() => null)
+  if (cached && cached.expires_at - Date.now() > TICKET_REFRESH_MS) return cached.ticket
+  const pending = post<ResourceTicket>(`/files/${encodeURIComponent(fileId)}/preview/ticket`)
+  tickets.set(fileId, pending)
+  try {return (await pending).ticket}
+  catch (error) {tickets.delete(fileId); throw error}
 }
 
-export function previewContentUrl(source: PreviewSource, revision?: string) {
-  const params = previewParams(source)
+/** 图片、PDF 与网页按 URL 加载，带只读本文件内容的短期票据 */
+export async function previewContentUrl(fileId: string, revision?: string) {
+  const params = new URLSearchParams({ticket: await ticketFor(fileId)})
   if (revision) params.set('revision', revision)
-  return base + previewEndpoint(source) + '/content?' + params
+  return coreUrl(`/files/${encodeURIComponent(fileId)}/preview/content?${params}`)
 }
 
-/** 网页文件单击即在新标签页渲染；服务端用 CSP sandbox 隔离，页面读不到本站接口与存储 */
+/** 网页文件在系统浏览器中渲染；服务端用 CSP sandbox 隔离，页面读不到核心接口与原生能力 */
 export function isWebPage(filename: string) {
   return /\.html?$/i.test(filename)
 }
 
-export function openPreviewTab(source: PreviewSource) {
-  const link = document.createElement('a')
-  link.href = previewContentUrl(source); link.target = '_blank'; link.rel = 'noopener noreferrer'
-  document.body.appendChild(link); link.click(); link.remove()
+export async function openPreviewTab(source: PreviewSource) {
+  await openExternal(await previewContentUrl(source.id))
 }
 
 export async function readPreview(endpoint: string, params: URLSearchParams, signal: AbortSignal): Promise<FilePreview> {
-  const response = await fetch(`${base}${endpoint}?${params}`, {signal, cache: 'no-store'})
+  const query = params.toString()
+  const response = await fetch(coreUrl(query ? `${endpoint}?${query}` : endpoint), {signal, cache: 'no-store', headers: coreHeaders()})
   const body = await response.json().catch(() => null)
   if (!response.ok) throw errorFromBody(response.status, body, '读取失败')
   if (!body?.data) throw clientError('unavailable', '读取失败')
   return body.data
 }
 
-export async function downloadPreviewSource(source: PreviewSource) {
-  const url = source.kind === 'attachment' ? `${base}/files/${encodeURIComponent(source.id)}/download`
-    : `${base}/projects/${encodeURIComponent(source.id)}/download?path=${encodeURIComponent(source.path)}`
-  if (source.kind === 'project' && !source.projectLevel) throw new Error('无法确定项目下载入口')
-  const response = await fetch(url, {method:'HEAD'})
-  if (!response.ok) throw errorFromBody(response.status, null, '下载失败')
-  startDownload(url, source.filename)
+export function downloadFile(fileId: string, filename: string) {
+  return saveResource(`/files/${encodeURIComponent(fileId)}/download`, filename)
 }
 
-export function startDownload(url: string, filename: string) {
-  const link = document.createElement('a')
-  link.href=url;link.download=filename;document.body.appendChild(link);link.click();link.remove()
+export function downloadPreviewSource(source: PreviewSource) {
+  return downloadFile(source.id, source.filename)
 }
 
 export function saveDownload(blob: Blob, filename: string) {
-  const url = URL.createObjectURL(blob)
-  const link = document.createElement('a')
-  link.href = url; link.download = filename; document.body.appendChild(link); link.click(); link.remove()
-  window.setTimeout(() => URL.revokeObjectURL(url), 1000)
+  return saveBytes(blob, filename)
+}
+
+/** 内联图片直接保存字节；远程图片交给系统浏览器 */
+export async function saveImage(src: string, filename: string) {
+  const inline = /^data:([^;,]+)?(;base64)?,(.*)$/s.exec(src)
+  if (!inline) return openExternal(src)
+  const text = inline[2] ? atob(inline[3]) : decodeURIComponent(inline[3])
+  const bytes = Uint8Array.from(text, char => char.charCodeAt(0))
+  await saveBytes(new Blob([bytes], {type: inline[1] || 'application/octet-stream'}), filename)
 }
 
 export async function downloadFileBatch(files: {id: string}[]) {
-  const params=new URLSearchParams()
-  files.forEach(file=>params.append('file_id',file.id))
-  const url=`${base}/files/download-batch?${params}`
-  const response = await fetch(url, {method:'HEAD'})
-  if (!response.ok) throw errorFromBody(response.status, null, '打包失败')
-  startDownload(url, '会话文件.zip')
+  const params = new URLSearchParams()
+  files.forEach(file => params.append('file_id', file.id))
+  await saveResource(`/files/download-batch?${params}`, '会话文件.zip')
 }

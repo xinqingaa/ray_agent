@@ -127,7 +127,7 @@ async function main(){
   const previousFetch=global.fetch;let sent;
   global.fetch=async(_url,options)=>{sent=options;return new Response(JSON.stringify({data:{}}),{headers:{'content-type':'application/json'}})};
   await load(path.join(root,'src/lib/api/fetch.ts')).request('/skills/example',{method:'DELETE'});
-  assert.equal(sent.headers['Content-Type'],undefined,'无正文删除不标为 JSON');
+  assert.equal(new Headers(sent.headers).get('Content-Type'),null,'无正文删除不标为 JSON');
   global.fetch=previousFetch;
 
   console.log('PASS: 内置只读、包文件读取、草稿排版、关闭保护、失败重试、安装留在详情、删除、选择文件后自动打开');

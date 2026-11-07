@@ -1,5 +1,3 @@
-'use client'
-
 import {useEffect, useState} from 'react'
 import {BookOpen, Bot, Cable, Globe, Palette, ShieldCheck, SlidersHorizontal, X, type LucideIcon} from 'lucide-react'
 import {Button} from '@/components/ui/button'

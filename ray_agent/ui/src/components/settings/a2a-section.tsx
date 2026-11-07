@@ -1,5 +1,3 @@
-'use client'
-
 import {useState} from 'react'
 import {useDeveloperMode} from '@/hooks/use-developer-mode'
 import {Loader2, Plus} from 'lucide-react'

@@ -162,7 +162,7 @@
         },
         "protocol_version": {
           "$ref": "#/$defs/ProtocolVersion",
-          "default": 1
+          "default": 2
         },
         "error": {
           "$ref": "#/$defs/ErrorInfo"
@@ -215,24 +215,17 @@
       "type": "object"
     },
     "CoreLaunch": {
-      "description": "宿主写入核心 stdin 的启动参数；凭据只经这条私有管道或环境文件传递，不进命令行。",
+      "description": "宿主写入核心 stdin 的启动参数，不进命令行；模型连接由核心从用户配置文件读取，不经启动参数传递。",
       "properties": {
         "data_dir": {
           "description": "数据根：业务库、内容对象、会话工作目录与 skill 存储都在其中",
           "type": "string"
         },
-        "env_files": {
-          "description": "依次叠加的环境文件，后者覆盖前者",
-          "items": {
-            "type": "string"
-          },
-          "type": "array"
-        },
         "env": {
           "additionalProperties": {
             "type": "string"
           },
-          "description": "最后叠加的显式环境",
+          "description": "叠加到核心进程的显式环境",
           "type": "object"
         }
       },
@@ -246,7 +239,7 @@
       "properties": {
         "protocol_version": {
           "$ref": "#/$defs/ProtocolVersion",
-          "default": 1
+          "default": 2
         },
         "event_version": {
           "$ref": "#/$defs/EventVersion",
@@ -287,16 +280,8 @@
           "type": "integer"
         },
         "instance_token": {
-          "anyOf": [
-            {
-              "type": "string"
-            },
-            {
-              "type": "null"
-            }
-          ],
-          "default": null,
-          "description": "实例令牌；尚未启用实例认证，目前为空"
+          "description": "实例令牌：/api 请求带 Authorization: Bearer <令牌>；只经这条握手传出",
+          "type": "string"
         }
       },
       "required": [
@@ -317,7 +302,7 @@
       "properties": {
         "protocol_version": {
           "$ref": "#/$defs/ProtocolVersion",
-          "default": 1
+          "default": 2
         },
         "event_version": {
           "$ref": "#/$defs/EventVersion",
@@ -376,6 +361,7 @@
       "enum": [
         "invalid_request",
         "validation_failed",
+        "unauthorized",
         "forbidden",
         "not_found",
         "method_not_allowed",

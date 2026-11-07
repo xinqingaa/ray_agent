@@ -17,7 +17,7 @@
 | 新工作的范围与实施安排 | [维护与优化计划](../PLAN.md)、[升级专题](plan/README.md) |
 | skill 如何导入、管理、加载及使用资源 | [skill 机制](skills.md) |
 | 哪些问题和试错促成当前设计 | [设计背景](background/README.md) |
-| 部署和本地开发 | [运行指南](../ray_agent/README.md)及各服务指南 |
+| 运行与本地开发 | [运行指南](../ray_agent/README.md)及各服务指南 |
 
 ## 文档职责与更新条件
 

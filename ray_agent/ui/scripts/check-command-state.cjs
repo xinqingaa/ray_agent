@@ -66,30 +66,3 @@ assert.equal(commandById('compact').available({...context, hasSession: false}).a
 for (const command of inputCommands) command.run(context);
 assert.deepEqual(calls, ['upload','plan','compact']);
 console.log('PASS: plus/slash surfaces share guarded actions; busy/waiting disables mutation, project command removed');
-
-const {createProjectRefreshWatcher} = load('src/lib/project-refresh.ts');
-const realSetTimeout = global.setTimeout;
-const realClearTimeout = global.clearTimeout;
-let nextId = 0;
-const timers = new Map();
-global.setTimeout = fn => {const id = ++nextId; timers.set(id, fn); return id};
-global.clearTimeout = id => timers.delete(id);
-try {
-  let refreshes = 0;
-  const watcher = createProjectRefreshWatcher(() => refreshes++);
-  const written = {type:'tool',data:{seq:1,status:'called',function:'write_file'}};
-  const turn = {type:'turn',data:{seq:2,status:'completed'}};
-  watcher.observe([written]);
-  watcher.observe([written,turn]);
-  assert.equal(timers.size,1);
-  const shell = {type:'tool',data:{seq:3,status:'called',function:'shell_execute'}};
-  watcher.observe([written,turn,shell]);
-  watcher.observe([written,turn,shell,{type:'message',data:{seq:4}}]);
-  assert.equal(timers.size,1);
-  const pending = [...timers.values()][0]; timers.clear(); pending();
-  assert.equal(refreshes,1);
-  watcher.observe([written,turn,shell]); assert.equal(timers.size,0);
-  watcher.observe([{...written,data:{...written.data,seq:5}}]);
-  watcher.dispose(); assert.equal(timers.size,0);
-  console.log('PASS: write/Shell burst coalesces; later turn/message cannot cancel last refresh; disposal cancels owned timer');
-} finally {global.setTimeout = realSetTimeout; global.clearTimeout = realClearTimeout}

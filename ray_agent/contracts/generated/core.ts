@@ -25,6 +25,7 @@ export type UnavailableReason =
 export type ErrorCode =
   | "invalid_request"
   | "validation_failed"
+  | "unauthorized"
   | "forbidden"
   | "not_found"
   | "method_not_allowed"
@@ -41,7 +42,7 @@ export type ErrorCode =
 export type ResourceVersion = number | string;
 
 /**
- * 宿主写入核心 stdin 的启动参数；凭据只经这条私有管道或环境文件传递，不进命令行。
+ * 宿主写入核心 stdin 的启动参数，不进命令行；模型连接由核心从用户配置文件读取，不经启动参数传递。
  */
 export interface CoreLaunch {
   /**
@@ -49,11 +50,7 @@ export interface CoreLaunch {
    */
   data_dir: string;
   /**
-   * 依次叠加的环境文件，后者覆盖前者
-   */
-  env_files?: string[];
-  /**
-   * 最后叠加的显式环境
+   * 叠加到核心进程的显式环境
    */
   env?: {
     [k: string]: string;
@@ -78,9 +75,9 @@ export interface CoreReady {
   event: "ready";
   port: number;
   /**
-   * 实例令牌；尚未启用实例认证，目前为空
+   * 实例令牌：/api 请求带 Authorization: Bearer <令牌>；只经这条握手传出
    */
-  instance_token: string | null;
+  instance_token: string;
 }
 export interface CoreInstance {
   instance_id: InstanceId;

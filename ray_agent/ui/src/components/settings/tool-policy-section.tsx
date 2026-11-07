@@ -1,5 +1,3 @@
-'use client'
-
 import {useCallback, useEffect, useState, type ReactNode} from 'react'
 import {Plus, RotateCcw, Trash2} from 'lucide-react'
 import {toast} from 'sonner'

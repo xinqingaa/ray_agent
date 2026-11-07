@@ -16,8 +16,7 @@ FIXTURE="tests/protocols/fixture_server.py"
 usage() {
   cat <<'EOF'
 用法（在 ray_agent/api/ 执行）：
-  ./scripts/run-protocol-fixtures.sh start          # Compose / Docker Desktop
-  ./scripts/run-protocol-fixtures.sh start --local  # API 跑在宿主机
+  ./scripts/run-protocol-fixtures.sh start
   ./scripts/run-protocol-fixtures.sh status
   ./scripts/run-protocol-fixtures.sh stop
 EOF
@@ -52,7 +51,7 @@ print_settings() {
   MCP  http://127.0.0.1:${MCP_PORT}/mcp
   A2A  http://127.0.0.1:${A2A_PORT}/.well-known/agent-card.json
 
-首页右上角齿轮 →「MCP 服务器」添加：
+设置 →「MCP 服务器」添加：
 {"mcpServers":{"acceptance":{"transport":"streamable_http","url":"${mcp_url}"}}}
 
 「A2A Agent 配置」添加：
@@ -64,22 +63,14 @@ EOF
 }
 
 cmd="${1:-}"
-mode="docker"
-if [[ "${2:-}" == "--local" ]]; then
-  mode="local"
-elif [[ -n "${2:-}" ]]; then
+if [[ -n "${2:-}" ]]; then
   echo "未知参数: $2" >&2
   usage >&2
   exit 2
 fi
 
-if [[ "$mode" == "local" ]]; then
-  mcp_url="http://127.0.0.1:${MCP_PORT}/mcp"
-  a2a_public="http://127.0.0.1:${A2A_PORT}"
-else
-  mcp_url="http://host.docker.internal:${MCP_PORT}/mcp"
-  a2a_public="http://host.docker.internal:${A2A_PORT}"
-fi
+mcp_url="http://127.0.0.1:${MCP_PORT}/mcp"
+a2a_public="http://127.0.0.1:${A2A_PORT}"
 
 case "$cmd" in
   start)
@@ -104,7 +95,7 @@ case "$cmd" in
     disown -a 2>/dev/null || true
     wait_for_port "$MCP_PORT" mcp
     wait_for_port "$A2A_PORT" a2a
-    echo "验收服务已启动（${mode}）。"
+    echo "验收服务已启动。"
     print_settings "$mcp_url" "$a2a_public"
     echo "进程已脱离当前终端，用 status 查看，用 stop 结束。"
     ;;

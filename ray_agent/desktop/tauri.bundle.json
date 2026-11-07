@@ -1,0 +1,12 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "build": {
+    "frontendDist": "../ui/dist",
+    "beforeBuildCommand": "npm --prefix ../ui run build && cd ../api && uv run --locked pyinstaller --noconfirm --clean rayagent-core.spec"
+  },
+  "bundle": {
+    "resources": {
+      "../api/dist/rayagent-core/": "rayagent-core/"
+    }
+  }
+}

@@ -1,6 +1,6 @@
 # RayAgent
 
-RayAgent 是面向复杂任务执行的 AI Agent 应用，集成任务规划、工具执行与成果交付，并通过自研 Harness 管理执行过程、状态和资源。核心以本机进程运行，业务数据保存在本机数据根中。
+RayAgent 是面向复杂任务执行的 AI Agent 应用，集成任务规划、工具执行与成果交付，并通过自研 Harness 管理执行过程、状态和资源。当前以 Mac 桌面应用运行：Tauri 宿主拉起本机 Python 核心，业务数据保存在本机数据根中。
 
 用户通过会话提交目标和资料，Agent 在自研单循环中规划、调用工具并读取反馈，通过 MCP 与 A2A 使用外部能力，最终交付答复与文件。文件、命令与浏览器工具依赖尚未接入的本机执行端口，当前不提供。
 
@@ -43,7 +43,7 @@ RayAgent 通过自研 Harness 统一这些职责，保持任务执行、工具�
 | 理解执行机制 | [Harness 工程](docs/harness.md) | 决策、反馈、工具约束与结束判断 |
 | 理解系统结构 | [架构说明](docs/architecture.md) | 组件协作、状态、事务与资源归属 |
 | 维护或扩展功能 | [代码地图](docs/code-map.md#主执行路径)、[文档地图](docs/README.md#持续维护与审阅) | 实现定位、检查入口与说明更新归属 |
-| 本地开发 | [API 开发指南](ray_agent/api/README.md)、[桌面开发指南](ray_agent/desktop/README.md)、[运行指南](ray_agent/README.md) | 核心启动、桌面宿主及各服务开发入口；原 Compose 部署已不受支持 |
+| 运行与开发 | [运行指南](ray_agent/README.md)、[桌面开发指南](ray_agent/desktop/README.md)、[API 开发指南](ray_agent/api/README.md)、[UI 开发指南](ray_agent/ui/README.md) | 模型连接配置、内部包构建、核心与界面开发入口；原 Compose 部署已删除 |
 | 查询设计形成过程 | [设计背景](docs/background/README.md) | 问题、证据、方案比较与重要转折 |
 
 新工作见[维护与优化计划](PLAN.md)，文档分工见[文档地图](docs/README.md)，问题分析与设计取舍见[设计背景](docs/background/README.md)。

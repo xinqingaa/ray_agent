@@ -1,6 +1,6 @@
-# RayAgent 桌面宿主开发指南
+# RayAgent 桌面开发指南
 
-`ray_agent/desktop` 是 Tauri 2 原生宿主：随包分发 PyInstaller 冻结的 Python 核心，负责拉起、握手、健康检查与退出回收。当前处于 M0 宿主探针阶段，窗口只有一个最小探针页面，用来观察核心状态并触发一次普通会话；共享界面、钥匙串与正式打包在 P2 接入，本指南随之扩展为桌面开发指南。实施范围与进度见[实施工作包](../../docs/plan/implementation.md#实施状态)，代码入口见[代码地图](../../docs/code-map.md#桌面宿主与核心打包)。
+`ray_agent/desktop` 是 Tauri 2 原生宿主：窗口加载 `ray_agent/ui` 的共享界面，宿主拉起 Python 核心、核对握手、把接口地址与实例令牌交给界面，并负责保存文件、打开外部链接与退出流程。正式包随包分发 PyInstaller 冻结的核心。模型连接、数据位置与运行检查见[运行指南](../README.md)，实施范围见[实施工作包](../../docs/plan/implementation.md#实施状态)，代码入口见[代码地图](../../docs/code-map.md#桌面宿主与核心打包)。
 
 以下命令在 `ray_agent/desktop/` 执行，另有说明的除外。
 
@@ -14,68 +14,80 @@
   . "$HOME/.cargo/env"
   ```
 
-- Node 22 与 npm。Tauri CLI 使用 npm 包 `@tauri-apps/cli`，版本由 [package.json](package.json) 与 `package-lock.json` 锁定，不另装 `cargo tauri`：
+- Node 22 与 npm。Tauri CLI 使用 npm 包 `@tauri-apps/cli`，版本由 [package.json](package.json) 与 `package-lock.json` 锁定，不另装 `cargo tauri`。宿主与界面各自安装依赖：
 
   ```bash
   npm ci
-  npx tauri --version
+  npm --prefix ../ui ci
   ```
 
-- uv，以及 API 的开发依赖（含 PyInstaller），见 [API 开发指南](../api/README.md#冻结桌面核心)。
+- uv 与 API 的开发依赖（含 PyInstaller），见 [API 开发指南](../api/README.md#依赖与配置)。
 
-## 冻结核心
-
-宿主把 `../api/dist/rayagent-core/` 整个 onedir 目录作为资源打进应用，入口文件离开 `_internal/` 无法运行。构建宿主前先冻结核心：
+## 开发运行
 
 ```bash
-cd ../api
-uv sync --locked --group dev
-uv run --locked pyinstaller --noconfirm --clean rayagent-core.spec
+npm run dev
 ```
 
-`npx tauri build` 会在构建前自动重新冻结；`npx tauri dev` 直接使用已有产物，核心代码改动后需要手动重新冻结。
+它先在 `../ui` 启动 Vite 开发服务器，再编译并运行宿主。开发构建直接运行源码核心（`../api/.venv` 的解释器加 `sidecar.py`），改了核心代码重启宿主即可，不需要重新冻结；缺少虚拟环境时界面显示启动失败与原因。界面改动由 Vite 热更新。
 
-## 运行探针
-
-核心不依赖 PostgreSQL、Redis 或 Docker。宿主从 `RAYAGENT_CORE_ENV` 读取要叠加的环境文件列表（冒号分隔，后者覆盖前者），模型地址与密钥沿用 `ray_agent/.env`；`RAYAGENT_CORE_DATA_DIR` 可另指数据根，多个宿主同时运行或做检查时用它隔开数据：
+开发构建的数据根是应用数据目录下的 `dev-core/`，与正式包的 `core/` 分开；`RAYAGENT_CORE_DATA_DIR` 可另指数据根，多个宿主同时运行或做检查时用它隔开实例锁：
 
 ```bash
-RAYAGENT_CORE_ENV="$PWD/../.env" RAYAGENT_CORE_DATA_DIR=/tmp/rayagent-probe npx tauri dev
+RAYAGENT_CORE_DATA_DIR=/tmp/rayagent-dev npm run dev
 ```
 
-`npx tauri dev` 只在构建脚本重新运行时把 `../api/dist/rayagent-core/` 复制到 `target/debug/rayagent-core/`，重新冻结核心后旧副本可能仍在（例如残留已删除的迁移脚本导致启动失败）。这时先删除 `target/debug/rayagent-core/` 并 `touch build.rs`，再启动。
-
-探针页面由 Tauri CLI 提供，直接运行 `target/debug/rayagent-desktop` 时窗口为空白，但宿主照常拉起核心。窗口显示核心状态、端口、启动到握手的耗时、协议与事件版本、实例身份、构建身份、健康检查和能力声明；就绪后点“发起一次会话”，页面创建会话、发送一条消息并显示模型回复。终端里 `[core]` 前缀是核心日志，`[host]` 前缀是宿主日志。没有设置 `RAYAGENT_CORE_ENV` 时核心仍能启动，但没有模型密钥，会话会失败；数据根已被另一个核心占用时核心在初始化阶段失败，页面显示启动失败与日志尾部。
-
-未设置 `RAYAGENT_CORE_DATA_DIR` 时，探针数据根是 `~/Library/Application Support/com.rayagent.desktop/probe-core/`（业务库、内容对象、会话工作目录与 skill 存储），可以直接删除；P2 起的正式数据根不沿用该目录。
+终端里 `[core]` 前缀是核心日志，`[host]` 前缀是宿主日志。界面只在宿主窗口中工作；在普通浏览器打开开发服务器地址只显示“请从 RayAgent 应用打开”。
 
 ## 构建应用
 
 ```bash
-npx tauri build --bundles app
+npm run build
 ```
 
-产物为 `target/release/bundle/macos/RayAgent.app`，只做本机 ad-hoc 签名，不作为交付物。onedir 位于 `RayAgent.app/Contents/Resources/rayagent-core/`。从终端运行时可直接带上环境文件：
+构建叠加 [tauri.bundle.json](tauri.bundle.json)：先构建界面静态产物（`../ui/dist`），再冻结核心（`../api/dist/rayagent-core/`），然后把整个 onedir 目录作为资源打进应用；入口文件离开 `_internal/` 无法运行。产物为 `target/release/bundle/macos/RayAgent.app`，只做本机 ad-hoc 签名，不作为交付物。从终端运行可看到日志：
 
 ```bash
-RAYAGENT_CORE_ENV="$PWD/../.env" target/release/bundle/macos/RayAgent.app/Contents/MacOS/rayagent-desktop
+target/release/bundle/macos/RayAgent.app/Contents/MacOS/rayagent-desktop
 ```
+
+新构建的核心首次启动要等 macOS 逐个检查原生库，就绪明显慢于再次启动；这不是失败，以界面状态为准。
 
 ## 宿主与核心的约定
 
-- 宿主以资源目录中的 `rayagent-core/rayagent-core` 为可执行文件、该目录为工作目录（核心本身不依赖工作目录），在独立进程组中启动核心，并移除可能改变冻结解释器或动态库查找的 `PYTHON*`、`VIRTUAL_ENV` 与 `DYLD_*` 变量。
-- 启动参数与握手都是[契约](../contracts/README.md)类型，宿主的对应类型在 `src/contract.rs`。
-- 启动参数（`CoreLaunch`）是写入核心 stdin 的一行 JSON：`data_dir` 为数据根（核心的全部可写数据都在其中，布局见 [API 开发指南](../api/README.md#数据根)），`env_files` 为要叠加的环境文件，`env` 为最后叠加的显式环境。参数和其中的凭据都不经命令行传递；写完后宿主保持 stdin 打开。
-- 核心在 `127.0.0.1` 上监听系统分配的端口，取得数据根的实例锁、完成业务库迁移、启动扫描与初始化后向 stdout 写一行握手（`CoreHandshake`）：`event` 为 `ready` 时带协议与事件版本、实例身份（`instance_id`、`pid`、启动时间）、构建身份、存储版本（业务库迁移版本）、能力声明与端口，`instance_token` 预留、目前为空；为 `failed` 时带结构化错误。宿主按类型解析，不符合契约的握手按启动失败处理；协议版本目前只显示，不做兼容核对。stdout 只用于握手，日志写 stderr。
-- 握手后宿主请求一次 `/api/status`，它返回与握手相同的身份与能力，另带业务库检查与 `healthy`。
-- 退出时宿主关闭核心 stdin，核心随即正常停止；超过等待期限再发送 SIGTERM，最后对整个进程组发送 SIGKILL 并回收首进程。宿主被强制结束时，核心同样因 stdin 关闭而自行退出。等待期限见[运行参数与限额](../../docs/limits.md#桌面宿主与核心进程)。
+- 正式包以资源目录中的 `rayagent-core/rayagent-core` 为可执行文件，开发构建以源码核心为入口，两者都不依赖工作目录。核心在独立进程组中启动，宿主移除可能改变冻结解释器或动态库查找的 `PYTHON*`、`VIRTUAL_ENV` 与 `DYLD_*` 变量。
+- 启动参数与握手都是[契约](../contracts/README.md)类型，宿主的对应类型在 `src/contract.rs`。启动参数（`CoreLaunch`）是写入核心 stdin 的一行 JSON，只有数据根 `data_dir` 与预留的显式环境 `env`，不经命令行传递；模型连接由核心自己读取用户配置文件。写完后宿主保持 stdin 打开。
+- 核心在 `127.0.0.1` 的系统分配端口上监听，就绪后向 stdout 写一行握手（`CoreHandshake`），带协议与事件版本、实例与构建身份、存储版本、能力声明、端口和本次生成的实例令牌；失败时带结构化错误。stdout 只用于握手，日志写 stderr。
+- 宿主只接受协议与事件版本都与自身一致的核心，不一致时状态为 `incompatible`，界面显示版本不匹配。版本一致时带令牌请求一次 `/api/status` 作为健康检查。
+
+## 界面与宿主的接口
+
+界面经 Tauri 命令访问宿主，不直接使用插件。窗口只授予 `core:default` 能力；CSP 只允许连接、加载图片与媒体、嵌入预览时访问 `127.0.0.1`，不允许内联脚本。
+
+| 命令或事件 | 用途 |
+|---|---|
+| `core_connection` | 读取核心状态（`starting`、`ready`、`failed`、`incompatible`、`exited`、`stopped`）；就绪时给出接口地址与实例令牌，失败时给出原因与核心日志尾部 |
+| `restart_core` | 回收旧进程后重新拉起核心 |
+| `open_model_config` | 模型连接配置文件不存在时按示例创建，再用系统文本编辑器打开 |
+| `open_external` | 用系统浏览器打开 http、https 或 mailto 链接，其他协议拒绝 |
+| `save_resource` | 让用户选择位置后，由宿主带令牌下载核心 `/api/` 下的资源；临时文件写完再改名，取消时不留文件 |
+| `save_bytes` | 保存界面已持有的内容，文件名放在 `x-filename` 请求头 |
+| `rayagent://quit-requested`、`quit_ack`、`quit_confirm` | 退出确认，见下文 |
+
+实例令牌只经 `core_connection` 交给界面，由界面放进请求头，不进 URL。图片、PDF 与网页预览由 WebView 按 URL 直接加载，界面先为该资源申请短期票据再拼进地址；票据的范围与有效期见 [API 开发指南](../api/README.md#启动与接口)。界面中的跨源链接一律交给 `open_external`，WebView 本身不打开外部页面。
+
+## 关闭与退出
+
+- 关闭主窗口只隐藏窗口，核心与运行继续；点程序坞图标重新显示。
+- Cmd+Q 或菜单退出时，核心已就绪则宿主向界面发出 `rayagent://quit-requested`。界面先回应 `quit_ack`，没有活动任务时直接 `quit_confirm`，否则弹出确认；界面在期限内没有回应时宿主直接退出，避免界面卡住后无法退出。macOS 预置的退出菜单项直接终止应用、宿主收不到退出请求，所以应用菜单里的退出是宿主自己的菜单项。
+- 程序坞菜单退出、注销与关机由系统直接终止应用，不经过界面确认；宿主仍走下面的停止流程，活动运行记为中断。
+- 退出、确认退出与 SIGTERM、SIGINT、SIGHUP 走同一条停止流程：宿主关闭核心 stdin，核心停止受理新工作，先结束仍开着的事件流，再结束活动运行后退出；超过等待期限再发 SIGTERM，最后对整个进程组发送 SIGKILL 并回收首进程。宿主被强制结束时，核心同样因 stdin 关闭而自行退出。期限见[运行参数与限额](../../docs/limits.md#桌面宿主与核心进程)。
 
 ## 检查
 
-- 契约对齐：在本目录运行 `cargo test`。它内嵌 `../contracts/generated` 中的 `core.schema.json` 与样例，核对宿主的启动参数、握手、能力与错误代码类型和契约的字段、枚举取值一致；契约变化后先按[契约指南](../contracts/README.md)重新生成，再修改宿主类型。
-- 启动：页面显示“已就绪”，协议、实例与能力有值，健康检查为 HTTP 200、`sqlite` 检查正常，存储版本为当前迁移版本。新复制或新构建的核心首次启动要等 macOS 逐个检查原生库，握手明显慢于再次启动；这不是失败，以页面状态为准。
-- 会话：“发起一次会话”得到助手回复，运行状态为 `completed`。
-- 退出：关闭窗口或 Cmd+Q 后，确认没有残留进程：
+- 契约对齐与宿主单元测试：在本目录运行 `cargo test`。它内嵌 `../contracts/generated` 中的 `core.schema.json` 与样例，核对启动参数、握手、能力与错误代码类型和契约一致，并检查协议与事件版本常量与样例相同；契约变化后先按[契约指南](../contracts/README.md)重新生成，再修改宿主类型。
+- 启动与界面：开发运行或打开内部包，界面进入首页；设置页能看到模型连接状态，按[运行指南的运行检查](../README.md#运行检查)完成独立对话、导航与草稿检查。
+- 退出：有活动任务时 Cmd+Q 先确认；退出后确认没有残留进程：
 
   ```bash
   pgrep -fl rayagent-core || echo "no core left"
@@ -83,4 +95,4 @@ RAYAGENT_CORE_ENV="$PWD/../.env" target/release/bundle/macos/RayAgent.app/Conten
 
   也可以在宿主运行时用 `kill -9 <宿主 PID>` 模拟宿主崩溃，核心应在数秒内自行退出。
 
-这些检查只覆盖宿主拉起、通信、契约对齐和退出；业务行为仍按 [API 开发指南](../api/README.md) 的测试入口检查。
+这些检查覆盖宿主拉起、通信、契约对齐、界面接入和退出；业务行为按 [API](../api/README.md) 与 [UI](../ui/README.md) 指南的检查入口验证。

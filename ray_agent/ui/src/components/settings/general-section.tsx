@@ -1,5 +1,3 @@
-'use client'
-
 import {Input} from '@/components/ui/input'
 import {useDeveloperMode} from '@/hooks/use-developer-mode'
 import {configApi} from '@/lib/api/config'

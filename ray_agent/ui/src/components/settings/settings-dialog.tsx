@@ -1,7 +1,5 @@
-'use client'
-
 import {useState} from 'react'
-import {useRouter} from 'next/navigation'
+import {useRouter} from '@/lib/navigation'
 import {Dialog, DialogContent, DialogTitle} from '@/components/ui/dialog'
 import {SettingsView} from './settings-view'
 

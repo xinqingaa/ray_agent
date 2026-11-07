@@ -1,5 +1,3 @@
-'use client'
-
 import {useEffect, useRef, useState, type CSSProperties} from 'react'
 import {ChevronLeft, ChevronRight, Code, Download, Expand, ExternalLink, FileText, RefreshCw, X} from 'lucide-react'
 import {toast} from 'sonner'
@@ -54,8 +52,7 @@ type FilePreviewProps = {source: PreviewSource; onBack?: () => void; onDownload?
 
 export function FilePreview(props: FilePreviewProps) {
   const source=props.source
-  const identity=previewEndpoint(source)+(source.kind==='project' ? `:${source.path}:${source.version ?? ''}` : '')
-  return <FilePreviewContent key={identity} {...props}/>
+  return <FilePreviewContent key={previewEndpoint(source)} {...props}/>
 }
 
 function FilePreviewContent({source, onBack, onDownload, onClose, canExpand = true}: FilePreviewProps) {
@@ -71,11 +68,10 @@ function FilePreviewContent({source, onBack, onDownload, onClose, canExpand = tr
   const revision = useRef<string | null>(null)
   const epoch = useRef(0)
   const endpoint = previewEndpoint(source)
-  const path = source.kind==='project' ? source.path : ''
-  const version = source.kind==='project' ? source.version : undefined
+  const [content,setContent] = useState<{revision: string; url: string} | null>(null)
   useEffect(() => {
     const controller=new AbortController(), counter=epoch, token=++counter.current
-    const params=new URLSearchParams(path ? {path} : {})
+    const params=new URLSearchParams()
     Object.entries(page).forEach(([key,value])=>params.set(key,String(value)))
     if(revision.current)params.set('revision',revision.current)
     readPreview(endpoint,params,controller.signal).then(result=> {
@@ -86,7 +82,17 @@ function FilePreviewContent({source, onBack, onDownload, onClose, canExpand = tr
       setPreview(null);setError(error instanceof Error ? error.message : '读取失败');setErrorCode(error instanceof ApiError ? error.code : null)
     }).finally(()=> {if(token===epoch.current)setLoading(false)})
     return ()=> {counter.current++;controller.abort()}
-  },[endpoint,path,version,page,reload])
+  },[endpoint,page,reload])
+  const needsContent = preview?.kind==='image' || preview?.kind==='pdf'
+  const contentRevision = needsContent ? preview.revision : null
+  const fileId = source.id
+  useEffect(() => {
+    if(contentRevision==null)return
+    let active=true
+    previewContentUrl(fileId,contentRevision).then(url=> {if(active)setContent({revision:contentRevision,url})})
+      .catch(error=> {if(active){setError(error instanceof Error ? error.message : '读取失败');setErrorCode(error instanceof ApiError ? error.code : null)}})
+    return ()=> {active=false}
+  },[fileId,contentRevision])
   const changePage = (next: typeof page) => {setLoading(true);setError(null);setErrorCode(null);setPage(next)}
   const refresh = () => {setLoading(true);setError(null);setErrorCode(null);revision.current=null;setPage({sheet:0,row:0,column:0,offset:0});setTextHistory([]);setReload(value=>value+1)}
   const download = () => {
@@ -94,7 +100,7 @@ function FilePreviewContent({source, onBack, onDownload, onClose, canExpand = tr
     else void downloadPreviewSource(source).catch(error=>toast.error(error instanceof Error ? error.message : '下载失败'))
   }
   const filename=preview?.filename || source.filename
-  const contentUrl=previewContentUrl(source,preview?.revision)
+  const contentUrl=content && content.revision===preview?.revision ? content.url : null
   const body = (full = false) => {
     if(loading)return <p className="p-4 text-xs text-muted-foreground" role="status">正在读取</p>
     if(error)return <div className="p-4"><p role="alert" className="text-xs text-state-failed">{errorCode==='gone' ? '图片已过期' : error}</p>
@@ -103,9 +109,10 @@ function FilePreviewContent({source, onBack, onDownload, onClose, canExpand = tr
     if(preview.kind==='unavailable')return <div className="flex h-full flex-col items-center justify-center gap-2 p-6 text-center">
       <FileText className="size-8 text-muted-foreground" aria-hidden/><p className="text-sm">{preview.reason || '暂不支持预览'}</p>
       <span className="text-xs tabular-nums text-muted-foreground">{formatBytes(preview.size)}</span><Button variant="outline" size="sm" onClick={download}><Download/>下载</Button></div>
-    if(preview.kind==='image')return <ImagePreview src={preview.thumbnail || contentUrl} originalSrc={contentUrl} title={filename} onDownload={download} mode={full || !canExpand ? 'canvas' : 'thumbnail'}
+    if((preview.kind==='pdf' || (preview.kind==='image' && !preview.thumbnail)) && !contentUrl)return <p className="p-4 text-xs text-muted-foreground" role="status">正在读取</p>
+    if(preview.kind==='image')return <ImagePreview src={preview.thumbnail || contentUrl!} originalSrc={contentUrl ?? undefined} title={filename} onDownload={download} mode={full || !canExpand ? 'canvas' : 'thumbnail'}
       dimensions={preview.width && preview.height ? `${preview.width} × ${preview.height}` : undefined}/>
-    if(preview.kind==='pdf')return <iframe title={filename} src={contentUrl} className="h-full w-full border-0 bg-card"/>
+    if(preview.kind==='pdf')return <iframe title={filename} src={contentUrl!} className="h-full w-full border-0 bg-card"/>
     if(preview.kind==='table')return <TablePreview key={`${preview.sheet}:${preview.row}:${preview.column}`} preview={preview}/>
     const text=preview.content ?? ''
     if(preview.kind==='markdown' && !raw)return <div className="h-full overflow-auto p-4"><MarkdownContent content={text}/></div>
@@ -133,7 +140,7 @@ function FilePreviewContent({source, onBack, onDownload, onClose, canExpand = tr
     {preview?.cells_truncated && <span className="shrink-0 text-xs text-muted-foreground">内容截断</span>}
     {preview?.formula_missing && <span className="shrink-0 text-xs text-muted-foreground" title="部分公式没有已保存的计算结果">公式未计算</span>}
     {(preview?.kind==='markdown' || source.filename.toLowerCase().endsWith('.json')) && <PreviewAction label={raw ? '格式化阅读' : '查看原文'} icon={raw ? FileText : Code} pressed={raw} onClick={()=>setRaw(!raw)}/>}
-    {isWebPage(source.filename) && <PreviewAction label="在新标签页打开网页" icon={ExternalLink} onClick={()=>openPreviewTab(source)}/>}
+    {isWebPage(source.filename) && <PreviewAction label="在浏览器中打开网页" icon={ExternalLink} onClick={()=>void openPreviewTab(source).catch(error=>toast.error(error instanceof Error ? error.message : '打开失败'))}/>}
     <PreviewAction label="刷新预览" icon={RefreshCw} disabled={loading} onClick={refresh}/>
     <PreviewAction label={`下载 ${preview?.filename || source.filename}`} icon={Download} disabled={errorCode==='gone'} onClick={download}/>
   </>

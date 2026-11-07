@@ -46,13 +46,13 @@ export interface paths {
         };
         /**
          * 获取LLM配置信息
-         * @description 返回模型名、地址等可写字段，以及是否已从环境变量配置密钥；不返回密钥明文
+         * @description 返回默认模型与采样参数，以及模型连接配置文件中各提供商的地址、密钥掩码与可用状态；不返回密钥明文
          */
         get: operations["get_llm_config_api_app_config_llm_get"];
         put?: never;
         /**
          * 更新LLM配置信息
-         * @description 更新模型名、地址、温度等；请求中的 api_key 会被忽略
+         * @description 更新默认模型与采样参数；模型连接只在配置文件中修改
          */
         post: operations["update_llm_config_api_app_config_llm_post"];
         delete?: never;
@@ -385,6 +385,26 @@ export interface paths {
         get: operations["attachment_content_api_files__file_id__preview_content_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/files/{file_id}/preview/ticket": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 签发原始内容的读取票据
+         * @description 图片、PDF 与网页按 URL 加载时把票据放在 ticket 参数里
+         */
+        post: operations["attachment_content_ticket_api_files__file_id__preview_ticket_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1274,20 +1294,14 @@ export interface components {
         };
         /** Body_upload_file_api_files_post */
         Body_upload_file_api_files_post: {
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
             file: string;
         };
         /** Body_upload_import_api_skills_imports_zip_post */
         Body_upload_import_api_skills_imports_zip_post: {
             /** Operation Id */
             operation_id: string;
-            /**
-             * File
-             * Format: binary
-             */
+            /** File */
             file: string;
             /** Update Name */
             update_name?: string | null;
@@ -1635,6 +1649,31 @@ export interface components {
             cached_tokens?: number | null;
         };
         /**
+         * ConnectionSource
+         * @description 模型连接配置文件的读取结果。
+         */
+        ConnectionSource: {
+            /** Path */
+            path: string;
+            /**
+             * Exists
+             * @default false
+             */
+            exists: boolean;
+            /**
+             * Issue
+             * @description 整份文件无法使用的原因
+             */
+            issue?: string | null;
+            /**
+             * Notices
+             * @description 不影响使用的提醒
+             */
+            notices?: string[];
+            /** Providers */
+            providers?: components["schemas"]["ProviderStatus"][];
+        };
+        /**
          * ContextEventData
          * @description 模型历史变化的轻量投影：消息全文只在数据库与请求重建接口里，推送时只给条数与角色。
          */
@@ -1700,7 +1739,7 @@ export interface components {
         };
         /** CoreStatus */
         CoreStatus: {
-            /** @default 1 */
+            /** @default 2 */
             protocol_version: components["schemas"]["ProtocolVersion"];
             /** @default 1 */
             event_version: components["schemas"]["EventVersion"];
@@ -1813,7 +1852,7 @@ export interface components {
          * @description 机器可读的错误代码，按客户端的处理方式区分；具体原因写在 message 与 details。
          * @enum {string}
          */
-        ErrorCode: "invalid_request" | "validation_failed" | "forbidden" | "not_found" | "method_not_allowed" | "conflict" | "gone" | "payload_too_large" | "range_not_satisfiable" | "context_limit" | "rate_limited" | "internal_error" | "upstream_error" | "unavailable" | "timeout";
+        ErrorCode: "invalid_request" | "validation_failed" | "unauthorized" | "forbidden" | "not_found" | "method_not_allowed" | "conflict" | "gone" | "payload_too_large" | "range_not_satisfiable" | "context_limit" | "rate_limited" | "internal_error" | "upstream_error" | "unavailable" | "timeout";
         /**
          * ErrorEventData
          * @description 错误事件数据
@@ -2036,11 +2075,9 @@ export interface components {
         InstanceId: string;
         /**
          * LLMConfigPublic
-         * @description 设置页可见的 LLM 配置；不含密钥明文。
+         * @description 设置页可见的 LLM 配置；模型连接只给地址、掩码与可用状态，不含密钥明文。
          */
         LLMConfigPublic: {
-            /** Base Url */
-            base_url: string;
             /** Model Name */
             model_name: string;
             /** Temperature */
@@ -2053,19 +2090,14 @@ export interface components {
             model_profiles?: {
                 [key: string]: components["schemas"]["ModelSamplingPublic"];
             };
-            /**
-             * Has Api Key
-             * @default false
-             */
-            has_api_key: boolean;
+            /** @description 模型连接配置文件的读取结果 */
+            connections?: components["schemas"]["ConnectionSource"] | null;
         };
         /**
          * LLMConfigUpdate
-         * @description 更新 LLM 配置时忽略密钥字段。未提交的字段保持原值。
+         * @description 更新默认模型与采样参数；模型连接只在配置文件中修改。未提交的字段保持原值。
          */
         LLMConfigUpdate: {
-            /** Base Url */
-            base_url?: string | null;
             /** Model Name */
             model_name?: string | null;
             /**
@@ -2584,6 +2616,39 @@ export interface components {
         };
         /** @description 核心协议版本 */
         ProtocolVersion: number;
+        /**
+         * ProviderStatus
+         * @description 设置页可见的提供商状态；密钥只给掩码。
+         */
+        ProviderStatus: {
+            /** Name */
+            name: string;
+            /** Base Url */
+            base_url?: string | null;
+            /**
+             * Api Protocol
+             * @default responses
+             * @enum {string}
+             */
+            api_protocol: "responses" | "chat_completions";
+            /**
+             * Models
+             * @description 由它提供的已知模型
+             */
+            models?: string[];
+            /**
+             * Has Key
+             * @default false
+             */
+            has_key: boolean;
+            /** Key Hint */
+            key_hint?: string | null;
+            /**
+             * Issue
+             * @description 不可用或部分忽略的原因
+             */
+            issue?: string | null;
+        };
         /** PublishRequest */
         PublishRequest: {
             /** Candidate Path */
@@ -2598,6 +2663,19 @@ export interface components {
         };
         /** @description 业务幂等请求身份；同身份不同内容返回冲突 */
         RequestId: string;
+        /**
+         * ResourceTicket
+         * @description 按 URL 加载资源时代替实例令牌；只对签发路径的 GET 与 HEAD 有效，到期前可重复使用。
+         */
+        ResourceTicket: {
+            /** Ticket */
+            ticket: string;
+            /**
+             * Expires At
+             * @description 到期时间，毫秒时间戳
+             */
+            expires_at: number;
+        };
         ResourceVersion: number | string;
         /** Response[AgentConfig] */
         Response_AgentConfig_: {
@@ -2688,6 +2766,10 @@ export interface components {
         /** Response[OperationView] */
         Response_OperationView_: {
             data: components["schemas"]["OperationView"] | null;
+        };
+        /** Response[ResourceTicket] */
+        Response_ResourceTicket_: {
+            data: components["schemas"]["ResourceTicket"] | null;
         };
         /** Response[TitleResponse] */
         Response_TitleResponse_: {
@@ -4057,6 +4139,37 @@ export interface operations {
             };
         };
     };
+    attachment_content_ticket_api_files__file_id__preview_ticket_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                file_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_ResourceTicket_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     get_all_sessions_api_sessions_get: {
         parameters: {
             query?: {
@@ -4257,7 +4370,7 @@ export interface operations {
             header?: never;
             path: {
                 session_id: string;
-                request_id: components["schemas"]["RequestId"];
+                request_id: string;
             };
             cookie?: never;
         };

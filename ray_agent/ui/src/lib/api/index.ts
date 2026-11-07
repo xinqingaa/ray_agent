@@ -9,7 +9,6 @@ export {
   post,
   put,
   del,
-  createSSEConnection,
   createSSEStream,
   parseSSEStream,
   ApiError,
@@ -60,14 +59,10 @@ export type {
   SessionFile,
   ViewFileParams,
   ViewShellParams,
-  ProjectView,
-  ProjectListing,
-  ProjectFile,
 } from "./types";
 
 // 模块 API
 export { configApi } from "./config";
 export { fileApi } from "./file";
 export { sessionApi } from "./session";
-export { projectApi } from "./project";
 

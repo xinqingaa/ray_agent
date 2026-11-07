@@ -1,6 +1,6 @@
 # RayAgent API 开发指南
 
-API 即本机核心，使用 FastAPI、Pydantic、SQLAlchemy（aiosqlite）和 Alembic，负责会话、Agent 执行、本机业务库及外部能力接入。整体职责与执行流程见 [架构说明](../../docs/architecture.md)。核心不连接 PostgreSQL、Redis 或对象存储，原 Compose 部署方式不再受支持，见[运行指南](../README.md)。
+API 即本机核心，使用 FastAPI、Pydantic、SQLAlchemy（aiosqlite）和 Alembic，负责会话、Agent 执行、本机业务库及外部能力接入。整体职责与执行流程见 [架构说明](../../docs/architecture.md)。核心不连接 PostgreSQL、Redis 或对象存储，由[桌面宿主](../desktop/README.md)拉起；模型连接与运行检查见[运行指南](../README.md)。
 
 以下命令在 `ray_agent/api/` 执行。
 
@@ -12,9 +12,9 @@ API 即本机核心，使用 FastAPI、Pydantic、SQLAlchemy（aiosqlite）和 A
 uv sync --locked --group dev
 ```
 
-依赖由 [pyproject.toml](pyproject.toml) 声明、[uv.lock](uv.lock) 锁定；[requirements.txt](requirements.txt) 由锁文件导出（`uv export --locked --format requirements-txt --no-dev -o requirements.txt`），供保留的容器构建文件使用。升级时同步核对三者与[冻结清单](rayagent-core.spec)，本地开发不另维护一套手工安装版本。
+依赖由 [pyproject.toml](pyproject.toml) 声明、[uv.lock](uv.lock) 锁定。升级时同步核对两者与[冻结清单](rayagent-core.spec)，并重新冻结核心检查启动，本地开发不另维护一套手工安装版本。
 
-核心只从进程环境读取系统配置，不查找当前目录的 `.env`；字段定义见 [core/config.py](core/config.py)，启动参数可以按顺序叠加环境文件。应用配置（模型、Agent、工具策略、MCP、A2A）保存在业务库，首次启动写入代码默认值，之后经设置接口修改。模型端点的环境变量名称由应用配置的 `llm_endpoints` 声明（默认读取 `DEEPSEEK_URL`、`DEEPSEEK_API_KEY` 等），密钥只从环境读取，不写入业务库，也不返回给页面。
+核心只从进程环境读取系统配置，不查找 `.env`；字段定义见 [core/config.py](core/config.py)。应用配置（逐模型参数、Agent、工具策略、MCP、A2A）保存在业务库，首次启动写入代码默认值，之后经设置接口修改。模型地址与密钥只从用户配置文件读取（默认 `~/.config/rayagent/config.toml`，`RAYAGENT_CONFIG` 可另指，格式见[配置示例](config.example.toml)），按文件身份重新读取；密钥不写入业务库，`GET /api/app-config/llm` 只返回配置文件状态、各提供商的地址、协议、模型与密钥掩码。测试不读用户目录，夹具把配置文件指向临时目录。
 
 运行核心不需要 PostgreSQL、Redis、Docker 或对象存储。本机执行端口接入前，能力声明把文件访问、本机命令与浏览器报告为未实现，核心不装配这些工具，独立对话仍可使用对话、检索、公开网页读取与计划。保留的 Docker 沙箱适配不再装配，见下文[Docker 沙箱适配](#docker-沙箱适配)。
 
@@ -39,12 +39,14 @@ uv sync --locked --group dev
 开发时直接启动核心：
 
 ```bash
-uv run --locked python sidecar.py --data-root /tmp/rayagent-dev --env-file ../.env
+uv run --locked python sidecar.py --data-root /tmp/rayagent-dev
 ```
 
-`--port` 默认 8000，传 0 由系统分配；`--env-file` 可重复，按顺序叠加。启动时依次取得实例锁、执行迁移、打开业务库、写入默认应用配置、初始化 skill、执行启动扫描并恢复后台任务，完成后才接收请求，并在 stdout 写一行握手；Ctrl-C 停止。同一数据根已有核心运行时启动失败；业务库版本高于程序已知版本时拒绝启动，不降级迁移。
+`--port` 默认 8000，传 0 由系统分配。启动时依次取得实例锁、执行迁移、打开业务库、写入默认应用配置、初始化 skill、执行启动扫描并恢复后台任务，完成后才接收请求，并在 stdout 写一行握手；Ctrl-C 停止。同一数据根已有核心运行时启动失败；业务库版本高于程序已知版本时拒绝启动，不降级迁移。
 
-接口说明由应用生成：启动后访问 [OpenAPI 文档](http://localhost:8000/docs)，无需另外维护完整路由表。
+每次启动生成新的实例令牌并写在握手的 `instance_token` 中，`/api/` 下的请求都要带 `Authorization: Bearer <令牌>`，CORS 预检除外；令牌不进 URL 与日志。图片、PDF 与网页预览由 WebView 按 URL 直接加载，无法带请求头：先用 `POST /api/files/{id}/preview/ticket` 申请短期票据，再把 `ticket` 参数加到 `/api/files/{id}/preview/content`。票据只放行签发时那条路径的 GET 与 HEAD，到期作废，只存在进程内存；有效期与容量见[运行参数与限额](../../docs/limits.md#桌面宿主与核心进程)。
+
+接口说明由应用生成：启动后访问 `/docs` 查看 OpenAPI 文档（文档页本身不需要令牌，从页面调用接口需要），无需另外维护完整路由表。
 
 ### 接口契约
 
@@ -63,7 +65,7 @@ uv run --locked python scripts/contracts.py --check
 
 ## 冻结桌面核心
 
-桌面宿主随包分发的核心由 [rayagent-core.spec](rayagent-core.spec) 冻结为 PyInstaller onedir，入口是 [sidecar.py](sidecar.py)。PyInstaller 只在 dev 依赖组，不进入 `requirements.txt`。
+桌面宿主随包分发的核心由 [rayagent-core.spec](rayagent-core.spec) 冻结为 PyInstaller onedir，入口是 [sidecar.py](sidecar.py)。PyInstaller 只在 dev 依赖组。
 
 ```bash
 uv sync --locked --group dev
@@ -75,7 +77,7 @@ uv run --locked pyinstaller --noconfirm --clean rayagent-core.spec
 不带参数时入口从 stdin 读取一行 JSON 启动参数（契约类型 `CoreLaunch`），其中的 `data_dir` 就是数据根，就绪后在 stdout 写一行握手（`CoreHandshake`）；宿主侧约定见[桌面宿主指南](../desktop/README.md#宿主与核心的约定)。不冻结时也可以按宿主方式运行入口，用管道保持 stdin 打开，关闭管道即正常停止：
 
 ```bash
-(echo "{\"data_dir\": \"/tmp/rayagent-core-data\", \"env_files\": [\"$PWD/../.env\"]}"; cat) | uv run --locked python sidecar.py
+(echo '{"data_dir": "/tmp/rayagent-core-data"}'; cat) | uv run --locked python sidecar.py
 ```
 
 冻结后 `sys.executable` 指向入口本身。预览解析等以 `sys.executable -m 模块` 启动的子进程由入口按 `WORKER_MODULES` 放行，新增这类子进程时同时登记。
@@ -158,7 +160,7 @@ uv run --locked python -m pytest tests/core/test_scripted_llm.py
 
 ### 端到端评测
 
-[scripts/eval/](scripts/eval) 通过公开 HTTP API 与 SSE 驱动完整产品，任务定义与断言以脚本为准。脚本仍按原 Compose 部署编写（默认经网关 `http://localhost:8088/api` 访问，部分检查读取沙箱文件），对本机核心运行前需要改写入口与依赖文件、Shell、浏览器的任务；改写前的运行结果不能作为本机核心的评测结论。离线部分（SSE 解析、指标统计、注册顺序、基线对比表）的测试不连接服务：
+[scripts/eval/](scripts/eval) 通过公开 HTTP API 与 SSE 驱动完整产品，任务定义与断言以脚本为准。脚本仍按原部署编写：默认地址是开发模式的 `http://127.0.0.1:8000/api`，但请求不带实例令牌，部分检查读取沙箱文件，依赖文件、Shell 与浏览器的任务在本机执行端口接入前也无法完成；对本机核心运行前需要改写这些入口，改写前的运行结果不能作为本机核心的评测结论。离线部分（SSE 解析、指标统计、注册顺序、基线对比表）的测试不连接服务：
 
 ```bash
 uv run --locked python -m pytest tests/core/test_eval_script.py
@@ -203,7 +205,7 @@ RAYAGENT_DATA_ROOT=/tmp/rayagent-migrate uv run --locked alembic revision --auto
 
 ## MCP/A2A
 
-配置保存在业务库，通过设置接口维护，生效方式见[应用配置](../README.md#模型与工具)。
+配置保存在业务库，通过设置接口维护，保存后对新运行生效。
 
 pytest 会自己拉起临时协议服务，不依赖本机 9911/9912，也不能代替页面验收：
 
@@ -228,7 +230,7 @@ HTTP MCP 与 A2A 对端必须先运行；stdio MCP 由核心按配置启动子�
 夹具只提供加法、固定回复和固定失败，不是生产服务。核心运行时：
 
 ```bash
-./scripts/run-protocol-fixtures.sh start --local
+./scripts/run-protocol-fixtures.sh start
 ./scripts/run-protocol-fixtures.sh status
 ./scripts/run-protocol-fixtures.sh stop
 ```
@@ -239,7 +241,7 @@ HTTP MCP 与 A2A 对端必须先运行；stdio MCP 由核心按配置启动子�
 
 ## 模型配置与预算
 
-逐模型参数在应用设置中维护，端点地址与密钥由环境提供。选择、参数冻结与容量口径见 [Harness 模型请求分工](../../docs/harness.md#模型选择与请求分工)，默认值见[运行参数](../../docs/limits.md#模型与上下文)。模型配置检查包含在 `tests/core/test_model_configuration.py` 与 `tests/core/test_llm_api_key.py`，沿用本指南 pytest 入口。
+逐模型参数在应用设置中维护，端点地址与密钥由用户配置文件提供，见上文[依赖与配置](#依赖与配置)。选择、参数冻结与容量口径见 [Harness 模型请求分工](../../docs/harness.md#模型选择与请求分工)，默认值见[运行参数](../../docs/limits.md#模型与上下文)。模型配置检查包含在 `tests/core/test_model_configuration.py`、`tests/core/test_llm_api_key.py` 与 `tests/core/test_llm_endpoints.py`（配置文件解析、单项错误隔离、掩码与权限提醒），沿用本指南 pytest 入口。
 
 ### 网页读取与浏览器适配的定向检查
 

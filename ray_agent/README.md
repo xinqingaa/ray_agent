@@ -1,163 +1,68 @@
 # RayAgent 运行指南
 
-本文说明完整应用的配置、部署和运行检查。产品能力见 [项目首页](../README.md)，执行与数据流见 [架构说明](../docs/architecture.md)。
-
-> **原部署方式已不受支持。** 核心改为本机存储后不再连接 PostgreSQL、Redis 或 COS，也不读取 `config.yaml`；下文的 Compose、Nginx 与镜像说明描述的是原部署，按它启动的 API 无法工作。当前的开发启动见 [API 开发指南](api/README.md#启动与接口)，桌面宿主见[桌面开发指南](desktop/README.md)。
+本文说明桌面应用的模型连接、数据位置、运行检查与排查。产品能力见[项目首页](../README.md)，执行与数据流见[架构说明](../docs/architecture.md)。构建与开发命令在[桌面开发指南](desktop/README.md)。
 
 ## 适用范围
 
-当前应用面向可信使用者，没有用户认证或多租户权限。工具策略按工具匹配，不限制参数、沙箱路径或全部出站网络；动态容器的资源配额不能代替这些访问边界。部署默认只向本机发布，公开使用需另行设计身份与访问控制。模型目录声明的能力仍需在实际配置的上游验证。
+RayAgent 是单机桌面应用：Tauri 宿主随包带上冻结的 Python 核心，核心只在本机回环地址监听，界面经实例令牌访问。运行不需要 Docker、PostgreSQL、Redis 或 Nginx，也不向浏览器提供访问入口。原 Compose 部署已经删除，旧数据不迁移。
 
-## 环境要求
+当前只构建 Apple Silicon Mac 的内部包（本机 ad-hoc 签名），不作为对外交付物。应用面向可信的本机使用者，没有账户或多用户权限。独立对话可使用对话、检索、公开网页读取、计划、MCP 与 A2A；文件访问、本机命令与浏览器工具在本机执行端口接入前不提供，进度见[实施工作包](../docs/plan/implementation.md#实施状态)。
 
-- Docker Engine 或 Docker Desktop，以及 Docker Compose 插件。
-- 可访问镜像仓库和构建所需的软件源。
-- 支持工具调用的模型服务，其地址、模型名称与 API Key。
-- 附件和截图的文件存储：默认本地磁盘；使用腾讯云 COS 时再准备存储桶及访问配置。
+## 模型连接
 
-采用动态沙箱时，API 通过 Docker Socket 管理容器。部署主机需提供相应访问权限和可用资源；动态与已有沙箱的选择见 [沙箱连接方式](sandbox/README.md#与-api-连接)。
+核心从用户配置文件读取模型地址与密钥，默认位置为 `~/.config/rayagent/config.toml`，环境变量 `RAYAGENT_CONFIG` 可另指路径。字段与内置模型列表见[配置示例](api/config.example.toml)：每个 `[providers.<名称>]` 是一个 OpenAI 兼容接口，写 `base_url`、`api_key`、可选的 `protocol`（`responses` 或 `chat_completions`）与它提供的 `models`。
 
-## 配置
+- 设置页“模型提供商”的“打开配置文件”在文件不存在时按示例创建（目录 700、文件 600），再用系统文本编辑器打开。界面只显示文件路径、各提供商的地址、协议、可用模型与密钥掩码，不显示或修改密钥。
+- 核心按文件身份重新读取，保存后新发起的运行即用新值，不必重启；设置页可点“重新读取配置文件”刷新状态。
+- 模型只能使用内置目录中的 id，同一模型只由一个提供商提供；写错的单个提供商或模型只让对应模型不可用，原因显示在设置页。没有填写密钥的模型仍可选择，发送前会提示未配置。
+- 文件可被其他用户读取时设置页给出提醒，建议执行 `chmod 600`。配置文件不进仓库，不要把真实密钥写入示例或文档。
 
-以下路径与命令均以本目录为工作目录。从仓库根进入：
+温度、最大输出等逐模型参数与 Agent、工具策略、MCP、A2A 设置一样保存在业务库，经设置页修改。上游需实际支持所配协议及工具流式事件，能否使用以真实调用为准。
 
-```bash
-cd ray_agent
-```
+## 数据位置
 
-### 服务环境
+应用数据根为 `~/Library/Application Support/com.rayagent.desktop/core/`，其中有业务库、内容对象、会话工作目录与 skill 存储，布局见 [API 开发指南](api/README.md#数据根)。开发构建使用同目录下的 `dev-core/`，两者互不影响；环境变量 `RAYAGENT_CORE_DATA_DIR` 可另指数据根。
 
-在本目录创建 `.env`，字段可参考 [环境示例](.env.example)。Compose 会把此文件中的环境变量传入 API 容器。
+同一数据根同时只允许一个核心。备份或迁移时先退出应用，再整体复制数据根；只复制业务库会让附件、交付文件和 skill 包缺失。
 
-按 [docker-compose.yml](docker-compose.yml) 配置服务连接：
+## 启动、关闭与退出
 
-| 配置项 | Compose 部署取值或要求 |
-|---|---|
-| `APP_CONFIG_FILEPATH` | `config.yaml` |
-| `DEEPSEEK_URL` / `DEEPSEEK_API_KEY` | DeepSeek 地址与凭据；只写在本文件。未写地址时沿用 `api/config.yaml` |
-| `XIAOYI_URL` / `XIAOYI_API_KEY` | 可选。配置地址后，代码目录里的 GPT 模型与 DeepSeek 出现在同一列表。窗口仍按应用预算，默认值见[运行参数与限额](../docs/limits.md) |
-| `LOG_LEVEL` | API 日志等级，例如 `INFO` 或 `DEBUG` |
-| `SQLALCHEMY_ECHO` | `1` 时在 API 日志中回显 SQL；默认关闭 |
-| `POSTGRES_USER` / `POSTGRES_PASSWORD` / `POSTGRES_DB` | 数据库初始化设置；与下面的连接 URI 一致 |
-| `SQLALCHEMY_DATABASE_URI` | `postgresql+asyncpg://<用户>:<密码>@manus-postgres:5432/<数据库>` |
-| `REDIS_HOST` / `REDIS_PORT` | `manus-redis` / `6379` |
-| `REDIS_DB` | `0` |
-| `REDIS_PASSWORD` | 当前 Redis 服务未设置密码，可不配置此项 |
-| `SANDBOX_IMAGE` | `manus-sandbox` |
-| `SANDBOX_NETWORK` | `manus-network` |
-| `SANDBOX_NAME_PREFIX` | 动态容器名称前缀，例如 `rayagent-sandbox` |
-| `SANDBOX_TTL_MINUTES` | 沙箱存活时间。创建动态容器时注入为沙箱读取的 `SERVER_TIMEOUT_MINUTES`。未设置时的默认见[运行参数与限额](../docs/limits.md) |
-| `SANDBOX_MEMORY_MB` | 动态容器内存上限，swap 不超过同一上限。未设置时的默认见运行参数说明 |
-| `SANDBOX_CPUS` | 动态容器 CPU 上限。未设置时的默认见运行参数说明 |
-| `SANDBOX_PIDS_LIMIT` | 动态容器进程数上限。未设置时的默认见运行参数说明 |
-| `SANDBOX_ADDRESS` | 使用动态沙箱时不设置此项。设置后连接已有沙箱，不套用上面的限额 |
-| `FILE_STORAGE_BACKEND` | `local`（默认，写本地磁盘）或 `cos`（腾讯云对象存储） |
-| `FILE_STORAGE_LOCAL_DIR` | 本地模式的目录；Compose 部署使用 `/data/files` |
-| `SKILL_STORAGE_DIR` | skill 独立持久目录；Compose 固定为 `/data/skills` 并挂载 `skill_data` |
-| `COS_SECRET_ID` / `COS_SECRET_KEY` | 仅 `FILE_STORAGE_BACKEND=cos` 时必填 |
-| `COS_REGION` / `COS_BUCKET` | 仅云端模式需要，填存储桶地域与名称 |
-| `COS_SCHEME` | `https` |
-| `NGINX_BIND_ADDRESS` | 默认 `127.0.0.1`，显式修改才向其他地址发布；当前应用无鉴权 |
-| `PROJECT_LOCAL_BIND` | 仅宿主机开发 API 的托管目录回退，值须与文件存储目录一致；Compose 不设置 |
-| `PROJECT_UID` / `PROJECT_GID` | 托管文件的沙箱属主，默认 `1000:1000` |
-| `NGINX_PORT` | 对外端口，默认 `8088` |
+打开应用后宿主拉起核心，界面在核心就绪前显示启动状态；核心失败、意外退出或版本与应用不匹配时，界面显示原因、核心日志尾部与“重新启动核心”。
 
-表中的服务名、镜像名和网络名对应实际 Compose 标识。API 容器连接数据库和 Redis 时使用服务名，不能用指向容器自身的 `localhost`。环境示例中的 Redis 端口和本地文件目录需按上表调整。沙箱镜像、网络和名称前缀已按 Compose 标识填写。本地模式不需要填写 COS 凭据；Compose 部署请使用 `FILE_STORAGE_LOCAL_DIR=/data/files`，与 API 数据卷对应。选择 `cos` 时缺项会导致 API 无法启动。
+关闭主窗口只隐藏窗口，核心与正在执行的任务继续，从程序坞重新打开。退出用菜单或 Cmd+Q：没有活动任务时直接退出；有任务在执行或等待时先确认，确认后核心停止受理新工作、结束活动运行后退出。从程序坞菜单退出、注销或关机时系统直接结束应用，不会先确认，正在执行的任务记为中断。系统终止信号走同一条停止流程。各等待期限见[运行参数与限额](../docs/limits.md#桌面宿主与核心进程)。
 
-动态沙箱里 Supervisor 管理的服务进程以用户 `ubuntu` 运行，`HOME` 与工作目录为 `/home/ubuntu`。内存、CPU、进程数上限和存活时间只在 API 创建容器时写入；改这些环境变量后需要重新创建 API 容器，已经在跑的沙箱不会改限额。
+## 运行检查
 
-`.env` 已被 Git 忽略，各设备分别准备凭据与本地配置。
+1. 打开应用，确认界面进入首页而不是核心错误页。
+2. 在设置页“模型提供商”确认配置文件已找到，要用的模型显示为可用且有密钥掩码。
+3. 新建对话，发送一条不需要文件或命令的任务，确认流式回复、计划与最终结果正常。
+4. 切换会话与设置页、退出后重新打开，确认会话历史与未发送草稿仍在。
+5. 有任务执行时按 Cmd+Q，确认先出现退出确认；退出后没有残留核心进程：
 
-### 模型与工具
-
-模型调用默认使用 Responses；端点引用可显式设为 `chat_completions` 用于支持该协议的上游。DeepSeek 读 `DEEPSEEK_URL` 与 `DEEPSEEK_API_KEY`，GPT 读 `XIAOYI_URL` 与 `XIAOYI_API_KEY`；端点名称仅用于内部配置，用户只选择模型。未设置 `DEEPSEEK_URL` 时保留 YAML 中的全局地址。模型默认值、温度、`max_tokens`、`context_window` 与逐模型参数写在原 `api/config.yaml`（已删除，现存于业务库），当前数字见[运行参数与限额](../docs/limits.md)。设置页保留逐模型参数编辑，不展示连接设置。密钥和内部路由不返回模型选择接口。上游需实际支持所配协议及工具流式事件。
-
-更换已有上游时修改对应 URL 和 Key；新增兼容上游时在 `llm_config` 内增加端点环境变量引用，并调整模型映射。例如只把现有 GPT Luna 转到新上游：
-
-```yaml
-llm_config:
-  # 保留其他配置与映射项，以下展示需要新增或调整的部分
-  llm_endpoints:
-    deepseek: {url_env: DEEPSEEK_URL, key_env: DEEPSEEK_API_KEY}
-    gpt: {url_env: XIAOYI_URL, key_env: XIAOYI_API_KEY}
-    extra: {url_env: EXTRA_LLM_URL, key_env: EXTRA_LLM_API_KEY}
-  model_endpoints:
-    deepseek-flash: deepseek
-    deepseek-v4-pro: deepseek
-    gpt-6.1-sol: gpt
-    gpt-6-luna: extra
-    gpt-6-astra: gpt
-```
-
-端点配置和模型映射未填写时使用内置默认值；填写字典时需保留仍要使用的项。URL 与 Key 的真实值写入所属 API 的环境配置，YAML 只保存变量名称。新上游必须接受当前模型 ID 与请求参数；新模型能力或不同协议仍需要适配，不能仅凭接口地址认定兼容。目录可读取模型能力，缺 Key 在调用前明确拒绝；已知模型端点缺失不回退到其他地址。标题与项目摘要从应用默认模型配置派生辅助请求，读取对应内部端点；它们与主运行及历史压缩的分工见 [Harness 模型选择](../docs/harness.md#模型选择与请求分工)。
-
-首次验证使用内置工具即可，仓库中的 MCP/A2A 配置已是空集合。启用外部 MCP/A2A、以及本地验收夹具的步骤见 [API 开发指南](api/README.md#mcpa2a)。
-
-Compose 中 API 读写容器内 `/app/config.yaml`，当前未挂载仓库配置文件。页面设置写入运行中容器；仓库的 `api/config.yaml` 是镜像默认值，修改后需要重新构建 API 镜像，重建容器时应核对页面设置是否需要重新配置。仓库 yaml 由 Git 跟踪，不写入真实凭据。
-
-只改 `.env` 时需重新创建 API 容器，`restart` 不会重读环境变量。对应操作命令统一见 [Docker 操作说明](DOCKER.md#重启)。
-
-## 启动与验证
-
-先确认 Docker CLI、Compose 插件和引擎可用，再检查部署配置：
-
-```bash
-docker --version
-docker compose version
-docker info
-docker compose config --quiet
-```
-
-最后一条命令需先创建本目录 `.env`，只校验 Compose 配置，不验证模型、文件存储凭据或外部服务。检查通过后启动：
-
-```bash
-docker compose up -d --build
-docker compose ps
-```
-
-打开 [http://localhost:8088](http://localhost:8088)。如果设置了 `NGINX_PORT`，使用对应端口。
-
-首次启动会构建 API、UI 和沙箱镜像。API 启动时执行数据库迁移，再初始化 Redis、PostgreSQL，并按 `FILE_STORAGE_BACKEND` 初始化本地目录或 COS。使用已有数据卷升级时，先核对 [API 指南的数据库兼容说明](api/README.md#测试与数据库迁移)，确认事件数据影响；需要删除数据并重新初始化时，再按 [Docker 操作说明](DOCKER.md) 操作。API 就绪后，UI 和网关才会按依赖条件启动。迁移完成、开始接收请求之前，启动扫描会把上次进程留下的 running 运行，以及正在等待审批的运行，标为 interrupted；等待提问的运行保持 waiting。
-
-检查顺序：
-
-1. 查看服务状态和日志，确认 API 初始化成功。
-2. 访问页面，创建会话并发起任务。
-3. 使用不需要外部搜索或协议服务的任务，例如“在沙箱工作目录创建一个文本文件，写入 hello，再读取并告诉我内容”，观察计划、实际工具调用和最终结果。
-4. 刷新页面，检查会话历史。
-5. 使用附件或浏览器功能时，检查文件传输、文本观察与显式截图；支持视觉的模型可用截图分析。纯文本回答应无需准备沙箱。
-
-## 日常操作
-
-启动、停止、重启、查看状态和日志见 [Docker 操作说明](DOCKER.md)。不要在仓库根执行 `docker compose`。
-
-只重建 `manus-api` 或 `manus-ui` 时，已经在跑的网关不会跟着换上游地址，页面和接口会返回 502。重建后要再执行 `docker compose restart manus-nginx`，原因和命令见 [Docker 操作说明](DOCKER.md#重启)。
+   ```bash
+   pgrep -fl rayagent-core || echo "no core left"
+   ```
 
 ## 排查入口
 
 | 现象 | 优先检查 |
 |---|---|
-| API 无法启动 | 数据库连接、迁移日志、Redis；`FILE_STORAGE_BACKEND=cos` 时检查 COS 配置 |
-| UI 或网关等待启动 | API 健康状态与日志 |
-| 重建 API 或 UI 后页面 502 | 网关仍连重建前的容器地址。重建后重启 `manus-nginx`，见 [Docker 操作说明](DOCKER.md#重启) |
-| 环境准备失败 | 首次使用或同步附件时检查 Docker Socket、沙箱镜像、容器网络和浏览器连接 |
-| 模型调用失败 | API 地址、凭据、模型名称与工具调用支持 |
-| 附件或截图失败 | 本地目录与数据卷，或 COS 地域、存储桶、访问权限，以及沙箱文件操作 |
+| 显示“核心未能启动” | 错误页中的日志尾部；数据根是否被另一个核心占用；业务库版本是否高于应用 |
+| 显示“核心版本与应用不匹配” | 宿主与随包核心来自不同构建，重新构建应用 |
+| 模型不可选或发送前提示未配置 | 设置页列出的配置文件路径、提供商原因与密钥掩码 |
+| 模型调用失败 | 上游地址、密钥、模型 id 与所配协议、工具调用支持 |
+| 外部链接或下载没有反应 | 外部链接只放行 http、https 与 mailto；下载需要核心处于就绪状态 |
+
+从终端启动内部包时可直接看到 `[core]` 与 `[host]` 前缀的日志，命令见[桌面开发指南](desktop/README.md#构建应用)。
 
 ## 开发入口
 
 各服务使用独立的依赖和运行环境：
 
-- [API](api/README.md)：FastAPI、数据库迁移和后端分层。
-- [UI](ui/README.md)：Next.js 前端。
-- [沙箱](sandbox/README.md)：浏览器、终端和文件操作服务。
-- [桌面宿主](desktop/README.md)：Tauri 宿主与冻结核心的拉起、通信和退出，当前为宿主探针阶段。
-- [契约](contracts/README.md)：由核心 Pydantic 模型生成的 OpenAPI、JSON Schema 与 TypeScript 类型，以及过期检查。
+- [桌面宿主](desktop/README.md)：Tauri 宿主、核心拉起与退出、内部包构建。
+- [API](api/README.md)：核心、业务库迁移、后端分层与测试。
+- [UI](ui/README.md)：Vite 与 React 共享界面、请求封装与检查脚本。
+- [契约](contracts/README.md)：由核心 Pydantic 模型生成的 OpenAPI、JSON Schema 与 TypeScript 类型。
+- [沙箱](sandbox/README.md)：保留到本机执行端口接入的原沙箱代码，核心不再装配。
 
-各服务 README 分别维护本地开发、依赖安装和验证命令；本指南只维护完整部署的配置与运行检查。默认可调数值集中在[运行参数与限额](../docs/limits.md)。协议由部署配置决定，普通用户菜单只选择模型与思考。
-
-## skill 持久化
-
-Compose 的 `skill_data` 卷独立保存全局 skill，数据库保存目录、版本、导入操作与运行引用。数据库与该卷应配套备份和恢复；仅恢复数据库会使缺失的包无法加载。附件采用 COS 也仍需保留 skill 卷。清空项目和对话不删除全局 skill，`docker compose down -v` 则会删除 Compose 数据卷。
-
-skill 导入、发现入口及本机 CLI 不同步的边界见[skill 机制](../docs/skills.md)。API 和沙箱都需要更新到含 skill 材料端点的版本，前端需要重新构建；只升级前端不能提供安装和加载能力。
+默认可调数值集中在[运行参数与限额](../docs/limits.md)。

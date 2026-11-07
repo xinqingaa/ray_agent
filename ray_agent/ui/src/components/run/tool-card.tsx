@@ -1,5 +1,3 @@
-'use client'
-
 import {useId, useState} from 'react'
 import {ChevronRight, PanelRight} from 'lucide-react'
 import {Button} from '@/components/ui/button'

@@ -1,6 +1,5 @@
-'use client'
 import {useCallback, useEffect, useRef, useState} from 'react'
-import {useRouter} from 'next/navigation'
+import {useRouter} from '@/lib/navigation'
 import {ArrowUpRight} from 'lucide-react'
 import {IconAction} from '@/components/ui/icon-action'
 import {Button} from '@/components/ui/button'

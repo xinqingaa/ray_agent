@@ -1,13 +1,9 @@
-'use client'
-
-import {AttachmentCopyStatus} from './project-copy-status'
 import {CornerDownRight, Download} from 'lucide-react'
 import {MarkdownContent} from '@/components/markdown-content'
 import {SkillMark} from '@/components/skill-mark'
 import {cn} from '@/lib/utils'
 import type {FileView, RunSummary} from '@/lib/session-view'
 import {FileRow} from '@/components/preview/file-row'
-import {previewBodyKind} from './file-icon'
 import {PreviewAction} from '@/components/preview/action'
 
 type UserMessageProps = {
@@ -42,9 +38,7 @@ export function UserMessage({text, skillName, attachments = [], injected = false
           <div className="mt-2 flex flex-wrap gap-1.5">
             {attachments.map(file => <FileRow key={file.id} file={file} compact showThumbnail
               onOpen={onPreview ? () => onPreview(file) : undefined}
-              actions={onDownload && <PreviewAction label={`下载 ${file.filename}`} icon={Download} onClick={() => onDownload(file)}/>}>
-              <AttachmentCopyStatus attachmentId={file.id} hideReady={previewBodyKind(file.extension) === 'image'}/>
-            </FileRow>)}
+              actions={onDownload && <PreviewAction label={`下载 ${file.filename}`} icon={Download} onClick={() => onDownload(file)}/>}/>)}
           </div>
         )}
       </div>

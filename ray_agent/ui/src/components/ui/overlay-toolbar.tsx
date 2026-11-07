@@ -1,5 +1,3 @@
-'use client'
-
 import type {ReactNode} from 'react'
 import {RefreshCw, X} from 'lucide-react'
 import {IconAction} from './icon-action'

@@ -1,5 +1,3 @@
-'use client'
-
 import type {KeyboardEvent} from 'react'
 import {Check, Loader2, ShieldQuestion, X} from 'lucide-react'
 import {Button} from '@/components/ui/button'

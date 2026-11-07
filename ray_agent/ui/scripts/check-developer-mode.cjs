@@ -14,7 +14,7 @@ function load(file) {
  new Function('require','exports',code)(name => {
   if(name === 'react' || name === 'react/jsx-runtime') return require(name);
   if(name === 'lucide-react') return new Proxy({}, {get:()=>()=>null});
-  if(name === 'next/link') return {default:props=>React.createElement('a',props,props.children)};
+  if(name === '@/lib/navigation') return {Link:props=>React.createElement('a',props,props.children)};
   if(name === 'sonner') return {toast:{error(){}}};
   if(name === '@/lib/utils') return {cn:(...xs)=>xs.filter(Boolean).join(' ')};
   if(name === '@/lib/api/session') return {sessionApi:{viewShell:async()=>{pulls++; return {output:'stdout'}}}};
@@ -24,6 +24,7 @@ function load(file) {
   if(name === './clock') return {useNow:()=>0};
   if(name === '@/components/preview/file-row') return {FileRow:props=>React.createElement('div',{},props.file.filename,props.actions,props.children)};
   if(name.startsWith('@/components/ui/')) return ui;
+  if(name.startsWith('@tauri-apps/')) return require(name);
   if(['@/components/workbench/managed-project-pane','@/components/preview/file-preview','@/components/preview/image-preview','@/components/preview/file-row','@/components/preview/action'].includes(name)) return ui;
   const target = name.startsWith('@/') ? name.slice(2) : path.posix.join(path.posix.dirname(file),name);
   return load(target + (fs.existsSync(root+'/src/'+target+'.ts') ? '.ts' : '.tsx'));

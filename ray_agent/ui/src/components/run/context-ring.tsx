@@ -1,5 +1,3 @@
-'use client'
-
 import {useState} from 'react'
 import {Tooltip, TooltipContent, TooltipTrigger} from '@/components/ui/tooltip'
 import {Popover, PopoverContent, PopoverTrigger} from '@/components/ui/popover'

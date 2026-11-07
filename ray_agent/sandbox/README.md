@@ -4,7 +4,7 @@
 
 > 本机核心不再装配沙箱：核心启动不初始化 Docker，文件、Shell 与浏览器工具在本机执行端口接入前不提供，公开网页读取已移入核心，托管项目已删除。本指南描述保留到本机执行接入时的沙箱代码，下文与 API 连接、项目运行的说明适用于原部署。
 
-本文区分完整沙箱与 Python 开发环境。架构边界见 [架构说明](../../docs/architecture.md)，整体部署见 [运行指南](../README.md)。部署配置与启动命令已静态核对；下方任务控制脚本已有本地运行记录，不能代替完整沙箱验证。
+本文区分完整沙箱与 Python 开发环境。架构边界见 [架构说明](../../docs/architecture.md)；原产品 Compose 与部署指南已删除。下方任务控制脚本已有本地运行记录，不能代替完整沙箱验证。
 
 ## 完整沙箱
 
@@ -18,11 +18,11 @@
 | `5900` | VNC RFB |
 | `5901` | WebSocket VNC |
 
-完整镜像由产品目录的 Compose 构建。上述沙箱端口未在产品 Compose 中映射到宿主机，访问方式取决于 API 与沙箱所在网络。
+完整镜像原由产品 Compose 构建，该编排已删除；需要单独观察时直接用本目录的 Dockerfile 构建。访问方式取决于 API 与沙箱所在网络。
 
 Supervisor 管理的服务进程以用户 `ubuntu` 运行，FastAPI 的 `HOME` 与工作目录为 `/home/ubuntu`。容器入口 `supervisord` 仍是 root。需要 root 的操作使用镜像里为 `ubuntu` 配置的免密 sudo。虚拟显示使用 `Xvfb -ac`，这样同一容器里的 ubuntu 进程可以连接显示。上传目录 `/home/ubuntu/upload` 与工具输出目录 `/home/ubuntu/.rayagent/outputs` 在第一次写入时由该用户创建。
 
-内存、CPU、进程数上限和存活时间不写在镜像里。API 在动态创建容器时设置，环境变量见[运行指南](../README.md#服务环境)。按地址连接已有沙箱时，这些限额不会套用到那个容器上。
+内存、CPU、进程数上限和存活时间不写在镜像里。API 在动态创建容器时设置，环境变量字段见 [core/config.py](../api/core/config.py) 的 `sandbox_*`。按地址连接已有沙箱时，这些限额不会套用到那个容器上。
 
 ## 与 API 连接
 
@@ -31,13 +31,11 @@ Supervisor 管理的服务进程以用户 `ubuntu` 运行，FastAPI 的 `HOME` �
 | 模式 | 配置条件 | 资源归属 |
 |---|---|---|
 | 动态沙箱 | 不设置 `SANDBOX_ADDRESS`；配置 `SANDBOX_IMAGE`、`SANDBOX_NETWORK`、`SANDBOX_NAME_PREFIX` | API 创建容器，并在其销毁逻辑中删除所创建的容器 |
-| 已有沙箱 | `SANDBOX_ADDRESS` 设置为可解析的主机名或 IP，如同一 Compose 网络内的 `manus-sandbox` | API 连接已有服务；适配对象的销毁是否删除该外部容器取决于取用方式，见下 |
+| 已有沙箱 | `SANDBOX_ADDRESS` 设置为可解析的主机名或 IP，如同一 Docker 网络内的沙箱容器名 | API 连接已有服务；适配对象的销毁是否删除该外部容器取决于取用方式，见下 |
 
 `SANDBOX_ADDRESS` 使用主机名或 IP，不填完整 URL。API 必须能访问沙箱的服务与浏览器端点；动态模式还需要访问 Docker。
 
 已有沙箱模式的两条取用路径对销毁的处理并不一致：按地址创建时不保存容器名，销毁不会删除该容器；按 ID 取回时会把该 ID 当作容器名保存，销毁会对这个名字执行强制删除。调用方需要按实际取用方式判断，不能假设外部容器一定安全。
-
-产品 Compose 中存在沙箱服务并不自动决定使用哪种模式，选择由 API 配置决定。具体 Compose 镜像、网络和环境取值统一见 [运行指南](../README.md#服务环境)。
 
 在宿主机运行 API 时，不要假设 Docker 内部 IP 必然从宿主机可达；尤其需要核对 Docker Desktop 下的网络和必要端口映射。
 

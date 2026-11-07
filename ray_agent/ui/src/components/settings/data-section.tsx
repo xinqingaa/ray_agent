@@ -1,4 +1,3 @@
-'use client'
 import {useCallback, useEffect, useState} from 'react'
 import {Button} from '@/components/ui/button'
 import {DataCleanupDialog} from '@/components/data-cleanup-dialog'

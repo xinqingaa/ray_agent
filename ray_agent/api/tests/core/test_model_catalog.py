@@ -12,8 +12,8 @@ from app.domain.models.model_catalog import (
     resolve_selection,
     tuned_limits,
 )
-from app.infrastructure.external.llm.endpoint_settings import load_llm_endpoints
 from app.infrastructure.external.llm.openai_llm import OpenAILLM
+from tests.support.model_connections import connect, providers
 
 
 def test_deepseek_catalog_uses_request_ids_and_vendor_efforts():
@@ -114,11 +114,9 @@ def test_auxiliary_call_uses_flash_without_thinking():
     assert wide[0].context_window == 1_000_000
 
 
-def test_extra_endpoint_uses_app_window_and_openai_effort(monkeypatch):
-    monkeypatch.setenv("XIAOYI_URL", "https://api.xiaoyiapi.xyz/v1")
-    monkeypatch.setenv("XIAOYI_API_KEY", "sk-test")
-    config = LLMConfig(api_key="sk-deepseek")
-    config.resolved_endpoints = load_llm_endpoints(config)
+def test_extra_endpoint_uses_app_window_and_openai_effort(isolated_model_connections):
+    config = connect(LLMConfig(), isolated_model_connections,
+                     providers(gpt_url="https://api.xiaoyiapi.xyz/v1", gpt_key="sk-test"))
     ids = [item.id for item in active_models(config)]
     assert ids[:2] == ["deepseek-flash", "deepseek-v4-pro"]
     assert [item for item in ids if item.startswith("gpt-")] == ["gpt-6.1-sol", "gpt-6-luna", "gpt-6-astra"]
@@ -156,18 +154,13 @@ def test_extra_endpoint_uses_app_window_and_openai_effort(monkeypatch):
     assert deepseek._request_kwargs([{"role": "user", "content": "ok"}], None, None, None, stream=False)["extra_body"] == {"thinking": {"type": "enabled"}}
 
 
-def test_configured_url_enables_the_gpt_catalog(monkeypatch, tmp_path):
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.delenv("XIAOYI_URL", raising=False)
-    monkeypatch.delenv("XIAOYI_API_KEY", raising=False)
-    config = LLMConfig()
-    config.resolved_endpoints = load_llm_endpoints(config)
-    assert config.resolved_endpoints["gpt"] is None
+def test_configured_provider_enables_the_gpt_catalog(isolated_model_connections):
+    only_deepseek = providers().split("[providers.gpt]")[0]
+    config = connect(LLMConfig(), isolated_model_connections, only_deepseek)
+    assert "gpt" not in config.resolved_endpoints
     assert all(item.provider != "openai" for item in active_models(config))
-    monkeypatch.setenv("XIAOYI_URL", "https://upstream.test/v1")
-    monkeypatch.setenv("XIAOYI_API_KEY", "sk")
-    config.resolved_endpoints = load_llm_endpoints(config)
-    assert "gpt" in config.resolved_endpoints
+    config = connect(LLMConfig(), isolated_model_connections, providers(gpt_url="https://upstream.test/v1", gpt_key="sk"))
+    assert config.resolved_endpoints["gpt"] is not None
     ids = [item.id for item in active_models(config)]
     assert ids.count("deepseek-flash") == 1
     assert [item for item in ids if item.startswith("gpt-")] == ["gpt-6.1-sol", "gpt-6-luna", "gpt-6-astra"]

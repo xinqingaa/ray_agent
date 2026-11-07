@@ -34,7 +34,7 @@ router = APIRouter(prefix="/app-config", tags=["设置模块"])
     path="/llm",
     response_model=Response[LLMConfigPublic],
     summary="获取LLM配置信息",
-    description="返回模型名、地址等可写字段，以及是否已从环境变量配置密钥；不返回密钥明文"
+    description="返回默认模型与采样参数，以及模型连接配置文件中各提供商的地址、密钥掩码与可用状态；不返回密钥明文"
 )
 async def get_llm_config(
         app_config_service: AppConfigService = Depends(get_app_config_service)
@@ -75,7 +75,7 @@ async def preview_sampling(body: SamplingPreviewRequest,
     path="/llm",
     response_model=Response[LLMConfigPublic],
     summary="更新LLM配置信息",
-    description="更新模型名、地址、温度等；请求中的 api_key 会被忽略"
+    description="更新默认模型与采样参数；模型连接只在配置文件中修改"
 )
 async def update_llm_config(
         new_llm_config: LLMConfigUpdate,

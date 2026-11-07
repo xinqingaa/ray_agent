@@ -1,12 +1,11 @@
-'use client'
-
 import { useMemo } from 'react'
 import ReactMarkdown, {defaultUrlTransform} from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { cn } from '@/lib/utils'
 import type {FileView} from '@/lib/session-view'
 import {resolveMessageFileLink} from '@/lib/message-file-links'
-import {fileApi} from '@/lib/api/file'
+import {downloadFile} from '@/lib/api/preview'
+import {toast} from 'sonner'
 
 export interface MarkdownContentProps {
   content: string
@@ -140,9 +139,8 @@ export function MarkdownContent({ content, className, deliveredFiles, onDownload
         components={{...(deliveredFiles ? {...components, a: ({node, className, href, children, ...props}) => {
           const file = href ? resolveMessageFileLink(href, deliveredFiles) : null
           if (file === 'unavailable') return <span className="text-sm" title="此路径没有可用的交付附件">{children}</span>
-          if (file) return <a {...props} className={cn('text-sm text-signal underline-offset-2 hover:underline', className)}
-            href={fileApi.getFileDownloadUrl(file.id)} download={file.filename}
-            onClick={onDownloadFile ? event => {event.preventDefault(); onDownloadFile(file)} : undefined}>{children}</a>
+          if (file) return <button type="button" title={`下载 ${file.filename}`} className={cn('text-sm text-signal underline-offset-2 hover:underline', className)}
+            onClick={() => onDownloadFile ? onDownloadFile(file) : void downloadFile(file.id, file.filename).catch(error => toast.error(error instanceof Error ? error.message : '下载失败'))}>{children}</button>
           return <MarkdownLink node={node} className={className} href={href} {...props}>{children}</MarkdownLink>
         }} : components), ...overrides}}>
         {normalized}

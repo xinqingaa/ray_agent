@@ -1,7 +1,3 @@
-'use client'
-
-/* eslint-disable @next/next/no-img-element -- 图片已由预览服务压缩，直接使用其缩略图。 */
-
 import {useEffect, useRef, useState} from 'react'
 import {ApiError} from '@/lib/api/fetch'
 import {previewContentUrl, previewEndpoint, readPreview} from '@/lib/api/preview'
@@ -18,7 +14,9 @@ export function AttachmentThumbnail({id, filename}: {id: string; filename: strin
       void readPreview(previewEndpoint(source), new URLSearchParams(), controller.signal).then(preview => {
         if (controller.signal.aborted) return
         if (preview.kind !== 'image') throw new Error(preview.reason || '图片无法预览')
-        setSrc(preview.thumbnail || previewContentUrl(source, preview.revision))
+        return preview.thumbnail || previewContentUrl(id, preview.revision)
+      }).then(url => {
+        if (!controller.signal.aborted && url) setSrc(url)
       }).catch(error => {
         if (!controller.signal.aborted) setError(error instanceof ApiError && error.code === 'gone' ? '图片已过期' : '图片加载失败')
       })

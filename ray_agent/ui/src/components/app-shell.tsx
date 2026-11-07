@@ -1,16 +1,13 @@
-'use client'
-
 import React from 'react'
-import {usePathname} from 'next/navigation'
+import {usePathname} from '@/lib/navigation'
 import {SidebarProvider} from '@/components/ui/sidebar'
 import {SessionsProvider} from '@/providers/sessions-provider'
 import {LeftPanel} from '@/components/left-panel'
-import {ProjectsProvider} from '@/providers/projects-provider'
 import {MainShell} from '@/components/sidebar-chrome'
 
-/** 独立设置页与开发目录使用完整画布。 */
+/** 独立设置页使用完整画布。 */
 function isBareRoute(pathname: string | null): boolean {
-  return pathname === '/settings' || (pathname?.startsWith('/dev/') ?? false)
+  return pathname === '/settings'
 }
 
 export function AppShell({children}: {children: React.ReactNode}) {
@@ -21,7 +18,7 @@ export function AppShell({children}: {children: React.ReactNode}) {
   }
 
   return (
-    <ProjectsProvider><SessionsProvider>
+    <SessionsProvider>
       <SidebarProvider
         style={{
           '--sidebar-width': '22.5rem',
@@ -33,6 +30,6 @@ export function AppShell({children}: {children: React.ReactNode}) {
           {children}
         </MainShell>
       </SidebarProvider>
-    </SessionsProvider></ProjectsProvider>
+    </SessionsProvider>
   )
 }

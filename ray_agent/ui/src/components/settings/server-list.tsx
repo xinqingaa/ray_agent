@@ -1,5 +1,3 @@
-'use client'
-
 import {useCallback, useEffect, useState, type ReactNode} from 'react'
 import {useDeveloperMode} from '@/hooks/use-developer-mode'
 import {Loader2, Trash2} from 'lucide-react'

@@ -1,5 +1,3 @@
-'use client'
-
 import {useRef, useState} from 'react'
 import {Download, Expand, Minus, Plus, Scan, SquareDashed, X} from 'lucide-react'
 import {Dialog, DialogContent, DialogDescription, DialogTitle} from '@/components/ui/dialog'
@@ -21,7 +19,6 @@ function ImageCanvas({src, title, scale}: {src: string; title: string; scale: nu
       area.current.scrollLeft = drag.current.left - event.clientX + drag.current.x
       area.current.scrollTop = drag.current.top - event.clientY + drag.current.y
     }} onPointerUp={() => {drag.current=null}} onPointerCancel={() => {drag.current=null}}>
-    {/* eslint-disable-next-line @next/next/no-img-element -- 文件与截图共用的原图查看 */}
     <img src={src} alt={title} draggable={false} onError={()=>setFailed(true)} className={scale == null ? 'm-auto max-h-full max-w-full object-contain' : 'm-auto max-w-none shrink-0 cursor-grab self-start'}
       style={scale == null ? undefined : {zoom:scale}}/>
   </div>
@@ -60,7 +57,6 @@ function ImagePreviewContent({src, originalSrc, title, onDownload, onError, dime
     <div className="min-h-0 flex-1 overflow-auto p-2">
       {failed ? <div className="flex items-center gap-2 p-3 text-xs"><p role="alert" className="text-state-failed">图片加载失败</p><button type="button" className="rounded-sm px-2 py-1 outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring" onClick={()=>setFailed(false)}>重试</button></div> : <button type="button" aria-label={`放大 ${title}`}
         className="block w-full cursor-zoom-in rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => setExpanded(true)}>
-        {/* eslint-disable-next-line @next/next/no-img-element -- 只读图片缩略图 */}
         <img src={src} alt={title} className="mx-auto h-auto max-w-full rounded-md" onError={() => {setFailed(true);onError?.()}}/>
       </button>}
     </div>

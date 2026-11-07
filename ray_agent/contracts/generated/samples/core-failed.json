@@ -1,6 +1,6 @@
 {
   "event": "failed",
-  "protocol_version": 1,
+  "protocol_version": 2,
   "error": {
     "code": "unavailable",
     "message": "核心初始化失败，详见 stderr 日志",

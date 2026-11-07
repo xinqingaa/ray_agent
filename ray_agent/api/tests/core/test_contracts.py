@@ -217,9 +217,11 @@ def test_handshake_is_discriminated_and_launch_is_validated():
     failed = TypeAdapter(CoreHandshake).validate_json(artifacts()["samples/core-failed.json"])
     assert failed.event == "failed" and failed.error.code is ErrorCode.UNAVAILABLE
     launch = CoreLaunch.model_validate_json('{"data_dir": "/tmp/core"}')
-    assert launch.env_files == [] and launch.env == {}
+    assert launch.env == {}
     with pytest.raises(ValidationError):
-        CoreLaunch.model_validate_json('{"env_files": []}')
+        CoreLaunch.model_validate_json('{"env": {}}')
+    with pytest.raises(ValidationError):
+        TypeAdapter(CoreHandshake).validate_python({**sample, "instance_token": None})
 
 
 def test_status_route_reports_degraded_services_without_failing(monkeypatch):

@@ -1,5 +1,3 @@
-'use client'
-
 import {ArrowRight, ListChecks, RotateCcw} from 'lucide-react'
 import {Button} from '@/components/ui/button'
 import {IconAction} from '@/components/ui/icon-action'

@@ -1,5 +1,3 @@
-'use client'
-
 import {createElement, type ReactNode} from 'react'
 import {fileIcon, previewBodyKind, previewUnavailableReason} from '@/components/run/file-icon'
 import {AttachmentThumbnail} from './attachment-thumbnail'

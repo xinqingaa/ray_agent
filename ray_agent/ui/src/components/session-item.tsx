@@ -1,7 +1,5 @@
-'use client'
-
 import {useCallback, useId} from 'react'
-import Link from 'next/link'
+import {Link} from '@/lib/navigation'
 import {MoreHorizontal, Pencil, Trash} from 'lucide-react'
 import {Button} from '@/components/ui/button'
 import {
@@ -63,7 +61,6 @@ export function SessionItem({session, isActive, onClick, onDelete, onRename, hre
         <Link
           href={href}
           data-navigate
-          prefetch={false}
           title={hint}
           onClick={(event) => {
             if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return

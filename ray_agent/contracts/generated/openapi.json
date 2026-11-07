@@ -3,7 +3,7 @@
   "info": {
     "title": "RayAgent通用智能体",
     "description": "RayAgent 本机核心：会话、运行与事件保存在本机业务库，经 MCP 与 A2A 连接外部工具与远程 Agent",
-    "version": "1"
+    "version": "2"
   },
   "paths": {
     "/api/status": {
@@ -75,7 +75,7 @@
           "设置模块"
         ],
         "summary": "获取LLM配置信息",
-        "description": "返回模型名、地址等可写字段，以及是否已从环境变量配置密钥；不返回密钥明文",
+        "description": "返回默认模型与采样参数，以及模型连接配置文件中各提供商的地址、密钥掩码与可用状态；不返回密钥明文",
         "operationId": "get_llm_config_api_app_config_llm_get",
         "responses": {
           "200": {
@@ -105,7 +105,7 @@
           "设置模块"
         ],
         "summary": "更新LLM配置信息",
-        "description": "更新模型名、地址、温度等；请求中的 api_key 会被忽略",
+        "description": "更新默认模型与采样参数；模型连接只在配置文件中修改",
         "operationId": "update_llm_config_api_app_config_llm_post",
         "requestBody": {
           "content": {
@@ -1144,6 +1144,49 @@
         }
       }
     },
+    "/api/files/{file_id}/preview/ticket": {
+      "post": {
+        "tags": [
+          "文件预览"
+        ],
+        "summary": "签发原始内容的读取票据",
+        "description": "图片、PDF 与网页按 URL 加载时把票据放在 ticket 参数里",
+        "operationId": "attachment_content_ticket_api_files__file_id__preview_ticket_post",
+        "parameters": [
+          {
+            "name": "file_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "File Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_ResourceTicket_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/sessions": {
       "post": {
         "tags": [
@@ -1465,7 +1508,12 @@
             "in": "path",
             "required": true,
             "schema": {
-              "$ref": "#/components/schemas/RequestId"
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+              "description": "业务幂等请求身份；同身份不同内容返回冲突",
+              "title": "Request Id"
             }
           }
         ],
@@ -3536,7 +3584,7 @@
         "properties": {
           "file": {
             "type": "string",
-            "format": "binary",
+            "contentMediaType": "application/octet-stream",
             "title": "File"
           }
         },
@@ -3554,7 +3602,7 @@
           },
           "file": {
             "type": "string",
-            "format": "binary",
+            "contentMediaType": "application/octet-stream",
             "title": "File"
           },
           "update_name": {
@@ -3599,7 +3647,7 @@
           "files": {
             "items": {
               "type": "string",
-              "format": "binary"
+              "contentMediaType": "application/octet-stream"
             },
             "type": "array",
             "title": "Files"
@@ -4498,6 +4546,52 @@
         "title": "CompactUsage",
         "description": "摘要请求各次尝试的用量合计；属于运行时计入运行的模型请求数与 tokens，不算一轮。"
       },
+      "ConnectionSource": {
+        "properties": {
+          "path": {
+            "type": "string",
+            "title": "Path"
+          },
+          "exists": {
+            "type": "boolean",
+            "title": "Exists",
+            "default": false
+          },
+          "issue": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Issue",
+            "description": "整份文件无法使用的原因"
+          },
+          "notices": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Notices",
+            "description": "不影响使用的提醒"
+          },
+          "providers": {
+            "items": {
+              "$ref": "#/components/schemas/ProviderStatus"
+            },
+            "type": "array",
+            "title": "Providers"
+          }
+        },
+        "type": "object",
+        "required": [
+          "path"
+        ],
+        "title": "ConnectionSource",
+        "description": "模型连接配置文件的读取结果。"
+      },
       "ContextEventData": {
         "properties": {
           "event_id": {
@@ -4651,7 +4745,7 @@
         "properties": {
           "protocol_version": {
             "$ref": "#/components/schemas/ProtocolVersion",
-            "default": 1
+            "default": 2
           },
           "event_version": {
             "$ref": "#/components/schemas/EventVersion",
@@ -4963,6 +5057,7 @@
         "enum": [
           "invalid_request",
           "validation_failed",
+          "unauthorized",
           "forbidden",
           "not_found",
           "method_not_allowed",
@@ -5470,10 +5565,6 @@
       },
       "LLMConfigPublic": {
         "properties": {
-          "base_url": {
-            "type": "string",
-            "title": "Base Url"
-          },
           "model_name": {
             "type": "string",
             "title": "Model Name"
@@ -5497,39 +5588,30 @@
             "type": "object",
             "title": "Model Profiles"
           },
-          "has_api_key": {
-            "type": "boolean",
-            "title": "Has Api Key",
-            "default": false
+          "connections": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ConnectionSource"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "模型连接配置文件的读取结果"
           }
         },
         "type": "object",
         "required": [
-          "base_url",
           "model_name",
           "temperature",
           "max_tokens",
           "context_window"
         ],
         "title": "LLMConfigPublic",
-        "description": "设置页可见的 LLM 配置；不含密钥明文。"
+        "description": "设置页可见的 LLM 配置；模型连接只给地址、掩码与可用状态，不含密钥明文。"
       },
       "LLMConfigUpdate": {
         "properties": {
-          "base_url": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 2083,
-                "minLength": 1,
-                "format": "uri"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Base Url"
-          },
           "model_name": {
             "anyOf": [
               {
@@ -5576,7 +5658,7 @@
         },
         "type": "object",
         "title": "LLMConfigUpdate",
-        "description": "更新 LLM 配置时忽略密钥字段。未提交的字段保持原值。"
+        "description": "更新默认模型与采样参数；模型连接只在配置文件中修改。未提交的字段保持原值。"
       },
       "ListA2AServerItem": {
         "properties": {
@@ -6695,6 +6777,76 @@
         "minimum": 1.0,
         "description": "核心协议版本"
       },
+      "ProviderStatus": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "base_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Url"
+          },
+          "api_protocol": {
+            "type": "string",
+            "enum": [
+              "responses",
+              "chat_completions"
+            ],
+            "title": "Api Protocol",
+            "default": "responses"
+          },
+          "models": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Models",
+            "description": "由它提供的已知模型"
+          },
+          "has_key": {
+            "type": "boolean",
+            "title": "Has Key",
+            "default": false
+          },
+          "key_hint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Key Hint"
+          },
+          "issue": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Issue",
+            "description": "不可用或部分忽略的原因"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "ProviderStatus",
+        "description": "设置页可见的提供商状态；密钥只给掩码。"
+      },
       "PublishRequest": {
         "properties": {
           "candidate_path": {
@@ -6732,6 +6884,26 @@
         "minLength": 1,
         "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
         "description": "业务幂等请求身份；同身份不同内容返回冲突"
+      },
+      "ResourceTicket": {
+        "properties": {
+          "ticket": {
+            "type": "string",
+            "title": "Ticket"
+          },
+          "expires_at": {
+            "type": "integer",
+            "title": "Expires At",
+            "description": "到期时间，毫秒时间戳"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ticket",
+          "expires_at"
+        ],
+        "title": "ResourceTicket",
+        "description": "按 URL 加载资源时代替实例令牌；只对签发路径的 GET 与 HEAD 有效，到期前可重复使用。"
       },
       "ResourceVersion": {
         "anyOf": [
@@ -7145,6 +7317,25 @@
           "data"
         ],
         "title": "Response[OperationView]"
+      },
+      "Response_ResourceTicket_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ResourceTicket"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "Response[ResourceTicket]"
       },
       "Response_TitleResponse_": {
         "properties": {

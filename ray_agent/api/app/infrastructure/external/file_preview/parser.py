@@ -3,7 +3,6 @@ import asyncio
 import codecs
 import json
 import os
-import sys
 import tempfile
 import time
 from collections import OrderedDict
@@ -11,6 +10,7 @@ from pathlib import Path
 
 from app.domain.models.file_preview import PREVIEW_INPUT_BYTES, TEXT_PAGE_BYTES, preview_kind
 from app.domain.services.file_io import run_file_io
+from core.workers import worker_command
 
 _slots = asyncio.Semaphore(3)
 _cache = OrderedDict()
@@ -69,9 +69,8 @@ async def parse_preview(handle, filename, revision, query):
                     return {**base, 'kind':'unavailable', 'reason':'文件数据量过大'}
                 options = query.model_dump()
                 options['input_limited'] = not complete
-                process = await asyncio.create_subprocess_exec(sys.executable, '-m',
-                    'app.infrastructure.external.file_preview.worker', path,
-                    json.dumps(options), stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
+                process = await asyncio.create_subprocess_exec(*worker_command('preview-parse', path,
+                    json.dumps(options)), stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
                 try:
                     output, _ = await asyncio.wait_for(process.communicate(), timeout=12)
                     parsed = json.loads(output) if process.returncode == 0 else {'kind':'unavailable','reason':'预览处理超时'}

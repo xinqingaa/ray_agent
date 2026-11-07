@@ -19,6 +19,8 @@ logger = logging.getLogger(__name__)
 class AppConfigService:
     """应用配置服务"""
 
+    _CONNECTION_FIELDS = ("api_protocol", "base_url", "api_key", "model_endpoints", "resolved_endpoints", "connections")
+
     def __init__(self, app_config_repository: AppConfigRepository) -> None:
         """构造函数，完成应用配置服务的初始化"""
         self.app_config_repository = app_config_repository
@@ -51,12 +53,13 @@ class AppConfigService:
         return app_config.llm_config
 
     async def update_llm_config(self, fields: Dict) -> LLMConfig:
-        """更新调用方提交的字段。未提交的保持原值；密钥、流式和超时不从页面写入。"""
+        """更新调用方提交的字段。未提交的保持原值；模型连接来自配置文件，流式和超时不从页面写入。"""
         from app.domain.models.model_catalog import find_model
         app_config = await self._load_app_config()
         current = app_config.llm_config
         data = dict(fields)
-        data.pop("api_key", None)
+        for name in self._CONNECTION_FIELDS:
+            data.pop(name, None)
         if "model_profiles" in data:
             if data["model_profiles"] is None:
                 data.pop("model_profiles")
@@ -69,11 +72,9 @@ class AppConfigService:
         app_config.llm_config = LLMConfig.model_validate({
             **current.model_dump(),
             **data,
-            "api_key": current.api_key,
             "streaming": current.streaming,
             "request_timeout": current.request_timeout,
-            "resolved_endpoints": current.resolved_endpoints,
-        })
+        }).model_copy(update={name: getattr(current, name) for name in self._CONNECTION_FIELDS})
         self._validate_sampling(app_config.llm_config, app_config.agent_config)
         await self.app_config_repository.save(app_config)
         return app_config.llm_config

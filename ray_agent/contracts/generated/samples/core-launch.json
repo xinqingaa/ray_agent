@@ -1,8 +1,5 @@
 {
   "data_dir": "/Users/example/Library/Application Support/com.rayagent.desktop/core",
-  "env_files": [
-    "/Users/example/rayagent/.env"
-  ],
   "env": {
     "LOG_LEVEL": "INFO"
   }

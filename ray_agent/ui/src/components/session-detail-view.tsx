@@ -1,14 +1,9 @@
-'use client'
-
 import type {PlanAcceptance} from '@/lib/api/types'
 
 import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react'
 import {toast} from 'sonner'
-import {ArrowDown, Code2, Folder, MessageCircle, PanelRight, Pencil} from 'lucide-react'
+import {ArrowDown, Code2, MessageCircle, PanelRight, Pencil} from 'lucide-react'
 import {SegmentedControl} from '@/components/ui/segmented-control'
-import {MemoryIcon} from '@/components/nav-icons'
-import Link from 'next/link'
-import {ProjectMemoryPanel} from '@/components/project-memory-panel'
 import {ChatInput} from '@/components/chat-input'
 import {RenameSessionDialog} from '@/components/rename-session-dialog'
 import {DeveloperView} from '@/components/developer/developer-view'
@@ -38,7 +33,6 @@ import {useSessions} from '@/hooks/use-sessions'
 import {useIsMobile} from '@/hooks/use-mobile'
 import {useDeveloperMode} from '@/hooks/use-developer-mode'
 import {sessionApi} from '@/lib/api/session'
-import {createProjectRefreshWatcher} from '@/lib/project-refresh'
 import {readRetryDisplay, writeRetryDisplay, retryEcho} from '@/lib/retry-display'
 import {readDraft, writeDraft} from '@/lib/drafts'
 import {normalizeEvents} from '@/lib/session-events'
@@ -105,14 +99,11 @@ export function SessionDetailView({
     loadTurnRequest,
     replyApproval,
   } = useSessionDetail(sessionId)
-  const [memoryOpen,setMemoryOpen]=useState(false)
   const [outgoing, setOutgoing] = useState<{text: string; skillName?: string; userCount: number; endCount: number; echo?: boolean} | null>(null)
   const [hiddenRunIds, setHiddenRunIds] = useState<string[]>([])
   const [hiddenUserIds, setHiddenUserIds] = useState<string[]>([])
   const [retrying, setRetrying] = useState<{text: string; knownUserIds: string[]; fromRunId: string} | null>(null)
   const [retrySessionId, setRetrySessionId] = useState<string | null>(null)
-  const [projectRefreshSignal, setProjectRefreshSignal] = useState(0)
-  const projectRefreshRef = useRef<ReturnType<typeof createProjectRefreshWatcher> | null>(null)
   const [approvalRequest, setApprovalRequest] = useState<ApprovalSubmitting | null>(null)
   const [localCompacting, setCompacting] = useState(false)
   const [compactAnchor, setCompactAnchor] = useState<string | null>(null)
@@ -243,20 +234,10 @@ export function SessionDetailView({
 
   if (focusId !== tabForId) {
     setTabForId(focusId)
-    if (focus && tab !== 'project' && !inspectingFile) setTab(tabForFamily(focus.family))
+    if (focus && !inspectingFile) setTab(tabForFamily(focus.family))
   }
 
 
-
-  useEffect(() => {
-    const watcher = createProjectRefreshWatcher(() => setProjectRefreshSignal((n) => n + 1))
-    projectRefreshRef.current = watcher
-    return () => {watcher.dispose(); projectRefreshRef.current = null}
-  }, [sessionId])
-
-  useEffect(() => {
-    if (view?.project?.available) projectRefreshRef.current?.observe(events)
-  }, [events, view?.project?.available])
 
   useEffect(() => {
     setOutgoing(null)
@@ -429,7 +410,6 @@ export function SessionDetailView({
   }, [])
 
   const handlers = useMemo<TimelineHandlers>(() => ({
-    projectId: view?.project?.id,
     sessionId: view?.id,
     selectedCallId: focus?.callId ?? null,
     onOpenCall: (callId) => {
@@ -438,7 +418,7 @@ export function SessionDetailView({
       setWorkbenchOpen(true)
     },
     onPreviewFile: (file) => {
-      if (isWebPage(file.filename)) openPreviewTab({kind: 'attachment', id: file.id, filename: file.filename, size: file.size})
+      if (isWebPage(file.filename)) void openPreviewTab({kind: 'attachment', id: file.id, filename: file.filename, size: file.size}).catch(error => toast.error(error instanceof Error ? error.message : '打开失败'))
       else setPreviewedFile(file)
     },
     onDownloadFile: (file) => {
@@ -470,7 +450,7 @@ export function SessionDetailView({
     onApprove: (callId) => void handleApproval(callId, 'approve'),
     onReject: (callId) => void handleApproval(callId, 'reject'),
     approvalSubmitting,
-  }), [view?.id, view?.project?.id, view?.runs, view?.timeline, focus?.callId, view?.activeRun, view?.streamingItemId, submitting, retrying, hiddenRunIds, hiddenUserIds, sessionId, downloadOne, downloadAll, deliver, handleApproval, approvalSubmitting])
+  }), [view?.id, view?.runs, view?.timeline, focus?.callId, view?.activeRun, view?.streamingItemId, submitting, retrying, hiddenRunIds, hiddenUserIds, sessionId, downloadOne, downloadAll, deliver, handleApproval, approvalSubmitting])
 
   const onScroll = () => {
     if (mode !== 'conversation') return
@@ -570,8 +550,6 @@ export function SessionDetailView({
       canFollowLatest={!!latest && (inspectingFile ? latest.callId !== inspectedAtCallId : pin !== latest.callId)}
       onFollowLatest={() => {setPinnedCallId(null);setInspectingFile(false);if(latest)setTab(tabForFamily(latest.family))}}
       onClose={() => setWorkbenchOpen(false)}
-      project={view.project}
-      projectRefreshSignal={projectRefreshSignal}
       className={isMobile ? undefined : 'h-full w-full'}
     />
   )
@@ -590,23 +568,11 @@ export function SessionDetailView({
               </Button>
               <RunStatus place="headline" status={run?.status} outcome={run?.outcome} compacting={compacting}/>
               </div>
-              {view.project && (
-                <div className="order-first flex min-w-0 items-center gap-1">
-                  <Link href={`/projects/${view.project.id}`} className="flex min-w-0 items-center gap-1 text-xs font-normal text-muted-foreground hover:text-foreground" title={view.project.reason ?? view.project.name}>
-                    <Folder className="size-3.5 shrink-0"/><span className="truncate">
-                    {view.project.name}
-                    {!view.project.available && view.project.reason ? ` · ${view.project.reason}` : ''}
-                  </span></Link><span className="text-xs text-faint" aria-hidden>/</span>
-                </div>
-              )}
             </div>
             {visibility.developerView && <SegmentedControl value={mode} idPrefix="session-mode" label="会话视图" options={[
               {value: 'conversation', label: '聊天', icon: MessageCircle},
               {value: 'developer', label: '日志', icon: Code2},
             ]} onValueChange={next => {setMode(next); if (next === 'developer') setDeveloperVisited(true)}}/>}
-            {view.project && (
-              <IconAction label="项目记忆" className="shrink-0 text-muted-foreground" onClick={() => setMemoryOpen(true)}><MemoryIcon className="size-4"/></IconAction>
-            )}
             <PlanListDialog key={sessionId} plans={view.planHistory ?? []} runs={view.runs} panelWidth={planPanelWidth}/>
             {!workbenchOpen && (
               <Button type="button" variant="ghost" size="icon-xs" className="size-7 shrink-0"
@@ -615,7 +581,6 @@ export function SessionDetailView({
               </Button>
             )}
           </header>
-          {view.project && <ProjectMemoryPanel projectId={view.project.id} sessionId={sessionId} open={memoryOpen} onClose={()=>setMemoryOpen(false)}/>}
 
           <div className="min-h-0 flex-1 overflow-hidden">
             <div className={cn('flex h-full w-[200%] transition-transform duration-200 ease-out motion-reduce:transition-none', mode === 'developer' && '-translate-x-1/2')}>
@@ -666,7 +631,6 @@ export function SessionDetailView({
                       runModel={session?.run_model}
                       runReasoning={session?.run_reasoning}
                       accessory={() => visibility.contextUsage ? <ContextRing usage={view.usage}/> : null}
-                      selectedProject={view.project}
                       commandHost={{
                         hasSession: true,
                         hasRuns: view.runs.length > 0,

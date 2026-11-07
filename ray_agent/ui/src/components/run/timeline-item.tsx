@@ -1,14 +1,11 @@
-'use client'
-
 import {useState, type ReactNode} from 'react'
 import {ChevronRight} from 'lucide-react'
 import type {FileView, RunView, StreamingDraft, TimelineItem} from '@/lib/session-view'
 import {foldSettledRuns, foldSummary, groupProcessBlocks, processBlockOpen, processSettled, processSummary, type ProcessBlock, type RunFold, type TimelineRow} from '@/lib/process-blocks'
 import {cn} from '@/lib/utils'
-import {ProjectCopiesProvider} from './project-copy-status'
 import {ApprovalCard} from './approval-card'
 import {AskCard} from './ask-card'
-import {DeliveryCard, SessionDeliveryCopies} from './delivery-card'
+import {DeliveryCard} from './delivery-card'
 import {FinalReply, NarrationBlock, UserMessage} from './messages'
 import {AttemptNotice, CompactionNotice, ProtectionNotice} from './notices'
 import {RunEndBar} from './run-end-bar'
@@ -17,7 +14,6 @@ import {ToolGroup} from './tool-group'
 import {useDeveloperMode} from '@/hooks/use-developer-mode'
 
 export type TimelineHandlers = {
-  projectId?: string
   sessionId?: string
   selectedCallId?: string | null
   onOpenCall?: (callId: string) => void
@@ -64,7 +60,6 @@ export function TimelineItemView({item, handlers = {}}: {item: TimelineItem; han
     case 'delivery':
       return (
         <DeliveryCard
-          projectId={handlers.projectId}
           files={item.files}
           note={item.note}
           onPreview={handlers.onPreviewFile}
@@ -198,7 +193,7 @@ export function Timeline({items, runs = [], streaming, activeStatus, handlers, c
     </li>
   )
   return (
-    <ProjectCopiesProvider projectId={handlers?.projectId}><ol className={className ?? 'flex flex-col gap-3'}>
+    <ol className={className ?? 'flex flex-col gap-3'}>
       {rows.flatMap((row, index) => {
         const content = row.type === 'fold' ? (
           <li key={row.fold.id}><RunFoldView fold={row.fold} items={items} handlers={handlers}/></li>
@@ -209,7 +204,6 @@ export function Timeline({items, runs = [], streaming, activeStatus, handlers, c
         return run ? [content, metrics(run)] : [content]
       })}
       {unanchored.map(metrics)}
-      <SessionDeliveryCopies sessionId={handlers?.sessionId} items={items} onPreview={handlers?.onPreviewFile} onDownload={handlers?.onDownloadFile} onDownloadAll={handlers?.onDownloadAll}/>
-    </ol></ProjectCopiesProvider>
+    </ol>
   )
 }

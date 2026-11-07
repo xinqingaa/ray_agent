@@ -18,6 +18,7 @@ function load(file){
   if(name==='@/components/run/format')return {formatTime:()=>'now'};
   if(name==='@/components/ui/slider')return load('components/ui/slider.tsx');
   if(name.startsWith('@/components/ui/'))return ui;
+  if(name.startsWith('@tauri-apps/'))return require(name);
   if(name.startsWith('@/'))return load(name.slice(2)+'.'+(name.includes('components/')?'tsx':'ts'));
   if(name.startsWith('.')){
    const base=path.resolve(root,'src',path.dirname(file),name);

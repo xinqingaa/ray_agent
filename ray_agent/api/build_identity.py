@@ -7,7 +7,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
-INPUTS = ('app', 'core', 'alembic', 'alembic.ini', 'requirements.txt', 'pyproject.toml', 'run.sh', 'Dockerfile', '.dockerignore', 'build_identity.py')
+INPUTS = ('app', 'core', 'alembic', 'alembic.ini', 'pyproject.toml', 'uv.lock', 'sidecar.py', 'rayagent-core.spec',
+          'build_identity.py')
 
 
 def fingerprint(root=ROOT):

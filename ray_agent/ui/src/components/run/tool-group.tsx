@@ -1,5 +1,3 @@
-'use client'
-
 import {useId, useState} from 'react'
 import {ChevronRight} from 'lucide-react'
 import {cn} from '@/lib/utils'

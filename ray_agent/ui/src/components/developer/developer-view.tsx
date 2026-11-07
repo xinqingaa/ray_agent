@@ -1,5 +1,3 @@
-'use client'
-
 import {Fragment, useEffect, useMemo, useState} from 'react'
 import {Activity, AlignLeft, Check, ChevronDown, Code2, Copy, Download, FileText, Layers, ListFilter, ListTree, Minimize2, X} from 'lucide-react'
 import {toast} from 'sonner'

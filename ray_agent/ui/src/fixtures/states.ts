@@ -433,30 +433,6 @@ export const sessionItemStates = {
   longTitle: session('fx-s5', '把 inventory.csv 按 item 分组统计 amount 的总和、平均值与最大值，生成带图表的 Markdown 报告，并把报告和图表一起打包交付给我下载', 'completed', '2026-09-26T21:10:44'),
 }
 
-// ==================== 本地项目（合成） ====================
-
-export const projectPickerStates = {
-  unselected: null as import('@/lib/session-view').ProjectView | null,
-  selected: {
-    id: 'catalog-ray-sample',
-    path: '/Users/demo/ray-sample',
-    name: 'ray-sample',
-    available: true,
-    reason: null,
-  },
-  unavailable: {
-    id: 'catalog-moved-away',
-    path: '/Users/demo/moved-away',
-    name: 'moved-away',
-    available: false,
-    reason: '路径不存在',
-  },
-}
-
-export const projectWorkbenchNotes = {
-  treeEmpty: '项目目录为空，或当前层没有可列出的文件。',
-}
-
 // ==================== 设置列表项（合成：开发库当前没有配置 MCP 与 A2A） ====================
 
 export const settingsListStates: {mcp: ListMCPServerItem[]; a2a: ListA2AServerItem[]} = {

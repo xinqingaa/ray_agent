@@ -179,7 +179,7 @@ def test_sse_disconnects_during_catch_up_leave_no_connection_behind(tmp_path, ca
                 sent.append(message)
 
             iterator = body()
-            await EventSourceResponse(iterator, ping=600)({"type": "http"}, receive, send)
+            await EventSourceResponse(iterator, ping=600)({"type": "http", "method": "GET"}, receive, send)
             await iterator.aclose()
             await stream.aclose()
             return sent

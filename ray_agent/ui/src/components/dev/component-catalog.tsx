@@ -1,5 +1,3 @@
-'use client'
-
 import {useState, type ReactNode} from 'react'
 import {toast} from 'sonner'
 import {ThemeToggle} from '@/components/theme-toggle'
@@ -19,9 +17,6 @@ import {AttemptNotice, CompactionNotice} from '@/components/run/notices'
 import {RunStatus} from '@/components/run/run-status'
 import {PlanExecuteBar, RunEndBar} from '@/components/run/run-end-bar'
 import {PlusCommandMenu} from '@/components/input-command-menu'
-import {ProjectWorkspaceCatalog} from '@/components/dev/project-workspace-catalog'
-import {ProjectUploadTreeCatalog} from '@/components/dev/project-upload-tree-catalog'
-import {ProjectPicker} from '@/components/project-picker'
 import {ContextRing} from '@/components/run/context-ring'
 import type {CommandContext} from '@/lib/commands'
 import {Timeline} from '@/components/run/timeline-item'
@@ -48,8 +43,6 @@ import {
   runStates,
   sessionItemStates,
   settingsListStates,
-  projectPickerStates,
-  projectWorkbenchNotes,
   toolGroups,
   toolStates,
   usageStates,
@@ -58,7 +51,6 @@ import {
 type Source = '真实' | '合成'
 
 const SECTIONS = [
-  ['project-workspace', 'W11 工作区主路径'],
   ['status-bar', '运行状态条'],
   ['plan-bar', '计划条'],
   ['tool-card', '工具卡'],
@@ -76,9 +68,6 @@ const SECTIONS = [
   ['run-end', '终态条'],
   ['context-ring', '上下文环'],
   ['input-commands', '输入命令'],
-  ['project-upload-tree', '项目导入审核树'],
-  ['project-picker', '项目选择器'],
-  ['project-workbench', '项目与变更页'],
   ['session-item', '会话列表项'],
   ['settings-list', '设置列表项'],
   ['composed', '组合：真实会话'],
@@ -437,37 +426,6 @@ export function ComponentCatalog() {
           <State label="预算已变" source="合成"><Surface><ContextRing usage={usageStates.configChanged}/></Surface></State>
         </Section>
 
-        <Section id="project-upload-tree" title="项目导入审核树" note="合成文件树，支持筛选、键盘导航和确认；不读取本地文件或写入项目。"><ProjectUploadTreeCatalog/></Section>
-
-        <Section id="project-picker" title="项目选择器" columns={2} note="项目从侧栏打开；此处保留选择器的独立状态检查，创建与归档在产品中使用单独入口。">
-          <State label="未选择" source="合成">
-            <Surface className="inline-flex">
-              <ProjectPicker enabled selected={projectPickerStates.unselected} onSelect={noop}/>
-            </Surface>
-          </State>
-          <State label="已选择项目" source="合成">
-            <Surface className="inline-flex">
-              <ProjectPicker enabled selected={projectPickerStates.selected} onSelect={noop}/>
-            </Surface>
-          </State>
-          <State label="不可用（禁用选择）" source="合成">
-            <Surface className="inline-flex">
-              <ProjectPicker enabled selected={projectPickerStates.unavailable} onSelect={noop} disabled/>
-            </Surface>
-          </State>
-        </Section>
-
-        <Section id="project-workbench" title="项目页" columns={2} note="绑定项目后出现在工作台；不参与按工具家族自动打开。目录页只展示空态文案。">
-          <State label="项目页空态" source="合成">
-            <Surface className="text-meta text-faint">{projectWorkbenchNotes.treeEmpty}</Surface>
-          </State>
-          <State label="标题栏项目不可用" source="合成">
-            <p className="text-xs text-muted-foreground">
-              {projectPickerStates.unavailable.name} · {projectPickerStates.unavailable.reason}
-            </p>
-          </State>
-        </Section>
-
         <Section id="input-commands" title="输入命令" columns={2} note="+ 菜单与 / 提示共用注册表；不可用项显示原因。">
           <State label="全部可用" source="合成"><Surface className="inline-flex"><PlusCommandMenu context={commandIdle}/></Surface></State>
           <State label="运行中（Plan 与压缩不可用）" source="合成"><Surface className="inline-flex"><PlusCommandMenu context={commandRunning}/></Surface></State>
@@ -477,10 +435,6 @@ export function ComponentCatalog() {
               计划模式
             </span>
           </State>
-        </Section>
-
-        <Section id="project-workspace" title="W11 工作区主路径" note="合成设计目录：胶囊切换对话与项目，打开项目不创建对话；列表刷新不重置展开状态。此处不证明产品端到端能力。">
-          <ProjectWorkspaceCatalog/>
         </Section>
 
         <Section id="session-item" title="会话列表项" note="一行：标题在左，时间在右。运行中和压缩中显示旋转图标，等你回复、等你批准、失败和已中断显示状态图标，替换时间；状态词只在悬停提示和读屏名称里。完成时用户不在该会话，时间前加圆点，打开后消失。尚无运行、已查看的完成和已停止只显示时间。">

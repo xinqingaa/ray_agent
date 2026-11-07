@@ -1,7 +1,5 @@
-'use client'
-
 import type {ReactNode} from 'react'
-import Link from 'next/link'
+import {Link} from '@/lib/navigation'
 import {SidebarTrigger, useSidebar} from '@/components/ui/sidebar'
 import {BrandMark} from '@/components/brand-mark'
 import {cn} from '@/lib/utils'

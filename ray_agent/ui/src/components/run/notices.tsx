@@ -1,5 +1,3 @@
-'use client'
-
 import {Layers, RotateCw, Square, TriangleAlert} from 'lucide-react'
 import {useDeveloperMode} from '@/hooks/use-developer-mode'
 import {cn} from '@/lib/utils'

@@ -1,5 +1,3 @@
-'use client'
-
 import type {ComponentProps} from 'react'
 import {Button} from './button'
 import {Tooltip, TooltipContent, TooltipTrigger} from './tooltip'

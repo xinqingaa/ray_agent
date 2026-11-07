@@ -15,7 +15,6 @@ import type {
   PlanItemStatus,
   PlanArtifact,
   PlanView,
-  ProjectView,
   RawEvent,
   RunStatus,
   RunSummary,
@@ -61,7 +60,6 @@ export type DeltaInput = {
 export type ProjectSessionInput = {
   id: string
   title?: string | null
-  project?: ProjectView | null
   runs?: RunSnapshot[]
   /** 会话详情的 `{event,data}`、SSE 的 `{type,data}`，或带 type 的扁平事件 */
   events: unknown[]
@@ -998,13 +996,10 @@ export function projectSession(input: ProjectSessionInput): SessionView {
       payload: {...ev.data},
     }))
 
-  const project: ProjectView | null = input.project ?? null
-
   return {
     id: input.id,
     title,
     status: activeRun?.status ?? latest?.status ?? 'idle',
-    project,
     runs: runViews,
     activeRun,
     timeline,
@@ -1601,12 +1596,6 @@ function readFiles(raw: unknown, source: 'upload' | 'delivery'): FileView[] {
       contentType: str(item.mime_type) ?? str(item.content_type) ?? str(item.contentType) ?? '',
       source,
       path: path || null,
-      projectPersistence: isRecord(item.project_persistence) ? {
-        state: str(item.project_persistence.state) ?? 'pending',
-        copy_key: str(item.project_persistence.copy_key) ?? '',
-        path: str(item.project_persistence.path), error: str(item.project_persistence.error),
-        can_retry: item.project_persistence.can_retry === true,
-      } : undefined,
     })
   }
   return files

@@ -14,7 +14,7 @@ from .spec import build, registered_ids
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(prog="python -m scripts.eval", description="RayAgent 端到端评测")
-    parser.add_argument("--base-url", default="http://localhost:8088/api", help="API 地址（默认经 Compose 网关）")
+    parser.add_argument("--base-url", default="http://127.0.0.1:8000/api", help="核心接口地址（默认为 sidecar.py --data-root 开发模式的端口）")
     parser.add_argument("--tasks", default="all", help="逗号分隔的任务 ID，如 E1,E3；默认全部")
     parser.add_argument("--repeat", type=int, default=1, help="每条任务运行次数")
     parser.add_argument("--label", default="eval", help="报告文件名前缀，文件名为 <label>-<日期>-<提交短哈希>")

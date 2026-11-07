@@ -4,26 +4,26 @@
   "version": "0.1.0",
   "identifier": "com.rayagent.desktop",
   "build": {
-    "frontendDist": "probe",
-    "beforeBuildCommand": {
-      "script": "uv run --locked pyinstaller --noconfirm --clean rayagent-core.spec",
-      "cwd": "../api"
+    "devUrl": "http://localhost:5173",
+    "beforeDevCommand": {
+      "script": "npm run dev",
+      "cwd": "../ui"
     }
   },
   "app": {
-    "withGlobalTauri": true,
     "windows": [
       {
         "label": "main",
-        "title": "RayAgent 宿主探针",
-        "width": 760,
-        "height": 640,
-        "minWidth": 560,
-        "minHeight": 480
+        "title": "RayAgent",
+        "width": 1280,
+        "height": 820,
+        "minWidth": 960,
+        "minHeight": 640
       }
     ],
     "security": {
-      "csp": "default-src 'self'; connect-src 'self' ipc: http://ipc.localhost http://127.0.0.1:*; img-src 'self' data:; style-src 'self'"
+      "csp": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; connect-src 'self' ipc: http://ipc.localhost http://127.0.0.1:*; img-src 'self' data: blob: http://127.0.0.1:*; media-src 'self' blob: http://127.0.0.1:*; frame-src 'self' blob: http://127.0.0.1:*; object-src 'none'; base-uri 'none'",
+      "devCsp": "default-src 'self' http://localhost:5173; script-src 'self' 'unsafe-inline' http://localhost:5173; style-src 'self' 'unsafe-inline' http://localhost:5173; font-src 'self' data: http://localhost:5173; connect-src 'self' ipc: http://ipc.localhost http://127.0.0.1:* http://localhost:5173 ws://localhost:5173; img-src 'self' data: blob: http://127.0.0.1:* http://localhost:5173; media-src 'self' blob: http://127.0.0.1:*; frame-src 'self' blob: http://127.0.0.1:*; object-src 'none'; base-uri 'none'"
     }
   },
   "bundle": {
@@ -36,9 +36,6 @@
       "icons/icon.icns",
       "icons/icon.png"
     ],
-    "resources": {
-      "../api/dist/rayagent-core/": "rayagent-core/"
-    },
     "macOS": {
       "signingIdentity": "-"
     }

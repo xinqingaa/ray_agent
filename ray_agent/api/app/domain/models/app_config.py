@@ -5,7 +5,7 @@ from enum import Enum
 from typing import Dict, Optional, List, Any
 
 from pydantic import BaseModel, HttpUrl, Field, ConfigDict, model_validator
-from app.domain.models.llm_endpoints import ApiProtocol, LlmEndpoint, LlmEndpointConfig, default_endpoints, default_model_endpoints
+from app.domain.models.llm_endpoints import ApiProtocol, ConnectionSource, LlmEndpoint, default_model_endpoints
 
 
 class ModelSampling(BaseModel):
@@ -16,14 +16,16 @@ class ModelSampling(BaseModel):
 
 
 class LLMConfig(BaseModel):
-    api_protocol: ApiProtocol = 'responses'
     """LLM提供商配置"""
-    base_url: HttpUrl = Field(default="https://api.deepseek.com", validate_default=True)  # 模型基础URL地址
-    api_key: str = ""  # 仅从 DEEPSEEK_API_KEY 注入，不写配置文件、不返回给页面
+    api_protocol: ApiProtocol = Field(default='responses', exclude=True)
+    # 全局兼容客户端的连接；加载时取默认模型所在提供商，不写入业务库、不返回给页面
+    base_url: HttpUrl = Field(default="https://api.deepseek.com", validate_default=True, exclude=True)
+    api_key: str = Field(default="", exclude=True, repr=False)
     model_name: str = "deepseek-flash"  # 新对话默认模型；未知模型沿用全局兼容接口
-    llm_endpoints: Dict[str, LlmEndpointConfig] = Field(default_factory=default_endpoints)
-    model_endpoints: Dict[str, str] = Field(default_factory=default_model_endpoints)
+    # 以下来自模型连接配置文件，每次加载重新给出
+    model_endpoints: Dict[str, str] = Field(default_factory=default_model_endpoints, exclude=True)
     resolved_endpoints: Dict[str, Optional[LlmEndpoint]] = Field(default_factory=dict, exclude=True, repr=False)
+    connections: Optional[ConnectionSource] = Field(default=None, exclude=True)
     temperature: float = Field(0.7, ge=0)  # 未知厂商，以及某个模型还没有单独配置时使用
     max_tokens: int = Field(8192, ge=1)  # 同上；思考开启时请求还会抬到该模型的建议下限
     context_window: int = Field(200000, ge=1)  # 同上。已知模型有单独配置时用 model_profiles，再封顶到模型目录上限

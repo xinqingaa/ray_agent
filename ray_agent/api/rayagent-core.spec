@@ -10,7 +10,7 @@ from PyInstaller.utils.hooks import collect_submodules
 ROOT = Path(SPECPATH)
 sys.path.insert(0, str(ROOT))
 import build_identity  # noqa: E402
-from sidecar import WORKER_MODULES  # noqa: E402
+from core.workers import WORKERS  # noqa: E402
 
 
 def source_modules(base):
@@ -38,7 +38,7 @@ for base in ('alembic', 'app/builtin_skills'):
 hiddenimports = [
     *source_modules('app'),
     *source_modules('core'),
-    *WORKER_MODULES,
+    *WORKERS.values(),
     # 迁移脚本与 env.py 只在运行时导入，静态分析看不到它们的依赖。
     *collect_submodules('alembic', filter=lambda name: not name.startswith('alembic.testing')),
     'sqlalchemy.dialects.sqlite.aiosqlite',

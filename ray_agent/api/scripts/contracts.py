@@ -64,7 +64,7 @@ def samples() -> dict[str, Any]:
         StorageVersion
 
     launch = CoreLaunch(data_dir="/Users/example/Library/Application Support/com.rayagent.desktop/core",
-                        env_files=["/Users/example/rayagent/.env"], env={"LOG_LEVEL": "INFO"})
+                        env={"LOG_LEVEL": "INFO"})
     ready = CoreReady(
         port=53117,
         instance=CoreInstance(instance_id="7f3c2a9e-5b1d-4e8f-9a6c-2d4b8e1f0a35", pid=48213, started_at=1762400000000),
