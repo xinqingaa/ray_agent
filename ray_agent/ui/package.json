@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "build": "node scripts/write-build-manifest.mjs && tsc --noEmit && vite build",
     "lint": "eslint"
   },
   "dependencies": {

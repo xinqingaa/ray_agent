@@ -86,6 +86,7 @@
 | 按名称查找 | 最多返回 500 条、访问最多 20000 项 | `file_find_results`、`file_find_entries` |
 | 文件名 | 最多 255 个字符；放入文件夹时同名加序号，最多尝试 500 次 | [file_rules.py](../ray_agent/api/app/domain/services/file_rules.py)、[file_scope.py](../ray_agent/api/app/domain/services/file_scope.py) 的 `UNIQUE_NAME_ATTEMPTS` |
 | 写前备份的空间预留 | 数据卷可用空间低于 64 MiB 加本次备份大小时停止发布新版本，不删除任何已保存的版本 | `backup_free_reserve_bytes` |
+| schema 升级前副本 | 业务库升级前用 SQLite 备份接口写入数据根 `upgrades/`；路径与失败拒绝见 `backup_before_upgrade()` | [sqlite.py](../ray_agent/api/app/infrastructure/storage/sqlite.py)、[paths.py](../ray_agent/api/core/paths.py) |
 | 撤销预览 | 当前版本与将恢复版本每侧最多读 256 KiB，统一 diff 最多 2000 行；超出只给大小 | `change_preview_bytes`、`change_preview_lines` |
 | 最近修改的运行 | 默认返回 20 条，最多 100 条 | `change_runs_default` |
 | 写入临时文件残留 | 核心启动后与打开文件夹时，清理超过 1 小时的 `.rayagent-write-*.tmp`（只处理本应用命名的普通文件）；这类文件在列举、扫描与监视中一律不可见 | [workspace_service.py](../ray_agent/api/app/application/services/workspace_service.py) 的 `TEMP_MAX_AGE_SECONDS` |

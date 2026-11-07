@@ -1,0 +1,15 @@
+{
+  "product": "RayAgent",
+  "channel": "internal-macos-arm64",
+  "signing": "ad-hoc",
+  "notarized": false,
+  "protocol_version": 4,
+  "event_version": 1,
+  "schema": {
+    "head_revision": "0007_semantic_index",
+    "compat": "本程序可读并升级至 head；旧二进制在 schema 超出其已知修订时拒绝打开（SchemaTooNew）；升级前副本在数据根 upgrades/"
+  },
+  "components_manifest": "component_manifest.json",
+  "licenses": "THIRD_PARTY_NOTICES.md",
+  "notes": "内部包：首次在未信任的 Mac 上打开需在系统设置中手动允许；不作为公开分发。"
+}

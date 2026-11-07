@@ -101,7 +101,7 @@ def render_markdown(report: Dict[str, Any]) -> str:
         f"| 代码提交 | `{meta['git']['commit']}` |",
         f"| 未提交变更 | {_cell('、'.join(meta['git']['dirty']) or '无')} |",
         f"| API 地址 | {meta['base_url']} |",
-        f"| 沙箱访问宿主机地址 | {meta['host_address']} |",
+        f"| 评测夹具本机地址 | {meta['host_address']} |",
         f"| 模型 | {llm.get('model_name')}（{llm.get('base_url')}） |",
         f"| temperature / max_tokens / context_window | {llm.get('temperature')} / {llm.get('max_tokens')} / {llm.get('context_window')} |",
         f"| Agent 配置 | max_iterations={agent.get('max_iterations')}，max_retries={agent.get('max_retries')}，max_search_results={agent.get('max_search_results')} |",

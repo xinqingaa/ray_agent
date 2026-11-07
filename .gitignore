@@ -31,8 +31,6 @@ ray_agent/desktop/gen/schemas/
 !.env.*.example
 *.pem
 *.key
-# 本地项目目录的 Compose 覆盖文件（含本机路径，仓库只保留 .example）
-
 # Editor, operating system, logs, and temporary files
 .idea/
 .DS_Store

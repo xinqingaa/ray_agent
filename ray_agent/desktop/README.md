@@ -39,19 +39,29 @@ RAYAGENT_CORE_DATA_DIR=/tmp/rayagent-dev npm run dev
 
 终端里 `[core]` 前缀是核心日志，`[host]` 前缀是宿主日志。界面只在宿主窗口中工作；在普通浏览器打开开发服务器地址只显示“请从 RayAgent 应用打开”。
 
-## 构建应用
+## 构建内部包（Apple Silicon）
+
+正式内部包命令（在本目录，需已 `source "$HOME/.cargo/env"`）：
 
 ```bash
+npm ci
+npm --prefix ../ui ci
 npm run build
+# 等价：npx tauri build --bundles app --config tauri.bundle.json
 ```
 
-构建叠加 [tauri.bundle.json](tauri.bundle.json)：先构建界面静态产物（`../ui/dist`），再冻结核心（`../api/dist/rayagent-core/`），然后把整个 onedir 目录作为资源打进应用；入口文件离开 `_internal/` 无法运行。产物为 `target/release/bundle/macos/RayAgent.app`，只做本机 ad-hoc 签名，不作为交付物。从终端运行可看到日志：
+构建叠加 [tauri.bundle.json](tauri.bundle.json)：先写 UI 构建身份并构建静态产物（`../ui/dist`），再按 [rayagent-core.spec](../api/rayagent-core.spec) 冻结核心（`../api/dist/rayagent-core/`，含 LanceDB／ONNX／OCR／OpenCV／Playwright 等隐式导入与数据文件），然后把整个 onedir 作为资源打进应用；入口离开 `_internal/` 无法运行。产物为 `target/release/bundle/macos/RayAgent.app`，`bundle.macOS.signingIdentity` 为 `-`（仅 ad-hoc，不公证），只供内部使用，不作为公开分发。
+
+产物内含：UI／核心 `build-manifest.json`、`resources/package_identity.json`（协议与 schema 兼容范围）、`resources/component_manifest.json`、`resources/THIRD_PARTY_NOTICES.md`。`build/`、`dist/`、`target/` 已由根 `.gitignore` 排除，不提交。
+
+核对签名与从终端查看日志：
 
 ```bash
+codesign --verify --deep --strict target/release/bundle/macos/RayAgent.app
 target/release/bundle/macos/RayAgent.app/Contents/MacOS/rayagent-desktop
 ```
 
-新构建的核心首次启动要等 macOS 逐个检查原生库，就绪明显慢于再次启动；这不是失败，以界面状态为准。
+新冻结或新复制的散装 onedir 首次启动到握手约 15–40 秒（macOS 逐个检查原生库），再次约 1–2 秒；ad-hoc 签名的 `.app` 整包复制到新位置后首启仍约 1–2 秒。宿主不按热启动设握手期限，以界面“启动中”为准。带隔离属性（`com.apple.quarantine`）的首次打开需在系统设置中手动允许；另一台未装开发环境的 Mac 上的完整检查见实施状态的「待用户处理」。
 
 ## 宿主与核心的约定
 

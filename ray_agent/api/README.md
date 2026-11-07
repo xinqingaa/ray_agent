@@ -91,7 +91,13 @@ uv sync --locked --group dev
 uv run --locked pyinstaller --noconfirm --clean rayagent-core.spec
 ```
 
-产物在 `dist/rayagent-core/`：入口 `rayagent-core` 与 `_internal/` 依赖目录必须整体分发，`build/` 与 `dist/` 不提交。spec 按文件枚举 `app/`、`core/` 的全部模块（`collect_submodules` 会漏掉没有 `__init__.py` 的目录），并把迁移脚本、内置 skill 和构建身份作为数据文件随包；冻结产物里没有配置文件，也不包含数据库或缓存服务的客户端。
+产物在 `dist/rayagent-core/`：入口 `rayagent-core` 与 `_internal/` 依赖目录必须整体分发，`build/` 与 `dist/` 不提交。spec 按文件枚举 `app/`、`core/` 的全部模块（`collect_submodules` 会漏掉没有 `__init__.py` 的目录），`collect_all` 纳入 ONNX Runtime、LanceDB、PyArrow、OpenCV、RapidOCR、Playwright、tokenizers 等原生库与数据文件，并把迁移脚本、内置 skill、构建身份、`package_identity.json`、组件清单与第三方许可摘要作为数据文件随包；冻结产物里没有配置文件，也不包含数据库或缓存服务的客户端。完整应用打包见[桌面开发指南](../desktop/README.md#构建内部包apple-silicon)。
+
+业务库迁移由 `migrate()` 在启动时执行：schema 低于本程序 head 时先在数据根 `upgrades/` 用 SQLite 备份接口写升级前副本，再升级；版本超出本程序已知修订时抛出 `SchemaTooNew`，旧二进制不能打开。定向检查：
+
+```bash
+uv run --locked python -m pytest tests/core/test_sqlite_storage.py::test_schema_upgrade_writes_pre_upgrade_backup_and_keeps_rows tests/core/test_sqlite_storage.py::test_instance_lock_and_newer_schema_are_refused
+```
 
 不带参数时入口从 stdin 读取一行 JSON 启动参数（契约类型 `CoreLaunch`），其中的 `data_dir` 就是数据根，就绪后在 stdout 写一行握手（`CoreHandshake`）；宿主侧约定见[桌面宿主指南](../desktop/README.md#宿主与核心的约定)。不冻结时也可以按宿主方式运行入口，用管道保持 stdin 打开，关闭管道即正常停止：
 
@@ -138,7 +144,7 @@ uv run --locked python -m pytest
 uv run --locked python -m pytest tests/core/test_sqlite_storage.py tests/core/test_sqlite_round_trips.py tests/core/test_sqlite_cancellation.py tests/core/test_skills_sqlite.py
 ```
 
-存储用例使用真实 SQLite 业务库与实际仓库、运行账本、受理和后台任务代码，覆盖并发写入串行与序号连续、同一任务内嵌套写事务立即失败、活动运行唯一与会话序号唯一、提交失败不可见也不发布通知、提交后通知失败由订阅者按序号补读、SSE 补齐与通知丢失、同一请求身份的并发受理与内容冲突、输入受理后与消费前崩溃（输入保持可见并可重新发起）、消费后崩溃不再重复提供、提问跨重启沿原运行续接、审批跨重启失效、启动扫描、业务库忙碌时只在开始写事务前有界重试、后台任务的旧代次回调被拒绝与重启恢复、取消与重试、会话删除和业务清空的回收、实例锁及过新的 schema。往返用例核对请求重建、压缩、计划模式、图像归属与计划承接并发在 JSON 列中的保存。取消用例用慢查询让任务取消、anyio 取消范围与模拟的 SSE 断开落在进行中的数据库调用上，核对连接全部归还、aiosqlite 线程不增长、连接池不报终止或重置错误、被取消的写事务不遗留写锁，以及之后的写入照常进行。它们不覆盖多进程同时写同一个数据库文件（实例锁拒绝第二个核心）和磁盘故障。
+存储用例使用真实 SQLite 业务库与实际仓库、运行账本、受理和后台任务代码，覆盖并发写入串行与序号连续、同一任务内嵌套写事务立即失败、活动运行唯一与会话序号唯一、提交失败不可见也不发布通知、提交后通知失败由订阅者按序号补读、SSE 补齐与通知丢失、同一请求身份的并发受理与内容冲突、输入受理后与消费前崩溃（输入保持可见并可重新发起）、消费后崩溃不再重复提供、提问跨重启沿原运行续接、审批跨重启失效、启动扫描、业务库忙碌时只在开始写事务前有界重试、后台任务的旧代次回调被拒绝与重启恢复、取消与重试、会话删除和业务清空的回收、实例锁、过新的 schema 拒绝，以及 schema 升级前副本与数据保留。往返用例核对请求重建、压缩、计划模式、图像归属与计划承接并发在 JSON 列中的保存。取消用例用慢查询让任务取消、anyio 取消范围与模拟的 SSE 断开落在进行中的数据库调用上，核对连接全部归还、aiosqlite 线程不增长、连接池不报终止或重置错误、被取消的写事务不遗留写锁，以及之后的写入照常进行。它们不覆盖多进程同时写同一个数据库文件（实例锁拒绝第二个核心）和磁盘故障。
 
 新增长连接或流式接口时沿用[业务库的取消约定](../../docs/architecture.md#业务库与写协调)：每次查库用短的工作单元，等待通知、sleep 或 yield 时不持有会话；直接使用 `Database` 时经 `read_session()`／`write_session()` 取得会话，不要手动打开后跨等待持有。
 

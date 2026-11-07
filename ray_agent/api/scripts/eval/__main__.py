@@ -14,12 +14,13 @@ from .spec import build, registered_ids
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(prog="python -m scripts.eval", description="RayAgent 端到端评测")
-    parser.add_argument("--base-url", default="http://127.0.0.1:8000/api", help="核心接口地址（默认为 sidecar.py --data-root 开发模式的端口）")
+    parser.add_argument("--base-url", default="http://127.0.0.1:8000/api",
+                        help="本机核心 /api 地址：开发可用 sidecar 固定端口；桌面内部包请用握手返回的回环端口")
     parser.add_argument("--tasks", default="all", help="逗号分隔的任务 ID，如 E1,E3；默认全部")
     parser.add_argument("--repeat", type=int, default=1, help="每条任务运行次数")
     parser.add_argument("--label", default="eval", help="报告文件名前缀，文件名为 <label>-<日期>-<提交短哈希>")
-    parser.add_argument("--host-address", default="host.docker.internal",
-                        help="API 与沙箱容器访问宿主机评测服务的地址（Docker Desktop 默认值）")
+    parser.add_argument("--host-address", default="127.0.0.1",
+                        help="评测夹具 HTTP／MCP 对核心与浏览器可见的本机地址（桌面默认 127.0.0.1）")
     parser.add_argument("--output-dir", type=Path, default=REPORT_DIR, help="报告目录，默认系统临时目录下的 rayagent-eval/")
     parser.add_argument("--baseline", type=Path, help="作对比的另一份评测 JSON，报告按任务与运行序号列出指标差异")
     parser.add_argument("--list", action="store_true", help="只列出已注册任务")

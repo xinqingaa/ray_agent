@@ -31,7 +31,9 @@ from app.domain.services.approvals import interrupt_waiting_approvals
 from app.domain.services.request_rebuild import rebuild_request
 from app.domain.services.run_ledger import RunLedger
 from app.infrastructure.external.workdir.session_workdir import SessionWorkdirs
-from app.infrastructure.storage.sqlite import DataRootLocked, DatabaseBusyError, InstanceLock, SchemaTooNew, migrate
+from app.infrastructure.storage.sqlite import (
+    DataRootLocked, DatabaseBusyError, InstanceLock, SchemaTooNew, SchemaUpgradeBackupError, migrate,
+)
 from tests.support.loop_harness import MemoryNotifier, input_task, make_loop, make_runner, resume_run, start_run
 from tests.support.scripted_llm import ScriptedResponse, ScriptedToolCall, text as reply, tool_call, usage
 from tests.support.sqlite_db import factories, open_database, with_database
@@ -721,10 +723,51 @@ def test_instance_lock_and_newer_schema_are_refused(tmp_path):
     database = tmp_path / "rayagent.db"
     assert migrate(database) == "0007_semantic_index"
     assert migrate(database) == "0007_semantic_index"
+    assert not (tmp_path / "upgrades").exists()  # 已在 head 时不写升级前副本
     with sqlite3.connect(database) as connection:
         assert connection.execute("PRAGMA journal_mode").fetchone()[0] == "wal"
         connection.execute("UPDATE alembic_version SET version_num = '9999_future'")
     with pytest.raises(SchemaTooNew):
+        migrate(database)
+
+
+def test_schema_upgrade_writes_pre_upgrade_backup_and_keeps_rows(tmp_path):
+    """旧 schema 打开时先写 upgrades/ 副本，再升级；旧二进制仍拒绝更新的 schema。"""
+    from alembic import command
+    from app.infrastructure.storage.sqlite import _alembic_config
+
+    database = tmp_path / "rayagent.db"
+    config = _alembic_config(database)
+    command.upgrade(config, "0006_document_knowledge")
+    with sqlite3.connect(database) as connection:
+        connection.execute(
+            "INSERT INTO sessions (id, title, title_source, status, unread_message_count, latest_message, "
+            "next_event_seq, memories, files, created_at, updated_at, workspace_id) VALUES "
+            "('keep-me', '保留', 'default', 'pending', 0, '', 1, '{}', '[]', "
+            "'2026-01-01 00:00:00', '2026-01-01 00:00:00', NULL)")
+        connection.commit()
+
+    assert migrate(database) == "0007_semantic_index"
+    backups = sorted((tmp_path / "upgrades").glob("rayagent.db.before-0006_document_knowledge-to-0007_semantic_index-*"))
+    assert len(backups) == 1
+    with sqlite3.connect(backups[0]) as connection:
+        assert connection.execute("SELECT version_num FROM alembic_version").fetchone() == ("0006_document_knowledge",)
+        assert connection.execute("SELECT title FROM sessions WHERE id='keep-me'").fetchone() == ("保留",)
+    with sqlite3.connect(database) as connection:
+        assert connection.execute("SELECT version_num FROM alembic_version").fetchone() == ("0007_semantic_index",)
+        assert connection.execute("SELECT title FROM sessions WHERE id='keep-me'").fetchone() == ("保留",)
+        cols = {row[1] for row in connection.execute("PRAGMA table_info(index_publications)")}
+        assert "vector_generation" in cols
+
+    # 再次 migrate 不追加副本；upgrades 路径不可写时拒绝升级
+    assert migrate(database) == "0007_semantic_index"
+    assert list((tmp_path / "upgrades").glob("rayagent.db.before-*")) == backups
+
+    import shutil
+    command.downgrade(config, "0006_document_knowledge")
+    shutil.rmtree(tmp_path / "upgrades")
+    (tmp_path / "upgrades").write_text("blocked", encoding="utf-8")
+    with pytest.raises(SchemaUpgradeBackupError):
         migrate(database)
 
 

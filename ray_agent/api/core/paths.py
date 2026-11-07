@@ -77,9 +77,15 @@ class DataRoot:
     def execution(self) -> Path:
         return self.root / "execution"
 
+    @property
+    def upgrades(self) -> Path:
+        """schema 升级前的业务库副本；回退旧二进制时配套恢复。"""
+        return self.root / "upgrades"
+
     def prepare(self) -> None:
         for path in (self.root, self.objects, self.sessions, self.skills, self.tmp,
-                     self.components, self.indexes, self.browser_profiles, self.runtimes, self.execution):
+                     self.components, self.indexes, self.browser_profiles, self.runtimes, self.execution,
+                     self.upgrades):
             path.mkdir(parents=True, exist_ok=True)
 
     def install_id(self) -> str:

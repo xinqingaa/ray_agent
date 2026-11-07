@@ -2,13 +2,15 @@
 
 写协调器独占一条写连接，业务写事务按进入顺序串行，事务以 BEGIN IMMEDIATE 开始，忙碌只在开始阶段有界重试，
 那时业务代码还没有执行，也就没有外部副作用。读取使用独立的只读连接池，在 WAL 下与写入并发。
-一个数据根只能由一个核心持有实例锁。
+一个数据根只能由一个核心持有实例锁。schema 升级前用 SQLite 备份接口生成一致副本，旧二进制拒绝打开更新的 schema。
 """
 import asyncio
 import logging
 import os
+import re
 import sqlite3
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 from functools import partial
 from pathlib import Path
 from typing import AsyncIterator, Awaitable, Callable, Optional, TypeVar
@@ -33,6 +35,7 @@ T = TypeVar("T")
 
 _BUSY_CODES = {sqlite3.SQLITE_BUSY, sqlite3.SQLITE_LOCKED}
 _RETRY_DELAY_SECONDS = 0.2
+_REVISION_FILE_SAFE = re.compile(r"[^A-Za-z0-9._-]+")
 
 
 class DatabaseBusyError(RuntimeError):
@@ -45,6 +48,10 @@ class DataRootLocked(RuntimeError):
 
 class SchemaTooNew(RuntimeError):
     """业务库的 schema 版本超出本程序可读范围。"""
+
+
+class SchemaUpgradeBackupError(RuntimeError):
+    """升级前副本未能写完；拒绝继续升级，以免无法回退。"""
 
 
 def is_busy(error: BaseException) -> bool:
@@ -91,11 +98,46 @@ def _alembic_config(database: Path) -> Config:
     return config
 
 
+def _safe_revision(value: str) -> str:
+    cleaned = _REVISION_FILE_SAFE.sub("_", value).strip("._")
+    return cleaned or "unknown"
+
+
+def backup_before_upgrade(database: Path, *, from_revision: str, to_revision: str) -> Path:
+    """用 SQLite 在线备份接口生成升级前一致副本，写入数据根下的 upgrades/。
+
+    副本文件名含来源／目标 schema 与 UTC 时间；失败时抛出 SchemaUpgradeBackupError，调用方不得继续升级。
+    """
+    directory = database.parent / "upgrades"
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    name = f"rayagent.db.before-{_safe_revision(from_revision)}-to-{_safe_revision(to_revision)}-{stamp}"
+    dest = directory / name
+    temp = directory / f".{name}.{os.getpid()}.tmp"
+    try:
+        directory.mkdir(parents=True, exist_ok=True)
+        with sqlite3.connect(database) as source:
+            with sqlite3.connect(temp) as target:
+                source.backup(target)
+        os.replace(temp, dest)
+    except OSError as exc:
+        try:
+            Path(temp).unlink(missing_ok=True)
+        except OSError:
+            pass
+        raise SchemaUpgradeBackupError(f"无法写入升级前副本：{dest}") from exc
+    logger.info(f"升级前副本已写入 {dest}（{from_revision} → {to_revision}）")
+    return dest
+
+
 def migrate(database: Path) -> str:
-    """升级到本程序的最新 schema 并返回版本；业务库版本超出可读范围时拒绝打开。"""
+    """升级到本程序的最新 schema 并返回版本；业务库版本超出可读范围时拒绝打开。
+
+    已有库的 schema 低于本程序 head 时，先用 SQLite 备份接口写升级前副本，再执行迁移。
+    """
     config = _alembic_config(database)
     script = ScriptDirectory.from_config(config)
     known = {revision.revision for revision in script.walk_revisions()}
+    head = script.get_current_head()
     if database.exists():
         engine = create_engine(f"sqlite:///{database}")
         try:
@@ -105,8 +147,10 @@ def migrate(database: Path) -> str:
             engine.dispose()
         if current is not None and current not in known:
             raise SchemaTooNew(f"业务库版本 {current} 来自更新的程序，当前程序不能打开")
+        if current is not None and head is not None and current != head:
+            backup_before_upgrade(database, from_revision=current, to_revision=head)
     command.upgrade(config, "head")
-    return script.get_current_head()
+    return head
 
 
 async def uninterrupted(awaitable: Awaitable[T]) -> T:
