@@ -14,6 +14,7 @@ const MEMORY_TYPE: Record<string, string> = {
 function sourceLabel(type: string) {
   if (type === 'memory') return '记忆'
   if (type === 'session_summary') return '对话摘要'
+  if (type === 'document_chunk') return '文件'
   return type
 }
 
@@ -89,6 +90,9 @@ export function RunReferences({runId}: {runId: string}) {
                       <li key={`${hit.source_type}:${hit.source_id}`} className="rounded-md border px-2 py-1.5">
                         <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-faint">
                           <span>{sourceLabel(hit.source_type)}</span>
+                          {typeof hit.payload?.relative_path === 'string' && (
+                            <span className="font-mono">{hit.payload.relative_path as string}</span>
+                          )}
                           {hit.stale && <span className="text-state-waiting">已过期</span>}
                         </div>
                         <p className="mt-0.5 font-medium text-foreground">{hit.title || hit.snippet.slice(0, 80)}</p>

@@ -62,8 +62,8 @@ def test_instruction_memory_search_and_manifest_over_http(host: TestClient):
 
     found = data(host.post(f"/api/workspaces/{wid}/search", json={"query": "季度评审"}))["hits"]
     assert [hit["source_id"] for hit in found] == [memory["id"]] and found[0]["certainty"] == "user_confirmed"
-    assert host.post(f"/api/workspaces/{wid}/search", json={"query": "x", "source_types": ["document_chunk"]}
-                     ).status_code == 422
+    assert data(host.post(f"/api/workspaces/{wid}/search",
+                          json={"query": "x", "source_types": ["document_chunk"]}))["hits"] == []
     retracted = data(host.patch(f"/api/workspaces/{wid}/memories/{memory['id']}",
                                 json={"action": "retract", "version": edited["version"]}))
     assert retracted["status"] == "retracted"

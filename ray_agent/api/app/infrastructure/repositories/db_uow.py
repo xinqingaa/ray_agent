@@ -21,6 +21,7 @@ from .db_root_repository import DBRootRepository
 from .db_run_repository import DBRunRepository
 from .db_session_repository import DBSessionRepository
 from .db_skill_repository import DBSkillTransaction
+from .db_document_repository import DBDocumentRepository
 from .db_instruction_repository import DBInstructionRepository
 from .db_memory_repository import DBMemoryRepository
 from .db_search_repository import DBSearchRepository
@@ -76,6 +77,7 @@ class DBUnitOfWork(IUnitOfWork):
         self.memory = DBMemoryRepository(db_session=session)
         self.summary = DBSummaryRepository(db_session=session)
         self.run_context = DBRunContextRepository(db_session=session)
+        self.document = DBDocumentRepository(db_session=session)
         self.search = DBSearchRepository(db_session=session)
         return self
 

@@ -159,8 +159,19 @@
 | 模板名称 / 工作区列表里的工作方式预览 | 名称最多 80 字符；预览 120 字符 | [working_style_service.py](../ray_agent/api/app/application/services/working_style_service.py) 的 `TEMPLATE_NAME_MAX_CHARS`、[workspace_service.py](../ray_agent/api/app/application/services/workspace_service.py) 的 `INSTRUCTION_PREVIEW_CHARS` |
 | 单条记忆内容 | 最多 2000 字符 | [workspace_memory.py](../ray_agent/api/app/domain/models/workspace_memory.py) 的 `MEMORY_CONTENT_MAX_CHARS` |
 | 常驻层 | 每次新运行最多注入 12 条；钉住的先，其次约束、偏好、决定、事实，再按最近使用或更新 | `RESIDENT_MEMORY_LIMIT`、`MEMORY_TYPE_RANK`、[memory_rules.py](../ray_agent/api/app/domain/services/memory_rules.py) 的 `select_resident()` |
-| 初始召回 | 以用户问题在本工作区检索记忆与会话摘要，最多 8 条、片段合计 4000 字符，超出的记入“本次参考”的未采用原因；问句检索任一词命中即可，最多取 24 个检索词 | [retrieval.py](../ray_agent/api/app/domain/models/retrieval.py) 的 `INITIAL_RECALL_LIMIT`、`INITIAL_RECALL_CHARS`、[chinese_tokenize.py](../ray_agent/api/app/domain/services/chinese_tokenize.py) 的 `ANY_TERM_LIMIT` |
+| 初始召回 | 以用户问题在本工作区检索记忆、会话摘要与文件片段，最多 8 条、片段合计 4000 字符，超出的记入“本次参考”的未采用原因；问句检索任一词命中即可，最多取 24 个检索词 | [retrieval.py](../ray_agent/api/app/domain/models/retrieval.py) 的 `INITIAL_RECALL_LIMIT`、`INITIAL_RECALL_CHARS`、[chinese_tokenize.py](../ray_agent/api/app/domain/services/chinese_tokenize.py) 的 `ANY_TERM_LIMIT` |
 | 检索命中 | 单次最多 20 条，接口允许 1–100；单条片段最多 400 字符；检索词最多 500 字符 | `SEARCH_HIT_LIMIT`、[db_search_repository.py](../ray_agent/api/app/infrastructure/repositories/db_search_repository.py) |
+
+## 文档知识索引
+
+| 项 | 当前值 | 来源 |
+|---|---|---|
+| 单文件解析输入 | 最多 32 MiB | [document_knowledge.py](../ray_agent/api/app/domain/models/document_knowledge.py) 的 `DOCUMENT_PARSE_MAX_BYTES` |
+| 文本片段长度／重叠 | 800／80 字符 | `DOCUMENT_CHUNK_CHARS`、`DOCUMENT_CHUNK_OVERLAP` |
+| 表格行组 | 每组最多 40 行（保留表头） | `DOCUMENT_TABLE_ROWS_PER_CHUNK` |
+| 解析进程 | 最多 2 个并发；墙钟 120 秒 | [runner.py](../ray_agent/api/app/infrastructure/external/document_parse/runner.py) 的 `DOCUMENT_PARSE_SLOTS`、`DOCUMENT_PARSE_TIMEOUT_SECONDS` |
+| 解析配置指纹 | `p6-parse-v1`／`p6-chunk-v1` | `PARSE_CONFIG_FINGERPRINT`、`CHUNK_CONFIG_FINGERPRINT` |
+| 索引重扫 | 与文件夹兜底重扫同间隔（默认 30 秒） | [document_index_scheduler.py](../ray_agent/api/app/application/services/document_index_scheduler.py)、`workspace_rescan_seconds` |
 | 自动提炼 | 每次最多提出 5 条候选、最多落地 8 条；每条候选判定时参考最多 5 条相似活动条目 | [memory_extractor.py](../ray_agent/api/app/application/services/memory_extractor.py) 的 `PROPOSE_MAX_FACTS`、[memory_service.py](../ray_agent/api/app/application/services/memory_service.py) 的 `EXTRACTION_MAX_ITEMS`、[memory_jobs.py](../ray_agent/api/app/application/services/memory_jobs.py) 的 `SIMILAR_LIMIT` |
 | 提炼与判定请求 | 输出上限 800，温度 0.1，请求超时 30 秒，调用等待 35 秒；用量单独记录 | `memory_extractor.py` 的 `LLMMemoryExtractor` |
 

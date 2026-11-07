@@ -31,13 +31,14 @@ class BoundWorkspaceMemory:
     """WorkspaceMemoryPort 的实现：工作区、会话与运行在构造时固定。"""
 
     def __init__(self, workspace_id: str, session_id: str, run_id: str, memory: MemoryService,
-                 retrieval: RetrievalService, style: WorkingStyleService) -> None:
+                 retrieval: RetrievalService, style: WorkingStyleService, documents=None) -> None:
         self._workspace_id = workspace_id
         self._session_id = session_id
         self._run_id = run_id
         self._memory = memory
         self._retrieval = retrieval
         self._style = style
+        self._documents = documents
 
     async def remember(self, content: str, memory_type: str) -> dict[str, Any]:
         entry = await self._memory.create(
@@ -60,7 +61,12 @@ class BoundWorkspaceMemory:
         hits = await self._retrieval.search(self._workspace_id, query, source_types)
         return [{"source_type": hit.source_type.value, "source_id": hit.source_id, "title": hit.title,
                  "snippet": hit.snippet, "certainty": hit.certainty, "stale": hit.stale,
-                 "score": round(hit.score, 4)} for hit in hits]
+                 "score": round(hit.score, 4), "payload": dict(hit.payload)} for hit in hits]
+
+    async def read_source(self, source_id: str) -> Optional[dict[str, Any]]:
+        if self._documents is None:
+            return None
+        return await self._documents.get_chunk_source(self._workspace_id, source_id)
 
     async def propose_working_style(self, body: str, rationale: str) -> dict[str, Any]:
         proposal = await self._style.propose(self._workspace_id, body, rationale, self._session_id)
@@ -72,15 +78,18 @@ class WorkspaceMemoryRuntime:
     背景装配或任务登记失败只记日志，不阻止运行，也不会改变运行结果。"""
 
     def __init__(self, memory: MemoryService, retrieval: RetrievalService, style: WorkingStyleService,
-                 assembly: ContextAssembly, wake: Optional[Callable[[], None]] = None) -> None:
+                 assembly: ContextAssembly, wake: Optional[Callable[[], None]] = None,
+                 documents=None) -> None:
         self.memory = memory
         self.retrieval = retrieval
         self.style = style
         self.assembly = assembly
         self._wake = wake
+        self._documents = documents
 
     def ports(self, workspace_id: str, session_id: str, run_id: str) -> BoundWorkspaceMemory:
-        return BoundWorkspaceMemory(workspace_id, session_id, run_id, self.memory, self.retrieval, self.style)
+        return BoundWorkspaceMemory(workspace_id, session_id, run_id, self.memory, self.retrieval, self.style,
+                                    documents=self._documents)
 
     async def assemble(self, session: Session, run_id: str, *, persist: bool = True) -> str:
         """新运行的长期背景段；失败时返回空串，运行照常进行。"""

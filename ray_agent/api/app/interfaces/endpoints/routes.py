@@ -4,7 +4,7 @@ from fastapi import APIRouter
 
 from . import status_routes, app_config_routes, file_routes, session_routes, preview_routes, data_routes, \
     operation_routes, skill_routes, workspace_routes, workspace_history_routes, root_routes, host_routes, \
-    instruction_routes, memory_routes, retrieval_routes
+    instruction_routes, memory_routes, retrieval_routes, document_routes
 
 
 def create_api_routes() -> APIRouter:
@@ -23,6 +23,7 @@ def create_api_routes() -> APIRouter:
     api_router.include_router(instruction_routes.router)
     api_router.include_router(memory_routes.router)
     api_router.include_router(retrieval_routes.router)
+    api_router.include_router(document_routes.router)
     api_router.include_router(root_routes.router)
     api_router.include_router(host_routes.router)
     return api_router

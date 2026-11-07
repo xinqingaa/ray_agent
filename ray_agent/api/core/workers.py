@@ -8,6 +8,7 @@ import sys
 WORKERS = {
     "preview-parse": "app.infrastructure.external.file_preview.worker",
     "execution-supervisor": "app.infrastructure.external.execution.supervisor_server",
+    "document-parse": "app.infrastructure.external.document_parse.worker",
 }
 
 

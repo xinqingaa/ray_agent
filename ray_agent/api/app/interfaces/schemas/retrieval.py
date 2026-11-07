@@ -11,10 +11,10 @@ _STRICT = ConfigDict(json_schema_serialization_defaults_required=True)
 
 
 class SearchRequest(BaseModel):
-    """范围固定为路径里的工作区；当前只能检索记忆与会话摘要，文件内容检索尚未提供。"""
+    """范围固定为路径里的工作区；可检索记忆、会话摘要与文件片段。"""
     query: str = Field(min_length=1, max_length=500)
-    source_types: Optional[list[Literal["memory", "session_summary"]]] = Field(
-        default=None, description="省略为记忆与会话摘要都查")
+    source_types: Optional[list[Literal["memory", "session_summary", "document_chunk"]]] = Field(
+        default=None, description="省略为记忆、会话摘要与文件片段都查")
     limit: int = Field(default=SEARCH_HIT_LIMIT, ge=1, le=100)
 
 

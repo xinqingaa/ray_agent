@@ -52,6 +52,8 @@ async def start_core():
     """打开数据根：实例锁、业务库迁移与连接、默认配置、启动扫描与后台任务。返回关闭时需要的资源。"""
     from app.application.services.background_jobs import BackgroundJobRunner, set_job_runner
     from app.application.services.data_service import data_cleanup_handler
+    from app.application.services.document_index_scheduler import DocumentIndexScheduler, set_document_index_scheduler
+    from app.application.services.document_index_service import document_index_handler
     from app.application.services.memory_jobs import memory_extraction_handler, session_summary_handler
     from app.application.services.workspace_service import workspace_delete_handler
     from app.domain.models.operation import OperationKind
@@ -61,7 +63,8 @@ async def start_core():
     from app.interfaces.core_descriptor import INSTANCE, set_storage_revision
     from app.interfaces.service_dependencies import get_app_config_repository, get_file_storage, get_run_ledger, \
         get_skill_service, get_workdirs, get_folder_access, get_write_leases, get_retrieval_service, \
-        get_memory_service, get_memory_extractor, load_llm_config
+        get_memory_service, get_memory_extractor, load_llm_config, get_document_index_service
+    from core.config import get_settings as _get_settings
     from core.paths import data_root
 
     raise_fd_limit()
@@ -100,6 +103,9 @@ async def start_core():
                       memory_extraction_handler(get_uow, get_retrieval_service(), get_memory_service(),
                                                 get_memory_extractor),
                       requeue_on_restart=True)
+        document_index = get_document_index_service()
+        jobs.register(OperationKind.DOCUMENT_INDEX, document_index_handler(document_index),
+                      requeue_on_restart=True)
         root.install_id()
         set_job_runner(jobs)
 
@@ -115,7 +121,11 @@ async def start_core():
         if recovered:
             logger.info(f"启动扫描接管 {len(recovered)} 个后台任务")
         jobs.start()
-        return lock, database, jobs
+        scheduler = DocumentIndexScheduler(
+            document_index, get_uow, get_read_uow, rescan_seconds=_get_settings().workspace_rescan_seconds)
+        set_document_index_scheduler(scheduler)
+        scheduler.start()
+        return lock, database, jobs, scheduler
     except BaseException:
         if database is not None:
             await database.shutdown()
@@ -129,13 +139,14 @@ async def lifespan(app: FastAPI):
     setup_logging()
     logger.info("RayAgent正在初始化")
     from app.application.services.background_jobs import set_job_runner
+    from app.application.services.document_index_scheduler import set_document_index_scheduler
     from app.application.services.visual_artifacts import expire_visual_artifacts
     from app.infrastructure.external.task.local_task import LocalRunTask
     from app.infrastructure.storage.sqlite import get_uow, set_database
     from app.interfaces.service_dependencies import close_change_feed, get_file_storage, get_skill_service
 
     try:
-        lock, database, jobs = await start_core()
+        lock, database, jobs, doc_scheduler = await start_core()
     except BaseException as exc:
         from app.interfaces.core_descriptor import record_startup_failure
         record_startup_failure(exc)
@@ -186,6 +197,8 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             logger.error(f"停止运行任务期间出现错误: {str(e)}")
         await close_change_feed()
+        await doc_scheduler.stop()
+        set_document_index_scheduler(None)
         await jobs.stop()
         set_job_runner(None)
         await database.shutdown()

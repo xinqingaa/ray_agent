@@ -94,8 +94,8 @@ def test_tool_ports_are_bound_to_the_session_workspace(tmp_path):
         assert proposal["status"] == "pending"
         _, record = await env.style.current(a.id)
         assert record is None
-        with pytest.raises(BadRequestError):
-            await port.search("x", ["document_chunk"])  # 文件内容检索 P5 不提供
+        # 文件片段来源已接入；空工作区没有命中
+        assert await port.search("x", ["document_chunk"]) == []
 
     scenario(tmp_path, body)
 

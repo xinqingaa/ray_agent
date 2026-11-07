@@ -9,6 +9,7 @@ import {FilePreview} from '@/components/preview/file-preview'
 import {FileRow} from '@/components/preview/file-row'
 import {useFolderTree} from '@/hooks/use-folder-tree'
 import {ApiError} from '@/lib/api/fetch'
+import {documentsApi, type IndexSummary} from '@/lib/api/documents'
 import {fileManagerName, isDesktop, revealInFileManager} from '@/lib/platform'
 import {historyApi, rootApi} from '@/lib/api/workspace'
 import {downloadPreviewSource, type PreviewSource} from '@/lib/api/preview'
@@ -22,6 +23,16 @@ import {useWorkspaceLive} from '@/providers/workspace-live-provider'
 import {uploadTarget} from '@/lib/workspace-tree'
 import {FolderTree} from './folder-tree'
 import {RecentChanges} from './recent-changes'
+
+function indexStatusText(summary: IndexSummary | null) {
+  if (!summary || summary.total === 0) return null
+  const parts: string[] = []
+  if (summary.searchable) parts.push(`可检索 ${summary.searchable}`)
+  if (summary.parsing || summary.pending) parts.push(`处理中 ${(summary.parsing || 0) + (summary.pending || 0)}`)
+  if (summary.pending_component) parts.push(`待 OCR ${summary.pending_component}`)
+  if (summary.failed) parts.push(`失败 ${summary.failed}`)
+  return parts.length ? parts.join(' · ') : `已登记 ${summary.total}`
+}
 
 type PanelTab = 'folder' | 'delivered' | 'recent'
 
@@ -66,6 +77,7 @@ export function FolderPanel({workspace, deliveries, onClose, embedded = false, o
   const [selected, setSelected] = useState<{path: string; kind: RootEntry['kind']} | null>(null)
   const [uploading, setUploading] = useState(false)
   const [dragging, setDragging] = useState(false)
+  const [indexSummary, setIndexSummary] = useState<IndexSummary | null>(null)
   const picker = useRef<HTMLInputElement>(null)
   const {tree, toggle, reload, loadDirectory} = useFolderTree(folder?.root_id ?? null, condition.folderAvailable, live.change)
   const target = uploadTarget(selected)
@@ -83,6 +95,16 @@ export function FolderPanel({workspace, deliveries, onClose, embedded = false, o
       .catch(() => {})
     return () => {cancelled = true}
   }, [workspace.id, condition.writable, live.change.signal, leaseId])
+
+  // 文档索引汇总：随外部变更批次刷新
+  useEffect(() => {
+    if (!condition.folderAvailable) {setIndexSummary(null); return}
+    let cancelled = false
+    documentsApi.summary(workspace.id)
+      .then(next => {if (!cancelled) setIndexSummary(next)})
+      .catch(() => {if (!cancelled) setIndexSummary(null)})
+    return () => {cancelled = true}
+  }, [workspace.id, condition.folderAvailable, live.change.signal])
 
   // 正在预览的文件被报告变化：提示重新载入，不自动替换用户正在看的内容
   useEffect(() => {
@@ -198,6 +220,11 @@ export function FolderPanel({workspace, deliveries, onClose, embedded = false, o
             if (entry.kind === 'file') openRoot(path, entry)
           }}/>
       </ScrollArea>
+      {indexStatusText(indexSummary) && (
+        <p className="shrink-0 border-t px-3 py-1.5 text-xs text-muted-foreground" title="文档全文索引状态">
+          索引 {indexStatusText(indexSummary)}
+        </p>
+      )}
       <footer className="flex shrink-0 items-center gap-2 border-t px-3 py-2">
         {condition.writable ? <>
           <p className="min-w-0 flex-1 truncate text-xs text-muted-foreground" title={target || undefined}>添加到 {target ? <span className="font-mono">{target}</span> : '文件夹根目录'}</p>

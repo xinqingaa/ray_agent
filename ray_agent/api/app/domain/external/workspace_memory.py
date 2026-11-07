@@ -21,7 +21,11 @@ class WorkspaceMemoryPort(Protocol):
         ...
 
     async def search(self, query: str, source_types: Optional[Sequence[str]]) -> list[dict[str, Any]]:
-        """在本工作区检索记忆与会话摘要。"""
+        """在本工作区检索记忆、会话摘要与文件片段。"""
+        ...
+
+    async def read_source(self, source_id: str) -> Optional[dict[str, Any]]:
+        """按检索命中的 source_id 读回文件片段原文与定位；不存在或已撤回时为空。"""
         ...
 
     async def propose_working_style(self, body: str, rationale: str) -> dict[str, Any]:

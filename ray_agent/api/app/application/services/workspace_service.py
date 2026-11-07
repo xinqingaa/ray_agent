@@ -87,11 +87,12 @@ class WorkspaceRuntime:
 
 
 async def wipe_workspace_memory(uow: IUnitOfWork, workspace_id: str) -> None:
-    """删除工作区的记忆、摘要、运行背景清单、工作方式与检索文档；可重复执行。模板属于应用，不在此列。"""
+    """删除工作区的记忆、摘要、运行背景清单、工作方式、文档索引与检索文档；可重复执行。模板属于应用，不在此列。"""
     await uow.memory.delete_workspace(workspace_id)
     await uow.summary.delete_workspace(workspace_id)
     await uow.run_context.delete_workspace(workspace_id)
     await uow.instruction.delete_workspace(workspace_id)
+    await uow.document.delete_workspace(workspace_id)
     await uow.search.delete_workspace(workspace_id)
 
 

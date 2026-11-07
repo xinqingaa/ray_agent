@@ -80,7 +80,7 @@ class MemoryTool(BaseTool):
 
 
 class KnowledgeSearchTool(BaseTool):
-    """检索工具集：当前范围固定为本工作区的记忆与会话摘要，不含文件内容。"""
+    """检索工具集：范围固定为本工作区的记忆、会话摘要与文件片段。"""
     name: str = "knowledge"
 
     def __init__(self, port: Optional[WorkspaceMemoryPort]) -> None:
@@ -89,12 +89,16 @@ class KnowledgeSearchTool(BaseTool):
 
     @tool(
         name="knowledge_search",
-        description="在当前工作区的记忆与其他对话的摘要中全文检索。需要回忆此前的约定、决定或相关对话时使用；"
-                    "结果带来源类型与确定性（model_inferred 为模型推断、未经用户确认），只作参考。当前不检索文件内容。",
+        description="在当前工作区的记忆、其他对话的摘要与已索引文件片段中全文检索。"
+                    "需要回忆约定、决定、相关对话或文件夹材料时使用；结果带来源类型与定位，"
+                    "model_inferred 为模型推断、未经用户确认，只作参考。读回某条文件原文用 knowledge_read。",
         parameters={
             "query": {"type": "string", "description": "检索词或短语，提取核心关键词"},
-            "source_types": {"type": "array", "items": {"type": "string", "enum": ["memory", "session_summary"]},
-                             "description": "（可选）限定来源；默认两者都查"},
+            "source_types": {
+                "type": "array",
+                "items": {"type": "string", "enum": ["memory", "session_summary", "document_chunk"]},
+                "description": "（可选）限定来源；默认三类都查",
+            },
         },
         required=["query"],
     )
@@ -104,6 +108,24 @@ class KnowledgeSearchTool(BaseTool):
         except Exception as error:
             return _failure(error, "检索")
         return ToolResult(success=True, message=f"命中 {len(hits)} 条" if hits else "没有命中", data={"hits": hits})
+
+    @tool(
+        name="knowledge_read",
+        description="按 knowledge_search 返回的文件片段 source_id 读回原文与定位（页、块、行列等）。"
+                    "只能读当前工作区已发布的片段；版本已过期时结果会标明 stale。",
+        parameters={
+            "source_id": {"type": "string", "description": "检索命中的 source_id（文件片段 id）"},
+        },
+        required=["source_id"],
+    )
+    async def knowledge_read(self, source_id: str) -> ToolResult:
+        try:
+            item = await self.port.read_source(source_id)
+        except Exception as error:
+            return _failure(error, "读取来源")
+        if item is None:
+            return ToolResult(success=False, message="来源不存在、已撤回或不属于当前工作区")
+        return ToolResult(success=True, message="已读回原文", data=item)
 
 
 class InstructionProposalTool(BaseTool):

@@ -31,6 +31,9 @@ dependencies = [
     "anyio>=4.10",
     "watchfiles>=1.1,<2",
     "jieba>=0.42.1",
+    "pypdf>=5.1,<7",
+    "python-docx>=1.1,<2",
+    "python-pptx>=1.0,<2",
 ]
 
 [dependency-groups]

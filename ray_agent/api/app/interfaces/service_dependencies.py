@@ -255,6 +255,21 @@ def get_retrieval_service():
     return RetrievalService(get_uow, get_read_uow)
 
 
+def get_document_index_service():
+    from app.application.services.background_jobs import get_job_runner
+    from app.application.services.document_index_service import DocumentIndexService
+
+    def wake() -> None:
+        try:
+            get_job_runner().wake()
+        except RuntimeError:
+            pass
+
+    return DocumentIndexService(
+        get_uow, get_read_uow, get_folder_access(), get_root_files(), get_retrieval_service(), wake=wake,
+    )
+
+
 def get_memory_service():
     from app.application.services.memory_service import MemoryService
     return MemoryService(get_uow, get_read_uow, get_retrieval_service())
@@ -292,7 +307,9 @@ def get_workspace_memory_runtime():
             pass  # 执行器未启动（测试或启动阶段）：任务仍已登记，启动后会被领取
 
     retrieval, memory = get_retrieval_service(), get_memory_service()
-    return WorkspaceMemoryRuntime(memory, retrieval, get_working_style_service(), get_context_assembly(), wake=wake)
+    return WorkspaceMemoryRuntime(
+        memory, retrieval, get_working_style_service(), get_context_assembly(), wake=wake,
+        documents=get_document_index_service())
 
 
 async def get_agent_service() -> AgentService:

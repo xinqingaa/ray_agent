@@ -1,4 +1,4 @@
-"""工作区检索端口：范围固定为一个工作区，P5 只接入记忆与会话摘要两类来源。
+"""工作区检索端口：范围固定为一个工作区，接入记忆、会话摘要与文件片段。
 
 写入索引的方法接收调用方的写事务，条目变更与索引在同一事务提交；查询自己打开只读事务。
 """
@@ -6,6 +6,7 @@ import logging
 from typing import Callable, Optional, Sequence
 
 from app.application.errors.exceptions import BadRequestError
+from app.domain.models.document_knowledge import DocumentChunk
 from app.domain.models.retrieval import (
     SEARCH_HIT_LIMIT,
     SearchHit,
@@ -18,12 +19,13 @@ from app.domain.repositories.uow import IUnitOfWork
 
 logger = logging.getLogger(__name__)
 
-# P5 可检索的来源；文件片段（document_chunk）随 P6 接入
-SEARCHABLE_SOURCES = (SearchSourceType.MEMORY, SearchSourceType.SESSION_SUMMARY)
+SEARCHABLE_SOURCES = (
+    SearchSourceType.MEMORY, SearchSourceType.SESSION_SUMMARY, SearchSourceType.DOCUMENT_CHUNK,
+)
 
 
 def checked_sources(source_types: Optional[Sequence[SearchSourceType | str]]) -> list[SearchSourceType]:
-    """校验来源类型：未指定为全部可检索来源；文件片段尚未接入时拒绝，而不是静默返回空。"""
+    """校验来源类型：未指定为全部可检索来源；未知类型拒绝，而不是静默返回空。"""
     if not source_types:
         return list(SEARCHABLE_SOURCES)
     result: list[SearchSourceType] = []
@@ -33,7 +35,7 @@ def checked_sources(source_types: Optional[Sequence[SearchSourceType | str]]) ->
         except ValueError as error:
             raise BadRequestError(f"未知的检索来源：{item}") from error
         if source not in SEARCHABLE_SOURCES:
-            raise BadRequestError("文件内容检索尚未提供，当前只能检索记忆与会话摘要")
+            raise BadRequestError(f"不支持的检索来源：{source.value}")
         if source not in result:
             result.append(source)
     return result
@@ -96,3 +98,20 @@ class RetrievalService:
     async def remove_summary(self, uow: IUnitOfWork, workspace_id: str, session_id: str) -> None:
         await uow.search.remove(workspace_id=workspace_id, source_type=SearchSourceType.SESSION_SUMMARY,
                                 source_id=session_id)
+
+    async def index_document_chunk(self, uow: IUnitOfWork, chunk: DocumentChunk, *, relative_path: str) -> None:
+        """已发布的文件片段进入 FTS；source_id 为 chunk id，payload 带文档修订与定位。"""
+        await uow.search.upsert(
+            workspace_id=chunk.workspace_id, source_type=SearchSourceType.DOCUMENT_CHUNK,
+            source_id=chunk.id, source_version=chunk.revision, title=chunk.title or relative_path,
+            body=chunk.body,
+            payload={
+                "document_id": chunk.document_id, "revision_id": chunk.revision_id,
+                "revision": chunk.revision, "relative_path": relative_path,
+                "locator": dict(chunk.locator), "ordinal": chunk.ordinal, "stale": False,
+            },
+        )
+
+    async def remove_document_chunk(self, uow: IUnitOfWork, workspace_id: str, chunk_id: str) -> None:
+        await uow.search.remove(workspace_id=workspace_id, source_type=SearchSourceType.DOCUMENT_CHUNK,
+                                source_id=chunk_id)

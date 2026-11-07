@@ -12,6 +12,7 @@ from .root_repository import RootRepository
 from .run_repository import RunRepository
 from .session_repository import SessionRepository
 from .skills import SkillTransaction
+from .document_repository import DocumentRepository
 from .memory_repository import InstructionRepository, MemoryRepository, RunContextRepository, SummaryRepository
 from .workspace_repository import WorkspaceRepository
 from .write_lease_repository import WriteLeaseRepository
@@ -37,6 +38,7 @@ class IUnitOfWork(ABC):
     memory: MemoryRepository
     summary: SummaryRepository
     run_context: RunContextRepository
+    document: DocumentRepository
     # search 不是协议字段：DBSearchRepository 直接挂在具体 UoW 上
 
     @abstractmethod

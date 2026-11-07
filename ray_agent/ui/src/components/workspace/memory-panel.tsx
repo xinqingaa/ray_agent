@@ -120,7 +120,15 @@ function SearchHits({hits}: {hits: SearchHitView[]}) {
     <ul className="space-y-2">
       {hits.map(hit => (
         <li key={`${hit.source_type}:${hit.source_id}`} className="rounded-lg border px-3 py-2">
-          <p className="text-xs text-faint">{hit.source_type === 'memory' ? '记忆' : hit.source_type === 'session_summary' ? '对话摘要' : hit.source_type}</p>
+          <p className="text-xs text-faint">{
+            hit.source_type === 'memory' ? '记忆'
+              : hit.source_type === 'session_summary' ? '对话摘要'
+                : hit.source_type === 'document_chunk' ? '文件'
+                  : hit.source_type}
+            {hit.source_type === 'document_chunk' && typeof hit.payload?.relative_path === 'string'
+              ? ` · ${hit.payload.relative_path}` : ''}
+            {hit.stale ? ' · 已过期' : ''}
+          </p>
           <p className="mt-0.5 text-sm font-medium">{hit.title || hit.snippet.slice(0, 120)}</p>
           {hit.title && <p className="mt-1 text-meta text-muted-foreground">{hit.snippet}</p>}
         </li>

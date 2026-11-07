@@ -79,6 +79,7 @@ class DBSearchRepository:
             return []
         types = [t.value for t in query.source_types] or [
             SearchSourceType.MEMORY.value, SearchSourceType.SESSION_SUMMARY.value,
+            SearchSourceType.DOCUMENT_CHUNK.value,
         ]
         # FTS5 在工作区范围内匹配；排名用 bm25（越低越好，取负作分数）
         sql = text(

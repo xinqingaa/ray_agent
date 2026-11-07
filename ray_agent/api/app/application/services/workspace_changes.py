@@ -159,13 +159,23 @@ class WorkspaceChangeFeed:
         for queue in list(topic.queues):
             self._push(queue, event)
 
+    def _notify_index(self, workspace_id: str, paths: Optional[list[str]] = None) -> None:
+        """旁路通知文档索引调度；调度器未启动时忽略（测试或启动早期）。"""
+        try:
+            from app.application.services.document_index_scheduler import get_document_index_scheduler
+            get_document_index_scheduler().notify(workspace_id, paths)
+        except RuntimeError:
+            pass
+
     def _publish_paths(self, topic: _Topic, paths: list[str]) -> None:
         if len(paths) > self._paths_per_event:
             self._publish(topic, WorkspaceChangeEvent(kind="changed", workspace_id=topic.workspace_id,
                                                       available=True, refresh=True))
+            self._notify_index(topic.workspace_id, None)
         elif paths:
             self._publish(topic, WorkspaceChangeEvent(kind="changed", workspace_id=topic.workspace_id,
                                                       available=True, paths=sorted(paths)))
+            self._notify_index(topic.workspace_id, paths)
 
     async def _set_available(self, topic: _Topic, record: RootRecord, available: bool) -> None:
         """可用性变化时写回文件夹状态并推送；首次判断只记录，订阅时的 ready 已经告知。"""

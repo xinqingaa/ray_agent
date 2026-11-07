@@ -22,10 +22,19 @@ from .workspace_memory import (
 )
 from .session_summary import RunContextManifestModel, SessionSummaryModel
 from .search_document import SearchDocumentModel
+from .document_knowledge import (
+    ContentBlockModel,
+    DocumentChunkModel,
+    DocumentModel,
+    DocumentRevisionModel,
+    IndexPublicationModel,
+)
 
 __all__ = ["Base", "AppConfigModel", "EventModel", "FileModel", "BackgroundJobModel", "AcceptedRequestModel",
            "RunInputModel", "RootModel", "RunModel", "SessionModel", "SkillRecord", "SkillVersion", "SkillImport",
            "RunSkill", "WorkspaceModel", "FileChangeModel", "WorkspaceObjectModel", "WriteLeaseModel",
            "InstructionProposalModel", "InstructionVersionModel", "WorkingStyleTemplateModel",
            "ExtractionJobModel", "MemoryChangeModel", "MemoryEntryModel", "MemorySourceModel",
-           "MemorySuppressionModel", "RunContextManifestModel", "SessionSummaryModel", "SearchDocumentModel"]
+           "MemorySuppressionModel", "RunContextManifestModel", "SessionSummaryModel", "SearchDocumentModel",
+           "DocumentModel", "DocumentRevisionModel", "ContentBlockModel", "DocumentChunkModel",
+           "IndexPublicationModel"]
