@@ -483,3 +483,31 @@ export type ChangePreview = Schemas["ChangePreviewResponse"];
 export type UndoItemRequest = Schemas["UndoItemRequest"];
 export type ForceCurrent = Schemas["ForceCurrentRequest"];
 export type UndoItemResult = Schemas["UndoItemResult"];
+
+// ==================== 工作方式与记忆（P5） ====================
+
+export type InstructionView = Schemas["InstructionView"];
+export type InstructionProposalView = Schemas["InstructionProposalView"];
+export type InstructionSource = Schemas["InstructionSource"];
+export type UpdateInstructionRequest = Schemas["UpdateInstructionRequest"];
+export type TemplateView = Schemas["TemplateView"];
+export type ApplyTemplateResponse = Schemas["ApplyTemplateResponse"];
+
+export type MemoryItem = Schemas["MemoryItem"];
+export type MemoryListResponse = Schemas["MemoryListResponse"];
+export type MemoryStatus = Schemas["MemoryStatus"];
+export type MemoryType = Schemas["MemoryType"];
+export type MemoryOrigin = Schemas["MemoryOrigin"];
+export type MemoryCertainty = Schemas["MemoryCertainty"];
+export type CreateMemoryRequest = Schemas["CreateMemoryRequest"];
+export type PatchMemoryRequest = Schemas["PatchMemoryRequest"];
+export type MemorySourcesResponse = Schemas["MemorySourcesResponse"];
+export type MemorySourceView = Schemas["MemorySourceView"];
+export type ParticipateInMemoryResponse = Schemas["ParticipateInMemoryResponse"];
+
+export type ContextManifestView = Schemas["ContextManifestView"];
+export type ResidentMemoryView = Schemas["ResidentMemoryView"];
+export type SearchHitView = Schemas["SearchHitView"];
+export type SearchRequest = Schemas["SearchRequest"];
+export type SearchResponse = Schemas["SearchResponse"];
+export type ContextOmissionView = Schemas["ContextOmissionView"];

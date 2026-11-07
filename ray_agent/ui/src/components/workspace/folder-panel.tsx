@@ -1,5 +1,5 @@
 import {useEffect, useRef, useState, type DragEvent, type ReactNode} from 'react'
-import {Download, FolderSearch, FolderX, Plus, RefreshCw, SquareArrowOutUpRight, X} from 'lucide-react'
+import {Download, FolderSearch, FolderX, Plus, RefreshCw, ScrollText, SquareArrowOutUpRight, X} from 'lucide-react'
 import {toast} from 'sonner'
 import {Button} from '@/components/ui/button'
 import {IconAction} from '@/components/ui/icon-action'
@@ -43,13 +43,15 @@ function describeUpload(names: Array<{asked: string; saved: string}>, failed: Ar
  * 文件夹随外部变更（工作区页的变更订阅）按受影响的目录刷新；正在预览的文件被改动时提示重新载入。
  * 有运行修改过文件夹时多一个“最近修改”页，列出这些运行并可进入撤销。
  */
-export function FolderPanel({workspace, deliveries, onClose, embedded = false, className}: {
+export function FolderPanel({workspace, deliveries, onClose, embedded = false, onOpenWorkingStyle, className}: {
   workspace: WorkspaceItem
   /** 会话里的交付文件；工作区首页没有会话，传空则不显示“本次成果” */
   deliveries?: FileView[]
   onClose?: () => void
   /** 嵌在带切换栏的面板里时用更矮的标题行 */
   embedded?: boolean
+  /** 工作区首页：打开工作方式设置 */
+  onOpenWorkingStyle?: () => void
   className?: string
 }) {
   const folder = workspace.folder
@@ -143,6 +145,7 @@ export function FolderPanel({workspace, deliveries, onClose, embedded = false, c
     <div className="min-w-0 flex-1">
       <h2 className="truncate text-sm font-medium" dir="auto" title={folder?.path}>{folder ? folderName(folder.path) : '文件夹'}</h2>
     </div>
+    {onOpenWorkingStyle && <IconAction label="工作方式" onClick={onOpenWorkingStyle} className="text-muted-foreground"><ScrollText className="size-4" aria-hidden/></IconAction>}
     {revealable && <IconAction label={`在 ${fileManagerName()} 中显示${revealPath ? '' : '文件夹'}`} onClick={() => void reveal()} className="text-muted-foreground"><SquareArrowOutUpRight className="size-4" aria-hidden/></IconAction>}
     {condition.folderAvailable && activeTab === 'folder' && !opened && <IconAction label="刷新" onClick={reload} className="text-muted-foreground"><RefreshCw className="size-4" aria-hidden/></IconAction>}
     {onClose && <IconAction label="收起文件夹面板" onClick={onClose} className="text-muted-foreground"><X className="size-4" aria-hidden/></IconAction>}

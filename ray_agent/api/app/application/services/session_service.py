@@ -11,6 +11,7 @@ from app.domain.models.file import File
 from app.domain.models.run import Run
 from app.domain.models.run_input import RunInput
 from app.domain.models.session import DEFAULT_SESSION_TITLE, Session
+from app.domain.models.retrieval import SearchSourceType
 from app.domain.models.workspace import WorkspaceStatus
 from app.domain.repositories.uow import IUnitOfWork
 
@@ -45,7 +46,9 @@ class SessionService:
 
     async def create_session(self, creation_id: str | None = None, workspace_id: str | None = None) -> Session:
         """创建一个空白会话；带创建标识时重复请求返回同一会话。会话所属的工作区创建后不再改变，独立对话没有工作区。"""
-        session = Session(title=DEFAULT_SESSION_TITLE, workspace_id=workspace_id)
+        # 独立对话不写入记忆；工作区会话默认参与，之后可由用户按会话关闭
+        session = Session(title=DEFAULT_SESSION_TITLE, workspace_id=workspace_id,
+                          participate_in_memory=bool(workspace_id))
         if creation_id:
             session.id = creation_id
         async with self._uow_factory() as uow:
@@ -61,6 +64,7 @@ class SessionService:
                     raise NotFoundError("工作区不存在")
                 if workspace.status is WorkspaceStatus.ARCHIVED:
                     raise ConflictError("工作区已归档，不能新建会话；取消归档后再试")
+                session.instruction_version = workspace.instruction_version  # 创建时的版本提示；运行以背景清单为准
             await uow.session.save(session)
             if self._workdirs is not None:
                 root, location = self._workdirs.new_root(session.id)
@@ -95,6 +99,13 @@ class SessionService:
         async with self._uow_factory() as uow:
             files = await uow.file.list_by_session(session_id)
             registered = await uow.root.session_workdir(session_id)
+            summary = await uow.summary.get(session_id)
+            if summary is not None:
+                # 会话删除后它的摘要不再可检索；已写入记忆条目的来源在读取时标为不可用
+                if summary.workspace_id:
+                    await uow.search.remove(workspace_id=summary.workspace_id, source_type=SearchSourceType.SESSION_SUMMARY,
+                                            source_id=session_id)
+                await uow.summary.delete(session_id)
             await uow.session.delete_by_id(session_id)
             job = None
             if self._jobs is not None:

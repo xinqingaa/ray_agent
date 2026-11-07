@@ -30,6 +30,7 @@ dependencies = [
     "aiosqlite>=0.22,<0.23",
     "anyio>=4.10",
     "watchfiles>=1.1,<2",
+    "jieba>=0.42.1",
 ]
 
 [dependency-groups]

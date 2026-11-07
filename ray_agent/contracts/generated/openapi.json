@@ -3215,7 +3215,7 @@
           "工作区"
         ],
         "summary": "新建工作区",
-        "description": "在默认工作区位置下按名称新建文件夹（重名加序号，不复用已有目录）",
+        "description": "在默认工作区位置下按名称新建文件夹（重名加序号，不复用已有目录）。可同时给出工作方式正文或模板；模板只复制工作方式，不带记忆、路径或凭据",
         "operationId": "create_workspace_api_workspaces_post",
         "requestBody": {
           "content": {
@@ -3526,6 +3526,59 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/LocalExecutionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_WorkspaceItem_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workspaces/{workspace_id}/auto-memory": {
+      "post": {
+        "tags": [
+          "工作区"
+        ],
+        "summary": "设置工作区自动记忆开关",
+        "description": "关闭后运行结束不再自动提炼记忆（已有记忆、明确要求写入与会话摘要不受影响）。version 不符返回 409",
+        "operationId": "set_auto_memory_api_workspaces__workspace_id__auto_memory_post",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workspace Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AutoMemoryRequest"
               }
             }
           }
@@ -4147,6 +4200,857 @@
             "content": {
               "application/json": {
                 "schema": {}
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workspaces/{workspace_id}/instruction": {
+      "get": {
+        "tags": [
+          "工作方式"
+        ],
+        "summary": "当前工作方式",
+        "description": "尚未设置时正文为空串、版本为空",
+        "operationId": "get_instruction_api_workspaces__workspace_id__instruction_get",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workspace Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_InstructionView_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "工作方式"
+        ],
+        "summary": "发布新的工作方式版本",
+        "description": "用户编辑：发布来源为 user_edit 的新版本。body 超过上限返回 400；version 是工作区 version，不符返回 409 并带最新值",
+        "operationId": "put_instruction_api_workspaces__workspace_id__instruction_put",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workspace Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateInstructionRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_InstructionView_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workspaces/{workspace_id}/instruction/proposals": {
+      "get": {
+        "tags": [
+          "工作方式"
+        ],
+        "summary": "Agent 的工作方式提议",
+        "description": "status 省略时返回全部；待确认的提议未生效",
+        "operationId": "list_proposals_api_workspaces__workspace_id__instruction_proposals_get",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_InstructionProposalList_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workspaces/{workspace_id}/instruction/proposals/{proposal_id}/accept": {
+      "post": {
+        "tags": [
+          "工作方式"
+        ],
+        "summary": "确认提议",
+        "description": "发布来源为 confirmed_proposal 的新版本。提议之后工作方式已变化时提议作废并返回 409，请重新审阅",
+        "operationId": "accept_proposal_api_workspaces__workspace_id__instruction_proposals__proposal_id__accept_post",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "proposal_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Proposal Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_InstructionView_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workspaces/{workspace_id}/instruction/proposals/{proposal_id}/reject": {
+      "post": {
+        "tags": [
+          "工作方式"
+        ],
+        "summary": "拒绝提议",
+        "operationId": "reject_proposal_api_workspaces__workspace_id__instruction_proposals__proposal_id__reject_post",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "proposal_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Proposal Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_InstructionProposalView_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/templates": {
+      "get": {
+        "tags": [
+          "工作方式"
+        ],
+        "summary": "工作方式模板列表",
+        "operationId": "list_templates_api_templates_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_TemplateListResponse_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "工作方式"
+        ],
+        "summary": "把工作区另存为模板",
+        "description": "只复制当前工作方式正文与可选的工具启用建议；不带记忆、文件、路径或凭据",
+        "operationId": "save_template_api_templates_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveTemplateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_TemplateView_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/templates/{template_id}/rename": {
+      "post": {
+        "tags": [
+          "工作方式"
+        ],
+        "summary": "重命名模板",
+        "operationId": "rename_template_api_templates__template_id__rename_post",
+        "parameters": [
+          {
+            "name": "template_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Template Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RenameTemplateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_TemplateView_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/templates/{template_id}/apply": {
+      "post": {
+        "tags": [
+          "工作方式"
+        ],
+        "summary": "把模板应用到工作区",
+        "description": "发布来源为 template 的新工作方式版本；模板里的工具建议随结果返回，不会自动启用任何开关",
+        "operationId": "apply_template_api_templates__template_id__apply_post",
+        "parameters": [
+          {
+            "name": "template_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Template Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApplyTemplateRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_ApplyTemplateResponse_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/templates/{template_id}/delete": {
+      "post": {
+        "tags": [
+          "工作方式"
+        ],
+        "summary": "删除模板",
+        "description": "不影响已经应用过该模板的工作区",
+        "operationId": "delete_template_api_templates__template_id__delete_post",
+        "parameters": [
+          {
+            "name": "template_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Template Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_dict_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workspaces/{workspace_id}/memories": {
+      "get": {
+        "tags": [
+          "记忆"
+        ],
+        "summary": "工作区记忆列表",
+        "description": "status 可重复指定；省略时返回活动与候选。常驻层条目带 resident=true",
+        "operationId": "list_memories_api_workspaces__workspace_id__memories_get",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/MemoryStatus"
+                  }
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_MemoryListResponse_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "记忆"
+        ],
+        "summary": "新增记忆",
+        "description": "用户操作：立即生效并标为用户确认",
+        "operationId": "create_memory_api_workspaces__workspace_id__memories_post",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workspace Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateMemoryRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_MemoryItem_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workspaces/{workspace_id}/memories/{memory_id}": {
+      "patch": {
+        "tags": [
+          "记忆"
+        ],
+        "summary": "对一条记忆的用户操作",
+        "description": "edit 修改内容或类型、pin／unpin 钉住、confirm 确认候选、retract 撤回、undo 撤销最近一次变更。version 不符返回 409 并带最新值",
+        "operationId": "patch_memory_api_workspaces__workspace_id__memories__memory_id__patch",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "memory_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Memory Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PatchMemoryRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_MemoryItem_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workspaces/{workspace_id}/memories/{memory_id}/sources": {
+      "get": {
+        "tags": [
+          "记忆"
+        ],
+        "summary": "记忆的来源与变更历史",
+        "description": "来源会话已被删除时 available 为 false，界面如实标明，不指向别处",
+        "operationId": "memory_sources_api_workspaces__workspace_id__memories__memory_id__sources_get",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "memory_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Memory Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_MemorySourcesResponse_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sessions/{session_id}/participate-in-memory": {
+      "post": {
+        "tags": [
+          "记忆"
+        ],
+        "summary": "设置会话是否参与记忆",
+        "description": "关闭后该会话不再提炼记忆、不再生成可检索的摘要，已索引的摘要撤出检索；独立对话返回 400",
+        "operationId": "participate_in_memory_api_sessions__session_id__participate_in_memory_post",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ParticipateInMemoryRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_ParticipateInMemoryResponse_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workspaces/{workspace_id}/search": {
+      "post": {
+        "tags": [
+          "检索"
+        ],
+        "summary": "在工作区内全文检索",
+        "description": "范围固定为路径里的工作区；当前只检索记忆与会话摘要，请求文件内容类来源会被拒绝",
+        "operationId": "search_workspace_api_workspaces__workspace_id__search_post",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workspace Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SearchRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_SearchResponse_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/runs/{run_id}/context-manifest": {
+      "get": {
+        "tags": [
+          "检索"
+        ],
+        "summary": "本次参考：一次运行实际使用的背景",
+        "description": "工作方式版本、常驻记忆、初始召回与未采用的原因；独立对话的运行没有清单（404）",
+        "operationId": "run_context_manifest_api_runs__run_id__context_manifest_get",
+        "parameters": [
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_ContextManifestView_"
+                }
               }
             }
           },
@@ -4810,6 +5714,51 @@
         "title": "AgentConfig",
         "description": "Agent通用配置"
       },
+      "ApplyTemplateRequest": {
+        "properties": {
+          "workspace_id": {
+            "type": "string",
+            "title": "Workspace Id"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version",
+            "description": "工作区 version；提供时核对并发修改"
+          }
+        },
+        "type": "object",
+        "required": [
+          "workspace_id"
+        ],
+        "title": "ApplyTemplateRequest"
+      },
+      "ApplyTemplateResponse": {
+        "properties": {
+          "instruction": {
+            "$ref": "#/components/schemas/InstructionView"
+          },
+          "tool_suggestions": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Tool Suggestions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "instruction",
+          "tool_suggestions"
+        ],
+        "title": "ApplyTemplateResponse",
+        "description": "应用模板只发布工作方式新版本；tool_suggestions 是模板里的建议，不会自动启用任何开关。"
+      },
       "ApprovalEventData": {
         "properties": {
           "event_id": {
@@ -5112,6 +6061,25 @@
         ],
         "title": "AttemptSSEEvent",
         "description": "失败尝试流式事件"
+      },
+      "AutoMemoryRequest": {
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "enabled",
+          "version"
+        ],
+        "title": "AutoMemoryRequest"
       },
       "BaseEventData": {
         "properties": {
@@ -6524,6 +7492,121 @@
         "title": "ContextEventData",
         "description": "模型历史变化的轻量投影：消息全文只在数据库与请求重建接口里，推送时只给条数与角色。"
       },
+      "ContextManifestView": {
+        "properties": {
+          "run_id": {
+            "type": "string",
+            "title": "Run Id"
+          },
+          "session_id": {
+            "type": "string",
+            "title": "Session Id"
+          },
+          "workspace_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Workspace Id"
+          },
+          "instruction_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instruction Version"
+          },
+          "instruction_body": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instruction Body"
+          },
+          "resident_memories": {
+            "items": {
+              "$ref": "#/components/schemas/ResidentMemoryView"
+            },
+            "type": "array",
+            "title": "Resident Memories"
+          },
+          "retrieval_hits": {
+            "items": {
+              "$ref": "#/components/schemas/SearchHitView"
+            },
+            "type": "array",
+            "title": "Retrieval Hits"
+          },
+          "omissions": {
+            "items": {
+              "$ref": "#/components/schemas/ContextOmissionView"
+            },
+            "type": "array",
+            "title": "Omissions"
+          },
+          "created_at": {
+            "type": "integer",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "run_id",
+          "session_id",
+          "workspace_id",
+          "instruction_version",
+          "instruction_body",
+          "resident_memories",
+          "retrieval_hits",
+          "omissions",
+          "created_at"
+        ],
+        "title": "ContextManifestView",
+        "description": "一次运行实际使用的背景：工作方式版本、常驻记忆、初始召回与未采用原因。"
+      },
+      "ContextOmissionView": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Kind",
+            "description": "retrieval 为初始召回未采用，revision 为冻结后因不可用被移除"
+          },
+          "reason": {
+            "type": "string",
+            "title": "Reason"
+          },
+          "source_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "reason",
+          "source_id"
+        ],
+        "title": "ContextOmissionView"
+      },
       "ContextOperation": {
         "properties": {
           "status": {
@@ -6654,6 +7737,30 @@
         ],
         "title": "CoreStatus"
       },
+      "CreateMemoryRequest": {
+        "properties": {
+          "content": {
+            "type": "string",
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Content"
+          },
+          "memory_type": {
+            "$ref": "#/components/schemas/MemoryType",
+            "default": "fact"
+          },
+          "pinned": {
+            "type": "boolean",
+            "title": "Pinned",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "content"
+        ],
+        "title": "CreateMemoryRequest"
+      },
       "CreateSessionRequest": {
         "properties": {
           "creation_id": {
@@ -6706,6 +7813,31 @@
             "minLength": 1,
             "title": "Name",
             "description": "工作区名称，同时是默认位置下新建文件夹的名称"
+          },
+          "instruction": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 4000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instruction",
+            "description": "可选：创建时填写的工作方式"
+          },
+          "template_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Template Id",
+            "description": "可选：用模板的工作方式初始化；与 instruction 同时给出时以 instruction 为准"
           }
         },
         "type": "object",
@@ -7681,6 +8813,163 @@
         "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
         "description": "核心进程的一次启动"
       },
+      "InstructionProposalList": {
+        "properties": {
+          "proposals": {
+            "items": {
+              "$ref": "#/components/schemas/InstructionProposalView"
+            },
+            "type": "array",
+            "title": "Proposals"
+          }
+        },
+        "type": "object",
+        "required": [
+          "proposals"
+        ],
+        "title": "InstructionProposalList"
+      },
+      "InstructionProposalView": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "workspace_id": {
+            "type": "string",
+            "title": "Workspace Id"
+          },
+          "base_version": {
+            "type": "integer",
+            "title": "Base Version"
+          },
+          "body": {
+            "type": "string",
+            "title": "Body"
+          },
+          "rationale": {
+            "type": "string",
+            "title": "Rationale"
+          },
+          "session_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Session Id"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ProposalStatus"
+          },
+          "created_at": {
+            "type": "integer",
+            "title": "Created At"
+          },
+          "resolved_at": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolved At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "workspace_id",
+          "base_version",
+          "body",
+          "rationale",
+          "session_id",
+          "status",
+          "created_at",
+          "resolved_at"
+        ],
+        "title": "InstructionProposalView"
+      },
+      "InstructionSource": {
+        "type": "string",
+        "enum": [
+          "user_edit",
+          "confirmed_proposal",
+          "template"
+        ],
+        "title": "InstructionSource"
+      },
+      "InstructionView": {
+        "properties": {
+          "workspace_id": {
+            "type": "string",
+            "title": "Workspace Id"
+          },
+          "instruction_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instruction Version"
+          },
+          "body": {
+            "type": "string",
+            "title": "Body"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/InstructionSource"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          },
+          "workspace_version": {
+            "type": "integer",
+            "title": "Workspace Version",
+            "description": "工作区 version；提交修改时回传，用于并发修改核对"
+          },
+          "max_chars": {
+            "type": "integer",
+            "title": "Max Chars",
+            "default": 4000
+          }
+        },
+        "type": "object",
+        "required": [
+          "workspace_id",
+          "instruction_version",
+          "body",
+          "source",
+          "updated_at",
+          "workspace_version",
+          "max_chars"
+        ],
+        "title": "InstructionView",
+        "description": "工作区当前生效的工作方式；尚未设置时 instruction_version 与 source 为空、正文为空串。"
+      },
       "LLMConfigPublic": {
         "properties": {
           "model_name": {
@@ -8217,6 +9506,346 @@
         ],
         "title": "MarkerConflict",
         "description": "复制出的文件夹：标记指向一个仍绑定在别处的已知工作区。"
+      },
+      "MemoryCertainty": {
+        "type": "string",
+        "enum": [
+          "user_confirmed",
+          "material_stated",
+          "model_inferred"
+        ],
+        "title": "MemoryCertainty"
+      },
+      "MemoryChangeAction": {
+        "type": "string",
+        "enum": [
+          "create",
+          "update",
+          "confirm",
+          "pin",
+          "unpin",
+          "retract",
+          "supersede",
+          "undo"
+        ],
+        "title": "MemoryChangeAction"
+      },
+      "MemoryChangeView": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "from_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "From Version"
+          },
+          "to_version": {
+            "type": "integer",
+            "title": "To Version"
+          },
+          "action": {
+            "$ref": "#/components/schemas/MemoryChangeAction"
+          },
+          "origin": {
+            "$ref": "#/components/schemas/MemoryOrigin"
+          },
+          "rationale": {
+            "type": "string",
+            "title": "Rationale"
+          },
+          "replaces_change_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Replaces Change Id"
+          },
+          "created_at": {
+            "type": "integer",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "from_version",
+          "to_version",
+          "action",
+          "origin",
+          "rationale",
+          "replaces_change_id",
+          "created_at"
+        ],
+        "title": "MemoryChangeView"
+      },
+      "MemoryItem": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "workspace_id": {
+            "type": "string",
+            "title": "Workspace Id"
+          },
+          "content": {
+            "type": "string",
+            "title": "Content"
+          },
+          "memory_type": {
+            "$ref": "#/components/schemas/MemoryType"
+          },
+          "origin": {
+            "$ref": "#/components/schemas/MemoryOrigin"
+          },
+          "certainty": {
+            "$ref": "#/components/schemas/MemoryCertainty"
+          },
+          "status": {
+            "$ref": "#/components/schemas/MemoryStatus"
+          },
+          "pinned": {
+            "type": "boolean",
+            "title": "Pinned"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version",
+            "description": "修改时回传，用于并发修改核对"
+          },
+          "supersedes_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Supersedes Id",
+            "description": "候选指向的、确认后将被替代的条目"
+          },
+          "resident": {
+            "type": "boolean",
+            "title": "Resident",
+            "description": "当前是否在常驻层（每次新运行注入）"
+          },
+          "created_at": {
+            "type": "integer",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "integer",
+            "title": "Updated At"
+          },
+          "last_used_at": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Used At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "workspace_id",
+          "content",
+          "memory_type",
+          "origin",
+          "certainty",
+          "status",
+          "pinned",
+          "version",
+          "supersedes_id",
+          "resident",
+          "created_at",
+          "updated_at",
+          "last_used_at"
+        ],
+        "title": "MemoryItem"
+      },
+      "MemoryListResponse": {
+        "properties": {
+          "memories": {
+            "items": {
+              "$ref": "#/components/schemas/MemoryItem"
+            },
+            "type": "array",
+            "title": "Memories"
+          },
+          "resident_limit": {
+            "type": "integer",
+            "title": "Resident Limit",
+            "default": 12
+          }
+        },
+        "type": "object",
+        "required": [
+          "memories",
+          "resident_limit"
+        ],
+        "title": "MemoryListResponse"
+      },
+      "MemoryOrigin": {
+        "type": "string",
+        "enum": [
+          "user",
+          "agent_requested",
+          "auto_extraction"
+        ],
+        "title": "MemoryOrigin"
+      },
+      "MemorySourceKind": {
+        "type": "string",
+        "enum": [
+          "session",
+          "document"
+        ],
+        "title": "MemorySourceKind"
+      },
+      "MemorySourceView": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/MemorySourceKind"
+          },
+          "session_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Session Id"
+          },
+          "event_seq_start": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Seq Start"
+          },
+          "event_seq_end": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Seq End"
+          },
+          "document_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Id"
+          },
+          "document_revision": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Document Revision"
+          },
+          "available": {
+            "type": "boolean",
+            "title": "Available",
+            "description": "来源会话或文件仍然存在；为假时界面如实标明，不跳转到别处"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "session_id",
+          "event_seq_start",
+          "event_seq_end",
+          "document_id",
+          "document_revision",
+          "available"
+        ],
+        "title": "MemorySourceView"
+      },
+      "MemorySourcesResponse": {
+        "properties": {
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/MemorySourceView"
+            },
+            "type": "array",
+            "title": "Sources"
+          },
+          "changes": {
+            "items": {
+              "$ref": "#/components/schemas/MemoryChangeView"
+            },
+            "type": "array",
+            "title": "Changes"
+          }
+        },
+        "type": "object",
+        "required": [
+          "sources",
+          "changes"
+        ],
+        "title": "MemorySourcesResponse"
+      },
+      "MemoryStatus": {
+        "type": "string",
+        "enum": [
+          "candidate",
+          "active",
+          "superseded",
+          "retracted"
+        ],
+        "title": "MemoryStatus"
+      },
+      "MemoryType": {
+        "type": "string",
+        "enum": [
+          "fact",
+          "preference",
+          "decision",
+          "constraint"
+        ],
+        "title": "MemoryType"
       },
       "MessageEventData": {
         "properties": {
@@ -8902,6 +10531,88 @@
         ],
         "title": "OperationView"
       },
+      "ParticipateInMemoryRequest": {
+        "properties": {
+          "participate": {
+            "type": "boolean",
+            "title": "Participate"
+          }
+        },
+        "type": "object",
+        "required": [
+          "participate"
+        ],
+        "title": "ParticipateInMemoryRequest"
+      },
+      "ParticipateInMemoryResponse": {
+        "properties": {
+          "session_id": {
+            "type": "string",
+            "title": "Session Id"
+          },
+          "participate_in_memory": {
+            "type": "boolean",
+            "title": "Participate In Memory"
+          }
+        },
+        "type": "object",
+        "required": [
+          "session_id",
+          "participate_in_memory"
+        ],
+        "title": "ParticipateInMemoryResponse"
+      },
+      "PatchMemoryRequest": {
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "edit",
+              "pin",
+              "unpin",
+              "confirm",
+              "retract",
+              "undo"
+            ],
+            "title": "Action"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Version"
+          },
+          "content": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 2000,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Content"
+          },
+          "memory_type": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MemoryType"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "action",
+          "version"
+        ],
+        "title": "PatchMemoryRequest",
+        "description": "对一条记忆的用户操作；version 必须回传。edit 需要 content 或 memory_type 之一。"
+      },
       "PlanAcceptance": {
         "properties": {
           "source_run_id": {
@@ -9086,6 +10797,16 @@
         "title": "PlanSSEEvent",
         "description": "计划流式事件"
       },
+      "ProposalStatus": {
+        "type": "string",
+        "enum": [
+          "pending",
+          "accepted",
+          "rejected",
+          "superseded"
+        ],
+        "title": "ProposalStatus"
+      },
       "ProtocolVersion": {
         "type": "integer",
         "minimum": 1.0,
@@ -9203,6 +10924,21 @@
         ],
         "title": "RelocateWorkspaceRequest"
       },
+      "RenameTemplateRequest": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "RenameTemplateRequest"
+      },
       "RenameTitleRequest": {
         "properties": {
           "title": {
@@ -9243,6 +10979,44 @@
         "minLength": 1,
         "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
         "description": "业务幂等请求身份；同身份不同内容返回冲突"
+      },
+      "ResidentMemoryView": {
+        "properties": {
+          "memory_id": {
+            "type": "string",
+            "title": "Memory Id"
+          },
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          },
+          "content": {
+            "type": "string",
+            "title": "Content"
+          },
+          "memory_type": {
+            "type": "string",
+            "title": "Memory Type"
+          },
+          "certainty": {
+            "type": "string",
+            "title": "Certainty"
+          },
+          "pinned": {
+            "type": "boolean",
+            "title": "Pinned"
+          }
+        },
+        "type": "object",
+        "required": [
+          "memory_id",
+          "version",
+          "content",
+          "memory_type",
+          "certainty",
+          "pinned"
+        ],
+        "title": "ResidentMemoryView"
       },
       "ResolveConflictRequest": {
         "properties": {
@@ -9336,6 +11110,25 @@
           "data"
         ],
         "title": "Response[AgentConfig]"
+      },
+      "Response_ApplyTemplateResponse_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ApplyTemplateResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "Response[ApplyTemplateResponse]"
       },
       "Response_ApprovalResponse_": {
         "properties": {
@@ -9469,6 +11262,25 @@
           "data"
         ],
         "title": "Response[CompactResponse]"
+      },
+      "Response_ContextManifestView_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ContextManifestView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "Response[ContextManifestView]"
       },
       "Response_CoreStatus_": {
         "properties": {
@@ -9645,6 +11457,63 @@
         ],
         "title": "Response[GetSessionResponse]"
       },
+      "Response_InstructionProposalList_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/InstructionProposalList"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "Response[InstructionProposalList]"
+      },
+      "Response_InstructionProposalView_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/InstructionProposalView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "Response[InstructionProposalView]"
+      },
+      "Response_InstructionView_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/InstructionView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "Response[InstructionView]"
+      },
       "Response_LLMConfigPublic_": {
         "properties": {
           "data": {
@@ -9720,6 +11589,63 @@
           "data"
         ],
         "title": "Response[ListSessionResponse]"
+      },
+      "Response_MemoryItem_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MemoryItem"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "Response[MemoryItem]"
+      },
+      "Response_MemoryListResponse_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MemoryListResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "Response[MemoryListResponse]"
+      },
+      "Response_MemorySourcesResponse_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MemorySourcesResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "Response[MemorySourcesResponse]"
       },
       "Response_ModelCatalogResponse_": {
         "properties": {
@@ -9816,6 +11742,25 @@
         ],
         "title": "Response[OperationView]"
       },
+      "Response_ParticipateInMemoryResponse_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ParticipateInMemoryResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "Response[ParticipateInMemoryResponse]"
+      },
       "Response_ResolveRootPathResponse_": {
         "properties": {
           "data": {
@@ -9910,6 +11855,63 @@
           "data"
         ],
         "title": "Response[RunChangesResponse]"
+      },
+      "Response_SearchResponse_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SearchResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "Response[SearchResponse]"
+      },
+      "Response_TemplateListResponse_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TemplateListResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "Response[TemplateListResponse]"
+      },
+      "Response_TemplateView_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TemplateView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "Response[TemplateView]"
       },
       "Response_TitleResponse_": {
         "properties": {
@@ -10083,6 +12085,27 @@
           "data"
         ],
         "title": "Response[WriteLeaseResponse]"
+      },
+      "Response_dict_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "Response[dict]"
       },
       "ReviseRequest": {
         "properties": {
@@ -10613,6 +12636,32 @@
         ],
         "title": "SamplingPreviewRequest"
       },
+      "SaveTemplateRequest": {
+        "properties": {
+          "workspace_id": {
+            "type": "string",
+            "title": "Workspace Id"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "include_tool_suggestions": {
+            "type": "boolean",
+            "title": "Include Tool Suggestions",
+            "description": "同时保存工具启用建议（只含本机执行开关）",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "workspace_id",
+          "name"
+        ],
+        "title": "SaveTemplateRequest"
+      },
       "ScanSummary": {
         "properties": {
           "files": {
@@ -10645,6 +12694,133 @@
         ],
         "title": "ScanSummary",
         "description": "文件夹规模：排除规则之外的文件数与总大小；达到扫描上限时截断。"
+      },
+      "SearchHitView": {
+        "properties": {
+          "source_type": {
+            "$ref": "#/components/schemas/SearchSourceType"
+          },
+          "source_id": {
+            "type": "string",
+            "title": "Source Id"
+          },
+          "source_version": {
+            "type": "integer",
+            "title": "Source Version"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "snippet": {
+            "type": "string",
+            "title": "Snippet"
+          },
+          "score": {
+            "type": "number",
+            "title": "Score"
+          },
+          "certainty": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Certainty"
+          },
+          "stale": {
+            "type": "boolean",
+            "title": "Stale"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Payload"
+          }
+        },
+        "type": "object",
+        "required": [
+          "source_type",
+          "source_id",
+          "source_version",
+          "title",
+          "snippet",
+          "score",
+          "certainty",
+          "stale",
+          "payload"
+        ],
+        "title": "SearchHitView"
+      },
+      "SearchRequest": {
+        "properties": {
+          "query": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Query"
+          },
+          "source_types": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string",
+                  "enum": [
+                    "memory",
+                    "session_summary"
+                  ]
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source Types",
+            "description": "省略为记忆与会话摘要都查"
+          },
+          "limit": {
+            "type": "integer",
+            "maximum": 100.0,
+            "minimum": 1.0,
+            "title": "Limit",
+            "default": 20
+          }
+        },
+        "type": "object",
+        "required": [
+          "query"
+        ],
+        "title": "SearchRequest",
+        "description": "范围固定为路径里的工作区；当前只能检索记忆与会话摘要，文件内容检索尚未提供。"
+      },
+      "SearchResponse": {
+        "properties": {
+          "hits": {
+            "items": {
+              "$ref": "#/components/schemas/SearchHitView"
+            },
+            "type": "array",
+            "title": "Hits"
+          }
+        },
+        "type": "object",
+        "required": [
+          "hits"
+        ],
+        "title": "SearchResponse"
+      },
+      "SearchSourceType": {
+        "type": "string",
+        "enum": [
+          "memory",
+          "session_summary",
+          "document_chunk"
+        ],
+        "title": "SearchSourceType"
       },
       "SessionEvent": {
         "oneOf": [
@@ -10911,6 +13087,61 @@
           "schema_revision"
         ],
         "title": "StorageVersion"
+      },
+      "TemplateListResponse": {
+        "properties": {
+          "templates": {
+            "items": {
+              "$ref": "#/components/schemas/TemplateView"
+            },
+            "type": "array",
+            "title": "Templates"
+          }
+        },
+        "type": "object",
+        "required": [
+          "templates"
+        ],
+        "title": "TemplateListResponse"
+      },
+      "TemplateView": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "body": {
+            "type": "string",
+            "title": "Body"
+          },
+          "tool_suggestions": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Tool Suggestions"
+          },
+          "created_at": {
+            "type": "integer",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "integer",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "body",
+          "tool_suggestions",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "TemplateView"
       },
       "TitleEventData": {
         "properties": {
@@ -11766,6 +13997,28 @@
         ],
         "title": "UndoResponse"
       },
+      "UpdateInstructionRequest": {
+        "properties": {
+          "body": {
+            "type": "string",
+            "maxLength": 4000,
+            "title": "Body",
+            "description": "新的工作方式全文；可为空串表示清除"
+          },
+          "version": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Version",
+            "description": "工作区 version；不符返回 409 并带最新值"
+          }
+        },
+        "type": "object",
+        "required": [
+          "body",
+          "version"
+        ],
+        "title": "UpdateInstructionRequest"
+      },
       "WaitSSEEvent": {
         "properties": {
           "event": {
@@ -11838,6 +14091,36 @@
             "description": "本工作区是否启用本机 Shell／脚本；默认关闭",
             "default": false
           },
+          "auto_memory_enabled": {
+            "type": "boolean",
+            "title": "Auto Memory Enabled",
+            "description": "是否在运行正常结束后自动提炼记忆；默认开启，会话可单独设为不参与",
+            "default": true
+          },
+          "instruction_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instruction Version",
+            "description": "当前工作方式版本；空表示尚未设置"
+          },
+          "instruction_preview": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instruction Preview",
+            "description": "当前工作方式的开头预览"
+          },
           "created_at": {
             "type": "integer",
             "title": "Created At"
@@ -11856,6 +14139,9 @@
           "folder",
           "write_lease",
           "local_execution_enabled",
+          "auto_memory_enabled",
+          "instruction_version",
+          "instruction_preview",
           "created_at",
           "updated_at"
         ],

@@ -117,6 +117,7 @@ uv run --locked pyinstaller --noconfirm --clean rayagent-core.spec
 | 数据根、会话工作目录与内容对象 | `../core/paths.py`、`infrastructure/external/workdir/`、`infrastructure/external/file_storage/` |
 | 工作区、文件夹授权与限根文件访问 | `application/services/workspace_service.py`、`application/services/root_access.py`、`domain/services/file_scope.py`、`infrastructure/external/workspace_files/` |
 | 写入租约、写前备份、撤销与外部变更 | `application/services/write_leases.py`、`workspace_writer.py`、`file_history.py`、`workspace_changes.py`、`infrastructure/external/file_storage/workspace_objects.py`、`infrastructure/external/workspace_files/watcher.py` |
+| 工作方式、记忆、检索与上下文装配 | `application/services/working_style_service.py`、`memory_service.py`、`retrieval_service.py`、`context_assembly.py`、`memory_jobs.py`、`workspace_memory_runtime.py`；路由 `instruction_routes.py`、`memory_routes.py`、`retrieval_routes.py` |
 | 外部服务与执行资源 | `domain/external/`、`infrastructure/external/` |
 
 ## 测试与数据库迁移
@@ -210,6 +211,18 @@ uv run --locked python -m pytest tests/core/test_write_protection.py tests/core/
 ```
 
 用例使用真实临时目录与真实业务库，覆盖两个会话争用同一文件夹的立即冲突与同一运行重入、停止后释放、确认期限内未确认转阻止并重试、迟到结果不释放新租约、启动扫描旧实例租约、覆盖前备份与同内容去重、备份失败不写入、撤销成功与运行新建文件的移除、外部改动后的冲突与显式覆盖、被改动的新建文件不删除、运行进行中拒绝撤销、真实文件系统通知（辅以重扫）与文件夹移走后的不可用、运行期间外部改动的撤销冲突与撤销操作本身的撤回、文件工具对凭据与版本控制内部路径及其 Unicode 等价名的拒绝，以及清空业务数据不删除用户文件。边界用例见 `test_workspace_integrity.py`：失联工作区的嵌套检查、改绑期间的写入、外接卷设备号变化、标记兼容、删除与写入的竞态、租约残留恢复、监视异常恢复；描述符紧张下的遍历与残留临时文件见 `test_workspace_files.py`。它们不覆盖多个核心进程争用同一数据根（实例锁拒绝第二个核心）、外部进程写入者（尚无调用方，其租约的用户确认释放入口留给本机执行工作包）和非 POSIX 文件系统的原子替换与通知差异。覆盖发布用 `rename` 替换目标，最后一次核对与替换之间仍有很小的竞争窗口（尚未改用 macOS 的 `renamex_np` 条件替换），测试无法证明窗口被消除。
+
+### 工作方式与记忆检查
+
+覆盖两个工作区与独立对话的隔离、常驻记忆与工作方式进入新运行、D4 提炼规则（用户保护条目转候选、迟到代次拒绝、撤回抑制）、运行结束登记摘要／提炼任务、续接前移除已撤回条目，以及 HTTP 冒烟。提炼与摘要的模型调用在测试中用注入替身，不证明真实模型质量。
+
+```bash
+uv run --locked python -m pytest \
+  tests/core/test_memory_isolation.py \
+  tests/core/test_memory_extraction_rules.py \
+  tests/core/test_memory_context_runtime.py \
+  tests/app/interfaces/endpoints/test_memory_routes.py
+```
 
 ### 数据删除与清空检查
 

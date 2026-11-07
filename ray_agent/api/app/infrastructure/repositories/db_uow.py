@@ -21,6 +21,10 @@ from .db_root_repository import DBRootRepository
 from .db_run_repository import DBRunRepository
 from .db_session_repository import DBSessionRepository
 from .db_skill_repository import DBSkillTransaction
+from .db_instruction_repository import DBInstructionRepository
+from .db_memory_repository import DBMemoryRepository
+from .db_search_repository import DBSearchRepository
+from .db_summary_repository import DBRunContextRepository, DBSummaryRepository
 from .db_workspace_repository import DBWorkspaceRepository
 from .db_write_lease_repository import DBWriteLeaseRepository
 
@@ -68,6 +72,11 @@ class DBUnitOfWork(IUnitOfWork):
         self.workspace = DBWorkspaceRepository(db_session=session)
         self.lease = DBWriteLeaseRepository(db_session=session)
         self.change = DBFileChangeRepository(db_session=session)
+        self.instruction = DBInstructionRepository(db_session=session)
+        self.memory = DBMemoryRepository(db_session=session)
+        self.summary = DBSummaryRepository(db_session=session)
+        self.run_context = DBRunContextRepository(db_session=session)
+        self.search = DBSearchRepository(db_session=session)
         return self
 
     async def __aexit__(self, exc_type, exc_val, exc_tb):

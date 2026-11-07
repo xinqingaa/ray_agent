@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends
 
 from app.application.services.workspace_changes import WorkspaceChangeFeed
 from app.application.services.workspace_service import WorkspaceService
+from app.application.services.working_style_service import WorkingStyleService
 from app.interfaces.schemas import Response
 from app.interfaces.schemas.operation import OperationView
 from app.interfaces.schemas.workspace import (
@@ -10,7 +11,8 @@ from app.interfaces.schemas.workspace import (
     OpenWorkspaceRequest, OpenWorkspaceResult, RelocateWorkspaceRequest, RenameWorkspaceRequest,
     ResolveConflictRequest, WorkspaceItem, WorkspaceListResponse, WorkspaceVersionRequest, workspace_item,
 )
-from app.interfaces.service_dependencies import get_change_feed, get_workspace_service
+from app.interfaces.schemas.memory import AutoMemoryRequest
+from app.interfaces.service_dependencies import get_change_feed, get_workspace_service, get_working_style_service
 
 router = APIRouter(prefix="/workspaces", tags=["工作区"])
 
@@ -28,9 +30,18 @@ async def list_workspaces(service: WorkspaceService = Depends(get_workspace_serv
 
 
 @router.post("", response_model=Response[WorkspaceItem], summary="新建工作区",
-             description="在默认工作区位置下按名称新建文件夹（重名加序号，不复用已有目录）")
-async def create_workspace(request: CreateWorkspaceRequest, service: WorkspaceService = Depends(get_workspace_service)):
-    return Response.success(workspace_item(await service.create(request.name)))
+             description="在默认工作区位置下按名称新建文件夹（重名加序号，不复用已有目录）。"
+                         "可同时给出工作方式正文或模板；模板只复制工作方式，不带记忆、路径或凭据")
+async def create_workspace(request: CreateWorkspaceRequest, service: WorkspaceService = Depends(get_workspace_service),
+                           style: WorkingStyleService = Depends(get_working_style_service)):
+    view = await service.create(request.name)
+    if request.instruction and request.instruction.strip():
+        await style.publish(view.workspace.id, request.instruction, view.workspace.version)
+        view = await service.get(view.workspace.id, refresh=False)
+    elif request.template_id:
+        await style.apply_template(view.workspace.id, request.template_id, view.workspace.version)
+        view = await service.get(view.workspace.id, refresh=False)
+    return Response.success(workspace_item(view))
 
 
 @router.post("/open", response_model=Response[OpenWorkspaceResult], summary="打开已有文件夹为工作区",
@@ -77,6 +88,14 @@ async def set_local_execution(workspace_id: str, request: LocalExecutionRequest,
                               service: WorkspaceService = Depends(get_workspace_service)):
     return Response.success(workspace_item(
         await service.set_local_execution(workspace_id, request.enabled, request.version)))
+
+
+@router.post("/{workspace_id}/auto-memory", response_model=Response[WorkspaceItem],
+             summary="设置工作区自动记忆开关",
+             description="关闭后运行结束不再自动提炼记忆（已有记忆、明确要求写入与会话摘要不受影响）。version 不符返回 409")
+async def set_auto_memory(workspace_id: str, request: AutoMemoryRequest,
+                          service: WorkspaceService = Depends(get_workspace_service)):
+    return Response.success(workspace_item(await service.set_auto_memory(workspace_id, request.enabled, request.version)))
 
 
 @router.post("/{workspace_id}/archive", response_model=Response[WorkspaceItem], summary="归档工作区",

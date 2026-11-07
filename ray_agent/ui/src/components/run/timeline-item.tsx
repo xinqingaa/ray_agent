@@ -8,6 +8,7 @@ import {AskCard} from './ask-card'
 import {DeliveryCard} from './delivery-card'
 import {FinalReply, NarrationBlock, UserMessage} from './messages'
 import {AttemptNotice, CompactionNotice, ProtectionNotice} from './notices'
+import {RunReferences} from './run-references'
 import {RunEndBar} from './run-end-bar'
 import {RunStatusBar} from './status-bar'
 import {ToolGroup} from './tool-group'
@@ -29,6 +30,8 @@ export type TimelineHandlers = {
   approvalSubmitting?: {callId: string; decision: 'approve' | 'reject'} | null
   /** W6：正在增量生成的条目 id */
   streamingItemId?: string | null
+  /** 工作区会话：在最终回复下展示本次参考 */
+  showRunReferences?: boolean
 }
 
 /** 按条目类型分派到对应组件；会话页与组件状态目录共用 */
@@ -81,7 +84,12 @@ export function TimelineItemView({item, handlers = {}}: {item: TimelineItem; han
     case 'protection':
       return <ProtectionNotice message={item.message} state={item.state}/>
     case 'final':
-      return <FinalReply text={item.text} summary={item.summary} streaming={streaming} deliveredFiles={item.deliveredFiles} onDownloadFile={handlers.onDownloadFile}/>
+      return (
+        <div className="space-y-1">
+          <FinalReply text={item.text} summary={item.summary} streaming={streaming} deliveredFiles={item.deliveredFiles} onDownloadFile={handlers.onDownloadFile}/>
+          {handlers.showRunReferences && item.runId && !streaming ? <RunReferences runId={item.runId}/> : null}
+        </div>
+      )
     case 'run_end':
       return <RunEndBar status={item.status} reasonText={item.reasonText} retryText={item.retryText} onRetry={handlers.onRetry && (handlers.retryRunId == null || handlers.retryRunId === item.runId) ? (text) => handlers.onRetry?.(text, item.runId ?? '') : undefined}/>
   }

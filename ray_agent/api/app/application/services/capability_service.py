@@ -6,8 +6,9 @@ from app.domain.models.execution_settings import workspace_execution_enabled
 
 FILE_ACCESS_DETAIL = "工作区文件夹与会话工作目录；某个工作区文件夹失联时只影响该工作区的会话"
 
+FULL_TEXT_DETAIL = "工作区记忆与会话摘要的全文检索（SQLite FTS5，应用层中文分词）；文件内容检索随后续阶段提供"
+
 NOT_IMPLEMENTED = {
-    Capability.FULL_TEXT_SEARCH: "工作区全文检索尚未实现",
     Capability.SEMANTIC_INDEX: "工作区语义索引尚未实现",
     Capability.OCR: "OCR 尚未实现",
     Capability.REMOTE_CONTROL: "远程控制尚未实现",
@@ -40,6 +41,7 @@ class CapabilityService:
             await self._file(),
             await self._local_command(session_enabled=True),
             await self._browser(),
+            await self._full_text(),
             *[CapabilityStatus.unavailable(capability, UnavailableReason.NOT_IMPLEMENTED, detail)
               for capability, detail in NOT_IMPLEMENTED.items()],
         ]
@@ -51,6 +53,7 @@ class CapabilityService:
             await self._file(),
             await self._local_command(session_enabled=enabled),
             await self._browser(),
+            await self._full_text(),
             *[CapabilityStatus.unavailable(capability, UnavailableReason.NOT_IMPLEMENTED, detail)
               for capability, detail in NOT_IMPLEMENTED.items()],
         ]
@@ -70,6 +73,10 @@ class CapabilityService:
 
     async def _file(self) -> CapabilityStatus:
         return CapabilityStatus.available(Capability.FILE_ACCESS, FILE_ACCESS_DETAIL)
+
+    async def _full_text(self) -> CapabilityStatus:
+        # FTS 底座随业务库迁移建立，核心启动成功即可用
+        return CapabilityStatus.available(Capability.FULL_TEXT_SEARCH, FULL_TEXT_DETAIL)
 
     async def _local_command(self, *, session_enabled: bool) -> CapabilityStatus:
         if not session_enabled:

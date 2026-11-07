@@ -144,6 +144,7 @@ class AgentService:
             read_uow_factory: Optional[Callable[[], IUnitOfWork]] = None,
             file_access=None,
             write_leases=None,
+            workspace_memory=None,
     ) -> None:
         self._skills = skill_service
         self._uow_factory = uow_factory
@@ -165,6 +166,7 @@ class AgentService:
         self._capabilities = capabilities
         self._file_access = file_access
         self._write_leases = write_leases
+        self._workspace_memory = workspace_memory  # WorkspaceMemoryRuntime；为空时不装配工作区背景与记忆工具
 
     def _read_factory(self) -> Callable[[], IUnitOfWork]:
         """只读工作单元的工厂；没有读连接池时退回普通工作单元。"""
@@ -367,11 +369,18 @@ class AgentService:
                 run_files = await self._run_files(session, None)
                 system_prompt = build_system_prompt(
                     await self._environment(workdir, run_files, session.workspace_id))
+                runtime = getattr(self, "_workspace_memory", None)
+                workspace_memory, project_prompt = None, ""
+                if runtime is not None and session.workspace_id:
+                    workspace_memory = runtime.ports(session.workspace_id, session.id, "preview")
+                    project_prompt = await runtime.assemble(session, "preview", persist=False)
+                system_prompt += project_prompt
                 loop = AgentLoop(uow_factory=self._uow_factory, llm=llm,
                     agent_config=self._agent_config, session_id=session.id, mode=mode,
                     tools=build_default_tools(None, None, self._search_engine, mcp, a2a,
                                              web_reader=getattr(self, '_web_reader', None),
-                                             files=run_files.scope if run_files is not None else None),
+                                             files=run_files.scope if run_files is not None else None,
+                                             workspace_memory=workspace_memory),
                     system_prompt=system_prompt, tool_policy=self._tool_policy)
                 messages = copy.deepcopy(memory.get_messages()) if memory else []
                 if not messages or messages[0].get("role") != "system":
@@ -438,6 +447,17 @@ class AgentService:
 
         from app.application.services.skill_runtime import SkillRuntime
         skill_runtime = SkillRuntime(self._skills, run_id, None) if self._skills else None
+        runtime = getattr(self, "_workspace_memory", None) if session.workspace_id else None
+        project_prompt, context_refresh, workspace_memory = "", None, None
+        if runtime is not None:
+            workspace_memory = runtime.ports(session.workspace_id, session.id, run_id)
+            async with self._reader() as uow:
+                started = await uow.run.get(run_id)
+            if started is not None and "project_prompt" in (started.config_snapshot or {}):
+                # 等待续接或审批续接：沿用运行快照里冻结的背景，只在续接前移除已不可用的内容
+                context_refresh = runtime.refresh
+            else:
+                project_prompt = await runtime.assemble(session, run_id)
         task_runner = AgentTaskRunner(
             uow_factory=self._uow_factory,
             llm=await self._llm_for_run(session, prior_status, run_id),
@@ -462,6 +482,10 @@ class AgentService:
             approval=approval,
             files=run_files.scope if run_files is not None else None,
             write_leases=getattr(self, "_write_leases", None),
+            project_prompt=project_prompt,
+            workspace_memory=workspace_memory,
+            context_refresh=context_refresh,
+            completion=runtime,
         )
         return self._task_cls.create(task_runner=task_runner)
 

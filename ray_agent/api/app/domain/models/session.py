@@ -36,12 +36,14 @@ class Session(BaseModel):
     max_tokens: Optional[int] = None  # 同时记下的单次回复上限，不含思考时临时抬高的部分
     temperature: Optional[float] = None  # 同时记下的温度
     workspace_id: Optional[str] = None  # 所属工作区；创建后不再改变，独立对话为空
+    participate_in_memory: bool = True  # 工作区会话是否参与记忆提炼；独立对话恒为假
+    instruction_version: Optional[int] = None  # 创建时可选冻结的工作方式版本提示；运行以清单为准
     title_source: str = "placeholder"  # placeholder / provisional / auto / manual
     unread_message_count: int = 0  # 用户尚未查看的已完成运行数，打开会话时清零
     latest_message: str = ""  # 最新消息
     latest_message_at: Optional[datetime] = None  # 最新消息时间
     files: List[File] = Field(default_factory=list)  # 文件列表
-    memories: Dict[str, Memory] = Field(default_factory=dict)  # 记忆
+    memories: Dict[str, Memory] = Field(default_factory=dict)  # 会话工作记忆（消息），非工作区长期记忆
     status: SessionStatus = SessionStatus.PENDING  # 状态
     updated_at: datetime = Field(default_factory=utc_now)  # 更新时间
     created_at: datetime = Field(default_factory=utc_now)  # 创建时间

@@ -8,6 +8,7 @@ export {
   get,
   post,
   put,
+  patch,
   del,
   createSSEStream,
   parseSSEStream,
@@ -69,6 +70,13 @@ export type {
   RootEntry,
   RootListing,
   OperationView,
+  InstructionView,
+  InstructionProposalView,
+  TemplateView,
+  MemoryItem,
+  MemoryStatus,
+  MemoryType,
+  ContextManifestView,
 } from "./types";
 
 // 模块 API
@@ -76,4 +84,6 @@ export { configApi } from "./config";
 export { fileApi } from "./file";
 export { sessionApi } from "./session";
 export { workspaceApi, operationApi, rootApi, historyApi } from "./workspace";
+export { memoryApi } from "./memory";
+export { instructionApi } from "./instruction";
 

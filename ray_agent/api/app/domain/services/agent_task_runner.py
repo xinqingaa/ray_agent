@@ -101,6 +101,9 @@ class AgentTaskRunner(TaskRunner):
             approval: Optional[ApprovalEvent] = None,  # 审批续接时的答复；为空时从持久输入取第一条消息
             files: Optional[FileScope] = None,  # 文件工具与交付可访问的范围；为空时没有文件能力
             write_leases: Optional[RunWriteLeases] = None,
+            workspace_memory=None,  # 已绑定工作区的记忆端口；只有工作区会话提供
+            context_refresh=None,  # 续接前核对冻结背景：async (run_id) -> 新背景段或 None
+            completion=None,  # 运行正常结束的钩子：on_run_completed(uow, session_id, run_id) 与 wake()
     ) -> None:
         self._uow_factory = uow_factory
         self._uow = uow_factory()
@@ -108,6 +111,8 @@ class AgentTaskRunner(TaskRunner):
         self._sandbox = sandbox
         self._files = files
         self._write_leases = write_leases
+        self._context_refresh = context_refresh
+        self._completion = completion
         self._mcp_tool = mcp_tool
         self._a2a_tool = a2a_tool
         self._file_storage = file_storage
@@ -145,6 +150,7 @@ class AgentTaskRunner(TaskRunner):
                 default_exec_dir=str(workdir.path) if workdir else None,
                 capture_screenshot=self._capture_screenshot,
                 web_reader=web_reader,
+                workspace_memory=workspace_memory,
             ),
             deliver_file=self._deliver_file if files is not None and environment.available(Capability.FILE_ACCESS) else None,
             write_output=self._write_output if workdir else None,
@@ -625,10 +631,17 @@ class AgentTaskRunner(TaskRunner):
         else:
             status, reason = RunStatus.FAILED, self._failure_reason or RunReason.RUNNER_ERROR
 
+        completion = getattr(self, "_completion", None)
+
         async def mark_unread(uow: IUnitOfWork) -> None:
             await uow.session.increment_unread_message_count(self._session_id)
-        await self._transition(status, reason, events_before=[outcome],
-                               apply=mark_unread if status == RunStatus.COMPLETED else None)
+            if completion is not None:
+                # 摘要与记忆提炼任务与运行终态同事务登记：运行完成而任务丢失、或运行未完成却登记了任务都不会出现
+                await completion.on_run_completed(uow, self._session_id, self._run_id)
+        run = await self._transition(status, reason, events_before=[outcome],
+                                     apply=mark_unread if status == RunStatus.COMPLETED else None)
+        if run is not None and status == RunStatus.COMPLETED and completion is not None:
+            completion.wake()
 
     async def _prepare_run(self) -> None:
         """按运行行设置运行模式并记录配置快照；续接已有运行时工具集若有变化，追加一条从下一轮生效的修订。"""
@@ -653,6 +666,18 @@ class AgentTaskRunner(TaskRunner):
             await self._mcp_tool.discover_mcp_tools(server)
         for agent_id in external.get('a2a', []):
             await self._a2a_tool.gateway.discover(agent_id)
+        revised = False
+        refresh = getattr(self, "_context_refresh", None)
+        if stored.get("system_prompt") and refresh is not None and stored.get("project_prompt"):
+            # 续接沿用冻结的背景；已撤回、被替代或随会话删除的内容优先于冻结引用，先从背景里移除
+            refreshed = await refresh(self._run_id)
+            frozen = stored["project_prompt"]
+            if refreshed is not None and refreshed != frozen and frozen in stored["system_prompt"]:
+                stored = {**stored, "project_prompt": refreshed,
+                          "system_prompt": stored["system_prompt"].replace(frozen, refreshed, 1),
+                          "context_revisions": [*(stored.get("context_revisions") or []),
+                                                {"from_turn": self._next_turn, "reason": "unavailable_after_freeze"}]}
+                revised = True
         if stored.get("system_prompt"):
             self._flow.request_system_prompt = stored["system_prompt"]
         if "project_prompt" in stored:
@@ -664,7 +689,9 @@ class AgentTaskRunner(TaskRunner):
             from build_identity import read_manifest
             updated = {**stored, **snapshot, "api_build": read_manifest()}
         elif tools_for_turn(stored, self._next_turn) == snapshot["tools"]:
-            return
+            if not revised:
+                return
+            updated = stored
         else:
             revisions = [*(stored.get("tool_revisions") or []),
                          {"from_turn": self._next_turn, "tools": snapshot["tools"]}]

@@ -1099,7 +1099,7 @@ export interface paths {
         put?: never;
         /**
          * 新建工作区
-         * @description 在默认工作区位置下按名称新建文件夹（重名加序号，不复用已有目录）
+         * @description 在默认工作区位置下按名称新建文件夹（重名加序号，不复用已有目录）。可同时给出工作方式正文或模板；模板只复制工作方式，不带记忆、路径或凭据
          */
         post: operations["create_workspace_api_workspaces_post"];
         delete?: never;
@@ -1220,6 +1220,26 @@ export interface paths {
          * @description 启用后该工作区会话可使用 Shell／脚本；文件工具不受影响。version 不符返回 409
          */
         post: operations["set_local_execution_api_workspaces__workspace_id__local_execution_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/auto-memory": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 设置工作区自动记忆开关
+         * @description 关闭后运行结束不再自动提炼记忆（已有记忆、明确要求写入与会话摘要不受影响）。version 不符返回 409
+         */
+        post: operations["set_auto_memory_api_workspaces__workspace_id__auto_memory_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1460,6 +1480,289 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/workspaces/{workspace_id}/instruction": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 当前工作方式
+         * @description 尚未设置时正文为空串、版本为空
+         */
+        get: operations["get_instruction_api_workspaces__workspace_id__instruction_get"];
+        /**
+         * 发布新的工作方式版本
+         * @description 用户编辑：发布来源为 user_edit 的新版本。body 超过上限返回 400；version 是工作区 version，不符返回 409 并带最新值
+         */
+        put: operations["put_instruction_api_workspaces__workspace_id__instruction_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/instruction/proposals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Agent 的工作方式提议
+         * @description status 省略时返回全部；待确认的提议未生效
+         */
+        get: operations["list_proposals_api_workspaces__workspace_id__instruction_proposals_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/instruction/proposals/{proposal_id}/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 确认提议
+         * @description 发布来源为 confirmed_proposal 的新版本。提议之后工作方式已变化时提议作废并返回 409，请重新审阅
+         */
+        post: operations["accept_proposal_api_workspaces__workspace_id__instruction_proposals__proposal_id__accept_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/instruction/proposals/{proposal_id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 拒绝提议 */
+        post: operations["reject_proposal_api_workspaces__workspace_id__instruction_proposals__proposal_id__reject_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/templates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 工作方式模板列表 */
+        get: operations["list_templates_api_templates_get"];
+        put?: never;
+        /**
+         * 把工作区另存为模板
+         * @description 只复制当前工作方式正文与可选的工具启用建议；不带记忆、文件、路径或凭据
+         */
+        post: operations["save_template_api_templates_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/templates/{template_id}/rename": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 重命名模板 */
+        post: operations["rename_template_api_templates__template_id__rename_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/templates/{template_id}/apply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 把模板应用到工作区
+         * @description 发布来源为 template 的新工作方式版本；模板里的工具建议随结果返回，不会自动启用任何开关
+         */
+        post: operations["apply_template_api_templates__template_id__apply_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/templates/{template_id}/delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 删除模板
+         * @description 不影响已经应用过该模板的工作区
+         */
+        post: operations["delete_template_api_templates__template_id__delete_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/memories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 工作区记忆列表
+         * @description status 可重复指定；省略时返回活动与候选。常驻层条目带 resident=true
+         */
+        get: operations["list_memories_api_workspaces__workspace_id__memories_get"];
+        put?: never;
+        /**
+         * 新增记忆
+         * @description 用户操作：立即生效并标为用户确认
+         */
+        post: operations["create_memory_api_workspaces__workspace_id__memories_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/memories/{memory_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * 对一条记忆的用户操作
+         * @description edit 修改内容或类型、pin／unpin 钉住、confirm 确认候选、retract 撤回、undo 撤销最近一次变更。version 不符返回 409 并带最新值
+         */
+        patch: operations["patch_memory_api_workspaces__workspace_id__memories__memory_id__patch"];
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/memories/{memory_id}/sources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 记忆的来源与变更历史
+         * @description 来源会话已被删除时 available 为 false，界面如实标明，不指向别处
+         */
+        get: operations["memory_sources_api_workspaces__workspace_id__memories__memory_id__sources_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/sessions/{session_id}/participate-in-memory": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 设置会话是否参与记忆
+         * @description 关闭后该会话不再提炼记忆、不再生成可检索的摘要，已索引的摘要撤出检索；独立对话返回 400
+         */
+        post: operations["participate_in_memory_api_sessions__session_id__participate_in_memory_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 在工作区内全文检索
+         * @description 范围固定为路径里的工作区；当前只检索记忆与会话摘要，请求文件内容类来源会被拒绝
+         */
+        post: operations["search_workspace_api_workspaces__workspace_id__search_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/runs/{run_id}/context-manifest": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 本次参考：一次运行实际使用的背景
+         * @description 工作方式版本、常驻记忆、初始召回与未采用的原因；独立对话的运行没有清单（404）
+         */
+        get: operations["run_context_manifest_api_runs__run_id__context_manifest_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/roots/{root_id}/entries": {
         parameters: {
             query?: never;
@@ -1689,6 +1992,27 @@ export interface components {
              */
             standalone_execution_enabled: boolean;
         };
+        /** ApplyTemplateRequest */
+        ApplyTemplateRequest: {
+            /** Workspace Id */
+            workspace_id: string;
+            /**
+             * Version
+             * @description 工作区 version；提供时核对并发修改
+             */
+            version?: number | null;
+        };
+        /**
+         * ApplyTemplateResponse
+         * @description 应用模板只发布工作方式新版本；tool_suggestions 是模板里的建议，不会自动启用任何开关。
+         */
+        ApplyTemplateResponse: {
+            instruction: components["schemas"]["InstructionView"];
+            /** Tool Suggestions */
+            tool_suggestions: {
+                [key: string]: unknown;
+            };
+        };
         /**
          * ApprovalEventData
          * @description 工具级审批。字段名与工具事件一致（name 为工具集、function 为函数名、args 为参数）；decided_at 为毫秒时间戳。
@@ -1813,6 +2137,13 @@ export interface components {
              */
             event: "attempt";
             data: components["schemas"]["AttemptEventData"];
+        };
+        /** AutoMemoryRequest */
+        AutoMemoryRequest: {
+            /** Enabled */
+            enabled: boolean;
+            /** Version */
+            version: number;
         };
         /**
          * BaseEventData
@@ -2355,6 +2686,42 @@ export interface components {
             /** Roles */
             roles: string[];
         };
+        /**
+         * ContextManifestView
+         * @description 一次运行实际使用的背景：工作方式版本、常驻记忆、初始召回与未采用原因。
+         */
+        ContextManifestView: {
+            /** Run Id */
+            run_id: string;
+            /** Session Id */
+            session_id: string;
+            /** Workspace Id */
+            workspace_id: string | null;
+            /** Instruction Version */
+            instruction_version: number | null;
+            /** Instruction Body */
+            instruction_body: string | null;
+            /** Resident Memories */
+            resident_memories: components["schemas"]["ResidentMemoryView"][];
+            /** Retrieval Hits */
+            retrieval_hits: components["schemas"]["SearchHitView"][];
+            /** Omissions */
+            omissions: components["schemas"]["ContextOmissionView"][];
+            /** Created At */
+            created_at: number;
+        };
+        /** ContextOmissionView */
+        ContextOmissionView: {
+            /**
+             * Kind
+             * @description retrieval 为初始召回未采用，revision 为冻结后因不可用被移除
+             */
+            kind: string;
+            /** Reason */
+            reason: string;
+            /** Source Id */
+            source_id: string | null;
+        };
         /** ContextOperation */
         ContextOperation: {
             /**
@@ -2409,6 +2776,18 @@ export interface components {
             /** Services */
             services: components["schemas"]["HealthStatus"][];
         };
+        /** CreateMemoryRequest */
+        CreateMemoryRequest: {
+            /** Content */
+            content: string;
+            /** @default fact */
+            memory_type: components["schemas"]["MemoryType"];
+            /**
+             * Pinned
+             * @default false
+             */
+            pinned: boolean;
+        };
         /** CreateSessionRequest */
         CreateSessionRequest: {
             /** Creation Id */
@@ -2434,6 +2813,16 @@ export interface components {
              * @description 工作区名称，同时是默认位置下新建文件夹的名称
              */
             name: string;
+            /**
+             * Instruction
+             * @description 可选：创建时填写的工作方式
+             */
+            instruction?: string | null;
+            /**
+             * Template Id
+             * @description 可选：用模板的工作方式初始化；与 instruction 同时给出时以 instruction 为准
+             */
+            template_id?: string | null;
         };
         /** DefaultLocationRequest */
         DefaultLocationRequest: {
@@ -2832,6 +3221,61 @@ export interface components {
         };
         /** @description 核心进程的一次启动 */
         InstanceId: string;
+        /** InstructionProposalList */
+        InstructionProposalList: {
+            /** Proposals */
+            proposals: components["schemas"]["InstructionProposalView"][];
+        };
+        /** InstructionProposalView */
+        InstructionProposalView: {
+            /** Id */
+            id: string;
+            /** Workspace Id */
+            workspace_id: string;
+            /** Base Version */
+            base_version: number;
+            /** Body */
+            body: string;
+            /** Rationale */
+            rationale: string;
+            /** Session Id */
+            session_id: string | null;
+            status: components["schemas"]["ProposalStatus"];
+            /** Created At */
+            created_at: number;
+            /** Resolved At */
+            resolved_at: number | null;
+        };
+        /**
+         * InstructionSource
+         * @enum {string}
+         */
+        InstructionSource: "user_edit" | "confirmed_proposal" | "template";
+        /**
+         * InstructionView
+         * @description 工作区当前生效的工作方式；尚未设置时 instruction_version 与 source 为空、正文为空串。
+         */
+        InstructionView: {
+            /** Workspace Id */
+            workspace_id: string;
+            /** Instruction Version */
+            instruction_version: number | null;
+            /** Body */
+            body: string;
+            source: components["schemas"]["InstructionSource"] | null;
+            /** Updated At */
+            updated_at: number | null;
+            /**
+             * Workspace Version
+             * @description 工作区 version；提交修改时回传，用于并发修改核对
+             */
+            workspace_version: number;
+            /**
+             * Max Chars
+             * @default 4000
+             */
+            max_chars: number;
+        };
         /**
          * LLMConfigPublic
          * @description 设置页可见的 LLM 配置；模型连接只给地址、掩码与可用状态，不含密钥明文。
@@ -3111,6 +3555,127 @@ export interface components {
             options: ("as_new" | "rebind")[];
         };
         /**
+         * MemoryCertainty
+         * @enum {string}
+         */
+        MemoryCertainty: "user_confirmed" | "material_stated" | "model_inferred";
+        /**
+         * MemoryChangeAction
+         * @enum {string}
+         */
+        MemoryChangeAction: "create" | "update" | "confirm" | "pin" | "unpin" | "retract" | "supersede" | "undo";
+        /** MemoryChangeView */
+        MemoryChangeView: {
+            /** Id */
+            id: string;
+            /** From Version */
+            from_version: number | null;
+            /** To Version */
+            to_version: number;
+            action: components["schemas"]["MemoryChangeAction"];
+            origin: components["schemas"]["MemoryOrigin"];
+            /** Rationale */
+            rationale: string;
+            /** Replaces Change Id */
+            replaces_change_id: string | null;
+            /** Created At */
+            created_at: number;
+        };
+        /** MemoryItem */
+        MemoryItem: {
+            /** Id */
+            id: string;
+            /** Workspace Id */
+            workspace_id: string;
+            /** Content */
+            content: string;
+            memory_type: components["schemas"]["MemoryType"];
+            origin: components["schemas"]["MemoryOrigin"];
+            certainty: components["schemas"]["MemoryCertainty"];
+            status: components["schemas"]["MemoryStatus"];
+            /** Pinned */
+            pinned: boolean;
+            /**
+             * Version
+             * @description 修改时回传，用于并发修改核对
+             */
+            version: number;
+            /**
+             * Supersedes Id
+             * @description 候选指向的、确认后将被替代的条目
+             */
+            supersedes_id: string | null;
+            /**
+             * Resident
+             * @description 当前是否在常驻层（每次新运行注入）
+             */
+            resident: boolean;
+            /** Created At */
+            created_at: number;
+            /** Updated At */
+            updated_at: number;
+            /** Last Used At */
+            last_used_at: number | null;
+        };
+        /** MemoryListResponse */
+        MemoryListResponse: {
+            /** Memories */
+            memories: components["schemas"]["MemoryItem"][];
+            /**
+             * Resident Limit
+             * @default 12
+             */
+            resident_limit: number;
+        };
+        /**
+         * MemoryOrigin
+         * @enum {string}
+         */
+        MemoryOrigin: "user" | "agent_requested" | "auto_extraction";
+        /**
+         * MemorySourceKind
+         * @enum {string}
+         */
+        MemorySourceKind: "session" | "document";
+        /** MemorySourceView */
+        MemorySourceView: {
+            /** Id */
+            id: string;
+            kind: components["schemas"]["MemorySourceKind"];
+            /** Session Id */
+            session_id: string | null;
+            /** Event Seq Start */
+            event_seq_start: number | null;
+            /** Event Seq End */
+            event_seq_end: number | null;
+            /** Document Id */
+            document_id: string | null;
+            /** Document Revision */
+            document_revision: number | null;
+            /**
+             * Available
+             * @description 来源会话或文件仍然存在；为假时界面如实标明，不跳转到别处
+             */
+            available: boolean;
+        };
+        /** MemorySourcesResponse */
+        MemorySourcesResponse: {
+            /** Sources */
+            sources: components["schemas"]["MemorySourceView"][];
+            /** Changes */
+            changes: components["schemas"]["MemoryChangeView"][];
+        };
+        /**
+         * MemoryStatus
+         * @enum {string}
+         */
+        MemoryStatus: "candidate" | "active" | "superseded" | "retracted";
+        /**
+         * MemoryType
+         * @enum {string}
+         */
+        MemoryType: "fact" | "preference" | "decision" | "constraint";
+        /**
          * MessageEventData
          * @description 消息事件数据
          */
@@ -3354,6 +3919,34 @@ export interface components {
             /** Can Retry */
             can_retry: boolean;
         };
+        /** ParticipateInMemoryRequest */
+        ParticipateInMemoryRequest: {
+            /** Participate */
+            participate: boolean;
+        };
+        /** ParticipateInMemoryResponse */
+        ParticipateInMemoryResponse: {
+            /** Session Id */
+            session_id: string;
+            /** Participate In Memory */
+            participate_in_memory: boolean;
+        };
+        /**
+         * PatchMemoryRequest
+         * @description 对一条记忆的用户操作；version 必须回传。edit 需要 content 或 memory_type 之一。
+         */
+        PatchMemoryRequest: {
+            /**
+             * Action
+             * @enum {string}
+             */
+            action: "edit" | "pin" | "unpin" | "confirm" | "retract" | "undo";
+            /** Version */
+            version: number;
+            /** Content */
+            content?: string | null;
+            memory_type?: components["schemas"]["MemoryType"] | null;
+        };
         /** PlanAcceptance */
         PlanAcceptance: {
             /** Source Run Id */
@@ -3436,6 +4029,11 @@ export interface components {
             event: "plan";
             data: components["schemas"]["PlanEventData"];
         };
+        /**
+         * ProposalStatus
+         * @enum {string}
+         */
+        ProposalStatus: "pending" | "accepted" | "rejected" | "superseded";
         /** @description 核心协议版本 */
         ProtocolVersion: number;
         /**
@@ -3487,6 +4085,11 @@ export interface components {
             /** Version */
             version: number;
         };
+        /** RenameTemplateRequest */
+        RenameTemplateRequest: {
+            /** Name */
+            name: string;
+        };
         /** RenameTitleRequest */
         RenameTitleRequest: {
             /** Title */
@@ -3501,6 +4104,21 @@ export interface components {
         };
         /** @description 业务幂等请求身份；同身份不同内容返回冲突 */
         RequestId: string;
+        /** ResidentMemoryView */
+        ResidentMemoryView: {
+            /** Memory Id */
+            memory_id: string;
+            /** Version */
+            version: number;
+            /** Content */
+            content: string;
+            /** Memory Type */
+            memory_type: string;
+            /** Certainty */
+            certainty: string;
+            /** Pinned */
+            pinned: boolean;
+        };
         /** ResolveConflictRequest */
         ResolveConflictRequest: {
             /** Conflict Id */
@@ -3542,6 +4160,10 @@ export interface components {
         Response_AgentConfig_: {
             data: components["schemas"]["AgentConfig"] | null;
         };
+        /** Response[ApplyTemplateResponse] */
+        Response_ApplyTemplateResponse_: {
+            data: components["schemas"]["ApplyTemplateResponse"] | null;
+        };
         /** Response[ApprovalResponse] */
         Response_ApprovalResponse_: {
             data: components["schemas"]["ApprovalResponse"] | null;
@@ -3569,6 +4191,10 @@ export interface components {
         /** Response[CompactResponse] */
         Response_CompactResponse_: {
             data: components["schemas"]["CompactResponse"] | null;
+        };
+        /** Response[ContextManifestView] */
+        Response_ContextManifestView_: {
+            data: components["schemas"]["ContextManifestView"] | null;
         };
         /** Response[CoreStatus] */
         Response_CoreStatus_: {
@@ -3612,6 +4238,18 @@ export interface components {
         Response_GetSessionResponse_: {
             data: components["schemas"]["GetSessionResponse"] | null;
         };
+        /** Response[InstructionProposalList] */
+        Response_InstructionProposalList_: {
+            data: components["schemas"]["InstructionProposalList"] | null;
+        };
+        /** Response[InstructionProposalView] */
+        Response_InstructionProposalView_: {
+            data: components["schemas"]["InstructionProposalView"] | null;
+        };
+        /** Response[InstructionView] */
+        Response_InstructionView_: {
+            data: components["schemas"]["InstructionView"] | null;
+        };
         /** Response[LLMConfigPublic] */
         Response_LLMConfigPublic_: {
             data: components["schemas"]["LLMConfigPublic"] | null;
@@ -3627,6 +4265,18 @@ export interface components {
         /** Response[ListSessionResponse] */
         Response_ListSessionResponse_: {
             data: components["schemas"]["ListSessionResponse"] | null;
+        };
+        /** Response[MemoryItem] */
+        Response_MemoryItem_: {
+            data: components["schemas"]["MemoryItem"] | null;
+        };
+        /** Response[MemoryListResponse] */
+        Response_MemoryListResponse_: {
+            data: components["schemas"]["MemoryListResponse"] | null;
+        };
+        /** Response[MemorySourcesResponse] */
+        Response_MemorySourcesResponse_: {
+            data: components["schemas"]["MemorySourcesResponse"] | null;
         };
         /** Response[ModelCatalogResponse] */
         Response_ModelCatalogResponse_: {
@@ -3648,6 +4298,10 @@ export interface components {
         Response_OperationView_: {
             data: components["schemas"]["OperationView"] | null;
         };
+        /** Response[ParticipateInMemoryResponse] */
+        Response_ParticipateInMemoryResponse_: {
+            data: components["schemas"]["ParticipateInMemoryResponse"] | null;
+        };
         /** Response[ResolveRootPathResponse] */
         Response_ResolveRootPathResponse_: {
             data: components["schemas"]["ResolveRootPathResponse"] | null;
@@ -3667,6 +4321,18 @@ export interface components {
         /** Response[RunChangesResponse] */
         Response_RunChangesResponse_: {
             data: components["schemas"]["RunChangesResponse"] | null;
+        };
+        /** Response[SearchResponse] */
+        Response_SearchResponse_: {
+            data: components["schemas"]["SearchResponse"] | null;
+        };
+        /** Response[TemplateListResponse] */
+        Response_TemplateListResponse_: {
+            data: components["schemas"]["TemplateListResponse"] | null;
+        };
+        /** Response[TemplateView] */
+        Response_TemplateView_: {
+            data: components["schemas"]["TemplateView"] | null;
         };
         /** Response[TitleResponse] */
         Response_TitleResponse_: {
@@ -3706,6 +4372,13 @@ export interface components {
         /** Response[WriteLeaseResponse] */
         Response_WriteLeaseResponse_: {
             data: components["schemas"]["WriteLeaseResponse"] | null;
+        };
+        /** Response[dict] */
+        Response_dict_: {
+            /** Data */
+            data: {
+                [key: string]: unknown;
+            } | null;
         };
         /** ReviseRequest */
         ReviseRequest: {
@@ -3926,6 +4599,19 @@ export interface components {
             model: string;
             sampling: components["schemas"]["ModelSampling"];
         };
+        /** SaveTemplateRequest */
+        SaveTemplateRequest: {
+            /** Workspace Id */
+            workspace_id: string;
+            /** Name */
+            name: string;
+            /**
+             * Include Tool Suggestions
+             * @description 同时保存工具启用建议（只含本机执行开关）
+             * @default false
+             */
+            include_tool_suggestions: boolean;
+        };
         /**
          * ScanSummary
          * @description 文件夹规模：排除规则之外的文件数与总大小；达到扫描上限时截断。
@@ -3952,6 +4638,56 @@ export interface components {
              */
             truncated: boolean;
         };
+        /** SearchHitView */
+        SearchHitView: {
+            source_type: components["schemas"]["SearchSourceType"];
+            /** Source Id */
+            source_id: string;
+            /** Source Version */
+            source_version: number;
+            /** Title */
+            title: string;
+            /** Snippet */
+            snippet: string;
+            /** Score */
+            score: number;
+            /** Certainty */
+            certainty: string | null;
+            /** Stale */
+            stale: boolean;
+            /** Payload */
+            payload: {
+                [key: string]: unknown;
+            };
+        };
+        /**
+         * SearchRequest
+         * @description 范围固定为路径里的工作区；当前只能检索记忆与会话摘要，文件内容检索尚未提供。
+         */
+        SearchRequest: {
+            /** Query */
+            query: string;
+            /**
+             * Source Types
+             * @description 省略为记忆与会话摘要都查
+             */
+            source_types?: ("memory" | "session_summary")[] | null;
+            /**
+             * Limit
+             * @default 20
+             */
+            limit: number;
+        };
+        /** SearchResponse */
+        SearchResponse: {
+            /** Hits */
+            hits: components["schemas"]["SearchHitView"][];
+        };
+        /**
+         * SearchSourceType
+         * @enum {string}
+         */
+        SearchSourceType: "memory" | "session_summary" | "document_chunk";
         SessionEvent: components["schemas"]["MessageSSEEvent"] | components["schemas"]["TitleSSEEvent"] | components["schemas"]["StepSSEEvent"] | components["schemas"]["PlanSSEEvent"] | components["schemas"]["ToolSSEEvent"] | components["schemas"]["DoneSSEEvent"] | components["schemas"]["ErrorSSEEvent"] | components["schemas"]["WaitSSEEvent"] | components["schemas"]["TurnSSEEvent"] | components["schemas"]["AttemptSSEEvent"] | components["schemas"]["RunSSEEvent"] | components["schemas"]["EnvironmentSSEEvent"] | components["schemas"]["ContextSSEEvent"] | components["schemas"]["CompactSSEEvent"] | components["schemas"]["CleanupSSEEvent"] | components["schemas"]["ApprovalSSEEvent"];
         /** @description 会话身份 */
         SessionId: string;
@@ -4034,6 +4770,28 @@ export interface components {
              * @description 业务库当前迁移版本
              */
             schema_revision: string;
+        };
+        /** TemplateListResponse */
+        TemplateListResponse: {
+            /** Templates */
+            templates: components["schemas"]["TemplateView"][];
+        };
+        /** TemplateView */
+        TemplateView: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+            /** Body */
+            body: string;
+            /** Tool Suggestions */
+            tool_suggestions: {
+                [key: string]: unknown;
+            };
+            /** Created At */
+            created_at: number;
+            /** Updated At */
+            updated_at: number;
         };
         /**
          * TitleEventData
@@ -4340,6 +5098,19 @@ export interface components {
             /** Results */
             results: components["schemas"]["UndoItemResult"][];
         };
+        /** UpdateInstructionRequest */
+        UpdateInstructionRequest: {
+            /**
+             * Body
+             * @description 新的工作方式全文；可为空串表示清除
+             */
+            body: string;
+            /**
+             * Version
+             * @description 工作区 version；不符返回 409 并带最新值
+             */
+            version: number;
+        };
         /**
          * WaitSSEEvent
          * @description 等待人类输入流式事件
@@ -4375,6 +5146,22 @@ export interface components {
              * @default false
              */
             local_execution_enabled: boolean;
+            /**
+             * Auto Memory Enabled
+             * @description 是否在运行正常结束后自动提炼记忆；默认开启，会话可单独设为不参与
+             * @default true
+             */
+            auto_memory_enabled: boolean;
+            /**
+             * Instruction Version
+             * @description 当前工作方式版本；空表示尚未设置
+             */
+            instruction_version: number | null;
+            /**
+             * Instruction Preview
+             * @description 当前工作方式的开头预览
+             */
+            instruction_preview: string | null;
             /** Created At */
             created_at: number;
             /** Updated At */
@@ -6926,6 +7713,41 @@ export interface operations {
             };
         };
     };
+    set_auto_memory_api_workspaces__workspace_id__auto_memory_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AutoMemoryRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_WorkspaceItem_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     archive_workspace_api_workspaces__workspace_id__archive_post: {
         parameters: {
             query?: never;
@@ -7309,6 +8131,569 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_instruction_api_workspaces__workspace_id__instruction_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_InstructionView_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    put_instruction_api_workspaces__workspace_id__instruction_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateInstructionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_InstructionView_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    list_proposals_api_workspaces__workspace_id__instruction_proposals_get: {
+        parameters: {
+            query?: {
+                status?: string | null;
+            };
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_InstructionProposalList_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    accept_proposal_api_workspaces__workspace_id__instruction_proposals__proposal_id__accept_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                proposal_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_InstructionView_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    reject_proposal_api_workspaces__workspace_id__instruction_proposals__proposal_id__reject_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                proposal_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_InstructionProposalView_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    list_templates_api_templates_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_TemplateListResponse_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    save_template_api_templates_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SaveTemplateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_TemplateView_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    rename_template_api_templates__template_id__rename_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                template_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RenameTemplateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_TemplateView_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    apply_template_api_templates__template_id__apply_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                template_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ApplyTemplateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_ApplyTemplateResponse_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    delete_template_api_templates__template_id__delete_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                template_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_dict_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    list_memories_api_workspaces__workspace_id__memories_get: {
+        parameters: {
+            query?: {
+                status?: components["schemas"]["MemoryStatus"][] | null;
+            };
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_MemoryListResponse_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    create_memory_api_workspaces__workspace_id__memories_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateMemoryRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_MemoryItem_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    patch_memory_api_workspaces__workspace_id__memories__memory_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                memory_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PatchMemoryRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_MemoryItem_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    memory_sources_api_workspaces__workspace_id__memories__memory_id__sources_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+                memory_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_MemorySourcesResponse_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    participate_in_memory_api_sessions__session_id__participate_in_memory_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ParticipateInMemoryRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_ParticipateInMemoryResponse_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    search_workspace_api_workspaces__workspace_id__search_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SearchRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_SearchResponse_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    run_context_manifest_api_runs__run_id__context_manifest_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_ContextManifestView_"];
                 };
             };
             /** @description 结构化错误 */

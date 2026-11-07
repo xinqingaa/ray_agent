@@ -248,6 +248,21 @@ export function del<T = unknown>(
 }
 
 /**
+ * PATCH 请求
+ */
+export function patch<T = unknown>(
+  endpoint: string,
+  data?: unknown,
+  options?: RequestOptions
+): Promise<T> {
+  return request<T>(endpoint, {
+    ...options,
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+}
+
+/**
  * 创建流式 SSE 连接（默认 POST；`method: "GET"` 时不发送请求体）
  *
  * @param endpoint  接口路径

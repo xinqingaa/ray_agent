@@ -76,6 +76,7 @@ from app.domain.services.tools.web import WebTool
 from app.domain.services.tools.deliver import DELIVER_FILES_TOOL, DeliverFileFn, DeliverTool, DeliveryResult
 from app.domain.services.tools.file import FileTool
 from app.domain.services.tools.mcp import MCPTool
+from app.domain.services.tools.memory import workspace_toolkits
 from app.domain.services.tools.message import ASK_USER_TOOL, MessageTool
 from app.domain.services.tools.plan import UPDATE_PLAN_TOOL, PlanTool
 from app.domain.services.tools.search import SearchTool
@@ -123,10 +124,12 @@ def build_default_tools(
         capture_screenshot=None,
         web_reader=None,
         files: Optional[FileScope] = None,
+        workspace_memory=None,
 ) -> List[BaseTool]:
     """默认工具集；计划与交付工具由循环自己追加。依赖执行环境的工具只在对应资源提供时加入：
     文件需要 files（可访问范围），Shell 需要本机执行宿主，浏览器需要 browser。
-    default_exec_dir 是 shell_execute 省略工作目录时的默认值。"""
+    default_exec_dir 是 shell_execute 省略工作目录时的默认值。
+    workspace_memory 是已绑定会话所属工作区的记忆端口：只有工作区会话提供，独立对话没有记忆与检索工具。"""
     tools: List[BaseTool] = []
     if files is not None:
         tools.append(FileTool(files))
@@ -136,6 +139,8 @@ def build_default_tools(
         tools.append(BrowserTool(browser=browser, capture=capture_screenshot))
     if web_reader is not None:
         tools.append(WebTool(web_reader))
+    if workspace_memory is not None:
+        tools.extend(workspace_toolkits(workspace_memory))
     return [*tools, SearchTool(search_engine=search_engine), MessageTool(), mcp_tool, a2a_tool]
 
 

@@ -22,6 +22,7 @@ import {FolderPanel} from '@/components/workspace/folder-panel'
 import {useWorkbenchWidth, WorkbenchResizeHandle} from '@/components/workbench/resize-handle'
 import {cn} from '@/lib/utils'
 import {Button} from '@/components/ui/button'
+import {Switch} from '@/components/ui/switch'
 import {IconAction} from '@/components/ui/icon-action'
 import {
   Sheet,
@@ -34,6 +35,7 @@ import {useSessionDetail} from '@/hooks/use-session-detail'
 import {useSessions} from '@/hooks/use-sessions'
 import {useIsMobile} from '@/hooks/use-mobile'
 import {useDeveloperMode} from '@/hooks/use-developer-mode'
+import {memoryApi} from '@/lib/api/memory'
 import {sessionApi} from '@/lib/api/session'
 import {readRetryDisplay, writeRetryDisplay, retryEcho} from '@/lib/retry-display'
 import {readDraft, writeDraft} from '@/lib/drafts'
@@ -142,6 +144,9 @@ export function SessionDetailView({
   const messageContentRef = useRef<HTMLDivElement>(null)
   const [planColumn, setPlanColumn] = useState<HTMLDivElement | null>(null)
   const [planPanelWidth, setPlanPanelWidth] = useState<number>()
+  const [participateInMemory, setParticipateInMemory] = useState(true)
+  const [participateBusy, setParticipateBusy] = useState(false)
+  const memoryToastSeq = useRef(new Set<number>())
 
   useEffect(() => {
     if (!planColumn) return
@@ -247,6 +252,41 @@ export function SessionDetailView({
   }
 
 
+
+  useEffect(() => {
+    memoryToastSeq.current.clear()
+    if (workspace) {
+      const flag = (session as {participate_in_memory?: boolean} | null)?.participate_in_memory
+      setParticipateInMemory(flag !== false)
+    }
+  }, [sessionId, workspace, session?.session_id])
+
+  useEffect(() => {
+    if (!workspace) return
+    for (const event of events) {
+      if (event.type !== 'tool') continue
+      const data = event.data
+      const seq = data.seq
+      if (seq == null || memoryToastSeq.current.has(seq)) continue
+      if (data.function !== 'memory_remember' || data.status !== 'called') continue
+      const result = (data as {function_result?: {success?: boolean; data?: {id?: string; version?: number}}}).function_result
+      if (result?.success === false) continue
+      const entry = result?.data
+      const id = entry?.id
+      const version = entry?.version
+      if (!id || version == null) continue
+      memoryToastSeq.current.add(seq)
+      toast.success('已记住', {
+        action: id ? {
+          label: '撤销',
+          onClick: () => {
+            void memoryApi.patch(workspace.id, id, {action: 'undo', version})
+              .catch(err => toast.error(err instanceof Error ? err.message : '撤销失败'))
+          },
+        } : undefined,
+      })
+    }
+  }, [events, workspace])
 
   useEffect(() => {
     setOutgoing(null)
@@ -461,7 +501,23 @@ export function SessionDetailView({
     onApprove: (callId) => void handleApproval(callId, 'approve'),
     onReject: (callId) => void handleApproval(callId, 'reject'),
     approvalSubmitting,
-  }), [view?.id, view?.runs, view?.timeline, focus?.callId, view?.activeRun, view?.streamingItemId, submitting, retrying, hiddenRunIds, hiddenUserIds, sessionId, downloadOne, downloadAll, deliver, handleApproval, approvalSubmitting])
+    showRunReferences: workspace != null,
+  }), [view?.id, view?.runs, view?.timeline, focus?.callId, view?.activeRun, view?.streamingItemId, submitting, retrying, hiddenRunIds, hiddenUserIds, sessionId, workspace, downloadOne, downloadAll, deliver, handleApproval, approvalSubmitting])
+
+  const toggleParticipate = useCallback(async (participate: boolean) => {
+    if (!workspace || participateBusy) return
+    setParticipateBusy(true)
+    const previous = participateInMemory
+    setParticipateInMemory(participate)
+    try {
+      const result = await memoryApi.participate(sessionId, participate)
+      setParticipateInMemory(result.participate_in_memory)
+      toast.success(participate ? '此对话将参与记忆提炼' : '已关闭此对话的记忆提炼')
+    } catch (error) {
+      setParticipateInMemory(previous)
+      toast.error(error instanceof Error ? error.message : '更新失败')
+    } finally {setParticipateBusy(false)}
+  }, [workspace, participateBusy, participateInMemory, sessionId])
 
   const onScroll = () => {
     if (mode !== 'conversation') return
@@ -598,6 +654,12 @@ export function SessionDetailView({
               <RunStatus place="headline" status={run?.status} outcome={run?.outcome} compacting={compacting}/>
               </div>
             </div>
+            {workspace && (
+              <label className="hidden items-center gap-1.5 text-xs text-muted-foreground sm:flex" title="关闭后不再从此对话提炼记忆">
+                <span>参与记忆</span>
+                <Switch size="sm" checked={participateInMemory} disabled={participateBusy} onCheckedChange={checked => void toggleParticipate(checked)} aria-label="参与记忆"/>
+              </label>
+            )}
             {visibility.developerView && <SegmentedControl value={mode} idPrefix="session-mode" label="会话视图" options={[
               {value: 'conversation', label: '聊天', icon: MessageCircle},
               {value: 'developer', label: '日志', icon: Code2},

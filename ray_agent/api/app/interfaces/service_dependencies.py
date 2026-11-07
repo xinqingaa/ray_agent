@@ -250,6 +250,51 @@ def get_title_service() -> TitleService:
     return TitleService(uow_factory=get_uow, ledger=get_run_ledger(), read_uow_factory=get_read_uow)
 
 
+def get_retrieval_service():
+    from app.application.services.retrieval_service import RetrievalService
+    return RetrievalService(get_uow, get_read_uow)
+
+
+def get_memory_service():
+    from app.application.services.memory_service import MemoryService
+    return MemoryService(get_uow, get_read_uow, get_retrieval_service())
+
+
+def get_working_style_service():
+    from app.application.services.working_style_service import WorkingStyleService
+    return WorkingStyleService(get_uow, get_read_uow)
+
+
+def get_context_assembly():
+    from app.application.services.context_assembly import ContextAssembly
+    return ContextAssembly(get_uow, get_read_uow, get_retrieval_service(), get_memory_service())
+
+
+async def load_llm_config():
+    """后台任务调用辅助模型时读取当前的模型配置。"""
+    return (await get_app_config_repository().load()).llm_config
+
+
+async def get_memory_extractor():
+    from app.application.services.memory_extractor import LLMMemoryExtractor
+    return LLMMemoryExtractor(await load_llm_config())
+
+
+def get_workspace_memory_runtime():
+    """工作区会话的背景装配、记忆工具端口与运行结束后的任务登记；唤醒后台执行器在它启动后才有意义。"""
+    from app.application.services.background_jobs import get_job_runner
+    from app.application.services.workspace_memory_runtime import WorkspaceMemoryRuntime
+
+    def wake() -> None:
+        try:
+            get_job_runner().wake()
+        except RuntimeError:
+            pass  # 执行器未启动（测试或启动阶段）：任务仍已登记，启动后会被领取
+
+    retrieval, memory = get_retrieval_service(), get_memory_service()
+    return WorkspaceMemoryRuntime(memory, retrieval, get_working_style_service(), get_context_assembly(), wake=wake)
+
+
 async def get_agent_service() -> AgentService:
     """每个请求按当前配置组装；配置读取自业务库，模型密钥仍从环境解析。"""
     app_config = await get_app_config_repository().load()
@@ -273,6 +318,7 @@ async def get_agent_service() -> AgentService:
         capabilities=get_capability_service(),
         file_access=get_run_file_access(),
         write_leases=get_write_leases(),
+        workspace_memory=get_workspace_memory_runtime(),
     )
 
 

@@ -4,7 +4,7 @@
 from datetime import datetime
 from typing import Any, Dict, List, Optional
 
-from sqlalchemy import JSON, Float, Index, Integer, String, Text
+from sqlalchemy import Boolean, JSON, Float, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .base import Base, UTCDateTime
@@ -12,7 +12,8 @@ from ...domain.models.clock import utc_now
 from ...domain.models.session import Session
 
 _JSON_FIELDS = {"memories", "files"}
-_DOMAIN_FIELDS = {"id", "workspace_id", "title", "title_source", "status", "model_id", "reasoning", "context_window", "max_tokens",
+_DOMAIN_FIELDS = {"id", "workspace_id", "participate_in_memory", "instruction_version", "title", "title_source",
+                  "status", "model_id", "reasoning", "context_window", "max_tokens",
                   "temperature", "unread_message_count", "latest_message", "latest_message_at", "created_at",
                   "updated_at"}
 
@@ -26,6 +27,8 @@ class SessionModel(Base):
 
     id: Mapped[str] = mapped_column(String(128), primary_key=True)
     workspace_id: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    participate_in_memory: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    instruction_version: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     title: Mapped[str] = mapped_column(Text, nullable=False, default="")
     title_source: Mapped[str] = mapped_column(String(16), nullable=False, default="placeholder")
     status: Mapped[str] = mapped_column(String(16), nullable=False, default="pending")

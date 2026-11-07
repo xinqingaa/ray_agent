@@ -38,6 +38,7 @@ FOLDER_NAME_MAX_LENGTH = 60
 CONFLICT_CAPACITY = 32
 TEMP_MAX_AGE_SECONDS = 3600  # 崩溃残留的写入临时文件超过这个年龄才清理，避免误伤正在进行的写入
 DELETE_QUIESCE_SECONDS = 10  # 删除工作区前等待文件夹里的写入者静止的最长时间
+INSTRUCTION_PREVIEW_CHARS = 120  # 工作区列表里工作方式预览的长度
 _UNSAFE = re.compile(r"[\\/:\x00-\x1f\x7f]")
 
 
@@ -57,6 +58,7 @@ class WorkspaceView:
     workspace: Workspace
     folder: Optional[RootRecord]
     lease: Optional[WriteLease] = None  # 文件夹当前的写入租约
+    instruction_preview: Optional[str] = None  # 当前工作方式的开头，空表示尚未设置
 
 
 @dataclass
@@ -82,6 +84,22 @@ class WorkspaceRuntime:
     conflict_seconds: float = 600
     conflicts: dict[str, _Pending] = field(default_factory=dict)
     lock: asyncio.Lock = field(default_factory=asyncio.Lock)
+
+
+async def wipe_workspace_memory(uow: IUnitOfWork, workspace_id: str) -> None:
+    """删除工作区的记忆、摘要、运行背景清单、工作方式与检索文档；可重复执行。模板属于应用，不在此列。"""
+    await uow.memory.delete_workspace(workspace_id)
+    await uow.summary.delete_workspace(workspace_id)
+    await uow.run_context.delete_workspace(workspace_id)
+    await uow.instruction.delete_workspace(workspace_id)
+    await uow.search.delete_workspace(workspace_id)
+
+
+def instruction_preview(body: Optional[str]) -> Optional[str]:
+    text = " ".join((body or "").split())
+    if not text:
+        return None
+    return text if len(text) <= INSTRUCTION_PREVIEW_CHARS else text[:INSTRUCTION_PREVIEW_CHARS] + "…"
 
 
 def folder_name(name: str) -> str:
@@ -146,20 +164,26 @@ class WorkspaceService:
             workspaces = await uow.workspace.list()
             folders = {record.ref.workspace_id: record for record in await uow.root.workspace_folders()}
             leases = {lease.workspace_id: lease for lease in await uow.lease.list()}
+            previews = {}
+            for w in workspaces:
+                record = await uow.instruction.get_version(w.id, w.instruction_version) if w.instruction_version else None
+                previews[w.id] = instruction_preview(record.body if record else None)
         refreshed = await self._refresh([folders[w.id] for w in workspaces if w.id in folders])
         by_workspace = {record.ref.workspace_id: record for record in refreshed}
-        return [WorkspaceView(w, by_workspace.get(w.id), leases.get(w.id)) for w in workspaces]
+        return [WorkspaceView(w, by_workspace.get(w.id), leases.get(w.id), previews.get(w.id)) for w in workspaces]
 
     async def get(self, workspace_id: str, *, refresh: bool = True) -> WorkspaceView:
         async with self._read_uow_factory() as uow:
             workspace = await uow.workspace.get(workspace_id)
             folder = await uow.root.workspace_folder(workspace_id) if workspace else None
             lease = await uow.lease.get(workspace_id) if workspace else None
+            record = await uow.instruction.get_version(workspace_id, workspace.instruction_version) \
+                if workspace and workspace.instruction_version else None
         if workspace is None or workspace.status is WorkspaceStatus.DELETING:
             raise NotFoundError("工作区不存在")
         if folder is not None and refresh:
             folder = (await self._refresh([folder]))[0]
-        return WorkspaceView(workspace, folder, lease)
+        return WorkspaceView(workspace, folder, lease, instruction_preview(record.body if record else None))
 
     async def recheck(self, workspace_id: str) -> WorkspaceView:
         return await self.get(workspace_id, refresh=True)
@@ -467,6 +491,12 @@ class WorkspaceService:
         settings = with_workspace_execution(view.workspace.settings, enabled)
         return await self._update(workspace_id, version, settings=settings)
 
+    async def set_auto_memory(self, workspace_id: str, enabled: bool, version: int) -> WorkspaceView:
+        """工作区自动记忆提炼开关：写入 settings.auto_memory_enabled；关闭只影响之后登记的提炼任务。"""
+        from app.domain.models.memory_settings import with_auto_memory
+        view = await self.get(workspace_id, refresh=False)
+        return await self._update(workspace_id, version, settings=with_auto_memory(view.workspace.settings, enabled))
+
     async def archive(self, workspace_id: str, version: int) -> WorkspaceView:
         return await self._update(workspace_id, version, status=WorkspaceStatus.ARCHIVED)
 
@@ -520,6 +550,7 @@ class WorkspaceService:
                     directories.append(registered[1])
                 await uow.session.delete_by_id(session_id)
             objects += await uow.change.delete_workspace(workspace_id)  # 写前备份属于工作区，随工作区回收
+            await wipe_workspace_memory(uow, workspace_id)  # 记忆、摘要与检索文档立即不可见，后台任务再兜底清理
             await uow.lease.delete_workspace(workspace_id)
             marker = {"install_id": self._install_id, "workspace_id": workspace_id}
             if folder is not None:
@@ -551,6 +582,7 @@ def workspace_delete_handler(folders: FolderAccess, uow_factory: Callable[[], IU
             removed = await folders.remove_marker(marker["path"], marker["dev"], marker["ino"],
                                                   marker["install_id"], marker["workspace_id"])
         async with uow_factory() as uow:
+            await wipe_workspace_memory(uow, payload["workspace_id"])
             await uow.workspace.remove(payload["workspace_id"])
         return {**result, "marker_removed": removed}
     return handle

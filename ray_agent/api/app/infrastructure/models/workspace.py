@@ -18,6 +18,7 @@ class WorkspaceModel(Base):
     status: Mapped[str] = mapped_column(String(16), nullable=False, default="active")
     folder_root_id: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    instruction_version: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     settings: Mapped[Dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, nullable=False, default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime, nullable=False, default=utc_now)
@@ -27,6 +28,9 @@ class WorkspaceModel(Base):
         return cls(**{**workspace.model_dump(mode="python"), "status": workspace.status.value})
 
     def to_domain(self) -> Workspace:
-        return Workspace(id=self.id, name=self.name, status=WorkspaceStatus(self.status),
-                         folder_root_id=self.folder_root_id, version=self.version, settings=self.settings or {},
-                         created_at=self.created_at, updated_at=self.updated_at)
+        return Workspace(
+            id=self.id, name=self.name, status=WorkspaceStatus(self.status),
+            folder_root_id=self.folder_root_id, version=self.version,
+            instruction_version=self.instruction_version, settings=self.settings or {},
+            created_at=self.created_at, updated_at=self.updated_at,
+        )

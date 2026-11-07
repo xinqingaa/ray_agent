@@ -1,4 +1,4 @@
-import {useRef, type ReactNode} from 'react'
+import {useRef, useState, type ReactNode} from 'react'
 import {Link, useParams, useRouter} from '@/lib/navigation'
 import {Outlet, useOutletContext} from 'react-router'
 import {toast} from 'sonner'
@@ -11,6 +11,7 @@ import {Skeleton} from '@/components/ui/skeleton'
 import {WorkspaceBanners} from '@/components/workspace/workspace-banners'
 import {WorkspaceBar} from '@/components/workspace/workspace-bar'
 import {FolderPanel} from '@/components/workspace/folder-panel'
+import {WorkingStyleSettings} from '@/components/workspace/working-style-settings'
 import {RunChangesBar} from '@/components/workspace/run-changes-bar'
 import {useCanonicalSessionRoute} from '@/hooks/use-canonical-session-route'
 import {useIsMobile} from '@/hooks/use-mobile'
@@ -69,6 +70,7 @@ export function WorkspaceHomePage() {
   const condition = describeWorkspace(workspace)
   const scope = workspaceDraftScope(workspace.id)
   const {sending, start} = useStartTask(scope, workspace.id, sid => router.push(workspaceSessionHref(workspace.id, sid)))
+  const [styleOpen, setStyleOpen] = useState(false)
 
   return <div className="flex h-full min-h-0">
     <main className="flex min-w-0 flex-1 flex-col items-center overflow-y-auto px-4 py-8 sm:px-6">
@@ -93,7 +95,8 @@ export function WorkspaceHomePage() {
               }}/>}
       </div>
     </main>
-    {!isMobile && <FolderPanel workspace={workspace} className="w-80 shrink-0 border-l"/>}
+    {!isMobile && <FolderPanel workspace={workspace} onOpenWorkingStyle={() => setStyleOpen(true)} className="w-80 shrink-0 border-l"/>}
+    <WorkingStyleSettings workspace={workspace} open={styleOpen} onOpenChange={setStyleOpen}/>
   </div>
 }
 

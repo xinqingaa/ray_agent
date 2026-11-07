@@ -1,4 +1,5 @@
-"""有来源的会话摘要生成：留给工作方式与记忆工作包接入会话摘要，当前没有调用方。
+"""有来源的会话摘要生成：运行正常结束后由后台任务（memory_jobs.session_summary_handler）调用 generate_summary；
+bounded_summaries 的多会话注入预算尚无调用方，跨会话背景走检索召回。
 
 摘要材料由会话仓库的 summary_material() 按 summary_material.bound_material 有界选择：首条目标、近期用户修订、
 已完成运行的最终回复与运行终态分开提供，并给出材料截止的事件序号。接入时沿用以下规则：

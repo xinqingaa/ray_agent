@@ -52,6 +52,7 @@ async def start_core():
     """打开数据根：实例锁、业务库迁移与连接、默认配置、启动扫描与后台任务。返回关闭时需要的资源。"""
     from app.application.services.background_jobs import BackgroundJobRunner, set_job_runner
     from app.application.services.data_service import data_cleanup_handler
+    from app.application.services.memory_jobs import memory_extraction_handler, session_summary_handler
     from app.application.services.workspace_service import workspace_delete_handler
     from app.domain.models.operation import OperationKind
     from app.domain.services.approvals import interrupt_waiting_approvals
@@ -59,7 +60,8 @@ async def start_core():
         get_read_uow
     from app.interfaces.core_descriptor import INSTANCE, set_storage_revision
     from app.interfaces.service_dependencies import get_app_config_repository, get_file_storage, get_run_ledger, \
-        get_skill_service, get_workdirs, get_folder_access, get_write_leases
+        get_skill_service, get_workdirs, get_folder_access, get_write_leases, get_retrieval_service, \
+        get_memory_service, get_memory_extractor, load_llm_config
     from core.paths import data_root
 
     raise_fd_limit()
@@ -89,6 +91,14 @@ async def start_core():
                       requeue_on_restart=True)
         jobs.register(OperationKind.WORKSPACE_DELETE,
                       workspace_delete_handler(get_folder_access(), get_uow, storage.remove_key, workdirs.remove),
+                      requeue_on_restart=True)
+        # 摘要与记忆提炼：模型调用在后台任务里，失败只让任务失败；重启后接管的任务重新排队，由代次核对丢弃迟到结果
+        jobs.register(OperationKind.SESSION_SUMMARY,
+                      session_summary_handler(get_uow, get_retrieval_service(), load_llm_config),
+                      requeue_on_restart=True)
+        jobs.register(OperationKind.MEMORY_EXTRACTION,
+                      memory_extraction_handler(get_uow, get_retrieval_service(), get_memory_service(),
+                                                get_memory_extractor),
                       requeue_on_restart=True)
         root.install_id()
         set_job_runner(jobs)

@@ -72,6 +72,9 @@ class DBSessionRepository(SessionRepository):
             note(self.db_session, "session", session_id)
         return result.rowcount > 0
 
+    async def update_participation(self, session_id: str, participate: bool) -> None:
+        await self._update(session_id, participate_in_memory=bool(participate))
+
     async def ids_by_workspace(self, workspace_id: str) -> List[str]:
         return list((await self.db_session.execute(
             select(SessionModel.id).where(SessionModel.workspace_id == workspace_id))).scalars())

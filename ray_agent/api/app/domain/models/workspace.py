@@ -36,6 +36,7 @@ class Workspace(BaseModel):
     status: WorkspaceStatus = WorkspaceStatus.ACTIVE
     folder_root_id: RootId | None = None
     version: int = Field(default=1, ge=1, description="并发修改的核对版本，每次变更递增")
+    instruction_version: int | None = Field(default=None, description="当前工作方式版本；空表示尚未设置")
     settings: dict[str, Any] = Field(default_factory=dict)
     created_at: datetime = Field(default_factory=utc_now)
     updated_at: datetime = Field(default_factory=utc_now)

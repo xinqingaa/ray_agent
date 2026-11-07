@@ -55,6 +55,10 @@ class WorkspaceItem(BaseModel):
     write_lease: Optional[WriteLeaseView] = Field(default=None, description="文件夹当前的写入租约；为空表示没有写入者")
     local_execution_enabled: bool = Field(
         default=False, description="本工作区是否启用本机 Shell／脚本；默认关闭")
+    auto_memory_enabled: bool = Field(
+        default=True, description="是否在运行正常结束后自动提炼记忆；默认开启，会话可单独设为不参与")
+    instruction_version: Optional[int] = Field(default=None, description="当前工作方式版本；空表示尚未设置")
+    instruction_preview: Optional[str] = Field(default=None, description="当前工作方式的开头预览")
     created_at: int
     updated_at: int
 
@@ -72,6 +76,8 @@ class WorkspaceListResponse(BaseModel):
 
 class CreateWorkspaceRequest(BaseModel):
     name: str = Field(min_length=1, max_length=200, description="工作区名称，同时是默认位置下新建文件夹的名称")
+    instruction: Optional[str] = Field(default=None, max_length=4000, description="可选：创建时填写的工作方式")
+    template_id: Optional[str] = Field(default=None, description="可选：用模板的工作方式初始化；与 instruction 同时给出时以 instruction 为准")
 
 
 class OpenWorkspaceRequest(BaseModel):
@@ -153,12 +159,16 @@ class RootEntryResponse(BaseModel):
 
 def workspace_item(view) -> WorkspaceItem:
     from app.domain.models.execution_settings import workspace_execution_enabled
+    from app.domain.models.memory_settings import auto_memory_enabled
     folder = view.folder
     return WorkspaceItem(
         id=view.workspace.id, name=view.workspace.name, status=view.workspace.status,
         version=view.workspace.version, created_at=to_epoch_ms(view.workspace.created_at),
         updated_at=to_epoch_ms(view.workspace.updated_at),
         local_execution_enabled=workspace_execution_enabled(view.workspace.settings),
+        auto_memory_enabled=auto_memory_enabled(view.workspace.settings),
+        instruction_version=view.workspace.instruction_version,
+        instruction_preview=getattr(view, "instruction_preview", None),
         folder=FolderView(root_id=folder.ref.root_id, path=folder.location, status=folder.status,
                           marker_writable=folder.marker_writable,
                           checked_at=to_epoch_ms(folder.checked_at) if folder.checked_at else None)

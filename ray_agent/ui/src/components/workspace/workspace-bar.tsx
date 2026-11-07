@@ -1,5 +1,5 @@
 import {useState} from 'react'
-import {Archive, ArchiveRestore, ChevronLeft, MoreHorizontal, Pencil, Trash, Terminal} from 'lucide-react'
+import {Archive, ArchiveRestore, Brain, ChevronLeft, MoreHorizontal, Pencil, ScrollText, Trash, Terminal} from 'lucide-react'
 import {toast} from 'sonner'
 import {Button} from '@/components/ui/button'
 import {DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger} from '@/components/ui/dropdown-menu'
@@ -12,7 +12,9 @@ import {describeWorkspace} from '@/lib/workspace-state'
 import {useSessions} from '@/hooks/use-sessions'
 import {useWorkspaces} from '@/providers/workspaces-provider'
 import {DeleteWorkspaceDialog} from './delete-workspace-dialog'
+import {MemoryPanel} from './memory-panel'
 import {RenameWorkspaceDialog} from './rename-workspace-dialog'
+import {WorkingStyleSettings} from './working-style-settings'
 import {WorkspaceStatus} from './workspace-status'
 
 /** 工作区页顶部的位置条：返回全部工作区、名称与状态、本机执行开关、重命名/归档/删除。 */
@@ -22,6 +24,8 @@ export function WorkspaceBar({workspace}: {workspace: WorkspaceItem}) {
   const {sessions} = useSessions()
   const [renaming, setRenaming] = useState(false)
   const [deleting, setDeleting] = useState(false)
+  const [memoryOpen, setMemoryOpen] = useState(false)
+  const [styleOpen, setStyleOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const condition = describeWorkspace(workspace)
   const executionOn = workspace.local_execution_enabled === true
@@ -57,6 +61,9 @@ export function WorkspaceBar({workspace}: {workspace: WorkspaceItem}) {
       <span className="min-w-0 truncate font-medium" dir="auto" title={workspace.folder?.path}>{workspace.name}</span>
       <WorkspaceStatus workspace={workspace} className="ml-2"/>
     </nav>
+    <Button type="button" variant="ghost" size="icon-xs" className="size-7 shrink-0 text-muted-foreground" aria-label="记忆" title="工作区记忆" onClick={() => setMemoryOpen(true)}>
+      <Brain className="size-4" aria-hidden/>
+    </Button>
     <label className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground" title="启用后本工作区会话可使用 Shell 与脚本">
       <Terminal className="size-3.5" aria-hidden/>
       <span className="hidden sm:inline">本机执行</span>
@@ -75,6 +82,7 @@ export function WorkspaceBar({workspace}: {workspace: WorkspaceItem}) {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
+        <DropdownMenuItem onSelect={() => setStyleOpen(true)}><ScrollText aria-hidden/>工作方式</DropdownMenuItem>
         <DropdownMenuItem onSelect={() => setRenaming(true)}><Pencil aria-hidden/>重命名</DropdownMenuItem>
         <DropdownMenuItem disabled={busy} onSelect={() => void toggleArchive()}>
           {condition.archived ? <ArchiveRestore aria-hidden/> : <Archive aria-hidden/>}{condition.archived ? '取消归档' : '归档'}
@@ -83,6 +91,8 @@ export function WorkspaceBar({workspace}: {workspace: WorkspaceItem}) {
         <DropdownMenuItem variant="destructive" onSelect={() => setDeleting(true)}><Trash aria-hidden/>删除</DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
+    <MemoryPanel workspace={workspace} open={memoryOpen} onOpenChange={setMemoryOpen}/>
+    <WorkingStyleSettings workspace={workspace} open={styleOpen} onOpenChange={setStyleOpen}/>
     <RenameWorkspaceDialog workspace={workspace} open={renaming} onOpenChange={setRenaming}/>
     <DeleteWorkspaceDialog workspace={workspace} sessionIds={sessions.map(session => session.session_id)} open={deleting} onOpenChange={setDeleting}
       onAccepted={() => router.push('/')}/>

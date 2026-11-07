@@ -168,7 +168,10 @@ def test_capabilities_report_files_available_and_execution_closed_until_ports():
     assert by_name[Capability.LOCAL_COMMAND].recoverable is True
     assert by_name[Capability.BROWSER].reason is UnavailableReason.COMPONENT_MISSING
     assert by_name[Capability.BROWSER].recoverable is True
-    for name in (Capability.FULL_TEXT_SEARCH, Capability.SEMANTIC_INDEX, Capability.OCR, Capability.REMOTE_CONTROL):
+    # P5：全文检索底座随业务库迁移建立，始终可用；语义索引、OCR 与远程控制仍未实现
+    assert by_name[Capability.FULL_TEXT_SEARCH].state is CapabilityState.AVAILABLE
+    assert by_name[Capability.FULL_TEXT_SEARCH].reason is None and by_name[Capability.FULL_TEXT_SEARCH].detail
+    for name in (Capability.SEMANTIC_INDEX, Capability.OCR, Capability.REMOTE_CONTROL):
         assert by_name[name].state is CapabilityState.UNAVAILABLE and by_name[name].detail
         assert by_name[name].reason is UnavailableReason.NOT_IMPLEMENTED and by_name[name].recoverable is False
     with pytest.raises(ValidationError):

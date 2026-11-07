@@ -71,6 +71,10 @@ class SessionRepository(Protocol):
         """根据传递的会话id减少未读消息数"""
         ...
 
+    async def update_participation(self, session_id: str, participate: bool) -> None:
+        """设置工作区会话是否参与记忆提炼与摘要检索。"""
+        ...
+
     async def update_status(self, session_id: str, status: SessionStatus) -> None:
         """根据传递的会话id更新会话状态"""
         ...
