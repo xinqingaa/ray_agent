@@ -72,15 +72,20 @@ def test_same_name_conflict_and_missing_external(tmp_path):
         bound = await s.bind_run('run-conflict')
         assert not any(e['name'] == 'dup' for e in bound)
 
-        preferred = config.model_copy(update={'preferred': {'dup': items[0]['id']}})
+        from_one = next(e for e in items if Path(e['source']['path']).is_relative_to(one))
+        from_two = next(e for e in items if Path(e['source']['path']).is_relative_to(two))
+        preferred = config.model_copy(update={'preferred': {'dup': from_one['id']}})
         s._config_loader = lambda: preferred
         bound = await s.bind_run('run-preferred')
-        assert any(e['id'] == items[0]['id'] for e in bound)
+        assert any(e['id'] == from_one['id'] for e in bound)
 
+        # 列表顺序不保证；删掉 one 后，只应让来自 one 的条目变 missing
         shutil.rmtree(one)
         await s.refresh_catalog()
-        missing = next(e for e in await s.list(refresh=False) if e['id'] == items[0]['id'])
+        missing = next(e for e in await s.list(refresh=False) if e['id'] == from_one['id'])
         assert missing['status'] == 'missing'
-        await s.change(items[1]['id'], items[1]['version'], delete=True)
+        still = next(e for e in await s.list(refresh=False) if e['id'] == from_two['id'])
+        assert still['status'] == 'available'
+        await s.change(from_two['id'], from_two['version'], delete=True)
         assert (two / 'dup' / 'SKILL.md').is_file()
     asyncio.run(run())
