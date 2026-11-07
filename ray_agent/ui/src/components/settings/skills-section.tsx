@@ -10,17 +10,19 @@ import {Button} from '@/components/ui/button'
 import {Input} from '@/components/ui/input'
 import {Textarea} from '@/components/ui/textarea'
 import {Switch} from '@/components/ui/switch'
-import {skillsApi, skillsChanged, type Skill, type SkillDetail, type SkillImport} from '@/lib/api/skills'
+import {skillsApi, skillsChanged, type Skill, type SkillDetail, type SkillImport, type SkillSourcesPayload} from '@/lib/api/skills'
 import {classifyLocalPaths, filesFromDrop, folderSkillFiles, hasSkillFrontmatter, localImportForm, skillDocument, type LocalFile} from '@/lib/skill-local'
+import {isDesktop, selectFolderGrant} from '@/lib/platform'
 import {toast} from 'sonner'
 
 const OPERATION_KEY = 'rayagent:skill-import'
-const CLI_HINT = '在你电脑上通过 npx skills add 安装的 Skill 不会自动出现在 RayAgent 中。请粘贴 Skill 的 GitHub 地址，或在这里选择文件夹、ZIP 或 SKILL.md。'
+const CLI_HINT = '用户目录与额外目录中的标准 Skill 会被发现并按快照使用；应用管理库仍可从 GitHub 或本地文件安装。删除外部引用不会删除用户目录。'
 const errorText = (error: unknown) => error instanceof Error ? error.message : '操作失败，请重试'
 
 /** 分区保持挂载，切换时保留编辑草稿和导入操作。 */
 export function SkillsSection({onDirtyChange, active = true}: {onDirtyChange: (dirty: boolean) => void; active?: boolean}) {
   const [items, setItems] = useState<Skill[]>([])
+  const [sources, setSources] = useState<SkillSourcesPayload | null>(null)
   const [query, setQuery] = useState('')
   const [installedName, setInstalledName] = useState('')
   const installedRow = useRef<HTMLLIElement>(null)
@@ -62,7 +64,10 @@ export function SkillsSection({onDirtyChange, active = true}: {onDirtyChange: (d
   const processing = busy || !!operation && ['fetching', 'validating', 'publishing'].includes(operation.stage)
   const dirty = detailOpen && !!detail && text !== detail.text || adding && (candidateText !== null || !!url || !!localFiles?.length || !!manualName || !!manualDescription || !!manualBody)
   useEffect(() => onDirtyChange(dirty), [dirty, onDirtyChange])
-  const reload = useCallback(async () => {setItems(await skillsApi.list())}, [])
+  const reload = useCallback(async () => {
+    const [list, src] = await Promise.all([skillsApi.list(), skillsApi.sources()])
+    setItems(list); setSources(src)
+  }, [])
   const applyOperation = useCallback((op: SkillImport) => {setOperation(op); setSelected(current => op.candidates.length === 1 ? op.candidates[0].path : op.candidates.some(c => c.path === current) ? current : null)}, [])
   useEffect(() => {
     reload().catch(e => setError(errorText(e))).finally(() => setLoading(false))
@@ -115,7 +120,26 @@ export function SkillsSection({onDirtyChange, active = true}: {onDirtyChange: (d
   }
   async function open(skill: Skill) {
     if (dirty && !window.confirm('放弃尚未保存的 Skill 修改？')) return
-    await act(async () => {const data = await skillsApi.detail(skill.name); setDetail(data); setDetailOpen(true); setText(data.text); setDeleteConfirm(false); setEditing(false); setAdding(false)})
+    await act(async () => {const data = await skillsApi.detail(skill.id); setDetail(data); setDetailOpen(true); setText(data.text); setDeleteConfirm(false); setEditing(false); setAdding(false)})
+  }
+  async function addExtraDir() {
+    if (!isDesktop()) {setError('请在桌面应用中选择额外 Skill 目录'); return}
+    await act(async () => {
+      const grant = await selectFolderGrant('skill_extra_dir')
+      if (!grant) return
+      await skillsApi.addExtraDir(grant.grant_id)
+      await changed()
+      toast.success('已添加 Skill 目录')
+    })
+  }
+  async function toggleSource(sourceId: string, enabled: boolean) {
+    if (!sources) return
+    const disabled = new Set(sources.config.disabled_sources)
+    if (enabled) disabled.delete(sourceId); else disabled.add(sourceId)
+    await act(async () => {
+      await skillsApi.updateConfig({...sources.config, disabled_sources: [...disabled]})
+      await changed()
+    })
   }
   const candidate = operation?.candidates.find(c => c.path === selected)
   function clearLocal() {
@@ -171,9 +195,9 @@ export function SkillsSection({onDirtyChange, active = true}: {onDirtyChange: (d
     sessionStorage.removeItem(OPERATION_KEY); skillsChanged()
     toast.success(updating ? 'Skill 已更新' : 'Skill 已安装')
     try {
-      const next = await skillsApi.detail(op.result.name)
+      const next = await skillsApi.detail(op.result.id)
       setDetail(next); setText(next.text); setEditing(false); setDetailOpen(true)
-      setQuery(''); setInstalledName(op.result.name)
+      setQuery(''); setInstalledName(op.result.id)
       await reload()
     } catch {setError('安装已成功，读取最新详情或列表失败，请刷新。')}
   }
@@ -192,9 +216,9 @@ export function SkillsSection({onDirtyChange, active = true}: {onDirtyChange: (d
     await act(async () => {
       try {await skillsApi.delete(detail)} catch (error) {
         const remaining = await skillsApi.list()
-        if (remaining.some(s => s.name === detail.name)) throw error
+        if (remaining.some(s => s.id === detail.id)) throw error
       }
-      setDeleteConfirm(false); setDetailOpen(false); skillsChanged(); toast.success('Skill 已删除')
+      setDeleteConfirm(false); setDetailOpen(false); skillsChanged(); toast.success(detail.external ? '已移除外部引用' : 'Skill 已删除')
       try {await reload()} catch {setError('Skill 已删除，列表刷新失败，请刷新。')}
     })
   }
@@ -207,38 +231,50 @@ export function SkillsSection({onDirtyChange, active = true}: {onDirtyChange: (d
         <h2 className="text-lg font-semibold">Skills <span className="ml-1 text-sm font-normal tabular-nums text-faint">{items.length || ''}</span></h2>
         <p className="mt-1 text-sm text-muted-foreground">Skills 就是技能包。</p>
       </div>
-      <div className="flex items-center gap-1"><Hint label="刷新"><Button variant="ghost" size="icon-sm" aria-label="刷新" disabled={processing} className="text-muted-foreground" onClick={() => act(reload)}><RefreshCw/></Button></Hint><CommunityLink/><Button ref={addButton} size="sm" className="ml-2" disabled={processing} onClick={startImport}><Plus/>新增 Skill</Button></div>
+      <div className="flex items-center gap-1"><Hint label="重新扫描来源"><Button variant="ghost" size="icon-sm" aria-label="重新扫描来源" disabled={processing} className="text-muted-foreground" onClick={() => act(async () => {await skillsApi.scan(); await reload()})}><RefreshCw/></Button></Hint><CommunityLink/><Button ref={addButton} size="sm" className="ml-2" disabled={processing} onClick={startImport}><Plus/>新增 Skill</Button></div>
     </div>
     {!adding && !detailOpen && feedback}
+    {sources && <div className="space-y-2 rounded-lg border bg-muted/20 p-3">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-sm font-medium">发现来源</p>
+        <Button type="button" size="sm" variant="outline" disabled={processing || !isDesktop()} onClick={addExtraDir}><Folder/>额外目录</Button>
+      </div>
+      <ul className="space-y-1">{sources.sources.map(source => <li key={source.source_id} className="flex items-center gap-3 rounded-md px-2 py-1.5 text-sm">
+        <span className="min-w-0 flex-1"><span className="font-medium">{source.label}</span><span className="mt-0.5 block truncate text-xs text-muted-foreground">{source.path || '应用内'}</span></span>
+        {!source.exists && <span className="text-xs text-muted-foreground">未找到</span>}
+        <Switch aria-label={`${source.enabled ? '停用' : '启用'} ${source.label}`} checked={source.enabled} disabled={processing} onCheckedChange={checked => toggleSource(source.source_id, checked)}/>
+      </li>)}</ul>
+      {!!sources.config.extra_dirs.length && <ul className="space-y-1 border-t pt-2">{sources.config.extra_dirs.map(path => <li key={path} className="flex items-center gap-2 text-xs text-muted-foreground"><span className="min-w-0 flex-1 truncate font-mono">{path}</span><Button type="button" size="sm" variant="ghost" disabled={processing} onClick={() => act(async () => {await skillsApi.removeExtraDir(path); await changed()})}>移除</Button></li>)}</ul>}
+    </div>}
     <div className="relative"><Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-faint" aria-hidden/>
       <Input aria-label="搜索 Skill" className="border-transparent bg-muted/60 pl-9 shadow-none" placeholder="搜索 Skill" value={query} onChange={e => setQuery(e.target.value)}/>
     </div>
     {loading ? <div role="status" className="flex justify-center py-12"><Loader2 className="size-5 animate-spin text-muted-foreground"/><span className="sr-only">正在加载 Skill</span></div> :
-      visibleItems.length ? <ul className="space-y-1">{visibleItems.map(skill => <li key={skill.id} ref={skill.name === installedName ? installedRow : undefined} className="group flex items-center gap-3 rounded-lg px-3 transition-colors hover:bg-muted/50 motion-reduce:transition-none">
+      visibleItems.length ? <ul className="space-y-1">{visibleItems.map(skill => <li key={skill.id} ref={skill.id === installedName ? installedRow : undefined} className="group flex items-center gap-3 rounded-lg px-3 transition-colors hover:bg-muted/50 motion-reduce:transition-none">
         <button className="flex min-w-0 flex-1 items-center gap-3 rounded-md py-4 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring" disabled={processing} onClick={event => {detailTrigger.current = event.currentTarget; void open(skill)}}>
           <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-muted text-muted-foreground"><BookOpen className="size-5"/></span>
-          <span className="min-w-0 flex-1"><span className="flex flex-wrap items-center gap-2 text-sm font-medium">{skill.name}{skill.builtin && <span className="rounded bg-muted px-1.5 py-0.5 text-xs font-normal text-muted-foreground">内置</span>}</span><span className="mt-1 line-clamp-2 text-xs leading-relaxed text-muted-foreground">{skill.description}</span></span>
+          <span className="min-w-0 flex-1"><span className="flex flex-wrap items-center gap-2 text-sm font-medium">{skill.name}{skill.builtin && <span className="rounded bg-muted px-1.5 py-0.5 text-xs font-normal text-muted-foreground">内置</span>}{skill.external && <span className="rounded bg-muted px-1.5 py-0.5 text-xs font-normal text-muted-foreground">{sourceBadge(skill)}</span>}{skill.conflict && <span className="rounded bg-state-failed-soft px-1.5 py-0.5 text-xs font-normal text-state-failed">同名冲突</span>}{skill.status === 'missing' && <span className="rounded bg-muted px-1.5 py-0.5 text-xs font-normal text-muted-foreground">目录已移除</span>}</span><span className="mt-1 line-clamp-2 text-xs leading-relaxed text-muted-foreground">{skill.description}</span></span>
           <ChevronRight className="size-4 shrink-0 text-faint transition-transform group-hover:translate-x-0.5 motion-reduce:transition-none"/>
         </button>
-        <Switch aria-label={`${skill.enabled ? '停用' : '启用'} ${skill.name}`} checked={skill.enabled} disabled={processing} onCheckedChange={() => act(async () => {await skillsApi.toggle(skill); await changed()})}/>
+        <Switch aria-label={`${skill.enabled ? '停用' : '启用'} ${skill.name}`} checked={skill.enabled} disabled={processing || skill.status === 'missing'} onCheckedChange={() => act(async () => {await skillsApi.toggle(skill); await changed()})}/>
       </li>)}</ul> : <div className="flex flex-col items-center gap-3 py-12 text-sm text-muted-foreground"><BookOpen className="size-7 text-faint"/><p>{query ? '没有匹配的 Skill' : '还没有 Skill'}</p>{!query && <Button variant="secondary" size="sm" onClick={startImport}><Plus/>新增 Skill</Button>}</div>}
     {busy && !adding && !detailOpen && <span role="status" className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="size-3 animate-spin"/>正在处理</span>}
 
     <Dialog open={active && detailOpen} onOpenChange={next => {if (!next) closeDetail()}}>
       <DialogContent aria-describedby={undefined} className="flex h-[min(48rem,calc(100dvh-3rem))] flex-col gap-0 overflow-hidden p-0 sm:max-w-[min(80rem,calc(100vw-3rem))] motion-reduce:animate-none" onPointerDownOutside={event => event.preventDefault()} onCloseAutoFocus={event => {event.preventDefault(); detailTrigger.current?.focus()}}>
         {detail && <>
-          <div className="shrink-0 px-6 pb-4 pt-6 pr-14"><div className="flex items-center gap-2"><DialogTitle className="min-w-0 break-all leading-snug">{detail.name}</DialogTitle>{detail.builtin && <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">内置</span>}</div><p className="mt-2 text-sm leading-relaxed text-muted-foreground">{detail.description}</p></div>
-          {editing ? <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-6 pb-4">{feedback}<Button size="sm" variant="ghost" className="self-end" onClick={() => setRenderDraft(!renderDraft)}>{renderDraft ? '继续编辑' : '查看排版'}</Button>{renderDraft ? <MarkdownContent content={text.replace(/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/, '')}/> : <><label htmlFor="skill-editor" className="text-xs text-muted-foreground">SKILL.md</label><Textarea autoFocus id="skill-editor" value={text} disabled={busy} onChange={e => setText(e.target.value)} className="min-h-0 flex-1 resize-none font-mono text-xs leading-relaxed"/></>}</div> : <SkillReader key={detail.id + detail.version} skill={detail} actions={!detail.builtin && <Hint label="编辑正文"><Button variant="ghost" size="icon-sm" aria-label="编辑正文" disabled={busy} onClick={() => {setRenderDraft(false); setEditing(true)}}><Pencil/></Button></Hint>} feedback={feedback}/>}
+          <div className="shrink-0 px-6 pb-4 pt-6 pr-14"><div className="flex items-center gap-2"><DialogTitle className="min-w-0 break-all leading-snug">{detail.name}</DialogTitle>{detail.builtin && <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">内置</span>}{detail.external && <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">{sourceBadge(detail)}</span>}</div><p className="mt-2 text-sm leading-relaxed text-muted-foreground">{detail.description}</p></div>
+          {editing ? <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-6 pb-4">{feedback}<Button size="sm" variant="ghost" className="self-end" onClick={() => setRenderDraft(!renderDraft)}>{renderDraft ? '继续编辑' : '查看排版'}</Button>{renderDraft ? <MarkdownContent content={text.replace(/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/, '')}/> : <><label htmlFor="skill-editor" className="text-xs text-muted-foreground">SKILL.md</label><Textarea autoFocus id="skill-editor" value={text} disabled={busy} onChange={e => setText(e.target.value)} className="min-h-0 flex-1 resize-none font-mono text-xs leading-relaxed"/></>}</div> : <SkillReader key={detail.id + detail.version} skill={detail} actions={!detail.builtin && !detail.external && <Hint label="编辑正文"><Button variant="ghost" size="icon-sm" aria-label="编辑正文" disabled={busy} onClick={() => {setRenderDraft(false); setEditing(true)}}><Pencil/></Button></Hint>} feedback={feedback}/>}
           <div className="flex shrink-0 items-center justify-between gap-3 bg-muted/40 px-6 py-3">
             <SourceInfo skill={detail}/>
             <div className="flex items-center gap-1">
-              {editing ? <><Button variant="ghost" size="sm" disabled={busy} onClick={() => {if (text === detail.text || window.confirm('放弃尚未保存的 Skill 修改？')) {setText(detail.text); setEditing(false)}}}>取消</Button><Button size="sm" disabled={busy || text === detail.text} onClick={() => act(async () => {await skillsApi.edit(detail, text); const next = await skillsApi.detail(detail.name); setDetail(next); setText(next.text); await changed(); setEditing(false); toast.success('Skill 已保存')})}>{busy ? <Loader2 className="animate-spin"/> : <Check/>}保存</Button></> : !detail.builtin && <>
-                <Hint label="更新 Skill"><Button variant="ghost" size="icon-sm" ref={updateButton} aria-label="更新 Skill" disabled={processing} onClick={() => {clearImport(); setUpdating(detail); setAdding(true); setUrl(detail.source.url ?? ''); setKind(detail.source.kind === 'github' ? 'github' : 'local'); setOperation(null); setSelected(null); setError('')}}><RefreshCw/></Button></Hint>
-                <Hint label="删除 Skill"><Button variant="ghost" size="icon-sm" aria-label="删除 Skill" disabled={processing} className="text-muted-foreground hover:text-state-failed" onClick={() => setDeleteConfirm(true)}><Trash2/></Button></Hint>
+              {editing ? <><Button variant="ghost" size="sm" disabled={busy} onClick={() => {if (text === detail.text || window.confirm('放弃尚未保存的 Skill 修改？')) {setText(detail.text); setEditing(false)}}}>取消</Button><Button size="sm" disabled={busy || text === detail.text} onClick={() => act(async () => {await skillsApi.edit(detail, text); const next = await skillsApi.detail(detail.id); setDetail(next); setText(next.text); await changed(); setEditing(false); toast.success('Skill 已保存')})}>{busy ? <Loader2 className="animate-spin"/> : <Check/>}保存</Button></> : !detail.builtin && <>
+                {!detail.external && <Hint label="更新 Skill"><Button variant="ghost" size="icon-sm" ref={updateButton} aria-label="更新 Skill" disabled={processing} onClick={() => {clearImport(); setUpdating(detail); setAdding(true); setUrl(detail.source.url ?? ''); setKind(detail.source.kind === 'github' ? 'github' : 'local'); setOperation(null); setSelected(null); setError('')}}><RefreshCw/></Button></Hint>}
+                <Hint label={detail.external ? '移除引用' : '删除 Skill'}><Button variant="ghost" size="icon-sm" aria-label={detail.external ? '移除引用' : '删除 Skill'} disabled={processing} className="text-muted-foreground hover:text-state-failed" onClick={() => setDeleteConfirm(true)}><Trash2/></Button></Hint>
               </>}
             </div>
           </div>
-          <Dialog open={deleteConfirm} onOpenChange={setDeleteConfirm}><DialogContent className="motion-reduce:animate-none" aria-describedby="delete-skill-description"><DialogTitle>删除 {detail.name}？</DialogTitle><p id="delete-skill-description" className="text-sm text-muted-foreground">删除后无法在新任务中选择，已有运行仍保留引用。</p><div className="flex justify-end gap-2"><Button autoFocus variant="ghost" disabled={busy} onClick={() => setDeleteConfirm(false)}>取消</Button><Button variant="destructive" disabled={busy} onClick={deleteSkill}>删除</Button></div>{feedback}</DialogContent></Dialog>
+          <Dialog open={deleteConfirm} onOpenChange={setDeleteConfirm}><DialogContent className="motion-reduce:animate-none" aria-describedby="delete-skill-description"><DialogTitle>{detail.external ? `移除 ${detail.name} 的引用？` : `删除 ${detail.name}？`}</DialogTitle><p id="delete-skill-description" className="text-sm text-muted-foreground">{detail.external ? '只会移除 RayAgent 中的引用与快照登记，不会删除你电脑上的 Skill 目录。已有运行仍保留原快照。' : '删除后无法在新任务中选择，已有运行仍保留引用。'}</p><div className="flex justify-end gap-2"><Button autoFocus variant="ghost" disabled={busy} onClick={() => setDeleteConfirm(false)}>取消</Button><Button variant="destructive" disabled={busy} onClick={deleteSkill}>{detail.external ? '移除引用' : '删除'}</Button></div>{feedback}</DialogContent></Dialog>
         </>}
       </DialogContent>
     </Dialog>
@@ -254,8 +290,8 @@ export function SkillsSection({onDirtyChange, active = true}: {onDirtyChange: (d
         <div className="min-h-0 flex-1 overflow-hidden">
           {!previewing ? <div className="flex h-full flex-col px-6 pb-6">
             <div role="group" aria-label="Skill 来源" className="relative isolate grid shrink-0 grid-cols-2 rounded-lg bg-muted/60 p-1">
-              <span aria-hidden="true" className="pointer-events-none absolute inset-y-1 left-1 -z-10 rounded-md bg-card shadow-sm transition-transform duration-200 ease-out motion-reduce:transition-none" style={{width: 'calc((100% - 8px) / 2)', transform: `translateX(${Math.max(0, sources.findIndex(source => source.kind === kind)) * 100}%)`}}/>
-              {sources.map(({kind: sourceKind, label, icon: Icon}, index) => <button key={sourceKind} type="button" aria-pressed={kind === sourceKind} disabled={processing} className={cn('relative flex items-center justify-center gap-2 rounded-md px-2 py-2 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 motion-reduce:transition-none', kind === sourceKind ? 'font-medium text-foreground' : 'text-muted-foreground hover:text-foreground')} onClick={() => {if (sourceKind === kind) return; setSourceSlide(index > sources.findIndex(source => source.kind === kind) ? 'right' : 'left'); setKind(sourceKind); setOperation(null); setSelected(null); setError('')}}><Icon className="size-4"/>{label}</button>)}
+              <span aria-hidden="true" className="pointer-events-none absolute inset-y-1 left-1 -z-10 rounded-md bg-card shadow-sm transition-transform duration-200 ease-out motion-reduce:transition-none" style={{width: 'calc((100% - 8px) / 2)', transform: `translateX(${Math.max(0, importKinds.findIndex(source => source.kind === kind)) * 100}%)`}}/>
+              {importKinds.map(({kind: sourceKind, label, icon: Icon}, index) => <button key={sourceKind} type="button" aria-pressed={kind === sourceKind} disabled={processing} className={cn('relative flex items-center justify-center gap-2 rounded-md px-2 py-2 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 motion-reduce:transition-none', kind === sourceKind ? 'font-medium text-foreground' : 'text-muted-foreground hover:text-foreground')} onClick={() => {if (sourceKind === kind) return; setSourceSlide(index > importKinds.findIndex(source => source.kind === kind) ? 'right' : 'left'); setKind(sourceKind); setOperation(null); setSelected(null); setError('')}}><Icon className="size-4"/>{label}</button>)}
             </div>
             <div key={kind} className={cn('mt-5 min-h-0 flex-1 overflow-y-auto overscroll-contain', sourceSlide === 'right' ? 'animate-in fade-in slide-in-from-right-4 duration-200 motion-reduce:animate-none' : 'animate-in fade-in slide-in-from-left-4 duration-200 motion-reduce:animate-none')}>
               {kind === 'github' && <label className="block space-y-2 text-sm">GitHub 地址<Input ref={sourceInput} autoFocus value={url} onChange={e => {setUrl(e.target.value); setOperation(null)}} placeholder="https://github.com/owner/repo" disabled={processing}/></label>}
@@ -277,9 +313,17 @@ export function SkillsSection({onDirtyChange, active = true}: {onDirtyChange: (d
   </section>
 }
 
-const sources = [{kind: 'github', label: 'GitHub', icon: Github}, {kind: 'local', label: '本地内容', icon: Folder}] as const
+const importKinds = [{kind: 'github', label: 'GitHub', icon: Github}, {kind: 'local', label: '本地内容', icon: Folder}] as const
 function stageLabel(stage: string) {
   return ({fetching: '正在获取来源', validating: '正在校验', publishing: '正在安装', completed: '已安装', failed: '导入失败', interrupted: '导入中断', expired: '材料已过期'} as Record<string, string>)[stage] ?? stage
+}
+function sourceBadge(skill: Skill) {
+  const kind = skill.source?.kind
+  if (kind === 'workspace') return '工作区'
+  if (kind === 'user') return '用户目录'
+  if (kind === 'extra') return '额外目录'
+  if (kind === 'github') return 'GitHub'
+  return skill.source?.label || '外部'
 }
 function Hint({label, children}: {label: string; children: ReactNode}) {
   return <Tooltip><TooltipTrigger asChild>{children}</TooltipTrigger><TooltipContent sideOffset={6} className="max-w-72 leading-relaxed motion-reduce:animate-none">{label}</TooltipContent></Tooltip>
@@ -287,9 +331,14 @@ function Hint({label, children}: {label: string; children: ReactNode}) {
 function CommunityLink() {
   return <Hint label="浏览社区 Skill · skills.sh"><Button asChild variant="ghost" size="icon-sm" className="text-muted-foreground"><a href="https://skills.sh/" target="_blank" rel="noopener noreferrer" aria-label="浏览社区 Skill"><Compass/></a></Button></Hint>
 }
-function SourceInfo({skill}: {skill: {version: string; source: Skill['source']}}) {
+function SourceInfo({skill}: {skill: {version: string; root_path?: string | null; source: Skill['source']}}) {
   const source = skill.source
-  const label = source.kind === 'builtin' ? '随应用更新' : source.kind === 'github' ? 'GitHub' : '本地文件'
-  const detailText = source.kind === 'github' ? source.url || 'GitHub' : label
-  return <Hint label={`${detailText}${source.commit ? ` · 提交 ${source.commit}` : ''}${skill.version ? ` · 版本 ${skill.version}` : ''}`}><Button variant="ghost" size="sm" className="min-w-0 gap-1.5 px-0 text-xs font-normal text-muted-foreground" aria-label="查看 Skill 来源与版本"><Info className="size-3.5"/><span className="truncate">{label}</span></Button></Hint>
+  const label = source.kind === 'builtin' ? '随应用更新'
+    : source.kind === 'github' ? 'GitHub'
+    : source.kind === 'workspace' ? '工作区目录'
+    : source.kind === 'user' ? '用户目录'
+    : source.kind === 'extra' ? '额外目录'
+    : source.label || '本地文件'
+  const detailText = source.path || source.url || source.label || label
+  return <Hint label={`${detailText}${source.commit ? ` · 提交 ${source.commit}` : ''}${skill.version ? ` · 快照 ${skill.version.slice(0, 12)}` : ''}${skill.root_path ? ` · ${skill.root_path}` : ''}`}><Button variant="ghost" size="sm" className="min-w-0 gap-1.5 px-0 text-xs font-normal text-muted-foreground" aria-label="查看 Skill 来源与版本"><Info className="size-3.5"/><span className="truncate">{label}</span></Button></Hint>
 }

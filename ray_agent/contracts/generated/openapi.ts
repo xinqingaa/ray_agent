@@ -928,6 +928,93 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/skills/sources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Sources */
+        get: operations["list_sources_api_skills_sources_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/skills/scan": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Scan Skills */
+        post: operations["scan_skills_api_skills_scan_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/skills/config": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Skill Config */
+        get: operations["get_skill_config_api_skills_config_get"];
+        /** Update Skill Config */
+        put: operations["update_skill_config_api_skills_config_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/skills/extra-dirs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Add Extra Dir */
+        post: operations["add_extra_dir_api_skills_extra_dirs_post"];
+        /** Remove Extra Dir */
+        delete: operations["remove_extra_dir_api_skills_extra_dirs_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/skills/prefer": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Prefer Skill */
+        post: operations["prefer_skill_api_skills_prefer_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/skills/imports": {
         parameters: {
             query?: never;
@@ -1047,7 +1134,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/skills/{name}/file": {
+    "/api/skills/{skill_id}/file": {
         parameters: {
             query?: never;
             header?: never;
@@ -1055,7 +1142,7 @@ export interface paths {
             cookie?: never;
         };
         /** Skill File */
-        get: operations["skill_file_api_skills__name__file_get"];
+        get: operations["skill_file_api_skills__skill_id__file_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1064,7 +1151,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/skills/{name}": {
+    "/api/skills/{skill_id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -1072,16 +1159,16 @@ export interface paths {
             cookie?: never;
         };
         /** Skill Detail */
-        get: operations["skill_detail_api_skills__name__get"];
+        get: operations["skill_detail_api_skills__skill_id__get"];
         /** Edit Skill */
-        put: operations["edit_skill_api_skills__name__put"];
+        put: operations["edit_skill_api_skills__skill_id__put"];
         post?: never;
         /** Delete Skill */
-        delete: operations["delete_skill_api_skills__name__delete"];
+        delete: operations["delete_skill_api_skills__skill_id__delete"];
         options?: never;
         head?: never;
         /** Change Skill */
-        patch: operations["change_skill_api_skills__name__patch"];
+        patch: operations["change_skill_api_skills__skill_id__patch"];
         trace?: never;
     };
     "/api/workspaces": {
@@ -3003,6 +3090,11 @@ export interface components {
          * @enum {string}
          */
         ExecutionStatus: "pending" | "running" | "completed" | "failed" | "blocked" | "cancelled";
+        /** ExtraDirRequest */
+        ExtraDirRequest: {
+            /** Grant Id */
+            grant_id: string;
+        };
         /**
          * File
          * @description 文件信息Domain模型，用于记录用户上传或 Agent 交付的文件；字节保存为数据根中的内容对象
@@ -4029,6 +4121,13 @@ export interface components {
             event: "plan";
             data: components["schemas"]["PlanEventData"];
         };
+        /** PreferRequest */
+        PreferRequest: {
+            /** Name */
+            name: string;
+            /** Skill Id */
+            skill_id?: string | null;
+        };
         /**
          * ProposalStatus
          * @enum {string}
@@ -4697,7 +4796,36 @@ export interface components {
          * @enum {string}
          */
         SessionStatus: "pending" | "running" | "waiting" | "completed" | "failed" | "cancelled" | "interrupted";
-        /** SkillSelection */
+        /**
+         * SkillConfig
+         * @description Skill 多来源发现与选择偏好；不存放密钥。
+         */
+        SkillConfig: {
+            /**
+             * Discover User
+             * @default true
+             */
+            discover_user: boolean;
+            /**
+             * Discover Workspace
+             * @default true
+             */
+            discover_workspace: boolean;
+            /** Disabled Sources */
+            disabled_sources?: string[];
+            /** Disabled Skills */
+            disabled_skills?: string[];
+            /** Extra Dirs */
+            extra_dirs?: string[];
+            /** Preferred */
+            preferred?: {
+                [key: string]: string;
+            };
+        };
+        /**
+         * SkillSelection
+         * @description 显式选择使用稳定 skill_id 与内容版本，不以可见名称冒充身份。
+         */
         SkillSelection: {
             /** Id */
             id: string;
@@ -6990,12 +7118,236 @@ export interface operations {
     };
     list_skills_api_skills_get: {
         parameters: {
+            query?: {
+                workspace_id?: string | null;
+                refresh?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    list_sources_api_skills_sources_get: {
+        parameters: {
+            query?: {
+                workspace_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    scan_skills_api_skills_scan_post: {
+        parameters: {
+            query?: {
+                workspace_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_skill_config_api_skills_config_get: {
+        parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    update_skill_config_api_skills_config_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SkillConfig"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    add_extra_dir_api_skills_extra_dirs_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExtraDirRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    remove_extra_dir_api_skills_extra_dirs_delete: {
+        parameters: {
+            query: {
+                path: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    prefer_skill_api_skills_prefer_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PreferRequest"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -7253,7 +7605,7 @@ export interface operations {
             };
         };
     };
-    skill_file_api_skills__name__file_get: {
+    skill_file_api_skills__skill_id__file_get: {
         parameters: {
             query: {
                 expected_version: string;
@@ -7262,7 +7614,7 @@ export interface operations {
             };
             header?: never;
             path: {
-                name: string;
+                skill_id: string;
             };
             cookie?: never;
         };
@@ -7288,12 +7640,12 @@ export interface operations {
             };
         };
     };
-    skill_detail_api_skills__name__get: {
+    skill_detail_api_skills__skill_id__get: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                name: string;
+                skill_id: string;
             };
             cookie?: never;
         };
@@ -7319,12 +7671,12 @@ export interface operations {
             };
         };
     };
-    edit_skill_api_skills__name__put: {
+    edit_skill_api_skills__skill_id__put: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                name: string;
+                skill_id: string;
             };
             cookie?: never;
         };
@@ -7354,14 +7706,14 @@ export interface operations {
             };
         };
     };
-    delete_skill_api_skills__name__delete: {
+    delete_skill_api_skills__skill_id__delete: {
         parameters: {
             query: {
                 expected_version: string;
             };
             header?: never;
             path: {
-                name: string;
+                skill_id: string;
             };
             cookie?: never;
         };
@@ -7387,12 +7739,12 @@ export interface operations {
             };
         };
     };
-    change_skill_api_skills__name__patch: {
+    change_skill_api_skills__skill_id__patch: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                name: string;
+                skill_id: string;
             };
             cookie?: never;
         };

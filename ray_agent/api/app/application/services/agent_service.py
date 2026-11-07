@@ -446,7 +446,10 @@ class AgentService:
             await register_external_pid(pid, owner)
 
         from app.application.services.skill_runtime import SkillRuntime
-        skill_runtime = SkillRuntime(self._skills, run_id, None) if self._skills else None
+        skill_runtime = SkillRuntime(
+            self._skills, run_id, workdir=workdir,
+            workspace_id=session.workspace_id, session_id=session.id,
+        ) if self._skills else None
         runtime = getattr(self, "_workspace_memory", None) if session.workspace_id else None
         project_prompt, context_refresh, workspace_memory = "", None, None
         if runtime is not None:
@@ -617,11 +620,14 @@ class AgentService:
                 active = await self._uow.run.get_active(session_id) if session else None
             if not session:
                 raise NotFoundError("任务会话不存在, 请核实后重试")
+            if self._skills is not None:
+                await self._skills.refresh_catalog(
+                    workspace_id=session.workspace_id, session_id=session_id)
             if skill is not None and self._skills is not None:
                 await self._skills.validate_selection(skill.model_dump())
                 if active is not None and active.status.active and (active.config_snapshot or {}).get("skills_frozen"):
                     bound = await self._skills.bindings(active.id)
-                    selected = next((e for e in bound if e["name"] == skill.id), None)
+                    selected = next((e for e in bound if e.get("id") == skill.id or e.get("name") == skill.id), None)
                     if not selected or selected["version"] != skill.version:
                         raise ConflictError("本运行 Skill 目录已固定，请在新运行中选择此版本")
             if execute_plan is not None:

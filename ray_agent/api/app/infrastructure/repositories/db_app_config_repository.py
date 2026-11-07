@@ -3,7 +3,9 @@ from typing import Callable, Optional
 
 from sqlalchemy import select
 
-from app.domain.models.app_config import AppConfig, LLMConfig, AgentConfig, MCPConfig, A2AConfig, ToolPolicyConfig
+from app.domain.models.app_config import (
+    AppConfig, LLMConfig, AgentConfig, MCPConfig, A2AConfig, ToolPolicyConfig, SkillConfig,
+)
 from app.domain.models.clock import utc_now
 from app.domain.repositories.app_config_repository import AppConfigRepository
 from app.domain.repositories.uow import IUnitOfWork
@@ -16,12 +18,13 @@ SECTIONS = {
     "mcp_config": MCPConfig,
     "a2a_config": A2AConfig,
     "tool_policy": ToolPolicyConfig,
+    "skill_config": SkillConfig,
 }
 
 
 def default_app_config() -> AppConfig:
     return AppConfig(llm_config=LLMConfig(), agent_config=AgentConfig(), mcp_config=MCPConfig(),
-                     a2a_config=A2AConfig())
+                     a2a_config=A2AConfig(), skill_config=SkillConfig())
 
 
 def apply_model_connections(app_config: AppConfig) -> AppConfig:

@@ -1630,10 +1630,11 @@
       "type": "string"
     },
     "SkillSelection": {
+      "description": "显式选择使用稳定 skill_id 与内容版本，不以可见名称冒充身份。",
       "properties": {
         "id": {
-          "maxLength": 64,
-          "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$",
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
           "type": "string"
         },
         "version": {

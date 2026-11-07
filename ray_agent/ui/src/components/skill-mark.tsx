@@ -30,7 +30,14 @@ function SkillPreviewDialog({name, onClose}: {name: string | null; onClose: () =
   useEffect(() => {
     if (!name) return
     let disposed = false
-    skillsApi.detail(name).then(data => {if (!disposed) setDetail(data)}).catch(reason => {if (!disposed) setError(reason instanceof Error ? reason.message : '无法打开预览')})
+    skillsApi.detail(name).then(data => {if (!disposed) setDetail(data)}).catch(reason => {
+      // 历史消息可能只有包名；先按 id 读，失败再按名称从列表解析
+      skillsApi.list().then(items => {
+        const found = items.find(item => item.id === name || item.name === name)
+        if (!found) throw new Error(reason instanceof Error ? reason.message : '无法打开预览')
+        return skillsApi.detail(found.id)
+      }).then(data => {if (!disposed) setDetail(data)}).catch(inner => {if (!disposed) setError(inner instanceof Error ? inner.message : '无法打开预览')})
+    })
     return () => {disposed = true}
   }, [name])
   return <Dialog open={!!name} onOpenChange={open => {if (!open) onClose()}}>

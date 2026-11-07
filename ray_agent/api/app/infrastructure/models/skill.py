@@ -6,7 +6,7 @@ from .base import Base
 
 class SkillRecord(Base):
     __tablename__ = 'skills'
-    name: Mapped[str] = mapped_column(String(64), primary_key=True)
+    id: Mapped[str] = mapped_column(String(128), primary_key=True)
     data: Mapped[dict] = mapped_column(JSON, nullable=False)
 
 
@@ -25,6 +25,6 @@ class SkillImport(Base):
 class RunSkill(Base):
     __tablename__ = 'run_skills'
     run_id: Mapped[str] = mapped_column(String(128), ForeignKey('runs.id', ondelete='CASCADE'), primary_key=True)
-    name: Mapped[str] = mapped_column(String(64), primary_key=True)
+    skill_id: Mapped[str] = mapped_column(String(128), primary_key=True)
     version: Mapped[str] = mapped_column(String(64), ForeignKey('skill_versions.id'), nullable=False)
     data: Mapped[dict] = mapped_column(JSON, nullable=False)

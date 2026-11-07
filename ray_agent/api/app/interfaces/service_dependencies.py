@@ -327,6 +327,30 @@ def get_skill_service():
     from app.infrastructure.repositories.db_skill_repository import DBSkillRepository
     from app.infrastructure.external.skills.storage import SkillStorage
     from app.infrastructure.external.skills.github import GitHubSkills
+    from sqlalchemy import select
+    from app.infrastructure.models.session import SessionModel
+    from app.infrastructure.models.root import RootModel
+
     current = get_settings()
-    return SkillService(DBSkillRepository(get_database()), SkillStorage(data_root().skills, current),
-                        GitHubSkills(current), current)
+
+    async def config_loader():
+        return (await get_app_config_repository().load()).skill_config
+
+    async def workspace_locator(workspace_id: str = "", session_id: str | None = None):
+        async with get_read_uow() as uow:
+            wid = workspace_id or None
+            if not wid and session_id:
+                session = await uow.db_session.get(SessionModel, session_id)
+                wid = session.workspace_id if session else None
+            if not wid:
+                return None, None
+            rows = await uow.db_session.scalars(
+                select(RootModel).where(RootModel.workspace_id == wid, RootModel.kind == "workspace_folder"))
+            root = rows.first()
+            return (root.location if root else None), wid
+
+    return SkillService(
+        DBSkillRepository(get_database()), SkillStorage(data_root().skills, current),
+        GitHubSkills(current), current,
+        config_loader=config_loader, workspace_locator=workspace_locator,
+    )

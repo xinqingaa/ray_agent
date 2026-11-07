@@ -1260,13 +1260,14 @@ class AgentLoop(BaseFlow):
             yield ErrorEvent(error='Skill 服务不可用，所选 Skill 未加载')
             return
         entries = await self.skill_runtime.service.bindings(self.run_id)
-        entry = next((e for e in entries if e['name'] == selection['id']), None)
+        entry = next((e for e in entries if e.get('id') == selection['id'] or e.get('name') == selection['id']), None)
         if not entry or entry['version'] != selection['version']:
             self._skill_blocked = True
             yield ErrorEvent(error='所选 Skill 不在本运行固定目录中，请开始新运行')
             return
+        load_name = entry['name']
         invocation = ToolInvocation(call_id=call_id or f"skill-select:{selection['id']}:{uuid.uuid4().hex}",
-            function_name='load_skill', raw_arguments=json.dumps({'name': selection['id']}), approval=approval)
+            function_name='load_skill', raw_arguments=json.dumps({'name': load_name}), approval=approval)
         result = await self.pipeline.check(invocation)
         if result is None:
             result = await self._policy_guard(invocation)
@@ -1278,7 +1279,7 @@ class AgentLoop(BaseFlow):
             yield WaitEvent()
             return
         if result is None:
-            result = await self.skill_runtime.load(selection['id'])
+            result = await self.skill_runtime.load(load_name)
         if not result.success:
             self._skill_blocked = True
             self.end_reason = RunEndReason.MODEL_ERROR

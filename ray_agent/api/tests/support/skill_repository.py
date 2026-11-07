@@ -26,9 +26,9 @@ class MemorySkills:
     async def put(self, table, key, value): self.tables[table][key] = copy.deepcopy(value)
     async def delete(self, table, key): self.tables[table].pop(key, None)
     async def bindings(self, run_id): return copy.deepcopy(list(self.runs.get(run_id, {}).values()))
-    async def bind(self, run_id, name, version, data):
-        current = self.runs.setdefault(run_id, {}).get(name)
+    async def bind(self, run_id, skill_id, version, data):
+        current = self.runs.setdefault(run_id, {}).get(skill_id)
         if current and current['version'] != version:
             raise ValueError('同一运行不可替换版本')
-        self.runs[run_id][name] = copy.deepcopy(data)
+        self.runs[run_id][skill_id] = copy.deepcopy(data)
     async def references(self): return {v['version'] for b in self.runs.values() for v in b.values()}

@@ -151,6 +151,17 @@ class ToolPolicyConfig(BaseModel):
         return self
 
 
+class SkillConfig(BaseModel):
+    """Skill 多来源发现与选择偏好；不存放密钥。"""
+    model_config = ConfigDict(extra="forbid")
+    discover_user: bool = True
+    discover_workspace: bool = True
+    disabled_sources: List[str] = Field(default_factory=list)
+    disabled_skills: List[str] = Field(default_factory=list)
+    extra_dirs: List[str] = Field(default_factory=list)
+    preferred: Dict[str, str] = Field(default_factory=dict)  # 包名 → 稳定 skill_id
+
+
 class AppConfig(BaseModel):
     """应用配置信息，包含Agent配置、LLM提供商配置、MCP配置、A2A配置与工具策略"""
     llm_config: LLMConfig  # 语言模型配置
@@ -158,6 +169,7 @@ class AppConfig(BaseModel):
     mcp_config: MCPConfig  # MCP服务配置
     a2a_config: A2AConfig  # A2A服务配置
     tool_policy: ToolPolicyConfig = Field(default_factory=ToolPolicyConfig)  # 工具策略表
+    skill_config: SkillConfig = Field(default_factory=SkillConfig)
 
     # Pydantic配置，允许传递额外的字段初始化
     model_config = ConfigDict(extra="allow")

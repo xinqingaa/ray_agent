@@ -105,6 +105,9 @@ export interface File {
     [k: string]: unknown;
   } | null;
 }
+/**
+ * 显式选择使用稳定 skill_id 与内容版本，不以可见名称冒充身份。
+ */
 export interface SkillSelection {
   id: string;
   version: string;

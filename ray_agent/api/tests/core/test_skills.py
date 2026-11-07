@@ -39,8 +39,12 @@ def zipped(files):
 
 
 def service(tmp_path, **options):
+    from app.domain.models.app_config import SkillConfig
     settings = Settings(_env_file=None, **options)
-    return SkillService(MemorySkills(), SkillStorage(tmp_path, settings), SimpleNamespace(fetch=AsyncMock()), settings)
+    return SkillService(
+        MemorySkills(), SkillStorage(tmp_path, settings), SimpleNamespace(fetch=AsyncMock()), settings,
+        config_loader=lambda: SkillConfig(discover_user=False, discover_workspace=False),
+    )
 
 
 async def install(s, files=None, name='example'):
@@ -182,7 +186,7 @@ def test_chat_install_multicandidate_uses_same_operation(tmp_path):
         s = service(tmp_path)
         s.github.fetch.return_value = ({'a/SKILL.md': source('alpha'), 'b/SKILL.md': source('beta')}, None,
                                       {'kind': 'github', 'url': 'https://github.com/owner/repo', 'commit': 'a'*40})
-        runtime = SkillRuntime(s, 'run', None)
+        runtime = SkillRuntime(s, 'run')
         first = await runtime.install('https://github.com/owner/repo', None, None, False)
         assert first.success and len(first.data['candidates']) == 2 and not await s.list()
         second = await runtime.install('https://github.com/owner/repo', 'b', first.data['operation_id'], True)
@@ -202,7 +206,7 @@ def test_runtime_explicit_auto_and_new_run_deactivation(tmp_path):
     async def run():
         s = service(tmp_path)
         entry = await install(s)
-        runtime = SkillRuntime(s, 'first-run', None)
+        runtime = SkillRuntime(s, 'first-run')
         await runtime.initialize()
         h = make_loop([text('已按方法完成')], extra_tools=[SkillTool(runtime)])
         h.loop.skill_runtime, h.loop.run_id = runtime, runtime.run_id
@@ -214,7 +218,7 @@ def test_runtime_explicit_auto_and_new_run_deactivation(tmp_path):
         assert user_origins(bodies) == []
         assert not any(m.get('tool_calls') for m in request)
         # 自动加载也只保留一个正文块。
-        second_runtime = SkillRuntime(s, 'second-run', None)
+        second_runtime = SkillRuntime(s, 'second-run')
         await second_runtime.initialize()
         h2 = make_loop([tool_call('load_skill', {'name': 'example'}), text('完成')], session=h.session, extra_tools=[SkillTool(second_runtime)])
         h2.loop.skill_runtime, h2.loop.run_id = second_runtime, second_runtime.run_id
@@ -222,7 +226,7 @@ def test_runtime_explicit_auto_and_new_run_deactivation(tmp_path):
         assert not any(m.get('_ray_skill', {}).get('kind') == 'body' for m in h2.llm.requests[0].messages)
         assert len([m for m in h2.llm.requests[1].messages if m.get('_ray_skill', {}).get('kind') == 'body']) == 1
         # 等待恢复时从固定版本恢复活动正文。
-        restored = SkillRuntime(s, 'second-run', None)
+        restored = SkillRuntime(s, 'second-run')
         await restored.initialize(frozen=True)
         assert source().decode() in (await restored.context())[-1]['content']
     asyncio.run(run())
@@ -232,7 +236,7 @@ def test_explicit_selection_approval_and_deny_before_business_request(tmp_path):
     async def run():
         s = service(tmp_path)
         entry = await install(s)
-        runtime = SkillRuntime(s, 'approval-run', None)
+        runtime = SkillRuntime(s, 'approval-run')
         await runtime.initialize()
         h = make_loop([text('完成')], extra_tools=[SkillTool(runtime)], tool_policy={'load_skill': 'ask'})
         h.loop.skill_runtime, h.loop.run_id = runtime, runtime.run_id
@@ -244,7 +248,7 @@ def test_explicit_selection_approval_and_deny_before_business_request(tmp_path):
         _ = [e async for e in h.loop.resume_approval(approval.tool_call_id, ApprovalStatus.APPROVED)]
         assert len(h.llm.requests) == 1
         assert any(m.get('_ray_skill', {}).get('kind') == 'body' for m in h.llm.requests[0].messages)
-        runtime2 = SkillRuntime(s, 'deny-run', None)
+        runtime2 = SkillRuntime(s, 'deny-run')
         await runtime2.initialize()
         h2 = make_loop([], extra_tools=[SkillTool(runtime2)], tool_policy={'load_skill': 'deny'})
         h2.loop.skill_runtime, h2.loop.run_id = runtime2, runtime2.run_id
@@ -257,7 +261,7 @@ def test_explicit_selection_approval_and_deny_before_business_request(tmp_path):
 def test_plan_mode_install_and_prepare_rejected(tmp_path):
     async def run():
         s = service(tmp_path)
-        runtime = SkillRuntime(s, 'plan-run', None)
+        runtime = SkillRuntime(s, 'plan-run')
         await runtime.initialize()
         h = make_loop([tool_call('install_skill', {'source_url': 'https://github.com/owner/repo'}), text('计划完成')], extra_tools=[SkillTool(runtime)])
         h.loop.skill_runtime, h.loop.run_id, h.loop.mode = runtime, runtime.run_id, RunMode.PLAN
@@ -274,7 +278,7 @@ def test_compaction_preserves_full_skill_body_without_user_reinjection(tmp_path)
         from tests.support.scripted_llm import ScriptedLLM
         s = service(tmp_path)
         await install(s)
-        runtime = SkillRuntime(s, 'compact-run', None)
+        runtime = SkillRuntime(s, 'compact-run')
         await runtime.initialize()
         await runtime.load('example')
         blocks = await runtime.context()

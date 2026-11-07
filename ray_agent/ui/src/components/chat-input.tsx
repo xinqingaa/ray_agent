@@ -249,9 +249,10 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
     ])
 
     const slashOpen = slash != null && !blocked
-    const skillCommands = useMemo<InputCommand[]>(() => skills.filter(s => s.enabled).map(s => ({
-      id: `skill:${s.name}`, surfaces: ['slash'], keyword: s.name, title: s.name, description: s.description,
-      aliases: [], keywords: [s.description], icon: FileText,
+    const skillCommands = useMemo<InputCommand[]>(() => skills.filter(s => s.enabled && s.status !== 'missing').map(s => ({
+      id: `skill:${s.id}`, surfaces: ['slash'], keyword: s.name, title: s.conflict ? `${s.name} · ${s.source?.label || s.source?.kind || '来源'}` : s.name,
+      description: s.description,
+      aliases: [], keywords: [s.description, s.source?.label || '', s.source?.kind || ''], icon: FileText,
       available: (context: CommandContext) => context.waitingApproval ? {available: false as const, reason: '请先回复审批'} : {available: true as const},
       run: () => setSelectedSkill({id: s.id, name: s.name, version: s.version}),
     })), [skills])

@@ -21,9 +21,13 @@ from tests.support.sqlite_db import with_database
 
 
 def skill_service(database, tmp_path):
+    from app.domain.models.app_config import SkillConfig
     settings = Settings()
-    return SkillService(DBSkillRepository(database), SkillStorage(tmp_path / "skills", settings),
-                        GitHubSkills(settings), settings)
+    return SkillService(
+        DBSkillRepository(database), SkillStorage(tmp_path / "skills", settings),
+        GitHubSkills(settings), settings,
+        config_loader=lambda: SkillConfig(discover_user=False, discover_workspace=False),
+    )
 
 
 def test_skill_publication_acceptance_and_reference_lifetime(tmp_path):

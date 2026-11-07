@@ -7,7 +7,7 @@ from typing import List, Dict
 from app.application.errors.exceptions import NotFoundError, BadRequestError
 from app.domain.services.context.budget import ContextBudget
 from app.domain.models.app_config import AppConfig, LLMConfig, AgentConfig, MCPConfig, A2AConfig, A2AServerConfig, \
-    ModelSampling, ToolPolicyConfig
+    ModelSampling, ToolPolicyConfig, SkillConfig
 from app.domain.repositories.app_config_repository import AppConfigRepository
 from app.infrastructure.protocols.a2a import A2AClientManager
 from app.infrastructure.protocols.mcp import MCPClientManager
@@ -133,6 +133,16 @@ class AppConfigService:
         await self.app_config_repository.save(app_config)
 
         return app_config.agent_config
+
+    async def get_skill_config(self) -> SkillConfig:
+        app_config = await self._load_app_config()
+        return app_config.skill_config
+
+    async def update_skill_config(self, skill_config: SkillConfig) -> SkillConfig:
+        app_config = await self._load_app_config()
+        app_config.skill_config = skill_config
+        await self.app_config_repository.save(app_config)
+        return app_config.skill_config
 
     async def get_tool_policy(self) -> ToolPolicyConfig:
         """获取工具策略表"""

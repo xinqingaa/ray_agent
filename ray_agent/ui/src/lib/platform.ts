@@ -63,7 +63,7 @@ export function openModelConfig() {
 }
 
 /** 选择文件夹的用途；对话框标题由宿主决定 */
-export type FolderPurpose = 'open_workspace' | 'default_location' | 'relocate_workspace'
+export type FolderPurpose = 'open_workspace' | 'default_location' | 'relocate_workspace' | 'skill_extra_dir'
 
 /** 一次性授权：宿主已用自己的密钥在核心登记所选文件夹，界面只拿到凭证与展示名，没有路径权限。 */
 export type FolderGrant = {grant_id: string; name: string}

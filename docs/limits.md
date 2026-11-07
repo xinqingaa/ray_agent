@@ -227,16 +227,16 @@ API 设置来自 `core/config.py`，环境变量使用对应大写名称；正�
 
 | 项 | 当前默认值或硬边界 | 来源 |
 |---|---|---|
-| skill 持久目录 | 数据根下的 `skills/` | [paths.py](../ray_agent/api/core/paths.py) |
+| skill 持久目录 | 数据根下的 `skills/`（`versions/` 内容快照、`previews/` 导入预览） | [paths.py](../ray_agent/api/core/paths.py) |
 | 下载 / 解压累计 / 单文件 | 20 MiB / 50 MiB / 5 MiB | `skill_download_bytes`、`skill_package_bytes`、`skill_file_bytes` |
 | 普通文件 / ZIP 条目 / 候选 | 2000 / 文件限额的两倍 / 100 | `skill_max_files`、`skill_max_candidates`、包解析器 |
-| 路径 | 最多 20 层、4096 字符 | 包解析器与沙箱材料服务 |
-| 名称 / 描述 / 完整 SKILL.md | 64 / 1024 / 60000 字符 | `skill_name_chars`、`skill_description_chars`、`skill_body_chars`；数据库名称上限 64，HTTP 文本输入硬边界 5 MiB 字符，仍由共享解析器检查正文预算 |
-| 目录 / 活动正文及资料封装 | 24000 / 100000 字符 | `skill_catalog_chars`、`skill_active_chars` |
+| 路径 | 最多 20 层、4096 字符 | 包解析器与快照映射 |
+| 名称 / 描述 / 完整 SKILL.md | 64 / 1024 / 60000 字符 | `skill_name_chars`、`skill_description_chars`、`skill_body_chars`；稳定 `skill_id` 上限 128，HTTP 文本输入硬边界 5 MiB 字符，仍由共享解析器检查正文预算 |
+| 目录 / 活动正文及资料封装 | 24000 / 100000 字符 | `skill_catalog_chars`、`skill_active_chars`；加载预算超额时明确失败，不静默丢弃后半目录 |
 | 资源单次文本及正文资源清单 | 8000 字符 | `skill_resource_chars`；超长单行转材料准备后读取 |
 | 获取总时限 / 单次网络等待 / 尝试 | 90 秒 / 20 秒 / 最多 3 次 | `skill_fetch_seconds`、GitHub 适配器；引用不存在不重试 |
 | 预览与孤立包保留门槛 | 3600 秒；启动和维护循环检查 | `skill_preview_seconds`、应用生命周期 |
-| 沙箱材料（核心不装配） | 2000 文件、单文件 5 MiB、累计 50 MiB、JSON 请求体 75 MiB | 沙箱材料服务与请求体中间件，先限制流再解析 JSON |
+| 发现范围 | 用户／工作区约定目录与设置中的额外目录；工作区只扫约定子目录一层包，不递归整棵文件树 | [skill_discovery.py](../ray_agent/api/app/domain/services/skill_discovery.py) |
 | 设置导入 | 请求等待 120 秒，处理中每 1.5 秒查询原操作 | skill 客户端及设置组件 |
 
 提高 API 文件限额时同时核对沙箱的独立硬边界；不会自动扩大沙箱接收范围。导入操作和版本元数据可供查询，回收文件不删除历史操作记录。

@@ -140,6 +140,7 @@ fn picker_title(purpose: &str) -> Result<&'static str, String> {
         "open_workspace" => Ok("选择要作为工作区打开的文件夹"),
         "default_location" => Ok("选择新工作区的默认位置"),
         "relocate_workspace" => Ok("选择工作区的新文件夹位置"),
+        "skill_extra_dir" => Ok("选择要扫描的 Skill 目录"),
         _ => Err("不支持的选择用途".into()),
     }
 }
@@ -320,6 +321,7 @@ mod tests {
         assert!(picker_title("open_workspace").is_ok());
         assert!(picker_title("default_location").is_ok());
         assert!(picker_title("relocate_workspace").is_ok());
+        assert!(picker_title("skill_extra_dir").is_ok());
         assert!(picker_title("anything").is_err());
     }
 

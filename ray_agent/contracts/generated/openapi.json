@@ -2572,6 +2572,310 @@
         ],
         "summary": "List Skills",
         "operationId": "list_skills_api_skills_get",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "refresh",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": true,
+              "title": "Refresh"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/skills/sources": {
+      "get": {
+        "tags": [
+          "skill"
+        ],
+        "summary": "List Sources",
+        "operationId": "list_sources_api_skills_sources_get",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Workspace Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/skills/scan": {
+      "post": {
+        "tags": [
+          "skill"
+        ],
+        "summary": "Scan Skills",
+        "operationId": "scan_skills_api_skills_scan_post",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Workspace Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/skills/config": {
+      "get": {
+        "tags": [
+          "skill"
+        ],
+        "summary": "Get Skill Config",
+        "operationId": "get_skill_config_api_skills_config_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "skill"
+        ],
+        "summary": "Update Skill Config",
+        "operationId": "update_skill_config_api_skills_config_put",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SkillConfig"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/skills/extra-dirs": {
+      "post": {
+        "tags": [
+          "skill"
+        ],
+        "summary": "Add Extra Dir",
+        "operationId": "add_extra_dir_api_skills_extra_dirs_post",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExtraDirRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "skill"
+        ],
+        "summary": "Remove Extra Dir",
+        "operationId": "remove_extra_dir_api_skills_extra_dirs_delete",
+        "parameters": [
+          {
+            "name": "path",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Path"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/skills/prefer": {
+      "post": {
+        "tags": [
+          "skill"
+        ],
+        "summary": "Prefer Skill",
+        "operationId": "prefer_skill_api_skills_prefer_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreferRequest"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -2928,21 +3232,21 @@
         }
       }
     },
-    "/api/skills/{name}/file": {
+    "/api/skills/{skill_id}/file": {
       "get": {
         "tags": [
           "skill"
         ],
         "summary": "Skill File",
-        "operationId": "skill_file_api_skills__name__file_get",
+        "operationId": "skill_file_api_skills__skill_id__file_get",
         "parameters": [
           {
-            "name": "name",
+            "name": "skill_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
-              "title": "Name"
+              "title": "Skill Id"
             }
           },
           {
@@ -2996,21 +3300,21 @@
         }
       }
     },
-    "/api/skills/{name}": {
+    "/api/skills/{skill_id}": {
       "get": {
         "tags": [
           "skill"
         ],
         "summary": "Skill Detail",
-        "operationId": "skill_detail_api_skills__name__get",
+        "operationId": "skill_detail_api_skills__skill_id__get",
         "parameters": [
           {
-            "name": "name",
+            "name": "skill_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
-              "title": "Name"
+              "title": "Skill Id"
             }
           }
         ],
@@ -3040,15 +3344,15 @@
           "skill"
         ],
         "summary": "Edit Skill",
-        "operationId": "edit_skill_api_skills__name__put",
+        "operationId": "edit_skill_api_skills__skill_id__put",
         "parameters": [
           {
-            "name": "name",
+            "name": "skill_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
-              "title": "Name"
+              "title": "Skill Id"
             }
           }
         ],
@@ -3088,15 +3392,15 @@
           "skill"
         ],
         "summary": "Change Skill",
-        "operationId": "change_skill_api_skills__name__patch",
+        "operationId": "change_skill_api_skills__skill_id__patch",
         "parameters": [
           {
-            "name": "name",
+            "name": "skill_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
-              "title": "Name"
+              "title": "Skill Id"
             }
           }
         ],
@@ -3136,15 +3440,15 @@
           "skill"
         ],
         "summary": "Delete Skill",
-        "operationId": "delete_skill_api_skills__name__delete",
+        "operationId": "delete_skill_api_skills__skill_id__delete",
         "parameters": [
           {
-            "name": "name",
+            "name": "skill_id",
             "in": "path",
             "required": true,
             "schema": {
               "type": "string",
-              "title": "Name"
+              "title": "Skill Id"
             }
           },
           {
@@ -8301,6 +8605,19 @@
         ],
         "title": "ExecutionStatus"
       },
+      "ExtraDirRequest": {
+        "properties": {
+          "grant_id": {
+            "type": "string",
+            "title": "Grant Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "grant_id"
+        ],
+        "title": "ExtraDirRequest"
+      },
       "File": {
         "properties": {
           "id": {
@@ -10797,6 +11114,30 @@
         "title": "PlanSSEEvent",
         "description": "计划流式事件"
       },
+      "PreferRequest": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "skill_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Skill Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "PreferRequest"
+      },
       "ProposalStatus": {
         "type": "string",
         "enum": [
@@ -12916,12 +13257,58 @@
         "title": "SessionStatus",
         "description": "会话状态：最新运行状态的冗余副本，与运行状态在同一事务更新，供会话列表使用。"
       },
+      "SkillConfig": {
+        "properties": {
+          "discover_user": {
+            "type": "boolean",
+            "title": "Discover User",
+            "default": true
+          },
+          "discover_workspace": {
+            "type": "boolean",
+            "title": "Discover Workspace",
+            "default": true
+          },
+          "disabled_sources": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Disabled Sources"
+          },
+          "disabled_skills": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Disabled Skills"
+          },
+          "extra_dirs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Extra Dirs"
+          },
+          "preferred": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Preferred"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "SkillConfig",
+        "description": "Skill 多来源发现与选择偏好；不存放密钥。"
+      },
       "SkillSelection": {
         "properties": {
           "id": {
             "type": "string",
-            "maxLength": 64,
-            "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$",
+            "maxLength": 128,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
             "title": "Id"
           },
           "version": {
@@ -12935,7 +13322,8 @@
           "id",
           "version"
         ],
-        "title": "SkillSelection"
+        "title": "SkillSelection",
+        "description": "显式选择使用稳定 skill_id 与内容版本，不以可见名称冒充身份。"
       },
       "StateRequest": {
         "properties": {

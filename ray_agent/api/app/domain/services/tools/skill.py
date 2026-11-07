@@ -41,7 +41,8 @@ class SkillTool(BaseTool):
     async def read_skill_resource(self, name, path, start_line=1, end_line=None):
         return await self.runtime.resource(name, path, start_line, end_line)
 
-    @tool('prepare_skill_resources', '将已加载 Skill 的完整包准备到本运行的执行环境目录，完整校验后返回路径；不安装依赖或执行脚本。',
+    @tool('prepare_skill_resources',
+          '将已加载 Skill 映射到本运行绑定的快照根路径并完整校验；不安装依赖、不执行包管理器或脚本。不兼容环境请明确报告。',
           {'name': {'type': 'string'}}, ['name'])
     async def prepare_skill_resources(self, name):
         return await self.runtime.prepare(name)

@@ -6,7 +6,8 @@ from pydantic import BaseModel, Field
 
 
 class SkillSelection(BaseModel):
-    id: str = Field(pattern=r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$", max_length=64)
+    """显式选择使用稳定 skill_id 与内容版本，不以可见名称冒充身份。"""
+    id: str = Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._:-]*$", max_length=128)
     version: str = Field(pattern=r"^[a-f0-9]{64}$")
 
 

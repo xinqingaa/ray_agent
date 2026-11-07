@@ -26,7 +26,7 @@ class DBSkillTransaction:
         if row:
             row.data = dict(value)
         else:
-            self.session.add(model(**{('name' if table == 'skills' else 'id'): key, 'data': dict(value)}))
+            self.session.add(model(id=key, data=dict(value)))
         await self.session.flush()
 
     async def delete(self, table, key):
@@ -39,14 +39,14 @@ class DBSkillTransaction:
         rows = await self.session.scalars(select(RunSkill).where(RunSkill.run_id == run_id))
         return [dict(r.data) for r in rows.all()]
 
-    async def bind(self, run_id, name, version, data):
-        row = await self.session.get(RunSkill, (run_id, name))
+    async def bind(self, run_id, skill_id, version, data):
+        row = await self.session.get(RunSkill, (run_id, skill_id))
         if row:
             if row.version != version:
                 raise ValueError('同一运行不可替换 Skill 版本')
             row.data = dict(data)
         else:
-            self.session.add(RunSkill(run_id=run_id, name=name, version=version, data=dict(data)))
+            self.session.add(RunSkill(run_id=run_id, skill_id=skill_id, version=version, data=dict(data)))
         await self.session.flush()
 
     async def references(self):

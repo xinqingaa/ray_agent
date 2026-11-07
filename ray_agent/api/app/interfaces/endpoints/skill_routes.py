@@ -1,12 +1,14 @@
-"""skill 管理 HTTP 适配，安装逻辑全部委托共享服务。"""
+"""skill 管理 HTTP 适配，安装与多来源发现委托共享服务。"""
 from typing import Annotated, Literal
 from urllib.parse import quote
 from fastapi.responses import Response as FileResponse
-from fastapi import APIRouter, Depends, UploadFile, File, Form
+from fastapi import APIRouter, Depends, UploadFile, File, Form, Query
 from pydantic import BaseModel, Field
 from app.interfaces.schemas import Response
-from app.interfaces.service_dependencies import get_skill_service
+from app.interfaces.service_dependencies import get_skill_service, get_app_config_service
 from app.domain.services.skill_packages import SkillError
+from app.domain.models.app_config import SkillConfig
+from app.application.services.folder_grants import folder_grants
 
 router = APIRouter(prefix='/skills', tags=['skill'])
 
@@ -35,9 +37,81 @@ class StateRequest(BaseModel):
     enabled: bool
 
 
+class ExtraDirRequest(BaseModel):
+    grant_id: str
+
+
+class PreferRequest(BaseModel):
+    name: str
+    skill_id: str | None = None
+
+
 @router.get('')
-async def list_skills(service=Depends(get_skill_service)):
-    return Response.success(data=await service.list())
+async def list_skills(workspace_id: str | None = Query(default=None),
+                      refresh: bool = Query(default=True),
+                      service=Depends(get_skill_service)):
+    return Response.success(data=await service.list(workspace_id=workspace_id, refresh=refresh))
+
+
+@router.get('/sources')
+async def list_sources(workspace_id: str | None = Query(default=None),
+                       service=Depends(get_skill_service)):
+    return Response.success(data=await service.sources(workspace_id=workspace_id))
+
+
+@router.post('/scan')
+async def scan_skills(workspace_id: str | None = Query(default=None),
+                      service=Depends(get_skill_service)):
+    await service.refresh_catalog(workspace_id=workspace_id)
+    return Response.success(data=await service.list(workspace_id=workspace_id, refresh=False))
+
+
+@router.get('/config')
+async def get_skill_config(config_service=Depends(get_app_config_service)):
+    return Response.success(data=(await config_service.get_skill_config()).model_dump())
+
+
+@router.put('/config')
+async def update_skill_config(body: SkillConfig, config_service=Depends(get_app_config_service),
+                              service=Depends(get_skill_service)):
+    saved = await config_service.update_skill_config(body)
+    await service.refresh_catalog()
+    return Response.success(data=saved.model_dump())
+
+
+@router.post('/extra-dirs')
+async def add_extra_dir(body: ExtraDirRequest, config_service=Depends(get_app_config_service),
+                        service=Depends(get_skill_service)):
+    path = folder_grants().redeem(body.grant_id)
+    config = await config_service.get_skill_config()
+    dirs = list(config.extra_dirs)
+    if path not in dirs:
+        dirs.append(path)
+    saved = await config_service.update_skill_config(config.model_copy(update={'extra_dirs': dirs}))
+    await service.refresh_catalog()
+    return Response.success(data=saved.model_dump())
+
+
+@router.delete('/extra-dirs')
+async def remove_extra_dir(path: str = Query(...), config_service=Depends(get_app_config_service),
+                           service=Depends(get_skill_service)):
+    config = await config_service.get_skill_config()
+    dirs = [item for item in config.extra_dirs if item != path]
+    saved = await config_service.update_skill_config(config.model_copy(update={'extra_dirs': dirs}))
+    await service.refresh_catalog()
+    return Response.success(data=saved.model_dump())
+
+
+@router.post('/prefer')
+async def prefer_skill(body: PreferRequest, config_service=Depends(get_app_config_service)):
+    config = await config_service.get_skill_config()
+    preferred = dict(config.preferred)
+    if body.skill_id:
+        preferred[body.name] = body.skill_id
+    else:
+        preferred.pop(body.name, None)
+    saved = await config_service.update_skill_config(config.model_copy(update={'preferred': preferred}))
+    return Response.success(data=saved.model_dump())
 
 
 @router.post('/imports')
@@ -97,7 +171,6 @@ class ReviseRequest(PublishRequest):
 
 
 def file_response(raw, path, download):
-    # 下载始终作为附件；读取使用二进制响应，浏览器不执行主动内容。
     headers = {'X-Content-Type-Options': 'nosniff', 'Cache-Control': 'no-store',
                'Content-Security-Policy': "default-src 'none'; sandbox"}
     if download:
@@ -117,28 +190,28 @@ async def revise_import(operation_id: str, request: ReviseRequest, service=Depen
     return Response.success(data=await service.revise_import(operation_id, **request.model_dump()))
 
 
-@router.get('/{name}/file')
-async def skill_file(name: str, expected_version: str, path: str, download: bool = False,
+@router.get('/{skill_id}/file')
+async def skill_file(skill_id: str, expected_version: str, path: str, download: bool = False,
                      service=Depends(get_skill_service)):
-    return file_response(await service.file(name, expected_version, path), path, download)
+    return file_response(await service.file(skill_id, expected_version, path), path, download)
 
 
-@router.get('/{name}')
-async def skill_detail(name: str, service=Depends(get_skill_service)):
-    return Response.success(data=await service.detail(name))
+@router.get('/{skill_id}')
+async def skill_detail(skill_id: str, service=Depends(get_skill_service)):
+    return Response.success(data=await service.detail(skill_id))
 
 
-@router.put('/{name}')
-async def edit_skill(name: str, request: EditRequest, service=Depends(get_skill_service)):
-    return Response.success(data=await service.edit(name, request.expected_version, request.text))
+@router.put('/{skill_id}')
+async def edit_skill(skill_id: str, request: EditRequest, service=Depends(get_skill_service)):
+    return Response.success(data=await service.edit(skill_id, request.expected_version, request.text))
 
 
-@router.patch('/{name}')
-async def change_skill(name: str, request: StateRequest, service=Depends(get_skill_service)):
-    return Response.success(data=await service.change(name, request.expected_version, enabled=request.enabled))
+@router.patch('/{skill_id}')
+async def change_skill(skill_id: str, request: StateRequest, service=Depends(get_skill_service)):
+    return Response.success(data=await service.change(skill_id, request.expected_version, enabled=request.enabled))
 
 
-@router.delete('/{name}')
-async def delete_skill(name: str, expected_version: str, service=Depends(get_skill_service)):
-    await service.change(name, expected_version, delete=True)
+@router.delete('/{skill_id}')
+async def delete_skill(skill_id: str, expected_version: str, service=Depends(get_skill_service)):
+    await service.change(skill_id, expected_version, delete=True)
     return Response.success(data={})
