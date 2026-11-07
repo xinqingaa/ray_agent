@@ -9,7 +9,7 @@ from typing import Optional, Dict, Any, AsyncGenerator, Union
 from app.application.services.context_operations import context_operation
 
 from fastapi import APIRouter, Depends, Header, Query, Body
-from sse_starlette import EventSourceResponse, ServerSentEvent
+from sse_starlette import ServerSentEvent
 
 from app.application.errors.exceptions import BadRequestError, NotFoundError
 from app.application.services.app_config_service import AppConfigService
@@ -23,6 +23,7 @@ from app.domain.models.run import RunMode
 from app.domain.models.app_config import ModelSampling
 from app.domain.models.session import Session
 from app.interfaces.schemas import Response
+from app.interfaces.streaming import EventStreamResponse
 from app.interfaces.schemas.event import DeltaSSEEvent, EventMapper
 from app.interfaces.schemas.session import (
     CreateSessionRequest, CreateSessionResponse,
@@ -104,7 +105,7 @@ async def stream_sessions(
         workspace_id: Optional[str] = Query(default=None, description="只列出该工作区的会话"),
         independent: bool = Query(default=False, description="只列出没有工作区的独立对话；不能与 workspace_id 同时使用"),
         session_service: SessionService = Depends(get_session_service),
-) -> EventSourceResponse:
+) -> EventStreamResponse:
     """列表流：通知驱动，附带慢速兜底。每次查询用一个短的只读工作单元，等待通知与推送时不持有连接。"""
     if workspace_id and independent:
         raise BadRequestError("workspace_id 与 independent 不能同时指定")
@@ -138,7 +139,7 @@ async def stream_sessions(
             if subscription is not None:
                 await subscription.close()
 
-    return EventSourceResponse(event_generator())
+    return EventStreamResponse(event_generator())
 
 
 @router.get(
@@ -351,7 +352,7 @@ async def stream_events(
         last_event_id: Optional[str] = Header(default=None),
         agent_service: AgentService = Depends(get_agent_service),
         session_service: SessionService = Depends(get_session_service),
-) -> EventSourceResponse:
+) -> EventStreamResponse:
     """断线重连时浏览器 EventSource 会带 Last-Event-ID；显式的 after_seq 优先"""
     if not await session_service.get_session(session_id):
         raise NotFoundError("该会话不存在，请核实后重试")
@@ -363,7 +364,7 @@ async def stream_events(
         async for item in agent_service.stream_events(session_id, after_seq=start):
             yield to_session_sse(item)
 
-    return EventSourceResponse(event_generator(), ping=15)
+    return EventStreamResponse(event_generator(), ping=15)
 
 
 def to_session_sse(item: Union[Event, OutputDelta]) -> ServerSentEvent:
@@ -401,6 +402,7 @@ async def get_session(
     return Response.success(
         data=GetSessionResponse(
             session_id=detail.session.id,
+            workspace_id=detail.session.workspace_id,
             title=detail.session.title,
             status=detail.session.status,
             runs=[RunItem.from_run(run) for run in detail.runs],

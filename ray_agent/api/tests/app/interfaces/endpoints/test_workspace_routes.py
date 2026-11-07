@@ -61,6 +61,9 @@ def test_workspace_lifecycle_sessions_and_root_files(host: TestClient, tmp_path)
     # 会话归属：创建时指定、列表可按工作区过滤，独立对话没有归属
     inside = host.post("/api/sessions", json={"workspace_id": created["id"]}).json()["data"]["session_id"]
     alone = host.post("/api/sessions", json={}).json()["data"]["session_id"]
+    # 规范路由依赖详情里的归属；缺失会把工作区会话错误跳转到独立对话页。
+    assert host.get(f"/api/sessions/{inside}").json()["data"]["workspace_id"] == created["id"]
+    assert host.get(f"/api/sessions/{alone}").json()["data"]["workspace_id"] is None
     listed = host.get("/api/sessions", params={"workspace_id": created["id"], "limit": 100}).json()["data"]["sessions"]
     assert [(item["session_id"], item["workspace_id"]) for item in listed] == [(inside, created["id"])]
     everything = {item["session_id"]: item["workspace_id"]

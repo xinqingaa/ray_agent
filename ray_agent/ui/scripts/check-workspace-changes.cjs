@@ -96,7 +96,7 @@ assert.match(c.leaseConflictText({state: 'settling', owner_session_id: 's9'}, 'T
 assert.match(c.leaseConflictText({state: 'blocked', owner_session_id: 's9'}, 'T'), /重试收尾/);
 
 // ---- 撤销：默认选择、勾选规则、force 组装
-const version = (size, modified_ns) => ({size, modified_ns, sha256: null});
+const version = (size, modified_ns) => ({size, modified_ns: String(modified_ns), sha256: null});
 const entry = (path, extra = {}) => ({
   root_id: 'r', relative_path: path, operation: 'modify', writes: 1, first_at: 1, last_at: 2,
   before: version(1, 10), after: version(2, 20), current: version(2, 20), status: 'undoable', conflict_reason: null,
@@ -122,7 +122,7 @@ assert.deepEqual([...selection.forced], ['moved.txt'], '勾选冲突项即“仍
 selection = c.setSelected(selection, entries[3], true);
 const items = c.buildUndoItems(entries, selection);
 assert.deepEqual(items.map((item) => item.relative_path), ['a.txt', 'new.md', 'moved.txt', 'gone.txt'], '按条目顺序提交');
-assert.deepEqual(items[2].force, {exists: true, size: 9, modified_ns: 99}, 'force 原样带上界面看到的当前版本');
+assert.deepEqual(items[2].force, {exists: true, size: 9, modified_ns: '99'}, 'force 原样带上界面看到的当前版本');
 assert.deepEqual(items[3].force, {exists: false, size: null, modified_ns: null}, '文件已不存在时 exists 为假');
 assert.equal(items[0].force, undefined);
 selection = c.setSelected(selection, entries[2], false);
@@ -145,7 +145,10 @@ const first = [
   result('same.txt', 'unchanged'),
 ];
 assert.deepEqual(c.summarizeResults(first), {done: 2, unchanged: 1, conflicts: 2, failed: 1});
-assert.deepEqual(c.forceRetryItem(first[2]), {relative_path: 'moved.txt', force: {exists: true, size: 10, modified_ns: 100}}, '再次覆盖用结果里返回的最新版本');
+assert.deepEqual(c.forceRetryItem(first[2]), {relative_path: 'moved.txt', force: {exists: true, size: 10, modified_ns: '100'}}, '再次覆盖用结果里返回的最新版本');
+const precise = JSON.parse('{"size":10,"modified_ns":"1770000000123456789","sha256":null}');
+assert.equal(JSON.parse(JSON.stringify(c.forceRetryItem(result('precise.txt', 'conflict', {can_force: true, current: precise})))).force.modified_ns,
+  '1770000000123456789', '真实纳秒量级的版本经 JSON 往返与覆盖重试不丢精度');
 assert.equal(c.forceRetryItem(first[3]), null, '不允许 force 的冲突没有再覆盖');
 assert.equal(c.forceRetryItem(first[0]), null);
 assert.equal(c.forceRetryItem(first[4]), null);

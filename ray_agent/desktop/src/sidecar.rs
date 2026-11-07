@@ -20,7 +20,7 @@ use tauri::{AppHandle, Manager};
 use crate::contract::{CoreHandshake, CoreLaunch, CoreReady, ErrorInfo};
 
 /// 宿主支持的核心协议与事件版本；与生成的契约样例不一致时对齐检查失败。
-pub const PROTOCOL_VERSION: u32 = 3;
+pub const PROTOCOL_VERSION: u32 = 4;
 pub const EVENT_VERSION: u32 = 1;
 
 const CORE_DIR: &str = "rayagent-core";

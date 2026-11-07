@@ -321,6 +321,52 @@ def test_undo_conflicts_after_external_edits_and_only_an_explicit_force_overwrit
     scenario(tmp_path, body)
 
 
+
+def test_force_version_round_trips_over_http_without_losing_nanoseconds(tmp_path):
+    import os
+    import httpx
+    from fastapi import FastAPI
+    from app.interfaces.endpoints.workspace_history_routes import router
+    from app.interfaces.service_dependencies import get_file_history
+
+    async def body(env: Env):
+        view, folder, ws = await workspace(env)
+        path = folder / "note.txt"
+        path.write_text("运行前", encoding="utf-8")
+        _, tool, _ = await run_tool(env, view, "run-http")
+        assert (await write(tool, "c1", "note.txt", "运行写入")).success
+        path.write_text("外部修改", encoding="utf-8")
+        os.utime(path, ns=(1770000000123456789, 1770000000123456789))
+        stamp = path.stat().st_mtime_ns
+        assert stamp > 2**53
+        service = history(env)
+        app = FastAPI()
+        app.include_router(router, prefix="/api")
+        app.dependency_overrides[get_file_history] = lambda: service
+        base = f"/api/workspaces/{ws}/runs/run-http"
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://test") as client:
+            entry = (await client.get(f"{base}/changes")).json()["data"]["entries"][0]
+            assert entry["current"]["modified_ns"] == str(stamp)
+            force = {"exists": True, "size": entry["current"]["size"], "modified_ns": str(stamp)}
+
+            async def undo(version):
+                return await client.post(f"{base}/undo", json={"items": [{"relative_path": "note.txt", "force": version}]})
+
+            # 不接受可能已经丢失精度的数字，也不接受非整数字符串。
+            for invalid in (float(stamp), "1.77e18", "not-a-version"):
+                assert (await undo({**force, "modified_ns": invalid})).status_code == 422
+            stale = await undo({**force, "modified_ns": str(stamp + 1)})
+            assert stale.json()["data"]["results"][0]["status"] == "conflict"
+            assert path.read_text(encoding="utf-8") == "外部修改"
+            latest = stale.json()["data"]["results"][0]["current"]
+            response = await undo({"exists": True, "size": latest["size"], "modified_ns": latest["modified_ns"]})
+            assert response.json()["data"]["results"][0]["status"] == "restored"
+            assert path.read_text(encoding="utf-8") == "运行前"
+            async with env.read_factory() as uow:
+                assert await uow.change.object_by_hash(ws, sha("外部修改")) is not None
+    scenario(tmp_path, body)
+
+
 def test_external_changes_are_pushed_and_a_moved_folder_becomes_unavailable(tmp_path):
     async def body(env: Env):
         view, folder, ws = await workspace(env)

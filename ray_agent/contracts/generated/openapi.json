@@ -3,7 +3,7 @@
   "info": {
     "title": "RayAgent通用智能体",
     "description": "RayAgent 本机核心：会话、运行与事件保存在本机业务库，经 MCP 与 A2A 连接外部工具与远程 Agent",
-    "version": "3"
+    "version": "4"
   },
   "paths": {
     "/api/status": {
@@ -6540,7 +6540,7 @@
         "properties": {
           "protocol_version": {
             "$ref": "#/components/schemas/ProtocolVersion",
-            "default": 3
+            "default": 4
           },
           "event_version": {
             "$ref": "#/components/schemas/EventVersion",
@@ -7216,14 +7216,16 @@
           "modified_ns": {
             "anyOf": [
               {
-                "type": "integer"
+                "type": "string",
+                "maxLength": 21,
+                "pattern": "^-?[0-9]+$"
               },
               {
                 "type": "null"
               }
             ],
             "title": "Modified Ns",
-            "description": "仍要恢复时原样回传的版本核对值"
+            "description": "十进制字符串，仍要恢复时原样回传，避免 JavaScript 数字丢失纳秒精度"
           },
           "sha256": {
             "anyOf": [
@@ -7355,7 +7357,9 @@
           "modified_ns": {
             "anyOf": [
               {
-                "type": "integer"
+                "type": "string",
+                "maxLength": 21,
+                "pattern": "^-?[0-9]+$"
               },
               {
                 "type": "null"
@@ -7395,6 +7399,17 @@
           "session_id": {
             "type": "string",
             "title": "Session Id"
+          },
+          "workspace_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Workspace Id"
           },
           "title": {
             "anyOf": [

@@ -1,5 +1,5 @@
 """写入租约、一次运行的文件变更与撤销、外部变更推送的契约；时间为毫秒时间戳，文件位置是相对工作区文件夹的路径。"""
-from typing import Literal, Optional
+from typing import Annotated, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -11,6 +11,7 @@ from app.domain.models.write_lease import LeaseState, WriteLease, WriterKind
 from app.interfaces.schemas.event import to_epoch_ms
 
 _STRICT = ConfigDict(json_schema_serialization_defaults_required=True)
+NanosecondStamp = Annotated[str, Field(pattern=r"^-?[0-9]+$", max_length=21)]
 
 
 class WriteLeaseView(BaseModel):
@@ -45,12 +46,13 @@ class FileVersionView(BaseModel):
     model_config = _STRICT
 
     size: int
-    modified_ns: Optional[int] = Field(default=None, description="仍要恢复时原样回传的版本核对值")
+    modified_ns: Optional[NanosecondStamp] = Field(default=None, description="十进制字符串，仍要恢复时原样回传，避免 JavaScript 数字丢失纳秒精度")
     sha256: Optional[str] = None
 
     @classmethod
     def of(cls, version: Optional[Version]) -> Optional["FileVersionView"]:
-        return cls(size=version.size, modified_ns=version.modified_ns, sha256=version.sha256) if version else None
+        return cls(size=version.size, modified_ns=str(version.modified_ns) if version.modified_ns is not None else None,
+                   sha256=version.sha256) if version else None
 
 
 class RunSummaryView(BaseModel):
@@ -143,7 +145,7 @@ class ForceCurrentRequest(BaseModel):
     """用户看到的当前版本；与实际不一致时不覆盖，重新返回冲突。"""
     exists: bool
     size: Optional[int] = None
-    modified_ns: Optional[int] = None
+    modified_ns: Optional[NanosecondStamp] = None
 
 
 class UndoItemRequest(BaseModel):

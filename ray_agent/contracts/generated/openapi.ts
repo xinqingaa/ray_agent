@@ -2366,7 +2366,7 @@ export interface components {
         };
         /** CoreStatus */
         CoreStatus: {
-            /** @default 3 */
+            /** @default 4 */
             protocol_version: components["schemas"]["ProtocolVersion"];
             /** @default 1 */
             event_version: components["schemas"]["EventVersion"];
@@ -2648,9 +2648,9 @@ export interface components {
             size: number;
             /**
              * Modified Ns
-             * @description 仍要恢复时原样回传的版本核对值
+             * @description 十进制字符串，仍要恢复时原样回传，避免 JavaScript 数字丢失纳秒精度
              */
-            modified_ns: number | null;
+            modified_ns: string | null;
             /** Sha256 */
             sha256: string | null;
         };
@@ -2713,7 +2713,7 @@ export interface components {
             /** Size */
             size?: number | null;
             /** Modified Ns */
-            modified_ns?: number | null;
+            modified_ns?: string | null;
         };
         /** @description 代次：对象被重试或替换时递增，迟到结果代次不符时不得写回 */
         Generation: number;
@@ -2732,6 +2732,8 @@ export interface components {
         GetSessionResponse: {
             /** Session Id */
             session_id: string;
+            /** Workspace Id */
+            workspace_id?: string | null;
             /** Title */
             title?: string | null;
             status: components["schemas"]["SessionStatus"];

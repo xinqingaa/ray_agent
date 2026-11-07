@@ -2,7 +2,7 @@
 from typing import AsyncGenerator, Optional
 
 from fastapi import APIRouter, Depends, Query
-from sse_starlette import EventSourceResponse, ServerSentEvent
+from sse_starlette import ServerSentEvent
 
 from app.application.errors.workspace_files import app_error
 from app.application.services.file_history import FileHistoryService, ForceCurrent, UndoItem
@@ -11,6 +11,7 @@ from app.application.services.workspace_service import WorkspaceService
 from app.application.services.write_leases import WriteLeaseService
 from app.domain.external.workspace_files import WorkspaceFileError
 from app.interfaces.schemas import Response
+from app.interfaces.streaming import EventStreamResponse
 from app.interfaces.schemas.workspace_changes import (
     ChangePreviewResponse, ModifiedRunsResponse, RunChangesResponse, UndoItemResult, UndoRequest, UndoResponse,
     WriteLeaseResponse, WriteLeaseView, run_summary_view,
@@ -83,7 +84,8 @@ async def preview_change(workspace_id: str, run_id: str, path: str = Query(min_l
 async def undo_run(workspace_id: str, run_id: str, request: UndoRequest,
                    history: FileHistoryService = Depends(get_file_history)):
     items = [UndoItem(relative_path=item.relative_path,
-                      force=ForceCurrent(item.force.exists, item.force.size, item.force.modified_ns)
+                      force=ForceCurrent(item.force.exists, item.force.size,
+                                         int(item.force.modified_ns) if item.force.modified_ns is not None else None)
                       if item.force is not None else None) for item in request.items]
     outcomes = await history.undo(workspace_id, run_id, items)
     return Response.success(UndoResponse(results=[UndoItemResult.of(outcome) for outcome in outcomes]))
@@ -94,11 +96,11 @@ async def undo_run(workspace_id: str, run_id: str, request: UndoRequest,
                         "与 availability（文件夹失联或恢复）。应用自己的写入同样会触发 changed。"
                         "只在有订阅者时监视；通知之外还有定期重扫兜底。事件数据见 WorkspaceChangeEvent。")
 async def stream_changes(workspace_id: str, service: WorkspaceService = Depends(get_workspace_service),
-                         feed: WorkspaceChangeFeed = Depends(get_change_feed)) -> EventSourceResponse:
+                         feed: WorkspaceChangeFeed = Depends(get_change_feed)) -> EventStreamResponse:
     await _known(workspace_id, service)
 
     async def events() -> AsyncGenerator[ServerSentEvent, None]:
         async for event in feed.stream(workspace_id):
             yield ServerSentEvent(event=event.kind, data=event.model_dump_json())
 
-    return EventSourceResponse(events(), ping=15)
+    return EventStreamResponse(events(), ping=15)

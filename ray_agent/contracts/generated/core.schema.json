@@ -162,7 +162,7 @@
         },
         "protocol_version": {
           "$ref": "#/$defs/ProtocolVersion",
-          "default": 3
+          "default": 4
         },
         "error": {
           "$ref": "#/$defs/ErrorInfo"
@@ -245,7 +245,7 @@
       "properties": {
         "protocol_version": {
           "$ref": "#/$defs/ProtocolVersion",
-          "default": 3
+          "default": 4
         },
         "event_version": {
           "$ref": "#/$defs/EventVersion",
@@ -308,7 +308,7 @@
       "properties": {
         "protocol_version": {
           "$ref": "#/$defs/ProtocolVersion",
-          "default": 3
+          "default": 4
         },
         "event_version": {
           "$ref": "#/$defs/EventVersion",

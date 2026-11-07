@@ -137,6 +137,7 @@ class ContextOperation(BaseModel):
 class GetSessionResponse(BaseModel):
     """获取会话详情响应结构。events 为 after_seq 之后按 seq 升序的事件；last_seq 是会话当前最大 seq。"""
     session_id: str
+    workspace_id: Optional[str] = None
     title: Optional[str] = None
     status: SessionStatus
     runs: List[RunItem] = Field(default_factory=list)

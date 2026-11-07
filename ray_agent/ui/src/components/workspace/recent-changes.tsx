@@ -1,5 +1,5 @@
 import {Link} from '@/lib/navigation'
-import {useState} from 'react'
+import {useCallback, useState} from 'react'
 import {Undo2} from 'lucide-react'
 import {Button} from '@/components/ui/button'
 import {workspaceSessionHref} from '@/lib/workspace-route'
@@ -13,6 +13,7 @@ import {UndoRunDialog} from './undo-dialog'
 export function RecentChanges({workspaceId, runs}: {workspaceId: string; runs: ModifiedRun[]}) {
   const live = useWorkspaceLive()
   const [target, setTarget] = useState<ModifiedRun | null>(null)
+  const onOpenChange = useCallback((open: boolean) => {if (!open) setTarget(null)}, [])
   return <>
     <ul className="divide-y rounded-md border" aria-label="最近修改过文件夹的运行">
       {runs.map(run => {
@@ -32,6 +33,6 @@ export function RecentChanges({workspaceId, runs}: {workspaceId: string; runs: M
         </li>
       })}
     </ul>
-    <UndoRunDialog workspaceId={workspaceId} runId={target?.run_id ?? null} kind={target?.kind} open={target != null} onOpenChange={open => {if (!open) setTarget(null)}} onChanged={live.requestRefresh}/>
+    <UndoRunDialog workspaceId={workspaceId} runId={target?.run_id ?? null} kind={target?.kind} open={target != null} onOpenChange={onOpenChange} onChanged={live.requestRefresh}/>
   </>
 }

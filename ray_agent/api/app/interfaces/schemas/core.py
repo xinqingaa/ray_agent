@@ -14,7 +14,7 @@ from app.domain.models.identity import InstanceId
 from app.interfaces.schemas.event import EVENT_VERSION, EventVersion
 
 # HTTP、SSE 与启动协议整体不兼容地变化时递增；宿主与客户端按它判断能否继续连接。
-PROTOCOL_VERSION = 3
+PROTOCOL_VERSION = 4
 
 type ProtocolVersion = Annotated[int, Field(ge=1, description="核心协议版本")]
 

@@ -155,7 +155,7 @@ export function setSelected(selection: UndoSelection, entry: ChangeEntry, on: bo
   return {selected, forced}
 }
 
-/** 把界面看到的当前版本原样放进 force；文件不存在就是 `exists: false`。 */
+/** 把界面看到的当前版本原样放进 force；文件不存在就是 `exists: false`。`modified_ns` 是十进制字符串，不得改成数字。 */
 export function forceOf(current: FileVersion | null | undefined): ForceCurrent {
   return {exists: current != null, size: current?.size ?? null, modified_ns: current?.modified_ns ?? null}
 }

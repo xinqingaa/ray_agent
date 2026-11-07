@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useState} from 'react'
+import {useCallback, useEffect, useRef, useState} from 'react'
 import {AlertTriangle, ChevronDown, ChevronRight} from 'lucide-react'
 import {Button} from '@/components/ui/button'
 import {Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle} from '@/components/ui/dialog'
@@ -134,6 +134,9 @@ function LeaseConflict({lease}: {lease: NonNullable<ReturnType<typeof leaseFromD
 
 type Load = {phase: 'loading'} | {phase: 'error'; message: string} | {phase: 'ready'; changes: RunChanges}
 
+/** 同一时刻只保留一个撤销窗口，避免运行底部与最近修改各开一个叠在一起。 */
+const undoDialogs = new EventTarget()
+
 /**
  * 撤销一次运行对文件夹的修改：列出每个文件的操作与状态，默认选中可直接撤销的，冲突项需要明确“仍要覆盖”。
  * 提交后逐项显示结果；撤销只恢复文件，不改变对话与记忆。
@@ -153,6 +156,16 @@ export function UndoRunDialog({workspaceId, runId, kind = 'run', open, onOpenCha
   const [submitting, setSubmitting] = useState(false)
   const [results, setResults] = useState<UndoItemResult[] | null>(null)
   const [failure, setFailure] = useState<{message: string; lease: ReturnType<typeof leaseFromDetails>} | null>(null)
+  const submittingRef = useRef(submitting)
+  submittingRef.current = submitting
+
+  useEffect(() => {
+    if (!open) return
+    undoDialogs.dispatchEvent(new Event('open'))
+    const onOther = () => {if (!submittingRef.current) onOpenChange(false)}
+    undoDialogs.addEventListener('open', onOther)
+    return () => undoDialogs.removeEventListener('open', onOther)
+  }, [open, onOpenChange])
 
   useEffect(() => {
     if (!open || !runId) return
@@ -196,7 +209,11 @@ export function UndoRunDialog({workspaceId, runId, kind = 'run', open, onOpenCha
   const nothing = changes != null && !blocked && !entries.some(isUndoable)
 
   return <Dialog open={open} onOpenChange={next => {if (!submitting) onOpenChange(next)}}>
-    <DialogContent className="flex max-h-[min(720px,90vh)] flex-col gap-4 sm:max-w-[640px]">
+    <DialogContent className="flex max-h-[min(720px,90vh)] flex-col gap-4 sm:max-w-[640px]"
+      onPointerDownOutside={event => {if (submitting || results) event.preventDefault()}}
+      onFocusOutside={event => {if (submitting || results) event.preventDefault()}}
+      onInteractOutside={event => {if (submitting || results) event.preventDefault()}}
+      onEscapeKeyDown={event => {if (submitting) event.preventDefault()}}>
       <DialogHeader>
         <DialogTitle>{undoing ? '撤回这次撤销' : '撤销本次修改'}</DialogTitle>
         <DialogDescription>

@@ -51,7 +51,7 @@ uv run --locked python sidecar.py --data-root /tmp/rayagent-dev
 
 ### 工作区与文件夹授权
 
-工作区文件夹的来源只有两个：在默认位置（`GET/POST /api/workspaces/default-location`）下新建，或打开宿主选择器选中的已有文件夹。核心不接受界面提交的桌面绝对路径：宿主在启动参数里把宿主密钥交给核心（不进环境变量），选择文件夹后带 `X-RayAgent-Host-Secret` 头调用 `POST /api/host/folder-grants` 登记路径，得到一次性、短期有效的 `grant_id`；界面用它调用 `POST /api/workspaces/open` 或更改默认位置，凭证用过即作废。实例令牌不能代替宿主密钥。打开已有文件夹返回扫描摘要；标记指向本机已知工作区且原文件夹仍在（复制）时返回 `status=conflict` 与 `conflict`，用 `POST /api/workspaces/open/resolve` 选择 `as_new` 或 `rebind`。文件按 `root_id` 加相对路径访问（`/api/roots/{root_id}/…`），会话创建时可带 `workspace_id`，会话列表（`GET /api/sessions`）与列表流（`POST /api/sessions/stream`）可按 `workspace_id` 过滤，或用 `independent=true` 只取没有工作区的独立对话（两者同用返回 400，过滤发生在分页之前）。
+工作区文件夹的来源只有两个：在默认位置（`GET/POST /api/workspaces/default-location`）下新建，或打开宿主选择器选中的已有文件夹。核心不接受界面提交的桌面绝对路径：宿主在启动参数里把宿主密钥交给核心（不进环境变量），选择文件夹后带 `X-RayAgent-Host-Secret` 头调用 `POST /api/host/folder-grants` 登记路径，得到一次性、短期有效的 `grant_id`；界面用它调用 `POST /api/workspaces/open` 或更改默认位置，凭证用过即作废。实例令牌不能代替宿主密钥。打开已有文件夹返回扫描摘要；标记指向本机已知工作区且原文件夹仍在（复制）时返回 `status=conflict` 与 `conflict`，用 `POST /api/workspaces/open/resolve` 选择 `as_new` 或 `rebind`。文件按 `root_id` 加相对路径访问（`/api/roots/{root_id}/…`），会话创建时可带 `workspace_id`，会话列表（`GET /api/sessions`）与列表流（`POST /api/sessions/stream`）可按 `workspace_id` 过滤，或用 `independent=true` 只取没有工作区的独立对话（两者同用返回 400，过滤发生在分页之前）。会话详情（`GET /api/sessions/{id}`）同样返回 `workspace_id`（独立对话为空），界面用它把地址归到工作区页或独立对话页。
 
 重新定位：`POST /api/workspaces/{id}/relocate`，body `{grant_id, version}`，把工作区改绑到宿主选中的另一个文件夹，不依赖身份标记，标记不可写时仍可用。校验同打开（嵌套、数据根与系统目录返回 400，`details.reason` 同打开）；目标已绑定其他工作区（`details.reason=already_bound`）、目标标记属于本机另一个工作区（`marker_other_workspace`，带 `workspace_id` 与 `workspace_name`）、`version` 过期（带 `resource_version`）、有未释放的写入租约（`details.lease`）或活动运行（`details.session_id`、`details.run_id`）时返回 409，`grant_id` 无效返回 410。成功返回工作区详情：根与 `root_id` 不变，位置、文件系统身份与可用性更新，目标内尽力写入标记并移除旧位置的本机条目；外部变更订阅自动切到新位置并推送一次整体刷新。
 
@@ -139,6 +139,8 @@ uv run --locked python -m pytest tests/core/test_sqlite_storage.py tests/core/te
 
 新增长连接或流式接口时沿用[业务库的取消约定](../../docs/architecture.md#业务库与写协调)：每次查库用短的工作单元，等待通知、sleep 或 yield 时不持有会话；直接使用 `Database` 时经 `read_session()`／`write_session()` 取得会话，不要手动打开后跨等待持有。
 
+事件流共用响应适配层：服务器停止取消推送后，为仍连接的客户端补齐响应结束；客户端已断连、发送失败或调用被取消时不补发，也不吞掉异常。定向检查运行 `uv run --locked python -m pytest tests/core/test_event_stream_response.py`，覆盖正常完成、服务器停止、客户端断连、生成器异常与外部取消的 ASGI 收尾。
+
 ### Agent 循环与工具管线
 
 ```bash
@@ -200,6 +202,8 @@ uv run --locked python -m pytest tests/core/test_file_preview.py tests/core/test
 预览用例使用真实临时文件和实际解析子进程，核对工作表、样式、合并格、公式缓存缺失、CSV 引号与分页、大于 5 MiB 的文本/工作簿、取消后的句柄寿命、损坏文件、Range 和 ZIP 重名。交付用例使用实际运行器交付函数、交付工具和本地内容对象，覆盖只接受会话工作目录内的文件、相同路径与字节复用附件、改版保留旧附件、替换失败保留旧条目、全部与部分交付失败的区分；事务回滚用内存快照模拟，真实提交见本机存储用例。
 
 ### 工作区写保护检查
+
+撤销接口的纳秒文件版本以十进制字符串传输，界面原样回传，接口层再转为整数核对；不接受可能已经失真的数字。工作区写保护用例还通过真实文件与 HTTP 读回版本，检查精确覆盖、陈旧版本拒绝和覆盖前备份。
 
 ```bash
 uv run --locked python -m pytest tests/core/test_write_protection.py tests/core/test_agent_task_runner_cancel.py
