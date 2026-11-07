@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import os
 import signal
@@ -84,7 +85,18 @@ async def ensure_supervisor(data_root: str | Path, runtime_bin_dirs: list | tupl
     raise RuntimeError("执行 supervisor 启动后未能握手")
 
 
-def _signal_stop(pid: int) -> None:
+def _pid_alive(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+        return True
+    except OSError:
+        return False
+
+
+def _signal_stop(pid: int, grace_seconds: float = 5.0) -> None:
+    """先 SIGTERM，宽限后再 SIGKILL。shutdown 已杀过子树时通常很快退出。"""
+    if not _pid_alive(pid):
+        return
     try:
         os.killpg(pid, signal.SIGTERM)
     except OSError:
@@ -92,17 +104,16 @@ def _signal_stop(pid: int) -> None:
             os.kill(pid, signal.SIGTERM)
         except OSError:
             return
-    deadline = time.monotonic() + 3
+    deadline = time.monotonic() + grace_seconds
     while time.monotonic() < deadline:
-        try:
-            os.kill(pid, 0)
-            time.sleep(0.05)
-        except OSError:
+        if not _pid_alive(pid):
             return
+        time.sleep(0.05)
     try:
         os.killpg(pid, signal.SIGKILL)
     except OSError:
-        pass
+        with contextlib.suppress(OSError):
+            os.kill(pid, signal.SIGKILL)
 
 
 async def stop_supervisor(data_root: str | Path | None = None) -> None:
@@ -115,7 +126,8 @@ async def stop_supervisor(data_root: str | Path | None = None) -> None:
     for sock in targets:
         client = SupervisorClient(sock)
         try:
-            await client.call("shutdown", timeout=3.0)
+            # shutdown 会先 kill_all 再返回；超时需覆盖整棵树的确认时间
+            await client.call("shutdown", timeout=30.0)
         except Exception:
             pass
         finally:
@@ -124,7 +136,12 @@ async def stop_supervisor(data_root: str | Path | None = None) -> None:
         if pid is None and data_root is not None:
             pid = read_supervisor_pid(data_root)
         if pid is not None:
-            await asyncio.to_thread(_signal_stop, pid)
+            # 给优雅退出留时间：子树已在 shutdown 中清理，避免过早 SIGKILL 留下孤儿
+            deadline = time.monotonic() + 5.0
+            while time.monotonic() < deadline and _pid_alive(pid):
+                await asyncio.sleep(0.05)
+            if _pid_alive(pid):
+                await asyncio.to_thread(_signal_stop, pid)
         Path(sock).unlink(missing_ok=True)
         if data_root is not None:
             pid_path_for(data_root).unlink(missing_ok=True)

@@ -249,8 +249,8 @@ def test_restart_does_not_revive_old_process_ids(data_root, workdir):
         old_supervisor = (await executor.ping())["pid"]
         await stop_supervisor(data_root)
         await executor.client.close()
-        assert await wait_dead(old_pid), "supervisor 停止时必须结束其进程树"
-        assert await wait_dead(old_supervisor)
+        assert await wait_dead(old_pid, 15.0), "supervisor 停止时必须结束其进程树"
+        assert await wait_dead(old_supervisor, 15.0)
 
         fresh = await open_executor(data_root, workdir)
         try:
@@ -273,7 +273,8 @@ def test_client_disconnect_kills_trees_and_supervisor_exits(data_root, workdir):
         pid = await pid_from_output(executor, started.process_id)
         supervisor_pid = (await executor.ping())["pid"]
         await executor.client.close()
-        assert await wait_dead(pid) and await wait_dead(supervisor_pid)
+        assert await wait_dead(pid, 15.0), "客户端断开后进程树必须被结束"
+        assert await wait_dead(supervisor_pid, 15.0), "最后一条附着连接断开后 supervisor 必须退出"
         assert await ping(socket_path_for(data_root)) is None
 
     run(check())

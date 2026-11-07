@@ -165,6 +165,7 @@ class Supervisor:
         self.stop_event = asyncio.Event()
         self.stop_reason = ""
         self._attached = 0
+        self._kill_lock = asyncio.Lock()
         self._own_pgid = os.getpgid(0)
         self._core_pgid = self._pgid_of(core_pid) if core_pid else None
 
@@ -459,18 +460,21 @@ class Supervisor:
         return await self.kill_tree(self._get(params))
 
     async def m_shutdown(self, params: dict[str, Any]) -> dict[str, Any]:
+        # 先杀进程树再应答，避免客户端随后强制结束 supervisor 时留下孤儿。
         self.request_stop("shutdown 请求")
+        await self.kill_all()
         return {}
 
     # ---- 连接与分派 ----
 
     async def kill_all(self) -> None:
-        running = [m for m in self.processes.values() if not m.tree_gone]
-        if not running:
-            return
-        for m in running:
-            self._signal_tree(m, signal.SIGKILL)
-        await asyncio.gather(*(self.kill_tree(m) for m in running), return_exceptions=True)
+        async with self._kill_lock:
+            running = [m for m in self.processes.values() if not m.tree_gone]
+            if not running:
+                return
+            for m in running:
+                self._signal_tree(m, signal.SIGKILL)
+            await asyncio.gather(*(self.kill_tree(m) for m in running), return_exceptions=True)
 
     async def handle_connection(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
         write_lock = asyncio.Lock()
@@ -531,7 +535,9 @@ class Supervisor:
             if attached:
                 self._attached -= 1
                 if self._attached == 0:
+                    # 立即清树，避免只靠 serve() 收尾时与 wait 竞态
                     self.request_stop("客户端断开")
+                    asyncio.create_task(self.kill_all())
 
     async def watch_core(self) -> None:
         if not self.core_pid:
