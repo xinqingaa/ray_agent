@@ -42,9 +42,17 @@ function icon(name) { return `<span class="icon">${svg(name)}</span>`; }
 /* ---------- fixture data ---------- */
 
 const LOOSE = [
-  {title: '把这段会议录音转成纪要', meta: '昨天'},
-  {title: '这张图里的表格怎么读', meta: '周一'},
-  {title: '润色这封拒绝信', meta: '3/12'},
+  {id: 'meeting', title: '把这段会议录音转成纪要', meta: '昨天', status: 'done',
+    prompt: '把这段会议录音转成纪要，重点保留决定、负责人和下一步。',
+    reply: ['已整理成三段：结论、决定和待办。负责人只写录音里明确提到的名字，没有替谁补位。'],
+    tools: [{verb: '读取', name: '产品会录音.mp3', meta: '42 分钟 · 2 段'}]},
+  {id: 'table', title: '这张图里的表格怎么读', meta: '周一', status: 'done',
+    prompt: '这张截图里的表格应该怎么读？先告诉我结论。',
+    reply: ['这是一张按季度拆分的渠道表：列是渠道，行是季度，最后一列是同比。先看最后一列，不要先看绝对值。'],
+    tools: [{verb: '读取', name: '渠道截图.png', meta: '1 张 · 1920×1080'}]},
+  {id: 'letter', title: '润色这封拒绝信', meta: '3/12', status: 'done',
+    prompt: '把这封拒绝信润色一下，语气坚定但不要伤人。',
+    reply: ['保留原信的三个要点：感谢、说明决定、留出后续联系。去掉了两处替对方解释的句子，避免显得居高临下。']},
 ];
 
 const WORKSPACES = [
@@ -70,6 +78,7 @@ const WORKSPACES = [
     outputs: ['对比表.xlsx'],
     recent: ['竞品-A.pdf', '对比表.xlsx', '纪要.md'],
     fileCount: 5,
+    extraFolders: ['旧版'],
   },
   {
     id: 'course', name: '课程笔记', mark: '课', color: 'var(--moss)',
@@ -89,6 +98,7 @@ const WORKSPACES = [
     outputs: ['第三周笔记.md'],
     recent: ['第三周笔记.md', 'week-03.pdf'],
     fileCount: 3,
+    extraFolders: ['旁听笔记'],
   },
   {
     id: 'expense', name: '出差报销', mark: '出', color: 'var(--ochre)',
@@ -106,6 +116,7 @@ const WORKSPACES = [
     outputs: [],
     recent: ['3 月票据.pdf'],
     fileCount: 2,
+    extraFolders: ['发票'],
   },
   {
     id: 'review', name: '产品评审', mark: '产', color: 'var(--slate)',
@@ -123,8 +134,24 @@ const WORKSPACES = [
     outputs: [],
     recent: ['评审记录.md'],
     fileCount: 2,
+    extraFolders: ['会议'],
   },
 ];
+
+function buildTree(files, emptyFolders = []) {
+  const folders = new Map();
+  for (const file of files) {
+    const name = file.folder || '';
+    if (!name) continue;
+    if (!folders.has(name)) folders.set(name, []);
+    folders.get(name).push({type: 'file', file});
+  }
+  for (const name of emptyFolders) if (!folders.has(name)) folders.set(name, []);
+  const nodes = [...folders.entries()].map(([name, children]) => ({type: 'folder', name, children}));
+  const roots = files.filter(file => !file.folder).map(file => ({type: 'file', file}));
+  return [...nodes, ...roots];
+}
+for (const ws of WORKSPACES) ws.tree = buildTree(ws.files || [], ws.extraFolders || []);
 
 const RUN_META = {
   running: {label: '运行中 12s', pill: 'is-running', text: '运行中', head: '正在整理 · 第 3 次对话'},
@@ -145,6 +172,17 @@ const state = {
   workspaceId: initialWorkspace,
   sessionId: null,
   run: 'running',
+  mode: 'workspace',
+  looseId: null,
+  workspaceView: 'log',
+  knowledgeQuery: '教育渠道 折扣',
+  knowledgeFilter: 'all',
+  skillEnabled: {comp: true, minutes: true, sheet: false, layout: true},
+  selectedSkill: 'comp',
+  dirCollapsed: false,
+  dirOpen: false,
+  resourcesTab: 'skills',
+  folderOpen: {},
   trayTab: 'files',
   trayOpen: window.innerWidth > 900,
   indexOpen: false,
@@ -163,8 +201,13 @@ function currentSession() {
   const ws = currentWorkspace();
   return ws.sessions.find(s => s.id === state.sessionId) || null;
 }
-function isMain() { return state.workspaceId === 'quarter' && state.sessionId === 'compare'; }
+function currentLoose() {
+  return LOOSE.find(t => t.id === state.looseId) || LOOSE[0];
+}
+function isIndependent() { return state.mode === 'independent'; }
+function isMain() { return state.mode === 'workspace' && state.workspaceId === 'quarter' && state.sessionId === 'compare'; }
 function workspaceRunKey() {
+  if (isIndependent()) return 'independent';
   const ws = currentWorkspace();
   if (!currentSession()) return 'empty';
   if (ws.status === 'archived') return 'archived';
@@ -175,6 +218,7 @@ function workspaceRunKey() {
 function runMeta() {
   const key = workspaceRunKey();
   if (key === 'empty') return {label: '空闲', pill: 'is-done', text: '空闲', head: '等待你的输入'};
+  if (key === 'independent') return {label: '独立对话', pill: 'is-done', text: '独立对话', head: '不进入工作区'};
   if (key === 'archived') return {label: '已归档', pill: 'is-done', text: '已归档', head: '只读'};
   if (key === 'done' && !isMain()) return {label: '已完成', pill: 'is-done', text: '已完成', head: '已完成'};
   return RUN_META[key] || RUN_META.done;
@@ -194,14 +238,36 @@ function fileMark(file) {
   return `<span class="file-mark" style="--mark:${file.color || 'var(--accent)'}" aria-hidden="true">${file.ext || 'FILE'}</span>`;
 }
 
-function fileRowHtml(file, offline, archived, child = false) {
+function fileRowHtml(file, offline, archived, depth = null) {
   const status = offline ? (file.output ? '未写入' : '上次读取') : archived ? '只读' : file.status;
   const tone = offline ? (file.output ? 'fail' : '') : archived ? '' : file.tone;
-  return `<button class="file-row ${child ? 'is-child' : ''}" type="button" data-file="${file.name}" title="打开 ${file.name}">
+  const tree = depth !== null;
+  return `<button class="file-row ${tree ? 'is-tree' : ''}" ${tree ? `style="--depth:${depth}"` : ''} type="button" data-file="${file.name}" title="打开 ${file.name}">
     ${fileMark(file)}
     <span style="min-width:0"><span class="file-name">${file.name}</span><span class="file-meta">${file.meta}</span></span>
     <span class="file-status ${fileStatusClass(tone)}" ${file.note ? `title="${file.note}"` : ''}>${status}</span>
   </button>`;
+}
+
+function folderKey(ws, name) { return `${ws.id}:${name}`; }
+
+function treeRows(nodes, ws, offline, archived, depth = 0) {
+  return nodes.map(node => {
+    if (node.type === 'folder') {
+      const key = folderKey(ws, node.name);
+      const open = state.folderOpen[key] ?? node.children.length > 0;
+      const childRows = open
+        ? (node.children.length ? treeRows(node.children, ws, offline, archived, depth + 1) : `<div class="tree-empty" style="--depth:${depth}">空文件夹</div>`)
+        : '';
+      return `<button class="tree-folder-row" type="button" data-folder="${key}" aria-expanded="${open}" style="--depth:${depth}">
+        <span class="tree-chev ${open ? '' : 'is-closed'}">${icon('chevron')}</span>
+        <span class="tree-folder-icon">${icon('folder')}</span>
+        <span class="tree-name">${node.name}</span>
+        <span class="tree-count">${node.children.length}</span>
+      </button>${childRows}`;
+    }
+    return fileRowHtml(node.file, offline, archived, depth);
+  }).join('');
 }
 
 function fileStatusClass(status) {
@@ -294,34 +360,145 @@ function renderIndex() {
     <div class="index-foot"><span>⌘O 切换工作区</span><button type="button" data-action="settings">工作区设置</button></div>`;
 }
 
+/* ---------- render: directory (workspaces + sessions + independent) ---------- */
+
+function wsKey(ws) {
+  if (ws.status === 'offline') return 'offline';
+  if (ws.status === 'archived') return 'archived';
+  if (ws.status === 'running') return 'running';
+  return 'done';
+}
+
+function sessionKeyFor(ws, session) {
+  if (ws.id === state.workspaceId && state.mode === 'workspace' && session.id === state.sessionId) {
+    return workspaceRunKey();
+  }
+  return session.status === 'waiting' ? 'approval' : session.status;
+}
+
+function sessionMetaFor(session, key) {
+  if (key === 'approval') return '待决定';
+  if (key === 'offline') return '不可用';
+  if (key === 'running') return session.time.replace('今天 ', '');
+  return session.time;
+}
+
+function renderDirectory() {
+  const activeWs = state.mode === 'workspace' ? currentWorkspace() : null;
+  const wsHtml = WORKSPACES.map(ws => {
+    const active = state.mode === 'workspace' && ws.id === state.workspaceId;
+    const expanded = active && !state.dirCollapsed;
+    const key = wsKey(ws);
+    const meta = active ? ws.path : `${ws.sessions.length} 个对话 · ${ws.statusText}`;
+    const sessions = expanded ? `<div class="dir-sessions">${ws.sessions.map(session => {
+      const sKey = sessionKeyFor(ws, session);
+      const sActive = active && session.id === state.sessionId;
+      return `<button class="dir-session ${sActive ? 'is-active' : ''}" type="button" data-session="${session.id}" aria-current="${sActive ? 'true' : 'false'}">
+        <span>${statusDot(sKey)}</span>
+        <span class="dir-session-title">${session.title}</span>
+        <span class="dir-session-meta ${sKey === 'running' ? 'is-running' : sKey === 'approval' || sKey === 'offline' ? 'is-warning' : ''}">${sessionMetaFor(session, sKey)}</span>
+      </button>`;
+    }).join('')}</div>` : '';
+    return `<div class="dir-ws ${active ? 'is-active' : ''}">
+      <button class="dir-ws-row" type="button" data-workspace="${ws.id}" aria-expanded="${expanded}" aria-current="${active ? 'true' : 'false'}">
+        <span class="dir-ws-tab" style="--ws-color:${ws.color}" aria-hidden="true"></span>
+        <span class="dir-ws-main"><span class="dir-ws-name">${ws.name}</span><span class="dir-ws-meta" title="${meta}">${meta}</span></span>
+        <span class="dir-ws-state">${statusDot(key)}</span>
+        <span class="dir-ws-chev ${!active || state.dirCollapsed ? 'is-closed' : ''}">${icon('chevron')}</span>
+      </button>
+      ${sessions}
+      ${expanded ? `<button class="dir-new-chat" type="button" data-action="new-chat">${icon('plus')} 新对话</button>` : ''}
+    </div>`;
+  }).join('');
+
+  const looseHtml = LOOSE.map(item => {
+    const active = state.mode === 'independent' && item.id === state.looseId;
+    return `<button class="dir-loose ${active ? 'is-active' : ''}" type="button" data-loose="${item.id}" aria-current="${active ? 'true' : 'false'}">
+      <span class="loose-meta-dot" style="width:4px;height:4px;border-radius:50%;background:${active ? 'var(--accent)' : 'var(--line-strong)'}"></span>
+      <span class="dir-loose-title">${item.title}</span>
+      <span class="dir-loose-meta">${item.meta}</span>
+    </button>`;
+  }).join('');
+
+  $('#directory').innerHTML = `
+    <div class="dir-scroll">
+      <section class="dir-section">
+        <div class="dir-head">
+          <h2>工作区</h2><span class="dir-count">${WORKSPACES.length}</span>
+          <div class="dir-head-actions">
+            <button class="dir-icon-btn" type="button" data-action="new-workspace" aria-label="新建工作区">${icon('plus')}</button>
+          </div>
+        </div>
+        <div class="dir-ws-list">${wsHtml}</div>
+        <button class="dir-open" type="button" data-action="open-folder">${icon('folder')} 打开文件夹</button>
+      </section>
+      <section class="dir-section">
+        <div class="dir-head">
+          <h2>独立对话</h2><span class="dir-count">${LOOSE.length}</span>
+          <div class="dir-head-actions">
+            <button class="dir-icon-btn" type="button" data-action="new-loose" aria-label="新的独立对话">${icon('plus')}</button>
+          </div>
+        </div>
+        <div class="dir-loose-list">${looseHtml}</div>
+        <button class="dir-more" type="button" data-action="launchpad">全部独立对话</button>
+      </section>
+    </div>
+    <div class="dir-foot">
+      <button type="button" data-action="open-resources" data-res-tab="skills">${icon('pin')} Skills</button>
+      <button type="button" data-action="open-resources" data-res-tab="components">${icon('grid')} 组件</button>
+      <button type="button" data-action="open-resources" data-res-tab="settings">${icon('sliders')} 设置</button>
+    </div>`;
+}
+
 /* ---------- render: work head, banner ---------- */
 
 function renderWorkHead() {
+  if (isIndependent()) {
+    const loose = currentLoose();
+    $('#workHead').innerHTML = `
+      <div class="work-head-main">
+        <h1 class="work-title">${loose.title}</h1>
+        <div class="work-sub"><span>独立对话</span><span class="dot-sep"></span><span>${loose.meta}</span><span class="dot-sep"></span><span style="color:var(--muted)">不进入工作区记忆</span></div>
+        <div class="indep-note">这段对话不属于任何工作区，不读取工作区材料、工作方式或记忆。</div>
+      </div>
+      <div class="work-actions">
+        <button class="icon-btn" type="button" data-action="session-menu" aria-label="对话操作">${icon('more')}</button>
+      </div>`;
+    return;
+  }
+
   const ws = currentWorkspace();
   const session = currentSession();
-  const meta = runMeta();
-  const title = session ? session.title : '新的对话';
+  const view = state.workspaceView;
+  const title = view === 'log' ? (session ? session.title : '新的对话') : ws.name;
   const seq = session ? session.seq : '尚未编号';
-  const planAvailable = session && isMain();
   const output = ws.outputs && ws.outputs[0];
+  const showActions = view === 'log';
+  const tabs = `<div class="work-tabs" role="tablist" aria-label="工作区视图">
+    <button class="work-tab ${view === 'log' ? 'is-on' : ''}" type="button" role="tab" aria-selected="${view === 'log'}" data-workspace-view="log">日志</button>
+    <button class="work-tab ${view === 'background' ? 'is-on' : ''}" type="button" role="tab" aria-selected="${view === 'background'}" data-workspace-view="background">背景 <span class="stage">P5</span></button>
+    <button class="work-tab ${view === 'knowledge' ? 'is-on' : ''}" type="button" role="tab" aria-selected="${view === 'knowledge'}" data-workspace-view="knowledge">知识 <span class="stage">P6</span></button>
+  </div>`;
   $('#workHead').innerHTML = `
-    <button class="icon-btn index-toggle" type="button" data-action="toggle-index" aria-label="显示对话目录">${icon('panel')}</button>
     <div class="work-head-main">
       <h1 class="work-title">${title}</h1>
       <div class="work-sub">
-        <span>${session ? `${seq} · ${session.time}` : '把第一句话写下来'}</span>
+        ${view === 'log' ? `<span>${ws.name}</span><span class="dot-sep"></span>` : ''}
+        <span>${view === 'log' ? (session ? `${seq} · ${session.time}` : '把第一句话写下来') : (view === 'background' ? '工作区背景 · P5 规划' : '工作区知识 · P6 规划')}</span>
         ${ws.status === 'offline' ? '<span class="dot-sep"></span><span style="color:var(--danger)">文件工具已暂停</span>' : ''}
       </div>
+      ${tabs}
     </div>
     <div class="work-actions">
-      ${planAvailable ? `<button class="label-btn" type="button" data-action="open-plan">${icon('list')} 计划</button>` : ''}
-      ${output ? `<button class="icon-btn" type="button" data-action="open-output" data-file="${output}" aria-label="打开本次成果">${icon('file')}</button>` : ''}
+      ${showActions && session && isMain() ? `<button class="label-btn" type="button" data-action="open-plan">${icon('list')} 计划</button>` : ''}
+      ${showActions && output ? `<button class="icon-btn" type="button" data-action="open-output" data-file="${output}" aria-label="打开本次成果">${icon('file')}</button>` : ''}
       <button class="icon-btn" type="button" data-action="session-menu" aria-label="对话操作">${icon('more')}</button>
     </div>`;
 }
 
 function renderBanner() {
   const slot = $('#bannerSlot');
+  if (isIndependent()) { slot.classList.remove('has-banner'); slot.innerHTML = ''; return; }
   const ws = currentWorkspace();
   let html = '';
   if (state.bannerDismissed) {
@@ -494,10 +671,24 @@ function newStart() {
   </div>`;
 }
 
+function looseTimeline(loose) {
+  let html = entryUser(loose.meta, loose.prompt);
+  html += entryAgent(loose.meta, loose.reply || ['这段对话留在这里。']);
+  if (loose.tools && loose.tools.length) {
+    html += entryTools(loose.meta, loose.tools.map(t => ({...t, state: t.state || 'ok'})));
+  }
+  return html;
+}
+
 function renderTimeline() {
-  const ws = currentWorkspace();
   const session = currentSession();
   const timeline = $('#timeline');
+  if (isIndependent()) {
+    timeline.innerHTML = looseTimeline(currentLoose());
+    $('#workScroll').scrollTop = 0;
+    return;
+  }
+  if (state.workspaceView !== 'log') return;
   if (!session) {
     timeline.innerHTML = newStart();
   } else if (isMain()) {
@@ -505,7 +696,6 @@ function renderTimeline() {
   } else {
     timeline.innerHTML = genericTimeline(session);
   }
-  // 让页面开头先被看到；等到用户切换状态时再决定滚动位置
   const scroll = $('#workScroll');
   scroll.scrollTop = 0;
   if (isMain() && state.run === 'done') {
@@ -522,9 +712,28 @@ function renderTimeline() {
 /* ---------- render: composer ---------- */
 
 function renderComposer() {
+  if (state.mode === 'workspace' && state.workspaceView !== 'log') {
+    $('#composer').innerHTML = '';
+    return;
+  }
+  if (isIndependent()) {
+    $('#composer').innerHTML = `<div class="composer-inner">
+      <div class="composer-box">
+        <textarea class="composer-input" id="composerInput" rows="1" placeholder="继续这段独立对话…" aria-label="输入消息"></textarea>
+        <div class="composer-bar">
+          <button class="composer-tool" type="button" data-action="attach">${icon('clip')}<span>附件</span></button>
+          <div class="composer-right">
+            <button class="model-pick" type="button" data-action="model">Claude 4.5 <span class="model-think">思考</span> ${icon('chevron')}</button>
+            <button class="send-btn" type="button" data-action="send" aria-label="发送">${icon('up')}</button>
+          </div>
+        </div>
+      </div>
+    </div>`;
+    bindComposerInput();
+    return;
+  }
   const ws = currentWorkspace();
   const session = currentSession();
-  const meta = runMeta();
   if (ws.status === 'archived') {
     $('#composer').innerHTML = `<div class="composer-inner"><div class="composer-state" style="color:var(--muted)">${icon('alert')} 工作区已归档，取消归档后可以继续。</div></div>`;
     return;
@@ -550,18 +759,20 @@ function renderComposer() {
         </div>
       </div>
     </div>
-    <div class="composer-hint">Enter 发送 · Shift + Enter 换行</div>
   </div>`;
+  bindComposerInput();
+}
+
+function bindComposerInput() {
   const input = $('#composerInput');
-  if (input) {
-    input.addEventListener('input', autoGrow);
-    input.addEventListener('keydown', event => {
-      if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
-        event.preventDefault();
-        sendDraft();
-      }
-    });
-  }
+  if (!input) return;
+  input.addEventListener('input', autoGrow);
+  input.addEventListener('keydown', event => {
+    if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
+      event.preventDefault();
+      sendDraft();
+    }
+  });
 }
 
 function autoGrow(event) {
@@ -573,6 +784,7 @@ function autoGrow(event) {
 /* ---------- render: materials ---------- */
 
 function renderTray() {
+  if (isIndependent()) { $('#tray').innerHTML = ''; return; }
   const ws = currentWorkspace();
   const offline = ws.status === 'offline' || (isMain() && state.run === 'offline');
   const archived = ws.status === 'archived';
@@ -582,19 +794,12 @@ function renderTray() {
   if (state.trayTab === 'recent') files = (ws.recent || []).map(name => files.find(f => f.name === name)).filter(Boolean);
   const tabCount = state.trayTab === 'outputs' ? (ws.outputs || []).length : state.trayTab === 'recent' ? (ws.recent || []).length : (ws.files || []).length;
   let rows = '';
-  if (files.length) {
-    if (state.trayTab === 'files') {
-      const folders = [...new Set(files.map(f => f.folder).filter(Boolean))];
-      const rootFiles = files.filter(f => !f.folder);
-      rows = folders.map(folder => {
-        const items = files.filter(f => f.folder === folder);
-        return `<div class="tree-folder"><span class="tree-folder-icon">${icon('folder')}</span><span>${folder}</span><span class="tree-count">${items.length}</span></div>${items.map(f => fileRowHtml(f, offline, archived, true)).join('')}`;
-      }).join('') + rootFiles.map(f => fileRowHtml(f, offline, archived)).join('');
-    } else {
-      rows = files.map(f => fileRowHtml(f, offline, archived)).join('');
-    }
+  if (state.trayTab === 'files') {
+    rows = ws.tree && ws.tree.length ? treeRows(ws.tree, ws, offline, archived) : `<div class="tray-empty"><div class="tray-empty-title">文件夹是空的</div><div class="tray-empty-desc">把文件拖进来，或从文件夹添加；原有文件不会被移动。</div></div>`;
+  } else if (files.length) {
+    rows = files.map(f => fileRowHtml(f, offline, archived)).join('');
   } else {
-    rows = `<div class="tray-empty"><div class="tray-empty-title">${state.trayTab === 'outputs' ? '还没有成果' : '文件夹是空的'}</div><div class="tray-empty-desc">${state.trayTab === 'outputs' ? '这次没有写出文件。成果只列本次运行写入文件夹的文件。' : '把文件拖进来，或从文件夹添加；原有文件不会被移动。'}</div></div>`;
+    rows = `<div class="tray-empty"><div class="tray-empty-title">${state.trayTab === 'outputs' ? '还没有成果' : '没有最近改动'}</div><div class="tray-empty-desc">${state.trayTab === 'outputs' ? '这次没有写出文件。成果只列本次运行写入文件夹的文件。' : '最近修改过的材料会出现在这里。'}</div></div>`;
   }
   const error = offline ? `<div class="tray-error"><div class="tray-error-title">无法读取文件夹</div><div class="tray-error-desc">${ws.path} 暂时不可用。下面保留上次读取的文件，重新定位后更新。</div><button class="btn" type="button" data-action="relocate">重新检查</button></div>` : '';
   $('#tray').innerHTML = `
@@ -621,6 +826,231 @@ function renderTray() {
     <div class="tray-foot"><span>${offline ? '上次读取' : archived ? '只读' : `索引 ${ws.fileCount} / ${ws.fileCount}`}</span><button type="button" data-action="reveal-folder">打开文件夹</button></div>`;
 }
 
+/* ---------- render: P5 background / P6 knowledge ---------- */
+
+function backgroundView() {
+  const ws = currentWorkspace();
+  const refs = (ws.files || []).filter(f => ['竞品-A.pdf', '竞品-B.pdf', '纪要.md'].includes(f.name));
+  return `<div class="view-page">
+    <div class="view-kicker">工作区背景 · <span class="plan-tag">P5 · 规划中</span></div>
+    <h2 class="view-title">这里的工作方式</h2>
+    <p class="view-desc">每次新对话都会带上这段工作方式和常驻记忆；材料按当前问题检索，不整包塞进上下文。</p>
+    <div class="view-summary"><span>工作方式 <b>${ws.styleVersion}</b></span><span>·</span><span><b>${ws.memories}</b> 条常驻记忆</span><span>·</span><span><b>3</b> 个相关文件</span><span>·</span><span>1 段会话摘要</span><button class="file-link" type="button" data-action="context-detail" style="margin-left:auto">这次会带上什么</button></div>
+
+    <section class="view-section">
+      <div class="view-section-head"><h3>工作方式</h3><span class="section-meta">${ws.styleVersion} · 每次新运行整段注入</span><div class="section-actions"><button type="button" data-action="open-style">编辑</button><button type="button" data-action="style-history">历史</button></div></div>
+      <blockquote class="view-quote">${ws.style}</blockquote>
+    </section>
+
+    <section class="view-section">
+      <div class="view-section-head"><h3>常驻记忆</h3><span class="section-meta">${ws.memories} 条 · 只在这个工作区可见</span><div class="section-actions"><button type="button" data-action="memory-add">新增</button></div></div>
+      <div class="memory-list">
+        <div class="memory-row"><span class="memory-type">偏好</span><span class="memory-main"><span class="memory-text">数字要能回到原文；找不到出处时标“待核验”，不要补一个看起来合理的数。</span><span class="memory-meta">来自 3/11 的对话 · 你确认过 · v2</span></span><span class="memory-actions"><button type="button" data-action="memory-source">来源</button><button type="button" data-action="memory-retract">撤回</button></span></div>
+        <div class="memory-row"><span class="memory-type">决定</span><span class="memory-main"><span class="memory-text">结论先写，依据放后面；先给判断，再展开过程。</span><span class="memory-meta">来自 3/2 的对话 · 你确认过 · v1</span></span><span class="memory-actions"><button type="button" data-action="memory-source">来源</button><button type="button" data-action="memory-retract">撤回</button></span></div>
+      </div>
+    </section>
+
+    <section class="view-section">
+      <div class="view-section-head"><h3>本次参考</h3><span class="section-meta">按当前问题召回 · 不改变工具权限</span><div class="section-actions"><button type="button" data-action="refs">查看全部</button></div></div>
+      <div class="ref-list">${refs.map(f => `<button class="ref-row" type="button" data-file="${f.name}"><span class="ref-name">${f.name}</span><span class="ref-meta">${f.name === '纪要.md' ? '第 3 段' : f.name === '竞品-A.pdf' ? '第 2 页' : '第 4 页'} · ${f.size}</span></button>`).join('')}</div>
+    </section>
+
+    <section class="view-section">
+      <div class="view-section-head"><h3>本会话摘要</h3><span class="section-meta">运行结束后生成 · 只读 · 截止 10:47</span></div>
+      <div class="summary-card"><p>用户在整理竞品定价与渠道政策，要求结论先写、数字可回溯。已读取 A/B 两份资料和纪要，发现教育渠道折扣是当前最大差异；白板照片尚未解析。</p></div>
+    </section>
+
+    <div class="view-note">P5 规划：工作方式由你确认后发布；记忆按来源、确定性、版本管理，模型推断不能自行标为已确认。这里展示的是交互与信息结构，不代表已经接入真实记忆。</div>
+  </div>`;
+}
+
+function knowledgeMatches(text, query) {
+  const terms = (query || '').trim().split(/\s+/).filter(Boolean);
+  return terms.length === 0 || terms.every(term => text.includes(term));
+}
+
+function knowledgeView() {
+  const results = [
+    {kind: 'file', source: '竞品-A.pdf · 第 2 页', text: '竞品 A 的<mark>教育渠道</mark>报价为公开价的 7 折；<mark>折扣</mark>只适用于年付合同，且不与其他优惠叠加。', file: '竞品-A.pdf'},
+    {kind: 'file', source: '纪要.md · 第 3 段', text: '会议里提到，<mark>教育渠道</mark>的<mark>折扣</mark>需要销售单独申请；当前标准价目没有对应条目。', file: '纪要.md'},
+    {kind: 'file', source: '竞品-B.pdf · 第 4 页', text: '竞品 B 对教育客户的<mark>折扣</mark>是 8 折，按席位计价，不限制合同年限。', file: '竞品-B.pdf'},
+    {kind: 'memory', source: '记忆 · 决定', text: '定价讨论的结论：维持按席位计价，<mark>教育渠道</mark>单独申请<mark>折扣</mark>，不写进标准价目。', file: null},
+    {kind: 'summary', source: '会话摘要 · 3/11', text: '上一轮核验发现，<mark>教育渠道</mark>的<mark>折扣</mark>只出现在二手转述里，原文需要补读。', file: null},
+  ];
+  const filter = state.knowledgeFilter || 'all';
+  const visible = results.filter(r => (filter === 'all' || r.kind === filter) && knowledgeMatches(r.text.replace(/<[^>]+>/g, ''), state.knowledgeQuery));
+  return `<div class="view-page wide">
+    <div class="view-kicker">工作区知识 · <span class="plan-tag">P6 · 规划中</span></div>
+    <h2 class="view-title">在这个工作区里找东西</h2>
+    <p class="view-desc">文件、记忆和会话摘要进入同一个检索面；结果带来源和位置，可以回到原文，也可以引用到对话。</p>
+    <div class="knowledge-search">${icon('search')}<input id="knowledgeInput" type="search" value="${state.knowledgeQuery.replace(/"/g, '&quot;')}" placeholder="搜索文件、记忆和摘要" aria-label="搜索工作区知识"><kbd>⌘K</kbd></div>
+    <div class="knowledge-meta"><span>已索引 5 / 6 个文件</span><span>·</span><span>1 个待 OCR</span><span>·</span><span>FTS5 + 中文分词</span><button type="button" data-action="index-scope">索引范围</button><button type="button" data-action="open-resources" data-res-tab="components">查看组件</button></div>
+    <div class="knowledge-filters" role="tablist" aria-label="知识类型">
+      ${[['all', '全部'], ['file', '文件'], ['memory', '记忆'], ['summary', '摘要']].map(([key, label]) => `<button class="knowledge-filter ${filter === key ? 'is-on' : ''}" type="button" role="tab" aria-selected="${filter === key}" data-knowledge-filter="${key}">${label}</button>`).join('')}
+      <span style="margin-left:auto;color:var(--faint);font-family:var(--mono);font-size:8.5px">${visible.length} 条结果</span>
+    </div>
+    <div class="knowledge-results" id="knowledgeResults">
+      ${visible.length ? visible.map(r => `<div class="knowledge-result" data-knowledge-kind="${r.kind}" data-knowledge-text="${r.text.replace(/<[^>]+>/g, '').replace(/"/g, '&quot;')}">
+        <div class="knowledge-source"><span class="source-kind">${r.kind === 'file' ? '文件' : r.kind === 'memory' ? '记忆' : '摘要'}</span><span>${r.source}</span></div>
+        <p class="knowledge-snippet">${r.text}</p>
+        <div class="knowledge-result-actions">${r.file ? `<button type="button" data-file="${r.file}">打开原文</button>` : ''}<button type="button" data-action="cite" data-source="${r.source}">引用到对话</button></div>
+      </div>`).join('') : '<div class="knowledge-empty">没有匹配的结果。换个关键词，或检查索引范围。</div>'}
+    </div>
+    <div class="view-note">P6 规划：文件登记、格式解析与索引状态会进入这里；当前原型用静态结果展示召回、来源、引用和索引状态，不代表已经接入真实检索。扫描合同的“待 OCR”属于 P7。</div>
+  </div>`;
+}
+
+function renderAltView() {
+  const alt = $('#altView');
+  const work = $('#work');
+  if (isIndependent() || state.workspaceView === 'log') {
+    work.classList.remove('is-alt');
+    alt.hidden = true;
+    alt.innerHTML = '';
+    return;
+  }
+  work.classList.add('is-alt');
+  alt.hidden = false;
+  alt.scrollTop = 0;
+  alt.innerHTML = state.workspaceView === 'background' ? backgroundView() : knowledgeView();
+}
+
+function applyKnowledgeFilter() {
+  const input = $('#knowledgeInput');
+  if (!input) return;
+  state.knowledgeQuery = input.value;
+  const q = state.knowledgeQuery.trim();
+  let visible = 0;
+  $$('#knowledgeResults .knowledge-result').forEach(el => {
+    const matchKind = state.knowledgeFilter === 'all' || el.dataset.knowledgeKind === state.knowledgeFilter;
+    const matchText = knowledgeMatches(el.dataset.knowledgeText || '', q);
+    const on = matchKind && matchText;
+    el.style.display = on ? '' : 'none';
+    if (on) visible++;
+  });
+  const empty = $('#knowledgeResults .knowledge-empty');
+  if (empty) empty.style.display = visible ? 'none' : '';
+  const count = $('.knowledge-filters span:last-child');
+  if (count) count.textContent = `${visible} 条结果`;
+}
+
+/* ---------- render: resources (P7 / P8 / settings) ---------- */
+
+const SKILLS = [
+  {id: 'comp', name: '竞品分析', source: '本地 · .agents/skills', sourceShort: '.agents/skills', version: 'v2', category: '研究'},
+  {id: 'minutes', name: '会议纪要', source: '本地 · .codex/skills', sourceShort: '.codex/skills', version: 'v1', category: '写作'},
+  {id: 'sheet', name: '表格清洗', source: 'GitHub · ray-agent/skills', sourceShort: 'GitHub', version: 'v3', category: '数据'},
+  {id: 'layout', name: '视觉排版', source: '本地 · .agents/skills', sourceShort: '.agents/skills', version: 'v1', category: '设计'},
+];
+
+function skillReader(id) {
+  const map = {
+    comp: {title: '竞品分析', body: `<p>把一堆竞品资料收敛成一页可比较的结论：先给判断，再列依据，最后标出还没覆盖的缺口。</p><h3>步骤</h3><ul><li>先按价格结构、折扣、席位三栏对齐口径。</li><li>每个数字保留来源文件和页码。</li><li>没有原文的数字标“待核验”，不补全。</li></ul><h3>产物</h3><p>一页对比表 + 一段结论；差异超过两项时按影响排序。</p><h3>边界</h3><p>不把二手转述当成原文；不替未解析的材料下结论。</p>`},
+    minutes: {title: '会议纪要', body: `<p>保留决定、负责人和下一步，不写过程感想。</p><h3>步骤</h3><ul><li>先写结论和决定。</li><li>只记明确提到的负责人。</li><li>待办带时间点；没有就标“待定”。</li></ul>`},
+    sheet: {title: '表格清洗', body: `<p>把杂乱的表格整理成可比较的列：统一单位、日期和空值，保留原始行号。</p><h3>边界</h3><p>不猜测缺失值；不覆盖源文件，先另存副本。</p>`},
+    layout: {title: '视觉排版', body: `<p>把内容组织成可扫读的层级：标题、短段、表格和图注。先处理信息层级，再调样式。</p><h3>边界</h3><p>不为了好看删掉依据；图注要能独立说明来源。</p>`},
+  };
+  const skill = SKILLS.find(s => s.id === id) || SKILLS[0];
+  const body = map[skill.id] || map.comp;
+  return `<div class="skill-reader">
+    <div class="skill-reader-kicker">${skill.source}</div>
+    <h2 class="skill-reader-title">${body.title}</h2>
+    <div class="skill-reader-meta">${skill.version} · ${skill.category} · ${state.skillEnabled[skill.id] ? '已启用' : '已停用'} · 运行按快照版本</div>
+    <div class="skill-reader-body">${body.body}</div>
+    <div class="view-note" style="margin-top:16px">本地 skill 库已有实现；P8 的多来源发现、重名处理和包快照按规划展示。</div>
+  </div>`;
+}
+
+function skillsView() {
+  const active = state.selectedSkill || 'comp';
+  const groups = [...new Set(SKILLS.map(s => s.source))];
+  return `<div class="res-kicker">工作区之外 · <span class="plan-tag">P8 · 已有实现 / 多来源规划</span></div>
+    <h1 class="res-title">Skills</h1>
+    <p class="res-desc">从本机 Agent 目录和 GitHub 发现可复用的方法。Skill 提供流程和资源，不共享工作区记忆；运行按快照版本使用。</p>
+    <div class="skills-layout">
+      <div class="skills-list">
+        <div class="skills-search">${icon('search')}<input id="skillsSearch" type="search" placeholder="搜索 Skill" aria-label="搜索 Skill"></div>
+        <div id="skillsGroups">${groups.map(group => `<div class="skill-source" data-skill-source><div class="skill-source-label">${icon('folder')} ${group}</div>${SKILLS.filter(s => s.source === group).map(s => `<div class="skill-row ${active === s.id ? 'is-on' : ''}" data-skill="${s.id}"><span class="skill-name">${s.name}</span><span class="skill-version">${s.version}</span><button class="skill-toggle ${state.skillEnabled[s.id] ? 'is-on' : ''}" type="button" data-skill-toggle="${s.id}" aria-label="${state.skillEnabled[s.id] ? '停用' : '启用'} ${s.name}"></button></div>`).join('')}</div>`).join('')}</div>
+      </div>
+      ${skillReader(active)}
+    </div>
+    <div class="res-note">P8 规划：YAML 前置信息、资源文件、候选版本和同名冲突会在运行前处理；这里展示来源、启停、搜索和阅读结构。</div>`;
+}
+
+function componentsView() {
+  return `<div class="res-kicker">本机能力 · <span class="plan-tag">P7 · 规划中</span></div>
+    <h1 class="res-title">组件与解析</h1>
+    <p class="res-desc">浏览器、Embedding 和 OCR 作为受管组件按需下载、校验；文档解析在后台排队，失败可以单独重试。</p>
+    <div class="res-section">
+      <div class="res-section-head"><h3>已安装组件</h3><span class="meta">3 个 · 按需更新</span><div class="actions"><button type="button" data-action="component-check">检查更新</button></div></div>
+      <div class="component-row"><span class="component-icon">OCR</span><span><span class="component-name">PaddleOCR</span><span class="component-meta">3.2 · 中文 / 英文 · 本机运行</span></span><span class="component-state is-ok">已安装</span></div>
+      <div class="component-row"><span class="component-icon">EMB</span><span><span class="component-name">bge-m3</span><span class="component-meta">本机 Embedding · 语义检索</span></span><span class="component-state is-ok">已安装</span></div>
+      <div class="component-row"><span class="component-icon">WEB</span><span><span class="component-name">Chromium</span><span class="component-meta">133 · 按需下载 · 独立用户目录</span></span><span class="component-state is-ok">已安装</span></div>
+    </div>
+    <div class="res-section">
+      <div class="res-section-head"><h3>解析队列</h3><span class="meta">1 个待处理</span></div>
+      <div class="component-row"><span class="component-icon">PDF</span><span><span class="component-name">扫描合同.pdf</span><span class="component-meta">3.1 MB · 合同/ · 需要 OCR</span></span><span class="component-state is-wait">待 OCR</span><div class="component-row-actions"><button type="button" data-action="component-parse">开始解析</button><button type="button" data-file="扫描合同.pdf">查看文件</button></div></div>
+      <div class="component-row"><span class="component-icon">IDX</span><span><span class="component-name">文档索引</span><span class="component-meta">FTS5 + 中文分词 · 5 / 6 个文件已就绪</span></span><span class="component-state">已索引</span></div>
+    </div>
+    <div class="res-note">P7 规划：组件下载、校验、失败恢复和 OCR/Embedding 语义组件都属于这个阶段；当前原型只展示状态与操作位置，不实际执行。</div>`;
+}
+
+function settingsView() {
+  return `<div class="res-kicker">本机设置</div>
+    <h1 class="res-title">设置</h1>
+    <p class="res-desc">模型连接、本机执行和数据都在这一层；修改会在下一次运行时生效。</p>
+    <div class="res-section">
+      <div class="res-section-head"><h3>模型连接</h3><span class="meta">配置文件驱动</span><div class="actions"><button type="button" data-action="settings-open-config">打开配置文件</button></div></div>
+      <div class="settings-list">
+        <div class="settings-row"><span class="settings-label">当前模型</span><span class="settings-value">Claude 4.5 · 思考</span><button type="button" data-action="model">更换</button></div>
+        <div class="settings-row"><span class="settings-label">模型目录</span><span class="settings-value">~/.rayagent/models.json</span></div>
+      </div>
+    </div>
+    <div class="res-section">
+      <div class="res-section-head"><h3>本机执行</h3><span class="meta">按工作区开关</span></div>
+      <div class="settings-list">
+        <div class="settings-row"><span class="settings-label">Shell 与浏览器</span><span class="settings-value">季度复盘 · 开启</span><button type="button" data-action="settings-exec">调整</button></div>
+        <div class="settings-row"><span class="settings-label">工作区数据根</span><span class="settings-value">~/Library/Application Support/RayAgent</span></div>
+      </div>
+    </div>
+    <div class="res-section">
+      <div class="res-section-head"><h3>数据与外观</h3><span class="meta">本地优先</span></div>
+      <div class="settings-list">
+        <div class="settings-row"><span class="settings-label">清理本机数据</span><span class="settings-value">不影响工作区文件夹</span><button type="button" data-action="settings-clean">查看</button></div>
+        <div class="settings-row"><span class="settings-label">主题</span><span class="settings-value">${state.theme === 'dark' ? '夜间纸面' : '日间纸面'}</span><button type="button" data-action="theme">切换</button></div>
+      </div>
+    </div>
+    <div class="res-note">设置沿用现有应用的分区；这里是原型，不写回真实配置。</div>`;
+}
+
+function renderResources() {
+  const tab = state.resourcesTab || 'settings';
+  const content = tab === 'skills' ? skillsView() : tab === 'components' ? componentsView() : settingsView();
+  $('#resources').innerHTML = `<div class="resources-bar">
+    <div class="resources-bar-left"><span class="brand-mark" style="width:20px;height:20px"><svg viewBox="0 0 32 32" fill="none"><path d="M8 24.75V7.25h9a5.5 5.5 0 0 1 0 11H8" stroke="currentColor" stroke-width="3.1" stroke-linecap="round" stroke-linejoin="round"/><path d="m16.5 18.25 7.5 6.5" stroke="var(--accent)" stroke-width="3.1" stroke-linecap="round"/></svg></span><span>RayAgent</span><span style="color:var(--line-strong)">/</span><span>设置与资源</span></div>
+    <button class="resources-close" type="button" data-close>关闭 <kbd>Esc</kbd></button>
+  </div>
+  <div class="resources-inner">
+    <div class="res-tabs">
+      <button class="res-tab ${tab === 'skills' ? 'is-on' : ''}" type="button" data-res-tab="skills">${icon('pin')} Skills <span class="stage">P8</span></button>
+      <button class="res-tab ${tab === 'components' ? 'is-on' : ''}" type="button" data-res-tab="components">${icon('grid')} 组件 <span class="stage">P7</span></button>
+      <button class="res-tab ${tab === 'settings' ? 'is-on' : ''}" type="button" data-res-tab="settings">${icon('sliders')} 设置</button>
+    </div>
+    <div class="res-content">${content}</div>
+  </div>`;
+}
+
+function openResources(tab = 'settings') {
+  state.resourcesTab = tab;
+  renderResources();
+  $('#resources').hidden = false;
+  requestAnimationFrame(() => $('#resources [data-close]')?.focus());
+}
+
+function closeResources() {
+  $('#resources').hidden = true;
+}
+
 /* ---------- render: run pill, dock ---------- */
 
 function renderRunPill() {
@@ -636,7 +1066,7 @@ function renderDock() {
     ['running', '运行中'], ['approval', '待决定'], ['done', '已完成'], ['offline', '离线'], ['empty', '新对话'],
   ];
   dock.innerHTML = `<span class="dock-label"><span class="mini-mark">R</span><b>工作室 v2</b><span>状态</span></span>
-    ${items.map(([key, label]) => `<button class="dock-btn ${state.sessionId === null && key === 'empty' || state.sessionId !== null && isMain() && state.run === key ? 'is-on' : ''}" type="button" data-dock-state="${key}">${label}</button>`).join('')}
+    ${items.map(([key, label]) => `<button class="dock-btn ${!isIndependent() && (state.sessionId === null && key === 'empty' || state.sessionId !== null && isMain() && state.run === key) ? 'is-on' : ''}" type="button" data-dock-state="${key}">${label}</button>`).join('')}
     <span class="dock-sep"></span>
     <button class="dock-btn" type="button" data-action="launchpad">启动台</button>
     <button class="dock-btn" type="button" data-action="open-output">预览成果</button>
@@ -662,7 +1092,7 @@ function renderLaunchpad() {
       <button class="launchpad-close" type="button" data-close>关闭 <kbd>Esc</kbd></button>
     </div>
     <div class="launchpad-inner">
-      <div class="lp-kicker">按工作区整理，也保留不进入工作区的散页。</div>
+      <div class="lp-kicker">按工作区整理，也保留不属于任何工作区的独立对话。</div>
       <h1 class="lp-title">回到工作。</h1>
       <p class="lp-sub">打开一个工作区，或接着上次的对话。工作区里的工作方式、记忆和材料只在它自己里面可见。</p>
       <div class="lp-search">${icon('search')}<input id="lpSearchInput" type="search" placeholder="搜索工作区、对话或文件" autocomplete="off" aria-label="搜索工作区、对话或文件"><kbd>⌘K</kbd></div>
@@ -677,10 +1107,10 @@ function renderLaunchpad() {
       </div>
       <div class="lp-grid">
         <section><div class="lp-h">工作区 <span>${WORKSPACES.length} 个</span></div><div id="lpWorkspaceList"></div></section>
-        <section><div class="lp-h">散页 <span>${LOOSE.length} 条</span></div><div id="lpLooseList"></div></section>
+        <section><div class="lp-h">独立对话 <span>${LOOSE.length} 条</span></div><div id="lpLooseList"></div></section>
       </div>
-      <div class="lp-actions"><button class="btn" type="button" data-action="new-workspace">${icon('plus')}新建工作区</button><button class="btn" type="button" data-action="open-folder">${icon('folder')}打开文件夹</button><span class="spacer"></span><button class="btn btn-quiet" type="button" data-action="settings">设置</button></div>
-      <div class="lp-footnote">工作区之间不共享记忆、材料与索引；散页不属于任何工作区。</div>
+      <div class="lp-actions"><button class="btn" type="button" data-action="new-workspace">${icon('plus')}新建工作区</button><button class="btn" type="button" data-action="open-folder">${icon('folder')}打开文件夹</button><span class="spacer"></span><button class="btn btn-quiet" type="button" data-action="open-resources" data-res-tab="settings">设置</button></div>
+      <div class="lp-footnote">工作区之间不共享记忆、材料与索引；独立对话不属于任何工作区。</div>
     </div>`;
   filterLaunchpad(state.search);
 }
@@ -704,7 +1134,7 @@ function filterLaunchpad(query) {
     </button>`;
   }).join('') : `<div class="lp-empty">没有找到匹配的工作区。</div>`;
   const looseMatches = LOOSE.filter(item => !q || item.title.toLowerCase().includes(q));
-  loose.innerHTML = looseMatches.length ? `<div class="loose-list">${looseMatches.map(item => `<button class="lp-loose" type="button" data-action="loose" data-title="${item.title}"><span class="lp-loose-title">${item.title}</span><span class="lp-loose-meta">${item.meta}</span></button>`).join('')}</div><button class="lp-loose" type="button" data-action="new-loose" style="border-bottom:0;color:var(--faint)"><span class="lp-loose-title">新的独立对话</span><span class="lp-loose-meta">+</span></button>` : `<div class="lp-empty">没有找到匹配的散页。</div>`;
+  loose.innerHTML = looseMatches.length ? `<div class="loose-list">${looseMatches.map(item => `<button class="lp-loose" type="button" data-loose="${item.id}"><span class="lp-loose-title">${item.title}</span><span class="lp-loose-meta">${item.meta}</span></button>`).join('')}</div><button class="lp-loose" type="button" data-action="new-loose" style="border-bottom:0;color:var(--faint)"><span class="lp-loose-title">新的独立对话</span><span class="lp-loose-meta">+</span></button>` : `<div class="lp-empty">没有找到匹配的独立对话。</div>`;
 }
 
 function openLaunchpad(focusSearch = false) {
@@ -905,18 +1335,30 @@ function toast(message) {
 
 function renderAll() {
   document.documentElement.dataset.theme = state.theme;
-  document.body.classList.toggle('tray-hidden', !state.trayOpen);
-  document.body.classList.toggle('tray-open', state.trayOpen);
-  document.body.classList.toggle('index-open', state.indexOpen);
-  const ws = currentWorkspace();
-  $('#workspaceTab').style.background = ws.color;
-  $('#workspaceSwitchName').textContent = ws.name;
-  renderRail();
-  renderIndex();
+  const independent = isIndependent();
+  const alt = !independent && state.workspaceView !== 'log';
+  document.body.classList.toggle('mode-independent', independent);
+  document.body.classList.toggle('tray-hidden', !state.trayOpen && !independent);
+  document.body.classList.toggle('tray-open', state.trayOpen && !independent);
+  document.body.classList.toggle('dir-open', state.dirOpen);
+  $('#work').classList.toggle('is-alt', alt);
+
+  renderDirectory();
   renderWorkHead();
   renderBanner();
-  renderTimeline();
-  renderComposer();
+  if (independent) {
+    $('#altView').hidden = true;
+    $('#altView').innerHTML = '';
+    renderTimeline();
+    renderComposer();
+  } else if (alt) {
+    renderAltView();
+  } else {
+    $('#altView').hidden = true;
+    $('#altView').innerHTML = '';
+    renderTimeline();
+    renderComposer();
+  }
   renderTray();
   renderRunPill();
   renderDock();
@@ -926,8 +1368,13 @@ function renderAll() {
 function switchWorkspace(id, sessionId = undefined) {
   const ws = WORKSPACES.find(w => w.id === id);
   if (!ws) return;
+  state.mode = 'workspace';
+  state.looseId = null;
   state.workspaceId = id;
   state.sessionId = sessionId !== undefined ? sessionId : (ws.sessions[0] ? ws.sessions[0].id : null);
+  state.workspaceView = 'log';
+  state.dirCollapsed = false;
+  state.dirOpen = false;
   state.bannerDismissed = false;
   state.trayTab = 'files';
   try { localStorage.setItem('rayagent.v2.workspace', id); } catch { /* ignore */ }
@@ -935,19 +1382,40 @@ function switchWorkspace(id, sessionId = undefined) {
 }
 
 function switchSession(id) {
+  state.mode = 'workspace';
+  state.looseId = null;
   state.sessionId = id;
+  state.workspaceView = 'log';
+  state.dirCollapsed = false;
+  state.bannerDismissed = false;
+  renderAll();
+}
+
+function switchLoose(id) {
+  const loose = LOOSE.find(item => item.id === id);
+  if (!loose) return;
+  state.mode = 'independent';
+  state.looseId = id;
+  state.sessionId = null;
+  state.workspaceView = 'log';
+  state.dirCollapsed = false;
+  state.dirOpen = false;
   state.bannerDismissed = false;
   renderAll();
 }
 
 function setDockState(key) {
+  state.mode = 'workspace';
+  state.looseId = null;
+  state.workspaceView = 'log';
+  state.dirCollapsed = false;
   if (key === 'empty') {
     state.workspaceId = 'quarter';
     state.sessionId = null;
     state.run = 'running';
     try { localStorage.setItem('rayagent.v2.workspace', 'quarter'); } catch { /* ignore */ }
     renderAll();
-    toast('原型：这是新对话的空状态；现有对话仍在左侧。');
+    toast('原型：这是新对话的空状态；现有对话仍在左侧目录。');
     return;
   }
   state.workspaceId = 'quarter';
@@ -979,6 +1447,7 @@ function sendDraft() {
 }
 
 function openOutputPreview() {
+  if (isIndependent()) { toast('独立对话没有工作区成果。'); return; }
   const file = currentWorkspace().outputs?.[0];
   if (!file) { toast('这次对话没有写出文件。'); return; }
   openPreview(file);
@@ -989,6 +1458,7 @@ function toggleTheme() {
   try { localStorage.setItem('rayagent.v2.theme', state.theme); } catch { /* ignore */ }
   document.documentElement.dataset.theme = state.theme;
   renderDock();
+  if (!$('#resources').hidden) renderResources();
   toast(state.theme === 'dark' ? '夜间纸面' : '日间纸面');
 }
 
@@ -1010,9 +1480,10 @@ function restoreDock() {
 }
 
 document.addEventListener('click', event => {
-  const target = event.target.closest('[data-action], [data-workspace], [data-session], [data-file], [data-tray-tab], [data-dock-state], [data-lp-workspace], [data-choice], [data-close]');
+  const target = event.target.closest('[data-action], [data-workspace], [data-session], [data-loose], [data-file], [data-tray-tab], [data-dock-state], [data-lp-workspace], [data-choice], [data-close], [data-workspace-view], [data-folder], [data-res-tab], [data-knowledge-filter], [data-skill], [data-skill-toggle]');
   if (!target) {
     if (event.target.id === 'launchpad') closeLaunchpad();
+    if (event.target.id === 'resources') closeResources();
     if (event.target.id === 'modal') closeModal();
     if (event.target.id === 'preview') closePreview();
     return;
@@ -1020,13 +1491,54 @@ document.addEventListener('click', event => {
 
   if (target.hasAttribute('data-close')) {
     if (target.closest('#launchpad')) closeLaunchpad();
+    else if (target.closest('#resources')) closeResources();
     else if (target.closest('#preview')) closePreview();
     else closeModal();
     return;
   }
   if (target.dataset.dockState) { setDockState(target.dataset.dockState); return; }
-  if (target.dataset.workspace) { switchWorkspace(target.dataset.workspace); closeLaunchpad(); return; }
+  if (target.dataset.workspace) {
+    const id = target.dataset.workspace;
+    if (state.mode === 'workspace' && state.workspaceId === id) {
+      state.dirCollapsed = !state.dirCollapsed;
+      renderDirectory();
+    } else {
+      switchWorkspace(id);
+    }
+    closeLaunchpad();
+    return;
+  }
   if (target.dataset.session) { switchSession(target.dataset.session); closeLaunchpad(); return; }
+  if (target.dataset.loose) { switchLoose(target.dataset.loose); closeLaunchpad(); return; }
+  if (target.dataset.workspaceView) { state.workspaceView = target.dataset.workspaceView; renderAll(); return; }
+  if (target.dataset.folder) {
+    state.folderOpen[target.dataset.folder] = target.getAttribute('aria-expanded') !== 'true';
+    renderTray();
+    return;
+  }
+  if (target.dataset.resTab) {
+    state.resourcesTab = target.dataset.resTab;
+    if ($('#resources').hidden) openResources(state.resourcesTab);
+    else renderResources();
+    return;
+  }
+  if (target.dataset.knowledgeFilter) {
+    state.knowledgeFilter = target.dataset.knowledgeFilter;
+    renderAltView();
+    applyKnowledgeFilter();
+    return;
+  }
+  if (target.dataset.skillToggle) {
+    const id = target.dataset.skillToggle;
+    state.skillEnabled[id] = !state.skillEnabled[id];
+    renderResources();
+    return;
+  }
+  if (target.dataset.skill) {
+    state.selectedSkill = target.dataset.skill;
+    renderResources();
+    return;
+  }
   if (target.dataset.lpWorkspace) {
     switchWorkspace(target.dataset.lpWorkspace, target.dataset.lpSession || undefined);
     closeLaunchpad();
@@ -1057,25 +1569,35 @@ document.addEventListener('click', event => {
     case 'search': openLaunchpad(true); break;
     case 'new-workspace': openModal(newWorkspaceModal()); break;
     case 'new-chat':
+      state.mode = 'workspace';
+      state.looseId = null;
       state.sessionId = null;
-      state.indexOpen = false;
+      state.workspaceView = 'log';
+      state.dirCollapsed = false;
       renderAll();
       toast('原型：这是一段新对话的开头；正式版会创建新的运行。');
       break;
-    case 'settings': toast('原型：设置沿用现有分区，下一版单独做。'); break;
+    case 'settings': openResources('settings'); break;
+    case 'open-resources': openResources(target.dataset.resTab || 'settings'); break;
+    case 'toggle-directory':
+      state.dirOpen = !state.dirOpen;
+      document.body.classList.toggle('dir-open', state.dirOpen);
+      break;
     case 'toggle-tray':
       state.trayOpen = !state.trayOpen;
       document.body.classList.toggle('tray-open', state.trayOpen);
       renderAll();
       break;
-    case 'toggle-index': showIndex(); break;
+
     case 'open-style': openModal(styleModal()); break;
     case 'open-plan':
       if ($('#planBlock')) $('#planBlock').scrollIntoView({block: 'center', behavior: 'smooth'});
       else toast('这次对话还没有计划。');
       break;
     case 'open-output': openOutputPreview(); break;
-    case 'attach': openModal(addMaterialModal()); break;
+    case 'attach':
+      if (isIndependent()) { toast('原型：独立对话的附件只属于这段对话，不进入工作区材料。'); break; }
+      openModal(addMaterialModal()); break;
     case 'refs': openModal(refsModal()); break;
     case 'model': openModal(modelModal()); break;
     case 'send': sendDraft(); break;
@@ -1091,12 +1613,23 @@ document.addEventListener('click', event => {
     case 'download': toast('原型：正式版会下载到本机。'); break;
     case 'run-detail': toast('原型：会在开发者视图里展开逐轮耗时与用量。'); break;
     case 'undo': toast('原型：撤销会检查冲突，只恢复这次运行写过的文件。'); break;
-    case 'loose': toast(`原型：打开散页「${target.dataset.title}」。散页不进入工作区。`); closeLaunchpad(); break;
-    case 'new-loose': toast('原型：会新建一条不属于任何工作区的散页。'); break;
+    case 'new-loose': toast('原型：会新建一条不属于任何工作区的独立对话。'); break;
     case 'open-folder': toast('原型：会打开系统文件夹选择器。'); break;
     case 'theme': toggleTheme(); break;
     case 'hide-dock': hideDock(); break;
     case 'restore-dock': restoreDock(); break;
+    case 'cite': toast('原型：会把这段引用加入当前对话，并标出来源。'); break;
+    case 'context-detail': toast('原型：会显示工作方式、记忆、摘要和文件各自的上下文占用。'); break;
+    case 'style-history': toast('原型：会显示工作方式的版本差异，确认后才发布新版本。'); break;
+    case 'memory-source': toast('原型：会打开这条记忆的来源对话和材料位置。'); break;
+    case 'memory-retract': toast('原型：撤回忆会保留来源记录，之后不再重复提炼。'); break;
+    case 'memory-add': toast('原型：新增记忆需要填写内容与来源，确认后才会常驻。'); break;
+    case 'index-scope': toast('原型：会调整这个工作区的索引范围与排除规则。'); break;
+    case 'component-check': toast('原型：会检查组件版本与校验和。'); break;
+    case 'component-parse': toast('原型：会把扫描合同加入 OCR 队列，失败可单独重试。'); break;
+    case 'settings-open-config': toast('原型：会打开模型配置文件；界面不直接编辑密钥。'); break;
+    case 'settings-exec': toast('原型：会调整本机执行开关，正在运行的任务不受影响。'); break;
+    case 'settings-clean': toast('原型：清理本机数据不会删除工作区文件夹。'); break;
     default: break;
   }
 });
@@ -1105,6 +1638,16 @@ document.addEventListener('input', event => {
   if (event.target.id === 'lpSearchInput') {
     state.search = event.target.value;
     filterLaunchpad(state.search);
+  }
+  if (event.target.id === 'knowledgeInput') {
+    state.knowledgeQuery = event.target.value;
+    applyKnowledgeFilter();
+  }
+  if (event.target.id === 'skillsSearch') {
+    const q = event.target.value.trim().toLowerCase();
+    $$('[data-skill]', $('#skillsGroups')).forEach(row => {
+      row.style.display = !q || row.textContent.toLowerCase().includes(q) ? '' : 'none';
+    });
   }
 });
 
@@ -1122,10 +1665,11 @@ document.addEventListener('keydown', event => {
     return;
   }
   if (event.key === 'Escape') {
-    if (state.launchpad) closeLaunchpad();
+    if (!$('#resources').hidden) closeResources();
+    else if (state.launchpad) closeLaunchpad();
     else if (!$('#preview').hidden) closePreview();
     else if (!$('#modal').hidden) closeModal();
-    else if (state.indexOpen) { state.indexOpen = false; document.body.classList.remove('index-open'); }
+    else if (state.dirOpen) { state.dirOpen = false; document.body.classList.remove('dir-open'); }
     else if (document.body.classList.contains('tray-open') && window.innerWidth <= 900) { state.trayOpen = false; document.body.classList.remove('tray-open'); }
   }
 });
@@ -1165,10 +1709,28 @@ function applyParams() {
   }
   if (params.get('workspace') && WORKSPACES.some(w => w.id === params.get('workspace'))) {
     const ws = WORKSPACES.find(w => w.id === params.get('workspace'));
+    state.mode = 'workspace';
+    state.looseId = null;
     state.workspaceId = ws.id;
     state.sessionId = ws.sessions[0]?.id || null;
   }
-  if (!state.sessionId && !['empty'].includes(runParam)) {
+  const looseParam = params.get('loose');
+  if (looseParam && LOOSE.some(item => item.id === looseParam)) {
+    state.mode = 'independent';
+    state.looseId = looseParam;
+    state.sessionId = null;
+  }
+  if (params.get('mode') === 'independent') {
+    state.mode = 'independent';
+    state.looseId = state.looseId || LOOSE[0].id;
+    state.sessionId = null;
+  }
+  const viewParam = params.get('view');
+  if (['background', 'knowledge', 'log'].includes(viewParam)) {
+    state.mode = 'workspace';
+    state.workspaceView = viewParam;
+  }
+  if (!state.sessionId && !['empty'].includes(runParam) && state.mode === 'workspace') {
     const ws = currentWorkspace();
     state.sessionId = ws.sessions[0]?.id || null;
   }
@@ -1191,6 +1753,7 @@ function init() {
   if (params.get('dialog') === 'add') openModal(addMaterialModal());
   if (runParam === 'style') openModal(styleModal());
   if (runParam === 'refs') openModal(refsModal());
+  if (params.get('resources')) openResources(params.get('resources'));
   $('#dockRestore').addEventListener('click', restoreDock);
 }
 
