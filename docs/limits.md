@@ -248,7 +248,8 @@ API 设置来自 `core/config.py`，环境变量使用对应大写名称；正�
 | 普通文件 / ZIP 条目 / 候选 | 2000 / 文件限额的两倍 / 100 | `skill_max_files`、`skill_max_candidates`、包解析器 |
 | 路径 | 最多 20 层、4096 字符 | 包解析器与快照映射 |
 | 名称 / 描述 / 完整 SKILL.md | 64 / 1024 / 60000 字符 | `skill_name_chars`、`skill_description_chars`、`skill_body_chars`；稳定 `skill_id` 上限 128，HTTP 文本输入硬边界 5 MiB 字符，仍由共享解析器检查正文预算 |
-| 目录 / 活动正文及资料封装 | 24000 / 100000 字符 | `skill_catalog_chars`、`skill_active_chars`；加载预算超额时明确失败，不静默丢弃后半目录 |
+| 目录 / 活动正文及资料封装 | 24000 / 100000 字符 | `skill_catalog_chars`、`skill_active_chars`；纳入目录时核对完整索引，发现扫描不因超额失败。已纳入集合放不下时，新运行只自动带上内置 Skill，不按扫描顺序截断 |
+| 目录索引中的描述 | 160 字符，超出以省略号截断 | `skill_catalog_description_chars`；索引只含名称、来源和这一行描述 |
 | 资源单次文本及正文资源清单 | 8000 字符 | `skill_resource_chars`；超长单行转材料准备后读取 |
 | 获取总时限 / 单次网络等待 / 尝试 | 90 秒 / 20 秒 / 最多 3 次 | `skill_fetch_seconds`、GitHub 适配器；引用不存在不重试 |
 | 预览与孤立包保留门槛 | 3600 秒；启动和维护循环检查 | `skill_preview_seconds`、应用生命周期 |

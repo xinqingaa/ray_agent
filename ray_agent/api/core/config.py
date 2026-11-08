@@ -68,6 +68,7 @@ class Settings(BaseSettings):
     skill_description_chars: int = Field(default=1024, gt=0)
     skill_body_chars: int = Field(default=60000, gt=0)
     skill_catalog_chars: int = Field(default=24000, gt=0)
+    skill_catalog_description_chars: int = Field(default=160, gt=0)
     skill_active_chars: int = Field(default=100000, gt=0)
     skill_resource_chars: int = Field(default=8000, gt=0)
     skill_fetch_seconds: int = Field(default=90, gt=0)

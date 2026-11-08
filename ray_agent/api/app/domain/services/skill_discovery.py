@@ -234,16 +234,41 @@ def discover_packages(source: SkillSourceSpec, settings) -> list[dict]:
     return found
 
 
+def entry_kind(entry: dict) -> str:
+    return entry.get("kind") or (entry.get("source") or {}).get("kind") or "managed"
+
+
+def entry_canonical(entry: dict) -> str:
+    return entry.get("canonical") or (entry.get("source") or {}).get("canonical") or entry["id"]
+
+
+def entry_workspace_id(entry: dict) -> str | None:
+    """工作区 Skill 的工作区身份。身份本身可以含冒号，不能按分隔符切 source_id。"""
+    source = entry.get("source") or {}
+    explicit = source.get("workspace_id") or entry.get("workspace_id")
+    if explicit:
+        return explicit
+    source_id = str(source.get("source_id") or "")
+    if not source_id.startswith("workspace:"):
+        return None
+    rest = source_id[len("workspace:"):]
+    for relative in CONVENTION_RELATIVE:
+        suffix = f":{relative}"
+        if rest.endswith(suffix):
+            return rest[: -len(suffix)]
+    return None
+
+
 def resolve_aliases(entries: list[dict]) -> list[dict]:
     """同一规范路径去重，保留优先级更高（数字更小）的来源。"""
     by_canonical: dict[str, dict] = {}
     for entry in entries:
-        key = entry.get("canonical") or entry["id"]
+        key = entry_canonical(entry)
         prior = by_canonical.get(key)
         if prior is None:
             by_canonical[key] = entry
             continue
-        if SOURCE_PRIORITY.get(entry.get("kind", "managed"), 99) < SOURCE_PRIORITY.get(prior.get("kind", "managed"), 99):
+        if SOURCE_PRIORITY.get(entry_kind(entry), 99) < SOURCE_PRIORITY.get(entry_kind(prior), 99):
             by_canonical[key] = entry
     return list(by_canonical.values())
 
@@ -265,7 +290,7 @@ def resolve_names(entries: list[dict], preferred: dict[str, str]) -> tuple[list[
                 continue
         layers: dict[int, list[dict]] = {}
         for entry in group:
-            layers.setdefault(SOURCE_PRIORITY.get(entry.get("kind", "managed"), 99), []).append(entry)
+            layers.setdefault(SOURCE_PRIORITY.get(entry_kind(entry), 99), []).append(entry)
         best_layer = min(layers)
         winners = layers[best_layer]
         if len(winners) == 1 and all(len(v) == 1 or k > best_layer for k, v in layers.items()):

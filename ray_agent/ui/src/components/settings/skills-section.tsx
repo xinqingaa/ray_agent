@@ -16,7 +16,7 @@ import {isDesktop, selectFolderGrant} from '@/lib/platform'
 import {toast} from 'sonner'
 
 const OPERATION_KEY = 'rayagent:skill-import'
-const CLI_HINT = '用户目录与额外目录中的标准 Skill 会被发现并按快照使用；应用管理库仍可从 GitHub 或本地文件安装。删除外部引用不会删除用户目录。'
+const CLI_HINT = '用户目录与额外目录中的标准 Skill 会被发现；纳入后才会进入每次运行的目录。删除外部引用不会删除用户目录。'
 const errorText = (error: unknown) => error instanceof Error ? error.message : '操作失败，请重试'
 
 /** 分区保持挂载，切换时保留编辑草稿和导入操作。 */
@@ -194,6 +194,7 @@ export function SkillsSection({onDirtyChange, active = true}: {onDirtyChange: (d
     setAdding(false); setOperation(null); setCandidateText(null)
     sessionStorage.removeItem(OPERATION_KEY); skillsChanged()
     toast.success(updating ? 'Skill 已更新' : 'Skill 已安装')
+    if (op.notice) toast.warning(op.notice)
     try {
       const next = await skillsApi.detail(op.result.id)
       setDetail(next); setText(next.text); setEditing(false); setDetailOpen(true)
@@ -234,6 +235,7 @@ export function SkillsSection({onDirtyChange, active = true}: {onDirtyChange: (d
       <div className="flex items-center gap-1"><Hint label="重新扫描来源"><Button variant="ghost" size="icon-sm" aria-label="重新扫描来源" disabled={processing} className="text-muted-foreground" onClick={() => act(async () => {await skillsApi.scan(); await reload()})}><RefreshCw/></Button></Hint><CommunityLink/><Button ref={addButton} size="sm" className="ml-2" disabled={processing} onClick={startImport}><Plus/>新增 Skill</Button></div>
     </div>
     {!adding && !detailOpen && feedback}
+    {items.some(skill => skill.catalog_overflow) && !adding && !detailOpen && <p role="status" className="rounded-md bg-muted px-3 py-2.5 text-sm text-muted-foreground">已纳入的 Skill 放不进目录预算，新运行只自动带上内置 Skill。请退出部分纳入。</p>}
     {sources && <div className="space-y-2 rounded-lg border bg-muted/20 p-3">
       <div className="flex items-center justify-between gap-2">
         <p className="text-sm font-medium">发现来源</p>
@@ -253,10 +255,11 @@ export function SkillsSection({onDirtyChange, active = true}: {onDirtyChange: (d
       visibleItems.length ? <ul className="space-y-1">{visibleItems.map(skill => <li key={skill.id} ref={skill.id === installedName ? installedRow : undefined} className="group flex items-center gap-3 rounded-lg px-3 transition-colors hover:bg-muted/50 motion-reduce:transition-none">
         <button className="flex min-w-0 flex-1 items-center gap-3 rounded-md py-4 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring" disabled={processing} onClick={event => {detailTrigger.current = event.currentTarget; void open(skill)}}>
           <span className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-muted text-muted-foreground"><BookOpen className="size-5"/></span>
-          <span className="min-w-0 flex-1"><span className="flex flex-wrap items-center gap-2 text-sm font-medium">{skill.name}{skill.builtin && <span className="rounded bg-muted px-1.5 py-0.5 text-xs font-normal text-muted-foreground">内置</span>}{skill.external && <span className="rounded bg-muted px-1.5 py-0.5 text-xs font-normal text-muted-foreground">{sourceBadge(skill)}</span>}{skill.conflict && <span className="rounded bg-state-failed-soft px-1.5 py-0.5 text-xs font-normal text-state-failed">同名冲突</span>}{skill.status === 'missing' && <span className="rounded bg-muted px-1.5 py-0.5 text-xs font-normal text-muted-foreground">目录已移除</span>}</span><span className="mt-1 line-clamp-2 text-xs leading-relaxed text-muted-foreground">{skill.description}</span></span>
+          <span className="min-w-0 flex-1"><span className="flex flex-wrap items-center gap-2 text-sm font-medium">{skill.name}{skill.builtin && <span className="rounded bg-muted px-1.5 py-0.5 text-xs font-normal text-muted-foreground">内置</span>}{skill.external && <span className="rounded bg-muted px-1.5 py-0.5 text-xs font-normal text-muted-foreground">{sourceBadge(skill)}</span>}{skill.conflict && <span className="rounded bg-state-failed-soft px-1.5 py-0.5 text-xs font-normal text-state-failed">同名冲突</span>}{skill.catalog_overflow && <span className="rounded bg-state-failed-soft px-1.5 py-0.5 text-xs font-normal text-state-failed">超出目录</span>}{skill.enabled && skill.included === false && <span className="rounded bg-muted px-1.5 py-0.5 text-xs font-normal text-muted-foreground">未纳入</span>}{skill.status === 'missing' && <span className="rounded bg-muted px-1.5 py-0.5 text-xs font-normal text-muted-foreground">目录已移除</span>}</span><span className="mt-1 line-clamp-2 text-xs leading-relaxed text-muted-foreground">{skill.description}</span></span>
           <ChevronRight className="size-4 shrink-0 text-faint transition-transform group-hover:translate-x-0.5 motion-reduce:transition-none"/>
         </button>
-        <Switch aria-label={`${skill.enabled ? '停用' : '启用'} ${skill.name}`} checked={skill.enabled} disabled={processing || skill.status === 'missing'} onCheckedChange={() => act(async () => {await skillsApi.toggle(skill); await changed()})}/>
+        <label className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground"><span>纳入</span><Switch aria-label={`${skill.included ? '退出目录' : '纳入目录'} ${skill.name}`} checked={Boolean(skill.enabled && skill.included)} disabled={processing || skill.status === 'missing' || !skill.enabled} onCheckedChange={checked => act(async () => {await skillsApi.setIncluded(skill, checked); await changed()})} /></label>
+        <label className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground"><span>启用</span><Switch aria-label={`${skill.enabled ? '停用' : '启用'} ${skill.name}`} checked={skill.enabled} disabled={processing || skill.status === 'missing'} onCheckedChange={() => act(async () => {await skillsApi.toggle(skill); await changed()})} /></label>
       </li>)}</ul> : <div className="flex flex-col items-center gap-3 py-12 text-sm text-muted-foreground"><BookOpen className="size-7 text-faint"/><p>{query ? '没有匹配的 Skill' : '还没有 Skill'}</p>{!query && <Button variant="secondary" size="sm" onClick={startImport}><Plus/>新增 Skill</Button>}</div>}
     {busy && !adding && !detailOpen && <span role="status" className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="size-3 animate-spin"/>正在处理</span>}
 

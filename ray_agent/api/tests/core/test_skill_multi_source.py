@@ -3,9 +3,13 @@ import asyncio
 import shutil
 from pathlib import Path
 
+import pytest
+
 from app.application.services.skill_runtime import SkillRuntime
 from app.domain.models.app_config import SkillConfig
-from tests.core.test_skills import service, source
+from app.domain.services.skill_context import catalog_message
+from app.domain.services.skill_packages import SkillError
+from tests.core.test_skills import install, service, source
 
 
 def write_skill(root: Path, name: str, body: str = '方法正文') -> Path:
@@ -27,7 +31,8 @@ def test_external_discover_snapshot_and_freeze(tmp_path):
         await s.initialize()
         items = await s.list()
         external = next(e for e in items if e['name'] == 'pack-one')
-        assert external['external'] and external['version']
+        assert external['external'] and external['version'] and external['included'] is False
+        await s.change(external['id'], external['version'], included=True)
         first_version = external['version']
         root = Path(external['root_path'])
         assert (root / 'SKILL.md').is_file()
@@ -68,7 +73,9 @@ def test_same_name_conflict_and_missing_external(tmp_path):
         await s.initialize()
         items = [e for e in await s.list() if e['name'] == 'dup']
         assert len(items) == 2
-        assert all(e.get('conflict') for e in items)
+        assert all(e.get('conflict') and e['included'] is False for e in items)
+        for item in items:
+            await s.change(item['id'], item['version'], included=True)
         bound = await s.bind_run('run-conflict')
         assert not any(e['name'] == 'dup' for e in bound)
 
@@ -88,4 +95,61 @@ def test_same_name_conflict_and_missing_external(tmp_path):
         assert still['status'] == 'available'
         await s.change(from_two['id'], from_two['version'], delete=True)
         assert (two / 'dup' / 'SKILL.md').is_file()
+    asyncio.run(run())
+
+
+def test_catalog_index_hides_identity_and_truncates_description():
+    content = catalog_message('', [{
+        'id': 'ext-user-abc', 'name': 'pack', 'version': 'f' * 64,
+        'description': '甲' * 200, 'source': {'kind': 'user'},
+    }], 160)['content']
+    assert 'ext-user-abc' not in content and 'f' * 64 not in content
+    assert 'description_truncated' in content
+    assert '甲' * 160 in content and '甲' * 161 not in content
+
+
+def test_discovery_registers_without_joining_or_failing_budget(tmp_path):
+    async def run():
+        extra = tmp_path / 'extra'
+        for name in ('alpha', 'beta', 'gamma'):
+            write_skill(extra, name)
+        config = SkillConfig(discover_user=False, discover_workspace=False, extra_dirs=[str(extra)])
+        s = service(tmp_path / 'store', skill_catalog_chars=1)
+        s._config_loader = lambda: config
+        await s.initialize()
+        items = await s.list()
+        external = [e for e in items if e['external']]
+        assert len(external) == 3 and all(e['included'] is False for e in external)
+        assert {e['name'] for e in await s.bind_run('run')} == {'find-skills'}
+    asyncio.run(run())
+
+
+def test_include_rejects_only_that_skill_when_catalog_is_full(tmp_path):
+    async def run():
+        s = service(tmp_path / 'store')
+        first = await install(s, name='alpha')
+        assert first['included'] is True
+        s.settings.skill_catalog_chars = len(catalog_message('', [first], s.settings.skill_catalog_description_chars)['content'])
+        second = await install(s, name='beta')
+        assert second['included'] is False and (await s.list(refresh=False))
+        with pytest.raises(SkillError):
+            await s.change(second['id'], second['version'], included=True)
+        assert next(e for e in await s.list(refresh=False) if e['name'] == 'alpha')['included'] is True
+    asyncio.run(run())
+
+
+def test_overfull_catalog_still_starts_with_builtin_and_selection(tmp_path):
+    async def run():
+        s = service(tmp_path / 'store')
+        await s.initialize()
+        await install(s, name='alpha')
+        picked = await install(s, name='picked')
+        await s.change(picked['id'], picked['version'], included=False)
+        entries = await s.list(refresh=False)
+        config = SkillConfig(discover_user=False, discover_workspace=False)
+        s.settings.skill_catalog_chars = 1
+        bound = s._freeze_bound(entries, config, None, next(e for e in entries if e['name'] == 'picked'))
+        assert {e['name'] for e in bound} == {'find-skills', 'picked'}
+        listed = await s.list(refresh=False)
+        assert next(e for e in listed if e['name'] == 'alpha')['catalog_overflow'] is True
     asyncio.run(run())

@@ -34,7 +34,8 @@ class EditRequest(BaseModel):
 
 class StateRequest(BaseModel):
     expected_version: str
-    enabled: bool
+    enabled: bool | None = None
+    included: bool | None = None
 
 
 class ExtraDirRequest(BaseModel):
@@ -208,7 +209,8 @@ async def edit_skill(skill_id: str, request: EditRequest, service=Depends(get_sk
 
 @router.patch('/{skill_id}')
 async def change_skill(skill_id: str, request: StateRequest, service=Depends(get_skill_service)):
-    return Response.success(data=await service.change(skill_id, request.expected_version, enabled=request.enabled))
+    return Response.success(data=await service.change(
+        skill_id, request.expected_version, enabled=request.enabled, included=request.included))
 
 
 @router.delete('/{skill_id}')

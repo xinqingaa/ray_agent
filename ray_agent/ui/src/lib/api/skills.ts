@@ -13,6 +13,8 @@ export type Skill = SkillSelection & {
   name: string
   description: string
   enabled: boolean
+  included?: boolean
+  catalog_overflow?: boolean
   builtin: boolean
   external?: boolean
   status?: string
@@ -23,7 +25,7 @@ export type Skill = SkillSelection & {
 }
 export type SkillDetail = Skill & {text: string; files: {path: string; size: number; sha256: string}[]; warnings: string[]}
 export type SkillCandidate = {path: string; name: string; description: string; version: string; text: string; files: SkillDetail['files']; warnings: string[]}
-export type SkillImport = {id: string; stage: string; source: Skill['source']; candidates: SkillCandidate[]; error: string | null; result: Skill | null}
+export type SkillImport = {id: string; stage: string; source: Skill['source']; candidates: SkillCandidate[]; error: string | null; notice?: string | null; result: Skill | null}
 export type SkillConfig = {
   discover_user: boolean
   discover_workspace: boolean
@@ -57,5 +59,6 @@ export const skillsApi = {
   publish: (id: string, candidate: SkillCandidate) => request<SkillImport>(`/skills/imports/${id}/publish`, {method: 'POST', body: JSON.stringify({candidate_path: candidate.path, fingerprint: candidate.version})}),
   edit: (skill: Skill, text: string) => request<SkillImport>(`/skills/${encodeURIComponent(skill.id)}`, {method: 'PUT', body: JSON.stringify({expected_version: skill.version, text})}),
   toggle: (skill: Skill) => request<Skill>(`/skills/${encodeURIComponent(skill.id)}`, {method: 'PATCH', body: JSON.stringify({expected_version: skill.version, enabled: !skill.enabled})}),
+  setIncluded: (skill: Skill, included: boolean) => request<Skill>(`/skills/${encodeURIComponent(skill.id)}`, {method: 'PATCH', body: JSON.stringify({expected_version: skill.version, included})}),
   delete: (skill: Skill) => request(`/skills/${encodeURIComponent(skill.id)}?expected_version=${skill.version}`, {method: 'DELETE'}),
 }

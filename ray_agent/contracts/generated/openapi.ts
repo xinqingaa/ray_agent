@@ -4995,7 +4995,9 @@ export interface components {
             /** Expected Version */
             expected_version: string;
             /** Enabled */
-            enabled: boolean;
+            enabled?: boolean | null;
+            /** Included */
+            included?: boolean | null;
         };
         /**
          * StepEventData

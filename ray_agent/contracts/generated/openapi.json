@@ -13788,14 +13788,31 @@
             "title": "Expected Version"
           },
           "enabled": {
-            "type": "boolean",
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Enabled"
+          },
+          "included": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Included"
           }
         },
         "type": "object",
         "required": [
-          "expected_version",
-          "enabled"
+          "expected_version"
         ],
         "title": "StateRequest"
       },

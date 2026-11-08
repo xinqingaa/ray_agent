@@ -13,6 +13,7 @@ from app.domain.models.message import Message, SkillSelection
 from app.domain.models.event import ApprovalEvent, ErrorEvent
 from app.domain.models.app_config import ToolPolicyConfig
 from app.domain.models.run import RunMode
+from app.domain.services.skill_context import catalog_message
 from app.domain.services.skill_packages import SkillError, prepare_local, unzip, candidates, parse_skill
 from app.application.services.skill_service import SkillService
 from app.application.services.skill_runtime import SkillRuntime
@@ -175,7 +176,10 @@ def test_integrity_budgets_and_builtin_conflict(tmp_path):
         entry = await install(s)
         await s.bind_run('run')
         with pytest.raises(SkillError): await s.load('run', 'example')
-        with pytest.raises(SkillError): await install(s, name='a-second-name')
+        s.settings.skill_catalog_chars = len(catalog_message('', [entry], s.settings.skill_catalog_description_chars)['content'])
+        second = await install(s, name='a-second-name')
+        assert second['included'] is False
+        with pytest.raises(SkillError): await s.change(second['id'], second['version'], included=True)
         (tmp_path / 'versions' / entry['version'] / 'SKILL.md').write_bytes(b'damaged')
         with pytest.raises(SkillError): await s.detail('example')
     asyncio.run(run())

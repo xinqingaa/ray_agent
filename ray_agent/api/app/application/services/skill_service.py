@@ -13,7 +13,8 @@ from app.domain.models.app_config import SkillConfig
 from app.domain.repositories.skills import SkillRepository
 from app.domain.services.skill_context import catalog_message, body_message
 from app.domain.services.skill_discovery import (
-    SOURCE_PRIORITY, convention_sources, discover_packages, resolve_aliases, resolve_names,
+    SOURCE_PRIORITY, convention_sources, discover_packages, entry_kind, entry_workspace_id,
+    resolve_aliases, resolve_names,
 )
 from app.domain.services.skill_packages import SkillError, candidates, local_request_bytes, parse_skill, prepare_local, unzip
 
@@ -51,9 +52,9 @@ class SkillService:
             await self.refresh_catalog(workspace_id=workspace_id)
         async with self.repository.transaction() as tx:
             entries = await tx.all('skills')
-        return self._present(entries, await self._config())
+        return self._present(entries, await self._config(), workspace_id)
 
-    def _present(self, entries: list[dict], config: SkillConfig) -> list[dict]:
+    def _present(self, entries: list[dict], config: SkillConfig, workspace_id: str | None = None) -> list[dict]:
         disabled = set(config.disabled_skills)
         visible = []
         for entry in entries:
@@ -66,13 +67,22 @@ class SkillService:
                 except SkillError:
                     item['root_path'] = None
             visible.append(item)
-        selected, conflicts = resolve_names(
+        _selected, conflicts = resolve_names(
             [e for e in visible if e.get('status', 'available') != 'missing' or e.get('builtin')],
             config.preferred)
         conflict_ids = {e['id'] for e in conflicts}
+        overflow_ids: set[str] = set()
+        injected_ids: set[str] = set()
+        scopes = [workspace_id] if workspace_id else self._scopes(entries)
+        for scope in scopes:
+            kept, overflow = self._partition(entries, config, scope)
+            overflow_ids.update(e['id'] for e in overflow)
+            injected_ids.update(e['id'] for e in kept)
         for item in visible:
+            item['included'] = self._is_included(item)
+            item['catalog_overflow'] = item['id'] in overflow_ids
             item['conflict'] = item['id'] in conflict_ids
-            item['auto_bound'] = any(s['id'] == item['id'] for s in selected) and item.get('enabled', True)
+            item['auto_bound'] = item['id'] in injected_ids
         return sorted(visible, key=lambda r: (
             not r.get('builtin', False),
             SOURCE_PRIORITY.get((r.get('source') or {}).get('kind', 'managed'), 99),
@@ -201,19 +211,72 @@ class SkillService:
                                                          'error': str(exc) or '导入已中断，请重新获取'})
             raise
 
-    async def _check_budget(self, tx, replacement=None, remove=None, extras=None):
+    def _selectable(self, entry: dict, config: SkillConfig) -> bool:
+        return bool(entry.get('enabled')) and entry.get('status', 'available') == 'available' and entry['id'] not in set(config.disabled_skills)
+
+    def _is_included(self, entry: dict) -> bool:
+        """没有纳入字段的旧登记沿用「启用即进入目录」。"""
+        if 'included' in entry:
+            return bool(entry['included'])
+        return bool(entry.get('enabled', True))
+
+    def _in_scope(self, entry: dict, workspace_id: str | None) -> bool:
+        if entry_kind(entry) != 'workspace':
+            return True
+        return workspace_id is not None and entry_workspace_id(entry) == workspace_id
+
+    def _scopes(self, entries: list[dict]) -> list[str | None]:
+        scopes: list[str | None] = [None]
+        seen: set[str] = set()
+        for entry in entries:
+            workspace_id = entry_workspace_id(entry)
+            if workspace_id and workspace_id not in seen:
+                seen.add(workspace_id)
+                scopes.append(workspace_id)
+        return scopes
+
+    def _members(self, entries: list[dict], config: SkillConfig, workspace_id: str | None) -> list[dict]:
+        pool = [e for e in entries if self._selectable(e, config) and self._is_included(e) and self._in_scope(e, workspace_id)]
+        selected, _conflicts = resolve_names(resolve_aliases(pool), config.preferred)
+        return selected
+
+    def _catalog_size(self, entries: list[dict]) -> int:
+        return len(catalog_message('', entries, self.settings.skill_catalog_description_chars)['content'])
+
+    def _fits(self, entries: list[dict], config: SkillConfig) -> bool:
+        limit = self.settings.skill_catalog_chars
+        return all(self._catalog_size(self._members(entries, config, workspace_id)) <= limit for workspace_id in self._scopes(entries))
+
+    def _partition(self, entries: list[dict], config: SkillConfig, workspace_id: str | None) -> tuple[list[dict], list[dict]]:
+        members = self._members(entries, config, workspace_id)
+        if self._catalog_size(members) <= self.settings.skill_catalog_chars:
+            return members, []
+        kept = [e for e in members if e.get('builtin') or entry_kind(e) == 'builtin']
+        kept_ids = {e['id'] for e in kept}
+        return kept, [e for e in members if e['id'] not in kept_ids]
+
+    def _freeze_bound(self, entries: list[dict], config: SkillConfig, workspace_id: str | None, selection: dict | None) -> list[dict]:
+        """已纳入集合放得下就整份冻结。放不下时只保留内置 Skill，不按扫描顺序截断。"""
+        members = self._members(entries, config, workspace_id)
+        if self._catalog_size(members) <= self.settings.skill_catalog_chars:
+            bound = list(members)
+            if selection and not any(e['id'] == selection['id'] for e in bound):
+                trial = [*bound, selection]
+                if self._catalog_size(trial) > self.settings.skill_catalog_chars:
+                    raise SkillError('本运行 Skill 目录容量不足', 409)
+                bound = trial
+            return bound
+        kept, _overflow = self._partition(entries, config, workspace_id)
+        bound = list(kept)
+        if selection and not any(e['id'] == selection['id'] for e in bound):
+            bound.append(selection)
+        return bound
+
+    async def _check_budget(self, tx, replacement: dict, config: SkillConfig):
         entries = {e['id']: e for e in await tx.all('skills')}
-        if replacement:
-            entries[replacement['id']] = replacement
-        if remove:
-            entries.pop(remove, None)
-        if extras:
-            for item in extras:
-                entries[item['id']] = item
-        enabled = [e for e in entries.values() if e.get('enabled') and e.get('status', 'available') == 'available']
-        size = len(catalog_message('', enabled)['content'])
-        if size > self.settings.skill_catalog_chars:
-            raise SkillError('Skill 目录超过上下文预算，请缩短描述或停用部分 Skill', 409)
+        entries[replacement['id']] = replacement
+        if not self._fits(list(entries.values()), config):
+            raise SkillError('Skill 目录超过上下文预算，请退出部分已纳入的 Skill', 409)
 
     async def publish(self, operation_id, candidate_path, fingerprint, *, owner=None):
         op = await self.operation(operation_id)
@@ -240,6 +303,7 @@ class SkillService:
         version = {**candidate, 'source': {**op['source'], 'path': candidate_path, 'kind': op['source'].get('kind', 'local')}}
         version['context_chars'] = len(body_message('', {**version, 'text': candidate['text']}, self.settings.skill_resource_chars)['content'])
         version.pop('text', None)
+        config = await self._config()
         async with self.repository.transaction(run_id=owner) as tx:
             current_op = await tx.get('imports', operation_id)
             if current_op['stage'] == 'completed':
@@ -264,13 +328,24 @@ class SkillService:
             entry = existing if existing and existing['version'] == fingerprint else {
                 'id': skill_id, 'name': name, 'description': candidate['description'], 'version': fingerprint,
                 'enabled': existing['enabled'] if existing else True, 'builtin': False,
+                'included': self._is_included(existing) if existing else True,
                 'source': source, 'status': 'available', 'external': False}
-            await self._check_budget(tx, entry)
+            if 'included' not in entry:
+                entry = {**entry, 'included': True}
+            notice = None
+            if entry.get('enabled', True) and self._is_included(entry):
+                rows = {item['id']: item for item in await tx.all('skills')}
+                rows[entry['id']] = entry
+                if not self._fits(list(rows.values()), config):
+                    entry = {**entry, 'included': False}
+                    notice = '已安装，但目录预算已满，未纳入自动目录'
             await asyncio.to_thread(self.storage.write, 'versions', fingerprint, bundle)
             if not await tx.get('versions', fingerprint):
                 await tx.put('versions', fingerprint, version)
             await tx.put('skills', skill_id, entry)
             op = {**current_op, 'stage': 'completed', 'result': entry, 'selected_path': candidate_path, 'selected_version': fingerprint}
+            if notice:
+                op['notice'] = notice
             await tx.put('imports', operation_id, op)
         return op
 
@@ -291,7 +366,10 @@ class SkillService:
             await tx.put('imports', op['id'], op)
         return await self.publish(op['id'], op['candidates'][0]['path'], op['candidates'][0]['version'])
 
-    async def change(self, skill_id, expected_version, *, enabled=None, delete=False):
+    async def change(self, skill_id, expected_version, *, enabled=None, included=None, delete=False):
+        if enabled is None and included is None and not delete:
+            raise SkillError('没有要修改的状态')
+        config = await self._config()
         async with self.repository.transaction() as tx:
             entry = await tx.get('skills', skill_id)
             if not entry:
@@ -306,8 +384,14 @@ class SkillService:
                 # 外部引用只移除登记，不删除用户目录
                 await tx.delete('skills', skill_id)
                 return
-            entry = {**entry, 'enabled': enabled}
-            await self._check_budget(tx, entry)
+            if enabled is not None:
+                entry = {**entry, 'enabled': enabled}
+            if included is not None:
+                if included and not entry.get('enabled'):
+                    raise SkillError('停用的 Skill 不能纳入目录', 409)
+                entry = {**entry, 'included': included}
+            if entry.get('enabled') and self._is_included(entry):
+                await self._check_budget(tx, entry, config)
             await tx.put('skills', skill_id, entry)
         return entry
 
@@ -359,6 +443,7 @@ class SkillService:
                 'source': {
                     'kind': item['kind'], 'label': item['label'], 'path': item['origin'],
                     'canonical': item['canonical'], 'source_id': item['source_id'],
+                    **({'workspace_id': item['workspace_id']} if item.get('workspace_id') else {}),
                 },
             }
             version_meta['context_chars'] = len(body_message(
@@ -366,14 +451,14 @@ class SkillService:
             entry = {
                 'id': skill_id, 'name': item['name'], 'description': item['description'],
                 'version': item['version'], 'enabled': skill_id not in config.disabled_skills,
-                'builtin': False, 'external': True, 'status': 'available',
+                'included': False, 'builtin': False, 'external': True, 'status': 'available',
                 'source': version_meta['source'],
             }
             async with self.repository.transaction() as tx:
                 old = await tx.get('skills', skill_id)
-                if old and old.get('enabled') is False:
-                    entry['enabled'] = False
-                await self._check_budget(tx, entry)
+                if old:
+                    entry['enabled'] = bool(old.get('enabled', True))
+                    entry['included'] = bool(old['included']) if 'included' in old else bool(old.get('enabled', True))
                 if not await tx.get('versions', item['version']):
                     await tx.put('versions', item['version'], version_meta)
                 await tx.put('skills', skill_id, entry)
@@ -409,10 +494,11 @@ class SkillService:
             version = {**candidate, 'source': {'kind': 'builtin', 'label': '内置'}}
             version['context_chars'] = len(body_message('', version, self.settings.skill_resource_chars)['content'])
             version.pop('text', None)
+            enabled = old['enabled'] if old else True
+            included = bool(old['included']) if old and 'included' in old else True
             entry = {k: candidate[k] for k in ('name', 'description', 'version')}
-            entry.update(id=candidate['name'], enabled=old['enabled'] if old else True, builtin=True,
+            entry.update(id=candidate['name'], enabled=enabled, included=included, builtin=True,
                          external=False, status='available', source={'kind': 'builtin', 'label': '内置'})
-            await self._check_budget(tx, entry)
             await tx.put('versions', candidate['version'], version)
             await tx.put('skills', candidate['name'], entry)
         await self.collect()
@@ -443,14 +529,6 @@ class SkillService:
         if not entry or not entry.get('enabled') or entry['version'] != version or entry.get('status') == 'missing':
             raise SkillError('所选 Skill 已删除、停用、缺失或更新，请刷新选择；草稿已保留', 409)
 
-    def _catalog_for_run(self, entries: list[dict], config: SkillConfig) -> list[dict]:
-        available = [e for e in entries
-                     if e.get('enabled') and e.get('status', 'available') == 'available'
-                     and e['id'] not in config.disabled_skills]
-        deduped = resolve_aliases(available)
-        selected, _conflicts = resolve_names(deduped, config.preferred)
-        return selected
-
     async def accept(self, uow, session_id, selection):
         """在消息与运行的同一受理事务中校验选择、固定目录和登记版本引用。"""
         tx = uow.skills
@@ -469,9 +547,7 @@ class SkillService:
                           or selected_entry.get('status') == 'missing'):
             raise SkillError('所选 Skill 已删除、停用、缺失或更新，请刷新选择', 409)
         if not run.config_snapshot.get('skills_frozen'):
-            bound = self._catalog_for_run(entries, config)
-            if selection and selected_entry and not any(e['id'] == selection.id for e in bound):
-                bound = [*bound, selected_entry]
+            bound = self._freeze_bound(entries, config, workspace_id, selected_entry if selection else None)
             for entry in bound:
                 payload = {**entry, 'active': False, 'root_path': str(self.snapshot_root(entry['version']))}
                 await tx.bind(run.id, entry['id'], entry['version'], payload)
@@ -489,7 +565,7 @@ class SkillService:
             from_snapshot = await tx.bindings(run_id)
             if from_snapshot:
                 return from_snapshot
-            entries = self._catalog_for_run(await tx.all('skills'), config)
+            entries = self._freeze_bound(await tx.all('skills'), config, workspace_id, None)
             bound = []
             for entry in entries:
                 payload = {**entry, 'active': False, 'root_path': str(self.snapshot_root(entry['version']))}
@@ -512,7 +588,7 @@ class SkillService:
                 if old['version'] != entry['version']:
                     raise SkillError('本运行已固定同名旧版本，新版本在新运行生效', 409)
                 return old
-            if len(catalog_message('', [*bound, entry])['content']) > self.settings.skill_catalog_chars:
+            if len(catalog_message('', [*bound, entry], self.settings.skill_catalog_description_chars)['content']) > self.settings.skill_catalog_chars:
                 raise SkillError('本运行 Skill 目录容量不足', 409)
             payload = {**entry, 'active': False, 'root_path': str(self.snapshot_root(entry['version']))}
             await tx.bind(run_id, entry['id'], entry['version'], payload)
