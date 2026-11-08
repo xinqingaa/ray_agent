@@ -32,7 +32,7 @@ RayAgent 通过自研 Harness 统一这些职责，保持任务执行、工具�
 | 外部协作 | MCP 外部工具与 A2A 远程 Agent |
 | 文件交付 | 上传材料并预览下载，把生成的文件写回工作区或交付为附件 |
 
-具体行为与使用边界见[产品说明](docs/product.md)。
+首个桌面交付仍在实施中；组件安装、检索、冻结运行时等已知未闭环项见[收尾清单](docs/plan/first-delivery-remaining.md)。具体行为与使用边界见[产品说明](docs/product.md)。
 
 ## 从哪里开始
 
@@ -47,4 +47,4 @@ RayAgent 通过自研 Harness 统一这些职责，保持任务执行、工具�
 | 运行与开发 | [运行指南](ray_agent/README.md)、[桌面开发指南](ray_agent/desktop/README.md)、[API 开发指南](ray_agent/api/README.md)、[UI 开发指南](ray_agent/ui/README.md) | 模型连接、内部包构建、核心与界面开发 |
 | 查询设计形成过程 | [设计背景](docs/background/README.md) | 问题、证据、方案比较与重要转折 |
 
-后续阶段见[维护与优化计划](PLAN.md)，文档分工见[文档地图](docs/README.md)。
+当前实施与后续阶段见[维护与优化计划](PLAN.md)，文档分工见[文档地图](docs/README.md)。
