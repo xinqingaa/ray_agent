@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>RayAgent · 工作区交互评审</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app" id="app">
+    <aside class="sidebar" id="sidebar" aria-label="对话与工作区"></aside>
+    <main class="main" id="main"></main>
+    <aside class="materials" id="materials" aria-label="工作材料" hidden></aside>
+  </div>
+  <footer class="prototype-bar" aria-label="原型控制">
+    <b>V4 · 交互评审</b><span class="prototype-note">V1 视觉 · 静态数据 · P4–P8 为规划交互</span>
+    <label>场景 <select id="scenario" aria-label="评审场景">
+      <option value="start">工作区入口</option><option value="running">运行中</option>
+      <option value="approval">等待审批</option><option value="done">成果交付</option>
+      <option value="offline">文件夹失联</option><option value="lease">写入占用</option>
+      <option value="archived">已归档</option><option value="empty">空文件夹</option>
+      <option value="conflict">文件夹副本</option><option value="external">文件外部更新</option>
+      <option value="runtime">组件准备失败</option>
+      <option value="background">背景与记忆</option><option value="knowledge">知识与索引</option><option value="skills">Skill 多来源</option><option value="search-failure">检索失败</option><option value="semantic-missing">仅全文搜索</option><option value="ocr-failure">OCR 准备失败</option>
+    </select></label>
+    <button data-action="theme">切换深浅色</button><button data-action="review">评审说明</button>
+  </footer>
+  <dialog id="dialog" aria-labelledby="dialog-title"><div id="dialog-content"></div></dialog>
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+  <script src="app.js"></script>
+  <script src="workspace.js"></script>
+</body>
+</html>
