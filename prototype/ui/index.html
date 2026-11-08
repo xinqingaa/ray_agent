@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>RayAgent 界面原型</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body data-device="desktop" data-view="app" data-scene="home" data-dialog="" data-drop="" data-preview="" data-mobile-sheet="">
+  <header class="proto">
+    <b>RayAgent 原型</b>
+    <button class="chip" data-device="desktop" aria-pressed="true">桌面</button>
+    <button class="chip" data-device="mobile" aria-pressed="false">移动</button>
+    <span class="sep"></span>
+    <label>画面
+      <select id="scene">
+        <option value="home">工作区首页</option>
+        <option value="session">工作区对话</option>
+        <option value="workspace-home">工作区入口</option>
+        <option value="empty-folder">空文件夹</option>
+        <option value="indexing">索引中</option>
+        <option value="unavailable">文件夹失联</option>
+        <option value="archived">已归档</option>
+        <option value="lease">写入占用</option>
+        <option value="drop">拖入文件</option>
+        <option value="independent">独立对话</option>
+        <option value="empty-app">空应用</option>
+        <option value="mobile-list">移动 · 列表</option>
+        <option value="mobile-offline">移动 · 桌面离线</option>
+        <option value="p5-memory">P5 · 工作方式与记忆</option>
+        <option value="p6-knowledge">P6 · 全文知识</option>
+        <option value="p7-components">P7 · OCR 与语义组件</option>
+        <option value="p8-skills">P8 · Skills</option>
+      </select>
+    </label>
+    <span class="sep"></span>
+    <button class="chip" data-theme-toggle>深色</button>
+    <button class="chip" data-view-toggle>组件墙</button>
+    <span class="sep"></span>
+    <button class="chip" data-open="create">新建</button>
+    <button class="chip" data-open="delete-ws">删除工作区</button>
+    <button class="chip" data-open="delete-session">删除对话</button>
+    <button class="chip" data-open="conflict">副本冲突</button>
+    <button class="chip" data-open="scan">扫描摘要</button>
+    <button class="chip" data-open="undo">撤销修改</button>
+    <button class="chip" data-open="upload">添加材料</button>
+    <span class="note">静态原型 · 侧栏可拖动工作区排序</span>
+  </header>
+
+  <div class="stage">
+    <!-- 桌面 -->
+    <div class="desktop-frame">
+    <div class="app desktop" role="application" aria-label="RayAgent 桌面原型">
+      <aside class="sidebar">
+        <button class="brand" data-go="home" aria-label="回到工作区首页">
+          <svg viewBox="0 0 32 32" fill="none" aria-hidden="true">
+            <path d="M8 24.75V7.25h9a5.5 5.5 0 0 1 0 11H8" stroke="currentColor" stroke-width="3.3" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="m16.5 18.25 7.5 6.5" stroke="var(--signal)" stroke-width="3.3" stroke-linecap="round"/>
+          </svg>
+          RayAgent
+        </button>
+        <div class="sidebar-body">
+          <div class="sect">
+            <h2>独立对话</h2>
+            <button class="ico" title="新的独立对话" data-go="independent" aria-label="新的独立对话">
+              <svg viewBox="0 0 16 16" fill="none"><path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+            </button>
+          </div>
+          <div id="independent-list">
+            <button class="row chat" data-go="independent" data-chat="1"><span class="name">把这段会议录音转成纪要</span><span class="meta">昨天</span></button>
+            <button class="row chat" data-chat="2"><span class="name">这张图里的表格怎么读</span><span class="meta">周一</span></button>
+            <button class="row chat" data-chat="3"><span class="name">润色这封拒绝信</span><span class="meta">3/12</span></button>
+            <button class="row chat" data-chat="4"><span class="name">解释这条报错</span><span class="meta">3/9</span></button>
+            <button class="row chat" data-chat="5"><span class="name">临时翻译合同第 4 条</span><span class="meta">3/2</span></button>
+            <div id="independent-extra" hidden>
+              <button class="row chat" data-chat="6"><span class="name">帮我列一份出差清单</span><span class="meta">2/21</span></button>
+              <button class="row chat" data-chat="7"><span class="name">这段话有没有更短的写法</span><span class="meta">2/18</span></button>
+              <button class="row chat" data-chat="8"><span class="name">核对这两个日期是否冲突</span><span class="meta">2/4</span></button>
+            </div>
+            <button class="more" id="independent-more" type="button">还有 3 条独立对话</button>
+          </div>
+
+          <div class="sect">
+            <h2>工作区</h2>
+            <button class="ico" title="打开文件夹" data-open="scan" aria-label="打开文件夹">
+              <svg viewBox="0 0 16 16" fill="none"><path d="M2 13V4.5h4l1.2 1.5H14V13H2Z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/></svg>
+            </button>
+            <button class="ico" title="新建工作区" data-open="create" aria-label="新建工作区">
+              <svg viewBox="0 0 16 16" fill="none"><path d="M8 3.5v9M3.5 8h9" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+            </button>
+          </div>
+          <div id="workspace-list">
+            <div class="ws-block is-open" data-ws="review" draggable="true">
+              <button class="row ws is-on" data-go="workspace-home" aria-expanded="true">
+                <span class="grip" aria-hidden="true"></span>
+                <span class="name">季度复盘</span>
+                <span class="badge">18/22</span>
+                <span class="row-action" data-go="session" title="新建对话" aria-label="在季度复盘中新建对话">＋</span>
+              </button>
+              <div class="ws-children">
+                <button class="row session is-on" data-go="session"><span class="name">整理竞品表</span><span class="pulse" title="运行中"></span></button>
+                <button class="row session" data-go="session"><span class="name">写纪要给市场</span><span class="meta">昨天</span></button>
+                <button class="row session" data-go="workspace-home"><span class="name">定价策略讨论</span><span class="meta">周一</span></button>
+                <button class="row session" data-go="workspace-home"><span class="name">核验竞品结论</span><span class="meta">3/11</span></button>
+                <button class="workspace-more" data-go="workspace-home">还有 1 条对话</button>
+              </div>
+            </div>
+            <div class="ws-block" data-ws="course" draggable="true">
+              <button class="row ws" data-go="workspace-home" aria-expanded="false">
+                <span class="grip" aria-hidden="true"></span>
+                <span class="name">课程笔记</span>
+                <span class="badge mute">12 个文件</span>
+              </button>
+              <div class="ws-children">
+                <button class="row session" data-go="workspace-home"><span class="name">整理学习路径</span><span class="meta">昨天</span></button>
+                <button class="row session" data-go="workspace-home"><span class="name">阅读清单</span><span class="meta">周日</span></button>
+              </div>
+            </div>
+            <div class="ws-block" data-ws="trip" draggable="true">
+              <button class="row ws unavailable" data-go="unavailable">
+                <span class="grip" aria-hidden="true"></span>
+                <span class="name">出差报销</span>
+                <span class="badge warn">找不到文件夹</span>
+              </button>
+            </div>
+            <div class="ws-block" data-ws="prd" draggable="true">
+              <button class="row ws archived" data-go="archived">
+                <span class="grip" aria-hidden="true"></span>
+                <span class="name">产品评审</span>
+                <span class="badge mute">已归档</span>
+              </button>
+            </div>
+            <div class="ws-block" data-ws="photos" draggable="true">
+              <button class="row ws" data-go="empty-folder">
+                <span class="grip" aria-hidden="true"></span>
+                <span class="name">家庭旧照整理</span>
+                <span class="badge mute">空</span>
+              </button>
+            </div>
+            <p class="hint" id="ws-empty" hidden>还没有工作区。打开已有文件夹，或新建一个。</p>
+          </div>
+        </div>
+        <div class="sidebar-foot">
+          <button class="nav-btn">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true"><circle cx="8" cy="8" r="5.2" stroke="currentColor" stroke-width="1.4"/><path d="M8 5.5v3l2 1.2" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>
+            设置
+          </button>
+        </div>
+      </aside>
+
+      <div class="main">
+        <section class="home-view" data-slot="home-view" aria-label="工作区首页"></section>
+        <section class="capability-view" data-slot="capability-view" aria-label="计划能力"></section>
+        <section class="col-chat">
+          <header class="pane-head" data-slot="chat-head">
+            <h1>整理竞品表</h1>
+            <span class="sub">季度复盘</span>
+          </header>
+          <div class="banner warn" data-slot="banner" hidden></div>
+          <div class="thread" data-slot="thread"></div>
+          <div class="composer" data-slot="composer">
+            <div class="box">
+              <textarea rows="2" placeholder="在这个工作区里接着做"></textarea>
+              <div class="box-bar">
+                <button class="ghost">附件</button>
+                <button class="ghost">计划</button>
+                <span class="grow"></span>
+                <span class="ghost">Claude 4.5 · 思考</span>
+                <button class="send" aria-label="发送"><svg viewBox="0 0 16 16" fill="none"><path d="M8 12V4M4.5 7.5 8 4l3.5 3.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <aside class="col-files" data-slot="files">
+          <div class="files-head">
+            <h2>材料</h2>
+            <span class="badge" data-slot="index-badge">索引 18/22</span>
+            <button class="file-add" data-open="upload">添加资料</button>
+            <button class="ico" title="在 Finder 中显示" aria-label="在 Finder 中显示">
+              <svg viewBox="0 0 16 16" fill="none"><path d="M6 4H3.5v8.5h9V10" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M8 8l5-5M9.5 3H13v3.5" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+          </div>
+          <div class="tabs">
+            <button class="tab is-on">文件夹</button>
+            <button class="tab">本次成果 1</button>
+            <button class="tab">最近修改</button>
+          </div>
+          <div class="file-list" data-slot="file-list"></div>
+          <div class="preview">
+            <div class="preview-bar">
+              <button class="ghost" data-preview-back>返回</button>
+              <span class="fn">竞品-A.pdf</span>
+            </div>
+            <div class="stale">这个文件刚被修改。<button class="ghost">重新载入</button></div>
+            <div class="preview-body">
+              <div class="paper">
+                <p><b>竞品 A · 定价页</b></p>
+                <p>基础版 99 / 月，团队版 199 / 月。年付八折。企业版需询价，合同按席位。</p>
+                <p>第 2 页记录了他们在教育渠道的折扣，不进入公开价目。</p>
+              </div>
+            </div>
+          </div>
+          <div class="file-foot"><span>目标：<b>工作区文件夹</b></span><span class="file-foot-status">拖入文件可直接添加</span></div>
+          <div class="drop-veil">
+            <div>
+              <strong>放入 材料/</strong>
+              <span>文件会复制进这个文件夹，随后进入索引</span>
+            </div>
+          </div>
+        </aside>
+      </div>
+
+      <div class="veil" data-close-dialog>
+        <div class="sheet create" role="dialog" aria-labelledby="d-create" >
+          <h3 id="d-create">新建工作区</h3>
+          <p class="lead">会在默认位置创建一个同名文件夹。名称之后也能改。</p>
+          <label class="field">名称<input value="" placeholder="例如：季度复盘"></label>
+          <p class="lead">位置 <span class="path">~/Documents/RayAgent</span> · 默认位置在设置里改</p>
+          <div class="sheet-actions">
+            <button class="btn quiet" data-close-dialog>取消</button>
+            <button class="btn solid" data-close-dialog>创建工作区</button>
+          </div>
+        </div>
+
+        <div class="sheet delete-ws" role="dialog" aria-labelledby="d-delws" >
+          <h3 id="d-delws">删除工作区「季度复盘」</h3>
+          <p class="lead">只拆除应用里的登记。磁盘上的文件夹不动。</p>
+          <dl class="pair">
+            <dt>会清除</dt><dd>对话、记忆、索引和本机标记</dd>
+            <dt>会保留</dt><dd class="keep">文件夹和其中的全部文件</dd>
+          </dl>
+          <div class="sheet-actions">
+            <button class="btn quiet" data-close-dialog>取消</button>
+            <button class="btn danger" data-close-dialog>删除工作区</button>
+          </div>
+        </div>
+
+        <div class="sheet delete-session" role="dialog" aria-labelledby="d-delsess" >
+          <h3 id="d-delsess">删除对话「整理竞品表」</h3>
+          <p class="lead">这段对话和它的附件会从应用里去掉，不能恢复。</p>
+          <dl class="pair">
+            <dt>会清除</dt><dd>消息、运行记录、会话附件</dd>
+            <dt>会保留</dt><dd class="keep">工作区文件夹里的文件</dd>
+          </dl>
+          <div class="sheet-actions">
+            <button class="btn quiet" data-close-dialog>取消</button>
+            <button class="btn danger" data-close-dialog>删除对话</button>
+          </div>
+        </div>
+
+        <div class="sheet conflict" role="dialog" aria-labelledby="d-conflict" >
+          <h3 id="d-conflict">这个文件夹是「季度复盘」的副本</h3>
+          <p class="lead">原工作区还绑在别处。选一项，文件都不会被删。</p>
+          <dl class="pair">
+            <dt>原位置</dt><dd class="path">~/Documents/季度复盘</dd>
+            <dt>所选</dt><dd class="path">~/Desktop/季度复盘 copy</dd>
+          </dl>
+          <button class="choice" data-close-dialog>
+            <b>作为新工作区</b>
+            <span>另开一份，两边的对话和记忆互不共享</span>
+          </button>
+          <button class="choice" data-close-dialog>
+            <b>改绑到这里</b>
+            <span>原位置不再属于这个工作区，对话跟着过来</span>
+          </button>
+          <div class="sheet-actions">
+            <button class="btn quiet" data-close-dialog>取消</button>
+          </div>
+        </div>
+
+        <div class="sheet scan" role="dialog" aria-labelledby="d-scan" >
+          <h3 id="d-scan">已打开「课程笔记」</h3>
+          <p class="lead">先看一眼规模。索引可以稍后按子目录收窄。</p>
+          <div class="scan-stats">
+            <div><b>428</b><span>个文件</span></div>
+            <div><b>1.6 GB</b><span>体积</span></div>
+            <div><b>36</b><span>暂不索引</span></div>
+          </div>
+          <p class="lead">依赖目录、`.git` 和凭据已排除。扫描件要等 OCR 组件。</p>
+          <div class="sheet-actions">
+            <button class="btn quiet" data-close-dialog>先打开，稍后索引</button>
+            <button class="btn solid" data-close-dialog>开始使用</button>
+          </div>
+        </div>
+
+        <div class="sheet undo" role="dialog" aria-labelledby="d-undo" >
+          <h3 id="d-undo">撤销这次对文件夹的修改</h3>
+          <p class="lead">只恢复文件。对话、记忆不会倒回去。</p>
+          <div class="undo-list">
+            <label class="undo-item"><input type="checkbox" checked> <span><b>材料/对比表.xlsx</b><br>恢复运行前的内容</span></label>
+            <label class="undo-item"><input type="checkbox" checked> <span><b>成果/要点.md</b><br>撤销会移除这个新建文件</span></label>
+            <label class="undo-item"><input type="checkbox"> <span><b>材料/纪要.md</b><br><span class="why">运行之后又被改过，默认不覆盖</span></span></label>
+          </div>
+          <div class="sheet-actions">
+            <button class="btn quiet" data-close-dialog>取消</button>
+            <button class="btn solid" data-close-dialog>撤销选中的文件</button>
+          </div>
+        </div>
+
+        <div class="sheet upload" role="dialog" aria-labelledby="d-upload">
+          <div class="sheet-heading"><h3 id="d-upload">添加材料</h3><span class="sheet-close" data-close-dialog>Esc</span></div>
+          <p class="lead">文件会复制到当前工作区的本机文件夹，然后按同一条管线登记、解析和索引。</p>
+          <button class="choice choice-primary" data-close-dialog>
+            <span class="choice-icon">↥</span><span><b>选择文件</b><small>支持多个文件，默认放入 材料/</small></span><span class="choice-key">⌘O</span>
+          </button>
+          <button class="choice" data-close-dialog>
+            <span class="choice-icon">□</span><span><b>选择一个目录</b><small>把目录作为一个文件夹复制进当前工作区</small></span><span class="choice-key">⌘⇧O</span>
+          </button>
+          <div class="upload-destination"><span>目标位置</span><b>季度复盘 <em>/</em> 材料</b><button class="link">更改</button></div>
+          <div class="sheet-actions"><button class="btn quiet" data-close-dialog>取消</button></div>
+        </div>
+      </div>
+    </div>
+    </div>
+
+    <!-- 移动 -->
+    <div class="app mobile" role="application" aria-label="RayAgent 移动原型">
+      <div class="notch"></div>
+      <header class="mobile-top">
+        <button class="ico" data-go="mobile-list" aria-label="返回">
+          <svg viewBox="0 0 16 16" fill="none"><path d="M10 3 5 8l5 5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <h1 data-slot="mobile-title">整理竞品表</h1>
+        <button class="ico" aria-label="更多"></button>
+      </header>
+      <div class="mobile-body" data-slot="mobile-body"></div>
+      <button class="fab-files" data-open-files>材料 22</button>
+      <div class="composer mobile-composer" data-slot="mobile-composer">
+        <div class="box">
+          <textarea rows="2" placeholder="发送到桌面上的这个工作区"></textarea>
+          <div class="box-bar">
+            <button class="ghost">附件</button>
+            <span class="grow"></span>
+            <button class="send" aria-label="发送"><svg viewBox="0 0 16 16" fill="none"><path d="M8 12V4M4.5 7.5 8 4l3.5 3.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+          </div>
+        </div>
+      </div>
+      <div class="sheet-up" data-close-files>
+        <div class="panel" >
+          <div class="files-head"><h2>桌面上的文件</h2><button class="ghost" data-close-files>完成</button></div>
+          <div class="file-list" data-slot="mobile-files"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 组件墙 -->
+    <section class="spec">
+      <h1>组件与状态</h1>
+      <p class="lede">沿用现有纸面与钴蓝。侧栏是房间目录：独立对话最多五条，其余是可排序的工作区。弹层只陈述后果，不用通用 Confirm。</p>
+
+      <h2>侧栏行</h2>
+      <div class="board wide">
+        <div class="cell">
+          <div class="cap">独立对话 · 默认最多五条</div>
+          <button class="row chat"><span class="name">把这段会议录音转成纪要</span><span class="meta">昨天</span></button>
+          <button class="row chat is-on"><span class="name">润色这封拒绝信</span><span class="meta">3/12</span></button>
+          <button class="more">还有 3 条独立对话</button>
+        </div>
+        <div class="cell">
+          <div class="cap">工作区 · 创建顺序，可拖动</div>
+          <button class="row ws is-on"><span class="grip"></span><span class="name">季度复盘</span><span class="badge">索引 18/22</span></button>
+          <button class="row ws unavailable"><span class="grip"></span><span class="name">出差报销</span><span class="badge warn">找不到文件夹</span></button>
+          <button class="row ws archived"><span class="grip"></span><span class="name">产品评审</span><span class="badge mute">已归档</span></button>
+        </div>
+      </div>
+
+      <h2>材料行</h2>
+      <div class="board">
+        <div class="cell">
+          <button class="file"><span class="tick pdf"></span><span class="fn">竞品-A.pdf</span><span class="st ok">可检索</span></button>
+          <button class="file"><span class="tick doc"></span><span class="fn">纪要.md</span><span class="st work">解析中</span></button>
+          <button class="file"><span class="tick pdf"></span><span class="fn">扫描合同.pdf</span><span class="st wait">待 OCR</span></button>
+          <button class="file"><span class="tick sheet"></span><span class="fn">对比表.xlsx</span><span class="st">本次写入</span></button>
+          <button class="file"><span class="tick img"></span><span class="fn">白板.jpg</span><span class="st fail">解析失败</span></button>
+        </div>
+      </div>
+
+      <h2>横幅</h2>
+      <div class="board">
+        <div class="banner warn">文件夹暂时找不到。对话仍可继续，文件工具已暂停。<button class="link">重新定位</button></div>
+        <div class="banner danger">「写纪要给市场」正在写入这个文件夹。<button class="link">打开那个对话</button></div>
+      </div>
+
+      <h2>弹层（点顶部按钮查看完整尺寸）</h2>
+      <div class="board wide">
+        <div class="cell">
+          <div class="cap">危险操作 · 写清保留什么</div>
+          <h3 style="margin:0 0 8px;font-size:16px">删除工作区「季度复盘」</h3>
+          <dl class="pair"><dt>会清除</dt><dd>对话、记忆、索引</dd><dt>会保留</dt><dd class="keep">文件夹和文件</dd></dl>
+          <div class="sheet-actions"><button class="btn quiet">取消</button><button class="btn danger">删除工作区</button></div>
+        </div>
+        <div class="cell">
+          <div class="cap">选择 · 点整行，不把选项塞进页脚按钮</div>
+          <button class="choice"><b>作为新工作区</b><span>另开一份，对话互不共享</span></button>
+          <button class="choice"><b>改绑到这里</b><span>原位置解除绑定</span></button>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script src="app.js"></script>
+</body>
+</html>

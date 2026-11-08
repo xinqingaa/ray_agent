@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>RayAgent · 工作室原型 v2</title>
+  <link rel="stylesheet" href="styles.css?v=11">
+</head>
+<body>
+  <div class="app" id="app">
+    <header class="appbar">
+      <div class="appbar-left">
+        <button class="brand" type="button" data-action="launchpad" aria-label="打开启动台">
+          <span class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 32 32" fill="none">
+              <path d="M8 24.75V7.25h9a5.5 5.5 0 0 1 0 11H8" stroke="currentColor" stroke-width="3.1" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="m16.5 18.25 7.5 6.5" stroke="var(--accent)" stroke-width="3.1" stroke-linecap="round"/>
+            </svg>
+          </span>
+          <span class="brand-name">RayAgent</span>
+        </button>
+
+        <span class="appbar-rule" aria-hidden="true"></span>
+
+        <button class="workspace-switch" type="button" data-action="launchpad" id="workspaceSwitch" aria-label="切换工作区">
+          <span class="workspace-tab" id="workspaceTab" aria-hidden="true"></span>
+          <span class="workspace-switch-name" id="workspaceSwitchName">季度复盘</span>
+          <span class="workspace-switch-hint"><kbd>⌘O</kbd></span>
+        </button>
+      </div>
+
+      <button class="search-trigger" type="button" data-action="search" aria-label="搜索或跳转">
+        <span class="icon" data-icon="search" aria-hidden="true"></span>
+        <span class="search-trigger-label">搜索或跳转</span>
+        <kbd>⌘K</kbd>
+      </button>
+
+      <div class="appbar-right">
+        <span class="run-pill" id="runPill"><i aria-hidden="true"></i><span id="runPillText">运行中 12s</span></span>
+        <button class="icon-btn tray-toggle" type="button" data-action="toggle-tray" aria-label="显示材料" aria-expanded="true">
+          <span class="icon" data-icon="panel" aria-hidden="true"></span>
+        </button>
+        <button class="icon-btn" type="button" data-action="settings" aria-label="设置">
+          <span class="icon" data-icon="sliders" aria-hidden="true"></span>
+        </button>
+      </div>
+    </header>
+
+    <div class="shell">
+      <nav class="rail" id="rail" aria-label="工作区"></nav>
+      <aside class="index" id="index" aria-label="当前工作区"></aside>
+
+      <main class="work" id="work">
+        <header class="work-head" id="workHead"></header>
+        <div class="banner-slot" id="bannerSlot"></div>
+        <div class="work-scroll" id="workScroll">
+          <div class="timeline" id="timeline" role="log" aria-label="对话与执行记录"></div>
+          <div class="scroll-anchor" id="scrollAnchor"></div>
+        </div>
+        <footer class="composer" id="composer"></footer>
+      </main>
+
+      <aside class="tray" id="tray" aria-label="材料"></aside>
+    </div>
+  </div>
+
+  <div class="dock" id="dock" role="toolbar" aria-label="原型状态控制"></div>
+  <button class="dock-restore" id="dockRestore" type="button" hidden>原型</button>
+
+  <div class="overlay launchpad" id="launchpad" hidden></div>
+  <div class="overlay modal" id="modal" hidden></div>
+  <div class="overlay preview" id="preview" hidden></div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <noscript><p class="noscript">这个原型需要 JavaScript 才能切换状态。</p></noscript>
+  <script src="app.js?v=11"></script>
+</body>
+</html>
