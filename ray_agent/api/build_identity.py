@@ -8,7 +8,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 INPUTS = ('app', 'core', 'alembic', 'alembic.ini', 'pyproject.toml', 'uv.lock', 'sidecar.py', 'rayagent-core.spec',
-          'build_identity.py')
+          'build_identity.py', 'resources', 'scripts/prepare_tool_runtimes.py')
 
 
 def fingerprint(root=ROOT):

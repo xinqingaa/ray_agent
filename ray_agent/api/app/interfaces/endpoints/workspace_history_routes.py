@@ -14,13 +14,25 @@ from app.interfaces.schemas import Response
 from app.interfaces.streaming import EventStreamResponse
 from app.interfaces.schemas.workspace_changes import (
     ChangePreviewResponse, ModifiedRunsResponse, RunChangesResponse, UndoItemResult, UndoRequest, UndoResponse,
-    WriteLeaseResponse, WriteLeaseView, run_summary_view,
+    WriteLeaseResponse, WriteLeaseView, ConfirmLeaseReleaseRequest, run_summary_view,
 )
 from app.interfaces.service_dependencies import (
-    get_change_feed, get_file_history, get_workspace_service, get_write_leases,
+    get_change_feed, get_file_history, get_workspace_service, get_write_leases, get_shell_changes,
 )
+from app.application.services.shell_changes import ShellChanges
+from app.interfaces.schemas.shell_changes import ShellChangesResponse
 
 router = APIRouter(prefix="/workspaces", tags=["工作区文件变更"])
+
+
+@router.get('/{workspace_id}/runs/{run_id}/shell-changes', response_model=Response[ShellChangesResponse],
+            summary='工作区运行的 Shell 文件观察')
+async def shell_changes(workspace_id: str, run_id: str, offset: int = Query(default=0, ge=0),
+                        limit: int | None = Query(default=None, ge=1, le=2000),
+                        changes: ShellChanges = Depends(get_shell_changes)):
+    from core.config import get_settings
+    return Response.success(ShellChangesResponse(**await changes.workspace_view(
+        workspace_id, run_id, offset=offset, limit=limit or get_settings().file_list_entries)))
 
 
 async def _known(workspace_id: str, service: WorkspaceService) -> None:
@@ -45,6 +57,19 @@ async def retry_settle(workspace_id: str, service: WorkspaceService = Depends(ge
     await _known(workspace_id, service)
     try:
         await leases.retry_settle(workspace_id)
+    except WorkspaceFileError as error:
+        raise app_error(error)
+    return Response.success(WriteLeaseResponse(lease=None))
+
+
+@router.post("/{workspace_id}/write-lease/confirm-release", response_model=Response[WriteLeaseResponse],
+             summary="确认未知旧进程已结束并释放占用")
+async def confirm_release(workspace_id: str, body: ConfirmLeaseReleaseRequest,
+                          service: WorkspaceService = Depends(get_workspace_service),
+                          leases: WriteLeaseService = Depends(get_write_leases)):
+    await _known(workspace_id, service)
+    try:
+        await leases.confirm_release(workspace_id, body.lease_id)
     except WorkspaceFileError as error:
         raise app_error(error)
     return Response.success(WriteLeaseResponse(lease=None))

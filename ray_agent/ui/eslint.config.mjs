@@ -4,7 +4,7 @@ import reactHooks from 'eslint-plugin-react-hooks'
 import globals from 'globals'
 
 export default defineConfig([
-  globalIgnores(['dist/**']),
+  globalIgnores(['dist/**', '.next/**']),
   ...tseslint.configs.recommended,
   {
     files: ['src/**/*.{ts,tsx}', 'vite.config.ts'],

@@ -13,7 +13,7 @@ from app.infrastructure.models import BackgroundJobModel
 
 RETRY_SUPPORTED = frozenset({
     OperationKind.DATA_CLEANUP, OperationKind.WORKSPACE_DELETE, OperationKind.DOCUMENT_INDEX,
-    OperationKind.SEMANTIC_INDEX,
+    OperationKind.SEMANTIC_INDEX, OperationKind.COMPONENT_INSTALL,
 })
 
 
@@ -66,9 +66,16 @@ class DBBackgroundJobRepository(BackgroundJobRepository):
         record = await self._record(job_id)
         return _job(record) if record else None
 
+    async def by_request(self, request_id: str) -> Optional[BackgroundJob]:
+        record = (await self.db_session.execute(select(BackgroundJobModel).where(
+            BackgroundJobModel.request_id == request_id))).scalar_one_or_none()
+        return _job(record) if record else None
+
     async def latest(self, kind: OperationKind, scope_kind: Optional[str] = None,
-                     session_id: Optional[str] = None) -> Optional[BackgroundJob]:
+                     session_id: Optional[str] = None, object_version: Optional[str] = None) -> Optional[BackgroundJob]:
         stmt = select(BackgroundJobModel).where(BackgroundJobModel.kind == kind.value)
+        if object_version is not None:
+            stmt = stmt.where(BackgroundJobModel.object_version == object_version)
         if scope_kind is not None:
             stmt = stmt.where(BackgroundJobModel.scope_kind == scope_kind)
         if session_id is not None:

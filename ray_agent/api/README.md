@@ -16,7 +16,7 @@ uv sync --locked --group dev
 
 核心只从进程环境读取系统配置，不查找 `.env`；字段定义见 [core/config.py](core/config.py)。应用配置（逐模型参数、Agent、工具策略、MCP、A2A）保存在业务库，首次启动写入代码默认值，之后经设置接口修改。模型地址与密钥只从用户配置文件读取（默认 `~/.config/rayagent/config.toml`，`RAYAGENT_CONFIG` 可另指，格式见[配置示例](config.example.toml)），按文件身份重新读取；密钥不写入业务库，`GET /api/app-config/llm` 只返回配置文件状态、各提供商的地址、协议、模型与密钥掩码。测试不读用户目录，夹具把配置文件指向临时目录。
 
-运行核心不需要 PostgreSQL、Redis、Docker 或对象存储。文件访问由核心经限根文件端口提供（工作区文件夹与会话工作目录）；本机执行端口接入前，能力声明把本机命令与浏览器报告为未实现，核心不装配这些工具。保留的 Docker 沙箱适配不再装配，见下文[Docker 沙箱适配](#docker-沙箱适配)。
+运行核心不需要 PostgreSQL、Redis、Docker 或对象存储。文件访问经限根端口完成；Shell 按执行开关启用，浏览器在组件可用时提供。两者按需分配执行资源，旧 Docker 沙箱适配已移除。
 
 ## 数据根
 
@@ -59,7 +59,7 @@ uv run --locked python sidecar.py --data-root /tmp/rayagent-dev
 
 ### 工作区写入保护、撤销与外部变更
 
-工作区详情与列表的 `write_lease` 给出文件夹当前的写入者（为空表示没有）；也可单独读 `GET /api/workspaces/{id}/write-lease`。其他会话写入被占用时，文件工具得到可读的失败，接口得到 409 且 `details.lease` 带持有者、阶段与原因。`state` 为 `settling` 或 `blocked`（停止后未能确认写入结束）时，`POST /api/workspaces/{id}/write-lease/retry-settle` 重试收尾，确认后释放，仍未确认返回 409。
+工作区详情与列表的 `write_lease` 给出文件夹当前的写入者（为空表示没有）；也可单独读 `GET /api/workspaces/{id}/write-lease`。其他会话写入被占用时，文件工具得到可读的失败，接口得到 409 且 `details.lease` 带持有者、阶段与原因。`state` 为 `settling` 或 `blocked`（停止后未能确认写入结束）时，`POST /api/workspaces/{id}/write-lease/retry-settle` 重试收尾，确认后释放，仍未确认返回 409。未知进程保持 blocked；用户确认旧进程已结束后，可调用 `POST …/write-lease/confirm-release` 并带读回的 `lease_id`，只释放所见的 blocked 进程租约；身份已变化或所属运行仍活跃时拒绝。
 
 撤销：`GET /api/workspaces/{id}/modified-runs` 列出最近修改过文件夹的运行与撤销操作（项里的 `kind` 为 `run` / `undo`，撤销操作的 `run_id` 是它自己的操作身份，`undo_of_run_id` 指向被撤销的运行，其变更同样可查看与撤回）；`GET …/runs/{run_id}/changes` 给出每个文件的净操作、运行前版本、运行最后写入版本、当前版本与 `status`（`undoable` / `restored` / `conflict`；冲突原因 `conflict_reason` 含 `modified_during_run`：运行期间文件被外部修改过，可强制恢复）；`GET …/runs/{run_id}/changes/preview?path=` 返回当前版本到撤销后版本的统一 diff（二进制或过大只给大小；`warning` 非空时说明撤销会丢掉运行期间的外部修改）；`POST …/runs/{run_id}/undo` 带 `items[{relative_path, force?}]`，逐个返回 `restored` / `removed` / `unchanged` / `conflict` / `failed`。冲突项带当前版本与 `can_force`，把当前版本原样放进 `force` 再提交才会覆盖；运行新建的文件被改动后不提供覆盖。租约被占用、运行仍在进行时整体返回 409。
 
@@ -88,6 +88,7 @@ uv run --locked python scripts/contracts.py --check
 
 ```bash
 uv sync --locked --group dev
+uv run --locked python scripts/prepare_tool_runtimes.py
 uv run --locked pyinstaller --noconfirm --clean rayagent-core.spec
 ```
 
@@ -218,7 +219,7 @@ uv run --locked python -m pytest tests/core/test_file_preview.py tests/core/test
 uv run --locked python -m pytest tests/core/test_write_protection.py tests/core/test_agent_task_runner_cancel.py
 ```
 
-用例使用真实临时目录与真实业务库，覆盖两个会话争用同一文件夹的立即冲突与同一运行重入、停止后释放、确认期限内未确认转阻止并重试、迟到结果不释放新租约、启动扫描旧实例租约、覆盖前备份与同内容去重、备份失败不写入、撤销成功与运行新建文件的移除、外部改动后的冲突与显式覆盖、被改动的新建文件不删除、运行进行中拒绝撤销、真实文件系统通知（辅以重扫）与文件夹移走后的不可用、运行期间外部改动的撤销冲突与撤销操作本身的撤回、文件工具对凭据与版本控制内部路径及其 Unicode 等价名的拒绝，以及清空业务数据不删除用户文件。边界用例见 `test_workspace_integrity.py`：失联工作区的嵌套检查、改绑期间的写入、外接卷设备号变化、标记兼容、删除与写入的竞态、租约残留恢复、监视异常恢复；描述符紧张下的遍历与残留临时文件见 `test_workspace_files.py`。它们不覆盖多个核心进程争用同一数据根（实例锁拒绝第二个核心）、外部进程写入者（尚无调用方，其租约的用户确认释放入口留给本机执行工作包）和非 POSIX 文件系统的原子替换与通知差异。覆盖发布用 `rename` 替换目标，最后一次核对与替换之间仍有很小的竞争窗口（尚未改用 macOS 的 `renamex_np` 条件替换），测试无法证明窗口被消除。
+用例使用真实临时目录与真实业务库，覆盖两个会话争用同一文件夹的立即冲突与同一运行重入、停止后释放、确认期限内未确认转阻止并重试、迟到结果不释放新租约、启动扫描旧实例租约、覆盖前备份与同内容去重、备份失败不写入、撤销成功与运行新建文件的移除、外部改动后的冲突与显式覆盖、被改动的新建文件不删除、运行进行中拒绝撤销、真实文件系统通知（辅以重扫）与文件夹移走后的不可用、运行期间外部改动的撤销冲突与撤销操作本身的撤回、文件工具对凭据与版本控制内部路径及其 Unicode 等价名的拒绝，以及清空业务数据不删除用户文件。边界用例见 `test_workspace_integrity.py`：失联工作区的嵌套检查、改绑期间的写入、外接卷设备号变化、标记兼容、删除与写入的竞态、租约残留恢复、监视异常恢复；描述符紧张下的遍历与残留临时文件见 `test_workspace_files.py`。它们不覆盖多个核心进程争用同一数据根（实例锁拒绝第二个核心）、主动脱离监管的后台服务和外部非受管写入者和非 POSIX 文件系统的原子替换与通知差异。覆盖发布用 `rename` 替换目标，最后一次核对与替换之间仍有很小的竞争窗口（尚未改用 macOS 的 `renamex_np` 条件替换），测试无法证明窗口被消除。
 
 ### 工作方式与记忆检查
 
@@ -309,16 +310,15 @@ uv run --locked python -m pytest tests/core/test_web_fetch.py tests/core/test_br
 RAY_TEST_BROWSER=1 uv run --locked python -m pytest tests/core/test_browser_efficiency.py
 ```
 
-网页读取用例用 HTTP 传输替身核对非公开目标与 URL 凭据被拒绝、重定向逐跳复核且固定解析出的公开地址、请求不带 Cookie、传输与解压大小及类型有界，以及正文提取和失败时提示改用浏览器；不访问真实公网。浏览器工具在本机执行端口接入前不进入工具集，浏览器用例检查保留的适配：`RAY_TEST_CHROMIUM` 可指定已有测试 Chromium 的可执行文件路径，未设置则使用 Playwright 配套浏览器；场景只操作新建的无头测试浏览器，覆盖正文去重/长尾、表单覆盖与读回、失效引用、标签页、日志、截图边界和观察失败，不访问用户业务网页。
+网页读取用例用 HTTP 传输替身核对非公开目标与 URL 凭据被拒绝、重定向逐跳复核且固定解析出的公开地址、请求不带 Cookie、传输与解压大小及类型有界，以及正文提取和失败时提示改用浏览器；不访问真实公网。浏览器工具在组件可用时进入工具集，浏览器用例检查实际适配：`RAY_TEST_CHROMIUM` 可指定已有测试 Chromium 的可执行文件路径，未设置则使用 Playwright 配套浏览器；场景只操作新建的无头测试浏览器，覆盖正文去重/长尾、表单覆盖与读回、失效引用、标签页、日志、截图边界和观察失败，不访问用户业务网页。
 
 ### 视觉输入与按需资源检查
 
 ```bash
-uv run --locked python -m pytest tests/core/test_visual_resources.py tests/protocols/test_protocols.py
-uv run --locked python -m pytest tests/core/test_attachment_images.py
+uv run --locked python -m pytest tests/core/test_attachment_images.py tests/protocols/test_protocols.py
 ```
 
-覆盖按需资源单次准备、停止与迟到所有权、有界独立读取、图像字节请求/历史与容量边界、引用重建、本地临时图回收，以及真实 MCP 夹具的所选发现和新运行器恢复。浏览器身份、焦点、隐藏根与 CDP 重连用例需设置前文 `RAY_TEST_BROWSER=1`；图像归属与过期查询在业务库上的往返见 `test_sqlite_round_trips.py`。
+附件用例覆盖图像字节请求、历史重建、容量边界、等待与注入的规则，以及同名附件落盘；协议用例覆盖真实 MCP 夹具的所选发现和新运行器恢复。不能据此推断任意视觉资源的取消和回收路径均已覆盖。浏览器身份、焦点、隐藏根与 CDP 重连用例需设置前文 `RAY_TEST_BROWSER=1`；图像归属与过期查询在业务库上的往返见 `test_sqlite_round_trips.py`。
 
 截图的分析、交付与临时资源回收见 [Harness 视觉资源](../../docs/harness.md#浏览器动作与视觉资源)，用户图片行为见[产品说明](../../docs/product.md#发起任务与输入材料)。API 图片参数支持 `image_mode=auto` 与 `files`，分别按模型能力组织输入或只提供文件材料；`image_input_note` 记录未提供像素的原因并进入模型上下文。
 
@@ -368,10 +368,26 @@ skill 存储在数据根的 `skills/` 目录（`versions/` 为内容快照），
 
 ## 本机执行
 
-Shell 与脚本经执行 supervisor（Unix 套接字 IPC）启动，进程树由 supervisor 回收；工作区用 `local_execution_enabled`，独立对话用应用配置 `standalone_execution_enabled`（默认关闭）。浏览器 Chromium 作为数据根组件按需安装。定向检查：
+Shell 与脚本经执行 supervisor（Unix 套接字 IPC）启动，进程树由 supervisor 回收；工作区用 `local_execution_enabled`，独立对话用应用配置 `standalone_execution_enabled`。工具 PATH 优先使用随包正常 CPython／Node；冻结包首次执行时校验归档并原子展开到数据根，核对实际版本和独立动态库，其后仅为系统目录，不搜索 Homebrew 或任意数据根运行时目录。开发环境先运行上文运行时准备命令；固定来源、版本、哈希与许可证由随包清单约束，缺失时命令能力不可用。
+
+设置的“运行组件”通过 `/api/components` 读取状态，`POST /api/components/{id}/install` 携带 `request_id` 受理，返回标准长操作；查询、取消、重试复用 `/api/operations`。状态和身份保存在业务库，重启后接管到新代次，已请求的取消不会被清除。组件 worker 由 supervisor 按操作登记，在独立版本目录获取、校验，发布前在写事务里核对代次与取消；完整收据原子替换后才可用。目标版本变化不会提前撤下兼容旧版本；失败、取消和重启保持旧收据，只有完整校验成功才切换，不兼容时提示原因。浏览器用固定官方压缩包哈希，Embedding／OCR 用文件级哈希，均完成可启动检查。未校验的旧 `.ready` 目录不会直接采用，需重新安装。
+
+浏览器端口在首次动作才启动，驱动进程与浏览器子树登记到 supervisor；同工作区的资料目录串行准入，不同工作区与独立对话各自隔离。启动异常、取消与退出均清理已创建资源。定向检查：
 
 ```bash
-uv run --locked python -m pytest tests/core/test_process_executor.py
+uv run --locked python -m pytest tests/core/test_process_executor.py tests/core/test_components.py tests/core/test_execution_leases.py tests/core/test_shell_changes.py tests/core/test_tool_runtimes.py tests/core/test_agent_task_runner_cancel.py
 ```
+
+Shell 首次执行前保存有界清单，确认子树停止后保存区间观察，同一核心内等待续接不覆盖起点，跨核心续接标为未知；`GET /api/sessions/{id}/runs/{run_id}/shell-changes` 和工作区对应入口支持分页，文件版本时间以十进制字符串传递。元数据变化无法归属到具体写入者，没有备份的脚本变化不能撤销；机制见[执行环境与限制](../../docs/architecture.md#执行环境与限制)。`test_shell_changes.py` 使用真实文件、进程和 SQLite，覆盖新增／修改／删除、外部并发、等待续接、截断、未知、重启后的读回和请求范围。运行时归档用例检查损坏不发布、修复重装、版本及动态库独立；真实模型效果需在完整包另行运行，不能由这些用例推断。
+
+组件用例使用真实 SQLite 核对请求幂等、HTTP、取消、失败重试、重启接管与迟到发布隔离。真实运行时／组件检查显式启用：
+
+```bash
+RAY_TEST_TOOL_RUNTIMES=1 uv run --locked python -m pytest tests/core/test_process_executor.py tests/core/test_tool_runtimes.py
+RAY_TEST_COMPONENTS=1 RAY_TEST_CHROMIUM_ARCHIVE=/absolute/path/chromium-mac-arm64.zip \
+  uv run --locked python -m pytest tests/core/test_components.py
+```
+
+浏览器压缩包须来自随包固定地址并匹配清单哈希；真实用例检查 OCR worker、Chromium 可启动、资料隔离与同区复用、下载归属及停止回收。它不替代完整应用内安装、断网和退出重启走查，更不证明真实模型或无开发环境 Mac 的交付条件。
 
 实现入口见[代码地图](../../docs/code-map.md)。

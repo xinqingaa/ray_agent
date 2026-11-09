@@ -75,6 +75,8 @@ class AgentTaskRunner(TaskRunner):
     记忆随事件同事务保存；用户消息进入模型历史时，对应输入与那批上下文事件同事务标记消费。
     """
     _write_leases: Optional[RunWriteLeases] = None
+    _execution_quiescent = True
+    _retain_execution_resources = False
 
     def __init__(
             self,
@@ -97,6 +99,7 @@ class AgentTaskRunner(TaskRunner):
             web_reader=None,
             sandbox=None,  # ShellHost | None
             browser: Optional[Browser] = None,
+            execution_cleanup=None,
             browser_session=None,  # LocalBrowserSession | None：运行结束时 stop
             approval: Optional[ApprovalEvent] = None,  # 审批续接时的答复；为空时从持久输入取第一条消息
             files: Optional[FileScope] = None,  # 文件工具与交付可访问的范围；为空时没有文件能力
@@ -116,8 +119,11 @@ class AgentTaskRunner(TaskRunner):
         self._mcp_tool = mcp_tool
         self._a2a_tool = a2a_tool
         self._file_storage = file_storage
+        self._retain_execution_resources = False
+        self._execution_quiescent = True
         self._browser = browser
         self._browser_session = browser_session
+        self._execution_cleanup = execution_cleanup
         self._ledger = ledger
         self._run_id = run_id
         self._prior_status = prior_status
@@ -640,6 +646,7 @@ class AgentTaskRunner(TaskRunner):
                 await completion.on_run_completed(uow, self._session_id, self._run_id)
         run = await self._transition(status, reason, events_before=[outcome],
                                      apply=mark_unread if status == RunStatus.COMPLETED else None)
+        self._retain_execution_resources = run is not None and status is RunStatus.WAITING
         if run is not None and status == RunStatus.COMPLETED and completion is not None:
             completion.wake()
 
@@ -744,7 +751,7 @@ class AgentTaskRunner(TaskRunner):
                 logger.warning(f"会话[{self._session_id}] 停止后 {settle_seconds}s 内执行协程未退出")
         if self._write_leases is not None:
             try:
-                await self._write_leases.finish_settle(run_id, confirmed=self._settled.is_set() or not self._invoking)
+                await self._write_leases.finish_settle(run_id, confirmed=(self._settled.is_set() or not self._invoking) and self._execution_quiescent)
             except Exception:
                 logger.exception(f"会话[{self._session_id}] 收尾写入租约失败")
         gateway = getattr(self._a2a_tool, "gateway", None)
@@ -789,6 +796,15 @@ class AgentTaskRunner(TaskRunner):
         except Exception:
             logger.exception('恢复运行视口失败')
 
+        if self._retain_execution_resources:
+            return
+        destroy_shell = getattr(self, '_execution_cleanup', None) or getattr(self._sandbox, 'destroy', None)
+        if callable(destroy_shell):
+            try:
+                self._execution_quiescent = await destroy_shell() is not False
+            except Exception:
+                self._execution_quiescent = False
+                logger.exception('本机执行回收未能确认结束')
         cleanup = getattr(getattr(self, '_browser', None), 'cleanup', None)
         if callable(cleanup):
             try:
@@ -805,6 +821,7 @@ class AgentTaskRunner(TaskRunner):
     async def invoke(self, task: Optional[Task] = None) -> None:
         """处理本运行的输入并运行 Agent 循环；运行状态的每次变化都经由 RunLedger 与事件同事务写入。"""
         self._invoking = True
+        self._retain_execution_resources = False
         try:
             set_log_session_id(self._session_id)
             logger.info(f"会话[{self._session_id}] AgentTaskRunner任务处理开始 run={self._run_id}")
@@ -871,25 +888,28 @@ class AgentTaskRunner(TaskRunner):
             except Exception as persist_error:
                 logger.warning(f"会话[{self._session_id}] 写入运行失败状态失败: {persist_error}")
         finally:
-            self._settled.set()
-            await self._release_write_leases()
             # 在同一个asyncio Task上下文中清理MCP/A2A工具资源
             # 这是关键：streamablehttp_client内部使用anyio.create_task_group()，
             # 要求在同一个Task中进入和退出cancel scope，
             # 所以必须在invoke()的finally块（即初始化MCP的同一个Task）中清理
+
             await self._cleanup_tools()
+            if not self._retain_execution_resources:
+                await self._release_write_leases()
+            self._settled.set()
 
     async def _release_write_leases(self) -> None:
         """执行协程退出：本运行持有的租约不再有写入者，释放它们；租约身份按运行核对，不影响其他运行。"""
         if self._write_leases is None:
             return
         try:
-            await self._write_leases.finish_settle(self._run_id, confirmed=True)
+            await self._write_leases.finish_settle(self._run_id, confirmed=self._execution_quiescent)
         except Exception:
             logger.exception(f"会话[{self._session_id}] 释放写入租约失败，将由停止收尾或启动扫描处理")
 
     async def destroy(self) -> None:
         """销毁任务运行器并释放资源"""
+        self._retain_execution_resources = False
         destroy = getattr(self._sandbox, 'destroy', None) if self._sandbox else None
         if callable(destroy):
             await destroy()

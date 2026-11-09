@@ -82,3 +82,33 @@ def test_stop_settles_write_leases_after_the_execution_coroutine_exits_or_report
         await stuck.stop_processes(active.id, settle_seconds=0.05)
         assert unconfirmed.calls == [("begin", active.id), ("finish", active.id, False)]
     asyncio.run(asyncio.wait_for(run(), 5))
+
+
+def test_waiting_keeps_execution_resources_and_resume_cleans_before_releasing():
+    from tests.support.loop_harness import resume_run
+    from tests.support.scripted_llm import text
+    async def run():
+        h = make_loop([tool_call('message_ask_user', {'text': '继续吗？'}), text('完成')])
+        task = input_task()
+        active = await start_run(h, task, '等待期间保留写入者')
+        runner = make_runner(h, run=active)
+        order = []
+        async def close():
+            order.append('processes-stopped')
+            return True
+        class Leases(_Leases):
+            async def finish_settle(self, run_id, confirmed):
+                assert order == ['processes-stopped']
+                await super().finish_settle(run_id, confirmed)
+        runner._execution_cleanup = close
+        runner._write_leases = leases = Leases()
+        await runner.invoke(task)
+        assert h.runs[active.id].status is RunStatus.WAITING
+        assert order == [] and leases.calls == []
+        await resume_run(h, active.id, '继续')
+        resumed = make_runner(h, run=h.runs[active.id])
+        resumed._execution_cleanup, resumed._write_leases = close, leases
+        await resumed.invoke(task)
+        assert h.runs[active.id].status is RunStatus.COMPLETED
+        assert leases.calls == [('finish', active.id, True)]
+    asyncio.run(asyncio.wait_for(run(), 5))

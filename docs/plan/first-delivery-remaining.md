@@ -1,15 +1,14 @@
 # 首个交付收尾与接手清单
 
-首个交付处于**实施中**。主要技术方向、Mac 优先顺序与模块划分符合开工前确认的计划，但“主要模块已接入”不等于“工作包完成”：P4—P9 仍有正确性、用户入口与整包验收缺口。状态见[实施工作包](implementation.md#实施状态)，产品边界见[决策清单](decisions.md)。本轮仅整理文档，未实施下列产品修复。
+首个交付处于**实施中**。主要技术方向、Mac 优先顺序与模块划分符合开工前确认的计划，但“主要模块已接入”不等于“工作包完成”：P5—P9 仍有正确性、用户入口与整包验收缺口。状态见[实施工作包](implementation.md#实施状态)，产品边界见[决策清单](decisions.md)。本页只保留当前仍需实施或验证的缺口；组件安装、冻结 worker 与工具运行时的现行机制见执行说明和服务指南。
 
-本页是活动收尾计划，不是永久评估报告。已复现指评估目标版本中的最小条件复现；当前源码已静态复核相关入口，但未重做全部运行验证。Skill 已有后续补修，单独标注。复现使用开发机依赖，不代表冻结包或干净 Mac 验收通过；临时脚本与历史测试数量不作为接手依赖。
+本页是活动收尾计划，不是永久评估报告。已复现指评估目标版本中的最小条件复现；当前源码已静态复核相关入口，但未重做全部运行验证。Skill 已有后续补修，单独标注。语义、解析与引用等历史复现使用开发机依赖；执行链已有完整内部包的真实模型、组件与进程检查，仍不能代替跨模块闭环或无开发环境 Mac 的整包验收。临时脚本与历史测试数量不作为接手依赖。
 
 ## 与最初规划的主要出入
 
 | 原计划要求 | 当前出入 | 对应清单 |
 |---|---|---|
-| 每包同时交付实现、调用方、界面和行为检查 | 组件安装只有底层实现，部分引用与索引界面未闭环，却整体标为完成 | F06、F10、F11 |
-| 基础包自带正常工具运行时，冻结进程走专用入口 | CPython／Node 未形成供给链路；浏览器安装和校验仍按普通 Python 调用核心入口 | F08、F09 |
+| 每包同时交付实现、调用方、界面和行为检查 | 来源与索引界面仍未闭环 | F10、F11 |
 | 隔离、来源版本、取消与重启是完成条件 | Skill 曾跨工作区串用；固定版本向量读取、文本完整性与解析恢复存在失败窗口 | F01—F04 |
 | “本次参考”可理解并定位实际采用的背景 | 加载状态卡住，且来源跳转未完成 | F05、F10 |
 | P9 在无开发环境的 Mac 上完成真实闭环后再收缩计划 | 必需验证未完成，浏览器被降为可选补强，首个交付计划却已清理 | F12—F14 |
@@ -48,30 +47,6 @@
 - **位置**：[run-references.tsx](../../ray_agent/ui/src/components/run/run-references.tsx) 的清单加载 effect。
 - **关闭条件**：成功、失败、切换运行、收起再展开均可结束加载；迟到响应不写入另一运行，失败可重试。
 
-### F06 组件没有用户可用安装入口：静态确认缺口（P4／P7）
-
-- [ ] **偏差与问题**：原目标是缺组件时可从产品内恢复。底层 `LocalRuntimeComponents.install` 已写，但未接生产调用方、组件 HTTP 接口和设置 UI，不能把“可按需安装”作为已可用能力。
-- **位置**：[local_components.py](../../ray_agent/api/app/infrastructure/external/components/local_components.py)；装配 [runtime.py](../../ray_agent/api/app/infrastructure/external/execution/runtime.py)；接口 [routes.py](../../ray_agent/api/app/interfaces/endpoints/routes.py)、[service_dependencies.py](../../ray_agent/api/app/interfaces/service_dependencies.py)；[设置组件](../../ray_agent/ui/src/components/settings)。
-- **关闭条件**：从真实应用发现缺失、发起安装、看到状态与错误、取消／重试并启用能力；浏览器、Embedding、OCR 均沿统一校验路径，涉及契约时同步生成类型。
-
-### F07 组件安装未持久化：静态确认缺口（P4／P7）
-
-- [ ] **偏差与问题**：原目标要求长操作受理、查询、取消与重试保持身份和代次。组件的 `_states`、`_ops`、`_cancel` 仅在内存，安装用 `asyncio.create_task`，传入的工作单元工厂未使用；重启会丢失操作身份。
-- **位置**：[local_components.py](../../ray_agent/api/app/infrastructure/external/components/local_components.py)；应与 [background_jobs.py](../../ray_agent/api/app/application/services/background_jobs.py) 及[长操作契约](../../ray_agent/contracts/README.md#新接口的长操作)衔接。
-- **关闭条件**：断网、退出重启、取消和重试可按原身份读回；代次挡住迟到结果，不发布不完整组件，同一请求不重复安装。
-
-### F08 冻结浏览器调用错误入口：静态核对与参数分派复现（P4／P9）
-
-- [ ] **偏差与问题**：原计划明确冻结核心不能当普通 Python。浏览器安装用 `sys.executable -m playwright`，校验用 `sys.executable -c`；冻结后它是 sidecar 入口，而非解释器。源码入口用同样参数分派会被拒绝，完整冻结浏览器流程尚未实际跑通。
-- **位置**：[local_components.py](../../ray_agent/api/app/infrastructure/external/components/local_components.py) 的 `_install_browser`、`_verify_chromium`；[workers.py](../../ray_agent/api/core/workers.py)、[sidecar.py](../../ray_agent/api/sidecar.py)、[冻结清单](../../ray_agent/api/rayagent-core.spec)。
-- **关闭条件**：采用冻结可用的专用 worker 或受管正常运行时，在完整应用中实际安装、校验、浏览并停止，不依赖外部 Python，也不遗留子进程。
-
-### F09 基础工具运行时未供给：静态确认缺口（P4／P9）
-
-- [ ] **偏差与问题**：原目标是基础包自带正常 CPython／Node。当前只扫描数据根 `runtimes/*/bin`，未形成随包供给或安装链路；允许的本机 PATH 可能借到开发机环境。冻结 Python 核心和 Playwright 自带 driver 不能直接视为通用脚本运行时。
-- **位置**：[runtime.py](../../ray_agent/api/app/infrastructure/external/execution/runtime.py) 的 `runtime_bin_dirs`、[env.py](../../ray_agent/api/app/infrastructure/external/execution/env.py)、[rayagent-core.spec](../../ray_agent/api/rayagent-core.spec)、[tauri.bundle.json](../../ray_agent/desktop/tauri.bundle.json)。
-- **关闭条件**：提供版本和架构明确的正常运行时，在没有外部 Python／Node 的 Mac 上执行两类短脚本；工具路径、依赖与进程回收均可确认。
-
 ### F10 采用来源不能完整定位：静态确认界面缺口，旧版本语义待核查（P5／P6）
 
 - [ ] **偏差与问题**：原目标要求从引用定位原会话或文件版本、页／块／单元格。当前“本次参考”只显示文字，未提供来源跳转；来源接口只读取仍已发布的片段，修改、删除或撤权后的旧依据可读边界还需核查，不能把这一部分写成已复现缺陷。
@@ -84,29 +59,28 @@
 - **位置**：[folder-panel.tsx](../../ray_agent/ui/src/components/workspace/folder-panel.tsx)、[working-style-settings.tsx](../../ray_agent/ui/src/components/workspace/working-style-settings.tsx)、[documents.ts](../../ray_agent/ui/src/lib/api/documents.ts)；后端沿文档索引与语义索引服务核对可控状态。
 - **关闭条件**：大文件夹先说明范围与规模，范围选择和暂停能实际影响后台任务；进度、全文／语义可用性、错误与重试均有对应后端行为。
 
-### F12 P9 必需验收未完成：待补验（P9）
+### F12 P9 必需验收未完成（P9）
 
-- [ ] **偏差与问题**：原目标是在无开发环境的 Mac 上全部通过后交付。此前说明承认未完成另一台干净 Mac、冻结浏览器和真实模型闭环，却整体关闭 M0—P9，并将浏览器改为可选。构建、签名核对与服务检查不能替代这些条件。
+- [ ] **未闭环项**：完整内部包已支持仅系统 PATH 下的组件安装、取消／重试与重启读回，真实模型能够加载 Skill 并执行 Python／Node 和浏览器短任务，停止及核心强杀按子树确认收尾。真实模型跨会话的记忆与材料闭环、全部工作区交互与无开发环境 Mac 的整包验收仍未完成，不能据短任务或打包成功判定首个交付通过。
 - **位置**：[实施状态与交付检查](implementation.md)、[内部包构建](../../ray_agent/desktop/README.md#构建内部包apple-silicon)、[运行检查](../../ray_agent/README.md#运行检查)。
-- **关闭条件**：先修前置链路，再在完整内部包上验证真实模型跨会话、文件与脚本、组件／浏览器、停止退出、覆盖安装和数据保留；在无开发环境的 Mac 重复。环境未具备时保留未验收状态，不下放为可选项。
+- **关闭条件**：修完前置缺口，在完整内部包上完成真实模型跨会话、文件与脚本、组件／浏览器、停止退出、覆盖安装和数据保留；在无开发环境 Mac 重复。缺条件时保留未验收状态，不下放为可选项。
 
 ### F13 检查入口未全部通过：评估已发现，修复后重跑（P9）
 
-- [ ] **偏差与问题**：原目标要求可重复检查。评估中 UI lint 有未使用参数错误和 effect 依赖警告；Skill 设置脚本在加载 `@tauri-apps/api/core` 时失败，未执行到其声称覆盖的交互。其他服务回归通过也不能覆盖前述失败窗口。
-- **位置**：[workbench.tsx](../../ray_agent/ui/src/components/workbench/workbench.tsx) 的 `sessionId`、[session-detail-view.tsx](../../ray_agent/ui/src/components/session-detail-view.tsx) 的 effect、[check-skills-settings.cjs](../../ray_agent/ui/scripts/check-skills-settings.cjs) 的替身加载器；检查入口见[UI 指南](../../ray_agent/ui/README.md#检查与构建)。
+- [ ] **偏差与问题**：原目标要求可重复检查。UI lint 的未使用参数错误已清除，仍有既有 effect 依赖警告；Skill 设置脚本在加载 `@tauri-apps/api/core` 时失败，未执行到其声称覆盖的交互。其他服务回归通过也不能覆盖前述失败窗口。
+- **位置**：[session-detail-view.tsx](../../ray_agent/ui/src/components/session-detail-view.tsx) 的 effect、[check-skills-settings.cjs](../../ray_agent/ui/scripts/check-skills-settings.cjs) 的替身加载器；检查入口见[UI 指南](../../ray_agent/ui/README.md#检查与构建)。
 - **关闭条件**：先按当前源码复核结果，修复 lint 与加载器，再实际执行对应断言；对新修复增加覆盖失败条件的定向检查，不以构建成功替代交互。
 
 ### F14 正文与检查依据不一致：静态确认缺口（P9）
 
-- [ ] **偏差与问题**：原目标是将有效设计合入正文。当前代码地图仍多处指向已删除的 `test_visual_resources.py`，API 指南仍调用该文件；Harness 仍称语义检索与 OCR 留给后续，Harness／API 指南还保留“Docker 适配仍在、本机执行端口尚未接入”的旧说法。清理计划不等于文档合并完成。
-- **位置**：[代码地图](../code-map.md) 的工具、执行环境与内容对象检查链接；[API 指南](../../ray_agent/api/README.md) 的依赖、视觉资源及浏览器检查；[Harness](../harness.md) 的执行端口和工作区上下文说明。
+- [ ] **偏差与问题**：原目标是将有效设计合入正文。Harness 仍称语义检索与 OCR 留给后续工作包，相关正文与当前已接入但存在正确性缺口的实现不一致。清理计划不等于文档合并完成。
+- **位置**：[Harness](../harness.md) 的工作区上下文说明及相关语义、OCR 的能力与检查边界。
 - **关闭条件**：沿当前源码替换失效检查入口，统一能力与未闭环边界；正文、指南、类型及链接检查通过后，才清理已完成计划。
 
 ## 新 agent 接手顺序
 
-1. 先读 [AGENTS.md](../../AGENTS.md)、[根计划](../../PLAN.md)、本页与[实施条件](implementation.md#交付检查口径首个交付)，再按需读 [API](../../ray_agent/api/README.md)、[UI](../../ray_agent/ui/README.md)、[桌面](../../ray_agent/desktop/README.md)和[契约](../../ray_agent/contracts/README.md)指南。核对工作区改动和当前源码，先分清历史复现、后续补修与仍未验证的项；本轮文档修改不代表产品修复已执行。
+1. 先读 [AGENTS.md](../../AGENTS.md)、[根计划](../../PLAN.md)、本页与[实施条件](implementation.md#交付检查口径首个交付)，再按需读 [API](../../ray_agent/api/README.md)、[UI](../../ray_agent/ui/README.md)、[桌面](../../ray_agent/desktop/README.md)和[契约](../../ray_agent/contracts/README.md)指南。核对工作区改动和当前源码，先分清历史复现、后续补修与仍未验证的项。
 2. 在接续实施任务的授权范围内，优先确认 F01 的隔离补修，再处理 F02—F04 的向量、文本完整性与持久恢复。使用真实存储与真实状态转换构造失败条件；不要用全文命中证明向量成功，也不要只在同一进程内模拟重启。
-3. 将 F06—F09 作为同一执行链补齐：持久操作、接口、设置入口、组件 worker 与工具运行时要相互对齐。开发机 PATH 或手动放置组件只能排障，不能作为交付方案。
-4. 完成 F05、F10、F11 的加载、来源与索引控制，沿既有层次修改调用方；涉及 HTTP、事件或握手契约时按契约指南重新生成类型，不手改生成文件。索引状态必须反映真实能力和后台任务。
-5. 处理 F13、F14，并按各项关闭条件做定向验证，然后补 F12 的真实模型、冻结整包与干净 Mac 验收。所需机器或模型未具备时报告具体依赖；P10 证书不是当前修复的前置条件，也不据此启动 P10—P12。
-6. 每关闭一项，同时交付实现、调用方、涉及的界面、定向验证和对应正文更新；在交付说明中报告条件、结果及未测范围。本页替换当前状态，不追加轮次日志；问题全部关闭并达到 P9 门槛后，将有效设计合入正文并删除本清单及入口。
+3. 完成 F05、F10、F11 的加载、来源与索引控制，沿既有层次修改调用方；涉及 HTTP、事件或握手契约时按契约指南重新生成类型，不手改生成文件。索引状态必须反映真实能力和后台任务。
+4. 处理 F13、F14，并按各项关闭条件做定向验证，然后补 F12 的真实模型、冻结整包与干净 Mac 验收。所需机器或模型未具备时报告具体依赖；P10 证书不是当前修复的前置条件，也不据此启动 P10—P12。
+5. 每关闭一项，同时交付实现、调用方、涉及的界面、定向验证和对应正文更新；在交付说明中报告条件、结果及未测范围。本页替换当前状态，不追加轮次日志；问题全部关闭并达到 P9 门槛后，将有效设计合入正文并删除本清单及入口。

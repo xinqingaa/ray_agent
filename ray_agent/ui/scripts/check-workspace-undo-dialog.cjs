@@ -17,7 +17,9 @@ const entry = {root_id: 'root', relative_path: 'note.txt', operation: 'modify', 
   status: 'undoable', conflict_reason: null, can_force: false, preview_kind: 'restore'};
 let changes = {run_id: 'run', session_id: 'session', session_title: '任务', run_active: false, entries: [entry]};
 let runs = [{run_id: 'run', session_id: 'session', session_title: '任务', run_status: 'completed', kind: 'run', changed_files: 1}];
+let shellValue = {state: 'not_started', roots: [], entries: [], total: 0, has_more: false};
 const historyApi = {
+  shellChanges: async (_workspace, _run, offset = 0) => offset ? {...shellValue, entries: [{...shellValue.entries[0], relative_path: 'next.txt'}], has_more: false} : shellValue,
   runChanges: async (_workspace, id) => ({...changes, run_id: id, entries: id === 'undo' ? [entry] : changes.entries}),
   undo: async (_workspace, id) => {
     changes = {...changes, entries: [{...entry, status: id === 'undo' ? 'undoable' : 'restored'}]};
@@ -89,7 +91,21 @@ async function main() {
   await click('撤销本次修改');
   await act(async () => {props = {...props, runId: 'another-run'}; root.update(React.createElement(Harness, props));});
   assert.equal(dialogs().length, 0, '运行切换后不沿用旧窗口');
+  shellValue = {state: 'complete', roots: [{root_id: 'root', kind: 'workspace_folder', partial: true, errors: []}],
+    entries: [{root_id: 'root', relative_path: 'script-output.txt', operation: 'unclassified'}], total: 2, has_more: true};
+  await act(async () => live.requestRefresh());
+  await click('查看文件变化');
+  assert.match(text(dialogs()[0]), /可能包含同时发生的外部修改/);
+  assert.match(text(dialogs()[0]), /扫描范围不完整/);
+  assert.match(text(dialogs()[0]), /不支持撤销/);
+  assert.match(text(dialogs()[0]), /未分类/);
+  await click('加载更多');
+  assert.match(text(dialogs()[0]), /next.txt/);
+  shellValue = {...shellValue, state: 'unknown', entries: [], total: 0, has_more: false};
+  await act(async () => live.requestRefresh());
+  assert.match(text(dialogs()[0]), /没有可确认的执行后清单/);
+  assert.equal(dialogs()[0].findAllByType('button').filter(button => /撤销/.test(text(button))).length, 0);
   await act(async () => root.unmount());
-  console.log('PASS: 撤销结果不随提示条消失、最近修改不叠窗、权限和运行切换清理旧窗口');
+  console.log('PASS: 撤销窗口状态与 Shell 观察的截断、未知、分页和无撤销边界');
 }
 main().catch(error => {console.error(error); process.exitCode = 1;});

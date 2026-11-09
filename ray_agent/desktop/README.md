@@ -50,9 +50,9 @@ npm run build
 # 等价：npx tauri build --bundles app --config tauri.bundle.json
 ```
 
-构建叠加 [tauri.bundle.json](tauri.bundle.json)：先写 UI 构建身份并构建静态产物（`../ui/dist`），再按 [rayagent-core.spec](../api/rayagent-core.spec) 冻结核心（`../api/dist/rayagent-core/`，含 LanceDB／ONNX／OCR／OpenCV／Playwright 等隐式导入与数据文件），然后把整个 onedir 作为资源打进应用；入口离开 `_internal/` 无法运行。产物为 `target/release/bundle/macos/RayAgent.app`，`bundle.macOS.signingIdentity` 为 `-`（仅 ad-hoc，不公证），只供内部使用，不作为公开分发。
+构建叠加 [tauri.bundle.json](tauri.bundle.json)：先写 UI 构建身份并构建静态产物（`../ui/dist`），再按 [rayagent-core.spec](../api/rayagent-core.spec) 冻结核心（`../api/dist/rayagent-core/`，含 LanceDB／ONNX／OCR／OpenCV／Playwright 等隐式导入与数据文件），构建前还按固定清单准备正常 CPython 与 Node 工具运行时，再把整个 onedir 作为资源打进应用；入口离开 `_internal/` 无法运行。产物为 `target/release/bundle/macos/RayAgent.app`，`bundle.macOS.signingIdentity` 为 `-`（仅 ad-hoc，不公证），只供内部使用，不作为公开分发。
 
-产物内含：UI／核心 `build-manifest.json`、`resources/package_identity.json`（协议与 schema 兼容范围）、`resources/component_manifest.json`、`resources/THIRD_PARTY_NOTICES.md`。`build/`、`dist/`、`target/` 已由根 `.gitignore` 排除，不提交。
+产物内含：UI／核心 `build-manifest.json`、`resources/package_identity.json`（协议与 schema 兼容范围）、`resources/component_manifest.json`、`resources/tool_runtime_manifest.json`、`tool-runtime-archives/` 与 `resources/THIRD_PARTY_NOTICES.md`。正常工具解释器独立于冻结核心；Node 来自锁定 Playwright 包内的原生解释器，单独作为工具运行时校验并分发，不经 driver CLI 执行脚本。CPython 采用固定的 python-build-standalone 产物。两者均在构建时核对哈希和真实版本，缺失时冻结构建失败；运行时不借用开发机解释器。`build/`、`dist/`、`target/` 已由根 `.gitignore` 排除，不提交。
 
 核对签名与从终端查看日志：
 
@@ -60,6 +60,8 @@ npm run build
 codesign --verify --deep --strict target/release/bundle/macos/RayAgent.app
 target/release/bundle/macos/RayAgent.app/Contents/MacOS/rayagent-desktop
 ```
+
+工具解释器以归档随包分发，避免冻结工具重写动态库路径；首次执行时校验并原子展开到数据根 `runtimes/`，实际核对版本后进入工具 PATH。核心库和工具库独立，工具环境默认禁止写字节码，普通 Python 或 Skill 脚本不会修改签名包内的缓存。验证时须从完整包经执行端口读回 Python／Node 实际版本，运行普通脚本、标准库及 Skill 资源，再重复上述验签；只做构建前版本检查或首次验签不足以证明执行后完整性。
 
 新冻结或新复制的散装 onedir 首次启动到握手约 15–40 秒（macOS 逐个检查原生库），再次约 1–2 秒；ad-hoc 签名的 `.app` 整包复制到新位置后首启仍约 1–2 秒。宿主不按热启动设握手期限，以界面“启动中”为准。带隔离属性（`com.apple.quarantine`）的首次打开需在系统设置中手动允许；另一台未装开发环境的 Mac 上的完整检查见实施状态的「待用户处理」。
 

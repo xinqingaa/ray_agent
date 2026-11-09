@@ -56,6 +56,10 @@ datas = [
     (str(manifest), '.'),
     (str(identity_path), 'resources'),
 ]
+runtime_root = ROOT / 'build/tool-runtime-archives'
+if not (runtime_root / 'manifest.json').is_file():
+    raise RuntimeError('先运行 scripts/prepare_tool_runtimes.py 准备正常工具运行时')
+datas.append((str(runtime_root), 'tool-runtime-archives'))
 binaries = []
 hiddenimports = [
     *source_modules('app'),

@@ -1,7 +1,7 @@
 """写入租约仓库：写事务串行，「读取再插入」在同一事务内不会被其他取得者穿插；唯一索引兜底每工作区至多一个。"""
 from typing import List, Optional, Protocol
 
-from app.domain.models.write_lease import LeaseState, WriteLease
+from app.domain.models.write_lease import LeaseState, WriteLease, WriterKind
 
 
 class WriteLeaseRepository(Protocol):
@@ -16,6 +16,9 @@ class WriteLeaseRepository(Protocol):
         ...
 
     async def add(self, lease: WriteLease) -> None:
+        ...
+
+    async def set_writer_kind(self, lease_id: str, kind: WriterKind) -> None:
         ...
 
     async def set_holds(self, lease_id: str, holds: int) -> None:

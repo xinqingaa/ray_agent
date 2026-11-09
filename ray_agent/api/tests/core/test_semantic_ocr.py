@@ -202,7 +202,9 @@ def test_component_install_ocr_marks_available(tmp_path):
         root = tmp_path / "components"
         comps = LocalRuntimeComponents(root)
         # 预置文件模拟安装完成前的包复制
-        _install_ocr(root)
+        _install_ocr(root / OCR_COMPONENT_ID / "versions")
+        assert (await comps.status(OCR_COMPONENT_ID)).state.value == "not_installed"
+        comps.publish(OCR_COMPONENT_ID, "ocr")
         status = await comps.status(OCR_COMPONENT_ID)
         assert status.state.value == "available"
 

@@ -1,0 +1,15 @@
+{
+  "platform": "macos-arm64",
+  "python": {
+    "version": "3.12.12",
+    "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20251014/cpython-3.12.12%2B20251014-aarch64-apple-darwin-install_only_stripped.tar.gz",
+    "sha256": "84cb7acbf75264982c8bdd818bfa1ff0f1eb76007b48a5f3e01d28633b46afdf",
+    "license": "PSF-2.0 and bundled dependency licenses"
+  },
+  "node": {
+    "version": "22.20.0",
+    "source": "package://playwright/driver/node",
+    "sha256": "49161ba4e67afda85c25b2daa1f0e91d1bffc023d2dbc4886eda7a9ba38bca62",
+    "license": "MIT and bundled dependency licenses"
+  }
+}

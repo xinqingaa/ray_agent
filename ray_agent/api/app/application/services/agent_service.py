@@ -402,6 +402,10 @@ class AgentService:
         task_cls = getattr(self, "_task_cls", None)
         return task_cls.get(run_id) if task_cls is not None else None
 
+    async def _close_local_execution(self, run_id: str) -> bool:
+        from app.infrastructure.external.execution.runtime import stop_run_resources
+        return await stop_run_resources(run_id)
+
     async def _create_task(self, session: Session, run_id: str, prior_status: Optional[SessionStatus],
                            approval: Optional[ApprovalEvent] = None) -> Task:
         """组装执行 run_id 的任务。依赖执行环境的工具按能力声明关闭，纯对话不准备任何执行资源。"""
@@ -420,8 +424,13 @@ class AgentService:
         browser_session = None
         if environment.available(Capability.LOCAL_COMMAND) and run_files is not None and run_files.scope is not None:
             try:
+                from app.application.services.execution_leases import ShellWriteLease
+                from app.application.services.shell_changes import ShellChanges
+                shell_lease = ShellWriteLease(getattr(self, '_write_leases', None), session.workspace_id, session.id, run_id,
+                                              changes=ShellChanges(self._uow_factory, self._reader), scope=run_files.scope)
                 shell = await open_shell(
-                    files=run_files.scope, session_id=session.id, run_id=run_id)
+                    files=run_files.scope, session_id=session.id, run_id=run_id,
+                    before_start=shell_lease.acquire, on_close=shell_lease.settle)
             except Exception:
                 logger.exception("装配本机 Shell 失败，本次运行不提供 Shell 工具")
                 shell = None
@@ -431,8 +440,8 @@ class AgentService:
                 try:
                     download = workdir.tmp if workdir is not None else None
                     browser_session = await open_browser_session(
-                        workspace_id=session.workspace_id,
-                        session_id=None if session.workspace_id else session.id,
+                        workspace_id=session.workspace_id, run_id=run_id,
+                        session_id=session.id,
                         download_dir=download,
                     )
                     browser = await browser_session.browser()
@@ -482,6 +491,7 @@ class AgentService:
             sandbox=shell,
             browser=browser,
             browser_session=browser_session,
+            execution_cleanup=lambda: self._close_local_execution(run_id),
             approval=approval,
             files=run_files.scope if run_files is not None else None,
             write_leases=getattr(self, "_write_leases", None),
@@ -884,6 +894,9 @@ class AgentService:
                                                     RunStatus.CANCELLED, RunReason.USER_STOP)
                 if result is not None and self._skills is not None:
                     await self._skills.cancel_run(active.id)
+                if result is not None:
+                    from app.infrastructure.external.execution.runtime import stop_run_resources
+                    await stop_run_resources(active.id)
                 return result
             starting = pending_starts().get(active.id)
             if starting is not None:
@@ -908,6 +921,9 @@ class AgentService:
             await self._skills.cancel_run(active.id)
         if run is not None and runner is not None and hasattr(runner, "stop_processes"):
             await runner.stop_processes(active.id)
+        if run is not None:
+            from app.infrastructure.external.execution.runtime import stop_run_resources
+            await stop_run_resources(active.id)
         return run
 
     async def compact_session(self, session_id: str) -> ManualCompaction:

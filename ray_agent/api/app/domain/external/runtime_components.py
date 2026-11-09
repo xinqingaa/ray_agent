@@ -29,6 +29,7 @@ class ComponentManifestEntry(BaseModel):
     size: int = Field(ge=0)
     source_url: str
     license: str
+    compatibility: str = ""  # 同一运行适配契约；变更表示旧版本不能继续使用
 
 
 class ComponentStatus(BaseModel):

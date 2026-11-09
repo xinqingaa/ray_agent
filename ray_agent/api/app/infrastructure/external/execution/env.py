@@ -21,7 +21,6 @@ _KEEP_EXACT = frozenset({
     "LANG", "LC_ALL", "LC_CTYPE", "LC_MESSAGES", "TERM", "COLORTERM", "TZ", "DISPLAY",
 })
 ALLOWED_SYSTEM_BIN_DIRS = (
-    "/usr/local/bin", "/opt/homebrew/bin",
     "/usr/bin", "/bin", "/usr/sbin", "/sbin",
 )
 
@@ -71,6 +70,8 @@ def scrub_env(
         if not _keep_key(key):
             continue
         kept[key] = value
+    kept["PYTHONNOUSERSITE"] = "1"
+    kept["PYTHONDONTWRITEBYTECODE"] = "1"
     kept["PATH"] = managed_path(runtime_bin_dirs)
     if extra:
         for key, value in extra.items():

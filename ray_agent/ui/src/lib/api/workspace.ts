@@ -1,7 +1,7 @@
 import {createSSEStream, get, parseSSEStream, post, request} from './fetch'
 import type {
   ChangePreview, ConflictResolution, ModifiedRun, OpenWorkspaceResult, OperationView, RootEntry, RootListing,
-  RunChanges, UndoItemRequest, UndoItemResult, WorkspaceChangeEvent, WorkspaceItem, WriteLease,
+  RunChanges, ShellChanges, UndoItemRequest, UndoItemResult, WorkspaceChangeEvent, WorkspaceItem, WriteLease,
 } from './types'
 
 /** 工作区、默认位置与长操作。文件夹授权由宿主产生（见 platform.ts 的 `selectFolderGrant`），这里只带 grant_id。 */
@@ -60,11 +60,14 @@ const workspacePath = (id: string) => `/workspaces/${encodeURIComponent(id)}`
 export const historyApi = {
   writeLease: (id: string) => get<{lease: WriteLease | null}>(`${workspacePath(id)}/write-lease`).then(data => data.lease),
   /** 租约处于 settling 或 blocked 时再次要求写入者退出并确认；仍未确认时核心返回 409。 */
+  confirmLeaseRelease: (id: string, leaseId: string) => post<{lease: WriteLease | null}>(`${workspacePath(id)}/write-lease/confirm-release`, {lease_id: leaseId}),
   retrySettle: (id: string) => post<{lease: WriteLease | null}>(`${workspacePath(id)}/write-lease/retry-settle`, {}),
   modifiedRuns: (id: string, limit?: number) =>
     get<{runs: ModifiedRun[]}>(`${workspacePath(id)}/modified-runs`, limit ? {limit} : undefined).then(data => data.runs),
   runChanges: (id: string, runId: string) =>
     get<RunChanges>(`${workspacePath(id)}/runs/${encodeURIComponent(runId)}/changes`),
+  shellChanges: (id: string, runId: string, offset = 0) =>
+    get<ShellChanges>(`${workspacePath(id)}/runs/${encodeURIComponent(runId)}/shell-changes`, {offset}),
   preview: (id: string, runId: string, path: string) =>
     get<ChangePreview>(`${workspacePath(id)}/runs/${encodeURIComponent(runId)}/changes/preview`, {path}),
   undo: (id: string, runId: string, items: UndoItemRequest[]) =>

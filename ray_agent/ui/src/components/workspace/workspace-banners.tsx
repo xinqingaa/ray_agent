@@ -90,9 +90,20 @@ function WriteLeaseNotice({workspace}: {workspace: WorkspaceItem}) {
   }
 
   const text = leaseConflictText(lease, title)
+  const confirmRelease = async () => {
+    if (!window.confirm('仅在你已确认相关脚本及后台进程都已结束后，才释放文件夹占用。释放后其他任务可以继续写入。确认旧进程已结束？')) return
+    setBusy(true)
+    try {
+      await historyApi.confirmLeaseRelease(workspace.id, lease.id)
+      toast.success('已释放文件夹占用')
+    } catch (error) {toast.error(error instanceof Error ? error.message : '释放占用失败')}
+    finally {setBusy(false); void refreshLease()}
+  }
+
   return <div role="status" className={`${BAR} bg-state-waiting-soft`}>
     <span className="min-w-0 flex-1">{text}</span>
     {owner && owner !== sid && <Button asChild variant="ghost" size="sm"><Link href={workspaceSessionHref(workspace.id, owner)}>查看对话</Link></Button>}
+    {notice.kind === 'blocked' && lease.writer_kind === 'process' && <Button variant="ghost" size="sm" disabled={busy} onClick={() => void confirmRelease()}>确认旧进程已结束</Button>}
     {notice.kind === 'blocked' && <Button variant="ghost" size="sm" disabled={busy} onClick={() => void retry()}>{busy ? '正在收尾' : '重试收尾'}</Button>}
   </div>
 }

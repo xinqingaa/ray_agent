@@ -15,8 +15,11 @@ class BackgroundJobRepository(Protocol):
     async def get(self, job_id: str) -> Optional[BackgroundJob]:
         ...
 
+    async def by_request(self, request_id: str) -> Optional[BackgroundJob]:
+        ...
+
     async def latest(self, kind: OperationKind, scope_kind: Optional[str] = None,
-                     session_id: Optional[str] = None) -> Optional[BackgroundJob]:
+                     session_id: Optional[str] = None, object_version: Optional[str] = None) -> Optional[BackgroundJob]:
         ...
 
     async def claim(self, owner: str, kinds: Sequence[OperationKind]) -> Optional[BackgroundJob]:

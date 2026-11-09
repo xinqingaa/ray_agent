@@ -7,6 +7,7 @@ export type {WorkspaceChangeEvent};
 // 来自 ray_agent/contracts 的生成结果；改动在核心的 Pydantic 模型里进行并重新生成。
 
 type Schemas = components["schemas"];
+export type ShellChanges = Schemas['ShellChangesResponse'];
 
 /** 成功响应包装：业务数据在 data，其余字段与契约中的包装一致 */
 export type ApiResponse<T = unknown> = Omit<Schemas["Response_Dict_"], "data"> & { data: T };

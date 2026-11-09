@@ -58,6 +58,8 @@ class WriteLeaseService:
             workspace = await uow.workspace.get(workspace_id)
             if workspace is None or workspace.status is WorkspaceStatus.DELETING:
                 raise WorkspaceFileError(ErrorCode.NOT_FOUND, "工作区不存在或正在删除")
+            if workspace.status is WorkspaceStatus.ARCHIVED:
+                raise WorkspaceFileError(ErrorCode.FORBIDDEN, "工作区已归档，不能执行写入")
             current = await uow.lease.get(workspace_id)
             if current is None:
                 lease = WriteLease(id=uuid.uuid4().hex, workspace_id=workspace_id, owner_session_id=owner.session_id,
@@ -71,6 +73,8 @@ class WriteLeaseService:
                          and current.state in (LeaseState.PREPARING, LeaseState.HELD))
             if not reentrant:
                 raise _occupied(current)
+            if kind is WriterKind.PROCESS and current.writer_kind is not WriterKind.PROCESS:
+                await uow.lease.set_writer_kind(current.id, kind)
             await uow.lease.set_holds(current.id, current.holds + 1)
             self._live[current.id] = self._live.get(current.id, 0) + 1
             return current.id
@@ -119,7 +123,10 @@ class WriteLeaseService:
         """确认写入者已退出则释放该运行的租约；期限内无法确认则转 blocked，保留到重试收尾成功。"""
         async with self._uow_factory() as uow:
             if confirmed:
-                return await uow.lease.delete_for_run(run_id)
+                released = await uow.lease.delete_for_run(run_id)
+                for lease in released:
+                    self._live.pop(lease.id, None)
+                return released
             blocked = []
             for lease in await uow.lease.list():
                 if lease.owner_run_id == run_id:
@@ -149,11 +156,25 @@ class WriteLeaseService:
         if not quiet:
             hint = "仍无法确认写入者已结束，租约继续保持阻止状态"
             if not in_process:
-                hint += "；外部进程写入者的租约需要用户明确确认后才能释放，这个确认入口留给后续工作包（P4）"
+                hint += "；确认相关进程已经结束后，可使用“确认旧进程已结束”释放占用"
             raise WorkspaceFileError(ErrorCode.CONFLICT, hint, details=lease_details(lease))
         async with self._uow_factory() as uow:
             await uow.lease.delete(lease.id)
         return lease
+
+    async def confirm_release(self, workspace_id: str, lease_id: str) -> None:
+        """用户显式确认未知旧进程已结束；按所见身份释放，不触及后来取得的租约。"""
+        async with self._uow_factory() as uow:
+            lease = await uow.lease.get(workspace_id)
+            if lease is None:
+                return
+            if lease.id != lease_id or lease.state is not LeaseState.BLOCKED or lease.writer_kind is not WriterKind.PROCESS:
+                raise WorkspaceFileError(ErrorCode.CONFLICT, '写入占用已变化，请重新读取', details=lease_details(lease))
+            run = await uow.run.get(lease.owner_run_id) if lease.owner_run_id else None
+            if run is not None and not run.status.terminal:
+                raise WorkspaceFileError(ErrorCode.CONFLICT, '请先停止所属运行，再确认旧进程已结束', details=lease_details(lease))
+            await uow.lease.delete(lease.id)
+            self._live.pop(lease.id, None)
 
     # ---- 启动扫描 ----
 

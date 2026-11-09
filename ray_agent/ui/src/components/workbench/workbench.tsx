@@ -264,7 +264,6 @@ function FilesPane({focus, files, onInspectFile}: {focus: ToolCallView | null; f
 
 /** 工作台按当前工具展示结果、终端、浏览器或文件，手动选择后可固定。 */
 export function Workbench({
-  sessionId,
   focus,
   following,
   shellCall,

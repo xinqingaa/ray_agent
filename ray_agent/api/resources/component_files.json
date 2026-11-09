@@ -55,5 +55,17 @@
         "size": 585532
       }
     ]
+  },
+  "browser-chromium": {
+    "archive": {
+      "url": "https://cdn.playwright.dev/dbazure/download/playwright/builds/chromium/1194/chromium-mac-arm64.zip",
+      "sha256": "bb13e2bab465de3305277559395805c19ef8f221420e9a7d830a149c8e4d9e3d",
+      "size": 135992119
+    },
+    "executable": "chrome-mac/Chromium.app/Contents/MacOS/Chromium",
+    "required": [
+      "chrome-mac/Chromium.app/Contents/MacOS/Chromium",
+      "chrome-mac/Chromium.app/Contents/Frameworks/Chromium Framework.framework/Versions/141.0.7390.37/Resources/icudtl.dat"
+    ]
   }
 }

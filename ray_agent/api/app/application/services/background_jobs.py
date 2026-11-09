@@ -44,7 +44,8 @@ class JobContext:
         """安全点：已请求取消时抛出 JobCancelled。"""
         async with self._runner.read_uow_factory() as uow:
             current = await uow.job.get(self.job.operation_id)
-        if current is None or current.generation != self.job.generation:
+        if current is None or current.generation != self.job.generation \
+                or current.owner_instance != self._runner.instance_id or current.status is not OperationStatus.RUNNING:
             raise JobSuperseded(self.job.operation_id)
         if current.cancel_requested_at is not None:
             raise JobCancelled(self.job.operation_id)
@@ -100,7 +101,9 @@ class BackgroundJobRunner:
             running = [job for job in await uow.job.running() if job.owner_instance != self.instance_id]
             for job in running:
                 registration = self._handlers.get(job.kind)
-                if registration is not None and registration.requeue_on_restart:
+                if job.cancel_requested_at is not None:
+                    await uow.job.finish(job.operation_id, job.generation, job.owner_instance, OperationStatus.CANCELLED)
+                elif registration is not None and registration.requeue_on_restart:
                     await uow.job.requeue(job.operation_id)
                 else:
                     await uow.job.finish(job.operation_id, job.generation, job.owner_instance, OperationStatus.FAILED,

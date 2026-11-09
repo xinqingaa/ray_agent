@@ -622,7 +622,11 @@ class _Walk:
                     try:
                         found.append((item.name, item.stat(follow_symlinks=False)))
                     except OSError:
+                        self.truncated = True
                         continue
+                    if len(found) > self.limits.scan_entries:
+                        self.truncated = True
+                        break
             return found
         except FileNotFoundError:
             return None

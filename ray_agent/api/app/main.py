@@ -108,22 +108,14 @@ async def start_core():
                       requeue_on_restart=True)
         from app.application.services.semantic_index_service import semantic_index_handler
         from app.interfaces.service_dependencies import get_semantic_index_service
-        from app.infrastructure.external.execution.runtime import get_components, set_components_callback
         semantic = get_semantic_index_service()
         jobs.register(OperationKind.SEMANTIC_INDEX, semantic_index_handler(semantic),
                       requeue_on_restart=True)
-
-        def _on_component_available(component_id: str) -> None:
-            import asyncio
-            try:
-                loop = asyncio.get_running_loop()
-            except RuntimeError:
-                return
-            loop.create_task(semantic.on_component_available(component_id))
-
-        set_components_callback(_on_component_available)
-        # 触发装配，使回调挂到组件管理器
-        get_components()
+        from app.application.services.component_service import ComponentService
+        from app.infrastructure.external.execution.runtime import get_components, get_process_executor
+        components = ComponentService(get_components(), get_uow, get_read_uow, jobs, get_process_executor,
+                                      semantic.on_component_available)
+        jobs.register(OperationKind.COMPONENT_INSTALL, components.process, requeue_on_restart=True)
         root.install_id()
         set_job_runner(jobs)
 
@@ -214,10 +206,15 @@ async def lifespan(app: FastAPI):
             logger.warning("运行任务停止超时，遗留运行由下次启动扫描处理")
         except Exception as e:
             logger.error(f"停止运行任务期间出现错误: {str(e)}")
+        from app.infrastructure.external.execution.runtime import close_runtime_sessions
+        await close_runtime_sessions()
         await close_change_feed()
         await doc_scheduler.stop()
         set_document_index_scheduler(None)
         await jobs.stop()
+        from app.infrastructure.external.execution.supervisor_lifecycle import stop_supervisor
+        from core.paths import data_root
+        await stop_supervisor(data_root().root)
         set_job_runner(None)
         await database.shutdown()
         set_database(None)

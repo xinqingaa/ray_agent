@@ -153,6 +153,27 @@ def test_stop_tree_kills_children(data_root, workdir):
     run(check())
 
 
+def test_shell_kill_reaps_background_after_leader_exit_and_preserves_zero(data_root, workdir):
+    async def check():
+        executor = await open_executor(data_root, workdir)
+        bridge = LocalShellBridge(executor, root_id=ROOT_ID, root_location=workdir, owner=OWNER)
+        try:
+            result = await bridge.exec_command('orphan', workdir,
+                '/bin/sleep 60 </dev/null >/dev/null 2>&1 & echo $!; exit 0')
+            assert result.data['returncode'] == 0
+            child = int(result.data['output'].strip())
+            assert pid_alive(child)
+            killed = await bridge.kill_process('orphan')
+            assert killed.success and await wait_dead(child)
+            assert killed.data['returncode'] == 0
+            again = await bridge.kill_process('orphan')
+            assert again.success and again.data['returncode'] == 0
+        finally:
+            await bridge.destroy()
+            await executor.client.close()
+    run(check())
+
+
 def test_stop_tree_returns_running_when_ignored_then_kill_tree(data_root, workdir):
     async def check():
         executor = await open_executor(data_root, workdir)
@@ -233,8 +254,9 @@ def test_scrub_env_helpers():
               "_MEIPASS2": "/m", "PYTHONHOME": "/p", "PYTHONPATH": "/q", "HTTPS_PROXY": "http://proxy:1"}
     scrubbed = execution_env.scrub_env(source, ["/rt/bin"])
     assert scrubbed == {"HOME": "/h", "LANG": "C", "LC_ALL": "C", "HTTPS_PROXY": "http://proxy:1",
-                        "PATH": execution_env.managed_path(["/rt/bin"])}
-    assert execution_env.managed_path(["/rt/bin", "/usr/bin"]).split(os.pathsep)[:2] == ["/rt/bin", "/usr/local/bin"]
+                            "PATH": execution_env.managed_path(["/rt/bin"]), "PYTHONNOUSERSITE": "1",
+                            "PYTHONDONTWRITEBYTECODE": "1"}
+    assert execution_env.managed_path(["/rt/bin", "/usr/bin"]).split(os.pathsep)[:2] == ["/rt/bin", "/usr/bin"]
     assert execution_env.strip_pyinstaller_markers(source).keys() == {
         "PATH", "HOME", "LANG", "LC_ALL", "FAKE_SECRET", "MY_API_KEY", "RAYAGENT_DATA_ROOT", "HTTPS_PROXY"}
     merged = execution_env.build_process_env({"FAKE_SECRET": "explicit", "DYLD_X": "1"}, source=source)
@@ -335,7 +357,7 @@ def test_shell_bridge_session_semantics(data_root, workdir, monkeypatch):
             killed = await bridge.kill_process("b")
             assert killed.success and killed.data["status"] == "terminated"
             again = await bridge.kill_process("b")
-            assert again.data["status"] == "already_terminated" and again.data["returncode"] == killed.data["returncode"]
+            assert again.success and again.data["returncode"] == killed.data["returncode"]
             assert not (await bridge.write_shell_input("b", "x", True)).success
 
             replaced = await bridge.exec_command("b", workdir, "echo second")
@@ -350,4 +372,27 @@ def test_shell_bridge_session_semantics(data_root, workdir, monkeypatch):
         finally:
             await executor.client.close()
 
+    run(check())
+
+
+@pytest.mark.skipif(os.getenv('RAY_TEST_TOOL_RUNTIMES') != '1', reason='显式启用随包工具运行时检查')
+def test_bundled_python_and_node_without_developer_path(data_root, workdir):
+    from app.infrastructure.external.execution.runtime import runtime_bin_dirs
+    async def check():
+        bins = runtime_bin_dirs()
+        assert len(bins) == 2, '先准备基础工具运行时'
+        executor = await open_executor(data_root, workdir, bins)
+        try:
+            started = await executor.start(shell_spec(
+                "python3 -c 'import sys,ssl,sqlite3,venv; print(sys.executable); print(6*7)' && "
+                "node -e 'console.log(process.execPath); console.log(6*7)'"))
+            done = await executor.wait(started.process_id, 20)
+            assert done.exit_code == 0
+            lines = (await executor.read_output(started.process_id)).text.splitlines()
+            assert Path(lines[0]).parent == bins[0] and lines[1] == '42'
+            assert Path(lines[2]).parent == bins[1] and lines[3] == '42'
+            assert '/opt/homebrew' not in execution_env.managed_path(bins)
+        finally:
+            await executor.client.close()
+    from pathlib import Path
     run(check())

@@ -24,6 +24,9 @@ from app.domain.models.app_config import ModelSampling
 from app.domain.models.session import Session
 from app.interfaces.schemas import Response
 from app.interfaces.streaming import EventStreamResponse
+from app.interfaces.schemas.shell_changes import ShellChangesResponse
+from app.application.services.shell_changes import ShellChanges
+from app.interfaces.service_dependencies import get_shell_changes
 from app.interfaces.schemas.event import DeltaSSEEvent, EventMapper
 from app.interfaces.schemas.session import (
     CreateSessionRequest, CreateSessionResponse,
@@ -61,6 +64,18 @@ def _saved_sampling(session: Session) -> Optional[ModelSampling]:
         temperature=session.temperature, max_tokens=session.max_tokens, context_window=session.context_window,
     )
 router = APIRouter(prefix="/sessions", tags=["会话模块"])
+
+
+@router.get('/{session_id}/runs/{run_id}/shell-changes', response_model=Response[ShellChangesResponse],
+            summary='Shell 执行区间的文件观察',
+            description='比较首次实际 Shell 前与确认子树结束后的有界元数据清单；可能包含外部并发写入，'
+                        '不捕获内容相同或元数据未变的写入，不提供撤销。未知结果不推断运行后变化。')
+async def shell_changes(session_id: str, run_id: str, offset: int = Query(default=0, ge=0),
+                        limit: int | None = Query(default=None, ge=1, le=2000),
+                        changes: ShellChanges = Depends(get_shell_changes)):
+    from core.config import get_settings
+    return Response.success(ShellChangesResponse(**await changes.view(
+        session_id, run_id, offset=offset, limit=limit or get_settings().file_list_entries)))
 
 
 def session_list_item(session: Session) -> ListSessionItem:

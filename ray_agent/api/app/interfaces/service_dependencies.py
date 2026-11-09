@@ -163,11 +163,13 @@ async def confirm_run_quiescent(run_id: str) -> bool:
     import asyncio
     from app.domain.services.agent_task_runner import STOP_SETTLE_SECONDS
     execution = LocalRunTask.executing(run_id)
-    if execution is None:
-        return True
-    execution.cancel()
-    done, _ = await asyncio.wait({execution}, timeout=STOP_SETTLE_SECONDS)
-    return bool(done)
+    if execution is not None:
+        execution.cancel()
+        done, _ = await asyncio.wait({execution}, timeout=STOP_SETTLE_SECONDS)
+        if not done:
+            return False
+    from app.infrastructure.external.execution.runtime import stop_run_resources
+    return await stop_run_resources(run_id)
 
 
 _write_leases = None
@@ -199,6 +201,11 @@ def get_file_history():
     return FileHistoryService(get_uow, get_read_uow, files, writer, objects, leases,
                               preview_bytes=current.change_preview_bytes, preview_lines=current.change_preview_lines,
                               default_runs=current.change_runs_default)
+
+
+def get_shell_changes():
+    from app.application.services.shell_changes import ShellChanges
+    return ShellChanges(get_uow, get_read_uow)
 
 
 _change_feed = None
@@ -448,3 +455,11 @@ def get_skill_service():
         GitHubSkills(current), current,
         config_loader=config_loader, workspace_locator=workspace_locator,
     )
+
+
+def get_component_service():
+    from app.application.services.background_jobs import get_job_runner
+    from app.application.services.component_service import ComponentService
+    from app.infrastructure.external.execution.runtime import get_components, get_process_executor
+    return ComponentService(get_components(), get_uow, get_read_uow, get_job_runner(), get_process_executor,
+                            get_semantic_index_service().on_component_available)

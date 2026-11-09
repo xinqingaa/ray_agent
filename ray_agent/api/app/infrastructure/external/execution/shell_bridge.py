@@ -1,6 +1,8 @@
 """把 ProcessExecutor 适配成 ShellTool 使用的会话式 Shell 接口。"""
 from __future__ import annotations
 
+import asyncio
+
 import getpass
 import logging
 import os
@@ -46,8 +48,12 @@ class LocalShellBridge:
             session_id: str | None = None,
             run_id: str | None = None,
             on_session=None,
+            before_start=None, on_close=None,
     ) -> None:
         self._executor = executor
+        self._before_start, self._on_close = before_start, on_close
+        self.closed = False
+        self._start_lock = asyncio.Lock()
         self._files = files
         self._on_session = on_session
         self._sessions: dict[str, str] = {}
@@ -89,22 +95,39 @@ class LocalShellBridge:
         resolved = self._resolve_exec_dir(exec_dir)
         if isinstance(resolved, ToolResult):
             return resolved
-        if session_id in self._sessions:
-            old = self._sessions[session_id]
+        async def start():
+            async with self._start_lock:
+                if self.closed:
+                    raise RuntimeError('本次运行的 Shell 已结束')
+                if session_id in self._sessions:
+                    old = await self._executor.kill_tree(self._sessions[session_id])
+                    if old.state is ProcessState.LOST:
+                        raise RuntimeError('旧 Shell 会话尚未确认结束，不能替换')
+                if self._before_start:
+                    await self._before_start()
+                if self.closed:
+                    raise RuntimeError("本次运行已停止，不再启动进程")
+                status = await self._executor.start(ProcessSpec(
+                    shell_command=command,
+                    cwd=resolved,
+                    owner=self._owner,
+                    interactive=True,
+                    env={"SHELL": detect_posix_shell()},
+                ))
+                self._sessions[session_id] = status.process_id
+                return status
+        starting = asyncio.create_task(start())
+        try:
+            status = await asyncio.shield(starting)
+        except asyncio.CancelledError:
+            self.closed = True
             try:
-                status = await self._executor.status(old)
-                if status.state is ProcessState.RUNNING:
-                    await self._executor.kill_tree(old)
+                await starting
             except Exception:
-                logger.debug("结束旧 Shell 会话失败 session=%s", session_id, exc_info=True)
-        status = await self._executor.start(ProcessSpec(
-            shell_command=command,
-            cwd=resolved,
-            owner=self._owner,
-            interactive=True,
-            env={"SHELL": detect_posix_shell()},
-        ))
-        self._sessions[session_id] = status.process_id
+                pass
+            finally:
+                await self.destroy()
+            raise
         self._commands.setdefault(session_id, []).append({
             "ps1": self._ps1(exec_dir), "command": command, "output": "",
         })
@@ -168,14 +191,27 @@ class LocalShellBridge:
         process_id = self._sessions.get(session_id)
         if process_id is None:
             return ToolResult(success=False, message=f"Shell 会话不存在: {session_id}")
-        status = await self._executor.status(process_id)
-        if status.state is not ProcessState.RUNNING:
-            return ToolResult(success=True, message="success", data={
-                "status": "already_terminated", "returncode": status.exit_code or -9,
-            })
+        # Shell 主进程退出不代表后台后代已经退出；由 supervisor 确认整棵树。
         status = await self._executor.kill_tree(process_id)
         ok = status.state != ProcessState.LOST
         return ToolResult(success=ok, message="success" if ok else "无法确认进程已结束", data={
             "status": "terminated" if ok else "lost",
             "returncode": status.exit_code if status.exit_code is not None else -9,
         })
+
+
+    async def destroy(self) -> bool:
+        """阻止新命令，确认所有会话的整棵树消失；未知结果保留写入阻止。"""
+        async with self._start_lock:
+            self.closed = True
+            confirmed = True
+            for process_id in list(self._sessions.values()):
+                try:
+                    status = await self._executor.kill_tree(process_id)
+                    confirmed = confirmed and status.state is not ProcessState.LOST
+                except Exception:
+                    logger.exception('无法确认 Shell 子树结束 process=%s', process_id)
+                    confirmed = False
+            if self._on_close:
+                await self._on_close(confirmed)
+            return confirmed

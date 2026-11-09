@@ -185,3 +185,7 @@ def run_summary_view(summary: RunSummary) -> RunSummaryView:
                           run_status=summary.run_status, changed_files=summary.changed_files,
                           first_at=to_epoch_ms(summary.first_at), last_at=to_epoch_ms(summary.last_at),
                           kind=summary.kind, undo_of_run_id=summary.undo_of_run_id)
+
+
+class ConfirmLeaseReleaseRequest(BaseModel):
+    lease_id: str = Field(min_length=1, max_length=128)

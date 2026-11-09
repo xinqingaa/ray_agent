@@ -240,7 +240,7 @@ def test_stop_cancels_run_kills_registered_shell_and_late_completion_is_ignored(
         with pytest.raises(asyncio.CancelledError):
             await execution
         sandbox.kill_process.assert_awaited_once_with("sh-1")
-        r._sandbox.destroy.assert_not_awaited()
+        r._sandbox.destroy.assert_awaited_once()
         terminal = next(e for e in h.events if isinstance(e, RunEvent) and e.status == "cancelled")
         assert terminal.reason == "user_stop" and terminal.summary["turns"] == 1
         # 被中止的轮次由停止事务按运行器快照补写 completed：已发出的请求计入汇总

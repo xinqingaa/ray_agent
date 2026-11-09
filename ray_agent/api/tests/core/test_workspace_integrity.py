@@ -142,7 +142,7 @@ def test_a_lease_without_a_live_writer_can_be_recovered_but_an_external_process_
         env.quiescent = False  # 外部进程写入者：核心无法确认它已结束
         with pytest.raises(WorkspaceFileError) as blocked:
             await successor.retry_settle(ws)
-        assert "P4" in str(blocked.value) and (await live.get(ws)).state is LeaseState.BLOCKED
+        assert "确认旧进程已结束" in str(blocked.value) and (await live.get(ws)).state is LeaseState.BLOCKED
     scenario(tmp_path, body)
 
 

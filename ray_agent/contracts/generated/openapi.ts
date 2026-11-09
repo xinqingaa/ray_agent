@@ -411,6 +411,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/sessions/{session_id}/runs/{run_id}/shell-changes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Shell 执行区间的文件观察
+         * @description 比较首次实际 Shell 前与确认子树结束后的有界元数据清单；可能包含外部并发写入，不捕获内容相同或元数据未变的写入，不提供撤销。未知结果不推断运行后变化。
+         */
+        get: operations["shell_changes_api_sessions__session_id__runs__run_id__shell_changes_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/sessions": {
         parameters: {
             query?: never;
@@ -1427,6 +1447,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/workspaces/{workspace_id}/runs/{run_id}/shell-changes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 工作区运行的 Shell 文件观察 */
+        get: operations["shell_changes_api_workspaces__workspace_id__runs__run_id__shell_changes_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/workspaces/{workspace_id}/write-lease": {
         parameters: {
             query?: never;
@@ -1461,6 +1498,23 @@ export interface paths {
          * @description 租约处于 settling 或 blocked（停止后未能确认写入结束）时，再次要求写入者退出并确认；确认后释放租约，仍未确认返回 409 并保持阻止状态。正常写入中的租约不可收尾（409）。
          */
         post: operations["retry_settle_api_workspaces__workspace_id__write_lease_retry_settle_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/write-lease/confirm-release": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 确认未知旧进程已结束并释放占用 */
+        post: operations["confirm_release_api_workspaces__workspace_id__write_lease_confirm_release_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1912,6 +1966,40 @@ export interface paths {
         get: operations["read_document_chunk_api_workspaces__workspace_id__documents_chunks__chunk_id__get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/components": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Components */
+        get: operations["list_components_api_components_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/components/{component_id}/install": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Install */
+        post: operations["install_api_components__component_id__install_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2780,6 +2868,40 @@ export interface components {
             completion_tokens?: number | null;
             /** Cached Tokens */
             cached_tokens?: number | null;
+        };
+        /** @description 组件身份，如浏览器或某个 Embedding 模型 */
+        ComponentId: string;
+        /** ComponentInstallRequest */
+        ComponentInstallRequest: {
+            request_id: components["schemas"]["RequestId"];
+        };
+        /**
+         * ComponentState
+         * @enum {string}
+         */
+        ComponentState: "not_installed" | "fetching" | "verifying" | "available" | "failed" | "cancelled";
+        /** ComponentView */
+        ComponentView: {
+            component_id: components["schemas"]["ComponentId"];
+            state: components["schemas"]["ComponentState"];
+            /** Version */
+            version?: string | null;
+            operation_id?: components["schemas"]["OperationId"] | null;
+            error?: components["schemas"]["ErrorInfo"] | null;
+            /** Target Version */
+            target_version: string;
+            /** Update Available */
+            update_available: boolean;
+            /** Platform */
+            platform: string;
+            /** Size */
+            size: number;
+            operation?: components["schemas"]["OperationView"] | null;
+        };
+        /** ConfirmLeaseReleaseRequest */
+        ConfirmLeaseReleaseRequest: {
+            /** Lease Id */
+            lease_id: string;
         };
         /**
          * ConflictResolution
@@ -4063,6 +4185,42 @@ export interface components {
             /** Runs */
             runs: components["schemas"]["RunSummaryView"][];
         };
+        /** ObservationVersion */
+        ObservationVersion: {
+            /** Size */
+            size: number;
+            /** Modified Ns */
+            modified_ns: string;
+        };
+        /** ObservedChange */
+        ObservedChange: {
+            /** Root Id */
+            root_id: string;
+            /** Relative Path */
+            relative_path: string;
+            /**
+             * Operation
+             * @enum {string}
+             */
+            operation: "create" | "modify" | "delete" | "unclassified";
+            before: components["schemas"]["ObservationVersion"] | null;
+            after: components["schemas"]["ObservationVersion"] | null;
+        };
+        /** ObservedRoot */
+        ObservedRoot: {
+            /** Root Id */
+            root_id: string;
+            /** Kind */
+            kind: string;
+            /** Before Files */
+            before_files: number;
+            /** After Files */
+            after_files: number | null;
+            /** Partial */
+            partial: boolean;
+            /** Errors */
+            errors: string[];
+        };
         /** OpenWorkspaceRequest */
         OpenWorkspaceRequest: {
             /** Grant Id */
@@ -4578,6 +4736,10 @@ export interface components {
         Response_SearchResponse_: {
             data: components["schemas"]["SearchResponse"] | null;
         };
+        /** Response[ShellChangesResponse] */
+        Response_ShellChangesResponse_: {
+            data: components["schemas"]["ShellChangesResponse"] | null;
+        };
         /** Response[TemplateListResponse] */
         Response_TemplateListResponse_: {
             data: components["schemas"]["TemplateListResponse"] | null;
@@ -4631,6 +4793,11 @@ export interface components {
             data: {
                 [key: string]: unknown;
             } | null;
+        };
+        /** Response[list[ComponentView]] */
+        Response_list_ComponentView__: {
+            /** Data */
+            data: components["schemas"]["ComponentView"][] | null;
         };
         /** Response[list[DocumentView]] */
         Response_list_DocumentView__: {
@@ -4954,6 +5121,38 @@ export interface components {
          * @enum {string}
          */
         SessionStatus: "pending" | "running" | "waiting" | "completed" | "failed" | "cancelled" | "interrupted";
+        /** ShellChangesResponse */
+        ShellChangesResponse: {
+            /** Run Id */
+            run_id: string;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "not_started" | "observing" | "complete" | "unknown";
+            /** Started At */
+            started_at: string | null;
+            /** Ended At */
+            ended_at: string | null;
+            /** Roots */
+            roots: components["schemas"]["ObservedRoot"][];
+            /** Total */
+            total: number;
+            /** Entries */
+            entries: components["schemas"]["ObservedChange"][];
+            /** Has More */
+            has_more: boolean;
+            /**
+             * Attribution
+             * @constant
+             */
+            attribution: "unknown";
+            /**
+             * Undo Available
+             * @constant
+             */
+            undo_available: false;
+        };
         /**
          * SkillConfig
          * @description Skill 多来源发现与选择偏好；不存放密钥。
@@ -6394,6 +6593,41 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Response_ResourceTicket_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    shell_changes_api_sessions__session_id__runs__run_id__shell_changes_get: {
+        parameters: {
+            query?: {
+                offset?: number;
+                limit?: number | null;
+            };
+            header?: never;
+            path: {
+                session_id: string;
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_ShellChangesResponse_"];
                 };
             };
             /** @description 结构化错误 */
@@ -8435,6 +8669,41 @@ export interface operations {
             };
         };
     };
+    shell_changes_api_workspaces__workspace_id__runs__run_id__shell_changes_get: {
+        parameters: {
+            query?: {
+                offset?: number;
+                limit?: number | null;
+            };
+            header?: never;
+            path: {
+                workspace_id: string;
+                run_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_ShellChangesResponse_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     get_write_lease_api_workspaces__workspace_id__write_lease_get: {
         parameters: {
             query?: never;
@@ -8476,6 +8745,41 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_WriteLeaseResponse_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    confirm_release_api_workspaces__workspace_id__write_lease_confirm_release_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ConfirmLeaseReleaseRequest"];
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -9343,6 +9647,70 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Response_DocumentSourceView_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    list_components_api_components_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_list_ComponentView__"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    install_api_components__component_id__install_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                component_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ComponentInstallRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_OperationView_"];
                 };
             };
             /** @description 结构化错误 */

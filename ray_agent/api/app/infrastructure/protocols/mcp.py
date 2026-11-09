@@ -67,7 +67,8 @@ class MCPConnection:
                 async with AsyncExitStack() as stack:
                     if self.config.transport == MCPTransport.STDIO:
                         # 受控继承：不把模型密钥与冻结标记传给 MCP；配置 env 可显式覆盖
-                        env = scrub_env(os.environ, extra=self.config.env or {})
+                        from app.infrastructure.external.execution.tool_runtimes import ensure_tool_runtimes
+                        env = scrub_env(os.environ, await ensure_tool_runtimes(), extra=self.config.env or {})
                         params = StdioServerParameters(
                             command=self.config.command, args=self.config.args, env=env)
 

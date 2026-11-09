@@ -118,6 +118,16 @@
 | 代理假地址核对 | 每个 DNS-over-HTTPS 端点 3 秒，三个端点依次回退，计入全过程时限 | 同上，`DOH_TIMEOUT_SECONDS`、`DOH_ENDPOINTS` |
 | 返回正文 | 最多 6000 字符 | 同上，`CONTENT_CHARS` |
 
+## 本机执行与组件安装
+
+| 项 | 当前值 | 来源 |
+|---|---|---|
+| 安装 worker 单阶段期限 | 获取／校验各 600 秒 | [component_service.py](../ray_agent/api/app/application/services/component_service.py) 的 `WORKER_TIMEOUT_SECONDS` |
+| 安装取消检查 | 每次等待子进程最多 0.25 秒后复核 | 同上，`WORKER_POLL_SECONDS` |
+| 组件下载请求超时 | 600 秒 | [install_files.py](../ray_agent/api/app/infrastructure/external/components/install_files.py) 的 `fetch_file()` |
+| 设置组件状态轮询 | 2 秒，离开分区后停止 | [components-section.tsx](../ray_agent/ui/src/components/settings/components-section.tsx) |
+| 基础工具版本与架构 | CPython 3.12.12、Node 22.20.0；macOS arm64 | [tool_runtime_manifest.json](../ray_agent/api/resources/tool_runtime_manifest.json)；组件版本以各固定清单为准 |
+
 ## 浏览器、截图与用户图片
 
 | 项 | 当前值 | 来源 |

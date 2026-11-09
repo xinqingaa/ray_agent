@@ -1,15 +1,16 @@
 {
   "platform": "macos-arm64",
-  "notes": "浏览器经 Playwright 官方 Chromium；Embedding 为 HF intfloat/multilingual-e5-small 的 ONNX O4 导出；OCR 模型从 rapidocr_onnxruntime 包内复制并校验。文件级清单见 component_files.json。playwright:// 与 package://／huggingface 来源的顶层 sha256 为文件清单合成摘要。散装原生库首次加载可能较慢，可启动检查须容忍。",
+  "notes": "固定组件清单；文件或压缩包按 component_files.json 校验 SHA-256，完成可启动检查后发布。Chromium 版本匹配锁定的 Playwright 1.56.0。",
   "components": [
     {
       "component_id": "browser-chromium",
-      "version": "playwright-1.56",
+      "version": "chromium-1194-playwright-1.56.0",
       "platform": "macos-arm64",
-      "sha256": "00000000000000000000000000000000000000000000000000000000c1a00001",
-      "size": 0,
-      "source_url": "playwright://chromium",
-      "license": "BSD-3-Clause"
+      "sha256": "bb13e2bab465de3305277559395805c19ef8f221420e9a7d830a149c8e4d9e3d",
+      "size": 135992119,
+      "source_url": "https://cdn.playwright.dev/dbazure/download/playwright/builds/chromium/1194/chromium-mac-arm64.zip",
+      "license": "BSD-3-Clause",
+      "compatibility": "playwright-1.56-chromium-layout-1"
     },
     {
       "component_id": "ocr",
@@ -18,7 +19,8 @@
       "sha256": "bee84dd9de886b80649567f7f6d823b10c0c0f7905d0b0cf4a19460d41788db1",
       "size": 16189007,
       "source_url": "package://rapidocr_onnxruntime",
-      "license": "Apache-2.0"
+      "license": "Apache-2.0",
+      "compatibility": "rapidocr-ppocrv4-layout-1"
     },
     {
       "component_id": "embedding-e5",
@@ -27,7 +29,8 @@
       "sha256": "a6031dd8accc21e9bf28584e42f5f2c67ed0bbf625fc354cc06e1d00c103a11d",
       "size": 252136524,
       "source_url": "https://huggingface.co/intfloat/multilingual-e5-small",
-      "license": "MIT"
+      "license": "MIT",
+      "compatibility": "multilingual-e5-small-layout-1"
     }
   ]
 }

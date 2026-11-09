@@ -1,5 +1,5 @@
 import {useEffect, useState} from 'react'
-import {BookOpen, Bot, Cable, FolderOpen, Globe, Palette, ShieldCheck, SlidersHorizontal, X, type LucideIcon} from 'lucide-react'
+import {BookOpen, Bot, Download, Cable, FolderOpen, Globe, Palette, ShieldCheck, SlidersHorizontal, X, type LucideIcon} from 'lucide-react'
 import {Button} from '@/components/ui/button'
 import {cn} from '@/lib/utils'
 import {useConfigForm, useUnsavedGuard} from './form'
@@ -12,10 +12,11 @@ import {SkillsSection} from './skills-section'
 import {AppearanceSection} from './appearance-section'
 import {DataSection} from './data-section'
 import {WorkspaceSection} from './workspace-section'
+import {ComponentsSection} from './components-section'
 import {useDeveloperMode} from '@/hooks/use-developer-mode'
 import {Switch} from '@/components/ui/switch'
 
-type SectionKey = 'general' | 'workspace' | 'appearance' | 'llm' | 'mcp' | 'a2a' | 'tool-policy' | 'data' | 'skills'
+type SectionKey = 'general' | 'workspace' | 'appearance' | 'llm' | 'mcp' | 'a2a' | 'tool-policy' | 'data' | 'skills' | 'components'
 
 const SECTIONS: {key: SectionKey; label: string; icon: LucideIcon}[] = [
   {key: 'general', label: '通用', icon: SlidersHorizontal},
@@ -25,6 +26,7 @@ const SECTIONS: {key: SectionKey; label: string; icon: LucideIcon}[] = [
   {key: 'mcp', label: 'MCP 服务器', icon: Cable},
   {key: 'a2a', label: '远程 Agent', icon: Globe},
   {key: 'tool-policy', label: '工具策略', icon: ShieldCheck},
+  {key: 'components', label: '运行组件', icon: Download},
   {key: 'skills', label: 'Skills', icon: BookOpen},
   {key: 'data', label: '数据管理', icon: SlidersHorizontal},
 ]
@@ -96,6 +98,7 @@ export function SettingsView({onClose, onDirtyChange, onNavigate}: {onClose?: ()
             </>}
             <div hidden={active !== 'skills'}><SkillsSection active={active === 'skills'} onDirtyChange={setSkillsDirty}/></div>
             {active === 'workspace' && <WorkspaceSection/>}
+            {active === 'components' && <ComponentsSection/>}
             {active === 'appearance' && <AppearanceSection/>}
             {active === 'data' && <DataSection onNavigate={onNavigate} disabledReason={hasUnsavedChanges ? '请先保存或撤销设置修改，再清空数据。' : undefined}/>}
             {active === 'llm' && <LlmSection form={llm}/>}

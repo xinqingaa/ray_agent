@@ -1187,6 +1187,87 @@
         }
       }
     },
+    "/api/sessions/{session_id}/runs/{run_id}/shell-changes": {
+      "get": {
+        "tags": [
+          "会话模块"
+        ],
+        "summary": "Shell 执行区间的文件观察",
+        "description": "比较首次实际 Shell 前与确认子树结束后的有界元数据清单；可能包含外部并发写入，不捕获内容相同或元数据未变的写入，不提供撤销。未知结果不推断运行后变化。",
+        "operationId": "shell_changes_api_sessions__session_id__runs__run_id__shell_changes_get",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          },
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run Id"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 2000,
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_ShellChangesResponse_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/sessions": {
       "post": {
         "tags": [
@@ -4154,6 +4235,86 @@
         }
       }
     },
+    "/api/workspaces/{workspace_id}/runs/{run_id}/shell-changes": {
+      "get": {
+        "tags": [
+          "工作区文件变更"
+        ],
+        "summary": "工作区运行的 Shell 文件观察",
+        "operationId": "shell_changes_api_workspaces__workspace_id__runs__run_id__shell_changes_get",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "run_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Run Id"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 2000,
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_ShellChangesResponse_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/workspaces/{workspace_id}/write-lease": {
       "get": {
         "tags": [
@@ -4216,6 +4377,58 @@
             }
           }
         ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_WriteLeaseResponse_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workspaces/{workspace_id}/write-lease/confirm-release": {
+      "post": {
+        "tags": [
+          "工作区文件变更"
+        ],
+        "summary": "确认未知旧进程已结束并释放占用",
+        "operationId": "confirm_release_api_workspaces__workspace_id__write_lease_confirm_release_post",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workspace Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConfirmLeaseReleaseRequest"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -5541,6 +5754,89 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Response_DocumentSourceView_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/components": {
+      "get": {
+        "tags": [
+          "运行组件"
+        ],
+        "summary": "List Components",
+        "operationId": "list_components_api_components_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_list_ComponentView__"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/components/{component_id}/install": {
+      "post": {
+        "tags": [
+          "运行组件"
+        ],
+        "summary": "Install",
+        "operationId": "install_api_components__component_id__install_post",
+        "parameters": [
+          {
+            "name": "component_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Component Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ComponentInstallRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_OperationView_"
                 }
               }
             }
@@ -7849,6 +8145,127 @@
         "type": "object",
         "title": "CompactUsage",
         "description": "摘要请求各次尝试的用量合计；属于运行时计入运行的模型请求数与 tokens，不算一轮。"
+      },
+      "ComponentId": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9-]{0,63}$",
+        "description": "组件身份，如浏览器或某个 Embedding 模型"
+      },
+      "ComponentInstallRequest": {
+        "properties": {
+          "request_id": {
+            "$ref": "#/components/schemas/RequestId"
+          }
+        },
+        "type": "object",
+        "required": [
+          "request_id"
+        ],
+        "title": "ComponentInstallRequest"
+      },
+      "ComponentState": {
+        "type": "string",
+        "enum": [
+          "not_installed",
+          "fetching",
+          "verifying",
+          "available",
+          "failed",
+          "cancelled"
+        ],
+        "title": "ComponentState"
+      },
+      "ComponentView": {
+        "properties": {
+          "component_id": {
+            "$ref": "#/components/schemas/ComponentId"
+          },
+          "state": {
+            "$ref": "#/components/schemas/ComponentState"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
+          },
+          "operation_id": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OperationId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ErrorInfo"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "target_version": {
+            "type": "string",
+            "title": "Target Version"
+          },
+          "update_available": {
+            "type": "boolean",
+            "title": "Update Available"
+          },
+          "platform": {
+            "type": "string",
+            "title": "Platform"
+          },
+          "size": {
+            "type": "integer",
+            "title": "Size"
+          },
+          "operation": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OperationView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "component_id",
+          "state",
+          "target_version",
+          "update_available",
+          "platform",
+          "size"
+        ],
+        "title": "ComponentView"
+      },
+      "ConfirmLeaseReleaseRequest": {
+        "properties": {
+          "lease_id": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 1,
+            "title": "Lease Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "lease_id"
+        ],
+        "title": "ConfirmLeaseReleaseRequest"
       },
       "ConflictResolution": {
         "type": "string",
@@ -10920,6 +11337,123 @@
         ],
         "title": "ModifiedRunsResponse"
       },
+      "ObservationVersion": {
+        "properties": {
+          "size": {
+            "type": "integer",
+            "title": "Size"
+          },
+          "modified_ns": {
+            "type": "string",
+            "title": "Modified Ns"
+          }
+        },
+        "type": "object",
+        "required": [
+          "size",
+          "modified_ns"
+        ],
+        "title": "ObservationVersion"
+      },
+      "ObservedChange": {
+        "properties": {
+          "root_id": {
+            "type": "string",
+            "title": "Root Id"
+          },
+          "relative_path": {
+            "type": "string",
+            "title": "Relative Path"
+          },
+          "operation": {
+            "type": "string",
+            "enum": [
+              "create",
+              "modify",
+              "delete",
+              "unclassified"
+            ],
+            "title": "Operation"
+          },
+          "before": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ObservationVersion"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "after": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ObservationVersion"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "root_id",
+          "relative_path",
+          "operation",
+          "before",
+          "after"
+        ],
+        "title": "ObservedChange"
+      },
+      "ObservedRoot": {
+        "properties": {
+          "root_id": {
+            "type": "string",
+            "title": "Root Id"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "before_files": {
+            "type": "integer",
+            "title": "Before Files"
+          },
+          "after_files": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "After Files"
+          },
+          "partial": {
+            "type": "boolean",
+            "title": "Partial"
+          },
+          "errors": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Errors"
+          }
+        },
+        "type": "object",
+        "required": [
+          "root_id",
+          "kind",
+          "before_files",
+          "after_files",
+          "partial",
+          "errors"
+        ],
+        "title": "ObservedRoot"
+      },
       "OpenWorkspaceRequest": {
         "properties": {
           "grant_id": {
@@ -12648,6 +13182,25 @@
         ],
         "title": "Response[SearchResponse]"
       },
+      "Response_ShellChangesResponse_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ShellChangesResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "Response[ShellChangesResponse]"
+      },
       "Response_TemplateListResponse_": {
         "properties": {
           "data": {
@@ -12879,6 +13432,29 @@
           "data"
         ],
         "title": "Response[dict]"
+      },
+      "Response_list_ComponentView__": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/ComponentView"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "Response[list[ComponentView]]"
       },
       "Response_list_DocumentView__": {
         "properties": {
@@ -13712,6 +14288,92 @@
         ],
         "title": "SessionStatus",
         "description": "会话状态：最新运行状态的冗余副本，与运行状态在同一事务更新，供会话列表使用。"
+      },
+      "ShellChangesResponse": {
+        "properties": {
+          "run_id": {
+            "type": "string",
+            "title": "Run Id"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "not_started",
+              "observing",
+              "complete",
+              "unknown"
+            ],
+            "title": "State"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At"
+          },
+          "ended_at": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ended At"
+          },
+          "roots": {
+            "items": {
+              "$ref": "#/components/schemas/ObservedRoot"
+            },
+            "type": "array",
+            "title": "Roots"
+          },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/ObservedChange"
+            },
+            "type": "array",
+            "title": "Entries"
+          },
+          "has_more": {
+            "type": "boolean",
+            "title": "Has More"
+          },
+          "attribution": {
+            "type": "string",
+            "const": "unknown",
+            "title": "Attribution"
+          },
+          "undo_available": {
+            "type": "boolean",
+            "const": false,
+            "title": "Undo Available"
+          }
+        },
+        "type": "object",
+        "required": [
+          "run_id",
+          "state",
+          "started_at",
+          "ended_at",
+          "roots",
+          "total",
+          "entries",
+          "has_more",
+          "attribution",
+          "undo_available"
+        ],
+        "title": "ShellChangesResponse"
       },
       "SkillConfig": {
         "properties": {
