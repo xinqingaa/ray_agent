@@ -100,3 +100,12 @@ def tools_for_turn(snapshot: Dict[str, Any], index: int) -> List[Dict[str, Any]]
         if revision.get("from_turn", 0) <= index:
             tools = revision.get("tools") or []
     return tools
+
+
+def system_prompt_for_turn(snapshot: Dict[str, Any], index: int) -> str:
+    """背景撤回只作用于之后的请求，早期轮次仍按当时发送的系统提示重建。"""
+    prompt = snapshot.get("initial_system_prompt", snapshot.get("system_prompt", ""))
+    for revision in snapshot.get("context_revisions") or []:
+        if revision.get("from_turn", 0) <= index and "system_prompt" in revision:
+            prompt = revision["system_prompt"]
+    return prompt

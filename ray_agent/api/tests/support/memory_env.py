@@ -29,6 +29,9 @@ class JobStub:
     async def check_cancel(self) -> None:
         return None
 
+    async def check_cancel_in(self, uow) -> None:
+        await self.check_cancel()
+
 
 class MemEnv:
 

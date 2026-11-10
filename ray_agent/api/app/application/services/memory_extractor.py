@@ -7,7 +7,7 @@ import asyncio
 import json
 import logging
 from dataclasses import dataclass
-from typing import Any, Optional, Protocol, Sequence
+from typing import Any, Protocol, Sequence
 
 from app.domain.models.app_config import LLMConfig
 from app.domain.models.workspace_memory import MEMORY_CONTENT_MAX_CHARS, MemoryType
@@ -107,17 +107,18 @@ class LLMMemoryExtractor:
             items = parse_decisions(await self._ask(DECIDE_PROMPT, payload))
         except ValueError as error:
             raise ExtractionUnavailable(f"无法解析判定结果：{error}") from error
-        raw: Optional[dict[str, Any]] = items[0] if items else None
-        if raw is None:
-            return ExtractionDecision(action=ExtractionAction.NONE, reason="模型没有给出判定")
+        if len(items) != 1:
+            raise ExtractionUnavailable("判定必须返回一个对象；不把缺失或多份判定当成无需修改")
+        raw = items[0]
         try:
             action = ExtractionAction(str(raw.get("action")))
-        except ValueError:
-            action = ExtractionAction.NONE
+        except ValueError as error:
+            raise ExtractionUnavailable("模型返回未知的记忆动作") from error
         target_id = raw.get("target_id") or None
         known = {item.get("id"): item.get("version") for item in similar}
-        if action in (ExtractionAction.UPDATE, ExtractionAction.DELETE) and target_id not in known:
-            action, target_id = ExtractionAction.NONE, None  # 目标不在给出的相似条目里：不猜测
+        if action in (ExtractionAction.UPDATE, ExtractionAction.DELETE) and (
+                not isinstance(target_id, str) or target_id not in known):
+            raise ExtractionUnavailable("判定目标不在所提供的相似记忆中")
         content = str(raw.get("content") or "").strip() or (fact.content if action is not ExtractionAction.DELETE else "")
         return ExtractionDecision(
             action=action, content=content[:MEMORY_CONTENT_MAX_CHARS], memory_type=_memory_type(

@@ -345,6 +345,7 @@ class AgentLoop(BaseFlow):
         self._system_prompt = system_prompt
         self.project_prompt = project_prompt
         self.request_system_prompt: Optional[str] = None
+        self.before_request: Optional[Callable[[int], Awaitable[None]]] = None
         self._retry_interval = retry_interval
         self.skill_runtime = None
         self._skill_blocked = False
@@ -729,6 +730,8 @@ class AgentLoop(BaseFlow):
                 yield self._fail(RunEndReason.MAX_ITERATIONS,
                                  f"模型请求次数达到本次运行上限 {self._config.max_iterations}")
                 return
+            if self.before_request is not None:
+                await self.before_request(index + 1)
             async for event in self._ensure_capacity():
                 yield event
             if self._capacity_error is not None:
@@ -1013,6 +1016,8 @@ class AgentLoop(BaseFlow):
                 turn.failure = RunEndReason.MAX_ITERATIONS
                 turn.error = f"模型请求次数达到本次运行上限 {self._config.max_iterations}"
                 return
+            if self.before_request is not None:
+                await self.before_request(turn.index)
             self.model_requests += 1
             self.budget_used += 1
             turn.attempts += 1

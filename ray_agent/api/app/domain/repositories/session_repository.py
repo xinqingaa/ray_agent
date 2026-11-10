@@ -99,6 +99,6 @@ class SessionRepository(Protocol):
         """根据传递的会话id+Agent名字获取记忆"""
         ...
 
-    async def summary_material(self, session_id: str) -> dict:
+    async def summary_material(self, session_id: str, *, source_seq_end: Optional[int] = None) -> dict:
         """会话摘要的有界材料与截止序号，供会话摘要生成使用。"""
         ...

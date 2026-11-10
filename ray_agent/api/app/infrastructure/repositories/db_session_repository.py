@@ -73,7 +73,10 @@ class DBSessionRepository(SessionRepository):
         return result.rowcount > 0
 
     async def update_participation(self, session_id: str, participate: bool) -> None:
-        await self._update(session_id, participate_in_memory=bool(participate))
+        values = {"participate_in_memory": bool(participate)}
+        if not participate:
+            values["memory_access_version"] = SessionModel.memory_access_version + 1
+        await self._update(session_id, **values)
 
     async def ids_by_workspace(self, workspace_id: str) -> List[str]:
         return list((await self.db_session.execute(
@@ -147,14 +150,16 @@ class DBSessionRepository(SessionRepository):
         data = (memories or {}).get(agent_name)
         return Memory(**data) if data else Memory(messages=[])
 
-    async def summary_material(self, session_id: str) -> dict:
+    async def summary_material(self, session_id: str, *, source_seq_end: Optional[int] = None) -> dict:
         from app.domain.services.summary_material import bound_material
         from app.infrastructure.models import EventModel, RunModel
         role = func.json_extract(EventModel.payload, "$.role")
         messages = select(EventModel).where(EventModel.session_id == session_id, EventModel.type == "message")
+        if source_seq_end is not None:
+            messages = messages.where(EventModel.seq <= source_seq_end)
         users = messages.where(role == "user")
         first = (await self.db_session.execute(users.order_by(EventModel.seq).limit(1))).scalar_one_or_none()
-        recent = (await self.db_session.execute(users.order_by(EventModel.seq.desc()).limit(12))).scalars().all()
+        recent = (await self.db_session.execute(users.order_by(EventModel.seq.desc()).limit(13))).scalars().all()
         latest = (
             select(func.max(EventModel.seq))
             .join(RunModel, RunModel.id == EventModel.run_id)
@@ -162,16 +167,20 @@ class DBSessionRepository(SessionRepository):
                    RunModel.status == "completed")
             .group_by(EventModel.run_id)
         )
+        finals_query = select(EventModel).where(EventModel.session_id == session_id, EventModel.seq.in_(latest))
+        if source_seq_end is not None:
+            finals_query = finals_query.where(EventModel.seq <= source_seq_end)
         finals = (await self.db_session.execute(
-            select(EventModel).where(EventModel.session_id == session_id, EventModel.seq.in_(latest))
-            .order_by(EventModel.seq.desc()).limit(12))).scalars().all()
+            finals_query.order_by(EventModel.seq.desc()).limit(13))).scalars().all()
         runs = (await self.db_session.execute(
             select(RunModel).where(RunModel.session_id == session_id,
                                    RunModel.status.in_(["completed", "failed", "cancelled", "interrupted"]))
-            .order_by(RunModel.started_at.desc()).limit(12))).scalars().all()
+            .order_by(RunModel.started_at.desc()).limit(13))).scalars().all()
         material = bound_material(first, recent, finals, runs)
-        cutoff = (await self.db_session.execute(
-            select(func.max(EventModel.seq)).where(EventModel.session_id == session_id,
-                                                   EventModel.type.in_(["message", "run"])))).scalar()
+        cutoff_query = select(func.max(EventModel.seq)).where(
+            EventModel.session_id == session_id, EventModel.type.in_(["message", "run"]))
+        if source_seq_end is not None:
+            cutoff_query = cutoff_query.where(EventModel.seq <= source_seq_end)
+        cutoff = (await self.db_session.execute(cutoff_query)).scalar()
         material["source_seq"] = max(material["source_seq"], cutoff or 0)
         return material

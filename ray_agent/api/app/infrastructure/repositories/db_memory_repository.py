@@ -7,7 +7,7 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.models.workspace_memory import (
-    ExtractionJob,
+    ExtractionCommitStatus, ExtractionJob,
     MemoryChange,
     MemoryEntry,
     MemorySource,
@@ -49,6 +49,7 @@ class DBMemoryRepository(MemoryRepository):
         model.pinned = entry.pinned
         model.version = entry.version
         model.supersedes_id = entry.supersedes_id
+        model.supersedes_version = entry.supersedes_version
         model.updated_at = entry.updated_at
         model.last_used_at = entry.last_used_at
         await self.db_session.flush()
@@ -144,6 +145,20 @@ class DBMemoryRepository(MemoryRepository):
             .where(ExtractionJobModel.session_id == session_id)
         )).scalar_one()
         return int(value) + 1
+
+    async def invalidate_extractions(self, workspace_id: str, *, session_id: Optional[str] = None) -> list[str]:
+        stmt = select(ExtractionJobModel).where(
+            ExtractionJobModel.workspace_id == workspace_id,
+            ExtractionJobModel.commit_status == ExtractionCommitStatus.PENDING.value)
+        if session_id is not None:
+            stmt = stmt.where(ExtractionJobModel.session_id == session_id)
+        rows = (await self.db_session.execute(stmt)).scalars().all()
+        from app.domain.models.clock import utc_now
+        for row in rows:
+            row.commit_status = ExtractionCommitStatus.REJECTED.value
+            row.updated_at = utc_now()
+        await self.db_session.flush()
+        return [row.operation_id for row in rows]
 
     async def delete_workspace(self, workspace_id: str) -> None:
         for model in (

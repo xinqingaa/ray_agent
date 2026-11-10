@@ -43,7 +43,11 @@ class JobContext:
     async def check_cancel(self) -> None:
         """安全点：已请求取消时抛出 JobCancelled。"""
         async with self._runner.read_uow_factory() as uow:
-            current = await uow.job.get(self.job.operation_id)
+            await self.check_cancel_in(uow)
+
+    async def check_cancel_in(self, uow: IUnitOfWork) -> None:
+        """在业务发布的同一事务中核对，避免检查与写入之间插入取消或接管。"""
+        current = await uow.job.get(self.job.operation_id)
         if current is None or current.generation != self.job.generation \
                 or current.owner_instance != self._runner.instance_id or current.status is not OperationStatus.RUNNING:
             raise JobSuperseded(self.job.operation_id)

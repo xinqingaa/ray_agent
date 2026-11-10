@@ -223,19 +223,24 @@ uv run --locked python -m pytest tests/core/test_write_protection.py tests/core/
 
 ### 工作方式与记忆检查
 
-覆盖两个工作区与独立对话的隔离、常驻记忆与工作方式进入新运行、D4 提炼规则（用户保护条目转候选、迟到代次拒绝、撤回抑制）、运行结束登记摘要／提炼任务、续接前移除已撤回条目，以及 HTTP 冒烟。提炼与摘要的模型调用在测试中用注入替身，不证明真实模型质量。
+覆盖两个工作区与独立对话的隔离、常驻记忆与工作方式进入新运行、D4 提炼规则、候选与目标共同校验版本、来源版本与撤回抑制、完整状态撤销及旧记录拒绝猜测恢复、运行结束登记摘要／提炼任务、任务截止材料在数据库重新打开后不漂移、最后一次模型判定与发布期间取消、所有者接管、开关反复切换、摘要索引恢复，以及每轮请求前撤回失效和历史请求重建。HTTP 用例检查基础接口，状态转换主要由真实 SQLite 和实际运行器／后台任务检查，模型端用注入替身；这些检查不证明真实模型的普遍提炼质量，也不覆盖桌面前端的完整交互。
 
-### 文档知识检查
+`PATCH /api/workspaces/{workspace_id}/memories/{memory_id}` 的 `confirm` 默认核对候选保存的目标版本；冲突返回目标身份与当前版本。重新审阅目标后，可显式带 `target_version` 确认所见版本，仍须带候选自身的 `version`。来源响应的 `memory_version` 标记该依据对应的条目版本，旧来源保持未知。`undo` 支持新建、编辑、撤回和钉住；候选确认、替代和旧状态不足的记录返回明确冲突。前端重新审阅和来源定位入口仍留在 P5 收尾范围。
 
-`test_document_knowledge.py` 覆盖 TXT／Markdown／CSV 解析、图片标待 OCR 组件、两工作区文件片段检索不串、修改后旧片段撤出 FTS、删除后撤回，以及按 chunk 读回来源。解析在真实子进程 worker 中执行；不覆盖 Embedding／LanceDB 与 OCR 识别（P7）。
+定向检查：
 
 ```bash
 uv run --locked python -m pytest \
+  tests/core/test_memory_consistency.py \
   tests/core/test_memory_isolation.py \
   tests/core/test_memory_extraction_rules.py \
   tests/core/test_memory_context_runtime.py \
   tests/app/interfaces/endpoints/test_memory_routes.py
 ```
+
+### 文档知识检查
+
+`test_document_knowledge.py` 覆盖 TXT／Markdown／CSV 解析、图片标待 OCR 组件、两工作区文件片段检索不串、修改后旧片段撤出 FTS、删除后撤回，以及按 chunk 读回来源。解析在真实子进程 worker 中执行；不覆盖 Embedding／LanceDB 与 OCR 识别（P7）。
 
 ### 数据删除与清空检查
 

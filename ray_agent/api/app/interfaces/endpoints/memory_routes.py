@@ -43,7 +43,8 @@ async def create_memory(workspace_id: str, request: CreateMemoryRequest,
 @router.patch("/workspaces/{workspace_id}/memories/{memory_id}", response_model=Response[MemoryItem],
               summary="对一条记忆的用户操作",
               description="edit 修改内容或类型、pin／unpin 钉住、confirm 确认候选、retract 撤回、undo 撤销最近一次变更。"
-                          "version 不符返回 409 并带最新值")
+                          "undo 支持新建、编辑、撤回和钉住操作；确认与替代不能单条撤销，旧记录状态不足时拒绝。"
+                          "version 不符或候选所依据的目标已变化时返回 409")
 async def patch_memory(workspace_id: str, memory_id: str, request: PatchMemoryRequest,
                        service: MemoryService = Depends(get_memory_service)):
     if request.action == "edit":
@@ -54,7 +55,7 @@ async def patch_memory(workspace_id: str, memory_id: str, request: PatchMemoryRe
     elif request.action in ("pin", "unpin"):
         entry = await service.set_pinned(workspace_id, memory_id, request.version, request.action == "pin")
     elif request.action == "confirm":
-        entry = await service.confirm(workspace_id, memory_id, request.version)
+        entry = await service.confirm(workspace_id, memory_id, request.version, target_version=request.target_version)
     elif request.action == "retract":
         entry = await service.retract(workspace_id, memory_id, request.version)
     else:

@@ -7,11 +7,12 @@ import hashlib
 import json
 import logging
 from dataclasses import dataclass, field
-from typing import Callable, Optional, Sequence
+from typing import Awaitable, Callable, Optional, Sequence
 
 from app.application.errors.exceptions import BadRequestError, ConflictError, NotFoundError
 from app.application.services.retrieval_service import RetrievalService
 from app.domain.models.clock import utc_now
+from app.domain.models.memory_settings import auto_memory_enabled
 from app.domain.models.workspace import Workspace, WorkspaceStatus
 from app.domain.models.workspace_memory import (
     EXTRACTION_STRATEGY_VERSION,
@@ -43,8 +44,16 @@ logger = logging.getLogger(__name__)
 
 # 一次提炼最多落地的条数：模型输出再多也不一次写入大量条目
 EXTRACTION_MAX_ITEMS = 8
-# 撤回前状态记在变更的 after_content 里，撤销时据此还原（候选或活动）
+# 保留撤回记录的历史文本标记；完整撤销依据 before_state，不从正文猜测元数据。
 _STATUS_MARK = "@status="
+_STATE_FIELDS = {"content", "memory_type", "origin", "certainty", "status", "pinned",
+                 "supersedes_id", "supersedes_version"}
+
+
+async def invalidate_extractions(uow: IUnitOfWork, workspace_id: str, *, session_id: Optional[str] = None) -> None:
+    """关闭参与后旧任务永久失效；重新打开也不能认领旧结果。与开关在同一写事务提交。"""
+    for operation_id in await uow.memory.invalidate_extractions(workspace_id, session_id=session_id):
+        await uow.job.request_cancel(operation_id)
 
 
 @dataclass
@@ -116,7 +125,9 @@ class MemoryService:
             from_version=before.version if before else None, to_version=after.version, action=action,
             origin=origin, rationale=rationale[:1000], request_id=request_id, replaces_change_id=replaces,
             before_content=before_content if before_content is not None else (before.content if before else None),
-            after_content=after_content if after_content is not None else after.content)
+            after_content=after_content if after_content is not None else after.content,
+            before_state=before.model_dump(mode="json", include=_STATE_FIELDS) if before else None,
+            after_state=after.model_dump(mode="json", include=_STATE_FIELDS))
         await uow.memory.add_change(change)
         return change
 
@@ -142,6 +153,27 @@ class MemoryService:
         session = await uow.session.get_by_id(session_id)
         return session is not None and session.workspace_id == workspace_id
 
+    async def _attach_source(self, uow: IUnitOfWork, entry: MemoryEntry, session_id: str, seq_end: int) -> None:
+        fingerprint = content_fingerprint(entry.content)
+        for source in await uow.memory.list_sources(entry.id):
+            if (source.session_id == session_id and source.event_seq_end == seq_end
+                    and source.memory_version == entry.version and source.content_fingerprint == fingerprint):
+                return
+        await uow.memory.add_source(MemorySource(
+            memory_id=entry.id, workspace_id=entry.workspace_id, memory_version=entry.version,
+            content_fingerprint=fingerprint, kind=MemorySourceKind.SESSION,
+            session_id=session_id, event_seq_end=seq_end))
+
+    async def _suppress_sources(self, uow: IUnitOfWork, entry: MemoryEntry) -> None:
+        for source in await uow.memory.list_sources(entry.id):
+            if source.kind is not MemorySourceKind.SESSION or not source.session_id or source.event_seq_end is None:
+                continue
+            fingerprint = source.content_fingerprint or content_fingerprint(entry.content)
+            if not await uow.memory.is_suppressed(entry.workspace_id, source.session_id, source.event_seq_end, fingerprint):
+                await uow.memory.add_suppression(MemorySuppression(
+                    workspace_id=entry.workspace_id, session_id=source.session_id,
+                    source_seq_end=source.event_seq_end, content_fingerprint=fingerprint, memory_id=entry.id))
+
     # ---- 创建：用户操作与用户要求下的 Agent 写入 ----
 
     async def create(
@@ -164,22 +196,24 @@ class MemoryService:
                 await uow.memory.clear_suppressions(workspace_id, session_id, fingerprint)
             existing = await self._find_active(uow, workspace_id, fingerprint)
             if existing is not None:
-                if existing.is_user_protected:
-                    return existing
-                upgraded = self._bumped(existing, origin=origin, certainty=certainty,
-                                        pinned=existing.pinned or pinned)
-                await self._save(uow, upgraded)
-                await self._change(uow, existing, upgraded, MemoryChangeAction.CONFIRM, origin,
-                                   rationale=rationale or "明确要求记住", request_id=request_id)
+                upgraded = existing
+                if not existing.is_user_protected or (
+                        origin is MemoryOrigin.USER and existing.certainty is not MemoryCertainty.USER_CONFIRMED):
+                    upgraded = self._bumped(existing, origin=origin, certainty=certainty,
+                                            pinned=existing.pinned or pinned)
+                    await self._save(uow, upgraded)
+                    await self._change(uow, existing, upgraded, MemoryChangeAction.CONFIRM, origin,
+                                       rationale=rationale or "明确要求记住", request_id=request_id)
+                if from_session:
+                    seq_end = source_seq_end if source_seq_end is not None else await uow.event.max_seq(session_id)
+                    await self._attach_source(uow, upgraded, session_id, seq_end)
                 return upgraded
             entry = MemoryEntry(workspace_id=workspace_id, content=text, memory_type=kind, origin=origin,
                                 certainty=certainty, status=MemoryStatus.ACTIVE, pinned=pinned)
             await uow.memory.add(entry)
             if from_session:
                 seq_end = source_seq_end if source_seq_end is not None else await uow.event.max_seq(session_id)
-                await uow.memory.add_source(MemorySource(
-                    memory_id=entry.id, workspace_id=workspace_id, kind=MemorySourceKind.SESSION,
-                    session_id=session_id, event_seq_end=seq_end))
+                await self._attach_source(uow, entry, session_id, seq_end)
             await self._change(uow, None, entry, MemoryChangeAction.CREATE, origin, rationale=rationale,
                                request_id=request_id)
             await self._retrieval.index_memory(uow, entry)
@@ -277,7 +311,8 @@ class MemoryService:
                                MemoryOrigin.USER)
         return updated
 
-    async def confirm(self, workspace_id: str, memory_id: str, expected_version: Optional[int]) -> MemoryEntry:
+    async def confirm(self, workspace_id: str, memory_id: str, expected_version: Optional[int], *,
+                      target_version: Optional[int] = None) -> MemoryEntry:
         """候选经用户确认转为活动并标为用户确认；候选指向的旧条目随之被替代。"""
         async with self._uow_factory() as uow:
             await self._workspace(uow, workspace_id, write=True)
@@ -285,16 +320,25 @@ class MemoryService:
             self._check_version(entry, expected_version)
             if entry.status is not MemoryStatus.CANDIDATE:
                 raise ConflictError("只有候选记忆需要确认", resource_version=entry.version)
-            confirmed = self._bumped(entry, status=MemoryStatus.ACTIVE, certainty=MemoryCertainty.USER_CONFIRMED)
-            await self._save(uow, confirmed)
-            await self._change(uow, entry, confirmed, MemoryChangeAction.CONFIRM, MemoryOrigin.USER)
+            target = None
             if entry.supersedes_id:
                 target = await uow.memory.get(entry.supersedes_id)
-                if target is not None and target.workspace_id == workspace_id and target.status is MemoryStatus.ACTIVE:
-                    replaced = self._bumped(target, status=MemoryStatus.SUPERSEDED, pinned=False)
-                    await self._save(uow, replaced)
-                    await self._change(uow, target, replaced, MemoryChangeAction.SUPERSEDE, MemoryOrigin.USER,
-                                       rationale=f"被 {confirmed.id} 替代")
+                basis = target_version if target_version is not None else entry.supersedes_version
+                if (target is None or target.workspace_id != workspace_id or target.status is not MemoryStatus.ACTIVE
+                        or basis is None or basis != target.version):
+                    raise ConflictError("候选所依据的记忆已变化或依据未知，请对照当前条目重新审阅", details={
+                        "target_id": entry.supersedes_id, "expected_target_version": basis,
+                        "target_version": target.version if target and target.workspace_id == workspace_id else None,
+                    }, resource_version=entry.version)
+            confirmed = self._bumped(entry, status=MemoryStatus.ACTIVE, certainty=MemoryCertainty.USER_CONFIRMED,
+                                      supersedes_version=target.version if target else entry.supersedes_version)
+            await self._save(uow, confirmed)
+            await self._change(uow, entry, confirmed, MemoryChangeAction.CONFIRM, MemoryOrigin.USER)
+            if target is not None:
+                replaced = self._bumped(target, status=MemoryStatus.SUPERSEDED, pinned=False)
+                await self._save(uow, replaced)
+                await self._change(uow, target, replaced, MemoryChangeAction.SUPERSEDE, MemoryOrigin.USER,
+                                   rationale=f"被 {confirmed.id} 替代")
         return confirmed
 
     async def retract(self, workspace_id: str, memory_id: str, expected_version: Optional[int] = None, *,
@@ -310,14 +354,7 @@ class MemoryService:
             await self._save(uow, updated)
             await self._change(uow, entry, updated, MemoryChangeAction.RETRACT, origin, rationale=rationale,
                                after_content=f"{_STATUS_MARK}{entry.status.value}")
-            fingerprint = content_fingerprint(entry.content)
-            for source in await uow.memory.list_sources(entry.id):
-                if source.kind is MemorySourceKind.SESSION and source.session_id and source.event_seq_end is not None \
-                        and not await uow.memory.is_suppressed(
-                            workspace_id, source.session_id, source.event_seq_end, fingerprint):
-                    await uow.memory.add_suppression(MemorySuppression(
-                        workspace_id=workspace_id, session_id=source.session_id,
-                        source_seq_end=source.event_seq_end, content_fingerprint=fingerprint, memory_id=entry.id))
+            await self._suppress_sources(uow, entry)
         return updated
 
     async def undo(self, workspace_id: str, memory_id: str, expected_version: Optional[int] = None) -> MemoryEntry:
@@ -333,24 +370,23 @@ class MemoryService:
             action = last.action
             if action is MemoryChangeAction.CREATE:
                 reverted = self._bumped(entry, status=MemoryStatus.RETRACTED, pinned=False)
-            elif action is MemoryChangeAction.UPDATE and last.before_content:
-                reverted = self._bumped(entry, content=last.before_content)
-            elif action is MemoryChangeAction.RETRACT:
-                previous = (last.after_content or "")[len(_STATUS_MARK):] if (last.after_content or "").startswith(
-                    _STATUS_MARK) else MemoryStatus.ACTIVE.value
-                reverted = self._bumped(entry, status=MemoryStatus(previous))
-            elif action in (MemoryChangeAction.PIN, MemoryChangeAction.UNPIN):
-                reverted = self._bumped(entry, pinned=action is MemoryChangeAction.UNPIN)
+                await self._suppress_sources(uow, entry)
+            elif action in (MemoryChangeAction.UPDATE, MemoryChangeAction.RETRACT,
+                            MemoryChangeAction.PIN, MemoryChangeAction.UNPIN):
+                if last.before_state is None:
+                    raise ConflictError("旧变更缺少完整状态，无法安全撤销；请直接编辑当前记忆", resource_version=entry.version)
+                restored = MemoryEntry.model_validate({**entry.model_dump(), **last.before_state})
+                reverted = self._bumped(restored)
             else:
-                raise ConflictError("该变更不能撤销", resource_version=entry.version)
+                raise ConflictError("该变更不能单条撤销；请编辑或撤回当前记忆", resource_version=entry.version)
             await self._save(uow, reverted)
             await self._change(uow, entry, reverted, MemoryChangeAction.UNDO, MemoryOrigin.USER, replaces=last.id,
                                rationale=f"撤销 {action.value}")
             if action is MemoryChangeAction.RETRACT:
-                fingerprint = content_fingerprint(reverted.content)
                 for source in await uow.memory.list_sources(entry.id):
                     if source.session_id:
-                        await uow.memory.clear_suppressions(workspace_id, source.session_id, fingerprint)
+                        await uow.memory.clear_suppressions(
+                            workspace_id, source.session_id, source.content_fingerprint or content_fingerprint(reverted.content))
         return reverted
 
     # ---- 会话参与记忆 ----
@@ -365,7 +401,17 @@ class MemoryService:
                 raise BadRequestError("独立对话不写入记忆，没有可设置的选项")
             await uow.session.update_participation(session_id, participate)
             if not participate:
+                await invalidate_extractions(uow, session.workspace_id, session_id=session_id)
+                summary = await uow.summary.get(session_id)
+                if summary is not None:
+                    # 使已经发出的摘要模型调用失效，即使随后又打开参与也不能写回。
+                    await uow.summary.save(summary.model_copy(update={"generation": summary.generation + 1,
+                                                                      "updated_at": utc_now()}))
                 await self._retrieval.remove_summary(uow, session.workspace_id, session_id)
+            else:
+                summary = await uow.summary.get(session_id)
+                if summary is not None:
+                    await self._retrieval.index_summary(uow, summary)
         return participate
 
     # ---- 自动提炼：先登记代次，再提交结果 ----
@@ -390,10 +436,13 @@ class MemoryService:
             "commit_status": ExtractionCommitStatus.REJECTED, "updated_at": utc_now()}))
         return CommitResult(ExtractionCommitStatus.REJECTED, reason)
 
-    async def commit_extraction(self, extraction_id: str, decisions: Sequence[ExtractionDecision]) -> CommitResult:
+    async def commit_extraction(self, extraction_id: str, decisions: Sequence[ExtractionDecision], *,
+                                before_commit: Optional[Callable[[IUnitOfWork], Awaitable[None]]] = None) -> CommitResult:
         """提交提炼结果。代次不是该会话最新、策略版本过期、会话不再参与记忆或工作区不可写时整体丢弃；
         其余按 D4 逐条落地：目标以提交时的当前状态为准，用户创建、要求写入、已确认或判定之后被修改过的条目一律转候选。"""
         async with self._uow_factory() as uow:
+            if before_commit is not None:
+                await before_commit(uow)
             job = await uow.memory.get_extraction(extraction_id)
             if job is None:
                 raise NotFoundError("提炼任务不存在")
@@ -402,6 +451,8 @@ class MemoryService:
             workspace = await uow.workspace.get(job.workspace_id)
             if workspace is None or workspace.status is not WorkspaceStatus.ACTIVE:
                 return await self._reject(uow, job, "workspace_unavailable")
+            if not auto_memory_enabled(workspace.settings):
+                return await self._reject(uow, job, "auto_memory_disabled")
             if job.strategy_version != EXTRACTION_STRATEGY_VERSION:
                 return await self._reject(uow, job, "strategy_changed")
             if job.generation != await uow.memory.next_extraction_generation(job.session_id) - 1:
@@ -421,14 +472,14 @@ class MemoryService:
         return result
 
     async def _new_auto(self, uow: IUnitOfWork, job: ExtractionJob, content: str, kind: MemoryType, *,
-                        status: MemoryStatus, supersedes_id: Optional[str] = None, rationale: str = "") -> MemoryEntry:
+                        status: MemoryStatus, supersedes_id: Optional[str] = None,
+                        supersedes_version: Optional[int] = None, rationale: str = "") -> MemoryEntry:
         entry = MemoryEntry(
             workspace_id=job.workspace_id, content=content, memory_type=kind, origin=MemoryOrigin.AUTO_EXTRACTION,
-            certainty=MemoryCertainty.MODEL_INFERRED, status=status, supersedes_id=supersedes_id)
+            certainty=MemoryCertainty.MODEL_INFERRED, status=status, supersedes_id=supersedes_id,
+            supersedes_version=supersedes_version)
         await uow.memory.add(entry)
-        await uow.memory.add_source(MemorySource(
-            memory_id=entry.id, workspace_id=job.workspace_id, kind=MemorySourceKind.SESSION,
-            session_id=job.session_id, event_seq_end=job.source_seq_end))
+        await self._attach_source(uow, entry, job.session_id, job.source_seq_end)
         await self._change(uow, None, entry, MemoryChangeAction.CREATE, MemoryOrigin.AUTO_EXTRACTION,
                            rationale=rationale)
         await self._retrieval.index_memory(uow, entry)
@@ -457,7 +508,9 @@ class MemoryService:
             result.skipped += 1  # 用户撤回过同一截止材料产生的同样内容
             return
         if decision.action is ExtractionAction.ADD:
-            if await self._find_active(uow, job.workspace_id, fingerprint) is not None:
+            existing = await self._find_active(uow, job.workspace_id, fingerprint)
+            if existing is not None:
+                await self._attach_source(uow, existing, job.session_id, job.source_seq_end)
                 result.skipped += 1
                 return
             entry = await self._new_auto(uow, job, text, decision.memory_type, status=MemoryStatus.ACTIVE,
@@ -465,26 +518,31 @@ class MemoryService:
             result.created.append(entry.id)
             return
         assert target is not None
-        fresh = decision.target_version is None or decision.target_version == target.version
+        fresh = decision.target_version is not None and decision.target_version == target.version
         if can_change_directly(target) and fresh:
             if decision.action is ExtractionAction.UPDATE:
                 updated = self._bumped(target, content=text, memory_type=decision.memory_type)
                 await self._save(uow, updated)
+                await self._attach_source(uow, updated, job.session_id, job.source_seq_end)
                 await self._change(uow, target, updated, MemoryChangeAction.UPDATE, MemoryOrigin.AUTO_EXTRACTION,
                                    rationale=decision.reason)
                 result.updated.append(target.id)
             else:
                 retracted = self._bumped(target, status=MemoryStatus.RETRACTED, pinned=False)
                 await self._save(uow, retracted)
+                await self._attach_source(uow, retracted, job.session_id, job.source_seq_end)
                 await self._change(uow, target, retracted, MemoryChangeAction.RETRACT, MemoryOrigin.AUTO_EXTRACTION,
                                    rationale=decision.reason, after_content=f"{_STATUS_MARK}{target.status.value}")
                 result.retracted.append(target.id)
             return
         # 用户保护的目标、已被修改的目标或判定依据过期：保存为候选，原条目不变
         for item in await uow.memory.list(job.workspace_id, statuses=[MemoryStatus.CANDIDATE]):
-            if item.supersedes_id == target.id and content_fingerprint(item.content) == fingerprint:
+            if (item.supersedes_id == target.id and item.supersedes_version == decision.target_version
+                    and content_fingerprint(item.content) == fingerprint):
+                await self._attach_source(uow, item, job.session_id, job.source_seq_end)
                 result.skipped += 1
                 return
         candidate = await self._new_auto(uow, job, text, decision.memory_type, status=MemoryStatus.CANDIDATE,
-                                         supersedes_id=target.id, rationale=decision.reason)
+                                         supersedes_id=target.id, supersedes_version=decision.target_version,
+                                         rationale=decision.reason)
         result.candidates.append(candidate.id)

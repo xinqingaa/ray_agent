@@ -72,16 +72,19 @@ def parse_decisions(text: str) -> list[dict[str, Any]]:
     fenced = re.search(r"```(?:json)?\s*(.*?)```", raw, re.S)
     if fenced:
         raw = fenced.group(1).strip()
-    start, end = raw.find("["), raw.rfind("]")
-    if start < 0 or end < start:
-        object_start, object_end = raw.find("{"), raw.rfind("}")
-        if object_start < 0 or object_end < object_start:
+    # 完整 JSON 优先；附带说明时从第一个容器开头按 JSON 语法读取，
+    # 不能用字符串中的方括号或引号推断结构边界。
+    try:
+        value: Any = json.loads(raw)
+    except json.JSONDecodeError:
+        start = re.search(r"[\[{]", raw)
+        if start is None:
             raise ValueError("模型没有返回 JSON")
-        value: Any = json.loads(raw[object_start:object_end + 1])
-    else:
-        value = json.loads(raw[start:end + 1])
+        value, _ = json.JSONDecoder().raw_decode(raw[start.start():])
     if isinstance(value, dict):
-        value = value.get("items") or value.get("facts") or value.get("decisions") or [value]
+        value = next((value[key] for key in ("items", "facts", "decisions") if key in value), [value])
     if not isinstance(value, list):
         raise ValueError("模型返回的 JSON 不是数组")
-    return [item for item in value if isinstance(item, dict)]
+    if any(not isinstance(item, dict) for item in value):
+        raise ValueError("模型返回的条目不是对象")
+    return value

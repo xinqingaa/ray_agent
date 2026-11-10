@@ -5327,7 +5327,7 @@
           "记忆"
         ],
         "summary": "对一条记忆的用户操作",
-        "description": "edit 修改内容或类型、pin／unpin 钉住、confirm 确认候选、retract 撤回、undo 撤销最近一次变更。version 不符返回 409 并带最新值",
+        "description": "edit 修改内容或类型、pin／unpin 钉住、confirm 确认候选、retract 撤回、undo 撤销最近一次变更。undo 支持新建、编辑、撤回和钉住操作；确认与替代不能单条撤销，旧记录状态不足时拒绝。version 不符或候选所依据的目标已变化时返回 409",
         "operationId": "patch_memory_api_workspaces__workspace_id__memories__memory_id__patch",
         "parameters": [
           {
@@ -10764,6 +10764,18 @@
             "title": "Supersedes Id",
             "description": "候选指向的、确认后将被替代的条目"
           },
+          "supersedes_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Supersedes Version",
+            "description": "候选所依据的目标版本；旧候选可能未知"
+          },
           "resident": {
             "type": "boolean",
             "title": "Resident",
@@ -10801,6 +10813,7 @@
           "pinned",
           "version",
           "supersedes_id",
+          "supersedes_version",
           "resident",
           "created_at",
           "updated_at",
@@ -10855,6 +10868,18 @@
           },
           "kind": {
             "$ref": "#/components/schemas/MemorySourceKind"
+          },
+          "memory_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Memory Version",
+            "description": "本来源所对应的记忆版本；旧来源可能未知"
           },
           "session_id": {
             "anyOf": [
@@ -10921,6 +10946,7 @@
         "required": [
           "id",
           "kind",
+          "memory_version",
           "session_id",
           "event_seq_start",
           "event_seq_end",
@@ -11848,6 +11874,19 @@
                 "type": "null"
               }
             ]
+          },
+          "target_version": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Version",
+            "description": "仅 confirm：重新审阅目标后明确确认其当前版本；省略时核对候选原依据"
           }
         },
         "type": "object",

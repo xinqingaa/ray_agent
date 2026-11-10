@@ -105,7 +105,7 @@ class AgentTaskRunner(TaskRunner):
             files: Optional[FileScope] = None,  # 文件工具与交付可访问的范围；为空时没有文件能力
             write_leases: Optional[RunWriteLeases] = None,
             workspace_memory=None,  # 已绑定工作区的记忆端口；只有工作区会话提供
-            context_refresh=None,  # 续接前核对冻结背景：async (run_id) -> 新背景段或 None
+            context_refresh=None,  # 每轮请求（含续接与重试）核对冻结背景：async (run_id) -> 背景段或 None
             completion=None,  # 运行正常结束的钩子：on_run_completed(uow, session_id, run_id) 与 wake()
     ) -> None:
         self._uow_factory = uow_factory
@@ -652,6 +652,7 @@ class AgentTaskRunner(TaskRunner):
 
     async def _prepare_run(self) -> None:
         """按运行行设置运行模式并记录配置快照；续接已有运行时工具集若有变化，追加一条从下一轮生效的修订。"""
+        self._flow.before_request = self._refresh_context
         async with self._uow:
             run = await self._uow.run.get(self._run_id)
         if run is None:
@@ -680,10 +681,7 @@ class AgentTaskRunner(TaskRunner):
             refreshed = await refresh(self._run_id)
             frozen = stored["project_prompt"]
             if refreshed is not None and refreshed != frozen and frozen in stored["system_prompt"]:
-                stored = {**stored, "project_prompt": refreshed,
-                          "system_prompt": stored["system_prompt"].replace(frozen, refreshed, 1),
-                          "context_revisions": [*(stored.get("context_revisions") or []),
-                                                {"from_turn": self._next_turn, "reason": "unavailable_after_freeze"}]}
+                stored = self._context_revision(stored, refreshed, self._next_turn)
                 revised = True
         if stored.get("system_prompt"):
             self._flow.request_system_prompt = stored["system_prompt"]
@@ -705,6 +703,36 @@ class AgentTaskRunner(TaskRunner):
             updated = {**stored, "tool_revisions": revisions}
         async with self._uow:
             await self._uow.run.save_snapshot(self._run_id, updated)
+
+    @staticmethod
+    def _context_revision(stored, refreshed, index):
+        system = stored["system_prompt"].replace(stored["project_prompt"], refreshed, 1)
+        return {**stored, "project_prompt": refreshed, "system_prompt": system,
+                "initial_system_prompt": stored.get("initial_system_prompt", stored["system_prompt"]),
+                "context_revisions": [*(stored.get("context_revisions") or []),
+                                      {"from_turn": index, "reason": "unavailable_after_freeze", "system_prompt": system}]}
+
+    async def _refresh_context(self, index: int) -> None:
+        refresh = getattr(self, "_context_refresh", None)
+        if refresh is None:
+            return
+        # 清单核对失败时异常向上传播，不能静默发送未经核对的旧背景。
+        refreshed = await refresh(self._run_id)
+        if refreshed is None:
+            return
+        async with self._uow_factory() as uow:
+            run = await uow.run.get(self._run_id)
+            if run is None or not run.status.active:
+                raise _RunClosed()
+            stored = run.config_snapshot or {}
+            frozen = stored.get("project_prompt")
+            if frozen and refreshed != frozen:
+                if frozen not in stored.get("system_prompt", ""):
+                    raise RuntimeError("冻结背景与系统提示不一致，无法安全更新")
+                stored = self._context_revision(stored, refreshed, index)
+                await uow.run.save_snapshot(self._run_id, stored)
+            self._flow.project_prompt = stored.get("project_prompt", "")
+            self._flow.request_system_prompt = stored.get("system_prompt")
 
     async def _record_tool_snapshot(self, index):
         tools = self._flow.pipeline.schemas()

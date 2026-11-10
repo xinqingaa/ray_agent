@@ -2,7 +2,7 @@
 
 工作方式整段进入；常驻记忆按预算注入；初始召回以当前用户问题在本工作区做一次有界检索（记忆、会话摘要与文件片段）。
 清单随运行保存，“本次参考”据此展示实际使用与剔除的内容。活动运行与等待续接沿用已冻结的背景段，
-只有已撤回、被替代或随会话删除的内容在续接前被移除，并写回清单留下修订记录。
+已撤回、被替代或来源访问失效的背景在每轮请求前被移除，并写回清单留下修订记录。
 """
 import logging
 from dataclasses import dataclass
@@ -132,12 +132,12 @@ class ContextAssembly:
                 used += len(hit.snippet)
 
     async def refresh_frozen(self, run_id: str) -> Optional[str]:
-        """续接前核对冻结的背景：已撤回、被替代的记忆与已删除会话的摘要从背景中移除，清单记录修订。
-        返回新的背景段；没有变化或没有清单时返回空。"""
-        async with self._read_uow_factory() as uow:
+        """请求前核对冻结背景：移除已失效来源，不把后台新增或新版内容带入本次运行。
+        始终返回核对后的背景段；重复调用可修复清单与运行快照之间中断的写回。"""
+        async with self._uow_factory() as uow:
             manifest = await uow.run_context.get(run_id)
             if manifest is None or not manifest.workspace_id:
-                return None
+                return ""
             workspace_id = manifest.workspace_id
             dropped_memories: dict[str, str] = {}
             for ref in manifest.resident_memories:
@@ -152,20 +152,22 @@ class ContextAssembly:
                         dropped_hits[hit.source_id] = "unavailable_after_freeze"
                 elif hit.source_type is SearchSourceType.SESSION_SUMMARY:
                     summary = await uow.summary.get(hit.source_id)
-                    if summary is None or summary.workspace_id != workspace_id:
+                    session = await uow.session.get_by_id(hit.source_id)
+                    if (summary is None or summary.workspace_id != workspace_id or session is None
+                            or session.workspace_id != workspace_id or not session.participate_in_memory
+                            or session.memory_access_version != hit.payload.get("memory_access_version", 1)):
                         dropped_hits[hit.source_id] = "unavailable_after_freeze"
                 elif hit.source_type is SearchSourceType.DOCUMENT_CHUNK:
                     chunk = await uow.document.get_chunk(hit.source_id)
                     if (chunk is None or chunk.workspace_id != workspace_id or not chunk.published
                             or chunk.revision != hit.source_version):
                         dropped_hits[hit.source_id] = "unavailable_after_freeze"
-        if not dropped_memories and not dropped_hits:
-            return None
-        manifest.resident_memories = [ref for ref in manifest.resident_memories if ref.memory_id not in dropped_memories]
-        manifest.retrieval_hits = [hit for hit in manifest.retrieval_hits if hit.source_id not in dropped_hits]
-        for source_id, reason in {**dropped_memories, **dropped_hits}.items():
-            manifest.omissions.append(ContextOmission(kind="revision", reason=reason, source_id=source_id))
-        async with self._uow_factory() as uow:
+            if not dropped_memories and not dropped_hits:
+                return render_project_prompt(manifest)
+            manifest.resident_memories = [ref for ref in manifest.resident_memories if ref.memory_id not in dropped_memories]
+            manifest.retrieval_hits = [hit for hit in manifest.retrieval_hits if hit.source_id not in dropped_hits]
+            for source_id, reason in {**dropped_memories, **dropped_hits}.items():
+                manifest.omissions.append(ContextOmission(kind="revision", reason=reason, source_id=source_id))
             await uow.run_context.save(manifest)
         return render_project_prompt(manifest)
 

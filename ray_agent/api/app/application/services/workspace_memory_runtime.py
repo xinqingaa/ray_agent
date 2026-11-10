@@ -74,8 +74,8 @@ class BoundWorkspaceMemory:
 
 
 class WorkspaceMemoryRuntime:
-    """AgentService 与运行器使用的入口。构造时不依赖具体运行，所有方法都容忍失败：
-    背景装配或任务登记失败只记日志，不阻止运行，也不会改变运行结果。"""
+    """AgentService 与运行器使用的入口。构造时不依赖具体运行。
+    背景装配或任务登记失败只记日志；已冻结背景的有效性核对失败则阻止发出下一次请求。"""
 
     def __init__(self, memory: MemoryService, retrieval: RetrievalService, style: WorkingStyleService,
                  assembly: ContextAssembly, wake: Optional[Callable[[], None]] = None,
@@ -103,8 +103,8 @@ class WorkspaceMemoryRuntime:
         try:
             return await self.assembly.refresh_frozen(run_id)
         except Exception:
-            logger.exception("核对冻结的工作区背景失败，沿用冻结内容 run=%s", run_id)
-            return None
+            logger.exception("核对冻结的工作区背景失败，停止本次请求 run=%s", run_id)
+            raise
 
     async def on_run_completed(self, uow: IUnitOfWork, session_id: str, run_id: str) -> None:
         """运行正常结束的同一事务里登记摘要与提炼任务；登记失败只记日志。"""

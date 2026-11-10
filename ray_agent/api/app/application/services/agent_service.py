@@ -463,12 +463,11 @@ class AgentService:
         project_prompt, context_refresh, workspace_memory = "", None, None
         if runtime is not None:
             workspace_memory = runtime.ports(session.workspace_id, session.id, run_id)
+            context_refresh = runtime.refresh
             async with self._reader() as uow:
                 started = await uow.run.get(run_id)
-            if started is not None and "project_prompt" in (started.config_snapshot or {}):
-                # 等待续接或审批续接：沿用运行快照里冻结的背景，只在续接前移除已不可用的内容
-                context_refresh = runtime.refresh
-            else:
+            # 续接沿用已有背景；每次请求仅核对有效性，不重新召回新增内容。
+            if started is None or "project_prompt" not in (started.config_snapshot or {}):
                 project_prompt = await runtime.assemble(session, run_id)
         task_runner = AgentTaskRunner(
             uow_factory=self._uow_factory,

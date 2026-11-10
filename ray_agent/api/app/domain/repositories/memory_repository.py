@@ -113,6 +113,11 @@ class MemoryRepository(ABC):
     async def next_extraction_generation(self, session_id: str) -> int: ...
 
     @abstractmethod
+    async def invalidate_extractions(self, workspace_id: str, *, session_id: Optional[str] = None) -> list[str]:
+        """使未提交提炼永久失效，返回其后台操作身份。"""
+        ...
+
+    @abstractmethod
     async def delete_workspace(self, workspace_id: str) -> None: ...
 
 

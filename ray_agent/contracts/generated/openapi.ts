@@ -1819,7 +1819,7 @@ export interface paths {
         head?: never;
         /**
          * 对一条记忆的用户操作
-         * @description edit 修改内容或类型、pin／unpin 钉住、confirm 确认候选、retract 撤回、undo 撤销最近一次变更。version 不符返回 409 并带最新值
+         * @description edit 修改内容或类型、pin／unpin 钉住、confirm 确认候选、retract 撤回、undo 撤销最近一次变更。undo 支持新建、编辑、撤回和钉住操作；确认与替代不能单条撤销，旧记录状态不足时拒绝。version 不符或候选所依据的目标已变化时返回 409
          */
         patch: operations["patch_memory_api_workspaces__workspace_id__memories__memory_id__patch"];
         trace?: never;
@@ -3965,6 +3965,11 @@ export interface components {
              */
             supersedes_id: string | null;
             /**
+             * Supersedes Version
+             * @description 候选所依据的目标版本；旧候选可能未知
+             */
+            supersedes_version: number | null;
+            /**
              * Resident
              * @description 当前是否在常驻层（每次新运行注入）
              */
@@ -4001,6 +4006,11 @@ export interface components {
             /** Id */
             id: string;
             kind: components["schemas"]["MemorySourceKind"];
+            /**
+             * Memory Version
+             * @description 本来源所对应的记忆版本；旧来源可能未知
+             */
+            memory_version: number | null;
             /** Session Id */
             session_id: string | null;
             /** Event Seq Start */
@@ -4341,6 +4351,11 @@ export interface components {
             /** Content */
             content?: string | null;
             memory_type?: components["schemas"]["MemoryType"] | null;
+            /**
+             * Target Version
+             * @description 仅 confirm：重新审阅目标后明确确认其当前版本；省略时核对候选原依据
+             */
+            target_version?: number | null;
         };
         /** PlanAcceptance */
         PlanAcceptance: {

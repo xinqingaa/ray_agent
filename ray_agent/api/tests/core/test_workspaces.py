@@ -474,7 +474,7 @@ def test_workspace_migration_keeps_existing_rows_and_downgrades(tmp_path):
             "('s1', 't', 'default', 'pending', 0, '', 1, '{}', '[]', '2026-01-01 00:00:00', '2026-01-01 00:00:00')")
         connection.execute("INSERT INTO roots (id, kind, session_id, location, created_at) VALUES "
                            "('r1', 'session_workdir', 's1', 'sessions/s1', '2026-01-01 00:00:00')")
-    assert migrate(database) == "0007_semantic_index"
+    assert migrate(database) == "0008_memory_consistency"
     with sqlite3.connect(database) as connection:
         assert connection.execute("SELECT workspace_id FROM sessions WHERE id='s1'").fetchone() == (None,)
         assert connection.execute("SELECT location, fs_dev, fs_ino FROM roots WHERE id='r1'").fetchone() == (
@@ -492,7 +492,7 @@ def test_workspace_migration_keeps_existing_rows_and_downgrades(tmp_path):
         assert "documents" not in tables and "workspaces" in tables
     with pytest.raises(NotImplementedError, match="不回退"):
         command.downgrade(config, "0004_working_style_memory")
-    assert migrate(database) == "0007_semantic_index"
+    assert migrate(database) == "0008_memory_consistency"
 
 
 def test_attachments_are_copied_into_the_workspace_folder_without_overwriting(tmp_path):

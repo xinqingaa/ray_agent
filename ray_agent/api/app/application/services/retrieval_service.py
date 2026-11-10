@@ -194,10 +194,15 @@ class RetrievalService:
         """只有就绪且有正文的会话摘要进入索引；生成中或失败时保留此前索引。"""
         if not record.workspace_id or record.state is not SummaryState.READY or not record.body.strip():
             return
+        session = await uow.session.get_by_id(record.session_id)
+        if session is None or session.workspace_id != record.workspace_id or not session.participate_in_memory:
+            await self.remove_summary(uow, record.workspace_id, record.session_id)
+            return
         await uow.search.upsert(
             workspace_id=record.workspace_id, source_type=SearchSourceType.SESSION_SUMMARY,
             source_id=record.session_id, source_version=record.generation, title="会话摘要", body=record.body,
-            payload={"session_id": record.session_id, "source_seq": record.source_seq, "stale": False},
+            payload={"session_id": record.session_id, "source_seq": record.source_seq, "stale": False,
+                     "memory_access_version": session.memory_access_version},
         )
 
     async def remove_summary(self, uow: IUnitOfWork, workspace_id: str, session_id: str) -> None:

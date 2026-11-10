@@ -2,7 +2,7 @@
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import Boolean, Integer, String, Text
+from sqlalchemy import JSON, Boolean, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from .base import Base, UTCDateTime
@@ -36,6 +36,7 @@ class MemoryEntryModel(Base):
     pinned: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     supersedes_id: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    supersedes_version: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, nullable=False, default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(UTCDateTime, nullable=False, default=utc_now)
     last_used_at: Mapped[Optional[datetime]] = mapped_column(UTCDateTime, nullable=True)
@@ -46,7 +47,8 @@ class MemoryEntryModel(Base):
             id=entry.id, workspace_id=entry.workspace_id, content=entry.content,
             memory_type=entry.memory_type.value, origin=entry.origin.value,
             certainty=entry.certainty.value, status=entry.status.value, pinned=entry.pinned,
-            version=entry.version, supersedes_id=entry.supersedes_id, created_at=entry.created_at,
+            version=entry.version, supersedes_id=entry.supersedes_id, supersedes_version=entry.supersedes_version,
+            created_at=entry.created_at,
             updated_at=entry.updated_at, last_used_at=entry.last_used_at,
         )
 
@@ -56,6 +58,7 @@ class MemoryEntryModel(Base):
             memory_type=MemoryType(self.memory_type), origin=MemoryOrigin(self.origin),
             certainty=MemoryCertainty(self.certainty), status=MemoryStatus(self.status),
             pinned=self.pinned, version=self.version, supersedes_id=self.supersedes_id,
+            supersedes_version=self.supersedes_version,
             created_at=self.created_at, updated_at=self.updated_at, last_used_at=self.last_used_at,
         )
 
@@ -66,6 +69,8 @@ class MemorySourceModel(Base):
     id: Mapped[str] = mapped_column(String(128), primary_key=True)
     memory_id: Mapped[str] = mapped_column(String(128), nullable=False)
     workspace_id: Mapped[str] = mapped_column(String(128), nullable=False)
+    memory_version: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    content_fingerprint: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     kind: Mapped[str] = mapped_column(String(16), nullable=False)
     session_id: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
     event_seq_start: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
@@ -82,6 +87,7 @@ class MemorySourceModel(Base):
     def to_domain(self) -> MemorySource:
         return MemorySource(
             id=self.id, memory_id=self.memory_id, workspace_id=self.workspace_id,
+            memory_version=self.memory_version, content_fingerprint=self.content_fingerprint,
             kind=MemorySourceKind(self.kind), session_id=self.session_id,
             event_seq_start=self.event_seq_start, event_seq_end=self.event_seq_end,
             document_id=self.document_id, document_revision=self.document_revision,
@@ -104,6 +110,8 @@ class MemoryChangeModel(Base):
     replaces_change_id: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
     before_content: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     after_content: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    before_state: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    after_state: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, nullable=False, default=utc_now)
 
     @classmethod
@@ -120,7 +128,8 @@ class MemoryChangeModel(Base):
             action=MemoryChangeAction(self.action), origin=MemoryOrigin(self.origin),
             rationale=self.rationale, request_id=self.request_id,
             replaces_change_id=self.replaces_change_id, before_content=self.before_content,
-            after_content=self.after_content, created_at=self.created_at,
+            after_content=self.after_content, before_state=self.before_state, after_state=self.after_state,
+            created_at=self.created_at,
         )
 
 

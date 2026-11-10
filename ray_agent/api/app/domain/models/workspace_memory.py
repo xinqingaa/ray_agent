@@ -1,7 +1,7 @@
 """工作区长期记忆：条目、来源、变更与提炼任务。与会话工作记忆 Memory（messages）无关。"""
 from datetime import datetime
 from enum import StrEnum
-from typing import Optional
+from typing import Any, Optional
 from uuid import uuid4
 
 from pydantic import BaseModel, Field, model_validator
@@ -82,6 +82,7 @@ class MemoryEntry(BaseModel):
     pinned: bool = False
     version: MemoryVersion = 1
     supersedes_id: Optional[MemoryId] = None
+    supersedes_version: Optional[MemoryVersion] = None
     created_at: datetime = Field(default_factory=utc_now)
     updated_at: datetime = Field(default_factory=utc_now)
     last_used_at: Optional[datetime] = None
@@ -107,6 +108,8 @@ class MemorySource(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid4()))
     memory_id: MemoryId
     workspace_id: WorkspaceId
+    memory_version: Optional[MemoryVersion] = None  # 旧来源无版本依据，保持未知
+    content_fingerprint: Optional[str] = None
     kind: MemorySourceKind
     session_id: Optional[SessionId] = None
     event_seq_start: Optional[int] = None
@@ -130,6 +133,8 @@ class MemoryChange(BaseModel):
     replaces_change_id: Optional[str] = None
     before_content: Optional[str] = None
     after_content: Optional[str] = None
+    before_state: Optional[dict[str, Any]] = None
+    after_state: Optional[dict[str, Any]] = None
     created_at: datetime = Field(default_factory=utc_now)
 
 

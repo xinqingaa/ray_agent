@@ -184,7 +184,8 @@ def test_user_edit_after_planning_is_never_overwritten(tmp_path):
         third = await claim(env, ws.id, session.id, await env.say(session.id, "再改"))
         other = await env.memory.get(ws.id, (await env.memory.commit_extraction(
             third.id, [decision(ExtractionAction.ADD, "办公室在三楼")])).created[0])
-        stale_plan = decision(ExtractionAction.UPDATE, "办公室在五楼", other, version=other.version - 1)
+        stale_plan = decision(ExtractionAction.UPDATE, "办公室在五楼", other, version=other.version)
+        await env.memory.set_pinned(ws.id, other.id, other.version, True)  # 仍未确认，但版本已变化
         fourth = await claim(env, ws.id, session.id, await env.say(session.id, "再再改"))
         result = await env.memory.commit_extraction(fourth.id, [stale_plan])
         assert result.updated == [] and len(result.candidates) == 1

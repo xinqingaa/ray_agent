@@ -4,9 +4,12 @@ MAX_MATERIAL_CHARS = 6000
 
 def bound_material(first, recent, finals, runs):
     remaining = MAX_MATERIAL_CHARS
+    truncated = len(recent) > 12 or len(finals) > 12 or len(runs) > 12
     def text(event, maximum):
-        nonlocal remaining
+        nonlocal remaining, truncated
         value = (event.payload.get('message') or '')[:min(maximum, remaining)] if event else ''
+        if event and len(value) < len(event.payload.get('message') or ''):
+            truncated = True
         remaining -= len(value)
         return value
     first_user = text(first, 1600)
@@ -27,4 +30,4 @@ def bound_material(first, recent, finals, runs):
         finals=sorted(selected, key=lambda x: x['seq']),
         run_states=[dict(run_id=r.id, status=r.status, reason=r.reason) for r in runs[:12]],
         source_seq=max([e.seq for e in [*recent, *finals]] + [first.seq if first else 0]),
-        truncated=remaining == 0, max_material_chars=MAX_MATERIAL_CHARS)
+        truncated=truncated, max_material_chars=MAX_MATERIAL_CHARS)

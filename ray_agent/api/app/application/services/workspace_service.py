@@ -493,10 +493,20 @@ class WorkspaceService:
         return await self._update(workspace_id, version, settings=settings)
 
     async def set_auto_memory(self, workspace_id: str, enabled: bool, version: int) -> WorkspaceView:
-        """工作区自动记忆提炼开关：写入 settings.auto_memory_enabled；关闭只影响之后登记的提炼任务。"""
+        """关闭后未提交的提炼永久失效；重新打开只允许之后登记的新任务。"""
         from app.domain.models.memory_settings import with_auto_memory
-        view = await self.get(workspace_id, refresh=False)
-        return await self._update(workspace_id, version, settings=with_auto_memory(view.workspace.settings, enabled))
+        from app.application.services.memory_service import invalidate_extractions
+        async with self._uow_factory() as uow:
+            current = await uow.workspace.get(workspace_id)
+            if current is None or current.status is WorkspaceStatus.DELETING:
+                raise NotFoundError("工作区不存在")
+            updated = await uow.workspace.update(
+                workspace_id, version, settings=with_auto_memory(current.settings, enabled))
+            if updated is None:
+                raise ConflictError("工作区已被修改，请刷新后重试", resource_version=current.version)
+            if not enabled:
+                await invalidate_extractions(uow, workspace_id)
+        return await self.get(workspace_id, refresh=False)
 
     async def archive(self, workspace_id: str, version: int) -> WorkspaceView:
         return await self._update(workspace_id, version, status=WorkspaceStatus.ARCHIVED)

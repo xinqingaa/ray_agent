@@ -34,6 +34,7 @@ class MemoryItem(BaseModel):
     pinned: bool
     version: int = Field(description="修改时回传，用于并发修改核对")
     supersedes_id: Optional[str] = Field(default=None, description="候选指向的、确认后将被替代的条目")
+    supersedes_version: Optional[int] = Field(default=None, description="候选所依据的目标版本；旧候选可能未知")
     resident: bool = Field(description="当前是否在常驻层（每次新运行注入）")
     created_at: int
     updated_at: int
@@ -44,7 +45,8 @@ class MemoryItem(BaseModel):
         return cls(
             id=entry.id, workspace_id=entry.workspace_id, content=entry.content, memory_type=entry.memory_type,
             origin=entry.origin, certainty=entry.certainty, status=entry.status, pinned=entry.pinned,
-            version=entry.version, supersedes_id=entry.supersedes_id, resident=entry.id in resident_ids,
+            version=entry.version, supersedes_id=entry.supersedes_id, supersedes_version=entry.supersedes_version,
+            resident=entry.id in resident_ids,
             created_at=to_epoch_ms(entry.created_at), updated_at=to_epoch_ms(entry.updated_at),
             last_used_at=to_epoch_ms(entry.last_used_at) if entry.last_used_at else None)
 
@@ -68,6 +70,8 @@ class PatchMemoryRequest(BaseModel):
     version: int = Field(ge=1)
     content: Optional[str] = Field(default=None, min_length=1, max_length=MEMORY_CONTENT_MAX_CHARS)
     memory_type: Optional[MemoryType] = None
+    target_version: Optional[int] = Field(default=None, ge=1,
+        description="仅 confirm：重新审阅目标后明确确认其当前版本；省略时核对候选原依据")
 
 
 class MemorySourceView(BaseModel):
@@ -75,6 +79,7 @@ class MemorySourceView(BaseModel):
 
     id: str
     kind: MemorySourceKind
+    memory_version: Optional[int] = Field(default=None, description="本来源所对应的记忆版本；旧来源可能未知")
     session_id: Optional[str] = None
     event_seq_start: Optional[int] = None
     event_seq_end: Optional[int] = None
@@ -84,7 +89,7 @@ class MemorySourceView(BaseModel):
 
     @classmethod
     def of(cls, source: MemorySource) -> "MemorySourceView":
-        return cls(id=source.id, kind=source.kind, session_id=source.session_id,
+        return cls(id=source.id, kind=source.kind, memory_version=source.memory_version, session_id=source.session_id,
                    event_seq_start=source.event_seq_start, event_seq_end=source.event_seq_end,
                    document_id=source.document_id, document_revision=source.document_revision,
                    available=source.available)

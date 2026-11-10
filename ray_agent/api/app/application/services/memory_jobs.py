@@ -105,6 +105,7 @@ def session_summary_handler(
                 return {"status": "skipped", "reason": "no_material"}
             if existing is not None and existing.state is SummaryState.READY and existing.body \
                     and existing.source_seq >= source_seq:
+                await retrieval.index_summary(uow, existing)
                 return {"status": "skipped", "reason": "up_to_date"}
             generation = existing.generation + 1 if existing is not None else 1
             await uow.summary.save(SessionSummaryRecord(
@@ -122,6 +123,7 @@ def session_summary_handler(
             raise
         await context.check_cancel()
         async with uow_factory() as uow:
+            await context.check_cancel_in(uow)
             current = await uow.summary.get(session_id)
             if current is None or current.generation != generation or current.source_seq != source_seq:
                 return {"status": "rejected", "reason": "generation_mismatch"}
@@ -174,7 +176,7 @@ def memory_extraction_handler(
                     or workspace is None or workspace.status is not WorkspaceStatus.ACTIVE
                     or not auto_memory_enabled(workspace.settings)):
                 return {"status": "skipped", "reason": "not_participating"}
-            material = await uow.session.summary_material(extraction.session_id)
+            material = await uow.session.summary_material(extraction.session_id, source_seq_end=extraction.source_seq_end)
         material = clip_material(material, extraction.source_seq_end)
         if not material["first_user"] and not material["user_updates"]:
             return {"status": "skipped", "reason": "no_material"}
@@ -190,7 +192,8 @@ def memory_extraction_handler(
             else:
                 decisions.append(ExtractionDecision(action=ExtractionAction.ADD, content=fact.content,
                                                     memory_type=fact.memory_type))
-        result = await memory.commit_extraction(extraction.id, decisions)
+        await context.check_cancel()
+        result = await memory.commit_extraction(extraction.id, decisions, before_commit=context.check_cancel_in)
         return {"status": result.status.value, "reason": result.reason, "created": len(result.created),
                 "updated": len(result.updated), "retracted": len(result.retracted),
                 "candidates": len(result.candidates), "skipped": result.skipped}
