@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>RayAgent · V5 交互原型</title>
+  <link rel="icon" href="brand-mark.svg"/>
+  <link rel="stylesheet" href="styles.css?v=14"/>
+</head>
+<body>
+  <div class="app" id="app" data-list="open">
+    <!-- 竖向图标轨道：通高亮色，当前项深色圆角块，新建固定在顶部 -->
+    <nav class="rail" id="rail" aria-label="主导航">
+      <button class="rail-new magnetic" data-action="new" aria-label="新对话" data-tip="新对话  ⌘N"></button>
+      <div class="rail-groups" id="rail-groups"></div>
+      <div class="rail-foot" id="rail-foot"></div>
+      <span class="rail-indicator" id="rail-indicator" aria-hidden="true"></span>
+    </nav>
+
+    <!-- 上下文列表：落在画布上，无背景 -->
+    <aside class="list" id="list" aria-label="列表"></aside>
+
+    <!-- 主区：透明顶栏 + 内容纸面 -->
+    <main class="main">
+      <header class="topbar" id="topbar"></header>
+      <div class="stage" id="stage"></div>
+    </main>
+  </div>
+
+  <div class="tooltip" id="tooltip" role="tooltip"></div>
+  <div class="popover" id="popover" hidden></div>
+  <div class="model-pop" id="model-pop" role="dialog" aria-label="模型与思考" hidden></div>
+  <div class="toast-host" id="toast-host" aria-live="polite"></div>
+
+  <!-- 原型评审条：不属于产品界面 -->
+  <div class="review-bar" id="review-bar">
+    <span class="review-tag">V5 评审</span>
+    <div class="review-group" data-review="scenario">
+      <button data-scenario="running">运行中</button>
+      <button data-scenario="approval">待批准</button>
+      <button data-scenario="done">已完成</button>
+    </div>
+    <button data-review-action="drop">模拟拖入文件</button>
+    <button data-review-action="theme">深浅</button>
+    <button data-review-action="hide" aria-label="收起评审条">收起</button>
+  </div>
+
+  <script src="icons.js?v=14"></script>
+  <script src="data.js?v=14"></script>
+  <script src="pages.js?v=14"></script>
+  <script src="app.js?v=14"></script>
+</body>
+</html>
