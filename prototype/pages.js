@@ -6,13 +6,13 @@ const P = {
   skills: {
     filter: 'all', q: '',
     items: [
-      {id: 'compete', name: '竞品分析', desc: '按维度整理竞品材料，表格中的数字标注出处。', src: '工作区', where: '季度复盘/.agents/skills/compete', ver: 'a1f3c2', on: true, inc: false, kind: 'external'},
-      {id: 'minutes', name: '会议纪要', desc: '从录音或笔记整理决定、待办与风险。', src: '应用', where: '应用管理库', ver: 'v3', on: true, inc: true, kind: 'managed'},
-      {id: 'table-u', name: '表格整理', desc: '清洗、合并与校验表格数据。', src: '用户', where: '~/.codex/skills/table', ver: '7be901', on: true, inc: false, kind: 'external', dup: 'table'},
-      {id: 'table-a', name: '表格整理', desc: '清洗、合并与校验表格数据（旧版）。', src: '应用', where: '应用管理库', ver: 'v1', on: true, inc: true, kind: 'managed', dup: 'table'},
-      {id: 'deck', name: '汇报提纲', desc: '把结论整理成两页以内的汇报结构。', src: '应用', where: '应用管理库', ver: 'v2', on: true, inc: true, kind: 'managed'},
-      {id: 'pdf', name: 'pdf-tools', desc: '拆分、合并与提取 PDF 页面。', src: '额外目录', where: '~/tools/skills/pdf-tools', ver: '—', on: false, inc: false, kind: 'external', missing: true},
-      {id: 'find', name: 'find-skills', desc: '寻找、核对并推荐可安装的 Skill。', src: '内置', where: '随应用发布', ver: '1.4', on: true, inc: true, kind: 'builtin'},
+      {id: 'compete', name: '竞品分析', desc: '按维度整理竞品材料，表格中的数字标注出处。', src: '工作区', workspace: 'review', where: '季度复盘/.agents/skills/compete', ver: 'a1f3c2', mode: 'selectable', kind: 'external'},
+      {id: 'minutes', name: '会议纪要', desc: '从录音或笔记整理决定、待办与风险。', src: '应用', where: '应用管理库', ver: 'v3', mode: 'included', kind: 'managed'},
+      {id: 'table-u', name: '表格整理', desc: '清洗、合并与校验表格数据。', src: '用户', where: '~/.codex/skills/table', ver: '7be901', mode: 'selectable', kind: 'external', dup: 'table', includeError: '每次运行的 Skill 目录已没有足够空间。'},
+      {id: 'table-a', name: '表格整理', desc: '清洗、合并与校验表格数据（旧版）。', src: '应用', where: '应用管理库', ver: 'v1', mode: 'included', kind: 'managed', dup: 'table'},
+      {id: 'deck', name: '汇报提纲', desc: '把结论整理成两页以内的汇报结构。', src: '应用', where: '应用管理库', ver: 'v2', mode: 'included', kind: 'managed'},
+      {id: 'pdf', name: 'pdf-tools', desc: '拆分、合并与提取 PDF 页面。', src: '额外目录', where: '~/tools/skills/pdf-tools', ver: '—', mode: 'off', kind: 'external', missing: true},
+      {id: 'find', name: 'find-skills', desc: '寻找、核对并推荐可安装的 Skill。', src: '内置', where: '随应用发布', ver: '1.4', mode: 'included', kind: 'builtin'},
     ],
     prefer: null,
   },
@@ -175,6 +175,7 @@ function indexHTML() {
 
 /* ================================================================ Skill */
 const SKILL_FILTERS = [['all', '全部'], ['工作区', '工作区'], ['用户', '用户目录'], ['额外目录', '额外目录'], ['应用', '应用安装'], ['内置', '内置']];
+const SKILL_MODES = {off: '停用', selectable: '可选择', included: '每次带上'};
 function skillListHTML() {
   const S = P.skills;
   const n = f => f === 'all' ? S.items.length : S.items.filter(x => x.src === f).length;
@@ -196,7 +197,7 @@ function renderSkillPage() {
   if (S.q) items = items.filter(x => (x.name + x.desc).includes(S.q));
   const dup = S.items.filter(x => x.dup);
   el.innerHTML = `
-    <div class="page-head"><div><h1>Skill</h1><p>可复用的方法、参考资料和脚本。启用后能在输入框 <kbd>/</kbd> 里选择；「每次带上」的会出现在每次运行的目录里，Agent 按需加载。</p></div>
+    <div class="page-head"><div><h1>Skill</h1><p>「可选择」可从输入框 <kbd>/</kbd> 手动添加。「每次带上」会进入新运行的目录，供 Agent 按需加载。</p></div>
       <button class="btn primary magnetic" data-p="skill-add">${icon('plus', 'sm')}添加 Skill</button></div>
     <label class="search-field slim">${icon('search', 'sm')}<input id="skill-q" value="${esc(S.q)}" placeholder="搜索名称或描述"/></label>
     ${dup.length && !S.prefer ? `<div class="candidate" style="margin-top:16px">
@@ -204,20 +205,37 @@ function renderSkillPage() {
       <div class="versus">${dup.map(x => `<button class="pick-card" data-p="skill-prefer" data-v="${x.id}"><div class="lab">${x.src} · ${esc(x.where)}</div><div class="txt">${esc(x.desc)}</div><div class="lab">版本 ${x.ver}</div></button>`).join('')}</div>
       <div class="faint" style="font-size:12px">选择只影响同名时的默认解析；两份都会保留，输入框里仍会标出来源。</div></div>` : ''}
     <div class="skill-list">${items.map(x => `
-      <div class="skill-row ${x.on ? '' : 'off'}" data-flip="${x.id}">
+      <div class="skill-row ${x.mode === 'off' ? 'off' : ''}" data-flip="${x.id}">
         <button class="skill-open" data-p="skill-open" data-v="${x.id}">
           <span class="slash-ic">${icon('spark', 'sm')}</span>
           <span class="skill-main"><span class="skill-name">${esc(x.name)}${x.missing ? '<span class="state-pill wait">目录缺失</span>' : ''}${x.dup && S.prefer === x.id ? '<span class="src-tag on">同名时优先</span>' : ''}</span>
             <span class="skill-desc">${esc(x.desc)}</span></span>
           <span class="src-tag">${x.src}</span><span class="ver num">${x.ver}</span>
         </button>
-        <button class="chip-toggle" data-p="skill-inc" data-v="${x.id}" aria-pressed="${x.inc}" ${x.on ? '' : 'disabled'} data-tip="${x.inc ? '每次运行都放进目录' : '只在 / 里手动选择'}">${icon('layers', 'xs')}每次带上</button>
-        <button class="switch" role="switch" aria-checked="${x.on}" data-p="skill-on" data-v="${x.id}" ${x.missing ? 'disabled' : ''} aria-label="启用 ${esc(x.name)}"><span class="knob"></span></button>
+        <span class="select-wrap">${icon('chevronDown', 'xs')}<select class="sheet-select" data-skill-mode="${x.id}" data-mode="${x.mode}" aria-label="${esc(x.name)}（${x.src}）的使用方式" ${x.missing ? 'disabled' : ''}>
+          ${Object.entries(SKILL_MODES).map(([mode, label]) => `<option value="${mode}" ${x.mode === mode ? 'selected' : ''}>${label}</option>`).join('')}
+        </select></span>
       </div>`).join('') || '<div class="lane-empty">没有符合条件的 Skill</div>'}</div>`;
   const q = $('#skill-q');
   q.addEventListener('input', () => { S.q = q.value; const pos = q.selectionStart; renderSkillPage(); const n = $('#skill-q'); n.focus(); n.setSelectionRange(pos, pos); });
   bindMagnetic(el);
 }
+document.addEventListener('change', e => {
+  const control = e.target.closest('[data-skill-mode]');
+  if (!control) return;
+  const skill = P.skills.items.find(x => x.id === control.dataset.skillMode);
+  const change = control.value;
+  if (!skill || skill.missing || !(change in SKILL_MODES)) return;
+  if (change === 'included' && skill.includeError) {
+    control.value = skill.mode;
+    return toast(skill.includeError, 'alert');
+  }
+  skill.mode = change;
+  control.dataset.mode = change;
+  control.closest('.skill-row').classList.toggle('off', change === 'off');
+  if (change === 'off' && state.composerSkill?.id === skill.id) state.composerSkill = null;
+  toast(`「${skill.name}」设为${SKILL_MODES[change]}`, 'check');
+});
 const SKILL_FILES = {
   'SKILL.md': `<h2>竞品分析</h2><p>按固定维度整理竞品材料，所有数字都要能回到原文。</p><h3>步骤</h3><ol><li>列出要比较的维度（价格、渠道、返点、备注）。</li><li>逐份读取材料，记录出处页码。</li><li>运行 <code>scripts/score.py</code> 汇总成表。</li></ol><h3>注意</h3><p>材料里没有的数据写“未公开”，不要推测。</p>`,
   'references/维度说明.md': `<h2>维度说明</h2><p>渠道统一分为直营、渠道、线上三类；返点按合同口径记录。</p>`,
@@ -283,7 +301,7 @@ function openSkillAdd() {
     if (e.target.closest('#add-go')) {
       if (mode === 'gh' && step === 'input') { step = 'loading'; paint(); setTimeout(() => { step = 'ready'; paint(); }, 1100); return; }
       const name = mode === 'gh' ? 'deck-builder' : mode === 'write' ? '周报整理' : '本地 Skill';
-      P.skills.items.splice(P.skills.items.length - 1, 0, {id: 'new' + Date.now(), name, desc: mode === 'gh' ? '把要点整理成演示提纲。' : '把一周的对话和成果整理成周报。', src: '应用', where: '应用管理库', ver: 'v1', on: true, inc: true, kind: 'managed'});
+      P.skills.items.splice(P.skills.items.length - 1, 0, {id: 'new' + Date.now(), name, desc: mode === 'gh' ? '把要点整理成演示提纲。' : '把一周的对话和成果整理成周报。', src: '应用', where: '应用管理库', ver: 'v1', mode: 'included', kind: 'managed'});
       closeDialog(); withFlip(renderSkillPage); toast(`已安装「${name}」，可以在 / 里选择`, 'spark');
     }
   });
@@ -383,6 +401,12 @@ function openSettings(section) {
     if (th) { document.documentElement.classList.toggle('dark', th.dataset.theme === 'dark'); renderRail(); syncRail(); $$('[data-theme]', dlg).forEach(b => b.setAttribute('aria-selected', b === th)); return; }
     const sz = e.target.closest('[data-size]');
     if (sz) { document.documentElement.style.setProperty('--read-scale', sz.dataset.size); $$('[data-size]', dlg).forEach(b => b.setAttribute('aria-selected', b === sz)); return; }
+    const dev = e.target.closest('[data-developer-toggle]');
+    if (dev) {
+      setPrototypeDeveloperMode(!developerEnabled);
+      dev.setAttribute('aria-checked', developerEnabled);
+      return;
+    }
     const sw = e.target.closest('.switch'); if (sw && !sw.disabled) { sw.setAttribute('aria-checked', sw.getAttribute('aria-checked') !== 'true'); return; }
     if (e.target.closest('[data-wipe]')) return openWipe();
   });
@@ -393,7 +417,7 @@ function settingsBody(k) {
   const sw = on => `<button class="switch" role="switch" aria-checked="${on}"><span class="knob"></span></button>`;
   const dark = document.documentElement.classList.contains('dark');
   switch (k) {
-    case 'general': return `<h2>通用</h2>${setRow('开发者模式', '显示日志、终端、上下文容量与请求原文。只改变展示，不改变执行。', sw(false))}${setRow('任务完成时通知', '你不在这个对话时，用系统通知告诉你结果。', sw(true))}${setRow('退出前确认', '有任务在运行时，退出应用前先确认。', sw(true))}`;
+    case 'general': return `<h2>通用</h2>${setRow('开发者模式', '在会话中显示日志、终端、上下文容量与请求原文。', `<button class="switch" role="switch" aria-label="开发者模式" aria-checked="${developerEnabled}" data-developer-toggle><span class="knob"></span></button>`)}${setRow('任务完成时通知', '你不在这个对话时，用系统通知告诉你结果。', sw(true))}${setRow('退出前确认', '有任务在运行时，退出应用前先确认。', sw(true))}`;
     case 'workspace': return `<h2>工作区</h2>${setRow('新建工作区的位置', '<span class="mono">~/Documents/RayAgent</span>', '<button class="btn line">更改</button>')}${setRow('本机执行', '运行命令与脚本按工作区单独开启，在工作区菜单里设置。', '<span class="faint">按工作区</span>')}`;
     case 'appearance': return `<h2>外观</h2>${setRow('主题', '', `<div class="seg on-sheet"><button class="seg-btn" data-theme="light" aria-selected="${!dark}">${icon('sun', 'sm')}<span class="seg-label">浅色</span></button><button class="seg-btn" data-theme="dark" aria-selected="${dark}">${icon('moon', 'sm')}<span class="seg-label">深色</span></button></div>`)}${setRow('阅读字号', '只放大文字，间距和图标不变。', `<div class="seg on-sheet">${[['0.93', '小'], ['1', '标准'], ['1.1', '大']].map(([v, l]) => `<button class="seg-btn txt" data-size="${v}" aria-selected="${v === '1'}">${l}</button>`).join('')}</div>`)}`;
     case 'llm': return `<h2>模型提供商</h2><p class="set-lead">地址、密钥和可用模型写在配置文件里，这里只读展示。保存文件后新运行即用新值。</p>
@@ -577,8 +601,6 @@ document.addEventListener('click', e => {
     case 'index-exclude': { const d = INDEX[+v]; const files = d.files; INDEX[+v] = {dir: d.dir, excluded: true, count: files.length, size: '—', files: undefined, _files: files}; withFlip(renderKnowBody); return toast(`已排除 ${d.dir}/，文件本身不受影响`, 'folder', () => { INDEX[+v] = {dir: d.dir, files}; withFlip(renderKnowBody); }); }
     case 'index-include': { const d = INDEX[+v]; if (d._files) INDEX[+v] = {dir: d.dir, files: d._files}; else toast('重新纳入后会在后台索引 214 个文件', 'layers'); return withFlip(renderKnowBody); }
     case 'skill-filter': S.filter = v; renderList(); return withFlip(renderSkillPage);
-    case 'skill-on': { const x = S.items.find(s => s.id === v); x.on = !x.on; if (!x.on) x.inc = false; renderSkillPage(); return toast(x.on ? `已启用「${x.name}」` : `已停用「${x.name}」，已开始的运行不受影响`, 'spark'); }
-    case 'skill-inc': { const x = S.items.find(s => s.id === v); x.inc = !x.inc; return renderSkillPage(); }
     case 'skill-prefer': S.prefer = v; renderList(); withFlip(renderSkillPage); return toast('同名时优先使用这一份', 'check');
     case 'skill-open': return openSkill(v);
     case 'skill-add': return openSkillAdd();

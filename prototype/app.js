@@ -1,4 +1,4 @@
-// RayAgent V5 原型：壳层、对话、工作区背景。全部为静态模拟。
+// RayAgent 原型：壳层、对话、工作区背景。全部为静态模拟。
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const esc = s => String(s).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
@@ -120,7 +120,7 @@ function renderList() {
     }).join('');
     return `
       <button class="row ws-row" data-ws-toggle="${w.id}" aria-expanded="${open}" aria-current="${here && r.page === 'ws-home'}">
-        <span class="ws-mark">${wsIcon(w.hue, open && here)}</span><span class="row-title">${esc(w.name)}</span>${pill}
+        <span class="ws-mark">${icon(open ? 'folderOpen' : 'folder')}</span><span class="row-title">${esc(w.name)}</span>${pill}
       </button>
       <div class="ws-children ${open ? 'open' : ''}"><div>${sessions}</div></div>`;
   }).join('');
@@ -152,7 +152,7 @@ function renderTop() {
         ${segBtn('knowledge', 'library', '知识')}
       </div>`;
     }
-    $('#topbar').innerHTML = `${listToggle}<div class="crumb" id="crumb"></div><div class="top-spacer"></div>${middle}<div class="top-spacer"></div><div id="top-actions" style="display:flex;gap:2px"></div>`;
+    $('#topbar').innerHTML = `${listToggle}<div class="crumb" id="crumb"></div>${middle}<div class="top-spacer"></div><div id="top-actions"></div>`;
   }
   // 面包屑与右侧动作每次更新，图标组只切换选中态以保留弹性动画
   const lt = $('[data-action="toggle-list"]');
@@ -186,13 +186,21 @@ function renderStage() {
   const r = state.route;
   const key = JSON.stringify(r);
   if (key === stageKey) { refreshStage(); return; }
+  saveLogScroll();
+  closeSlash();
+  closePopover();
   stageKey = key;
   const stage = $('#stage');
   if (r.page === 'session' || r.page === 'chat') {
+    state.insp.step = null;
     stage.innerHTML = `<section class="sheet" id="conv">
-        <div class="scroll" id="conv-scroll"><div class="column" id="timeline"></div></div>
-        <div class="dock"><div class="dock-inner" id="dock"></div></div>
-        ${dropzoneHTML()}
+        ${sessionViewsHTML()}
+        <div class="session-surface" id="chat-surface">
+          <div class="scroll" id="conv-scroll"><div class="column" id="timeline"></div></div>
+          <div class="dock"><div class="dock-inner" id="dock"></div></div>
+          ${dropzoneHTML()}
+        </div>
+        <div class="session-surface" id="log-surface" hidden></div>
       </section>${inspectorShell(r.page === 'chat')}`;
     refreshStage();
   } else if (r.page === 'ws-home') {
@@ -210,7 +218,7 @@ function renderStage() {
 }
 function refreshStage() {
   const r = state.route;
-  if (r.page === 'session' || r.page === 'chat') { renderTimeline(); renderDock(); renderInspector(); }
+  if (r.page === 'session' || r.page === 'chat') { renderTimeline(); renderDock(); syncSessionView(); renderInspector(); }
   if (r.page === 'ws-home' || r.page === 'chat-home') { renderHome(); if (r.page === 'ws-home') renderInspector(); }
   if (r.page === 'context') renderContext();
 }
@@ -219,14 +227,14 @@ function refreshStage() {
 function stepsFor(scn) {
   const all = DATA.steps;
   if (scn === 'running') return all.slice(0, 4).map((s, i) => ({...s, live: i === 3, ok: i < 3, obj: i === 3 ? '「渠道 返点」' : s.obj}));
-  if (scn === 'approval') return all.slice(0, 4);
+  if (scn === 'approval' || scn === 'denied') return all.slice(0, 4);
   if (scn === 'resume') return all.slice(0, 6).map((s, i) => ({...s, live: i === 5, ok: i < 5, verb: i === 5 ? '正在写入' : s.verb}));
   return all;
 }
 function stepHTML(s, i) {
   return `<li class="step ${s.ok ? 'ok' : ''} ${s.live ? 'live' : ''}" data-step="${i}" tabindex="0">
     <span class="step-node">${icon(s.live ? 'dot' : s.ok ? 'check' : s.icon)}</span>
-    <span class="step-verb">${s.verb}</span><span class="step-obj">${esc(s.obj)}</span>
+    <span class="step-verb">${s.verb}</span><span class="step-obj">${esc(i === 4 && !developerEnabled ? '生成对比表' : s.obj)}</span>
     ${s.approval && s.ok ? '<span class="step-tag">你批准了</span>' : ''}
   </li>`;
 }
@@ -245,7 +253,7 @@ function renderTimeline() {
   const open = done ? state.processOpen : true;
   const head = done
     ? `${icon('chevronRight', 'sm chev')}<span>执行过程</span><span class="meta">${steps.length} 步 · 1 分 42 秒</span>`
-    : `${icon('chevronRight', 'sm chev')}<span>${scn === 'approval' ? '等你批准' : '正在处理'}</span><span class="meta num">${steps.filter(s => s.ok).length} 步完成</span>`;
+    : `${icon('chevronRight', 'sm chev')}<span>${scn === 'approval' ? '等你批准' : scn === 'denied' ? '调用已拒绝' : '正在处理'}</span><span class="meta num">${steps.filter(s => s.ok).length} 步完成</span>`;
   const process = `<div class="process ${open ? 'open' : ''}" id="process">
       <button class="process-head" data-action="toggle-process" aria-expanded="${open}">${head}</button>
       <div class="collapse ${open ? 'open' : ''}"><div>
@@ -262,6 +270,7 @@ function renderTimeline() {
     </div>`;
   }
   if (done) tail = finalReply();
+  if (scn === 'denied') tail = '<article class="reply"><p>脚本调用已拒绝，未生成对比表。</p></article>';
   tl.innerHTML = user + process + tail;
   bindMagnetic(tl);
 }
@@ -314,6 +323,11 @@ function refsHTML() {
   </div></div>`;
 }
 function independentChat() {
+  if (state.route.chat !== 'c1') {
+    const chat = DATA.independent.find(item => item.id === state.route.chat);
+    return `<div class="msg-user"><div class="bubble">${esc(chat?.title ?? '对话')}</div></div>
+      <article class="reply"><p class="faint">这条示例会话只有消息标题。</p></article>`;
+  }
   return `<div class="msg-user"><div class="bubble">把这段周会录音的要点整理成纪要，按决定、待办、风险分开。</div>
       <div class="chips"><span class="chip">${fileGlyph('a.m4a')}周会录音.m4a<span class="sub">18.2 MB</span></span></div></div>
     <div class="process"><button class="process-head">${icon('chevronRight', 'sm chev')}<span>执行过程</span><span class="meta">3 步 · 48 秒</span></button></div>
@@ -336,13 +350,24 @@ function otherSession(id) {
 
 /* ---------------------------------------------------------------- 输入区 */
 function renderDock() {
+  const dock = $('#dock');
+  if (!dock) return;
   const r = state.route;
   const scn = r.page === 'session' && r.session === 's1' ? state.scenario : 'done';
   const live = scn === 'running' || scn === 'resume';
   const plan = (scn === 'running' || scn === 'approval' || scn === 'resume') ? planHTML() : '';
   const placeholder = scn === 'approval' ? '先处理上面的批准；也可以补充要求或停止' : live ? '补充要求，会在下一轮前交给 Agent' : '继续提要求，或拖入文件';
-  $('#dock').innerHTML = `${plan}${composerHTML(placeholder, live)}`;
-  bindMagnetic($('#dock'));
+  const draft = $('#composer-input', dock);
+  const focused = draft === document.activeElement;
+  dock.innerHTML = `${plan}${composerHTML(placeholder, live)}`;
+  if (draft) {
+    draft.placeholder = $('#composer-input', dock).placeholder;
+    $('#composer-input', dock).replaceWith(draft);
+    if (focused) draft.focus({preventScroll: true});
+  }
+  if (state.slash.open) renderSlash();
+  renderContextAccessory();
+  bindMagnetic(dock);
 }
 function planStages() {
   // 批准后（resume）表格已生成，进入核对
@@ -404,43 +429,67 @@ function composerHTML(placeholder, live) {
       <button class="ghost-btn" data-action="slash-open" data-tip="命令与 Skill  /" aria-label="命令与 Skill">${icon('spark')}</button>
       ${isWs ? `<button class="ghost-btn" data-action="toggle-plan-mode" data-tip="计划模式" aria-label="计划模式" aria-pressed="${state.planMode}">${icon('listChecks')}</button>` : ''}
       <button class="model" data-action="model" aria-haspopup="dialog">${modelLabel()}</button>
+      ${isSession() ? '<span id="context-accessory"></span>' : ''}
       <button class="send magnetic ${live ? 'stop' : ''}" aria-label="${live ? '停止生成' : '发送'}" data-tip="${live ? '停止生成' : '发送  ↵'}">${icon(live ? 'stop' : 'arrowUp', 'sm')}</button>
     </div></div>`;
 }
-function refreshAttach() { const a = $('#composer-attach'); if (a) a.innerHTML = attachHTML(); $$('[data-action="toggle-plan-mode"][aria-pressed]').forEach(b => b.setAttribute('aria-pressed', state.planMode)); }
+function refreshAttach() { const a = $('#composer-attach'); if (a) a.innerHTML = attachHTML(); $$('[data-action="toggle-plan-mode"][aria-pressed]').forEach(b => b.setAttribute('aria-pressed', state.planMode)); if (state.slash.open) placeSlash(); }
 
 /* ---------------------------------------------------------------- 斜杠菜单 */
 function slashItems() {
   const q = state.slash.q.toLowerCase();
   const isWs = state.route.page !== 'chat' && state.route.page !== 'chat-home';
-  return DATA.slash.filter(x => (!x.ws || isWs) && (!q || x.name.toLowerCase().includes(q) || x.desc.includes(q)));
-}
-function ringSVG(v) {
-  const c = 2 * Math.PI * 7;
-  return `<svg class="ctx-ring" viewBox="0 0 18 18" aria-hidden="true"><circle cx="9" cy="9" r="7" class="bg"/><circle cx="9" cy="9" r="7" class="fg" stroke-dasharray="${c * v} ${c}"/></svg>`;
+  const commands = DATA.slash.filter(x => (!x.ws || isWs) && (x.id !== 'compact' || developerEnabled && isSession()));
+  const skills = P.skills.items.filter(x => x.mode !== 'off' && (!x.workspace || x.workspace === state.route.ws))
+    .sort((a, b) => Number(b.id === P.skills.prefer) - Number(a.id === P.skills.prefer))
+    .map(x => ({...x, group: 'Skill', icon: 'spark'}));
+  return [...commands, ...skills].filter(x => !q || x.name.toLowerCase().includes(q) || x.desc.includes(q));
 }
 function renderSlash() {
   const el = $('#slash');
   if (!el) return;
   if (!state.slash.open) { el.hidden = true; el.classList.remove('show'); return; }
   const items = slashItems();
+  const usage = developerEnabled ? contextUsage() : null;
   state.slash.idx = Math.min(state.slash.idx, Math.max(0, items.length - 1));
   let last = '';
   const rows = items.map((x, i) => {
     const head = x.group !== last ? `<div class="slash-group">${x.group}</div>` : '';
     last = x.group;
-    return head + `<div class="slash-item ${i === state.slash.idx ? 'on' : ''}" role="option" aria-selected="${i === state.slash.idx}" data-slash="${i}">
+    const unavailable = x.id === 'compact' && !canCompactContext();
+    return head + `<div class="slash-item ${i === state.slash.idx ? 'on' : ''}" role="option" aria-selected="${i === state.slash.idx}" ${unavailable ? 'aria-disabled="true"' : ''} data-slash="${i}">
       <span class="slash-ic">${icon(x.icon, 'sm')}</span>
-      <span class="slash-main"><span class="slash-name">${esc(x.name)}</span><span class="slash-desc">${esc(x.desc)}</span></span>
-      ${x.ring ? `<span class="slash-side" data-tip="上下文已用 ${Math.round(x.ring * 100)}%">${ringSVG(x.ring)}<span class="num">${Math.round(x.ring * 100)}%</span></span>` : ''}
+      <span class="slash-main"><span class="slash-name">${esc(x.name)}</span><span class="slash-desc">${unavailable ? usage ? '运行结束后可压缩' : '尚无请求记录' : esc(x.desc)}</span></span>
+      ${x.id === 'compact' ? `<span class="slash-side" aria-label="${contextLabel(usage)}">${ringSVG(usage)}<span class="num">${usage ? contextPercent(usage) : '—'}</span></span>` : ''}
       ${x.src ? `<span class="src-tag">${esc(x.src)}</span>` : ''}
       ${x.id === 'plan' && state.planMode ? `<span class="src-tag on">已开启</span>` : ''}
     </div>`;
   }).join('');
   el.innerHTML = `<div class="slash-list" id="slash-list">${rows || `<div class="slash-empty">没有匹配「${esc(state.slash.q)}」的命令或 Skill</div>`}</div>
-    <div class="slash-foot"><span><kbd>↑</kbd><kbd>↓</kbd> 选择</span><span><kbd>↵</kbd> 确认</span><span><kbd>esc</kbd> 关闭</span><span class="grow"></span><span>Skill 只作用于这一条消息</span></div>`;
-  if (el.hidden) { el.hidden = false; requestAnimationFrame(() => el.classList.add('show')); }
+    <div class="slash-foot"><span><kbd>↑</kbd><kbd>↓</kbd> 选择</span><span><kbd>↵</kbd> 确认</span><span><kbd>esc</kbd> 关闭</span></div>`;
+  if (el.hidden || !el.classList.contains('show')) {
+    el.hidden = false;
+    requestAnimationFrame(() => { if (state.slash.open) el.classList.add('show'); });
+  }
+  placeSlash();
 }
+function placeSlash() {
+  const menu = $('#slash');
+  if (!menu || menu.hidden) return;
+  const composer = menu.parentElement.getBoundingClientRect();
+  const paper = menu.closest('.sheet').getBoundingClientRect();
+  const above = composer.top - paper.top - 16;
+  const below = paper.bottom - composer.bottom - 16;
+  const footer = $('.slash-foot', menu).offsetHeight;
+  const ideal = 312 + footer;
+  const preferBelow = !!menu.closest('.home');
+  const preferred = preferBelow ? below : above;
+  const alternate = preferBelow ? above : below;
+  const down = preferred >= ideal || preferred >= alternate ? preferBelow : !preferBelow;
+  menu.dataset.side = down ? 'below' : 'above';
+  menu.style.setProperty('--slash-list-height', Math.max(0, Math.min(312, (down ? below : above) - footer)) + 'px');
+}
+window.addEventListener('resize', () => { if (state.slash.open) placeSlash(); });
 function openSlash(q = '') { state.slash = {open: true, q, idx: 0}; renderSlash(); }
 function closeSlash() { if (!state.slash.open) return; state.slash.open = false; const el = $('#slash'); if (el) { el.classList.remove('show'); setTimeout(() => { if (!state.slash.open) el.hidden = true; }, 160); } }
 function moveSlash(d) {
@@ -451,20 +500,20 @@ function moveSlash(d) {
   // 键盘越出可视范围时只做最小滚动
   const row = $(`.slash-item[data-slash="${state.slash.idx}"]`), list = $('#slash-list');
   if (row && list) {
-    const top = row.offsetTop - list.offsetTop, bottom = top + row.offsetHeight;
+    const top = row.offsetTop, bottom = top + row.offsetHeight;
     if (top < list.scrollTop + 26) list.scrollTop = Math.max(0, top - 26);
     else if (bottom > list.scrollTop + list.clientHeight) list.scrollTop = bottom - list.clientHeight + 4;
   }
 }
 function pickSlash(i = state.slash.idx) {
   const x = slashItems()[i];
+  if (!x || x.id === 'compact' && !canCompactContext()) return;
   const ta = $('#composer-input');
   if (ta) ta.value = ta.value.replace(/(^|\s)\/\S*$/, '$1');
   closeSlash();
-  if (!x) return;
   if (x.group === 'Skill') { state.composerSkill = x; refreshAttach(); }
   else if (x.id === 'plan') { state.planMode = !state.planMode; refreshAttach(); }
-  else if (x.id === 'compact') toast('正在压缩上下文，会话历史保留', 'layers');
+  else if (x.id === 'compact') compactContext();
   else if (x.id === 'attach') simulateDrop();
   ta?.focus();
 }
@@ -474,7 +523,7 @@ document.addEventListener('input', e => {
   ta.style.height = 'auto'; ta.style.height = Math.min(180, ta.scrollHeight) + 'px';
   const before = ta.value.slice(0, ta.selectionStart);
   const m = before.match(/(?:^|\s)\/(\S*)$/);
-  if (m) { if (!state.slash.open || state.slash.q !== m[1]) { state.slash = {open: true, q: m[1], idx: 0}; renderSlash(); } }
+  if (m) { if (!state.slash.open || state.slash.q !== m[1]) openSlash(m[1]); else placeSlash(); }
   else closeSlash();
 });
 document.addEventListener('keydown', e => {
@@ -484,7 +533,7 @@ document.addEventListener('keydown', e => {
     if (e.key === 'ArrowDown') { e.preventDefault(); moveSlash(1); }
     else if (e.key === 'ArrowUp') { e.preventDefault(); moveSlash(-1); }
     else if (e.key === 'Enter' || e.key === 'Tab') { e.preventDefault(); pickSlash(); }
-    else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); closeSlash(); }
+    else if (e.key === 'Escape') { e.preventDefault(); e.stopImmediatePropagation(); closeSlash(); }
     return;
   }
   if (e.key === 'Backspace' && !e.target.value && state.composerSkill) { state.composerSkill = null; refreshAttach(); }
@@ -560,6 +609,7 @@ function closeModel() {
   if (!changed) return;
   state.model = next;
   $$('.model').forEach(b => { b.innerHTML = modelLabel(); });
+  renderContextAccessory();
   toast('下一次运行使用新的模型设置', 'check');
 }
 function chooseModel(id) {
@@ -659,14 +709,38 @@ function renderInspector() {
       ? `<div class="section-cap">本次对话</div><div class="change-row">${fileGlyph('a.md')}<span>周会纪要.md</span><span class="op">交付</span></div>`
       : `<div class="section-cap">本次交付</div><button class="change-row" style="width:100%" data-open-file="竞品对比表.xlsx">${fileGlyph('x.xlsx')}<span>竞品对比表.xlsx</span><span class="op">交付版本</span></button>`;
   } else if (tab === 'view') {
-    const i = state.insp.step ?? 4;
+    const i = state.insp.step;
     const s = DATA.steps[i];
-    body.innerHTML = `<div class="section-cap">${s.verb} · ${esc(s.obj)}</div>
-      <div class="preview-paper mono" style="background:var(--sheet-2);white-space:pre-wrap">${i === 4 ? '$ python build_table.py --out 成果/竞品对比表.xlsx\n读取 2 份材料 … 完成\n写入 4 行 × 3 列\n已保存 成果/竞品对比表.xlsx (9.1 KB)' : i === 3 ? '命中 4 处\n· 竞品-A.pdf 第 5 页\n· 竞品-B.pdf 第 3 页\n· 渠道访谈纪要.md 第 2 节\n· 会话摘要：定价策略讨论' : '已读取，共 ' + (i === 1 ? 9 : 6) + ' 页文本'}</div>`;
+    if (!s || !isReviewSession() || !stepsFor(state.scenario)[i]) {
+      body.innerHTML = '<p class="log-empty">选择一个对话步骤查看结果。</p>';
+      return;
+    }
+    if (i === 4 && developerEnabled) {
+      body.innerHTML = `<div class="section-cap">终端</div>
+        <div class="terminal-output"><div class="mono">$ python build_table.py --out 成果/竞品对比表.xlsx</div>
+        <pre>读取 2 份材料 … 完成
+写入 4 行 × 3 列
+已保存 成果/竞品对比表.xlsx（9.1 KB）</pre><span class="faint">退出码 0</span></div>`;
+      return;
+    }
+    const results = ['已列出 4 个阶段', '已读取，共 9 页文本', '已读取，共 6 页文本',
+      '命中 4 处\n· 竞品-A.pdf 第 5 页\n· 竞品-B.pdf 第 3 页\n· 渠道访谈纪要.md 第 2 节\n· 会话摘要：定价策略讨论',
+      '脚本已生成竞品对比表。', '已写入 成果/竞品对比表.xlsx'];
+    const result = stepsFor(state.scenario)[i].live ? '还在处理，结果将在完成后显示。' : results[i];
+    body.innerHTML = `<div class="section-cap">${s.verb} · ${esc(i === 4 ? '生成对比表' : s.obj)}</div>
+      <div class="preview-paper" style="background:var(--sheet-2);white-space:pre-wrap">${result}</div>`;
   } else {
     body.innerHTML = `<div class="section-cap">最近修改</div>
       <div class="change-row">${icon('pencil', 'sm')}<div><div>整理竞品表</div><div style="color:var(--ink-3);font-size:12px">新建 1 个文件 · 14:34</div></div><button class="btn quiet" style="margin-left:auto" data-action="undo-run">撤销</button></div>`;
   }
+}
+function inspectStep(index) {
+  state.insp.open = true;
+  state.insp.tab = 'view';
+  state.insp.step = index;
+  state.insp.preview = null;
+  renderInspector();
+  renderTop();
 }
 function previewHTML(name) {
   const cite = Object.values(DATA.citations).find(c => c.file === name);
@@ -775,9 +849,16 @@ function setScenario(s) {
 }
 
 const narrow = matchMedia('(max-width: 1100px)');
+const floatingInspector = matchMedia('(max-width: 1180px)');
 if (narrow.matches) state.list = 'closed';
-if (matchMedia('(max-width: 1180px)').matches) state.insp.open = false;
+if (floatingInspector.matches) state.insp.open = false;
 narrow.addEventListener('change', () => { state.list = narrow.matches ? 'closed' : 'open'; renderList(); renderTop(); });
+floatingInspector.addEventListener('change', () => {
+  if (!floatingInspector.matches || !state.insp.open) return;
+  state.insp.open = false;
+  renderInspector();
+  renderTop();
+});
 document.addEventListener('click', e => {
   // 窄窗口里列表是抽屉：点列表以外或在列表里导航后收起
   if (narrow.matches && state.list === 'open' && (!e.target.closest('.list, [data-action="toggle-list"]') || e.target.closest('.list [data-href], .list .ws-row'))) {
@@ -788,18 +869,25 @@ document.addEventListener('click', e => {
   const row = e.target.closest('.slash-item');
   if (row) return pickSlash(+row.dataset.slash);
   const t = e.target.closest('button, [data-open-file], [data-href], .cite, .step');
-  if (!t) { closePopover(); return; }
+  if (!t) { if (!e.target.closest('#popover')) closePopover(); return; }
   hideTip();
+  if (t.dataset.action === 'context-details') {
+    if (t.getAttribute('aria-expanded') === 'true') return closePopover();
+    return openContextDetails(t);
+  }
   if (!t.closest('#popover') && !t.classList.contains('cite')) closePopover();
   if (t.dataset.scenario) return setScenario(t.dataset.scenario);
   if (t.dataset.reviewAction === 'theme' || t.dataset.action === 'theme') return toggleTheme();
   if (t.dataset.reviewAction === 'hide') return $('#review-bar').classList.toggle('hidden');
   if (t.dataset.reviewAction === 'drop') return simulateDrop();
   if (t.classList.contains('cite')) return openCite(t);
-  if (t.classList.contains('step')) { state.insp.open = true; state.insp.tab = 'view'; state.insp.step = +t.dataset.step; state.insp.preview = null; renderInspector(); renderTop(); return; }
+  if (t.classList.contains('step')) return inspectStep(+t.dataset.step);
+  if (developerEnabled && t.dataset.inspectStep !== undefined) return inspectStep(+t.dataset.inspectStep);
   if (t.dataset.view && t.closest('#ws-seg')) {
     const ws = state.route.ws;
-    return go(t.dataset.view === 'chat' ? `#/ws/${ws}/${state.lastSession?.[ws] || 's1'}` : `#/ws/${ws}/${t.dataset.view}`);
+    const last = state.lastSession?.[ws];
+    if (t.dataset.view === 'chat') return go(last ? `#/ws/${ws}/${last}` : `#/ws/${ws}`);
+    return go(`#/ws/${ws}/${t.dataset.view}`);
   }
   if (t.dataset.view && t.closest('#insp-seg')) { state.insp.tab = t.dataset.view; state.insp.preview = null; return renderInspector(); }
   if (t.dataset.wsToggle) {
@@ -852,7 +940,7 @@ document.addEventListener('click', e => {
     case 'style-history': return openStyleHistory();
     case 'edit-proposal': return editProposal();
     case 'approve': return approve();
-    case 'deny': state.scenario = 'done'; refreshStage(); return toast('已拒绝，理由会交回 Agent', 'x');
+    case 'deny': state.scenario = 'denied'; refreshStage(); return toast('已拒绝运行脚本', 'x');
     case 'close-preview': state.insp.preview = null; return renderInspector();
     case 'accept-proposal': return acceptProposal();
     case 'dismiss-proposal': return dismissProposal();
@@ -909,8 +997,25 @@ function placePopover(pop, anchor) {
   pop.style.top = (r.bottom + 8 + h > innerHeight - 12 ? r.top - h - 8 : r.bottom + 8) + 'px';
   pop.style.animation = 'none'; pop.offsetHeight; pop.style.animation = '';
 }
-function closePopover() { $('#popover').hidden = true; $$('.cite.active').forEach(x => x.classList.remove('active')); }
-document.addEventListener('keydown', e => { if (e.key === 'Escape') { closePopover(); hideDrop(); closeModel(); if (state.planOpen) $('[data-action="toggle-plan"]')?.click(); } });
+function closePopover() {
+  $('#popover').hidden = true;
+  $('#context-button')?.setAttribute('aria-expanded', 'false');
+  $$('.cite.active').forEach(x => x.classList.remove('active'));
+}
+document.addEventListener('keydown', e => {
+  if (['Enter', ' '].includes(e.key) && e.target.matches('.step')) { e.preventDefault(); e.target.click(); }
+  if (e.key !== 'Escape') return;
+  const contextButton = $('#context-button[aria-expanded="true"]');
+  closePopover();
+  if (contextButton) { contextButton.focus(); return; }
+  hideDrop();
+  closeModel();
+  if (state.planOpen && !$('#chat-surface')?.hidden) { $('[data-action="toggle-plan"]')?.click(); return; }
+  if (floatingInspector.matches && state.insp.open && $('#insp')) {
+    $('[data-action="toggle-insp"]').click();
+    $('[data-action="toggle-insp"]').focus();
+  }
+});
 
 /* ---------------------------------------------------------------- 背景页动作 */
 function withFlip(fn) {
@@ -1174,7 +1279,7 @@ document.addEventListener('keydown', e => {
 });
 if (new URLSearchParams(location.search).get('theme') === 'dark') document.documentElement.classList.add('dark');
 const sc = new URLSearchParams(location.search).get('state');
-if (sc) state.scenario = sc;
+if (['running', 'approval', 'done'].includes(sc)) state.scenario = sc;
 renderRail();
 bindMagnetic(document);
 render();

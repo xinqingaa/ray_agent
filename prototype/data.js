@@ -8,7 +8,7 @@ const DATA = {
   ],
   workspaces: [
     {
-      id: 'review', name: '季度复盘', folder: '~/Documents/季度复盘', state: 'ok', hue: 'blue',
+      id: 'review', name: '季度复盘', folder: '~/Documents/季度复盘', state: 'ok',
       sessions: [
         {id: 's1', title: '整理竞品表', time: '14:32', status: 'live'},
         {id: 's2', title: '写纪要给市场', time: '昨天', status: 'waiting'},
@@ -16,18 +16,18 @@ const DATA = {
       ],
     },
     {
-      id: 'course', name: '课程笔记', folder: '~/Documents/课程笔记', state: 'ok', hue: 'green',
+      id: 'course', name: '课程笔记', folder: '~/Documents/课程笔记', state: 'ok',
       sessions: [
         {id: 'k1', title: '第三章习题整理', time: '周二'},
         {id: 'k2', title: '期中复习提纲', time: '11月8日'},
       ],
     },
     {
-      id: 'expense', name: '出差报销', folder: '~/Desktop/出差报销', state: 'missing', hue: 'amber',
+      id: 'expense', name: '出差报销', folder: '~/Desktop/出差报销', state: 'missing',
       sessions: [{id: 'e1', title: '核对发票金额', time: '11月3日'}],
     },
     {
-      id: 'photos', name: '家庭旧照整理', folder: '~/Pictures/旧照', state: 'archived', hue: 'violet',
+      id: 'photos', name: '家庭旧照整理', folder: '~/Pictures/旧照', state: 'archived',
       sessions: [{id: 'p1', title: '按年份重命名', time: '10月'}],
     },
   ],
@@ -138,15 +138,10 @@ const DATA = {
     ]},
   ],
 
-  // 斜杠菜单：操作 + 已启用的 Skill（来源始终显示）
+  // 斜杠菜单的操作；Skill 从管理列表按会话范围读取。
   slash: [
     {id: 'attach', group: '操作', icon: 'clip', name: '添加文件', desc: '从磁盘选择，也可以直接拖进来'},
     {id: 'plan', group: '操作', icon: 'listChecks', name: '计划模式', desc: '先调研并制定方案，不执行写入和命令', ws: true},
-    {id: 'compact', group: '操作', icon: 'layers', name: '压缩上下文', desc: '整理模型上下文，会话历史保留', ring: 0.62},
-    {id: 'sk-compete', group: 'Skill', icon: 'spark', name: '竞品分析', desc: '按维度整理竞品材料并标注出处', src: '工作区'},
-    {id: 'sk-minutes', group: 'Skill', icon: 'spark', name: '会议纪要', desc: '从录音或笔记整理决定、待办与风险', src: '应用'},
-    {id: 'sk-table', group: 'Skill', icon: 'spark', name: '表格整理', desc: '清洗、合并与校验表格数据', src: '~/.codex'},
-    {id: 'sk-deck', group: 'Skill', icon: 'spark', name: '汇报提纲', desc: '把结论整理成两页以内的汇报结构', src: '应用'},
-    {id: 'sk-find', group: 'Skill', icon: 'spark', name: 'find-skills', desc: '寻找、核对并推荐可安装的 Skill', src: '内置'},
+    {id: 'compact', group: '操作', icon: 'layers', name: '压缩上下文', desc: '整理模型上下文，会话历史保留'},
   ],
 };

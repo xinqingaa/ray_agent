@@ -1,5 +1,6 @@
 {
   "python.defaultInterpreterPath": "${workspaceFolder}/ray_agent/api/.venv/bin/python",
   "python.analysis.extraPaths": ["${workspaceFolder}/ray_agent/api"],
-  "python.terminal.activateEnvironment": false
+  "python.terminal.activateEnvironment": false,
+  "liveServer.settings.port": 5501
 }

@@ -77,11 +77,3 @@ function fileGlyph(name, size = '') {
   const kind = FILE_KINDS[ext] || {label: ext.slice(0, 3).toUpperCase(), hue: 'slate'};
   return `<span class="glyph glyph-${kind.hue} ${size}" aria-hidden="true">${kind.label}</span>`;
 }
-
-// 工作区标记：用户文件夹本身，按工作区色相着色，不再用首字
-function wsIcon(hue, open = false) {
-  return `<svg class="ws-icon ws-${hue}" viewBox="0 0 24 24" aria-hidden="true">
-    <path class="back" d="M3 7.2A2.2 2.2 0 0 1 5.2 5h3.9l2.1 2.2h7.6A2.2 2.2 0 0 1 21 9.4v8.4a2.2 2.2 0 0 1-2.2 2.2H5.2A2.2 2.2 0 0 1 3 17.8Z"/>
-    <path class="front" d="${open ? 'M3.4 18.4 5.6 12a1.8 1.8 0 0 1 1.7-1.2h13.2a1 1 0 0 1 .95 1.3l-2 6.3A2 2 0 0 1 17.6 20H5.1a1.8 1.8 0 0 1-1.7-1.6Z' : 'M3 10.2h18v7.6a2.2 2.2 0 0 1-2.2 2.2H5.2A2.2 2.2 0 0 1 3 17.8Z'}"/>
-  </svg>`;
-}
