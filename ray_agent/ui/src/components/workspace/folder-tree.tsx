@@ -1,5 +1,5 @@
+import {ChevronRight, Folder, FolderOpen, Link2, LoaderCircle, FileQuestion} from '@/components/ui/icons'
 import {createElement, useRef, type KeyboardEvent} from 'react'
-import {ChevronRight, Folder, FolderOpen, FileQuestion, Link2, LoaderCircle} from 'lucide-react'
 import {Button} from '@/components/ui/button'
 import {fileIcon} from '@/components/run/file-icon'
 import {formatBytes} from '@/components/run/format'

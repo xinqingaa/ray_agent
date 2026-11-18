@@ -1,5 +1,5 @@
 import {useState, type ReactNode} from 'react'
-import {ChevronRight} from 'lucide-react'
+import {ChevronRight} from '@/components/ui/icons'
 import type {FileView, RunView, StreamingDraft, TimelineItem} from '@/lib/session-view'
 import {foldSettledRuns, foldSummary, groupProcessBlocks, processBlockOpen, processSettled, processSummary, type ProcessBlock, type RunFold, type TimelineRow} from '@/lib/process-blocks'
 import {cn} from '@/lib/utils'
@@ -32,6 +32,8 @@ export type TimelineHandlers = {
   streamingItemId?: string | null
   /** 工作区会话：在最终回复下展示本次参考 */
   showRunReferences?: boolean
+  workspaceId?: string
+  renderMemoryNotice?: (runId: string) => ReactNode
 }
 
 /** 按条目类型分派到对应组件；会话页与组件状态目录共用 */
@@ -86,8 +88,10 @@ export function TimelineItemView({item, handlers = {}}: {item: TimelineItem; han
     case 'final':
       return (
         <div className="space-y-1">
+          <span id={item.runId ? `reply-${item.runId}` : undefined} className="block scroll-mt-3"/>
           <FinalReply text={item.text} summary={item.summary} streaming={streaming} deliveredFiles={item.deliveredFiles} onDownloadFile={handlers.onDownloadFile}/>
-          {handlers.showRunReferences && item.runId && !streaming ? <RunReferences runId={item.runId}/> : null}
+          {item.runId && !streaming && handlers.renderMemoryNotice?.(item.runId)}
+          {handlers.showRunReferences && item.runId && !streaming ? <RunReferences runId={item.runId} workspaceId={handlers.workspaceId}/> : null}
         </div>
       )
     case 'run_end':

@@ -6,6 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from app.domain.models.workspace_memory import (
     MEMORY_CONTENT_MAX_CHARS,
     RESIDENT_MEMORY_LIMIT,
+    ExtractionCommitStatus,
     MemoryCertainty,
     MemoryChange,
     MemoryChangeAction,
@@ -56,6 +57,13 @@ class MemoryListResponse(BaseModel):
 
     memories: list[MemoryItem]
     resident_limit: int = RESIDENT_MEMORY_LIMIT
+
+
+class MemoryExtractionView(BaseModel):
+    model_config = _STRICT
+
+    status: Optional[ExtractionCommitStatus] = None
+    memories: list[MemoryItem]
 
 
 class CreateMemoryRequest(BaseModel):

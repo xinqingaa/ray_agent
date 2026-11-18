@@ -1,6 +1,6 @@
 import {useState} from 'react'
 import {useDeveloperMode} from '@/hooks/use-developer-mode'
-import {Loader2, Plus} from 'lucide-react'
+import {Loader2, Plus} from '@/components/ui/icons'
 import {toast} from 'sonner'
 import {Button} from '@/components/ui/button'
 import {

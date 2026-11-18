@@ -8,7 +8,7 @@ from app.application.services.memory_service import MemoryService
 from app.domain.models.workspace_memory import MemoryStatus
 from app.interfaces.schemas import Response
 from app.interfaces.schemas.memory import (
-    CreateMemoryRequest, MemoryChangeView, MemoryItem, MemoryListResponse, MemorySourceView, MemorySourcesResponse,
+    CreateMemoryRequest, MemoryChangeView, MemoryExtractionView, MemoryItem, MemoryListResponse, MemorySourceView, MemorySourcesResponse,
     ParticipateInMemoryRequest, ParticipateInMemoryResponse, PatchMemoryRequest,
 )
 from app.interfaces.service_dependencies import get_memory_service
@@ -30,6 +30,15 @@ async def list_memories(workspace_id: str, status: Optional[list[MemoryStatus]] 
     entries = await service.entries(workspace_id, statuses)
     resident = frozenset(item.id for item in await service.resident(workspace_id))
     return Response.success(MemoryListResponse(memories=[MemoryItem.of(entry, resident) for entry in entries]))
+
+
+@router.get("/workspaces/{workspace_id}/memories/extraction", response_model=Response[MemoryExtractionView],
+            summary="一次材料截止位置产生的记忆", description="只返回该工作区和会话中由此次提炼创建、当前仍可查看的条目")
+async def memory_extraction(workspace_id: str, session_id: str, seq: int = Query(ge=1),
+                            service: MemoryService = Depends(get_memory_service)):
+    status, entries = await service.extraction_result(workspace_id, session_id, seq)
+    resident = frozenset(item.id for item in await service.resident(workspace_id)) if entries else frozenset()
+    return Response.success(MemoryExtractionView(status=status, memories=[MemoryItem.of(entry, resident) for entry in entries]))
 
 
 @router.post("/workspaces/{workspace_id}/memories", response_model=Response[MemoryItem], summary="新增记忆",

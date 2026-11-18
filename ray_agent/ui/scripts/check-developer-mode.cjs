@@ -13,7 +13,7 @@ function load(file) {
  const code = ts.transpileModule(fs.readFileSync(root+'/src/'+file,'utf8'), {compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX}}).outputText;
  new Function('require','exports',code)(name => {
   if(name === 'react' || name === 'react/jsx-runtime') return require(name);
-  if(name === 'lucide-react') return new Proxy({}, {get:()=>()=>null});
+  if(name === '@/components/ui/icons') return new Proxy({}, {get:()=>()=>null});
   if(name === '@/lib/navigation') return {Link:props=>React.createElement('a',props,props.children)};
   if(name === 'sonner') return {toast:{error(){}}};
   if(name === '@/lib/utils') return {cn:(...xs)=>xs.filter(Boolean).join(' ')};

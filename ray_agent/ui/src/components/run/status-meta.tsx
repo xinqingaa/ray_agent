@@ -1,30 +1,4 @@
-import {
-  Ban,
-  Bot,
-  Check,
-  CircleCheck,
-  CircleDashed,
-  CircleDot,
-  CirclePause,
-  CircleMinus,
-  CircleStop,
-  CircleX,
-  FileText,
-  Globe,
-  Hourglass,
-  ListChecks,
-  type LucideIcon,
-  Package,
-  Plug,
-  Search,
-  ShieldQuestion,
-  Sparkles,
-  Square,
-  SquareTerminal,
-  Unplug,
-  Wrench,
-  X,
-} from 'lucide-react'
+import {Check, CircleCheck, CircleDot, CirclePause, CircleStop, CircleX, FileText, Globe, Hourglass, ListChecks, type UiIcon, Package, Search, ShieldQuestion, Sparkles, Square, SquareTerminal, X, Ban, Bot, CircleDashed, CircleMinus, Plug, Unplug, Wrench} from '@/components/ui/icons'
 import type {Activity, RunStatus, ToolCallStatus, ToolFamily} from '@/lib/session-view'
 
 /** 状态色语义：每种状态固定一个颜色，文字类名与浅底类名成对使用。用户看见的状态词在 RunStatus。 */
@@ -74,7 +48,7 @@ export type RunPhase =
   | 'interrupted'
 
 /** 阶段只保留色和图标。文案由 RunStatus 渲染。 */
-export const RUN_PHASE: Record<RunPhase, {tone: Tone; icon: LucideIcon}> = {
+export const RUN_PHASE: Record<RunPhase, {tone: Tone; icon: UiIcon}> = {
   idle: {tone: 'idle', icon: CircleDashed},
   preparing_environment: {tone: 'running', icon: Hourglass},
   model: {tone: 'running', icon: Sparkles},
@@ -102,7 +76,7 @@ export function runPhase(status: RunStatus | null | undefined, activity?: Activi
   return status
 }
 
-export const TOOL_STATUS: Record<ToolCallStatus, {label: string; tone: Tone; icon: LucideIcon}> = {
+export const TOOL_STATUS: Record<ToolCallStatus, {label: string; tone: Tone; icon: UiIcon}> = {
   running: {label: '运行中', tone: 'running', icon: CircleDot},
   succeeded: {label: '成功', tone: 'success', icon: Check},
   failed: {label: '未成功', tone: 'failed', icon: X},
@@ -111,7 +85,7 @@ export const TOOL_STATUS: Record<ToolCallStatus, {label: string; tone: Tone; ico
   cancelled: {label: '已取消', tone: 'stopped', icon: Square},
 }
 
-export const FAMILY: Record<ToolFamily, {label: string; icon: LucideIcon}> = {
+export const FAMILY: Record<ToolFamily, {label: string; icon: UiIcon}> = {
   file: {label: '文件', icon: FileText},
   shell: {label: '终端', icon: SquareTerminal},
   browser: {label: '浏览器', icon: Globe},

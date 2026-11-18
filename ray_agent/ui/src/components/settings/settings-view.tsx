@@ -1,5 +1,5 @@
+import {BookOpen, Download, FolderOpen, Globe, ShieldCheck, SlidersHorizontal, X, type UiIcon, Bot, Cable, Palette} from '@/components/ui/icons'
 import {useEffect, useState} from 'react'
-import {BookOpen, Bot, Download, Cable, FolderOpen, Globe, Palette, ShieldCheck, SlidersHorizontal, X, type LucideIcon} from 'lucide-react'
 import {Button} from '@/components/ui/button'
 import {cn} from '@/lib/utils'
 import {useConfigForm, useUnsavedGuard} from './form'
@@ -18,7 +18,7 @@ import {Switch} from '@/components/ui/switch'
 
 type SectionKey = 'general' | 'workspace' | 'appearance' | 'llm' | 'mcp' | 'a2a' | 'tool-policy' | 'data' | 'skills' | 'components'
 
-const SECTIONS: {key: SectionKey; label: string; icon: LucideIcon}[] = [
+const SECTIONS: {key: SectionKey; label: string; icon: UiIcon}[] = [
   {key: 'general', label: '通用', icon: SlidersHorizontal},
   {key: 'workspace', label: '工作区', icon: FolderOpen},
   {key: 'appearance', label: '外观', icon: Palette},
@@ -32,9 +32,9 @@ const SECTIONS: {key: SectionKey; label: string; icon: LucideIcon}[] = [
 ]
 
 /** 设置页：左侧切换分区；表单草稿保存在这里，切换分区不丢失 */
-export function SettingsView({onClose, onDirtyChange, onNavigate}: {onClose?: () => void; onDirtyChange?: (dirty: boolean) => void; onNavigate?: () => void | boolean} = {}) {
+export function SettingsView({onClose, onDirtyChange, onNavigate, initialSection = 'general'}: {onClose?: () => void; onDirtyChange?: (dirty: boolean) => void; onNavigate?: () => void | boolean; initialSection?: SectionKey} = {}) {
   const {enabled, setEnabled, visibility} = useDeveloperMode()
-  const [selectedSection, setActive] = useState<SectionKey>('general')
+  const [selectedSection, setActive] = useState<SectionKey>(initialSection)
   const active = selectedSection === 'llm' && !visibility.providerSettings ? 'general' : selectedSection
   const general = useConfigForm(generalFormOptions)
   const llm = useConfigForm(llmFormOptions)

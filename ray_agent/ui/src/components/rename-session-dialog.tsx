@@ -1,5 +1,5 @@
 import {useEffect, useRef, useState} from 'react'
-import {Sparkles} from 'lucide-react'
+import {Sparkles} from '@/components/ui/icons'
 import {toast} from 'sonner'
 import {Button} from '@/components/ui/button'
 import {Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle} from '@/components/ui/dialog'

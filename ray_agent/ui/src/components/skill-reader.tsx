@@ -1,5 +1,5 @@
+import {Code2, Copy, Download, FileText, Loader2, RefreshCw, FileCode2, Files} from '@/components/ui/icons'
 import {useCallback, useEffect, useRef, useState, type ReactNode} from 'react'
-import {Code2, Copy, Download, FileCode2, FileText, Files, Loader2, RefreshCw} from 'lucide-react'
 import {MarkdownContent} from '@/components/markdown-content'
 import {Button} from '@/components/ui/button'
 import {Tooltip, TooltipContent, TooltipTrigger} from '@/components/ui/tooltip'

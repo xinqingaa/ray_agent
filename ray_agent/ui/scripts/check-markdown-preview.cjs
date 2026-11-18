@@ -4,7 +4,7 @@ const root=path.resolve(__dirname,'..'),ts=require(root+'/node_modules/typescrip
 const code=ts.transpileModule(fs.readFileSync(root+'/src/components/run/file-icon.tsx','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.React}}).outputText;
 const out={};
 new Function('require','exports',code)(name=>{
- if(name==='lucide-react')return new Proxy({},{get:()=>function Icon(){return null}});
+ if(name==='@/components/ui/icons')return new Proxy({},{get:()=>function Icon(){return null}});
  throw Error(name);
 },out);
 const {previewBodyKind,previewUnavailableReason}=out;

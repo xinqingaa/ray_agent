@@ -1,5 +1,5 @@
 import type {ReactNode} from 'react'
-import {RefreshCw, X} from 'lucide-react'
+import {RefreshCw, X} from '@/components/ui/icons'
 import {IconAction} from './icon-action'
 
 /** 标题与操作属于同一固定行；滚动区由调用容器放在其后。 */

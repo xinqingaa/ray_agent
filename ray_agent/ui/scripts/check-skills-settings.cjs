@@ -36,7 +36,7 @@ function load(filename) {
   const code=ts.transpileModule(fs.readFileSync(filename,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX}}).outputText;
   new Function('require','module','exports',code)(name=>{
     if(name==='react' || name==='react/jsx-runtime')return require(name);
-    if(name==='lucide-react')return new Proxy({}, {get:()=>()=>null});
+    if(name==='@/components/ui/icons')return new Proxy({}, {get:()=>()=>null});
     if(name.startsWith('@/components/ui/'))return ui;
     if(name==='@/components/markdown-content')return {MarkdownContent:props=>React.createElement('article',{'data-markdown':props.content})};
     if(name==='@/lib/utils')return {cn:(...x)=>x.filter(Boolean).join(' '),formatFileSize:n=>`${n} B`};

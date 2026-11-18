@@ -1,5 +1,5 @@
+import {ArrowLeft, BookOpen, Check, ChevronRight, Compass, Folder, Info, Loader2, Pencil, Plus, RefreshCw, Search, Trash2, Upload, Files, Github} from '@/components/ui/icons'
 import {useCallback, useEffect, useRef, useState} from 'react'
-import {ArrowLeft, BookOpen, Check, ChevronRight, Compass, Files, Folder, Github, Info, Loader2, Pencil, Plus, RefreshCw, Search, Trash2, Upload} from 'lucide-react'
 import type {ReactNode} from 'react'
 import {Dialog, DialogContent, DialogTitle} from '@/components/ui/dialog'
 import {Tooltip, TooltipContent, TooltipTrigger} from '@/components/ui/tooltip'

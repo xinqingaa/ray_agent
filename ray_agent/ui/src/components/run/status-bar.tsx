@@ -1,5 +1,5 @@
+import {Clock3, Gauge, Repeat2, type UiIcon, Coins} from '@/components/ui/icons'
 import {useState, type ReactNode} from 'react'
-import {Clock3, Coins, Gauge, Repeat2, type LucideIcon} from 'lucide-react'
 import {cn} from '@/lib/utils'
 import type {RunView, StreamingDraft, TurnView} from '@/lib/session-view'
 import {resolveOutputRate, type OutputRate} from '@/lib/session-projection'
@@ -76,7 +76,7 @@ function RunBreakdown({run, now, liveRate, elapsed, speedNote, ended}: {
   </div>
 }
 
-function Stat({icon: Icon, title, children}: {icon: LucideIcon; title: string; children: ReactNode}) {
+function Stat({icon: Icon, title, children}: {icon: UiIcon; title: string; children: ReactNode}) {
   return <span className="inline-flex items-center gap-1" title={title}>
     <Icon aria-hidden className="size-3 shrink-0 text-faint transition-colors group-hover/stats:text-muted-foreground group-data-[state=open]/stats:text-muted-foreground"/>
     {children}

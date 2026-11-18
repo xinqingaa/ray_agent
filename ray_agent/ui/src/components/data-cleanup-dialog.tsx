@@ -1,6 +1,6 @@
 import {useCallback, useEffect, useRef, useState} from 'react'
 import {useRouter} from '@/lib/navigation'
-import {ArrowUpRight} from 'lucide-react'
+import {ArrowUpRight} from '@/components/ui/icons'
 import {IconAction} from '@/components/ui/icon-action'
 import {Button} from '@/components/ui/button'
 import {Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle} from '@/components/ui/dialog'

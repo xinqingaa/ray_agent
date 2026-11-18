@@ -1,15 +1,6 @@
-import {
-  File,
-  FileArchive,
-  FileCode,
-  FileImage,
-  FileJson,
-  FileSpreadsheet,
-  FileText,
-  type LucideIcon,
-} from 'lucide-react'
+import {File, FileText, type UiIcon, FileArchive, FileCode, FileImage, FileJson, FileSpreadsheet} from '@/components/ui/icons'
 
-const BY_EXTENSION: Record<string, LucideIcon> = {
+const BY_EXTENSION: Record<string, UiIcon> = {
   '.json': FileJson,
   '.csv': FileSpreadsheet,
   '.tsv': FileSpreadsheet,
@@ -47,7 +38,7 @@ function normalizeExt(extension: string): string {
   return lower.startsWith('.') ? lower : `.${lower}`
 }
 
-export function fileIcon(extension: string): LucideIcon {
+export function fileIcon(extension: string): UiIcon {
   return BY_EXTENSION[normalizeExt(extension)] ?? File
 }
 

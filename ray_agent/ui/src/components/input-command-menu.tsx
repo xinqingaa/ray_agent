@@ -1,6 +1,6 @@
 import {useId, useLayoutEffect, useRef, useState, type PointerEvent} from 'react'
 import {useDeveloperMode} from '@/hooks/use-developer-mode'
-import {Info, Loader2, Plus} from 'lucide-react'
+import {Info, Loader2, Plus} from '@/components/ui/icons'
 import {Button} from '@/components/ui/button'
 import {ContextRingGlyph} from '@/components/run/context-ring'
 import {commandSearchFields, matchingCommands, type CommandContext, type InputCommand} from '@/lib/commands'

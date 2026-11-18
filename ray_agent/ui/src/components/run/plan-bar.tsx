@@ -1,6 +1,6 @@
 import type {ReactNode} from 'react'
 import {useCallback, useEffect, useId, useRef, useState} from 'react'
-import {ChevronUp, Circle, CircleCheck, CircleDot, Loader2} from 'lucide-react'
+import {ChevronUp, Circle, CircleCheck, CircleDot, Loader2} from '@/components/ui/icons'
 import {cn} from '@/lib/utils'
 import type {PlanItem, PlanView, RunStatus} from '@/lib/session-view'
 

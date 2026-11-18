@@ -1,5 +1,5 @@
+import {AlertCircle, Check, Loader2, RotateCcw} from '@/components/ui/icons'
 import {useCallback, useEffect, useRef, useState, type ReactNode} from 'react'
-import {AlertCircle, Check, Loader2, RotateCcw} from 'lucide-react'
 import {toast} from 'sonner'
 import {Button} from '@/components/ui/button'
 import {Skeleton} from '@/components/ui/skeleton'

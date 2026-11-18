@@ -1,6 +1,6 @@
 import {Link} from '@/lib/navigation'
 import {useCallback, useState} from 'react'
-import {Undo2} from 'lucide-react'
+import {Undo2} from '@/components/ui/icons'
 import {Button} from '@/components/ui/button'
 import {workspaceSessionHref} from '@/lib/workspace-route'
 import {formatRelativeDate} from '@/lib/utils'

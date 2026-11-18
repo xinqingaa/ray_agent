@@ -1,5 +1,5 @@
 import {useCallback, useEffect, useRef, useState} from 'react'
-import {AlertTriangle, ChevronDown, ChevronRight} from 'lucide-react'
+import {AlertTriangle, ChevronDown, ChevronRight} from '@/components/ui/icons'
 import {Button} from '@/components/ui/button'
 import {Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle} from '@/components/ui/dialog'
 import {ScrollArea} from '@/components/ui/scroll-area'

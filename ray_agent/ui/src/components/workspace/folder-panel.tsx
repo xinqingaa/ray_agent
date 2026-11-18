@@ -1,5 +1,5 @@
-import {useEffect, useRef, useState, type DragEvent, type ReactNode} from 'react'
-import {Download, FolderSearch, FolderX, Plus, RefreshCw, ScrollText, SquareArrowOutUpRight, X} from 'lucide-react'
+import {useEffect, useImperativeHandle, useRef, useState, type DragEvent, type ReactNode, type Ref} from 'react'
+import {Download, FolderSearch, FolderX, Plus, RefreshCw, ScrollText, SquareArrowOutUpRight, X} from '@/components/ui/icons'
 import {toast} from 'sonner'
 import {Button} from '@/components/ui/button'
 import {IconAction} from '@/components/ui/icon-action'
@@ -34,7 +34,7 @@ function indexStatusText(summary: IndexSummary | null) {
   return parts.length ? parts.join(' · ') : `已登记 ${summary.total}`
 }
 
-type PanelTab = 'folder' | 'delivered' | 'recent'
+export type FolderPanelTab = 'folder' | 'delivered' | 'recent'
 
 function folderName(path: string) {
   const parts = path.split(/[\\/]/).filter(Boolean)
@@ -54,7 +54,9 @@ function describeUpload(names: Array<{asked: string; saved: string}>, failed: Ar
  * 文件夹随外部变更（工作区页的变更订阅）按受影响的目录刷新；正在预览的文件被改动时提示重新载入。
  * 有运行修改过文件夹时多一个“最近修改”页，列出这些运行并可进入撤销。
  */
-export function FolderPanel({workspace, deliveries, onClose, embedded = false, onOpenWorkingStyle, className}: {
+export type FolderPanelRef = {addFiles: (files: File[]) => void; target: string}
+
+export function FolderPanel({workspace, deliveries, onClose, embedded = false, onOpenWorkingStyle, className, selectedTab, ref}: {
   workspace: WorkspaceItem
   /** 会话里的交付文件；工作区首页没有会话，传空则不显示“本次成果” */
   deliveries?: FileView[]
@@ -64,13 +66,16 @@ export function FolderPanel({workspace, deliveries, onClose, embedded = false, o
   /** 工作区首页：打开工作方式设置 */
   onOpenWorkingStyle?: () => void
   className?: string
+  selectedTab?: FolderPanelTab
+  ref?: Ref<FolderPanelRef>
 }) {
   const folder = workspace.folder
   const condition = describeWorkspace(workspace)
-  const [tab, setTab] = useState<PanelTab>('folder')
+  const [tab, setTab] = useState<FolderPanelTab>('folder')
   const live = useWorkspaceLive()
   const titleOf = useSessionTitleLookup()
   const [opened, setOpened] = useState<PreviewSource | null>(null)
+  const [openedOn, setOpenedOn] = useState<FolderPanelTab>('folder')
   const [stale, setStale] = useState(false)
   const [revision, setRevision] = useState(0)
   const [runs, setRuns] = useState<ModifiedRun[]>([])
@@ -83,7 +88,9 @@ export function FolderPanel({workspace, deliveries, onClose, embedded = false, o
   const target = uploadTarget(selected)
   const showDelivered = deliveries != null
   const showRecent = condition.writable && runs.length > 0
-  const activeTab: PanelTab = tab === 'delivered' && showDelivered ? 'delivered' : tab === 'recent' && showRecent ? 'recent' : 'folder'
+  const activeTab: FolderPanelTab = selectedTab ?? (tab === 'delivered' && showDelivered ? 'delivered' : tab === 'recent' && showRecent ? 'recent' : 'folder')
+
+  const visiblePreview = openedOn === activeTab ? opened : null
 
   // 最近修改过文件夹的运行：随变化批次与租约的释放重读（运行结束没有单独的推送，租约释放是它的信号）
   const leaseId = live.lease?.id ?? null
@@ -113,6 +120,7 @@ export function FolderPanel({workspace, deliveries, onClose, embedded = false, o
   const open = (source: PreviewSource | null) => {
     setStale(false)
     setOpened(source)
+    if (source) setOpenedOn(activeTab)
   }
 
   const upload = async (files: File[]) => {
@@ -143,6 +151,8 @@ export function FolderPanel({workspace, deliveries, onClose, embedded = false, o
     }
   }
 
+  useImperativeHandle(ref, () => ({target, addFiles: files => {setOpened(null); void upload(files)}}))
+
   const onDrop = (event: DragEvent) => {
     event.preventDefault()
     setDragging(false)
@@ -155,7 +165,7 @@ export function FolderPanel({workspace, deliveries, onClose, embedded = false, o
   }
 
   // 在系统文件管理器中显示：预览中的文件、否则树里选中的条目、否则文件夹本身；只有桌面宿主能做到，浏览器开发模式不提供
-  const revealPath = opened ? (opened.kind === 'root' ? opened.path : null) : activeTab === 'folder' ? selected?.path ?? '' : null
+  const revealPath = visiblePreview ? (visiblePreview.kind === 'root' ? visiblePreview.path : null) : activeTab === 'folder' ? selected?.path ?? '' : null
   const revealable = isDesktop() && !!folder && condition.folderAvailable && revealPath != null
   const reveal = async () => {
     if (!folder || revealPath == null) return
@@ -169,22 +179,22 @@ export function FolderPanel({workspace, deliveries, onClose, embedded = false, o
     </div>
     {onOpenWorkingStyle && <IconAction label="工作方式" onClick={onOpenWorkingStyle} className="text-muted-foreground"><ScrollText className="size-4" aria-hidden/></IconAction>}
     {revealable && <IconAction label={`在 ${fileManagerName()} 中显示${revealPath ? '' : '文件夹'}`} onClick={() => void reveal()} className="text-muted-foreground"><SquareArrowOutUpRight className="size-4" aria-hidden/></IconAction>}
-    {condition.folderAvailable && activeTab === 'folder' && !opened && <IconAction label="刷新" onClick={reload} className="text-muted-foreground"><RefreshCw className="size-4" aria-hidden/></IconAction>}
+    {condition.folderAvailable && activeTab === 'folder' && !visiblePreview && <IconAction label="刷新" onClick={reload} className="text-muted-foreground"><RefreshCw className="size-4" aria-hidden/></IconAction>}
     {onClose && <IconAction label="收起文件夹面板" onClick={onClose} className="text-muted-foreground"><X className="size-4" aria-hidden/></IconAction>}
   </header>
 
   let body: ReactNode
-  if (opened) {
+  if (visiblePreview) {
     body = <div className="flex min-h-0 flex-1 flex-col">
       {stale && <div role="status" className="flex shrink-0 items-center gap-2 border-b bg-state-waiting-soft px-3 py-2 text-xs">
         <span className="min-w-0 flex-1">这个文件刚被修改或删除。</span>
         <Button type="button" variant="ghost" size="xs" onClick={() => {setStale(false); setRevision(value => value + 1)}}>重新载入</Button>
       </div>}
-      <div className="min-h-0 flex-1"><FilePreview key={revision} source={opened} onBack={() => open(null)}/></div>
+      <div className="min-h-0 flex-1"><FilePreview key={revision} source={visiblePreview} onBack={() => open(null)}/></div>
     </div>
   } else if (activeTab === 'delivered') {
     body = <ScrollArea className="min-h-0 flex-1"><div className="space-y-1 p-2">
-      {deliveries && deliveries.length === 0 && <p className="px-2 py-8 text-center text-meta text-muted-foreground">这个对话还没有交付文件。</p>}
+      {(!deliveries || deliveries.length === 0) && <p className="px-2 py-8 text-center text-meta text-muted-foreground">这个对话还没有交付文件。</p>}
       {deliveries?.map(file => {
         const rootId = folder?.root_id
         const inFolder = rootId && file.rootId === rootId && file.relativePath ? file.relativePath : null
@@ -203,7 +213,8 @@ export function FolderPanel({workspace, deliveries, onClose, embedded = false, o
   } else if (activeTab === 'recent') {
     body = <ScrollArea className="min-h-0 flex-1"><div className="space-y-2 p-2">
       <p className="px-1 text-xs text-muted-foreground">最近改过这个文件夹的运行与撤销操作。撤销只恢复文件内容，不改变对话；撤销也可以再撤回。</p>
-      <RecentChanges workspaceId={workspace.id} runs={runs}/>
+      {runs.length > 0 ? <RecentChanges workspaceId={workspace.id} runs={runs}/>
+        : <p className="px-2 py-6 text-center text-meta text-muted-foreground">暂无可查看的修改记录。</p>}
     </div></ScrollArea>
   } else if (!folder || !condition.folderAvailable) {
     body = <div role="status" className="flex flex-1 flex-col items-center justify-center gap-2 px-6 text-center">
@@ -247,8 +258,8 @@ export function FolderPanel({workspace, deliveries, onClose, embedded = false, o
     onDrop={onDrop}
     className={cn('relative flex min-h-0 flex-col bg-background', dragging && 'ring-2 ring-inset ring-signal', className)}>
     {header}
-    {(showDelivered || showRecent) && !opened && <div className="shrink-0 border-b px-3 py-2">
-      <SegmentedControl<PanelTab> value={activeTab} onValueChange={setTab} label="文件夹面板视图" className="w-full"
+    {!selectedTab && (showDelivered || showRecent) && !visiblePreview && <div className="shrink-0 border-b px-3 py-2">
+      <SegmentedControl<FolderPanelTab> value={activeTab} onValueChange={setTab} label="文件夹面板视图" className="w-full"
         options={[
           {value: 'folder', label: '文件夹'},
           ...(deliveries ? [{value: 'delivered' as const, label: deliveries.length ? `本次成果 ${deliveries.length}` : '本次成果'}] : []),

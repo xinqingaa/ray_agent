@@ -1,27 +1,37 @@
-import {useRef, useState, type ReactNode} from 'react'
+import {useEffect, useRef, useState, type ReactNode} from 'react'
 import {Link, useParams, useRouter} from '@/lib/navigation'
 import {Outlet, useOutletContext} from 'react-router'
 import {toast} from 'sonner'
-import {FolderOpen} from 'lucide-react'
-import {BrandMark} from '@/components/brand-mark'
+import {File, Folder, History, Layers, PanelRight} from '@/components/ui/icons'
+import {IconAction} from '@/components/ui/icon-action'
+import {SegmentedControl} from '@/components/ui/segmented-control'
+import {TopbarActions} from '@/components/sidebar-chrome'
+import {TaskInspector, TaskLayout, useTaskInspector} from '@/components/task-layout'
+import {WorkspaceList} from '@/components/workspace/workspace-list'
+import {MemoryPanel, type BackgroundMemorySummary} from '@/components/workspace/memory-panel'
+import {sessionApi} from '@/lib/api/session'
+import {useSessions} from '@/hooks/use-sessions'
+import type {FileView} from '@/lib/session-view'
+import {projectSession} from '@/lib/session-projection'
+import {formatSidebarTime} from '@/lib/utils'
 import {ChatInput, type ChatInputRef} from '@/components/chat-input'
 import {SessionDetailView} from '@/components/session-detail-view'
 import {Button} from '@/components/ui/button'
 import {Skeleton} from '@/components/ui/skeleton'
 import {WorkspaceBanners} from '@/components/workspace/workspace-banners'
 import {WorkspaceBar} from '@/components/workspace/workspace-bar'
-import {FolderPanel} from '@/components/workspace/folder-panel'
-import {WorkingStyleSettings} from '@/components/workspace/working-style-settings'
+import {FolderPanel, type FolderPanelRef, type FolderPanelTab} from '@/components/workspace/folder-panel'
+import {WorkingStyleSettings, type WorkingStyleSummary} from '@/components/workspace/working-style-settings'
 import {RunChangesBar} from '@/components/workspace/run-changes-bar'
 import {useCanonicalSessionRoute} from '@/hooks/use-canonical-session-route'
-import {useIsMobile} from '@/hooks/use-mobile'
 import {useStartTask} from '@/hooks/use-start-task'
 import {workspaceDraftScope} from '@/lib/drafts'
 import type {WorkspaceItem} from '@/lib/api/types'
 import {describeWorkspace} from '@/lib/workspace-state'
-import {workspaceSessionHref} from '@/lib/workspace-route'
+import {workspaceBackgroundHref, workspaceSessionHref} from '@/lib/workspace-route'
 import {WorkspaceLiveProvider} from '@/providers/workspace-live-provider'
 import {useWorkspace, useWorkspaces} from '@/providers/workspaces-provider'
+import {useWorkspacePending} from '@/providers/workspace-pending'
 
 function Message({title, detail, children}: {title: string; detail?: string; children?: ReactNode}) {
   return <main className="flex h-full flex-col items-center justify-center gap-3 px-6 text-center">
@@ -41,17 +51,17 @@ export function WorkspaceLayout() {
     <Skeleton className="h-6 w-48"/><Skeleton className="h-24 w-full max-w-(--reading-column)"/>
   </div>
   if (lookup.phase === 'missing') return <Message title="没有找到这个工作区" detail="它可能已被删除。绑定的文件夹和文件不受影响。">
-    <Button asChild variant="outline" size="sm"><Link href="/">回到首页</Link></Button>
+    <Button asChild variant="outline" size="sm"><Link href="/workspaces">返回工作区</Link></Button>
   </Message>
   if (lookup.phase === 'error') return <Message title="读取工作区失败" detail={lookup.message}>
     <Button variant="outline" size="sm" onClick={() => void refresh()}>重试</Button>
   </Message>
   const workspace = lookup.workspace
   if (workspace.status === 'deleting') return <Message title="这个工作区正在删除" detail="清理完成后会从列表中消失，文件夹与其中的文件不受影响。">
-    <Button asChild variant="outline" size="sm"><Link href="/">回到首页</Link></Button>
+    <Button asChild variant="outline" size="sm"><Link href="/workspaces">返回工作区</Link></Button>
   </Message>
   return <WorkspaceLiveProvider workspace={workspace}>
-    <div className="flex h-full min-h-0 flex-col">
+    <div className="workspace-surface flex h-full min-h-0 flex-col">
       <WorkspaceBar workspace={workspace}/>
       <WorkspaceBanners workspace={workspace}/>
       <div className="min-h-0 flex-1"><Outlet context={workspace}/></div>
@@ -61,43 +71,136 @@ export function WorkspaceLayout() {
 
 const useWorkspaceContext = () => useOutletContext<WorkspaceItem>()
 
-/** 工作区首页：在这个工作区里发起新对话，右侧是文件夹面板。 */
+export function WorkspaceDirectoryPage() {
+  return <main className="flex min-h-0 flex-col overflow-y-auto px-5 py-8 sm:px-9">
+    <WorkspaceList/>
+  </main>
+}
+
+export function WorkspaceBackgroundPage() {
+  const workspace = useWorkspaceContext()
+  return <WorkspaceBackgroundContent key={workspace.id} workspace={workspace}/>
+}
+
+function WorkspaceBackgroundContent({workspace}: {workspace: WorkspaceItem}) {
+  const [style, setStyle] = useState<WorkingStyleSummary | null>(null)
+  const [memory, setMemory] = useState<BackgroundMemorySummary | null>(null)
+  const {report} = useWorkspacePending()
+  const pending = style && memory ? style.pending + memory.pending : null
+
+  useEffect(() => {if (pending != null) report(pending)}, [pending, report])
+
+  return <main aria-labelledby="workspace-background-title" className="h-full min-h-0 overflow-y-auto">
+    <div className="mx-auto w-full max-w-[52rem] space-y-[30px] px-5 pt-6 pb-14 sm:px-9">
+      <header className="flex flex-wrap items-end justify-between gap-x-5 gap-y-3">
+        <div>
+          <h1 id="workspace-background-title" className="text-[22px] font-semibold tracking-tight">背景</h1>
+          <p className="mt-1 text-sm text-muted-foreground">在这个工作区开始新任务时，Agent 会先带上这些。</p>
+        </div>
+        <dl aria-label="背景概况" className="flex shrink-0 flex-wrap gap-x-4 gap-y-2 text-xs text-faint sm:gap-x-[18px]">
+          <div className="flex flex-col-reverse">
+            <dt>工作方式</dt><dd className="text-lg font-semibold text-foreground tabular-nums">{style === null ? '—' : style.version == null ? '未设置' : `v${style.version}`}</dd>
+          </div>
+          <div className="flex flex-col-reverse">
+            <dt>常驻记忆</dt><dd className="text-lg font-semibold text-foreground tabular-nums">{memory ? `${memory.resident}/${memory.limit}` : '—'}</dd>
+          </div>
+          <div className="flex flex-col-reverse">
+            <dt>待处理</dt><dd className={`text-lg font-semibold tabular-nums ${pending ? 'text-state-waiting' : 'text-foreground'}`}>{pending ?? '—'}</dd>
+          </div>
+        </dl>
+      </header>
+      <WorkingStyleSettings workspace={workspace} onSummary={setStyle}/>
+      <MemoryPanel workspace={workspace} onSummary={setMemory}/>
+    </div>
+  </main>
+}
+
+/** 工作区首页通过当前范围的会话目录展示最近活动。 */
 export function WorkspaceHomePage() {
   const workspace = useWorkspaceContext()
   const router = useRouter()
-  const isMobile = useIsMobile()
+  const {open, setOpen, floating} = useTaskInspector(true)
   const input = useRef<ChatInputRef>(null)
+  const inspectorTrigger = useRef<HTMLButtonElement>(null)
+  const folderPanel = useRef<FolderPanelRef>(null)
+  const [tab, setTab] = useState<FolderPanelTab>('folder')
   const condition = describeWorkspace(workspace)
   const scope = workspaceDraftScope(workspace.id)
   const {sending, start} = useStartTask(scope, workspace.id, sid => router.push(workspaceSessionHref(workspace.id, sid)))
-  const [styleOpen, setStyleOpen] = useState(false)
+  const {sessions, loading: sessionsLoading, error: sessionsError, refresh: refreshSessions} = useSessions()
+  const {count: pending} = useWorkspacePending()
+  const [latestFiles, setLatestFiles] = useState<FileView[]>([])
+  const recentSession = sessions[0]
 
-  return <div className="flex h-full min-h-0">
-    <main className="flex min-w-0 flex-1 flex-col items-center overflow-y-auto px-4 py-8 sm:px-6">
-      <div className="my-auto w-full max-w-(--reading-column) shrink-0 space-y-6">
-        <div className="space-y-3 text-center">
-          <div className="flex items-center justify-center gap-3">
-            <BrandMark className="size-7"/>
-            <h1 className="min-w-0 truncate text-xl font-semibold tracking-tight" dir="auto">{workspace.name}</h1>
-          </div>
-          {workspace.folder && <p className="flex items-center justify-center gap-1.5 text-meta text-muted-foreground">
-            <FolderOpen className="size-3.5 shrink-0" aria-hidden/><span className="min-w-0 break-all font-mono text-xs">{workspace.folder.path}</span>
-          </p>}
+  useEffect(() => {
+    if (!recentSession) return
+    let cancelled = false
+    void sessionApi.getSessionDetail(recentSession.session_id).then(detail => {
+      if (!cancelled) setLatestFiles(projectSession({id: recentSession.session_id, runs: detail.runs ?? [], events: detail.events ?? []}).files)
+    })
+      .catch(() => {if (!cancelled) setLatestFiles([])})
+    return () => {cancelled = true}
+  }, [recentSession])
+
+  const delivery = latestFiles.find(file => file.source === 'delivery')
+
+  return <>
+    <TopbarActions><IconAction ref={inspectorTrigger} label={open ? '收起右侧面板' : '打开右侧面板'}
+      aria-expanded={open} className="topbar-action" onClick={() => setOpen(!open)}><PanelRight/></IconAction></TopbarActions>
+    <TaskLayout attach={condition.archived || sending ? undefined : files => input.current?.addFiles(files)}
+      addToFolder={condition.writable ? files => {
+        folderPanel.current?.addFiles(files)
+        setTab('folder')
+        setOpen(true)
+      } : undefined}
+      inspector={<TaskInspector open={open} onClose={() => setOpen(false)} floating={floating} label="右侧面板" triggerRef={inspectorTrigger}>
+        <div className="flex h-12 shrink-0 items-center justify-between px-3">
+          <SegmentedControl value={tab} appearance="icons" label="右侧面板内容" onValueChange={setTab} options={[
+            {value: 'folder', label: '文件夹', icon: Folder}, {value: 'recent', label: '修改', icon: History},
+          ]}/>
+          <IconAction label="收起右侧面板" onClick={() => {setOpen(false); inspectorTrigger.current?.focus()}}><PanelRight/></IconAction>
         </div>
-        {condition.archived
-          ? <p role="status" className="rounded-lg border bg-muted/40 px-3.5 py-3 text-center text-sm text-muted-foreground">工作区已归档，不能发起新对话。取消归档后可以继续。</p>
-          : <ChatInput ref={input} autoFocus draftScope={scope} onSend={start} disabled={sending}
-              placeholder="在这个工作区里描述你想完成的事"
-              commandHost={{
-                hasSession: false, hasRuns: false, runStatus: 'idle', waitingApproval: false, waitingReply: false,
-                submitting: sending, compacting: false,
-                actions: {compact: () => toast.message('还没有可压缩的上下文')},
-              }}/>}
-      </div>
-    </main>
-    {!isMobile && <FolderPanel workspace={workspace} onOpenWorkingStyle={() => setStyleOpen(true)} className="w-80 shrink-0 border-l"/>}
-    <WorkingStyleSettings workspace={workspace} open={styleOpen} onOpenChange={setStyleOpen}/>
-  </div>
+        <FolderPanel ref={folderPanel} workspace={workspace} selectedTab={tab} embedded className="min-h-0 flex-1"/>
+      </TaskInspector>}>
+      <main className="flex min-h-0 flex-1 flex-col items-center overflow-y-auto px-4 py-10 sm:px-6">
+        <div className="my-auto w-full max-w-(--reading-column) shrink-0 space-y-5">
+          <div className="space-y-1.5 text-center">
+            <h1 className="text-[clamp(1.5rem,3vw,2.1rem)] font-semibold tracking-tight" dir="auto">{workspace.name}</h1>
+            {workspace.folder && <p className="break-all font-mono text-xs text-muted-foreground">{workspace.folder.path}</p>}
+          </div>
+          {condition.archived
+            ? <p role="status" className="rounded-lg bg-muted px-3.5 py-3 text-center text-sm text-muted-foreground">工作区已归档，不能发起新对话。取消归档后可以继续。</p>
+            : <ChatInput ref={input} autoFocus draftScope={scope} onSend={start} disabled={sending}
+                placeholder={`在${workspace.name}里开始一个任务`}
+                commandHost={{
+                  hasSession: false, hasRuns: false, runStatus: 'idle', waitingApproval: false, waitingReply: false,
+                  submitting: sending, compacting: false,
+                  actions: {compact: () => toast.message('还没有可压缩的上下文')},
+                }}/>}
+          {((pending ?? 0) > 0 || delivery) && <div className="flex flex-wrap items-center justify-center gap-2">
+            {pending != null && pending > 0 && <Link href={workspaceBackgroundHref(workspace.id)} className="home-shortcut">
+              <Layers/>背景有 {pending} 项待处理</Link>}
+            {delivery && recentSession && <Link href={`${workspaceSessionHref(workspace.id, recentSession.session_id)}?delivery=${encodeURIComponent(delivery.id)}`} className="home-shortcut" title="查看交付版本">
+              <File/>{delivery.filename}</Link>}
+          </div>}
+          <section aria-labelledby="workspace-recent" className="mx-auto max-w-lg">
+            <h2 id="workspace-recent" className="px-2 pb-1 text-xs text-faint">最近对话</h2>
+            {sessionsError && <div role="alert" className="flex items-center gap-2 px-2 text-xs text-state-failed">
+              {sessionsError}<Button size="xs" variant="ghost" onClick={() => void refreshSessions()}>重试</Button>
+            </div>}
+            {!sessions.length && !sessionsError && <p className="px-2 pb-1 text-xs text-muted-foreground">
+              {sessionsLoading ? '正在读取对话…' : '还没有对话'}
+            </p>}
+            {sessions.slice(0, 5).map(session => <Link key={session.session_id} href={workspaceSessionHref(workspace.id, session.session_id)}
+              className="workspace-directory-row text-muted-foreground">
+              <span className="min-w-0 flex-1 truncate">{session.title || '新对话'}</span>
+              <span className="shrink-0 text-xs text-faint tabular-nums">{formatSidebarTime(session.latest_message_at)}</span>
+            </Link>)}
+          </section>
+        </div>
+      </main>
+    </TaskLayout>
+  </>
 }
 
 /** 工作区里的会话：复用会话视图，右侧面板在文件夹与工作台之间切换；运行结束条带撤销入口。 */

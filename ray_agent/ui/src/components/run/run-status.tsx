@@ -1,5 +1,5 @@
+import {CirclePause, CircleX, Loader2, type UiIcon, ShieldQuestion, Unplug} from '@/components/ui/icons'
 import type {ReactNode} from 'react'
-import {CirclePause, CircleX, Loader2, type LucideIcon, ShieldQuestion, Unplug} from 'lucide-react'
 import {cn} from '@/lib/utils'
 import type {SessionStatus} from '@/lib/api/types'
 import type {Activity, RunStatus as RunState} from '@/lib/session-view'
@@ -101,7 +101,7 @@ function timelineSentence(input: TimelineProps): string | null {
 }
 
 /** 侧栏状态：需要处理或正在进行的状态用图标占住时间位，未查看的完成在时间前加圆点；词只进提示和读屏。 */
-type SidebarMark = {label: string; icon?: LucideIcon; spin?: boolean; dot?: boolean; tone?: string}
+type SidebarMark = {label: string; icon?: UiIcon; spin?: boolean; dot?: boolean; tone?: string}
 
 function sidebarMark(status: SessionStatus, waitKind: WaitKind | null, compacting: boolean, unread: boolean): SidebarMark {
   if (compacting) return {label: TEXT.compactingShort, icon: Loader2, spin: true, tone: TONE_TEXT.running}

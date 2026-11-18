@@ -2,9 +2,9 @@ import type {PlanAcceptance, WorkspaceItem} from '@/lib/api/types'
 
 import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode} from 'react'
 import {toast} from 'sonner'
-import {ArrowDown, Code2, Folder, MessageCircle, PanelRight, Pencil} from 'lucide-react'
+import {ArrowDown, Code2, Eye, Folder, History, Inbox, MessageCircle, PanelRight, Pencil} from '@/components/ui/icons'
 import {SegmentedControl} from '@/components/ui/segmented-control'
-import {ChatInput} from '@/components/chat-input'
+import {ChatInput, type ChatInputRef} from '@/components/chat-input'
 import {RenameSessionDialog} from '@/components/rename-session-dialog'
 import {DeveloperView} from '@/components/developer/developer-view'
 import {ContextRing} from '@/components/run/context-ring'
@@ -18,22 +18,18 @@ import {downloadFileBatch, isWebPage, openPreviewTab} from '@/lib/api/preview'
 import {FilePreviewDialog} from '@/components/preview/file-preview-dialog'
 import {downloadSessionFile, tabForFamily, Workbench, type WorkbenchTab} from '@/components/workbench/workbench'
 import {describeWorkspace} from '@/lib/workspace-state'
-import {FolderPanel} from '@/components/workspace/folder-panel'
-import {useWorkbenchWidth, WorkbenchResizeHandle} from '@/components/workbench/resize-handle'
+import {FolderPanel, type FolderPanelRef, type FolderPanelTab} from '@/components/workspace/folder-panel'
+import {TaskInspector, TaskLayout, useTaskInspector} from '@/components/task-layout'
+import {TopbarActions, TopbarTitle} from '@/components/sidebar-chrome'
+import {FilePreview} from '@/components/preview/file-preview'
+import {FileRow} from '@/components/preview/file-row'
+import {RunMemoryNotice} from '@/components/run/run-memory-notice'
+import {useLocation} from 'react-router'
 import {cn} from '@/lib/utils'
-import {Button} from '@/components/ui/button'
 import {Switch} from '@/components/ui/switch'
 import {IconAction} from '@/components/ui/icon-action'
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from '@/components/ui/sheet'
 import {useSessionDetail} from '@/hooks/use-session-detail'
 import {useSessions} from '@/hooks/use-sessions'
-import {useIsMobile} from '@/hooks/use-mobile'
 import {useDeveloperMode} from '@/hooks/use-developer-mode'
 import {memoryApi} from '@/lib/api/memory'
 import {sessionApi} from '@/lib/api/session'
@@ -94,7 +90,9 @@ export function SessionDetailView({
   runFooter,
 }: SessionDetailViewProps) {
   const {visibility} = useDeveloperMode()
-  const isMobile = useIsMobile()
+  const {hash, search} = useLocation()
+  const locatedDelivery = useRef('')
+  const locatedSource = useRef('')
   const {sessions, patchSession, setCompactingSessionId, setWaitKind} = useSessions()
   const {
     session,
@@ -124,11 +122,12 @@ export function SessionDetailView({
   const mode = visibility.developerView ? selectedMode : 'conversation'
   const [developerVisited, setDeveloperVisited] = useState(false)
   const [pinnedCallId, setPinnedCallId] = useState<string | null>(null)
-  const [workbenchOpen, setWorkbenchOpen] = useState(() => workspace != null && window.innerWidth >= 1024)
-  const [workbenchRendered, setWorkbenchRendered] = useState(false)
-  const [panelView, setPanelView] = useState<'folder' | 'workbench'>('folder')
-  const [draggingWorkbench, setDraggingWorkbench] = useState(false)
-  const workbenchWidth = useWorkbenchWidth()
+  const {open: workbenchOpen, setOpen: setWorkbenchOpen, floating: inspectorFloating} = useTaskInspector(workspace != null)
+  const [panelView, setPanelView] = useState<FolderPanelTab | 'workbench'>(workspace ? 'folder' : 'workbench')
+  const [inspectorFile, setInspectorFile] = useState<FileView | null>(null)
+  const inspectorTrigger = useRef<HTMLButtonElement>(null)
+  const folderPanel = useRef<FolderPanelRef>(null)
+  const composer = useRef<ChatInputRef>(null)
   const [renameOpen, setRenameOpen] = useState(false)
   const [renamedTitle, setRenamedTitle] = useState<{sessionId: string; title: string; previousTitle: string} | null>(null)
   const [tab, setTab] = useState<WorkbenchTab>('files')
@@ -222,14 +221,6 @@ export function SessionDetailView({
     setCompactAnchor(latestCompactionId(view?.timeline))
   }, [compacting, view?.timeline])
 
-  useEffect(() => {
-    if (workbenchOpen) {
-      const frame = window.requestAnimationFrame(() => setWorkbenchRendered(true))
-      return () => window.cancelAnimationFrame(frame)
-    }
-    const timeout = window.setTimeout(() => setWorkbenchRendered(false), 230)
-    return () => window.clearTimeout(timeout)
-  }, [workbenchOpen])
 
   const calls = useMemo(() => collectCalls(view?.timeline ?? []), [view])
   const pendingApprovals = useMemo(() => pendingApprovalIds(view?.timeline ?? []), [view])
@@ -253,13 +244,12 @@ export function SessionDetailView({
 
 
 
+  const participation = session?.participate_in_memory
+  const scopedSessionId = session?.session_id
+  const workspaceId = workspace?.id
   useEffect(() => {
-    memoryToastSeq.current.clear()
-    if (workspace) {
-      const flag = (session as {participate_in_memory?: boolean} | null)?.participate_in_memory
-      setParticipateInMemory(flag !== false)
-    }
-  }, [sessionId, workspace, session?.session_id])
+    if (workspaceId && scopedSessionId === sessionId) setParticipateInMemory(participation !== false)
+  }, [sessionId, scopedSessionId, workspaceId, participation])
 
   useEffect(() => {
     if (!workspace) return
@@ -450,6 +440,45 @@ export function SessionDetailView({
     }
   }, [])
 
+  const finishedSequences = useMemo(() => {
+    const found = new Map<string, number>()
+    for (const event of view?.events ?? []) {
+      if (event.type === 'run' && event.runId && event.payload.status === 'completed') found.set(event.runId, event.seq)
+    }
+    return found
+  }, [view?.events])
+  const latestCompletedId = view?.runs.filter(run => run.status === 'completed').at(-1)?.id
+
+  useEffect(() => {
+    if (!hash) {locatedSource.current = ''; return}
+    if (hash === locatedSource.current || mode !== 'conversation') return
+    const match = /^#event-(\d+)$/.exec(hash)
+    if (!match) return
+    const runId = view?.events.find(event => event.seq === Number(match[1]))?.runId
+    const node = runId ? document.getElementById(`reply-${runId}`) : null
+    if (!node) return
+    locatedSource.current = hash
+    stickRef.current = false
+    node.scrollIntoView({block: 'start'})
+  }, [hash, mode, view?.events])
+
+  useEffect(() => {
+    const fileId = new URLSearchParams(search).get('delivery')
+    if (!fileId) {locatedDelivery.current = ''; return}
+    if (fileId === locatedDelivery.current) return
+    const file = view?.files.find(item => item.id === fileId && item.source === 'delivery')
+    if (!file) return
+    locatedDelivery.current = fileId
+    if (isWebPage(file.filename)) {
+      void openPreviewTab({kind: 'attachment', id: file.id, filename: file.filename, size: file.size})
+        .catch(error => toast.error(error instanceof Error ? error.message : '打开失败'))
+    } else {
+      setInspectorFile(file)
+      setPanelView('workbench')
+      setWorkbenchOpen(true)
+    }
+  }, [search, setWorkbenchOpen, view?.files])
+
   const packingFiles = useRef(false)
   const downloadAll = useCallback(async (files: FileView[]) => {
     if(packingFiles.current)return
@@ -466,11 +495,16 @@ export function SessionDetailView({
       setInspectingFile(false)
       setPinnedCallId(callId)
       setPanelView('workbench')
+      setInspectorFile(null)
       setWorkbenchOpen(true)
     },
     onPreviewFile: (file) => {
       if (isWebPage(file.filename)) void openPreviewTab({kind: 'attachment', id: file.id, filename: file.filename, size: file.size}).catch(error => toast.error(error instanceof Error ? error.message : '打开失败'))
-      else setPreviewedFile(file)
+      else if (file.source === 'delivery') {
+        setInspectorFile(file)
+        setPanelView('workbench')
+        setWorkbenchOpen(true)
+      } else setPreviewedFile(file)
     },
     onDownloadFile: (file) => {
       void downloadOne(file)
@@ -502,7 +536,14 @@ export function SessionDetailView({
     onReject: (callId) => void handleApproval(callId, 'reject'),
     approvalSubmitting,
     showRunReferences: workspace != null,
-  }), [view?.id, view?.runs, view?.timeline, focus?.callId, view?.activeRun, view?.streamingItemId, submitting, retrying, hiddenRunIds, hiddenUserIds, sessionId, workspace, downloadOne, downloadAll, deliver, handleApproval, approvalSubmitting])
+    workspaceId: workspace?.id,
+    renderMemoryNotice: runId => {
+      const sequence = finishedSequences.get(runId)
+      return workspace && runId === latestCompletedId && sequence != null
+        ? <RunMemoryNotice key={runId} workspaceId={workspace.id} sessionId={sessionId} sequence={sequence} follow/>
+        : null
+    },
+  }), [view?.id, view?.runs, view?.timeline, focus?.callId, view?.activeRun, view?.streamingItemId, submitting, retrying, hiddenRunIds, hiddenUserIds, sessionId, workspace, downloadOne, downloadAll, deliver, handleApproval, approvalSubmitting, finishedSequences, latestCompletedId, setWorkbenchOpen])
 
   const toggleParticipate = useCallback(async (participate: boolean) => {
     if (!workspace || participateBusy) return
@@ -605,7 +646,7 @@ export function SessionDetailView({
 
   const workbench = (
     <Workbench
-      active={workbenchOpen && (workspace == null || panelView === 'workbench')}
+      active={workbenchOpen && panelView === 'workbench' && inspectorFile == null}
       sessionId={sessionId}
       focus={focus}
       following={following}
@@ -617,60 +658,69 @@ export function SessionDetailView({
       onInspectFile={() => {setInspectingFile(true);setInspectedAtCallId(latest?.callId ?? null)}}
       canFollowLatest={!!latest && (inspectingFile ? latest.callId !== inspectedAtCallId : pin !== latest.callId)}
       onFollowLatest={() => {setPinnedCallId(null);setInspectingFile(false);if(latest)setTab(tabForFamily(latest.family))}}
-      onClose={workspace ? undefined : () => setWorkbenchOpen(false)}
-      className={isMobile && !workspace ? undefined : 'h-full w-full'}
+      className="h-full w-full"
     />
   )
-  // 工作区会话：两块内容都保持挂载，切换只改显示，文件夹里的展开与预览不会因看了工具详情而丢失
-  const panel = workspace ? (
-    <div className={cn('flex min-h-0 flex-col bg-background', isMobile ? 'h-full' : 'h-full w-full')}>
-      <div className="flex h-12 shrink-0 items-center gap-2 border-b px-3">
-        <SegmentedControl<'folder' | 'workbench'> value={panelView} onValueChange={setPanelView} label="右侧面板内容" className="min-w-0 flex-1"
-          options={[{value: 'folder', label: '文件夹'}, {value: 'workbench', label: visibility.developerView ? '工作台' : '查看'}]}/>
-        <IconAction label="收起右侧面板" onClick={() => setWorkbenchOpen(false)} className="text-muted-foreground"><PanelRight className="size-4" aria-hidden/></IconAction>
-      </div>
-      <div className={cn('min-h-0 flex-1 flex-col', panelView === 'folder' ? 'flex' : 'hidden')}>
-        <FolderPanel workspace={workspace} embedded deliveries={view.files.filter(file => file.source === 'delivery')} className="h-full w-full"/>
-      </div>
-      <div className={cn('min-h-0 flex-1 flex-col', panelView === 'workbench' ? 'flex' : 'hidden')}>{workbench}</div>
+  const deliveries = view.files.filter(file => file.source === 'delivery')
+  const panel = <div className="flex h-full min-h-0 flex-col">
+    <div className="flex h-12 shrink-0 items-center justify-between gap-1 px-3">
+      <SegmentedControl<FolderPanelTab | 'workbench'> value={panelView} appearance="icons"
+        onValueChange={next => {setInspectorFile(null); setPanelView(next)}} label="右侧面板内容"
+        options={[
+          ...(workspace ? [{value: 'folder' as const, label: '文件夹', icon: Folder}] : []),
+          {value: 'delivered', label: '成果', icon: Inbox},
+          {value: 'workbench', label: '查看', icon: Eye},
+          ...(workspace ? [{value: 'recent' as const, label: '修改', icon: History}] : []),
+        ]}/>
+      <IconAction label="收起右侧面板" onClick={() => {setWorkbenchOpen(false); inspectorTrigger.current?.focus()}}><PanelRight/></IconAction>
     </div>
-  ) : workbench
+    {workspace && <div className={cn('min-h-0 flex-1', panelView === 'workbench' && 'hidden')}>
+      <FolderPanel ref={folderPanel} workspace={workspace} embedded selectedTab={panelView === 'workbench' ? 'folder' : panelView}
+        deliveries={deliveries} className="h-full w-full"/>
+    </div>}
+    {!workspace && panelView === 'delivered' && <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-3">
+      {deliveries.length ? deliveries.map(file => <FileRow key={file.id} file={file} onOpen={() => handlers.onPreviewFile?.(file)}/>)
+        : <p className="py-8 text-center text-meta text-muted-foreground">这个对话还没有交付文件。</p>}
+    </div>}
+    {inspectorFile && panelView === 'workbench' && <div className="min-h-0 flex-1">
+      <FilePreview source={{kind: 'attachment', id: inspectorFile.id, filename: inspectorFile.filename, size: inspectorFile.size}}
+        onBack={() => {setInspectorFile(null); setPanelView('delivered')}}/>
+    </div>}
+    <div className={cn('min-h-0 flex-1', (panelView !== 'workbench' || inspectorFile) && 'hidden')}>{workbench}</div>
+  </div>
   const workspaceState = workspace ? describeWorkspace(workspace) : null
   const readOnlyReason = workspaceState?.deleting ? '工作区正在删除，对话不可再发送。' : workspaceState?.archived ? '工作区已归档，对话为只读。取消归档后可以继续。' : null
   const panelName = workspace ? '右侧面板' : visibility.developerView ? '工作台' : '查看面板'
 
   return (
     <>
-      <div className="flex h-full min-h-0 w-full overflow-hidden">
-        <div className="flex min-w-0 flex-1 flex-col">
-          <header className="flex h-12 shrink-0 items-center gap-2 border-b px-3">
-            <div className="flex min-w-0 flex-1 flex-col gap-0.5 sm:flex-row sm:items-center sm:gap-1">
-              <div className="flex min-w-0 items-center gap-1">
-              <h1 className="min-w-0 truncate text-sm font-medium" title={displayTitle}>{displayTitle}</h1>
-              <Button type="button" variant="ghost" size="icon-xs" className="size-7 shrink-0 text-muted-foreground"
-                title="重命名会话" aria-label="重命名会话" onClick={() => setRenameOpen(true)}>
-                <Pencil className="size-3.5"/>
-              </Button>
-              <RunStatus place="headline" status={run?.status} outcome={run?.outcome} compacting={compacting}/>
-              </div>
-            </div>
-            {workspace && (
-              <label className="hidden items-center gap-1.5 text-xs text-muted-foreground sm:flex" title="关闭后不再从此对话提炼记忆">
+      <TopbarTitle><span title={displayTitle}>{displayTitle}</span></TopbarTitle>
+      <TopbarActions>
+        <IconAction label="重命名会话" className="topbar-action" onClick={() => setRenameOpen(true)}><Pencil/></IconAction>
+        <IconAction ref={inspectorTrigger} label={workbenchOpen ? `收起${panelName}` : `打开${panelName}`}
+          aria-expanded={workbenchOpen} className="topbar-action" onClick={() => setWorkbenchOpen(!workbenchOpen)}><PanelRight/></IconAction>
+      </TopbarActions>
+      <TaskLayout
+        attach={readOnlyReason || mode !== 'conversation' || waitingApproval || submitting ? undefined : files => composer.current?.addFiles(files)}
+        addToFolder={!workspaceState?.writable || mode !== 'conversation' ? undefined : files => {
+          folderPanel.current?.addFiles(files)
+          setPanelView('folder')
+          setWorkbenchOpen(true)
+        }}
+        inspector={<TaskInspector open={workbenchOpen} onClose={() => setWorkbenchOpen(false)} label={panelName}
+          floating={inspectorFloating} belowSessionMode={visibility.developerView} triggerRef={inspectorTrigger}>{panel}</TaskInspector>}>
+          <header className="flex min-h-12 shrink-0 items-center gap-2 px-4 py-1.5">
+            <h1 className="sr-only">{displayTitle}</h1>
+            <div className="mr-auto">
+              {workspace && <label className="flex items-center gap-1.5 text-xs text-muted-foreground" title="关闭后不再从此对话提炼记忆">
                 <span>参与记忆</span>
                 <Switch size="sm" checked={participateInMemory} disabled={participateBusy} onCheckedChange={checked => void toggleParticipate(checked)} aria-label="参与记忆"/>
-              </label>
-            )}
+              </label>}
+            </div>
             {visibility.developerView && <SegmentedControl value={mode} idPrefix="session-mode" label="会话视图" options={[
               {value: 'conversation', label: '聊天', icon: MessageCircle},
               {value: 'developer', label: '日志', icon: Code2},
             ]} onValueChange={next => {setMode(next); if (next === 'developer') setDeveloperVisited(true)}}/>}
-            <PlanListDialog key={sessionId} plans={view.planHistory ?? []} runs={view.runs} panelWidth={planPanelWidth}/>
-            {!workbenchOpen && (
-              <Button type="button" variant="ghost" size="icon-xs" className="size-7 shrink-0"
-                title={`打开${panelName}`} aria-label={`打开${panelName}`} onClick={() => setWorkbenchOpen(true)}>
-                {workspace ? <Folder className="size-4"/> : <PanelRight className="size-4"/>}
-              </Button>
-            )}
           </header>
 
           <div className="min-h-0 flex-1 overflow-hidden">
@@ -698,7 +748,7 @@ export function SessionDetailView({
                       }}/>}
                   </div>
                 </div>
-                <div hidden={mode !== 'conversation'} className="relative shrink-0 border-t bg-background px-3 py-3">
+                <div hidden={mode !== 'conversation'} className="relative shrink-0 bg-background px-3 pt-2 pb-5">
                   {mode === 'conversation' && awayFromBottom && <div className="absolute -top-12 inset-x-0 flex justify-center pointer-events-none">
                     <IconAction label="回到底部" variant="outline" className="pointer-events-auto rounded-full bg-card shadow-sm" onClick={() => {
                       stickRef.current = true
@@ -708,11 +758,15 @@ export function SessionDetailView({
                     }}><ArrowDown className="size-4" aria-hidden/></IconAction>
                   </div>}
                   <div ref={setPlanColumn} className="mx-auto w-full max-w-(--reading-column)">
-                    {mode === 'conversation' && planBarState && (
-                      <PlanBar plan={view.plan} runStatus={view.activeRun?.status ?? null} proposal={planBarState === 'proposal'} className="mb-2"/>
-                    )}
+                    {mode === 'conversation' && <div className="mb-2 flex items-center justify-end gap-1.5">
+                      {planBarState && <PlanBar plan={view.plan} runStatus={view.activeRun?.status ?? null}
+                        proposal={planBarState === 'proposal'} className="min-w-0 flex-1"/>}
+                      {(view.planHistory?.length ?? 0) > 0 &&
+                        <PlanListDialog key={sessionId} plans={view.planHistory ?? []} runs={view.runs} panelWidth={planPanelWidth}/>}
+                    </div>}
                     {readOnlyReason ? <p role="status" className="rounded-lg border bg-muted/40 px-3.5 py-3 text-center text-sm text-muted-foreground">{readOnlyReason}</p> : (
                     <ChatInput
+                      ref={composer}
                       sessionId={sessionId}
                       onSend={handleSend}
                       pause={pauseMode}
@@ -741,33 +795,11 @@ export function SessionDetailView({
                 </div>
               </div>
               <div ref={developerScrollRef} onScroll={() => {if (mode === 'developer' && developerScrollRef.current) scrollPositions.current.developer = developerScrollRef.current.scrollTop}} id="session-mode-panel-developer" role="tabpanel" aria-label="日志" aria-labelledby="session-mode-developer" aria-hidden={mode !== 'developer'} inert={mode !== 'developer'} className="h-full w-1/2 shrink-0 overflow-y-auto">
-                {developerVisited && <DeveloperView view={view} loadTurnRequest={loadTurnRequest} className="mx-auto w-full max-w-(--reading-column)"/>}
+                {developerVisited && <DeveloperView view={view} loadTurnRequest={loadTurnRequest} onOpenCall={handlers.onOpenCall} className="mx-auto w-full max-w-(--reading-column)"/>}
               </div>
             </div>
           </div>
-        </div>
-
-        {!isMobile && (
-          <div aria-hidden={!workbenchOpen} inert={!workbenchOpen}
-            className={cn('relative h-full shrink-0 overflow-hidden', workbenchOpen && 'border-l', draggingWorkbench ? 'transition-none' : 'transition-[width] duration-[220ms] ease-in-out motion-reduce:transition-none')}
-            style={{width: workbenchOpen ? workbenchWidth.width : 0}}>
-            {(workbenchOpen || workbenchRendered) && panel}
-            {workbenchOpen && <WorkbenchResizeHandle width={workbenchWidth.width} min={workbenchWidth.min} max={workbenchWidth.max} onWidth={workbenchWidth.setWidth} onReset={workbenchWidth.reset} onDragging={setDraggingWorkbench} label={workspace ? '调整右侧面板宽度' : undefined}/>}
-          </div>
-        )}
-      </div>
-
-      {isMobile && (
-        <Sheet open={workbenchOpen} onOpenChange={setWorkbenchOpen}>
-          <SheetContent side="right" className="w-full gap-0 p-0 sm:max-w-md data-[state=closed]:duration-[220ms] data-[state=open]:duration-[220ms]" showCloseButton={false}>
-            <SheetHeader className="sr-only">
-              <SheetTitle>{workspace ? '文件夹与工作台' : '操作详情'}</SheetTitle>
-              <SheetDescription>{workspace ? '查看文件夹内容、本次成果，或切换到工作台查看工具结果、终端与浏览器' : '查看工具结果、终端、浏览器和文件'}</SheetDescription>
-            </SheetHeader>
-            {panel}
-          </SheetContent>
-        </Sheet>
-      )}
+      </TaskLayout>
 
       <FilePreviewDialog file={previewedFile} onClose={() => setPreviewedFile(null)} onDownload={file => void downloadOne(file)}/>
 

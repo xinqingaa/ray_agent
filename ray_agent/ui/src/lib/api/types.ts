@@ -488,6 +488,9 @@ export type UndoItemResult = Schemas["UndoItemResult"];
 // ==================== 工作方式与记忆（P5） ====================
 
 export type InstructionView = Schemas["InstructionView"];
+export type InstructionHistory = Schemas["InstructionHistory"];
+export type InstructionVersionView = Schemas["InstructionVersionView"];
+export type AcceptInstructionProposalRequest = Schemas["AcceptInstructionProposalRequest"];
 export type InstructionProposalView = Schemas["InstructionProposalView"];
 export type InstructionSource = Schemas["InstructionSource"];
 export type UpdateInstructionRequest = Schemas["UpdateInstructionRequest"];
@@ -503,6 +506,7 @@ export type MemoryCertainty = Schemas["MemoryCertainty"];
 export type CreateMemoryRequest = Schemas["CreateMemoryRequest"];
 export type PatchMemoryRequest = Schemas["PatchMemoryRequest"];
 export type MemorySourcesResponse = Schemas["MemorySourcesResponse"];
+export type MemoryExtractionView = Schemas["MemoryExtractionView"];
 export type MemorySourceView = Schemas["MemorySourceView"];
 export type ParticipateInMemoryResponse = Schemas["ParticipateInMemoryResponse"];
 

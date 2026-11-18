@@ -1,5 +1,5 @@
 import {useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react'
-import {Check, ChevronDown} from 'lucide-react'
+import {Check, ChevronDown} from '@/components/ui/icons'
 import {configApi} from '@/lib/api/config'
 import {sessionApi} from '@/lib/api/session'
 import type {ModelCatalog} from '@/lib/api/types'

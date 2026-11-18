@@ -1,5 +1,5 @@
+import {Undo2, FileSearch} from '@/components/ui/icons'
 import {useCallback, useEffect, useState} from 'react'
-import {Undo2, FileSearch} from 'lucide-react'
 import {Button} from '@/components/ui/button'
 import {historyApi} from '@/lib/api/workspace'
 import type {RunChanges, ShellChanges, WorkspaceItem} from '@/lib/api/types'

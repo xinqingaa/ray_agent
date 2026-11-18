@@ -1,35 +1,62 @@
-import {useEffect, useState} from 'react'
-import {Loader2} from 'lucide-react'
+import {useCallback, useEffect, useRef, useState} from 'react'
+import {History, Loader2, Pencil, Wand} from '@/components/ui/icons'
 import {toast} from 'sonner'
 import {Button} from '@/components/ui/button'
 import {Input} from '@/components/ui/input'
-import {ScrollArea} from '@/components/ui/scroll-area'
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from '@/components/ui/sheet'
-import {Switch} from '@/components/ui/switch'
+import {Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle} from '@/components/ui/dialog'
+import {MarkdownContent} from '@/components/markdown-content'
+import {useUnsavedNavigation} from '@/hooks/use-unsaved-navigation'
+import {IconAction} from '@/components/ui/icon-action'
+import {useSessionTitleLookup} from '@/hooks/use-session-title'
+import {parseEventTime} from '@/lib/utils'
 import {Textarea} from '@/components/ui/textarea'
 import {instructionApi} from '@/lib/api/instruction'
 import {ApiError} from '@/lib/api/fetch'
-import type {InstructionProposalView, InstructionView, TemplateView, WorkspaceItem} from '@/lib/api/types'
+import type {InstructionProposalView, InstructionVersionView, InstructionView, TemplateView, WorkspaceItem} from '@/lib/api/types'
 import {reportWorkspaceError} from '@/lib/workspace-mutation'
 import {describeWorkspace} from '@/lib/workspace-state'
 import {useWorkspaces} from '@/providers/workspaces-provider'
 
-export function WorkingStyleSettings({workspace, open, onOpenChange}: {
+const CHANGE_SOURCE = {user_edit: '你编辑', confirmed_proposal: '采纳建议', template: '应用模板'} as const
+
+function DocumentChange({before, after}: {before: string; after: string}) {
+  const original = Array.from(before)
+  const updated = Array.from(after)
+  let start = 0
+  let end = 0
+  while (start < original.length && start < updated.length && original[start] === updated[start]) start += 1
+  while (end < original.length - start && end < updated.length - start && original.at(-1 - end) === updated.at(-1 - end)) end += 1
+  const removed = original.slice(start, original.length - end).join('')
+  const added = updated.slice(start, updated.length - end).join('')
+  const leading = original.slice(0, start).join('')
+  const trailing = end ? original.slice(-end).join('') : ''
+  return <div className="background-diff">
+    {leading}{removed && <del>{removed}</del>}{added && <ins>{added}</ins>}{trailing}
+  </div>
+}
+
+export type WorkingStyleSummary = {version: number | null; pending: number}
+
+export function WorkingStyleSettings({workspace, onSummary}: {
   workspace: WorkspaceItem
-  open: boolean
-  onOpenChange: (open: boolean) => void
+  onSummary: (summary: WorkingStyleSummary) => void
 }) {
-  const {upsert, refresh} = useWorkspaces()
+  const {refresh} = useWorkspaces()
+  const titleOf = useSessionTitleLookup()
   const condition = describeWorkspace(workspace)
   const readonly = condition.archived || condition.deleting
   const [loading, setLoading] = useState(false)
   const [saving, setSaving] = useState(false)
+  const [editing, setEditing] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [editedProposal, setEditedProposal] = useState<{id: string; body: string} | null>(null)
+  const [historyOpen, setHistoryOpen] = useState(false)
+  const [historyLoading, setHistoryLoading] = useState(false)
+  const [historyError, setHistoryError] = useState<string | null>(null)
+  const [versions, setVersions] = useState<InstructionVersionView[]>([])
+  const [selectedVersion, setSelectedVersion] = useState<number | null>(null)
+  const [nextBefore, setNextBefore] = useState<number | null>(null)
+  const requestVersion = useRef(0)
   const [instruction, setInstruction] = useState<InstructionView | null>(null)
   const [body, setBody] = useState('')
   const [proposals, setProposals] = useState<InstructionProposalView[]>([])
@@ -37,63 +64,92 @@ export function WorkingStyleSettings({workspace, open, onOpenChange}: {
   const [templateName, setTemplateName] = useState('')
   const [proposalBusy, setProposalBusy] = useState<string | null>(null)
 
-  const autoMemory = workspace.auto_memory_enabled === true
+  // 允许在同一工作方式版本上保存其他工作区设置更新后的草稿。
+  // 若工作方式本身已变化，保留草稿原先读到的并发核对版本。
+  const reviewedWorkspaceVersion = instruction && instruction.instruction_version === workspace.instruction_version
+    ? Math.max(instruction.workspace_version, workspace.version)
+    : instruction?.workspace_version
+  const pendingCount = proposals.length
 
-  const load = async () => {
+  useEffect(() => {
+    if (instruction) onSummary({version: instruction.instruction_version, pending: pendingCount})
+  }, [instruction, onSummary, pendingCount])
+
+  const load = useCallback(async () => {
+    const sequence = ++requestVersion.current
     setLoading(true)
+    setLoadError(null)
     try {
       const [current, pending, list] = await Promise.all([
         instructionApi.get(workspace.id),
         instructionApi.proposals(workspace.id, 'pending'),
         instructionApi.listTemplates(),
       ])
+      if (requestVersion.current !== sequence) return
       setInstruction(current)
       setBody(current.body)
       setProposals(pending)
       setTemplates(list)
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : '读取工作方式失败')
-    } finally {setLoading(false)}
-  }
+      if (requestVersion.current === sequence) setLoadError(error instanceof Error ? error.message : '读取工作方式失败')
+    } finally {if (requestVersion.current === sequence) setLoading(false)}
+  }, [workspace.id])
 
   useEffect(() => {
-    if (open) void load()
-  }, [open, workspace.id]) // eslint-disable-line react-hooks/exhaustive-deps -- 打开时拉取
+    void load()
+    return () => {requestVersion.current += 1}
+  }, [load])
+  const dirty = (editing && body !== instruction?.body) || editedProposal !== null
+  useUnsavedNavigation(() => dirty)
 
-  const saveInstruction = async () => {
-    if (saving || readonly || !instruction) return
+  const saveInstruction = async (text: string, restore = false) => {
+    if (saving || readonly || reviewedWorkspaceVersion == null) return
     setSaving(true)
     try {
-      const next = await instructionApi.put(workspace.id, {body, version: workspace.version})
+      const next = await instructionApi.put(workspace.id, {body: text, version: reviewedWorkspaceVersion})
       setInstruction(next)
-      toast.success('已保存工作方式')
+      setBody(next.body)
+      setEditing(false)
+      if (restore) setHistoryOpen(false)
+      void refresh()
+      toast.success(restore ? '已恢复为新版本' : '已保存工作方式')
     } catch (error) {
-      if (error instanceof ApiError && error.code === 'conflict') reportWorkspaceError(error, '保存失败', () => void refresh())
-      else toast.error(error instanceof Error ? error.message : '保存失败')
+      if (error instanceof ApiError && error.code === 'conflict') {
+        reportWorkspaceError(error, '保存失败', () => void refresh())
+        // Keep the draft until the user elects to reload the current version.
+        setLoadError('工作方式或工作区状态已变化。请先保留你的修改，再重新读取。')
+      } else toast.error(error instanceof Error ? error.message : '保存失败')
     } finally {setSaving(false)}
   }
 
-  const toggleAutoMemory = async (enabled: boolean) => {
-    if (readonly) return
+  const loadHistory = async (before?: number) => {
+    setHistoryLoading(true)
+    setHistoryError(null)
     try {
-      upsert(await instructionApi.setAutoMemory(workspace, enabled))
-      toast.success(enabled ? '已开启自动记忆' : '已关闭自动记忆')
+      const result = await instructionApi.history(workspace.id, before)
+      setVersions(current => before == null ? result.versions : [...current, ...result.versions])
+      if (before == null) setSelectedVersion(result.versions[0]?.version ?? null)
+      setNextBefore(result.next_before)
     } catch (error) {
-      reportWorkspaceError(error, '更新自动记忆失败', () => void refresh())
-    }
+      setHistoryError(error instanceof Error ? error.message : '读取版本失败')
+    } finally {setHistoryLoading(false)}
   }
 
-  const acceptProposal = async (id: string) => {
+  const acceptProposal = async (id: string, edited?: string) => {
     setProposalBusy(id)
     try {
-      const next = await instructionApi.acceptProposal(workspace.id, id)
+      const next = await instructionApi.acceptProposal(workspace.id, id, {body: edited, version: reviewedWorkspaceVersion})
       setInstruction(next)
       setBody(next.body)
+      setEditedProposal(null)
+      void refresh()
       setProposals(current => current.filter(item => item.id !== id))
       toast.success('已采纳提议')
     } catch (error) {
       toast.error(error instanceof Error ? error.message : '采纳失败')
-      void load()
+      if (error instanceof ApiError && error.code === 'conflict') {
+        setLoadError('当前版本已变化。请保留编辑内容，重新读取后审阅。')
+      }
     } finally {setProposalBusy(null)}
   }
 
@@ -126,6 +182,7 @@ export function WorkingStyleSettings({workspace, open, onOpenChange}: {
       const result = await instructionApi.applyTemplate(workspace.id, templateId, workspace)
       setInstruction(result.instruction)
       setBody(result.instruction.body)
+      void refresh()
       toast.success('已应用模板')
     } catch (error) {
       reportWorkspaceError(error, '应用模板失败', () => void refresh())
@@ -144,103 +201,127 @@ export function WorkingStyleSettings({workspace, open, onOpenChange}: {
 
   const maxChars = instruction?.max_chars ?? 4000
 
-  return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="flex w-full flex-col gap-0 p-0 sm:max-w-lg">
-        <SheetHeader className="border-b px-4 py-3 text-left">
-          <SheetTitle>工作方式</SheetTitle>
-          <SheetDescription>
-            描述本工作区长期有效的角色、原则与限制；新对话会读取当前版本。
-          </SheetDescription>
-        </SheetHeader>
-        <ScrollArea className="min-h-0 flex-1">
-          <div className="space-y-6 p-4">
-            {loading && (
-              <p className="flex items-center gap-2 text-meta text-muted-foreground">
-                <Loader2 className="size-4 animate-spin" aria-hidden/>正在读取
-              </p>
-            )}
-            {!loading && (
-              <>
-                <section className="space-y-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <h3 className="text-sm font-medium">正文</h3>
-                    <span className="text-xs text-faint">{body.length}/{maxChars}</span>
-                  </div>
-                  <Textarea
-                    value={body}
-                    disabled={readonly || saving}
-                    rows={10}
-                    maxLength={maxChars}
-                    placeholder="例如：只用简体中文回答；修改代码前先说明计划……"
-                    aria-label="工作方式正文"
-                    onChange={event => setBody(event.target.value)}
-                  />
-                  {!readonly && (
-                    <Button type="button" size="sm" disabled={saving || body === instruction?.body} onClick={() => void saveInstruction()}>
-                      {saving ? '正在保存' : '保存'}
-                    </Button>
-                  )}
-                  {workspace.instruction_preview?.trim() && body !== workspace.instruction_preview && (
-                    <p className="text-meta text-muted-foreground">当前预览：{workspace.instruction_preview}</p>
-                  )}
-                </section>
+  const selected = versions.find(version => version.version === selectedVersion)
+  return <section aria-label="工作方式" className="space-y-2.5">
+    <header className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+      <h2 className="text-[15px] font-semibold">工作方式</h2>
+      {instruction?.instruction_version != null && <span className="text-xs text-faint tabular-nums">v{instruction.instruction_version}</span>}
+      <div className="ml-auto flex items-center gap-1">
+        <IconAction label="版本历史" disabled={loading || historyLoading}
+          onClick={() => {setHistoryOpen(true); void loadHistory()}}><History/></IconAction>
+        {!readonly && !editing && <IconAction label="编辑工作方式" disabled={!instruction}
+          onClick={() => setEditing(true)}><Pencil/></IconAction>}
+      </div>
+    </header>
 
-                <section className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2.5">
-                  <div>
-                    <p className="text-sm font-medium">自动记忆</p>
-                    <p className="text-meta text-muted-foreground">关闭后不再从对话中自动提炼记忆。</p>
-                  </div>
-                  <Switch checked={autoMemory} disabled={readonly} onCheckedChange={checked => void toggleAutoMemory(checked)} aria-label="自动记忆"/>
-                </section>
+    {loading && <p role="status" className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="size-4 animate-spin"/>正在读取工作方式</p>}
+    {loadError && <div role="alert" className="rounded-lg bg-state-failed-soft p-3 text-sm text-state-failed">
+      {loadError}
+      <Button variant="ghost" size="xs" onClick={() => {
+        if (dirty && !window.confirm('放弃未保存的改动并重新读取？')) return
+        setEditing(false)
+        setEditedProposal(null)
+        void load()
+      }}>重新读取</Button>
+    </div>}
+    {instruction && (editing ? <div className="space-y-2">
+      <Textarea value={body} disabled={saving} autoFocus rows={7} maxLength={maxChars}
+        className="min-h-32 rounded-[14px] px-4 py-3 leading-relaxed" aria-label="工作方式正文" onChange={event => setBody(event.target.value)}/>
+      <div className="flex items-center gap-2">
+        <span className="mr-auto text-xs text-muted-foreground">{body.length}/{maxChars}</span>
+        <Button type="button" variant="ghost" size="sm" disabled={saving} onClick={() => {setBody(instruction.body); setEditing(false)}}>取消</Button>
+        <Button type="button" size="sm" disabled={saving || body === instruction.body} onClick={() => void saveInstruction(body)}>{saving ? '正在保存' : '保存'}</Button>
+      </div>
+    </div> : <>
+      <div className="background-style-doc">
+        {instruction.body.trim() ? <MarkdownContent content={instruction.body}/> : <p className="text-sm text-muted-foreground">还没有设置工作方式。</p>}
+      </div>
+      {instruction.instruction_version != null && <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-faint">
+        {instruction.updated_at != null && <span>{parseEventTime(instruction.updated_at)?.toLocaleDateString('zh-CN')}</span>}
+        {instruction.source && <span>{CHANGE_SOURCE[instruction.source]}</span>}
+        <span>改动从下一次运行生效</span>
+      </div>}
+    </>)}
 
-                {proposals.length > 0 && (
-                  <section className="space-y-2">
-                    <h3 className="text-sm font-medium">待确认提议</h3>
-                    <ul className="space-y-2">
-                      {proposals.map(proposal => (
-                        <li key={proposal.id} className="rounded-lg border bg-muted/30 px-3 py-2.5">
-                          {proposal.rationale && <p className="text-meta text-muted-foreground">{proposal.rationale}</p>}
-                          <p className="mt-1 whitespace-pre-wrap text-sm">{proposal.body}</p>
-                          {!readonly && (
-                            <div className="mt-2 flex gap-2">
-                              <Button type="button" size="xs" disabled={proposalBusy === proposal.id} onClick={() => void acceptProposal(proposal.id)}>采纳</Button>
-                              <Button type="button" size="xs" variant="ghost" disabled={proposalBusy === proposal.id} onClick={() => void rejectProposal(proposal.id)}>拒绝</Button>
-                            </div>
-                          )}
-                        </li>
-                      ))}
-                    </ul>
-                  </section>
-                )}
+    {proposals.length > 0 && <div className="space-y-2 pt-1">
+      {proposals.map(proposal => {
+        const sourceTitle = titleOf(proposal.session_id)
+        return <article key={proposal.id} className="background-review-card">
+        <header className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <Wand className="size-4 text-signal"/>
+          <h3 className="text-sm font-semibold">Agent 建议补充</h3>
+          <span className="text-xs text-muted-foreground">{sourceTitle ? `来自「${sourceTitle}」` : `基于 v${proposal.base_version}`}</span>
+        </header>
+        {proposal.rationale && <p className="text-sm text-muted-foreground">{proposal.rationale}</p>}
+        {editedProposal?.id === proposal.id
+          ? <Textarea value={editedProposal.body} autoFocus rows={6} maxLength={maxChars} aria-label="编辑 Agent 建议"
+              disabled={proposalBusy === proposal.id} onChange={event => setEditedProposal({id: proposal.id, body: event.target.value})}/>
+          : <DocumentChange before={instruction?.body ?? ''} after={proposal.body}/>}
+        {!readonly && <div className="flex flex-wrap gap-2">
+          {editedProposal?.id === proposal.id ? <>
+            <Button size="sm" disabled={proposalBusy !== null} onClick={() => void acceptProposal(proposal.id, editedProposal.body)}>保存并采纳</Button>
+            <Button size="sm" variant="ghost" disabled={proposalBusy !== null} onClick={() => setEditedProposal(null)}>取消编辑</Button>
+          </> : <>
+            <Button size="sm" disabled={proposalBusy !== null || editing} onClick={() => void acceptProposal(proposal.id)}>接受</Button>
+            <Button size="sm" variant="ghost" disabled={proposalBusy !== null || editing}
+              onClick={() => setEditedProposal({id: proposal.id, body: proposal.body})}>改一下再接受</Button>
+            <Button size="sm" variant="ghost" disabled={proposalBusy !== null || editing} onClick={() => void rejectProposal(proposal.id)}>忽略</Button>
+          </>}
+        </div>}
+      </article>
+      })}
+    </div>}
 
-                <section className="space-y-3">
-                  <h3 className="text-sm font-medium">模板</h3>
-                  <div className="flex gap-2">
-                    <Input value={templateName} placeholder="模板名称" aria-label="模板名称" disabled={readonly} onChange={event => setTemplateName(event.target.value)}/>
-                    <Button type="button" size="sm" variant="secondary" disabled={readonly || !templateName.trim()} onClick={() => void saveTemplate()}>另存当前</Button>
-                  </div>
-                  {templates.length === 0 && <p className="text-meta text-muted-foreground">还没有模板。</p>}
-                  <ul className="space-y-2">
-                    {templates.map(template => (
-                      <li key={template.id} className="flex items-start justify-between gap-2 rounded-lg border px-3 py-2">
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-medium" title={template.name}>{template.name}</p>
-                          <p className="mt-0.5 line-clamp-2 text-meta text-muted-foreground">{template.body || '（空）'}</p>
-                        </div>
-                        <div className="flex shrink-0 flex-col gap-1">
-                          <Button type="button" size="xs" variant="secondary" disabled={readonly} onClick={() => void applyTemplate(template.id)}>应用</Button>
-                          <Button type="button" size="xs" variant="ghost" onClick={() => void deleteTemplate(template.id)}>删除</Button>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                </section>
-              </>
-            )}
+    <details className="pt-1">
+      <summary className="cursor-pointer text-xs font-medium text-muted-foreground">工作方式模板</summary>
+      <div className="mt-3 space-y-2">
+        <div className="flex gap-2">
+          <Input value={templateName} placeholder="模板名称" aria-label="模板名称" disabled={readonly} onChange={event => setTemplateName(event.target.value)}/>
+          <Button type="button" size="sm" variant="secondary" disabled={readonly || !templateName.trim()} onClick={() => void saveTemplate()}>另存当前</Button>
+        </div>
+        {templates.length === 0 && <p className="text-meta text-muted-foreground">还没有模板。</p>}
+        <ul>{templates.map(template => <li key={template.id} className="flex items-center gap-2 py-2">
+          <span className="mr-auto min-w-0 truncate" title={template.body}>{template.name}</span>
+          <Button type="button" size="xs" variant="secondary" disabled={readonly || dirty} onClick={() => void applyTemplate(template.id)}>应用</Button>
+          <Button type="button" size="xs" variant="ghost" onClick={() => void deleteTemplate(template.id)}>删除</Button>
+        </li>)}</ul>
+      </div>
+    </details>
+
+    <Dialog open={historyOpen} onOpenChange={setHistoryOpen}>
+      <DialogContent className="max-h-[min(44rem,85dvh)] gap-3 overflow-hidden rounded-[18px] sm:max-w-3xl"
+        onInteractOutside={event => event.preventDefault()}>
+        <DialogTitle>工作方式版本历史</DialogTitle>
+        <DialogDescription>恢复旧内容会发布为新版本。</DialogDescription>
+        <div className="flex min-h-0 flex-col gap-3 overflow-y-auto sm:flex-row">
+          <div className="min-w-28 shrink-0 space-y-1">
+            {versions.map(version => <Button key={version.version} type="button" size="sm" className="w-full justify-start"
+              variant={selectedVersion === version.version ? 'secondary' : 'ghost'} onClick={() => setSelectedVersion(version.version)}>
+              v{version.version} <span className="text-xs text-faint">{new Date(version.created_at).toLocaleDateString()}</span>
+            </Button>)}
+            {nextBefore != null && <Button size="xs" variant="ghost" disabled={historyLoading} onClick={() => void loadHistory(nextBefore)}>更早版本</Button>}
           </div>
-        </ScrollArea>
-      </SheetContent>
-    </Sheet>
-  )
+          <div className="min-w-0 flex-1 sm:overflow-y-auto">
+            {historyLoading && <p role="status" className="text-sm text-muted-foreground">正在读取版本历史…</p>}
+            {historyError && <p role="alert" className="text-sm text-state-failed">{historyError} <Button size="xs" onClick={() => void loadHistory()}>重试</Button></p>}
+            {!historyLoading && !historyError && !selected && <p className="text-sm text-muted-foreground">还没有已发布版本。</p>}
+            {selected && <>
+              <p className="mb-2 text-xs text-muted-foreground">v{selected.version} · {CHANGE_SOURCE[selected.source]}
+                {selected.version === instruction?.instruction_version ? ' · 当前版本' : ` · 与当前 v${instruction?.instruction_version ?? '—'} 的差异`}</p>
+              <div className="rounded-xl bg-muted px-3 py-2">
+                {selected.version === instruction?.instruction_version
+                  ? <p className="whitespace-pre-wrap wrap-anywhere text-sm">{selected.body || '（空）'}</p>
+                  : <DocumentChange before={selected.body} after={instruction?.body ?? ''}/>}
+              </div>
+            </>}
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" onClick={() => setHistoryOpen(false)}>关闭</Button>
+          {selected && <Button disabled={readonly || !instruction || dirty || saving || selected.version === instruction.instruction_version}
+            onClick={() => void saveInstruction(selected.body, true)}>恢复为新版本</Button>}
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  </section>
 }

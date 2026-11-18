@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.domain.models.workspace_memory import (
     ExtractionCommitStatus, ExtractionJob,
     MemoryChange,
-    MemoryEntry,
+    MemoryEntry, MemoryOrigin,
     MemorySource,
     MemoryStatus,
     MemorySuppression,
@@ -77,6 +77,29 @@ class DBMemoryRepository(MemoryRepository):
             select(MemorySourceModel).where(MemorySourceModel.memory_id == memory_id)
             .order_by(MemorySourceModel.created_at)
         )).scalars().all()
+        return [row.to_domain() for row in rows]
+
+    async def extraction_at(self, session_id: str, source_seq_end: int) -> Optional[ExtractionJob]:
+        row = await self.db_session.scalar(select(ExtractionJobModel).where(
+            ExtractionJobModel.session_id == session_id, ExtractionJobModel.source_seq_end == source_seq_end,
+        ).order_by(ExtractionJobModel.generation.desc()).limit(1))
+        return row.to_domain() if row else None
+
+    async def extraction_entries(self, job: ExtractionJob) -> list[MemoryEntry]:
+        source = select(MemorySourceModel.id).where(
+            MemorySourceModel.memory_id == MemoryEntryModel.id,
+            MemorySourceModel.workspace_id == job.workspace_id,
+            MemorySourceModel.session_id == job.session_id,
+            MemorySourceModel.event_seq_end == job.source_seq_end,
+            MemorySourceModel.available.is_(True),
+        ).exists()
+        rows = await self.db_session.scalars(select(MemoryEntryModel).where(
+            MemoryEntryModel.workspace_id == job.workspace_id,
+            MemoryEntryModel.created_at >= job.created_at,
+            MemoryEntryModel.origin == MemoryOrigin.AUTO_EXTRACTION.value,
+            MemoryEntryModel.status.in_([MemoryStatus.ACTIVE.value, MemoryStatus.CANDIDATE.value]),
+            source,
+        ).order_by(MemoryEntryModel.created_at))
         return [row.to_domain() for row in rows]
 
     async def add_change(self, change: MemoryChange) -> None:

@@ -1,4 +1,4 @@
-import {Download, ExternalLink, Eye, Package, PackageOpen} from 'lucide-react'
+import {Download, ExternalLink, Eye, Package, PackageOpen} from '@/components/ui/icons'
 import {isWebPage} from '@/lib/api/preview'
 import {PreviewAction} from '@/components/preview/action'
 import {cn} from '@/lib/utils'

@@ -226,6 +226,17 @@ class MemoryService:
             await self._workspace(uow, workspace_id, write=False)
             return await uow.memory.list(workspace_id, statuses=statuses)
 
+    async def extraction_result(self, workspace_id: str, session_id: str, seq: int) -> tuple[Optional[ExtractionCommitStatus], list[MemoryEntry]]:
+        async with self._read_uow_factory() as uow:
+            await self._workspace(uow, workspace_id, write=False)
+            if not await self._session_in_workspace(uow, session_id, workspace_id):
+                raise NotFoundError("会话不存在或不属于该工作区")
+            job = await uow.memory.extraction_at(session_id, seq)
+            if job is None or job.workspace_id != workspace_id:
+                return None, []
+            entries = await uow.memory.extraction_entries(job) if job.commit_status is ExtractionCommitStatus.COMMITTED else []
+            return job.commit_status, entries
+
     async def get(self, workspace_id: str, memory_id: str) -> MemoryEntry:
         async with self._read_uow_factory() as uow:
             await self._workspace(uow, workspace_id, write=False)

@@ -1,5 +1,5 @@
 import {Fragment, useCallback, useEffect, useRef, useState, type ReactNode} from 'react'
-import {RotateCw} from 'lucide-react'
+import {RotateCw} from '@/components/ui/icons'
 import {BrandMark} from '@/components/brand-mark'
 import {Button} from '@/components/ui/button'
 import {setCoreConnection} from '@/lib/core-client'

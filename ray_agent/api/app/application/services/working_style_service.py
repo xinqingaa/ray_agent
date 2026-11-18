@@ -77,6 +77,13 @@ class WorkingStyleService:
                 if workspace.instruction_version else await uow.instruction.latest(workspace_id)
         return workspace, record
 
+    async def versions(self, workspace_id: str, *, before: Optional[int], limit: int) -> list[InstructionVersionRecord]:
+        async with self._read_uow_factory() as uow:
+            workspace = await uow.workspace.get(workspace_id)
+            if workspace is None or workspace.status is WorkspaceStatus.DELETING:
+                raise NotFoundError("工作区不存在")
+            return await uow.instruction.list_versions(workspace_id, before=before, limit=limit)
+
     # ---- 发布 ----
 
     async def _publish_in(self, uow: IUnitOfWork, workspace: Workspace, body: str, source: InstructionSource,
@@ -134,10 +141,12 @@ class WorkingStyleService:
             raise ConflictError(f"该提议已处理（当前状态：{proposal.status.value}）")
         return proposal
 
-    async def accept(self, workspace_id: str, proposal_id: str) -> InstructionVersionRecord:
+    async def accept(self, workspace_id: str, proposal_id: str, *, body: Optional[str] = None,
+                     expected_version: Optional[int] = None) -> InstructionVersionRecord:
         """用户确认：发布新版本。提议基于的版本已被后来的修改替代时，提议作废并返回冲突，请用户重新审阅。"""
         stale: Optional[int] = None
         record: Optional[InstructionVersionRecord] = None
+        text = checked_body(body) if body is not None else None
         async with self._uow_factory() as uow:
             workspace = await _writable_workspace(uow, workspace_id)
             proposal = await self._pending(uow, workspace_id, proposal_id)
@@ -151,7 +160,9 @@ class WorkingStyleService:
                     "status": ProposalStatus.SUPERSEDED, "resolved_at": utc_now()}))
                 stale = workspace.instruction_version
             else:
-                record = await self._publish_in(uow, workspace, proposal.body, InstructionSource.CONFIRMED_PROPOSAL,
+                if expected_version is not None and expected_version != workspace.version:
+                    raise ConflictError("工作区已被修改，请刷新后重试", resource_version=workspace.version)
+                record = await self._publish_in(uow, workspace, proposal.body if text is None else text, InstructionSource.CONFIRMED_PROPOSAL,
                                                 proposal_id=proposal.id)
                 await uow.instruction.save_proposal(proposal.model_copy(update={
                     "status": ProposalStatus.ACCEPTED, "resolved_at": utc_now()}))

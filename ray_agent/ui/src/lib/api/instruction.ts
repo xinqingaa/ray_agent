@@ -1,6 +1,8 @@
 import {get, post, put} from './fetch'
 import type {
+  AcceptInstructionProposalRequest,
   ApplyTemplateResponse,
+  InstructionHistory,
   InstructionProposalView,
   InstructionView,
   TemplateView,
@@ -17,14 +19,17 @@ export const instructionApi = {
   put: (workspaceId: string, body: UpdateInstructionRequest) =>
     put<InstructionView>(instructionPath(workspaceId), body),
 
+  history: (workspaceId: string, before?: number) =>
+    get<InstructionHistory>(`${instructionPath(workspaceId)}/history`, before == null ? undefined : {before}),
+
   proposals: (workspaceId: string, status?: string) =>
     get<{proposals: InstructionProposalView[]}>(
       `${instructionPath(workspaceId)}/proposals`,
       status ? {status} : undefined,
     ).then(data => data.proposals),
 
-  acceptProposal: (workspaceId: string, proposalId: string) =>
-    post<InstructionView>(`${instructionPath(workspaceId)}/proposals/${encodeURIComponent(proposalId)}/accept`, {}),
+  acceptProposal: (workspaceId: string, proposalId: string, request: AcceptInstructionProposalRequest = {}) =>
+    post<InstructionView>(`${instructionPath(workspaceId)}/proposals/${encodeURIComponent(proposalId)}/accept`, request),
 
   rejectProposal: (workspaceId: string, proposalId: string) =>
     post<InstructionProposalView>(`${instructionPath(workspaceId)}/proposals/${encodeURIComponent(proposalId)}/reject`, {}),

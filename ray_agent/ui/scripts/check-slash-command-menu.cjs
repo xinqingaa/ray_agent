@@ -11,7 +11,7 @@ function load(file){
  const js=ts.transpileModule(fs.readFileSync(file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX}}).outputText;
  new Function('require','module','exports',js)(name=>{
   if(name==='react'||name==='react/jsx-runtime')return require(name);
-  if(name==='lucide-react')return new Proxy({}, {get:()=>()=>null});
+  if(name==='@/components/ui/icons')return new Proxy({}, {get:()=>()=>null});
   if(name==='@/hooks/use-developer-mode')return {useDeveloperMode:()=>({visibility:{canShowCommand:()=>true}})};
   if(name.startsWith('@/components/ui/'))return ui;
   if(name==='@/lib/utils')return {cn:(...xs)=>xs.filter(Boolean).join(' '),formatTokenCount:String};

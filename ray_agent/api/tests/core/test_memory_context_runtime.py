@@ -3,7 +3,8 @@
 from app.application.services.workspace_memory_runtime import BoundWorkspaceMemory
 from app.domain.models.operation import OperationKind, OperationStatus
 from app.domain.models.run import RunStatus
-from app.domain.models.workspace_memory import MemoryOrigin, MemoryStatus
+from app.domain.models.workspace_memory import ExtractionCommitStatus, MemoryOrigin, MemoryStatus, MemoryType
+from app.domain.services.memory_rules import ExtractionAction, ExtractionDecision
 from app.domain.services.tools.memory import workspace_toolkits
 from tests.support.loop_harness import input_task, make_loop, make_runner, start_run
 from tests.support.memory_env import MemEnv
@@ -62,6 +63,14 @@ def test_workspace_run_gets_background_tools_and_post_run_jobs_then_frozen_refre
         async with read_factory() as uow:
             record = await uow.memory.get_extraction_by_operation(extraction_job.operation_id)
         assert record is not None and record.generation == 1
+        assert await env.memory.extraction_result(ws.id, session.id, record.source_seq_end) == (ExtractionCommitStatus.PENDING, [])
+        result = await env.memory.commit_extraction(record.id, [
+            ExtractionDecision(action=ExtractionAction.ADD, content="报告使用 A4 纸", memory_type=MemoryType.PREFERENCE),
+            ExtractionDecision(action=ExtractionAction.ADD, content="表格标题采用概览", memory_type=MemoryType.PREFERENCE),
+        ])
+        state, added = await env.memory.extraction_result(ws.id, session.id, record.source_seq_end)
+        assert state is ExtractionCommitStatus.COMMITTED
+        assert [entry.id for entry in added] == result.created and len(added) == 1
 
         # 撤回常驻记忆后，续接前冻结的背景移除它，清单记录修订，快照同步更新
         await env.memory.retract(ws.id, resident.id)

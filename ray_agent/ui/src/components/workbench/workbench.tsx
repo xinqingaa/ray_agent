@@ -1,6 +1,6 @@
+import {Download, ExternalLink, Eye, Globe, PanelRight, Play, Terminal, PackageOpen} from '@/components/ui/icons'
 import {useState} from 'react'
 import {useDeveloperMode} from '@/hooks/use-developer-mode'
-import {Download, ExternalLink, Eye, Globe, PackageOpen, PanelRight, Play, Terminal} from 'lucide-react'
 import {Button} from '@/components/ui/button'
 import {ScrollArea} from '@/components/ui/scroll-area'
 import type {FileView, ToolCallView, ToolFamily} from '@/lib/session-view'

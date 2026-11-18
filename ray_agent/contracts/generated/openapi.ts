@@ -1645,6 +1645,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/workspaces/{workspace_id}/instruction/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 工作方式版本历史
+         * @description 只读已发布版本，按版本倒序。恢复旧正文时发布为新版本
+         */
+        get: operations["instruction_history_api_workspaces__workspace_id__instruction_history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/workspaces/{workspace_id}/instruction/proposals": {
         parameters: {
             query?: never;
@@ -1798,6 +1818,26 @@ export interface paths {
          * @description 用户操作：立即生效并标为用户确认
          */
         post: operations["create_memory_api_workspaces__workspace_id__memories_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/memories/extraction": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 一次材料截止位置产生的记忆
+         * @description 只返回该工作区和会话中由此次提炼创建、当前仍可查看的条目
+         */
+        get: operations["memory_extraction_api_workspaces__workspace_id__memories_extraction_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2184,6 +2224,19 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AcceptInstructionProposalRequest */
+        AcceptInstructionProposalRequest: {
+            /**
+             * Body
+             * @description 编辑后的工作方式正文；省略时使用原提议
+             */
+            body?: string | null;
+            /**
+             * Version
+             * @description 审阅时的工作区版本，用于并发修改核对
+             */
+            version?: number | null;
+        };
         /**
          * AgentConfig
          * @description Agent通用配置
@@ -3329,6 +3382,11 @@ export interface components {
             grant_id: string;
         };
         /**
+         * ExtractionCommitStatus
+         * @enum {string}
+         */
+        ExtractionCommitStatus: "pending" | "committed" | "rejected";
+        /**
          * File
          * @description 文件信息Domain模型，用于记录用户上传或 Agent 交付的文件；字节保存为数据根中的内容对象
          */
@@ -3580,6 +3638,13 @@ export interface components {
         };
         /** @description 核心进程的一次启动 */
         InstanceId: string;
+        /** InstructionHistory */
+        InstructionHistory: {
+            /** Versions */
+            versions: components["schemas"]["InstructionVersionView"][];
+            /** Next Before */
+            next_before: number | null;
+        };
         /** InstructionProposalList */
         InstructionProposalList: {
             /** Proposals */
@@ -3610,6 +3675,16 @@ export interface components {
          * @enum {string}
          */
         InstructionSource: "user_edit" | "confirmed_proposal" | "template";
+        /** InstructionVersionView */
+        InstructionVersionView: {
+            /** Version */
+            version: number;
+            /** Body */
+            body: string;
+            source: components["schemas"]["InstructionSource"];
+            /** Created At */
+            created_at: number;
+        };
         /**
          * InstructionView
          * @description 工作区当前生效的工作方式；尚未设置时 instruction_version 与 source 为空、正文为空串。
@@ -3939,6 +4014,12 @@ export interface components {
             replaces_change_id: string | null;
             /** Created At */
             created_at: number;
+        };
+        /** MemoryExtractionView */
+        MemoryExtractionView: {
+            status: components["schemas"]["ExtractionCommitStatus"] | null;
+            /** Memories */
+            memories: components["schemas"]["MemoryItem"][];
         };
         /** MemoryItem */
         MemoryItem: {
@@ -4663,6 +4744,10 @@ export interface components {
         Response_IndexSummaryView_: {
             data: components["schemas"]["IndexSummaryView"] | null;
         };
+        /** Response[InstructionHistory] */
+        Response_InstructionHistory_: {
+            data: components["schemas"]["InstructionHistory"] | null;
+        };
         /** Response[InstructionProposalList] */
         Response_InstructionProposalList_: {
             data: components["schemas"]["InstructionProposalList"] | null;
@@ -4690,6 +4775,10 @@ export interface components {
         /** Response[ListSessionResponse] */
         Response_ListSessionResponse_: {
             data: components["schemas"]["ListSessionResponse"] | null;
+        };
+        /** Response[MemoryExtractionView] */
+        Response_MemoryExtractionView_: {
+            data: components["schemas"]["MemoryExtractionView"] | null;
         };
         /** Response[MemoryItem] */
         Response_MemoryItem_: {
@@ -9049,6 +9138,40 @@ export interface operations {
             };
         };
     };
+    instruction_history_api_workspaces__workspace_id__instruction_history_get: {
+        parameters: {
+            query?: {
+                before?: number | null;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_InstructionHistory_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     list_proposals_api_workspaces__workspace_id__instruction_proposals_get: {
         parameters: {
             query?: {
@@ -9092,7 +9215,11 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["AcceptInstructionProposalRequest"] | null;
+            };
+        };
         responses: {
             /** @description Successful Response */
             200: {
@@ -9364,6 +9491,40 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Response_MemoryItem_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    memory_extraction_api_workspaces__workspace_id__memories_extraction_get: {
+        parameters: {
+            query: {
+                session_id: string;
+                seq: number;
+            };
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_MemoryExtractionView_"];
                 };
             };
             /** @description 结构化错误 */

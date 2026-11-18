@@ -1,4 +1,4 @@
-import {ArrowRight, ListChecks, RotateCcw} from 'lucide-react'
+import {ArrowRight, ListChecks, RotateCcw} from '@/components/ui/icons'
 import {Button} from '@/components/ui/button'
 import {IconAction} from '@/components/ui/icon-action'
 import {cn} from '@/lib/utils'

@@ -19,7 +19,7 @@ function load(file) {
   if(name==='react')return React;
   if(name==='@/hooks/use-developer-mode')return load('hooks/use-developer-mode.ts');
   if(name==='react/jsx-runtime')return require('react/jsx-runtime');
-  if(name==='lucide-react')return new Proxy({}, {get:()=>()=>null});
+  if(name==='@/components/ui/icons')return new Proxy({}, {get:()=>()=>null});
   if(name==='sonner')return {toast:{error(){},warning(){}}};
   if(name==='@/lib/api/fetch' || name==='./fetch')return {ApiError};
   if(name==='@/lib/api/preview')return previewApi;

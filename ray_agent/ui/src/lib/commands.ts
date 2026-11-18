@@ -1,4 +1,4 @@
-import {ClipboardList, Layers, Paperclip, type LucideIcon} from 'lucide-react'
+import {ClipboardList, Layers, Paperclip, type UiIcon} from '@/components/ui/icons'
 import type {UsageView, RunStatus} from '@/lib/session-view'
 import {matchesCommandQuery} from '@/lib/slash-trigger'
 
@@ -56,7 +56,7 @@ export type InputCommand = {
   aliases: readonly string[]
   /** 额外搜索词。匹配时与关键字、别名、标题一起比较。 */
   keywords: readonly string[]
-  icon: LucideIcon
+  icon: UiIcon
   available: (context: CommandContext) => CommandAvailability
   run: (context: CommandContext) => void
 }

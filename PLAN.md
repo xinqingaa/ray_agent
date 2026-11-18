@@ -4,4 +4,6 @@ RayAgent 本机桌面首个交付（macOS Apple Silicon 内部包）处于**实�
 
 当前入口为[桌面升级计划](docs/plan/README.md)、[实施状态](docs/plan/implementation.md#实施状态)和[首个交付收尾与接手清单](docs/plan/first-delivery-remaining.md)。机制与使用说明见[文档地图](docs/README.md)、[产品说明](docs/product.md)与[运行指南](ray_agent/README.md)，已知偏差以收尾清单为准，修复时同步更正文档。
 
+[原型落地计划](docs/plan/prototype-ui.md)已批准，以 P5 为本轮实施和验收边界。P6–P9 尚未验收，各工作包验收时同步处理前端与服务端的缺口。
+
 后续阶段（P10 签名公证与更新、P11 Windows、P12 辅助移动端）保持未开始，开始前再确认范围与顺序。

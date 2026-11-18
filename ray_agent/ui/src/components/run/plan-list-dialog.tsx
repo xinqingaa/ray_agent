@@ -1,5 +1,5 @@
+import {ChevronLeft, ChevronRight, CircleX, CirclePause, X, ListTodo} from '@/components/ui/icons'
 import {useState} from 'react'
-import {ChevronLeft, ChevronRight, ListTodo, CircleX, CirclePause, X} from 'lucide-react'
 import {Dialog, DialogClose, DialogContent, DialogTitle, DialogTrigger} from '@/components/ui/dialog'
 import {Button} from '@/components/ui/button'
 import {PlanContent} from './plan-bar'

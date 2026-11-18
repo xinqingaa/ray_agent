@@ -1,4 +1,4 @@
-import {Layers, RotateCw, Square, TriangleAlert} from 'lucide-react'
+import {Layers, Square, TriangleAlert, RotateCw} from '@/components/ui/icons'
 import {useDeveloperMode} from '@/hooks/use-developer-mode'
 import {cn} from '@/lib/utils'
 import type {CompactTrigger} from '@/lib/session-view'

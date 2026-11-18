@@ -2,6 +2,7 @@ import {get, patch as patchRequest, post, request} from './fetch'
 import type {
   ContextManifestView,
   CreateMemoryRequest,
+  MemoryExtractionView,
   MemoryItem,
   MemoryListResponse,
   MemorySourcesResponse,
@@ -41,6 +42,9 @@ export const memoryApi = {
 
   search: (workspaceId: string, body: SearchRequest) =>
     post<SearchResponse>(`${workspacePath(workspaceId)}/search`, body),
+
+  extraction: (workspaceId: string, sessionId: string, sequence: number) =>
+    get<MemoryExtractionView>(memoriesPath(workspaceId, '/extraction'), {session_id: sessionId, seq: sequence}),
 
   contextManifest: (runId: string) =>
     get<ContextManifestView>(`/runs/${encodeURIComponent(runId)}/context-manifest`),

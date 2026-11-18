@@ -2,6 +2,8 @@ import {useEffect, useRef, useState} from 'react'
 import {Button} from '@/components/ui/button'
 import {componentsApi, type ComponentView} from '@/lib/api/components'
 import {LoadError, SectionHeader} from './form'
+import {Globe, Package} from '@/components/ui/icons'
+import {cn} from '@/lib/utils'
 
 const LABELS: Record<string, {name: string; description: string}> = {
   'browser-chromium': {name: '自动化浏览器', description: '供任务访问网页、操作页面和截图，与应用窗口分开运行。'},
@@ -13,7 +15,7 @@ const STATES: Record<ComponentView['state'], string> = {
 }
 
 /** 组件操作独立保存，离开设置或重启应用后仍能读取、取消和重试。 */
-export function ComponentsSection() {
+export function ComponentsSection({standalone = false}: {standalone?: boolean} = {}) {
   const [items, setItems] = useState<ComponentView[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
@@ -78,13 +80,18 @@ export function ComponentsSection() {
     <SectionHeader id="settings-components-title" title="运行组件" description="按需安装任务需要的组件。安装进度会保留，关闭设置后仍可继续。"/>
     {error && <LoadError message={error} onRetry={() => setRevision(value => value + 1)}/>}
     {!items && !error && <p className="text-sm text-muted-foreground" role="status">正在读取组件…</p>}
-    <div className="divide-y">
+    <div className={standalone ? "space-y-3" : "divide-y"}>
       {items?.map(item => {
         const label = LABELS[item.component_id] ?? {name: item.component_id, description: ''}
         const operation = item.operation
         const active = operation?.status === 'queued' || operation?.status === 'running'
         const cancelling = active && operation.cancel_requested_at != null
-        return <div key={item.component_id} className="flex flex-wrap items-start justify-between gap-4 py-5 first:pt-0">
+        return <div key={item.component_id} className={cn('flex flex-wrap items-start justify-between gap-4',
+          standalone ? 'rounded-xl px-4 py-4' : 'py-5 first:pt-0',
+          standalone && (active || item.state === 'failed') && 'bg-muted shadow-(--paper-shadow)')}>
+          {standalone && <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-signal-soft text-signal">
+            {item.component_id === 'browser-chromium' ? <Globe className="size-5"/> : <Package className="size-5"/>}
+          </span>}
           <div className="min-w-0 flex-1 basis-64 space-y-1.5">
             <h3 className="text-sm font-medium">{label.name}</h3>
             <p className="text-sm text-muted-foreground">{label.description}</p>

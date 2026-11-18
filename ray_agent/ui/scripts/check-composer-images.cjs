@@ -24,7 +24,7 @@ function load(relative) {
   new Function('require','module','exports',code)(name=>{
     if(name==='react')return React;
     if(name==='react/jsx-runtime')return require(name);
-    if(name==='lucide-react')return new Proxy({}, {get:()=>()=>null});
+    if(name==='@/components/ui/icons')return new Proxy({}, {get:()=>()=>null});
     if(name==='sonner')return {toast:new Proxy({}, {get:()=>message=>messages.push(message)})};
     if(name==='@/lib/navigation')return {useRouter:()=>({push(){}})};
     if(name==='@/hooks/use-developer-mode')return {useDeveloperMode:()=>({visibility:{canShowCommand:()=>true}})};

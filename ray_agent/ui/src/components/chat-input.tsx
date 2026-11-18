@@ -3,7 +3,7 @@ import {cn, formatFileSize} from '@/lib/utils'
 import {ScrollArea, ScrollBar} from '@/components/ui/scroll-area'
 import {Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle} from '@/components/ui/item'
 import {Avatar, AvatarGroupCount} from '@/components/ui/avatar'
-import {ArrowUp, Eye, FileText, Loader2, Paperclip, Square, X, XCircle} from 'lucide-react'
+import {ArrowUp, Eye, FileText, Loader2, Paperclip, Stop, X, XCircle} from '@/components/ui/icons'
 import {Button} from '@/components/ui/button'
 import {Popover, PopoverAnchor, PopoverContent} from '@/components/ui/popover'
 import {PlusCommandMenu, SlashCommandList} from '@/components/input-command-menu'
@@ -62,6 +62,7 @@ export interface ChatInputRef {
   setInputText: (text: string) => void
   getInputValue: () => string
   getFiles: () => FileInfo[]
+  addFiles: (files: File[]) => void
 }
 
 export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
@@ -298,6 +299,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
       },
       getInputValue: () => inputValue,
       getFiles: () => files,
+      addFiles: next => {void uploadFiles(next)},
     }))
 
     useLayoutEffect(() => {
@@ -520,7 +522,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
 
     return (
     <Popover open={slashOpen} onOpenChange={(open) => {if (!open) {dismissedRef.current = slash; setSlash(null)}}}>
-    <div className={cn('flex flex-col bg-card w-full rounded-lg py-3 border', className)}>
+    <div data-chat-composer className={cn('flex flex-col bg-card w-full rounded-2xl py-3 border shadow-(--paper-shadow) focus-within:border-ring/45', className)}>
       {uncertain && !sending && !commandHost.submitting && (
         <div role="status" className="mx-4 mb-2 space-y-2 text-meta text-state-waiting">
           <p>正在确认是否发送成功，文字、附件和模式已保留。请检查结果或核对对话历史。</p>
@@ -694,7 +696,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
             title={showPause ? (pause === 'stopping' ? '正在停止' : '停止生成') : '发送'}
           >
             {showPause ? (
-              <Square className="size-3.5 fill-current"/>
+              <Stop className="size-3.5 fill-current"/>
             ) : sending ? (
               <Loader2 className="size-4 animate-spin"/>
             ) : (
@@ -707,10 +709,11 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
     </div>
     <PopoverContent
       align="start"
-      side="top"
+      side={sessionId ? "top" : "bottom"}
       sideOffset={8}
+      collisionBoundary={textareaRef.current?.closest('.task-paper') ?? undefined}
       collisionPadding={8}
-      className="w-[min(60rem,calc(100vw-2rem))] overflow-hidden rounded-xl border-0 p-0 slash-command-elevation"
+      className="w-[min(var(--radix-popover-trigger-width),calc(100vw-2rem))] max-h-(--radix-popover-content-available-height) overflow-y-auto rounded-xl border-0 p-0 slash-command-elevation"
       onOpenAutoFocus={(event) => event.preventDefault()}
       onCloseAutoFocus={(event) => event.preventDefault()}
     >

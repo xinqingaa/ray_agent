@@ -1,5 +1,5 @@
+import {Activity, AlignLeft, Check, ChevronDown, Code2, Copy, Download, FileText, Layers, ListFilter, X, ListTree, Minimize2} from '@/components/ui/icons'
 import {Fragment, useEffect, useMemo, useState} from 'react'
-import {Activity, AlignLeft, Check, ChevronDown, Code2, Copy, Download, FileText, Layers, ListFilter, ListTree, Minimize2, X} from 'lucide-react'
 import {toast} from 'sonner'
 import {SegmentedControl} from '@/components/ui/segmented-control'
 import {Tooltip, TooltipContent, TooltipTrigger} from '@/components/ui/tooltip'
@@ -28,6 +28,7 @@ const DEV_TABS = [
 type DeveloperViewProps = {
   view: SessionView
   loadTurnRequest: (runId: string, index: number) => Promise<TurnRequest>
+  onOpenCall?: (callId: string) => void
   className?: string
 }
 
@@ -244,7 +245,7 @@ function RawEventDetail({event, open, rendered}: {event: RawEvent; open: boolean
   )
 }
 
-export function DeveloperView({view, loadTurnRequest, className}: DeveloperViewProps) {
+export function DeveloperView({view, loadTurnRequest, onOpenCall, className}: DeveloperViewProps) {
   const types = useMemo(() => {
     const set = new Set(view.events.map((ev) => ev.type))
     return [...set].sort()
@@ -306,7 +307,7 @@ export function DeveloperView({view, loadTurnRequest, className}: DeveloperViewP
   }
 
   return (
-    <div className={cn('flex flex-col gap-6 px-4 py-4', className)}>
+    <div className={cn('flex flex-col gap-5 px-4 py-4', className)}>
       <div className="flex flex-wrap items-center gap-2 border-b pb-3">
         <SegmentedControl value={section} onValueChange={setSection} options={DEV_TABS} label="开发者视图分区" idPrefix="dev"/>
         <Tooltip><TooltipTrigger asChild>
@@ -385,6 +386,15 @@ export function DeveloperView({view, loadTurnRequest, className}: DeveloperViewP
               <tbody>
                 {shownEvents.map((ev) => {
                   const open = openSeq === ev.seq
+                  const turn = Number(ev.payload.index)
+                  const runId = ev.runId
+                  const linkedTurn = ev.type === 'turn' && runId && Number.isInteger(turn) &&
+                    view.runs.find(run => run.id === runId)?.turns.some(item => item.index === turn)
+                  const callId = textOf(ev.payload.tool_call_id ?? ev.payload.call_id)
+                  const toolName = textOf(ev.payload.function ?? ev.payload.function_name)
+                  const shellEvent = ev.type === 'tool' && callId && ev.payload.status === 'called' &&
+                    (ev.payload.name === 'shell' || toolName.startsWith('shell_'))
+
                   return (
                     <Fragment key={ev.seq}>
                     <tr className={cn('border-t align-middle transition-colors hover:bg-muted/40', open && 'bg-signal-soft/40')}>
@@ -397,6 +407,10 @@ export function DeveloperView({view, loadTurnRequest, className}: DeveloperViewP
                           {textOf(ev.payload.status ?? ev.payload.phase) && <StatusTag status={textOf(ev.payload.status ?? ev.payload.phase)}/>}
                           <span className="line-clamp-2 break-words" title={eventSummary(ev)}>{eventSummary(ev)}</span>
                         </div>
+                        {linkedTurn && runId && <Button variant="ghost" size="xs" onClick={() => {
+                          setSection('turns'); setSelected({runId, index: turn})
+                        }}>打开轮次</Button>}
+                        {shellEvent && onOpenCall && <Button variant="ghost" size="xs" onClick={() => onOpenCall(callId)}>查看终端</Button>}
                       </td>
                       <td className="px-3 py-2 text-right whitespace-nowrap">
                         <button

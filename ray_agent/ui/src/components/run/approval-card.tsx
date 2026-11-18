@@ -1,5 +1,5 @@
 import type {KeyboardEvent} from 'react'
-import {Check, Loader2, ShieldQuestion, X} from 'lucide-react'
+import {Check, Loader2, ShieldQuestion, X} from '@/components/ui/icons'
 import {Button} from '@/components/ui/button'
 import {Kbd} from '@/components/ui/kbd'
 import {cn} from '@/lib/utils'

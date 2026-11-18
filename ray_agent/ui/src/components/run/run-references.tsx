@@ -1,8 +1,10 @@
 import {useEffect, useState} from 'react'
-import {ChevronRight, Loader2} from 'lucide-react'
+import {ChevronRight, Loader2, FileText, Layers, Search} from '@/components/ui/icons'
 import {memoryApi} from '@/lib/api/memory'
 import type {ContextManifestView} from '@/lib/api/types'
 import {cn} from '@/lib/utils'
+import {Button} from '@/components/ui/button'
+import {MemorySources} from '@/components/workspace/memory-sources'
 
 const MEMORY_TYPE: Record<string, string> = {
   fact: '事实',
@@ -19,64 +21,67 @@ function sourceLabel(type: string) {
 }
 
 /** 助手最终回复下方：展开查看该次运行注入的工作方式、常驻记忆与初始召回。 */
-export function RunReferences({runId}: {runId: string}) {
+export function RunReferences({runId, workspaceId}: {runId: string; workspaceId?: string}) {
+  return <RunReferencesContent key={runId} runId={runId} workspaceId={workspaceId}/>
+}
+
+function RunReferencesContent({runId, workspaceId}: {runId: string; workspaceId?: string}) {
   const [open, setOpen] = useState(false)
-  const [loading, setLoading] = useState(false)
+  const [attempt, setAttempt] = useState(0)
   const [manifest, setManifest] = useState<ContextManifestView | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [memoryOpen, setMemoryOpen] = useState<string | null>(null)
+  const loading = attempt > 0 && manifest === null && error === null
 
   useEffect(() => {
-    setManifest(null)
-    setError(null)
-  }, [runId])
-
-  useEffect(() => {
-    if (!open || manifest || loading) return
+    if (attempt === 0) return
     let cancelled = false
-    setLoading(true)
-    setError(null)
     void memoryApi.contextManifest(runId)
       .then(data => {if (!cancelled) setManifest(data)})
-      .catch(err => {if (!cancelled) setError(err instanceof Error ? err.message : '读取失败')})
-      .finally(() => {if (!cancelled) setLoading(false)})
+      .catch(reason => {if (!cancelled) setError(reason instanceof Error ? reason.message : '读取失败')})
     return () => {cancelled = true}
-  }, [open, manifest, loading, runId])
+  }, [attempt, runId])
 
   return (
     <div className="text-meta">
       <button
         type="button"
         aria-expanded={open}
-        onClick={() => setOpen(value => !value)}
+        onClick={() => {if (!attempt) setAttempt(1); setOpen(value => !value)}}
         className="flex min-h-8 w-full items-center gap-1 rounded-md px-1 text-left text-muted-foreground outline-none hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring"
       >
         <ChevronRight className={cn('size-3.5 shrink-0 transition-transform', open && 'rotate-90')} aria-hidden/>
         <span>本次参考</span>
       </button>
       {open && (
-        <div className="ml-5 space-y-3 border-l border-border pl-3 py-2">
+        <div className="mt-1 space-y-3 rounded-xl bg-muted/60 p-3">
           {loading && (
             <p className="flex items-center gap-2 text-muted-foreground">
               <Loader2 className="size-3.5 animate-spin" aria-hidden/>正在读取
             </p>
           )}
-          {error && <p className="text-state-failed">{error}</p>}
+          {error && <p role="alert" className="text-state-failed">{error} <Button size="xs" variant="ghost" onClick={() => {
+            setError(null); setAttempt(value => value + 1)
+          }}>重试</Button></p>}
           {manifest && (
             <>
               {(manifest.instruction_body?.trim() ?? '') !== '' && (
                 <section className="space-y-1">
-                  <h4 className="text-xs font-medium text-foreground">工作方式</h4>
+                  <h4 className="flex items-center gap-1.5 text-xs font-medium text-foreground"><FileText className="size-3.5"/>工作方式 {manifest.instruction_version != null && <span className="text-faint">v{manifest.instruction_version}</span>}</h4>
                   <p className="whitespace-pre-wrap break-words text-muted-foreground">{manifest.instruction_body}</p>
                 </section>
               )}
               {manifest.resident_memories.length > 0 && (
                 <section className="space-y-1.5">
-                  <h4 className="text-xs font-medium text-foreground">常驻记忆</h4>
+                  <h4 className="flex items-center gap-1.5 text-xs font-medium text-foreground"><Layers className="size-3.5"/>常驻记忆</h4>
                   <ul className="space-y-1">
                     {manifest.resident_memories.map(item => (
                       <li key={item.memory_id} className="rounded-md bg-muted/40 px-2 py-1.5 text-muted-foreground">
                         <span className="text-faint">{MEMORY_TYPE[item.memory_type] ?? item.memory_type} · </span>
-                        {item.content}
+                        {item.content} <span className="text-faint">v{item.version}</span>
+                        {workspaceId && <Button size="xs" variant="ghost" aria-expanded={memoryOpen === item.memory_id}
+                          onClick={() => setMemoryOpen(current => current === item.memory_id ? null : item.memory_id)}>看来源</Button>}
+                        {workspaceId && memoryOpen === item.memory_id && <MemorySources workspaceId={workspaceId} memoryId={item.memory_id} memoryVersion={item.version}/>}
                       </li>
                     ))}
                   </ul>
@@ -84,7 +89,7 @@ export function RunReferences({runId}: {runId: string}) {
               )}
               {manifest.retrieval_hits.length > 0 && (
                 <section className="space-y-1.5">
-                  <h4 className="text-xs font-medium text-foreground">初始召回</h4>
+                  <h4 className="flex items-center gap-1.5 text-xs font-medium text-foreground"><Search className="size-3.5"/>检索命中</h4>
                   <ul className="space-y-1">
                     {manifest.retrieval_hits.map(hit => (
                       <li key={`${hit.source_type}:${hit.source_id}`} className="rounded-md border px-2 py-1.5">

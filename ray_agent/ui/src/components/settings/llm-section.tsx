@@ -1,5 +1,5 @@
+import {Check, RefreshCw, FileCog} from '@/components/ui/icons'
 import {useEffect, useState} from 'react'
-import {Check, FileCog, RefreshCw} from 'lucide-react'
 import {toast} from 'sonner'
 import {Button} from '@/components/ui/button'
 import {IconAction} from '@/components/ui/icon-action'

@@ -6,7 +6,8 @@ from fastapi import APIRouter, Depends, Query
 from app.application.services.working_style_service import WorkingStyleService
 from app.interfaces.schemas import Response
 from app.interfaces.schemas.instruction import (
-    ApplyTemplateRequest, ApplyTemplateResponse, InstructionProposalList, InstructionProposalView, InstructionView,
+    AcceptInstructionProposalRequest, ApplyTemplateRequest, ApplyTemplateResponse, InstructionHistory,
+    InstructionProposalList, InstructionProposalView, InstructionVersionView, InstructionView,
     RenameTemplateRequest, SaveTemplateRequest, TemplateListResponse, TemplateView, UpdateInstructionRequest,
 )
 from app.interfaces.service_dependencies import get_working_style_service
@@ -31,6 +32,17 @@ async def put_instruction(workspace_id: str, request: UpdateInstructionRequest,
     return Response.success(InstructionView.of(workspace, record))
 
 
+@router.get("/workspaces/{workspace_id}/instruction/history", response_model=Response[InstructionHistory],
+            summary="工作方式版本历史", description="只读已发布版本，按版本倒序。恢复旧正文时发布为新版本")
+async def instruction_history(workspace_id: str, before: Optional[int] = Query(default=None, ge=1),
+                              limit: int = Query(default=20, ge=1, le=50),
+                              service: WorkingStyleService = Depends(get_working_style_service)):
+    records = await service.versions(workspace_id, before=before, limit=limit + 1)
+    return Response.success(InstructionHistory(
+        versions=[InstructionVersionView.of(record) for record in records[:limit]],
+        next_before=records[limit - 1].version if len(records) > limit else None))
+
+
 @router.get("/workspaces/{workspace_id}/instruction/proposals", response_model=Response[InstructionProposalList],
             summary="Agent 的工作方式提议", description="status 省略时返回全部；待确认的提议未生效")
 async def list_proposals(workspace_id: str, status: Optional[str] = Query(default=None),
@@ -43,8 +55,10 @@ async def list_proposals(workspace_id: str, status: Optional[str] = Query(defaul
              response_model=Response[InstructionView], summary="确认提议",
              description="发布来源为 confirmed_proposal 的新版本。提议之后工作方式已变化时提议作废并返回 409，请重新审阅")
 async def accept_proposal(workspace_id: str, proposal_id: str,
+                          request: Optional[AcceptInstructionProposalRequest] = None,
                           service: WorkingStyleService = Depends(get_working_style_service)):
-    await service.accept(workspace_id, proposal_id)
+    await service.accept(workspace_id, proposal_id, body=request.body if request else None,
+                         expected_version=request.version if request else None)
     workspace, record = await service.current(workspace_id)
     return Response.success(InstructionView.of(workspace, record))
 

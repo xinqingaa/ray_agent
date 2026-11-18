@@ -1,5 +1,5 @@
 import {useEffect, useRef, useState, type CSSProperties} from 'react'
-import {ChevronLeft, ChevronRight, Code, Download, Expand, ExternalLink, FileText, RefreshCw, X} from 'lucide-react'
+import {ChevronLeft, ChevronRight, Code, Download, Expand, ExternalLink, FileText, RefreshCw, X} from '@/components/ui/icons'
 import {toast} from 'sonner'
 import {MarkdownContent} from '@/components/markdown-content'
 import {Button} from '@/components/ui/button'

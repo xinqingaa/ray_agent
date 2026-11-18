@@ -1,5 +1,5 @@
 import {useId, useState} from 'react'
-import {ChevronRight} from 'lucide-react'
+import {ChevronRight} from '@/components/ui/icons'
 import {cn} from '@/lib/utils'
 import type {ToolCallView} from '@/lib/session-view'
 import {ToolCard} from './tool-card'

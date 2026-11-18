@@ -36,6 +36,31 @@ class InstructionView(BaseModel):
             updated_at=to_epoch_ms(record.created_at) if record else None, workspace_version=workspace.version)
 
 
+class InstructionVersionView(BaseModel):
+    model_config = _STRICT
+
+    version: int
+    body: str
+    source: InstructionSource
+    created_at: int
+
+    @classmethod
+    def of(cls, record: InstructionVersionRecord) -> "InstructionVersionView":
+        return cls(version=record.version, body=record.body, source=record.source, created_at=to_epoch_ms(record.created_at))
+
+
+class InstructionHistory(BaseModel):
+    model_config = _STRICT
+
+    versions: list[InstructionVersionView]
+    next_before: Optional[int] = None
+
+
+class AcceptInstructionProposalRequest(BaseModel):
+    body: Optional[str] = Field(default=None, max_length=INSTRUCTION_MAX_CHARS, description="编辑后的工作方式正文；省略时使用原提议")
+    version: Optional[int] = Field(default=None, ge=1, description="审阅时的工作区版本，用于并发修改核对")
+
+
 class UpdateInstructionRequest(BaseModel):
     body: str = Field(max_length=INSTRUCTION_MAX_CHARS, description="新的工作方式全文；可为空串表示清除")
     version: int = Field(ge=1, description="工作区 version；不符返回 409 并带最新值")

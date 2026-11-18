@@ -1,6 +1,6 @@
 import {useCallback, useId} from 'react'
 import {Link} from '@/lib/navigation'
-import {MoreHorizontal, Pencil, Trash} from 'lucide-react'
+import {MoreHorizontal, Pencil, Trash} from '@/components/ui/icons'
 import {Button} from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -51,8 +51,8 @@ export function SessionItem({session, isActive, onClick, onDelete, onRename, hre
   const unread = !isActive && session.status === 'completed' && (session.unread_message_count ?? 0) > 0
   const hint = sidebarTitle(title, session.status, waitKind, compacting, unread)
   const controlClass = cn(
-    'absolute inset-0 z-0 rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring',
-    isActive ? 'bg-sidebar-accent' : 'hover:bg-sidebar-accent/70',
+    'absolute inset-0 z-0 rounded-[10px] outline-none focus-visible:ring-2 focus-visible:ring-ring',
+    isActive ? 'bg-sidebar-accent shadow-xs' : 'hover:bg-foreground/5',
   )
 
   return (
@@ -87,7 +87,7 @@ export function SessionItem({session, isActive, onClick, onDelete, onRename, hre
         />
       )}
       <div className="pointer-events-none relative z-10 flex min-h-8 items-center gap-2 pl-2">
-        <p className="min-w-0 flex-1 truncate text-sm font-medium" dir="auto">{title}</p>
+        <p className="min-w-0 flex-1 truncate text-sm font-medium text-muted-foreground group-has-[[aria-current=page]]/session:text-foreground" dir="auto">{title}</p>
         <RunStatus
           place="sidebar"
           id={statusId}

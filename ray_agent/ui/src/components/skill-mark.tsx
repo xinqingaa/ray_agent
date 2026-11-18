@@ -1,5 +1,5 @@
 import {forwardRef, useEffect, useState} from 'react'
-import {Loader2} from 'lucide-react'
+import {Loader2} from '@/components/ui/icons'
 import {Dialog, DialogContent, DialogTitle} from '@/components/ui/dialog'
 import {SkillReader} from '@/components/skill-reader'
 import {skillsApi, type SkillDetail} from '@/lib/api/skills'

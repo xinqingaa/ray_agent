@@ -1,4 +1,4 @@
-import {CircleCheck, MessageCircleQuestion} from 'lucide-react'
+import {CircleCheck, MessageCircleQuestion} from '@/components/ui/icons'
 import {MarkdownContent} from '@/components/markdown-content'
 import {cn} from '@/lib/utils'
 import {RunStatus} from './run-status'

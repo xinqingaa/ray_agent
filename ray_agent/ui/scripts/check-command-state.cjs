@@ -22,6 +22,7 @@ function load(relative) {
   }).outputText;
   new Function('require', 'module', 'exports', compiled)(
     (name) => {
+      if (name === '@/components/ui/icons') return new Proxy({}, {get: () => () => null});
       if (name.startsWith('@/')) return load(`src/${name.slice(2)}.ts`);
       if (name.startsWith('.')) {
         const resolved = path.resolve(path.dirname(filename), name);

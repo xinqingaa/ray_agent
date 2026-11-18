@@ -4827,6 +4827,78 @@
         }
       }
     },
+    "/api/workspaces/{workspace_id}/instruction/history": {
+      "get": {
+        "tags": [
+          "工作方式"
+        ],
+        "summary": "工作方式版本历史",
+        "description": "只读已发布版本，按版本倒序。恢复旧正文时发布为新版本",
+        "operationId": "instruction_history_api_workspaces__workspace_id__instruction_history_get",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "before",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Before"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 50,
+              "minimum": 1,
+              "default": 20,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_InstructionHistory_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/workspaces/{workspace_id}/instruction/proposals": {
       "get": {
         "tags": [
@@ -4914,6 +4986,23 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/AcceptInstructionProposalRequest"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Request"
+              }
+            }
+          }
+        },
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -5304,6 +5393,68 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Response_MemoryItem_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workspaces/{workspace_id}/memories/extraction": {
+      "get": {
+        "tags": [
+          "记忆"
+        ],
+        "summary": "一次材料截止位置产生的记忆",
+        "description": "只返回该工作区和会话中由此次提炼创建、当前仍可查看的条目",
+        "operationId": "memory_extraction_api_workspaces__workspace_id__memories_extraction_get",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "session_id",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          },
+          {
+            "name": "seq",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "title": "Seq"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_MemoryExtractionView_"
                 }
               }
             }
@@ -6435,6 +6586,38 @@
   },
   "components": {
     "schemas": {
+      "AcceptInstructionProposalRequest": {
+        "properties": {
+          "body": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 4000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Body",
+            "description": "编辑后的工作方式正文；省略时使用原提议"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version",
+            "description": "审阅时的工作区版本，用于并发修改核对"
+          }
+        },
+        "type": "object",
+        "title": "AcceptInstructionProposalRequest"
+      },
       "AgentConfig": {
         "properties": {
           "max_iterations": {
@@ -9328,6 +9511,15 @@
         ],
         "title": "ExtraDirRequest"
       },
+      "ExtractionCommitStatus": {
+        "type": "string",
+        "enum": [
+          "pending",
+          "committed",
+          "rejected"
+        ],
+        "title": "ExtractionCommitStatus"
+      },
       "File": {
         "properties": {
           "id": {
@@ -9940,6 +10132,34 @@
         "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
         "description": "核心进程的一次启动"
       },
+      "InstructionHistory": {
+        "properties": {
+          "versions": {
+            "items": {
+              "$ref": "#/components/schemas/InstructionVersionView"
+            },
+            "type": "array",
+            "title": "Versions"
+          },
+          "next_before": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Before"
+          }
+        },
+        "type": "object",
+        "required": [
+          "versions",
+          "next_before"
+        ],
+        "title": "InstructionHistory"
+      },
       "InstructionProposalList": {
         "properties": {
           "proposals": {
@@ -10030,6 +10250,33 @@
           "template"
         ],
         "title": "InstructionSource"
+      },
+      "InstructionVersionView": {
+        "properties": {
+          "version": {
+            "type": "integer",
+            "title": "Version"
+          },
+          "body": {
+            "type": "string",
+            "title": "Body"
+          },
+          "source": {
+            "$ref": "#/components/schemas/InstructionSource"
+          },
+          "created_at": {
+            "type": "integer",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "version",
+          "body",
+          "source",
+          "created_at"
+        ],
+        "title": "InstructionVersionView"
       },
       "InstructionView": {
         "properties": {
@@ -10716,6 +10963,33 @@
           "created_at"
         ],
         "title": "MemoryChangeView"
+      },
+      "MemoryExtractionView": {
+        "properties": {
+          "status": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ExtractionCommitStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "memories": {
+            "items": {
+              "$ref": "#/components/schemas/MemoryItem"
+            },
+            "type": "array",
+            "title": "Memories"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "memories"
+        ],
+        "title": "MemoryExtractionView"
       },
       "MemoryItem": {
         "properties": {
@@ -12803,6 +13077,25 @@
         ],
         "title": "Response[IndexSummaryView]"
       },
+      "Response_InstructionHistory_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/InstructionHistory"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "Response[InstructionHistory]"
+      },
       "Response_InstructionProposalList_": {
         "properties": {
           "data": {
@@ -12935,6 +13228,25 @@
           "data"
         ],
         "title": "Response[ListSessionResponse]"
+      },
+      "Response_MemoryExtractionView_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MemoryExtractionView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "Response[MemoryExtractionView]"
       },
       "Response_MemoryItem_": {
         "properties": {

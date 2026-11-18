@@ -1,45 +1,85 @@
-import {useEffect, useState} from 'react'
+import {useEffect, useState, type ReactNode} from 'react'
 import {Link, useRouter, usePathname} from '@/lib/navigation'
 import {toast} from 'sonner'
-import {Sidebar, SidebarContent, SidebarFooter, SidebarHeader, useSidebar} from '@/components/ui/sidebar'
+import {Sidebar, SidebarContent, SidebarHeader, useSidebar} from '@/components/ui/sidebar'
 import {Button} from '@/components/ui/button'
-import {Tooltip, TooltipContent, TooltipTrigger} from '@/components/ui/tooltip'
-import {ChevronLeft, Settings} from 'lucide-react'
-import {NewChatIcon} from '@/components/nav-icons'
-import {SettingsDialog} from '@/components/settings/settings-dialog'
-import {SidebarChrome} from '@/components/sidebar-chrome'
+import {IconAction} from '@/components/ui/icon-action'
+import {Folder, FolderOpen, Plus} from '@/components/ui/icons'
 import {SessionItem} from '@/components/session-item'
 import {DeleteSessionDialog} from '@/components/delete-session-dialog'
 import {RenameSessionDialog} from '@/components/rename-session-dialog'
+import {WorkspaceAddAction} from '@/components/workspace/workspace-list'
 import {useSessions} from '@/hooks/use-sessions'
 import {sessionApi} from '@/lib/api/session'
 import type {Session} from '@/lib/api/types'
 import {parseWorkspaceRoute, workspaceHref, workspaceSessionHref} from '@/lib/workspace-route'
-import {describeWorkspace} from '@/lib/workspace-state'
-import {useWorkspace} from '@/providers/workspaces-provider'
+import {useWorkspaces} from '@/providers/workspaces-provider'
 import {WorkspaceStatus} from '@/components/workspace/workspace-status'
+import {formatDayLabel} from '@/lib/utils'
 
-export function LeftPanel() {
+type SessionRows = {sessions: Session[]; loading: boolean; error: string | null}
+
+const EMPTY_ROWS: SessionRows = {sessions: [], loading: true, error: null}
+
+function DirectoryStatus({loading, error, empty, onRetry}: {loading: boolean; error: string | null; empty: string | null; onRetry: () => void}) {
+  if (error) return <div className="px-2 py-3"><p role="alert" className="text-meta text-state-failed">{error}</p>
+    <Button size="xs" variant="ghost" onClick={onRetry}>重试</Button></div>
+  if (loading) return <p role="status" className="px-2 py-3 text-meta text-faint">正在读取…</p>
+  return empty ? <p className="px-2 py-3 text-meta text-faint">{empty}</p> : null
+}
+
+function DirectoryFrame({label, action, children}: {label: string; action: ReactNode; children: ReactNode}) {
+  return <Sidebar inline className="bg-canvas">
+    <SidebarHeader className="flex h-14 shrink-0 flex-row items-center justify-between px-5 pt-3 pb-0">
+      <h2 className="text-base font-semibold tracking-tight">{label}</h2>{action}
+    </SidebarHeader>
+    <SidebarContent className="min-h-0 gap-0 overflow-y-auto px-3 pb-4">
+      <nav aria-label={label} className="min-w-0">{children}</nav>
+    </SidebarContent>
+  </Sidebar>
+}
+
+/** 非当前工作区只取目录快照，当前工作区复用唯一实时会话列表。 */
+function ExpandedWorkspaceSessions({id, revision, renderRows}: {id: string; revision: number; renderRows: (rows: Session[]) => ReactNode}) {
+  const [snapshot, setSnapshot] = useState<SessionRows>(EMPTY_ROWS)
+  const [retry, setRetry] = useState(0)
+  useEffect(() => {
+    let cancelled = false
+    const load = async () => {
+      setSnapshot(previous => ({...previous, loading: true, error: null}))
+      try {
+        const page = await sessionApi.getSessions(0, {workspaceId: id})
+        if (!cancelled) setSnapshot({sessions: page.sessions, loading: false, error: null})
+      } catch (reason) {
+        if (!cancelled) setSnapshot({sessions: [], loading: false, error: reason instanceof Error ? reason.message : '读取对话失败'})
+      }
+    }
+    void load()
+    return () => {cancelled = true}
+  }, [id, revision, retry])
+  return <>
+    {!snapshot.sessions.length && <DirectoryStatus loading={snapshot.loading} error={snapshot.error} empty="还没有对话" onRetry={() => setRetry(value => value + 1)}/>}
+    {renderRows(snapshot.sessions)}
+  </>
+}
+
+export function LeftPanel({scope, expanded, onExpand}: {
+  scope: 'independent' | 'workspaces'; expanded: Record<string, boolean>; onExpand: (id: string, open: boolean) => void
+}) {
   const router = useRouter()
   const pathname = usePathname()
   const {setOpenMobile} = useSidebar()
   const {sessions, loading, error, refresh, deleteSession, patchSession, liveSession} = useSessions()
+  const {workspaces, loading: workspacesLoading, error: workspacesError, refresh: refreshWorkspaces} = useWorkspaces()
   const [selectedRecord, setSelected] = useState<Session | null>(null)
-  const [appSettingsOpen, setAppSettingsOpen] = useState(false)
   const [pendingDelete, setPendingDelete] = useState<Session | null>(null)
   const [pendingRename, setPendingRename] = useState<Session | null>(null)
-  const route = parseWorkspaceRoute(pathname)
-  const workspaceId = route.workspaceId
-  const lookup = useWorkspace(workspaceId)
-  const workspace = lookup.phase === 'ready' ? lookup.workspace : null
-  const state = workspace ? describeWorkspace(workspace) : null
-  const canStartChat = !state || (!state.archived && !state.deleting)
-  const sessionId = workspaceId ? route.sessionId : pathname.startsWith('/sessions/') ? pathname.split('/')[2] : null
-  const home = workspaceId ? workspaceHref(workspaceId) : '/'
-  const hrefFor = (id: string) => workspaceId ? workspaceSessionHref(workspaceId, id) : `/sessions/${id}`
+  const [revisions, setRevisions] = useState<Record<string, number>>({})
+  const {workspaceId, sessionId: workspaceSessionId} = parseWorkspaceRoute(pathname)
+  const sessionId = workspaceSessionId ?? pathname.match(/^\/sessions\/([^/]+)/)?.[1]
   const selected = selectedRecord?.session_id === sessionId ? selectedRecord : null
 
-  // 当前会话不在已加载的分页里时单独读取，保证导航里能定位到它
+  // 深链接可能定位到分页以外的旧会话。
   useEffect(() => {
     if (!sessionId) return
     let active = true
@@ -48,64 +88,89 @@ export function LeftPanel() {
     return () => {active = false}
   }, [sessionId])
 
-  const newChat = () => {setOpenMobile(false); router.push(home)}
+  const currentRows = selected && (selected.workspace_id ?? null) === workspaceId &&
+    !sessions.some(item => item.session_id === selected.session_id)
+    ? [...sessions, liveSession?.id === selected.session_id ? {...selected, status: liveSession.status} : selected]
+    : sessions
+  const hrefFor = (id: string, owner: string | null) => owner ? workspaceSessionHref(owner, id) : `/sessions/${encodeURIComponent(id)}`
+  const renderRows = (rows: Session[], owner: string | null) => rows.map(session => <SessionItem key={session.session_id}
+    session={session} href={hrefFor(session.session_id, owner)} isActive={sessionId === session.session_id}
+    onClick={() => setOpenMobile(false)} onDelete={setPendingDelete} onRename={setPendingRename}/>)
+  const invalidate = (owner: string | null) => {
+    if (owner === workspaceId) void refresh()
+    else if (owner) setRevisions(current => ({...current, [owner]: (current[owner] ?? 0) + 1}))
+  }
   const remove = async () => {
     if (!pendingDelete) return
-    const success = await deleteSession(pendingDelete.session_id)
-    if (success) {if (sessionId === pendingDelete.session_id) router.push(home); await refresh()}
-    else toast.error('删除对话失败，请重试')
+    const owner = pendingDelete.workspace_id ?? null
+    if (owner === workspaceId) {
+      if (!await deleteSession(pendingDelete.session_id)) {toast.error('删除对话失败，请重试'); return}
+    } else {
+      try {await sessionApi.deleteSession(pendingDelete.session_id)}
+      catch (reason) {toast.error(reason instanceof Error ? reason.message : '删除对话失败'); return}
+    }
+    if (sessionId === pendingDelete.session_id) router.push(owner ? workspaceHref(owner) : '/')
+    invalidate(owner)
     setPendingDelete(null)
-  }
-  const conversations = [...sessions]
-  if (selected && (selected.workspace_id ?? null) === workspaceId && !conversations.some(item => item.session_id === selected.session_id)) {
-    conversations.push(liveSession?.id === selected.session_id ? {...selected, status: liveSession.status} : selected)
   }
 
   return <>
-    <Sidebar collapsible="icon">
-      <SidebarHeader className="px-3 pb-1 pt-2 group-data-[collapsible=icon]:px-2"><SidebarChrome/></SidebarHeader>
-      <SidebarContent className="min-h-0 overflow-hidden px-3 pb-2 pt-1 group-data-[collapsible=icon]:px-2">
-        <div className="hidden flex-1 flex-col items-center gap-2 group-data-[collapsible=icon]:flex">
-          {canStartChat && <Button variant="ghost" size="icon-sm" className="group/create text-muted-foreground" aria-label="新对话" title="新对话" onClick={newChat}><NewChatIcon className="size-[18px]" aria-hidden="true"/></Button>}
-        </div>
-        <nav aria-label={workspaceId ? '工作区对话' : '对话'} className="flex min-h-0 flex-1 flex-col group-data-[collapsible=icon]:hidden">
-          {workspaceId && <div className="mb-3 shrink-0 space-y-1">
-            <Link href="/" onClick={() => setOpenMobile(false)} className="inline-flex items-center gap-0.5 rounded-sm pl-1 text-meta text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring">
-              <ChevronLeft className="size-4" aria-hidden/>全部工作区
-            </Link>
-            <Link href={home} onClick={() => setOpenMobile(false)} className="flex items-center gap-2 rounded-md px-2 py-1.5 outline-none hover:bg-sidebar-accent focus-visible:ring-2 focus-visible:ring-ring">
-              <span className="min-w-0 flex-1 truncate text-sm font-medium" dir="auto">{workspace?.name ?? '工作区'}</span>
-              {workspace && <WorkspaceStatus workspace={workspace}/>}
-            </Link>
+    {scope === 'workspaces' ? <DirectoryFrame label="工作区" action={<WorkspaceAddAction/>}>
+      <DirectoryStatus loading={workspacesLoading && !workspaces.length} error={workspacesError}
+        empty={!workspaces.length ? '还没有工作区' : null} onRetry={() => void refreshWorkspaces()}/>
+      {workspaces.length > 0 && <p className="px-2 pt-3 pb-1 text-xs text-faint">本机</p>}
+      {workspaces.map(workspace => {
+        const active = workspace.id === workspaceId
+        const home = workspaceHref(workspace.id)
+        const open = expanded[workspace.id] ?? active
+        const Glyph = open ? FolderOpen : Folder
+        return <div key={workspace.id} className="my-0.5">
+          <Link href={home} className="workspace-directory-row" aria-expanded={open} aria-current={pathname === home ? 'page' : undefined}
+            onClick={event => {
+              if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return
+              if (pathname === home) {
+                event.preventDefault()
+                onExpand(workspace.id, !open)
+              } else {
+                onExpand(workspace.id, true)
+                setOpenMobile(false)
+              }
+            }}><Glyph className="size-[19px] shrink-0 text-muted-foreground"/>
+            <span className="min-w-0 flex-1 truncate" dir="auto">{workspace.name}</span>
+            <WorkspaceStatus workspace={workspace} compact/>
+          </Link>
+          {open && <div className="workspace-directory-children">
+            {active ? <>
+              {!currentRows.length && <DirectoryStatus loading={loading} error={error} empty="还没有对话" onRetry={() => void refresh()}/>}
+              {renderRows(currentRows, workspace.id)}
+            </> : <ExpandedWorkspaceSessions id={workspace.id} revision={revisions[workspace.id] ?? 0} renderRows={rows => renderRows(rows, workspace.id)}/>}
           </div>}
-          <div className="mb-2 flex shrink-0 items-center justify-between gap-3 pl-2">
-            <h2 className="text-meta font-medium text-muted-foreground">对话</h2>
-            {canStartChat && <Tooltip>
-              <TooltipTrigger asChild><Button variant="ghost" size="icon-sm" className="group/create text-muted-foreground hover:bg-sidebar-accent hover:text-foreground" aria-label="新建对话" onClick={newChat}>
-                <NewChatIcon className="size-[18px]" aria-hidden="true"/>
-              </Button></TooltipTrigger>
-              <TooltipContent side="bottom">新建对话</TooltipContent>
-            </Tooltip>}
-          </div>
-          <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto overscroll-contain">
-            {loading && !conversations.length && <p className="px-2 py-3 text-meta text-faint">正在读取对话</p>}
-            {error && <div className="px-2 py-3"><p role="alert" className="text-meta text-state-failed">{error}</p><Button size="sm" variant="ghost" onClick={() => void refresh()}>重试</Button></div>}
-            {!loading && !error && !conversations.length && <p className="px-2 py-3 text-meta text-faint">还没有对话</p>}
-            {conversations.map(session => <SessionItem key={session.session_id} session={session} isActive={sessionId === session.session_id}
-              href={hrefFor(session.session_id)} onClick={() => setOpenMobile(false)}
-              onDelete={setPendingDelete} onRename={setPendingRename}/>)}
-          </div>
-        </nav>
-      </SidebarContent>
-      <SidebarFooter><Button variant="ghost" className="w-full justify-start gap-2.5 text-muted-foreground group-data-[collapsible=icon]:size-8 group-data-[collapsible=icon]:self-center group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0" onClick={() => {setOpenMobile(false); setAppSettingsOpen(true)}} title="设置" aria-label="设置"><Settings className="size-[18px]" aria-hidden="true"/><span className="group-data-[collapsible=icon]:hidden">设置</span></Button></SidebarFooter>
-    </Sidebar>
-    <SettingsDialog open={appSettingsOpen} onOpenChange={setAppSettingsOpen}/>
+        </div>
+      })}
+    </DirectoryFrame> : <DirectoryFrame label="独立对话" action={<IconAction label="新对话" asChild>
+      <Link href="/" onClick={() => setOpenMobile(false)}><Plus/></Link>
+    </IconAction>}>
+      <DirectoryStatus loading={loading && !currentRows.length} error={error} empty={!currentRows.length ? '还没有独立对话' : null}
+        onRetry={() => void refresh()}/>
+      {['今天', '昨天', '更早'].map(label => {
+        const rows = currentRows.filter(session => {
+          const day = formatDayLabel(session.latest_message_at)
+          return label === '更早' ? day !== '今天' && day !== '昨天' : day === label
+        })
+        return rows.length > 0 && <div key={label} className="mb-2">
+          <p className="px-2 pt-3 pb-1 text-xs text-faint">{label}</p>
+          {renderRows(rows, null)}
+        </div>
+      })}
+    </DirectoryFrame>}
     <DeleteSessionDialog open={!!pendingDelete} onOpenChange={open => {if (!open) setPendingDelete(null)}} onConfirm={remove}/>
-    {pendingRename && <RenameSessionDialog sessionId={pendingRename.session_id} currentTitle={pendingRename.title} open onOpenChange={open => {if (!open) setPendingRename(null)}} onSaved={title => {
-      const id = pendingRename.session_id
-      patchSession(id, {title})
-      setSelected(current => current?.session_id === id ? {...current, title} : current)
-      void refresh()
-    }}/>}
+    {pendingRename && <RenameSessionDialog sessionId={pendingRename.session_id} currentTitle={pendingRename.title} open
+      onOpenChange={open => {if (!open) setPendingRename(null)}} onSaved={title => {
+        const id = pendingRename.session_id
+        const owner = pendingRename.workspace_id ?? null
+        if (owner === workspaceId) patchSession(id, {title})
+        setSelected(current => current?.session_id === id ? {...current, title} : current)
+        invalidate(owner)
+      }}/>}
   </>
 }

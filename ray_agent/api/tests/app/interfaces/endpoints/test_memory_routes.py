@@ -37,6 +37,11 @@ def test_instruction_memory_search_and_manifest_over_http(host: TestClient):
     updated = data(host.put(f"/api/workspaces/{wid}/instruction",
                             json={"body": "回答要简洁", "version": current["workspace_version"]}))
     assert updated["instruction_version"] == 2
+    latest = data(host.get(f"/api/workspaces/{wid}/instruction/history", params={"limit": 1}))
+    assert [version["version"] for version in latest["versions"]] == [2] and latest["next_before"] == 2
+    previous = data(host.get(f"/api/workspaces/{wid}/instruction/history", params={"before": latest["next_before"]}))
+    assert [version["body"] for version in previous["versions"]] == ["只用简体中文回答"]
+    assert previous["next_before"] is None
     stale = data(host.put(f"/api/workspaces/{wid}/instruction",
                           json={"body": "过期", "version": current["workspace_version"]}), 409)
     assert stale["code"] == "conflict" and stale["resource_version"] == updated["workspace_version"]
@@ -76,9 +81,12 @@ def test_instruction_memory_search_and_manifest_over_http(host: TestClient):
 
     # 会话：工作区会话默认参与记忆，可关闭；独立对话不可设置；运行没有清单时 404
     session = data(host.post("/api/sessions", json={"workspace_id": wid}))["session_id"]
+    assert data(host.get(f"/api/workspaces/{wid}/memories/extraction", params={"session_id": session, "seq": 1})) == {
+        "status": None, "memories": []}
     off = data(host.post(f"/api/sessions/{session}/participate-in-memory", json={"participate": False}))
     assert off["participate_in_memory"] is False
     standalone = data(host.post("/api/sessions", json={}))["session_id"]
+    assert host.get(f"/api/workspaces/{wid}/memories/extraction", params={"session_id": standalone, "seq": 1}).status_code == 404
     assert host.post(f"/api/sessions/{standalone}/participate-in-memory", json={"participate": True}).status_code == 400
     assert host.get("/api/runs/no-such-run/context-manifest").status_code == 404
 

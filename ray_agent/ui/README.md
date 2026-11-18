@@ -100,7 +100,7 @@ npm ci
 
 设计原则、视觉语义和交互契约见 [DESIGN.md](DESIGN.md)。取值以 [src/globals.css](src/globals.css) 为准。
 
-浅色画布、侧栏与弱底色统一由 `:root` token 控制；深色 token 独立保留。品牌标记的界面组件是 [brand-mark.tsx](src/components/brand-mark.tsx)，页面图标是 [brand-mark.svg](public/brand-mark.svg)。
+暖灰画布、导航轨道、纸面与弱底色统一由 `:root` token 控制；深色 token 独立保留。品牌标记的界面组件是 [brand-mark.tsx](src/components/brand-mark.tsx)，页面图标是 [brand-mark.svg](public/brand-mark.svg)。操作图标由统一的内联 SVG 组件渲染，源码入口见[代码地图](../../docs/code-map.md)。
 
 主题由 `next-themes`（与框架无关）挂在 [app.tsx](src/app.tsx) 的根组件，`attribute="class"`，默认跟随系统，也可在设置页“外观”分区切换浅色或深色。选择保存在 WebView 本地存储。深色 token 写在 `.dark` 下，不要在组件里再写一套 `dark:` 颜色。
 
@@ -114,7 +114,7 @@ npm ci
 
 ## 运行组件设置
 
-“设置 → 运行组件”提供自动化浏览器、语义检索与文字识别的安装、状态、错误、取消和重试。安装操作由核心持久保存，离开设置后仍执行，重新打开读取原操作；网络结果未知时保留安装请求身份，重新提交仍指向同一操作。状态使用生成的契约类型。工作区的未知进程占用先尝试“重试收尾”；用户明确确认相关进程均已结束后，可按当前租约身份释放，迟到请求不会释放新占用。
+轨道「运行组件」和设置里的对应分区共用自动化浏览器、语义检索与文字识别的安装、状态、错误、取消和重试。安装操作由核心持久保存，离开设置后仍执行，重新打开读取原操作；网络结果未知时保留安装请求身份，重新提交仍指向同一操作。状态使用生成的契约类型。工作区的未知进程占用先尝试“重试收尾”；用户明确确认相关进程均已结束后，可按当前租约身份释放，迟到请求不会释放新占用。
 
 ```bash
 node scripts/check-components-settings.cjs

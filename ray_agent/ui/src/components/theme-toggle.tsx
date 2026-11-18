@@ -1,5 +1,5 @@
 import {useTheme} from 'next-themes'
-import {Monitor, Moon, Sun} from 'lucide-react'
+import {Monitor, Moon, Sun} from '@/components/ui/icons'
 import {Button} from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -18,11 +18,11 @@ const OPTIONS = [
 ] as const
 
 /** 主题切换：跟随系统、浅色、深色，选择保存在浏览器本地 */
-export function ThemeToggle({className}: {className?: string}) {
+export function ThemeToggle({className, quick = false}: {className?: string; quick?: boolean}) {
   const {theme, resolvedTheme, setTheme} = useTheme()
   const mounted = useMounted()
 
-  const Icon = !mounted ? Monitor : resolvedTheme === 'dark' ? Moon : Sun
+  const Icon = !mounted ? Monitor : quick ? (resolvedTheme === 'dark' ? Sun : Moon) : (resolvedTheme === 'dark' ? Moon : Sun)
   const current = OPTIONS.find((o) => o.value === theme)?.label ?? '跟随系统'
 
   if (!mounted) {
@@ -31,6 +31,12 @@ export function ThemeToggle({className}: {className?: string}) {
         <Icon/>
       </Button>
     )
+  }
+
+  if (quick) {
+    const label = resolvedTheme === 'dark' ? '切换为浅色' : '切换为深色'
+    return <Button variant="ghost" size="icon" className={className} aria-label={label} title={label}
+      onClick={() => setTheme(resolvedTheme === 'dark' ? 'light' : 'dark')}><Icon/></Button>
   }
 
   return (

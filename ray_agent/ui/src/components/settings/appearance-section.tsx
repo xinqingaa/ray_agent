@@ -1,6 +1,6 @@
 import {useState, useSyncExternalStore} from 'react'
 import {useTheme} from 'next-themes'
-import {Monitor, Moon, Sun} from 'lucide-react'
+import {Monitor, Moon, Sun} from '@/components/ui/icons'
 import {useMounted} from '@/hooks/use-mounted'
 import {Select} from '@/components/ui/select'
 import {

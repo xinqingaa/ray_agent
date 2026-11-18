@@ -33,6 +33,13 @@ class DBInstructionRepository(InstructionRepository):
         )).scalar_one_or_none()
         return row.to_domain() if row else None
 
+    async def list_versions(self, workspace_id: str, *, before: Optional[int], limit: int) -> list[InstructionVersionRecord]:
+        query = select(InstructionVersionModel).where(InstructionVersionModel.workspace_id == workspace_id)
+        if before is not None:
+            query = query.where(InstructionVersionModel.version < before)
+        rows = await self.db_session.scalars(query.order_by(InstructionVersionModel.version.desc()).limit(limit))
+        return [row.to_domain() for row in rows]
+
     async def add_proposal(self, proposal: InstructionProposal) -> None:
         self.db_session.add(InstructionProposalModel.from_domain(proposal))
         await self.db_session.flush()

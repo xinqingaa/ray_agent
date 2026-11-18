@@ -1,4 +1,4 @@
-import {CornerDownRight, Download} from 'lucide-react'
+import {Download, CornerDownRight} from '@/components/ui/icons'
 import {MarkdownContent} from '@/components/markdown-content'
 import {SkillMark} from '@/components/skill-mark'
 import {cn} from '@/lib/utils'
@@ -29,7 +29,7 @@ export function UserMessage({text, skillName, attachments = [], injected = false
       )}
       <div
         className={cn(
-          'max-w-[min(36rem,88%)] rounded-lg px-3.5 py-2.5',
+          'max-w-[min(36rem,88%)] rounded-[14px] px-3.5 py-2.5',
           injected ? 'border border-dashed border-signal/50 bg-signal-soft/40' : 'bg-secondary',
         )}
       >
@@ -78,7 +78,7 @@ type FinalReplyProps = {
 export function FinalReply({text, streaming, className, deliveredFiles, onDownloadFile}: FinalReplyProps) {
   return (
     <div className={cn('space-y-3', className)} aria-busy={streaming || undefined}>
-      <div className={cn(streaming && STREAMING_CARET)}>
+      <div className={cn('[&_.markdown-content>p:first-child]:font-medium [&_.markdown-content>p:first-child]:text-base', streaming && STREAMING_CARET)}>
         <MarkdownContent content={text} deliveredFiles={deliveredFiles} onDownloadFile={onDownloadFile}/>
       </div>
     </div>

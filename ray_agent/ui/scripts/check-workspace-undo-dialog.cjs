@@ -28,7 +28,7 @@ const historyApi = {
   },
 };
 const load = createLoader({
-  'lucide-react': new Proxy({}, {get: () => () => null}),
+  '@/components/ui/icons': new Proxy({}, {get: () => () => null}),
   '@/lib/api/workspace': {historyApi},
   '@/lib/api/fetch': {ApiError: class extends Error {}},
   '@/hooks/use-session-title': {useSessionTitle: () => '任务'},

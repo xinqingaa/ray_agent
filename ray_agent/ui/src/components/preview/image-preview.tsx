@@ -1,5 +1,5 @@
+import {Download, Expand, Minus, Plus, X, Scan, SquareDashed} from '@/components/ui/icons'
 import {useRef, useState} from 'react'
-import {Download, Expand, Minus, Plus, Scan, SquareDashed, X} from 'lucide-react'
 import {Dialog, DialogContent, DialogDescription, DialogTitle} from '@/components/ui/dialog'
 import {PreviewAction} from './action'
 
