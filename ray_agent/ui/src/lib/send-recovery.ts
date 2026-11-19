@@ -26,7 +26,12 @@ export async function recoverSubmission(scope: string, sessionId: string): Promi
 export async function sendRecoverably(scope: string, sessionId: string, payload: Omit<Submission, 'afterSeq' | 'state'>): Promise<void> {
   const previous = readDraft(scope).submission
   if (previous?.execute_plan) {
-    // 保留原请求标识；服务端持久幂等，响应丢失时可以安全重试。
+    const pending = previous.execute_plan
+    const requested = payload.execute_plan
+    const samePlan = requested?.source_run_id === pending.source_run_id &&
+      requested.plan_id === pending.plan_id && requested.source_seq === pending.source_seq
+    if (!samePlan) throw new UncertainSubmissionError('上一份计划的受理结果待核对，请先检查历史。')
+    // 同一计划的再次确认沿用原标识，交给服务端幂等受理。
     await sessionApi.chat(sessionId, previous)
     writeDraft(scope, {submission: undefined})
     return

@@ -1,4 +1,4 @@
-import type {TimelineItem} from '@/lib/session-view'
+import type {RunView, TimelineItem} from '@/lib/session-view'
 
 /** 仅记录用户点击重试产生的展示关联，不按相同文本合并普通发送。 */
 export type RetryDisplay = {
@@ -26,11 +26,40 @@ export function writeRetryDisplay(sessionId: string, value: RetryDisplay) {
 }
 
 /** 只关联点击之后第一条回显；后续用户主动重复发送仍正常显示。 */
-export function retryEcho(items: TimelineItem[], pending: NonNullable<RetryDisplay['pending']>) {
-  const user = items.find(item => item.kind === 'user' && item.runId !== pending.fromRunId
-    && item.text === pending.text && !pending.knownUserIds.includes(item.id))
+export function retryEchoUserId(items: TimelineItem[], pending: NonNullable<RetryDisplay['pending']>) {
+  return items.find(item => item.kind === 'user' && item.runId && item.runId !== pending.fromRunId
+    && item.text === pending.text && !pending.knownUserIds.includes(item.id))?.id
+}
+
+/** 聊天只显示当前的自动重试状态，终态统一由结束条承接。原始事件仍可在日志查看。 */
+export function conversationTimeline(items: TimelineItem[], runs: RunView[], retry: Pick<RetryDisplay, 'hiddenRunIds' | 'hiddenUserIds' | 'pending'>) {
+  const echoId = retry.pending ? retryEchoUserId(items, retry.pending) : undefined
+  const hiddenRuns = new Set(retry.hiddenRunIds)
+  if (echoId && retry.pending) hiddenRuns.add(retry.pending.fromRunId)
+  const terminalRuns = new Set(runs.filter(run => run.status !== 'running' && run.status !== 'waiting').map(run => run.id))
+  const latestAttempt = new Map<string, Extract<TimelineItem, {kind: 'attempt'}>>()
+  for (const item of items) {
+    if (!item.runId) continue
+    if (item.kind === 'run_end') terminalRuns.add(item.runId)
+    if (item.kind === 'attempt') latestAttempt.set(item.runId, item)
+  }
+  const visibleAttempts = new Set<string>()
+  for (const run of runs) {
+    if (terminalRuns.has(run.id)) continue
+    const attempt = latestAttempt.get(run.id)
+    const turn = run.turns.at(-1)
+    if (attempt?.retried && (!turn || (turn.index === attempt.turnIndex && turn.endedAt == null))) {
+      visibleAttempts.add(attempt.id)
+    }
+  }
+  const hiddenUsers = new Set(retry.hiddenUserIds)
   return {
-    userId: user?.id,
-    settled: !!user?.runId && items.some(item => item.runId === user.runId && item.kind !== 'user' && item.kind !== 'protection'),
+    items: items.filter(item => {
+      if (item.kind === 'user') return !hiddenUsers.has(item.id) && item.id !== echoId
+      if (item.kind === 'run_end') return !item.runId || !hiddenRuns.has(item.runId)
+      if (item.kind !== 'attempt') return true
+      return visibleAttempts.has(item.id)
+    }),
+    runs: runs.filter(run => !hiddenRuns.has(run.id)),
   }
 }

@@ -30,4 +30,5 @@ async def run_context_manifest(run_id: str, assembly: ContextAssembly = Depends(
     manifest = await assembly.manifest(run_id)
     if manifest is None:
         raise NotFoundError("该运行没有背景清单")
-    return Response.success(ContextManifestView.of(manifest))
+    sources = await assembly.readable_summary_sources(manifest)
+    return Response.success(ContextManifestView.of(manifest, sources))

@@ -21,7 +21,7 @@ from app.domain.models.clock import utc_now
 from app.domain.models.error import ErrorCode
 from app.domain.models.model_catalog import (
     choose_sampling, client_config, current_sampling, find_model, missing_reasoning, model_request,
-    default_model, resolve_active, active_models,
+    default_model, resolve_active, active_models, connection_issue,
 )
 from app.domain.models.event import ApprovalEvent, ApprovalStatus, ErrorEvent, Event, MessageEvent, TitleEvent
 from app.domain.models.plan_acceptance import PlanAcceptance, PlanAlreadyAccepted, PlanAcceptanceConflict
@@ -289,6 +289,15 @@ class AgentService:
             raise BadRequestError("这条对话已经丢掉思考内容，请新开对话再打开思考")
         session.model_id = spec.id
         session.reasoning = choice.id
+
+    def _check_model_connection(self, model_id: str | None) -> None:
+        config = getattr(self, "_llm_config", None)
+        if config is None or config.connections is None:
+            return
+        selected = model_id or config.model_name
+        issue = connection_issue(config, selected)
+        if issue:
+            raise BadRequestError(f"{selected} {issue}", details={"section": "model_connection"})
 
     async def set_model(self, session_id: str, model: str, reasoning: str) -> tuple[str, str]:
         """保存下一次新运行的模型与思考强度。进行中的运行仍用自己的快照。"""
@@ -643,6 +652,7 @@ class AgentService:
                 # 独立受理路径：不能误入运行中注入/等待续接；写事务串行化重试。
                 if mode != RunMode.NORMAL or attachments or skill is not None:
                     raise BadRequestError("确认计划只能以普通模式、不附带附件提交")
+                self._check_model_connection(model or session.model_id)
                 await self._remember_model(session, model, reasoning, creating=False)
                 await self._bind_sampling(session, creating=False, model_changed=False)
                 try:
@@ -654,12 +664,6 @@ class AgentService:
                     raise ConflictError(str(error)) from error
                 self._schedule_start(session, run.id, session.status)
                 return ChatAccepted(run_id=run.id, seq=message_event.seq, route="started")
-            previous_model = session.model_id
-            await self._remember_model(session, model, reasoning, creating=False)
-            await self._bind_sampling(
-                session, creating=False,
-                model_changed=previous_model is not None and session.model_id != previous_model,
-            )
             if waiting_for_approval(active):
                 raise ConflictError("当前运行在等待审批，请先批准或拒绝待审批的操作，或停止运行后再发送消息")
             task = await self._get_task(active.id) if active is not None else None
@@ -668,6 +672,17 @@ class AgentService:
                 starting is not None or self._task_runs(task, active.id))
             if mode == RunMode.PLAN and active is not None and (active.status == RunStatus.WAITING or executing):
                 raise ConflictError("当前运行还没有结束，计划模式只能在新运行开始时选择；请等运行结束或停止后再发送")
+
+            if active is not None and active.status == RunStatus.WAITING:
+                self._check_model_connection((active.config_snapshot or {}).get('model_name') or session.model_id)
+            elif not executing:
+                self._check_model_connection(model or session.model_id)
+            previous_model = session.model_id
+            await self._remember_model(session, model, reasoning, creating=False)
+            await self._bind_sampling(
+                session, creating=False,
+                model_changed=previous_model is not None and session.model_id != previous_model,
+            )
 
             from app.infrastructure.external.file_storage.image_input import is_image_attachment
             if image_mode == 'auto' and any(is_image_attachment(file) for file in message_event.attachments):

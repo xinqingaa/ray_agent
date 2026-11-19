@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useMemo, useRef, useState, type DragEvent} from 'react'
+import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent} from 'react'
 import {useLocation} from 'react-router'
 import {AlertTriangle, Grip, Loader2, Pencil, Pin, PinOff, Plus, Search, Undo2, X} from '@/components/ui/icons'
 import {toast} from 'sonner'
@@ -71,13 +71,15 @@ function MemoryRow({item, workspaceId, readonly, busy, onAct}: {
       </IconAction>
       <IconAction label="编辑记忆" disabled={busy} onClick={() => {setDraft(item.content); setType(item.memory_type); setEditing(true)}}><Pencil/></IconAction>
       <IconAction label="撤回记忆" disabled={busy} onClick={() => void onAct(item, {action: 'retract', version: item.version})}><X/></IconAction>
-      <IconAction label="撤销变更" disabled={busy} onClick={() => void onAct(item, {action: 'undo', version: item.version})}><Undo2/></IconAction>
+      <IconAction label={item.undo_unavailable ?? '撤销变更'} disabled={busy}
+        aria-disabled={Boolean(item.undo_unavailable)}
+        onClick={() => {if (!item.undo_unavailable) void onAct(item, {action: 'undo', version: item.version})}}><Undo2/></IconAction>
     </div>}
   </li>
 }
 
-function MemoryCutline({count}: {count: number}) {
-  return <li className="background-memory-cutline">以下 {count} 条不常驻，任务相关时检索召回</li>
+function MemoryCutline({count, lane}: {count: number; lane: 'pinned' | 'remaining'}) {
+  return <li id={`memory-cutline-${lane}`} className="background-memory-cutline">以下 {count} 条不常驻，任务相关时检索召回</li>
 }
 
 export type BackgroundMemorySummary = {resident: number; limit: number; pending: number}
@@ -107,6 +109,19 @@ export function MemoryPanel({workspace, onSummary}: {
   const [searching, setSearching] = useState(false)
   const [searchError, setSearchError] = useState<string | null>(null)
   const requests = useRef(0)
+  const listRef = useRef<HTMLElement>(null)
+  const beforeReorder = useRef<Map<string, number> | null>(null)
+
+  useLayoutEffect(() => {
+    const previous = beforeReorder.current
+    beforeReorder.current = null
+    if (!previous || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    const nodes = listRef.current?.querySelectorAll<HTMLElement>('.background-memory-row, .background-memory-cutline') ?? []
+    const moves = Array.from(nodes, node => ({node, delta: (previous.get(node.id) ?? node.offsetTop) - node.offsetTop}))
+    for (const {node, delta} of moves) if (delta) node.animate([
+      {transform: `translateY(${delta}px)`}, {transform: 'translateY(0)'},
+    ], {duration: 220, easing: 'ease-out'})
+  }, [items])
   const rows = useMemo(() => [...items].sort((a, b) =>
     Number(b.pinned) - Number(a.pinned) || TYPE_ORDER[a.memory_type] - TYPE_ORDER[b.memory_type] ||
     (b.last_used_at ?? b.updated_at) - (a.last_used_at ?? a.updated_at)), [items])
@@ -123,13 +138,17 @@ export function MemoryPanel({workspace, onSummary}: {
     if (residentLimit != null) onSummary({resident: residentCount, limit: residentLimit, pending: pendingCount})
   }, [onSummary, pendingCount, residentCount, residentLimit])
 
-  const reload = useCallback(async () => {
+  const reload = useCallback(async (animate = false) => {
     const request = ++requests.current
     setLoading(true)
     setError(null)
     try {
       const data = await memoryApi.list(workspace.id, ['active', 'candidate'])
       if (request !== requests.current) return null
+      if (animate && listRef.current) {
+        const nodes = listRef.current.querySelectorAll<HTMLElement>('.background-memory-row, .background-memory-cutline')
+        beforeReorder.current = new Map(Array.from(nodes, node => [node.id, node.offsetTop]))
+      }
       setItems(data.memories)
       setResidentLimit(data.resident_limit)
       return data.memories
@@ -175,11 +194,11 @@ export function MemoryPanel({workspace, onSummary}: {
     try {
       const next = await memoryApi.patch(workspace.id, item.id, action)
       if (action.action === 'pin' || action.action === 'unpin' || action.action === 'retract') {
-        toast.success(action.action === 'pin' ? '已钉住' : action.action === 'unpin' ? '已取消钉住' : '已撤回', {duration: 9000, action: undo(next)})
+        toast.success(action.action === 'pin' ? '已钉住' : action.action === 'unpin' ? '已取消钉住' : '已撤回', {duration: 9000, action: next.undo_unavailable ? undefined : undo(next)})
       } else {
         toast.success(action.action === 'confirm' ? '已确认' : action.action === 'undo' ? '已撤销变更' : '已保存')
       }
-      await reload()
+      await reload(action.action === 'pin' || action.action === 'unpin')
       return true
     } catch (reason) {
       const message = reason instanceof Error ? reason.message : '操作失败'
@@ -223,7 +242,7 @@ export function MemoryPanel({workspace, onSummary}: {
   const renderRows = (list: MemoryItem[]) => list.map(item => <MemoryRow key={item.id} item={item} workspaceId={workspace.id}
     readonly={readonly} busy={busyId !== null} onAct={mutate}/>)
 
-  return <section aria-label="工作区记忆" className="space-y-3" onDragEnd={() => setDropHighlight(null)}>
+  return <section ref={listRef} aria-label="工作区记忆" className="relative space-y-3" onDragEnd={() => setDropHighlight(null)}>
     <header className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
       <h2 className="text-[15px] font-semibold">记忆</h2>
       {residentLimit != null && <span className="text-xs text-faint tabular-nums">{active.length} 条</span>}
@@ -262,11 +281,13 @@ export function MemoryPanel({workspace, onSummary}: {
               <p className="whitespace-pre-wrap wrap-anywhere text-sm">{target?.content ?? '原条目已不可用'}</p>
             </div>}
             <div className="rounded-xl bg-state-waiting-soft px-3 py-2.5">
-              <p className="mb-1 text-xs text-faint">新发现</p>
+              <p className="mb-1 text-xs text-faint">新发现 · v{item.version}</p>
               <p className="whitespace-pre-wrap wrap-anywhere text-sm">{item.content}</p>
             </div>
           </div>
-          {reviewError?.id === item.id && <p role="alert" className="text-xs text-state-waiting">{reviewError.message}</p>}
+          {reviewError?.id === item.id
+            ? <p role="alert" className="text-xs text-state-waiting">{reviewError.message}</p>
+            : target && target.version !== item.supersedes_version && <p className="text-xs text-state-waiting">原条目已有变更，请按当前版本重新审阅。</p>}
           {!readonly && <div className="flex flex-wrap gap-1.5">
             <Button size="sm" disabled={busyId !== null || (!!item.supersedes_id && !target)}
               aria-label={target ? `采用新的，替代 v${target.version}` : '确认记住'}
@@ -293,7 +314,7 @@ export function MemoryPanel({workspace, onSummary}: {
         <div className="background-memory-drop-slot" aria-hidden/>
         {pinned.length || pinnedOverflow.length ? <ul>
           {renderRows(pinned)}
-          {pinnedOverflow.length > 0 && <MemoryCutline count={pinnedOverflow.length}/>}
+          {pinnedOverflow.length > 0 && <MemoryCutline count={pinnedOverflow.length} lane="pinned"/>}
           {renderRows(pinnedOverflow)}
         </ul> : <p className="px-4 py-4 text-xs text-faint">{readonly ? '暂无钉住的记忆' : '把常用的记忆拖到这里'}</p>}
       </div>
@@ -307,7 +328,7 @@ export function MemoryPanel({workspace, onSummary}: {
         <div className="background-memory-drop-slot" aria-hidden/>
         {resident.length || searchable.length ? <ul>
           {renderRows(resident)}
-          {searchable.length > 0 && <MemoryCutline count={searchable.length}/>}
+          {searchable.length > 0 && <MemoryCutline count={searchable.length} lane="remaining"/>}
           {renderRows(searchable)}
         </ul> : <p className="px-4 py-4 text-xs text-faint">暂无其他记忆</p>}
       </div>

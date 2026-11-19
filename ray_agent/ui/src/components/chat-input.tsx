@@ -1,4 +1,5 @@
-import {useState, useEffect, useRef, useMemo, useCallback, useId, useLayoutEffect, forwardRef, useImperativeHandle, type ReactNode} from 'react'
+import {useState, useContext, useEffect, useRef, useMemo, useCallback, useId, useLayoutEffect, forwardRef, useImperativeHandle, type ReactNode} from 'react'
+import {TaskFilePicker} from '@/lib/task-file-picker'
 import {cn, formatFileSize} from '@/lib/utils'
 import {ScrollArea, ScrollBar} from '@/components/ui/scroll-area'
 import {Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle} from '@/components/ui/item'
@@ -9,6 +10,8 @@ import {Popover, PopoverAnchor, PopoverContent} from '@/components/ui/popover'
 import {SlashCommandList} from '@/components/input-command-menu'
 import {skillsApi, SKILLS_CHANGED, type Skill, type SkillSelection} from '@/lib/api/skills'
 import {SkillMark} from '@/components/skill-mark'
+import {isDesktop, openModelConfig} from '@/lib/platform'
+import {ApiError} from '@/lib/api/fetch'
 import {fileApi} from '@/lib/api/file'
 import {downloadFile} from '@/lib/api/preview'
 import type {FileInfo} from '@/lib/api/types'
@@ -27,6 +30,7 @@ import type {FileView} from '@/lib/session-view'
 interface ChatInputProps {
   className?: string
   onInputValueChange?: (value: string) => void
+  onAbandonSubmission?: () => void
   onSend?: (message: string, files: FileInfo[], options?: {mode?: 'plan' | 'normal'; model?: string; reasoning?: string; skill?: {id: string; version: string}; image_mode?: 'auto' | 'files'}) => Promise<void>
   savedModel?: string | null
   savedReasoning?: string | null
@@ -67,8 +71,9 @@ export interface ChatInputRef {
 }
 
 export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
-  ({ className, onInputValueChange, onSend, pause = false, onPause, disabled = false, autoFocus = false, workspace = false, sessionId, placeholder = '分配一个任务或提问任何问题...', accessory, draftScope, commandHost = EMPTY_HOST, savedModel = null, savedReasoning = null, runModel = null, runReasoning = null }, ref) => {
+  ({ className, onInputValueChange, onSend, onAbandonSubmission, pause = false, onPause, disabled = false, autoFocus = false, workspace = false, sessionId, placeholder = '分配一个任务或提问任何问题...', accessory, draftScope, commandHost = EMPTY_HOST, savedModel = null, savedReasoning = null, runModel = null, runReasoning = null }, ref) => {
     const {visibility} = useDeveloperMode()
+    const pickDestination = useContext(TaskFilePicker)
     const [files, setFiles] = useState<FileInfo[]>([])
     const [uploading, setUploading] = useState(false)
     const [sending, setSending] = useState(false)
@@ -101,6 +106,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
     const localDraftId = useId()
     const scope = draftScope ?? (sessionId ? `session:${sessionId}` : `input:${localDraftId}`)
     const [loadedScope, setLoadedScope] = useState<string | null>(null)
+    const [modelIssue, setModelIssue] = useState<string | null>(null)
     const [uncertain, setUncertain] = useState(false)
     const [modelChoice, setModelChoice] = useState<ModelSelection | null>(null)
     const [preview, setPreview] = useState<FileView | null>(null)
@@ -382,7 +388,11 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
     }
 
     const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-      void uploadFiles(Array.from(event.target.files ?? []))
+      const selected = Array.from(event.target.files ?? [])
+      event.target.value = ''
+      if (!selected.length) return
+      if (pickDestination) pickDestination(selected)
+      else void uploadFiles(selected)
     }
     const handlePaste = (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
       const images = clipboardImages(event.clipboardData)
@@ -419,6 +429,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
       // 如果提供了 onSend 回调，使用它
       if (onSend) {
         setSending(true)
+        setModelIssue(null)
         try {
           await onSend(trimmedMessage, files, {
             mode: planMode ? 'plan' : 'normal',
@@ -438,7 +449,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
         } catch (error) {
           // 错误处理由 onSend 内部处理
           if (error instanceof UncertainSubmissionError) setUncertain(true)
-          console.error('发送消息失败:', error)
+          if (error instanceof ApiError && error.details.section === 'model_connection') setModelIssue(error.message)
         } finally {
           setSending(false)
         }
@@ -524,6 +535,11 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
     return (
     <Popover open={slashOpen} onOpenChange={(open) => {if (!open) {dismissedRef.current = slash; setSlash(null)}}}>
     <div data-chat-composer className={cn('flex w-full flex-col rounded-[18px] border bg-background py-2.5 shadow-(--paper-shadow) focus-within:border-ring/45', className)}>
+      {modelIssue && <div role="alert" className="mx-4 mb-2 flex flex-wrap items-center gap-x-2 text-meta text-state-failed">
+        <span>{modelIssue}</span>
+        {isDesktop() && <Button type="button" variant="ghost" size="xs" onClick={() => void openModelConfig()
+          .catch(error => toast.error(error instanceof Error ? error.message : '无法打开模型配置'))}>打开模型配置</Button>}
+      </div>}
       {uncertain && !sending && !commandHost.submitting && (
         <div role="status" className="mx-4 mb-2 space-y-2 text-meta text-state-waiting">
           <p>正在确认是否发送成功，文字、附件和模式已保留。请检查结果或核对对话历史。</p>
@@ -542,6 +558,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
             <Button type="button" variant="ghost" size="sm" onClick={() => {
               if(!window.confirm('仅在已核对对话、确认未发送时重发。若原消息已受理，重发可能重复执行。是否允许手动重发？'))return
               writeDraft(scope, {submission: undefined}); setUncertain(false)
+              onAbandonSubmission?.()
               toast.message('已允许手动重发，请确认历史中没有这条消息后发送')
             }}>确认未受理，允许重发</Button>
           </div>
@@ -554,7 +571,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
             <div className="flex w-max items-start gap-3 pb-2">
               {files.map((file) => isImageFile(file) ? (
                 <div key={file.id} className="group relative shrink-0 rounded-lg">
-                  <button type="button" aria-label={`查看图片 ${file.filename}`} className="block rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => previewFile(file)}>
+                  <button type="button" aria-label={`查看图片 ${file.filename}`} className="block max-w-full rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => previewFile(file)}>
                     <AttachmentThumbnail id={file.id} filename={file.filename}/>
                   </button>
                   <div className="pointer-events-none absolute right-1 top-1 flex gap-1 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100 [@media(hover:none)]:pointer-events-auto [@media(hover:none)]:opacity-100">
@@ -660,7 +677,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
             onChange={handleFileSelect}
             disabled={uploading}
           />
-          <Button type="button" variant="ghost" size="icon-sm" aria-label="添加附件" title="添加附件"
+          <Button type="button" variant="ghost" size="icon-sm" aria-label="添加附件" title="添加附件（也可从 Finder 拖入）"
             disabled={!commandById('upload')?.available(commandContext).available}
             onClick={() => commandById('upload')?.run(commandContext)}>
             <Paperclip className="size-4"/>

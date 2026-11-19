@@ -3,6 +3,7 @@ import {toast} from 'sonner'
 import {readDraft, writeDraft} from '@/lib/drafts'
 import {sendRecoverably} from '@/lib/send-recovery'
 import {ApiError} from '@/lib/api/fetch'
+import {configApi} from '@/lib/api/config'
 import {sessionApi} from '@/lib/api/session'
 import type {FileInfo} from '@/lib/api/types'
 
@@ -20,7 +21,23 @@ export function useStartTask(scope: string, workspaceId: string | null, onStarte
     try {
       let id = readDraft(scope).sessionId
       if (!id) {
-        const creationId = readDraft(scope).creationId || crypto.randomUUID()
+        // 已有创建标识时先复用它，保持创建响应丢失后的读回路径。
+        const draft = readDraft(scope)
+        if (!draft.creationId && options?.model && options.reasoning) {
+          const catalog = await configApi.getModels()
+          const issue = catalog.models.find(model => model.id === options.model)?.connection_issue
+          if (issue) {
+            throw new ApiError(400, {
+              code: 'invalid_request',
+              message: `${options.model} ${issue}`,
+              retryable: false,
+              retry_after_ms: null,
+              resource_version: null,
+              details: {section: 'model_connection'},
+            })
+          }
+        }
+        const creationId = draft.creationId || crypto.randomUUID()
         writeDraft(scope, {creationId})
         const session = await sessionApi.createSession({creation_id: creationId, ...(workspaceId ? {workspace_id: workspaceId} : {})})
         id = session.session_id
@@ -36,7 +53,7 @@ export function useStartTask(scope: string, workspaceId: string | null, onStarte
       })
       onStarted(id)
     } catch (err) {
-      if (!(err instanceof ApiError)) toast.error(err instanceof Error ? err.message : '创建会话失败')
+      if (!(err instanceof ApiError) || err.details.section !== 'model_connection') toast.error(err instanceof Error ? err.message : '创建会话失败')
       setSending(false)
       throw err
     }

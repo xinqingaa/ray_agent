@@ -3037,6 +3037,8 @@ export interface components {
             retrieval_hits: components["schemas"]["SearchHitView"][];
             /** Omissions */
             omissions: components["schemas"]["ContextOmissionView"][];
+            /** Readable Summary Sources */
+            readable_summary_sources: string[];
             /** Created At */
             created_at: number;
         };
@@ -4051,6 +4053,11 @@ export interface components {
              */
             supersedes_version: number | null;
             /**
+             * Undo Unavailable
+             * @description 记忆列表和操作结果中无法撤销当前版本的原因
+             */
+            undo_unavailable: string | null;
+            /**
              * Resident
              * @description 当前是否在常驻层（每次新运行注入）
              */
@@ -4190,6 +4197,8 @@ export interface components {
              * @default false
              */
             vision: boolean;
+            /** Connection Issue */
+            connection_issue?: string | null;
             /** Context Window */
             context_window: number;
             /** Max Output */
@@ -5064,6 +5073,10 @@ export interface components {
             completion_tokens: number;
             /** Cached Tokens */
             cached_tokens?: number | null;
+            /** Model Id */
+            model_id?: string | null;
+            /** Reasoning */
+            reasoning?: string | null;
         };
         /**
          * RunMode

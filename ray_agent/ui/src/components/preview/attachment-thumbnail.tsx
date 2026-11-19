@@ -35,9 +35,9 @@ export function AttachmentThumbnail({id, filename}: {id: string; filename: strin
     return () => {observer?.disconnect(); controller.abort()}
   }, [id, filename])
 
-  return <div ref={container} className="pointer-events-none relative flex size-24 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-muted shadow-sm">
-    {error ? <span className="px-2 text-center text-xs text-muted-foreground">{error}</span>
-      : src ? <img src={src} alt="图片预览" loading="lazy" decoding="async" className="h-full w-full object-cover object-left-top" onError={() => setError('图片加载失败')}/>
-        : <span className="px-2 text-center text-xs text-muted-foreground">正在加载图片</span>}
+  return <div ref={container} className="pointer-events-none relative flex w-fit max-w-full items-center justify-center overflow-hidden rounded-lg bg-muted shadow-sm">
+    {error ? <span className="grid size-24 place-content-center px-2 text-center text-xs text-muted-foreground">{error}</span>
+      : src ? <img src={src} alt="图片预览" loading="lazy" decoding="async" className="block h-auto w-auto max-h-36 max-w-full object-contain" onError={() => setError('图片加载失败')}/>
+        : <span className="grid size-24 place-content-center px-2 text-center text-xs text-muted-foreground">正在加载图片</span>}
   </div>
 }

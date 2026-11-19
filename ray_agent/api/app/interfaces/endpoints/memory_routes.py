@@ -4,8 +4,8 @@ from typing import Optional
 from fastapi import APIRouter, Depends, Query
 
 from app.application.errors.exceptions import BadRequestError
-from app.application.services.memory_service import MemoryService
-from app.domain.models.workspace_memory import MemoryStatus
+from app.application.services.memory_service import MemoryService, undo_unavailable
+from app.domain.models.workspace_memory import MemoryEntry, MemoryStatus
 from app.interfaces.schemas import Response
 from app.interfaces.schemas.memory import (
     CreateMemoryRequest, MemoryChangeView, MemoryExtractionView, MemoryItem, MemoryListResponse, MemorySourceView, MemorySourcesResponse,
@@ -16,9 +16,10 @@ from app.interfaces.service_dependencies import get_memory_service
 router = APIRouter(tags=["记忆"])
 
 
-async def _item(service: MemoryService, workspace_id: str, entry) -> MemoryItem:
-    resident = {item.id for item in await service.resident(workspace_id)}
-    return MemoryItem.of(entry, frozenset(resident))
+async def _item(service: MemoryService, workspace_id: str, entry: MemoryEntry) -> MemoryItem:
+    resident = frozenset(item.id for item in await service.resident(workspace_id))
+    changes = await service.changes(workspace_id, entry.id)
+    return MemoryItem.of(entry, resident, undo_unavailable=undo_unavailable(entry, changes[-1] if changes else None))
 
 
 @router.get("/workspaces/{workspace_id}/memories", response_model=Response[MemoryListResponse],
@@ -27,9 +28,11 @@ async def _item(service: MemoryService, workspace_id: str, entry) -> MemoryItem:
 async def list_memories(workspace_id: str, status: Optional[list[MemoryStatus]] = Query(default=None),
                         service: MemoryService = Depends(get_memory_service)):
     statuses = status or [MemoryStatus.ACTIVE, MemoryStatus.CANDIDATE]
-    entries = await service.entries(workspace_id, statuses)
+    entries = await service.entries_with_undo(workspace_id, statuses)
     resident = frozenset(item.id for item in await service.resident(workspace_id))
-    return Response.success(MemoryListResponse(memories=[MemoryItem.of(entry, resident) for entry in entries]))
+    return Response.success(MemoryListResponse(memories=[
+        MemoryItem.of(entry, resident, undo_unavailable=reason) for entry, reason in entries
+    ]))
 
 
 @router.get("/workspaces/{workspace_id}/memories/extraction", response_model=Response[MemoryExtractionView],

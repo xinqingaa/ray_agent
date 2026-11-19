@@ -1,5 +1,7 @@
 import {useEffect, useId, useState, type ReactNode} from 'react'
 import {ChevronRight, Quote, Loader2, Layers, Pin, Search} from '@/components/ui/icons'
+import {Link} from '@/lib/navigation'
+import {workspaceSessionHref} from '@/lib/workspace-route'
 import {memoryApi} from '@/lib/api/memory'
 import type {ContextManifestView} from '@/lib/api/types'
 import {Button} from '@/components/ui/button'
@@ -111,19 +113,36 @@ function RunReferencesContent({runId, workspaceId, memoryNotice, actions, metric
                 <section className="space-y-1.5">
                   <h4 className="flex items-center gap-1.5 text-xs font-medium text-foreground"><Search className="size-3.5"/>检索命中</h4>
                   <ul className="space-y-1">
-                    {manifest.retrieval_hits.map(hit => (
-                      <li key={`${hit.source_type}:${hit.source_id}`} className="rounded-md border px-2 py-1.5">
-                        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-faint">
-                          <span>{sourceLabel(hit.source_type)}</span>
-                          {typeof hit.payload?.relative_path === 'string' && (
-                            <span className="font-mono">{hit.payload.relative_path as string}</span>
-                          )}
-                          {hit.stale && <span className="text-state-waiting">已过期</span>}
-                        </div>
-                        <p className="mt-0.5 font-medium text-foreground">{hit.title || hit.snippet.slice(0, 80)}</p>
-                        {hit.title && <p className="mt-0.5 text-muted-foreground">{hit.snippet}</p>}
-                      </li>
-                    ))}
+                    {manifest.retrieval_hits.map(hit => {
+                      const seq = hit.payload.source_seq
+                      const source = workspaceId && hit.source_type === 'session_summary' &&
+                        manifest.readable_summary_sources?.includes(hit.source_id)
+                        ? `${workspaceSessionHref(workspaceId, hit.source_id)}${typeof seq === 'number' && seq > 0 ? `#event-${seq}` : ''}`
+                        : null
+                      return (
+                        <li key={`${hit.source_type}:${hit.source_id}`} className="rounded-md border px-2 py-1.5">
+                          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-faint">
+                            <span>{sourceLabel(hit.source_type)}</span>
+                            {typeof hit.payload?.relative_path === 'string' && (
+                              <span className="font-mono">{hit.payload.relative_path as string}</span>
+                            )}
+                            <span className="tabular-nums">v{hit.source_version}</span>
+                            {hit.stale && <span className="text-state-waiting">已过期</span>}
+                          </div>
+                          <p className="mt-0.5 font-medium text-foreground">{hit.title || hit.snippet.slice(0, 80)}</p>
+                          {hit.title && <p className="mt-0.5 text-muted-foreground">{hit.snippet}</p>}
+                          {hit.source_type === 'session_summary' && (source
+                            ? <Link className="reply-foot-action" href={source}>来源对话</Link>
+                            : <p className="text-faint">来源对话已不可读</p>)}
+                          {workspaceId && hit.source_type === 'memory' && <>
+                            <Button variant="ghost" size="xs" aria-expanded={memoryOpen === `hit:${hit.source_id}`}
+                              onClick={() => setMemoryOpen(current => current === `hit:${hit.source_id}` ? null : `hit:${hit.source_id}`)}>查看记忆来源</Button>
+                            {memoryOpen === `hit:${hit.source_id}` && <MemorySources workspaceId={workspaceId}
+                              memoryId={hit.source_id} memoryVersion={hit.source_version}/>}
+                          </>}
+                        </li>
+                      )
+                    })}
                   </ul>
                 </section>
               )}

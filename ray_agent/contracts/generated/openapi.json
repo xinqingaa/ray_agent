@@ -8647,6 +8647,13 @@
             "type": "array",
             "title": "Omissions"
           },
+          "readable_summary_sources": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Readable Summary Sources"
+          },
           "created_at": {
             "type": "integer",
             "title": "Created At"
@@ -8662,6 +8669,7 @@
           "resident_memories",
           "retrieval_hits",
           "omissions",
+          "readable_summary_sources",
           "created_at"
         ],
         "title": "ContextManifestView",
@@ -11050,6 +11058,18 @@
             "title": "Supersedes Version",
             "description": "候选所依据的目标版本；旧候选可能未知"
           },
+          "undo_unavailable": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Undo Unavailable",
+            "description": "记忆列表和操作结果中无法撤销当前版本的原因"
+          },
           "resident": {
             "type": "boolean",
             "title": "Resident",
@@ -11088,6 +11108,7 @@
           "version",
           "supersedes_id",
           "supersedes_version",
+          "undo_unavailable",
           "resident",
           "created_at",
           "updated_at",
@@ -11424,6 +11445,17 @@
             "type": "boolean",
             "title": "Vision",
             "default": false
+          },
+          "connection_issue": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Connection Issue"
           },
           "context_window": {
             "type": "integer",
@@ -14221,6 +14253,28 @@
               }
             ],
             "title": "Cached Tokens"
+          },
+          "model_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Id"
+          },
+          "reasoning": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reasoning"
           }
         },
         "type": "object",

@@ -113,6 +113,13 @@ class DBMemoryRepository(MemoryRepository):
         )).scalars().all()
         return [row.to_domain() for row in rows]
 
+    async def current_changes(self, workspace_id: str) -> dict[str, MemoryChange]:
+        rows = await self.db_session.scalars(select(MemoryChangeModel).join(
+            MemoryEntryModel, (MemoryEntryModel.id == MemoryChangeModel.memory_id)
+            & (MemoryEntryModel.version == MemoryChangeModel.to_version),
+        ).where(MemoryEntryModel.workspace_id == workspace_id, MemoryChangeModel.workspace_id == workspace_id))
+        return {row.memory_id: row.to_domain() for row in rows}
+
     async def add_suppression(self, item: MemorySuppression) -> None:
         self.db_session.add(MemorySuppressionModel.from_domain(item))
         await self.db_session.flush()

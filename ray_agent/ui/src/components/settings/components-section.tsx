@@ -3,7 +3,7 @@ import {Button} from '@/components/ui/button'
 import {componentsApi, type ComponentView} from '@/lib/api/components'
 import {LoadError, SectionHeader} from './form'
 import {Globe, Package} from '@/components/ui/icons'
-import {cn} from '@/lib/utils'
+import {cn, formatFileSize} from '@/lib/utils'
 
 const LABELS: Record<string, {name: string; description: string}> = {
   'browser-chromium': {name: '自动化浏览器', description: '供任务访问网页、操作页面和截图，与应用窗口分开运行。'},
@@ -86,6 +86,7 @@ export function ComponentsSection({standalone = false}: {standalone?: boolean} =
         const operation = item.operation
         const active = operation?.status === 'queued' || operation?.status === 'running'
         const cancelling = active && operation.cancel_requested_at != null
+        const progress = active && !cancelling && operation.phase === '下载中' ? operation.progress : null
         return <div key={item.component_id} className={cn('flex flex-wrap items-start justify-between gap-4',
           standalone ? 'rounded-xl px-4 py-4' : 'py-5 first:pt-0',
           standalone && (active || item.state === 'failed') && 'bg-muted shadow-(--paper-shadow)')}>
@@ -99,6 +100,11 @@ export function ComponentsSection({standalone = false}: {standalone?: boolean} =
               {cancelling ? '正在取消' : active ? operation.status === 'queued' ? '等待安装' : operation.phase ?? '安装中' : STATES[item.state]}
               {item.version ? ` · ${item.version}` : item.size > 0 ? ` · 下载约 ${Math.ceil(item.size / 1024 / 1024)} MB` : ''}
             </p>
+            {progress?.total ? <div className="flex items-center gap-2 text-xs tabular-nums text-faint">
+              <progress className="h-1.5 min-w-0 flex-1 accent-(--signal)" aria-label={`${label.name}下载进度`}
+                value={progress.completed} max={progress.total}/>
+              <span>{formatFileSize(progress.completed)} / {formatFileSize(progress.total)}</span>
+            </div> : null}
             {operation?.error && <p className="break-words text-xs text-destructive">{operation.error.message}</p>}
           </div>
           <div className="flex shrink-0 gap-2">

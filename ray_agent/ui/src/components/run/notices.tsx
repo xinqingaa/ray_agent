@@ -59,7 +59,7 @@ const ATTEMPT_REASON: Record<string, string> = {
   transport: '连接中断或超时',
   stream_interrupted: '输出流中断',
   empty: '空回复',
-  model_error: '模型拒绝请求',
+  model_error: '模型请求失败',
   cancelled: '已停止',
 }
 

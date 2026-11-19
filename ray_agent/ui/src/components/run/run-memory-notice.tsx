@@ -1,4 +1,4 @@
-import {useEffect, useState} from 'react'
+import {useEffect, useRef, useState} from 'react'
 import {memoryApi} from '@/lib/api/memory'
 import {Link} from '@/lib/navigation'
 import {workspaceBackgroundHref} from '@/lib/workspace-route'
@@ -12,11 +12,23 @@ import {toast} from 'sonner'
 export function RunMemoryNotice({workspaceId, sessionId, sequence, follow, readOnly}: {
   workspaceId: string; sessionId: string; sequence: number; follow: boolean; readOnly: boolean
 }) {
+  const marker = useRef<HTMLSpanElement>(null)
+  const [visible, setVisible] = useState(false)
   const [result, setResult] = useState<MemoryExtractionView | null>(null)
   const [open, setOpen] = useState(false)
   const [busy, setBusy] = useState<string | null>(null)
 
   useEffect(() => {
+    if (follow || visible || !marker.current) return
+    const observer = new IntersectionObserver(entries => {
+      if (entries.some(entry => entry.isIntersecting)) setVisible(true)
+    })
+    observer.observe(marker.current)
+    return () => observer.disconnect()
+  }, [follow, visible])
+
+  useEffect(() => {
+    if (!follow && !visible) return
     let cancelled = false
     let timer: ReturnType<typeof setTimeout>
     let remaining = follow ? 12 : 0
@@ -32,8 +44,9 @@ export function RunMemoryNotice({workspaceId, sessionId, sequence, follow, readO
     }
     void inspect()
     return () => {cancelled = true; clearTimeout(timer)}
-  }, [follow, sequence, sessionId, workspaceId])
+  }, [follow, visible, sequence, sessionId, workspaceId])
 
+  if (!follow && !visible) return <span ref={marker} className="inline-block size-px" aria-hidden/>
   if (result?.status !== 'committed' || !result.memories.length) return null
   const active = result.memories.filter(item => item.status === 'active')
   const candidates = result.memories.filter(item => item.status === 'candidate')

@@ -215,7 +215,7 @@ export type FileView = {
 type ItemBase = {id: string; runId: string | null; at: number}
 
 export type TimelineItem =
-  | (ItemBase & {kind: 'user'; skill?: {id: string; version: string}; text: string; attachments: FileView[]; injected: boolean})
+  | (ItemBase & {kind: 'user'; imageMode?: 'auto' | 'files'; skill?: {id: string; version: string}; text: string; attachments: FileView[]; injected: boolean})
   | (ItemBase & {kind: 'narration'; text: string; turnIndex?: number | null; deliveredFiles?: FileView[]})
   | (ItemBase & {kind: 'tools'; turnIndex: number | null; calls: ToolCallView[]})
   | (ItemBase & {kind: 'ask'; question: string; answered: boolean})

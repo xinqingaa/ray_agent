@@ -153,7 +153,9 @@ export function ModelPicker({sessionId, savedModel, savedReasoning, onSelection,
       onClick={() => applyModel(item)}
       className={cn('flex h-8 w-full items-center gap-2 rounded-md pl-7 pr-2 text-left text-meta outline-none focus-visible:ring-2 focus-visible:ring-ring', selected ? 'bg-signal-soft/60' : 'hover:bg-muted')}>
       <span className={cn('min-w-0 flex-1 truncate', selected ? 'font-medium text-foreground' : 'text-foreground/85')}>{item.id}</span>
-      <span className="shrink-0 text-xs tabular-nums text-faint" title={modelFacts(item)}>{contextLabel(item.context_window)}</span>
+      <span className={cn('shrink-0 text-xs tabular-nums', item.connection_issue ? 'text-state-failed' : 'text-faint')} title={modelFacts(item)}>
+        {item.connection_issue ?? contextLabel(item.context_window)}
+      </span>
       <Check className={cn('size-3.5 shrink-0 text-signal', !selected && 'invisible')} aria-hidden/>
     </button>
   }
@@ -178,8 +180,8 @@ export function ModelPicker({sessionId, savedModel, savedReasoning, onSelection,
         </div>
         {group.models.map(row)}
       </div>)}</div>
-      {!groups.some(group => group.id === 'deepseek') && <div className="mx-2 mt-1 flex flex-wrap items-center justify-between gap-x-2 gap-y-1 text-xs text-muted-foreground">
-        <span>当前配置未提供 DeepSeek。</span>{configButton}
+      {(model?.connection_issue || !groups.some(group => group.id === 'deepseek') || !groups.some(group => group.id === 'openai')) && <div className="mx-2 mt-1 flex flex-wrap items-center justify-between gap-x-2 gap-y-1 text-xs text-muted-foreground">
+        <span>{model?.connection_issue ?? (!groups.some(group => group.id === 'deepseek') ? '当前配置未提供 DeepSeek。' : '当前配置未提供 OpenAI。')}</span>{configButton}
       </div>}
       {catalogError && <p role="alert" className="mx-2 mt-1 text-xs text-state-failed">{catalogError}</p>}
       {!model && <p role="alert" className="mx-2 mt-2 text-xs text-state-failed">所选模型暂不可用，请选择其他模型</p>}

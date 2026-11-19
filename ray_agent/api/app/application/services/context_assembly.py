@@ -171,6 +171,22 @@ class ContextAssembly:
             await uow.run_context.save(manifest)
         return render_project_prompt(manifest)
 
+    async def readable_summary_sources(self, manifest: RunContextManifest) -> list[str]:
+        """逐条复核来源访问状态，保持当时采用的清单和版本。"""
+        if not manifest.workspace_id:
+            return []
+        async with self._read_uow_factory() as uow:
+            available = []
+            for hit in manifest.retrieval_hits:
+                if hit.source_type is not SearchSourceType.SESSION_SUMMARY:
+                    continue
+                session = await uow.session.get_by_id(hit.source_id)
+                if (session is not None and session.workspace_id == manifest.workspace_id
+                        and session.participate_in_memory
+                        and session.memory_access_version == hit.payload.get("memory_access_version", 1)):
+                    available.append(hit.source_id)
+        return available
+
     async def manifest(self, run_id: str) -> Optional[RunContextManifest]:
         async with self._read_uow_factory() as uow:
             return await uow.run_context.get(run_id)

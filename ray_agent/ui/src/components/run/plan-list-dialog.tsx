@@ -33,16 +33,18 @@ export function PlanChecklist({plans, runs}: {plans: PlanHistoryEntry[]; runs: R
   </>
 }
 
-export function PlanListDialog({plans, runs, panelWidth, children}: {
+export function PlanListDialog({plans, runs, panelWidth, triggerLabel, children}: {
   plans: PlanHistoryEntry[]
   runs: RunView[]
   panelWidth?: number
+  triggerLabel?: string
   children?: (trigger: ReactNode, open: boolean) => ReactNode
 }) {
   const [open, setOpen] = useState(false)
   const trigger = (
     <DialogTrigger asChild>
-      <Button type="button" variant="ghost" size="icon-sm" aria-label="历史清单" title="历史清单" className="shrink-0 text-muted-foreground"><History className="size-4" aria-hidden/></Button>
+      {triggerLabel ? <Button type="button" variant="outline" size="xs" className="shrink-0">{triggerLabel}</Button>
+        : <Button type="button" variant="ghost" size="icon-sm" aria-label="历史清单" title="历史清单" className="shrink-0 text-muted-foreground"><History className="size-4" aria-hidden/></Button>}
     </DialogTrigger>
   )
   return <Dialog open={open} onOpenChange={setOpen}>

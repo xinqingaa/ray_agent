@@ -36,18 +36,20 @@ class MemoryItem(BaseModel):
     version: int = Field(description="修改时回传，用于并发修改核对")
     supersedes_id: Optional[str] = Field(default=None, description="候选指向的、确认后将被替代的条目")
     supersedes_version: Optional[int] = Field(default=None, description="候选所依据的目标版本；旧候选可能未知")
+    undo_unavailable: Optional[str] = Field(default=None, description="记忆列表和操作结果中无法撤销当前版本的原因")
     resident: bool = Field(description="当前是否在常驻层（每次新运行注入）")
     created_at: int
     updated_at: int
     last_used_at: Optional[int] = None
 
     @classmethod
-    def of(cls, entry: MemoryEntry, resident_ids: frozenset[str] = frozenset()) -> "MemoryItem":
+    def of(cls, entry: MemoryEntry, resident_ids: frozenset[str] = frozenset(), *,
+           undo_unavailable: Optional[str] = None) -> "MemoryItem":
         return cls(
             id=entry.id, workspace_id=entry.workspace_id, content=entry.content, memory_type=entry.memory_type,
             origin=entry.origin, certainty=entry.certainty, status=entry.status, pinned=entry.pinned,
             version=entry.version, supersedes_id=entry.supersedes_id, supersedes_version=entry.supersedes_version,
-            resident=entry.id in resident_ids,
+            resident=entry.id in resident_ids, undo_unavailable=undo_unavailable,
             created_at=to_epoch_ms(entry.created_at), updated_at=to_epoch_ms(entry.updated_at),
             last_used_at=to_epoch_ms(entry.last_used_at) if entry.last_used_at else None)
 

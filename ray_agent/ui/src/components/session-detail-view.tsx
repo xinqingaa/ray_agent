@@ -33,7 +33,8 @@ import {useSessions} from '@/hooks/use-sessions'
 import {useDeveloperMode} from '@/hooks/use-developer-mode'
 import {memoryApi} from '@/lib/api/memory'
 import {sessionApi} from '@/lib/api/session'
-import {readRetryDisplay, writeRetryDisplay, retryEcho} from '@/lib/retry-display'
+import {readRetryDisplay, writeRetryDisplay, retryEchoUserId, conversationTimeline} from '@/lib/retry-display'
+import {UncertainSubmissionError} from '@/lib/send-recovery'
 import {readDraft, writeDraft} from '@/lib/drafts'
 import {normalizeEvents} from '@/lib/session-events'
 import {canExecutePlan, planBarMode} from '@/lib/session-projection'
@@ -155,25 +156,22 @@ export function SessionDetailView({
   const displayTitle = renamedTitle?.sessionId === sessionId && view?.title === renamedTitle.previousTitle
     ? renamedTitle.title : view?.title || '新任务'
   useEffect(() => {
-    const items = view?.timeline ?? []
-    const retrySettled = retrying != null && retryEcho(items, retrying).settled
-    const holdRunning = outgoing != null || (retrying != null && !retrySettled)
+    const holdRunning = outgoing != null
     const status = holdRunning ? 'running' : sessionStatus === 'idle' ? 'pending' : sessionStatus
     if (!status) return
     const item = sessions.find((session) => session.session_id === sessionId)
     if (item?.status === status) return
     patchSession(sessionId, {status})
-  }, [sessionId, sessionStatus, sessions, patchSession, outgoing, retrying, view?.timeline])
+  }, [sessionId, sessionStatus, sessions, patchSession, outgoing])
   useEffect(() => {
     if (!view) return
-    const retrySettled = retrying != null && retryEcho(view.timeline, retrying).settled
-    const holdRunning = outgoing != null || (retrying != null && !retrySettled)
+    const holdRunning = outgoing != null
     if (holdRunning || view.status !== 'waiting') {
       setWaitKind(sessionId, null)
       return
     }
     setWaitKind(sessionId, view.activeRun?.activity.kind === 'waiting_approval' ? 'approval' : 'reply')
-  }, [sessionId, view, outgoing, retrying, setWaitKind])
+  }, [sessionId, view, outgoing, setWaitKind])
 
   // 页面可见时看到了完成结果，清掉侧栏的未查看圆点；侧栏列表可能不含当前会话，按每次完成清一次
   const completedRunId = view?.status === 'completed' ? view.runs.at(-1)?.id ?? null : null
@@ -299,10 +297,11 @@ export function SessionDetailView({
   useEffect(() => {
     if (!retrying || retrySessionId !== sessionId) return
     const items = view?.timeline ?? []
-    const echo = retryEcho(items, retrying)
-    const userId = echo.userId
-    if (userId) setHiddenUserIds(prev => prev.includes(userId) ? prev : [...prev, userId])
-    if (echo.settled) setRetrying(null)
+    const userId = retryEchoUserId(items, retrying)
+    if (!userId) return
+    setHiddenUserIds(prev => prev.includes(userId) ? prev : [...prev, userId])
+    setHiddenRunIds(prev => prev.includes(retrying.fromRunId) ? prev : [...prev, retrying.fromRunId])
+    setRetrying(null)
   }, [retrying, view?.timeline, retrySessionId, sessionId])
 
   useEffect(() => {
@@ -391,11 +390,8 @@ export function SessionDetailView({
     try {
       await deliver(message, uploaded.map((file) => file.id), options)
     } catch (err) {
-      if (err instanceof ApiError && err.code === 'conflict') {
-        toast.error(err.message)
-      } else {
+      if (!(err instanceof ApiError) || err.details.section !== 'model_connection')
         toast.error(err instanceof Error ? err.message : '发送失败，请重试')
-      }
       throw err
     }
   }, [deliver])
@@ -426,6 +422,15 @@ export function SessionDetailView({
       if (event.type === 'run' && event.runId && event.payload.status === 'completed') found.set(event.runId, event.seq)
     }
     return found
+  }, [view?.events])
+  const acceptedPlans = useMemo(() => {
+    const references = new Map<string, string>()
+    for (const event of view?.events ?? []) {
+      if (event.type === 'plan' && event.runId && event.payload.accepted_from && typeof event.payload.plan_id === 'string') {
+        references.set(event.runId, event.payload.plan_id)
+      }
+    }
+    return references
   }, [view?.events])
   const latestCompletedId = view?.runs.filter(run => run.status === 'completed').at(-1)?.id
   const folderPath = workspace?.folder?.path
@@ -461,6 +466,19 @@ export function SessionDetailView({
     node.scrollIntoView({block: 'start'})
   }, [hash, mode, view?.events])
 
+  const previewDelivery = useCallback((file: FileView) => {
+    folderPanel.current?.closePreview()
+    setPanelView('delivered')
+    setWorkbenchOpen(true)
+    if (isWebPage(file.filename)) {
+      setInspectorFile(null)
+      void openPreviewTab({kind: 'attachment', id: file.id, filename: file.filename, size: file.size})
+        .catch(error => toast.error(error instanceof Error ? error.message : '打开失败'))
+      return
+    }
+    setInspectorFile(file)
+  }, [setWorkbenchOpen])
+
   useEffect(() => {
     const fileId = new URLSearchParams(search).get('delivery')
     if (!fileId) {locatedDelivery.current = ''; return}
@@ -468,15 +486,8 @@ export function SessionDetailView({
     const file = view?.files.find(item => item.id === fileId && item.source === 'delivery')
     if (!file) return
     locatedDelivery.current = fileId
-    if (isWebPage(file.filename)) {
-      void openPreviewTab({kind: 'attachment', id: file.id, filename: file.filename, size: file.size})
-        .catch(error => toast.error(error instanceof Error ? error.message : '打开失败'))
-    } else {
-      setInspectorFile(file)
-      setPanelView('delivered')
-      setWorkbenchOpen(true)
-    }
-  }, [search, setWorkbenchOpen, view?.files])
+    previewDelivery(file)
+  }, [search, previewDelivery, view?.files])
 
   const packingFiles = useRef(false)
   const downloadAll = useCallback(async (files: FileView[]) => {
@@ -498,11 +509,9 @@ export function SessionDetailView({
       setWorkbenchOpen(true)
     },
     onPreviewFile: (file) => {
-      if (isWebPage(file.filename)) void openPreviewTab({kind: 'attachment', id: file.id, filename: file.filename, size: file.size}).catch(error => toast.error(error instanceof Error ? error.message : '打开失败'))
-      else if (file.source === 'delivery') {
-        setInspectorFile(file)
-        setWorkbenchOpen(true)
-      } else setPreviewedFile(file)
+      if (file.source === 'delivery') previewDelivery(file)
+      else if (isWebPage(file.filename)) void openPreviewTab({kind: 'attachment', id: file.id, filename: file.filename, size: file.size}).catch(error => toast.error(error instanceof Error ? error.message : '打开失败'))
+      else setPreviewedFile(file)
     },
     onDownloadFile: (file) => {
       void downloadOne(file)
@@ -515,18 +524,34 @@ export function SessionDetailView({
       const latest = [...(view?.timeline ?? [])].reverse().find((item) => item.kind === 'run_end' && item.status === 'failed' && item.retryText && item.runId)
       return latest?.runId && !hiddenRunIds.includes(latest.runId) ? latest.runId : ''
     })(),
+    consumedPlanRuns: acceptedPlans,
+    planAction: runId => {
+      const id = acceptedPlans.get(runId)
+      const plan = view?.planHistory?.find(entry => entry.id === id)
+      return plan ? <PlanListDialog plans={[plan]} runs={view?.runs ?? []} triggerLabel="查看计划清单"/> : null
+    },
+    hasPriorTools: runId => (view?.runs.find(item => item.id === runId)?.summary?.toolCalls ?? 0) > 0,
     onRetry: view?.activeRun || submitting || retrying ? undefined : (text, runId) => {
-      const knownUserIds = (view?.timeline ?? []).filter((item) => item.kind === 'user').map((item) => item.id)
-      setHiddenRunIds((prev) => prev.includes(runId) ? prev : [...prev, runId])
+      if (acceptedPlans.has(runId)) return
+      const items = view?.timeline ?? []
+      const source = items.find(item => item.kind === 'user' && item.runId === runId)
+      if (source?.kind !== 'user') return
+      const knownUserIds = items.filter(item => item.kind === 'user').map(item => item.id)
       const pending = {text, knownUserIds, fromRunId: runId}
-      writeRetryDisplay(sessionId, {hiddenRunIds: [...hiddenRunIds, runId], hiddenUserIds, pending})
+      writeRetryDisplay(sessionId, {hiddenRunIds, hiddenUserIds, pending})
       setRetrying(pending)
-      const source = view?.timeline.find(item => item.kind === 'user' && item.runId === runId)
-      const attachmentIds = source?.kind === 'user' ? source.attachments.map(file => file.id) : []
       const mode = view?.runs.find(run => run.id === runId)?.mode ?? 'normal'
-      void deliver(text, attachmentIds, {echo: false, mode}).catch((err: unknown) => {
-        setHiddenRunIds((prev) => prev.filter((id) => id !== runId))
-        setRetrying((current) => current?.fromRunId === runId ? null : current)
+      void (async () => {
+        // 只公开模型和思考档，从服务端读回终态快照后再重发。
+        const detail = await sessionApi.getSessionDetail(sessionId, view?.events.at(-1)?.seq)
+        const original = detail.runs?.find(item => item.run_id === runId)
+        await deliver(source.text, source.attachments.map(file => file.id), {
+          echo: false, mode, skill: source.skill, image_mode: source.imageMode,
+          model: original?.model_id ?? undefined, reasoning: original?.reasoning ?? undefined,
+        })
+      })().catch((err: unknown) => {
+        if (err instanceof UncertainSubmissionError) return
+        setRetrying(current => current?.fromRunId === runId ? null : current)
         toast.error(err instanceof Error ? err.message : '重试失败')
       })
     },
@@ -537,13 +562,13 @@ export function SessionDetailView({
     workspaceId: workspace?.id,
     renderMemoryNotice: runId => {
       const sequence = finishedSequences.get(runId)
-      return workspace && runId === latestCompletedId && sequence != null
-        ? <RunMemoryNotice key={runId} workspaceId={workspace.id} sessionId={sessionId} sequence={sequence} follow
+      return workspace && sequence != null
+        ? <RunMemoryNotice key={runId} workspaceId={workspace.id} sessionId={sessionId} sequence={sequence} follow={runId === latestCompletedId}
             readOnly={workspace.status === 'archived' || workspace.status === 'deleting'}/>
         : null
     },
     renderRunActions: runId => !view?.activeRun && runId === run?.id ? renderRunActions?.(runId) : null,
-  }), [view?.id, view?.runs, view?.timeline, focus?.callId, view?.activeRun, view?.streamingItemId, submitting, retrying, hiddenRunIds, hiddenUserIds, sessionId, workspace, downloadOne, downloadAll, deliver, handleApproval, approvalSubmitting, finishedSequences, latestCompletedId, setWorkbenchOpen, run?.id, renderRunActions])
+  }), [view?.id, view?.runs, view?.timeline, view?.events, focus?.callId, view?.activeRun, view?.streamingItemId, submitting, retrying, hiddenRunIds, hiddenUserIds, sessionId, workspace, downloadOne, downloadAll, deliver, previewDelivery, acceptedPlans, view?.planHistory, handleApproval, approvalSubmitting, finishedSequences, latestCompletedId, setWorkbenchOpen, run?.id, renderRunActions])
 
   const toggleParticipate = useCallback(async (participate: boolean) => {
     if (!workspace || participateBusy) return
@@ -605,22 +630,15 @@ export function SessionDetailView({
   const userCount = view.timeline.filter((item) => item.kind === 'user').length
   const echoed = outgoing != null && userCount > outgoing.userCount
   const endCount = view.timeline.filter((item) => item.kind === 'run_end').length
-  const visibleTimeline = view.timeline.filter((item) => {
-    if (item.kind === 'run_end' && item.runId && hiddenRunIds.includes(item.runId)) return false
-    if (item.kind === 'user' && (hiddenUserIds.includes(item.id) || (retrying != null && item.id === retryEcho(view.timeline, retrying).userId))) return false
-    return true
-  })
-  const hideEndId = outgoing != null && endCount <= outgoing.endCount
-    ? [...visibleTimeline].reverse().find((item) => item.kind === 'run_end')?.id ?? null
-    : null
-  const shownTimeline = hideEndId ? visibleTimeline.filter((item) => item.id !== hideEndId) : visibleTimeline
-  const hiddenEndRunId = hideEndId ? view.timeline.find(item => item.id === hideEndId)?.runId : null
-  const shownRuns = view.runs.filter(item => !hiddenRunIds.includes(item.id) && item.id !== hiddenEndRunId)
-  const retrySettled = retrying != null && retryEcho(view.timeline, retrying).settled
-  const pendingSend = outgoing != null || (retrying != null && !retrySettled)
+  const visible = conversationTimeline(view.timeline, view.runs, {hiddenRunIds, hiddenUserIds, pending: retrying})
+  const hiddenEnd = outgoing != null && outgoing.echo !== false && endCount <= outgoing.endCount
+    ? visible.items.findLast(item => item.kind === 'run_end') : undefined
+  const shownTimeline = hiddenEnd ? visible.items.filter(item => item.id !== hiddenEnd.id) : visible.items
+  const shownRuns = hiddenEnd ? visible.runs.filter(run => run.id !== hiddenEnd.runId) : visible.runs
+  const pendingSend = outgoing != null
   const showOptimistic = outgoing != null && outgoing.echo !== false && !echoed && !submitting
   const waitingReply = activityKind === 'waiting_reply'
-  const pauseMode = waitingReply ? false : activityKind === 'stopping' ? 'stopping' : (outgoing || submitting || (retrying != null && !retrySettled) || view.status === 'running' || waitingApproval) ? 'ready' as const : false
+  const pauseMode = waitingReply ? false : activityKind === 'stopping' ? 'stopping' : (outgoing || submitting || view.status === 'running' || waitingApproval) ? 'ready' as const : false
 
   const placeholder = waitingApproval
     ? RUN_INPUT_HINT.approval
@@ -657,7 +675,7 @@ export function SessionDetailView({
     {workspace && <div className={cn('min-h-0 flex-1', (panelView === 'workbench' || inspectorFile) && 'hidden')}>
       <FolderPanel ref={folderPanel} workspace={workspace} embedded selectedTab={panelView === 'workbench' ? 'folder' : panelView}
         toolbarTarget={inspectorFile ? null : toolbarTarget} readPaths={readPaths} visible={workbenchOpen && panelView !== 'workbench' && !inspectorFile}
-        deliveries={deliveries} className="h-full w-full"/>
+        deliveries={deliveries} onOpenDelivery={previewDelivery} className="h-full w-full"/>
     </div>}
     {!workspace && panelView === 'delivered' && !inspectorFile && <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-3">
       {deliveries.length ? <>
@@ -687,10 +705,11 @@ export function SessionDetailView({
         <IconAction ref={inspectorTrigger} label={workbenchOpen ? `收起${panelName}` : `打开${panelName}`}
           aria-expanded={workbenchOpen} className="topbar-action" onClick={() => setWorkbenchOpen(!workbenchOpen)}><PanelRight/></IconAction>
       </TopbarActions>
-      <TaskLayout
+      <TaskLayout key={sessionId} workspace={Boolean(workspace)}
+        folderRootId={workspaceState?.writable ? workspace?.folder?.root_id : undefined}
         attach={readOnlyReason || mode !== 'conversation' || waitingApproval || submitting ? undefined : files => composer.current?.addFiles(files)}
-        addToFolder={!workspaceState?.writable || mode !== 'conversation' ? undefined : files => {
-          folderPanel.current?.addFiles(files)
+        addToFolder={!workspaceState?.writable || mode !== 'conversation' ? undefined : (files, directory) => {
+          folderPanel.current?.addFiles(files, directory)
           setInspectorFile(null)
           setPanelView('folder')
           setWorkbenchOpen(true)
@@ -756,6 +775,7 @@ export function SessionDetailView({
                       sessionId={sessionId}
                       workspace={workspace != null}
                       onSend={handleSend}
+                      onAbandonSubmission={() => setRetrying(null)}
                       pause={pauseMode}
                       onPause={() => void handleStop()}
                       disabled={submitting || waitingApproval}

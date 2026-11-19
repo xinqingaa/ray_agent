@@ -41,25 +41,31 @@ function DirectoryFrame({label, action, children}: {label: string; action: React
 
 /** 非当前工作区只取目录快照，当前工作区复用唯一实时会话列表。 */
 function ExpandedWorkspaceSessions({id, revision, renderRows}: {id: string; revision: number; renderRows: (rows: Session[]) => ReactNode}) {
-  const [snapshot, setSnapshot] = useState<SessionRows>(EMPTY_ROWS)
-  const [retry, setRetry] = useState(0)
+  const [snapshot, setSnapshot] = useState<SessionRows & {offset: number; total: number}>({...EMPTY_ROWS, offset: 0, total: 0})
+  const [request, setRequest] = useState({offset: 0, revision, attempt: 0})
+  const offset = request.revision === revision ? request.offset : 0
   useEffect(() => {
     let cancelled = false
-    const load = async () => {
-      setSnapshot(previous => ({...previous, loading: true, error: null}))
-      try {
-        const page = await sessionApi.getSessions(0, {workspaceId: id})
-        if (!cancelled) setSnapshot({sessions: page.sessions, loading: false, error: null})
-      } catch (reason) {
-        if (!cancelled) setSnapshot({sessions: [], loading: false, error: reason instanceof Error ? reason.message : '读取对话失败'})
-      }
-    }
-    void load()
+    setSnapshot(previous => ({...previous, loading: true, error: null}))
+    void sessionApi.getSessions(offset, {workspaceId: id}).then(page => {
+      if (cancelled) return
+      setSnapshot(previous => {
+        const entries = new Map((offset ? previous.sessions : []).map(session => [session.session_id, session]))
+        for (const session of page.sessions) entries.set(session.session_id, session)
+        return {sessions: [...entries.values()], loading: false, error: null,
+          offset: page.offset + page.sessions.length, total: page.sessions.length ? page.total : page.offset}
+      })
+    }).catch(reason => {
+      if (!cancelled) setSnapshot(previous => ({...previous, loading: false, error: reason instanceof Error ? reason.message : '读取对话失败'}))
+    })
     return () => {cancelled = true}
-  }, [id, revision, retry])
+  }, [id, revision, offset, request.attempt])
   return <>
-    {!snapshot.sessions.length && <DirectoryStatus loading={snapshot.loading} error={snapshot.error} empty="还没有对话" onRetry={() => setRetry(value => value + 1)}/>}
     {renderRows(snapshot.sessions)}
+    {(!snapshot.sessions.length || snapshot.error || snapshot.loading) && <DirectoryStatus loading={snapshot.loading} error={snapshot.error}
+      empty={snapshot.sessions.length ? null : '还没有对话'} onRetry={() => setRequest(value => ({offset, revision, attempt: value.attempt + 1}))}/>}
+    {snapshot.offset < snapshot.total && !snapshot.loading && !snapshot.error && <Button variant="ghost" size="xs" className="ml-2"
+      onClick={() => setRequest(value => ({offset: snapshot.offset, revision, attempt: value.attempt + 1}))}>加载更多</Button>}
   </>
 }
 

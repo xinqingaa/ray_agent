@@ -13,14 +13,12 @@ export function HomePage() {
 
   return (
     <TaskLayout attach={sending ? undefined : files => input.current?.addFiles(files)}>
-    <main className="flex min-h-0 flex-1 flex-col items-center overflow-y-auto px-4 py-8 sm:px-6">
-      <div className="my-auto w-full max-w-(--reading-column) shrink-0 space-y-6">
-        <div className="space-y-1.5 text-center">
-          <h1 className="text-[clamp(1.5rem,3vw,2.1rem)] font-semibold tracking-tight">想完成什么？</h1>
-          <p className="text-sm text-muted-foreground">独立对话不读写任何工作区的文件和记忆。</p>
-        </div>
-
-        <section aria-label="独立对话" className="space-y-4">
+      <main className="task-home" aria-labelledby="independent-home-title">
+        <div className="task-home-content">
+          <header className="task-home-heading">
+            <h1 id="independent-home-title">想完成什么？</h1>
+            <p>独立对话不读写任何工作区的文件和记忆。</p>
+          </header>
           <ChatInput ref={input} autoFocus
             draftScope={INDEPENDENT_SCOPE}
             onSend={start}
@@ -37,10 +35,8 @@ export function HomePage() {
               actions: {compact: () => toast.message('还没有可压缩的上下文')},
             }}
           />
-        </section>
-
-      </div>
-    </main>
+        </div>
+      </main>
     </TaskLayout>
   )
 }

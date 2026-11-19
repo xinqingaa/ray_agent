@@ -6,6 +6,7 @@ from types import SimpleNamespace
 from app.application.services.document_index_service import DocumentIndexService
 from app.application.services.retrieval_service import RetrievalService
 from app.domain.models.retrieval import SearchSourceType
+from app.infrastructure.external.document_parse.runner import run_document_parse
 from app.infrastructure.external.document_parse.worker import parse as parse_file
 from app.infrastructure.external.workspace_files.posix import PosixWorkspaceFiles
 from tests.core.test_workspaces import Env, scenario
@@ -54,6 +55,15 @@ def test_parse_text_markdown_csv_and_image(tmp_path):
     png = _write(tmp_path, "scan.png", b"\x89PNG\r\n\x1a\n" + b"\x00" * 32)
     pending = parse_file(str(png), "image")
     assert pending["status"] == "pending_component" and pending.get("component_needed") == "ocr"
+
+
+def test_document_worker_starts_outside_source_directory(tmp_path, monkeypatch):
+    md = _write(tmp_path, "worker.md", "# 索引验收\n\n从其他目录启动。\n")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.delenv("PYTHONPATH", raising=False)
+    result = asyncio.run(run_document_parse(md, "markdown"))
+    assert result["status"] == "ok", result
+    assert any("从其他目录启动" in block["text"] for block in result["blocks"])
 
 
 def test_document_index_search_isolation_update_and_delete(tmp_path):

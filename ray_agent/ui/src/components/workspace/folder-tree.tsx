@@ -95,8 +95,9 @@ export function FolderTree({tree, selectedPath, indexStates, readPaths, addedPat
           {entry.kind === 'other' && <span className="shrink-0 text-xs text-muted-foreground">特殊文件</span>}
           {read && <span className="folder-row-tag bg-signal-soft text-signal">本次读取</span>}
           {fresh && <span className="folder-row-tag bg-state-success-soft text-state-success">新</span>}
-          {indexLabel && <span className="folder-index-dot" data-index={status}>
-            <span className="sr-only">{indexLabel}</span>
+          {indexLabel && <span className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
+            <span className="folder-index-dot" data-index={status} aria-hidden/>
+            <span className={cn(status === 'searchable' && 'sr-only')}>{indexLabel}</span>
           </span>}
         </button>
       </li>

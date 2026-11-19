@@ -55,6 +55,7 @@ def test_instruction_memory_search_and_manifest_over_http(host: TestClient):
     pinned = data(host.patch(f"/api/workspaces/{wid}/memories/{memory['id']}",
                              json={"action": "pin", "version": memory["version"]}))
     assert pinned["pinned"] is True and pinned["version"] == memory["version"] + 1
+    assert pinned["undo_unavailable"] is None
     assert data(host.patch(f"/api/workspaces/{wid}/memories/{memory['id']}",
                            json={"action": "unpin", "version": memory["version"]}), 409)["resource_version"] == 2
     edited = data(host.patch(f"/api/workspaces/{wid}/memories/{memory['id']}",
@@ -76,8 +77,10 @@ def test_instruction_memory_search_and_manifest_over_http(host: TestClient):
     restored = data(host.patch(f"/api/workspaces/{wid}/memories/{memory['id']}",
                                json={"action": "undo", "version": retracted["version"]}))
     assert restored["status"] == "active"
+    assert "不能单条撤销" in restored["undo_unavailable"]
     listed = data(host.get(f"/api/workspaces/{wid}/memories"))
     assert [m["id"] for m in listed["memories"]] == [memory["id"]] and listed["resident_limit"] == 12
+    assert listed["memories"][0]["undo_unavailable"] == restored["undo_unavailable"]
 
     # 会话：工作区会话默认参与记忆，可关闭；独立对话不可设置；运行没有清单时 404
     session = data(host.post("/api/sessions", json={"workspace_id": wid}))["session_id"]

@@ -1,9 +1,10 @@
-import {useEffect, useState} from 'react'
+import {useEffect, useRef, useState} from 'react'
 import {Command, CommandInput, CommandItem, CommandList} from '@/components/ui/command'
 import {Dialog, DialogContent, DialogDescription, DialogTitle} from '@/components/ui/dialog'
 import {Button} from '@/components/ui/button'
 import {MessageCircle} from '@/components/ui/icons'
 import {useRouter} from '@/lib/navigation'
+import {subscribeCatalog} from '@/lib/catalog-bus'
 import {sessionApi} from '@/lib/api/session'
 import type {Session} from '@/lib/api/types'
 import {workspaceSessionHref} from '@/lib/workspace-route'
@@ -18,10 +19,13 @@ export function ConversationSearch({open, onOpenChange, workspaceId, onRestoreFo
   const [error, setError] = useState<string | null>(null)
   const [retry, setRetry] = useState(0)
   const [query, setQuery] = useState('')
+  const complete = useRef<{scope: string | null; revision: number} | null>(null)
+  const [revision, setRevision] = useState(0)
+  useEffect(() => subscribeCatalog(() => setRevision(value => value + 1)), [])
   const scopeLabel = workspaceId ? '当前工作区' : '独立对话'
 
   useEffect(() => {
-    if (!open) return
+    if (!open || (complete.current?.scope === workspaceId && complete.current.revision === revision)) return
     let cancelled = false
     const read = async () => {
       setSessions([])
@@ -38,6 +42,7 @@ export function ConversationSearch({open, onOpenChange, workspaceId, onRestoreFo
           offset = page.offset + page.sessions.length
           if (!page.sessions.length || offset >= page.total) break
         }
+        complete.current = {scope: workspaceId, revision}
       } catch (reason) {
         if (!cancelled) setError(reason instanceof Error ? reason.message : '读取对话失败')
       } finally {
@@ -46,7 +51,7 @@ export function ConversationSearch({open, onOpenChange, workspaceId, onRestoreFo
     }
     void read()
     return () => {cancelled = true}
-  }, [open, retry, workspaceId])
+  }, [open, retry, workspaceId, revision])
 
   const term = query.trim().toLocaleLowerCase()
   const results = sessions.filter(session => (session.title || '新对话').toLocaleLowerCase().includes(term))

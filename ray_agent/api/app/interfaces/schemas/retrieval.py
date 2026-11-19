@@ -75,14 +75,16 @@ class ContextManifestView(BaseModel):
     resident_memories: list[ResidentMemoryView]
     retrieval_hits: list[SearchHitView]
     omissions: list[ContextOmissionView]
+    readable_summary_sources: list[str] = Field(default_factory=list)
     created_at: int
 
     @classmethod
-    def of(cls, manifest: RunContextManifest) -> "ContextManifestView":
+    def of(cls, manifest: RunContextManifest, readable_summary_sources: list[str] | None = None) -> "ContextManifestView":
         return cls(
             run_id=manifest.run_id, session_id=manifest.session_id, workspace_id=manifest.workspace_id,
             instruction_version=manifest.instruction_version, instruction_body=manifest.instruction_body,
             resident_memories=[ResidentMemoryView(**item.model_dump()) for item in manifest.resident_memories],
             retrieval_hits=[SearchHitView.of(hit) for hit in manifest.retrieval_hits],
             omissions=[ContextOmissionView(**item.model_dump()) for item in manifest.omissions],
+            readable_summary_sources=readable_summary_sources or [],
             created_at=to_epoch_ms(manifest.created_at))

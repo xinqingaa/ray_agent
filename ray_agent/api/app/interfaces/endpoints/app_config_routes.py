@@ -11,7 +11,7 @@ from app.application.services.app_config_service import AppConfigService
 from app.domain.models.app_config import AgentConfig, MCPConfig, ToolPolicyConfig, \
     default_tool_policy_rules
 from app.domain.services.tool_policy import builtin_tool_catalog
-from app.domain.models.model_catalog import active_models, default_model, public_capabilities
+from app.domain.models.model_catalog import active_models, default_model, public_capabilities, connection_issue
 from app.interfaces.schemas.app_config import (
     LLMConfigPublic,
     LLMConfigUpdate,
@@ -62,7 +62,7 @@ async def get_model_catalog(
     return Response.success(data=ModelCatalogResponse(
         provider=default.provider,
         default_model=default.id,
-        models=[ModelCatalogItem(**public_capabilities(item)) for item in models],
+        models=[ModelCatalogItem(**public_capabilities(item), connection_issue=connection_issue(llm, item.id)) for item in models],
     ))
 
 

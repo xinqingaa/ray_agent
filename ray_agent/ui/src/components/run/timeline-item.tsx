@@ -24,6 +24,9 @@ export type TimelineHandlers = {
   onRetry?: (text: string, runId: string) => void
   /** 只给这一次失败显示重试；不传则凡是失败都可重试。 */
   retryRunId?: string | null
+  consumedPlanRuns?: {has: (runId: string) => boolean}
+  planAction?: (runId: string) => ReactNode
+  hasPriorTools?: (runId: string) => boolean
   onApprove?: (callId: string) => void
   onReject?: (callId: string) => void
   /** 正在提交审批的调用 */
@@ -96,7 +99,10 @@ export function TimelineItemView({item, handlers = {}, metrics, runActions}: {it
         </div>
       )
     case 'run_end':
-      return <RunEndBar status={item.status} reasonText={item.reasonText} retryText={item.retryText} onRetry={handlers.onRetry && (handlers.retryRunId == null || handlers.retryRunId === item.runId) ? (text) => handlers.onRetry?.(text, item.runId ?? '') : undefined}/>
+      return <RunEndBar status={item.status} reasonText={item.reasonText} retryText={item.retryText}
+        planAction={item.runId && handlers.planAction?.(item.runId)} priorTools={!!item.runId && handlers.hasPriorTools?.(item.runId)}
+        planConsumed={item.status === 'failed' && !!item.runId && handlers.consumedPlanRuns?.has(item.runId)}
+        onRetry={handlers.onRetry && (handlers.retryRunId == null || handlers.retryRunId === item.runId) ? (text) => handlers.onRetry?.(text, item.runId ?? '') : undefined}/>
   }
 }
 

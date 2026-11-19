@@ -127,8 +127,17 @@ def endpoint_for(config: LLMConfig, model_id: str) -> Optional[LlmEndpoint]:
     return None
 
 
+def connection_issue(config: LLMConfig, model_id: str) -> str | None:
+    """只检查本地连接信息。连通性由实际模型请求验证。"""
+    endpoint = endpoint_for(config, model_id)
+    if endpoint is None and find_model(model_id) is not None:
+        return "未配置模型接口"
+    key = (endpoint.api_key if endpoint else config.api_key).strip()
+    return "未配置 API Key" if not key or key == "xxxx" else None
+
+
 def active_models(config: LLMConfig) -> tuple[ModelSpec, ...]:
-    """返回已设置地址的模型；缺失密钥仍可查看能力，在实际调用时明确拒绝。"""
+    """返回已设置地址的模型；缺失密钥仍可查看能力和配置状态。"""
     return tuple(item for item in (*deepseek_models(), *gpt_models()) if endpoint_for(config, item.id))
 
 

@@ -139,6 +139,7 @@ class ComponentService:
             argv=worker_command('component', action, component_id, str(target)),
             cwd=RootedPath(root_id='component-worker'),
             owner=ProcessOwner(operation_id=context.job.operation_id)))
+        progress_seen = None
         try:
             async with asyncio.timeout(WORKER_TIMEOUT_SECONDS):
                 while True:
@@ -149,6 +150,12 @@ class ComponentService:
                             output = await executor.read_output(started.process_id)
                             raise RuntimeError(output.text[-2000:] or '组件 worker 失败')
                         break
+                    if action == 'fetch':
+                        progress = self.components.download_progress(component_id, target)
+                        if progress is not None and progress != progress_seen:
+                            completed, total = progress
+                            await context.progress(phase='解压与校验' if completed == total else '下载中', completed=completed, total=total)
+                            progress_seen = progress
         except TimeoutError as error:
             raise RuntimeError('组件获取或校验超时，可以重试') from error
         finally:

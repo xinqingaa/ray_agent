@@ -129,29 +129,36 @@ export function WorkspaceHomePage() {
   const {sending, start} = useStartTask(scope, workspace.id, sid => router.push(workspaceSessionHref(workspace.id, sid)))
   const {sessions, loading: sessionsLoading, error: sessionsError, refresh: refreshSessions} = useSessions()
   const {count: pending} = useWorkspacePending()
-  const [recentFiles, setRecentFiles] = useState<{sessionId: string; files: FileView[]} | null>(null)
+  const [result, setResult] = useState<{key: string; files?: FileView[]; error?: string} | null>(null)
+  const [retry, setRetry] = useState(0)
   const recentSession = sessions[0]
   const recentSessionId = recentSession?.session_id
+  const deliveryKey = JSON.stringify([recentSessionId, recentSession?.latest_message_at, recentSession?.status, retry])
 
   useEffect(() => {
     if (!recentSessionId) return
     let cancelled = false
     void sessionApi.getSessionDetail(recentSessionId).then(detail => {
-      if (!cancelled) setRecentFiles({sessionId: recentSessionId, files: projectSession({id: recentSessionId, runs: detail.runs ?? [], events: detail.events ?? []}).files})
+      const {files} = projectSession({id: recentSessionId, runs: detail.runs ?? [], events: detail.events ?? []})
+      if (!cancelled) setResult({key: deliveryKey, files: files.filter(file => file.source === 'delivery')})
+    }).catch(error => {
+      if (!cancelled) setResult({key: deliveryKey, error: error instanceof Error ? error.message : '读取交付失败'})
     })
-      .catch(() => {if (!cancelled) setRecentFiles(null)})
     return () => {cancelled = true}
-  }, [recentSessionId, recentSession?.latest_message_at, recentSession?.status])
+  }, [recentSessionId, deliveryKey])
 
-  const deliveries = recentFiles?.sessionId === recentSessionId ? recentFiles?.files.filter(file => file.source === 'delivery') : undefined
+  const deliveryResult = recentSessionId && result?.key === deliveryKey ? result : null
+  const deliveries = deliveryResult?.files
+  const retryDeliveries = () => sessionsError ? void refreshSessions() : setRetry(value => value + 1)
   const delivery = deliveries?.[0]
 
   return <>
     <TopbarActions><IconAction ref={inspectorTrigger} label={open ? '收起右侧面板' : '打开右侧面板'}
       aria-expanded={open} className="topbar-action" onClick={() => setOpen(!open)}><PanelRight/></IconAction></TopbarActions>
-    <TaskLayout attach={condition.archived || sending ? undefined : files => input.current?.addFiles(files)}
-      addToFolder={condition.writable ? files => {
-        folderPanel.current?.addFiles(files)
+    <TaskLayout key={workspace.id} workspace folderRootId={condition.writable ? workspace.folder?.root_id : undefined}
+      attach={condition.archived || condition.deleting || sending ? undefined : files => input.current?.addFiles(files)}
+      addToFolder={condition.writable ? (files, directory) => {
+        folderPanel.current?.addFiles(files, directory)
         setTab('folder')
         setOpen(true)
       } : undefined}
@@ -160,15 +167,18 @@ export function WorkspaceHomePage() {
           onClose={floating ? () => {setOpen(false); inspectorTrigger.current?.focus()} : undefined}/>
         <FolderPanel ref={folderPanel} workspace={workspace} selectedTab={tab === 'workbench' ? 'inspect' : tab} embedded
           toolbarTarget={toolbarTarget} visible={open}
-          deliveries={deliveries} deliveryLabel="最近对话的交付" deliveryEmpty="最近对话暂无交付文件。"
+          deliveries={deliveries}
+          deliveryStatus={{loading: sessionsLoading || (!!recentSessionId && !deliveryResult), error: deliveryResult?.error ?? sessionsError, retry: retryDeliveries}}
+          onOpenDelivery={file => {if (recentSessionId) router.push(`${workspaceSessionHref(workspace.id, recentSessionId)}?delivery=${encodeURIComponent(file.id)}`)}}
+          deliveryLabel="最近对话的交付" deliveryEmpty="最近对话暂无交付文件。"
           className="min-h-0 flex-1"/>
       </TaskInspector>}>
-      <main className="flex min-h-0 flex-1 flex-col items-center overflow-y-auto px-4 py-10 sm:px-6">
-        <div className="my-auto w-full max-w-(--reading-column) shrink-0 space-y-5">
-          <div className="space-y-1.5 text-center">
-            <h1 className="text-[clamp(1.5rem,3vw,2.1rem)] font-semibold tracking-tight" dir="auto">{workspace.name}</h1>
-            {workspace.folder && <p className="break-all font-mono text-xs text-muted-foreground">{workspace.folder.path}</p>}
-          </div>
+      <main className="task-home" aria-labelledby="workspace-home-title">
+        <div className="task-home-content">
+          <header className="task-home-heading">
+            <h1 id="workspace-home-title" dir="auto">{workspace.name}</h1>
+            {workspace.folder && <p className="font-mono" dir="auto">{workspace.folder.path}</p>}
+          </header>
           {condition.archived
             ? <p role="status" className="rounded-lg bg-muted px-3.5 py-3 text-center text-sm text-muted-foreground">工作区已归档，不能发起新对话。取消归档后可以继续。</p>
             : <ChatInput ref={input} autoFocus workspace draftScope={scope} onSend={start} disabled={sending}
@@ -178,18 +188,18 @@ export function WorkspaceHomePage() {
                   submitting: sending, compacting: false,
                   actions: {compact: () => toast.message('还没有可压缩的上下文')},
                 }}/>}
-          {((pending ?? 0) > 0 || delivery) && <div className="flex flex-wrap items-center justify-center gap-2">
+          {((pending ?? 0) > 0 || delivery) && <div className="task-home-links">
             {pending != null && pending > 0 && <Link href={workspaceBackgroundHref(workspace.id)} className="home-shortcut">
               <Layers/>背景有 {pending} 项待处理</Link>}
             {delivery && recentSession && <Link href={`${workspaceSessionHref(workspace.id, recentSession.session_id)}?delivery=${encodeURIComponent(delivery.id)}`} className="home-shortcut" title="查看交付版本">
               <File/>{delivery.filename}</Link>}
           </div>}
-          <section aria-labelledby="workspace-recent" className="mx-auto max-w-lg">
-            <h2 id="workspace-recent" className="px-2 pb-1 text-xs text-faint">最近对话</h2>
-            {sessionsError && <div role="alert" className="flex items-center gap-2 px-2 text-xs text-state-failed">
+          <section aria-labelledby="workspace-recent" className="task-home-recent">
+            <h2 id="workspace-recent" className="pb-1 text-xs text-faint">最近对话</h2>
+            {sessionsError && <div role="alert" className="flex items-center gap-2 text-xs text-state-failed">
               {sessionsError}<Button size="xs" variant="ghost" onClick={() => void refreshSessions()}>重试</Button>
             </div>}
-            {!sessions.length && !sessionsError && <p className="px-2 pb-1 text-xs text-muted-foreground">
+            {!sessions.length && !sessionsError && <p className="py-1 text-meta text-muted-foreground">
               {sessionsLoading ? '正在读取对话…' : '还没有对话'}
             </p>}
             {sessions.slice(0, 5).map(session => <Link key={session.session_id} href={workspaceSessionHref(workspace.id, session.session_id)}

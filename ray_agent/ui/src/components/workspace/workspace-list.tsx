@@ -1,4 +1,4 @@
-import {useState} from 'react'
+import {useRef, useState} from 'react'
 import {Folder, FolderOpen, FolderPlus, Plus} from '@/components/ui/icons'
 import {Link} from '@/lib/navigation'
 import {Button} from '@/components/ui/button'
@@ -12,16 +12,17 @@ import {DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger
 
 export function WorkspaceAddAction() {
   const [creating, setCreating] = useState(false)
+  const createTrigger = useRef<HTMLButtonElement>(null)
   const folder = useOpenFolder()
   return <>
     <DropdownMenu>
-      <DropdownMenuTrigger asChild><Button variant="ghost" size="icon-sm" aria-label="添加工作区" title="添加工作区"><Plus/></Button></DropdownMenuTrigger>
+      <DropdownMenuTrigger asChild><Button ref={createTrigger} variant="ghost" size="icon-sm" aria-label="添加工作区" title="添加工作区"><Plus/></Button></DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         <DropdownMenuItem onSelect={() => setCreating(true)}><FolderPlus/>新建工作区</DropdownMenuItem>
         <DropdownMenuItem disabled={!folder.available || folder.busy} onSelect={() => void folder.open()}><FolderOpen/>打开文件夹</DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
-    <CreateWorkspaceDialog open={creating} onOpenChange={setCreating}/>
+    <CreateWorkspaceDialog open={creating} onOpenChange={setCreating} returnFocus={createTrigger}/>
     {folder.dialog}
   </>
 }
@@ -30,11 +31,12 @@ export function WorkspaceAddAction() {
 export function WorkspaceList() {
   const {workspaces, loading, error, refresh} = useWorkspaces()
   const [creating, setCreating] = useState(false)
+  const createTrigger = useRef<HTMLButtonElement>(null)
   const folder = useOpenFolder()
 
   const empty = !loading && !error && workspaces.length === 0
-  const actions = <div className="flex flex-wrap items-center gap-2">
-      <Button type="button" variant={empty ? 'default' : 'outline'} onClick={() => setCreating(true)}><FolderPlus/>新建工作区</Button>
+  const actions = <div className={empty ? 'task-home-links' : 'flex flex-wrap items-center gap-2'}>
+      <Button ref={createTrigger} type="button" variant={empty ? 'default' : 'outline'} onClick={() => setCreating(true)}><FolderPlus/>新建工作区</Button>
       <Button type="button" variant="outline" disabled={!folder.available || folder.busy} onClick={() => void folder.open()}
         title={folder.available ? undefined : '打开文件夹需要在 RayAgent 桌面应用中使用'}>
         <FolderOpen/>{folder.busy ? '正在打开' : '打开文件夹'}
@@ -43,14 +45,14 @@ export function WorkspaceList() {
   const folderHint = !folder.available && <p className="text-meta text-muted-foreground">打开本地文件夹需要 RayAgent 桌面应用。</p>
 
   return <>
-    {empty ? <section aria-labelledby="workspace-empty-title" className="m-auto flex max-w-lg flex-col items-center gap-4 px-3 py-8 text-center">
-      <span className="grid size-12 place-items-center rounded-[14px] bg-muted text-muted-foreground"><Folder className="size-6"/></span>
-      <div className="space-y-1.5">
-        <h1 id="workspace-empty-title" className="text-[clamp(1.35rem,3vw,1.8rem)] font-semibold tracking-tight">从一个文件夹开始</h1>
-        <p className="text-sm text-muted-foreground">工作区把同一个文件夹里的材料、对话和成果放在一起。</p>
-      </div>
-      <div className="[&>div]:justify-center">{actions}</div>
-      {folderHint}
+    {empty ? <section aria-labelledby="workspace-empty-title" className="workspace-empty task-home-content">
+      <header className="task-home-heading">
+        <Folder className="mx-auto mb-3 size-6 text-faint" aria-hidden/>
+        <h1 id="workspace-empty-title">从一个文件夹开始</h1>
+        <p>在一个文件夹里整理任务材料、对话和成果。</p>
+      </header>
+      {actions}
+      {folderHint && <div className="mt-3">{folderHint}</div>}
     </section> : <section aria-labelledby="workspace-directory-title" className="mx-auto w-full max-w-(--reading-column) space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 id="workspace-directory-title" className="text-[1.375rem] font-semibold tracking-tight">工作区</h1>
@@ -76,7 +78,7 @@ export function WorkspaceList() {
         </li>)}
       </ul>}
     </section>}
-    <CreateWorkspaceDialog open={creating} onOpenChange={setCreating}/>
+    <CreateWorkspaceDialog open={creating} onOpenChange={setCreating} returnFocus={createTrigger}/>
     {folder.dialog}
   </>
 }

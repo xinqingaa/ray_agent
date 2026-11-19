@@ -96,7 +96,10 @@ assert.match(collapsed, /flex-nowrap/);
 assert.doesNotMatch(collapsed, /子步骤已完成|bg-state-running|bg-state-success|bg-signal/);
 const expanded = markup(PlanBar, {plan: plan.plan, runStatus: 'running', defaultOpen: true});
 assert.equal((expanded.match(/已完成 \d+\/\d+/g) || []).length, 1);
-assert.ok(expanded.indexOf('<button') < expanded.indexOf('role="region"'));
+// The expanded checklist sits above the fixed bottom trigger and is linked by aria-controls.
+const region = expanded.match(/id="([^"]+)" role="region" aria-label="当前计划"/);
+assert.ok(region && expanded.indexOf(region[0]) < expanded.indexOf('aria-expanded="true"'));
+assert.ok(expanded.includes(`aria-controls="${region[1]}"`));
 assert.match(expanded, /class="sr-only">收起计划/);
 assert.match(expanded, /收起计划/);
 assert.match(expanded, /animate-spin/); assert.doesNotMatch(expanded, /text-signal|bg-signal/);
@@ -108,3 +111,44 @@ assert.match(contentMarkup, /text-lg font-semibold/);
 assert.match(contentMarkup, />进行中</); assert.match(contentMarkup, />已完成</); assert.match(contentMarkup, />未开始</);
 assert.doesNotMatch(markup(PlanBar, {plan: plan.plan, proposal: true}), /子步骤已完成/);
 console.log('PASS: 工具后的思考状态、状态切换与终态；实际 Markdown 文件链接、交付时序/版本/中文/协议与安全边界；当前子步骤、收起整体进度与展开不重复计数');
+
+// 实际展开组件配合延迟请求，防止首个响应被自己的 loading 更新取消。
+const {act, create} = req('react-test-renderer');
+const {RunReferences} = load('src/components/run/run-references.tsx');
+const {memoryApi} = load('src/lib/api/memory.ts');
+globalThis.IS_REACT_ACT_ENVIRONMENT = true;
+async function assertReferenceLoading() {
+  const requests = [];
+  memoryApi.contextManifest = id => new Promise((resolve, reject) => requests.push({id, resolve, reject}));
+  const render = runId => React.createElement(RunReferences, {runId});
+  const manifest = instruction_body => ({instruction_body, resident_memories: [], retrieval_hits: [], omissions: []});
+  let tree;
+  await act(async () => { tree = create(render('one')); });
+  const open = () => tree.root.findAllByType('button')[0].props.onClick();
+  const contents = () => JSON.stringify(tree.toJSON());
+  await act(async () => { open(); });
+  assert.equal(requests[0].id, 'one');
+  assert.match(contents(), /正在读取/);
+  await act(async () => { requests[0].resolve(manifest('第一份工作方式')); });
+  assert.match(contents(), /第一份工作方式/);
+  await act(async () => { open(); });
+  await act(async () => { open(); });
+  assert.equal(requests.length, 1);
+  assert.match(contents(), /第一份工作方式/);
+
+  await act(async () => { tree.update(render('two')); });
+  await act(async () => { open(); });
+  await act(async () => { tree.update(render('three')); });
+  await act(async () => { open(); });
+  await act(async () => { requests[1].resolve(manifest('迟到的内容')); });
+  assert.doesNotMatch(contents(), /迟到的内容/);
+  await act(async () => { requests[2].reject(new Error('加载失败')); });
+  assert.match(contents(), /加载失败/);
+  await act(async () => { tree.root.findAllByType('button')[1].props.onClick(); });
+  assert.equal(requests[3].id, 'three');
+  await act(async () => { requests[3].resolve(manifest('重试恢复')); });
+  assert.match(contents(), /重试恢复/);
+  await act(async () => { tree.unmount(); });
+  console.log('PASS: 本次参考延迟成功、收起重开、切换运行后的迟到响应、失败与重试');
+}
+assertReferenceLoading().catch(error => { console.error(error); process.exitCode = 1; });

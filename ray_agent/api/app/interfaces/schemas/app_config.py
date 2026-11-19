@@ -49,6 +49,7 @@ class ModelCatalogItem(BaseModel):
     vendor: str
     vendor_label: str
     vision: bool = False
+    connection_issue: Optional[str] = None
     context_window: int
     max_output: int
     choices: List[str]

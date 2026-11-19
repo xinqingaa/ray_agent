@@ -90,6 +90,8 @@ target/release/bundle/macos/RayAgent.app/Contents/MacOS/rayagent-desktop
 
 宿主命令失败时返回字符串，界面在 [platform.ts](../ui/src/lib/platform.ts) 统一转为 `Error`。实例令牌只经 `core_connection` 交给界面，由界面放进请求头，不进 URL。图片、PDF 与网页预览由 WebView 按 URL 直接加载，界面先为该资源申请短期票据再拼进地址；票据的范围与有效期见 [API 开发指南](../api/README.md#启动与接口)。界面中的跨源链接一律交给 `open_external`，WebView 本身不打开外部页面。
 
+宿主把外部文件拖放交给 WebView 的文件事件。各落点复用页面上传入口，由核心按会话或已授权工作区处理。检查入口见[运行指南](../README.md#运行检查)。
+
 ## 关闭与退出
 
 - 关闭主窗口只隐藏窗口，核心与运行继续；点程序坞图标重新显示。

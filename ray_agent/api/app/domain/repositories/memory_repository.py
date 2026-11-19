@@ -96,6 +96,9 @@ class MemoryRepository(ABC):
     async def list_changes(self, memory_id: str) -> list[MemoryChange]: ...
 
     @abstractmethod
+    async def current_changes(self, workspace_id: str) -> dict[str, MemoryChange]: ...
+
+    @abstractmethod
     async def add_suppression(self, item: MemorySuppression) -> None: ...
 
     @abstractmethod

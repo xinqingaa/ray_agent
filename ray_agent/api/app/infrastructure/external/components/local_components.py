@@ -88,6 +88,19 @@ class LocalRuntimeComponents:
         self.entry(component_id)
         return self.root / component_id / "versions" / token
 
+    def download_progress(self, component_id: str, target: Path) -> tuple[int, int] | None:
+        if component_id != BROWSER_ID:
+            return None
+        total = self.entry(component_id).size
+        for name in ('chromium.zip', 'chromium.zip.part'):
+            try:
+                size = (target / name).stat().st_size
+            except FileNotFoundError:
+                continue
+            if 0 <= size <= total and total:
+                return size, total
+        return None
+
     def publish(self, component_id: str, token: str) -> None:
         """调用方持有写事务并核对代次后同步发布；迟到 worker 只能写自己的目录。"""
         entry = self.entry(component_id)

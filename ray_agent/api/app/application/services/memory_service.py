@@ -46,8 +46,22 @@ logger = logging.getLogger(__name__)
 EXTRACTION_MAX_ITEMS = 8
 # 保留撤回记录的历史文本标记；完整撤销依据 before_state，不从正文猜测元数据。
 _STATUS_MARK = "@status="
+_RESTORABLE_CHANGES = frozenset({MemoryChangeAction.UPDATE, MemoryChangeAction.RETRACT,
+                                  MemoryChangeAction.PIN, MemoryChangeAction.UNPIN})
+
 _STATE_FIELDS = {"content", "memory_type", "origin", "certainty", "status", "pinned",
                  "supersedes_id", "supersedes_version"}
+
+
+def undo_unavailable(entry: MemoryEntry, last: Optional[MemoryChange]) -> Optional[str]:
+    if last is None or last.to_version != entry.version:
+        return "没有可撤销的变更"
+    if last.action in _RESTORABLE_CHANGES:
+        if last.before_state is None:
+            return "旧变更缺少完整状态，请直接编辑当前记忆"
+    elif last.action is not MemoryChangeAction.CREATE:
+        return "该变更不能单条撤销，请编辑或撤回当前记忆"
+    return None
 
 
 async def invalidate_extractions(uow: IUnitOfWork, workspace_id: str, *, session_id: Optional[str] = None) -> None:
@@ -226,6 +240,13 @@ class MemoryService:
             await self._workspace(uow, workspace_id, write=False)
             return await uow.memory.list(workspace_id, statuses=statuses)
 
+    async def entries_with_undo(self, workspace_id: str, statuses: Sequence[MemoryStatus]) -> list[tuple[MemoryEntry, Optional[str]]]:
+        async with self._read_uow_factory() as uow:
+            await self._workspace(uow, workspace_id, write=False)
+            entries = await uow.memory.list(workspace_id, statuses=statuses)
+            changes = await uow.memory.current_changes(workspace_id) if entries else {}
+        return [(entry, undo_unavailable(entry, changes.get(entry.id))) for entry in entries]
+
     async def extraction_result(self, workspace_id: str, session_id: str, seq: int) -> tuple[Optional[ExtractionCommitStatus], list[MemoryEntry]]:
         async with self._read_uow_factory() as uow:
             await self._workspace(uow, workspace_id, write=False)
@@ -376,20 +397,18 @@ class MemoryService:
             self._check_version(entry, expected_version)
             changes = await uow.memory.list_changes(memory_id)
             last = changes[-1] if changes else None
-            if last is None or last.to_version != entry.version:
-                raise ConflictError("没有可撤销的变更", resource_version=entry.version)
+            unavailable = undo_unavailable(entry, last)
+            if unavailable:
+                raise ConflictError(unavailable, resource_version=entry.version)
+            assert last is not None
             action = last.action
             if action is MemoryChangeAction.CREATE:
                 reverted = self._bumped(entry, status=MemoryStatus.RETRACTED, pinned=False)
                 await self._suppress_sources(uow, entry)
-            elif action in (MemoryChangeAction.UPDATE, MemoryChangeAction.RETRACT,
-                            MemoryChangeAction.PIN, MemoryChangeAction.UNPIN):
-                if last.before_state is None:
-                    raise ConflictError("旧变更缺少完整状态，无法安全撤销；请直接编辑当前记忆", resource_version=entry.version)
+            else:
+                assert last.before_state is not None
                 restored = MemoryEntry.model_validate({**entry.model_dump(), **last.before_state})
                 reverted = self._bumped(restored)
-            else:
-                raise ConflictError("该变更不能单条撤销；请编辑或撤回当前记忆", resource_version=entry.version)
             await self._save(uow, reverted)
             await self._change(uow, entry, reverted, MemoryChangeAction.UNDO, MemoryOrigin.USER, replaces=last.id,
                                rationale=f"撤销 {action.value}")

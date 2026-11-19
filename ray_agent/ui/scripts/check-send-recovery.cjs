@@ -99,6 +99,9 @@ async function main() {
   assert.equal(checkAcceptance({...accepted, events:[event, {event:'plan',data:{seq:7,run_id:'r1',accepted_from:reference}}]}, planPending).kind, 'accepted');
   writeDraft('s', {submission: planPending});
   sessionApi.chat = async (id, body) => {assert.equal(body.execute_plan.request_id,'stable-request'); posts++};
+  const recordedPosts = posts;
+  await assert.rejects(sendRecoverably('s', 's1', {...payload, execute_plan: undefined}), /计划的受理结果待核对/);
+  assert.equal(posts, recordedPosts);
   await sendRecoverably('s', 's1', {...payload, execute_plan:{...reference, request_id:'new-click'}});
   assert.equal(readDraft('s').submission, undefined);
   console.log('PASS: 计划响应丢失后沿用持久请求标识，结构化承接记录可读回');
@@ -108,7 +111,7 @@ main().catch((error) => {console.error(error); process.exitCode = 1;});
 // 展示关联独立于受理记录，刷新后恢复。
 const localValues = new Map();
 global.localStorage = {getItem: key => localValues.get(key) ?? null, setItem: (key, value) => localValues.set(key, value)};
-const {readRetryDisplay, writeRetryDisplay, retryEcho} = load('src/lib/retry-display.ts');
+const {readRetryDisplay, writeRetryDisplay, retryEchoUserId, conversationTimeline} = load('src/lib/retry-display.ts');
 const retryPending = {text: '重新检查', fromRunId: 'failed-run', knownUserIds: ['original']};
 const display = {hiddenRunIds: ['failed-run'], hiddenUserIds: ['retry-user'], pending: retryPending};
 writeRetryDisplay('s', display);
@@ -120,10 +123,68 @@ const retryItems = [
   {kind: 'run_end', id: 'end', runId: 'new-run'},
   {kind: 'user', id: 'manual-repeat', runId: 'manual-run', text: retryPending.text},
 ];
-assert.deepEqual(retryEcho(retryItems, retryPending), {userId: 'retry-user', settled: true});
-assert.deepEqual(retryEcho(retryItems.slice(0, 2), retryPending), {userId: 'retry-user', settled: false});
+assert.equal(retryEchoUserId(retryItems, retryPending), 'retry-user');
+assert.equal(retryEchoUserId(retryItems.slice(0, 1), retryPending), undefined);
 writeRetryDisplay('s', {hiddenRunIds: [], hiddenUserIds: [], pending: null});
 assert.equal(readRetryDisplay('s').pending, null);
 localValues.set('rayagent:retry-display:s', '{invalid');
 assert.deepEqual(readRetryDisplay('s').hiddenRunIds, []);
 console.log('PASS: 重试展示关联可刷新恢复、会话隔离、回滚；仅隐藏一次重试回显，主动重复发送保留');
+
+// 三次手动重试。保留旧运行的过程，只替换失败条和重试回显。
+const failures = [];
+const runs = [];
+let state = {hiddenRunIds: [], hiddenUserIds: [], pending: null};
+const visibleIds = () => conversationTimeline(failures, runs, state).items.map(item => item.id);
+for (let index = 0; index < 4; index++) {
+  const runId = `run-${index}`;
+  const userId = `user-${index}`;
+  const endId = `end-${index}`;
+  if (index > 0) {
+    state.pending = {text: '检查', fromRunId: `run-${index - 1}`, knownUserIds: failures.filter(item => item.kind === 'user').map(item => item.id)};
+    assert.ok(visibleIds().includes(`end-${index - 1}`));
+  }
+  runs.push({id: runId, status: 'failed', turns: []});
+  failures.push({kind: 'user', id: userId, runId, text: '检查'},
+    {kind: 'narration', id: `process-${index}`, runId, text: '开始检查'},
+    {kind: 'attempt', id: `attempt-${index}`, runId, retried: false},
+    {kind: 'run_end', id: endId, runId, status: 'failed'});
+  const expected = ['user-0', ...runs.map((_, n) => `process-${n}`), endId];
+  assert.deepEqual(visibleIds(), expected);
+  if (state.pending) {
+    state.hiddenRunIds.push(state.pending.fromRunId);
+    state.hiddenUserIds.push(userId);
+    state.pending = null;
+  }
+  writeRetryDisplay('chain', state);
+  state = readRetryDisplay('chain');
+  assert.deepEqual(visibleIds(), expected);
+}
+// 当前自动重试只留一行，恢复成功或重试耗尽时由回复或终态接管。
+const autoRuns = [{id: 'auto', status: 'running', turns: [{index: 1, endedAt: null}]}];
+const autoItems = [1, 2].map(n => ({kind: 'attempt', id: `auto-${n}`, runId: 'auto', turnIndex: 1, retried: true}));
+assert.deepEqual(conversationTimeline(autoItems, autoRuns, state).items.map(item => item.id), ['auto-2']);
+assert.deepEqual(conversationTimeline(autoItems, [{...autoRuns[0], status: 'completed'}], state).items, []);
+assert.deepEqual(conversationTimeline(autoItems, [{...autoRuns[0], turns: [{index: 1, endedAt: 123}]}], state).items, []);
+const finalAttempt = {kind: 'attempt', id: 'exhausted', runId: 'auto', retried: false};
+assert.deepEqual(conversationTimeline([...autoItems, finalAttempt], autoRuns, state).items, []);
+const finalError = {kind: 'run_end', id: 'terminal', runId: 'auto', status: 'failed'};
+assert.deepEqual(conversationTimeline([...autoItems, finalAttempt, finalError], autoRuns, state).items, [finalError]);
+console.log('PASS: 连续重试及刷新保留一条当前失败，自动重试状态随终态收束');
+
+const {projectSession} = load('src/lib/session-projection.ts');
+const ev = (seq, event, data) => ({event, data: {seq, run_id: 'r', created_at: 1000 + seq, ...data}});
+for (const [reason, text] of [
+  ['deepseek-flash 未配置 API Key', /未配置 API Key.*模型提供商/],
+  ['Error code: 401 - invalid_api_key', /认证或授权失败.*核对密钥/],
+  ['等待模型输出超过 20 秒', /模型请求超时.*检查网络/],
+]) {
+  const failure = projectSession({id: 's', events: [ev(1, 'run', {status: 'running'}),
+    ev(2, 'error', {error: reason}), ev(3, 'run', {status: 'failed', reason: 'model_error'})]});
+  assert.match(failure.timeline.at(-1).reasonText, text);
+}
+console.log('PASS: 缺密钥、认证失败和超时分别给出原因及下一步');
+const source = projectSession({id: 's', events: [ev(1, 'run', {status: 'running'}),
+  ev(2, 'message', {role: 'user', message: '检查', image_mode: 'files', skill: {id: 'skill', version: 'selected'}})]}).timeline[0];
+assert.equal(source.imageMode, 'files');
+assert.deepEqual(source.skill, {id: 'skill', version: 'selected'});

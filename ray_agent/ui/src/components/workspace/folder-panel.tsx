@@ -54,14 +54,16 @@ function describeUpload(names: Array<{asked: string; saved: string}>, failed: Ar
  * 文件夹随外部变更（工作区页的变更订阅）按受影响的目录刷新；正在预览的文件被改动时提示重新载入。
  * 有运行修改过文件夹时多一个“最近修改”页，列出这些运行并可进入撤销。
  */
-export type FolderPanelRef = {addFiles: (files: File[]) => void; closePreview: () => void; target: string}
+export type FolderPanelRef = {addFiles: (files: File[], directory?: string) => void; closePreview: () => void; target: string}
 
-export function FolderPanel({workspace, deliveries, deliveryLabel = '本次交付', deliveryEmpty = '这个对话还没有交付文件。', onClose, embedded = false, onOpenWorkingStyle, className, selectedTab, toolbarTarget, readPaths, visible = true, ref}: {
+export function FolderPanel({workspace, deliveries, onOpenDelivery, deliveryStatus, deliveryLabel = '本次交付', deliveryEmpty = '这个对话还没有交付文件。', onClose, embedded = false, onOpenWorkingStyle, className, selectedTab, toolbarTarget, readPaths, visible = true, ref}: {
   workspace: WorkspaceItem
   /** 会话里的交付文件；工作区首页没有会话，传空则不显示“本次成果” */
   deliveries?: FileView[]
   deliveryLabel?: string
   deliveryEmpty?: string
+  deliveryStatus?: {loading: boolean; error?: string | null; retry: () => void}
+  onOpenDelivery?: (file: FileView) => void
   onClose?: () => void
   /** 嵌在带切换栏的面板里时用更矮的标题行 */
   embedded?: boolean
@@ -111,19 +113,25 @@ export function FolderPanel({workspace, deliveries, deliveryLabel = '本次交�
     return () => {cancelled = true}
   }, [workspace.id, condition.writable, live.change.signal, leaseId])
 
-  // 文档索引汇总：随外部变更批次刷新
+  // 仅打开文件夹面板且有后台索引任务时刷新进度。
   useEffect(() => {
     if (!condition.folderAvailable) {setIndexSummary(null); setIndexStates(new Map()); return}
     if (!visible || activeTab !== 'folder') return
     let cancelled = false
-    documentsApi.summary(workspace.id)
-      .then(next => {if (!cancelled) setIndexSummary(next)})
-      .catch(() => {if (!cancelled) setIndexSummary(null)})
-    documentsApi.list(workspace.id)
-      .then(next => {if (!cancelled) setIndexStates(new Map(next.map(item => [item.relative_path, item.status])))})
-      .catch(() => {if (!cancelled) setIndexStates(new Map())})
-    return () => {cancelled = true}
-  }, [workspace.id, condition.folderAvailable, visible, activeTab, live.change.signal])
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const read = async () => {
+      const [summary, documents] = await Promise.allSettled([documentsApi.summary(workspace.id), documentsApi.list(workspace.id)])
+      if (cancelled) return
+      const index = summary.status === 'fulfilled' ? summary.value : null
+      setIndexSummary(index)
+      setIndexStates(documents.status === 'fulfilled'
+        ? new Map(documents.value.map(item => [item.relative_path, item.status]))
+        : new Map())
+      if (index?.active_operation_id) timer = setTimeout(() => void read(), 2000)
+    }
+    void read()
+    return () => {cancelled = true; clearTimeout(timer)}
+  }, [workspace.id, condition.folderAvailable, visible, activeTab, live.change.signal, uploading])
 
   // 正在预览的文件被报告变化：提示重新载入，不自动替换用户正在看的内容
   useEffect(() => {
@@ -135,14 +143,18 @@ export function FolderPanel({workspace, deliveries, deliveryLabel = '本次交�
     if (source) setOpenedOn(activeTab)
   }
 
-  const upload = async (files: File[]) => {
-    if (!folder || !condition.writable || uploading || !files.length) return
+  const upload = async (files: File[], directory = target) => {
+    if (!files.length) return
+    if (!folder || !condition.writable || uploading) {
+      toast.error(uploading ? '正在添加文件，请稍后再试' : '当前无法写入工作区文件夹')
+      return
+    }
     setUploading(true)
     const saved: Array<{asked: string; saved: string}> = []
     const failed: Array<{name: string; message: string}> = []
     for (const file of files) {
       try {
-        const entry = await rootApi.upload(folder.root_id, file, target)
+        const entry = await rootApi.upload(folder.root_id, file, directory)
         saved.push({asked: file.name, saved: entry.name})
       } catch (error) {
         const lease = error instanceof ApiError && error.code === 'conflict' ? leaseFromDetails(error.details) : null
@@ -158,16 +170,16 @@ export function FolderPanel({workspace, deliveries, deliveryLabel = '本次交�
     setUploading(false)
     describeUpload(saved, failed)
     if (saved.length) {
-      setAddedPaths(current => new Set([...current, ...saved.map(item => target ? `${target}/${item.saved}` : item.saved)]))
-      if (target) toggle(target, true)
-      void loadDirectory(target)
+      setAddedPaths(current => new Set([...current, ...saved.map(item => directory ? `${directory}/${item.saved}` : item.saved)]))
+      if (directory) toggle(directory, true)
+      void loadDirectory(directory)
     }
   }
 
   useImperativeHandle(ref, () => ({
     target,
     closePreview: () => open(null),
-    addFiles: files => {open(null); void upload(files)},
+    addFiles: (files, directory) => {open(null); void upload(files, directory)},
   }))
 
   const onDrop = (event: DragEvent) => {
@@ -223,13 +235,17 @@ export function FolderPanel({workspace, deliveries, deliveryLabel = '本次交�
     </div>
   } else if (activeTab === 'delivered') {
     body = <ScrollArea className="min-h-0 flex-1"><div className="px-3 pb-3">
-      {deliveries?.length ? <h2 className="px-1.5 py-1.5 text-xs font-medium text-faint">{deliveryLabel}</h2>
+      {deliveryStatus?.error ? <div className="space-y-1 px-2 py-6 text-center">
+        <p role="alert" className="text-meta text-state-failed">{deliveryStatus.error}</p>
+        <Button size="xs" variant="ghost" onClick={deliveryStatus.retry}>重试</Button>
+      </div> : deliveryStatus?.loading ? <p role="status" className="px-2 py-8 text-center text-meta text-muted-foreground">正在读取最近对话的交付…</p>
+        : deliveries?.length ? <h2 className="px-1.5 py-1.5 text-xs font-medium text-faint">{deliveryLabel}</h2>
         : <p className="px-2 py-8 text-center text-meta text-muted-foreground">{deliveryEmpty}</p>}
       {deliveries?.map(file => {
         const rootId = folder?.root_id
         const inFolder = rootId && file.rootId === rootId && file.relativePath ? file.relativePath : null
         return <FileRow key={file.id} file={file} versionLabel="交付版本"
-          onOpen={() => open({kind: 'attachment', id: file.id, filename: file.filename, size: file.size})}
+          onOpen={() => onOpenDelivery ? onOpenDelivery(file) : open({kind: 'attachment', id: file.id, filename: file.filename, size: file.size})}
           actions={<DropdownMenu>
             <DropdownMenuTrigger asChild><IconAction label={`${file.filename} 的操作`}><MoreHorizontal/></IconAction></DropdownMenuTrigger>
             <DropdownMenuContent align="end">

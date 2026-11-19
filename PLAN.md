@@ -1,9 +1,9 @@
 # 维护与优化计划
 
-RayAgent 本机桌面首个交付（macOS Apple Silicon 内部包）处于**实施中**。P4 本机执行、浏览器和组件发布已实施，P5 记忆服务层已收尾，现行机制合入正文；检索与恢复、记忆和来源界面、Skill 隔离复查及 P9 整包验收仍有未闭环项，不能按首个交付已完成处理。
+RayAgent 首个交付处于**实施中**，目标是 macOS Apple Silicon 内部包。当前按已批准范围收尾截至 P5 的原型界面。
 
-当前入口为[桌面升级计划](docs/plan/README.md)、[实施状态](docs/plan/implementation.md#实施状态)和[首个交付收尾与接手清单](docs/plan/first-delivery-remaining.md)。机制与使用说明见[文档地图](docs/README.md)、[产品说明](docs/product.md)与[运行指南](ray_agent/README.md)，已知偏差以收尾清单为准，修复时同步更正文档。
+- [实施工作包与交付条件](docs/plan/implementation.md)维护各包状态和交付门槛。
+- [首个交付收尾清单](docs/plan/first-delivery-remaining.md)维护待修复、待验证和待决定的事项。
+- [桌面升级计划](docs/plan/README.md)提供原型范围、既定产品决策和后续工作入口。
 
-[原型落地计划](docs/plan/prototype-ui.md)已批准，以 P5 为本轮实施和验收边界。P6–P9 尚未验收，各工作包验收时同步处理前端与服务端的缺口。
-
-后续阶段（P10 签名公证与更新、P11 Windows、P12 辅助移动端）保持未开始，开始前再确认范围与顺序。
+现行产品、机制与运行说明见[文档地图](docs/README.md)。

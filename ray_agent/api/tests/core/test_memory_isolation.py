@@ -119,10 +119,19 @@ def test_session_summary_search_is_scoped_and_leaves_with_non_participating_sess
                 await env.retrieval.index_summary(uow, record)
         hits = await env.retrieval.search(a.id, "季度预算", [SearchSourceType.SESSION_SUMMARY])
         assert [h.source_id for h in hits] == [sa.id]
-        # 设为不参与记忆：摘要撤出检索
+        consumer = await env.session(a.id)
+        adopted = (await env.assembly.assemble(consumer, "run-summary-source", "季度预算")).manifest
+        assert await env.assembly.readable_summary_sources(adopted) == [sa.id]
+        # 关闭参与后，历史采用记录仍在，来源链接撤出。再次打开不会恢复旧版本的链接。
         await env.memory.set_session_participation(sa.id, False)
         assert await env.retrieval.search(a.id, "季度预算") == []
+        assert await env.assembly.readable_summary_sources(adopted) == []
+        assert adopted.retrieval_hits[0].source_id == sa.id
         assert [h.source_id for h in await env.retrieval.search(b.id, "季度预算")] == [sb.id]
+        await env.memory.set_session_participation(sa.id, True)
+        assert await env.assembly.readable_summary_sources(adopted) == []
+        current = (await env.assembly.assemble(consumer, "run-summary-current", "季度预算")).manifest
+        assert await env.assembly.readable_summary_sources(current) == [sa.id]
 
     scenario(tmp_path, body)
 

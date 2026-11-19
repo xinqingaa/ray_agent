@@ -110,9 +110,12 @@ class RunItem(BaseModel):
     prompt_tokens: int = 0
     completion_tokens: int = 0
     cached_tokens: Optional[int] = None
+    model_id: Optional[str] = None
+    reasoning: Optional[str] = None
 
     @classmethod
     def from_run(cls, run: Run) -> "RunItem":
+        snapshot = run.config_snapshot or {}
         return cls(
             run_id=run.id,
             status=run.status.value,
@@ -126,6 +129,8 @@ class RunItem(BaseModel):
             prompt_tokens=run.prompt_tokens,
             completion_tokens=run.completion_tokens,
             cached_tokens=run.cached_tokens,
+            model_id=snapshot.get("model_name"),
+            reasoning=snapshot.get("reasoning"),
         )
 
 

@@ -1,3 +1,4 @@
+import type {ReactNode} from 'react'
 import {ArrowRight, ListChecks, RotateCcw} from '@/components/ui/icons'
 import {Button} from '@/components/ui/button'
 import {IconAction} from '@/components/ui/icon-action'
@@ -13,6 +14,9 @@ type RunEndBarProps = {
   retryText?: string | null
   onRetry?: (text: string) => void
   retrying?: boolean
+  planConsumed?: boolean
+  planAction?: ReactNode
+  priorTools?: boolean
   className?: string
 }
 
@@ -35,10 +39,10 @@ function failureReason(reasonText: string): string {
 }
 
 /** 终态条：非 completed 的运行结束方式与原因。失败只留一枚重试，不再配一段重复说明。 */
-export function RunEndBar({status, reasonText, retryText, onRetry, retrying = false, className}: RunEndBarProps) {
+export function RunEndBar({status, reasonText, retryText, onRetry, retrying = false, planConsumed = false, planAction, priorTools = false, className}: RunEndBarProps) {
   const meta = RUN_PHASE[status]
   const Icon = meta.icon
-  const showRetry = status === 'failed' && !!retryText && !!onRetry
+  const showRetry = !planConsumed && status === 'failed' && !!retryText && !!onRetry
   const reason = status === 'cancelled' ? '' : status === 'failed' ? failureReason(reasonText) : reasonText
   return (
     <div
@@ -51,8 +55,11 @@ export function RunEndBar({status, reasonText, retryText, onRetry, retrying = fa
           <span className={cn('font-medium', TONE_TEXT[meta.tone])}><RunStatus place="terminal" status={status}/></span>
           {reason ? <span className="ml-2">{reason}</span> : null}
         </p>
+        {planConsumed && <p className="text-xs text-muted-foreground">计划已受理。请先查看计划清单和已完成的操作，再说明要从哪一步继续。</p>}
+        {showRetry && priorTools && <p className="text-xs text-muted-foreground">本次运行已有工具操作，重试前请核对已完成的步骤。</p>}
         {status !== 'failed' && <p className="text-xs text-muted-foreground">{nextStep(status, reasonText)}</p>}
       </div>
+      {planConsumed && planAction}
       {showRetry && (
         <Button
           type="button"

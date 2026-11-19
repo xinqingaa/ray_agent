@@ -275,6 +275,7 @@ export type ModelCatalog = {
     id: string;
     vendor: string;
     vendor_label: string;
+    connection_issue?: string | null;
     vision?: boolean;
     context_window: number;
     max_output: number;
@@ -335,6 +336,8 @@ export type RunItem = {
   prompt_tokens: number;
   completion_tokens: number;
   cached_tokens?: number | null;
+  model_id?: string | null;
+  reasoning?: string | null;
   started_at: number;
   ended_at?: number | null;
   [key: string]: unknown;

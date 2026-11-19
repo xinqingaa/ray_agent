@@ -667,7 +667,9 @@ export function projectSession(input: ProjectSessionInput): SessionView {
         if (track) track.sawUser = true
         timeline.push({
           kind: 'user',
-          skill: data.skill as {id: string; version: string} | undefined,
+          imageMode: data.image_mode === 'files' ? 'files' : 'auto',
+          skill: isRecord(data.skill) && typeof data.skill.id === 'string' && typeof data.skill.version === 'string'
+            ? {id: data.skill.id, version: data.skill.version} : undefined,
           id: idOf(ev.seq, timeline.length),
           runId: ev.runId,
           at: ev.createdAt,
@@ -1132,6 +1134,15 @@ function reasonText(track: RunTrack, maxTurns: number | null): string | null {
   }
   if (track.status === 'failed' && track.lastError) {
     const cleaned = track.lastError.replace(/（原因：[A-Za-z0-9_]+）\s*$/u, '').trim()
+    if (cleaned && track.reason === 'model_error') {
+      if (cleaned.includes('未配置 API Key')) return `${cleaned}。请在设置的「模型提供商」中填写密钥。`
+      if (/\b(?:401|403|invalid_api_key|unauthorized|forbidden)\b/i.test(cleaned)) {
+        return '模型服务认证或授权失败。请核对密钥和该模型的访问权限。'
+      }
+      if (/timed? ?out|timeout|超时|等待模型输出超过/i.test(cleaned)) {
+        return '模型请求超时。请检查网络或模型服务状态后重试。'
+      }
+    }
     if (cleaned) return readableFailure(cleaned)
   }
   if (track.reason === 'max_iterations' && maxTurns != null) {
