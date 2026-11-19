@@ -6,7 +6,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import Any
+from typing import Any, Sequence
 
 logger = logging.getLogger(__name__)
 
@@ -61,7 +61,7 @@ def recognize_image(path: Path, component_dir: Path) -> list[dict]:
     return blocks
 
 
-def recognize_pdf_pages(path: Path, component_dir: Path, *, scale: float = 2.0) -> list[dict]:
+def recognize_pdf_pages(path: Path, component_dir: Path, *, pages: Sequence[int], scale: float = 2.0) -> list[dict]:
     """用 pypdfium2 渲染各页再 OCR；页码写入 locator.page。"""
     import pypdfium2 as pdfium
     from PIL import Image
@@ -70,13 +70,19 @@ def recognize_pdf_pages(path: Path, component_dir: Path, *, scale: float = 2.0) 
     pdf = pdfium.PdfDocument(str(path))
     blocks: list[dict] = []
     try:
-        for page_index in range(len(pdf)):
-            page = pdf[page_index]
-            bitmap = page.render(scale=scale)
-            pil = bitmap.to_pil()
-            if not isinstance(pil, Image.Image):
-                pil = Image.fromarray(pil)
-            result, _ = engine(pil)
+        for page_number in pages:
+            page = pdf[page_number - 1]
+            try:
+                bitmap = page.render(scale=scale)
+                try:
+                    pil = bitmap.to_pil()
+                    if not isinstance(pil, Image.Image):
+                        pil = Image.fromarray(pil)
+                    result, _ = engine(pil)
+                finally:
+                    bitmap.close()
+            finally:
+                page.close()
             if not result:
                 continue
             for index, item in enumerate(result):
@@ -84,7 +90,7 @@ def recognize_pdf_pages(path: Path, component_dir: Path, *, scale: float = 2.0) 
                 text = str(text).strip()
                 if not text:
                     continue
-                locator: dict[str, Any] = {"page": page_index + 1, "region": index}
+                locator: dict[str, Any] = {"page": page_number, "region": index}
                 if item and item[0] is not None:
                     locator["box"] = item[0]
                 if len(item) > 2:

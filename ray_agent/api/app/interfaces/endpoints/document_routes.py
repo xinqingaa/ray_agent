@@ -2,6 +2,7 @@
 from fastapi import APIRouter, Depends, Query
 
 from app.application.services.document_index_service import DocumentIndexService
+from app.application.services.semantic_index_service import SemanticIndexService
 from app.application.services.working_style_service import WorkingStyleService
 from app.interfaces.schemas import Response
 from app.interfaces.schemas.document_knowledge import (
@@ -14,7 +15,7 @@ from app.interfaces.schemas.document_knowledge import (
     SyncIndexRequest,
 )
 from app.interfaces.schemas.operation import OperationView
-from app.interfaces.service_dependencies import get_document_index_service, get_working_style_service
+from app.interfaces.service_dependencies import get_document_index_service, get_semantic_index_service, get_working_style_service
 
 router = APIRouter(tags=["文档知识"])
 
@@ -52,6 +53,15 @@ async def page_documents(workspace_id: str, after: str | None = None, limit: int
 async def set_policy(workspace_id: str, request: IndexPolicyRequest,
                      documents: DocumentIndexService = Depends(get_document_index_service)):
     return Response.success(IndexSummaryView.of(await documents.update_policy(workspace_id, **request.model_dump())))
+
+
+@router.post("/workspaces/{workspace_id}/documents/semantic/retry", response_model=Response[OperationView | None])
+async def retry_semantic_index(workspace_id: str,
+                               semantic: SemanticIndexService = Depends(get_semantic_index_service),
+                               style: WorkingStyleService = Depends(get_working_style_service)):
+    await style.current(workspace_id)
+    job = await semantic.enqueue(workspace_id, retry=True)
+    return Response.success(OperationView.from_operation(job) if job else None)
 
 
 @router.post("/workspaces/{workspace_id}/documents/retry", response_model=Response[OperationView])

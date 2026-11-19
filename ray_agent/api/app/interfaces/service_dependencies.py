@@ -303,13 +303,10 @@ def get_retrieval_service():
 
 
 def _ocr_dir_probe():
-    from pathlib import Path
     from app.domain.models.semantic_index import OCR_COMPONENT_ID
-    from core.paths import data_root
-    root = data_root().components / OCR_COMPONENT_ID
-    if (root / ".ready").is_file() and (root / "det.onnx").is_file():
-        return root
-    return None
+    from app.infrastructure.external.execution.runtime import get_components
+    installed = get_components().current(OCR_COMPONENT_ID)
+    return installed[0] if installed else None
 
 
 def get_document_index_service():

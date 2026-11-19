@@ -123,7 +123,7 @@ export function KnowledgeSource({workspaceId, reference, query = '', refresh, ma
   onOpenFile?: (source: RootSource) => void; showOriginal?: boolean
 }) {
   const {state, retry} = useKnowledgeSource(workspaceId, reference, true, refresh)
-  const matched = match === 'semantic' ? '语义相近' : match === 'full_text' ? '全文匹配' : ''
+  const matched = match === 'hybrid' ? '全文与语义匹配' : match === 'semantic' ? '语义相近' : match === 'full_text' ? '全文匹配' : ''
   return <div className="knowledge-source">
     {onBack && <Button type="button" size="sm" variant="ghost" onClick={onBack}><ArrowLeft/>返回</Button>}
     {!state ? <p role="status" className="flex items-center gap-2 text-meta text-faint"><Loader2 className="size-4 animate-spin motion-reduce:animate-none"/>正在读取来源</p>

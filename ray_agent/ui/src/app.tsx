@@ -10,7 +10,7 @@ import {HomePage} from '@/pages/home'
 import {SessionPage} from '@/pages/session'
 import {WorkspaceBackgroundPage, WorkspaceDirectoryPage, WorkspaceHomePage, WorkspaceLayout, WorkspaceSessionPage} from '@/pages/workspace'
 import {WorkspaceKnowledgePage} from '@/components/workspace/knowledge-page'
-import {ComponentsSection} from '@/components/settings/components-section'
+import {RuntimeComponentsPage} from '@/components/settings/components-section'
 
 const ComponentCatalog = import.meta.env.DEV
   ? lazy(() => import('@/components/dev/component-catalog').then(module => ({default: module.ComponentCatalog})))
@@ -47,7 +47,7 @@ function CoreApp() {
             <Route path="knowledge" element={<WorkspaceKnowledgePage/>}/>
             <Route path="sessions/:sid" element={<WorkspaceSessionPage/>}/>
           </Route>
-          <Route path="components" element={<main className="overflow-y-auto px-6 py-7 sm:px-9"><div className="mx-auto max-w-5xl"><ComponentsSection standalone/></div></main>}/>
+          <Route path="components" element={<RuntimeComponentsPage/>}/>
           <Route path="settings" element={<SettingsPageView/>}/>
           <Route path="*" element={<Navigate to="/" replace/>}/>
         </Route>

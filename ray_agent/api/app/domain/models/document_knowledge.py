@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 
 from .clock import utc_now
 from .identity import WorkspaceId
+from .operation import OperationProgress
 from .semantic_index import EMBEDDING_CONFIG_FINGERPRINT
 
 # 解析／切分配置指纹：任一变化需重建派生索引；Embedding 配置另起空间
@@ -55,6 +56,15 @@ class DocumentFormat(StrEnum):
     UNSUPPORTED = "unsupported"
 
 
+class DocumentOcrState(StrEnum):
+    NOT_NEEDED = "not_needed"
+    WAITING_COMPONENT = "waiting_component"
+    PENDING = "pending"
+    RUNNING = "running"
+    COMPLETE = "complete"
+    FAILED = "failed"
+
+
 class DocumentRecord(BaseModel):
     id: str
     workspace_id: WorkspaceId
@@ -85,6 +95,9 @@ class DocumentRevision(BaseModel):
     staging_object_id: Optional[str] = None  # 解析产物暂存；发布成功后仍可保留供核对
     error_message: Optional[str] = None
     component_needed: Optional[str] = None  # 如 ocr；P7 安装后重试
+    ocr_state: DocumentOcrState | None = None
+    ocr_pages_pending: int | None = None
+    ocr_error: str | None = None
     created_at: datetime = Field(default_factory=utc_now)
     updated_at: datetime = Field(default_factory=utc_now)
     published_at: Optional[datetime] = None
@@ -149,7 +162,7 @@ class IndexPublication(BaseModel):
     """
     workspace_id: WorkspaceId
     generation: int = 0
-    status: str = "idle"  # idle / publishing / failed / semantic_indexing
+    status: str = "idle"  # 全文扫描和发布；语义状态由独立操作与发布指针读回
     active_operation_id: Optional[str] = None
     updated_at: datetime = Field(default_factory=utc_now)
     last_error: Optional[str] = None
@@ -163,6 +176,27 @@ class IndexPublication(BaseModel):
     scope_review_required: bool = False
 
 
+class SemanticIndexState(StrEnum):
+    NOT_INSTALLED = "not_installed"
+    EMPTY = "empty"
+    PENDING = "pending"
+    QUEUED = "queued"
+    RUNNING = "running"
+    READY = "ready"
+    PAUSED = "paused"
+    BLOCKED = "blocked"
+    FAILED = "failed"
+
+
+class SemanticIndexSummary(BaseModel):
+    state: SemanticIndexState = SemanticIndexState.NOT_INSTALLED
+    operation_id: str | None = None
+    phase: str | None = None
+    progress: OperationProgress | None = None
+    error: str | None = None
+    published_version: int | None = None
+
+
 class WorkspaceIndexSummary(BaseModel):
     workspace_id: WorkspaceId
     total: int = 0
@@ -170,6 +204,8 @@ class WorkspaceIndexSummary(BaseModel):
     pending: int = 0
     parsing: int = 0
     pending_component: int = 0
+    ocr_pending: int = 0
+    ocr_failed: int = 0
     failed: int = 0
     withdrawn: int = 0
     truncated_scan: bool = False
@@ -178,6 +214,7 @@ class WorkspaceIndexSummary(BaseModel):
     vector_generation: Optional[int] = None
     embedding_config: Optional[str] = None
     semantic_ready: bool = False
+    semantic: SemanticIndexSummary = Field(default_factory=SemanticIndexSummary)
     excluded: int = 0
     status: str = "idle"
     last_error: Optional[str] = None
@@ -189,6 +226,9 @@ class WorkspaceIndexSummary(BaseModel):
 
 class DocumentLocator(BaseModel):
     page: int | None = None
+    region: int | None = None
+    box: list[list[float]] | None = None
+    ocr_score: float | None = None
     slide: int | None = None
     block_ordinal: int | None = None
     block: int | None = None

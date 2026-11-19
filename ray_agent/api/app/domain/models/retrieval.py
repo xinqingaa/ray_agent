@@ -1,7 +1,7 @@
 """工作区检索端口：统一查询记忆、会话摘要与文件片段。"""
 from datetime import datetime
 from enum import StrEnum
-from typing import Any, Optional
+from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -51,6 +51,11 @@ class SearchHit(BaseModel):
     certainty: Optional[str] = None
     stale: bool = False
     payload: dict[str, Any] = Field(default_factory=dict)
+
+
+class SearchExecution(BaseModel):
+    mode: Literal["full_text", "hybrid"] = "full_text"
+    reason: Literal["source_scope", "component_unavailable", "index_pending", "semantic_error"] | None = None
 
 
 class SearchQuery(BaseModel):

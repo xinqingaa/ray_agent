@@ -10,13 +10,12 @@ from app.application.errors.exceptions import BadRequestError
 from app.domain.models.document_knowledge import DocumentChunk
 from app.domain.models.retrieval import (
     SEARCH_HIT_LIMIT,
+    SearchExecution,
     SearchHit,
     SearchQuery,
     SearchSourceType,
 )
 from app.domain.models.semantic_index import (
-    EMBEDDING_COMPONENT_ID,
-    EMBEDDING_CONFIG_FINGERPRINT,
     RRF_K,
     VECTOR_SEARCH_LIMIT,
 )
@@ -73,58 +72,55 @@ class RetrievalService:
             self, workspace_id: str, query: str, source_types: Optional[Sequence[SearchSourceType | str]] = None,
             *, limit: int = SEARCH_HIT_LIMIT, match_any: bool = False,
     ) -> list[SearchHit]:
-        """在固定工作区内检索。默认全文；语义可用且含文件片段时与向量 RRF 融合。"""
+        hits, _ = await self.search_with_execution(workspace_id, query, source_types, limit=limit, match_any=match_any)
+        return hits
+
+    async def search_with_execution(
+            self, workspace_id: str, query: str, source_types: Optional[Sequence[SearchSourceType | str]] = None,
+            *, limit: int = SEARCH_HIT_LIMIT, match_any: bool = False,
+    ) -> tuple[list[SearchHit], SearchExecution]:
         text = (query or "").strip()
         if not text:
             raise BadRequestError("检索词不能为空")
         sources = checked_sources(source_types)
         request = SearchQuery(workspace_id=workspace_id, query=text[:500], source_types=sources,
                               limit=max(1, min(limit, 100)), match_any=match_any)
+        want_documents = SearchSourceType.DOCUMENT_CHUNK in sources
 
-        # 短只读事务：FTS 候选 + 发布指针 + 已发布 chunk 身份
         async with self._read_uow_factory() as uow:
             hits = await uow.search.search(request)
             if not hits and not match_any:
                 hits = await uow.search.search(request.model_copy(update={"match_any": True}))
-            pub = await uow.document.get_publication(workspace_id)
-            published_ids: set[str] | None = None
-            vector_version = None
-            embedding_config = EMBEDDING_CONFIG_FINGERPRINT
-            vector_ready = False
-            if SearchSourceType.DOCUMENT_CHUNK in sources and pub is not None:
-                embedding_config = pub.embedding_config or EMBEDDING_CONFIG_FINGERPRINT
-                if (pub.vector_generation is not None and pub.vector_table_version is not None
-                        and pub.vector_generation == pub.generation and pub.generation > 0):
-                    vector_ready = True
-                    vector_version = pub.vector_table_version
-                    chunks = await uow.document.list_published_chunks(workspace_id)
-                    published_ids = {chunk.id for chunk in chunks}
-                    # 预取 chunk 元数据供向量命中转 SearchHit
-                    chunk_by_id = {chunk.id: chunk for chunk in chunks}
-                else:
-                    chunk_by_id = {}
-            else:
-                chunk_by_id = {}
+            pub = await uow.document.get_publication(workspace_id) if want_documents else None
 
-        if self._visible_documents:
-            hits = await self._visible_documents(workspace_id, hits)
+        hits = await self._current_hits(workspace_id, hits)
         for hit in hits:
             hit.payload["match_kind"] = "full_text"
-        want_vector = (
-            vector_ready and self._semantic is not None
-            and SearchSourceType.DOCUMENT_CHUNK in sources
-        )
-        if not want_vector:
-            return hits[:request.limit]
+        lexical = hits[:request.limit]
+        if not want_documents:
+            return lexical, SearchExecution(reason="source_scope")
+        try:
+            config = await self._semantic.active_config() if self._semantic else None
+            if config is None:
+                return lexical, SearchExecution(reason="component_unavailable")
+            if (pub is None or pub.embedding_config != config or pub.vector_generation != pub.generation
+                    or pub.vector_table_version is None or pub.generation <= 0):
+                return lexical, SearchExecution(reason="index_pending")
+            rows = await self._semantic.query(
+                workspace_id, config, request.query, version=pub.vector_table_version,
+                generation=pub.generation, limit=VECTOR_SEARCH_LIMIT,
+            )
+            if rows is None:
+                return await self._current_hits(workspace_id, lexical), SearchExecution(reason="component_unavailable")
+        except Exception:
+            logger.warning("向量检索失败，回退全文 workspace=%s", workspace_id, exc_info=True)
+            return await self._current_hits(workspace_id, lexical), SearchExecution(reason="semantic_error")
 
-        vector_hits = await self._vector_hits(
-            workspace_id, text, limit=VECTOR_SEARCH_LIMIT, version=vector_version,
-            embedding_config=embedding_config, allowed=published_ids, chunk_by_id=chunk_by_id,
-        )
-        if self._visible_documents:
-            vector_hits = await self._visible_documents(workspace_id, vector_hits)
+        vector_hits = await self._vector_hits(workspace_id, rows)
+        # 词法结果跨过了异步向量计算，返回前重核对同期发生的撤回。
+        hits = await self._current_hits(workspace_id, hits)
         if not vector_hits:
-            return hits[:request.limit]
+            return hits[:request.limit], SearchExecution(mode="hybrid")
 
         # 只对文件片段做 RRF；记忆／摘要保持词法结果并与融合结果合并去重
         lex_docs = [h for h in hits if h.source_type is SearchSourceType.DOCUMENT_CHUNK]
@@ -141,7 +137,10 @@ class RetrievalService:
             merged.append(hit)
             if len(merged) >= request.limit:
                 break
-        return merged
+        return merged, SearchExecution(mode="hybrid")
+
+    async def _current_hits(self, workspace_id: str, hits: list[SearchHit]) -> list[SearchHit]:
+        return await self._visible_documents(workspace_id, hits) if self._visible_documents else hits
 
     async def present_hits(self, workspace_id: str, hits: list[SearchHit]) -> list[SearchHit]:
         """用当前对话标题呈现摘要，包括改名或旧版索引写入的摘要。"""
@@ -161,44 +160,30 @@ class RetrievalService:
                 shown.append(hit)
         return shown
 
-    async def _vector_hits(
-            self, workspace_id: str, query: str, *, limit: int, version: int | None,
-            embedding_config: str, allowed: set[str] | None, chunk_by_id: dict,
-    ) -> list[SearchHit]:
-        try:
-            embedder = await self._semantic._embedder_or_none()  # noqa: SLF001
-            if embedder is None:
-                return []
-            vector = embedder.embed_query(query)
-            store = self._semantic.store_for(workspace_id, embedding_config)
-            rows = store.search(vector, limit=limit, version=version, allowed_chunk_ids=allowed)
-        except Exception as error:  # noqa: BLE001 — 语义失败不阻断全文
-            logger.warning("向量检索失败，回退全文: %s", error)
-            return []
-        hits: list[SearchHit] = []
-        for rank, row in enumerate(rows):
-            chunk_id = row.get("chunk_id")
-            chunk = chunk_by_id.get(chunk_id)
-            if chunk is None:
-                continue
-            # 距离转弱分数：仅用于排序占位，最终以 RRF 为准
-            distance = float(row.get("_distance", rank))
-            score = 1.0 / (1.0 + max(distance, 0.0))
-            hits.append(SearchHit(
-                source_type=SearchSourceType.DOCUMENT_CHUNK,
-                source_id=chunk.id,
-                source_version=chunk.revision,
-                title=chunk.title,
-                snippet=chunk.body[:400],
-                score=score,
-                stale=False,
-                payload={
-                    "document_id": chunk.document_id, "revision_id": chunk.revision_id,
-                    "revision": chunk.revision, "locator": dict(chunk.locator),
-                    "ordinal": chunk.ordinal, "stale": False, "match_kind": "semantic",
-                },
-            ))
-        return hits
+    async def _vector_hits(self, workspace_id: str, rows: list[dict]) -> list[SearchHit]:
+        hits = []
+        async with self._read_uow_factory() as uow:
+            for rank, row in enumerate(rows):
+                chunk = await uow.document.get_chunk(row["chunk_id"])
+                if (chunk is None or not chunk.published or chunk.workspace_id != workspace_id
+                        or chunk.revision_id != row["revision_id"] or chunk.revision != row["revision"]
+                        or chunk.text_hash != row["text_hash"]):
+                    continue
+                distance = float(row.get("_distance", rank))
+                hits.append(SearchHit(
+                    source_type=SearchSourceType.DOCUMENT_CHUNK,
+                    source_id=chunk.id,
+                    source_version=chunk.revision,
+                    title=chunk.title,
+                    snippet=chunk.body[:400],
+                    score=1.0 / (1.0 + max(distance, 0.0)),
+                    payload={
+                        "document_id": chunk.document_id, "revision_id": chunk.revision_id,
+                        "revision": chunk.revision, "locator": dict(chunk.locator),
+                        "ordinal": chunk.ordinal, "match_kind": "semantic",
+                    },
+                ))
+        return await self._current_hits(workspace_id, hits)
 
     # ---- 索引写入（在调用方事务内） ----
 

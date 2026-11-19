@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 from pathlib import Path
 
 from app.domain.external.runtime_components import ComponentManifestEntry, ComponentState, ComponentStatus
@@ -88,9 +89,39 @@ class LocalRuntimeComponents:
         self.entry(component_id)
         return self.root / component_id / "versions" / token
 
+    def reuse_download(self, component_id: str, operation_id: str, generation: int) -> None:
+        if generation <= 1 or component_id == BROWSER_ID:
+            return
+        previous = self.staging(component_id, f"{operation_id}-{generation - 1}")
+        target = self.staging(component_id, f"{operation_id}-{generation}")
+        # 每代路径仍独立。复制到新目录后，完整文件和续传文件都再经过清单校验。
+        for item in load_component_files()[component_id]["files"]:
+            path = Path(item["path"])
+            for name in (path, path.with_suffix(path.suffix + ".part")):
+                source, dest = previous / name, target / name
+                try:
+                    size = source.stat().st_size
+                except FileNotFoundError:
+                    continue
+                if 0 < size <= item.get("size", 0) and not dest.exists():
+                    dest.parent.mkdir(parents=True, exist_ok=True)
+                    shutil.copyfile(source, dest)
+                    break
+
     def download_progress(self, component_id: str, target: Path) -> tuple[int, int] | None:
         if component_id != BROWSER_ID:
-            return None
+            files = load_component_files()[component_id]["files"]
+            total = sum(item.get("size", 0) for item in files)
+            completed = 0
+            for item in files:
+                path = target / item["path"]
+                for candidate in (path, path.with_suffix(path.suffix + ".part")):
+                    try:
+                        completed += min(candidate.stat().st_size, item.get("size", 0))
+                        break
+                    except FileNotFoundError:
+                        continue
+            return (completed, total) if total and completed else None
         total = self.entry(component_id).size
         for name in ('chromium.zip', 'chromium.zip.part'):
             try:

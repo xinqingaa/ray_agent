@@ -4,7 +4,7 @@ from typing import Literal, Optional
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.domain.models.document_knowledge import (
-    DocumentFormat, DocumentIndexStatus, DocumentLocator, DocumentRecord, DocumentRevision, WorkspaceIndexSummary,
+    DocumentFormat, DocumentIndexStatus, DocumentLocator, DocumentOcrState, DocumentRecord, DocumentRevision, WorkspaceIndexSummary,
 )
 from app.domain.models.identity import RelativePath
 from app.interfaces.schemas.event import to_epoch_ms
@@ -25,6 +25,9 @@ class DocumentView(BaseModel):
     page_count: int | None = None
     error_message: str | None = None
     component_needed: str | None = None
+    ocr_state: DocumentOcrState | None = None
+    ocr_pages_pending: int | None = None
+    ocr_error: str | None = None
 
     @classmethod
     def of(cls, doc: DocumentRecord, revision: DocumentRevision | None = None) -> "DocumentView":
@@ -34,6 +37,9 @@ class DocumentView(BaseModel):
             size=revision.size if revision else None, page_count=revision.page_count if revision else None,
             error_message=revision.error_message if revision else None,
             component_needed=revision.component_needed if revision else None,
+            ocr_state=revision.ocr_state if revision else None,
+            ocr_pages_pending=revision.ocr_pages_pending if revision else None,
+            ocr_error=revision.ocr_error if revision else None,
         )
 
 

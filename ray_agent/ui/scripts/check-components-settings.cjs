@@ -10,7 +10,7 @@ global.sessionStorage = {getItem: key => store.get(key) ?? null, setItem: (key, 
 const initial = {component_id:'browser-chromium',state:'not_installed',version:null,target_version:'chromium-test',size:1000000,operation:null};
 let row = {...initial}, lost = true, delayed = null;
 const requests = [], cancelled = [], retried = [];
-const operation = {operation_id:'op-1',generation:1,status:'running',phase:'获取中',can_cancel:true,can_retry:false,cancel_requested_at:null,error:null};
+const operation = {operation_id:'op-1',generation:1,status:'running',phase:'获取中',progress:{completed:400000,total:1000000},can_cancel:true,can_retry:false,cancel_requested_at:null,error:null};
 const api = {
   list: async () => delayed ? delayed : [{...row}],
   install: async (id, request) => {requests.push({id,request});if(lost){lost=false;throw Error('响应丢失')}row={...initial,state:'fetching',operation:{...operation}};return operation},
@@ -36,6 +36,7 @@ async function main(){
   assert.equal(requests[0].request,requests[1].request,'未知结果重用同一请求身份');
   assert.equal(store.size,0);
   assert.ok(text(view.toJSON()).includes('获取中'));
+  assert.equal(view.root.findByType('progress').props.value, 400000);
   await click('取消安装');assert.deepEqual(cancelled,['op-1']);
   await click('重试安装');assert.deepEqual(retried,['op-1']);
   await act(async()=>view.unmount());

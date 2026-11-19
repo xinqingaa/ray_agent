@@ -31,6 +31,9 @@ export const documentsApi = {
     post<OperationView>(`${workspacePath(workspaceId)}/documents/retry`, document
       ? {document_id: document.id, revision: document.current_revision} : {}),
 
+  retrySemantic: (workspaceId: string) =>
+    post<OperationView | null>(`${workspacePath(workspaceId)}/documents/semantic/retry`, {}),
+
   source: (workspaceId: string, reference: KnowledgeReference, signal?: AbortSignal) =>
     get<DocumentSource>(`${workspacePath(workspaceId)}/documents/chunks/${encodeURIComponent(reference.source_id)}`,
       {version: reference.source_version}, {signal}),

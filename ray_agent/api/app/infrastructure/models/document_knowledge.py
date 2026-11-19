@@ -62,6 +62,9 @@ class DocumentRevisionModel(Base):
     size: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     modified_ns: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     page_count: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    ocr_state: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+    ocr_pages_pending: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    ocr_error: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(32), nullable=False)
     format: Mapped[str] = mapped_column(String(32), nullable=False)
     parse_config: Mapped[str] = mapped_column(String(64), nullable=False)
@@ -82,6 +85,7 @@ class DocumentRevisionModel(Base):
             id=self.id, document_id=self.document_id, workspace_id=self.workspace_id,
             revision=self.revision, source_epoch=self.source_epoch, relative_path=self.relative_path, content_hash=self.content_hash,
             size=self.size, modified_ns=self.modified_ns, page_count=self.page_count, status=DocumentIndexStatus(self.status),
+            ocr_state=self.ocr_state, ocr_pages_pending=self.ocr_pages_pending, ocr_error=self.ocr_error,
             format=DocumentFormat(self.format), parse_config=self.parse_config,
             chunk_config=self.chunk_config, staging_object_id=self.staging_object_id,
             error_message=self.error_message, component_needed=self.component_needed,

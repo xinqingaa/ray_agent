@@ -6,7 +6,7 @@ Embedding 配置指纹变化时使用独立 LanceDB 索引空间，不与旧模�
 from __future__ import annotations
 
 # 本机默认：ONNX multilingual-e5-small；指纹参与路径隔离
-EMBEDDING_CONFIG_FINGERPRINT = "e5-small-onnx-v1"
+EMBEDDING_CONFIG_FINGERPRINT = "e5-small-onnx-v2"
 EMBEDDING_MODEL_ID = "intfloat/multilingual-e5-small"
 EMBEDDING_DIM = 384
 EMBEDDING_MAX_TOKENS = 512

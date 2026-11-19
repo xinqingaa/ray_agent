@@ -8,7 +8,7 @@ from __future__ import annotations
 import logging
 import threading
 from pathlib import Path
-from typing import Iterable, Sequence
+from typing import Sequence
 
 import numpy as np
 
@@ -41,35 +41,38 @@ def split_by_token_budget(text: str, tokenizer, *, max_tokens: int = EMBEDDING_M
                           prefix: str = PASSAGE_PREFIX) -> list[str]:
     """按有效输入上限切分正文；前缀占用计入预算。超长时按词／字符窗口切，不静默丢尾。"""
     body = (text or "").strip()
-    if not body:
-        return []
-    budget = max(8, max_tokens - len(tokenizer.encode(prefix).ids))
-    ids = tokenizer.encode(body).ids
-    if len(ids) <= budget:
-        return [body]
     parts: list[str] = []
-    # 用字符近似回退：按预算比例切原文，再校验 token 长度
-    approx = max(32, int(len(body) * budget / max(len(ids), 1)))
+
+    def fits(piece: str) -> bool:
+        return len(tokenizer.encode(prefix + piece.strip()).ids) <= max_tokens
+
     start = 0
     while start < len(body):
-        end = min(len(body), start + approx)
-        # 尽量在空白处断开
+        # 在当前位置附近探测预算，长表不会为每段重复分词其余全文。
+        high = min(start + max_tokens, len(body))
+        end = start
+        while fits(body[start:high]):
+            end = high
+            if high == len(body):
+                break
+            high = min(start + (high - start) * 2, len(body))
+        low = end + 1
+        while low <= high:
+            middle = (low + high) // 2
+            if fits(body[start:middle]):
+                end = middle
+                low = middle + 1
+            else:
+                high = middle - 1
+        if end == start:
+            raise ValueError("Embedding 输入预算不足以容纳前缀与正文")
         if end < len(body):
-            cut = body.rfind(" ", start + approx // 2, end)
-            if cut > start:
-                end = cut
-        chunk = body[start:end].strip()
-        if chunk:
-            # 仍超长则硬截 token
-            encoded = tokenizer.encode(chunk).ids
-            if len(encoded) > budget:
-                piece_ids = encoded[:budget]
-                chunk = tokenizer.decode(piece_ids)
-            parts.append(chunk)
-        if end <= start:
-            break
+            boundary = max(body.rfind(separator, start + (end - start) // 2, end) for separator in ("\n", "\t", " "))
+            if boundary > start and fits(body[start:boundary]):
+                end = boundary
+        parts.append(body[start:end])
         start = end
-    return parts or [body[:approx]]
+    return parts
 
 
 class E5OnnxEmbedder:
@@ -103,12 +106,15 @@ class E5OnnxEmbedder:
             opts = ort.SessionOptions()
             opts.intra_op_num_threads = 2
             opts.inter_op_num_threads = 1
-            self._session = ort.InferenceSession(
+            session = ort.InferenceSession(
                 str(model_path), sess_options=opts, providers=["CPUExecutionProvider"])
-            self._tokenizer = Tokenizer.from_file(str(tok_path))
-            self._tokenizer.enable_truncation(max_length=EMBEDDING_MAX_TOKENS)
-            self._tokenizer.enable_padding(pad_id=1, pad_token="<pad>")
-            self._input_names = [item.name for item in self._session.get_inputs()]
+            tokenizer = Tokenizer.from_file(str(tok_path))
+            tokenizer.no_truncation()
+            padding = tokenizer.padding or {"pad_id": 1, "pad_token": "<pad>"}
+            tokenizer.enable_padding(pad_id=padding["pad_id"], pad_token=padding["pad_token"])
+            self._input_names = [item.name for item in session.get_inputs()]
+            self._tokenizer = tokenizer
+            self._session = session
             logger.info("已加载 E5 ONNX Embedding dim=%s inputs=%s", EMBEDDING_DIM, self._input_names)
 
     def embed_texts(self, texts: Sequence[str], *, as_query: bool = False) -> np.ndarray:
@@ -127,9 +133,10 @@ class E5OnnxEmbedder:
             input_ids = np.zeros((len(batch), max_len), dtype=np.int64)
             attention = np.zeros((len(batch), max_len), dtype=np.int64)
             for row, item in enumerate(encoded):
-                ids = item.ids[:EMBEDDING_MAX_TOKENS]
-                input_ids[row, :len(ids)] = ids
-                attention[row, :len(ids)] = 1
+                if len(item.ids) > EMBEDDING_MAX_TOKENS:
+                    raise ValueError("Embedding 输入超出模型预算")
+                input_ids[row, :len(item.ids)] = item.ids
+                attention[row, :len(item.ids)] = item.attention_mask
             feeds: dict = {}
             for name in self._input_names:
                 if name in ("input_ids", "inputs_ids"):
@@ -151,8 +158,10 @@ class E5OnnxEmbedder:
         return np.vstack(out_rows)
 
     def embed_query(self, query: str) -> np.ndarray:
-        vectors = self.embed_texts([query], as_query=True)
-        return vectors[0] if len(vectors) else np.zeros(EMBEDDING_DIM, dtype=np.float32)
+        self.load()
+        parts = split_by_token_budget(query, self._tokenizer, prefix=QUERY_PREFIX)
+        vectors = self.embed_texts(parts, as_query=True)
+        return l2_normalize(vectors.mean(axis=0, keepdims=True))[0] if len(vectors) else np.zeros(EMBEDDING_DIM, dtype=np.float32)
 
     def embed_passages(self, passages: Sequence[str]) -> np.ndarray:
         return self.embed_texts(passages, as_query=False)

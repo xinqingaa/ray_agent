@@ -45,8 +45,10 @@ def rrf_fuse_hits(
         return (hit.source_type, hit.source_id)
 
     fused = rrf_fuse([lex, vec], key=identity, k=k, limit=limit)
+    both = {identity(hit) for hit in lex} & {identity(hit) for hit in vec}
     out = []
     for hit, score in fused:
-        updated = hit.model_copy(update={"score": float(score)})
+        payload = {**hit.payload, "match_kind": "hybrid"} if identity(hit) in both else hit.payload
+        updated = hit.model_copy(update={"score": float(score), "payload": payload})
         out.append(updated)
     return out

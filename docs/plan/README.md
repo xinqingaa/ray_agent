@@ -4,11 +4,10 @@
 
 ## 当前授权
 
-[原型落地计划](prototype-ui.md)说明桌面主流程的还原标准与验收范围。[决策清单](decisions.md)维护已确认的产品和技术边界。P7—P9 依各包推进语义与 OCR、Skill 和整包验收。
+[原型落地计划](prototype-ui.md)说明桌面主流程的还原标准与验收范围。[决策清单](decisions.md)维护已确认的产品和技术边界。P8、P9 按各自工作包推进。
 
 | 阅读问题 | 入口 |
 |---|---|
-| 全文、语义检索及 OCR 如何补齐 | [文档知识与检索](knowledge-and-retrieval.md) |
 | Skill 多来源如何接续 | [Skill 工作包](skills.md) |
 | 签名、更新、离线包与移动分发 | [客户端与分发](clients-and-distribution.md) |
 | 完整备份恢复与正式更新 | [本机核心](local-runtime-and-storage.md) |

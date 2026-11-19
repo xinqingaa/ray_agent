@@ -132,42 +132,47 @@ def _ocr_component() -> Path | None:
     return path if path.is_dir() else None
 
 
-def parse_pdf(path: Path) -> dict:
-    try:
-        from pypdf import PdfReader
-    except ImportError:
-        return fail("缺少 pypdf", component=None)
+def parse_pdf(path: Path, *, covered_pages: set[int] | None = None) -> dict:
+    from pypdf import PdfReader
+
     reader = PdfReader(str(path))
-    if getattr(reader, "is_encrypted", False):
+    if reader.is_encrypted:
         return fail("加密 PDF 不支持解析")
-    blocks = []
-    pages_with_text = 0
+    blocks, missing = [], []
     page_count = len(reader.pages)
     for index, page in enumerate(reader.pages, start=1):
+        if covered_pages is not None and index in covered_pages:
+            continue
         try:
-            text = page.extract_text() or ""
+            text = (page.extract_text() or "").strip()
         except Exception:
             return fail(f"第 {index} 页文字无法提取，请检查 PDF 后重试")
-        text = text.strip()
         if text:
-            pages_with_text += 1
             blocks.append(block("text", text, page=index))
-    if pages_with_text:
-        return {"status": "ok", "format": DocumentFormat.PDF.value, "page_count": page_count, "blocks": blocks}
-    # 扫描件：有 OCR 组件则渲染识别；否则待组件
+        else:
+            missing.append(index)
+
+    result = {"status": "ok", "format": DocumentFormat.PDF.value, "page_count": page_count, "blocks": blocks}
+    if not missing:
+        return {**result, "ocr_state": "not_needed"}
+
     ocr_dir = _ocr_component()
+    meta = {"page_count": page_count, "ocr_pages_pending": len(missing)}
     if ocr_dir is None:
-        return fail("PDF 无可提取文本层，待 OCR 组件", component="ocr")
+        if blocks or covered_pages is not None:
+            return {**result, **meta, "ocr_state": "waiting_component"}
+        return {**fail("PDF 无可提取文本层，待 OCR 组件", component="ocr"), **meta, "ocr_state": "waiting_component"}
+    if blocks and covered_pages is None:
+        return {**result, **meta, "ocr_state": "pending"}
+
     try:
         from app.infrastructure.external.ocr.rapid_ocr import recognize_pdf_pages
-        ocr_blocks = recognize_pdf_pages(path, ocr_dir)
-    except Exception as error:  # noqa: BLE001
-        return fail(f"OCR 失败：{error}", component="ocr")
-    if not ocr_blocks:
-        return fail("OCR 未识别到文字")
-    return {"status": "ok", "format": DocumentFormat.PDF.value, "page_count": page_count, "blocks": [
-        block(item["kind"], item["text"], **item.get("locator") or {}) for item in ocr_blocks
-    ]}
+        recognized = recognize_pdf_pages(path, ocr_dir, pages=missing)
+    except Exception:
+        return {**fail("PDF 文字识别失败，请检查文件或组件后重试"), **meta, "ocr_state": "failed"}
+    if not recognized:
+        return {**fail("扫描页未识别到文字"), **meta, "ocr_state": "failed"}
+    return {**result, "blocks": blocks + recognized, "ocr_state": "complete"}
 
 
 def parse_docx(path: Path) -> dict:
@@ -259,15 +264,15 @@ def parse_delimited(path: Path, fmt: str) -> dict:
 def parse_image(path: Path) -> dict:
     ocr_dir = _ocr_component()
     if ocr_dir is None:
-        return fail("图片需 OCR 组件识别", component="ocr")
+        return {**fail("图片需 OCR 组件识别", component="ocr"), "ocr_state": "waiting_component"}
     try:
         from app.infrastructure.external.ocr.rapid_ocr import recognize_image
         ocr_blocks = recognize_image(path, ocr_dir)
-    except Exception as error:  # noqa: BLE001
-        return fail(f"OCR 失败：{error}", component="ocr")
+    except Exception:
+        return {**fail("图片文字识别失败，请检查文件或组件后重试"), "ocr_state": "failed"}
     if not ocr_blocks:
-        return fail("OCR 未识别到文字")
-    return {"status": "ok", "format": DocumentFormat.IMAGE.value, "blocks": [
+        return {**fail("图片未识别到文字"), "ocr_state": "failed"}
+    return {"status": "ok", "format": DocumentFormat.IMAGE.value, "ocr_state": "complete", "blocks": [
         block(item["kind"], item["text"], **item.get("locator") or {}) for item in ocr_blocks
     ]}
 
@@ -288,13 +293,15 @@ PARSERS = {
 }
 
 
-def parse(path: str, fmt: str) -> dict:
+def parse(path: str, fmt: str, *, covered_pages: set[int] | None = None) -> dict:
     target = Path(path)
     if not target.is_file():
         return fail("文件不存在")
     if fmt == DocumentFormat.UNSUPPORTED.value or fmt not in PARSERS:
         return fail(f"不支持的格式：{fmt}")
     try:
+        if covered_pages is not None and fmt == DocumentFormat.PDF.value:
+            return parse_pdf(target, covered_pages=covered_pages)
         return PARSERS[fmt](target)
     except PermissionError:
         return fail("文件无法读取，请检查文件权限后重试")
@@ -310,7 +317,8 @@ def main(argv: list[str] | None = None) -> int:
         return 2
     path, fmt = args[0], args[1]
     out = args[2] if len(args) > 2 else None
-    result = parse(path, fmt)
+    covered = set(json.loads(Path(args[3]).read_text(encoding="utf-8"))) if len(args) > 3 else None
+    result = parse(path, fmt, covered_pages=covered)
     if out:
         Path(out).write_text(json.dumps(result, ensure_ascii=False), encoding="utf-8")
     emit(result)

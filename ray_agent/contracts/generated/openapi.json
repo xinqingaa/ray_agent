@@ -5707,7 +5707,7 @@
         "tags": [
           "检索"
         ],
-        "summary": "在工作区内全文检索",
+        "summary": "在工作区内检索",
         "description": "范围固定为路径里的工作区；可检索记忆、会话摘要与已发布的文件片段",
         "operationId": "search_workspace_api_workspaces__workspace_id__search_post",
         "parameters": [
@@ -6055,6 +6055,48 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Response_IndexSummaryView_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/workspaces/{workspace_id}/documents/semantic/retry": {
+      "post": {
+        "tags": [
+          "文档知识"
+        ],
+        "summary": "Retry Semantic Index",
+        "operationId": "retry_semantic_index_api_workspaces__workspace_id__documents_semantic_retry_post",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Workspace Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_Union_OperationView__NoneType__"
                 }
               }
             }
@@ -9436,6 +9478,45 @@
             ],
             "title": "Page"
           },
+          "region": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Region"
+          },
+          "box": {
+            "anyOf": [
+              {
+                "items": {
+                  "items": {
+                    "type": "number"
+                  },
+                  "type": "array"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Box"
+          },
+          "ocr_score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ocr Score"
+          },
           "slide": {
             "anyOf": [
               {
@@ -9563,6 +9644,18 @@
         },
         "type": "object",
         "title": "DocumentLocator"
+      },
+      "DocumentOcrState": {
+        "type": "string",
+        "enum": [
+          "not_needed",
+          "waiting_component",
+          "pending",
+          "running",
+          "complete",
+          "failed"
+        ],
+        "title": "DocumentOcrState"
       },
       "DocumentPage": {
         "properties": {
@@ -9756,6 +9849,38 @@
               }
             ],
             "title": "Component Needed"
+          },
+          "ocr_state": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DocumentOcrState"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "ocr_pages_pending": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ocr Pages Pending"
+          },
+          "ocr_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ocr Error"
           }
         },
         "type": "object",
@@ -9769,7 +9894,10 @@
           "size",
           "page_count",
           "error_message",
-          "component_needed"
+          "component_needed",
+          "ocr_state",
+          "ocr_pages_pending",
+          "ocr_error"
         ],
         "title": "DocumentView"
       },
@@ -10888,6 +11016,16 @@
             "title": "Pending Component",
             "default": 0
           },
+          "ocr_pending": {
+            "type": "integer",
+            "title": "Ocr Pending",
+            "default": 0
+          },
+          "ocr_failed": {
+            "type": "integer",
+            "title": "Ocr Failed",
+            "default": 0
+          },
           "failed": {
             "type": "integer",
             "title": "Failed",
@@ -10946,6 +11084,9 @@
             "title": "Semantic Ready",
             "default": false
           },
+          "semantic": {
+            "$ref": "#/components/schemas/SemanticIndexSummary"
+          },
           "excluded": {
             "type": "integer",
             "title": "Excluded",
@@ -10992,6 +11133,8 @@
           "pending",
           "parsing",
           "pending_component",
+          "ocr_pending",
+          "ocr_failed",
           "failed",
           "withdrawn",
           "truncated_scan",
@@ -11000,6 +11143,7 @@
           "vector_generation",
           "embedding_config",
           "semantic_ready",
+          "semantic",
           "excluded",
           "status",
           "last_error",
@@ -14686,6 +14830,25 @@
         ],
         "title": "Response[Union[Dict, NoneType]]"
       },
+      "Response_Union_OperationView__NoneType__": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OperationView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "Response[Union[OperationView, NoneType]]"
+      },
       "Response_WorkspaceItem_": {
         "properties": {
           "data": {
@@ -15449,6 +15612,38 @@
         "title": "ScanSummary",
         "description": "文件夹规模：排除规则之外的文件数与总大小；达到扫描上限时截断。"
       },
+      "SearchExecution": {
+        "properties": {
+          "mode": {
+            "type": "string",
+            "enum": [
+              "full_text",
+              "hybrid"
+            ],
+            "title": "Mode",
+            "default": "full_text"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "source_scope",
+                  "component_unavailable",
+                  "index_pending",
+                  "semantic_error"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "type": "object",
+        "title": "SearchExecution"
+      },
       "SearchHitView": {
         "properties": {
           "source_type": {
@@ -15560,11 +15755,15 @@
             },
             "type": "array",
             "title": "Hits"
+          },
+          "execution": {
+            "$ref": "#/components/schemas/SearchExecution"
           }
         },
         "type": "object",
         "required": [
-          "hits"
+          "hits",
+          "execution"
         ],
         "title": "SearchResponse"
       },
@@ -15576,6 +15775,85 @@
           "document_chunk"
         ],
         "title": "SearchSourceType"
+      },
+      "SemanticIndexState": {
+        "type": "string",
+        "enum": [
+          "not_installed",
+          "empty",
+          "pending",
+          "queued",
+          "running",
+          "ready",
+          "paused",
+          "blocked",
+          "failed"
+        ],
+        "title": "SemanticIndexState"
+      },
+      "SemanticIndexSummary": {
+        "properties": {
+          "state": {
+            "$ref": "#/components/schemas/SemanticIndexState",
+            "default": "not_installed"
+          },
+          "operation_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Operation Id"
+          },
+          "phase": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phase"
+          },
+          "progress": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OperationProgress"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "published_version": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Published Version"
+          }
+        },
+        "type": "object",
+        "title": "SemanticIndexSummary"
       },
       "SessionEvent": {
         "oneOf": [

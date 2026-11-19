@@ -4,6 +4,8 @@ import {componentsApi, type ComponentView} from '@/lib/api/components'
 import {LoadError, SectionHeader} from './form'
 import {Globe, Package} from '@/components/ui/icons'
 import {cn, formatFileSize} from '@/lib/utils'
+import {useSearchParams} from 'react-router'
+import {Link} from '@/lib/navigation'
 
 const LABELS: Record<string, {name: string; description: string}> = {
   'browser-chromium': {name: '自动化浏览器', description: '供任务访问网页、操作页面和截图，与应用窗口分开运行。'},
@@ -15,12 +17,35 @@ const STATES: Record<ComponentView['state'], string> = {
 }
 
 /** 组件操作独立保存，离开设置或重启应用后仍能读取、取消和重试。 */
-export function ComponentsSection({standalone = false}: {standalone?: boolean} = {}) {
+export function RuntimeComponentsPage() {
+  const [params] = useSearchParams()
+  const back = params.get('return')
+  const component = params.get('component')
+  const returnTo = back && /^\/workspaces\/[\w-]+\/knowledge(?:\?|$)/.test(back) ? back : null
+  return <main className="overflow-y-auto px-6 py-7 sm:px-9"><div className="mx-auto max-w-5xl">
+    {returnTo && <Button asChild size="sm" variant="ghost" className="mb-3"><Link href={returnTo}>返回知识</Link></Button>}
+    <ComponentsSection standalone focusComponent={component}/>
+  </div></main>
+}
+
+export function ComponentsSection({standalone = false, focusComponent}: {
+  standalone?: boolean; focusComponent?: string | null
+} = {}) {
   const [items, setItems] = useState<ComponentView[] | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState<string | null>(null)
   const [revision, setRevision] = useState(0)
   const requests = useRef<Record<string, string>>({})
+  const focused = useRef<string | null>(null)
+  const focusRow = useRef<HTMLDivElement | null>(null)
+  const hasFocusRow = !!items?.some(item => item.component_id === focusComponent)
+
+  useEffect(() => {
+    if (focusComponent && hasFocusRow && focused.current !== focusComponent) {
+      focused.current = focusComponent
+      focusRow.current?.focus()
+    }
+  }, [focusComponent, hasFocusRow])
 
   useEffect(() => {
     let disposed = false
@@ -86,8 +111,9 @@ export function ComponentsSection({standalone = false}: {standalone?: boolean} =
         const operation = item.operation
         const active = operation?.status === 'queued' || operation?.status === 'running'
         const cancelling = active && operation.cancel_requested_at != null
-        const progress = active && !cancelling && operation.phase === '下载中' ? operation.progress : null
-        return <div key={item.component_id} className={cn('flex flex-wrap items-start justify-between gap-4',
+        const progress = item.state === 'fetching' && operation?.status === 'running' && !cancelling ? operation.progress : null
+        return <div key={item.component_id} ref={item.component_id === focusComponent ? focusRow : undefined}
+          tabIndex={item.component_id === focusComponent ? -1 : undefined} className={cn('flex flex-wrap items-start justify-between gap-4',
           standalone ? 'rounded-xl px-4 py-4' : 'py-5 first:pt-0',
           standalone && (active || item.state === 'failed') && 'bg-muted shadow-(--paper-shadow)')}>
           {standalone && <span className="grid size-10 shrink-0 place-items-center rounded-xl bg-signal-soft text-signal">
@@ -101,7 +127,7 @@ export function ComponentsSection({standalone = false}: {standalone?: boolean} =
               {item.version ? ` · ${item.version}` : item.size > 0 ? ` · 下载约 ${Math.ceil(item.size / 1024 / 1024)} MB` : ''}
             </p>
             {progress?.total ? <div className="flex items-center gap-2 text-xs tabular-nums text-faint">
-              <progress className="h-1.5 min-w-0 flex-1 accent-(--signal)" aria-label={`${label.name}下载进度`}
+              <progress className="h-1.5 min-w-0 flex-1 accent-(--signal)" aria-label={`${label.name}获取进度`}
                 value={progress.completed} max={progress.total}/>
               <span>{formatFileSize(progress.completed)} / {formatFileSize(progress.total)}</span>
             </div> : null}

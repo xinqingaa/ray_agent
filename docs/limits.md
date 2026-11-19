@@ -185,7 +185,7 @@
 | 解析配置指纹 | `p6-parse-v2`／`p6-chunk-v2` | `PARSE_CONFIG_FINGERPRINT`、`CHUNK_CONFIG_FINGERPRINT` |
 | 工作区索引范围预检 | 达到 1000 个可索引文件、512 MiB 或扫描截断时要求确认范围 | `DOCUMENT_SCOPE_REVIEW_FILES`、`DOCUMENT_SCOPE_REVIEW_BYTES` |
 | 显式知识引用 | 同一运行最多 8 条，供模型读取的片段总预算 4000 字符，每条最多 500 字符 | [retrieval.py](../ray_agent/api/app/domain/models/retrieval.py) 的 `EXPLICIT_REFERENCE_LIMIT`、`EXPLICIT_REFERENCE_CHARS` |
-| Embedding 配置指纹／维度／上限 | `e5-small-onnx-v1`；384 维；512 tokens；批大小 8 | [semantic_index.py](../ray_agent/api/app/domain/models/semantic_index.py) 的 `EMBEDDING_*` |
+| Embedding 编码指纹／维度／上限 | `e5-small-onnx-v2`；384 维；512 tokens；批大小 8 | [semantic_index.py](../ray_agent/api/app/domain/models/semantic_index.py) 的 `EMBEDDING_*` |
 | RRF 融合 | `k=60`；向量候选最多 40；语义写入批 32 | `RRF_K`、`VECTOR_SEARCH_LIMIT`、`SEMANTIC_INDEX_CHUNK_BATCH` |
 | 组件身份 | `embedding-e5`、`ocr` | 同文件；清单 [component_manifest.json](../ray_agent/api/resources/component_manifest.json) |
 | LanceDB 路径 | `<data_root>/indexes/lancedb/<workspace_id>/<embedding_config>/` | [lancedb_store.py](../ray_agent/api/app/infrastructure/external/vector_store/lancedb_store.py)、[paths.py](../ray_agent/api/core/paths.py) 的 `indexes` |

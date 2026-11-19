@@ -21,12 +21,17 @@ DOCUMENT_PARSE_SLOTS = asyncio.Semaphore(2)
 async def run_document_parse(
         source_path: Path, fmt: str, *, timeout: float = DOCUMENT_PARSE_TIMEOUT_SECONDS,
         cancel_event: Optional[asyncio.Event] = None, ocr_component_dir: Optional[Path] = None,
+        covered_pages: set[int] | None = None,
 ) -> dict:
     """将源文件路径交给 worker；返回解析 JSON。取消或超时不返回半份成功。"""
     async with DOCUMENT_PARSE_SLOTS:
         with tempfile.TemporaryDirectory(prefix="rayagent-doc-parse-") as tmp:
             out = Path(tmp) / "result.json"
             command = worker_command("document-parse", str(source_path), fmt, str(out))
+            if covered_pages is not None:
+                coverage = Path(tmp) / "covered-pages.json"
+                coverage.write_text(json.dumps(sorted(covered_pages)), encoding="utf-8")
+                command.append(str(coverage))
             env = os.environ.copy()
             if ocr_component_dir is not None:
                 env["RAYAGENT_OCR_COMPONENT"] = str(ocr_component_dir)

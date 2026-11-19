@@ -1914,7 +1914,7 @@ export interface paths {
         get?: never;
         put?: never;
         /**
-         * 在工作区内全文检索
+         * 在工作区内检索
          * @description 范围固定为路径里的工作区；可检索记忆、会话摘要与已发布的文件片段
          */
         post: operations["search_workspace_api_workspaces__workspace_id__search_post"];
@@ -2023,6 +2023,23 @@ export interface paths {
         /** Set Policy */
         put: operations["set_policy_api_workspaces__workspace_id__documents_policy_put"];
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/documents/semantic/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Retry Semantic Index */
+        post: operations["retry_semantic_index_api_workspaces__workspace_id__documents_semantic_retry_post"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3257,6 +3274,12 @@ export interface components {
         DocumentLocator: {
             /** Page */
             page?: number | null;
+            /** Region */
+            region?: number | null;
+            /** Box */
+            box?: number[][] | null;
+            /** Ocr Score */
+            ocr_score?: number | null;
             /** Slide */
             slide?: number | null;
             /** Block Ordinal */
@@ -3280,6 +3303,11 @@ export interface components {
             /** Column Start */
             column_start?: number | null;
         };
+        /**
+         * DocumentOcrState
+         * @enum {string}
+         */
+        DocumentOcrState: "not_needed" | "waiting_component" | "pending" | "running" | "complete" | "failed";
         /** DocumentPage */
         DocumentPage: {
             /** Items */
@@ -3340,6 +3368,11 @@ export interface components {
             error_message: string | null;
             /** Component Needed */
             component_needed: string | null;
+            ocr_state: components["schemas"]["DocumentOcrState"] | null;
+            /** Ocr Pages Pending */
+            ocr_pages_pending: number | null;
+            /** Ocr Error */
+            ocr_error: string | null;
         };
         /** DoneEventData */
         DoneEventData: {
@@ -3847,6 +3880,16 @@ export interface components {
              */
             pending_component: number;
             /**
+             * Ocr Pending
+             * @default 0
+             */
+            ocr_pending: number;
+            /**
+             * Ocr Failed
+             * @default 0
+             */
+            ocr_failed: number;
+            /**
              * Failed
              * @default 0
              */
@@ -3877,6 +3920,7 @@ export interface components {
              * @default false
              */
             semantic_ready: boolean;
+            semantic: components["schemas"]["SemanticIndexSummary"];
             /**
              * Excluded
              * @default 0
@@ -5170,6 +5214,10 @@ export interface components {
                 [key: string]: unknown;
             } | null;
         };
+        /** Response[Union[OperationView, NoneType]] */
+        Response_Union_OperationView__NoneType__: {
+            data: components["schemas"]["OperationView"] | null;
+        };
         /** Response[WorkspaceItem] */
         Response_WorkspaceItem_: {
             data: components["schemas"]["WorkspaceItem"] | null;
@@ -5468,6 +5516,17 @@ export interface components {
              */
             truncated: boolean;
         };
+        /** SearchExecution */
+        SearchExecution: {
+            /**
+             * Mode
+             * @default full_text
+             * @enum {string}
+             */
+            mode: "full_text" | "hybrid";
+            /** Reason */
+            reason?: ("source_scope" | "component_unavailable" | "index_pending" | "semantic_error") | null;
+        };
         /** SearchHitView */
         SearchHitView: {
             source_type: components["schemas"]["SearchSourceType"];
@@ -5512,12 +5571,32 @@ export interface components {
         SearchResponse: {
             /** Hits */
             hits: components["schemas"]["SearchHitView"][];
+            execution: components["schemas"]["SearchExecution"];
         };
         /**
          * SearchSourceType
          * @enum {string}
          */
         SearchSourceType: "memory" | "session_summary" | "document_chunk";
+        /**
+         * SemanticIndexState
+         * @enum {string}
+         */
+        SemanticIndexState: "not_installed" | "empty" | "pending" | "queued" | "running" | "ready" | "paused" | "blocked" | "failed";
+        /** SemanticIndexSummary */
+        SemanticIndexSummary: {
+            /** @default not_installed */
+            state: components["schemas"]["SemanticIndexState"];
+            /** Operation Id */
+            operation_id?: string | null;
+            /** Phase */
+            phase?: string | null;
+            progress?: components["schemas"]["OperationProgress"] | null;
+            /** Error */
+            error?: string | null;
+            /** Published Version */
+            published_version?: number | null;
+        };
         SessionEvent: components["schemas"]["MessageSSEEvent"] | components["schemas"]["TitleSSEEvent"] | components["schemas"]["StepSSEEvent"] | components["schemas"]["PlanSSEEvent"] | components["schemas"]["ToolSSEEvent"] | components["schemas"]["DoneSSEEvent"] | components["schemas"]["ErrorSSEEvent"] | components["schemas"]["WaitSSEEvent"] | components["schemas"]["TurnSSEEvent"] | components["schemas"]["AttemptSSEEvent"] | components["schemas"]["RunSSEEvent"] | components["schemas"]["EnvironmentSSEEvent"] | components["schemas"]["ContextSSEEvent"] | components["schemas"]["CompactSSEEvent"] | components["schemas"]["CleanupSSEEvent"] | components["schemas"]["ApprovalSSEEvent"];
         /** @description 会话身份 */
         SessionId: string;
@@ -10166,6 +10245,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Response_IndexSummaryView_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    retry_semantic_index_api_workspaces__workspace_id__documents_semantic_retry_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_Union_OperationView__NoneType__"];
                 };
             };
             /** @description 结构化错误 */

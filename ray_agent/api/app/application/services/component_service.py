@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import uuid
 
 from app.application.errors.exceptions import AppException, ConflictError
@@ -16,6 +17,7 @@ from core.workers import worker_command
 
 WORKER_TIMEOUT_SECONDS = 600
 WORKER_POLL_SECONDS = 0.25
+logger = logging.getLogger(__name__)
 
 
 class ComponentService:
@@ -109,14 +111,20 @@ class ComponentService:
             raise RuntimeError('已有较新的安装操作，请从组件设置读取当前操作')
         # 发布后、任务结束写回前崩溃时，重启可从原子收据收敛。
         if self.components.target_is_current(component_id):
-            if self.on_available:
-                await self.on_available(component_id)
+            await self._notify_available(component_id)
             return {'component_id': component_id, 'version': entry.version}
         token = f'{job.operation_id}-{job.generation}'
         target = self.components.staging(component_id, token)
+        await context.check_cancel()
+        await asyncio.to_thread(self.components.reuse_download, component_id, job.operation_id, job.generation)
         for action, phase in [('fetch', '获取中'), ('verify', '校验中')]:
             await context.check_cancel()
-            await context.progress(phase=phase)
+            progress = self.components.download_progress(component_id, target) if action == 'fetch' else None
+            if action == 'fetch':
+                done, total = progress or (0, entry.size)
+                await context.progress(phase=phase, completed=done, total=total)
+            else:
+                await context.progress(phase=phase)
             await self._worker(context, action, component_id, target)
         # 写事务排斥取消／重试／新受理；检查之后到原子替换之间没有 await。
         async with self.uow_factory() as uow:
@@ -128,9 +136,15 @@ class ComponentService:
             if current.cancel_requested_at:
                 raise JobCancelled(job.operation_id)
             self.components.publish(component_id, token)
-        if self.on_available:
-            await self.on_available(component_id)
+        await self._notify_available(component_id)
         return {'component_id': component_id, 'version': entry.version}
+
+    async def _notify_available(self, component_id):
+        if self.on_available:
+            try:
+                await self.on_available(component_id)
+            except Exception:
+                logger.exception("组件已发布，后续索引将在工作区同步时重新核对 component=%s", component_id)
 
     async def _worker(self, context, action, component_id, target):
         executor = await self.executor_factory()
@@ -154,7 +168,7 @@ class ComponentService:
                         progress = self.components.download_progress(component_id, target)
                         if progress is not None and progress != progress_seen:
                             completed, total = progress
-                            await context.progress(phase='解压与校验' if completed == total else '下载中', completed=completed, total=total)
+                            await context.progress(phase='准备校验' if completed == total else '获取中', completed=completed, total=total)
                             progress_seen = progress
         except TimeoutError as error:
             raise RuntimeError('组件获取或校验超时，可以重试') from error

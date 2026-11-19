@@ -126,7 +126,7 @@ uv run --locked python -m pytest tests/core/test_sqlite_storage.py::test_schema_
 | 写入租约、写前备份、撤销与外部变更 | `application/services/write_leases.py`、`workspace_writer.py`、`file_history.py`、`workspace_changes.py`、`infrastructure/external/file_storage/workspace_objects.py`、`infrastructure/external/workspace_files/watcher.py` |
 | 工作方式、记忆、检索与上下文装配 | `application/services/working_style_service.py`、`memory_service.py`、`retrieval_service.py`、`context_assembly.py`、`memory_jobs.py`、`workspace_memory_runtime.py`；路由 `instruction_routes.py`、`memory_routes.py`、`retrieval_routes.py` |
 | 文档登记、解析与全文索引 | `document_index_service.py`、`document_index_scheduler.py`、`infrastructure/external/document_parse/`；路由 `document_routes.py`；`OperationKind.DOCUMENT_INDEX`；迁移 `0006_document_knowledge` |
-| 语义索引与 OCR | `semantic_index_service.py`、`embedding/e5_onnx.py`、`vector_store/lancedb_store.py`、`ocr/rapid_ocr.py`；组件 `local_components.py` 与 `resources/component_*.json`；`OperationKind.SEMANTIC_INDEX`；迁移 `0007_semantic_index` |
+| 语义索引与 OCR | `semantic_index_service.py`、`embedding/e5_onnx.py`、`vector_store/lancedb_store.py`、`ocr/rapid_ocr.py`；组件 `local_components.py` 与 `resources/component_*.json`；`OperationKind.SEMANTIC_INDEX`；迁移 `0007_semantic_index`、`0011_document_ocr` |
 | 外部服务与执行资源 | `domain/external/`、`infrastructure/external/` |
 
 ## 测试与数据库迁移
@@ -247,6 +247,12 @@ uv run --locked python -m pytest tests/core/test_document_knowledge.py
 ```
 
 检查使用临时工作区、真实 SQLite 与解析子进程覆盖全文检索、工作区隔离、外部编辑、删除和旧版来源读回。用遗留解析和暂存状态重开数据库验证接管，并用部分扫描快照验证未观察到的文件不会被误撤回。另检暂停、范围排除、重扫和重试、表格坐标、显式引用的持久读回与运行中补充。Embedding、LanceDB 与 OCR 的检查入口见[代码地图](../../docs/code-map.md#上下文与记忆)。
+
+```bash
+uv run --locked python -m pytest tests/core/test_semantic_ocr.py tests/core/test_components.py
+```
+
+语义检查用真实 LanceDB 与可控 Embedding 核对仅向量命中、表头前进、指定版本不可读时的全文降级及按原操作重试。编码检查用 tokenizer 校验前缀、特殊 token、原文覆盖与批次掩码。混合 PDF 检查用实际 OCR 子进程追加扫描页，核对原引用身份、页码和重复调度。真实 E5 的安装与语义质量在[桌面运行检查](../README.md#运行检查)中按固定清单验收。
 
 ### 数据删除与清空检查
 
@@ -381,7 +387,7 @@ skill 存储在数据根的 `skills/` 目录（`versions/` 为内容快照），
 
 Shell 与脚本经执行 supervisor（Unix 套接字 IPC）启动，进程树由 supervisor 回收；工作区用 `local_execution_enabled`，独立对话用应用配置 `standalone_execution_enabled`。工具 PATH 优先使用随包正常 CPython／Node；冻结包首次执行时校验归档并原子展开到数据根，核对实际版本和独立动态库，其后仅为系统目录，不搜索 Homebrew 或任意数据根运行时目录。开发环境先运行上文运行时准备命令；固定来源、版本、哈希与许可证由随包清单约束，缺失时命令能力不可用。
 
-设置的“运行组件”通过 `/api/components` 读取状态，`POST /api/components/{id}/install` 携带 `request_id` 受理，返回标准长操作；查询、取消、重试复用 `/api/operations`。状态和身份保存在业务库，重启后接管到新代次，已请求的取消不会被清除。组件 worker 由 supervisor 按操作登记，在独立版本目录获取、校验，发布前在写事务里核对代次与取消；完整收据原子替换后才可用。目标版本变化不会提前撤下兼容旧版本；失败、取消和重启保持旧收据，只有完整校验成功才切换，不兼容时提示原因。浏览器用固定官方压缩包哈希，Embedding／OCR 用文件级哈希，均完成可启动检查。未校验的旧 `.ready` 目录不会直接采用，需重新安装。
+设置的“运行组件”通过 `/api/components` 读取状态，`POST /api/components/{id}/install` 携带 `request_id` 受理，返回标准长操作；查询、取消、重试复用 `/api/operations`。状态和身份保存在业务库，重启后接管到新代次，已请求的取消不会被清除。组件 worker 由 supervisor 按操作登记，在独立版本目录获取、校验，发布前在写事务里核对代次与取消；完整收据原子替换后才可用。分文件组件重试时可复制同一操作上一代已取得的文件，网络支持分段读取时从已有偏移继续。发布仍须通过完整文件哈希和可启动检查。目标版本变化不会提前撤下兼容旧版本；失败、取消和重启保持旧收据，只有完整校验成功才切换，不兼容时提示原因。浏览器使用固定官方压缩包哈希。未校验的旧 `.ready` 目录需重新安装。
 
 浏览器端口在首次动作才启动，驱动进程与浏览器子树登记到 supervisor；同工作区的资料目录串行准入，不同工作区与独立对话各自隔离。启动异常、取消与退出均清理已创建资源。定向检查：
 

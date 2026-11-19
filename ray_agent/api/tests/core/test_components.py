@@ -1,5 +1,6 @@
 """组件的真实 SQLite 受理与恢复；显式启用时验证真实 worker、Chromium 和受管解释器。"""
 import asyncio
+import hashlib
 import os
 import shutil
 import tempfile
@@ -15,6 +16,7 @@ from app.application.services.background_jobs import BackgroundJobRunner, JobCon
 from app.application.services.component_service import ComponentService
 from app.domain.models.operation import OperationKind, OperationStatus
 from app.infrastructure.external.components.local_components import BROWSER_ID, LocalRuntimeComponents
+from app.infrastructure.external.components.install_files import _download, sha256_file
 from app.infrastructure.external.execution.process_executor import SupervisedProcessExecutor
 from app.infrastructure.external.execution.supervisor_client import SupervisorClient
 from app.infrastructure.external.execution.supervisor_lifecycle import ensure_supervisor, stop_supervisor
@@ -35,6 +37,50 @@ def setup(root, write, read, instance='instance-1', executor_factory=None):
 async def claim(write, owner='instance-1'):
     async with write() as uow:
         return await uow.job.claim(owner, [OperationKind.COMPONENT_INSTALL])
+
+
+def test_component_download_resumes_at_written_offset(tmp_path):
+    first = b'a' * (1024 * 1024)
+    end = b'complete'
+    total = len(first) + len(end)
+    ranges = []
+
+    class Interrupted(httpx.AsyncByteStream):
+        async def __aiter__(self):
+            yield first
+            raise httpx.RemoteProtocolError('测试中途断开')
+
+    class Tail(httpx.AsyncByteStream):
+        async def __aiter__(self):
+            yield end
+
+    def route(request):
+        ranges.append(request.headers.get('Range'))
+        if len(ranges) == 1:
+            return httpx.Response(200, stream=Interrupted())
+        return httpx.Response(206, headers={'Content-Range': f'bytes {len(first)}-{total - 1}/{total}'}, stream=Tail())
+
+    async def run():
+        path = tmp_path / 'download.part'
+        async with httpx.AsyncClient(transport=httpx.MockTransport(route)) as client:
+            await _download(client, 'https://components.test/embedding', path, expected_size=total, cancel=None)
+        assert ranges == [None, f'bytes={len(first)}-']
+        assert sha256_file(path) == hashlib.sha256(first + end).hexdigest()
+
+    asyncio.run(run())
+
+
+def test_component_retry_reuses_same_operation_download_only(tmp_path):
+    components = LocalRuntimeComponents(tmp_path / 'components')
+    initial = components.staging('embedding-e5', 'install-1')
+    initial.mkdir(parents=True)
+    (initial / 'model.onnx.part').write_bytes(b'prefix')
+    components.reuse_download('embedding-e5', 'other', 2)
+    assert not components.staging('embedding-e5', 'other-2').exists()
+    components.reuse_download('embedding-e5', 'install', 2)
+    retried = components.staging('embedding-e5', 'install-2')
+    assert (retried / 'model.onnx.part').read_bytes() == b'prefix'
+    assert (initial / 'model.onnx.part').read_bytes() == b'prefix'
 
 
 def test_request_identity_http_and_reopen(tmp_path, monkeypatch):

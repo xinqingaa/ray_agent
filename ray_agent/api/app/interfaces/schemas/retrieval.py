@@ -3,7 +3,7 @@ from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.domain.models.retrieval import KnowledgeReference, SEARCH_HIT_LIMIT, SearchHit, SearchSourceType
+from app.domain.models.retrieval import KnowledgeReference, SEARCH_HIT_LIMIT, SearchExecution, SearchHit, SearchSourceType
 from app.domain.models.run_context import RunContextManifest
 from app.interfaces.schemas.event import to_epoch_ms
 
@@ -42,6 +42,7 @@ class SearchResponse(BaseModel):
     model_config = _STRICT
 
     hits: list[SearchHitView]
+    execution: SearchExecution
 
 
 class ResidentMemoryView(BaseModel):

@@ -1,13 +1,15 @@
 """文档知识仓库：权威元数据与片段；FTS 发布仍走 search 端口。"""
 from typing import Optional, Sequence
 
-from sqlalchemy import and_, delete, func, select, update
+from sqlalchemy import and_, delete, func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.models.document_knowledge import (
     ContentBlock,
     DocumentChunk,
     DocumentIndexStatus,
+    DocumentFormat,
+    DocumentOcrState,
     DocumentRecord,
     DocumentRevision,
     IndexPublication,
@@ -98,6 +100,7 @@ class DBDocumentRepository(DocumentRepository):
         else:
             for field in ("status", "format", "parse_config", "chunk_config", "staging_object_id",
                           "error_message", "component_needed", "updated_at", "published_at", "page_count",
+                          "ocr_state", "ocr_pages_pending", "ocr_error",
                           "content_hash", "size", "modified_ns", "relative_path", "source_epoch"):
                 setattr(existing, field, getattr(revision, field).value
                         if field in ("status", "format") else getattr(revision, field))
@@ -118,16 +121,24 @@ class DBDocumentRepository(DocumentRepository):
         )).scalars().all()
         return [row.to_domain() for row in rows]
 
-    async def list_pending_component(
-            self, *, component: str, limit: int = 500,
-    ) -> list[DocumentRevision]:
-        rows = (await self.db_session.execute(
-            select(DocumentRevisionModel).where(
-                DocumentRevisionModel.status == DocumentIndexStatus.PENDING_COMPONENT.value,
-                DocumentRevisionModel.component_needed == component,
-            ).order_by(DocumentRevisionModel.updated_at).limit(limit)
-        )).scalars().all()
-        return [row.to_domain() for row in rows]
+    async def next_ocr_revision(self, workspace_id: str, *, available: bool) -> DocumentRevision | None:
+        revision = DocumentRevisionModel
+        states = [DocumentOcrState.PENDING, DocumentOcrState.RUNNING]
+        if available:
+            states.append(DocumentOcrState.WAITING_COMPONENT)
+        candidates = and_(
+            revision.status == DocumentIndexStatus.SEARCHABLE,
+            revision.format == DocumentFormat.PDF,
+            or_(revision.ocr_state.is_(None), revision.ocr_state.in_(states)),
+        )
+        if available:
+            candidates = or_(candidates, and_(revision.status == DocumentIndexStatus.PENDING_COMPONENT,
+                                             revision.component_needed == "ocr"))
+        row = await self.db_session.scalar(select(revision).join(DocumentModel, and_(
+            DocumentModel.id == revision.document_id, DocumentModel.current_revision == revision.revision,
+            DocumentModel.source_epoch == revision.source_epoch, DocumentModel.status == revision.status,
+        )).where(revision.workspace_id == workspace_id, candidates).order_by(revision.updated_at, revision.id).limit(1))
+        return row.to_domain() if row else None
 
     async def list_publication_workspace_ids(self) -> list[str]:
         rows = (await self.db_session.execute(select(IndexPublicationModel.workspace_id))).scalars().all()
@@ -135,6 +146,9 @@ class DBDocumentRepository(DocumentRepository):
 
     async def replace_blocks(self, revision_id: str, blocks: Sequence[ContentBlock]) -> None:
         await self.db_session.execute(delete(ContentBlockModel).where(ContentBlockModel.revision_id == revision_id))
+        await self.add_blocks(blocks)
+
+    async def add_blocks(self, blocks: Sequence[ContentBlock]) -> None:
         for block in blocks:
             self.db_session.add(ContentBlockModel.from_domain(block))
         await self.db_session.flush()
@@ -148,6 +162,9 @@ class DBDocumentRepository(DocumentRepository):
 
     async def replace_chunks(self, revision_id: str, chunks: Sequence[DocumentChunk]) -> None:
         await self.db_session.execute(delete(DocumentChunkModel).where(DocumentChunkModel.revision_id == revision_id))
+        await self.add_chunks(chunks)
+
+    async def add_chunks(self, chunks: Sequence[DocumentChunk]) -> None:
         for chunk in chunks:
             self.db_session.add(DocumentChunkModel.from_domain(chunk))
         await self.db_session.flush()
@@ -217,12 +234,32 @@ class DBDocumentRepository(DocumentRepository):
         )).scalars().all()
         return [row.to_domain() for row in rows]
 
+    async def published_chunk_page(self, workspace_id: str, *, after: str, limit: int) -> list[DocumentChunk]:
+        rows = (await self.db_session.scalars(select(DocumentChunkModel).where(
+            DocumentChunkModel.workspace_id == workspace_id,
+            DocumentChunkModel.published.is_(True),
+            DocumentChunkModel.id > after,
+        ).order_by(DocumentChunkModel.id).limit(limit))).all()
+        return [row.to_domain() for row in rows]
+
+    async def count_published_chunks(self, workspace_id: str) -> int:
+        return int(await self.db_session.scalar(select(func.count()).select_from(DocumentChunkModel).where(
+            DocumentChunkModel.workspace_id == workspace_id,
+            DocumentChunkModel.published.is_(True),
+        )) or 0)
+
     async def summary(self, workspace_id: str) -> WorkspaceIndexSummary:
         rows = (await self.db_session.execute(
             select(DocumentModel.status, func.count()).where(DocumentModel.workspace_id == workspace_id)
             .group_by(DocumentModel.status)
         )).all()
         counts = {status: count for status, count in rows}
+        revision = DocumentRevisionModel
+        ocr_counts = dict((await self.db_session.execute(select(revision.ocr_state, func.count()).join(
+            DocumentModel, and_(DocumentModel.id == revision.document_id, DocumentModel.current_revision == revision.revision,
+                                DocumentModel.source_epoch == revision.source_epoch),
+        ).where(revision.workspace_id == workspace_id, DocumentModel.status == DocumentIndexStatus.SEARCHABLE
+                ).group_by(revision.ocr_state))).all())
         pub = await self.get_publication(workspace_id)
         pending_statuses = (
             DocumentIndexStatus.REGISTERED, DocumentIndexStatus.PENDING_PARSE,
@@ -238,6 +275,9 @@ class DBDocumentRepository(DocumentRepository):
             pending=sum(counts.get(s.value, 0) for s in pending_statuses),
             parsing=counts.get(DocumentIndexStatus.PARSING.value, 0),
             pending_component=counts.get(DocumentIndexStatus.PENDING_COMPONENT.value, 0),
+            ocr_pending=sum(ocr_counts.get(state, 0) for state in (
+                DocumentOcrState.WAITING_COMPONENT, DocumentOcrState.PENDING, DocumentOcrState.RUNNING)),
+            ocr_failed=ocr_counts.get(DocumentOcrState.FAILED, 0),
             failed=counts.get(DocumentIndexStatus.FAILED.value, 0),
             withdrawn=counts.get(DocumentIndexStatus.WITHDRAWN.value, 0),
             excluded=counts.get(DocumentIndexStatus.EXCLUDED.value, 0),

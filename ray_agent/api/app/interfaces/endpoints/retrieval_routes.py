@@ -14,15 +14,15 @@ router = APIRouter(tags=["检索"])
 
 
 @router.post("/workspaces/{workspace_id}/search", response_model=Response[SearchResponse],
-             summary="在工作区内全文检索",
+             summary="在工作区内检索",
              description="范围固定为路径里的工作区；可检索记忆、会话摘要与已发布的文件片段")
 async def search_workspace(workspace_id: str, request: SearchRequest,
                            retrieval: RetrievalService = Depends(get_retrieval_service),
                            style: WorkingStyleService = Depends(get_working_style_service)):
     await style.current(workspace_id)  # 工作区不存在或删除中时返回 404，而不是空结果
-    hits = await retrieval.search(workspace_id, request.query, request.source_types, limit=request.limit)
+    hits, execution = await retrieval.search_with_execution(workspace_id, request.query, request.source_types, limit=request.limit)
     shown = await retrieval.present_hits(workspace_id, hits)
-    return Response.success(SearchResponse(hits=[SearchHitView.of(hit) for hit in shown]))
+    return Response.success(SearchResponse(hits=[SearchHitView.of(hit) for hit in shown], execution=execution))
 
 
 @router.get("/workspaces/{workspace_id}/search/sources/{source_type}/{source_id}",

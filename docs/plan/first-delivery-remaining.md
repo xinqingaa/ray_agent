@@ -7,25 +7,6 @@
 - 会话成果列表后台刷新失败目前缺少就地提示和重试。完成条件是保留已有结果、明确显示刷新失败并允许重新读取。
 - 已确认需要让已受理的计划在执行失败后继续，当前可查看清单。续接步骤、已完成工作和副作用的处理、重新审批边界需先确认。工作区首页跨会话成果聚合已暂缓。
 
-## P7 语义检索与 OCR
-
-### F11 语义与文字识别状态
-
-知识页已显示组件安装状态。P7 需把实际语义检索可用性、重建进度、OCR 与安装后的恢复联动一并接通，在真实组件和宿主中验证。见[原型落地计划](prototype-ui.md#后续工作包)。
-
-
-### F02 固定版本向量读取失败：已复现，待修复（P7）
-
-- [ ] **偏差与问题**：原目标要求按已发布版本语义召回。`open_at_version` 返回 `table.checkout(version)`，锁定 LanceDB 的该方法原地切换并返回空值，随后查询异常被吞成空结果。同一向量读最新版本可命中，按发布版本读取却不命中，表面仍可依靠全文结果工作。
-- **位置**：[lancedb_store.py](../../ray_agent/api/app/infrastructure/external/vector_store/lancedb_store.py) 的 `open_at_version`、`search`；调用方 [retrieval_service.py](../../ray_agent/api/app/application/services/retrieval_service.py)；[test_semantic_ocr.py](../../ray_agent/api/tests/core/test_semantic_ocr.py) 中已有全文可命中的混合召回检查不能证明向量分支有效。
-- **关闭条件**：用真实 LanceDB 检查“全文不命中、向量应命中”，覆盖固定发布版本、重建代次与删除撤回，避免异常静默掩盖语义不可用。
-
-### F03 长文本语义输入丢内容：已复现，待修复（P7）
-
-- [ ] **偏差与问题**：原目标不允许只截断输入却声称整段已入库。用于估算长度的 tokenizer 已启用截断；切分再截掉超预算 token，却按完整字符窗口向前推进。使用真实 tokenizers 的合成词表复现了中段词丢失，后续向量均值不能补回这些内容。
-- **位置**：[e5_onnx.py](../../ray_agent/api/app/infrastructure/external/embedding/e5_onnx.py) 的 `load`、`split_by_token_budget`、`passage_parts`；[semantic_index_service.py](../../ray_agent/api/app/application/services/semantic_index_service.py) 的分段编码与合并。
-- **关闭条件**：长度测量不受截断影响，每段计入前缀和特殊 token；长中文、长表及中尾部标记均完整进入编码，任意超额部分都能继续处理。
-
 ## P8 Skill
 
 ### F01 Skill 工作区范围：已补修，待定向确认（P8）
