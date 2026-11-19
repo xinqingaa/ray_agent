@@ -28,8 +28,12 @@ function load(file) {
   if(name==='@/components/preview/file-preview')return load('components/preview/file-preview.tsx');
   if(name==='./action')return {PreviewAction:props=>React.createElement('button',{'aria-label':props.label,onClick:props.onClick,disabled:props.disabled})};
   if(name==='./image-preview')return {ImagePreview:()=>null};
+  if(name==='./preview-frame')return load('components/preview/preview-frame.tsx');
   if(name==='@/components/markdown-content')return {MarkdownContent:props=>React.createElement('p',{},props.content)};
   if(name==='@/components/run/format')return {formatBytes:x=>`${x} B`};
+  if(name==='@/components/run/file-icon')return load('components/run/file-icon.tsx');
+  if(name==='@/components/ui/dialog')return {Dialog:({open,children})=>open?children:null,...Object.fromEntries(
+    ['DialogContent','DialogDescription','DialogTitle'].map(key=>[key,elements[key]]))};
   if(name==='@/lib/utils')return {cn:(...x)=>x.filter(Boolean).join(' ')};
   if(name.startsWith('@/components/ui/'))return elements;
   throw Error(name);

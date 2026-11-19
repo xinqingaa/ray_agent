@@ -245,6 +245,8 @@ export type CompactTrigger = 'watermark' | 'overflow' | 'manual'
 export type UsageView = {
   /** 会话累计 */
   session: TokenCounts
+  currentWindowTokens?: number
+  latestRequest?: {usedTokens: number; windowTokens: number}
   /** 最近一次模型请求的上下文占用；尚无请求时为空 */
   context: {
     usedTokens: number

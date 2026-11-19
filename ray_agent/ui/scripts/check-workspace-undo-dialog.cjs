@@ -34,7 +34,7 @@ const load = createLoader({
   '@/hooks/use-session-title': {useSessionTitle: () => '任务'},
   '@/providers/workspace-live-provider': {useWorkspaceLive: () => live},
   '@/lib/navigation': {Link: element('a')},
-  '@/lib/utils': {cn: (...values) => values.filter(Boolean).join(' '), formatRelativeDate: () => '刚才'},
+  '@/lib/utils': {cn: (...values) => values.filter(Boolean).join(' '), formatRelativeDate: () => '刚才', formatSidebarTime: () => '14:34'},
   '@/components/ui/button': {Button: element('button')},
   '@/components/ui/scroll-area': ui,
   '@/components/ui/skeleton': ui,
@@ -59,7 +59,7 @@ async function main() {
   props = {workspace: {id: 'w', status: 'active', folder: {status: 'available'}}};
   await act(async () => {root = create(React.createElement(Harness, props));});
   await click('撤销本次修改');
-  await click('撤销所选（1）');
+  await click('撤销选中的 1 项');
   assert.equal(dialogs().length, 1, '提示条消失后仍显示同一个操作结果');
   assert.match(text(dialogs()[0]), /已处理 1 项/);
   assert.equal(root.root.findAllByType('button').filter(button => text(button) === '撤销本次修改').length, 0);
@@ -68,7 +68,7 @@ async function main() {
   await click('撤回');
   assert.equal(dialogs().length, 1, '从最近修改打开时没有旧窗口叠出');
   assert.match(text(dialogs()[0]), /撤回这次撤销/);
-  await click('撤回所选（1）');
+  await click('撤回选中的 1 项');
   assert.equal(dialogs().length, 1, '撤回后原运行再次可撤销，也不复活旧窗口');
   assert.match(text(dialogs()[0]), /已处理 1 项/);
   await click('完成');
@@ -94,7 +94,7 @@ async function main() {
   shellValue = {state: 'complete', roots: [{root_id: 'root', kind: 'workspace_folder', partial: true, errors: []}],
     entries: [{root_id: 'root', relative_path: 'script-output.txt', operation: 'unclassified'}], total: 2, has_more: true};
   await act(async () => live.requestRefresh());
-  await click('查看文件变化');
+  await click('文件变化 2');
   assert.match(text(dialogs()[0]), /可能包含同时发生的外部修改/);
   assert.match(text(dialogs()[0]), /扫描范围不完整/);
   assert.match(text(dialogs()[0]), /不支持撤销/);

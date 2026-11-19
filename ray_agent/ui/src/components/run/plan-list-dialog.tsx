@@ -1,5 +1,5 @@
-import {ChevronLeft, ChevronRight, CircleX, CirclePause, X, ListTodo} from '@/components/ui/icons'
-import {useState} from 'react'
+import {ChevronLeft, ChevronRight, CircleX, CirclePause, History, X} from '@/components/ui/icons'
+import {useState, type ReactNode} from 'react'
 import {Dialog, DialogClose, DialogContent, DialogTitle, DialogTrigger} from '@/components/ui/dialog'
 import {Button} from '@/components/ui/button'
 import {PlanContent} from './plan-bar'
@@ -33,11 +33,20 @@ export function PlanChecklist({plans, runs}: {plans: PlanHistoryEntry[]; runs: R
   </>
 }
 
-export function PlanListDialog({plans, runs, panelWidth}: {plans: PlanHistoryEntry[]; runs: RunView[]; panelWidth?: number}) {
-  return <Dialog>
+export function PlanListDialog({plans, runs, panelWidth, children}: {
+  plans: PlanHistoryEntry[]
+  runs: RunView[]
+  panelWidth?: number
+  children?: (trigger: ReactNode, open: boolean) => ReactNode
+}) {
+  const [open, setOpen] = useState(false)
+  const trigger = (
     <DialogTrigger asChild>
-      <Button type="button" variant="ghost" size="icon-sm" aria-label="查看待办清单" className="shrink-0 text-muted-foreground"><ListTodo className="size-4" aria-hidden/></Button>
+      <Button type="button" variant="ghost" size="icon-sm" aria-label="历史清单" title="历史清单" className="shrink-0 text-muted-foreground"><History className="size-4" aria-hidden/></Button>
     </DialogTrigger>
+  )
+  return <Dialog open={open} onOpenChange={setOpen}>
+    {children ? children(trigger, open) : trigger}
     <DialogContent aria-describedby={undefined} showCloseButton={false}
       style={{width: panelWidth ?? 'var(--reading-column)', maxWidth: 'calc(100vw - 1.5rem)'}}
       className="flex max-h-[min(44rem,85dvh)] flex-col gap-4 p-6">

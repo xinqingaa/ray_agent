@@ -969,6 +969,7 @@ export function projectSession(input: ProjectSessionInput): SessionView {
   const latest = runViews[runViews.length - 1]
   const sessionTokens = sumUsage([sumUsage(turns.map((turn) => turn.usage)), compactSessionUsage])
   let context = usageContext(turns, lastCompaction, lastTurnStartedSeq)
+  const requestContext = context?.postCompactEstimate ? usageContext(turns, null, lastTurnStartedSeq) : context
   if (capacityFailure && capacityFailure.seq > Math.max(lastTurnStartedSeq ?? 0, lastCompaction?.seq ?? 0)) {
     const e = capacityFailure.estimate
     if (e.contextWindow != null && e.contextWindow > 0) context = {
@@ -1007,6 +1008,8 @@ export function projectSession(input: ProjectSessionInput): SessionView {
     planHistory: [...planHistory.values()],
     usage: {
       session: sessionTokens,
+      currentWindowTokens: input.contextConfig?.context_window,
+      latestRequest: requestContext ? {usedTokens: requestContext.usedTokens, windowTokens: requestContext.windowTokens} : undefined,
       context,
       lastCompaction,
       watermarkRatio: context?.watermarkTokens != null ? context.watermarkTokens / context.windowTokens : null,

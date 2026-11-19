@@ -3,10 +3,10 @@ import {cn, formatFileSize} from '@/lib/utils'
 import {ScrollArea, ScrollBar} from '@/components/ui/scroll-area'
 import {Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle} from '@/components/ui/item'
 import {Avatar, AvatarGroupCount} from '@/components/ui/avatar'
-import {ArrowUp, Eye, FileText, Loader2, Paperclip, Stop, X, XCircle} from '@/components/ui/icons'
+import {ArrowUp, Eye, FileText, ListChecks, Loader2, Paperclip, Sparkles, Stop, X, XCircle} from '@/components/ui/icons'
 import {Button} from '@/components/ui/button'
 import {Popover, PopoverAnchor, PopoverContent} from '@/components/ui/popover'
-import {PlusCommandMenu, SlashCommandList} from '@/components/input-command-menu'
+import {SlashCommandList} from '@/components/input-command-menu'
 import {skillsApi, SKILLS_CHANGED, type Skill, type SkillSelection} from '@/lib/api/skills'
 import {SkillMark} from '@/components/skill-mark'
 import {fileApi} from '@/lib/api/file'
@@ -37,6 +37,7 @@ interface ChatInputProps {
   onPause?: () => void
   disabled?: boolean
   autoFocus?: boolean
+  workspace?: boolean
   /** 当前会话 ID，上传附件时会关联到该会话 */
   sessionId?: string | null
   placeholder?: string
@@ -66,7 +67,7 @@ export interface ChatInputRef {
 }
 
 export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
-  ({ className, onInputValueChange, onSend, pause = false, onPause, disabled = false, autoFocus = false, sessionId, placeholder = '分配一个任务或提问任何问题...', accessory, draftScope, commandHost = EMPTY_HOST, savedModel = null, savedReasoning = null, runModel = null, runReasoning = null }, ref) => {
+  ({ className, onInputValueChange, onSend, pause = false, onPause, disabled = false, autoFocus = false, workspace = false, sessionId, placeholder = '分配一个任务或提问任何问题...', accessory, draftScope, commandHost = EMPTY_HOST, savedModel = null, savedReasoning = null, runModel = null, runReasoning = null }, ref) => {
     const {visibility} = useDeveloperMode()
     const [files, setFiles] = useState<FileInfo[]>([])
     const [uploading, setUploading] = useState(false)
@@ -168,7 +169,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
       const style = getComputedStyle(node)
       const line = parseFloat(style.lineHeight) || parseFloat(style.fontSize) * 1.5
       const padding = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom)
-      const minimum = line * 2 + padding
+      const minimum = line + padding
       const viewport = window.visualViewport?.height ?? window.innerHeight
       const maximum = Math.max(minimum, Math.min(line * 12 + padding, viewport * 0.35))
       node.style.height = 'auto'
@@ -522,7 +523,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
 
     return (
     <Popover open={slashOpen} onOpenChange={(open) => {if (!open) {dismissedRef.current = slash; setSlash(null)}}}>
-    <div data-chat-composer className={cn('flex flex-col bg-card w-full rounded-2xl py-3 border shadow-(--paper-shadow) focus-within:border-ring/45', className)}>
+    <div data-chat-composer className={cn('flex w-full flex-col rounded-[18px] border bg-background py-2.5 shadow-(--paper-shadow) focus-within:border-ring/45', className)}>
       {uncertain && !sending && !commandHost.submitting && (
         <div role="status" className="mx-4 mb-2 space-y-2 text-meta text-state-waiting">
           <p>正在确认是否发送成功，文字、附件和模式已保留。请检查结果或核对对话历史。</p>
@@ -607,13 +608,15 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
         </div>
       )}
       {uploading && <p role="status" className="mx-4 mb-2 flex items-center gap-2 text-meta text-muted-foreground"><Loader2 className="size-3.5 animate-spin"/>正在上传附件</p>}
+      {planMode && <Button type="button" size="xs" variant="secondary" className="mx-3.5 mb-1.5 self-start bg-signal-soft text-signal"
+        onClick={() => setPlanMode(false)}><ListChecks/>计划模式<XCircle aria-label="移除"/></Button>}
       {/* 中间输入框 */}
       <PopoverAnchor asChild>
-      <div className="relative px-4 mb-3">
-        {selectedSkill && <SkillMark ref={skillMarkRef} name={selectedSkill.name ?? selectedSkill.id} className="absolute left-4 top-0 z-10" onRemove={blocked ? undefined : () => setSelectedSkill(null)} onExit={() => {const node = textareaRef.current; node?.focus(); node?.setSelectionRange(0, 0)}}/>}
+      <div className="relative mb-1.5 px-3.5">
+        {selectedSkill && <SkillMark ref={skillMarkRef} name={selectedSkill.name ?? selectedSkill.id} className="absolute left-3.5 top-0 z-10" onRemove={blocked ? undefined : () => setSelectedSkill(null)} onExit={() => {const node = textareaRef.current; node?.focus(); node?.setSelectionRange(0, 0)}}/>}
         <textarea
           ref={textareaRef}
-          rows={2}
+          rows={1}
           value={inputValue}
           style={selectedSkill ? {textIndent: skillIndent} : undefined}
           onChange={handleInputChange}
@@ -640,15 +643,15 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
           aria-expanded={slashOpen}
           aria-autocomplete={slashOpen ? 'list' : undefined}
           role={slashOpen ? 'combobox' : undefined}
-          className="outline-none w-full text-sm leading-relaxed resize-none min-h-[3em]"
+          className="block min-h-[1.625em] w-full resize-none text-sm leading-relaxed outline-none"
           disabled={blocked}
         />
       </div>
       </PopoverAnchor>
       {/* 底部上传&发送按钮 */}
-      <footer className="flex flex-row items-center justify-between w-full px-3">
+      <footer className="composer-actions flex min-w-0 items-end justify-between gap-1 px-2.5">
         {/* 命令菜单 */}
-        <div className="flex flex-wrap items-center gap-2">
+        <div className="flex min-w-0 flex-wrap items-center gap-1">
           <input
             ref={fileInputRef}
             type="file"
@@ -657,26 +660,28 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
             onChange={handleFileSelect}
             disabled={uploading}
           />
-          <PlusCommandMenu context={commandContext}/>
           <Button type="button" variant="ghost" size="icon-sm" aria-label="添加附件" title="添加附件"
             disabled={!commandById('upload')?.available(commandContext).available}
             onClick={() => commandById('upload')?.run(commandContext)}>
             <Paperclip className="size-4"/>
           </Button>
-          {planMode && (
-            <button
-              type="button"
-              onClick={() => setPlanMode(false)}
-              className="inline-flex h-7 max-w-full items-center gap-1 rounded-md border border-signal/30 bg-signal-soft/50 px-2 text-xs font-medium text-signal outline-none hover:bg-signal-soft focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              <span className="truncate">计划模式</span>
-              <XCircle className="size-3.5 shrink-0" aria-hidden/>
-              <span className="sr-only">，点击移除</span>
-            </button>
-          )}
+          <Button type="button" variant="ghost" size="icon-sm" aria-label="命令与 Skill" title="命令与 Skill /"
+            data-slash-toggle aria-expanded={slashOpen} disabled={blocked} onClick={() => {
+              if (slashOpen) {dismissedRef.current = slash; setSlash(null); return}
+              const node = textareaRef.current
+              if (!node) return
+              const cursor = node.selectionStart ?? inputValue.length
+              node.focus()
+              setActiveId(null)
+              setSlash(findSlashTrigger(inputValue, cursor, false) ?? {start: cursor, end: cursor, query: ''})
+            }}><Sparkles/></Button>
+          {workspace && <Button type="button" variant="ghost" size="icon-sm" aria-label="计划模式" title="计划模式"
+            aria-pressed={planMode} className="aria-pressed:bg-signal-soft aria-pressed:text-signal"
+            disabled={!commandById('plan')?.available(commandContext).available}
+            onClick={() => commandById('plan')?.run(commandContext)}><ListChecks/></Button>}
         </div>
         {/* 发送/停止生成按钮 */}
-        <div className="flex items-center gap-1">
+        <div className="flex min-w-0 items-center gap-1">
           <ModelPicker
             sessionId={sessionId}
             savedModel={savedModel}
@@ -688,8 +693,8 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
           {typeof accessory === 'function' ? accessory(commandContext) : accessory}
           <Button
             type="button"
-            variant="outline"
-            className="rounded-full w-8 h-8 cursor-pointer"
+            variant={showPause ? 'secondary' : 'default'}
+            className="size-[34px] shrink-0 cursor-pointer rounded-[11px] transition-transform active:scale-90 motion-reduce:transition-none"
             onClick={showPause ? onPause : handleSend}
             disabled={showPause ? pause === 'stopping' || !onPause : blocked || uploading || !inputValue.trim()}
             aria-label={showPause ? (pause === 'stopping' ? '正在停止' : '停止生成') : '发送'}
@@ -716,6 +721,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
       className="w-[min(var(--radix-popover-trigger-width),calc(100vw-2rem))] max-h-(--radix-popover-content-available-height) overflow-y-auto rounded-xl border-0 p-0 slash-command-elevation"
       onOpenAutoFocus={(event) => event.preventDefault()}
       onCloseAutoFocus={(event) => event.preventDefault()}
+      onInteractOutside={event => {if (event.target instanceof Element && event.target.closest('[data-slash-toggle]')) event.preventDefault()}}
     >
       <div id={slashListId}>
         {slashOpen && slash && (

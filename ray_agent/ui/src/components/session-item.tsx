@@ -86,8 +86,8 @@ export function SessionItem({session, isActive, onClick, onDelete, onRename, hre
           className={controlClass}
         />
       )}
-      <div className="pointer-events-none relative z-10 flex min-h-8 items-center gap-2 pl-2">
-        <p className="min-w-0 flex-1 truncate text-sm font-medium text-muted-foreground group-has-[[aria-current=page]]/session:text-foreground" dir="auto">{title}</p>
+      <div className="session-row-content pointer-events-none relative z-10 flex min-h-8 items-center gap-2 pl-2">
+        <p className="min-w-0 flex-1 truncate text-sm text-muted-foreground group-has-[[aria-current=page]]/session:font-medium group-has-[[aria-current=page]]/session:text-foreground" dir="auto">{title}</p>
         <RunStatus
           place="sidebar"
           id={statusId}
@@ -106,7 +106,7 @@ export function SessionItem({session, isActive, onClick, onDelete, onRename, hre
             <Button
               size="icon-xs"
               variant="ghost"
-              className="absolute top-1 right-1 z-20 text-muted-foreground opacity-0 group-hover/session:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100 max-md:opacity-100"
+              className="session-row-menu absolute top-1 right-1 z-20 text-muted-foreground"
               aria-label={`${title} 的操作`}
               onClick={(event) => event.stopPropagation()}
             >

@@ -290,13 +290,15 @@ def _from_snapshot(snapshot: dict, fallback_window: int, fallback_tokens: int, f
 def auxiliary_call(
         config: LLMConfig, *, max_tokens: int, temperature: float, timeout: float,
 ) -> tuple[LLMConfig, Optional[str], Optional[str]]:
-    """标题和摘要：DeepSeek 用辅助模型；其他模型优先关闭档，没有时用最低档。"""
+    """标题、摘要和提炼复用已配置的连接，优先同厂商辅助模型与关闭思考档。"""
     updates = {"max_tokens": max_tokens, "temperature": temperature, "streaming": False, "request_timeout": timeout}
     spec = default_model(config)
     if spec is None:
         return config.model_copy(update=updates), None, None
-    if spec.provider == "deepseek":
-        spec = next(item for item in deepseek_models() if item.auxiliary)
+    available = active_models(config)
+    spec = next((item for item in available if item.provider == spec.provider and item.auxiliary), None) or (
+        spec if spec in available or not available else available[0]
+    )
     choice = next((item for item in spec.choices if item.thinking == "disabled"), spec.choices[0])
     updates["model_name"] = spec.id
     updates["context_window"] = min(configured_sampling(config, spec.id).context_window, spec.context_window)

@@ -30,7 +30,7 @@ const TEXT = {
   approvalRecord: '审批记录',
 } as const
 
-const SIDEBAR_META = 'flex w-[4.75rem] shrink-0 items-center justify-end gap-1.5 pr-2 text-xs font-normal tabular-nums group-hover/session:invisible group-has-[[data-state=open]]/session:invisible'
+const SIDEBAR_META = 'session-row-meta flex min-w-6 shrink-0 items-center justify-end gap-1.5 pr-2 text-xs font-normal tabular-nums'
 
 type TimelineProps = {
   place: 'timeline'

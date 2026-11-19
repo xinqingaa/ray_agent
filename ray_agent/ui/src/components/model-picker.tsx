@@ -1,5 +1,6 @@
 import {useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react'
 import {Check, ChevronDown} from '@/components/ui/icons'
+import {toast} from 'sonner'
 import {configApi} from '@/lib/api/config'
 import {sessionApi} from '@/lib/api/session'
 import type {ModelCatalog} from '@/lib/api/types'
@@ -11,6 +12,7 @@ import {VendorIcon} from '@/components/vendor-icon'
 import {cn} from '@/lib/utils'
 import {contextLabel, modelFacts, modelsForVendor, reasoningLabel, selectModel, thinkingOptions, vendorOf, vendorTabs, type CatalogModel, type ModelSelection} from '@/lib/model-selection'
 import {useDeveloperMode} from '@/hooks/use-developer-mode'
+import {isDesktop, openModelConfig} from '@/lib/platform'
 import {MODEL_PREFERENCE_CHANGED, readModelPreference, rememberModelPreference, validModelPreference} from '@/lib/model-preference'
 export type {ModelSelection} from '@/lib/model-selection'
 
@@ -26,6 +28,8 @@ export function ModelPicker({sessionId, savedModel, savedReasoning, onSelection,
   const {visibility} = useDeveloperMode()
   const [catalog, setCatalog] = useState<ModelCatalog | null>(usableCatalog(providedCatalog))
   const [catalogError, setCatalogError] = useState<string | null>(loadError ?? null)
+  const [catalogReady, setCatalogReady] = useState(Boolean(providedCatalog || loadError))
+  const [catalogRevision, setCatalogRevision] = useState(0)
   const [picked, setPicked] = useState<ModelSelection | null>(null)
   const [recent, setRecent] = useState<ModelSelection | null>(null)
   const [preferenceRead, setPreferenceRead] = useState(false)
@@ -50,13 +54,14 @@ export function ModelPicker({sessionId, savedModel, savedReasoning, onSelection,
   }, [])
   if (scope !== sessionId) {setScope(sessionId); setPicked(null); setDraft(null); setOpen(false); setSaving(false); setError(null)}
   useEffect(() => {
-    if (loadError) {setCatalog(null); setCatalogError(loadError); return}
-    if (providedCatalog) {setCatalog(usableCatalog(providedCatalog)); setCatalogError(null); return}
+    if (loadError) {setCatalog(null); setCatalogError(loadError); setCatalogReady(true); return}
+    if (providedCatalog) {setCatalog(usableCatalog(providedCatalog)); setCatalogError(null); setCatalogReady(true); return}
     let cancelled = false
     configApi.getModels().then(data => {if (!cancelled) {setCatalog(usableCatalog(data)); setCatalogError(null)}})
-      .catch((reason: unknown) => {if (!cancelled) {setCatalog(null); setCatalogError(reason instanceof Error ? reason.message : '模型目录读取失败')}})
+      .catch((reason: unknown) => {if (!cancelled) setCatalogError(reason instanceof Error ? reason.message : '模型目录读取失败')})
+      .finally(() => {if (!cancelled) setCatalogReady(true)})
     return () => {cancelled = true}
-  }, [providedCatalog, loadError])
+  }, [providedCatalog, loadError, catalogRevision])
   useEffect(() => {request.current += 1; return () => {request.current += 1}}, [sessionId])
   const selection = useMemo(() => {
     if (picked) return picked
@@ -74,14 +79,21 @@ export function ModelPicker({sessionId, savedModel, savedReasoning, onSelection,
   const inheritSession = !!sessionId && !picked && !(savedModel && savedReasoning)
   // 缺失字段交给服务端解析，避免发送目录默认值覆盖旧会话，或沿用上个会话的选择。
   useEffect(() => {onSelection(inheritSession ? null : selection)}, [onSelection, selection, inheritSession])
-  if (catalogError && !catalog) {
-    return <Popover>
-      <PopoverTrigger asChild><button type="button" aria-label={`模型目录不可用：${catalogError}`}
-        className="inline-flex h-8 max-w-[14rem] items-center gap-1 rounded-md px-2 text-xs text-muted-foreground outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring">
-        <span className="truncate">模型目录不可用</span><ChevronDown className="size-3 shrink-0"/>
+  const refreshCatalog = () => {if (!providedCatalog && !loadError) setCatalogRevision(version => version + 1)}
+  const openConfig = () => void openModelConfig().catch(reason => toast.error(reason instanceof Error ? reason.message : '无法打开模型配置文件'))
+  const configButton = isDesktop() && <button type="button" className="shrink-0 rounded text-xs text-signal underline-offset-2 hover:underline focus-visible:ring-2 focus-visible:ring-ring"
+    onClick={openConfig}>打开模型配置</button>
+  if (catalogReady && !catalog) {
+    return <Popover open={open} onOpenChange={next => {setOpen(next); if (next) refreshCatalog()}}>
+      <PopoverTrigger asChild><button type="button" aria-label={`模型与思考：${catalogError ? '目录读取失败' : '未配置模型'}`}
+        className="model-picker-trigger inline-flex h-8 min-w-0 items-center gap-1 rounded-md px-2 text-xs text-muted-foreground outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring">
+        <span className="truncate">{catalogError ? '模型目录不可用' : '未配置模型'}</span><ChevronDown className="size-3 shrink-0"/>
       </button></PopoverTrigger>
       <PopoverContent side="top" align="end" className="w-80 max-w-[calc(100vw-2rem)] p-3">
-        <p role="alert" className="text-xs text-state-failed">{catalogError}</p>
+        <p role={catalogError ? 'alert' : undefined} className={cn('mb-2 text-xs', catalogError ? 'text-state-failed' : 'text-muted-foreground')}>
+          {catalogError ?? '在模型配置中填入提供商的连接信息和模型名称。'}
+        </p>
+        {configButton}
       </PopoverContent>
     </Popover>
   }
@@ -128,7 +140,7 @@ export function ModelPicker({sessionId, savedModel, savedReasoning, onSelection,
   }
   function row(item: CatalogModel) {
     const selected = edit.model === item.id
-    return <button key={item.id} role="radio" aria-checked={selected} type="button" disabled={saving} title={item.id}
+    return <button key={item.id} role="radio" aria-checked={selected} type="button" disabled={saving} title={modelFacts(item)}
       tabIndex={selected || (!listed.some(candidate => candidate.id === edit.model) && listed[0] === item) ? 0 : -1}
       onKeyDown={event => {
         if (!['ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) return
@@ -149,23 +161,27 @@ export function ModelPicker({sessionId, savedModel, savedReasoning, onSelection,
   const status = error ?? (saving ? '正在保存' : notice ?? (enabled ? null : '已关闭'))
   return <Popover open={open} onOpenChange={value => {
     if (saving) return
-    if (value) {setOpen(true); setDraft(selection); setError(null); setNotice(null); return}
+    if (value) {setOpen(true); setDraft(selection); setError(null); setNotice(null); refreshCatalog(); return}
     return commitClose()
   }}>
     <PopoverTrigger asChild><button type="button" aria-label={inheritSession ? '模型与思考：沿用对话设置' : `模型与思考：${selection.model}，思考${reasoningLabel(selection.reasoning)}`}
-      className="group/trigger inline-flex h-8 max-w-[15rem] items-center gap-1.5 rounded-md px-2 text-xs text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:bg-muted data-[state=open]:text-foreground">
-      {!inheritSession && triggerVendor && <VendorIcon vendor={triggerVendor} className="size-3"/>}
+      className="model-picker-trigger group/trigger inline-flex h-8 min-w-0 max-w-[15rem] items-center gap-1.5 rounded-md px-2 text-xs text-muted-foreground outline-none hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:bg-muted data-[state=open]:text-foreground">
+      {!inheritSession && triggerVendor && <VendorIcon vendor={triggerVendor} className="size-3 shrink-0"/>}
       <span className="truncate font-medium" title={inheritSession ? '沿用对话设置' : selection.model}>{inheritSession ? '沿用对话设置' : selection.model}</span>
-      {!inheritSession && visibility.reasoningInTrigger && <span className="shrink-0 text-faint group-hover/trigger:text-muted-foreground">{reasoningLabel(selection.reasoning)}</span>}
+      {!inheritSession && visibility.reasoningInTrigger && <span data-trigger-effort className="shrink-0 text-faint group-hover/trigger:text-muted-foreground">{reasoningLabel(selection.reasoning)}</span>}
       <ChevronDown className="size-3 shrink-0 transition-transform duration-150 group-data-[state=open]/trigger:rotate-180 motion-reduce:transition-none"/>
     </button></PopoverTrigger>
-    <PopoverContent side="top" align="end" className="w-80 max-w-[calc(100vw-2rem)] p-1.5" onEscapeKeyDown={e => {if (saving) e.preventDefault()}} onInteractOutside={e => {if (saving) e.preventDefault()}}>
+    <PopoverContent side="top" align="end" className="max-h-(--radix-popover-content-available-height) w-80 max-w-[calc(100vw-2rem)] overflow-y-auto p-1.5" onEscapeKeyDown={e => {if (saving) e.preventDefault()}} onInteractOutside={e => {if (saving) e.preventDefault()}}>
       <div role="radiogroup" aria-label="模型" className="space-y-1">{groups.map(group => <div key={group.id} role="group" aria-label={group.label}>
         <div aria-hidden className="flex h-7 items-center gap-2 px-2 text-xs font-medium text-muted-foreground">
           <VendorIcon vendor={group.id}/>{group.label}
         </div>
         {group.models.map(row)}
       </div>)}</div>
+      {!groups.some(group => group.id === 'deepseek') && <div className="mx-2 mt-1 flex flex-wrap items-center justify-between gap-x-2 gap-y-1 text-xs text-muted-foreground">
+        <span>当前配置未提供 DeepSeek。</span>{configButton}
+      </div>}
+      {catalogError && <p role="alert" className="mx-2 mt-1 text-xs text-state-failed">{catalogError}</p>}
       {!model && <p role="alert" className="mx-2 mt-2 text-xs text-state-failed">所选模型暂不可用，请选择其他模型</p>}
       {model && model.reasoning_options.length > 0 && <div className="mt-1.5 border-t px-2 pt-2">
         <div className="flex h-7 items-center gap-2">

@@ -250,7 +250,7 @@ export function SaveBar({dirty, saving, invalid, savedAt, saveError, onReset, la
   }
 
   return (
-    <div className="sticky bottom-0 -mx-1 mt-2 flex flex-wrap items-center gap-3 border-t bg-background/95 px-1 py-3 backdrop-blur">
+    <div className="sticky bottom-0 mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-border/70 bg-background/95 px-3 py-2 shadow-sm backdrop-blur">
       <p className="min-w-0 flex-1 text-meta" aria-live="polite">{status}</p>
       <Button type="button" variant="ghost" size="sm" onClick={() => onReset()} disabled={!dirty || saving}>
         撤销修改
@@ -269,7 +269,7 @@ export function SaveBar({dirty, saving, invalid, savedAt, saveError, onReset, la
  * 有未保存修改时拦截离开：刷新或关闭标签页走浏览器原生提示；
  * 站内跳转拦截带 href 的链接和标了 data-navigate 的按钮（App Router 没有导航拦截接口）。
  */
-export function useUnsavedGuard(dirty: boolean, message = '有未保存的修改，离开后会丢失。确定离开吗？') {
+export function useUnsavedGuard(dirty: boolean, onBlocked?: () => void) {
   useEffect(() => {
     if (!dirty) return
     const onBeforeUnload = (e: BeforeUnloadEvent) => {
@@ -284,10 +284,9 @@ export function useUnsavedGuard(dirty: boolean, message = '有未保存的修改
         const url = new URL(target.href, window.location.href)
         if (url.origin === window.location.origin && url.pathname === window.location.pathname) return
       }
-      if (!window.confirm(message)) {
-        e.preventDefault()
-        e.stopPropagation()
-      }
+      e.preventDefault()
+      e.stopPropagation()
+      onBlocked?.()
     }
     window.addEventListener('beforeunload', onBeforeUnload)
     document.addEventListener('click', onClick, true)
@@ -295,7 +294,7 @@ export function useUnsavedGuard(dirty: boolean, message = '有未保存的修改
       window.removeEventListener('beforeunload', onBeforeUnload)
       document.removeEventListener('click', onClick, true)
     }
-  }, [dirty, message])
+  }, [dirty, onBlocked])
 }
 
 // ---------- 校验工具 ----------

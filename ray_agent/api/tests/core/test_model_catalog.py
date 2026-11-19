@@ -114,6 +114,19 @@ def test_auxiliary_call_uses_flash_without_thinking():
     assert wide[0].context_window == 1_000_000
 
 
+def test_auxiliary_call_uses_available_provider_if_default_is_unconfigured(isolated_model_connections):
+    config = connect(LLMConfig(), isolated_model_connections, '''
+[providers.gpt]
+base_url = "https://gpt.test/v1"
+api_key = "sk-test"
+models = ["gpt-6.1-sol"]
+''')
+    short, thinking, effort = auxiliary_call(config, max_tokens=256, temperature=0.2, timeout=20)
+    assert short.model_name == "gpt-6.1-sol"
+    assert str(short.base_url) == "https://gpt.test/v1"
+    assert thinking is None and effort == "low"
+
+
 def test_extra_endpoint_uses_app_window_and_openai_effort(isolated_model_connections):
     config = connect(LLMConfig(), isolated_model_connections,
                      providers(gpt_url="https://api.xiaoyiapi.xyz/v1", gpt_key="sk-test"))

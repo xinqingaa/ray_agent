@@ -2,7 +2,7 @@ import type {PlanAcceptance, WorkspaceItem} from '@/lib/api/types'
 
 import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode} from 'react'
 import {toast} from 'sonner'
-import {ArrowDown, Code2, Eye, Folder, History, Inbox, MessageCircle, PanelRight, Pencil} from '@/components/ui/icons'
+import {ArrowDown, Code2, MessageCircle, PanelRight, Pencil} from '@/components/ui/icons'
 import {SegmentedControl} from '@/components/ui/segmented-control'
 import {ChatInput, type ChatInputRef} from '@/components/chat-input'
 import {RenameSessionDialog} from '@/components/rename-session-dialog'
@@ -16,10 +16,10 @@ import {RUN_INPUT_HINT, RunStatus} from '@/components/run/run-status'
 import {Timeline, type TimelineHandlers} from '@/components/run/timeline-item'
 import {downloadFileBatch, isWebPage, openPreviewTab} from '@/lib/api/preview'
 import {FilePreviewDialog} from '@/components/preview/file-preview-dialog'
-import {downloadSessionFile, tabForFamily, Workbench, type WorkbenchTab} from '@/components/workbench/workbench'
+import {downloadSessionFile, Workbench} from '@/components/workbench/workbench'
 import {describeWorkspace} from '@/lib/workspace-state'
 import {FolderPanel, type FolderPanelRef, type FolderPanelTab} from '@/components/workspace/folder-panel'
-import {TaskInspector, TaskLayout, useTaskInspector} from '@/components/task-layout'
+import {TaskInspector, TaskInspectorTabs, TaskLayout, useTaskInspector} from '@/components/task-layout'
 import {TopbarActions, TopbarTitle} from '@/components/sidebar-chrome'
 import {FilePreview} from '@/components/preview/file-preview'
 import {FileRow} from '@/components/preview/file-row'
@@ -39,14 +39,14 @@ import {normalizeEvents} from '@/lib/session-events'
 import {canExecutePlan, planBarMode} from '@/lib/session-projection'
 import {ApiError} from '@/lib/api/fetch'
 import type {FileInfo, SSEEventOf} from '@/lib/api/types'
-import type {FileView, TimelineItem, ToolCallView, ToolFamily} from '@/lib/session-view'
+import type {FileView, TimelineItem, ToolCallView} from '@/lib/session-view'
 
 export interface SessionDetailViewProps {
   sessionId: string
   /** 工作区会话：右侧面板在文件夹与工作台之间切换，输入框随工作区状态只读 */
   workspace?: WorkspaceItem
   /** 运行结束后显示在时间线末尾的内容（如撤销本次修改）；参数是最近一次运行的 id，还没有运行时为 null */
-  runFooter?: (runId: string | null) => ReactNode
+  renderRunActions?: (runId: string) => ReactNode
 }
 
 type ApprovalSubmitting = {callId: string; decision: 'approve' | 'reject'}
@@ -77,17 +77,10 @@ function latestCompactionId(items: TimelineItem[] | undefined): string | null {
   return null
 }
 
-function lastOf(calls: ToolCallView[], family: ToolFamily): ToolCallView | null {
-  for (let i = calls.length - 1; i >= 0; i--) {
-    if (calls[i].family === family) return calls[i]
-  }
-  return null
-}
-
 export function SessionDetailView({
   sessionId,
   workspace,
-  runFooter,
+  renderRunActions,
 }: SessionDetailViewProps) {
   const {visibility} = useDeveloperMode()
   const {hash, search} = useLocation()
@@ -121,20 +114,17 @@ export function SessionDetailView({
   const [selectedMode, setMode] = useState<'conversation' | 'developer'>('conversation')
   const mode = visibility.developerView ? selectedMode : 'conversation'
   const [developerVisited, setDeveloperVisited] = useState(false)
-  const [pinnedCallId, setPinnedCallId] = useState<string | null>(null)
+  const [inspection, setInspection] = useState<{callId: string | null; request: number} | null>(null)
   const {open: workbenchOpen, setOpen: setWorkbenchOpen, floating: inspectorFloating} = useTaskInspector(workspace != null)
   const [panelView, setPanelView] = useState<FolderPanelTab | 'workbench'>(workspace ? 'folder' : 'workbench')
+  const [toolbarTarget, setToolbarTarget] = useState<HTMLDivElement | null>(null)
   const [inspectorFile, setInspectorFile] = useState<FileView | null>(null)
   const inspectorTrigger = useRef<HTMLButtonElement>(null)
   const folderPanel = useRef<FolderPanelRef>(null)
   const composer = useRef<ChatInputRef>(null)
   const [renameOpen, setRenameOpen] = useState(false)
   const [renamedTitle, setRenamedTitle] = useState<{sessionId: string; title: string; previousTitle: string} | null>(null)
-  const [tab, setTab] = useState<WorkbenchTab>('files')
-  const [tabForId, setTabForId] = useState<string | null>(null)
   const [previewedFile, setPreviewedFile] = useState<FileView | null>(null)
-  const [inspectingFile, setInspectingFile] = useState(false)
-  const [inspectedAtCallId, setInspectedAtCallId] = useState<string | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const developerScrollRef = useRef<HTMLDivElement>(null)
   const scrollPositions = useRef({conversation: 0, developer: 0})
@@ -229,20 +219,9 @@ export function SessionDetailView({
   const waitingApproval = view?.activeRun?.activity.kind === 'waiting_approval'
   const visibleCalls = calls.filter(call => visibility.canInspectTool(call.family))
   const latest = visibleCalls.length > 0 ? visibleCalls[visibleCalls.length - 1] : null
-  const pin = pinnedCallId && visibleCalls.some((call) => call.callId === pinnedCallId) ? pinnedCallId : null
-  const focus = pin ? visibleCalls.find((call) => call.callId === pin) ?? latest : latest
-  const following = pin == null && !inspectingFile
-  const focusId = focus?.callId ?? null
-  const shellCall = focus?.family === 'shell' ? focus : lastOf(calls, 'shell')
-  const browserCall = focus?.family === 'browser' ? focus : lastOf(calls, 'browser')
-  const run = view && view.runs.length > 0 ? view.runs[view.runs.length - 1] : null
-
-  if (focusId !== tabForId) {
-    setTabForId(focusId)
-    if (focus && !inspectingFile) setTab(tabForFamily(focus.family))
-  }
-
-
+  const pin = visibleCalls.find(call => call.callId === inspection?.callId) ?? null
+  const focus = inspection ? pin ?? latest : null
+  const run = view?.runs.at(-1) ?? null
 
   const participation = session?.participate_in_memory
   const scopedSessionId = session?.session_id
@@ -280,7 +259,8 @@ export function SessionDetailView({
 
   useEffect(() => {
     setOutgoing(null)
-    setInspectingFile(false)
+    setInspection(null)
+    setInspectorFile(null)
     setPreviewedFile(null)
     const saved = readRetryDisplay(sessionId)
     setHiddenRunIds(saved.hiddenRunIds)
@@ -448,6 +428,25 @@ export function SessionDetailView({
     return found
   }, [view?.events])
   const latestCompletedId = view?.runs.filter(run => run.status === 'completed').at(-1)?.id
+  const folderPath = workspace?.folder?.path
+  const inspectedRunId = view?.activeRun?.id ?? view?.runs.at(-1)?.id
+  const readPaths = useMemo(() => {
+    if (!folderPath || !inspectedRunId) return undefined
+    const prefix = folderPath.replaceAll('\\', '/').replace(/\/+$/, '') + '/'
+    const paths = new Set<string>()
+    for (const item of view?.timeline ?? []) {
+      if (item.runId !== inspectedRunId) continue
+      const calls = item.kind === 'tools' ? item.calls : item.kind === 'approval' ? [item.call] : []
+      for (const call of calls) {
+        if (call.name !== 'read_file' || call.status !== 'succeeded') continue
+        const result = call.raw.content as {filepath?: unknown; outcome?: {data?: {filepath?: unknown}}} | null
+        const filename = result?.outcome?.data?.filepath ?? result?.filepath
+        const path = typeof filename === 'string' ? filename.replaceAll('\\', '/') : null
+        if (path?.startsWith(prefix)) paths.add(path.slice(prefix.length))
+      }
+    }
+    return paths
+  }, [folderPath, inspectedRunId, view?.timeline])
 
   useEffect(() => {
     if (!hash) {locatedSource.current = ''; return}
@@ -474,7 +473,7 @@ export function SessionDetailView({
         .catch(error => toast.error(error instanceof Error ? error.message : '打开失败'))
     } else {
       setInspectorFile(file)
-      setPanelView('workbench')
+      setPanelView('delivered')
       setWorkbenchOpen(true)
     }
   }, [search, setWorkbenchOpen, view?.files])
@@ -492,17 +491,16 @@ export function SessionDetailView({
     selectedCallId: focus?.callId ?? null,
     // 工作区会话的右侧面板也带工作台：点工具卡片切到工作台并选中该工具
     onOpenCall: (callId) => {
-      setInspectingFile(false)
-      setPinnedCallId(callId)
+      setInspection(current => ({callId, request: (current?.request ?? 0) + 1}))
       setPanelView('workbench')
       setInspectorFile(null)
+      folderPanel.current?.closePreview()
       setWorkbenchOpen(true)
     },
     onPreviewFile: (file) => {
       if (isWebPage(file.filename)) void openPreviewTab({kind: 'attachment', id: file.id, filename: file.filename, size: file.size}).catch(error => toast.error(error instanceof Error ? error.message : '打开失败'))
       else if (file.source === 'delivery') {
         setInspectorFile(file)
-        setPanelView('workbench')
         setWorkbenchOpen(true)
       } else setPreviewedFile(file)
     },
@@ -540,10 +538,12 @@ export function SessionDetailView({
     renderMemoryNotice: runId => {
       const sequence = finishedSequences.get(runId)
       return workspace && runId === latestCompletedId && sequence != null
-        ? <RunMemoryNotice key={runId} workspaceId={workspace.id} sessionId={sessionId} sequence={sequence} follow/>
+        ? <RunMemoryNotice key={runId} workspaceId={workspace.id} sessionId={sessionId} sequence={sequence} follow
+            readOnly={workspace.status === 'archived' || workspace.status === 'deleting'}/>
         : null
     },
-  }), [view?.id, view?.runs, view?.timeline, focus?.callId, view?.activeRun, view?.streamingItemId, submitting, retrying, hiddenRunIds, hiddenUserIds, sessionId, workspace, downloadOne, downloadAll, deliver, handleApproval, approvalSubmitting, finishedSequences, latestCompletedId, setWorkbenchOpen])
+    renderRunActions: runId => !view?.activeRun && runId === run?.id ? renderRunActions?.(runId) : null,
+  }), [view?.id, view?.runs, view?.timeline, focus?.callId, view?.activeRun, view?.streamingItemId, submitting, retrying, hiddenRunIds, hiddenUserIds, sessionId, workspace, downloadOne, downloadAll, deliver, handleApproval, approvalSubmitting, finishedSequences, latestCompletedId, setWorkbenchOpen, run?.id, renderRunActions])
 
   const toggleParticipate = useCallback(async (participate: boolean) => {
     if (!workspace || participateBusy) return
@@ -644,49 +644,36 @@ export function SessionDetailView({
     />
   )
 
-  const workbench = (
-    <Workbench
-      active={workbenchOpen && panelView === 'workbench' && inspectorFile == null}
-      sessionId={sessionId}
-      focus={focus}
-      following={following}
-      shellCall={shellCall}
-      browserCall={browserCall}
-      files={view.files}
-      tab={tab}
-      onTab={setTab}
-      onInspectFile={() => {setInspectingFile(true);setInspectedAtCallId(latest?.callId ?? null)}}
-      canFollowLatest={!!latest && (inspectingFile ? latest.callId !== inspectedAtCallId : pin !== latest.callId)}
-      onFollowLatest={() => {setPinnedCallId(null);setInspectingFile(false);if(latest)setTab(tabForFamily(latest.family))}}
-      className="h-full w-full"
-    />
-  )
+  const planControls = (historyAction?: ReactNode, historyOpen?: boolean) => planBarState
+    ? <PlanBar plan={view.plan} runStatus={view.activeRun?.status ?? null}
+        proposal={planBarState === 'proposal'} historyAction={historyAction} historyOpen={historyOpen} className="min-w-0 flex-1"/>
+    : historyAction
+  const planHistory = view.planHistory ?? []
   const deliveries = view.files.filter(file => file.source === 'delivery')
   const panel = <div className="flex h-full min-h-0 flex-col">
-    <div className="flex h-12 shrink-0 items-center justify-between gap-1 px-3">
-      <SegmentedControl<FolderPanelTab | 'workbench'> value={panelView} appearance="icons"
-        onValueChange={next => {setInspectorFile(null); setPanelView(next)}} label="右侧面板内容"
-        options={[
-          ...(workspace ? [{value: 'folder' as const, label: '文件夹', icon: Folder}] : []),
-          {value: 'delivered', label: '成果', icon: Inbox},
-          {value: 'workbench', label: '查看', icon: Eye},
-          ...(workspace ? [{value: 'recent' as const, label: '修改', icon: History}] : []),
-        ]}/>
-      <IconAction label="收起右侧面板" onClick={() => {setWorkbenchOpen(false); inspectorTrigger.current?.focus()}}><PanelRight/></IconAction>
-    </div>
-    {workspace && <div className={cn('min-h-0 flex-1', panelView === 'workbench' && 'hidden')}>
+    <TaskInspectorTabs value={panelView} workspace={workspace != null} onActions={setToolbarTarget}
+      onChange={next => {setInspectorFile(null); folderPanel.current?.closePreview(); setPanelView(next)}}
+      onClose={inspectorFloating ? () => {setWorkbenchOpen(false); inspectorTrigger.current?.focus()} : undefined}/>
+    {workspace && <div className={cn('min-h-0 flex-1', (panelView === 'workbench' || inspectorFile) && 'hidden')}>
       <FolderPanel ref={folderPanel} workspace={workspace} embedded selectedTab={panelView === 'workbench' ? 'folder' : panelView}
+        toolbarTarget={inspectorFile ? null : toolbarTarget} readPaths={readPaths} visible={workbenchOpen && panelView !== 'workbench' && !inspectorFile}
         deliveries={deliveries} className="h-full w-full"/>
     </div>}
-    {!workspace && panelView === 'delivered' && <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-3">
-      {deliveries.length ? deliveries.map(file => <FileRow key={file.id} file={file} onOpen={() => handlers.onPreviewFile?.(file)}/>)
-        : <p className="py-8 text-center text-meta text-muted-foreground">这个对话还没有交付文件。</p>}
+    {!workspace && panelView === 'delivered' && !inspectorFile && <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-3">
+      {deliveries.length ? <>
+        <h2 className="px-1.5 py-1.5 text-xs font-medium text-faint">本次交付</h2>
+        {deliveries.map(file => <FileRow key={file.id} file={file} versionLabel="交付版本" onOpen={() => handlers.onPreviewFile?.(file)}/>)}
+      </> : <p className="py-8 text-center text-meta text-muted-foreground">这个对话还没有交付文件。</p>}
     </div>}
-    {inspectorFile && panelView === 'workbench' && <div className="min-h-0 flex-1">
+    {inspectorFile && <div className="min-h-0 flex-1">
       <FilePreview source={{kind: 'attachment', id: inspectorFile.id, filename: inspectorFile.filename, size: inspectorFile.size}}
-        onBack={() => {setInspectorFile(null); setPanelView('delivered')}}/>
+        onBack={() => setInspectorFile(null)}/>
     </div>}
-    <div className={cn('min-h-0 flex-1', (panelView !== 'workbench' || inspectorFile) && 'hidden')}>{workbench}</div>
+    <div className={cn('min-h-0 flex-1', (panelView !== 'workbench' || inspectorFile) && 'hidden')}>
+      <Workbench key={inspection?.request ?? 0} focus={focus} files={view.files}
+        canFollowLatest={!!latest && (!inspection || !!pin && latest.callId !== pin.callId)}
+        onFollowLatest={() => setInspection(current => ({callId: null, request: (current?.request ?? 0) + 1}))}/>
+    </div>
   </div>
   const workspaceState = workspace ? describeWorkspace(workspace) : null
   const readOnlyReason = workspaceState?.deleting ? '工作区正在删除，对话不可再发送。' : workspaceState?.archived ? '工作区已归档，对话为只读。取消归档后可以继续。' : null
@@ -704,12 +691,13 @@ export function SessionDetailView({
         attach={readOnlyReason || mode !== 'conversation' || waitingApproval || submitting ? undefined : files => composer.current?.addFiles(files)}
         addToFolder={!workspaceState?.writable || mode !== 'conversation' ? undefined : files => {
           folderPanel.current?.addFiles(files)
+          setInspectorFile(null)
           setPanelView('folder')
           setWorkbenchOpen(true)
         }}
         inspector={<TaskInspector open={workbenchOpen} onClose={() => setWorkbenchOpen(false)} label={panelName}
           floating={inspectorFloating} belowSessionMode={visibility.developerView} triggerRef={inspectorTrigger}>{panel}</TaskInspector>}>
-          <header className="flex min-h-12 shrink-0 items-center gap-2 px-4 py-1.5">
+          <header className={cn('flex shrink-0 items-center gap-2 px-4', (workspace || visibility.developerView) && 'min-h-11 py-1.5')}>
             <h1 className="sr-only">{displayTitle}</h1>
             <div className="mr-auto">
               {workspace && <label className="flex items-center gap-1.5 text-xs text-muted-foreground" title="关闭后不再从此对话提炼记忆">
@@ -726,8 +714,8 @@ export function SessionDetailView({
           <div className="min-h-0 flex-1 overflow-hidden">
             <div className={cn('flex h-full w-[200%] transition-transform duration-200 ease-out motion-reduce:transition-none', mode === 'developer' && '-translate-x-1/2')}>
               <div id="session-mode-panel-conversation" role={visibility.developerView ? 'tabpanel' : undefined} aria-label="聊天" aria-labelledby={visibility.developerView ? 'session-mode-conversation' : undefined} aria-hidden={mode !== 'conversation'} inert={mode !== 'conversation'} className="flex h-full min-w-0 w-1/2 shrink-0 flex-col">
-                <div ref={scrollRef} onScroll={onScroll} className="min-h-0 flex-1 overflow-y-auto">
-                  <div ref={messageContentRef} className="mx-auto flex w-full max-w-(--reading-column) flex-col gap-3 px-4 py-3">
+                <div ref={scrollRef} onScroll={onScroll} className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+                  <div ref={messageContentRef} className="session-reading mx-auto flex w-full max-w-(--reading-column) flex-col gap-4 py-5">
                     {shownTimeline.length === 0 && !showOptimistic && (
                       <p className="py-8 text-center text-meta text-faint">
                         这里会显示你的消息、工具操作和最终回复。在下方输入任务后开始。
@@ -736,7 +724,6 @@ export function SessionDetailView({
                     <Timeline items={shownTimeline} runs={shownRuns} streaming={view.streaming} activeStatus={timelineStatus} handlers={handlers}/>
                     {showOptimistic && outgoing ? <UserMessage text={outgoing.text} skillName={outgoing.skillName}/> : null}
                     {!view.activeRun && timelineStatus}
-                    {!view.activeRun && runFooter?.(run?.id ?? null)}
                     {showPlanExecute && <PlanExecuteBar disabled={submitting || pendingSend} onExecute={() => {
                         void deliver('按计划执行', [], {mode: 'normal', execute_plan: {source_run_id: view.plan!.sourceRunId!, plan_id: view.plan!.planId!, source_seq: view.plan!.sourceSeq!, request_id: crypto.randomUUID()}}).catch((err: unknown) => {
                           if (err instanceof ApiError && err.code === 'conflict') {
@@ -758,16 +745,16 @@ export function SessionDetailView({
                     }}><ArrowDown className="size-4" aria-hidden/></IconAction>
                   </div>}
                   <div ref={setPlanColumn} className="mx-auto w-full max-w-(--reading-column)">
-                    {mode === 'conversation' && <div className="mb-2 flex items-center justify-end gap-1.5">
-                      {planBarState && <PlanBar plan={view.plan} runStatus={view.activeRun?.status ?? null}
-                        proposal={planBarState === 'proposal'} className="min-w-0 flex-1"/>}
-                      {(view.planHistory?.length ?? 0) > 0 &&
-                        <PlanListDialog key={sessionId} plans={view.planHistory ?? []} runs={view.runs} panelWidth={planPanelWidth}/>}
+                    {mode === 'conversation' && (planBarState || planHistory.length > 0) && <div className="mb-2 flex items-center justify-end">
+                      {planHistory.length > 0 ? <PlanListDialog key={sessionId} plans={planHistory} runs={view.runs} panelWidth={planPanelWidth}>
+                        {planControls}
+                      </PlanListDialog> : planControls()}
                     </div>}
                     {readOnlyReason ? <p role="status" className="rounded-lg border bg-muted/40 px-3.5 py-3 text-center text-sm text-muted-foreground">{readOnlyReason}</p> : (
                     <ChatInput
                       ref={composer}
                       sessionId={sessionId}
+                      workspace={workspace != null}
                       onSend={handleSend}
                       pause={pauseMode}
                       onPause={() => void handleStop()}
@@ -777,7 +764,7 @@ export function SessionDetailView({
                       savedReasoning={session?.reasoning}
                       runModel={session?.run_model}
                       runReasoning={session?.run_reasoning}
-                      accessory={() => visibility.contextUsage ? <ContextRing usage={view.usage}/> : null}
+                      accessory={<ContextRing usage={view.usage} technical={visibility.developerView}/>}
                       commandHost={{
                         hasSession: true,
                         hasRuns: view.runs.length > 0,

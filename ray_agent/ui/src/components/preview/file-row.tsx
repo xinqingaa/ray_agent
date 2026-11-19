@@ -1,18 +1,19 @@
-import {createElement, type ReactNode} from 'react'
-import {fileIcon, previewBodyKind, previewUnavailableReason} from '@/components/run/file-icon'
+import type {ReactNode} from 'react'
+import {FileTypeBadge, previewBodyKind, previewUnavailableReason} from '@/components/run/file-icon'
 import {AttachmentThumbnail} from './attachment-thumbnail'
 import {formatBytes} from '@/components/run/format'
 import type {FileView} from '@/lib/session-view'
 import {cn} from '@/lib/utils'
 
 /** 原生按钮覆盖整行，操作按钮作为同级元素，避免下载触发预览。 */
-export function FileRow({file, onOpen, actions, children, compact = false, showThumbnail = false}: {
+export function FileRow({file, onOpen, actions, children, compact = false, showThumbnail = false, versionLabel}: {
   file: FileView
   onOpen?: () => void
   actions?: ReactNode
   children?: ReactNode
   compact?: boolean
   showThumbnail?: boolean
+  versionLabel?: string
 }) {
   const unavailable = previewUnavailableReason(file.extension)
   if (showThumbnail && previewBodyKind(file.extension) === 'image') return <div className="min-w-0 max-w-full">
@@ -26,16 +27,14 @@ export function FileRow({file, onOpen, actions, children, compact = false, showT
     compact ? 'max-w-full border bg-card px-2 py-1 text-xs' : 'px-2 py-2')}>
     <button type="button" aria-label={`查看 ${file.filename}`} title={file.filename} disabled={!onOpen}
       onClick={onOpen} className="absolute inset-0 z-0 cursor-pointer rounded-md outline-none hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default"/>
-    <div className={cn('pointer-events-none relative flex shrink-0 items-center justify-center',
-      compact ? 'size-4' : 'size-8 rounded-md bg-muted')}>
-      {createElement(fileIcon(file.extension), {className:compact ? 'size-3.5 text-muted-foreground' : 'size-4 text-muted-foreground','aria-hidden':true})}
-    </div>
+    <div className="pointer-events-none relative flex shrink-0 items-center justify-center"><FileTypeBadge extension={file.extension} compact={compact || !!versionLabel}/></div>
     <div className={cn('pointer-events-none relative min-w-0 flex-1', compact && 'flex flex-wrap items-center gap-x-1.5 gap-y-1')}>
-      <span className={cn('block min-w-0 truncate group-hover:text-signal', !compact && 'text-sm font-medium')}>{file.filename}</span>
-      <span className="text-xs text-muted-foreground"><span className="tabular-nums">{formatBytes(file.size)}</span>
-        {unavailable && <span className="ml-2">仅下载</span>}</span>
+      <span className={cn('block min-w-0 truncate group-hover:text-signal', !compact && 'text-sm', !versionLabel && !compact && 'font-medium')}>{file.filename}</span>
+      {!versionLabel && <span className="text-xs text-muted-foreground"><span className="tabular-nums">{formatBytes(file.size)}</span>
+        {unavailable && <span className="ml-2">仅下载</span>}</span>}
       {children}
     </div>
+    {versionLabel && <span className="pointer-events-none relative shrink-0 text-xs text-faint">{versionLabel}</span>}
     {actions && <div className="relative z-10 flex shrink-0 items-center gap-1">{actions}</div>}
   </div>
 }

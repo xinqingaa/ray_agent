@@ -38,8 +38,29 @@ function normalizeExt(extension: string): string {
   return lower.startsWith('.') ? lower : `.${lower}`
 }
 
+export function fileExtension(path: string) {
+  const filename = path.split(/[\\/]/).at(-1) ?? path
+  const dot = filename.lastIndexOf('.')
+  return dot > 0 ? filename.slice(dot) : ''
+}
+
 export function fileIcon(extension: string): UiIcon {
   return BY_EXTENSION[normalizeExt(extension)] ?? File
+}
+
+const BADGES: Record<string, readonly [label: string, tone: string]> = {
+  '.pdf': ['PDF', 'rose'], '.xlsx': ['XLS', 'green'], '.xls': ['XLS', 'green'],
+  '.csv': ['CSV', 'green'], '.tsv': ['TSV', 'green'], '.docx': ['DOC', 'blue'],
+  '.md': ['MD', 'slate'], '.mdx': ['MD', 'slate'], '.markdown': ['MD', 'slate'], '.txt': ['TXT', 'slate'],
+  '.json': ['{ }', 'amber'],
+}
+
+export function FileTypeBadge({extension, compact = false}: {extension: string; compact?: boolean}) {
+  const ext = normalizeExt(extension)
+  const [label, tone] = BADGES[ext] ?? (IMAGE_EXT.has(ext) ? ['IMG', 'violet'] : [ext.slice(1, 4).toUpperCase(), 'slate'])
+  return <span aria-hidden="true" data-tone={tone} data-compact={compact} className="file-type-badge">
+    {label || <File className="size-3.5"/>}
+  </span>
 }
 
 const PREVIEWABLE = new Set([

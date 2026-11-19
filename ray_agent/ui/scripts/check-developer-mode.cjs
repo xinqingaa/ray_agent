@@ -6,6 +6,7 @@ const root = path.resolve(__dirname, '..'), ts = require('typescript'), cache = 
 global.IS_REACT_ACT_ENVIRONMENT = true;
 const events = new EventTarget(), storage = new Map(), timers = new Set();
 let writeBlocked = false, downloaded;
+const manifests = [];
 global.window = {localStorage: {getItem: key => storage.get(key) ?? null, setItem: (key,value) => {if(writeBlocked) throw Error('blocked'); storage.set(key,value)}}, addEventListener: events.addEventListener.bind(events), removeEventListener: events.removeEventListener.bind(events), dispatchEvent: events.dispatchEvent.bind(events), setInterval: fn => {timers.add(fn); return fn}, clearInterval: fn => timers.delete(fn)};
 const ui = new Proxy({}, {get: (_,name) => props => React.createElement(name === 'Button' ? 'button' : 'div', props, props.children)});
 function load(file) {
@@ -19,6 +20,7 @@ function load(file) {
   if(name === '@/lib/utils') return {cn:(...xs)=>xs.filter(Boolean).join(' ')};
   if(name === '@/lib/api/session') return {sessionApi:{}};
   if(name === '@/lib/api/file') return {fileApi:{}};
+  if(name === '@/lib/api/memory') return {memoryApi:{contextManifest:runId=>new Promise((resolve,reject)=>manifests.push({runId,resolve,reject}))}};
   if(name === '@/lib/api/preview') return {...load('lib/api/preview.ts'),downloadFileBatch:async files=>{downloaded=files}};
   if(name === '@/components/run/file-icon') return {previewUnavailableReason:()=>null};
   if(name === './clock') return {useNow:()=>0};
@@ -35,6 +37,34 @@ let mode;
 function Probe(){mode=useDeveloperMode(); return React.createElement('p',{},String(mode.enabled))}
 const text = r => JSON.stringify(r.toJSON());
 const call = {callId:'private-call-id',family:'shell',verb:'执行命令',toolset:'shell',name:'execute',target:'private-command',startedAt:0,status:'running',raw:{args:{session_id:'shell-session',command:'private-command'},content:{session_id:'shell-session'}},result:{summary:'技术计数'}};
+
+async function checkReferences() {
+ const {RunReferences}=load('components/run/run-references.tsx');
+ const summary=body=>({instruction_body:body,instruction_version:1,resident_memories:[],retrieval_hits:[],omissions:[]});
+ const view=runId=>React.createElement(RunReferences,{runId});
+ let reader;
+ const toggle=()=>reader.root.findByType('button').props.onClick();
+ await act(async()=>{reader=create(view('first'))});
+ await act(async()=>toggle());
+ assert.equal(manifests[0].runId,'first');
+ assert.ok(text(reader).includes('正在读取'));
+ await act(async()=>reader.update(view('second')));
+ await act(async()=>toggle());
+ assert.equal(manifests[1].runId,'second');
+ await act(async()=>manifests[0].resolve(summary('上次运行正文')));
+ assert.ok(!text(reader).includes('上次运行正文'));
+ await act(async()=>manifests[1].reject(Error('读取失败')));
+ assert.ok(text(reader).includes('读取失败'));
+ await act(async()=>reader.root.findAllByType('button').find(node=>node.children.includes('重试')).props.onClick());
+ await act(async()=>manifests[2].resolve(summary('本次工作方式正文')));
+ assert.ok(text(reader).includes('本次工作方式正文'));
+ assert.ok(!text(reader).includes('正在读取'));
+ await act(async()=>toggle());
+ await act(async()=>toggle());
+ assert.equal(manifests.length,3);
+ assert.ok(text(reader).includes('本次工作方式正文'));
+ await act(async()=>reader.unmount());
+}
 async function main(){
  let probe,r;
  await act(async()=>{probe=create(React.createElement(Probe))}); assert.equal(mode.enabled,false);
@@ -64,6 +94,7 @@ async function main(){
  await act(async()=>{r=create(React.createElement(ToolCard,{call:browser}))}); assert.equal(r.root.findAllByType('a').length,1);await act(async()=>r.unmount());
  const mcp={...call,family:'mcp',status:'succeeded',raw:{args:{},content:{outcome:{data:{text:'业务结果 42'}}}}};
  await act(async()=>{r=create(React.createElement(ToolCard,{call:mcp,defaultExpanded:true}))});assert.ok(text(r).includes('业务结果 42'));assert.ok(!text(r).includes('private-call-id'));await act(async()=>r.unmount());await act(async()=>probe.unmount());
- console.log('PASS: 实际 hook 存储/跨页事件/写入失败回退；工作台按开发者模式切换终端标签；隐藏标签回退；错误和业务结果保留；网址单入口');
+ await checkReferences();
+ console.log('PASS: 开发者模式、工作台权限、业务结果与参考清单的重试和迟到响应。');
 }
 main().catch(error=>{console.error(error);process.exitCode=1});

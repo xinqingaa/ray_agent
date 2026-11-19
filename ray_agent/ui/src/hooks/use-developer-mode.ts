@@ -11,7 +11,6 @@ export function createDeveloperVisibility(enabled: boolean) {
     toolDetails: enabled,
     toolMetrics: enabled,
     toolCounts: false,
-    contextUsage: enabled,
     requestMetrics: enabled,
     manualCompaction: enabled,
     terminal: enabled,

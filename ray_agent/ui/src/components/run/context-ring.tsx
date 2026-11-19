@@ -2,16 +2,13 @@ import {useState} from 'react'
 import {Tooltip, TooltipContent, TooltipTrigger} from '@/components/ui/tooltip'
 import {Popover, PopoverContent, PopoverTrigger} from '@/components/ui/popover'
 import {cn} from '@/lib/utils'
-import type {TokenCounts, UsageView} from '@/lib/session-view'
-import {cacheHitRate, formatTokens, hasTokenUsage, usageSummary} from './format'
+import type {UsageView} from '@/lib/session-view'
+import {cacheHitRate, formatCount, formatTokens, usageSummary} from './format'
 
-const SIZE = 18
-const STROKE = 2.5
-const R = (SIZE - STROKE) / 2
-const C = 2 * Math.PI * R
+const RADIUS = 7
+const CIRCUMFERENCE = 2 * Math.PI * RADIUS
 
 export type ContextLevel = 'none' | 'normal' | 'near' | 'over'
-
 export type ContextUsage = Pick<UsageView, 'context' | 'watermarkRatio'>
 
 export function contextLevel(usage: ContextUsage): ContextLevel {
@@ -24,150 +21,90 @@ export function contextLevel(usage: ContextUsage): ContextLevel {
   return ratio >= near ? 'near' : 'normal'
 }
 
-function occupancyValue(ctx: NonNullable<UsageView['context']>): string {
+function contextLabel(ctx: UsageView['context'] | undefined): string {
+  if (!ctx || ctx.windowTokens <= 0) return '上下文占用未知'
   const raw = ctx.usedTokens / ctx.windowTokens * 100
-  const percent = ctx.usedTokens > 0 && raw < 0.5 ? '<1%' : `${Math.round(raw)}%`
-  return `${percent} · ${formatTokens(ctx.usedTokens)} / ${formatTokens(ctx.windowTokens)}`
+  const percent = raw > 0 && raw < 0.5 ? '<1%' : `${Math.round(raw)}%`
+  const estimate = ctx.source === 'compact_estimate' || ctx.source === 'request_estimate' || ctx.postCompactEstimate
+  return `上下文占用 ${percent}${estimate ? '（估算）' : ctx.configChanged ? '（上次请求）' : ''}`
 }
 
-function contextMarks(ctx: UsageView['context']): {used: string | null; threshold: string | null} {
-  if (!ctx) return {used: null, threshold: null}
-  const compact = ctx.source === 'compact_estimate' || ctx.postCompactEstimate === true
-  const changed = ctx.configChanged === true
-  return {used: compact ? '估算' : changed ? '上次请求' : null, threshold: changed ? '上次请求' : null}
+function tokenValue(value: number | null | undefined): string {
+  return value == null ? '—' : `${formatCount(value)} Token`
 }
 
-function marked(name: string, mark: string | null): string {
-  return mark ? `${name} · ${mark}` : name
-}
-
-function occupancyLine(ctx: NonNullable<UsageView['context']>): string {
-  return `${marked('已用', contextMarks(ctx).used)} ${occupancyValue(ctx)}`
-}
-
-function thresholdText(usage: UsageView): string {
+function ContextPanel({usage, technical}: {usage: UsageView; technical: boolean}) {
   const ctx = usage.context
-  if (!ctx || ctx.windowTokens <= 0) return '—'
-  const tokens = ctx.watermarkTokens ?? (usage.watermarkRatio != null ? Math.round(usage.watermarkRatio * ctx.windowTokens) : null)
-  if (tokens == null) return '—'
-  const percent = Math.round(tokens / ctx.windowTokens * 100)
-  return `${formatTokens(tokens)}（${percent}%）`
-}
-
-function usageRows(tokens: TokenCounts): {label: string; value: string}[] {
-  const rate = cacheHitRate(tokens)
-  return [
-    {label: '累计输入', value: formatTokens(tokens.prompt)},
-    {label: '累计输出', value: formatTokens(tokens.completion)},
-    {label: '缓存命中', value: tokens.cached == null ? '—' : formatTokens(tokens.cached)},
-    {label: '缓存命中率', value: rate == null ? '—' : `${Math.round(rate * 100)}%`},
+  const compacted = ctx?.postCompactEstimate || ctx?.source === 'compact_estimate'
+  const last = usage.latestRequest ?? (!compacted ? ctx : null)
+  const currentWindow = usage.currentWindowTokens ?? (ctx?.configChanged ? null : ctx?.windowTokens)
+  const rows = [
+    {label: '最近请求', value: last ? `${formatCount(last.usedTokens)} / ${tokenValue(last.windowTokens)}` : '—'},
+    ...(compacted && ctx ? [{label: '压缩后估算', value: tokenValue(ctx.usedTokens)}] : []),
+    {label: '当前模型预算', value: tokenValue(currentWindow)},
+    {label: '会话累计输入', value: tokenValue(usage.session.prompt)},
+    {label: '会话累计输出', value: tokenValue(usage.session.completion)},
   ]
+  const cacheRate = cacheHitRate(usage.session)
+  return <section role="region" aria-label="上下文详情" className="text-meta">
+    <header className="flex items-center gap-2 font-semibold">
+      <ContextRingGlyph usage={usage} decorative/>
+      <h3>{contextLabel(ctx)}</h3>
+    </header>
+    {!last && <p className="mt-2 text-xs text-faint">尚无可用的模型请求记录。</p>}
+    <dl className="mt-3 grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-3 gap-y-1.5">
+      {rows.map(({label, value}) => <div key={label} className="contents">
+        <dt className="text-muted-foreground">{label}</dt>
+        <dd className="text-right font-mono text-xs tabular-nums">{value}</dd>
+      </div>)}
+    </dl>
+    {ctx?.fixedInputExceeded && <p className="mt-2 text-xs text-state-failed">固定上下文超过窗口容量。请调大上下文窗口。</p>}
+    {technical && <details className="mt-2 text-xs text-muted-foreground">
+      <summary className="cursor-pointer rounded-sm focus-visible:ring-2 focus-visible:ring-ring">压缩与缓存</summary>
+      <dl className="mt-2 grid grid-cols-[1fr_auto] gap-x-3 gap-y-1">
+        <dt>压缩阈值</dt><dd>{tokenValue(ctx?.watermarkTokens)}</dd>
+        <dt>缓存命中</dt><dd>{formatTokens(usage.session.cached)}</dd>
+        <dt>缓存命中率</dt><dd>{cacheRate == null ? '—' : `${Math.round(cacheRate * 100)}%`}</dd>
+      </dl>
+    </details>}
+  </section>
 }
 
-function MetricRows({rows}: {rows: {label: string; value: string}[]}) {
-  return rows.map((row) => (
-    <div key={row.label} className="contents">
-      <dt className="whitespace-nowrap text-muted-foreground">{row.label}</dt>
-      <dd className="whitespace-nowrap text-right text-foreground">{row.value}</dd>
-    </div>
-  ))
-}
-
-function ContextPanel({usage}: {usage: UsageView}) {
-  const ctx = usage.context
-  const ready = ctx != null && ctx.windowTokens > 0
-  const marks = contextMarks(ctx)
-  const occupancy = ready && ctx ? [
-    {label: marked('已用', marks.used), value: occupancyValue(ctx)},
-    {label: '最近一轮', value: formatTokens(ctx.lastTurnTokens)},
-    {label: marked('压缩阈值', marks.threshold), value: thresholdText(usage)},
-  ] : []
-  const totals = hasTokenUsage(usage.session) ? usageRows(usage.session) : []
-  return (
-    <div className="space-y-2">
-      <p className="text-sm font-semibold">上下文窗口</p>
-      {occupancy.length === 0 && <p className="text-meta text-muted-foreground">暂无占用</p>}
-      {occupancy.length > 0 && (
-        <dl className="grid grid-cols-[max-content_minmax(0,1fr)] items-baseline gap-x-6 gap-y-1.5 text-meta tabular-nums">
-          <MetricRows rows={occupancy}/>
-        </dl>
-      )}
-      {totals.length > 0 && (
-        <>
-          <div className="border-t"/>
-          <p className="text-sm font-semibold">用量统计</p>
-          <dl className="grid grid-cols-[max-content_minmax(0,1fr)] items-baseline gap-x-6 gap-y-1.5 text-meta tabular-nums">
-            <MetricRows rows={totals}/>
-          </dl>
-        </>
-      )}
-      {ctx?.fixedInputExceeded && (
-        <p className="text-meta text-state-failed">固定上下文（系统提示与工具说明）超过容量，压缩历史无法解决。请调大上下文窗口。</p>
-      )}
-    </div>
-  )
-}
-
-/** 纯圆环。悬停一行占用；点击再看最近一轮、压缩阈值和本会话用量。 */
-export function ContextRing({usage, className}: {usage: UsageView; className?: string}) {
+export function ContextRing({usage, className, technical = false}: {usage: UsageView; className?: string; technical?: boolean}) {
   const [open, setOpen] = useState(false)
   const [hover, setHover] = useState(false)
-  const ctx = usage.context
-  const level = contextLevel(usage)
-  const glance = ctx && ctx.windowTokens > 0 ? occupancyLine(ctx) : '暂无占用'
-  const label = hasTokenUsage(usage.session) ? `${glance}，${usageSummary(usage.session)}` : glance
-  return (
-    <Popover open={open} onOpenChange={(value) => {setOpen(value); if (value) setHover(false)}}>
-      <Tooltip open={!open && hover} onOpenChange={setHover}>
-        <TooltipTrigger asChild>
-          <PopoverTrigger asChild>
-            <button
-              type="button"
-              aria-label={label}
-              className={cn(
-                'inline-flex size-7 items-center justify-center rounded-md outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring [@media(pointer:coarse)]:size-11',
-                level === 'over' ? 'text-state-failed' : level === 'near' ? 'text-state-waiting' : 'text-muted-foreground',
-                className,
-              )}
-            >
-              <ContextRingGlyph usage={usage}/>
-            </button>
-          </PopoverTrigger>
-        </TooltipTrigger>
-        <TooltipContent side="top" className="text-left">{glance}</TooltipContent>
-      </Tooltip>
-      <PopoverContent side="top" align="end" className="w-max min-w-72 max-w-[calc(100vw-2rem)]">
-        <ContextPanel usage={usage}/>
-      </PopoverContent>
-    </Popover>
-  )
+  const glance = contextLabel(usage.context)
+  return <Popover open={open} onOpenChange={value => {setOpen(value); if (value) setHover(false)}}>
+    <Tooltip delayDuration={480} open={!open && hover} onOpenChange={setHover}>
+      <TooltipTrigger asChild>
+        <PopoverTrigger asChild>
+          <button type="button" aria-label={glance} aria-description={usageSummary(usage.session)}
+            className={cn('inline-flex size-[30px] shrink-0 items-center justify-center rounded-lg outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:bg-muted [@media(pointer:coarse)]:size-10', className)}>
+            <ContextRingGlyph usage={usage} decorative/>
+          </button>
+        </PopoverTrigger>
+      </TooltipTrigger>
+      <TooltipContent side="bottom" sideOffset={6} tone="contrast">{glance}</TooltipContent>
+    </Tooltip>
+    <PopoverContent side="bottom" sideOffset={8} align="center" collisionPadding={12}
+      className="w-[340px] max-w-[calc(100vw-24px)] rounded-[14px] border-0 bg-background px-3.5 py-3 shadow-(--float-shadow)">
+      <ContextPanel usage={usage} technical={technical}/>
+    </PopoverContent>
+  </Popover>
 }
 
-/** 无按钮或弹层的圆环，菜单与输入框入口共用同一显示规则。 */
-export function ContextRingGlyph({usage, className}: {usage?: ContextUsage; className?: string}) {
-  const ctx = usage?.context ?? null
-  const level = usage ? contextLevel(usage) : 'none'
-  const ratio = ctx && ctx.windowTokens > 0 ? Math.min(1, Math.max(0, ctx.usedTokens / ctx.windowTokens)) : null
-  const watermark = usage?.watermarkRatio
-  const tick = ratio != null && watermark != null && watermark > 0 && watermark < 1
-    ? 2 * Math.PI * watermark : null
-  return <span role="img" aria-label={ctx && ctx.windowTokens > 0 ? occupancyLine(ctx) : '暂无占用'} className={cn('inline-flex shrink-0', level === 'over' ? 'text-state-failed' : level === 'near' ? 'text-state-waiting' : 'text-muted-foreground', className)}>
-    <svg width={SIZE} height={SIZE} viewBox={`0 0 ${SIZE} ${SIZE}`} className="-rotate-90" aria-hidden>
-      <circle cx={SIZE / 2} cy={SIZE / 2} r={R} fill="none" stroke="currentColor" strokeWidth={STROKE} strokeDasharray={ratio == null ? '2 2.4' : undefined} className="opacity-25"/>
-      {ratio != null && ratio > 0 && (
-        <circle cx={SIZE / 2} cy={SIZE / 2} r={R} fill="none" stroke="currentColor" strokeWidth={STROKE} strokeLinecap="round" strokeDasharray={C} strokeDashoffset={C * (1 - ratio)}/>
-      )}
-      {tick != null && (
-        <line
-          x1={SIZE / 2 + 3.4 * Math.cos(tick)}
-          y1={SIZE / 2 + 3.4 * Math.sin(tick)}
-          x2={SIZE / 2 + (R - STROKE / 2 + 0.6) * Math.cos(tick)}
-          y2={SIZE / 2 + (R - STROKE / 2 + 0.6) * Math.sin(tick)}
-          stroke="currentColor"
-          strokeWidth={1.75}
-          className="text-foreground"
-        />
-      )}
+/** 菜单与输入区使用同一条 18px 圆环。 */
+export function ContextRingGlyph({usage, className, decorative}: {usage?: ContextUsage; className?: string; decorative?: boolean}) {
+  const ctx = usage?.context
+  const ratio = ctx && ctx.windowTokens > 0 ? Math.min(1, Math.max(0, ctx.usedTokens / ctx.windowTokens)) : 0
+  const estimated = ctx?.source === 'request_estimate' || ctx?.source === 'compact_estimate' || ctx?.postCompactEstimate
+  const color = ctx?.fixedInputExceeded ? 'text-state-failed' : estimated ? 'text-muted-foreground' : 'text-signal'
+  return <span role={decorative ? undefined : 'img'} aria-hidden={decorative || undefined} aria-label={decorative ? undefined : contextLabel(ctx)}
+    className={cn('inline-flex shrink-0', color, className)}>
+    <svg width="18" height="18" viewBox="0 0 18 18" className="-rotate-90" aria-hidden="true">
+      <circle cx="9" cy="9" r={RADIUS} fill="none" stroke="var(--border)" strokeWidth="2.4"/>
+      {ratio > 0 && <circle cx="9" cy="9" r={RADIUS} fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"
+        strokeDasharray={`${CIRCUMFERENCE * ratio} ${CIRCUMFERENCE}`}/>}
     </svg>
   </span>
 }

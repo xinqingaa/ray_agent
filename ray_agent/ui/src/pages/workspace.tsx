@@ -2,11 +2,10 @@ import {useEffect, useRef, useState, type ReactNode} from 'react'
 import {Link, useParams, useRouter} from '@/lib/navigation'
 import {Outlet, useOutletContext} from 'react-router'
 import {toast} from 'sonner'
-import {File, Folder, History, Layers, PanelRight} from '@/components/ui/icons'
+import {File, Layers, PanelRight} from '@/components/ui/icons'
 import {IconAction} from '@/components/ui/icon-action'
-import {SegmentedControl} from '@/components/ui/segmented-control'
 import {TopbarActions} from '@/components/sidebar-chrome'
-import {TaskInspector, TaskLayout, useTaskInspector} from '@/components/task-layout'
+import {TaskInspector, TaskInspectorTabs, TaskLayout, useTaskInspector, type InspectorView} from '@/components/task-layout'
 import {WorkspaceList} from '@/components/workspace/workspace-list'
 import {MemoryPanel, type BackgroundMemorySummary} from '@/components/workspace/memory-panel'
 import {sessionApi} from '@/lib/api/session'
@@ -20,7 +19,7 @@ import {Button} from '@/components/ui/button'
 import {Skeleton} from '@/components/ui/skeleton'
 import {WorkspaceBanners} from '@/components/workspace/workspace-banners'
 import {WorkspaceBar} from '@/components/workspace/workspace-bar'
-import {FolderPanel, type FolderPanelRef, type FolderPanelTab} from '@/components/workspace/folder-panel'
+import {FolderPanel, type FolderPanelRef} from '@/components/workspace/folder-panel'
 import {WorkingStyleSettings, type WorkingStyleSummary} from '@/components/workspace/working-style-settings'
 import {RunChangesBar} from '@/components/workspace/run-changes-bar'
 import {useCanonicalSessionRoute} from '@/hooks/use-canonical-session-route'
@@ -123,26 +122,29 @@ export function WorkspaceHomePage() {
   const input = useRef<ChatInputRef>(null)
   const inspectorTrigger = useRef<HTMLButtonElement>(null)
   const folderPanel = useRef<FolderPanelRef>(null)
-  const [tab, setTab] = useState<FolderPanelTab>('folder')
+  const [tab, setTab] = useState<InspectorView>('folder')
+  const [toolbarTarget, setToolbarTarget] = useState<HTMLDivElement | null>(null)
   const condition = describeWorkspace(workspace)
   const scope = workspaceDraftScope(workspace.id)
   const {sending, start} = useStartTask(scope, workspace.id, sid => router.push(workspaceSessionHref(workspace.id, sid)))
   const {sessions, loading: sessionsLoading, error: sessionsError, refresh: refreshSessions} = useSessions()
   const {count: pending} = useWorkspacePending()
-  const [latestFiles, setLatestFiles] = useState<FileView[]>([])
+  const [recentFiles, setRecentFiles] = useState<{sessionId: string; files: FileView[]} | null>(null)
   const recentSession = sessions[0]
+  const recentSessionId = recentSession?.session_id
 
   useEffect(() => {
-    if (!recentSession) return
+    if (!recentSessionId) return
     let cancelled = false
-    void sessionApi.getSessionDetail(recentSession.session_id).then(detail => {
-      if (!cancelled) setLatestFiles(projectSession({id: recentSession.session_id, runs: detail.runs ?? [], events: detail.events ?? []}).files)
+    void sessionApi.getSessionDetail(recentSessionId).then(detail => {
+      if (!cancelled) setRecentFiles({sessionId: recentSessionId, files: projectSession({id: recentSessionId, runs: detail.runs ?? [], events: detail.events ?? []}).files})
     })
-      .catch(() => {if (!cancelled) setLatestFiles([])})
+      .catch(() => {if (!cancelled) setRecentFiles(null)})
     return () => {cancelled = true}
-  }, [recentSession])
+  }, [recentSessionId, recentSession?.latest_message_at, recentSession?.status])
 
-  const delivery = latestFiles.find(file => file.source === 'delivery')
+  const deliveries = recentFiles?.sessionId === recentSessionId ? recentFiles?.files.filter(file => file.source === 'delivery') : undefined
+  const delivery = deliveries?.[0]
 
   return <>
     <TopbarActions><IconAction ref={inspectorTrigger} label={open ? '收起右侧面板' : '打开右侧面板'}
@@ -154,13 +156,12 @@ export function WorkspaceHomePage() {
         setOpen(true)
       } : undefined}
       inspector={<TaskInspector open={open} onClose={() => setOpen(false)} floating={floating} label="右侧面板" triggerRef={inspectorTrigger}>
-        <div className="flex h-12 shrink-0 items-center justify-between px-3">
-          <SegmentedControl value={tab} appearance="icons" label="右侧面板内容" onValueChange={setTab} options={[
-            {value: 'folder', label: '文件夹', icon: Folder}, {value: 'recent', label: '修改', icon: History},
-          ]}/>
-          <IconAction label="收起右侧面板" onClick={() => {setOpen(false); inspectorTrigger.current?.focus()}}><PanelRight/></IconAction>
-        </div>
-        <FolderPanel ref={folderPanel} workspace={workspace} selectedTab={tab} embedded className="min-h-0 flex-1"/>
+        <TaskInspectorTabs value={tab} workspace onChange={next => {folderPanel.current?.closePreview(); setTab(next)}} onActions={setToolbarTarget}
+          onClose={floating ? () => {setOpen(false); inspectorTrigger.current?.focus()} : undefined}/>
+        <FolderPanel ref={folderPanel} workspace={workspace} selectedTab={tab === 'workbench' ? 'inspect' : tab} embedded
+          toolbarTarget={toolbarTarget} visible={open}
+          deliveries={deliveries} deliveryLabel="最近对话的交付" deliveryEmpty="最近对话暂无交付文件。"
+          className="min-h-0 flex-1"/>
       </TaskInspector>}>
       <main className="flex min-h-0 flex-1 flex-col items-center overflow-y-auto px-4 py-10 sm:px-6">
         <div className="my-auto w-full max-w-(--reading-column) shrink-0 space-y-5">
@@ -170,7 +171,7 @@ export function WorkspaceHomePage() {
           </div>
           {condition.archived
             ? <p role="status" className="rounded-lg bg-muted px-3.5 py-3 text-center text-sm text-muted-foreground">工作区已归档，不能发起新对话。取消归档后可以继续。</p>
-            : <ChatInput ref={input} autoFocus draftScope={scope} onSend={start} disabled={sending}
+            : <ChatInput ref={input} autoFocus workspace draftScope={scope} onSend={start} disabled={sending}
                 placeholder={`在${workspace.name}里开始一个任务`}
                 commandHost={{
                   hasSession: false, hasRuns: false, runStatus: 'idle', waitingApproval: false, waitingReply: false,
@@ -209,5 +210,5 @@ export function WorkspaceSessionPage() {
   const {sid = ''} = useParams()
   useCanonicalSessionRoute(sid, workspace.id)
   return <SessionDetailView key={sid} sessionId={sid} workspace={workspace}
-    runFooter={runId => runId ? <RunChangesBar key={runId} workspace={workspace} runId={runId}/> : null}/>
+    renderRunActions={runId => <RunChangesBar key={runId} workspace={workspace} runId={runId}/>}/>
 }

@@ -56,9 +56,10 @@ async function main(){
  await act(async()=>c.unmount());
  let full,glyph;
  await act(async()=>{full=create(React.createElement(ContextRing,{usage}));glyph=create(React.createElement(ContextRingGlyph,{usage}))});
- assert.deepEqual(full.root.findAllByType('circle').map(x=>x.props),glyph.root.findAllByType('circle').map(x=>x.props));
+ const triggerRing = full.root.findAllByType('svg')[0];
+ assert.deepEqual(triggerRing.findAllByType('circle').map(x=>x.props),glyph.root.findAllByType('circle').map(x=>x.props));
  await act(async()=>glyph.update(React.createElement(ContextRingGlyph,{})));
- assert.equal(glyph.root.findAllByType('circle').length,1);assert.ok(glyph.root.findByType('circle').props.strokeDasharray);
+ assert.equal(glyph.root.findAllByType('circle').length,1);assert.equal(glyph.root.findByProps({role:'img'}).props['aria-label'],'上下文占用未知');
  await act(async()=>{full.unmount();glyph.unmount()});
  console.log('PASS: 鼠标不滚动、键盘最小滚动、滚轮不回拉、静止指针不抢选择、固定高度、project 移除、圆环复用与未知态、禁用压缩');
 }

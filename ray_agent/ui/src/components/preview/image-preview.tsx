@@ -1,7 +1,7 @@
-import {Download, Expand, Minus, Plus, X, Scan, SquareDashed} from '@/components/ui/icons'
+import {Download, Expand, Minus, Plus, Scan, SquareDashed} from '@/components/ui/icons'
 import {useRef, useState} from 'react'
-import {Dialog, DialogContent, DialogDescription, DialogTitle} from '@/components/ui/dialog'
 import {PreviewAction} from './action'
+import {PreviewDialog, PreviewFrame} from './preview-frame'
 
 function ImageCanvas({src, title, scale}: {src: string; title: string; scale: number | null}) {
   const area = useRef<HTMLDivElement>(null)
@@ -25,18 +25,19 @@ function ImageCanvas({src, title, scale}: {src: string; title: string; scale: nu
 }
 
 type ImagePreviewProps = {
-  src: string; originalSrc?: string; title: string; onDownload?: () => void; onError?: () => void; dimensions?: string; mode?: 'thumbnail' | 'canvas'
+  src: string; originalSrc?: string; title: string; onDownload?: () => void; onError?: () => void; onExpand?: () => void; dimensions?: string; mode?: 'thumbnail' | 'canvas'
 }
 
 export function ImagePreview(props: ImagePreviewProps) {
   return <ImagePreviewContent key={props.src} {...props}/>
 }
 
-function ImagePreviewContent({src, originalSrc, title, onDownload, onError, dimensions, mode = 'thumbnail'}: ImagePreviewProps) {
+function ImagePreviewContent({src, originalSrc, title, onDownload, onError, onExpand, dimensions, mode = 'thumbnail'}: ImagePreviewProps) {
   const [expanded, setExpanded] = useState(false)
   const [scale, setScale] = useState<number | null>(null)
   const [failed, setFailed] = useState(false)
   const expandedSrc = originalSrc || src
+  const expand = onExpand ?? (() => setExpanded(true))
   const controls = <>
     <PreviewAction label="适应窗口" icon={Scan} pressed={scale==null} onClick={() => setScale(null)}/>
     <PreviewAction label="缩小" icon={Minus} onClick={() => setScale(value => Math.max(.1,(value ?? 1)-.25))}/>
@@ -50,27 +51,22 @@ function ImagePreviewContent({src, originalSrc, title, onDownload, onError, dime
     <ImageCanvas src={expandedSrc} title={title} scale={scale}/>
   </div>
   return <div className="flex h-full min-h-0 flex-col">
-    <div className="flex shrink-0 items-center justify-end gap-1 px-2 py-1">
+    {!onExpand && <div className="flex shrink-0 items-center justify-end gap-1 px-2 py-1">
       {dimensions && <span className="mr-auto text-xs tabular-nums text-muted-foreground">{dimensions}</span>}
-      <PreviewAction label="放大查看" icon={Expand} onClick={() => setExpanded(true)} disabled={failed}/>
-    </div>
+      <PreviewAction label="放大查看" icon={Expand} onClick={expand} disabled={failed}/>
+    </div>}
     <div className="min-h-0 flex-1 overflow-auto p-2">
       {failed ? <div className="flex items-center gap-2 p-3 text-xs"><p role="alert" className="text-state-failed">图片加载失败</p><button type="button" className="rounded-sm px-2 py-1 outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring" onClick={()=>setFailed(false)}>重试</button></div> : <button type="button" aria-label={`放大 ${title}`}
-        className="block w-full cursor-zoom-in rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => setExpanded(true)}>
+        className="block w-full cursor-zoom-in rounded-md outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={expand}>
         <img src={src} alt={title} className="mx-auto h-auto max-w-full rounded-md" onError={() => {setFailed(true);onError?.()}}/>
       </button>}
     </div>
-    <Dialog open={expanded} onOpenChange={setExpanded}>
-      <DialogContent showCloseButton={false} className="flex h-[90dvh] w-[95vw] max-w-[95vw] flex-col gap-0 overflow-hidden p-0 sm:max-w-[95vw]">
-        <DialogTitle className="sr-only">{title}</DialogTitle><DialogDescription className="sr-only">图片预览</DialogDescription>
-        <header className="flex shrink-0 items-center gap-1 border-b px-3 py-2">
-          <span className="mr-auto min-w-0 truncate text-sm">{title}</span>
-          {controls}
-          {onDownload && <PreviewAction label={`下载 ${title}`} icon={Download} onClick={onDownload}/>} 
-          <PreviewAction label="关闭预览" icon={X} onClick={()=>setExpanded(false)}/>
-        </header>
+    {!onExpand && <PreviewDialog title={title} open={expanded} onClose={() => setExpanded(false)}>
+      <PreviewFrame filename={title} onClose={() => setExpanded(false)}
+        actions={onDownload && <PreviewAction label={`下载 ${title}`} icon={Download} onClick={onDownload}/>}>
+        <div className="flex shrink-0 justify-end gap-1 border-b px-2 py-1">{controls}</div>
         <ImageCanvas src={expandedSrc} title={title} scale={scale}/>
-      </DialogContent>
-    </Dialog>
+      </PreviewFrame>
+    </PreviewDialog>}
   </div>
 }

@@ -18,6 +18,7 @@ function load(file){
   if(name==='@/components/ui/icons')return new Proxy({}, {get:()=>()=>null});
   if(name==='sonner')return {toast:{error(){}}};
   if(name==='@/lib/api/config')return {configApi};if(name==='@/lib/api/session')return {sessionApi};
+  if(name==='@/lib/platform')return {isDesktop:()=>false};
   if(name==='@/lib/utils')return {cn:(...xs)=>xs.filter(Boolean).join(' ')};
   if(name==='@/components/run/format')return {formatTime:()=> 'now'};
   if(name==='@/components/ui/level-slider')return load('components/ui/level-slider.tsx');
@@ -43,17 +44,18 @@ async function main(){
  await act(async()=>{r=create(React.createElement(ModelPicker,pickerProps))});
  const popover=()=>r.root.findAllByProps({'data-component':'Popover'})[0];
  await act(async()=>popover().props.onOpenChange(true));
- const pick=id=>r.root.findByProps({role:'radio',title:id}).props.onClick();
+ const option=id=>r.root.find(node=>node.type==='button'&&node.props.role==='radio'&&node.findAllByType('span').some(span=>span.children.includes(id)));
+ const pick=id=>option(id).props.onClick();
  // 所有厂商的模型同时列出、按厂商分组，切换厂商不改变列表
  assert.deepEqual(r.root.findAllByProps({role:'group'}).map(n=>n.props['aria-label']),['Fixture','OpenAI']);
- assert.deepEqual(r.root.findAll(n=>n.type==='button'&&n.props.role==='radio').map(n=>n.props.title),['a','b','new-model-from-server']);
+ assert.deepEqual(r.root.findAll(n=>n.type==='button'&&n.props.role==='radio').map(n=>n.findAllByType('span')[0].children[0]),['a','b','new-model-from-server']);
  assert.equal(r.root.findAllByProps({'data-component':'SegmentedControl'}).length,0);
  assert.ok(!JSON.stringify(r.toJSON()).includes('支持看图'));
  await act(async()=>popover().props.onOpenChange(false));
  assert.equal(calls.length,0);
  await act(async()=>popover().props.onOpenChange(true));
  await act(async()=>pick('new-model-from-server'));
- assert.equal(r.root.findByProps({role:'radio',title:'new-model-from-server'}).props['aria-checked'],true);
+ assert.equal(option('new-model-from-server').props['aria-checked'],true);
  const slider=()=>r.root.findByProps({role:'slider'});
  assert.equal(slider().props['aria-valuetext'],'高');
  assert.equal(calls.length,0);
@@ -61,11 +63,11 @@ async function main(){
  assert.deepEqual(calls,[{model:'new-model-from-server',reasoning:'high'}]);
  assert.equal(popover().props.open,false);calls.length=0;
  await act(async()=>popover().props.onOpenChange(true));
- assert.equal(r.root.findByProps({role:'radio',title:'new-model-from-server'}).props['aria-checked'],true,'重新打开保留已确认的选择');
+ assert.equal(option('new-model-from-server').props['aria-checked'],true,'重新打开保留已确认的选择');
  await act(async()=>pick('a'));
- assert.equal(r.root.findByProps({role:'radio',title:'a'}).props['aria-checked'],true);
+ assert.equal(option('a').props['aria-checked'],true);
  await act(async()=>pick('b'));
- assert.equal(r.root.findByProps({role:'radio',title:'b'}).props['aria-checked'],true);
+ assert.equal(option('b').props['aria-checked'],true);
  assert.ok(JSON.stringify(r.toJSON()).includes('已改用该模型默认档'));
  assert.ok(!JSON.stringify(r.toJSON()).includes('下一次新运行估算'));
  assert.equal(slider().props['aria-valuemax'],4);
@@ -109,6 +111,12 @@ async function main(){
  assert.deepEqual(sentChoice,{model:'a',reasoning:'max'},'详情迟到后恢复会话自己的模型与思考强度');
  await act(async()=>r.update(React.createElement(ModelPicker,{onSelection:next=>{sentChoice=next}})));
  assert.deepEqual(sentChoice,{model:'b',reasoning:'none'},'回到新对话才采用全局偏好');
+ const deepseek={...a,id:'deepseek-flash',vendor:'deepseek',vendor_label:'DeepSeek'};
+ assert.ok(JSON.stringify(r.toJSON()).includes('当前配置未提供 DeepSeek'));
+ configApi.getModels=async()=>({...catalog,models:[deepseek,...catalog.models]});
+ await act(async()=>popover().props.onOpenChange(true));
+ assert.equal(option('deepseek-flash').props['aria-checked'],false,'重开菜单读取新配置，保留原模型选择');
+ assert.ok(!JSON.stringify(r.toJSON()).includes('当前配置未提供 DeepSeek'));
  await act(async()=>r.unmount());
  assert.deepEqual(preference.validModelPreference({model:'retired',reasoning:'max'},catalog),{model:'a',reasoning:'high'});
  assert.deepEqual(preference.validModelPreference({model:'b',reasoning:'removed'},catalog),{model:'b',reasoning:'medium'});

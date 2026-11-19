@@ -1,12 +1,11 @@
 import type {KeyboardEvent} from 'react'
-import {Check, Loader2, ShieldQuestion, X} from '@/components/ui/icons'
+import {Check, ChevronRight, Loader2, ShieldQuestion, X} from '@/components/ui/icons'
 import {Button} from '@/components/ui/button'
 import {Kbd} from '@/components/ui/kbd'
 import {cn} from '@/lib/utils'
 import type {ApprovalStatus, ToolCallView} from '@/lib/session-view'
 import {formatTime} from './format'
 import {RunStatus} from './run-status'
-import {FAMILY} from './status-meta'
 
 type ApprovalCardProps = {
   call: ToolCallView
@@ -25,6 +24,13 @@ const KEY_ARG: Partial<Record<ToolCallView['family'], {key: string; label: strin
   shell: {key: 'command', label: '命令'},
   file: {key: 'filepath', label: '文件'},
   browser: {key: 'url', label: '网址'},
+}
+const EXECUTION_SCOPE: Partial<Record<ToolCallView['family'], string>> = {
+  shell: '本机执行',
+  file: '本地文件',
+  browser: '浏览器',
+  mcp: '外部工具',
+  a2a: '远程协作',
 }
 
 function stringify(value: unknown): string {
@@ -56,7 +62,7 @@ export function ApprovalCard({call, status, decidedAt, submitting = null, onAppr
   const rest = Object.entries(args).filter(([k]) => !(highlighted != null && k === keyArg?.key))
   const pending = status === 'pending'
   const busy = submitting != null
-  const FamilyIcon = FAMILY[call.family].icon
+  const scope = EXECUTION_SCOPE[call.family]
 
   const onKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
     if (!pending || busy || e.metaKey || e.ctrlKey || e.altKey) return
@@ -77,59 +83,56 @@ export function ApprovalCard({call, status, decidedAt, submitting = null, onAppr
       aria-label={`审批：${call.title}`}
       onKeyDown={onKeyDown}
       className={cn(
-        'rounded-lg border px-3.5 py-3',
-        pending ? 'border-state-waiting/50 bg-card' : 'bg-card',
+        'rounded-[14px] border px-3.5 py-3',
+        pending ? 'border-state-waiting/30 bg-state-waiting-soft/45' : 'border-border/70 bg-card',
         className,
       )}
     >
-      <div className="flex items-center gap-2">
-        <ShieldQuestion className={cn('size-4', pending ? 'text-state-waiting' : 'text-muted-foreground')} aria-hidden/>
-        <span className={cn('text-xs font-medium', pending ? 'text-state-waiting' : 'text-muted-foreground')}>
-          <RunStatus place="approval" pending={pending}/>
-        </span>
-        <code className="ml-auto font-mono text-xs text-faint">{call.toolset}.{call.name}</code>
+      <div className="flex flex-wrap items-start gap-x-2 gap-y-1">
+        <ShieldQuestion className={cn('mt-0.5 size-4 shrink-0', pending ? 'text-state-waiting' : 'text-muted-foreground')} aria-hidden/>
+        <h3 className="min-w-28 flex-1 text-sm font-semibold wrap-anywhere">{call.verb}</h3>
+        <div className="flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground">
+          <span className={pending ? 'text-state-waiting' : undefined}><RunStatus place="approval" pending={pending}/></span>
+          {scope && <><span aria-hidden>·</span><span>{scope}</span></>}
+        </div>
       </div>
 
-      <div className="mt-2 flex items-center gap-2">
-        <FamilyIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden/>
-        <span className="text-sm font-medium">{call.verb}</span>
-      </div>
-
+      {highlighted == null && call.target && <p className="mt-2 text-sm wrap-anywhere">{call.target}</p>}
       {highlighted != null && keyArg && (
-        <div className="mt-2">
-          <div className="mb-1 text-xs text-muted-foreground">{keyArg.label}</div>
-          <pre className={cn(
-            'max-h-40 overflow-auto whitespace-pre-wrap break-all rounded-md border-l-2 bg-muted px-3 py-2 font-mono text-[13px] leading-6',
-            pending ? 'border-state-waiting' : 'border-border',
-          )}>
+        <div className="mt-2.5">
+          <pre aria-label={keyArg.label} tabIndex={0}
+            className="max-h-40 overflow-auto rounded-lg bg-background/80 px-3 py-2 font-mono text-xs leading-5 whitespace-pre-wrap wrap-anywhere">
             {highlighted}
           </pre>
         </div>
       )}
-      {rest.length > 0 && (
-        <dl className="mt-2 space-y-1 text-xs">
+      <details className="group mt-2">
+        <summary className="inline-flex cursor-pointer list-none items-center gap-1 rounded-sm text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring">
+          <ChevronRight className="size-3.5 group-open:rotate-90" aria-hidden/>调用详情
+        </summary>
+        <code className="block py-1 font-mono text-xs text-faint wrap-anywhere">{call.toolset}.{call.name}</code>
+        <dl className="space-y-1 text-xs">
           {rest.map(([k, v]) => (
-            <div key={k} className="grid grid-cols-[minmax(4.5rem,auto)_1fr] gap-x-3">
-              <dt className="font-mono text-muted-foreground">{k}</dt>
-              <dd className="min-w-0 truncate font-mono" title={stringify(v)}>{stringify(v)}</dd>
+            <div key={k} className="grid grid-cols-[minmax(4rem,30%)_minmax(0,1fr)] gap-x-3">
+              <dt className="font-mono text-muted-foreground wrap-anywhere">{k}</dt>
+              <dd className="min-w-0 font-mono whitespace-pre-wrap wrap-anywhere">{stringify(v)}</dd>
             </div>
           ))}
         </dl>
-      )}
+      </details>
 
       {pending ? (
         <div className="mt-3 flex flex-wrap items-center gap-2">
           <Button type="button" size="sm" onClick={onApprove} disabled={busy || !onApprove} aria-keyshortcuts="Y">
             {submitting === 'approve' ? <Loader2 className="animate-spin" aria-hidden/> : <Check aria-hidden/>}
-            {submitting === 'approve' ? '正在批准' : '批准'}
+            {submitting === 'approve' ? '正在批准' : '批准这一次'}
             <Kbd className="ml-1 bg-primary-foreground/15 text-primary-foreground">Y</Kbd>
           </Button>
-          <Button type="button" size="sm" variant="outline" onClick={onReject} disabled={busy || !onReject} aria-keyshortcuts="N">
+          <Button type="button" size="sm" variant="ghost" onClick={onReject} disabled={busy || !onReject} aria-keyshortcuts="N">
             {submitting === 'reject' ? <Loader2 className="animate-spin" aria-hidden/> : <X aria-hidden/>}
             {submitting === 'reject' ? '正在拒绝' : '拒绝'}
             <Kbd className="ml-1">N</Kbd>
           </Button>
-          <span className="text-xs text-muted-foreground">批准只对这一次调用有效</span>
         </div>
       ) : (
         <div className="mt-3 space-y-1 text-xs">

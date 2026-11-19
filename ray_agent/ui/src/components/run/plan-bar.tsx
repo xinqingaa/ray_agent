@@ -10,6 +10,8 @@ type PlanBarProps = {
   /** 计划模式结束后等待确认执行的清单：不显示进度，只列出步骤 */
   proposal?: boolean
   defaultOpen?: boolean
+  historyAction?: ReactNode
+  historyOpen?: boolean
   className?: string
 }
 
@@ -59,7 +61,7 @@ export function PlanContent({plan, active, ended, status, headerClassName}: {pla
   </>
 }
 
-export function PlanBar({plan, runStatus, proposal = false, defaultOpen = false, className}: PlanBarProps) {
+export function PlanBar({plan, runStatus, proposal = false, defaultOpen = false, historyAction, historyOpen = false, className}: PlanBarProps) {
   const [expanded, setExpanded] = useState(defaultOpen)
   const [mounted, setMounted] = useState(defaultOpen)
   const [barHeight, setBarHeight] = useState<number>()
@@ -87,7 +89,7 @@ export function PlanBar({plan, runStatus, proposal = false, defaultOpen = false,
     return () => observer.disconnect()
   }, [hasPlan])
   useEffect(() => {
-    if (!expanded) return
+    if (!expanded || historyOpen) return
     const outside = (event: PointerEvent) => {
       if (!cardRef.current?.contains(event.target as Node)) setOpen(false)
     }
@@ -100,7 +102,7 @@ export function PlanBar({plan, runStatus, proposal = false, defaultOpen = false,
       document.removeEventListener('pointerdown', outside)
       document.removeEventListener('keydown', escape)
     }
-  }, [expanded, setOpen])
+  }, [expanded, historyOpen, setOpen])
   if (!plan || plan.items.length === 0) return null
   const preparing = plan.progressState === 'preparing'
   const active = !proposal && !preparing && (runStatus === 'running' || runStatus === 'waiting')
@@ -128,11 +130,18 @@ export function PlanBar({plan, runStatus, proposal = false, defaultOpen = false,
 
   return (
     <div className={cn('relative animate-in fade-in-0 slide-in-from-bottom-1 duration-200 motion-reduce:animate-none', className)} style={mounted ? {height: barHeight} : undefined}>
-      <div ref={cardRef} data-open={expanded} className={cn('plan-card overflow-hidden rounded-lg border bg-card text-card-foreground shadow-sm', mounted && 'absolute inset-x-0 bottom-0 z-50 shadow-lg')}>
+      <div ref={cardRef} data-open={expanded} className={cn('plan-card overflow-hidden rounded-xl border bg-card text-card-foreground', mounted && 'absolute inset-x-0 bottom-0 z-50 shadow-(--float-shadow)')}>
+        {mounted && <div id={contentId} role="region" aria-label="当前计划" aria-hidden={!expanded} inert={!expanded} className="plan-reveal">
+          <div className="min-h-0 overflow-hidden">
+            <div className="max-h-[min(28rem,60vh)] overflow-y-auto border-b px-3.5 py-3">
+              <PlanContent plan={plan} active={active} ended={ended} status={historyAction}/>
+            </div>
+          </div>
+        </div>}
       <button ref={buttonRef} type="button" aria-expanded={expanded} aria-controls={mounted ? contentId : undefined} onClick={() => setOpen(!expanded)}
         className="flex h-10 w-full min-w-0 flex-nowrap items-center gap-3 overflow-hidden px-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">
-        <StageTrack completed={completed} total={total}/>
         <span className="shrink-0 whitespace-nowrap text-meta font-medium tabular-nums">{progress}</span>
+        <StageTrack completed={completed} total={total}/>
         <span className="flex min-w-0 flex-1 flex-nowrap items-center gap-2 overflow-hidden" title={[headline, showChildren && currentStep?.text].filter(Boolean).join(' › ')}>
           <span className={cn('truncate whitespace-nowrap text-meta', showChildren && currentStep && 'max-w-[45%]', ended && !allDone ? 'text-state-waiting' : 'text-muted-foreground')}>{headline}</span>
           {showChildren && currentStep && <><span className="shrink-0 text-faint" aria-hidden>›</span><span className="min-w-0 flex-1 truncate whitespace-nowrap text-meta font-medium text-foreground">{currentStep.text}</span></>}
@@ -140,14 +149,6 @@ export function PlanBar({plan, runStatus, proposal = false, defaultOpen = false,
         <ChevronUp className={cn('size-4 shrink-0 text-muted-foreground transition-transform', expanded && 'rotate-180')} aria-hidden/>
         <span className="sr-only">{expanded ? '收起计划' : '展开计划'}</span>
       </button>
-        {mounted && <div id={contentId} role="region" aria-label="当前计划" aria-hidden={!expanded} inert={!expanded} className="plan-reveal">
-          <div className="min-h-0 overflow-hidden">
-            <div className="max-h-[min(28rem,60vh)] overflow-y-auto p-3">
-              <PlanContent plan={plan} active={active} ended={ended}/>
-            </div>
-          </div>
-        </div>}
-
       </div>
     </div>
   )

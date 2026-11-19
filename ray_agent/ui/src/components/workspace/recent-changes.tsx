@@ -1,9 +1,9 @@
 import {Link} from '@/lib/navigation'
 import {useCallback, useState} from 'react'
-import {Undo2} from '@/components/ui/icons'
+import {Pencil, Undo2} from '@/components/ui/icons'
 import {Button} from '@/components/ui/button'
 import {workspaceSessionHref} from '@/lib/workspace-route'
-import {formatRelativeDate} from '@/lib/utils'
+import {formatRelativeDate, formatSidebarTime} from '@/lib/utils'
 import {runStillActive} from '@/lib/workspace-changes'
 import type {ModifiedRun} from '@/lib/api/types'
 import {useWorkspaceLive} from '@/providers/workspace-live-provider'
@@ -15,21 +15,23 @@ export function RecentChanges({workspaceId, runs}: {workspaceId: string; runs: M
   const [target, setTarget] = useState<ModifiedRun | null>(null)
   const onOpenChange = useCallback((open: boolean) => {if (!open) setTarget(null)}, [])
   return <>
-    <ul className="divide-y rounded-md border" aria-label="最近修改过文件夹的运行">
+    <ul aria-label="最近修改过文件夹的运行">
       {runs.map(run => {
         const undoing = run.kind === 'undo'
         const active = !undoing && runStillActive(run.run_status)
-        return <li key={run.run_id} className="flex items-center gap-2 px-3 py-2.5">
+        const Icon = undoing ? Undo2 : Pencil
+        return <li key={run.run_id} className="flex items-center gap-2.5 rounded-[10px] px-2 py-2 hover:bg-muted/60">
+          <Icon className="size-4 shrink-0 text-muted-foreground" aria-hidden/>
           <div className="min-w-0 flex-1">
             <Link href={workspaceSessionHref(workspaceId, run.session_id)} className="block truncate rounded-sm text-sm font-medium outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring" title={run.session_title || undefined}>
               {undoing ? `撤销了「${run.session_title || '未命名对话'}」的修改` : run.session_title || '未命名对话'}
             </Link>
-            <p className="text-xs text-muted-foreground">
-              {undoing ? '涉及' : '修改了'} {run.changed_files} 个文件 · {formatRelativeDate(String(run.last_at))}{active ? ' · 运行中' : ''}
+            <p className="mt-0.5 text-xs text-faint">
+              {undoing ? '涉及' : '修改'} {run.changed_files} 个文件 · <span className="tabular-nums" title={formatRelativeDate(String(run.last_at))}>{formatSidebarTime(run.last_at)}</span>{active ? ' · 运行中' : ''}
             </p>
           </div>
-          <Button type="button" variant="outline" size="xs" disabled={active} title={active ? '运行结束后才能撤销' : undefined}
-            onClick={() => setTarget(run)}><Undo2 aria-hidden/>{undoing ? '撤回' : '撤销'}</Button>
+          <Button type="button" variant="ghost" size="xs" className="text-muted-foreground" disabled={active} title={active ? '运行结束后才能撤销' : undefined}
+            onClick={() => setTarget(run)}>{undoing ? '撤回' : '撤销'}</Button>
         </li>
       })}
     </ul>

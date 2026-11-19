@@ -135,11 +135,11 @@ export function LeftPanel({scope, expanded, onExpand}: {
                 onExpand(workspace.id, true)
                 setOpenMobile(false)
               }
-            }}><Glyph className="size-[19px] shrink-0 text-muted-foreground"/>
+            }}><Glyph className="size-[18px] shrink-0 text-muted-foreground"/>
             <span className="min-w-0 flex-1 truncate" dir="auto">{workspace.name}</span>
             <WorkspaceStatus workspace={workspace} compact/>
           </Link>
-          {open && <div className="workspace-directory-children">
+          {open && <div className="workspace-directory-children" aria-label={`${workspace.name}的对话`}>
             {active ? <>
               {!currentRows.length && <DirectoryStatus loading={loading} error={error} empty="还没有对话" onRetry={() => void refresh()}/>}
               {renderRows(currentRows, workspace.id)}

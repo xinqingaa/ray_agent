@@ -55,9 +55,10 @@ async def get_model_catalog(
 ) -> Response[ModelCatalogResponse]:
     llm = await app_config_service.get_llm_config()
     models = active_models(llm)
-    if not models or default_model(llm) is None:
+    if not models:
         return Response.success(data=ModelCatalogResponse())
-    default = default_model(llm)
+    preferred = default_model(llm)
+    default = preferred if preferred in models else models[0]
     return Response.success(data=ModelCatalogResponse(
         provider=default.provider,
         default_model=default.id,

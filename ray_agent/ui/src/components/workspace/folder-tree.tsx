@@ -1,23 +1,25 @@
 import {ChevronRight, Folder, FolderOpen, Link2, LoaderCircle, FileQuestion} from '@/components/ui/icons'
 import {createElement, useRef, type KeyboardEvent} from 'react'
 import {Button} from '@/components/ui/button'
-import {fileIcon} from '@/components/run/file-icon'
+import {fileExtension, FileTypeBadge} from '@/components/run/file-icon'
 import {formatBytes} from '@/components/run/format'
 import {cn} from '@/lib/utils'
 import {visibleRows, type TreeState} from '@/lib/workspace-tree'
 import type {RootEntry} from '@/lib/api/types'
 
 const INDENT = 14
-
-function extensionOf(name: string) {
-  const dot = name.lastIndexOf('.')
-  return dot > 0 ? name.slice(dot) : ''
+const INDEX_LABEL: Record<string, string> = {
+  searchable: '可检索', pending_component: '待文字识别', failed: '索引失败',
+  registered: '等待索引', pending_parse: '等待解析', parsing: '正在解析', indexing: '正在索引',
 }
 
 /** 懒加载的文件树。目录点击展开，文件点击打开预览；符号链接与特殊文件只显示，不展开不预览。 */
-export function FolderTree({tree, selectedPath, onSelect, onToggle, onRetry}: {
+export function FolderTree({tree, selectedPath, indexStates, readPaths, addedPaths, onSelect, onToggle, onRetry}: {
   tree: TreeState
   selectedPath: string | null
+  indexStates?: ReadonlyMap<string, string>
+  readPaths?: ReadonlySet<string>
+  addedPaths?: ReadonlySet<string>
   onSelect: (path: string, entry: RootEntry) => void
   onToggle: (path: string, expanded?: boolean) => void
   onRetry: (path: string) => void
@@ -63,29 +65,39 @@ export function FolderTree({tree, selectedPath, onSelect, onToggle, onRetry}: {
       const selected = selectedPath === path
       const isDirectory = entry.kind === 'directory'
       const isFile = entry.kind === 'file'
-      const Icon = isDirectory ? (row.expanded ? FolderOpen : Folder) : isFile ? fileIcon(extensionOf(entry.name)) : entry.kind === 'symlink' ? Link2 : FileQuestion
+      const Icon = isDirectory ? (row.expanded ? FolderOpen : Folder) : entry.kind === 'symlink' ? Link2 : FileQuestion
       const interactive = isDirectory || isFile
+      const status = isFile ? indexStates?.get(path) : undefined
+      const indexLabel = status ? INDEX_LABEL[status] : undefined
+      const read = isFile && readPaths?.has(path)
+      const fresh = isFile && addedPaths?.has(path)
       return <li key={path} role="none">
         <button type="button" role="treeitem" data-tree-row data-tree-path={path}
           aria-level={row.depth + 1} aria-selected={selected} aria-expanded={isDirectory ? row.expanded : undefined}
           aria-disabled={!interactive || undefined}
-          title={entry.kind === 'symlink' ? `${entry.name} → ${entry.link_target ?? ''}` : entry.name}
-          style={{paddingLeft: row.depth * INDENT + 8}}
+          title={entry.kind === 'symlink' ? `${entry.name} → ${entry.link_target ?? ''}` :
+            [entry.name, isFile && entry.size != null ? formatBytes(entry.size) : null, indexLabel].filter(Boolean).join(' · ')}
+          style={{paddingLeft: row.depth * INDENT + (isFile && row.depth > 0 ? 16 : 8)}}
           onClick={() => {
             if (!interactive) return
             onSelect(path, entry)
             if (isDirectory) onToggle(path)
           }}
           onKeyDown={event => onKeyDown(event, path, entry, row.expanded)}
-          className={cn('flex min-h-8 w-full items-center gap-1.5 pr-3 text-left text-sm outline-none transition-colors focus-visible:bg-muted focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring motion-reduce:transition-none',
+          className={cn('flex min-h-8 w-full items-center gap-1.5 rounded-lg pr-2 text-left text-sm outline-none transition-colors focus-visible:bg-muted focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring motion-reduce:transition-none',
             interactive ? 'hover:bg-muted/60' : 'cursor-default text-muted-foreground',
+            isDirectory && 'font-medium text-muted-foreground',
             selected && 'bg-muted font-medium')}>
-          <ChevronRight aria-hidden className={cn('size-3.5 shrink-0 text-muted-foreground transition-transform motion-reduce:transition-none', row.expanded && 'rotate-90', !isDirectory && 'invisible')}/>
-          {createElement(Icon, {className: 'size-4 shrink-0 text-muted-foreground', 'aria-hidden': true})}
+          {isDirectory && <ChevronRight aria-hidden className={cn('size-3.5 shrink-0 text-faint transition-transform motion-reduce:transition-none', row.expanded && 'rotate-90')}/>}
+          {isFile ? <FileTypeBadge extension={fileExtension(entry.name)}/> : createElement(Icon, {className: 'size-4 shrink-0 text-muted-foreground', 'aria-hidden': true})}
           <span className="min-w-0 flex-1 truncate" dir="auto">{entry.name}</span>
           {entry.kind === 'symlink' && <span className="shrink-0 text-xs text-muted-foreground">链接</span>}
           {entry.kind === 'other' && <span className="shrink-0 text-xs text-muted-foreground">特殊文件</span>}
-          {isFile && entry.size != null && <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{formatBytes(entry.size)}</span>}
+          {read && <span className="folder-row-tag bg-signal-soft text-signal">本次读取</span>}
+          {fresh && <span className="folder-row-tag bg-state-success-soft text-state-success">新</span>}
+          {indexLabel && <span className="folder-index-dot" data-index={status}>
+            <span className="sr-only">{indexLabel}</span>
+          </span>}
         </button>
       </li>
     })}

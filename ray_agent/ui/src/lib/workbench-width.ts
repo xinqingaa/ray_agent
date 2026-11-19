@@ -1,9 +1,9 @@
 export const WORKBENCH_WIDTH_KEY = 'rayagent.workbenchWidth'
-export const WORKBENCH_DEFAULT_PX = 26 * 16
+export const WORKBENCH_DEFAULT_PX = 320
 
 export function workbenchBounds(viewportWidth: number) {
-  const min = 24 * 16
-  const max = Math.max(min, viewportWidth * 0.6)
+  const min = 260
+  const max = Math.max(min, Math.min(560, viewportWidth - 56))
   return {min, max}
 }
 

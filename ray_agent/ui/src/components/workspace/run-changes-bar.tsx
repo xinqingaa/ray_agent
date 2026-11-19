@@ -62,10 +62,9 @@ function WritableRunChangesBar({workspaceId, runId}: {workspaceId: string; runId
   const available = undoAvailable(changes)
   const count = changes?.entries.length ?? 0
   return <>
-    {shell && shell.state !== 'not_started' && <div role="status" className="flex flex-wrap items-center gap-3 rounded-lg border bg-muted/40 px-3.5 py-2.5">
-      <p className="min-w-0 flex-1 text-sm">{shell.state === 'complete' ? `脚本执行区间观察到 ${shell.total} 个文件变化。` : shell.state === 'unknown' ? '脚本执行后的文件状态未能确认。' : '正在观察脚本执行区间的文件变化。'}</p>
-      <Button type="button" variant="outline" size="sm" onClick={() => setShellOpen(true)}><FileSearch aria-hidden/>查看文件变化</Button>
-    </div>}
+    {shell && shell.state !== 'not_started' && <button type="button" className="reply-foot-action" onClick={() => setShellOpen(true)}>
+      <FileSearch aria-hidden/>{shell.state === 'complete' ? `文件变化 ${shell.total}` : shell.state === 'unknown' ? '文件变化待确认' : '正在观察文件变化'}
+    </button>}
     <Dialog open={shellOpen} onOpenChange={setShellOpen}>
       <DialogContent className="max-h-[80vh] overflow-y-auto">
         <DialogHeader><DialogTitle>脚本执行区间的文件变化</DialogTitle>
@@ -86,12 +85,10 @@ function WritableRunChangesBar({workspaceId, runId}: {workspaceId: string; runId
         {shell?.has_more && <Button variant="outline" disabled={loadingMore} onClick={() => void loadMore()}>{loadingMore ? '正在读取…' : '加载更多'}</Button>}
       </DialogContent>
     </Dialog>
-    {available && <div role="status" className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border bg-muted/40 px-3.5 py-2.5">
-      <p className="min-w-0 flex-1 text-sm">本次运行修改了文件夹里的 {count} 个文件。</p>
-      <Button type="button" variant="outline" size="sm" onClick={() => setOpen(true)}>
-        <Undo2 aria-hidden/>撤销本次修改
-      </Button>
-    </div>}
+    {available && <button type="button" className="reply-foot-action" aria-label="撤销本次修改"
+      title={`本次修改涉及 ${count} 个文件`} onClick={() => setOpen(true)}>
+      <Undo2 aria-hidden/>撤销本次修改
+    </button>}
     <UndoRunDialog workspaceId={workspaceId} runId={runId} open={open} onOpenChange={onOpenChange} onChanged={live.requestRefresh}/>
   </>
 }

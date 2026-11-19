@@ -1,10 +1,31 @@
 import {useEffect, useRef, useState, type DragEvent, type ReactNode, type RefObject} from 'react'
-import {Paperclip, FolderOpen} from '@/components/ui/icons'
+import {Eye, Folder, FolderOpen, History, Inbox, PanelRight, Paperclip} from '@/components/ui/icons'
+import {IconAction} from '@/components/ui/icon-action'
+import {SegmentedControl} from '@/components/ui/segmented-control'
 import {useWorkbenchWidth, WorkbenchResizeHandle} from '@/components/workbench/resize-handle'
 import {useIsMobile} from '@/hooks/use-mobile'
 import {cn} from '@/lib/utils'
 
 const INSPECTOR_FLOAT_BREAKPOINT = 1181
+
+export type InspectorView = 'folder' | 'delivered' | 'workbench' | 'recent'
+
+export function TaskInspectorTabs({value, workspace, onChange, onClose, onActions}: {
+  value: InspectorView; workspace: boolean; onChange: (value: InspectorView) => void; onClose?: () => void;
+  onActions?: (target: HTMLDivElement | null) => void
+}) {
+  return <div className="flex min-h-11 shrink-0 items-center gap-1 px-2.5 pt-2 pb-1">
+    <SegmentedControl<InspectorView> value={value} appearance="icons" onValueChange={onChange} label="右侧面板内容"
+      options={[
+        ...(workspace ? [{value: 'folder' as const, label: '文件夹', icon: Folder}] : []),
+        {value: 'delivered', label: '成果', icon: Inbox},
+        {value: 'workbench', label: '查看', icon: Eye},
+        ...(workspace ? [{value: 'recent' as const, label: '修改', icon: History}] : []),
+      ]}/>
+    <div ref={onActions} className="ml-auto flex min-w-0 items-center gap-0.5"/>
+    {onClose && <IconAction label="收起右侧面板" className="shrink-0 max-[540px]:hidden" onClick={onClose}><PanelRight/></IconAction>}
+  </div>
+}
 
 export function useTaskInspector(defaultOpen: boolean) {
   const floating = useIsMobile(INSPECTOR_FLOAT_BREAKPOINT)

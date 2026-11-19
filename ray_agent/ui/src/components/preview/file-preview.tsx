@@ -1,9 +1,10 @@
 import {useEffect, useRef, useState, type CSSProperties} from 'react'
-import {ChevronLeft, ChevronRight, Code, Download, Expand, ExternalLink, FileText, RefreshCw, X} from '@/components/ui/icons'
+import {ChevronLeft, ChevronRight, Code, Download, ExternalLink, FileText, MoreHorizontal, RefreshCw} from '@/components/ui/icons'
 import {toast} from 'sonner'
 import {MarkdownContent} from '@/components/markdown-content'
 import {Button} from '@/components/ui/button'
-import {Dialog, DialogContent, DialogDescription, DialogTitle} from '@/components/ui/dialog'
+import {DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger} from '@/components/ui/dropdown-menu'
+import {PreviewDialog, PreviewFrame} from './preview-frame'
 import {ApiError} from '@/lib/api/fetch'
 import type {ErrorCode} from '@/lib/api/types'
 import {canDownload, downloadPreviewSource, isWebPage, openPreviewTab, previewContentUrl, previewEndpoint, readPreview, type FilePreview as Preview, type PreviewCell, type PreviewSource} from '@/lib/api/preview'
@@ -109,7 +110,7 @@ function FilePreviewContent({source, onBack, onDownload, onClose, canExpand = tr
       <FileText className="size-8 text-muted-foreground" aria-hidden/><p className="text-sm">{preview.reason || '暂不支持预览'}</p>
       <span className="text-xs tabular-nums text-muted-foreground">{formatBytes(preview.size)}</span>{canDownload(source) && <Button variant="outline" size="sm" onClick={download}><Download/>下载</Button>}</div>
     if((preview.kind==='pdf' || (preview.kind==='image' && !preview.thumbnail)) && !contentUrl)return <p className="p-4 text-xs text-muted-foreground" role="status">正在读取</p>
-    if(preview.kind==='image')return <ImagePreview src={preview.thumbnail || contentUrl!} originalSrc={contentUrl ?? undefined} title={filename} onDownload={canDownload(source) ? download : undefined} mode={full || !canExpand ? 'canvas' : 'thumbnail'}
+    if(preview.kind==='image')return <ImagePreview src={preview.thumbnail || contentUrl!} originalSrc={contentUrl ?? undefined} title={filename} onDownload={canDownload(source) ? download : undefined} mode={full || !canExpand ? 'canvas' : 'thumbnail'} onExpand={() => setExpanded(true)}
       dimensions={preview.width && preview.height ? `${preview.width} × ${preview.height}` : undefined}/>
     if(preview.kind==='pdf')return <iframe title={filename} src={contentUrl!} className="h-full w-full border-0 bg-card"/>
     if(preview.kind==='table')return <TablePreview key={`${preview.sheet}:${preview.row}:${preview.column}`} preview={preview}/>
@@ -133,34 +134,39 @@ function FilePreviewContent({source, onBack, onDownload, onClose, canExpand = tr
       <PreviewAction label="下一段" icon={ChevronRight} disabled={loading || preview.next_offset==null}
         onClick={()=> {setTextHistory([...textHistory,page.offset]);changePage({...page,offset:preview.next_offset!})}}/></>}
   </footer>
-  const toolbar = <>
-    {preview?.kind === 'image' && <span className="shrink-0 text-xs tabular-nums text-muted-foreground">{formatBytes(preview.size)}</span>}
-    {preview?.partial && <span className="shrink-0 text-xs text-muted-foreground">部分预览</span>}
-    {preview?.cells_truncated && <span className="shrink-0 text-xs text-muted-foreground">内容截断</span>}
-    {preview?.formula_missing && <span className="shrink-0 text-xs text-muted-foreground" title="部分公式没有已保存的计算结果">公式未计算</span>}
-    {(preview?.kind==='markdown' || source.filename.toLowerCase().endsWith('.json')) && <PreviewAction label={raw ? '格式化阅读' : '查看原文'} icon={raw ? FileText : Code} pressed={raw} onClick={()=>setRaw(!raw)}/>}
-    {isWebPage(source.filename) && <PreviewAction label="在浏览器中打开网页" icon={ExternalLink} onClick={()=>void openPreviewTab(source).catch(error=>toast.error(error instanceof Error ? error.message : '打开失败'))}/>}
-    <PreviewAction label="刷新预览" icon={RefreshCw} disabled={loading} onClick={refresh}/>
-    {canDownload(source) && <PreviewAction label={`下载 ${preview?.filename || source.filename}`} icon={Download} disabled={errorCode==='gone'} onClick={download}/>}
-  </>
+  const canReadRaw = preview?.kind === 'markdown' || source.filename.toLowerCase().endsWith('.json')
+  const actions = <DropdownMenu>
+    <DropdownMenuTrigger asChild><Button type="button" variant="ghost" size="icon-sm" aria-label="预览操作" className="text-muted-foreground"><MoreHorizontal aria-hidden/></Button></DropdownMenuTrigger>
+    <DropdownMenuContent align="end">
+      {canReadRaw && <DropdownMenuItem onSelect={() => setRaw(!raw)}>{raw ? <FileText/> : <Code/>}{raw ? '格式化阅读' : '查看原文'}</DropdownMenuItem>}
+      {isWebPage(source.filename) && <DropdownMenuItem onSelect={() => void openPreviewTab(source).catch(error => toast.error(error instanceof Error ? error.message : '打开失败'))}><ExternalLink/>在浏览器中打开</DropdownMenuItem>}
+      <DropdownMenuItem disabled={loading} onSelect={refresh}><RefreshCw/>刷新预览</DropdownMenuItem>
+      {canDownload(source) && <DropdownMenuItem disabled={errorCode === 'gone'} onSelect={download}><Download/>下载</DropdownMenuItem>}
+    </DropdownMenuContent>
+  </DropdownMenu>
+  const notes = [
+    preview?.kind === 'image' ? formatBytes(preview.size) : null,
+    preview?.partial ? '部分预览' : null,
+    preview?.cells_truncated ? '内容截断' : null,
+    preview?.formula_missing ? '部分公式未保存计算结果' : null,
+  ].filter(Boolean)
   const sheetTabs = !!preview?.sheets?.length && <div className="shrink-0 overflow-x-auto border-b px-2 py-1"><div role="tablist" aria-label="工作表" className="flex w-max gap-1">
     {preview.sheets.map((sheet,i)=><button key={i} type="button" role="tab" aria-selected={page.sheet===i} disabled={loading}
       className={`rounded-md px-3 py-1 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring ${page.sheet===i ? 'bg-muted font-medium' : 'text-muted-foreground hover:bg-muted/50'}`}
       onClick={()=>changePage({sheet:i,row:0,column:0,offset:0})}>{sheet}</button>)}</div></div>
-  return <section aria-label={`预览 ${source.filename}`} className="flex h-full min-h-0 flex-col">
-    <header className="flex shrink-0 items-center gap-1 border-b px-3 py-2">
-      {onBack && <PreviewAction label="返回文件列表" icon={ChevronLeft} onClick={onBack}/>}
-      {canExpand ? <button type="button" aria-label={`展开 ${filename}`} className="mr-auto min-w-0 cursor-pointer truncate rounded-sm text-left text-sm outline-none hover:text-signal focus-visible:ring-2 focus-visible:ring-ring" title={filename} onClick={()=>setExpanded(true)}>{filename}</button>
-        : <span className="mr-auto min-w-0 truncate text-sm" title={filename}>{filename}</span>}{toolbar}
-      {canExpand && preview?.kind!=='image' && <PreviewAction label="展开预览" icon={Expand} onClick={()=>setExpanded(true)}/>}
-      {onClose && <PreviewAction label="关闭预览" icon={X} onClick={onClose}/>}
-    </header>
+  const reader = (full = false) => <>
     {sheetTabs}
-    <div className="min-h-0 flex-1">{body()}</div>{navigation}
-    <Dialog open={expanded} onOpenChange={setExpanded}><DialogContent showCloseButton={false} className="flex h-[90dvh] w-[95vw] max-w-[95vw] flex-col gap-0 overflow-hidden p-0 sm:max-w-[95vw]">
-      <DialogTitle className="sr-only">{filename}</DialogTitle><DialogDescription className="sr-only">文件预览</DialogDescription>
-      <header className="flex shrink-0 items-center gap-1 border-b px-3 py-2"><span className="mr-auto min-w-0 truncate text-sm">{filename}</span>{toolbar}<PreviewAction label="关闭预览" icon={X} onClick={()=>setExpanded(false)}/></header>
-      {sheetTabs}<div className="min-h-0 flex-1">{body(true)}</div>{navigation}
-    </DialogContent></Dialog>
-  </section>
+    <div className="min-h-0 flex-1">{body(full)}</div>
+    {navigation}
+    {!!notes.length && <p className="shrink-0 border-t px-3 py-1.5 text-xs tabular-nums text-faint">{notes.join(' · ')}</p>}
+  </>
+  return <>
+    <PreviewFrame filename={filename} actions={actions} onBack={onBack} onClose={onClose}
+      onExpand={canExpand ? () => setExpanded(true) : undefined}>
+      {reader()}
+    </PreviewFrame>
+    <PreviewDialog title={filename} open={expanded} onClose={() => setExpanded(false)}>
+      <PreviewFrame filename={filename} actions={actions} onClose={() => setExpanded(false)}>{reader(true)}</PreviewFrame>
+    </PreviewDialog>
+  </>
 }

@@ -1,8 +1,7 @@
-import {useEffect, useState} from 'react'
-import {ChevronRight, Loader2, FileText, Layers, Search} from '@/components/ui/icons'
+import {useEffect, useId, useState, type ReactNode} from 'react'
+import {ChevronRight, Quote, Loader2, Layers, Pin, Search} from '@/components/ui/icons'
 import {memoryApi} from '@/lib/api/memory'
 import type {ContextManifestView} from '@/lib/api/types'
-import {cn} from '@/lib/utils'
 import {Button} from '@/components/ui/button'
 import {MemorySources} from '@/components/workspace/memory-sources'
 
@@ -21,11 +20,14 @@ function sourceLabel(type: string) {
 }
 
 /** 助手最终回复下方：展开查看该次运行注入的工作方式、常驻记忆与初始召回。 */
-export function RunReferences({runId, workspaceId}: {runId: string; workspaceId?: string}) {
-  return <RunReferencesContent key={runId} runId={runId} workspaceId={workspaceId}/>
+type RunReferencesProps = {runId: string; workspaceId?: string; memoryNotice?: ReactNode; actions?: ReactNode; metrics?: ReactNode}
+
+export function RunReferences(props: RunReferencesProps) {
+  return <RunReferencesContent key={props.runId} {...props}/>
 }
 
-function RunReferencesContent({runId, workspaceId}: {runId: string; workspaceId?: string}) {
+function RunReferencesContent({runId, workspaceId, memoryNotice, actions, metrics}: RunReferencesProps) {
+  const detailsId = useId()
   const [open, setOpen] = useState(false)
   const [attempt, setAttempt] = useState(0)
   const [manifest, setManifest] = useState<ContextManifestView | null>(null)
@@ -44,17 +46,23 @@ function RunReferencesContent({runId, workspaceId}: {runId: string; workspaceId?
 
   return (
     <div className="text-meta">
+      <div className="flex min-w-0 flex-wrap items-center gap-x-2">
       <button
         type="button"
         aria-expanded={open}
+        aria-controls={open ? detailsId : undefined}
         onClick={() => {if (!attempt) setAttempt(1); setOpen(value => !value)}}
-        className="flex min-h-8 w-full items-center gap-1 rounded-md px-1 text-left text-muted-foreground outline-none hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring"
+        className="reply-foot-action"
       >
-        <ChevronRight className={cn('size-3.5 shrink-0 transition-transform', open && 'rotate-90')} aria-hidden/>
+        <Quote className="size-3.5 shrink-0" aria-hidden/>
         <span>本次参考</span>
       </button>
+      {memoryNotice}
+      {actions}
+      {metrics && <div className="ml-auto min-w-0">{metrics}</div>}
+      </div>
       {open && (
-        <div className="mt-1 space-y-3 rounded-xl bg-muted/60 p-3">
+        <div id={detailsId} className="mt-1 rounded-xl border bg-muted/40 p-3">
           {loading && (
             <p className="flex items-center gap-2 text-muted-foreground">
               <Loader2 className="size-3.5 animate-spin" aria-hidden/>正在读取
@@ -64,23 +72,35 @@ function RunReferencesContent({runId, workspaceId}: {runId: string; workspaceId?
             setError(null); setAttempt(value => value + 1)
           }}>重试</Button></p>}
           {manifest && (
-            <>
+            <div className="reference-grid grid gap-3">
               {(manifest.instruction_body?.trim() ?? '') !== '' && (
                 <section className="space-y-1">
-                  <h4 className="flex items-center gap-1.5 text-xs font-medium text-foreground"><FileText className="size-3.5"/>工作方式 {manifest.instruction_version != null && <span className="text-faint">v{manifest.instruction_version}</span>}</h4>
-                  <p className="whitespace-pre-wrap break-words text-muted-foreground">{manifest.instruction_body}</p>
+                  <h4 className="flex items-center gap-1.5 text-xs font-medium text-foreground"><Layers className="size-3.5" aria-hidden/>工作方式</h4>
+                  <details className="group">
+                    <summary className="flex cursor-pointer list-none items-center gap-1.5 rounded-md px-2 py-1.5 outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring">
+                      <ChevronRight className="size-3.5 shrink-0 text-faint group-open:rotate-90" aria-hidden/>
+                      <span className="flex-1">采用版本</span>
+                      {manifest.instruction_version != null && <span className="tabular-nums text-faint">v{manifest.instruction_version}</span>}
+                    </summary>
+                    <p className="px-2 py-1 whitespace-pre-wrap wrap-anywhere text-muted-foreground">{manifest.instruction_body}</p>
+                  </details>
                 </section>
               )}
               {manifest.resident_memories.length > 0 && (
                 <section className="space-y-1.5">
-                  <h4 className="flex items-center gap-1.5 text-xs font-medium text-foreground"><Layers className="size-3.5"/>常驻记忆</h4>
+                  <h4 className="flex items-center gap-1.5 text-xs font-medium text-foreground"><Pin className="size-3.5" aria-hidden/>常驻记忆 <span className="tabular-nums text-faint">{manifest.resident_memories.length}</span></h4>
                   <ul className="space-y-1">
                     {manifest.resident_memories.map(item => (
-                      <li key={item.memory_id} className="rounded-md bg-muted/40 px-2 py-1.5 text-muted-foreground">
-                        <span className="text-faint">{MEMORY_TYPE[item.memory_type] ?? item.memory_type} · </span>
-                        {item.content} <span className="text-faint">v{item.version}</span>
-                        {workspaceId && <Button size="xs" variant="ghost" aria-expanded={memoryOpen === item.memory_id}
-                          onClick={() => setMemoryOpen(current => current === item.memory_id ? null : item.memory_id)}>看来源</Button>}
+                      <li key={item.memory_id} className="min-w-0">
+                        <button type="button" aria-expanded={memoryOpen === item.memory_id}
+                          className="group flex w-full min-w-0 cursor-pointer items-center gap-1.5 rounded-md px-2 py-1.5 text-left outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
+                          onClick={() => setMemoryOpen(current => current === item.memory_id ? null : item.memory_id)}>
+                          <ChevronRight className="size-3.5 shrink-0 text-faint group-aria-expanded:rotate-90" aria-hidden/>
+                          <span className="min-w-0 flex-1 truncate">{item.content}</span><span className="tabular-nums text-faint">v{item.version}</span>
+                        </button>
+                        {memoryOpen === item.memory_id && <p className="px-2 py-1 whitespace-pre-wrap text-muted-foreground">
+                          <span className="text-faint">{MEMORY_TYPE[item.memory_type] ?? item.memory_type} · </span>{item.content}
+                        </p>}
                         {workspaceId && memoryOpen === item.memory_id && <MemorySources workspaceId={workspaceId} memoryId={item.memory_id} memoryVersion={item.version}/>}
                       </li>
                     ))}
@@ -123,7 +143,7 @@ function RunReferencesContent({runId, workspaceId}: {runId: string; workspaceId?
                 && manifest.omissions.length === 0 && (
                 <p className="text-muted-foreground">这次运行没有附加工作区背景。</p>
               )}
-            </>
+            </div>
           )}
         </div>
       )}

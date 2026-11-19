@@ -1,10 +1,11 @@
 import {useCallback, useEffect, useRef, useState} from 'react'
-import {AlertTriangle, ChevronDown, ChevronRight} from '@/components/ui/icons'
+import {Check, ChevronDown, Undo2} from '@/components/ui/icons'
 import {Button} from '@/components/ui/button'
 import {Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle} from '@/components/ui/dialog'
 import {ScrollArea} from '@/components/ui/scroll-area'
 import {Skeleton} from '@/components/ui/skeleton'
 import {formatBytes} from '@/components/run/format'
+import {fileExtension, FileTypeBadge} from '@/components/run/file-icon'
 import {useSessionTitle} from '@/hooks/use-session-title'
 import {ApiError} from '@/lib/api/fetch'
 import {historyApi} from '@/lib/api/workspace'
@@ -52,7 +53,7 @@ function ChangePreviewBlock({workspaceId, runId, path}: {workspaceId: string; ru
     {preview.kind === 'binary' && <p className="text-xs text-muted-foreground">二进制文件，不显示内容。当前 {sizeText(preview.current_size)}，撤销后 {sizeText(preview.restore_size)}。</p>}
     {preview.kind === 'too_large' && <p className="text-xs text-muted-foreground">文件过大，不显示内容差异。当前 {sizeText(preview.current_size)}，撤销后 {sizeText(preview.restore_size)}。</p>}
     {preview.kind === 'diff' && <>
-      <pre tabIndex={0} aria-label="撤销后的内容差异" className="max-h-60 overflow-auto rounded-md border bg-muted/40 py-1 font-mono text-xs leading-5">
+      <pre tabIndex={0} aria-label="撤销后的内容差异" className="max-h-60 overflow-auto rounded-lg border border-border/65 bg-muted/50 py-2 font-mono text-xs leading-5">
         {preview.diff.split('\n').map((line, index) => <span key={index} className={cn(
           'block min-w-max px-2 whitespace-pre',
           line.startsWith('+') && !line.startsWith('+++') && 'bg-state-success-soft text-state-success',
@@ -77,53 +78,57 @@ function EntryRow({workspaceId, runId, entry, selection, disabled, onSelect}: {
   const checked = selection.selected.has(entry.relative_path)
   const conflict = entry.status === 'conflict'
   const restored = entry.status === 'restored'
-  return <li className="px-3 py-2.5">
-    <div className="flex items-start gap-2.5">
-      <div className="flex h-5 w-4 shrink-0 items-center justify-center">
-        {conflict
-          ? <AlertTriangle className="size-4 text-state-waiting" aria-hidden/>
-          : <input type="checkbox" className="size-4 accent-signal" checked={checked} disabled={disabled || restored}
-              aria-label={`撤销 ${entry.relative_path}`} onChange={event => onSelect(entry, event.target.checked)}/>}
-      </div>
-      <div className="min-w-0 flex-1 space-y-1">
-        <p className="break-all font-mono text-xs leading-5" dir="auto">{entry.relative_path}</p>
-        <p className="text-xs text-muted-foreground">
-          {OPERATION[entry.operation]}{entry.writes > 1 ? `（写入 ${entry.writes} 次）` : ''} · {restored ? '已经是运行前的状态' : ACTION[entry.preview_kind]}
+  return <li className={cn('rounded-[13px] px-2 py-1.5', conflict ? 'bg-state-waiting-soft' : 'hover:bg-muted/55', restored && 'opacity-65')}>
+    <div className="flex min-h-11 items-center gap-2.5">
+      <input type="checkbox" className="size-4 shrink-0 accent-signal" checked={checked} disabled={disabled || restored || conflict}
+        aria-label={`撤销 ${entry.relative_path}`} onChange={event => onSelect(entry, event.target.checked)}/>
+      <FileTypeBadge extension={fileExtension(entry.relative_path)} compact/>
+      <div className="min-w-0 flex-1">
+        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+          <span className="min-w-0 font-mono text-xs leading-5 wrap-anywhere" dir="auto">{entry.relative_path}</span>
+          <span className="shrink-0 rounded-md bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">{OPERATION[entry.operation]}</span>
+        </div>
+        <p className={cn('text-xs leading-5', conflict ? 'text-state-waiting' : 'text-muted-foreground')}>
+          {conflict ? (entry.conflict_reason ? CONFLICT[entry.conflict_reason] : '当前内容与运行结束时不同')
+            : restored ? '已经是运行前的状态' : ACTION[entry.preview_kind]}
+          {entry.writes > 1 && <span className="ml-2 text-faint">写入 {entry.writes} 次</span>}
         </p>
-        {conflict && <div className="space-y-1 rounded-md bg-state-waiting-soft px-2.5 py-1.5 text-xs">
-          <p className="text-state-waiting">冲突：{entry.conflict_reason ? CONFLICT[entry.conflict_reason] : '当前内容与运行结束时不同'}。默认不撤销。</p>
-          {entry.can_force
-            ? <label className="flex items-center gap-1.5 text-foreground">
-                <input type="checkbox" className="size-3.5 accent-signal" checked={checked} disabled={disabled}
-                  onChange={event => onSelect(entry, event.target.checked)}/>
-                仍要覆盖当前内容
-              </label>
-            : <p className="text-muted-foreground">这一项不能强行覆盖，请自行处理。</p>}
-        </div>}
-        {!restored && <button type="button" aria-expanded={showing} onClick={() => setShowing(value => !value)}
-          className="inline-flex items-center gap-0.5 rounded-sm text-xs text-signal outline-none focus-visible:ring-2 focus-visible:ring-ring">
-          {showing ? <ChevronDown className="size-3.5" aria-hidden/> : <ChevronRight className="size-3.5" aria-hidden/>}
-          查看变化
-        </button>}
-        {showing && <ChangePreviewBlock workspaceId={workspaceId} runId={runId} path={entry.relative_path}/>}
       </div>
+      {!restored && <Button type="button" variant="ghost" size="icon-sm" aria-label="查看变化" title="查看撤销后的差异"
+        aria-expanded={showing} onClick={() => setShowing(value => !value)} className="text-muted-foreground">
+        <ChevronDown className={cn('size-4 transition-transform motion-reduce:transition-none', showing && 'rotate-180')} aria-hidden/>
+      </Button>}
     </div>
+    {conflict && <div className="pt-1 pl-7 text-xs">
+      {entry.can_force ? <label className="flex items-start gap-2 pb-1 text-state-waiting">
+        <input type="checkbox" className="mt-0.5 size-3.5 shrink-0 accent-signal" checked={checked} disabled={disabled}
+          onChange={event => onSelect(entry, event.target.checked)}/>
+        仍要覆盖当前内容，会丢掉运行后的改动
+      </label> : <p className="text-muted-foreground">这一项不能强行覆盖，请自行处理。</p>}
+    </div>}
+    {showing && <div className="pl-7"><ChangePreviewBlock workspaceId={workspaceId} runId={runId} path={entry.relative_path}/></div>}
   </li>
 }
 
 function ResultRow({result, busy, onForce}: {result: UndoItemResult; busy: boolean; onForce: (item: UndoItemRequest) => void}) {
   const retry = forceRetryItem(result)
   const ok = result.status === 'restored' || result.status === 'removed'
-  return <li className="flex items-start gap-2.5 px-3 py-2.5">
-    <span className={cn('mt-0.5 w-14 shrink-0 text-xs font-medium',
-      ok ? 'text-state-success' : result.status === 'unchanged' ? 'text-muted-foreground' : result.status === 'conflict' ? 'text-state-waiting' : 'text-state-failed')}>
-      {RESULT_LABEL[result.status]}
-    </span>
-    <div className="min-w-0 flex-1 space-y-0.5">
-      <p className="break-all font-mono text-xs leading-5" dir="auto">{result.relative_path}</p>
-      {result.message && <p className="text-xs text-muted-foreground">{result.message}</p>}
+  return <li className="flex min-h-11 items-center gap-2.5 rounded-[13px] px-2 py-2 hover:bg-muted/55">
+    <FileTypeBadge extension={fileExtension(result.relative_path)} compact/>
+    <div className="min-w-0 flex-1">
+      <div className="flex flex-wrap items-baseline gap-x-2">
+        <span className="min-w-0 font-mono text-xs leading-5 wrap-anywhere" dir="auto">{result.relative_path}</span>
+        <span className={cn('inline-flex shrink-0 items-center gap-1 rounded-md px-1.5 py-0.5 text-xs',
+          ok ? 'bg-state-success-soft text-state-success'
+            : result.status === 'unchanged' ? 'bg-muted text-muted-foreground'
+            : result.status === 'conflict' ? 'bg-state-waiting-soft text-state-waiting'
+            : 'bg-state-failed-soft text-state-failed')}>
+          {ok && <Check className="size-3" aria-hidden/>}{RESULT_LABEL[result.status]}
+        </span>
+      </div>
+      {result.message && <p className="text-xs leading-5 text-muted-foreground">{result.message}</p>}
     </div>
-    {retry && <Button type="button" variant="outline" size="xs" disabled={busy} onClick={() => onForce(retry)}>仍要覆盖</Button>}
+    {retry && <Button type="button" variant="ghost" size="xs" disabled={busy} onClick={() => onForce(retry)}>仍要覆盖</Button>}
   </li>
 }
 
@@ -209,18 +214,19 @@ export function UndoRunDialog({workspaceId, runId, kind = 'run', open, onOpenCha
   const nothing = changes != null && !blocked && !entries.some(isUndoable)
 
   return <Dialog open={open} onOpenChange={next => {if (!submitting) onOpenChange(next)}}>
-    <DialogContent className="flex max-h-[min(720px,90vh)] flex-col gap-4 sm:max-w-[640px]"
+    <DialogContent className="flex max-h-[min(45rem,calc(100dvh-1.5rem))] flex-col gap-3 rounded-[20px] p-4 sm:max-w-2xl sm:p-5"
       onPointerDownOutside={event => {if (submitting || results) event.preventDefault()}}
       onFocusOutside={event => {if (submitting || results) event.preventDefault()}}
       onInteractOutside={event => {if (submitting || results) event.preventDefault()}}
       onEscapeKeyDown={event => {if (submitting) event.preventDefault()}}>
-      <DialogHeader>
-        <DialogTitle>{undoing ? '撤回这次撤销' : '撤销本次修改'}</DialogTitle>
-        <DialogDescription>
-          {undoing
-            ? '这次撤销恢复或移除了文件夹里的文件。撤回会把它们改回撤销之前的内容，不会改变对话和记忆；覆盖前会先备份当前版本。'
-            : `${changes?.session_title ? `「${changes.session_title}」` : '这次运行'}修改了文件夹里的文件。撤销只恢复文件内容，不会改变对话和记忆；恢复或移除前会先备份当前版本。`}
-        </DialogDescription>
+      <DialogHeader className="flex-row items-start gap-2.5 pr-7 text-left">
+        <Undo2 className="mt-0.5 size-5 shrink-0 text-muted-foreground" aria-hidden/>
+        <div className="min-w-0 space-y-1">
+          <DialogTitle>{undoing ? '撤回这次撤销' : changes?.session_title ? `撤销「${changes.session_title}」的修改` : '撤销本次修改'}</DialogTitle>
+          <DialogDescription className="text-xs leading-relaxed">
+            {undoing ? '将文件恢复到撤销前的状态，覆盖前备份当前版本。' : '只恢复文件内容，保留对话和记忆。恢复或移除前会备份当前版本。'}
+          </DialogDescription>
+        </div>
       </DialogHeader>
 
       {load.phase === 'loading' && <div role="status" aria-label="正在读取修改记录" className="space-y-2"><Skeleton className="h-12 w-full"/><Skeleton className="h-12 w-full"/></div>}
@@ -229,8 +235,8 @@ export function UndoRunDialog({workspaceId, runId, kind = 'run', open, onOpenCha
       {nothing && !results && <p role="status" className="text-sm text-muted-foreground">{undoing ? '这次撤销涉及的文件都已回到撤销之前的状态，没有可撤回的内容。' : '这次运行修改的文件都已是运行前的状态，没有可撤销的内容。'}</p>}
 
       {changes && !blocked && !results && entries.length > 0 && <>
-        <ScrollArea className="min-h-0 flex-1 rounded-md border">
-          <ul className="divide-y">
+        <ScrollArea className="min-h-0 flex-1">
+          <ul className="space-y-0.5">
             {entries.map(entry => <EntryRow key={entry.relative_path} workspaceId={workspaceId} runId={changes.run_id} entry={entry}
               selection={selection} disabled={submitting} onSelect={(target, on) => setSelection(current => setSelected(current, target, on))}/>)}
           </ul>
@@ -238,8 +244,8 @@ export function UndoRunDialog({workspaceId, runId, kind = 'run', open, onOpenCha
       </>}
 
       {results && <>
-        <ScrollArea className="min-h-0 flex-1 rounded-md border">
-          <ul className="divide-y">
+        <ScrollArea className="min-h-0 flex-1">
+          <ul className="space-y-0.5">
             {results.map(result => <ResultRow key={result.relative_path} result={result} busy={submitting} onForce={item => void submit([item])}/>)}
           </ul>
         </ScrollArea>
@@ -253,11 +259,11 @@ export function UndoRunDialog({workspaceId, runId, kind = 'run', open, onOpenCha
         {failure.lease ? <LeaseConflict lease={failure.lease}/> : failure.message}
       </p>}
 
-      <DialogFooter>
-        <Button variant="outline" disabled={submitting} onClick={() => onOpenChange(false)}>{results ? '完成' : '取消'}</Button>
+      <DialogFooter className="flex-row flex-wrap justify-end">
+        <Button variant={results ? 'default' : 'ghost'} disabled={submitting} onClick={() => onOpenChange(false)}>{results ? '完成' : '取消'}</Button>
         {changes && !blocked && !results && entries.length > 0 && !nothing && (
           <Button disabled={submitting || items.length === 0} onClick={() => void submit(items)}>
-            {submitting ? (undoing ? '正在撤回' : '正在撤销') : `${undoing ? '撤回' : '撤销'}所选${items.length ? `（${items.length}）` : ''}`}
+            {submitting ? (undoing ? '正在撤回' : '正在撤销') : `${undoing ? '撤回' : '撤销'}选中的 ${items.length} 项`}
           </Button>
         )}
       </DialogFooter>

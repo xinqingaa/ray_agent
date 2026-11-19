@@ -62,9 +62,9 @@ export function MainShell({children, listAvailable}: {children: ReactNode; listA
       <header className="app-topbar">
         {listAvailable && <IconAction label={listOpen ? '收起左侧列表' : '展开左侧列表'} aria-expanded={listOpen}
           className="topbar-action shrink-0" onClick={toggleSidebar}><PanelLeftIcon/></IconAction>}
-        <nav aria-label="当前位置" className="app-breadcrumb">
-          {home && sessionId ? <Link href={home} className="truncate text-muted-foreground" title={workspaceName}>{workspaceName}</Link> : null}
-          {home && sessionId && <span aria-hidden className="text-faint">/</span>}
+        <nav aria-label="当前位置" className="app-breadcrumb" data-workspace-session={Boolean(home && sessionId)}>
+          {home && sessionId ? <Link href={home} className="app-workspace-crumb truncate text-muted-foreground" title={workspaceName}>{workspaceName}</Link> : null}
+          {home && sessionId && <span aria-hidden className="app-crumb-divider text-faint">/</span>}
           {sessionId ? <span className="app-session-crumb font-semibold">
             <span ref={setTitleSlot} className="app-title-slot"/>
             <span className="app-title-fallback" title={displayedTitle}>{displayedTitle}</span>

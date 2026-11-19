@@ -20,28 +20,26 @@ type UserMessageProps = {
 
 export function UserMessage({text, skillName, attachments = [], injected = false, className, onPreview, onDownload}: UserMessageProps) {
   return (
-    <div className={cn('flex flex-col items-end gap-1', className)}>
+    <div className={cn('mt-2 mb-3 flex min-w-0 flex-col items-end gap-2', className)}>
       {injected && (
         <span className="inline-flex items-center gap-1 text-xs text-signal">
           <CornerDownRight className="size-3" aria-hidden/>
           补充要求，已加入当前运行
         </span>
       )}
-      <div
+      {(text || skillName) && <div
         className={cn(
-          'max-w-[min(36rem,88%)] rounded-[14px] px-3.5 py-2.5',
+          'max-w-[min(36rem,86%)] rounded-[16px_16px_6px_16px] px-3.5 py-2.5',
           injected ? 'border border-dashed border-signal/50 bg-signal-soft/40' : 'bg-secondary',
         )}
       >
-        <div className="whitespace-pre-wrap break-words text-sm leading-relaxed">{skillName && <SkillMark name={skillName} className="mr-1.5"/>}{text}</div>
-        {attachments.length > 0 && (
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {attachments.map(file => <FileRow key={file.id} file={file} compact showThumbnail
-              onOpen={onPreview ? () => onPreview(file) : undefined}
-              actions={onDownload && <PreviewAction label={`下载 ${file.filename}`} icon={Download} onClick={() => onDownload(file)}/>}/>)}
-          </div>
-        )}
-      </div>
+        <div className="whitespace-pre-wrap wrap-anywhere text-sm leading-relaxed">{skillName && <SkillMark name={skillName} className="mr-1.5"/>}{text}</div>
+      </div>}
+      {attachments.length > 0 && <div className="flex max-w-full flex-wrap justify-end gap-1.5">
+        {attachments.map(file => <FileRow key={file.id} file={file} compact showThumbnail
+          onOpen={onPreview ? () => onPreview(file) : undefined}
+          actions={onDownload && <PreviewAction label={`下载 ${file.filename}`} icon={Download} onClick={() => onDownload(file)}/>}/>)}
+      </div>}
     </div>
   )
 }
@@ -77,10 +75,10 @@ type FinalReplyProps = {
 /** 最终回复正文；时间线将本次运行统计附在回复下方。 */
 export function FinalReply({text, streaming, className, deliveredFiles, onDownloadFile}: FinalReplyProps) {
   return (
-    <div className={cn('space-y-3', className)} aria-busy={streaming || undefined}>
+    <article className={cn('min-w-0 space-y-3', className)} aria-busy={streaming || undefined}>
       <div className={cn('[&_.markdown-content>p:first-child]:font-medium [&_.markdown-content>p:first-child]:text-base', streaming && STREAMING_CARET)}>
         <MarkdownContent content={text} deliveredFiles={deliveredFiles} onDownloadFile={onDownloadFile}/>
       </div>
-    </div>
+    </article>
   )
 }

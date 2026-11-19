@@ -54,7 +54,7 @@ export const generalFormOptions = {
     collect<GeneralField>(Object.fromEntries(FIELDS.map((f) => [f.field, checkInteger(v[f.field], f.min, f.max)]))),
 }
 
-export function GeneralSection({form}: {form: GeneralForm}) {
+export function GeneralSection({form, children}: {form: GeneralForm; children?: ReactNode}) {
   const {visibility} = useDeveloperMode()
   const values = form.values
   const showLimits = visibility.executionSettings
@@ -65,6 +65,7 @@ export function GeneralSection({form}: {form: GeneralForm}) {
         title="通用"
         description="独立对话的本机执行，以及 Agent 循环上限。修改后从下一次运行开始生效。"
       />
+      {children}
       {form.load.phase === 'loading' && <FormSkeleton rows={showLimits ? 4 : 1}/>}
       {form.load.phase === 'error' && <div className="py-5"><LoadError message={form.load.message} onRetry={form.reload}/></div>}
       {form.load.phase === 'ready' && values && (
@@ -126,3 +127,4 @@ export function GeneralSection({form}: {form: GeneralForm}) {
     </section>
   )
 }
+import type {ReactNode} from 'react'

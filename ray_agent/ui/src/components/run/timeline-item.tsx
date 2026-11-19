@@ -34,10 +34,11 @@ export type TimelineHandlers = {
   showRunReferences?: boolean
   workspaceId?: string
   renderMemoryNotice?: (runId: string) => ReactNode
+  renderRunActions?: (runId: string) => ReactNode
 }
 
 /** 按条目类型分派到对应组件；会话页与组件状态目录共用 */
-export function TimelineItemView({item, handlers = {}}: {item: TimelineItem; handlers?: TimelineHandlers}) {
+export function TimelineItemView({item, handlers = {}, metrics, runActions}: {item: TimelineItem; handlers?: TimelineHandlers; metrics?: ReactNode; runActions?: ReactNode}) {
   const streaming = handlers.streamingItemId === item.id
   switch (item.kind) {
     case 'user':
@@ -87,11 +88,11 @@ export function TimelineItemView({item, handlers = {}}: {item: TimelineItem; han
       return <ProtectionNotice message={item.message} state={item.state}/>
     case 'final':
       return (
-        <div className="space-y-1">
+        <div className="min-w-0 space-y-2">
           <span id={item.runId ? `reply-${item.runId}` : undefined} className="block scroll-mt-3"/>
           <FinalReply text={item.text} summary={item.summary} streaming={streaming} deliveredFiles={item.deliveredFiles} onDownloadFile={handlers.onDownloadFile}/>
-          {item.runId && !streaming && handlers.renderMemoryNotice?.(item.runId)}
-          {handlers.showRunReferences && item.runId && !streaming ? <RunReferences runId={item.runId} workspaceId={handlers.workspaceId}/> : null}
+          {handlers.showRunReferences && item.runId && !streaming && <RunReferences runId={item.runId}
+            workspaceId={handlers.workspaceId} memoryNotice={handlers.renderMemoryNotice?.(item.runId)} actions={runActions} metrics={metrics}/>}
         </div>
       )
     case 'run_end':
@@ -202,18 +203,24 @@ export function Timeline({items, runs = [], streaming, activeStatus, handlers, c
     // 进行中的状态词靠左、统计靠右，共用一行。
     <li key={`run-metrics:${run.id}`} className="flex flex-wrap items-center gap-x-3">
       {(run.status === 'running' || run.status === 'waiting') && activeStatus ? <div className="min-w-0 flex-1">{activeStatus}</div> : null}
+      {handlers?.renderRunActions?.(run.id)}
       <RunStatusBar run={run} streaming={streaming} className="ml-auto"/>
     </li>
   )
   return (
-    <ol className={className ?? 'flex flex-col gap-3'}>
+    <ol className={className ?? 'flex min-w-0 flex-col gap-3.5'}>
       {rows.flatMap((row, index) => {
+        const run = anchors.get(index)
+        if (run?.status === 'completed' && row.type === 'item' && row.item.kind === 'final' && row.item.runId &&
+            handlers?.showRunReferences && handlers.streamingItemId !== row.item.id) {
+          return <li key={row.item.id}><TimelineItemView item={row.item} handlers={handlers}
+            runActions={handlers.renderRunActions?.(run.id)} metrics={<RunStatusBar run={run} streaming={streaming}/>}/></li>
+        }
         const content = row.type === 'fold' ? (
           <li key={row.fold.id}><RunFoldView fold={row.fold} items={items} handlers={handlers}/></li>
         ) : (
           <li key={row.type === 'process' ? row.block.id : row.item.id}><RowView row={row} items={items} handlers={handlers}/></li>
         )
-        const run = anchors.get(index)
         return run ? [content, metrics(run)] : [content]
       })}
       {unanchored.map(metrics)}
