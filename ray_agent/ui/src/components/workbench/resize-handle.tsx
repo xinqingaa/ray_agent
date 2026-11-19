@@ -1,4 +1,4 @@
-import {useEffect, useRef, useState} from 'react'
+import {useEffect, useRef, useState, type PointerEvent, type RefObject} from 'react'
 import {
   WORKBENCH_DEFAULT_PX,
   WORKBENCH_WIDTH_KEY,
@@ -7,43 +7,65 @@ import {
   workbenchBounds,
 } from '@/lib/workbench-width'
 
-export function useWorkbenchWidth() {
-  const [width, setWidthState] = useState(WORKBENCH_DEFAULT_PX)
-  const viewport = useRef(1280)
-  const [bounds, setBounds] = useState(() => workbenchBounds(1280))
+export function useWorkbenchWidth(preference: RefObject<number | null>) {
+  const [viewport, setViewport] = useState(() => window.innerWidth)
+  const [preferredWidth, setPreferredWidth] = useState(() => {
+    if (preference.current != null) return preference.current
+    try {
+      return readWorkbenchWidth(window.localStorage.getItem(WORKBENCH_WIDTH_KEY), window.innerWidth)
+    } catch {
+      return WORKBENCH_DEFAULT_PX
+    }
+  })
   useEffect(() => {
-    const applyStored = () => {
-      viewport.current = window.innerWidth
-      setBounds(workbenchBounds(viewport.current))
-      setWidthState(readWorkbenchWidth(window.localStorage.getItem(WORKBENCH_WIDTH_KEY), viewport.current))
-    }
-    applyStored()
-    const onResize = () => {
-      viewport.current = window.innerWidth
-      setBounds(workbenchBounds(viewport.current))
-      setWidthState(current => clampWorkbenchWidth(current, viewport.current))
-    }
+    const onResize = () => setViewport(window.innerWidth)
     window.addEventListener('resize', onResize)
     return () => window.removeEventListener('resize', onResize)
   }, [])
-  const setWidth = (px: number) => {
-    const next = clampWorkbenchWidth(px, viewport.current)
-    setWidthState(next)
-    window.localStorage.setItem(WORKBENCH_WIDTH_KEY, String(Math.round(next)))
+  const setWidth = (px: number, save = true) => {
+    const next = clampWorkbenchWidth(px, window.innerWidth)
+    preference.current = next
+    setPreferredWidth(next)
+    if (save) {
+      try {window.localStorage.setItem(WORKBENCH_WIDTH_KEY, String(Math.round(next)))} catch {/* Keep the in-memory width. */}
+    }
   }
-  return {width, setWidth, reset: () => setWidth(WORKBENCH_DEFAULT_PX), min: bounds.min, max: bounds.max}
+  return {
+    width: clampWorkbenchWidth(preferredWidth, viewport),
+    ...workbenchBounds(viewport),
+    setWidth,
+    reset: () => setWidth(WORKBENCH_DEFAULT_PX),
+  }
 }
 
-export function WorkbenchResizeHandle({width, min, max, onWidth, onReset, onDragging, label = '调整工作台宽度'}: {
+export function WorkbenchResizeHandle({width, min, max, onWidth, onReset, label = '调整工作台宽度'}: {
   label?: string
   width: number
   min: number
   max: number
-  onWidth: (px: number) => void
+  onWidth: (px: number, save?: boolean) => void
   onReset: () => void
-  onDragging: (dragging: boolean) => void
 }) {
-  const drag = useRef<{origin: number; start: number; active: boolean} | null>(null)
+  const drag = useRef<{pointerId: number; origin: number; start: number; target?: number} | null>(null)
+  const [resizing, setResizing] = useState(false)
+
+  const resize = (event: PointerEvent<HTMLDivElement>) => {
+    const current = drag.current
+    if (current?.pointerId !== event.pointerId) return
+    const delta = current.origin - event.clientX
+    if (current.target == null && Math.abs(delta) <= 3) return
+    current.target = current.start + delta
+    onWidth(current.target, false)
+  }
+  const finish = (event: PointerEvent<HTMLDivElement>) => {
+    const current = drag.current
+    if (current?.pointerId !== event.pointerId) return
+    if (event.type === 'pointerup') resize(event)
+    drag.current = null
+    setResizing(false)
+    if (current.target != null) onWidth(current.target)
+  }
+
   return (
     <div
       role="separator"
@@ -53,6 +75,7 @@ export function WorkbenchResizeHandle({width, min, max, onWidth, onReset, onDrag
       aria-valuemax={Math.round(max)}
       aria-valuenow={Math.round(width)}
       tabIndex={0}
+      data-resizing={resizing}
       onDoubleClick={onReset}
       onKeyDown={event => {
         if (event.key === 'ArrowRight' || event.key === 'ArrowUp') {event.preventDefault(); onWidth(width + 16)}
@@ -61,20 +84,18 @@ export function WorkbenchResizeHandle({width, min, max, onWidth, onReset, onDrag
         else if (event.key === 'End') {event.preventDefault(); onWidth(max)}
       }}
       onPointerDown={event => {
+        if (!event.isPrimary || event.button !== 0 || drag.current) return
+        event.preventDefault()
         event.currentTarget.setPointerCapture(event.pointerId)
-        drag.current = {origin: event.clientX, start: width, active: false}
-        onDragging(true)
+        event.currentTarget.focus({preventScroll: true})
+        drag.current = {pointerId: event.pointerId, origin: event.clientX, start: width}
+        setResizing(true)
       }}
-      onPointerMove={event => {
-        const current = drag.current
-        if (!current) return
-        if (!current.active && Math.abs(event.clientX - current.origin) <= 3) return
-        current.active = true
-        onWidth(current.start + (current.origin - event.clientX))
-      }}
-      onPointerUp={() => {drag.current = null; onDragging(false)}}
-      onPointerCancel={() => {drag.current = null; onDragging(false)}}
-      className="absolute inset-y-0 left-0 z-10 w-3 cursor-col-resize touch-none outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      onPointerMove={resize}
+      onPointerUp={finish}
+      onPointerCancel={finish}
+      onLostPointerCapture={finish}
+      className="task-inspector-resize absolute inset-y-0 z-10 cursor-col-resize touch-none select-none outline-none focus-visible:ring-2 focus-visible:ring-ring"
     />
   )
 }

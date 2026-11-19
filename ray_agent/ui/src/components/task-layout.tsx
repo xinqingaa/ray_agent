@@ -4,7 +4,6 @@ import {IconAction} from '@/components/ui/icon-action'
 import {SegmentedControl} from '@/components/ui/segmented-control'
 import {useWorkbenchWidth, WorkbenchResizeHandle} from '@/components/workbench/resize-handle'
 import {useIsMobile} from '@/hooks/use-mobile'
-import {cn} from '@/lib/utils'
 import {rootApi} from '@/lib/api/workspace'
 import {TaskFilePicker} from '@/lib/task-file-picker'
 
@@ -32,8 +31,11 @@ export function TaskInspectorTabs({value, workspace, onChange, onClose, onAction
 export function useTaskInspector(defaultOpen: boolean, openOnEntry = false) {
   const floating = useIsMobile(INSPECTOR_FLOAT_BREAKPOINT)
   const [open, setOpen] = useState<boolean | null>(openOnEntry ? true : null)
-  return {floating, open: open ?? (defaultOpen && !floating), setOpen}
+  const widthPreference = useRef<number | null>(null)
+  return {floating, open: open ?? (defaultOpen && !floating), setOpen, widthPreference}
 }
+
+export type TaskInspectorState = ReturnType<typeof useTaskInspector>
 
 type DropTarget = 'attach' | 'folder'
 type DropDirectory = {path: string; name: string}
@@ -200,12 +202,12 @@ export function TaskLayout({children, inspector, attach, addToFolder, folderRoot
 }
 
 /** The same content stays mounted while the right panel changes position or closes. */
-export function TaskInspector({open, onClose, floating, label, belowSessionMode, triggerRef, children}: {
-  open: boolean; onClose: () => void; floating: boolean; label: string; belowSessionMode?: boolean;
+export function TaskInspector({state, label, belowSessionMode, triggerRef, children}: {
+  state: TaskInspectorState; label: string; belowSessionMode?: boolean;
   triggerRef?: RefObject<HTMLButtonElement | null>; children: ReactNode
 }) {
-  const width = useWorkbenchWidth()
-  const [dragging, setDragging] = useState(false)
+  const {open, floating, setOpen, widthPreference} = state
+  const width = useWorkbenchWidth(widthPreference)
   const panel = useRef<HTMLElement>(null)
   const previousOpen = useRef(false)
 
@@ -221,25 +223,25 @@ export function TaskInspector({open, onClose, floating, label, belowSessionMode,
       if (event.key !== 'Escape' || event.defaultPrevented ||
         document.querySelector('[role="dialog"][data-state="open"], [role="menu"][data-state="open"]')) return
       event.preventDefault()
-      onClose()
+      setOpen(false)
       triggerRef?.current?.focus()
     }
     const outside = (event: PointerEvent) => {
       if (document.querySelector('[role="dialog"][data-state="open"], [role="menu"][data-state="open"], [data-slot="popover-content"][data-state="open"]')) return
       const target = event.target as Node
       if (target instanceof Element && target.closest('button, a, input, textarea, select, [role="button"], [role="menuitem"]')) return
-      if (!panel.current?.contains(target)) onClose()
+      if (!panel.current?.contains(target)) setOpen(false)
     }
     window.addEventListener('keydown', escape)
     window.addEventListener('pointerdown', outside)
     return () => {window.removeEventListener('keydown', escape); window.removeEventListener('pointerdown', outside)}
-  }, [floating, onClose, open, triggerRef])
+  }, [floating, open, setOpen, triggerRef])
 
   return <aside ref={panel} tabIndex={-1} aria-label={label} aria-hidden={!open} inert={!open}
     data-open={open} data-below-mode={Boolean(belowSessionMode)}
-    className={cn('task-inspector', dragging && 'transition-none')} style={{width: open ? width.width : 0}}>
+    className="task-inspector" style={{width: open ? width.width : 0}}>
     <div className="task-inspector-paper" style={{width: width.width}}>{children}</div>
     {open && !floating && <WorkbenchResizeHandle width={width.width} min={width.min} max={width.max}
-      onWidth={width.setWidth} onReset={width.reset} onDragging={setDragging} label={`调整${label}宽度`}/>}
+      onWidth={width.setWidth} onReset={width.reset} label={`调整${label}宽度`}/>}
   </aside>
 }

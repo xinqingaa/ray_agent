@@ -19,7 +19,7 @@ import {FilePreviewDialog} from '@/components/preview/file-preview-dialog'
 import {downloadSessionFile, Workbench} from '@/components/workbench/workbench'
 import {describeWorkspace} from '@/lib/workspace-state'
 import {FolderPanel, type FolderPanelRef, type FolderPanelTab} from '@/components/workspace/folder-panel'
-import {TaskInspector, TaskInspectorTabs, TaskLayout, useTaskInspector} from '@/components/task-layout'
+import {TaskInspector, TaskInspectorTabs, TaskLayout, type TaskInspectorState} from '@/components/task-layout'
 import {TopbarActions, TopbarTitle} from '@/components/sidebar-chrome'
 import {FilePreview} from '@/components/preview/file-preview'
 import {FileRow} from '@/components/preview/file-row'
@@ -46,6 +46,7 @@ import type {FileView, TimelineItem, ToolCallView} from '@/lib/session-view'
 
 export interface SessionDetailViewProps {
   sessionId: string
+  inspector: TaskInspectorState
   /** 工作区会话：右侧面板在文件夹与工作台之间切换，输入框随工作区状态只读 */
   workspace?: WorkspaceItem
   sourceRefresh?: number
@@ -83,6 +84,7 @@ function latestCompactionId(items: TimelineItem[] | undefined): string | null {
 
 export function SessionDetailView({
   sessionId,
+  inspector,
   workspace,
   sourceRefresh,
   renderRunActions,
@@ -120,7 +122,7 @@ export function SessionDetailView({
   const mode = visibility.developerView ? selectedMode : 'conversation'
   const [developerVisited, setDeveloperVisited] = useState(false)
   const [inspection, setInspection] = useState<{callId: string | null; request: number} | null>(null)
-  const {open: workbenchOpen, setOpen: setWorkbenchOpen, floating: inspectorFloating} = useTaskInspector(workspace != null)
+  const {open: workbenchOpen, setOpen: setWorkbenchOpen, floating: inspectorFloating} = inspector
   const [panelView, setPanelView] = useState<FolderPanelTab | 'workbench'>(workspace ? 'folder' : 'workbench')
   const [toolbarTarget, setToolbarTarget] = useState<HTMLDivElement | null>(null)
   const [inspectorSource, setInspectorSource] = useState<KnowledgeReference | null>(null)
@@ -645,43 +647,13 @@ export function SessionDetailView({
     scrollPositions.current.conversation = el.scrollTop
   }
 
-  if (loading && !view) {
-    return (
-      <div className="flex h-full flex-1 items-center justify-center px-4">
-        <p className="text-sm text-muted-foreground">正在读取对话</p>
-      </div>
-    )
-  }
-
-  if (error && !view) {
-    return (
-      <div className="flex h-full flex-1 flex-col items-center justify-center gap-2 px-4">
-        <p className="text-sm text-state-failed">{error.message}</p>
-        <button
-          type="button"
-          onClick={() => void refresh()}
-          className="rounded-sm text-sm text-signal underline outline-none focus-visible:ring-2 focus-visible:ring-ring"
-        >
-          重新读取
-        </button>
-      </div>
-    )
-  }
-
-  if (!view) {
-    return (
-      <div className="flex h-full flex-1 items-center justify-center px-4">
-        <p className="text-sm text-muted-foreground">未找到该任务</p>
-      </div>
-    )
-  }
-
-  const activity = view.activeRun?.activity
+  const activity = view?.activeRun?.activity
   const activityKind = activity?.kind
-  const userCount = view.timeline.filter((item) => item.kind === 'user').length
+  const timeline = view?.timeline ?? []
+  const userCount = timeline.filter((item) => item.kind === 'user').length
   const echoed = outgoing != null && userCount > outgoing.userCount
-  const endCount = view.timeline.filter((item) => item.kind === 'run_end').length
-  const visible = conversationTimeline(view.timeline, view.runs, {hiddenRunIds, hiddenUserIds, pending: retrying})
+  const endCount = timeline.filter((item) => item.kind === 'run_end').length
+  const visible = conversationTimeline(timeline, view?.runs ?? [], {hiddenRunIds, hiddenUserIds, pending: retrying})
   const hiddenEnd = outgoing != null && outgoing.echo !== false && endCount <= outgoing.endCount
     ? visible.items.findLast(item => item.kind === 'run_end') : undefined
   const shownTimeline = hiddenEnd ? visible.items.filter(item => item.id !== hiddenEnd.id) : visible.items
@@ -689,36 +661,37 @@ export function SessionDetailView({
   const pendingSend = outgoing != null
   const showOptimistic = outgoing != null && outgoing.echo !== false && !echoed && !submitting
   const waitingReply = activityKind === 'waiting_reply'
-  const pauseMode = waitingReply ? false : activityKind === 'stopping' ? 'stopping' : (outgoing || submitting || view.status === 'running' || waitingApproval) ? 'ready' as const : false
+  const pauseMode = waitingReply ? false : activityKind === 'stopping' ? 'stopping' : (outgoing || submitting || view?.status === 'running' || waitingApproval) ? 'ready' as const : false
 
   const placeholder = waitingApproval
     ? RUN_INPUT_HINT.approval
-    : view.status === 'waiting'
+    : view?.status === 'waiting'
     ? RUN_INPUT_HINT.reply
-    : view.status === 'running'
+    : view?.status === 'running'
       ? RUN_INPUT_HINT.running
       : RUN_INPUT_HINT.idle
 
-  const showPlanExecute = canExecutePlan(view)
-  const planBarState = planBarMode(view)
+  const showPlanExecute = view && canExecutePlan(view)
+  const planBarState = view && planBarMode(view)
   const timelineStatus = (
     <RunStatus
       place="timeline"
-      compacting={compacting && latestCompactionId(view.timeline) === compactAnchor}
+      compacting={compacting && latestCompactionId(timeline) === compactAnchor}
       pendingSend={pendingSend}
       activity={activityKind}
       since={activity?.kind === 'model' ? activity.startedAt : activity?.kind === 'stopping' ? activity.requestedAt : null}
-      streaming={!!view.streaming?.text}
-      running={view.activeRun?.status === 'running'}
+      streaming={!!view?.streaming?.text}
+      running={view?.activeRun?.status === 'running'}
     />
   )
 
-  const planControls = (historyAction?: ReactNode, historyOpen?: boolean) => planBarState
+  const planControls = (historyAction?: ReactNode, historyOpen?: boolean) => view && planBarState
     ? <PlanBar plan={view.plan} runStatus={view.activeRun?.status ?? null}
         proposal={planBarState === 'proposal'} historyAction={historyAction} historyOpen={historyOpen} className="min-w-0 flex-1"/>
     : historyAction
-  const planHistory = view.planHistory ?? []
-  const deliveries = view.files.filter(file => file.source === 'delivery')
+  const planHistory = view?.planHistory ?? []
+  const files = view?.files ?? []
+  const deliveries = view?.files.filter(file => file.source === 'delivery')
   const panel = <div className="flex h-full min-h-0 flex-col">
     <TaskInspectorTabs value={panelView} workspace={workspace != null} onActions={setToolbarTarget}
       onChange={next => {setInspectorSource(null); setInspectorFile(null); folderPanel.current?.closePreview(); setPanelView(next)}}
@@ -729,7 +702,7 @@ export function SessionDetailView({
         deliveries={deliveries} onOpenDelivery={previewDelivery} className="h-full w-full"/>
     </div>}
     {!workspace && panelView === 'delivered' && !inspectorFile && <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-3">
-      {deliveries.length ? <>
+      {deliveries?.length ? <>
         <h2 className="px-1.5 py-1.5 text-xs font-medium text-faint">本次交付</h2>
         {deliveries.map(file => <FileRow key={file.id} file={file} versionLabel="交付版本" onOpen={() => handlers.onPreviewFile?.(file)}/>)}
       </> : <p className="py-8 text-center text-meta text-muted-foreground">这个对话还没有交付文件。</p>}
@@ -743,7 +716,7 @@ export function SessionDetailView({
         onBack={() => setInspectorFile(null)}/>
     </div>}
     <div className={cn('min-h-0 flex-1', (panelView !== 'workbench' || inspectorFile || inspectorSource) && 'hidden')}>
-      <Workbench key={inspection?.request ?? 0} focus={focus} files={view.files}
+      <Workbench key={inspection?.request ?? 0} focus={focus} files={files}
         canFollowLatest={!!latest && (!inspection || !!pin && latest.callId !== pin.callId)}
         onFollowLatest={() => setInspection(current => ({callId: null, request: (current?.request ?? 0) + 1}))}/>
     </div>
@@ -754,15 +727,15 @@ export function SessionDetailView({
 
   return (
     <>
-      <TopbarTitle><span title={displayTitle}>{displayTitle}</span></TopbarTitle>
+      {view && <TopbarTitle><span title={displayTitle}>{displayTitle}</span></TopbarTitle>}
       <TopbarActions>
-        <IconAction label="重命名会话" className="topbar-action" onClick={() => setRenameOpen(true)}><Pencil/></IconAction>
+        <IconAction label="重命名会话" className="topbar-action" disabled={!view} onClick={() => setRenameOpen(true)}><Pencil/></IconAction>
         <IconAction ref={inspectorTrigger} label={workbenchOpen ? `收起${panelName}` : `打开${panelName}`}
           aria-expanded={workbenchOpen} className="topbar-action" onClick={() => setWorkbenchOpen(!workbenchOpen)}><PanelRight/></IconAction>
       </TopbarActions>
-      <TaskLayout key={sessionId} workspace={Boolean(workspace)}
+      <TaskLayout workspace={Boolean(workspace)}
         folderRootId={workspaceState?.writable ? workspace?.folder?.root_id : undefined}
-        attach={readOnlyReason || mode !== 'conversation' || waitingApproval || submitting ? undefined : files => composer.current?.addFiles(files)}
+        attach={!view || readOnlyReason || mode !== 'conversation' || waitingApproval || submitting ? undefined : files => composer.current?.addFiles(files)}
         addToFolder={!workspaceState?.writable || mode !== 'conversation' ? undefined : (files, directory) => {
           folderPanel.current?.addFiles(files, directory)
           setInspectorFile(null)
@@ -770,21 +743,21 @@ export function SessionDetailView({
           setPanelView('folder')
           setWorkbenchOpen(true)
         }}
-        inspector={<TaskInspector open={workbenchOpen} onClose={() => setWorkbenchOpen(false)} label={panelName}
-          floating={inspectorFloating} belowSessionMode={visibility.developerView} triggerRef={inspectorTrigger}>{panel}</TaskInspector>}>
+        inspector={<TaskInspector state={inspector} label={panelName}
+          belowSessionMode={visibility.developerView} triggerRef={inspectorTrigger}>{panel}</TaskInspector>}>
           <header className={cn('flex shrink-0 items-center gap-2 px-4', (workspace || visibility.developerView) && 'min-h-11 py-1.5')}>
             <h1 className="sr-only">{displayTitle}</h1>
             <div className="mr-auto">
               {workspace && <>
                 <WorkspaceSwitch label="参与记忆" descriptionId="session-memory-participation-help" className="session-memory-switch"
-                  checked={participateInMemory} pending={participateBusy} onChange={checked => void toggleParticipate(checked)}/>
+                  checked={participateInMemory} disabled={!view} pending={participateBusy} onChange={checked => void toggleParticipate(checked)}/>
                 <span id="session-memory-participation-help" className="sr-only">关闭后不再从此对话提炼记忆。</span>
               </>}
             </div>
             {visibility.developerView && <SegmentedControl value={mode} idPrefix="session-mode" label="会话视图" options={[
               {value: 'conversation', label: '聊天', icon: MessageCircle},
               {value: 'developer', label: '日志', icon: Code2},
-            ]} onValueChange={next => {setMode(next); if (next === 'developer') setDeveloperVisited(true)}}/>}
+            ]} onValueChange={next => {if (view) {setMode(next); if (next === 'developer') setDeveloperVisited(true)}}}/>}
           </header>
 
           <div className="min-h-0 flex-1 overflow-hidden">
@@ -797,7 +770,15 @@ export function SessionDetailView({
                   onKeyDownCapture={event => {
                     if (['ArrowDown', 'ArrowUp', 'PageDown', 'PageUp', 'Home', 'End'].includes(event.key)) resumeConversationScroll(event.target)
                   }}>
-                  <div ref={messageContentRef} className="session-reading mx-auto flex w-full max-w-(--reading-column) flex-col gap-4 py-5">
+                  {!view ? <div className="flex min-h-full flex-col items-center justify-center gap-2 px-4 text-center">
+                    {loading ? <p role="status" className="text-sm text-muted-foreground">正在读取对话</p>
+                      : error ? <>
+                        <p role="alert" className="text-sm text-state-failed">{error.message}</p>
+                        <button type="button" onClick={() => void refresh()} className="rounded-sm text-sm text-signal underline outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                          重新读取
+                        </button>
+                      </> : <p className="text-sm text-muted-foreground">未找到该任务</p>}
+                  </div> : <div ref={messageContentRef} className="session-reading mx-auto flex w-full max-w-(--reading-column) flex-col gap-4 py-5">
                     {shownTimeline.length === 0 && !showOptimistic && (
                       <p className="py-8 text-center text-meta text-faint">
                         这里会显示你的消息、工具操作和最终回复。在下方输入任务后开始。
@@ -815,7 +796,7 @@ export function SessionDetailView({
                           toast.error(err instanceof Error ? err.message : '发送失败')
                         })
                       }}/>}
-                  </div>
+                  </div>}
                 </div>
                 <div hidden={mode !== 'conversation'} className="relative shrink-0 bg-background px-3 pt-2 pb-5">
                   {mode === 'conversation' && awayFromBottom && <div className="absolute -top-12 inset-x-0 flex justify-center pointer-events-none">
@@ -831,12 +812,12 @@ export function SessionDetailView({
                     }}><ArrowDown className="size-4" aria-hidden/></IconAction>
                   </div>}
                   <div ref={setPlanColumn} className="mx-auto w-full max-w-(--reading-column)">
-                    {mode === 'conversation' && (planBarState || planHistory.length > 0) && <div className="mb-2 flex items-center justify-end">
+                    {view && mode === 'conversation' && (planBarState || planHistory.length > 0) && <div className="mb-2 flex items-center justify-end">
                       {planHistory.length > 0 ? <PlanListDialog key={sessionId} plans={planHistory} runs={view.runs} panelWidth={planPanelWidth}>
                         {planControls}
                       </PlanListDialog> : planControls()}
                     </div>}
-                    {readOnlyReason ? <p role="status" className="rounded-lg border bg-muted/40 px-3.5 py-3 text-center text-sm text-muted-foreground">{readOnlyReason}</p> : (
+                    {readOnlyReason ? <p role="status" className="rounded-lg border bg-muted/40 px-3.5 py-3 text-center text-sm text-muted-foreground">{readOnlyReason}</p> : <div inert={!view}>
                     <ChatInput
                       ref={composer}
                       sessionId={sessionId}
@@ -845,31 +826,31 @@ export function SessionDetailView({
                       onAbandonSubmission={() => setRetrying(null)}
                       pause={pauseMode}
                       onPause={() => void handleStop()}
-                      disabled={submitting || waitingApproval}
+                      disabled={!view || submitting || waitingApproval}
                       placeholder={placeholder}
                       savedModel={session?.model_id}
                       savedReasoning={session?.reasoning}
                       runModel={session?.run_model}
                       runReasoning={session?.run_reasoning}
-                      accessory={<ContextRing usage={view.usage} technical={visibility.developerView}/>}
+                      accessory={view && <ContextRing usage={view.usage} technical={visibility.developerView}/>}
                       commandHost={{
                         hasSession: true,
-                        hasRuns: view.runs.length > 0,
-                        runStatus: view.status,
+                        hasRuns: Boolean(view?.runs.length),
+                        runStatus: view?.status ?? 'idle',
                         waitingApproval,
-                        waitingReply: view.activeRun?.activity.kind === 'waiting_reply',
+                        waitingReply,
                         submitting,
                         compacting,
-                        contextUsage: view.usage,
+                        contextUsage: view?.usage,
                         actions: {compact: () => { void handleCompact() }},
                       }}
                     />
-                    )}
+                    </div>}
                   </div>
                 </div>
               </div>
               <div ref={developerScrollRef} onScroll={() => {if (mode === 'developer' && developerScrollRef.current) scrollPositions.current.developer = developerScrollRef.current.scrollTop}} id="session-mode-panel-developer" role="tabpanel" aria-label="日志" aria-labelledby="session-mode-developer" aria-hidden={mode !== 'developer'} inert={mode !== 'developer'} className="h-full w-1/2 shrink-0 overflow-y-auto">
-                {developerVisited && <DeveloperView view={view} loadTurnRequest={loadTurnRequest} onOpenCall={handlers.onOpenCall} className="mx-auto w-full max-w-(--reading-column)"/>}
+                {view && developerVisited && <DeveloperView view={view} loadTurnRequest={loadTurnRequest} onOpenCall={handlers.onOpenCall} className="mx-auto w-full max-w-(--reading-column)"/>}
               </div>
             </div>
           </div>
@@ -877,12 +858,12 @@ export function SessionDetailView({
 
       <FilePreviewDialog file={previewedFile} onClose={() => setPreviewedFile(null)} onDownload={file => void downloadOne(file)}/>
 
-      <RenameSessionDialog sessionId={sessionId} currentTitle={displayTitle} open={renameOpen}
+      {view && <RenameSessionDialog sessionId={sessionId} currentTitle={displayTitle} open={renameOpen}
         onOpenChange={setRenameOpen}
         onSaved={(title) => {
           setRenamedTitle({sessionId, title, previousTitle: view.title})
           patchSession(sessionId, {title})
-        }}/>
+        }}/>}
     </>
   )
 }

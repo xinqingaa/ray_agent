@@ -134,7 +134,8 @@ export function WorkspaceHomePage() {
   const openFromKnowledge = location.state as {folderPreview?: RootSource; knowledgeSearch?: string} | null
   const requested = openFromKnowledge?.folderPreview
   const initialPreview = requested?.kind === 'root' && requested.rootId === workspace.folder?.root_id ? requested : undefined
-  const {open, setOpen, floating} = useTaskInspector(true, Boolean(initialPreview))
+  const inspector = useTaskInspector(true, Boolean(initialPreview))
+  const {open, setOpen, floating} = inspector
   const input = useRef<ChatInputRef>(null)
   const inspectorTrigger = useRef<HTMLButtonElement>(null)
   const folderPanel = useRef<FolderPanelRef>(null)
@@ -178,7 +179,7 @@ export function WorkspaceHomePage() {
         setTab('folder')
         setOpen(true)
       } : undefined}
-      inspector={<TaskInspector open={open} onClose={() => setOpen(false)} floating={floating} label="右侧面板" triggerRef={inspectorTrigger}>
+      inspector={<TaskInspector state={inspector} label="右侧面板" triggerRef={inspectorTrigger}>
         <TaskInspectorTabs value={tab} workspace onChange={next => {folderPanel.current?.closePreview(); setTab(next)}} onActions={setToolbarTarget}
           onClose={floating ? () => {setOpen(false); inspectorTrigger.current?.focus()} : undefined}/>
         <FolderPanel ref={folderPanel} workspace={workspace} selectedTab={tab === 'workbench' ? 'inspect' : tab} embedded
@@ -238,7 +239,8 @@ export function WorkspaceSessionPage() {
   const workspace = useWorkspaceContext()
   const {change} = useWorkspaceLive()
   const {sid = ''} = useParams()
+  const inspector = useTaskInspector(true)
   useCanonicalSessionRoute(sid, workspace.id)
-  return <SessionDetailView key={sid} sessionId={sid} workspace={workspace} sourceRefresh={change.signal}
+  return <SessionDetailView key={sid} sessionId={sid} workspace={workspace} inspector={inspector} sourceRefresh={change.signal}
     renderRunActions={runId => <RunChangesBar key={runId} workspace={workspace} runId={runId}/>}/>
 }
