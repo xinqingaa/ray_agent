@@ -3,6 +3,7 @@ import {Button} from '@/components/ui/button'
 import {Eye, Quote} from '@/components/ui/icons'
 import {Popover, PopoverContent, PopoverTrigger} from '@/components/ui/popover'
 import {sourceLocation} from '@/lib/document-location'
+import {citationIdentifiers, resolveRunCitations} from '@/lib/run-citations'
 import {draftDocument, useKnowledgeSource} from '@/components/workspace/knowledge-source'
 import {memoryApi} from '@/lib/api/memory'
 import type {KnowledgeReference} from '@/lib/api/types'
@@ -21,7 +22,7 @@ function Citation({workspaceId, reference, number, onOpen, onQuote, sourceRefres
   return <Popover open={opened} onOpenChange={next => {if (next) setRefresh(value => value + 1); setOpened(next)}}>
     <PopoverTrigger asChild>
       <button type="button" aria-label={`查看引用 ${number}`}
-        className="mx-0.5 inline-flex min-w-4 items-center justify-center rounded-[5px] bg-signal-soft px-1 align-super text-[10px] leading-4 font-medium text-signal focus-visible:ring-2 focus-visible:ring-ring">
+        className="reply-citation-number mx-0.5 align-super focus-visible:ring-2 focus-visible:ring-ring">
         {number}
       </button>
     </PopoverTrigger>
@@ -55,7 +56,7 @@ export function DocumentCitedReply({runId, workspaceId, onOpen, onQuote, sourceR
   onOpen?: (ref: KnowledgeReference) => void; onQuote?: (ref: DraftReference) => void
   sourceRefresh?: number
 }) {
-  const identifiers = useMemo(() => [...new Set(Array.from(reply.text.matchAll(/\]\(#rayagent-source-([a-zA-Z0-9_-]{1,128})\)/g), match => match[1]))], [reply.text])
+  const identifiers = useMemo(() => citationIdentifiers(reply.text), [reply.text])
   const enabled = !!runId && !!workspaceId && !reply.streaming && identifiers.length > 0
   const [state, setState] = useState<{runId: string; sources?: KnowledgeReference[]; error?: boolean}>()
   const [attempt, setAttempt] = useState(0)
@@ -67,8 +68,7 @@ export function DocumentCitedReply({runId, workspaceId, onOpen, onQuote, sourceR
     }, () => {if (!cancelled) setState({runId, error: true})})
     return () => {cancelled = true}
   }, [runId, enabled, attempt])
-  const valid = identifiers.flatMap(id => state?.runId === runId
-    ? state?.sources?.find(source => source.source_id === id) ?? [] : [])
+  const valid = state?.runId === runId ? resolveRunCitations(identifiers, state?.sources ?? []) : []
   return <>
     <FinalReply {...reply} renderCitation={(sourceId, label) => {
       const index = valid.findIndex(source => source.source_id === sourceId)

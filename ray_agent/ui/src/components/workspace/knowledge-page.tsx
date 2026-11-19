@@ -74,8 +74,8 @@ function KnowledgeContent({workspace}: {workspace: WorkspaceItem}) {
     }, reason => {if (!cancelled) setError(errorText(reason))})
     return () => {cancelled = true}
   }, [retry])
-  return <main aria-label="知识" className="knowledge-root">
-    <div className="knowledge-head">
+  return <main aria-label="知识" className="workspace-detail-root">
+    <div className="workspace-detail-head">
       <SegmentedControl idPrefix="knowledge-view" label="知识视图" options={VIEW_OPTIONS} value={view}
         appearance="icons" onValueChange={next => {
           if (next === 'search' && view !== 'search') setSearchRevision(value => value + 1)

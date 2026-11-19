@@ -122,26 +122,63 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 async function assertReferenceLoading() {
   const requests = [];
   memoryApi.contextManifest = id => new Promise((resolve, reject) => requests.push({id, resolve, reject}));
-  const render = runId => React.createElement(RunReferences, {runId});
+  const openedSources = [];
+  const render = (runId, replyText = '') => React.createElement(RunReferences, {
+    runId, replyText, onOpenSource: source => openedSources.push(source),
+  });
   const manifest = instruction_body => ({instruction_body, resident_memories: [], retrieval_hits: [], omissions: []});
   let tree;
-  await act(async () => { tree = create(render('one')); });
-  const open = () => tree.root.findAllByType('button')[0].props.onClick();
+  const replyText = '已核对[来源](#rayagent-source-doc)，补充[旧版](#rayagent-source-old)，再次提及[来源](#rayagent-source-doc)。';
+  await act(async () => { tree = create(render('one', replyText)); });
+  const toggle = () => tree.root.findAllByType('button')[0].props.onClick();
+  const reveal = () => tree.root.findByProps({className: 'run-reference-reveal'}).props;
+  const context = () => tree.root.findByProps({className: 'run-context-reveal'});
+  const toggleContext = () => tree.root.findByProps({className: 'run-context-trigger'}).props.onClick({});
   const contents = () => JSON.stringify(tree.toJSON());
-  await act(async () => { open(); });
+  await act(async () => { toggle(); });
   assert.equal(requests[0].id, 'one');
   assert.match(contents(), /正在读取/);
-  await act(async () => { requests[0].resolve(manifest('第一份工作方式')); });
-  assert.match(contents(), /第一份工作方式/);
-  await act(async () => { open(); });
-  await act(async () => { open(); });
+  const explicit = {source_type: 'document_chunk', source_id: 'doc', source_version: 2, title: '阈值.pdf', snippet: '现行阈值 82', payload: {relative_path: '规范/阈值.pdf', locator: {page: 2}}};
+  const historical = {...explicit, source_id: 'old', source_version: 1, title: '旧规范.pdf', snippet: '历史阈值 73', stale: true,
+    payload: {locator: {page: 2}}};
+  const requested = {...explicit, source_id: 'extra', title: '补充.pdf', snippet: '说明', payload: {}};
+  const resident = [{memory_id: 'm0', content: '常驻条目', memory_type: 'fact', version: 1}];
+  await act(async () => { requests[0].resolve({...manifest('第一份工作方式'), instruction_version: 22,
+    citation_sources: [historical, explicit], explicit_hits: [requested, explicit], retrieval_hits: [historical], resident_memories: resident}); });
+  const headings = tree.root.findAllByType('h4').map(heading => heading.children[0]);
+  assert.deepEqual(headings, ['正文引用', '你指定的材料']);
+  const citedList = tree.root.findByProps({'aria-label': '正文引用'});
+  assert.deepEqual(citedList.findAllByProps({className: 'run-document-excerpt'}).map(excerpt => excerpt.children[0]), ['现行阈值 82', '历史阈值 73']);
+  assert.deepEqual(citedList.findAllByProps({className: 'reply-citation-number run-document-number'}).map(badge => badge.children[0]), ['1', '2']);
+  assert.match(contents(), /第 2 页 · v2/);
+  assert.match(contents(), /历史版本/);
+  assert.doesNotMatch(contents(), /第一份工作方式|常驻条目|收起摘录|展开摘录|打开原文/);
+  const fileLinks = citedList.findAllByProps({className: 'run-document-name run-document-link'});
+  fileLinks[0].props.onClick();
+  fileLinks[1].props.onClick();
+  assert.deepEqual(openedSources.map(source => [source.source_id, source.source_version]), [['doc', 2], ['old', 1]]);
+  assert.equal(context().props.inert, true);
+  await act(async () => { toggleContext(); });
+  assert.equal(context().props['data-open'], true);
+  assert.equal(context().props.inert, false);
+  const contextContent = tree.root.findByProps({className: 'run-context-content'});
+  assert.match(contents(), /第一份工作方式|常驻条目/);
+  await act(async () => { toggleContext(); });
+  assert.equal(context().props.inert, true);
+  assert.equal(tree.root.findByProps({className: 'run-context-content'}), contextContent);
+  await act(async () => { toggleContext(); });
+  assert.equal(context().props.inert, false);
+  assert.equal(tree.root.findAllByProps({className: 'run-document-excerpt'}).length, 3);
+  await act(async () => { toggle(); });
+  assert.equal(reveal().inert, true);
+  await act(async () => { toggle(); });
   assert.equal(requests.length, 1);
-  assert.match(contents(), /第一份工作方式/);
+  assert.equal(reveal().inert, false);
 
   await act(async () => { tree.update(render('two')); });
-  await act(async () => { open(); });
+  await act(async () => { toggle(); });
   await act(async () => { tree.update(render('three')); });
-  await act(async () => { open(); });
+  await act(async () => { toggle(); });
   await act(async () => { requests[1].resolve(manifest('迟到的内容')); });
   assert.doesNotMatch(contents(), /迟到的内容/);
   await act(async () => { requests[2].reject(new Error('加载失败')); });
@@ -149,8 +186,10 @@ async function assertReferenceLoading() {
   await act(async () => { tree.root.findAllByType('button')[1].props.onClick(); });
   assert.equal(requests[3].id, 'three');
   await act(async () => { requests[3].resolve(manifest('重试恢复')); });
+  assert.match(contents(), /运行详情/);
+  await act(async () => { toggleContext(); });
   assert.match(contents(), /重试恢复/);
   await act(async () => { tree.unmount(); });
-  console.log('PASS: 本次参考延迟成功、收起重开、切换运行后的迟到响应、失败与重试');
+  console.log('PASS: 本次参考的角标顺序、直接摘录、文件名预览、来源去重、详情开合、迟到响应与重试');
 }
 assertReferenceLoading().catch(error => { console.error(error); process.exitCode = 1; });

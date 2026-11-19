@@ -1,12 +1,11 @@
 import {useCallback, useEffect, useLayoutEffect, useRef, useState} from 'react'
-import {Check, History, Loader2, MoreHorizontal, Pencil, Wand, X} from '@/components/ui/icons'
+import {Loader2, Wand} from '@/components/ui/icons'
 import {toast} from 'sonner'
 import {Button} from '@/components/ui/button'
 import {Input} from '@/components/ui/input'
 import {Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle} from '@/components/ui/dialog'
 import {MarkdownContent} from '@/components/markdown-content'
 import {useUnsavedNavigation} from '@/hooks/use-unsaved-navigation'
-import {IconAction} from '@/components/ui/icon-action'
 import {useSessionTitleLookup} from '@/hooks/use-session-title'
 import {parseEventTime} from '@/lib/utils'
 import {Textarea} from '@/components/ui/textarea'
@@ -225,17 +224,24 @@ export function WorkingStyleSettings({workspace, onSummary}: {
   }
   return <section aria-label="工作方式" className="background-block">
     <header className="background-block-header">
-      <h2 className="text-[15px] font-semibold">工作方式</h2>
-      {instruction?.instruction_version != null && <span className="text-xs text-faint tabular-nums">v{instruction.instruction_version}</span>}
+      <div>
+        <h2 className="text-base font-semibold">{instruction?.instruction_version != null
+          ? <>当前版本 <span className="tabular-nums">v{instruction.instruction_version}</span></>
+          : '工作方式'}</h2>
+        <p className="mt-1 text-xs text-muted-foreground">修改从下一次运行生效，进行中的任务沿用原版本。</p>
+      </div>
       <div className="background-block-actions">
-        <IconAction label="工作方式模板" className="text-faint" disabled={editing || loading}
-          onClick={() => setTemplatesOpen(true)}><MoreHorizontal/></IconAction>
-        {editing ? <IconAction label="取消编辑" disabled={saving} onClick={cancelEdit}><X/></IconAction>
-          : <IconAction label="版本历史" disabled={loading || historyLoading}
-            onClick={() => {setHistoryOpen(true); void loadHistory()}}><History/></IconAction>}
-        {!readonly && <IconAction ref={editAction} label={editing ? '保存工作方式' : '编辑工作方式'}
-          disabled={!instruction || saving || (editing && body === instruction.body)}
-          onClick={() => editing ? void saveInstruction(body) : setEditing(true)}>{editing ? <Check/> : <Pencil/>}</IconAction>}
+        {editing ? <>
+          <Button size="sm" variant="ghost" disabled={saving} onClick={cancelEdit}>取消</Button>
+          <Button ref={editAction} size="sm" disabled={!instruction || saving || body === instruction.body}
+            onClick={() => void saveInstruction(body)}>保存</Button>
+        </> : <>
+          <Button size="sm" variant="ghost" disabled={loading} onClick={() => setTemplatesOpen(true)}>模板</Button>
+          <Button size="sm" variant="ghost" disabled={loading || historyLoading}
+            onClick={() => {setHistoryOpen(true); void loadHistory()}}>版本历史</Button>
+          {!readonly && instruction?.body.trim() && <Button ref={editAction} size="sm" variant="outline"
+            disabled={saving} onClick={() => setEditing(true)}>编辑</Button>}
+        </>}
       </div>
     </header>
 
@@ -261,13 +267,15 @@ export function WorkingStyleSettings({workspace, onSummary}: {
               void saveInstruction(body)
             }
           }}/>
-          : instruction.body.trim() ? <MarkdownContent content={instruction.body}/> : <p className="text-muted-foreground">还没有设置工作方式。</p>}
+          : instruction.body.trim() ? <MarkdownContent content={instruction.body}/> : <div className="space-y-2.5">
+            <p className="text-sm text-muted-foreground">还没有设置工作方式。可以写下 Agent 在这个工作区应遵守的规则和偏好。</p>
+            {!readonly && <Button ref={editAction} size="sm" variant="outline" onClick={() => setEditing(true)}>设置工作方式</Button>}
+          </div>}
       </div>
       {editing ? <p className="background-style-meta tabular-nums">{saving ? '正在保存' : `${body.length}/${maxChars}`}</p>
         : instruction.instruction_version != null && <div className="background-style-meta">
         {instruction.updated_at != null && <span>{parseEventTime(instruction.updated_at)?.toLocaleDateString('zh-CN')}</span>}
         {instruction.source && <span>{CHANGE_SOURCE[instruction.source]}</span>}
-        <span>修改从下一次运行生效，进行中的任务保留原版本</span>
       </div>}
     </>}
 

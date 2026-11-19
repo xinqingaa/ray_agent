@@ -1,8 +1,8 @@
 import {useEffect, useRef, useState, type ReactNode} from 'react'
 import {Link, useParams, useRouter} from '@/lib/navigation'
-import {Outlet, useLocation, useOutletContext} from 'react-router'
+import {Outlet, useLocation, useNavigate, useOutletContext} from 'react-router'
 import {toast} from 'sonner'
-import {File, Layers, PanelRight} from '@/components/ui/icons'
+import {Bookmark, File, Layers, PanelRight, ScrollText} from '@/components/ui/icons'
 import {IconAction} from '@/components/ui/icon-action'
 import {TopbarActions} from '@/components/sidebar-chrome'
 import {TaskInspector, TaskInspectorTabs, TaskLayout, useTaskInspector, type InspectorView} from '@/components/task-layout'
@@ -16,6 +16,7 @@ import {formatSidebarTime} from '@/lib/utils'
 import {ChatInput, type ChatInputRef} from '@/components/chat-input'
 import {SessionDetailView} from '@/components/session-detail-view'
 import {Button} from '@/components/ui/button'
+import {SegmentedControl} from '@/components/ui/segmented-control'
 import {Skeleton} from '@/components/ui/skeleton'
 import {WorkspaceBanners} from '@/components/workspace/workspace-banners'
 import {WorkspaceBar} from '@/components/workspace/workspace-bar'
@@ -82,35 +83,45 @@ export function WorkspaceBackgroundPage() {
   return <WorkspaceBackgroundContent key={workspace.id} workspace={workspace}/>
 }
 
+const BACKGROUND_VIEWS = [
+  {value: 'style', label: '工作方式', icon: ScrollText},
+  {value: 'memory', label: '记忆', icon: Bookmark},
+] as const
+
 function WorkspaceBackgroundContent({workspace}: {workspace: WorkspaceItem}) {
   const [style, setStyle] = useState<WorkingStyleSummary | null>(null)
   const [memory, setMemory] = useState<BackgroundMemorySummary | null>(null)
   const {report} = useWorkspacePending()
+  const {pathname, search, hash} = useLocation()
+  const navigate = useNavigate()
+  const view = hash.startsWith('#memory-') || new URLSearchParams(search).get('view') === 'memory' ? 'memory' : 'style'
   const pending = style && memory ? style.pending + memory.pending : null
 
   useEffect(() => {if (pending != null) report(pending)}, [pending, report])
 
-  return <main aria-labelledby="workspace-background-title" className="h-full min-h-0 overflow-y-auto">
-    <div className="background-page">
-      <header className="background-page-header">
-        <div>
-          <h1 id="workspace-background-title" className="text-[22px] font-semibold tracking-tight">背景</h1>
-          <p className="mt-1 text-sm text-muted-foreground">在这个工作区开始新任务时，Agent 会先带上这些。</p>
-        </div>
-        <dl aria-label="背景概况" className="flex shrink-0 flex-wrap gap-x-4 gap-y-2 text-xs text-faint sm:gap-x-[18px]">
-          <div className="flex flex-col-reverse">
-            <dt>工作方式</dt><dd className="text-lg font-semibold text-foreground tabular-nums">{style === null ? '—' : style.version == null ? '未设置' : `v${style.version}`}</dd>
-          </div>
-          <div className="flex flex-col-reverse">
-            <dt>常驻记忆</dt><dd className="text-lg font-semibold text-foreground tabular-nums">{memory ? `${memory.resident}/${memory.limit}` : '—'}</dd>
-          </div>
-          <div className="flex flex-col-reverse">
-            <dt>待处理</dt><dd className={`text-lg font-semibold tabular-nums ${pending ? 'text-state-waiting' : 'text-foreground'}`}>{pending ?? '—'}</dd>
-          </div>
-        </dl>
-      </header>
-      <WorkingStyleSettings workspace={workspace} onSummary={setStyle}/>
-      <MemoryPanel workspace={workspace} onSummary={setMemory}/>
+  return <main aria-label="背景" className="workspace-detail-root">
+    <div className="workspace-detail-head">
+      <SegmentedControl idPrefix="background-view" label="背景视图" options={BACKGROUND_VIEWS} value={view}
+        appearance="icons" onValueChange={next => {
+          if (next === view) return
+          const updated = new URLSearchParams(search)
+          if (next === 'memory') updated.set('view', 'memory')
+          else updated.delete('view')
+          void navigate({pathname, search: updated.toString(), hash: ''})
+        }}/>
+      {pending != null && pending > 0 && <span className="text-xs text-state-waiting">
+        {style && style.pending > 0 && <span>{style.pending} 项工作方式建议</span>}
+        {style && memory && style.pending > 0 && memory.pending > 0 && ' · '}
+        {memory && memory.pending > 0 && <span>{memory.pending} 条记忆待确认</span>}
+      </span>}
+    </div>
+    <div id="background-view-panel-style" role="tabpanel" aria-labelledby="background-view-style"
+      hidden={view !== 'style'} className="background-view">
+      <div className="background-page"><WorkingStyleSettings workspace={workspace} onSummary={setStyle}/></div>
+    </div>
+    <div id="background-view-panel-memory" role="tabpanel" aria-labelledby="background-view-memory"
+      hidden={view !== 'memory'} className="background-view">
+      <div className="background-page"><MemoryPanel workspace={workspace} onSummary={setMemory}/></div>
     </div>
   </main>
 }

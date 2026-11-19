@@ -38,6 +38,7 @@ export type TimelineHandlers = {
   streamingItemId?: string | null
   /** 工作区会话：在最终回复下展示本次参考 */
   showRunReferences?: boolean
+  onToggleReferences?: (trigger: HTMLButtonElement, open: boolean, settled?: boolean) => void
   workspaceId?: string
   sourceRefresh?: number
   onOpenSource?: (reference: KnowledgeReference) => void
@@ -102,8 +103,9 @@ export function TimelineItemView({item, handlers = {}, metrics, runActions}: {it
           <DocumentCitedReply text={item.text} summary={item.summary} streaming={streaming} deliveredFiles={item.deliveredFiles}
             onDownloadFile={handlers.onDownloadFile} runId={item.runId} workspaceId={handlers.workspaceId}
             onOpen={handlers.onOpenSource} onQuote={handlers.onQuoteSource} sourceRefresh={handlers.sourceRefresh}/>
-          {handlers.showRunReferences && item.runId && !streaming && <RunReferences runId={item.runId}
+          {handlers.showRunReferences && item.runId && !streaming && <RunReferences runId={item.runId} replyText={item.text}
             workspaceId={handlers.workspaceId} onOpenSource={handlers.onOpenSource} sourceRefresh={handlers.sourceRefresh}
+            onToggle={handlers.onToggleReferences}
             memoryNotice={handlers.renderMemoryNotice?.(item.runId)} actions={runActions} metrics={metrics}/>}
         </div>
       )

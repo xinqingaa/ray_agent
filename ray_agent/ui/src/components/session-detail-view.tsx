@@ -26,7 +26,7 @@ import {FileRow} from '@/components/preview/file-row'
 import {RunMemoryNotice} from '@/components/run/run-memory-notice'
 import {useLocation} from 'react-router'
 import {cn} from '@/lib/utils'
-import {Switch} from '@/components/ui/switch'
+import {WorkspaceSwitch} from '@/components/workspace/workspace-switch'
 import {IconAction} from '@/components/ui/icon-action'
 import {useSessionDetail} from '@/hooks/use-session-detail'
 import {useSessions} from '@/hooks/use-sessions'
@@ -272,6 +272,7 @@ export function SessionDetailView({
     setRetrying(saved.pending)
     setRetrySessionId(sessionId)
     stickRef.current = true
+    scrollRef.current?.removeAttribute('data-reference-reading')
     setAwayFromBottom(false)
   }, [sessionId])
 
@@ -288,6 +289,10 @@ export function SessionDetailView({
   }, [outgoing, view?.activeRun, view?.timeline])
 
   const deliver = useCallback(async (message: string, attachmentIds: string[], options?: StartOptions & {execute_plan?: PlanAcceptance; echo?: boolean}) => {
+    if (scrollRef.current?.hasAttribute('data-reference-reading')) {
+      scrollRef.current.removeAttribute('data-reference-reading')
+      stickRef.current = true
+    }
     const items = view?.timeline ?? []
     const userCount = items.filter((item) => item.kind === 'user').length
     const endCount = items.filter((item) => item.kind === 'run_end').length
@@ -567,6 +572,25 @@ export function SessionDetailView({
     onReject: (callId) => void handleApproval(callId, 'reject'),
     approvalSubmitting,
     showRunReferences: workspace != null,
+    onToggleReferences: (trigger, open, settled) => {
+      const el = scrollRef.current
+      if (!el || !el.contains(trigger)) return
+      if (settled && !el.hasAttribute('data-reference-reading')) return
+      // 展开改变内容高度，程序滚动和浏览器锚定都不能把它当作用户回到底部。
+      el.setAttribute('data-reference-reading', '')
+      stickRef.current = false
+      const toolbar = trigger.closest('[data-run-reference-toolbar]')
+      if (!toolbar) return
+      requestAnimationFrame(() => {
+        if (!trigger.isConnected || trigger.getAttribute('aria-expanded') !== String(open)
+          || !el.hasAttribute('data-reference-reading')) return
+        const viewport = el.getBoundingClientRect()
+        const anchor = toolbar.getBoundingClientRect()
+        // 本次参考面板只在底部空间不足时露出开头，运行详情保持当前视口。
+        const offset = open ? Math.max(0, anchor.bottom + 74 - viewport.bottom) : Math.min(0, anchor.top - viewport.top - 8)
+        if (offset) el.scrollTop += offset
+      })
+    },
     workspaceId: workspace?.id,
     sourceRefresh,
     onOpenSource: workspace ? reference => {
@@ -606,12 +630,18 @@ export function SessionDetailView({
     } finally {setParticipateBusy(false)}
   }, [workspace, participateBusy, participateInMemory, sessionId])
 
+  const resumeConversationScroll = (target: EventTarget | null) => {
+    if (target instanceof Element && target.closest('[data-run-context-scroll], [data-run-primary-scroll]')) return
+    scrollRef.current?.removeAttribute('data-reference-reading')
+  }
+
   const onScroll = () => {
     if (mode !== 'conversation') return
     const el = scrollRef.current
     if (!el) return
-    stickRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 200
-    setAwayFromBottom(!stickRef.current)
+    const distance = el.scrollHeight - el.scrollTop - el.clientHeight
+    if (!el.hasAttribute('data-reference-reading')) stickRef.current = distance < 200
+    setAwayFromBottom(distance >= 200)
     scrollPositions.current.conversation = el.scrollTop
   }
 
@@ -745,10 +775,11 @@ export function SessionDetailView({
           <header className={cn('flex shrink-0 items-center gap-2 px-4', (workspace || visibility.developerView) && 'min-h-11 py-1.5')}>
             <h1 className="sr-only">{displayTitle}</h1>
             <div className="mr-auto">
-              {workspace && <label className="flex items-center gap-1.5 text-xs text-muted-foreground" title="关闭后不再从此对话提炼记忆">
-                <span>参与记忆</span>
-                <Switch size="sm" checked={participateInMemory} disabled={participateBusy} onCheckedChange={checked => void toggleParticipate(checked)} aria-label="参与记忆"/>
-              </label>}
+              {workspace && <>
+                <WorkspaceSwitch label="参与记忆" descriptionId="session-memory-participation-help" className="session-memory-switch"
+                  checked={participateInMemory} pending={participateBusy} onChange={checked => void toggleParticipate(checked)}/>
+                <span id="session-memory-participation-help" className="sr-only">关闭后不再从此对话提炼记忆。</span>
+              </>}
             </div>
             {visibility.developerView && <SegmentedControl value={mode} idPrefix="session-mode" label="会话视图" options={[
               {value: 'conversation', label: '聊天', icon: MessageCircle},
@@ -759,7 +790,13 @@ export function SessionDetailView({
           <div className="min-h-0 flex-1 overflow-hidden">
             <div className={cn('flex h-full w-[200%] transition-transform duration-200 ease-out motion-reduce:transition-none', mode === 'developer' && '-translate-x-1/2')}>
               <div id="session-mode-panel-conversation" role={visibility.developerView ? 'tabpanel' : undefined} aria-label="聊天" aria-labelledby={visibility.developerView ? 'session-mode-conversation' : undefined} aria-hidden={mode !== 'conversation'} inert={mode !== 'conversation'} className="flex h-full min-w-0 w-1/2 shrink-0 flex-col">
-                <div ref={scrollRef} onScroll={onScroll} className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+                <div ref={scrollRef} onScroll={onScroll} className={cn('min-h-0 flex-1 overflow-y-auto overscroll-contain', workspace && 'conversation-scroll')}
+                  onWheelCapture={event => {if (event.deltaY) resumeConversationScroll(event.target)}}
+                  onTouchMoveCapture={event => resumeConversationScroll(event.target)}
+                  onPointerDownCapture={event => {if (event.target === event.currentTarget) resumeConversationScroll(event.target)}}
+                  onKeyDownCapture={event => {
+                    if (['ArrowDown', 'ArrowUp', 'PageDown', 'PageUp', 'Home', 'End'].includes(event.key)) resumeConversationScroll(event.target)
+                  }}>
                   <div ref={messageContentRef} className="session-reading mx-auto flex w-full max-w-(--reading-column) flex-col gap-4 py-5">
                     {shownTimeline.length === 0 && !showOptimistic && (
                       <p className="py-8 text-center text-meta text-faint">
@@ -786,7 +823,11 @@ export function SessionDetailView({
                       stickRef.current = true
                       setAwayFromBottom(false)
                       const el = scrollRef.current
-                      if (el) {el.scrollTop = el.scrollHeight; scrollPositions.current.conversation = el.scrollTop}
+                      if (el) {
+                        el.removeAttribute('data-reference-reading')
+                        el.scrollTop = el.scrollHeight
+                        scrollPositions.current.conversation = el.scrollTop
+                      }
                     }}><ArrowDown className="size-4" aria-hidden/></IconAction>
                   </div>}
                   <div ref={setPlanColumn} className="mx-auto w-full max-w-(--reading-column)">

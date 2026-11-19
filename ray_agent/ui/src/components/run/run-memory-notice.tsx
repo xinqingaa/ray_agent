@@ -91,7 +91,7 @@ export function RunMemoryNotice({workspaceId, sessionId, sequence, follow, readO
             </Button>}
           </li>)}
         </ul> : <p role="status" className="my-2 text-xs text-muted-foreground">这次记住的条目已撤回。</p>}
-        <Link href={active.length ? `${background}#memory-${active[0].id}` : background} className="reply-foot-action mt-1">在背景中查看</Link>
+        <Link href={active.length ? `${background}#memory-${active[0].id}` : `${background}?view=memory`} className="reply-foot-action mt-1">在背景中查看</Link>
       </PopoverContent>
     </Popover>}
     {candidates.length > 0 && <Link href={`${background}#memory-${candidates[0].id}`} className="reply-foot-action text-state-waiting">
