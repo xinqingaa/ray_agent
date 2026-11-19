@@ -1,6 +1,6 @@
 import {useEffect, useRef, useState, type ReactNode} from 'react'
 import {Link, useParams, useRouter} from '@/lib/navigation'
-import {Outlet, useOutletContext} from 'react-router'
+import {Outlet, useLocation, useOutletContext} from 'react-router'
 import {toast} from 'sonner'
 import {File, Layers, PanelRight} from '@/components/ui/icons'
 import {IconAction} from '@/components/ui/icon-action'
@@ -26,9 +26,10 @@ import {useCanonicalSessionRoute} from '@/hooks/use-canonical-session-route'
 import {useStartTask} from '@/hooks/use-start-task'
 import {workspaceDraftScope} from '@/lib/drafts'
 import type {WorkspaceItem} from '@/lib/api/types'
+import type {RootSource} from '@/lib/api/preview'
 import {describeWorkspace} from '@/lib/workspace-state'
-import {workspaceBackgroundHref, workspaceSessionHref} from '@/lib/workspace-route'
-import {WorkspaceLiveProvider} from '@/providers/workspace-live-provider'
+import {workspaceBackgroundHref, workspaceKnowledgeHref, workspaceSessionHref} from '@/lib/workspace-route'
+import {WorkspaceLiveProvider, useWorkspaceLive} from '@/providers/workspace-live-provider'
 import {useWorkspace, useWorkspaces} from '@/providers/workspaces-provider'
 import {useWorkspacePending} from '@/providers/workspace-pending'
 
@@ -90,8 +91,8 @@ function WorkspaceBackgroundContent({workspace}: {workspace: WorkspaceItem}) {
   useEffect(() => {if (pending != null) report(pending)}, [pending, report])
 
   return <main aria-labelledby="workspace-background-title" className="h-full min-h-0 overflow-y-auto">
-    <div className="mx-auto w-full max-w-[52rem] space-y-[30px] px-5 pt-6 pb-14 sm:px-9">
-      <header className="flex flex-wrap items-end justify-between gap-x-5 gap-y-3">
+    <div className="background-page">
+      <header className="background-page-header">
         <div>
           <h1 id="workspace-background-title" className="text-[22px] font-semibold tracking-tight">背景</h1>
           <p className="mt-1 text-sm text-muted-foreground">在这个工作区开始新任务时，Agent 会先带上这些。</p>
@@ -118,7 +119,11 @@ function WorkspaceBackgroundContent({workspace}: {workspace: WorkspaceItem}) {
 export function WorkspaceHomePage() {
   const workspace = useWorkspaceContext()
   const router = useRouter()
-  const {open, setOpen, floating} = useTaskInspector(true)
+  const location = useLocation()
+  const openFromKnowledge = location.state as {folderPreview?: RootSource; knowledgeSearch?: string} | null
+  const requested = openFromKnowledge?.folderPreview
+  const initialPreview = requested?.kind === 'root' && requested.rootId === workspace.folder?.root_id ? requested : undefined
+  const {open, setOpen, floating} = useTaskInspector(true, Boolean(initialPreview))
   const input = useRef<ChatInputRef>(null)
   const inspectorTrigger = useRef<HTMLButtonElement>(null)
   const folderPanel = useRef<FolderPanelRef>(null)
@@ -166,6 +171,9 @@ export function WorkspaceHomePage() {
         <TaskInspectorTabs value={tab} workspace onChange={next => {folderPanel.current?.closePreview(); setTab(next)}} onActions={setToolbarTarget}
           onClose={floating ? () => {setOpen(false); inspectorTrigger.current?.focus()} : undefined}/>
         <FolderPanel ref={folderPanel} workspace={workspace} selectedTab={tab === 'workbench' ? 'inspect' : tab} embedded
+          initialPreview={initialPreview}
+          onBackToKnowledge={initialPreview && typeof openFromKnowledge?.knowledgeSearch === 'string' ? () =>
+            router.replace(`${workspaceKnowledgeHref(workspace.id)}?${openFromKnowledge.knowledgeSearch}`) : undefined}
           toolbarTarget={toolbarTarget} visible={open}
           deliveries={deliveries}
           deliveryStatus={{loading: sessionsLoading || (!!recentSessionId && !deliveryResult), error: deliveryResult?.error ?? sessionsError, retry: retryDeliveries}}
@@ -181,7 +189,7 @@ export function WorkspaceHomePage() {
           </header>
           {condition.archived
             ? <p role="status" className="rounded-lg bg-muted px-3.5 py-3 text-center text-sm text-muted-foreground">工作区已归档，不能发起新对话。取消归档后可以继续。</p>
-            : <ChatInput ref={input} autoFocus workspace draftScope={scope} onSend={start} disabled={sending}
+            : <ChatInput ref={input} autoFocus={!initialPreview} workspace draftScope={scope} onSend={start} disabled={sending}
                 placeholder={`在${workspace.name}里开始一个任务`}
                 commandHost={{
                   hasSession: false, hasRuns: false, runStatus: 'idle', waitingApproval: false, waitingReply: false,
@@ -217,8 +225,9 @@ export function WorkspaceHomePage() {
 /** 工作区里的会话：复用会话视图，右侧面板在文件夹与工作台之间切换；运行结束条带撤销入口。 */
 export function WorkspaceSessionPage() {
   const workspace = useWorkspaceContext()
+  const {change} = useWorkspaceLive()
   const {sid = ''} = useParams()
   useCanonicalSessionRoute(sid, workspace.id)
-  return <SessionDetailView key={sid} sessionId={sid} workspace={workspace}
+  return <SessionDetailView key={sid} sessionId={sid} workspace={workspace} sourceRefresh={change.signal}
     renderRunActions={runId => <RunChangesBar key={runId} workspace={workspace} runId={runId}/>}/>
 }

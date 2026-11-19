@@ -2,10 +2,13 @@ import {useEffect, useState} from 'react'
 import {Button} from '@/components/ui/button'
 import {Link} from '@/lib/navigation'
 import {memoryApi} from '@/lib/api/memory'
+import {useSessionTitle} from '@/hooks/use-session-title'
 import type {MemorySourcesResponse} from '@/lib/api/types'
 import {workspaceSessionHref} from '@/lib/workspace-route'
 
-export function MemorySources({workspaceId, memoryId, memoryVersion}: {workspaceId: string; memoryId: string; memoryVersion?: number}) {
+export function MemorySources({workspaceId, memoryId, memoryVersion, candidate = false}: {
+  workspaceId: string; memoryId: string; memoryVersion?: number; candidate?: boolean
+}) {
   const [data, setData] = useState<MemorySourcesResponse | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [retry, setRetry] = useState(0)
@@ -16,6 +19,13 @@ export function MemorySources({workspaceId, memoryId, memoryVersion}: {workspace
       .catch(reason => {if (!cancelled) setError(reason instanceof Error ? reason.message : '读取来源失败')})
     return () => {cancelled = true}
   }, [workspaceId, memoryId, retry])
+
+  const current = candidate ? data?.sources.find(source => source.available && source.session_id) : undefined
+  const title = useSessionTitle(current?.session_id)
+  if (candidate) return current?.session_id && title
+    ? <Link className="hover:text-signal hover:underline"
+        href={`${workspaceSessionHref(workspaceId, current.session_id)}${current.event_seq_end != null ? `#event-${current.event_seq_end}` : ''}`}>「{title}」里新发现</Link>
+    : '新发现'
 
   if (error) return <p role="alert" className="text-xs text-state-failed">{error}
     <Button variant="ghost" size="xs" onClick={() => {setError(null); setRetry(value => value + 1)}}>重试</Button></p>

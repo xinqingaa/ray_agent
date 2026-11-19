@@ -12,12 +12,20 @@ from .identity import WorkspaceId
 SEARCH_HIT_LIMIT = 20
 INITIAL_RECALL_LIMIT = 8
 INITIAL_RECALL_CHARS = 4000
+EXPLICIT_REFERENCE_LIMIT = 8
+EXPLICIT_REFERENCE_CHARS = 4000
 
 
 class SearchSourceType(StrEnum):
     MEMORY = "memory"
     SESSION_SUMMARY = "session_summary"
     DOCUMENT_CHUNK = "document_chunk"
+
+
+class KnowledgeReference(BaseModel):
+    source_type: SearchSourceType
+    source_id: str = Field(min_length=1, max_length=128)
+    source_version: int = Field(ge=1)
 
 
 class SearchDocument(BaseModel):

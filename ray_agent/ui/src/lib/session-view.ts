@@ -4,6 +4,8 @@
  * 投影函数在 session-projection.ts（`projectSession`）。本文件只有类型。时间一律为毫秒时间戳。
  */
 
+import type {KnowledgeReference} from '@/lib/api/types'
+
 export type RunStatus = 'running' | 'waiting' | 'completed' | 'failed' | 'cancelled' | 'interrupted'
 
 /** 后端事件记录的运行原因；未知取值原样保留 */
@@ -215,7 +217,8 @@ export type FileView = {
 type ItemBase = {id: string; runId: string | null; at: number}
 
 export type TimelineItem =
-  | (ItemBase & {kind: 'user'; imageMode?: 'auto' | 'files'; skill?: {id: string; version: string}; text: string; attachments: FileView[]; injected: boolean})
+  | (ItemBase & {kind: 'user'; imageMode?: 'auto' | 'files'; skill?: {id: string; version: string}; references?: KnowledgeReference[];
+      text: string; attachments: FileView[]; injected: boolean})
   | (ItemBase & {kind: 'narration'; text: string; turnIndex?: number | null; deliveredFiles?: FileView[]})
   | (ItemBase & {kind: 'tools'; turnIndex: number | null; calls: ToolCallView[]})
   | (ItemBase & {kind: 'ask'; question: string; answered: boolean})

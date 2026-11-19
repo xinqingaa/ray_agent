@@ -5,6 +5,7 @@ from app.application.errors.exceptions import NotFoundError
 from app.application.services.context_assembly import ContextAssembly
 from app.application.services.retrieval_service import RetrievalService
 from app.application.services.working_style_service import WorkingStyleService
+from app.domain.models.retrieval import KnowledgeReference, SearchSourceType
 from app.interfaces.schemas import Response
 from app.interfaces.schemas.retrieval import ContextManifestView, SearchHitView, SearchRequest, SearchResponse
 from app.interfaces.service_dependencies import get_context_assembly, get_retrieval_service, get_working_style_service
@@ -20,7 +21,17 @@ async def search_workspace(workspace_id: str, request: SearchRequest,
                            style: WorkingStyleService = Depends(get_working_style_service)):
     await style.current(workspace_id)  # 工作区不存在或删除中时返回 404，而不是空结果
     hits = await retrieval.search(workspace_id, request.query, request.source_types, limit=request.limit)
-    return Response.success(SearchResponse(hits=[SearchHitView.of(hit) for hit in hits]))
+    shown = await retrieval.present_hits(workspace_id, hits)
+    return Response.success(SearchResponse(hits=[SearchHitView.of(hit) for hit in shown]))
+
+
+@router.get("/workspaces/{workspace_id}/search/sources/{source_type}/{source_id}",
+            response_model=Response[SearchHitView], summary="按版本读回检索来源")
+async def read_source(workspace_id: str, source_type: SearchSourceType, source_id: str, source_version: int,
+                      assembly: ContextAssembly = Depends(get_context_assembly)):
+    hit = await assembly.source(workspace_id, KnowledgeReference(
+        source_type=source_type, source_id=source_id, source_version=source_version))
+    return Response.success(SearchHitView.of(hit))
 
 
 @router.get("/runs/{run_id}/context-manifest", response_model=Response[ContextManifestView],
@@ -31,4 +42,6 @@ async def run_context_manifest(run_id: str, assembly: ContextAssembly = Depends(
     if manifest is None:
         raise NotFoundError("该运行没有背景清单")
     sources = await assembly.readable_summary_sources(manifest)
-    return Response.success(ContextManifestView.of(manifest, sources))
+    citations = await assembly.citation_sources(manifest)
+    inactive = await assembly.inactive_document_hits(manifest)
+    return Response.success(ContextManifestView.of(await assembly.readable_manifest(manifest), sources, citations, inactive))

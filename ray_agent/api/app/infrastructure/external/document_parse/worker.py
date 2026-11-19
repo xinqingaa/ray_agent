@@ -142,19 +142,18 @@ def parse_pdf(path: Path) -> dict:
         return fail("加密 PDF 不支持解析")
     blocks = []
     pages_with_text = 0
+    page_count = len(reader.pages)
     for index, page in enumerate(reader.pages, start=1):
         try:
             text = page.extract_text() or ""
-        except Exception as error:  # noqa: BLE001 — 单页失败不阻断整份
-            text = ""
-            blocks.append(block("text", f"[第 {index} 页提取失败：{error}]", page=index))
-            continue
+        except Exception:
+            return fail(f"第 {index} 页文字无法提取，请检查 PDF 后重试")
         text = text.strip()
         if text:
             pages_with_text += 1
             blocks.append(block("text", text, page=index))
     if pages_with_text:
-        return {"status": "ok", "format": DocumentFormat.PDF.value, "blocks": blocks}
+        return {"status": "ok", "format": DocumentFormat.PDF.value, "page_count": page_count, "blocks": blocks}
     # 扫描件：有 OCR 组件则渲染识别；否则待组件
     ocr_dir = _ocr_component()
     if ocr_dir is None:
@@ -166,7 +165,7 @@ def parse_pdf(path: Path) -> dict:
         return fail(f"OCR 失败：{error}", component="ocr")
     if not ocr_blocks:
         return fail("OCR 未识别到文字")
-    return {"status": "ok", "format": DocumentFormat.PDF.value, "blocks": [
+    return {"status": "ok", "format": DocumentFormat.PDF.value, "page_count": page_count, "blocks": [
         block(item["kind"], item["text"], **item.get("locator") or {}) for item in ocr_blocks
     ]}
 
@@ -216,19 +215,29 @@ def parse_pptx(path: Path) -> dict:
     return {"status": "ok", "format": DocumentFormat.PPTX.value, "blocks": blocks}
 
 
+def table_text(rows: list[list[str]]) -> str:
+    buffer = io.StringIO(newline="")
+    csv.writer(buffer, delimiter="\t").writerows(rows)
+    return buffer.getvalue()
+
+
 def parse_xlsx(path: Path) -> dict:
     from openpyxl import load_workbook
     wb = load_workbook(str(path), read_only=True, data_only=True)
     blocks = []
     try:
         for sheet in wb.worksheets:
-            rows = []
-            for row in sheet.iter_rows(values_only=True):
+            rows: list[list[str]] = []
+            numbers: list[int] = []
+            for number, row in enumerate(sheet.iter_rows(values_only=True), start=1):
                 values = [("" if cell is None else str(cell)) for cell in row]
                 if any(v.strip() for v in values):
-                    rows.append("\t".join(values))
+                    while values and not values[-1]:
+                        values.pop()
+                    rows.append(values)
+                    numbers.append(number)
             if rows:
-                blocks.append(block("table", "\n".join(rows), sheet=sheet.title, header=rows[0]))
+                blocks.append(block("table", table_text(rows), sheet=sheet.title, rows=numbers))
     finally:
         wb.close()
     return {"status": "ok", "format": DocumentFormat.XLSX.value, "blocks": blocks}
@@ -238,10 +247,13 @@ def parse_delimited(path: Path, fmt: str) -> dict:
     text = decode_text(read_bytes(path))
     delimiter = "\t" if fmt == DocumentFormat.TSV.value else ","
     reader = csv.reader(io.StringIO(text), delimiter=delimiter)
-    rows = ["\t".join(row) for row in reader]
+    rows, numbers = [], []
+    for row in reader:
+        numbers.append(len(numbers) + 1)
+        rows.append(row)
     if not rows:
         return {"status": "ok", "format": fmt, "blocks": []}
-    return {"status": "ok", "format": fmt, "blocks": [block("table", "\n".join(rows), header=rows[0])]}
+    return {"status": "ok", "format": fmt, "blocks": [block("table", table_text(rows), rows=numbers)]}
 
 
 def parse_image(path: Path) -> dict:
@@ -284,8 +296,10 @@ def parse(path: str, fmt: str) -> dict:
         return fail(f"不支持的格式：{fmt}")
     try:
         return PARSERS[fmt](target)
-    except Exception as error:  # noqa: BLE001 — worker 边界：一律结构化失败
-        return fail(str(error) or type(error).__name__)
+    except PermissionError:
+        return fail("文件无法读取，请检查文件权限后重试")
+    except Exception:  # noqa: BLE001 — worker 边界不返回解析库的异常或临时路径
+        return fail("文件无法解析，请检查文件是否损坏或格式是否正确")
 
 
 def main(argv: list[str] | None = None) -> int:

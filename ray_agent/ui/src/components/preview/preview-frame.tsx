@@ -4,17 +4,18 @@ import {Dialog, DialogContent, DialogDescription, DialogTitle} from '@/component
 import {FileTypeBadge, fileExtension} from '@/components/run/file-icon'
 import {PreviewAction} from './action'
 
-export function PreviewFrame({filename, children, actions, onBack, onExpand, onClose}: {
+export function PreviewFrame({filename, children, actions, onBack, backLabel = '返回文件列表', onExpand, onClose}: {
   filename: string
   children: ReactNode
   actions?: ReactNode
   onBack?: () => void
+  backLabel?: string
   onExpand?: () => void
   onClose?: () => void
 }) {
   return <section aria-label={`预览 ${filename}`} className="flex h-full min-h-0 flex-col gap-2 px-3 pt-1 pb-3">
     <header className="flex min-h-9 shrink-0 items-center gap-1.5">
-      {onBack && <PreviewAction label="返回文件列表" icon={ChevronLeft} onClick={onBack}/>}
+      {onBack && <PreviewAction label={backLabel} icon={ChevronLeft} onClick={onBack}/>}
       <FileTypeBadge extension={fileExtension(filename)} compact/>
       <h2 className="min-w-0 flex-1 truncate text-sm font-medium" title={filename} dir="auto">{filename}</h2>
       {actions}

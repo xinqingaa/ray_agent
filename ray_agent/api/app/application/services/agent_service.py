@@ -27,6 +27,7 @@ from app.domain.models.event import ApprovalEvent, ApprovalStatus, ErrorEvent, E
 from app.domain.models.plan_acceptance import PlanAcceptance, PlanAlreadyAccepted, PlanAcceptanceConflict
 from app.domain.models.run import Run, RunMode, RunReason, RunStatus, tools_for_turn
 from app.domain.models.run_input import AcceptedRequest, RunInput
+from app.domain.models.retrieval import EXPLICIT_REFERENCE_LIMIT, KnowledgeReference
 from app.domain.models.session import Session, SessionStatus
 from app.domain.repositories.run_repository import ActiveRunExistsError
 from app.domain.repositories.uow import IUnitOfWork
@@ -567,6 +568,7 @@ class AgentService:
             execute_plan: Optional[PlanAcceptance] = None,
             skill=None,
             request_id: Optional[str] = None,
+            knowledge_references: list[KnowledgeReference] | None = None,
     ) -> ChatAccepted:
         """受理一条用户消息并立即返回；执行过程只通过事件流（stream_events）观察。
 
@@ -584,10 +586,14 @@ class AgentService:
         if image_mode not in ('auto', 'files'):
             raise BadRequestError('未知图片输入方式')
         ensure_context_idle(session_id)
+        references = knowledge_references or []
+        if len(references) > EXPLICIT_REFERENCE_LIMIT:
+            raise BadRequestError("知识引用条数超出上限")
         digest = request_digest(
             session_id, message=message, attachments=list(attachments or []), mode=mode.value, image_mode=image_mode,
             model=model, reasoning=reasoning, skill=skill.model_dump() if skill is not None else None,
             execute_plan=execute_plan.model_dump() if execute_plan is not None else None,
+            **({"knowledge_references": [ref.model_dump(mode="json") for ref in references]} if references else {}),
         ) if request_id else None
         if request_id:
             replay = await self._replay_request(request_id, digest)
@@ -605,6 +611,7 @@ class AgentService:
             message=message,
             image_mode=image_mode,
             skill=skill,
+            knowledge_references=references,
             attachments=[attachment for attachment in db_attachments if attachment is not None],
         )
         sent_at = timestamp or utc_now()
@@ -616,6 +623,11 @@ class AgentService:
                 raise ConflictError("此请求标识已受理，请按请求标识读回结果")
             if self._skills is not None:
                 await self._skills.accept(uow, session_id, skill)
+            if references:
+                runtime = getattr(self, "_workspace_memory", None)
+                if runtime is None:
+                    raise ConflictError("当前运行不能接收知识引用")
+                await runtime.assembly.accept_references(uow, session, references, run_id=message_event.run_id)
             await uow.file.bind_session([file.id for file in message_event.attachments], session_id)
             await uow.run_input.add(RunInput(session_id=session_id, run_id=message_event.run_id,
                                              message_seq=message_event.seq, request_id=request_id))
@@ -650,7 +662,7 @@ class AgentService:
                         raise ConflictError("本运行 Skill 目录已固定，请在新运行中选择此版本")
             if execute_plan is not None:
                 # 独立受理路径：不能误入运行中注入/等待续接；写事务串行化重试。
-                if mode != RunMode.NORMAL or attachments or skill is not None:
+                if mode != RunMode.NORMAL or attachments or skill is not None or references:
                     raise BadRequestError("确认计划只能以普通模式、不附带附件提交")
                 self._check_model_connection(model or session.model_id)
                 await self._remember_model(session, model, reasoning, creating=False)

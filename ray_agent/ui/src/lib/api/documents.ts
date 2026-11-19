@@ -1,30 +1,13 @@
-import {get, post} from './fetch'
+import type {components} from '@contracts/openapi'
+import {get, post, put} from './fetch'
+import type {KnowledgeReference, OperationView} from './types'
 
-export type IndexSummary = {
-  workspace_id: string
-  total: number
-  searchable: number
-  pending: number
-  parsing: number
-  pending_component: number
-  failed: number
-  withdrawn: number
-  truncated_scan: boolean
-  active_operation_id?: string | null
-  publication_generation: number
-  vector_generation?: number | null
-  embedding_config?: string | null
-  semantic_ready?: boolean
-}
-
-export type DocumentItem = {
-  id: string
-  relative_path: string
-  current_revision: number
-  status: string
-  format: string
-  updated_at: number
-}
+type Schemas = components['schemas']
+export type IndexSummary = Schemas['IndexSummaryView']
+export type DocumentItem = Schemas['DocumentView']
+export type DocumentSource = Schemas['DocumentSourceView']
+export type DocumentLocator = Schemas['DocumentLocator']
+export type IndexPolicy = Schemas['IndexPolicyRequest']
 
 const workspacePath = (id: string) => `/workspaces/${encodeURIComponent(id)}`
 
@@ -35,6 +18,20 @@ export const documentsApi = {
   list: (workspaceId: string) =>
     get<DocumentItem[]>(`${workspacePath(workspaceId)}/documents`),
 
-  sync: (workspaceId: string, paths?: string[]) =>
-    post<Record<string, unknown>>(`${workspacePath(workspaceId)}/documents/sync`, {paths: paths ?? null}),
+  page: (workspaceId: string, after?: string, limit?: number) =>
+    get<Schemas['DocumentPage']>(`${workspacePath(workspaceId)}/documents/page`, {...(after ? {after} : {}), ...(limit ? {limit} : {})}),
+
+  sync: (workspaceId: string) =>
+    post<OperationView>(`${workspacePath(workspaceId)}/documents/sync`, {}),
+
+  policy: (workspaceId: string, policy: IndexPolicy) =>
+    put<IndexSummary>(`${workspacePath(workspaceId)}/documents/policy`, policy),
+
+  retry: (workspaceId: string, document?: DocumentItem) =>
+    post<OperationView>(`${workspacePath(workspaceId)}/documents/retry`, document
+      ? {document_id: document.id, revision: document.current_revision} : {}),
+
+  source: (workspaceId: string, reference: KnowledgeReference, signal?: AbortSignal) =>
+    get<DocumentSource>(`${workspacePath(workspaceId)}/documents/chunks/${encodeURIComponent(reference.source_id)}`,
+      {version: reference.source_version}, {signal}),
 }

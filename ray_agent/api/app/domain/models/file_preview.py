@@ -12,6 +12,9 @@ TABLE_PAGE_COLUMNS = 50
 PREVIEW_INPUT_BYTES = 64 * 1024 * 1024
 WORKBOOK_EXPANDED_BYTES = 128 * 1024 * 1024
 IMAGE_MAX_PIXELS = 32 * 1024 * 1024
+PDF_PREVIEW_EDGE = 1600
+DOCX_PAGE_BLOCKS = 32
+DOCX_PAGE_BYTES = 4 * 1024 * 1024
 
 
 def preview_kind(filename: str) -> str:
@@ -27,12 +30,18 @@ def preview_kind(filename: str) -> str:
         return 'image'
     if extension == '.pdf':
         return 'pdf'
+    if extension == '.docx':
+        return 'docx'
     return 'unavailable'
 
 
 class PreviewQuery(BaseModel):
     sheet: int = Field(0, ge=0, le=1023)
+    sheet_name: str | None = Field(None, min_length=1, max_length=255)
     row: int = Field(0, ge=0, le=100000)
     column: int = Field(0, ge=0, le=16383)
     offset: int = Field(0, ge=0, le=2**40)
+    page: int = Field(1, ge=1)
+    block: int | None = Field(None, ge=0)
+    table: int | None = Field(None, ge=0)
     revision: str | None = None

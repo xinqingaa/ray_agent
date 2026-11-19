@@ -45,6 +45,10 @@ class DBRunInputRepository(RunInputRepository):
             stmt.order_by(RunInputModel.id).execution_options(populate_existing=True))).scalars().all()
         return [_input(record) for record in records]
 
+    async def for_run(self, run_id: str) -> List[RunInput]:
+        stmt = select(RunInputModel).where(RunInputModel.run_id == run_id).order_by(RunInputModel.id)
+        return [_input(record) for record in (await self.db_session.execute(stmt)).scalars()]
+
     async def consume(self, input_ids: Collection[int], consumed_seq: int) -> int:
         if not input_ids:
             return 0

@@ -17,6 +17,10 @@ class RunInputRepository(Protocol):
         """运行仍待消费的输入，按受理顺序。"""
         ...
 
+    async def for_run(self, run_id: str) -> List[RunInput]:
+        """该运行受理的输入，含已消费项和转交后归入本运行的项。"""
+        ...
+
     async def consume(self, input_ids: Collection[int], consumed_seq: int) -> int:
         """把仍待消费的输入标为已消费并记录上下文事件序号；返回实际变化的条数。"""
         ...

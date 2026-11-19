@@ -1,5 +1,5 @@
-import {useCallback, useEffect, useRef, useState} from 'react'
-import {History, Loader2, Pencil, Wand} from '@/components/ui/icons'
+import {useCallback, useEffect, useLayoutEffect, useRef, useState} from 'react'
+import {Check, History, Loader2, MoreHorizontal, Pencil, Wand, X} from '@/components/ui/icons'
 import {toast} from 'sonner'
 import {Button} from '@/components/ui/button'
 import {Input} from '@/components/ui/input'
@@ -28,10 +28,10 @@ function DocumentChange({before, after}: {before: string; after: string}) {
   while (end < original.length - start && end < updated.length - start && original.at(-1 - end) === updated.at(-1 - end)) end += 1
   const removed = original.slice(start, original.length - end).join('')
   const added = updated.slice(start, updated.length - end).join('')
-  const leading = original.slice(0, start).join('')
-  const trailing = end ? original.slice(-end).join('') : ''
+  const leading = original.slice(Math.max(0, start - 85), start).join('')
+  const trailing = end ? original.slice(original.length - end, original.length - end + 85).join('') : ''
   return <div className="background-diff">
-    {leading}{removed && <del>{removed}</del>}{added && <ins>{added}</ins>}{trailing}
+    {start > 85 && '…'}{leading}{removed && <del>{removed}</del>}{added && <ins>{added}</ins>}{trailing}{end > 85 && '…'}
   </div>
 }
 
@@ -62,7 +62,10 @@ export function WorkingStyleSettings({workspace, onSummary}: {
   const [proposals, setProposals] = useState<InstructionProposalView[]>([])
   const [templates, setTemplates] = useState<TemplateView[]>([])
   const [templateName, setTemplateName] = useState('')
+  const [templatesOpen, setTemplatesOpen] = useState(false)
   const [proposalBusy, setProposalBusy] = useState<string | null>(null)
+  const editor = useRef<HTMLTextAreaElement>(null)
+  const editAction = useRef<HTMLButtonElement>(null)
 
   // 允许在同一工作方式版本上保存其他工作区设置更新后的草稿。
   // 若工作方式本身已变化，保留草稿原先读到的并发核对版本。
@@ -102,6 +105,18 @@ export function WorkingStyleSettings({workspace, onSummary}: {
   const dirty = (editing && body !== instruction?.body) || editedProposal !== null
   useUnsavedNavigation(() => dirty)
 
+  useLayoutEffect(() => {
+    const field = editor.current
+    if (!editing || !field) return
+    const calculate = () => {
+      field.style.height = 'auto'
+      field.style.height = `${field.scrollHeight}px`
+    }
+    calculate()
+    window.addEventListener('resize', calculate)
+    return () => window.removeEventListener('resize', calculate)
+  }, [body, editing])
+
   const saveInstruction = async (text: string, restore = false) => {
     if (saving || readonly || reviewedWorkspaceVersion == null) return
     setSaving(true)
@@ -111,6 +126,7 @@ export function WorkingStyleSettings({workspace, onSummary}: {
       setBody(next.body)
       setEditing(false)
       if (restore) setHistoryOpen(false)
+      else requestAnimationFrame(() => editAction.current?.focus({preventScroll: true}))
       void refresh()
       toast.success(restore ? '已恢复为新版本' : '已保存工作方式')
     } catch (error) {
@@ -202,15 +218,24 @@ export function WorkingStyleSettings({workspace, onSummary}: {
   const maxChars = instruction?.max_chars ?? 4000
 
   const selected = versions.find(version => version.version === selectedVersion)
-  return <section aria-label="工作方式" className="space-y-2.5">
-    <header className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+  const cancelEdit = () => {
+    setBody(instruction?.body ?? '')
+    setEditing(false)
+    requestAnimationFrame(() => editAction.current?.focus({preventScroll: true}))
+  }
+  return <section aria-label="工作方式" className="background-block">
+    <header className="background-block-header">
       <h2 className="text-[15px] font-semibold">工作方式</h2>
       {instruction?.instruction_version != null && <span className="text-xs text-faint tabular-nums">v{instruction.instruction_version}</span>}
-      <div className="ml-auto flex items-center gap-1">
-        <IconAction label="版本历史" disabled={loading || historyLoading}
-          onClick={() => {setHistoryOpen(true); void loadHistory()}}><History/></IconAction>
-        {!readonly && !editing && <IconAction label="编辑工作方式" disabled={!instruction}
-          onClick={() => setEditing(true)}><Pencil/></IconAction>}
+      <div className="background-block-actions">
+        <IconAction label="工作方式模板" className="text-faint" disabled={editing || loading}
+          onClick={() => setTemplatesOpen(true)}><MoreHorizontal/></IconAction>
+        {editing ? <IconAction label="取消编辑" disabled={saving} onClick={cancelEdit}><X/></IconAction>
+          : <IconAction label="版本历史" disabled={loading || historyLoading}
+            onClick={() => {setHistoryOpen(true); void loadHistory()}}><History/></IconAction>}
+        {!readonly && <IconAction ref={editAction} label={editing ? '保存工作方式' : '编辑工作方式'}
+          disabled={!instruction || saving || (editing && body === instruction.body)}
+          onClick={() => editing ? void saveInstruction(body) : setEditing(true)}>{editing ? <Check/> : <Pencil/>}</IconAction>}
       </div>
     </header>
 
@@ -224,24 +249,27 @@ export function WorkingStyleSettings({workspace, onSummary}: {
         void load()
       }}>重新读取</Button>
     </div>}
-    {instruction && (editing ? <div className="space-y-2">
-      <Textarea value={body} disabled={saving} autoFocus rows={7} maxLength={maxChars}
-        className="min-h-32 rounded-[14px] px-4 py-3 leading-relaxed" aria-label="工作方式正文" onChange={event => setBody(event.target.value)}/>
-      <div className="flex items-center gap-2">
-        <span className="mr-auto text-xs text-muted-foreground">{body.length}/{maxChars}</span>
-        <Button type="button" variant="ghost" size="sm" disabled={saving} onClick={() => {setBody(instruction.body); setEditing(false)}}>取消</Button>
-        <Button type="button" size="sm" disabled={saving || body === instruction.body} onClick={() => void saveInstruction(body)}>{saving ? '正在保存' : '保存'}</Button>
+    {instruction && <>
+      <div className="background-style-doc" data-editing={editing}>
+        {editing ? <textarea ref={editor} value={body} readOnly={saving} autoFocus rows={1} maxLength={maxChars}
+          aria-label="工作方式正文" placeholder="写下这个工作区的工作方式"
+          onChange={event => setBody(event.target.value)} onKeyDown={event => {
+            if (event.nativeEvent.isComposing || saving) return
+            if (event.key === 'Escape') {event.stopPropagation(); cancelEdit()}
+            if (event.key === 'Enter' && (event.metaKey || event.ctrlKey) && body !== instruction.body) {
+              event.preventDefault()
+              void saveInstruction(body)
+            }
+          }}/>
+          : instruction.body.trim() ? <MarkdownContent content={instruction.body}/> : <p className="text-muted-foreground">还没有设置工作方式。</p>}
       </div>
-    </div> : <>
-      <div className="background-style-doc">
-        {instruction.body.trim() ? <MarkdownContent content={instruction.body}/> : <p className="text-sm text-muted-foreground">还没有设置工作方式。</p>}
-      </div>
-      {instruction.instruction_version != null && <div className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-faint">
+      {editing ? <p className="background-style-meta tabular-nums">{saving ? '正在保存' : `${body.length}/${maxChars}`}</p>
+        : instruction.instruction_version != null && <div className="background-style-meta">
         {instruction.updated_at != null && <span>{parseEventTime(instruction.updated_at)?.toLocaleDateString('zh-CN')}</span>}
         {instruction.source && <span>{CHANGE_SOURCE[instruction.source]}</span>}
-        <span>改动从下一次运行生效</span>
+        <span>修改从下一次运行生效，进行中的任务保留原版本</span>
       </div>}
-    </>)}
+    </>}
 
     {proposals.length > 0 && <div className="space-y-2 pt-1">
       {proposals.map(proposal => {
@@ -272,8 +300,10 @@ export function WorkingStyleSettings({workspace, onSummary}: {
       })}
     </div>}
 
-    <details className="pt-1">
-      <summary className="cursor-pointer text-xs font-medium text-muted-foreground">工作方式模板</summary>
+    <Dialog open={templatesOpen} onOpenChange={setTemplatesOpen}>
+      <DialogContent className="max-h-[min(34rem,85dvh)] overflow-y-auto">
+      <DialogTitle>工作方式模板</DialogTitle>
+      <DialogDescription className="sr-only">保存和应用工作方式模板</DialogDescription>
       <div className="mt-3 space-y-2">
         <div className="flex gap-2">
           <Input value={templateName} placeholder="模板名称" aria-label="模板名称" disabled={readonly} onChange={event => setTemplateName(event.target.value)}/>
@@ -286,7 +316,8 @@ export function WorkingStyleSettings({workspace, onSummary}: {
           <Button type="button" size="xs" variant="ghost" onClick={() => void deleteTemplate(template.id)}>删除</Button>
         </li>)}</ul>
       </div>
-    </details>
+      </DialogContent>
+    </Dialog>
 
     <Dialog open={historyOpen} onOpenChange={setHistoryOpen}>
       <DialogContent className="max-h-[min(44rem,85dvh)] gap-3 overflow-hidden rounded-[18px] sm:max-w-3xl"

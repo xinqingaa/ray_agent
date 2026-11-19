@@ -91,7 +91,8 @@ class KnowledgeSearchTool(BaseTool):
         name="knowledge_search",
         description="在当前工作区的记忆、其他对话的摘要与已索引文件片段中全文检索。"
                     "需要回忆约定、决定、相关对话或文件夹材料时使用；结果带来源类型与定位，"
-                    "model_inferred 为模型推断、未经用户确认，只作参考。读回某条文件原文用 knowledge_read。",
+                    "model_inferred 为模型推断、未经用户确认，只作参考。读回某条文件原文用 knowledge_read。"
+                    "引用实际采用的文件片段时可用 Markdown 链接 [出处](#rayagent-source-片段ID)，把片段ID替换为 source_id。",
         parameters={
             "query": {"type": "string", "description": "检索词或短语，提取核心关键词"},
             "source_types": {
@@ -112,7 +113,7 @@ class KnowledgeSearchTool(BaseTool):
     @tool(
         name="knowledge_read",
         description="按 knowledge_search 返回的文件片段 source_id 读回原文与定位（页、块、行列等）。"
-                    "只能读当前工作区已发布的片段；版本已过期时结果会标明 stale。",
+                    "只能读当前工作区当前可用的已发布片段。",
         parameters={
             "source_id": {"type": "string", "description": "检索命中的 source_id（文件片段 id）"},
         },

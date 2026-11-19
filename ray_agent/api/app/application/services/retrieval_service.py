@@ -59,9 +59,13 @@ class RetrievalService:
         self._uow_factory = uow_factory
         self._read_uow_factory = read_uow_factory or uow_factory
         self._semantic = semantic  # SemanticIndexService；可选，避免循环装配
+        self._visible_documents: Callable | None = None
 
     def bind_semantic(self, semantic) -> None:
         self._semantic = semantic
+
+    def bind_documents(self, visible: Callable) -> None:
+        self._visible_documents = visible
 
     # ---- 查询 ----
 
@@ -102,6 +106,10 @@ class RetrievalService:
             else:
                 chunk_by_id = {}
 
+        if self._visible_documents:
+            hits = await self._visible_documents(workspace_id, hits)
+        for hit in hits:
+            hit.payload["match_kind"] = "full_text"
         want_vector = (
             vector_ready and self._semantic is not None
             and SearchSourceType.DOCUMENT_CHUNK in sources
@@ -113,6 +121,8 @@ class RetrievalService:
             workspace_id, text, limit=VECTOR_SEARCH_LIMIT, version=vector_version,
             embedding_config=embedding_config, allowed=published_ids, chunk_by_id=chunk_by_id,
         )
+        if self._visible_documents:
+            vector_hits = await self._visible_documents(workspace_id, vector_hits)
         if not vector_hits:
             return hits[:request.limit]
 
@@ -132,6 +142,24 @@ class RetrievalService:
             if len(merged) >= request.limit:
                 break
         return merged
+
+    async def present_hits(self, workspace_id: str, hits: list[SearchHit]) -> list[SearchHit]:
+        """用当前对话标题呈现摘要，包括改名或旧版索引写入的摘要。"""
+        if not any(hit.source_type is SearchSourceType.SESSION_SUMMARY for hit in hits):
+            return hits
+        shown = []
+        async with self._read_uow_factory() as uow:
+            for hit in hits:
+                if hit.source_type is SearchSourceType.SESSION_SUMMARY:
+                    session = await uow.session.get_by_id(hit.source_id)
+                    if not session or session.workspace_id != workspace_id or not session.participate_in_memory:
+                        continue
+                    payload = {**hit.payload}
+                    if session.latest_message_at:
+                        payload["source_at"] = session.latest_message_at.isoformat()
+                    hit = hit.model_copy(update={"title": session.title or "会话摘要", "payload": payload})
+                shown.append(hit)
+        return shown
 
     async def _vector_hits(
             self, workspace_id: str, query: str, *, limit: int, version: int | None,
@@ -167,7 +195,7 @@ class RetrievalService:
                 payload={
                     "document_id": chunk.document_id, "revision_id": chunk.revision_id,
                     "revision": chunk.revision, "locator": dict(chunk.locator),
-                    "ordinal": chunk.ordinal, "stale": False,
+                    "ordinal": chunk.ordinal, "stale": False, "match_kind": "semantic",
                 },
             ))
         return hits

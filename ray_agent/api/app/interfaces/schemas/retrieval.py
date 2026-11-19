@@ -3,7 +3,7 @@ from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.domain.models.retrieval import SEARCH_HIT_LIMIT, SearchHit, SearchSourceType
+from app.domain.models.retrieval import KnowledgeReference, SEARCH_HIT_LIMIT, SearchHit, SearchSourceType
 from app.domain.models.run_context import RunContextManifest
 from app.interfaces.schemas.event import to_epoch_ms
 
@@ -74,17 +74,25 @@ class ContextManifestView(BaseModel):
     instruction_body: Optional[str] = None
     resident_memories: list[ResidentMemoryView]
     retrieval_hits: list[SearchHitView]
+    explicit_hits: list[SearchHitView] = Field(default_factory=list)
+    inactive_document_hits: list[SearchHitView] = Field(default_factory=list)
+    citation_sources: list[KnowledgeReference] = Field(default_factory=list)
     omissions: list[ContextOmissionView]
     readable_summary_sources: list[str] = Field(default_factory=list)
     created_at: int
 
     @classmethod
-    def of(cls, manifest: RunContextManifest, readable_summary_sources: list[str] | None = None) -> "ContextManifestView":
+    def of(cls, manifest: RunContextManifest, readable_summary_sources: list[str] | None = None,
+           citation_sources: list[KnowledgeReference] | None = None,
+           inactive_document_hits: list[SearchHit] | None = None) -> "ContextManifestView":
         return cls(
             run_id=manifest.run_id, session_id=manifest.session_id, workspace_id=manifest.workspace_id,
             instruction_version=manifest.instruction_version, instruction_body=manifest.instruction_body,
             resident_memories=[ResidentMemoryView(**item.model_dump()) for item in manifest.resident_memories],
             retrieval_hits=[SearchHitView.of(hit) for hit in manifest.retrieval_hits],
+            explicit_hits=[SearchHitView.of(hit) for hit in manifest.explicit_hits],
+            inactive_document_hits=[SearchHitView.of(hit) for hit in inactive_document_hits or []],
+            citation_sources=citation_sources or [],
             omissions=[ContextOmissionView(**item.model_dump()) for item in manifest.omissions],
             readable_summary_sources=readable_summary_sources or [],
             created_at=to_epoch_ms(manifest.created_at))

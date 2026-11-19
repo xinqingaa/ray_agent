@@ -10,6 +10,17 @@ export class UncertainSubmissionError extends Error {
 export async function recoverSubmission(scope: string, sessionId: string): Promise<boolean> {
   const pending = readDraft(scope).submission
   if (!pending) return false
+  if (pending.request_id) {
+    try {
+      await sessionApi.acceptedChat(sessionId, pending.request_id)
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 404)
+        throw new UncertainSubmissionError('尚未找到这次发送的受理记录。请核对对话后确认是否重发。')
+      throw new UncertainSubmissionError('暂时无法核对受理状态，请恢复连接后再次核对。')
+    }
+    writeDraft(scope, {submission: undefined})
+    return true
+  }
   let detail
   try { detail = await sessionApi.getSessionDetail(sessionId) }
   catch { throw new UncertainSubmissionError('暂时无法核对受理状态，请恢复连接后再次核对。') }
@@ -39,10 +50,12 @@ export async function sendRecoverably(scope: string, sessionId: string, payload:
   if (previous && await recoverSubmission(scope, sessionId)) return
   // 读取失败时不发出一条无法建立核对边界的消息。
   const before = await sessionApi.getSessionDetail(sessionId)
-  const pending: Submission = {...payload, afterSeq: before.last_seq ?? 0, state: 'sending'}
+  const request = payload.knowledge_references?.length && !payload.request_id
+    ? {...payload, request_id: crypto.randomUUID()} : payload
+  const pending: Submission = {...request, afterSeq: before.last_seq ?? 0, state: 'sending'}
   writeDraft(scope, {submission: pending, sessionId})
   try {
-    await sessionApi.chat(sessionId, payload)
+    await sessionApi.chat(sessionId, request)
     writeDraft(scope, {submission: undefined})
   } catch (error) {
     if (error instanceof ApiError && error.rejected) {

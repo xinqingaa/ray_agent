@@ -14,7 +14,7 @@ import {ApiError} from '@/lib/api/fetch'
 import {documentsApi, type IndexSummary} from '@/lib/api/documents'
 import {fileManagerName, isDesktop, revealInFileManager} from '@/lib/platform'
 import {historyApi, rootApi} from '@/lib/api/workspace'
-import {downloadPreviewSource, type PreviewSource} from '@/lib/api/preview'
+import {downloadPreviewSource, type PreviewSource, type RootSource} from '@/lib/api/preview'
 import type {ModifiedRun, RootEntry, WorkspaceItem} from '@/lib/api/types'
 import type {FileView} from '@/lib/session-view'
 import {cn} from '@/lib/utils'
@@ -22,13 +22,17 @@ import {useSessionTitleLookup} from '@/hooks/use-session-title'
 import {leaseConflictText, leaseFromDetails, touchesFile} from '@/lib/workspace-changes'
 import {describeWorkspace} from '@/lib/workspace-state'
 import {useWorkspaceLive} from '@/providers/workspace-live-provider'
+import {Link} from '@/lib/navigation'
+import {workspaceKnowledgeHref} from '@/lib/workspace-route'
 import {uploadTarget} from '@/lib/workspace-tree'
 import {FolderTree} from './folder-tree'
 import {RecentChanges} from './recent-changes'
 
 function remainingIndexStatus(summary: IndexSummary) {
   const parts: string[] = []
-  if (summary.parsing || summary.pending) parts.push(`处理中 ${(summary.parsing || 0) + (summary.pending || 0)}`)
+  if (summary.scope_review_required) parts.push('待确认索引范围')
+  else if (summary.policy?.paused) parts.push('索引已暂停')
+  else if (summary.parsing || summary.pending) parts.push(`处理中 ${(summary.parsing || 0) + (summary.pending || 0)}`)
   if (summary.pending_component) parts.push(`待 OCR ${summary.pending_component}`)
   if (summary.failed) parts.push(`失败 ${summary.failed}`)
   return parts.join(' · ')
@@ -56,7 +60,7 @@ function describeUpload(names: Array<{asked: string; saved: string}>, failed: Ar
  */
 export type FolderPanelRef = {addFiles: (files: File[], directory?: string) => void; closePreview: () => void; target: string}
 
-export function FolderPanel({workspace, deliveries, onOpenDelivery, deliveryStatus, deliveryLabel = '本次交付', deliveryEmpty = '这个对话还没有交付文件。', onClose, embedded = false, onOpenWorkingStyle, className, selectedTab, toolbarTarget, readPaths, visible = true, ref}: {
+export function FolderPanel({workspace, deliveries, onOpenDelivery, deliveryStatus, deliveryLabel = '本次交付', deliveryEmpty = '这个对话还没有交付文件。', onClose, embedded = false, onOpenWorkingStyle, className, selectedTab, toolbarTarget, readPaths, initialPreview, onBackToKnowledge, visible = true, ref}: {
   workspace: WorkspaceItem
   /** 会话里的交付文件；工作区首页没有会话，传空则不显示“本次成果” */
   deliveries?: FileView[]
@@ -73,6 +77,8 @@ export function FolderPanel({workspace, deliveries, onOpenDelivery, deliveryStat
   selectedTab?: FolderPanelTab | 'inspect'
   toolbarTarget?: HTMLElement | null
   readPaths?: ReadonlySet<string>
+  initialPreview?: RootSource
+  onBackToKnowledge?: () => void
   visible?: boolean
   ref?: Ref<FolderPanelRef>
 }) {
@@ -81,7 +87,7 @@ export function FolderPanel({workspace, deliveries, onOpenDelivery, deliveryStat
   const [tab, setTab] = useState<FolderPanelTab>('folder')
   const live = useWorkspaceLive()
   const titleOf = useSessionTitleLookup()
-  const [opened, setOpened] = useState<PreviewSource | null>(null)
+  const [opened, setOpened] = useState<PreviewSource | null>(initialPreview?.rootId === folder?.root_id ? initialPreview ?? null : null)
   const [openedOn, setOpenedOn] = useState<FolderPanelTab | 'inspect'>('folder')
   const [stale, setStale] = useState(false)
   const [revision, setRevision] = useState(0)
@@ -90,6 +96,8 @@ export function FolderPanel({workspace, deliveries, onOpenDelivery, deliveryStat
   const [uploading, setUploading] = useState(false)
   const [dragging, setDragging] = useState(false)
   const [indexSummary, setIndexSummary] = useState<IndexSummary | null>(null)
+  const [indexError, setIndexError] = useState<string | null>(null)
+  const [indexAttempt, setIndexAttempt] = useState(0)
   const [indexStates, setIndexStates] = useState<ReadonlyMap<string, string>>(new Map())
   const [addedPaths, setAddedPaths] = useState<ReadonlySet<string>>(new Set())
   const picker = useRef<HTMLInputElement>(null)
@@ -115,7 +123,7 @@ export function FolderPanel({workspace, deliveries, onOpenDelivery, deliveryStat
 
   // 仅打开文件夹面板且有后台索引任务时刷新进度。
   useEffect(() => {
-    if (!condition.folderAvailable) {setIndexSummary(null); setIndexStates(new Map()); return}
+    if (!condition.folderAvailable) {setIndexSummary(null); setIndexStates(new Map()); setIndexError(null); return}
     if (!visible || activeTab !== 'folder') return
     let cancelled = false
     let timer: ReturnType<typeof setTimeout> | undefined
@@ -123,15 +131,14 @@ export function FolderPanel({workspace, deliveries, onOpenDelivery, deliveryStat
       const [summary, documents] = await Promise.allSettled([documentsApi.summary(workspace.id), documentsApi.list(workspace.id)])
       if (cancelled) return
       const index = summary.status === 'fulfilled' ? summary.value : null
-      setIndexSummary(index)
-      setIndexStates(documents.status === 'fulfilled'
-        ? new Map(documents.value.map(item => [item.relative_path, item.status]))
-        : new Map())
-      if (index?.active_operation_id) timer = setTimeout(() => void read(), 2000)
+      if (index) setIndexSummary(index)
+      if (documents.status === 'fulfilled') setIndexStates(new Map(documents.value.map(item => [item.relative_path, item.status])))
+      setIndexError(summary.status === 'rejected' || documents.status === 'rejected' ? '索引状态读取失败' : null)
+      timer = setTimeout(() => void read(), index?.active_operation_id ? 2000 : 15000)
     }
     void read()
     return () => {cancelled = true; clearTimeout(timer)}
-  }, [workspace.id, condition.folderAvailable, visible, activeTab, live.change.signal, uploading])
+  }, [workspace.id, condition.folderAvailable, visible, activeTab, live.change.signal, uploading, indexAttempt])
 
   // 正在预览的文件被报告变化：提示重新载入，不自动替换用户正在看的内容
   useEffect(() => {
@@ -231,7 +238,9 @@ export function FolderPanel({workspace, deliveries, onOpenDelivery, deliveryStat
         <span className="min-w-0 flex-1">这个文件刚被修改或删除。</span>
         <Button type="button" variant="ghost" size="xs" onClick={() => {setStale(false); setRevision(value => value + 1)}}>重新载入</Button>
       </div>}
-      <div className="min-h-0 flex-1"><FilePreview key={revision} source={visiblePreview} onBack={() => open(null)}/></div>
+      <div className="min-h-0 flex-1"><FilePreview key={revision} source={visiblePreview}
+        backLabel={visiblePreview === initialPreview && onBackToKnowledge ? '返回检索结果' : undefined}
+        onBack={visiblePreview === initialPreview && onBackToKnowledge ? onBackToKnowledge : () => open(null)}/></div>
     </div>
   } else if (activeTab === 'delivered') {
     body = <ScrollArea className="min-h-0 flex-1"><div className="px-3 pb-3">
@@ -280,10 +289,15 @@ export function FolderPanel({workspace, deliveries, onOpenDelivery, deliveryStat
             if (entry.kind === 'file') openRoot(path, entry)
           }}/>
       </ScrollArea>
-      {!!indexSummary?.total && <div className="flex min-h-9 shrink-0 flex-wrap items-center gap-x-2 gap-y-1 border-t border-border/65 px-3.5 py-2 text-xs text-faint" title="文档全文索引状态">
-        <span className="tabular-nums">可检索 {indexSummary.searchable}/{indexSummary.total}</span>
-        <progress aria-label="可检索文档" className="folder-index-progress" max={indexSummary.total} value={indexSummary.searchable}/>
-        {remainingIndexStatus(indexSummary) && <span>{remainingIndexStatus(indexSummary)}</span>}
+      {(indexSummary || indexError) && <div className="flex min-h-9 shrink-0 flex-wrap items-center gap-x-2 gap-y-1 border-t border-border/65 px-3.5 py-2 text-xs text-faint" title="文档全文索引状态">
+        {indexSummary && <>
+          <span className="tabular-nums">可检索 {indexSummary.searchable}/{indexSummary.total}</span>
+          {indexSummary.total > 0 && <progress aria-label="可检索文档" className="folder-index-progress" max={indexSummary.total} value={indexSummary.searchable}/>}
+          {remainingIndexStatus(indexSummary) && <span>{remainingIndexStatus(indexSummary)}</span>}
+        </>}
+        <Link href={`${workspaceKnowledgeHref(workspace.id)}?view=index`} className="ml-auto hover:underline">索引详情</Link>
+        {indexError && <span role="status" className="text-state-failed">{indexError}
+          <Button size="xs" variant="ghost" onClick={() => setIndexAttempt(value => value + 1)}>重试</Button></span>}
       </div>}
       {!embedded && <footer className="flex shrink-0 items-center gap-2 border-t px-3 py-2">
         {condition.writable ? <>

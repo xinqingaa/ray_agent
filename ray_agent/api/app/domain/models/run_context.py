@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 
 from .clock import utc_now
 from .identity import InstructionVersion, MemoryId, MemoryVersion, SessionId, WorkspaceId
-from .retrieval import SearchHit
+from .retrieval import KnowledgeReference, SearchHit
 
 
 class ResidentMemoryRef(BaseModel):
@@ -33,6 +33,8 @@ class RunContextManifest(BaseModel):
     instruction_body: Optional[str] = None
     resident_memories: list[ResidentMemoryRef] = Field(default_factory=list)
     retrieval_hits: list[SearchHit] = Field(default_factory=list)
+    explicit_hits: list[SearchHit] = Field(default_factory=list)
+    retired_document_refs: list[KnowledgeReference] = Field(default_factory=list)
     omissions: list[ContextOmission] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=utc_now)
 
@@ -53,15 +55,17 @@ class RunContextManifest(BaseModel):
                     f"{item.content}"
                 )
             parts.append("<resident_memory>\n" + "\n".join(lines) + "\n</resident_memory>")
-        if self.retrieval_hits:
+        for name, hits in (("user_selected_sources", self.explicit_hits), ("retrieved_context", self.retrieval_hits)):
+            if not hits:
+                continue
             lines = []
-            for hit in self.retrieval_hits:
+            for hit in hits:
                 stale = " stale" if hit.stale else ""
                 lines.append(
                     f"- [{hit.source_type.value}{stale} id={hit.source_id} v{hit.source_version}] "
                     f"{hit.snippet}"
                 )
-            parts.append("<retrieved_context>\n" + "\n".join(lines) + "\n</retrieved_context>")
+            parts.append(f"<{name}>\n" + "\n".join(lines) + f"\n</{name}>")
         return "\n\n".join(parts)
 
     def to_payload(self) -> dict[str, Any]:

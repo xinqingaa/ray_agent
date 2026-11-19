@@ -60,6 +60,7 @@ class BoundWorkspaceMemory:
     async def search(self, query: str, source_types: Optional[Sequence[str]]) -> list[dict[str, Any]]:
         hits = await self._retrieval.search(self._workspace_id, query, source_types)
         return [{"source_type": hit.source_type.value, "source_id": hit.source_id, "title": hit.title,
+                 "source_version": hit.source_version,
                  "snippet": hit.snippet, "certainty": hit.certainty, "stale": hit.stale,
                  "score": round(hit.score, 4), "payload": dict(hit.payload)} for hit in hits]
 

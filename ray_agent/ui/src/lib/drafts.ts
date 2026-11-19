@@ -1,5 +1,5 @@
 
-import type {PlanAcceptance} from '@/lib/api/types'
+import type {KnowledgeReference, PlanAcceptance} from '@/lib/api/types'
 import type {FileInfo, SessionDetail, SSEEventOf} from '@/lib/api/types'
 import {normalizeEvents} from '@/lib/session-events'
 import {readEventSeq} from '@/lib/session-projection'
@@ -12,10 +12,28 @@ export type Submission = {
   reasoning?: string
   execute_plan?: PlanAcceptance
   skill?: {id: string; version: string}; image_mode?: 'auto' | 'files'
+  knowledge_references?: KnowledgeReference[]
+  request_id?: string
   afterSeq: number
   state: 'sending' | 'unknown'
 }
+export type DraftReference = KnowledgeReference & {label: string; location?: string}
+
+export function referenceKey(ref: KnowledgeReference): string {
+  return `${ref.source_type}:${ref.source_id}:${ref.source_version}`
+}
+
+export function addDraftReference(scope: string, ref: DraftReference): 'added' | 'duplicate' | 'busy' {
+  const draft = readDraft(scope)
+  if (draft.submission) return 'busy'
+  const current = draft.references ?? []
+  if (current.some(item => referenceKey(item) === referenceKey(ref))) return 'duplicate'
+  writeDraft(scope, {references: [...current, ref]})
+  return 'added'
+}
+
 export type ChatDraft = {
+  references?: DraftReference[]
   text: string
   files: FileInfo[]
   planMode: boolean

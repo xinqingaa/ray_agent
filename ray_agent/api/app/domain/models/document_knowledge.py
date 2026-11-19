@@ -13,8 +13,8 @@ from .identity import WorkspaceId
 from .semantic_index import EMBEDDING_CONFIG_FINGERPRINT
 
 # 解析／切分配置指纹：任一变化需重建派生索引；Embedding 配置另起空间
-PARSE_CONFIG_FINGERPRINT = "p6-parse-v1"
-CHUNK_CONFIG_FINGERPRINT = "p6-chunk-v1"
+PARSE_CONFIG_FINGERPRINT = "p6-parse-v2"
+CHUNK_CONFIG_FINGERPRINT = "p6-chunk-v2"
 
 # 单文件解析与入库上限（字节／字符）；默认值同步参数页
 DOCUMENT_PARSE_MAX_BYTES = 32 * 1024 * 1024
@@ -22,6 +22,8 @@ DOCUMENT_CHUNK_CHARS = 800
 DOCUMENT_CHUNK_OVERLAP = 80
 DOCUMENT_TABLE_ROWS_PER_CHUNK = 40
 DOCUMENT_INDEX_SCAN_BATCH = 200
+DOCUMENT_SCOPE_REVIEW_FILES = 1000
+DOCUMENT_SCOPE_REVIEW_BYTES = 512 * 1024 * 1024
 
 
 class DocumentIndexStatus(StrEnum):
@@ -34,6 +36,7 @@ class DocumentIndexStatus(StrEnum):
     SEARCHABLE = "searchable"
     FAILED = "failed"
     WITHDRAWN = "withdrawn"
+    EXCLUDED = "excluded"
 
 
 class DocumentFormat(StrEnum):
@@ -57,6 +60,7 @@ class DocumentRecord(BaseModel):
     workspace_id: WorkspaceId
     relative_path: str
     current_revision: int = 0
+    source_epoch: int = 0
     status: DocumentIndexStatus = DocumentIndexStatus.REGISTERED
     format: DocumentFormat = DocumentFormat.UNSUPPORTED
     created_at: datetime = Field(default_factory=utc_now)
@@ -68,10 +72,12 @@ class DocumentRevision(BaseModel):
     document_id: str
     workspace_id: WorkspaceId
     revision: int
+    source_epoch: int = 0
     relative_path: str
     content_hash: str
     size: int = 0
     modified_ns: int = 0
+    page_count: int | None = None
     status: DocumentIndexStatus = DocumentIndexStatus.PENDING_PARSE
     format: DocumentFormat = DocumentFormat.UNSUPPORTED
     parse_config: str = PARSE_CONFIG_FINGERPRINT
@@ -108,6 +114,33 @@ class DocumentChunk(BaseModel):
     published: bool = False
 
 
+class IndexDirectorySize(BaseModel):
+    files: int = 0
+    bytes: int = 0
+
+
+class IndexScope(BaseModel):
+    files: int = 0
+    bytes: int = 0
+    excluded_files: int = 0
+    excluded_bytes: int = 0
+    directories: list[str] = Field(default_factory=list)
+    directory_sizes: dict[str, IndexDirectorySize] = Field(default_factory=dict)
+    excluded_directory_sizes: dict[str, IndexDirectorySize] = Field(default_factory=dict)
+    truncated: bool = False
+
+
+class IndexPolicy(BaseModel):
+    version: int = 0
+    paused: bool = False
+    excluded_directories: list[str] = Field(default_factory=list)
+    scope_confirmed: bool = False
+
+
+def excluded_path(policy: IndexPolicy, path: str) -> bool:
+    return any(path == directory or path.startswith(directory + "/") for directory in policy.excluded_directories)
+
+
 class IndexPublication(BaseModel):
     """每个工作区一份发布指针；generation 在每次成功 FTS 发布时递增。
 
@@ -124,6 +157,10 @@ class IndexPublication(BaseModel):
     vector_generation: Optional[int] = None
     vector_table_version: Optional[int] = None
     semantic_operation_id: Optional[str] = None
+    scan_operation_id: Optional[str] = None
+    policy: IndexPolicy = Field(default_factory=IndexPolicy)
+    scan: IndexScope = Field(default_factory=IndexScope)
+    scope_review_required: bool = False
 
 
 class WorkspaceIndexSummary(BaseModel):
@@ -141,3 +178,25 @@ class WorkspaceIndexSummary(BaseModel):
     vector_generation: Optional[int] = None
     embedding_config: Optional[str] = None
     semantic_ready: bool = False
+    excluded: int = 0
+    status: str = "idle"
+    last_error: Optional[str] = None
+    folder_available: bool = True
+    policy: IndexPolicy = Field(default_factory=IndexPolicy)
+    scan: IndexScope = Field(default_factory=IndexScope)
+    scope_review_required: bool = False
+
+
+class DocumentLocator(BaseModel):
+    page: int | None = None
+    slide: int | None = None
+    block_ordinal: int | None = None
+    block: int | None = None
+    table: int | None = None
+    heading: str | None = None
+    line_start: int | None = None
+    line_end: int | None = None
+    sheet: str | None = None
+    cell_range: str | None = None
+    rows: list[int] | None = None
+    column_start: int | None = None

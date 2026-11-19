@@ -242,7 +242,11 @@ uv run --locked python -m pytest \
 
 ### 文档知识检查
 
-`test_document_knowledge.py` 覆盖 TXT／Markdown／CSV 解析、图片标待 OCR 组件、两工作区文件片段检索不串、修改后旧片段撤出 FTS、删除后撤回，以及按 chunk 读回来源。检查包含从源码目录之外启动真实解析子进程。Embedding、LanceDB 与 OCR 的检查入口见[代码地图](../../docs/code-map.md#上下文与记忆)。
+```bash
+uv run --locked python -m pytest tests/core/test_document_knowledge.py
+```
+
+检查使用临时工作区、真实 SQLite 与解析子进程覆盖全文检索、工作区隔离、外部编辑、删除和旧版来源读回。用遗留解析和暂存状态重开数据库验证接管，并用部分扫描快照验证未观察到的文件不会被误撤回。另检暂停、范围排除、重扫和重试、表格坐标、显式引用的持久读回与运行中补充。Embedding、LanceDB 与 OCR 的检查入口见[代码地图](../../docs/code-map.md#上下文与记忆)。
 
 ### 数据删除与清空检查
 

@@ -244,6 +244,13 @@ class PosixWorkspaceFiles:
         self.limits = limits or FileLimits()
         self.before_publish: Callable[[], None] | None = None
 
+    def for_binding(self, binding: RootBinding) -> "PosixWorkspaceFiles":
+        async def resolve(root_id: str) -> RootBinding:
+            if root_id != binding.root_id:
+                raise _fail(ErrorCode.NOT_FOUND, "文件根与当前绑定不符")
+            return binding
+        return PosixWorkspaceFiles(resolve, self.limits)
+
     async def _run(self, function, *args):
         result, cancelled = await run_file_io(function, *args)
         if cancelled:
@@ -581,9 +588,9 @@ class PosixWorkspaceFiles:
         binding = await self._binding(path)
         return await self._run(scan_binding, binding, _parts(path.relative_path), self.limits)
 
-    async def snapshot(self, path: RootedPath) -> FolderSnapshot:
+    async def snapshot(self, path: RootedPath, *, exclude: frozenset[str] = frozenset()) -> FolderSnapshot:
         binding = await self._binding(path)
-        return await self._run(snapshot_binding, binding, _parts(path.relative_path), self.limits)
+        return await self._run(snapshot_binding, binding, _parts(path.relative_path), self.limits, exclude)
 
 
 class _Walk:
@@ -593,8 +600,9 @@ class _Walk:
     目录在遍历中途消失算作已变化而跳过；无权进入标记为截断；其他失败（含描述符耗尽）向上抛出，不当作空目录。"""
 
     def __init__(self, binding: RootBinding, parts: tuple[str, ...], limits: FileLimits,
-                 *, include_temp: bool = False) -> None:
+                 *, exclude: frozenset[str] = frozenset(), include_temp: bool = False) -> None:
         self.binding, self.parts, self.limits, self.include_temp = binding, parts, limits, include_temp
+        self.exclude = exclude
         self.truncated = False
 
     def _skip(self, name: str, is_directory: bool) -> bool:
@@ -656,7 +664,7 @@ class _Walk:
                         continue
                     visited += 1
                     yield dir_parts, name, info, is_directory
-                    if is_directory:
+                    if is_directory and "/".join((*dir_parts, name)) not in self.exclude:
                         if depth + 1 > self.limits.scan_depth:
                             self.truncated = True
                         else:
@@ -678,10 +686,12 @@ def scan_binding(binding: RootBinding, parts: tuple[str, ...], limits: FileLimit
     return summary
 
 
-def snapshot_binding(binding: RootBinding, parts: tuple[str, ...], limits: FileLimits) -> FolderSnapshot:
+def snapshot_binding(
+        binding: RootBinding, parts: tuple[str, ...], limits: FileLimits, exclude: frozenset[str] = frozenset(),
+) -> FolderSnapshot:
     """与扫描相同的遍历与上限，记录每个普通文件的大小与修改时间。"""
     snapshot = FolderSnapshot(files={})
-    walk = _Walk(binding, parts, limits)
+    walk = _Walk(binding, parts, limits, exclude=exclude)
     for dir_parts, name, info, is_directory in walk:
         if not is_directory and stat.S_ISREG(info.st_mode):
             snapshot.files["/".join((*dir_parts, name))] = (info.st_size, info.st_mtime_ns)

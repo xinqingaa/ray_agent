@@ -1,36 +1,34 @@
-"""文档登记、增量同步与索引发布编排。
-
-每工作区串行发布：同一时刻最多一个 DOCUMENT_INDEX 任务；解析产物先写暂存块／片段，
-短事务内切换权威可见并写入 FTS，取消与失败不发布半份。
-"""
+"""登记文档、恢复解析任务，并原子发布片段和全文索引。"""
 from __future__ import annotations
 
 import asyncio
+import csv
 import hashlib
+import io
 import logging
 import tempfile
 import uuid
 from pathlib import Path
-from typing import Callable, Optional
+from typing import Callable
 
+from app.application.errors.exceptions import BadRequestError, ConflictError, GoneError, NotFoundError
+from app.application.errors.workspace_files import app_error
 from app.application.services.background_jobs import JobCancelled, JobContext, JobSuperseded, get_job_runner
 from app.application.services.retrieval_service import RetrievalService
+from app.domain.external.workspace_files import FileKind, RootBinding, WorkspaceFileError
 from app.domain.models.background_job import BackgroundJob
 from app.domain.models.clock import utc_now
 from app.domain.models.document_knowledge import (
-    CHUNK_CONFIG_FINGERPRINT,
-    DOCUMENT_PARSE_MAX_BYTES,
-    PARSE_CONFIG_FINGERPRINT,
-    DocumentFormat,
-    DocumentIndexStatus,
-    DocumentRecord,
-    DocumentRevision,
-    IndexPublication,
-    WorkspaceIndexSummary,
+    CHUNK_CONFIG_FINGERPRINT, DOCUMENT_PARSE_MAX_BYTES,
+    DOCUMENT_SCOPE_REVIEW_BYTES, DOCUMENT_SCOPE_REVIEW_FILES, PARSE_CONFIG_FINGERPRINT,
+    DocumentFormat, DocumentIndexStatus as Status, DocumentLocator, DocumentRecord,
+    DocumentRevision, IndexDirectorySize, IndexPolicy, IndexPublication, IndexScope, WorkspaceIndexSummary, excluded_path,
 )
+from app.domain.models.error import ErrorCode
 from app.domain.models.identity import RootedPath
 from app.domain.models.operation import OperationKind, OperationProgress, OperationScope, OperationScopeKind
-from app.domain.models.workspace import WorkspaceStatus
+from app.domain.models.retrieval import SearchHit, SearchSourceType
+from app.domain.models.workspace import FolderStatus, RootRecord, WorkspaceStatus
 from app.domain.repositories.uow import IUnitOfWork
 from app.domain.services.document_formats import detect_format, is_indexable
 from app.infrastructure.external.document_parse.chunking import blocks_from_worker, chunk_blocks
@@ -38,28 +36,70 @@ from app.infrastructure.external.document_parse.runner import run_document_parse
 
 logger = logging.getLogger(__name__)
 
-PENDING_STATUSES = (
-    DocumentIndexStatus.PENDING_PARSE,
-    DocumentIndexStatus.PARSING,
-    DocumentIndexStatus.INDEXING,
-)
+IN_PROGRESS = (Status.PARSING, Status.INDEXING)
+PENDING = (Status.PENDING_PARSE, *IN_PROGRESS)
+RETIRED = (Status.WITHDRAWN, Status.EXCLUDED)
+
+
+class _IndexStopped(Exception):
+    """调度策略或文件夹状态暂不允许处理。"""
+
+
+def _binding(root: RootRecord | None) -> tuple | None:
+    return (root.ref.root_id, root.dev, root.ino, root.location) if root else None
+
+
+async def _unpublish(uow: IUnitOfWork, doc: DocumentRecord, pub: IndexPublication) -> None:
+    ids = await uow.document.unpublish_document(doc.id)
+    for chunk_id in ids:
+        await uow.search.remove(workspace_id=doc.workspace_id, source_type=SearchSourceType.DOCUMENT_CHUNK,
+                                source_id=chunk_id)
+    if ids:
+        pub.generation += 1
+
+
+async def _retire(uow: IUnitOfWork, doc: DocumentRecord, pub: IndexPublication, status: Status) -> None:
+    if doc.status is status:
+        return
+    await _unpublish(uow, doc, pub)
+    doc.source_epoch += 1
+    doc.status = status
+    doc.updated_at = utc_now()
+    await uow.document.save(doc)
+    if revision := await uow.document.get_revision_by_number(doc.id, doc.current_revision):
+        revision.status = status
+        revision.updated_at = doc.updated_at
+        await uow.document.save_revision(revision)
+
+
+async def retire_document_binding(uow: IUnitOfWork, workspace_id: str) -> None:
+    """改绑与旧来源撤回在同一个工作区事务中提交。"""
+    pub = await uow.document.get_publication(workspace_id) or IndexPublication(workspace_id=workspace_id)
+    for doc in await uow.document.list_workspace(workspace_id):
+        await _retire(uow, doc, pub, Status.WITHDRAWN)
+    pub.scan = IndexScope()
+    pub.policy.scope_confirmed = False
+    pub.policy.version += 1
+    pub.scope_review_required = False
+    pub.scan_operation_id = None
+    pub.updated_at = utc_now()
+    await uow.document.save_publication(pub)
 
 
 class DocumentIndexService:
-
     def __init__(
             self, uow_factory: Callable[[], IUnitOfWork], read_uow_factory: Callable[[], IUnitOfWork],
-            folder_access, files, retrieval: RetrievalService, *, wake: Optional[Callable[[], None]] = None,
-            semantic=None, ocr_dir_probe: Optional[Callable[[], Optional[Path]]] = None,
+            folder_access, files, retrieval: RetrievalService, *, wake: Callable[[], None] | None = None,
+            semantic=None, ocr_dir_probe: Callable[[], Path | None] | None = None,
     ) -> None:
         self._uow_factory = uow_factory
         self._read_uow_factory = read_uow_factory
-        self._folders = folder_access
         self._files = files
         self._retrieval = retrieval
         self._wake = wake
         self._semantic = semantic
         self._ocr_dir_probe = ocr_dir_probe
+        self._scan_lock = asyncio.Lock()
 
     def wake(self) -> None:
         if self._wake is not None:
@@ -72,493 +112,676 @@ class DocumentIndexService:
 
     async def summary(self, workspace_id: str) -> WorkspaceIndexSummary:
         async with self._read_uow_factory() as uow:
-            return await uow.document.summary(workspace_id)
+            summary = await uow.document.summary(workspace_id)
+            if summary.active_operation_id:
+                operation = await uow.job.get(summary.active_operation_id)
+                if not operation or operation.status.terminal:
+                    publication = await uow.document.get_publication(workspace_id)
+                    alternative = publication.active_operation_id if publication else None
+                    operation = await uow.job.get(alternative) if alternative else None
+                    summary.active_operation_id = operation.operation_id if operation and not operation.status.terminal else None
+            root = await uow.root.workspace_folder(workspace_id)
+            summary.folder_available = bool(root and root.status is FolderStatus.AVAILABLE)
+            return summary
+
+    def _bound_files(self, root: RootRecord):
+        return self._files.for_binding(RootBinding(root_id=root.ref.root_id, kind=root.ref.kind,
+                                                  path=root.location, dev=root.dev, ino=root.ino))
 
     async def list_documents(self, workspace_id: str) -> list[DocumentRecord]:
         async with self._read_uow_factory() as uow:
             return await uow.document.list_workspace(workspace_id)
 
-    async def get_chunk_source(self, workspace_id: str, chunk_id: str) -> Optional[dict]:
-        """工具与界面读回来源：片段正文与定位；非本工作区或不存在返回空。"""
+    async def page(self, workspace_id: str, *, after: str | None, limit: int):
         async with self._read_uow_factory() as uow:
-            chunk = await uow.document.get_chunk(chunk_id)
-            if chunk is None or chunk.workspace_id != workspace_id or not chunk.published:
-                return None
-            doc = await uow.document.get(chunk.document_id)
-            rev = await uow.document.get_revision(chunk.revision_id)
-            return {
-                "source_type": "document_chunk",
-                "source_id": chunk.id,
-                "document_id": chunk.document_id,
-                "revision": chunk.revision,
-                "relative_path": doc.relative_path if doc else (rev.relative_path if rev else ""),
-                "title": chunk.title,
-                "body": chunk.body,
-                "locator": dict(chunk.locator),
-                "stale": bool(doc and doc.current_revision != chunk.revision),
-            }
+            return await uow.document.page_workspace(workspace_id, after=after, limit=limit + 1)
 
-    async def sync_workspace(self, workspace_id: str, *, paths: Optional[set[str]] = None) -> dict:
-        """对照文件夹快照登记／更新／撤回文档，并在有待处理修订时排队索引任务。"""
+    async def chunk_source(
+            self, uow: IUnitOfWork, workspace_id: str, chunk_id: str, *,
+            version: int | None = None, historical: bool = False, verify_hash: bool = False, presentation: bool = False,
+    ) -> dict:
+        chunk = await uow.document.get_chunk(chunk_id)
+        if chunk is None or chunk.workspace_id != workspace_id or (version is not None and chunk.revision != version):
+            raise NotFoundError("没有找到此版本的文件来源")
+        doc = await uow.document.get(chunk.document_id)
+        rev = await uow.document.get_revision(chunk.revision_id)
+        if not doc or not rev or rev.published_at is None:
+            raise NotFoundError("该片段未发布")
+        if doc.status in RETIRED or rev.source_epoch != doc.source_epoch:
+            raise GoneError("来源文件已删除、排除或移出原授权范围")
+        root = await uow.root.workspace_folder(workspace_id)
+        if root is None or root.status is not FolderStatus.AVAILABLE:
+            raise GoneError("来源文件夹不可用")
+        path = RootedPath(root_id=root.ref.root_id, relative_path=rev.relative_path)
+        files = self._bound_files(root)
+        try:
+            entry = await files.stat(path)
+            if entry.kind is not FileKind.FILE or entry.version is None:
+                raise GoneError("来源路径已不再指向普通文件")
+            matches = (entry.version.size, entry.version.modified_ns) == (rev.size, rev.modified_ns)
+            if matches and verify_hash:
+                hashed = await files.stat(path, with_hash=True)
+                matches = bool(hashed.version and hashed.version.content_hash == rev.content_hash)
+            with await files.open_reader(path, entry.version):
+                pass
+        except WorkspaceFileError as error:
+            raise GoneError("来源文件已删除、无法访问或已移出原授权范围") from error
+        stale = not (chunk.published and doc.current_revision == rev.revision and matches)
+        if stale and not historical:
+            raise GoneError("来源版本已更新，请重新检索")
+        locator = DocumentLocator.model_validate(chunk.locator).model_dump(exclude_none=True)
+        result = dict(source_type="document_chunk", source_id=chunk.id, document_id=doc.id,
+                      revision=chunk.revision, relative_path=rev.relative_path, title=chunk.title,
+                      format=rev.format, body=chunk.body, locator=locator, stale=stale,
+                      root_id=root.ref.root_id, current_revision=doc.current_revision)
+        if presentation and locator.get("rows"):
+            result["cells"] = list(csv.reader(io.StringIO(chunk.body), delimiter="\t"))
+        if presentation and not stale:
+            from app.application.services.file_preview_service import root_preview_revision
+            result["preview_revision"] = root_preview_revision(root.ref.root_id, entry)
+        return result
+
+    async def get_chunk_source(self, workspace_id: str, chunk_id: str) -> dict | None:
+        """Agent 只读回当前可用的文档材料。"""
+        async with self._read_uow_factory() as uow:
+            try:
+                return await self.chunk_source(uow, workspace_id, chunk_id, verify_hash=True)
+            except (GoneError, NotFoundError):
+                return None
+
+    async def source(self, workspace_id: str, chunk_id: str, version: int | None) -> dict:
+        async with self._read_uow_factory() as uow:
+            return await self.chunk_source(uow, workspace_id, chunk_id, version=version,
+                                           historical=True, verify_hash=True, presentation=True)
+
+    async def visible_hits(self, workspace_id: str, hits: list[SearchHit]) -> list[SearchHit]:
+        """撤回优先于索引。扫描尚未发现改名或删除时，也不能召回旧材料。"""
+        if not any(hit.source_type is SearchSourceType.DOCUMENT_CHUNK for hit in hits):
+            return hits
+        visible = []
+        async with self._read_uow_factory() as uow:
+            for hit in hits:
+                if hit.source_type is SearchSourceType.DOCUMENT_CHUNK:
+                    try:
+                        source = await self.chunk_source(uow, workspace_id, hit.source_id, version=hit.source_version)
+                    except (GoneError, NotFoundError):
+                        continue
+                    hit.payload.update(relative_path=source["relative_path"], locator=source["locator"])
+                visible.append(hit)
+        return visible
+
+    async def update_policy(
+            self, workspace_id: str, *, version: int, paused: bool, excluded_directories: list[str],
+            scope_confirmed: bool,
+    ) -> WorkspaceIndexSummary:
+        directories: list[str] = []
+        async with self._uow_factory() as uow:
+            workspace = await uow.workspace.get(workspace_id)
+            root = await uow.root.workspace_folder(workspace_id)
+            if not workspace or workspace.status is not WorkspaceStatus.ACTIVE or not root:
+                raise ConflictError("工作区当前不能更改索引范围")
+            pub = await uow.document.get_publication(workspace_id) or IndexPublication(workspace_id=workspace_id)
+            for directory in sorted(set(excluded_directories)):
+                path = RootedPath(root_id=root.ref.root_id, relative_path=directory)
+                if not path.relative_path:
+                    raise BadRequestError("请使用暂停开关停止整个工作区的索引")
+                directories.append(path.relative_path)
+            if pub.policy.version != version:
+                if (pub.policy.paused, pub.policy.excluded_directories, pub.policy.scope_confirmed) == (
+                        paused, directories, scope_confirmed):
+                    return await uow.document.summary(workspace_id)
+                raise ConflictError("索引设置已变化，请刷新后再修改", resource_version=pub.policy.version)
+            pub.policy = IndexPolicy(version=version + 1, paused=paused, excluded_directories=directories,
+                                     scope_confirmed=scope_confirmed)
+            if scope_confirmed:
+                pub.scope_review_required = False
+            for doc in await uow.document.list_workspace(workspace_id):
+                if doc.status is not Status.WITHDRAWN and excluded_path(pub.policy, doc.relative_path):
+                    await _retire(uow, doc, pub, Status.EXCLUDED)
+            pub.updated_at = utc_now()
+            await uow.document.save_publication(pub)
+        self._notify_scan(workspace_id)
+        return await self.summary(workspace_id)
+
+    def _notify_scan(self, workspace_id: str, paths: list[str] | None = None) -> None:
+        from app.application.services.document_index_scheduler import get_document_index_scheduler
+        try:
+            get_document_index_scheduler().notify(workspace_id, paths)
+        except RuntimeError:
+            pass
+        self.wake()
+
+    async def start_scan(
+            self, workspace_id: str, *, paths: list[str] | None = None,
+            retry: bool = False, document_id: str | None = None, revision: int | None = None,
+    ) -> BackgroundJob:
+        async with self._uow_factory() as uow:
+            workspace = await uow.workspace.get(workspace_id)
+            root = await uow.root.workspace_folder(workspace_id)
+            if not workspace or workspace.status is WorkspaceStatus.DELETING:
+                raise NotFoundError("工作区不存在")
+            if workspace.status is not WorkspaceStatus.ACTIVE or not root or root.status is not FolderStatus.AVAILABLE:
+                raise ConflictError("工作区文件夹当前不可索引")
+            pub = await uow.document.get_publication(workspace_id) or IndexPublication(workspace_id=workspace_id)
+            if retry and (pub.policy.paused or pub.scope_review_required):
+                raise ConflictError("请先恢复索引并确认范围")
+            if document_id is not None:
+                doc = await uow.document.get(document_id)
+                if not doc or doc.workspace_id != workspace_id:
+                    raise NotFoundError("没有找到该文档")
+                if doc.status is not Status.FAILED or doc.current_revision != revision:
+                    raise ConflictError("文档的索引状态已变化，请刷新后重试")
+                paths = [doc.relative_path]
+            payload = dict(workspace_id=workspace_id, scan=True, paths=paths, retry=retry,
+                           document_id=document_id, revision=revision, binding=list(_binding(root)))
+            if pub.scan_operation_id:
+                previous = await uow.job.get(pub.scan_operation_id)
+                if previous and not previous.status.terminal:
+                    if previous.payload == payload:
+                        return previous
+                    raise ConflictError("已有扫描或重试任务进行中")
+            operation_id = str(uuid.uuid4())
+            job = await uow.job.add(BackgroundJob(
+                operation_id=operation_id, kind=OperationKind.DOCUMENT_INDEX, retry_supported=True,
+                scope=OperationScope(kind=OperationScopeKind.WORKSPACE, workspace_id=workspace_id),
+                payload=payload, idempotency_key=f"document_scan:{workspace_id}:{operation_id}",
+                progress=OperationProgress(completed=0, total=None),
+            ))
+            pub.scan_operation_id = job.operation_id
+            pub.last_error = None
+            await uow.document.save_publication(pub)
+        self.wake()
+        return job
+
+    async def _process_scan(self, context: JobContext) -> dict:
+        arguments = context.job.payload
+        workspace_id = arguments["workspace_id"]
+        error_message = None
+        async with self._uow_factory() as uow:
+            await context.check_cancel_in(uow)
+            pub = await uow.document.get_publication(workspace_id)
+            if not pub or pub.scan_operation_id not in (None, context.job.operation_id):
+                return {"status": "skipped", "reason": "scan_superseded"}
+            pub.scan_operation_id = context.job.operation_id
+            await uow.document.save_publication(pub)
+
+        try:
+            await context.progress(phase="扫描文件夹", completed=0)
+            paths = arguments.get("paths")
+            async with self._scan_lock:
+                return await self._sync(workspace_id, set(paths) if paths is not None else None,
+                                        arguments["retry"], scan_context=context)
+        except JobCancelled:
+            raise
+        except Exception as error:
+            error_message = str(error)
+            raise
+        finally:
+            async with self._uow_factory() as uow:
+                try:
+                    await context.check_cancel_in(uow)
+                except JobCancelled:
+                    pass
+                pub = await uow.document.get_publication(workspace_id)
+                if pub and pub.scan_operation_id == context.job.operation_id:
+                    pub.scan_operation_id = None
+                    if error_message:
+                        pub.last_error = error_message
+                    await uow.document.save_publication(pub)
+
+    async def sync_workspace(
+            self, workspace_id: str, *, paths: set[str] | None = None, retry: bool = False,
+    ) -> dict:
+        # 重扫和通知共用登记入口，避免较旧快照覆盖同时提交的较新快照。
+        async with self._scan_lock:
+            return await self._sync(workspace_id, paths, retry)
+
+    async def _sync(
+            self, workspace_id: str, paths: set[str] | None, retry: bool, *, scan_context: JobContext | None = None,
+    ) -> dict:
         async with self._read_uow_factory() as uow:
             workspace = await uow.workspace.get(workspace_id)
             root = await uow.root.workspace_folder(workspace_id)
+            publication = await uow.document.get_publication(workspace_id)
         if workspace is None or workspace.status is not WorkspaceStatus.ACTIVE or root is None:
             return {"status": "skipped", "reason": "workspace_unavailable"}
+        if scan_context and scan_context.job.payload["binding"] != list(_binding(root)):
+            return {"status": "skipped", "reason": "folder_changed"}
+        policy = publication.policy if publication else IndexPolicy()
+        files_at_root = self._bound_files(root)
+        root_path = RootedPath(root_id=root.ref.root_id)
+        try:
+            if policy.excluded_directories:
+                snapshot = await self._files.snapshot(root_path, exclude=frozenset(policy.excluded_directories))
+            else:
+                snapshot = await self._files.snapshot(root_path)
+        except WorkspaceFileError as error:
+            async with self._uow_factory() as uow:
+                pub = await self._scan_publication(uow, workspace_id, root, policy, scan_context)
+                pub.last_error = str(error)
+                pub.status = "failed"
+                await uow.document.save_publication(pub)
+            raise app_error(error) from error
 
-        snapshot = await self._files.snapshot(RootedPath(root_id=root.ref.root_id, relative_path=""))
-        # paths 过滤：变更通知可能带目录；只处理快照里仍存在或明确删除的路径
-        if paths is not None:
-            target_paths = set(paths)
-            # 扩展：若通知是目录前缀，匹配其下文件
-            expanded = set()
-            for path in target_paths:
-                if path in snapshot.files:
-                    expanded.add(path)
-                else:
-                    prefix = path.rstrip("/") + "/"
-                    expanded.update(p for p in snapshot.files if p == path or p.startswith(prefix))
-            # 已登记但通知涉及且快照中消失的也要处理
-            async with self._read_uow_factory() as uow:
-                registered = await uow.document.list_workspace(workspace_id)
-            for doc in registered:
-                if doc.relative_path in target_paths or any(
-                        doc.relative_path.startswith(p.rstrip("/") + "/") for p in target_paths):
-                    expanded.add(doc.relative_path)
-            seen_filter = expanded
-        else:
-            seen_filter = set(snapshot.files.keys())
-
-        registered_count = withdrawn = queued = 0
-        async with self._uow_factory() as uow:
-            existing = {d.relative_path: d for d in await uow.document.list_workspace(workspace_id)}
-            # 撤回：全量同步时快照中消失的；增量时在 filter 内且消失的
-            for path, doc in list(existing.items()):
-                if paths is None:
-                    gone = path not in snapshot.files
-                else:
-                    gone = path in seen_filter and path not in snapshot.files
-                if gone and doc.status is not DocumentIndexStatus.WITHDRAWN:
-                    await self._withdraw(uow, doc)
-                    withdrawn += 1
-
-            for path in (snapshot.files.keys() if paths is None else seen_filter):
-                if path not in snapshot.files:
-                    continue
-                size, modified_ns = snapshot.files[path]
-                fmt = detect_format(path)
-                doc = existing.get(path)
-                if doc is None:
-                    doc = DocumentRecord(
-                        id=str(uuid.uuid4()), workspace_id=workspace_id, relative_path=path,
-                        current_revision=0, status=DocumentIndexStatus.REGISTERED, format=fmt)
-                    await uow.document.save(doc)
-                    existing[path] = doc
-                    registered_count += 1
-                # 轻量比对：大小与 mtime；变化后再算内容哈希
-                current = await uow.document.get_revision_by_number(doc.id, doc.current_revision) \
-                    if doc.current_revision else None
-                if current and current.size == size and current.modified_ns == modified_ns \
-                        and current.status is DocumentIndexStatus.SEARCHABLE:
-                    continue
-                if size > DOCUMENT_PARSE_MAX_BYTES and is_indexable(fmt):
-                    # 过大：登记失败修订，不解析
-                    await self._open_revision(uow, doc, content_hash="oversized", size=size,
-                                             modified_ns=modified_ns, fmt=fmt,
-                                             status=DocumentIndexStatus.FAILED,
-                                             error="文件超过解析大小上限")
-                    continue
-                try:
-                    entry = await self._files.stat(
-                        RootedPath(root_id=root.ref.root_id, relative_path=path), with_hash=True)
-                except Exception as error:  # noqa: BLE001
-                    logger.info("读取文件哈希失败 workspace=%s path=%s: %s", workspace_id, path, error)
-                    continue
-                content_hash = entry.version.content_hash if entry.version else None
-                if not content_hash:
-                    continue
-                if current and current.content_hash == content_hash and current.status in (
-                        DocumentIndexStatus.SEARCHABLE, DocumentIndexStatus.PENDING_COMPONENT,
-                        DocumentIndexStatus.PENDING_PARSE, DocumentIndexStatus.PARSING,
-                        DocumentIndexStatus.INDEXING):
-                    # 同哈希且已在处理或完成：跳过
-                    if current.size != size or current.modified_ns != modified_ns:
-                        current.size, current.modified_ns = size, modified_ns
-                        current.updated_at = utc_now()
-                        await uow.document.save_revision(current)
-                    continue
-                if not is_indexable(fmt):
-                    await self._open_revision(
-                        uow, doc, content_hash=content_hash, size=size, modified_ns=modified_ns, fmt=fmt,
-                        status=DocumentIndexStatus.FAILED, error="不支持的文件格式")
-                    continue
-                # 图片默认待 OCR；组件已装则直接进解析队列
-                ocr_ready = self._ocr_dir_probe is not None and self._ocr_dir_probe() is not None
-                if fmt is DocumentFormat.IMAGE and not ocr_ready:
-                    status = DocumentIndexStatus.PENDING_COMPONENT
-                    component = "ocr"
-                else:
-                    status = DocumentIndexStatus.PENDING_PARSE
-                    component = None
-                await self._open_revision(
-                    uow, doc, content_hash=content_hash, size=size, modified_ns=modified_ns, fmt=fmt,
-                    status=status, component=component)
-                if status is DocumentIndexStatus.PENDING_PARSE:
-                    queued += 1
-
-            job = await self._ensure_job(uow, workspace_id)
-        if job is not None:
-            self.wake()
-        return {
-            "status": "ok", "registered": registered_count, "withdrawn": withdrawn,
-            "pending_parse": queued, "truncated": snapshot.truncated,
-            "operation_id": job.operation_id if job else None,
-        }
-
-    async def _open_revision(
-            self, uow: IUnitOfWork, doc: DocumentRecord, *, content_hash: str, size: int, modified_ns: int,
-            fmt: DocumentFormat, status: DocumentIndexStatus, error: Optional[str] = None,
-            component: Optional[str] = None,
-    ) -> DocumentRevision:
-        revision_no = doc.current_revision + 1
-        # 新修订可见前先撤回旧索引，避免旧片段冒充当前原文
-        if doc.current_revision > 0:
-            chunk_ids = await uow.document.unpublish_document(doc.id)
-            for chunk_id in chunk_ids:
-                await self._retrieval.remove_document_chunk(uow, doc.workspace_id, chunk_id)
-        rev = DocumentRevision(
-            id=str(uuid.uuid4()), document_id=doc.id, workspace_id=doc.workspace_id,
-            revision=revision_no, relative_path=doc.relative_path, content_hash=content_hash,
-            size=size, modified_ns=modified_ns, status=status, format=fmt,
-            parse_config=PARSE_CONFIG_FINGERPRINT, chunk_config=CHUNK_CONFIG_FINGERPRINT,
-            error_message=error, component_needed=component,
+        files = {path: values for path, values in snapshot.files.items()
+                 if is_indexable(detect_format(path)) and not excluded_path(policy, path)}
+        directories = {path.rsplit("/", 1)[0] for path in files if "/" in path}
+        directories.update(path.split("/", 1)[0] for path in directories.copy())
+        directory_sizes: dict[str, IndexDirectorySize] = {}
+        for path, (size, _) in files.items():
+            directory = path.rpartition("/")[0]
+            counts = directory_sizes.setdefault(directory, IndexDirectorySize())
+            counts.files += 1
+            counts.bytes += size
+        review_required = not policy.scope_confirmed and (
+            snapshot.truncated or len(files) >= DOCUMENT_SCOPE_REVIEW_FILES
+            or sum(size for size, _ in files.values()) >= DOCUMENT_SCOPE_REVIEW_BYTES
         )
-        await uow.document.add_revision(rev)
-        doc.current_revision = revision_no
-        doc.status = status
-        doc.format = fmt
-        doc.updated_at = utc_now()
-        await uow.document.save(doc)
-        return rev
-
-    async def _withdraw(self, uow: IUnitOfWork, doc: DocumentRecord) -> None:
-        chunk_ids = await uow.document.unpublish_document(doc.id)
-        for chunk_id in chunk_ids:
-            await self._retrieval.remove_document_chunk(uow, doc.workspace_id, chunk_id)
-        doc.status = DocumentIndexStatus.WITHDRAWN
-        doc.updated_at = utc_now()
-        await uow.document.save(doc)
-        if doc.current_revision:
-            rev = await uow.document.get_revision_by_number(doc.id, doc.current_revision)
-            if rev is not None:
-                rev.status = DocumentIndexStatus.WITHDRAWN
-                rev.updated_at = utc_now()
-                await uow.document.save_revision(rev)
-
-    async def _ensure_job(self, uow: IUnitOfWork, workspace_id: str) -> Optional[BackgroundJob]:
-        pending = await uow.document.list_revisions_by_status(
-            workspace_id, [DocumentIndexStatus.PENDING_PARSE, DocumentIndexStatus.INDEXING], limit=1)
-        if not pending:
-            return None
-        # 同工作区已有排队／运行中的索引任务则不重复登记（用发布指针上的 operation_id）
-        pub = await uow.document.get_publication(workspace_id)
-        if pub is not None and pub.active_operation_id:
-            existing = await uow.job.get(pub.active_operation_id)
-            if existing is not None and not existing.status.terminal:
-                return existing
-        operation_id = str(uuid.uuid4())
-        job = BackgroundJob(
-            operation_id=operation_id, kind=OperationKind.DOCUMENT_INDEX, retry_supported=True,
-            scope=OperationScope(kind=OperationScopeKind.WORKSPACE, workspace_id=workspace_id),
-            payload={"workspace_id": workspace_id},
-            # 幂等键带 operation_id：完成后仍可再排队；串行靠 active_operation_id
-            idempotency_key=f"document_index:{workspace_id}:{operation_id}",
-            progress=OperationProgress(completed=0, total=None),
-        )
-        saved = await uow.job.add(job)
-        pub = pub or IndexPublication(workspace_id=workspace_id)
-        pub.status = "publishing"
-        pub.active_operation_id = saved.operation_id
-        pub.updated_at = utc_now()
-        pub.last_error = None
-        await uow.document.save_publication(pub)
-        return saved
-
-    async def _clear_publication(self, workspace_id: str, operation_id: str, *, error: Optional[str] = None) -> None:
         async with self._uow_factory() as uow:
-            pub = await uow.document.get_publication(workspace_id)
-            if pub is None or pub.active_operation_id != operation_id:
-                return
-            pub.status = "failed" if error else "idle"
-            pub.active_operation_id = None
-            pub.last_error = error
-            pub.updated_at = utc_now()
+            pub = await self._scan_publication(uow, workspace_id, root, policy, scan_context)
+            existing = {doc.relative_path: doc for doc in await uow.document.list_workspace(workspace_id)}
+            if retry and paths is None:
+                paths = {doc.relative_path for doc in existing.values() if doc.status is Status.FAILED}
+            excluded_directory_sizes: dict[str, IndexDirectorySize] = {}
+            excluded_files = excluded_bytes = 0
+            for path, doc in existing.items():
+                if doc.status is Status.WITHDRAWN or not excluded_path(policy, path):
+                    continue
+                revision = await uow.document.get_revision_by_number(doc.id, doc.current_revision)
+                if revision is None:
+                    continue
+                excluded_files += 1
+                excluded_bytes += revision.size
+                for directory in policy.excluded_directories:
+                    if path == directory or path.startswith(directory + "/"):
+                        counts = excluded_directory_sizes.setdefault(directory, IndexDirectorySize())
+                        counts.files += 1
+                        counts.bytes += revision.size
+            pub.scan = IndexScope(files=len(files), bytes=sum(size for size, _ in files.values()),
+                                  directories=sorted(directories), truncated=snapshot.truncated,
+                                  directory_sizes=directory_sizes, excluded_directory_sizes=excluded_directory_sizes,
+                                  excluded_files=excluded_files, excluded_bytes=excluded_bytes)
+            pub.scope_review_required = review_required
+            if pub.status == "failed" and not pub.active_operation_id:
+                pub.status = "idle"
+                pub.last_error = None
+            withdrawn = 0
+            for path, doc in existing.items():
+                if excluded_path(policy, path):
+                    await _retire(uow, doc, pub, Status.EXCLUDED)
+                elif ((not snapshot.truncated or paths is not None)
+                      and path not in snapshot.files and doc.status is not Status.WITHDRAWN
+                      and self._selected(path, paths)):
+                    # 即使扫描完整，也要确认这次缺席仍对应实际删除。
+                    if await self._confirmed_missing(files_at_root, RootedPath(root_id=root.ref.root_id, relative_path=path)):
+                        await _retire(uow, doc, pub, Status.WITHDRAWN)
+                        withdrawn += 1
             await uow.document.save_publication(pub)
 
+        registered = queued = 0
+        if policy.paused or review_required:
+            return {"status": "ok", "registered": 0, "withdrawn": withdrawn, "pending_parse": 0,
+                    "truncated": snapshot.truncated, "operation_id": None}
+        for index, (path, (size, modified_ns)) in enumerate(files.items()):
+            if scan_context and index % 200 == 0:
+                await scan_context.check_cancel()
+                await scan_context.progress(phase="登记文件", completed=index, total=len(files))
+            if not self._selected(path, paths):
+                continue
+            doc = existing.get(path)
+            if doc is not None:
+                async with self._read_uow_factory() as uow:
+                    current = await uow.document.get_revision_by_number(doc.id, doc.current_revision)
+                if (current and doc.status not in RETIRED and current.status is not Status.REGISTERED
+                        and (size, modified_ns) == (current.size, current.modified_ns)
+                        and (current.parse_config, current.chunk_config) == (PARSE_CONFIG_FINGERPRINT, CHUNK_CONFIG_FINGERPRINT)
+                        and not (retry and current.status is Status.FAILED)):
+                    continue
+            fmt = detect_format(path)
+            reason = component = None
+            status = Status.PENDING_PARSE
+            if size > DOCUMENT_PARSE_MAX_BYTES:
+                content_hash, status, reason = "oversized", Status.FAILED, "文件超过解析大小上限"
+            else:
+                rooted = RootedPath(root_id=root.ref.root_id, relative_path=path)
+                try:
+                    entry = await files_at_root.stat(rooted, with_hash=True)
+                except WorkspaceFileError as error:
+                    if error.code in (ErrorCode.NOT_FOUND, ErrorCode.UNAVAILABLE):
+                        continue
+                    content_hash, status, reason = "unreadable", Status.FAILED, str(error)
+                else:
+                    if not entry.version or not entry.version.content_hash:
+                        continue
+                    size, modified_ns = entry.version.size, entry.version.modified_ns
+                    content_hash = entry.version.content_hash
+                    if fmt is DocumentFormat.IMAGE and not (self._ocr_dir_probe and self._ocr_dir_probe()):
+                        status, component = Status.PENDING_COMPONENT, "ocr"
+            async with self._uow_factory() as uow:
+                pub = await self._scan_publication(uow, workspace_id, root, policy, scan_context)
+                doc = await uow.document.get_by_path(workspace_id, path)
+                if retry and scan_context and scan_context.job.payload["document_id"] is not None and (
+                        doc is None or doc.id != scan_context.job.payload["document_id"]
+                        or doc.current_revision != scan_context.job.payload["revision"]):
+                    continue
+                if doc is None:
+                    doc = DocumentRecord(id=str(uuid.uuid4()), workspace_id=workspace_id, relative_path=path, format=fmt)
+                    registered += 1
+                    await uow.document.save(doc)
+                current = await uow.document.get_revision_by_number(doc.id, doc.current_revision)
+                if (current and doc.status not in (*RETIRED, Status.REGISTERED) and current.content_hash == content_hash
+                        and (current.parse_config, current.chunk_config) == (PARSE_CONFIG_FINGERPRINT, CHUNK_CONFIG_FINGERPRINT)
+                        and not (retry and current.status is Status.FAILED)):
+                    current.size, current.modified_ns = size, modified_ns
+                    await uow.document.save_revision(current)
+                    continue
+                await _unpublish(uow, doc, pub)
+                rev = DocumentRevision(
+                    id=str(uuid.uuid4()), document_id=doc.id, workspace_id=workspace_id,
+                    revision=doc.current_revision + 1, source_epoch=doc.source_epoch, relative_path=path,
+                    content_hash=content_hash, size=size, modified_ns=modified_ns, status=status, format=fmt,
+                    error_message=reason, component_needed=component,
+                )
+                await uow.document.add_revision(rev)
+                doc.current_revision, doc.status, doc.format = rev.revision, status, fmt
+                doc.updated_at = utc_now()
+                await uow.document.save(doc)
+                await uow.document.save_publication(pub)
+                queued += int(status is Status.PENDING_PARSE)
+        async with self._uow_factory() as uow:
+            await self._scan_publication(uow, workspace_id, root, policy, scan_context)
+            job = await self._ensure_job(uow, workspace_id)
+        if job:
+            self.wake()
+        elif queued == 0:
+            await self._enqueue_semantic(workspace_id)
+        return {"status": "ok", "registered": registered, "withdrawn": withdrawn, "pending_parse": queued,
+                "truncated": snapshot.truncated, "operation_id": job.operation_id if job else None}
+
+    async def _scan_publication(
+            self, uow: IUnitOfWork, workspace_id: str, root: RootRecord, policy: IndexPolicy,
+            scan_context: JobContext | None,
+    ) -> IndexPublication:
+        ws = await uow.workspace.get(workspace_id)
+        pub = await uow.document.get_publication(workspace_id) or IndexPublication(workspace_id=workspace_id)
+        if scan_context:
+            await scan_context.check_cancel_in(uow)
+            if pub.scan_operation_id != scan_context.job.operation_id:
+                raise ConflictError("扫描已失效，请重新扫描")
+        if (ws is None or ws.status is not WorkspaceStatus.ACTIVE or pub.policy.version != policy.version
+                or _binding(await uow.root.workspace_folder(workspace_id)) != _binding(root)):
+            raise ConflictError("索引范围或文件夹已改变，请重新扫描")
+        return pub
+
+    @staticmethod
+    def _selected(path: str, paths: set[str] | None) -> bool:
+        return paths is None or any(not p or path == p or path.startswith(p.rstrip("/") + "/") for p in paths)
+
+    async def _confirmed_missing(self, files, path: RootedPath) -> bool:
+        try:
+            return (await files.stat(path)).kind is not FileKind.FILE
+        except WorkspaceFileError as error:
+            return error.code is ErrorCode.NOT_FOUND
+
+    async def _ensure_job(self, uow: IUnitOfWork, workspace_id: str) -> BackgroundJob | None:
+        pub = await uow.document.get_publication(workspace_id) or IndexPublication(workspace_id=workspace_id)
+        workspace = await uow.workspace.get(workspace_id)
+        root = await uow.root.workspace_folder(workspace_id)
+        if (not workspace or workspace.status is not WorkspaceStatus.ACTIVE or not root
+                or root.status is not FolderStatus.AVAILABLE or pub.policy.paused or pub.scope_review_required):
+            return None
+        pending = await uow.document.list_revisions_by_status(workspace_id, PENDING, limit=1)
+        if not pending:
+            return None
+        if pub.active_operation_id:
+            existing = await uow.job.get(pub.active_operation_id)
+            if existing and not existing.status.terminal:
+                return existing
+        operation_id = str(uuid.uuid4())
+        job = await uow.job.add(BackgroundJob(
+            operation_id=operation_id, kind=OperationKind.DOCUMENT_INDEX, retry_supported=True,
+            scope=OperationScope(kind=OperationScopeKind.WORKSPACE, workspace_id=workspace_id),
+            payload={"workspace_id": workspace_id}, idempotency_key=f"document_index:{workspace_id}:{operation_id}",
+            progress=OperationProgress(completed=0, total=None),
+        ))
+        pub.status, pub.active_operation_id, pub.last_error = "publishing", job.operation_id, None
+        pub.updated_at = utc_now()
+        await uow.document.save_publication(pub)
+        return job
+
+    async def _guard(self, context: JobContext, uow: IUnitOfWork, workspace_id: str):
+        await context.check_cancel_in(uow)
+        pub = await uow.document.get_publication(workspace_id)
+        root = await uow.root.workspace_folder(workspace_id)
+        ws = await uow.workspace.get(workspace_id)
+        if not ws or not pub or (pub.active_operation_id and pub.active_operation_id != context.job.operation_id):
+            raise _IndexStopped()
+        if (not root or root.status is not FolderStatus.AVAILABLE or ws.status is not WorkspaceStatus.ACTIVE
+                or pub.policy.paused or pub.scope_review_required):
+            raise _IndexStopped()
+        return pub, root
+
+    async def _close_job(self, context: JobContext, workspace_id: str, *, error: str | None = None) -> None:
+        async with self._uow_factory() as uow:
+            try:
+                await context.check_cancel_in(uow)
+            except JobCancelled:
+                pass  # 当前所有者仍可清理自己的指针。
+            pub = await uow.document.get_publication(workspace_id)
+            if pub and pub.active_operation_id == context.job.operation_id:
+                pub.status, pub.active_operation_id, pub.last_error = ("failed" if error else "idle"), None, error
+                pub.updated_at = utc_now()
+                await uow.document.save_publication(pub)
+
+    async def _current(self, uow: IUnitOfWork, rev: DocumentRevision, expected: Status):
+        doc = await uow.document.get(rev.document_id)
+        current = await uow.document.get_revision(rev.id)
+        if (doc and current and doc.current_revision == rev.revision
+                and doc.source_epoch == rev.source_epoch and current.status is expected):
+            return doc, current
+        return None
+
+    async def _state(
+            self, uow: IUnitOfWork, doc: DocumentRecord, rev: DocumentRevision, status: Status,
+            *, message: str | None = None, component: str | None = None,
+    ) -> None:
+        doc.status = rev.status = status
+        doc.updated_at = rev.updated_at = utc_now()
+        rev.error_message, rev.component_needed = message, component
+        await uow.document.save_revision(rev)
+        await uow.document.save(doc)
+
     async def process_workspace(self, context: JobContext) -> dict:
-        """DOCUMENT_INDEX 处理：串行解析并发布本工作区待处理修订。"""
+        if context.job.payload.get("scan"):
+            return await self._process_scan(context)
         workspace_id = context.job.payload["workspace_id"]
         processed = failed = skipped = 0
         try:
             while True:
-                await context.check_cancel()
                 async with self._uow_factory() as uow:
-                    batch = await uow.document.list_revisions_by_status(
-                        workspace_id, [DocumentIndexStatus.PENDING_PARSE], limit=5)
+                    pub, root = await self._guard(context, uow, workspace_id)
+                    if pub.active_operation_id is None:
+                        # 通用重试可以领取旧操作。它只在没有新所有者时接管发布指针。
+                        pub.active_operation_id = context.job.operation_id
+                        pub.status, pub.last_error = "publishing", None
+                        await uow.document.save_publication(pub)
+                    batch = await uow.document.list_revisions_by_status(workspace_id, PENDING, limit=1)
                     if not batch:
+                        pub.active_operation_id, pub.status = None, "idle"
+                        await uow.document.save_publication(pub)
                         break
-                for rev in batch:
-                    await context.check_cancel()
-                    await context.progress(phase=f"解析 {rev.relative_path}", completed=processed + failed)
-                    try:
-                        outcome = await self._parse_and_publish(context, rev)
-                    except JobCancelled:
-                        raise
-                    except JobSuperseded:
-                        raise
-                    except Exception as error:  # noqa: BLE001
-                        logger.exception("文档索引失败 revision=%s", rev.id)
-                        async with self._uow_factory() as uow:
-                            current = await uow.document.get_revision(rev.id)
-                            if current is not None:
-                                current.status = DocumentIndexStatus.FAILED
-                                current.error_message = str(error) or type(error).__name__
-                                current.updated_at = utc_now()
-                                await uow.document.save_revision(current)
-                                doc = await uow.document.get(current.document_id)
-                                if doc and doc.current_revision == current.revision:
-                                    doc.status = DocumentIndexStatus.FAILED
-                                    doc.updated_at = utc_now()
-                                    await uow.document.save(doc)
-                        failed += 1
-                        continue
-                    if outcome == "ok":
-                        processed += 1
-                    elif outcome == "skipped":
-                        skipped += 1
-                    else:
-                        failed += 1
-            await self._clear_publication(workspace_id, context.job.operation_id)
-            return {"processed": processed, "failed": failed, "skipped": skipped}
+                    rev = batch[0]
+                    doc = await uow.document.get(rev.document_id)
+                    if rev.status in IN_PROGRESS:
+                        await uow.document.replace_chunks(rev.id, [])
+                        await uow.document.replace_blocks(rev.id, [])
+                    await self._state(uow, doc, rev, Status.PARSING)
+                await context.progress(phase=f"解析 {rev.relative_path}", completed=processed + failed + skipped)
+                try:
+                    outcome = await self._parse_and_publish(context, root, rev)
+                except _IndexStopped:
+                    async with self._read_uow_factory() as uow:
+                        await self._guard(context, uow, workspace_id)
+                    outcome = "skipped"
+                processed += int(outcome == "ok")
+                failed += int(outcome == "failed")
+                skipped += int(outcome == "skipped")
+        except _IndexStopped:
+            await self._close_job(context, workspace_id)
         except JobCancelled:
-            await self._clear_publication(workspace_id, context.job.operation_id, error="已取消")
+            await self._close_job(context, workspace_id)
             raise
         except JobSuperseded:
             raise
         except Exception as error:
-            await self._clear_publication(workspace_id, context.job.operation_id,
-                                          error=str(error) or type(error).__name__)
+            await self._close_job(context, workspace_id, error=str(error))
             raise
+        return {"processed": processed, "failed": failed, "skipped": skipped}
 
-    async def _parse_and_publish(self, context: JobContext, rev: DocumentRevision) -> str:
-        async with self._read_uow_factory() as uow:
-            root = await uow.root.workspace_folder(rev.workspace_id)
-            doc = await uow.document.get(rev.document_id)
-        if root is None or doc is None:
-            return "skipped"
-        if doc.current_revision != rev.revision:
-            # 已被更新修订取代
-            async with self._uow_factory() as uow:
-                current = await uow.document.get_revision(rev.id)
-                if current and current.status is DocumentIndexStatus.PENDING_PARSE:
-                    current.status = DocumentIndexStatus.WITHDRAWN
-                    current.updated_at = utc_now()
-                    await uow.document.save_revision(current)
-            return "skipped"
-
-        async with self._uow_factory() as uow:
-            current = await uow.document.get_revision(rev.id)
-            if current is None or current.status is not DocumentIndexStatus.PENDING_PARSE:
-                return "skipped"
-            current.status = DocumentIndexStatus.PARSING
-            current.updated_at = utc_now()
-            await uow.document.save_revision(current)
-            if doc.current_revision == rev.revision:
-                doc.status = DocumentIndexStatus.PARSING
-                doc.updated_at = utc_now()
-                await uow.document.save(doc)
-
+    async def _parse_and_publish(self, context: JobContext, root: RootRecord, rev: DocumentRevision) -> str:
         cancel = asyncio.Event()
-        aborted = False
+        interruption: Exception | None = None
 
         async def watch_cancel() -> None:
-            nonlocal aborted
+            nonlocal interruption
             while not cancel.is_set():
                 try:
-                    await context.check_cancel()
-                except JobCancelled:
-                    aborted = True
-                    cancel.set()
-                    return
-                except JobSuperseded:
-                    aborted = True
+                    async with self._read_uow_factory() as uow:
+                        await self._guard(context, uow, rev.workspace_id)
+                        if not await self._current(uow, rev, Status.PARSING):
+                            raise _IndexStopped()
+                except (JobCancelled, JobSuperseded, _IndexStopped) as error:
+                    interruption = error
                     cancel.set()
                     return
                 await asyncio.sleep(0.4)
 
         watcher = asyncio.create_task(watch_cancel())
+        path = RootedPath(root_id=root.ref.root_id, relative_path=rev.relative_path)
+        files = self._bound_files(root)
+        changed = False
         try:
-            # 拷到临时文件再解析，读前后核哈希
             with tempfile.TemporaryDirectory(prefix="rayagent-doc-src-") as tmp:
                 src = Path(tmp) / Path(rev.relative_path).name
-                reader = await self._files.open_reader(
-                    RootedPath(root_id=root.ref.root_id, relative_path=rev.relative_path))
-                digest = hashlib.sha256()
+                reader = await files.open_reader(path)
 
-                def copy() -> int:
+                def copy() -> str:
+                    digest = hashlib.sha256()
                     size = 0
-                    with reader, open(src, "wb") as out:
-                        while True:
-                            chunk = reader.read(1024 * 1024)
-                            if not chunk:
-                                break
-                            digest.update(chunk)
-                            out.write(chunk)
-                            size += len(chunk)
+                    with reader, src.open("wb") as out:
+                        while data := reader.read(1024 * 1024):
+                            size += len(data)
                             if size > DOCUMENT_PARSE_MAX_BYTES:
                                 raise ValueError("文件超过解析大小上限")
-                    return size
+                            if cancel.is_set():
+                                break
+                            digest.update(data)
+                            out.write(data)
+                    return digest.hexdigest()
 
+                copying = asyncio.create_task(asyncio.to_thread(copy))
                 try:
-                    size = await asyncio.to_thread(copy)
-                except Exception as error:  # noqa: BLE001
-                    await self._fail_revision(rev, str(error))
-                    return "failed"
-                content_hash = digest.hexdigest()
-                if content_hash != rev.content_hash:
-                    # 正在变化：延后，恢复 pending 等下次同步
-                    async with self._uow_factory() as uow:
-                        current = await uow.document.get_revision(rev.id)
-                        if current and current.status is DocumentIndexStatus.PARSING:
-                            current.status = DocumentIndexStatus.PENDING_PARSE
-                            current.updated_at = utc_now()
-                            current.error_message = "读取时内容已变化，已延后"
-                            await uow.document.save_revision(current)
-                    return "skipped"
-
-                ocr_dir = self._ocr_dir_probe() if self._ocr_dir_probe is not None else None
-                result = await run_document_parse(
-                    src, rev.format.value, cancel_event=cancel, ocr_component_dir=ocr_dir)
-        except asyncio.CancelledError:
-            aborted = True
+                    digest = await asyncio.shield(copying)
+                except asyncio.CancelledError:
+                    cancel.set()
+                    await asyncio.gather(copying, return_exceptions=True)
+                    raise
+                if interruption:
+                    raise interruption
+                changed = digest != rev.content_hash
+                if not changed:
+                    ocr_dir = self._ocr_dir_probe() if self._ocr_dir_probe else None
+                    result = await run_document_parse(src, rev.format.value, cancel_event=cancel, ocr_component_dir=ocr_dir)
+                    if interruption:
+                        raise interruption
+                    actual = (await files.stat(path, with_hash=True)).version
+                    changed = (actual is None or (actual.size, actual.modified_ns) != (rev.size, rev.modified_ns)
+                               or actual.content_hash != rev.content_hash)
+        except (JobCancelled, JobSuperseded, _IndexStopped):
             raise
+        except Exception as error:
+            result = {"status": "failed", "reason": str(error) or type(error).__name__}
         finally:
             cancel.set()
             watcher.cancel()
             await asyncio.gather(watcher, return_exceptions=True)
 
-        if aborted:
-            # 取消或 superseded：不发布半份
+        if changed:
             async with self._uow_factory() as uow:
-                current = await uow.document.get_revision(rev.id)
-                if current and current.status is DocumentIndexStatus.PARSING:
-                    current.status = DocumentIndexStatus.PENDING_PARSE
-                    current.updated_at = utc_now()
-                    await uow.document.save_revision(current)
-            await context.check_cancel()
+                _, current_root = await self._guard(context, uow, rev.workspace_id)
+                if _binding(current_root) == _binding(root) and (pair := await self._current(uow, rev, Status.PARSING)):
+                    await self._state(uow, *pair, Status.REGISTERED, message="源文件已变化，等待重新扫描")
+            self._notify_scan(rev.workspace_id, [rev.relative_path])
             return "skipped"
 
         status = result.get("status")
-        if status == "pending_component":
-            async with self._uow_factory() as uow:
-                current = await uow.document.get_revision(rev.id)
-                if current is None:
-                    return "skipped"
-                current.status = DocumentIndexStatus.PENDING_COMPONENT
-                current.component_needed = result.get("component_needed") or "ocr"
-                current.error_message = result.get("reason")
-                current.updated_at = utc_now()
-                await uow.document.save_revision(current)
-                document = await uow.document.get(rev.document_id)
-                if document and document.current_revision == rev.revision:
-                    document.status = DocumentIndexStatus.PENDING_COMPONENT
-                    document.updated_at = utc_now()
-                    await uow.document.save(document)
-            return "ok"
-
         if status != "ok":
-            await self._fail_revision(rev, result.get("reason") or "解析失败")
+            async with self._uow_factory() as uow:
+                _, current_root = await self._guard(context, uow, rev.workspace_id)
+                if _binding(current_root) != _binding(root) or not (pair := await self._current(uow, rev, Status.PARSING)):
+                    return "skipped"
+                pending = status == "pending_component"
+                await self._state(uow, *pair, Status.PENDING_COMPONENT if pending else Status.FAILED,
+                                  message=(result.get("reason") or "解析失败")[:1000],
+                                  component=(result.get("component_needed") or "ocr") if pending else None)
+            return "skipped" if pending else "failed"
+
+        blocks = blocks_from_worker(result, revision_id=rev.id, workspace_id=rev.workspace_id)
+        chunks = chunk_blocks(blocks, document_id=rev.document_id, revision_id=rev.id,
+                              workspace_id=rev.workspace_id, revision=rev.revision, title=Path(rev.relative_path).name)
+        if not chunks:
+            async with self._uow_factory() as uow:
+                await self._guard(context, uow, rev.workspace_id)
+                if pair := await self._current(uow, rev, Status.PARSING):
+                    await self._state(uow, *pair, Status.FAILED, message="没有可检索的正文")
             return "failed"
-
-        # 写入不可见暂存块／片段，再短事务发布
         async with self._uow_factory() as uow:
-            current = await uow.document.get_revision(rev.id)
-            document = await uow.document.get(rev.document_id)
-            if current is None or document is None or document.current_revision != rev.revision:
+            _, current_root = await self._guard(context, uow, rev.workspace_id)
+            if _binding(current_root) != _binding(root) or not (pair := await self._current(uow, rev, Status.PARSING)):
                 return "skipped"
-            if current.status is not DocumentIndexStatus.PARSING:
-                return "skipped"
-            current.status = DocumentIndexStatus.INDEXING
-            current.updated_at = utc_now()
-            await uow.document.save_revision(current)
-            blocks = blocks_from_worker(result, revision_id=current.id, workspace_id=current.workspace_id)
-            await uow.document.replace_blocks(current.id, blocks)
-            chunks = chunk_blocks(
-                blocks, document_id=document.id, revision_id=current.id,
-                workspace_id=current.workspace_id, revision=current.revision,
-                title=Path(current.relative_path).name)
-            await uow.document.replace_chunks(current.id, chunks)
+            await self._state(uow, *pair, Status.INDEXING)
+            await uow.document.replace_blocks(rev.id, blocks)
+            await uow.document.replace_chunks(rev.id, chunks)
 
-        await context.check_cancel()
-
-        # 发布：权威可见 + FTS；同工作区串行由本任务保证
         async with self._uow_factory() as uow:
-            current = await uow.document.get_revision(rev.id)
-            document = await uow.document.get(rev.document_id)
-            if current is None or document is None or document.current_revision != rev.revision:
+            pub, current_root = await self._guard(context, uow, rev.workspace_id)
+            if _binding(current_root) != _binding(root) or not (pair := await self._current(uow, rev, Status.INDEXING)):
                 return "skipped"
-            if current.status is not DocumentIndexStatus.INDEXING:
+            doc, current = pair
+            try:
+                actual = (await files.stat(path)).version
+            except WorkspaceFileError as error:
+                if error.code is ErrorCode.NOT_FOUND:
+                    await _retire(uow, doc, pub, Status.WITHDRAWN)
+                    await uow.document.save_publication(pub)
+                else:
+                    await self._state(uow, doc, current, Status.FAILED, message=str(error))
                 return "skipped"
-            chunks = await uow.document.list_chunks(current.id)
-            # 先确保旧片段已从 FTS 移除（开修订时已做；再扫一遍防半份）
-            old_ids = await uow.document.unpublish_document(document.id)
-            for chunk_id in old_ids:
-                await self._retrieval.remove_document_chunk(uow, document.workspace_id, chunk_id)
+            if actual is None or (actual.size, actual.modified_ns) != (rev.size, rev.modified_ns):
+                await self._state(uow, doc, current, Status.REGISTERED, message="源文件已变化，等待重新扫描")
+                self._notify_scan(rev.workspace_id, [rev.relative_path])
+                return "skipped"
+            await _unpublish(uow, doc, pub)
             for chunk in chunks:
-                chunk.published = True
-                await self._retrieval.index_document_chunk(uow, chunk, relative_path=document.relative_path)
-            await uow.document.replace_chunks(current.id, chunks)
-            await uow.document.mark_chunks_published(current.id, True)
-            current.status = DocumentIndexStatus.SEARCHABLE
+                await self._retrieval.index_document_chunk(uow, chunk, relative_path=doc.relative_path)
+            await uow.document.mark_chunks_published(rev.id, True)
             current.published_at = utc_now()
-            current.updated_at = utc_now()
-            current.error_message = None
-            await uow.document.save_revision(current)
-            document.status = DocumentIndexStatus.SEARCHABLE
-            document.updated_at = utc_now()
-            await uow.document.save(document)
-            pub = await uow.document.get_publication(document.workspace_id) or IndexPublication(
-                workspace_id=document.workspace_id)
+            page_count = result.get("page_count")
+            current.page_count = page_count if type(page_count) is int and page_count > 0 else None
+            await self._state(uow, doc, current, Status.SEARCHABLE)
             pub.generation += 1
-            pub.status = "publishing"
             pub.updated_at = utc_now()
             await uow.document.save_publication(pub)
-            workspace_id = document.workspace_id
-        # FTS 已发布：排队语义索引（组件缺失时 enqueue 直接返回）
+        await self._enqueue_semantic(rev.workspace_id)
+        return "ok"
+
+    async def _enqueue_semantic(self, workspace_id: str) -> None:
         if self._semantic is not None:
             try:
                 await self._semantic.enqueue(workspace_id)
-            except Exception:  # noqa: BLE001
+            except Exception:
                 logger.exception("排队语义索引失败 workspace=%s", workspace_id)
-        return "ok"
-
-    async def _fail_revision(self, rev: DocumentRevision, message: str) -> None:
-        async with self._uow_factory() as uow:
-            current = await uow.document.get_revision(rev.id)
-            if current is None:
-                return
-            current.status = DocumentIndexStatus.FAILED
-            current.error_message = message[:1000]
-            current.updated_at = utc_now()
-            await uow.document.save_revision(current)
-            doc = await uow.document.get(current.document_id)
-            if doc and doc.current_revision == current.revision:
-                doc.status = DocumentIndexStatus.FAILED
-                doc.updated_at = utc_now()
-                await uow.document.save(doc)
 
 
 def document_index_handler(service: DocumentIndexService):
-    async def handle(context: JobContext) -> dict:
-        return await service.process_workspace(context)
-    return handle
+    return service.process_workspace

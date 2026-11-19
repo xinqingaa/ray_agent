@@ -29,6 +29,11 @@ class DocumentRepository(ABC):
     async def list_workspace(self, workspace_id: str) -> list[DocumentRecord]: ...
 
     @abstractmethod
+    async def page_workspace(
+            self, workspace_id: str, *, after: str | None, limit: int,
+    ) -> list[tuple[DocumentRecord, DocumentRevision | None]]: ...
+
+    @abstractmethod
     async def add_revision(self, revision: DocumentRevision) -> None: ...
 
     @abstractmethod

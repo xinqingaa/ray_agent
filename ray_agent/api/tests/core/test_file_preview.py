@@ -1,5 +1,6 @@
 """真实解析器与 HTTP 契约；临时文件，不调用模型或业务数据库。"""
 import asyncio
+import base64
 import io
 import os
 import threading
@@ -23,6 +24,30 @@ from app.infrastructure.external.file_preview.worker import parse
 
 def query(**values):
     return PreviewQuery(**values).model_dump()
+
+
+def test_xlsx_preview_opens_named_sheet_at_source_coordinates(tmp_path):
+    path = tmp_path / 'source.xlsx'
+    book = openpyxl.Workbook()
+    book.active.title = '说明'
+    from openpyxl.chart import BarChart, Reference
+
+    book.active['A1'] = 1
+    chart = BarChart()
+    chart.add_data(Reference(book.active, min_col=1, min_row=1, max_row=1))
+    book.create_chartsheet('图表').add_chart(chart)
+    sheet = book.create_sheet('核对数据')
+    sheet['C6'] = '匹配值'
+    sheet['D6'] = 40
+    sheet.column_dimensions['C'].width = 20
+    book.save(path)
+
+    result = parse(str(path), query(sheet_name='核对数据', row=5, column=2))
+    assert result['sheets'] == ['说明', '核对数据']
+    assert (result['sheet'], result['row'], result['column']) == (1, 5, 2)
+    assert [cell['text'] for cell in result['rows'][0][:2]] == ['匹配值', '40']
+    assert result['widths'][0] == 145
+    assert parse(str(path), query(sheet_name='已改名'))['reason'] == '工作表不存在'
 
 
 def test_xlsx_merged_cells_formula_and_forged_dimensions(tmp_path):
@@ -96,6 +121,57 @@ def test_image_thumbnail_and_actual_subprocess(tmp_path):
         with broken.open('rb') as handle:
             return await parse_preview(handle,broken.name,'broken-test',PreviewQuery())
     assert asyncio.run(invalid())['reason']=='文件无法解析'
+
+
+def test_pdf_preview_renders_requested_page_in_worker(tmp_path):
+    from pypdf import PdfWriter
+
+    path = tmp_path / '阈值.pdf'
+    writer = PdfWriter()
+    writer.add_blank_page(200, 300)
+    writer.add_blank_page(300, 200)
+    writer.write(path)
+
+    async def read(page):
+        with path.open('rb') as handle:
+            return await parse_preview(handle, path.name, 'two-page-pdf', PreviewQuery(page=page))
+
+    for page, size in ((1, (400, 600)), (2, (600, 400))):
+        result = asyncio.run(read(page))
+        assert (result['kind'], result['page'], result['page_count']) == ('pdf', page, 2)
+        with Image.open(io.BytesIO(base64.b64decode(result['thumbnail'].split(',', 1)[1]))) as picture:
+            assert picture.size == size
+    assert asyncio.run(read(3))['reason'] == 'PDF 页码不存在'
+    writer.encrypt('preview-password')
+    writer.write(path)
+    assert parse(str(path), query())['reason'] == 'PDF 已加密，需要密码'
+
+
+def test_docx_preview_preserves_body_order_and_index_locators(tmp_path):
+    from docx import Document
+
+    path = tmp_path / '流程.docx'
+    picture = io.BytesIO()
+    Image.new('RGB', (5, 5), 'blue').save(picture, format='PNG')
+    picture.seek(0)
+    document = Document()
+    document.add_heading('采样流程', 1)
+    document.add_table(1, 1).cell(0, 0).text = '交接'
+    document.add_paragraph('登记日期', style='List Bullet').add_run().add_picture(picture)
+    document.save(path)
+
+    async def read():
+        with path.open('rb') as handle:
+            return await parse_preview(handle, path.name, 'docx-structured', PreviewQuery())
+
+    result = asyncio.run(read())
+    assert [block['kind'] for block in result['blocks']] == ['heading', 'table', 'paragraph']
+    assert result['blocks'][1]['rows'] == [['交接']]
+    paragraph = result['blocks'][2]
+    assert paragraph['list_type'] == 'bullet' and paragraph['spans'][0]['text'] == '登记日期'
+    assert paragraph['spans'][1]['image'].startswith('data:image/png;base64,')
+    assert parse(str(path), query(block=1))['blocks'][0] == paragraph
+    assert parse(str(path), query(table=0))['blocks'][0]['rows'] == [['交接']]
 
 
 def test_workbook_over_five_mb_still_previews(tmp_path):

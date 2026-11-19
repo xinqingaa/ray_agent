@@ -36,7 +36,7 @@ async def parse_preview(handle, filename, revision, query):
     base = dict(kind=kind, filename=filename, revision=revision)
     if kind == 'unavailable':
         return {**base, 'reason':'暂不支持预览'}
-    if kind == 'pdf' or (kind == 'image' and Path(filename).suffix.lower() == '.svg'):
+    if kind == 'image' and Path(filename).suffix.lower() == '.svg':
         return base
     key = (revision, filename, query.model_dump_json())
     now = time.monotonic()
@@ -73,7 +73,7 @@ async def parse_preview(handle, filename, revision, query):
                     json.dumps(options)), stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.DEVNULL)
                 try:
                     output, _ = await asyncio.wait_for(process.communicate(), timeout=12)
-                    parsed = json.loads(output) if process.returncode == 0 else {'kind':'unavailable','reason':'预览处理超时'}
+                    parsed = json.loads(output) if process.returncode == 0 else {'kind':'unavailable','reason':'预览处理失败'}
                     result = {**base, **parsed}
                 except asyncio.TimeoutError:
                     result = {**base, 'kind':'unavailable','reason':'预览处理超时'}

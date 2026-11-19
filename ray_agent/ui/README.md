@@ -17,7 +17,7 @@ npm ci
 界面不配置 API 地址。[core-gate.tsx](src/components/core-gate.tsx) 经宿主命令读取核心状态：启动中显示等待，就绪后把接口地址与实例令牌交给 [core-client.ts](src/lib/core-client.ts) 再渲染业务页面，失败、版本不匹配或核心退出时显示原因、日志尾部与重新启动入口。核心重新拉起后令牌变化，业务页面整体重新挂载。轮询间隔见[运行参数与限额](../../docs/limits.md#桌面宿主与核心进程)。
 
 - 普通请求与 SSE 由请求封装经 `coreUrl` 拼地址、`coreHeaders` 加 `Authorization`，组件只传 `/sessions/...` 这类相对路径，不自行拼主机或令牌。
-- 图片与 PDF 由 WebView 按 URL 加载，带不了请求头：[preview.ts](src/lib/api/preview.ts) 的 `previewContentUrl` 先申请短期票据并缓存，临近到期重新申请，再把票据拼进内容地址。令牌不进 URL。
+- 图片按内容地址加载。[preview.ts](src/lib/api/preview.ts) 先申请并缓存短期票据，再把票据拼进地址。PDF 预览接口返回目标页的渲染图，DOCX 返回正文块，XLSX 可按工作表及起始行列读取窗口。
 - 下载、打包下载与保存图片经宿主的保存对话框完成；HTML 文件与外部链接交给系统浏览器打开。界面中的跨源链接点击由 [external-links.ts](src/lib/external-links.ts) 统一转交宿主，WebView 本身不打开外部页面。
 - 访问宿主的代码只在 [platform.ts](src/lib/platform.ts)，组件和检查脚本只依赖这一个模块；宿主命令的语义见[桌面开发指南](../desktop/README.md#界面与宿主的接口)。
 - 退出请求由 [quit-guard.tsx](src/components/quit-guard.tsx) 接住：没有活动任务直接确认退出，否则先弹出确认；读取会话失败时同样先确认。

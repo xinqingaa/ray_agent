@@ -6,7 +6,10 @@ import {cn} from '@/lib/utils'
 import {ApprovalCard} from './approval-card'
 import {AskCard} from './ask-card'
 import {DeliveryCard} from './delivery-card'
-import {FinalReply, NarrationBlock, UserMessage} from './messages'
+import {NarrationBlock, UserMessage} from './messages'
+import {DocumentCitedReply} from './document-citations'
+import type {KnowledgeReference} from '@/lib/api/types'
+import type {DraftReference} from '@/lib/drafts'
 import {AttemptNotice, CompactionNotice, ProtectionNotice} from './notices'
 import {RunReferences} from './run-references'
 import {RunEndBar} from './run-end-bar'
@@ -36,6 +39,9 @@ export type TimelineHandlers = {
   /** 工作区会话：在最终回复下展示本次参考 */
   showRunReferences?: boolean
   workspaceId?: string
+  sourceRefresh?: number
+  onOpenSource?: (reference: KnowledgeReference) => void
+  onQuoteSource?: (reference: DraftReference) => void
   renderMemoryNotice?: (runId: string) => ReactNode
   renderRunActions?: (runId: string) => ReactNode
 }
@@ -93,9 +99,12 @@ export function TimelineItemView({item, handlers = {}, metrics, runActions}: {it
       return (
         <div className="min-w-0 space-y-2">
           <span id={item.runId ? `reply-${item.runId}` : undefined} className="block scroll-mt-3"/>
-          <FinalReply text={item.text} summary={item.summary} streaming={streaming} deliveredFiles={item.deliveredFiles} onDownloadFile={handlers.onDownloadFile}/>
+          <DocumentCitedReply text={item.text} summary={item.summary} streaming={streaming} deliveredFiles={item.deliveredFiles}
+            onDownloadFile={handlers.onDownloadFile} runId={item.runId} workspaceId={handlers.workspaceId}
+            onOpen={handlers.onOpenSource} onQuote={handlers.onQuoteSource} sourceRefresh={handlers.sourceRefresh}/>
           {handlers.showRunReferences && item.runId && !streaming && <RunReferences runId={item.runId}
-            workspaceId={handlers.workspaceId} memoryNotice={handlers.renderMemoryNotice?.(item.runId)} actions={runActions} metrics={metrics}/>}
+            workspaceId={handlers.workspaceId} onOpenSource={handlers.onOpenSource} sourceRefresh={handlers.sourceRefresh}
+            memoryNotice={handlers.renderMemoryNotice?.(item.runId)} actions={runActions} metrics={metrics}/>}
         </div>
       )
     case 'run_end':

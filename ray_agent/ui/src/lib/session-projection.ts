@@ -31,6 +31,7 @@ import type {
   CompactTrigger,
   RunMode,
 } from '@/lib/session-view'
+import type {KnowledgeReference} from '@/lib/api/types'
 
 /** 会话详情里的运行行；缺字段时由 run 事件补 */
 export type RunSnapshot = {
@@ -668,6 +669,8 @@ export function projectSession(input: ProjectSessionInput): SessionView {
         timeline.push({
           kind: 'user',
           imageMode: data.image_mode === 'files' ? 'files' : 'auto',
+          ...(Array.isArray(data.knowledge_references) && data.knowledge_references.length
+            ? {references: data.knowledge_references as KnowledgeReference[]} : {}),
           skill: isRecord(data.skill) && typeof data.skill.id === 'string' && typeof data.skill.version === 'string'
             ? {id: data.skill.id, version: data.skill.version} : undefined,
           id: idOf(ev.seq, timeline.length),

@@ -1107,6 +1107,29 @@
       "title": "File",
       "type": "object"
     },
+    "KnowledgeReference": {
+      "properties": {
+        "source_type": {
+          "$ref": "#/$defs/SearchSourceType"
+        },
+        "source_id": {
+          "maxLength": 128,
+          "minLength": 1,
+          "type": "string"
+        },
+        "source_version": {
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "source_type",
+        "source_id",
+        "source_version"
+      ],
+      "title": "KnowledgeReference",
+      "type": "object"
+    },
     "MessageEventData": {
       "description": "消息事件数据",
       "properties": {
@@ -1180,6 +1203,12 @@
           ],
           "default": null
         },
+        "knowledge_references": {
+          "items": {
+            "$ref": "#/$defs/KnowledgeReference"
+          },
+          "type": "array"
+        },
         "image_mode": {
           "default": "auto",
           "enum": [
@@ -1210,6 +1239,7 @@
         "message",
         "attachments",
         "skill",
+        "knowledge_references",
         "image_mode",
         "attempt"
       ],
@@ -1547,6 +1577,15 @@
         "interrupted"
       ],
       "title": "RunStatus",
+      "type": "string"
+    },
+    "SearchSourceType": {
+      "enum": [
+        "memory",
+        "session_summary",
+        "document_chunk"
+      ],
+      "title": "SearchSourceType",
       "type": "string"
     },
     "SessionEvent": {

@@ -70,14 +70,15 @@ type FinalReplyProps = {
   text: string
   summary?: RunSummary | null
   className?: string
+  renderCitation?: import('@/components/markdown-content').MarkdownContentProps['renderCitation']
 } & StreamingProps
 
 /** 最终回复正文；时间线将本次运行统计附在回复下方。 */
-export function FinalReply({text, streaming, className, deliveredFiles, onDownloadFile}: FinalReplyProps) {
+export function FinalReply({text, streaming, className, deliveredFiles, onDownloadFile, renderCitation}: FinalReplyProps) {
   return (
     <article className={cn('min-w-0 space-y-3', className)} aria-busy={streaming || undefined}>
       <div className={cn('[&_.markdown-content>p:first-child]:font-medium [&_.markdown-content>p:first-child]:text-base', streaming && STREAMING_CARET)}>
-        <MarkdownContent content={text} deliveredFiles={deliveredFiles} onDownloadFile={onDownloadFile}/>
+        <MarkdownContent content={text} deliveredFiles={deliveredFiles} onDownloadFile={onDownloadFile} renderCitation={renderCitation}/>
       </div>
     </article>
   )

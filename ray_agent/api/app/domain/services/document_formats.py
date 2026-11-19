@@ -43,5 +43,5 @@ def detect_format(relative_path: str) -> DocumentFormat:
 
 
 def is_indexable(fmt: DocumentFormat) -> bool:
-    """不支持的格式仍登记为失败／不支持，不进入解析队列。图片与扫描 PDF 走待组件。"""
+    """未知格式不计入解析范围。图片和扫描 PDF 可等待 OCR 组件。"""
     return fmt is not DocumentFormat.UNSUPPORTED

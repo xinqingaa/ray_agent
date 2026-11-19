@@ -20,6 +20,7 @@ from app.domain.models.identity import RunId, SessionId
 from app.domain.models.plan import ExecutionStatus
 from app.domain.models.plan_acceptance import PlanAcceptance
 from app.domain.models.run import RunMode, RunStatus
+from app.domain.models.retrieval import KnowledgeReference
 
 # 事件结构不兼容地变化（删除或改义字段、改变类型）时递增；只新增字段或新增事件类型不递增。
 EVENT_VERSION = 1
@@ -89,6 +90,7 @@ class MessageEventData(BaseEventData):
     message: str = ""
     attachments: List[File] = Field(default_factory=list)
     skill: SkillSelection | None = None
+    knowledge_references: list[KnowledgeReference] = Field(default_factory=list)
     image_mode: Literal['auto', 'files'] = 'auto'
     attempt: Optional[int] = None  # 助手正文对应的本轮模型请求序号
 
@@ -108,6 +110,7 @@ class MessageSSEEvent(BaseSSEEvent):
                 attachments=event.attachments,
                 image_mode=event.image_mode,
                 skill=event.skill,
+                knowledge_references=event.knowledge_references,
                 attempt=event.attempt,
             )
         )

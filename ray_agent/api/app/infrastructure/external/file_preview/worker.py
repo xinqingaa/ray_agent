@@ -3,14 +3,15 @@ import base64
 import csv
 import io
 import json
+import math
 import re
 import sys
 import zipfile
 from datetime import date, datetime, time
 from pathlib import Path
 
-from app.domain.models.file_preview import (IMAGE_MAX_PIXELS, TABLE_PAGE_COLUMNS,
-    TABLE_PAGE_ROWS, WORKBOOK_EXPANDED_BYTES, preview_kind)
+from app.domain.models.file_preview import (DOCX_PAGE_BLOCKS, DOCX_PAGE_BYTES, IMAGE_MAX_PIXELS,
+    PDF_PREVIEW_EDGE, TABLE_PAGE_COLUMNS, TABLE_PAGE_ROWS, WORKBOOK_EXPANDED_BYTES, preview_kind)
 
 
 def unavailable(reason):
@@ -64,17 +65,18 @@ def cell_style(cell, theme):
         borders=[bool(getattr(cell.border, side) and getattr(cell.border, side).style) for side in ('top', 'right', 'bottom', 'left')])
 
 
-def workbook_metadata(archive, sheet_index):
+def workbook_metadata(archive, sheet_name):
     from defusedxml.ElementTree import fromstring, iterparse
     ns = {'s': 'http://schemas.openxmlformats.org/spreadsheetml/2006/main',
           'r': 'http://schemas.openxmlformats.org/officeDocument/2006/relationships'}
     book = fromstring(archive.read('xl/workbook.xml'))
     sheets = book.findall('s:sheets/s:sheet', ns)
-    if sheet_index >= len(sheets):
+    sheet = next((item for item in sheets if item.attrib['name'] == sheet_name), None)
+    if sheet is None:
         raise ValueError('工作表不存在')
     relationships = fromstring(archive.read('xl/_rels/workbook.xml.rels'))
     targets = {item.attrib['Id']: item.attrib['Target'] for item in relationships}
-    target = targets[sheets[sheet_index].attrib['{' + ns['r'] + '}id']]
+    target = targets[sheet.attrib['{' + ns['r'] + '}id']]
     part = target.lstrip('/') if target.startswith('/') else 'xl/' + target
     from posixpath import normpath
     part = normpath(part)
@@ -109,12 +111,20 @@ def xlsx_preview(path, query):
         parts = archive.infolist()
         if len(parts) > 10000 or sum(item.file_size for item in parts) > WORKBOOK_EXPANDED_BYTES:
             return unavailable('工作簿数据量过大')
-        widths, ranges, theme = workbook_metadata(archive, query['sheet'])
     book = openpyxl.load_workbook(path, read_only=True, data_only=False, keep_links=False)
     cached = openpyxl.load_workbook(path, read_only=True, data_only=True, keep_links=False)
     try:
-        sheet = book.worksheets[query['sheet']]
-        values = cached.worksheets[query['sheet']]
+        sheet_names = [sheet.title for sheet in book.worksheets]
+        sheet_name = query.get('sheet_name')
+        if sheet_name is not None and sheet_name not in sheet_names:
+            return unavailable('工作表不存在')
+        index = sheet_names.index(sheet_name) if sheet_name is not None else query['sheet']
+        if index >= len(sheet_names):
+            return unavailable('工作表不存在')
+        sheet = book.worksheets[index]
+        values = cached.worksheets[index]
+        with zipfile.ZipFile(path) as archive:
+            widths, ranges, theme = workbook_metadata(archive, sheet.title)
         # reset_dimensions prevents a bogus dimension from hiding real data.
         declared_rows, declared_columns = sheet.max_row, sheet.max_column
         sheet.reset_dimensions(); values.reset_dimensions()
@@ -148,7 +158,7 @@ def xlsx_preview(path, query):
             left, top, right, bottom = range_boundaries(ref)
             if left >= col+1 and top >= start+1 and right <= col+columns and bottom <= start+len(rows):
                 merges.append(dict(row=top-1-start, column=left-1-col, rows=bottom-top+1, columns=right-left+1))
-        return dict(kind='table', sheets=book.sheetnames, sheet=query['sheet'], row=start, column=col,
+        return dict(kind='table', sheets=sheet_names, sheet=index, row=start, column=col,
             rows=rows, widths=[widths.get(col+i+1, 120) for i in range(columns)], merges=merges,
             total_rows=declared_rows, total_columns=declared_columns,
             next_row=start+len(rows) if has_more and start+len(rows) <= 100000 else None,
@@ -234,6 +244,157 @@ def image_preview(path):
             thumbnail='data:image/png;base64,'+base64.b64encode(output.getvalue()).decode())
 
 
+def pdf_preview(path, query):
+    from pypdfium2 import PdfDocument, PdfiumError, raw
+
+    try:
+        document = PdfDocument(path)
+    except PdfiumError:
+        return unavailable('PDF 已加密，需要密码' if raw.FPDF_GetLastError() == raw.FPDF_ERR_PASSWORD else 'PDF 无法读取')
+    try:
+        current = query.get('page', 1)
+        count = len(document)
+        if not 1 <= current <= count:
+            return unavailable('PDF 页码不存在')
+        page = document[current - 1]
+        try:
+            width, height = page.get_size()
+            longest = max(width, height)
+            if not math.isfinite(longest) or min(width, height) <= 0 or min(width, height) / longest < 1 / PDF_PREVIEW_EDGE:
+                return unavailable('PDF 页面尺寸无效')
+            bitmap = page.render(scale=min(2, PDF_PREVIEW_EDGE / longest))
+            try:
+                output = io.BytesIO()
+                bitmap.to_pil().convert('RGB').save(output, format='PNG')
+                return dict(kind='pdf', page=current, page_count=count,
+                            thumbnail='data:image/png;base64,' + base64.b64encode(output.getvalue()).decode())
+            finally:
+                bitmap.close()
+        finally:
+            page.close()
+    finally:
+        document.close()
+
+
+def docx_paragraph(paragraph, ordinal, remaining):
+    from docx.drawing import Drawing
+    from docx.oxml.ns import qn
+    from docx.text.run import Run
+
+    name = getattr(paragraph.style, 'name', '') or ''
+    heading = re.fullmatch(r'Heading ([1-9])', name, re.IGNORECASE)
+    kind = 'heading' if heading or name == 'Title' else 'paragraph'
+    list_type = None
+    if name.lower().startswith('list bullet'):
+        list_type = 'bullet'
+    elif name.lower().startswith('list number'):
+        list_type = 'number'
+    elif paragraph._p.xpath('./w:pPr/w:numPr/w:numId'):
+        number = paragraph._p.xpath('./w:pPr/w:numPr/w:numId')[0].get(qn('w:val'))
+        level_node = paragraph._p.xpath('./w:pPr/w:numPr/w:ilvl')
+        level = level_node[0].get(qn('w:val')) if level_node else '0'
+        if number and number.isdecimal() and number != '0' and level and level.isdecimal():
+            numbering = paragraph.part.numbering_part.element
+            abstracts = numbering.xpath(f'./w:num[@w:numId="{number}"]/w:abstractNumId')
+            if abstracts:
+                abstract = abstracts[0].get(qn('w:val'))
+                if abstract and abstract.isdecimal():
+                    formats = numbering.xpath(
+                        f'./w:abstractNum[@w:abstractNumId="{abstract}"]/w:lvl[@w:ilvl="{level}"]/w:numFmt')
+                    list_type = 'bullet' if formats and formats[0].get(qn('w:val')) == 'bullet' else 'number'
+    spans = []
+    partial = False
+    for item in paragraph.iter_inner_content():
+        for run in ([item] if isinstance(item, Run) else item.runs):
+            for part in run.iter_inner_content():
+                if isinstance(part, str):
+                    text = part[:max(0, (remaining - 40) // 6)]
+                    partial |= len(text) < len(part)
+                    if text:
+                        spans.append(dict(text=text, bold=bool(run.bold), italic=bool(run.italic)))
+                        remaining -= len(text) * 6 + 40
+                    continue
+                if not isinstance(part, Drawing):
+                    continue
+                for blip in part._drawing.xpath('.//a:blip'):
+                    relation = paragraph.part.rels.get(blip.get(qn('r:embed')))
+                    if not relation or relation.is_external or remaining < 1024:
+                        partial = True
+                        continue
+                    try:
+                        image = image_preview(io.BytesIO(relation.target_part.blob))
+                        thumbnail = image.get('thumbnail', '')
+                    except (OSError, ValueError, SyntaxError):
+                        thumbnail = ''
+                    if thumbnail and len(thumbnail) + 12 <= remaining:
+                        spans.append(dict(image=thumbnail))
+                        remaining -= len(thumbnail) + 12
+                    else:
+                        partial = True
+    return dict(kind=kind, block=ordinal, level=int(heading[1]) if heading else 1,
+                list_type=list_type, spans=spans), remaining, partial
+
+
+def docx_preview(path, query):
+    from docx import Document
+    from docx.table import Table
+
+    with zipfile.ZipFile(path) as archive:
+        parts = archive.infolist()
+        if len(parts) > 10000 or sum(item.file_size for item in parts) > WORKBOOK_EXPANDED_BYTES:
+            return unavailable('文档数据量过大')
+    document = Document(path)
+    entries = list(document.iter_inner_content())
+    offset = query.get('offset', 0)
+    target_table = query.get('table')
+    target_block = query.get('block')
+    paragraph_index = table_index = 0
+    locators = []
+    target = None
+    for position, entry in enumerate(entries):
+        if isinstance(entry, Table):
+            if table_index == target_table:
+                target = position
+            locators.append(table_index)
+            table_index += 1
+        else:
+            if paragraph_index == target_block:
+                target = position
+            locators.append(paragraph_index)
+            paragraph_index += 1
+    if target_table is not None or target_block is not None:
+        if target is None:
+            return unavailable('文档中的引用位置已找不到')
+        offset = target
+    remaining = DOCX_PAGE_BYTES
+    blocks = []
+    limited = False
+    end = offset
+    for entry, ordinal in zip(entries[offset:offset + DOCX_PAGE_BLOCKS], locators[offset:offset + DOCX_PAGE_BLOCKS]):
+        if remaining < 1024:
+            break
+        if isinstance(entry, Table):
+            rows = []
+            for row in entry.rows[:TABLE_PAGE_ROWS]:
+                cells = []
+                for cell in row.cells[:TABLE_PAGE_COLUMNS]:
+                    text = cell.text
+                    visible = min(len(text), max(0, (remaining - 3) // 6), 4096)
+                    limited |= visible < len(text)
+                    remaining = max(0, remaining - visible * 6 - 3)
+                    cells.append(text[:visible])
+                rows.append(cells)
+            limited |= len(entry.rows) > TABLE_PAGE_ROWS or len(entry.columns) > TABLE_PAGE_COLUMNS
+            blocks.append(dict(kind='table', table=ordinal, rows=rows))
+        else:
+            block, remaining, partial = docx_paragraph(entry, ordinal, remaining)
+            limited |= partial
+            blocks.append(block)
+        end += 1
+    return dict(kind='docx', blocks=blocks, offset=offset, next_offset=end if end < len(entries) else None,
+                partial=bool(offset or end < len(entries) or limited), content_limited=limited)
+
+
 def parse(path, query):
     extension = Path(path).suffix.lower()
     if extension == '.xlsx':
@@ -242,6 +403,10 @@ def parse(path, query):
         result = xls_preview(path, query)
     elif extension in ('.csv', '.tsv'):
         result = csv_preview(path, query, extension)
+    elif extension == '.pdf':
+        return pdf_preview(path, query)
+    elif extension == '.docx':
+        return docx_preview(path, query)
     elif preview_kind(path) == 'image':
         return image_preview(path)
     else:

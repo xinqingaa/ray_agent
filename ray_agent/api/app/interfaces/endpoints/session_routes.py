@@ -235,6 +235,7 @@ async def chat(
         skill=request.skill,
         execute_plan=request.execute_plan,
         request_id=request.request_id,
+        knowledge_references=request.knowledge_references,
     )
     return Response.success(data=chat_response(accepted))
 

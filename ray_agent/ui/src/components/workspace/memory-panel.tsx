@@ -1,20 +1,19 @@
 import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent} from 'react'
 import {useLocation} from 'react-router'
-import {AlertTriangle, Grip, Loader2, Pencil, Pin, PinOff, Plus, Search, Undo2, X} from '@/components/ui/icons'
+import {AlertTriangle, Grip, Pencil, Pin, PinOff, Plus, Undo2, X} from '@/components/ui/icons'
 import {toast} from 'sonner'
 import {Button} from '@/components/ui/button'
-import {Input} from '@/components/ui/input'
 import {Select} from '@/components/ui/select'
 import {Textarea} from '@/components/ui/textarea'
 import {IconAction} from '@/components/ui/icon-action'
-import {Switch} from '@/components/ui/switch'
+import {WorkspaceSwitch} from './workspace-switch'
 import {MemorySources} from './memory-sources'
 import {memoryApi} from '@/lib/api/memory'
 import {instructionApi} from '@/lib/api/instruction'
 import {reportWorkspaceError} from '@/lib/workspace-mutation'
 import {useWorkspaces} from '@/providers/workspaces-provider'
 import {ApiError} from '@/lib/api/fetch'
-import type {MemoryItem, MemoryType, PatchMemoryRequest, SearchHitView, WorkspaceItem} from '@/lib/api/types'
+import type {MemoryItem, MemoryType, PatchMemoryRequest, WorkspaceItem} from '@/lib/api/types'
 import {MEMORY_TYPE_LABEL, MEMORY_TYPE_OPTIONS} from '@/lib/memory-labels'
 import {describeWorkspace} from '@/lib/workspace-state'
 import {cn, formatDayLabel} from '@/lib/utils'
@@ -62,7 +61,12 @@ function MemoryRow({item, workspaceId, readonly, busy, onAct}: {
         <span>{formatDayLabel(item.updated_at)}</span>
         <span className="tabular-nums">v{item.version}</span>
       </div>
-      {showSources && <MemorySources workspaceId={workspaceId} memoryId={item.id}/>}
+      {showSources && <div className="space-y-1">
+        <MemorySources workspaceId={workspaceId} memoryId={item.id}/>
+        {!readonly && !editing && <Button size="xs" variant="ghost" disabled={busy || Boolean(item.undo_unavailable)}
+          onClick={() => void onAct(item, {action: 'undo', version: item.version})}><Undo2/>撤销变更</Button>}
+        {item.undo_unavailable && <p className="text-xs text-faint">{item.undo_unavailable}</p>}
+      </div>}
     </div>
     {!readonly && !editing && <div className="background-memory-actions">
       <IconAction label={item.pinned ? '取消钉住' : '钉住'} disabled={busy}
@@ -71,9 +75,6 @@ function MemoryRow({item, workspaceId, readonly, busy, onAct}: {
       </IconAction>
       <IconAction label="编辑记忆" disabled={busy} onClick={() => {setDraft(item.content); setType(item.memory_type); setEditing(true)}}><Pencil/></IconAction>
       <IconAction label="撤回记忆" disabled={busy} onClick={() => void onAct(item, {action: 'retract', version: item.version})}><X/></IconAction>
-      <IconAction label={item.undo_unavailable ?? '撤销变更'} disabled={busy}
-        aria-disabled={Boolean(item.undo_unavailable)}
-        onClick={() => {if (!item.undo_unavailable) void onAct(item, {action: 'undo', version: item.version})}}><Undo2/></IconAction>
     </div>}
   </li>
 }
@@ -99,15 +100,12 @@ export function MemoryPanel({workspace, onSummary}: {
   const [busyId, setBusyId] = useState<string | null>(null)
   const [reviewError, setReviewError] = useState<{id: string; message: string} | null>(null)
   const [autoSaving, setAutoSaving] = useState(false)
+  const [autoIntent, setAutoIntent] = useState<boolean | null>(null)
   const [adding, setAdding] = useState(false)
   const [dropHighlight, setDropHighlight] = useState<'pinned' | 'remaining' | null>(null)
   const [newContent, setNewContent] = useState('')
   const [newType, setNewType] = useState<MemoryType>('fact')
   const [creating, setCreating] = useState(false)
-  const [searchQuery, setSearchQuery] = useState('')
-  const [searchHits, setSearchHits] = useState<SearchHitView[] | null>(null)
-  const [searching, setSearching] = useState(false)
-  const [searchError, setSearchError] = useState<string | null>(null)
   const requests = useRef(0)
   const listRef = useRef<HTMLElement>(null)
   const beforeReorder = useRef<Map<string, number> | null>(null)
@@ -117,10 +115,13 @@ export function MemoryPanel({workspace, onSummary}: {
     beforeReorder.current = null
     if (!previous || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
     const nodes = listRef.current?.querySelectorAll<HTMLElement>('.background-memory-row, .background-memory-cutline') ?? []
-    const moves = Array.from(nodes, node => ({node, delta: (previous.get(node.id) ?? node.offsetTop) - node.offsetTop}))
+    const moves = Array.from(nodes, node => {
+      const top = node.getBoundingClientRect().top
+      return {node, delta: (previous.get(node.id) ?? top) - top}
+    })
     for (const {node, delta} of moves) if (delta) node.animate([
       {transform: `translateY(${delta}px)`}, {transform: 'translateY(0)'},
-    ], {duration: 220, easing: 'ease-out'})
+    ], {duration: 455, easing: 'cubic-bezier(.34,1.28,.55,1)'})
   }, [items])
   const rows = useMemo(() => [...items].sort((a, b) =>
     Number(b.pinned) - Number(a.pinned) || TYPE_ORDER[a.memory_type] - TYPE_ORDER[b.memory_type] ||
@@ -147,7 +148,7 @@ export function MemoryPanel({workspace, onSummary}: {
       if (request !== requests.current) return null
       if (animate && listRef.current) {
         const nodes = listRef.current.querySelectorAll<HTMLElement>('.background-memory-row, .background-memory-cutline')
-        beforeReorder.current = new Map(Array.from(nodes, node => [node.id, node.offsetTop]))
+        beforeReorder.current = new Map(Array.from(nodes, node => [node.id, node.getBoundingClientRect().top]))
       }
       setItems(data.memories)
       setResidentLimit(data.resident_limit)
@@ -178,13 +179,14 @@ export function MemoryPanel({workspace, onSummary}: {
 
   const toggleAutoMemory = async (enabled: boolean) => {
     if (readonly || autoSaving) return
+    setAutoIntent(enabled)
     setAutoSaving(true)
     try {
       upsert(await instructionApi.setAutoMemory(workspace, enabled))
       toast.success(enabled ? '已开启自动记忆' : '已关闭自动记忆')
     } catch (reason) {
       reportWorkspaceError(reason, '更新自动记忆失败', () => void refresh())
-    } finally {setAutoSaving(false)}
+    } finally {setAutoIntent(null); setAutoSaving(false)}
   }
 
   const mutate = async (item: MemoryItem, action: PatchMemoryRequest) => {
@@ -242,16 +244,13 @@ export function MemoryPanel({workspace, onSummary}: {
   const renderRows = (list: MemoryItem[]) => list.map(item => <MemoryRow key={item.id} item={item} workspaceId={workspace.id}
     readonly={readonly} busy={busyId !== null} onAct={mutate}/>)
 
-  return <section ref={listRef} aria-label="工作区记忆" className="relative space-y-3" onDragEnd={() => setDropHighlight(null)}>
-    <header className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+  return <section ref={listRef} aria-label="工作区记忆" className="background-block" onDragEnd={() => setDropHighlight(null)}>
+    <header className="background-block-header">
       <h2 className="text-[15px] font-semibold">记忆</h2>
       {residentLimit != null && <span className="text-xs text-faint tabular-nums">{active.length} 条</span>}
-      <div className="ml-auto flex flex-wrap items-center gap-x-2">
-        <label htmlFor="workspace-auto-memory" className="inline-flex items-center gap-2 text-xs text-muted-foreground">
-          <span>任务结束后自动记住</span>
-          <Switch id="workspace-auto-memory" size="sm" checked={workspace.auto_memory_enabled === true}
-            disabled={readonly || autoSaving} onCheckedChange={checked => void toggleAutoMemory(checked)}/>
-        </label>
+      <div className="background-block-actions">
+        <WorkspaceSwitch label="任务结束后自动记住" checked={autoIntent ?? workspace.auto_memory_enabled === true}
+          disabled={readonly} pending={autoSaving} onChange={checked => void toggleAutoMemory(checked)}/>
         {!readonly && <IconAction label="添加记忆" aria-expanded={adding} onClick={() => setAdding(value => !value)}><Plus/></IconAction>}
       </div>
     </header>
@@ -272,8 +271,8 @@ export function MemoryPanel({workspace, onSummary}: {
       {candidates.map(item => {
         const target = active.find(row => row.id === item.supersedes_id)
         return <li key={item.id} id={`memory-${item.id}`} className="background-review-card background-memory-candidate">
-          <div className="flex items-center gap-2 text-xs font-medium text-state-waiting">
-            <AlertTriangle className="size-4"/>{item.supersedes_id ? '这条记忆与已保存的内容不同' : '一条新记忆待确认'}
+          <div className="flex items-center gap-2 text-xs text-state-waiting">
+            <AlertTriangle className="size-4"/>{item.supersedes_id ? '与已保存的记忆有冲突，需要确认保留哪一条。' : '一条新记忆待确认'}
           </div>
           <div className={cn('grid gap-2.5', item.supersedes_id && 'sm:grid-cols-2')}>
             {item.supersedes_id && <div className="rounded-xl bg-muted px-3 py-2.5">
@@ -281,7 +280,7 @@ export function MemoryPanel({workspace, onSummary}: {
               <p className="whitespace-pre-wrap wrap-anywhere text-sm">{target?.content ?? '原条目已不可用'}</p>
             </div>}
             <div className="rounded-xl bg-state-waiting-soft px-3 py-2.5">
-              <p className="mb-1 text-xs text-faint">新发现 · v{item.version}</p>
+            <p className="mb-1 text-xs text-faint"><MemorySources workspaceId={workspace.id} memoryId={item.id} candidate/> · v{item.version}</p>
               <p className="whitespace-pre-wrap wrap-anywhere text-sm">{item.content}</p>
             </div>
           </div>
@@ -308,7 +307,7 @@ export function MemoryPanel({workspace, onSummary}: {
         onDragOver={event => dragOver(event, 'pinned')} onDrop={event => drop(event, true)}
         onDragLeave={event => {if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDropHighlight(null)}}>
         <div className="background-memory-lane-title">
-          <h3>钉住</h3><span>优先随新任务带上</span>
+          <h3>钉住</h3><span>优先随新任务带上，排在最前</span>
           <span className="ml-auto tabular-nums">{pinned.length + pinnedOverflow.length} 条</span>
         </div>
         <div className="background-memory-drop-slot" aria-hidden/>
@@ -334,29 +333,5 @@ export function MemoryPanel({workspace, onSummary}: {
       </div>
     </>}
 
-    <details className="pt-1">
-      <summary className="cursor-pointer text-xs font-medium text-muted-foreground">检索现有材料</summary>
-      <form className="mt-3 flex gap-2" onSubmit={event => {
-        event.preventDefault()
-        if (searching || !searchQuery.trim()) return
-        setSearching(true)
-        setSearchError(null)
-        void memoryApi.search(workspace.id, {query: searchQuery.trim(), limit: 20}).then(result => setSearchHits(result.hits))
-          .catch(reason => setSearchError(reason instanceof Error ? reason.message : '检索失败')).finally(() => setSearching(false))
-      }}>
-        <Input value={searchQuery} placeholder="检索记忆与对话摘要" aria-label="检索内容" onChange={event => setSearchQuery(event.target.value)}/>
-        <Button type="submit" size="icon-sm" variant="secondary" disabled={searching || !searchQuery.trim()} aria-label="检索">
-          {searching ? <Loader2 className="animate-spin"/> : <Search/>}
-        </Button>
-      </form>
-      {searchError && <p role="alert" className="mt-2 text-sm text-state-failed">{searchError}</p>}
-      {searchHits != null && <ul className="mt-2 space-y-2">
-        {searchHits.length === 0 && <li className="text-sm text-muted-foreground">没有命中</li>}
-        {searchHits.map(hit => <li key={`${hit.source_type}:${hit.source_id}`} className="rounded-md bg-background p-2 text-sm">
-          <strong>{hit.title || '来源片段'}</strong>{hit.stale && <span className="ml-2 text-xs text-state-waiting">已过期</span>}
-          <p className="wrap-anywhere text-muted-foreground">{hit.snippet}</p>
-        </li>)}
-      </ul>}
-    </details>
   </section>
 }

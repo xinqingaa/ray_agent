@@ -16,6 +16,7 @@ from typing import Callable, List, Literal, Optional
 from app.application.errors.exceptions import BadRequestError, ConflictError, NotFoundError
 from app.application.errors.workspace_files import app_error
 from app.application.services.background_jobs import JobContext, cleanup_handler
+from app.application.services.document_index_service import retire_document_binding
 from app.application.services.folder_grants import FolderGrants
 from app.application.services.folder_policy import FolderPolicy
 from app.application.services.write_leases import lease_details
@@ -375,6 +376,8 @@ class WorkspaceService:
                                        marker_writable=writable)
                     root_id = root.root_id
                 else:
+                    if not same_folder(bound, inspection, self._install_id):
+                        await retire_document_binding(uow, workspace.id)
                     await uow.root.rebind_folder(bound.ref.root_id, location=inspection.path, dev=inspection.dev,
                                                  ino=inspection.ino, marker_writable=writable, checked_at=utc_now())
                     root_id = bound.ref.root_id
@@ -387,6 +390,11 @@ class WorkspaceService:
             raise
         if bound is not None and bound.dev is not None and (bound.dev, bound.ino) != (inspection.dev, inspection.ino):
             await self._folders.remove_marker(bound.location, bound.dev, bound.ino, self._install_id, workspace.id)
+        from app.application.services.document_index_scheduler import get_document_index_scheduler
+        try:
+            get_document_index_scheduler().notify(workspace.id)
+        except RuntimeError:
+            pass
 
     def _conflict(self, inspection: FolderInspection, workspace: Workspace, bound: RootRecord) -> OpenResult:
         now = time.monotonic()

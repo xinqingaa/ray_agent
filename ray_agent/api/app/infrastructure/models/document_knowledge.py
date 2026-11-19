@@ -15,6 +15,8 @@ from ...domain.models.document_knowledge import (
     DocumentRecord,
     DocumentRevision,
     IndexPublication,
+    IndexPolicy,
+    IndexScope,
 )
 
 
@@ -25,6 +27,7 @@ class DocumentModel(Base):
     workspace_id: Mapped[str] = mapped_column(String(128), nullable=False)
     relative_path: Mapped[str] = mapped_column(Text, nullable=False)
     current_revision: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    source_epoch: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     status: Mapped[str] = mapped_column(String(32), nullable=False)
     format: Mapped[str] = mapped_column(String(32), nullable=False)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, nullable=False, default=utc_now)
@@ -34,14 +37,14 @@ class DocumentModel(Base):
     def from_domain(cls, doc: DocumentRecord) -> "DocumentModel":
         return cls(
             id=doc.id, workspace_id=doc.workspace_id, relative_path=doc.relative_path,
-            current_revision=doc.current_revision, status=doc.status.value, format=doc.format.value,
+            current_revision=doc.current_revision, source_epoch=doc.source_epoch, status=doc.status.value, format=doc.format.value,
             created_at=doc.created_at, updated_at=doc.updated_at,
         )
 
     def to_domain(self) -> DocumentRecord:
         return DocumentRecord(
             id=self.id, workspace_id=self.workspace_id, relative_path=self.relative_path,
-            current_revision=self.current_revision, status=DocumentIndexStatus(self.status),
+            current_revision=self.current_revision, source_epoch=self.source_epoch, status=DocumentIndexStatus(self.status),
             format=DocumentFormat(self.format), created_at=self.created_at, updated_at=self.updated_at,
         )
 
@@ -53,10 +56,12 @@ class DocumentRevisionModel(Base):
     document_id: Mapped[str] = mapped_column(String(128), nullable=False)
     workspace_id: Mapped[str] = mapped_column(String(128), nullable=False)
     revision: Mapped[int] = mapped_column(Integer, nullable=False)
+    source_epoch: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     relative_path: Mapped[str] = mapped_column(Text, nullable=False)
     content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     size: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     modified_ns: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    page_count: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     status: Mapped[str] = mapped_column(String(32), nullable=False)
     format: Mapped[str] = mapped_column(String(32), nullable=False)
     parse_config: Mapped[str] = mapped_column(String(64), nullable=False)
@@ -75,8 +80,8 @@ class DocumentRevisionModel(Base):
     def to_domain(self) -> DocumentRevision:
         return DocumentRevision(
             id=self.id, document_id=self.document_id, workspace_id=self.workspace_id,
-            revision=self.revision, relative_path=self.relative_path, content_hash=self.content_hash,
-            size=self.size, modified_ns=self.modified_ns, status=DocumentIndexStatus(self.status),
+            revision=self.revision, source_epoch=self.source_epoch, relative_path=self.relative_path, content_hash=self.content_hash,
+            size=self.size, modified_ns=self.modified_ns, page_count=self.page_count, status=DocumentIndexStatus(self.status),
             format=DocumentFormat(self.format), parse_config=self.parse_config,
             chunk_config=self.chunk_config, staging_object_id=self.staging_object_id,
             error_message=self.error_message, component_needed=self.component_needed,
@@ -147,6 +152,10 @@ class IndexPublicationModel(Base):
     vector_generation: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     vector_table_version: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     semantic_operation_id: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    scan_operation_id: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    policy: Mapped[Optional[dict[str, Any]]] = mapped_column(JSON, nullable=True)
+    scan: Mapped[Optional[dict[str, Any]]] = mapped_column(JSON, nullable=True)
+    scope_review_required: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
 
     @classmethod
     def from_domain(cls, pub: IndexPublication) -> "IndexPublicationModel":
@@ -159,4 +168,8 @@ class IndexPublicationModel(Base):
             last_error=self.last_error, embedding_config=self.embedding_config,
             vector_generation=self.vector_generation, vector_table_version=self.vector_table_version,
             semantic_operation_id=self.semantic_operation_id,
+            scan_operation_id=self.scan_operation_id,
+            policy=IndexPolicy.model_validate(self.policy or {}),
+            scan=IndexScope.model_validate(self.scan or {}),
+            scope_review_required=self.scope_review_required,
         )

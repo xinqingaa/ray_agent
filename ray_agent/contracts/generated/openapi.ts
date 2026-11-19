@@ -1924,6 +1924,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/workspaces/{workspace_id}/search/sources/{source_type}/{source_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 按版本读回检索来源 */
+        get: operations["read_source_api_workspaces__workspace_id__search_sources__source_type___source_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/runs/{run_id}/context-manifest": {
         parameters: {
             query?: never;
@@ -1978,6 +1995,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/workspaces/{workspace_id}/documents/page": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Page Documents */
+        get: operations["page_documents_api_workspaces__workspace_id__documents_page_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/documents/policy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Set Policy */
+        put: operations["set_policy_api_workspaces__workspace_id__documents_policy_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workspaces/{workspace_id}/documents/retry": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Retry Documents */
+        post: operations["retry_documents_api_workspaces__workspace_id__documents_retry_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/workspaces/{workspace_id}/documents/sync": {
         parameters: {
             query?: never;
@@ -2002,7 +2070,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** 读回已发布文件片段原文 */
+        /** 按版本读回文件来源 */
         get: operations["read_document_chunk_api_workspaces__workspace_id__documents_chunks__chunk_id__get"];
         put?: never;
         post?: never;
@@ -2671,6 +2739,8 @@ export interface components {
             /** Reasoning */
             reasoning?: string | null;
             skill?: components["schemas"]["SkillSelection"] | null;
+            /** Knowledge References */
+            knowledge_references?: components["schemas"]["KnowledgeReference"][];
             /**
              * Image Mode
              * @default auto
@@ -3035,6 +3105,12 @@ export interface components {
             resident_memories: components["schemas"]["ResidentMemoryView"][];
             /** Retrieval Hits */
             retrieval_hits: components["schemas"]["SearchHitView"][];
+            /** Explicit Hits */
+            explicit_hits: components["schemas"]["SearchHitView"][];
+            /** Inactive Document Hits */
+            inactive_document_hits: components["schemas"]["SearchHitView"][];
+            /** Citation Sources */
+            citation_sources: components["schemas"]["KnowledgeReference"][];
             /** Omissions */
             omissions: components["schemas"]["ContextOmissionView"][];
             /** Readable Summary Sources */
@@ -3167,15 +3243,57 @@ export interface components {
             path: string;
         };
         /**
+         * DocumentFormat
+         * @enum {string}
+         */
+        DocumentFormat: "text" | "markdown" | "code" | "json" | "html" | "pdf" | "docx" | "pptx" | "xlsx" | "csv" | "tsv" | "image" | "unsupported";
+        /**
          * DocumentIndexStatus
          * @description 界面与 API 可见的索引状态；扫描件在缺 OCR 时停在 pending_component。
          * @enum {string}
          */
-        DocumentIndexStatus: "registered" | "pending_parse" | "parsing" | "pending_component" | "indexing" | "searchable" | "failed" | "withdrawn";
+        DocumentIndexStatus: "registered" | "pending_parse" | "parsing" | "pending_component" | "indexing" | "searchable" | "failed" | "withdrawn" | "excluded";
+        /** DocumentLocator */
+        DocumentLocator: {
+            /** Page */
+            page?: number | null;
+            /** Slide */
+            slide?: number | null;
+            /** Block Ordinal */
+            block_ordinal?: number | null;
+            /** Block */
+            block?: number | null;
+            /** Table */
+            table?: number | null;
+            /** Heading */
+            heading?: string | null;
+            /** Line Start */
+            line_start?: number | null;
+            /** Line End */
+            line_end?: number | null;
+            /** Sheet */
+            sheet?: string | null;
+            /** Cell Range */
+            cell_range?: string | null;
+            /** Rows */
+            rows?: number[] | null;
+            /** Column Start */
+            column_start?: number | null;
+        };
+        /** DocumentPage */
+        DocumentPage: {
+            /** Items */
+            items: components["schemas"]["DocumentView"][];
+            /** Next After */
+            next_after?: string | null;
+        };
         /** DocumentSourceView */
         DocumentSourceView: {
-            /** Source Type */
-            source_type: string;
+            /**
+             * Source Type
+             * @constant
+             */
+            source_type: "document_chunk";
             /** Source Id */
             source_id: string;
             /** Document Id */
@@ -3188,12 +3306,18 @@ export interface components {
             title: string;
             /** Body */
             body: string;
-            /** Locator */
-            locator: {
-                [key: string]: unknown;
-            };
+            locator: components["schemas"]["DocumentLocator"];
             /** Stale */
             stale: boolean;
+            format: components["schemas"]["DocumentFormat"];
+            /** Root Id */
+            root_id: string;
+            /** Current Revision */
+            current_revision: number;
+            /** Preview Revision */
+            preview_revision: string | null;
+            /** Cells */
+            cells: string[][] | null;
         };
         /** DocumentView */
         DocumentView: {
@@ -3208,6 +3332,14 @@ export interface components {
             format: string;
             /** Updated At */
             updated_at: number;
+            /** Size */
+            size: number | null;
+            /** Page Count */
+            page_count: number | null;
+            /** Error Message */
+            error_message: string | null;
+            /** Component Needed */
+            component_needed: string | null;
         };
         /** DoneEventData */
         DoneEventData: {
@@ -3604,29 +3736,137 @@ export interface components {
             /** Expected Version */
             expected_version?: string | null;
         };
+        /** IndexDirectorySize */
+        IndexDirectorySize: {
+            /**
+             * Files
+             * @default 0
+             */
+            files: number;
+            /**
+             * Bytes
+             * @default 0
+             */
+            bytes: number;
+        };
+        /** IndexPolicy */
+        IndexPolicy: {
+            /**
+             * Version
+             * @default 0
+             */
+            version: number;
+            /**
+             * Paused
+             * @default false
+             */
+            paused: boolean;
+            /** Excluded Directories */
+            excluded_directories?: string[];
+            /**
+             * Scope Confirmed
+             * @default false
+             */
+            scope_confirmed: boolean;
+        };
+        /** IndexPolicyRequest */
+        IndexPolicyRequest: {
+            /** Version */
+            version: number;
+            /** Paused */
+            paused: boolean;
+            /** Excluded Directories */
+            excluded_directories: components["schemas"]["RelativePath"][];
+            /** Scope Confirmed */
+            scope_confirmed: boolean;
+        };
+        /** IndexScope */
+        IndexScope: {
+            /**
+             * Files
+             * @default 0
+             */
+            files: number;
+            /**
+             * Bytes
+             * @default 0
+             */
+            bytes: number;
+            /**
+             * Excluded Files
+             * @default 0
+             */
+            excluded_files: number;
+            /**
+             * Excluded Bytes
+             * @default 0
+             */
+            excluded_bytes: number;
+            /** Directories */
+            directories?: string[];
+            /** Directory Sizes */
+            directory_sizes?: {
+                [key: string]: components["schemas"]["IndexDirectorySize"];
+            };
+            /** Excluded Directory Sizes */
+            excluded_directory_sizes?: {
+                [key: string]: components["schemas"]["IndexDirectorySize"];
+            };
+            /**
+             * Truncated
+             * @default false
+             */
+            truncated: boolean;
+        };
         /** IndexSummaryView */
         IndexSummaryView: {
-            /** Workspace Id */
-            workspace_id: string;
-            /** Total */
+            workspace_id: components["schemas"]["WorkspaceId"];
+            /**
+             * Total
+             * @default 0
+             */
             total: number;
-            /** Searchable */
+            /**
+             * Searchable
+             * @default 0
+             */
             searchable: number;
-            /** Pending */
+            /**
+             * Pending
+             * @default 0
+             */
             pending: number;
-            /** Parsing */
+            /**
+             * Parsing
+             * @default 0
+             */
             parsing: number;
-            /** Pending Component */
+            /**
+             * Pending Component
+             * @default 0
+             */
             pending_component: number;
-            /** Failed */
+            /**
+             * Failed
+             * @default 0
+             */
             failed: number;
-            /** Withdrawn */
+            /**
+             * Withdrawn
+             * @default 0
+             */
             withdrawn: number;
-            /** Truncated Scan */
+            /**
+             * Truncated Scan
+             * @default false
+             */
             truncated_scan: boolean;
             /** Active Operation Id */
             active_operation_id: string | null;
-            /** Publication Generation */
+            /**
+             * Publication Generation
+             * @default 0
+             */
             publication_generation: number;
             /** Vector Generation */
             vector_generation: number | null;
@@ -3637,6 +3877,30 @@ export interface components {
              * @default false
              */
             semantic_ready: boolean;
+            /**
+             * Excluded
+             * @default 0
+             */
+            excluded: number;
+            /**
+             * Status
+             * @default idle
+             */
+            status: string;
+            /** Last Error */
+            last_error: string | null;
+            /**
+             * Folder Available
+             * @default true
+             */
+            folder_available: boolean;
+            policy: components["schemas"]["IndexPolicy"];
+            scan: components["schemas"]["IndexScope"];
+            /**
+             * Scope Review Required
+             * @default false
+             */
+            scope_review_required: boolean;
         };
         /** @description 核心进程的一次启动 */
         InstanceId: string;
@@ -3711,6 +3975,14 @@ export interface components {
              * @default 4000
              */
             max_chars: number;
+        };
+        /** KnowledgeReference */
+        KnowledgeReference: {
+            source_type: components["schemas"]["SearchSourceType"];
+            /** Source Id */
+            source_id: string;
+            /** Source Version */
+            source_version: number;
         };
         /**
          * LLMConfigPublic
@@ -4163,6 +4435,8 @@ export interface components {
             /** Attachments */
             attachments: components["schemas"]["File"][];
             skill: components["schemas"]["SkillSelection"] | null;
+            /** Knowledge References */
+            knowledge_references: components["schemas"]["KnowledgeReference"][];
             /**
              * Image Mode
              * @default auto
@@ -4729,6 +5003,10 @@ export interface components {
                 [key: string]: unknown;
             } | null;
         };
+        /** Response[DocumentPage] */
+        Response_DocumentPage_: {
+            data: components["schemas"]["DocumentPage"] | null;
+        };
         /** Response[DocumentSourceView] */
         Response_DocumentSourceView_: {
             data: components["schemas"]["DocumentSourceView"] | null;
@@ -4845,6 +5123,10 @@ export interface components {
         Response_RunChangesResponse_: {
             data: components["schemas"]["RunChangesResponse"] | null;
         };
+        /** Response[SearchHitView] */
+        Response_SearchHitView_: {
+            data: components["schemas"]["SearchHitView"] | null;
+        };
         /** Response[SearchResponse] */
         Response_SearchResponse_: {
             data: components["schemas"]["SearchResponse"] | null;
@@ -4916,6 +5198,13 @@ export interface components {
         Response_list_DocumentView__: {
             /** Data */
             data: components["schemas"]["DocumentView"][] | null;
+        };
+        /** RetryIndexRequest */
+        RetryIndexRequest: {
+            /** Document Id */
+            document_id?: string | null;
+            /** Revision */
+            revision?: number | null;
         };
         /** ReviseRequest */
         ReviseRequest: {
@@ -5381,7 +5670,7 @@ export interface components {
              * Paths
              * @description 省略则全量对照文件夹重扫
              */
-            paths?: string[] | null;
+            paths?: components["schemas"]["RelativePath"][] | null;
         };
         /** TemplateListResponse */
         TemplateListResponse: {
@@ -6626,9 +6915,13 @@ export interface operations {
         parameters: {
             query?: {
                 sheet?: number;
+                sheet_name?: string | null;
                 row?: number;
                 column?: number;
                 offset?: number;
+                page?: number;
+                block?: number | null;
+                table?: number | null;
                 revision?: string | null;
             };
             header?: never;
@@ -9689,6 +9982,41 @@ export interface operations {
             };
         };
     };
+    read_source_api_workspaces__workspace_id__search_sources__source_type___source_id__get: {
+        parameters: {
+            query: {
+                source_version: number;
+            };
+            header?: never;
+            path: {
+                workspace_id: string;
+                source_type: components["schemas"]["SearchSourceType"];
+                source_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_SearchHitView_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     run_context_manifest_api_runs__run_id__context_manifest_get: {
         parameters: {
             query?: never;
@@ -9782,6 +10110,110 @@ export interface operations {
             };
         };
     };
+    page_documents_api_workspaces__workspace_id__documents_page_get: {
+        parameters: {
+            query?: {
+                after?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_DocumentPage_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    set_policy_api_workspaces__workspace_id__documents_policy_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IndexPolicyRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_IndexSummaryView_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    retry_documents_api_workspaces__workspace_id__documents_retry_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                workspace_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RetryIndexRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_OperationView_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     sync_documents_api_workspaces__workspace_id__documents_sync_post: {
         parameters: {
             query?: never;
@@ -9803,7 +10235,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["Response_dict_"];
+                    "application/json": components["schemas"]["Response_OperationView_"];
                 };
             };
             /** @description 结构化错误 */
@@ -9819,7 +10251,9 @@ export interface operations {
     };
     read_document_chunk_api_workspaces__workspace_id__documents_chunks__chunk_id__get: {
         parameters: {
-            query?: never;
+            query?: {
+                version?: number | null;
+            };
             header?: never;
             path: {
                 workspace_id: string;
@@ -10023,9 +10457,13 @@ export interface operations {
                 /** @description 根内相对路径，空串为根本身 */
                 path?: string;
                 sheet?: number;
+                sheet_name?: string | null;
                 row?: number;
                 column?: number;
                 offset?: number;
+                page?: number;
+                block?: number | null;
+                table?: number | null;
                 revision?: string | null;
             };
             header?: never;

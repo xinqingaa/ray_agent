@@ -16,6 +16,7 @@ export interface MarkdownContentProps {
   components?: React.ComponentProps<typeof ReactMarkdown>['components']
   deliveredFiles?: readonly FileView[]
   onDownloadFile?: (file: FileView) => void
+  renderCitation?: (sourceId: string, label: React.ReactNode) => React.ReactNode
 }
 
 /**
@@ -191,20 +192,22 @@ const components: React.ComponentProps<typeof ReactMarkdown>['components'] = {
   a: MarkdownLink,
 }
 
-export function MarkdownContent({ content, className, deliveredFiles, onDownloadFile, components: overrides }: MarkdownContentProps) {
+export function MarkdownContent({ content, className, deliveredFiles, onDownloadFile, renderCitation, components: overrides }: MarkdownContentProps) {
   const normalized = useMemo(() => normalizeAutolinks(content), [content])
 
   return (
     <div className={cn('markdown-content break-words text-sm leading-[1.75]', className)}>
       <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={REHYPE_PLUGINS}
         urlTransform={(url, key) => key === 'href' && deliveredFiles && resolveMessageFileLink(url, deliveredFiles) !== null ? url : defaultUrlTransform(url)}
-        components={{...(deliveredFiles ? {...components, a: ({node, className, href, children, ...props}) => {
-          const file = href ? resolveMessageFileLink(href, deliveredFiles) : null
+        components={{...components, a: ({node, className, href, children, ...props}) => {
+          const citation = href?.match(/^#rayagent-source-([a-zA-Z0-9_-]{1,128})$/)
+          if (citation) return <>{renderCitation ? renderCitation(citation[1], children) : children}</>
+          const file = href && deliveredFiles ? resolveMessageFileLink(href, deliveredFiles) : null
           if (file === 'unavailable') return <span title="此路径没有可用的交付附件">{children}</span>
           if (file) return <button type="button" title={`下载 ${file.filename}`} className={cn('text-signal underline decoration-signal/30 underline-offset-[3px] hover:decoration-signal', className)}
             onClick={() => onDownloadFile ? onDownloadFile(file) : void downloadFile(file.id, file.filename).catch(error => toast.error(error instanceof Error ? error.message : '下载失败'))}>{children}</button>
           return <MarkdownLink node={node} className={className} href={href} {...props}>{children}</MarkdownLink>
-        }} : components), ...overrides}}>
+        }, ...overrides}}>
         {normalized}
       </ReactMarkdown>
     </div>

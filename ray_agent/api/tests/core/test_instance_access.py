@@ -1,5 +1,6 @@
 """实例令牌、资源票据、worker 子命令与启动失败原因。"""
 import sys
+from pathlib import Path
 
 import pytest
 from fastapi import FastAPI, Request
@@ -99,8 +100,9 @@ def test_new_token_revokes_old_token_and_tickets(access_app):
 
 def test_worker_command_uses_explicit_subcommand_when_frozen(monkeypatch):
     from core.workers import worker_command
-    assert worker_command("preview-parse", "a") == [
-        sys.executable, "-m", "app.infrastructure.external.file_preview.worker", "a"]
+    sidecar_entry = Path(__file__).resolve().parents[2] / "sidecar.py"
+    for name in ("preview-parse", "document-parse"):
+        assert worker_command(name, "a") == [sys.executable, str(sidecar_entry), "worker", name, "a"]
     monkeypatch.setattr(sys, "frozen", True, raising=False)
     assert worker_command("preview-parse", "a", "b") == [sys.executable, "worker", "preview-parse", "a", "b"]
     import sidecar

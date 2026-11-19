@@ -26,6 +26,7 @@ export type StreamEvent =
  * 运行身份；一个会话至多一个活动运行
  */
 export type RunId = string;
+export type SearchSourceType = "memory" | "session_summary" | "document_chunk";
 export type ExecutionStatus = "pending" | "running" | "completed" | "failed" | "blocked" | "cancelled";
 /**
  * 工具事件状态类型枚举
@@ -84,6 +85,7 @@ export interface MessageEventData {
   message: string;
   attachments: File[];
   skill: SkillSelection | null;
+  knowledge_references: KnowledgeReference[];
   image_mode: "auto" | "files";
   attempt: number | null;
 }
@@ -111,6 +113,11 @@ export interface File {
 export interface SkillSelection {
   id: string;
   version: string;
+}
+export interface KnowledgeReference {
+  source_type: SearchSourceType;
+  source_id: string;
+  source_version: number;
 }
 /**
  * 标题流式事件

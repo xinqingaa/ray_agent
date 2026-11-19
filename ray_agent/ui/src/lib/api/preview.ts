@@ -7,18 +7,24 @@ type ResourceTicket = components['schemas']['ResourceTicket']
 
 /** 预览对象：附件与交付版本按文件 ID，工作区文件夹里的文件按 root_id 加相对路径。 */
 export type AttachmentSource = {kind: 'attachment'; id: string; filename: string; size?: number | null}
-export type RootSource = {kind: 'root'; rootId: string; path: string; filename: string; size?: number | null}
+export type PreviewLocation = {page?: number; block?: number; table?: number; sheet_name?: string; row?: number; column?: number}
+export type RootSource = {kind: 'root'; rootId: string; path: string; filename: string; size?: number | null
+  location?: PreviewLocation; expectedRevision?: string}
 export type PreviewSource = AttachmentSource | RootSource
 
 export type PreviewCell = {
   text: string; formula?: string | null; uncached?: boolean
   style?: {bold: boolean; italic: boolean; color?: string | null; background?: string | null; align?: 'left' | 'right' | 'center' | null; wrap: boolean; borders: boolean[]} | null
 }
+export type WordBlock = {kind: 'heading' | 'paragraph'; block: number; level?: number; list_type?: 'bullet' | 'number' | null
+  spans: ({text: string; bold?: boolean; italic?: boolean} | {image: string})[]}
+  | {kind: 'table'; table: number; rows: string[][]}
 export type FilePreview = {
-  kind: 'text' | 'markdown' | 'table' | 'image' | 'pdf' | 'unavailable'
+  kind: 'text' | 'markdown' | 'table' | 'image' | 'pdf' | 'docx' | 'unavailable'
   filename: string; revision: string; size: number; reason?: string; partial?: boolean
   content?: string; offset?: number; next_offset?: number | null
   thumbnail?: string; width?: number; height?: number
+  page?: number; page_count?: number; blocks?: WordBlock[]; content_limited?: boolean
   sheets?: string[]; sheet?: number; row?: number; column?: number; rows?: PreviewCell[][]; widths?: number[]
   merges?: {row: number; column: number; rows: number; columns: number}[]
   total_rows?: number | null; total_columns?: number | null

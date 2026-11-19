@@ -9,6 +9,7 @@ from typing import Literal, List, Union, Optional, Any, Dict, Annotated
 from pydantic import field_validator, BaseModel, Field, PrivateAttr
 
 from .clock import utc_now
+from .retrieval import KnowledgeReference
 from .file import File
 from .plan import Plan, Step
 from .plan_acceptance import PlanAcceptance
@@ -77,6 +78,7 @@ class MessageEvent(BaseEvent):
     attachments: List[File] = Field(default_factory=list)  # 附件列表信息
     image_mode: Literal['auto', 'files'] = 'auto'
     skill: SkillSelection | None = None
+    knowledge_references: list[KnowledgeReference] = Field(default_factory=list)
     image_inputs: List[dict] = Field(default_factory=list)  # 用户图片的确定性输入规格
     image_input_note: Optional[str] = None  # 自动文件处理的事实说明，只用于模型上下文
     attempt: Optional[int] = None  # 助手正文对应的本轮模型请求序号；用户消息与交付通知为空

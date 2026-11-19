@@ -29,9 +29,9 @@ export function TaskInspectorTabs({value, workspace, onChange, onClose, onAction
   </div>
 }
 
-export function useTaskInspector(defaultOpen: boolean) {
+export function useTaskInspector(defaultOpen: boolean, openOnEntry = false) {
   const floating = useIsMobile(INSPECTOR_FLOAT_BREAKPOINT)
-  const [open, setOpen] = useState<boolean | null>(null)
+  const [open, setOpen] = useState<boolean | null>(openOnEntry ? true : null)
   return {floating, open: open ?? (defaultOpen && !floating), setOpen}
 }
 

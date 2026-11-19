@@ -5,9 +5,9 @@ import {sendRecoverably} from '@/lib/send-recovery'
 import {ApiError} from '@/lib/api/fetch'
 import {configApi} from '@/lib/api/config'
 import {sessionApi} from '@/lib/api/session'
-import type {FileInfo} from '@/lib/api/types'
+import type {FileInfo, KnowledgeReference} from '@/lib/api/types'
 
-export type StartOptions = {mode?: 'plan' | 'normal'; model?: string; reasoning?: string; skill?: {id: string; version: string}; image_mode?: 'auto' | 'files'}
+export type StartOptions = {mode?: 'plan' | 'normal'; model?: string; reasoning?: string; skill?: {id: string; version: string}; image_mode?: 'auto' | 'files'; knowledge_references?: KnowledgeReference[]}
 
 /**
  * 首页输入发起一段新对话：草稿作用域决定会话归属（独立首页与各工作区首页各一份草稿），
@@ -49,11 +49,13 @@ export function useStartTask(scope: string, workspaceId: string | null, onStarte
         mode: options?.mode ?? 'normal',
         image_mode: options?.image_mode ?? 'auto',
         skill: options?.skill,
+        knowledge_references: options?.knowledge_references,
         ...(options?.model && options?.reasoning ? {model: options.model, reasoning: options.reasoning} : {}),
       })
       onStarted(id)
     } catch (err) {
-      if (!(err instanceof ApiError) || err.details.section !== 'model_connection') toast.error(err instanceof Error ? err.message : '创建会话失败')
+      if (!(err instanceof ApiError) || !['model_connection', 'knowledge_reference'].includes(String(err.details.section)))
+        toast.error(err instanceof Error ? err.message : '创建会话失败')
       setSending(false)
       throw err
     }

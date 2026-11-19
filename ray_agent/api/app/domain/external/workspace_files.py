@@ -94,6 +94,10 @@ class WorkspaceFileError(Exception):
 
 
 class WorkspaceFiles(Protocol):
+    def for_binding(self, binding: RootBinding) -> "WorkspaceFiles":
+        """固定已由调用方事务核对的根身份，以免 IO 再读取登记。"""
+        ...
+
     async def stat(self, path: RootedPath, *, with_hash: bool = False) -> FileEntry:
         ...
 
@@ -131,6 +135,6 @@ class WorkspaceFiles(Protocol):
     async def scan(self, path: RootedPath) -> ScanSummary:
         ...
 
-    async def snapshot(self, path: RootedPath) -> FolderSnapshot:
+    async def snapshot(self, path: RootedPath, *, exclude: frozenset[str] = frozenset()) -> FolderSnapshot:
         """目录树的文件快照，规模受扫描上限约束；用于定期重扫发现外部变更。"""
         ...

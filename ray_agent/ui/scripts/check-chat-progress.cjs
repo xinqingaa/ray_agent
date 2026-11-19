@@ -15,7 +15,9 @@ function load(relative) {
   new Function('require', 'module', 'exports', code)(name => {
     if (name.startsWith('@/') || name.startsWith('.')) {
       const base = name.startsWith('@/') ? path.join(root, 'src', name.slice(2)) : path.resolve(path.dirname(filename), name);
-      return load(path.relative(root, ['.ts', '.tsx'].map(ext => base + ext).find(f => fs.existsSync(f))));
+      const file = ['.ts', '.tsx', '/index.ts', '/index.tsx'].map(ext => base + ext).find(f => fs.existsSync(f));
+      if (!file) throw new Error(`找不到模块 ${name}，来源 ${relative}`);
+      return load(path.relative(root, file));
     }
     return req(name);
   }, m, m.exports);

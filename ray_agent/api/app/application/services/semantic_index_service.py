@@ -92,6 +92,8 @@ class SemanticIndexService:
             return None
         async with self._uow_factory() as uow:
             pub = await uow.document.get_publication(workspace_id) or IndexPublication(workspace_id=workspace_id)
+            if pub.policy.paused or pub.scope_review_required:
+                return None
             if pub.semantic_operation_id:
                 existing = await uow.job.get(pub.semantic_operation_id)
                 if existing is not None and not existing.status.terminal:
@@ -134,7 +136,8 @@ class SemanticIndexService:
             workspace_ids: set[str] = set()
             for rev in revisions:
                 doc = await uow.document.get(rev.document_id)
-                if doc is None or doc.current_revision != rev.revision:
+                if (doc is None or doc.current_revision != rev.revision or doc.source_epoch != rev.source_epoch
+                        or doc.status is not DocumentIndexStatus.PENDING_COMPONENT):
                     continue
                 rev.status = DocumentIndexStatus.PENDING_PARSE
                 rev.component_needed = None
@@ -172,6 +175,9 @@ class SemanticIndexService:
             if pub is None:
                 await self._clear_semantic(workspace_id, context.job.operation_id)
                 return {"status": "skipped", "reason": "no_publication"}
+            if pub.policy.paused or pub.scope_review_required:
+                await self._clear_semantic(workspace_id, context.job.operation_id)
+                return {"status": "skipped", "reason": "index_paused"}
 
             generation = pub.generation
             embedding_config = pub.embedding_config or EMBEDDING_CONFIG_FINGERPRINT
@@ -185,6 +191,11 @@ class SemanticIndexService:
             total = len(chunks)
             for start in range(0, total, SEMANTIC_INDEX_CHUNK_BATCH):
                 await context.check_cancel()
+                async with self._read_uow_factory() as uow:
+                    policy = await uow.document.get_publication(workspace_id)
+                if not policy or policy.policy.paused or policy.scope_review_required:
+                    await self._clear_semantic(workspace_id, context.job.operation_id)
+                    return {"status": "skipped", "reason": "index_paused"}
                 batch = chunks[start:start + SEMANTIC_INDEX_CHUNK_BATCH]
                 await context.progress(phase=f"语义索引 {start}/{total}", completed=start, total=total)
                 texts: list[str] = []
@@ -228,9 +239,15 @@ class SemanticIndexService:
             table_version = store.replace_generation(generation, rows)
 
             async with self._uow_factory() as uow:
+                await context.check_cancel_in(uow)
                 current = await uow.document.get_publication(workspace_id)
                 if current is None or current.semantic_operation_id != context.job.operation_id:
                     raise JobSuperseded("语义索引操作已被取代")
+                if current.policy.paused or current.scope_review_required:
+                    current.semantic_operation_id = None
+                    current.status = "idle"
+                    await uow.document.save_publication(current)
+                    return {"status": "skipped", "reason": "index_paused"}
                 # 若 FTS generation 已前进，只发布我们写入时的代次；下次再增量
                 current.embedding_config = embedding_config
                 current.vector_generation = generation

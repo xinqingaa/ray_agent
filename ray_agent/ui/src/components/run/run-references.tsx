@@ -3,7 +3,10 @@ import {ChevronRight, Quote, Loader2, Layers, Pin, Search} from '@/components/ui
 import {Link} from '@/lib/navigation'
 import {workspaceSessionHref} from '@/lib/workspace-route'
 import {memoryApi} from '@/lib/api/memory'
-import type {ContextManifestView} from '@/lib/api/types'
+import type {ContextManifestView, KnowledgeReference} from '@/lib/api/types'
+import type {DocumentLocator} from '@/lib/api/documents'
+import {sourceLocation} from '@/lib/document-location'
+import {referenceKey} from '@/lib/drafts'
 import {Button} from '@/components/ui/button'
 import {MemorySources} from '@/components/workspace/memory-sources'
 
@@ -22,29 +25,32 @@ function sourceLabel(type: string) {
 }
 
 /** 助手最终回复下方：展开查看该次运行注入的工作方式、常驻记忆与初始召回。 */
-type RunReferencesProps = {runId: string; workspaceId?: string; memoryNotice?: ReactNode; actions?: ReactNode; metrics?: ReactNode}
+type RunReferencesProps = {runId: string; workspaceId?: string; memoryNotice?: ReactNode; actions?: ReactNode; metrics?: ReactNode
+  sourceRefresh?: number; onOpenSource?: (ref: KnowledgeReference) => void}
 
 export function RunReferences(props: RunReferencesProps) {
   return <RunReferencesContent key={props.runId} {...props}/>
 }
 
-function RunReferencesContent({runId, workspaceId, memoryNotice, actions, metrics}: RunReferencesProps) {
+function RunReferencesContent({runId, workspaceId, memoryNotice, actions, metrics, onOpenSource, sourceRefresh}: RunReferencesProps) {
   const detailsId = useId()
   const [open, setOpen] = useState(false)
   const [attempt, setAttempt] = useState(0)
-  const [manifest, setManifest] = useState<ContextManifestView | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const key = `${sourceRefresh ?? 0}:${attempt}`
+  const [received, setReceived] = useState<{key: string; manifest?: ContextManifestView; error?: string}>()
+  const manifest = received?.key === key ? received.manifest : undefined
+  const error = received?.key === key ? received.error : undefined
   const [memoryOpen, setMemoryOpen] = useState<string | null>(null)
-  const loading = attempt > 0 && manifest === null && error === null
+  const loading = attempt > 0 && !manifest && !error
 
   useEffect(() => {
-    if (attempt === 0) return
+    if (!open || attempt === 0 || received?.key === key) return
     let cancelled = false
     void memoryApi.contextManifest(runId)
-      .then(data => {if (!cancelled) setManifest(data)})
-      .catch(reason => {if (!cancelled) setError(reason instanceof Error ? reason.message : '读取失败')})
+      .then(data => {if (!cancelled) setReceived({key, manifest: data})})
+      .catch(reason => {if (!cancelled) setReceived({key, error: reason instanceof Error ? reason.message : '读取失败'})})
     return () => {cancelled = true}
-  }, [attempt, runId])
+  }, [attempt, key, open, received?.key, runId])
 
   return (
     <div className="text-meta">
@@ -71,7 +77,7 @@ function RunReferencesContent({runId, workspaceId, memoryNotice, actions, metric
             </p>
           )}
           {error && <p role="alert" className="text-state-failed">{error} <Button size="xs" variant="ghost" onClick={() => {
-            setError(null); setAttempt(value => value + 1)
+            setAttempt(value => value + 1)
           }}>重试</Button></p>}
           {manifest && (
             <div className="reference-grid grid gap-3">
@@ -109,28 +115,36 @@ function RunReferencesContent({runId, workspaceId, memoryNotice, actions, metric
                   </ul>
                 </section>
               )}
-              {manifest.retrieval_hits.length > 0 && (
-                <section className="space-y-1.5">
-                  <h4 className="flex items-center gap-1.5 text-xs font-medium text-foreground"><Search className="size-3.5"/>检索命中</h4>
+              {([{label: '引用材料', hits: manifest.explicit_hits ?? []},
+                 {label: '检索命中', hits: manifest.retrieval_hits},
+                 {label: '已从后续请求移除', hits: manifest.inactive_document_hits ?? []}]).filter(section => section.hits.length > 0).map(section => (
+                <section key={section.label} className="space-y-1.5">
+                  <h4 className="flex items-center gap-1.5 text-xs font-medium text-foreground"><Search className="size-3.5"/>{section.label}</h4>
                   <ul className="space-y-1">
-                    {manifest.retrieval_hits.map(hit => {
+                    {section.hits.map(hit => {
                       const seq = hit.payload.source_seq
                       const source = workspaceId && hit.source_type === 'session_summary' &&
                         manifest.readable_summary_sources?.includes(hit.source_id)
                         ? `${workspaceSessionHref(workspaceId, hit.source_id)}${typeof seq === 'number' && seq > 0 ? `#event-${seq}` : ''}`
                         : null
                       return (
-                        <li key={`${hit.source_type}:${hit.source_id}`} className="rounded-md border px-2 py-1.5">
+                        <li key={referenceKey(hit)} className="rounded-md border px-2 py-1.5">
                           <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs text-faint">
                             <span>{sourceLabel(hit.source_type)}</span>
                             {typeof hit.payload?.relative_path === 'string' && (
                               <span className="font-mono">{hit.payload.relative_path as string}</span>
                             )}
                             <span className="tabular-nums">v{hit.source_version}</span>
-                            {hit.stale && <span className="text-state-waiting">已过期</span>}
+                            {hit.stale && <span className="text-state-waiting">历史版本</span>}
+                            {hit.source_type === 'document_chunk' && sourceLocation(hit.payload.locator as DocumentLocator | undefined)}
                           </div>
                           <p className="mt-0.5 font-medium text-foreground">{hit.title || hit.snippet.slice(0, 80)}</p>
-                          {hit.title && <p className="mt-0.5 text-muted-foreground">{hit.snippet}</p>}
+                          {hit.title && hit.snippet && <p className="mt-0.5 text-muted-foreground">{hit.snippet}</p>}
+                          {hit.source_type === 'document_chunk' && (typeof hit.payload.unreadable_reason === 'string'
+                            ? <p className="text-state-waiting">{hit.payload.unreadable_reason}</p>
+                            : onOpenSource && <Button variant="ghost" size="xs" onClick={() => onOpenSource(hit)}>
+                              {hit.stale ? '查看历史片段' : '打开原文'}
+                            </Button>)}
                           {hit.source_type === 'session_summary' && (source
                             ? <Link className="reply-foot-action" href={source}>来源对话</Link>
                             : <p className="text-faint">来源对话已不可读</p>)}
@@ -145,7 +159,7 @@ function RunReferencesContent({runId, workspaceId, memoryNotice, actions, metric
                     })}
                   </ul>
                 </section>
-              )}
+              ))}
               {manifest.omissions.length > 0 && (
                 <section className="space-y-1">
                   <h4 className="text-xs font-medium text-foreground">未采用</h4>
@@ -159,6 +173,8 @@ function RunReferencesContent({runId, workspaceId, memoryNotice, actions, metric
               {!manifest.instruction_body?.trim()
                 && manifest.resident_memories.length === 0
                 && manifest.retrieval_hits.length === 0
+                && !manifest.explicit_hits?.length
+                && !manifest.inactive_document_hits?.length
                 && manifest.omissions.length === 0 && (
                 <p className="text-muted-foreground">这次运行没有附加工作区背景。</p>
               )}

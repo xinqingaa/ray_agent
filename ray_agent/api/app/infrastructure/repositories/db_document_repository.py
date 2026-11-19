@@ -1,7 +1,7 @@
 """文档知识仓库：权威元数据与片段；FTS 发布仍走 search 端口。"""
 from typing import Optional, Sequence
 
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import and_, delete, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.models.document_knowledge import (
@@ -47,6 +47,7 @@ class DBDocumentRepository(DocumentRepository):
         else:
             existing.relative_path = document.relative_path
             existing.current_revision = document.current_revision
+            existing.source_epoch = document.source_epoch
             existing.status = document.status.value
             existing.format = document.format.value
             existing.updated_at = document.updated_at
@@ -58,6 +59,20 @@ class DBDocumentRepository(DocumentRepository):
             .order_by(DocumentModel.relative_path)
         )).scalars().all()
         return [row.to_domain() for row in rows]
+
+    async def page_workspace(
+            self, workspace_id: str, *, after: str | None, limit: int,
+    ) -> list[tuple[DocumentRecord, DocumentRevision | None]]:
+        stmt = select(DocumentModel, DocumentRevisionModel).outerjoin(
+            DocumentRevisionModel,
+            and_(DocumentRevisionModel.document_id == DocumentModel.id,
+                 DocumentRevisionModel.revision == DocumentModel.current_revision),
+        ).where(DocumentModel.workspace_id == workspace_id,
+                DocumentModel.status.not_in((DocumentIndexStatus.WITHDRAWN.value, DocumentIndexStatus.EXCLUDED.value)))
+        if after is not None:
+            stmt = stmt.where(DocumentModel.relative_path > after)
+        rows = (await self.db_session.execute(stmt.order_by(DocumentModel.relative_path).limit(limit))).all()
+        return [(doc.to_domain(), rev.to_domain() if rev else None) for doc, rev in rows]
 
     async def add_revision(self, revision: DocumentRevision) -> None:
         self.db_session.add(DocumentRevisionModel.from_domain(revision))
@@ -82,8 +97,8 @@ class DBDocumentRepository(DocumentRepository):
             self.db_session.add(DocumentRevisionModel.from_domain(revision))
         else:
             for field in ("status", "format", "parse_config", "chunk_config", "staging_object_id",
-                          "error_message", "component_needed", "updated_at", "published_at",
-                          "content_hash", "size", "modified_ns", "relative_path"):
+                          "error_message", "component_needed", "updated_at", "published_at", "page_count",
+                          "content_hash", "size", "modified_ns", "relative_path", "source_epoch"):
                 setattr(existing, field, getattr(revision, field).value
                         if field in ("status", "format") else getattr(revision, field))
         await self.db_session.flush()
@@ -92,7 +107,11 @@ class DBDocumentRepository(DocumentRepository):
             self, workspace_id: str, statuses: Sequence[DocumentIndexStatus], *, limit: int = 50,
     ) -> list[DocumentRevision]:
         rows = (await self.db_session.execute(
-            select(DocumentRevisionModel).where(
+            select(DocumentRevisionModel).join(
+                DocumentModel, and_(DocumentModel.id == DocumentRevisionModel.document_id,
+                                    DocumentModel.current_revision == DocumentRevisionModel.revision,
+                                    DocumentModel.source_epoch == DocumentRevisionModel.source_epoch),
+            ).where(
                 DocumentRevisionModel.workspace_id == workspace_id,
                 DocumentRevisionModel.status.in_([s.value for s in statuses]),
             ).order_by(DocumentRevisionModel.created_at).limit(limit)
@@ -183,6 +202,10 @@ class DBDocumentRepository(DocumentRepository):
             existing.vector_generation = publication.vector_generation
             existing.vector_table_version = publication.vector_table_version
             existing.semantic_operation_id = publication.semantic_operation_id
+            existing.scan_operation_id = publication.scan_operation_id
+            existing.policy = publication.policy.model_dump(mode="json")
+            existing.scan = publication.scan.model_dump(mode="json")
+            existing.scope_review_required = publication.scope_review_required
         await self.db_session.flush()
 
     async def list_published_chunks(self, workspace_id: str) -> list[DocumentChunk]:
@@ -209,18 +232,23 @@ class DBDocumentRepository(DocumentRepository):
         generation = pub.generation if pub else 0
         return WorkspaceIndexSummary(
             workspace_id=workspace_id,
-            total=sum(counts.values()),
+            total=sum(counts.values()) - counts.get(DocumentIndexStatus.WITHDRAWN.value, 0)
+            - counts.get(DocumentIndexStatus.EXCLUDED.value, 0),
             searchable=counts.get(DocumentIndexStatus.SEARCHABLE.value, 0),
             pending=sum(counts.get(s.value, 0) for s in pending_statuses),
             parsing=counts.get(DocumentIndexStatus.PARSING.value, 0),
             pending_component=counts.get(DocumentIndexStatus.PENDING_COMPONENT.value, 0),
             failed=counts.get(DocumentIndexStatus.FAILED.value, 0),
             withdrawn=counts.get(DocumentIndexStatus.WITHDRAWN.value, 0),
-            active_operation_id=pub.active_operation_id if pub else None,
+            excluded=counts.get(DocumentIndexStatus.EXCLUDED.value, 0),
+            truncated_scan=bool(pub and pub.scan.truncated),
+            **(dict(policy=pub.policy, scan=pub.scan, status=pub.status, last_error=pub.last_error,
+                    scope_review_required=pub.scope_review_required) if pub else {}),
+            active_operation_id=(pub.scan_operation_id or pub.active_operation_id) if pub else None,
             publication_generation=generation,
             vector_generation=vector_gen,
             embedding_config=pub.embedding_config if pub else None,
-            semantic_ready=bool(vector_gen is not None and vector_gen == generation and generation > 0),
+            semantic_ready=bool(pub and pub.vector_table_version is not None and vector_gen == generation and generation > 0),
         )
 
     async def delete_workspace(self, workspace_id: str) -> None:

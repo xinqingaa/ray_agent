@@ -676,7 +676,7 @@ class AgentTaskRunner(TaskRunner):
             await self._a2a_tool.gateway.discover(agent_id)
         revised = False
         refresh = getattr(self, "_context_refresh", None)
-        if stored.get("system_prompt") and refresh is not None and stored.get("project_prompt"):
+        if stored.get("system_prompt") and refresh is not None and "project_prompt" in stored:
             # 续接沿用冻结的背景；已撤回、被替代或随会话删除的内容优先于冻结引用，先从背景里移除
             refreshed = await refresh(self._run_id)
             frozen = stored["project_prompt"]
@@ -706,11 +706,14 @@ class AgentTaskRunner(TaskRunner):
 
     @staticmethod
     def _context_revision(stored, refreshed, index):
-        system = stored["system_prompt"].replace(stored["project_prompt"], refreshed, 1)
+        frozen = stored["project_prompt"]
+        system = stored["system_prompt"].replace(frozen, refreshed, 1) if frozen else stored["system_prompt"] + refreshed
+        reason = ("workspace_sources_changed" if "<user_selected_sources>" in refreshed
+                  and "<user_selected_sources>" not in frozen else "unavailable_after_freeze")
         return {**stored, "project_prompt": refreshed, "system_prompt": system,
                 "initial_system_prompt": stored.get("initial_system_prompt", stored["system_prompt"]),
                 "context_revisions": [*(stored.get("context_revisions") or []),
-                                      {"from_turn": index, "reason": "unavailable_after_freeze", "system_prompt": system}]}
+                                      {"from_turn": index, "reason": reason, "system_prompt": system}]}
 
     async def _refresh_context(self, index: int) -> None:
         refresh = getattr(self, "_context_refresh", None)
@@ -726,7 +729,7 @@ class AgentTaskRunner(TaskRunner):
                 raise _RunClosed()
             stored = run.config_snapshot or {}
             frozen = stored.get("project_prompt")
-            if frozen and refreshed != frozen:
+            if frozen is not None and refreshed != frozen:
                 if frozen not in stored.get("system_prompt", ""):
                     raise RuntimeError("冻结背景与系统提示不一致，无法安全更新")
                 stored = self._context_revision(stored, refreshed, index)

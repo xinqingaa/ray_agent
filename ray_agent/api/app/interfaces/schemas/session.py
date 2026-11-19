@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Literal, Optional
 
 from uuid import UUID
 from pydantic import BaseModel, Field
+from app.domain.models.retrieval import EXPLICIT_REFERENCE_LIMIT, KnowledgeReference
 
 from app.domain.models.file import File
 from app.domain.models.identity import RequestId
@@ -50,6 +51,7 @@ class ChatRequest(BaseModel):
     model: Optional[str] = None  # 厂商模型 id；与 reasoning 一起提交
     reasoning: Optional[str] = None  # 思考参数原词
     skill: SkillSelection | None = None
+    knowledge_references: list[KnowledgeReference] = Field(default_factory=list, max_length=EXPLICIT_REFERENCE_LIMIT)
     image_mode: Literal['auto', 'files'] = 'auto'  # files 明确只交给文件工具
     # 业务幂等身份：同身份同内容返回原受理结果，内容不同返回 409；结果未知时按身份读回
     request_id: Optional[RequestId] = None

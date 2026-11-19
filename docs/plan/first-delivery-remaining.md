@@ -6,7 +6,7 @@
 
 **待验收**
 
-- 在真实桌面验证工作方式历史分页、恢复旧正文、并发更新和编辑后采纳。覆盖记忆候选目标变化后的重新审阅与确认、钉住过渡和撤销提示，以及「本次参考」按实际版本打开来源和显示不可读原因。文档版本及页／块／单元格定位归 P6。
+- 在真实桌面验证工作方式历史分页、恢复旧正文、并发更新和编辑后采纳。覆盖记忆候选目标变化后的重新审阅与确认、钉住过渡和撤销提示，以及「本次参考」按实际版本打开来源和显示不可读原因。
 - 验证带 Skill 和图片的真实发送、已受理的计划失败后打开所属清单、Finder 跨窗口拖到两个落点及拖入反馈、竖图显示、原生文件夹选择与文件撤销确认。构造首页交付列表和文件预览读取失败，验证恢复，并用长列表观察滚动和切换是否明显变慢。
 - 集中核对原型细节、窄窗口与移动视口、键盘焦点和减少动态效果。运行步骤见[运行检查](../../ray_agent/README.md#运行检查)。
 
@@ -15,27 +15,12 @@
 - 会话成果列表后台刷新失败目前缺少就地提示和重试。完成条件是保留已有结果、明确显示刷新失败并允许重新读取。
 - 已确认需要让已受理的计划在执行失败后继续，当前可查看清单。续接步骤、已完成工作和副作用的处理、重新审批边界需先确认。工作区首页跨会话成果聚合已暂缓。
 
-## P6 全文知识
-
-### F04 文档解析重启后卡死：已复现，待修复（P6）
-
-- [ ] **偏差与问题**：原目标要求取消、崩溃和发布窗口可恢复。revision 停在 `PARSING`／`INDEXING` 时，通用任务恢复只重排 job；处理循环只取 `PENDING_PARSE`，相同文件再次同步又跳过旧状态。持久 SQLite 复现中任务被记成功、处理数为零，文档仍在解析且不可检索。
-- **位置**：[document_index_service.py](../../ray_agent/api/app/application/services/document_index_service.py) 的 `_ensure_job`、`process_workspace`、`sync_workspace`、`_parse_and_publish`；恢复协作在 [document_index_scheduler.py](../../ray_agent/api/app/application/services/document_index_scheduler.py)、[background_jobs.py](../../ray_agent/api/app/application/services/background_jobs.py) 与 [db_document_repository.py](../../ray_agent/api/app/infrastructure/repositories/db_document_repository.py)。
-- **关闭条件**：在解析中、暂存后和发布前分别中断并重启，能恢复或明确失败；取消后可重试，半份结果不发布，更新／删除后旧任务不能复活旧版本。
-
-### F10 文档来源版本与定位
-
-文档来源需按保存的版本定位页、块或单元格。当前读取仍已发布的片段，修改、删除或撤权后旧来源的可读边界待验证。完成条件是按来源身份定位，材料变化后明确显示过期或不可读，并验证授权与删除边界。实现与检查入口见[代码地图](../code-map.md#上下文与记忆)。
-
-## P6／P7 索引控制
-
-### F11 索引管理界面未闭环：静态确认缺口（P6／P7）
-
-- [ ] **偏差与问题**：原目标要求用户理解规模、控制索引范围并处理资源压力。当前文件夹面板只有索引汇总，缺少范围排除、暂停／关闭及清楚的失败重试入口；语义就绪状态也未展示，不能让用户区分全文可用与语义可用。
-- **位置**：[folder-panel.tsx](../../ray_agent/ui/src/components/workspace/folder-panel.tsx)、[working-style-settings.tsx](../../ray_agent/ui/src/components/workspace/working-style-settings.tsx)、[documents.ts](../../ray_agent/ui/src/lib/api/documents.ts)；后端沿文档索引与语义索引服务核对可控状态。
-- **关闭条件**：大文件夹先说明范围与规模，范围选择和暂停能实际影响后台任务；进度、全文／语义可用性、错误与重试均有对应后端行为。
-
 ## P7 语义检索与 OCR
+
+### F11 语义与文字识别状态
+
+知识页已显示组件安装状态。P7 需把实际语义检索可用性、重建进度、OCR 与安装后的恢复联动一并接通，在真实组件和宿主中验证。见[原型落地计划](prototype-ui.md#后续工作包)。
+
 
 ### F02 固定版本向量读取失败：已复现，待修复（P7）
 

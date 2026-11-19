@@ -149,6 +149,9 @@ export const sessionApi = {
   setModel: (sessionId: string, selection: {model: string; reasoning: string}): Promise<{model: string; reasoning: string}> =>
     put<{model: string; reasoning: string}>(`/sessions/${sessionId}/model`, selection),
 
+  acceptedChat: (sessionId: string, id: string) =>
+    get<ChatAccepted>(`/sessions/${encodeURIComponent(sessionId)}/requests/${encodeURIComponent(id)}`),
+
   chat: (sessionId: string, params: ChatParams): Promise<ChatAccepted> => {
     return post<ChatAccepted>(`/sessions/${sessionId}/chat`, params);
   },

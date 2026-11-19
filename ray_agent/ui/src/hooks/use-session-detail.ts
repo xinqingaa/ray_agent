@@ -1,4 +1,5 @@
 import type {PlanAcceptance} from '@/lib/api/types'
+import type {StartOptions} from '@/hooks/use-start-task'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {sendRecoverably} from '@/lib/send-recovery'
@@ -17,6 +18,8 @@ import {
 } from '@/lib/session-projection'
 import type { SessionView } from '@/lib/session-view'
 
+type SendOptions = StartOptions & {retry?: boolean; execute_plan?: PlanAcceptance}
+
 export type UseSessionDetailResult = {
   session: SessionDetail | null
   /** 会话文件接口返回的列表，供当前会话页的文件入口使用 */
@@ -29,7 +32,7 @@ export type UseSessionDetailResult = {
   refresh: () => Promise<void>
   refreshFiles: () => Promise<void>
   /** 只提交消息。retry 不再裁掉已有事件。提交期间 streaming 为 true，不改写运行状态 */
-  sendMessage: (message: string, attachmentIds: string[], options?: { retry?: boolean; mode?: 'plan' | 'normal'; model?: string; reasoning?: string; execute_plan?: PlanAcceptance; skill?: {id: string; version: string}; image_mode?: 'auto' | 'files' }) => Promise<void>
+  sendMessage: (message: string, attachmentIds: string[], options?: SendOptions) => Promise<void>
   /** 与 submitting 相同：chat 请求未返回时为 true，不是运行中 */
   streaming: boolean
   submitting: boolean
@@ -307,7 +310,7 @@ export function useSessionDetail(
   }, [sessionId, loaded, appendEvent])
 
   const sendMessage = useCallback(
-    async (message: string, attachmentIds: string[], options?: { retry?: boolean; mode?: 'plan' | 'normal'; model?: string; reasoning?: string; execute_plan?: PlanAcceptance; skill?: {id: string; version: string}; image_mode?: 'auto' | 'files' }) => {
+    async (message: string, attachmentIds: string[], options?: SendOptions) => {
       void options?.retry
       if (!sessionId) return
       setSubmitting(true)
@@ -317,7 +320,8 @@ export function useSessionDetail(
           attachments: attachmentIds,
           mode: options?.mode ?? 'normal',
           image_mode: options?.image_mode ?? 'auto',
-        skill: options?.skill,
+          skill: options?.skill,
+          knowledge_references: options?.knowledge_references,
           execute_plan: options?.execute_plan,
           ...(options?.model && options?.reasoning ? {model: options.model, reasoning: options.reasoning} : {}),
         })

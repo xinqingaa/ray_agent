@@ -50,6 +50,8 @@ class RunContextManifestModel(Base):
     instruction_body: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     resident_memories: Mapped[List[Dict[str, Any]]] = mapped_column(JSON, nullable=False, default=list)
     retrieval_hits: Mapped[List[Dict[str, Any]]] = mapped_column(JSON, nullable=False, default=list)
+    explicit_hits: Mapped[Optional[List[Dict[str, Any]]]] = mapped_column(JSON, nullable=True)
+    retired_document_refs: Mapped[Optional[List[Dict[str, Any]]]] = mapped_column(JSON, nullable=True)
     omissions: Mapped[List[Dict[str, Any]]] = mapped_column(JSON, nullable=False, default=list)
     created_at: Mapped[datetime] = mapped_column(UTCDateTime, nullable=False, default=utc_now)
 
@@ -61,6 +63,8 @@ class RunContextManifestModel(Base):
             instruction_version=manifest.instruction_version, instruction_body=manifest.instruction_body,
             resident_memories=payload.get("resident_memories") or [],
             retrieval_hits=payload.get("retrieval_hits") or [],
+            explicit_hits=payload["explicit_hits"],
+            retired_document_refs=payload["retired_document_refs"],
             omissions=payload.get("omissions") or [],
             created_at=manifest.created_at,
         )
@@ -74,6 +78,8 @@ class RunContextManifestModel(Base):
             "instruction_body": self.instruction_body,
             "resident_memories": self.resident_memories or [],
             "retrieval_hits": self.retrieval_hits or [],
+            "explicit_hits": self.explicit_hits or [],
+            "retired_document_refs": self.retired_document_refs or [],
             "omissions": self.omissions or [],
             "created_at": self.created_at,
         })

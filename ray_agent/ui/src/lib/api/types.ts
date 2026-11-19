@@ -257,7 +257,11 @@ export type CreateSessionParams = {
  */
 export type PlanAcceptance = {source_run_id: string; plan_id: string; source_seq: number; request_id: string};
 
+export type KnowledgeReference = Schemas["KnowledgeReference"];
+
 export type ChatParams = {
+  knowledge_references?: KnowledgeReference[];
+  request_id?: string;
   execute_plan?: PlanAcceptance;
   message: string;
   attachments?: string[];

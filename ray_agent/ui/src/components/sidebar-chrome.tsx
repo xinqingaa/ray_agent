@@ -3,13 +3,13 @@ import {createPortal} from 'react-dom'
 import {Link, usePathname} from '@/lib/navigation'
 import {useSidebar} from '@/components/ui/sidebar'
 import {IconAction} from '@/components/ui/icon-action'
-import {Layers, MessageCircle, PanelLeftIcon, Search} from '@/components/ui/icons'
+import {Layers, Library, MessageCircle, PanelLeftIcon, Search} from '@/components/ui/icons'
 import {DataCleanupNotice} from './data-cleanup-notice'
 import {WorkspaceDeletionNotice} from './workspace/workspace-deletion-notice'
 import {useWorkspace} from '@/providers/workspaces-provider'
 import {useWorkspacePending} from '@/providers/workspace-pending'
 import {useSessions} from '@/hooks/use-sessions'
-import {parseWorkspaceRoute, workspaceBackgroundHref, workspaceHref} from '@/lib/workspace-route'
+import {parseWorkspaceRoute, workspaceBackgroundHref, workspaceHref, workspaceKnowledgeHref} from '@/lib/workspace-route'
 import {ConversationSearch} from './conversation-search'
 
 const TopbarSlots = createContext<{title: HTMLElement | null; actions: HTMLElement | null} | null>(null)
@@ -40,6 +40,7 @@ export function MainShell({children, listAvailable}: {children: ReactNode; listA
   const home = route.workspaceId ? workspaceHref(route.workspaceId) : null
   const background = Boolean(home && pathname === `${home}/background`)
   const workspaceName = workspace.phase === 'ready' ? workspace.workspace.name : '工作区'
+  const knowledge = route.workspaceId !== null && pathname.replace(/\/$/, '') === workspaceKnowledgeHref(route.workspaceId)
   const searchAvailable = Boolean(home || pathname === '/' || sessionId)
   const listOpen = listAvailable && (isMobile ? openMobile : open)
   const pageTitle = pathname === '/components' ? '运行组件' : pathname === '/workspaces' ? '工作区' : '新对话'
@@ -71,11 +72,13 @@ export function MainShell({children, listAvailable}: {children: ReactNode; listA
           </span> : <span className="truncate font-semibold">{home ? workspaceName : pageTitle}</span>}
         </nav>
         {home && <nav aria-label="工作区视图" className="app-view-links">
-          <Link href={home} aria-label="对话" title="对话" aria-current={!background ? 'page' : undefined}><MessageCircle/><span>对话</span></Link>
+          <Link href={home} aria-label="对话" title="对话" aria-current={!background && !knowledge ? 'page' : undefined}><MessageCircle/><span>对话</span></Link>
           <Link href={workspaceBackgroundHref(route.workspaceId!)} aria-label={workspacePending ? `背景，${workspacePending} 项待处理` : '背景'}
             title="背景" aria-current={background ? 'page' : undefined}><Layers/><span>背景</span>
             {!!workspacePending && <b className="ml-1 text-[11px] font-medium text-state-waiting tabular-nums" aria-hidden>{workspacePending}</b>}
           </Link>
+          <Link href={workspaceKnowledgeHref(route.workspaceId!)} aria-label="知识" title="知识"
+            aria-current={knowledge ? 'page' : undefined}><Library/><span>知识</span></Link>
         </nav>}
         <div className="app-top-actions">
           <div ref={setActionsSlot} className="app-top-actions-slot"/>

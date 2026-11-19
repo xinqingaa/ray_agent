@@ -7,6 +7,8 @@ import type {
   MemoryListResponse,
   MemorySourcesResponse,
   MemoryStatus,
+  KnowledgeReference,
+  SearchHitView,
   ParticipateInMemoryResponse,
   PatchMemoryRequest,
   SearchRequest,
@@ -40,8 +42,12 @@ export const memoryApi = {
   sources: (workspaceId: string, memoryId: string) =>
     get<MemorySourcesResponse>(`${memoriesPath(workspaceId)}/${encodeURIComponent(memoryId)}/sources`),
 
-  search: (workspaceId: string, body: SearchRequest) =>
-    post<SearchResponse>(`${workspacePath(workspaceId)}/search`, body),
+  search: (workspaceId: string, body: Omit<SearchRequest, 'limit'> & {limit?: number}, signal?: AbortSignal) =>
+    post<SearchResponse>(`${workspacePath(workspaceId)}/search`, body, {signal}),
+
+  source: (workspaceId: string, ref: KnowledgeReference, signal?: AbortSignal) =>
+    get<SearchHitView>(`${workspacePath(workspaceId)}/search/sources/${ref.source_type}/${encodeURIComponent(ref.source_id)}`,
+      {source_version: ref.source_version}, {signal}),
 
   extraction: (workspaceId: string, sessionId: string, sequence: number) =>
     get<MemoryExtractionView>(memoriesPath(workspaceId, '/extraction'), {session_id: sessionId, seq: sequence}),

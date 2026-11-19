@@ -45,7 +45,7 @@ class DocumentIndexScheduler:
         """外部变更或添加文件后触发增量同步；paths 为空表示整区重扫。"""
         if self._closed:
             return
-        if workspace_id not in self._pending or paths is None or self._pending[workspace_id] is None:
+        if workspace_id not in self._pending or paths is None:
             self._pending[workspace_id] = None if paths is None else set(paths)
         elif paths is not None and self._pending[workspace_id] is not None:
             self._pending[workspace_id].update(paths)

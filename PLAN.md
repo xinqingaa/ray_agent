@@ -1,6 +1,6 @@
 # 维护与优化计划
 
-RayAgent 首个交付处于**实施中**，目标是 macOS Apple Silicon 内部包。当前按已批准范围收尾截至 P5 的原型界面。
+RayAgent 首个交付处于**实施中**，目标是 macOS Apple Silicon 内部包。当前收尾桌面主流程、语义与 OCR、Skill 和内部包验收。
 
 - [实施工作包与交付条件](docs/plan/implementation.md)维护各包状态和交付门槛。
 - [首个交付收尾清单](docs/plan/first-delivery-remaining.md)维护待修复、待验证和待决定的事项。

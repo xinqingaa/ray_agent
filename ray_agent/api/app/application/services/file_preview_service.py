@@ -9,6 +9,12 @@ from app.domain.models.identity import RootedPath
 from app.infrastructure.external.file_preview.parser import parse_preview
 
 
+def root_preview_revision(root_id, entry) -> str:
+    version = entry.version
+    identity = f'{root_id}\0{entry.path.relative_path}\0{entry.inode}\0{version.size}\0{version.modified_ns}'
+    return 'root:' + hashlib.sha256(identity.encode()).hexdigest()[:32]
+
+
 class FilePreviewService:
     def __init__(self, files, roots=None):
         self.files = files
@@ -36,8 +42,7 @@ class FilePreviewService:
         try:
             version = entry.version
             # 版本标识含根、路径与 inode：不同工作区的同名同大小同修改时间文件、或被换成另一个文件，都不会共用缓存
-            identity = f'{root_id}\0{entry.path.relative_path}\0{entry.inode}\0{version.size}\0{version.modified_ns}'
-            yield handle, entry.name, version.size, 'root:' + hashlib.sha256(identity.encode()).hexdigest()[:32]
+            yield handle, entry.name, version.size, root_preview_revision(root_id, entry)
         finally:
             handle.close()
 

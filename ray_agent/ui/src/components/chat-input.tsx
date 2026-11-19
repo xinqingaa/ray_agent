@@ -4,7 +4,7 @@ import {cn, formatFileSize} from '@/lib/utils'
 import {ScrollArea, ScrollBar} from '@/components/ui/scroll-area'
 import {Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle} from '@/components/ui/item'
 import {Avatar, AvatarGroupCount} from '@/components/ui/avatar'
-import {ArrowUp, Eye, FileText, ListChecks, Loader2, Paperclip, Sparkles, Stop, X, XCircle} from '@/components/ui/icons'
+import {ArrowUp, Eye, FileText, ListChecks, Loader2, Paperclip, Quote, Sparkles, Stop, X, XCircle} from '@/components/ui/icons'
 import {Button} from '@/components/ui/button'
 import {Popover, PopoverAnchor, PopoverContent} from '@/components/ui/popover'
 import {SlashCommandList} from '@/components/input-command-menu'
@@ -17,7 +17,8 @@ import {downloadFile} from '@/lib/api/preview'
 import type {FileInfo} from '@/lib/api/types'
 import {toast} from 'sonner'
 import {commandById, commandSearchFields, matchingCommands, type CommandContext, type CommandHost, type InputCommand} from '@/lib/commands'
-import {clearDraft, draftClearedBy, readDraft, writeDraft, DRAFT_CHANGED, DATA_CLEARED} from '@/lib/drafts'
+import {clearDraft, draftClearedBy, readDraft, referenceKey, writeDraft, DRAFT_CHANGED, DATA_CLEARED, type DraftReference} from '@/lib/drafts'
+import type {StartOptions} from '@/hooks/use-start-task'
 import {recoverSubmission, UncertainSubmissionError} from '@/lib/send-recovery'
 import {findSlashTrigger, matchesCommandQuery, removeSlashFragment, type SlashFragment} from '@/lib/slash-trigger'
 import {ModelPicker, type ModelSelection} from '@/components/model-picker'
@@ -31,7 +32,7 @@ interface ChatInputProps {
   className?: string
   onInputValueChange?: (value: string) => void
   onAbandonSubmission?: () => void
-  onSend?: (message: string, files: FileInfo[], options?: {mode?: 'plan' | 'normal'; model?: string; reasoning?: string; skill?: {id: string; version: string}; image_mode?: 'auto' | 'files'}) => Promise<void>
+  onSend?: (message: string, files: FileInfo[], options?: StartOptions) => Promise<void>
   savedModel?: string | null
   savedReasoning?: string | null
   runModel?: string | null
@@ -75,6 +76,8 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
     const {visibility} = useDeveloperMode()
     const pickDestination = useContext(TaskFilePicker)
     const [files, setFiles] = useState<FileInfo[]>([])
+    const [references, setReferences] = useState<DraftReference[]>([])
+    const [referenceIssue, setReferenceIssue] = useState<{sourceId: string; message: string} | null>(null)
     const [uploading, setUploading] = useState(false)
     const [sending, setSending] = useState(false)
     const [inputValue, setInputValue] = useState('')
@@ -120,6 +123,8 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
       const draft = readDraft(scope)
       setInputValue(draft.text)
       setFiles(draft.files)
+      setReferences(draft.references ?? [])
+      setReferenceIssue(null)
       setPlanMode(draft.planMode)
       setSelectedSkill(draft.skill ?? null)
       setPreview(null)
@@ -128,7 +133,10 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
     }, [scope])
     useEffect(() => {
       const check = (event: Event) => {
-        if ((event as CustomEvent).detail === scope) setUncertain(!!readDraft(scope).submission)
+        if ((event as CustomEvent).detail !== scope) return
+        const draft = readDraft(scope)
+        setUncertain(!!draft.submission)
+        setReferences(draft.references ?? [])
       }
       window.addEventListener(DRAFT_CHANGED, check)
       return () => window.removeEventListener(DRAFT_CHANGED, check)
@@ -142,7 +150,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
       const cleared = (event: Event) => {
         const data = (event as CustomEvent).detail
         if (draftClearedBy(data, scope)) {
-          setInputValue(''); setFiles([]); setPlanMode(false); setSelectedSkill(null); setUncertain(false)
+          setInputValue(''); setFiles([]); setReferences([]); setReferenceIssue(null); setPlanMode(false); setSelectedSkill(null); setUncertain(false)
           if (uploadRef.current) uploadRef.current.cancelled = true
         }
       }
@@ -430,11 +438,15 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
       if (onSend) {
         setSending(true)
         setModelIssue(null)
+        setReferenceIssue(null)
         try {
           await onSend(trimmedMessage, files, {
             mode: planMode ? 'plan' : 'normal',
             image_mode: 'auto',
             skill: skill ?? undefined,
+            ...(workspace && references.length ? {
+              knowledge_references: references.map(({source_type, source_id, source_version}) => ({source_type, source_id, source_version})),
+            } : {}),
             ...(modelChoice ? {model: modelChoice.model, reasoning: modelChoice.reasoning} : {}),
           })
           if (modelChoice) rememberModelPreference(modelChoice)
@@ -442,6 +454,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
           // 发送成功后清空输入框和文件列表
           setInputValue('')
           setFiles([])
+          setReferences([])
           setPlanMode(false)
           setSelectedSkill(null)
           setSlash(null)
@@ -450,6 +463,8 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
           // 错误处理由 onSend 内部处理
           if (error instanceof UncertainSubmissionError) setUncertain(true)
           if (error instanceof ApiError && error.details.section === 'model_connection') setModelIssue(error.message)
+          if (error instanceof ApiError && error.details.section === 'knowledge_reference')
+            setReferenceIssue({sourceId: String(error.details.source_id), message: error.message})
         } finally {
           setSending(false)
         }
@@ -564,6 +579,22 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
           </div>
         </div>
       )}
+      {workspace && references.length > 0 && <div aria-label="知识引用" className="mx-4 mb-2 flex min-w-0 flex-wrap gap-1.5">
+        {references.map(ref => <span key={referenceKey(ref)}
+          className={cn('inline-flex max-w-full items-center gap-1.5 rounded-lg border bg-muted/45 px-2 py-1 text-xs',
+            referenceIssue?.sourceId === ref.source_id && 'border-state-failed/50 text-state-failed')}>
+          <Quote className="size-3.5 shrink-0 text-signal" aria-hidden/>
+          <span className="min-w-0 truncate" title={ref.label}>{ref.label}</span>
+          <span className="shrink-0 text-faint">v{ref.source_version}</span>
+          {ref.location && <span className="max-w-36 truncate text-faint">{ref.location}</span>}
+          <Button type="button" size="icon-xs" variant="ghost" aria-label={`移除引用 ${ref.label}`} disabled={blocked}
+            onClick={() => {
+              writeDraft(scope, {references: references.filter(item => referenceKey(item) !== referenceKey(ref))})
+              if (referenceIssue?.sourceId === ref.source_id) setReferenceIssue(null)
+            }}><X/></Button>
+        </span>)}
+      </div>}
+      {referenceIssue && <p role="alert" className="mx-4 mb-2 text-xs text-state-failed">{referenceIssue.message}。移除该引用或回到知识页重新选择。</p>}
       {/* 顶部的文件列表 */}
       {files.length > 0 && (
         <div className="w-full px-4 mb-1">

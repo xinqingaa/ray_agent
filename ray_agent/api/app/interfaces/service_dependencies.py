@@ -328,6 +328,7 @@ def get_document_index_service():
             get_uow, get_read_uow, get_folder_access(), get_root_files(), get_retrieval_service(),
             wake=wake, ocr_dir_probe=_ocr_dir_probe,
         )
+        get_retrieval_service().bind_documents(_document_index_singleton.visible_hits)
     return _document_index_singleton
 
 
@@ -366,7 +367,7 @@ def get_working_style_service():
 
 def get_context_assembly():
     from app.application.services.context_assembly import ContextAssembly
-    return ContextAssembly(get_uow, get_read_uow, get_retrieval_service(), get_memory_service())
+    return ContextAssembly(get_uow, get_read_uow, get_retrieval_service(), get_memory_service(), get_document_index_service())
 
 
 async def load_llm_config():

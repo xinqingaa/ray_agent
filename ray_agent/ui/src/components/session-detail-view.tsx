@@ -1,4 +1,4 @@
-import type {PlanAcceptance, WorkspaceItem} from '@/lib/api/types'
+import type {KnowledgeReference, PlanAcceptance, WorkspaceItem} from '@/lib/api/types'
 
 import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode} from 'react'
 import {toast} from 'sonner'
@@ -35,7 +35,9 @@ import {memoryApi} from '@/lib/api/memory'
 import {sessionApi} from '@/lib/api/session'
 import {readRetryDisplay, writeRetryDisplay, retryEchoUserId, conversationTimeline} from '@/lib/retry-display'
 import {UncertainSubmissionError} from '@/lib/send-recovery'
-import {readDraft, writeDraft} from '@/lib/drafts'
+import {addDraftReference, readDraft, referenceKey, sessionDraftScope, writeDraft} from '@/lib/drafts'
+import {KnowledgeSource} from '@/components/workspace/knowledge-source'
+import type {StartOptions} from '@/hooks/use-start-task'
 import {normalizeEvents} from '@/lib/session-events'
 import {canExecutePlan, planBarMode} from '@/lib/session-projection'
 import {ApiError} from '@/lib/api/fetch'
@@ -46,6 +48,7 @@ export interface SessionDetailViewProps {
   sessionId: string
   /** 工作区会话：右侧面板在文件夹与工作台之间切换，输入框随工作区状态只读 */
   workspace?: WorkspaceItem
+  sourceRefresh?: number
   /** 运行结束后显示在时间线末尾的内容（如撤销本次修改）；参数是最近一次运行的 id，还没有运行时为 null */
   renderRunActions?: (runId: string) => ReactNode
 }
@@ -81,6 +84,7 @@ function latestCompactionId(items: TimelineItem[] | undefined): string | null {
 export function SessionDetailView({
   sessionId,
   workspace,
+  sourceRefresh,
   renderRunActions,
 }: SessionDetailViewProps) {
   const {visibility} = useDeveloperMode()
@@ -119,6 +123,7 @@ export function SessionDetailView({
   const {open: workbenchOpen, setOpen: setWorkbenchOpen, floating: inspectorFloating} = useTaskInspector(workspace != null)
   const [panelView, setPanelView] = useState<FolderPanelTab | 'workbench'>(workspace ? 'folder' : 'workbench')
   const [toolbarTarget, setToolbarTarget] = useState<HTMLDivElement | null>(null)
+  const [inspectorSource, setInspectorSource] = useState<KnowledgeReference | null>(null)
   const [inspectorFile, setInspectorFile] = useState<FileView | null>(null)
   const inspectorTrigger = useRef<HTMLButtonElement>(null)
   const folderPanel = useRef<FolderPanelRef>(null)
@@ -259,6 +264,7 @@ export function SessionDetailView({
     setOutgoing(null)
     setInspection(null)
     setInspectorFile(null)
+    setInspectorSource(null)
     setPreviewedFile(null)
     const saved = readRetryDisplay(sessionId)
     setHiddenRunIds(saved.hiddenRunIds)
@@ -281,13 +287,13 @@ export function SessionDetailView({
     if (count > outgoing.userCount && (view?.activeRun || endCount > outgoing.endCount)) setOutgoing(null)
   }, [outgoing, view?.activeRun, view?.timeline])
 
-  const deliver = useCallback(async (message: string, attachmentIds: string[], options?: {mode?: 'plan' | 'normal'; model?: string; reasoning?: string; execute_plan?: PlanAcceptance; skill?: {id: string; version: string}; image_mode?: 'auto' | 'files'; echo?: boolean}) => {
+  const deliver = useCallback(async (message: string, attachmentIds: string[], options?: StartOptions & {execute_plan?: PlanAcceptance; echo?: boolean}) => {
     const items = view?.timeline ?? []
     const userCount = items.filter((item) => item.kind === 'user').length
     const endCount = items.filter((item) => item.kind === 'run_end').length
     setOutgoing({text: message, skillName: options?.skill?.id, userCount, endCount, echo: options?.echo !== false})
     try {
-      await sendMessage(message, attachmentIds, {mode: options?.mode, model: options?.model, reasoning: options?.reasoning, image_mode: options?.image_mode, skill: options?.skill, execute_plan: options?.execute_plan})
+      await sendMessage(message, attachmentIds, {mode: options?.mode, model: options?.model, reasoning: options?.reasoning, image_mode: options?.image_mode, skill: options?.skill, execute_plan: options?.execute_plan, knowledge_references: options?.knowledge_references})
     } catch (err) {
       setOutgoing(null)
       throw err
@@ -386,11 +392,11 @@ export function SessionDetailView({
     }
   }, [stop])
 
-  const handleSend = useCallback(async (message: string, uploaded: FileInfo[], options?: {mode?: 'plan' | 'normal'; model?: string; reasoning?: string; skill?: {id: string; version: string}; image_mode?: 'auto' | 'files'}) => {
+  const handleSend = useCallback(async (message: string, uploaded: FileInfo[], options?: StartOptions) => {
     try {
       await deliver(message, uploaded.map((file) => file.id), options)
     } catch (err) {
-      if (!(err instanceof ApiError) || err.details.section !== 'model_connection')
+      if (!(err instanceof ApiError) || !['model_connection', 'knowledge_reference'].includes(String(err.details.section)))
         toast.error(err instanceof Error ? err.message : '发送失败，请重试')
       throw err
     }
@@ -467,6 +473,7 @@ export function SessionDetailView({
   }, [hash, mode, view?.events])
 
   const previewDelivery = useCallback((file: FileView) => {
+    setInspectorSource(null)
     folderPanel.current?.closePreview()
     setPanelView('delivered')
     setWorkbenchOpen(true)
@@ -505,6 +512,7 @@ export function SessionDetailView({
       setInspection(current => ({callId, request: (current?.request ?? 0) + 1}))
       setPanelView('workbench')
       setInspectorFile(null)
+      setInspectorSource(null)
       folderPanel.current?.closePreview()
       setWorkbenchOpen(true)
     },
@@ -546,7 +554,7 @@ export function SessionDetailView({
         const detail = await sessionApi.getSessionDetail(sessionId, view?.events.at(-1)?.seq)
         const original = detail.runs?.find(item => item.run_id === runId)
         await deliver(source.text, source.attachments.map(file => file.id), {
-          echo: false, mode, skill: source.skill, image_mode: source.imageMode,
+          echo: false, mode, skill: source.skill, image_mode: source.imageMode, knowledge_references: source.references,
           model: original?.model_id ?? undefined, reasoning: original?.reasoning ?? undefined,
         })
       })().catch((err: unknown) => {
@@ -560,6 +568,19 @@ export function SessionDetailView({
     approvalSubmitting,
     showRunReferences: workspace != null,
     workspaceId: workspace?.id,
+    sourceRefresh,
+    onOpenSource: workspace ? reference => {
+      folderPanel.current?.closePreview()
+      setInspectorFile(null)
+      setInspectorSource(reference)
+      setPanelView('workbench')
+      setWorkbenchOpen(true)
+    } : undefined,
+    onQuoteSource: workspace?.status === 'active' ? reference => {
+      const result = addDraftReference(sessionDraftScope(sessionId), reference)
+      if (result === 'added') toast.success('已加入当前输入')
+      else toast.message(result === 'duplicate' ? '输入中已有这条引用' : '正在核对上一条消息的受理结果')
+    } : undefined,
     renderMemoryNotice: runId => {
       const sequence = finishedSequences.get(runId)
       return workspace && sequence != null
@@ -568,7 +589,7 @@ export function SessionDetailView({
         : null
     },
     renderRunActions: runId => !view?.activeRun && runId === run?.id ? renderRunActions?.(runId) : null,
-  }), [view?.id, view?.runs, view?.timeline, view?.events, focus?.callId, view?.activeRun, view?.streamingItemId, submitting, retrying, hiddenRunIds, hiddenUserIds, sessionId, workspace, downloadOne, downloadAll, deliver, previewDelivery, acceptedPlans, view?.planHistory, handleApproval, approvalSubmitting, finishedSequences, latestCompletedId, setWorkbenchOpen, run?.id, renderRunActions])
+  }), [view?.id, view?.runs, view?.timeline, view?.events, focus?.callId, view?.activeRun, view?.streamingItemId, submitting, retrying, hiddenRunIds, hiddenUserIds, sessionId, workspace, sourceRefresh, downloadOne, downloadAll, deliver, previewDelivery, acceptedPlans, view?.planHistory, handleApproval, approvalSubmitting, finishedSequences, latestCompletedId, setWorkbenchOpen, run?.id, renderRunActions])
 
   const toggleParticipate = useCallback(async (participate: boolean) => {
     if (!workspace || participateBusy) return
@@ -670,7 +691,7 @@ export function SessionDetailView({
   const deliveries = view.files.filter(file => file.source === 'delivery')
   const panel = <div className="flex h-full min-h-0 flex-col">
     <TaskInspectorTabs value={panelView} workspace={workspace != null} onActions={setToolbarTarget}
-      onChange={next => {setInspectorFile(null); folderPanel.current?.closePreview(); setPanelView(next)}}
+      onChange={next => {setInspectorSource(null); setInspectorFile(null); folderPanel.current?.closePreview(); setPanelView(next)}}
       onClose={inspectorFloating ? () => {setWorkbenchOpen(false); inspectorTrigger.current?.focus()} : undefined}/>
     {workspace && <div className={cn('min-h-0 flex-1', (panelView === 'workbench' || inspectorFile) && 'hidden')}>
       <FolderPanel ref={folderPanel} workspace={workspace} embedded selectedTab={panelView === 'workbench' ? 'folder' : panelView}
@@ -683,11 +704,15 @@ export function SessionDetailView({
         {deliveries.map(file => <FileRow key={file.id} file={file} versionLabel="交付版本" onOpen={() => handlers.onPreviewFile?.(file)}/>)}
       </> : <p className="py-8 text-center text-meta text-muted-foreground">这个对话还没有交付文件。</p>}
     </div>}
+    {inspectorSource && workspace && workbenchOpen && <div className="min-h-0 flex-1 overflow-y-auto p-3">
+      <KnowledgeSource key={referenceKey(inspectorSource)} workspaceId={workspace.id} reference={inspectorSource}
+        showOriginal refresh={sourceRefresh} onBack={() => setInspectorSource(null)}/>
+    </div>}
     {inspectorFile && <div className="min-h-0 flex-1">
       <FilePreview source={{kind: 'attachment', id: inspectorFile.id, filename: inspectorFile.filename, size: inspectorFile.size}}
         onBack={() => setInspectorFile(null)}/>
     </div>}
-    <div className={cn('min-h-0 flex-1', (panelView !== 'workbench' || inspectorFile) && 'hidden')}>
+    <div className={cn('min-h-0 flex-1', (panelView !== 'workbench' || inspectorFile || inspectorSource) && 'hidden')}>
       <Workbench key={inspection?.request ?? 0} focus={focus} files={view.files}
         canFollowLatest={!!latest && (!inspection || !!pin && latest.callId !== pin.callId)}
         onFollowLatest={() => setInspection(current => ({callId: null, request: (current?.request ?? 0) + 1}))}/>
@@ -711,6 +736,7 @@ export function SessionDetailView({
         addToFolder={!workspaceState?.writable || mode !== 'conversation' ? undefined : (files, directory) => {
           folderPanel.current?.addFiles(files, directory)
           setInspectorFile(null)
+          setInspectorSource(null)
           setPanelView('folder')
           setWorkbenchOpen(true)
         }}
