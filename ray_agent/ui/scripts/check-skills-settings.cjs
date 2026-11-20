@@ -12,14 +12,17 @@ const builtin = {...candidate,id:'builtin',name:'find-skills',builtin:true,enabl
 const installed = {...candidate,id:'installed',builtin:false,enabled:true,source:{kind:'manual'}};
 let lostPublish = false, completed = null;
 let items = [builtin], imports = [], publishes = [], details = 0, failPublish = true, changed = 0;
+let sourceData = {sources:[],groups:[],config:{extra_dirs:[],disabled_groups:[],disabled_sources:[]}};
 const api = {
   list:async()=>items,
-  detail:async(name)=>{details++; return items.find(s=>s.name===name)},
+  sources:async()=>sourceData,
+  detail:async(name)=>{details++; return items.find(s=>s.id===name)},
   import:async(payload)=>{imports.push(payload); return {...ready,id:payload.operation_id}},
   uploadLocal:async(data)=>{const operation_id=data.get('operation_id'); imports.push({operation_id}); return {...ready,id:operation_id}},
   operation:async(id)=>completed?.id===id?completed:({...ready,id}),
   file:async()=>new Blob(['interface: test']),
   importFile:async()=>new Blob(['interface: test']),
+  setMode:async()=>{throw Error('测试：目录预算不足')},
   delete:async()=>{items=[builtin]},
   publish:async(id,c)=>{publishes.push({id,path:c.path}); if(failPublish){failPublish=false;throw Error('暂时无法安装')} items=[builtin,installed];if(lostPublish){lostPublish=false;completed={...ready,id,stage:'completed',result:installed};throw Error('响应丢失')}return {...ready,stage:'completed',result:installed}},
 };
@@ -37,10 +40,16 @@ function load(filename) {
   new Function('require','module','exports',code)(name=>{
     if(name==='react' || name==='react/jsx-runtime')return require(name);
     if(name==='@/components/ui/icons')return new Proxy({}, {get:()=>()=>null});
+    if(name==='@/components/ui/sidebar')return {Sidebar:ui.Sidebar,SidebarContent:ui.SidebarContent,SidebarHeader:ui.SidebarHeader,useSidebar:()=>({setOpenMobile(){}})};
+    if(name==='@/components/sidebar-chrome')return {MainShell:props=>React.createElement('main',{},props.children),TopbarActions:props=>props.children};
+    if(name==='@/lib/navigation')return {Link:props=>React.createElement('a',props,props.children)};
+    if(name==='@/components/ui/segmented-control')return load(path.join(root,'src/components/ui/segmented-control.tsx'));
     if(name.startsWith('@/components/ui/'))return ui;
     if(name==='@/components/markdown-content')return {MarkdownContent:props=>React.createElement('article',{'data-markdown':props.content})};
     if(name==='@/lib/utils')return {cn:(...x)=>x.filter(Boolean).join(' '),formatFileSize:n=>`${n} B`};
     if(name==='@/lib/api/skills')return {skillsApi:api,skillsChanged:()=>changed++};
+    if(name==='@/lib/platform')return {isDesktop:()=>true,selectFolderGrant:async()=>null};
+    if(name.startsWith('./'))return load(path.resolve(path.dirname(filename),name+'.tsx'));
     if(name==='sonner')return {toast:{success(){}}};
     if(name.startsWith('@/')){
       const base=path.join(root,'src',name.slice(2));
@@ -62,7 +71,7 @@ async function main(){
   const button=label=>buttons().find(n=>n.props['aria-label']===label || text(n)===label);
   const click=async label=>{assert.ok(button(label),label);await act(async()=>button(label).props.onClick({currentTarget:{focus(){}}}))};
   const input=placeholder=>c.root.findAllByType('input').find(n=>n.props.placeholder===placeholder);
-  await click('find-skills内置可复用方法');
+  await click('查看 find-skills（内置）');
   assert.equal(details,1);assert.equal(c.root.findAllByType('textarea').length,0);assert.equal(button('编辑正文'),undefined);
   assert.equal(c.root.findByType('article').props['data-markdown'],'# 方法\n\n**核对目标**');
   await click('agents/openai.yaml');assert.equal(c.root.findAllByType('article').length,0);
@@ -70,6 +79,11 @@ async function main(){
   await click('SKILL.md');assert.equal(c.root.findAllByType('article').length,1);
   await act(async()=>c.root.findByType('dialog').parent.props.onOpenChange(false));
   assert.equal(c.root.findAllByType('dialog').length,0);
+  const mode = () => c.root.findAllByType('select').find(node => node.props['aria-label'] === 'find-skills（内置）的使用方式');
+  assert.equal(mode().props.value, 'selectable');
+  await act(async()=>mode().props.onChange({target:{value:'included'}}));
+  assert.equal(mode().props.value, 'selectable');
+  assert.ok(c.root.findAllByProps({role:'alert'}).some(node=>text(node).includes('目录预算不足')));
   const local = load(path.join(root,'src/lib/skill-local.ts'));
   const loose = local.classifyLocalPaths(['notes.md','a.txt'], 'loose');
   assert.equal(loose.ok, true);
@@ -83,7 +97,7 @@ async function main(){
   assert.equal(local.classifyLocalPaths(['skill/.git/config'], 'folder').ok, false);
   assert.equal(local.hasSkillFrontmatter('---\nname: a\n---\nbody\n'), true);
   assert.equal(local.hasSkillFrontmatter('# 标题\n'), false);
-  await click('新增 Skill');await click('本地内容');await click('直接编写从空白正文开始');
+  await click('添加 Skill');await click('直接编写');
   await act(async()=>{
     input('my-skill').props.onChange({target:{value:'sample-skill'}});
     input('什么时候使用这个 Skill').props.onChange({target:{value:'可复用方法'}});
@@ -96,14 +110,16 @@ async function main(){
   assert.equal(input('my-skill').props.value,'sample-skill');
   await click('取消');assert.equal(c.root.findAllByType('dialog').length,1,'拒绝放弃后保留表单');
   await click('GitHub');assert.ok(button('获取'));assert.equal(button('安装 Skill'),undefined);assert.equal(button('改用文件'),undefined);
-  await click('本地内容');assert.equal(input('my-skill').props.value,'sample-skill');
+  await click('直接编写');assert.equal(input('my-skill').props.value,'sample-skill');
   await click('查看排版');assert.equal(c.root.findAllByType('article').length,1);
   await click('继续编辑');assert.equal(c.root.findAllByType('textarea').length,1);
-  await click('安装 Skill');assert.ok(c.root.findByProps({role:'alert'}));
+  await click('预览');assert.equal(publishes.length,0,'预览阶段不发布');
+  assert.ok(text(c.root.findByType('dialog')).includes('RayAgent 应用管理库'));
+  await click('安装 Skill');assert.ok(c.root.findByType('dialog').findByProps({role:'alert'}));
   await click('安装 Skill');assert.equal(publishes[0].id,publishes[1].id);assert.equal(publishes[0].path,'');
   assert.equal(c.root.findAllByType('dialog').length,1,'成功后留在详情');assert.equal(dirty,false);assert.equal(changed,1);
   await click('删除 Skill');await click('删除');assert.equal(c.root.findAllByType('dialog').length,0);
-  await click('新增 Skill');await click('本地内容');
+  await click('添加 Skill');await click('本地文件');
   assert.equal(button('预览'),undefined);
   const fileInput=c.root.findAllByType('input').find(n=>n.props.type==='file' && n.props.accept);
   await act(async()=>{await fileInput.props.onChange({target:{files:[new File(['---\nname: sample-skill\n---\nbody'],'SKILL.md')],value:''}});await new Promise(r=>setTimeout(r,0))});
@@ -111,8 +127,32 @@ async function main(){
   assert.equal(button('获取'),undefined);
   lostPublish=true;await click('安装 Skill');
   assert.equal(c.root.findAllByType('dialog').length,1,'响应丢失后读回完成结果并打开详情');
-  assert.equal(c.root.findAllByProps({role:'alert'}).length,0);
+  assert.equal(c.root.findByType('dialog').findAllByProps({role:'alert'}).length,0);
   await act(async()=>c.unmount());
+
+  // 同一个包从其他来源仍可使用时，停用来源视图也必须显示该组自己的状态。
+  const agents = {kind:'workspace',group:'agents',source_id:'agents-dir'};
+  const cursor = {kind:'workspace',group:'cursor',source_id:'cursor-dir'};
+  sourceData = {
+    ...sourceData,
+    groups:[{id:'agents',label:'.agents',enabled:false,count:1},{id:'cursor',label:'.cursor',enabled:true,count:1}],
+    sources:[{...agents,enabled:false,problems:[]},{...cursor,enabled:true,problems:[]}],
+  };
+  items = [{...installed,external:true,source:cursor,status:'available',source_state:'enabled',
+    locations:[{source:agents,status:'available'},{source:cursor,status:'available'}]}];
+  await act(async()=>{c=create(React.createElement(m.exports.SkillsSection,props))});
+  const aliasMode = () => c.root.findByType('select');
+  assert.equal(aliasMode().props.value,'selectable');
+  assert.match(aliasMode().props['aria-label'],/\.cursor/);
+  await click('.agents1');
+  assert.equal(aliasMode().props.value,'off');
+  assert.equal(aliasMode().props.disabled,true);
+  assert.match(aliasMode().props['aria-label'],/\.agents/);
+  assert.equal(text(aliasMode().findAllByType('option')[0]),'来源已停用');
+  await click('可选择');
+  assert.equal(c.root.findAllByType('select').length,0);
+  await act(async()=>c.unmount());
+
   // 快速切换文件时，迟到的读取不能覆盖当前对象。
   const Reader=load(path.join(root,'src/components/skill-reader.tsx')).SkillReader;
   let completeYaml;

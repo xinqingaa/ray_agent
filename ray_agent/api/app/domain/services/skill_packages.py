@@ -17,6 +17,14 @@ class SkillError(ValueError):
         self.status = status
 
 
+def market_identity(repository, slug):
+    if (not isinstance(repository, str) or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9-]{0,38}/[A-Za-z0-9_.-]{1,100}', repository)
+            or repository.split('/')[-1] in ('.', '..')
+            or not isinstance(slug, str) or not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9._-]{0,127}', slug)):
+        raise SkillError('市场条目需要有效的公开 GitHub 仓库和 Skill 标识')
+    return f'{repository.lower()}/{slug}'
+
+
 def safe_path(value: str) -> str:
     value = unicodedata.normalize('NFC', value)
     parts = value.split('/')

@@ -650,16 +650,17 @@ class AgentService:
                 active = await self._uow.run.get_active(session_id) if session else None
             if not session:
                 raise NotFoundError("任务会话不存在, 请核实后重试")
+            frozen = active is not None and active.status.active and (active.config_snapshot or {}).get("skills_frozen")
             if self._skills is not None:
-                await self._skills.refresh_catalog(
-                    workspace_id=session.workspace_id, session_id=session_id)
-            if skill is not None and self._skills is not None:
-                await self._skills.validate_selection(skill.model_dump())
-                if active is not None and active.status.active and (active.config_snapshot or {}).get("skills_frozen"):
-                    bound = await self._skills.bindings(active.id)
-                    selected = next((e for e in bound if e.get("id") == skill.id or e.get("name") == skill.id), None)
-                    if not selected or selected["version"] != skill.version:
-                        raise ConflictError("本运行 Skill 目录已固定，请在新运行中选择此版本")
+                if not frozen:
+                    await self._skills.refresh_catalog(workspace_id=session.workspace_id, session_id=session_id)
+                if skill is not None:
+                    if not frozen:
+                        await self._skills.validate_selection(skill, workspace_id=session.workspace_id)
+                    else:
+                        bound = await self._skills.bindings(active.id, workspace_id=session.workspace_id)
+                        if not any(e["id"] == skill.id and e["version"] == skill.version for e in bound):
+                            raise ConflictError("本运行 Skill 目录已固定，请在新运行中选择此版本")
             if execute_plan is not None:
                 # 独立受理路径：不能误入运行中注入/等待续接；写事务串行化重试。
                 if mode != RunMode.NORMAL or attachments or skill is not None or references:
@@ -731,6 +732,8 @@ class AgentService:
                 await self._ledger.transition(session_id, active.id, RunStatus.INTERRUPTED, RunReason.RUNNER_LOST)
                 prior_status = SessionStatus.INTERRUPTED
             if run is None:
+                if frozen and self._skills is not None:
+                    await self._skills.refresh_catalog(workspace_id=session.workspace_id, session_id=session_id)
                 route_box["route"] = "started"
                 if session.title_source == "placeholder" and session.title in ("", "新对话"):
                     provisional_title = TitleEvent(title=message.strip()[:30])

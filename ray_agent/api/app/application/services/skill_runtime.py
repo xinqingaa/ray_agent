@@ -1,7 +1,6 @@
 """单运行 skill 端口，与目录、正文和快照材料的版本绑定。"""
 import asyncio
 import uuid
-from pathlib import Path
 
 from app.domain.models.tool_result import ToolResult
 from app.domain.services.skill_packages import SkillError
@@ -20,10 +19,10 @@ class SkillRuntime:
 
     async def initialize(self, frozen=False):
         if frozen:
-            self.entries = await self.service.bindings(self.run_id)
+            self.entries = await self.service.bindings(self.run_id, workspace_id=self.workspace_id)
             for entry in self.entries:
                 if entry.get("prepared"):
-                    result = await self.prepare(entry["name"])
+                    result = await self.prepare(entry["id"])
                     if not result.success:
                         raise SkillError("等待续接的 Skill 材料恢复失败：" + (result.message or "未知错误"), 409)
         else:
@@ -32,7 +31,7 @@ class SkillRuntime:
 
     async def load(self, name):
         try:
-            version = await self.service.load(self.run_id, name)
+            version = await self.service.load(self.run_id, name, workspace_id=self.workspace_id)
             return ToolResult(success=True, message='完整正文已激活，将作为 Skill 资料提供；不表示任务已完成',
                               data={'name': name, 'version': version['version'], 'active': True,
                                     'root_path': version.get('root_path')})
@@ -41,7 +40,7 @@ class SkillRuntime:
 
     async def resource(self, name, path, start, end):
         try:
-            return ToolResult(success=True, data=await self.service.resource(self.run_id, name, path, start, end))
+            return ToolResult(success=True, data=await self.service.resource(self.run_id, name, path, start, end, workspace_id=self.workspace_id))
         except SkillError as exc:
             return ToolResult(success=False, message=str(exc))
 
@@ -52,24 +51,17 @@ class SkillRuntime:
     async def prepare(self, name):
         """本机执行直接映射已发布快照；不复制、不安装依赖、不执行包管理器。"""
         try:
-            entries = await self.service.bindings(self.run_id)
-            entry = next((e for e in entries if (e['name'] == name or e['id'] == name) and e.get('active')), None)
-            if not entry:
+            entries = await self.service.bindings(self.run_id, workspace_id=self.workspace_id)
+            entry = self.service._find_bound(entries, name)
+            if not entry or not entry.get('active'):
                 raise SkillError('请先加载 Skill')
-            root = Path(entry.get('root_path') or self.service.snapshot_root(entry['version']))
-            if not root.is_dir():
-                raise SkillError('Skill 快照缺失，无法准备材料；请重新发现或导入', 409)
-            # 核对清单完整性
+            root = self.service.snapshot_root(entry['version'])
             async with self.service.repository.transaction() as tx:
                 version = await tx.get('versions', entry['version'])
-            missing = []
-            for item in version['files']:
-                target = root / item['path']
-                if not target.is_file():
-                    missing.append(item['path'])
-            if missing:
-                raise SkillError('Skill 快照不完整：' + ', '.join(missing[:5]), 409)
-            await self.service.mark_prepared(self.run_id, name)
+            if not version:
+                raise SkillError('绑定版本缺失，请重新导入', 409)
+            await asyncio.to_thread(self.service.storage.verify, entry['version'], version['files'])
+            await self.service.mark_prepared(self.run_id, entry['id'], workspace_id=self.workspace_id)
             return ToolResult(
                 success=True,
                 message='已映射到运行绑定的 Skill 快照根路径；脚本工作目录请使用工作区或会话目录，不要回写包内文件。不自动安装依赖。',
@@ -111,8 +103,8 @@ class SkillRuntime:
             append_error = None
             if use_now:
                 try:
-                    await self.service.append(self.run_id, entry)
-                    self.entries = await self.service.bindings(self.run_id)
+                    await self.service.append(self.run_id, entry, workspace_id=self.workspace_id)
+                    self.entries = await self.service.bindings(self.run_id, workspace_id=self.workspace_id)
                 except SkillError as exc:
                     append_error = str(exc)
             return ToolResult(success=True, message='Skill 已安装；需要使用时调用 load_skill。安装不代表执行环境或任务成果已验证。',
@@ -121,10 +113,10 @@ class SkillRuntime:
             return ToolResult(success=False, message=str(exc), data={'operation_id': operation_id})
 
     async def context(self):
-        self.entries = sorted(await self.service.bindings(self.run_id), key=lambda e: e['name'])
+        self.entries = sorted(await self.service.bindings(self.run_id, workspace_id=self.workspace_id), key=lambda e: e['name'])
         blocks = [catalog_message(self.run_id, self.entries)]
         for entry in self.entries:
             if entry['active']:
-                version = await self.service.load(self.run_id, entry['name'])
+                version = await self.service.load(self.run_id, entry['id'], workspace_id=self.workspace_id)
                 blocks.append(body_message(self.run_id, version, self.service.settings.skill_resource_chars))
         return blocks

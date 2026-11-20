@@ -17,9 +17,8 @@ import {useWorkspaces} from '@/providers/workspaces-provider'
 import {WorkspaceStatus} from '@/components/workspace/workspace-status'
 import {formatDayLabel} from '@/lib/utils'
 
-type SessionRows = {sessions: Session[]; loading: boolean; error: string | null}
-
-const EMPTY_ROWS: SessionRows = {sessions: [], loading: true, error: null}
+const PAGE_SIZE = 50
+type SessionRows = {sessions: Session[]; error: string | null}
 
 function DirectoryStatus({loading, error, empty, onRetry}: {loading: boolean; error: string | null; empty: string | null; onRetry: () => void}) {
   if (error) return <div className="px-2 py-3"><p role="alert" className="text-meta text-state-failed">{error}</p>
@@ -39,33 +38,71 @@ function DirectoryFrame({label, action, children}: {label: string; action: React
   </Sidebar>
 }
 
-/** 非当前工作区只取目录快照，当前工作区复用唯一实时会话列表。 */
-function ExpandedWorkspaceSessions({id, revision, renderRows}: {id: string; revision: number; renderRows: (rows: Session[]) => ReactNode}) {
-  const [snapshot, setSnapshot] = useState<SessionRows & {offset: number; total: number}>({...EMPTY_ROWS, offset: 0, total: 0})
-  const [request, setRequest] = useState({offset: 0, revision, attempt: 0})
-  const offset = request.revision === revision ? request.offset : 0
+/** 保留展开列表，首段实时数据与分页属于同一工作区。 */
+function ExpandedWorkspaceSessions({id, open, active, revision, directory, selected, retryActive, renderRows}: {
+  id: string; open: boolean; active: boolean; revision: number
+  directory?: SessionRows & {loaded: boolean}
+  selected: Session | null
+  retryActive: () => Promise<void>
+  renderRows: (rows: Session[]) => ReactNode
+}) {
+  const [snapshot, setSnapshot] = useState({
+    first: [] as Session[], older: [] as Session[], offset: 0, total: 0, loaded: false,
+    loading: false, error: null as string | null,
+  })
+  const [request, setRequest] = useState<{offset: number; end: number} | null>(null)
+  const [seenRevision, setSeenRevision] = useState(revision)
+  const hasDirectory = directory?.loaded === true
+  if (seenRevision !== revision) {
+    setSeenRevision(revision)
+    setRequest({offset: 0, end: Math.max(PAGE_SIZE, snapshot.offset)})
+  }
+
   useEffect(() => {
+    if (!open || !request && (active || hasDirectory || snapshot.loaded)) return
     let cancelled = false
+    const start = request?.offset ?? 0
+    const end = request?.end ?? PAGE_SIZE
     setSnapshot(previous => ({...previous, loading: true, error: null}))
-    void sessionApi.getSessions(offset, {workspaceId: id}).then(page => {
-      if (cancelled) return
+    async function load() {
+      const fetched: Session[] = []
+      let offset = start
+      let total = start
+      do {
+        const page = await sessionApi.getSessions(offset, {workspaceId: id}, Math.min(PAGE_SIZE, end - offset))
+        if (cancelled) return
+        fetched.push(...page.sessions)
+        offset += page.sessions.length
+        total = page.sessions.length ? page.total : offset
+      } while (offset < end && offset < total)
       setSnapshot(previous => {
-        const entries = new Map((offset ? previous.sessions : []).map(session => [session.session_id, session]))
-        for (const session of page.sessions) entries.set(session.session_id, session)
-        return {sessions: [...entries.values()], loading: false, error: null,
-          offset: page.offset + page.sessions.length, total: page.sessions.length ? page.total : page.offset}
+        const first = start ? previous.first : fetched.slice(0, PAGE_SIZE)
+        const older = start ? [...previous.older, ...fetched] : fetched.slice(PAGE_SIZE)
+        return {first, older, loading: false, error: null, offset, total, loaded: true}
       })
-    }).catch(reason => {
+      setRequest(null)
+    }
+    void load().catch(reason => {
       if (!cancelled) setSnapshot(previous => ({...previous, loading: false, error: reason instanceof Error ? reason.message : '读取对话失败'}))
     })
     return () => {cancelled = true}
-  }, [id, revision, offset, request.attempt])
+  }, [active, hasDirectory, id, open, request, snapshot.loaded])
+
+  const first = hasDirectory ? directory.sessions : snapshot.first
+  const rows = new Map(first.map(session => [session.session_id, session]))
+  for (const session of snapshot.older) if (!rows.has(session.session_id) && first.length >= PAGE_SIZE) rows.set(session.session_id, session)
+  if (selected && !rows.has(selected.session_id)) rows.set(selected.session_id, selected)
+
+  const error = snapshot.error ?? (active ? directory?.error ?? null : null)
+  const loading = !hasDirectory && !snapshot.loaded && !error
+  const nextOffset = Math.max(first.length, snapshot.offset)
+  const more = first.length === PAGE_SIZE && (snapshot.offset >= PAGE_SIZE ? nextOffset < snapshot.total : hasDirectory)
   return <>
-    {renderRows(snapshot.sessions)}
-    {(!snapshot.sessions.length || snapshot.error || snapshot.loading) && <DirectoryStatus loading={snapshot.loading} error={snapshot.error}
-      empty={snapshot.sessions.length ? null : '还没有对话'} onRetry={() => setRequest(value => ({offset, revision, attempt: value.attempt + 1}))}/>}
-    {snapshot.offset < snapshot.total && !snapshot.loading && !snapshot.error && <Button variant="ghost" size="xs" className="ml-2"
-      onClick={() => setRequest(value => ({offset: snapshot.offset, revision, attempt: value.attempt + 1}))}>加载更多</Button>}
+    {renderRows([...rows.values()])}
+    {(!rows.size || error) && <DirectoryStatus loading={loading} error={error} empty={rows.size ? null : '还没有对话'}
+      onRetry={() => snapshot.error ? setRequest(request ? {...request} : {offset: 0, end: PAGE_SIZE}) : void retryActive()}/>}
+    {more && <Button variant="ghost" size="xs" className="ml-2" disabled={snapshot.loading && !!request}
+      onClick={() => setRequest({offset: nextOffset, end: nextOffset + PAGE_SIZE})}>加载更多</Button>}
   </>
 }
 
@@ -75,7 +112,7 @@ export function LeftPanel({scope, expanded, onExpand}: {
   const router = useRouter()
   const pathname = usePathname()
   const {setOpenMobile} = useSidebar()
-  const {sessions, loading, error, refresh, deleteSession, patchSession, liveSession} = useSessions()
+  const {sessions, directories, loading, error, refresh, deleteSession, patchSession, liveSession} = useSessions()
   const {workspaces, loading: workspacesLoading, error: workspacesError, refresh: refreshWorkspaces} = useWorkspaces()
   const [selectedRecord, setSelected] = useState<Session | null>(null)
   const [pendingDelete, setPendingDelete] = useState<Session | null>(null)
@@ -104,17 +141,13 @@ export function LeftPanel({scope, expanded, onExpand}: {
     onClick={() => setOpenMobile(false)} onDelete={setPendingDelete} onRename={setPendingRename}/>)
   const invalidate = (owner: string | null) => {
     if (owner === workspaceId) void refresh()
-    else if (owner) setRevisions(current => ({...current, [owner]: (current[owner] ?? 0) + 1}))
+    if (owner) setRevisions(current => ({...current, [owner]: (current[owner] ?? 0) + 1}))
   }
   const remove = async () => {
     if (!pendingDelete) return
     const owner = pendingDelete.workspace_id ?? null
-    if (owner === workspaceId) {
-      if (!await deleteSession(pendingDelete.session_id)) {toast.error('删除对话失败，请重试'); return}
-    } else {
-      try {await sessionApi.deleteSession(pendingDelete.session_id)}
-      catch (reason) {toast.error(reason instanceof Error ? reason.message : '删除对话失败'); return}
-    }
+    if (!await deleteSession(pendingDelete.session_id, owner)) {toast.error('删除对话失败，请重试'); return}
+    setSelected(current => current?.session_id === pendingDelete.session_id ? null : current)
     if (sessionId === pendingDelete.session_id) router.push(owner ? workspaceHref(owner) : '/')
     invalidate(owner)
     setPendingDelete(null)
@@ -145,12 +178,12 @@ export function LeftPanel({scope, expanded, onExpand}: {
             <span className="min-w-0 flex-1 truncate" dir="auto">{workspace.name}</span>
             <WorkspaceStatus workspace={workspace} compact/>
           </Link>
-          {open && <div className="workspace-directory-children" aria-label={`${workspace.name}的对话`}>
-            {active ? <>
-              {!currentRows.length && <DirectoryStatus loading={loading} error={error} empty="还没有对话" onRetry={() => void refresh()}/>}
-              {renderRows(currentRows, workspace.id)}
-            </> : <ExpandedWorkspaceSessions id={workspace.id} revision={revisions[workspace.id] ?? 0} renderRows={rows => renderRows(rows, workspace.id)}/>}
-          </div>}
+          <div className="workspace-directory-children" aria-label={`${workspace.name}的对话`} hidden={!open}>
+            <ExpandedWorkspaceSessions id={workspace.id} open={open} active={active} revision={revisions[workspace.id] ?? 0}
+              directory={directories[workspace.id]} retryActive={refresh}
+              selected={active && selected?.workspace_id === workspace.id ? currentRows.find(item => item.session_id === selected.session_id) ?? null : null}
+              renderRows={rows => renderRows(rows, workspace.id)}/>
+          </div>
         </div>
       })}
     </DirectoryFrame> : <DirectoryFrame label="独立对话" action={<IconAction label="新对话" asChild>
@@ -174,7 +207,7 @@ export function LeftPanel({scope, expanded, onExpand}: {
       onOpenChange={open => {if (!open) setPendingRename(null)}} onSaved={title => {
         const id = pendingRename.session_id
         const owner = pendingRename.workspace_id ?? null
-        if (owner === workspaceId) patchSession(id, {title})
+        patchSession(id, {title}, owner)
         setSelected(current => current?.session_id === id ? {...current, title} : current)
         invalidate(owner)
       }}/>}

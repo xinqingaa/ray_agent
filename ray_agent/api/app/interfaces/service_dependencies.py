@@ -2,6 +2,8 @@
 # -*- coding: utf-8 -*-
 """依赖组装：业务库、内容对象、会话工作目录与通知都在本进程内，核心不连接外部存储或容器。"""
 import logging
+from functools import lru_cache
+from pathlib import Path
 
 from app.application.services.agent_service import AgentService
 from app.application.services.app_config_service import AppConfigService
@@ -421,14 +423,21 @@ async def get_agent_service() -> AgentService:
     )
 
 
+@lru_cache(maxsize=1)
+def skill_discovery_state(root: Path):
+    from app.application.services.skill_service import SkillDiscoveryState
+
+    return SkillDiscoveryState()
+
+
 def get_skill_service():
     from app.application.services.skill_service import SkillService
+    from app.application.errors.exceptions import NotFoundError
+    from app.domain.models.workspace import FolderStatus
     from app.infrastructure.repositories.db_skill_repository import DBSkillRepository
     from app.infrastructure.external.skills.storage import SkillStorage
     from app.infrastructure.external.skills.github import GitHubSkills
-    from sqlalchemy import select
     from app.infrastructure.models.session import SessionModel
-    from app.infrastructure.models.root import RootModel
 
     current = get_settings()
 
@@ -436,23 +445,99 @@ def get_skill_service():
         return (await get_app_config_repository().load()).skill_config
 
     async def workspace_locator(workspace_id: str = "", session_id: str | None = None):
-        async with get_read_uow() as uow:
-            wid = workspace_id or None
-            if not wid and session_id:
+        wid = workspace_id or None
+        if session_id:
+            async with get_read_uow() as uow:
                 session = await uow.db_session.get(SessionModel, session_id)
                 wid = session.workspace_id if session else None
-            if not wid:
-                return None, None
-            rows = await uow.db_session.scalars(
-                select(RootModel).where(RootModel.workspace_id == wid, RootModel.kind == "workspace_folder"))
-            root = rows.first()
-            return (root.location if root else None), wid
+        if not wid:
+            return None, None
+        try:
+            view = await get_workspace_service().get(wid)
+        except NotFoundError:
+            return None, wid
+        folder = view.folder
+        return (folder.location if folder and folder.status is FolderStatus.AVAILABLE else None), wid
+
+    async def workspace_roots():
+        async with get_read_uow() as uow:
+            return {root.ref.workspace_id: root.location for root in await uow.root.workspace_folders()}
 
     return SkillService(
         DBSkillRepository(get_database()), SkillStorage(data_root().skills, current),
         GitHubSkills(current), current,
         config_loader=config_loader, workspace_locator=workspace_locator,
+        global_folder=Path(current.skill_global_location).expanduser().absolute(),
+        discovery_state=skill_discovery_state(data_root().root), workspace_roots=workspace_roots,
     )
+
+
+@lru_cache(maxsize=1)
+def skill_market_client(root: Path):
+    from app.infrastructure.external.skills.market import SkillMarket
+
+    return SkillMarket(get_settings())
+
+
+def get_skill_market():
+    return skill_market_client(data_root().root)
+
+
+async def native_skill_target(service, workspace_id):
+    import os
+    from app.application.errors.exceptions import NotFoundError
+    from app.domain.models.workspace import FolderStatus, WorkspaceStatus
+    from app.domain.services.skill_discovery import NATIVE_RELATIVE
+    from app.infrastructure.external.skills.native_install import NativeSkillTarget
+
+    if workspace_id:
+        try:
+            view = await get_workspace_service().get(workspace_id)
+        except NotFoundError:
+            return None
+        folder = view.folder
+        if (not folder or folder.status is not FolderStatus.AVAILABLE or
+                view.workspace.status is not WorkspaceStatus.ACTIVE or view.lease):
+            return None
+        target = NativeSkillTarget(Path(folder.location), workspace_id, (folder.dev, folder.ino))
+    else:
+        if service.global_folder is None:
+            return None
+        async with get_read_uow() as uow:
+            roots = await uow.root.workspace_folders()
+        target = NativeSkillTarget(service.global_folder)
+        if any(target.path.is_relative_to(Path(root.location)) for root in roots):
+            return None
+    candidate = target.path / NATIVE_RELATIVE
+    try:
+        if candidate.resolve() != candidate:
+            return None
+        while not candidate.exists():
+            candidate = candidate.parent
+        if candidate.is_dir() and os.access(candidate, os.W_OK | os.X_OK):
+            return target
+    except (OSError, RuntimeError):
+        pass
+    return None
+
+
+async def publish_native_skill(service, workspace_id, target_id, name, bundle):
+    import asyncio
+    from app.domain.services.skill_packages import SkillError
+    from app.infrastructure.external.skills.native_install import install_native_skill
+
+    async with get_workspace_runtime().lock:
+        target = await native_skill_target(service, workspace_id)
+        if not target or target.id != target_id:
+            raise SkillError('安装位置不可用或已变化，请重新选择', 409)
+        writer = asyncio.create_task(asyncio.to_thread(install_native_skill, target, name, bundle, service.settings))
+        try:
+            await asyncio.shield(writer)
+        except asyncio.CancelledError:
+            # 发布线程退出前保留工作区锁，避免工作区改绑与写入交错。
+            await asyncio.gather(writer, return_exceptions=True)
+            raise
+        return target.destination(name)
 
 
 def get_component_service():

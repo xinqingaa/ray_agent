@@ -107,6 +107,14 @@ class SkillStorage:
             raise SkillError('Skill 资源完整性校验失败', 409)
         return raw
 
+    def verify(self, version, manifest):
+        files = self.read_all('versions', version)
+        if len(files) != len(manifest) or any(
+            (raw := files.get(item['path'])) is None or len(raw) != item['size'] or
+            hashlib.sha256(raw).hexdigest() != item['sha256'] for item in manifest
+        ):
+            raise SkillError('Skill 快照完整性校验失败，请重新发现或导入', 409)
+
     def remove(self, namespace, key):
         path = self._dir(namespace, key)
         if path.exists():

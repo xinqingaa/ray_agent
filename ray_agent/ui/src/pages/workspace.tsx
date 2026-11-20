@@ -61,7 +61,7 @@ export function WorkspaceLayout() {
   if (workspace.status === 'deleting') return <Message title="这个工作区正在删除" detail="清理完成后会从列表中消失，文件夹与其中的文件不受影响。">
     <Button asChild variant="outline" size="sm"><Link href="/workspaces">返回工作区</Link></Button>
   </Message>
-  return <WorkspaceLiveProvider workspace={workspace}>
+  return <WorkspaceLiveProvider key={workspace.id} workspace={workspace}>
     <div className="workspace-surface flex h-full min-h-0 flex-col">
       <WorkspaceBar workspace={workspace}/>
       <WorkspaceBanners workspace={workspace}/>
@@ -193,7 +193,7 @@ export function WorkspaceHomePage() {
           deliveryLabel="最近对话的交付" deliveryEmpty="最近对话暂无交付文件。"
           className="min-h-0 flex-1"/>
       </TaskInspector>}>
-      <main className="task-home" aria-labelledby="workspace-home-title">
+      <main className="task-home workspace-task-home" aria-labelledby="workspace-home-title">
         <div className="task-home-content">
           <header className="task-home-heading">
             <h1 id="workspace-home-title" dir="auto">{workspace.name}</h1>
@@ -201,7 +201,7 @@ export function WorkspaceHomePage() {
           </header>
           {condition.archived
             ? <p role="status" className="rounded-lg bg-muted px-3.5 py-3 text-center text-sm text-muted-foreground">工作区已归档，不能发起新对话。取消归档后可以继续。</p>
-            : <ChatInput ref={input} autoFocus={!initialPreview} workspace draftScope={scope} onSend={start} disabled={sending}
+            : <ChatInput ref={input} autoFocus={!initialPreview} workspace workspaceId={workspace.id} draftScope={scope} onSend={start} disabled={sending}
                 placeholder={`在${workspace.name}里开始一个任务`}
                 commandHost={{
                   hasSession: false, hasRuns: false, runStatus: 'idle', waitingApproval: false, waitingReply: false,

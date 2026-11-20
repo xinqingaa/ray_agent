@@ -95,6 +95,9 @@ def test_same_name_conflict_and_missing_external(tmp_path):
         assert still['status'] == 'available'
         await s.change(from_two['id'], from_two['version'], delete=True)
         assert (two / 'dup' / 'SKILL.md').is_file()
+        assert all(item['id'] != from_two['id'] for item in await s.list())
+        await s.refresh_catalog(force=True)
+        assert any(item['id'] == from_two['id'] for item in await s.list(refresh=False))
     asyncio.run(run())
 
 
@@ -152,4 +155,101 @@ def test_overfull_catalog_still_starts_with_builtin_and_selection(tmp_path):
         assert {e['name'] for e in bound} == {'find-skills', 'picked'}
         listed = await s.list(refresh=False)
         assert next(e for e in listed if e['name'] == 'alpha')['catalog_overflow'] is True
+    asyncio.run(run())
+
+
+def test_codex_group_and_aliases_restore_original_settings(tmp_path, monkeypatch):
+    from app.domain.services import skill_discovery
+
+    async def run():
+        home = tmp_path / 'home'
+        workspace = tmp_path / 'workspace'
+        monkeypatch.setattr(skill_discovery, 'user_home', lambda: home)
+        monkeypatch.setenv('CODEX_HOME', str(tmp_path / 'codex-home'))
+        for i in range(10):
+            write_skill(home / '.codex' / 'skills', f'codex-{i}')
+        write_skill(tmp_path / 'codex-home' / 'skills', 'other-codex')
+        private = write_skill(workspace / '.codex' / 'skills', 'private-codex')
+        alias = workspace / '.cursor' / 'skills' / 'alias'
+        alias.parent.mkdir(parents=True)
+        alias.symlink_to(private, target_is_directory=True)
+        config = SkillConfig()
+        s = service(tmp_path / 'store')
+        s._config_loader = lambda: config
+        s._workspace_locator = lambda wid, **_: (str(workspace) if wid == 'a' else None, wid)
+        before = {item['name']: item for item in await s.list(workspace_id='a')}
+        await s.change(before['codex-0']['id'], before['codex-0']['version'], enabled=False)
+        await s.change(before['codex-1']['id'], before['codex-1']['version'], included=True)
+        config = config.model_copy(update={'disabled_groups': ['codex']})
+        write_skill(home / '.codex' / 'skills', 'new-codex')
+        off = {item['name']: item for item in await s.list(workspace_id='a')}
+        assert all(not off[name]['enabled'] for name in ('codex-0', 'codex-1', 'other-codex'))
+        assert 'new-codex' not in off
+        assert off['private-codex']['enabled'] and off['private-codex']['source']['group'] == 'cursor'
+        with pytest.raises(SkillError):
+            await s.validate_selection(before['codex-1'])
+        config = SkillConfig()
+        after = {item['name']: item for item in await s.list(workspace_id='a')}
+        assert not after['codex-0']['enabled']
+        assert after['codex-1']['enabled'] and after['codex-1']['auto_bound']
+        assert after['new-codex']['enabled'] and not after['new-codex']['included']
+        assert all(item['name'] != 'private-codex' for item in await s.list())
+
+    asyncio.run(run())
+
+
+def test_scan_reuses_content_and_reports_invalid_updates(tmp_path):
+    from unittest.mock import patch
+
+    async def run():
+        folder = tmp_path / 'extra'
+        package = write_skill(folder, 'reusable')
+        config = SkillConfig(discover_user=False, extra_dirs=[str(folder)])
+        s = service(tmp_path / 'store')
+        s._config_loader = lambda: config
+        with patch.object(s.storage, 'write', wraps=s.storage.write) as write:
+            entry, = await s.list()
+            assert write.call_count == 1
+            assert (await s.list())[0]['version'] == entry['version']
+            assert write.call_count == 1
+            (package / 'SKILL.md').write_text('invalid')
+            invalid, = await s.list()
+            assert not invalid['enabled'] and invalid['status'] == 'invalid'
+            assert (await s.sources())['sources'][-1]['problems']
+            (package / 'SKILL.md').write_bytes(source('reusable', '更新'))
+            updated, = await s.list()
+            assert updated['enabled'] and updated['version'] != entry['version']
+            assert write.call_count == 2
+        config = config.model_copy(update={'extra_dirs': []})
+        assert await s.list() == []
+        assert (package / 'SKILL.md').is_file()
+
+    asyncio.run(run())
+
+
+def test_same_name_preferences_are_scoped_per_workspace(tmp_path):
+    async def run():
+        folders = {scope: tmp_path / scope for scope in ('first', 'second')}
+        for scope, folder in folders.items():
+            write_skill(folder / '.rayagent' / 'skills', 'shared-example', scope)
+        config = SkillConfig(discover_user=False, discover_workspace=False)
+        s = service(tmp_path / 'store')
+        s._config_loader = lambda: config
+        s._workspace_locator = lambda wid, **_: (str(folders[wid]) if wid in folders else None, wid)
+        cross_scope = await install(s, name='shared-example')
+        workspace_skills = {}
+        for scope in folders:
+            skill = next(e for e in await s.list(workspace_id=scope) if e['external'])
+            workspace_skills[scope] = skill
+            await s.change(skill['id'], skill['version'], included=True, workspace_id=scope)
+        config = config.model_copy(update={
+            'preferred': {'shared-example': cross_scope['id']},
+            'workspace_preferred': {'first': {'shared-example': workspace_skills['first']['id']}},
+        })
+        requests = {'first': workspace_skills['first']['id'], 'second': cross_scope['id'], None: cross_scope['id']}
+        for scope, expected in requests.items():
+            visible = await s.list(workspace_id=scope)
+            preferred = next(e for e in visible if e['preferred'])
+            assert preferred['id'] == expected and preferred['auto_bound']
+
     asyncio.run(run())

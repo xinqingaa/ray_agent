@@ -2709,6 +2709,202 @@
         }
       }
     },
+    "/api/skills/market": {
+      "get": {
+        "tags": [
+          "skill"
+        ],
+        "summary": "Market Catalog",
+        "operationId": "market_catalog_api_skills_market_get",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "maxLength": 200,
+              "default": "",
+              "title": "Q"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 100,
+              "minimum": 1,
+              "default": 25,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_MarketCatalog_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/skills/market/descriptions": {
+      "post": {
+        "tags": [
+          "skill"
+        ],
+        "summary": "Market Descriptions",
+        "operationId": "market_descriptions_api_skills_market_descriptions_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MarketDescriptionsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_dict_str__Union_str__NoneType___"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/skills/market/targets": {
+      "get": {
+        "tags": [
+          "skill"
+        ],
+        "summary": "Market Targets",
+        "operationId": "market_targets_api_skills_market_targets_get",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Workspace Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_list_MarketTarget__"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/skills/market/install": {
+      "post": {
+        "tags": [
+          "skill"
+        ],
+        "summary": "Market Install",
+        "operationId": "market_install_api_skills_market_install_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MarketInstallRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/skills": {
       "get": {
         "tags": [
@@ -3420,6 +3616,38 @@
               "default": false,
               "title": "Download"
             }
+          },
+          {
+            "name": "workspace_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "run_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Run Id"
+            }
           }
         ],
         "responses": {
@@ -3459,6 +3687,54 @@
             "schema": {
               "type": "string",
               "title": "Skill Id"
+            }
+          },
+          {
+            "name": "workspace_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "expected_version",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Expected Version"
+            }
+          },
+          {
+            "name": "run_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Run Id"
             }
           }
         ],
@@ -3546,6 +3822,22 @@
               "type": "string",
               "title": "Skill Id"
             }
+          },
+          {
+            "name": "workspace_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Workspace Id"
+            }
           }
         ],
         "requestBody": {
@@ -3602,6 +3894,22 @@
             "schema": {
               "type": "string",
               "title": "Expected Version"
+            }
+          },
+          {
+            "name": "workspace_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Workspace Id"
             }
           }
         ],
@@ -11935,6 +12243,184 @@
         "title": "MarkerConflict",
         "description": "复制出的文件夹：标记指向一个仍绑定在别处的已知工作区。"
       },
+      "MarketCatalog": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/MarketItem"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "has_more": {
+            "type": "boolean",
+            "title": "Has More"
+          },
+          "updated_at": {
+            "type": "integer",
+            "title": "Updated At"
+          },
+          "stale": {
+            "type": "boolean",
+            "title": "Stale"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items",
+          "has_more",
+          "updated_at",
+          "stale"
+        ],
+        "title": "MarketCatalog"
+      },
+      "MarketDescriptionsRequest": {
+        "properties": {
+          "ids": {
+            "items": {
+              "type": "string",
+              "maxLength": 270
+            },
+            "type": "array",
+            "maxItems": 12,
+            "minItems": 1,
+            "title": "Ids"
+          }
+        },
+        "type": "object",
+        "required": [
+          "ids"
+        ],
+        "title": "MarketDescriptionsRequest"
+      },
+      "MarketInstallRequest": {
+        "properties": {
+          "operation_id": {
+            "type": "string",
+            "title": "Operation Id"
+          },
+          "repository": {
+            "type": "string",
+            "maxLength": 140,
+            "title": "Repository"
+          },
+          "slug": {
+            "type": "string",
+            "maxLength": 128,
+            "title": "Slug"
+          },
+          "workspace_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Workspace Id"
+          },
+          "target_id": {
+            "type": "string",
+            "pattern": "^[a-f0-9]{64}$",
+            "title": "Target Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "operation_id",
+          "repository",
+          "slug",
+          "target_id"
+        ],
+        "title": "MarketInstallRequest"
+      },
+      "MarketItem": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "repository": {
+            "type": "string",
+            "title": "Repository"
+          },
+          "slug": {
+            "type": "string",
+            "title": "Slug"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "installs": {
+            "type": "integer",
+            "title": "Installs"
+          },
+          "count_label": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Count Label"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "repository",
+          "slug",
+          "name",
+          "installs",
+          "count_label"
+        ],
+        "title": "MarketItem"
+      },
+      "MarketTarget": {
+        "properties": {
+          "workspace_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Workspace Id"
+          },
+          "target_id": {
+            "type": "string",
+            "title": "Target Id"
+          },
+          "directory": {
+            "type": "string",
+            "title": "Directory"
+          }
+        },
+        "type": "object",
+        "required": [
+          "workspace_id",
+          "target_id",
+          "directory"
+        ],
+        "title": "MarketTarget"
+      },
       "MemoryCertainty": {
         "type": "string",
         "enum": [
@@ -13457,6 +13943,17 @@
               }
             ],
             "title": "Skill Id"
+          },
+          "workspace_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Workspace Id"
           }
         },
         "type": "object",
@@ -14334,6 +14831,25 @@
         ],
         "title": "Response[ListSessionResponse]"
       },
+      "Response_MarketCatalog_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MarketCatalog"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "Response[MarketCatalog]"
+      },
       "Response_MemoryExtractionView_": {
         "properties": {
           "data": {
@@ -14927,6 +15443,36 @@
         ],
         "title": "Response[dict]"
       },
+      "Response_dict_str__Union_str__NoneType___": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "Response[dict[str, Union[str, NoneType]]]"
+      },
       "Response_list_ComponentView__": {
         "properties": {
           "data": {
@@ -14972,6 +15518,29 @@
           "data"
         ],
         "title": "Response[list[DocumentView]]"
+      },
+      "Response_list_MarketTarget__": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/MarketTarget"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "Response[list[MarketTarget]]"
       },
       "RetryIndexRequest": {
         "properties": {
@@ -16054,6 +16623,13 @@
             "type": "array",
             "title": "Disabled Sources"
           },
+          "disabled_groups": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Disabled Groups"
+          },
           "disabled_skills": {
             "items": {
               "type": "string"
@@ -16074,6 +16650,16 @@
             },
             "type": "object",
             "title": "Preferred"
+          },
+          "workspace_preferred": {
+            "additionalProperties": {
+              "additionalProperties": {
+                "type": "string"
+              },
+              "type": "object"
+            },
+            "type": "object",
+            "title": "Workspace Preferred"
           }
         },
         "additionalProperties": false,

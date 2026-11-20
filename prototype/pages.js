@@ -174,53 +174,135 @@ function indexHTML() {
 }
 
 /* ================================================================ Skill */
-const SKILL_FILTERS = [['all', '全部'], ['工作区', '工作区'], ['用户', '用户目录'], ['额外目录', '额外目录'], ['应用', '应用安装'], ['内置', '内置']];
+const SKILL_FILTERS = [['all', '全部'], ['工作区', '工作区'], ['用户', '用户目录'], ['应用', '应用安装'], ['内置', '内置']];
+const SKILL_GROUPS = ['RayAgent', '.agents', '.codex', '.claude', '.cursor', '额外目录'];
 const SKILL_MODES = {off: '停用', selectable: '可选择', included: '每次带上'};
-function skillListHTML() {
+const SKILL_MARKET = [
+  ['find-skills', 'vercel-labs/skills', '查找适合当前任务的 Skill，并了解如何安装。', '4.4M'],
+  ['hyperframes-cli', 'heygen-com/hyperframes', '用命令行创建、检查并渲染 Hyperframes 视频。', '1.6M'],
+  ['agent-browser', 'vercel-labs/agent-browser', '通过浏览器读取页面并完成交互。', '1.6M'],
+  ['grill-me', 'mattpocock/skills', '逐步追问方案中的决定，厘清尚未确定的条件。', '1.6M'],
+  ['design-mobile-apps', 'designed-by-ai/skills', '为移动应用组织导航、页面与交互流程。', '1.5M'],
+];
+Object.assign(P.skills, {view: 'installed', scope: '', status: '', statusOpen: false, dirs: false, groupsOff: new Set(), marketQuery: '', marketInstalled: new Map()});
+const skillGroup = x => x.where.includes('.agents/') ? '.agents' : x.where.includes('.codex/') ? '.codex' : x.src === '额外目录' ? '额外目录' : '';
+const skillItems = () => P.skills.items.filter(x => !x.workspace || x.workspace === P.skills.scope);
+function skillScopeHTML() {
   const S = P.skills;
-  const n = f => f === 'all' ? S.items.length : S.items.filter(x => x.src === f).length;
-  const dup = S.items.some(x => x.dup) && !S.prefer;
-  return `<div class="list-label">来源</div>${SKILL_FILTERS.map(([v, l]) =>
-    `<button class="row" data-p="skill-filter" data-v="${v}" aria-current="${S.filter === v}"><span class="row-title">${l}</span><span class="row-meta">${n(v)}</span></button>`).join('')}
-    ${dup ? `<div class="list-label">需要处理</div><button class="row" data-p="skill-filter" data-v="dup" aria-current="${S.filter === 'dup'}"><span class="row-title">同名冲突</span><span class="state-pill wait">1</span></button>` : ''}
-    <div class="list-label">社区</div><button class="row" data-p="skills-sh"><span class="row-title">在 skills.sh 浏览</span>${icon('globe', 'sm')}</button>`;
+  return `<span class="select-wrap skill-scope">${icon('chevronDown', 'xs')}<select class="sheet-select" aria-label="Skill 范围" id="skill-scope"><option value="">全局</option>${DATA.workspaces.map(ws => `<option value="${ws.id}" ${S.scope === ws.id ? 'selected' : ''}>${esc(ws.name)}</option>`).join('')}</select></span>`;
+}
+function skillListHTML() {
+  const S = P.skills, items = skillItems();
+  const row = (v, l, match) => `<button class="row" data-p="skill-filter" data-v="${v}" aria-current="${S.view === 'installed' && S.filter === v}"><span class="row-title">${l}</span><span class="row-meta num">${items.filter(match).length}</span></button>`;
+  const dup = items.some(x => x.dup) && !S.prefer;
+  return `<div class="list-label">来源</div>${SKILL_FILTERS.filter(([v]) => v !== '工作区' || S.scope).map(([v,l]) => row(v,l,x => v === 'all' || x.src === v)).join('')}
+    <div class="list-label">扫描目录</div>${SKILL_GROUPS.map(group => row(group,group,x => skillGroup(x) === group)).join('')}
+    ${dup ? `<div class="list-label">需要处理</div><button class="row" data-p="skill-filter" data-v="dup" aria-current="${S.filter === 'dup'}"><span class="row-title">同名冲突</span><span class="state-pill wait">1</span></button>` : ''}`;
+}
+function skillMarketHTML() {
+  const S = P.skills, query = S.marketQuery.trim().toLowerCase();
+  return `<label class="search-field slim">${icon('search', 'sm')}<input id="skill-q" value="${esc(S.marketQuery)}" placeholder="搜索技能市场"/></label>
+    <p class="skill-market-meta faint">${query ? '搜索结果' : '累计安装榜'} · skills.sh</p>
+    <div class="skill-market-grid">${SKILL_MARKET.map(([name, repo, description, count], index) => [name, repo, description, count, index]).filter(([name, repo, desc]) => !query || (name + repo + desc).toLowerCase().includes(query)).map(([name, repo, description, count, index]) => `
+      <article class="skill-market-card"><div class="skill-market-card-head"><span class="slash-ic">${icon('spark', 'sm')}</span><b>${name}</b>${query ? '' : `<span class="faint num">#${index + 1}</span>`}</div>
+        <p>${description}</p><span class="faint">${repo}</span>${S.marketInstalled.has(name) ? `<span class="faint">已安装 · ${esc(S.marketInstalled.get(name))}</span>` : ''}
+        <footer><span class="faint">安装量 ${count}</span><button class="btn sm" data-p="skill-market-install" data-v="${name}">安装</button></footer>
+      </article>`).join('') || '<div class="lane-empty">没有匹配的 Skill</div>'}</div>`;
+}
+function openSkillMarketInstall(name) {
+  const S = P.skills, ws = DATA.workspaces.find(workspace => workspace.id === S.scope);
+  const dlg = openDialog(`<div class="dlg-head"><h2>安装 ${esc(name)}</h2><span class="grow"></span><button class="ghost-btn" data-close aria-label="关闭">${icon('x', 'sm')}</button></div>
+    <div class="dlg-body"><fieldset class="skill-market-targets"><legend>安装位置</legend>
+      ${ws ? `<label><input type="radio" name="skill-target" value="work" checked/>当前工作区 <span>${esc(ws.name)}/.rayagent/skills</span></label>` : ''}
+      <label><input type="radio" name="skill-target" value="global" ${ws ? '' : 'checked'}/>RayAgent 全局 <span>~/RayAgent/.rayagent/skills</span></label>
+    </fieldset></div><div class="dlg-foot"><span class="grow"></span><button class="btn quiet" data-close>取消</button><button class="btn primary" id="skill-confirm-market">确认安装</button></div>`, 'dlg-mid');
+  $('#skill-confirm-market', dlg).onclick = () => {
+    S.marketInstalled.set(name, $('input[name="skill-target"]:checked', dlg).value === 'work' ? '当前工作区' : 'RayAgent 全局');
+    closeDialog(); renderSkillPage();
+  };
 }
 function renderSkills(stage) {
-  stage.innerHTML = `<section class="sheet"><div class="scroll"><div class="page" id="skills-page"></div></div></section>`;
+  stage.innerHTML = `<section class="sheet"><div class="scroll skill-scroll"><div class="page" id="skills-page"></div></div></section>`;
   renderSkillPage();
 }
 function renderSkillPage() {
   const S = P.skills;
   const el = $('#skills-page');
   if (!el) return;
-  let items = S.items.filter(x => S.filter === 'all' || (S.filter === 'dup' ? x.dup : x.src === S.filter));
+  const effective = item => S.groupsOff.has(skillGroup(item)) ? 'off' : item.mode;
+  let items = skillItems().filter(x => S.filter === 'all' || (S.filter === 'dup' ? x.dup : x.src === S.filter || skillGroup(x) === S.filter));
   if (S.q) items = items.filter(x => (x.name + x.desc).includes(S.q));
-  const dup = S.items.filter(x => x.dup);
+  if (S.status) items = items.filter(x => (x.missing ? 'unavailable' : effective(x)) === S.status);
+  const dup = skillItems().filter(x => x.dup);
+  const group = SKILL_GROUPS.includes(S.filter) ? S.filter : null;
   el.innerHTML = `
-    <div class="page-head"><div><h1>Skill</h1><p>「可选择」可从输入框 <kbd>/</kbd> 手动添加。「每次带上」会进入新运行的目录，供 Agent 按需加载。</p></div>
-      <button class="btn primary magnetic" data-p="skill-add">${icon('plus', 'sm')}添加 Skill</button></div>
-    <label class="search-field slim">${icon('search', 'sm')}<input id="skill-q" value="${esc(S.q)}" placeholder="搜索名称或描述"/></label>
-    ${dup.length && !S.prefer ? `<div class="candidate" style="margin-top:16px">
+    <div class="page-head skill-page-head"><div><h1>Skill</h1></div>
+      ${S.view === 'installed' ? '<button class="btn primary" data-p="skill-add">添加 Skill</button>' : ''}</div>
+    <div class="seg on-sheet skill-tabs" role="tablist" aria-label="Skill 视图">${[['installed','已安装'],['market','技能市场']].map(([view,label]) => `<button type="button" class="seg-btn" role="tab" data-p="skill-view" data-v="${view}" aria-selected="${S.view === view}">${label}</button>`).join('')}</div>
+    <div class="skill-view-panel">${S.view === 'market' ? skillMarketHTML() : `
+    <div class="skill-tools"><label class="search-field slim">${icon('search', 'sm')}<input id="skill-q" value="${esc(S.q)}" placeholder="搜索名称或描述"/></label>
+      <button class="btn quiet sm" type="button" data-p="skill-status-open" aria-expanded="${S.statusOpen}" aria-controls="skill-status-flyout">${icon('settings', 'sm')}${SKILL_MODES[S.status] || '筛选'}</button>
+      <div class="skill-flyout" id="skill-status-flyout" ${S.statusOpen ? '' : 'hidden'}>
+        <div class="seg on-sheet" role="tablist" aria-label="Skill 状态">${[['','全部状态'],...Object.entries(SKILL_MODES),['unavailable','缺失或无效']].map(([mode,label]) => `<button class="seg-btn" role="tab" data-p="skill-status" data-v="${mode}" aria-selected="${S.status === mode}">${label}</button>`).join('')}</div>
+      </div>
+      ${group ? `<div class="skill-source-actions">
+        <button class="switch" role="switch" type="button" data-p="skill-toggle-group" data-v="${group}" aria-checked="${!S.groupsOff.has(group)}"><span class="knob"></span><span>启用来源</span></button>
+        <button class="btn quiet sm" data-p="skill-dirs" aria-expanded="${S.dirs}" aria-controls="skill-dirs-flyout">目录 ${icon('chevronDown','xs')}</button>
+        <div class="skill-flyout" id="skill-dirs-flyout" ${S.dirs ? '' : 'hidden'}><p class="faint">${group === 'RayAgent' ? '~/RayAgent/.rayagent/skills' : group === '额外目录' ? '配置的额外目录' : '~/' + group + '/skills'}</p></div>
+      </div>` : ''}
+    </div>
+    ${S.filter === 'dup' && dup.length && !S.prefer ? `<div class="candidate" style="margin-top:16px">
       <div class="candidate-head">${icon('alert', 'sm')}「表格整理」有 2 份，选择时用哪一份？</div>
       <div class="versus">${dup.map(x => `<button class="pick-card" data-p="skill-prefer" data-v="${x.id}"><div class="lab">${x.src} · ${esc(x.where)}</div><div class="txt">${esc(x.desc)}</div><div class="lab">版本 ${x.ver}</div></button>`).join('')}</div>
       <div class="faint" style="font-size:12px">选择只影响同名时的默认解析；两份都会保留，输入框里仍会标出来源。</div></div>` : ''}
     <div class="skill-list">${items.map(x => `
-      <div class="skill-row ${x.mode === 'off' ? 'off' : ''}" data-flip="${x.id}">
+      <div class="skill-row ${effective(x) === 'off' ? 'off' : ''}" data-flip="${x.id}">
         <button class="skill-open" data-p="skill-open" data-v="${x.id}">
           <span class="slash-ic">${icon('spark', 'sm')}</span>
           <span class="skill-main"><span class="skill-name">${esc(x.name)}${x.missing ? '<span class="state-pill wait">目录缺失</span>' : ''}${x.dup && S.prefer === x.id ? '<span class="src-tag on">同名时优先</span>' : ''}</span>
             <span class="skill-desc">${esc(x.desc)}</span></span>
           <span class="src-tag">${x.src}</span><span class="ver num">${x.ver}</span>
         </button>
-        <span class="select-wrap">${icon('chevronDown', 'xs')}<select class="sheet-select" data-skill-mode="${x.id}" data-mode="${x.mode}" aria-label="${esc(x.name)}（${x.src}）的使用方式" ${x.missing ? 'disabled' : ''}>
-          ${Object.entries(SKILL_MODES).map(([mode, label]) => `<option value="${mode}" ${x.mode === mode ? 'selected' : ''}>${label}</option>`).join('')}
+        <span class="select-wrap">${icon('chevronDown', 'xs')}<select class="sheet-select" data-skill-mode="${x.id}" data-mode="${effective(x)}" aria-label="${esc(x.name)}（${x.src}）的使用方式" ${x.missing || S.groupsOff.has(skillGroup(x)) ? 'disabled' : ''}>
+          ${Object.entries(SKILL_MODES).map(([mode, label]) => `<option value="${mode}" ${effective(x) === mode ? 'selected' : ''}>${label}</option>`).join('')}
         </select></span>
-      </div>`).join('') || '<div class="lane-empty">没有符合条件的 Skill</div>'}</div>`;
+      </div>`).join('') || '<div class="lane-empty">没有符合条件的 Skill</div>'}</div>`}</div>`;
   const q = $('#skill-q');
-  q.addEventListener('input', () => { S.q = q.value; const pos = q.selectionStart; renderSkillPage(); const n = $('#skill-q'); n.focus(); n.setSelectionRange(pos, pos); });
+  q.addEventListener('input', () => { if (S.view === 'market') S.marketQuery = q.value; else S.q = q.value; const pos = q.selectionStart; renderSkillPage(); const n = $('#skill-q'); n.focus(); n.setSelectionRange(pos, pos); });
   bindMagnetic(el);
 }
+function toggleSkillFlyout(key) {
+  const S = P.skills, open = !S[key];
+  S.statusOpen = key === 'statusOpen' && open;
+  S.dirs = key === 'dirs' && open;
+  for (const [trigger, state] of [['skill-status-open', S.statusOpen], ['skill-dirs', S.dirs]]) {
+    const button = $(`[data-p="${trigger}"]`);
+    if (!button) continue;
+    button.setAttribute('aria-expanded', state);
+    document.getElementById(button.getAttribute('aria-controls')).hidden = !state;
+  }
+}
+document.addEventListener('click', e => {
+  const S = P.skills;
+  if (S.statusOpen && !e.target.closest('.skill-flyout, [data-p="skill-status-open"]')) toggleSkillFlyout('statusOpen');
+  if (S.dirs && !e.target.closest('.skill-flyout, [data-p="skill-dirs"]')) toggleSkillFlyout('dirs');
+});
+document.addEventListener('keydown', e => {
+  const tab = e.target.closest('#skills-page [role="tab"]');
+  if (tab && ['ArrowLeft','ArrowRight','Home','End'].includes(e.key)) {
+    const tabs = $$('[role="tab"]', tab.closest('[role="tablist"]'));
+    const index = e.key === 'Home' ? 0 : e.key === 'End' ? tabs.length - 1 : (tabs.indexOf(tab) + (e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length;
+    e.preventDefault(); tabs[index].click();
+  }
+  if (e.key === 'Escape' && $('#skills-page') && !dlgStack.length) {
+    const key = P.skills.statusOpen ? 'statusOpen' : P.skills.dirs ? 'dirs' : null;
+    if (key) { toggleSkillFlyout(key); $(`[data-p="${key === 'dirs' ? 'skill-dirs' : 'skill-status-open'}"]`)?.focus(); }
+  }
+});
 document.addEventListener('change', e => {
+  if (e.target.id === 'skill-scope') {
+    P.skills.scope = e.target.value; P.skills.filter = 'all'; P.skills.dirs = false; renderList(); renderSkillPage(); return;
+  }
   const control = e.target.closest('[data-skill-mode]');
   if (!control) return;
   const skill = P.skills.items.find(x => x.id === control.dataset.skillMode);
@@ -273,36 +355,41 @@ function openSkill(id) {
 function openSkillAdd() {
   let mode = 'gh', step = 'input';
   const dlg = openDialog(`<div class="dlg-head"><h2>添加 Skill</h2><span class="grow"></span><button class="ghost-btn" data-close aria-label="关闭">${icon('x', 'sm')}</button></div>
-    <div class="dlg-body"><div class="seg on-sheet" id="add-seg">
+    <div class="dlg-body"><div class="seg on-sheet" id="add-seg" role="group" aria-label="Skill 来源">
       <button class="seg-btn" data-m="gh" aria-selected="true">${icon('globe', 'sm')}<span class="seg-label">GitHub</span></button>
       <button class="seg-btn" data-m="local" aria-selected="false">${icon('folder', 'sm')}<span class="seg-label">本地文件</span></button>
       <button class="seg-btn" data-m="write" aria-selected="false">${icon('pencil', 'sm')}<span class="seg-label">直接编写</span></button></div>
       <div id="add-body" class="add-body"></div></div>
-    <div class="dlg-foot"><span class="faint" id="add-note">安装只表示包已校验并登记，依赖要在使用时核对。</span><span class="grow"></span><button class="btn quiet" data-close>取消</button><button class="btn primary" id="add-go">获取</button></div>`, 'dlg-mid');
+    <div class="dlg-foot"><span class="faint">安装位置 · RayAgent 应用管理库</span><span class="grow"></span><button class="btn quiet" data-close>取消</button><button class="btn primary" id="add-go">获取</button></div>`, 'dlg-mid skill-import');
   const paint = () => {
     $$('#add-seg .seg-btn', dlg).forEach(b => b.setAttribute('aria-selected', b.dataset.m === mode));
     const body = $('#add-body', dlg), go = $('#add-go', dlg);
-    if (mode === 'gh') {
+    if (mode !== 'gh' && step === 'ready') {
+      body.innerHTML = `<div class="found">${icon('spark')}<div><b>${mode === 'write' ? '周报整理' : '本地 Skill'}</b><div class="faint">SKILL.md · 已校验，可确认安装</div></div></div><button class="btn quiet sm" data-add-back>返回修改</button>`;
+      go.textContent = '安装 Skill'; go.disabled = false;
+    } else if (mode === 'gh') {
       body.innerHTML = step === 'input' ? `<label class="search-field slim">${icon('globe', 'sm')}<input placeholder="https://github.com/用户/仓库/tree/main/skills/…" value="https://github.com/acme/skills/tree/main/deck-builder"/></label><p class="faint">公开仓库即可，获取后直接打开内容，确认再安装。</p>`
         : step === 'loading' ? `<div class="fetching"><span class="spin"></span>正在获取并校验…</div>`
         : `<div class="found">${icon('spark')}<div><b>deck-builder</b><div class="faint">把要点整理成演示提纲 · 4 个文件 · 18 KB</div></div><span class="src-tag">GitHub</span></div>
            <div class="found-files">${['SKILL.md', 'references/结构.md', 'scripts/outline.py', 'assets/封面.png'].map(f => `<span>${f}</span>`).join('')}</div>`;
-      go.textContent = step === 'ready' ? '安装' : '获取'; go.disabled = step === 'loading';
+      go.textContent = step === 'ready' ? '安装 Skill' : '获取'; go.disabled = step === 'loading';
     } else if (mode === 'local') {
       body.innerHTML = `<div class="drop-target local-drop">${icon('inbox')}<b>拖入文件夹、ZIP 或 Markdown</b><span class="hint">也可以点这里从磁盘选择；缺少名称和描述时会补上</span></div>`;
       go.textContent = '选择文件'; go.disabled = false;
     } else {
       body.innerHTML = `<input class="field" placeholder="名称" value="周报整理"/><input class="field" placeholder="一句话描述：什么时候用" value="把一周的对话和成果整理成周报"/><textarea class="field" rows="6" placeholder="正文（Markdown）">## 步骤\n1. 列出本周完成的任务与成果\n2. 标出未完成项与原因</textarea>`;
-      go.textContent = '保存'; go.disabled = false;
+      go.textContent = '预览'; go.disabled = false;
     }
   };
   dlg.addEventListener('click', e => {
     const m = e.target.closest('[data-m]'); if (m) { mode = m.dataset.m; step = 'input'; paint(); }
+    if (e.target.closest('[data-add-back]')) { step = 'input'; paint(); return; }
     if (e.target.closest('#add-go')) {
-      if (mode === 'gh' && step === 'input') { step = 'loading'; paint(); setTimeout(() => { step = 'ready'; paint(); }, 1100); return; }
+      if (mode === 'gh' && step === 'input') { step = 'loading'; paint(); setTimeout(() => { if (mode === 'gh' && step === 'loading') { step = 'ready'; paint(); } }, 1100); return; }
+      if (step === 'input') { step = 'ready'; paint(); return; }
       const name = mode === 'gh' ? 'deck-builder' : mode === 'write' ? '周报整理' : '本地 Skill';
       P.skills.items.splice(P.skills.items.length - 1, 0, {id: 'new' + Date.now(), name, desc: mode === 'gh' ? '把要点整理成演示提纲。' : '把一周的对话和成果整理成周报。', src: '应用', where: '应用管理库', ver: 'v1', mode: 'included', kind: 'managed'});
-      closeDialog(); withFlip(renderSkillPage); toast(`已安装「${name}」，可以在 / 里选择`, 'spark');
+      closeDialog(); renderList(); withFlip(renderSkillPage); toast(`已安装「${name}」，可以在 / 里选择`, 'spark');
     }
   });
   paint();
@@ -600,7 +687,13 @@ document.addEventListener('click', e => {
     }
     case 'index-exclude': { const d = INDEX[+v]; const files = d.files; INDEX[+v] = {dir: d.dir, excluded: true, count: files.length, size: '—', files: undefined, _files: files}; withFlip(renderKnowBody); return toast(`已排除 ${d.dir}/，文件本身不受影响`, 'folder', () => { INDEX[+v] = {dir: d.dir, files}; withFlip(renderKnowBody); }); }
     case 'index-include': { const d = INDEX[+v]; if (d._files) INDEX[+v] = {dir: d.dir, files: d._files}; else toast('重新纳入后会在后台索引 214 个文件', 'layers'); return withFlip(renderKnowBody); }
-    case 'skill-filter': S.filter = v; renderList(); return withFlip(renderSkillPage);
+    case 'skill-filter': S.filter = v; S.view = 'installed'; S.dirs = false; renderList(); return withFlip(renderSkillPage);
+    case 'skill-view': S.view = v; S.statusOpen = S.dirs = false; renderList(); renderSkillPage(); return $(`[data-p="skill-view"][data-v="${v}"]`).focus();
+    case 'skill-status-open': return toggleSkillFlyout('statusOpen');
+    case 'skill-status': S.status = v; withFlip(renderSkillPage); return $(`[data-p="skill-status"][data-v="${v}"]`).focus();
+    case 'skill-dirs': return toggleSkillFlyout('dirs');
+    case 'skill-toggle-group': if (S.groupsOff.has(v)) S.groupsOff.delete(v); else S.groupsOff.add(v); renderSkillPage(); return $('[data-p="skill-toggle-group"]').focus();
+    case 'skill-market-install': return openSkillMarketInstall(v);
     case 'skill-prefer': S.prefer = v; renderList(); withFlip(renderSkillPage); return toast('同名时优先使用这一份', 'check');
     case 'skill-open': return openSkill(v);
     case 'skill-add': return openSkillAdd();

@@ -1,4 +1,5 @@
-import {useState, type CSSProperties, type ReactNode} from 'react'
+import {useEffect, useState, type CSSProperties, type ReactNode} from 'react'
+import {useLocation} from 'react-router'
 import {Link, usePathname} from '@/lib/navigation'
 import {SidebarProvider, useSidebar} from '@/components/ui/sidebar'
 import {Button} from '@/components/ui/button'
@@ -12,18 +13,21 @@ import {describeWorkspace} from '@/lib/workspace-state'
 import {LeftPanel} from '@/components/left-panel'
 import {MainShell} from '@/components/sidebar-chrome'
 import {SettingsDialog} from '@/components/settings/settings-dialog'
+import {skillsHref} from '@/lib/skill-route'
 import {ThemeToggle} from '@/components/theme-toggle'
 
-function NavigationRail({workspaceId, section}: {workspaceId: string | null; section: 'independent' | 'workspaces' | 'components'}) {
+function NavigationRail({workspaceId, section}: {workspaceId: string | null; section: 'independent' | 'workspaces' | 'skills' | 'components'}) {
   const {setOpenMobile} = useSidebar()
-  const [settings, setSettings] = useState<'general' | 'skills' | null>(null)
+  const currentLocation = useLocation()
+  const [settings, setSettings] = useState(false)
   const lookup = useWorkspace(workspaceId)
   const {count: workspacePending} = useWorkspacePending()
   const condition = lookup.phase === 'ready' ? describeWorkspace(lookup.workspace) : null
   const newHref = workspaceId ? workspaceHref(workspaceId) : '/'
   const groups = [
     [{key: 'independent', label: '独立对话', Icon: MessagesSquare, href: '/'}, {key: 'workspaces', label: '工作区', Icon: Folder, href: '/workspaces'}],
-    [{key: 'skills', label: 'Skill', Icon: Sparkles}, {key: 'components', label: '运行组件', Icon: Package, href: '/components'}],
+    [{key: 'skills', label: 'Skill', Icon: Sparkles, href: section === 'skills' ? currentLocation.pathname + currentLocation.search : skillsHref(workspaceId)},
+      {key: 'components', label: '运行组件', Icon: Package, href: '/components'}],
   ] as const
 
   return <nav className="app-rail" aria-label="全局导航">
@@ -43,13 +47,13 @@ function NavigationRail({workspaceId, section}: {workspaceId: string | null; sec
     <div className="rail-groups" data-section={section}>
       <span className="rail-indicator" aria-hidden/>
       {groups.map((group, index) => <div key={index} className="rail-group">
-        {group.map(({key, label, Icon, ...target}) => <Tooltip key={key} delayDuration={240}>
+        {group.map(({key, label, Icon, href}) => <Tooltip key={key} delayDuration={240}>
           <TooltipTrigger asChild>
-            {'href' in target ? <Link href={target.href} className="rail-action" aria-label={key === 'workspaces' && workspacePending ? `${label}，背景有待处理事项` : label}
+            <Link href={href} className="rail-action" aria-label={key === 'workspaces' && workspacePending ? `${label}，背景有待处理事项` : label}
+              state={key === 'skills' ? (section === 'skills' ? currentLocation.state : {returnTo: currentLocation.pathname + currentLocation.search + currentLocation.hash}) : undefined}
               aria-current={key === section ? 'page' : undefined} onClick={() => setOpenMobile(false)}><Icon/>
                 {key === 'workspaces' && !!workspacePending && <span className="absolute top-1.5 right-1.5 size-1.5 rounded-full bg-state-waiting ring-2 ring-rail" aria-hidden/>}
-              </Link> :
-              <button type="button" className="rail-action" aria-label={label} onClick={() => {setOpenMobile(false); setSettings('skills')}}><Icon/></button>}
+              </Link>
           </TooltipTrigger>
           <TooltipContent side="right">{label}</TooltipContent>
         </Tooltip>)}
@@ -59,12 +63,11 @@ function NavigationRail({workspaceId, section}: {workspaceId: string | null; sec
       <ThemeToggle className="rail-action" quick/>
       <Tooltip delayDuration={240}>
         <TooltipTrigger asChild><button type="button" className="rail-action" aria-label="设置"
-          onClick={() => {setOpenMobile(false); setSettings('general')}}><Settings/></button></TooltipTrigger>
+          onClick={() => {setOpenMobile(false); setSettings(true)}}><Settings/></button></TooltipTrigger>
         <TooltipContent side="right">设置</TooltipContent>
       </Tooltip>
     </div>
-    <SettingsDialog open={settings !== null} initialSection={settings ?? 'general'}
-      onOpenChange={open => {if (!open) setSettings(null)}}/>
+    <SettingsDialog open={settings} onOpenChange={setSettings}/>
   </nav>
 }
 
@@ -72,7 +75,10 @@ export function AppShell({children}: {children: ReactNode}) {
   const pathname = usePathname()
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
   const {workspaceId} = parseWorkspaceRoute(pathname)
-  const section = pathname === '/components' ? 'components' : pathname.startsWith('/workspaces') ? 'workspaces' : 'independent'
+  useEffect(() => {
+    if (workspaceId) setExpanded(current => Object.hasOwn(current, workspaceId) ? current : {...current, [workspaceId]: true})
+  }, [workspaceId])
+  const section = pathname === '/skills' ? 'skills' : pathname === '/components' ? 'components' : pathname.startsWith('/workspaces') ? 'workspaces' : 'independent'
 
   if (pathname === '/settings') return <div className="h-full overflow-y-auto">{children}</div>
 
@@ -81,10 +87,12 @@ export function AppShell({children}: {children: ReactNode}) {
       style={{'--sidebar-width': '252px'} as CSSProperties}>
       <WorkspacePendingProvider workspaceId={workspaceId} background={workspaceId != null && pathname === workspaceBackgroundHref(workspaceId)}>
         <NavigationRail workspaceId={workspaceId} section={section}/>
-        <SessionsProvider key={workspaceId ?? 'independent'} workspaceId={workspaceId}>
-          {section !== 'components' && <LeftPanel scope={section} expanded={expanded}
-            onExpand={(id, open) => setExpanded(current => ({...current, [id]: open}))}/>}
-          <MainShell listAvailable={section !== 'components'}>{children}</MainShell>
+        <SessionsProvider workspaceId={workspaceId}>
+          {section === 'skills' ? children : <>
+            {section !== 'components' && <LeftPanel scope={section} expanded={expanded}
+              onExpand={(id, open) => setExpanded(current => ({...current, [id]: open}))}/>}
+            <MainShell listAvailable={section !== 'components'}>{children}</MainShell>
+          </>}
         </SessionsProvider>
       </WorkspacePendingProvider>
     </SidebarProvider>

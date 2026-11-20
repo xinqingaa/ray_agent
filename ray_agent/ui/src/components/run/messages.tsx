@@ -10,6 +10,9 @@ type UserMessageProps = {
   text: string
   /** 显式选择的 skill 名称，与输入框共用整段标记 */
   skillName?: string
+  workspaceId?: string
+  skillVersion?: string
+  runId?: string
   attachments?: FileView[]
   /** 运行中发送、作为补充要求注入当前运行 */
   injected?: boolean
@@ -18,7 +21,7 @@ type UserMessageProps = {
   onDownload?: (file: FileView) => void
 }
 
-export function UserMessage({text, skillName, attachments = [], injected = false, className, onPreview, onDownload}: UserMessageProps) {
+export function UserMessage({text, skillName, skillVersion, runId, workspaceId, attachments = [], injected = false, className, onPreview, onDownload}: UserMessageProps) {
   return (
     <div className={cn('mt-2 mb-3 flex min-w-0 flex-col items-end gap-2', className)}>
       {injected && (
@@ -33,7 +36,7 @@ export function UserMessage({text, skillName, attachments = [], injected = false
           injected ? 'border border-dashed border-signal/50 bg-signal-soft/40' : 'bg-secondary',
         )}
       >
-        <div className="whitespace-pre-wrap wrap-anywhere text-sm leading-relaxed">{skillName && <SkillMark name={skillName} className="mr-1.5"/>}{text}</div>
+        <div className="whitespace-pre-wrap wrap-anywhere text-sm leading-relaxed">{skillName && <SkillMark name={skillName} version={skillVersion} runId={runId} workspaceId={workspaceId} className="mr-1.5"/>}{text}</div>
       </div>}
       {attachments.length > 0 && <div className="flex max-w-full flex-wrap justify-end gap-1.5">
         {attachments.map(file => <FileRow key={file.id} file={file} compact showThumbnail

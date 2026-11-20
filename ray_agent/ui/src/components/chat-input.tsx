@@ -43,6 +43,7 @@ interface ChatInputProps {
   disabled?: boolean
   autoFocus?: boolean
   workspace?: boolean
+  workspaceId?: string
   /** 当前会话 ID，上传附件时会关联到该会话 */
   sessionId?: string | null
   placeholder?: string
@@ -72,7 +73,7 @@ export interface ChatInputRef {
 }
 
 export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
-  ({ className, onInputValueChange, onSend, onAbandonSubmission, pause = false, onPause, disabled = false, autoFocus = false, workspace = false, sessionId, placeholder = '分配一个任务或提问任何问题...', accessory, draftScope, commandHost = EMPTY_HOST, savedModel = null, savedReasoning = null, runModel = null, runReasoning = null }, ref) => {
+  ({ className, onInputValueChange, onSend, onAbandonSubmission, pause = false, onPause, disabled = false, autoFocus = false, workspace = false, workspaceId, sessionId, placeholder = '分配一个任务或提问任何问题...', accessory, draftScope, commandHost = EMPTY_HOST, savedModel = null, savedReasoning = null, runModel = null, runReasoning = null }, ref) => {
     const {visibility} = useDeveloperMode()
     const pickDestination = useContext(TaskFilePicker)
     const [files, setFiles] = useState<FileInfo[]>([])
@@ -85,10 +86,26 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
     const [selectedSkill, setSelectedSkill] = useState<(SkillSelection & {name?: string}) | null>(null)
     const [skills, setSkills] = useState<Skill[]>([])
     useEffect(() => {
-      const refresh = () => {skillsApi.list().then(setSkills).catch(() => setSkills([]))}
-      refresh(); window.addEventListener(SKILLS_CHANGED, refresh); window.addEventListener('focus', refresh)
-      return () => {window.removeEventListener(SKILLS_CHANGED, refresh); window.removeEventListener('focus', refresh)}
-    }, [])
+      let disposed = false
+      let revision = 0
+      setSkills([])
+      const refresh = (scan = true) => {
+        const current = ++revision
+        skillsApi.list(workspaceId, scan).then(items => {
+          if (!disposed && current === revision) setSkills(items)
+        }).catch(() => {})
+      }
+      const reload = () => refresh(false)
+      const rescan = () => refresh()
+      refresh()
+      window.addEventListener(SKILLS_CHANGED, reload)
+      window.addEventListener('focus', rescan)
+      return () => {
+        disposed = true
+        window.removeEventListener(SKILLS_CHANGED, reload)
+        window.removeEventListener('focus', rescan)
+      }
+    }, [workspaceId])
     const [planMode, setPlanMode] = useState(false)
     const [slash, setSlash] = useState<SlashFragment | null>(null)
     const [keyboardStep, setKeyboardStep] = useState(0)
@@ -283,7 +300,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
 
     const slashOpen = slash != null && !blocked
     const skillCommands = useMemo<InputCommand[]>(() => skills.filter(s => s.enabled && s.status !== 'missing').map(s => ({
-      id: `skill:${s.id}`, surfaces: ['slash'], keyword: s.name, title: s.conflict ? `${s.name} · ${s.source?.label || s.source?.kind || '来源'}` : s.name,
+      id: `skill:${s.id}`, surfaces: ['slash'], keyword: s.name, title: (s.same_name || s.conflict) ? `${s.name} · ${s.source?.label || s.source?.kind || '来源'}` : s.name,
       description: s.description,
       aliases: [], keywords: [s.description, s.source?.label || '', s.source?.kind || ''], icon: FileText,
       available: (context: CommandContext) => context.waitingApproval ? {available: false as const, reason: '请先回复审批'} : {available: true as const},
@@ -437,7 +454,8 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
       let trimmedMessage = inputValue.trim()
       let skill = selectedSkill
       const shortcut = /^\/([a-z][a-z0-9-]*)(?:\s+|$)/.exec(trimmedMessage)
-      const found = shortcut && skills.find(s => s.enabled && s.name === shortcut[1])
+      const named = shortcut ? skills.filter(s => s.enabled && s.name === shortcut[1]) : []
+      const found = named.find(skill => skill.preferred) ?? named.find(skill => !skill.conflict)
       if (found) {
         skill = {id: found.id, name: found.name, version: found.version}
         trimmedMessage = trimmedMessage.slice(shortcut![0].length).trim()
@@ -682,7 +700,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
       {/* 中间输入框 */}
       <PopoverAnchor asChild>
       <div className="relative mb-1.5 px-3.5">
-        {selectedSkill && <SkillMark ref={skillMarkRef} name={selectedSkill.name ?? selectedSkill.id} className="absolute left-3.5 top-0 z-10" onRemove={blocked ? undefined : () => setSelectedSkill(null)} onExit={() => {const node = textareaRef.current; node?.focus(); node?.setSelectionRange(0, 0)}}/>}
+        {selectedSkill && <SkillMark ref={skillMarkRef} name={selectedSkill.name ?? selectedSkill.id} skillId={selectedSkill.id} version={selectedSkill.version} workspaceId={workspaceId} className="absolute left-3.5 top-0 z-10" onRemove={blocked ? undefined : () => setSelectedSkill(null)} onExit={() => {const node = textareaRef.current; node?.focus(); node?.setSelectionRange(0, 0)}}/>}
         <textarea
           ref={textareaRef}
           rows={1}

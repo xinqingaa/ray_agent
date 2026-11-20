@@ -6,7 +6,7 @@ import {skillsApi, type SkillDetail} from '@/lib/api/skills'
 import {cn} from '@/lib/utils'
 
 /** 名称是一整段：高亮可点，点击打开只读预览，选中时不能拆进字中间。 */
-export const SkillMark = forwardRef<HTMLButtonElement, {name: string; className?: string; onRemove?: () => void; onExit?: () => void}>(function SkillMark({name, className, onRemove, onExit}, ref) {
+export const SkillMark = forwardRef<HTMLButtonElement, {name: string; skillId?: string; version?: string; runId?: string; workspaceId?: string; className?: string; onRemove?: () => void; onExit?: () => void}>(function SkillMark({name, skillId, version, runId, workspaceId, className, onRemove, onExit}, ref) {
   const [open, setOpen] = useState(false)
   return <>
     <button
@@ -20,30 +20,31 @@ export const SkillMark = forwardRef<HTMLButtonElement, {name: string; className?
         if (onRemove && (event.key === 'Backspace' || event.key === 'Delete')) {event.preventDefault(); onRemove(); onExit?.()}
       }}
     >{name}</button>
-    <SkillPreviewDialog key={open ? name : 'closed'} name={open ? name : null} onClose={() => {setOpen(false); onExit?.()}}/>
+    <SkillPreviewDialog key={open ? name : 'closed'} name={open ? name : null} skillId={skillId} version={version} runId={runId} workspaceId={workspaceId} onClose={() => {setOpen(false); onExit?.()}}/>
   </>
 })
 
-function SkillPreviewDialog({name, onClose}: {name: string | null; onClose: () => void}) {
+function SkillPreviewDialog({name, skillId, version, runId, workspaceId, onClose}: {name: string | null; skillId?: string; version?: string; runId?: string; workspaceId?: string; onClose: () => void}) {
   const [detail, setDetail] = useState<SkillDetail | null>(null)
   const [error, setError] = useState('')
   useEffect(() => {
     if (!name) return
     let disposed = false
-    skillsApi.detail(name).then(data => {if (!disposed) setDetail(data)}).catch(reason => {
+    skillsApi.detail(skillId ?? name, workspaceId, version, runId).then(data => {if (!disposed) setDetail(data)}).catch(reason => {
       // 历史消息可能只有包名；先按 id 读，失败再按名称从列表解析
-      skillsApi.list().then(items => {
+      if (skillId || version) {if (!disposed) setError(reason instanceof Error ? reason.message : '无法打开预览'); return}
+      skillsApi.list(workspaceId).then(items => {
         const found = items.find(item => item.id === name || item.name === name)
         if (!found) throw new Error(reason instanceof Error ? reason.message : '无法打开预览')
-        return skillsApi.detail(found.id)
+        return skillsApi.detail(found.id, workspaceId)
       }).then(data => {if (!disposed) setDetail(data)}).catch(inner => {if (!disposed) setError(inner instanceof Error ? inner.message : '无法打开预览')})
     })
     return () => {disposed = true}
-  }, [name])
+  }, [name, skillId, version, runId, workspaceId])
   return <Dialog open={!!name} onOpenChange={open => {if (!open) onClose()}}>
     <DialogContent aria-describedby={undefined} className="flex h-[min(48rem,calc(100dvh-3rem))] flex-col gap-0 overflow-hidden p-0 sm:max-w-[min(80rem,calc(100vw-3rem))] motion-reduce:animate-none">
       <div className="shrink-0 px-6 pb-4 pt-6 pr-14"><DialogTitle className="min-w-0 break-all leading-snug">{name}</DialogTitle></div>
-      {error ? <p role="alert" className="px-6 pb-6 text-sm text-state-failed">{error}</p> : detail ? <SkillReader skill={detail}/> : <div role="status" className="flex flex-1 items-center justify-center pb-8"><Loader2 className="size-5 animate-spin text-muted-foreground"/><span className="sr-only">正在打开预览</span></div>}
+      {error ? <p role="alert" className="px-6 pb-6 text-sm text-state-failed">{error}</p> : detail ? <SkillReader skill={detail} readFile={path => skillsApi.file(detail, path, workspaceId, runId)}/> : <div role="status" className="flex flex-1 items-center justify-center pb-8"><Loader2 className="size-5 animate-spin text-muted-foreground"/><span className="sr-only">正在打开预览</span></div>}
     </DialogContent>
   </Dialog>
 }

@@ -73,6 +73,15 @@ class Settings(BaseSettings):
     skill_resource_chars: int = Field(default=8000, gt=0)
     skill_fetch_seconds: int = Field(default=90, gt=0)
     skill_preview_seconds: int = Field(default=3600, gt=0)
+    skill_global_location: str = "~/RayAgent"  # 独立于新建工作区的默认父目录
+    skill_discovery_max_entries: int = Field(default=5000, gt=0)
+    skill_discovery_max_depth: int = Field(default=6, gt=0)
+    skill_discovery_cache_entries: int = Field(default=2048, gt=0)
+    skill_market_cache_seconds: int = Field(default=900, gt=0)
+    skill_market_timeout_seconds: int = Field(default=12, gt=0)
+    skill_market_response_bytes: int = Field(default=2 * 1024 * 1024, gt=0)
+    skill_market_description_concurrency: int = Field(default=4, gt=0)
+    skill_market_description_cache_entries: int = Field(default=512, gt=0)
 
 
     model_config = SettingsConfigDict(extra="ignore", populate_by_name=True)

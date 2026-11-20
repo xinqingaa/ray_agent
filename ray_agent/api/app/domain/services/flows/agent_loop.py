@@ -598,13 +598,16 @@ class AgentLoop(BaseFlow):
         await self._load()
         self._set_budget_phase(self._noticed_budget_phase())
         if call_id.startswith('skill-select:'):
-            name = call_id.split(':')[1]
-            entries = await self.skill_runtime.service.bindings(self.run_id)
-            entry = next((e for e in entries if e['name'] == name), None)
+            skill_id = call_id.split(':', 2)[1]
+            entries = await self.skill_runtime.service.bindings(
+                self.run_id, workspace_id=self.skill_runtime.workspace_id,
+            ) if self.skill_runtime is not None else []
+            entry = next((e for e in entries if e['id'] == skill_id), None)
             if entry is None:
+                self.end_reason = RunEndReason.MODEL_ERROR
                 yield ErrorEvent(error='所选 Skill 绑定缺失')
                 return
-            async for event in self._preload_skill({'id': name, 'version': entry['version']}, decision.value, call_id):
+            async for event in self._preload_skill({'id': skill_id, 'version': entry['version']}, decision.value, call_id):
                 yield event
             if self._skill_blocked:
                 return
@@ -1264,8 +1267,8 @@ class AgentLoop(BaseFlow):
             self._skill_blocked = True
             yield ErrorEvent(error='Skill 服务不可用，所选 Skill 未加载')
             return
-        entries = await self.skill_runtime.service.bindings(self.run_id)
-        entry = next((e for e in entries if e.get('id') == selection['id'] or e.get('name') == selection['id']), None)
+        entries = await self.skill_runtime.service.bindings(self.run_id, workspace_id=self.skill_runtime.workspace_id)
+        entry = next((e for e in entries if e['id'] == selection['id']), None)
         if not entry or entry['version'] != selection['version']:
             self._skill_blocked = True
             yield ErrorEvent(error='所选 Skill 不在本运行固定目录中，请开始新运行')
@@ -1284,7 +1287,7 @@ class AgentLoop(BaseFlow):
             yield WaitEvent()
             return
         if result is None:
-            result = await self.skill_runtime.load(load_name)
+            result = await self.skill_runtime.load(entry['id'])
         if not result.success:
             self._skill_blocked = True
             self.end_reason = RunEndReason.MODEL_ERROR

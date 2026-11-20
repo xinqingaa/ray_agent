@@ -6,6 +6,7 @@ import {AppShell} from '@/components/app-shell'
 import {CoreGate} from '@/components/core-gate'
 import {QuitGuard} from '@/components/quit-guard'
 import {SettingsPageView} from '@/components/settings/settings-dialog'
+import {SkillsPage} from '@/pages/skills'
 import {HomePage} from '@/pages/home'
 import {SessionPage} from '@/pages/session'
 import {WorkspaceBackgroundPage, WorkspaceDirectoryPage, WorkspaceHomePage, WorkspaceLayout, WorkspaceSessionPage} from '@/pages/workspace'
@@ -18,6 +19,7 @@ const ComponentCatalog = import.meta.env.DEV
 
 const TITLES: Array<[RegExp, string]> = [
   [/^\/workspaces/, '工作区 · RayAgent'],
+  [/^\/skills/, 'Skill · RayAgent'],
   [/^\/settings/, '设置 · RayAgent'],
   [/^\/dev\/components/, '组件状态目录 · RayAgent'],
 ]
@@ -47,6 +49,7 @@ function CoreApp() {
             <Route path="knowledge" element={<WorkspaceKnowledgePage/>}/>
             <Route path="sessions/:sid" element={<WorkspaceSessionPage/>}/>
           </Route>
+          <Route path="skills" element={<SkillsPage/>}/>
           <Route path="components" element={<RuntimeComponentsPage/>}/>
           <Route path="settings" element={<SettingsPageView/>}/>
           <Route path="*" element={<Navigate to="/" replace/>}/>

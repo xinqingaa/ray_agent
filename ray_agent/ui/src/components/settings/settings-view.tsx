@@ -3,6 +3,8 @@ import {useEffect, useRef, useState} from 'react'
 import {Button} from '@/components/ui/button'
 import {IconAction} from '@/components/ui/icon-action'
 import {useRouter} from '@/lib/navigation'
+import {useLocation} from 'react-router'
+import {parseWorkspaceRoute} from '@/lib/workspace-route'
 import {cn} from '@/lib/utils'
 import {useConfigForm, useUnsavedGuard} from './form'
 import {GeneralSection, generalFormOptions} from './general-section'
@@ -10,14 +12,14 @@ import {LlmSection, llmFormOptions} from './llm-section'
 import {McpSection} from './mcp-section'
 import {A2aSection} from './a2a-section'
 import {ToolPolicySection, useToolPolicyForm} from './tool-policy-section'
-import {SkillsSection} from './skills-section'
+import {skillsHref} from '@/lib/skill-route'
 import {AppearanceSection} from './appearance-section'
 import {DataSection} from './data-section'
 import {WorkspaceSection} from './workspace-section'
 import {useDeveloperMode} from '@/hooks/use-developer-mode'
 import {Switch} from '@/components/ui/switch'
 
-type SectionKey = 'general' | 'workspace' | 'appearance' | 'llm' | 'mcp' | 'a2a' | 'tool-policy' | 'data' | 'skills'
+type SectionKey = 'general' | 'workspace' | 'appearance' | 'llm' | 'mcp' | 'a2a' | 'tool-policy' | 'data'
 
 const SECTIONS: {key: SectionKey; label: string; icon: UiIcon}[] = [
   {key: 'general', label: '通用', icon: SlidersHorizontal},
@@ -28,39 +30,39 @@ const SECTIONS: {key: SectionKey; label: string; icon: UiIcon}[] = [
   {key: 'a2a', label: '远程 Agent', icon: Globe},
   {key: 'tool-policy', label: '工具策略', icon: ShieldCheck},
   {key: 'data', label: '数据管理', icon: SlidersHorizontal},
-  {key: 'skills', label: 'Skill', icon: BookOpen},
 ]
 
 /** 设置页：左侧切换分区；表单草稿保存在这里，切换分区不丢失 */
-export function SettingsView({onClose, onDirtyChange, onNavigate, closeBlocked, onLeaveBlocked, initialSection = 'general'}: {
+export function SettingsView({onClose, onDirtyChange, onNavigate, closeBlocked, onLeaveBlocked}: {
   onClose?: () => void
   onDirtyChange?: (dirty: boolean) => void
   onNavigate?: () => void | boolean
   closeBlocked?: boolean
   onLeaveBlocked?: () => void
-  initialSection?: SectionKey
 } = {}) {
   const router = useRouter()
+  const location = useLocation()
+  const {workspaceId} = parseWorkspaceRoute(location.pathname)
+  const skillWorkspace = location.pathname === '/skills' ? new URLSearchParams(location.search).get('workspace') : workspaceId
   const {enabled, setEnabled, visibility} = useDeveloperMode()
-  const [selectedSection, setActive] = useState<SectionKey>(initialSection)
+  const [selectedSection, setActive] = useState<SectionKey>('general')
   const scroll = useRef<HTMLDivElement>(null)
   const active = selectedSection === 'llm' && !visibility.providerSettings ? 'general' : selectedSection
   const general = useConfigForm(generalFormOptions)
   const llm = useConfigForm(llmFormOptions)
   const toolPolicy = useToolPolicyForm()
-  const [skillsDirty, setSkillsDirty] = useState(false)
-  const dirty: Partial<Record<SectionKey, boolean>> = {general: general.dirty, llm: llm.dirty, 'tool-policy': toolPolicy.dirty, skills: skillsDirty}
-  const hasUnsavedChanges = general.dirty || llm.dirty || toolPolicy.dirty || skillsDirty
+  const dirty: Partial<Record<SectionKey, boolean>> = {general: general.dirty, llm: llm.dirty, 'tool-policy': toolPolicy.dirty}
+  const hasUnsavedChanges = general.dirty || llm.dirty || toolPolicy.dirty
   const firstDirty = SECTIONS.find(section => dirty[section.key])
   useUnsavedGuard(hasUnsavedChanges, onLeaveBlocked)
   useEffect(() => {onDirtyChange?.(hasUnsavedChanges)}, [hasUnsavedChanges, onDirtyChange])
   useEffect(() => {if (scroll.current) scroll.current.scrollTop = 0}, [active])
-  const openComponents = () => {
+  const openPage = (href: string, state?: unknown) => {
     if (hasUnsavedChanges) {
       onLeaveBlocked?.()
       return
     }
-    if (onNavigate?.() !== false) router.push('/components')
+    if (onNavigate?.() !== false) router.push(href, state)
   }
 
   return (
@@ -76,7 +78,7 @@ export function SettingsView({onClose, onDirtyChange, onNavigate, closeBlocked, 
               const shownLabel = !visibility.connectionSettings && key === 'mcp' ? '外部工具' : !visibility.connectionSettings && key === 'a2a' ? '远程协作' : key === 'tool-policy' ? '执行权限' : label
               const current = key === active
               return (
-                <li key={key} className={cn('shrink-0', key === 'skills' && 'ml-1 border-l pl-2 @3xl/settings:mt-2 @3xl/settings:ml-0 @3xl/settings:border-t @3xl/settings:border-l-0 @3xl/settings:pt-2 @3xl/settings:pl-0')}>
+                <li key={key} className="shrink-0">
                   <button
                     type="button"
                     onClick={() => setActive(key)}
@@ -101,9 +103,13 @@ export function SettingsView({onClose, onDirtyChange, onNavigate, closeBlocked, 
                 </li>
               )
             })}
+            <li className="ml-1 shrink-0 border-l pl-2 @3xl/settings:mt-2 @3xl/settings:ml-0 @3xl/settings:border-t @3xl/settings:border-l-0 @3xl/settings:pt-2 @3xl/settings:pl-0">
+              <Button type="button" variant="ghost" className="w-full justify-start gap-2.5 rounded-[10px] px-3 text-muted-foreground"
+                onClick={() => openPage(skillsHref(skillWorkspace), location.pathname === '/skills' ? location.state : {returnTo: location.pathname + location.search + location.hash})}><BookOpen/>Skill<ChevronRight className="ml-auto size-3.5" aria-hidden/></Button>
+            </li>
             <li className="shrink-0">
               <Button type="button" variant="ghost" className="w-full justify-start gap-2.5 rounded-[10px] px-3 text-muted-foreground"
-                onClick={openComponents}><Package/>运行组件<ChevronRight className="ml-auto size-3.5" aria-hidden/></Button>
+                onClick={() => openPage('/components')}><Package/>运行组件<ChevronRight className="ml-auto size-3.5" aria-hidden/></Button>
             </li>
           </ul>
         </nav>
@@ -117,7 +123,6 @@ export function SettingsView({onClose, onDirtyChange, onNavigate, closeBlocked, 
                   <Switch id="developer-mode" aria-describedby="developer-mode-hint" checked={enabled} disabled={enabled && hasUnsavedChanges} onCheckedChange={setEnabled}/>
                 </div>
               </GeneralSection>}
-              <div hidden={active !== 'skills'}><SkillsSection active={active === 'skills'} onDirtyChange={setSkillsDirty}/></div>
               {active === 'workspace' && <WorkspaceSection/>}
               {active === 'appearance' && <AppearanceSection/>}
               {active === 'data' && <DataSection onNavigate={onNavigate} disabledReason={hasUnsavedChanges ? '请先保存或撤销设置修改，再清空数据。' : undefined}/>}

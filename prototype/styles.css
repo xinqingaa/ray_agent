@@ -1175,10 +1175,39 @@ kbd { font: 500 10.5px/1 var(--font); padding: 2px 5px; border-radius: 5px; back
 
 /* ================================================================ Skill */
 .skill-list { margin-top: 14px; }
+.skill-scope .sheet-select { max-width: min(13rem, 38vw); text-overflow: ellipsis; }
+.skill-scroll { overflow: hidden; }
+#skills-page { display: flex; flex-direction: column; height: 100%; min-height: 0; padding-bottom: 0; }
+.skill-view-panel { flex: 1; min-height: 0; overflow: auto; padding: 2px 2px 40px; scrollbar-gutter: stable; }
+.skill-page-head { flex: none; align-items: center; min-height: 36px; margin-bottom: 16px; }
+.skill-tabs { width: fit-content; margin-bottom: 16px; }
+.skill-tools { position: relative; display: flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.skill-tools .search-field { flex: 1 0 min(100%, 11rem); min-width: 0; }
+.skill-source-actions { display: flex; align-items: center; gap: 5px; }
+.skill-source-actions .switch { min-height: 32px; }
+.skill-flyout { position: absolute; top: calc(100% + 4px); right: 0; z-index: 5; padding: 8px; max-width: 100%; background: var(--sheet); border-radius: 10px; box-shadow: var(--shadow-float); }
+.skill-flyout:not([hidden]) { animation: skill-flyout-in var(--t-fast) var(--ease); }
+.skill-flyout p { margin: 4px; overflow-wrap: anywhere; }
+@keyframes skill-flyout-in { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .skill-flyout:not([hidden]) { animation: none; } }
+.skill-market-meta { margin: 13px 0; }
+.skill-market-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr)); gap: 12px; }
+.skill-market-card { display: grid; align-content: start; gap: 8px; border: 1px solid var(--line-2); border-radius: 12px; padding: 15px; }
+.skill-market-card-head, .skill-market-card footer { display: flex; align-items: center; gap: 8px; justify-content: space-between; }
+.skill-market-card-head b { flex: 1; overflow: hidden; text-overflow: ellipsis; }
+.skill-market-card p { min-height: 4.5em; line-height: 1.5; margin: 0; font-size: 12px; color: var(--ink-2); }
+.skill-market-targets { display: grid; gap: 8px; }
+.skill-market-targets label { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.skill-import { width: min(54rem, 100%); height: min(42rem, calc(100dvh - 48px)); overflow: hidden; }
+.skill-import .dlg-head { min-height: 64px; }
+.skill-import .dlg-foot { min-height: 66px; background: var(--sheet-2); }
+.skill-import .dlg-body { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }
+.skill-import .add-body { min-height: 0; flex: 1; overflow-y: auto; scrollbar-gutter: stable; }
+#add-seg { display: grid; grid-template-columns: repeat(3, 1fr); }
+#add-seg .seg-btn { justify-content: center; }
+#add-seg .seg-label { max-width: none; margin-left: 5px; opacity: 1; }
 .skill-row { position: relative; display: flex; align-items: center; gap: 10px; padding-right: 8px; border-radius: 13px; transition: background var(--t-fast), opacity var(--t-mid); }
 .skill-row:hover { background: var(--hover); }
-.skill-row + .skill-row::before { content: ""; position: absolute; left: 54px; right: 10px; top: 0; height: 1px; background: var(--line); }
-.skill-row:hover::before, .skill-row:hover + .skill-row::before { opacity: 0; }
 .skill-row.off .skill-main, .skill-row.off .slash-ic { opacity: .5; }
 .skill-open { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; padding: 11px 6px; text-align: left; }
 .skill-main { flex: 1; min-width: 0; display: flex; flex-direction: column; }

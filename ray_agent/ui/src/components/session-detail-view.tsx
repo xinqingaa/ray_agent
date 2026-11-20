@@ -83,6 +83,8 @@ function latestCompactionId(items: TimelineItem[] | undefined): string | null {
   return null
 }
 
+const workspaceReadingPositions = new Map<string, {top: number; follow: boolean}>()
+
 export function SessionDetailView({
   sessionId,
   inspector,
@@ -91,6 +93,7 @@ export function SessionDetailView({
   renderRunActions,
 }: SessionDetailViewProps) {
   const {visibility} = useDeveloperMode()
+  const workspaceConversation = workspace != null
   const {hash, search} = useLocation()
   const locatedDelivery = useRef('')
   const locatedSource = useRef('')
@@ -108,6 +111,12 @@ export function SessionDetailView({
     loadTurnRequest,
     replyApproval,
   } = useSessionDetail(sessionId)
+  const [showLoading, setShowLoading] = useState(false)
+  useEffect(() => {
+    if (!workspaceConversation || !loading || view) return
+    const timer = window.setTimeout(() => setShowLoading(true), 200)
+    return () => window.clearTimeout(timer)
+  }, [loading, view, workspaceConversation])
   const [outgoing, setOutgoing] = useState<{text: string; skillName?: string; userCount: number; endCount: number; echo?: boolean} | null>(null)
   const [hiddenRunIds, setHiddenRunIds] = useState<string[]>([])
   const [hiddenUserIds, setHiddenUserIds] = useState<string[]>([])
@@ -140,8 +149,9 @@ export function SessionDetailView({
   const [previewedFile, setPreviewedFile] = useState<FileView | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const developerScrollRef = useRef<HTMLDivElement>(null)
-  const scrollPositions = useRef({conversation: 0, developer: 0})
-  const stickRef = useRef(true)
+  const [initialReading] = useState(() => workspaceConversation ? workspaceReadingPositions.get(sessionId) : undefined)
+  const scrollPositions = useRef({conversation: initialReading?.top ?? 0, developer: 0})
+  const stickRef = useRef(initialReading?.follow ?? true)
   const [awayFromBottom, setAwayFromBottom] = useState(false)
   const messageContentRef = useRef<HTMLDivElement>(null)
   const memoryHelpId = useId()
@@ -151,6 +161,7 @@ export function SessionDetailView({
   const memoryToastSeq = useRef(new Set<number>())
 
   useLayoutEffect(() => {
+    if (!view?.id) return
     const el = mode === 'conversation' ? scrollRef.current : developerScrollRef.current
     if (el) el.scrollTop = mode === 'conversation' && stickRef.current ? el.scrollHeight : scrollPositions.current[mode]
   }, [mode, developerVisited, view?.id])
@@ -274,10 +285,10 @@ export function SessionDetailView({
     setHiddenUserIds(saved.hiddenUserIds)
     setRetrying(saved.pending)
     setRetrySessionId(sessionId)
-    stickRef.current = true
+    if (!workspaceConversation) stickRef.current = true
     scrollRef.current?.removeAttribute('data-reference-reading')
     setAwayFromBottom(false)
-  }, [sessionId])
+  }, [sessionId, workspaceConversation])
 
   useEffect(() => {
     if (retrySessionId === sessionId) writeRetryDisplay(sessionId, {hiddenRunIds, hiddenUserIds, pending: retrying})
@@ -648,13 +659,18 @@ export function SessionDetailView({
   }
 
   const onScroll = () => {
-    if (mode !== 'conversation') return
+    if (mode !== 'conversation' || !view) return
     const el = scrollRef.current
     if (!el) return
     const distance = el.scrollHeight - el.scrollTop - el.clientHeight
     if (!el.hasAttribute('data-reference-reading')) stickRef.current = distance < 200
     setAwayFromBottom(distance >= 200)
     scrollPositions.current.conversation = el.scrollTop
+    if (workspace) {
+      workspaceReadingPositions.delete(sessionId)
+      workspaceReadingPositions.set(sessionId, {top: el.scrollTop, follow: stickRef.current})
+      if (workspaceReadingPositions.size > 50) workspaceReadingPositions.delete(workspaceReadingPositions.keys().next().value!)
+    }
   }
 
   const activity = view?.activeRun?.activity
@@ -796,7 +812,7 @@ export function SessionDetailView({
           <div className="min-h-0 flex-1 overflow-hidden">
             <div className={cn('flex h-full w-[200%] transition-transform duration-200 ease-out motion-reduce:transition-none', mode === 'developer' && '-translate-x-1/2')}>
               <div id="session-mode-panel-conversation" role={visibility.developerView ? 'tabpanel' : undefined} aria-label="聊天" aria-labelledby={visibility.developerView ? 'session-mode-conversation' : undefined} aria-hidden={mode !== 'conversation'} inert={mode !== 'conversation'} className="flex h-full min-w-0 w-1/2 shrink-0 flex-col">
-                <div ref={scrollRef} onScroll={onScroll} className={cn('min-h-0 flex-1 overflow-y-auto overscroll-contain', workspace && 'conversation-scroll')}
+                <div ref={scrollRef} onScroll={onScroll} aria-busy={loading && !view} className={cn('min-h-0 flex-1 overflow-y-auto overscroll-contain', workspace && 'conversation-scroll')}
                   onWheelCapture={event => {if (event.deltaY) resumeConversationScroll(event.target)}}
                   onTouchMoveCapture={event => resumeConversationScroll(event.target)}
                   onPointerDownCapture={event => {if (event.target === event.currentTarget) resumeConversationScroll(event.target)}}
@@ -804,7 +820,7 @@ export function SessionDetailView({
                     if (['ArrowDown', 'ArrowUp', 'PageDown', 'PageUp', 'Home', 'End'].includes(event.key)) resumeConversationScroll(event.target)
                   }}>
                   {!view ? <div className="flex min-h-full flex-col items-center justify-center gap-2 px-4 text-center">
-                    {loading ? <p role="status" className="text-sm text-muted-foreground">正在读取对话</p>
+                    {loading ? (!workspace || showLoading) && <p role="status" className="text-xs text-muted-foreground">正在读取对话</p>
                       : error ? <>
                         <p role="alert" className="text-sm text-state-failed">{error.message}</p>
                         <button type="button" onClick={() => void refresh()} className="rounded-sm text-sm text-signal underline outline-none focus-visible:ring-2 focus-visible:ring-ring">
@@ -852,6 +868,7 @@ export function SessionDetailView({
                       ref={composer}
                       sessionId={sessionId}
                       workspace={workspace != null}
+                      workspaceId={workspace?.id}
                       onSend={handleSend}
                       onAbandonSubmission={() => setRetrying(null)}
                       pause={pauseMode}

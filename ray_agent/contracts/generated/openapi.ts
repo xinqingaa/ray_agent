@@ -931,6 +931,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/skills/market": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Market Catalog */
+        get: operations["market_catalog_api_skills_market_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/skills/market/descriptions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Market Descriptions */
+        post: operations["market_descriptions_api_skills_market_descriptions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/skills/market/targets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Market Targets */
+        get: operations["market_targets_api_skills_market_targets_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/skills/market/install": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Market Install */
+        post: operations["market_install_api_skills_market_install_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/skills": {
         parameters: {
             query?: never;
@@ -4306,6 +4374,61 @@ export interface components {
             /** Options */
             options: ("as_new" | "rebind")[];
         };
+        /** MarketCatalog */
+        MarketCatalog: {
+            /** Items */
+            items: components["schemas"]["MarketItem"][];
+            /** Has More */
+            has_more: boolean;
+            /** Updated At */
+            updated_at: number;
+            /** Stale */
+            stale: boolean;
+        };
+        /** MarketDescriptionsRequest */
+        MarketDescriptionsRequest: {
+            /** Ids */
+            ids: string[];
+        };
+        /** MarketInstallRequest */
+        MarketInstallRequest: {
+            /** Operation Id */
+            operation_id: string;
+            /** Repository */
+            repository: string;
+            /** Slug */
+            slug: string;
+            /** Workspace Id */
+            workspace_id?: string | null;
+            /** Target Id */
+            target_id: string;
+        };
+        /** MarketItem */
+        MarketItem: {
+            /** Id */
+            id: string;
+            /** Repository */
+            repository: string;
+            /** Slug */
+            slug: string;
+            /** Name */
+            name: string;
+            /** Installs */
+            installs: number;
+            /** Count Label */
+            count_label: string | null;
+            /** Description */
+            description?: string | null;
+        };
+        /** MarketTarget */
+        MarketTarget: {
+            /** Workspace Id */
+            workspace_id: string | null;
+            /** Target Id */
+            target_id: string;
+            /** Directory */
+            directory: string;
+        };
         /**
          * MemoryCertainty
          * @enum {string}
@@ -4853,6 +4976,8 @@ export interface components {
             name: string;
             /** Skill Id */
             skill_id?: string | null;
+            /** Workspace Id */
+            workspace_id?: string | null;
         };
         /**
          * ProposalStatus
@@ -5107,6 +5232,10 @@ export interface components {
         Response_ListSessionResponse_: {
             data: components["schemas"]["ListSessionResponse"] | null;
         };
+        /** Response[MarketCatalog] */
+        Response_MarketCatalog_: {
+            data: components["schemas"]["MarketCatalog"] | null;
+        };
         /** Response[MemoryExtractionView] */
         Response_MemoryExtractionView_: {
             data: components["schemas"]["MemoryExtractionView"] | null;
@@ -5237,6 +5366,13 @@ export interface components {
                 [key: string]: unknown;
             } | null;
         };
+        /** Response[dict[str, Union[str, NoneType]]] */
+        Response_dict_str__Union_str__NoneType___: {
+            /** Data */
+            data: {
+                [key: string]: string | null;
+            } | null;
+        };
         /** Response[list[ComponentView]] */
         Response_list_ComponentView__: {
             /** Data */
@@ -5246,6 +5382,11 @@ export interface components {
         Response_list_DocumentView__: {
             /** Data */
             data: components["schemas"]["DocumentView"][] | null;
+        };
+        /** Response[list[MarketTarget]] */
+        Response_list_MarketTarget__: {
+            /** Data */
+            data: components["schemas"]["MarketTarget"][] | null;
         };
         /** RetryIndexRequest */
         RetryIndexRequest: {
@@ -5655,6 +5796,8 @@ export interface components {
             discover_workspace: boolean;
             /** Disabled Sources */
             disabled_sources?: string[];
+            /** Disabled Groups */
+            disabled_groups?: string[];
             /** Disabled Skills */
             disabled_skills?: string[];
             /** Extra Dirs */
@@ -5662,6 +5805,12 @@ export interface components {
             /** Preferred */
             preferred?: {
                 [key: string]: string;
+            };
+            /** Workspace Preferred */
+            workspace_preferred?: {
+                [key: string]: {
+                    [key: string]: string;
+                };
             };
         };
         /**
@@ -8007,6 +8156,136 @@ export interface operations {
             };
         };
     };
+    market_catalog_api_skills_market_get: {
+        parameters: {
+            query?: {
+                q?: string;
+                offset?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_MarketCatalog_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    market_descriptions_api_skills_market_descriptions_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MarketDescriptionsRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_dict_str__Union_str__NoneType___"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    market_targets_api_skills_market_targets_get: {
+        parameters: {
+            query?: {
+                workspace_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_list_MarketTarget__"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    market_install_api_skills_market_install_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MarketInstallRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     list_skills_api_skills_get: {
         parameters: {
             query?: {
@@ -8502,6 +8781,8 @@ export interface operations {
                 expected_version: string;
                 path: string;
                 download?: boolean;
+                workspace_id?: string | null;
+                run_id?: string | null;
             };
             header?: never;
             path: {
@@ -8533,7 +8814,11 @@ export interface operations {
     };
     skill_detail_api_skills__skill_id__get: {
         parameters: {
-            query?: never;
+            query?: {
+                workspace_id?: string | null;
+                expected_version?: string | null;
+                run_id?: string | null;
+            };
             header?: never;
             path: {
                 skill_id: string;
@@ -8601,6 +8886,7 @@ export interface operations {
         parameters: {
             query: {
                 expected_version: string;
+                workspace_id?: string | null;
             };
             header?: never;
             path: {
@@ -8632,7 +8918,9 @@ export interface operations {
     };
     change_skill_api_skills__skill_id__patch: {
         parameters: {
-            query?: never;
+            query?: {
+                workspace_id?: string | null;
+            };
             header?: never;
             path: {
                 skill_id: string;

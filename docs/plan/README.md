@@ -4,11 +4,10 @@
 
 ## 当前授权
 
-[原型落地计划](prototype-ui.md)说明桌面主流程的还原标准与验收范围。[决策清单](decisions.md)维护已确认的产品和技术边界。P8、P9 按各自工作包推进。
+[原型落地计划](prototype-ui.md)说明桌面主流程的还原标准与验收范围。[决策清单](decisions.md)维护已确认的产品和技术边界。整包验收随 P9 推进。
 
 | 阅读问题 | 入口 |
 |---|---|
-| Skill 多来源如何接续 | [Skill 工作包](skills.md) |
 | 签名、更新、离线包与移动分发 | [客户端与分发](clients-and-distribution.md) |
 | 完整备份恢复与正式更新 | [本机核心](local-runtime-and-storage.md) |
 | Windows 文件／进程和移动配对边界 | [后续阶段](implementation.md#后续阶段)、[共享契约](shared-contracts.md) |

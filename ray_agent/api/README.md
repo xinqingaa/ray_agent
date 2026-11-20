@@ -374,12 +374,12 @@ Responses 检查使用真实 SDK 与 HTTP 替身，覆盖厂商编码、多轮�
 ### skill 安装与运行检查
 
 ```bash
-uv run --locked python -m pytest tests/core/test_skills.py tests/core/test_skill_management_http.py tests/core/test_skills_sqlite.py
+uv run --locked python -m pytest tests/core/test_skills.py tests/core/test_skill_management_http.py tests/core/test_skills_sqlite.py tests/core/test_skill_multi_source.py
 ```
 
 纯核心用例使用临时磁盘、事务仓储和脚本化模型，覆盖包安全、哈希、幂等、故障重试、固定版本、显式与自动加载、模式、审批和压缩；HTTP 用例走真实路由，覆盖安装前读取、正文修订、无正文 DELETE 与空正文契约。业务库用例在临时数据根上验证并发更新、受理事务冻结及外键引用释放，不调用真实模型。
 
-skill 存储在数据根的 `skills/` 目录（`versions/` 为内容快照），各项预算见[参数页](../../docs/limits.md#skill)。除应用管理库与内置包外，会发现用户／工作区约定目录与设置中的额外目录；运行绑定快照版本，外部目录更新不影响已冻结运行。私有仓库不受理；本机 CLI 安装不进入管理库，但用户目录中的标准包可被发现。错误需通过操作身份查询；真实 GitHub 与模型条件分别验证，不能由替身测试推断。`prepare_skill_resources` 映射已发布快照根路径，不自动执行包管理器安装。多来源检查见 `tests/core/test_skill_multi_source.py`。
+快照存储在数据根的 `skills/versions/`，市场安装根与快照目录独立。桌面可通过 `SKILL_GLOBAL_LOCATION` 指定 RayAgent 全局根，各项预算见[参数页](../../docs/limits.md#skill)。除应用管理库与内置包外，会发现用户／工作区约定目录与设置中的额外目录；运行绑定快照版本，外部目录更新不影响已冻结运行。私有仓库不受理；本机 CLI 安装不进入管理库，但用户目录中的标准包可被发现。错误需通过操作身份查询；真实 GitHub 与模型条件分别验证，不能由替身测试推断。`prepare_skill_resources` 映射已发布快照根路径，不自动执行包管理器安装。多来源检查覆盖来源总开关与别名恢复、变更包复核、坏包反馈。SQLite 用例核对跨工作区隔离、同名显式版本、等待时重建运行端口和材料篡改失败。市场 HTTP 用例用上游替身及真实临时目录验证榜单、摘要读取与缓存、两种安装落点、关闭来源时登记、重复提交和操作读回。真实市场榜单、搜索与 GitHub 获取需另行运行。
 
 真实效果检查需在相同模型和工具条件下，比较无 skill、显式选择和自动加载，并预先给出独立成果预期。任务分别覆盖正文方法、参考资料、脚本或素材使用及无关任务，核对是否选中相关方法、读取必要资源并实际遵循；同时区分成果质量、人工纠正、耗时与用量。内置 `find-skills` 另检查发现相关性、兼容性和不必要搜索，不能由加载成功或 `completed` 推断质量提升。公开 GitHub 来源需固定提交并核对清单；网络或模型不可用时明确范围，不用本地替身冒充真实来源或效果对照。
 

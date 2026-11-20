@@ -23,7 +23,7 @@ function useSettingsClose(onClose: () => void) {
 }
 
 /** 覆盖应用导航，保留下面的会话与草稿；所有关闭入口共用离开保护。 */
-export function SettingsDialog({open, onOpenChange, initialSection}: {open: boolean; onOpenChange: (open: boolean) => void; initialSection?: 'general' | 'skills'}) {
+export function SettingsDialog({open, onOpenChange}: {open: boolean; onOpenChange: (open: boolean) => void}) {
   const {close, ...guard} = useSettingsClose(() => onOpenChange(false))
   return (
     <Dialog open={open} onOpenChange={next => {if (!next) close()}}>
@@ -35,7 +35,7 @@ export function SettingsDialog({open, onOpenChange, initialSection}: {open: bool
         onInteractOutside={event => event.preventDefault()}
       >
         <DialogTitle className="sr-only">设置</DialogTitle>
-        <SettingsView initialSection={initialSection} onNavigate={close} onClose={close} {...guard}/>
+        <SettingsView onNavigate={close} onClose={close} {...guard}/>
       </DialogContent>
     </Dialog>
   )

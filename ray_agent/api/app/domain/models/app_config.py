@@ -157,9 +157,11 @@ class SkillConfig(BaseModel):
     discover_user: bool = True
     discover_workspace: bool = True
     disabled_sources: List[str] = Field(default_factory=list)
+    disabled_groups: List[str] = Field(default_factory=list)
     disabled_skills: List[str] = Field(default_factory=list)
     extra_dirs: List[str] = Field(default_factory=list)
     preferred: Dict[str, str] = Field(default_factory=dict)  # 包名 → 稳定 skill_id
+    workspace_preferred: Dict[str, Dict[str, str]] = Field(default_factory=dict)
 
 
 class AppConfig(BaseModel):

@@ -52,7 +52,7 @@ export function TimelineItemView({item, handlers = {}, metrics, runActions}: {it
   const streaming = handlers.streamingItemId === item.id
   switch (item.kind) {
     case 'user':
-      return <UserMessage text={item.text} skillName={item.skill?.id} attachments={item.attachments} injected={item.injected} onPreview={handlers.onPreviewFile} onDownload={handlers.onDownloadFile}/>
+      return <UserMessage text={item.text} skillName={item.skill?.id} skillVersion={item.skill?.version} runId={item.runId ?? undefined} workspaceId={handlers.workspaceId} attachments={item.attachments} injected={item.injected} onPreview={handlers.onPreviewFile} onDownload={handlers.onDownloadFile}/>
     case 'narration':
       return <NarrationBlock text={item.text} streaming={streaming} deliveredFiles={item.deliveredFiles} onDownloadFile={handlers.onDownloadFile}/>
     case 'tools':

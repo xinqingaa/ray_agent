@@ -94,7 +94,7 @@ function renderList() {
   const app = $('#app');
   if (!['chats', 'workspaces', 'skills'].includes(rail)) { app.dataset.list = 'none'; return; }
   app.dataset.list = state.list;
-  if (rail === 'skills') { $('#list').innerHTML = listFrame('Skill', 'skill-add', '添加 Skill', skillListHTML()); return; }
+  if (rail === 'skills') { $('#list').innerHTML = listFrame('Skill', null, null, skillListHTML()); return; }
   const r = state.route;
   let body = '';
   if (rail === 'chats') {
@@ -129,7 +129,7 @@ function renderList() {
 function listFrame(title, action, tip, body) {
   return `<div class="list-inner">
     <div class="list-head"><span class="list-title">${title}</span>
-      <button class="ghost-btn" data-action="${action}" data-tip="${tip}" aria-label="${tip}">${icon('plus', 'sm')}</button>
+      ${action ? `<button class="ghost-btn" data-action="${action}" data-tip="${tip}" aria-label="${tip}">${icon('plus', 'sm')}</button>` : ''}
     </div>
     <div class="list-scroll">${body}</div></div>`;
 }
@@ -173,7 +173,7 @@ function renderTop() {
   const cc = $('#ctx-count');
   if (cc) cc.textContent = pendingCount() || '';
   const hasInsp = r.page === 'session' || r.page === 'ws-home' || r.page === 'chat';
-  $('#top-actions').innerHTML = (ws || r.page.startsWith('chat') ? `<button class="ghost-btn" data-tip="搜索  ⌘K" aria-label="搜索">${icon('search')}</button>` : '')
+  $('#top-actions').innerHTML = (r.page === 'skills' ? skillScopeHTML() : '') + (ws || r.page.startsWith('chat') ? `<button class="ghost-btn" data-tip="搜索  ⌘K" aria-label="搜索">${icon('search')}</button>` : '')
     + (hasInsp ? `<button class="ghost-btn" data-action="toggle-insp" data-tip="${state.insp.open ? '收起右侧' : '展开右侧'}" aria-label="右侧面板" aria-pressed="${state.insp.open}">${icon('panelRight')}</button>` : '');
 }
 function segBtn(view, ic, label, extra = '') {

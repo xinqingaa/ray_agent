@@ -3,44 +3,47 @@ from __future__ import annotations
 
 import hashlib
 import os
+import stat
+from collections import OrderedDict
 from dataclasses import dataclass
-from pathlib import Path, PurePosixPath
+from itertools import islice
+from pathlib import Path
+from typing import Callable
 
+from app.domain.models.workspace import MARKER_DIRECTORY
 from app.domain.services.skill_packages import SkillError, candidates, safe_path, validate_files
 
-# 首批约定目录（相对用户主目录或工作区文件夹）
-CONVENTION_RELATIVE = (
-    ".agents/skills",
-    ".codex/skills",
-    ".claude/skills",
-)
-
-# 解析优先级：数字越小越优先
-SOURCE_PRIORITY = {
-    "workspace": 0,
-    "user": 1,
-    "extra": 2,
-    "managed": 3,
-    "builtin": 4,
+NATIVE_RELATIVE = f"{MARKER_DIRECTORY}/skills"
+CONVENTION_RELATIVE = (".agents/skills", ".codex/skills", ".claude/skills", ".cursor/skills")
+GROUPS = {
+    "rayagent": "RayAgent",
+    "agents": ".agents",
+    "codex": ".codex",
+    "claude": ".claude",
+    "cursor": ".cursor",
+    "extra": "额外目录",
 }
+SOURCE_PRIORITY = {"workspace": 0, "rayagent": 1, "user": 2, "extra": 3, "managed": 4, "builtin": 5}
+SKIPPED = {".git", "node_modules", ".DS_Store"}
 
 
 @dataclass(frozen=True)
 class SkillSourceSpec:
-    """一次扫描范围：类型、稳定身份、展示标签与根路径。"""
-    kind: str  # workspace | user | extra | managed | builtin
+    kind: str
     source_id: str
     label: str
-    root: Path | None = None  # managed/builtin 无外部根
+    root: Path
+    group: str
     workspace_id: str | None = None
+    scope_root: Path | None = None
     enabled: bool = True
+    instance_enabled: bool = True
 
 
 def skill_id_for(kind: str, canonical: str, name: str) -> str:
-    """来源身份：同名不同来源不得共用；managed/builtin 仍用包名作 id。"""
     if kind in ("managed", "builtin"):
         return name
-    digest = hashlib.sha256(f"{kind}\0{canonical}\0{name}".encode()).hexdigest()[:24]
+    digest = hashlib.sha256("\0".join((kind, canonical, name)).encode()).hexdigest()[:24]
     return f"ext-{kind}-{digest}"
 
 
@@ -60,182 +63,194 @@ def user_home() -> Path:
     return Path(os.path.expanduser("~")).resolve()
 
 
+def source_group(source_id: str) -> str:
+    if source_id.startswith("extra:"):
+        return "extra"
+    if source_id == "rayagent" or source_id.endswith(f":{NATIVE_RELATIVE}"):
+        return "rayagent"
+    if source_id == "user:codex-home/skills":
+        return "codex"
+    return source_id.rsplit(":", 1)[-1].split("/", 1)[0].lstrip(".")
+
+
 def convention_sources(*, workspace_folder: str | None, workspace_id: str | None,
-                       discover_user: bool, discover_workspace: bool,
-                       extra_dirs: list[str], disabled_sources: set[str]) -> list[SkillSourceSpec]:
-    """按计划顺序产出首批来源；禁用的来源仍列出但 enabled=False。"""
-    result: list[SkillSourceSpec] = []
-    if discover_workspace and workspace_folder and workspace_id:
+                       global_folder: Path | None, config) -> list[SkillSourceSpec]:
+    specs: list[SkillSourceSpec] = []
+    disabled = set(config.disabled_sources)
+    disabled_groups = set(config.disabled_groups)
+
+    def add(kind, relative, base, label, allowed=True, wid=None, scope=None):
+        sid = source_id_for(kind, relative, str(base), wid)
+        group = source_group(sid)
+        instance_enabled = allowed and sid not in disabled
+        specs.append(SkillSourceSpec(
+            kind, sid, label, base / relative, group, wid, scope,
+            instance_enabled and group not in disabled_groups, instance_enabled,
+        ))
+
+    if workspace_folder and workspace_id:
         base = Path(workspace_folder)
-        for relative in CONVENTION_RELATIVE:
-            sid = source_id_for("workspace", relative=relative, workspace_id=workspace_id)
-            result.append(SkillSourceSpec(
-                kind="workspace", source_id=sid, label=f"工作区 · {relative}",
-                root=base / relative, workspace_id=workspace_id,
-                enabled=sid not in disabled_sources))
-    if discover_user:
-        home = user_home()
-        for relative in CONVENTION_RELATIVE:
-            sid = source_id_for("user", relative=relative)
-            result.append(SkillSourceSpec(
-                kind="user", source_id=sid, label=f"用户 · {relative}",
-                root=home / relative, enabled=sid not in disabled_sources))
-        # 显式 Codex 根：CODEX_HOME/skills，不硬编码开发者路径
-        codex_home = os.environ.get("CODEX_HOME")
-        if codex_home:
-            root = Path(codex_home).expanduser().resolve() / "skills"
-            sid = source_id_for("user", relative="codex-home/skills")
-            result.append(SkillSourceSpec(
-                kind="user", source_id=sid, label="用户 · CODEX_HOME/skills",
-                root=root, enabled=sid not in disabled_sources))
-    for path in extra_dirs:
+        for relative in (NATIVE_RELATIVE, *CONVENTION_RELATIVE):
+            add("workspace", relative, base, f"工作区 · {relative}",
+                config.discover_workspace or relative == NATIVE_RELATIVE, workspace_id, base)
+    if global_folder is not None:
+        add("rayagent", NATIVE_RELATIVE, global_folder, "RayAgent 全局", scope=global_folder)
+    home = user_home()
+    for relative in CONVENTION_RELATIVE:
+        add("user", relative, home, f"用户 · {relative}", config.discover_user)
+    if codex_home := os.environ.get("CODEX_HOME"):
+        base = Path(codex_home).expanduser()
+        sid = source_id_for("user", "codex-home/skills")
+        instance_enabled = config.discover_user and sid not in disabled
+        specs.append(SkillSourceSpec("user", sid, "用户 · CODEX_HOME/skills", base / "skills",
+                                     "codex", enabled=instance_enabled and "codex" not in disabled_groups,
+                                     instance_enabled=instance_enabled))
+    for path in config.extra_dirs:
         try:
             root = Path(path).expanduser().resolve()
-        except OSError:
+        except (OSError, RuntimeError):
             continue
-        sid = source_id_for("extra", path=str(root))
-        result.append(SkillSourceSpec(
-            kind="extra", source_id=sid, label=f"额外目录 · {root.name}",
-            root=root, enabled=sid not in disabled_sources))
-    return result
+        add("extra", "", root, f"额外目录 · {root.name}")
+    return specs
 
 
-def _is_within(child: Path, root: Path) -> bool:
-    try:
-        child.resolve().relative_to(root.resolve())
-        return True
-    except (ValueError, OSError):
-        return False
+def _bounded_children(path: Path, limit: int) -> list[Path]:
+    with os.scandir(path) as entries:
+        children = [Path(e.path) for e in islice(entries, limit + 1)]
+    if len(children) > limit:
+        raise SkillError("扫描目录条目超过上限")
+    return sorted(children, key=lambda p: (p.name.casefold(), p.name))
+
+
+def _package_files(root: Path, settings):
+    """有界地核对路径、文件类型、元数据和大小，未变化时可复用内容快照。"""
+    pending = [(root, frozenset())]
+    files = []
+    total = visited = 0
+    while pending:
+        path, ancestors = pending.pop()
+        target = path.resolve(strict=True)
+        if not target.is_relative_to(root):
+            raise SkillError(f"包内链接指向包外：{path.name}")
+        if target in ancestors:
+            raise SkillError(f"包内链接存在循环：{path.name}")
+        info = target.stat()
+        visited += 1
+        if visited > settings.skill_discovery_max_entries:
+            raise SkillError("包内目录条目超过上限")
+        if stat.S_ISDIR(info.st_mode):
+            children = _bounded_children(path, settings.skill_discovery_max_entries)
+            pending.extend((child, ancestors | {target}) for child in reversed(children) if child.name not in SKIPPED)
+            continue
+        if not stat.S_ISREG(info.st_mode):
+            raise SkillError(f"不支持的特殊文件：{path.name}")
+        rel = safe_path(path.relative_to(root).as_posix())
+        total += info.st_size
+        if info.st_size > settings.skill_file_bytes or total > settings.skill_package_bytes:
+            raise SkillError(f"包大小超限：{rel}")
+        if len(files) >= settings.skill_max_files:
+            raise SkillError("包文件数量超限")
+        files.append((rel, target, (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns)))
+    return files
+
+
+def _read_package_files(files, settings) -> dict[str, bytes]:
+    bundle = {}
+    for rel, target, stamp in files:
+        descriptor = os.open(target, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+        with os.fdopen(descriptor, "rb") as stream:
+            info = os.fstat(stream.fileno())
+            if not stat.S_ISREG(info.st_mode) or (
+                info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns
+            ) != stamp:
+                raise SkillError(f"扫描时文件已变更：{rel}")
+            data = stream.read(info.st_size + 1)
+            if len(data) != info.st_size:
+                raise SkillError(f"扫描时文件已变更：{rel}")
+            bundle[rel] = data
+    return validate_files(bundle, settings)
 
 
 def read_package_dir(package_root: Path, settings) -> dict[str, bytes]:
-    """读取外部 Skill 目录为包文件；包内链接仅在目标仍属包根时收录。"""
-    root = package_root.resolve()
-    if not root.is_dir() or root.is_symlink() and not root.exists():
-        raise SkillError(f"Skill 目录不可用：{package_root}", 404)
-    files: dict[str, bytes] = {}
-    total = 0
-    stack = [root]
-    seen_dirs: set[Path] = set()
-    while stack:
-        current = stack.pop()
-        try:
-            resolved = current.resolve()
-        except OSError as exc:
-            raise SkillError(f"无法解析 Skill 路径：{exc}") from exc
-        if resolved in seen_dirs:
-            continue
-        if not _is_within(resolved, root):
-            raise SkillError("Skill 包外引用不被支持")
-        seen_dirs.add(resolved)
-        try:
-            entries = list(current.iterdir())
-        except OSError as exc:
-            raise SkillError(f"无法读取 Skill 目录：{exc}") from exc
-        for entry in entries:
-            if entry.name in {".git", "node_modules", ".DS_Store"}:
-                continue
-            try:
-                if entry.is_symlink():
-                    target = entry.resolve()
-                    if not _is_within(target, root):
-                        raise SkillError(f"包内链接指向包外：{entry.name}")
-                    if target.is_dir():
-                        stack.append(entry)
-                        continue
-                    if not target.is_file():
-                        raise SkillError(f"不支持的链接目标：{entry.name}")
-                    rel = PurePosixPath(target.relative_to(root).as_posix())
-                    data = target.read_bytes()
-                elif entry.is_dir() and not entry.is_symlink():
-                    stack.append(entry)
-                    continue
-                elif entry.is_file() and not entry.is_symlink():
-                    rel = PurePosixPath(entry.relative_to(root).as_posix())
-                    data = entry.read_bytes()
-                else:
-                    raise SkillError(f"不支持的特殊文件：{entry.name}")
-            except SkillError:
-                raise
-            except OSError as exc:
-                raise SkillError(f"读取 Skill 文件失败：{exc}") from exc
-            path = safe_path(str(rel))
-            if len(data) > settings.skill_file_bytes:
-                raise SkillError(f"单文件大小超限：{path}")
-            total += len(data)
-            if total > settings.skill_package_bytes:
-                raise SkillError("累计包大小超限")
-            if len(files) >= settings.skill_max_files:
-                raise SkillError("包文件数量超限")
-            files[path] = data
-    if "SKILL.md" not in files:
-        raise SkillError("目录中没有 SKILL.md")
-    return validate_files(files, settings)
+    try:
+        root = package_root.resolve(strict=True)
+        if not root.is_dir():
+            raise SkillError("Skill 包目录不可用")
+        return _read_package_files(_package_files(root, settings), settings)
+    except (OSError, RuntimeError) as exc:
+        raise SkillError("无法读取 Skill 包目录") from exc
 
 
-def discover_packages(source: SkillSourceSpec, settings) -> list[dict]:
-    """在来源根下一层子目录中寻找 SKILL.md；不递归整个工作区树。"""
-    if source.root is None or not source.enabled:
+def _package_roots(source: SkillSourceSpec, settings) -> list[Path]:
+    if not source.root.exists() and not source.root.is_symlink():
         return []
-    root = source.root
-    if not root.exists():
-        return []
-    if root.is_symlink():
-        try:
-            root = root.resolve()
-        except OSError:
-            return [{"error": "来源软链接无法解析", "origin": str(source.root)}]
+    root = source.root.resolve(strict=True)
+    if source.scope_root is not None and not root.is_relative_to(source.scope_root.resolve(strict=True)):
+        raise SkillError("Skill 来源链接指向工作区或 RayAgent 根之外")
     if not root.is_dir():
-        return [{"error": "来源不是目录", "origin": str(source.root)}]
-    found: list[dict] = []
-    packages: list[Path] = []
-    if (root / "SKILL.md").is_file():
-        packages.append(root)
-    else:
-        try:
-            children = sorted(root.iterdir(), key=lambda p: p.name.casefold())
-        except OSError as exc:
-            return [{"error": f"无法扫描来源：{exc}", "origin": str(root)}]
-        for child in children:
-            if child.is_dir() and (child / "SKILL.md").exists():
-                packages.append(child)
-    for package_root in packages:
-        origin = str(package_root)
-        try:
-            canonical = str(package_root.resolve())
-        except OSError:
-            found.append({"error": "无法解析规范路径", "origin": origin, "source_id": source.source_id})
+        raise SkillError("Skill 来源不是目录")
+    depth_limit = settings.skill_discovery_max_depth if source.group == "cursor" else 1
+    pending = [(source.root, 0, frozenset())]
+    roots = []
+    entries_left = settings.skill_discovery_max_entries
+    while pending:
+        folder, depth, ancestors = pending.pop()
+        canonical = folder.resolve(strict=True)
+        if canonical in ancestors:
             continue
-        try:
-            files = read_package_dir(package_root, settings)
-            candidate = candidates(files, settings)[0]
-        except SkillError as exc:
-            found.append({
-                "error": str(exc), "origin": origin, "canonical": canonical,
-                "source_id": source.source_id, "kind": source.kind,
-            })
+        if (folder / "SKILL.md").is_file() or (folder / "SKILL.md").is_symlink():
+            roots.append(folder)
             continue
-        found.append({
-            "name": candidate["name"],
-            "description": candidate["description"],
-            "version": candidate["version"],
-            "files": candidate["files"],
-            "warnings": candidate.get("warnings", []),
-            "text": candidate["text"],
-            "bundle": files,
-            "origin": origin,
-            "canonical": canonical,
-            "source_id": source.source_id,
-            "kind": source.kind,
-            "label": source.label,
-            "workspace_id": source.workspace_id,
-            "id": skill_id_for(source.kind, canonical, candidate["name"]),
-        })
+        if depth >= depth_limit or (source.scope_root is not None and
+                                   not canonical.is_relative_to(source.scope_root.resolve(strict=True))):
+            continue
+        children = _bounded_children(folder, entries_left)
+        entries_left -= len(children)
+        pending.extend((p, depth + 1, ancestors | {canonical})
+                       for p in reversed(children) if p.name not in SKIPPED and not p.name.startswith(".") and p.is_dir())
+    return roots
+
+
+def discover_packages(source: SkillSourceSpec, settings, cache: OrderedDict, *,
+                      publish: Callable[[str, dict], None], exists: Callable[[str], bool],
+                      force: bool = False, foreign_roots: tuple[Path, ...] = ()) -> list[dict]:
+    """每个包独立验证并发布，扫描结果只保留元数据。"""
+    try:
+        roots = _package_roots(source, settings)
+    except (OSError, RuntimeError, SkillError) as exc:
+        return [{"error": str(exc), "origin": str(source.root), "source_error": True}]
+    found = []
+    for package_root in roots:
+        try:
+            canonical = package_root.resolve(strict=True)
+            if source.scope_root is not None and not canonical.is_relative_to(source.scope_root.resolve(strict=True)):
+                raise SkillError("Skill 包链接指向授权根之外")
+            if any(canonical.is_relative_to(root) for root in foreign_roots):
+                raise SkillError("Skill 包属于其他工作区")
+            inventory = _package_files(canonical, settings)
+            fingerprint = tuple(inventory)
+            cached = cache.get(canonical)
+            if not force and cached and cached[0] == fingerprint and exists(cached[1]["version"]):
+                candidate = cached[1]
+                cache.move_to_end(canonical)
+            else:
+                files = _read_package_files(inventory, settings)
+                candidate = candidates(files, settings)[0]
+                publish(candidate["version"], files)
+                cache[canonical] = (fingerprint, candidate)
+                cache.move_to_end(canonical)
+                while len(cache) > settings.skill_discovery_cache_entries:
+                    cache.popitem(last=False)
+            found.append({**candidate, "id": skill_id_for(source.kind, str(canonical), candidate["name"]),
+                          "origin": str(package_root), "canonical": str(canonical)})
+        except (SkillError, OSError, RuntimeError) as exc:
+            found.append({"error": str(exc), "origin": str(package_root)})
     return found
 
 
 def entry_kind(entry: dict) -> str:
-    return entry.get("kind") or (entry.get("source") or {}).get("kind") or "managed"
+    kind = entry.get("kind") or (entry.get("source") or {}).get("kind") or "managed"
+    return "managed" if kind in ("github", "manual", "zip", "local") else kind
 
 
 def entry_canonical(entry: dict) -> str:
@@ -252,7 +267,7 @@ def entry_workspace_id(entry: dict) -> str | None:
     if not source_id.startswith("workspace:"):
         return None
     rest = source_id[len("workspace:"):]
-    for relative in CONVENTION_RELATIVE:
+    for relative in (NATIVE_RELATIVE, *CONVENTION_RELATIVE):
         suffix = f":{relative}"
         if rest.endswith(suffix):
             return rest[: -len(suffix)]

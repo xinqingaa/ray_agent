@@ -6,7 +6,7 @@ import {Link as RouterLink, useLocation, useNavigate} from 'react-router'
 
 export {useParams} from 'react-router'
 
-type LinkProps = Omit<AnchorHTMLAttributes<HTMLAnchorElement>, 'href'> & {href: string; replace?: boolean}
+type LinkProps = Omit<AnchorHTMLAttributes<HTMLAnchorElement>, 'href'> & {href: string; replace?: boolean; state?: unknown}
 
 export const Link = forwardRef<HTMLAnchorElement, LinkProps>(function Link({href, ...props}, ref) {
   return <RouterLink ref={ref} to={href} {...props}/>
@@ -15,7 +15,7 @@ export const Link = forwardRef<HTMLAnchorElement, LinkProps>(function Link({href
 export function useRouter() {
   const navigate = useNavigate()
   return useMemo(() => ({
-    push: (href: string) => {void navigate(href)},
+    push: (href: string, state?: unknown) => {void navigate(href, {state})},
     replace: (href: string) => {void navigate(href, {replace: true})},
     back: () => {void navigate(-1)},
   }), [navigate])

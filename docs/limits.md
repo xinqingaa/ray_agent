@@ -266,7 +266,9 @@ API 设置来自 `core/config.py`，环境变量使用对应大写名称；正�
 | 资源单次文本及正文资源清单 | 8000 字符 | `skill_resource_chars`；超长单行转材料准备后读取 |
 | 获取总时限 / 单次网络等待 / 尝试 | 90 秒 / 20 秒 / 最多 3 次 | `skill_fetch_seconds`、GitHub 适配器；引用不存在不重试 |
 | 预览与孤立包保留门槛 | 3600 秒；启动和维护循环检查 | `skill_preview_seconds`、应用生命周期 |
-| 发现范围 | 用户／工作区约定目录与设置中的额外目录；工作区只扫约定子目录一层包，不递归整棵文件树 | [skill_discovery.py](../ray_agent/api/app/domain/services/skill_discovery.py) |
+| 发现扫描／深度／元数据缓存 | 每来源或包最多 5000 条目，Cursor Skill 根内最多 6 层，缓存最近 2048 个包的元数据 | `skill_discovery_max_entries`、`skill_discovery_max_depth`、`skill_discovery_cache_entries` |
+| 市场缓存／请求／应答 | 900 秒，12 秒，2 MiB | `skill_market_cache_seconds`、`skill_market_timeout_seconds`、`skill_market_response_bytes` |
+| 市场简介 | 并发 4，缓存 512 项，每批最多 12 个条目，简介保留 420 字符 | `skill_market_description_concurrency`、`skill_market_description_cache_entries`、市场摘要接口与解析器 |
 | 设置导入 | 请求等待 120 秒，处理中每 1.5 秒查询原操作 | skill 客户端及设置组件 |
 
 提高 API 文件限额时同时核对沙箱的独立硬边界；不会自动扩大沙箱接收范围。导入操作和版本元数据可供查询，回收文件不删除历史操作记录。

@@ -1,4 +1,4 @@
-import React, {createContext, useCallback, useContext, useEffect, useMemo, useRef, useState} from 'react'
+import React, {createContext, useCallback, useContext, useEffect, useMemo, useState} from 'react'
 import {sessionApi} from '@/lib/api'
 import type {Session, SessionStatus} from '@/lib/api'
 import {emitCatalog} from '@/lib/catalog-bus'
@@ -22,19 +22,8 @@ const RETRY_CONFIG = {
   maxDelay: 30_000,
 } as const
 
-/**
- * 从 API 返回值中安全提取 Session 数组
- * 兼容 data 为 { sessions: [...] } / 直接数组 / null 等格式
- */
-function normalizeSessions(raw: unknown): Session[] {
-  if (Array.isArray(raw)) return raw as Session[]
-  if (raw && typeof raw === 'object' && 'sessions' in raw) {
-    return Array.isArray((raw as Record<string, unknown>).sessions)
-      ? ((raw as Record<string, unknown>).sessions as Session[])
-      : []
-  }
-  return []
-}
+type SessionDirectory = {sessions: Session[]; loaded: boolean; loading: boolean; error: string | null}
+const INITIAL_DIRECTORY: SessionDirectory = {sessions: [], loaded: false, loading: true, error: null}
 
 // ==================== Context ====================
 
@@ -42,6 +31,7 @@ export type WaitKind = 'reply' | 'approval'
 
 type SessionsContextValue = {
   sessions: Session[]
+  directories: Readonly<Record<string, SessionDirectory>>
   loading: boolean
   error: string | null
   /** 当前正在手动压缩的会话；不是运行状态，刷新列表不会覆盖 */
@@ -53,82 +43,55 @@ type SessionsContextValue = {
   /** 手动刷新（通过 REST 接口拉取一次） */
   refresh: () => Promise<void>
   /** 用详情里的状态更新列表中的一项，避免徽标停在旧的「运行中」 */
-  patchSession: (sessionId: string, patch: Partial<Pick<Session, 'status' | 'title'>>) => void
+  patchSession: (sessionId: string, patch: Partial<Pick<Session, 'status' | 'title'>>, owner?: string | null) => void
   /** 当前打开的会话刚写入的状态；当前会话不在已加载分页里时，靠它覆盖 */
   liveSession: {id: string; status: SessionStatus} | null
-  deleteSession: (sessionId: string) => Promise<boolean>
+  deleteSession: (sessionId: string, owner?: string | null) => Promise<boolean>
 }
 
 const SessionsContext = createContext<SessionsContextValue | null>(null)
 
 // ==================== Provider ====================
 
-/**
- * 会话列表数据 Provider
- *
- * 放置在 root layout 中，确保不会因为侧边栏展开/折叠而重新挂载。
- * workspaceId 为空时是独立对话列表，有值时只列该工作区的会话，两者都由核心过滤。切换范围时调用方用 key 让 Provider 重新挂载。
- *
- * 数据流:
- *  1. 挂载后立即通过 REST GET /sessions 获取初始数据（仅一次）
- *  2. 同时建立 SSE POST /sessions/stream 长连接，接收实时推送
- *  3. SSE 断开后自动指数退避重连
- *  4. refresh() 可手动通过 REST 拉取
- */
+/** 目录快照按范围保留，只有当前范围建立实时会话列表订阅。 */
 export function SessionsProvider({children, workspaceId = null}: { children: React.ReactNode; workspaceId?: string | null }) {
-  const [sessions, setSessions] = useState<Session[]>([])
-  const [liveSession, setLiveSession] = useState<{id: string; status: SessionStatus} | null>(null)
+  const key = workspaceId ?? ''
+  const [directories, setDirectories] = useState<Record<string, SessionDirectory>>({})
+  const {sessions, loading, error} = directories[key] ?? INITIAL_DIRECTORY
+  const [live, setLiveSession] = useState<{key: string; id: string; status: SessionStatus} | null>(null)
+  const liveSession = live?.key === key ? live : null
   const [compactingSessionId, setCompactingSessionId] = useState<string | null>(null)
   const [waitKinds, setWaitKinds] = useState<Record<string, WaitKind>>({})
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const generation = useMemo(() => ({scope: sessionScope(workspaceId), read: 0, stream: 0}), [workspaceId])
 
-  const cleanupRef = useRef<(() => void) | null>(null)
-  const retryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  /** 确保 REST 初始请求只发起一次（防止 Strict Mode 重复） */
-  const initialFetchedRef = useRef(false)
-  const scope = useMemo(() => sessionScope(workspaceId), [workspaceId])
-  /** 标记 SSE 是否已经推送过数据，防止 REST 回调覆盖更新的 SSE 数据 */
-  const sseReceivedRef = useRef(false)
+  const updateDirectory = useCallback((id: string, update: (previous: SessionDirectory) => SessionDirectory) => {
+    setDirectories(current => {
+      const previous = current[id] ?? INITIAL_DIRECTORY
+      const next = update(previous)
+      return next === previous ? current : {...current, [id]: next}
+    })
+  }, [])
 
-  // ---------- 手动刷新 ----------
   const refresh = useCallback(async () => {
+    const read = ++generation.read
+    const stream = generation.stream
+    updateDirectory(key, current => current.loading && !current.error ? current : {...current, loading: true, error: null})
     try {
-      setLoading(true)
-      setError(null)
-      const raw = await sessionApi.getSessions(0, scope)
-      const next = normalizeSessions(raw)
-      setSessions((current) => sameSessions(current, next) ? current : next)
+      const {sessions: next} = await sessionApi.getSessions(0, generation.scope)
+      if (generation.read !== read || generation.stream !== stream) return
+      updateDirectory(key, current => ({
+        sessions: sameSessions(current.sessions, next) ? current.sessions : next, loaded: true, loading: false, error: null,
+      }))
     } catch (err) {
-      console.error('[Sessions] REST 获取失败:', err)
-      setError(err instanceof Error ? err.message : '获取会话列表失败')
-    } finally {
-      setLoading(false)
+      if (generation.read !== read || generation.stream !== stream) return
+      updateDirectory(key, current => ({...current, loading: false, error: err instanceof Error ? err.message : '获取会话列表失败'}))
     }
-  }, [scope])
+  }, [generation, key, updateDirectory])
 
-  // ---------- 初始 REST 请求（仅一次） ----------
   useEffect(() => {
-    if (initialFetchedRef.current) return
-    initialFetchedRef.current = true
-
-    sessionApi
-      .getSessions(0, scope)
-      .then((raw) => {
-        // 仅在 SSE 尚未推送过数据时更新，防止用旧数据覆盖 SSE 已推送的新数据
-        if (!sseReceivedRef.current) {
-          const next = normalizeSessions(raw)
-          setSessions((current) => sameSessions(current, next) ? current : next)
-        }
-        setLoading(false)
-        setError(null)
-      })
-      .catch((err) => {
-        console.error('[Sessions] 初始获取失败:', err)
-        setError(err instanceof Error ? err.message : '获取会话列表失败')
-        setLoading(false)
-      })
-  }, [scope])
+    void refresh()
+    return () => {generation.read++}
+  }, [generation, refresh])
 
   // ---------- SSE 实时订阅 ----------
   // 同源 HTTP/1.1 只有 6 条连接。每个标签页各开一条列表流时，三个会话页会把连接占满，
@@ -139,32 +102,36 @@ export function SessionsProvider({children, workspaceId = null}: { children: Rea
     let leader = false
     let lastLeaderAt = 0
     const tabId = crypto.randomUUID()
+    let cleanup: (() => void) | null = null
+    let retryTimer: ReturnType<typeof setTimeout> | null = null
     const channel = typeof BroadcastChannel === 'undefined' ? null : new BroadcastChannel(workspaceId ? `ray-agent-sessions:${workspaceId}` : 'ray-agent-sessions')
 
     const disconnect = () => {
-      if (cleanupRef.current) {
-        cleanupRef.current()
-        cleanupRef.current = null
+      if (cleanup) {
+        cleanup()
+        cleanup = null
       }
-      if (retryTimerRef.current) {
-        clearTimeout(retryTimerRef.current)
-        retryTimerRef.current = null
+      if (retryTimer) {
+        clearTimeout(retryTimer)
+        retryTimer = null
       }
     }
 
     const applySessions = (next: Session[]) => {
       if (!mounted) return
-      sseReceivedRef.current = true
-      setSessions((current) => sameSessions(current, next) ? current : next)
-      setLoading(false)
-      setError(null)
+      generation.stream++
+      updateDirectory(key, current => {
+        const same = sameSessions(current.sessions, next)
+        if (same && !current.loading && !current.error) return current
+        return {sessions: same ? current.sessions : next, loaded: true, loading: false, error: null}
+      })
     }
 
     const connect = () => {
       if (!mounted || !leader || document.visibilityState === 'hidden') return
       disconnect()
 
-      cleanupRef.current = sessionApi.streamSessions(
+      cleanup = sessionApi.streamSessions(
         (newSessions) => {
           if (!mounted || !leader) return
           retryCount = 0
@@ -174,7 +141,7 @@ export function SessionsProvider({children, workspaceId = null}: { children: Rea
         (err) => {
           if (!mounted || !leader) return
           console.warn('[Sessions] SSE 断开:', err.message)
-          cleanupRef.current = null
+          cleanup = null
 
           if (retryCount >= RETRY_CONFIG.maxRetries) {
             console.error('[Sessions] 超过最大重试次数，停止重连')
@@ -187,14 +154,14 @@ export function SessionsProvider({children, workspaceId = null}: { children: Rea
           )
           retryCount++
           console.log(`[Sessions] ${delay}ms 后尝试重连（第 ${retryCount} 次）`)
-          retryTimerRef.current = setTimeout(connect, delay)
+          retryTimer = setTimeout(connect, delay)
         },
         (hint) => {
           if (!mounted || !leader) return
           emitCatalog(hint)
           channel?.postMessage({type: 'catalog', tabId, hint})
         },
-        scope,
+        generation.scope,
       )
     }
 
@@ -267,7 +234,7 @@ export function SessionsProvider({children, workspaceId = null}: { children: Rea
       channel?.removeEventListener('message', onMessage)
       channel?.close()
     }
-  }, [workspaceId, scope])
+  }, [workspaceId, generation, key, updateDirectory])
 
   const setWaitKind = useCallback((sessionId: string, kind: WaitKind | null) => {
     setWaitKinds((prev) => {
@@ -282,38 +249,38 @@ export function SessionsProvider({children, workspaceId = null}: { children: Rea
     })
   }, [])
 
-  const patchSession = useCallback((sessionId: string, patch: Partial<Pick<Session, 'status' | 'title'>>) => {
+  const patchSession = useCallback((sessionId: string, patch: Partial<Pick<Session, 'status' | 'title'>>, owner = workspaceId) => {
+    const ownerKey = owner ?? ''
     if (patch.status) {
       const status = patch.status
-      setLiveSession((prev) => prev?.id === sessionId && prev.status === status ? prev : {id: sessionId, status})
+      setLiveSession(prev => prev?.key === ownerKey && prev.id === sessionId && prev.status === status ? prev : {key: ownerKey, id: sessionId, status})
     }
-    setSessions((prev) => {
-      let changed = false
-      const next = prev.map((item) => {
-        if (item.session_id !== sessionId) return item
-        const status = patch.status ?? item.status
-        const title = patch.title ?? item.title
-        if (status === item.status && title === item.title) return item
-        changed = true
-        return {...item, status, title}
-      })
-      return changed ? next : prev
+    updateDirectory(ownerKey, current => {
+      const index = current.sessions.findIndex(item => item.session_id === sessionId)
+      if (index < 0) return current
+      const item = current.sessions[index]
+      const next = {...item, ...patch}
+      if (next.status === item.status && next.title === item.title) return current
+      const sessions = current.sessions.slice()
+      sessions[index] = next
+      return {...current, sessions}
     })
-  }, [])
+  }, [updateDirectory, workspaceId])
 
-  // ---------- 删除会话 ----------
-  const deleteSession = useCallback(async (sessionId: string): Promise<boolean> => {
+  const deleteSession = useCallback(async (sessionId: string, owner = workspaceId): Promise<boolean> => {
     try {
       await sessionApi.deleteSession(sessionId)
-      setSessions((prev) => prev.filter((s) => s.session_id !== sessionId))
+      updateDirectory(owner ?? '', current => ({
+        ...current, sessions: current.sessions.filter(item => item.session_id !== sessionId),
+      }))
       return true
     } catch {
       return false
     }
-  }, [])
+  }, [updateDirectory, workspaceId])
 
   return (
-    <SessionsContext.Provider value={{sessions, compactingSessionId, setCompactingSessionId, waitKinds, setWaitKind, loading, error, refresh, patchSession, deleteSession, liveSession}}>
+    <SessionsContext.Provider value={{sessions, directories, compactingSessionId, setCompactingSessionId, waitKinds, setWaitKind, loading, error, refresh, patchSession, deleteSession, liveSession}}>
       {children}
     </SessionsContext.Provider>
   )

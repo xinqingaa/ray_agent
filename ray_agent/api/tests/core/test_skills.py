@@ -237,10 +237,17 @@ def test_runtime_explicit_auto_and_new_run_deactivation(tmp_path):
 
 
 def test_explicit_selection_approval_and_deny_before_business_request(tmp_path):
+    from tests.core.test_skill_multi_source import write_skill
+
     async def run():
-        s = service(tmp_path)
-        entry = await install(s)
-        runtime = SkillRuntime(s, 'approval-run')
+        workspace = tmp_path / 'project'
+        write_skill(workspace / '.rayagent' / 'skills', 'example', '审批后加载工作区正文')
+        s = service(tmp_path / 'core')
+        s._workspace_locator = lambda wid, **_: (str(workspace) if wid == 'scope' else None, wid)
+        entry, = await s.list(workspace_id='scope')
+        assert entry['id'] != entry['name']
+        await s.change(entry['id'], entry['version'], included=True, workspace_id='scope')
+        runtime = SkillRuntime(s, 'approval-run', workspace_id='scope')
         await runtime.initialize()
         h = make_loop([text('完成')], extra_tools=[SkillTool(runtime)], tool_policy={'load_skill': 'ask'})
         h.loop.skill_runtime, h.loop.run_id = runtime, runtime.run_id
@@ -252,13 +259,14 @@ def test_explicit_selection_approval_and_deny_before_business_request(tmp_path):
         _ = [e async for e in h.loop.resume_approval(approval.tool_call_id, ApprovalStatus.APPROVED)]
         assert len(h.llm.requests) == 1
         assert any(m.get('_ray_skill', {}).get('kind') == 'body' for m in h.llm.requests[0].messages)
-        runtime2 = SkillRuntime(s, 'deny-run')
+        assert any('审批后加载工作区正文' in m.get('content', '') for m in h.llm.requests[0].messages)
+        runtime2 = SkillRuntime(s, 'deny-run', workspace_id='scope')
         await runtime2.initialize()
         h2 = make_loop([], extra_tools=[SkillTool(runtime2)], tool_policy={'load_skill': 'deny'})
         h2.loop.skill_runtime, h2.loop.run_id = runtime2, runtime2.run_id
         events = [e async for e in h2.loop.invoke(Message(message='使用方法', skill=SkillSelection(id=entry['id'], version=entry['version'])))]
         assert any(isinstance(e, ErrorEvent) for e in events) and not h2.llm.requests
-        assert not (await s.bindings('deny-run'))[0]['active']
+        assert not (await s.bindings('deny-run', workspace_id='scope'))[0]['active']
     asyncio.run(run())
 
 

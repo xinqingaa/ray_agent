@@ -7,25 +7,37 @@ import json
 import time
 import uuid
 from pathlib import Path
+from collections import OrderedDict
 from typing import Callable
 
 from app.domain.models.app_config import SkillConfig
 from app.domain.repositories.skills import SkillRepository
 from app.domain.services.skill_context import catalog_message, body_message
 from app.domain.services.skill_discovery import (
-    SOURCE_PRIORITY, convention_sources, discover_packages, entry_kind, entry_workspace_id,
-    resolve_aliases, resolve_names,
+    GROUPS, NATIVE_RELATIVE, SOURCE_PRIORITY, convention_sources, discover_packages, entry_kind, entry_workspace_id,
+    resolve_aliases, resolve_names, skill_id_for, source_group, source_id_for,
 )
-from app.domain.services.skill_packages import SkillError, candidates, local_request_bytes, parse_skill, prepare_local, unzip
+from app.domain.services.skill_packages import SkillError, candidates, local_request_bytes, market_identity, parse_skill, prepare_local, unzip
+
+
+class SkillDiscoveryState:
+    def __init__(self):
+        self.lock = asyncio.Lock()
+        self.cache = OrderedDict()
+        self.problems: dict[str, list[dict]] = {}
+        self.pending: dict[tuple, asyncio.Task] = {}
 
 
 class SkillService:
     def __init__(self, repository: SkillRepository, storage, github, settings,
                  *, config_loader: Callable[[], SkillConfig | asyncio.Future] | None = None,
-                 workspace_locator=None):
+                 workspace_locator=None, global_folder=None, discovery_state=None, workspace_roots=None):
         self.repository, self.storage, self.github, self.settings = repository, storage, github, settings
         self._config_loader = config_loader
         self._workspace_locator = workspace_locator
+        self.global_folder = global_folder
+        self._discovery = discovery_state or SkillDiscoveryState()
+        self._workspace_roots = workspace_roots
 
     async def _config(self) -> SkillConfig:
         if self._config_loader is None:
@@ -55,45 +67,55 @@ class SkillService:
         return self._present(entries, await self._config(), workspace_id)
 
     def _present(self, entries: list[dict], config: SkillConfig, workspace_id: str | None = None) -> list[dict]:
-        disabled = set(config.disabled_skills)
         visible = []
-        for entry in entries:
+        for entry in self._visible_entries(entries, config, workspace_id):
             item = dict(entry)
-            if item['id'] in disabled:
-                item['enabled'] = False
+            item['configured_enabled'] = bool(entry.get('enabled'))
+            item['enabled'] = self._selectable(entry, config)
+            item['included'] = self._is_included(entry)
             if item.get('version'):
                 try:
                     item['root_path'] = str(self.snapshot_root(item['version']))
                 except SkillError:
                     item['root_path'] = None
             visible.append(item)
-        _selected, conflicts = resolve_names(
-            [e for e in visible if e.get('status', 'available') != 'missing' or e.get('builtin')],
-            config.preferred)
+        eligible = resolve_aliases([e for e in visible if e['enabled']])
+        preferred = self._preferred(config, eligible, workspace_id)
+        _, conflicts = resolve_names(eligible, preferred)
+        name_counts: dict[str, int] = {}
+        for item in eligible:
+            name_counts[item['name']] = name_counts.get(item['name'], 0) + 1
         conflict_ids = {e['id'] for e in conflicts}
-        overflow_ids: set[str] = set()
-        injected_ids: set[str] = set()
-        scopes = [workspace_id] if workspace_id else self._scopes(entries)
-        for scope in scopes:
-            kept, overflow = self._partition(entries, config, scope)
-            overflow_ids.update(e['id'] for e in overflow)
-            injected_ids.update(e['id'] for e in kept)
+        kept, overflow = self._partition(entries, config, workspace_id)
+        overflow_ids = {e['id'] for e in overflow}
+        injected_ids = {e['id'] for e in kept}
         for item in visible:
-            item['included'] = self._is_included(item)
             item['catalog_overflow'] = item['id'] in overflow_ids
             item['conflict'] = item['id'] in conflict_ids
+            item['same_name'] = name_counts.get(item['name'], 0) > 1
+            item['preferred'] = bool(item['enabled'] and preferred.get(item['name']) == item['id'])
             item['auto_bound'] = item['id'] in injected_ids
         return sorted(visible, key=lambda r: (
-            not r.get('builtin', False),
-            SOURCE_PRIORITY.get((r.get('source') or {}).get('kind', 'managed'), 99),
-            r['name'], r['id']))
+            not r.get('builtin', False), SOURCE_PRIORITY.get(entry_kind(r), 99), r['name'], r['id']))
 
-    async def detail(self, skill_id: str):
-        async with self.repository.transaction() as tx:
+    async def _read_entry(self, tx, skill_id, workspace_id, run_id):
+        if run_id:
+            entry = next((e for e in await self._scoped_bindings(tx, run_id, workspace_id)
+                          if e['id'] == skill_id), None)
+        else:
             entry = await tx.get('skills', skill_id)
-            version = await tx.get('versions', entry['version']) if entry else None
-        if not entry or not version:
+        if not entry or not self._in_scope(entry, workspace_id) or (not run_id and entry.get('suppressed')):
             raise SkillError('Skill 不存在', 404)
+        return entry
+
+    async def detail(self, skill_id: str, *, workspace_id: str | None = None, expected_version=None, run_id=None):
+        async with self.repository.transaction() as tx:
+            entry = await self._read_entry(tx, skill_id, workspace_id, run_id)
+            if expected_version and entry['version'] != expected_version:
+                raise SkillError('Skill 版本已变化，请刷新选择', 409)
+            version = await tx.get('versions', entry['version'])
+        if not version:
+            raise SkillError('Skill 版本不存在', 404)
         raw = await asyncio.to_thread(self.storage.read, version['version'], version['files'], 'SKILL.md')
         root = str(self.snapshot_root(version['version']))
         return {**version, **entry, 'text': raw.decode('utf-8-sig'), 'root_path': root}
@@ -105,14 +127,12 @@ class SkillService:
             raise SkillError('导入操作不存在', 404)
         return op
 
-    async def file(self, skill_id, expected_version, path):
+    async def file(self, skill_id, expected_version, path, *, workspace_id=None, run_id=None):
         async with self.repository.transaction() as tx:
-            entry = await tx.get('skills', skill_id)
-            version = await tx.get('versions', expected_version) if entry else None
-        if not entry:
-            raise SkillError('Skill 不存在', 404)
-        if entry['version'] != expected_version:
-            raise SkillError('Skill 版本已变化，请刷新', 409)
+            entry = await self._read_entry(tx, skill_id, workspace_id, run_id)
+            if entry['version'] != expected_version:
+                raise SkillError('Skill 版本已变化，请刷新', 409)
+            version = await tx.get('versions', expected_version)
         if not version:
             raise SkillError('Skill 版本缺失，请重新导入', 409)
         return await asyncio.to_thread(self.storage.read, expected_version, version['files'], path)
@@ -125,8 +145,8 @@ class SkillService:
 
     async def readable_import(self, operation_id, candidate_path, fingerprint):
         op = await self.operation(operation_id)
-        if op.get('owner') is not None:
-            raise SkillError('此导入属于聊天运行，请在原对话中续接', 403)
+        if op.get('owner') is not None or op.get('market'):
+            raise SkillError('此导入需要在原入口续接', 403)
         if op['stage'] != 'ready' or time.time() - op['created_at'] > self.settings.skill_preview_seconds:
             raise SkillError('材料已失效，请重新获取', 409)
         candidate = next((c for c in op['candidates'] if c['path'] == candidate_path and c['version'] == fingerprint), None)
@@ -147,7 +167,7 @@ class SkillService:
             await tx.put('imports', revised['id'], revised)
         return revised
 
-    async def create_import(self, operation_id, *, kind, url=None, raw=None, text=None, files=None, unpack_zip=False, update_name=None, expected_version=None, owner=None, tool_call_id=None):
+    async def create_import(self, operation_id, *, kind, url=None, raw=None, text=None, files=None, unpack_zip=False, update_name=None, expected_version=None, owner=None, tool_call_id=None, market=None):
         try:
             operation_id = uuid.UUID(operation_id).hex
         except (ValueError, TypeError):
@@ -161,6 +181,8 @@ class SkillService:
         if kind == 'local' and not files:
             raise SkillError('请选择 Skill 文件')
         identity = [kind, update_name, expected_version, owner]
+        if market is not None:
+            identity.append(market)
         if kind == 'local':
             identity.append(bool(unpack_zip))
             content = local_request_bytes(files)
@@ -176,6 +198,8 @@ class SkillService:
             op = {'id': operation_id, 'request': fingerprint, 'stage': 'fetching', 'created_at': time.time(),
                   'source': {'kind': kind, 'url': url}, 'update_name': update_name, 'expected_version': expected_version,
                   'owner': owner, 'tool_call_id': tool_call_id, 'candidates': [], 'error': None, 'result': None}
+            if market is not None:
+                op['market'] = market
             await tx.put('imports', operation_id, op)
         try:
             if kind == 'github':
@@ -211,8 +235,43 @@ class SkillService:
                                                          'error': str(exc) or '导入已中断，请重新获取'})
             raise
 
+    def _source_state(self, source: dict, config: SkillConfig) -> str:
+        kind = source.get('kind')
+        sid = source.get('source_id', '')
+        if kind not in ('workspace', 'rayagent', 'user', 'extra'):
+            return 'enabled'
+        group = source.get('group') or source_group(sid)
+        if kind == 'extra':
+            # extra_dirs contains canonical paths redeemed by the host folder picker.
+            if sid not in {source_id_for('extra', path=path) for path in config.extra_dirs}:
+                return 'unregistered'
+        if (sid in config.disabled_sources or group in config.disabled_groups or
+            (kind == 'user' and not config.discover_user) or
+            (kind == 'workspace' and group != 'rayagent' and not config.discover_workspace)):
+            return 'disabled'
+        return 'enabled'
+
+    def _effective_entry(self, entry: dict, config: SkillConfig) -> dict:
+        source = entry.get('source') or {}
+        variants = entry.get('locations', [])
+        if not variants:
+            variants = [{'source': source, 'status': entry.get('status', 'available')}]
+        choices = [(variant, self._source_state(variant['source'], config)) for variant in variants]
+        current, state = min(choices, key=lambda choice: (
+            choice[1] == 'unregistered', choice[1] != 'enabled', choice[0]['status'] != 'available',
+            choice[0]['source'].get('group') != 'rayagent',
+            choice[0]['source'].get('source_id', ''),
+        ))
+        return {**entry, **current, 'source_state': state}
+
+    def _visible_entries(self, entries: list[dict], config: SkillConfig, workspace_id: str | None) -> list[dict]:
+        return [item for entry in entries if self._in_scope(entry, workspace_id) and not entry.get('suppressed')
+                if (item := self._effective_entry(entry, config))['source_state'] != 'unregistered']
+
     def _selectable(self, entry: dict, config: SkillConfig) -> bool:
-        return bool(entry.get('enabled')) and entry.get('status', 'available') == 'available' and entry['id'] not in set(config.disabled_skills)
+        return (bool(entry.get('enabled')) and entry.get('status', 'available') == 'available'
+                and entry.get('source_state', 'enabled') == 'enabled'
+                and entry['id'] not in config.disabled_skills)
 
     def _is_included(self, entry: dict) -> bool:
         """没有纳入字段的旧登记沿用「启用即进入目录」。"""
@@ -235,9 +294,16 @@ class SkillService:
                 scopes.append(workspace_id)
         return scopes
 
+    def _preferred(self, config: SkillConfig, entries: list[dict], workspace_id: str | None) -> dict[str, str]:
+        ids = {entry['id'] for entry in entries}
+        workspace = config.workspace_preferred.get(workspace_id, {}) if workspace_id else {}
+        return {**config.preferred, **{name: key for name, key in workspace.items() if key in ids}}
+
     def _members(self, entries: list[dict], config: SkillConfig, workspace_id: str | None) -> list[dict]:
-        pool = [e for e in entries if self._selectable(e, config) and self._is_included(e) and self._in_scope(e, workspace_id)]
-        selected, _conflicts = resolve_names(resolve_aliases(pool), config.preferred)
+        pool = [e for e in self._visible_entries(entries, config, workspace_id)
+                if self._selectable(e, config) and self._is_included(e)]
+        eligible = resolve_aliases(pool)
+        selected, _conflicts = resolve_names(eligible, self._preferred(config, eligible, workspace_id))
         return selected
 
     def _catalog_size(self, entries: list[dict]) -> int:
@@ -258,19 +324,13 @@ class SkillService:
     def _freeze_bound(self, entries: list[dict], config: SkillConfig, workspace_id: str | None, selection: dict | None) -> list[dict]:
         """已纳入集合放得下就整份冻结。放不下时只保留内置 Skill，不按扫描顺序截断。"""
         members = self._members(entries, config, workspace_id)
+        if selection:
+            members = [e for e in members if e['name'] != selection['name']] + [selection]
         if self._catalog_size(members) <= self.settings.skill_catalog_chars:
-            bound = list(members)
-            if selection and not any(e['id'] == selection['id'] for e in bound):
-                trial = [*bound, selection]
-                if self._catalog_size(trial) > self.settings.skill_catalog_chars:
-                    raise SkillError('本运行 Skill 目录容量不足', 409)
-                bound = trial
-            return bound
-        kept, _overflow = self._partition(entries, config, workspace_id)
-        bound = list(kept)
-        if selection and not any(e['id'] == selection['id'] for e in bound):
-            bound.append(selection)
-        return bound
+            return members
+        if self._catalog_size(self._members(entries, config, workspace_id)) <= self.settings.skill_catalog_chars:
+            raise SkillError('本运行 Skill 目录容量不足', 409)
+        return [e for e in members if e.get('builtin') or e is selection]
 
     async def _check_budget(self, tx, replacement: dict, config: SkillConfig):
         entries = {e['id']: e for e in await tx.all('skills')}
@@ -280,7 +340,7 @@ class SkillService:
 
     async def publish(self, operation_id, candidate_path, fingerprint, *, owner=None):
         op = await self.operation(operation_id)
-        if op['owner'] != owner:
+        if op['owner'] != owner or op.get('market'):
             raise SkillError('导入操作不属于此入口或运行', 403)
         if op['stage'] == 'completed':
             if op.get('selected_path') != candidate_path or op.get('selected_version') != fingerprint:
@@ -349,6 +409,73 @@ class SkillService:
             await tx.put('imports', operation_id, op)
         return op
 
+    async def install_from_market(self, operation_id, *, repository, slug, workspace_id, target_id, publish):
+        market_id = market_identity(repository, slug)
+        market = {'id': market_id, 'workspace_id': workspace_id, 'target_id': target_id}
+        url = 'https://github.com/' + repository.lower()
+        op = await self.create_import(operation_id, kind='github', url=url, market=market)
+        if op['stage'] != 'ready':
+            return op
+        options = [c for c in op['candidates'] if slug in (c['name'], Path(c['path']).name)]
+        if len(options) != 1:
+            raise SkillError('仓库中无法唯一定位此 Skill，请打开仓库核对', 409)
+        candidate = options[0]
+        if candidate['warnings']:
+            raise SkillError('该 Skill 有未取得的包资源，请打开源仓库核对', 409)
+        prefix = candidate['path'] + '/' if candidate['path'] else ''
+        files = await asyncio.to_thread(self.storage.read_all, 'previews', op['id'])
+        bundle = {p[len(prefix):]: raw for p, raw in files.items() if p.startswith(prefix)}
+        if candidates(bundle, self.settings)[0]['version'] != candidate['version']:
+            raise SkillError('待安装的 Skill 内容发生变化', 409)
+        destination = await publish(workspace_id, target_id, candidate['name'], bundle)
+        await self.refresh_catalog(workspace_id=workspace_id)
+        async with self.repository.transaction() as tx:
+            latest = await tx.get('imports', op['id'])
+            if latest['stage'] == 'completed':
+                return latest
+            if latest['stage'] != 'ready':
+                raise SkillError('安装操作已失效，请重新读取已安装列表', 409)
+            entries = [e for e in await tx.all('skills') if self._in_scope(e, workspace_id)]
+            entry = next((e for e in entries if e['version'] == candidate['version'] and any(
+                v['source']['path'] == str(destination) for v in e.get('locations', [])
+            )), None)
+            if not entry:
+                # 关闭 RayAgent 来源时不扫描该目录，文件仍已按确认的位置安装。
+                config = await self._config()
+                kind = 'workspace' if workspace_id else 'rayagent'
+                sid = source_id_for(kind, NATIVE_RELATIVE, workspace_id=workspace_id)
+                src = {'kind': kind, 'source_id': sid, 'group': 'rayagent', 'path': str(destination),
+                       'canonical': str(destination), 'label': '工作区 · .rayagent/skills' if workspace_id else 'RayAgent 全局',
+                       **({'workspace_id': workspace_id} if workspace_id else {})}
+                if self._source_state(src, config) == 'enabled':
+                    raise SkillError('文件已安装但登记尚未完成，请重试读取结果', 409)
+                entry = await self._register_market_result(tx, src, candidate, bundle)
+            entry = {**entry, 'market': {'id': market_id, 'commit': op['source']['commit']}}
+            entry.pop('suppressed', None)
+            await tx.put('skills', entry['id'], entry)
+            row = self._present([entry], await self._config(), workspace_id)[0]
+            result = {**latest, 'stage': 'completed', 'result': row, 'destination': str(destination)}
+            await tx.put('imports', op['id'], result)
+            return result
+
+    async def _register_market_result(self, tx, source, candidate, bundle):
+        version = candidate['version']
+        await asyncio.to_thread(self.storage.write, 'versions', version, bundle)
+        if not await tx.get('versions', version):
+            metadata = {k: candidate[k] for k in ('name', 'description', 'version', 'files', 'warnings')}
+            metadata['source'] = source
+            metadata['context_chars'] = len(body_message(
+                '', {**metadata, 'text': candidate['text']}, self.settings.skill_resource_chars)['content'])
+            await tx.put('versions', version, metadata)
+        skill_id = skill_id_for(source['kind'], source['canonical'], candidate['name'])
+        old = await tx.get('skills', skill_id)
+        return {
+            **{k: candidate[k] for k in ('name', 'description', 'version')},
+            'id': skill_id, 'enabled': bool(old.get('enabled', True)) if old else True,
+            'included': self._is_included(old) if old else False, 'builtin': False, 'external': True,
+            'status': 'available', 'source': source, 'locations': [{'source': source, 'status': 'available'}],
+        }
+
     async def edit(self, skill_id, expected_version, text):
         detail = await self.detail(skill_id)
         if detail.get('builtin') or detail.get('external'):
@@ -366,13 +493,14 @@ class SkillService:
             await tx.put('imports', op['id'], op)
         return await self.publish(op['id'], op['candidates'][0]['path'], op['candidates'][0]['version'])
 
-    async def change(self, skill_id, expected_version, *, enabled=None, included=None, delete=False):
+    async def change(self, skill_id, expected_version, *, enabled=None, included=None, delete=False,
+                     workspace_id=None):
         if enabled is None and included is None and not delete:
             raise SkillError('没有要修改的状态')
         config = await self._config()
         async with self.repository.transaction() as tx:
             entry = await tx.get('skills', skill_id)
-            if not entry:
+            if not entry or not self._in_scope(entry, workspace_id):
                 if delete:
                     return
                 raise SkillError('Skill 不存在', 404)
@@ -381,8 +509,11 @@ class SkillService:
             if delete:
                 if entry.get('builtin'):
                     raise SkillError('内置 Skill 可以停用，不能删除', 409)
-                # 外部引用只移除登记，不删除用户目录
-                await tx.delete('skills', skill_id)
+                if entry.get('external'):
+                    # 保留移除标记，手动重扫时可以找回用户文件。
+                    await tx.put('skills', skill_id, {**entry, 'suppressed': True})
+                else:
+                    await tx.delete('skills', skill_id)
                 return
             if enabled is not None:
                 entry = {**entry, 'enabled': enabled}
@@ -395,89 +526,141 @@ class SkillService:
             await tx.put('skills', skill_id, entry)
         return entry
 
+    def _specs(self, config, folder, workspace_id):
+        return convention_sources(workspace_folder=folder, workspace_id=workspace_id,
+                                  global_folder=self.global_folder, config=config)
+
     async def sources(self, *, workspace_id: str | None = None) -> dict:
         config = await self._config()
         folder, wid = await self._locate_workspace(workspace_id)
-        specs = convention_sources(
-            workspace_folder=folder, workspace_id=wid,
-            discover_user=config.discover_user, discover_workspace=config.discover_workspace,
-            extra_dirs=list(config.extra_dirs), disabled_sources=set(config.disabled_sources))
+        specs = self._specs(config, folder, wid)
+        async with self.repository.transaction() as tx:
+            entries = await tx.all('skills')
+        counts: dict[str, int] = {}
+        group_members: dict[str, set[str]] = {group: set() for group in GROUPS}
+        for entry in entries:
+            if self._in_scope(entry, workspace_id) and not entry.get('suppressed'):
+                for item in entry.get('locations') or [{'source': entry.get('source') or {}}]:
+                    if sid := item['source'].get('source_id'):
+                        counts[sid] = counts.get(sid, 0) + 1
+                        group = item['source'].get('group') or source_group(sid)
+                        if group in group_members:
+                            group_members[group].add(entry['id'])
         return {
             'config': config.model_dump(),
+            'groups': [{'id': group, 'label': label, 'enabled': group not in config.disabled_groups,
+                        'count': len(group_members[group])}
+                       for group, label in GROUPS.items()],
             'sources': [
                 {
-                    'source_id': s.source_id, 'kind': s.kind, 'label': s.label,
-                    'path': str(s.root) if s.root else None, 'enabled': s.enabled,
-                    'exists': bool(s.root and s.root.exists()) if s.root else True,
-                    'workspace_id': s.workspace_id,
+                    'source_id': s.source_id, 'kind': s.kind, 'label': s.label, 'group': s.group,
+                    'path': str(s.root), 'enabled': s.enabled, 'instance_enabled': s.instance_enabled,
+                    'exists': s.root.is_dir(), 'workspace_id': s.workspace_id, 'count': counts.get(s.source_id, 0),
+                    'problems': self._discovery.problems.get(s.source_id, []) if s.enabled else [],
                 }
                 for s in specs
             ],
         }
 
-    async def refresh_catalog(self, *, workspace_id: str | None = None, session_id: str | None = None):
-        """扫描外部目录，生成／更新内容快照并登记；已绑定运行不受影响。"""
-        config = await self._config()
-        folder, wid = await self._locate_workspace(workspace_id, session_id)
-        specs = convention_sources(
-            workspace_folder=folder, workspace_id=wid,
-            discover_user=config.discover_user, discover_workspace=config.discover_workspace,
-            extra_dirs=list(config.extra_dirs), disabled_sources=set(config.disabled_sources))
-        discovered: list[dict] = []
-        for spec in specs:
-            if not spec.enabled:
-                continue
-            discovered.extend(await asyncio.to_thread(discover_packages, spec, self.settings))
+    async def refresh_catalog(self, *, workspace_id: str | None = None, session_id: str | None = None,
+                              force: bool = False):
+        """只核对当前范围，逐包更新快照。已绑定运行沿原版本。"""
+        key = (workspace_id, session_id, force)
+        pending = self._discovery.pending
+        if key not in pending:
+            async def scan():
+                try:
+                    await self._refresh_catalog(workspace_id, session_id, force)
+                finally:
+                    pending.pop(key, None)
 
-        live_ids: set[str] = set()
-        for item in discovered:
-            if item.get('error'):
-                continue
-            skill_id = item['id']
-            live_ids.add(skill_id)
-            bundle = item.pop('bundle')
-            await asyncio.to_thread(self.storage.write, 'versions', item['version'], bundle)
-            version_meta = {
-                'name': item['name'], 'description': item['description'], 'version': item['version'],
-                'files': item['files'], 'warnings': item.get('warnings', []),
-                'source': {
-                    'kind': item['kind'], 'label': item['label'], 'path': item['origin'],
-                    'canonical': item['canonical'], 'source_id': item['source_id'],
-                    **({'workspace_id': item['workspace_id']} if item.get('workspace_id') else {}),
-                },
-            }
-            version_meta['context_chars'] = len(body_message(
-                '', {**version_meta, 'text': item['text']}, self.settings.skill_resource_chars)['content'])
-            entry = {
-                'id': skill_id, 'name': item['name'], 'description': item['description'],
-                'version': item['version'], 'enabled': skill_id not in config.disabled_skills,
-                'included': False, 'builtin': False, 'external': True, 'status': 'available',
-                'source': version_meta['source'],
-            }
-            async with self.repository.transaction() as tx:
-                old = await tx.get('skills', skill_id)
-                if old:
-                    entry['enabled'] = bool(old.get('enabled', True))
-                    entry['included'] = bool(old['included']) if 'included' in old else bool(old.get('enabled', True))
-                if not await tx.get('versions', item['version']):
-                    await tx.put('versions', item['version'], version_meta)
-                await tx.put('skills', skill_id, entry)
+            pending[key] = asyncio.create_task(scan())
+        await asyncio.shield(pending[key])
 
-        # 标记已登记但来源消失的外部包；不删快照（运行可能仍引用）
+    async def _refresh_catalog(self, workspace_id, session_id, force):
+        async with self._discovery.lock:
+            config = await self._config()
+            folder, wid = await self._locate_workspace(workspace_id, session_id)
+            other_roots = await self._workspace_roots() if self._workspace_roots else {}
+            scans: dict[str, dict[str, dict]] = {}
+            for spec in self._specs(config, folder, wid):
+                if not spec.enabled:
+                    continue
+                results = await asyncio.to_thread(
+                    discover_packages, spec, self.settings, self._discovery.cache,
+                    publish=lambda version, bundle: self.storage.write('versions', version, bundle),
+                    exists=lambda version: self.snapshot_root(version).is_dir(), force=force,
+                    foreign_roots=tuple(Path(root) for key, root in other_roots.items() if key != spec.workspace_id),
+                )
+                self._discovery.problems[spec.source_id] = [
+                    {'path': r['origin'], 'error': r['error']} for r in results if 'error' in r
+                ][:20]
+                scan = scans[spec.source_id] = {}
+                for item in results:
+                    if 'error' in item:
+                        scan[item['origin']] = item
+                        continue
+                    item['source'] = {
+                        'kind': spec.kind, 'label': spec.label, 'path': item['origin'],
+                        'canonical': item['canonical'], 'source_id': spec.source_id, 'group': spec.group,
+                        **({'workspace_id': spec.workspace_id} if spec.workspace_id else {}),
+                    }
+                    scan[item['origin']] = item
+            await self._register_scan(scans, config, wid, bool(folder), force)
+
+    async def _register_scan(self, scans, config, workspace_id, workspace_available, force):
         async with self.repository.transaction() as tx:
-            for entry in await tx.all('skills'):
-                if not entry.get('external'):
+            entries = {e['id']: e for e in await tx.all('skills') if e.get('external')}
+            seen: dict[str, list[dict]] = {}
+            for scanned in scans.values():
+                for item in scanned.values():
+                    if 'id' in item:
+                        seen.setdefault(item['id'], []).append(item)
+            for skill_id in entries.keys() | seen.keys():
+                old = entries.get(skill_id)
+                fresh = seen.get(skill_id, [])
+                if old and not fresh and not self._in_scope(old, workspace_id):
                     continue
-                if entry['id'] in live_ids:
-                    continue
-                # 仅当仍属于当前扫描范围的来源时标 missing
-                src = entry.get('source') or {}
-                if workspace_id and src.get('kind') == 'workspace' and src.get('source_id', '').startswith(f'workspace:{workspace_id}:'):
-                    await tx.put('skills', entry['id'], {**entry, 'status': 'missing', 'enabled': False})
-                elif src.get('kind') in ('user', 'extra'):
-                    origin = src.get('path')
-                    if origin and not Path(origin).exists():
-                        await tx.put('skills', entry['id'], {**entry, 'status': 'missing', 'enabled': False})
+                locations = {item['source']['source_id']: item for item in (old or {}).get('locations', [])}
+                if old and not locations:
+                    src = old['source']
+                    locations[src['source_id']] = {'source': src, 'status': old.get('status', 'available')}
+                for sid, location in list(locations.items()):
+                    scan = scans.get(sid)
+                    if scan is not None:
+                        scanned = scan.get(location['source']['path'])
+                        status = ('invalid' if (scanned and 'error' in scanned) or
+                                  any(item.get('source_error') for item in scan.values()) else 'missing')
+                    elif entry_kind(old or {}) == 'workspace' and workspace_id and not workspace_available:
+                        status = 'missing'
+                    else:
+                        continue
+                    locations[sid] = {**location, 'status': status}
+                for item in fresh:
+                    src = item['source']
+                    locations[src['source_id']] = {'source': src, 'status': 'available'}
+                current = (min(fresh, key=lambda item: item['source']['source_id']) if fresh else old)
+                entry = {
+                    **{k: current[k] for k in ('id', 'name', 'description', 'version', 'source')},
+                    'enabled': bool(old.get('enabled', True)) if old else True,
+                    'included': self._is_included(old) if old else False,
+                    'builtin': False, 'external': True, 'status': 'available',
+                    'locations': list(locations.values()),
+                }
+                if old and old.get('market') and old['version'] == entry['version']:
+                    entry['market'] = old['market']
+                if old and old.get('suppressed') and not (force and fresh):
+                    entry['suppressed'] = True
+                if fresh and not await tx.get('versions', entry['version']):
+                    version = {k: current[k] for k in ('name', 'description', 'version', 'files', 'warnings', 'source')}
+                    version['context_chars'] = len(body_message(
+                        '', {**version, 'text': current['text']}, self.settings.skill_resource_chars)['content'])
+                    await tx.put('versions', entry['version'], version)
+                effective = self._effective_entry(entry, config)
+                entry['status'] = effective['status']
+                entry['source'] = effective['source']
+                if entry != old:
+                    await tx.put('skills', skill_id, entry)
 
     async def initialize(self):
         raw = (Path(__file__).parents[2] / 'builtin_skills/find-skills/SKILL.md').read_bytes()
@@ -519,15 +702,21 @@ class SkillService:
                     await tx.delete('versions', path.name)
                     await asyncio.to_thread(self.storage.remove, 'versions', path.name)
 
-    async def validate_selection(self, selection):
+    def _validate_entry(self, entry, version, workspace_id, config):
+        if entry and not entry.get('suppressed') and self._in_scope(entry, workspace_id):
+            candidate = self._effective_entry(entry, config)
+            if candidate['version'] == version and self._selectable(candidate, config):
+                return candidate
+        raise SkillError('所选 Skill 不可用或版本已变化，请刷新选择。草稿已保留', 409)
+
+    async def validate_selection(self, selection, *, workspace_id=None):
         if not selection:
             return
         skill_id = selection['id'] if isinstance(selection, dict) else selection.id
         version = selection['version'] if isinstance(selection, dict) else selection.version
+        config = await self._config()
         async with self.repository.transaction() as tx:
-            entry = await tx.get('skills', skill_id)
-        if not entry or not entry.get('enabled') or entry['version'] != version or entry.get('status') == 'missing':
-            raise SkillError('所选 Skill 已删除、停用、缺失或更新，请刷新选择；草稿已保留', 409)
+            self._validate_entry(await tx.get('skills', skill_id), version, workspace_id, config)
 
     async def accept(self, uow, session_id, selection):
         """在消息与运行的同一受理事务中校验选择、固定目录和登记版本引用。"""
@@ -538,31 +727,34 @@ class SkillService:
             raise SkillError('活动运行不存在', 409)
         session = await uow.session.get_by_id(session_id)
         workspace_id = getattr(session, 'workspace_id', None) if session else None
-        # 发现在受理事务外完成；此处只读已登记目录。调用方应先 refresh。
-        entries = await tx.all('skills')
-        config = await self._config()
-        selected_entry = next((e for e in entries if selection and e['id'] == selection.id), None)
-        if selection and (not selected_entry or not selected_entry.get('enabled')
-                          or selected_entry['version'] != selection.version
-                          or selected_entry.get('status') == 'missing'):
-            raise SkillError('所选 Skill 已删除、停用、缺失或更新，请刷新选择', 409)
-        if not run.config_snapshot.get('skills_frozen'):
-            bound = self._freeze_bound(entries, config, workspace_id, selected_entry if selection else None)
+        if run.config_snapshot.get('skills_frozen'):
+            bound = await self._scoped_bindings(tx, run.id, workspace_id)
+        else:
+            entries = await tx.all('skills')
+            config = await self._config()
+            selected = None
+            if selection:
+                selected = self._validate_entry(
+                    next((e for e in entries if e['id'] == selection.id), None),
+                    selection.version, workspace_id, config,
+                )
+            bound = self._freeze_bound(entries, config, workspace_id, selected)
             for entry in bound:
                 payload = {**entry, 'active': False, 'root_path': str(self.snapshot_root(entry['version']))}
                 await tx.bind(run.id, entry['id'], entry['version'], payload)
             await uow.run.save_snapshot(run.id, {**run.config_snapshot, 'skills_frozen': True,
                                                  'skill_workspace_id': workspace_id})
-        else:
-            bound = await tx.bindings(run.id)
         if selection and not any(e['id'] == selection.id and e['version'] == selection.version for e in bound):
             raise SkillError('本运行目录已经固定，请在新运行选择此 Skill 版本', 409)
+
+    async def _scoped_bindings(self, tx, run_id, workspace_id):
+        return [e for e in await tx.bindings(run_id) if self._in_scope(e, workspace_id)]
 
     async def bind_run(self, run_id, *, workspace_id: str | None = None, session_id: str | None = None):
         await self.refresh_catalog(workspace_id=workspace_id, session_id=session_id)
         config = await self._config()
         async with self.repository.transaction(run_id=run_id) as tx:
-            from_snapshot = await tx.bindings(run_id)
+            from_snapshot = await self._scoped_bindings(tx, run_id, workspace_id)
             if from_snapshot:
                 return from_snapshot
             entries = self._freeze_bound(await tx.all('skills'), config, workspace_id, None)
@@ -573,16 +765,16 @@ class SkillService:
                 bound.append(payload)
             return bound
 
-    async def bindings(self, run_id):
+    async def bindings(self, run_id, *, workspace_id=None):
         async with self.repository.transaction() as tx:
-            return await tx.bindings(run_id)
+            return await self._scoped_bindings(tx, run_id, workspace_id)
 
-    async def append(self, run_id, entry):
+    async def append(self, run_id, entry, *, workspace_id=None):
+        config = await self._config()
         async with self.repository.transaction(run_id=run_id) as tx:
             latest = await tx.get('skills', entry['id'])
-            if not latest or not latest.get('enabled') or latest['version'] != entry['version']:
-                raise SkillError('安装结果已被删除、停用或更新，未追加本运行目录', 409)
-            bound = await tx.bindings(run_id)
+            entry = self._validate_entry(latest, entry['version'], workspace_id, config)
+            bound = await self._scoped_bindings(tx, run_id, workspace_id)
             old = next((b for b in bound if b['id'] == entry['id'] or b['name'] == entry['name']), None)
             if old:
                 if old['version'] != entry['version']:
@@ -595,11 +787,17 @@ class SkillService:
         return payload
 
     def _find_bound(self, bound, name_or_id):
-        return next((e for e in bound if e['id'] == name_or_id or e['name'] == name_or_id), None)
+        match = next((e for e in bound if e['id'] == name_or_id), None)
+        if match:
+            return match
+        matches = [e for e in bound if e['name'] == name_or_id]
+        if len(matches) > 1:
+            raise SkillError('本运行绑定了多个同名 Skill，请使用明确身份或开始新运行', 409)
+        return matches[0] if matches else None
 
-    async def load(self, run_id, name):
+    async def load(self, run_id, name, *, workspace_id=None):
         async with self.repository.transaction() as tx:
-            bound = await tx.bindings(run_id)
+            bound = await self._scoped_bindings(tx, run_id, workspace_id)
             entry = self._find_bound(bound, name)
             if not entry:
                 raise SkillError('Skill 不在本运行启用目录中', 404)
@@ -610,9 +808,9 @@ class SkillService:
         parsed = parse_skill(raw, self.settings)
         root_path = entry.get('root_path') or str(self.snapshot_root(entry['version']))
         if entry['active']:
-            return {**version, 'text': parsed['text'], 'root_path': root_path}
+            return {**version, 'source': entry['source'], 'text': parsed['text'], 'root_path': root_path}
         async with self.repository.transaction() as tx:
-            current = await tx.bindings(run_id)
+            current = await self._scoped_bindings(tx, run_id, workspace_id)
             total = 0
             for item in current:
                 if item['active'] or item['id'] == entry['id']:
@@ -621,10 +819,10 @@ class SkillService:
             if total > self.settings.skill_active_chars:
                 raise SkillError('活动 Skill 正文容量不足，请在新运行减少加载的 Skill', 409)
             await tx.bind(run_id, entry['id'], entry['version'], {**entry, 'active': True, 'root_path': root_path})
-        return {**version, 'text': parsed['text'], 'root_path': root_path}
+        return {**version, 'source': entry['source'], 'text': parsed['text'], 'root_path': root_path}
 
-    async def resource(self, run_id, name, path, start_line=1, end_line=None):
-        entries = await self.bindings(run_id)
+    async def resource(self, run_id, name, path, start_line=1, end_line=None, *, workspace_id=None):
+        entries = await self.bindings(run_id, workspace_id=workspace_id)
         entry = self._find_bound(entries, name)
         if not entry or not entry.get('active'):
             raise SkillError('请先加载本运行 Skill', 409)
@@ -651,9 +849,9 @@ class SkillService:
             last = index + 1
         return {'path': path, 'text': output, 'start_line': start_line, 'end_line': last, 'total_lines': len(lines), 'has_more': last < len(lines)}
 
-    async def mark_prepared(self, run_id, name):
+    async def mark_prepared(self, run_id, name, *, workspace_id=None):
         async with self.repository.transaction() as tx:
-            entry = self._find_bound(await tx.bindings(run_id), name)
+            entry = self._find_bound(await self._scoped_bindings(tx, run_id, workspace_id), name)
             if not entry or not entry['active']:
                 raise SkillError('材料准备没有对应的活动 Skill', 409)
             await tx.bind(run_id, entry['id'], entry['version'], {**entry, 'prepared': True})
