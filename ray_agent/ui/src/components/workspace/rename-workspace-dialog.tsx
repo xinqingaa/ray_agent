@@ -9,7 +9,9 @@ import {reportWorkspaceError} from '@/lib/workspace-mutation'
 import {useWorkspaces} from '@/providers/workspaces-provider'
 
 /** 重命名只改显示名称，不改文件夹名。 */
-export function RenameWorkspaceDialog({workspace, open, onOpenChange}: {workspace: WorkspaceItem; open: boolean; onOpenChange: (open: boolean) => void}) {
+export function RenameWorkspaceDialog({workspace, open, onOpenChange, onRestoreFocus}: {
+  workspace: WorkspaceItem; open: boolean; onOpenChange: (open: boolean) => void; onRestoreFocus?: () => void
+}) {
   const {upsert, refresh} = useWorkspaces()
   const [name, setName] = useState(workspace.name)
   const [saving, setSaving] = useState(false)
@@ -34,7 +36,7 @@ export function RenameWorkspaceDialog({workspace, open, onOpenChange}: {workspac
   }
 
   return <Dialog open={open} onOpenChange={value => {if (!saving) onOpenChange(value)}}>
-    <DialogContent className="sm:max-w-[440px]">
+    {open && <DialogContent className="sm:max-w-[440px]" onCloseAutoFocus={onRestoreFocus && (event => {event.preventDefault(); onRestoreFocus()})}>
       <DialogHeader>
         <DialogTitle>重命名工作区</DialogTitle>
         <DialogDescription>只修改在 RayAgent 中显示的名称，文件夹名称不变。</DialogDescription>
@@ -46,6 +48,6 @@ export function RenameWorkspaceDialog({workspace, open, onOpenChange}: {workspac
         <Button variant="outline" disabled={saving} onClick={() => onOpenChange(false)}>取消</Button>
         <Button disabled={!name.trim() || saving} onClick={() => void save()}>{saving ? '正在保存' : '保存'}</Button>
       </DialogFooter>
-    </DialogContent>
+    </DialogContent>}
   </Dialog>
 }

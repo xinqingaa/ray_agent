@@ -160,6 +160,7 @@ export async function request<T = unknown>(
       await handleErrorResponse(response);
     }
 
+    if (fetchOptions.method === "HEAD") return undefined as T;
     return await parseResponse<T>(response);
   } catch (error) {
     if (error instanceof ApiError) {

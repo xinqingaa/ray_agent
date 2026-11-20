@@ -10,9 +10,10 @@ type Props = {
   open: boolean
   onOpenChange: (open: boolean) => void
   onSaved: (title: string) => void
+  onRestoreFocus?: () => void
 }
 
-export function RenameSessionDialog({sessionId, currentTitle, open, onOpenChange, onSaved}: Props) {
+export function RenameSessionDialog({sessionId, currentTitle, open, onOpenChange, onSaved, onRestoreFocus}: Props) {
   const [title, setTitle] = useState(currentTitle)
   const [suggesting, setSuggesting] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -51,7 +52,7 @@ export function RenameSessionDialog({sessionId, currentTitle, open, onOpenChange
   }
 
   return <Dialog open={open} onOpenChange={onOpenChange}>
-    <DialogContent className="sm:max-w-[440px]">
+    {open && <DialogContent className="sm:max-w-[440px]" onCloseAutoFocus={onRestoreFocus && (event => {event.preventDefault(); onRestoreFocus()})}>
       <DialogHeader>
         <DialogTitle>重命名会话</DialogTitle>
         <DialogDescription>写一个简短标题，便于在侧边栏找到这段会话。</DialogDescription>
@@ -77,6 +78,6 @@ export function RenameSessionDialog({sessionId, currentTitle, open, onOpenChange
         <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving}>取消</Button>
         <Button onClick={() => void save()} disabled={!title.trim() || saving || suggesting}>{saving ? '保存中…' : '保存'}</Button>
       </DialogFooter>
-    </DialogContent>
+    </DialogContent>}
   </Dialog>
 }

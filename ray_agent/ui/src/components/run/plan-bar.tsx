@@ -10,8 +10,6 @@ type PlanBarProps = {
   /** 计划模式结束后等待确认执行的清单：不显示进度，只列出步骤 */
   proposal?: boolean
   defaultOpen?: boolean
-  historyAction?: ReactNode
-  historyOpen?: boolean
   className?: string
 }
 
@@ -61,7 +59,7 @@ export function PlanContent({plan, active, ended, status, headerClassName}: {pla
   </>
 }
 
-export function PlanBar({plan, runStatus, proposal = false, defaultOpen = false, historyAction, historyOpen = false, className}: PlanBarProps) {
+export function PlanBar({plan, runStatus, proposal = false, defaultOpen = false, className}: PlanBarProps) {
   const [expanded, setExpanded] = useState(defaultOpen)
   const [mounted, setMounted] = useState(defaultOpen)
   const [barHeight, setBarHeight] = useState<number>()
@@ -89,7 +87,7 @@ export function PlanBar({plan, runStatus, proposal = false, defaultOpen = false,
     return () => observer.disconnect()
   }, [hasPlan])
   useEffect(() => {
-    if (!expanded || historyOpen) return
+    if (!expanded) return
     const outside = (event: PointerEvent) => {
       if (!cardRef.current?.contains(event.target as Node)) setOpen(false)
     }
@@ -102,7 +100,7 @@ export function PlanBar({plan, runStatus, proposal = false, defaultOpen = false,
       document.removeEventListener('pointerdown', outside)
       document.removeEventListener('keydown', escape)
     }
-  }, [expanded, historyOpen, setOpen])
+  }, [expanded, setOpen])
   if (!plan || plan.items.length === 0) return null
   const preparing = plan.progressState === 'preparing'
   const active = !proposal && !preparing && (runStatus === 'running' || runStatus === 'waiting')
@@ -134,7 +132,7 @@ export function PlanBar({plan, runStatus, proposal = false, defaultOpen = false,
         {mounted && <div id={contentId} role="region" aria-label="当前计划" aria-hidden={!expanded} inert={!expanded} className="plan-reveal">
           <div className="min-h-0 overflow-hidden">
             <div className="max-h-[min(28rem,60vh)] overflow-y-auto border-b px-3.5 py-3">
-              <PlanContent plan={plan} active={active} ended={ended} status={historyAction}/>
+              <PlanContent plan={plan} active={active} ended={ended}/>
             </div>
           </div>
         </div>}

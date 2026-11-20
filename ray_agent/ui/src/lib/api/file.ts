@@ -1,10 +1,13 @@
-import { get, post } from "./fetch";
+import { get, post, request } from "./fetch";
 import type { FileInfo, FileUploadParams } from "./types";
 
 /**
  * 文件模块 API；下载与预览内容见 preview.ts
  */
 export const fileApi = {
+  checkContent: (fileId: string): Promise<void> =>
+    request<void>(`/files/${encodeURIComponent(fileId)}/download`, {method: "HEAD", cache: "no-store"}),
+
   /**
    * 上传文件
    * @param params 上传参数，包含文件和可选的会话 ID

@@ -76,6 +76,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
     const {visibility} = useDeveloperMode()
     const pickDestination = useContext(TaskFilePicker)
     const [files, setFiles] = useState<FileInfo[]>([])
+    const [missingFiles, setMissingFiles] = useState<Set<string>>(() => new Set())
     const [references, setReferences] = useState<DraftReference[]>([])
     const [referenceIssue, setReferenceIssue] = useState<{sourceId: string; message: string} | null>(null)
     const [uploading, setUploading] = useState(false)
@@ -123,6 +124,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
       const draft = readDraft(scope)
       setInputValue(draft.text)
       setFiles(draft.files)
+      setMissingFiles(new Set())
       setReferences(draft.references ?? [])
       setReferenceIssue(null)
       setPlanMode(draft.planMode)
@@ -130,6 +132,20 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
       setPreview(null)
       setUncertain(!!draft.submission)
       setLoadedScope(scope)
+      // 只有重新读回的附件需要检查。继续核对未知提交时保持原附件身份。
+      let current = true
+      if (!draft.submission && draft.files.length) {
+        void Promise.all(draft.files.map(async file => {
+          try {
+            await fileApi.checkContent(file.id)
+          } catch (error) {
+            if (error instanceof ApiError && (error.status === 404 || error.status === 410)) return file.id
+          }
+        })).then(results => {
+          if (current) setMissingFiles(new Set(results.filter(id => id !== undefined)))
+        })
+      }
+      return () => {current = false}
     }, [scope])
     useEffect(() => {
       const check = (event: Event) => {
@@ -150,7 +166,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
       const cleared = (event: Event) => {
         const data = (event as CustomEvent).detail
         if (draftClearedBy(data, scope)) {
-          setInputValue(''); setFiles([]); setReferences([]); setReferenceIssue(null); setPlanMode(false); setSelectedSkill(null); setUncertain(false)
+          setInputValue(''); setFiles([]); setMissingFiles(new Set()); setReferences([]); setReferenceIssue(null); setPlanMode(false); setSelectedSkill(null); setUncertain(false)
           if (uploadRef.current) uploadRef.current.cancelled = true
         }
       }
@@ -158,6 +174,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
       return () => window.removeEventListener(DATA_CLEARED, cleared)
     }, [scope])
     const hasImages = files.some(isImageFile)
+    const hasMissingFiles = files.some(file => missingFiles.has(file.id))
 
     useEffect(() => {
       if (!autoFocus || loadedScope !== scope || blocked || focusedScope.current === scope) return
@@ -416,7 +433,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
     const previewFile = (file: FileInfo) => setPreview({id: file.id, filename: file.filename, size: file.size, extension: file.extension, contentType: file.mime_type ?? file.content_type ?? '', source: 'upload', path: file.filepath ?? null})
 
     const handleSend = async () => {
-      if (blocked || uploading || uploadRef.current) return
+      if (blocked || uploading || uploadRef.current || hasMissingFiles) return
       let trimmedMessage = inputValue.trim()
       let skill = selectedSkill
       const shortcut = /^\/([a-z][a-z0-9-]*)(?:\s+|$)/.exec(trimmedMessage)
@@ -600,13 +617,19 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
         <div className="w-full px-4 mb-1">
           <ScrollArea className="w-full whitespace-nowrap">
             <div className="flex w-max items-start gap-3 pb-2">
-              {files.map((file) => isImageFile(file) ? (
+              {files.map((file) => isImageFile(file) && !missingFiles.has(file.id) ? (
                 <div key={file.id} className="group relative shrink-0 rounded-lg">
-                  <button type="button" aria-label={`查看图片 ${file.filename}`} className="block max-w-full rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={() => previewFile(file)}>
+                  <button type="button" aria-label={`查看图片 ${file.filename}`} className="block max-w-full rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring" onClick={event => {
+                    event.currentTarget.focus({preventScroll: true})
+                    previewFile(file)
+                  }}>
                     <AttachmentThumbnail id={file.id} filename={file.filename}/>
                   </button>
                   <div className="pointer-events-none absolute right-1 top-1 flex gap-1 opacity-0 transition-opacity group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100 [@media(hover:none)]:pointer-events-auto [@media(hover:none)]:opacity-100">
-                    <Button type="button" variant="secondary" size="icon-xs" aria-label={`预览 ${file.filename}`} title="预览图片" className="cursor-pointer bg-background/95 shadow-sm" onClick={() => previewFile(file)}>
+                    <Button type="button" variant="secondary" size="icon-xs" aria-label={`预览 ${file.filename}`} title="预览图片" className="cursor-pointer bg-background/95 shadow-sm" onClick={event => {
+                      event.currentTarget.focus({preventScroll: true})
+                      previewFile(file)
+                    }}>
                       <Eye className="size-3.5"/>
                     </Button>
                     <Button type="button" variant="secondary" size="icon-xs" aria-label={`移除 ${file.filename}`} title="移除图片" className="cursor-pointer bg-background/95 shadow-sm" disabled={blocked || uploading} onClick={() => handleRemoveFile(file.id)}>
@@ -631,8 +654,8 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
                   {/* 文件信息 */}
                   <ItemContent className="gap-0">
                     <ItemTitle className="text-sm text-foreground">{file.filename}</ItemTitle>
-                    <ItemDescription className="text-xs">
-                      {file.extension} · {formatFileSize(file.size)}
+                    <ItemDescription className={cn('text-xs', missingFiles.has(file.id) && 'text-state-failed')}>
+                      {missingFiles.has(file.id) ? '已失效，请移除后重新添加' : `${file.extension} · ${formatFileSize(file.size)}`}
                     </ItemDescription>
                   </ItemContent>
                   <ItemActions>
@@ -656,8 +679,6 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
         </div>
       )}
       {uploading && <p role="status" className="mx-4 mb-2 flex items-center gap-2 text-meta text-muted-foreground"><Loader2 className="size-3.5 animate-spin"/>正在上传附件</p>}
-      {planMode && <Button type="button" size="xs" variant="secondary" className="mx-3.5 mb-1.5 self-start bg-signal-soft text-signal"
-        onClick={() => setPlanMode(false)}><ListChecks/>计划模式<XCircle aria-label="移除"/></Button>}
       {/* 中间输入框 */}
       <PopoverAnchor asChild>
       <div className="relative mb-1.5 px-3.5">
@@ -744,7 +765,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
             variant={showPause ? 'secondary' : 'default'}
             className="size-[34px] shrink-0 cursor-pointer rounded-[11px] transition-transform active:scale-90 motion-reduce:transition-none"
             onClick={showPause ? onPause : handleSend}
-            disabled={showPause ? pause === 'stopping' || !onPause : blocked || uploading || !inputValue.trim()}
+            disabled={showPause ? pause === 'stopping' || !onPause : blocked || uploading || hasMissingFiles || !inputValue.trim()}
             aria-label={showPause ? (pause === 'stopping' ? '正在停止' : '停止生成') : '发送'}
             title={showPause ? (pause === 'stopping' ? '正在停止' : '停止生成') : '发送'}
           >

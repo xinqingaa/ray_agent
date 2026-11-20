@@ -1,8 +1,8 @@
 import type {KnowledgeReference, PlanAcceptance, WorkspaceItem} from '@/lib/api/types'
 
-import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode} from 'react'
+import {useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode} from 'react'
 import {toast} from 'sonner'
-import {ArrowDown, Code2, MessageCircle, PanelRight, Pencil} from '@/components/ui/icons'
+import {ArrowDown, ChevronDown, Code2, History, MessageCircle, PanelRight, Pencil} from '@/components/ui/icons'
 import {SegmentedControl} from '@/components/ui/segmented-control'
 import {ChatInput, type ChatInputRef} from '@/components/chat-input'
 import {RenameSessionDialog} from '@/components/rename-session-dialog'
@@ -26,7 +26,8 @@ import {FileRow} from '@/components/preview/file-row'
 import {RunMemoryNotice} from '@/components/run/run-memory-notice'
 import {useLocation} from 'react-router'
 import {cn} from '@/lib/utils'
-import {WorkspaceSwitch} from '@/components/workspace/workspace-switch'
+import {DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger} from '@/components/ui/dropdown-menu'
+import {TopbarMenuContent} from '@/components/topbar-menu'
 import {IconAction} from '@/components/ui/icon-action'
 import {useSessionDetail} from '@/hooks/use-session-detail'
 import {useSessions} from '@/hooks/use-sessions'
@@ -131,6 +132,10 @@ export function SessionDetailView({
   const folderPanel = useRef<FolderPanelRef>(null)
   const composer = useRef<ChatInputRef>(null)
   const [renameOpen, setRenameOpen] = useState(false)
+  const [planHistoryOpen, setPlanHistoryOpen] = useState(false)
+  const optionsTrigger = useRef<HTMLButtonElement>(null)
+  const nextOptionsDialog = useRef<(() => void) | null>(null)
+  const restoreOptionsFocus = () => optionsTrigger.current?.focus({preventScroll: true})
   const [renamedTitle, setRenamedTitle] = useState<{sessionId: string; title: string; previousTitle: string} | null>(null)
   const [previewedFile, setPreviewedFile] = useState<FileView | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -139,20 +144,11 @@ export function SessionDetailView({
   const stickRef = useRef(true)
   const [awayFromBottom, setAwayFromBottom] = useState(false)
   const messageContentRef = useRef<HTMLDivElement>(null)
-  const [planColumn, setPlanColumn] = useState<HTMLDivElement | null>(null)
-  const [planPanelWidth, setPlanPanelWidth] = useState<number>()
+  const memoryHelpId = useId()
   const [participateInMemory, setParticipateInMemory] = useState(true)
   const [participateBusy, setParticipateBusy] = useState(false)
+  const participationRequest = useRef<symbol | null>(null)
   const memoryToastSeq = useRef(new Set<number>())
-
-  useEffect(() => {
-    if (!planColumn) return
-    const measure = () => setPlanPanelWidth(planColumn.getBoundingClientRect().width)
-    measure()
-    const observer = new ResizeObserver(measure)
-    observer.observe(planColumn)
-    return () => observer.disconnect()
-  }, [planColumn])
 
   useLayoutEffect(() => {
     const el = mode === 'conversation' ? scrollRef.current : developerScrollRef.current
@@ -268,6 +264,11 @@ export function SessionDetailView({
     setInspectorFile(null)
     setInspectorSource(null)
     setPreviewedFile(null)
+    setRenameOpen(false)
+    setPlanHistoryOpen(false)
+    nextOptionsDialog.current = null
+    participationRequest.current = null
+    setParticipateBusy(false)
     const saved = readRetryDisplay(sessionId)
     setHiddenRunIds(saved.hiddenRunIds)
     setHiddenUserIds(saved.hiddenUserIds)
@@ -618,19 +619,28 @@ export function SessionDetailView({
   }), [view?.id, view?.runs, view?.timeline, view?.events, focus?.callId, view?.activeRun, view?.streamingItemId, submitting, retrying, hiddenRunIds, hiddenUserIds, sessionId, workspace, sourceRefresh, downloadOne, downloadAll, deliver, previewDelivery, acceptedPlans, view?.planHistory, handleApproval, approvalSubmitting, finishedSequences, latestCompletedId, setWorkbenchOpen, run?.id, renderRunActions])
 
   const toggleParticipate = useCallback(async (participate: boolean) => {
-    if (!workspace || participateBusy) return
+    if (!workspace || participationRequest.current) return
+    const request = Symbol()
+    participationRequest.current = request
     setParticipateBusy(true)
     const previous = participateInMemory
     setParticipateInMemory(participate)
     try {
       const result = await memoryApi.participate(sessionId, participate)
+      if (participationRequest.current !== request) return
       setParticipateInMemory(result.participate_in_memory)
-      toast.success(participate ? '此对话将参与记忆提炼' : '已关闭此对话的记忆提炼')
+      toast.success(participate ? '已允许此对话用于工作区记忆' : '此对话的摘要已退出检索，后续不再自动提炼记忆')
     } catch (error) {
+      if (participationRequest.current !== request) return
       setParticipateInMemory(previous)
       toast.error(error instanceof Error ? error.message : '更新失败')
-    } finally {setParticipateBusy(false)}
-  }, [workspace, participateBusy, participateInMemory, sessionId])
+    } finally {
+      if (participationRequest.current === request) {
+        participationRequest.current = null
+        setParticipateBusy(false)
+      }
+    }
+  }, [workspace, participateInMemory, sessionId])
 
   const resumeConversationScroll = (target: EventTarget | null) => {
     if (target instanceof Element && target.closest('[data-run-context-scroll], [data-run-primary-scroll]')) return
@@ -685,10 +695,6 @@ export function SessionDetailView({
     />
   )
 
-  const planControls = (historyAction?: ReactNode, historyOpen?: boolean) => view && planBarState
-    ? <PlanBar plan={view.plan} runStatus={view.activeRun?.status ?? null}
-        proposal={planBarState === 'proposal'} historyAction={historyAction} historyOpen={historyOpen} className="min-w-0 flex-1"/>
-    : historyAction
   const planHistory = view?.planHistory ?? []
   const files = view?.files ?? []
   const deliveries = view?.files.filter(file => file.source === 'delivery')
@@ -727,9 +733,43 @@ export function SessionDetailView({
 
   return (
     <>
-      {view && <TopbarTitle><span title={displayTitle}>{displayTitle}</span></TopbarTitle>}
+      {view && <TopbarTitle>
+        <DropdownMenu key={sessionId} modal={false}>
+          <DropdownMenuTrigger asChild>
+            <button ref={optionsTrigger} type="button" className="conversation-options-trigger" aria-label={`对话选项，${displayTitle}`}>
+              <span className="min-w-0 truncate" title={displayTitle}>{displayTitle}</span>
+              <ChevronDown className="size-3.5 shrink-0 text-muted-foreground" aria-hidden/>
+            </button>
+          </DropdownMenuTrigger>
+          <TopbarMenuContent title="对话选项" align="start" onCloseAutoFocus={event => {
+            const open = nextOptionsDialog.current
+            if (!open) return
+            nextOptionsDialog.current = null
+            event.preventDefault()
+            open()
+          }}>
+            {workspace && <>
+              <DropdownMenuCheckboxItem indicator="switch" checked={participateInMemory}
+                aria-label="将此对话用于工作区记忆" aria-describedby={memoryHelpId}
+                disabled={participateBusy || scopedSessionId !== sessionId} onSelect={event => event.preventDefault()}
+                onCheckedChange={checked => void toggleParticipate(checked)}>
+                <span className="min-w-0 flex-1 py-0.5">
+                  <span className="block">将此对话用于工作区记忆</span>
+                  <span id={memoryHelpId} className="mt-0.5 block text-xs leading-4 text-muted-foreground">摘要可供其他对话检索。开启自动记忆时也会提炼记忆。</span>
+                </span>
+              </DropdownMenuCheckboxItem>
+              <DropdownMenuSeparator/>
+            </>}
+            <DropdownMenuItem onSelect={() => {nextOptionsDialog.current = () => setRenameOpen(true)}}>
+              <Pencil aria-hidden/>重命名对话
+            </DropdownMenuItem>
+            {planHistory.length > 0 && <DropdownMenuItem onSelect={() => {nextOptionsDialog.current = () => setPlanHistoryOpen(true)}}>
+              <History aria-hidden/>历史清单
+            </DropdownMenuItem>}
+          </TopbarMenuContent>
+        </DropdownMenu>
+      </TopbarTitle>}
       <TopbarActions>
-        <IconAction label="重命名会话" className="topbar-action" disabled={!view} onClick={() => setRenameOpen(true)}><Pencil/></IconAction>
         <IconAction ref={inspectorTrigger} label={workbenchOpen ? `收起${panelName}` : `打开${panelName}`}
           aria-expanded={workbenchOpen} className="topbar-action" onClick={() => setWorkbenchOpen(!workbenchOpen)}><PanelRight/></IconAction>
       </TopbarActions>
@@ -745,15 +785,8 @@ export function SessionDetailView({
         }}
         inspector={<TaskInspector state={inspector} label={panelName}
           belowSessionMode={visibility.developerView} triggerRef={inspectorTrigger}>{panel}</TaskInspector>}>
-          <header className={cn('flex shrink-0 items-center gap-2 px-4', (workspace || visibility.developerView) && 'min-h-11 py-1.5')}>
+          <header className={cn('flex shrink-0 items-center justify-end px-4', visibility.developerView && 'min-h-11 py-1.5')}>
             <h1 className="sr-only">{displayTitle}</h1>
-            <div className="mr-auto">
-              {workspace && <>
-                <WorkspaceSwitch label="参与记忆" descriptionId="session-memory-participation-help" className="session-memory-switch"
-                  checked={participateInMemory} disabled={!view} pending={participateBusy} onChange={checked => void toggleParticipate(checked)}/>
-                <span id="session-memory-participation-help" className="sr-only">关闭后不再从此对话提炼记忆。</span>
-              </>}
-            </div>
             {visibility.developerView && <SegmentedControl value={mode} idPrefix="session-mode" label="会话视图" options={[
               {value: 'conversation', label: '聊天', icon: MessageCircle},
               {value: 'developer', label: '日志', icon: Code2},
@@ -811,12 +844,9 @@ export function SessionDetailView({
                       }
                     }}><ArrowDown className="size-4" aria-hidden/></IconAction>
                   </div>}
-                  <div ref={setPlanColumn} className="mx-auto w-full max-w-(--reading-column)">
-                    {view && mode === 'conversation' && (planBarState || planHistory.length > 0) && <div className="mb-2 flex items-center justify-end">
-                      {planHistory.length > 0 ? <PlanListDialog key={sessionId} plans={planHistory} runs={view.runs} panelWidth={planPanelWidth}>
-                        {planControls}
-                      </PlanListDialog> : planControls()}
-                    </div>}
+                  <div className="mx-auto w-full max-w-(--reading-column)">
+                    {view && mode === 'conversation' && planBarState && <PlanBar plan={view.plan} runStatus={view.activeRun?.status ?? null}
+                      proposal={planBarState === 'proposal'} className="mb-2"/>}
                     {readOnlyReason ? <p role="status" className="rounded-lg border bg-muted/40 px-3.5 py-3 text-center text-sm text-muted-foreground">{readOnlyReason}</p> : <div inert={!view}>
                     <ChatInput
                       ref={composer}
@@ -858,8 +888,11 @@ export function SessionDetailView({
 
       <FilePreviewDialog file={previewedFile} onClose={() => setPreviewedFile(null)} onDownload={file => void downloadOne(file)}/>
 
+      {view && planHistory.length > 0 && <PlanListDialog key={sessionId} plans={planHistory} runs={view.runs}
+        open={planHistoryOpen} onOpenChange={setPlanHistoryOpen} onRestoreFocus={restoreOptionsFocus}/>}
       {view && <RenameSessionDialog sessionId={sessionId} currentTitle={displayTitle} open={renameOpen}
         onOpenChange={setRenameOpen}
+        onRestoreFocus={restoreOptionsFocus}
         onSaved={(title) => {
           setRenamedTitle({sessionId, title, previousTitle: view.title})
           patchSession(sessionId, {title})

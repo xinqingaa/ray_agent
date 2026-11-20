@@ -53,7 +53,8 @@ function load(relative) {
 }
 const {ChatInput}=load('src/components/chat-input.tsx');
 const {clipboardImages}=load('src/lib/composer-images.ts');
-const {readDraft,checkAcceptance}=load('src/lib/drafts.ts');
+const {readDraft,writeDraft,checkAcceptance}=load('src/lib/drafts.ts');
+const {errorFromBody}=load('src/lib/api/fetch.ts');
 const image=new File(['pixels'],'screenshot.png',{type:'image/png'});
 const clipboard=(files,text='')=>({items:files.map(file=>({kind:'file',type:file.type,getAsFile:()=>file})),files,getData:type=>type==='text/plain'?text:''});
 const deferred=()=>{let resolve;const promise=new Promise(done=>resolve=done);return {promise,resolve}};
@@ -111,6 +112,16 @@ async function main(){
   assert.equal(checkAcceptance(detail,{message:'same',attachments:[],mode:'normal',image_mode:'files',afterSeq:1}).kind,'accepted');
   await act(async()=>component.unmount());
   console.log('PASS: 部分上传失败、缩略图与预览/移除入口、不依赖模型目录发送、旧模式受理核对');
+
+  writeDraft('restored', {text:'继续处理附件', files:[fileInfo(image, 'missing')]});
+  fileApi.checkContent=async()=>{throw errorFromBody(410, null)};
+  await act(async()=>{component=create(React.createElement(ChatInput,{...props,draftScope:'restored'}))});
+  assert.ok(JSON.stringify(component.toJSON()).includes('已失效，请移除后重新添加'));
+  assert.equal(component.root.findByProps({'aria-label':'发送'}).props.disabled,true);
+  await act(async()=>component.root.findAllByType('button').find(node=>node.props['aria-label']===`移除 ${image.name}`).props.onClick());
+  assert.equal(component.root.findByProps({'aria-label':'发送'}).props.disabled,false);
+  await act(async()=>component.unmount());
+
   await act(async()=>{component=create(React.createElement(ChatInput,{...props,draftScope:'image-limit'}))});
   fileApi.uploadFile=async({file})=>fileInfo(file,crypto.randomUUID());
   await act(async()=>textarea().props.onChange({target:{value:'查看三张图片',selectionStart:6}}));

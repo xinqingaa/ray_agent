@@ -1,4 +1,4 @@
-import type {ReactNode} from 'react'
+import type {MouseEventHandler, ReactNode} from 'react'
 import {FileTypeBadge, previewBodyKind, previewUnavailableReason} from '@/components/run/file-icon'
 import {AttachmentThumbnail} from './attachment-thumbnail'
 import {formatBytes} from '@/components/run/format'
@@ -16,8 +16,12 @@ export function FileRow({file, onOpen, actions, children, compact = false, showT
   versionLabel?: string
 }) {
   const unavailable = previewUnavailableReason(file.extension)
+  const open: MouseEventHandler<HTMLButtonElement> = event => {
+    event.currentTarget.focus({preventScroll: true})
+    onOpen?.()
+  }
   if (showThumbnail && previewBodyKind(file.extension) === 'image') return <div className="min-w-0 max-w-full">
-    <button type="button" aria-label="查看图片" disabled={!onOpen} onClick={onOpen}
+    <button type="button" aria-label="查看图片" disabled={!onOpen} onClick={open}
       className="block max-w-full cursor-zoom-in rounded-lg outline-none transition-shadow hover:shadow-md focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default">
       <AttachmentThumbnail key={file.id} id={file.id} filename={file.filename}/>
     </button>
@@ -26,7 +30,7 @@ export function FileRow({file, onOpen, actions, children, compact = false, showT
   return <div className={cn('group relative isolate flex min-w-0 items-center gap-2 rounded-md',
     compact ? 'max-w-full border bg-card px-2 py-1 text-xs' : 'px-2 py-2')}>
     <button type="button" aria-label={`查看 ${file.filename}`} title={file.filename} disabled={!onOpen}
-      onClick={onOpen} className="absolute inset-0 z-0 cursor-pointer rounded-md outline-none hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default"/>
+      onClick={open} className="absolute inset-0 z-0 cursor-pointer rounded-md outline-none hover:bg-muted/60 focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-default"/>
     <div className="pointer-events-none relative flex shrink-0 items-center justify-center"><FileTypeBadge extension={file.extension} compact={compact || !!versionLabel}/></div>
     <div className={cn('pointer-events-none relative min-w-0 flex-1', compact && 'flex flex-wrap items-center gap-x-1.5 gap-y-1')}>
       <span className={cn('block min-w-0 truncate group-hover:text-signal', !compact && 'text-sm', !versionLabel && !compact && 'font-medium')}>{file.filename}</span>

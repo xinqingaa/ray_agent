@@ -19,7 +19,10 @@ export function PreviewFrame({filename, children, actions, onBack, backLabel = '
       <FileTypeBadge extension={fileExtension(filename)} compact/>
       <h2 className="min-w-0 flex-1 truncate text-sm font-medium" title={filename} dir="auto">{filename}</h2>
       {actions}
-      {onExpand && <PreviewAction label="放大预览" icon={Expand} onClick={onExpand}/>}
+      {onExpand && <PreviewAction label="放大预览" icon={Expand} onClick={event => {
+        event.currentTarget.focus({preventScroll: true})
+        onExpand()
+      }}/>}
       {onClose && <PreviewAction label="关闭预览" icon={X} onClick={onClose}/>}
     </header>
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-border/70 bg-card">{children}</div>
@@ -35,17 +38,19 @@ export function PreviewDialog({title, open, onClose, children}: {
   const content = useRef<HTMLDivElement>(null)
   const returnFocus = useRef<HTMLElement | null>(null)
   return <Dialog open={open} onOpenChange={next => {if (!next) onClose()}}>
-    <DialogContent showCloseButton={false} ref={content} onOpenAutoFocus={event => {
+    {/* 关闭时立即卸载整层，避免 WebView 的退出动效留下没有内容的遮罩。 */}
+    {open && <DialogContent showCloseButton={false} ref={content} onOpenAutoFocus={event => {
       returnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
       event.preventDefault()
       content.current?.focus()
     }} onCloseAutoFocus={event => {
       event.preventDefault()
-      returnFocus.current?.focus({preventScroll: true})
+      if (returnFocus.current?.isConnected) returnFocus.current.focus({preventScroll: true})
+      returnFocus.current = null
     }} className="flex h-[min(50rem,calc(100dvh-2rem))] w-[calc(100%-1rem)] max-w-5xl flex-col gap-0 overflow-hidden rounded-[20px] bg-background p-2 shadow-(--float-shadow) sm:w-[calc(100%-3rem)] sm:max-w-5xl sm:p-3">
       <DialogTitle className="sr-only">{title}</DialogTitle>
       <DialogDescription className="sr-only">文件预览</DialogDescription>
       {children}
-    </DialogContent>
+    </DialogContent>}
   </Dialog>
 }

@@ -25,3 +25,17 @@ def test_independent_chat_session_lifecycle_without_external_services(client: Te
     assert client.get("/api/data/preview").json()["data"]["counts"]["sessions"] >= 1
     assert client.post(f"/api/sessions/{created}/delete").status_code == 200
     assert client.get(f"/api/sessions/{created}").status_code == 404
+
+
+def test_attachment_head_distinguishes_available_and_missing_content(client: TestClient) -> None:
+    from core.paths import data_root
+
+    created = client.post("/api/files", files={"file": ("sample.json", b"{}", "application/json")})
+    assert created.status_code == 200
+    file = created.json()["data"]
+    url = f"/api/files/{file['id']}/download"
+    available = client.head(url)
+    assert available.status_code == 200 and available.content == b""
+    (data_root().objects / file["key"]).unlink()
+    assert client.head(url).status_code == 410
+    assert client.head("/api/files/missing/download").status_code == 404

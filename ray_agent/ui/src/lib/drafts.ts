@@ -53,27 +53,56 @@ function changed(scope: string): void {
   if (typeof window !== 'undefined' && typeof CustomEvent !== 'undefined') window.dispatchEvent?.(new CustomEvent(DRAFT_CHANGED, {detail: scope}))
 }
 
-/** 本标签临时草稿，不将用户文字放进 URL。 */
+/** 固定作用域的草稿随 WebView 数据保留。读取旧窗口的草稿后迁移到持久存储。 */
 export function readDraft(scope: string): ChatDraft {
   if (typeof window === 'undefined') return {...EMPTY_DRAFT}
+  const key = prefix + scope
+  const ephemeral = scope.startsWith('input:')
+  let draft = volatileDrafts.get(scope)
+  let legacy = false
+  if (!draft && !ephemeral) {
+    try {draft = JSON.parse(localStorage.getItem(key) ?? 'null') ?? undefined} catch {}
+  }
+  if (!draft) {
+    try {
+      draft = JSON.parse(sessionStorage.getItem(key) ?? 'null') ?? undefined
+      legacy = !ephemeral && draft != null
+    } catch {}
+  }
+  if (!draft || typeof draft.text !== 'string' || !Array.isArray(draft.files)) return {...EMPTY_DRAFT}
   try {
-    const parsed = JSON.parse(sessionStorage.getItem(prefix + scope) ?? 'null')
     const resetAt = Number(localStorage.getItem('rayagent:data-reset-at') || 0)
     const deleted = JSON.parse(localStorage.getItem('rayagent:deleted-scopes') || '[]') as string[]
-    if (deleted.includes(scope) || (resetAt && (parsed?.savedAt || 0) <= resetAt)) return {...EMPTY_DRAFT}
-    return parsed && typeof parsed.text === 'string' && Array.isArray(parsed.files)
-      ? parsed : volatileDrafts.get(scope) ?? {...EMPTY_DRAFT}
-  } catch { return volatileDrafts.get(scope) ?? {...EMPTY_DRAFT} }
+    if (deleted.includes(scope) || (resetAt && (draft.savedAt ?? 0) <= resetAt)) return {...EMPTY_DRAFT}
+    if (legacy) {
+      localStorage.setItem(key, JSON.stringify(draft))
+      sessionStorage.removeItem(key)
+    }
+  } catch {}
+  return draft
 }
 export function writeDraft(scope: string, changes: Partial<ChatDraft>): void {
-  const next={...readDraft(scope),...changes,savedAt:Date.now()}
-  volatileDrafts.set(scope,next)
-  try{sessionStorage.setItem(prefix + scope, JSON.stringify(next))}catch{/* 当前标签内存仍保留草稿 */}
+  const next = {...readDraft(scope), ...changes, savedAt: Date.now()}
+  const key = prefix + scope
+  const serialized = JSON.stringify(next)
+  const ephemeral = scope.startsWith('input:')
+  try {
+    if (ephemeral) sessionStorage.setItem(key, serialized)
+    else localStorage.setItem(key, serialized)
+    volatileDrafts.delete(scope)
+    if (!ephemeral) {
+      try {sessionStorage.removeItem(key)} catch {}
+    }
+  } catch {
+    volatileDrafts.set(scope, next)
+    try {sessionStorage.setItem(key, serialized)} catch {}
+  }
   changed(scope)
 }
 export function clearDraft(scope: string): void {
   volatileDrafts.delete(scope)
-  try{sessionStorage.removeItem(prefix + scope)}catch{}
+  try {localStorage.removeItem(prefix + scope)} catch {}
+  try {sessionStorage.removeItem(prefix + scope)} catch {}
   changed(scope)
 }
 
@@ -94,6 +123,7 @@ export function applyDataCleared(data: ClearedData): void {
   appliedCleanupIds.add(data.id)
   const scopes = new Set(volatileDrafts.keys())
   try {for (let index = 0; index < sessionStorage.length; index++) {const key = sessionStorage.key(index); if (key?.startsWith(prefix)) scopes.add(key.slice(prefix.length))}} catch {}
+  try {for (let index = 0; index < localStorage.length; index++) {const key = localStorage.key(index); if (key?.startsWith(prefix)) scopes.add(key.slice(prefix.length))}} catch {}
   for (const scope of scopes) if (draftClearedBy(data, scope)) clearDraft(scope)
   window.dispatchEvent(new CustomEvent(DATA_CLEARED, {detail: data}))
 }

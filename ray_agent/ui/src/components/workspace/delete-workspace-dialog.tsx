@@ -8,12 +8,13 @@ import {trackDeletion} from '@/lib/workspace-deletions'
 import {useWorkspaces} from '@/providers/workspaces-provider'
 
 /** 删除只移除工作区及其对话、任务记录与副本；用户的文件夹和文件原样保留。 */
-export function DeleteWorkspaceDialog({workspace, sessionIds, open, onOpenChange, onAccepted}: {
+export function DeleteWorkspaceDialog({workspace, sessionIds, open, onOpenChange, onAccepted, onRestoreFocus}: {
   workspace: WorkspaceItem
   sessionIds: string[]
   open: boolean
   onOpenChange: (open: boolean) => void
   onAccepted: () => void
+  onRestoreFocus?: () => void
 }) {
   const {drop} = useWorkspaces()
   const [busy, setBusy] = useState(false)
@@ -30,7 +31,7 @@ export function DeleteWorkspaceDialog({workspace, sessionIds, open, onOpenChange
     } finally {setBusy(false)}
   }
   return <Dialog open={open} onOpenChange={value => {if (!busy) onOpenChange(value)}}>
-    <DialogContent className="sm:max-w-[460px]">
+    {open && <DialogContent className="sm:max-w-[460px]" onCloseAutoFocus={onRestoreFocus && (event => {event.preventDefault(); onRestoreFocus()})}>
       <DialogHeader>
         <DialogTitle>删除工作区「{workspace.name}」？</DialogTitle>
         <DialogDescription>
@@ -45,6 +46,6 @@ export function DeleteWorkspaceDialog({workspace, sessionIds, open, onOpenChange
         <Button variant="outline" disabled={busy} onClick={() => onOpenChange(false)}>取消</Button>
         <Button variant="destructive" disabled={busy} onClick={() => void confirm()}>{busy ? '正在提交' : '删除工作区'}</Button>
       </DialogFooter>
-    </DialogContent>
+    </DialogContent>}
   </Dialog>
 }

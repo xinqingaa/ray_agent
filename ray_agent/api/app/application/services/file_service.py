@@ -39,7 +39,10 @@ class FileService:
         file = await self.get_file_info(file_id)
         if file.visual and file.visual.get('deleted_at'):
             raise GoneError('临时图片已过期')
-        return await self.file_storage.download_file(file_id)
+        try:
+            return await self.file_storage.download_file(file_id)
+        except FileNotFoundError as error:
+            raise GoneError('附件内容已不可用') from error
 
     async def download_zip(self, file_ids: list[str]):
         import os

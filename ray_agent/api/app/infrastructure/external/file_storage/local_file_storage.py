@@ -82,8 +82,6 @@ class LocalFileStorage(FileStorage):
         if not file:
             raise ValueError(f"该文件不存在, 文件id: {file_id}")
         path = self.object_path(file.key)
-        if not path.is_file():
-            raise ValueError(f"内容对象不存在, 文件id: {file_id}")
         return path.open("rb"), file
 
     def get_file_url(self, file: File) -> str:

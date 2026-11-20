@@ -1,5 +1,5 @@
-import {ChevronLeft, ChevronRight, CircleX, CirclePause, History, X} from '@/components/ui/icons'
-import {useState, type ReactNode} from 'react'
+import {ChevronLeft, ChevronRight, CircleX, CirclePause, X} from '@/components/ui/icons'
+import {useState} from 'react'
 import {Dialog, DialogClose, DialogContent, DialogTitle, DialogTrigger} from '@/components/ui/dialog'
 import {Button} from '@/components/ui/button'
 import {PlanContent} from './plan-bar'
@@ -33,28 +33,27 @@ export function PlanChecklist({plans, runs}: {plans: PlanHistoryEntry[]; runs: R
   </>
 }
 
-export function PlanListDialog({plans, runs, panelWidth, triggerLabel, children}: {
+export function PlanListDialog({plans, runs, triggerLabel, open, onOpenChange, onRestoreFocus}: {
   plans: PlanHistoryEntry[]
   runs: RunView[]
-  panelWidth?: number
   triggerLabel?: string
-  children?: (trigger: ReactNode, open: boolean) => ReactNode
+  open?: boolean
+  onOpenChange?: (open: boolean) => void
+  onRestoreFocus?: () => void
 }) {
-  const [open, setOpen] = useState(false)
-  const trigger = (
-    <DialogTrigger asChild>
-      {triggerLabel ? <Button type="button" variant="outline" size="xs" className="shrink-0">{triggerLabel}</Button>
-        : <Button type="button" variant="ghost" size="icon-sm" aria-label="历史清单" title="历史清单" className="shrink-0 text-muted-foreground"><History className="size-4" aria-hidden/></Button>}
-    </DialogTrigger>
-  )
-  return <Dialog open={open} onOpenChange={setOpen}>
-    {children ? children(trigger, open) : trigger}
-    <DialogContent aria-describedby={undefined} showCloseButton={false}
-      style={{width: panelWidth ?? 'var(--reading-column)', maxWidth: 'calc(100vw - 1.5rem)'}}
+  const [localOpen, setLocalOpen] = useState(false)
+  const visible = open ?? localOpen
+  return <Dialog open={visible} onOpenChange={onOpenChange ?? setLocalOpen}>
+    {triggerLabel && <DialogTrigger asChild>
+      <Button type="button" variant="outline" size="xs" className="shrink-0">{triggerLabel}</Button>
+    </DialogTrigger>}
+    {visible && <DialogContent aria-describedby={undefined} showCloseButton={false}
+      style={{width: 'var(--reading-column)', maxWidth: 'calc(100vw - 1.5rem)'}}
+      onCloseAutoFocus={onRestoreFocus && (event => {event.preventDefault(); onRestoreFocus()})}
       className="flex max-h-[min(44rem,85dvh)] flex-col gap-4 p-6">
       <DialogTitle className="sr-only">计划清单</DialogTitle>
       <PlanChecklist plans={plans} runs={runs}/>
       <DialogClose asChild><Button type="button" variant="ghost" size="icon-sm" aria-label="关闭" className="absolute right-5 top-5 text-muted-foreground"><X className="size-4" aria-hidden/></Button></DialogClose>
-    </DialogContent>
+    </DialogContent>}
   </Dialog>
 }

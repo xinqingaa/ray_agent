@@ -1,11 +1,11 @@
-import {useState} from 'react'
-import {Archive, ArchiveRestore, MoreHorizontal, Pencil, ScrollText, Trash, Terminal} from '@/components/ui/icons'
+import {useRef, useState} from 'react'
+import {Archive, ArchiveRestore, MoreHorizontal, Pencil, Trash, Terminal} from '@/components/ui/icons'
 import {toast} from 'sonner'
 import {Button} from '@/components/ui/button'
-import {DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger} from '@/components/ui/dropdown-menu'
-import {useRouter, Link} from '@/lib/navigation'
+import {DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger} from '@/components/ui/dropdown-menu'
+import {useRouter} from '@/lib/navigation'
 import {TopbarActions} from '@/components/sidebar-chrome'
-import {workspaceBackgroundHref} from '@/lib/workspace-route'
+import {TopbarMenuContent} from '@/components/topbar-menu'
 import {workspaceApi} from '@/lib/api/workspace'
 import type {WorkspaceItem} from '@/lib/api/types'
 import {reportWorkspaceError} from '@/lib/workspace-mutation'
@@ -23,6 +23,9 @@ export function WorkspaceBar({workspace}: {workspace: WorkspaceItem}) {
   const [renaming, setRenaming] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [busy, setBusy] = useState(false)
+  const menuTrigger = useRef<HTMLButtonElement>(null)
+  const nextDialog = useRef<(() => void) | null>(null)
+  const restoreFocus = () => menuTrigger.current?.focus({preventScroll: true})
   const condition = describeWorkspace(workspace)
   const executionOn = workspace.local_execution_enabled === true
 
@@ -50,29 +53,36 @@ export function WorkspaceBar({workspace}: {workspace: WorkspaceItem}) {
 
   return <>
     <TopbarActions>
-    <DropdownMenu>
+    <DropdownMenu modal={false}>
       <DropdownMenuTrigger asChild>
-        <Button type="button" variant="ghost" size="icon-xs" className="size-7 shrink-0 text-muted-foreground" aria-label="工作区操作" disabled={condition.deleting}>
+        <Button ref={menuTrigger} type="button" variant="ghost" size="icon-sm" className="topbar-action shrink-0" aria-label="工作区操作" disabled={condition.deleting}>
           <MoreHorizontal className="size-4" aria-hidden/>
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        <DropdownMenuItem asChild><Link href={workspaceBackgroundHref(workspace.id)}><ScrollText/>工作方式与记忆</Link></DropdownMenuItem>
-        <DropdownMenuCheckboxItem checked={executionOn} disabled={busy || condition.archived || condition.deleting}
+      <TopbarMenuContent title={`工作区 · ${workspace.name}`} onCloseAutoFocus={event => {
+        const open = nextDialog.current
+        if (!open) return
+        nextDialog.current = null
+        event.preventDefault()
+        open()
+      }}>
+        <DropdownMenuCheckboxItem indicator="switch" checked={executionOn} disabled={busy || condition.archived || condition.deleting}
+          onSelect={event => event.preventDefault()}
           onCheckedChange={checked => void toggleExecution(checked)} title="启用后本工作区会话可使用 Shell 与脚本">
-          <Terminal/>本机执行
+          <Terminal aria-hidden/>本机执行
         </DropdownMenuCheckboxItem>
-        <DropdownMenuItem onSelect={() => setRenaming(true)}><Pencil aria-hidden/>重命名</DropdownMenuItem>
+        <DropdownMenuSeparator/>
+        <DropdownMenuItem onSelect={() => {nextDialog.current = () => setRenaming(true)}}><Pencil aria-hidden/>重命名工作区</DropdownMenuItem>
         <DropdownMenuItem disabled={busy} onSelect={() => void toggleArchive()}>
-          {condition.archived ? <ArchiveRestore aria-hidden/> : <Archive aria-hidden/>}{condition.archived ? '取消归档' : '归档'}
+          {condition.archived ? <ArchiveRestore aria-hidden/> : <Archive aria-hidden/>}{condition.archived ? '取消归档' : '归档工作区'}
         </DropdownMenuItem>
         <DropdownMenuSeparator/>
-        <DropdownMenuItem variant="destructive" onSelect={() => setDeleting(true)}><Trash aria-hidden/>删除</DropdownMenuItem>
-      </DropdownMenuContent>
+        <DropdownMenuItem variant="destructive" onSelect={() => {nextDialog.current = () => setDeleting(true)}}><Trash aria-hidden/>删除工作区…</DropdownMenuItem>
+      </TopbarMenuContent>
     </DropdownMenu>
     </TopbarActions>
-    <RenameWorkspaceDialog workspace={workspace} open={renaming} onOpenChange={setRenaming}/>
+    <RenameWorkspaceDialog workspace={workspace} open={renaming} onOpenChange={setRenaming} onRestoreFocus={restoreFocus}/>
     <DeleteWorkspaceDialog workspace={workspace} sessionIds={sessions.map(session => session.session_id)} open={deleting} onOpenChange={setDeleting}
-      onAccepted={() => router.push('/workspaces')}/>
+      onRestoreFocus={restoreFocus} onAccepted={() => router.push('/workspaces')}/>
   </>
 }

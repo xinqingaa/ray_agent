@@ -23,7 +23,7 @@ const route = load('src/lib/workspace-route.ts');
 const state = load('src/lib/workspace-state.ts');
 
 // 三类作用域互不覆盖：独立首页、各工作区首页、具体会话
-const {INDEPENDENT_SCOPE, workspaceDraftScope, sessionDraftScope, readDraft, writeDraft, draftClearedBy, applyDataCleared} = drafts;
+const {INDEPENDENT_SCOPE, workspaceDraftScope, sessionDraftScope, readDraft, writeDraft, draftClearedBy} = drafts;
 assert.equal(workspaceDraftScope('w1'), 'workspace:w1');
 writeDraft(INDEPENDENT_SCOPE, {text: '独立'});
 writeDraft(workspaceDraftScope('w1'), {text: '工作区一', creationId: 'c1'});
@@ -35,6 +35,18 @@ assert.equal(readDraft(workspaceDraftScope('w2')).text, '工作区二');
 assert.equal(readDraft(workspaceDraftScope('w2')).creationId, undefined, '创建标识不跨工作区共享');
 assert.equal(readDraft(sessionDraftScope('s1')).text, '会话一');
 
+const legacyKey = 'rayagent:draft:session:legacy';
+sessionStorage.setItem(legacyKey, JSON.stringify({text: '旧草稿', files: [], planMode: true, savedAt: Date.now()}));
+assert.equal(readDraft('session:legacy').planMode, true);
+assert.equal(sessionStorage.getItem(legacyKey), null, '读回后迁移旧草稿');
+writeDraft(workspaceDraftScope('w1'), {files: [{id: 'attachment-one'}]});
+globalThis.sessionStorage = storage(); // 关闭 WebView 后只有持久存储留下
+const restarted = createLoader()('src/lib/drafts.ts');
+assert.equal(restarted.readDraft(workspaceDraftScope('w1')).files[0].id, 'attachment-one');
+assert.equal(restarted.readDraft('session:legacy').text, '旧草稿');
+restarted.clearDraft('session:legacy');
+assert.equal(restarted.readDraft('session:legacy').text, '');
+
 // 清理范围：全部清空，或只清所列工作区与会话
 assert.equal(draftClearedBy({id: 'a', scope: 'all', session_ids: []}, INDEPENDENT_SCOPE), true);
 const partial = {id: 'b', scope: 'workspace', workspace_ids: ['w1'], session_ids: ['s1']};
@@ -42,7 +54,7 @@ assert.equal(draftClearedBy(partial, workspaceDraftScope('w1')), true);
 assert.equal(draftClearedBy(partial, sessionDraftScope('s1')), true);
 assert.equal(draftClearedBy(partial, workspaceDraftScope('w2')), false);
 assert.equal(draftClearedBy(partial, INDEPENDENT_SCOPE), false);
-applyDataCleared(partial);
+restarted.applyDataCleared(partial);
 assert.equal(readDraft(workspaceDraftScope('w1')).text, '');
 assert.equal(readDraft(sessionDraftScope('s1')).text, '');
 assert.equal(readDraft(workspaceDraftScope('w2')).text, '工作区二');

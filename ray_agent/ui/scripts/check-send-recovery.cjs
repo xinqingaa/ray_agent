@@ -1,4 +1,4 @@
-// 执行实际草稿/受理核对模块；传输与 sessionStorage 为受控替身。
+// 执行实际草稿/受理核对模块，传输和存储使用受控替身。
 /* eslint-disable @typescript-eslint/no-require-imports */
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
@@ -110,7 +110,7 @@ main().catch((error) => {console.error(error); process.exitCode = 1;});
 
 // 展示关联独立于受理记录，刷新后恢复。
 const localValues = new Map();
-global.localStorage = {getItem: key => localValues.get(key) ?? null, setItem: (key, value) => localValues.set(key, value)};
+global.localStorage = {getItem: key => localValues.get(key) ?? null, setItem: (key, value) => localValues.set(key, value), removeItem: key => localValues.delete(key)};
 const {readRetryDisplay, writeRetryDisplay, retryEchoUserId, conversationTimeline} = load('src/lib/retry-display.ts');
 const retryPending = {text: '重新检查', fromRunId: 'failed-run', knownUserIds: ['original']};
 const display = {hiddenRunIds: ['failed-run'], hiddenUserIds: ['retry-user'], pending: retryPending};

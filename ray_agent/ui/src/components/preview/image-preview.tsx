@@ -1,5 +1,5 @@
 import {Download, Expand, Minus, Plus, Scan, SquareDashed} from '@/components/ui/icons'
-import {useRef, useState} from 'react'
+import {useRef, useState, type MouseEventHandler} from 'react'
 import {PreviewAction} from './action'
 import {PreviewDialog, PreviewFrame} from './preview-frame'
 
@@ -37,7 +37,11 @@ function ImagePreviewContent({src, originalSrc, title, onDownload, onError, onEx
   const [scale, setScale] = useState<number | null>(null)
   const [failed, setFailed] = useState(false)
   const expandedSrc = originalSrc || src
-  const expand = onExpand ?? (() => setExpanded(true))
+  const expand: MouseEventHandler<HTMLButtonElement> = event => {
+    event.currentTarget.focus({preventScroll: true})
+    if (onExpand) onExpand()
+    else setExpanded(true)
+  }
   const controls = <>
     <PreviewAction label="适应窗口" icon={Scan} pressed={scale==null} onClick={() => setScale(null)}/>
     <PreviewAction label="缩小" icon={Minus} onClick={() => setScale(value => Math.max(.1,(value ?? 1)-.25))}/>
