@@ -19,7 +19,7 @@ from app.domain.models.file import File
 from app.domain.models.identity import RunId, SessionId
 from app.domain.models.plan import ExecutionStatus
 from app.domain.models.plan_acceptance import PlanAcceptance
-from app.domain.models.run import RunMode, RunStatus
+from app.domain.models.run import RunSummary, RunMode, RunStatus
 from app.domain.models.retrieval import KnowledgeReference
 
 # 事件结构不兼容地变化（删除或改义字段、改变类型）时递增；只新增字段或新增事件类型不递增。
@@ -317,6 +317,7 @@ class TurnEventData(BaseEventData):
     """轮次边界事件数据，字段含义见领域模型 TurnEvent。"""
     phase: Literal["started", "completed"]
     index: int
+    model_id: Optional[str] = None
     context_estimate: Optional[Dict[str, Any]] = None
     context_window: Optional[int] = None
     model_ms: Optional[int] = None
@@ -364,7 +365,7 @@ class RunEventData(BaseEventData):
     """运行状态变化事件数据；终态时 summary 为运行汇总，mode 为运行模式（normal / plan）。"""
     status: RunStatus
     reason: Optional[str] = None
-    summary: Optional[Dict[str, Any]] = None
+    summary: Optional[RunSummary] = None
     mode: Optional[RunMode] = None
 
 

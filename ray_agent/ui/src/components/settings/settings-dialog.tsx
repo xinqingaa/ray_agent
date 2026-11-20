@@ -30,7 +30,10 @@ export function SettingsDialog({open, onOpenChange}: {open: boolean; onOpenChang
       <DialogContent
         showCloseButton={false}
         aria-describedby={undefined}
-        className="flex h-[min(46rem,calc(100dvh-1rem))] w-[calc(100%-1rem)] max-w-none flex-col gap-0 overflow-hidden rounded-[22px] border-0 p-0 shadow-(--float-shadow) sm:h-[min(46rem,calc(100dvh-3rem))] sm:w-[calc(100%-3rem)] sm:max-w-4xl"
+        className="flex h-[min(640px,calc(100dvh-1rem))] w-[calc(100%-1rem)] max-w-none flex-col gap-0 overflow-hidden rounded-[22px] border-0 p-0 shadow-(--float-shadow) sm:h-[min(640px,calc(100dvh-3rem))] sm:w-[calc(100%-3rem)] sm:max-w-[940px]"
+        onEscapeKeyDown={event => {
+          if (document.activeElement?.hasAttribute('data-settings-escape')) event.preventDefault()
+        }}
         onPointerDownOutside={event => event.preventDefault()}
         onInteractOutside={event => event.preventDefault()}
       >

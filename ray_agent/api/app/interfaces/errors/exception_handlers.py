@@ -71,8 +71,11 @@ def register_exception_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(RequestValidationError)
     async def validation_exception_handler(req: Request, e: RequestValidationError) -> JSONResponse:
+        errors = e.errors()
+        if req.url.path.startswith("/api/app-config/llm/providers"):
+            errors = [{"loc": item["loc"], "type": item["type"], "msg": item["msg"]} for item in errors]
         return error_response(ErrorInfo.of(ErrorCode.VALIDATION_FAILED, "请求参数校验失败，请核实后重试",
-                                           details={"errors": jsonable_encoder(e.errors())}))
+                                           details={"errors": jsonable_encoder(errors)}))
 
     @app.exception_handler(HTTPException)
     async def http_exception_handler(req: Request, e: HTTPException) -> JSONResponse:

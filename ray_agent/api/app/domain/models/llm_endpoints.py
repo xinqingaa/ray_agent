@@ -1,15 +1,61 @@
 """模型连接：提供商的地址、密钥与协议，以及模型到提供商的映射。连接来自用户配置文件，不进业务库。"""
-from typing import Literal, Optional
+from decimal import Decimal
+from typing import Annotated, Literal, Optional
 
-from pydantic import BaseModel, Field, HttpUrl
+from pydantic import BaseModel, Field, HttpUrl, field_validator, model_validator
 
 ApiProtocol = Literal['responses', 'chat_completions']
+ProviderKind = Literal["deepseek", "openai", "compatible"]
+ModelId = Annotated[str, Field(min_length=1, max_length=128, pattern=r"^\S+$")]
+Rate = Annotated[Decimal, Field(ge=0, le=1_000_000, decimal_places=8)]
+
+
+class TokenRates(BaseModel):
+    """美元／百万 Token。"""
+    input: Rate
+    cached_input: Rate
+    output: Rate
+
+
+class CustomModel(BaseModel):
+    context_window: int = Field(gt=1, le=10_000_000)
+    max_output: int = Field(gt=0)
+    tools: bool = False
+    vision: bool = False
+    thinking: bool = False
+    rates: TokenRates | None = None
+
+    @model_validator(mode="after")
+    def check_window(self):
+        if self.max_output >= self.context_window * 0.95:
+            raise ValueError("输出上限须为输入保留上下文空间")
+        return self
+
+
+class ProviderDefinition(BaseModel):
+    kind: ProviderKind | None = None
+    base_url: HttpUrl
+    protocol: ApiProtocol = "responses"
+    models: list[ModelId] = Field(default_factory=list)
+    custom_models: dict[ModelId, CustomModel] = Field(default_factory=dict)
+    requires_key: bool = True
+
+    @field_validator("base_url")
+    @classmethod
+    def safe_url(cls, value: HttpUrl) -> HttpUrl:
+        if value.username or value.password or value.query or value.fragment:
+            raise ValueError("接口地址不得包含登录信息、查询参数或片段")
+        return value
+
 
 
 class LlmEndpoint(BaseModel):
     api_protocol: ApiProtocol = 'responses'
     base_url: HttpUrl
-    api_key: str = Field(default="", repr=False)
+    api_key: str = Field(default="", repr=False, exclude=True)
+    provider: str | None = None
+    kind: ProviderKind | None = None
+    requires_key: bool = True
 
 
 class ProviderStatus(BaseModel):
@@ -18,6 +64,10 @@ class ProviderStatus(BaseModel):
     base_url: Optional[str] = None
     api_protocol: ApiProtocol = 'responses'
     models: list[str] = Field(default_factory=list, description="由它提供的已知模型")
+    configured_models: list[ModelId] = Field(default_factory=list)
+    custom_models: dict[ModelId, CustomModel] = Field(default_factory=dict)
+    kind: ProviderKind = "compatible"
+    requires_key: bool = True
     has_key: bool = False
     key_hint: Optional[str] = None
     issue: Optional[str] = Field(default=None, description="不可用或部分忽略的原因")
@@ -27,6 +77,7 @@ class ConnectionSource(BaseModel):
     """模型连接配置文件的读取结果。"""
     path: str
     exists: bool = False
+    version: str | None = None
     issue: Optional[str] = Field(default=None, description="整份文件无法使用的原因")
     notices: list[str] = Field(default_factory=list, description="不影响使用的提醒")
     providers: list[ProviderStatus] = Field(default_factory=list)

@@ -7317,10 +7317,557 @@
           }
         }
       }
+    },
+    "/api/app-config/llm/providers": {
+      "get": {
+        "tags": [
+          "模型连接"
+        ],
+        "summary": "List Providers",
+        "operationId": "list_providers_api_app_config_llm_providers_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_ConnectionSource_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/app-config/llm/providers/{name}": {
+      "put": {
+        "tags": [
+          "模型连接"
+        ],
+        "summary": "Save Provider",
+        "operationId": "save_provider_api_app_config_llm_providers__name__put",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,64}$",
+              "title": "Name"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProviderSave"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_ConnectionSource_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "模型连接"
+        ],
+        "summary": "Delete Provider",
+        "operationId": "delete_provider_api_app_config_llm_providers__name__delete",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9_-]{1,64}$",
+              "title": "Name"
+            }
+          },
+          {
+            "name": "version",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$",
+              "title": "Version"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_ConnectionSource_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/app-config/llm/providers/test": {
+      "post": {
+        "tags": [
+          "模型连接"
+        ],
+        "summary": "Test Provider",
+        "operationId": "test_provider_api_app_config_llm_providers_test_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProviderProbe"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_ProviderProbeResult_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/app-config/llm/providers/models": {
+      "post": {
+        "tags": [
+          "模型连接"
+        ],
+        "summary": "Provider Models",
+        "operationId": "provider_models_api_app_config_llm_providers_models_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProviderProbe"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_ProviderProbeResult_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/usage": {
+      "get": {
+        "tags": [
+          "用量与语音"
+        ],
+        "summary": "Get Usage",
+        "operationId": "get_usage_api_usage_get",
+        "parameters": [
+          {
+            "name": "range_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "today",
+                "24h",
+                "3d",
+                "7d",
+                "30d",
+                "90d",
+                "custom"
+              ],
+              "type": "string",
+              "default": "today",
+              "title": "Range Id"
+            }
+          },
+          {
+            "name": "start",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Start"
+            }
+          },
+          {
+            "name": "end",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "End"
+            }
+          },
+          {
+            "name": "provider",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Provider"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_UsageReport_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/usage/providers": {
+      "get": {
+        "tags": [
+          "用量与语音"
+        ],
+        "summary": "Get Usage Providers",
+        "operationId": "get_usage_providers_api_usage_providers_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_list_str__"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/usage/sessions/{session_id}": {
+      "get": {
+        "tags": [
+          "用量与语音"
+        ],
+        "summary": "Get Session Usage",
+        "operationId": "get_session_usage_api_usage_sessions__session_id__get",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_UsageTotals_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/usage/preferences": {
+      "get": {
+        "tags": [
+          "用量与语音"
+        ],
+        "summary": "Get Usage Preferences",
+        "operationId": "get_usage_preferences_api_usage_preferences_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_UsagePreferences_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "用量与语音"
+        ],
+        "summary": "Update Usage Preferences",
+        "operationId": "update_usage_preferences_api_usage_preferences_patch",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PreferencesUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_UsagePreferences_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/voice/transcriptions": {
+      "post": {
+        "tags": [
+          "用量与语音"
+        ],
+        "summary": "Transcribe",
+        "operationId": "transcribe_api_voice_transcriptions_post",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Session Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_ASRResult_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "audio/wav": {
+              "schema": {
+                "type": "string",
+                "format": "binary"
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
     "schemas": {
+      "ASRResult": {
+        "properties": {
+          "request_id": {
+            "type": "string",
+            "title": "Request Id"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "duration_ms": {
+            "type": "integer",
+            "maximum": 120000.0,
+            "exclusiveMinimum": 0.0,
+            "title": "Duration Ms"
+          }
+        },
+        "type": "object",
+        "required": [
+          "request_id",
+          "text",
+          "duration_ms"
+        ],
+        "title": "ASRResult"
+      },
       "AcceptInstructionProposalRequest": {
         "properties": {
           "body": {
@@ -9066,6 +9613,17 @@
               }
             ],
             "title": "Cached Tokens"
+          },
+          "cost_nano_usd": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Nano Usd"
           }
         },
         "type": "object",
@@ -9211,6 +9769,17 @@
             "type": "boolean",
             "title": "Exists",
             "default": false
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
           },
           "issue": {
             "anyOf": [
@@ -9711,6 +10280,98 @@
           "name"
         ],
         "title": "CreateWorkspaceRequest"
+      },
+      "CustomModel-Input": {
+        "properties": {
+          "context_window": {
+            "type": "integer",
+            "maximum": 10000000.0,
+            "exclusiveMinimum": 1.0,
+            "title": "Context Window"
+          },
+          "max_output": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Max Output"
+          },
+          "tools": {
+            "type": "boolean",
+            "title": "Tools",
+            "default": false
+          },
+          "vision": {
+            "type": "boolean",
+            "title": "Vision",
+            "default": false
+          },
+          "thinking": {
+            "type": "boolean",
+            "title": "Thinking",
+            "default": false
+          },
+          "rates": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TokenRates-Input"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "context_window",
+          "max_output"
+        ],
+        "title": "CustomModel"
+      },
+      "CustomModel-Output": {
+        "properties": {
+          "context_window": {
+            "type": "integer",
+            "maximum": 10000000.0,
+            "exclusiveMinimum": 1.0,
+            "title": "Context Window"
+          },
+          "max_output": {
+            "type": "integer",
+            "exclusiveMinimum": 0.0,
+            "title": "Max Output"
+          },
+          "tools": {
+            "type": "boolean",
+            "title": "Tools",
+            "default": false
+          },
+          "vision": {
+            "type": "boolean",
+            "title": "Vision",
+            "default": false
+          },
+          "thinking": {
+            "type": "boolean",
+            "title": "Thinking",
+            "default": false
+          },
+          "rates": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TokenRates-Output"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "context_window",
+          "max_output"
+        ],
+        "title": "CustomModel"
       },
       "DefaultLocationRequest": {
         "properties": {
@@ -13962,6 +14623,38 @@
         ],
         "title": "PreferRequest"
       },
+      "PreferencesUpdate": {
+        "properties": {
+          "show_conversation_cost": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Show Conversation Cost"
+          },
+          "voice": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "off",
+                  "deepseek"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Voice"
+          }
+        },
+        "type": "object",
+        "title": "PreferencesUpdate"
+      },
       "ProposalStatus": {
         "type": "string",
         "enum": [
@@ -13976,6 +14669,236 @@
         "type": "integer",
         "minimum": 1.0,
         "description": "核心协议版本"
+      },
+      "ProviderProbe": {
+        "properties": {
+          "kind": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "deepseek",
+                  "openai",
+                  "compatible"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kind"
+          },
+          "base_url": {
+            "type": "string",
+            "maxLength": 2083,
+            "minLength": 1,
+            "format": "uri",
+            "title": "Base Url"
+          },
+          "protocol": {
+            "type": "string",
+            "enum": [
+              "responses",
+              "chat_completions"
+            ],
+            "title": "Protocol",
+            "default": "responses"
+          },
+          "models": {
+            "items": {
+              "type": "string",
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^\\S+$"
+            },
+            "type": "array",
+            "title": "Models"
+          },
+          "custom_models": {
+            "patternProperties": {
+              "^\\S+$": {
+                "$ref": "#/components/schemas/CustomModel-Input"
+              }
+            },
+            "propertyNames": {
+              "maxLength": 128,
+              "minLength": 1
+            },
+            "type": "object",
+            "title": "Custom Models"
+          },
+          "requires_key": {
+            "type": "boolean",
+            "title": "Requires Key",
+            "default": true
+          },
+          "api_key": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "password",
+                "writeOnly": true
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Api Key"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9_-]{1,64}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 128,
+                "minLength": 1,
+                "pattern": "^\\S+$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          }
+        },
+        "type": "object",
+        "required": [
+          "base_url"
+        ],
+        "title": "ProviderProbe"
+      },
+      "ProviderProbeResult": {
+        "properties": {
+          "elapsed_ms": {
+            "type": "integer",
+            "title": "Elapsed Ms"
+          },
+          "status": {
+            "type": "integer",
+            "title": "Status"
+          },
+          "method": {
+            "type": "string",
+            "enum": [
+              "models",
+              "request"
+            ],
+            "title": "Method"
+          },
+          "models": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Models"
+          }
+        },
+        "type": "object",
+        "required": [
+          "elapsed_ms",
+          "status",
+          "method"
+        ],
+        "title": "ProviderProbeResult"
+      },
+      "ProviderSave": {
+        "properties": {
+          "kind": {
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "deepseek",
+                  "openai",
+                  "compatible"
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kind"
+          },
+          "base_url": {
+            "type": "string",
+            "maxLength": 2083,
+            "minLength": 1,
+            "format": "uri",
+            "title": "Base Url"
+          },
+          "protocol": {
+            "type": "string",
+            "enum": [
+              "responses",
+              "chat_completions"
+            ],
+            "title": "Protocol",
+            "default": "responses"
+          },
+          "models": {
+            "items": {
+              "type": "string",
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^\\S+$"
+            },
+            "type": "array",
+            "title": "Models"
+          },
+          "custom_models": {
+            "patternProperties": {
+              "^\\S+$": {
+                "$ref": "#/components/schemas/CustomModel-Input"
+              }
+            },
+            "propertyNames": {
+              "maxLength": 128,
+              "minLength": 1
+            },
+            "type": "object",
+            "title": "Custom Models"
+          },
+          "requires_key": {
+            "type": "boolean",
+            "title": "Requires Key",
+            "default": true
+          },
+          "api_key": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "password",
+                "writeOnly": true
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Api Key"
+          },
+          "version": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Version"
+          }
+        },
+        "type": "object",
+        "required": [
+          "base_url",
+          "version"
+        ],
+        "title": "ProviderSave"
       },
       "ProviderStatus": {
         "properties": {
@@ -14010,6 +14933,44 @@
             "type": "array",
             "title": "Models",
             "description": "由它提供的已知模型"
+          },
+          "configured_models": {
+            "items": {
+              "type": "string",
+              "maxLength": 128,
+              "minLength": 1,
+              "pattern": "^\\S+$"
+            },
+            "type": "array",
+            "title": "Configured Models"
+          },
+          "custom_models": {
+            "patternProperties": {
+              "^\\S+$": {
+                "$ref": "#/components/schemas/CustomModel-Output"
+              }
+            },
+            "propertyNames": {
+              "maxLength": 128,
+              "minLength": 1
+            },
+            "type": "object",
+            "title": "Custom Models"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "deepseek",
+              "openai",
+              "compatible"
+            ],
+            "title": "Kind",
+            "default": "compatible"
+          },
+          "requires_key": {
+            "type": "boolean",
+            "title": "Requires Key",
+            "default": true
           },
           "has_key": {
             "type": "boolean",
@@ -14257,6 +15218,25 @@
           }
         ]
       },
+      "Response_ASRResult_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ASRResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "Response[ASRResult]"
+      },
       "Response_AgentConfig_": {
         "properties": {
           "data": {
@@ -14427,6 +15407,25 @@
           "data"
         ],
         "title": "Response[CompactResponse]"
+      },
+      "Response_ConnectionSource_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ConnectionSource"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "Response[ConnectionSource]"
       },
       "Response_ContextManifestView_": {
         "properties": {
@@ -15040,6 +16039,25 @@
         ],
         "title": "Response[ParticipateInMemoryResponse]"
       },
+      "Response_ProviderProbeResult_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ProviderProbeResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "Response[ProviderProbeResult]"
+      },
       "Response_ResolveRootPathResponse_": {
         "properties": {
           "data": {
@@ -15365,6 +16383,63 @@
         ],
         "title": "Response[Union[OperationView, NoneType]]"
       },
+      "Response_UsagePreferences_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UsagePreferences"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "Response[UsagePreferences]"
+      },
+      "Response_UsageReport_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UsageReport"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "Response[UsageReport]"
+      },
+      "Response_UsageTotals_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UsageTotals"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "Response[UsageTotals]"
+      },
       "Response_WorkspaceItem_": {
         "properties": {
           "data": {
@@ -15541,6 +16616,29 @@
           "data"
         ],
         "title": "Response[list[MarketTarget]]"
+      },
+      "Response_list_str__": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Data"
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "Response[list[str]]"
       },
       "RetryIndexRequest": {
         "properties": {
@@ -15840,14 +16938,12 @@
           "summary": {
             "anyOf": [
               {
-                "additionalProperties": true,
-                "type": "object"
+                "$ref": "#/components/schemas/RunSummary"
               },
               {
                 "type": "null"
               }
-            ],
-            "title": "Summary"
+            ]
           },
           "mode": {
             "anyOf": [
@@ -16036,6 +17132,71 @@
         ],
         "title": "RunStatus",
         "description": "运行状态。running/waiting 是活动状态，其余是终态，终态不可再改。"
+      },
+      "RunSummary": {
+        "properties": {
+          "duration_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration Ms"
+          },
+          "turns": {
+            "type": "integer",
+            "title": "Turns",
+            "default": 0
+          },
+          "model_requests": {
+            "type": "integer",
+            "title": "Model Requests",
+            "default": 0
+          },
+          "tool_calls": {
+            "type": "integer",
+            "title": "Tool Calls",
+            "default": 0
+          },
+          "prompt_tokens": {
+            "type": "integer",
+            "title": "Prompt Tokens",
+            "default": 0
+          },
+          "completion_tokens": {
+            "type": "integer",
+            "title": "Completion Tokens",
+            "default": 0
+          },
+          "cached_tokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cached Tokens"
+          },
+          "cost_nano_usd": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Nano Usd"
+          }
+        },
+        "type": "object",
+        "title": "RunSummary",
+        "description": "运行汇总：终态 run 事件附带；模型请求与 tokens 等于各轮 turn 事件与 compact 事件（摘要请求）之和。"
       },
       "RunSummaryView": {
         "properties": {
@@ -17027,6 +18188,87 @@
         "title": "TitleSSEEvent",
         "description": "标题流式事件"
       },
+      "TokenRates-Input": {
+        "properties": {
+          "input": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 1000000.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,8}0*$"
+              }
+            ],
+            "title": "Input"
+          },
+          "cached_input": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 1000000.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,8}0*$"
+              }
+            ],
+            "title": "Cached Input"
+          },
+          "output": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 1000000.0,
+                "minimum": 0.0
+              },
+              {
+                "type": "string",
+                "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,8}0*$"
+              }
+            ],
+            "title": "Output"
+          }
+        },
+        "type": "object",
+        "required": [
+          "input",
+          "cached_input",
+          "output"
+        ],
+        "title": "TokenRates",
+        "description": "美元／百万 Token。"
+      },
+      "TokenRates-Output": {
+        "properties": {
+          "input": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,8}0*$",
+            "title": "Input"
+          },
+          "cached_input": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,8}0*$",
+            "title": "Cached Input"
+          },
+          "output": {
+            "type": "string",
+            "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,8}0*$",
+            "title": "Output"
+          }
+        },
+        "type": "object",
+        "required": [
+          "input",
+          "cached_input",
+          "output"
+        ],
+        "title": "TokenRates",
+        "description": "美元／百万 Token。"
+      },
       "ToolEventData": {
         "properties": {
           "event_id": {
@@ -17360,6 +18602,17 @@
             "type": "integer",
             "title": "Index"
           },
+          "model_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Id"
+          },
           "context_estimate": {
             "anyOf": [
               {
@@ -17476,6 +18729,7 @@
           "event_version",
           "phase",
           "index",
+          "model_id",
           "context_estimate",
           "context_window",
           "model_ms",
@@ -17610,6 +18864,24 @@
               }
             ],
             "title": "Reasoning Tokens"
+          },
+          "cost_nano_usd": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Nano Usd"
+          },
+          "price_periods": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Price Periods"
           }
         },
         "type": "object",
@@ -17809,6 +19081,476 @@
           "version"
         ],
         "title": "UpdateInstructionRequest"
+      },
+      "UsageBucket": {
+        "properties": {
+          "requests": {
+            "type": "integer",
+            "title": "Requests",
+            "default": 0
+          },
+          "failed_requests": {
+            "type": "integer",
+            "title": "Failed Requests",
+            "default": 0
+          },
+          "unpriced_requests": {
+            "type": "integer",
+            "title": "Unpriced Requests",
+            "default": 0
+          },
+          "input_tokens": {
+            "type": "integer",
+            "title": "Input Tokens",
+            "default": 0
+          },
+          "cached_tokens": {
+            "type": "integer",
+            "title": "Cached Tokens",
+            "default": 0
+          },
+          "output_tokens": {
+            "type": "integer",
+            "title": "Output Tokens",
+            "default": 0
+          },
+          "total_tokens": {
+            "type": "integer",
+            "title": "Total Tokens",
+            "default": 0
+          },
+          "reasoning_tokens": {
+            "type": "integer",
+            "title": "Reasoning Tokens",
+            "default": 0
+          },
+          "audio_duration_ms": {
+            "type": "integer",
+            "title": "Audio Duration Ms",
+            "default": 0
+          },
+          "cost_nano_usd": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Nano Usd"
+          },
+          "start": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Start"
+          },
+          "end": {
+            "type": "string",
+            "format": "date-time",
+            "title": "End"
+          },
+          "providers": {
+            "items": {
+              "$ref": "#/components/schemas/UsageGroup"
+            },
+            "type": "array",
+            "title": "Providers"
+          },
+          "top_models": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Top Models"
+          },
+          "top_model_counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Top Model Counts"
+          },
+          "price_periods": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Price Periods"
+          }
+        },
+        "type": "object",
+        "required": [
+          "start",
+          "end"
+        ],
+        "title": "UsageBucket"
+      },
+      "UsageGroup": {
+        "properties": {
+          "requests": {
+            "type": "integer",
+            "title": "Requests",
+            "default": 0
+          },
+          "failed_requests": {
+            "type": "integer",
+            "title": "Failed Requests",
+            "default": 0
+          },
+          "unpriced_requests": {
+            "type": "integer",
+            "title": "Unpriced Requests",
+            "default": 0
+          },
+          "input_tokens": {
+            "type": "integer",
+            "title": "Input Tokens",
+            "default": 0
+          },
+          "cached_tokens": {
+            "type": "integer",
+            "title": "Cached Tokens",
+            "default": 0
+          },
+          "output_tokens": {
+            "type": "integer",
+            "title": "Output Tokens",
+            "default": 0
+          },
+          "total_tokens": {
+            "type": "integer",
+            "title": "Total Tokens",
+            "default": 0
+          },
+          "reasoning_tokens": {
+            "type": "integer",
+            "title": "Reasoning Tokens",
+            "default": 0
+          },
+          "audio_duration_ms": {
+            "type": "integer",
+            "title": "Audio Duration Ms",
+            "default": 0
+          },
+          "cost_nano_usd": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Nano Usd"
+          },
+          "key": {
+            "type": "string",
+            "title": "Key"
+          },
+          "models": {
+            "items": {
+              "$ref": "#/components/schemas/UsageGroup"
+            },
+            "type": "array",
+            "title": "Models"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key"
+        ],
+        "title": "UsageGroup"
+      },
+      "UsageHour": {
+        "properties": {
+          "requests": {
+            "type": "integer",
+            "title": "Requests",
+            "default": 0
+          },
+          "failed_requests": {
+            "type": "integer",
+            "title": "Failed Requests",
+            "default": 0
+          },
+          "unpriced_requests": {
+            "type": "integer",
+            "title": "Unpriced Requests",
+            "default": 0
+          },
+          "input_tokens": {
+            "type": "integer",
+            "title": "Input Tokens",
+            "default": 0
+          },
+          "cached_tokens": {
+            "type": "integer",
+            "title": "Cached Tokens",
+            "default": 0
+          },
+          "output_tokens": {
+            "type": "integer",
+            "title": "Output Tokens",
+            "default": 0
+          },
+          "total_tokens": {
+            "type": "integer",
+            "title": "Total Tokens",
+            "default": 0
+          },
+          "reasoning_tokens": {
+            "type": "integer",
+            "title": "Reasoning Tokens",
+            "default": 0
+          },
+          "audio_duration_ms": {
+            "type": "integer",
+            "title": "Audio Duration Ms",
+            "default": 0
+          },
+          "cost_nano_usd": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Nano Usd"
+          },
+          "weekday": {
+            "type": "integer",
+            "title": "Weekday"
+          },
+          "hour": {
+            "type": "integer",
+            "title": "Hour"
+          },
+          "top_models": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Top Models"
+          },
+          "top_model_counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Top Model Counts"
+          },
+          "price_periods": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Price Periods"
+          },
+          "deepseek_peak": {
+            "type": "boolean",
+            "title": "Deepseek Peak",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "weekday",
+          "hour"
+        ],
+        "title": "UsageHour"
+      },
+      "UsagePreferences": {
+        "properties": {
+          "show_conversation_cost": {
+            "type": "boolean",
+            "title": "Show Conversation Cost",
+            "default": true
+          },
+          "voice": {
+            "type": "string",
+            "enum": [
+              "off",
+              "deepseek"
+            ],
+            "title": "Voice",
+            "default": "off"
+          }
+        },
+        "type": "object",
+        "title": "UsagePreferences"
+      },
+      "UsageReport": {
+        "properties": {
+          "start": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Start"
+          },
+          "end": {
+            "type": "string",
+            "format": "date-time",
+            "title": "End"
+          },
+          "previous_start": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Previous Start"
+          },
+          "selectable_from": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Selectable From"
+          },
+          "timezone": {
+            "type": "string",
+            "title": "Timezone"
+          },
+          "price_version": {
+            "type": "string",
+            "title": "Price Version"
+          },
+          "price_sources": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Price Sources"
+          },
+          "bucket_unit": {
+            "type": "string",
+            "enum": [
+              "hour",
+              "3h",
+              "day"
+            ],
+            "title": "Bucket Unit"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/UsageTotals"
+          },
+          "previous": {
+            "$ref": "#/components/schemas/UsageTotals"
+          },
+          "buckets": {
+            "items": {
+              "$ref": "#/components/schemas/UsageBucket"
+            },
+            "type": "array",
+            "title": "Buckets"
+          },
+          "providers": {
+            "items": {
+              "$ref": "#/components/schemas/UsageGroup"
+            },
+            "type": "array",
+            "title": "Providers"
+          },
+          "purposes": {
+            "items": {
+              "$ref": "#/components/schemas/UsageGroup"
+            },
+            "type": "array",
+            "title": "Purposes"
+          },
+          "hours": {
+            "items": {
+              "$ref": "#/components/schemas/UsageHour"
+            },
+            "type": "array",
+            "title": "Hours"
+          },
+          "calendar": {
+            "items": {
+              "$ref": "#/components/schemas/UsageBucket"
+            },
+            "type": "array",
+            "title": "Calendar"
+          }
+        },
+        "type": "object",
+        "required": [
+          "start",
+          "end",
+          "previous_start",
+          "selectable_from",
+          "timezone",
+          "price_version",
+          "price_sources",
+          "bucket_unit",
+          "totals",
+          "previous",
+          "buckets",
+          "providers",
+          "purposes",
+          "hours",
+          "calendar"
+        ],
+        "title": "UsageReport"
+      },
+      "UsageTotals": {
+        "properties": {
+          "requests": {
+            "type": "integer",
+            "title": "Requests",
+            "default": 0
+          },
+          "failed_requests": {
+            "type": "integer",
+            "title": "Failed Requests",
+            "default": 0
+          },
+          "unpriced_requests": {
+            "type": "integer",
+            "title": "Unpriced Requests",
+            "default": 0
+          },
+          "input_tokens": {
+            "type": "integer",
+            "title": "Input Tokens",
+            "default": 0
+          },
+          "cached_tokens": {
+            "type": "integer",
+            "title": "Cached Tokens",
+            "default": 0
+          },
+          "output_tokens": {
+            "type": "integer",
+            "title": "Output Tokens",
+            "default": 0
+          },
+          "total_tokens": {
+            "type": "integer",
+            "title": "Total Tokens",
+            "default": 0
+          },
+          "reasoning_tokens": {
+            "type": "integer",
+            "title": "Reasoning Tokens",
+            "default": 0
+          },
+          "audio_duration_ms": {
+            "type": "integer",
+            "title": "Audio Duration Ms",
+            "default": 0
+          },
+          "cost_nano_usd": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Nano Usd"
+          }
+        },
+        "type": "object",
+        "title": "UsageTotals"
       },
       "WaitSSEEvent": {
         "properties": {

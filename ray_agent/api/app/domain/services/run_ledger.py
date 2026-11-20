@@ -10,6 +10,7 @@ import logging
 import time
 from typing import Awaitable, Callable, List, Optional, Sequence
 
+from app.domain.services.run_connections import run_connections
 from app.domain.external.event_notifier import EventNotifier
 from app.domain.models.event import BaseEvent, CompactEvent, RunEvent, ToolEvent, ToolEventStatus, TurnEvent, \
     TurnPhase
@@ -154,10 +155,13 @@ class RunLedger:
                 run = await uow.run.transition(run_id, status, reason, ended_at)
                 if run is None:
                     raise _StaleRun()
+                summary = run.summary() if status.terminal else None
+                if summary is not None and getattr(uow, "usage", None) is not None:
+                    summary.cost_nano_usd = await uow.usage.run_cost(run_id)
                 run_event = RunEvent(
                     status=status.value,
                     reason=reason,
-                    summary=run.summary().model_dump() if status.terminal else None,
+                    summary=summary.model_dump() if summary is not None else None,
                     mode=run.mode.value,
                 )
                 if ended_at is not None:
@@ -171,6 +175,8 @@ class RunLedger:
         except _StaleRun:
             logger.info(f"会话[{session_id}] 运行[{run_id}]已是终态，忽略改为 {status.value}")
             return None
+        if status.terminal:
+            run_connections.pop(run_id, None)
         await self._notify(session_id, events[-1].seq)
         return run
 

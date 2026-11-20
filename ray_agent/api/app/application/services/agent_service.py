@@ -3,6 +3,7 @@
 import asyncio
 import copy
 import hashlib
+import hmac
 import json
 import logging
 import weakref
@@ -10,6 +11,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import AsyncGenerator, Callable, List, Optional, Type, Union
 
+from app.domain.models.usage import usage_scope
 from app.application.errors.exceptions import AppException, BadRequestError, ConflictError, NotFoundError
 from app.domain.external.event_notifier import EventNotifier, OutputDelta
 from app.domain.external.file_storage import FileStorage
@@ -19,9 +21,10 @@ from app.domain.external.task import Task
 from app.domain.models.app_config import AgentConfig, LLMConfig, MCPConfig, A2AConfig, ModelSampling, ToolPolicyConfig
 from app.domain.models.clock import utc_now
 from app.domain.models.error import ErrorCode
+from app.domain.models.llm_endpoints import CustomModel, LlmEndpoint
 from app.domain.models.model_catalog import (
     choose_sampling, client_config, current_sampling, find_model, missing_reasoning, model_request,
-    default_model, resolve_active, active_models, connection_issue,
+    default_model, resolve_active, active_models, connection_issue, bind_endpoint,
 )
 from app.domain.models.event import ApprovalEvent, ApprovalStatus, ErrorEvent, Event, MessageEvent, TitleEvent
 from app.domain.models.plan_acceptance import PlanAcceptance, PlanAlreadyAccepted, PlanAcceptanceConflict
@@ -39,6 +42,7 @@ from app.domain.services.flows.agent_loop import AGENT_MEMORY_NAME
 from app.domain.services.prompts.system import RuntimeEnvironment
 from app.domain.services.request_rebuild import RebuiltRequest, rebuild_request
 from app.domain.services.run_ledger import RunLedger
+from app.domain.services.run_connections import run_connections
 from app.domain.services.session_locks import session_lock
 from app.domain.services.tools.mcp import MCPTool
 from app.domain.services.tools.a2a import A2ATool
@@ -154,6 +158,7 @@ class AgentService:
             file_access=None,
             write_leases=None,
             workspace_memory=None,
+            install_id: str = "",
     ) -> None:
         self._skills = skill_service
         self._uow_factory = uow_factory
@@ -161,6 +166,7 @@ class AgentService:
         self._uow = uow_factory()
         self._llm = llm
         self._llm_config = llm_config
+        self._install_id = install_id
         self._agent_config = agent_config
         self._mcp_config = mcp_config
         self._a2a_config = a2a_config
@@ -210,15 +216,52 @@ class AgentService:
             if stored.get("model_name"):
                 profile = model_request(
                     self._llm_config, model_id=session.model_id, reasoning=session.reasoning, snapshot=stored)
-                return self._llm if profile is None else self._open_llm(profile, api_protocol=stored.get('api_protocol'))
+                frozen = self._waiting_connection(run_id, stored)
+                llm = self._open_llm(profile, api_protocol=stored.get("api_protocol"),
+                                     endpoint=frozen, connection_snapshot=stored.get("model_connection"))
+                if frozen is not None:
+                    run_connections[run_id] = frozen
+                return llm
         sampling = self._session_sampling(session)
         profile = model_request(
             self._llm_config, model_id=session.model_id, reasoning=session.reasoning, sampling=sampling)
-        return self._open_plain(sampling) if profile is None else self._open_llm(profile)
+        if profile is None:
+            return self._open_plain(sampling)
+        llm = self._open_llm(profile)
+        if llm.connection_endpoint is not None:
+            run_connections[run_id] = llm.connection_endpoint
+        return llm
 
-    def _open_llm(self, profile, *, api_protocol=None):
+    def _credential_tag(self, key: str) -> str:
+        return hmac.new(getattr(self, "_install_id", "").encode(), key.encode(), hashlib.sha256).hexdigest()
+
+    def _waiting_connection(self, run_id: str, snapshot: dict) -> LlmEndpoint | None:
+        frozen = snapshot.get("model_connection")
+        if frozen is None:
+            return None
+        if run_id in run_connections:
+            return run_connections[run_id]
+        endpoint = self._llm_config.resolved_endpoints.get(frozen["provider"])
+        if ((endpoint is None and frozen["requires_key"]) or
+                not hmac.compare_digest(frozen["credential_tag"], self._credential_tag(endpoint.api_key if endpoint else ""))):
+            raise ConflictError("原运行的模型连接凭据已不可用，请恢复原凭据后续接，或停止后使用当前连接重新发起")
+        return LlmEndpoint.model_validate({**frozen, "api_key": endpoint.api_key if endpoint else ""})
+
+    def _open_llm(self, profile, *, api_protocol=None, endpoint=None, connection_snapshot=None):
         from app.infrastructure.external.llm.openai_llm import OpenAILLM
-        tuned = client_config(self._llm_config, profile.model_name).model_copy(update={
+        config = self._llm_config
+        if endpoint is not None:
+            config = bind_endpoint(config, endpoint)
+            custom = connection_snapshot.get("custom_model")
+            declarations = dict(config.custom_models)
+            if custom is not None:
+                declarations[profile.model_name] = CustomModel.model_validate(custom)
+            else:
+                declarations.pop(profile.model_name, None)
+            config = config.model_copy(update={"custom_models": declarations})
+        else:
+            config = client_config(config, profile.model_name)
+        tuned = config.model_copy(update={
             "model_name": profile.model_name,
             "context_window": profile.context_window,
             "max_tokens": profile.max_tokens,
@@ -226,10 +269,18 @@ class AgentService:
         })
         if api_protocol:
             tuned = tuned.model_copy(update={'api_protocol': api_protocol})
-        return OpenAILLM(
+        llm = OpenAILLM(
             tuned, thinking=profile.thinking, reasoning_effort=profile.reasoning_effort, reasoning_id=profile.reasoning_id,
             keep_reasoning=profile.keep_reasoning,
         )
+        selected = tuned.selected_endpoint
+        if selected is not None and selected.provider is not None:
+            custom = tuned.custom_models.get(profile.model_name)
+            llm.connection_snapshot = connection_snapshot or {
+                **selected.model_dump(mode="json"), "credential_tag": self._credential_tag(selected.api_key),
+                "custom_model": custom.model_dump(mode="json") if custom else None,
+            }
+        return llm
 
     def _open_plain(self, sampling: Optional[ModelSampling]):
         """未知厂商没有目录。已记下数值时按那一份构造，否则用当前全局客户端。"""
@@ -287,7 +338,7 @@ class AgentService:
             return
         chosen_reasoning = reasoning
         target_id = model or session.model_id
-        target = find_model(target_id) if target_id else default_model(self._llm_config)
+        target = find_model(target_id, self._llm_config) if target_id else default_model(self._llm_config)
         if model is None and missing_reasoning(messages) and target is not None and target.choice("disabled"):
             chosen_reasoning = "disabled"
         try:
@@ -303,7 +354,8 @@ class AgentService:
         config = getattr(self, "_llm_config", None)
         if config is None or config.connections is None:
             return
-        selected = model_id or config.model_name
+        preferred = default_model(config)
+        selected = model_id or (preferred.id if preferred else config.model_name)
         issue = connection_issue(config, selected)
         if issue:
             raise BadRequestError(f"{selected} {issue}", details={"section": "model_connection"})
@@ -516,6 +568,7 @@ class AgentService:
             workspace_memory=workspace_memory,
             context_refresh=context_refresh,
             completion=runtime,
+            workspace_id=session.workspace_id,
         )
         return self._task_cls.create(task_runner=task_runner)
 
@@ -551,8 +604,10 @@ class AgentService:
                     session.id, run_id, RunStatus.FAILED, RunReason.RUNNER_ERROR,
                     events_before=[ErrorEvent(error="启动运行失败：" + format_public_error(exc))])
         finally:
-            if not published and task is not None:
-                task.cancel()
+            if not published:
+                if task is not None:
+                    task.cancel()
+                run_connections.pop(run_id, None)
             if pending_starts().get(run_id) is owner:
                 del pending_starts()[run_id]
 
@@ -695,7 +750,9 @@ class AgentService:
                 raise ConflictError("当前运行还没有结束，计划模式只能在新运行开始时选择；请等运行结束或停止后再发送")
 
             if active is not None and active.status == RunStatus.WAITING:
-                self._check_model_connection((active.config_snapshot or {}).get('model_name') or session.model_id)
+                snapshot = active.config_snapshot or {}
+                if self._waiting_connection(active.id, snapshot) is None:
+                    self._check_model_connection(snapshot.get("model_name") or session.model_id)
             elif not executing:
                 self._check_model_connection(model or session.model_id)
             previous_model = session.model_id
@@ -751,9 +808,10 @@ class AgentService:
                 )
                 if provisional_title is not None:
                     from app.application.services.title_service import TitleService
-                    titling = asyncio.create_task(TitleService(self._uow_factory, self._ledger,
-                                                               read_uow_factory=self._read_factory())
-                                                  .auto_generate(session_id, message))
+                    with usage_scope(run_id=run.id):
+                        titling = asyncio.create_task(TitleService(
+                            self._uow_factory, self._ledger, read_uow_factory=self._read_factory(),
+                        ).auto_generate(session_id, message))
                     pending_titles = title_tasks()
                     pending_titles.add(titling)
                     titling.add_done_callback(pending_titles.discard)
@@ -833,6 +891,7 @@ class AgentService:
             if (request.status != ApprovalStatus.PENDING or not waiting_for_approval(active)
                     or active.id != request.run_id):
                 raise ConflictError(f"该审批已处理或已失效（当前状态：{request.status.value}），不会重复执行")
+            self._waiting_connection(active.id, active.config_snapshot or {})
             decided = request.decided(ApprovalStatus.APPROVED if approve else ApprovalStatus.REJECTED)
             run = await self._ledger.transition(session_id, active.id, RunStatus.RUNNING, events_after=[decided])
             if run is None:
@@ -1012,7 +1071,8 @@ class AgentService:
                 async with self._uow:
                     return await self._uow.event.list(session_id, types=["message"])
 
-            result = await compactor.compact(messages, tools, before, "manual", load_user_events, min_gain=False)
+            with usage_scope(session_id=session.id, workspace_id=session.workspace_id):
+                result = await compactor.compact(messages, tools, before, "manual", load_user_events, min_gain=False)
             if result.status == CompactionStatus.SKIPPED:
                 return ManualCompaction(status="skipped", reason=result.reason)
             if result.status == CompactionStatus.FAILED:

@@ -22,11 +22,13 @@ function load(relative) {
   const m={exports:{}};cache.set(filename,m);
   const code=ts.transpileModule(fs.readFileSync(filename,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX}}).outputText;
   new Function('require','module','exports',code)(name=>{
+    if(name.endsWith('.css'))return {};
     if(name==='react')return React;
     if(name==='react/jsx-runtime')return require(name);
     if(name==='@/components/ui/icons')return new Proxy({}, {get:()=>()=>null});
     if(name==='sonner')return {toast:new Proxy({}, {get:()=>message=>messages.push(message)})};
     if(name==='@/lib/navigation')return {useRouter:()=>({push(){}})};
+    if(name==='@/hooks/use-usage-preferences')return {useUsagePreferences:()=>({value:{voice:'off'}})};
     if(name==='@/hooks/use-developer-mode')return {useDeveloperMode:()=>({visibility:{canShowCommand:()=>true}})};
     if(name==='@/components/model-picker')return {ModelPicker};
     if(name==='@/components/preview/attachment-thumbnail')return {AttachmentThumbnail:()=>null};

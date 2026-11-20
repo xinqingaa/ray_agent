@@ -110,8 +110,19 @@ def gpt_models() -> tuple[ModelSpec, ...]:
     )
 
 
-def find_model(model_id: Optional[str]) -> Optional[ModelSpec]:
+def find_model(model_id: Optional[str], config: LLMConfig | None = None) -> Optional[ModelSpec]:
     """能力目录与端点可用性分开；端点移除不能使已保存模型变成未知模型。"""
+    custom = config.custom_models.get(model_id) if config and model_id else None
+    if custom is not None:
+        default = ReasoningChoice("disabled", "disabled", None, "current_turn")
+        on = ReasoningChoice("enabled", "enabled", None, "current_turn")
+        endpoint = config.selected_endpoint or endpoint_for(config, model_id)
+        return ModelSpec(
+            id=model_id, provider=(endpoint.provider if endpoint else None) or "compatible", context_window=custom.context_window,
+            max_output=custom.max_output, tools=custom.tools, vision=custom.vision, auxiliary=False,
+            choices=(default, on) if custom.thinking else (default,), default_choice=default.id,
+            thinking_output_floor=0, tool_batching="provider_default", emit_thinking=custom.thinking,
+        )
     return next((item for item in (*deepseek_models(), *gpt_models()) if item.id == model_id), None)
 
 
@@ -130,21 +141,27 @@ def endpoint_for(config: LLMConfig, model_id: str) -> Optional[LlmEndpoint]:
 def connection_issue(config: LLMConfig, model_id: str) -> str | None:
     """只检查本地连接信息。连通性由实际模型请求验证。"""
     endpoint = endpoint_for(config, model_id)
-    if endpoint is None and find_model(model_id) is not None:
+    if endpoint is None and (config.connections is not None or find_model(model_id) is not None):
         return "未配置模型接口"
+    if endpoint is not None and not endpoint.requires_key:
+        return None
     key = (endpoint.api_key if endpoint else config.api_key).strip()
     return "未配置 API Key" if not key or key == "xxxx" else None
 
 
 def active_models(config: LLMConfig) -> tuple[ModelSpec, ...]:
     """返回已设置地址的模型；缺失密钥仍可查看能力和配置状态。"""
-    return tuple(item for item in (*deepseek_models(), *gpt_models()) if endpoint_for(config, item.id))
+    models = (*deepseek_models(), *gpt_models(), *(find_model(model, config) for model in config.custom_models))
+    return tuple(item for item in models if endpoint_for(config, item.id))
 
 
 def default_model(config: LLMConfig) -> Optional[ModelSpec]:
     # 兼容旧默认名称，不依赖上游域名；自定义模型仍走原全局接口。
     model_id = "deepseek-flash" if config.model_name in ("deepseek-chat", "deepseek-reasoner") else config.model_name
-    return find_model(model_id)
+    spec = find_model(model_id, config)
+    if config.connections is not None and (spec is None or endpoint_for(config, spec.id) is None):
+        return next(iter(active_models(config)), spec)
+    return spec
 
 
 _FACTORIES: dict[str, Callable[[], tuple[ModelSpec, ...]]] = {"deepseek": deepseek_models, "openai": gpt_models}
@@ -187,14 +204,18 @@ def configured_sampling(config: LLMConfig, model_id: Optional[str]) -> ModelSamp
     spec = default_model(config) if not model_id else None
     if spec and spec.id in config.model_profiles:
         return config.model_profiles[spec.id]
+    custom = config.custom_models.get(model_id or (spec.id if spec else ""))
     return ModelSampling(
-        temperature=config.temperature, max_tokens=config.max_tokens, context_window=config.context_window,
+        temperature=config.temperature, max_tokens=custom.max_output if custom else config.max_tokens,
+        context_window=custom.context_window if custom else config.context_window,
     )
 
 
 def resolve_active(config: LLMConfig, model_id: Optional[str], reasoning: Optional[str]) -> tuple[ModelSpec, ReasoningChoice]:
     """解析用户模型，不根据 URL 猜厂商或回退到别的模型。"""
-    spec = find_model(model_id) if model_id else default_model(config)
+    spec = find_model(model_id, config) if model_id else default_model(config)
+    if model_id and config.connections is not None and endpoint_for(config, model_id) is None:
+        raise ValueError(f"{model_id} 未配置模型接口")
     if spec is None:
         raise ValueError(f"未知模型 {model_id}" if model_id else "当前接口没有可选模型")
     if endpoint_for(config, spec.id) is None:
@@ -208,7 +229,7 @@ def resolve_active(config: LLMConfig, model_id: Optional[str], reasoning: Option
 
 def current_sampling(config: LLMConfig, model_id: Optional[str]) -> ModelSampling:
     """新建对话冻结采样值，并按模型能力封顶。"""
-    spec = find_model(model_id) if model_id else default_model(config)
+    spec = find_model(model_id, config) if model_id else default_model(config)
     raw = configured_sampling(config, spec.id if spec else model_id)
     if spec is None:
         return raw
@@ -317,12 +338,17 @@ def auxiliary_call(
 
 def client_config(config: LLMConfig, model_name: str) -> LLMConfig:
     """已知模型必须使用配置的端点，端点缺失绝不回退到全局地址。"""
-    if find_model(model_name) is None:
+    if find_model(model_name, config) is None and config.connections is None:
         return config
     endpoint = endpoint_for(config, model_name)
     if endpoint is None:
         raise ValueError(f"{model_name} 未配置模型接口")
-    return config.model_copy(update={"base_url": endpoint.base_url, "api_key": endpoint.api_key, "api_protocol": endpoint.api_protocol})
+    return bind_endpoint(config, endpoint)
+
+
+def bind_endpoint(config: LLMConfig, endpoint: LlmEndpoint) -> LLMConfig:
+    return config.model_copy(update={"base_url": endpoint.base_url, "api_key": endpoint.api_key,
+                                     "api_protocol": endpoint.api_protocol, "selected_endpoint": endpoint})
 
 
 def public_capabilities(spec: ModelSpec) -> dict:

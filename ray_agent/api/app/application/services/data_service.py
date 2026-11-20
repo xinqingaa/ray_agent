@@ -140,6 +140,7 @@ class DataService:
                     directories.append(registered[1])
                 await uow.session.delete_by_id(session.id)
             await uow.file.delete_all()
+            await uow.usage.clear()
             backups = await uow.change.delete_all()
             await uow.lease.delete_all()
             folders = {record.ref.workspace_id: record for record in await uow.root.workspace_folders()}

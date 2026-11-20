@@ -10,6 +10,7 @@ function lineIcon(drawing: ReactNode): UiIcon {
       strokeWidth={1.75} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...props}>{drawing}</svg>
   }
 }
+export const Mic = lineIcon(<><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11v1a7 7 0 0 0 14 0v-1M12 19v3m-4 0h8"/></>)
 export const Activity = lineIcon(<path d="M3.5 13c2.2 0 2.2-4 4.3-4s2.1 6 4.2 6 2.1-6 4.2-6 2.1 4 4.3 4"/>)
 export const AlertCircle = lineIcon(<><circle cx="12" cy="12" r="8.5"/><path d="M12 8v4m0 3v.1"/></>)
 export const AlertTriangle = lineIcon(<><path d="M12 4 21 19.5H3Z"/><path d="M12 10v4M12 17v.01"/></>)

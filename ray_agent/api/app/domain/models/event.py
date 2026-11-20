@@ -232,6 +232,8 @@ class TurnUsage(BaseModel):
     completion_tokens: Optional[int] = None
     cached_tokens: Optional[int] = None
     reasoning_tokens: Optional[int] = None
+    cost_nano_usd: Optional[int] = None
+    price_periods: List[str] = Field(default_factory=list)
 
 
 class TurnEvent(BaseEvent):
@@ -243,6 +245,7 @@ class TurnEvent(BaseEvent):
     type: Literal["turn"] = "turn"
     phase: TurnPhase
     index: int  # 运行内从 1 递增
+    model_id: Optional[str] = None
     # started
     context_estimate: Optional[Dict[str, Any]] = None  # 本轮请求的容量估算，字段见 ContextEstimate.as_dict()
     context_window: Optional[int] = None  # 本轮请求所用模型的上下文窗口
@@ -307,6 +310,7 @@ class CompactUsage(BaseModel):
     prompt_tokens: Optional[int] = None
     completion_tokens: Optional[int] = None
     cached_tokens: Optional[int] = None
+    cost_nano_usd: Optional[int] = None
 
 
 class CompactEvent(BaseEvent):

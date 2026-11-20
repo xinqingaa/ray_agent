@@ -586,6 +586,17 @@
             }
           ],
           "default": null
+        },
+        "cost_nano_usd": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "title": "CompactUsage",
@@ -1496,8 +1507,7 @@
         "summary": {
           "anyOf": [
             {
-              "additionalProperties": true,
-              "type": "object"
+              "$ref": "#/$defs/RunSummary"
             },
             {
               "type": "null"
@@ -1578,6 +1588,66 @@
       ],
       "title": "RunStatus",
       "type": "string"
+    },
+    "RunSummary": {
+      "description": "运行汇总：终态 run 事件附带；模型请求与 tokens 等于各轮 turn 事件与 compact 事件（摘要请求）之和。",
+      "properties": {
+        "duration_ms": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "turns": {
+          "default": 0,
+          "type": "integer"
+        },
+        "model_requests": {
+          "default": 0,
+          "type": "integer"
+        },
+        "tool_calls": {
+          "default": 0,
+          "type": "integer"
+        },
+        "prompt_tokens": {
+          "default": 0,
+          "type": "integer"
+        },
+        "completion_tokens": {
+          "default": 0,
+          "type": "integer"
+        },
+        "cached_tokens": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "cost_nano_usd": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "RunSummary",
+      "type": "object"
     },
     "SearchSourceType": {
       "enum": [
@@ -2219,6 +2289,17 @@
         "index": {
           "type": "integer"
         },
+        "model_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "context_estimate": {
           "anyOf": [
             {
@@ -2334,6 +2415,7 @@
         "event_version",
         "phase",
         "index",
+        "model_id",
         "context_estimate",
         "context_window",
         "model_ms",
@@ -2413,6 +2495,23 @@
             }
           ],
           "default": null
+        },
+        "cost_nano_usd": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "price_periods": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
         }
       },
       "title": "TurnUsage",

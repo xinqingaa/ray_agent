@@ -5,6 +5,8 @@ from typing import Any, Dict, Optional
 
 from pydantic import BaseModel, Field
 
+from app.domain.models.usage import UsageCharge
+
 
 class LLMUsage(BaseModel):
     """单次 Chat Completions 调用的 token 用量；字段缺失表示服务未返回。
@@ -46,3 +48,4 @@ class LLMInvokeResult(BaseModel):
     usage: Optional[LLMUsage] = None
     finish_reason: Optional[str] = None
     ttft_ms: Optional[int] = None
+    charge: Optional[UsageCharge] = None

@@ -420,6 +420,7 @@ async def get_agent_service() -> AgentService:
         file_access=get_run_file_access(),
         write_leases=get_write_leases(),
         workspace_memory=get_workspace_memory_runtime(),
+        install_id=data_root().install_id(),
     )
 
 

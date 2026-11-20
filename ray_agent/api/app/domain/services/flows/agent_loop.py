@@ -20,6 +20,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, AsyncGenerator, Awaitable, Callable, Dict, Iterator, List, Optional, Set
 
+from app.domain.models.usage import UsageCharge, usage_scope
 from app.domain.external.browser import Browser
 from app.domain.external.llm import LLM, LLMRequestError, is_retryable as _is_retryable
 from app.domain.services.file_scope import FileScope
@@ -281,6 +282,7 @@ class _ModelTurn:
     overflow: bool = False  # 服务端以上下文超长拒绝
     failure: Optional[RunEndReason] = None
     error: str = ""
+    upstream_status: int | None = None
     finish_reason: Optional[str] = None
     attempts: int = 0
     connect_failures: int = 0  # 连接未建立的尝试，不占 max_retries
@@ -292,10 +294,16 @@ class _ModelTurn:
     def counted_attempts(self) -> int:
         return self.attempts - self.connect_failures
 
-    def add_usage(self, usage: Optional[LLMUsage]) -> None:
-        if usage is None:
+    def add_usage(self, usage: Optional[LLMUsage], charge: Optional[UsageCharge]) -> None:
+        if usage is None and charge is None:
             return
+        usage = usage or LLMUsage()
+        periods = set(self.usage.price_periods)
+        if charge and charge.price_period:
+            periods.add(charge.price_period)
         self.usage = TurnUsage(
+            cost_nano_usd=_add_optional(self.usage.cost_nano_usd, charge.cost_nano_usd if charge else None),
+            price_periods=sorted(periods),
             prompt_tokens=_add_optional(self.usage.prompt_tokens, usage.prompt_tokens),
             completion_tokens=_add_optional(self.usage.completion_tokens, usage.completion_tokens),
             cached_tokens=_add_optional(self.usage.cached_tokens, usage.cached_tokens),
@@ -393,7 +401,7 @@ class AgentLoop(BaseFlow):
         self._can_deliver = deliver_file is not None
         if deliver_file is not None:
             toolkits.append(DeliverTool(deliver_file, self._outcomes.existing_delivery))
-        self.pipeline = ToolPipeline(toolkits)
+        self.pipeline = ToolPipeline(toolkits if getattr(llm, "supports_tools", True) else [])
         # 计划模式的检查在策略之前：被拒绝的调用不会进入审批
         self._plan_guard = PlanModeGuard()
         self.pipeline.add_before(self._plan_guard)
@@ -447,6 +455,7 @@ class AgentLoop(BaseFlow):
         system_prompt = self._system_prompt
         return {
             "model_name": self._llm.model_name,
+            "model_connection": getattr(self._llm, "connection_snapshot", None),
             "api_protocol": getattr(self._llm, 'api_protocol', 'chat_completions'),
             "temperature": self._llm.temperature,
             "max_tokens": self._llm.max_tokens,
@@ -742,7 +751,8 @@ class AgentLoop(BaseFlow):
                 return
             index += 1
             turn = self._open_turn = _ModelTurn(index=index)
-            yield TurnEvent(phase=TurnPhase.STARTED, index=index, context_window=self._llm.context_window,
+            yield TurnEvent(phase=TurnPhase.STARTED, index=index, model_id=self._llm.model_name,
+                            context_window=self._llm.context_window,
                             context_estimate=self._estimate.as_dict())
             async for event in self._request_model(turn):
                 yield event
@@ -762,7 +772,7 @@ class AgentLoop(BaseFlow):
             overflow_compacted = False
             if turn.failure is not None:
                 yield self._turn_completed(turn, error=turn.failure.value)
-                yield self._fail(turn.failure, turn.error)
+                yield self._fail(turn.failure, turn.error, upstream_status=turn.upstream_status)
                 return
             if turn.truncated:
                 yield self._turn_completed(turn)
@@ -1028,7 +1038,9 @@ class AgentLoop(BaseFlow):
             self._inflight = _Inflight(turn=turn.index, attempt=turn.attempts, started=started)
             messages, tools = self._request_messages(), self.pipeline.schemas()
             try:
-                result = await self._llm.invoke(messages=messages, tools=tools, on_delta=self._on_model_delta)
+                with usage_scope(session_id=self._session_id, run_id=getattr(self, "run_id", None),
+                                 workspace_id=getattr(self, "workspace_id", None)):
+                    result = await self._llm.invoke(messages=messages, tools=tools, on_delta=self._on_model_delta)
                 if not result.finish_reason:
                     raise LLMRequestError(
                         "模型流在结束原因前结束",
@@ -1056,12 +1068,13 @@ class AgentLoop(BaseFlow):
                 if not will_retry:
                     turn.failure = RunEndReason.MODEL_ERROR
                     turn.error = str(e) or type(e).__name__
+                    turn.upstream_status = e.status_code if isinstance(e, LLMRequestError) else None
                     return
                 await asyncio.sleep(self._retry_interval * (_CONNECT_BACKOFF[turn.connect_failures - 1] if connect else 1))
                 continue
 
             turn.model_ms += int((time.monotonic() - started) * 1000)
-            turn.add_usage(result.usage)
+            turn.add_usage(result.usage, result.charge)
             self.budget.record_usage(messages, tools, result.usage.prompt_tokens if result.usage else None)
             if result.ttft_ms is not None:
                 turn.ttft_ms = result.ttft_ms
@@ -1127,11 +1140,11 @@ class AgentLoop(BaseFlow):
             return self._last_completed.model_copy(deep=True)
         return None
 
-    def _fail(self, reason: RunEndReason, detail: str) -> ErrorEvent:
+    def _fail(self, reason: RunEndReason, detail: str, *, upstream_status: int | None = None) -> ErrorEvent:
         self.end_reason = reason
         logger.warning(f"会话[{self._session_id}] Agent循环失败结束 reason={reason.value}: {detail}")
         if reason == RunEndReason.MODEL_ERROR:
-            text = format_public_error_text(detail)
+            text = detail if upstream_status is not None else format_public_error_text(detail)
         elif reason == RunEndReason.MAX_ITERATIONS:
             text = f"{detail}，任务未完成。回复“继续”可在当前对话中接着执行。"
         else:
@@ -1395,9 +1408,11 @@ class AgentLoop(BaseFlow):
             async with self._uow:
                 return await self._uow.event.list(self._session_id, types=["message"])
 
-        result = await self._compactor.compact(
-            self._request_messages(), self.pipeline.schemas(), before, trigger, load_user_events,
-            min_gain=trigger == "watermark")
+        with usage_scope(session_id=self._session_id, run_id=getattr(self, "run_id", None),
+                         workspace_id=getattr(self, "workspace_id", None)):
+            result = await self._compactor.compact(
+                self._request_messages(), self.pipeline.schemas(), before, trigger, load_user_events,
+                min_gain=trigger == "watermark")
         self.model_requests += result.usage.attempts
         self.budget_used += result.usage.attempts
         if result.status == CompactionStatus.SKIPPED:

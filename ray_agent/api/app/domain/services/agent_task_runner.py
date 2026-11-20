@@ -106,6 +106,7 @@ class AgentTaskRunner(TaskRunner):
             write_leases: Optional[RunWriteLeases] = None,
             workspace_memory=None,  # 已绑定工作区的记忆端口；只有工作区会话提供
             context_refresh=None,  # 每轮请求（含续接与重试）核对冻结背景：async (run_id) -> 背景段或 None
+            workspace_id: Optional[str] = None,
             completion=None,  # 运行正常结束的钩子：on_run_completed(uow, session_id, run_id) 与 wake()
     ) -> None:
         self._uow_factory = uow_factory
@@ -168,6 +169,7 @@ class AgentTaskRunner(TaskRunner):
         self._flow.persist_memory_with_events = True
         self._flow._publish_delta = self._publish_delta
         self._flow.run_id = self._run_id
+        self._flow.workspace_id = workspace_id
         self._flow.skill_runtime = self._skill_runtime
         if hasattr(llm, 'image_loader'):
             llm.image_loader = self._load_visual_image

@@ -133,7 +133,6 @@ def test_key_hint_shows_only_the_tail_of_long_keys(isolated_model_connections):
     ("base_url", 'base_url = "invalid-address-with-secret"\napi_key = "sk-secret"\nmodels = ["gpt-6-luna"]'),
     ("protocol", 'base_url = "https://gpt.test/v1"\napi_key = "sk-secret"\nprotocol = "sk-secret"\nmodels = ["gpt-6-luna"]'),
     ("models", 'base_url = "https://gpt.test/v1"\napi_key = "sk-secret"\nmodels = []'),
-    ("token", 'base_url = "https://gpt.test/v1"\ntoken = "sk-secret"\nmodels = ["gpt-6-luna"]'),
 ])
 def test_invalid_provider_is_isolated_and_never_echoes_values(isolated_model_connections, caplog, field, text):
     good = '[providers.deepseek]\nbase_url = "https://ds.test/v1"\napi_key = "sk-ds"\nmodels = ["deepseek-flash"]\n'

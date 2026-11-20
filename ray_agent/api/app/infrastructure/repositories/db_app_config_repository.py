@@ -34,6 +34,7 @@ def apply_model_connections(app_config: AppConfig) -> AppConfig:
     connections = load_model_connections()
     llm = llm.model_copy(update={"resolved_endpoints": connections.endpoints,
                                  "model_endpoints": connections.model_endpoints,
+                                 "custom_models": connections.custom_models,
                                  "connections": connections.source})
     spec = default_model(llm)
     legacy = connections.endpoints.get(connections.model_endpoints.get(spec.id, "")) if spec else None

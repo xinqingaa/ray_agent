@@ -272,3 +272,14 @@ API 设置来自 `core/config.py`，环境变量使用对应大写名称；正�
 | 设置导入 | 请求等待 120 秒，处理中每 1.5 秒查询原操作 | skill 客户端及设置组件 |
 
 提高 API 文件限额时同时核对沙箱的独立硬边界；不会自动扩大沙箱接收范围。导入操作和版本元数据可供查询，回收文件不删除历史操作记录。
+
+## 用量与语音
+
+| 参数 | 当前值 | 来源 |
+|---|---|---|
+| 用量预设 | 今天、24 小时、近 3／7／30／90 天 | [用量查询](../ray_agent/api/app/application/services/usage_service.py) |
+| 日历与自定义可选范围 | 含当天的 13 周，起止为本机整点，结束不含，整日可选至次日零点 | 同上 |
+| 自定义时间桶 | 两天内按小时，八天内每 3 小时，其余按天 | 同上 |
+| 费用精度与偏好默认值 | 十亿分之一美元，对话显示开启，DeepSeek 转写关闭 | [计价](../ray_agent/api/app/domain/services/usage_pricing.py)、[偏好](../ray_agent/api/app/domain/models/usage.py) |
+| 大小、时长、格式 | 8 MiB、120 秒、16 kHz 单声道 16 位 PCM WAV | [DeepSeek 接入](../ray_agent/api/app/infrastructure/external/llm/deepseek_asr.py)、[转写校验](../ray_agent/api/app/application/services/transcription_service.py) |
+| 上游等待 | 转写 135 秒，草稿探测 20 秒 | [DeepSeek 接入](../ray_agent/api/app/infrastructure/external/llm/deepseek_asr.py)、[连接服务](../ray_agent/api/app/application/services/model_connection_service.py) |

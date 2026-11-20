@@ -2373,10 +2373,174 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/app-config/llm/providers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Providers */
+        get: operations["list_providers_api_app_config_llm_providers_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/app-config/llm/providers/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Save Provider */
+        put: operations["save_provider_api_app_config_llm_providers__name__put"];
+        post?: never;
+        /** Delete Provider */
+        delete: operations["delete_provider_api_app_config_llm_providers__name__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/app-config/llm/providers/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Test Provider */
+        post: operations["test_provider_api_app_config_llm_providers_test_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/app-config/llm/providers/models": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Provider Models */
+        post: operations["provider_models_api_app_config_llm_providers_models_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/usage": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Usage */
+        get: operations["get_usage_api_usage_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/usage/providers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Usage Providers */
+        get: operations["get_usage_providers_api_usage_providers_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/usage/sessions/{session_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Session Usage */
+        get: operations["get_session_usage_api_usage_sessions__session_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/usage/preferences": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Usage Preferences */
+        get: operations["get_usage_preferences_api_usage_preferences_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Usage Preferences */
+        patch: operations["update_usage_preferences_api_usage_preferences_patch"];
+        trace?: never;
+    };
+    "/api/voice/transcriptions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Transcribe */
+        post: operations["transcribe_api_voice_transcriptions_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** ASRResult */
+        ASRResult: {
+            /** Request Id */
+            request_id: string;
+            /** Text */
+            text: string;
+            /** Duration Ms */
+            duration_ms: number;
+        };
         /** AcceptInstructionProposalRequest */
         AcceptInstructionProposalRequest: {
             /**
@@ -3076,6 +3240,8 @@ export interface components {
             completion_tokens?: number | null;
             /** Cached Tokens */
             cached_tokens?: number | null;
+            /** Cost Nano Usd */
+            cost_nano_usd?: number | null;
         };
         /** @description 组件身份，如浏览器或某个 Embedding 模型 */
         ComponentId: string;
@@ -3128,6 +3294,8 @@ export interface components {
              * @default false
              */
             exists: boolean;
+            /** Version */
+            version?: string | null;
             /**
              * Issue
              * @description 整份文件无法使用的原因
@@ -3316,6 +3484,52 @@ export interface components {
              * @description 可选：用模板的工作方式初始化；与 instruction 同时给出时以 instruction 为准
              */
             template_id?: string | null;
+        };
+        /** CustomModel */
+        "CustomModel-Input": {
+            /** Context Window */
+            context_window: number;
+            /** Max Output */
+            max_output: number;
+            /**
+             * Tools
+             * @default false
+             */
+            tools: boolean;
+            /**
+             * Vision
+             * @default false
+             */
+            vision: boolean;
+            /**
+             * Thinking
+             * @default false
+             */
+            thinking: boolean;
+            rates?: components["schemas"]["TokenRates-Input"] | null;
+        };
+        /** CustomModel */
+        "CustomModel-Output": {
+            /** Context Window */
+            context_window: number;
+            /** Max Output */
+            max_output: number;
+            /**
+             * Tools
+             * @default false
+             */
+            tools: boolean;
+            /**
+             * Vision
+             * @default false
+             */
+            vision: boolean;
+            /**
+             * Thinking
+             * @default false
+             */
+            thinking: boolean;
+            rates?: components["schemas"]["TokenRates-Output"] | null;
         };
         /** DefaultLocationRequest */
         DefaultLocationRequest: {
@@ -4979,6 +5193,13 @@ export interface components {
             /** Workspace Id */
             workspace_id?: string | null;
         };
+        /** PreferencesUpdate */
+        PreferencesUpdate: {
+            /** Show Conversation Cost */
+            show_conversation_cost?: boolean | null;
+            /** Voice */
+            voice?: ("off" | "deepseek") | null;
+        };
         /**
          * ProposalStatus
          * @enum {string}
@@ -4986,6 +5207,84 @@ export interface components {
         ProposalStatus: "pending" | "accepted" | "rejected" | "superseded";
         /** @description 核心协议版本 */
         ProtocolVersion: number;
+        /** ProviderProbe */
+        ProviderProbe: {
+            /** Kind */
+            kind?: ("deepseek" | "openai" | "compatible") | null;
+            /**
+             * Base Url
+             * Format: uri
+             */
+            base_url: string;
+            /**
+             * Protocol
+             * @default responses
+             * @enum {string}
+             */
+            protocol: "responses" | "chat_completions";
+            /** Models */
+            models?: string[];
+            /** Custom Models */
+            custom_models?: {
+                [key: string]: components["schemas"]["CustomModel-Input"];
+            };
+            /**
+             * Requires Key
+             * @default true
+             */
+            requires_key: boolean;
+            /** Api Key */
+            api_key?: string | null;
+            /** Name */
+            name?: string | null;
+            /** Model */
+            model?: string | null;
+        };
+        /** ProviderProbeResult */
+        ProviderProbeResult: {
+            /** Elapsed Ms */
+            elapsed_ms: number;
+            /** Status */
+            status: number;
+            /**
+             * Method
+             * @enum {string}
+             */
+            method: "models" | "request";
+            /** Models */
+            models?: string[];
+        };
+        /** ProviderSave */
+        ProviderSave: {
+            /** Kind */
+            kind?: ("deepseek" | "openai" | "compatible") | null;
+            /**
+             * Base Url
+             * Format: uri
+             */
+            base_url: string;
+            /**
+             * Protocol
+             * @default responses
+             * @enum {string}
+             */
+            protocol: "responses" | "chat_completions";
+            /** Models */
+            models?: string[];
+            /** Custom Models */
+            custom_models?: {
+                [key: string]: components["schemas"]["CustomModel-Input"];
+            };
+            /**
+             * Requires Key
+             * @default true
+             */
+            requires_key: boolean;
+            /** Api Key */
+            api_key?: string | null;
+            /** Version */
+            version: string;
+        };
         /**
          * ProviderStatus
          * @description 设置页可见的提供商状态；密钥只给掩码。
@@ -5006,6 +5305,23 @@ export interface components {
              * @description 由它提供的已知模型
              */
             models?: string[];
+            /** Configured Models */
+            configured_models?: string[];
+            /** Custom Models */
+            custom_models?: {
+                [key: string]: components["schemas"]["CustomModel-Output"];
+            };
+            /**
+             * Kind
+             * @default compatible
+             * @enum {string}
+             */
+            kind: "deepseek" | "openai" | "compatible";
+            /**
+             * Requires Key
+             * @default true
+             */
+            requires_key: boolean;
             /**
              * Has Key
              * @default false
@@ -5106,6 +5422,10 @@ export interface components {
             expires_at: number;
         };
         ResourceVersion: number | string;
+        /** Response[ASRResult] */
+        Response_ASRResult_: {
+            data: components["schemas"]["ASRResult"] | null;
+        };
         /** Response[AgentConfig] */
         Response_AgentConfig_: {
             data: components["schemas"]["AgentConfig"] | null;
@@ -5141,6 +5461,10 @@ export interface components {
         /** Response[CompactResponse] */
         Response_CompactResponse_: {
             data: components["schemas"]["CompactResponse"] | null;
+        };
+        /** Response[ConnectionSource] */
+        Response_ConnectionSource_: {
+            data: components["schemas"]["ConnectionSource"] | null;
         };
         /** Response[ContextManifestView] */
         Response_ContextManifestView_: {
@@ -5276,6 +5600,10 @@ export interface components {
         Response_ParticipateInMemoryResponse_: {
             data: components["schemas"]["ParticipateInMemoryResponse"] | null;
         };
+        /** Response[ProviderProbeResult] */
+        Response_ProviderProbeResult_: {
+            data: components["schemas"]["ProviderProbeResult"] | null;
+        };
         /** Response[ResolveRootPathResponse] */
         Response_ResolveRootPathResponse_: {
             data: components["schemas"]["ResolveRootPathResponse"] | null;
@@ -5347,6 +5675,18 @@ export interface components {
         Response_Union_OperationView__NoneType__: {
             data: components["schemas"]["OperationView"] | null;
         };
+        /** Response[UsagePreferences] */
+        Response_UsagePreferences_: {
+            data: components["schemas"]["UsagePreferences"] | null;
+        };
+        /** Response[UsageReport] */
+        Response_UsageReport_: {
+            data: components["schemas"]["UsageReport"] | null;
+        };
+        /** Response[UsageTotals] */
+        Response_UsageTotals_: {
+            data: components["schemas"]["UsageTotals"] | null;
+        };
         /** Response[WorkspaceItem] */
         Response_WorkspaceItem_: {
             data: components["schemas"]["WorkspaceItem"] | null;
@@ -5387,6 +5727,11 @@ export interface components {
         Response_list_MarketTarget__: {
             /** Data */
             data: components["schemas"]["MarketTarget"][] | null;
+        };
+        /** Response[list[str]] */
+        Response_list_str__: {
+            /** Data */
+            data: string[] | null;
         };
         /** RetryIndexRequest */
         RetryIndexRequest: {
@@ -5495,10 +5840,7 @@ export interface components {
             status: components["schemas"]["RunStatus"];
             /** Reason */
             reason: string | null;
-            /** Summary */
-            summary: {
-                [key: string]: unknown;
-            } | null;
+            summary: components["schemas"]["RunSummary"] | null;
             mode: components["schemas"]["RunMode"] | null;
         };
         /** @description 运行身份；一个会话至多一个活动运行 */
@@ -5580,6 +5922,43 @@ export interface components {
          * @enum {string}
          */
         RunStatus: "running" | "waiting" | "completed" | "failed" | "cancelled" | "interrupted";
+        /**
+         * RunSummary
+         * @description 运行汇总：终态 run 事件附带；模型请求与 tokens 等于各轮 turn 事件与 compact 事件（摘要请求）之和。
+         */
+        RunSummary: {
+            /** Duration Ms */
+            duration_ms?: number | null;
+            /**
+             * Turns
+             * @default 0
+             */
+            turns: number;
+            /**
+             * Model Requests
+             * @default 0
+             */
+            model_requests: number;
+            /**
+             * Tool Calls
+             * @default 0
+             */
+            tool_calls: number;
+            /**
+             * Prompt Tokens
+             * @default 0
+             */
+            prompt_tokens: number;
+            /**
+             * Completion Tokens
+             * @default 0
+             */
+            completion_tokens: number;
+            /** Cached Tokens */
+            cached_tokens?: number | null;
+            /** Cost Nano Usd */
+            cost_nano_usd?: number | null;
+        };
         /** RunSummaryView */
         RunSummaryView: {
             /** Run Id */
@@ -5960,6 +6339,30 @@ export interface components {
             data: components["schemas"]["TitleEventData"];
         };
         /**
+         * TokenRates
+         * @description 美元／百万 Token。
+         */
+        "TokenRates-Input": {
+            /** Input */
+            input: number | string;
+            /** Cached Input */
+            cached_input: number | string;
+            /** Output */
+            output: number | string;
+        };
+        /**
+         * TokenRates
+         * @description 美元／百万 Token。
+         */
+        "TokenRates-Output": {
+            /** Input */
+            input: string;
+            /** Cached Input */
+            cached_input: string;
+            /** Output */
+            output: string;
+        };
+        /**
          * ToolEventData
          * @description 工具事件数据
          */
@@ -6094,6 +6497,8 @@ export interface components {
             phase: "started" | "completed";
             /** Index */
             index: number;
+            /** Model Id */
+            model_id: string | null;
             /** Context Estimate */
             context_estimate: {
                 [key: string]: unknown;
@@ -6170,6 +6575,10 @@ export interface components {
             cached_tokens?: number | null;
             /** Reasoning Tokens */
             reasoning_tokens?: number | null;
+            /** Cost Nano Usd */
+            cost_nano_usd?: number | null;
+            /** Price Periods */
+            price_periods?: string[];
         };
         /**
          * UnavailableReason
@@ -6239,6 +6648,309 @@ export interface components {
              * @description 工作区 version；不符返回 409 并带最新值
              */
             version: number;
+        };
+        /** UsageBucket */
+        UsageBucket: {
+            /**
+             * Requests
+             * @default 0
+             */
+            requests: number;
+            /**
+             * Failed Requests
+             * @default 0
+             */
+            failed_requests: number;
+            /**
+             * Unpriced Requests
+             * @default 0
+             */
+            unpriced_requests: number;
+            /**
+             * Input Tokens
+             * @default 0
+             */
+            input_tokens: number;
+            /**
+             * Cached Tokens
+             * @default 0
+             */
+            cached_tokens: number;
+            /**
+             * Output Tokens
+             * @default 0
+             */
+            output_tokens: number;
+            /**
+             * Total Tokens
+             * @default 0
+             */
+            total_tokens: number;
+            /**
+             * Reasoning Tokens
+             * @default 0
+             */
+            reasoning_tokens: number;
+            /**
+             * Audio Duration Ms
+             * @default 0
+             */
+            audio_duration_ms: number;
+            /** Cost Nano Usd */
+            cost_nano_usd?: number | null;
+            /**
+             * Start
+             * Format: date-time
+             */
+            start: string;
+            /**
+             * End
+             * Format: date-time
+             */
+            end: string;
+            /** Providers */
+            providers?: components["schemas"]["UsageGroup"][];
+            /** Top Models */
+            top_models?: string[];
+            /** Top Model Counts */
+            top_model_counts?: {
+                [key: string]: number;
+            };
+            /** Price Periods */
+            price_periods?: string[];
+        };
+        /** UsageGroup */
+        UsageGroup: {
+            /**
+             * Requests
+             * @default 0
+             */
+            requests: number;
+            /**
+             * Failed Requests
+             * @default 0
+             */
+            failed_requests: number;
+            /**
+             * Unpriced Requests
+             * @default 0
+             */
+            unpriced_requests: number;
+            /**
+             * Input Tokens
+             * @default 0
+             */
+            input_tokens: number;
+            /**
+             * Cached Tokens
+             * @default 0
+             */
+            cached_tokens: number;
+            /**
+             * Output Tokens
+             * @default 0
+             */
+            output_tokens: number;
+            /**
+             * Total Tokens
+             * @default 0
+             */
+            total_tokens: number;
+            /**
+             * Reasoning Tokens
+             * @default 0
+             */
+            reasoning_tokens: number;
+            /**
+             * Audio Duration Ms
+             * @default 0
+             */
+            audio_duration_ms: number;
+            /** Cost Nano Usd */
+            cost_nano_usd?: number | null;
+            /** Key */
+            key: string;
+            /** Models */
+            models?: components["schemas"]["UsageGroup"][];
+        };
+        /** UsageHour */
+        UsageHour: {
+            /**
+             * Requests
+             * @default 0
+             */
+            requests: number;
+            /**
+             * Failed Requests
+             * @default 0
+             */
+            failed_requests: number;
+            /**
+             * Unpriced Requests
+             * @default 0
+             */
+            unpriced_requests: number;
+            /**
+             * Input Tokens
+             * @default 0
+             */
+            input_tokens: number;
+            /**
+             * Cached Tokens
+             * @default 0
+             */
+            cached_tokens: number;
+            /**
+             * Output Tokens
+             * @default 0
+             */
+            output_tokens: number;
+            /**
+             * Total Tokens
+             * @default 0
+             */
+            total_tokens: number;
+            /**
+             * Reasoning Tokens
+             * @default 0
+             */
+            reasoning_tokens: number;
+            /**
+             * Audio Duration Ms
+             * @default 0
+             */
+            audio_duration_ms: number;
+            /** Cost Nano Usd */
+            cost_nano_usd?: number | null;
+            /** Weekday */
+            weekday: number;
+            /** Hour */
+            hour: number;
+            /** Top Models */
+            top_models?: string[];
+            /** Top Model Counts */
+            top_model_counts?: {
+                [key: string]: number;
+            };
+            /** Price Periods */
+            price_periods?: string[];
+            /**
+             * Deepseek Peak
+             * @default false
+             */
+            deepseek_peak: boolean;
+        };
+        /** UsagePreferences */
+        UsagePreferences: {
+            /**
+             * Show Conversation Cost
+             * @default true
+             */
+            show_conversation_cost: boolean;
+            /**
+             * Voice
+             * @default off
+             * @enum {string}
+             */
+            voice: "off" | "deepseek";
+        };
+        /** UsageReport */
+        UsageReport: {
+            /**
+             * Start
+             * Format: date-time
+             */
+            start: string;
+            /**
+             * End
+             * Format: date-time
+             */
+            end: string;
+            /**
+             * Previous Start
+             * Format: date-time
+             */
+            previous_start: string;
+            /**
+             * Selectable From
+             * Format: date-time
+             */
+            selectable_from: string;
+            /** Timezone */
+            timezone: string;
+            /** Price Version */
+            price_version: string;
+            /** Price Sources */
+            price_sources: {
+                [key: string]: string;
+            };
+            /**
+             * Bucket Unit
+             * @enum {string}
+             */
+            bucket_unit: "hour" | "3h" | "day";
+            totals: components["schemas"]["UsageTotals"];
+            previous: components["schemas"]["UsageTotals"];
+            /** Buckets */
+            buckets: components["schemas"]["UsageBucket"][];
+            /** Providers */
+            providers: components["schemas"]["UsageGroup"][];
+            /** Purposes */
+            purposes: components["schemas"]["UsageGroup"][];
+            /** Hours */
+            hours: components["schemas"]["UsageHour"][];
+            /** Calendar */
+            calendar: components["schemas"]["UsageBucket"][];
+        };
+        /** UsageTotals */
+        UsageTotals: {
+            /**
+             * Requests
+             * @default 0
+             */
+            requests: number;
+            /**
+             * Failed Requests
+             * @default 0
+             */
+            failed_requests: number;
+            /**
+             * Unpriced Requests
+             * @default 0
+             */
+            unpriced_requests: number;
+            /**
+             * Input Tokens
+             * @default 0
+             */
+            input_tokens: number;
+            /**
+             * Cached Tokens
+             * @default 0
+             */
+            cached_tokens: number;
+            /**
+             * Output Tokens
+             * @default 0
+             */
+            output_tokens: number;
+            /**
+             * Total Tokens
+             * @default 0
+             */
+            total_tokens: number;
+            /**
+             * Reasoning Tokens
+             * @default 0
+             */
+            reasoning_tokens: number;
+            /**
+             * Audio Duration Ms
+             * @default 0
+             */
+            audio_duration_ms: number;
+            /** Cost Nano Usd */
+            cost_nano_usd?: number | null;
         };
         /**
          * WaitSSEEvent
@@ -11049,6 +11761,360 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Response_ResolveRootPathResponse_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    list_providers_api_app_config_llm_providers_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_ConnectionSource_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    save_provider_api_app_config_llm_providers__name__put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProviderSave"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_ConnectionSource_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    delete_provider_api_app_config_llm_providers__name__delete: {
+        parameters: {
+            query: {
+                version: string;
+            };
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_ConnectionSource_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    test_provider_api_app_config_llm_providers_test_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProviderProbe"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_ProviderProbeResult_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    provider_models_api_app_config_llm_providers_models_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProviderProbe"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_ProviderProbeResult_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_usage_api_usage_get: {
+        parameters: {
+            query?: {
+                range_id?: "today" | "24h" | "3d" | "7d" | "30d" | "90d" | "custom";
+                start?: string | null;
+                end?: string | null;
+                provider?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_UsageReport_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_usage_providers_api_usage_providers_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_list_str__"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_session_usage_api_usage_sessions__session_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_UsageTotals_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_usage_preferences_api_usage_preferences_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_UsagePreferences_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    update_usage_preferences_api_usage_preferences_patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PreferencesUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_UsagePreferences_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    transcribe_api_voice_transcriptions_post: {
+        parameters: {
+            query?: {
+                session_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "audio/wav": string;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_ASRResult_"];
                 };
             };
             /** @description 结构化错误 */

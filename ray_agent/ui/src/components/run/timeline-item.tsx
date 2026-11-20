@@ -3,6 +3,7 @@ import {ChevronRight} from '@/components/ui/icons'
 import type {FileView, RunView, StreamingDraft, TimelineItem} from '@/lib/session-view'
 import {foldSettledRuns, foldSummary, groupProcessBlocks, processBlockOpen, processSettled, processSummary, type ProcessBlock, type RunFold, type TimelineRow} from '@/lib/process-blocks'
 import {cn} from '@/lib/utils'
+import {formatEstimatedCost} from '@/lib/api/usage'
 import {ApprovalCard} from './approval-card'
 import {AskCard} from './ask-card'
 import {DeliveryCard} from './delivery-card'
@@ -117,7 +118,7 @@ export function TimelineItemView({item, handlers = {}, metrics, runActions}: {it
   }
 }
 
-function ProcessBlockView({block, settled, streaming, handlers}: {block: ProcessBlock; settled: boolean; streaming: boolean; handlers?: TimelineHandlers}) {
+function ProcessBlockView({block, settled, streaming, handlers, liveCost}: {block: ProcessBlock; settled: boolean; streaming: boolean; handlers?: TimelineHandlers; liveCost?: number}) {
   const {visibility} = useDeveloperMode()
   const [override, setOverride] = useState<boolean | null>(null)
   const open = processBlockOpen(settled, override, streaming)
@@ -133,6 +134,7 @@ function ProcessBlockView({block, settled, streaming, handlers}: {block: Process
       >
         <ChevronRight className={cn('size-3.5 shrink-0 transition-transform duration-200 motion-reduce:transition-none', open && 'rotate-90')} aria-hidden/>
         <span className="min-w-0 truncate">{processSummary(block, {counts: visibility.toolCounts, narration: !open})}</span>
+        {liveCost != null && <span className="shrink-0 text-faint tabular-nums" title="已完成模型请求的估算费用">· ≈{formatEstimatedCost(liveCost)}</span>}
       </button>
       {open && (
         <div id={panelId} className="mt-2 flex flex-col gap-3">
@@ -143,7 +145,7 @@ function ProcessBlockView({block, settled, streaming, handlers}: {block: Process
   )
 }
 
-function RowView({row, items, handlers}: {row: TimelineRow; items: TimelineItem[]; handlers?: TimelineHandlers}) {
+function RowView({row, items, handlers, liveCost}: {row: TimelineRow; items: TimelineItem[]; handlers?: TimelineHandlers; liveCost?: number}) {
   if (row.type === 'item') return <TimelineItemView item={row.item} handlers={handlers}/>
   return (
     <ProcessBlockView
@@ -151,6 +153,7 @@ function RowView({row, items, handlers}: {row: TimelineRow; items: TimelineItem[
       settled={processSettled(items, row.block)}
       streaming={row.block.items.some(item => item.id === handlers?.streamingItemId)}
       handlers={handlers}
+      liveCost={liveCost}
     />
   )
 }
@@ -183,11 +186,13 @@ function RunFoldView({fold, items, handlers}: {fold: RunFold; items: TimelineIte
 }
 
 /** 时间线：同一轮的旁白和工具组收成过程块，运行中逐轮展开；运行结束后按连续过程段默认收起，保留提问、用户补充与交付的先后顺序，最终回复始终可见 */
-export function Timeline({items, runs = [], streaming, activeStatus, handlers, className}: {
+export function Timeline({items, runs = [], streaming, activeStatus, handlers, className, showCost, sessionCost}: {
   items: TimelineItem[]
   runs?: RunView[]
   streaming?: StreamingDraft | null
   activeStatus?: ReactNode
+  showCost?: boolean
+  sessionCost?: number | null
   handlers?: TimelineHandlers
   className?: string
 }) {
@@ -215,13 +220,16 @@ export function Timeline({items, runs = [], streaming, activeStatus, handlers, c
       : position.end ?? position.final ?? position.last
     anchors.set(anchor, run)
   }
-  const metrics = (run: RunView) => (
+  const liveCost = (run: RunView | undefined) => showCost && (run?.status === 'running' || run?.status === 'waiting')
+    ? run.costNanos ?? undefined : undefined
+  const metrics = (run: RunView, costInProcess = false) => (
     // 同一运行保持同一个列表 key，移动到最新过程/最终回复时保留已观察到的速度。
     // 进行中的状态词靠左、统计靠右，共用一行。
     <li key={`run-metrics:${run.id}`} className="flex flex-wrap items-center gap-x-3">
       {(run.status === 'running' || run.status === 'waiting') && activeStatus ? <div className="min-w-0 flex-1">{activeStatus}</div> : null}
+      {!costInProcess && liveCost(run) != null && <span className="text-xs text-faint tabular-nums" title="已完成模型请求的估算费用">≈{formatEstimatedCost(liveCost(run))}</span>}
       {handlers?.renderRunActions?.(run.id)}
-      <RunStatusBar run={run} streaming={streaming} className="ml-auto"/>
+      <RunStatusBar run={run} streaming={streaming} showCost={showCost} sessionCost={sessionCost} className="ml-auto"/>
     </li>
   )
   return (
@@ -231,16 +239,16 @@ export function Timeline({items, runs = [], streaming, activeStatus, handlers, c
         if (run?.status === 'completed' && row.type === 'item' && row.item.kind === 'final' && row.item.runId &&
             handlers?.showRunReferences && handlers.streamingItemId !== row.item.id) {
           return <li key={row.item.id}><TimelineItemView item={row.item} handlers={handlers}
-            runActions={handlers.renderRunActions?.(run.id)} metrics={<RunStatusBar run={run} streaming={streaming}/>}/></li>
+            runActions={handlers.renderRunActions?.(run.id)} metrics={<RunStatusBar run={run} streaming={streaming} showCost={showCost} sessionCost={sessionCost}/>}/></li>
         }
         const content = row.type === 'fold' ? (
           <li key={row.fold.id}><RunFoldView fold={row.fold} items={items} handlers={handlers}/></li>
         ) : (
-          <li key={row.type === 'process' ? row.block.id : row.item.id}><RowView row={row} items={items} handlers={handlers}/></li>
+          <li key={row.type === 'process' ? row.block.id : row.item.id}><RowView row={row} items={items} handlers={handlers} liveCost={liveCost(run)}/></li>
         )
-        return run ? [content, metrics(run)] : [content]
+        return run ? [content, metrics(run, row.type === 'process')] : [content]
       })}
-      {unanchored.map(metrics)}
+      {unanchored.map(run => metrics(run))}
     </ol>
   )
 }

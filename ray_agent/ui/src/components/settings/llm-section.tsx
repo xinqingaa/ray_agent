@@ -1,13 +1,10 @@
-import {Check, RefreshCw, FileCog} from '@/components/ui/icons'
+import {Check} from '@/components/ui/icons'
 import {useEffect, useState} from 'react'
-import {toast} from 'sonner'
-import {Button} from '@/components/ui/button'
-import {IconAction} from '@/components/ui/icon-action'
 import {Input} from '@/components/ui/input'
 import {configApi} from '@/lib/api/config'
 import type {ConnectionSource, LLMConfig, ModelCatalog, ModelSampling} from '@/lib/api/types'
-import {isDesktop, openModelConfig} from '@/lib/platform'
 import {cn} from '@/lib/utils'
+import {ModelConnections} from './model-connections'
 import {
   checkInteger,
   collect,
@@ -112,61 +109,6 @@ export const llmFormOptions = {
   },
 }
 
-const PROTOCOL_LABELS: Record<string, string> = {responses: 'Responses', chat_completions: 'Chat Completions'}
-
-/** 模型连接来自用户配置文件，这里只读：显示读取结果与掩码，编辑交给系统文本编辑器。 */
-function ConnectionStatus({initial, onChange}: {initial: ConnectionSource | null; onChange: (source: ConnectionSource | null) => void}) {
-  const [source, setSource] = useState(initial)
-  const [busy, setBusy] = useState<'open' | 'reload' | null>(null)
-  useEffect(() => {onChange(source)}, [source, onChange])
-  const open = async () => {
-    setBusy('open')
-    try {await openModelConfig()}
-    catch (error) {toast.error(typeof error === 'string' ? error : error instanceof Error ? error.message : '无法打开配置文件')}
-    finally {setBusy(null)}
-  }
-  const reload = async () => {
-    setBusy('reload')
-    try {setSource((await configApi.getLLMConfig()).connections ?? null)}
-    catch (error) {toast.error(error instanceof Error ? error.message : '读取失败')}
-    finally {setBusy(null)}
-  }
-  const providers = source?.providers ?? []
-  return (
-    <section aria-labelledby="settings-connections-title" className="border-b py-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <h3 id="settings-connections-title" className="mr-auto text-sm font-medium">模型连接</h3>
-        <Button type="button" variant="outline" size="sm" disabled={!isDesktop() || busy !== null} onClick={() => void open()}>
-          <FileCog aria-hidden/>打开配置文件
-        </Button>
-        <IconAction label="重新读取配置文件" className="text-muted-foreground" disabled={busy !== null} onClick={() => void reload()}>
-          <RefreshCw className={cn('size-4', busy === 'reload' && 'animate-spin motion-reduce:animate-none')} aria-hidden/>
-        </IconAction>
-      </div>
-      {source && <p className="mt-1 break-all font-mono text-xs text-muted-foreground">{source.path}</p>}
-      {!source ? <p className="mt-2 text-meta text-state-waiting">核心没有返回连接状态</p>
-        : !source.exists ? <p className="mt-2 text-meta text-state-waiting">配置文件不存在。打开后按示例填写接口地址与密钥，保存后重新读取。</p>
-          : source.issue ? <p role="alert" className="mt-2 text-meta text-state-failed">{source.issue}</p>
-            : !providers.length ? <p className="mt-2 text-meta text-state-waiting">配置文件中没有可用的提供商</p> : null}
-      {(source?.notices ?? []).map(notice => <p key={notice} className="mt-2 text-meta text-state-waiting">{notice}</p>)}
-      {providers.length > 0 && <ul aria-label="提供商" className="mt-3 divide-y rounded-md border">
-        {providers.map(provider => <li key={provider.name} className="space-y-1 px-3 py-2.5">
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <span className="font-mono text-xs font-medium">{provider.name}</span>
-            <span className={cn('text-xs', provider.has_key ? 'text-muted-foreground' : 'text-state-waiting')}>
-              {provider.has_key ? <>密钥 <span className="font-mono">{provider.key_hint}</span></> : '未填写密钥'}
-            </span>
-            <span className="text-xs text-muted-foreground">{PROTOCOL_LABELS[provider.api_protocol] ?? provider.api_protocol}</span>
-          </div>
-          <p className="break-all font-mono text-xs text-muted-foreground">{provider.base_url ?? '未填写接口地址'}</p>
-          {!!provider.models?.length && <p className="break-all font-mono text-xs text-muted-foreground">{provider.models.join(' · ')}</p>}
-          {provider.issue && <p className="text-xs text-state-failed">{provider.issue}</p>}
-        </li>)}
-      </ul>}
-    </section>
-  )
-}
-
 const PROFILE_FIELDS: {part: ProfilePart; label: string; numeric: true; width: string}[] = [
   {part: 'temperature', label: '温度', numeric: true, width: 'w-32'},
   {part: 'max_tokens', label: '单次回复最大 tokens', numeric: true, width: 'w-40'},
@@ -258,7 +200,7 @@ export function LlmSection({form}: {form: LlmForm}) {
   const [catalogError, setCatalogError] = useState<string | null>(null)
   const [retry, setRetry] = useState(0)
   const [connections, setConnections] = useState<ConnectionSource | null>(null)
-  const connectionKey = JSON.stringify(connections?.providers?.map(item => [item.name, item.models, item.issue, item.has_key]) ?? null)
+  const connectionKey = connections?.version ?? form.config?.connections?.version
   useEffect(() => {
     let cancelled = false
     configApi.getModels().then(value => {if (!cancelled) {setCatalog(value); setCatalogError(null)}})
@@ -287,12 +229,17 @@ export function LlmSection({form}: {form: LlmForm}) {
   const reserve = useThinkingReserve(spec, sampling)
   const note = capabilityNote(spec, reserve)
   return <section aria-labelledby="settings-llm-title">
-    <SectionHeader id="settings-llm-title" title="模型提供商"/>
+    <SectionHeader id="settings-llm-title" title="模型提供商"
+      description="连接保存在本机配置文件，密钥仅显示掩码。修改后，新运行使用更新的连接。"/>
     {form.load.phase === 'loading' && <FormSkeleton rows={5}/>}
     {form.load.phase === 'error' && <LoadError message={form.load.message} onRetry={form.reload}/>}
-    {form.load.phase === 'ready' && values && <>
-      <ConnectionStatus initial={form.config?.connections ?? null} onChange={setConnections}/>
-      <div className="pt-2">
+    {form.config && <ModelConnections initial={connections ?? form.config.connections ?? null} onChange={next => {
+      setConnections(next)
+      if (!form.dirty) form.reload()
+    }}/>}
+    {form.load.phase === 'ready' && values && <details className="border-t pt-3" open={form.dirty || undefined}>
+      <summary className="cursor-pointer text-sm font-medium">逐模型参数</summary>
+      <div className="pt-3">
         {catalogError && <LoadError message={catalogError} onRetry={() => setRetry(n => n + 1)}/>}
         <div className="grid gap-6 @xl/form:grid-cols-[minmax(0,10rem)_minmax(0,1fr)]">
           {ids.length > 0 && <nav aria-label="正在编辑的模型">
@@ -322,7 +269,7 @@ export function LlmSection({form}: {form: LlmForm}) {
           </form>
         </div>
       </div>
-    </>}
+    </details>}
   </section>
   function renderField({field, label, hint, placeholder, mono, numeric, width}: {
     field: LlmField; label: string; hint?: string; placeholder?: string; mono?: boolean; numeric?: boolean; width: string;

@@ -110,7 +110,7 @@ class WorkspaceMemoryRuntime:
     async def on_run_completed(self, uow: IUnitOfWork, session_id: str, run_id: str) -> None:
         """运行正常结束的同一事务里登记摘要与提炼任务；登记失败只记日志。"""
         try:
-            await enqueue_post_run_jobs(uow, self.memory, session_id)
+            await enqueue_post_run_jobs(uow, self.memory, session_id, run_id)
         except Exception:
             logger.exception("登记摘要与提炼任务失败 session=%s run=%s", session_id, run_id)
 

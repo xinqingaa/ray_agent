@@ -34,6 +34,8 @@ import {useSessions} from '@/hooks/use-sessions'
 import {useDeveloperMode} from '@/hooks/use-developer-mode'
 import {memoryApi} from '@/lib/api/memory'
 import {sessionApi} from '@/lib/api/session'
+import {USAGE_RECORDED, usageApi} from '@/lib/api/usage'
+import {useUsagePreferences} from '@/hooks/use-usage-preferences'
 import {readRetryDisplay, writeRetryDisplay, retryEchoUserId, conversationTimeline} from '@/lib/retry-display'
 import {UncertainSubmissionError} from '@/lib/send-recovery'
 import {addDraftReference, readDraft, referenceKey, sessionDraftScope, writeDraft} from '@/lib/drafts'
@@ -111,6 +113,28 @@ export function SessionDetailView({
     loadTurnRequest,
     replyApproval,
   } = useSessionDetail(sessionId)
+  const {value: usagePreferences} = useUsagePreferences()
+  const showCost = usagePreferences?.show_conversation_cost === true
+  const [sessionCost, setSessionCost] = useState<{id: string; nanos: number | null} | null>(null)
+  const usageRevision = view?.runs.map(run => `${run.id}/${run.status}/${run.costNanos ?? ''}/${run.turns.length}`).join(',')
+  const usageSources = events.filter(event => ['title', 'compact'].includes(event.type)).length
+  useEffect(() => {
+    if (!showCost || usageRevision == null) return
+    let current = true
+    let requestId = 0
+    const refreshCost = () => {
+      const generation = ++requestId
+      void usageApi.session(sessionId).then(result => {
+        if (current && requestId === generation) setSessionCost({id: sessionId, nanos: result.cost_nano_usd ?? null})
+      }).catch(() => {})
+    }
+    refreshCost()
+    window.addEventListener(USAGE_RECORDED, refreshCost)
+    return () => {
+      current = false
+      window.removeEventListener(USAGE_RECORDED, refreshCost)
+    }
+  }, [sessionId, showCost, usageRevision, usageSources])
   const [showLoading, setShowLoading] = useState(false)
   useEffect(() => {
     if (!workspaceConversation || !loading || view) return
@@ -833,7 +857,8 @@ export function SessionDetailView({
                         这里会显示你的消息、工具操作和最终回复。在下方输入任务后开始。
                       </p>
                     )}
-                    <Timeline items={shownTimeline} runs={shownRuns} streaming={view.streaming} activeStatus={timelineStatus} handlers={handlers}/>
+                    <Timeline items={shownTimeline} runs={shownRuns} streaming={view.streaming} activeStatus={timelineStatus} handlers={handlers}
+                      showCost={showCost} sessionCost={sessionCost?.id === sessionId ? sessionCost.nanos : null}/>
                     {showOptimistic && outgoing ? <UserMessage text={outgoing.text} skillName={outgoing.skillName}/> : null}
                     {!view.activeRun && timelineStatus}
                     {showPlanExecute && <PlanExecuteBar disabled={submitting || pendingSend} onExecute={() => {

@@ -26,6 +26,7 @@ from .db_instruction_repository import DBInstructionRepository
 from .db_memory_repository import DBMemoryRepository
 from .db_search_repository import DBSearchRepository
 from .db_summary_repository import DBRunContextRepository, DBSummaryRepository
+from .db_usage_repository import DBUsageRepository
 from .db_workspace_repository import DBWorkspaceRepository
 from .db_write_lease_repository import DBWriteLeaseRepository
 
@@ -78,6 +79,7 @@ class DBUnitOfWork(IUnitOfWork):
         self.summary = DBSummaryRepository(db_session=session)
         self.run_context = DBRunContextRepository(db_session=session)
         self.document = DBDocumentRepository(db_session=session)
+        self.usage = DBUsageRepository(session)
         self.search = DBSearchRepository(db_session=session)
         return self
 

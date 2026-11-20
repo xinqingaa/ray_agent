@@ -10,6 +10,7 @@ from .root import RootModel
 from .run import RunModel
 from .session import SessionModel
 from .workspace import WorkspaceModel
+from .usage import UsageModel
 from .write_protection import FileChangeModel, WorkspaceObjectModel, WriteLeaseModel
 from .skill import SkillRecord, SkillVersion, SkillImport, RunSkill
 from .working_style import InstructionProposalModel, InstructionVersionModel, WorkingStyleTemplateModel
@@ -37,4 +38,4 @@ __all__ = ["Base", "AppConfigModel", "EventModel", "FileModel", "BackgroundJobMo
            "ExtractionJobModel", "MemoryChangeModel", "MemoryEntryModel", "MemorySourceModel",
            "MemorySuppressionModel", "RunContextManifestModel", "SessionSummaryModel", "SearchDocumentModel",
            "DocumentModel", "DocumentRevisionModel", "ContentBlockModel", "DocumentChunkModel",
-           "IndexPublicationModel"]
+           "IndexPublicationModel", "UsageModel"]

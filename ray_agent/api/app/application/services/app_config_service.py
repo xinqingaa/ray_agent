@@ -19,7 +19,8 @@ logger = logging.getLogger(__name__)
 class AppConfigService:
     """应用配置服务"""
 
-    _CONNECTION_FIELDS = ("api_protocol", "base_url", "api_key", "model_endpoints", "resolved_endpoints", "connections")
+    _CONNECTION_FIELDS = ("api_protocol", "base_url", "api_key", "model_endpoints", "resolved_endpoints", "connections",
+                          "custom_models", "selected_endpoint")
 
     def __init__(self, app_config_repository: AppConfigRepository) -> None:
         """构造函数，完成应用配置服务的初始化"""
@@ -65,7 +66,7 @@ class AppConfigService:
                 data.pop("model_profiles")
             else:
                 data["model_profiles"] = self._cap_profiles(
-                    data["model_profiles"], find_model,
+                    data["model_profiles"], lambda model_id: find_model(model_id, current),
                 )
         if "model_profiles" in data:
             data["model_profiles"] = {**current.model_profiles, **data["model_profiles"]}

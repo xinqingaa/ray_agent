@@ -14,7 +14,7 @@ uv sync --locked --group dev
 
 依赖由 [pyproject.toml](pyproject.toml) 声明、[uv.lock](uv.lock) 锁定。升级时同步核对两者与[冻结清单](rayagent-core.spec)，并重新冻结核心检查启动，本地开发不另维护一套手工安装版本。
 
-核心只从进程环境读取系统配置，不查找 `.env`；字段定义见 [core/config.py](core/config.py)。应用配置（逐模型参数、Agent、工具策略、MCP、A2A）保存在业务库，首次启动写入代码默认值，之后经设置接口修改。模型地址与密钥只从用户配置文件读取（默认 `~/.config/rayagent/config.toml`，`RAYAGENT_CONFIG` 可另指，格式见[配置示例](config.example.toml)），按文件身份重新读取；密钥不写入业务库，`GET /api/app-config/llm` 只返回配置文件状态、各提供商的地址、协议、模型与密钥掩码。测试不读用户目录，夹具把配置文件指向临时目录。
+核心只从进程环境读取系统配置，不查找 `.env`；字段定义见 [core/config.py](core/config.py)。应用配置（逐模型参数、Agent、工具策略、MCP、A2A）保存在业务库，首次启动写入代码默认值，之后经设置接口修改。模型地址与密钥只从用户配置文件读取（默认 `~/.config/rayagent/config.toml`，`RAYAGENT_CONFIG` 可另指，格式见[配置示例](config.example.toml)），按文件身份重新读取；密钥不写入业务库，设置页通过核心读写 TOML，公开接口返回文件版本、状态、地址、协议、模型与密钥掩码。测试不读用户目录，夹具把配置文件指向临时目录。
 
 运行核心不需要 PostgreSQL、Redis、Docker 或对象存储。文件访问经限根端口完成；Shell 按执行开关启用，浏览器在组件可用时提供。两者按需分配执行资源，旧 Docker 沙箱适配已移除。
 
@@ -317,7 +317,13 @@ HTTP MCP 与 A2A 对端必须先运行；stdio MCP 由核心按配置启动子�
 
 ## 模型配置与预算
 
-逐模型参数在应用设置中维护，端点地址与密钥由用户配置文件提供，见上文[依赖与配置](#依赖与配置)。选择、参数冻结与容量口径见 [Harness 模型请求分工](../../docs/harness.md#模型选择与请求分工)，默认值见[运行参数](../../docs/limits.md#模型与上下文)。模型配置检查包含在 `tests/core/test_model_configuration.py`、`tests/core/test_llm_api_key.py` 与 `tests/core/test_llm_endpoints.py`（配置文件解析、单项错误隔离、掩码与权限提醒），沿用本指南 pytest 入口。
+逐模型参数在应用设置中维护，连接与自定义模型声明保存在用户 TOML。相关 API 见应用的 OpenAPI。下列定向检查使用 SQLite 临时数据根和上游替身，覆盖配置冲突、保留未知字段、脱敏、模型列表、用量聚合、删除会话和转写计费。
+
+```bash
+uv run --locked python -m pytest tests/core/test_model_configuration.py tests/core/test_llm_api_key.py tests/core/test_llm_endpoints.py tests/core/test_usage_connections_voice.py
+```
+
+真实连接、录音权限和打包回填按[运行检查](../README.md#运行检查)走查。
 
 ### 网页读取与浏览器适配的定向检查
 

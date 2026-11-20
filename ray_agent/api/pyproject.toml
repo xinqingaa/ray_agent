@@ -41,6 +41,7 @@ dependencies = [
     "pyarrow>=17,<23",
     "pypdfium2>=4.30,<5",
     "rapidocr-onnxruntime>=1.4,<2",
+    "tomlkit>=0.13,<1",
 ]
 
 [dependency-groups]

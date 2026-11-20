@@ -8,6 +8,7 @@ import logging
 import uuid
 from typing import Any, Awaitable, Callable
 
+from app.domain.models.usage import usage_scope
 from app.application.services.background_jobs import JobContext
 from app.application.services.memory_extractor import MemoryExtractor, ProposedFact
 from app.application.services.memory_service import EXTRACTION_MAX_ITEMS, MemoryService
@@ -38,7 +39,7 @@ def _scope(workspace_id: str, session_id: str) -> OperationScope:
     return OperationScope(kind=OperationScopeKind.SESSION, session_id=session_id, workspace_id=workspace_id)
 
 
-async def enqueue_post_run_jobs(uow: IUnitOfWork, memory: MemoryService, session_id: str) -> list[BackgroundJob]:
+async def enqueue_post_run_jobs(uow: IUnitOfWork, memory: MemoryService, session_id: str, run_id: str | None = None) -> list[BackgroundJob]:
     """运行正常结束时在同一写事务里登记摘要与提炼任务。
 
     只有工作区会话且允许参与记忆时才登记：独立对话不写入记忆，设为不参与的会话既不提炼也不生成可检索的摘要。
@@ -51,7 +52,7 @@ async def enqueue_post_run_jobs(uow: IUnitOfWork, memory: MemoryService, session
     if workspace is None or workspace.status is not WorkspaceStatus.ACTIVE:
         return []
     seq = await uow.event.max_seq(session_id)
-    payload = {"workspace_id": session.workspace_id, "session_id": session_id, "source_seq_end": seq}
+    payload = {"workspace_id": session.workspace_id, "session_id": session_id, "source_seq_end": seq, "run_id": run_id}
     jobs: list[BackgroundJob] = []
     summary = await uow.job.add(BackgroundJob(
         operation_id=str(uuid.uuid4()), kind=OperationKind.SESSION_SUMMARY, retry_supported=False,
@@ -114,7 +115,9 @@ def session_summary_handler(
                 state=SummaryState.GENERATING, created_at=existing.created_at if existing else utc_now()))
         await context.progress(phase="生成会话摘要")
         try:
-            result = await generate(await llm_config(), material)
+            with usage_scope(purpose="summary", session_id=session_id, workspace_id=workspace_id,
+                             run_id=payload.get("run_id")):
+                result = await generate(await llm_config(), material)
             text = str(result.get("text") or "").strip()
             if not text:
                 raise SummaryUnavailable("摘要生成没有返回内容")
@@ -182,13 +185,17 @@ def memory_extraction_handler(
             return {"status": "skipped", "reason": "no_material"}
         await context.progress(phase="提炼记忆")
         extractor = await extractor_factory()
-        facts = await extractor.propose(material)  # 模型失败直接抛出：任务失败，不宣称已记住
+        with usage_scope(purpose="memory", session_id=extraction.session_id, workspace_id=extraction.workspace_id,
+                         run_id=context.job.payload.get("run_id")):
+            facts = await extractor.propose(material)
         decisions: list[ExtractionDecision] = []
         for fact in facts[:EXTRACTION_MAX_ITEMS]:
             await context.check_cancel()
             similar = await similar_entries(extraction.workspace_id, fact)
             if similar:
-                decisions.append(await extractor.decide(fact, similar))
+                with usage_scope(purpose="memory", session_id=extraction.session_id, workspace_id=extraction.workspace_id,
+                                 run_id=context.job.payload.get("run_id")):
+                    decisions.append(await extractor.decide(fact, similar))
             else:
                 decisions.append(ExtractionDecision(action=ExtractionAction.ADD, content=fact.content,
                                                     memory_type=fact.memory_type))

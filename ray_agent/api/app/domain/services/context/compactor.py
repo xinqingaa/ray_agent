@@ -10,6 +10,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, Awaitable, Callable, Dict, List, Optional, Sequence, Tuple
 
+from app.domain.models.usage import usage_scope
 from app.domain.external.llm import LLM, is_retryable
 from app.domain.models.app_config import AgentConfig
 from app.domain.models.event import BaseEvent, CompactEvent, CompactUsage, ContextEvent, ContextOp, MessageEvent
@@ -155,13 +156,16 @@ class Compactor:
         while usage.attempts < self._config.max_retries:
             usage.attempts += 1
             try:
-                result = await self._llm.invoke(messages=request)
+                with usage_scope(purpose="compact"):
+                    result = await self._llm.invoke(messages=request)
             except Exception as e:
                 logger.warning(f"{self._label} 摘要请求失败（第 {usage.attempts} 次）: {e}")
                 if not is_retryable(e):
                     break
                 await asyncio.sleep(self._retry_interval)
                 continue
+            if result.charge is not None:
+                usage.cost_nano_usd = _add_optional(usage.cost_nano_usd, result.charge.cost_nano_usd)
             if result.usage is not None:
                 usage.prompt_tokens = _add_optional(usage.prompt_tokens, result.usage.prompt_tokens)
                 usage.completion_tokens = _add_optional(usage.completion_tokens, result.usage.completion_tokens)

@@ -46,6 +46,7 @@ export type RunSnapshot = {
   prompt_tokens?: number
   completion_tokens?: number
   cached_tokens?: number | null
+  model_id?: string | null
 }
 
 /** 文本增量。不进入带 seq 的事件列表；同一 (run_id, turn, attempt) 按到达顺序拼接 */
@@ -151,6 +152,8 @@ type StoredEvent = {
 }
 
 type RunTrack = {
+  model?: string | null
+  compactCostNanos?: number
   outcome?: string
   missing?: string[]
   id: string
@@ -175,6 +178,8 @@ type TurnBuild = {
   modelMs: number | null
   toolsMs: number | null
   usage: TokenCounts | null
+  costNanos?: number
+  pricePeriods?: string[]
   finishReason: string | null
   toolCallIds: string[]
   idsLocked: boolean
@@ -360,6 +365,7 @@ export function projectSession(input: ProjectSessionInput): SessionView {
     if (!snap?.run_id) continue
     runs.set(snap.run_id, {
       id: snap.run_id,
+      model: snap.model_id,
       status: asRunStatus(snap.status),
       mode: 'normal',
       reason: snap.reason ?? null,
@@ -506,6 +512,11 @@ export function projectSession(input: ProjectSessionInput): SessionView {
         const usageRaw = data.usage
         if (isRecord(usageRaw)) {
           compactSessionUsage = sumUsage([compactSessionUsage, readUsage(usageRaw)])
+          const cost = num(usageRaw.cost_nano_usd)
+          if (cost != null && ev.runId) {
+            const run = ensureRun(ev.runId, ev.createdAt, ev.seq)
+            run.compactCostNanos = (run.compactCostNanos ?? 0) + cost
+          }
         }
         const trigger = asCompactTrigger(data.trigger)
         if (before != null && after != null && trigger) {
@@ -618,6 +629,7 @@ export function projectSession(input: ProjectSessionInput): SessionView {
       if (data.phase === 'started') {
         if (pending.length > 0) flushNarration()
         turn.startedAt = ev.createdAt
+        track.model = str(data.model_id) ?? track.model
         if (ev.seq != null) lastTurnStartedSeq = ev.seq
         const window = num(data.context_window)
         if (window != null) turn.contextWindow = window
@@ -634,6 +646,12 @@ export function projectSession(input: ProjectSessionInput): SessionView {
         turn.modelMs = num(data.model_ms)
         turn.toolsMs = num(data.tools_ms)
         turn.usage = readUsage(data.usage)
+        if (isRecord(data.usage)) {
+          turn.costNanos = num(data.usage.cost_nano_usd) ?? undefined
+          if (Array.isArray(data.usage.price_periods)) {
+            turn.pricePeriods = data.usage.price_periods.filter((item): item is string => typeof item === 'string')
+          }
+        }
         turn.finishReason = str(data.finish_reason)
         if (Array.isArray(data.tool_call_ids)) {
           turn.toolCallIds = data.tool_call_ids.filter((id): id is string => typeof id === 'string')
@@ -1038,7 +1056,13 @@ function toRunView(
   const status = track.status ?? 'running'
   const mine = turns.filter((turn) => turn.runId === track.id).sort((a, b) => a.index - b.index)
   const turnViews = mine.map(toTurnView)
+  const costs = [track.compactCostNanos, ...mine.map(turn => turn.costNanos)].filter((item): item is number => item != null)
+  const periods = [...new Set(mine.flatMap(turn => turn.pricePeriods ?? []))]
+  const projectedCost = track.summary?.costNanos ?? (costs.length ? costs.reduce((sum, cost) => sum + cost, 0) : null)
   return {
+    ...(track.model && {model: track.model}),
+    ...(projectedCost != null && {costNanos: projectedCost}),
+    ...(periods.length > 0 && {pricePeriods: periods}),
     id: track.id,
     status,
     mode: track.mode,
@@ -1243,6 +1267,7 @@ function summaryFromRaw(raw: Record<string, unknown>, track: RunTrack): RunSumma
     durationMs: duration ?? (ended != null ? Math.max(0, ended - track.startedAt) : 0),
     turns: num(raw.turns) ?? 0,
     toolCalls: num(raw.tool_calls) ?? 0,
+    ...(num(raw.cost_nano_usd) != null && {costNanos: num(raw.cost_nano_usd)}),
     tokens: withCached({prompt, completion, total: prompt + completion}, raw.cached_tokens == null ? null : num(raw.cached_tokens)),
   }
 }

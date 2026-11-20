@@ -8,7 +8,7 @@
 
 | 阅读问题 | 入口 |
 |---|---|
-| 用量统计、模型连接编辑与语音输入（P9 前追加，已授权原型） | [用量、模型连接与语音](usage-models-voice.md) |
+| 本机与 OpenAI 转写 | [语音转写扩展](usage-models-voice.md) |
 | 签名、更新、离线包与移动分发 | [客户端与分发](clients-and-distribution.md) |
 | 完整备份恢复与正式更新 | [本机核心](local-runtime-and-storage.md) |
 | Windows 文件／进程和移动配对边界 | [后续阶段](implementation.md#后续阶段)、[共享契约](shared-contracts.md) |

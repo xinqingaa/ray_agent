@@ -1,6 +1,7 @@
-import {Clock3, Gauge, Repeat2, type UiIcon} from '@/components/ui/icons'
+import {Clock3, Coins, Gauge, Repeat2, type UiIcon} from '@/components/ui/icons'
 import {useState, type ReactNode} from 'react'
 import {cn} from '@/lib/utils'
+import {formatEstimatedCost} from '@/lib/api/usage'
 import type {RunView, StreamingDraft, TurnView} from '@/lib/session-view'
 import {resolveOutputRate, type OutputRate} from '@/lib/session-projection'
 import {Popover, PopoverContent, PopoverTrigger} from '@/components/ui/popover'
@@ -14,6 +15,8 @@ type RunStatusBarProps = {
   /** 这条统计所属的运行 */
   run: RunView | null
   streaming?: StreamingDraft | null
+  showCost?: boolean
+  sessionCost?: number | null
   className?: string
 }
 
@@ -83,12 +86,12 @@ function Stat({icon: Icon, title, children, secondary, detailsOpen}: {icon?: UiI
     <TooltipTrigger asChild><span className={cn('inline-flex items-center gap-1', secondary && 'run-stat-secondary')}>
       {Icon && <Icon aria-hidden className="size-[13px] shrink-0 text-faint"/>}{children}
     </span></TooltipTrigger>
-    <TooltipContent side="bottom" sideOffset={6} tone="contrast">{title}</TooltipContent>
+    <TooltipContent side="bottom" sideOffset={6} tone="contrast" className="whitespace-pre-line">{title}</TooltipContent>
   </Tooltip>
 }
 
 /** 简洁统计独立于开发者模式；本次消耗只在运行进入终态后显示，点开查看逐轮明细。 */
-export function RunStatusBar({run, streaming, className}: RunStatusBarProps) {
+export function RunStatusBar({run, streaming, className, showCost, sessionCost}: RunStatusBarProps) {
   const phase = runPhase(run?.status, run?.activity)
   const live = LIVE_PHASES.includes(phase)
   const [open, setOpen] = useState(false)
@@ -130,9 +133,16 @@ export function RunStatusBar({run, streaming, className}: RunStatusBarProps) {
   const speedNote = rate?.estimated ? '按可见文本估算' : rate ? '最近一轮输出速度，不含工具等待' : '尚无速度'
   const tokens = run.summary?.tokens ?? run.tokens
   const total = totalTokens(tokens)
+  const periods: Record<string, string> = {peak: '高峰', off_peak: '低谷', standard: '标准', custom: '自定义'}
+  const cost = run.costNanos != null ? formatEstimatedCost(run.costNanos) : '—'
+  const costVisible = showCost && ended && (run.costNanos != null || run.turns.some(turn => turn.usage))
+  const costDetail = ['估算费用', run.model, run.pricePeriods?.map(period => periods[period] ?? period).join('、'),
+    `输入 ${formatTokens(tokens.prompt)}（缓存命中 ${formatTokens(tokens.cached)}） · 输出 ${formatTokens(tokens.completion)}`,
+    `本对话累计 ${formatEstimatedCost(sessionCost)}`, '实际金额以服务商账单为准'].filter(Boolean).join('\n')
   const liveCached = cached && run.turns.at(-1)?.index === cached.turn ? cached.rate : null
   const label = [`本次运行用时 ${elapsedText(elapsed)}`, `${turnCount} 轮`, `${speed} tokens 每秒，${speedNote}`,
-    ...(ended ? [`已记录 ${total != null ? formatCount(total) : '未知'} tokens`] : [])].join('，')
+    ...(ended ? [`已记录 ${total != null ? formatCount(total) : '未知'} tokens`] : []),
+    ...(costVisible ? [`估算费用 ${cost}`] : [])].join('，')
 
   return (
     <div className={cn('shrink-0', className)}>
@@ -150,11 +160,13 @@ export function RunStatusBar({run, streaming, className}: RunStatusBarProps) {
               <Stat icon={Repeat2} title="模型请求轮次" detailsOpen={open}>{turnCount} 轮</Stat>
               <Stat icon={Gauge} title={`输出速度（${speedNote}）`} detailsOpen={open} secondary>{speed} tok/s</Stat>
               {ended && <Stat title={`本次运行已记录 ${total != null ? formatCount(total) : '未知'} Token`} detailsOpen={open} secondary>{formatTokens(total)}</Stat>}
+              {costVisible && <Stat icon={Coins} title={costDetail} detailsOpen={open}>{run.costNanos != null ? '≈' + cost : cost}</Stat>}
             </button>
           </PopoverTrigger>
           <PopoverContent side="bottom" sideOffset={8} align="center" collisionPadding={12}
             className="w-[340px] max-w-[calc(100vw-24px)] rounded-[14px] border-0 bg-background px-3.5 py-3 shadow-(--float-shadow)">
             <RunBreakdown run={run} now={now} liveRate={currentRate ?? liveCached} elapsed={elapsed} speedNote={speedNote} ended={ended}/>
+            {costVisible && <p className="mt-2 border-t pt-2 text-xs whitespace-pre-line text-muted-foreground">{costDetail}</p>}
           </PopoverContent>
         </Popover>
       </div>

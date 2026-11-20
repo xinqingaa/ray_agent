@@ -5,7 +5,7 @@ from enum import Enum
 from typing import Dict, Optional, List, Any
 
 from pydantic import BaseModel, HttpUrl, Field, ConfigDict, model_validator
-from app.domain.models.llm_endpoints import ApiProtocol, ConnectionSource, LlmEndpoint, default_model_endpoints
+from app.domain.models.llm_endpoints import ApiProtocol, ConnectionSource, CustomModel, LlmEndpoint, default_model_endpoints
 
 
 class ModelSampling(BaseModel):
@@ -25,6 +25,8 @@ class LLMConfig(BaseModel):
     # 以下来自模型连接配置文件，每次加载重新给出
     model_endpoints: Dict[str, str] = Field(default_factory=default_model_endpoints, exclude=True)
     resolved_endpoints: Dict[str, Optional[LlmEndpoint]] = Field(default_factory=dict, exclude=True, repr=False)
+    custom_models: Dict[str, CustomModel] = Field(default_factory=dict, exclude=True)
+    selected_endpoint: Optional[LlmEndpoint] = Field(default=None, exclude=True, repr=False)
     connections: Optional[ConnectionSource] = Field(default=None, exclude=True)
     temperature: float = Field(0.7, ge=0)  # 未知厂商，以及某个模型还没有单独配置时使用
     max_tokens: int = Field(8192, ge=1)  # 同上；思考开启时请求还会抬到该模型的建议下限

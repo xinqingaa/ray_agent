@@ -5,6 +5,7 @@ import re
 import unicodedata
 from typing import Callable, Optional
 
+from app.domain.models.usage import usage_scope
 from app.application.errors.exceptions import BadRequestError, NotFoundError
 from app.domain.models.event import TitleEvent
 from app.domain.repositories.uow import IUnitOfWork
@@ -92,11 +93,12 @@ class TitleService:
             "'Écris un résumé du rapport' -> 'Résumé du rapport'. "
             "Output only the title, with no prefix, quotes, or final punctuation."
         )
-        result = await asyncio.wait_for(OpenAILLM(
-            short_config, thinking=thinking, reasoning_effort=effort, reasoning_id="disabled" if thinking else None,
-        ).invoke([
-            {"role": "system", "content": prompt}, {"role": "user", "content": material},
-        ]), timeout=23)
+        with usage_scope(purpose="title", session_id=session.id, workspace_id=session.workspace_id):
+            result = await asyncio.wait_for(OpenAILLM(
+                short_config, thinking=thinking, reasoning_effort=effort, reasoning_id="disabled" if thinking else None,
+            ).invoke([
+                {"role": "system", "content": prompt}, {"role": "user", "content": material},
+            ]), timeout=23)
         if result.finish_reason == "length":
             raise BadRequestError("标题生成未完成，请重试")
         return generated_title(str(result.message.get("content") or ""))

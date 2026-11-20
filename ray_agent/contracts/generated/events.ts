@@ -333,6 +333,7 @@ export interface TurnEventData {
   event_version: number;
   phase: "started" | "completed";
   index: number;
+  model_id: string | null;
   context_estimate: {
     [k: string]: unknown;
   } | null;
@@ -354,6 +355,8 @@ export interface TurnUsage {
   completion_tokens?: number | null;
   cached_tokens?: number | null;
   reasoning_tokens?: number | null;
+  cost_nano_usd?: number | null;
+  price_periods?: string[];
 }
 /**
  * 失败尝试流式事件
@@ -401,10 +404,21 @@ export interface RunEventData {
   event_version: number;
   status: RunStatus;
   reason: string | null;
-  summary: {
-    [k: string]: unknown;
-  } | null;
+  summary: RunSummary | null;
   mode: RunMode | null;
+}
+/**
+ * 运行汇总：终态 run 事件附带；模型请求与 tokens 等于各轮 turn 事件与 compact 事件（摘要请求）之和。
+ */
+export interface RunSummary {
+  duration_ms?: number | null;
+  turns?: number;
+  model_requests?: number;
+  tool_calls?: number;
+  prompt_tokens?: number;
+  completion_tokens?: number;
+  cached_tokens?: number | null;
+  cost_nano_usd?: number | null;
 }
 export interface EnvironmentSSEEvent {
   event: "environment";
@@ -486,6 +500,7 @@ export interface CompactUsage {
   prompt_tokens?: number | null;
   completion_tokens?: number | null;
   cached_tokens?: number | null;
+  cost_nano_usd?: number | null;
 }
 export interface CleanupSSEEvent {
   event: "cleanup";

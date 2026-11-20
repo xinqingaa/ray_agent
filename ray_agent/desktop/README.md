@@ -54,6 +54,8 @@ npm run build
 
 产物内含：UI／核心 `build-manifest.json`、`resources/package_identity.json`（协议与 schema 兼容范围）、`resources/component_manifest.json`、`resources/tool_runtime_manifest.json`、`tool-runtime-archives/` 与 `resources/THIRD_PARTY_NOTICES.md`。正常工具解释器独立于冻结核心；Node 来自锁定 Playwright 包内的原生解释器，单独作为工具运行时校验并分发，不经 driver CLI 执行脚本。CPython 采用固定的 python-build-standalone 产物。两者均在构建时核对哈希和真实版本，缺失时冻结构建失败；运行时不借用开发机解释器。`build/`、`dist/`、`target/` 已由根 `.gitignore` 排除，不提交。
 
+内置应用的麦克风用途来自 Info.plist，签名时合入录音授权项。语音需在签名后的宿主验证系统授权、拒绝提示和录音。
+
 核对签名与从终端查看日志：
 
 ```bash

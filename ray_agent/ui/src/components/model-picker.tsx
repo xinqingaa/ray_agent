@@ -1,6 +1,7 @@
 import {useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react'
 import {Check, ChevronDown} from '@/components/ui/icons'
 import {toast} from 'sonner'
+import {MODEL_CONNECTIONS_CHANGED} from '@/lib/api/model-connections'
 import {configApi} from '@/lib/api/config'
 import {sessionApi} from '@/lib/api/session'
 import type {ModelCatalog} from '@/lib/api/types'
@@ -30,6 +31,11 @@ export function ModelPicker({sessionId, savedModel, savedReasoning, onSelection,
   const [catalogError, setCatalogError] = useState<string | null>(loadError ?? null)
   const [catalogReady, setCatalogReady] = useState(Boolean(providedCatalog || loadError))
   const [catalogRevision, setCatalogRevision] = useState(0)
+  useEffect(() => {
+    const refresh = () => setCatalogRevision(value => value + 1)
+    window.addEventListener(MODEL_CONNECTIONS_CHANGED, refresh)
+    return () => window.removeEventListener(MODEL_CONNECTIONS_CHANGED, refresh)
+  }, [])
   const [picked, setPicked] = useState<ModelSelection | null>(null)
   const [recent, setRecent] = useState<ModelSelection | null>(null)
   const [preferenceRead, setPreferenceRead] = useState(false)

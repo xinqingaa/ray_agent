@@ -13,6 +13,10 @@ from openai import (APIConnectionError, APIError, APIStatusError, AsyncOpenAI, D
 from app.domain.external.llm import LLM, LLMRequestError, DeltaCallback
 from app.domain.models.app_config import LLMConfig
 from app.domain.models.llm import LLMInvokeResult, LLMUsage
+from app.domain.models.clock import utc_now
+from app.domain.services.usage_pricing import token_charge
+from app.infrastructure.external.llm.usage_recording import record_usage
+from app.infrastructure.external.llm.upstream_errors import redact_credentials, upstream_message
 from app.infrastructure.external.llm.usage import parse_completion_usage
 from app.infrastructure.logging import log_session_prefix
 from app.infrastructure.external.llm.responses import plain, response_input, response_tools, response_result, response_error
@@ -61,19 +65,31 @@ class OpenAILLM(LLM):
         kwargs.setdefault('max_retries', 0)
         if 'http_client' not in kwargs:
             kwargs['http_client'] = _http_client()
+        endpoint = llm_config.selected_endpoint
+        self.connection_endpoint = endpoint
+        self._api_key = llm_config.api_key
+        keyless = bool(endpoint and not endpoint.requires_key and not self._api_key)
+        if keyless:
+            from openai import Omit
+            kwargs["default_headers"] = {**kwargs.get("default_headers", {}), "Authorization": Omit()}
         self._client = AsyncOpenAI(
             base_url=str(llm_config.base_url),
-            api_key=llm_config.api_key,
+            api_key="xxxx" if keyless else self._api_key,
             **kwargs,
         )
 
         self._model_name = llm_config.model_name
         self.api_protocol = llm_config.api_protocol
-        self._has_api_key = bool(llm_config.api_key.strip()) and llm_config.api_key.strip() != "xxxx"
+        self._has_api_key = keyless or bool(self._api_key.strip() and self._api_key.strip() != "xxxx")
         self._temperature = llm_config.temperature
         from app.domain.models.model_catalog import find_model
-        spec = find_model(llm_config.model_name)
-        self._provider = spec.provider if spec else 'openai'
+        spec = find_model(llm_config.model_name, llm_config)
+        self._custom = llm_config.custom_models.get(self._model_name)
+        self._billing_vendor = (endpoint.kind or "compatible") if endpoint else (spec.provider if spec else "compatible")
+        self._billing_provider = (endpoint.provider if endpoint else None) or self._billing_vendor
+        self.supports_tools = spec is None or spec.tools
+        self.connection_snapshot = None
+        self._provider = (self._billing_vendor if self._custom else spec.provider) if spec else 'openai'
         self.tool_batching = spec.tool_batching if spec else 'disabled'
         self._emit_thinking = True if spec is None else spec.emit_thinking
         self.supports_vision = bool(spec and spec.vision)
@@ -149,43 +165,74 @@ class OpenAILLM(LLM):
                 raise LLMRequestError(f"{self._model_name} 未配置 API Key")
             messages = await self._materialize_images(messages)
             if self.api_protocol == 'responses':
-                return await self._invoke_responses(messages, tools, response_format, tool_choice, on_delta, prefix)
-            if self._streaming:
-                return await self._invoke_stream(messages, tools, response_format, tool_choice, on_delta, prefix)
-            return await self._invoke_complete(messages, tools, response_format, tool_choice, prefix)
-        except LLMRequestError:
-            raise
-        except Exception as e:
-            status_code = getattr(e, "status_code", None)
-            logger.error(
-                f"{prefix}LLM请求失败 status={status_code} "
-                f"protocol={self.api_protocol} code={getattr(e, 'code', None)} request_id={getattr(e, 'request_id', None)} "
-                f"error={e} cause={_cause_chain(e)}"
-            )
-            if isinstance(e, APIError) and not isinstance(e, APIStatusError):
-                classified = response_error(getattr(e, 'code', None), str(e))
+                return await self._account(self._invoke_responses(messages, tools, response_format, tool_choice, on_delta, prefix))
+            if not self._streaming:
+                return await self._account(self._invoke_complete(messages, tools, response_format, tool_choice, prefix))
+            try:
+                return await self._account(self._invoke_stream(messages, tools, response_format, tool_choice, on_delta, prefix))
+            except APIStatusError as error:
+                if self._custom or not self._include_stream_usage or not _rejects_stream_options(error):
+                    raise
+                self._include_stream_usage = False
+                logger.warning("供应商拒绝 stream_options，后续请求不再携带 include_usage")
+                return await self._account(self._invoke_stream(messages, tools, response_format, tool_choice, on_delta, prefix))
+        except LLMRequestError as error:
+            message = redact_credentials(str(error), self._api_key)
+            if message == str(error):
+                raise
+            raise LLMRequestError(message, retryable=error.retryable, status_code=error.status_code,
+                                  context_exceeded=error.context_exceeded, reason=error.reason,
+                                  connect_failed=error.connect_failed) from None
+        except Exception as error:
+            status_code = getattr(error, "status_code", None)
+            message = (upstream_message(error.response, self._api_key) if isinstance(error, APIStatusError)
+                       else redact_credentials(str(error), self._api_key))
+            cause = redact_credentials(_cause_chain(error) or "", self._api_key)
+            logger.error("%sLLM请求失败 status=%s protocol=%s error=%s cause=%s",
+                         prefix, status_code, self.api_protocol, message, cause)
+            safe_cause = error if _connect_failed(error) and all(
+                redact_credentials(str(item), self._api_key) == str(item) for item in _causes(error)
+            ) else None
+            if isinstance(error, APIError) and not isinstance(error, APIStatusError):
+                classified = response_error(getattr(error, 'code', None), message)
                 if classified.retryable or classified.context_exceeded:
-                    raise classified from e
+                    raise classified from None
             raise LLMRequestError(
-                f"调用OpenAI客户端向LLM发起请求出错: {str(e)}",
-                retryable=_is_transport_error(e),
+                f"模型请求失败（HTTP {status_code}）：{message}" if status_code else f"模型请求失败：{message}",
+                retryable=_is_transport_error(error),
                 status_code=status_code,
-                context_exceeded=_is_context_exceeded(e),
-                connect_failed=_connect_failed(e),
-            ) from e
+                context_exceeded=_is_context_exceeded(error),
+                connect_failed=_connect_failed(error),
+            ) from safe_cause
+
+    async def _account(self, request) -> LLMInvokeResult:
+        started = utc_now()
+        try:
+            result = await request
+        except (Exception, asyncio.CancelledError):
+            await record_usage(started, self._billing_provider, self._model_name, failed=True)
+            raise
+        charge = token_charge(
+            self._billing_vendor, self._model_name, started, result.usage, self._custom.rates if self._custom else None,
+        )
+        await record_usage(started, self._billing_provider, self._model_name, usage=result.usage, charge=charge)
+        result.charge = charge
+        return result
 
     def _responses_kwargs(self, messages, tools, response_format, tool_choice):
         kwargs = {'model': self._model_name, 'input': response_input(messages, self._model_name, self._provider),
                   'max_output_tokens': self._max_tokens, 'stream': self._streaming, 'timeout': self._timeout}
-        if self._provider != 'deepseek':
+        if self._provider != 'deepseek' and not self._custom:
             kwargs.update(store=False, include=['reasoning.encrypted_content'])
         if self._send_temperature:
             kwargs['temperature'] = self._temperature
         effort = self._reasoning_effort
-        if self._provider == 'deepseek' and self._thinking == 'disabled':
+        if self._provider == 'deepseek' and self._thinking == 'disabled' and not self._custom:
             effort = 'none'
         if effort:
             kwargs['reasoning'] = {'effort': effort}
+        if self._custom and self._emit_thinking and self._thinking in ("enabled", "disabled"):
+            kwargs['extra_body'] = {"thinking": {"type": self._thinking}}
         if tools:
             kwargs['tools'] = response_tools(tools)
             if tool_choice:
@@ -216,7 +263,7 @@ class OpenAILLM(LLM):
                         if kind == 'response.output_text.delta' and on_delta and _field(event, 'delta'):
                             await on_delta(_field(event, 'delta'))
                     if kind == 'error':
-                        logger.warning('%sResponses流失败 code=%s', prefix, _field(event, 'code'))
+                        logger.warning('%sResponses流失败', prefix)
                         raise response_error(_field(event, 'code'), _field(event, 'message') or '模型流错误')
                     if kind in ('response.completed', 'response.incomplete', 'response.failed'):
                         response = _field(event, 'response')
@@ -298,18 +345,6 @@ class OpenAILLM(LLM):
             kwargs["reasoning_effort"] = self._reasoning_effort
         return kwargs
 
-    async def _create(self, kwargs: Dict[str, Any]) -> Any:
-        """供应商拒绝 stream_options 时去掉该参数重试一次，并记住之后不再携带。"""
-        try:
-            return await self._client.chat.completions.create(**kwargs)
-        except Exception as e:
-            if "stream_options" not in kwargs or not _rejects_stream_options(e):
-                raise
-            self._include_stream_usage = False
-            logger.warning("供应商拒绝 stream_options，后续请求不再携带 include_usage")
-            trimmed = {key: value for key, value in kwargs.items() if key != "stream_options"}
-            return await self._client.chat.completions.create(**trimmed)
-
     async def _invoke_complete(
             self,
             messages: List[Dict[str, Any]],
@@ -318,7 +353,7 @@ class OpenAILLM(LLM):
             tool_choice: Optional[str],
             prefix: str,
     ) -> LLMInvokeResult:
-        response = await self._create(self._request_kwargs(
+        response = await self._client.chat.completions.create(**self._request_kwargs(
             messages, tools, response_format, tool_choice, stream=False,
         ))
         choice = response.choices[0]
@@ -329,7 +364,6 @@ class OpenAILLM(LLM):
             f"has_content={bool(message.content)} tool_calls={len(message.tool_calls or [])} "
             f"usage={usage.model_dump() if usage else None}"
         )
-        logger.debug(f"{prefix}LLM完整响应: {response.model_dump()}")
         return LLMInvokeResult(message=message.model_dump(), usage=usage, finish_reason=choice.finish_reason)
 
     async def _invoke_stream(
@@ -342,7 +376,7 @@ class OpenAILLM(LLM):
             prefix: str,
     ) -> LLMInvokeResult:
         started = asyncio.get_running_loop().time()
-        stream = await self._create(self._request_kwargs(
+        stream = await self._client.chat.completions.create(**self._request_kwargs(
             messages, tools, response_format, tool_choice, stream=True,
         ))
         assembly = _StreamAssembly()
@@ -527,8 +561,7 @@ def _causes(error: BaseException):
 
 
 def _cause_chain(error: BaseException) -> Optional[str]:
-    """SDK 的 Connection error. 不说明是 DNS、TCP 还是 TLS；底层异常链才能区分。"""
-    return ' <- '.join(f'{type(item).__name__}: {item}'[:160] for item in list(_causes(error))[1:5]) or None
+    return ' <- '.join(f'{type(item).__name__}: {item}' for item in list(_causes(error))[1:5]) or None
 
 
 def _connect_failed(error: BaseException) -> bool:

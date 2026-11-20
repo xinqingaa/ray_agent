@@ -14,9 +14,11 @@ function load(file){
  if(cache[file])return cache[file];const exports={};cache[file]=exports;
  const code=ts.transpileModule(fs.readFileSync(root+'/src/'+file,'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022,jsx:ts.JsxEmit.ReactJSX}}).outputText;
  new Function('require','exports',code)(name=>{
+  if(name.endsWith('.css'))return {};
   if(name==='react')return React;if(name==='react/jsx-runtime')return require(name);
   if(name==='@/components/ui/icons')return new Proxy({}, {get:()=>()=>null});
   if(name==='sonner')return {toast:{error(){}}};
+  if(name==='@/lib/api/model-connections')return {MODEL_CONNECTIONS_CHANGED:'rayagent:model-connections-changed'};
   if(name==='@/lib/api/config')return {configApi};if(name==='@/lib/api/session')return {sessionApi};
   if(name==='@/lib/platform')return {isDesktop:()=>false};
   if(name==='@/lib/utils')return {cn:(...xs)=>xs.filter(Boolean).join(' ')};

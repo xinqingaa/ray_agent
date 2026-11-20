@@ -1,4 +1,4 @@
-import {AlertTriangle, BookOpen, ChevronRight, FolderOpen, Globe, Package, ShieldCheck, SlidersHorizontal, X, type UiIcon, Bot, Cable, Palette} from '@/components/ui/icons'
+import {Activity, AlertTriangle, BookOpen, ChevronRight, FolderOpen, Globe, Package, ShieldCheck, SlidersHorizontal, X, type UiIcon, Bot, Cable, Palette} from '@/components/ui/icons'
 import {useEffect, useRef, useState} from 'react'
 import {Button} from '@/components/ui/button'
 import {IconAction} from '@/components/ui/icon-action'
@@ -18,14 +18,17 @@ import {DataSection} from './data-section'
 import {WorkspaceSection} from './workspace-section'
 import {useDeveloperMode} from '@/hooks/use-developer-mode'
 import {Switch} from '@/components/ui/switch'
+import {UsageSection} from './usage-section'
+import {VoiceSettings} from './voice-settings'
 
-type SectionKey = 'general' | 'workspace' | 'appearance' | 'llm' | 'mcp' | 'a2a' | 'tool-policy' | 'data'
+type SectionKey = 'general' | 'workspace' | 'appearance' | 'llm' | 'mcp' | 'a2a' | 'tool-policy' | 'data' | 'usage'
 
 const SECTIONS: {key: SectionKey; label: string; icon: UiIcon}[] = [
   {key: 'general', label: '通用', icon: SlidersHorizontal},
   {key: 'workspace', label: '工作区', icon: FolderOpen},
   {key: 'appearance', label: '外观', icon: Palette},
   {key: 'llm', label: '模型提供商', icon: Bot},
+  {key: 'usage', label: '用量', icon: Activity},
   {key: 'mcp', label: 'MCP 服务器', icon: Cable},
   {key: 'a2a', label: '远程 Agent', icon: Globe},
   {key: 'tool-policy', label: '工具策略', icon: ShieldCheck},
@@ -47,7 +50,7 @@ export function SettingsView({onClose, onDirtyChange, onNavigate, closeBlocked, 
   const {enabled, setEnabled, visibility} = useDeveloperMode()
   const [selectedSection, setActive] = useState<SectionKey>('general')
   const scroll = useRef<HTMLDivElement>(null)
-  const active = selectedSection === 'llm' && !visibility.providerSettings ? 'general' : selectedSection
+  const active = selectedSection
   const general = useConfigForm(generalFormOptions)
   const llm = useConfigForm(llmFormOptions)
   const toolPolicy = useToolPolicyForm()
@@ -72,9 +75,9 @@ export function SettingsView({onClose, onDirtyChange, onNavigate, closeBlocked, 
         <X aria-hidden/>
       </IconAction>}
       <div className="flex h-full min-h-0 flex-col @3xl/settings:flex-row">
-        <nav aria-label="设置分区" className="shrink-0 overflow-x-auto border-b bg-muted/55 px-3 py-2 pr-12 @3xl/settings:w-48 @3xl/settings:overflow-y-auto @3xl/settings:border-b-0 @3xl/settings:px-2.5 @3xl/settings:py-4">
+        <nav aria-label="设置分区" className="shrink-0 overflow-x-auto border-b bg-muted/55 px-3 py-2 pr-12 @3xl/settings:w-[210px] @3xl/settings:overflow-y-auto @3xl/settings:border-b-0 @3xl/settings:px-2.5 @3xl/settings:py-4">
           <ul className="flex gap-1 @3xl/settings:flex-col">
-            {SECTIONS.filter(item => item.key !== 'llm' || visibility.providerSettings).map(({key, label, icon: Icon}) => {
+            {SECTIONS.map(({key, label, icon: Icon}) => {
               const shownLabel = !visibility.connectionSettings && key === 'mcp' ? '外部工具' : !visibility.connectionSettings && key === 'a2a' ? '远程协作' : key === 'tool-policy' ? '执行权限' : label
               const current = key === active
               return (
@@ -115,18 +118,20 @@ export function SettingsView({onClose, onDirtyChange, onNavigate, closeBlocked, 
         </nav>
 
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-          <div ref={scroll} className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5 @3xl/settings:pr-12 @3xl/settings:pl-7">
+          <div ref={scroll} className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5 @3xl/settings:pr-[34px] @3xl/settings:pl-[30px]">
             <div className="@container/form mx-auto w-full max-w-4xl">
               {active === 'general' && <GeneralSection form={general}>
                 <div className="mb-6 flex items-center justify-between gap-4 border-b pb-5">
                   <div><label htmlFor="developer-mode" className="text-sm font-medium">开发者模式</label><p id="developer-mode-hint" className="mt-1 text-xs text-muted-foreground">{enabled && hasUnsavedChanges ? '请先保存或撤销设置修改，再关闭开发者模式。' : '显示执行细节、终端和高级配置。'}</p></div>
                   <Switch id="developer-mode" aria-describedby="developer-mode-hint" checked={enabled} disabled={enabled && hasUnsavedChanges} onCheckedChange={setEnabled}/>
                 </div>
+                <VoiceSettings/>
               </GeneralSection>}
               {active === 'workspace' && <WorkspaceSection/>}
               {active === 'appearance' && <AppearanceSection/>}
               {active === 'data' && <DataSection onNavigate={onNavigate} disabledReason={hasUnsavedChanges ? '请先保存或撤销设置修改，再清空数据。' : undefined}/>}
               {active === 'llm' && <LlmSection form={llm}/>}
+              {active === 'usage' && <UsageSection/>}
               {active === 'mcp' && <McpSection/>}
               {active === 'a2a' && <A2aSection/>}
               {active === 'tool-policy' && <ToolPolicySection form={toolPolicy}/>}

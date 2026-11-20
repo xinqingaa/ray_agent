@@ -63,6 +63,7 @@ export type RunSummary = {
   turns: number
   toolCalls: number
   tokens: TokenCounts
+  costNanos?: number | null
 }
 
 export type Activity =
@@ -79,6 +80,9 @@ export type RunMode = 'normal' | 'plan'
 export type RunView = {
   outcome?: string
   missing?: string[]
+  model?: string | null
+  costNanos?: number | null
+  pricePeriods?: string[]
   id: string
   status: RunStatus
   /** 运行模式；缺省为 normal */

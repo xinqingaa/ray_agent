@@ -21,6 +21,8 @@ import {clearDraft, draftClearedBy, readDraft, referenceKey, writeDraft, DRAFT_C
 import type {StartOptions} from '@/hooks/use-start-task'
 import {recoverSubmission, UncertainSubmissionError} from '@/lib/send-recovery'
 import {findSlashTrigger, matchesCommandQuery, removeSlashFragment, type SlashFragment} from '@/lib/slash-trigger'
+import {VoiceInput} from '@/components/voice-input'
+import {useUsagePreferences} from '@/hooks/use-usage-preferences'
 import {ModelPicker, type ModelSelection} from '@/components/model-picker'
 import {rememberModelPreference} from '@/lib/model-preference'
 import {useDeveloperMode} from '@/hooks/use-developer-mode'
@@ -83,6 +85,8 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
     const [uploading, setUploading] = useState(false)
     const [sending, setSending] = useState(false)
     const [inputValue, setInputValue] = useState('')
+    const {value: usagePreferences} = useUsagePreferences()
+    const [voiceBusy, setVoiceBusy] = useState(false)
     const [selectedSkill, setSelectedSkill] = useState<(SkillSelection & {name?: string}) | null>(null)
     const [skills, setSkills] = useState<Skill[]>([])
     useEffect(() => {
@@ -112,6 +116,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
     const [activeId, setActiveId] = useState<string | null>(null)
     const fileInputRef = useRef<HTMLInputElement>(null)
     const textareaRef = useRef<HTMLTextAreaElement>(null)
+    const [voiceStripHost, setVoiceStripHost] = useState<HTMLDivElement | null>(null)
     const skillMarkRef = useRef<HTMLButtonElement>(null)
     const [skillIndent, setSkillIndent] = useState(0)
     const skillLabel = selectedSkill?.name ?? selectedSkill?.id ?? ''
@@ -450,7 +455,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
     const previewFile = (file: FileInfo) => setPreview({id: file.id, filename: file.filename, size: file.size, extension: file.extension, contentType: file.mime_type ?? file.content_type ?? '', source: 'upload', path: file.filepath ?? null})
 
     const handleSend = async () => {
-      if (blocked || uploading || uploadRef.current || hasMissingFiles) return
+      if (blocked || voiceBusy || uploading || uploadRef.current || hasMissingFiles) return
       let trimmedMessage = inputValue.trim()
       let skill = selectedSkill
       const shortcut = /^\/([a-z][a-z0-9-]*)(?:\s+|$)/.exec(trimmedMessage)
@@ -697,6 +702,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
         </div>
       )}
       {uploading && <p role="status" className="mx-4 mb-2 flex items-center gap-2 text-meta text-muted-foreground"><Loader2 className="size-3.5 animate-spin"/>正在上传附件</p>}
+      <div ref={setVoiceStripHost}/>
       {/* 中间输入框 */}
       <PopoverAnchor asChild>
       <div className="relative mb-1.5 px-3.5">
@@ -752,6 +758,17 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
             onClick={() => commandById('upload')?.run(commandContext)}>
             <Paperclip className="size-4"/>
           </Button>
+          {usagePreferences?.voice === 'deepseek' && <VoiceInput key={scope} sessionId={sessionId} disabled={blocked} onBusyChange={setVoiceBusy}
+            stripHost={voiceStripHost} onCancel={() => textareaRef.current?.focus()}
+            fill={text => {
+              setInputValue(current => current + (current && !/\s$/.test(current) ? ' ' : '') + text)
+              setSlash(null)
+              requestAnimationFrame(() => {
+                const field = textareaRef.current
+                field?.focus()
+                field?.setSelectionRange(field.value.length, field.value.length)
+              })
+            }}/>}
           <Button type="button" variant="ghost" size="icon-sm" aria-label="命令与 Skill" title="命令与 Skill /"
             data-slash-toggle aria-expanded={slashOpen} disabled={blocked} onClick={() => {
               if (slashOpen) {dismissedRef.current = slash; setSlash(null); return}
@@ -783,7 +800,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
             variant={showPause ? 'secondary' : 'default'}
             className="size-[34px] shrink-0 cursor-pointer rounded-[11px] transition-transform active:scale-90 motion-reduce:transition-none"
             onClick={showPause ? onPause : handleSend}
-            disabled={showPause ? pause === 'stopping' || !onPause : blocked || uploading || hasMissingFiles || !inputValue.trim()}
+            disabled={showPause ? pause === 'stopping' || !onPause : blocked || voiceBusy || uploading || hasMissingFiles || !inputValue.trim()}
             aria-label={showPause ? (pause === 'stopping' ? '正在停止' : '停止生成') : '发送'}
             title={showPause ? (pause === 'stopping' ? '正在停止' : '停止生成') : '发送'}
           >
