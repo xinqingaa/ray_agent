@@ -193,6 +193,7 @@ class MCPClientManager:
         self.connections: dict[str, MCPConnection] = {}
         self.routes: dict[str, tuple[str, str]] = {}
         self.initialized = False
+        self._registrations: set[asyncio.Task] = set()
 
     async def _connect(self, name: str, config: MCPServerConfig):
         def on_spawn(pid: int) -> None:
@@ -201,7 +202,9 @@ class MCPClientManager:
             try:
                 result = self.register_pid(pid)
                 if asyncio.iscoroutine(result):
-                    asyncio.create_task(result)
+                    registering = asyncio.create_task(result)
+                    self._registrations.add(registering)
+                    registering.add_done_callback(self._registrations.discard)
             except Exception:
                 logger.exception("MCP stdio 进程登记回调失败 pid=%s", pid)
 

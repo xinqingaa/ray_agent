@@ -29,6 +29,8 @@ const state = {
   slash: {open: false, q: '', idx: 0},
   composerSkill: null,
   planMode: false,
+  voice: {phase: 'idle', sec: 0, timer: null},
+  voiceFail: false,
 };
 
 /* ================================================================ 路由 */
@@ -253,7 +255,7 @@ function renderTimeline() {
   const open = done ? state.processOpen : true;
   const head = done
     ? `${icon('chevronRight', 'sm chev')}<span>执行过程</span><span class="meta">${steps.length} 步 · 1 分 42 秒</span>`
-    : `${icon('chevronRight', 'sm chev')}<span>${scn === 'approval' ? '等你批准' : scn === 'denied' ? '调用已拒绝' : '正在处理'}</span><span class="meta num">${steps.filter(s => s.ok).length} 步完成</span>`;
+    : `${icon('chevronRight', 'sm chev')}<span>${scn === 'approval' ? '等你批准' : scn === 'denied' ? '调用已拒绝' : '正在处理'}</span><span class="meta num">${steps.filter(s => s.ok).length} 步完成${runningCost()}</span>`;
   const process = `<div class="process ${open ? 'open' : ''}" id="process">
       <button class="process-head" data-action="toggle-process" aria-expanded="${open}">${head}</button>
       <div class="collapse ${open ? 'open' : ''}"><div>
@@ -307,6 +309,7 @@ function finalReply() {
         <span data-tip="模型请求轮次">${icon('repeat')}6 轮</span>
         <span data-tip="生成速度（可见文本估算）">${icon('gauge')}38 tok/s</span>
         <span data-tip="输入与输出 Token">21.4k</span>
+        ${costChip()}
       </div>
     </div>
     <div class="collapse ${state.refsOpen ? 'open' : ''}" id="refs"><div>${refsHTML()}</div></div>`;
@@ -334,7 +337,7 @@ function independentChat() {
     <article class="reply"><p class="lead">周会做了两个决定，留下三项待办，其中报价口径需要周五前确认。</p>
       <h3>决定</h3><p>新版定价下周一起对渠道生效；竞品-C 暂不纳入比较。</p>
       <h3>待办</h3><p>周敏整理渠道反馈（周三）；财务复核返点（周四）；市场确认报价口径（周五）。</p></article>
-    <div class="reply-foot"><div class="stats"><span>${icon('clock')}48s</span><span>${icon('repeat')}3 轮</span><span>${icon('gauge')}41 tok/s</span></div></div>`;
+    <div class="reply-foot"><div class="stats"><span>${icon('clock')}48s</span><span>${icon('repeat')}3 轮</span><span>${icon('gauge')}41 tok/s</span>${costChip()}</div></div>`;
 }
 function otherSession(id) {
   const s = wsById(state.route.ws).sessions.find(x => x.id === id);
@@ -369,6 +372,64 @@ function renderDock() {
   renderContextAccessory();
   bindMagnetic(dock);
 }
+/* ---------------------------------------------------------------- 语音转文字：录音 → 核心转写 → 文字填入输入框，发送前可修改 */
+const VOICE_TEXT = {
+  ws: '把对比表里 B 的返点一栏补上来源，两份材料都没有的话写未公开。',
+  chat: '帮我把纪要里的待办按负责人重新排一下，并标出截止日期。',
+};
+const clock = s => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+function voiceStripHTML() {
+  const v = state.voice;
+  if (v.phase === 'rec') return `<span class="rec-dot" aria-hidden="true"></span><span class="voice-label">正在录音</span><span class="num voice-time">${clock(v.sec)}</span>
+    <span class="wave" aria-hidden="true">${'<i></i>'.repeat(18)}</span><span class="grow"></span>
+    <button class="btn quiet sm" data-action="voice-cancel">取消<kbd>esc</kbd></button><button class="btn line sm" data-action="voice-done">${icon('check', 'xs')}完成</button>`;
+  const local = PREFS.get('voice') === 'local';
+  if (v.phase === 'need') return `${icon('mic', 'sm')}<span class="voice-label">本机转写需要先安装「语音转写」组件（466 MB），安装后离线可用、不产生费用。</span><span class="grow"></span>
+    <button class="btn quiet sm" data-action="voice-cancel">取消</button><button class="btn line sm" data-action="voice-install">前往安装</button>`;
+  if (v.phase === 'busy') return `<span class="spinner" aria-hidden="true"></span><span class="voice-label">正在转写 ${clock(v.sec)} 的录音</span><span class="faint">${local ? '本机 · 不产生费用' : 'OpenAI · gpt-transcribe'}</span>`;
+  if (v.phase === 'error') return `${icon('alert', 'sm')}<span class="voice-label bad-txt">${local ? '转写失败：本机转写组件没有响应。' : '转写失败：上游返回 429 Too Many Requests。'}录音已保留。</span><span class="grow"></span>
+    <button class="btn quiet sm" data-action="voice-discard">丢弃</button><button class="btn line sm" data-action="voice-retry">${icon('repeat', 'xs')}重试</button>`;
+  return '';
+}
+function paintVoice() {
+  const strip = $('#voice-strip'); if (!strip) return;
+  strip.hidden = state.voice.phase === 'idle';
+  strip.innerHTML = voiceStripHTML();
+  strip.dataset.phase = state.voice.phase;
+  const btn = $('.voice-btn');
+  if (btn) { const rec = state.voice.phase === 'rec'; btn.setAttribute('aria-pressed', rec); btn.dataset.tip = btn.ariaLabel = rec ? '结束录音并转写' : '语音输入'; btn.disabled = state.voice.phase === 'busy'; }
+}
+function startVoice() {
+  if (PREFS.get('voice') === 'local' && P.comps.find(c => c.id === 'voice')?.state !== 'ready') { state.voice = {phase: 'need', sec: 0, timer: null}; return paintVoice(); }
+  state.voice = {phase: 'rec', sec: 0, timer: setInterval(() => { state.voice.sec++; const el = $('.voice-time'); if (el) el.textContent = clock(state.voice.sec); }, 1000)};
+  paintVoice();
+}
+function finishVoice() {
+  clearInterval(state.voice.timer);
+  state.voice.sec = Math.max(state.voice.sec, 3);
+  state.voice.phase = 'busy';
+  paintVoice();
+  setTimeout(() => {
+    if (state.voice.phase !== 'busy') return;
+    if (state.voiceFail) { state.voice.phase = 'error'; return paintVoice(); }
+    const ta = $('#composer-input');
+    const text = state.route.page === 'chat' || state.route.page === 'chat-home' ? VOICE_TEXT.chat : VOICE_TEXT.ws;
+    if (ta) { ta.value += (ta.value && !/\s$/.test(ta.value) ? ' ' : '') + text; ta.dispatchEvent(new Event('input', {bubbles: true})); ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length); }
+    state.voice = {phase: 'idle', sec: 0, timer: null};
+    paintVoice();
+  }, 1200);
+}
+function endVoice(message) {
+  clearInterval(state.voice.timer);
+  state.voice = {phase: 'idle', sec: 0, timer: null};
+  paintVoice();
+  $('#composer-input')?.focus();
+  if (message) toast(message, 'mic');
+}
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape' && state.voice.phase === 'rec' && !dlgStack.length) { e.stopImmediatePropagation(); endVoice('已取消录音'); }
+}, true);
+
 function planStages() {
   // 批准后（resume）表格已生成，进入核对
   return DATA.plan.stages.map((st, i) => {
@@ -424,8 +485,10 @@ function composerHTML(placeholder, live) {
     <div class="slash" id="slash" role="listbox" aria-label="命令与 Skill" hidden></div>
     <div class="attach" id="composer-attach">${attachHTML()}</div>
     <textarea rows="1" placeholder="${placeholder}  ·  输入 / 选择命令或 Skill" aria-label="输入" id="composer-input"></textarea>
+    <div class="voice-strip" id="voice-strip" role="status" aria-live="polite" ${state.voice.phase === 'idle' ? 'hidden' : ''}>${voiceStripHTML()}</div>
     <div class="composer-row">
       <button class="ghost-btn" data-action="attach" data-tip="添加文件（也可以直接拖入）" aria-label="添加文件">${icon('clip')}</button>
+      ${PREFS.get('voice') !== 'off' ? `<button class="ghost-btn voice-btn" data-action="voice" data-tip="${state.voice.phase === 'rec' ? '结束录音并转写' : '语音输入'}" aria-label="${state.voice.phase === 'rec' ? '结束录音并转写' : '语音输入'}" aria-pressed="${state.voice.phase === 'rec'}">${icon('mic')}</button>` : ''}
       <button class="ghost-btn" data-action="slash-open" data-tip="命令与 Skill  /" aria-label="命令与 Skill">${icon('spark')}</button>
       ${isWs ? `<button class="ghost-btn" data-action="toggle-plan-mode" data-tip="计划模式" aria-label="计划模式" aria-pressed="${state.planMode}">${icon('listChecks')}</button>` : ''}
       <button class="model" data-action="model" aria-haspopup="dialog">${modelLabel()}</button>
@@ -880,6 +943,7 @@ document.addEventListener('click', e => {
   if (t.dataset.reviewAction === 'theme' || t.dataset.action === 'theme') return toggleTheme();
   if (t.dataset.reviewAction === 'hide') return $('#review-bar').classList.toggle('hidden');
   if (t.dataset.reviewAction === 'drop') return simulateDrop();
+  if (t.dataset.reviewAction === 'voice-fail') { state.voiceFail = !state.voiceFail; t.setAttribute('aria-pressed', state.voiceFail); return toast(state.voiceFail ? '下一次转写将模拟上游报错' : '转写恢复正常', 'mic'); }
   if (t.classList.contains('cite')) return openCite(t);
   if (t.classList.contains('step')) return inspectStep(+t.dataset.step);
   if (developerEnabled && t.dataset.inspectStep !== undefined) return inspectStep(+t.dataset.inspectStep);
@@ -925,6 +989,12 @@ document.addEventListener('click', e => {
     case 'clear-skill': state.composerSkill = null; refreshAttach(); return;
     case 'toggle-plan-mode': state.planMode = !state.planMode; refreshAttach(); return toast(state.planMode ? '计划模式：先制定方案，不执行写入和命令' : '已退出计划模式', 'listChecks');
     case 'attach': return simulateDrop();
+    case 'voice': return state.voice.phase === 'rec' ? finishVoice() : state.voice.phase === 'idle' ? startVoice() : undefined;
+    case 'voice-cancel': return endVoice('已取消录音');
+    case 'voice-done': return finishVoice();
+    case 'voice-retry': return finishVoice();
+    case 'voice-discard': return endVoice('已丢弃录音');
+    case 'voice-install': endVoice(); return go('#/components');
     case 'new': return go(railOf(state.route) === 'workspaces' ? `#/ws/${state.route.ws || 'review'}` : '#/chat');
     case 'new-chat': return go('#/chat');
     case 'add-ws': return toast('演示：选择新建文件夹或打开已有文件夹', 'folder');

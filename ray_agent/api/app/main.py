@@ -206,6 +206,11 @@ async def lifespan(app: FastAPI):
             logger.warning("运行任务停止超时，遗留运行由下次启动扫描处理")
         except Exception as e:
             logger.error(f"停止运行任务期间出现错误: {str(e)}")
+        from app.application.services.agent_service import title_tasks
+        titles = list(title_tasks())
+        for titling in titles:
+            titling.cancel()
+        await asyncio.gather(*titles, return_exceptions=True)
         from app.infrastructure.external.execution.runtime import close_runtime_sessions
         await close_runtime_sessions()
         await close_change_feed()
@@ -227,6 +232,10 @@ app = FastAPI(
     description="RayAgent 本机核心：会话、运行与事件保存在本机业务库，经 MCP 与 A2A 连接外部工具与远程 Agent",
     lifespan=lifespan,
     openapi_tags=openapi_tags,
+    # 文档与模式路由不在 /api 下、不受实例令牌保护，统一关闭；共享契约直接读取 app.openapi() 生成
+    docs_url=None,
+    redoc_url=None,
+    openapi_url=None,
     version=str(PROTOCOL_VERSION),
 )
 

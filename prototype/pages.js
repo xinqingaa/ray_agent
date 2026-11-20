@@ -20,6 +20,7 @@ const P = {
     {id: 'browser', name: '自动化浏览器', icon: 'globe', size: 162, enables: '打开网页、点击与截图', without: '只能读取无需登录的公开网页正文', state: 'ready', ver: 'Chromium 131'},
     {id: 'semantic', name: '语义检索', icon: 'compass', size: 486, enables: '按意思检索材料，换一种说法也能找到', without: '知识检索只用全文匹配', state: 'none'},
     {id: 'ocr', name: '文字识别', icon: 'fileText', size: 94, enables: '读出扫描件和图片里的文字', without: '扫描件与图片不进入检索', state: 'failed', error: '校验失败：下载的文件不完整'},
+    {id: 'voice', name: '语音转写', icon: 'mic', size: 466, enables: '在本机把录音转成文字，离线可用，不产生费用', without: '语音输入需改用云端转写', state: 'none', ver: 'whisper.cpp · small 多语言模型'},
   ],
   settings: {section: 'general', dirty: false, policy: null},
   styleVersions: [
@@ -440,7 +441,7 @@ function installComp(id) {
 /* ================================================================ 设置（覆盖应用的弹层，底层页面保持） */
 const SECTIONS = [
   ['general', '通用', 'settings'], ['workspace', '工作区', 'folder'], ['appearance', '外观', 'sun'],
-  ['llm', '模型提供商', 'spark'], ['policy', '工具策略', 'shield'], ['mcp', 'MCP 服务器', 'box'],
+  ['llm', '模型提供商', 'spark'], ['usage', '用量', 'chart'], ['policy', '工具策略', 'shield'], ['mcp', 'MCP 服务器', 'box'],
   ['a2a', '远程 Agent', 'globe'], ['data', '数据管理', 'inbox'],
 ];
 const POLICY = [
@@ -465,9 +466,12 @@ function openSettings(section) {
     toast('先保存或撤销修改再关闭', 'alert');
     return false;
   });
-  const paint = () => { $$('.set-nav [data-sec]', dlg).forEach(b => b.setAttribute('aria-current', b.dataset.sec === S.section)); $('#set-body', dlg).innerHTML = settingsBody(S.section); $('#set-body', dlg).scrollTop = 0; };
+  const paint = () => { $$('.set-nav [data-sec]', dlg).forEach(b => b.setAttribute('aria-current', b.dataset.sec === S.section)); $('#set-body', dlg).innerHTML = settingsBody(S.section); $('#set-body', dlg).scrollTop = 0; paintUsageCharts(dlg); };
+  // 筛选与就地操作只重绘当前分区，保留滚动位置
+  const repaint = () => { const body = $('#set-body', dlg), top = body.scrollTop; paint(); body.scrollTop = top; };
   dlg.addEventListener('click', e => {
     const sec = e.target.closest('[data-sec]'); if (sec) { S.section = sec.dataset.sec; return paint(); }
+    if (usageClick(e, dlg, repaint) || providersClick(e, dlg, repaint) || voiceClick(e, dlg)) return;
     const g = e.target.closest('[data-goto]'); if (g) { if (S.dirty) return toast('先保存或撤销修改', 'alert'); closeDialog(true); return go(g.dataset.goto); }
     const pol = e.target.closest('[data-pol]');
     if (pol) {
@@ -504,14 +508,11 @@ function settingsBody(k) {
   const sw = on => `<button class="switch" role="switch" aria-checked="${on}"><span class="knob"></span></button>`;
   const dark = document.documentElement.classList.contains('dark');
   switch (k) {
-    case 'general': return `<h2>通用</h2>${setRow('开发者模式', '在会话中显示日志、终端、上下文容量与请求原文。', `<button class="switch" role="switch" aria-label="开发者模式" aria-checked="${developerEnabled}" data-developer-toggle><span class="knob"></span></button>`)}${setRow('任务完成时通知', '你不在这个对话时，用系统通知告诉你结果。', sw(true))}${setRow('退出前确认', '有任务在运行时，退出应用前先确认。', sw(true))}`;
+    case 'general': return `<h2>通用</h2>${setRow('开发者模式', '在会话中显示日志、终端、上下文容量与请求原文。', `<button class="switch" role="switch" aria-label="开发者模式" aria-checked="${developerEnabled}" data-developer-toggle><span class="knob"></span></button>`)}${setRow('任务完成时通知', '你不在这个对话时，用系统通知告诉你结果。', sw(true))}${setRow('退出前确认', '有任务在运行时，退出应用前先确认。', sw(true))}${voiceRow()}`;
     case 'workspace': return `<h2>工作区</h2>${setRow('新建工作区的位置', '<span class="mono">~/Documents/RayAgent</span>', '<button class="btn line">更改</button>')}${setRow('本机执行', '运行命令与脚本按工作区单独开启，在工作区菜单里设置。', '<span class="faint">按工作区</span>')}`;
     case 'appearance': return `<h2>外观</h2>${setRow('主题', '', `<div class="seg on-sheet"><button class="seg-btn" data-theme="light" aria-selected="${!dark}">${icon('sun', 'sm')}<span class="seg-label">浅色</span></button><button class="seg-btn" data-theme="dark" aria-selected="${dark}">${icon('moon', 'sm')}<span class="seg-label">深色</span></button></div>`)}${setRow('阅读字号', '只放大文字，间距和图标不变。', `<div class="seg on-sheet">${[['0.93', '小'], ['1', '标准'], ['1.1', '大']].map(([v, l]) => `<button class="seg-btn txt" data-size="${v}" aria-selected="${v === '1'}">${l}</button>`).join('')}</div>`)}`;
-    case 'llm': return `<h2>模型提供商</h2><p class="set-lead">地址、密钥和可用模型写在配置文件里，这里只读展示。保存文件后新运行即用新值。</p>
-      <div class="cfg-file">${icon('fileText', 'sm')}<span class="mono">~/.rayagent/models.toml</span><span class="grow"></span><button class="btn line">打开配置文件</button><button class="ghost-btn" data-tip="重新读取" aria-label="重新读取">${icon('repeat', 'sm')}</button></div>
-      ${[['Anthropic', 'spark', 'api.anthropic.com', 'Messages', 'sk-ant-•••• 9f2c', 3, ''], ['OpenAI', 'hex', 'api.openai.com', 'Responses', 'sk-•••• 41aa', 1, ''], ['DeepSeek', 'wave', 'api.deepseek.com', 'Chat Completions', '', 1, '缺少密钥：在配置文件里填写 api_key']].map(([n, ic, host, proto, key, cnt, err]) => `
-        <div class="prov"><span class="comp-ic">${icon(ic, 'sm')}</span><div class="comp-main"><div class="comp-name">${n}${err ? '<span class="state-pill wait">不可用</span>' : `<span class="faint" style="font-weight:400">${cnt} 个模型</span>`}</div>
-          <div class="comp-desc"><span class="mono">${host}</span> · ${proto}${key ? ` · <span class="mono">${key}</span>` : ''}</div>${err ? `<div class="comp-err">${icon('alert', 'xs')}${err}</div>` : ''}</div></div>`).join('')}`;
+    case 'llm': return providersBody();
+    case 'usage': return usageBody();
     case 'policy': return `<h2>工具策略</h2><p class="set-lead">具体规则优先于整类规则。批准只针对那一次调用。</p>
       <div class="policy">${POLICY.map(([n, src], i) => `<div class="pol-row"><div><div class="set-title">${n}</div><div class="set-desc">${src}</div></div>
         <div class="seg on-sheet">${[['auto', '直接执行'], ['ask', '先问我'], ['deny', '禁止']].map(([v, l]) => `<button class="seg-btn txt" data-pol="${i}:${v}" aria-selected="${P.settings.policy[i] === v}">${l}</button>`).join('')}</div></div>`).join('')}</div>`;
@@ -660,7 +661,11 @@ function closeDialog(force = false) {
   return true;
 }
 document.addEventListener('keydown', e => {
-  if (e.key === 'Escape' && dlgStack.length) { e.stopImmediatePropagation(); closeDialog(); }
+  if (e.key !== 'Escape' || !dlgStack.length) return;
+  e.stopImmediatePropagation();
+  // 对话框内的浮层与图表选择先消费 Esc，最后一层才关闭对话框
+  if (typeof usageEscape === 'function' && usageEscape(e)) return;
+  closeDialog();
 }, true);
 
 /* ================================================================ 页面级点击 */

@@ -15,6 +15,7 @@ from app.application.services.background_jobs import BackgroundJobRunner, cleanu
 from app.application.services.context_operations import context_operation
 from app.domain.models.background_job import BackgroundJob
 from app.domain.models.operation import OperationKind, OperationScopeKind, OperationStatus
+from app.domain.models.run import ACTIVE_RUN_STATUSES
 from app.domain.models.write_lease import LeaseState
 
 RESET_NAME = "所有对话与附件"
@@ -90,13 +91,11 @@ class DataService:
         files = await uow.file.list_all()
         workspaces = len(await uow.workspace.list())
         reason, occupying = None, None
-        for session in sessions:
-            if await uow.run.get_active(session.id) is not None:
-                reason, occupying = "请先停止正在运行或等待处理的对话", session.id
-                break
-            if context_operation(session.id)["status"] != "idle":
-                reason = "请等待上下文压缩结束"
-                break
+        active = [run for status in ACTIVE_RUN_STATUSES for run in await uow.run.list_by_status(status)]
+        if active:
+            reason, occupying = "请先停止正在运行或等待处理的对话", active[0].session_id
+        elif any(context_operation(session.id)["status"] != "idle" for session in sessions):
+            reason = "请等待上下文压缩结束"
         if reason is None:
             for lease in await uow.lease.list():
                 if lease.state in (LeaseState.PREPARING, LeaseState.HELD):

@@ -85,6 +85,14 @@ def pending_starts() -> dict[str, PendingStart]:
     return _starts.setdefault(asyncio.get_running_loop(), {})
 
 
+_titles = weakref.WeakKeyDictionary()
+
+
+def title_tasks() -> set[asyncio.Task]:
+    """进行中的自动标题请求；事件循环只弱引用任务，这里持有强引用，关闭时由生命周期取消并等待。"""
+    return _titles.setdefault(asyncio.get_running_loop(), set())
+
+
 @dataclass
 class ChatAccepted:
     """chat 的受理结果：消息事件的 seq 与处理它的运行。route 是 started / resumed / injected 之一。"""
@@ -743,9 +751,12 @@ class AgentService:
                 )
                 if provisional_title is not None:
                     from app.application.services.title_service import TitleService
-                    asyncio.create_task(TitleService(self._uow_factory, self._ledger,
-                                                     read_uow_factory=self._read_factory())
-                                        .auto_generate(session_id, message))
+                    titling = asyncio.create_task(TitleService(self._uow_factory, self._ledger,
+                                                               read_uow_factory=self._read_factory())
+                                                  .auto_generate(session_id, message))
+                    pending_titles = title_tasks()
+                    pending_titles.add(titling)
+                    titling.add_done_callback(pending_titles.discard)
 
             self._schedule_start(session, run.id, prior_status)
         logger.info(f"会话[{session_id}]运行[{run.id}]受理消息({route}): {message[:50]}...")

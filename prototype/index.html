@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>RayAgent · 原型</title>
   <link rel="icon" href="brand-mark.svg"/>
-  <link rel="stylesheet" href="styles.css?v=18"/>
+  <link rel="stylesheet" href="styles.css?v=23"/>
 </head>
 <body>
   <div class="app" id="app" data-list="open">
@@ -41,14 +41,18 @@
       <button data-scenario="done">已完成</button>
     </div>
     <button data-review-action="drop">模拟拖入文件</button>
+    <button data-review-action="voice-fail" aria-pressed="false">语音转写失败</button>
     <button data-review-action="theme">深浅</button>
     <button data-review-action="hide" aria-label="收起评审条">收起</button>
   </div>
 
-  <script src="icons.js?v=16"></script>
+  <script src="icons.js?v=17"></script>
   <script src="data.js?v=16"></script>
-  <script src="pages.js?v=18"></script>
+  <script src="charts.js?v=3"></script>
+  <script src="usage.js?v=4"></script>
+  <script src="pages.js?v=21"></script>
+  <script src="settings-extra.js?v=6"></script>
   <script src="developer.js?v=15"></script>
-  <script src="app.js?v=17"></script>
+  <script src="app.js?v=19"></script>
 </body>
 </html>

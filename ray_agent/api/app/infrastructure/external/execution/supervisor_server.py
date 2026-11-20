@@ -166,6 +166,7 @@ class Supervisor:
         self.stop_reason = ""
         self._attached = 0
         self._kill_lock = asyncio.Lock()
+        self._background: set[asyncio.Task] = set()
         self._own_pgid = os.getpgid(0)
         self._core_pgid = self._pgid_of(core_pid) if core_pid else None
 
@@ -537,7 +538,9 @@ class Supervisor:
                 if self._attached == 0:
                     # 立即清树，避免只靠 serve() 收尾时与 wait 竞态
                     self.request_stop("客户端断开")
-                    asyncio.create_task(self.kill_all())
+                    killing = asyncio.create_task(self.kill_all())
+                    self._background.add(killing)
+                    killing.add_done_callback(self._background.discard)
 
     async def watch_core(self) -> None:
         if not self.core_pid:
