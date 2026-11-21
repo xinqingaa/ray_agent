@@ -2373,6 +2373,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/host/activity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * 读取活动运行数
+         * @description 退出应用前的只读检查：运行中或等待处理的运行数。需要宿主密钥头 X-RayAgent-Host-Secret
+         */
+        get: operations["host_activity_api_host_activity_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/app-config/llm/providers": {
         parameters: {
             query?: never;
@@ -4033,6 +4053,14 @@ export interface components {
              */
             details: string;
         };
+        /** HostActivityResponse */
+        HostActivityResponse: {
+            /**
+             * Active Runs
+             * @description 活动运行数（运行中、等待回复或审批，以及已受理但尚未开始的启动）；只读
+             */
+            active_runs: number;
+        };
         /** ImportRequest */
         ImportRequest: {
             /** Operation Id */
@@ -5520,6 +5548,10 @@ export interface components {
         Response_GetSessionResponse_: {
             data: components["schemas"]["GetSessionResponse"] | null;
         };
+        /** Response[HostActivityResponse] */
+        Response_HostActivityResponse_: {
+            data: components["schemas"]["HostActivityResponse"] | null;
+        };
         /** Response[IndexSummaryView] */
         Response_IndexSummaryView_: {
             data: components["schemas"]["IndexSummaryView"] | null;
@@ -6847,12 +6879,8 @@ export interface components {
              * @default true
              */
             show_conversation_cost: boolean;
-            /**
-             * Voice
-             * @default off
-             * @enum {string}
-             */
-            voice: "off" | "deepseek";
+            /** Voice */
+            voice?: ("off" | "deepseek") | null;
         };
         /** UsageReport */
         UsageReport: {
@@ -11761,6 +11789,35 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Response_ResolveRootPathResponse_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    host_activity_api_host_activity_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_HostActivityResponse_"];
                 };
             };
             /** @description 结构化错误 */

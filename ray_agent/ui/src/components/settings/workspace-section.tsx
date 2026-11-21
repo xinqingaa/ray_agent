@@ -4,6 +4,7 @@ import {Button} from '@/components/ui/button'
 import {workspaceApi} from '@/lib/api/workspace'
 import {isDesktop, selectFolderGrant} from '@/lib/platform'
 import {LoadError, SectionHeader} from './form'
+import {SettingsRow} from './settings-row'
 
 /** 新建工作区时放置文件夹的默认位置；选择位置需要桌面应用的原生文件夹选择器。 */
 export function WorkspaceSection() {
@@ -33,15 +34,26 @@ export function WorkspaceSection() {
     } finally {setBusy(false)}
   }
 
-  return <section aria-labelledby="settings-workspace-title" className="space-y-6">
-    <SectionHeader id="settings-workspace-title" title="工作区" description="新建工作区时，会在默认位置创建一个同名文件夹。已有工作区的文件夹位置不受影响。"/>
-    {error ? <LoadError message={error} onRetry={() => void load()}/> : <div className="space-y-2">
-      <p className="text-sm font-medium">默认位置</p>
-      <p className="break-all rounded-md border bg-muted/40 px-3 py-2 font-mono text-xs">{path ?? '正在读取…'}</p>
-      <div className="flex flex-wrap items-center gap-3">
-        <Button type="button" variant="outline" disabled={!desktop || busy || path == null} onClick={() => void change()}>{busy ? '正在更改' : '更改位置'}</Button>
-        {!desktop && <p className="text-meta text-muted-foreground">更改位置需要在 RayAgent 桌面应用中进行。</p>}
-      </div>
+  return <section aria-labelledby="settings-workspace-title">
+    <SectionHeader id="settings-workspace-title" title="工作区"/>
+    {error ? <div className="py-4"><LoadError message={error} onRetry={() => void load()}/></div> : <div className="divide-y divide-border/70">
+      <SettingsRow
+        id="workspace-location"
+        title="新建工作区的位置"
+        description={<>
+          <span className="block break-all font-mono">{path ?? '正在读取…'}</span>
+          {!desktop && <span className="mt-1 block">更改位置需要在 RayAgent 桌面应用中进行。</span>}
+        </>}
+        control={<Button type="button" variant="outline" size="sm" disabled={!desktop || busy || path == null} onClick={() => void change()}>
+          {busy ? '正在更改' : '更改'}
+        </Button>}
+      />
+      <SettingsRow
+        id="workspace-execution"
+        title="本机执行"
+        description="运行命令与脚本按工作区单独开启，在工作区菜单里设置。"
+        control={<span className="text-sm text-muted-foreground">按工作区</span>}
+      />
     </div>}
   </section>
 }

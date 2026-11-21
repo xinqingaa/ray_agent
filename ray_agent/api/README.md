@@ -57,6 +57,8 @@ uv run --locked python sidecar.py --data-root /tmp/rayagent-dev
 
 显示位置：宿主带 `X-RayAgent-Host-Secret` 调用 `POST /api/host/roots/{root_id}/resolve`，body `{relative_path}`（空表示根本身），返回 `{path}`，只供宿主在系统文件管理器里定位。适用于会话工作目录与工作区文件夹两类根，按根身份与路径规则核对：不越出根，`.rayagent`、版本控制内部与凭据、数据库文件返回 403，目标不存在返回 404，根不存在返回 404，路径非法返回 400，只放行普通文件与目录；交付文件的 `root_id` 与 `relative_path` 即可直接传入。绝对路径不进入界面。
 
+活动运行数：宿主带 `X-RayAgent-Host-Secret` 调用 `GET /api/host/activity`，返回统一包裹中的 `data.active_runs`，即运行中、等待用户的运行，加上已受理但尚未登记为执行的启动，供宿主在退出前确认。只给宿主使用，界面的实例令牌不能调用。
+
 ### 工作区写入保护、撤销与外部变更
 
 工作区详情与列表的 `write_lease` 给出文件夹当前的写入者（为空表示没有）；也可单独读 `GET /api/workspaces/{id}/write-lease`。其他会话写入被占用时，文件工具得到可读的失败，接口得到 409 且 `details.lease` 带持有者、阶段与原因。`state` 为 `settling` 或 `blocked`（停止后未能确认写入结束）时，`POST /api/workspaces/{id}/write-lease/retry-settle` 重试收尾，确认后释放，仍未确认返回 409。未知进程保持 blocked；用户确认旧进程已结束后，可调用 `POST …/write-lease/confirm-release` 并带读回的 `lease_id`，只释放所见的 blocked 进程租约；身份已变化或所属运行仍活跃时拒绝。

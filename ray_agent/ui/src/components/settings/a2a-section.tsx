@@ -1,6 +1,6 @@
 import {useState} from 'react'
 import {useDeveloperMode} from '@/hooks/use-developer-mode'
-import {Loader2, Plus} from '@/components/ui/icons'
+import {Globe, Loader2, Plus} from '@/components/ui/icons'
 import {toast} from 'sonner'
 import {Button} from '@/components/ui/button'
 import {
@@ -112,16 +112,18 @@ function AddA2aDialog({open, onOpenChange, onAdded}: {open: boolean; onOpenChang
   )
 }
 
-export function A2aServerRow({server, toggling, onToggle, onDelete}: {
+export function A2aServerRow({server, toggling, onToggle, onDelete, onRetry}: {
   server: ListA2AServerItem
   toggling?: boolean
   onToggle?: (enabled: boolean) => void
   onDelete?: () => void
+  onRetry?: () => void
 }) {
   const {visibility} = useDeveloperMode()
   const name = server.name || (visibility.connectionSettings ? server.base_url : '远程 Agent')
   return (
     <ServerRow
+      icon={<Globe className="size-4" aria-hidden/>}
       title={name}
       name={name}
       status={server.connection_status}
@@ -137,6 +139,7 @@ export function A2aServerRow({server, toggling, onToggle, onDelete}: {
       }
       onToggle={onToggle}
       onDelete={onDelete}
+      onRetry={onRetry}
     />
   )
 }
@@ -151,8 +154,8 @@ export function A2aSection() {
     <section aria-labelledby="settings-a2a-title">
       <SectionHeader
         id="settings-a2a-title"
-        title={visibility.connectionSettings ? '远程 Agent（A2A）' : '远程协作'}
-        description={visibility.connectionSettings ? '通过 A2A 协议接入的远程 Agent，Agent 可以把子任务委托给它们。停用后，下一次运行起不再提供。' : '已配置的远程协作能力及连接状态。'}
+        title="远程 Agent"
+        description={visibility.connectionSettings ? '通过 A2A 协议接入的远程 Agent，Agent 可以把子任务委托给它们。停用后，下一次运行起不再提供。' : undefined}
         action={
           visibility.connectionSettings && <Button type="button" size="sm" onClick={() => setAdding(true)} disabled={list.phase.phase !== 'ready'}>
             <Plus aria-hidden/>
@@ -160,14 +163,14 @@ export function A2aSection() {
           </Button>
         }
       />
-      <div className="py-2">
+      <div>
         {list.phase.phase === 'loading' && <ListSkeleton/>}
         {list.phase.phase === 'error' && <div className="py-3"><LoadError message={list.phase.message} onRetry={list.reload}/></div>}
         {list.phase.phase === 'ready' && list.items.length === 0 && (
-          <div className="py-3"><EmptyList>{visibility.connectionSettings ? '还没有远程 Agent。点击“添加远程 Agent”填写地址。' : '还没有配置远程协作。'}</EmptyList></div>
+          <EmptyList>{visibility.connectionSettings ? '还没有远程 Agent。点击“添加远程 Agent”填写地址。' : '还没有配置远程 Agent。'}</EmptyList>
         )}
         {list.phase.phase === 'ready' && list.items.length > 0 && (
-          <ul className="divide-y">
+          <ul className="space-y-2">
             {list.items.map((server) => (
               <A2aServerRow
                 key={server.id}
@@ -175,10 +178,12 @@ export function A2aSection() {
                 toggling={list.toggling.has(server.id)}
                 onToggle={(enabled) => void list.toggle(server, enabled)}
                 onDelete={() => setPendingDelete(server)}
+                onRetry={() => void list.refresh()}
               />
             ))}
           </ul>
         )}
+        {!visibility.connectionSettings && <p className="mt-4 text-meta text-muted-foreground">连接的添加与编辑在开发者模式中提供。</p>}
       </div>
       <AddA2aDialog open={visibility.connectionSettings && adding} onOpenChange={setAdding} onAdded={list.refresh}/>
       <DeleteDialog

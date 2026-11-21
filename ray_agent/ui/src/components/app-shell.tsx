@@ -13,6 +13,7 @@ import {describeWorkspace} from '@/lib/workspace-state'
 import {LeftPanel} from '@/components/left-panel'
 import {MainShell} from '@/components/sidebar-chrome'
 import {SettingsDialog} from '@/components/settings/settings-dialog'
+import {OPEN_SETTINGS_EVENT, type SettingsSectionKey} from '@/lib/settings-navigation'
 import {skillsHref} from '@/lib/skill-route'
 import {ThemeToggle} from '@/components/theme-toggle'
 
@@ -20,6 +21,16 @@ function NavigationRail({workspaceId, section}: {workspaceId: string | null; sec
   const {setOpenMobile} = useSidebar()
   const currentLocation = useLocation()
   const [settings, setSettings] = useState(false)
+  const [settingsSection, setSettingsSection] = useState<SettingsSectionKey | undefined>()
+  useEffect(() => {
+    const open = (event: Event) => {
+      setSettingsSection((event as CustomEvent<{section?: SettingsSectionKey}>).detail?.section)
+      setOpenMobile(false)
+      setSettings(true)
+    }
+    window.addEventListener(OPEN_SETTINGS_EVENT, open)
+    return () => window.removeEventListener(OPEN_SETTINGS_EVENT, open)
+  }, [setOpenMobile])
   const lookup = useWorkspace(workspaceId)
   const {count: workspacePending} = useWorkspacePending()
   const condition = lookup.phase === 'ready' ? describeWorkspace(lookup.workspace) : null
@@ -63,11 +74,11 @@ function NavigationRail({workspaceId, section}: {workspaceId: string | null; sec
       <ThemeToggle className="rail-action" quick/>
       <Tooltip delayDuration={240}>
         <TooltipTrigger asChild><button type="button" className="rail-action" aria-label="设置"
-          onClick={() => {setOpenMobile(false); setSettings(true)}}><Settings/></button></TooltipTrigger>
+          onClick={() => {setOpenMobile(false); setSettingsSection(undefined); setSettings(true)}}><Settings/></button></TooltipTrigger>
         <TooltipContent side="right">设置</TooltipContent>
       </Tooltip>
     </div>
-    <SettingsDialog open={settings} onOpenChange={setSettings}/>
+    <SettingsDialog open={settings} onOpenChange={setSettings} initialSection={settingsSection}/>
   </nav>
 }
 

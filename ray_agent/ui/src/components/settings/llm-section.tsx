@@ -1,5 +1,6 @@
 import {Check} from '@/components/ui/icons'
 import {useEffect, useState} from 'react'
+import {Button} from '@/components/ui/button'
 import {Input} from '@/components/ui/input'
 import {configApi} from '@/lib/api/config'
 import type {ConnectionSource, LLMConfig, ModelCatalog, ModelSampling} from '@/lib/api/types'
@@ -8,14 +9,13 @@ import {ModelConnections} from './model-connections'
 import {
   checkInteger,
   collect,
-  FormField,
   FormSkeleton,
   LoadError,
-  SaveBar,
   SectionHeader,
   type ConfigForm,
   type Values,
 } from './form'
+import {SettingsRow} from './settings-row'
 
 type ProfilePart = 'temperature' | 'max_tokens' | 'context_window'
 export type LlmField = 'model_name' | 'temperature' | 'max_tokens' | 'context_window' | `p:${string}:${ProfilePart}`
@@ -217,10 +217,6 @@ export function LlmSection({form}: {form: LlmForm}) {
     const base = llmFormOptions.toValues(form.config)
     return scope.some(field => values[field] !== base[field])
   }
-  function saveBar(scope: LlmField[], label: string) {
-    return <SaveBar dirty={dirtyFor(scope)} saving={form.saving} invalid={scope.some(field => Boolean(form.visibleErrors[field]))}
-      savedAt={form.savedAt} saveError={form.saveError} onReset={() => form.reset(scope)} label={label}/>
-  }
   const sampling = values ? {
     temperature: Number(current ? values[profileField(current, 'temperature')] : values.temperature),
     max_tokens: Number(current ? values[profileField(current, 'max_tokens')] : values.max_tokens),
@@ -228,6 +224,8 @@ export function LlmSection({form}: {form: LlmForm}) {
   } : null
   const reserve = useThinkingReserve(spec, sampling)
   const note = capabilityNote(spec, reserve)
+  const modelDirty = dirtyFor(fields)
+  const modelInvalid = fields.some(field => Boolean(form.visibleErrors[field]))
   return <section aria-labelledby="settings-llm-title">
     <SectionHeader id="settings-llm-title" title="模型提供商"
       description="连接保存在本机配置文件，密钥仅显示掩码。修改后，新运行使用更新的连接。"/>
@@ -237,48 +235,58 @@ export function LlmSection({form}: {form: LlmForm}) {
       setConnections(next)
       if (!form.dirty) form.reload()
     }}/>}
-    {form.load.phase === 'ready' && values && <details className="border-t pt-3" open={form.dirty || undefined}>
-      <summary className="cursor-pointer text-sm font-medium">逐模型参数</summary>
-      <div className="pt-3">
+    {form.load.phase === 'ready' && values && <details className="group mt-6 border-t pt-4" open={form.dirty || undefined}>
+      <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
+        <span className="text-faint transition-transform group-open:rotate-90" aria-hidden>›</span>
+        逐模型参数
+      </summary>
+      <div className="pt-4">
         {catalogError && <LoadError message={catalogError} onRetry={() => setRetry(n => n + 1)}/>}
         <div className="grid gap-6 @xl/form:grid-cols-[minmax(0,10rem)_minmax(0,1fr)]">
           {ids.length > 0 && <nav aria-label="正在编辑的模型">
             <p className="mb-2 text-meta text-muted-foreground">正在编辑的模型</p>
             <div className="space-y-1">{ids.map(id => <button key={id} type="button" aria-current={current === id ? 'true' : undefined}
-              onClick={() => setSelected(id)} className={cn('flex min-h-11 w-full items-center justify-between gap-2 rounded-md px-3 py-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring', current === id ? 'bg-muted font-medium text-foreground' : 'text-muted-foreground hover:bg-muted/60')}>
+              onClick={() => setSelected(id)} className={cn('flex min-h-11 w-full items-center justify-between gap-2 rounded-[10px] px-3 py-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring', current === id ? 'bg-muted font-medium text-foreground' : 'text-muted-foreground hover:bg-muted/60')}>
               <span className="min-w-0 break-all font-mono text-xs">{id}<span className="ml-2 text-state-waiting">{dirtyFor(PROFILE_FIELDS.map(item => profileField(id, item.part))) ? '•' : ''}</span></span>
               {current === id && <Check className="size-4 shrink-0 text-signal" aria-hidden/>}
             </button>)}</div>
           </nav>}
           <form noValidate onSubmit={e => {e.preventDefault(); void form.save(fields)}} className="min-w-0">
-            <h3 className="break-all font-mono text-base font-semibold">{current || '模型参数'}</h3>
-            {note && <p className="mt-2 text-meta text-muted-foreground">{note}</p>}
-            {spec && <p className="mt-2 text-meta text-muted-foreground">{spec.context_window.toLocaleString()} 窗口 · {spec.max_output.toLocaleString()} 生成<br/>{spec.choices.join(' / ')}</p>}
-            {ids.length > 0 ? [...PROFILE_FIELDS].sort((a, b) => ['context_window', 'max_tokens', 'temperature'].indexOf(a.part) - ['context_window', 'max_tokens', 'temperature'].indexOf(b.part)).map(item => {
-              const copy = profileCopy(item.part, spec, reserve)
-              return renderField({...item, field: profileField(current, item.part), label: copy.label, hint: copy.hint})
-            }) : FIELDS.map(item => {
-              if (item.field === 'temperature' || item.field === 'max_tokens' || item.field === 'context_window') {
-                const copy = profileCopy(item.field, spec, reserve)
-                return renderField({...item, label: copy.label, hint: copy.hint ?? item.hint})
-              }
-              return renderField(item)
-            })}
-            <p className="mt-2 text-xs text-muted-foreground">新运行和换到此模型时使用。</p>
-            {saveBar(fields, current ? '保存此模型' : '保存模型参数')}
+            <h3 className="break-all font-mono text-sm font-semibold">{current || '模型参数'}</h3>
+            {note && <p className="mt-1.5 text-meta leading-5 text-muted-foreground">{note}</p>}
+            {spec && <p className="mt-1.5 text-meta leading-5 text-muted-foreground">{spec.context_window.toLocaleString()} 窗口 · {spec.max_output.toLocaleString()} 生成<br/>{spec.choices.join(' / ')}</p>}
+            <div className="mt-2 divide-y divide-border/70">
+              {ids.length > 0 ? [...PROFILE_FIELDS].sort((a, b) => ['context_window', 'max_tokens', 'temperature'].indexOf(a.part) - ['context_window', 'max_tokens', 'temperature'].indexOf(b.part)).map(item => {
+                const copy = profileCopy(item.part, spec, reserve)
+                return renderRow({...item, field: profileField(current, item.part), label: copy.label, hint: copy.hint})
+              }) : FIELDS.map(item => {
+                if (item.field === 'temperature' || item.field === 'max_tokens' || item.field === 'context_window') {
+                  const copy = profileCopy(item.field, spec, reserve)
+                  return renderRow({...item, label: copy.label, hint: copy.hint ?? item.hint})
+                }
+                return renderRow(item)
+              })}
+            </div>
+            <p className="mt-2 text-meta text-muted-foreground">新运行和换到此模型时使用。</p>
+            <div className="mt-3 flex items-center justify-end gap-2">
+              {modelDirty && <Button type="button" variant="ghost" size="sm" onClick={() => form.reset(fields)} disabled={form.saving}>撤销</Button>}
+              <Button type="submit" size="sm" variant="outline" disabled={!modelDirty || modelInvalid || form.saving}>
+                {current ? '保存此模型' : '保存模型参数'}
+              </Button>
+            </div>
           </form>
         </div>
       </div>
     </details>}
   </section>
-  function renderField({field, label, hint, placeholder, mono, numeric, width}: {
+  function renderRow({field, label, hint, placeholder, mono, numeric, width}: {
     field: LlmField; label: string; hint?: string; placeholder?: string; mono?: boolean; numeric?: boolean; width: string;
   }) {
-    return <FormField key={field} id={form.fieldId(field)} label={label} hint={hint} error={form.visibleErrors[field]}>
-      {aria => <Input {...aria} name={field} inputMode={numeric ? 'decimal' : undefined}
-        type="text" autoComplete="off" spellCheck={false} placeholder={placeholder}
+    const error = form.visibleErrors[field]
+    return <SettingsRow key={field} id={`llm-${field.replace(/:/g, '-')}`} htmlFor={form.fieldId(field)} title={label} description={hint} error={error}
+      control={<Input id={form.fieldId(field)} name={field} inputMode={numeric ? 'decimal' : undefined}
+        type="text" autoComplete="off" spellCheck={false} placeholder={placeholder} aria-invalid={error ? true : undefined}
         className={cn(width, mono && 'font-mono text-xs', numeric && 'tabular-nums')}
-        value={values?.[field] ?? ''} onChange={e => form.setValue(field, e.target.value)} disabled={form.saving}/>}
-    </FormField>
+        value={values?.[field] ?? ''} onChange={e => form.setValue(field, e.target.value)} disabled={form.saving}/>}/>
   }
 }

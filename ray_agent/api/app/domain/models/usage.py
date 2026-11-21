@@ -93,4 +93,5 @@ class UsageReport(BaseModel):
 
 class UsagePreferences(BaseModel):
     show_conversation_cost: bool = True
-    voice: Literal["off", "deepseek"] = "off"
+    # None 表示用户尚未选择：输入框显示麦克风，首次使用时确认启用。
+    voice: Literal["off", "deepseek"] | None = None

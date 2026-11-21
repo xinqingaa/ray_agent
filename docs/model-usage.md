@@ -20,6 +20,6 @@
 
 ## 语音如何进入输入框
 
-在通用设置启用 DeepSeek 转写后，点输入框的麦克风录音，点完成才由核心发送到官方 DeepSeek 语音识别接口。WebView 把采样转为单声道 PCM WAV。录音在内存中使用，失败时可重试或丢弃，成功后的文本留在输入框供编辑。核心从官方 DeepSeek 连接取凭据，独立调用转写接口。应用缺少系统麦克风权限时，界面提供到系统设置的路径。 [DeepSeek 语音识别](https://api-docs.deepseek.com/zh-cn/guides/asr/)
+输入框默认显示麦克风。语音转写偏好未选择时，首次点击会就地说明录音将发送到官方 DeepSeek 语音识别接口，并由用户确认后才开始录音；在通用设置中也可直接选择 DeepSeek 或关闭，关闭后入口隐藏。录音在点完成后才由核心发送。WebView 把采样转为单声道 PCM WAV。录音在内存中使用，失败时可重试或丢弃，成功后的文本留在输入框供编辑。核心从官方 DeepSeek 连接取凭据，独立调用转写接口。应用缺少系统麦克风权限时，界面提供到系统设置的路径。 [DeepSeek 语音识别](https://api-docs.deepseek.com/zh-cn/guides/asr/)
 
 本机和 OpenAI 转写的后续安排见[语音转写扩展](plan/usage-models-voice.md)。

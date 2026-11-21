@@ -1,13 +1,6 @@
-.provider-settings { padding: 14px 0; }
 .provider-file { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 8px 10px; background: var(--muted); border-radius: 11px; color: var(--muted-foreground); }
 .provider-file code { flex: 1 1 180px; font-size: calc(11.5px * var(--font-scale)); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.provider-list { display: grid; margin-top: 8px; }
-.provider-card { display: flex; align-items: flex-start; gap: 8px; min-width: 0; padding: 12px 4px; border-bottom: 1px solid var(--border); }
 .provider-mark { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 34px; height: 34px; border-radius: 10px; background: var(--muted); color: var(--muted-foreground); }
-.provider-card-content { min-width: 0; flex: 1; padding: 0 3px; }
-.provider-card-title { display: flex; align-items: center; flex-wrap: wrap; gap: 3px 8px; font-size: calc(12px * var(--font-scale)); color: var(--muted-foreground); }
-.provider-card-title strong { color: var(--foreground); font-size: calc(13.5px * var(--font-scale)); font-weight: 650; overflow-wrap: anywhere; }
-.provider-meta { font-size: calc(12px * var(--font-scale)); color: var(--muted-foreground); overflow-wrap: anywhere; }
 .provider-unavailable { border-radius: 5px; background: var(--state-waiting-soft); color: var(--state-waiting); padding: 1px 5px; font-size: calc(11px * var(--font-scale)); }
 .provider-result { display: flex; align-items: flex-start; gap: 5px; margin-top: 4px; font-size: calc(12px * var(--font-scale)); overflow-wrap: anywhere; }
 .provider-dialog { grid-template-rows: auto minmax(0, 1fr); }

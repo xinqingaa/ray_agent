@@ -8,7 +8,7 @@ from app.application.errors.exceptions import BadRequestError, ConflictError, No
 from app.domain.external.task import Task
 from app.domain.models.event import Event
 from app.domain.models.file import File
-from app.domain.models.run import Run
+from app.domain.models.run import ACTIVE_RUN_STATUSES, Run
 from app.domain.models.run_input import RunInput
 from app.domain.models.session import DEFAULT_SESSION_TITLE, Session
 from app.domain.models.retrieval import SearchSourceType
@@ -79,6 +79,13 @@ class SessionService:
         async with self._read_uow_factory() as uow:
             return await uow.session.page(offset=offset, limit=limit, workspace_id=workspace_id,
                                           independent=independent)
+
+    async def active_run_count(self) -> int:
+        """活动运行数：库中 running／waiting 的运行，加上已受理但尚未登记为执行的启动。只读，供宿主退出前确认。"""
+        from app.application.services.agent_service import pending_starts
+        async with self._read_uow_factory() as uow:
+            runs = [run for status in ACTIVE_RUN_STATUSES for run in await uow.run.list_by_status(status)]
+        return len({run.id for run in runs} | set(pending_starts()))
 
     async def clear_unread_message_count(self, session_id: str) -> None:
         """用户已查看会话，清空未查看的完成运行数"""

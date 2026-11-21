@@ -5,6 +5,7 @@ import {modelConnectionsApi, MODEL_CONNECTIONS_CHANGED} from '@/lib/api/model-co
 import type {ConnectionSource} from '@/lib/api/types'
 import {USAGE_RECORDED, usageApi, type UsageGroup, type UsageReport} from '@/lib/api/usage'
 import {errorMessage, LoadError, SectionHeader} from './form'
+import {SettingsRow} from './settings-row'
 import {CostChart, Heatmap, SeriesDot} from './usage-charts'
 import {amount, cost, dayOf, fmt, hitRate, providerSeries, rangeLabel, ranges, selectedRange, tokenLabel, wallDate, type Range, type Series} from './usage-format'
 import {UsageRangePicker} from './usage-range-picker'
@@ -152,16 +153,16 @@ export function UsageSection() {
   const last = snapshot?.report.calendar.at(-1)?.start
   return <section aria-labelledby="usage-title" className="usage-page">
     <SectionHeader id="usage-title" title="用量" description="按请求记录 Token，并按官方标价估算费用。"/>
-    <div className="usage-setting">
-      <div><label htmlFor="show-conversation-cost">在对话中显示费用</label>
-        <p>回复下方显示本次运行的估算费用，悬停查看明细与本对话累计。</p></div>
-      <Switch id="show-conversation-cost" checked={preferences?.show_conversation_cost ?? false} disabled={!preferences || saving} onCheckedChange={async checked => {
-        setSaving(true)
-        setSaveError(null)
-        try {await setUsagePreferences({show_conversation_cost: checked})}
-        catch (reason) {setSaveError(errorMessage(reason, '保存失败'))}
-        finally {setSaving(false)}
-      }}/>
+    <div className="divide-y divide-border/70 border-b">
+      <SettingsRow id="show-conversation-cost" htmlFor="show-conversation-cost" title="在对话中显示费用"
+        description="回复下方显示本次运行的估算费用，悬停查看明细与本对话累计。"
+        control={<Switch id="show-conversation-cost" checked={preferences?.show_conversation_cost ?? false} disabled={!preferences || saving} onCheckedChange={async checked => {
+          setSaving(true)
+          setSaveError(null)
+          try {await setUsagePreferences({show_conversation_cost: checked})}
+          catch (reason) {setSaveError(errorMessage(reason, '保存失败'))}
+          finally {setSaving(false)}
+        }}/>}/>
     </div>
     {(saveError || preferenceError) && <LoadError message={saveError || preferenceError || ''} onRetry={() => {
       setSaveError(null)

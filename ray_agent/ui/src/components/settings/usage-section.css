@@ -7,10 +7,6 @@
   container-type: inline-size;
   font-size: calc(13px * var(--font-scale));
 }
-.usage-setting { display: flex; justify-content: space-between; align-items: center; gap: 14px; padding: 13px 0; border-bottom: 1px solid var(--border); }
-.usage-setting label { font-weight: 600; }
-.usage-setting p, .usage-unit { color: var(--muted-foreground); font-size: calc(12px * var(--font-scale)); }
-.usage-setting p { margin-top: 3px; }
 .usage-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 14px 0; }
 .usage-segment { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 2px; max-width: 100%; padding: 2px; border-radius: 9px; background: var(--secondary); }
 .usage-segment-button { display: inline-flex; align-items: center; gap: 5px; padding: 4px 9px; min-height: 27px; border-radius: 7px; white-space: nowrap; color: var(--muted-foreground); font-size: calc(12px * var(--font-scale)); }

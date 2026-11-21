@@ -180,6 +180,10 @@ def test_provider_toml_usage_and_deepseek_voice(tmp_path, isolated_model_connect
             headers = {"Content-Type": "audio/wav"}
             assert (await client.post(url, content=wav_bytes(), headers=headers)).status_code == 400
             assert voice_requests == 0
+            # 未选择时 voice 为 null；只改其他偏好不会把它写成 off。
+            assert (await client.get("/api/usage/preferences")).json()["data"]["voice"] is None
+            assert (await client.patch("/api/usage/preferences", json={"show_conversation_cost": False})).json()["data"]["voice"] is None
+            assert (await client.patch("/api/usage/preferences", json={"show_conversation_cost": True})).status_code == 200
             assert (await client.patch("/api/usage/preferences", json={"voice": "deepseek"})).status_code == 200
             assert (await client.post(url, content=b"invalid", headers=headers)).status_code == 400
             voice_ok = False

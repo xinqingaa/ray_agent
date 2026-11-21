@@ -133,9 +133,9 @@ async function main(){
  await act(async()=>form.save(['a']));assert.deepEqual(saved.fields,['a']);assert.equal(form.values.b,'invalid');assert.ok(form.dirty);
  await act(async()=>form.reset(['b']));assert.equal(form.values.a,'new A');assert.equal(form.values.b,'old B');assert.ok(!form.dirty);
  await act(async()=>r.unmount());
- const {SaveBar}=load('components/settings/form.tsx');let resetArguments;
- await act(async()=>{r=create(React.createElement(SaveBar,{dirty:true,saving:false,invalid:false,onReset:(...args)=>{resetArguments=args}}))});
- await act(async()=>r.root.findAllByType('button').find(n=>n.children.includes('撤销修改')).props.onClick({type:'click'}));
+ const {SettingsSaveBar}=load('components/settings/form.tsx');let resetArguments;
+ await act(async()=>{r=create(React.createElement(SettingsSaveBar,{mode:'edit',show:true,saving:false,invalid:false,onReset:(...args)=>{resetArguments=args}}))});
+ await act(async()=>r.root.findAllByType('button').find(n=>n.children.includes('撤销')).props.onClick({type:'click'}));
  assert.deepEqual(resetArguments,[]);await act(async()=>r.unmount());
  console.log('PASS: recent model/effort restore, actual send selection, session precedence, invalid preference fallback, storage failure, rejected selection isolation; all vendors listed in fixed groups, no vision/run/channel labels, server-defined model list, semantic fallback, commit on close, rejection keeps menu, scoped save preserves hidden draft, reset excludes click event');
 }

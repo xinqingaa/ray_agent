@@ -66,6 +66,8 @@ RayAgent 是单机桌面应用：Tauri 宿主随包带上冻结的 Python 核心
    pgrep -fl rayagent-core || echo "no core left"
    ```
 
+8. 任务完成通知与偏好：按[桌面开发指南的检查](desktop/README.md#检查)走查通知、点击打开会话与偏好开关。
+
 ## 排查入口
 
 | 现象 | 优先检查 |

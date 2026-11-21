@@ -20,7 +20,7 @@ npm ci
 - 图片按内容地址加载。[preview.ts](src/lib/api/preview.ts) 先申请并缓存短期票据，再把票据拼进地址。PDF 预览接口返回目标页的渲染图，DOCX 返回正文块，XLSX 可按工作表及起始行列读取窗口。
 - 下载、打包下载与保存图片经宿主的保存对话框完成；HTML 文件与外部链接交给系统浏览器打开。界面中的跨源链接点击由 [external-links.ts](src/lib/external-links.ts) 统一转交宿主，WebView 本身不打开外部页面。
 - 访问宿主的代码只在 [platform.ts](src/lib/platform.ts)，组件和检查脚本只依赖这一个模块；宿主命令的语义见[桌面开发指南](../desktop/README.md#界面与宿主的接口)。
-- 退出请求由 [quit-guard.tsx](src/components/quit-guard.tsx) 接住：没有活动任务直接确认退出，否则先弹出确认；读取会话失败时同样先确认。
+- 退出确认由宿主用原生对话框完成，界面不参与。[host-bridge.tsx](src/components/host-bridge.tsx) 不渲染内容，只把当前停留的会话报告给宿主（用于跳过已在查看的会话的通知），并在宿主发出打开会话事件时导航到该会话。宿主偏好经 [use-host-preferences.ts](src/hooks/use-host-preferences.ts) 读写，入口在设置页通用分区。
 
 ## 代码导航
 

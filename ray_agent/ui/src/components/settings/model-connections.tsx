@@ -6,10 +6,12 @@ import {Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, Di
 import {AlertCircle, Check, Coins, Download, FileText, Package, Pencil, Plus, RefreshCw, Sparkles, X} from '@/components/ui/icons'
 import {Input} from '@/components/ui/input'
 import {ApiError} from '@/lib/api/fetch'
-import {MODEL_CONNECTIONS_CHANGED, modelConnectionsApi, type CustomModelDraft, type ProviderProbe} from '@/lib/api/model-connections'
+import {isOfficialDeepSeek, MODEL_CONNECTIONS_CHANGED, modelConnectionsApi, type CustomModelDraft, type ProviderProbe} from '@/lib/api/model-connections'
 import type {ConnectionSource, ProviderStatus} from '@/lib/api/types'
 import {isDesktop, openModelConfig} from '@/lib/platform'
 import {cn} from '@/lib/utils'
+import {useUsagePreferences} from '@/hooks/use-usage-preferences'
+import {SettingsCard} from './settings-row'
 import './model-connections.css'
 
 type Kind = NonNullable<ProviderProbe['kind']>
@@ -339,6 +341,7 @@ export function ModelConnections({initial, onChange}: {
   const [editor, setEditor] = useState<Editor | null>(null)
   const [results, setResults] = useState<Record<string, ProbeNote>>({})
   const [testing, setTesting] = useState<Record<string, boolean>>({})
+  const voiceOn = useUsagePreferences().value?.voice === 'deepseek'
   useEffect(() => {setSource(initial)}, [initial])
   const publish = (next: ConnectionSource) => {
     setSource(next)
@@ -379,34 +382,41 @@ export function ModelConnections({initial, onChange}: {
         onClick={() => void reload()}><RefreshCw aria-hidden/></Button>
     </div>
     {source?.issue && <ProviderResult note={{text: source.issue, failed: true}}/>}
-    {!source?.issue && !providers.length && <p className="mt-2 text-xs text-muted-foreground">暂无模型连接。</p>}
-    {source?.notices?.map(notice => <p key={notice} className="mt-2 text-xs text-state-waiting">{notice}</p>)}
-    {providers.length > 0 && <ul aria-label="提供商" className="provider-list">
+    {!source?.issue && !providers.length && <p className="mt-3 text-meta text-muted-foreground">暂无模型连接。</p>}
+    {source?.notices?.map(notice => <p key={notice} className="mt-2 text-meta text-state-waiting">{notice}</p>)}
+    {providers.length > 0 && <ul aria-label="提供商" className="mt-3 space-y-2">
       {providers.map(provider => {
         const kind = provider.kind ?? 'compatible'
         const label = kind === 'compatible' ? provider.name : presets[kind].label
         const custom = Object.values(provider.custom_models ?? {})
         const count = (provider.configured_models ?? provider.models ?? []).length + custom.length
-        return <li key={provider.name} className="provider-card">
-          <span className="provider-mark"><ProviderMark kind={kind}/></span>
-          <div className="provider-card-content">
-            <div className="provider-card-title">
-              <strong>{label}</strong>
-              {kind !== 'compatible' && ![kind, 'gpt'].includes(provider.name) && <code>{provider.name}</code>}
-              {provider.issue ? <span className="provider-unavailable">不可用</span> : <span>{count} 个模型</span>}
-            </div>
-            <p className="provider-meta"><code>{provider.base_url?.replace(/^https?:\/\//, '')}</code> · {protocolLabels[provider.api_protocol]}
-              {provider.key_hint ? <> · <code>{provider.key_hint}</code></> : !provider.requires_key ? ' · 无密钥' : ''}</p>
-            {provider.issue && <ProviderResult note={{text: provider.issue, failed: true}}/>}
-            {custom.some(model => !model.rates) && <p className="provider-meta mt-1 flex items-center gap-1">
-              <Coins aria-hidden className="size-3 shrink-0"/>自定义模型未填写单价，用量只统计 Token
-            </p>}
-            {results[provider.name] && <ProviderResult note={results[provider.name]}/>}
-          </div>
-          <Button type="button" size="sm" variant="ghost" aria-label={`测试 ${provider.name}`} disabled={!!provider.issue || !provider.base_url || testing[provider.name]}
-            onClick={() => void test(provider)}>{testing[provider.name] ? '测试中…' : '测试'}</Button>
-          <Button type="button" size="icon-sm" variant="ghost" disabled={!source?.version} aria-label={`编辑 ${provider.name}`}
-            onClick={() => {if (source?.version) setEditor({version: source.version, original: provider})}}><Pencil aria-hidden/></Button>
+        const voice = voiceOn && isOfficialDeepSeek(provider)
+        return <li key={provider.name}>
+          <SettingsCard
+            mark={<ProviderMark kind={kind}/>}
+            title={<>
+              <strong className="text-sm font-medium break-all">{label}</strong>
+              {kind !== 'compatible' && ![kind, 'gpt'].includes(provider.name) && <code className="font-mono text-xs text-faint">{provider.name}</code>}
+              {provider.issue
+                ? <span className="provider-unavailable">不可用</span>
+                : <span className="text-meta text-muted-foreground">{count} 个模型{voice && ' · 语音转写'}</span>}
+            </>}
+            detail={<>
+              <span className="block break-all font-mono text-xs">{provider.base_url?.replace(/^https?:\/\//, '')} · {protocolLabels[provider.api_protocol]}
+                {provider.key_hint ? <> · {provider.key_hint}</> : !provider.requires_key ? ' · 无密钥' : ''}</span>
+              {custom.some(model => !model.rates) && <span className="mt-1 flex items-center gap-1">
+                <Coins aria-hidden className="size-3 shrink-0"/>自定义模型未填写单价，用量只统计 Token
+              </span>}
+              {provider.issue && <ProviderResult note={{text: provider.issue, failed: true}}/>}
+              {results[provider.name] && <ProviderResult note={results[provider.name]}/>}
+            </>}
+            actions={<>
+              <Button type="button" size="sm" variant="ghost" aria-label={`测试 ${provider.name}`} disabled={!!provider.issue || !provider.base_url || testing[provider.name]}
+                onClick={() => void test(provider)}>{testing[provider.name] ? '测试中…' : '测试'}</Button>
+              <Button type="button" size="icon-sm" variant="ghost" disabled={!source?.version} aria-label={`编辑 ${provider.name}`}
+                onClick={() => {if (source?.version) setEditor({version: source.version, original: provider})}}><Pencil aria-hidden/></Button>
+            </>}
+          />
         </li>
       })}
     </ul>}

@@ -242,7 +242,8 @@
 | 宿主退出等待 | 关闭核心 stdin 后等待 25 秒，再发 SIGTERM 等待 3 秒，随后 SIGKILL 整个进程组 | [sidecar.rs](../ray_agent/desktop/src/sidecar.rs) 的 `EXIT_GRACE`、`TERM_GRACE` |
 | 健康检查 | 握手后带令牌请求一次 `/api/status`，连接与读写各 5 秒 | 同上，`HEALTH_TIMEOUT` |
 | 宿主保留的核心日志 | 最近 200 行；失败时向界面给出最后 40 行 | 同上，`LOG_LINES`、`FAILURE_LOG_LINES` |
-| 退出请求回应 | 界面 2 秒内未回应 `quit_ack` 则宿主直接退出 | [lib.rs](../ray_agent/desktop/src/lib.rs) 的 `QUIT_ACK_TIMEOUT` |
+| 宿主调用核心（活动运行数） | 连接与读写各 5 秒 | [sidecar.rs](../ray_agent/desktop/src/sidecar.rs) 的 `HOST_CALL_TIMEOUT` |
+| 宿主会话状态订阅 | 没有核心连接时每 1 秒检查一次；连接超时 5 秒；断线后 3 秒重连；每页取最近 100 个会话 | [notify.rs](../ray_agent/desktop/src/notify.rs) 的 `POLL_INTERVAL`、`CONNECT_TIMEOUT`、`RETRY_INTERVAL`、`LIST_LIMIT` |
 | 宿主代为下载 | 连接与读取各 30 秒 | [platform.rs](../ray_agent/desktop/src/platform.rs) 的 `DOWNLOAD_TIMEOUT` |
 | 资源票据 | 有效 600 秒；进程内最多保留 1024 张，超出时丢弃最早签发的 | [config.py](../ray_agent/api/core/config.py) 的 `resource_ticket_seconds`、`resource_ticket_capacity` |
 | 界面重新申请票据 | 缓存的票据剩余不足 60 秒时重新申请 | [preview.ts](../ray_agent/ui/src/lib/api/preview.ts) 的 `TICKET_REFRESH_MS` |

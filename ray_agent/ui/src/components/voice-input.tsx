@@ -1,8 +1,12 @@
 import {useEffect, useRef, useState} from 'react'
 import {createPortal} from 'react-dom'
+import {toast} from 'sonner'
 import {Button} from '@/components/ui/button'
 import {AlertCircle, Check, Loader2, Mic, RefreshCw} from '@/components/ui/icons'
+import {setUsagePreferences} from '@/hooks/use-usage-preferences'
+import {isOfficialDeepSeek, modelConnectionsApi} from '@/lib/api/model-connections'
 import {USAGE_RECORDED, usageApi} from '@/lib/api/usage'
+import {openSettingsSection} from '@/lib/settings-navigation'
 import {VOICE_LIMIT_SECONDS, voiceWav} from '@/lib/voice-recording'
 import './voice-input.css'
 
@@ -14,7 +18,8 @@ type Capture = {
   chunks: Float32Array[]
   frames: number
 }
-type Phase = 'idle' | 'permission' | 'recording' | 'transcribing' | 'error'
+/** offer：首次点击麦克风时，就地说明转写去向并请求确认；确认后才开始录音。 */
+type Phase = 'idle' | 'offer' | 'permission' | 'recording' | 'transcribing' | 'error'
 
 function release(capture: Capture | null) {
   if (!capture) return
@@ -25,9 +30,14 @@ function release(capture: Capture | null) {
   void capture.context.close().catch(() => {})
 }
 
-export function VoiceInput({sessionId, disabled, fill, stripHost, onCancel, onBusyChange}: {
+/**
+ * 输入框的麦克风。`enabled` 为假（语音转写未选择）时，首次点击进入 offer 确认；
+ * 确认时在点击的同步阶段开始录音（保留 WebView 的用户操作授权），再保存偏好。
+ */
+export function VoiceInput({sessionId, disabled, enabled, fill, stripHost, onCancel, onBusyChange}: {
   sessionId?: string | null
   disabled: boolean
+  enabled: boolean
   fill: (text: string) => void
   stripHost: HTMLDivElement | null
   onCancel: () => void
@@ -38,6 +48,8 @@ export function VoiceInput({sessionId, disabled, fill, stripHost, onCancel, onBu
   const [levels, setLevels] = useState<number[]>([])
   const [error, setError] = useState('')
   const [hasAudio, setHasAudio] = useState(false)
+  /** offer 阶段检查官方 DeepSeek 连接：null 为检查中 */
+  const [offerReady, setOfferReady] = useState<boolean | null>(null)
   const active = useRef<Capture | null>(null)
   const pendingContext = useRef<AudioContext | null>(null)
   const recorded = useRef<Blob | null>(null)
@@ -86,6 +98,24 @@ export function VoiceInput({sessionId, disabled, fill, stripHost, onCancel, onBu
     document.addEventListener('keydown', cancel, true)
     return () => document.removeEventListener('keydown', cancel, true)
   }, [phase])
+
+  const openOffer = () => {
+    setError('')
+    setOfferReady(null)
+    setPhase('offer')
+    modelConnectionsApi.get()
+      .then(source => setOfferReady((source.providers ?? []).some(isOfficialDeepSeek)))
+      .catch(() => setOfferReady(false))
+  }
+
+  /** 确认启用：录音与保存偏好并行。保存失败则丢弃这次录音并提示。 */
+  const enableAndRecord = () => {
+    void start()
+    setUsagePreferences({voice: 'deepseek'}).catch(reason => {
+      discard()
+      toast.error(`启用语音转写失败：${reason instanceof Error ? reason.message : '请重试'}`)
+    })
+  }
 
   const send = async (audio: Blob) => {
     const request = ++generation.current
@@ -181,7 +211,22 @@ export function VoiceInput({sessionId, disabled, fill, stripHost, onCancel, onBu
   }
 
   const clock = String(Math.floor(seconds / 60)).padStart(2, '0') + ':' + String(seconds % 60).padStart(2, '0')
-  const strip = phase !== 'idle' && <div className="composer-voice-strip" data-phase={phase}>
+  const offerStrip = <div className="composer-voice-strip" data-phase="offer">
+    <span className="composer-voice-status" role="status">
+      <Mic className="mt-0.5 size-3.5 shrink-0" aria-hidden/>
+      <span>{offerReady == null ? '正在检查 DeepSeek 连接…'
+        : offerReady ? '录音会发送到 DeepSeek 转写，按时长计费并计入用量。可在「设置 → 通用」中关闭。'
+        : '语音转写需要先配置官方 DeepSeek 连接及 API Key。'}</span>
+    </span>
+    <div className="composer-voice-actions">
+      {offerReady === false && <Button type="button" size="xs" variant="outline" onClick={() => {discard(); openSettingsSection('llm')}}>前往模型提供商</Button>}
+      <Button type="button" size="xs" variant="ghost" onClick={discard}>取消<kbd>Esc</kbd></Button>
+      <Button type="button" size="xs" disabled={offerReady !== true || disabled} onClick={enableAndRecord}>
+        <Mic aria-hidden/>启用并录音
+      </Button>
+    </div>
+  </div>
+  const strip = phase === 'offer' ? offerStrip : phase !== 'idle' && <div className="composer-voice-strip" data-phase={phase}>
     {phase === 'permission' && <span className="composer-voice-status" role="status">
       <Loader2 className="size-3.5 animate-spin" aria-hidden/>等待麦克风授权
     </span>}
@@ -217,10 +262,15 @@ export function VoiceInput({sessionId, disabled, fill, stripHost, onCancel, onBu
     {strip && stripHost && createPortal(strip, stripHost)}
     <Button type="button" variant="ghost" size="icon-sm" className="composer-voice-trigger"
       aria-pressed={phase === 'recording'} aria-label={phase === 'recording' ? '结束录音并转写' : '开始录音'}
-      title={phase === 'recording' ? '结束录音并转写' : '语音输入 · DeepSeek'}
+      title={phase === 'recording' ? '结束录音并转写' : enabled ? '语音输入 · DeepSeek' : '语音输入（首次使用需确认）'}
       disabled={phase === 'transcribing' || phase === 'permission' || hasAudio || (disabled && phase !== 'recording')}
       onClick={() => {
         if (phase === 'recording') finish()
+        if (phase === 'offer') return
+        if (!enabled) {
+          if (phase === 'idle' || phase === 'error') openOffer()
+          return
+        }
         if (phase === 'idle' || (phase === 'error' && !hasAudio)) void start()
       }}><Mic aria-hidden className="size-4"/></Button>
   </>

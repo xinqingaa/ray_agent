@@ -1,4 +1,4 @@
-"""只供桌面宿主调用的接口：登记用户在系统选择器里选中的文件夹，以及把根内路径解析成本机绝对路径。
+"""只供桌面宿主调用的接口：登记用户在系统选择器里选中的文件夹、把根内路径解析成本机绝对路径，以及读取活动运行数。
 
 调用方必须同时带实例令牌与宿主密钥；界面只有实例令牌，因此不能自行登记桌面路径。
 """
@@ -6,12 +6,14 @@ from fastapi import APIRouter, Depends
 
 from app.application.services.root_access import RootFileService
 from app.application.services.folder_grants import folder_grants, validate_grant_path
+from app.application.services.session_service import SessionService
 from app.interfaces.host_access import require_host
 from app.interfaces.schemas import Response
+from app.interfaces.schemas.host import HostActivityResponse
 from app.interfaces.schemas.workspace import (
     FolderGrantRequest, FolderGrantResponse, ResolveRootPathRequest, ResolveRootPathResponse,
 )
-from app.interfaces.service_dependencies import get_root_file_service
+from app.interfaces.service_dependencies import get_root_file_service, get_session_service
 
 router = APIRouter(prefix="/host", tags=["宿主接口"], dependencies=[Depends(require_host)])
 
@@ -31,3 +33,9 @@ async def create_folder_grant(request: FolderGrantRequest) -> Response[FolderGra
 async def resolve_root_path(root_id: str, request: ResolveRootPathRequest,
                             service: RootFileService = Depends(get_root_file_service)) -> Response[ResolveRootPathResponse]:
     return Response.success(ResolveRootPathResponse(path=await service.locate(root_id, request.relative_path)))
+
+
+@router.get("/activity", response_model=Response[HostActivityResponse], summary="读取活动运行数",
+            description="退出应用前的只读检查：运行中或等待处理的运行数。需要宿主密钥头 X-RayAgent-Host-Secret")
+async def host_activity(service: SessionService = Depends(get_session_service)) -> Response[HostActivityResponse]:
+    return Response.success(HostActivityResponse(active_runs=await service.active_run_count()))

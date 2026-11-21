@@ -1,23 +1,24 @@
 mod contract;
+mod notify;
 mod platform;
+mod preferences;
 mod sidecar;
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
-use std::time::Duration;
 
+use preferences::PreferenceStore;
 use sidecar::{CoreConnection, CoreHost};
-use tauri::{AppHandle, Emitter, Manager, RunEvent, WindowEvent};
+use tauri::{AppHandle, Manager, RunEvent, WindowEvent};
+use tauri_plugin_dialog::{DialogExt, MessageDialogButtons, MessageDialogKind};
 
-/// 界面收到退出请求后要在这段时间内回应，否则宿主直接退出，避免界面卡住时无法退出。
-const QUIT_ACK_TIMEOUT: Duration = Duration::from_secs(2);
-const QUIT_REQUESTED: &str = "rayagent://quit-requested";
 const QUIT_MENU_ID: &str = "rayagent-quit";
 
+/// 退出状态：`confirmed` 表示已决定退出（之后的退出请求直接放行）；`asking` 表示确认对话框或活动运行查询进行中。
 #[derive(Default)]
 struct QuitState {
     confirmed: AtomicBool,
-    acknowledged: AtomicBool,
+    asking: AtomicBool,
 }
 
 #[tauri::command]
@@ -32,18 +33,6 @@ async fn restart_core(app: AppHandle) -> Result<(), String> {
         .map_err(|e| e.to_string())
 }
 
-/// 界面已收到退出请求，正在向用户确认。
-#[tauri::command]
-fn quit_ack(quit: tauri::State<'_, QuitState>) {
-    quit.acknowledged.store(true, Ordering::SeqCst);
-}
-
-#[tauri::command]
-fn quit_confirm(app: AppHandle, quit: tauri::State<'_, QuitState>) {
-    quit.confirmed.store(true, Ordering::SeqCst);
-    app.exit(0);
-}
-
 fn show_main(app: &AppHandle) {
     if let Some(window) = app.get_webview_window("main") {
         let _ = window.show();
@@ -51,37 +40,69 @@ fn show_main(app: &AppHandle) {
     }
 }
 
-/// 用户发起的退出先交给界面：有活动运行时由界面确认，确认后才停止核心。
-fn request_quit(app: &AppHandle) -> bool {
+/// 退出前是否需要确认：偏好开启且核心已就绪（没有核心就没有运行，直接退出）。
+fn confirmation_needed(app: &AppHandle) -> bool {
+    app.state::<PreferenceStore>().get().confirm_before_quit && app.state::<CoreHost>().is_ready()
+}
+
+/// 用户请求退出（菜单、Cmd+Q）时调用。需要确认时在后台查询活动运行数并弹出原生对话框，
+/// 确认后才退出；返回 true 表示退出已转入确认流程，调用方应阻止本次退出。
+fn begin_quit(app: &AppHandle) -> bool {
     let quit = app.state::<QuitState>();
-    if quit.confirmed.load(Ordering::SeqCst) || !app.state::<CoreHost>().is_ready() {
+    if quit.confirmed.load(Ordering::SeqCst) || !confirmation_needed(app) {
         return false;
     }
-    quit.acknowledged.store(false, Ordering::SeqCst);
-    show_main(app);
-    if app.emit(QUIT_REQUESTED, ()).is_err() {
-        return false;
+    if quit.asking.swap(true, Ordering::SeqCst) {
+        return true;
     }
     let handle = app.clone();
     thread::spawn(move || {
-        thread::sleep(QUIT_ACK_TIMEOUT);
+        let confirmed = match sidecar::active_runs(&handle) {
+            Ok(0) => true,
+            Ok(count) => ask_quit(&handle, Some(count)),
+            Err(error) => {
+                eprintln!("[host] 无法读取活动运行数：{error}");
+                ask_quit(&handle, None)
+            }
+        };
         let quit = handle.state::<QuitState>();
-        if !quit.acknowledged.load(Ordering::SeqCst) {
+        if confirmed {
             quit.confirmed.store(true, Ordering::SeqCst);
             handle.exit(0);
+        } else {
+            quit.asking.store(false, Ordering::SeqCst);
         }
     });
     true
 }
 
+/// 原生确认对话框，附着在主窗口上；`count` 为 None 表示无法确认任务数。返回是否退出。
+fn ask_quit(app: &AppHandle, count: Option<u64>) -> bool {
+    let message = match count {
+        Some(count) => format!("有 {count} 个任务正在运行或等待你处理。退出会停止这些任务，未完成的会记为中断。"),
+        None => "无法确认是否有任务正在进行。退出会停止仍在进行的任务，它们会记为中断。".to_owned(),
+    };
+    let mut dialog = app
+        .dialog()
+        .message(message)
+        .title("退出 RayAgent？")
+        .kind(MessageDialogKind::Warning)
+        .buttons(MessageDialogButtons::OkCancelCustom("停止任务并退出".into(), "取消".into()));
+    if let Some(window) = app.get_webview_window("main") {
+        show_main(app);
+        dialog = dialog.parent(&window);
+    }
+    dialog.blocking_show()
+}
+
 fn quit_from_menu(app: &AppHandle) {
-    if !request_quit(app) {
+    if !begin_quit(app) {
         app.state::<QuitState>().confirmed.store(true, Ordering::SeqCst);
         app.exit(0);
     }
 }
 
-/// 与默认菜单相同，只把退出换成自定义项：系统预置的退出直接终止应用，不产生 ExitRequested，无法先交给界面确认。
+/// 与默认菜单相同，只把退出换成自定义项：系统预置的退出直接终止应用，不产生 ExitRequested，无法先确认。
 #[cfg(target_os = "macos")]
 fn app_menu(app: &AppHandle) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
     use tauri::menu::{AboutMetadata, Menu, MenuItem, PredefinedMenuItem, Submenu};
@@ -140,7 +161,7 @@ fn app_menu(app: &AppHandle) -> tauri::Result<tauri::menu::Menu<tauri::Wry>> {
     )
 }
 
-/// 终止信号与普通退出走同一条停止流程：关闭 stdin，核心停止受理并结束任务后退出。
+/// 终止信号与普通退出走同一条停止流程：关闭 stdin，核心停止受理并结束任务后退出。信号不弹确认。
 fn watch_signals(app: AppHandle) {
     use signal_hook::consts::{SIGHUP, SIGINT, SIGTERM};
     let Ok(mut signals) = signal_hook::iterator::Signals::new([SIGTERM, SIGINT, SIGHUP]) else {
@@ -161,12 +182,18 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_notification::init())
         .manage(CoreHost::default())
         .manage(QuitState::default())
+        .manage(notify::Notifier::default())
         .setup(|app| {
+            let path = preferences::store_path(app.handle())?;
+            app.manage(PreferenceStore::load(path));
             #[cfg(target_os = "macos")]
             app.set_menu(app_menu(app.handle())?)?;
             watch_signals(app.handle().clone());
+            notify::sync_focus(app.handle());
+            notify::start(app.handle());
             app.state::<CoreHost>().start(app.handle());
             Ok(())
         })
@@ -176,31 +203,43 @@ pub fn run() {
             }
         })
         .on_window_event(|window, event| {
-            // 关闭主窗口只隐藏，核心与活动运行继续；从程序坞重新打开。退出用菜单或 Cmd-Q。
-            if let WindowEvent::CloseRequested { api, .. } = event {
-                if window.label() == "main" && !window.app_handle().state::<QuitState>().confirmed.load(Ordering::SeqCst) {
-                    api.prevent_close();
-                    let _ = window.hide();
+            if window.label() != "main" {
+                return;
+            }
+            match event {
+                // 关闭主窗口只隐藏，核心与活动运行继续；从程序坞重新打开。退出用菜单或 Cmd-Q。
+                WindowEvent::CloseRequested { api, .. } => {
+                    if !window.app_handle().state::<QuitState>().confirmed.load(Ordering::SeqCst) {
+                        api.prevent_close();
+                        notify::set_focused(window.app_handle(), false);
+                        let _ = window.hide();
+                    }
                 }
+                WindowEvent::Focused(focused) => notify::set_focused(window.app_handle(), *focused),
+                _ => {}
             }
         })
         .invoke_handler(tauri::generate_handler![
             core_connection,
             restart_core,
-            quit_ack,
-            quit_confirm,
             platform::open_model_config,
             platform::open_external,
             platform::save_resource,
             platform::save_bytes,
             platform::select_folder_grant,
             platform::reveal_in_file_manager,
+            platform::data_location,
+            platform::reveal_data_location,
+            preferences::host_preferences,
+            preferences::set_host_preferences,
+            notify::set_viewed_session,
+            notify::notification_permission,
         ])
         .build(tauri::generate_context!())
         .expect("failed to build the RayAgent desktop host")
         .run(|app, event| match event {
-            RunEvent::ExitRequested { api, code, .. } => {
-                if code.is_none() && request_quit(app) {
+            RunEvent::ExitRequested { api, code: None, .. } => {
+                if begin_quit(app) {
                     api.prevent_exit();
                 }
             }

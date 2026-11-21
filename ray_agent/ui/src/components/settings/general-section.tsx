@@ -1,9 +1,13 @@
+import type {ReactNode} from 'react'
 import {Input} from '@/components/ui/input'
 import {Switch} from '@/components/ui/switch'
 import {useDeveloperMode} from '@/hooks/use-developer-mode'
 import {configApi} from '@/lib/api/config'
 import type {AgentConfig} from '@/lib/api/types'
-import {checkInteger, collect, FormField, FormSkeleton, LoadError, SaveBar, SectionHeader, type ConfigForm, type Values} from './form'
+import {checkInteger, collect, FormSkeleton, LoadError, SectionHeader, type ConfigForm, type Values} from './form'
+import {HostPreferenceRows} from './host-preference-rows'
+import {SettingsRow} from './settings-row'
+import {VoiceSettings} from './voice-settings'
 
 export type GeneralField = 'max_iterations' | 'max_retries' | 'max_search_results' | 'standalone_execution_enabled'
 export type GeneralForm = ConfigForm<AgentConfig, GeneralField>
@@ -54,77 +58,75 @@ export const generalFormOptions = {
     collect<GeneralField>(Object.fromEntries(FIELDS.map((f) => [f.field, checkInteger(v[f.field], f.min, f.max)]))),
 }
 
+/**
+ * 通用分区：开发者模式（由外层传入）、桌面宿主偏好（通知、退出确认）、语音转文字、独立对话的本机执行，以及开发者模式下的循环上限。
+ * 本机执行与上限是草稿，经底部浮出条保存。
+ */
 export function GeneralSection({form, children}: {form: GeneralForm; children?: ReactNode}) {
   const {visibility} = useDeveloperMode()
   const values = form.values
   const showLimits = visibility.executionSettings
   return (
-    <section aria-labelledby="settings-general-title" className="space-y-6">
-      <SectionHeader
-        id="settings-general-title"
-        title="通用"
-        description="独立对话的本机执行，以及 Agent 循环上限。修改后从下一次运行开始生效。"
-      />
-      {children}
-      {form.load.phase === 'loading' && <FormSkeleton rows={showLimits ? 4 : 1}/>}
-      {form.load.phase === 'error' && <div className="py-5"><LoadError message={form.load.message} onRetry={form.reload}/></div>}
-      {form.load.phase === 'ready' && values && (
-        <form
-          noValidate
-          onSubmit={(e) => {
-            e.preventDefault()
-            void form.save()
-          }}
-        >
-          <div className="divide-y">
-            <FormField
-              id={form.fieldId('standalone_execution_enabled')}
-              label="独立对话启用本机执行"
-              hint="默认关闭。打开后，独立对话可在会话工作目录中使用 Shell 与脚本；工作区会话由各自工作区开关控制。"
-            >
-              {(aria) => (
+    <section aria-labelledby="settings-general-title">
+      <SectionHeader id="settings-general-title" title="通用"/>
+      <div className="divide-y divide-border/70">
+        {children}
+        <HostPreferenceRows/>
+        <VoiceSettings/>
+        {form.load.phase === 'loading' && <div className="py-4"><FormSkeleton rows={showLimits ? 4 : 1}/></div>}
+        {form.load.phase === 'error' && <div className="py-5"><LoadError message={form.load.message} onRetry={form.reload}/></div>}
+        {form.load.phase === 'ready' && values && (
+          <form
+            noValidate
+            className="divide-y divide-border/70"
+            onSubmit={(e) => {
+              e.preventDefault()
+              void form.save()
+            }}
+          >
+            {/* 隐藏的提交按钮让回车在本分区内提交草稿；可见的保存入口在底部浮出条。 */}
+            <button type="submit" className="hidden" tabIndex={-1} aria-hidden>保存</button>
+            <SettingsRow
+              id="standalone-execution"
+              htmlFor={form.fieldId('standalone_execution_enabled')}
+              title="独立对话启用本机执行"
+              description="默认关闭。打开后，独立对话可在会话工作目录中使用 Shell 与脚本；工作区会话由各自工作区开关控制。"
+              control={
                 <Switch
-                  {...aria}
+                  id={form.fieldId('standalone_execution_enabled')}
+                  aria-labelledby="standalone-execution-title"
                   checked={values.standalone_execution_enabled === '1'}
                   onCheckedChange={(checked) => form.setValue('standalone_execution_enabled', checked ? '1' : '0')}
                   disabled={form.saving}
                 />
-              )}
-            </FormField>
+              }
+            />
             {showLimits && FIELDS.map(({field, label, hint, min, max}) => (
-              <FormField
+              <SettingsRow
                 key={field}
                 id={form.fieldId(field)}
-                label={label}
-                hint={<>{hint}<span className="ml-1 tabular-nums">范围 {min}–{max}。</span></>}
+                htmlFor={form.fieldId(field)}
+                title={label}
+                description={<>{hint}<span className="ml-1 tabular-nums">范围 {min}–{max}。</span></>}
                 error={form.visibleErrors[field]}
-              >
-                {(aria) => (
+                control={
                   <Input
-                    {...aria}
+                    id={form.fieldId(field)}
                     name={field}
                     inputMode="numeric"
                     autoComplete="off"
-                    className="w-32 tabular-nums"
+                    className="w-24 tabular-nums"
+                    aria-invalid={form.visibleErrors[field] ? true : undefined}
                     value={values[field]}
                     onChange={(e) => form.setValue(field, e.target.value)}
                     disabled={form.saving}
                   />
-                )}
-              </FormField>
+                }
+              />
             ))}
-          </div>
-          <SaveBar
-            dirty={form.dirty}
-            saving={form.saving}
-            invalid={form.invalid}
-            savedAt={form.savedAt}
-            saveError={form.saveError}
-            onReset={form.reset}
-          />
-        </form>
-      )}
+          </form>
+        )}
+      </div>
     </section>
   )
 }
-import type {ReactNode} from 'react'

@@ -1,0 +1,10 @@
+/* 设置页的浮出保存条：有未保存修改时从底部浮出；关闭被拦时抖动提示。 */
+.settings-savebar {
+  transform: translateY(calc(100% + 30px));
+  opacity: 0;
+  transition: transform 260ms cubic-bezier(.2, .9, .3, 1.15), opacity 180ms ease;
+}
+.settings-savebar[data-show="true"] { transform: none; opacity: 1; }
+@media (prefers-reduced-motion: reduce) {
+  .settings-savebar { transition: none; }
+}

@@ -88,17 +88,36 @@ target/release/bundle/macos/RayAgent.app/Contents/MacOS/rayagent-desktop
 | `save_bytes` | 保存界面已持有的内容，文件名放在 `x-filename` 请求头 |
 | `select_folder_grant` | 参数 `purpose` 取 `open_workspace`、`default_location` 或 `relocate_workspace`（只决定选择器标题，其他取值拒绝）：弹出系统文件夹选择器，取消返回空；选中后由宿主带实例令牌与宿主密钥向核心的 `/api/host/folder-grants` 登记路径，只把一次性 `grant_id` 与文件夹显示名交给界面。宿主密钥与桌面路径不经过界面，凭证的用法与期限见 [API 开发指南](../api/README.md#工作区与文件夹授权) |
 | `reveal_in_file_manager` | 参数 `root_id` 与根内 `relative_path`（空表示根目录本身）：宿主带实例令牌与宿主密钥向核心的 `/api/host/roots/{root_id}/resolve` 取目标的绝对路径（核心按根身份与路径规则核对，不越出根，拒绝保留目录与凭据文件，目标须存在），再在系统文件管理器中显示：macOS 执行 `open -R`，其他平台走打开插件的显示文件。界面不接触也不能指定绝对路径；`root_id` 只接受核心签发的字符 |
-| `rayagent://quit-requested`、`quit_ack`、`quit_confirm` | 退出确认，见下文 |
+| `host_preferences`、`set_host_preferences` | 读取与局部更新宿主偏好 `notifyOnFinish`、`confirmBeforeQuit`，见下文「任务通知与偏好」；未知字段拒绝 |
+| `notification_permission` | 恒返回 `unsupported`：插件在桌面端恒报告已授权，宿主读不到 macOS 的通知开关，不伪装成 `granted` |
+| `set_viewed_session` | 界面报告当前停在哪个会话（`null` 表示不在会话页）；只影响是否跳过通知，不改变任何数据 |
+| `data_location` | 返回核心数据根的绝对路径，与宿主启动核心时使用的位置相同，界面不写死路径 |
+| `reveal_data_location` | 在系统文件管理器中显示数据根；目录尚未创建（核心还没启动过）时返回原因，不替核心创建目录 |
+| `rayagent://open-session` | 宿主事件，载荷为会话 ID。点击任务通知后宿主先显示窗口再发出，界面导航到该会话 |
 
 宿主命令失败时返回字符串，界面在 [platform.ts](../ui/src/lib/platform.ts) 统一转为 `Error`。实例令牌只经 `core_connection` 交给界面，由界面放进请求头，不进 URL。图片、PDF 与网页预览由 WebView 按 URL 直接加载，界面先为该资源申请短期票据再拼进地址；票据的范围与有效期见 [API 开发指南](../api/README.md#启动与接口)。界面中的跨源链接一律交给 `open_external`，WebView 本身不打开外部页面。
 
 宿主把外部文件拖放交给 WebView 的文件事件。各落点复用页面上传入口，由核心按会话或已授权工作区处理。检查入口见[运行指南](../README.md#运行检查)。
 
+## 任务通知与偏好
+
+- 宿主自己订阅核心的会话列表流（`POST /api/sessions/stream`），不占用界面的同源连接，也不受界面当前范围限制。会话状态从活动（等待、运行中、待处理）转为完成、失败或等待用户时，宿主发一条系统通知。用户停止（`cancelled`）与退出导致的中断（`interrupted`）不通知。订阅随核心实例变化重建，断线后按间隔重连；核心重启后清空上一次看到的状态，不把启动扫描结果当成完成。订阅覆盖列表的第一页。
+- 有以下情况时不通知：偏好「完成后通知」关闭；窗口聚焦且界面停在该会话上。界面经 `set_viewed_session` 报告当前会话，离开会话页时清空。
+- 点击通知：显示并聚焦主窗口，再发出 `rayagent://open-session`，界面导航到该会话（工作区会话的路由由界面规范化）。
+- 偏好 `notifyOnFinish`（默认开）、`confirmBeforeQuit`（默认开）保存在应用配置目录下的 `host-preferences.json`，原子写入，由宿主读写。它不放进核心数据根：退出时核心可能已停止，宿主仍要读得到；「清空全部数据」只清核心数据根，不重置这两个开关。文件不存在使用默认值；文件损坏时记录原因并使用默认值，直到下一次保存覆盖它。
+- 界面侧通过 [platform.ts](../ui/src/lib/platform.ts) 的 `getHostPreferences()`、`setHostPreferences(patch)` 访问；非桌面环境抛出 `HostUnavailableError`，不伪造默认值；`notificationPermission()` 在非桌面环境返回 `unsupported`，`setViewedSession()` 为空操作。
+- 通知权限无法从宿主读取。插件在桌面端恒报告已授权，`notification_permission` 因此返回 `unsupported`；系统关闭了本应用的通知时，宿主无从得知，通知只是不出现。开发构建是未打包的可执行文件，系统把它的通知归属到「终端」，与正式包的应用身份不同，检查时要按实际身份在系统设置中查看。
+
+## 依赖与权限
+
+- 新增 Rust 依赖 `tauri-plugin-notification`（[Cargo.toml](Cargo.toml)）：提供 macOS 系统通知与点击回调。只在 Rust 侧使用，界面不调用插件 API，因此 [default.json](capabilities/default.json) 不需要新增权限，窗口能力仍只有 `core:default`。代价是多一个插件及其 Cargo 依赖（`Cargo.lock` 随之增加若干传递包），且插件在桌面端没有授权查询接口。备选是直接调用系统通知接口（需自己维护绑定与点击回调，工作量与风险更高）；界面侧的 Web 通知需要界面常驻并占用同源连接，窗口隐藏时不可靠，因此不采用。
+- 退出确认与文件选择器使用既有的 `tauri-plugin-dialog`，没有新增插件；显示文件使用 `tauri-plugin-opener`。
+
 ## 关闭与退出
 
 - 关闭主窗口只隐藏窗口，核心与运行继续；点程序坞图标重新显示。
-- Cmd+Q 或菜单退出时，核心已就绪则宿主向界面发出 `rayagent://quit-requested`。界面先回应 `quit_ack`，没有活动任务时直接 `quit_confirm`，否则弹出确认；界面在期限内没有回应时宿主直接退出，避免界面卡住后无法退出。macOS 预置的退出菜单项直接终止应用、宿主收不到退出请求，所以应用菜单里的退出是宿主自己的菜单项。
-- 程序坞菜单退出、注销与关机由系统直接终止应用，不经过界面确认；宿主仍走下面的停止流程，活动运行记为中断。
+- Cmd+Q 或菜单退出时，若偏好「退出前确认」开启且核心已就绪，宿主先向核心的 `/api/host/activity` 询问活动运行数，再弹出原生对话框：有活动运行（运行中或等待用户）时列出数量并要求确认，没有时直接退出；无法取得数量时仍提示确认。取消则应用与运行都不受影响。偏好关闭或核心未就绪时直接退出。macOS 预置的退出菜单项直接终止应用、宿主收不到退出请求，所以应用菜单里的退出是宿主自己的菜单项。
+- 程序坞菜单退出、注销与关机由系统直接终止应用，不经过确认；宿主仍走下面的停止流程，活动运行记为中断。窗口关闭按钮只隐藏窗口，不进入退出流程，也不确认。
 - 退出、确认退出与 SIGTERM、SIGINT、SIGHUP 走同一条停止流程：宿主关闭核心 stdin，核心停止受理新工作，先结束仍开着的事件流，再结束活动运行后退出；超过等待期限再发 SIGTERM，最后对整个进程组发送 SIGKILL 并回收首进程。宿主被强制结束时，核心同样因 stdin 关闭而自行退出。期限见[运行参数与限额](../../docs/limits.md#桌面宿主与核心进程)。
 
 ## 检查
@@ -106,7 +125,8 @@ target/release/bundle/macos/RayAgent.app/Contents/MacOS/rayagent-desktop
 - 契约对齐与宿主单元测试：在本目录运行 `cargo test`。它内嵌 `../contracts/generated` 中的 `core.schema.json` 与样例，核对启动参数、握手、能力与错误代码类型和契约一致，并检查协议与事件版本常量与样例相同；契约变化后先按[契约指南](../contracts/README.md)重新生成，再修改宿主类型。
 - 选择文件夹与显示位置：`cargo test` 覆盖选择器用途的封闭取值、核心响应的解析（只保留凭证与显示名）、根身份只允许核心签发的字符、解析出的位置必须是绝对路径；原生选择器、取消路径与登记失败的提示只能在宿主窗口里走查，步骤见[运行指南的运行检查](../README.md#运行检查)。`reveal_in_file_manager` 在 macOS 以外的平台走打开插件的显示文件分支，该分支没有编译验证，也没有在 Windows 或 Linux 上运行过。
 - 启动与界面：开发运行或打开内部包，界面进入首页；设置页能看到模型连接状态，按[运行指南的运行检查](../README.md#运行检查)完成独立对话、导航与草稿检查。
-- 退出：有活动任务时 Cmd+Q 先确认；退出后确认没有残留进程：
+- 任务通知：在宿主窗口里发起一个需要一段时间的任务，切到其他应用，任务完成后应出现系统通知；窗口聚焦并停在该会话时不应通知。点击通知应显示窗口并打开该会话。关闭偏好后不再通知。这些条目需要在打包或开发的真实窗口中逐项走查；`cargo test` 只覆盖状态转换与偏好读写。
+- 退出：有活动任务时 Cmd+Q 先确认，取消后任务继续；偏好关闭后直接退出。退出后确认没有残留进程：
 
   ```bash
   pgrep -fl rayagent-core || echo "no core left"

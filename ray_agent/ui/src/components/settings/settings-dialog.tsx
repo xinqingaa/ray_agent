@@ -2,13 +2,16 @@ import {useCallback, useState} from 'react'
 import {useRouter} from '@/lib/navigation'
 import {Dialog, DialogContent, DialogTitle} from '@/components/ui/dialog'
 import {SettingsView} from './settings-view'
+import type {SettingsSectionKey} from '@/lib/settings-navigation'
 
 function useSettingsClose(onClose: () => void) {
   const [dirty, setDirty] = useState(false)
   const [closeBlocked, setCloseBlocked] = useState(false)
+  const [closeAttempt, setCloseAttempt] = useState(0)
   const close = () => {
     if (dirty) {
       setCloseBlocked(true)
+      setCloseAttempt(count => count + 1)
       return false
     }
     onClose()
@@ -18,12 +21,20 @@ function useSettingsClose(onClose: () => void) {
     setDirty(next)
     if (!next) setCloseBlocked(false)
   }, [])
-  const onLeaveBlocked = useCallback(() => setCloseBlocked(true), [])
-  return {close, closeBlocked, onDirtyChange, onLeaveBlocked}
+  const onLeaveBlocked = useCallback(() => {
+    setCloseBlocked(true)
+    setCloseAttempt(count => count + 1)
+  }, [])
+  return {close, closeBlocked, closeAttempt, onDirtyChange, onLeaveBlocked}
 }
 
 /** 覆盖应用导航，保留下面的会话与草稿；所有关闭入口共用离开保护。 */
-export function SettingsDialog({open, onOpenChange}: {open: boolean; onOpenChange: (open: boolean) => void}) {
+export function SettingsDialog({open, onOpenChange, initialSection}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  /** 打开时定位到的分区；每次打开重新挂载，所以只在打开时读取 */
+  initialSection?: SettingsSectionKey
+}) {
   const {close, ...guard} = useSettingsClose(() => onOpenChange(false))
   return (
     <Dialog open={open} onOpenChange={next => {if (!next) close()}}>
@@ -38,7 +49,7 @@ export function SettingsDialog({open, onOpenChange}: {open: boolean; onOpenChang
         onInteractOutside={event => event.preventDefault()}
       >
         <DialogTitle className="sr-only">设置</DialogTitle>
-        <SettingsView onNavigate={close} onClose={close} {...guard}/>
+        <SettingsView onNavigate={close} onClose={close} initialSection={initialSection} {...guard}/>
       </DialogContent>
     </Dialog>
   )

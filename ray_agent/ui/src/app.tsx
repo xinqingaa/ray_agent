@@ -4,7 +4,7 @@ import {ThemeProvider} from 'next-themes'
 import {Toaster} from '@/components/ui/sonner'
 import {AppShell} from '@/components/app-shell'
 import {CoreGate} from '@/components/core-gate'
-import {QuitGuard} from '@/components/quit-guard'
+import {HostBridge} from '@/components/host-bridge'
 import {SettingsPageView} from '@/components/settings/settings-dialog'
 import {SkillsPage} from '@/pages/skills'
 import {HomePage} from '@/pages/home'
@@ -36,7 +36,7 @@ function DocumentTitle() {
 function CoreApp() {
   return (
     <CoreGate>
-      <QuitGuard/>
+      <HostBridge/>
       <Routes>
         <Route element={<AppShell><Outlet/></AppShell>}>
           <Route index element={<HomePage/>}/>

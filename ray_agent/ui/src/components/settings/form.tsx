@@ -1,9 +1,8 @@
-import {AlertCircle, Check, Loader2, RotateCcw} from '@/components/ui/icons'
+import {AlertCircle, Loader2, RotateCcw} from '@/components/ui/icons'
 import {useCallback, useEffect, useRef, useState, type ReactNode} from 'react'
 import {toast} from 'sonner'
 import {Button} from '@/components/ui/button'
 import {Skeleton} from '@/components/ui/skeleton'
-import {formatTime} from '@/components/run/format'
 
 export function errorMessage(err: unknown, fallback = '请求失败'): string {
   if (err instanceof TypeError) return '无法连接 API 服务，请确认服务已启动'
@@ -13,12 +12,13 @@ export function errorMessage(err: unknown, fallback = '请求失败'): string {
 
 // ---------- 分区外框 ----------
 
+/** 分区标题：无分隔线，说明写在标题下方；右侧留出设置页关闭按钮的位置。 */
 export function SectionHeader({id, title, description, action}: {id: string; title: string; description?: ReactNode; action?: ReactNode}) {
   return (
-    <header className="flex flex-wrap items-start justify-between gap-3 border-b pb-4">
+    <header className="flex flex-wrap items-start justify-between gap-3 pr-12 pb-4">
       <div className="min-w-0 max-w-prose">
-        <h2 id={id} className="text-base font-semibold">{title}</h2>
-        {description ? <p className="mt-1 text-meta text-muted-foreground">{description}</p> : null}
+        <h2 id={id} className="text-lg font-semibold tracking-tight">{title}</h2>
+        {description ? <p className="mt-1.5 text-sm leading-6 text-muted-foreground">{description}</p> : null}
       </div>
       {action}
     </header>
@@ -50,40 +50,6 @@ export function FormSkeleton({rows}: {rows: number}) {
           <Skeleton className="h-9 w-full max-w-md"/>
         </div>
       ))}
-    </div>
-  )
-}
-
-// ---------- 字段 ----------
-
-type FormFieldProps = {
-  id: string
-  label: string
-  hint?: ReactNode
-  error?: string | null
-  children: (aria: {id: string; 'aria-describedby': string | undefined; 'aria-invalid': boolean | undefined}) => ReactNode
-}
-
-/** 标签、说明与校验信息；控件由 children 渲染并接收关联属性 */
-export function FormField({id, label, hint, error, children}: FormFieldProps) {
-  const hintId = hint ? `${id}-hint` : null
-  const errorId = error ? `${id}-error` : null
-  const describedBy = [errorId, hintId].filter(Boolean).join(' ') || undefined
-  return (
-    <div className="grid gap-x-8 gap-y-1.5 py-4 @xl/form:grid-cols-[minmax(0,15rem)_minmax(0,28rem)]">
-      <div className="min-w-0">
-        <label htmlFor={id} className="text-sm font-medium">{label}</label>
-        {hint && <p id={hintId ?? undefined} className="mt-0.5 text-xs leading-5 text-muted-foreground">{hint}</p>}
-      </div>
-      <div className="min-w-0">
-        {children({id, 'aria-describedby': describedBy, 'aria-invalid': error ? true : undefined})}
-        {error && (
-          <p id={errorId ?? undefined} className="mt-1.5 flex items-center gap-1 text-xs text-destructive">
-            <AlertCircle className="size-3.5 shrink-0" aria-hidden/>
-            {error}
-          </p>
-        )}
-      </div>
     </div>
   )
 }
@@ -221,44 +187,70 @@ export function useConfigForm<T, F extends string>(options: ConfigFormOptions<T,
   return {load, config, values, visibleErrors, invalid, dirty, saving, savedAt, saveError, fieldId, setValue, reset, save, reload}
 }
 
-// ---------- 保存栏 ----------
+// ---------- 浮出保存条 ----------
 
-type SaveBarProps = {
-  dirty: boolean
-  saving: boolean
-  invalid: boolean
-  savedAt: number | null
-  saveError: string | null
-  onReset: () => void
-  label?: string
+type SettingsSaveBarProps = {
+  /** 有当前分区的草稿时为 edit：撤销与保存；只有其他分区有草稿时为 jump：提示并跳转 */
+  mode: 'edit' | 'jump'
+  show: boolean
+  /** 每次变化播放一次抖动，用于关闭或离开被拦时的提示 */
+  shakeKey?: number
+  saving?: boolean
+  invalid?: boolean
+  saveError?: string | null
+  onReset?: () => void
+  onSave?: () => void
+  /** jump 模式下的文字与跳转动作 */
+  jumpMessage?: string
+  jumpLabel?: string
+  onJump?: () => void
 }
 
-/** 分区底部的保存栏；表单以 submit 触发保存，回车即可提交 */
-export function SaveBar({dirty, saving, invalid, savedAt, saveError, onReset, label = "保存"}: SaveBarProps) {
-  let status: ReactNode = null
-  if (saving) status = <span className="text-muted-foreground">正在保存</span>
-  else if (saveError) status = <span className="text-destructive">保存失败：{saveError}</span>
-  else if (dirty && invalid) status = <span className="text-destructive">有字段未通过校验</span>
-  else if (dirty) status = <span className="text-state-waiting">有未保存的修改</span>
-  else if (savedAt != null) {
-    status = (
-      <span className="inline-flex items-center gap-1 text-state-success">
-        <Check className="size-3.5" aria-hidden/>
-        已于 <span className="tabular-nums">{formatTime(savedAt)}</span> 保存
-      </span>
-    )
-  }
-
+/**
+ * 设置页唯一的保存入口：深色浮出条作用于当前分区的草稿。
+ * 撤销只回到上次保存的值；保存失败、校验失败时在条内说明原因。
+ */
+export function SettingsSaveBar({mode, show, shakeKey, saving, invalid, saveError, onReset, onSave, jumpMessage, jumpLabel, onJump}: SettingsSaveBarProps) {
+  const bar = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!shakeKey || window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return
+    bar.current?.animate?.([
+      {transform: 'translateX(0)'}, {transform: 'translateX(-5px)'}, {transform: 'translateX(5px)'},
+      {transform: 'translateX(-3px)'}, {transform: 'translateX(2px)'}, {transform: 'translateX(0)'},
+    ], {duration: 420, easing: 'ease'})
+  }, [shakeKey])
+  const message = mode === 'jump' ? jumpMessage
+    : saveError ? `保存失败：${saveError}`
+    : invalid ? '有字段未通过校验'
+    : saving ? '正在保存'
+    : '有未保存的修改'
   return (
-    <div className="sticky bottom-0 mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-border/70 bg-background/95 px-3 py-2 shadow-sm backdrop-blur">
-      <p className="min-w-0 flex-1 text-meta" aria-live="polite">{status}</p>
-      <Button type="button" variant="ghost" size="sm" onClick={() => onReset()} disabled={!dirty || saving}>
-        撤销修改
-      </Button>
-      <Button type="submit" size="sm" disabled={!dirty || saving}>
-        {saving && <Loader2 className="animate-spin" aria-hidden/>}
-        {saving ? '保存中' : label}
-      </Button>
+    <div
+      ref={bar}
+      role="region"
+      aria-label="设置修改"
+      className="settings-savebar absolute inset-x-6 bottom-4 z-10 flex items-center gap-2 rounded-[14px] bg-foreground py-2 pr-2 pl-3.5 text-background shadow-(--float-shadow)"
+      data-show={show}
+      inert={!show || undefined}
+      aria-hidden={!show || undefined}
+    >
+      <AlertCircle className="size-4 shrink-0 opacity-80" aria-hidden/>
+      <p role="status" aria-live="polite" className="min-w-0 flex-1 truncate text-meta">{message}</p>
+      {mode === 'edit' ? (
+        <>
+          <Button type="button" variant="ghost" size="sm" className="text-background hover:bg-background/10 hover:text-background" onClick={() => onReset?.()} disabled={saving}>
+            撤销
+          </Button>
+          <Button type="button" size="sm" className="bg-background text-foreground hover:bg-background/90" onClick={() => onSave?.()} disabled={saving || invalid}>
+            {saving && <Loader2 className="animate-spin" aria-hidden/>}
+            {saving ? '保存中' : '保存'}
+          </Button>
+        </>
+      ) : (
+        <Button type="button" variant="ghost" size="sm" className="text-background hover:bg-background/10 hover:text-background" onClick={() => onJump?.()}>
+          {jumpLabel}
+        </Button>
+      )}
     </div>
   )
 }

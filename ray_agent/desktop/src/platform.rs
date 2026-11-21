@@ -1,4 +1,4 @@
-//! 界面经原生桥调用的受限平台能力：保存文件、打开外部链接、打开模型连接配置文件、选择文件夹授权、在文件管理器中显示根内位置。
+//! 界面经原生桥调用的受限平台能力：保存文件、打开外部链接、打开模型连接配置文件、选择文件夹授权、在文件管理器中显示根内位置与数据根。
 //! 下载由宿主带实例令牌向核心请求，令牌不进 URL；外部链接只放行 http、https 与 mailto。
 use std::fs::{self, OpenOptions};
 use std::io::{self, Write};
@@ -253,6 +253,22 @@ pub async fn reveal_in_file_manager<R: Runtime>(app: AppHandle<R>, root_id: Stri
     })
     .await
     .map_err(|e| e.to_string())?
+}
+
+/// 核心数据根的本机路径（宿主启动核心时使用的同一位置），供设置页显示。
+#[tauri::command]
+pub fn data_location(app: AppHandle) -> Result<String, String> {
+    Ok(CoreHost::data_dir(&app)?.display().to_string())
+}
+
+/// 在 Finder 中显示核心数据根；核心尚未创建该目录时给出原因。
+#[tauri::command]
+pub fn reveal_data_location(app: AppHandle) -> Result<(), String> {
+    let dir = CoreHost::data_dir(&app)?;
+    if !dir.is_dir() {
+        return Err("数据目录还没有创建，核心启动后才会出现".into());
+    }
+    reveal(&app, &dir)
 }
 
 /// 保存界面已持有的内容（如打包下载的结果）。请求体是原始字节，文件名放在 x-filename 头里（URI 编码）。

@@ -17,6 +17,7 @@ import {Switch} from '@/components/ui/switch'
 import type {ConnectionState} from '@/lib/api/types'
 import {cn} from '@/lib/utils'
 import {errorMessage} from './form'
+import {SettingsCard} from './settings-row'
 
 // ---------- 列表加载与操作 ----------
 
@@ -116,6 +117,8 @@ export function ConnectionBadge({status}: {status: ConnectionState['connection_s
 }
 
 type ServerRowProps = {
+  /** 左侧图标块 */
+  icon: ReactNode
   title: ReactNode
   /** 屏幕阅读器与确认框里的名称 */
   name: string
@@ -127,41 +130,48 @@ type ServerRowProps = {
   detail?: ReactNode
   onToggle?: (enabled: boolean) => void
   onDelete?: () => void
+  /** 不可用时显示“重试”，重新读取连接状态 */
+  onRetry?: () => void
 }
 
-export function ServerRow({title, name, status, error, enabled, toggling, meta, detail, onToggle, onDelete}: ServerRowProps) {
+/** 连接列表的一行（卡片）。开关与删除只在开发者模式的连接设置中出现。 */
+export function ServerRow({icon, title, name, status, error, enabled, toggling, meta, detail, onToggle, onDelete, onRetry}: ServerRowProps) {
   const {visibility} = useDeveloperMode()
   return (
-    <li className="flex gap-4 py-3.5">
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+    <li>
+      <SettingsCard
+        mark={icon}
+        title={<>
           <span className="min-w-0 truncate text-sm font-medium">{title}</span>
           <ConnectionBadge status={status}/>
           {meta}
-        </div>
-        {detail && <div className="mt-1 text-xs leading-5 text-muted-foreground">{detail}</div>}
-        {error && <p className="mt-1 break-words text-xs leading-5 text-state-failed">{error}</p>}
-      </div>
-      {visibility.connectionSettings && <div className="flex shrink-0 items-start gap-1 pt-0.5">
-        <Switch
-          checked={enabled}
-          onCheckedChange={onToggle}
-          disabled={!onToggle || toggling}
-          aria-label={`${enabled ? '停用' : '启用'} ${name}`}
-          className="mt-1"
-        />
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          className="ml-2 text-muted-foreground hover:text-destructive"
-          onClick={onDelete}
-          disabled={!onDelete}
-          aria-label={`删除 ${name}`}
-        >
-          <Trash2 aria-hidden/>
-        </Button>
-      </div>}
+        </>}
+        detail={detail}
+        actions={<>
+          {status === 'unavailable' && onRetry && <Button type="button" size="sm" variant="outline" className="bg-card" onClick={onRetry}>重试</Button>}
+          {visibility.connectionSettings && <>
+            <Switch
+              checked={enabled}
+              onCheckedChange={onToggle}
+              disabled={!onToggle || toggling}
+              aria-label={`${enabled ? '停用' : '启用'} ${name}`}
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="text-muted-foreground hover:text-destructive"
+              onClick={onDelete}
+              disabled={!onDelete}
+              aria-label={`删除 ${name}`}
+            >
+              <Trash2 aria-hidden/>
+            </Button>
+          </>}
+        </>}
+      >
+        {error && <p className="mt-1 break-words text-meta leading-5 text-state-failed">{error}</p>}
+      </SettingsCard>
     </li>
   )
 }
@@ -180,7 +190,7 @@ export function ListSkeleton() {
 }
 
 export function EmptyList({children}: {children: ReactNode}) {
-  return <p className="rounded-lg border border-dashed px-4 py-6 text-center text-meta text-muted-foreground">{children}</p>
+  return <p className="rounded-[13px] bg-muted px-4 py-5 text-center text-meta text-muted-foreground">{children}</p>
 }
 
 // ---------- 删除确认 ----------

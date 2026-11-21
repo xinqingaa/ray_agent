@@ -7318,6 +7318,38 @@
         }
       }
     },
+    "/api/host/activity": {
+      "get": {
+        "tags": [
+          "宿主接口"
+        ],
+        "summary": "读取活动运行数",
+        "description": "退出应用前的只读检查：运行中或等待处理的运行数。需要宿主密钥头 X-RayAgent-Host-Secret",
+        "operationId": "host_activity_api_host_activity_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_HostActivityResponse_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/app-config/llm/providers": {
       "get": {
         "tags": [
@@ -11758,6 +11790,21 @@
         "title": "HealthStatus",
         "description": "健康检查状态"
       },
+      "HostActivityResponse": {
+        "properties": {
+          "active_runs": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Active Runs",
+            "description": "活动运行数（运行中、等待回复或审批，以及已受理但尚未开始的启动）；只读"
+          }
+        },
+        "type": "object",
+        "required": [
+          "active_runs"
+        ],
+        "title": "HostActivityResponse"
+      },
       "ImportRequest": {
         "properties": {
           "operation_id": {
@@ -15659,6 +15706,25 @@
         ],
         "title": "Response[GetSessionResponse]"
       },
+      "Response_HostActivityResponse_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HostActivityResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "Response[HostActivityResponse]"
+      },
       "Response_IndexSummaryView_": {
         "properties": {
           "data": {
@@ -19370,13 +19436,19 @@
             "default": true
           },
           "voice": {
-            "type": "string",
-            "enum": [
-              "off",
-              "deepseek"
+            "anyOf": [
+              {
+                "type": "string",
+                "enum": [
+                  "off",
+                  "deepseek"
+                ]
+              },
+              {
+                "type": "null"
+              }
             ],
-            "title": "Voice",
-            "default": "off"
+            "title": "Voice"
           }
         },
         "type": "object",

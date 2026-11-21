@@ -30,6 +30,8 @@ const FAILURE_LOG_LINES: usize = 40;
 const EXIT_GRACE: Duration = Duration::from_secs(25);
 const TERM_GRACE: Duration = Duration::from_secs(3);
 const HEALTH_TIMEOUT: Duration = Duration::from_secs(5);
+/// 宿主对核心的短调用（活动运行数等）的连接与读取期限。
+const HOST_CALL_TIMEOUT: Duration = Duration::from_secs(5);
 // 会改变冻结解释器或动态库查找的宿主环境变量不传给核心。
 const SCRUBBED_ENV: &[&str] = &[
     "PYTHONHOME",
@@ -111,6 +113,19 @@ impl CoreHost {
         }
     }
 
+    /// 已就绪核心的实例身份、端口与令牌；宿主据此区分不同的核心进程（重启后身份变化）。
+    pub fn instance_endpoint(&self) -> Option<InstanceEndpoint> {
+        let connection = self.connection.lock().unwrap();
+        match (&connection.state, &connection.ready) {
+            (CoreState::Ready, Some(ready)) => Some(InstanceEndpoint {
+                instance_id: ready.instance.instance_id.clone(),
+                port: ready.port,
+                token: ready.instance_token.clone(),
+            }),
+            _ => None,
+        }
+    }
+
     pub fn is_ready(&self) -> bool {
         self.connection.lock().unwrap().state == CoreState::Ready
     }
@@ -145,7 +160,8 @@ impl CoreHost {
         Ok(Command::new(executable))
     }
 
-    fn data_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    /// 核心数据根：RAYAGENT_CORE_DATA_DIR 优先，否则应用数据目录下的 core（开发构建为 dev-core）。
+    pub fn data_dir(app: &AppHandle) -> Result<PathBuf, String> {
         // RAYAGENT_CORE_DATA_DIR 可换用独立数据根，避免与同机其他宿主共用一个实例锁。
         if let Some(dir) = std::env::var_os("RAYAGENT_CORE_DATA_DIR") {
             return Ok(PathBuf::from(dir));
@@ -300,6 +316,46 @@ fn wait_exit(pid: libc::pid_t, timeout: Duration) -> bool {
         }
         thread::sleep(Duration::from_millis(50));
     }
+}
+
+/// 已就绪核心的连接信息，供宿主的后台观察与宿主专用接口使用；令牌只在宿主内存中传递，不交给界面。
+#[derive(Clone)]
+pub struct InstanceEndpoint {
+    pub instance_id: String,
+    pub port: u16,
+    pub token: String,
+}
+
+/// 宿主专用接口：带实例令牌与宿主密钥读取核心的只读信息（如活动运行数）。
+/// 返回的是 `data` 字段；核心拒绝时取核心给出的原因。
+pub fn host_get(app: &AppHandle, path: &str) -> Result<Value, String> {
+    let host = app.state::<CoreHost>();
+    let (port, token) = host.endpoint().ok_or("核心尚未就绪")?;
+    let secret = host.host_secret().ok_or("核心尚未就绪")?;
+    let body: Value = ureq::AgentBuilder::new()
+        .timeout_connect(HOST_CALL_TIMEOUT)
+        .timeout_read(HOST_CALL_TIMEOUT)
+        .build()
+        .get(&format!("http://127.0.0.1:{port}{path}"))
+        .set("Authorization", &format!("Bearer {token}"))
+        .set("X-RayAgent-Host-Secret", &secret)
+        .call()
+        .map_err(|error| match error {
+            ureq::Error::Status(_, response) => response
+                .into_json::<Value>()
+                .ok()
+                .and_then(|body| body["error"]["message"].as_str().map(str::to_owned))
+                .unwrap_or_else(|| "核心拒绝了请求".into()),
+            other => format!("无法连接核心：{other}"),
+        })?
+        .into_json()
+        .map_err(|error| format!("核心响应无法解析：{error}"))?;
+    Ok(body["data"].clone())
+}
+
+/// 退出前读取活动运行数（运行中、等待回复或审批，以及已受理未开始的启动）。以核心为准，宿主不自行判断。
+pub fn active_runs(app: &AppHandle) -> Result<u64, String> {
+    host_get(app, "/api/host/activity")?["active_runs"].as_u64().ok_or_else(|| "核心没有返回活动运行数".into())
 }
 
 fn check_health(port: u16, token: &str) -> Value {

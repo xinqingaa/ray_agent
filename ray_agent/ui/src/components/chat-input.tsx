@@ -758,7 +758,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
             onClick={() => commandById('upload')?.run(commandContext)}>
             <Paperclip className="size-4"/>
           </Button>
-          {usagePreferences?.voice === 'deepseek' && <VoiceInput key={scope} sessionId={sessionId} disabled={blocked} onBusyChange={setVoiceBusy}
+          {usagePreferences && usagePreferences.voice !== 'off' && <VoiceInput key={scope} sessionId={sessionId} disabled={blocked} enabled={usagePreferences.voice === 'deepseek'} onBusyChange={setVoiceBusy}
             stripHost={voiceStripHost} onCancel={() => textareaRef.current?.focus()}
             fill={text => {
               setInputValue(current => current + (current && !/\s$/.test(current) ? ' ' : '') + text)

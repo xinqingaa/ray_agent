@@ -3,10 +3,11 @@ import {useCallback, useEffect, useState, type ReactNode} from 'react'
 import {toast} from 'sonner'
 import {Button} from '@/components/ui/button'
 import {Input} from '@/components/ui/input'
+import {useDeveloperMode} from '@/hooks/use-developer-mode'
 import {configApi} from '@/lib/api/config'
 import type {BuiltinToolset, ListA2AServerItem, ListMCPServerItem, ToolPolicy, ToolPolicyConfig} from '@/lib/api/types'
-import {cn} from '@/lib/utils'
-import {errorMessage, FormSkeleton, LoadError, SaveBar, SectionHeader} from './form'
+import {errorMessage, FormSkeleton, LoadError, SectionHeader} from './form'
+import {SettingsRow, SettingsSegment} from './settings-row'
 
 type Rules = Record<string, ToolPolicy>
 type LoadPhase = {phase: 'loading'} | {phase: 'error'; message: string} | {phase: 'ready'}
@@ -136,68 +137,33 @@ export function useToolPolicyForm(): ToolPolicyForm {
   return {load, config, mcpServers, a2aServers, rules, dirty, saving, savedAt, saveError, setRule, restoreDefaults, reset, save, reload}
 }
 
-function PolicySelect({id, value, inherit, onChange, disabled}: {
-  id: string
-  value: ToolPolicy | null
-  /** 不设规则时的说明；为空表示必须选一个取值 */
-  inherit?: string
-  onChange: (policy: ToolPolicy | null) => void
-  disabled?: boolean
-}) {
-  return (
-    <select
-      id={id}
-      value={value ?? ''}
-      onChange={(e) => onChange(e.target.value ? e.target.value as ToolPolicy : null)}
-      disabled={disabled}
-      className={cn(
-        'h-8 w-full max-w-60 rounded-md border bg-card px-2 text-sm text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60',
-        value === 'ask' && 'border-state-waiting/60',
-        value === 'deny' && 'border-state-failed/60',
-      )}
-    >
-      {inherit != null && <option value="">{inherit}</option>}
-      {POLICIES.map((policy) => <option key={policy} value={policy}>{POLICY_LABEL[policy]}</option>)}
-    </select>
-  )
-}
+const POLICY_OPTIONS = POLICIES.map((policy) => ({value: policy, label: POLICY_LABEL[policy]}))
 
-function RuleRow({id, label, ruleKey, hint, children, onRemove}: {
-  id: string
+/** 一条规则的控件：三段分段按钮。`inherited` 为真时，取值来自上级分组，选中态弱化。 */
+function PolicyControl({label, value, inherited, onChange, disabled, onFollow}: {
   label: string
-  ruleKey: string
-  hint?: string | null
-  children: ReactNode
-  onRemove?: () => void
+  value: ToolPolicy | null
+  inherited?: boolean
+  onChange: (policy: ToolPolicy) => void
+  disabled?: boolean
+  /** 有单独设置时显示“跟随上级”，清除该条规则 */
+  onFollow?: () => void
 }) {
   return (
-    <li className="grid items-center gap-x-6 gap-y-1.5 py-3 @xl/form:grid-cols-[minmax(0,1fr)_15rem]">
-      <div className="min-w-0">
-        <label htmlFor={id} className="text-sm font-medium">{label}</label>
-        <p className="mt-0.5 truncate text-xs text-muted-foreground" title={hint ?? ruleKey}>
-          <code className="font-mono text-faint">{ruleKey}</code>
-          {hint && <span className="ml-2">{hint}</span>}
-        </p>
-      </div>
-      <div className="flex items-center gap-1">
-        {children}
-        {onRemove && (
-          <Button type="button" variant="ghost" size="icon-sm" className="text-muted-foreground hover:text-destructive" onClick={onRemove} aria-label={`删除规则 ${ruleKey}`}>
-            <Trash2 aria-hidden/>
-          </Button>
-        )}
-      </div>
-    </li>
+    <>
+      <SettingsSegment label={label} value={value} options={POLICY_OPTIONS} onChange={onChange} disabled={disabled} inherited={inherited}/>
+      {onFollow && <Button type="button" variant="ghost" size="xs" className="text-muted-foreground" onClick={onFollow} disabled={disabled}>跟随上级</Button>}
+    </>
   )
 }
 
 function Group({title, description, children}: {title: string; description?: string; children: ReactNode}) {
   return (
-    <div className="pt-5">
+    <section className="pt-6 first:pt-2">
       <h3 className="text-sm font-semibold">{title}</h3>
-      {description && <p className="mt-0.5 max-w-prose text-xs leading-5 text-muted-foreground">{description}</p>}
-      <ul className="mt-1 divide-y">{children}</ul>
-    </div>
+      {description && <p className="mt-0.5 max-w-prose text-meta leading-5 text-muted-foreground">{description}</p>}
+      <div className="mt-1 divide-y divide-border/70">{children}</div>
+    </section>
   )
 }
 
@@ -212,6 +178,7 @@ function inheritText(label: string, policy: ToolPolicy): string {
 
 /** 工具审批策略：内置工具按工具集，MCP 与远程 Agent 按服务设置执行前是否需要批准 */
 export function ToolPolicySection({form}: {form: ToolPolicyForm}) {
+  const {visibility} = useDeveloperMode()
   const [newKey, setNewKey] = useState('')
   const [newPolicy, setNewPolicy] = useState<ToolPolicy>('ask')
   const {config, rules} = form
@@ -240,6 +207,8 @@ export function ToolPolicySection({form}: {form: ToolPolicyForm}) {
         const shown = new Set(['mcp:*', 'a2a:*', ...builtinKeys, ...mcpKeys, ...a2aKeys])
         const others = Object.keys(rules).filter((key) => !shown.has(key)).sort()
         const addKey = newKey.trim()
+        const keyTag = (key: string) => visibility.executionSettings
+          ? <code className="font-mono text-faint">{key}</code> : null
         return (
           <form
             noValidate
@@ -249,23 +218,24 @@ export function ToolPolicySection({form}: {form: ToolPolicyForm}) {
             }}
           >
             <Group title="外部工具" description="MCP 与远程 Agent 的工具来自外部服务，默认执行前询问。">
-              <RuleRow id="tp-mcp-all" label="所有 MCP 工具" ruleKey="mcp:*">
-                <PolicySelect id="tp-mcp-all" value={mcpAll} onChange={(p) => form.setRule('mcp:*', p ?? 'allow')} disabled={form.saving}/>
-              </RuleRow>
-              <RuleRow id="tp-a2a-all" label="所有远程 Agent" ruleKey="a2a:*" hint="委派任务（call_remote_agent）；查看 Agent 列表不受约束">
-                <PolicySelect id="tp-a2a-all" value={a2aAll} onChange={(p) => form.setRule('a2a:*', p ?? 'allow')} disabled={form.saving}/>
-              </RuleRow>
+              <SettingsRow id="tp-mcp-all" title="所有 MCP 工具" description={keyTag('mcp:*')}
+                control={<PolicyControl label="所有 MCP 工具" value={mcpAll} onChange={(p) => form.setRule('mcp:*', p)} disabled={form.saving}/>}/>
+              <SettingsRow id="tp-a2a-all" title="所有远程 Agent"
+                description={<>{keyTag('a2a:*')}<span className={visibility.executionSettings ? 'ml-2' : undefined}>委派任务（call_remote_agent）；查看 Agent 列表不受约束</span></>}
+                control={<PolicyControl label="所有远程 Agent" value={a2aAll} onChange={(p) => form.setRule('a2a:*', p)} disabled={form.saving}/>}/>
             </Group>
 
             {form.mcpServers.length > 0 && (
               <Group title="MCP 服务器" description="单独设置某个服务器；不设时跟随“所有 MCP 工具”。">
                 {form.mcpServers.map((server) => {
                   const key = `mcp:${server.server_name}:*`
-                  const id = `tp-mcp-${server.server_name}`
+                  const explicit = rules[key] ?? null
+                  const hint = server.tools.length > 0 ? `${server.tools.length} 个工具` : null
                   return (
-                    <RuleRow key={key} id={id} label={server.server_name} ruleKey={key} hint={server.tools.length > 0 ? `${server.tools.length} 个工具` : null}>
-                      <PolicySelect id={id} value={rules[key] ?? null} inherit={inheritText('所有 MCP 工具', mcpAll)} onChange={(p) => form.setRule(key, p)} disabled={form.saving}/>
-                    </RuleRow>
+                    <SettingsRow key={key} id={`tp-mcp-${server.server_name}`} title={server.server_name}
+                      description={<>{keyTag(key)}{hint && <span className={visibility.executionSettings ? 'ml-2' : undefined}>{hint}</span>}{explicit == null && <span className="block">{inheritText('所有 MCP 工具', mcpAll)}</span>}</>}
+                      control={<PolicyControl label={server.server_name} value={explicit ?? mcpAll} inherited={explicit == null}
+                        onChange={(p) => form.setRule(key, p)} onFollow={explicit == null ? undefined : () => form.setRule(key, null)} disabled={form.saving}/>}/>
                   )
                 })}
               </Group>
@@ -275,11 +245,12 @@ export function ToolPolicySection({form}: {form: ToolPolicyForm}) {
               <Group title="远程 Agent" description="单独设置某个远程 Agent；不设时跟随“所有远程 Agent”。">
                 {form.a2aServers.map((server) => {
                   const key = `a2a:${server.id}:*`
-                  const id = `tp-a2a-${server.id}`
+                  const explicit = rules[key] ?? null
                   return (
-                    <RuleRow key={key} id={id} label={server.name || server.id} ruleKey={key}>
-                      <PolicySelect id={id} value={rules[key] ?? null} inherit={inheritText('所有远程 Agent', a2aAll)} onChange={(p) => form.setRule(key, p)} disabled={form.saving}/>
-                    </RuleRow>
+                    <SettingsRow key={key} id={`tp-a2a-${server.id}`} title={server.name || server.id}
+                      description={<>{keyTag(key)}{explicit == null && <span className="block">{inheritText('所有远程 Agent', a2aAll)}</span>}</>}
+                      control={<PolicyControl label={server.name || server.id} value={explicit ?? a2aAll} inherited={explicit == null}
+                        onChange={(p) => form.setRule(key, p)} onFollow={explicit == null ? undefined : () => form.setRule(key, null)} disabled={form.saving}/>}/>
                   )
                 })}
               </Group>
@@ -288,29 +259,27 @@ export function ToolPolicySection({form}: {form: ToolPolicyForm}) {
             <Group title="内置工具" description="在沙箱里执行，默认直接执行。">
               {config.builtin_toolsets.filter((t) => t.toolset !== 'a2a').map((toolset) => {
                 const key = `${toolset.toolset}:*`
-                const id = `tp-builtin-${toolset.toolset}`
-                const value = rules[key] ?? null
+                const value = rules[key] ?? 'allow'
                 return (
-                  <RuleRow key={key} id={id} label={TOOLSET_LABEL[toolset.toolset] ?? toolset.toolset} ruleKey={key} hint={functionsHint(toolset)}>
-                    <PolicySelect
-                      id={id}
-                      value={value === 'allow' ? null : value}
-                      inherit={POLICY_LABEL.allow}
-                      onChange={(p) => form.setRule(key, p === 'allow' ? null : p)}
-                      disabled={form.saving}
-                    />
-                  </RuleRow>
+                  <SettingsRow key={key} id={`tp-builtin-${toolset.toolset}`} title={TOOLSET_LABEL[toolset.toolset] ?? toolset.toolset}
+                    description={<>{keyTag(key)}<span className={visibility.executionSettings ? 'ml-2' : undefined}>{functionsHint(toolset)}</span></>}
+                    control={<PolicyControl label={TOOLSET_LABEL[toolset.toolset] ?? toolset.toolset} value={value}
+                      onChange={(p) => form.setRule(key, p === 'allow' ? null : p)} disabled={form.saving}/>}/>
                 )
               })}
             </Group>
 
             <Group title="其他规则" description="按单个函数或 MCP 工具设置，例如 shell_execute、mcp:服务器名:工具名。优先于上面的整组设置。">
               {others.map((key) => (
-                <RuleRow key={key} id={`tp-other-${key}`} label={key} ruleKey={key} onRemove={form.saving ? undefined : () => form.setRule(key, null)}>
-                  <PolicySelect id={`tp-other-${key}`} value={rules[key]} onChange={(p) => form.setRule(key, p ?? 'allow')} disabled={form.saving}/>
-                </RuleRow>
+                <SettingsRow key={key} id={`tp-other-${key}`} title={<code className="font-mono text-[13px]">{key}</code>}
+                  control={<>
+                    <PolicyControl label={key} value={rules[key]} onChange={(p) => form.setRule(key, p)} disabled={form.saving}/>
+                    {!form.saving && <Button type="button" variant="ghost" size="icon-sm" className="text-muted-foreground hover:text-destructive" onClick={() => form.setRule(key, null)} aria-label={`删除规则 ${key}`}>
+                      <Trash2 aria-hidden/>
+                    </Button>}
+                  </>}/>
               ))}
-              <li className="flex flex-wrap items-center gap-2 py-3">
+              <div className="flex flex-wrap items-center gap-2 py-3.5">
                 <label htmlFor="tp-new-key" className="sr-only">新规则的键</label>
                 <Input
                   id="tp-new-key"
@@ -322,16 +291,7 @@ export function ToolPolicySection({form}: {form: ToolPolicyForm}) {
                   className="h-8 w-72 font-mono text-xs md:text-xs"
                   disabled={form.saving}
                 />
-                <label htmlFor="tp-new-policy" className="sr-only">新规则的取值</label>
-                <select
-                  id="tp-new-policy"
-                  value={newPolicy}
-                  onChange={(e) => setNewPolicy(e.target.value as ToolPolicy)}
-                  disabled={form.saving}
-                  className="h-8 rounded-md border bg-card px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                >
-                  {POLICIES.map((policy) => <option key={policy} value={policy}>{POLICY_LABEL[policy]}</option>)}
-                </select>
+                <SettingsSegment label="新规则的取值" value={newPolicy} options={POLICY_OPTIONS} onChange={setNewPolicy} disabled={form.saving}/>
                 <Button
                   type="button"
                   size="sm"
@@ -345,18 +305,11 @@ export function ToolPolicySection({form}: {form: ToolPolicyForm}) {
                   <Plus aria-hidden/>
                   添加
                 </Button>
-                <span className="text-xs text-muted-foreground">格式由服务端校验，保存时不合法会提示。</span>
-              </li>
+                <span className="text-meta text-muted-foreground">格式由服务端校验，保存时不合法会提示。</span>
+              </div>
             </Group>
-
-            <SaveBar
-              dirty={form.dirty}
-              saving={form.saving}
-              invalid={false}
-              savedAt={form.savedAt}
-              saveError={form.saveError}
-              onReset={form.reset}
-            />
+            {/* 隐藏的提交按钮让回车在本分区内提交草稿；可见的保存入口在底部浮出条。 */}
+            <button type="submit" className="hidden" tabIndex={-1} aria-hidden>保存</button>
           </form>
         )
       })()}
