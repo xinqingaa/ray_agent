@@ -9,6 +9,7 @@ from pathlib import Path
 from app.domain.external.runtime_components import ComponentManifestEntry, ComponentState, ComponentStatus
 from app.domain.models.error import ErrorCode
 from app.domain.models.error import ErrorInfo
+from app.infrastructure.external.voice import whisper
 from core.paths import RESOURCE_ROOT
 
 BROWSER_ID = "browser-chromium"
@@ -68,6 +69,9 @@ class LocalRuntimeComponents:
             return None
 
     async def status(self, component_id: str) -> ComponentStatus:
+        if component_id == whisper.COMPONENT_ID and (reason := whisper.unavailable_reason()):
+            return ComponentStatus(component_id=component_id, state=ComponentState.UNSUPPORTED,
+                                   error=ErrorInfo(code=ErrorCode.UNAVAILABLE, message=reason))
         current = self.current(component_id)
         return ComponentStatus(component_id=component_id,
                                state=ComponentState.AVAILABLE if current else ComponentState.NOT_INSTALLED,

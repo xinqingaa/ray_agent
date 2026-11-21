@@ -27,7 +27,7 @@ export const cost = (total: UsageTotals | null | undefined) => formatEstimatedCo
 export const priceLabels: Record<string, string> = {peak: '高峰', off_peak: '低谷', standard: '标准', custom: '自定义'}
 
 export function providerSeries(key: string, label?: string): Series {
-  const names: Record<string, string> = {deepseek: 'DeepSeek', openai: 'OpenAI', gpt: 'OpenAI'}
+  const names: Record<string, string> = {deepseek: 'DeepSeek', openai: 'OpenAI', gpt: 'OpenAI', local: '本机'}
   const hash = [...key].reduce((sum, char) => (31 * sum + char.charCodeAt(0)) >>> 0, 0)
   const index = key === 'deepseek' ? 1 : key === 'openai' || key === 'gpt' ? 2 : 3 + hash % 3
   return {key, label: label ?? names[key] ?? key, color: `var(--chart-${index})`}

@@ -9,6 +9,7 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from app.application.errors.exceptions import BadRequestError, NotFoundError
 from app.domain.models.clock import utc_now
 from app.domain.models.usage import UsageBucket, UsageGroup, UsageHour, UsagePreferences, UsageRange, UsageReport, UsageTotals
+from app.domain.models.voice import VoicePreference
 from app.domain.services.usage_pricing import PRICE_SOURCES, PRICE_VERSION, deepseek_peak_at
 
 PURPOSES = ("main", "compact", "title", "memory", "summary", "transcribe", "connection_test")
@@ -118,7 +119,7 @@ class UsageService:
         async with self._read() as uow:
             return await uow.usage.preferences()
 
-    async def set_preferences(self, *, show_conversation_cost: bool | None, voice: str | None) -> UsagePreferences:
+    async def set_preferences(self, *, show_conversation_cost: bool | None, voice: VoicePreference | None) -> UsagePreferences:
         async with self._write() as uow:
             preferences = await uow.usage.preferences()
             values = preferences.model_dump()

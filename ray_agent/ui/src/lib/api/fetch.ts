@@ -95,6 +95,9 @@ function fetchWithTimeout(
 ): Promise<Response> {
   return new Promise((resolve, reject) => {
     const controller = new AbortController();
+    const cancel = () => controller.abort();
+    options.signal?.addEventListener("abort", cancel, {once: true});
+    if (options.signal?.aborted) cancel();
     const timeoutId = setTimeout(() => {
       controller.abort();
       reject(clientError("timeout", "请求超时"));
@@ -116,7 +119,8 @@ function fetchWithTimeout(
         } else {
           reject(error);
         }
-      });
+      })
+      .finally(() => options.signal?.removeEventListener("abort", cancel));
   });
 }
 

@@ -56,6 +56,16 @@
       }
     ]
   },
+  "whisper-asr": {
+    "files": [
+      {
+        "path": "ggml-small-q5_1.bin",
+        "url": "https://huggingface.co/ggerganov/whisper.cpp/resolve/f281eb45af861ab5e5297d23694b7d46e090c02c/ggml-small-q5_1.bin",
+        "sha256": "ae85e4a935d7a567bd102fe55afc16bb595bdb618e11b2fc7591bc08120411bb",
+        "size": 190085487
+      }
+    ]
+  },
   "browser-chromium": {
     "archive": {
       "url": "https://cdn.playwright.dev/dbazure/download/playwright/builds/chromium/1194/chromium-mac-arm64.zip",

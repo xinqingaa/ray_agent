@@ -6,7 +6,7 @@
   "build": {
     "devUrl": "http://localhost:5173",
     "beforeDevCommand": {
-      "script": "npm run dev",
+      "script": "uv --directory ../api run --locked python scripts/prepare_voice_runtime.py && npm run dev",
       "cwd": "../ui"
     }
   },

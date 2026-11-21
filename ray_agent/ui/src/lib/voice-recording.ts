@@ -1,6 +1,74 @@
 const WAV_RATE = 16_000
 export const VOICE_LIMIT_SECONDS = 120
 
+export type VoiceRecording = {finish: () => Blob}
+
+/** 麦克风与 Web Audio 的生命周期。调用方负责选择转写方式及音频的后续去向。 */
+export async function openVoiceRecording({signal, onMeter, onLimit}: {
+  signal: AbortSignal
+  onMeter: (elapsed: number, level: number) => void
+  onLimit: () => void
+}): Promise<VoiceRecording> {
+  if (!navigator.mediaDevices?.getUserMedia) throw new Error('当前窗口无法使用麦克风，请在桌面应用中打开。')
+  signal.throwIfAborted()
+  // 从触发录音的点击直接创建 AudioContext，保留 WebView 的用户操作授权。
+  const context = new AudioContext()
+  const sampleRate = context.sampleRate
+  const maxFrames = sampleRate * VOICE_LIMIT_SECONDS
+  const chunks: Float32Array[] = []
+  let frames = 0
+  let lastMeter = 0
+  let stream: MediaStream | null = null
+  let source: MediaStreamAudioSourceNode | null = null
+  let processor: ScriptProcessorNode | null = null
+  const release = () => {
+    signal.removeEventListener('abort', release)
+    if (processor) {
+      processor.onaudioprocess = null
+      processor.disconnect()
+      processor = null
+    }
+    source?.disconnect()
+    source = null
+    stream?.getTracks().forEach(track => track.stop())
+    stream = null
+    if (context.state !== 'closed') void context.close().catch(() => {})
+  }
+
+  signal.addEventListener('abort', release, {once: true})
+  try {
+    await context.resume()
+    signal.throwIfAborted()
+    stream = await navigator.mediaDevices.getUserMedia({audio: {channelCount: 1}})
+    // 系统权限对话框无法通过 AbortSignal 撤销。迟到的媒体轨道仍在这里释放。
+    signal.throwIfAborted()
+    source = context.createMediaStreamSource(stream)
+    processor = context.createScriptProcessor(4096, 1, 1)
+    processor.onaudioprocess = event => {
+      const samples = event.inputBuffer.getChannelData(0).slice(0, maxFrames - frames)
+      chunks.push(samples)
+      frames += samples.length
+      const elapsed = frames / sampleRate
+      if (elapsed - lastMeter > 0.08) {
+        lastMeter = elapsed
+        const energy = Math.sqrt(samples.reduce((sum, sample) => sum + sample * sample, 0) / Math.max(1, samples.length))
+        onMeter(elapsed, Math.min(1, energy * 8))
+      }
+      if (frames >= maxFrames) onLimit()
+    }
+    source.connect(processor)
+    processor.connect(context.destination)
+  } catch (error) {
+    release()
+    throw error
+  }
+
+  return {finish: () => {
+    release()
+    return voiceWav(chunks, sampleRate)
+  }}
+}
+
 /** 把 Web Audio 的单声道采样转换成 ASR 接受的 16 kHz 16 位 PCM WAV。 */
 export function voiceWav(chunks: Float32Array[], sampleRate: number): Blob {
   const length = chunks.reduce((total, chunk) => total + chunk.length, 0)

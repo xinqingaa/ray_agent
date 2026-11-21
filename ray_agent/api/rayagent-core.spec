@@ -60,7 +60,12 @@ runtime_root = ROOT / 'build/tool-runtime-archives'
 if not (runtime_root / 'manifest.json').is_file():
     raise RuntimeError('先运行 scripts/prepare_tool_runtimes.py 准备正常工具运行时')
 datas.append((str(runtime_root), 'tool-runtime-archives'))
-binaries = []
+voice_root = ROOT / 'build/voice'
+voice_binary = voice_root / 'rayagent-whisper'
+if not voice_binary.is_file():
+    raise RuntimeError('请先运行 scripts/prepare_voice_runtime.py 构建本机语音程序')
+datas.extend((str(path), 'voice') for path in voice_root.glob('LICENSE-*'))
+binaries = [(str(voice_binary), 'voice')]
 hiddenimports = [
     *source_modules('app'),
     *source_modules('core'),

@@ -7,6 +7,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from app.domain.models.voice import VoicePreference
+
 UsagePurpose = Literal["main", "compact", "title", "memory", "summary", "transcribe", "connection_test"]
 UsageRange = Literal["today", "24h", "3d", "7d", "30d", "90d", "custom"]
 
@@ -94,4 +96,4 @@ class UsageReport(BaseModel):
 class UsagePreferences(BaseModel):
     show_conversation_cost: bool = True
     # None 表示用户尚未选择：输入框显示麦克风，首次使用时确认启用。
-    voice: Literal["off", "deepseek"] | None = None
+    voice: VoicePreference | None = None

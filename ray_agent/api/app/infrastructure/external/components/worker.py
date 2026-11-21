@@ -11,6 +11,7 @@ from pathlib import Path, PurePosixPath
 
 from app.infrastructure.external.components.install_files import fetch_file, install_component_files, sha256_file
 from app.infrastructure.external.components.local_components import BROWSER_ID, load_component_files, load_manifest
+from app.infrastructure.external.voice import whisper
 
 
 def unpack_zip(archive: Path, target: Path) -> None:
@@ -76,6 +77,8 @@ def verify(component_id: str, target: Path) -> None:
         elif component_id == 'ocr':
             from app.infrastructure.external.ocr.rapid_ocr import verify_ocr
             verify_ocr(target)
+        elif component_id == whisper.COMPONENT_ID:
+            whisper.verify_model(target)
 
 
 def main():

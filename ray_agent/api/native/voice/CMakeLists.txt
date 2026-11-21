@@ -1,0 +1,16 @@
+cmake_minimum_required(VERSION 3.16)
+project(rayagent_voice LANGUAGES C CXX)
+
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "")
+set(WHISPER_BUILD_TESTS OFF CACHE BOOL "")
+set(WHISPER_BUILD_EXAMPLES OFF CACHE BOOL "")
+set(WHISPER_BUILD_SERVER OFF CACHE BOOL "")
+set(GGML_NATIVE OFF CACHE BOOL "")
+set(GGML_OPENMP OFF CACHE BOOL "")
+set(GGML_METAL ON CACHE BOOL "")
+set(GGML_METAL_EMBED_LIBRARY ON CACHE BOOL "")
+add_subdirectory("${WHISPER_SOURCE_DIR}" whisper)
+
+add_executable(rayagent-whisper main.cpp)
+target_compile_features(rayagent-whisper PRIVATE cxx_std_17)
+target_link_libraries(rayagent-whisper PRIVATE whisper)

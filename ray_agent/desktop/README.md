@@ -6,7 +6,7 @@
 
 ## 环境准备
 
-- macOS Apple Silicon，Xcode 或 Command Line Tools。
+- macOS Apple Silicon，Xcode 或 Command Line Tools，以及构建本机语音程序所需的 CMake。
 - Rust stable（`aarch64-apple-darwin`），用 rustup 安装：
 
   ```bash
@@ -29,7 +29,7 @@
 npm run dev
 ```
 
-它先在 `../ui` 启动 Vite 开发服务器，再编译并运行宿主。开发构建直接运行源码核心（`../api/.venv` 的解释器加 `sidecar.py`），改了核心代码重启宿主即可，不需要重新冻结；缺少虚拟环境时界面显示启动失败与原因。界面改动由 Vite 热更新。
+它先准备本机语音程序并启动 `../ui` 的 Vite 开发服务器，再编译和运行宿主。首次构建下载锁定的语音源码和许可，后续从构建缓存增量编译。开发构建直接运行源码核心（`../api/.venv` 的解释器加 `sidecar.py`），改了核心代码重启宿主即可，不需要重新冻结；缺少虚拟环境时界面显示启动失败与原因。界面改动由 Vite 热更新。
 
 开发构建的数据根是应用数据目录下的 `dev-core/`，与正式包的 `core/` 分开；`RAYAGENT_CORE_DATA_DIR` 可另指数据根，多个宿主同时运行或做检查时用它隔开实例锁：
 
@@ -54,7 +54,7 @@ npm run build
 
 产物内含：UI／核心 `build-manifest.json`、`resources/package_identity.json`（协议与 schema 兼容范围）、`resources/component_manifest.json`、`resources/tool_runtime_manifest.json`、`tool-runtime-archives/` 与 `resources/THIRD_PARTY_NOTICES.md`。正常工具解释器独立于冻结核心；Node 来自锁定 Playwright 包内的原生解释器，单独作为工具运行时校验并分发，不经 driver CLI 执行脚本。CPython 采用固定的 python-build-standalone 产物。两者均在构建时核对哈希和真实版本，缺失时冻结构建失败；运行时不借用开发机解释器。`build/`、`dist/`、`target/` 已由根 `.gitignore` 排除，不提交。
 
-内置应用的麦克风用途来自 Info.plist，签名时合入录音授权项。语音需在签名后的宿主验证系统授权、拒绝提示和录音。
+内置应用的麦克风用途来自 Info.plist，签名时合入录音授权项。本机转写程序和第三方许可随核心分发，语言模型通过运行组件按需安装。签名后的录音与转写走查见[运行指南](../README.md#运行检查)。
 
 核对签名与从终端查看日志：
 

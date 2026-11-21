@@ -41,7 +41,7 @@ class ComponentService:
             for entry in self.components.manifest.values():
                 status = await self.components.status(entry.component_id)
                 job = await self.latest(entry.component_id, uow)
-                if job and status.state is not ComponentState.AVAILABLE:
+                if job and status.state not in (ComponentState.AVAILABLE, ComponentState.UNSUPPORTED):
                     status.state = {
                         OperationStatus.QUEUED: ComponentState.FETCHING,
                         OperationStatus.RUNNING: ComponentState.VERIFYING if job.phase == '校验中' else ComponentState.FETCHING,
@@ -80,6 +80,9 @@ class ComponentService:
 
     async def accept(self, component_id, request_id):
         entry = self.entry(component_id)
+        status = await self.components.status(component_id)
+        if status.state is ComponentState.UNSUPPORTED:
+            raise AppException(status.error.code, status.error.message)
         async with self.uow_factory() as uow:
             existing = await uow.job.by_request(request_id)
             if existing:
@@ -103,6 +106,9 @@ class ComponentService:
         job = context.job
         component_id = job.payload['component_id']
         entry = self.entry(component_id)
+        status = await self.components.status(component_id)
+        if status.state is ComponentState.UNSUPPORTED:
+            raise RuntimeError(status.error.message)
         if entry.version != job.payload['version'] or entry.sha256 != job.payload['sha256']:
             raise RuntimeError('组件清单已变化，请重新发起安装')
         async with self.read_uow_factory() as uow:

@@ -2,22 +2,26 @@
 import asyncio
 
 import httpx
-from pydantic import BaseModel, Field, ValidationError
+from pydantic import ValidationError
 
 from app.application.errors.exceptions import AppException
 from app.domain.models.error import ErrorCode
+from app.domain.models.voice import ASRResult
+from app.infrastructure.external.llm.model_connections import load_model_connections
 from app.infrastructure.external.llm.upstream_errors import redact_credentials, upstream_message
 
 ASR_URL = "https://api.deepseek.com/v1/tools/asr"
 ASR_TIMEOUT_SECONDS = 135
-MAX_AUDIO_BYTES = 8 * 1024 * 1024
-MAX_AUDIO_SECONDS = 120
+MODEL_ID = "deepseek-asr"
 
 
-class ASRResult(BaseModel):
-    request_id: str
-    text: str
-    duration_ms: int = Field(gt=0, le=MAX_AUDIO_SECONDS * 1000)
+def configured_endpoint():
+    for endpoint in load_model_connections().endpoints.values():
+        if (endpoint is not None and endpoint.base_url.host == "api.deepseek.com"
+                and endpoint.base_url.scheme == "https" and endpoint.base_url.port == 443
+                and endpoint.api_key and endpoint.api_key != "xxxx"):
+            return endpoint
+    raise AppException(ErrorCode.UNAVAILABLE, "请先在「设置 → 模型提供商」配置官方 DeepSeek 连接及 API Key")
 
 
 async def transcribe(audio: bytes, key: str) -> ASRResult:

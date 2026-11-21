@@ -13,6 +13,7 @@ type ComponentId = Annotated[str, StringConstraints(pattern=r"^[a-z][a-z0-9-]{0,
 
 
 class ComponentState(StrEnum):
+    UNSUPPORTED = "unsupported"
     NOT_INSTALLED = "not_installed"
     FETCHING = "fetching"
     VERIFYING = "verifying"

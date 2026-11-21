@@ -189,7 +189,7 @@ export function UsageSection() {
       <Purposes report={report}/>
     </div>
     <p className="usage-note">
-      费用以美元估算，实际金额以服务商账单为准。DeepSeek 聊天按高峰或低谷计价，法定节假日优惠、缓存写入、账单折扣与赠送额度未计入。无单价的模型只统计 Token，转写按音频时长估算。
+      费用以美元估算，实际金额以服务商账单为准。DeepSeek 聊天按高峰或低谷计价，法定节假日优惠、缓存写入、账单折扣与赠送额度未计入。无单价的模型只统计 Token，DeepSeek 转写按音频时长估算，本机转写记录时长和零费用。
       {!!report?.totals.failed_requests && `所选时段有 ${fmt(report.totals.failed_requests)} 次请求失败。`}
       {report?.price_version && <>价格版本 {report.price_version}。价格来源{' '}
         {Object.entries(report.price_sources).map(([key, url], index) => <Fragment key={key}>

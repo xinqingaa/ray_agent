@@ -9,10 +9,13 @@
 | browser-chromium（Playwright Chromium） | BSD-3-Clause |
 | embedding-e5（multilingual-e5-small ONNX） | MIT |
 | ocr（RapidOCR／PaddleOCR 模型） | Apache-2.0 |
+| whisper-asr（OpenAI Whisper 多语言 small Q5_1） | MIT |
 
 ## 核心运行时（摘要）
 
 Python 解释器与标准库按 PSF 许可；PyInstaller 引导程序按其许可证。主要直接依赖还包括（不穷尽）：FastAPI／Starlette、SQLAlchemy、Alembic、aiosqlite、Pydantic、httpx、ONNX Runtime、LanceDB、PyArrow、OpenCV、NumPy、tokenizers、Playwright、RapidOCR。各自以包内许可证为准。
+
+本机语音转写程序链接 whisper.cpp 和 ggml，采用 MIT 许可。完整许可随 `voice/` 分发，也包含 OpenAI Whisper 模型的 MIT 许可文本。
 
 ## 基础工具运行时
 

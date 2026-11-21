@@ -3273,7 +3273,7 @@ export interface components {
          * ComponentState
          * @enum {string}
          */
-        ComponentState: "not_installed" | "fetching" | "verifying" | "available" | "failed" | "cancelled";
+        ComponentState: "unsupported" | "not_installed" | "fetching" | "verifying" | "available" | "failed" | "cancelled";
         /** ComponentView */
         ComponentView: {
             component_id: components["schemas"]["ComponentId"];
@@ -5226,7 +5226,7 @@ export interface components {
             /** Show Conversation Cost */
             show_conversation_cost?: boolean | null;
             /** Voice */
-            voice?: ("off" | "deepseek") | null;
+            voice?: ("off" | "local" | "deepseek") | null;
         };
         /**
          * ProposalStatus
@@ -6880,7 +6880,7 @@ export interface components {
              */
             show_conversation_cost: boolean;
             /** Voice */
-            voice?: ("off" | "deepseek") | null;
+            voice?: ("off" | "local" | "deepseek") | null;
         };
         /** UsageReport */
         UsageReport: {
@@ -12154,6 +12154,7 @@ export interface operations {
         parameters: {
             query?: {
                 session_id?: string | null;
+                engine?: "local" | "deepseek";
             };
             header?: never;
             path?: never;

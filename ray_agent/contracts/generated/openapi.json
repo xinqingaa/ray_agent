@@ -7835,6 +7835,20 @@
               ],
               "title": "Session Id"
             }
+          },
+          {
+            "name": "engine",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "enum": [
+                "local",
+                "deepseek"
+              ],
+              "type": "string",
+              "default": "deepseek",
+              "title": "Engine"
+            }
           }
         ],
         "responses": {
@@ -9682,6 +9696,7 @@
       "ComponentState": {
         "type": "string",
         "enum": [
+          "unsupported",
           "not_installed",
           "fetching",
           "verifying",
@@ -14689,6 +14704,7 @@
                 "type": "string",
                 "enum": [
                   "off",
+                  "local",
                   "deepseek"
                 ]
               },
@@ -19441,6 +19457,7 @@
                 "type": "string",
                 "enum": [
                   "off",
+                  "local",
                   "deepseek"
                 ]
               },
