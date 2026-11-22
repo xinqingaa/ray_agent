@@ -464,3 +464,219 @@ def test_cancelled_worker_leaves_no_publication_and_can_retry(tmp_path, monkeypa
         assert await retrieval.search(wid, "完整内容")
 
     scenario(tmp_path, body)
+
+
+def test_index_governance_categories_single_file_and_agent_outputs(tmp_path):
+    import pytest
+    from app.application.errors.exceptions import BadRequestError
+    from app.domain.models.document_knowledge import AgentOutputPolicy, DocumentCategory, DocumentIndexStatus
+    from app.domain.models.file import File
+    from app.domain.models.file_change import ChangeOperation, ChangeSource, FileChange
+
+    async def body(env: Env):
+        created = await env.service.create("索引治理")
+        wid = created.workspace.id
+        root_id = created.folder.ref.root_id
+        folder = Path(created.folder.location)
+
+        # 用户资料（文档、表格）、代码与配置日志、排除目录内特例文件、以及 Agent 写入／交付的文件
+        _write(folder, "guide.md", "用户参考手册包含核心概念甲甲。\n")
+        _write(folder, "table.csv", "col,val\n指标乙乙,42\n")
+        _write(folder, "helper.py", "def render():\n    return '脚本独有丙丙'\n")
+        _write(folder, "run.log", "日志独有丁丁\n")
+        _write(folder, "drafts/ignored.md", "常规草稿戊戊。\n")
+        _write(folder, "drafts/pinned.md", "特例留存己己。\n")
+        _write(folder, "agent_notes.md", "工具写入庚庚。\n")
+        _write(folder, "delivered.md", "交付产物辛辛。\n")
+        _write(folder, "uploaded.md", "上传附件壬壬。\n")
+
+        async with env.uow_factory() as uow:
+            await uow.change.add(FileChange(
+                workspace_id=wid, session_id="s1", run_id="r1", root_id=root_id,
+                relative_path="agent_notes.md", operation=ChangeOperation.CREATE, source=ChangeSource.TOOL,
+            ))
+            await uow.change.add(FileChange(
+                workspace_id=wid, session_id="s1", run_id="r1", root_id=root_id,
+                relative_path="guide.md", operation=ChangeOperation.MODIFY, source=ChangeSource.TOOL,
+            ))
+            await uow.change.add(FileChange(
+                workspace_id=wid, session_id="s1", run_id="r1", root_id=root_id,
+                relative_path="uploaded.md", operation=ChangeOperation.CREATE, source=ChangeSource.UPLOAD,
+            ))
+            await uow.file.save(File(
+                id="delivered-1", filename="delivered.md", filepath=str(folder / "delivered.md"),
+                root_id=root_id, relative_path="delivered.md", key="obj/d1",
+            ))
+            await uow.file.save(File(
+                id="uploaded-1", filename="uploaded.md", filepath=str(folder / "uploaded.md"),
+                root_id=root_id, relative_path="uploaded.md", key="obj/u1",
+            ))
+
+        service, retrieval = await _index_service(env, wid)
+
+        async def sync_and_run():
+            sync = await service.sync_workspace(wid)
+            if sync["operation_id"]:
+                await service.process_workspace(JobStub(SimpleNamespace(
+                    operation_id=sync["operation_id"], payload={"workspace_id": wid}, generation=1)))
+
+        # 1. 默认策略：documents + spreadsheets + images 开启，code 关闭，agent_outputs=manual
+        await sync_and_run()
+        summary = await service.summary(wid)
+        assert summary.policy.agent_outputs is AgentOutputPolicy.MANUAL
+        assert DocumentCategory.CODE not in summary.policy.enabled_categories
+        assert summary.scan.category_skipped == 2  # helper.py + run.log
+        assert summary.scan.pending_outputs == ["agent_notes.md", "delivered.md"]
+
+        assert await retrieval.search(wid, "甲甲", [SearchSourceType.DOCUMENT_CHUNK])
+        assert await retrieval.search(wid, "乙乙", [SearchSourceType.DOCUMENT_CHUNK])
+        assert await retrieval.search(wid, "壬壬", [SearchSourceType.DOCUMENT_CHUNK])
+        assert not await retrieval.search(wid, "丙丙", [SearchSourceType.DOCUMENT_CHUNK])
+        assert not await retrieval.search(wid, "丁丁", [SearchSourceType.DOCUMENT_CHUNK])
+        assert not await retrieval.search(wid, "庚庚", [SearchSourceType.DOCUMENT_CHUNK])
+        assert not await retrieval.search(wid, "辛辛", [SearchSourceType.DOCUMENT_CHUNK])
+
+        # 2. 同一文件不能同时排除和纳入
+        with pytest.raises(BadRequestError):
+            await service.update_policy(
+                wid, version=summary.policy.version, paused=False, excluded_directories=[],
+                excluded_files=["guide.md"], included_files=["guide.md"], scope_confirmed=True,
+            )
+
+        # 3. 根目录单文件排除 + 单文件纳入覆盖（排除目录 / 关闭类别 / Agent 产出）
+        summary = await service.update_policy(
+            wid, version=summary.policy.version, paused=False,
+            excluded_directories=["drafts"],
+            excluded_files=["guide.md"],
+            included_files=["drafts/pinned.md", "helper.py", "agent_notes.md"],
+            scope_confirmed=True,
+        )
+        assert not await retrieval.search(wid, "甲甲", [SearchSourceType.DOCUMENT_CHUNK])
+        await sync_and_run()
+        summary = await service.summary(wid)
+        assert summary.scan.pending_outputs == ["delivered.md"]
+        assert not await retrieval.search(wid, "戊戊", [SearchSourceType.DOCUMENT_CHUNK])
+        assert await retrieval.search(wid, "己己", [SearchSourceType.DOCUMENT_CHUNK])
+        assert await retrieval.search(wid, "丙丙", [SearchSourceType.DOCUMENT_CHUNK])
+        assert await retrieval.search(wid, "庚庚", [SearchSourceType.DOCUMENT_CHUNK])
+
+        # 4. 开启 code 类别 + 切换 agent_outputs=auto：其余代码日志与交付成果自动纳入
+        summary = await service.update_policy(
+            wid, version=summary.policy.version, paused=False,
+            excluded_directories=["drafts"],
+            excluded_files=["guide.md"],
+            included_files=["drafts/pinned.md"],
+            enabled_categories=list(DocumentCategory),
+            agent_outputs=AgentOutputPolicy.AUTO,
+            scope_confirmed=True,
+        )
+        await sync_and_run()
+        summary = await service.summary(wid)
+        assert summary.scan.pending_outputs == []
+        assert await retrieval.search(wid, "丁丁", [SearchSourceType.DOCUMENT_CHUNK])
+        assert await retrieval.search(wid, "辛辛", [SearchSourceType.DOCUMENT_CHUNK])
+
+        # 5. 关闭 code 类别：已索引代码片段立即撤回
+        summary = await service.update_policy(
+            wid, version=summary.policy.version, paused=False,
+            excluded_directories=["drafts"],
+            excluded_files=["guide.md"],
+            included_files=["drafts/pinned.md"],
+            enabled_categories=[DocumentCategory.DOCUMENTS, DocumentCategory.SPREADSHEETS, DocumentCategory.IMAGES],
+            agent_outputs=AgentOutputPolicy.AUTO,
+            scope_confirmed=True,
+        )
+        assert not await retrieval.search(wid, "丙丙", [SearchSourceType.DOCUMENT_CHUNK])
+        assert not await retrieval.search(wid, "丁丁", [SearchSourceType.DOCUMENT_CHUNK])
+        docs = {doc.relative_path: doc.status for doc in await service.list_documents(wid)}
+        assert docs["helper.py"] is DocumentIndexStatus.EXCLUDED
+        assert docs["run.log"] is DocumentIndexStatus.EXCLUDED
+
+    scenario(tmp_path, body)
+
+
+def test_bulk_retire_and_workspace_delete_preserve_other_scopes_in_fts(tmp_path):
+    async def body(env):
+        import shutil
+        from sqlalchemy import text
+        from app.domain.models.document_knowledge import AgentOutputPolicy, DocumentCategory
+
+        view_a = await env.service.create("批量退役A")
+        view_b = await env.service.create("批量退役B")
+        wid_a, wid_b = view_a.workspace.id, view_b.workspace.id
+        folder_a, folder_b = Path(view_a.folder.location), Path(view_b.folder.location)
+        for i in range(6):
+            (folder_a / f"code_{i}.py").write_text(f"def fn_{i}(): return '甲乙代码{i}'\n", encoding="utf-8")
+        (folder_a / "keep.md").write_text("保留文档癸癸", encoding="utf-8")
+        (folder_b / "other.md").write_text("另一工作区文档子子", encoding="utf-8")
+
+        service_a, retrieval = await _index_service(env, wid_a)
+        service_b, _ = await _index_service(env, wid_b)
+        # 在两个工作区写入文档块与记忆，核对批量清理只影响目标范围
+        await service_a.update_policy(
+            wid_a, version=0, paused=False, excluded_directories=[],
+            enabled_categories=list(DocumentCategory), agent_outputs=AgentOutputPolicy.AUTO, scope_confirmed=True,
+        )
+        for svc, wid in ((service_a, wid_a), (service_b, wid_b)):
+            sync = await svc.sync_workspace(wid)
+            if sync["operation_id"]:
+                await svc.process_workspace(JobStub(SimpleNamespace(
+                    operation_id=sync["operation_id"], payload={"workspace_id": wid}, generation=1)))
+        async with env.uow_factory() as uow:
+            await uow.search.upsert(
+                workspace_id=wid_a, source_type=SearchSourceType.MEMORY,
+                source_id="mem-a", source_version=1, title="记忆A", body="记忆条目丑丑",
+            )
+            await uow.search.upsert(
+                workspace_id=wid_b, source_type=SearchSourceType.MEMORY,
+                source_id="mem-b", source_version=1, title="记忆B", body="记忆条目寅寅",
+            )
+
+        assert await retrieval.search(wid_a, "甲乙代码0", [SearchSourceType.DOCUMENT_CHUNK])
+        assert await retrieval.search(wid_a, "癸癸", [SearchSourceType.DOCUMENT_CHUNK])
+        assert await retrieval.search(wid_b, "子子", [SearchSourceType.DOCUMENT_CHUNK])
+
+        # 关闭 code 类别：批量退役 A 的 6 个代码文档，同时保留 A 的 md 与记忆以及 B 的全部内容
+        summary_a = await service_a.summary(wid_a)
+        await service_a.update_policy(
+            wid_a, version=summary_a.policy.version, paused=False, excluded_directories=[],
+            enabled_categories=[DocumentCategory.DOCUMENTS, DocumentCategory.SPREADSHEETS, DocumentCategory.IMAGES],
+            agent_outputs=AgentOutputPolicy.AUTO, scope_confirmed=True,
+        )
+        assert not await retrieval.search(wid_a, "甲乙代码0", [SearchSourceType.DOCUMENT_CHUNK])
+        assert not await retrieval.search(wid_a, "甲乙代码5", [SearchSourceType.DOCUMENT_CHUNK])
+        assert await retrieval.search(wid_a, "癸癸", [SearchSourceType.DOCUMENT_CHUNK])
+        assert await retrieval.search(wid_a, "丑丑", [SearchSourceType.MEMORY])
+        assert await retrieval.search(wid_b, "子子", [SearchSourceType.DOCUMENT_CHUNK])
+
+        async with env.read_factory() as uow:
+            fts_a_chunks = (await uow.db_session.execute(
+                text("SELECT count(*) FROM search_documents_fts WHERE workspace_id = :wid AND source_type = 'document_chunk'"),
+                {"wid": wid_a},
+            )).scalar()
+            assert fts_a_chunks == 1  # 只剩 keep.md
+
+        # 手动删除文件夹后，后台 sync_workspace 应跳过并标记不可用而非抛异常，且删除工作区干净清空 FTS
+        from app.application.services.background_jobs import BackgroundJobRunner
+
+        shutil.rmtree(folder_a)
+        first = await service_a.sync_workspace(wid_a)
+        assert first == {"status": "skipped", "reason": "folder_unavailable"}
+        second = await service_a.sync_workspace(wid_a)
+        assert second == {"status": "skipped", "reason": "folder_unavailable"}
+
+        env.service._jobs = BackgroundJobRunner(env.uow_factory, env.instance_id, read_uow_factory=env.read_factory)
+        await env.service.delete(wid_a)
+        async with env.read_factory() as uow:
+            fts_a = (await uow.db_session.execute(
+                text("SELECT count(*) FROM search_documents_fts WHERE workspace_id = :wid"),
+                {"wid": wid_a},
+            )).scalar()
+            fts_b = (await uow.db_session.execute(
+                text("SELECT count(*) FROM search_documents_fts WHERE workspace_id = :wid"),
+                {"wid": wid_b},
+            )).scalar()
+            assert fts_a == 0
+            assert fts_b == 2  # other.md + mem-b
+
+    scenario(tmp_path, body)

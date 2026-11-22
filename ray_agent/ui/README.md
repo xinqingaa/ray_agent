@@ -146,6 +146,7 @@ node scripts/check-workspace-changes.cjs
 node scripts/check-workspace-undo-dialog.cjs
 node scripts/check-workspace-relocate.cjs
 node scripts/check-workspace-entries.cjs
+node scripts/check-index-governance.cjs
 node scripts/check-context-menu.cjs
 node scripts/check-danger-dialog.cjs
 node scripts/check-surface-actions.cjs
@@ -191,7 +192,7 @@ node scripts/check-workbench-recovery.cjs
 
 `check-workspace-undo-dialog.cjs` 挂载实际的运行修改提示条、最近修改和撤销窗口，基础 UI、网络与订阅使用替身，检查撤销后结果窗口保持、另一个入口打开时关掉已打开的窗口、以及工作区变为只读或切换运行后清理窗口状态。同时检查脚本文件观察的截断、未知结果、分页与无撤销边界。真实对话框布局与文件结果仍需在宿主窗口核对。
 
-`check-workspace-entries.cjs` 检查文件夹条目操作的名称规则、可用操作集合、版本、租约与冲突文案，并挂载实际的文件树就地输入（改名、根与展开目录的新建草稿、回车、Escape、失焦）与删除确认（取消在前，失败留在弹框内）；基础 UI 与接口使用替身，文件夹的实际删除、改名与撤销由 API 测试覆盖，入口在宿主窗口的操作手感仍需走查。
+`check-workspace-entries.cjs` 检查文件夹条目操作的名称规则、可用操作集合、版本、租约与冲突文案，并挂载实际的文件树就地输入（改名、根与展开目录的新建草稿、回车、Escape、失焦）与删除确认（取消在前，失败留在弹框内）；基础 UI 与接口使用替身，文件夹的实际删除、改名与撤销由 API 测试覆盖，入口在宿主窗口的操作手感仍需走查。`check-index-governance.cjs` 检查四类索引内容分类、单文件／目录与 Agent 产出的策略切换及文件树右键就地索引菜单，策略持久化和撤回由 API 测试覆盖，宿主窗口内的实际索引页交互仍需走查。
 
 `check-context-menu.cjs` 挂载实际的右键策略（`ContextMenuProvider`、表面与文本编辑），在 jsdom 中检查未接入区域、选中文字、可编辑区域（输入框、文本域、contenteditable，含只读与禁用）、嵌套表面与表面优先于编辑菜单的 `preventDefault`、菜单项、执行结果（粘贴经剪贴板封装并可撤销地插入、剪切、复制、全选），以及关闭后焦点回到原处。`check-danger-dialog.cjs` 挂载危险确认弹框，检查焦点默认在取消、确认为危险样式、提交中 Esc／遮罩／取消都不能关闭、失败说明留在弹框内、成功后关闭。两者的 DOM 替身（布局矩形、contenteditable 判定、execCommand）见 [dom-env.cjs](scripts/dom-env.cjs)；真实 WebView 的选区几何、原生撤销与菜单手感仍需在宿主窗口走查。
 

@@ -101,8 +101,12 @@ def _environment(env: RuntimeEnvironment) -> str:
     elif env.scratch:
         lines.append(f"- The workspace folder bound to this session is {env.workdir}; it is also the working directory of the file "
                      "tools, and relative paths start there. Changes act directly on the user's folder, so change only what the "
-                     f"task needs. Oversized tool results and screenshots are saved in the session working directory {env.scratch}, "
-                     "which is not part of the workspace folder")
+                     f"task needs. The session working directory {env.scratch} is not part of the workspace folder; use it for "
+                     "oversized tool results, screenshots, and temporary virtual environments, third-party packages, caches, "
+                     "temporary scripts, intermediate build/render artifacts, and verification code produced during execution. "
+                     "Unless the user explicitly asks to maintain a software project or keep code in the workspace, keep all "
+                     "such environments, dependencies, and intermediate files in the session working directory—never create "
+                     "virtual environments or install packages inside the workspace folder—and write only final deliverables to the workspace folder")
     elif env.workdir:
         lines.append(f"- The working directory for this session is {env.workdir}")
     if env.uploads:

@@ -341,3 +341,21 @@ def test_crash_residual_temp_files_are_hidden_everywhere_and_swept_only_when_old
     assert run(files.scan(at())).files == 2 and set(snapshot_binding(binding, (), FileLimits()).files) == {"a.txt", "mine.tmp"}
     assert sweep_temp_files(binding, FileLimits(), 3600, time.time()) == 1
     assert sorted(os.listdir(root)) == [fresh.name, "a.txt", "mine.tmp"]  # 新的可能属于进行中的写入，外来命名不动
+
+
+def test_scan_and_snapshot_skip_python_virtualenv_directories(tmp_path):
+    root = tmp_path / "ws"
+    root.mkdir()
+    (root / "report.md").write_text("# report", encoding="utf-8")
+    custom_env = root / ".custom-env"
+    site_pkg = custom_env / "lib" / "python3.12" / "site-packages" / "pkg"
+    site_pkg.mkdir(parents=True)
+    (custom_env / "pyvenv.cfg").write_text("home = /usr/bin\n", encoding="utf-8")
+    (site_pkg / "mod.py").write_text("x = 1\n", encoding="utf-8")
+    (site_pkg / "readme.txt").write_text("third-party", encoding="utf-8")
+
+    files, binding = make_files(root), _binding(root)
+    summary = run(files.scan(at()))
+    snap = snapshot_binding(binding, (), FileLimits())
+    assert summary.files == 1
+    assert set(snap.files) == {"report.md"}

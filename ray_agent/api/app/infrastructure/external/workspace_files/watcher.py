@@ -5,7 +5,19 @@ from typing import AsyncIterator
 
 from watchfiles import Change, awatch
 
-from app.domain.services.file_rules import is_excluded
+from app.domain.services.file_rules import ENVIRONMENT_MARKER_DIRS, ENVIRONMENT_MARKER_FILES, is_excluded
+
+
+def _is_env_dir(directory: str) -> bool:
+    for marker in ENVIRONMENT_MARKER_FILES:
+        if os.path.isfile(os.path.join(directory, marker)):
+            return True
+        if os.path.isfile(os.path.join(directory, marker.upper())):
+            return True
+    for marker in ENVIRONMENT_MARKER_DIRS:
+        if os.path.isdir(os.path.join(directory, marker)):
+            return True
+    return False
 
 
 def _watched(location: str):
@@ -16,7 +28,14 @@ def _watched(location: str):
         parts = relative.split(os.sep)
         if any(is_excluded(part, True) for part in parts[:-1]):
             return False
-        return not (is_excluded(parts[-1], True) or is_excluded(parts[-1], False))
+        if is_excluded(parts[-1], True) or is_excluded(parts[-1], False):
+            return False
+        current = location
+        for part in parts[:-1]:
+            current = os.path.join(current, part)
+            if _is_env_dir(current):
+                return False
+        return True
     return accept
 
 

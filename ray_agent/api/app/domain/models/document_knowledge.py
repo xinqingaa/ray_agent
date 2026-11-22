@@ -56,6 +56,27 @@ class DocumentFormat(StrEnum):
     UNSUPPORTED = "unsupported"
 
 
+class DocumentCategory(StrEnum):
+    """面向工作区索引策略的四类内容分类。"""
+    DOCUMENTS = "documents"
+    SPREADSHEETS = "spreadsheets"
+    IMAGES = "images"
+    CODE = "code"
+
+
+DEFAULT_ENABLED_CATEGORIES: tuple[DocumentCategory, ...] = (
+    DocumentCategory.DOCUMENTS,
+    DocumentCategory.SPREADSHEETS,
+    DocumentCategory.IMAGES,
+)
+
+
+class AgentOutputPolicy(StrEnum):
+    """Agent 写入或交付到工作区文件的索引准入策略。"""
+    MANUAL = "manual"
+    AUTO = "auto"
+
+
 class DocumentOcrState(StrEnum):
     NOT_NEEDED = "not_needed"
     WAITING_COMPONENT = "waiting_component"
@@ -140,6 +161,8 @@ class IndexScope(BaseModel):
     directories: list[str] = Field(default_factory=list)
     directory_sizes: dict[str, IndexDirectorySize] = Field(default_factory=dict)
     excluded_directory_sizes: dict[str, IndexDirectorySize] = Field(default_factory=dict)
+    pending_outputs: list[str] = Field(default_factory=list)
+    category_skipped: int = 0
     truncated: bool = False
 
 
@@ -147,11 +170,43 @@ class IndexPolicy(BaseModel):
     version: int = 0
     paused: bool = False
     excluded_directories: list[str] = Field(default_factory=list)
+    excluded_files: list[str] = Field(default_factory=list)
+    included_files: list[str] = Field(default_factory=list)
+    enabled_categories: list[DocumentCategory] = Field(default_factory=lambda: list(DEFAULT_ENABLED_CATEGORIES))
+    agent_outputs: AgentOutputPolicy = AgentOutputPolicy.MANUAL
     scope_confirmed: bool = False
 
 
-def excluded_path(policy: IndexPolicy, path: str) -> bool:
+def excluded_directory(policy: IndexPolicy, path: str) -> bool:
     return any(path == directory or path.startswith(directory + "/") for directory in policy.excluded_directories)
+
+
+def excluded_path(policy: IndexPolicy, path: str) -> bool:
+    return path in policy.excluded_files or (path not in policy.included_files and excluded_directory(policy, path))
+
+
+def policy_decision(
+        policy: IndexPolicy, path: str, fmt: DocumentFormat, *,
+        category: DocumentCategory | None, is_agent_output: bool = False,
+) -> tuple[bool, str | None]:
+    """按固定优先级判定单个工作区文件是否允许进入索引。
+
+    优先级：不支持格式 → 单文件显式排除 → 单文件显式纳入 → 目录排除 → 内容类别 → Agent 产出策略。
+    返回 (allowed, skip_reason)。
+    """
+    if fmt is DocumentFormat.UNSUPPORTED or category is None:
+        return False, "unsupported"
+    if path in policy.excluded_files:
+        return False, "excluded_file"
+    if path in policy.included_files:
+        return True, None
+    if excluded_directory(policy, path):
+        return False, "excluded_directory"
+    if category not in policy.enabled_categories:
+        return False, "category_disabled"
+    if is_agent_output and policy.agent_outputs is AgentOutputPolicy.MANUAL:
+        return False, "agent_output"
+    return True, None
 
 
 class IndexPublication(BaseModel):

@@ -54,6 +54,12 @@ export function WorkspaceSection() {
         description="运行命令与脚本按工作区单独开启，在工作区菜单里设置。"
         control={<span className="text-sm text-muted-foreground">按工作区</span>}
       />
+      <SettingsRow
+        id="workspace-index-scope"
+        title="知识索引范围"
+        description="索引内容类型、Agent 产出准入与排除规则按工作区单独管理，在工作区的「知识 → 索引」或文件夹右键菜单中设置。"
+        control={<span className="text-sm text-muted-foreground">按工作区</span>}
+      />
     </div>}
   </section>
 }

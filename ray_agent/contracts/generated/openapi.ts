@@ -2725,6 +2725,12 @@ export interface components {
              */
             standalone_execution_enabled: boolean;
         };
+        /**
+         * AgentOutputPolicy
+         * @description Agent 写入或交付到工作区文件的索引准入策略。
+         * @enum {string}
+         */
+        AgentOutputPolicy: "manual" | "auto";
         /** ApplyTemplateRequest */
         ApplyTemplateRequest: {
             /** Workspace Id */
@@ -3763,6 +3769,12 @@ export interface components {
             version?: components["schemas"]["EntryVersionRequest"] | null;
         };
         /**
+         * DocumentCategory
+         * @description 面向工作区索引策略的四类内容分类。
+         * @enum {string}
+         */
+        DocumentCategory: "documents" | "spreadsheets" | "images" | "code";
+        /**
          * DocumentFormat
          * @enum {string}
          */
@@ -4317,6 +4329,14 @@ export interface components {
             paused: boolean;
             /** Excluded Directories */
             excluded_directories?: string[];
+            /** Excluded Files */
+            excluded_files?: string[];
+            /** Included Files */
+            included_files?: string[];
+            /** Enabled Categories */
+            enabled_categories?: components["schemas"]["DocumentCategory"][];
+            /** @default manual */
+            agent_outputs: components["schemas"]["AgentOutputPolicy"];
             /**
              * Scope Confirmed
              * @default false
@@ -4331,6 +4351,14 @@ export interface components {
             paused: boolean;
             /** Excluded Directories */
             excluded_directories: components["schemas"]["RelativePath"][];
+            /** Excluded Files */
+            excluded_files?: components["schemas"]["RelativePath"][];
+            /** Included Files */
+            included_files?: components["schemas"]["RelativePath"][];
+            /** Enabled Categories */
+            enabled_categories?: components["schemas"]["DocumentCategory"][];
+            /** @default manual */
+            agent_outputs: components["schemas"]["AgentOutputPolicy"];
             /** Scope Confirmed */
             scope_confirmed: boolean;
         };
@@ -4366,6 +4394,13 @@ export interface components {
             excluded_directory_sizes?: {
                 [key: string]: components["schemas"]["IndexDirectorySize"];
             };
+            /** Pending Outputs */
+            pending_outputs?: string[];
+            /**
+             * Category Skipped
+             * @default 0
+             */
+            category_skipped: number;
             /**
              * Truncated
              * @default false

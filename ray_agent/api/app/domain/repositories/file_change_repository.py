@@ -26,6 +26,10 @@ class FileChangeRepository(Protocol):
     async def get_objects(self, workspace_id: str, object_ids: list[str]) -> dict[str, WorkspaceObject]:
         ...
 
+    async def agent_output_paths(self, workspace_id: str, root_id: str) -> set[str]:
+        """当前可判定为 Agent 写入或交付到工作区文件夹的相对路径集合。"""
+        ...
+
     async def delete_workspace(self, workspace_id: str) -> list[str]:
         """删除工作区的全部变更记录与备份对象记录，返回需要回收的内容对象位置。"""
         ...

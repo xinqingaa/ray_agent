@@ -12,6 +12,9 @@ from app.domain.services.chinese_tokenize import fts_match_query, tokenize
 from app.infrastructure.models.search_document import SearchDocumentModel
 
 
+_BATCH_SIZE = 500
+
+
 class DBSearchRepository:
     def __init__(self, db_session: AsyncSession) -> None:
         self.db_session = db_session
@@ -64,14 +67,50 @@ class DBSearchRepository:
         await self.db_session.delete(existing)
         await self.db_session.flush()
 
+    async def remove_many(
+            self, *, workspace_id: str, source_type: SearchSourceType, source_ids: Sequence[str],
+    ) -> None:
+        ids = list(dict.fromkeys(source_ids))
+        if not ids:
+            return
+        if len(ids) == 1:
+            await self.remove(workspace_id=workspace_id, source_type=source_type, source_id=ids[0])
+            return
+        removed = 0
+        for start in range(0, len(ids), _BATCH_SIZE):
+            batch = ids[start:start + _BATCH_SIZE]
+            result = await self.db_session.execute(
+                delete(SearchDocumentModel).where(
+                    SearchDocumentModel.workspace_id == workspace_id,
+                    SearchDocumentModel.source_type == source_type.value,
+                    SearchDocumentModel.source_id.in_(batch),
+                ).execution_options(synchronize_session=False)
+            )
+            removed += result.rowcount or 0
+        if removed:
+            # doc_id 在 FTS5 中为 UNINDEXED，逐条删除会触发 O(N²) 全表扫描；
+            # 先按索引批量删掉 search_documents，再单次扫描清理孤立 FTS 行。
+            await self.db_session.execute(
+                text(
+                    "DELETE FROM search_documents_fts "
+                    "WHERE workspace_id = :workspace_id AND source_type = :source_type "
+                    "AND doc_id NOT IN ("
+                    "SELECT id FROM search_documents "
+                    "WHERE workspace_id = :workspace_id AND source_type = :source_type"
+                    ")"
+                ),
+                {"workspace_id": workspace_id, "source_type": source_type.value},
+            )
+
     async def delete_workspace(self, workspace_id: str) -> None:
-        rows = (await self.db_session.execute(
-            select(SearchDocumentModel.id).where(SearchDocumentModel.workspace_id == workspace_id)
-        )).scalars().all()
-        for doc_id in rows:
-            await self._fts_delete(doc_id)
         await self.db_session.execute(
-            delete(SearchDocumentModel).where(SearchDocumentModel.workspace_id == workspace_id))
+            text("DELETE FROM search_documents_fts WHERE workspace_id = :workspace_id"),
+            {"workspace_id": workspace_id},
+        )
+        await self.db_session.execute(
+            delete(SearchDocumentModel).where(SearchDocumentModel.workspace_id == workspace_id)
+            .execution_options(synchronize_session=False)
+        )
 
     async def search(self, query: SearchQuery) -> list[SearchHit]:
         match = fts_match_query(query.query, any_term=query.match_any)

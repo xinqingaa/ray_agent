@@ -306,9 +306,13 @@ class AgentTaskRunner(TaskRunner):
                     return previous  # 重新取用同一条输入：附件已在文件夹里，不再放第二份
             except WorkspaceFileError:
                 pass
+        from app.domain.services.file_scope import WriteOwner
         try:
-            target, _ = await self._files.write_unique(RootedPath(root_id=workspace.root_id, relative_path=""),
-                                                       name, source)
+            target, _ = await self._files.write_unique(
+                RootedPath(root_id=workspace.root_id, relative_path=""),
+                name, source,
+                owner=WriteOwner(session_id=self._session_id, run_id=getattr(self, "_run_id", None), source="upload"),
+            )
         except WorkspaceFileError as error:
             if error.code.value == "unavailable":
                 logger.warning("工作区文件夹不可用，附件改放会话工作目录：%s", error)
@@ -382,6 +386,13 @@ class AgentTaskRunner(TaskRunner):
         async with self._uow:
             await self._uow.file.save(file)
             await self._uow.session.add_file(self._session_id, file)
+        workspace_id = getattr(getattr(self, "_flow", None), "workspace_id", None)
+        if workspace_id and rooted.relative_path and scope.is_gated(rooted):
+            try:
+                from app.application.services.document_index_scheduler import get_document_index_scheduler
+                get_document_index_scheduler().notify(workspace_id, [rooted.relative_path])
+            except RuntimeError:
+                pass
         return file
 
     async def _write_output(self, filepath: str, content: str) -> None:

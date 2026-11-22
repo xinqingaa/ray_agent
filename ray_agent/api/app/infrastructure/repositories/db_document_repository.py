@@ -25,6 +25,9 @@ from app.infrastructure.models.document_knowledge import (
 )
 
 
+_BATCH_SIZE = 500
+
+
 class DBDocumentRepository(DocumentRepository):
     def __init__(self, db_session: AsyncSession) -> None:
         self.db_session = db_session
@@ -92,6 +95,18 @@ class DBDocumentRepository(DocumentRepository):
             )
         )).scalar_one_or_none()
         return row.to_domain() if row else None
+
+    async def current_revisions(self, workspace_id: str) -> dict[str, DocumentRevision]:
+        rows = (await self.db_session.execute(
+            select(DocumentRevisionModel).join(
+                DocumentModel,
+                and_(
+                    DocumentModel.id == DocumentRevisionModel.document_id,
+                    DocumentModel.current_revision == DocumentRevisionModel.revision,
+                ),
+            ).where(DocumentModel.workspace_id == workspace_id)
+        )).scalars().all()
+        return {row.document_id: row.to_domain() for row in rows}
 
     async def save_revision(self, revision: DocumentRevision) -> None:
         existing = await self.db_session.get(DocumentRevisionModel, revision.id)
@@ -187,19 +202,71 @@ class DBDocumentRepository(DocumentRepository):
         await self.db_session.flush()
 
     async def unpublish_document(self, document_id: str) -> list[str]:
-        rows = (await self.db_session.execute(
-            select(DocumentChunkModel).where(
-                DocumentChunkModel.document_id == document_id,
-                DocumentChunkModel.published.is_(True),
-            )
-        )).scalars().all()
-        ids = [row.id for row in rows]
-        if ids:
-            await self.db_session.execute(
-                update(DocumentChunkModel).where(DocumentChunkModel.document_id == document_id)
-                .values(published=False))
+        return await self.unpublish_documents([document_id])
+
+    async def unpublish_documents(self, document_ids: Sequence[str]) -> list[str]:
+        ids = list(dict.fromkeys(document_ids))
+        if not ids:
+            return []
+        chunk_ids: list[str] = []
+        for start in range(0, len(ids), _BATCH_SIZE):
+            batch = ids[start:start + _BATCH_SIZE]
+            rows = (await self.db_session.execute(
+                select(DocumentChunkModel.id).where(
+                    DocumentChunkModel.document_id.in_(batch),
+                    DocumentChunkModel.published.is_(True),
+                )
+            )).scalars().all()
+            chunk_ids.extend(rows)
+            if rows:
+                await self.db_session.execute(
+                    update(DocumentChunkModel)
+                    .where(DocumentChunkModel.document_id.in_(batch), DocumentChunkModel.published.is_(True))
+                    .values(published=False)
+                    .execution_options(synchronize_session=False)
+                )
+        if chunk_ids:
             await self.db_session.flush()
-        return ids
+        return chunk_ids
+
+    async def retire_documents(
+            self, documents: Sequence[DocumentRecord], status: DocumentIndexStatus, updated_at,
+    ) -> None:
+        targets = [doc for doc in documents if doc.status is not status]
+        if not targets:
+            return
+        ids = [doc.id for doc in targets]
+        current_rev_subq = (
+            select(DocumentModel.current_revision)
+            .where(DocumentModel.id == DocumentRevisionModel.document_id)
+            .scalar_subquery()
+        )
+        for start in range(0, len(ids), _BATCH_SIZE):
+            batch = ids[start:start + _BATCH_SIZE]
+            await self.db_session.execute(
+                update(DocumentModel)
+                .where(DocumentModel.id.in_(batch))
+                .values(
+                    source_epoch=DocumentModel.source_epoch + 1,
+                    status=status.value,
+                    updated_at=updated_at,
+                )
+                .execution_options(synchronize_session=False)
+            )
+            await self.db_session.execute(
+                update(DocumentRevisionModel)
+                .where(
+                    DocumentRevisionModel.document_id.in_(batch),
+                    DocumentRevisionModel.revision == current_rev_subq,
+                )
+                .values(status=status.value, updated_at=updated_at)
+                .execution_options(synchronize_session=False)
+            )
+        for doc in targets:
+            doc.source_epoch += 1
+            doc.status = status
+            doc.updated_at = updated_at
+        await self.db_session.flush()
 
     async def get_publication(self, workspace_id: str) -> Optional[IndexPublication]:
         row = await self.db_session.get(IndexPublicationModel, workspace_id)

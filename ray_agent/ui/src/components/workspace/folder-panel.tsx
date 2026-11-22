@@ -16,6 +16,9 @@ import {FileRow} from '@/components/preview/file-row'
 import {useFolderTree} from '@/hooks/use-folder-tree'
 import {ApiError} from '@/lib/api/fetch'
 import {documentsApi, type IndexSummary} from '@/lib/api/documents'
+import {
+  directoryIndexAction, excludeDirectory, excludeFile, fileIndexAction, includeDirectory, includeFile, normalizePolicy,
+} from '@/lib/document-index-policy'
 import {fileManagerName, isDesktop, revealInFileManager} from '@/lib/platform'
 import {historyApi, rootApi} from '@/lib/api/workspace'
 import {downloadPreviewSource, type PreviewSource, type RootSource} from '@/lib/api/preview'
@@ -41,6 +44,7 @@ function remainingIndexStatus(summary: IndexSummary) {
   if (summary.scope_review_required) parts.push('待确认索引范围')
   else if (summary.policy?.paused) parts.push('索引已暂停')
   else if (summary.parsing || summary.pending) parts.push(`处理中 ${(summary.parsing || 0) + (summary.pending || 0)}`)
+  if (summary.scan?.pending_outputs?.length) parts.push(`待纳入 ${summary.scan.pending_outputs.length}`)
   if (summary.pending_component) parts.push(`待 OCR ${summary.pending_component}`)
   if (summary.failed) parts.push(`失败 ${summary.failed}`)
   return parts.join(' · ')
@@ -316,6 +320,42 @@ export function FolderPanel({workspace, deliveries, onOpenDelivery, deliveryStat
     catch (error) {toast.error(error instanceof Error ? error.message : '无法显示位置')}
   }
 
+  const toggleFileIndex = async (path: string) => {
+    if (!indexSummary || !condition.writable) return
+    const action = fileIndexAction(path, indexSummary)
+    if (!action) return
+    const current = normalizePolicy(indexSummary.policy)
+    const next = action.kind === 'exclude'
+      ? excludeFile(current, path)
+      : includeFile(current, path, action.needsExplicitInclude)
+    try {
+      const updated = await documentsApi.policy(workspace.id, next)
+      setIndexSummary(updated)
+      setIndexAttempt(value => value + 1)
+      const name = path.split('/').at(-1) ?? path
+      toast.success(action.kind === 'exclude' ? `已从索引排除「${name}」` : `已将「${name}」纳入索引`)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '更新索引范围失败')
+    }
+  }
+
+  const toggleDirectoryIndex = async (directory: string) => {
+    if (!indexSummary || !condition.writable) return
+    const action = directoryIndexAction(directory, indexSummary)
+    const current = normalizePolicy(indexSummary.policy)
+    const next = action === 'exclude'
+      ? excludeDirectory(current, directory)
+      : includeDirectory(current, directory)
+    try {
+      const updated = await documentsApi.policy(workspace.id, next)
+      setIndexSummary(updated)
+      setIndexAttempt(value => value + 1)
+      toast.success(action === 'exclude' ? `已从索引排除 ${directory}/` : `已恢复索引 ${directory}/`)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '更新索引范围失败')
+    }
+  }
+
   const folderActions = <FolderToolbarActions directory={target || folder?.path || '文件夹根目录'} adding={uploading} collapsible={embedded}
     onAdd={editable ? () => chooseFiles() : undefined}
     onNewFolder={editable && !uploading ? () => startCreate(target) : undefined}
@@ -398,10 +438,12 @@ export function FolderPanel({workspace, deliveries, onOpenDelivery, deliveryStat
     ]
     body = <>
       <ContextMenuSurface items={blankEntries} includeEditing><div className="contents"><ScrollArea className={cn('min-h-0 flex-1', embedded && 'px-2 pt-0.5')}>
-        <FolderTree tree={tree} selectedPath={selected?.path ?? null} indexStates={indexStates} readPaths={readPaths} addedPaths={addedPaths}
+        <FolderTree tree={tree} selectedPath={selected?.path ?? null} indexStates={indexStates} indexSummary={indexSummary} readPaths={readPaths} addedPaths={addedPaths}
           onToggle={toggle} onRetry={path => void loadDirectory(path)}
           onReveal={canReveal ? path => void reveal(path) : undefined}
           onAdd={condition.writable && !uploading ? chooseFiles : undefined}
+          onToggleFileIndex={condition.writable && indexSummary ? path => void toggleFileIndex(path) : undefined}
+          onToggleDirectoryIndex={condition.writable && indexSummary ? dir => void toggleDirectoryIndex(dir) : undefined}
           onSelect={(path, entry) => {
             setSelected({path, kind: entry.kind})
             if (entry.kind === 'file') openRoot(path, entry)

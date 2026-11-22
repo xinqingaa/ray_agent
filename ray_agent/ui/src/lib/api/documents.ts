@@ -8,6 +8,8 @@ export type DocumentItem = Schemas['DocumentView']
 export type DocumentSource = Schemas['DocumentSourceView']
 export type DocumentLocator = Schemas['DocumentLocator']
 export type IndexPolicy = Schemas['IndexPolicyRequest']
+export type DocumentCategory = Schemas['DocumentCategory']
+export type AgentOutputPolicy = Schemas['AgentOutputPolicy']
 
 const workspacePath = (id: string) => `/workspaces/${encodeURIComponent(id)}`
 

@@ -11,7 +11,7 @@ import socket
 from typing import Optional
 
 from app.domain.external.process_executor import ProcessOwner, ProcessSpec, ProcessState
-from app.domain.models.identity import RootedPath
+from app.domain.models.identity import RootKind, RootedPath
 from app.domain.models.tool_result import ToolResult
 from app.domain.services.file_scope import FileScope
 from app.infrastructure.external.execution.env import detect_posix_shell
@@ -63,6 +63,10 @@ class LocalShellBridge:
                 executor.register_root(root.root_id, root.path)
             self._root_id = files.working.root_id if files.working else files.roots[0].root_id
             self._root_location = files.working.path if files.working else files.roots[0].path
+            self._scratch_location = next(
+                (root.path for root in files.roots if root.kind is RootKind.SESSION_WORKDIR),
+                None,
+            )
             self._owner = ProcessOwner(session_id=session_id or "", run_id=run_id)
         else:
             if not root_id or not root_location or owner is None:
@@ -70,7 +74,31 @@ class LocalShellBridge:
             executor.register_root(root_id, root_location)
             self._root_id = root_id
             self._root_location = os.path.realpath(root_location)
+            self._scratch_location = None
             self._owner = owner
+
+    def _process_env(self) -> dict[str, str]:
+        """把临时文件与常见包管理缓存重定向到会话工作目录，避免落入工作区文件夹。"""
+        env = {"SHELL": detect_posix_shell()}
+        if not self._scratch_location:
+            return env
+        tmp_dir = os.path.join(self._scratch_location, "tmp")
+        cache_dir = os.path.join(self._scratch_location, ".cache")
+        try:
+            os.makedirs(tmp_dir, exist_ok=True)
+            os.makedirs(cache_dir, exist_ok=True)
+        except OSError:
+            return env
+        env.update({
+            "TMPDIR": tmp_dir,
+            "TMP": tmp_dir,
+            "TEMP": tmp_dir,
+            "XDG_CACHE_HOME": cache_dir,
+            "PIP_CACHE_DIR": os.path.join(cache_dir, "pip"),
+            "UV_CACHE_DIR": os.path.join(cache_dir, "uv"),
+            "npm_config_cache": os.path.join(cache_dir, "npm"),
+        })
+        return env
 
     def _ps1(self, exec_dir: str) -> str:
         home = os.path.expanduser("~")
@@ -112,7 +140,7 @@ class LocalShellBridge:
                     cwd=resolved,
                     owner=self._owner,
                     interactive=True,
-                    env={"SHELL": detect_posix_shell()},
+                    env=self._process_env(),
                 ))
                 self._sessions[session_id] = status.process_id
                 return status

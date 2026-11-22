@@ -15,8 +15,14 @@ WRITE_TEMP_PREFIX = ".rayagent-write-"  # 写入的同目录临时文件，崩�
 DELETE_TEMP_PREFIX = ".rayagent-delete-"  # 删除时先改名取得的文件，核对身份后才真正删除
 
 VCS_DIRECTORIES = frozenset({".git", ".hg", ".svn"})
-DEPENDENCY_DIRECTORIES = frozenset({"node_modules", "__pycache__", ".venv", "venv", ".tox", ".gradle",
-                                    ".mypy_cache", ".pytest_cache", "bower_components"})
+DEPENDENCY_DIRECTORIES = frozenset({
+    "node_modules", "__pycache__", ".venv", "venv", ".tox", ".gradle",
+    ".mypy_cache", ".pytest_cache", ".ruff_cache", ".cache", ".parcel-cache",
+    ".turbo", ".next", ".nuxt", ".svelte-kit", "bower_components",
+})
+# 通用环境与缓存目录标记（PEP 405 Python 虚拟环境、CacheDir.tag 规范、Conda 环境）
+ENVIRONMENT_MARKER_FILES = frozenset({"pyvenv.cfg", "cachedir.tag"})
+ENVIRONMENT_MARKER_DIRS = frozenset({"conda-meta"})
 CREDENTIAL_PATTERNS = (".env", ".env.*", "*.pem", "*.key", "*.p12", "*.pfx", "id_rsa", "id_dsa", "id_ecdsa",
                        "id_ed25519", ".npmrc", ".pypirc", ".netrc")
 DATABASE_PATTERNS = ("*.sqlite", "*.sqlite3", "*.db", "*.db-wal", "*.db-shm")

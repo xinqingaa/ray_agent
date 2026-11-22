@@ -44,7 +44,8 @@ class ShellTool(BaseTool):
                     continue
                 function["parameters"]["properties"]["exec_dir"]["description"] = (
                     "执行命令的工作目录（必须使用绝对路径）。"
-                    f"省略时使用默认工作目录 {self.default_exec_dir}"
+                    f"省略时使用默认工作目录 {self.default_exec_dir}；"
+                    "临时脚本、虚拟环境、依赖安装与中间构建应留在默认会话工作目录，不要把 exec_dir 指向工作区文件夹"
                 )
             self._tools_cache = tools
         return self._tools_cache

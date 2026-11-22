@@ -9,6 +9,10 @@ import {SegmentedControl} from '@/components/ui/segmented-control'
 import {WorkspaceSwitch} from './workspace-switch'
 import {HitText, KnowledgeSource, SOURCE_ICON, SOURCE_LABEL, sourceCaption, sourceTitle} from './knowledge-source'
 import {documentsApi, type DocumentItem, type IndexPolicy, type IndexSummary} from '@/lib/api/documents'
+import {
+  AGENT_OUTPUT_OPTIONS, DOCUMENT_CATEGORIES, excludeDirectory, excludeFile, fileIndexAction, includeDirectory,
+  includeFile, normalizePolicy, samePolicy, setAgentOutputs, toggleCategory,
+} from '@/lib/document-index-policy'
 import type {RootSource} from '@/lib/api/preview'
 import {componentsApi, type ComponentView} from '@/lib/api/components'
 import {ApiError} from '@/lib/api/fetch'
@@ -428,16 +432,14 @@ function IndexView({workspace, visible, summary, summaryError, refreshSummary, a
 
   const update = async (changes: Partial<IndexPolicy>) => {
     if (!summary) return
-    const requested = {...summary.policy, excluded_directories: summary.policy.excluded_directories ?? [], ...changes}
+    const requested = normalizePolicy({...normalizePolicy(summary.policy), ...changes})
     try {
       acceptSummary(await documentsApi.policy(id, requested))
     } catch (reason) {
       if (!(reason instanceof ApiError) || reason.rejected) throw reason
       const latest = await documentsApi.summary(id).catch(() => null)
       if (latest) acceptSummary(latest)
-      if (!latest || latest.policy.version <= requested.version ||
-        latest.policy.paused !== requested.paused || latest.policy.scope_confirmed !== requested.scope_confirmed ||
-        latest.policy.excluded_directories?.slice().sort().join('\n') !== requested.excluded_directories.slice().sort().join('\n')) throw reason
+      if (!latest || latest.policy.version <= requested.version || !samePolicy(normalizePolicy(latest.policy), requested)) throw reason
     }
     setExcluded(null)
   }
@@ -447,9 +449,12 @@ function IndexView({workspace, visible, summary, summaryError, refreshSummary, a
       : <><Loader2 className="animate-spin motion-reduce:animate-none" aria-hidden/><p>正在读取索引</p></>}
   </div>
 
-  const policy = {...summary.policy, excluded_directories: summary.policy.excluded_directories ?? []}
+  const policy = normalizePolicy(summary.policy)
   const paused = pauseIntent ?? policy.paused
   const editing = excluded?.version === policy.version ? excluded.paths : policy.excluded_directories
+  const pendingOutputs = summary.scan.pending_outputs ?? []
+  const excludedFiles = policy.excluded_files ?? []
+  const enabledCategories = policy.enabled_categories ?? []
   const includedDirs = new Set(summary.scan.directories)
   const grouped = new Map<string, DocumentItem[]>()
   for (const doc of documents) {
@@ -481,9 +486,44 @@ function IndexView({workspace, visible, summary, summaryError, refreshSummary, a
       </div>
       <p className="text-xs text-faint">范围 · {summary.scan.truncated ? '至少 ' : ''}{summary.scan.files} 个文件 · {formatFileSize(summary.scan.bytes)}
         {policy.excluded_directories.length > 0 && ` · 排除 ${policy.excluded_directories.length} 个目录`}
-        {summary.scan.excluded_files > 0 && `（已知 ${summary.scan.excluded_files} 个文件）`}
+        {excludedFiles.length > 0 && ` · 排除 ${excludedFiles.length} 个文件`}
+        {(summary.scan.category_skipped ?? 0) > 0 && ` · 按类型跳过 ${summary.scan.category_skipped} 个`}
+        {pendingOutputs.length > 0 && ` · 待纳入产出 ${pendingOutputs.length} 个`}
+        {summary.scan.excluded_files > 0 && `（已知排除 ${summary.scan.excluded_files} 个文件）`}
       </p>
       {summary.scan.truncated && <p className="mt-1 text-xs text-state-waiting">扫描范围不完整，数字仅含已扫描的材料。</p>}
+      <section aria-label="索引范围与权限" className="knowledge-index-governance">
+        <div className="knowledge-governance-row">
+          <span className="knowledge-governance-label">内容类型</span>
+          <div role="group" aria-label="索引内容类型" className="knowledge-governance-group">
+            {DOCUMENT_CATEGORIES.map(category => {
+              const enabled = enabledCategories.includes(category.id)
+              return <button key={category.id} type="button" className="knowledge-filter" aria-pressed={enabled}
+                disabled={readOnly || !!busy} onClick={() => void act(`category:${category.id}`, async () => {
+                  await update(toggleCategory(policy, category.id, !enabled))
+                  toast.success(enabled ? `已关闭「${category.label}」索引` : `已开启「${category.label}」索引`)
+                })}>{category.label}</button>
+            })}
+          </div>
+        </div>
+        <div className="knowledge-governance-row">
+          <span className="knowledge-governance-label">Agent 产出</span>
+          <div role="group" aria-label="Agent 产出索引策略" className="knowledge-governance-group">
+            {AGENT_OUTPUT_OPTIONS.map(option => <button key={option.value} type="button" className="knowledge-filter"
+              aria-pressed={policy.agent_outputs === option.value} disabled={readOnly || !!busy}
+              onClick={() => {
+                if (policy.agent_outputs === option.value) return
+                void act(`outputs:${option.value}`, async () => {
+                  await update(setAgentOutputs(policy, option.value))
+                  toast.success(option.value === 'manual' ? 'Agent 产出文件将等待手动纳入索引' : 'Agent 产出文件将按类型自动纳入索引')
+                })
+              }}>{option.label}</button>)}
+          </div>
+          <span className="knowledge-governance-hint">
+            {policy.agent_outputs === 'manual' ? '写入或交付到工作区的文件默认不进检索，可逐个纳入' : '符合已开启类型的成果将自动纳入检索'}
+          </span>
+        </div>
+      </section>
       {summary.scope_review_required && <section aria-label="确认索引范围" className="mt-4 space-y-2 rounded-xl border p-3">
         <p className="text-sm font-medium">先确认索引范围</p>
         <p className="text-meta text-muted-foreground">选择要排除的目录，再开始解析。</p>
@@ -537,7 +577,28 @@ function IndexView({workspace, visible, summary, summaryError, refreshSummary, a
       {errorLine && <p role="alert" className="text-meta text-state-failed">{errorLine}
         <Button size="xs" variant="ghost" onClick={() => {setMutationError(null); bump()}}>刷新状态</Button>
       </p>}
-      {grouped.size === 0 && !summary.scope_review_required && <p className="py-8 text-center text-meta text-faint">当前范围没有可索引的文件。</p>}
+      {grouped.size === 0 && pendingOutputs.length === 0 && excludedFiles.length === 0 && !summary.scope_review_required
+        && <p className="py-8 text-center text-meta text-faint">当前范围没有可索引的文件。</p>}
+      {pendingOutputs.length > 0 && <section aria-label="Agent 产出待纳入索引">
+        <div className="knowledge-index-directory">
+          <Layers className="size-4 shrink-0 text-signal" aria-hidden/>
+          <h2 className="min-w-0 truncate text-sm font-medium">Agent 产出 · 待纳入</h2>
+          <span className="knowledge-directory-meta">{pendingOutputs.length} 个文件未纳入检索</span>
+        </div>
+        <ul>{pendingOutputs.map(path => <li key={path} className="knowledge-index-row">
+          <FileTypeBadge extension={fileExtension(path)} compact/>
+          <span className="min-w-0 truncate" title={path}>{path.split('/').at(-1)}</span>
+          <span className="knowledge-index-row-meta" title={path}>{path.includes('/') ? path.slice(0, path.lastIndexOf('/')) + '/' : '根目录'}</span>
+          <span className="knowledge-index-row-status text-state-waiting">未纳入</span>
+          <span className="knowledge-index-row-action">
+            <Button size="xs" variant="ghost" disabled={readOnly || !!busy}
+              onClick={() => void act(`include:${path}`, async () => {
+                await update(includeFile(policy, path, true))
+                toast.success(`已将「${path.split('/').at(-1)}」纳入索引`)
+              })}>纳入索引</Button>
+          </span>
+        </li>)}</ul>
+      </section>}
       {[...grouped].map(([directory, entries]) => <section key={directory}>
         <div className="knowledge-index-directory">
           <FolderOpen className="size-4 shrink-0 text-faint" aria-hidden/>
@@ -548,7 +609,7 @@ function IndexView({workspace, visible, summary, summaryError, refreshSummary, a
           </span>
           {directory && <Button size="xs" variant="ghost" title="排除索引，文件保留" disabled={readOnly || !!busy}
             onClick={() => void act('exclude', async () => {
-              await update({excluded_directories: [...policy.excluded_directories, directory]})
+              await update(excludeDirectory(policy, directory))
               toast.success(`已排除 ${directory}/`)
             })}>排除</Button>}
         </div>
@@ -584,17 +645,42 @@ function IndexView({workspace, visible, summary, summaryError, refreshSummary, a
                 disabled={readOnly || !!busy || policy.paused || summary.scope_review_required}
                 onClick={() => void act('retry', () => documentsApi.retry(id, doc))}>重试</Button>}
               {needsInstall && <Button asChild size="xs" variant="ghost"><Link href={installHref('ocr', `${pathname}?${returnParams}`)}>安装文字识别</Link></Button>}
+              <Button size="xs" variant="ghost" title="从索引排除，保留原文件" disabled={readOnly || !!busy}
+                onClick={() => void act(`exclude-file:${doc.relative_path}`, async () => {
+                  await update(excludeFile(policy, doc.relative_path))
+                  toast.success(`已从索引排除「${doc.relative_path.split('/').at(-1)}」`)
+                })}>排除</Button>
             </span>
           </li>
         })}</ul>
       </section>)}
+      {excludedFiles.length > 0 && <section aria-label="已排除的文件" className="knowledge-index-excluded">
+        <div className="knowledge-index-directory">
+          <h2 className="min-w-0 truncate text-sm font-medium">已排除的文件</h2>
+          <span className="knowledge-directory-meta">{excludedFiles.length} 个文件</span>
+        </div>
+        <ul>{excludedFiles.map(path => <li key={path} className="knowledge-index-row">
+          <FileTypeBadge extension={fileExtension(path)} compact/>
+          <span className="min-w-0 truncate" title={path}>{path.split('/').at(-1)}</span>
+          <span className="knowledge-index-row-meta" title={path}>{path.includes('/') ? path.slice(0, path.lastIndexOf('/')) + '/' : '根目录'}</span>
+          <span className="knowledge-index-row-status text-faint">已排除</span>
+          <span className="knowledge-index-row-action">
+            <Button size="xs" variant="ghost" disabled={readOnly || !!busy}
+              onClick={() => void act(`include-file:${path}`, async () => {
+                const action = fileIndexAction(path, summary)
+                await update(includeFile(policy, path, action?.kind === 'include' ? action.needsExplicitInclude : false))
+                toast.success(`已重新纳入「${path.split('/').at(-1)}」`)
+              })}>重新纳入</Button>
+          </span>
+        </li>)}</ul>
+      </section>}
       {policy.excluded_directories.map(directory => <div key={directory} className="knowledge-index-directory knowledge-index-excluded">
         <Folder className="size-4 shrink-0 text-faint" aria-hidden/>
         <span className="min-w-0 truncate text-sm" title={directory}>{directory}/</span>
         <span className="knowledge-directory-meta">已排除{summary.scan.excluded_directory_sizes?.[directory] &&
           ` · 已知 ${summary.scan.excluded_directory_sizes[directory].files} 个文件 · ${formatFileSize(summary.scan.excluded_directory_sizes[directory].bytes)}`}</span>
         <Button size="xs" variant="ghost" disabled={readOnly || !!busy} onClick={() => void act('include', async () => {
-          await update({excluded_directories: policy.excluded_directories.filter(path => path !== directory)})
+          await update(includeDirectory(policy, directory))
           toast.success(`已重新纳入 ${directory}/`)
         })}>重新纳入</Button>
       </div>)}

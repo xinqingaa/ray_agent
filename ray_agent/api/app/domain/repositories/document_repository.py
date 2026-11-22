@@ -43,6 +43,9 @@ class DocumentRepository(ABC):
     async def get_revision_by_number(self, document_id: str, revision: int) -> Optional[DocumentRevision]: ...
 
     @abstractmethod
+    async def current_revisions(self, workspace_id: str) -> dict[str, DocumentRevision]: ...
+
+    @abstractmethod
     async def save_revision(self, revision: DocumentRevision) -> None: ...
 
     @abstractmethod
@@ -92,6 +95,18 @@ class DocumentRepository(ABC):
     @abstractmethod
     async def unpublish_document(self, document_id: str) -> list[str]:
         """撤回文档全部已发布片段，返回被撤回的 chunk id。"""
+        ...
+
+    @abstractmethod
+    async def unpublish_documents(self, document_ids: Sequence[str]) -> list[str]:
+        """批量撤回多份文档的已发布片段，返回被撤回的 chunk id。"""
+        ...
+
+    @abstractmethod
+    async def retire_documents(
+            self, documents: Sequence[DocumentRecord], status: DocumentIndexStatus, updated_at,
+    ) -> None:
+        """批量更新退役文档及其当前版本的状态与来源代次。"""
         ...
 
     @abstractmethod

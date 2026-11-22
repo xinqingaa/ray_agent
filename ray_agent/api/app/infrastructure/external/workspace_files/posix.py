@@ -20,7 +20,10 @@ from app.domain.external.workspace_files import (
 from app.domain.models.error import ErrorCode
 from app.domain.models.identity import RootedPath, relative_parts
 from app.domain.services.file_io import run_file_io
-from app.domain.services.file_rules import DELETE_TEMP_PREFIX, WRITE_TEMP_PREFIX, is_excluded, is_internal_temp, is_reserved
+from app.domain.services.file_rules import (
+    DELETE_TEMP_PREFIX, ENVIRONMENT_MARKER_DIRS, ENVIRONMENT_MARKER_FILES, WRITE_TEMP_PREFIX,
+    fold_name, is_excluded, is_internal_temp, is_reserved,
+)
 
 RootResolver = Callable[[str], Awaitable[RootBinding]]
 
@@ -694,6 +697,12 @@ class _Walk:
                     if len(found) > self.limits.scan_entries:
                         self.truncated = True
                         break
+            if not self.include_temp and dir_parts != self.parts and any(
+                    (stat.S_ISREG(info.st_mode) and fold_name(name) in ENVIRONMENT_MARKER_FILES)
+                    or (stat.S_ISDIR(info.st_mode) and fold_name(name) in ENVIRONMENT_MARKER_DIRS)
+                    for name, info in found
+            ):
+                return None
             return found
         except FileNotFoundError:
             return None

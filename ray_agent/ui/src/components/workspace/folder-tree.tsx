@@ -1,4 +1,4 @@
-import {ChevronRight, Copy, Eye, Finder, Folder, FolderOpen, FolderPlus, Link2, LoaderCircle, FileQuestion, Pencil, Plus, Trash} from '@/components/ui/icons'
+import {Ban, ChevronRight, Copy, Eye, Finder, Folder, FolderOpen, FolderPlus, Layers, Link2, LoaderCircle, FileQuestion, Pencil, Plus, Trash} from '@/components/ui/icons'
 import {createElement, Fragment, useRef, type KeyboardEvent} from 'react'
 import {Button} from '@/components/ui/button'
 import {ContextMenuSurface} from '@/components/ui/context-menu'
@@ -8,6 +8,8 @@ import {formatBytes} from '@/components/run/format'
 import {cn} from '@/lib/utils'
 import {uploadTarget, visibleRows, type TreeState} from '@/lib/workspace-tree'
 import {entryActionsFor, type EntryEdit} from '@/lib/workspace-entries'
+import {directoryIndexAction, fileIndexAction} from '@/lib/document-index-policy'
+import type {IndexSummary} from '@/lib/api/documents'
 import {fileManagerName} from '@/lib/platform'
 import type {RootEntry} from '@/lib/api/types'
 import {EntryNameInput} from './entry-name-input'
@@ -22,11 +24,13 @@ const INDEX_LABEL: Record<string, string> = {
  * 懒加载的文件树。目录点击展开，文件点击打开预览；符号链接与特殊文件只显示，不展开不预览。
  * 条目操作（重命名、新建文件夹、删除）由面板提供回调；有回调时行菜单才出现对应项。编辑中的名称在行内输入。
  */
-export function FolderTree({tree, selectedPath, indexStates, readPaths, addedPaths, onSelect, onToggle, onRetry, onReveal, onAdd,
-  edit, editBusy, onEditChange, onEditCommit, onEditCancel, onStartRename, onStartCreate, onRequestDelete, onCopyPath}: {
+export function FolderTree({tree, selectedPath, indexStates, indexSummary, readPaths, addedPaths, onSelect, onToggle, onRetry, onReveal, onAdd,
+  edit, editBusy, onEditChange, onEditCommit, onEditCancel, onStartRename, onStartCreate, onRequestDelete, onCopyPath,
+  onToggleFileIndex, onToggleDirectoryIndex}: {
   tree: TreeState
   selectedPath: string | null
   indexStates?: ReadonlyMap<string, string>
+  indexSummary?: IndexSummary | null
   readPaths?: ReadonlySet<string>
   addedPaths?: ReadonlySet<string>
   onSelect: (path: string, entry: RootEntry) => void
@@ -44,6 +48,10 @@ export function FolderTree({tree, selectedPath, indexStates, readPaths, addedPat
   onRequestDelete?: (path: string, entry: RootEntry) => void
   /** 复制条目的绝对路径（由面板换算） */
   onCopyPath?: (path: string) => void
+  /** 文件行就地纳入或排除索引 */
+  onToggleFileIndex?: (path: string) => void
+  /** 目录行就地纳入或排除索引 */
+  onToggleDirectoryIndex?: (directory: string) => void
 }) {
   const rows = visibleRows(tree)
   const container = useRef<HTMLUListElement>(null)
@@ -103,10 +111,13 @@ export function FolderTree({tree, selectedPath, indexStates, readPaths, addedPat
       const Icon = isDirectory ? (row.expanded ? FolderOpen : Folder) : entry.kind === 'symlink' ? Link2 : FileQuestion
       const interactive = isDirectory || isFile
       const status = isFile ? indexStates?.get(path) : undefined
-      const indexLabel = status ? INDEX_LABEL[status] : undefined
+      const pendingOutput = isFile && Boolean(indexSummary?.scan.pending_outputs?.includes(path))
+      const indexLabel = pendingOutput ? '未纳入索引' : status ? INDEX_LABEL[status] : undefined
       const read = isFile && readPaths?.has(path)
       const fresh = isFile && addedPaths?.has(path)
       const operations = entryActionsFor(entry.kind)
+      const fileIndex = isFile && indexSummary && onToggleFileIndex ? fileIndexAction(path, indexSummary) : null
+      const dirIndex = isDirectory && indexSummary && onToggleDirectoryIndex ? directoryIndexAction(path, indexSummary) : null
       // 只列出能完成的项：文件先预览；目录可新建文件夹；删除放最后，前面用分隔线隔开
       const menu: MenuEntry[] = [
         ...(isFile ? [menuItem('预览', Eye, () => onSelect(path, entry))] : []),
@@ -114,6 +125,16 @@ export function FolderTree({tree, selectedPath, indexStates, readPaths, addedPat
           () => onAdd(uploadTarget({path, kind: entry.kind})))] : []),
         ...(operations.createFolder && onStartCreate ? [menuItem('新建文件夹', FolderPlus, () => onStartCreate(path))] : []),
         ...(interactive && onReveal ? [menuItem(`在 ${fileManagerName()} 中显示`, Finder, () => onReveal(path))] : []),
+        ...(fileIndex && onToggleFileIndex ? [menuItem(
+          fileIndex.kind === 'exclude' ? '从索引排除' : '纳入索引',
+          fileIndex.kind === 'exclude' ? Ban : Layers,
+          () => onToggleFileIndex(path),
+        )] : []),
+        ...(dirIndex && onToggleDirectoryIndex ? [menuItem(
+          dirIndex === 'exclude' ? '从索引排除此目录' : '恢复目录索引',
+          dirIndex === 'exclude' ? Ban : Layers,
+          () => onToggleDirectoryIndex(path),
+        )] : []),
         ...(onCopyPath ? [menuItem('复制路径', Copy, () => onCopyPath(path))] : []),
         ...(operations.rename && onStartRename ? [menuItem('重命名', Pencil, () => onStartRename(path, entry))] : []),
         ...(operations.remove && onRequestDelete ? [{type: 'separator'} as const,
@@ -154,8 +175,8 @@ export function FolderTree({tree, selectedPath, indexStates, readPaths, addedPat
           {read && <span className="folder-row-tag bg-signal-soft text-signal">本次读取</span>}
           {fresh && <span className="folder-row-tag bg-state-success-soft text-state-success">新</span>}
           {indexLabel && <span className="flex shrink-0 items-center gap-1.5 text-xs text-muted-foreground">
-            <span className="folder-index-dot" data-index={status} aria-hidden/>
-            <span className={cn(status === 'searchable' && 'sr-only')}>{indexLabel}</span>
+            <span className="folder-index-dot" data-index={pendingOutput ? 'pending_component' : status} aria-hidden/>
+            <span className={cn(!pendingOutput && status === 'searchable' && 'sr-only')}>{indexLabel}</span>
           </span>}
         </button></ContextMenuSurface>
       </li>

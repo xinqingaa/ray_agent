@@ -70,6 +70,7 @@ from app.domain.services.prompts.image_input import USER_IMAGE_RULES, with_user_
 from app.domain.services.run_budget import BudgetPhase, FinalizeGuard, budget_notice, budget_phase, noticed_phase
 from app.domain.services.task_error import format_public_error_text
 from app.domain.services.tool_policy import ToolPolicyGuard
+from app.domain.services.workspace_shell_guard import WorkspaceShellGuard
 from app.domain.services.tools.a2a import A2ATool
 from app.domain.services.tools.base import BaseTool
 from app.domain.services.tools.browser import BrowserTool
@@ -409,6 +410,9 @@ class AgentLoop(BaseFlow):
         self.pipeline.add_before(self._finalize_guard)
         self._policy_guard = ToolPolicyGuard(tool_policy)
         self.pipeline.add_before(self._policy_guard)
+        shell_exec_dir = next((t.default_exec_dir for t in tools if isinstance(t, ShellTool)), None)
+        self._workspace_shell_guard = WorkspaceShellGuard(files, default_exec_dir=shell_exec_dir)
+        self.pipeline.add_before(self._workspace_shell_guard)
         self.pipeline.add_before(self._outcomes.before)
         self._mode = RunMode.NORMAL
         self.mode = mode

@@ -4,9 +4,9 @@ from typing import Optional
 from sqlalchemy import case, delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.domain.models.file_change import ChangeSource, FileChange, RunChangeRow, WorkspaceObject
+from app.domain.models.file_change import ChangeOperation, ChangeSource, EntryKind, FileChange, RunChangeRow, WorkspaceObject
 from app.domain.repositories.file_change_repository import FileChangeRepository
-from app.infrastructure.models import FileChangeModel, WorkspaceObjectModel
+from app.infrastructure.models import FileChangeModel, FileModel, WorkspaceObjectModel
 
 
 class DBFileChangeRepository(FileChangeRepository):
@@ -64,6 +64,33 @@ class DBFileChangeRepository(FileChangeRepository):
         await self.db_session.execute(delete(WorkspaceObjectModel).where(object_filter)
                                       .execution_options(synchronize_session=False))
         return keys
+
+    async def agent_output_paths(self, workspace_id: str, root_id: str) -> set[str]:
+        rows = (await self.db_session.execute(
+            select(FileChangeModel.relative_path, FileChangeModel.operation, FileChangeModel.source)
+            .where(
+                FileChangeModel.workspace_id == workspace_id,
+                FileChangeModel.entry_kind == EntryKind.FILE.value,
+            )
+            .order_by(FileChangeModel.id)
+        )).all()
+        origin: dict[str, str] = {}
+        for path, operation, source in rows:
+            if operation == ChangeOperation.DELETE.value:
+                origin.pop(path, None)
+            elif operation == ChangeOperation.CREATE.value:
+                origin[path] = source
+        outputs = {path for path, source in origin.items() if source == ChangeSource.TOOL.value}
+        delivered = (await self.db_session.execute(
+            select(FileModel.relative_path).where(
+                FileModel.root_id == root_id,
+                FileModel.relative_path.is_not(None),
+            ).distinct()
+        )).scalars().all()
+        for path in delivered:
+            if path and origin.get(path) not in (ChangeSource.UPLOAD.value, ChangeSource.MANUAL.value):
+                outputs.add(path)
+        return outputs
 
     async def delete_workspace(self, workspace_id: str) -> list[str]:
         return await self._drop(WorkspaceObjectModel.workspace_id == workspace_id,

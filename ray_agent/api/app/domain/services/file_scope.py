@@ -158,19 +158,21 @@ class FileScope:
         call_id = _current_call.get()
         return replace(self._owner, tool_call_id=call_id) if call_id else self._owner
 
-    async def write_stream(self, path: RootedPath, source: BinaryIO, expected: Optional[FileVersion]) -> FileVersion:
+    async def write_stream(self, path: RootedPath, source: BinaryIO, expected: Optional[FileVersion], *,
+                           owner: Optional[WriteOwner] = None) -> FileVersion:
         if self.is_gated(path):
-            return await self._gate.write_stream(path, source, expected, self._owner_now())
+            return await self._gate.write_stream(path, source, expected, owner or self._owner_now())
         return await self.files.write_stream(path, source, expected)
 
-    async def write_bytes(self, path: RootedPath, data: bytes, expected: Optional[FileVersion]) -> FileVersion:
+    async def write_bytes(self, path: RootedPath, data: bytes, expected: Optional[FileVersion], *,
+                          owner: Optional[WriteOwner] = None) -> FileVersion:
         if self.is_gated(path):
-            return await self._gate.write_bytes(path, data, expected, self._owner_now())
+            return await self._gate.write_bytes(path, data, expected, owner or self._owner_now())
         return await self.files.write_bytes(path, data, expected)
 
-    async def mkdir(self, path: RootedPath) -> FileEntry:
+    async def mkdir(self, path: RootedPath, *, owner: Optional[WriteOwner] = None) -> FileEntry:
         if self.is_gated(path):
-            return await self._gate.mkdir(path, self._owner_now())
+            return await self._gate.mkdir(path, owner or self._owner_now())
         return await self.files.mkdir(path, parents=True)
 
     async def delete(self, path: RootedPath, expected: FileVersion) -> None:
@@ -178,15 +180,17 @@ class FileScope:
             return await self._gate.delete(path, expected, self._owner_now())
         return await self.files.delete(path, expected)
 
-    async def ensure_parent(self, path: RootedPath) -> None:
+    async def ensure_parent(self, path: RootedPath, *, owner: Optional[WriteOwner] = None) -> None:
         parts = relative_parts(path.relative_path)
         if len(parts) > 1:
-            await self.mkdir(RootedPath(root_id=path.root_id, relative_path="/".join(parts[:-1])))
+            await self.mkdir(RootedPath(root_id=path.root_id, relative_path="/".join(parts[:-1])), owner=owner)
 
-    async def write_unique(self, directory: RootedPath, name: str, source: BinaryIO) -> tuple[RootedPath, FileVersion]:
+    async def write_unique(self, directory: RootedPath, name: str, source: BinaryIO, *,
+                           owner: Optional[WriteOwner] = None) -> tuple[RootedPath, FileVersion]:
         """在目录里放入新文件，同名时加序号，绝不覆盖已有文件；source 需要可回到开头才能重试。"""
         await self.ensure_parent(RootedPath(root_id=directory.root_id,
-                                            relative_path="/".join((*relative_parts(directory.relative_path), name))))
+                                            relative_path="/".join((*relative_parts(directory.relative_path), name))),
+                                 owner=owner)
         stem, suffix = os.path.splitext(name)
         for attempt in range(1, UNIQUE_NAME_ATTEMPTS + 1):
             candidate = name if attempt == 1 else f"{stem} ({attempt}){suffix}"
@@ -195,7 +199,7 @@ class FileScope:
             try:
                 if attempt > 1:
                     source.seek(0)
-                return target, await self.write_stream(target, source, None)
+                return target, await self.write_stream(target, source, None, owner=owner)
             except WorkspaceFileError as error:
                 if error.code is not ErrorCode.CONFLICT or "lease" in error.details:
                     raise  # 写入租约被占用不是重名，不换名重试

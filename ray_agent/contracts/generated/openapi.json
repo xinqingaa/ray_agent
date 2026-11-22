@@ -8245,6 +8245,15 @@
         "title": "AgentConfig",
         "description": "Agent通用配置"
       },
+      "AgentOutputPolicy": {
+        "type": "string",
+        "enum": [
+          "manual",
+          "auto"
+        ],
+        "title": "AgentOutputPolicy",
+        "description": "Agent 写入或交付到工作区文件的索引准入策略。"
+      },
       "ApplyTemplateRequest": {
         "properties": {
           "workspace_id": {
@@ -10928,6 +10937,17 @@
         ],
         "title": "DeleteEntryRequest"
       },
+      "DocumentCategory": {
+        "type": "string",
+        "enum": [
+          "documents",
+          "spreadsheets",
+          "images",
+          "code"
+        ],
+        "title": "DocumentCategory",
+        "description": "面向工作区索引策略的四类内容分类。"
+      },
       "DocumentFormat": {
         "type": "string",
         "enum": [
@@ -12427,6 +12447,31 @@
             "type": "array",
             "title": "Excluded Directories"
           },
+          "excluded_files": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Excluded Files"
+          },
+          "included_files": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Included Files"
+          },
+          "enabled_categories": {
+            "items": {
+              "$ref": "#/components/schemas/DocumentCategory"
+            },
+            "type": "array",
+            "title": "Enabled Categories"
+          },
+          "agent_outputs": {
+            "$ref": "#/components/schemas/AgentOutputPolicy",
+            "default": "manual"
+          },
           "scope_confirmed": {
             "type": "boolean",
             "title": "Scope Confirmed",
@@ -12454,6 +12499,33 @@
             "type": "array",
             "maxItems": 200,
             "title": "Excluded Directories"
+          },
+          "excluded_files": {
+            "items": {
+              "$ref": "#/components/schemas/RelativePath"
+            },
+            "type": "array",
+            "maxItems": 500,
+            "title": "Excluded Files"
+          },
+          "included_files": {
+            "items": {
+              "$ref": "#/components/schemas/RelativePath"
+            },
+            "type": "array",
+            "maxItems": 500,
+            "title": "Included Files"
+          },
+          "enabled_categories": {
+            "items": {
+              "$ref": "#/components/schemas/DocumentCategory"
+            },
+            "type": "array",
+            "title": "Enabled Categories"
+          },
+          "agent_outputs": {
+            "$ref": "#/components/schemas/AgentOutputPolicy",
+            "default": "manual"
           },
           "scope_confirmed": {
             "type": "boolean",
@@ -12511,6 +12583,18 @@
             },
             "type": "object",
             "title": "Excluded Directory Sizes"
+          },
+          "pending_outputs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Pending Outputs"
+          },
+          "category_skipped": {
+            "type": "integer",
+            "title": "Category Skipped",
+            "default": 0
           },
           "truncated": {
             "type": "boolean",

@@ -19,10 +19,11 @@ from app.domain.external.workspace_files import FileKind, RootBinding, Workspace
 from app.domain.models.background_job import BackgroundJob
 from app.domain.models.clock import utc_now
 from app.domain.models.document_knowledge import (
-    CHUNK_CONFIG_FINGERPRINT, DOCUMENT_PARSE_MAX_BYTES,
+    AgentOutputPolicy, CHUNK_CONFIG_FINGERPRINT, DOCUMENT_PARSE_MAX_BYTES,
     DOCUMENT_SCOPE_REVIEW_BYTES, DOCUMENT_SCOPE_REVIEW_FILES, PARSE_CONFIG_FINGERPRINT,
-    DocumentFormat, DocumentIndexStatus as Status, DocumentLocator, DocumentOcrState, DocumentRecord,
-    DocumentRevision, IndexDirectorySize, IndexPolicy, IndexPublication, IndexScope, WorkspaceIndexSummary, excluded_path,
+    DocumentCategory, DocumentFormat, DocumentIndexStatus as Status, DocumentLocator, DocumentOcrState, DocumentRecord,
+    DocumentRevision, IndexDirectorySize, IndexPolicy, IndexPublication, IndexScope, WorkspaceIndexSummary,
+    excluded_directory, policy_decision,
 )
 from app.domain.models.error import ErrorCode
 from app.domain.models.identity import RootedPath
@@ -30,7 +31,7 @@ from app.domain.models.operation import OperationKind, OperationProgress, Operat
 from app.domain.models.retrieval import SearchHit, SearchSourceType
 from app.domain.models.workspace import FolderStatus, RootRecord, WorkspaceStatus
 from app.domain.repositories.uow import IUnitOfWork
-from app.domain.services.document_formats import detect_format, is_indexable
+from app.domain.services.document_formats import category_of, detect_format
 from app.infrastructure.external.document_parse.chunking import blocks_from_worker, chunk_blocks
 from app.infrastructure.external.document_parse.runner import run_document_parse
 
@@ -49,34 +50,70 @@ def _binding(root: RootRecord | None) -> tuple | None:
     return (root.ref.root_id, root.dev, root.ino, root.location) if root else None
 
 
+async def _remove_search_chunks(uow: IUnitOfWork, workspace_id: str, chunk_ids: list[str]) -> None:
+    if not chunk_ids:
+        return
+    if hasattr(uow.search, "remove_many"):
+        await uow.search.remove_many(
+            workspace_id=workspace_id,
+            source_type=SearchSourceType.DOCUMENT_CHUNK,
+            source_ids=chunk_ids,
+        )
+        return
+    for chunk_id in chunk_ids:
+        await uow.search.remove(
+            workspace_id=workspace_id,
+            source_type=SearchSourceType.DOCUMENT_CHUNK,
+            source_id=chunk_id,
+        )
+
+
 async def _unpublish(uow: IUnitOfWork, doc: DocumentRecord, pub: IndexPublication) -> None:
     ids = await uow.document.unpublish_document(doc.id)
-    for chunk_id in ids:
-        await uow.search.remove(workspace_id=doc.workspace_id, source_type=SearchSourceType.DOCUMENT_CHUNK,
-                                source_id=chunk_id)
+    await _remove_search_chunks(uow, doc.workspace_id, ids)
     if ids:
         pub.generation += 1
 
 
+async def _retire_many(
+        uow: IUnitOfWork, workspace_id: str, docs: list[DocumentRecord], pub: IndexPublication, status: Status,
+) -> int:
+    targets = [doc for doc in docs if doc.status is not status]
+    if not targets:
+        return 0
+    if hasattr(uow.document, "unpublish_documents"):
+        ids = await uow.document.unpublish_documents([doc.id for doc in targets])
+    else:
+        ids = []
+        for doc in targets:
+            ids.extend(await uow.document.unpublish_document(doc.id))
+    await _remove_search_chunks(uow, workspace_id, ids)
+    if ids:
+        pub.generation += 1
+    now = utc_now()
+    if hasattr(uow.document, "retire_documents"):
+        await uow.document.retire_documents(targets, status, now)
+        return len(targets)
+    for doc in targets:
+        doc.source_epoch += 1
+        doc.status = status
+        doc.updated_at = now
+        await uow.document.save(doc)
+        if revision := await uow.document.get_revision_by_number(doc.id, doc.current_revision):
+            revision.status = status
+            revision.updated_at = now
+            await uow.document.save_revision(revision)
+    return len(targets)
+
+
 async def _retire(uow: IUnitOfWork, doc: DocumentRecord, pub: IndexPublication, status: Status) -> None:
-    if doc.status is status:
-        return
-    await _unpublish(uow, doc, pub)
-    doc.source_epoch += 1
-    doc.status = status
-    doc.updated_at = utc_now()
-    await uow.document.save(doc)
-    if revision := await uow.document.get_revision_by_number(doc.id, doc.current_revision):
-        revision.status = status
-        revision.updated_at = doc.updated_at
-        await uow.document.save_revision(revision)
+    await _retire_many(uow, doc.workspace_id, [doc], pub, status)
 
 
 async def retire_document_binding(uow: IUnitOfWork, workspace_id: str) -> None:
     """改绑与旧来源撤回在同一个工作区事务中提交。"""
     pub = await uow.document.get_publication(workspace_id) or IndexPublication(workspace_id=workspace_id)
-    for doc in await uow.document.list_workspace(workspace_id):
-        await _retire(uow, doc, pub, Status.WITHDRAWN)
+    await _retire_many(uow, workspace_id, await uow.document.list_workspace(workspace_id), pub, Status.WITHDRAWN)
     pub.scan = IndexScope()
     pub.policy.scope_confirmed = False
     pub.policy.version += 1
@@ -213,36 +250,87 @@ class DocumentIndexService:
                 visible.append(hit)
         return visible
 
+    @staticmethod
+    async def _agent_output_paths(uow: IUnitOfWork, workspace_id: str, root_id: str) -> set[str]:
+        if hasattr(uow, "change") and hasattr(uow.change, "agent_output_paths"):
+            return await uow.change.agent_output_paths(workspace_id, root_id)
+        return set()
+
+    @staticmethod
+    def _normalize_paths(root_id: str, raw_paths: list[str], *, empty_message: str) -> list[str]:
+        result: list[str] = []
+        for item in sorted(set(raw_paths)):
+            path = RootedPath(root_id=root_id, relative_path=item)
+            if not path.relative_path:
+                raise BadRequestError(empty_message)
+            result.append(path.relative_path)
+        return result
+
     async def update_policy(
             self, workspace_id: str, *, version: int, paused: bool, excluded_directories: list[str],
             scope_confirmed: bool,
+            excluded_files: list[str] | None = None,
+            included_files: list[str] | None = None,
+            enabled_categories: list[DocumentCategory] | None = None,
+            agent_outputs: AgentOutputPolicy | None = None,
     ) -> WorkspaceIndexSummary:
-        directories: list[str] = []
+        retired_any = False
         async with self._uow_factory() as uow:
             workspace = await uow.workspace.get(workspace_id)
             root = await uow.root.workspace_folder(workspace_id)
             if not workspace or workspace.status is not WorkspaceStatus.ACTIVE or not root:
                 raise ConflictError("工作区当前不能更改索引范围")
             pub = await uow.document.get_publication(workspace_id) or IndexPublication(workspace_id=workspace_id)
-            for directory in sorted(set(excluded_directories)):
-                path = RootedPath(root_id=root.ref.root_id, relative_path=directory)
-                if not path.relative_path:
-                    raise BadRequestError("请使用暂停开关停止整个工作区的索引")
-                directories.append(path.relative_path)
+            directories = self._normalize_paths(
+                root.ref.root_id, excluded_directories, empty_message="请使用暂停开关停止整个工作区的索引")
+            ex_files = self._normalize_paths(
+                root.ref.root_id,
+                pub.policy.excluded_files if excluded_files is None else excluded_files,
+                empty_message="排除的文件路径不能为空",
+            )
+            in_files = self._normalize_paths(
+                root.ref.root_id,
+                pub.policy.included_files if included_files is None else included_files,
+                empty_message="纳入的文件路径不能为空",
+            )
+            if set(ex_files) & set(in_files):
+                raise BadRequestError("同一文件不能同时设置为排除和纳入")
+            raw_categories = pub.policy.enabled_categories if enabled_categories is None else enabled_categories
+            categories = [cat for cat in DocumentCategory if cat in set(raw_categories)]
+            outputs = pub.policy.agent_outputs if agent_outputs is None else agent_outputs
             if pub.policy.version != version:
-                if (pub.policy.paused, pub.policy.excluded_directories, pub.policy.scope_confirmed) != (
-                        paused, directories, scope_confirmed):
+                current_tuple = (
+                    pub.policy.paused, pub.policy.excluded_directories, pub.policy.excluded_files,
+                    pub.policy.included_files, pub.policy.enabled_categories, pub.policy.agent_outputs,
+                    pub.policy.scope_confirmed,
+                )
+                requested_tuple = (paused, directories, ex_files, in_files, categories, outputs, scope_confirmed)
+                if current_tuple != requested_tuple:
                     raise ConflictError("索引设置已变化，请刷新后再修改", resource_version=pub.policy.version)
             else:
-                pub.policy = IndexPolicy(version=version + 1, paused=paused, excluded_directories=directories,
-                                         scope_confirmed=scope_confirmed)
+                before_generation = pub.generation
+                pub.policy = IndexPolicy(
+                    version=version + 1, paused=paused, excluded_directories=directories,
+                    excluded_files=ex_files, included_files=in_files,
+                    enabled_categories=categories, agent_outputs=outputs,
+                    scope_confirmed=scope_confirmed,
+                )
                 if scope_confirmed:
                     pub.scope_review_required = False
-                for doc in await uow.document.list_workspace(workspace_id):
-                    if doc.status is not Status.WITHDRAWN and excluded_path(pub.policy, doc.relative_path):
-                        await _retire(uow, doc, pub, Status.EXCLUDED)
+                agent_output_set = await self._agent_output_paths(uow, workspace_id, root.ref.root_id)
+                to_exclude = [
+                    doc for doc in await uow.document.list_workspace(workspace_id)
+                    if doc.status is not Status.WITHDRAWN and not policy_decision(
+                        pub.policy, doc.relative_path, doc.format,
+                        category=category_of(doc.format), is_agent_output=doc.relative_path in agent_output_set,
+                    )[0]
+                ]
+                await _retire_many(uow, workspace_id, to_exclude, pub, Status.EXCLUDED)
+                retired_any = pub.generation > before_generation
                 pub.updated_at = utc_now()
                 await uow.document.save_publication(pub)
+        if retired_any:
+            await self._enqueue_semantic(workspace_id)
         self._notify_scan(workspace_id)
         return await self.summary(workspace_id)
 
@@ -346,19 +434,43 @@ class DocumentIndexService:
             workspace = await uow.workspace.get(workspace_id)
             root = await uow.root.workspace_folder(workspace_id)
             publication = await uow.document.get_publication(workspace_id)
+            agent_output_set = (
+                await self._agent_output_paths(uow, workspace_id, root.ref.root_id)
+                if workspace is not None and root is not None else set()
+            )
         if workspace is None or workspace.status is not WorkspaceStatus.ACTIVE or root is None:
             return {"status": "skipped", "reason": "workspace_unavailable"}
+        if root.status is not FolderStatus.AVAILABLE:
+            if scan_context is not None:
+                raise ConflictError("工作区文件夹当前不可索引")
+            return {"status": "skipped", "reason": "folder_unavailable"}
         if scan_context and scan_context.job.payload["binding"] != list(_binding(root)):
             return {"status": "skipped", "reason": "folder_changed"}
         policy = publication.policy if publication else IndexPolicy()
         files_at_root = self._bound_files(root)
         root_path = RootedPath(root_id=root.ref.root_id)
+        effective_excluded_dirs = frozenset(
+            directory for directory in policy.excluded_directories
+            if not any(path == directory or path.startswith(directory + "/") for path in policy.included_files)
+        )
         try:
-            if policy.excluded_directories:
-                snapshot = await self._files.snapshot(root_path, exclude=frozenset(policy.excluded_directories))
+            if effective_excluded_dirs:
+                snapshot = await self._files.snapshot(root_path, exclude=effective_excluded_dirs)
             else:
                 snapshot = await self._files.snapshot(root_path)
         except WorkspaceFileError as error:
+            if error.code is ErrorCode.UNAVAILABLE and scan_context is None:
+                async with self._uow_factory() as uow:
+                    current_root = await uow.root.workspace_folder(workspace_id)
+                    if _binding(current_root) == _binding(root):
+                        await uow.root.set_folder_state(root.ref.root_id, FolderStatus.UNAVAILABLE, utc_now())
+                        pub = await uow.document.get_publication(workspace_id) or IndexPublication(workspace_id=workspace_id)
+                        pub.last_error = str(error)
+                        pub.status = "failed"
+                        pub.updated_at = utc_now()
+                        await uow.document.save_publication(pub)
+                logger.warning("工作区文件夹不可用，跳过后台文档同步 workspace=%s: %s", workspace_id, error)
+                return {"status": "skipped", "reason": "folder_unavailable"}
             async with self._uow_factory() as uow:
                 pub = await self._scan_publication(uow, workspace_id, root, policy, scan_context)
                 pub.last_error = str(error)
@@ -366,8 +478,21 @@ class DocumentIndexService:
                 await uow.document.save_publication(pub)
             raise app_error(error) from error
 
-        files = {path: values for path, values in snapshot.files.items()
-                 if is_indexable(detect_format(path)) and not excluded_path(policy, path)}
+        files: dict[str, tuple[int, int]] = {}
+        pending_outputs: list[str] = []
+        category_skipped = 0
+        for path, values in snapshot.files.items():
+            fmt = detect_format(path)
+            allowed, reason = policy_decision(
+                policy, path, fmt, category=category_of(fmt), is_agent_output=path in agent_output_set,
+            )
+            if allowed:
+                files[path] = values
+            elif reason == "agent_output":
+                pending_outputs.append(path)
+            elif reason == "category_disabled":
+                category_skipped += 1
+        pending_outputs.sort()
         directories = {path.rsplit("/", 1)[0] for path in files if "/" in path}
         directories.update(path.split("/", 1)[0] for path in directories.copy())
         directory_sizes: dict[str, IndexDirectorySize] = {}
@@ -380,45 +505,72 @@ class DocumentIndexService:
             snapshot.truncated or len(files) >= DOCUMENT_SCOPE_REVIEW_FILES
             or sum(size for size, _ in files.values()) >= DOCUMENT_SCOPE_REVIEW_BYTES
         )
+        # 在写锁外先确认缺席文件是否真的从磁盘删除，避免持锁期间做磁盘 stat。
+        async with self._read_uow_factory() as uow:
+            existing_before = await uow.document.list_workspace(workspace_id)
+        effective_paths = (
+            {doc.relative_path for doc in existing_before if doc.status is Status.FAILED}
+            if retry and paths is None else paths
+        )
+        confirmed_missing: set[str] = set()
+        for doc in existing_before:
+            if doc.status is Status.WITHDRAWN:
+                continue
+            allowed, _ = policy_decision(
+                policy, doc.relative_path, doc.format,
+                category=category_of(doc.format), is_agent_output=doc.relative_path in agent_output_set,
+            )
+            if (allowed and (not snapshot.truncated or effective_paths is not None)
+                    and doc.relative_path not in snapshot.files
+                    and self._selected(doc.relative_path, effective_paths)):
+                if await self._confirmed_missing(files_at_root, RootedPath(root_id=root.ref.root_id, relative_path=doc.relative_path)):
+                    confirmed_missing.add(doc.relative_path)
+
         async with self._uow_factory() as uow:
             pub = await self._scan_publication(uow, workspace_id, root, policy, scan_context)
             existing = {doc.relative_path: doc for doc in await uow.document.list_workspace(workspace_id)}
+            revisions = await uow.document.current_revisions(workspace_id)
             if retry and paths is None:
                 paths = {doc.relative_path for doc in existing.values() if doc.status is Status.FAILED}
             excluded_directory_sizes: dict[str, IndexDirectorySize] = {}
             excluded_files = excluded_bytes = 0
+            to_exclude: list[DocumentRecord] = []
+            to_withdraw: list[DocumentRecord] = []
             for path, doc in existing.items():
-                if doc.status is Status.WITHDRAWN or not excluded_path(policy, path):
+                if doc.status is Status.WITHDRAWN:
                     continue
-                revision = await uow.document.get_revision_by_number(doc.id, doc.current_revision)
-                if revision is None:
-                    continue
-                excluded_files += 1
-                excluded_bytes += revision.size
-                for directory in policy.excluded_directories:
-                    if path == directory or path.startswith(directory + "/"):
-                        counts = excluded_directory_sizes.setdefault(directory, IndexDirectorySize())
-                        counts.files += 1
-                        counts.bytes += revision.size
+                allowed, _ = policy_decision(
+                    policy, path, doc.format, category=category_of(doc.format), is_agent_output=path in agent_output_set,
+                )
+                if not allowed:
+                    to_exclude.append(doc)
+                    revision = revisions.get(doc.id)
+                    if revision is None:
+                        continue
+                    excluded_files += 1
+                    excluded_bytes += revision.size
+                    if path not in policy.included_files and excluded_directory(policy, path):
+                        for directory in policy.excluded_directories:
+                            if path == directory or path.startswith(directory + "/"):
+                                counts = excluded_directory_sizes.setdefault(directory, IndexDirectorySize())
+                                counts.files += 1
+                                counts.bytes += revision.size
+                elif ((not snapshot.truncated or paths is not None)
+                      and path not in snapshot.files
+                      and self._selected(path, paths)
+                      and path in confirmed_missing):
+                    to_withdraw.append(doc)
             pub.scan = IndexScope(files=len(files), bytes=sum(size for size, _ in files.values()),
                                   directories=sorted(directories), truncated=snapshot.truncated,
                                   directory_sizes=directory_sizes, excluded_directory_sizes=excluded_directory_sizes,
-                                  excluded_files=excluded_files, excluded_bytes=excluded_bytes)
+                                  excluded_files=excluded_files, excluded_bytes=excluded_bytes,
+                                  pending_outputs=pending_outputs, category_skipped=category_skipped)
             pub.scope_review_required = review_required
             if pub.status == "failed" and not pub.active_operation_id:
                 pub.status = "idle"
                 pub.last_error = None
-            withdrawn = 0
-            for path, doc in existing.items():
-                if excluded_path(policy, path):
-                    await _retire(uow, doc, pub, Status.EXCLUDED)
-                elif ((not snapshot.truncated or paths is not None)
-                      and path not in snapshot.files and doc.status is not Status.WITHDRAWN
-                      and self._selected(path, paths)):
-                    # 即使扫描完整，也要确认这次缺席仍对应实际删除。
-                    if await self._confirmed_missing(files_at_root, RootedPath(root_id=root.ref.root_id, relative_path=path)):
-                        await _retire(uow, doc, pub, Status.WITHDRAWN)
-                        withdrawn += 1
+            await _retire_many(uow, workspace_id, to_exclude, pub, Status.EXCLUDED)
+            withdrawn = await _retire_many(uow, workspace_id, to_withdraw, pub, Status.WITHDRAWN)
             await uow.document.save_publication(pub)
 
         registered = queued = 0
@@ -433,8 +585,7 @@ class DocumentIndexService:
                 continue
             doc = existing.get(path)
             if doc is not None:
-                async with self._read_uow_factory() as uow:
-                    current = await uow.document.get_revision_by_number(doc.id, doc.current_revision)
+                current = revisions.get(doc.id)
                 if (current and doc.status not in RETIRED and current.status is not Status.REGISTERED
                         and (size, modified_ns) == (current.size, current.modified_ns)
                         and (current.parse_config, current.chunk_config) == (PARSE_CONFIG_FINGERPRINT, CHUNK_CONFIG_FINGERPRINT)

@@ -46,3 +46,5 @@ def test_workspace_sessions_name_the_folder_scratch_directory_and_unavailable_re
         problem = build(lost)
         assert "/Users/me/项目" not in problem and "/data/sessions/s1" in problem
     assert "文件夹已被移动或删除" in build_system_prompt(lost) and "文件夹已被移动或删除" in build_en(lost)
+    assert "临时脚本" in build_system_prompt(bound) and "最终成果" in build_system_prompt(bound)
+    assert "temporary scripts" in build_en(bound) and "final deliverables" in build_en(bound)

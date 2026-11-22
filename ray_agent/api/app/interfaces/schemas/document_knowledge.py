@@ -4,7 +4,8 @@ from typing import Literal, Optional
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.domain.models.document_knowledge import (
-    DocumentFormat, DocumentIndexStatus, DocumentLocator, DocumentOcrState, DocumentRecord, DocumentRevision, WorkspaceIndexSummary,
+    AgentOutputPolicy, DEFAULT_ENABLED_CATEGORIES, DocumentCategory, DocumentFormat, DocumentIndexStatus,
+    DocumentLocator, DocumentOcrState, DocumentRecord, DocumentRevision, WorkspaceIndexSummary,
 )
 from app.domain.models.identity import RelativePath
 from app.interfaces.schemas.event import to_epoch_ms
@@ -83,6 +84,10 @@ class IndexPolicyRequest(BaseModel):
     version: int = Field(ge=0)
     paused: bool
     excluded_directories: list[RelativePath] = Field(max_length=200)
+    excluded_files: list[RelativePath] = Field(default_factory=list, max_length=500)
+    included_files: list[RelativePath] = Field(default_factory=list, max_length=500)
+    enabled_categories: list[DocumentCategory] = Field(default_factory=lambda: list(DEFAULT_ENABLED_CATEGORIES))
+    agent_outputs: AgentOutputPolicy = AgentOutputPolicy.MANUAL
     scope_confirmed: bool
 
 
