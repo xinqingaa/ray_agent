@@ -1,14 +1,12 @@
 import {useRef, useState} from 'react'
 import {Archive, ArchiveRestore, MoreHorizontal, Pencil, Trash, Terminal} from '@/components/ui/icons'
-import {toast} from 'sonner'
 import {Button} from '@/components/ui/button'
 import {DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger} from '@/components/ui/dropdown-menu'
 import {useRouter} from '@/lib/navigation'
 import {TopbarActions} from '@/components/sidebar-chrome'
 import {TopbarMenuContent} from '@/components/topbar-menu'
-import {workspaceApi} from '@/lib/api/workspace'
 import type {WorkspaceItem} from '@/lib/api/types'
-import {reportWorkspaceError} from '@/lib/workspace-mutation'
+import {toggleWorkspaceArchive, toggleWorkspaceExecution} from '@/lib/workspace-mutation'
 import {describeWorkspace} from '@/lib/workspace-state'
 import {useSessions} from '@/hooks/use-sessions'
 import {useWorkspaces} from '@/providers/workspaces-provider'
@@ -33,10 +31,7 @@ export function WorkspaceBar({workspace}: {workspace: WorkspaceItem}) {
     if (busy) return
     setBusy(true)
     try {
-      upsert(condition.archived ? await workspaceApi.unarchive(workspace) : await workspaceApi.archive(workspace))
-      toast.success(condition.archived ? '已取消归档' : '已归档，对话变为只读')
-    } catch (error) {
-      reportWorkspaceError(error, condition.archived ? '取消归档失败' : '归档失败', () => void refresh())
+      await toggleWorkspaceArchive(workspace, upsert, () => void refresh())
     } finally {setBusy(false)}
   }
 
@@ -44,10 +39,7 @@ export function WorkspaceBar({workspace}: {workspace: WorkspaceItem}) {
     if (busy || condition.archived || condition.deleting) return
     setBusy(true)
     try {
-      upsert(await workspaceApi.setLocalExecution(workspace, enabled))
-      toast.success(enabled ? '已启用本机执行' : '已关闭本机执行')
-    } catch (error) {
-      reportWorkspaceError(error, '更新本机执行开关失败', () => void refresh())
+      await toggleWorkspaceExecution(workspace, enabled, upsert, () => void refresh())
     } finally {setBusy(false)}
   }
 

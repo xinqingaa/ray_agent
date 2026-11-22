@@ -1,9 +1,11 @@
 import {useRef, useState, type ReactNode} from 'react'
 import {Button} from '@/components/ui/button'
+import {Collapsible, CollapsibleContent, CollapsibleTrigger, collapsibleChevron} from '@/components/ui/collapsible'
 import {Dialog, DialogContent, DialogTitle} from '@/components/ui/dialog'
 import {ChevronDown, Folder, RefreshCw} from '@/components/ui/icons'
 import {Switch} from '@/components/ui/switch'
 import type {SkillSourcesPayload} from '@/lib/api/skills'
+import {cn} from '@/lib/utils'
 
 type SourceDirectory = SkillSourcesPayload['sources'][number]
 
@@ -86,18 +88,20 @@ export function SkillSourceTools({view, sources, initialGroup, busy, feedback, o
         <p aria-live="polite" className="text-sm text-muted-foreground">{problems.length ? `有 ${problems.length} 项扫描问题，相关 Skill 可能无法使用。` : '暂无扫描问题。'}</p>
         <ul className="space-y-1">
           {problems.map(({source, path, error}, index) => <li key={`${source.source_id}:${path}:${index}`}>
-            <details className="skill-scan-issue rounded-lg">
-              <summary className="flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 focus-visible:outline-2 focus-visible:outline-ring">
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-medium">{problemName(source, path)}</span>
-                  <span className="block truncate text-xs text-muted-foreground">{source.label} · {problemSummary(error)}</span>
-                </span>
-                <ChevronDown className="size-4 shrink-0 text-muted-foreground" aria-hidden/>
-              </summary>
-              <div className="space-y-1 px-3 pb-3 text-xs text-muted-foreground">
-                <p>{error}</p><p className="break-all font-mono">{path}</p>
-              </div>
-            </details>
+            <div className="skill-scan-issue rounded-lg">
+              <Collapsible>
+                <CollapsibleTrigger className="flex w-full cursor-pointer items-center gap-3 rounded-lg px-3 py-2.5 text-left focus-visible:outline-2 focus-visible:outline-ring">
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-medium">{problemName(source, path)}</span>
+                    <span className="block truncate text-xs text-muted-foreground">{source.label} · {problemSummary(error)}</span>
+                  </span>
+                  <ChevronDown className={cn('size-4 shrink-0 text-muted-foreground', collapsibleChevron)} aria-hidden/>
+                </CollapsibleTrigger>
+                <CollapsibleContent className="space-y-1 px-3 pb-3 text-xs text-muted-foreground">
+                  <p>{error}</p><p className="break-all font-mono">{path}</p>
+                </CollapsibleContent>
+              </Collapsible>
+            </div>
           </li>)}
         </ul>
       </div>}

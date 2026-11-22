@@ -1,5 +1,8 @@
-import {useState, type ReactNode} from 'react'
-import {ChevronRight} from '@/components/ui/icons'
+import {useRef, useState, type ReactNode} from 'react'
+import {ChevronRight, Copy, FileText, Pencil, Quote, RotateCw} from '@/components/ui/icons'
+import {ContextMenuSurface} from '@/components/ui/context-menu'
+import {menuItem, selectedTextWithin, type MenuEntry} from '@/lib/context-menu-policy'
+import {copyText} from '@/lib/clipboard'
 import type {FileView, RunView, StreamingDraft, TimelineItem} from '@/lib/session-view'
 import {foldSettledRuns, foldSummary, groupProcessBlocks, processBlockOpen, processSettled, processSummary, type ProcessBlock, type RunFold, type TimelineRow} from '@/lib/process-blocks'
 import {cn} from '@/lib/utils'
@@ -46,16 +49,53 @@ export type TimelineHandlers = {
   onQuoteSource?: (reference: DraftReference) => void
   renderMemoryNotice?: (runId: string) => ReactNode
   renderRunActions?: (runId: string) => ReactNode
+  /** 把回复里选中的文字以引用形式放进输入框；没有输入框时不给出回复的引用项 */
+  quoteText?: (text: string) => void
+  /** 把用户消息的文字填回输入框；没有输入框时不给出该项 */
+  fillDraft?: (text: string) => void
+}
+
+/** 引用为 Markdown 块引用：每行加 `> `，便于在输入框里继续编辑。 */
+export function quoteAsMarkdown(text: string) {
+  return text.split('\n').map(line => `> ${line}`).join('\n')
+}
+
+/**
+ * Agent 回复（最终回复与旁白）的菜单。复制全文与 Markdown 原文；有选中文字时先给复制选中与引用到输入框。
+ * 回复内的链接、代码块等更内层的表面先接管右键。
+ */
+function ReplyMenu({text, quote, children}: {text: string; quote?: (text: string) => void; children: ReactNode}) {
+  const body = useRef<HTMLDivElement>(null)
+  const entries = (): MenuEntry[] => {
+    const node = body.current
+    const selected = node ? selectedTextWithin(node).trim() : ''
+    const plain = node?.querySelector('.markdown-content')?.textContent || text
+    return [
+      ...(selected ? [
+        menuItem('复制选中内容', Copy, () => copyText(selected)),
+        ...(quote ? [menuItem('引用到输入框', Quote, () => quote(quoteAsMarkdown(selected)))] : []),
+        {type: 'separator'} as const,
+      ] : []),
+      menuItem('复制全文', Copy, () => copyText(plain)),
+      menuItem('复制为 Markdown', FileText, () => copyText(text)),
+    ]
+  }
+  return <ContextMenuSurface items={entries}><div ref={body} className="contents">{children}</div></ContextMenuSurface>
 }
 
 /** 按条目类型分派到对应组件；会话页与组件状态目录共用 */
 export function TimelineItemView({item, handlers = {}, metrics, runActions}: {item: TimelineItem; handlers?: TimelineHandlers; metrics?: ReactNode; runActions?: ReactNode}) {
   const streaming = handlers.streamingItemId === item.id
   switch (item.kind) {
-    case 'user':
-      return <UserMessage text={item.text} skillName={item.skill?.id} skillVersion={item.skill?.version} runId={item.runId ?? undefined} workspaceId={handlers.workspaceId} attachments={item.attachments} injected={item.injected} onPreview={handlers.onPreviewFile} onDownload={handlers.onDownloadFile}/>
+    case 'user': {
+      const entries: MenuEntry[] = [
+        ...(item.text ? [menuItem('复制', Copy, () => copyText(item.text))] : []),
+        ...(item.text && handlers.fillDraft ? [menuItem('填回输入框', Pencil, () => handlers.fillDraft?.(item.text))] : []),
+      ]
+      return <ContextMenuSurface items={entries}><div className="contents"><UserMessage text={item.text} skillName={item.skill?.id} skillVersion={item.skill?.version} runId={item.runId ?? undefined} workspaceId={handlers.workspaceId} attachments={item.attachments} injected={item.injected} onPreview={handlers.onPreviewFile} onDownload={handlers.onDownloadFile}/></div></ContextMenuSurface>
+    }
     case 'narration':
-      return <NarrationBlock text={item.text} streaming={streaming} deliveredFiles={item.deliveredFiles} onDownloadFile={handlers.onDownloadFile}/>
+      return <ReplyMenu text={item.text} quote={handlers.quoteText}><NarrationBlock text={item.text} streaming={streaming} deliveredFiles={item.deliveredFiles} onDownloadFile={handlers.onDownloadFile}/></ReplyMenu>
     case 'tools':
       return <ToolGroup calls={item.calls} selectedCallId={handlers.selectedCallId} onOpen={handlers.onOpenCall}/>
     case 'ask':
@@ -99,22 +139,29 @@ export function TimelineItemView({item, handlers = {}, metrics, runActions}: {it
       return <ProtectionNotice message={item.message} state={item.state}/>
     case 'final':
       return (
-        <div className="min-w-0 space-y-2">
-          <span id={item.runId ? `reply-${item.runId}` : undefined} className="block scroll-mt-3"/>
-          <DocumentCitedReply text={item.text} summary={item.summary} streaming={streaming} deliveredFiles={item.deliveredFiles}
-            onDownloadFile={handlers.onDownloadFile} runId={item.runId} workspaceId={handlers.workspaceId}
-            onOpen={handlers.onOpenSource} onQuote={handlers.onQuoteSource} sourceRefresh={handlers.sourceRefresh}/>
-          {handlers.showRunReferences && item.runId && !streaming && <RunReferences runId={item.runId} replyText={item.text}
-            workspaceId={handlers.workspaceId} onOpenSource={handlers.onOpenSource} sourceRefresh={handlers.sourceRefresh}
-            onToggle={handlers.onToggleReferences}
-            memoryNotice={handlers.renderMemoryNotice?.(item.runId)} actions={runActions} metrics={metrics}/>}
-        </div>
+        <ReplyMenu text={item.text} quote={handlers.quoteText}>
+          <div className="min-w-0 space-y-2">
+            <span id={item.runId ? `reply-${item.runId}` : undefined} className="block scroll-mt-3"/>
+            <DocumentCitedReply text={item.text} summary={item.summary} streaming={streaming} deliveredFiles={item.deliveredFiles}
+              onDownloadFile={handlers.onDownloadFile} runId={item.runId} workspaceId={handlers.workspaceId}
+              onOpen={handlers.onOpenSource} onQuote={handlers.onQuoteSource} sourceRefresh={handlers.sourceRefresh}/>
+            {handlers.showRunReferences && item.runId && !streaming && <RunReferences runId={item.runId} replyText={item.text}
+              workspaceId={handlers.workspaceId} onOpenSource={handlers.onOpenSource} sourceRefresh={handlers.sourceRefresh}
+              onToggle={handlers.onToggleReferences}
+              memoryNotice={handlers.renderMemoryNotice?.(item.runId)} actions={runActions} metrics={metrics}/>}
+          </div>
+        </ReplyMenu>
       )
-    case 'run_end':
-      return <RunEndBar status={item.status} reasonText={item.reasonText} retryText={item.retryText}
+    case 'run_end': {
+      const planConsumed = item.status === 'failed' && !!item.runId && !!handlers.consumedPlanRuns?.has(item.runId)
+      const onRetry = handlers.onRetry && (handlers.retryRunId == null || handlers.retryRunId === item.runId) ? (text: string) => handlers.onRetry?.(text, item.runId ?? '') : undefined
+      // 与终态条的重试按钮同一条件：失败、未被计划接受、有原文可重发
+      const retryText = item.status === 'failed' && !planConsumed && onRetry && item.retryText ? item.retryText : null
+      const entries: MenuEntry[] = retryText && onRetry ? [menuItem('重试', RotateCw, () => onRetry(retryText))] : []
+      return <ContextMenuSurface items={entries}><div className="contents"><RunEndBar status={item.status} reasonText={item.reasonText} retryText={item.retryText}
         planAction={item.runId && handlers.planAction?.(item.runId)} priorTools={!!item.runId && handlers.hasPriorTools?.(item.runId)}
-        planConsumed={item.status === 'failed' && !!item.runId && handlers.consumedPlanRuns?.has(item.runId)}
-        onRetry={handlers.onRetry && (handlers.retryRunId == null || handlers.retryRunId === item.runId) ? (text) => handlers.onRetry?.(text, item.runId ?? '') : undefined}/>
+        planConsumed={planConsumed} onRetry={onRetry}/></div></ContextMenuSurface>
+    }
   }
 }
 

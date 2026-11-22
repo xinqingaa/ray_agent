@@ -31,6 +31,22 @@
 已知模型用 `model_profiles` 里的窗口、输出上限和温度，再封顶到目录。对话第一次运行记下当时的三项；之后改设置只影响新对话，对话里换模型则用目标模型当前的数值。
 
 
+## 模型连接与能力探测
+
+| 项 | 当前值 | 来源 |
+|---|---|---|
+| 草稿探测等待 | 读取上游模型列表、单模型测试连接各 20 秒 | [连接服务](../ray_agent/api/app/application/services/model_connection_service.py) 的 `PROBE_TIMEOUT_SECONDS` |
+| 工具能力检测等待 | 一次带工具定义的最小请求 20 秒 | 同上，`TOOL_CHECK_TIMEOUT_SECONDS` |
+| 探测请求输出上限 | 连接测试与工具检测各发 32 tokens 的非流式请求 | [连接服务](../ray_agent/api/app/application/services/model_connection_service.py) 的 `_probe_config()` |
+| 判为工具不被接受的上游状态 | 400、422；其他状态不作为“不支持”结论 | 同上，`TOOL_REJECTED_STATUSES` |
+| 未确认窗口与输出默认 | 上游没有可信报告时窗口 32000 tokens；输出取 4096 与窗口一半的较小值 | [model_catalog.py](../ray_agent/api/app/domain/models/model_catalog.py) 的 `UNCONFIRMED_CONTEXT_WINDOW`、`UNCONFIRMED_MAX_OUTPUT` |
+| 上游窗口与输出的可采信范围 | 窗口 2 至 10000000 tokens，输出 1 至 10000000 tokens；输出须小于窗口的 95%，否则视为未报告 | [model_discovery.py](../ray_agent/api/app/domain/services/model_discovery.py) 的 `CONTEXT_WINDOW_RANGE`、`MAX_OUTPUT_LIMIT` |
+| 手动声明的窗口与输出 | 窗口 2 至 10000000 tokens，输出大于 0 且小于窗口的 95% | [llm_endpoints.py](../ray_agent/api/app/domain/models/llm_endpoints.py) 的 `CustomModel` |
+| 每个模型的思考档位 | 上限 8 个；档位名 1–32 个字符，仅含字母、数字、`_`、`.`、`-`，不得为 `enabled` 或 `disabled` | [llm_endpoints.py](../ray_agent/api/app/domain/models/llm_endpoints.py) 的 `MAX_REASONING_EFFORTS`、`EffortId`、`RESERVED_EFFORTS` |
+| 模型 ID | 1–128 个字符，不含空白 | [llm_endpoints.py](../ray_agent/api/app/domain/models/llm_endpoints.py) 的 `ModelId` |
+| 提供商名称 | 1–64 个字符，仅含字母、数字、`_`、`-` | [model_connections.py](../ray_agent/api/app/infrastructure/external/llm/model_connections.py) 的 `PROVIDER_NAME_PATTERN` |
+| 单价 | 每百万 Token 0 至 1000000 美元，最多八位小数；缺失时金额留空 | [llm_endpoints.py](../ray_agent/api/app/domain/models/llm_endpoints.py) 的 `Rate` |
+
 ## 请求预算、压缩与结果
 
 | 项 | 当前值 | 来源 |
@@ -77,6 +93,7 @@
 | 文件夹授权凭证 | 有效 300 秒、一次使用；内存最多 64 个，超出时丢弃最早的 | `folder_grant_seconds`、`folder_grant_capacity` |
 | 复制冲突等待选择 | 600 秒；内存最多 32 个 | `marker_conflict_seconds`、[workspace_service.py](../ray_agent/api/app/application/services/workspace_service.py) 的 `CONFLICT_CAPACITY` |
 | 工作区名称与新建文件夹名 | 名称最多 80 个字符；文件夹名最多 60 个字符，重名加序号 | [workspace.py](../ray_agent/api/app/domain/models/workspace.py) 的 `WORKSPACE_NAME_MAX_LENGTH`、`workspace_service.py` 的 `FOLDER_NAME_MAX_LENGTH` |
+| 界面新建文件夹与重命名的名称 | 单段名称，UTF-8 不超过 255 字节；不得为空、`.` 或 `..`，不含 `/`、`\` 与控制字符，不得是应用保留目录名 | [file_rules.py](../ray_agent/api/app/domain/services/file_rules.py) 的 `check_entry_name()` |
 | 身份标记读取 | 最多读 64 KiB；无法解析的标记不改写 | [folders.py](../ray_agent/api/app/infrastructure/external/workspace_files/folders.py) |
 | 单次读取 | 4 MiB（调用方可要求更小）；`read_file` 用 `max_length` 截断并标记 `truncated`，大文件不整体读入内存 | `file_read_bytes` |
 | 单个目录列举 | 2000 项，超出标记截断 | `file_list_entries` |
@@ -283,5 +300,5 @@ API 设置来自 `core/config.py`，环境变量使用对应大写名称；正�
 | 自定义时间桶 | 两天内按小时，八天内每 3 小时，其余按天 | 同上 |
 | 费用精度与偏好默认值 | 十亿分之一美元，对话显示开启，语音方式未选择 | [计价](../ray_agent/api/app/domain/services/usage_pricing.py)、[偏好](../ray_agent/api/app/domain/models/usage.py) |
 | 大小、时长、格式 | 8 MiB、120 秒、16 kHz 单声道 16 位 PCM WAV | [语音契约](../ray_agent/api/app/domain/models/voice.py)、[转写校验](../ray_agent/api/app/application/services/transcription_service.py) |
-| 等待期限 | 本机和 DeepSeek 转写均为 135 秒，模型连接草稿探测 20 秒 | [本机适配](../ray_agent/api/app/infrastructure/external/voice/whisper.py)、[DeepSeek 接入](../ray_agent/api/app/infrastructure/external/llm/deepseek_asr.py)、[连接服务](../ray_agent/api/app/application/services/model_connection_service.py) |
+| 等待期限 | 本机和 DeepSeek 转写均为 135 秒 | [本机适配](../ray_agent/api/app/infrastructure/external/voice/whisper.py)、[DeepSeek 接入](../ray_agent/api/app/infrastructure/external/llm/deepseek_asr.py) |
 | 本机转写组件 | macOS 14 为构建目标，要求 arm64。同时处理一笔，模型下载 190085487 字节 | [本机适配](../ray_agent/api/app/infrastructure/external/voice/whisper.py)、[组件清单](../ray_agent/api/resources/component_manifest.json) |

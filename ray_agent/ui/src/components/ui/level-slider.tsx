@@ -31,7 +31,7 @@ export function LevelSlider({options, value, disabled = false, label, describe, 
     const inner = rect.width - INSET * 2
     return Math.round(Math.min(1, Math.max(0, (clientX - rect.left - INSET) / inner)) * max)
   }
-  const motion = dragging ? 'transition-none' : 'duration-150 ease-out motion-reduce:transition-none'
+  const motion = dragging ? 'transition-none' : 'duration-(--motion-fast) ease-(--motion-ease) motion-reduce:transition-none'
   return <div
     ref={area}
     role="slider"

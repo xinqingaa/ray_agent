@@ -19,7 +19,7 @@ from app.application.errors.workspace_files import app_error
 from app.domain.external.workspace_files import FileEntry, FileKind, FileVersion, WorkspaceFileError, WorkspaceFiles
 from app.domain.external.workspace_objects import WorkspaceObjects
 from app.domain.models.error import ErrorCode
-from app.domain.models.file_change import ChangeOperation, FileChange, WorkspaceObject
+from app.domain.models.file_change import ChangeOperation, ChangeSource, EntryKind, FileChange, WorkspaceObject
 from app.domain.models.identity import RootedPath
 from app.domain.models.workspace import RootRecord, WorkspaceStatus
 from app.domain.repositories.uow import IUnitOfWork
@@ -59,6 +59,7 @@ class ChangeEntry:
     conflict_reason: Optional[ConflictReason] = None
     can_force: bool = False  # 冲突时是否允许在看到当前版本后仍要恢复；运行新建的文件与非普通文件不允许
     preview_kind: Literal["restore", "remove"] = "restore"
+    kind: Literal["file", "directory"] = "file"  # 文件夹只有新建与删除两种净操作，没有内容与版本
 
 
 @dataclass
@@ -68,7 +69,7 @@ class RunChangeList:
     session_title: str
     run_active: bool  # 运行仍在进行：不能撤销
     entries: list[ChangeEntry]
-    kind: Literal["run", "undo"] = "run"  # undo：这次「运行」是一次撤销操作，撤回它即恢复撤销前的版本
+    kind: Literal["run", "undo", "manual"] = "run"  # undo：这次「运行」是一次撤销操作，撤回它即恢复撤销前的版本；manual：界面文件操作
     undo_of_run_id: Optional[str] = None
 
 
@@ -81,13 +82,13 @@ class RunSummary:
     changed_files: int
     first_at: datetime
     last_at: datetime
-    kind: Literal["run", "undo"] = "run"
+    kind: Literal["run", "undo", "manual"] = "run"
     undo_of_run_id: Optional[str] = None
 
 
 @dataclass
 class ChangePreview:
-    kind: Literal["diff", "binary", "too_large", "unchanged"]
+    kind: Literal["diff", "binary", "too_large", "unchanged", "directory"]
     diff: str = ""
     truncated: bool = False
     current_size: Optional[int] = None
@@ -128,6 +129,10 @@ class _Folded:
     gap: bool = False  # 运行期间文件被外部改动过：相邻两次写入之间的实际版本与上一次写入的结果不一致
 
     @property
+    def is_directory(self) -> bool:
+        return self.rows[0].entry_kind is EntryKind.DIRECTORY
+
+    @property
     def before_object_id(self) -> Optional[str]:
         first = self.rows[0]
         if first.operation is ChangeOperation.CREATE:
@@ -137,16 +142,30 @@ class _Folded:
         return first.before_object_id
 
     @property
+    def existed_before(self) -> bool:
+        if self.is_directory:
+            return self.rows[0].operation is not ChangeOperation.CREATE
+        return self.before_object_id is not None
+
+    @property
+    def exists_after(self) -> bool:
+        return self.rows[-1].operation is not ChangeOperation.DELETE
+
+    @property
     def after(self):
         last = self.rows[-1]
         return None if last.operation is ChangeOperation.DELETE else last.after
 
     @property
     def operation(self) -> Optional[ChangeOperation]:
-        before, after = self.before_object_id is not None, self.after is not None
+        before, after = self.existed_before, self.exists_after
         if not before and not after:
             return None  # 运行里新建后又删除，文件夹里没有净变化
-        return ChangeOperation.CREATE if not before else ChangeOperation.DELETE if not after else ChangeOperation.MODIFY
+        if not before:
+            return ChangeOperation.CREATE
+        if not after:
+            return ChangeOperation.DELETE
+        return None if self.is_directory else ChangeOperation.MODIFY  # 文件夹删除后又建回：没有净变化
 
 
 def _has_gap(rows: list[FileChange], objects: dict[str, WorkspaceObject]) -> bool:
@@ -171,8 +190,17 @@ def fold(rows: list[FileChange], objects: dict[str, WorkspaceObject]) -> list[_F
     for row in rows:
         grouped.setdefault((row.root_id, row.relative_path), _Folded(row.root_id, row.relative_path, [])).rows.append(row)
     for item in grouped.values():
-        item.gap = _has_gap(item.rows, objects)
+        item.gap = not item.is_directory and _has_gap(item.rows, objects)
     return [item for item in grouped.values() if item.operation is not None]
+
+
+@dataclass
+class _RunRows:
+    folded: list[_Folded]
+    session_id: str
+    active: bool  # 运行仍在进行
+    undo_of: Optional[str]  # 这条记录若是一次撤销，被撤销的运行
+    manual: bool  # 界面文件操作
 
 
 @dataclass
@@ -182,6 +210,17 @@ class _Judgement:
     reason: Optional[ConflictReason] = None
     can_force: bool = False
     entry: Optional[FileEntry] = None
+
+
+def _execution_order(selected: list[tuple[_Folded, UndoItem]]) -> list[tuple[_Folded, UndoItem]]:
+    """移除先于恢复：移除时先深后浅，文件夹里的内容先于文件夹本身；恢复时先浅后深，父文件夹先于其中的内容。"""
+    def key(pair: tuple[_Folded, UndoItem]):
+        item = pair[0]
+        depth = item.path.count("/")
+        if item.operation is ChangeOperation.CREATE:
+            return (0, -depth, item.path)
+        return (1, depth, item.path)
+    return sorted(selected, key=key)
 
 
 class FileHistoryService:
@@ -220,27 +259,30 @@ class FileHistoryService:
                 if not files:
                     continue
                 undo = row.undo_of_run_id is not None
-                run = None if undo else await uow.run.get(row.run_id)
-                session = await uow.session.get_by_id(row.session_id)
+                # 撤销与界面文件操作不对应模型运行，没有运行状态；会话只属于模型运行
+                plain = not undo and not row.manual
+                run = await uow.run.get(row.run_id) if plain else None
+                session = await uow.session.get_by_id(row.session_id) if row.session_id else None
                 summaries.append(RunSummary(
                     run_id=row.run_id, session_id=row.session_id,
                     session_title=session.title if session is not None else "",
-                    run_status="completed" if undo else run.status.value if run is not None else "unknown",
+                    run_status="completed" if not plain else run.status.value if run is not None else "unknown",
                     changed_files=files, first_at=row.first_at, last_at=row.last_at,
-                    kind="undo" if undo else "run", undo_of_run_id=row.undo_of_run_id))
+                    kind="undo" if undo else "manual" if row.manual else "run", undo_of_run_id=row.undo_of_run_id))
         return summaries
 
-    async def _run_changes(self, workspace_id: str, run_id: str) -> tuple[list[_Folded], str, bool, Optional[str]]:
-        """折叠后的文件变更、所属会话、运行是否仍在进行，以及这条记录若是一次撤销，被撤销的运行。"""
+    async def _run_changes(self, workspace_id: str, run_id: str) -> _RunRows:
+        """折叠后的文件变更、所属会话、运行是否仍在进行，以及这条记录是撤销还是界面文件操作。"""
         async with self._read_uow_factory() as uow:
             rows = await uow.change.for_run(workspace_id, run_id)
             if not rows:
                 raise NotFoundError("这次运行在该工作区没有文件变更记录")
-            active = await uow.run.get_active(rows[0].session_id)
+            active = await uow.run.get_active(rows[0].session_id) if rows[0].session_id else None
             backups = await uow.change.get_objects(
                 workspace_id, [row.before_object_id for row in rows if row.before_object_id])
-        return (fold(rows, backups), rows[0].session_id, active is not None and active.id == run_id,
-                rows[0].undo_of_run_id)
+        return _RunRows(folded=fold(rows, backups), session_id=rows[0].session_id,
+                        active=active is not None and active.id == run_id, undo_of=rows[0].undo_of_run_id,
+                        manual=rows[0].source is ChangeSource.MANUAL)
 
     async def _objects_of(self, workspace_id: str, folded: list[_Folded]) -> dict[str, WorkspaceObject]:
         """各文件运行前版本的备份对象。"""
@@ -254,6 +296,8 @@ class FileHistoryService:
 
     async def _judge(self, item: _Folded, before: Optional[WorkspaceObject]) -> _Judgement:
         """把文件夹里的当前版本与运行最后写入版本、运行前版本比较；只在大小一致而修改时间不同时才计算哈希。"""
+        if item.is_directory:
+            return await self._judge_directory(item)
         path = RootedPath(root_id=item.root_id, relative_path=item.path)
         after = item.after
         try:
@@ -286,17 +330,39 @@ class FileHistoryService:
         reason: ConflictReason = "missing" if current is None else "appeared" if after is None else "modified"
         return _Judgement("conflict", current, reason, before is not None, entry)
 
+    async def _judge_directory(self, item: _Folded) -> _Judgement:
+        """文件夹只比较存在性：运行删除了的文件夹需要在且为空时才重新建立；运行新建的文件夹仍为空时才移除。"""
+        path = RootedPath(root_id=item.root_id, relative_path=item.path)
+        try:
+            entry = await self._files.stat(path)
+        except WorkspaceFileError as error:
+            if error.code is not ErrorCode.NOT_FOUND:
+                raise
+            entry = None
+        if entry is not None and entry.kind is not FileKind.DIRECTORY:
+            return _Judgement("conflict", None, "not_file", False, entry)
+        present = entry is not None
+        if present == item.existed_before:
+            return _Judgement("restored", None, entry=entry)
+        if item.existed_before:
+            return _Judgement("undoable", None, entry=None)  # 运行删除的空文件夹不在了：撤销重新建立
+        listing = await self._files.list_dir(path, limit=1)
+        if listing.entries or listing.truncated:
+            return _Judgement("conflict", None, "modified", False, entry)  # 运行新建的文件夹之后有了内容
+        return _Judgement("undoable", None, entry=entry)
+
     async def changes(self, workspace_id: str, run_id: str) -> RunChangeList:
         await self._folder(workspace_id)
-        folded, session_id, active, undo_of = await self._run_changes(workspace_id, run_id)
-        objects = await self._objects_of(workspace_id, folded)
+        run = await self._run_changes(workspace_id, run_id)
+        objects = await self._objects_of(workspace_id, run.folded)
         entries = []
         try:
-            for item in folded:
+            for item in run.folded:
                 before = objects.get(item.before_object_id) if item.before_object_id else None
                 judgement = await self._judge(item, before)
                 entries.append(ChangeEntry(
-                    root_id=item.root_id, relative_path=item.path, operation=item.operation, writes=len(item.rows),
+                    root_id=item.root_id, relative_path=item.path, kind="directory" if item.is_directory else "file",
+                    operation=item.operation, writes=len(item.rows),
                     first_at=item.rows[0].created_at, last_at=item.rows[-1].created_at,
                     before=Version(before.size, None, before.sha256) if before else None,
                     after=self._version(item.after), current=judgement.current, status=judgement.status,
@@ -305,23 +371,23 @@ class FileHistoryService:
         except WorkspaceFileError as error:
             raise app_error(error)
         async with self._read_uow_factory() as uow:
-            session = await uow.session.get_by_id(session_id)
+            session = await uow.session.get_by_id(run.session_id) if run.session_id else None
         entries.sort(key=lambda entry: entry.relative_path)
-        return RunChangeList(run_id=run_id, session_id=session_id, session_title=session.title if session else "",
-                             run_active=active, entries=entries, kind="undo" if undo_of else "run",
-                             undo_of_run_id=undo_of)
+        kind = "undo" if run.undo_of else "manual" if run.manual else "run"
+        return RunChangeList(run_id=run_id, session_id=run.session_id, session_title=session.title if session else "",
+                             run_active=run.active, entries=entries, kind=kind, undo_of_run_id=run.undo_of)
 
-    async def _find(self, workspace_id: str, run_id: str, relative_path: str):
-        folded, session_id, active, _ = await self._run_changes(workspace_id, run_id)
-        item = next((item for item in folded if item.path == relative_path), None)
+    async def _find(self, workspace_id: str, run_id: str, relative_path: str) -> tuple[_Folded, _RunRows]:
+        run = await self._run_changes(workspace_id, run_id)
+        item = next((item for item in run.folded if item.path == relative_path), None)
         if item is None:
             raise NotFoundError("这次运行没有修改该文件")
-        return item, session_id, active
+        return item, run
 
     async def preview(self, workspace_id: str, run_id: str, relative_path: str) -> ChangePreview:
         """撤销会把当前内容变成什么：当前版本到将恢复版本的统一 diff；二进制或过大的文件只给大小。"""
         await self._folder(workspace_id)
-        item, _, _ = await self._find(workspace_id, run_id, relative_path)
+        item, _ = await self._find(workspace_id, run_id, relative_path)
         objects = await self._objects_of(workspace_id, [item])
         result = await self._preview_item(item, objects)
         if item.gap:
@@ -329,6 +395,9 @@ class FileHistoryService:
         return result
 
     async def _preview_item(self, item: _Folded, objects: dict[str, WorkspaceObject]) -> ChangePreview:
+        if item.is_directory:
+            # 文件夹没有内容可比较：撤销只会移除空文件夹或重新建立空文件夹
+            return ChangePreview("directory", removes_file=item.operation is ChangeOperation.CREATE)
         before = objects.get(item.before_object_id) if item.before_object_id else None
         path = RootedPath(root_id=item.root_id, relative_path=item.path)
         try:
@@ -375,31 +444,35 @@ class FileHistoryService:
         if len({item.relative_path for item in items}) != len(items):
             raise BadRequestError("同一个文件只能选择一次")
         await self._folder(workspace_id)
-        folded, session_id, active, _ = await self._run_changes(workspace_id, run_id)
-        if active:
+        run = await self._run_changes(workspace_id, run_id)
+        if run.active:
             raise ConflictError("这次运行仍在进行，请先停止或等它结束再撤销")
-        by_path = {item.path: item for item in folded}
+        by_path = {item.path: item for item in run.folded}
         missing = [item.relative_path for item in items if item.relative_path not in by_path]
         if missing:
             raise NotFoundError(f"这次运行没有修改：{'、'.join(missing)}")
-        objects = await self._objects_of(workspace_id, folded)
-        owner = WriteOwner(session_id=session_id, run_id=None, source="undo", operation=f"undo-{uuid.uuid4().hex}",
+        objects = await self._objects_of(workspace_id, run.folded)
+        owner = WriteOwner(session_id=run.session_id, run_id=None, source="undo", operation=f"undo-{uuid.uuid4().hex}",
                            reason=f"撤销运行 {run_id} 的文件修改", undo_of_run_id=run_id)
+        selected = [(by_path[item.relative_path], item) for item in items]
 
-        async def work() -> list[UndoOutcome]:
+        async def work() -> dict[str, UndoOutcome]:
             lease_id = await self._leases.acquire(workspace_id, owner, owner.reason)
             try:
-                return [await self._undo_one(by_path[item.relative_path], item, objects, owner) for item in items]
+                done: dict[str, UndoOutcome] = {}
+                for item, request in _execution_order(selected):
+                    done[item.path] = await self._undo_one(item, request, objects, owner)
+                return done
             finally:
                 await self._leases.release(lease_id)
 
         try:
-            outcomes, cancelled = await run_async_io(work())
+            done, cancelled = await run_async_io(work())
         except WorkspaceFileError as error:
             raise app_error(error)
         if cancelled:
             raise asyncio.CancelledError()
-        return outcomes
+        return [done[item.relative_path] for item in items]
 
     async def _undo_one(self, item: _Folded, request: UndoItem, objects: dict[str, WorkspaceObject],
                         owner: WriteOwner) -> UndoOutcome:
@@ -436,6 +509,8 @@ class FileHistoryService:
     def _conflict_message(item: _Folded, judgement: _Judgement) -> str:
         if judgement.reason == "not_file":
             return "目标现在不是普通文件，不自动处理"
+        if item.is_directory:
+            return "这个文件夹由本次运行新建，之后里面又有了内容，不会自动删除"
         if item.operation is ChangeOperation.CREATE:
             return "这个文件由本次运行新建，之后又被修改，不会自动删除"
         return {"modified": "文件在运行之后又被修改过", "missing": "文件在运行之后被删除",
@@ -444,6 +519,12 @@ class FileHistoryService:
 
     async def _apply(self, item: _Folded, path: RootedPath, before: Optional[WorkspaceObject],
                      judgement: _Judgement, owner: WriteOwner) -> UndoOutcome:
+        if item.is_directory:
+            if item.operation is ChangeOperation.CREATE:
+                await self._writer.remove_dir(path, owner)
+                return UndoOutcome(item.path, "removed", "已移除本次运行新建的文件夹")
+            await self._writer.create_dir(path, owner)
+            return UndoOutcome(item.path, "restored", "已重新建立运行删除的文件夹")
         expected = FileVersion(size=judgement.entry.version.size, modified_ns=judgement.entry.version.modified_ns) \
             if judgement.entry is not None else None
         if before is None:

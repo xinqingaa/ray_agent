@@ -1,38 +1,55 @@
-import {useCallback, useEffect, useState} from 'react'
+import {useEffect, useRef, useState} from 'react'
 import {getHostPreferences, isDesktop, setHostPreferences, type HostPreferences, type HostPreferencesPatch} from '@/lib/platform'
 
-export type HostPreferencesState = {
-  /** 读取前为 null；非桌面环境为 null 且 available 为 false */
-  preferences: HostPreferences | null
-  available: boolean
-  error: string | null
-  update: (patch: HostPreferencesPatch) => Promise<void>
+type Key = keyof HostPreferences
+export type HostPreferencesAccess = {
+  available: () => boolean
+  load: () => Promise<HostPreferences>
+  save: (patch: HostPreferencesPatch) => Promise<HostPreferences>
 }
 
-/** 宿主偏好（任务完成通知、退出前确认）。修改立即写回宿主，失败时保留原值并给出原因。 */
-export function useHostPreferences(): HostPreferencesState {
-  const available = isDesktop()
+const hostAccess = {available: isDesktop, load: getHostPreferences, save: setHostPreferences}
+const writes = new WeakMap<HostPreferencesAccess, Promise<unknown>>()
+
+export function useHostPreferences(access: HostPreferencesAccess = hostAccess) {
+  const available = access.available()
   const [preferences, setPreferences] = useState<HostPreferences | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [errors, setErrors] = useState<Partial<Record<Key, string>>>({})
+  const [pending, setPending] = useState<HostPreferencesPatch>({})
+  const [attempt, setAttempt] = useState(0)
+  const inFlight = useRef(new Set<Key>())
 
   useEffect(() => {
     if (!available) return
     let active = true
-    getHostPreferences().then(
+    void Promise.resolve(writes.get(access)).then(() => access.load()).then(
       value => {if (active) setPreferences(value)},
-      reason => {if (active) setError(reason instanceof Error ? reason.message : '无法读取偏好')},
+      reason => {if (active) setLoadError(reason instanceof Error ? reason.message : '无法读取偏好')},
     )
     return () => {active = false}
-  }, [available])
+  }, [access, available, attempt])
 
-  const update = useCallback(async (patch: HostPreferencesPatch) => {
+  const reload = () => {
+    setLoadError(null)
+    setAttempt(count => count + 1)
+  }
+  const update = async (key: Key, checked: boolean) => {
+    if (!preferences || inFlight.current.has(key)) return
+    inFlight.current.add(key)
+    setPending(values => ({...values, [key]: checked}))
+    setErrors(errors => ({...errors, [key]: undefined}))
+    // 宿主返回整份偏好，按写入顺序应用快照，避免一项的响应覆盖另一项。
+    const request = Promise.resolve(writes.get(access)).then(() => access.save({[key]: checked}))
+    writes.set(access, request.catch(() => {}))
     try {
-      setError(null)
-      setPreferences(await setHostPreferences(patch))
+      setPreferences(await request)
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : '无法保存偏好')
+      setErrors(errors => ({...errors, [key]: reason instanceof Error ? reason.message : '无法保存偏好'}))
+    } finally {
+      inFlight.current.delete(key)
+      setPending(values => ({...values, [key]: undefined}))
     }
-  }, [])
-
-  return {preferences, available, error, update}
+  }
+  return {preferences, available, loadError, errors, pending, reload, update}
 }

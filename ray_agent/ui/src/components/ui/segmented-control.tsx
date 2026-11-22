@@ -1,5 +1,6 @@
-import {useId} from 'react'
+import {useId, useRef} from 'react'
 import type {UiIcon} from '@/components/ui/icons'
+import {SegmentThumb, useSegmentThumb} from '@/components/ui/segment-thumb'
 import {cn} from '@/lib/utils'
 
 export function SegmentedControl<T extends string>({value, onValueChange, options, label, idPrefix, className, appearance = 'full'}: {
@@ -13,12 +14,12 @@ export function SegmentedControl<T extends string>({value, onValueChange, option
 }) {
   const generatedId = useId()
   const prefix = idPrefix ?? generatedId
-  const index = options.findIndex(option => option.value === value)
+  const rootRef = useRef<HTMLDivElement>(null)
+  const thumb = useSegmentThumb(rootRef, value, options.map(option => option.value).join('\u0000'))
   return (
-    <div role="tablist" aria-label={label} className={cn('relative isolate shrink-0 rounded-xl bg-muted p-0.5', appearance === 'icons' ? 'flex gap-0.5' : 'grid', className)}
+    <div ref={rootRef} role="tablist" aria-label={label} className={cn('relative isolate shrink-0 rounded-xl bg-muted p-0.5', appearance === 'icons' ? 'flex gap-0.5' : 'grid', className)}
       style={appearance === 'full' ? {gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))`} : undefined}>
-      {appearance === 'full' && <span aria-hidden="true" className="pointer-events-none absolute inset-y-0.5 left-0.5 -z-10 rounded-[10px] bg-card shadow-xs transition-transform duration-200 ease-out motion-reduce:transition-none"
-        style={{width: `calc((100% - 4px) / ${options.length})`, transform: `translateX(${Math.max(0, index) * 100}%)`}}/>}
+      <SegmentThumb thumb={thumb} className={cn('rounded-[10px]', appearance === 'full' ? 'bg-card shadow-xs' : 'bg-background shadow-xs')}/>
       {options.map((option, optionIndex) => {
         const Icon = option.icon
         const selected = value === option.value
@@ -31,11 +32,10 @@ export function SegmentedControl<T extends string>({value, onValueChange, option
             onValueChange(options[next].value)
             document.getElementById(`${prefix}-${options[next].value}`)?.focus()
           }}
-          className={cn('flex min-h-8 items-center justify-center whitespace-nowrap rounded-[10px] text-meta outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring',
-            appearance === 'icons' ? 'px-2' : 'gap-1.5 px-2.5', selected ? 'font-medium text-foreground' : 'text-muted-foreground hover:text-foreground',
-            appearance === 'icons' && selected && 'bg-background shadow-xs')}>
+          className={cn('relative flex min-h-8 items-center justify-center whitespace-nowrap rounded-[10px] text-meta outline-none transition-colors duration-(--motion-fast) ease-(--motion-ease) focus-visible:ring-2 focus-visible:ring-ring',
+            appearance === 'icons' ? 'px-2' : 'gap-1.5 px-2.5', selected ? 'font-medium text-foreground' : 'text-muted-foreground hover:text-foreground')}>
           {Icon ? <Icon className="size-3.5 shrink-0" aria-hidden="true"/> : null}
-          <span className={cn(appearance === 'icons' && Icon && 'overflow-hidden transition-[max-width,opacity,margin] duration-200',
+          <span className={cn(appearance === 'icons' && Icon && 'overflow-hidden transition-[max-width,opacity,margin] duration-(--motion-slow) ease-(--motion-spring) motion-reduce:transition-none',
             appearance === 'icons' && Icon && (selected ? 'ml-1.5 max-w-20 opacity-100' : 'max-w-0 opacity-0'))}>{option.label}</span>
         </button>
       })}

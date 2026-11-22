@@ -1,8 +1,11 @@
-import {useCallback, useEffect, useState, type ReactNode} from 'react'
+import {useCallback, useEffect, useRef, useState, type ReactNode} from 'react'
 import {useDeveloperMode} from '@/hooks/use-developer-mode'
-import {Loader2, Trash2} from '@/components/ui/icons'
+import {Copy, Loader2, Plug, RotateCw, Trash2, Unplug} from '@/components/ui/icons'
 import {toast} from 'sonner'
 import {Button} from '@/components/ui/button'
+import {ContextMenuSurface} from '@/components/ui/context-menu'
+import {menuItem, type MenuEntry} from '@/lib/context-menu-policy'
+import {copyText} from '@/lib/clipboard'
 import {
   Dialog,
   DialogClose,
@@ -38,17 +41,27 @@ export function useServerList<T extends {enabled: boolean}>(options: ServerListO
   const [items, setItems] = useState<T[]>([])
   const [toggling, setToggling] = useState<Set<string>>(new Set())
   const [attempt, setAttempt] = useState(0)
+  const [reading, setReading] = useState(false)
+  const loaded = useRef(false)
 
   useEffect(() => {
     let cancelled = false
+    // 已有列表时静默读取，列表保持挂载，读取中由 reading 表达
+    const silent = loaded.current
+    setReading(silent)
     load()
       .then((list) => {
         if (cancelled) return
+        loaded.current = true
+        setReading(false)
         setItems(list)
         setPhase({phase: 'ready'})
       })
       .catch((err) => {
-        if (!cancelled) setPhase({phase: 'error', message: errorMessage(err)})
+        if (cancelled) return
+        setReading(false)
+        if (silent) toast.error(`列表刷新失败：${errorMessage(err)}`)
+        else setPhase({phase: 'error', message: errorMessage(err)})
       })
     return () => {
       cancelled = true
@@ -56,7 +69,7 @@ export function useServerList<T extends {enabled: boolean}>(options: ServerListO
   }, [load, attempt])
 
   const reload = useCallback(() => {
-    setPhase({phase: 'loading'})
+    setPhase((prev) => (prev.phase === 'ready' ? prev : {phase: 'loading'}))
     setAttempt((n) => n + 1)
   }, [])
 
@@ -95,7 +108,7 @@ export function useServerList<T extends {enabled: boolean}>(options: ServerListO
     toast.success(`已删除 ${nameOf(item)}`)
   }, [keyOf, nameOf, remove])
 
-  return {phase, items, toggling, reload, refresh, toggle, remove: removeItem}
+  return {phase, items, toggling, reading, reload, refresh, toggle, remove: removeItem}
 }
 
 // ---------- 展示 ----------
@@ -137,9 +150,16 @@ type ServerRowProps = {
 /** 连接列表的一行（卡片）。开关与删除只在开发者模式的连接设置中出现。 */
 export function ServerRow({icon, title, name, status, error, enabled, toggling, meta, detail, onToggle, onDelete, onRetry}: ServerRowProps) {
   const {visibility} = useDeveloperMode()
+  // 与行内控件同一可见条件：开关与删除只在开发者模式的连接设置中出现
+  const entries: MenuEntry[] = [
+    ...(status === 'unavailable' && onRetry ? [menuItem('重试', RotateCw, onRetry)] : []),
+    ...(visibility.connectionSettings && onToggle && !toggling ? [menuItem(enabled ? '停用' : '启用', enabled ? Unplug : Plug, () => onToggle(!enabled))] : []),
+    menuItem('复制名称', Copy, () => copyText(name)),
+    ...(visibility.connectionSettings && onDelete ? [{type: 'separator'} as const, menuItem('删除', Trash2, onDelete, {destructive: true})] : []),
+  ]
   return (
     <li>
-      <SettingsCard
+      <ContextMenuSurface items={entries}><div className="contents"><SettingsCard
         mark={icon}
         title={<>
           <span className="min-w-0 truncate text-sm font-medium">{title}</span>
@@ -171,7 +191,7 @@ export function ServerRow({icon, title, name, status, error, enabled, toggling, 
         </>}
       >
         {error && <p className="mt-1 break-words text-meta leading-5 text-state-failed">{error}</p>}
-      </SettingsCard>
+      </SettingsCard></div></ContextMenuSurface>
     </li>
   )
 }

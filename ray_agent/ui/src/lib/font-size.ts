@@ -5,12 +5,11 @@ export const FONT_SIZE_MIN = 14
 export const FONT_SIZE_MAX = 20
 export const FONT_SIZE_DEFAULT = 14
 
-export const FONT_SIZE_PRESETS = [
-  {id: '14', label: '标准（14）'},
-  {id: '16', label: '较大（16）'},
-  {id: '18', label: '更大（18）'},
-  {id: '20', label: '最大（20）'},
-] as const
+/** 滑杆的刻度：允许范围内的每个整数。 */
+export const FONT_SIZE_STEPS: readonly {id: string}[] = Array.from(
+  {length: FONT_SIZE_MAX - FONT_SIZE_MIN + 1},
+  (_, index) => ({id: String(FONT_SIZE_MIN + index)}),
+)
 
 export function acceptedFontSize(value: number): number | null {
   if (!Number.isInteger(value) || value < FONT_SIZE_MIN || value > FONT_SIZE_MAX) return null
@@ -34,11 +33,4 @@ export function applyFontSize(size: number): void {
   } catch {
     /* 偏好写不进时，当前页面仍然立即使用这个字号 */
   }
-}
-
-export function fontSizeOptions(size: number): {id: string; label: string}[] {
-  const presets = FONT_SIZE_PRESETS.map(item => ({id: item.id, label: item.label}))
-  const id = String(size)
-  if (presets.some(item => item.id === id)) return presets
-  return [...presets, {id, label: id}].sort((a, b) => Number(a.id) - Number(b.id))
 }

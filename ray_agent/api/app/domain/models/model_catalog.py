@@ -6,7 +6,7 @@ from typing import Callable, Literal, Optional
 from urllib.parse import urlparse
 
 from app.domain.models.app_config import LLMConfig, ModelSampling
-from app.domain.models.llm_endpoints import LlmEndpoint
+from app.domain.models.llm_endpoints import CustomModel, LlmEndpoint
 
 
 Replay = Literal["current_turn", "all_turns"]
@@ -42,6 +42,9 @@ class ModelSpec:
     tool_batching: Literal["enabled", "provider_default", "disabled"] = "disabled"
     # DeepSeek 把思考开关放在 extra_body。OpenAI 兼容端点只发送 reasoning_effort。
     emit_thinking: bool = True
+    # 目录外模型的声明；目录模型恒为 False 且没有未确认项
+    custom: bool = False
+    unconfirmed: tuple[str, ...] = ()
 
     def choice(self, choice_id: str) -> Optional[ReasoningChoice]:
         return next((item for item in self.choices if item.id == choice_id), None)
@@ -110,20 +113,64 @@ def gpt_models() -> tuple[ModelSpec, ...]:
     )
 
 
+UNCONFIRMED_CONTEXT_WINDOW = 32_000  # 上游没有报告窗口时的保守默认值
+UNCONFIRMED_MAX_OUTPUT = 4_096
+_UNCONFIRMED_ALL = ("context_window", "max_output", "tools", "vision", "thinking")
+
+
+def custom_declaration() -> CustomModel:
+    """没有任何依据时的目录外模型声明：窗口与输出用保守默认值，工具默认开启，全部标为未确认。"""
+    return CustomModel(
+        context_window=UNCONFIRMED_CONTEXT_WINDOW, max_output=UNCONFIRMED_MAX_OUTPUT, tools=True,
+        vision=False, thinking=False, unconfirmed=list(_UNCONFIRMED_ALL),
+    )
+
+
+def _custom_choices(custom: CustomModel) -> tuple[ReasoningChoice, ...]:
+    default = ReasoningChoice("disabled", "disabled", None, "current_turn")
+    if custom.reasoning_efforts:
+        return (default, *(ReasoningChoice(effort, "enabled", effort, "current_turn") for effort in custom.reasoning_efforts))
+    if custom.thinking:
+        return default, ReasoningChoice("enabled", "enabled", None, "current_turn")
+    return (default,)
+
+
 def find_model(model_id: Optional[str], config: LLMConfig | None = None) -> Optional[ModelSpec]:
     """能力目录与端点可用性分开；端点移除不能使已保存模型变成未知模型。"""
     custom = config.custom_models.get(model_id) if config and model_id else None
     if custom is not None:
-        default = ReasoningChoice("disabled", "disabled", None, "current_turn")
-        on = ReasoningChoice("enabled", "enabled", None, "current_turn")
+        choices = _custom_choices(custom)
         endpoint = config.selected_endpoint or endpoint_for(config, model_id)
         return ModelSpec(
             id=model_id, provider=(endpoint.provider if endpoint else None) or "compatible", context_window=custom.context_window,
             max_output=custom.max_output, tools=custom.tools, vision=custom.vision, auxiliary=False,
-            choices=(default, on) if custom.thinking else (default,), default_choice=default.id,
+            choices=choices, default_choice=choices[0].id,
             thinking_output_floor=0, tool_batching="provider_default", emit_thinking=custom.thinking,
+            custom=True, unconfirmed=tuple(custom.unconfirmed),
         )
-    return next((item for item in (*deepseek_models(), *gpt_models()) if item.id == model_id), None)
+    return next((item for item in catalog_models() if item.id == model_id), None)
+
+
+def catalog_models() -> tuple[ModelSpec, ...]:
+    """内置目录的全部模型，按厂商顺序排列。"""
+    return (*deepseek_models(), *gpt_models())
+
+
+def normalize_provider_models(definition):
+    """保存前归类：目录模型放入 models，其余放入 custom_models。目录模型以内置目录为准，忽略同名声明；
+    没有声明的目录外模型使用保守默认值。返回新的提供商定义，不修改入参。"""
+    models: list[str] = []
+    declared: dict[str, CustomModel] = {}
+    for model_id in dict.fromkeys([*definition.models, *definition.custom_models]):
+        if find_model(model_id) is not None:
+            models.append(model_id)
+        elif model_id in definition.custom_models:
+            declared[model_id] = definition.custom_models[model_id]
+        else:
+            declared[model_id] = custom_declaration()
+    if not (models or declared):
+        raise ValueError("请至少选择或声明一个模型")
+    return definition.model_copy(update={"models": models, "custom_models": declared})
 
 
 def endpoint_for(config: LLMConfig, model_id: str) -> Optional[LlmEndpoint]:
@@ -353,7 +400,9 @@ def bind_endpoint(config: LLMConfig, endpoint: LlmEndpoint) -> LLMConfig:
 
 def public_capabilities(spec: ModelSpec) -> dict:
     """前端只读取展示能力，厂商请求编码仍由模型目录/适配层负责。"""
-    return dict(id=spec.id, vendor=spec.provider, vendor_label={"deepseek": "DeepSeek", "openai": "OpenAI"}.get(spec.provider, spec.provider), vision=spec.vision, context_window=spec.context_window, max_output=spec.max_output,
+    return dict(id=spec.id, vendor=spec.provider, vendor_label={"deepseek": "DeepSeek", "openai": "OpenAI"}.get(spec.provider, spec.provider), vision=spec.vision, tools=spec.tools,
+        source="custom" if spec.custom else "catalog", unconfirmed=list(spec.unconfirmed),
+        context_window=spec.context_window, max_output=spec.max_output,
         choices=[c.id for c in spec.choices], default_choice=spec.default_choice,
         reasoning_options=[dict(id=c.id, enabled=c.thinking == "enabled") for c in spec.choices],
         reasoning_ordered=spec.reasoning_ordered, reasoning_family=spec.reasoning_family,

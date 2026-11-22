@@ -59,7 +59,15 @@ export interface SessionDetailViewProps {
 
 type ApprovalSubmitting = {callId: string; decision: 'approve' | 'reject'}
 
+/** 把文字追加到输入框末尾（已有内容之后空一行），并把焦点放回输入框。 */
+function appendComposerText(input: ChatInputRef | null, text: string) {
+  if (!input) return
+  const current = input.getInputValue().trimEnd()
+  input.setInputText(current ? `${current}\n\n${text}` : text)
+}
+
 /** 工作台可查看的调用；等待审批的调用还没有执行，不进入工作台 */
+
 function collectCalls(items: TimelineItem[]): ToolCallView[] {
   const calls: ToolCallView[] = []
   for (const item of items) {
@@ -549,6 +557,9 @@ export function SessionDetailView({
 
   const handlers = useMemo<TimelineHandlers>(() => ({
     sessionId: view?.id,
+    // 引用与填回都追加到输入框已有文字之后，不覆盖用户正在写的内容
+    quoteText: text => appendComposerText(composer.current, text),
+    fillDraft: text => appendComposerText(composer.current, text),
     selectedCallId: focus?.callId ?? null,
     // 工作区会话的右侧面板也带工作台：点工具卡片切到工作台并选中该工具
     onOpenCall: (callId) => {

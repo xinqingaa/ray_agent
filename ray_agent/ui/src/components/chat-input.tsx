@@ -6,6 +6,9 @@ import {Item, ItemActions, ItemContent, ItemDescription, ItemMedia, ItemTitle} f
 import {Avatar, AvatarGroupCount} from '@/components/ui/avatar'
 import {ArrowUp, Eye, FileText, ListChecks, Loader2, Paperclip, Quote, Sparkles, Stop, X, XCircle} from '@/components/ui/icons'
 import {Button} from '@/components/ui/button'
+import {ContextMenuSurface} from '@/components/ui/context-menu'
+import {menuItem, type MenuEntry} from '@/lib/context-menu-policy'
+import {insertText, selectAllText} from '@/lib/text-edit'
 import {Popover, PopoverAnchor, PopoverContent} from '@/components/ui/popover'
 import {SlashCommandList} from '@/components/input-command-menu'
 import {skillsApi, SKILLS_CHANGED, type Skill, type SkillSelection} from '@/lib/api/skills'
@@ -25,6 +28,7 @@ import {VoiceInput} from '@/components/voice-input'
 import {useUsagePreferences} from '@/hooks/use-usage-preferences'
 import {ModelPicker, type ModelSelection} from '@/components/model-picker'
 import {rememberModelPreference} from '@/lib/model-preference'
+import {flashHighlight} from '@/lib/motion'
 import {useDeveloperMode} from '@/hooks/use-developer-mode'
 import {clipboardImages, isImageFile} from '@/lib/composer-images'
 import {AttachmentThumbnail} from '@/components/preview/attachment-thumbnail'
@@ -116,7 +120,6 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
     const [activeId, setActiveId] = useState<string | null>(null)
     const fileInputRef = useRef<HTMLInputElement>(null)
     const textareaRef = useRef<HTMLTextAreaElement>(null)
-    const [voiceStripHost, setVoiceStripHost] = useState<HTMLDivElement | null>(null)
     const skillMarkRef = useRef<HTMLButtonElement>(null)
     const [skillIndent, setSkillIndent] = useState(0)
     const skillLabel = selectedSkill?.name ?? selectedSkill?.id ?? ''
@@ -452,6 +455,23 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
     const handleRemoveFile = (fileId: string) => {
       setFiles((prev) => prev.filter((file) => file.id !== fileId))
     }
+    // 清空草稿文字与附件。文字用可撤销的替换，因此 Cmd/Ctrl+Z 可以找回；附件不走撤销，直接移除。
+    const clearComposer = () => {
+      const node = textareaRef.current
+      if (node && node.value) {
+        const target = {kind: 'text' as const, element: node, writable: true as const}
+        selectAllText(target)
+        insertText(target, '')
+      }
+      setFiles([])
+    }
+    // 只列出当前能完成的项：不可用时不出现，而不是灰显
+    const uploadReady = !!commandById('upload')?.available(commandContext).available
+    const clearReady = !blocked && !uploading && (!!inputValue || files.length > 0)
+    const composerMenu: MenuEntry[] = [
+      ...(uploadReady ? [menuItem('添加附件', Paperclip, () => {commandById('upload')?.run(commandContext)})] : []),
+      ...(clearReady ? [menuItem('清空', XCircle, clearComposer)] : []),
+    ]
     const previewFile = (file: FileInfo) => setPreview({id: file.id, filename: file.filename, size: file.size, extension: file.extension, contentType: file.mime_type ?? file.content_type ?? '', source: 'upload', path: file.filepath ?? null})
 
     const handleSend = async () => {
@@ -576,6 +596,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
         return
       }
       e.preventDefault()
+      if (e.repeat || voiceBusy) return
       if (slashOpen) {
         const command = matched.find((item) => item.id === resolvedActiveId)
         if (!command || !command.available(commandContext).available) return
@@ -589,7 +610,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
 
     return (
     <Popover open={slashOpen} onOpenChange={(open) => {if (!open) {dismissedRef.current = slash; setSlash(null)}}}>
-    <div data-chat-composer className={cn('flex w-full flex-col rounded-[18px] border bg-background py-2.5 shadow-(--paper-shadow) focus-within:border-ring/45', className)}>
+    <div data-chat-composer className={cn('@container/composer flex w-full flex-col rounded-[18px] border bg-background py-2.5 shadow-(--paper-shadow) focus-within:border-ring/45', className)}>
       {modelIssue && <div role="alert" className="mx-4 mb-2 flex flex-wrap items-center gap-x-2 text-meta text-state-failed">
         <span>{modelIssue}</span>
         {isDesktop() && <Button type="button" variant="ghost" size="xs" onClick={() => void openModelConfig()
@@ -702,10 +723,9 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
         </div>
       )}
       {uploading && <p role="status" className="mx-4 mb-2 flex items-center gap-2 text-meta text-muted-foreground"><Loader2 className="size-3.5 animate-spin"/>正在上传附件</p>}
-      <div ref={setVoiceStripHost}/>
       {/* 中间输入框 */}
       <PopoverAnchor asChild>
-      <div className="relative mb-1.5 px-3.5">
+      <ContextMenuSurface items={composerMenu} includeEditing><div className="relative mb-1.5 px-3.5">
         {selectedSkill && <SkillMark ref={skillMarkRef} name={selectedSkill.name ?? selectedSkill.id} skillId={selectedSkill.id} version={selectedSkill.version} workspaceId={workspaceId} className="absolute left-3.5 top-0 z-10" onRemove={blocked ? undefined : () => setSelectedSkill(null)} onExit={() => {const node = textareaRef.current; node?.focus(); node?.setSelectionRange(0, 0)}}/>}
         <textarea
           ref={textareaRef}
@@ -731,7 +751,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
             syncFromTextarea(event.currentTarget, false)
           }}
           placeholder={placeholder}
-          title="Enter 发送，Shift + Enter 换行"
+          title={voiceBusy ? '录音时 Enter 完成，Esc 取消' : 'Enter 发送，Shift + Enter 换行'}
           aria-label="任务输入"
           aria-expanded={slashOpen}
           aria-autocomplete={slashOpen ? 'list' : undefined}
@@ -739,12 +759,12 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
           className="block min-h-[1.625em] w-full resize-none text-sm leading-relaxed outline-none"
           disabled={blocked}
         />
-      </div>
+      </div></ContextMenuSurface>
       </PopoverAnchor>
       {/* 底部上传&发送按钮 */}
       <footer className="composer-actions flex min-w-0 items-end justify-between gap-1 px-2.5">
         {/* 命令菜单 */}
-        <div className="flex min-w-0 flex-wrap items-center gap-1">
+        <div className="composer-input-actions flex min-w-0 flex-wrap items-center gap-1">
           <input
             ref={fileInputRef}
             type="file"
@@ -753,39 +773,44 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
             onChange={handleFileSelect}
             disabled={uploading}
           />
-          <Button type="button" variant="ghost" size="icon-sm" aria-label="添加附件" title="添加附件（也可从 Finder 拖入）"
+          <Button type="button" variant="ghost" size="icon-sm" className="composer-attach" aria-label="添加附件" title="添加附件（也可从 Finder 拖入）"
             disabled={!commandById('upload')?.available(commandContext).available}
             onClick={() => commandById('upload')?.run(commandContext)}>
             <Paperclip className="size-4"/>
           </Button>
           {usagePreferences && usagePreferences.voice !== 'off' && <VoiceInput key={scope} sessionId={sessionId} disabled={blocked} engine={usagePreferences.voice ?? null} onBusyChange={setVoiceBusy}
-            stripHost={voiceStripHost} onCancel={() => textareaRef.current?.focus()}
+            focusDraft={() => {setSlash(null); textareaRef.current?.focus({preventScroll: true})}}
             fill={text => {
-              setInputValue(current => current + (current && !/\s$/.test(current) ? ' ' : '') + text)
+              if (scopeRef.current !== scope) return
+              const field = textareaRef.current
+              const current = field?.value ?? inputValue
+              const cursor = field?.selectionStart ?? current.length
+              const next = current.slice(0, cursor) + text + current.slice(cursor)
+              pendingCursor.current = cursor + text.length
+              setInputValue(next)
+              onInputValueChange?.(next)
               setSlash(null)
-              requestAnimationFrame(() => {
-                const field = textareaRef.current
-                field?.focus()
-                field?.setSelectionRange(field.value.length, field.value.length)
-              })
+              flashHighlight(field)
             }}/>}
-          <Button type="button" variant="ghost" size="icon-sm" aria-label="命令与 Skill" title="命令与 Skill /"
-            data-slash-toggle aria-expanded={slashOpen} disabled={blocked} onClick={() => {
-              if (slashOpen) {dismissedRef.current = slash; setSlash(null); return}
-              const node = textareaRef.current
-              if (!node) return
-              const cursor = node.selectionStart ?? inputValue.length
-              node.focus()
-              setActiveId(null)
-              setSlash(findSlashTrigger(inputValue, cursor, false) ?? {start: cursor, end: cursor, query: ''})
-            }}><Sparkles/></Button>
-          {workspace && <Button type="button" variant="ghost" size="icon-sm" aria-label="计划模式" title="计划模式"
-            aria-pressed={planMode} className="aria-pressed:bg-signal-soft aria-pressed:text-signal"
-            disabled={!commandById('plan')?.available(commandContext).available}
-            onClick={() => commandById('plan')?.run(commandContext)}><ListChecks/></Button>}
+          <div className="composer-shortcuts flex items-center gap-1">
+            <Button type="button" variant="ghost" size="icon-sm" aria-label="命令与 Skill" title="命令与 Skill /"
+              data-slash-toggle aria-expanded={slashOpen} disabled={blocked} onClick={() => {
+                if (slashOpen) {dismissedRef.current = slash; setSlash(null); return}
+                const node = textareaRef.current
+                if (!node) return
+                const cursor = node.selectionStart ?? inputValue.length
+                node.focus()
+                setActiveId(null)
+                setSlash(findSlashTrigger(inputValue, cursor, false) ?? {start: cursor, end: cursor, query: ''})
+              }}><Sparkles/></Button>
+            {workspace && <Button type="button" variant="ghost" size="icon-sm" aria-label="计划模式" title="计划模式"
+              aria-pressed={planMode} className="aria-pressed:bg-signal-soft aria-pressed:text-signal"
+              disabled={!commandById('plan')?.available(commandContext).available}
+              onClick={() => commandById('plan')?.run(commandContext)}><ListChecks/></Button>}
+          </div>
         </div>
         {/* 发送/停止生成按钮 */}
-        <div className="flex min-w-0 items-center gap-1">
+        <div className="composer-submit-actions flex min-w-0 items-center gap-1">
           <ModelPicker
             sessionId={sessionId}
             savedModel={savedModel}

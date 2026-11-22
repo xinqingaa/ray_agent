@@ -1,4 +1,4 @@
-import {useEffect, useId, useRef, useState, type DragEvent, type ReactNode, type RefObject} from 'react'
+import {useEffect, useId, useRef, useState, type CSSProperties, type DragEvent, type ReactNode, type RefObject} from 'react'
 import {Eye, Folder, FolderOpen, History, Inbox, PanelRight, Paperclip} from '@/components/ui/icons'
 import {IconAction} from '@/components/ui/icon-action'
 import {SegmentedControl} from '@/components/ui/segmented-control'
@@ -31,8 +31,7 @@ export function TaskInspectorTabs({value, workspace, onChange, onClose, onAction
 export function useTaskInspector(defaultOpen: boolean, openOnEntry = false) {
   const floating = useIsMobile(INSPECTOR_FLOAT_BREAKPOINT)
   const [open, setOpen] = useState<boolean | null>(openOnEntry ? true : null)
-  const widthPreference = useRef<number | null>(null)
-  return {floating, open: open ?? (defaultOpen && !floating), setOpen, widthPreference}
+  return {floating, open: open ?? (defaultOpen && !floating), setOpen}
 }
 
 export type TaskInspectorState = ReturnType<typeof useTaskInspector>
@@ -206,10 +205,17 @@ export function TaskInspector({state, label, belowSessionMode, triggerRef, child
   state: TaskInspectorState; label: string; belowSessionMode?: boolean;
   triggerRef?: RefObject<HTMLButtonElement | null>; children: ReactNode
 }) {
-  const {open, floating, setOpen, widthPreference} = state
-  const width = useWorkbenchWidth(widthPreference)
+  const {open, floating, setOpen} = state
+  const width = useWorkbenchWidth()
   const panel = useRef<HTMLElement>(null)
   const previousOpen = useRef(false)
+  const [settled, setSettled] = useState(false)
+  const [resizing, setResizing] = useState(false)
+
+  useEffect(() => {
+    const frame = requestAnimationFrame(() => setSettled(true))
+    return () => cancelAnimationFrame(frame)
+  }, [])
 
   useEffect(() => {
     const wasOpen = previousOpen.current
@@ -237,11 +243,12 @@ export function TaskInspector({state, label, belowSessionMode, triggerRef, child
     return () => {window.removeEventListener('keydown', escape); window.removeEventListener('pointerdown', outside)}
   }, [floating, open, setOpen, triggerRef])
 
+  // 宽度写入变量：收起时面板宽度为 0，内层保持变量宽度，开合时内容不重排。
   return <aside ref={panel} tabIndex={-1} aria-label={label} aria-hidden={!open} inert={!open}
-    data-open={open} data-below-mode={Boolean(belowSessionMode)}
-    className="task-inspector" style={{width: open ? width.width : 0}}>
-    <div className="task-inspector-paper" style={{width: width.width}}>{children}</div>
+    data-open={open} data-below-mode={Boolean(belowSessionMode)} data-settled={settled} data-resizing={resizing}
+    className="task-inspector" style={{'--inspector-w': `${width.width}px`, width: open ? 'var(--inspector-w)' : 0} as CSSProperties}>
+    <div className="task-inspector-paper" style={{width: 'var(--inspector-w)'}}>{children}</div>
     {open && !floating && <WorkbenchResizeHandle width={width.width} min={width.min} max={width.max}
-      onWidth={width.setWidth} onReset={width.reset} label={`调整${label}宽度`}/>}
+      onWidth={width.setWidth} onReset={width.reset} onResizingChange={setResizing} label={`调整${label}宽度`}/>}
   </aside>
 }

@@ -9,15 +9,21 @@ import threading
 import tomllib
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 import tomlkit
-from pydantic import ConfigDict, Field, ValidationError
+from pydantic import ConfigDict, Field, HttpUrl, TypeAdapter, ValidationError
 
-from app.domain.models.llm_endpoints import ConnectionSource, CustomModel, LlmEndpoint, ProviderDefinition, ProviderStatus
+from app.domain.models.llm_endpoints import (
+    ApiProtocol, ConnectionSource, CustomModel, LlmEndpoint, ModelId, ProviderDefinition, ProviderKind, ProviderStatus,
+)
 
 logger = logging.getLogger(__name__)
 CONFIG_ENV = "RAYAGENT_CONFIG"
 PROVIDER_NAME_PATTERN = r"^[A-Za-z0-9_-]{1,64}$"
+_MODEL_ID = TypeAdapter(ModelId)
+_URL = TypeAdapter(HttpUrl)
+_MODEL_KEYS = ("models", "custom_models")
 
 
 class ConnectionFileError(RuntimeError):
@@ -30,18 +36,23 @@ class ConnectionFileConflict(ConnectionFileError):
         super().__init__("配置文件已被修改，请重新读取后再保存")
 
 
+class ModelClaimConflict(ConnectionFileError):
+    """同一模型 ID 已由其他提供商提供；模型身份全局唯一，保存直接拒绝。clashes 为 {模型 ID: 占用的提供商}。"""
+
+    def __init__(self, message: str, clashes: dict[str, str]):
+        self.clashes = clashes
+        super().__init__(message)
+
+
 def config_path() -> Path:
     override = os.environ.get(CONFIG_ENV, "").strip()
     return Path(override).expanduser() if override else Path.home() / ".config" / "rayagent" / "config.toml"
 
 
-class _ProviderEntry(ProviderDefinition):
+class _ProviderHead(ProviderDefinition):
+    """提供商的地址、协议与密钥。模型列表单独逐项校验，不让单个模型拖垮整个提供商。"""
     model_config = ConfigDict(extra="allow")
     api_key: str = Field(default="", repr=False)
-
-    def model_post_init(self, _context) -> None:
-        if not (self.models or self.custom_models):
-            raise ValueError("models 或 custom_models 至少声明一个模型")
 
 
 @dataclass(frozen=True)
@@ -56,19 +67,111 @@ def key_hint(key: str) -> str:
     return "••••" + key[-4:] if len(key) >= 12 else "••••"
 
 
-def provider_kind(entry: ProviderDefinition):
+def provider_kind(entry: ProviderDefinition | _ProviderHead):
     if entry.kind is not None:
         return entry.kind
     return {"api.deepseek.com": "deepseek", "api.openai.com": "openai"}.get(entry.base_url.host, "compatible")
 
 
-def _entry_issue(error: ValidationError) -> str:
-    fields = dict.fromkeys(str(item["loc"][0]) if item["loc"] else "models 或 custom_models" for item in error.errors())
-    return "；".join(f"{name} 无效" for name in fields)
+def _fields(error: ValidationError) -> str:
+    """字段级错误列出字段名；跨字段规则没有字段名时列出规则本身的说明，不回显任何取值。"""
+    names = dict.fromkeys(
+        str(item["loc"][0]) if item["loc"] else str(item["msg"]).removeprefix("Value error, ") for item in error.errors())
+    return "、".join(names)
+
+
+def _valid_url(raw: Any) -> str | None:
+    """只返回可以原样展示的地址，用于无效条目的编辑器保留原地址。"""
+    if not isinstance(raw, str):
+        return None
+    try:
+        url = _URL.validate_python(raw)
+    except ValidationError:
+        return None
+    if url.username or url.password or url.query or url.fragment:
+        return None
+    return str(url)
+
+
+def _read_provider(name: str, value: Any, loaded: ModelConnections) -> ProviderStatus:
+    """读取一个提供商。提供商级字段无效时整个提供商不可用；模型级字段无效只忽略该模型。"""
+    from app.domain.models.model_catalog import find_model
+    loaded.endpoints[name] = None
+    if not isinstance(value, dict):
+        return ProviderStatus(name=name, issue="提供商配置需为表")
+    key_raw = value.get("api_key")
+    key = key_raw.strip() if isinstance(key_raw, str) else ""
+    provider_issues: list[str] = []
+    try:
+        head = _ProviderHead.model_validate({k: v for k, v in value.items() if k not in _MODEL_KEYS})
+    except ValidationError as exc:
+        head = None
+        provider_issues.append(f"{_fields(exc)} 无效")
+
+    listed: list[str] = []
+    raw_models = value.get("models", [])
+    if isinstance(raw_models, list):
+        try:
+            listed = [_MODEL_ID.validate_python(item) for item in raw_models]
+        except ValidationError:
+            provider_issues.append("models 无效")
+    else:
+        provider_issues.append("models 无效")
+
+    raw_custom = value.get("custom_models", {})
+    custom_ok = isinstance(raw_custom, dict)
+    if not custom_ok:
+        provider_issues.append("custom_models 无效")
+    declared: dict[str, CustomModel] = {}
+    invalid: set[str] = set()
+    model_problems: list[str] = []
+    for model_id, raw in (raw_custom.items() if custom_ok else ()):
+        if find_model(model_id) is not None:
+            continue  # 目录模型以内置目录为准，同名的自定义声明不生效
+        try:
+            _MODEL_ID.validate_python(model_id)
+            declared[model_id] = CustomModel.model_validate(raw)
+        except ValidationError as exc:
+            invalid.add(model_id)
+            model_problems.append(f"{model_id} 无效（{_fields(exc)}）")
+
+    candidates = list(dict.fromkeys([*listed, *(raw_custom if custom_ok else ())]))
+    if not candidates:
+        provider_issues.append("models 或 custom_models 至少声明一个模型")
+    usable = head is not None and not provider_issues
+
+    served: list[str] = []
+    for model_id in candidates:
+        if find_model(model_id) is None and model_id not in declared:
+            if model_id not in invalid:
+                model_problems.append(f"未知模型 {model_id}")
+            continue
+        if model_id in loaded.model_endpoints:
+            model_problems.append(f"{model_id} 已由 {loaded.model_endpoints[model_id]} 提供")
+            continue
+        served.append(model_id)
+        if usable:
+            loaded.model_endpoints[model_id] = name
+            if model_id in declared:
+                loaded.custom_models[model_id] = declared[model_id]
+
+    if usable:
+        loaded.endpoints[name] = LlmEndpoint(base_url=head.base_url, api_key=key, api_protocol=head.protocol,
+                                              kind=provider_kind(head), provider=name, requires_key=head.requires_key)
+    issues = list(provider_issues)
+    if model_problems:
+        issues.append("已忽略：" + "、".join(model_problems))
+    return ProviderStatus(
+        name=name, base_url=str(head.base_url) if head is not None else _valid_url(value.get("base_url")),
+        api_protocol=head.protocol if head is not None else "responses",
+        models=served, configured_models=[model for model in listed], custom_models=declared,
+        kind=provider_kind(head) if head is not None else "compatible",
+        requires_key=head.requires_key if head is not None else True,
+        has_key=bool(key), key_hint=key_hint(key) if key else None, issue="；".join(issues) or None,
+    )
 
 
 def parse_connections(path: Path, text: str, version: str | None = None) -> ModelConnections:
-    from app.domain.models.model_catalog import find_model
     source = ConnectionSource(path=str(path), exists=True, version=version)
     try:
         raw = tomllib.loads(text)
@@ -85,34 +188,7 @@ def parse_connections(path: Path, text: str, version: str | None = None) -> Mode
         if not re.fullmatch(PROVIDER_NAME_PATTERN, name):
             source.notices.append("提供商名称只能包含字母、数字、下划线与连字符，已忽略一项")
             continue
-        try:
-            entry = _ProviderEntry.model_validate(value)
-        except ValidationError as exc:
-            loaded.endpoints[name] = None
-            source.providers.append(ProviderStatus(name=name, issue=_entry_issue(exc)))
-            continue
-        served, problems = [], []
-        key, kind = entry.api_key.strip(), provider_kind(entry)
-        for model_id in dict.fromkeys([*entry.models, *entry.custom_models]):
-            if find_model(model_id) is not None and model_id in entry.custom_models:
-                problems.append(f"{model_id} 是目录模型，不能重复声明")
-            elif find_model(model_id) is None and model_id not in entry.custom_models:
-                problems.append(f"未知模型 {model_id}")
-            elif model_id in loaded.model_endpoints:
-                problems.append(f"{model_id} 已由 {loaded.model_endpoints[model_id]} 提供")
-            else:
-                loaded.model_endpoints[model_id] = name
-                if model_id in entry.custom_models:
-                    loaded.custom_models[model_id] = entry.custom_models[model_id]
-                served.append(model_id)
-        loaded.endpoints[name] = LlmEndpoint(base_url=entry.base_url, api_key=key, api_protocol=entry.protocol,
-                                              kind=kind, provider=name, requires_key=entry.requires_key)
-        source.providers.append(ProviderStatus(
-            name=name, base_url=str(entry.base_url), api_protocol=entry.protocol, models=served,
-            configured_models=entry.models, custom_models=entry.custom_models, kind=kind, requires_key=entry.requires_key,
-            has_key=bool(key), key_hint=key_hint(key) if key else None,
-            issue="已忽略：" + "、".join(problems) if problems else None,
-        ))
+        source.providers.append(_read_provider(name, value, loaded))
     return loaded
 
 
@@ -163,6 +239,16 @@ def load_model_connections() -> ModelConnections:
         return ModelConnections(ConnectionSource(path=str(path), exists=True, issue="无法以 UTF-8 读取配置文件"))
 
 
+def _check_claims(name: str, raw: bytes, path: Path, definition: ProviderDefinition) -> None:
+    """同一模型只能属于一个提供商：以写入时读到的文件为准拒绝重复，不静默忽略。"""
+    owners = parse_connections(path, raw.decode("utf-8")).model_endpoints
+    wanted = [*definition.models, *definition.custom_models]
+    clashes = {model: owners[model] for model in dict.fromkeys(wanted) if owners.get(model) not in (None, name)}
+    if clashes:
+        text = "；".join(f"{model} 已由 {owner} 提供" for model, owner in clashes.items())
+        raise ModelClaimConflict(text + "。同一模型只能属于一个提供商，请先从原提供商取消勾选", clashes)
+
+
 def write_provider(name: str, version: str, definition: ProviderDefinition | None, key: str | None = None) -> ConnectionSource:
     """只更新目标提供商的已知字段，替换前再次核对源文件身份和内容。"""
     path = config_path().resolve()
@@ -174,6 +260,8 @@ def write_provider(name: str, version: str, definition: ProviderDefinition | Non
             current = _version(source_path, info, raw)
             if current != version:
                 raise ConnectionFileConflict(current)
+            if definition is not None:
+                _check_claims(name, raw, source_path, definition)
             doc = tomlkit.parse(raw.decode("utf-8"))
             if "providers" not in doc:
                 doc["providers"] = tomlkit.table()
@@ -203,7 +291,12 @@ def write_provider(name: str, version: str, definition: ProviderDefinition | Non
                         if not isinstance(custom.get(model), dict):
                             custom[model] = tomlkit.table()
                         stored = custom[model]
-                        for field_name, value in declaration.model_dump(exclude={"rates"}).items():
+                        values = declaration.model_dump(mode="json", exclude={"rates"})
+                        for optional in ("reasoning_efforts", "unconfirmed"):
+                            if not values[optional]:
+                                values.pop(optional)
+                                stored.pop(optional, None)
+                        for field_name, value in values.items():
                             stored[field_name] = value
                         if declaration.rates is not None:
                             if not isinstance(stored.get("rates"), dict):

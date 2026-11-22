@@ -37,6 +37,7 @@ async function main(){
  const helpers=load('lib/model-selection.ts');assert.equal(helpers.selectModel({model:'a',reasoning:'high'},a,b).reasoning,'medium');
  assert.deepEqual(helpers.thinkingOptions(b).map(o=>o.id),['low','medium','high','xhigh','ultra']);
  const c={...model('new-model-from-server','three',['low','high'],'none'),vendor:'openai',vendor_label:'OpenAI'};
+ c.unconfirmed=['tools','thinking'];
  const catalog={provider:'fixture',default_model:'a',models:[a,b,c]};
  assert.deepEqual(helpers.modelsForVendor(catalog.models,'openai').map(m=>m.id),['new-model-from-server']);
  configApi.getModels=async()=>catalog;
@@ -53,6 +54,8 @@ async function main(){
  assert.deepEqual(r.root.findAll(n=>n.type==='button'&&n.props.role==='radio').map(n=>n.findAllByType('span')[0].children[0]),['a','b','new-model-from-server']);
  assert.equal(r.root.findAllByProps({'data-component':'SegmentedControl'}).length,0);
  assert.ok(!JSON.stringify(r.toJSON()).includes('支持看图'));
+ assert.equal(JSON.stringify(r.toJSON()).split('"children":["能力未确认"]').length-1,1,'只有能力未确认的模型显示提示');
+ assert.ok(JSON.stringify(r.toJSON()).includes('能力未确认：工具调用、思考'),'提示列出未确认的能力');
  await act(async()=>popover().props.onOpenChange(false));
  assert.equal(calls.length,0);
  await act(async()=>popover().props.onOpenChange(true));
@@ -137,6 +140,6 @@ async function main(){
  await act(async()=>{r=create(React.createElement(SettingsSaveBar,{mode:'edit',show:true,saving:false,invalid:false,onReset:(...args)=>{resetArguments=args}}))});
  await act(async()=>r.root.findAllByType('button').find(n=>n.children.includes('撤销')).props.onClick({type:'click'}));
  assert.deepEqual(resetArguments,[]);await act(async()=>r.unmount());
- console.log('PASS: recent model/effort restore, actual send selection, session precedence, invalid preference fallback, storage failure, rejected selection isolation; all vendors listed in fixed groups, no vision/run/channel labels, server-defined model list, semantic fallback, commit on close, rejection keeps menu, scoped save preserves hidden draft, reset excludes click event');
+ console.log('PASS: unconfirmed capability hint stays non-blocking, recent model/effort restore, actual send selection, session precedence, invalid preference fallback, storage failure, rejected selection isolation; all vendors listed in fixed groups, no vision/run/channel labels, server-defined model list, semantic fallback, commit on close, rejection keeps menu, scoped save preserves hidden draft, reset excludes click event');
 }
 main().catch(e=>{console.error(e);process.exitCode=1});

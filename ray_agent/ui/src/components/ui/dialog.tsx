@@ -5,6 +5,14 @@ import {XIcon} from "@/components/ui/icons"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 
+// 样式按原型的对话框：遮罩为 scrim 并轻度模糊，面板 22px 圆角、浮层阴影，标题 16px/600。
+// 打开用 motion-mid 淡入、面板用 motion-slow 弹性缩放；关闭用 motion-fast 收回。减少动态效果时不做动画。
+// alert-dialog.tsx 复用同一组遮罩与面板样式。
+
+export const DIALOG_OVERLAY_CLASS = "fixed inset-0 z-50 bg-(--scrim) backdrop-blur-[3px] duration-(--motion-mid) ease-(--motion-ease) data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0 data-[state=closed]:duration-(--motion-fast) motion-reduce:animate-none"
+
+export const DIALOG_PANEL_CLASS = "bg-card text-card-foreground shadow-(--float-shadow) fixed top-[50%] left-[50%] z-50 grid w-full max-w-[calc(100%-3rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-[22px] p-6 outline-none duration-(--motion-slow) ease-(--motion-spring) data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=open]:fade-in-0 data-[state=closed]:fade-out-0 data-[state=open]:zoom-in-95 data-[state=closed]:zoom-out-95 data-[state=closed]:duration-(--motion-fast) motion-reduce:animate-none sm:max-w-lg"
+
 function Dialog({
   ...props
 }: React.ComponentProps<typeof DialogPrimitive.Root>) {
@@ -36,10 +44,7 @@ function DialogOverlay({
   return (
     <DialogPrimitive.Overlay
       data-slot="dialog-overlay"
-      className={cn(
-        "data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 fixed inset-0 z-50 bg-black/50 motion-reduce:animate-none",
-        className
-      )}
+      className={cn(DIALOG_OVERLAY_CLASS, className)}
       {...props}
     />
   )
@@ -58,10 +63,7 @@ function DialogContent({
       <DialogOverlay />
       <DialogPrimitive.Content
         data-slot="dialog-content"
-        className={cn(
-          "bg-card data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 fixed top-[50%] left-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 rounded-lg border p-6 shadow-lg duration-200 outline-none motion-reduce:animate-none sm:max-w-lg",
-          className
-        )}
+        className={cn(DIALOG_PANEL_CLASS, className)}
         {...props}
       >
         {children}
@@ -109,7 +111,7 @@ function DialogFooter({
       {children}
       {showCloseButton && (
         <DialogPrimitive.Close asChild>
-          <Button variant="outline">Close</Button>
+          <Button variant="outline">关闭</Button>
         </DialogPrimitive.Close>
       )}
     </div>
@@ -123,7 +125,7 @@ function DialogTitle({
   return (
     <DialogPrimitive.Title
       data-slot="dialog-title"
-      className={cn("text-lg leading-none font-semibold", className)}
+      className={cn("text-base leading-snug font-semibold", className)}
       {...props}
     />
   )

@@ -46,7 +46,8 @@ type SessionsContextValue = {
   patchSession: (sessionId: string, patch: Partial<Pick<Session, 'status' | 'title'>>, owner?: string | null) => void
   /** 当前打开的会话刚写入的状态；当前会话不在已加载分页里时，靠它覆盖 */
   liveSession: {id: string; status: SessionStatus} | null
-  deleteSession: (sessionId: string, owner?: string | null) => Promise<boolean>
+  /** 失败时抛出带中文说明的 Error，调用方（如确认弹框）负责展示 */
+  deleteSession: (sessionId: string, owner?: string | null) => Promise<void>
 }
 
 const SessionsContext = createContext<SessionsContextValue | null>(null)
@@ -267,16 +268,15 @@ export function SessionsProvider({children, workspaceId = null}: { children: Rea
     })
   }, [updateDirectory, workspaceId])
 
-  const deleteSession = useCallback(async (sessionId: string, owner = workspaceId): Promise<boolean> => {
+  const deleteSession = useCallback(async (sessionId: string, owner = workspaceId): Promise<void> => {
     try {
       await sessionApi.deleteSession(sessionId)
-      updateDirectory(owner ?? '', current => ({
-        ...current, sessions: current.sessions.filter(item => item.session_id !== sessionId),
-      }))
-      return true
     } catch {
-      return false
+      throw new Error('删除对话失败，请重试')
     }
+    updateDirectory(owner ?? '', current => ({
+      ...current, sessions: current.sessions.filter(item => item.session_id !== sessionId),
+    }))
   }, [updateDirectory, workspaceId])
 
   return (

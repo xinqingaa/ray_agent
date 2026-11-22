@@ -42,7 +42,8 @@ export function ComponentsSection({standalone = false, focusComponent}: {
   useEffect(() => {
     if (focusComponent && hasFocusRow && focused.current !== focusComponent) {
       focused.current = focusComponent
-      focusRow.current?.focus()
+      focusRow.current?.focus({preventScroll: true})
+      focusRow.current?.scrollIntoView({block: 'nearest'})
     }
   }, [focusComponent, hasFocusRow])
 

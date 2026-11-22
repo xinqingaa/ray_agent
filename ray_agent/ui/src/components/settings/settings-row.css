@@ -2,7 +2,7 @@
 .settings-savebar {
   transform: translateY(calc(100% + 30px));
   opacity: 0;
-  transition: transform 260ms cubic-bezier(.2, .9, .3, 1.15), opacity 180ms ease;
+  transition: transform 260ms var(--motion-spring), opacity 180ms ease;
 }
 .settings-savebar[data-show="true"] { transform: none; opacity: 1; }
 @media (prefers-reduced-motion: reduce) {

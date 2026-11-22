@@ -1,10 +1,10 @@
 """文件变更记录与工作区备份对象的 SQLite 实现。"""
 from typing import Optional
 
-from sqlalchemy import delete, func, select
+from sqlalchemy import case, delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.domain.models.file_change import FileChange, RunChangeRow, WorkspaceObject
+from app.domain.models.file_change import ChangeSource, FileChange, RunChangeRow, WorkspaceObject
 from app.domain.repositories.file_change_repository import FileChangeRepository
 from app.infrastructure.models import FileChangeModel, WorkspaceObjectModel
 
@@ -28,15 +28,16 @@ class DBFileChangeRepository(FileChangeRepository):
 
     async def runs(self, workspace_id: str, limit: int) -> list[RunChangeRow]:
         last = func.max(FileChangeModel.created_at)
+        manual = func.max(case((FileChangeModel.source == ChangeSource.MANUAL.value, 1), else_=0))
         rows = (await self.db_session.execute(
             select(FileChangeModel.run_id, FileChangeModel.session_id, func.count(FileChangeModel.id),
-                   func.min(FileChangeModel.created_at), last, func.max(FileChangeModel.undo_of_run_id))
+                   func.min(FileChangeModel.created_at), last, func.max(FileChangeModel.undo_of_run_id), manual)
             .where(FileChangeModel.workspace_id == workspace_id, FileChangeModel.run_id.is_not(None))
             .group_by(FileChangeModel.run_id, FileChangeModel.session_id)
             .order_by(last.desc(), FileChangeModel.run_id).limit(limit))).all()
         return [RunChangeRow(run_id=run_id, session_id=session_id, changes=count, first_at=first, last_at=last_at,
-                             undo_of_run_id=undo_of)
-                for run_id, session_id, count, first, last_at, undo_of in rows]
+                             undo_of_run_id=undo_of, manual=bool(is_manual))
+                for run_id, session_id, count, first, last_at, undo_of, is_manual in rows]
 
     async def object_by_hash(self, workspace_id: str, sha256: str) -> Optional[WorkspaceObject]:
         model = (await self.db_session.execute(select(WorkspaceObjectModel).where(

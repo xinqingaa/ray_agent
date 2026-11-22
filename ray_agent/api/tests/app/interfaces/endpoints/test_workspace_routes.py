@@ -243,3 +243,61 @@ def test_independent_filter_relocate_and_host_resolve_over_http(host: TestClient
     assert refused.status_code == 400 and refused.json()["error"]["details"]["reason"] == "nested"
     for workspace in (ws, other["id"]):
         host.post(f"/api/workspaces/{workspace}/delete")
+
+
+def test_entry_operations_over_http_are_versioned_listed_and_undoable(host: TestClient, tmp_path):
+    """界面文件操作的接口：版本核对、同名与越界拒绝、进入最近修改，并能经撤销接口整体撤回。"""
+    location = tmp_path / "workspaces"
+    location.mkdir()
+    host.post("/api/workspaces/default-location", json={"grant_id": grant(host, location)})
+    created = host.post("/api/workspaces", json={"name": "手动操作"}).json()["data"]
+    workspace_id, root_id, folder = created["id"], created["folder"]["root_id"], Path(created["folder"]["path"])
+    (folder / "a.txt").write_text("原始", encoding="utf-8")
+
+    def version(path: str) -> dict:
+        entry = host.get(f"/api/roots/{root_id}/entry", params={"path": path}).json()["data"]["entry"]
+        assert isinstance(entry["modified_ns"], str)  # 纳秒精度以十进制字符串传输
+        return {"size": entry["size"], "modified_ns": entry["modified_ns"]}
+
+    made = host.post(f"/api/roots/{root_id}/entries/folders", json={"name": "资料"})
+    assert made.status_code == 200 and made.json()["data"]["entry"]["kind"] == "directory"
+    assert host.post(f"/api/roots/{root_id}/entries/folders", json={"name": "资料"}).status_code == 409
+    assert host.post(f"/api/roots/{root_id}/entries/folders", json={"name": "../x"}).status_code == 400
+    assert host.post(f"/api/roots/{root_id}/entries/folders", json={"name": "新", "directory": ".rayagent"}).status_code == 403
+
+    stale = host.post(f"/api/roots/{root_id}/entries/rename",
+                      json={"path": "a.txt", "name": "b.txt", "version": {"size": 1, "modified_ns": "1"}})
+    assert stale.status_code == 409 and stale.json()["error"]["resource_version"] is not None
+    renamed = host.post(f"/api/roots/{root_id}/entries/rename",
+                        json={"path": "a.txt", "name": "b.txt", "version": version("a.txt")})
+    assert renamed.status_code == 200 and renamed.json()["data"]["entry"]["name"] == "b.txt"
+    assert not (folder / "a.txt").exists()
+
+    assert host.post(f"/api/roots/{root_id}/entries/delete", json={"path": "b.txt"}).status_code == 400  # 文件需要版本
+    assert host.post(f"/api/roots/{root_id}/entries/delete", json={"path": ".rayagent/workspace.json"}).status_code == 403
+    assert host.post(f"/api/roots/{root_id}/entries/delete", json={"path": "../x"}).status_code in (400, 403)
+    removed = host.post(f"/api/roots/{root_id}/entries/delete", json={"path": "资料"})
+    assert removed.json()["data"]["kind"] == "directory" and not (folder / "资料").exists()
+    assert host.post(f"/api/roots/{root_id}/entries/delete",
+                     json={"path": "b.txt", "version": version("b.txt")}).status_code == 200
+    assert not (folder / "b.txt").exists()
+
+    runs = host.get(f"/api/workspaces/{workspace_id}/modified-runs").json()["data"]["runs"]
+    assert [run["kind"] for run in runs] == ["manual"] * 4  # 每次界面操作都是一条最近修改记录，最新在前
+    assert runs[0]["changed_files"] == 1 and runs[0]["session_id"] == ""
+
+    # 撤销最新的删除：文件内容恢复到删除前
+    undone = host.post(f"/api/workspaces/{workspace_id}/runs/{runs[0]['run_id']}/undo",
+                       json={"items": [{"relative_path": "b.txt"}]})
+    assert undone.status_code == 200 and undone.json()["data"]["results"][0]["status"] == "restored"
+    assert (folder / "b.txt").read_text(encoding="utf-8") == "原始"
+    # 撤销文件夹删除：空文件夹重新建立
+    folder_run = runs[1]  # 删除文件夹那一次
+    changed = host.get(f"/api/workspaces/{workspace_id}/runs/{folder_run['run_id']}/changes").json()["data"]["entries"]
+    assert [(entry["relative_path"], entry["kind"], entry["operation"]) for entry in changed] == [("资料", "directory", "delete")]
+    restored_dir = host.post(f"/api/workspaces/{workspace_id}/runs/{folder_run['run_id']}/undo",
+                             json={"items": [{"relative_path": "资料"}]})
+    assert restored_dir.json()["data"]["results"][0]["status"] == "restored" and (folder / "资料").is_dir()
+    preview = host.get(f"/api/workspaces/{workspace_id}/runs/{folder_run['run_id']}/changes/preview",
+                       params={"path": "资料"})
+    assert preview.json()["data"]["kind"] == "directory"

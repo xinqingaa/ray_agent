@@ -1,3 +1,4 @@
+import {copyText} from '@/lib/clipboard'
 import {Code2, Copy, Download, FileText, Loader2, RefreshCw, FileCode2, Files} from '@/components/ui/icons'
 import {useCallback, useEffect, useRef, useState, type ReactNode} from 'react'
 import {MarkdownContent} from '@/components/markdown-content'
@@ -87,7 +88,7 @@ export function SkillReader({skill, readFile, actions, feedback, className}: {sk
           <button type="button" aria-current={path === file.path ? 'page' : undefined} onClick={() => open(file.path)} className={cn('flex min-w-0 flex-1 items-center gap-2 rounded-md px-2 py-2.5 text-left text-xs hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring', path === file.path && 'text-signal')}><FileCode2 className="size-3.5 shrink-0"/><span className="min-w-0 truncate leading-relaxed" title={file.path}>{file.path}</span></button>
           {path === file.path && <div role="group" aria-label={`${path} 文件操作`} className="flex shrink-0 items-center gap-0.5 text-muted-foreground [&_button]:size-6 [&_svg]:size-3.5">
             {markdown && <FileAction label={source ? '查看正文' : '查看源码'} pressed={source} onClick={() => {setSource(!source); setDirectory(false)}}>{source ? <FileText/> : <Code2/>}</FileAction>}
-            {current?.text != null && <FileAction label="复制文件内容" onClick={() => {void navigator.clipboard.writeText(current.text!).catch(() => setError('复制失败，请重试'))}}><Copy/></FileAction>}
+            {current?.text != null && <FileAction label="复制文件内容" onClick={() => {void copyText(current.text!).catch(() => setError('复制失败，请重试'))}}><Copy/></FileAction>}
             <FileAction label="下载文件" onClick={download}><Download/></FileAction>{path === 'SKILL.md' && actions}
           </div>}
         </div>)}

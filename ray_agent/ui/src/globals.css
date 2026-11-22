@@ -99,8 +99,16 @@
     --rail: #fdfdfc;
     --paper-shadow: 0 0 0 1px rgb(31 35 40 / 4%), 0 1px 2px rgb(31 35 40 / 4%), 0 8px 24px -12px rgb(31 35 40 / 8%);
     --float-shadow: 0 0 0 1px rgb(31 35 40 / 6%), 0 10px 30px -8px rgb(31 35 40 / 18%);
-    --shell-ease: cubic-bezier(.22, .8, .3, 1);
-    --shell-spring: cubic-bezier(.34, 1.2, .55, 1);
+    /* 弹框遮罩，与原型的 scrim 一致 */
+    --scrim: rgb(24 26 30 / 22%);
+    /* 动效 token：时长三档、一条缓出曲线与一条弹性曲线，与原型一致 */
+    --motion-fast: 160ms;
+    --motion-mid: 300ms;
+    --motion-slow: 460ms;
+    --motion-ease: cubic-bezier(.22, .8, .3, 1);
+    --motion-spring: cubic-bezier(.34, 1.45, .55, 1);
+    --shell-ease: var(--motion-ease);
+    --shell-spring: var(--motion-spring);
 
     --background: #fbfbf9;
     --foreground: #1f2328;
@@ -168,6 +176,7 @@
     --rail: #26292d;
     --paper-shadow: 0 0 0 1px rgb(255 255 255 / 5%), 0 8px 24px -12px rgb(0 0 0 / 50%);
     --float-shadow: 0 0 0 1px rgb(255 255 255 / 8%), 0 14px 34px -8px rgb(0 0 0 / 60%);
+    --scrim: rgb(0 0 0 / 40%);
     --background: #23262a;
     --foreground: #e8e8e4;
     --card: #26292d;
@@ -285,6 +294,38 @@
 .view-enter-left { animation: view-enter-left 200ms ease-out; }
 .view-enter-right { animation: view-enter-right 200ms ease-out; }
 
+/* 公共折叠（components/ui/collapsible.tsx）：行高从零到自适应，收起后内容不可见也不可聚焦。 */
+.ui-collapsible-body {
+    display: grid;
+    grid-template-rows: 1fr;
+    opacity: 1;
+    transition: grid-template-rows var(--motion-mid) var(--motion-spring), opacity var(--motion-mid) var(--motion-ease), visibility 0s;
+}
+/* 过渡由目标状态决定：收起时可见性延迟到动画结束再隐藏，展开时立即可见。 */
+.ui-collapsible-body[data-state="closed"] {
+    grid-template-rows: 0fr;
+    opacity: 0;
+    visibility: hidden;
+    transition: grid-template-rows var(--motion-mid) var(--motion-ease), opacity var(--motion-mid) var(--motion-ease), visibility 0s linear var(--motion-mid);
+}
+.ui-collapsible-clip { min-height: 0; overflow: hidden; }
+.ui-collapsible-chevron, .ui-collapsible-chevron-side { transition: transform var(--motion-mid) var(--motion-spring); }
+.ui-collapsible-trigger[aria-expanded="true"] > .ui-collapsible-chevron { transform: rotate(180deg); }
+.ui-collapsible-trigger[aria-expanded="true"] > .ui-collapsible-chevron-side { transform: rotate(90deg); }
+@media (prefers-reduced-motion: reduce) {
+    .ui-collapsible-body, .ui-collapsible-body[data-state="closed"], .ui-collapsible-chevron, .ui-collapsible-chevron-side { transition: none; }
+}
+
+/* 设置里进入提供商详情或返回列表时的淡入与轻微位移。 */
+.settings-detail-enter { animation: settings-detail-enter var(--motion-mid) var(--motion-ease) both; }
+@keyframes settings-detail-enter {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .settings-detail-enter { animation: none; }
+}
+
 /* 进行中的状态词：一道亮光从左扫到右，只用于时间线里仍在处理的那一行。 */
 .text-shimmer {
     background: linear-gradient(90deg, var(--muted-foreground) 0%, var(--muted-foreground) 38%, var(--foreground) 50%, var(--muted-foreground) 62%, var(--muted-foreground) 100%);
@@ -310,7 +351,7 @@
 .plan-reveal {
     display: grid;
     grid-template-rows: 0fr;
-    transition: grid-template-rows 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+    transition: grid-template-rows 220ms var(--motion-ease);
 }
 .plan-card[data-open="true"] > .plan-reveal {
     grid-template-rows: 1fr;
@@ -421,6 +462,7 @@
     content: "";
 }
 .rail-footer { margin-top: auto; }
+.rail-footer .rail-action[aria-current="page"] { background: var(--primary); }
 .rail-indicator {
     position: absolute;
     inset: 0 auto auto 0;
@@ -434,13 +476,14 @@
 .rail-groups[data-section="workspaces"] .rail-indicator { transform: translateY(46px); }
 .rail-groups[data-section="skills"] .rail-indicator { transform: translateY(110px); }
 .rail-groups[data-section="components"] .rail-indicator { transform: translateY(156px); }
+.rail-groups[data-section="settings"] .rail-indicator { visibility: hidden; }
 
 .app-directory {
     width: var(--sidebar-width);
     min-width: 0;
     flex: none;
     overflow: hidden;
-    transition: width 420ms var(--shell-spring);
+    transition: width var(--motion-slow) var(--motion-spring);
 }
 .app-directory[data-state="collapsed"] { width: 0; }
 .app-directory-inner {
@@ -448,7 +491,7 @@
     flex-direction: column;
     width: var(--sidebar-width);
     height: 100%;
-    transition: opacity 220ms var(--shell-ease), transform 420ms var(--shell-spring);
+    transition: opacity var(--motion-mid) var(--motion-ease), transform var(--motion-slow) var(--motion-spring);
 }
 .app-directory[data-state="collapsed"] .app-directory-inner { opacity: 0; transform: translateX(-18px); }
 
@@ -543,10 +586,11 @@
     border-inline-start: 1px solid var(--border);
 }
 
-.session-row-menu { opacity: 0; }
+.session-row-menu { opacity: 0; transition: opacity 120ms ease, background-color 120ms ease, color 120ms ease; }
 .session-row-menu:focus-visible, .session-row-menu[data-state="open"], .group\/session:hover .session-row-menu { opacity: 1; }
 .group\/session:is(:hover, :has(.session-row-menu:focus-visible, .session-row-menu[data-state="open"])) .session-row-meta { visibility: hidden; }
 .group\/session:is(:hover, :has(.session-row-menu:focus-visible, .session-row-menu[data-state="open"])):not(:has(.session-row-meta)) .session-row-content { padding-inline-end: 30px; }
+@media (prefers-reduced-motion: reduce) { .session-row-menu { transition: none; } }
 @media (hover: none) {
     .session-row-content { padding-inline-end: 27px; }
     .session-row-menu { opacity: 1; }
@@ -721,6 +765,9 @@ button.reply-citation-number { font-size: calc(10px * var(--font-scale)); }
 .dark .file-type-badge[data-tone="violet"] { color: #c0a6dc; background: rgb(192 166 220 / 14%); }
 .file-type-badge[data-tone="amber"] { color: var(--state-waiting); background: var(--state-waiting-soft); }
 .folder-row-tag { flex: none; border-radius: 5px; padding-inline: 6px; font-size: 11px; }
+.folder-entry-draft { animation: folder-entry-draft var(--motion-fast) var(--motion-ease) both; }
+@keyframes folder-entry-draft { from { opacity: 0; transform: translateY(-2px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .folder-entry-draft { animation: none; } }
 .folder-index-dot { width: 6px; height: 6px; flex: none; border-radius: 100%; box-shadow: inset 0 0 0 1.5px var(--state-waiting); }
 .folder-index-dot[data-index="searchable"] { background: color-mix(in srgb, var(--state-success) 70%, transparent); box-shadow: none; }
 .folder-index-dot[data-index="failed"] { box-shadow: inset 0 0 0 1.5px var(--state-failed); }
@@ -744,8 +791,10 @@ button.reply-citation-number { font-size: calc(10px * var(--font-scale)); }
     min-width: 0;
     overflow: hidden;
     opacity: 0;
-    transition: opacity 180ms var(--shell-ease);
+    transition: width var(--motion-slow) var(--motion-spring), margin-inline-start var(--motion-slow) var(--motion-spring), opacity var(--motion-mid) var(--motion-ease);
 }
+/* 挂载后的第一帧直接落定；拖动分隔条期间宽度跟随指针，不做过渡。 */
+.task-inspector:not([data-settled="true"]), .task-inspector[data-resizing="true"] { transition: none; }
 .task-inspector[data-open="true"] { overflow: visible; margin-inline-start: var(--shell-gap); opacity: 1; }
 .task-inspector-paper { height: 100%; max-width: 100%; }
 .task-inspector-resize { left: -14px; width: 24px; }
@@ -829,7 +878,7 @@ button.reply-citation-number { font-size: calc(10px * var(--font-scale)); }
         inset: 0 0 0 auto;
         max-width: 100%;
         transform: translateX(12px);
-        transition: opacity 170ms var(--shell-ease), transform 250ms var(--shell-ease), visibility 170ms;
+        transition: opacity var(--motion-fast) var(--motion-ease), transform var(--motion-mid) var(--motion-ease), visibility var(--motion-fast);
         visibility: hidden;
     }
     .task-inspector[data-below-mode="true"] { inset-block-start: 48px; }
@@ -1116,10 +1165,7 @@ button.reply-citation-number { font-size: calc(10px * var(--font-scale)); }
 .skill-source-switch { transition-property: background-color, outline-color; }
 .skill-source-switch[data-state="checked"] { background: var(--signal); }
 .skill-source-switch[data-state="checked"] [data-slot="switch-thumb"] { background: var(--signal-foreground); }
-.skill-scan-issue:hover, .skill-scan-issue[open] { background: var(--muted); }
-.skill-scan-issue summary::-webkit-details-marker { display: none; }
-.skill-scan-issue summary svg { transition: transform 160ms var(--shell-ease); }
-.skill-scan-issue[open] summary svg { transform: rotate(180deg); }
+.skill-scan-issue:hover, .skill-scan-issue:has(.ui-collapsible-trigger[aria-expanded="true"]) { background: var(--muted); }
 .skill-list { margin-top: 14px; }
 .skill-row { position: relative; border-radius: 13px; transition: background-color 160ms var(--shell-ease); }
 .skill-row:hover, .skill-row:focus-within { background: color-mix(in srgb, var(--foreground) 4%, transparent); }
@@ -1180,6 +1226,6 @@ button.reply-citation-number { font-size: calc(10px * var(--font-scale)); }
 }
 @media (prefers-reduced-motion: reduce) {
     .skill-source-switch, .skill-source-switch [data-slot="switch-thumb"], .skill-source-filter,
-    .skill-row, .skill-row-icon, .skill-row-main, .skill-select, .skill-scan-issue summary svg { transition: none; }
+    .skill-row, .skill-row-icon, .skill-row-main, .skill-select { transition: none; }
     .skill-row[data-arriving="true"] { animation: none; }
 }

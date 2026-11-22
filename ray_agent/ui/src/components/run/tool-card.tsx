@@ -1,6 +1,9 @@
 import {useId, useState} from 'react'
-import {ChevronRight, PanelRight} from '@/components/ui/icons'
+import {ChevronRight, Copy, PanelRight} from '@/components/ui/icons'
 import {Button} from '@/components/ui/button'
+import {ContextMenuSurface} from '@/components/ui/context-menu'
+import {menuItem, type MenuEntry} from '@/lib/context-menu-policy'
+import {copyText} from '@/lib/clipboard'
 import {cn} from '@/lib/utils'
 import type {ToolCallView} from '@/lib/session-view'
 import {useNow} from './clock'
@@ -63,6 +66,12 @@ function readableResult(call: ToolCallView): string | null {
 function stringify(value: unknown): string {
   if (typeof value === 'string') return value
   return JSON.stringify(value, null, 2) ?? String(value)
+}
+
+/** 开发者模式下复制的内容：参数（JSON）在前，输出原文在后。 */
+function toolCopyText(call: ToolCallView): string {
+  const args = stringify(call.raw.args ?? {})
+  return `${args}\n\n${resultText(call) ?? ''}`.trimEnd()
 }
 
 function ClampedText({text, limit, className}: {text: string; limit: number; className?: string}) {
@@ -179,8 +188,12 @@ export function ToolCard({call, selected, onOpen, defaultExpanded = false, class
     summary = parts.join('，') || null
   }
 
+  const entries: MenuEntry[] = [
+    ...(canOpen && onOpen ? [menuItem('查看详情', PanelRight, () => onOpen(call.callId))] : []),
+    ...(visibility.toolDetails ? [menuItem('复制参数与输出', Copy, () => copyText(toolCopyText(call)))] : []),
+  ]
   return (
-    <div
+    <ContextMenuSurface items={entries}><div
       className={cn(
         'group/tool @container/tool rounded-md',
         selected && 'bg-signal-soft/50 ring-1 ring-signal/30',
@@ -239,6 +252,6 @@ export function ToolCard({call, selected, onOpen, defaultExpanded = false, class
           </div>}
         </div>
       )}
-    </div>
+    </div></ContextMenuSurface>
   )
 }

@@ -198,7 +198,7 @@ export function SkillMarket({active, workspaceId, installed, onInstalled}: {
       <Button variant="ghost" size="sm" disabled={loading || !page.has_more} onClick={() => {setLoading(true); setOffset(page.offset + PAGE_SIZE); setNotice('')}}>下一页</Button>
     </div>}
     <Dialog open={active && !!selected} onOpenChange={open => {if (!open && !installing) setSelected(null)}}>
-      <DialogContent className="grid h-[min(27rem,calc(100dvh-2rem))] grid-rows-[auto_minmax(0,1fr)_auto] rounded-2xl" aria-describedby={undefined} onPointerDownOutside={event => event.preventDefault()} onCloseAutoFocus={event => {event.preventDefault(); trigger.current?.focus()}}>
+      <DialogContent className="grid h-[min(27rem,calc(100dvh-2rem))] grid-rows-[auto_minmax(0,1fr)_auto] rounded-2xl" aria-describedby={undefined} onPointerDownOutside={event => event.preventDefault()} onCloseAutoFocus={event => {event.preventDefault(); trigger.current?.focus({preventScroll: true})}}>
         <DialogTitle>安装 {selected?.name}</DialogTitle>
         <div className="space-y-3 overflow-y-auto">
         <p className="text-sm text-muted-foreground">{selected?.repository}</p>

@@ -1,3 +1,4 @@
+mod clipboard;
 mod contract;
 mod notify;
 mod platform;
@@ -183,6 +184,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_clipboard_manager::init())
         .manage(CoreHost::default())
         .manage(QuitState::default())
         .manage(notify::Notifier::default())
@@ -234,6 +236,8 @@ pub fn run() {
             preferences::set_host_preferences,
             notify::set_viewed_session,
             notify::notification_permission,
+            clipboard::clipboard_read_text,
+            clipboard::clipboard_write_text,
         ])
         .build(tauri::generate_context!())
         .expect("failed to build the RayAgent desktop host")

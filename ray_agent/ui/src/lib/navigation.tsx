@@ -16,7 +16,7 @@ export function useRouter() {
   const navigate = useNavigate()
   return useMemo(() => ({
     push: (href: string, state?: unknown) => {void navigate(href, {state})},
-    replace: (href: string) => {void navigate(href, {replace: true})},
+    replace: (href: string, state?: unknown) => {void navigate(href, {replace: true, state})},
     back: () => {void navigate(-1)},
   }), [navigate])
 }

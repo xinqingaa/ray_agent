@@ -7,7 +7,7 @@ from app.domain.external.workspace_files import FileEntry, FileKind, ScanSummary
 from app.domain.models.identity import RootedPath
 from app.domain.models.workspace import ConflictResolution, FolderStatus, MarkerConflict, WorkspaceStatus
 from app.interfaces.schemas.event import to_epoch_ms
-from app.interfaces.schemas.workspace_changes import WriteLeaseView
+from app.interfaces.schemas.workspace_changes import NanosecondStamp, WriteLeaseView
 
 _STRICT = ConfigDict(json_schema_serialization_defaults_required=True)
 
@@ -134,13 +134,16 @@ class RootEntryView(BaseModel):
     kind: FileKind
     size: Optional[int] = None
     modified_at: Optional[int] = Field(default=None, description="毫秒时间戳；只有普通文件有")
+    modified_ns: Optional[NanosecondStamp] = Field(
+        default=None, description="修改时间的纳秒精确值（十进制字符串）；改名或删除时原样作为版本回传，核对不会因精度损失误判")
     link_target: Optional[str] = Field(default=None, description="符号链接的目标文本；链接不被展开或跟随")
 
     @classmethod
     def of(cls, entry: FileEntry) -> "RootEntryView":
         version = entry.version
         return cls(path=entry.path, name=entry.name, kind=entry.kind, size=version.size if version else None,
-                   modified_at=version.modified_ns // 1_000_000 if version else None, link_target=entry.link_target)
+                   modified_at=version.modified_ns // 1_000_000 if version else None,
+                   modified_ns=str(version.modified_ns) if version else None, link_target=entry.link_target)
 
 
 class RootListing(BaseModel):
@@ -155,6 +158,43 @@ class RootEntryResponse(BaseModel):
     model_config = _STRICT
 
     entry: RootEntryView
+
+
+class EntryVersionRequest(BaseModel):
+    """目标当前的版本，取自列表或元数据接口；服务器核对后才改动，不一致返回冲突与当前版本。"""
+    model_config = _STRICT
+
+    size: int = Field(ge=0)
+    modified_ns: NanosecondStamp
+
+
+class DeleteEntryRequest(BaseModel):
+    model_config = _STRICT
+
+    path: str = Field(min_length=1, max_length=4096, description="根内相对路径，不能是根目录本身")
+    version: Optional[EntryVersionRequest] = Field(default=None, description="删除文件时必填；空文件夹不需要")
+
+
+class RenameEntryRequest(BaseModel):
+    model_config = _STRICT
+
+    path: str = Field(min_length=1, max_length=4096, description="要改名的文件的根内相对路径")
+    name: str = Field(min_length=1, max_length=255, description="新的单段名称，同一文件夹内不得已存在")
+    version: EntryVersionRequest
+
+
+class CreateFolderRequest(BaseModel):
+    model_config = _STRICT
+
+    directory: str = Field(default="", max_length=4096, description="父文件夹的根内相对路径，空串为根目录")
+    name: str = Field(min_length=1, max_length=255, description="新文件夹的单段名称")
+
+
+class RemovedEntryResponse(BaseModel):
+    model_config = _STRICT
+
+    path: RootedPath
+    kind: FileKind
 
 
 def workspace_item(view) -> WorkspaceItem:

@@ -1,7 +1,10 @@
-import {Check} from '@/components/ui/icons'
+import {Check, ChevronRight} from '@/components/ui/icons'
 import {useEffect, useState} from 'react'
 import {Button} from '@/components/ui/button'
+import {Collapsible, CollapsibleContent, CollapsibleTrigger, collapsibleSideChevron} from '@/components/ui/collapsible'
 import {Input} from '@/components/ui/input'
+import {useDeveloperMode} from '@/hooks/use-developer-mode'
+import {useUsagePreferences} from '@/hooks/use-usage-preferences'
 import {configApi} from '@/lib/api/config'
 import type {ConnectionSource, LLMConfig, ModelCatalog, ModelSampling} from '@/lib/api/types'
 import {cn} from '@/lib/utils'
@@ -29,7 +32,7 @@ function profileIds(values: Values<LlmField> | null): string[] {
   if (!values) return []
   const ids: string[] = []
   for (const key of Object.keys(values)) {
-    const match = /^p:([^:]+):temperature$/.exec(key)
+    const match = /^p:(.+):temperature$/.exec(key)
     if (match) ids.push(match[1])
   }
   return ids
@@ -51,7 +54,7 @@ export const llmFormOptions = {
     if (!fields) return configApi.updateLLMConfig(config)
     const patch: Partial<LLMConfig> = {}
     for (const field of fields) {
-      const match = /^p:([^:]+):/.exec(field)
+      const match = /^p:(.+):(?:temperature|max_tokens|context_window)$/.exec(field)
       if (match) patch.model_profiles = {...patch.model_profiles, [match[1]]: config.model_profiles![match[1]]}
       else Object.assign(patch, {[field]: config[field as keyof LLMConfig]})
     }
@@ -194,19 +197,29 @@ function capabilityNote(spec: ModelCatalog['models'][number] | undefined, reserv
   return parts.join('。')
 }
 
-export function LlmSection({form}: {form: LlmForm}) {
+export function LlmSection({form, editing, onEditingChange, onEditorDirtyChange}: {
+  form: LlmForm
+  editing: boolean
+  onEditingChange: (editing: boolean) => void
+  onEditorDirtyChange: (dirty: boolean) => void
+}) {
+  const {visibility} = useDeveloperMode()
+  const voiceOn = useUsagePreferences().value?.voice === 'deepseek'
   const [selected, setSelected] = useState<string | null>(null)
   const [catalog, setCatalog] = useState<ModelCatalog | null>(null)
   const [catalogError, setCatalogError] = useState<string | null>(null)
   const [retry, setRetry] = useState(0)
+  const [paramsOpen, setParamsOpen] = useState(false)
+  useEffect(() => {if (form.dirty) setParamsOpen(true)}, [form.dirty])
   const [connections, setConnections] = useState<ConnectionSource | null>(null)
   const connectionKey = connections?.version ?? form.config?.connections?.version
   useEffect(() => {
+    if (!visibility.providerSettings) return
     let cancelled = false
     configApi.getModels().then(value => {if (!cancelled) {setCatalog(value); setCatalogError(null)}})
       .catch(error => {if (!cancelled) setCatalogError(error instanceof Error ? error.message : '模型能力读取失败')})
     return () => {cancelled = true}
-  }, [connectionKey, retry])
+  }, [connectionKey, retry, visibility.providerSettings])
   const values = form.values
   const ids = profileIds(values)
   const current = ids.includes(selected ?? '') ? selected! : ids[0]
@@ -222,25 +235,30 @@ export function LlmSection({form}: {form: LlmForm}) {
     max_tokens: Number(current ? values[profileField(current, 'max_tokens')] : values.max_tokens),
     context_window: Number(current ? values[profileField(current, 'context_window')] : values.context_window),
   } : null
-  const reserve = useThinkingReserve(spec, sampling)
+  const reserve = useThinkingReserve(visibility.providerSettings && !editing ? spec : undefined, sampling)
   const note = capabilityNote(spec, reserve)
   const modelDirty = dirtyFor(fields)
   const modelInvalid = fields.some(field => Boolean(form.visibleErrors[field]))
-  return <section aria-labelledby="settings-llm-title">
-    <SectionHeader id="settings-llm-title" title="模型提供商"
-      description="连接保存在本机配置文件，密钥仅显示掩码。修改后，新运行使用更新的连接。"/>
-    {form.load.phase === 'loading' && <FormSkeleton rows={5}/>}
-    {form.load.phase === 'error' && <LoadError message={form.load.message} onRetry={form.reload}/>}
-    {form.config && <ModelConnections initial={connections ?? form.config.connections ?? null} onChange={next => {
+  return <section aria-labelledby={editing ? undefined : 'settings-llm-title'} aria-busy={form.refreshing || undefined}
+    className={editing ? 'h-full min-h-0' : undefined}>
+    {!editing && <>
+      <SectionHeader id="settings-llm-title" title="模型提供商"
+        description="连接保存在本机配置文件，密钥仅显示掩码。修改后，新运行使用更新的连接。"/>
+      {form.load.phase === 'loading' && <FormSkeleton rows={5}/>}
+      {form.load.phase === 'error' && <LoadError message={form.load.message} onRetry={form.reload}/>}
+    </>}
+    {form.config && <ModelConnections initial={connections ?? form.config.connections ?? null} voiceOn={voiceOn}
+      onEditingChange={onEditingChange} onDirtyChange={onEditorDirtyChange} onChange={next => {
       setConnections(next)
       if (!form.dirty) form.reload()
     }}/>}
-    {form.load.phase === 'ready' && values && <details className="group mt-6 border-t pt-4" open={form.dirty || undefined}>
-      <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden">
-        <span className="text-faint transition-transform group-open:rotate-90" aria-hidden>›</span>
+    {!editing && visibility.providerSettings && form.load.phase === 'ready' && values && <Collapsible open={paramsOpen} onOpenChange={setParamsOpen}>
+      <div className="mt-6 border-t pt-4">
+      <CollapsibleTrigger className="flex w-full cursor-pointer items-center gap-2 text-left text-sm font-medium text-muted-foreground outline-none hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring">
+        <ChevronRight className={cn('size-3.5 text-faint', collapsibleSideChevron)} aria-hidden/>
         逐模型参数
-      </summary>
-      <div className="pt-4">
+      </CollapsibleTrigger>
+      <CollapsibleContent className="pt-4">
         {catalogError && <LoadError message={catalogError} onRetry={() => setRetry(n => n + 1)}/>}
         <div className="grid gap-6 @xl/form:grid-cols-[minmax(0,10rem)_minmax(0,1fr)]">
           {ids.length > 0 && <nav aria-label="正在编辑的模型">
@@ -276,8 +294,9 @@ export function LlmSection({form}: {form: LlmForm}) {
             </div>
           </form>
         </div>
+      </CollapsibleContent>
       </div>
-    </details>}
+    </Collapsible>}
   </section>
   function renderRow({field, label, hint, placeholder, mono, numeric, width}: {
     field: LlmField; label: string; hint?: string; placeholder?: string; mono?: boolean; numeric?: boolean; width: string;

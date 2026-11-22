@@ -28,6 +28,7 @@ def create_api_routes() -> APIRouter:
     api_router.include_router(root_routes.router)
     api_router.include_router(host_routes.router)
     api_router.include_router(model_connection_routes.router)
+    api_router.include_router(model_connection_routes.catalog_router)
     api_router.include_router(usage_routes.router)
     return api_router
 

@@ -49,6 +49,49 @@ def error_response(info: ErrorInfo, status: int | None = None, headers: dict[str
                         content=ErrorResponse(error=info).model_dump(mode="json"), headers=headers or None)
 
 
+_PROVIDERS_PATH = "/api/app-config/llm/providers"
+
+
+def _problem_text(item: dict) -> str:
+    """把 Pydantic 错误类型译成简短中文；只说明问题，不回显用户输入的取值。"""
+    kind, ctx = item["type"], item.get("ctx") or {}
+    if kind == "value_error":
+        return str(item["msg"]).removeprefix("Value error, ")
+    if kind == "greater_than":
+        return f"须大于 {ctx.get('gt')}"
+    if kind == "less_than_equal":
+        return f"须不超过 {ctx.get('le')}"
+    if kind == "too_long":
+        return f"长度不能超过 {ctx.get('max_length')}"
+    if kind == "string_pattern_mismatch":
+        return "格式不正确"
+    if kind == "missing":
+        return "缺少该项"
+    if kind.startswith("url_"):
+        return "地址格式不正确"
+    if kind.endswith(("_type", "_parsing")):
+        return "类型不正确"
+    return "取值不合法"
+
+
+def provider_validation(errors: list[dict]) -> tuple[str, dict[str, str]]:
+    """提供商保存或检测的请求校验：返回总消息，以及每个模型 ID 各自的说明，便于界面定位到对应模型行。"""
+    parts: list[str] = []
+    models: dict[str, str] = {}
+    for item in errors:
+        loc = [str(part) for part in item["loc"] if part != "body"]
+        text = _problem_text(item)
+        if len(loc) >= 2 and loc[0] == "custom_models":
+            model, fields = loc[1], [part for part in loc[2:] if not part.isdigit()]
+            line = f"模型 {model} 的 {'.'.join(fields)} 无效：{text}" if fields else f"模型 {model} 无效：{text}"
+            models.setdefault(model, line)
+        else:
+            fields = [part for part in loc if not part.isdigit()]
+            line = f"{'.'.join(fields) or '请求'} 无效：{text}"
+        parts.append(line)
+    return "；".join(dict.fromkeys(parts)) or "请求参数校验失败，请核实后重试", models
+
+
 def register_exception_handlers(app: FastAPI) -> None:
     """业务异常、请求校验、HTTP 异常与未处理异常统一为结构化错误。"""
 
@@ -72,10 +115,14 @@ def register_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(RequestValidationError)
     async def validation_exception_handler(req: Request, e: RequestValidationError) -> JSONResponse:
         errors = e.errors()
-        if req.url.path.startswith("/api/app-config/llm/providers"):
+        message = "请求参数校验失败，请核实后重试"
+        details: dict = {}
+        if req.url.path.startswith(_PROVIDERS_PATH):
+            message, models = provider_validation(errors)
+            details["models"] = models
             errors = [{"loc": item["loc"], "type": item["type"], "msg": item["msg"]} for item in errors]
-        return error_response(ErrorInfo.of(ErrorCode.VALIDATION_FAILED, "请求参数校验失败，请核实后重试",
-                                           details={"errors": jsonable_encoder(errors)}))
+        details["errors"] = jsonable_encoder(errors)
+        return error_response(ErrorInfo.of(ErrorCode.VALIDATION_FAILED, message, details=details))
 
     @app.exception_handler(HTTPException)
     async def http_exception_handler(req: Request, e: HTTPException) -> JSONResponse:

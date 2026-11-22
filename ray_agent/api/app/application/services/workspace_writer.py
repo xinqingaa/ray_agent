@@ -13,7 +13,7 @@ from app.application.services.write_leases import WriteLeaseService
 from app.domain.external.workspace_files import FileEntry, FileVersion, WorkspaceFileError, WorkspaceFiles
 from app.domain.external.workspace_objects import WorkspaceObjects
 from app.domain.models.error import ErrorCode
-from app.domain.models.file_change import ChangeOperation, ChangeSource, FileChange, VersionStamp
+from app.domain.models.file_change import ChangeOperation, ChangeSource, EntryKind, FileChange, VersionStamp
 from app.domain.models.identity import RootedPath
 from app.domain.models.workspace import WorkspaceStatus
 from app.domain.models.write_lease import LeaseState
@@ -24,7 +24,7 @@ from app.domain.services.file_streams import HashingReader
 
 logger = logging.getLogger(__name__)
 
-_SOURCE_LABELS = {"tool": "文件工具", "upload": "上传文件", "undo": "撤销本次修改"}
+_SOURCE_LABELS = {"tool": "文件工具", "upload": "上传文件", "undo": "撤销本次修改", "manual": "文件操作"}
 
 
 def _source_of(owner: WriteOwner) -> ChangeSource:
@@ -84,20 +84,32 @@ class WorkspaceWriter(FileWriteGate):
         finally:
             reader.close()
 
-    async def _record(self, workspace_id: str, path: RootedPath, owner: WriteOwner, operation: ChangeOperation,
-                      before_object_id: Optional[str], after: Optional[VersionStamp]) -> None:
+    @staticmethod
+    def _change(workspace_id: str, path: RootedPath, owner: WriteOwner, operation: ChangeOperation,
+                before_object_id: Optional[str], after: Optional[VersionStamp],
+                entry_kind: EntryKind = EntryKind.FILE) -> FileChange:
         source = _source_of(owner)
-        # 撤销没有运行身份：用它自己的操作身份作为变更记录的归属，使这次撤销也能被列出并整体撤回
-        run_id = owner.run_id or (owner.operation if source is ChangeSource.UNDO else None)
-        change = FileChange(workspace_id=workspace_id, session_id=owner.session_id, run_id=run_id,
-                            tool_call_id=owner.tool_call_id, root_id=path.root_id, relative_path=path.relative_path,
-                            operation=operation, source=source, undo_of_run_id=owner.undo_of_run_id,
-                            before_object_id=before_object_id, after=after)
+        # 撤销与界面文件操作没有运行身份：用它们自己的操作身份作为变更记录的归属，使其能被列出并整体撤回
+        run_id = owner.run_id or (owner.operation if source in (ChangeSource.UNDO, ChangeSource.MANUAL) else None)
+        return FileChange(workspace_id=workspace_id, session_id=owner.session_id, run_id=run_id,
+                          tool_call_id=owner.tool_call_id, root_id=path.root_id, relative_path=path.relative_path,
+                          operation=operation, source=source, entry_kind=entry_kind,
+                          undo_of_run_id=owner.undo_of_run_id, before_object_id=before_object_id, after=after)
+
+    async def _record(self, workspace_id: str, path: RootedPath, owner: WriteOwner, operation: ChangeOperation,
+                      before_object_id: Optional[str], after: Optional[VersionStamp],
+                      entry_kind: EntryKind = EntryKind.FILE) -> None:
+        await self._save(path, [self._change(workspace_id, path, owner, operation, before_object_id, after,
+                                             entry_kind)])
+
+    async def _save(self, path: RootedPath, changes: list[FileChange]) -> None:
+        """同一组变更在一个事务里保存，要么全部记录要么都不记录。"""
         try:
             async with self._uow_factory() as uow:
-                await uow.change.add(change)
+                for change in changes:
+                    await uow.change.add(change)
         except Exception as error:
-            logger.exception("变更记录保存失败 workspace=%s path=%s", workspace_id, path.relative_path)
+            logger.exception("变更记录保存失败 path=%s", path.relative_path)
             raise WorkspaceFileError(ErrorCode.INTERNAL_ERROR,
                                      f"文件已写入，但变更记录保存失败，无法撤销这次修改：{error}")
 
@@ -130,4 +142,40 @@ class WorkspaceWriter(FileWriteGate):
     async def mkdir(self, path: RootedPath, owner: WriteOwner) -> FileEntry:
         async def action(workspace_id: str, lease_id: str) -> FileEntry:
             return await self._files.mkdir(path, parents=True)
+        return await self._guarded(path, owner, action)
+
+    async def create_dir(self, path: RootedPath, owner: WriteOwner) -> FileEntry:
+        """界面新建文件夹：父目录必须已存在，同名即冲突，并记录为可撤销的变更。"""
+        async def action(workspace_id: str, lease_id: str) -> FileEntry:
+            await self._leases.mark(lease_id, LeaseState.HELD)
+            entry = await self._files.mkdir(path, parents=False, exclusive=True)
+            await self._record(workspace_id, path, owner, ChangeOperation.CREATE, None, None, EntryKind.DIRECTORY)
+            return entry
+        return await self._guarded(path, owner, action)
+
+    async def remove_dir(self, path: RootedPath, owner: WriteOwner) -> None:
+        """界面删除空文件夹：非空即冲突；记录删除，撤销时重新建立空文件夹。"""
+        async def action(workspace_id: str, lease_id: str) -> None:
+            await self._leases.mark(lease_id, LeaseState.HELD)
+            await self._files.rmdir(path)
+            await self._record(workspace_id, path, owner, ChangeOperation.DELETE, None, None, EntryKind.DIRECTORY)
+        await self._guarded(path, owner, action)
+
+    async def rename(self, path: RootedPath, target: RootedPath, expected: FileVersion,
+                     owner: WriteOwner) -> FileEntry:
+        """普通文件改名：原名记为删除（保存写前备份），新名记为创建，两条变更同一事务保存，撤销时整组回退。"""
+        async def action(workspace_id: str, lease_id: str) -> FileEntry:
+            before = await self._backup(workspace_id, path, expected)
+            await self._leases.mark(lease_id, LeaseState.HELD)
+            await self._files.move(path, target, expected)
+            stamped = await self._files.stat(target, with_hash=True)
+            version = stamped.version
+            if version is None:
+                raise WorkspaceFileError(ErrorCode.INTERNAL_ERROR, "改名后无法读取新名称的版本")
+            after = VersionStamp(size=version.size, modified_ns=version.modified_ns, sha256=version.content_hash)
+            await self._save(path, [
+                self._change(workspace_id, path, owner, ChangeOperation.DELETE, before.id, None),
+                self._change(workspace_id, target, owner, ChangeOperation.CREATE, None, after),
+            ])
+            return stamped
         return await self._guarded(path, owner, action)

@@ -1,6 +1,6 @@
 import {useEffect, useState, type CSSProperties, type ReactNode} from 'react'
 import {useLocation} from 'react-router'
-import {Link, usePathname} from '@/lib/navigation'
+import {Link, useRouter} from '@/lib/navigation'
 import {SidebarProvider, useSidebar} from '@/components/ui/sidebar'
 import {Button} from '@/components/ui/button'
 import {Tooltip, TooltipContent, TooltipTrigger} from '@/components/ui/tooltip'
@@ -12,25 +12,27 @@ import {WorkspacePendingProvider, useWorkspacePending} from '@/providers/workspa
 import {describeWorkspace} from '@/lib/workspace-state'
 import {LeftPanel} from '@/components/left-panel'
 import {MainShell} from '@/components/sidebar-chrome'
-import {SettingsDialog} from '@/components/settings/settings-dialog'
-import {OPEN_SETTINGS_EVENT, type SettingsSectionKey} from '@/lib/settings-navigation'
+import {isSettingsPath, OPEN_SETTINGS_EVENT, settingsEntry, settingsHref, settingsSource, type SettingsSectionKey} from '@/lib/settings-navigation'
 import {skillsHref} from '@/lib/skill-route'
 import {ThemeToggle} from '@/components/theme-toggle'
 
-function NavigationRail({workspaceId, section}: {workspaceId: string | null; section: 'independent' | 'workspaces' | 'skills' | 'components'}) {
+type RailSection = 'independent' | 'workspaces' | 'skills' | 'components' | 'settings'
+
+function NavigationRail({workspaceId, section}: {workspaceId: string | null; section: RailSection}) {
   const {setOpenMobile} = useSidebar()
   const currentLocation = useLocation()
-  const [settings, setSettings] = useState(false)
-  const [settingsSection, setSettingsSection] = useState<SettingsSectionKey | undefined>()
+  const router = useRouter()
+  const inSettings = section === 'settings'
   useEffect(() => {
     const open = (event: Event) => {
-      setSettingsSection((event as CustomEvent<{section?: SettingsSectionKey}>).detail?.section)
+      const href = settingsHref((event as CustomEvent<{section?: SettingsSectionKey}>).detail?.section)
       setOpenMobile(false)
-      setSettings(true)
+      if (inSettings) router.replace(href, currentLocation.state)
+      else router.push(href, settingsEntry(currentLocation))
     }
     window.addEventListener(OPEN_SETTINGS_EVENT, open)
     return () => window.removeEventListener(OPEN_SETTINGS_EVENT, open)
-  }, [setOpenMobile])
+  }, [currentLocation, inSettings, router, setOpenMobile])
   const lookup = useWorkspace(workspaceId)
   const {count: workspacePending} = useWorkspacePending()
   const condition = lookup.phase === 'ready' ? describeWorkspace(lookup.workspace) : null
@@ -73,25 +75,27 @@ function NavigationRail({workspaceId, section}: {workspaceId: string | null; sec
     <div className="rail-footer">
       <ThemeToggle className="rail-action" quick/>
       <Tooltip delayDuration={240}>
-        <TooltipTrigger asChild><button type="button" className="rail-action" aria-label="设置"
-          onClick={() => {setOpenMobile(false); setSettingsSection(undefined); setSettings(true)}}><Settings/></button></TooltipTrigger>
+        <TooltipTrigger asChild><Link className="rail-action" aria-label="设置" aria-current={inSettings ? 'page' : undefined}
+          href={inSettings ? currentLocation.pathname + currentLocation.search : settingsHref()}
+          state={inSettings ? currentLocation.state : settingsEntry(currentLocation)} onClick={() => setOpenMobile(false)}><Settings/></Link></TooltipTrigger>
         <TooltipContent side="right">设置</TooltipContent>
       </Tooltip>
     </div>
-    <SettingsDialog open={settings} onOpenChange={setSettings} initialSection={settingsSection}/>
   </nav>
 }
 
 export function AppShell({children}: {children: ReactNode}) {
-  const pathname = usePathname()
+  const location = useLocation()
+  const {pathname} = location
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
-  const {workspaceId} = parseWorkspaceRoute(pathname)
+  const inSettings = isSettingsPath(pathname)
+  const source = inSettings ? settingsSource(location.state) : null
+  const {workspaceId} = parseWorkspaceRoute(source?.pathname ?? pathname)
   useEffect(() => {
     if (workspaceId) setExpanded(current => Object.hasOwn(current, workspaceId) ? current : {...current, [workspaceId]: true})
   }, [workspaceId])
-  const section = pathname === '/skills' ? 'skills' : pathname === '/components' ? 'components' : pathname.startsWith('/workspaces') ? 'workspaces' : 'independent'
-
-  if (pathname === '/settings') return <div className="h-full overflow-y-auto">{children}</div>
+  const section: RailSection = inSettings ? 'settings' : pathname === '/skills' ? 'skills' : pathname === '/components' ? 'components' : pathname.startsWith('/workspaces') ? 'workspaces' : 'independent'
+  const listAvailable = section === 'independent' || section === 'workspaces'
 
   return <WorkspacesProvider>
     <SidebarProvider className="app-shell" drawerBreakpoint={1101}
@@ -100,9 +104,9 @@ export function AppShell({children}: {children: ReactNode}) {
         <NavigationRail workspaceId={workspaceId} section={section}/>
         <SessionsProvider workspaceId={workspaceId}>
           {section === 'skills' ? children : <>
-            {section !== 'components' && <LeftPanel scope={section} expanded={expanded}
+            {listAvailable && <LeftPanel scope={section} expanded={expanded}
               onExpand={(id, open) => setExpanded(current => ({...current, [id]: open}))}/>}
-            <MainShell listAvailable={section !== 'components'}>{children}</MainShell>
+            <MainShell listAvailable={listAvailable}>{children}</MainShell>
           </>}
         </SessionsProvider>
       </WorkspacePendingProvider>

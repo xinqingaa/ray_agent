@@ -1,4 +1,5 @@
 import {useState, type ReactNode} from 'react'
+import {createPortal} from 'react-dom'
 import {toast} from 'sonner'
 import {ThemeToggle} from '@/components/theme-toggle'
 import {SessionItem} from '@/components/session-item'
@@ -26,7 +27,26 @@ import {previewBodyKind} from '@/components/run/file-icon'
 import type {ModelCatalog} from '@/lib/api/types'
 import {McpServerRow} from '@/components/settings/mcp-section'
 import {A2aServerRow} from '@/components/settings/a2a-section'
+import {AppearanceSection} from '@/components/settings/appearance-section'
+import {GeneralSection} from '@/components/settings/general-section'
+import {ModelConnections} from '@/components/settings/model-connections'
 import {ToolPolicySection, type ToolPolicyForm} from '@/components/settings/tool-policy-section'
+import {VoiceSettingRow} from '@/components/settings/voice-settings'
+import {VoiceModelStatus} from '@/components/voice-model-status'
+import {VoiceToolbar, type VoicePhase} from '@/components/voice-toolbar'
+import {TaskInspector, TaskInspectorTabs, useTaskInspector} from '@/components/task-layout'
+import {Button} from '@/components/ui/button'
+import {Collapsible, CollapsibleContent, CollapsibleTrigger, collapsibleChevron, collapsibleSideChevron} from '@/components/ui/collapsible'
+import {ChevronDown, ChevronRight, Folder} from '@/components/ui/icons'
+import {Input} from '@/components/ui/input'
+import {FolderToolbarActions} from '@/components/workspace/folder-toolbar-actions'
+import {FolderTree} from '@/components/workspace/folder-tree'
+import {WorkspaceRowActions} from '@/components/workspace/workspace-row-menu'
+import {WorkspaceStatus} from '@/components/workspace/workspace-status'
+import {menuFolderTree, menuWorkspace} from '@/fixtures/context-menus'
+import {createGeneralSettingsFixture} from '@/fixtures/general-settings'
+import {createProviderSettingsFixture} from '@/fixtures/provider-settings'
+import {voiceLevelsFixture, voiceModelFixture} from '@/fixtures/voice-settings'
 import {
   approvalCall,
   approvalMcpCall,
@@ -68,8 +88,15 @@ const SECTIONS = [
   ['run-end', '终态条'],
   ['context-ring', '上下文环'],
   ['input-commands', '输入命令'],
+  ['voice-toolbar', '语音输入工具栏'],
   ['session-item', '会话列表项'],
+  ['context-menus', '右键菜单与文件夹工具栏'],
   ['settings-list', '设置列表项'],
+  ['settings-general-preview', '通用设置'],
+  ['settings-voice-preview', '语音设置'],
+  ['settings-appearance', '外观设置'],
+  ['settings-providers', '模型提供商'],
+  ['collapsible', '折叠组件'],
   ['composed', '组合：真实会话'],
 ] as const
 
@@ -107,6 +134,103 @@ function Section({id, title, note, columns = 1, children}: {id: string; title: s
 
 function Surface({children, className}: {children: ReactNode; className?: string}) {
   return <div className={cn('rounded-lg border bg-card p-3', className)}>{children}</div>
+}
+
+function GeneralSettingsFixture() {
+  const [{agent, host}] = useState(createGeneralSettingsFixture)
+  const [reload, setReload] = useState(0)
+  const [voice, setVoice] = useState<'off' | 'local' | 'deepseek'>('off')
+  return <>
+    <Button type="button" size="xs" variant="outline" className="mb-2" onClick={() => setReload(count => count + 1)}>重新读取偏好</Button>
+    <Surface className="@container/form [scrollbar-gutter:stable] overflow-y-auto">
+      <GeneralSection key={reload} agent={agent} host={host} hasUnsavedChanges
+        voice={<VoiceSettingRow voice={voice} remote={{phase: 'ready'}}
+          localModel={<VoiceModelStatus model={voiceModelFixture('available')}/>} onChange={setVoice}/>}/>
+    </Surface>
+  </>
+}
+
+function VoiceSettingsFixture() {
+  const [voice, setVoice] = useState<'off' | 'local' | 'deepseek'>('deepseek')
+  return <Surface className="@container/form">
+    <VoiceSettingRow voice={voice} remote={{phase: 'unconfigured'}} onChange={setVoice} onConfigure={noop}
+      localModel={<VoiceModelStatus model={voiceModelFixture('not_installed')}/>}/>
+  </Surface>
+}
+
+const VOICE_TOOLBAR_STATES: {label: string; phase: VoicePhase; seconds?: number; error?: string}[] = [
+  {label: '仅远程可用', phase: 'confirm'},
+  {label: '等待准备资源', phase: 'setup'},
+  {label: '录音中', phase: 'recording', seconds: 26},
+  {label: '最后十秒', phase: 'recording', seconds: 110},
+  {label: '正在转写', phase: 'transcribing'},
+  {label: '转写失败', phase: 'error', error: '转写连接超时，可以重试。'},
+]
+
+function AppearanceFixture() {
+  const inspector = useTaskInspector(true, true)
+  return <>
+    <Surface className="@container/form"><AppearanceSection/></Surface>
+    <div className="relative mt-2 flex min-h-20 items-stretch justify-end rounded-lg border bg-background">
+      <TaskInspector state={inspector} label="工作台宽度预览">
+        <p className="px-4 py-3 text-meta text-muted-foreground">工作台宽度预览</p>
+      </TaskInspector>
+    </div>
+  </>
+}
+
+function FolderToolsFixture() {
+  const [toolbar, setToolbar] = useState<HTMLDivElement | null>(null)
+  return <Surface className="p-0">
+    <TaskInspectorTabs workspace value="folder" onChange={noop} onActions={setToolbar} onClose={noop}/>
+    {toolbar && createPortal(<FolderToolbarActions directory="资料" revealLabel="在 Finder 中显示" onAdd={noop} onReveal={noop}/>, toolbar)}
+    <div className="border-t p-2">
+      <FolderTree tree={menuFolderTree} selectedPath="资料" onSelect={noop} onToggle={noop} onRetry={noop} onReveal={noop} onAdd={noop}/>
+    </div>
+  </Surface>
+}
+
+const ignoreProviderDirty = () => {}
+
+function CollapsibleFixture() {
+  const [controlled, setControlled] = useState(false)
+  return <>
+    <Surface className="p-0">
+      <Collapsible>
+        <CollapsibleTrigger className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring">
+          <span className="min-w-0 flex-1">非受控，默认收起</span>
+          <ChevronRight className={cn('size-3.5 shrink-0 text-faint', collapsibleSideChevron)} aria-hidden/>
+        </CollapsibleTrigger>
+        <CollapsibleContent className="px-3 pb-3 text-meta text-muted-foreground">
+          <p>收起时内容保持挂载但隐藏且不可聚焦；展开时行高从零过渡到自适应。</p>
+        </CollapsibleContent>
+      </Collapsible>
+    </Surface>
+    <Surface className="p-0">
+      <Collapsible open={controlled} onOpenChange={setControlled}>
+        <div className="flex items-center gap-2 px-3 py-2">
+          <span className="min-w-0 flex-1 text-sm">受控，触发器为图标按钮</span>
+          <CollapsibleTrigger asChild>
+            <Button type="button" size="icon-sm" variant="ghost" aria-label={controlled ? '收起示例' : '展开示例'}>
+              <ChevronDown className={collapsibleChevron} aria-hidden/>
+            </Button>
+          </CollapsibleTrigger>
+        </div>
+        <CollapsibleContent className="px-3 pb-3 text-meta text-muted-foreground">
+          <p>展开箭头转 180 度，与内容共用动效 token；减少动态效果时直接切换。</p>
+        </CollapsibleContent>
+      </Collapsible>
+    </Surface>
+  </>
+}
+
+function ProviderSettingsFixture() {
+  const [{initial, api}] = useState(createProviderSettingsFixture)
+  const [source, setSource] = useState(initial)
+  const [editing, setEditing] = useState(false)
+  return <Surface className={cn('@container/form', editing && 'h-[min(40rem,75dvh)]')}>
+    <ModelConnections initial={source} api={api} onChange={setSource} onEditingChange={setEditing} onDirtyChange={ignoreProviderDirty}/>
+  </Surface>
 }
 
 function InteractiveApproval() {
@@ -438,6 +562,17 @@ export function ComponentCatalog() {
           </State>
         </Section>
 
+        <Section id="voice-toolbar" title="语音输入工具栏" columns={2}>
+          {VOICE_TOOLBAR_STATES.map(({label, phase, seconds, error}) => (
+            <State key={label} label={label} source="合成">
+              <Surface><div className="composer-actions flex items-center">
+                <VoiceToolbar phase={phase} seconds={seconds} levels={voiceLevelsFixture} error={error}
+                  localSetup={<VoiceModelStatus model={voiceModelFixture('not_installed')} compact/>}/>
+              </div></Surface>
+            </State>
+          ))}
+        </Section>
+
         <Section id="session-item" title="会话列表项" note="一行：标题在左，时间在右。运行中和压缩中显示旋转图标，等你回复、等你批准、失败和已中断显示状态图标，替换时间；状态词只在悬停提示和读屏名称里。完成时用户不在该会话，时间前加圆点，打开后消失。尚无运行、已查看的完成和已停止只显示时间。">
           <div className="w-[22.5rem] max-w-full space-y-3 rounded-lg bg-sidebar p-2">
             <State label="运行中" source="合成"><SessionItem session={sessionItemStates.running} isActive={false} onClick={noop} onDelete={noop}/></State>
@@ -454,6 +589,28 @@ export function ComponentCatalog() {
             <State label="选中" source="真实"><SessionItem session={sessionItemStates.completed} isActive onClick={noop} onDelete={noop}/></State>
             <State label="长标题" source="合成"><SessionItem session={sessionItemStates.longTitle} isActive={false} onClick={noop} onDelete={noop}/></State>
           </div>
+        </Section>
+
+        <Section id="context-menus" title="右键菜单与文件夹工具栏" columns={2}>
+          <State label="会话行的两个操作入口" source="合成">
+            <Surface><SessionItem session={{...sessionItemStates.completed, title: '讨论记录'}} isActive={false} onClick={noop} onRename={noop} onDelete={noop}/></Surface>
+          </State>
+          <State label="工作区与归档工作区" source="合成">
+            <Surface className="space-y-1">
+              {[menuWorkspace, {...menuWorkspace, id: 'archived-menu', name: '已完成的资料', status: 'archived' as const}].map(workspace =>
+                <WorkspaceRowActions key={workspace.id} workspace={workspace} canReveal onReveal={noop} onRename={noop} onArchive={noop} onDelete={noop}>
+                  <button type="button" className="workspace-directory-row w-full text-left">
+                    <Folder className="size-4 text-muted-foreground" aria-hidden/><span className="min-w-0 flex-1 truncate">{workspace.name}</span>
+                    <WorkspaceStatus workspace={workspace} compact/>
+                  </button>
+                </WorkspaceRowActions>)}
+            </Surface>
+          </State>
+          <State label="文件夹操作、条目菜单与目录重试" source="合成"><FolderToolsFixture/></State>
+          <State label="编辑与选中文字的系统菜单" source="合成"><Surface className="space-y-3">
+            <Input defaultValue="可编辑文字" aria-label="右键编辑检查"/>
+            <p className="select-text text-sm">选中这段文字可使用系统菜单复制。</p>
+          </Surface></State>
         </Section>
 
         <Section id="settings-list" title="设置列表项" columns={2} note="MCP 与 A2A 列表的启用开关、连接状态与配置摘要；工具策略分区是 W7.2 的占位。开发库当前没有配置服务器，这里全部是合成数据。">
@@ -478,6 +635,26 @@ export function ComponentCatalog() {
           <State label="工具策略：默认规则加一条 MCP 服务器与一条函数规则" source="合成">
             <Surface><ToolPolicySection form={toolPolicyFixture}/></Surface>
           </State>
+        </Section>
+
+        <Section id="settings-general-preview" title="通用设置预览">
+          <State label="延迟读取与独立保存 · 本机执行首次写入模拟失败" source="合成" className="w-full max-w-[680px]"><GeneralSettingsFixture/></State>
+        </Section>
+
+        <Section id="settings-voice-preview" title="语音设置预览">
+          <State label="远程未配置，可切换查看本地和关闭状态" source="合成" className="w-full max-w-[680px]"><VoiceSettingsFixture/></State>
+        </Section>
+
+        <Section id="settings-appearance" title="外观设置">
+          <State label="字号与工作台宽度" source="合成" className="w-full max-w-[680px]"><AppearanceFixture/></State>
+        </Section>
+
+        <Section id="settings-providers" title="模型提供商">
+          <State label="列表与详情 · 上游不可用的连接会模拟一次外部写入冲突" source="合成" className="w-full max-w-[680px]"><ProviderSettingsFixture/></State>
+        </Section>
+
+        <Section id="collapsible" title="折叠组件" note="设置页与公共折叠共用的展开收起原语：两种箭头、受控与非受控、收起后的可访问性状态。示例为合成数据。">
+          <State label="非受控与受控触发器" source="合成" className="w-full max-w-[680px]"><CollapsibleFixture/></State>
         </Section>
 
         <Section id="composed" title="组合：真实会话" columns={2} note="同一次走查任务在运行中与完成后的样子：状态条、时间线、计划条与上下文环一起出现。页面布局在阶段二接入数据时重组。">

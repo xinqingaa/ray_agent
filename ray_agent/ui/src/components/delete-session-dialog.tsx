@@ -1,68 +1,25 @@
-import {useState} from 'react'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog'
-import {Button} from '@/components/ui/button'
+import {DangerConfirmDialog} from '@/components/ui/danger-confirm-dialog'
 
 type DeleteSessionDialogProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
+  /** 失败时抛出带说明的 Error，弹框保持打开并显示说明 */
   onConfirm: () => Promise<void>
+  onRestoreFocus?: () => void
 }
 
 /**
- * 删除任务确认弹窗
- * 确认后才发起 API 删除请求
+ * 删除对话的确认。确认后才发起 API 删除请求；提交中不可关闭，失败的说明留在弹框内。
  */
-export function DeleteSessionDialog({open, onOpenChange, onConfirm}: DeleteSessionDialogProps) {
-  const [deleting, setDeleting] = useState(false)
-
-  const handleConfirm = async () => {
-    setDeleting(true)
-    try {
-      await onConfirm()
-    } finally {
-      setDeleting(false)
-    }
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[440px]">
-        <DialogHeader>
-          <DialogTitle className="text-lg font-semibold">
-            永久删除这段对话？
-          </DialogTitle>
-          <DialogDescription className="text-sm text-muted-foreground leading-relaxed">
-            对话历史与附件将永久删除，无法恢复。工作区文件夹里的文件不受影响。
-          </DialogDescription>
-        </DialogHeader>
-        <DialogFooter>
-          <Button
-            variant="outline"
-            className="cursor-pointer"
-            onClick={() => onOpenChange(false)}
-            disabled={deleting}
-          >
-            取消
-          </Button>
-          <Button
-            variant="destructive"
-            className="cursor-pointer"
-            onClick={handleConfirm}
-            disabled={deleting}
-          >
-            {deleting ? '正在删除' : '永久删除对话'}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  )
+export function DeleteSessionDialog({open, onOpenChange, onConfirm, onRestoreFocus}: DeleteSessionDialogProps) {
+  return <DangerConfirmDialog
+    open={open}
+    onOpenChange={onOpenChange}
+    title="永久删除这段对话？"
+    description="对话历史与附件将永久删除，无法恢复。工作区文件夹里的文件不受影响。"
+    confirmLabel="永久删除对话"
+    busyLabel="正在删除"
+    onConfirm={onConfirm}
+    onRestoreFocus={onRestoreFocus}
+  />
 }
-
-

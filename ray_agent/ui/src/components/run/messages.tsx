@@ -3,7 +3,7 @@ import {MarkdownContent} from '@/components/markdown-content'
 import {SkillMark} from '@/components/skill-mark'
 import {cn} from '@/lib/utils'
 import type {FileView, RunSummary} from '@/lib/session-view'
-import {FileRow} from '@/components/preview/file-row'
+import {FileRow, fileMenuEntries} from '@/components/preview/file-row'
 import {PreviewAction} from '@/components/preview/action'
 
 type UserMessageProps = {
@@ -40,6 +40,7 @@ export function UserMessage({text, skillName, skillVersion, runId, workspaceId, 
       </div>}
       {attachments.length > 0 && <div className="flex max-w-full flex-wrap justify-end gap-1.5">
         {attachments.map(file => <FileRow key={file.id} file={file} compact showThumbnail
+          menu={fileMenuEntries(file, {onPreview, onDownload})}
           onOpen={onPreview ? () => onPreview(file) : undefined}
           actions={onDownload && <PreviewAction label={`下载 ${file.filename}`} icon={Download} onClick={() => onDownload(file)}/>}/>)}
       </div>}

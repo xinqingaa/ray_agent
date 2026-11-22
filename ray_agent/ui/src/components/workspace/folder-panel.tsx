@@ -1,10 +1,14 @@
 import {useEffect, useImperativeHandle, useRef, useState, type DragEvent, type ReactNode, type Ref} from 'react'
 import {createPortal} from 'react-dom'
-import {Download, Finder, FolderSearch, FolderX, MoreHorizontal, Plus, RefreshCw, ScrollText, X} from '@/components/ui/icons'
+import {Copy, Download, Finder, FolderPlus, FolderSearch, FolderX, MoreHorizontal, Plus, ScrollText, X} from '@/components/ui/icons'
 import {toast} from 'sonner'
 import {Button} from '@/components/ui/button'
 import {IconAction} from '@/components/ui/icon-action'
-import {DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger} from '@/components/ui/dropdown-menu'
+import {ContextMenuSurface} from '@/components/ui/context-menu'
+import {MenuEntryItems} from '@/components/ui/menu-entries'
+import {DropdownMenu, DropdownMenuContent, DropdownMenuTrigger} from '@/components/ui/dropdown-menu'
+import {menuItem, type MenuEntry} from '@/lib/context-menu-policy'
+import {copyText} from '@/lib/clipboard'
 import {ScrollArea} from '@/components/ui/scroll-area'
 import {SegmentedControl} from '@/components/ui/segmented-control'
 import {FilePreview} from '@/components/preview/file-preview'
@@ -24,8 +28,12 @@ import {describeWorkspace} from '@/lib/workspace-state'
 import {useWorkspaceLive} from '@/providers/workspace-live-provider'
 import {Link} from '@/lib/navigation'
 import {workspaceKnowledgeHref} from '@/lib/workspace-route'
-import {uploadTarget} from '@/lib/workspace-tree'
+import {joinPath, parentPath, uploadTarget} from '@/lib/workspace-tree'
+import {checkNewName, checkRenameName, createEdit, renameEdit, type EntryEdit} from '@/lib/workspace-entries'
+import {useEntryOperations} from '@/hooks/use-entry-operations'
 import {FolderTree} from './folder-tree'
+import {FolderToolbarActions} from './folder-toolbar-actions'
+import {DeleteEntryDialog} from './delete-entry-dialog'
 import {RecentChanges} from './recent-changes'
 
 function remainingIndexStatus(summary: IndexSummary) {
@@ -43,6 +51,13 @@ export type FolderPanelTab = 'folder' | 'delivered' | 'recent'
 function folderName(path: string) {
   const parts = path.split(/[\\/]/).filter(Boolean)
   return parts[parts.length - 1] ?? path
+}
+
+/** 根目录下某个相对路径的绝对路径，沿用根目录的分隔符（Windows 反斜杠）。 */
+function absolutePath(root: string, relative: string) {
+  if (!relative) return root
+  const separator = root.includes('\\') && !root.includes('/') ? '\\' : '/'
+  return `${root.replace(/[\\/]+$/, '')}${separator}${relative.split('/').join(separator)}`
 }
 
 function describeUpload(names: Array<{asked: string; saved: string}>, failed: Array<{name: string; message: string}>) {
@@ -101,14 +116,29 @@ export function FolderPanel({workspace, deliveries, onOpenDelivery, deliveryStat
   const [indexStates, setIndexStates] = useState<ReadonlyMap<string, string>>(new Map())
   const [addedPaths, setAddedPaths] = useState<ReadonlySet<string>>(new Set())
   const picker = useRef<HTMLInputElement>(null)
-  const {tree, toggle, reload, loadDirectory} = useFolderTree(folder?.root_id ?? null, condition.folderAvailable, live.change)
+  const pickerDestination = useRef<{rootId: string; directory: string} | null>(null)
+  const {tree, toggle, loadDirectory} = useFolderTree(folder?.root_id ?? null, condition.folderAvailable, live.change)
   const target = uploadTarget(selected)
+  const ops = useEntryOperations(folder?.root_id ?? null, loadDirectory)
+  // 就地编辑：编辑状态同时镜像到 ref，失焦与回车的提交读取最新草稿，并防止同一次编辑重复提交
+  const [edit, setEdit] = useState<EntryEdit | null>(null)
+  const [editBusy, setEditBusy] = useState(false)
+  const editRef = useRef<EntryEdit | null>(null)
+  const busyRef = useRef(false)
+  const [removing, setRemoving] = useState<{path: string; entry: RootEntry} | null>(null)
   const showDelivered = deliveries != null
   const showRecent = condition.writable && runs.length > 0
   const standaloneTab = tab === 'delivered' && showDelivered ? 'delivered' : tab === 'recent' && showRecent ? 'recent' : 'folder'
   const activeTab = selectedTab ?? standaloneTab
 
   const visiblePreview = openedOn === activeTab ? opened : null
+
+  // 写入条目操作只在文件夹标签、没有预览时可用；离开这个状态或换了文件夹时结束编辑
+  const editable = condition.writable && activeTab === 'folder' && !visiblePreview
+  const setEditing = (next: EntryEdit | null) => {editRef.current = next; setEdit(next)}
+  useEffect(() => {
+    if (!editable) {setEditing(null); setRemoving(null)}
+  }, [editable, folder?.root_id])
 
   // 最近修改过文件夹的运行：随变化批次与租约的释放重读（运行结束没有单独的推送，租约释放是它的信号）
   const leaseId = live.lease?.id ?? null
@@ -148,6 +178,75 @@ export function FolderPanel({workspace, deliveries, onOpenDelivery, deliveryStat
     setStale(false)
     setOpened(source)
     if (source) setOpenedOn(activeTab)
+  }
+
+  // 条目被删除或改名后：预览与选中若落在该路径（含其下的文件）上则清理；改名时选中项跟随到新路径
+  const forgetPath = (path: string, renamedTo?: string) => {
+    const within = (candidate: string) => candidate === path || candidate.startsWith(`${path}/`)
+    setSelected(current => {
+      if (!current || !within(current.path)) return current
+      return renamedTo && current.path === path ? {path: renamedTo, kind: current.kind} : null
+    })
+    setOpened(current => current?.kind === 'root' && within(current.path) ? null : current)
+  }
+
+  const startCreate = (directory: string) => {
+    if (directory) toggle(directory, true)
+    setSelected(directory ? {path: directory, kind: 'directory'} : null)
+    setEditing(createEdit(directory))
+  }
+  const startRename = (path: string, entry: RootEntry) => {
+    setSelected({path, kind: entry.kind})
+    setEditing(renameEdit(path, entry))
+  }
+  const cancelEdit = () => setEditing(null)
+
+  const commitEdit = async (fromBlur: boolean) => {
+    const current = editRef.current
+    if (!current || busyRef.current) return
+    // 失焦且没有内容：视为取消，不报错
+    if (fromBlur && !current.draft.trim()) {cancelEdit(); return}
+    const fail = (message: string) => setEditing({...current, error: message})
+    if (current.kind === 'create') {
+      const check = checkNewName(current.draft)
+      if (!check.ok) {fail(check.message); return}
+      busyRef.current = true
+      setEditBusy(true)
+      try {
+        await ops.createFolder(current.directory, check.name)
+        setEditing(null)
+        setSelected({path: joinPath(current.directory, check.name), kind: 'directory'})
+      } catch (error) {
+        fail(error instanceof Error ? error.message : '新建失败，请重试')
+      } finally {
+        busyRef.current = false
+        setEditBusy(false)
+      }
+      return
+    }
+    const check = checkRenameName(current.entry.name, current.draft)
+    if (!check.ok) {fail(check.message); return}
+    // 名称没有变化：直接结束编辑
+    if (!check.changed) {cancelEdit(); return}
+    busyRef.current = true
+    setEditBusy(true)
+    const from = current.path
+    const to = joinPath(parentPath(from), check.name)
+    try {
+      await ops.rename(from, current.entry, check.name)
+      setEditing(null)
+      forgetPath(from, to)
+    } catch (error) {
+      fail(error instanceof Error ? error.message : '改名失败，请重试')
+    } finally {
+      busyRef.current = false
+      setEditBusy(false)
+    }
+  }
+
+  const removeEntry = async (victim: {path: string; entry: RootEntry}) => {
+    await ops.remove(victim.path, victim.entry)
+    forgetPath(victim.path)
   }
 
   const upload = async (files: File[], directory = target) => {
@@ -200,34 +299,35 @@ export function FolderPanel({workspace, deliveries, onOpenDelivery, deliveryStat
     open({kind: 'root', rootId: folder.root_id, path, filename: entry.name, size: entry.size})
   }
 
+  const chooseFiles = (directory = target) => {
+    if (!folder || !condition.writable || uploading || !picker.current) return
+    pickerDestination.current = {rootId: folder.root_id, directory}
+    picker.current.click()
+  }
+
   // 在系统文件管理器中显示：预览中的文件、否则树里选中的条目、否则文件夹本身；只有桌面宿主能做到，浏览器开发模式不提供
+  const copyPath = (path: string) => folder ? copyText(absolutePath(folder.path, path)) : undefined
+
   const revealPath = visiblePreview ? (visiblePreview.kind === 'root' ? visiblePreview.path : null) : activeTab === 'folder' ? selected?.path ?? '' : null
-  const revealable = isDesktop() && !!folder && condition.folderAvailable && revealPath != null
-  const reveal = async () => {
-    if (!folder || revealPath == null) return
-    try {await revealInFileManager(folder.root_id, revealPath)}
+  const canReveal = isDesktop() && !!folder && condition.folderAvailable
+  const reveal = async (path: string) => {
+    if (!canReveal || !folder) return
+    try {await revealInFileManager(folder.root_id, path)}
     catch (error) {toast.error(error instanceof Error ? error.message : '无法显示位置')}
   }
 
-  const revealAction = revealable && <IconAction label={`在 ${fileManagerName()} 中显示${revealPath ? '' : '文件夹'}`}
-    onClick={() => void reveal()} className="text-muted-foreground"><Finder className="size-4" aria-hidden/></IconAction>
-  const folderMenu = condition.folderAvailable && activeTab === 'folder' && !visiblePreview && <DropdownMenu>
-    <DropdownMenuTrigger asChild><IconAction label="文件夹操作"><MoreHorizontal/></IconAction></DropdownMenuTrigger>
-    <DropdownMenuContent align="end">
-      {condition.writable && <DropdownMenuItem disabled={uploading} onSelect={() => picker.current?.click()}>
-        <Plus/>{uploading ? '正在添加' : '添加文件'}{target && <span className="ml-auto max-w-24 truncate text-xs text-faint" title={target}>{target}</span>}
-      </DropdownMenuItem>}
-      <DropdownMenuItem onSelect={reload}><RefreshCw/>刷新目录</DropdownMenuItem>
-    </DropdownMenuContent>
-  </DropdownMenu>
+  const folderActions = <FolderToolbarActions directory={target || folder?.path || '文件夹根目录'} adding={uploading}
+    onAdd={editable ? () => chooseFiles() : undefined}
+    onNewFolder={editable && !uploading ? () => startCreate(target) : undefined}
+    revealLabel={`在 ${fileManagerName()} 中显示${revealPath ? '' : '文件夹'}`}
+    onReveal={canReveal && revealPath !== null ? () => void reveal(revealPath) : undefined}/>
 
   const header = <header className={cn('flex shrink-0 items-center gap-1 px-2.5', embedded ? 'min-h-9' : 'min-h-12 border-b')}>
     <div className="min-w-0 flex-1">
       <h2 className={cn('truncate font-medium', embedded ? 'text-xs text-muted-foreground' : 'text-sm')} dir="auto" title={folder?.path}>{folder ? folderName(folder.path) : '文件夹'}</h2>
     </div>
     {onOpenWorkingStyle && <IconAction label="工作方式" onClick={onOpenWorkingStyle} className="text-muted-foreground"><ScrollText className="size-4" aria-hidden/></IconAction>}
-    {revealAction}
-    {condition.folderAvailable && activeTab === 'folder' && !visiblePreview && <IconAction label="刷新" onClick={reload} className="text-muted-foreground"><RefreshCw className="size-4" aria-hidden/></IconAction>}
+    {folderActions}
     {onClose && <IconAction label="收起文件夹面板" onClick={onClose} className="text-muted-foreground"><X className="size-4" aria-hidden/></IconAction>}
   </header>
 
@@ -253,14 +353,23 @@ export function FolderPanel({workspace, deliveries, onOpenDelivery, deliveryStat
       {deliveries?.map(file => {
         const rootId = folder?.root_id
         const inFolder = rootId && file.rootId === rootId && file.relativePath ? file.relativePath : null
-        return <FileRow key={file.id} file={file} versionLabel="交付版本"
+        // 右键菜单与「更多」菜单共用这一份定义
+        const entries: MenuEntry[] = [
+          ...(rootId && inFolder ? [menuItem('查看文件夹中的当前版本', FolderSearch,
+            () => open({kind: 'root', rootId, path: inFolder, filename: file.filename, size: null}))] : []),
+          ...(canReveal && inFolder ? [menuItem(`在 ${fileManagerName()} 中显示`, Finder, () => reveal(inFolder))] : []),
+          menuItem('下载交付版本', Download, async () => {
+            try {await downloadPreviewSource({kind: 'attachment', id: file.id, filename: file.filename})}
+            catch (error) {toast.error(error instanceof Error ? error.message : '下载失败')}
+          }),
+          menuItem('复制文件名', Copy, () => copyText(file.filename)),
+        ]
+        return <FileRow key={file.id} file={file} versionLabel="交付版本" menu={entries}
           onOpen={() => onOpenDelivery ? onOpenDelivery(file) : open({kind: 'attachment', id: file.id, filename: file.filename, size: file.size})}
           actions={<DropdownMenu>
             <DropdownMenuTrigger asChild><IconAction label={`${file.filename} 的操作`}><MoreHorizontal/></IconAction></DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              {rootId && inFolder && <DropdownMenuItem title={inFolder}
-                onSelect={() => open({kind: 'root', rootId, path: inFolder, filename: file.filename, size: null})}><FolderSearch/>查看文件夹中的当前版本</DropdownMenuItem>}
-              <DropdownMenuItem onSelect={() => void downloadPreviewSource({kind: 'attachment', id: file.id, filename: file.filename}).catch(error => toast.error(error instanceof Error ? error.message : '下载失败'))}><Download/>下载交付版本</DropdownMenuItem>
+              <MenuEntryItems entries={entries}/>
             </DropdownMenuContent>
           </DropdownMenu>}/>
       })}
@@ -280,15 +389,32 @@ export function FolderPanel({workspace, deliveries, onOpenDelivery, deliveryStat
       <p className="text-meta text-muted-foreground">{folder ? <span className="break-all">{folder.path}</span> : '这个工作区没有绑定文件夹。'}</p>
     </div>
   } else {
+    // 文件树以外的空白区域：添加、新建、显示与复制根目录（树的行先接管自己的右键）
+    const blankEntries: MenuEntry[] = [
+      ...(condition.writable && !uploading ? [menuItem('添加文件到此处', Plus, () => chooseFiles(''))] : []),
+      ...(editable && !uploading ? [menuItem('新建文件夹', FolderPlus, () => startCreate(''))] : []),
+      ...(canReveal ? [menuItem(`在 ${fileManagerName()} 中显示`, Finder, () => void reveal(''))] : []),
+      ...(folder ? [menuItem('复制路径', Copy, () => copyPath(''))] : []),
+    ]
     body = <>
-      <ScrollArea className={cn('min-h-0 flex-1', embedded && 'px-2 pt-0.5')}>
+      <ContextMenuSurface items={blankEntries} includeEditing><div className="contents"><ScrollArea className={cn('min-h-0 flex-1', embedded && 'px-2 pt-0.5')}>
         <FolderTree tree={tree} selectedPath={selected?.path ?? null} indexStates={indexStates} readPaths={readPaths} addedPaths={addedPaths}
           onToggle={toggle} onRetry={path => void loadDirectory(path)}
+          onReveal={canReveal ? path => void reveal(path) : undefined}
+          onAdd={condition.writable && !uploading ? chooseFiles : undefined}
           onSelect={(path, entry) => {
             setSelected({path, kind: entry.kind})
             if (entry.kind === 'file') openRoot(path, entry)
-          }}/>
-      </ScrollArea>
+          }}
+          edit={edit} editBusy={editBusy}
+          onEditChange={draft => {const current = editRef.current; if (current) setEditing({...current, draft, error: undefined})}}
+          onEditCommit={fromBlur => void commitEdit(fromBlur)}
+          onEditCancel={cancelEdit}
+          onStartRename={editable && !uploading ? startRename : undefined}
+          onStartCreate={editable && !uploading ? startCreate : undefined}
+          onRequestDelete={editable && !uploading ? (path, entry) => setRemoving({path, entry}) : undefined}
+          onCopyPath={folder ? copyPath : undefined}/>
+      </ScrollArea></div></ContextMenuSurface>
       {(indexSummary || indexError) && <div className="flex min-h-9 shrink-0 flex-wrap items-center gap-x-2 gap-y-1 border-t border-border/65 px-3.5 py-2 text-xs text-faint" title="文档全文索引状态">
         {indexSummary && <>
           <span className="tabular-nums">可检索 {indexSummary.searchable}/{indexSummary.total}</span>
@@ -299,14 +425,6 @@ export function FolderPanel({workspace, deliveries, onOpenDelivery, deliveryStat
         {indexError && <span role="status" className="text-state-failed">{indexError}
           <Button size="xs" variant="ghost" onClick={() => setIndexAttempt(value => value + 1)}>重试</Button></span>}
       </div>}
-      {!embedded && <footer className="flex shrink-0 items-center gap-2 border-t px-3 py-2">
-        {condition.writable ? <>
-          <p className="min-w-0 flex-1 truncate text-xs text-muted-foreground" title={target || undefined}>添加到 {target ? <span className="font-mono">{target}</span> : '文件夹根目录'}</p>
-          <Button type="button" variant="outline" size="sm" disabled={uploading} onClick={() => picker.current?.click()}>
-            <Plus aria-hidden/>{uploading ? '正在添加' : '添加文件'}
-          </Button>
-        </> : <p className="text-xs text-muted-foreground">{condition.archived ? '工作区已归档，不能再添加文件。' : '工作区不可写，不能添加文件。'}</p>}
-      </footer>}
     </>
   }
 
@@ -316,11 +434,13 @@ export function FolderPanel({workspace, deliveries, onOpenDelivery, deliveryStat
     onDrop={onDrop}
     className={cn('relative flex min-h-0 flex-col bg-background', dragging && 'ring-2 ring-inset ring-signal', className)}>
     {!embedded && header}
-    {embedded && visible && toolbarTarget && createPortal(<>{folderMenu}{revealAction}</>, toolbarTarget)}
+    {embedded && visible && toolbarTarget && createPortal(folderActions, toolbarTarget)}
     <input ref={picker} type="file" multiple hidden onChange={event => {
       const files = Array.from(event.target.files ?? [])
+      const destination = pickerDestination.current
+      pickerDestination.current = null
       event.target.value = ''
-      void upload(files)
+      if (destination && destination.rootId === folder?.root_id) void upload(files, destination.directory)
     }}/>
     {!selectedTab && (showDelivered || showRecent) && !visiblePreview && <div className="shrink-0 border-b px-3 py-2">
       <SegmentedControl<FolderPanelTab> value={standaloneTab} onValueChange={setTab} label="文件夹面板视图" className="w-full"
@@ -331,5 +451,6 @@ export function FolderPanel({workspace, deliveries, onOpenDelivery, deliveryStat
         ]}/>
     </div>}
     {body}
+    <DeleteEntryDialog target={removing} onClose={() => setRemoving(null)} onConfirm={removeEntry}/>
   </aside>
 }

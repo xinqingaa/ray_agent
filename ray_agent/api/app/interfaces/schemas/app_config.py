@@ -49,6 +49,9 @@ class ModelCatalogItem(BaseModel):
     vendor: str
     vendor_label: str
     vision: bool = False
+    tools: bool = True
+    source: Literal["catalog", "custom"] = "catalog"  # 内置目录或目录外声明
+    unconfirmed: List[str] = Field(default_factory=list)  # 未确认的能力，选择器轻标记
     connection_issue: Optional[str] = None
     context_window: int
     max_output: int

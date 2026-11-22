@@ -1,4 +1,4 @@
-import {useEffect, useRef, useState, type PointerEvent, type RefObject} from 'react'
+import {useEffect, useRef, useState, useSyncExternalStore, type PointerEvent} from 'react'
 import {
   WORKBENCH_DEFAULT_PX,
   WORKBENCH_WIDTH_KEY,
@@ -7,47 +7,84 @@ import {
   workbenchBounds,
 } from '@/lib/workbench-width'
 
-export function useWorkbenchWidth(preference: RefObject<number | null>) {
-  const [viewport, setViewport] = useState(() => window.innerWidth)
-  const [preferredWidth, setPreferredWidth] = useState(() => {
-    if (preference.current != null) return preference.current
-    try {
-      return readWorkbenchWidth(window.localStorage.getItem(WORKBENCH_WIDTH_KEY), window.innerWidth)
-    } catch {
-      return WORKBENCH_DEFAULT_PX
-    }
-  })
-  useEffect(() => {
-    const onResize = () => setViewport(window.innerWidth)
-    window.addEventListener('resize', onResize)
-    return () => window.removeEventListener('resize', onResize)
-  }, [])
+const WIDTH_CHANGED = 'rayagent:workbench-width-changed'
+let memoryWidth: string | null = null
+
+function subscribeWidth(update: () => void) {
+  const onStorage = (event: StorageEvent) => {
+    if (event.key !== null && event.key !== WORKBENCH_WIDTH_KEY) return
+    memoryWidth = null
+    update()
+  }
+  window.addEventListener('storage', onStorage)
+  window.addEventListener('resize', update)
+  window.addEventListener(WIDTH_CHANGED, update)
+  return () => {
+    window.removeEventListener('storage', onStorage)
+    window.removeEventListener('resize', update)
+    window.removeEventListener(WIDTH_CHANGED, update)
+  }
+}
+
+function widthSnapshot() {
+  let stored = memoryWidth
+  if (stored === null) {
+    try {stored = window.localStorage.getItem(WORKBENCH_WIDTH_KEY)} catch {stored = null}
+  }
+  return readWorkbenchWidth(stored, window.innerWidth)
+}
+
+export function writeWorkbenchWidth(px: number) {
+  const stored = String(Math.round(clampWorkbenchWidth(px, window.innerWidth)))
+  try {
+    window.localStorage.setItem(WORKBENCH_WIDTH_KEY, stored)
+    memoryWidth = null
+  } catch {memoryWidth = stored}
+  window.dispatchEvent(new Event(WIDTH_CHANGED))
+}
+
+export function useWorkbenchWidthPreference() {
+  return useSyncExternalStore(subscribeWidth, widthSnapshot, () => WORKBENCH_DEFAULT_PX)
+}
+
+export function useWorkbenchWidth() {
+  const preference = useWorkbenchWidthPreference()
+  const viewport = useSyncExternalStore(subscribeWidth, () => window.innerWidth, () => 0)
+  const [dragWidth, setDragWidth] = useState<number | null>(null)
   const setWidth = (px: number, save = true) => {
-    const next = clampWorkbenchWidth(px, window.innerWidth)
-    preference.current = next
-    setPreferredWidth(next)
     if (save) {
-      try {window.localStorage.setItem(WORKBENCH_WIDTH_KEY, String(Math.round(next)))} catch {/* Keep the in-memory width. */}
+      writeWorkbenchWidth(px)
+      setDragWidth(null)
+    } else {
+      setDragWidth(px)
     }
   }
   return {
-    width: clampWorkbenchWidth(preferredWidth, viewport),
+    width: dragWidth === null ? preference : clampWorkbenchWidth(dragWidth, viewport),
+    viewport,
     ...workbenchBounds(viewport),
     setWidth,
     reset: () => setWidth(WORKBENCH_DEFAULT_PX),
   }
 }
 
-export function WorkbenchResizeHandle({width, min, max, onWidth, onReset, label = '调整工作台宽度'}: {
+export function WorkbenchResizeHandle({width, min, max, onWidth, onReset, onResizingChange, label = '调整工作台宽度'}: {
   label?: string
   width: number
   min: number
   max: number
   onWidth: (px: number, save?: boolean) => void
   onReset: () => void
+  /** 拖动开始与结束时通知面板容器，拖动期间关闭宽度过渡 */
+  onResizingChange?: (resizing: boolean) => void
 }) {
   const drag = useRef<{pointerId: number; origin: number; start: number; target?: number} | null>(null)
   const [resizing, setResizing] = useState(false)
+  const setDragging = (value: boolean) => {
+    setResizing(value)
+    onResizingChange?.(value)
+  }
+  useEffect(() => () => onResizingChange?.(false), [onResizingChange])
 
   const resize = (event: PointerEvent<HTMLDivElement>) => {
     const current = drag.current
@@ -62,7 +99,7 @@ export function WorkbenchResizeHandle({width, min, max, onWidth, onReset, label 
     if (current?.pointerId !== event.pointerId) return
     if (event.type === 'pointerup') resize(event)
     drag.current = null
-    setResizing(false)
+    setDragging(false)
     if (current.target != null) onWidth(current.target)
   }
 
@@ -89,7 +126,7 @@ export function WorkbenchResizeHandle({width, min, max, onWidth, onReset, label 
         event.currentTarget.setPointerCapture(event.pointerId)
         event.currentTarget.focus({preventScroll: true})
         drag.current = {pointerId: event.pointerId, origin: event.clientX, start: width}
-        setResizing(true)
+        setDragging(true)
       }}
       onPointerMove={resize}
       onPointerUp={finish}

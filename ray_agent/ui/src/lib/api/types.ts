@@ -281,6 +281,12 @@ export type ModelCatalog = {
     vendor_label: string;
     connection_issue?: string | null;
     vision?: boolean;
+    /** 工具调用能力；目录外模型未确认时为开启，见 unconfirmed */
+    tools?: boolean;
+    /** 能力来源：内置目录或用户配置的目录外模型 */
+    source?: "catalog" | "custom";
+    /** 目录外模型中尚未确认的能力，界面以「能力未确认」提示，不阻塞选择 */
+    unconfirmed?: string[];
     context_window: number;
     max_output: number;
     choices: string[];
@@ -491,6 +497,8 @@ export type ChangePreview = Schemas["ChangePreviewResponse"];
 export type UndoItemRequest = Schemas["UndoItemRequest"];
 export type ForceCurrent = Schemas["ForceCurrentRequest"];
 export type UndoItemResult = Schemas["UndoItemResult"];
+export type EntryVersion = Schemas["EntryVersionRequest"];
+export type RemovedEntry = Schemas["RemovedEntryResponse"];
 
 // ==================== 工作方式与记忆（P5） ====================
 

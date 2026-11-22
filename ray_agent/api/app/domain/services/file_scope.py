@@ -62,6 +62,19 @@ class FileWriteGate(Protocol):
     async def delete(self, path: RootedPath, expected: FileVersion, owner: WriteOwner) -> None:
         ...
 
+    async def create_dir(self, path: RootedPath, owner: WriteOwner) -> FileEntry:
+        """新建文件夹，同名已存在即冲突；父目录必须已存在。"""
+        ...
+
+    async def remove_dir(self, path: RootedPath, owner: WriteOwner) -> None:
+        """删除空文件夹。"""
+        ...
+
+    async def rename(self, path: RootedPath, target: RootedPath, expected: FileVersion,
+                     owner: WriteOwner) -> FileEntry:
+        """普通文件改名：记为删除原名与创建新名两条变更，同属一组。"""
+        ...
+
 
 def _forbidden(message: str) -> WorkspaceFileError:
     return WorkspaceFileError(ErrorCode.FORBIDDEN, message)

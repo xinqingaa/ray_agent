@@ -12,10 +12,9 @@ export function errorMessage(err: unknown, fallback = '请求失败'): string {
 
 // ---------- 分区外框 ----------
 
-/** 分区标题：无分隔线，说明写在标题下方；右侧留出设置页关闭按钮的位置。 */
 export function SectionHeader({id, title, description, action}: {id: string; title: string; description?: ReactNode; action?: ReactNode}) {
   return (
-    <header className="flex flex-wrap items-start justify-between gap-3 pr-12 pb-4">
+    <header className="flex flex-wrap items-start justify-between gap-3 pb-4">
       <div className="min-w-0 max-w-prose">
         <h2 id={id} className="text-lg font-semibold tracking-tight">{title}</h2>
         {description ? <p className="mt-1.5 text-sm leading-6 text-muted-foreground">{description}</p> : null}
@@ -87,7 +86,9 @@ export type ConfigForm<T, F extends string> = {
   setValue: (field: F, value: string) => void
   reset: (fields?: F[]) => void
   save: (fields?: F[]) => Promise<void>
+  /** 已有数据时静默刷新：表单保持挂载，此时为真表示读取中 */
   reload: () => void
+  refreshing: boolean
 }
 
 /** 通用与模型提供商分区共用：加载、草稿、即时校验、保存与结果 */
@@ -106,12 +107,22 @@ export function useConfigForm<T, F extends string>(options: ConfigFormOptions<T,
   const [savedAt, setSavedAt] = useState<number | null>(null)
   const [saveError, setSaveError] = useState<string | null>(null)
   const [attempt, setAttempt] = useState(0)
+  const [refreshing, setRefreshing] = useState(false)
+  const loaded = useRef(false)
+  const draftDirty = useRef(false)
 
   useEffect(() => {
     let cancelled = false
+    const silent = loaded.current
+    setRefreshing(silent)
+    if (!silent) setLoad({phase: 'loading'})
     optionsRef.current.load()
       .then((data) => {
         if (cancelled) return
+        setRefreshing(false)
+        loaded.current = true
+        // 静默刷新期间若用户已开始修改，保留草稿，不用服务端的值覆盖
+        if (silent && draftDirty.current) return
         const v = optionsRef.current.toValues(data)
         setConfig(data)
         setBase(v)
@@ -119,7 +130,10 @@ export function useConfigForm<T, F extends string>(options: ConfigFormOptions<T,
         setLoad({phase: 'ready'})
       })
       .catch((err) => {
-        if (!cancelled) setLoad({phase: 'error', message: errorMessage(err)})
+        if (cancelled) return
+        setRefreshing(false)
+        if (silent) toast.error(`刷新失败：${errorMessage(err)}`)
+        else setLoad({phase: 'error', message: errorMessage(err)})
       })
     return () => {
       cancelled = true
@@ -135,6 +149,9 @@ export function useConfigForm<T, F extends string>(options: ConfigFormOptions<T,
   }
 
   const dirty = values != null && base != null && (Object.keys(values) as F[]).some((k) => values[k] !== base[k])
+  useEffect(() => {
+    draftDirty.current = dirty
+  })
   const invalid = Object.keys(errors).length > 0
   const fieldId = useCallback((field: F) => `${options.name}-${field}`, [options.name])
 
@@ -156,7 +173,9 @@ export function useConfigForm<T, F extends string>(options: ConfigFormOptions<T,
     const first = Object.keys(currentErrors).find(key => !fields || fields.includes(key as F))
     if (first) {
       setSubmitted(true)
-      document.getElementById(`${name}-${first}`)?.focus()
+      const node = document.getElementById(`${name}-${first}`)
+      node?.focus({preventScroll: true})
+      node?.scrollIntoView({block: 'nearest'})
       return
     }
     setSaving(true)
@@ -180,11 +199,10 @@ export function useConfigForm<T, F extends string>(options: ConfigFormOptions<T,
   }, [values, config, saving, base])
 
   const reload = useCallback(() => {
-    setLoad({phase: 'loading'})
     setAttempt((n) => n + 1)
   }, [])
 
-  return {load, config, values, visibleErrors, invalid, dirty, saving, savedAt, saveError, fieldId, setValue, reset, save, reload}
+  return {load, config, values, visibleErrors, invalid, dirty, saving, savedAt, saveError, fieldId, setValue, reset, save, reload, refreshing}
 }
 
 // ---------- 浮出保存条 ----------
@@ -259,7 +277,7 @@ export function SettingsSaveBar({mode, show, shakeKey, saving, invalid, saveErro
 
 /**
  * 有未保存修改时拦截离开：刷新或关闭标签页走浏览器原生提示；
- * 站内跳转拦截带 href 的链接和标了 data-navigate 的按钮（App Router 没有导航拦截接口）。
+ * 站内点击拦截带 href 的链接和标了 data-navigate 的按钮。
  */
 export function useUnsavedGuard(dirty: boolean, onBlocked?: () => void) {
   useEffect(() => {

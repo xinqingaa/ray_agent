@@ -8,6 +8,7 @@ import {useWorkspaces} from '@/providers/workspaces-provider'
 import {workspaceHref} from '@/lib/workspace-route'
 import {CreateWorkspaceDialog} from './create-workspace-dialog'
 import {WorkspaceStatus} from './workspace-status'
+import {WorkspaceRowMenu} from './workspace-row-menu'
 import {DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger} from '@/components/ui/dropdown-menu'
 
 export function WorkspaceAddAction() {
@@ -67,14 +68,14 @@ export function WorkspaceList() {
       </div>}
       {workspaces.length > 0 && <ul className="space-y-1">
         {workspaces.map(workspace => <li key={workspace.id}>
-          <Link href={workspaceHref(workspace.id)} className="workspace-directory-row gap-3 px-3 py-2">
+          <WorkspaceRowMenu workspace={workspace}><Link href={workspaceHref(workspace.id)} className="workspace-directory-row gap-3 px-3 py-2">
             <Folder className="size-[19px] shrink-0 text-muted-foreground"/>
             <span className="min-w-0 flex-1">
               <span className="block truncate text-sm font-medium" dir="auto">{workspace.name}</span>
               {workspace.folder && <span className="block truncate font-mono text-xs text-faint" title={workspace.folder.path}>{workspace.folder.path}</span>}
             </span>
             <WorkspaceStatus workspace={workspace} compact/>
-          </Link>
+          </Link></WorkspaceRowMenu>
         </li>)}
       </ul>}
     </section>}

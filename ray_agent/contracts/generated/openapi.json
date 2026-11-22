@@ -7223,6 +7223,165 @@
         }
       }
     },
+    "/api/roots/{root_id}/entries/delete": {
+      "post": {
+        "tags": [
+          "工作区文件"
+        ],
+        "summary": "删除文件或空文件夹",
+        "description": "文件必须带当前版本，版本不符返回冲突与当前版本；空文件夹不需要版本，非空文件夹返回冲突。删除可在「最近修改」中撤销。归档的工作区不可写",
+        "operationId": "delete_entry_api_roots__root_id__entries_delete_post",
+        "parameters": [
+          {
+            "name": "root_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Root Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteEntryRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_RemovedEntryResponse_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/roots/{root_id}/entries/rename": {
+      "post": {
+        "tags": [
+          "工作区文件"
+        ],
+        "summary": "重命名文件",
+        "description": "只改同一文件夹内的名称，目标已存在则冲突、不覆盖。改名记为删除原名与创建新名两条变更，可整体撤销。文件夹暂不支持改名",
+        "operationId": "rename_entry_api_roots__root_id__entries_rename_post",
+        "parameters": [
+          {
+            "name": "root_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Root Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RenameEntryRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_RootEntryResponse_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/roots/{root_id}/entries/folders": {
+      "post": {
+        "tags": [
+          "工作区文件"
+        ],
+        "summary": "新建文件夹",
+        "description": "父文件夹必须已存在，同名已存在即冲突。新建可在「最近修改」中撤销。归档的工作区不可写",
+        "operationId": "create_folder_api_roots__root_id__entries_folders_post",
+        "parameters": [
+          {
+            "name": "root_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Root Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateFolderRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_RootEntryResponse_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/host/folder-grants": {
       "post": {
         "tags": [
@@ -7550,6 +7709,80 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Response_ProviderProbeResult_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/app-config/llm/providers/tool-check": {
+      "post": {
+        "tags": [
+          "模型连接"
+        ],
+        "summary": "Check Tools",
+        "description": "用一次带工具定义的最小请求确认单个模型是否接受工具；超时有期限，结果不写入配置。",
+        "operationId": "check_tools_api_app_config_llm_providers_tool_check_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProviderProbe"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_ToolCheckResult_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/app-config/llm/catalog": {
+      "get": {
+        "tags": [
+          "模型连接"
+        ],
+        "summary": "Model Catalog",
+        "description": "内置目录的模型能力与标准单价；界面据此展示目录模型，不再维护本地目录。",
+        "operationId": "model_catalog_api_app_config_llm_catalog_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_CatalogResponse_"
                 }
               }
             }
@@ -8764,6 +8997,143 @@
         ],
         "title": "CapabilityStatus"
       },
+      "CatalogModelItem": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "vendor": {
+            "type": "string",
+            "title": "Vendor"
+          },
+          "vendor_label": {
+            "type": "string",
+            "title": "Vendor Label"
+          },
+          "vision": {
+            "type": "boolean",
+            "title": "Vision",
+            "default": false
+          },
+          "tools": {
+            "type": "boolean",
+            "title": "Tools",
+            "default": true
+          },
+          "context_window": {
+            "type": "integer",
+            "title": "Context Window"
+          },
+          "max_output": {
+            "type": "integer",
+            "title": "Max Output"
+          },
+          "choices": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Choices"
+          },
+          "default_choice": {
+            "type": "string",
+            "title": "Default Choice"
+          },
+          "reasoning_options": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Reasoning Options"
+          },
+          "reasoning_ordered": {
+            "type": "boolean",
+            "title": "Reasoning Ordered",
+            "default": false
+          },
+          "reasoning_family": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reasoning Family"
+          },
+          "temperature_when": {
+            "type": "string",
+            "enum": [
+              "always",
+              "disabled",
+              "never"
+            ],
+            "title": "Temperature When",
+            "default": "always"
+          },
+          "temperature_max": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Temperature Max"
+          },
+          "rates": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TokenRates-Output"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "has_builtin_pricing": {
+            "type": "boolean",
+            "title": "Has Builtin Pricing",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "vendor",
+          "vendor_label",
+          "context_window",
+          "max_output",
+          "choices",
+          "default_choice"
+        ],
+        "title": "CatalogModelItem",
+        "description": "内置目录的一个模型：能力摘要与标准单价（美元／百万 Token）。"
+      },
+      "CatalogResponse": {
+        "properties": {
+          "price_version": {
+            "type": "string",
+            "title": "Price Version"
+          },
+          "models": {
+            "items": {
+              "$ref": "#/components/schemas/CatalogModelItem"
+            },
+            "type": "array",
+            "title": "Models"
+          }
+        },
+        "type": "object",
+        "required": [
+          "price_version"
+        ],
+        "title": "CatalogResponse"
+      },
       "ChangeEntryView": {
         "properties": {
           "root_id": {
@@ -8773,6 +9143,16 @@
           "relative_path": {
             "type": "string",
             "title": "Relative Path"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "file",
+              "directory"
+            ],
+            "title": "Kind",
+            "description": "文件夹只有新建与删除，没有内容版本",
+            "default": "file"
           },
           "operation": {
             "$ref": "#/components/schemas/ChangeOperation",
@@ -8871,6 +9251,7 @@
         "required": [
           "root_id",
           "relative_path",
+          "kind",
           "operation",
           "writes",
           "first_at",
@@ -8902,10 +9283,11 @@
               "diff",
               "binary",
               "too_large",
-              "unchanged"
+              "unchanged",
+              "directory"
             ],
             "title": "Kind",
-            "description": "diff：当前版本到撤销后版本的统一 diff；binary 与 too_large 只给大小；unchanged：撤销不会改变内容"
+            "description": "diff：当前版本到撤销后版本的统一 diff；binary 与 too_large 只给大小；unchanged：撤销不会改变内容；directory：文件夹只移除或重新建立，没有内容可比较"
           },
           "diff": {
             "type": "string",
@@ -10219,6 +10601,29 @@
         ],
         "title": "CoreStatus"
       },
+      "CreateFolderRequest": {
+        "properties": {
+          "directory": {
+            "type": "string",
+            "maxLength": 4096,
+            "title": "Directory",
+            "description": "父文件夹的根内相对路径，空串为根目录",
+            "default": ""
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Name",
+            "description": "新文件夹的单段名称"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name"
+        ],
+        "title": "CreateFolderRequest"
+      },
       "CreateMemoryRequest": {
         "properties": {
           "content": {
@@ -10356,6 +10761,31 @@
             "title": "Thinking",
             "default": false
           },
+          "reasoning_efforts": {
+            "items": {
+              "type": "string",
+              "maxLength": 32,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9_.-]+$"
+            },
+            "type": "array",
+            "maxItems": 8,
+            "title": "Reasoning Efforts"
+          },
+          "unconfirmed": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "context_window",
+                "max_output",
+                "tools",
+                "vision",
+                "thinking"
+              ]
+            },
+            "type": "array",
+            "title": "Unconfirmed"
+          },
           "rates": {
             "anyOf": [
               {
@@ -10402,6 +10832,31 @@
             "title": "Thinking",
             "default": false
           },
+          "reasoning_efforts": {
+            "items": {
+              "type": "string",
+              "maxLength": 32,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9_.-]+$"
+            },
+            "type": "array",
+            "maxItems": 8,
+            "title": "Reasoning Efforts"
+          },
+          "unconfirmed": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "context_window",
+                "max_output",
+                "tools",
+                "vision",
+                "thinking"
+              ]
+            },
+            "type": "array",
+            "title": "Unconfirmed"
+          },
           "rates": {
             "anyOf": [
               {
@@ -10445,6 +10900,33 @@
           "path"
         ],
         "title": "DefaultLocationResponse"
+      },
+      "DeleteEntryRequest": {
+        "properties": {
+          "path": {
+            "type": "string",
+            "maxLength": 4096,
+            "minLength": 1,
+            "title": "Path",
+            "description": "根内相对路径，不能是根目录本身"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EntryVersionRequest"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "删除文件时必填；空文件夹不需要"
+          }
+        },
+        "type": "object",
+        "required": [
+          "path"
+        ],
+        "title": "DeleteEntryRequest"
       },
       "DocumentFormat": {
         "type": "string",
@@ -11041,6 +11523,28 @@
           "text"
         ],
         "title": "EditRequest"
+      },
+      "EntryVersionRequest": {
+        "properties": {
+          "size": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Size"
+          },
+          "modified_ns": {
+            "type": "string",
+            "maxLength": 21,
+            "pattern": "^-?[0-9]+$",
+            "title": "Modified Ns"
+          }
+        },
+        "type": "object",
+        "required": [
+          "size",
+          "modified_ns"
+        ],
+        "title": "EntryVersionRequest",
+        "description": "目标当前的版本，取自列表或元数据接口；服务器核对后才改动，不一致返回冲突与当前版本。"
       },
       "EnvironmentEventData": {
         "properties": {
@@ -13709,6 +14213,27 @@
             "title": "Vision",
             "default": false
           },
+          "tools": {
+            "type": "boolean",
+            "title": "Tools",
+            "default": true
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "catalog",
+              "custom"
+            ],
+            "title": "Source",
+            "default": "catalog"
+          },
+          "unconfirmed": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Unconfirmed"
+          },
           "connection_issue": {
             "anyOf": [
               {
@@ -14718,6 +15243,95 @@
         "type": "object",
         "title": "PreferencesUpdate"
       },
+      "ProbedModel": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "catalog": {
+            "type": "boolean",
+            "title": "Catalog",
+            "description": "是否为内置目录模型"
+          },
+          "claimed_by": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Claimed By",
+            "description": "其他提供商已提供，保存会被拒绝"
+          },
+          "context_window": {
+            "type": "integer",
+            "title": "Context Window"
+          },
+          "max_output": {
+            "type": "integer",
+            "title": "Max Output"
+          },
+          "tools": {
+            "type": "boolean",
+            "title": "Tools"
+          },
+          "vision": {
+            "type": "boolean",
+            "title": "Vision"
+          },
+          "thinking": {
+            "type": "boolean",
+            "title": "Thinking"
+          },
+          "reasoning_efforts": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Reasoning Efforts"
+          },
+          "rates": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TokenRates-Output"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "美元／百万 Token；没有依据时为空"
+          },
+          "sources": {
+            "additionalProperties": {
+              "type": "string",
+              "enum": [
+                "catalog",
+                "upstream",
+                "unconfirmed"
+              ]
+            },
+            "type": "object",
+            "title": "Sources",
+            "description": "context_window、max_output、tools、vision、thinking、reasoning_efforts、rates 各自的来源"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "catalog",
+          "context_window",
+          "max_output",
+          "tools",
+          "vision",
+          "thinking",
+          "sources"
+        ],
+        "title": "ProbedModel",
+        "description": "上游模型列表中的一项，附解析后的能力与每项的来源。claimed_by 为其他提供商已提供该模型时的名称。"
+      },
       "ProposalStatus": {
         "type": "string",
         "enum": [
@@ -14864,7 +15478,16 @@
               "type": "string"
             },
             "type": "array",
-            "title": "Models"
+            "title": "Models",
+            "description": "上游返回的模型 ID，按字母排序"
+          },
+          "model_details": {
+            "items": {
+              "$ref": "#/components/schemas/ProbedModel"
+            },
+            "type": "array",
+            "title": "Model Details",
+            "description": "与 models 一一对应的能力、来源与占用情况；只有读取模型列表时有"
           }
         },
         "type": "object",
@@ -15069,7 +15692,7 @@
           "name"
         ],
         "title": "ProviderStatus",
-        "description": "设置页可见的提供商状态；密钥只给掩码。"
+        "description": "设置页可见的提供商状态；密钥只给掩码。无效条目也保留可解析的地址，编辑时不回落到预设。"
       },
       "PublishRequest": {
         "properties": {
@@ -15112,6 +15735,50 @@
           "version"
         ],
         "title": "RelocateWorkspaceRequest"
+      },
+      "RemovedEntryResponse": {
+        "properties": {
+          "path": {
+            "$ref": "#/components/schemas/RootedPath"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/FileKind"
+          }
+        },
+        "type": "object",
+        "required": [
+          "path",
+          "kind"
+        ],
+        "title": "RemovedEntryResponse"
+      },
+      "RenameEntryRequest": {
+        "properties": {
+          "path": {
+            "type": "string",
+            "maxLength": 4096,
+            "minLength": 1,
+            "title": "Path",
+            "description": "要改名的文件的根内相对路径"
+          },
+          "name": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Name",
+            "description": "新的单段名称，同一文件夹内不得已存在"
+          },
+          "version": {
+            "$ref": "#/components/schemas/EntryVersionRequest"
+          }
+        },
+        "type": "object",
+        "required": [
+          "path",
+          "name",
+          "version"
+        ],
+        "title": "RenameEntryRequest"
       },
       "RenameTemplateRequest": {
         "properties": {
@@ -15375,6 +16042,25 @@
           "data"
         ],
         "title": "Response[BuildIdentity]"
+      },
+      "Response_CatalogResponse_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CatalogResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "Response[CatalogResponse]"
       },
       "Response_ChangePreviewResponse_": {
         "properties": {
@@ -16140,6 +16826,25 @@
         ],
         "title": "Response[ProviderProbeResult]"
       },
+      "Response_RemovedEntryResponse_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RemovedEntryResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "Response[RemovedEntryResponse]"
+      },
       "Response_ResolveRootPathResponse_": {
         "properties": {
           "data": {
@@ -16348,6 +17053,25 @@
           "data"
         ],
         "title": "Response[TitleResponse]"
+      },
+      "Response_ToolCheckResult_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ToolCheckResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "Response[ToolCheckResult]"
       },
       "Response_ToolPolicyResponse_": {
         "properties": {
@@ -16827,6 +17551,20 @@
             "title": "Modified At",
             "description": "毫秒时间戳；只有普通文件有"
           },
+          "modified_ns": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 21,
+                "pattern": "^-?[0-9]+$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Modified Ns",
+            "description": "修改时间的纳秒精确值（十进制字符串）；改名或删除时原样作为版本回传，核对不会因精度损失误判"
+          },
           "link_target": {
             "anyOf": [
               {
@@ -16847,6 +17585,7 @@
           "kind",
           "size",
           "modified_at",
+          "modified_ns",
           "link_target"
         ],
         "title": "RootEntryView"
@@ -16924,7 +17663,8 @@
             "type": "string",
             "enum": [
               "run",
-              "undo"
+              "undo",
+              "manual"
             ],
             "title": "Kind",
             "default": "run"
@@ -17315,10 +18055,11 @@
             "type": "string",
             "enum": [
               "run",
-              "undo"
+              "undo",
+              "manual"
             ],
             "title": "Kind",
-            "description": "run：Agent 运行；undo：一次撤销操作，它的 run_id 是操作身份，可像运行一样查看变更并撤回",
+            "description": "run：Agent 运行；undo：一次撤销操作，它的 run_id 是操作身份，可像运行一样查看变更并撤回；manual：界面上的文件操作（删除、重命名、新建文件夹），同样可以撤回",
             "default": "run"
           },
           "undo_of_run_id": {
@@ -18350,6 +19091,58 @@
         ],
         "title": "TokenRates",
         "description": "美元／百万 Token。"
+      },
+      "ToolCheckResult": {
+        "properties": {
+          "supported": {
+            "type": "boolean",
+            "title": "Supported"
+          },
+          "elapsed_ms": {
+            "type": "integer",
+            "title": "Elapsed Ms"
+          },
+          "upstream_status": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Upstream Status"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "suggestion": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Suggestion"
+          }
+        },
+        "type": "object",
+        "required": [
+          "supported",
+          "elapsed_ms"
+        ],
+        "title": "ToolCheckResult",
+        "description": "工具能力检测结果。上游以 4xx 拒绝工具定义时 supported 为 false 并给出原因；超时与上游故障作为错误返回。"
       },
       "ToolEventData": {
         "properties": {

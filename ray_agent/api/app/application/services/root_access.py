@@ -4,6 +4,7 @@
 WriteOwner 携带会话、运行与工具调用身份。
 """
 import os
+import uuid
 from dataclasses import dataclass
 from pathlib import Path
 from typing import BinaryIO, Callable, Awaitable, Optional
@@ -19,7 +20,7 @@ from app.domain.models.error import ErrorCode
 from app.domain.models.identity import RootKind, RootedPath, relative_parts
 from app.domain.models.workspace import RootRecord
 from app.domain.repositories.uow import IUnitOfWork
-from app.domain.services.file_rules import denied_reason, safe_filename
+from app.domain.services.file_rules import check_entry_name, denied_reason, safe_filename
 from app.domain.services.file_scope import AccessibleRoot, FileScope, FileWriteGate, WriteOwner
 from app.infrastructure.external.workdir.session_workdir import SESSIONS_DIR, SessionWorkdir, SessionWorkdirs
 
@@ -153,6 +154,102 @@ class RootFileService:
         try:
             target, _ = await scope.write_unique(target_dir, name, source)
             return await self._files.stat(target)
+        except WorkspaceFileError as error:
+            raise app_error(error)
+
+
+    # ---- 界面文件操作：删除、重命名、新建文件夹。经同一写入口，记为 manual 变更，可在「最近修改」中撤销 ----
+
+    async def _writable_folder(self, root_id: str) -> None:
+        try:
+            record = await self._bindings.record(root_id)
+        except WorkspaceFileError as error:
+            raise app_error(error)
+        if record.ref.kind is not RootKind.WORKSPACE_FOLDER:
+            raise BadRequestError("只能在工作区文件夹里操作文件")
+
+    @staticmethod
+    def _manual_owner(reason: str) -> WriteOwner:
+        """界面文件操作的归属：没有会话与运行，操作身份作为变更记录的归属，使其可列出并整体撤回。"""
+        return WriteOwner(session_id="", source="manual", operation=f"manual-{uuid.uuid4().hex}", reason=reason)
+
+    @staticmethod
+    def _check_denied(parts: tuple[str, ...]) -> None:
+        if reason := denied_reason(parts):
+            raise app_error(WorkspaceFileError(ErrorCode.FORBIDDEN, f"不能操作：{reason}"))
+
+    @staticmethod
+    def _entry_name(name: str) -> str:
+        try:
+            return check_entry_name(name)
+        except ValueError as error:
+            raise BadRequestError(str(error))
+
+    async def delete_entry(self, root_id: str, relative: str,
+                           expected: Optional[FileVersion]) -> tuple[RootedPath, FileKind]:
+        """删除普通文件（需带当前版本）或空文件夹；非空文件夹、链接与特殊文件不删除。"""
+        await self._writable_folder(root_id)
+        parts = relative_parts(relative)
+        if not parts:
+            raise BadRequestError("不能删除工作区根目录")
+        self._check_denied(parts)
+        path = self.path(root_id, relative)
+        try:
+            entry = await self._files.stat(path)
+            if entry.kind is FileKind.FILE:
+                if expected is None:
+                    raise BadRequestError("删除文件需要带上当前版本")
+                await self._writer.delete(path, expected, self._manual_owner(f"界面删除 {parts[-1]}"))
+            elif entry.kind is FileKind.DIRECTORY:
+                await self._writer.remove_dir(path, self._manual_owner(f"界面删除文件夹 {parts[-1]}"))
+            else:
+                raise BadRequestError("只能删除普通文件或空文件夹")
+        except WorkspaceFileError as error:
+            raise app_error(error)
+        return path, entry.kind
+
+    async def rename_entry(self, root_id: str, relative: str, name: str,
+                           expected: Optional[FileVersion]) -> FileEntry:
+        """同一文件夹内改名普通文件；目标已存在即冲突，不覆盖。"""
+        await self._writable_folder(root_id)
+        parts = relative_parts(relative)
+        if not parts:
+            raise BadRequestError("不能重命名工作区根目录")
+        self._check_denied(parts)
+        new_name = self._entry_name(name)
+        if new_name == parts[-1]:
+            raise BadRequestError("名称没有变化")
+        target_parts = (*parts[:-1], new_name)
+        self._check_denied(target_parts)
+        source = self.path(root_id, "/".join(parts))
+        target = self.path(root_id, "/".join(target_parts))
+        try:
+            entry = await self._files.stat(source)
+            if entry.kind is FileKind.DIRECTORY:
+                raise BadRequestError("暂不支持重命名文件夹")
+            if entry.kind is not FileKind.FILE:
+                raise BadRequestError("只能重命名普通文件")
+            if expected is None:
+                raise BadRequestError("重命名需要带上当前版本")
+            return await self._writer.rename(source, target, expected,
+                                             self._manual_owner(f"界面重命名 {parts[-1]}"))
+        except WorkspaceFileError as error:
+            raise app_error(error)
+
+    async def create_folder(self, root_id: str, directory: str, name: str) -> FileEntry:
+        """在已存在的文件夹里新建子文件夹；同名已存在即冲突。"""
+        await self._writable_folder(root_id)
+        new_name = self._entry_name(name)
+        dir_parts = relative_parts(directory)
+        target_parts = (*dir_parts, new_name)
+        self._check_denied(target_parts)
+        parent = self.path(root_id, "/".join(dir_parts))
+        target = self.path(root_id, "/".join(target_parts))
+        try:
+            parent_entry = await self._files.stat(parent)
+            if parent_entry.kind is not FileKind.DIRECTORY:
+                raise BadRequestError("只能在文件夹里新建文件夹")
+            return await self._writer.create_dir(target, self._manual_owner(f"界面新建文件夹 {new_name}"))
         except WorkspaceFileError as error:
             raise app_error(error)
 

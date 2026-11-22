@@ -2,6 +2,7 @@ import {useEffect, useRef, useState} from 'react'
 import {Sparkles} from '@/components/ui/icons'
 import {toast} from 'sonner'
 import {Button} from '@/components/ui/button'
+import {Input} from '@/components/ui/input'
 import {Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle} from '@/components/ui/dialog'
 import {sessionApi} from '@/lib/api/session'
 type Props = {
@@ -58,7 +59,7 @@ export function RenameSessionDialog({sessionId, currentTitle, open, onOpenChange
         <DialogDescription>写一个简短标题，便于在侧边栏找到这段会话。</DialogDescription>
       </DialogHeader>
       <div className="relative">
-        <input
+        <Input
           autoFocus
           value={title}
           onChange={(event) => setTitle(event.target.value)}
@@ -66,7 +67,7 @@ export function RenameSessionDialog({sessionId, currentTitle, open, onOpenChange
           maxLength={255}
           dir="auto"
           aria-label="会话标题"
-          className="h-10 w-full rounded-md border bg-background pr-11 pl-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          className="h-10 pr-11"
         />
         <Button type="button" size="icon-xs" variant="ghost" title="用 AI 生成标题建议" aria-label="用 AI 生成标题建议"
           disabled={suggesting || saving} onClick={() => void suggest()}

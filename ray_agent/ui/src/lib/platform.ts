@@ -57,6 +57,16 @@ export function openExternal(url: string) {
   return invoke<void>('open_external', {url})
 }
 
+/** 读取剪贴板纯文本；剪贴板没有文字时宿主返回错误。界面只经这里访问剪贴板，统一的回退与提示见 clipboard.ts。 */
+export function readClipboardText() {
+  return invoke<string>('clipboard_read_text')
+}
+
+/** 把纯文本写入剪贴板，替换原有内容。 */
+export function writeClipboardText(text: string) {
+  return invoke<void>('clipboard_write_text', {text})
+}
+
 /** 文件不存在时由宿主按示例创建，返回实际路径 */
 export function openModelConfig() {
   return invoke<string>('open_model_config')

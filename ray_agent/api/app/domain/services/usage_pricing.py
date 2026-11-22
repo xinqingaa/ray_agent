@@ -22,6 +22,15 @@ TOKEN_PRICES = {
 }
 
 
+def builtin_token_rates(vendor: str, model: str) -> TokenRates | None:
+    """内置目录的标准单价（美元／百万 Token）；没有内置计价的模型返回空。DeepSeek 的错峰折扣不在这里表达。"""
+    prices = TOKEN_PRICES.get((vendor, model))
+    if prices is None:
+        return None
+    input_price, cached, output = (Decimal(price) for price in prices)
+    return TokenRates(input=input_price, cached_input=cached, output=output)
+
+
 def _nanos(dollars: Decimal) -> int:
     return int((dollars * 1_000_000_000).to_integral_value(rounding=ROUND_HALF_UP))
 

@@ -90,7 +90,6 @@ export function CostChart({report, series, label, onDrill, onDay}: {
     <div className="usage-chart" ref={host}>
       <svg className={cn('usage-plot', {'can-drill': drillable})} width={width} height={188}
         tabIndex={buckets.length ? 0 : undefined} role="img" aria-label={`${label}费用趋势，方向键逐段查看`}
-        data-settings-escape={focus !== null || hover !== null ? '' : undefined}
         onFocus={() => setFocus(index => index ?? (buckets.length ? 0 : null))}
         onBlur={() => setFocus(null)} onPointerLeave={() => setHover(null)}
         onKeyDown={event => {
@@ -254,7 +253,6 @@ export function Heatmap({report, linkedDate, label, onDays}: {
       <div className="usage-heat-plot">
         <svg className="usage-plot" width={width} height={height} role="img" tabIndex={cells.length ? 0 : undefined}
           aria-label={calendar ? '近 13 周每天的费用热力图' : '星期与小时的费用热力图'}
-          data-settings-escape={pinned !== null || reading !== null ? '' : undefined}
           onBlur={() => setFocus(null)} onPointerLeave={() => setHover(null)}
           onKeyDown={event => {
             const next = chartKey(event, focus ?? pinned, cells.length, calendar ? 7 : 1, calendar ? 1 : 24)

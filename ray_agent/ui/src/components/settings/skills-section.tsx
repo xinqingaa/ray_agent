@@ -1,4 +1,4 @@
-import {AlertTriangle, ArrowLeft, Check, ChevronDown, Compass, Sparkles, Folder, Info, Loader2, Pencil, RefreshCw, Search, Trash2, Upload, Files, Github} from '@/components/ui/icons'
+import {AlertTriangle, ArrowLeft, ArrowUpRight, Ban, Check, ChevronDown, Circle, CircleCheck, Compass, Copy, Sparkles, Folder, Info, Loader2, Pencil, RefreshCw, Search, Trash2, Upload, Files, Github} from '@/components/ui/icons'
 import {useCallback, useEffect, useRef, useState} from 'react'
 import type {ReactNode} from 'react'
 import {Dialog, DialogContent, DialogTitle} from '@/components/ui/dialog'
@@ -18,6 +18,9 @@ import {Link} from '@/lib/navigation'
 import {skillsApi, skillsChanged, type Skill, type SkillDetail, type SkillImport, type SkillSourcesPayload} from '@/lib/api/skills'
 import {classifyLocalPaths, filesFromDrop, folderSkillFiles, hasSkillFrontmatter, localImportForm, skillDocument, type LocalFile} from '@/lib/skill-local'
 import {isDesktop, selectFolderGrant} from '@/lib/platform'
+import {ContextMenuSurface} from '@/components/ui/context-menu'
+import {menuItem, type MenuEntry} from '@/lib/context-menu-policy'
+import {copyText} from '@/lib/clipboard'
 import {toast} from 'sonner'
 
 const OPERATION_KEY = 'rayagent:skill-import'
@@ -128,6 +131,22 @@ export function SkillsSection({onDirtyChange, active = true, workspaceId, worksp
       }
       await changed()
     })
+  }
+  // 行菜单：打开、改为其他使用方式、复制名称。只列出当前能改的项，与行内的使用方式下拉同一条件
+  function skillEntries(skill: Skill, shown: Skill, target: EventTarget | null): MenuEntry[] {
+    const state = skillState(shown)
+    const changeable = !processing && shown.source_state !== 'disabled' && state !== 'unavailable'
+    const trigger = target instanceof Element ? target.closest('.skill-row')?.querySelector<HTMLButtonElement>('.skill-open') : null
+    const modes: Array<{mode: 'off' | 'selectable' | 'included'; label: string; icon: typeof Ban}> = [
+      {mode: 'off', label: '停用', icon: Ban},
+      {mode: 'selectable', label: '设为可选择', icon: Circle},
+      {mode: 'included', label: '设为每次带上', icon: CircleCheck},
+    ]
+    return [
+      menuItem('打开', ArrowUpRight, () => {if (trigger) detailTrigger.current = trigger; void open(skill)}),
+      ...(changeable ? modes.filter(item => item.mode !== state).map(item => menuItem(item.label, item.icon, () => void setSkillMode(skill, item.mode))) : []),
+      menuItem('复制名称', Copy, () => copyText(skill.name)),
+    ]
   }
   async function acquire(material?: {files: LocalFile[]; zip: boolean}) {
     if (kind === 'github' && /^\s*(npx|npm|\$)/.test(url)) {setError('这里需要 GitHub 地址；本机命令安装不会同步。请复制 Skill 仓库地址，或改用文件导入。'); return}
@@ -429,7 +448,7 @@ export function SkillsSection({onDirtyChange, active = true, workspaceId, worksp
                 data-arriving={skill.id === installedName && !detailOpen && tab === 'installed' || undefined} onAnimationEnd={event => {
                   if (event.target === event.currentTarget && skill.id === installedName) setInstalledName('')
                 }}>
-                <div className="skill-row-body">
+                <ContextMenuSurface items={target => skillEntries(skill, shown, target)}><div className="skill-row-body">
                   <button type="button" className="skill-open" aria-label={`查看 ${skill.name}（${sourceBadge(shown)}）`}
                     disabled={processing} onClick={event => {detailTrigger.current = event.currentTarget; void open(skill)}}>
                     <span className="skill-row-icon"><Sparkles className="size-4" aria-hidden/></span>
@@ -458,7 +477,7 @@ export function SkillsSection({onDirtyChange, active = true, workspaceId, worksp
                       {skillState(shown) === 'unavailable' && <option value="unavailable">不可用</option>}
                     </select>
                   </span>
-                </div>
+                </div></ContextMenuSurface>
                 {modeError?.id === skill.id && <p role="alert" className="pb-2 pl-11 text-xs text-state-failed">{modeError.message}</p>}
               </li>)}</ul> : <p className="py-9 text-center text-sm text-muted-foreground">没有符合条件的 Skill</p>}
           </div>
@@ -481,7 +500,7 @@ export function SkillsSection({onDirtyChange, active = true, workspaceId, worksp
 
 
     <Dialog open={active && detailOpen} onOpenChange={next => {if (!next) closeDetail()}}>
-      <DialogContent aria-describedby={undefined} className="flex h-[min(48rem,calc(100dvh-3rem))] flex-col gap-0 overflow-hidden p-0 sm:max-w-[min(80rem,calc(100vw-3rem))] motion-reduce:animate-none" onPointerDownOutside={event => event.preventDefault()} onCloseAutoFocus={event => {event.preventDefault(); (detailTrigger.current?.isConnected ? detailTrigger.current : addButton.current)?.focus()}}>
+      <DialogContent aria-describedby={undefined} className="flex h-[min(48rem,calc(100dvh-3rem))] flex-col gap-0 overflow-hidden p-0 sm:max-w-[min(80rem,calc(100vw-3rem))] motion-reduce:animate-none" onPointerDownOutside={event => event.preventDefault()} onCloseAutoFocus={event => {event.preventDefault(); (detailTrigger.current?.isConnected ? detailTrigger.current : addButton.current)?.focus({preventScroll: true})}}>
         {detail && <>
           <div className="shrink-0 px-6 pb-4 pt-6 pr-14"><div className="flex items-center gap-2"><DialogTitle className="min-w-0 break-all leading-snug">{detail.name}</DialogTitle>{detail.builtin && <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">内置</span>}{detail.external && <span className="shrink-0 rounded bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">{sourceBadge(detail)}</span>}</div><p className="mt-2 text-sm leading-relaxed text-muted-foreground">{detail.description}</p></div>
           {editing ? <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto px-6 pb-4">{feedback}<Button size="sm" variant="ghost" className="self-end" onClick={() => setRenderDraft(!renderDraft)}>{renderDraft ? '继续编辑' : '查看排版'}</Button>{renderDraft ? <MarkdownContent content={text.replace(/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/, '')}/> : <><label htmlFor="skill-editor" className="text-xs text-muted-foreground">SKILL.md</label><Textarea autoFocus id="skill-editor" value={text} disabled={busy} onChange={e => setText(e.target.value)} className="min-h-0 flex-1 resize-none font-mono text-xs leading-relaxed"/></>}</div> : <SkillReader key={detail.id + detail.version} skill={detail} readFile={path => skillsApi.file(detail, path, workspaceId)} actions={!detail.builtin && !detail.external && <Hint label="编辑正文"><Button variant="ghost" size="icon-sm" aria-label="编辑正文" disabled={busy} onClick={() => {setRenderDraft(false); setEditing(true)}}><Pencil/></Button></Hint>} feedback={feedback}/>}
@@ -500,7 +519,7 @@ export function SkillsSection({onDirtyChange, active = true, workspaceId, worksp
     </Dialog>
 
     <Dialog open={active && adding} onOpenChange={next => {if (!next) closeImport()}}>
-      <DialogContent aria-describedby={undefined} onOpenAutoFocus={event => {event.preventDefault(); if (previewing) importTitle.current?.focus(); else if (kind === 'github' || writing || kind === 'local' && needsMeta) sourceInput.current?.focus(); else filesButton.current?.focus()}} className="skill-import-dialog flex max-w-none flex-col gap-0 overflow-hidden rounded-[22px] border-0 p-0 shadow-(--float-shadow) sm:max-w-none" onPointerDownOutside={event => event.preventDefault()} onCloseAutoFocus={event => {event.preventDefault(); if (detailOpen) updateButton.current?.focus(); else (addTrigger.current?.isConnected ? addTrigger.current : addButton.current)?.focus()}}>
+      <DialogContent aria-describedby={undefined} onOpenAutoFocus={event => {event.preventDefault(); if (previewing) importTitle.current?.focus(); else if (kind === 'github' || writing || kind === 'local' && needsMeta) sourceInput.current?.focus(); else filesButton.current?.focus()}} className="skill-import-dialog flex max-w-none flex-col gap-0 overflow-hidden rounded-[22px] border-0 p-0 shadow-(--float-shadow) sm:max-w-none" onPointerDownOutside={event => event.preventDefault()} onCloseAutoFocus={event => {event.preventDefault(); if (detailOpen) updateButton.current?.focus({preventScroll: true}); else (addTrigger.current?.isConnected ? addTrigger.current : addButton.current)?.focus({preventScroll: true})}}>
         <div className="skill-import-head flex shrink-0 items-center gap-2 px-6 pr-14">
           {previewing && <Hint label="更换来源或材料"><Button variant="ghost" size="icon-sm" aria-label="更换来源或材料" disabled={processing || candidateText !== null} onClick={() => {setOperation(null); setSelected(null); setCandidateText(null); setError('')}}><ArrowLeft/></Button></Hint>}
           <DialogTitle ref={importTitle} tabIndex={-1} className="min-w-0 truncate leading-snug outline-none">{previewing ? candidate?.name ?? '选择 Skill' : updating ? `更新 ${updating.name}` : '添加 Skill'}</DialogTitle>

@@ -11,7 +11,7 @@ def test_get_status(client: TestClient) -> None:
     assert response.status_code == 200
     assert status["healthy"] is True and {item["service"] for item in status["services"]} == {"sqlite"}
     assert status["protocol_version"] >= 1 and status["instance"]["instance_id"]
-    assert status["storage"] == {"schema_revision": "0013_usage_total_tokens"}
+    assert status["storage"] == {"schema_revision": "0014_file_change_entries"}
     assert len(status["capabilities"]) == 7
 
 

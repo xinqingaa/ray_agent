@@ -1,8 +1,12 @@
+import {copyText} from '@/lib/clipboard'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import {ContextMenuSurface} from '@/components/ui/context-menu'
+import {menuItem, type MenuEntry} from '@/lib/context-menu-policy'
+import {openExternal} from '@/lib/platform'
 import ReactMarkdown, {defaultUrlTransform} from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import rehypeHighlight from 'rehype-highlight'
-import {Check, Copy} from '@/components/ui/icons'
+import {Check, Copy, ExternalLink, Link2} from '@/components/ui/icons'
 import { cn } from '@/lib/utils'
 import type {FileView} from '@/lib/session-view'
 import {resolveMessageFileLink} from '@/lib/message-file-links'
@@ -62,7 +66,7 @@ function CopyCodeButton({text, className}: {text: string; className?: string}) {
   const label = copied ? '已复制' : '复制代码'
   return <Tooltip><TooltipTrigger asChild>
     <button type="button" aria-label={label} onClick={() => {
-      void navigator.clipboard.writeText(text).then(() => {
+      void copyText(text).then(() => {
         setCopied(true)
         if (timer.current) window.clearTimeout(timer.current)
         timer.current = window.setTimeout(() => setCopied(false), 1500)
@@ -79,6 +83,7 @@ function CodeBlock({node, className, children, ...props}: React.ComponentProps<'
   const language = classes.find((name): name is string => typeof name === 'string' && name.startsWith('language-'))?.slice('language-'.length)
   const text = hastText(code ?? node as HastNode | undefined).replace(/\n$/, '')
   return (
+    <ContextMenuSurface items={[menuItem('复制代码', Copy, () => copyText(text))]}>
     <div className="group/code my-3 overflow-hidden rounded-lg border bg-muted/60">
       {language ? (
         <div className="flex h-8 items-center justify-between border-b bg-muted/80 pl-3 pr-1">
@@ -91,14 +96,23 @@ function CodeBlock({node, className, children, ...props}: React.ComponentProps<'
         <pre className={cn('overflow-x-auto px-3.5 py-3', className)} {...props}>{children}</pre>
       </div>
     </div>
+    </ContextMenuSurface>
   )
 }
 
 function MarkdownLink({node, className, href, children, ...props}: React.ComponentProps<'a'> & {node?: unknown}) {
   // CJK autolink 兜底。已交付文件在调用方先匹配，因此中文文件名不受此限制。
   if (href && /[\u4E00-\u9FFF\u3000-\u303F\uFF00-\uFFEF]/.test(href)) return <span>{children}</span>
-  return <a className={cn('text-signal underline decoration-signal/30 underline-offset-[3px] hover:decoration-signal', className)}
-    href={href} target="_blank" rel="noopener noreferrer" {...props}>{children}</a>
+  // 外部链接：与点击一样只交给系统浏览器的 http、https 与 mailto
+  const external = !!href && /^(https?|mailto):/.test(href)
+  const entries: MenuEntry[] = external && href ? [
+    menuItem('在浏览器中打开', ExternalLink, () => openExternal(href)),
+    menuItem('复制链接', Link2, () => copyText(href)),
+  ] : []
+  return <ContextMenuSurface items={entries}>
+    <a className={cn('text-signal underline decoration-signal/30 underline-offset-[3px] hover:decoration-signal', className)}
+      href={href} target="_blank" rel="noopener noreferrer" {...props}>{children}</a>
+  </ContextMenuSurface>
 }
 
 const LIST = 'mb-3 last:mb-0 space-y-1 pl-5 [li>&]:mt-1 [li>&]:mb-0'

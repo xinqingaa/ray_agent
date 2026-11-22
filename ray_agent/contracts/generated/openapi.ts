@@ -2333,6 +2333,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/roots/{root_id}/entries/delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 删除文件或空文件夹
+         * @description 文件必须带当前版本，版本不符返回冲突与当前版本；空文件夹不需要版本，非空文件夹返回冲突。删除可在「最近修改」中撤销。归档的工作区不可写
+         */
+        post: operations["delete_entry_api_roots__root_id__entries_delete_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/roots/{root_id}/entries/rename": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 重命名文件
+         * @description 只改同一文件夹内的名称，目标已存在则冲突、不覆盖。改名记为删除原名与创建新名两条变更，可整体撤销。文件夹暂不支持改名
+         */
+        post: operations["rename_entry_api_roots__root_id__entries_rename_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/roots/{root_id}/entries/folders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 新建文件夹
+         * @description 父文件夹必须已存在，同名已存在即冲突。新建可在「最近修改」中撤销。归档的工作区不可写
+         */
+        post: operations["create_folder_api_roots__root_id__entries_folders_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/host/folder-grants": {
         parameters: {
             query?: never;
@@ -2456,6 +2516,46 @@ export interface paths {
         put?: never;
         /** Provider Models */
         post: operations["provider_models_api_app_config_llm_providers_models_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/app-config/llm/providers/tool-check": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Check Tools
+         * @description 用一次带工具定义的最小请求确认单个模型是否接受工具；超时有期限，结果不写入配置。
+         */
+        post: operations["check_tools_api_app_config_llm_providers_tool_check_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/app-config/llm/catalog": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Model Catalog
+         * @description 内置目录的模型能力与标准单价；界面据此展示目录模型，不再维护本地目录。
+         */
+        get: operations["model_catalog_api_app_config_llm_catalog_get"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -2903,12 +3003,81 @@ export interface components {
             /** Detail */
             detail: string | null;
         };
+        /**
+         * CatalogModelItem
+         * @description 内置目录的一个模型：能力摘要与标准单价（美元／百万 Token）。
+         */
+        CatalogModelItem: {
+            /** Id */
+            id: string;
+            /** Vendor */
+            vendor: string;
+            /** Vendor Label */
+            vendor_label: string;
+            /**
+             * Vision
+             * @default false
+             */
+            vision: boolean;
+            /**
+             * Tools
+             * @default true
+             */
+            tools: boolean;
+            /** Context Window */
+            context_window: number;
+            /** Max Output */
+            max_output: number;
+            /** Choices */
+            choices: string[];
+            /** Default Choice */
+            default_choice: string;
+            /** Reasoning Options */
+            reasoning_options?: {
+                [key: string]: unknown;
+            }[];
+            /**
+             * Reasoning Ordered
+             * @default false
+             */
+            reasoning_ordered: boolean;
+            /** Reasoning Family */
+            reasoning_family?: string | null;
+            /**
+             * Temperature When
+             * @default always
+             * @enum {string}
+             */
+            temperature_when: "always" | "disabled" | "never";
+            /** Temperature Max */
+            temperature_max?: number | null;
+            rates?: components["schemas"]["TokenRates-Output"] | null;
+            /**
+             * Has Builtin Pricing
+             * @default false
+             */
+            has_builtin_pricing: boolean;
+        };
+        /** CatalogResponse */
+        CatalogResponse: {
+            /** Price Version */
+            price_version: string;
+            /** Models */
+            models?: components["schemas"]["CatalogModelItem"][];
+        };
         /** ChangeEntryView */
         ChangeEntryView: {
             /** Root Id */
             root_id: string;
             /** Relative Path */
             relative_path: string;
+            /**
+             * Kind
+             * @description 文件夹只有新建与删除，没有内容版本
+             * @default file
+             * @enum {string}
+             */
+            kind: "file" | "directory";
             /** @description 折叠后的净操作：运行前不存在为 create，运行前存在且最后被删除为 delete，其余为 modify */
             operation: components["schemas"]["ChangeOperation"];
             /**
@@ -2955,10 +3124,10 @@ export interface components {
         ChangePreviewResponse: {
             /**
              * Kind
-             * @description diff：当前版本到撤销后版本的统一 diff；binary 与 too_large 只给大小；unchanged：撤销不会改变内容
+             * @description diff：当前版本到撤销后版本的统一 diff；binary 与 too_large 只给大小；unchanged：撤销不会改变内容；directory：文件夹只移除或重新建立，没有内容可比较
              * @enum {string}
              */
-            kind: "diff" | "binary" | "too_large" | "unchanged";
+            kind: "diff" | "binary" | "too_large" | "unchanged" | "directory";
             /**
              * Diff
              * @default
@@ -3457,6 +3626,20 @@ export interface components {
             /** Services */
             services: components["schemas"]["HealthStatus"][];
         };
+        /** CreateFolderRequest */
+        CreateFolderRequest: {
+            /**
+             * Directory
+             * @description 父文件夹的根内相对路径，空串为根目录
+             * @default
+             */
+            directory: string;
+            /**
+             * Name
+             * @description 新文件夹的单段名称
+             */
+            name: string;
+        };
         /** CreateMemoryRequest */
         CreateMemoryRequest: {
             /** Content */
@@ -3526,6 +3709,10 @@ export interface components {
              * @default false
              */
             thinking: boolean;
+            /** Reasoning Efforts */
+            reasoning_efforts?: string[];
+            /** Unconfirmed */
+            unconfirmed?: ("context_window" | "max_output" | "tools" | "vision" | "thinking")[];
             rates?: components["schemas"]["TokenRates-Input"] | null;
         };
         /** CustomModel */
@@ -3549,6 +3736,10 @@ export interface components {
              * @default false
              */
             thinking: boolean;
+            /** Reasoning Efforts */
+            reasoning_efforts?: string[];
+            /** Unconfirmed */
+            unconfirmed?: ("context_window" | "max_output" | "tools" | "vision" | "thinking")[];
             rates?: components["schemas"]["TokenRates-Output"] | null;
         };
         /** DefaultLocationRequest */
@@ -3560,6 +3751,16 @@ export interface components {
         DefaultLocationResponse: {
             /** Path */
             path: string;
+        };
+        /** DeleteEntryRequest */
+        DeleteEntryRequest: {
+            /**
+             * Path
+             * @description 根内相对路径，不能是根目录本身
+             */
+            path: string;
+            /** @description 删除文件时必填；空文件夹不需要 */
+            version?: components["schemas"]["EntryVersionRequest"] | null;
         };
         /**
          * DocumentFormat
@@ -3721,6 +3922,16 @@ export interface components {
             expected_version: string;
             /** Text */
             text: string;
+        };
+        /**
+         * EntryVersionRequest
+         * @description 目标当前的版本，取自列表或元数据接口；服务器核对后才改动，不一致返回冲突与当前版本。
+         */
+        EntryVersionRequest: {
+            /** Size */
+            size: number;
+            /** Modified Ns */
+            modified_ns: string;
         };
         /** EnvironmentEventData */
         EnvironmentEventData: {
@@ -4880,6 +5091,19 @@ export interface components {
              * @default false
              */
             vision: boolean;
+            /**
+             * Tools
+             * @default true
+             */
+            tools: boolean;
+            /**
+             * Source
+             * @default catalog
+             * @enum {string}
+             */
+            source: "catalog" | "custom";
+            /** Unconfirmed */
+            unconfirmed?: string[];
             /** Connection Issue */
             connection_issue?: string | null;
             /** Context Window */
@@ -5229,6 +5453,45 @@ export interface components {
             voice?: ("off" | "local" | "deepseek") | null;
         };
         /**
+         * ProbedModel
+         * @description 上游模型列表中的一项，附解析后的能力与每项的来源。claimed_by 为其他提供商已提供该模型时的名称。
+         */
+        ProbedModel: {
+            /** Id */
+            id: string;
+            /**
+             * Catalog
+             * @description 是否为内置目录模型
+             */
+            catalog: boolean;
+            /**
+             * Claimed By
+             * @description 其他提供商已提供，保存会被拒绝
+             */
+            claimed_by?: string | null;
+            /** Context Window */
+            context_window: number;
+            /** Max Output */
+            max_output: number;
+            /** Tools */
+            tools: boolean;
+            /** Vision */
+            vision: boolean;
+            /** Thinking */
+            thinking: boolean;
+            /** Reasoning Efforts */
+            reasoning_efforts?: string[];
+            /** @description 美元／百万 Token；没有依据时为空 */
+            rates?: components["schemas"]["TokenRates-Output"] | null;
+            /**
+             * Sources
+             * @description context_window、max_output、tools、vision、thinking、reasoning_efforts、rates 各自的来源
+             */
+            sources: {
+                [key: string]: "catalog" | "upstream" | "unconfirmed";
+            };
+        };
+        /**
          * ProposalStatus
          * @enum {string}
          */
@@ -5279,8 +5542,16 @@ export interface components {
              * @enum {string}
              */
             method: "models" | "request";
-            /** Models */
+            /**
+             * Models
+             * @description 上游返回的模型 ID，按字母排序
+             */
             models?: string[];
+            /**
+             * Model Details
+             * @description 与 models 一一对应的能力、来源与占用情况；只有读取模型列表时有
+             */
+            model_details?: components["schemas"]["ProbedModel"][];
         };
         /** ProviderSave */
         ProviderSave: {
@@ -5315,7 +5586,7 @@ export interface components {
         };
         /**
          * ProviderStatus
-         * @description 设置页可见的提供商状态；密钥只给掩码。
+         * @description 设置页可见的提供商状态；密钥只给掩码。无效条目也保留可解析的地址，编辑时不回落到预设。
          */
         ProviderStatus: {
             /** Name */
@@ -5378,6 +5649,25 @@ export interface components {
             grant_id: string;
             /** Version */
             version: number;
+        };
+        /** RemovedEntryResponse */
+        RemovedEntryResponse: {
+            path: components["schemas"]["RootedPath"];
+            kind: components["schemas"]["FileKind"];
+        };
+        /** RenameEntryRequest */
+        RenameEntryRequest: {
+            /**
+             * Path
+             * @description 要改名的文件的根内相对路径
+             */
+            path: string;
+            /**
+             * Name
+             * @description 新的单段名称，同一文件夹内不得已存在
+             */
+            name: string;
+            version: components["schemas"]["EntryVersionRequest"];
         };
         /** RenameTemplateRequest */
         RenameTemplateRequest: {
@@ -5469,6 +5759,10 @@ export interface components {
         /** Response[BuildIdentity] */
         Response_BuildIdentity_: {
             data: components["schemas"]["BuildIdentity"] | null;
+        };
+        /** Response[CatalogResponse] */
+        Response_CatalogResponse_: {
+            data: components["schemas"]["CatalogResponse"] | null;
         };
         /** Response[ChangePreviewResponse] */
         Response_ChangePreviewResponse_: {
@@ -5636,6 +5930,10 @@ export interface components {
         Response_ProviderProbeResult_: {
             data: components["schemas"]["ProviderProbeResult"] | null;
         };
+        /** Response[RemovedEntryResponse] */
+        Response_RemovedEntryResponse_: {
+            data: components["schemas"]["RemovedEntryResponse"] | null;
+        };
         /** Response[ResolveRootPathResponse] */
         Response_ResolveRootPathResponse_: {
             data: components["schemas"]["ResolveRootPathResponse"] | null;
@@ -5679,6 +5977,10 @@ export interface components {
         /** Response[TitleResponse] */
         Response_TitleResponse_: {
             data: components["schemas"]["TitleResponse"] | null;
+        };
+        /** Response[ToolCheckResult] */
+        Response_ToolCheckResult_: {
+            data: components["schemas"]["ToolCheckResult"] | null;
         };
         /** Response[ToolPolicyResponse] */
         Response_ToolPolicyResponse_: {
@@ -5801,6 +6103,11 @@ export interface components {
              */
             modified_at: number | null;
             /**
+             * Modified Ns
+             * @description 修改时间的纳秒精确值（十进制字符串）；改名或删除时原样作为版本回传，核对不会因精度损失误判
+             */
+            modified_ns: string | null;
+            /**
              * Link Target
              * @description 符号链接的目标文本；链接不被展开或跟随
              */
@@ -5846,7 +6153,7 @@ export interface components {
              * @default run
              * @enum {string}
              */
-            kind: "run" | "undo";
+            kind: "run" | "undo" | "manual";
             /** Undo Of Run Id */
             undo_of_run_id: string | null;
             /** Entries */
@@ -6012,11 +6319,11 @@ export interface components {
             last_at: number;
             /**
              * Kind
-             * @description run：Agent 运行；undo：一次撤销操作，它的 run_id 是操作身份，可像运行一样查看变更并撤回
+             * @description run：Agent 运行；undo：一次撤销操作，它的 run_id 是操作身份，可像运行一样查看变更并撤回；manual：界面上的文件操作（删除、重命名、新建文件夹），同样可以撤回
              * @default run
              * @enum {string}
              */
-            kind: "run" | "undo";
+            kind: "run" | "undo" | "manual";
             /**
              * Undo Of Run Id
              * @description kind=undo 时被撤销的运行
@@ -6393,6 +6700,22 @@ export interface components {
             cached_input: string;
             /** Output */
             output: string;
+        };
+        /**
+         * ToolCheckResult
+         * @description 工具能力检测结果。上游以 4xx 拒绝工具定义时 supported 为 false 并给出原因；超时与上游故障作为错误返回。
+         */
+        ToolCheckResult: {
+            /** Supported */
+            supported: boolean;
+            /** Elapsed Ms */
+            elapsed_ms: number;
+            /** Upstream Status */
+            upstream_status?: number | null;
+            /** Reason */
+            reason?: string | null;
+            /** Suggestion */
+            suggestion?: string | null;
         };
         /**
          * ToolEventData
@@ -11734,6 +12057,111 @@ export interface operations {
             };
         };
     };
+    delete_entry_api_roots__root_id__entries_delete_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                root_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DeleteEntryRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_RemovedEntryResponse_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    rename_entry_api_roots__root_id__entries_rename_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                root_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RenameEntryRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_RootEntryResponse_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    create_folder_api_roots__root_id__entries_folders_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                root_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateFolderRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_RootEntryResponse_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     create_folder_grant_api_host_folder_grants_post: {
         parameters: {
             query?: never;
@@ -11981,6 +12409,68 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Response_ProviderProbeResult_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    check_tools_api_app_config_llm_providers_tool_check_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ProviderProbe"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_ToolCheckResult_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    model_catalog_api_app_config_llm_catalog_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_CatalogResponse_"];
                 };
             };
             /** @description 结构化错误 */

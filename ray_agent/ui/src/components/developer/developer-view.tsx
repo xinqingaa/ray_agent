@@ -1,3 +1,4 @@
+import {copyText} from '@/lib/clipboard'
 import {Activity, AlignLeft, Check, ChevronDown, Code2, Copy, Download, FileText, Layers, ListFilter, X, ListTree, Minimize2} from '@/components/ui/icons'
 import {Fragment, useEffect, useMemo, useState} from 'react'
 import {toast} from 'sonner'
@@ -232,7 +233,7 @@ function RawEventDetail({event, open, rendered}: {event: RawEvent; open: boolean
           <div className="mb-2 flex items-center justify-between text-xs text-muted-foreground">
             <span>事件 #{event.seq} · 原始 JSON</span>
             <Button type="button" variant="ghost" size="icon-xs" title={copied ? '已复制' : '复制原始 JSON'} aria-label={copied ? '已复制' : '复制原始 JSON'} onClick={async () => {
-              try {await navigator.clipboard.writeText(JSON.stringify(event.payload, null, 2)); setCopied(true)}
+              try {await copyText(JSON.stringify(event.payload, null, 2)); setCopied(true)}
               catch {toast.error('复制失败，请手动选取内容')}
             }}>{copied ? <Check aria-hidden/> : <Copy aria-hidden/>}</Button>
           </div>

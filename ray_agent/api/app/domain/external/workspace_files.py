@@ -122,7 +122,12 @@ class WorkspaceFiles(Protocol):
         """同 write_bytes，内容来自流；先写同目录临时文件，发布前再次核对目标。"""
         ...
 
-    async def mkdir(self, path: RootedPath, parents: bool = True) -> FileEntry:
+    async def mkdir(self, path: RootedPath, parents: bool = True, exclusive: bool = False) -> FileEntry:
+        """exclusive 为真时同名条目已存在即冲突；否则已是文件夹时直接返回。"""
+        ...
+
+    async def rmdir(self, path: RootedPath) -> None:
+        """只删除空文件夹；非空为冲突。"""
         ...
 
     async def move(self, source: RootedPath, target: RootedPath, expected: FileVersion | None = None) -> FileEntry:

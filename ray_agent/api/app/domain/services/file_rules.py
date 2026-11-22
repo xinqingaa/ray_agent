@@ -79,3 +79,22 @@ def safe_filename(name: str) -> str:
     if cleaned in ("", ".", "..") or is_reserved(cleaned):
         raise ValueError("文件名无效")
     return cleaned[:255]
+
+
+_NAME_BYTES = 255
+
+
+def check_entry_name(name: str) -> str:
+    """界面新建文件夹与重命名的单段名称：去首尾空白后不得为空或点名，不含路径分隔符与控制字符，UTF-8 不超过 255 字节，不得是保留名。"""
+    text = (name or "").strip()
+    if text in ("", ".", ".."):
+        raise ValueError("名称不能为空，也不能是 . 或 ..")
+    if "/" in text or "\\" in text:
+        raise ValueError("名称不能包含 / 或 \\")
+    if any(ord(char) < 32 or ord(char) == 127 for char in text):
+        raise ValueError("名称不能包含控制字符")
+    if len(text.encode("utf-8")) > _NAME_BYTES:
+        raise ValueError("名称过长，最多 255 字节")
+    if is_reserved(text):
+        raise ValueError("该名称属于应用保留目录")
+    return text

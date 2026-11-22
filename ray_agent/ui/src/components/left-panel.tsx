@@ -1,6 +1,5 @@
 import {useEffect, useState, type ReactNode} from 'react'
 import {Link, useRouter, usePathname} from '@/lib/navigation'
-import {toast} from 'sonner'
 import {Sidebar, SidebarContent, SidebarHeader, useSidebar} from '@/components/ui/sidebar'
 import {Button} from '@/components/ui/button'
 import {IconAction} from '@/components/ui/icon-action'
@@ -9,6 +8,7 @@ import {SessionItem} from '@/components/session-item'
 import {DeleteSessionDialog} from '@/components/delete-session-dialog'
 import {RenameSessionDialog} from '@/components/rename-session-dialog'
 import {WorkspaceAddAction} from '@/components/workspace/workspace-list'
+import {WorkspaceRowMenu} from '@/components/workspace/workspace-row-menu'
 import {useSessions} from '@/hooks/use-sessions'
 import {sessionApi} from '@/lib/api/session'
 import type {Session} from '@/lib/api/types'
@@ -19,6 +19,7 @@ import {formatDayLabel} from '@/lib/utils'
 
 const PAGE_SIZE = 50
 type SessionRows = {sessions: Session[]; error: string | null}
+type PendingSessionAction = {session: Session; restoreFocus: () => void}
 
 function DirectoryStatus({loading, error, empty, onRetry}: {loading: boolean; error: string | null; empty: string | null; onRetry: () => void}) {
   if (error) return <div className="px-2 py-3"><p role="alert" className="text-meta text-state-failed">{error}</p>
@@ -115,8 +116,8 @@ export function LeftPanel({scope, expanded, onExpand}: {
   const {sessions, directories, loading, error, refresh, deleteSession, patchSession, liveSession} = useSessions()
   const {workspaces, loading: workspacesLoading, error: workspacesError, refresh: refreshWorkspaces} = useWorkspaces()
   const [selectedRecord, setSelected] = useState<Session | null>(null)
-  const [pendingDelete, setPendingDelete] = useState<Session | null>(null)
-  const [pendingRename, setPendingRename] = useState<Session | null>(null)
+  const [pendingDelete, setPendingDelete] = useState<PendingSessionAction | null>(null)
+  const [pendingRename, setPendingRename] = useState<PendingSessionAction | null>(null)
   const [revisions, setRevisions] = useState<Record<string, number>>({})
   const {workspaceId, sessionId: workspaceSessionId} = parseWorkspaceRoute(pathname)
   const sessionId = workspaceSessionId ?? pathname.match(/^\/sessions\/([^/]+)/)?.[1]
@@ -138,17 +139,20 @@ export function LeftPanel({scope, expanded, onExpand}: {
   const hrefFor = (id: string, owner: string | null) => owner ? workspaceSessionHref(owner, id) : `/sessions/${encodeURIComponent(id)}`
   const renderRows = (rows: Session[], owner: string | null) => rows.map(session => <SessionItem key={session.session_id}
     session={session} href={hrefFor(session.session_id, owner)} isActive={sessionId === session.session_id}
-    onClick={() => setOpenMobile(false)} onDelete={setPendingDelete} onRename={setPendingRename}/>)
+    onClick={() => setOpenMobile(false)} onDelete={(session, restoreFocus) => setPendingDelete({session, restoreFocus})}
+    onRename={(session, restoreFocus) => setPendingRename({session, restoreFocus})}/>)
   const invalidate = (owner: string | null) => {
     if (owner === workspaceId) void refresh()
     if (owner) setRevisions(current => ({...current, [owner]: (current[owner] ?? 0) + 1}))
   }
   const remove = async () => {
     if (!pendingDelete) return
-    const owner = pendingDelete.workspace_id ?? null
-    if (!await deleteSession(pendingDelete.session_id, owner)) {toast.error('删除对话失败，请重试'); return}
-    setSelected(current => current?.session_id === pendingDelete.session_id ? null : current)
-    if (sessionId === pendingDelete.session_id) router.push(owner ? workspaceHref(owner) : '/')
+    const {session} = pendingDelete
+    const owner = session.workspace_id ?? null
+    // 失败时抛出，确认弹框保持打开并显示说明
+    await deleteSession(session.session_id, owner)
+    setSelected(current => current?.session_id === session.session_id ? null : current)
+    if (sessionId === session.session_id) router.push(owner ? workspaceHref(owner) : '/')
     invalidate(owner)
     setPendingDelete(null)
   }
@@ -164,7 +168,7 @@ export function LeftPanel({scope, expanded, onExpand}: {
         const open = expanded[workspace.id] ?? active
         const Glyph = open ? FolderOpen : Folder
         return <div key={workspace.id} className="my-0.5">
-          <Link href={home} className="workspace-directory-row" aria-expanded={open} aria-current={pathname === home ? 'page' : undefined}
+          <WorkspaceRowMenu workspace={workspace}><Link href={home} className="workspace-directory-row" aria-expanded={open} aria-current={pathname === home ? 'page' : undefined}
             onClick={event => {
               if (event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return
               if (pathname === home) {
@@ -177,7 +181,7 @@ export function LeftPanel({scope, expanded, onExpand}: {
             }}><Glyph className="size-[18px] shrink-0 text-muted-foreground"/>
             <span className="min-w-0 flex-1 truncate" dir="auto">{workspace.name}</span>
             <WorkspaceStatus workspace={workspace} compact/>
-          </Link>
+          </Link></WorkspaceRowMenu>
           <div className="workspace-directory-children" aria-label={`${workspace.name}的对话`} hidden={!open}>
             <ExpandedWorkspaceSessions id={workspace.id} open={open} active={active} revision={revisions[workspace.id] ?? 0}
               directory={directories[workspace.id]} retryActive={refresh}
@@ -202,11 +206,12 @@ export function LeftPanel({scope, expanded, onExpand}: {
         </div>
       })}
     </DirectoryFrame>}
-    <DeleteSessionDialog open={!!pendingDelete} onOpenChange={open => {if (!open) setPendingDelete(null)}} onConfirm={remove}/>
-    {pendingRename && <RenameSessionDialog sessionId={pendingRename.session_id} currentTitle={pendingRename.title} open
-      onOpenChange={open => {if (!open) setPendingRename(null)}} onSaved={title => {
-        const id = pendingRename.session_id
-        const owner = pendingRename.workspace_id ?? null
+    {pendingDelete && <DeleteSessionDialog open onOpenChange={open => {if (!open) setPendingDelete(null)}} onConfirm={remove}
+      onRestoreFocus={pendingDelete.restoreFocus}/>}
+    {pendingRename && <RenameSessionDialog sessionId={pendingRename.session.session_id} currentTitle={pendingRename.session.title} open
+      onOpenChange={open => {if (!open) setPendingRename(null)}} onRestoreFocus={pendingRename.restoreFocus} onSaved={title => {
+        const id = pendingRename.session.session_id
+        const owner = pendingRename.session.workspace_id ?? null
         patchSession(id, {title}, owner)
         setSelected(current => current?.session_id === id ? {...current, title} : current)
         invalidate(owner)

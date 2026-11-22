@@ -4,7 +4,7 @@ import {PreviewAction} from '@/components/preview/action'
 import {cn} from '@/lib/utils'
 import type {FileView} from '@/lib/session-view'
 import {previewBodyKind, previewUnavailableReason} from './file-icon'
-import {FileRow} from '@/components/preview/file-row'
+import {FileRow, fileMenuEntries} from '@/components/preview/file-row'
 
 type DeliveryCardProps = {
   files: FileView[]
@@ -24,7 +24,8 @@ export function DeliveryCard({files, note, onPreview, onDownload, onDownloadAll,
     const unavailable = previewUnavailableReason(file.extension)
     return (
       <li key={file.id} className={previewBodyKind(file.extension) === 'image' ? undefined : 'rounded-[12px] border border-signal/20 bg-signal-soft/25 px-1'}>
-        <FileRow file={file} showThumbnail onOpen={onPreview ? () => onPreview(file) : undefined} actions={<>
+        <FileRow file={file} showThumbnail onOpen={onPreview ? () => onPreview(file) : undefined}
+          menu={fileMenuEntries(file, {onPreview, onDownload})} actions={<>
           {!unavailable && <PreviewAction label={isWebPage(file.filename) ? `在浏览器中打开 ${file.filename}` : `预览 ${file.filename}`} icon={isWebPage(file.filename) ? ExternalLink : Eye} onClick={() => onPreview?.(file)} disabled={!onPreview}/>}
           <PreviewAction label={`下载 ${file.filename}`} icon={Download} onClick={() => onDownload?.(file)} disabled={!onDownload}/>
         </>}/>

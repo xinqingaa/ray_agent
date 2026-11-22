@@ -1,11 +1,16 @@
-import {ChevronRight, Folder, FolderOpen, Link2, LoaderCircle, FileQuestion} from '@/components/ui/icons'
-import {createElement, useRef, type KeyboardEvent} from 'react'
+import {ChevronRight, Copy, Eye, Finder, Folder, FolderOpen, FolderPlus, Link2, LoaderCircle, FileQuestion, Pencil, Plus, Trash} from '@/components/ui/icons'
+import {createElement, Fragment, useRef, type KeyboardEvent} from 'react'
 import {Button} from '@/components/ui/button'
+import {ContextMenuSurface} from '@/components/ui/context-menu'
+import {menuItem, type MenuEntry} from '@/lib/context-menu-policy'
 import {fileExtension, FileTypeBadge} from '@/components/run/file-icon'
 import {formatBytes} from '@/components/run/format'
 import {cn} from '@/lib/utils'
-import {visibleRows, type TreeState} from '@/lib/workspace-tree'
+import {uploadTarget, visibleRows, type TreeState} from '@/lib/workspace-tree'
+import {entryActionsFor, type EntryEdit} from '@/lib/workspace-entries'
+import {fileManagerName} from '@/lib/platform'
 import type {RootEntry} from '@/lib/api/types'
+import {EntryNameInput} from './entry-name-input'
 
 const INDENT = 14
 const INDEX_LABEL: Record<string, string> = {
@@ -13,8 +18,12 @@ const INDEX_LABEL: Record<string, string> = {
   registered: '等待索引', pending_parse: '等待解析', parsing: '正在解析', indexing: '正在索引',
 }
 
-/** 懒加载的文件树。目录点击展开，文件点击打开预览；符号链接与特殊文件只显示，不展开不预览。 */
-export function FolderTree({tree, selectedPath, indexStates, readPaths, addedPaths, onSelect, onToggle, onRetry}: {
+/**
+ * 懒加载的文件树。目录点击展开，文件点击打开预览；符号链接与特殊文件只显示，不展开不预览。
+ * 条目操作（重命名、新建文件夹、删除）由面板提供回调；有回调时行菜单才出现对应项。编辑中的名称在行内输入。
+ */
+export function FolderTree({tree, selectedPath, indexStates, readPaths, addedPaths, onSelect, onToggle, onRetry, onReveal, onAdd,
+  edit, editBusy, onEditChange, onEditCommit, onEditCancel, onStartRename, onStartCreate, onRequestDelete, onCopyPath}: {
   tree: TreeState
   selectedPath: string | null
   indexStates?: ReadonlyMap<string, string>
@@ -23,9 +32,34 @@ export function FolderTree({tree, selectedPath, indexStates, readPaths, addedPat
   onSelect: (path: string, entry: RootEntry) => void
   onToggle: (path: string, expanded?: boolean) => void
   onRetry: (path: string) => void
+  onReveal?: (path: string) => void
+  onAdd?: (directory: string) => void
+  edit?: EntryEdit | null
+  editBusy?: boolean
+  onEditChange?: (draft: string) => void
+  onEditCommit?: (fromBlur: boolean) => void
+  onEditCancel?: () => void
+  onStartRename?: (path: string, entry: RootEntry) => void
+  onStartCreate?: (directory: string) => void
+  onRequestDelete?: (path: string, entry: RootEntry) => void
+  /** 复制条目的绝对路径（由面板换算） */
+  onCopyPath?: (path: string) => void
 }) {
   const rows = visibleRows(tree)
   const container = useRef<HTMLUListElement>(null)
+  const creating = (directory: string) => edit?.kind === 'create' && edit.directory === directory ? edit : null
+  const draftRow = (depth: number, key: string) => {
+    const pending = edit?.kind === 'create' ? edit : null
+    if (!pending) return null
+    return <li key={key} role="none" className="folder-entry-draft">
+      <div role="none" style={{paddingLeft: depth * INDENT + 8}} className="flex min-h-8 items-center gap-1.5 pr-2">
+        <Folder className="size-4 shrink-0 text-muted-foreground" aria-hidden/>
+        <EntryNameInput label="新文件夹名称" value={pending.draft} error={pending.error} busy={editBusy}
+          onChange={value => onEditChange?.(value)} onCommit={() => onEditCommit?.(false)}
+          onCancel={() => onEditCancel?.()} onBlur={() => onEditCommit?.(true)}/>
+      </div>
+    </li>
+  }
   const onKeyDown = (event: KeyboardEvent<HTMLElement>, path: string, entry: RootEntry, expanded: boolean) => {
     const rowsEls = container.current?.querySelectorAll<HTMLElement>('[data-tree-row]')
     const count = rowsEls?.length ?? 0
@@ -47,6 +81,7 @@ export function FolderTree({tree, selectedPath, indexStates, readPaths, addedPat
   }
 
   return <ul ref={container} role="tree" aria-label="文件夹内容" className="py-1">
+    {creating('') && draftRow(0, 'draft-root')}
     {rows.map((row, index) => {
       if (row.kind === 'status') {
         const pad = {paddingLeft: row.depth * INDENT + 28}
@@ -71,7 +106,30 @@ export function FolderTree({tree, selectedPath, indexStates, readPaths, addedPat
       const indexLabel = status ? INDEX_LABEL[status] : undefined
       const read = isFile && readPaths?.has(path)
       const fresh = isFile && addedPaths?.has(path)
-      return <li key={path} role="none">
+      const operations = entryActionsFor(entry.kind)
+      // 只列出能完成的项：文件先预览；目录可新建文件夹；删除放最后，前面用分隔线隔开
+      const menu: MenuEntry[] = [
+        ...(isFile ? [menuItem('预览', Eye, () => onSelect(path, entry))] : []),
+        ...(interactive && onAdd ? [menuItem(isFile ? '添加文件到所在目录' : '添加文件到此目录', Plus,
+          () => onAdd(uploadTarget({path, kind: entry.kind})))] : []),
+        ...(operations.createFolder && onStartCreate ? [menuItem('新建文件夹', FolderPlus, () => onStartCreate(path))] : []),
+        ...(interactive && onReveal ? [menuItem(`在 ${fileManagerName()} 中显示`, Finder, () => onReveal(path))] : []),
+        ...(onCopyPath ? [menuItem('复制路径', Copy, () => onCopyPath(path))] : []),
+        ...(operations.rename && onStartRename ? [menuItem('重命名', Pencil, () => onStartRename(path, entry))] : []),
+        ...(operations.remove && onRequestDelete ? [{type: 'separator'} as const,
+          menuItem('删除', Trash, () => onRequestDelete(path, entry), {destructive: true})] : []),
+      ]
+      const renaming = edit?.kind === 'rename' && edit.path === path ? edit : null
+      if (renaming) return <Fragment key={path}><li role="none">
+        <div role="none" style={{paddingLeft: row.depth * INDENT + (isFile && row.depth > 0 ? 16 : 8)}} className="flex min-h-8 items-center gap-1.5 pr-2">
+          {isFile ? <FileTypeBadge extension={fileExtension(entry.name)}/> : createElement(Icon, {className: 'size-4 shrink-0 text-muted-foreground', 'aria-hidden': true})}
+          <EntryNameInput label={`重命名 ${entry.name}`} value={renaming.draft} error={renaming.error} busy={editBusy} selectBase
+            onChange={value => onEditChange?.(value)} onCommit={() => onEditCommit?.(false)}
+            onCancel={() => onEditCancel?.()} onBlur={() => onEditCommit?.(true)}/>
+        </div>
+      </li></Fragment>
+      return <Fragment key={path}><li role="none">
+        <ContextMenuSurface items={menu}>
         <button type="button" role="treeitem" data-tree-row data-tree-path={path}
           aria-level={row.depth + 1} aria-selected={selected} aria-expanded={isDirectory ? row.expanded : undefined}
           aria-disabled={!interactive || undefined}
@@ -99,8 +157,10 @@ export function FolderTree({tree, selectedPath, indexStates, readPaths, addedPat
             <span className="folder-index-dot" data-index={status} aria-hidden/>
             <span className={cn(status === 'searchable' && 'sr-only')}>{indexLabel}</span>
           </span>}
-        </button>
+        </button></ContextMenuSurface>
       </li>
+      {isDirectory && row.expanded && creating(path) && draftRow(row.depth + 1, `draft-${path}`)}
+      </Fragment>
     })}
   </ul>
 }

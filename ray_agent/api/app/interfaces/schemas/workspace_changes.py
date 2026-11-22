@@ -65,8 +65,9 @@ class RunSummaryView(BaseModel):
     changed_files: int = Field(description="净变化的文件数；运行里新建后又删除的文件不计")
     first_at: int
     last_at: int
-    kind: Literal["run", "undo"] = Field(
-        default="run", description="run：Agent 运行；undo：一次撤销操作，它的 run_id 是操作身份，可像运行一样查看变更并撤回")
+    kind: Literal["run", "undo", "manual"] = Field(
+        default="run", description="run：Agent 运行；undo：一次撤销操作，它的 run_id 是操作身份，可像运行一样查看变更并撤回；"
+                                   "manual：界面上的文件操作（删除、重命名、新建文件夹），同样可以撤回")
     undo_of_run_id: Optional[str] = Field(default=None, description="kind=undo 时被撤销的运行")
 
 
@@ -81,6 +82,7 @@ class ChangeEntryView(BaseModel):
 
     root_id: str
     relative_path: str
+    kind: Literal["file", "directory"] = Field(default="file", description="文件夹只有新建与删除，没有内容版本")
     operation: ChangeOperation = Field(description="折叠后的净操作：运行前不存在为 create，运行前存在且最后被删除为 delete，其余为 modify")
     writes: int = Field(description="运行对该文件的写入次数")
     first_at: int
@@ -97,7 +99,7 @@ class ChangeEntryView(BaseModel):
 
     @classmethod
     def of(cls, entry: ChangeEntry) -> "ChangeEntryView":
-        return cls(root_id=entry.root_id, relative_path=entry.relative_path, operation=entry.operation,
+        return cls(root_id=entry.root_id, relative_path=entry.relative_path, kind=entry.kind, operation=entry.operation,
                    writes=entry.writes, first_at=to_epoch_ms(entry.first_at), last_at=to_epoch_ms(entry.last_at),
                    before=FileVersionView.of(entry.before), after=FileVersionView.of(entry.after),
                    current=FileVersionView.of(entry.current), status=entry.status,
@@ -111,7 +113,7 @@ class RunChangesResponse(BaseModel):
     session_id: str
     session_title: str
     run_active: bool = Field(description="运行仍在进行时不能撤销")
-    kind: Literal["run", "undo"] = "run"
+    kind: Literal["run", "undo", "manual"] = "run"
     undo_of_run_id: Optional[str] = None
     entries: list[ChangeEntryView]
 
@@ -125,8 +127,9 @@ class RunChangesResponse(BaseModel):
 class ChangePreviewResponse(BaseModel):
     model_config = _STRICT
 
-    kind: Literal["diff", "binary", "too_large", "unchanged"] = Field(
-        description="diff：当前版本到撤销后版本的统一 diff；binary 与 too_large 只给大小；unchanged：撤销不会改变内容")
+    kind: Literal["diff", "binary", "too_large", "unchanged", "directory"] = Field(
+        description="diff：当前版本到撤销后版本的统一 diff；binary 与 too_large 只给大小；unchanged：撤销不会改变内容；"
+                    "directory：文件夹只移除或重新建立，没有内容可比较")
     diff: str = ""
     truncated: bool = False
     current_size: Optional[int] = None

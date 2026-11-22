@@ -1,21 +1,111 @@
-.composer-voice-trigger[aria-pressed="true"] { background: var(--state-failed-soft); color: var(--state-failed); }
-.composer-voice-strip { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 2px 10px 8px; padding: 6px 9px; min-height: 38px; border-radius: 11px; background: var(--muted); color: var(--muted-foreground); font-size: calc(12px * var(--font-scale)); }
-.composer-voice-strip[data-phase="error"] { background: var(--state-failed-soft); }
-.composer-voice-strip[data-phase="offer"] { display: grid; padding: 10px 12px; }
-.composer-voice-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr)); gap: 8px; }
-.composer-voice-option { display: flex; flex-direction: column; gap: 4px; min-width: 0; padding: 8px 10px; border: 1px solid var(--border); border-radius: 8px; }
-.composer-voice-option h4 { color: var(--foreground); font-weight: 500; }
-.composer-voice-choice { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: auto; padding-top: 3px; }
-.composer-voice-status { display: inline-flex; align-items: flex-start; flex-wrap: nowrap; gap: 6px; min-width: 0; }
-.composer-voice-status > span { overflow-wrap: anywhere; }
-.composer-voice-time { color: var(--foreground); font-variant-numeric: tabular-nums; }
-.composer-voice-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--state-failed); animation: composer-voice-pulse 1.2s ease-in-out infinite; }
-@keyframes composer-voice-pulse { 50% { opacity: .35; } }
-.composer-voice-wave { display: inline-flex; align-items: center; gap: 2px; height: 18px; }
-.composer-voice-wave > i { width: 2px; background: var(--faint); border-radius: 2px; transition: height 80ms linear; }
-.composer-voice-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 5px; margin-left: auto; }
-.composer-voice-actions kbd { border: 1px solid var(--border); border-radius: 4px; padding: 0 3px; color: var(--muted-foreground); font-size: calc(10px * var(--font-scale)); }
+.composer-voice-control {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+    max-width: 100%;
+    min-height: 32px;
+    border-radius: 9px;
+    color: var(--muted-foreground);
+    font-size: var(--text-xs);
+}
+/* 录音、启动与转写时麦克风位置展开成胶囊：胶囊浮在周围按钮之上，占位保持原宽，周围按钮不移动。 */
+.composer-voice-control[data-mode="inline"] { padding: 0 3px; background: var(--muted); }
+.composer-voice-control[data-expanded] { flex-wrap: wrap; }
+.composer-voice-control:focus-visible { outline: 2px solid var(--ring); outline-offset: 1px; }
+.composer-voice-anchor { display: block; flex: none; width: 32px; height: 32px; }
+.composer-voice-group {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+    max-width: 100%;
+    flex-wrap: wrap;
+}
+.composer-voice-buttons, .composer-voice-status { display: inline-flex; align-items: center; gap: 4px; }
+.composer-voice-status { white-space: nowrap; }
+.composer-voice-buttons { flex-wrap: wrap; }
+.composer-voice-sheet {
+    position: absolute;
+    left: 0;
+    top: 0;
+    z-index: 2;
+    height: 32px;
+    max-width: calc(100cqw - 2.5rem);
+    overflow: hidden;
+    border-radius: 9px;
+    background: var(--muted);
+    color: var(--muted-foreground);
+    font-size: var(--text-xs);
+    pointer-events: none;
+    opacity: 0;
+    transition: width var(--motion-mid) var(--motion-ease), opacity var(--motion-mid) var(--motion-ease);
+}
+/* 展开用弹性曲线，收回用缓出：收回时不回弹。 */
+.composer-voice-sheet[data-open="true"] {
+    pointer-events: auto;
+    opacity: 1;
+    transition: width var(--motion-slow) var(--motion-spring), opacity var(--motion-fast) var(--motion-ease);
+}
+/* 舞台宽度取内容的自然宽度（max-content），胶囊据此测量展开宽度；不能跟随胶囊自身宽度，否则测不到变化。 */
+.composer-voice-stage { position: relative; display: grid; width: max-content; height: 100%; min-width: 0; }
+.composer-voice-layer {
+    grid-area: 1 / 1;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    height: 100%;
+    padding: 0 4px;
+    white-space: nowrap;
+}
+.composer-voice-layer[data-leaving="true"] {
+    position: absolute;
+    inset: 0 auto 0 0;
+    animation: composer-voice-leave var(--motion-fast) var(--motion-ease) both;
+}
+.composer-voice-enter { animation: composer-voice-enter var(--motion-mid) var(--motion-ease) both; }
+@keyframes composer-voice-enter { from { opacity: 0; } }
+@keyframes composer-voice-leave { to { opacity: 0; } }
+.composer-voice-time {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 3px;
+    min-width: calc(9ch + 3px);
+    white-space: nowrap;
+    color: var(--foreground);
+    font-variant-numeric: tabular-nums;
+}
+.composer-voice-time[data-countdown="true"] { color: var(--state-failed); }
+.composer-voice-wave { display: inline-flex; align-items: center; gap: 2px; height: 17px; color: var(--muted-foreground); }
+.composer-voice-wave > i { width: 2px; background: currentColor; border-radius: 2px; transition: height var(--motion-fast) linear; }
+.composer-voice-control .composer-voice-finish { background: var(--signal-soft); color: var(--signal); }
+.composer-voice-control .composer-voice-finish:hover { background: var(--signal); color: var(--signal-foreground); }
+.composer-voice-control[data-phase="error"] { background: var(--state-failed-soft); }
+.composer-voice-error { min-width: 0; max-width: 100%; overflow-wrap: anywhere; color: var(--state-failed); }
+@container composer (max-width: 480px) {
+    .composer-actions:has(.composer-voice-control[data-expanded]) {
+        display: grid;
+        grid-template-columns: auto minmax(0, 1fr) minmax(0, auto);
+        align-items: center;
+    }
+    .composer-actions:has(.composer-voice-control[data-expanded]) .composer-input-actions { display: contents; }
+    .composer-actions > .composer-input-actions > .composer-voice-control[data-expanded] {
+        grid-area: 1 / 1 / 2 / -1;
+        justify-self: start;
+    }
+    .composer-actions:has(.composer-voice-control[data-expanded]) .composer-attach { grid-area: 2 / 1; }
+    .composer-actions:has(.composer-voice-control[data-expanded]) .composer-shortcuts { grid-area: 2 / 2; }
+    .composer-actions:has(.composer-voice-control[data-expanded]) .composer-submit-actions { grid-area: 2 / 3; }
+    .composer-voice-control[data-phase="recording"] .composer-voice-wave > i:nth-child(n+9) { display: none; }
+}
+/* 胶囊盖住的按钮组：淡出后不可见、不可交互（inert 由脚本设置）；收起后淡回。 */
+.composer-input-actions > *, .composer-actions > .composer-submit-actions { transition: opacity var(--motion-fast) var(--motion-ease); }
+.composer-actions [data-voice-covered] { opacity: 0; }
 @media (prefers-reduced-motion: reduce) {
-  .composer-voice-dot { animation: none; }
-  .composer-voice-wave > i { transition: none; }
+    .composer-voice-sheet, .composer-voice-sheet[data-open="true"], .composer-voice-wave > i,
+    .composer-input-actions > *, .composer-actions > .composer-submit-actions { transition: none; }
+    .composer-voice-enter, .composer-voice-layer[data-leaving="true"] { animation: none; }
+    .composer-voice-layer[data-leaving="true"] { display: none; }
 }

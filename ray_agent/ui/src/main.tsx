@@ -1,6 +1,7 @@
 import {StrictMode} from 'react'
 import {createRoot} from 'react-dom/client'
 import {App} from '@/app'
+import {ContextMenuProvider} from '@/components/ui/context-menu'
 import {routeExternalLinks} from '@/lib/external-links'
 import {FONT_SIZE_BASE, readFontSize} from '@/lib/font-size'
 import {isDesktop} from '@/lib/platform'
@@ -18,6 +19,8 @@ window.addEventListener('drop', preventFileNavigation)
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App/>
+    <ContextMenuProvider>
+      <App/>
+    </ContextMenuProvider>
   </StrictMode>,
 )

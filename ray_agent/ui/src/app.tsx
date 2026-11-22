@@ -5,7 +5,7 @@ import {Toaster} from '@/components/ui/sonner'
 import {AppShell} from '@/components/app-shell'
 import {CoreGate} from '@/components/core-gate'
 import {HostBridge} from '@/components/host-bridge'
-import {SettingsPageView} from '@/components/settings/settings-dialog'
+import {SettingsView} from '@/components/settings/settings-view'
 import {SkillsPage} from '@/pages/skills'
 import {HomePage} from '@/pages/home'
 import {SessionPage} from '@/pages/session'
@@ -51,7 +51,7 @@ function CoreApp() {
           </Route>
           <Route path="skills" element={<SkillsPage/>}/>
           <Route path="components" element={<RuntimeComponentsPage/>}/>
-          <Route path="settings" element={<SettingsPageView/>}/>
+          <Route path="settings" element={<SettingsView/>}/>
           <Route path="*" element={<Navigate to="/" replace/>}/>
         </Route>
       </Routes>

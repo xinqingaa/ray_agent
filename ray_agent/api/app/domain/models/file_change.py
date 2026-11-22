@@ -21,6 +21,13 @@ class ChangeSource(StrEnum):
     TOOL = "tool"
     UPLOAD = "upload"
     UNDO = "undo"
+    MANUAL = "manual"  # 界面上的文件与文件夹操作：删除、重命名、新建文件夹
+
+
+class EntryKind(StrEnum):
+    """变更记录针对的条目类型。文件夹只记录存在性（新建与删除），没有内容与备份。"""
+    FILE = "file"
+    DIRECTORY = "directory"
 
 
 class WorkspaceObject(BaseModel):
@@ -49,6 +56,7 @@ class FileChange(BaseModel):
     relative_path: str
     operation: ChangeOperation
     source: ChangeSource = ChangeSource.TOOL
+    entry_kind: EntryKind = EntryKind.FILE
     undo_of_run_id: str | None = Field(default=None, description="撤销产生的变更记录被撤销的运行")
     before_object_id: str | None = None
     after: VersionStamp | None = Field(default=None, description="删除时为空")
@@ -63,3 +71,4 @@ class RunChangeRow(BaseModel):
     first_at: datetime
     last_at: datetime
     undo_of_run_id: str | None = Field(default=None, description="这是一次撤销操作：被撤销的运行")
+    manual: bool = Field(default=False, description="这是一次界面文件操作（删除、重命名、新建文件夹）")

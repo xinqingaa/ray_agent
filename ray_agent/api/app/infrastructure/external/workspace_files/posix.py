@@ -462,11 +462,11 @@ class PosixWorkspaceFiles:
         except OSError:
             pass
 
-    async def mkdir(self, path: RootedPath, parents: bool = True) -> FileEntry:
+    async def mkdir(self, path: RootedPath, parents: bool = True, exclusive: bool = False) -> FileEntry:
         binding = await self._binding(path)
-        return await self._run(self._mkdir, binding, path, parents)
+        return await self._run(self._mkdir, binding, path, parents, exclusive)
 
-    def _mkdir(self, binding: RootBinding, path: RootedPath, parents: bool) -> FileEntry:
+    def _mkdir(self, binding: RootBinding, path: RootedPath, parents: bool, exclusive: bool) -> FileEntry:
         parts = _parts(path.relative_path)
         if not parts:
             raise _fail(ErrorCode.INVALID_REQUEST, "根目录已存在")
@@ -477,7 +477,8 @@ class PosixWorkspaceFiles:
                 try:
                     os.mkdir(parts[-1], 0o777, dir_fd=parent_fd)
                 except FileExistsError:
-                    pass
+                    if exclusive:
+                        raise _fail(ErrorCode.CONFLICT, f"{parts[-1]} 已存在，不覆盖")
                 except OSError as error:
                     raise _os_error(error, parts[-1])
                 info = _lstat(parent_fd, parts[-1])
@@ -512,6 +513,10 @@ class PosixWorkspaceFiles:
                     if kind is FileKind.FILE and expected is not None and not _same_version(info, expected):
                         raise _fail(ErrorCode.CONFLICT, f"{src_name} 已被修改", version_of(info))
                     if self._exists(dst_fd, dst_name):
+                        if src_parts[:-1] == dst_parts[:-1] and self._is_same_entry(dst_fd, dst_name, info):
+                            # 大小写不敏感的文件系统上，只改大小写即目标与源是同一条目，需经临时名两步改名
+                            self._rename_case(src_fd, src_name, dst_name)
+                            return _entry(binding.root_id, dst_parts, dst_name, _lstat(dst_fd, dst_name), dst_fd)
                         raise _fail(ErrorCode.CONFLICT, f"{dst_name} 已存在，不覆盖")
                     try:
                         if kind is FileKind.FILE:
@@ -538,6 +543,60 @@ class PosixWorkspaceFiles:
             return True
         except FileNotFoundError:
             return False
+
+    @staticmethod
+    def _is_same_entry(dir_fd: int, name: str, info: os.stat_result) -> bool:
+        try:
+            other = os.stat(name, dir_fd=dir_fd, follow_symlinks=False)
+        except OSError:
+            return False
+        return (other.st_dev, other.st_ino) == (info.st_dev, info.st_ino)
+
+    @staticmethod
+    def _rename_case(dir_fd: int, src: str, dst: str) -> None:
+        temp = f"{TEMP_PREFIX}{uuid.uuid4().hex}.tmp"
+        try:
+            os.rename(src, temp, src_dir_fd=dir_fd, dst_dir_fd=dir_fd)
+        except OSError as error:
+            raise _os_error(error, src)
+        try:
+            os.rename(temp, dst, src_dir_fd=dir_fd, dst_dir_fd=dir_fd)
+        except OSError as error:
+            try:
+                os.rename(temp, src, src_dir_fd=dir_fd, dst_dir_fd=dir_fd)
+            except OSError:
+                pass  # 退回失败时临时名保留，由启动清理按写入临时文件处理
+            raise _os_error(error, dst)
+
+    async def rmdir(self, path: RootedPath) -> None:
+        binding = await self._binding(path)
+        await self._run(self._rmdir, binding, path)
+
+    def _rmdir(self, binding: RootBinding, path: RootedPath) -> None:
+        parts = _parts(path.relative_path)
+        if not parts:
+            raise _fail(ErrorCode.INVALID_REQUEST, "不能删除根目录")
+        root_fd = open_root(binding)
+        try:
+            parent_fd = walk_dirs(root_fd, parts[:-1])
+            try:
+                name = parts[-1]
+                info = _lstat(parent_fd, name)
+                kind = kind_of(info.st_mode)
+                if kind is FileKind.FILE:
+                    raise _fail(ErrorCode.INVALID_REQUEST, f"{name} 不是文件夹")
+                if kind is not FileKind.DIRECTORY:
+                    raise _refuse_non_file(kind, name)
+                try:
+                    os.rmdir(name, dir_fd=parent_fd)
+                except OSError as error:
+                    if error.errno in (errno.ENOTEMPTY, errno.EEXIST):
+                        raise _fail(ErrorCode.CONFLICT, f"{name} 不是空文件夹，不能删除")
+                    raise _os_error(error, name)
+            finally:
+                os.close(parent_fd)
+        finally:
+            os.close(root_fd)
 
     async def delete(self, path: RootedPath, expected: FileVersion) -> None:
         binding = await self._binding(path)

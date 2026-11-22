@@ -16,6 +16,7 @@ import {ApiError} from '@/lib/api/fetch'
 import type {MemoryItem, MemoryType, PatchMemoryRequest, WorkspaceItem} from '@/lib/api/types'
 import {MEMORY_TYPE_LABEL, MEMORY_TYPE_OPTIONS} from '@/lib/memory-labels'
 import {describeWorkspace} from '@/lib/workspace-state'
+import {motionEasing} from '@/lib/motion'
 import {cn, formatDayLabel} from '@/lib/utils'
 
 const MEMORY_DRAG = 'application/x-rayagent-memory'
@@ -119,7 +120,7 @@ export function MemoryPanel({workspace, onSummary}: {
     })
     for (const {node, delta} of moves) if (delta) node.animate([
       {transform: `translateY(${delta}px)`}, {transform: 'translateY(0)'},
-    ], {duration: 455, easing: 'cubic-bezier(.34,1.28,.55,1)'})
+    ], {duration: 455, easing: motionEasing('spring')})
   }, [items])
   const rows = useMemo(() => [...items].sort((a, b) =>
     Number(b.pinned) - Number(a.pinned) || TYPE_ORDER[a.memory_type] - TYPE_ORDER[b.memory_type] ||

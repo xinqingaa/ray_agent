@@ -200,7 +200,7 @@ export function McpSection() {
           </Button>
         }
       />
-      <div>
+      <div aria-busy={list.reading || undefined}>
         {list.phase.phase === 'loading' && <ListSkeleton/>}
         {list.phase.phase === 'error' && <div className="py-3"><LoadError message={list.phase.message} onRetry={list.reload}/></div>}
         {list.phase.phase === 'ready' && list.items.length === 0 && (

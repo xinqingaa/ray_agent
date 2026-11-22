@@ -1,5 +1,6 @@
 import {useRef, type KeyboardEvent, type ReactNode} from 'react'
 import {AlertCircle} from '@/components/ui/icons'
+import {SegmentThumb, useSegmentThumb} from '@/components/ui/segment-thumb'
 import {cn} from '@/lib/utils'
 import './settings-row.css'
 
@@ -47,6 +48,8 @@ export function SettingsSegment<T extends string>({label, value, options, onChan
   inherited?: boolean
 }) {
   const refs = useRef<(HTMLButtonElement | null)[]>([])
+  const rootRef = useRef<HTMLDivElement>(null)
+  const thumb = useSegmentThumb(rootRef, value, options.map(option => option.value).join('\u0000'))
   const focusable = Math.max(0, options.findIndex(option => option.value === value))
   const move = (event: KeyboardEvent<HTMLButtonElement>, index: number) => {
     const keys = ['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End']
@@ -59,7 +62,8 @@ export function SettingsSegment<T extends string>({label, value, options, onChan
     refs.current[next]?.focus()
   }
   return (
-    <div role="radiogroup" aria-label={label} className="inline-flex max-w-full flex-wrap gap-0.5 rounded-[10px] bg-muted p-0.5">
+    <div ref={rootRef} role="radiogroup" aria-label={label} className="relative isolate inline-flex max-w-full flex-wrap gap-0.5 rounded-[10px] bg-muted p-0.5">
+      <SegmentThumb thumb={thumb} className={cn('rounded-[8px]', inherited ? 'bg-background/60' : 'bg-card shadow-(--paper-shadow)')}/>
       {options.map((option, index) => {
         const selected = option.value === value
         return (
@@ -74,10 +78,10 @@ export function SettingsSegment<T extends string>({label, value, options, onChan
             onClick={() => {if (!selected) onChange(option.value)}}
             onKeyDown={event => move(event, index)}
             className={cn(
-              'inline-flex min-h-7 items-center justify-center gap-1.5 whitespace-nowrap rounded-[8px] px-2.5 text-meta outline-none transition-colors',
+              'relative inline-flex min-h-7 items-center justify-center gap-1.5 whitespace-nowrap rounded-[8px] px-2.5 text-meta outline-none transition-colors duration-(--motion-fast) ease-(--motion-ease)',
               'focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50',
               selected
-                ? inherited ? 'bg-background/60 text-muted-foreground' : 'bg-card font-medium text-foreground shadow-(--paper-shadow)'
+                ? inherited ? 'text-muted-foreground' : 'font-medium text-foreground'
                 : 'text-muted-foreground hover:text-foreground',
             )}
           >

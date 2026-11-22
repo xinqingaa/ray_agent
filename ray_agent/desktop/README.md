@@ -93,6 +93,7 @@ target/release/bundle/macos/RayAgent.app/Contents/MacOS/rayagent-desktop
 | `set_viewed_session` | 界面报告当前停在哪个会话（`null` 表示不在会话页）；只影响是否跳过通知，不改变任何数据 |
 | `data_location` | 返回核心数据根的绝对路径，与宿主启动核心时使用的位置相同，界面不写死路径 |
 | `reveal_data_location` | 在系统文件管理器中显示数据根；目录尚未创建（核心还没启动过）时返回原因，不替核心创建目录 |
+| `clipboard_read_text`、`clipboard_write_text` | 读取与写入系统剪贴板的纯文本（参数 `text`）；只处理文字，不读写图片、HTML 或文件。读取时剪贴板没有文字则失败。界面通过 [clipboard.ts](../ui/src/lib/clipboard.ts) 统一调用，经 [platform.ts](../ui/src/lib/platform.ts) 进入宿主 |
 | `rayagent://open-session` | 宿主事件，载荷为会话 ID。点击任务通知后宿主先显示窗口再发出，界面导航到该会话 |
 
 宿主命令失败时返回字符串，界面在 [platform.ts](../ui/src/lib/platform.ts) 统一转为 `Error`。实例令牌只经 `core_connection` 交给界面，由界面放进请求头，不进 URL。图片、PDF 与网页预览由 WebView 按 URL 直接加载，界面先为该资源申请短期票据再拼进地址；票据的范围与有效期见 [API 开发指南](../api/README.md#启动与接口)。界面中的跨源链接一律交给 `open_external`，WebView 本身不打开外部页面。
@@ -111,6 +112,7 @@ target/release/bundle/macos/RayAgent.app/Contents/MacOS/rayagent-desktop
 ## 依赖与权限
 
 - 新增 Rust 依赖 `tauri-plugin-notification`（[Cargo.toml](Cargo.toml)）：提供 macOS 系统通知与点击回调。只在 Rust 侧使用，界面不调用插件 API，因此 [default.json](capabilities/default.json) 不需要新增权限，窗口能力仍只有 `core:default`。代价是多一个插件及其 Cargo 依赖（`Cargo.lock` 随之增加若干传递包），且插件在桌面端没有授权查询接口。备选是直接调用系统通知接口（需自己维护绑定与点击回调，工作量与风险更高）；界面侧的 Web 通知需要界面常驻并占用同源连接，窗口隐藏时不可靠，因此不采用。
+- 新增 Rust 依赖 `tauri-plugin-clipboard-manager`（[Cargo.toml](Cargo.toml)）：只用其 Rust 侧的 `read_text` 与 `write_text`，封装为 `clipboard_read_text`、`clipboard_write_text` 两个宿主命令（[clipboard.rs](src/clipboard.rs)）。界面不调用插件 API，[default.json](capabilities/default.json) 不需要新增权限，窗口能力仍只有 `core:default`；因此插件的 JavaScript 权限（如 `clipboard-manager:allow-read-text`）不开启。代价与通知插件相同，`Cargo.lock` 增加若干传递包。浏览器中的界面回退到 `navigator.clipboard`，权限由浏览器决定。
 - 退出确认与文件选择器使用既有的 `tauri-plugin-dialog`，没有新增插件；显示文件使用 `tauri-plugin-opener`。
 
 ## 关闭与退出
@@ -124,6 +126,7 @@ target/release/bundle/macos/RayAgent.app/Contents/MacOS/rayagent-desktop
 
 - 契约对齐与宿主单元测试：在本目录运行 `cargo test`。它内嵌 `../contracts/generated` 中的 `core.schema.json` 与样例，核对启动参数、握手、能力与错误代码类型和契约一致，并检查协议与事件版本常量与样例相同；契约变化后先按[契约指南](../contracts/README.md)重新生成，再修改宿主类型。
 - 选择文件夹与显示位置：`cargo test` 覆盖选择器用途的封闭取值、核心响应的解析（只保留凭证与显示名）、根身份只允许核心签发的字符、解析出的位置必须是绝对路径；原生选择器、取消路径与登记失败的提示只能在宿主窗口里走查，步骤见[运行指南的运行检查](../README.md#运行检查)。`reveal_in_file_manager` 在 macOS 以外的平台走打开插件的显示文件分支，该分支没有编译验证，也没有在 Windows 或 Linux 上运行过。
+- 剪贴板：`cargo check` 覆盖两个命令的编译；读写与「没有文字」的失败提示需在宿主窗口里复制、粘贴一次确认。
 - 启动与界面：开发运行或打开内部包，界面进入首页；设置页能看到模型连接状态，按[运行指南的运行检查](../README.md#运行检查)完成独立对话、导航与草稿检查。
 - 任务通知：在宿主窗口里发起一个需要一段时间的任务，切到其他应用，任务完成后应出现系统通知；窗口聚焦并停在该会话时不应通知。点击通知应显示窗口并打开该会话。关闭偏好后不再通知。这些条目需要在打包或开发的真实窗口中逐项走查；`cargo test` 只覆盖状态转换与偏好读写。
 - 退出：有活动任务时 Cmd+Q 先确认，取消后任务继续；偏好关闭后直接退出。退出后确认没有残留进程：

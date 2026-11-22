@@ -11,7 +11,7 @@ import {LevelSlider} from '@/components/ui/level-slider'
 import {Select} from '@/components/ui/select'
 import {VendorIcon} from '@/components/vendor-icon'
 import {cn} from '@/lib/utils'
-import {contextLabel, modelFacts, modelsForVendor, reasoningLabel, selectModel, thinkingOptions, vendorOf, vendorTabs, type CatalogModel, type ModelSelection} from '@/lib/model-selection'
+import {contextLabel, modelFacts, modelsForVendor, reasoningLabel, selectModel, thinkingOptions, unconfirmedFields, vendorOf, vendorTabs, type CatalogModel, type ModelSelection} from '@/lib/model-selection'
 import {useDeveloperMode} from '@/hooks/use-developer-mode'
 import {isDesktop, openModelConfig} from '@/lib/platform'
 import {MODEL_PREFERENCE_CHANGED, readModelPreference, rememberModelPreference, validModelPreference} from '@/lib/model-preference'
@@ -159,6 +159,8 @@ export function ModelPicker({sessionId, savedModel, savedReasoning, onSelection,
       onClick={() => applyModel(item)}
       className={cn('flex h-8 w-full items-center gap-2 rounded-md pl-7 pr-2 text-left text-meta outline-none focus-visible:ring-2 focus-visible:ring-ring', selected ? 'bg-signal-soft/60' : 'hover:bg-muted')}>
       <span className={cn('min-w-0 flex-1 truncate', selected ? 'font-medium text-foreground' : 'text-foreground/85')}>{item.id}</span>
+      {!item.connection_issue && unconfirmedFields(item).length > 0 && <span className="shrink-0 text-xs text-muted-foreground"
+        title={`能力未确认：${unconfirmedFields(item).join('、')}，以上游实际表现为准`}>能力未确认</span>}
       <span className={cn('shrink-0 text-xs tabular-nums', item.connection_issue ? 'text-state-failed' : 'text-faint')} title={modelFacts(item)}>
         {item.connection_issue ?? contextLabel(item.context_window)}
       </span>

@@ -10,7 +10,14 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from .base import Base, UTCDateTime
 from ...domain.models.clock import utc_now
-from ...domain.models.file_change import ChangeOperation, ChangeSource, FileChange, VersionStamp, WorkspaceObject
+from ...domain.models.file_change import (
+    ChangeOperation,
+    ChangeSource,
+    EntryKind,
+    FileChange,
+    VersionStamp,
+    WorkspaceObject,
+)
 from ...domain.models.write_lease import LeaseState, WriteLease, WriterKind
 
 
@@ -83,6 +90,7 @@ class FileChangeModel(Base):
     relative_path: Mapped[str] = mapped_column(Text, nullable=False)
     operation: Mapped[str] = mapped_column(String(16), nullable=False)
     source: Mapped[str] = mapped_column(String(16), nullable=False, default="tool")
+    entry_kind: Mapped[str] = mapped_column(String(16), nullable=False, default="file", server_default="file")
     undo_of_run_id: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
     before_object_id: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
     after_size: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
@@ -95,7 +103,8 @@ class FileChangeModel(Base):
         after = change.after
         return cls(workspace_id=change.workspace_id, session_id=change.session_id, run_id=change.run_id,
                    tool_call_id=change.tool_call_id, root_id=change.root_id, relative_path=change.relative_path,
-                   operation=change.operation.value, source=change.source.value, undo_of_run_id=change.undo_of_run_id,
+                   operation=change.operation.value, source=change.source.value,
+                   entry_kind=change.entry_kind.value, undo_of_run_id=change.undo_of_run_id,
                    before_object_id=change.before_object_id,
                    after_size=after.size if after else None, after_mtime_ns=after.modified_ns if after else None,
                    after_sha256=after.sha256 if after else None, created_at=change.created_at)
@@ -106,5 +115,5 @@ class FileChangeModel(Base):
         return FileChange(id=self.id, workspace_id=self.workspace_id, session_id=self.session_id, run_id=self.run_id,
                           tool_call_id=self.tool_call_id, root_id=self.root_id, relative_path=self.relative_path,
                           operation=ChangeOperation(self.operation), source=ChangeSource(self.source),
-                          undo_of_run_id=self.undo_of_run_id, before_object_id=self.before_object_id, after=after,
-                          created_at=self.created_at)
+                          entry_kind=EntryKind(self.entry_kind), undo_of_run_id=self.undo_of_run_id,
+                          before_object_id=self.before_object_id, after=after, created_at=self.created_at)

@@ -19,9 +19,22 @@ export function contextLabel(tokens: number): string {
   return String(tokens)
 }
 
+/** 能力来源未确认时的字段名；与核心 CustomModel.unconfirmed 的取值一致。 */
+export const unconfirmedLabels = {
+  context_window: '窗口', max_output: '输出', tools: '工具调用', vision: '图片输入', thinking: '思考',
+} as const
+export type UnconfirmedKey = keyof typeof unconfirmedLabels
+export const unconfirmedKeys = Object.keys(unconfirmedLabels) as UnconfirmedKey[]
+export const isUnconfirmedKey = (value: string): value is UnconfirmedKey => value in unconfirmedLabels
+
+/** 能力未确认只做提示，不阻塞选择：返回需要提示的字段名，没有则为空。 */
+export function unconfirmedFields(model: Pick<CatalogModel, 'unconfirmed'>): string[] {
+  return (model.unconfirmed ?? []).map(key => unconfirmedLabels[key as UnconfirmedKey] ?? key)
+}
+
 /** 模型行的第二行：只写目录声明的容量，不写目录之外的评价。 */
 export function modelFacts(model: CatalogModel): string {
-  return `上下文 ${contextLabel(model.context_window)} · 输出上限 ${contextLabel(model.max_output)}`
+  return `上下文 ${contextLabel(model.context_window)} · 输出上限 ${contextLabel(model.max_output)}${model.tools === false ? ' · 不支持工具调用' : ''}`
 }
 
 export function selectModel(previous: ModelSelection, source: CatalogModel | undefined, target: CatalogModel): ModelSelection {

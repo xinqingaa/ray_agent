@@ -1,5 +1,5 @@
 import {useCallback, useEffect, useRef, useState} from 'react'
-import {Check, ChevronDown, Undo2} from '@/components/ui/icons'
+import {Check, ChevronDown, Folder, Undo2} from '@/components/ui/icons'
 import {Button} from '@/components/ui/button'
 import {Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle} from '@/components/ui/dialog'
 import {ScrollArea} from '@/components/ui/scroll-area'
@@ -18,6 +18,7 @@ import {cn} from '@/lib/utils'
 
 const OPERATION: Record<ChangeEntry['operation'], string> = {create: '新建', modify: '修改', delete: '删除'}
 const ACTION: Record<ChangeEntry['preview_kind'], string> = {remove: '撤销会移除这个文件', restore: '撤销会恢复运行前的内容'}
+const DIRECTORY_ACTION: Record<ChangeEntry['preview_kind'], string> = {remove: '撤销会移除这个空文件夹', restore: '撤销会重新建立这个文件夹'}
 const CONFLICT: Record<NonNullable<ChangeEntry['conflict_reason']>, string> = {
   modified: '运行之后文件又被改动过',
   missing: '运行之后文件已不存在',
@@ -25,6 +26,17 @@ const CONFLICT: Record<NonNullable<ChangeEntry['conflict_reason']>, string> = {
   not_file: '这个位置现在不是普通文件',
   modified_during_run: '运行期间文件被外部改动过，撤销会同时丢掉这些改动',
 }
+/** 文件夹只有两种冲突：位置上变成了文件，或运行新建的文件夹之后有了内容。 */
+function conflictText(entry: ChangeEntry) {
+  if (!entry.conflict_reason) return '当前内容与运行结束时不同'
+  if (entry.kind === 'directory') return entry.conflict_reason === 'not_file' ? '这个位置现在不是文件夹' : '这个文件夹之后有了内容'
+  return CONFLICT[entry.conflict_reason]
+}
+
+function actionText(entry: ChangeEntry) {
+  return entry.kind === 'directory' ? DIRECTORY_ACTION[entry.preview_kind] : ACTION[entry.preview_kind]
+}
+
 const RESULT_LABEL: Record<UndoItemResult['status'], string> = {
   restored: '已恢复', removed: '已移除', unchanged: '无需改动', conflict: '冲突', failed: '失败',
 }
@@ -48,7 +60,8 @@ function ChangePreviewBlock({workspaceId, runId, path}: {workspaceId: string; ru
   if (state.phase === 'error') return <p role="alert" className="mt-2 text-xs text-state-failed">{state.message}</p>
   const {preview} = state
   return <div className="mt-2 space-y-1.5">
-    {preview.removes_file && <p className="text-xs text-muted-foreground">撤销会移除这个文件（运行新建的文件）。</p>}
+    {preview.kind === 'directory' && <p className="text-xs text-muted-foreground">{preview.removes_file ? '撤销会移除这个空文件夹（运行新建的文件夹）。' : '撤销会重新建立这个文件夹（运行删除的空文件夹）。'}</p>}
+    {preview.removes_file && preview.kind !== 'directory' && <p className="text-xs text-muted-foreground">撤销会移除这个文件（运行新建的文件）。</p>}
     {preview.kind === 'unchanged' && <p className="text-xs text-muted-foreground">撤销不会改变这个文件的内容。</p>}
     {preview.kind === 'binary' && <p className="text-xs text-muted-foreground">二进制文件，不显示内容。当前 {sizeText(preview.current_size)}，撤销后 {sizeText(preview.restore_size)}。</p>}
     {preview.kind === 'too_large' && <p className="text-xs text-muted-foreground">文件过大，不显示内容差异。当前 {sizeText(preview.current_size)}，撤销后 {sizeText(preview.restore_size)}。</p>}
@@ -82,15 +95,18 @@ function EntryRow({workspaceId, runId, entry, selection, disabled, onSelect}: {
     <div className="flex min-h-11 items-center gap-2.5">
       <input type="checkbox" className="size-4 shrink-0 accent-signal" checked={checked} disabled={disabled || restored || conflict}
         aria-label={`撤销 ${entry.relative_path}`} onChange={event => onSelect(entry, event.target.checked)}/>
-      <FileTypeBadge extension={fileExtension(entry.relative_path)} compact/>
+      {entry.kind === 'directory'
+        ? <Folder className="size-4 shrink-0 text-muted-foreground" aria-hidden/>
+        : <FileTypeBadge extension={fileExtension(entry.relative_path)} compact/>}
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
           <span className="min-w-0 font-mono text-xs leading-5 wrap-anywhere" dir="auto">{entry.relative_path}</span>
+          {entry.kind === 'directory' && <span className="shrink-0 rounded-md bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">文件夹</span>}
           <span className="shrink-0 rounded-md bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">{OPERATION[entry.operation]}</span>
         </div>
         <p className={cn('text-xs leading-5', conflict ? 'text-state-waiting' : 'text-muted-foreground')}>
-          {conflict ? (entry.conflict_reason ? CONFLICT[entry.conflict_reason] : '当前内容与运行结束时不同')
-            : restored ? '已经是运行前的状态' : ACTION[entry.preview_kind]}
+          {conflict ? conflictText(entry)
+            : restored ? '已经是运行前的状态' : actionText(entry)}
           {entry.writes > 1 && <span className="ml-2 text-faint">写入 {entry.writes} 次</span>}
         </p>
       </div>
@@ -211,6 +227,7 @@ export function UndoRunDialog({workspaceId, runId, kind = 'run', open, onOpenCha
   const summary = results ? summarizeResults(results) : null
   const blocked = changes?.run_active === true
   const undoing = kind === 'undo'
+  const manual = kind === 'manual'
   const nothing = changes != null && !blocked && !entries.some(isUndoable)
 
   return <Dialog open={open} onOpenChange={next => {if (!submitting) onOpenChange(next)}}>
@@ -222,9 +239,11 @@ export function UndoRunDialog({workspaceId, runId, kind = 'run', open, onOpenCha
       <DialogHeader className="flex-row items-start gap-2.5 pr-7 text-left">
         <Undo2 className="mt-0.5 size-5 shrink-0 text-muted-foreground" aria-hidden/>
         <div className="min-w-0 space-y-1">
-          <DialogTitle>{undoing ? '撤回这次撤销' : changes?.session_title ? `撤销「${changes.session_title}」的修改` : '撤销本次修改'}</DialogTitle>
+          <DialogTitle>{undoing ? '撤回这次撤销' : manual ? '撤销这次文件操作' : changes?.session_title ? `撤销「${changes.session_title}」的修改` : '撤销本次修改'}</DialogTitle>
           <DialogDescription className="text-xs leading-relaxed">
-            {undoing ? '将文件恢复到撤销前的状态，覆盖前备份当前版本。' : '只恢复文件内容，保留对话和记忆。恢复或移除前会备份当前版本。'}
+            {undoing ? '将文件恢复到撤销前的状态，覆盖前备份当前版本。'
+              : manual ? '恢复删除、重命名或新建的文件夹前会备份当前版本，不影响对话和记忆。'
+              : '只恢复文件内容，保留对话和记忆。恢复或移除前会备份当前版本。'}
           </DialogDescription>
         </div>
       </DialogHeader>

@@ -126,6 +126,7 @@ node scripts/check-components-settings.cjs
 
 ```bash
 node scripts/check-model-configuration.cjs
+node scripts/check-provider-models.cjs
 node scripts/check-composer-images.cjs
 node scripts/check-task-file-destinations.cjs
 node scripts/check-skills-settings.cjs
@@ -133,6 +134,9 @@ node scripts/check-effort-slider.cjs
 node scripts/check-process-block.cjs
 node scripts/check-developer-mode.cjs
 node scripts/check-workbench-width.cjs
+node scripts/check-font-size-slider.cjs
+node scripts/check-voice-toolbar.cjs
+node scripts/check-segment-thumb.cjs
 node scripts/check-markdown-preview.cjs
 node scripts/check-workspace-drafts.cjs
 node scripts/check-workspace-preview.cjs
@@ -140,6 +144,10 @@ node scripts/check-workspace-tree.cjs
 node scripts/check-workspace-changes.cjs
 node scripts/check-workspace-undo-dialog.cjs
 node scripts/check-workspace-relocate.cjs
+node scripts/check-workspace-entries.cjs
+node scripts/check-context-menu.cjs
+node scripts/check-danger-dialog.cjs
+node scripts/check-surface-actions.cjs
 npm run lint
 npm run build
 ```
@@ -149,6 +157,8 @@ npm run build
 `check-slash-command-menu.cjs` 挂载实际菜单与圆环，使用 DOM 几何替身检查鼠标高亮不滚动、键盘最小滚动、滚轮位置不回拉、静止指针不抢选择、未知态及禁用压缩；`check-composer-images.cjs` 另核对关闭后松键不重开、查询变化可重新打开。长列表的实际滚动、锚定、搜索高度与键盘交互仍需在宿主窗口走查。
 
 `check-task-file-destinations.cjs` 用目录和鼠标事件替身挂载双落点组件，检查选目录、放到目录标签、直接拖到输入框、取消和独立对话的单落点。Finder 到 WebView 的事件交接使用桌面运行检查。
+
+`check-font-size-slider.cjs` 挂载外观分区的阅读字号滑杆，检查允许范围内每个整数都有刻度、点按、拖动与方向键、即时生效与持久化、非法存储值回落与恢复默认。`check-workbench-width.cjs` 挂载外观分区的工作台宽度控件，检查预设与自定义输入覆盖拖动范围、越界就地提示并夹到范围、与分隔条共用状态的双向同步，以及视口变窄时上限的变化。`check-voice-toolbar.cjs` 挂载实际的语音工具栏与设置语音行，检查各阶段结构、麦克风展开时的占位与测宽、阶段切换的淡出层、减少动态效果分支、回填高亮、设置中本地与远程子行的折叠，以及样式中的动效曲线与 token；胶囊盖住的同组按钮要整组 inert、淡出并在收起后恢复，焦点不能停在被盖住的按钮上，设置里本地与远程子行切换时是同一节点原地折叠。`check-segment-thumb.cjs` 挂载设置分段与公共分段控件，检查滑块贴合选中项的位置与尺寸、切换后跟随、字号放大后重新测量，以及没有选中项时不显示。jsdom 没有布局与 AnimationEvent，宽度用替身、淡出结束直接调用处理器；真实展开手感、录音与转写的端到端行为仍需在宿主窗口走查。
 
 图片输入检查使用实际输入组件、剪贴板提取和草稿模块，替换上传、模型目录与基础 UI；覆盖单次提取不重复、混合文字、部分成功、迟到响应归属、缩略图操作入口、不依赖模型目录发送、多图自动提交和旧模式受理核对。高度、聚焦、悬浮样式与系统剪贴板行为需在宿主窗口核对，不能由组件替身推导。
 
@@ -180,7 +190,13 @@ node scripts/check-workbench-recovery.cjs
 
 `check-workspace-undo-dialog.cjs` 挂载实际的运行修改提示条、最近修改和撤销窗口，基础 UI、网络与订阅使用替身，检查撤销后结果窗口保持、另一个入口打开时关掉已打开的窗口、以及工作区变为只读或切换运行后清理窗口状态。同时检查脚本文件观察的截断、未知结果、分页与无撤销边界。真实对话框布局与文件结果仍需在宿主窗口核对。
 
-`check-model-configuration.cjs` 覆盖模型与思考选择的恢复、发送传递、会话隔离、字段缺失、迟到详情、同源偏好变化、目录回退和存储失败。选择与草稿契约见 [UI 设计](DESIGN.md#草稿弹层与视图连续性)；脚本不代替真实刷新与多标签操作。
+`check-workspace-entries.cjs` 检查文件夹条目操作的名称规则、可用操作集合、版本、租约与冲突文案，并挂载实际的文件树就地输入（改名、根与展开目录的新建草稿、回车、Escape、失焦）与删除确认（取消在前，失败留在弹框内）；基础 UI 与接口使用替身，文件夹的实际删除、改名与撤销由 API 测试覆盖，入口在宿主窗口的操作手感仍需走查。
+
+`check-context-menu.cjs` 挂载实际的右键策略（`ContextMenuProvider`、表面与文本编辑），在 jsdom 中检查未接入区域、选中文字、可编辑区域（输入框、文本域、contenteditable，含只读与禁用）、嵌套表面与表面优先于编辑菜单的 `preventDefault`、菜单项、执行结果（粘贴经剪贴板封装并可撤销地插入、剪切、复制、全选），以及关闭后焦点回到原处。`check-danger-dialog.cjs` 挂载危险确认弹框，检查焦点默认在取消、确认为危险样式、提交中 Esc／遮罩／取消都不能关闭、失败说明留在弹框内、成功后关闭。两者的 DOM 替身（布局矩形、contenteditable 判定、execCommand）见 [dom-env.cjs](scripts/dom-env.cjs)；真实 WebView 的选区几何、原生撤销与菜单手感仍需在宿主窗口走查。
+
+`check-surface-actions.cjs` 挂载实际的表面与组件，检查右键菜单项、顺序与动作调用：会话行（打开、重命名、复制标题、删除）、文件树文件与文件夹（预览、添加、显示、复制路径、重命名、删除）、回复正文中嵌套的链接与代码块（最内层取胜）、有选中文字时的复制选中与引用到输入框、用户消息、失败回合的重试、输入框的添加附件与清空，以及没有菜单项的表面透明。回复正文使用真实的 Markdown 组件；会话视图的引用与填回动作、文件夹面板的空白区域与交付文件菜单只做了静态核对，未在此脚本中挂载。
+
+`check-model-configuration.cjs` 覆盖模型与思考选择的恢复、发送传递、会话隔离、字段缺失、迟到详情、同源偏好变化、目录回退和存储失败，以及能力未确认提示不阻塞选择。`check-provider-models.cjs` 挂载实际的提供商编辑器与模型列表，替换网络与基础组件，覆盖目录只读、上游未确认能力的保存、被占用模型不能启用、核心按模型返回的错误定位到对应行、工具检测的支持、拒绝（行内说明原因，由用户确认「关闭工具」后才关闭）与失败三种结论、思考档位校验、目录读取中禁止保存、目录读取失败时仍可保存并提示重试，以及切换启用时的行顺序和长列表搜索。选择与草稿契约见 [UI 设计](DESIGN.md#草稿弹层与视图连续性)；脚本不代替真实刷新与多标签操作。
 
 ## skill 输入与设置
 

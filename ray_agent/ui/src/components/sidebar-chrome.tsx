@@ -10,6 +10,7 @@ import {useWorkspace} from '@/providers/workspaces-provider'
 import {useWorkspacePending} from '@/providers/workspace-pending'
 import {useSessions} from '@/hooks/use-sessions'
 import {parseWorkspaceRoute, workspaceBackgroundHref, workspaceHref, workspaceKnowledgeHref} from '@/lib/workspace-route'
+import {isSettingsPath} from '@/lib/settings-navigation'
 import {ConversationSearch} from './conversation-search'
 
 const TopbarSlots = createContext<{title: HTMLElement | null; actions: HTMLElement | null} | null>(null)
@@ -43,7 +44,7 @@ export function MainShell({children, listAvailable}: {children: ReactNode; listA
   const knowledge = route.workspaceId !== null && pathname.replace(/\/$/, '') === workspaceKnowledgeHref(route.workspaceId)
   const searchAvailable = Boolean(home || pathname === '/' || sessionId)
   const listOpen = listAvailable && (isMobile ? openMobile : open)
-  const pageTitle = pathname === '/skills' ? 'Skill' : pathname === '/components' ? '运行组件' : pathname === '/workspaces' ? '工作区' : '新对话'
+  const pageTitle = isSettingsPath(pathname) ? '设置' : pathname === '/skills' ? 'Skill' : pathname === '/components' ? '运行组件' : pathname === '/workspaces' ? '工作区' : '新对话'
 
   useEffect(() => {
     if (!searchAvailable) return

@@ -17,6 +17,7 @@ import {operationApi} from '@/lib/api/workspace'
 import type {OperationView, SearchHitView, SearchResponse, WorkspaceItem} from '@/lib/api/types'
 import {addDraftReference, referenceKey, workspaceDraftScope, type DraftReference} from '@/lib/drafts'
 import {Link} from '@/lib/navigation'
+import {motionEasing} from '@/lib/motion'
 import {cn, formatFileSize} from '@/lib/utils'
 import {workspaceHref} from '@/lib/workspace-route'
 import {useWorkspaceLive} from '@/providers/workspace-live-provider'
@@ -259,7 +260,7 @@ function KnowledgeSearch({workspace, visible, revision, semantic}: {
       } else if (previousTop !== node.offsetTop) {
         animation?.cancel()
         node.animate([{transform: `translateY(${previousTop - node.offsetTop}px)`}, {transform: 'none'}],
-          {duration: 445, easing: 'cubic-bezier(.34,1.28,.55,1)'})
+          {duration: 445, easing: motionEasing('spring')})
       }
     }
   }, [clean, filter, hits, visible])

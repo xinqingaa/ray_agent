@@ -1,7 +1,8 @@
 import {createSSEStream, get, parseSSEStream, post, request} from './fetch'
 import type {
-  ChangePreview, ConflictResolution, ModifiedRun, OpenWorkspaceResult, OperationView, RootEntry, RootListing,
-  RunChanges, ShellChanges, UndoItemRequest, UndoItemResult, WorkspaceChangeEvent, WorkspaceItem, WriteLease,
+  ChangePreview, ConflictResolution, EntryVersion, ModifiedRun, OpenWorkspaceResult, OperationView, RemovedEntry,
+  RootEntry, RootListing, RunChanges, ShellChanges, UndoItemRequest, UndoItemResult, WorkspaceChangeEvent,
+  WorkspaceItem, WriteLease,
 } from './types'
 
 /** 工作区、默认位置与长操作。文件夹授权由宿主产生（见 platform.ts 的 `selectFolderGrant`），这里只带 grant_id。 */
@@ -52,6 +53,20 @@ export const rootApi = {
     return request<{entry: RootEntry}>(`/roots/${encodeURIComponent(rootId)}/upload`, {method: 'POST', body: form, timeout: 120000})
       .then(data => data.entry)
   },
+  /**
+   * 删除文件（带当前版本，核心核对后才删）或空文件夹（版本为空）。删除可在最近修改中撤销。
+   * 非空文件夹、版本不符返回冲突，冲突时 details 含占用者（若是租约）或 resource_version。
+   */
+  remove: (rootId: string, path: string, version: EntryVersion | null) =>
+    post<RemovedEntry>(`/roots/${encodeURIComponent(rootId)}/entries/delete`, {path, version}),
+  /** 同一文件夹内改名文件；version 为改名前的版本，目标已存在即冲突。 */
+  rename: (rootId: string, path: string, name: string, version: EntryVersion) =>
+    post<{entry: RootEntry}>(`/roots/${encodeURIComponent(rootId)}/entries/rename`, {path, name, version})
+      .then(data => data.entry),
+  /** 在已存在的文件夹里新建子文件夹；同名已存在即冲突，不覆盖。 */
+  createFolder: (rootId: string, directory: string, name: string) =>
+    post<{entry: RootEntry}>(`/roots/${encodeURIComponent(rootId)}/entries/folders`, {directory, name})
+      .then(data => data.entry),
 }
 
 const workspacePath = (id: string) => `/workspaces/${encodeURIComponent(id)}`
