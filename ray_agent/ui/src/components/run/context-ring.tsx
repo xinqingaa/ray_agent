@@ -3,7 +3,7 @@ import {Tooltip, TooltipContent, TooltipTrigger} from '@/components/ui/tooltip'
 import {Popover, PopoverContent, PopoverTrigger} from '@/components/ui/popover'
 import {cn} from '@/lib/utils'
 import type {UsageView} from '@/lib/session-view'
-import {cacheHitRate, formatCount, formatTokens, usageSummary} from './format'
+import {cacheHitRate, formatCount, formatTokens} from './format'
 
 const RADIUS = 7
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS
@@ -33,44 +33,51 @@ function tokenValue(value: number | null | undefined): string {
   return value == null ? '—' : `${formatCount(value)} Token`
 }
 
-function ContextPanel({usage, technical}: {usage: UsageView; technical: boolean}) {
+function ContextPanel({usage}: {usage: UsageView}) {
   const ctx = usage.context
   const compacted = ctx?.postCompactEstimate || ctx?.source === 'compact_estimate'
   const last = usage.latestRequest ?? (!compacted ? ctx : null)
   const currentWindow = usage.currentWindowTokens ?? (ctx?.configChanged ? null : ctx?.windowTokens)
-  const rows = [
-    {label: '最近请求', value: last ? `${formatCount(last.usedTokens)} / ${tokenValue(last.windowTokens)}` : '—'},
-    ...(compacted && ctx ? [{label: '压缩后估算', value: tokenValue(ctx.usedTokens)}] : []),
-    {label: '当前模型预算', value: tokenValue(currentWindow)},
-    {label: '会话累计输入', value: tokenValue(usage.session.prompt)},
-    {label: '会话累计输出', value: tokenValue(usage.session.completion)},
-  ]
-  const cacheRate = cacheHitRate(usage.session)
+  const currentEstimate = compacted && ctx ? `${formatCount(ctx.usedTokens)} / ${tokenValue(ctx.windowTokens)}` : null
+  const totals = usage.session
+  const hasUsage = totals.prompt != null || totals.completion != null || totals.cached != null
+  const cacheRate = cacheHitRate(totals)
   return <section role="region" aria-label="上下文详情" className="text-meta">
-    <header className="flex items-center gap-2 font-semibold">
-      <ContextRingGlyph usage={usage} decorative/>
-      <h3>{contextLabel(ctx)}</h3>
-    </header>
-    {!last && <p className="mt-2 text-xs text-faint">尚无可用的模型请求记录。</p>}
-    <dl className="mt-3 grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-3 gap-y-1.5">
-      {rows.map(({label, value}) => <div key={label} className="contents">
-        <dt className="text-muted-foreground">{label}</dt>
-        <dd className="text-right font-mono text-xs tabular-nums">{value}</dd>
-      </div>)}
-    </dl>
-    {ctx?.fixedInputExceeded && <p className="mt-2 text-xs text-state-failed">固定上下文超过窗口容量。请调大上下文窗口。</p>}
-    {technical && <details className="mt-2 text-xs text-muted-foreground">
-      <summary className="cursor-pointer rounded-sm focus-visible:ring-2 focus-visible:ring-ring">压缩与缓存</summary>
-      <dl className="mt-2 grid grid-cols-[1fr_auto] gap-x-3 gap-y-1">
-        <dt>压缩阈值</dt><dd>{tokenValue(ctx?.watermarkTokens)}</dd>
-        <dt>缓存命中</dt><dd>{formatTokens(usage.session.cached)}</dd>
-        <dt>缓存命中率</dt><dd>{cacheRate == null ? '—' : `${Math.round(cacheRate * 100)}%`}</dd>
+    <h3 className="font-semibold">{contextLabel(ctx)}</h3>
+    {last || currentEstimate || hasUsage ? (
+      <dl className="mt-2 grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-3 gap-y-1.5">
+        {last && <>
+          <dt className="text-muted-foreground">最近请求</dt>
+          <dd className="text-right text-xs tabular-nums">{formatCount(last.usedTokens)} / {tokenValue(last.windowTokens)}</dd>
+        </>}
+        {currentEstimate && <>
+          <dt className="text-muted-foreground">压缩后估算</dt>
+          <dd className="text-right text-xs tabular-nums">{currentEstimate}</dd>
+        </>}
+        {ctx?.configChanged && currentWindow != null && currentWindow !== (compacted ? ctx.windowTokens : last?.windowTokens) && <>
+          <dt className="text-muted-foreground">当前模型预算</dt>
+          <dd className="text-right text-xs tabular-nums">{tokenValue(currentWindow)}</dd>
+        </>}
+        {ctx?.watermarkTokens != null && <>
+          <dt className="text-muted-foreground">压缩阈值{ctx.configChanged && !compacted && <span className="ml-1 text-xs">上次请求</span>}</dt>
+          <dd className="text-right text-xs tabular-nums">{tokenValue(ctx.watermarkTokens)}</dd>
+        </>}
+        {hasUsage && <>
+          <dt className="text-muted-foreground">会话累计</dt>
+          <dd className="text-right text-xs tabular-nums">输入 {formatTokens(totals.prompt)} · 输出 {formatTokens(totals.completion)}</dd>
+          <dt className="text-muted-foreground">缓存命中</dt>
+          <dd className="text-right text-xs tabular-nums" title={cacheRate == null ? undefined : '已记录命中 Token 占会话累计输入的比例'}>
+            {totals.cached == null ? '未报告' : tokenValue(totals.cached)}
+            {cacheRate != null && `（${Math.round(cacheRate * 100)}%）`}
+          </dd>
+        </>}
       </dl>
-    </details>}
+    ) : <p className="mt-1 text-xs text-muted-foreground">尚无模型请求记录</p>}
+    {ctx?.fixedInputExceeded && <p className="mt-2 text-xs text-state-failed">固定上下文超过窗口容量。请调大上下文窗口。</p>}
   </section>
 }
 
-export function ContextRing({usage, className, technical = false}: {usage: UsageView; className?: string; technical?: boolean}) {
+export function ContextRing({usage, className}: {usage: UsageView; className?: string}) {
   const [open, setOpen] = useState(false)
   const [hover, setHover] = useState(false)
   const glance = contextLabel(usage.context)
@@ -78,33 +85,29 @@ export function ContextRing({usage, className, technical = false}: {usage: Usage
     <Tooltip delayDuration={480} open={!open && hover} onOpenChange={setHover}>
       <TooltipTrigger asChild>
         <PopoverTrigger asChild>
-          <button type="button" aria-label={glance} aria-description={usageSummary(usage.session)}
+          <button type="button" aria-label={glance}
             className={cn('inline-flex size-[30px] shrink-0 items-center justify-center rounded-lg outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring data-[state=open]:bg-muted [@media(pointer:coarse)]:size-10', className)}>
-            <ContextRingGlyph usage={usage} decorative/>
+            <ContextRingGlyph usage={usage}/>
           </button>
         </PopoverTrigger>
       </TooltipTrigger>
       <TooltipContent side="bottom" sideOffset={6} tone="contrast">{glance}</TooltipContent>
     </Tooltip>
-    <PopoverContent side="bottom" sideOffset={8} align="center" collisionPadding={12}
-      className="w-[340px] max-w-[calc(100vw-24px)] rounded-[14px] border-0 bg-background px-3.5 py-3 shadow-(--float-shadow)">
-      <ContextPanel usage={usage} technical={technical}/>
+    <PopoverContent side="top" sideOffset={8} align="end" collisionPadding={12}
+      className="w-[19rem] max-w-[calc(100vw-24px)] px-3.5 py-2.5">
+      <ContextPanel usage={usage}/>
     </PopoverContent>
   </Popover>
 }
 
-/** 菜单与输入区使用同一条 18px 圆环。 */
-export function ContextRingGlyph({usage, className, decorative}: {usage?: ContextUsage; className?: string; decorative?: boolean}) {
-  const ctx = usage?.context
+function ContextRingGlyph({usage}: {usage: ContextUsage}) {
+  const ctx = usage.context
   const ratio = ctx && ctx.windowTokens > 0 ? Math.min(1, Math.max(0, ctx.usedTokens / ctx.windowTokens)) : 0
   const estimated = ctx?.source === 'request_estimate' || ctx?.source === 'compact_estimate' || ctx?.postCompactEstimate
   const color = ctx?.fixedInputExceeded ? 'text-state-failed' : estimated ? 'text-muted-foreground' : 'text-signal'
-  return <span role={decorative ? undefined : 'img'} aria-hidden={decorative || undefined} aria-label={decorative ? undefined : contextLabel(ctx)}
-    className={cn('inline-flex shrink-0', color, className)}>
-    <svg width="18" height="18" viewBox="0 0 18 18" className="-rotate-90" aria-hidden="true">
+  return <svg width="18" height="18" viewBox="0 0 18 18" className={cn('-rotate-90 shrink-0', color)} aria-hidden="true">
       <circle cx="9" cy="9" r={RADIUS} fill="none" stroke="var(--border)" strokeWidth="2.4"/>
       {ratio > 0 && <circle cx="9" cy="9" r={RADIUS} fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"
         strokeDasharray={`${CIRCUMFERENCE * ratio} ${CIRCUMFERENCE}`}/>}
-    </svg>
-  </span>
+  </svg>
 }

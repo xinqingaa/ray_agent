@@ -1,6 +1,7 @@
 import {lazy, Suspense, useEffect} from 'react'
 import {BrowserRouter, Navigate, Outlet, Route, Routes, useLocation} from 'react-router'
 import {ThemeProvider} from 'next-themes'
+import {useThemeSurface} from '@/lib/theme'
 import {Toaster} from '@/components/ui/sonner'
 import {AppShell} from '@/components/app-shell'
 import {CoreGate} from '@/components/core-gate'
@@ -59,9 +60,15 @@ function CoreApp() {
   )
 }
 
+function ThemeSurface() {
+  useThemeSurface()
+  return null
+}
+
 export function App() {
   return (
-    <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+    <ThemeProvider attribute="data-theme" defaultTheme="system" enableSystem enableColorScheme={false}>
+      <ThemeSurface/>
       <BrowserRouter>
         <DocumentTitle/>
         <Routes>

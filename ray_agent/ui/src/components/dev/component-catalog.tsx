@@ -8,6 +8,7 @@ import type {ApprovalStatus, RunView, TimelineItem} from '@/lib/session-view'
 import {FixtureClock} from '@/components/run/clock'
 import {RunStatusBar} from '@/components/run/status-bar'
 import {PlanBar} from '@/components/run/plan-bar'
+import {PlanListDialog} from '@/components/run/plan-list-dialog'
 import {ToolCard} from '@/components/run/tool-card'
 import {ToolGroup} from '@/components/run/tool-group'
 import {FinalReply, NarrationBlock, UserMessage} from '@/components/run/messages'
@@ -16,8 +17,8 @@ import {ApprovalCard} from '@/components/run/approval-card'
 import {DeliveryCard} from '@/components/run/delivery-card'
 import {AttemptNotice, CompactionNotice} from '@/components/run/notices'
 import {RunStatus} from '@/components/run/run-status'
-import {PlanExecuteBar, RunEndBar} from '@/components/run/run-end-bar'
-import {PlusCommandMenu} from '@/components/input-command-menu'
+import {RunEndBar} from '@/components/run/run-end-bar'
+import {PlusCommandMenu, SlashCommandList} from '@/components/input-command-menu'
 import {ContextRing} from '@/components/run/context-ring'
 import type {CommandContext} from '@/lib/commands'
 import {Timeline} from '@/components/run/timeline-item'
@@ -183,7 +184,7 @@ function FolderToolsFixture() {
   const [toolbar, setToolbar] = useState<HTMLDivElement | null>(null)
   return <Surface className="p-0">
     <TaskInspectorTabs workspace value="folder" onChange={noop} onActions={setToolbar} onClose={noop}/>
-    {toolbar && createPortal(<FolderToolbarActions directory="资料" revealLabel="在 Finder 中显示" onAdd={noop} onReveal={noop}/>, toolbar)}
+    {toolbar && createPortal(<FolderToolbarActions directory="资料" revealLabel="在 Finder 中显示" collapsible onAdd={noop} onNewFolder={noop} onReveal={noop}/>, toolbar)}
     <div className="border-t p-2">
       <FolderTree tree={menuFolderTree} selectedPath="资料" onSelect={noop} onToggle={noop} onRetry={noop} onReveal={noop} onAdd={noop}/>
     </div>
@@ -415,7 +416,8 @@ export function ComponentCatalog() {
           <State label="等你批准（句子在审批卡）" source="合成"><FixtureClock at={runStates.toolNow}><RunStatusBar run={runStates.waitingApproval}/></FixtureClock></State>
           <State label="正在停止" source="合成"><FixtureClock at={runStates.toolNow}><div className="flex flex-wrap items-center gap-x-3"><div className="min-w-0 flex-1"><RunStatus place="timeline" compacting={false} pendingSend={false} activity="stopping" since={runStates.toolNow - 2000} streaming={false} running={false}/></div><RunStatusBar run={runStates.stopping} className="ml-auto"/></div></FixtureClock></State>
           <State label="正在准备执行环境" source="合成"><Surface><RunStatus place="timeline" compacting={false} pendingSend={false} activity="preparing_environment" streaming={false} running={false}/></Surface></State>
-          <State label="已完成（保留统计）" source="合成"><RunStatusBar run={{...runStates.tool, status: 'completed', endedAt: runStates.toolNow, summary: messageStates.finalShort.summary}}/></State>
+          <State label="已完成（保留统计）" source="合成"><RunStatusBar showCost sessionCost={452_000} onOpenDetails={noop}
+            run={{...runStates.tool, costNanos: 322_000, status: 'completed', endedAt: runStates.toolNow, summary: messageStates.finalShort.summary}}/></State>
           <State label="失败（原因在时间线）" source="合成"><Surface className="text-meta text-faint"><RunStatus place="headline" status="failed" compacting={false}/>原因和重试只在时间线终态条。</Surface></State>
           <State label="已停止（记录在时间线）" source="合成"><Surface className="flex items-center gap-2 text-sm"><span className="font-medium">会话标题</span><RunStatus place="headline" status="cancelled" compacting={false}/><span className="text-meta text-faint">停止记录留在时间线。</span></Surface></State>
           <State label="已中断（原因在时间线）" source="合成"><Surface className="text-meta text-faint"><RunStatus place="headline" status="interrupted" compacting={false}/>原因只在时间线终态条。</Surface></State>
@@ -429,7 +431,7 @@ export function ComponentCatalog() {
             </Surface>
           </State>
           <State label="计划模式结束（待确认执行）" source="合成">
-            <PlanBar plan={planStates.inProgress} proposal/>
+            <PlanBar plan={planStates.inProgress} proposal execute={{onClick: noop}}/>
           </State>
           <State label="进行中（折叠）" source="真实">
             <FixtureClock at={planStates.inProgressNow}><PlanBar plan={planStates.inProgress} runStatus="running"/></FixtureClock>
@@ -539,10 +541,15 @@ export function ComponentCatalog() {
           <State label="失败" source="合成"><RunEndBar status="failed" reasonText={runStates.failed.reasonText ?? ''} retryText="附件 inventory.csv 是库存清单……" onRetry={noop}/></State>
           <State label="已停止" source="合成"><RunEndBar status="cancelled" reasonText="你停止了这次运行"/></State>
           <State label="已中断" source="合成"><RunEndBar status="interrupted" reasonText="服务重启导致运行中断"/></State>
-          <State label="按计划执行" source="合成"><PlanExecuteBar onExecute={noop}/></State>
+          <State label="计划清单与历史翻页" source="合成">
+            <PlanListDialog plans={[
+              {id: 'earlier', latest: planStates.staged},
+              {id: 'latest', latest: planStates.inProgress},
+            ]} runs={[]} triggerLabel="查看计划清单"/>
+          </State>
         </Section>
 
-        <Section id="context-ring" title="上下文环" columns={3} note="刻度线是压缩阈值。悬停一行显示已用百分比和具体数值；点击后面板标题为上下文窗口，每项一行，名称在左、数值在右。压缩后已用标估算；预算已变时压缩阈值标上次请求，已用若不是估算也标上次请求。">
+        <Section id="context-ring" title="上下文环" columns={3} note="点击圆环查看占用比例、最近请求和会话累计。预算变化和压缩后估算分别按各自口径显示。">
           <State label="无数据" source="合成"><Surface><ContextRing usage={usageStates.none}/></Surface></State>
           <State label="正常" source="真实"><Surface><ContextRing usage={usageStates.normal}/></Surface></State>
           <State label="接近阈值" source="合成"><Surface><ContextRing usage={usageStates.near}/></Surface></State>
@@ -552,6 +559,9 @@ export function ComponentCatalog() {
         </Section>
 
         <Section id="input-commands" title="输入命令" columns={2} note="+ 菜单与 / 提示共用注册表；不可用项显示原因。">
+          <State label="斜杠菜单" source="合成"><Surface className="w-full overflow-hidden rounded-2xl bg-popover p-0 shadow-(--float-shadow)">
+            <SlashCommandList query="" context={commandIdle} activeId="plan" onActiveIdChange={noop} onRun={noop}/>
+          </Surface></State>
           <State label="全部可用" source="合成"><Surface className="inline-flex"><PlusCommandMenu context={commandIdle}/></Surface></State>
           <State label="运行中（Plan 与压缩不可用）" source="合成"><Surface className="inline-flex"><PlusCommandMenu context={commandRunning}/></Surface></State>
           <State label="无运行历史（压缩不可用）" source="合成"><Surface className="inline-flex"><PlusCommandMenu context={commandNoRuns}/></Surface></State>

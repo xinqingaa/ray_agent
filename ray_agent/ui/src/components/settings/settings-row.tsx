@@ -1,5 +1,6 @@
 import {useRef, type KeyboardEvent, type ReactNode} from 'react'
-import {AlertCircle} from '@/components/ui/icons'
+import {AlertCircle, type UiIcon} from '@/components/ui/icons'
+import {Tooltip, TooltipContent, TooltipTrigger} from '@/components/ui/tooltip'
 import {SegmentThumb, useSegmentThumb} from '@/components/ui/segment-thumb'
 import {cn} from '@/lib/utils'
 import './settings-row.css'
@@ -36,13 +37,13 @@ export function SettingsRow({title, description, control, htmlFor, id, error, cl
 }
 
 /**
- * 分段控件（单选）：用于主题、字号、语音、工具策略等固定取值。`value` 为 null 时没有选中项。
+ * 分段控件（单选）：用于主题、语音、工具策略等固定取值。`value` 为 null 时没有选中项。
  * `inherited` 表示当前取值来自上级设置，选中态弱化，提示“未单独设置”。
  */
 export function SettingsSegment<T extends string>({label, value, options, onChange, disabled, inherited}: {
   label: string
   value: T | null
-  options: readonly {value: T; label: string}[]
+  options: readonly {value: T; label: string; icon?: UiIcon}[]
   onChange: (value: T) => void
   disabled?: boolean
   inherited?: boolean
@@ -66,12 +67,14 @@ export function SettingsSegment<T extends string>({label, value, options, onChan
       <SegmentThumb thumb={thumb} className={cn('rounded-[8px]', inherited ? 'bg-background/60' : 'bg-card shadow-(--paper-shadow)')}/>
       {options.map((option, index) => {
         const selected = option.value === value
-        return (
+        const Icon = option.icon
+        const button = (
           <button
             key={option.value}
             ref={node => {refs.current[index] = node}}
             type="button"
             role="radio"
+            aria-label={Icon ? option.label : undefined}
             aria-checked={selected}
             tabIndex={index === focusable ? 0 : -1}
             disabled={disabled}
@@ -79,15 +82,20 @@ export function SettingsSegment<T extends string>({label, value, options, onChan
             onKeyDown={event => move(event, index)}
             className={cn(
               'relative inline-flex min-h-7 items-center justify-center gap-1.5 whitespace-nowrap rounded-[8px] px-2.5 text-meta outline-none transition-colors duration-(--motion-fast) ease-(--motion-ease)',
-              'focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50',
+              'focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none',
+              Icon && 'min-h-8 min-w-9 px-0',
               selected
                 ? inherited ? 'text-muted-foreground' : 'font-medium text-foreground'
                 : 'text-muted-foreground hover:text-foreground',
             )}
           >
-            {option.label}
+            {Icon ? <Icon className="size-4" aria-hidden/> : option.label}
           </button>
         )
+        return Icon ? <Tooltip key={option.value}>
+          <TooltipTrigger asChild>{button}</TooltipTrigger>
+          <TooltipContent sideOffset={6} tone="contrast" className="motion-reduce:animate-none">{option.label}</TooltipContent>
+        </Tooltip> : button
       })}
     </div>
   )

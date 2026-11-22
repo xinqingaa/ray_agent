@@ -102,7 +102,7 @@ npm ci
 
 暖灰画布、导航轨道、纸面与弱底色统一由 `:root` token 控制；深色 token 独立保留。品牌标记的界面组件是 [brand-mark.tsx](src/components/brand-mark.tsx)，页面图标是 [brand-mark.svg](public/brand-mark.svg)。操作图标由统一的内联 SVG 组件渲染，源码入口见[代码地图](../../docs/code-map.md)。
 
-主题由 `next-themes`（与框架无关）挂在 [app.tsx](src/app.tsx) 的根组件，`attribute="class"`，默认跟随系统，也可在设置页“外观”分区切换浅色或深色。选择保存在 WebView 本地存储。深色 token 写在 `.dark` 下，不要在组件里再写一套 `dark:` 颜色。
+根组件使用 `next-themes` 读取 WebView 本地存储并解析系统主题，默认跟随系统。应用统一在根元素发布实际配色，手动和系统换色共用颜色过渡，连续切换从当前颜色继续。深色 token 写在 `.dark` 下，不要在组件里再写一套 `dark:` 颜色。
 
 业务界面使用这些 token，例如 `bg-background`、`text-muted-foreground`、`text-state-running`、`bg-signal`。新界面不要写 `gray-*` 或十六进制颜色。计时、轮次、token 和字节数加 `tabular-nums`；命令、路径和代码用 `font-mono`。状态色成对使用文字类与浅底类（`text-state-*` 与 `bg-state-*-soft`）。
 
@@ -134,7 +134,8 @@ node scripts/check-effort-slider.cjs
 node scripts/check-process-block.cjs
 node scripts/check-developer-mode.cjs
 node scripts/check-workbench-width.cjs
-node scripts/check-font-size-slider.cjs
+node scripts/check-inspector-toolbar.cjs
+node scripts/check-font-size-selection.cjs
 node scripts/check-voice-toolbar.cjs
 node scripts/check-segment-thumb.cjs
 node scripts/check-markdown-preview.cjs
@@ -154,11 +155,11 @@ npm run build
 
 `build` 先做类型检查，再输出静态产物到 `dist/`，由桌面构建打进应用。构建与 `npx tsc --noEmit` 的类型检查会读取 `../contracts/generated` 中的生成类型，契约过期时先在契约目录运行 `npm run generate`。当前没有覆盖完整交互的自动化测试套件；lint 和构建不验证完整交互。本地事件观察见下节。涉及事件的修改还需检查实时消息、历史详情、计划更新与工具结果展示。
 
-`check-slash-command-menu.cjs` 挂载实际菜单与圆环，使用 DOM 几何替身检查鼠标高亮不滚动、键盘最小滚动、滚轮位置不回拉、静止指针不抢选择、未知态及禁用压缩；`check-composer-images.cjs` 另核对关闭后松键不重开、查询变化可重新打开。长列表的实际滚动、锚定、搜索高度与键盘交互仍需在宿主窗口走查。
+`check-slash-command-menu.cjs` 挂载实际菜单与圆环，使用 DOM 几何替身检查鼠标高亮不滚动、键盘最小滚动、滚轮位置不回拉、静止指针不抢选择、压缩说明与禁用原因，以及圆环的单层详情和未知态；`check-composer-images.cjs` 另核对关闭后松键不重开、查询变化可重新打开。长列表的实际滚动、锚定、搜索高度与键盘交互仍需在宿主窗口走查。
 
 `check-task-file-destinations.cjs` 用目录和鼠标事件替身挂载双落点组件，检查选目录、放到目录标签、直接拖到输入框、取消和独立对话的单落点。Finder 到 WebView 的事件交接使用桌面运行检查。
 
-`check-font-size-slider.cjs` 挂载外观分区的阅读字号滑杆，检查允许范围内每个整数都有刻度、点按、拖动与方向键、即时生效与持久化、非法存储值回落与恢复默认。`check-workbench-width.cjs` 挂载外观分区的工作台宽度控件，检查预设与自定义输入覆盖拖动范围、越界就地提示并夹到范围、与分隔条共用状态的双向同步，以及视口变窄时上限的变化。`check-voice-toolbar.cjs` 挂载实际的语音工具栏与设置语音行，检查各阶段结构、麦克风展开时的占位与测宽、阶段切换的淡出层、减少动态效果分支、回填高亮、设置中本地与远程子行的折叠，以及样式中的动效曲线与 token；胶囊盖住的同组按钮要整组 inert、淡出并在收起后恢复，焦点不能停在被盖住的按钮上，设置里本地与远程子行切换时是同一节点原地折叠。`check-segment-thumb.cjs` 挂载设置分段与公共分段控件，检查滑块贴合选中项的位置与尺寸、切换后跟随、字号放大后重新测量，以及没有选中项时不显示。jsdom 没有布局与 AnimationEvent，宽度用替身、淡出结束直接调用处理器；真实展开手感、录音与转写的端到端行为仍需在宿主窗口走查。
+`check-font-size-selection.cjs` 挂载外观分区，检查阅读字号预设、方向键、自定义图标与合法值校验、即时生效与持久化、恢复默认，以及主题图标的可访问名称。`check-workbench-width.cjs` 挂载外观分区的工作台宽度控件，检查预设与自定义、越界就地提示并保留原值、与分隔条共用状态的双向同步，以及视口变窄时上限的变化。`check-inspector-toolbar.cjs` 挂载实际的右侧面板顶栏与文件夹操作组，检查空间充足时直出、变窄时溢出的操作收进半透明 `>>` 菜单且保留收起按钮，以及拉宽后恢复。`check-voice-toolbar.cjs` 挂载实际的语音工具栏与设置语音行，检查各阶段结构、麦克风展开时的占位与测宽、阶段切换的淡出层、减少动态效果分支、回填高亮、设置中本地与远程子行的折叠，以及样式中的动效曲线与 token；胶囊盖住的同组按钮要整组 inert、淡出并在收起后恢复，焦点不能停在被盖住的按钮上，设置里本地与远程子行切换时是同一节点原地折叠。`check-segment-thumb.cjs` 挂载设置分段与公共分段控件，检查滑块贴合选中项的位置与尺寸、切换后跟随、字号放大后重新测量，以及没有选中项时不显示。jsdom 没有布局与 AnimationEvent，宽度用替身、淡出结束直接调用处理器；真实展开手感、录音与转写的端到端行为仍需在宿主窗口走查。
 
 图片输入检查使用实际输入组件、剪贴板提取和草稿模块，替换上传、模型目录与基础 UI；覆盖单次提取不重复、混合文字、部分成功、迟到响应归属、缩略图操作入口、不依赖模型目录发送、多图自动提交和旧模式受理核对。高度、聚焦、悬浮样式与系统剪贴板行为需在宿主窗口核对，不能由组件替身推导。
 

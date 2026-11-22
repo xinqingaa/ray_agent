@@ -5,6 +5,7 @@ import {Button} from '@/components/ui/button'
 import {Input} from '@/components/ui/input'
 import {Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle} from '@/components/ui/dialog'
 import {sessionApi} from '@/lib/api/session'
+import {useImeComposition} from '@/lib/ime'
 type Props = {
   sessionId: string
   currentTitle: string
@@ -19,6 +20,7 @@ export function RenameSessionDialog({sessionId, currentTitle, open, onOpenChange
   const [suggesting, setSuggesting] = useState(false)
   const [saving, setSaving] = useState(false)
   const wasOpen = useRef(false)
+  const ime = useImeComposition()
 
   useEffect(() => {
     if (open && !wasOpen.current) setTitle(currentTitle)
@@ -63,7 +65,12 @@ export function RenameSessionDialog({sessionId, currentTitle, open, onOpenChange
           autoFocus
           value={title}
           onChange={(event) => setTitle(event.target.value)}
-          onKeyDown={(event) => {if (event.key === 'Enter') void save()}}
+          onCompositionStart={ime.onCompositionStart}
+          onCompositionEnd={ime.onCompositionEnd}
+          onKeyDown={(event) => {
+            if (ime.isComposingKeyDown(event)) return
+            if (event.key === 'Enter') void save()
+          }}
           maxLength={255}
           dir="auto"
           aria-label="会话标题"

@@ -1,5 +1,5 @@
 import {ClipboardList, Layers, Paperclip, type UiIcon} from '@/components/ui/icons'
-import type {UsageView, RunStatus} from '@/lib/session-view'
+import type {RunStatus} from '@/lib/session-view'
 import {matchesCommandQuery} from '@/lib/slash-trigger'
 
 export type CommandAvailability =
@@ -34,7 +34,6 @@ export type CommandContext = {
   compacting: boolean
   /** 输入框是否带计划模式标记。 */
   planMode: boolean
-  contextUsage?: Pick<UsageView, 'context' | 'watermarkRatio'>
   actions: CommandHostActions & {
     openFilePicker: () => void
     togglePlan: () => void
@@ -142,7 +141,7 @@ const compactCommand: InputCommand = {
   id: 'compact',
   surfaces: ['plus', 'slash'],
   title: '压缩上下文',
-  description: '摘要较早轮次，腾出上下文空间',
+  description: '整理模型上下文，保留会话历史',
   keyword: 'compact',
   aliases: ['compress'],
   keywords: ['压缩', '上下文'],

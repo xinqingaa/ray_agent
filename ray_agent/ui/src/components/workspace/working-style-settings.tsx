@@ -8,6 +8,7 @@ import {MarkdownContent} from '@/components/markdown-content'
 import {useUnsavedNavigation} from '@/hooks/use-unsaved-navigation'
 import {useSessionTitleLookup} from '@/hooks/use-session-title'
 import {parseEventTime} from '@/lib/utils'
+import {useImeComposition} from '@/lib/ime'
 import {Textarea} from '@/components/ui/textarea'
 import {instructionApi} from '@/lib/api/instruction'
 import {ApiError} from '@/lib/api/fetch'
@@ -65,6 +66,7 @@ export function WorkingStyleSettings({workspace, onSummary}: {
   const [proposalBusy, setProposalBusy] = useState<string | null>(null)
   const editor = useRef<HTMLTextAreaElement>(null)
   const editAction = useRef<HTMLButtonElement>(null)
+  const ime = useImeComposition()
 
   // 允许在同一工作方式版本上保存其他工作区设置更新后的草稿。
   // 若工作方式本身已变化，保留草稿原先读到的并发核对版本。
@@ -259,8 +261,11 @@ export function WorkingStyleSettings({workspace, onSummary}: {
       <div className="background-style-doc" data-editing={editing}>
         {editing ? <textarea ref={editor} value={body} readOnly={saving} autoFocus rows={1} maxLength={maxChars}
           aria-label="工作方式正文" placeholder="写下这个工作区的工作方式"
-          onChange={event => setBody(event.target.value)} onKeyDown={event => {
-            if (event.nativeEvent.isComposing || saving) return
+          onChange={event => setBody(event.target.value)}
+          onCompositionStart={ime.onCompositionStart}
+          onCompositionEnd={ime.onCompositionEnd}
+          onKeyDown={event => {
+            if (ime.isComposingKeyDown(event) || saving) return
             if (event.key === 'Escape') {event.stopPropagation(); cancelEdit()}
             if (event.key === 'Enter' && (event.metaKey || event.ctrlKey) && body !== instruction.body) {
               event.preventDefault()

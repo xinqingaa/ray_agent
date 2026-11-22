@@ -18,7 +18,7 @@ import type {TurnRequest} from '@/lib/api/types'
 import type {ContextEstimate, RawEvent, RunView, SessionView, TurnView, UsageView} from '@/lib/session-view'
 import {resolveOutputRate, type OutputRate} from '@/lib/session-projection'
 import {cn} from '@/lib/utils'
-import {formatDuration, formatTime, formatTokens, usageSummary} from '@/components/run/format'
+import {cacheHitRate, formatDuration, formatTime, formatTokens, usageSummary} from '@/components/run/format'
 
 const DEV_TABS = [
   {value: 'events', label: '事件', icon: ListTree},
@@ -28,6 +28,7 @@ const DEV_TABS = [
 
 type DeveloperViewProps = {
   view: SessionView
+  runRequest?: {runId: string} | null
   loadTurnRequest: (runId: string, index: number) => Promise<TurnRequest>
   onOpenCall?: (callId: string) => void
   className?: string
@@ -246,12 +247,14 @@ function RawEventDetail({event, open, rendered}: {event: RawEvent; open: boolean
   )
 }
 
-export function DeveloperView({view, loadTurnRequest, onOpenCall, className}: DeveloperViewProps) {
+export function DeveloperView({view, runRequest, loadTurnRequest, onOpenCall, className}: DeveloperViewProps) {
   const types = useMemo(() => {
     const set = new Set(view.events.map((ev) => ev.type))
     return [...set].sort()
   }, [view.events])
-  const [section, setSection] = useState<'events' | 'turns' | 'compaction'>('events')
+  const [section, setSection] = useState<'events' | 'turns' | 'compaction'>(runRequest ? 'turns' : 'events')
+  const [turnsRunId, setTurnsRunId] = useState<string | null>(runRequest?.runId ?? null)
+  const [handledRunRequest, setHandledRunRequest] = useState(runRequest)
   const [summaryFormat, setSummaryFormat] = useState<'raw' | 'markdown'>('markdown')
   const [typeFilter, setTypeFilter] = useState('all')
   const [runFilter, setRunFilter] = useState('all')
@@ -262,6 +265,15 @@ export function DeveloperView({view, loadTurnRequest, onOpenCall, className}: De
   const [visitedTurnKeys, setVisitedTurnKeys] = useState<Set<string>>(() => new Set())
   const [requestByKey, setRequestByKey] = useState<Record<string, TurnRequestResult>>({})
 
+  if (runRequest !== handledRunRequest) {
+    setHandledRunRequest(runRequest)
+    if (runRequest) {
+      setSection('turns')
+      setTurnsRunId(runRequest.runId)
+    }
+  }
+  const focusedRun = view.runs.find(run => run.id === turnsRunId)
+  const turnRuns = focusedRun ? [focusedRun] : view.runs
   const events = view.events.filter(ev => (typeFilter === 'all' || ev.type === typeFilter) && (runFilter === 'all' || (runFilter === 'session' ? !ev.runId : ev.runId === runFilter)))
   const filterLabel = typeFilter === 'all' ? '全部事件' : EVENT_LABELS[typeFilter] ?? typeFilter
   const runChoices = useMemo(() => {
@@ -409,7 +421,9 @@ export function DeveloperView({view, loadTurnRequest, onOpenCall, className}: De
                           <span className="line-clamp-2 break-words" title={eventSummary(ev)}>{eventSummary(ev)}</span>
                         </div>
                         {linkedTurn && runId && <Button variant="ghost" size="xs" onClick={() => {
-                          setSection('turns'); setSelected({runId, index: turn})
+                          setSection('turns')
+                          setTurnsRunId(null)
+                          setSelected({runId, index: turn})
                         }}>打开轮次</Button>}
                         {shellEvent && onOpenCall && <Button variant="ghost" size="xs" onClick={() => onOpenCall(callId)}>查看终端</Button>}
                       </td>
@@ -448,9 +462,15 @@ export function DeveloperView({view, loadTurnRequest, onOpenCall, className}: De
       </section>
 
       <section id="dev-panel-turns" role="tabpanel" aria-labelledby="dev-turns" hidden={section !== 'turns'}>
-        {view.runs.length === 0 ? (
+        {focusedRun && <div className="mb-2 flex justify-end">
+          <Button type="button" size="xs" variant="ghost" onClick={() => {
+            setTurnsRunId(null)
+            document.getElementById('dev-turns')?.focus({preventScroll: true})
+          }}>查看所有运行</Button>
+        </div>}
+        {turnRuns.length === 0 ? (
           <p className="text-meta text-faint">每一轮的用时、用量和上下文构成会出现在这里。模型开始请求后出现。</p>
-        ) : view.runs.map((run) => (
+        ) : turnRuns.map((run) => (
           <RunTurns
             key={run.id}
             run={run}
@@ -506,11 +526,14 @@ function ContextBudget({usage}: {usage: UsageView}) {
   const ctx = usage.context
   if (!ctx) return null
   const snapshot = ctx.snapshotAt != null ? new Date(ctx.snapshotAt).toLocaleString() : '—'
+  const rate = cacheHitRate(usage.session)
   return (
     <dl className="mb-3 grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-meta tabular-nums">
       <dt className="text-muted-foreground">可用输入上限</dt><dd>{formatTokens(ctx.inputLimit)}</dd>
       <dt className="text-muted-foreground">输出预留</dt><dd>{formatTokens(ctx.maxTokens)}</dd>
       <dt className="text-muted-foreground">安全余量</dt><dd>{formatTokens(ctx.safetyTokens)}</dd>
+      <dt className="text-muted-foreground">压缩阈值</dt><dd>{formatTokens(ctx.watermarkTokens)}</dd>
+      <dt className="text-muted-foreground">会话缓存命中</dt><dd>{formatTokens(usage.session.cached)}{rate != null && `（${Math.round(rate * 100)}%）`}</dd>
       <dt className="text-muted-foreground">快照时间</dt><dd>{snapshot}</dd>
     </dl>
   )
@@ -567,6 +590,7 @@ function RunTurns({
         运行 <span className="font-mono" title={run.id}>{run.id.slice(0, 8)}</span>
         <StatusTag status={run.status}/>
         {run.mode === 'plan' && <span>计划模式</span>}
+        {run.startedAt > 0 && <time className="tabular-nums" dateTime={new Date(run.startedAt).toISOString()}>{formatTime(run.startedAt)} 开始</time>}
       </p>
       {run.turns.length === 0 ? (
         <p className="text-xs text-faint">这次运行还没有轮次记录</p>

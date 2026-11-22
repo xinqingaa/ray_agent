@@ -25,6 +25,7 @@ export type TimelineHandlers = {
   sessionId?: string
   selectedCallId?: string | null
   onOpenCall?: (callId: string) => void
+  onOpenRunDetails?: (runId: string) => void
   onPreviewFile?: (file: FileView) => void
   onDownloadFile?: (file: FileView) => void
   onDownloadAll?: (files: FileView[]) => void
@@ -276,7 +277,8 @@ export function Timeline({items, runs = [], streaming, activeStatus, handlers, c
       {(run.status === 'running' || run.status === 'waiting') && activeStatus ? <div className="min-w-0 flex-1">{activeStatus}</div> : null}
       {!costInProcess && liveCost(run) != null && <span className="text-xs text-faint tabular-nums" title="已完成模型请求的估算费用">≈{formatEstimatedCost(liveCost(run))}</span>}
       {handlers?.renderRunActions?.(run.id)}
-      <RunStatusBar run={run} streaming={streaming} showCost={showCost} sessionCost={sessionCost} className="ml-auto"/>
+      <RunStatusBar run={run} streaming={streaming} showCost={showCost} sessionCost={sessionCost} className="ml-auto"
+        onOpenDetails={handlers?.onOpenRunDetails}/>
     </li>
   )
   return (
@@ -286,7 +288,9 @@ export function Timeline({items, runs = [], streaming, activeStatus, handlers, c
         if (run?.status === 'completed' && row.type === 'item' && row.item.kind === 'final' && row.item.runId &&
             handlers?.showRunReferences && handlers.streamingItemId !== row.item.id) {
           return <li key={row.item.id}><TimelineItemView item={row.item} handlers={handlers}
-            runActions={handlers.renderRunActions?.(run.id)} metrics={<RunStatusBar run={run} streaming={streaming} showCost={showCost} sessionCost={sessionCost}/>}/></li>
+            runActions={handlers.renderRunActions?.(run.id)}
+            metrics={<RunStatusBar run={run} streaming={streaming} showCost={showCost} sessionCost={sessionCost}
+              onOpenDetails={handlers.onOpenRunDetails}/>}/></li>
         }
         const content = row.type === 'fold' ? (
           <li key={row.fold.id}><RunFoldView fold={row.fold} items={items} handlers={handlers}/></li>

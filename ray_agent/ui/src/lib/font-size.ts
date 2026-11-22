@@ -5,12 +5,6 @@ export const FONT_SIZE_MIN = 14
 export const FONT_SIZE_MAX = 20
 export const FONT_SIZE_DEFAULT = 14
 
-/** 滑杆的刻度：允许范围内的每个整数。 */
-export const FONT_SIZE_STEPS: readonly {id: string}[] = Array.from(
-  {length: FONT_SIZE_MAX - FONT_SIZE_MIN + 1},
-  (_, index) => ({id: String(FONT_SIZE_MIN + index)}),
-)
-
 export function acceptedFontSize(value: number): number | null {
   if (!Number.isInteger(value) || value < FONT_SIZE_MIN || value > FONT_SIZE_MAX) return null
   return value

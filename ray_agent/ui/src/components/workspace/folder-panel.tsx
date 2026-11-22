@@ -316,7 +316,7 @@ export function FolderPanel({workspace, deliveries, onOpenDelivery, deliveryStat
     catch (error) {toast.error(error instanceof Error ? error.message : '无法显示位置')}
   }
 
-  const folderActions = <FolderToolbarActions directory={target || folder?.path || '文件夹根目录'} adding={uploading}
+  const folderActions = <FolderToolbarActions directory={target || folder?.path || '文件夹根目录'} adding={uploading} collapsible={embedded}
     onAdd={editable ? () => chooseFiles() : undefined}
     onNewFolder={editable && !uploading ? () => startCreate(target) : undefined}
     revealLabel={`在 ${fileManagerName()} 中显示${revealPath ? '' : '文件夹'}`}

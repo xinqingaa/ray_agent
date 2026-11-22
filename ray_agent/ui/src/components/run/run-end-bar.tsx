@@ -1,7 +1,6 @@
 import type {ReactNode} from 'react'
-import {ArrowRight, ListChecks, RotateCcw} from '@/components/ui/icons'
+import {RotateCcw} from '@/components/ui/icons'
 import {Button} from '@/components/ui/button'
-import {IconAction} from '@/components/ui/icon-action'
 import {cn} from '@/lib/utils'
 import type {RunStatus as RunState} from '@/lib/session-view'
 import {RunStatus} from './run-status'
@@ -73,25 +72,6 @@ export function RunEndBar({status, reasonText, retryText, onRetry, retrying = fa
           <RotateCcw aria-hidden/>
         </Button>
       )}
-    </div>
-  )
-}
-
-
-type PlanExecuteBarProps = {
-  onExecute?: () => void
-  disabled?: boolean
-  className?: string
-}
-
-export function PlanExecuteBar({onExecute, disabled = false, className}: PlanExecuteBarProps) {
-  return (
-    <div role="region" aria-label="按计划执行" className={cn('flex items-center gap-3 rounded-lg bg-state-success-soft px-3.5 py-2.5', className)}>
-      <ListChecks className="size-4 shrink-0 text-state-success" aria-hidden/>
-      <p className="min-w-0 flex-1 text-sm text-muted-foreground">计划已写好，点击右侧按钮开始执行。</p>
-      <IconAction label="按计划执行" variant="ghost" className="shrink-0 text-state-success hover:bg-state-success/10 hover:text-state-success" onClick={() => onExecute?.()} disabled={!onExecute || disabled}>
-        <ArrowRight className="size-4" aria-hidden/>
-      </IconAction>
     </div>
   )
 }

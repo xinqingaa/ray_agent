@@ -1,5 +1,6 @@
 import {useEffect, useRef} from 'react'
 import {Input} from '@/components/ui/input'
+import {useImeComposition} from '@/lib/ime'
 import {renameSelection} from '@/lib/workspace-entries'
 import {cn} from '@/lib/utils'
 
@@ -20,6 +21,7 @@ export function EntryNameInput({label, value, error, selectBase, busy, onChange,
   onBlur: () => void
 }) {
   const input = useRef<HTMLInputElement>(null)
+  const ime = useImeComposition()
   useEffect(() => {
     const node = input.current
     if (!node) return
@@ -34,8 +36,10 @@ export function EntryNameInput({label, value, error, selectBase, busy, onChange,
       className={cn('h-7 px-2 py-0 text-sm', error && 'border-destructive')}
       onChange={event => onChange(event.target.value)}
       onBlur={onBlur}
+      onCompositionStart={ime.onCompositionStart}
+      onCompositionEnd={ime.onCompositionEnd}
       onKeyDown={event => {
-        if (event.nativeEvent.isComposing) return
+        if (ime.isComposingKeyDown(event)) return
         if (event.key === 'Enter') {event.preventDefault(); event.stopPropagation(); onCommit()}
         else if (event.key === 'Escape') {event.preventDefault(); event.stopPropagation(); onCancel()}
       }}/>

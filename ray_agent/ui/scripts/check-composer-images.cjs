@@ -166,5 +166,41 @@ async function main(){
   assert.notEqual(textarea().props.role,'combobox');assert.equal(ref.current.getInputValue(),'/exampl');
   await act(async()=>component.unmount());
   console.log('PASS: Skill 快捷输入、完整结构化版本、无正文保留草稿、选择恢复、相同文字不同 Skill 受理隔离');
+
+  // 中文输入法（含 macOS WKWebView 先 compositionend 再 keydown 的顺序）：确认字母上屏的回车不发送，再按回车才发送
+  await act(async()=>{component=create(React.createElement(ChatInput,{...props,draftScope:'ime-enter'}))});
+  const enterEvent=(overrides={})=>({key:'Enter',shiftKey:false,altKey:false,repeat:false,nativeEvent:{isComposing:false,keyCode:13,...overrides},currentTarget:{value:ref.current.getInputValue(),selectionStart:ref.current.getInputValue().length,selectionEnd:ref.current.getInputValue().length},preventDefault(){},stopPropagation(){}});
+  let beforeIme=sent.length;
+  await act(async()=>textarea().props.onCompositionStart());
+  await act(async()=>textarea().props.onChange({target:{value:'rag',selectionStart:3}}));
+  await act(async()=>textarea().props.onCompositionEnd({currentTarget:{value:'rag',selectionStart:3}}));
+  await act(async()=>textarea().props.onKeyDown(enterEvent({keyCode:229})));
+  assert.equal(sent.length,beforeIme,'WKWebView 确认上屏（keyCode=229）不发送');
+  await act(async()=>textarea().props.onCompositionStart());
+  await act(async()=>textarea().props.onCompositionEnd({currentTarget:{value:'rag',selectionStart:3}}));
+  await act(async()=>textarea().props.onKeyDown(enterEvent({keyCode:13})));
+  assert.equal(sent.length,beforeIme,'WKWebView 第三方输入法（compositionend 后紧跟 Enter）不发送');
+  await act(async()=>textarea().props.onKeyDown(enterEvent({keyCode:13})));
+  assert.equal(sent.length,beforeIme+1,'紧接着再次按 Enter 正常发送');
+  assert.equal(sent.at(-1)[0],'rag');
+  // Chromium 顺序（keydown 在 compositionend 之前）：确认后立即再按 Enter 应发送
+  beforeIme=sent.length;
+  await act(async()=>textarea().props.onCompositionStart());
+  await act(async()=>textarea().props.onChange({target:{value:'你好',selectionStart:2}}));
+  await act(async()=>textarea().props.onKeyDown(enterEvent({isComposing:true,keyCode:229})));
+  await act(async()=>textarea().props.onCompositionEnd({currentTarget:{value:'你好',selectionStart:2}}));
+  assert.equal(sent.length,beforeIme,'Chromium 组合态回车不发送');
+  await act(async()=>textarea().props.onKeyDown(enterEvent({keyCode:13})));
+  assert.equal(sent.length,beforeIme+1,'Chromium 组合结束后按 Enter 正常发送');
+  // 空格选词后紧跟 Enter 正常发送
+  beforeIme=sent.length;
+  await act(async()=>textarea().props.onCompositionStart());
+  await act(async()=>textarea().props.onChange({target:{value:'测试',selectionStart:2}}));
+  await act(async()=>textarea().props.onCompositionEnd({currentTarget:{value:'测试',selectionStart:2}}));
+  await act(async()=>textarea().props.onKeyDown({...enterEvent({keyCode:32}),key:' '}));
+  await act(async()=>textarea().props.onKeyDown(enterEvent({keyCode:13})));
+  assert.equal(sent.length,beforeIme+1,'空格选词后立即按 Enter 正常发送');
+  await act(async()=>component.unmount());
+  console.log('PASS: 中文输入法组合态回车（WKWebView/Chromium/空格选词）不误发送且二次回车正常发送');
 }
 main().catch(error=>{console.error(error);process.exitCode=1});

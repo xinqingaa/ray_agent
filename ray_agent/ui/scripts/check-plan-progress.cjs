@@ -25,7 +25,7 @@ function load(relative) {
 }
 const {projectSession, planBarMode} = load('src/lib/session-projection.ts');
 const {PlanBar, PlanContent} = load('src/components/run/plan-bar.tsx');
-const {PlanExecuteBar, RunEndBar} = load('src/components/run/run-end-bar.tsx');
+const {RunEndBar} = load('src/components/run/run-end-bar.tsx');
 const {AttemptNotice} = load('src/components/run/notices.tsx');
 const {RunStatus} = load('src/components/run/run-status.tsx');
 const ev = (seq, event, data) => ({event, data: {seq, run_id: 'r', created_at: 1000 + seq, ...data}});
@@ -36,7 +36,7 @@ const initial = [ev(1, 'run', {status: 'running'}), ev(2, 'plan', {plan_id: 'p',
 ]})];
 let view = projectSession({id: 's', events: initial});
 let html = markup(PlanBar, {plan: view.plan, runStatus: 'running', defaultOpen: false});
-assert.match(html, /已完成 1\/3 项/); assert.doesNotMatch(html, /<ol|初始安排/);
+assert.match(html, /已完成 1\/3 项/); assert.match(html, /aria-hidden="true" inert=""/);
 assert.doesNotMatch(markup(PlanContent, {plan: view.plan, active: true, ended: false}), /已完成 \d+\/\d+/);
 const renamed = [...initial, ev(3, 'plan', {plan_id: 'p', explanation: '调整标题与顺序', steps: [
   {id: 'a', description: '需求', status: 'completed'}, {id: 'c', description: '编写页面', status: 'running'},
@@ -52,7 +52,7 @@ const final = [...renamed, ev(4, 'plan', {plan_id: 'p', explanation: '', steps: 
 view = projectSession({id: 's', events: final});
 html = markup(PlanBar, {plan: view.plan, runStatus: 'completed', defaultOpen: false});
 const mainList = markup(PlanContent, {plan: view.plan, active: false, ended: true});
-assert.equal((mainList.match(/<li /g) || []).length, 2); assert.doesNotMatch(mainList, /已删除|新增|刚完成|结构/);
+assert.equal((mainList.match(/<li(?: |>)/g) || []).length, 2); assert.doesNotMatch(mainList, /已删除|新增|刚完成|结构/);
 assert.match(html, /已完成 2\/2 项/); assert.doesNotMatch(mainList, /计划更新记录|第 .*版|<details/);
 assert.equal(view.plan.explanation, null);
 const reset = projectSession({id: 's', events: [...final, ev(6, 'plan', {plan_id: 'new', steps: [
@@ -72,14 +72,11 @@ const proposalView = projectSession({id: 'p', events: [ev(1, 'run', {status: 'ru
   ev(2, 'plan', {plan_id: 'q', steps: [{id: 'a', description: '分析', status: 'pending'}, {id: 'b', description: '方案', status: 'pending'}]}),
   ev(3, 'run', {status: 'completed', mode: 'plan'})]});
 assert.equal(planBarMode(proposalView), 'proposal', '计划模式结束且有待执行清单时保留');
-html = markup(PlanBar, {plan: proposalView.plan, runStatus: null, proposal: true});
-assert.match(html, /计划 2 项/); assert.match(html, /确认后按计划执行/); assert.doesNotMatch(html, /未完成|上次计划|第 .*步/);
-assert.doesNotMatch(html, /aria-label="按计划执行"/, '底部摘要只负责展开清单');
-const executable = markup(PlanExecuteBar, {onExecute: () => {}});
-assert.equal((executable.match(/<button[^>]*aria-label="按计划执行"/g) || []).length, 1);
-assert.doesNotMatch(executable, /副作用|普通模式|>按计划执行<|<button\b(?:(?!<\/button>).)*<button\b/s);
-assert.match(markup(PlanExecuteBar, {onExecute: () => {}, disabled: true}), /disabled=""/);
-assert.match(markup(PlanExecuteBar, {}), /disabled=""/);
+html = markup(PlanBar, {plan: proposalView.plan, runStatus: null, proposal: true, execute: {onClick() {}}});
+assert.match(html, /计划 2 项/); assert.match(html, /待确认/); assert.doesNotMatch(html, /未完成|上次计划|第 .*步/);
+assert.equal((html.match(/<button\b/g) || []).length, 2, '查看与执行各有一个按钮');
+assert.match(html, />按计划执行</);
+assert.match(markup(PlanBar, {plan: proposalView.plan, proposal: true, execute: {onClick() {}, disabled: true}}), /disabled=""/);
 html = markup(RunEndBar, {status: 'cancelled', reasonText: '已停止生成'});
 assert.equal((html.match(/已停止生成/g) || []).length, 1);
 assert.doesNotMatch(html, /沙箱|你停止了|新的运行/); assert.match(html, /接着处理/);
@@ -87,7 +84,7 @@ assert.equal(markup(AttemptNotice, {attempt: 1, reason: 'cancelled', retried: fa
 assert.equal(markup(RunStatus, {place: 'headline', status: 'cancelled', compacting: false}), '');
 metrics = true;
 assert.match(markup(AttemptNotice, {attempt: 1, reason: 'cancelled', retried: false}), /第 1 次请求已停止/);
-console.log('PASS: 当前步骤/完成数量、身份与重排、重置、最终有效清单、关闭时无清单 DOM、只显示最新快照、计划条出现条件和停止记录通过实际组件检查');
+console.log('PASS: 当前步骤/完成数量、身份与重排、重置、最终有效清单、关闭时清单不可交互、只显示最新快照、计划条出现条件和停止记录通过实际组件检查');
 
 const adopted = projectSession({id:'s',events:[ev(1,'run',{status:'running'}), ev(2,'plan',{
   plan_id:'accepted', progress_state:'preparing', steps:[{id:'step',description:'执行',status:'pending'}]})]});
@@ -110,7 +107,7 @@ assert.match(html,/已完成 0\/3 阶段/);assert.doesNotMatch(html,/第 .*步|�
 html=markup(PlanContent,{plan:hierarchical.plan,active:true,ended:false});
 assert.doesNotMatch(html,/已完成 \d+\/\d+|子步骤已完成/);
 assert.match(html,/资料整理/);assert.match(html,/整理材料并交付结果/);
-assert.match(html,/text-lg font-semibold/);assert.match(html,/text-meta leading-5/);assert.doesNotMatch(html,/内部范围说明|内部核对说明|内部成果记录|完整目标与全部约束|本次范围|整体阶段/);assert.equal((html.match(/<li /g)||[]).length,7);assert.equal((html.match(/>后续</g)||[]).length,2);
+assert.match(html,/<h3[^>]*>资料整理/);assert.match(html,/<ol[^>]*class="[^"]*border-l/);assert.doesNotMatch(html,/内部范围说明|内部核对说明|内部成果记录|完整目标与全部约束|本次范围|整体阶段/);assert.equal((html.match(/<li(?: |>)/g)||[]).length,7);assert.equal((html.match(/>后续</g)||[]).length,2);
 const spins=h=>(h.match(/animate-spin/g)||[]).length;
 assert.equal(spins(html),1);
 const nested=projectSession({id:'s',events:[ev(1,'run',{status:'running'}),ev(2,'plan',{plan_id:'n',steps:[

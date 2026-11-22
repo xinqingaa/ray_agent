@@ -8,7 +8,6 @@ import {ChatInput, type ChatInputRef} from '@/components/chat-input'
 import {RenameSessionDialog} from '@/components/rename-session-dialog'
 import {DeveloperView} from '@/components/developer/developer-view'
 import {ContextRing} from '@/components/run/context-ring'
-import {PlanExecuteBar} from '@/components/run/run-end-bar'
 import {PlanBar} from '@/components/run/plan-bar'
 import {PlanListDialog} from '@/components/run/plan-list-dialog'
 import {UserMessage} from '@/components/run/messages'
@@ -42,7 +41,7 @@ import {addDraftReference, readDraft, referenceKey, sessionDraftScope, writeDraf
 import {KnowledgeSource} from '@/components/workspace/knowledge-source'
 import type {StartOptions} from '@/hooks/use-start-task'
 import {normalizeEvents} from '@/lib/session-events'
-import {canExecutePlan, planBarMode} from '@/lib/session-projection'
+import {planBarMode} from '@/lib/session-projection'
 import {ApiError} from '@/lib/api/fetch'
 import type {FileInfo, SSEEventOf} from '@/lib/api/types'
 import type {FileView, TimelineItem, ToolCallView} from '@/lib/session-view'
@@ -163,6 +162,7 @@ export function SessionDetailView({
   const [selectedMode, setMode] = useState<'conversation' | 'developer'>('conversation')
   const mode = visibility.developerView ? selectedMode : 'conversation'
   const [developerVisited, setDeveloperVisited] = useState(false)
+  const [runLogRequest, setRunLogRequest] = useState<{runId: string} | null>(null)
   const [inspection, setInspection] = useState<{callId: string | null; request: number} | null>(null)
   const {open: workbenchOpen, setOpen: setWorkbenchOpen, floating: inspectorFloating} = inspector
   const [panelView, setPanelView] = useState<FolderPanelTab | 'workbench'>(workspace ? 'folder' : 'workbench')
@@ -174,6 +174,7 @@ export function SessionDetailView({
   const composer = useRef<ChatInputRef>(null)
   const [renameOpen, setRenameOpen] = useState(false)
   const [planHistoryOpen, setPlanHistoryOpen] = useState(false)
+  const planHistoryTrigger = useRef<HTMLButtonElement | null>(null)
   const optionsTrigger = useRef<HTMLButtonElement>(null)
   const nextOptionsDialog = useRef<(() => void) | null>(null)
   const restoreOptionsFocus = () => optionsTrigger.current?.focus({preventScroll: true})
@@ -196,7 +197,11 @@ export function SessionDetailView({
     if (!view?.id) return
     const el = mode === 'conversation' ? scrollRef.current : developerScrollRef.current
     if (el) el.scrollTop = mode === 'conversation' && stickRef.current ? el.scrollHeight : scrollPositions.current[mode]
-  }, [mode, developerVisited, view?.id])
+  }, [mode, developerVisited, view?.id, runLogRequest])
+
+  useLayoutEffect(() => {
+    if (runLogRequest) developerScrollRef.current?.focus({preventScroll: true})
+  }, [runLogRequest])
 
   const sessionStatus = view?.status
   const displayTitle = renamedTitle?.sessionId === sessionId && view?.title === renamedTitle.previousTitle
@@ -570,6 +575,12 @@ export function SessionDetailView({
       folderPanel.current?.closePreview()
       setWorkbenchOpen(true)
     },
+    onOpenRunDetails: visibility.developerView ? runId => {
+      scrollPositions.current.developer = 0
+      setRunLogRequest({runId})
+      setDeveloperVisited(true)
+      setMode('developer')
+    } : undefined,
     onPreviewFile: (file) => {
       if (file.source === 'delivery') previewDelivery(file)
       else if (isWebPage(file.filename)) void openPreviewTab({kind: 'attachment', id: file.id, filename: file.filename, size: file.size}).catch(error => toast.error(error instanceof Error ? error.message : '打开失败'))
@@ -662,7 +673,7 @@ export function SessionDetailView({
         : null
     },
     renderRunActions: runId => !view?.activeRun && runId === run?.id ? renderRunActions?.(runId) : null,
-  }), [view?.id, view?.runs, view?.timeline, view?.events, focus?.callId, view?.activeRun, view?.streamingItemId, submitting, retrying, hiddenRunIds, hiddenUserIds, sessionId, workspace, sourceRefresh, downloadOne, downloadAll, deliver, previewDelivery, acceptedPlans, view?.planHistory, handleApproval, approvalSubmitting, finishedSequences, latestCompletedId, setWorkbenchOpen, run?.id, renderRunActions])
+  }), [view?.id, view?.runs, view?.timeline, view?.events, focus?.callId, view?.activeRun, view?.streamingItemId, submitting, retrying, hiddenRunIds, hiddenUserIds, sessionId, workspace, sourceRefresh, downloadOne, downloadAll, deliver, previewDelivery, acceptedPlans, view?.planHistory, handleApproval, approvalSubmitting, finishedSequences, latestCompletedId, setWorkbenchOpen, run?.id, renderRunActions, visibility.developerView])
 
   const toggleParticipate = useCallback(async (participate: boolean) => {
     if (!workspace || participationRequest.current) return
@@ -732,7 +743,13 @@ export function SessionDetailView({
       ? RUN_INPUT_HINT.running
       : RUN_INPUT_HINT.idle
 
-  const showPlanExecute = view && canExecutePlan(view)
+  const executePlan = () => {
+    const plan = view?.plan
+    if (!plan?.sourceRunId || !plan.planId || plan.sourceSeq == null) return
+    void deliver('按计划执行', [], {mode: 'normal', execute_plan: {
+      source_run_id: plan.sourceRunId, plan_id: plan.planId, source_seq: plan.sourceSeq, request_id: crypto.randomUUID(),
+    }}).catch((err: unknown) => toast.error(err instanceof Error ? err.message : '发送失败'))
+  }
   const planBarState = view && planBarMode(view)
   const timelineStatus = (
     <RunStatus
@@ -814,7 +831,12 @@ export function SessionDetailView({
             <DropdownMenuItem onSelect={() => {nextOptionsDialog.current = () => setRenameOpen(true)}}>
               <Pencil aria-hidden/>重命名对话
             </DropdownMenuItem>
-            {planHistory.length > 0 && <DropdownMenuItem onSelect={() => {nextOptionsDialog.current = () => setPlanHistoryOpen(true)}}>
+            {planHistory.length > 0 && <DropdownMenuItem onSelect={() => {
+              nextOptionsDialog.current = () => {
+                planHistoryTrigger.current = optionsTrigger.current
+                setPlanHistoryOpen(true)
+              }
+            }}>
               <History aria-hidden/>历史清单
             </DropdownMenuItem>}
           </TopbarMenuContent>
@@ -872,15 +894,6 @@ export function SessionDetailView({
                       showCost={showCost} sessionCost={sessionCost?.id === sessionId ? sessionCost.nanos : null}/>
                     {showOptimistic && outgoing ? <UserMessage text={outgoing.text} skillName={outgoing.skillName}/> : null}
                     {!view.activeRun && timelineStatus}
-                    {showPlanExecute && <PlanExecuteBar disabled={submitting || pendingSend} onExecute={() => {
-                        void deliver('按计划执行', [], {mode: 'normal', execute_plan: {source_run_id: view.plan!.sourceRunId!, plan_id: view.plan!.planId!, source_seq: view.plan!.sourceSeq!, request_id: crypto.randomUUID()}}).catch((err: unknown) => {
-                          if (err instanceof ApiError && err.code === 'conflict') {
-                            toast.error(err.message)
-                            return
-                          }
-                          toast.error(err instanceof Error ? err.message : '发送失败')
-                        })
-                      }}/>}
                   </div>}
                 </div>
                 <div hidden={mode !== 'conversation'} className="relative shrink-0 bg-background px-3 pt-2 pb-5">
@@ -898,7 +911,12 @@ export function SessionDetailView({
                   </div>}
                   <div className="mx-auto w-full max-w-(--reading-column)">
                     {view && mode === 'conversation' && planBarState && <PlanBar plan={view.plan} runStatus={view.activeRun?.status ?? null}
-                      proposal={planBarState === 'proposal'} className="mb-2"/>}
+                      proposal={planBarState === 'proposal'} className="mb-2"
+                      onOpenHistory={planHistory.length > 0 ? trigger => {
+                        planHistoryTrigger.current = trigger
+                        setPlanHistoryOpen(true)
+                      } : undefined}
+                      execute={planBarState === 'proposal' && !readOnlyReason ? {disabled: submitting || pendingSend, onClick: executePlan} : undefined}/>}
                     {readOnlyReason ? <p role="status" className="rounded-lg border bg-muted/40 px-3.5 py-3 text-center text-sm text-muted-foreground">{readOnlyReason}</p> : <div inert={!view}>
                     <ChatInput
                       ref={composer}
@@ -915,7 +933,7 @@ export function SessionDetailView({
                       savedReasoning={session?.reasoning}
                       runModel={session?.run_model}
                       runReasoning={session?.run_reasoning}
-                      accessory={view && <ContextRing usage={view.usage} technical={visibility.developerView}/>}
+                      accessory={view && <ContextRing usage={view.usage}/>}
                       commandHost={{
                         hasSession: true,
                         hasRuns: Boolean(view?.runs.length),
@@ -924,7 +942,6 @@ export function SessionDetailView({
                         waitingReply,
                         submitting,
                         compacting,
-                        contextUsage: view?.usage,
                         actions: {compact: () => { void handleCompact() }},
                       }}
                     />
@@ -932,8 +949,8 @@ export function SessionDetailView({
                   </div>
                 </div>
               </div>
-              <div ref={developerScrollRef} onScroll={() => {if (mode === 'developer' && developerScrollRef.current) scrollPositions.current.developer = developerScrollRef.current.scrollTop}} id="session-mode-panel-developer" role="tabpanel" aria-label="日志" aria-labelledby="session-mode-developer" aria-hidden={mode !== 'developer'} inert={mode !== 'developer'} className="h-full w-1/2 shrink-0 overflow-y-auto">
-                {view && developerVisited && <DeveloperView view={view} loadTurnRequest={loadTurnRequest} onOpenCall={handlers.onOpenCall} className="mx-auto w-full max-w-(--reading-column)"/>}
+              <div ref={developerScrollRef} onScroll={() => {if (mode === 'developer' && developerScrollRef.current) scrollPositions.current.developer = developerScrollRef.current.scrollTop}} id="session-mode-panel-developer" tabIndex={-1} role="tabpanel" aria-label="日志" aria-labelledby="session-mode-developer" aria-hidden={mode !== 'developer'} inert={mode !== 'developer'} className="h-full w-1/2 shrink-0 overflow-y-auto outline-none">
+                {view && developerVisited && <DeveloperView view={view} runRequest={runLogRequest} loadTurnRequest={loadTurnRequest} onOpenCall={handlers.onOpenCall} className="mx-auto w-full max-w-(--reading-column)"/>}
               </div>
             </div>
           </div>
@@ -942,7 +959,11 @@ export function SessionDetailView({
       <FilePreviewDialog file={previewedFile} onClose={() => setPreviewedFile(null)} onDownload={file => void downloadOne(file)}/>
 
       {view && planHistory.length > 0 && <PlanListDialog key={sessionId} plans={planHistory} runs={view.runs}
-        open={planHistoryOpen} onOpenChange={setPlanHistoryOpen} onRestoreFocus={restoreOptionsFocus}/>}
+        open={planHistoryOpen} onOpenChange={setPlanHistoryOpen} onRestoreFocus={() => {
+          const trigger = planHistoryTrigger.current
+          if (trigger?.isConnected) trigger.focus({preventScroll: true})
+          else restoreOptionsFocus()
+        }}/>}
       {view && <RenameSessionDialog sessionId={sessionId} currentTitle={displayTitle} open={renameOpen}
         onOpenChange={setRenameOpen}
         onRestoreFocus={restoreOptionsFocus}

@@ -28,6 +28,7 @@ import {VoiceInput} from '@/components/voice-input'
 import {useUsagePreferences} from '@/hooks/use-usage-preferences'
 import {ModelPicker, type ModelSelection} from '@/components/model-picker'
 import {rememberModelPreference} from '@/lib/model-preference'
+import {useImeComposition} from '@/lib/ime'
 import {flashHighlight} from '@/lib/motion'
 import {useDeveloperMode} from '@/hooks/use-developer-mode'
 import {clipboardImages, isImageFile} from '@/lib/composer-images'
@@ -127,7 +128,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
       const width = skillMarkRef.current?.offsetWidth ?? 0
       setSkillIndent(width > 0 ? width + 6 : 0)
     }, [skillLabel])
-    const composingRef = useRef(false)
+    const ime = useImeComposition()
     const pendingCursor = useRef<number | null>(null)
     /** Esc 或执行命令后，同一片段不要被随后的 keyup 重新打开。 */
     const dismissedRef = useRef<SlashFragment | null>(null)
@@ -281,7 +282,6 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
       submitting: commandHost.submitting || sending || uncertain,
       uploading,
       compacting: commandHost.compacting,
-      contextUsage: commandHost.contextUsage,
       planMode,
       actions: {
         openFilePicker,
@@ -296,7 +296,6 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
       commandHost.waitingReply,
       commandHost.submitting,
       commandHost.compacting,
-      commandHost.contextUsage,
       commandHost.actions.compact,
       sending,
       uncertain,
@@ -336,7 +335,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
       setSlash((prev) => sameFragment(prev, next) ? prev : next)
     }
 
-    const syncFromTextarea = (el: HTMLTextAreaElement, composing = composingRef.current) => {
+    const syncFromTextarea = (el: HTMLTextAreaElement, composing = ime.isComposing) => {
       updateSlash(el.value, el.selectionStart ?? el.value.length, composing)
     }
 
@@ -373,17 +372,16 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
       const node = textareaRef.current
       if (!node) return
       const apply = () => {
-        if (!slashOpen || !resolvedActiveId) {
+        if (!slashOpen) {
           node.removeAttribute('aria-controls')
           node.removeAttribute('aria-activedescendant')
           return
         }
-        const root = document.getElementById(slashListId)
-        const list = root?.querySelector<HTMLElement>('[role="listbox"]')
-        const selected = root?.querySelector<HTMLElement>(`[role="option"][data-value="${CSS.escape(resolvedActiveId)}"]`)
+        const list = document.getElementById(slashListId)
+        const selected = resolvedActiveId && list?.querySelector<HTMLElement>(`[role="option"][data-value="${CSS.escape(resolvedActiveId)}"]`)
         if (list?.id) node.setAttribute('aria-controls', list.id)
         else node.removeAttribute('aria-controls')
-        if (selected?.id) node.setAttribute('aria-activedescendant', selected.id)
+        if (selected && selected.id) node.setAttribute('aria-activedescendant', selected.id)
         else node.removeAttribute('aria-activedescendant')
       }
       apply()
@@ -545,7 +543,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
     }
 
     const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-      if (e.nativeEvent.isComposing || composingRef.current) return
+      if (ime.isComposingKeyDown(e)) return
 
       if (slashOpen) {
         if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
@@ -723,6 +721,16 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
         </div>
       )}
       {uploading && <p role="status" className="mx-4 mb-2 flex items-center gap-2 text-meta text-muted-foreground"><Loader2 className="size-3.5 animate-spin"/>正在上传附件</p>}
+      {planMode && <div className="mx-3.5 mb-1.5">
+        <button type="button" disabled={blocked} aria-label="取消计划模式" title="下一次发送以计划模式运行"
+          onClick={() => {
+            setPlanMode(false)
+            textareaRef.current?.focus({preventScroll: true})
+          }}
+          className="inline-flex h-7 items-center gap-1.5 rounded-lg bg-signal-soft px-2 text-xs font-medium text-signal outline-none hover:bg-signal-soft/70 focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50">
+          <ListChecks className="size-3.5" aria-hidden/>计划模式<X className="size-3.5" aria-hidden/>
+        </button>
+      </div>}
       {/* 中间输入框 */}
       <PopoverAnchor asChild>
       <ContextMenuSurface items={composerMenu} includeEditing><div className="relative mb-1.5 px-3.5">
@@ -736,23 +744,24 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
           onPaste={handlePaste}
           onKeyDown={handleKeyDown}
           onKeyUp={(event) => {
-            if (event.nativeEvent.isComposing || composingRef.current) return
+            if (ime.isComposingKeyUp(event)) return
             if (event.key === 'Enter' || event.key === 'Tab' || event.key === 'Escape') return
             if (event.currentTarget.selectionStart == null) return
             syncFromTextarea(event.currentTarget)
           }}
           onSelect={(event) => syncFromTextarea(event.currentTarget)}
           onCompositionStart={() => {
-            composingRef.current = true
+            ime.onCompositionStart()
             setSlash(null)
           }}
           onCompositionEnd={(event) => {
-            composingRef.current = false
+            ime.onCompositionEnd()
             syncFromTextarea(event.currentTarget, false)
           }}
           placeholder={placeholder}
           title={voiceBusy ? '录音时 Enter 完成，Esc 取消' : 'Enter 发送，Shift + Enter 换行'}
           aria-label="任务输入"
+          aria-description={planMode ? '下一次发送以计划模式运行' : undefined}
           aria-expanded={slashOpen}
           aria-autocomplete={slashOpen ? 'list' : undefined}
           role={slashOpen ? 'combobox' : undefined}
@@ -803,10 +812,10 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
                 setActiveId(null)
                 setSlash(findSlashTrigger(inputValue, cursor, false) ?? {start: cursor, end: cursor, query: ''})
               }}><Sparkles/></Button>
-            {workspace && <Button type="button" variant="ghost" size="icon-sm" aria-label="计划模式" title="计划模式"
+            <Button type="button" variant="ghost" size="icon-sm" aria-label="计划模式" title="计划模式"
               aria-pressed={planMode} className="aria-pressed:bg-signal-soft aria-pressed:text-signal"
-              disabled={!commandById('plan')?.available(commandContext).available}
-              onClick={() => commandById('plan')?.run(commandContext)}><ListChecks/></Button>}
+              disabled={blocked || !commandById('plan')?.available(commandContext).available}
+              onClick={() => commandById('plan')?.run(commandContext)}><ListChecks/></Button>
           </div>
         </div>
         {/* 发送/停止生成按钮 */}
@@ -847,24 +856,23 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
       sideOffset={8}
       collisionBoundary={textareaRef.current?.closest('.task-paper') ?? undefined}
       collisionPadding={8}
-      className="w-[min(var(--radix-popover-trigger-width),calc(100vw-2rem))] max-h-(--radix-popover-content-available-height) overflow-y-auto rounded-xl border-0 p-0 slash-command-elevation"
+      className="w-[min(var(--radix-popover-trigger-width),calc(100vw-2rem))] max-h-(--radix-popover-content-available-height) overflow-hidden rounded-2xl p-0"
       onOpenAutoFocus={(event) => event.preventDefault()}
       onCloseAutoFocus={(event) => event.preventDefault()}
       onInteractOutside={event => {if (event.target instanceof Element && event.target.closest('[data-slash-toggle]')) event.preventDefault()}}
     >
-      <div id={slashListId}>
-        {slashOpen && slash && (
-          <SlashCommandList
-            query={slash.query}
-            extraCommands={skillCommands}
-            context={commandContext}
-            activeId={resolvedActiveId}
-            onActiveIdChange={setActiveId}
-            keyboardStep={keyboardStep}
-            onRun={runSlash}
-          />
-        )}
-      </div>
+      {slashOpen && slash && (
+        <SlashCommandList
+          id={slashListId}
+          query={slash.query}
+          extraCommands={skillCommands}
+          context={commandContext}
+          activeId={resolvedActiveId}
+          onActiveIdChange={setActiveId}
+          keyboardStep={keyboardStep}
+          onRun={runSlash}
+        />
+      )}
     </PopoverContent>
     </Popover>
     )

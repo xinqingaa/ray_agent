@@ -347,19 +347,21 @@
     .text-shimmer { animation: none; background: none; color: var(--muted-foreground); }
 }
 
-/* 计划卡片只改变清单高度，底边与宽度始终固定。 */
+/* 清单从输入旁的计划条向上浮出。 */
 .plan-reveal {
-    display: grid;
-    grid-template-rows: 0fr;
-    transition: grid-template-rows 220ms var(--motion-ease);
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+    transform: translateY(8px) scale(.985);
+    transform-origin: bottom center;
+    transition: opacity var(--motion-fast) var(--motion-ease),
+        transform var(--motion-mid) var(--motion-spring), visibility var(--motion-mid);
 }
 .plan-card[data-open="true"] > .plan-reveal {
-    grid-template-rows: 1fr;
-}
-@starting-style {
-    .plan-card[data-open="true"] > .plan-reveal {
-        grid-template-rows: 0fr;
-    }
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+    transform: none;
 }
 @media (prefers-reduced-motion: reduce) {
     .plan-reveal { transition: none; }
@@ -392,13 +394,20 @@
 .markdown-content .hljs-emphasis { font-style: italic; }
 .markdown-content .hljs-strong { font-weight: 600; }
 
-/* 保留原有菜单阴影，仅在顶部补一层轻微投影。 */
-.slash-command-elevation {
-    box-shadow: 0 -4px 10px -5px rgb(0 0 0 / 0.08), var(--tw-shadow);
-}
+/* 转换实际配色。切换途中再次操作时，从当前绘制颜色继续过渡。 */
+@media (prefers-reduced-motion: no-preference) {
+    :root[data-theme-motion="palette"] {
+        transition-property: var(--theme-transition-properties);
+        transition-duration: var(--motion-slow);
+        transition-timing-function: ease-in-out;
+    }
 
-.dark .slash-command-elevation {
-    box-shadow: 0 -4px 10px -5px rgb(0 0 0 / 0.12), var(--tw-shadow);
+    /* 较旧的 WebView 使用普通颜色属性过渡主要表面。 */
+    :root[data-theme-motion="surfaces"] :where(body, .app-shell, .app-rail, .task-paper,
+        .task-inspector-paper, [data-slot="dialog-content"], [data-slot="popover-content"]) {
+        transition: background-color var(--motion-slow) ease-in-out,
+            color var(--motion-slow) ease-in-out, border-color var(--motion-slow) ease-in-out;
+    }
 }
 
 /* Application canvas, its directory, and the task paper. */
@@ -797,6 +806,18 @@ button.reply-citation-number { font-size: calc(10px * var(--font-scale)); }
 .task-inspector:not([data-settled="true"]), .task-inspector[data-resizing="true"] { transition: none; }
 .task-inspector[data-open="true"] { overflow: visible; margin-inline-start: var(--shell-gap); opacity: 1; }
 .task-inspector-paper { height: 100%; max-width: 100%; }
+.task-inspector-tabs { container-type: inline-size; }
+@container (max-width: 300px) {
+    .task-inspector-tabs [role="tablist"] [role="tab"] { padding-inline: 6px; }
+    .task-inspector-tabs [role="tablist"] [role="tab"][aria-selected="true"] > span { margin-inline-start: 4px; }
+}
+.inspector-toolbar-overflow {
+    background: linear-gradient(90deg, color-mix(in srgb, var(--background) 35%, transparent), color-mix(in srgb, var(--muted) 72%, transparent));
+    backdrop-filter: blur(2px);
+}
+.inspector-toolbar-overflow:is(:hover, :focus-visible, [data-state="open"]) {
+    background: var(--accent);
+}
 .task-inspector-resize { left: -14px; width: 24px; }
 .task-layout:has(.task-inspector-resize[data-resizing="true"]) {
     cursor: col-resize;

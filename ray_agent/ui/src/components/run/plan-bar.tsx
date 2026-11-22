@@ -1,6 +1,8 @@
 import type {ReactNode} from 'react'
-import {useCallback, useEffect, useId, useRef, useState} from 'react'
-import {ChevronUp, Circle, CircleCheck, CircleDot, Loader2} from '@/components/ui/icons'
+import {useEffect, useId, useRef, useState} from 'react'
+import {ArrowRight, ChevronUp, Circle, CircleCheck, CircleDot, History, Loader2} from '@/components/ui/icons'
+import {Button} from '@/components/ui/button'
+import {IconAction} from '@/components/ui/icon-action'
 import {cn} from '@/lib/utils'
 import type {PlanItem, PlanView, RunStatus} from '@/lib/session-view'
 
@@ -10,6 +12,8 @@ type PlanBarProps = {
   /** 计划模式结束后等待确认执行的清单：不显示进度，只列出步骤 */
   proposal?: boolean
   defaultOpen?: boolean
+  onOpenHistory?: (returnFocus: HTMLButtonElement | null) => void
+  execute?: {onClick: () => void; disabled?: boolean}
   className?: string
 }
 
@@ -37,62 +41,60 @@ function StageTrack({completed, total}: {completed: number; total: number}) {
   )
 }
 
-export function PlanContent({plan, active, ended, status, headerClassName}: {plan: PlanView; active: boolean; ended: boolean; status?: ReactNode; headerClassName?: string}) {
+export function PlanContent({plan, active, ended, status, actions}: {
+  plan: PlanView; active: boolean; ended: boolean; status?: ReactNode; actions?: ReactNode
+}) {
   const stages = planStages(plan)
-  const renderItem = (item: PlanItem, step: boolean, spinning = active) => <li key={item.id} className={cn('flex items-start gap-2 py-1.5', item.schedule === 'future' && 'opacity-60')}>
-    <span className="pt-0.5"><ItemIcon item={item} spinning={spinning}/></span>
-    <span className={cn('min-w-0 flex-1 text-meta break-words', (!step || active && item.status === 'in_progress') && 'font-medium')}>{item.text}</span>
-    <span className="shrink-0 pt-0.5 text-xs text-muted-foreground" title={item.status === 'blocked' || item.status === 'cancelled' ? item.reason : undefined}>{item.schedule === 'future' && item.status === 'pending' ? '后续' : ended && item.status === 'in_progress' ? '未完成' : !active && item.status === 'in_progress' ? '未完成' : STATUS_TEXT[item.status]}</span>
-  </li>
+  const renderRow = (item: PlanItem, step: boolean, spinning = active) => {
+    const current = active && item.status === 'in_progress'
+    const label = item.schedule === 'future' && item.status === 'pending' ? '后续'
+      : (ended || !active) && item.status === 'in_progress' ? '未完成' : STATUS_TEXT[item.status]
+    return <div className={cn('flex min-h-8 items-start gap-2.5 rounded-lg px-2 py-1.5', current && 'bg-signal-soft/55',
+      item.schedule === 'future' && 'text-muted-foreground')}>
+      <span className="mt-0.5 grid size-4 shrink-0 place-items-center"><ItemIcon item={item} spinning={spinning}/></span>
+      <span className={cn('min-w-0 flex-1 break-words', step ? 'text-meta' : 'text-sm font-medium', current && 'font-medium')}>{item.text}</span>
+      <span className={cn('shrink-0 self-start pt-0.5 text-xs', current ? 'text-signal' : 'text-muted-foreground')}
+        title={item.status === 'blocked' || item.status === 'cancelled' ? item.reason : undefined}>{label}</span>
+    </div>
+  }
+
   return <>
-    <div className={cn('flex items-start gap-3', headerClassName)}><p className="min-w-0 flex-1 text-lg font-semibold leading-6 break-words">{plan.title || '任务计划'}</p>{status}</div>
-    {plan.description && <p className="mt-1 text-meta leading-5 text-muted-foreground break-words">{plan.description}</p>}
-    <ol className="mt-3 space-y-1">{stages.map(stage => {
-      const children = plan.items.filter(s => s.kind === 'step' && s.parentId === stage.id)
-      return <li key={stage.id}>
-        <ol>{renderItem(stage, false, active && !children.some(child => child.status === 'in_progress'))}</ol>
-        {children.length > 0 && <div className="ml-2 border-l pl-4">
-          <ol>{children.map(child => renderItem(child, true))}</ol>
-        </div>}
-      </li>
-    })}</ol>
+    <div className="flex items-start gap-2.5">
+      <div className="min-w-0 flex-1">
+        <h3 className="break-words text-base font-semibold leading-snug">{plan.title || '任务计划'}</h3>
+        {plan.description && <p className="mt-1 break-words text-meta leading-relaxed text-muted-foreground">{plan.description}</p>}
+      </div>
+      {status}
+      {actions}
+    </div>
+    <ol className="mt-3 space-y-1">
+      {stages.map(stage => {
+        const children = plan.items.filter(item => item.kind === 'step' && item.parentId === stage.id)
+        return <li key={stage.id}>
+          {renderRow(stage, false, active && !children.some(child => child.status === 'in_progress'))}
+          {children.length > 0 && <ol className="mt-0.5 ml-4 space-y-0.5 border-l pl-2.5">
+            {children.map(child => <li key={child.id}>{renderRow(child, true)}</li>)}
+          </ol>}
+        </li>
+      })}
+    </ol>
   </>
 }
 
-export function PlanBar({plan, runStatus, proposal = false, defaultOpen = false, className}: PlanBarProps) {
+export function PlanBar({plan, runStatus, proposal = false, defaultOpen = false, onOpenHistory, execute, className}: PlanBarProps) {
   const [expanded, setExpanded] = useState(defaultOpen)
-  const [mounted, setMounted] = useState(defaultOpen)
-  const [barHeight, setBarHeight] = useState<number>()
   const cardRef = useRef<HTMLDivElement>(null)
   const buttonRef = useRef<HTMLButtonElement>(null)
-  const closeTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
   const contentId = useId()
-  const hasPlan = !!plan?.items.length
-  const setOpen = useCallback((open: boolean) => {
-    clearTimeout(closeTimer.current)
-    if (open) {
-      setBarHeight(buttonRef.current ? buttonRef.current.getBoundingClientRect().height + 2 : undefined)
-      setMounted(true)
-    } else {
-      closeTimer.current = setTimeout(() => setMounted(false), 240)
-    }
-    setExpanded(open)
-  }, [])
-  useEffect(() => () => clearTimeout(closeTimer.current), [])
-  useEffect(() => {
-    const summary = buttonRef.current
-    if (!summary) return
-    const observer = new ResizeObserver(() => setBarHeight(summary.getBoundingClientRect().height + 2))
-    observer.observe(summary)
-    return () => observer.disconnect()
-  }, [hasPlan])
   useEffect(() => {
     if (!expanded) return
     const outside = (event: PointerEvent) => {
-      if (!cardRef.current?.contains(event.target as Node)) setOpen(false)
+      if (!cardRef.current?.contains(event.target as Node)) setExpanded(false)
     }
     const escape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') {setOpen(false); buttonRef.current?.focus()}
+      if (event.key !== 'Escape' || event.defaultPrevented) return
+      setExpanded(false)
+      buttonRef.current?.focus({preventScroll: true})
     }
     document.addEventListener('pointerdown', outside)
     document.addEventListener('keydown', escape)
@@ -100,7 +102,7 @@ export function PlanBar({plan, runStatus, proposal = false, defaultOpen = false,
       document.removeEventListener('pointerdown', outside)
       document.removeEventListener('keydown', escape)
     }
-  }, [expanded, setOpen])
+  }, [expanded])
   if (!plan || plan.items.length === 0) return null
   const preparing = plan.progressState === 'preparing'
   const active = !proposal && !preparing && (runStatus === 'running' || runStatus === 'waiting')
@@ -122,31 +124,36 @@ export function PlanBar({plan, runStatus, proposal = false, defaultOpen = false,
     : ended && missing ? '已交付部分成果'
     : blocked ? '任务受阻'
     : `已完成 ${completed}/${total} ${progressUnit(plan)}`
-  const headline = preparing ? '正在承接已确认范围' : proposal ? '确认后按计划执行'
+  const headline = preparing ? '正在承接已确认范围' : proposal ? '待确认'
     : blocked ? blocked.text
     : current ? current.text : remaining.length ? `剩余 ${remaining.length} ${progressUnit(plan)}` : missing ? '仍有成果未交付' : ''
 
   return (
-    <div className={cn('relative animate-in fade-in-0 slide-in-from-bottom-1 duration-200 motion-reduce:animate-none', className)} style={mounted ? {height: barHeight} : undefined}>
-      <div ref={cardRef} data-open={expanded} className={cn('plan-card overflow-hidden rounded-xl border bg-card text-card-foreground', mounted && 'absolute inset-x-0 bottom-0 z-50 shadow-(--float-shadow)')}>
-        {mounted && <div id={contentId} role="region" aria-label="当前计划" aria-hidden={!expanded} inert={!expanded} className="plan-reveal">
-          <div className="min-h-0 overflow-hidden">
-            <div className="max-h-[min(28rem,60vh)] overflow-y-auto border-b px-3.5 py-3">
-              <PlanContent plan={plan} active={active} ended={ended}/>
-            </div>
-          </div>
-        </div>}
-      <button ref={buttonRef} type="button" aria-expanded={expanded} aria-controls={mounted ? contentId : undefined} onClick={() => setOpen(!expanded)}
-        className="flex h-10 w-full min-w-0 flex-nowrap items-center gap-3 overflow-hidden px-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">
-        <span className="shrink-0 whitespace-nowrap text-meta font-medium tabular-nums">{progress}</span>
-        <StageTrack completed={completed} total={total}/>
-        <span className="flex min-w-0 flex-1 flex-nowrap items-center gap-2 overflow-hidden" title={[headline, showChildren && currentStep?.text].filter(Boolean).join(' › ')}>
-          <span className={cn('truncate whitespace-nowrap text-meta', showChildren && currentStep && 'max-w-[45%]', ended && !allDone ? 'text-state-waiting' : 'text-muted-foreground')}>{headline}</span>
-          {showChildren && currentStep && <><span className="shrink-0 text-faint" aria-hidden>›</span><span className="min-w-0 flex-1 truncate whitespace-nowrap text-meta font-medium text-foreground">{currentStep.text}</span></>}
-        </span>
-        <ChevronUp className={cn('size-4 shrink-0 text-muted-foreground transition-transform', expanded && 'rotate-180')} aria-hidden/>
-        <span className="sr-only">{expanded ? '收起计划' : '展开计划'}</span>
-      </button>
+    <div ref={cardRef} data-open={expanded} className={cn('plan-card relative', className)}>
+      <div className={cn('flex min-w-0 items-center gap-1 rounded-xl bg-muted/75 p-1', expanded && 'bg-muted')}>
+        <button ref={buttonRef} type="button" aria-expanded={expanded} aria-controls={contentId} onClick={() => setExpanded(!expanded)}
+          className="flex min-h-8 min-w-0 flex-1 items-center gap-2.5 rounded-lg px-2 text-left outline-none hover:bg-background/70 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring">
+          <span className="shrink-0 whitespace-nowrap text-meta font-medium tabular-nums">{progress}</span>
+          {!proposal && <StageTrack completed={completed} total={total}/>}
+          <span className="flex min-w-0 flex-1 items-center gap-1.5 overflow-hidden" title={[headline, showChildren && currentStep?.text].filter(Boolean).join(' › ')}>
+            <span className={cn('truncate text-meta', showChildren && currentStep && 'max-w-[45%]', ended && !allDone ? 'text-state-waiting' : 'text-muted-foreground')}>{headline}</span>
+            {showChildren && currentStep && <><span className="shrink-0 text-faint" aria-hidden>›</span><span className="min-w-0 flex-1 truncate text-meta font-medium">{currentStep.text}</span></>}
+          </span>
+          <ChevronUp className={cn('size-4 shrink-0 text-muted-foreground transition-transform duration-(--motion-fast) motion-reduce:transition-none', expanded && 'rotate-180')} aria-hidden/>
+          <span className="sr-only">{expanded ? '收起计划' : '展开计划'}</span>
+        </button>
+        {execute && <Button type="button" size="sm" className="h-8 shrink-0 rounded-lg px-2.5" {...execute}>
+          <span>按计划执行</span><ArrowRight className="hidden size-3.5 sm:block" aria-hidden/>
+        </Button>}
+      </div>
+      <div id={contentId} role="region" aria-label="当前计划" aria-hidden={!expanded} inert={!expanded}
+        className="plan-reveal absolute inset-x-0 bottom-[calc(100%+6px)] z-50 max-h-[min(27.5rem,56dvh)] overflow-y-auto overscroll-contain rounded-[18px] bg-popover px-4 py-3.5 text-popover-foreground shadow-(--float-shadow) [scrollbar-width:thin]">
+        <PlanContent plan={plan} active={active} ended={ended}
+          actions={onOpenHistory && <IconAction label="历史清单" className="-mt-1 -mr-1 shrink-0 text-muted-foreground"
+            onClick={() => {
+              setExpanded(false)
+              onOpenHistory(buttonRef.current)
+            }}><History aria-hidden/></IconAction>}/>
       </div>
     </div>
   )

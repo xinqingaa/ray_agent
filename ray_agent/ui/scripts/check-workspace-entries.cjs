@@ -104,7 +104,12 @@ async function main() {
   drafts = inputs(rendered).filter(node => label(node) === '新文件夹名称');
   assert.equal(drafts[0].props.value, '新');
   act(() => drafts[0].props.onChange({target: {value: '新文件夹'}}));
-  const keyDown = key => ({key, nativeEvent: {isComposing: false}, preventDefault: noop, stopPropagation: noop});
+  const keyDown = (key, native = {}) => ({key, nativeEvent: {isComposing: false, keyCode: key === 'Enter' ? 13 : 0, ...native}, preventDefault: noop, stopPropagation: noop});
+  // WebKit IME 顺序：compositionend 后紧跟确认回车不应提前提交
+  act(() => drafts[0].props.onCompositionStart());
+  act(() => drafts[0].props.onCompositionEnd());
+  act(() => drafts[0].props.onKeyDown(keyDown('Enter')));
+  assert.deepEqual(calls, [['change', '新文件夹']], '组合态确认回车不提交');
   act(() => drafts[0].props.onKeyDown(keyDown('Enter')));
   act(() => drafts[0].props.onKeyDown(keyDown('Escape')));
   act(() => drafts[0].props.onBlur());
