@@ -1,5 +1,5 @@
 // 生成契约：先由 API 从 Pydantic 导出 JSON，再由锁定版本的生成器得到 TypeScript 类型。
-// npm run generate 写入 generated/；npm run check 重新生成并比对，任何文件过期时退出码为 1。
+// pnpm run generate 写入 generated/；pnpm run check 重新生成并比对，任何文件过期时退出码为 1。
 import {execFileSync} from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
@@ -10,7 +10,7 @@ import {compile} from 'json-schema-to-typescript'
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const generated = path.join(root, 'generated')
 const check = process.argv.includes('--check')
-const banner = (source) => `/* 由 ray_agent/contracts 从 ${source} 生成，勿手改；改 Pydantic 契约后运行 npm run generate。 */\n`
+const banner = (source) => `/* 由 ray_agent/contracts 从 ${source} 生成，勿手改；改 Pydantic 契约后运行 pnpm run generate。 */\n`
 
 function exportJson() {
   const args = ['run', '--locked', 'python', 'scripts/contracts.py', ...(check ? ['--check'] : [])]
@@ -52,7 +52,7 @@ const extra = fs.readdirSync(generated).filter((name) => name.endsWith('.ts') &&
 
 if (check) {
   if (outdated.length || extra.length) {
-    console.error(`TypeScript 契约已过期：${[...outdated, ...extra].join('、')}；运行 npm run generate 后提交生成结果`)
+    console.error(`TypeScript 契约已过期：${[...outdated, ...extra].join('、')}；运行 pnpm run generate 后提交生成结果`)
     process.exit(1)
   }
   console.log('TypeScript 契约与 JSON 契约一致')

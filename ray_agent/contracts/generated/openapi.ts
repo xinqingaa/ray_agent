@@ -1,4 +1,4 @@
-/* 由 ray_agent/contracts 从 openapi.json 生成，勿手改；改 Pydantic 契约后运行 npm run generate。 */
+/* 由 ray_agent/contracts 从 openapi.json 生成，勿手改；改 Pydantic 契约后运行 pnpm run generate。 */
 export interface paths {
     "/api/status": {
         parameters: {

@@ -47,4 +47,4 @@ RayAgent 通过自研 Harness 统一这些职责，保持任务执行、工具�
 | 运行与开发 | [运行指南](ray_agent/README.md)、[桌面开发指南](ray_agent/desktop/README.md)、[API 开发指南](ray_agent/api/README.md)、[UI 开发指南](ray_agent/ui/README.md) | 模型连接、内部包构建、核心与界面开发 |
 | 查询设计形成过程 | [设计背景](docs/background/README.md) | 问题、证据、方案比较与重要转折 |
 
-当前实施与后续阶段见[维护与优化计划](PLAN.md)，文档分工见[文档地图](docs/README.md)。
+当前实施与后续阶段见[维护与优化计划](PLAN.md)，文档分工见[文档地图](docs/README.md)。本地开发在仓库根目录运行 `./dev.sh`，它会补齐界面与宿主依赖再启动桌面应用，细节见[桌面开发指南](ray_agent/desktop/README.md#开发运行)。

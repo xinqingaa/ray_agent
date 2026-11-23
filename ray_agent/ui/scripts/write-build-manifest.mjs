@@ -7,7 +7,7 @@ import {join, relative} from 'node:path'
 import {fileURLToPath} from 'node:url'
 
 const root = fileURLToPath(new URL('..', import.meta.url))
-const inputs = ['src', 'index.html', 'vite.config.ts', 'tsconfig.json', 'package.json', 'package-lock.json']
+const inputs = ['src', 'index.html', 'vite.config.ts', 'tsconfig.json', 'package.json', 'pnpm-lock.yaml']
 
 function* files(base) {
   const full = join(root, base)

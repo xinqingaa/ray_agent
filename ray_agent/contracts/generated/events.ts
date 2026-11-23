@@ -1,4 +1,4 @@
-/* 由 ray_agent/contracts 从 events.schema.json 生成，勿手改；改 Pydantic 契约后运行 npm run generate。 */
+/* 由 ray_agent/contracts 从 events.schema.json 生成，勿手改；改 Pydantic 契约后运行 pnpm run generate。 */
 
 /**
  * 会话事件信封：SessionEvent 为落库事件，StreamEvent 另含文本增量；WorkspaceChangeEvent 是工作区文件夹变更流的事件数据

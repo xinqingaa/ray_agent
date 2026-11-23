@@ -9,7 +9,7 @@
 | API | [api/app](../ray_agent/api/app) | [api/tests](../ray_agent/api/tests) |
 | UI | [ui/src](../ray_agent/ui/src) | [ui/scripts](../ray_agent/ui/scripts) |
 | 桌面宿主 | [desktop/src](../ray_agent/desktop/src) | [contract.rs](../ray_agent/desktop/src/contract.rs) 的 `cargo test`；运行检查见[桌面开发指南](../ray_agent/desktop/README.md#检查) |
-| 共享契约 | 契约模型在 API 中，生成结果在 [contracts/generated](../ray_agent/contracts/generated) | [test_contracts.py](../ray_agent/api/tests/core/test_contracts.py)、[generate.mjs](../ray_agent/contracts/scripts/generate.mjs) 的 `npm run check` |
+| 共享契约 | 契约模型在 API 中，生成结果在 [contracts/generated](../ray_agent/contracts/generated) | [test_contracts.py](../ray_agent/api/tests/core/test_contracts.py)、[generate.mjs](../ray_agent/contracts/scripts/generate.mjs) 的 `pnpm run check` |
 
 各主题列出实现入口与定向检查；[主执行路径](#主执行路径)用于首次定位，专题索引用于按影响继续追查。源码是当前行为的最终依据，测试帮助理解约定与覆盖范围；测试存在不表示当前版本已通过运行验证。
 
@@ -37,7 +37,7 @@
 | 版本、启动参数、握手与状态 | [core.py](../ray_agent/api/app/interfaces/schemas/core.py)、[core_descriptor.py](../ray_agent/api/app/interfaces/core_descriptor.py)（存储版本取自业务库迁移）、[status_routes.py](../ray_agent/api/app/interfaces/endpoints/status_routes.py)、[sidecar.py](../ray_agent/api/sidecar.py) | 同上；[test_status_routes.py](../ray_agent/api/tests/app/interfaces/endpoints/test_status_routes.py)（真实生命周期） |
 | 事件信封与联合类型 | [event.py](../ray_agent/api/app/interfaces/schemas/event.py) 的 `SessionEvent`、`StreamEvent`、`EventMapper` | 同上；[test_event_observability.py](../ray_agent/api/tests/core/test_event_observability.py) |
 | 执行与平台端口 | [workspace_files.py](../ray_agent/api/app/domain/external/workspace_files.py)、[process_executor.py](../ray_agent/api/app/domain/external/process_executor.py)、[browser_session.py](../ray_agent/api/app/domain/external/browser_session.py)、[runtime_components.py](../ray_agent/api/app/domain/external/runtime_components.py) | [test_contracts.py](../ray_agent/api/tests/core/test_contracts.py)（值类型） |
-| 导出与生成 | [contracts.py](../ray_agent/api/scripts/contracts.py)、[generate.mjs](../ray_agent/contracts/scripts/generate.mjs) | `npm run check`；API 契约测试中的过期检查 |
+| 导出与生成 | [contracts.py](../ray_agent/api/scripts/contracts.py)、[generate.mjs](../ray_agent/contracts/scripts/generate.mjs) | `pnpm run check`；API 契约测试中的过期检查 |
 | 界面引用生成类型 | [types.ts](../ray_agent/ui/src/lib/api/types.ts)，路径别名在 [tsconfig.json](../ray_agent/ui/tsconfig.json) | UI 的 lint 与构建 |
 | 宿主对齐 | [contract.rs](../ray_agent/desktop/src/contract.rs) | `cargo test` |
 

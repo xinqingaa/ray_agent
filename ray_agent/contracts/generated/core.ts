@@ -1,4 +1,4 @@
-/* 由 ray_agent/contracts 从 core.schema.json 生成，勿手改；改 Pydantic 契约后运行 npm run generate。 */
+/* 由 ray_agent/contracts 从 core.schema.json 生成，勿手改；改 Pydantic 契约后运行 pnpm run generate。 */
 
 /**
  * 核心启动参数、stdout 握手行与状态接口数据

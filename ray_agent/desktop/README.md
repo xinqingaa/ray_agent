@@ -14,19 +14,27 @@
   . "$HOME/.cargo/env"
   ```
 
-- Node 22 与 npm。Tauri CLI 使用 npm 包 `@tauri-apps/cli`，版本由 [package.json](package.json) 与 `package-lock.json` 锁定，不另装 `cargo tauri`。宿主与界面各自安装依赖：
+- Node 22 与 pnpm。Tauri CLI 使用 `@tauri-apps/cli`，版本由 [package.json](package.json) 与 `pnpm-lock.yaml` 锁定，不另装 `cargo tauri`。宿主与界面各自安装依赖：
 
   ```bash
-  npm ci
-  npm --prefix ../ui ci
+  pnpm install --frozen-lockfile
+  pnpm --dir ../ui install --frozen-lockfile
   ```
 
 - uv 与 API 的开发依赖（含 PyInstaller），见 [API 开发指南](../api/README.md#依赖与配置)。
 
 ## 开发运行
 
+仓库根目录可以直接启动。脚本在 `ray_agent/ui` 与 `ray_agent/desktop` 执行 `pnpm install --frozen-lockfile`，再运行下面的开发命令：
+
 ```bash
-npm run dev
+./dev.sh
+```
+
+在本目录启动（需已单独安装界面与宿主依赖）：
+
+```bash
+pnpm run dev
 ```
 
 它先准备本机语音程序并启动 `../ui` 的 Vite 开发服务器，再编译和运行宿主。首次构建下载锁定的语音源码和许可，后续从构建缓存增量编译。开发构建直接运行源码核心（`../api/.venv` 的解释器加 `sidecar.py`），改了核心代码重启宿主即可，不需要重新冻结；缺少虚拟环境时界面显示启动失败与原因。界面改动由 Vite 热更新。
@@ -34,7 +42,7 @@ npm run dev
 开发构建的数据根是应用数据目录下的 `dev-core/`，与正式包的 `core/` 分开；`RAYAGENT_CORE_DATA_DIR` 可另指数据根，多个宿主同时运行或做检查时用它隔开实例锁：
 
 ```bash
-RAYAGENT_CORE_DATA_DIR=/tmp/rayagent-dev npm run dev
+RAYAGENT_CORE_DATA_DIR=/tmp/rayagent-dev pnpm run dev
 ```
 
 终端里 `[core]` 前缀是核心日志，`[host]` 前缀是宿主日志。界面只在宿主窗口中工作；在普通浏览器打开开发服务器地址只显示“请从 RayAgent 应用打开”。
@@ -44,10 +52,10 @@ RAYAGENT_CORE_DATA_DIR=/tmp/rayagent-dev npm run dev
 正式内部包命令（在本目录，需已 `source "$HOME/.cargo/env"`）：
 
 ```bash
-npm ci
-npm --prefix ../ui ci
-npm run build
-# 等价：npx tauri build --bundles app --config tauri.bundle.json
+pnpm install --frozen-lockfile
+pnpm --dir ../ui install --frozen-lockfile
+pnpm run build
+# 等价：pnpm exec tauri build --bundles app --config tauri.bundle.json
 ```
 
 构建叠加 [tauri.bundle.json](tauri.bundle.json)：先写 UI 构建身份并构建静态产物（`../ui/dist`），再按 [rayagent-core.spec](../api/rayagent-core.spec) 冻结核心（`../api/dist/rayagent-core/`，含 LanceDB／ONNX／OCR／OpenCV／Playwright 等隐式导入与数据文件），构建前还按固定清单准备正常 CPython 与 Node 工具运行时，再把整个 onedir 作为资源打进应用；入口离开 `_internal/` 无法运行。产物为 `target/release/bundle/macos/RayAgent.app`，`bundle.macOS.signingIdentity` 为 `-`（仅 ad-hoc，不公证），只供内部使用，不作为公开分发。

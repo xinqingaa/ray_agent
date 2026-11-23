@@ -25,16 +25,16 @@
 | `generated/openapi.ts` | openapi-typescript | UI 的 HTTP 类型 |
 | `generated/events.ts`、`generated/core.ts` | json-schema-to-typescript | UI 的事件、握手与能力类型 |
 
-生成器版本由 [package.json](package.json) 与 `package-lock.json` 锁定。导出不启动服务、不连接数据库；OpenAPI 中的 SSE 接口不描述流内容，事件结构以 `events.schema.json` 为准。
+生成器版本由 [package.json](package.json) 与 `pnpm-lock.yaml` 锁定。导出不启动服务、不连接数据库；OpenAPI 中的 SSE 接口不描述流内容，事件结构以 `events.schema.json` 为准。
 
 ## 生成与检查
 
 先按 [API 开发指南](../api/README.md#依赖与配置)安装 API 的锁定依赖，再安装生成器：
 
 ```bash
-npm ci
-npm run generate   # 由 Pydantic 重新导出 JSON 并生成 TypeScript，写入 generated/
-npm run check      # 重新生成并与 generated/ 比对，任何文件过期都以退出码 1 失败
+pnpm install --frozen-lockfile
+pnpm run generate   # 由 Pydantic 重新导出 JSON 并生成 TypeScript，写入 generated/
+pnpm run check      # 重新生成并与 generated/ 比对，任何文件过期都以退出码 1 失败
 ```
 
 `generate` 与 `check` 先在 `../api` 运行 `uv run --locked python scripts/contracts.py`（检查时带 `--check`），再生成 TypeScript。改了契约后提交代码时一并提交 `generated/` 的变化。
@@ -45,7 +45,7 @@ npm run check      # 重新生成并与 generated/ 比对，任何文件过期�
 |---|---|---|
 | `ray_agent/api` | `uv run --locked python -m pytest tests/core/test_contracts.py` | JSON 产物未过期，以及身份、路径、错误、事件、能力、长操作与握手的行为；随 API 全量测试运行 |
 | `ray_agent/desktop` | `cargo test` | 宿主类型与 `core.schema.json` 的字段和枚举取值一致，样例往返不丢字段 |
-| `ray_agent/ui` | `npm run lint`、`npm run build` | 界面代码按生成类型通过类型检查 |
+| `ray_agent/ui` | `pnpm run lint`、`pnpm run build` | 界面代码按生成类型通过类型检查 |
 
 ## 何时重新生成
 
@@ -53,7 +53,7 @@ npm run check      # 重新生成并与 generated/ 比对，任何文件过期�
 - 修改事件信封、任一事件数据模型，或新增事件类型。
 - 修改启动参数、握手、状态、能力、错误代码，或导出脚本里的样例。
 
-生成结果不一致时，`npm run check` 与 API 的契约测试失败；握手、能力或错误代码的变化还会让宿主的 `cargo test` 失败，需要同步修改 Rust 类型。
+生成结果不一致时，`pnpm run check` 与 API 的契约测试失败；握手、能力或错误代码的变化还会让宿主的 `cargo test` 失败，需要同步修改 Rust 类型。
 
 ## 版本
 
@@ -69,7 +69,7 @@ npm run check      # 重新生成并与 generated/ 比对，任何文件过期�
 1. 按上表选择层：身份与领域值类型放领域模型，端口放领域外部能力协议，线上格式放接口 schema。身份字段使用已有身份类型（如 `WorkspaceId`、`RootedPath`），需要新身份时先在身份模块登记，不在接口里另起同义字段。
 2. 文件位置一律是 `root_id` 加相对路径。相对路径以 `/` 分隔，空串表示根本身，拒绝绝对路径、盘符、反斜杠、空段、`.`、`..` 与控制字符；平台特有的文件名限制由文件 IO 实现判断。
 3. 模型被路由使用后会自动进入 OpenAPI；不经 HTTP 的契约（例如原生进程之间的私有 IPC）需要给其他语言使用时，在导出脚本中增加一个 JSON Schema 产物和样例，并在 `scripts/generate.mjs` 中增加对应的 TypeScript 生成。
-4. 运行 `npm run generate`，按生成结果修改调用方，再运行上表的检查。
+4. 运行 `pnpm run generate`，按生成结果修改调用方，再运行上表的检查。
 
 ### 新接口的错误
 
@@ -97,7 +97,7 @@ npm run check      # 重新生成并与 generated/ 比对，任何文件过期�
 
 ## 宿主怎样对齐
 
-`ray_agent/desktop/src/contract.rs` 手写 serde 类型，结构体拒绝未知字段，枚举列出全部取值。`cargo test` 在编译期内嵌 `core.schema.json` 与 `samples/`：样例反序列化后再序列化必须与样例完全一致，结构的字段集合与 schema 的 `properties` 一致，枚举取值与 schema 的 `enum` 一致。握手或能力契约变化后先运行 `npm run generate`，再改 Rust 类型直到 `cargo test` 通过。
+`ray_agent/desktop/src/contract.rs` 手写 serde 类型，结构体拒绝未知字段，枚举列出全部取值。`cargo test` 在编译期内嵌 `core.schema.json` 与 `samples/`：样例反序列化后再序列化必须与样例完全一致，结构的字段集合与 schema 的 `properties` 一致，枚举取值与 schema 的 `enum` 一致。握手或能力契约变化后先运行 `pnpm run generate`，再改 Rust 类型直到 `cargo test` 通过。
 
 ## 覆盖边界
 

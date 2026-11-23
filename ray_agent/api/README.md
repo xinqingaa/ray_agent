@@ -71,7 +71,7 @@ uv run --locked python sidecar.py --data-root /tmp/rayagent-dev
 
 ### 接口契约
 
-请求、响应、错误与事件以 Pydantic 模型为唯一来源，导出的 OpenAPI、JSON Schema 与 TypeScript 类型提交在 [ray_agent/contracts](../contracts/README.md)。改了路由或模型后在契约目录运行 `npm run generate` 并提交生成结果；只核对 JSON 产物是否过期可在本目录运行：
+请求、响应、错误与事件以 Pydantic 模型为唯一来源，导出的 OpenAPI、JSON Schema 与 TypeScript 类型提交在 [ray_agent/contracts](../contracts/README.md)。改了路由或模型后在契约目录运行 `pnpm run generate` 并提交生成结果；只核对 JSON 产物是否过期可在本目录运行：
 
 ```bash
 uv run --locked python scripts/contracts.py --check

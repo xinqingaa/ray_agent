@@ -4,13 +4,15 @@
 
 ## 安装与启动
 
-使用 Node.js 22 与 npm。依赖和脚本以 [package.json](package.json) 与 [package-lock.json](package-lock.json) 为准。
+使用 Node.js 22 与 pnpm。依赖和脚本以 [package.json](package.json) 与 [pnpm-lock.yaml](pnpm-lock.yaml) 为准。
 
 ```bash
-npm ci
+pnpm install --frozen-lockfile
 ```
 
-日常开发在 `ray_agent/desktop` 运行 `npm run dev`，它会在本目录启动 Vite 开发服务器（端口固定，见 [vite.config.ts](vite.config.ts)）并打开宿主窗口。单独运行本目录的 `npm run dev` 也能启动开发服务器，但业务页面只在宿主窗口中工作，普通浏览器只显示“请从 RayAgent 应用打开”；不需要核心的[组件状态目录](#组件状态目录)可以在普通浏览器打开。
+仓库根目录的 `./dev.sh` 会在本目录执行 `pnpm install --frozen-lockfile`，再启动桌面开发构建。
+
+日常开发在 `ray_agent/desktop` 运行 `pnpm run dev`，它会在本目录启动 Vite 开发服务器（端口固定，见 [vite.config.ts](vite.config.ts)）并打开宿主窗口。单独运行本目录的 `pnpm run dev` 也能启动开发服务器，但业务页面只在宿主窗口中工作，普通浏览器只显示“请从 RayAgent 应用打开”；不需要核心的[组件状态目录](#组件状态目录)可以在普通浏览器打开。
 
 ## 核心连接与平台能力
 
@@ -150,11 +152,11 @@ node scripts/check-index-governance.cjs
 node scripts/check-context-menu.cjs
 node scripts/check-danger-dialog.cjs
 node scripts/check-surface-actions.cjs
-npm run lint
-npm run build
+pnpm run lint
+pnpm run build
 ```
 
-`build` 先做类型检查，再输出静态产物到 `dist/`，由桌面构建打进应用。构建与 `npx tsc --noEmit` 的类型检查会读取 `../contracts/generated` 中的生成类型，契约过期时先在契约目录运行 `npm run generate`。当前没有覆盖完整交互的自动化测试套件；lint 和构建不验证完整交互。本地事件观察见下节。涉及事件的修改还需检查实时消息、历史详情、计划更新与工具结果展示。
+`build` 先做类型检查，再输出静态产物到 `dist/`，由桌面构建打进应用。构建与 `pnpm exec tsc --noEmit` 的类型检查会读取 `../contracts/generated` 中的生成类型，契约过期时先在契约目录运行 `pnpm run generate`。当前没有覆盖完整交互的自动化测试套件；lint 和构建不验证完整交互。本地事件观察见下节。涉及事件的修改还需检查实时消息、历史详情、计划更新与工具结果展示。
 
 `check-slash-command-menu.cjs` 挂载实际菜单与圆环，使用 DOM 几何替身检查鼠标高亮不滚动、键盘最小滚动、滚轮位置不回拉、静止指针不抢选择、压缩说明与禁用原因，以及圆环的单层详情和未知态；`check-composer-images.cjs` 另核对关闭后松键不重开、查询变化可重新打开。长列表的实际滚动、锚定、搜索高度与键盘交互仍需在宿主窗口走查。
 
@@ -188,7 +190,7 @@ node scripts/check-workbench-recovery.cjs
 
 草稿、预览、文件树、变更与重新定位五个工作区检查脚本加载实际模块（共用 [workspace-loader.cjs](scripts/workspace-loader.cjs)，替换宿主与网络边界）：草稿检查覆盖独立、工作区与会话三类作用域互不覆盖、清理范围、工作区路由解析、会话列表的范围参数（工作区、独立、全部）与工作区可写判断；预览检查覆盖文件夹文件的预览地址、逐段编码、按路径签发并缓存的票据与不提供下载；文件树检查覆盖懒加载合并、刷新保留展开、已消失目录剪枝、符号链接与特殊文件不展开及添加文件的目标目录；重新定位检查覆盖各类失败的文案映射（已绑定、标记属于他处、租约、活动运行、版本不符、400/403、授权失效）；变更检查覆盖外部变更的合并与去抖（路径去重、`refresh` 吞掉路径、受影响目录、预览文件提示）、写入租约提示与占用说明、撤销的默认选择与 `force` 组装（冲突默认不选、不允许覆盖的永不提交、结果合并与再次覆盖）以及撤销入口条件。它们不渲染组件，也不连接核心；面板布局、拖放、原生选择器与真实文件夹需要在宿主窗口走查。
 
-类型检查没有单独的 npm script，在本目录执行 `npx tsc --noEmit`。lint 与生产构建见上一节。
+类型检查没有单独的脚本，在本目录执行 `pnpm exec tsc --noEmit`。lint 与生产构建见上一节。
 
 `check-workspace-undo-dialog.cjs` 挂载实际的运行修改提示条、最近修改和撤销窗口，基础 UI、网络与订阅使用替身，检查撤销后结果窗口保持、另一个入口打开时关掉已打开的窗口、以及工作区变为只读或切换运行后清理窗口状态。同时检查脚本文件观察的截断、未知结果、分页与无撤销边界。真实对话框布局与文件结果仍需在宿主窗口核对。
 
