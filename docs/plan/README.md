@@ -8,6 +8,7 @@
 
 | 阅读问题 | 入口 |
 |---|---|
+| 桌面验收修复、应用内项目预览与场景预设 | [桌面验收修复、项目预览与场景预设计划](desktop-acceptance-remediation.md) |
 | OpenAI 转写 | [语音转写扩展](usage-models-voice.md) |
 | 签名、更新、离线包与移动分发 | [客户端与分发](clients-and-distribution.md) |
 | 完整备份恢复与正式更新 | [本机核心](local-runtime-and-storage.md) |

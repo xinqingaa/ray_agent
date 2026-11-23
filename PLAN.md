@@ -5,5 +5,6 @@ RayAgent 首个交付处于**实施中**，目标是 macOS Apple Silicon 内部�
 - [实施工作包与交付条件](docs/plan/implementation.md)维护各包状态和交付门槛。
 - [首个交付收尾清单](docs/plan/first-delivery-remaining.md)维护待修复、待验证和待决定的事项。
 - [桌面升级计划](docs/plan/README.md)提供原型范围、既定产品决策和后续工作入口。
+- [桌面验收修复、项目预览与场景预设计划](docs/plan/desktop-acceptance-remediation.md)维护桌面真实验收问题的分批修复、应用内项目预览（静态与轻脚本服务）、内置场景预设工作流及已采纳的上游调整（计划已定稿）。
 
 现行产品、机制与运行说明见[文档地图](docs/README.md)。
