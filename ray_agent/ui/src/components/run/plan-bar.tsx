@@ -104,9 +104,9 @@ export function PlanBar({plan, runStatus, proposal = false, defaultOpen = false,
     }
   }, [expanded])
   if (!plan || plan.items.length === 0) return null
-  const preparing = plan.progressState === 'preparing'
-  const active = !proposal && !preparing && (runStatus === 'running' || runStatus === 'waiting')
   const ended = !proposal && runStatus != null && !['running', 'waiting'].includes(runStatus)
+  const preparing = !ended && plan.progressState === 'preparing'
+  const active = !proposal && !ended && !preparing && (runStatus === 'running' || runStatus === 'waiting')
   const stages = planStages(plan)
   const total = stages.length
   const completed = stages.filter(s => s.status === 'completed').length

@@ -218,6 +218,8 @@ def test_execution_port_values_are_platform_neutral():
             ProcessSpec(cwd=cwd, owner=owner, **invalid)
     with pytest.raises(ValidationError):
         ProcessOwner(session_id="s1")
+    preview_owner = ProcessOwner(session_id="s1", preview_id="p1")
+    assert preview_owner.kind == "preview" and preview_owner.preview_id == "p1"
     with pytest.raises(ValidationError):
         BrowserProfile(workspace_id="w1", session_id="s1")
 

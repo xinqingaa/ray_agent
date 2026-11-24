@@ -1,13 +1,15 @@
 import {useEffect, useRef, useState, type CSSProperties, type ReactNode} from 'react'
-import {ChevronLeft, ChevronRight, Code, Download, ExternalLink, FileText, MoreHorizontal, RefreshCw} from '@/components/ui/icons'
+import {ChevronLeft, ChevronRight, Code, Download, ExternalLink, FileText, Globe, MoreHorizontal, RefreshCw} from '@/components/ui/icons'
 import {toast} from 'sonner'
 import {MarkdownContent} from '@/components/markdown-content'
 import {Button} from '@/components/ui/button'
 import {DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger} from '@/components/ui/dropdown-menu'
 import {PreviewDialog, PreviewFrame} from './preview-frame'
+import {WebPreview} from './web-preview'
 import {ApiError} from '@/lib/api/fetch'
+import type {ManagedPreview} from '@/lib/api/managed-previews'
 import type {ErrorCode} from '@/lib/api/types'
-import {canDownload, downloadPreviewSource, isWebPage, openPreviewTab, previewContentUrl, previewEndpoint, readPreview, type FilePreview as Preview, type PreviewCell, type PreviewLocation, type PreviewSource, type WordBlock} from '@/lib/api/preview'
+import {canDownload, downloadPreviewSource, isWebPage, openPreviewTab, previewContentUrl, previewEndpoint, readPreview, type FilePreview as Preview, type FilePreviewSource, type PreviewCell, type PreviewLocation, type PreviewSource, type WordBlock} from '@/lib/api/preview'
 import {formatBytes} from '@/components/run/format'
 import {PreviewAction} from './action'
 import {ImagePreview} from './image-preview'
@@ -95,15 +97,73 @@ function DocxPreview({blocks, location}: {blocks: WordBlock[]; location?: Previe
   </div>
 }
 
-type FilePreviewProps = {source: PreviewSource; onBack?: () => void; backLabel?: string; onDownload?: () => void; onClose?: () => void; canExpand?: boolean}
-
-export function FilePreview(props: FilePreviewProps) {
-  const source=props.source
-  const identity = source.kind === 'root' ? [previewEndpoint(source), source.location, source.expectedRevision] : [previewEndpoint(source)]
-  return <FilePreviewContent key={JSON.stringify(identity)} {...props}/>
+type FilePreviewProps = {
+  source: PreviewSource
+  onBack?: () => void
+  backLabel?: string
+  onDownload?: () => void
+  onClose?: () => void
+  canExpand?: boolean
+  onReveal?: () => void
+  onOpenAsSite?: () => void
+  onPreviewChange?: (preview: ManagedPreview) => void
+  onPreviewDeleted?: (previewId: string) => void
+  onAskAgentFix?: (prompt: string) => void
+  onRevealManaged?: (preview: ManagedPreview) => void
 }
 
-function FilePreviewContent({source, onBack, backLabel, onDownload, onClose, canExpand = true}: FilePreviewProps) {
+export function FilePreview(props: FilePreviewProps) {
+  const {source} = props
+  const identity = source.kind === 'managed'
+    ? ['managed', source.previewId]
+    : source.kind === 'root_dir'
+      ? ['root_dir', source.rootId, source.path, source.entryPath ?? '']
+      : source.kind === 'root'
+        ? [previewEndpoint(source), source.location, source.expectedRevision]
+        : [previewEndpoint(source)]
+  return <FilePreviewInner key={JSON.stringify(identity)} {...props}/>
+}
+
+function FilePreviewInner(props: FilePreviewProps) {
+  const {
+    source, onBack, backLabel, onDownload, onClose, canExpand = true, onReveal, onOpenAsSite,
+    onPreviewChange, onPreviewDeleted, onAskAgentFix, onRevealManaged,
+  } = props
+  const [viewMode, setViewMode] = useState<'preview' | 'source'>('preview')
+  if (source.kind === 'managed') {
+    return (
+      <WebPreview
+        source={source}
+        onBack={onBack}
+        backLabel={backLabel}
+        onClose={onClose}
+        canExpand={canExpand}
+        onPreviewChange={onPreviewChange}
+        onPreviewDeleted={onPreviewDeleted}
+        onAskAgentFix={onAskAgentFix}
+        onRevealManaged={onRevealManaged}
+      />
+    )
+  }
+  const webSource = source.kind === 'root_dir' || isWebPage(source.filename)
+  if (source.kind === 'root_dir' || (webSource && viewMode === 'preview')) {
+    return <WebPreview source={source} onBack={onBack} backLabel={backLabel} onDownload={onDownload} onClose={onClose}
+      canExpand={canExpand} onReveal={onReveal} onOpenAsSite={source.kind === 'root' ? onOpenAsSite : undefined}
+      onViewSource={source.kind !== 'root_dir' ? () => setViewMode('source') : undefined}/>
+  }
+  return <FilePreviewContent source={source} onBack={onBack} backLabel={backLabel} onDownload={onDownload} onClose={onClose}
+    canExpand={canExpand} onOpenWebPreview={webSource ? () => setViewMode('preview') : undefined}/>
+}
+
+function FilePreviewContent({source, onBack, backLabel, onDownload, onClose, canExpand = true, onOpenWebPreview}: {
+  source: FilePreviewSource
+  onBack?: () => void
+  backLabel?: string
+  onDownload?: () => void
+  onClose?: () => void
+  canExpand?: boolean
+  onOpenWebPreview?: () => void
+}) {
   const location = source.kind === 'root' ? source.location : undefined
   const expectedRevision = source.kind === 'root' ? source.expectedRevision : undefined
   const firstPage = {sheet:0,row:0,column:0,offset:0,...location}
@@ -201,8 +261,9 @@ function FilePreviewContent({source, onBack, backLabel, onDownload, onClose, can
   const actions = <DropdownMenu>
     <DropdownMenuTrigger asChild><Button type="button" variant="ghost" size="icon-sm" aria-label="预览操作" className="text-muted-foreground"><MoreHorizontal aria-hidden/></Button></DropdownMenuTrigger>
     <DropdownMenuContent align="end">
+      {onOpenWebPreview && <DropdownMenuItem onSelect={onOpenWebPreview}><Globe/>运行预览</DropdownMenuItem>}
       {canReadRaw && <DropdownMenuItem onSelect={() => setRaw(!raw)}>{raw ? <FileText/> : <Code/>}{raw ? '格式化阅读' : '查看原文'}</DropdownMenuItem>}
-      {isWebPage(source.filename) && <DropdownMenuItem onSelect={() => void openPreviewTab(source).catch(error => toast.error(error instanceof Error ? error.message : '打开失败'))}><ExternalLink/>在浏览器中打开</DropdownMenuItem>}
+      {isWebPage(source.filename) && <DropdownMenuItem onSelect={() => void openPreviewTab(source).catch(error => toast.error(error instanceof Error ? error.message : '打开失败'))}><ExternalLink/>在系统浏览器中打开</DropdownMenuItem>}
       <DropdownMenuItem disabled={loading} onSelect={refresh}><RefreshCw/>刷新预览</DropdownMenuItem>
       {canDownload(source) && <DropdownMenuItem disabled={errorCode === 'gone'} onSelect={download}><Download/>下载</DropdownMenuItem>}
     </DropdownMenuContent>

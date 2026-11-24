@@ -25,6 +25,8 @@ const TOOLSET_LABEL: Record<string, string> = {
   browser: '浏览器',
   search: '网页搜索',
   deliver: '交付文件',
+  preview: '应用内静态预览',
+  preview_service: '应用内轻服务预览',
   a2a: '远程 Agent 目录',
 }
 

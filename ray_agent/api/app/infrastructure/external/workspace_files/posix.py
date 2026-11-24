@@ -30,6 +30,8 @@ RootResolver = Callable[[str], Awaitable[RootBinding]]
 _DIR_FLAGS = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
 _CHUNK = 1024 * 1024
 TEMP_PREFIX = WRITE_TEMP_PREFIX
+_STATIC_ENTRY_PROBE_LIMIT = 200
+_STATIC_INDEX_CANDIDATES = ("index.html", "index.htm")
 
 
 def _fail(code: ErrorCode, message: str, current: FileVersion | None = None) -> WorkspaceFileError:
@@ -156,7 +158,30 @@ def _actual_name(dir_fd: int, name: str) -> str:
     return next((candidate for candidate in names if candidate.casefold() == folded), name)
 
 
-def _entry(root_id: str, parts: tuple[str, ...], name: str, info: os.stat_result, dir_fd: int | None) -> FileEntry:
+def _probe_static_entry(parent_fd: int, dir_name: str) -> str | None:
+    """探测子目录直接包含的 index.html / index.htm 普通文件；不跟随符号链接，失败静默返回 None。"""
+    try:
+        sub_fd = _open_dir(parent_fd, dir_name)
+    except (WorkspaceFileError, OSError):
+        return None
+    try:
+        for candidate in _STATIC_INDEX_CANDIDATES:
+            try:
+                info = os.stat(candidate, dir_fd=sub_fd, follow_symlinks=False)
+            except OSError:
+                continue
+            if stat.S_ISREG(info.st_mode):
+                try:
+                    return _actual_name(sub_fd, candidate)
+                except OSError:
+                    return candidate
+        return None
+    finally:
+        os.close(sub_fd)
+
+
+def _entry(root_id: str, parts: tuple[str, ...], name: str, info: os.stat_result, dir_fd: int | None,
+           *, static_entry: str | None = None) -> FileEntry:
     kind = kind_of(info.st_mode)
     target = None
     if kind is FileKind.SYMLINK and dir_fd is not None:
@@ -166,7 +191,7 @@ def _entry(root_id: str, parts: tuple[str, ...], name: str, info: os.stat_result
             target = None
     return FileEntry(path=RootedPath(root_id=root_id, relative_path="/".join(parts)), name=name, kind=kind,
                      version=version_of(info) if kind is FileKind.FILE else None, link_target=target,
-                     inode=info.st_ino)
+                     inode=info.st_ino, static_entry=static_entry)
 
 
 def _refuse_non_file(kind: FileKind, name: str) -> WorkspaceFileError:
@@ -302,7 +327,7 @@ class PosixWorkspaceFiles:
         try:
             dir_fd = walk_dirs(root_fd, parts)
             try:
-                entries, truncated = [], False
+                entries, truncated, probed_dirs = [], False, 0
                 with os.scandir(dir_fd) as scanner:
                     names = sorted(scanner, key=lambda item: item.name.casefold())
                 for item in names:
@@ -316,7 +341,12 @@ class PosixWorkspaceFiles:
                     if len(entries) >= cap:
                         truncated = True
                         break
-                    entries.append(_entry(binding.root_id, (*parts, item.name), item.name, info, dir_fd))
+                    static_entry = None
+                    if kind is FileKind.DIRECTORY and probed_dirs < _STATIC_ENTRY_PROBE_LIMIT:
+                        probed_dirs += 1
+                        static_entry = _probe_static_entry(dir_fd, item.name)
+                    entries.append(_entry(binding.root_id, (*parts, item.name), item.name, info, dir_fd,
+                                          static_entry=static_entry))
                 return DirectoryListing(path=path, entries=entries, truncated=truncated)
             finally:
                 os.close(dir_fd)

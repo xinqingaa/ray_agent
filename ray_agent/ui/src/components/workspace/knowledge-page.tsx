@@ -21,6 +21,7 @@ import {operationApi} from '@/lib/api/workspace'
 import type {OperationView, SearchHitView, SearchResponse, WorkspaceItem} from '@/lib/api/types'
 import {addDraftReference, referenceKey, workspaceDraftScope, type DraftReference} from '@/lib/drafts'
 import {Link} from '@/lib/navigation'
+import {useImeComposition} from '@/lib/ime'
 import {motionEasing} from '@/lib/motion'
 import {cn, formatFileSize} from '@/lib/utils'
 import {workspaceHref} from '@/lib/workspace-route'
@@ -158,13 +159,21 @@ function KnowledgeContent({workspace}: {workspace: WorkspaceItem}) {
   </main>
 }
 
-function KnowledgeSearch({workspace, visible, revision, semantic}: {
+const URL_QUERY_SYNC_MS = 150
+
+export function KnowledgeSearch({workspace, visible, revision, semantic}: {
   workspace: WorkspaceItem; visible: boolean; revision: string; semantic?: IndexSummary['semantic']
 }) {
   const navigate = useNavigate()
   const {change} = useWorkspaceLive()
   const [params, setParams] = useSearchParams()
-  const query = (params.get('q') ?? '').slice(0, 500)
+  const urlQuery = (params.get('q') ?? '').slice(0, 500)
+  const [inputValue, setInputValue] = useState(urlQuery)
+  const [committedQuery, setCommittedQuery] = useState(urlQuery)
+  const ime = useImeComposition()
+  const prevUrlQueryRef = useRef(urlQuery)
+  const pendingUrlQueriesRef = useRef<string[]>([])
+  const syncTimerRef = useRef<number | null>(null)
   const scope = params.get('source')
   const filter = FILTERS.find(value => value === scope) ?? 'all'
   const selection = params.get('pick')
@@ -178,7 +187,7 @@ function KnowledgeSearch({workspace, visible, revision, semantic}: {
   const positions = useRef<{query: string; rows: Map<string, number>} | null>(null)
   const opener = useRef<HTMLButtonElement | null>(null)
   const queryInput = useRef<HTMLInputElement>(null)
-  const clean = query.trim()
+  const clean = committedQuery.trim()
   const revisionKey = `${revision}:${change.signal}:${attempt}`
   const scoped = results?.query === clean ? results.scopes : undefined
   const hasCachedQuery = Boolean(scoped)
@@ -194,17 +203,56 @@ function KnowledgeSearch({workspace, visible, revision, semantic}: {
       ? '当前仅全文检索，语义索引尚未就绪。' : null
   const selected = hits.find(hit => referenceKey(hit) === selection) ?? hits[0]
   const canQuote = workspace.status === 'active'
-  const updateSearch = (values: Record<string, string>) => {
-    const updated = new URLSearchParams(params)
-    for (const [name, value] of Object.entries(values)) {
-      if (value) updated.set(name, value)
-      else updated.delete(name)
+  const updateSearch = useCallback((values: Record<string, string>) => {
+    setParams(prev => {
+      const updated = new URLSearchParams(prev)
+      for (const [name, value] of Object.entries(values)) {
+        if (value) updated.set(name, value)
+        else updated.delete(name)
+      }
+      return updated
+    }, {replace: true})
+  }, [setParams])
+  const recordPendingUrlQuery = useCallback((next: string) => {
+    const pending = pendingUrlQueriesRef.current
+    if (pending.length === 0 && next === prevUrlQueryRef.current) return
+    if (pending.at(-1) !== next) pending.push(next)
+  }, [])
+  const clearSyncTimer = useCallback(() => {
+    if (syncTimerRef.current !== null) {
+      window.clearTimeout(syncTimerRef.current)
+      syncTimerRef.current = null
     }
-    setParams(updated, {replace: true})
-  }
-  const setQuery = (value: string) => {updateSearch({q: value, pick: ''}); setOpen(false)}
+  }, [])
+  const commitUrlQuery = useCallback((next: string, immediate = false) => {
+    clearSyncTimer()
+    const flush = () => {
+      syncTimerRef.current = null
+      recordPendingUrlQuery(next)
+      updateSearch({q: next, pick: ''})
+    }
+    if (immediate) flush()
+    else syncTimerRef.current = window.setTimeout(flush, URL_QUERY_SYNC_MS)
+  }, [clearSyncTimer, recordPendingUrlQuery, updateSearch])
+  useEffect(() => clearSyncTimer, [clearSyncTimer])
+  useEffect(() => {
+    if (urlQuery === prevUrlQueryRef.current) return
+    prevUrlQueryRef.current = urlQuery
+    const pending = pendingUrlQueriesRef.current
+    const idx = pending.lastIndexOf(urlQuery)
+    if (idx >= 0) {
+      pending.splice(0, idx + 1)
+      return
+    }
+    clearSyncTimer()
+    pendingUrlQueriesRef.current = []
+    setInputValue(urlQuery)
+    setCommittedQuery(urlQuery)
+  }, [urlQuery, clearSyncTimer])
   const openFile = (source: RootSource) => {
     const search = new URLSearchParams(params)
+    if (committedQuery) search.set('q', committedQuery)
+    else search.delete('q')
     if (selected) search.set('pick', referenceKey(selected))
     void navigate(workspaceHref(workspace.id), {state: {folderPreview: source, knowledgeSearch: search.toString()}})
   }
@@ -279,11 +327,33 @@ function KnowledgeSearch({workspace, visible, revision, semantic}: {
     <div className="knowledge-search-main">
       <div className="knowledge-query">
         <Search className="size-[17px] shrink-0 text-faint" aria-hidden/>
-        <input ref={queryInput} aria-label="检索工作区知识" value={query} maxLength={500} autoComplete="off"
+        <input ref={queryInput} aria-label="检索工作区知识" value={inputValue} maxLength={500} autoComplete="off"
           placeholder={`在 ${workspace.name} 的材料、记忆和会话摘要里检索`}
-          onChange={event => setQuery(event.target.value)}/>
-        {query && <Button size="icon-xs" variant="ghost" aria-label="清除检索词" onClick={() => {
-          setQuery(''); queryInput.current?.focus()
+          onCompositionStart={() => ime.onCompositionStart()}
+          onCompositionEnd={event => {
+            ime.onCompositionEnd()
+            const next = event.currentTarget.value.slice(0, 500)
+            setInputValue(next)
+            setCommittedQuery(next)
+            setOpen(false)
+            commitUrlQuery(next, false)
+          }}
+          onChange={event => {
+            const next = event.target.value.slice(0, 500)
+            setInputValue(next)
+            const composing = ime.isComposing || Boolean((event.nativeEvent as {isComposing?: boolean} | undefined)?.isComposing)
+            if (!composing) {
+              setCommittedQuery(next)
+              setOpen(false)
+              commitUrlQuery(next, false)
+            }
+          }}/>
+        {inputValue && <Button size="icon-xs" variant="ghost" aria-label="清除检索词" onClick={() => {
+          setInputValue('')
+          setCommittedQuery('')
+          setOpen(false)
+          commitUrlQuery('', true)
+          queryInput.current?.focus()
         }}><X/></Button>}
       </div>
       <div role="group" className="knowledge-filters" aria-label="按来源筛选">
@@ -298,7 +368,13 @@ function KnowledgeSearch({workspace, visible, revision, semantic}: {
       {!clean ? <div className="knowledge-empty"><Search aria-hidden/><p>输入关键词检索。任务中用到的结果会显示在「本次参考」里。</p>
         {suggestions.length > 0 && <div className="knowledge-suggestions">{suggestions.map(word =>
           <button key={word} type="button" title={word} onClick={() => {
-            updateSearch({q: word.slice(0, 500), source: '', pick: ''})
+            const next = word.slice(0, 500)
+            clearSyncTimer()
+            setInputValue(next)
+            setCommittedQuery(next)
+            setOpen(false)
+            recordPendingUrlQuery(next)
+            updateSearch({q: next, source: '', pick: ''})
             queryInput.current?.focus()
           }}>{word}</button>)}</div>}
       </div>

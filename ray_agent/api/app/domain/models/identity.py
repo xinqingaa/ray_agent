@@ -26,6 +26,7 @@ type OperationId = Annotated[str, _ID, Field(description="长操作身份；查�
 type RequestId = Annotated[str, _ID, Field(description="业务幂等请求身份；同身份不同内容返回冲突")]
 type InstanceId = Annotated[str, _ID, Field(description="核心进程的一次启动")]
 type BackgroundJobId = Annotated[str, _ID, Field(description="持久后台任务身份")]
+type PreviewId = Annotated[str, _ID, Field(description="应用内项目预览身份")]
 
 type InstructionVersion = Annotated[int, Field(ge=1, description="工作方式的不可变版本，工作区内递增")]
 type DocumentRevision = Annotated[int, Field(ge=1, description="文档内容版本；内容变化产生新版本")]

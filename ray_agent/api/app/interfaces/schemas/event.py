@@ -21,6 +21,7 @@ from app.domain.models.plan import ExecutionStatus
 from app.domain.models.plan_acceptance import PlanAcceptance
 from app.domain.models.run import RunSummary, RunMode, RunStatus
 from app.domain.models.retrieval import KnowledgeReference
+from app.domain.models.workspace_preview import PreviewKind
 
 # 事件结构不兼容地变化（删除或改义字段、改变类型）时递增；只新增字段或新增事件类型不递增。
 EVENT_VERSION = 1
@@ -361,6 +362,23 @@ class EnvironmentSSEEvent(BaseSSEEvent):
     data: EnvironmentEventData
 
 
+class PreviewEventData(BaseEventData):
+    """项目预览登记事件数据。"""
+    preview_id: str
+    name: str
+    kind: PreviewKind = "static"
+    root_id: str
+    relative_path: str = ""
+    entry_path: str = ""
+    workspace_id: Optional[str] = None
+    note: str = ""
+
+
+class PreviewSSEEvent(BaseSSEEvent):
+    event: Literal["preview"] = "preview"
+    data: PreviewEventData
+
+
 class RunEventData(BaseEventData):
     """运行状态变化事件数据；终态时 summary 为运行汇总，mode 为运行模式（normal / plan）。"""
     status: RunStatus
@@ -469,6 +487,7 @@ SESSION_EVENT_CLASSES: tuple[Type[BaseSSEEvent], ...] = (
     CompactSSEEvent,
     CleanupSSEEvent,
     ApprovalSSEEvent,
+    PreviewSSEEvent,
 )
 
 # 落库事件的联合类型：会话详情的 events 与 SSE 中带 id 的帧

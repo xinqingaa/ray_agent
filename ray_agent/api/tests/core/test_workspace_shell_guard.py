@@ -161,3 +161,86 @@ def test_scan_snapshot_and_watcher_skip_conda_and_cachedir_markers(tmp_path):
     assert accept(Change.modified, str(root / "doc.md")) is True
     assert accept(Change.added, str(conda / "lib" / "pkg" / "readme.txt")) is False
     assert accept(Change.added, str(cache / "data.md")) is False
+
+
+def _make_independent_scope(scratch: Path) -> FileScope:
+    sc_root = AccessibleRoot(root_id="sc-1", path=str(scratch.resolve()), kind=RootKind.SESSION_WORKDIR)
+    return FileScope(files=None, roots=[sc_root], working=sc_root)
+
+
+def test_external_write_guard_requires_approval_for_workspace_and_independent_sessions(tmp_path):
+    workspace = tmp_path / "ws"
+    scratch = tmp_path / "scratch"
+    outside = tmp_path / "outside"
+    workspace.mkdir()
+    scratch.mkdir()
+    outside.mkdir()
+
+    scopes = [
+        ("workspace", WorkspaceShellGuard(_make_scope(workspace, scratch), default_exec_dir=str(scratch))),
+        ("independent", WorkspaceShellGuard(_make_independent_scope(scratch), default_exec_dir=str(scratch))),
+    ]
+    external_commands = [
+        "echo hi > ~/Desktop/report.html",
+        "echo hi>~/Desktop/tight.html",
+        "printf x >> ~/Desktop/append.txt",
+        "echo hi >| ~/Downloads/clobber.txt",
+        "cmd &> ~/Documents/all.log",
+        "cmd 1> ~/Desktop/stdout.log",
+        "cmd 2> ~/Desktop/stderr.log",
+        "cp out.html ~/Desktop/out.html",
+        f"cp -t {outside} out.html",
+        f"mv out.html {outside}/out.html",
+        "echo log | tee ~/Desktop/tee.log",
+        f"mkdir -p {outside}/subdir",
+        "curl -s https://example.com -o ~/Downloads/data.csv",
+        "cd ~/Desktop && touch a.txt",
+        'python3 -c "import os; open(os.path.expanduser(\'~/Desktop/a.html\'), \'w\').write(\'ok\')"',
+        f"bash -c 'echo inner > {outside}/inner.txt'",
+    ]
+
+    for label, guard in scopes:
+        for cmd in external_commands:
+            inv = _invocation(cmd, str(scratch))
+            result = asyncio.run(guard(inv))
+            assert result is None, f"{label} 不应直接返回错误：{cmd}"
+            assert isinstance(inv.suspend_event, ApprovalEvent), f"{label} 应触发外部写入审批：{cmd}"
+            assert inv.suspend_event.rule == "workspace_guard:external_write"
+
+            approved = _invocation(cmd, str(scratch), approval=ApprovalStatus.APPROVED.value)
+            assert asyncio.run(guard(approved)) is None
+            assert approved.suspend_event is None
+
+
+def test_external_write_guard_allows_reads_temp_dev_and_session_roots(tmp_path):
+    workspace = tmp_path / "ws"
+    scratch = tmp_path / "scratch"
+    workspace.mkdir()
+    scratch.mkdir()
+
+    for guard in (
+        WorkspaceShellGuard(_make_scope(workspace, scratch), default_exec_dir=str(scratch)),
+        WorkspaceShellGuard(_make_independent_scope(scratch), default_exec_dir=str(scratch)),
+    ):
+        safe_commands = [
+            "cat ~/Desktop/notes.txt",
+            "cp ~/Downloads/source.csv ./source.csv",
+            "ls -la ~/Desktop",
+            "cd ~/Desktop && ls -la",
+            "echo ok > /dev/null",
+            "cmd > /tmp/tmp-out.log 2>&1",
+            "python3 -c 'print(1 > 0)'",
+            'echo "score > ~/Desktop/ignored" > out.txt',
+            f"cp a.txt {scratch}/b.txt",
+        ]
+        for cmd in safe_commands:
+            inv = _invocation(cmd, str(scratch))
+            result = asyncio.run(guard(inv))
+            assert result is None, f"安全命令不应被拒：{cmd} -> {result}"
+            assert inv.suspend_event is None, f"安全命令不应触发审批：{cmd}"
+
+    # 工作区会话允许写回绑定的工作区目录
+    ws_guard = WorkspaceShellGuard(_make_scope(workspace, scratch), default_exec_dir=str(scratch))
+    ws_inv = _invocation(f"cp deliverable.html {workspace}/deliverable.html", str(scratch))
+    assert asyncio.run(ws_guard(ws_inv)) is None
+    assert ws_inv.suspend_event is None

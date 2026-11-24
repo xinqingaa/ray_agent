@@ -163,3 +163,10 @@ export function setViewedSession(sessionId: string | null) {
 export function onOpenSession(handler: (sessionId: string) => void) {
   return listen<string>('rayagent://open-session', event => handler(event.payload))
 }
+
+export type DownloadResult = {ok: boolean; filename?: string | null; message?: string | null}
+
+/** 宿主原生 on_download 保存结束或失败时的通知。 */
+export function onDownloadResult(handler: (result: DownloadResult) => void) {
+  return listen<DownloadResult>('rayagent://download-result', event => handler(event.payload))
+}

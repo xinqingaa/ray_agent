@@ -73,13 +73,13 @@ pub fn open_external<R: Runtime>(app: AppHandle<R>, url: String) -> Result<(), S
     app.opener().open_url(url, None::<&str>).map_err(|e| e.to_string())
 }
 
-fn ask_save_path<R: Runtime>(app: &AppHandle<R>, filename: &str) -> Option<PathBuf> {
+pub(crate) fn ask_save_path<R: Runtime>(app: &AppHandle<R>, filename: &str) -> Option<PathBuf> {
     let name = Path::new(filename).file_name().and_then(|name| name.to_str()).unwrap_or("download");
     app.dialog().file().set_file_name(name).blocking_save_file().and_then(|path| path.into_path().ok())
 }
 
 /// 先写同目录的临时文件再改名，取消或失败不留下半个文件。
-fn write_atomically(target: &Path, write: impl FnOnce(&mut fs::File) -> io::Result<()>) -> Result<(), String> {
+pub(crate) fn write_atomically(target: &Path, write: impl FnOnce(&mut fs::File) -> io::Result<()>) -> Result<(), String> {
     let partial = target.with_file_name(format!(
         ".{}.part",
         target.file_name().and_then(|name| name.to_str()).unwrap_or("download")
@@ -291,7 +291,7 @@ pub async fn save_bytes<R: Runtime>(app: AppHandle<R>, request: Request<'_>) -> 
     .map_err(|e| e.to_string())?
 }
 
-fn percent_decode(value: &str) -> String {
+pub(crate) fn percent_decode(value: &str) -> String {
     let hex = |byte: u8| (byte as char).to_digit(16).map(|digit| digit as u8);
     let bytes = value.as_bytes();
     let mut out = Vec::with_capacity(bytes.len());

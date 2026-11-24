@@ -23,9 +23,11 @@ from app.domain.models.message import Message
 from app.domain.models.plan import ExecutionStatus
 from app.domain.models.session import DEFAULT_SESSION_TITLE, Session, SessionStatus
 from app.domain.models.tool_result import ToolResult
+from app.domain.services.context.compaction import user_origins
 from app.domain.services.flows.agent_loop import (
     AGENT_MEMORY_NAME,
     INTERRUPTED_FAILED,
+    INTERRUPTED_RECOVERY_PROMPT,
     INTERRUPTED_STOPPED,
     NOT_EXECUTED_FAILED,
     NOT_EXECUTED_STOPPED,
@@ -510,3 +512,76 @@ def test_thinking_response_without_fragments_keeps_empty_reasoning_marker():
     run(collect(h.loop))
     assistant = next(m for m in memory_messages(h.session) if m.get("role") == "assistant")
     assert assistant["reasoning_content"] == ""
+
+
+@pytest.mark.parametrize("status", [
+    SessionStatus.CANCELLED,
+    SessionStatus.INTERRUPTED,
+    SessionStatus.FAILED,
+])
+def test_interrupted_tool_call_injects_recovery_prompt_before_user_message_and_skips_compaction_origins(status):
+    async def scenario():
+        first = make_loop([ScriptedResponse(tool_calls=[
+            ScriptedToolCall("echo", {"text": "long"}, id="c-long"),
+            ScriptedToolCall("echo", {"text": "next"}, id="c-next"),
+        ])])
+        started = asyncio.Event()
+
+        async def block(_):
+            started.set()
+            await asyncio.Event().wait()
+
+        first.recording.hook = block
+
+        async def persist_events():
+            async for event in first.loop.invoke(Message(message="执行前一步")):
+                await first.ledger.append(first.session.id, [event])
+
+        task = asyncio.create_task(persist_events())
+        await started.wait()
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        first.session.status = status
+
+        second = make_loop([text("已核对状态")], session=first.session, uow_factory=first.loop._uow_factory)
+        events = await collect(second.loop, message="继续")
+        return second, events
+
+    second, events = run(scenario())
+    request = second.llm.requests[0].messages
+    assert_no_dangling(request)
+    recovery_idx = next(
+        i for i, m in enumerate(request)
+        if m.get("role") == "user" and m.get("content") == INTERRUPTED_RECOVERY_PROMPT
+    )
+    tool_indices = [i for i, m in enumerate(request) if m.get("role") == "tool"]
+    assert tool_indices and recovery_idx == max(tool_indices) + 1
+    assert request[-1] == {"role": "user", "content": "继续"}
+    assert [origin.content for origin in user_origins(request)] == ["执行前一步", "继续"]
+    assert isinstance(events[-1], DoneEvent)
+
+
+@pytest.mark.parametrize("status", [SessionStatus.CANCELLED, SessionStatus.FAILED, SessionStatus.WAITING])
+def test_recovery_prompt_not_injected_when_only_not_executed_or_waiting(status):
+    session = Session(id=f"w1-no-recovery-{status.value}", title="t", status=status)
+    tool_name = "message_ask_user" if status == SessionStatus.WAITING else "echo"
+    args = '{"text": "请确认"}' if status == SessionStatus.WAITING else '{"text": "x"}'
+    session.memories[AGENT_MEMORY_NAME] = Memory(messages=[
+        {"role": "user", "content": "初始任务"},
+        {"role": "assistant", "content": None, "tool_calls": [
+            {"id": "c-dangling", "type": "function", "function": {"name": tool_name, "arguments": args}}
+        ]},
+    ])
+    h = make_loop([text("收到")], session=session)
+    if status == SessionStatus.WAITING:
+        run(h.ledger.append(session.id, [ToolEvent(
+            event_id="e-calling", run_id="r-prev", tool_call_id="c-dangling",
+            tool_name="message", function_name=tool_name, function_args={"text": "请确认"},
+            status=ToolEventStatus.CALLING,
+        )]))
+    events = run(collect(h.loop, message="继续"))
+    request = h.llm.requests[0].messages
+    assert_no_dangling(request)
+    assert all(m.get("content") != INTERRUPTED_RECOVERY_PROMPT for m in request)
+    assert isinstance(events[-1], DoneEvent)

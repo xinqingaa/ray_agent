@@ -48,3 +48,17 @@ def test_workspace_sessions_name_the_folder_scratch_directory_and_unavailable_re
     assert "文件夹已被移动或删除" in build_system_prompt(lost) and "文件夹已被移动或删除" in build_en(lost)
     assert "临时脚本" in build_system_prompt(bound) and "最终成果" in build_system_prompt(bound)
     assert "temporary scripts" in build_en(bound) and "final deliverables" in build_en(bound)
+
+
+def test_prompts_include_delivery_lifecycle_ladder_and_verification_principles():
+    zh_full = build_system_prompt(environment(Capability.FILE_ACCESS, Capability.LOCAL_COMMAND, Capability.BROWSER))
+    en_full = build_en(environment(Capability.FILE_ACCESS, Capability.LOCAL_COMMAND, Capability.BROWSER))
+    assert "最小复杂度阶梯" in zh_full and "单个自包含 HTML 文件" in zh_full and "register_preview" in zh_full
+    assert "shell_execute 启动的临时后台进程会在本次运行结束时自动终止" in zh_full
+    assert "明确标出“待确认”" in zh_full and "文本可提取性" in zh_full
+    assert "minimal-complexity ladder" in en_full and "single self-contained HTML file" in en_full and "register_preview" in en_full
+    assert "terminated when the current run ends" in en_full
+    assert "TBD or unconfirmed" in en_full and "text extractability" in en_full
+
+    zh_closed = build_system_prompt(environment())
+    assert "deliver_files" not in zh_closed and "shell_execute" not in zh_closed and "register_preview" not in zh_closed

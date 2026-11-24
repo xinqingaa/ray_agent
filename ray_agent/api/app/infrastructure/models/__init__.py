@@ -10,6 +10,7 @@ from .root import RootModel
 from .run import RunModel
 from .session import SessionModel
 from .workspace import WorkspaceModel
+from .workspace_preview import WorkspacePreviewModel
 from .usage import UsageModel
 from .write_protection import FileChangeModel, WorkspaceObjectModel, WriteLeaseModel
 from .skill import SkillRecord, SkillVersion, SkillImport, RunSkill
@@ -33,7 +34,7 @@ from .document_knowledge import (
 
 __all__ = ["Base", "AppConfigModel", "EventModel", "FileModel", "BackgroundJobModel", "AcceptedRequestModel",
            "RunInputModel", "RootModel", "RunModel", "SessionModel", "SkillRecord", "SkillVersion", "SkillImport",
-           "RunSkill", "WorkspaceModel", "FileChangeModel", "WorkspaceObjectModel", "WriteLeaseModel",
+           "RunSkill", "WorkspaceModel", "WorkspacePreviewModel", "FileChangeModel", "WorkspaceObjectModel", "WriteLeaseModel",
            "InstructionProposalModel", "InstructionVersionModel", "WorkingStyleTemplateModel",
            "ExtractionJobModel", "MemoryChangeModel", "MemoryEntryModel", "MemorySourceModel",
            "MemorySuppressionModel", "RunContextManifestModel", "SessionSummaryModel", "SearchDocumentModel",

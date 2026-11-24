@@ -13,6 +13,9 @@ type RunEndBarProps = {
   retryText?: string | null
   onRetry?: (text: string) => void
   retrying?: boolean
+  onContinue?: () => void
+  continuing?: boolean
+  hasUnconsumedInput?: boolean
   planConsumed?: boolean
   planAction?: ReactNode
   priorTools?: boolean
@@ -20,9 +23,9 @@ type RunEndBarProps = {
 }
 
 const NEXT_STEP: Record<RunEndBarProps['status'], string> = {
-  failed: '已写入的文件保留在沙箱中。',
-  cancelled: '可以补充要求，或发送“继续”接着处理。',
-  interrupted: '这次运行不会自动恢复，可以重新发送任务。',
+  failed: '已写入的文件与成果仍保留在当前会话中。',
+  cancelled: '可以补充要求，或点击“继续任务”接着处理。',
+  interrupted: '这次运行已中断，可以点击“继续任务”接着处理。',
 }
 
 function nextStep(status: RunEndBarProps['status'], reasonText: string): string {
@@ -38,10 +41,25 @@ function failureReason(reasonText: string): string {
 }
 
 /** 终态条：非 completed 的运行结束方式与原因。失败只留一枚重试，不再配一段重复说明。 */
-export function RunEndBar({status, reasonText, retryText, onRetry, retrying = false, planConsumed = false, planAction, priorTools = false, className}: RunEndBarProps) {
+export function RunEndBar({
+  status,
+  reasonText,
+  retryText,
+  onRetry,
+  retrying = false,
+  onContinue,
+  continuing = false,
+  hasUnconsumedInput = false,
+  planConsumed = false,
+  planAction,
+  priorTools = false,
+  className,
+}: RunEndBarProps) {
   const meta = RUN_PHASE[status]
   const Icon = meta.icon
-  const showRetry = !planConsumed && status === 'failed' && !!retryText && !!onRetry
+  const showContinue = !!onContinue
+  const showRetry = !planConsumed && !hasUnconsumedInput && status === 'failed' && !!retryText && !!onRetry
+  const hasActions = (planConsumed && !!planAction) || showContinue || showRetry
   const reason = status === 'cancelled' ? '' : status === 'failed' ? failureReason(reasonText) : reasonText
   return (
     <div
@@ -54,23 +72,40 @@ export function RunEndBar({status, reasonText, retryText, onRetry, retrying = fa
           <span className={cn('font-medium', TONE_TEXT[meta.tone])}><RunStatus place="terminal" status={status}/></span>
           {reason ? <span className="ml-2">{reason}</span> : null}
         </p>
-        {planConsumed && <p className="text-xs text-muted-foreground">计划已受理。请先查看计划清单和已完成的操作，再说明要从哪一步继续。</p>}
+        {planConsumed && <p className="text-xs text-muted-foreground">计划已受理。可先查看计划清单与已完成步骤，或直接点击“继续任务”接着执行。</p>}
+        {hasUnconsumedInput && <p className="text-xs text-muted-foreground">上一条消息尚未开始处理，点击“继续任务”将直接续接该消息。</p>}
         {showRetry && priorTools && <p className="text-xs text-muted-foreground">本次运行已有工具操作，重试前请核对已完成的步骤。</p>}
-        {status !== 'failed' && <p className="text-xs text-muted-foreground">{nextStep(status, reasonText)}</p>}
+        {status !== 'failed' && !hasUnconsumedInput && <p className="text-xs text-muted-foreground">{nextStep(status, reasonText)}</p>}
       </div>
-      {planConsumed && planAction}
-      {showRetry && (
-        <Button
-          type="button"
-          size="icon-sm"
-          aria-label="重试"
-          variant="outline"
-          className="bg-transparent"
-          onClick={() => onRetry?.(retryText)}
-          disabled={retrying}
-        >
-          <RotateCcw aria-hidden/>
-        </Button>
+      {hasActions && (
+        <div className="flex shrink-0 items-center gap-1.5">
+          {planConsumed && planAction}
+          {showContinue && (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              className="h-8 bg-transparent px-2.5"
+              onClick={onContinue}
+              disabled={continuing || retrying}
+            >
+              继续任务
+            </Button>
+          )}
+          {showRetry && (
+            <Button
+              type="button"
+              size="icon-sm"
+              aria-label="重试"
+              variant="outline"
+              className="bg-transparent"
+              onClick={() => onRetry?.(retryText)}
+              disabled={retrying || continuing}
+            >
+              <RotateCcw aria-hidden/>
+            </Button>
+          )}
+        </div>
       )}
     </div>
   )

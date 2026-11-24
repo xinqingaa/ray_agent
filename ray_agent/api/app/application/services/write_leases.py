@@ -32,11 +32,17 @@ def lease_details(lease: WriteLease) -> dict:
 
 def _occupied(lease: WriteLease) -> WorkspaceFileError:
     who = f"会话 {lease.owner_session_id}" if lease.owner_session_id else "文件夹的其他写入"
-    if lease.state in (LeaseState.SETTLING, LeaseState.BLOCKED):
-        hint = "正在停止，尚未确认写入已结束" if lease.state is LeaseState.SETTLING \
-            else "停止后未能确认写入已结束，需要重试收尾"
+    if lease.state is LeaseState.SETTLING:
+        hint = "正在停止，尚未确认写入已结束，请勿重复重试"
+    elif lease.state is LeaseState.BLOCKED:
+        hint = "停止后未能确认写入已结束，需要由用户在工作区中重试收尾，请勿继续重试写入"
+    elif lease.writer_kind is WriterKind.PROCESS:
+        hint = (
+            "正在持续执行命令，属于稳定占用，请勿重复重试，也不要要求用户终止另一个会话；"
+            "可继续执行只读步骤，或将产物写入会话工作目录并交付"
+        )
     else:
-        hint = "正在写入，稍后重试"
+        hint = "正在写入，请先执行只读步骤或稍后再试"
     reason = f"（{lease.reason}）" if lease.reason else ""
     return WorkspaceFileError(ErrorCode.CONFLICT, f"工作区文件夹被{who}占用{reason}：{hint}", details=lease_details(lease))
 

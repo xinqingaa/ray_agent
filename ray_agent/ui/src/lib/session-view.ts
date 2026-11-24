@@ -229,6 +229,17 @@ export type TimelineItem =
   | (ItemBase & {kind: 'approval'; call: ToolCallView; status: ApprovalStatus; decidedAt: number | null})
   | (ItemBase & {kind: 'delivery'; files: FileView[]; note: string})
   | (ItemBase & {
+      kind: 'preview'
+      previewId: string
+      name: string
+      previewKind: 'static' | 'service'
+      rootId: string
+      relativePath: string
+      entryPath: string
+      workspaceId: string | null
+      note: string
+    })
+  | (ItemBase & {
       kind: 'compaction'
       beforeTokens: number
       afterTokens: number

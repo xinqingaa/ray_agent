@@ -219,7 +219,7 @@ def test_legacy_change_rows_without_entry_kind_read_as_files(tmp_path):
             "'2026-01-01 00:00:00')")
         connection.commit()
 
-    assert migrate(database) == "0014_file_change_entries"
+    assert migrate(database) == "0015_workspace_previews"
     with sqlite3.connect(database) as connection:
         assert connection.execute("SELECT entry_kind, relative_path FROM file_changes").fetchall() == [("file", "a.txt")]
 
@@ -232,4 +232,4 @@ def test_legacy_change_rows_without_entry_kind_read_as_files(tmp_path):
         change = row.to_domain()
         assert change.entry_kind is EntryKind.FILE and change.source is ChangeSource.TOOL and change.run_id == "run-old"
     engine.dispose()
-    assert migrate(database) == "0014_file_change_entries"  # 再次打开不重复迁移
+    assert migrate(database) == "0015_workspace_previews"  # 再次打开不重复迁移

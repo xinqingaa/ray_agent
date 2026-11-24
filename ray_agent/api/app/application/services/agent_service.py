@@ -159,6 +159,7 @@ class AgentService:
             write_leases=None,
             workspace_memory=None,
             install_id: str = "",
+            preview_runtime=None,
     ) -> None:
         self._skills = skill_service
         self._uow_factory = uow_factory
@@ -182,6 +183,7 @@ class AgentService:
         self._file_access = file_access
         self._write_leases = write_leases
         self._workspace_memory = workspace_memory  # WorkspaceMemoryRuntime；为空时不装配工作区背景与记忆工具
+        self._preview_runtime = preview_runtime
 
     def _read_factory(self) -> Callable[[], IUnitOfWork]:
         """只读工作单元的工厂；没有读连接池时退回普通工作单元。"""
@@ -500,7 +502,7 @@ class AgentService:
                                               changes=ShellChanges(self._uow_factory, self._reader), scope=run_files.scope)
                 shell = await open_shell(
                     files=run_files.scope, session_id=session.id, run_id=run_id,
-                    before_start=shell_lease.acquire, on_close=shell_lease.settle)
+                    before_start=shell_lease.acquire, on_idle=shell_lease.release_idle, on_close=shell_lease.settle)
             except Exception:
                 logger.exception("装配本机 Shell 失败，本次运行不提供 Shell 工具")
                 shell = None
@@ -569,6 +571,7 @@ class AgentService:
             context_refresh=context_refresh,
             completion=runtime,
             workspace_id=session.workspace_id,
+            preview_runtime=getattr(self, "_preview_runtime", None),
         )
         return self._task_cls.create(task_runner=task_runner)
 
@@ -855,6 +858,12 @@ class AgentService:
                 raise ConflictError("这条消息已在处理中或已处理，无需重新发起")
             if active is not None:
                 raise ConflictError("当前有进行中或等待中的运行，请等它结束或停止后再重新发起")
+            skills = getattr(self, "_skills", None)
+            if skills is not None:
+                await skills.refresh_catalog(workspace_id=session.workspace_id, session_id=session_id)
+            self._check_model_connection(session.model_id)
+            await self._remember_model(session, None, None, creating=False)
+            await self._bind_sampling(session, creating=False, model_changed=False)
 
             async def take_over(uow: IUnitOfWork) -> None:
                 current = await uow.run_input.get(input_id)
@@ -863,11 +872,12 @@ class AgentService:
                 active = await uow.run.get_active(session_id)
                 await uow.run_input.reassign(input_id, active.id)
 
+            prior_status = session.status
             try:
                 run = await self._ledger.start(session_id, apply=take_over, mode=previous.mode)
             except ActiveRunExistsError as exc:
                 raise ConflictError("当前有进行中或等待中的运行，请等它结束或停止后再重新发起") from exc
-            self._schedule_start(session, run.id, session.status)
+            self._schedule_start(session, run.id, prior_status)
         logger.info(f"会话[{session_id}]为输入[{input_id}]重新发起运行[{run.id}]")
         return ChatAccepted(run_id=run.id, seq=item.message_seq, route="started")
 

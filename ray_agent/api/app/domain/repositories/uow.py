@@ -14,6 +14,7 @@ from .session_repository import SessionRepository
 from .skills import SkillTransaction
 from .document_repository import DocumentRepository
 from .memory_repository import InstructionRepository, MemoryRepository, RunContextRepository, SummaryRepository
+from .preview_repository import PreviewRepository
 from .workspace_repository import WorkspaceRepository
 from .write_lease_repository import WriteLeaseRepository
 
@@ -32,6 +33,7 @@ class IUnitOfWork(ABC):
     job: BackgroundJobRepository
     root: RootRepository
     workspace: WorkspaceRepository
+    preview: PreviewRepository
     lease: WriteLeaseRepository
     change: FileChangeRepository
     instruction: InstructionRepository

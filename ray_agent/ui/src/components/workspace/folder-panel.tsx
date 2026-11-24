@@ -1,6 +1,6 @@
 import {useEffect, useImperativeHandle, useRef, useState, type DragEvent, type ReactNode, type Ref} from 'react'
 import {createPortal} from 'react-dom'
-import {Copy, Download, Finder, FolderPlus, FolderSearch, FolderX, MoreHorizontal, Plus, ScrollText, X} from '@/components/ui/icons'
+import {Copy, Download, Finder, FolderPlus, FolderSearch, FolderX, Globe, MoreHorizontal, Plus, ScrollText, X} from '@/components/ui/icons'
 import {toast} from 'sonner'
 import {Button} from '@/components/ui/button'
 import {IconAction} from '@/components/ui/icon-action'
@@ -13,9 +13,11 @@ import {ScrollArea} from '@/components/ui/scroll-area'
 import {SegmentedControl} from '@/components/ui/segmented-control'
 import {FilePreview} from '@/components/preview/file-preview'
 import {FileRow} from '@/components/preview/file-row'
+import {ManagedPreviewList} from '@/components/preview/managed-preview-list'
 import {useFolderTree} from '@/hooks/use-folder-tree'
 import {ApiError} from '@/lib/api/fetch'
 import {documentsApi, type IndexSummary} from '@/lib/api/documents'
+import type {ManagedPreview} from '@/lib/api/managed-previews'
 import {
   directoryIndexAction, excludeDirectory, excludeFile, fileIndexAction, includeDirectory, includeFile, normalizePolicy,
 } from '@/lib/document-index-policy'
@@ -52,6 +54,16 @@ function remainingIndexStatus(summary: IndexSummary) {
 
 export type FolderPanelTab = 'folder' | 'delivered' | 'recent'
 
+const STATIC_INDEX_CANDIDATES = ['index.html', 'index.htm']
+
+function findStaticIndexEntry(entries: RootEntry[]): string | null {
+  for (const candidate of STATIC_INDEX_CANDIDATES) {
+    const hit = entries.find(item => item.kind === 'file' && item.name.toLowerCase() === candidate)
+    if (hit) return hit.name
+  }
+  return null
+}
+
 function folderName(path: string) {
   const parts = path.split(/[\\/]/).filter(Boolean)
   return parts[parts.length - 1] ?? path
@@ -79,13 +91,18 @@ function describeUpload(names: Array<{asked: string; saved: string}>, failed: Ar
  */
 export type FolderPanelRef = {addFiles: (files: File[], directory?: string) => void; closePreview: () => void; target: string}
 
-export function FolderPanel({workspace, deliveries, onOpenDelivery, deliveryStatus, deliveryLabel = '本次交付', deliveryEmpty = '这个对话还没有交付文件。', onClose, embedded = false, onOpenWorkingStyle, className, selectedTab, toolbarTarget, readPaths, initialPreview, onBackToKnowledge, visible = true, ref}: {
+export function FolderPanel({workspace, deliveries, previews, onOpenManagedPreview, onPreviewUpdated, onPreviewDeleted, onAskAgentFix, onOpenDelivery, deliveryStatus, deliveryLabel = '本次交付', deliveryEmpty = '这个对话还没有交付文件。', onClose, embedded = false, onOpenWorkingStyle, className, selectedTab, toolbarTarget, readPaths, initialPreview, onBackToKnowledge, visible = true, ref}: {
   workspace: WorkspaceItem
   /** 会话里的交付文件；工作区首页没有会话，传空则不显示“本次成果” */
   deliveries?: FileView[]
+  previews?: ManagedPreview[]
+  onOpenManagedPreview?: (preview: ManagedPreview) => void
+  onPreviewUpdated?: (preview: ManagedPreview) => void
+  onPreviewDeleted?: (previewId: string) => void
+  onAskAgentFix?: (prompt: string) => void
   deliveryLabel?: string
   deliveryEmpty?: string
-  deliveryStatus?: {loading: boolean; error?: string | null; retry: () => void}
+  deliveryStatus?: {loading: boolean; refreshing?: boolean; error?: string | null; retry: () => void}
   onOpenDelivery?: (file: FileView) => void
   onClose?: () => void
   /** 嵌在带切换栏的面板里时用更矮的标题行 */
@@ -130,7 +147,7 @@ export function FolderPanel({workspace, deliveries, onOpenDelivery, deliveryStat
   const editRef = useRef<EntryEdit | null>(null)
   const busyRef = useRef(false)
   const [removing, setRemoving] = useState<{path: string; entry: RootEntry} | null>(null)
-  const showDelivered = deliveries != null
+  const showDelivered = deliveries != null || (previews != null && previews.length > 0)
   const showRecent = condition.writable && runs.length > 0
   const standaloneTab = tab === 'delivered' && showDelivered ? 'delivered' : tab === 'recent' && showRecent ? 'recent' : 'folder'
   const activeTab = selectedTab ?? standaloneTab
@@ -174,9 +191,17 @@ export function FolderPanel({workspace, deliveries, onOpenDelivery, deliveryStat
     return () => {cancelled = true; clearTimeout(timer)}
   }, [workspace.id, condition.folderAvailable, visible, activeTab, live.change.signal, uploading, indexAttempt])
 
-  // 正在预览的文件被报告变化：提示重新载入，不自动替换用户正在看的内容
+  // 正在预览的文件或静态站点目录被报告变化：提示重新载入，不自动替换用户正在看的内容
   useEffect(() => {
-    if (opened?.kind === 'root' && touchesFile(live.change.batch, opened.path)) setStale(true)
+    if (!opened) return
+    if (opened.kind === 'root' && touchesFile(live.change.batch, opened.path)) {
+      setStale(true)
+    } else if (opened.kind === 'root_dir' && !live.change.batch.refresh) {
+      const prefix = opened.path ? `${opened.path}/` : ''
+      if (live.change.batch.paths.some(path => (prefix ? path === opened.path || path.startsWith(prefix) : true))) {
+        setStale(true)
+      }
+    }
   }, [live.change]) // eslint-disable-line react-hooks/exhaustive-deps -- 只由新批次触发
   const open = (source: PreviewSource | null) => {
     setStale(false)
@@ -191,7 +216,11 @@ export function FolderPanel({workspace, deliveries, onOpenDelivery, deliveryStat
       if (!current || !within(current.path)) return current
       return renamedTo && current.path === path ? {path: renamedTo, kind: current.kind} : null
     })
-    setOpened(current => current?.kind === 'root' && within(current.path) ? null : current)
+    setOpened(current => {
+      if (!current) return current
+      if ((current.kind === 'root' || current.kind === 'root_dir') && within(current.path)) return null
+      return current
+    })
   }
 
   const startCreate = (directory: string) => {
@@ -303,16 +332,24 @@ export function FolderPanel({workspace, deliveries, onOpenDelivery, deliveryStat
     open({kind: 'root', rootId: folder.root_id, path, filename: entry.name, size: entry.size})
   }
 
+  const openStaticSite = (path: string, entryPath?: string) => {
+    if (!folder) return
+    const siteTitle = path ? (path.split('/').at(-1) || path) : folderName(folder.path)
+    open({kind: 'root_dir', rootId: folder.root_id, path, title: siteTitle, entryPath})
+  }
+
   const chooseFiles = (directory = target) => {
     if (!folder || !condition.writable || uploading || !picker.current) return
     pickerDestination.current = {rootId: folder.root_id, directory}
     picker.current.click()
   }
 
-  // 在系统文件管理器中显示：预览中的文件、否则树里选中的条目、否则文件夹本身；只有桌面宿主能做到，浏览器开发模式不提供
+  // 在系统文件管理器中显示：预览中的文件/站点、否则树里选中的条目、否则文件夹本身；只有桌面宿主能做到，浏览器开发模式不提供
   const copyPath = (path: string) => folder ? copyText(absolutePath(folder.path, path)) : undefined
 
-  const revealPath = visiblePreview ? (visiblePreview.kind === 'root' ? visiblePreview.path : null) : activeTab === 'folder' ? selected?.path ?? '' : null
+  const revealPath = visiblePreview
+    ? (visiblePreview.kind === 'root' || visiblePreview.kind === 'root_dir' ? visiblePreview.path : null)
+    : activeTab === 'folder' ? selected?.path ?? '' : null
   const canReveal = isDesktop() && !!folder && condition.folderAvailable
   const reveal = async (path: string) => {
     if (!canReveal || !folder) return
@@ -373,23 +410,54 @@ export function FolderPanel({workspace, deliveries, onOpenDelivery, deliveryStat
 
   let body: ReactNode
   if (visiblePreview) {
+    const parentDir = visiblePreview.kind === 'root' ? parentPath(visiblePreview.path) : ''
+    const parentDirState = visiblePreview.kind === 'root' ? tree.directories[parentDir] : undefined
+    const parentStaticEntry = visiblePreview.kind === 'root'
+      ? (parentDirState?.status === 'ready'
+          ? findStaticIndexEntry(parentDirState.entries)
+          : STATIC_INDEX_CANDIDATES.includes(visiblePreview.filename.toLowerCase()) ? visiblePreview.filename : null)
+      : null
+    const previewReveal = canReveal && (visiblePreview.kind === 'root' || visiblePreview.kind === 'root_dir')
+      ? () => void reveal(visiblePreview.path)
+      : undefined
     body = <div className="flex min-h-0 flex-1 flex-col">
       {stale && <div role="status" className="flex shrink-0 items-center gap-2 border-b bg-state-waiting-soft px-3 py-2 text-xs">
-        <span className="min-w-0 flex-1">这个文件刚被修改或删除。</span>
+        <span className="min-w-0 flex-1">{visiblePreview.kind === 'root_dir' ? '这个静态站点下的文件刚被修改。' : '这个文件刚被修改或删除。'}</span>
         <Button type="button" variant="ghost" size="xs" onClick={() => {setStale(false); setRevision(value => value + 1)}}>重新载入</Button>
       </div>}
       <div className="min-h-0 flex-1"><FilePreview key={revision} source={visiblePreview}
+        onReveal={previewReveal}
+        onOpenAsSite={parentStaticEntry ? () => openStaticSite(parentDir, parentStaticEntry) : undefined}
+        onPreviewChange={onPreviewUpdated}
+        onPreviewDeleted={id => {onPreviewDeleted?.(id); open(null)}}
+        onAskAgentFix={onAskAgentFix}
+        onRevealManaged={canReveal ? item => void reveal(item.relative_path) : undefined}
         backLabel={visiblePreview === initialPreview && onBackToKnowledge ? '返回检索结果' : undefined}
         onBack={visiblePreview === initialPreview && onBackToKnowledge ? onBackToKnowledge : () => open(null)}/></div>
     </div>
   } else if (activeTab === 'delivered') {
+    const hasPreviews = Boolean(previews?.length)
     body = <ScrollArea className="min-h-0 flex-1"><div className="px-3 pb-3">
-      {deliveryStatus?.error ? <div className="space-y-1 px-2 py-6 text-center">
+      {deliveryStatus?.error && (Boolean(deliveries?.length) || hasPreviews) && <div role="alert" className="mb-2 flex items-center gap-2 rounded-lg border border-state-failed/30 bg-state-failed-soft px-2.5 py-2 text-xs text-state-failed">
+        <span className="min-w-0 flex-1 wrap-anywhere">{deliveryStatus.error}</span>
+        <Button size="xs" variant="ghost" disabled={deliveryStatus.refreshing} onClick={deliveryStatus.retry}>重试</Button>
+      </div>}
+      <ManagedPreviewList
+        previews={previews ?? []}
+        onOpen={item => onOpenManagedPreview ? onOpenManagedPreview(item) : open({kind: 'managed', previewId: item.id, initial: item})}
+        onUpdated={onPreviewUpdated}
+        onDeleted={onPreviewDeleted}
+        onReveal={canReveal ? item => void reveal(item.relative_path) : undefined}
+      />
+      {deliveryStatus?.error && !deliveries?.length && !hasPreviews ? <div className="space-y-1 px-2 py-6 text-center">
         <p role="alert" className="text-meta text-state-failed">{deliveryStatus.error}</p>
-        <Button size="xs" variant="ghost" onClick={deliveryStatus.retry}>重试</Button>
-      </div> : deliveryStatus?.loading ? <p role="status" className="px-2 py-8 text-center text-meta text-muted-foreground">正在读取最近对话的交付…</p>
-        : deliveries?.length ? <h2 className="px-1.5 py-1.5 text-xs font-medium text-faint">{deliveryLabel}</h2>
-        : <p className="px-2 py-8 text-center text-meta text-muted-foreground">{deliveryEmpty}</p>}
+        <Button size="xs" variant="ghost" disabled={deliveryStatus.refreshing} onClick={deliveryStatus.retry}>重试</Button>
+      </div> : !deliveries?.length && !hasPreviews && deliveryStatus?.loading ? <p role="status" className="px-2 py-8 text-center text-meta text-muted-foreground">正在读取最近对话的交付…</p>
+        : deliveries?.length ? <h2 className="flex items-center justify-between px-1.5 py-1.5 text-xs font-medium text-faint">
+          <span>{deliveryLabel}</span>
+          {deliveryStatus?.refreshing && <span role="status">正在刷新…</span>}
+        </h2>
+        : !hasPreviews && !deliveryStatus?.error ? <p className="px-2 py-8 text-center text-meta text-muted-foreground">{deliveryEmpty}</p> : null}
       {deliveries?.map(file => {
         const rootId = folder?.root_id
         const inFolder = rootId && file.rootId === rootId && file.relativePath ? file.relativePath : null
@@ -429,8 +497,10 @@ export function FolderPanel({workspace, deliveries, onOpenDelivery, deliveryStat
       <p className="text-meta text-muted-foreground">{folder ? <span className="break-all">{folder.path}</span> : '这个工作区没有绑定文件夹。'}</p>
     </div>
   } else {
-    // 文件树以外的空白区域：添加、新建、显示与复制根目录（树的行先接管自己的右键）
+    // 文件树以外的空白区域：静态站点预览、添加、新建、显示与复制根目录（树的行先接管自己的右键）
+    const rootStaticEntry = tree.directories['']?.status === 'ready' ? findStaticIndexEntry(tree.directories[''].entries) : null
     const blankEntries: MenuEntry[] = [
+      ...(rootStaticEntry ? [menuItem('作为静态站点预览', Globe, () => openStaticSite('', rootStaticEntry))] : []),
       ...(condition.writable && !uploading ? [menuItem('添加文件到此处', Plus, () => chooseFiles(''))] : []),
       ...(editable && !uploading ? [menuItem('新建文件夹', FolderPlus, () => startCreate(''))] : []),
       ...(canReveal ? [menuItem(`在 ${fileManagerName()} 中显示`, Finder, () => void reveal(''))] : []),
@@ -441,6 +511,7 @@ export function FolderPanel({workspace, deliveries, onOpenDelivery, deliveryStat
         <FolderTree tree={tree} selectedPath={selected?.path ?? null} indexStates={indexStates} indexSummary={indexSummary} readPaths={readPaths} addedPaths={addedPaths}
           onToggle={toggle} onRetry={path => void loadDirectory(path)}
           onReveal={canReveal ? path => void reveal(path) : undefined}
+          onPreviewStaticSite={openStaticSite}
           onAdd={condition.writable && !uploading ? chooseFiles : undefined}
           onToggleFileIndex={condition.writable && indexSummary ? path => void toggleFileIndex(path) : undefined}
           onToggleDirectoryIndex={condition.writable && indexSummary ? dir => void toggleDirectoryIndex(dir) : undefined}

@@ -140,3 +140,55 @@ def test_waiting_across_core_restart_never_adopts_old_observation_interval(tmp_p
         result = await new.view(session.id, run.id, offset=0, limit=100)
         assert result['state'] == 'unknown' and not result['entries']
     scenario(tmp_path, check)
+
+
+def test_multi_interval_same_run_preserves_before_and_updates_after_snapshot(tmp_path):
+    async def check(env):
+        view, session, run, scope = await prepared(env)
+        folder = Path(view.folder.location)
+        (folder / 'init.txt').write_text('v0')
+        observations = ShellChanges(env.uow_factory, env.read_factory)
+        lease = ShellWriteLease(env.leases(), view.workspace.id, session.id, run.id,
+                                changes=observations, scope=scope)
+        execution_root = tempfile.mkdtemp(prefix='ra-multi-', dir='/tmp')
+        executor = None
+        try:
+            executor = SupervisedProcessExecutor(SupervisorClient(await ensure_supervisor(execution_root)))
+            bridge = LocalShellBridge(
+                executor, files=scope, session_id=session.id, run_id=run.id,
+                before_start=lease.acquire, on_idle=lease.release_idle, on_close=lease.settle,
+            )
+            r1 = await bridge.exec_command('s1', str(folder), 'printf first > step1.txt')
+            assert r1.success and r1.data['status'] == 'completed'
+            assert await env.leases().get(view.workspace.id) is None
+            first_view = await observations.view(session.id, run.id, offset=0, limit=100)
+            assert first_view['state'] == 'complete'
+            assert {e['relative_path']: e['operation'] for e in first_view['entries']} == {'step1.txt': 'create'}
+
+            # 第 2 段重新取得并释放后，应沿用第一次运行前快照并把 init.txt / step2.txt 的净变化合入 complete
+            r2 = await bridge.exec_command('s2', str(folder), 'printf modified > init.txt; printf second > step2.txt')
+            assert r2.success and r2.data['status'] == 'completed'
+            assert await env.leases().get(view.workspace.id) is None
+            second_view = await observations.view(session.id, run.id, offset=0, limit=100)
+            assert second_view['state'] == 'complete'
+            assert {e['relative_path']: e['operation'] for e in second_view['entries']} == {
+                'init.txt': 'modify',
+                'step1.txt': 'create',
+                'step2.txt': 'create',
+            }
+
+            # 后续区段若未能确认静止，整体转为 unknown 且不保留局部 after
+            await observations.begin(run.id, scope)
+            assert (await observations.view(session.id, run.id, offset=0, limit=100))['state'] == 'observing'
+            await observations.finish(run.id, scope, False)
+            failed_view = await observations.view(session.id, run.id, offset=0, limit=100)
+            assert failed_view['state'] == 'unknown'
+            assert all(root['after_files'] is None for root in failed_view['roots'])
+            assert await bridge.destroy() is True
+        finally:
+            if executor:
+                await executor.client.close()
+            await stop_supervisor(execution_root)
+            shutil.rmtree(execution_root)
+
+    scenario(tmp_path, check)

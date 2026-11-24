@@ -15,6 +15,7 @@ from .plan import Plan, Step
 from .plan_acceptance import PlanAcceptance
 from .search import SearchResultItem
 from .tool_result import ToolResult
+from .workspace_preview import PreviewKind
 
 
 class PlanEventStatus(str, Enum):
@@ -351,6 +352,19 @@ class EnvironmentEvent(BaseEvent):
     message: Optional[str] = None
 
 
+class PreviewEvent(BaseEvent):
+    """应用内项目预览登记事件：用于在对话时间线呈现一键预览卡片。"""
+    type: Literal["preview"] = "preview"
+    preview_id: str
+    name: str
+    kind: PreviewKind = "static"
+    root_id: str
+    relative_path: str = ""
+    entry_path: str = ""
+    workspace_id: Optional[str] = None
+    note: str = ""
+
+
 # 定义应用事件类型声明
 Event = Annotated[
     Union[
@@ -370,6 +384,7 @@ Event = Annotated[
         CleanupEvent,
         EnvironmentEvent,
         ApprovalEvent,
+        PreviewEvent,
     ],
     Field(discriminator="type"),
 ]

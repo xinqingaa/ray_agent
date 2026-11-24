@@ -351,3 +351,128 @@ def test_unknown_final_write_can_be_read_back_and_delivered_without_overwrite():
         assert a.state=='delivered' and a.path==a.final_path and a.version==a.delivered_version
         assert fx.get('a.md')==b'old' and len(writes)==1
     run(check())
+
+
+def test_accepted_plan_continuation_after_failure_preserves_plan_state_and_enforces_approval():
+    import pytest
+    from app.domain.models.event import ApprovalEvent, ApprovalStatus, MessageEvent, PlanEvent
+    from app.domain.models.file import File
+    from app.domain.models.plan import ExecutionStatus
+    from app.domain.models.plan_acceptance import PlanAcceptance
+    from app.domain.models.run import RunMode, RunStatus
+    from app.domain.models.session import SessionStatus
+    from app.domain.services.flows.agent_loop import INTERRUPTED_RECOVERY_PROMPT
+    from tests.support.loop_harness import _add_input, input_task, make_runner, start_run
+
+    async def check():
+        fx = fixture()
+        a_md = fx.path('report.md')
+        deliveries = []
+
+        async def deliver(path):
+            deliveries.append(path)
+            return File(id='f1', filepath=path, filename='report.md')
+
+        first = make_loop([
+            tool_call('update_plan', {
+                'plan': [
+                    {'id': 's1', 'step': '初稿', 'status': 'pending'},
+                    {'id': 's2', 'step': '完善', 'status': 'pending'},
+                ],
+                'artifacts': [{'id': 'a1', 'name': '报告', 'delivery': 'file', 'path': a_md}],
+            }),
+            text('建议方案'),
+        ], files=fx, deliver_file=deliver)
+
+        p_msg = MessageEvent(role='user', message='先规划报告')
+        proposal = await first.ledger.start(
+            first.session.id,
+            events_after=[p_msg],
+            apply=_add_input(first.session.id, p_msg),
+            mode=RunMode.PLAN,
+        )
+        await make_runner(first, run=proposal).invoke(input_task())
+        plan_ev = next(e for e in first.events if isinstance(e, PlanEvent) and e.run_id == proposal.id)
+
+        a_msg = MessageEvent(role='user', message='按计划执行')
+        ref = PlanAcceptance(
+            source_run_id=proposal.id,
+            plan_id=plan_ev.plan.id,
+            source_seq=plan_ev.seq,
+            request_id='acc-fail-1',
+        )
+        run2 = await first.ledger.start(
+            first.session.id,
+            events_after=[a_msg],
+            apply=_add_input(first.session.id, a_msg),
+            execute_plan=ref,
+        )
+        second = make_loop([
+            tool_call('update_plan', {
+                'plan': [
+                    {'id': 's1', 'step': '初稿', 'status': 'completed'},
+                    {'id': 's2', 'step': '完善', 'status': 'in_progress'},
+                ],
+                'artifacts': [{'id': 'a1', 'name': '报告', 'delivery': 'file', 'path': a_md}],
+            }),
+            ScriptedResponse(tool_calls=[
+                ScriptedToolCall('write_file', {'filepath': a_md, 'content': '第一部分'}),
+                ScriptedToolCall('deliver_files', {'paths': [a_md]}),
+                ScriptedToolCall('echo', {'text': 'step2'}, id='c-mid-fail'),
+            ]),
+        ], session=first.session, uow_factory=first.loop._uow_factory, files=fx, deliver_file=deliver)
+
+        started = asyncio.Event()
+
+        async def block(_):
+            started.set()
+            await asyncio.Event().wait()
+
+        second.recording.hook = block
+        second.loop.run_id = run2.id
+
+        async def run_second():
+            async for event in second.loop.invoke(Message(message='按计划执行')):
+                await second.ledger.append(first.session.id, [event], run_id=run2.id)
+
+        task = asyncio.create_task(run_second())
+        await started.wait()
+        task.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await task
+        await second.ledger.transition(first.session.id, run2.id, RunStatus.FAILED, reason='tool_error')
+        assert deliveries == [a_md]
+
+        third = make_loop([
+            tool_call('update_plan', {
+                'plan': [
+                    {'id': 's1', 'step': '初稿', 'status': 'completed'},
+                    {'id': 's2', 'step': '完善', 'status': 'in_progress'},
+                ],
+                'artifacts': [{'id': 'a1', 'name': '报告', 'delivery': 'file', 'path': a_md}],
+                'explanation': '继续执行既有计划',
+            }),
+            ScriptedResponse(tool_calls=[ScriptedToolCall('echo', {'text': 'gated'}, id='c-ask')]),
+        ], session=first.session, uow_factory=first.loop._uow_factory, files=fx, deliver_file=deliver,
+           tool_policy={'echo': 'ask'})
+        run3 = await start_run(third, input_task(), '继续')
+        await make_runner(third, run=run3, prior_status=SessionStatus.FAILED).invoke(input_task())
+
+        req = third.llm.requests[0].messages
+        assert_no_dangling(req)
+        rec_idx = next(i for i, m in enumerate(req) if m.get('role') == 'user' and m.get('content') == INTERRUPTED_RECOVERY_PROMPT)
+        cont_idx = next(i for i, m in enumerate(req) if m.get('role') == 'user' and m.get('content') == '继续')
+        assert rec_idx < cont_idx
+        assert any(m.get('role') == 'user' and str(m.get('content') or '').startswith('[任务状态]') for m in req)
+
+        restored_plan = third.loop.plan_tool.latest_plan
+        assert restored_plan is not None and restored_plan.id == plan_ev.plan.id
+        assert restored_plan.artifacts[0].state == 'delivered'
+        assert any(s.id == 's2' and s.status != ExecutionStatus.COMPLETED for s in restored_plan.stages)
+        assert first.runs[run3.id].status == RunStatus.WAITING and first.runs[run3.id].reason == 'approval'
+        assert any(
+            isinstance(e, ApprovalEvent) and e.run_id == run3.id and e.tool_call_id == 'c-ask' and e.status == ApprovalStatus.PENDING
+            for e in first.events
+        )
+
+    asyncio.run(asyncio.wait_for(check(), 5))

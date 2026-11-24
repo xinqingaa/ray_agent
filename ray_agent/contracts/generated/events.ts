@@ -21,6 +21,7 @@ export type StreamEvent =
   | CompactSSEEvent
   | CleanupSSEEvent
   | ApprovalSSEEvent
+  | PreviewSSEEvent
   | DeltaSSEEvent;
 /**
  * 运行身份；一个会话至多一个活动运行
@@ -60,7 +61,8 @@ export type SessionEvent =
   | ContextSSEEvent
   | CompactSSEEvent
   | CleanupSSEEvent
-  | ApprovalSSEEvent;
+  | ApprovalSSEEvent
+  | PreviewSSEEvent;
 
 /**
  * 流式消息事件数据响应结构
@@ -556,6 +558,31 @@ export interface ApprovalEventData {
   service: string | null;
   service_tool: string | null;
   decided_at: number | null;
+}
+export interface PreviewSSEEvent {
+  event: "preview";
+  data: PreviewEventData;
+}
+/**
+ * 项目预览登记事件数据。
+ */
+export interface PreviewEventData {
+  event_id: string | null;
+  seq: number | null;
+  run_id: RunId | null;
+  created_at: number;
+  /**
+   * 事件结构版本
+   */
+  event_version: number;
+  preview_id: string;
+  name: string;
+  kind: "static" | "service";
+  root_id: string;
+  relative_path: string;
+  entry_path: string;
+  workspace_id: string | null;
+  note: string;
 }
 export interface DeltaSSEEvent {
   event: "delta";

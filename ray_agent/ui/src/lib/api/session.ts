@@ -156,6 +156,10 @@ export const sessionApi = {
     return post<ChatAccepted>(`/sessions/${sessionId}/chat`, params);
   },
 
+  resumeInput: (sessionId: string, inputId: number): Promise<ChatAccepted> => {
+    return post<ChatAccepted>(`/sessions/${encodeURIComponent(sessionId)}/inputs/${inputId}/resume`, {});
+  },
+
   /**
    * 手动压缩会话上下文；结果通过事件流写入，不在前端伪造时间线条目
    */

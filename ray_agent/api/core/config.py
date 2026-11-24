@@ -27,6 +27,21 @@ class Settings(BaseSettings):
     resource_ticket_seconds: int = Field(default=600, gt=0)
     resource_ticket_capacity: int = Field(default=1024, gt=0)
 
+    # 应用内静态项目预览与目录打包导出
+    static_preview_mount_seconds: int = Field(default=1800, gt=0)
+    static_preview_mount_capacity: int = Field(default=128, gt=0)
+    static_preview_zip_max_files: int = Field(default=2000, gt=0)
+    static_preview_zip_max_bytes: int = Field(default=256 * 1024 * 1024, gt=0)
+    static_preview_html_inject_bytes: int = Field(default=16 * 1024 * 1024, gt=0)
+
+    # 应用内轻量受管服务预览
+    managed_preview_max_per_workspace: int = Field(default=2, ge=1)
+    managed_preview_max_global: int = Field(default=4, ge=1)
+    managed_preview_start_timeout_seconds: float = Field(default=15.0, gt=0)
+    managed_preview_health_interval_seconds: float = Field(default=0.25, gt=0)
+    managed_preview_stop_grace_seconds: float = Field(default=2.0, ge=0)
+    managed_preview_log_tail_chars: int = Field(default=4000, gt=0)
+
     # 后台任务
     background_job_concurrency: int = Field(default=2, ge=1)
     background_job_poll_seconds: float = Field(default=30, gt=0)

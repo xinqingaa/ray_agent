@@ -37,12 +37,14 @@ class SessionService:
             task_cls: Optional[Type[Task]] = None,
             workdirs=None,
             jobs=None,
+            previews=None,
     ) -> None:
         self._uow_factory = uow_factory
         self._read_uow_factory = read_uow_factory or uow_factory
         self._task_cls = task_cls
         self._workdirs = workdirs
         self._jobs = jobs
+        self._previews = previews
 
     async def create_session(self, creation_id: str | None = None, workspace_id: str | None = None) -> Session:
         """创建一个空白会话；带创建标识时重复请求返回同一会话。会话所属的工作区创建后不再改变，独立对话没有工作区。"""
@@ -103,6 +105,8 @@ class SessionService:
         task = self._task_cls.get(active.id) if active is not None and self._task_cls is not None else None
         if task is not None and not task.done:
             task.cancel()
+        if getattr(self, "_previews", None) is not None:
+            await self._previews.stop_by_session(session_id)
         async with self._uow_factory() as uow:
             files = await uow.file.list_by_session(session_id)
             registered = await uow.root.session_workdir(session_id)
@@ -113,6 +117,7 @@ class SessionService:
                     await uow.search.remove(workspace_id=summary.workspace_id, source_type=SearchSourceType.SESSION_SUMMARY,
                                             source_id=session_id)
                 await uow.summary.delete(session_id)
+            await uow.preview.delete_by_session(session_id)
             await uow.session.delete_by_id(session_id)
             job = None
             if self._jobs is not None:

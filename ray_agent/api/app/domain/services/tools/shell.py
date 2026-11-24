@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Optional
 
 from typing import Protocol
 
+from app.domain.external.workspace_files import WorkspaceFileError
 from app.domain.models.tool_result import ToolResult
 from .base import BaseTool, tool
 
@@ -52,7 +53,10 @@ class ShellTool(BaseTool):
 
     @tool(
         name="shell_execute",
-        description="在指定 Shell 会话中执行命令。可用于运行代码、安装依赖包或文件管理。",
+        description=(
+            "在指定 Shell 会话中执行命令。可用于运行代码、安装依赖包或文件管理。"
+            "后台进程随本次运行结束而终止；未经用户明确要求并批准，不得向工作区和会话目录之外的用户目录写入。"
+        ),
         parameters={
             "session_id": {
                 "type": "string",
@@ -77,7 +81,13 @@ class ShellTool(BaseTool):
     ) -> ToolResult:
         """执行shell脚本。未给出工作目录时使用构造时的默认目录。"""
         directory = exec_dir or self.default_exec_dir
-        return await self.sandbox.exec_command(session_id, directory, command)
+        try:
+            return await self.sandbox.exec_command(session_id, directory, command)
+        except WorkspaceFileError as error:
+            data = {"code": error.code.value}
+            if error.details:
+                data["details"] = error.details
+            return ToolResult(success=False, message=str(error), data=data)
 
     @tool(
         name="shell_read_output",

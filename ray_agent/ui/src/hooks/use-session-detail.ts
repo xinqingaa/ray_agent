@@ -29,10 +29,14 @@ export type UseSessionDetailResult = {
   view: SessionView | null
   loading: boolean
   error: Error | null
+  refreshing: boolean
+  refreshError: string | null
   refresh: () => Promise<void>
   refreshFiles: () => Promise<void>
   /** 只提交消息。retry 不再裁掉已有事件。提交期间 streaming 为 true，不改写运行状态 */
   sendMessage: (message: string, attachmentIds: string[], options?: SendOptions) => Promise<void>
+  /** 为已停下或失败运行遗留的未消费输入重新发起运行，不重复写入消息事件 */
+  resumeInput: (inputId: number) => Promise<void>
   /** 与 submitting 相同：chat 请求未返回时为 true，不是运行中 */
   streaming: boolean
   submitting: boolean
@@ -60,12 +64,18 @@ export function useSessionDetail(
   const [events, setEvents] = useState<SSEEventData[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<Error | null>(null)
+  const [refreshing, setRefreshing] = useState(false)
+  const [refreshError, setRefreshError] = useState<string | null>(null)
   const [submitting, setSubmitting] = useState(false)
   const [loaded, setLoaded] = useState(false)
+  const loadedRef = useRef(false)
+  loadedRef.current = loaded
   const [stoppingRequestedAt, setStoppingRequestedAt] = useState<number | null>(null)
   const [deltas, setDeltas] = useState<DeltaInput[]>([])
   const [streamStartedAt, setStreamStartedAt] = useState<Record<string, number>>({})
   const lastSeqRef = useRef(0)
+  const sessionIdRef = useRef(sessionId)
+  sessionIdRef.current = sessionId
   const operationStatusRef = useRef<string | undefined>(undefined)
   operationStatusRef.current = session?.context_operation?.status
   const seenSeqRef = useRef(new Set<number>())
@@ -84,7 +94,7 @@ export function useSessionDetail(
     setStreamStartedAt({})
   }, [])
 
-  const appendEvent = useCallback((ev: SSEEventData) => {
+  const appendEvent = useCallback((ev: SSEEventData, live = true) => {
     if (String(ev.type) === 'ping') return
     if (ev.type === 'delta') {
       const data = ev.data
@@ -117,6 +127,7 @@ export function useSessionDetail(
     if (seq != null && seenSeqRef.current.has(seq)) return
     rememberSeq(seq)
     retryRef.current = 0
+    if (live) setRefreshError(null)
     setEvents((prev) => mergeBySeq(prev, [evToAppend]))
 
     if (evToAppend.type === 'title' && evToAppend.data && typeof (evToAppend.data as { title?: string }).title === 'string') {
@@ -127,8 +138,32 @@ export function useSessionDetail(
 
     if (evToAppend.type === 'run') {
       const runData = evToAppend.data as RunEvent
-      setSession((prev) => (prev ? { ...prev, status: runData.status } : null))
+      const targetSessionId = sessionIdRef.current
+      setSession((prev) => {
+        if (!prev) return null
+        if (runData.status === 'running' && prev.unconsumed_inputs?.length && runData.run_id) {
+          return {
+            ...prev,
+            status: runData.status,
+            unconsumed_inputs: prev.unconsumed_inputs.filter((item) => item.run_id !== runData.run_id),
+          }
+        }
+        return { ...prev, status: runData.status }
+      })
       if (isTerminalRunStatus(runData.status)) setStoppingRequestedAt(null)
+      if (
+        live &&
+        targetSessionId &&
+        (runData.status === 'cancelled' || runData.status === 'interrupted' || runData.status === 'failed')
+      ) {
+        void sessionApi
+          .getSessionDetail(targetSessionId, lastSeqRef.current)
+          .then((detail) => {
+            if (sessionIdRef.current !== targetSessionId) return
+            setSession((prev) => (prev ? { ...prev, unconsumed_inputs: detail.unconsumed_inputs } : prev))
+          })
+          .catch(() => undefined)
+      }
     }
   }, [rememberSeq])
 
@@ -181,13 +216,18 @@ export function useSessionDetail(
 
   const refresh = useCallback(async () => {
     if (!sessionId) return
-    setError(null)
+    const targetSessionId = sessionId
+    const isBackground = loadedRef.current
+    if (isBackground) setRefreshing(true)
+    else setError(null)
+    setRefreshError(null)
     clearDrafts()
     try {
       const [detail, fileListRaw] = await Promise.all([
-        sessionApi.getSessionDetail(sessionId),
-        sessionApi.getSessionFiles(sessionId),
+        sessionApi.getSessionDetail(targetSessionId),
+        sessionApi.getSessionFiles(targetSessionId),
       ])
+      if (sessionIdRef.current !== targetSessionId) return
       const snapshot = normalizeEvents(detail.events ?? [])
       const snapshotSeq = detail.last_seq ?? snapshot.reduce((max, ev) => Math.max(max, readEventSeq(ev) ?? 0), 0)
       for (const ev of snapshot) rememberSeq(readEventSeq(ev))
@@ -199,19 +239,32 @@ export function useSessionDetail(
       setFiles(normalizeFileList(fileListRaw))
       setLoaded(true)
     } catch (e) {
-      setError(e instanceof Error ? e : new Error('加载失败'))
+      if (sessionIdRef.current !== targetSessionId) return
+      const err = e instanceof Error ? e : new Error('加载失败')
+      if (isBackground) setRefreshError(err.message || '刷新失败')
+      else setError(err)
     } finally {
-      setLoading(false)
+      if (sessionIdRef.current === targetSessionId) {
+        setLoading(false)
+        setRefreshing(false)
+      }
     }
   }, [sessionId, normalizeFileList, rememberSeq, clearDrafts])
 
   const refreshFiles = useCallback(async () => {
     if (!sessionId) return
+    const targetSessionId = sessionId
+    setRefreshing(true)
+    setRefreshError(null)
     try {
-      const fileListRaw = await sessionApi.getSessionFiles(sessionId)
+      const fileListRaw = await sessionApi.getSessionFiles(targetSessionId)
+      if (sessionIdRef.current !== targetSessionId) return
       setFiles(normalizeFileList(fileListRaw))
     } catch (e) {
-      console.error('刷新文件列表失败:', e)
+      if (sessionIdRef.current !== targetSessionId) return
+      setRefreshError(e instanceof Error ? e.message : '刷新成果列表失败')
+    } finally {
+      if (sessionIdRef.current === targetSessionId) setRefreshing(false)
     }
   }, [sessionId, normalizeFileList])
 
@@ -220,6 +273,8 @@ export function useSessionDetail(
     seenSeqRef.current = new Set()
     retryRef.current = 0
     setLoaded(false)
+    setRefreshing(false)
+    setRefreshError(null)
     setSubmitting(false)
     setStoppingRequestedAt(null)
     setEvents([])
@@ -277,12 +332,13 @@ export function useSessionDetail(
       try {
         const detail = await sessionApi.getSessionDetail(sessionId, lastSeqRef.current)
         if (!cancelled) {
-          for (const event of normalizeEvents(detail.events ?? [])) appendEvent(event)
+          for (const event of normalizeEvents(detail.events ?? [])) appendEvent(event, false)
           setSession((prev) => {
             if (!prev) return prev
             const next = {
               context_operation: detail.context_operation,
               context_config: detail.context_config,
+              unconsumed_inputs: detail.unconsumed_inputs,
               model_id: detail.model_id,
               reasoning: detail.reasoning,
               run_model: detail.run_model,
@@ -293,11 +349,17 @@ export function useSessionDetail(
               && prev.context_operation?.status === next.context_operation?.status
               && prev.context_operation?.started_at === next.context_operation?.started_at
               && JSON.stringify(prev.context_config) === JSON.stringify(next.context_config)
+              && JSON.stringify(prev.unconsumed_inputs ?? []) === JSON.stringify(next.unconsumed_inputs ?? [])
             return unchanged ? prev : {...prev, ...next}
           })
           follow(detail.context_operation?.status)
+          setRefreshError(null)
         }
-      } catch { /* 网络失败由流重连提示处理；不伪造 idle。 */ }
+      } catch (e) {
+        if (!cancelled && loadedRef.current) {
+          setRefreshError(e instanceof Error ? e.message : '后台刷新失败')
+        }
+      }
       finally { reading = false }
     }
     follow(operationStatusRef.current)
@@ -347,6 +409,23 @@ export function useSessionDetail(
     }
   }, [sessionId])
 
+  const resumeInput = useCallback(
+    async (inputId: number) => {
+      if (!sessionId) return
+      setSubmitting(true)
+      try {
+        await sessionApi.resumeInput(sessionId, inputId)
+        await refresh()
+      } catch (e) {
+        await refresh()
+        throw e
+      } finally {
+        setSubmitting(false)
+      }
+    },
+    [sessionId, refresh]
+  )
+
   const replyApproval = useCallback(
     async (toolCallId: string, decision: ApprovalDecision) => {
       if (!sessionId) return
@@ -389,9 +468,12 @@ export function useSessionDetail(
     view,
     loading,
     error,
+    refreshing,
+    refreshError,
     refresh,
     refreshFiles,
     sendMessage,
+    resumeInput,
     streaming: submitting,
     submitting,
     stop,

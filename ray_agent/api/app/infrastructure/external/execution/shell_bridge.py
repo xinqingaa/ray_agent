@@ -48,15 +48,16 @@ class LocalShellBridge:
             session_id: str | None = None,
             run_id: str | None = None,
             on_session=None,
-            before_start=None, on_close=None,
+            before_start=None, on_idle=None, on_close=None,
     ) -> None:
         self._executor = executor
-        self._before_start, self._on_close = before_start, on_close
+        self._before_start, self._on_idle, self._on_close = before_start, on_idle, on_close
         self.closed = False
         self._start_lock = asyncio.Lock()
         self._files = files
         self._on_session = on_session
         self._sessions: dict[str, str] = {}
+        self._active_processes: set[str] = set()
         self._commands: dict[str, list[dict]] = {}
         if files is not None:
             for root in files.roots:
@@ -119,6 +120,12 @@ class LocalShellBridge:
             return ToolResult(success=False, message="工作目录越出了可访问根")
         return RootedPath(root_id=self._root_id, relative_path=relative)
 
+    async def _mark_process_gone(self, process_id: str) -> None:
+        async with self._start_lock:
+            self._active_processes.discard(process_id)
+            if not self.closed and not self._active_processes and self._on_idle:
+                await self._on_idle()
+
     async def exec_command(self, session_id: str, exec_dir: str, command: str) -> ToolResult:
         resolved = self._resolve_exec_dir(exec_dir)
         if isinstance(resolved, ToolResult):
@@ -128,21 +135,29 @@ class LocalShellBridge:
                 if self.closed:
                     raise RuntimeError('本次运行的 Shell 已结束')
                 if session_id in self._sessions:
-                    old = await self._executor.kill_tree(self._sessions[session_id])
+                    old_pid = self._sessions[session_id]
+                    old = await self._executor.kill_tree(old_pid)
                     if old.state is ProcessState.LOST:
                         raise RuntimeError('旧 Shell 会话尚未确认结束，不能替换')
+                    self._active_processes.discard(old_pid)
                 if self._before_start:
                     await self._before_start()
-                if self.closed:
-                    raise RuntimeError("本次运行已停止，不再启动进程")
-                status = await self._executor.start(ProcessSpec(
-                    shell_command=command,
-                    cwd=resolved,
-                    owner=self._owner,
-                    interactive=True,
-                    env=self._process_env(),
-                ))
+                try:
+                    if self.closed:
+                        raise RuntimeError("本次运行已停止，不再启动进程")
+                    status = await self._executor.start(ProcessSpec(
+                        shell_command=command,
+                        cwd=resolved,
+                        owner=self._owner,
+                        interactive=True,
+                        env=self._process_env(),
+                    ))
+                except BaseException:
+                    if not self.closed and not self._active_processes and self._on_idle:
+                        await self._on_idle()
+                    raise
                 self._sessions[session_id] = status.process_id
+                self._active_processes.add(status.process_id)
                 return status
         starting = asyncio.create_task(start())
         try:
@@ -163,6 +178,8 @@ class LocalShellBridge:
             self._on_session(session_id)
         waited = await self._executor.wait(status.process_id, EXEC_FOREGROUND_SECONDS)
         if waited.state is not ProcessState.RUNNING:
+            if waited.tree_gone:
+                await self._mark_process_gone(status.process_id)
             output = await self._executor.read_output(status.process_id)
             text = _ANSI.sub("", output.text)
             self._commands[session_id][-1]["output"] = text
@@ -197,6 +214,8 @@ class LocalShellBridge:
         if status.state is ProcessState.RUNNING:
             return ToolResult(success=False, message=f"Shell 会话进程等待超时: {int(timeout)}s",
                               data={"returncode": None, "status": "running"})
+        if status.tree_gone:
+            await self._mark_process_gone(process_id)
         return ToolResult(success=True, message="success",
                           data={"returncode": status.exit_code, "status": "completed"})
 
@@ -222,6 +241,8 @@ class LocalShellBridge:
         # Shell 主进程退出不代表后台后代已经退出；由 supervisor 确认整棵树。
         status = await self._executor.kill_tree(process_id)
         ok = status.state != ProcessState.LOST
+        if ok:
+            await self._mark_process_gone(process_id)
         return ToolResult(success=ok, message="success" if ok else "无法确认进程已结束", data={
             "status": "terminated" if ok else "lost",
             "returncode": status.exit_code if status.exit_code is not None else -9,
@@ -236,7 +257,10 @@ class LocalShellBridge:
             for process_id in list(self._sessions.values()):
                 try:
                     status = await self._executor.kill_tree(process_id)
-                    confirmed = confirmed and status.state is not ProcessState.LOST
+                    gone = status.state is not ProcessState.LOST
+                    if gone:
+                        self._active_processes.discard(process_id)
+                    confirmed = confirmed and gone
                 except Exception:
                     logger.exception('无法确认 Shell 子树结束 process=%s', process_id)
                     confirmed = False

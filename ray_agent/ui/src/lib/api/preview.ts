@@ -1,16 +1,23 @@
 import {coreHeaders, coreUrl} from '@/lib/core-client'
 import {openExternal, saveBytes, saveResource} from '@/lib/platform'
-import {clientError, errorFromBody, post} from './fetch'
+import {clientError, del, errorFromBody, post} from './fetch'
+import type {ManagedPreview} from './managed-previews'
 import type {components} from '@contracts/openapi'
 
 type ResourceTicket = components['schemas']['ResourceTicket']
+export type StaticPreviewMount = components['schemas']['StaticPreviewMount']
+export type StaticPreviewMountRequest = components['schemas']['StaticPreviewMountRequest']
 
-/** 预览对象：附件与交付版本按文件 ID，工作区文件夹里的文件按 root_id 加相对路径。 */
+/** 预览对象：附件与交付版本按文件 ID，工作区文件按 root_id 加相对路径，静态目录按 root_dir 挂载。 */
 export type AttachmentSource = {kind: 'attachment'; id: string; filename: string; size?: number | null}
 export type PreviewLocation = {page?: number; block?: number; table?: number; sheet_name?: string; row?: number; column?: number}
 export type RootSource = {kind: 'root'; rootId: string; path: string; filename: string; size?: number | null
   location?: PreviewLocation; expectedRevision?: string}
-export type PreviewSource = AttachmentSource | RootSource
+export type RootDirSource = {kind: 'root_dir'; rootId: string; path: string; title: string; entryPath?: string}
+export type ManagedPreviewSource = {kind: 'managed'; previewId: string; initial?: ManagedPreview}
+export type StaticPreviewSource = AttachmentSource | RootSource | RootDirSource
+export type FilePreviewSource = AttachmentSource | RootSource
+export type PreviewSource = AttachmentSource | RootSource | RootDirSource | ManagedPreviewSource
 
 export type PreviewCell = {
   text: string; formula?: string | null; uncached?: boolean
@@ -32,7 +39,7 @@ export type FilePreview = {
 }
 
 /** 预览接口地址；根内文件的路径放在查询串里，所以它同时是该对象的稳定标识。 */
-export function previewEndpoint(source: PreviewSource) {
+export function previewEndpoint(source: FilePreviewSource) {
   if (source.kind === 'root') return `/roots/${encodeURIComponent(source.rootId)}/preview?${new URLSearchParams({path: source.path})}`
   return `/files/${encodeURIComponent(source.id)}/preview`
 }
@@ -61,7 +68,7 @@ async function ticketFor(key: string, endpoint: string): Promise<string> {
 }
 
 /** 图片、PDF 与网页按 URL 加载，带只读本文件内容的短期票据 */
-export async function previewContentUrl(source: PreviewSource, revision?: string) {
+export async function previewContentUrl(source: FilePreviewSource, revision?: string) {
   const root = source.kind === 'root'
   const ticket = await ticketFor(
     root ? `root:${source.rootId}:${source.path}` : source.id,
@@ -72,12 +79,41 @@ export async function previewContentUrl(source: PreviewSource, revision?: string
   return coreUrl(`${root ? rootContentPath(source.rootId, source.path) : `/files/${encodeURIComponent(source.id)}/preview/content`}?${params}`)
 }
 
-/** 网页文件在系统浏览器中渲染；服务端用 CSP sandbox 隔离，页面读不到核心接口与原生能力 */
+/** HTML 文件（默认在应用内独立只读静态端口预览，也可按需在系统浏览器打开） */
 export function isWebPage(filename: string) {
   return /\.html?$/i.test(filename)
 }
 
-export async function openPreviewTab(source: PreviewSource) {
+export function isStaticWebSource(source: PreviewSource): boolean {
+  return source.kind === 'root_dir' || source.kind === 'managed' || isWebPage(source.filename)
+}
+
+export function createStaticPreviewMount(source: StaticPreviewSource): Promise<StaticPreviewMount> {
+  const body: StaticPreviewMountRequest = source.kind === 'attachment'
+    ? {kind: 'attachment', file_id: source.id, relative_path: '', entry_path: ''}
+    : source.kind === 'root'
+      ? {kind: 'root_file', root_id: source.rootId, relative_path: source.path, entry_path: ''}
+      : {
+          kind: 'root_dir',
+          root_id: source.rootId,
+          relative_path: source.path,
+          entry_path: source.entryPath ?? '',
+        }
+  return post<StaticPreviewMount>('/previews/static/mounts', body)
+}
+
+export function deleteStaticPreviewMount(mountToken: string): Promise<void> {
+  return del(`/previews/static/mounts/${encodeURIComponent(mountToken)}`).then(() => undefined, () => undefined)
+}
+
+export function exportStaticMountZip(mount: StaticPreviewMount, filename?: string) {
+  if (!mount.export_zip_path) return Promise.reject(new Error('当前预览不支持打包导出 ZIP'))
+  const base = (filename || mount.title || 'site').replace(/[\\/:*?"<>|]+/g, '_').trim() || 'site'
+  const zipName = base.toLowerCase().endsWith('.zip') ? base : `${base}.zip`
+  return saveResource(mount.export_zip_path, zipName)
+}
+
+export async function openPreviewTab(source: FilePreviewSource) {
   await openExternal(await previewContentUrl(source))
 }
 

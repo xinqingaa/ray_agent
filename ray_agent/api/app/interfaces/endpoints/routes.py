@@ -2,9 +2,10 @@
 # -*- coding: utf-8 -*-
 from fastapi import APIRouter
 
-from . import status_routes, app_config_routes, file_routes, session_routes, preview_routes, data_routes, \
-    operation_routes, skill_routes, workspace_routes, workspace_history_routes, root_routes, host_routes, \
-    instruction_routes, memory_routes, retrieval_routes, document_routes, component_routes, model_connection_routes, usage_routes
+from . import status_routes, app_config_routes, file_routes, session_routes, preview_routes, static_preview_routes, \
+    managed_preview_routes, data_routes, operation_routes, skill_routes, workspace_routes, workspace_history_routes, \
+    root_routes, host_routes, instruction_routes, memory_routes, retrieval_routes, document_routes, \
+    component_routes, model_connection_routes, usage_routes
 
 
 def create_api_routes() -> APIRouter:
@@ -14,6 +15,8 @@ def create_api_routes() -> APIRouter:
     api_router.include_router(app_config_routes.router)
     api_router.include_router(file_routes.router)
     api_router.include_router(preview_routes.router)
+    api_router.include_router(static_preview_routes.router)
+    api_router.include_router(managed_preview_routes.router)
     api_router.include_router(session_routes.router)
     api_router.include_router(data_routes.router)
     api_router.include_router(operation_routes.router)

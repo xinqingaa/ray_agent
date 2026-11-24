@@ -78,10 +78,11 @@ def data_cleanup_handler(folders, remove_object, remove_directory):
 
 
 class DataService:
-    def __init__(self, uow_factory, jobs: BackgroundJobRunner, install_id: str = "") -> None:
+    def __init__(self, uow_factory, jobs: BackgroundJobRunner, install_id: str = "", previews=None) -> None:
         self._uow_factory = uow_factory
         self._jobs = jobs
         self._install_id = install_id
+        self._previews = previews
 
     async def _latest(self, uow) -> Optional[BackgroundJob]:
         return await uow.job.latest(OperationKind.DATA_CLEANUP, scope_kind=OperationScopeKind.APP.value)
@@ -139,6 +140,7 @@ class DataService:
                 if registered is not None:
                     directories.append(registered[1])
                 await uow.session.delete_by_id(session.id)
+            await uow.preview.delete_all()
             await uow.file.delete_all()
             await uow.usage.clear()
             backups = await uow.change.delete_all()
@@ -157,6 +159,8 @@ class DataService:
                 objects=[file.key for file in files if file.key] + backups, directories=directories,
                 extra=dict(counts=_counts(len(sessions), len(files), workspaces),
                            session_ids=[s.id for s in sessions], markers=markers)))
+        if getattr(self, "_previews", None) is not None:
+            await self._previews.stop_all()
         self._jobs.wake()
         return CleanupTask.from_job(job)
 

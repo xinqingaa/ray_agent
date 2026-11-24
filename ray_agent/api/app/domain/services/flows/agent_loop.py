@@ -40,6 +40,7 @@ from app.domain.models.event import (
     MessageEvent,
     PlanEvent,
     PlanEventStatus,
+    PreviewEvent,
     ToolEvent,
     ToolEventStatus,
     TurnEvent,
@@ -71,6 +72,7 @@ from app.domain.services.run_budget import BudgetPhase, FinalizeGuard, budget_no
 from app.domain.services.task_error import format_public_error_text
 from app.domain.services.tool_policy import ToolPolicyGuard
 from app.domain.services.workspace_shell_guard import WorkspaceShellGuard
+from app.domain.services.write_lease_guard import WriteLeaseConflictGuard
 from app.domain.services.tools.a2a import A2ATool
 from app.domain.services.tools.base import BaseTool
 from app.domain.services.tools.browser import BrowserTool
@@ -81,6 +83,12 @@ from app.domain.services.tools.mcp import MCPTool
 from app.domain.services.tools.memory import workspace_toolkits
 from app.domain.services.tools.message import ASK_USER_TOOL, MessageTool
 from app.domain.services.tools.plan import UPDATE_PLAN_TOOL, PlanTool
+from app.domain.services.tools.preview import (
+    REGISTER_PREVIEW_TOOL,
+    PreviewTool,
+    RegisterPreviewFn,
+    RegisterPreviewResult,
+)
 from app.domain.services.tools.search import SearchTool
 from app.domain.services.tools.shell import ShellTool
 from .base import BaseFlow
@@ -96,6 +104,11 @@ NOT_EXECUTED_FAILED = "未执行：任务失败"
 NOT_EXECUTED_APPROVAL = "未执行：同一批次中前面的调用在等待用户审批，本调用未执行，请根据审批结果重新决策"
 INTERRUPTED_STOPPED = "执行中断：任务在该调用执行期间被停止，调用可能已部分生效，结果未知"
 INTERRUPTED_FAILED = "执行中断：任务在该调用执行期间失败，调用可能已部分生效，结果未知"
+INTERRUPTED_RECOVERY_PROMPT = (
+    "[系统提示] 上一轮运行在工具调用执行期间中断，已为中断调用补充状态占位。"
+    "请先检查已有文件、目录和当前状态，再决定下一步，避免盲目重复可能已生效的操作；"
+    "受权限策略约束的操作仍须按审批流程申请确认。"
+)
 
 TRUNCATION_PROMPT = (
     "[系统提示] 上一次回复超过输出长度上限被截断，已被丢弃，其中的工具调用均未执行。"
@@ -340,6 +353,7 @@ class AgentLoop(BaseFlow):
             mode: RunMode = RunMode.NORMAL,
             project_prompt: str = "",
             output_dir: Optional[str] = None,
+            register_preview: Optional[RegisterPreviewFn] = None,
     ) -> None:
         """write_output 把超长工具结果的完整内容写入 output_dir（会话工作目录中），由运行器注入；为空时超长结果只截断。
 
@@ -402,6 +416,8 @@ class AgentLoop(BaseFlow):
         self._can_deliver = deliver_file is not None
         if deliver_file is not None:
             toolkits.append(DeliverTool(deliver_file, self._outcomes.existing_delivery))
+        if register_preview is not None:
+            toolkits.append(PreviewTool(register_preview))
         self.pipeline = ToolPipeline(toolkits if getattr(llm, "supports_tools", True) else [])
         # 计划模式的检查在策略之前：被拒绝的调用不会进入审批
         self._plan_guard = PlanModeGuard()
@@ -410,6 +426,8 @@ class AgentLoop(BaseFlow):
         self.pipeline.add_before(self._finalize_guard)
         self._policy_guard = ToolPolicyGuard(tool_policy)
         self.pipeline.add_before(self._policy_guard)
+        self._lease_conflict_guard = WriteLeaseConflictGuard(files, self._outcomes)
+        self.pipeline.add_before(self._lease_conflict_guard.before)
         shell_exec_dir = next((t.default_exec_dir for t in tools if isinstance(t, ShellTool)), None)
         self._workspace_shell_guard = WorkspaceShellGuard(files, default_exec_dir=shell_exec_dir)
         self.pipeline.add_before(self._workspace_shell_guard)
@@ -420,6 +438,8 @@ class AgentLoop(BaseFlow):
         self.pipeline.add_after(self._record_delivery_state)
         self.pipeline.add_after(self._outcomes.after)
         self.pipeline.add_after(self._emit_delivery_message)
+        self.pipeline.add_after(self._emit_preview_event)
+        self.pipeline.add_after(self._lease_conflict_guard.after)
         # 整形放在最后：前面的处理函数读的是工具的原始结果
         self.pipeline.add_after(ResultShaper(agent_config.tool_result_max_chars, write_output,
                                              **({'output_dir': output_dir} if output_dir else {})))
@@ -533,6 +553,7 @@ class AgentLoop(BaseFlow):
         self._plan_changed=False
         self._task_active=False
         self._plan_progress = PlanProgress()
+        self._lease_conflict_guard.reset()
 
     def _set_budget_phase(self, phase: BudgetPhase) -> None:
         self._budget_phase = phase
@@ -1178,7 +1199,14 @@ class AgentLoop(BaseFlow):
             return False
         repaired, reply_consumed = repair_results(dangling, status, message, started_call_ids)
         logger.info(f"会话[{self._session_id}] 为 {len(repaired)} 个悬空调用补结果（{status.value}）")
-        await self._add_messages(repaired)
+        messages_to_add = list(repaired)
+        if (
+            started_call_ids
+            and status in (SessionStatus.CANCELLED, SessionStatus.INTERRUPTED, SessionStatus.FAILED)
+            and any(call.get("id") in started_call_ids for call in dangling)
+        ):
+            messages_to_add.append({"role": "user", "content": INTERRUPTED_RECOVERY_PROMPT})
+        await self._add_messages(messages_to_add)
         return reply_consumed
 
     # ---- 执行后处理 ----
@@ -1238,6 +1266,26 @@ class AgentLoop(BaseFlow):
                 message=message,
                 attachments=files,
             ))
+        return result
+
+    async def _emit_preview_event(self, invocation: ToolInvocation, result: ToolResult) -> ToolResult:
+        if (
+            invocation.function_name != REGISTER_PREVIEW_TOOL
+            or not result.success
+            or not isinstance(result.data, RegisterPreviewResult)
+        ):
+            return result
+        data = result.data
+        invocation.events.append(PreviewEvent(
+            preview_id=data.preview_id,
+            name=data.name,
+            kind=data.kind,
+            root_id=data.root_id,
+            relative_path=data.relative_path,
+            entry_path=data.entry_path,
+            workspace_id=getattr(self, "workspace_id", None),
+            note=data.note or "",
+        ))
         return result
 
     # ---- 记忆 ----

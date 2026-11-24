@@ -138,6 +138,7 @@ const VERBS: Record<string, string> = {
   browser_console_view: '查看控制台',
   update_plan: '更新计划',
   deliver_files: '交付文件',
+  register_preview: '登记预览',
   message_ask_user: '向用户提问',
   get_remote_agent_cards: '查看远程 Agent',
   call_remote_agent: '委派远程 Agent',
@@ -730,6 +731,28 @@ export function projectSession(input: ProjectSessionInput): SessionView {
         deliveriesAtMessage.set(idOf(ev.seq, timeline.length), [...deliveredByPath.values()])
         pending.push({seq: ev.seq, at: ev.createdAt, runId: ev.runId, text, turnIndex: ev.runId ? currentTurn.get(ev.runId) ?? null : null})
       }
+      continue
+    }
+
+    if (ev.type === 'preview') {
+      const previewId = str(data.preview_id)
+      if (!previewId) continue
+      if (pending.length > 0) flushNarration()
+      openGroup = null
+      timeline.push({
+        kind: 'preview',
+        id: idOf(ev.seq, timeline.length),
+        runId: ev.runId,
+        at: ev.createdAt,
+        previewId,
+        name: str(data.name) ?? '项目预览',
+        previewKind: data.kind === 'service' ? 'service' : 'static',
+        rootId: str(data.root_id) ?? '',
+        relativePath: str(data.relative_path) ?? '',
+        entryPath: str(data.entry_path) ?? '',
+        workspaceId: str(data.workspace_id) ?? null,
+        note: str(data.note) ?? '',
+      })
       continue
     }
 
@@ -1431,6 +1454,10 @@ function presentTool(name: string, toolset: string, args: Record<string, unknown
     const paths = Array.isArray(args.paths) ? args.paths.map((item) => basename(String(item))) : []
     target = paths.join('、')
     argSummary = target
+  } else if (name === 'register_preview') {
+    verb = args.kind === 'service' ? '启动应用内轻服务预览' : '登记应用内预览'
+    target = clip(str(args.name) ?? (str(args.path) ? basename(str(args.path)!) : ''), 120)
+    argSummary = target
   } else if (name === 'shell_execute' || name.startsWith('shell_')) {
     const command = str(args.command) ?? ''
     if (command) {
@@ -1771,15 +1798,22 @@ function readTime(value: unknown): number {
 
 
 /**
- * 计划条只在两种情况出现：当前运行已写出自己的计划（live），或计划模式刚结束、清单等待确认执行（proposal）。
- * 其余时候不占位，包括上一次运行留下的清单、运行结束后的清单和尚未写计划的新运行。
+ * 计划条只在三种情况出现：当前运行已写出自己的计划（live），计划模式刚结束、清单等待确认执行（proposal），
+ * 或最新一次停止/中断/失败运行仍由自己产出清单且存在未完成步骤或待交付的本轮文件成果（ended）。
  */
-export function planBarMode(view: Pick<SessionView, 'activeRun' | 'runs' | 'plan'>): 'live' | 'proposal' | null {
+export function planBarMode(view: Pick<SessionView, 'activeRun' | 'runs' | 'plan'>): 'live' | 'proposal' | 'ended' | null {
   const plan = view.plan
   if (!plan || plan.items.length === 0) return null
   if (plan.progressState === 'not_needed') return null
   if (view.activeRun) return plan.sourceRunId === view.activeRun.id ? 'live' : null
-  return canExecutePlan(view) ? 'proposal' : null
+  if (canExecutePlan(view)) return 'proposal'
+  const run = view.runs[view.runs.length - 1]
+  if (run && (run.status === 'cancelled' || run.status === 'interrupted' || run.status === 'failed') && plan.sourceRunId === run.id) {
+    const hasUnfinished = plan.items.some((item) => item.text.trim() && item.status !== 'completed' && item.status !== 'cancelled')
+    const hasMissingArtifact = !!plan.artifacts?.some((a) => a.required && a.schedule === 'current' && a.delivery === 'file' && a.state !== 'delivered')
+    if (hasUnfinished || hasMissingArtifact) return 'ended'
+  }
+  return null
 }
 
 /** 最新计划运行确实产出带身份的可执行清单，才提供后续执行。 */

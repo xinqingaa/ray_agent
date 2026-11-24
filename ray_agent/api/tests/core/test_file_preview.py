@@ -235,7 +235,7 @@ def test_inline_range_and_sandboxed_html(tmp_path):
         assert page.content.startswith(b'<script>') and page.content.endswith(b'</script>0123456789')
         policy=[item.strip() for item in page.headers['Content-Security-Policy'].split(';')]
         sandbox=policy[0].split()
-        assert sandbox[0]=='sandbox' and 'allow-scripts' in sandbox and 'allow-same-origin' not in sandbox
+        assert sandbox[0]=='sandbox' and 'allow-scripts' in sandbox and 'allow-downloads' in sandbox and 'allow-same-origin' not in sandbox
         assert "connect-src 'none'" in policy and "form-action 'none'" in policy and "frame-src 'none'" in policy
         assert page.headers['X-Content-Type-Options']=='nosniff'
         assert client.get('/files/test.js/preview/content').status_code==400

@@ -24,6 +24,7 @@ from .db_skill_repository import DBSkillTransaction
 from .db_document_repository import DBDocumentRepository
 from .db_instruction_repository import DBInstructionRepository
 from .db_memory_repository import DBMemoryRepository
+from .db_preview_repository import DBPreviewRepository
 from .db_search_repository import DBSearchRepository
 from .db_summary_repository import DBRunContextRepository, DBSummaryRepository
 from .db_usage_repository import DBUsageRepository
@@ -72,6 +73,7 @@ class DBUnitOfWork(IUnitOfWork):
         self.job = DBBackgroundJobRepository(db_session=session)
         self.root = DBRootRepository(db_session=session)
         self.workspace = DBWorkspaceRepository(db_session=session)
+        self.preview = DBPreviewRepository(db_session=session)
         self.lease = DBWriteLeaseRepository(db_session=session)
         self.change = DBFileChangeRepository(db_session=session)
         self.instruction = DBInstructionRepository(db_session=session)

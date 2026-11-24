@@ -9,6 +9,7 @@ import {TaskInspector, TaskInspectorTabs, TaskLayout, useTaskInspector, type Ins
 import {WorkspaceList} from '@/components/workspace/workspace-list'
 import {MemoryPanel, type BackgroundMemorySummary} from '@/components/workspace/memory-panel'
 import {sessionApi} from '@/lib/api/session'
+import {managedPreviewsApi, type ManagedPreview} from '@/lib/api/managed-previews'
 import {useSessions} from '@/hooks/use-sessions'
 import type {FileView} from '@/lib/session-view'
 import {projectSession} from '@/lib/session-projection'
@@ -146,28 +147,80 @@ export function WorkspaceHomePage() {
   const {sending, start} = useStartTask(scope, workspace.id, sid => router.push(workspaceSessionHref(workspace.id, sid)))
   const {sessions, loading: sessionsLoading, error: sessionsError, refresh: refreshSessions} = useSessions()
   const {count: pending} = useWorkspacePending()
-  const [result, setResult] = useState<{key: string; files?: FileView[]; error?: string} | null>(null)
+  const [deliveryState, setDeliveryState] = useState<{
+    sessionId: string
+    files: FileView[] | null
+    refreshing: boolean
+    error: string | null
+  } | null>(null)
   const [retry, setRetry] = useState(0)
+  const [managedPreviews, setManagedPreviews] = useState<ManagedPreview[]>([])
   const recentSession = sessions[0]
   const recentSessionId = recentSession?.session_id
-  const deliveryKey = JSON.stringify([recentSessionId, recentSession?.latest_message_at, recentSession?.status, retry])
+  const deliveryRevision = JSON.stringify([recentSessionId, recentSession?.latest_message_at, recentSession?.status, retry])
 
   useEffect(() => {
-    if (!recentSessionId) return
+    if (!recentSessionId) {
+      setDeliveryState(null)
+      return
+    }
     let cancelled = false
+    setDeliveryState(current =>
+      current && current.sessionId === recentSessionId
+        ? {...current, refreshing: true, error: null}
+        : {sessionId: recentSessionId, files: null, refreshing: true, error: null},
+    )
     void sessionApi.getSessionDetail(recentSessionId).then(detail => {
+      if (cancelled) return
       const {files} = projectSession({id: recentSessionId, runs: detail.runs ?? [], events: detail.events ?? []})
-      if (!cancelled) setResult({key: deliveryKey, files: files.filter(file => file.source === 'delivery')})
+      setDeliveryState({
+        sessionId: recentSessionId,
+        files: files.filter(file => file.source === 'delivery'),
+        refreshing: false,
+        error: null,
+      })
     }).catch(error => {
-      if (!cancelled) setResult({key: deliveryKey, error: error instanceof Error ? error.message : '读取交付失败'})
+      if (cancelled) return
+      const message = error instanceof Error ? error.message : '读取交付失败'
+      setDeliveryState(current =>
+        current && current.sessionId === recentSessionId
+          ? {...current, refreshing: false, error: message}
+          : {sessionId: recentSessionId, files: null, refreshing: false, error: message},
+      )
     })
     return () => {cancelled = true}
-  }, [recentSessionId, deliveryKey])
+  }, [recentSessionId, deliveryRevision])
 
-  const deliveryResult = recentSessionId && result?.key === deliveryKey ? result : null
-  const deliveries = deliveryResult?.files
+  const currentDelivery = recentSessionId && deliveryState?.sessionId === recentSessionId ? deliveryState : null
+  const deliveries = currentDelivery?.files ?? undefined
   const retryDeliveries = () => sessionsError ? void refreshSessions() : setRetry(value => value + 1)
   const delivery = deliveries?.[0]
+
+  useEffect(() => {
+    let cancelled = false
+    void managedPreviewsApi.list({workspaceId: workspace.id})
+      .then(list => {
+        if (!cancelled) setManagedPreviews(list)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [workspace.id, deliveryRevision])
+
+  const upsertPreview = (next: ManagedPreview) => {
+    setManagedPreviews(current => {
+      const idx = current.findIndex(item => item.id === next.id)
+      if (idx < 0) return [next, ...current]
+      const updated = current.slice()
+      updated[idx] = next
+      return updated
+    })
+  }
+
+  const removePreview = (previewId: string) => {
+    setManagedPreviews(current => current.filter(item => item.id !== previewId))
+  }
 
   return <>
     <TopbarActions><IconAction ref={inspectorTrigger} label={open ? '收起右侧面板' : '打开右侧面板'}
@@ -188,7 +241,15 @@ export function WorkspaceHomePage() {
             router.replace(`${workspaceKnowledgeHref(workspace.id)}?${openFromKnowledge.knowledgeSearch}`) : undefined}
           toolbarTarget={toolbarTarget} visible={open}
           deliveries={deliveries}
-          deliveryStatus={{loading: sessionsLoading || (!!recentSessionId && !deliveryResult), error: deliveryResult?.error ?? sessionsError, retry: retryDeliveries}}
+          previews={managedPreviews}
+          onPreviewUpdated={upsertPreview}
+          onPreviewDeleted={removePreview}
+          deliveryStatus={{
+            loading: sessionsLoading || (!!recentSessionId && (!currentDelivery || (currentDelivery.refreshing && currentDelivery.files === null))),
+            refreshing: Boolean(currentDelivery?.refreshing && currentDelivery.files !== null),
+            error: currentDelivery?.error ?? sessionsError,
+            retry: retryDeliveries,
+          }}
           onOpenDelivery={file => {if (recentSessionId) router.push(`${workspaceSessionHref(workspace.id, recentSessionId)}?delivery=${encodeURIComponent(file.id)}`)}}
           deliveryLabel="最近对话的交付" deliveryEmpty="最近对话暂无交付文件。"
           className="min-h-0 flex-1"/>

@@ -108,6 +108,7 @@
 | 最近修改的运行 | 默认返回 20 条，最多 100 条 | `change_runs_default` |
 | 写入临时文件残留 | 核心启动后与打开文件夹时，清理超过 1 小时的 `.rayagent-write-*.tmp`（只处理本应用命名的普通文件）；这类文件在列举、扫描与监视中一律不可见 | [workspace_service.py](../ray_agent/api/app/application/services/workspace_service.py) 的 `TEMP_MAX_AGE_SECONDS` |
 | 删除工作区等待写入者 | 最多 10 秒等待文件夹的写入租约结束，期限内仍有写入者则返回冲突，不删除 | `workspace_service.py` 的 `DELETE_QUIESCE_SECONDS` |
+| 工作区写入租约连续冲突熔断 | 同一工作区写入占用连续冲突达 2 次后，熔断本次运行后续工作区写操作与 Shell 重试（仍可执行只读操作或写入会话工作目录） | [write_lease_guard.py](../ray_agent/api/app/domain/services/write_lease_guard.py) 的 `LEASE_CONFLICT_LIMIT` |
 | 文件描述符软上限 | 核心启动时提高到 4096（不超过系统硬上限）；目录遍历按相对路径逐层打开，不依赖这个值 | [app/main.py](../ray_agent/api/app/main.py) 的 `NOFILE_TARGET` |
 | 外部变更监视 | 通知合并窗口 300 毫秒；监听期间每 2 秒核对文件夹是否仍在原处；每 30 秒兜底重扫一次（规模上限同打开文件夹的扫描）；一次事件最多列 200 个路径，超出改为整体刷新 | `watch_debounce_ms`、`workspace_probe_seconds`、`workspace_rescan_seconds`、`change_paths_per_event` |
 | 外部变更订阅者队列 | 每个订阅者 64 条，写满时合并为一次整体刷新 | [workspace_changes.py](../ray_agent/api/app/application/services/workspace_changes.py) 的 `queue_size` |
@@ -177,6 +178,14 @@
 | 派生缓存 | 64 项或 32 MiB，保留 60 秒；单项 JSON 长度小于 8 MiB 才缓存 | `parser.py` |
 | 表格文字 | CSV 字段解析上限 65536；单元格显示 4096 字符，整窗口显示 1048576 字符 | `worker.py` |
 | 附件 ZIP | 1–100 个文件，实际总量 512 MiB | [file_service.py](../ray_agent/api/app/application/services/file_service.py)、[file_routes.py](../ray_agent/api/app/interfaces/endpoints/file_routes.py) |
+| 静态预览挂载 | 有效 1800 秒；内存最多保留 128 个，超出时淘汰最早的 | [core/config.py](../ray_agent/api/core/config.py) 的 `static_preview_mount_seconds`、`static_preview_mount_capacity`、[static_preview_service.py](../ray_agent/api/app/application/services/static_preview_service.py) |
+| 静态 HTML 下载桥接 | 注入上限 16 MiB；单次 `postMessage` 字节上限 50 MiB | `static_preview_html_inject_bytes`、[server.py](../ray_agent/api/app/infrastructure/external/static_preview/server.py)、[web-preview.tsx](../ray_agent/ui/src/components/preview/web-preview.tsx) |
+| 静态目录 ZIP 导出 | 最多 2000 个文件、未压缩总量 256 MiB | `static_preview_zip_max_files`、`static_preview_zip_max_bytes`、[static_preview_service.py](../ray_agent/api/app/application/services/static_preview_service.py) |
+| 目录列表静态入口探测 | 每个目录列举最多探测前 200 个子目录的 `index.html` / `index.htm` | [posix.py](../ray_agent/api/app/infrastructure/external/workspace_files/posix.py) 的 `_STATIC_ENTRY_PROBE_LIMIT` |
+| 轻量受管服务并发上限 | 同一工作区或独立对话池最多同时运行 2 个；全局最多同时运行 4 个 | `managed_preview_max_per_workspace`、`managed_preview_max_global`、[preview_runtime_service.py](../ray_agent/api/app/application/services/preview_runtime_service.py) |
+| 轻量受管服务启动健康检查 | 启动就绪期限 15 秒；每 0.25 秒轮询一次回环路径 | `managed_preview_start_timeout_seconds`、`managed_preview_health_interval_seconds` |
+| 轻量受管服务停止与尾部日志 | 优雅停止 SIGTERM 宽限 2 秒；失败回传尾部日志最多 4000 字符 | `managed_preview_stop_grace_seconds`、`managed_preview_log_tail_chars` |
+| 轻量受管服务声明字段长度 | 预览名称最多 80 字符；启动命令最多 1000 字符；健康检查路径最多 512 字符 | [workspace_preview.py](../ray_agent/api/app/domain/models/workspace_preview.py) |
 
 预览不按单一文件大小整份禁用。超限时 CSV 可看已取得前缀，其他二进制降级为下载。原文件下载不受预览预算限制。
 

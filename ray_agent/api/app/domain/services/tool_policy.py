@@ -22,6 +22,7 @@ from app.domain.services.tools.web import WebTool
 from app.domain.services.tools.deliver import DeliverTool
 from app.domain.services.tools.file import FileTool
 from app.domain.services.tools.memory import InstructionProposalTool, KnowledgeSearchTool, MemoryTool
+from app.domain.services.tools.preview import PreviewTool
 from app.domain.services.tools.search import SearchTool
 from app.domain.services.tools.shell import ShellTool
 
@@ -64,6 +65,10 @@ def policy_candidates(
         if not agent_id:
             return ["a2a:*"], None, A2A_CALL_TOOL
         return [f"a2a:{agent_id}:{A2A_CALL_TOOL}", f"a2a:{agent_id}:*", "a2a:*"], agent_id, A2A_CALL_TOOL
+    if toolset == "preview" and function_name == "register_preview":
+        if (arguments or {}).get("kind") == "service":
+            return ["register_preview_service", "preview_service:*", function_name, f"{toolset}:*"], None, None
+        return [function_name, f"{toolset}:*"], None, None
     return [function_name, f"{toolset}:*"], None, None
 
 
@@ -71,8 +76,10 @@ def builtin_tool_catalog() -> List[Dict[str, Any]]:
     """设置页可配置的内置工具：工具集与函数名。MCP 与 A2A 的服务和工具由各自的列表接口提供。"""
     from app.domain.services.tools.skill import SkillTool
     toolkits = [SkillTool(None), FileTool(None), ShellTool(None), BrowserTool(None), WebTool(None), SearchTool(None),
-                DeliverTool(None), MemoryTool(None), KnowledgeSearchTool(None), InstructionProposalTool(None)]
+                DeliverTool(None), PreviewTool(None), MemoryTool(None), KnowledgeSearchTool(None),
+                InstructionProposalTool(None)]
     catalog = [{"toolset": t.name, "functions": [s["function"]["name"] for s in t.get_tools()]} for t in toolkits]
+    catalog.append({"toolset": "preview_service", "functions": ["register_preview_service"]})
     catalog.append({"toolset": "mcp", "functions": ["discover_mcp_tools"]})
     catalog.append({"toolset": A2ATool.name, "functions": [
         s["function"]["name"] for s in A2ATool(None).get_tools() if s["function"]["name"] != A2A_CALL_TOOL]})

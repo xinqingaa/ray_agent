@@ -75,7 +75,7 @@ async def open_shell(
         files: FileScope,
         session_id: str,
         run_id: str,
-        on_session=None, before_start=None, on_close=None,
+        on_session=None, before_start=None, on_idle=None, on_close=None,
 ) -> LocalShellBridge:
     existing = _shells.get(run_id)
     if existing is not None and not existing.closed:
@@ -87,7 +87,7 @@ async def open_shell(
         if confirmed:
             _shells.pop(run_id, None)
     shell = LocalShellBridge(executor, files=files, session_id=session_id, run_id=run_id,
-                             on_session=on_session, before_start=before_start, on_close=closed)
+                             on_session=on_session, before_start=before_start, on_idle=on_idle, on_close=closed)
     _shells[run_id] = shell
     return shell
 

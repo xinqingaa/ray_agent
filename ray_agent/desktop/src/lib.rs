@@ -1,5 +1,6 @@
 mod clipboard;
 mod contract;
+mod download;
 mod notify;
 mod platform;
 mod preferences;
@@ -193,6 +194,11 @@ pub fn run() {
             app.manage(PreferenceStore::load(path));
             #[cfg(target_os = "macos")]
             app.set_menu(app_menu(app.handle())?)?;
+            if let Some(window_config) = app.config().app.windows.first() {
+                tauri::WebviewWindowBuilder::from_config(app.handle(), window_config)?
+                    .on_download(download::make_download_handler())
+                    .build()?;
+            }
             watch_signals(app.handle().clone());
             notify::sync_focus(app.handle());
             notify::start(app.handle());
@@ -253,6 +259,7 @@ pub fn run() {
                 for window in app.webview_windows().values() {
                     let _ = window.hide();
                 }
+                download::cleanup_staging_dir();
                 app.state::<CoreHost>().stop();
             }
             _ => {}

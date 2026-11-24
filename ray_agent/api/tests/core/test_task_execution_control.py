@@ -222,9 +222,10 @@ def test_stop_cancels_run_kills_registered_shell_and_late_completion_is_ignored(
 
     async def run():
         started = asyncio.Event()
+        files = FileFixture()
         sandbox = make_shell_sandbox(started)
-        h = make_loop([tool_call("shell_execute", {"session_id": "sh-1", "exec_dir": "/", "command": "sleep 999"},
-                                 id="c-sleep")], sandbox=sandbox, extra_tools=[ShellTool(sandbox)])
+        h = make_loop([tool_call("shell_execute", {"session_id": "sh-1", "exec_dir": str(files.root), "command": "sleep 999"},
+                                 id="c-sleep")], sandbox=sandbox, files=files, extra_tools=[ShellTool(sandbox)])
         service = make_service(h)
         active = await start_run(h, input_task(), "长命令")
         r = make_runner(h, run=active)
@@ -361,4 +362,90 @@ def test_start_failure_is_observed_after_acceptance():
         await pending_starts()[accepted.run_id].worker
         assert h.runs[accepted.run_id].status == RunStatus.FAILED
         assert any(e.type == "error" and "启动运行失败" in e.error for e in h.events)
+    asyncio.run(asyncio.wait_for(run(), 3))
+
+
+def test_resume_input_refreshes_skills_checks_model_and_avoids_duplicate_message():
+    from app.application.errors.exceptions import BadRequestError
+
+    async def run():
+        h = make_loop([])
+        h.session.model_id = "gpt-test"
+        service = make_service(h)
+        service._get_task = AsyncMock(return_value=None)
+        cancelled = []
+
+        class PendingTask:
+            def __init__(self, invoke):
+                self.invoke = invoke
+                self.done = False
+
+            def cancel(self):
+                cancelled.append(True)
+                self.done = True
+                return True
+
+        entered, release = asyncio.Event(), asyncio.Event()
+
+        async def create_before_stop(*_):
+            task = PendingTask(AsyncMock())
+            entered.set()
+            await release.wait()
+            return task
+
+        service._create_task = create_before_stop
+        accepted = await service.chat(h.session.id, "首条待续接消息")
+        worker = pending_starts()[accepted.run_id].worker
+        await entered.wait()
+        stopped = await service.stop_session(h.session.id)
+        assert stopped.status == RunStatus.CANCELLED
+        release.set()
+        await worker
+        assert cancelled and len(h.inputs) == 1 and h.inputs[0].status == "pending"
+        input_id = h.inputs[0].id
+
+        skills_mock = SimpleNamespace(refresh_catalog=AsyncMock())
+        service._skills = skills_mock
+        remember_mock = AsyncMock()
+        bind_mock = AsyncMock()
+        service._remember_model = remember_mock
+        service._bind_sampling = bind_mock
+
+        def fail_connection(model_id):
+            raise BadRequestError("模型连接不可用")
+
+        service._check_model_connection = fail_connection
+        with pytest.raises(BadRequestError):
+            await service.resume_input(h.session.id, input_id)
+        assert skills_mock.refresh_catalog.await_count == 1
+        skills_mock.refresh_catalog.reset_mock()
+        assert len(h.runs) == 1
+        assert h.inputs[0].run_id == accepted.run_id and h.inputs[0].status == "pending"
+
+        checked_models = []
+        service._check_model_connection = lambda model_id: checked_models.append(model_id)
+        created = []
+
+        async def create_on_resume(session, run_id, prior_status, approval=None):
+            created.append((run_id, prior_status))
+            return PendingTask(AsyncMock())
+
+        service._create_task = create_on_resume
+        resumed = await service.resume_input(h.session.id, input_id)
+        await asyncio.gather(*(start.worker for start in pending_starts().values()))
+
+        assert resumed.route == "started" and resumed.run_id != accepted.run_id and resumed.seq == accepted.seq
+        assert checked_models == ["gpt-test"]
+        skills_mock.refresh_catalog.assert_awaited_once_with(
+            workspace_id=h.session.workspace_id,
+            session_id=h.session.id,
+        )
+        remember_mock.assert_awaited_once()
+        bind_mock.assert_awaited_once_with(h.session, creating=False, model_changed=False)
+        assert [e.message for e in h.events if isinstance(e, MessageEvent) and e.role == "user"] == [
+            "首条待续接消息"
+        ]
+        assert h.inputs[0].run_id == resumed.run_id and h.inputs[0].status == "pending"
+        assert created == [(resumed.run_id, SessionStatus.CANCELLED)]
+
     asyncio.run(asyncio.wait_for(run(), 3))

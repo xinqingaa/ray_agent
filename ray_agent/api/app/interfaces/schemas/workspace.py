@@ -137,13 +137,15 @@ class RootEntryView(BaseModel):
     modified_ns: Optional[NanosecondStamp] = Field(
         default=None, description="修改时间的纳秒精确值（十进制字符串）；改名或删除时原样作为版本回传，核对不会因精度损失误判")
     link_target: Optional[str] = Field(default=None, description="符号链接的目标文本；链接不被展开或跟随")
+    static_entry: Optional[str] = Field(default=None, description="目录根下存在静态站点入口（index.html/index.htm）时的入口文件名")
 
     @classmethod
     def of(cls, entry: FileEntry) -> "RootEntryView":
         version = entry.version
         return cls(path=entry.path, name=entry.name, kind=entry.kind, size=version.size if version else None,
                    modified_at=version.modified_ns // 1_000_000 if version else None,
-                   modified_ns=str(version.modified_ns) if version else None, link_target=entry.link_target)
+                   modified_ns=str(version.modified_ns) if version else None, link_target=entry.link_target,
+                   static_entry=entry.static_entry)
 
 
 class RootListing(BaseModel):

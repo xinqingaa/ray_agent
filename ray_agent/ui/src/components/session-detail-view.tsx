@@ -2,7 +2,8 @@ import type {KnowledgeReference, PlanAcceptance, WorkspaceItem} from '@/lib/api/
 
 import {useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ReactNode} from 'react'
 import {toast} from 'sonner'
-import {ArrowDown, ChevronDown, Code2, History, MessageCircle, PanelRight, Pencil} from '@/components/ui/icons'
+import {ArrowDown, ChevronDown, Code2, Download, History, MessageCircle, PanelRight, Pencil} from '@/components/ui/icons'
+import {Button} from '@/components/ui/button'
 import {SegmentedControl} from '@/components/ui/segmented-control'
 import {ChatInput, type ChatInputRef} from '@/components/chat-input'
 import {RenameSessionDialog} from '@/components/rename-session-dialog'
@@ -13,15 +14,17 @@ import {PlanListDialog} from '@/components/run/plan-list-dialog'
 import {UserMessage} from '@/components/run/messages'
 import {RUN_INPUT_HINT, RunStatus} from '@/components/run/run-status'
 import {Timeline, type TimelineHandlers} from '@/components/run/timeline-item'
-import {downloadFileBatch, isWebPage, openPreviewTab} from '@/lib/api/preview'
+import {downloadFileBatch} from '@/lib/api/preview'
+import {managedPreviewsApi, type ManagedPreview} from '@/lib/api/managed-previews'
 import {FilePreviewDialog} from '@/components/preview/file-preview-dialog'
+import {ManagedPreviewList} from '@/components/preview/managed-preview-list'
 import {downloadSessionFile, Workbench} from '@/components/workbench/workbench'
 import {describeWorkspace} from '@/lib/workspace-state'
 import {FolderPanel, type FolderPanelRef, type FolderPanelTab} from '@/components/workspace/folder-panel'
 import {TaskInspector, TaskInspectorTabs, TaskLayout, type TaskInspectorState} from '@/components/task-layout'
 import {TopbarActions, TopbarTitle} from '@/components/sidebar-chrome'
 import {FilePreview} from '@/components/preview/file-preview'
-import {FileRow} from '@/components/preview/file-row'
+import {FileRow, fileMenuEntries} from '@/components/preview/file-row'
 import {RunMemoryNotice} from '@/components/run/run-memory-notice'
 import {useLocation} from 'react-router'
 import {cn} from '@/lib/utils'
@@ -113,8 +116,11 @@ export function SessionDetailView({
     events,
     loading,
     error,
+    refreshing,
+    refreshError,
     refresh,
     sendMessage,
+    resumeInput,
     submitting,
     stop,
     loadTurnRequest,
@@ -152,6 +158,7 @@ export function SessionDetailView({
   const [hiddenRunIds, setHiddenRunIds] = useState<string[]>([])
   const [hiddenUserIds, setHiddenUserIds] = useState<string[]>([])
   const [retrying, setRetrying] = useState<{text: string; knownUserIds: string[]; fromRunId: string} | null>(null)
+  const [continuingRunId, setContinuingRunId] = useState<string | null>(null)
   const [retrySessionId, setRetrySessionId] = useState<string | null>(null)
   const [approvalRequest, setApprovalRequest] = useState<ApprovalSubmitting | null>(null)
   const [localCompacting, setCompacting] = useState(false)
@@ -169,6 +176,8 @@ export function SessionDetailView({
   const [toolbarTarget, setToolbarTarget] = useState<HTMLDivElement | null>(null)
   const [inspectorSource, setInspectorSource] = useState<KnowledgeReference | null>(null)
   const [inspectorFile, setInspectorFile] = useState<FileView | null>(null)
+  const [inspectorPreview, setInspectorPreview] = useState<{previewId: string; initial?: ManagedPreview} | null>(null)
+  const [managedPreviews, setManagedPreviews] = useState<ManagedPreview[]>([])
   const inspectorTrigger = useRef<HTMLButtonElement>(null)
   const folderPanel = useRef<FolderPanelRef>(null)
   const composer = useRef<ChatInputRef>(null)
@@ -308,9 +317,12 @@ export function SessionDetailView({
 
   useEffect(() => {
     setOutgoing(null)
+    setContinuingRunId(null)
     setInspection(null)
     setInspectorFile(null)
     setInspectorSource(null)
+    setInspectorPreview(null)
+    setManagedPreviews([])
     setPreviewedFile(null)
     setRenameOpen(false)
     setPlanHistoryOpen(false)
@@ -530,17 +542,55 @@ export function SessionDetailView({
 
   const previewDelivery = useCallback((file: FileView) => {
     setInspectorSource(null)
+    setInspectorPreview(null)
     folderPanel.current?.closePreview()
     setPanelView('delivered')
     setWorkbenchOpen(true)
-    if (isWebPage(file.filename)) {
-      setInspectorFile(null)
-      void openPreviewTab({kind: 'attachment', id: file.id, filename: file.filename, size: file.size})
-        .catch(error => toast.error(error instanceof Error ? error.message : '打开失败'))
-      return
-    }
     setInspectorFile(file)
   }, [setWorkbenchOpen])
+
+  const previewEventsCount = useMemo(
+    () => events.filter(event => event.type === 'preview').length,
+    [events],
+  )
+  useEffect(() => {
+    let cancelled = false
+    void managedPreviewsApi.list({sessionId})
+      .then(list => {
+        if (!cancelled) setManagedPreviews(list)
+      })
+      .catch(() => {})
+    return () => {
+      cancelled = true
+    }
+  }, [sessionId, previewEventsCount])
+
+  const upsertManagedPreview = useCallback((next: ManagedPreview) => {
+    setManagedPreviews(current => {
+      const idx = current.findIndex(item => item.id === next.id)
+      if (idx < 0) return [next, ...current]
+      const updated = current.slice()
+      updated[idx] = next
+      return updated
+    })
+  }, [])
+
+  const removeManagedPreview = useCallback((previewId: string) => {
+    setManagedPreviews(current => current.filter(item => item.id !== previewId))
+    setInspectorPreview(current => (current?.previewId === previewId ? null : current))
+  }, [])
+
+  const refreshAll = useCallback(async () => {
+    await Promise.all([
+      refresh(),
+      managedPreviewsApi.list({sessionId}).then(setManagedPreviews).catch(() => {}),
+    ])
+  }, [refresh, sessionId])
+
+  const managedPreviewMap = useMemo(
+    () => new Map(managedPreviews.map(item => [item.id, item])),
+    [managedPreviews],
+  )
 
   useEffect(() => {
     const fileId = new URLSearchParams(search).get('delivery')
@@ -560,6 +610,13 @@ export function SessionDetailView({
     finally {packingFiles.current=false}
   }, [])
 
+  const workspaceState = workspace ? describeWorkspace(workspace) : null
+  const readOnlyReason = workspaceState?.deleting ? '工作区正在删除，对话不可再发送。' : workspaceState?.archived ? '工作区已归档，对话为只读。取消归档后可以继续。' : null
+  const findUnconsumedInput = useCallback(
+    (runId: string) => (session?.unconsumed_inputs ?? []).find((item) => item.run_id === runId) ?? null,
+    [session?.unconsumed_inputs]
+  )
+
   const handlers = useMemo<TimelineHandlers>(() => ({
     sessionId: view?.id,
     // 引用与填回都追加到输入框已有文字之后，不覆盖用户正在写的内容
@@ -572,6 +629,7 @@ export function SessionDetailView({
       setPanelView('workbench')
       setInspectorFile(null)
       setInspectorSource(null)
+      setInspectorPreview(null)
       folderPanel.current?.closePreview()
       setWorkbenchOpen(true)
     },
@@ -583,8 +641,16 @@ export function SessionDetailView({
     } : undefined,
     onPreviewFile: (file) => {
       if (file.source === 'delivery') previewDelivery(file)
-      else if (isWebPage(file.filename)) void openPreviewTab({kind: 'attachment', id: file.id, filename: file.filename, size: file.size}).catch(error => toast.error(error instanceof Error ? error.message : '打开失败'))
       else setPreviewedFile(file)
+    },
+    managedPreviews: managedPreviewMap,
+    onOpenPreview: (previewId) => {
+      setInspectorSource(null)
+      setInspectorFile(null)
+      folderPanel.current?.closePreview()
+      setPanelView('delivered')
+      setWorkbenchOpen(true)
+      setInspectorPreview({previewId, initial: managedPreviewMap.get(previewId)})
     },
     onDownloadFile: (file) => {
       void downloadOne(file)
@@ -597,6 +663,30 @@ export function SessionDetailView({
       const latest = [...(view?.timeline ?? [])].reverse().find((item) => item.kind === 'run_end' && item.status === 'failed' && item.retryText && item.runId)
       return latest?.runId && !hiddenRunIds.includes(latest.runId) ? latest.runId : ''
     })(),
+    continueRunId: (() => {
+      if (view?.activeRun || readOnlyReason) return ''
+      const latestEnd = [...(view?.timeline ?? [])]
+        .reverse()
+        .find((item) => item.kind === 'run_end' && item.runId && !hiddenRunIds.includes(item.runId))
+      if (!latestEnd || latestEnd.kind !== 'run_end' || !latestEnd.runId) return ''
+      const targetRun = view?.runs.find((item) => item.id === latestEnd.runId)
+      const lastRun = view?.runs[view.runs.length - 1]
+      if (!targetRun || !lastRun || targetRun.id !== lastRun.id) return ''
+      if (latestEnd.status === 'cancelled' || latestEnd.status === 'interrupted') return latestEnd.runId
+      if (
+        latestEnd.status === 'failed' &&
+        (!!findUnconsumedInput(latestEnd.runId) ||
+          acceptedPlans.has(latestEnd.runId) ||
+          (targetRun.summary?.toolCalls ?? 0) > 0 ||
+          (targetRun.summary?.turns ?? 0) > 0 ||
+          view?.plan?.sourceRunId === latestEnd.runId)
+      ) {
+        return latestEnd.runId
+      }
+      return ''
+    })(),
+    continuingRunId,
+    hasUnconsumedInput: (runId) => !!findUnconsumedInput(runId),
     consumedPlanRuns: acceptedPlans,
     planAction: runId => {
       const id = acceptedPlans.get(runId)
@@ -604,7 +694,34 @@ export function SessionDetailView({
       return plan ? <PlanListDialog plans={[plan]} runs={view?.runs ?? []} triggerLabel="查看计划清单"/> : null
     },
     hasPriorTools: runId => (view?.runs.find(item => item.id === runId)?.summary?.toolCalls ?? 0) > 0,
-    onRetry: view?.activeRun || submitting || retrying ? undefined : (text, runId) => {
+    onContinue: view?.activeRun || submitting || retrying || continuingRunId || readOnlyReason
+      ? undefined
+      : (runId) => {
+          const unconsumed = findUnconsumedInput(runId)
+          if (unconsumed) {
+            setContinuingRunId(runId)
+            void resumeInput(unconsumed.input_id)
+              .catch((err: unknown) => {
+                toast.error(err instanceof Error ? err.message : '继续任务失败')
+              })
+              .finally(() => {
+                setContinuingRunId((current) => (current === runId ? null : current))
+              })
+            return
+          }
+          const targetRun = view?.runs.find((item) => item.id === runId)
+          const mode = targetRun?.mode === 'plan' && !acceptedPlans.has(runId) ? 'plan' : 'normal'
+          setContinuingRunId(runId)
+          void deliver('继续', [], {mode})
+            .catch((err: unknown) => {
+              if (err instanceof UncertainSubmissionError) return
+              toast.error(err instanceof Error ? err.message : '继续任务失败')
+            })
+            .finally(() => {
+              setContinuingRunId((current) => (current === runId ? null : current))
+            })
+        },
+    onRetry: view?.activeRun || submitting || retrying || continuingRunId ? undefined : (text, runId) => {
       if (acceptedPlans.has(runId)) return
       const items = view?.timeline ?? []
       const source = items.find(item => item.kind === 'user' && item.runId === runId)
@@ -656,6 +773,7 @@ export function SessionDetailView({
     onOpenSource: workspace ? reference => {
       folderPanel.current?.closePreview()
       setInspectorFile(null)
+      setInspectorPreview(null)
       setInspectorSource(reference)
       setPanelView('workbench')
       setWorkbenchOpen(true)
@@ -673,7 +791,7 @@ export function SessionDetailView({
         : null
     },
     renderRunActions: runId => !view?.activeRun && runId === run?.id ? renderRunActions?.(runId) : null,
-  }), [view?.id, view?.runs, view?.timeline, view?.events, focus?.callId, view?.activeRun, view?.streamingItemId, submitting, retrying, hiddenRunIds, hiddenUserIds, sessionId, workspace, sourceRefresh, downloadOne, downloadAll, deliver, previewDelivery, acceptedPlans, view?.planHistory, handleApproval, approvalSubmitting, finishedSequences, latestCompletedId, setWorkbenchOpen, run?.id, renderRunActions, visibility.developerView])
+  }), [view?.id, view?.runs, view?.timeline, view?.events, view?.plan?.sourceRunId, focus?.callId, view?.activeRun, view?.streamingItemId, submitting, retrying, continuingRunId, hiddenRunIds, hiddenUserIds, sessionId, workspace, readOnlyReason, sourceRefresh, downloadOne, downloadAll, deliver, resumeInput, findUnconsumedInput, previewDelivery, acceptedPlans, view?.planHistory, handleApproval, approvalSubmitting, finishedSequences, latestCompletedId, setWorkbenchOpen, run?.id, renderRunActions, visibility.developerView, managedPreviewMap])
 
   const toggleParticipate = useCallback(async (participate: boolean) => {
     if (!workspace || participationRequest.current) return
@@ -766,37 +884,73 @@ export function SessionDetailView({
   const planHistory = view?.planHistory ?? []
   const files = view?.files ?? []
   const deliveries = view?.files.filter(file => file.source === 'delivery')
+  const askAgentFix = !readOnlyReason ? (prompt: string) => {
+    appendComposerText(composer.current, prompt)
+  } : undefined
   const panel = <div className="flex h-full min-h-0 flex-col">
     <TaskInspectorTabs value={panelView} workspace={workspace != null} onActions={setToolbarTarget}
-      onChange={next => {setInspectorSource(null); setInspectorFile(null); folderPanel.current?.closePreview(); setPanelView(next)}}
+      onChange={next => {setInspectorSource(null); setInspectorFile(null); setInspectorPreview(null); folderPanel.current?.closePreview(); setPanelView(next)}}
       onClose={inspectorFloating ? () => {setWorkbenchOpen(false); inspectorTrigger.current?.focus()} : undefined}/>
-    {workspace && <div className={cn('min-h-0 flex-1', (panelView === 'workbench' || inspectorFile) && 'hidden')}>
+    {workspace && <div className={cn('min-h-0 flex-1', (panelView === 'workbench' || inspectorFile || inspectorPreview) && 'hidden')}>
       <FolderPanel ref={folderPanel} workspace={workspace} embedded selectedTab={panelView === 'workbench' ? 'folder' : panelView}
-        toolbarTarget={inspectorFile ? null : toolbarTarget} readPaths={readPaths} visible={workbenchOpen && panelView !== 'workbench' && !inspectorFile}
-        deliveries={deliveries} onOpenDelivery={previewDelivery} className="h-full w-full"/>
+        toolbarTarget={inspectorFile || inspectorPreview ? null : toolbarTarget} readPaths={readPaths} visible={workbenchOpen && panelView !== 'workbench' && !inspectorFile && !inspectorPreview}
+        deliveries={deliveries}
+        previews={managedPreviews}
+        onOpenManagedPreview={item => setInspectorPreview({previewId: item.id, initial: item})}
+        onPreviewUpdated={upsertManagedPreview}
+        onPreviewDeleted={removeManagedPreview}
+        onAskAgentFix={askAgentFix}
+        deliveryStatus={{loading: false, refreshing, error: refreshError, retry: () => void refreshAll()}}
+        onOpenDelivery={previewDelivery} className="h-full w-full"/>
     </div>}
-    {!workspace && panelView === 'delivered' && !inspectorFile && <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-3">
-      {deliveries?.length ? <>
-        <h2 className="px-1.5 py-1.5 text-xs font-medium text-faint">本次交付</h2>
-        {deliveries.map(file => <FileRow key={file.id} file={file} versionLabel="交付版本" onOpen={() => handlers.onPreviewFile?.(file)}/>)}
-      </> : <p className="py-8 text-center text-meta text-muted-foreground">这个对话还没有交付文件。</p>}
+    {!workspace && panelView === 'delivered' && !inspectorFile && !inspectorPreview && <div className="min-h-0 flex-1 overflow-y-auto px-3 pb-3">
+      {refreshError && (Boolean(deliveries?.length) || managedPreviews.length > 0) && <div role="alert" className="mb-2 flex items-center gap-2 rounded-lg border border-state-failed/30 bg-state-failed-soft px-2.5 py-2 text-xs text-state-failed">
+        <span className="min-w-0 flex-1 wrap-anywhere">{refreshError}</span>
+        <Button size="xs" variant="ghost" disabled={refreshing} onClick={() => void refreshAll()}>重试</Button>
+      </div>}
+      <ManagedPreviewList
+        previews={managedPreviews}
+        onOpen={item => setInspectorPreview({previewId: item.id, initial: item})}
+        onUpdated={upsertManagedPreview}
+        onDeleted={removeManagedPreview}
+      />
+      {refreshError && !deliveries?.length && managedPreviews.length === 0 ? <div className="space-y-1 px-2 py-6 text-center">
+        <p role="alert" className="text-meta text-state-failed">{refreshError}</p>
+        <Button size="xs" variant="ghost" disabled={refreshing} onClick={() => void refreshAll()}>重试</Button>
+      </div> : deliveries?.length ? <>
+        <h2 className="flex items-center justify-between px-1.5 py-1.5 text-xs font-medium text-faint">
+          <span>本次交付</span>
+          {refreshing && <span role="status">正在刷新…</span>}
+        </h2>
+        {deliveries.map(file => <FileRow key={file.id} file={file} versionLabel="交付版本"
+          menu={fileMenuEntries(file, {onPreview: f => handlers.onPreviewFile?.(f), onDownload: f => void downloadOne(f)})}
+          actions={<IconAction label={`下载 ${file.filename}`} onClick={() => void downloadOne(file)}><Download className="size-4" aria-hidden/></IconAction>}
+          onOpen={() => handlers.onPreviewFile?.(file)}/>)}
+      </> : managedPreviews.length === 0 ? <p className="py-8 text-center text-meta text-muted-foreground">这个对话还没有交付文件。</p> : null}
     </div>}
     {inspectorSource && workspace && workbenchOpen && <div className="min-h-0 flex-1 overflow-y-auto p-3">
       <KnowledgeSource key={referenceKey(inspectorSource)} workspaceId={workspace.id} reference={inspectorSource}
         showOriginal refresh={sourceRefresh} onBack={() => setInspectorSource(null)}/>
     </div>}
-    {inspectorFile && <div className="min-h-0 flex-1">
+    {inspectorPreview && <div className="min-h-0 flex-1">
+      <FilePreview
+        source={{kind: 'managed', previewId: inspectorPreview.previewId, initial: inspectorPreview.initial}}
+        onBack={() => setInspectorPreview(null)}
+        onPreviewChange={upsertManagedPreview}
+        onPreviewDeleted={removeManagedPreview}
+        onAskAgentFix={askAgentFix}
+      />
+    </div>}
+    {inspectorFile && !inspectorPreview && <div className="min-h-0 flex-1">
       <FilePreview source={{kind: 'attachment', id: inspectorFile.id, filename: inspectorFile.filename, size: inspectorFile.size}}
         onBack={() => setInspectorFile(null)}/>
     </div>}
-    <div className={cn('min-h-0 flex-1', (panelView !== 'workbench' || inspectorFile || inspectorSource) && 'hidden')}>
+    <div className={cn('min-h-0 flex-1', (panelView !== 'workbench' || inspectorFile || inspectorPreview || inspectorSource) && 'hidden')}>
       <Workbench key={inspection?.request ?? 0} focus={focus} files={files}
         canFollowLatest={!!latest && (!inspection || !!pin && latest.callId !== pin.callId)}
         onFollowLatest={() => setInspection(current => ({callId: null, request: (current?.request ?? 0) + 1}))}/>
     </div>
   </div>
-  const workspaceState = workspace ? describeWorkspace(workspace) : null
-  const readOnlyReason = workspaceState?.deleting ? '工作区正在删除，对话不可再发送。' : workspaceState?.archived ? '工作区已归档，对话为只读。取消归档后可以继续。' : null
   const panelName = workspace ? '右侧面板' : visibility.developerView ? '工作台' : '查看面板'
 
   return (
@@ -853,6 +1007,7 @@ export function SessionDetailView({
           folderPanel.current?.addFiles(files, directory)
           setInspectorFile(null)
           setInspectorSource(null)
+          setInspectorPreview(null)
           setPanelView('folder')
           setWorkbenchOpen(true)
         }}
@@ -910,7 +1065,8 @@ export function SessionDetailView({
                     }}><ArrowDown className="size-4" aria-hidden/></IconAction>
                   </div>}
                   <div className="mx-auto w-full max-w-(--reading-column)">
-                    {view && mode === 'conversation' && planBarState && <PlanBar plan={view.plan} runStatus={view.activeRun?.status ?? null}
+                    {view && mode === 'conversation' && planBarState && <PlanBar plan={view.plan}
+                      runStatus={view.activeRun?.status ?? (planBarState === 'ended' ? (view.runs.at(-1)?.status ?? null) : null)}
                       proposal={planBarState === 'proposal'} className="mb-2"
                       onOpenHistory={planHistory.length > 0 ? trigger => {
                         planHistoryTrigger.current = trigger

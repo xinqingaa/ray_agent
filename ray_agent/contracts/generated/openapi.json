@@ -1250,6 +1250,604 @@
         }
       }
     },
+    "/api/previews/static/mounts": {
+      "post": {
+        "tags": [
+          "静态预览"
+        ],
+        "summary": "创建独立静态预览挂载",
+        "description": "为单 HTML 附件、工作区/会话 HTML 文件或静态目录签发短期只读挂载地址",
+        "operationId": "create_static_mount_api_previews_static_mounts_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/StaticPreviewMountRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_StaticPreviewMount_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/previews/static/mounts/{mount_token}": {
+      "delete": {
+        "tags": [
+          "静态预览"
+        ],
+        "summary": "撤销静态预览挂载",
+        "operationId": "delete_static_mount_api_previews_static_mounts__mount_token__delete",
+        "parameters": [
+          {
+            "name": "mount_token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Mount Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_StaticPreviewDeleteResult_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/previews/static/mounts/{mount_token}/export.zip": {
+      "head": {
+        "tags": [
+          "静态预览"
+        ],
+        "summary": "核对静态目录 ZIP 导出是否可用",
+        "operationId": "export_static_mount_zip_api_previews_static_mounts__mount_token__export_zip_head",
+        "parameters": [
+          {
+            "name": "mount_token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Mount Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "静态预览"
+        ],
+        "summary": "将静态目录预览打包导出为 ZIP",
+        "operationId": "export_static_mount_zip_api_previews_static_mounts__mount_token__export_zip_get",
+        "parameters": [
+          {
+            "name": "mount_token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Mount Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/previews": {
+      "get": {
+        "tags": [
+          "项目预览"
+        ],
+        "summary": "获取已登记的项目预览列表",
+        "operationId": "list_managed_previews_api_previews_get",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/WorkspaceId"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Workspace Id"
+            }
+          },
+          {
+            "name": "session_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/SessionId"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Session Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_ManagedPreviewListResponse_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/previews/{preview_id}": {
+      "get": {
+        "tags": [
+          "项目预览"
+        ],
+        "summary": "获取单个项目预览详情与当前运行状态",
+        "operationId": "get_managed_preview_api_previews__preview_id__get",
+        "parameters": [
+          {
+            "name": "preview_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+              "description": "应用内项目预览身份",
+              "title": "Preview Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_ManagedPreviewView_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "项目预览"
+        ],
+        "summary": "停止并移除项目预览登记",
+        "operationId": "delete_managed_preview_api_previews__preview_id__delete",
+        "parameters": [
+          {
+            "name": "preview_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+              "description": "应用内项目预览身份",
+              "title": "Preview Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_ManagedPreviewDeleteResponse_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/previews/{preview_id}/start": {
+      "post": {
+        "tags": [
+          "项目预览"
+        ],
+        "summary": "启动轻量预览服务",
+        "operationId": "start_managed_preview_api_previews__preview_id__start_post",
+        "parameters": [
+          {
+            "name": "preview_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+              "description": "应用内项目预览身份",
+              "title": "Preview Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_ManagedPreviewView_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/previews/{preview_id}/stop": {
+      "post": {
+        "tags": [
+          "项目预览"
+        ],
+        "summary": "停止轻量预览服务",
+        "operationId": "stop_managed_preview_api_previews__preview_id__stop_post",
+        "parameters": [
+          {
+            "name": "preview_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+              "description": "应用内项目预览身份",
+              "title": "Preview Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_ManagedPreviewView_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/previews/{preview_id}/restart": {
+      "post": {
+        "tags": [
+          "项目预览"
+        ],
+        "summary": "重启轻量预览服务",
+        "operationId": "restart_managed_preview_api_previews__preview_id__restart_post",
+        "parameters": [
+          {
+            "name": "preview_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+              "description": "应用内项目预览身份",
+              "title": "Preview Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_ManagedPreviewView_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/previews/{preview_id}/logs": {
+      "get": {
+        "tags": [
+          "项目预览"
+        ],
+        "summary": "读取轻量预览服务增量日志",
+        "operationId": "get_managed_preview_logs_api_previews__preview_id__logs_get",
+        "parameters": [
+          {
+            "name": "preview_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+              "description": "应用内项目预览身份",
+              "title": "Preview Id"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_ManagedPreviewLogsResponse_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/previews/{preview_id}/export.zip": {
+      "head": {
+        "tags": [
+          "项目预览"
+        ],
+        "summary": "核对项目目录 ZIP 导出是否可用",
+        "operationId": "export_managed_preview_zip_api_previews__preview_id__export_zip_head",
+        "parameters": [
+          {
+            "name": "preview_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+              "description": "应用内项目预览身份",
+              "title": "Preview Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "项目预览"
+        ],
+        "summary": "将已登记预览项目目录打包导出为 ZIP",
+        "operationId": "export_managed_preview_zip_api_previews__preview_id__export_zip_get",
+        "parameters": [
+          {
+            "name": "preview_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+              "description": "应用内项目预览身份",
+              "title": "Preview Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/sessions/{session_id}/runs/{run_id}/shell-changes": {
       "get": {
         "tags": [
@@ -13509,6 +14107,247 @@
         ],
         "title": "MCPTransport"
       },
+      "ManagedPreviewDeleteResponse": {
+        "properties": {
+          "deleted": {
+            "type": "boolean",
+            "title": "Deleted",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "deleted"
+        ],
+        "title": "ManagedPreviewDeleteResponse"
+      },
+      "ManagedPreviewListResponse": {
+        "properties": {
+          "previews": {
+            "items": {
+              "$ref": "#/components/schemas/ManagedPreviewView"
+            },
+            "type": "array",
+            "title": "Previews"
+          }
+        },
+        "type": "object",
+        "required": [
+          "previews"
+        ],
+        "title": "ManagedPreviewListResponse"
+      },
+      "ManagedPreviewLogsResponse": {
+        "properties": {
+          "preview_id": {
+            "$ref": "#/components/schemas/PreviewId"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "ready",
+              "stopped",
+              "starting",
+              "running",
+              "failed"
+            ],
+            "title": "State"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "next_offset": {
+            "type": "integer",
+            "minimum": 0.0,
+            "title": "Next Offset"
+          },
+          "truncated": {
+            "type": "boolean",
+            "title": "Truncated",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "preview_id",
+          "state",
+          "text",
+          "next_offset",
+          "truncated"
+        ],
+        "title": "ManagedPreviewLogsResponse"
+      },
+      "ManagedPreviewView": {
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/PreviewId"
+          },
+          "workspace_id": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/WorkspaceId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "session_id": {
+            "$ref": "#/components/schemas/SessionId"
+          },
+          "run_id": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RunId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "static",
+              "service"
+            ],
+            "title": "Kind"
+          },
+          "root_id": {
+            "$ref": "#/components/schemas/RootId"
+          },
+          "relative_path": {
+            "$ref": "#/components/schemas/RelativePath",
+            "default": ""
+          },
+          "entry_path": {
+            "$ref": "#/components/schemas/RelativePath",
+            "default": ""
+          },
+          "start_command": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Start Command"
+          },
+          "health_path": {
+            "type": "string",
+            "title": "Health Path",
+            "default": "/"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "ready",
+              "stopped",
+              "starting",
+              "running",
+              "failed"
+            ],
+            "title": "State"
+          },
+          "port": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Port"
+          },
+          "preview_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Preview Url"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "exit_code": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exit Code"
+          },
+          "started_at": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Started At",
+            "description": "最近启动时间（毫秒时间戳）"
+          },
+          "created_at": {
+            "type": "integer",
+            "title": "Created At",
+            "description": "创建时间（毫秒时间戳）"
+          },
+          "updated_at": {
+            "type": "integer",
+            "title": "Updated At",
+            "description": "更新时间（毫秒时间戳）"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "workspace_id",
+          "session_id",
+          "run_id",
+          "name",
+          "kind",
+          "root_id",
+          "relative_path",
+          "entry_path",
+          "start_command",
+          "health_path",
+          "state",
+          "port",
+          "preview_url",
+          "error",
+          "exit_code",
+          "started_at",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "ManagedPreviewView",
+        "description": "项目预览卡片与控制视图。"
+      },
       "MarkerConflict": {
         "properties": {
           "conflict_id": {
@@ -15327,6 +16166,142 @@
         "type": "object",
         "title": "PreferencesUpdate"
       },
+      "PreviewEventData": {
+        "properties": {
+          "event_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Id"
+          },
+          "seq": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seq"
+          },
+          "run_id": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RunId"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "created_at": {
+            "type": "integer",
+            "title": "Created At",
+            "default": 0
+          },
+          "event_version": {
+            "$ref": "#/components/schemas/EventVersion",
+            "default": 1
+          },
+          "preview_id": {
+            "type": "string",
+            "title": "Preview Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "static",
+              "service"
+            ],
+            "title": "Kind",
+            "default": "static"
+          },
+          "root_id": {
+            "type": "string",
+            "title": "Root Id"
+          },
+          "relative_path": {
+            "type": "string",
+            "title": "Relative Path",
+            "default": ""
+          },
+          "entry_path": {
+            "type": "string",
+            "title": "Entry Path",
+            "default": ""
+          },
+          "workspace_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Workspace Id"
+          },
+          "note": {
+            "type": "string",
+            "title": "Note",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "event_id",
+          "seq",
+          "run_id",
+          "created_at",
+          "event_version",
+          "preview_id",
+          "name",
+          "kind",
+          "root_id",
+          "relative_path",
+          "entry_path",
+          "workspace_id",
+          "note"
+        ],
+        "title": "PreviewEventData",
+        "description": "项目预览登记事件数据。"
+      },
+      "PreviewId": {
+        "type": "string",
+        "maxLength": 128,
+        "minLength": 1,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
+        "description": "应用内项目预览身份"
+      },
+      "PreviewSSEEvent": {
+        "properties": {
+          "event": {
+            "type": "string",
+            "const": "preview",
+            "title": "Event",
+            "default": "preview"
+          },
+          "data": {
+            "$ref": "#/components/schemas/PreviewEventData"
+          }
+        },
+        "type": "object",
+        "required": [
+          "event",
+          "data"
+        ],
+        "title": "PreviewSSEEvent"
+      },
       "ProbedModel": {
         "properties": {
           "id": {
@@ -16682,6 +17657,82 @@
         ],
         "title": "Response[ListSessionResponse]"
       },
+      "Response_ManagedPreviewDeleteResponse_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ManagedPreviewDeleteResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "Response[ManagedPreviewDeleteResponse]"
+      },
+      "Response_ManagedPreviewListResponse_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ManagedPreviewListResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "Response[ManagedPreviewListResponse]"
+      },
+      "Response_ManagedPreviewLogsResponse_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ManagedPreviewLogsResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "Response[ManagedPreviewLogsResponse]"
+      },
+      "Response_ManagedPreviewView_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ManagedPreviewView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "Response[ManagedPreviewView]"
+      },
       "Response_MarketCatalog_": {
         "properties": {
           "data": {
@@ -17080,6 +18131,44 @@
           "data"
         ],
         "title": "Response[ShellChangesResponse]"
+      },
+      "Response_StaticPreviewDeleteResult_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StaticPreviewDeleteResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "Response[StaticPreviewDeleteResult]"
+      },
+      "Response_StaticPreviewMount_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/StaticPreviewMount"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "Response[StaticPreviewMount]"
       },
       "Response_TemplateListResponse_": {
         "properties": {
@@ -17660,6 +18749,18 @@
             ],
             "title": "Link Target",
             "description": "符号链接的目标文本；链接不被展开或跟随"
+          },
+          "static_entry": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Static Entry",
+            "description": "目录根下存在静态站点入口（index.html/index.htm）时的入口文件名"
           }
         },
         "type": "object",
@@ -17670,7 +18771,8 @@
           "size",
           "modified_at",
           "modified_ns",
-          "link_target"
+          "link_target",
+          "static_entry"
         ],
         "title": "RootEntryView"
       },
@@ -18541,6 +19643,9 @@
           },
           {
             "$ref": "#/components/schemas/ApprovalSSEEvent"
+          },
+          {
+            "$ref": "#/components/schemas/PreviewSSEEvent"
           }
         ],
         "discriminator": {
@@ -18556,6 +19661,7 @@
             "error": "#/components/schemas/ErrorSSEEvent",
             "message": "#/components/schemas/MessageSSEEvent",
             "plan": "#/components/schemas/PlanSSEEvent",
+            "preview": "#/components/schemas/PreviewSSEEvent",
             "run": "#/components/schemas/RunSSEEvent",
             "step": "#/components/schemas/StepSSEEvent",
             "title": "#/components/schemas/TitleSSEEvent",
@@ -18791,6 +19897,137 @@
           "expected_version"
         ],
         "title": "StateRequest"
+      },
+      "StaticPreviewDeleteResult": {
+        "properties": {
+          "deleted": {
+            "type": "boolean",
+            "title": "Deleted",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "deleted"
+        ],
+        "title": "StaticPreviewDeleteResult"
+      },
+      "StaticPreviewMount": {
+        "properties": {
+          "mount_token": {
+            "type": "string",
+            "title": "Mount Token"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "attachment",
+              "root_file",
+              "root_dir"
+            ],
+            "title": "Kind"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "entry_path": {
+            "type": "string",
+            "title": "Entry Path"
+          },
+          "preview_url": {
+            "type": "string",
+            "title": "Preview Url"
+          },
+          "origin": {
+            "type": "string",
+            "title": "Origin"
+          },
+          "expires_at": {
+            "type": "integer",
+            "title": "Expires At",
+            "description": "挂载到期时间（毫秒时间戳）"
+          },
+          "export_zip_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Export Zip Path",
+            "description": "仅 root_dir 提供：打包导出 ZIP 的 API 相对路径"
+          }
+        },
+        "type": "object",
+        "required": [
+          "mount_token",
+          "kind",
+          "title",
+          "entry_path",
+          "preview_url",
+          "origin",
+          "expires_at",
+          "export_zip_path"
+        ],
+        "title": "StaticPreviewMount",
+        "description": "已签发的静态预览挂载。"
+      },
+      "StaticPreviewMountRequest": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "enum": [
+              "attachment",
+              "root_file",
+              "root_dir"
+            ],
+            "title": "Kind"
+          },
+          "file_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 128,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File Id",
+            "description": "attachment 来源的附件 ID"
+          },
+          "root_id": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RootId"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "root_file 或 root_dir 来源的根 ID"
+          },
+          "relative_path": {
+            "$ref": "#/components/schemas/RelativePath",
+            "description": "根内相对路径；root_dir 为空串时表示根目录",
+            "default": ""
+          },
+          "entry_path": {
+            "$ref": "#/components/schemas/RelativePath",
+            "description": "root_dir 的入口相对路径，省略时默认 index.html",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind"
+        ],
+        "title": "StaticPreviewMountRequest",
+        "description": "创建独立静态预览挂载：支持附件 HTML、工作区/会话单 HTML 文件或静态目录。"
       },
       "StepEventData": {
         "properties": {

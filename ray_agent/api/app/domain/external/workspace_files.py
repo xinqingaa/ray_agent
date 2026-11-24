@@ -34,6 +34,7 @@ class FileEntry(BaseModel):
     version: FileVersion | None = None  # 普通文件才有
     link_target: str | None = None  # 符号链接的目标文本
     inode: int | None = None  # 同一文件被替换成另一个文件时变化，参与预览缓存的版本判断
+    static_entry: str | None = None  # 目录根下存在静态入口（index.html/index.htm）时的入口文件名
 
 
 class DirectoryListing(BaseModel):

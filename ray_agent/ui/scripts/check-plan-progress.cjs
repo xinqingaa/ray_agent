@@ -66,7 +66,37 @@ const done = (over) => ({id: 'r', status: 'completed', mode: 'normal', startedAt
 assert.equal(barMode({activeRun: active('r'), runs: [active('r')]}), 'live');
 assert.equal(barMode({activeRun: active('r2'), runs: [done(), active('r2')]}), null, '新运行尚未写计划时不沿用上一次的清单');
 assert.equal(barMode({runs: [done()]}), null, '普通模式运行结束后不显示');
-assert.equal(barMode({runs: [done({status: 'cancelled'})]}), null, '停止后不显示');
+assert.equal(barMode({runs: [done({status: 'cancelled'})]}), null, '全部完成即使停止也不显示');
+for (const status of ['cancelled', 'interrupted', 'failed']) {
+  const endedPlan = {
+    ...view.plan,
+    sourceRunId: 'r',
+    items: [
+      {id: 'a', text: '步骤一', kind: 'stage', status: 'completed', parentId: null, schedule: 'current', reason: null},
+      {id: 'b', text: '步骤二', kind: 'stage', status: 'in_progress', parentId: null, schedule: 'current', reason: null},
+    ],
+  };
+  assert.equal(barMode({runs: [done({status})], plan: endedPlan}), 'ended', `${status} 有未完成步骤保留 ended 计划条`);
+  assert.equal(barMode({runs: [done({id: 'other', status})], plan: endedPlan}), null, '非本轮计划不保留');
+  const missingArtifactPlan = {
+    ...view.plan,
+    sourceRunId: 'r',
+    items: [{id: 'a', text: '步骤一', kind: 'stage', status: 'completed', parentId: null, schedule: 'current', reason: null}],
+    artifacts: [{id: 'f1', name: '报告', delivery: 'file', required: true, schedule: 'current', state: 'pending'}],
+  };
+  assert.equal(barMode({runs: [done({status})], plan: missingArtifactPlan}), 'ended', `${status} 仍有待交付本轮文件保留 ended`);
+  assert.equal(barMode({
+    runs: [done({status})],
+    plan: {...missingArtifactPlan, artifacts: [{...missingArtifactPlan.artifacts[0], state: 'delivered'}]},
+  }), null, '步骤与必需文件都完成时不显示 ended');
+}
+for (const status of ['cancelled', 'failed']) {
+  const endedPreparingHtml = markup(PlanBar, {
+    plan: {...view.plan, progressState: 'preparing', items: [{id: 's', text: '继续生成', kind: 'stage', status: 'pending', parentId: null, schedule: 'current', reason: null}]},
+    runStatus: status,
+  });
+  assert.doesNotMatch(endedPreparingHtml, /准备执行|正在承接已确认范围/, `${status} 结束时不再显示准备执行`);
+}
 assert.equal(barMode({activeRun: null, plan: null, runs: [done()]}), null);
 const proposalView = projectSession({id: 'p', events: [ev(1, 'run', {status: 'running', mode: 'plan'}),
   ev(2, 'plan', {plan_id: 'q', steps: [{id: 'a', description: '分析', status: 'pending'}, {id: 'b', description: '方案', status: 'pending'}]}),
@@ -80,6 +110,30 @@ assert.match(markup(PlanBar, {plan: proposalView.plan, proposal: true, execute: 
 html = markup(RunEndBar, {status: 'cancelled', reasonText: '已停止生成'});
 assert.equal((html.match(/已停止生成/g) || []).length, 1);
 assert.doesNotMatch(html, /沙箱|你停止了|新的运行/); assert.match(html, /接着处理/);
+assert.doesNotMatch(markup(RunEndBar, {status: 'failed', reasonText: '请求失败'}), /沙箱中/);
+for (const status of ['cancelled', 'interrupted', 'failed']) {
+  const endWithContinue = markup(RunEndBar, {status, reasonText: '已结束', onContinue() {}});
+  assert.match(endWithContinue, />继续任务</, `${status} 传入 onContinue 显示继续任务`);
+}
+const planConsumedHtml = markup(RunEndBar, {
+  status: 'failed',
+  reasonText: '中断',
+  planConsumed: true,
+  planAction: React.createElement('button', {type: 'button'}, '查看计划清单'),
+  onContinue() {},
+});
+assert.match(planConsumedHtml, />查看计划清单</);
+assert.match(planConsumedHtml, />继续任务</);
+const unconsumedHtml = markup(RunEndBar, {
+  status: 'failed',
+  reasonText: '运行中断',
+  retryText: '旧请求',
+  hasUnconsumedInput: true,
+  onRetry() {},
+  onContinue() {},
+});
+assert.match(unconsumedHtml, />继续任务</);
+assert.doesNotMatch(unconsumedHtml, /aria-label="重试"/, '存在未消费输入时不显示重试');
 assert.equal(markup(AttemptNotice, {attempt: 1, reason: 'cancelled', retried: false}), '');
 assert.equal(markup(RunStatus, {place: 'headline', status: 'cancelled', compacting: false}), '');
 metrics = true;

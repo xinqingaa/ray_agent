@@ -411,6 +411,182 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/previews/static/mounts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * 创建独立静态预览挂载
+         * @description 为单 HTML 附件、工作区/会话 HTML 文件或静态目录签发短期只读挂载地址
+         */
+        post: operations["create_static_mount_api_previews_static_mounts_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/previews/static/mounts/{mount_token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** 撤销静态预览挂载 */
+        delete: operations["delete_static_mount_api_previews_static_mounts__mount_token__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/previews/static/mounts/{mount_token}/export.zip": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 将静态目录预览打包导出为 ZIP */
+        get: operations["export_static_mount_zip_api_previews_static_mounts__mount_token__export_zip_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        /** 核对静态目录 ZIP 导出是否可用 */
+        head: operations["export_static_mount_zip_api_previews_static_mounts__mount_token__export_zip_head"];
+        patch?: never;
+        trace?: never;
+    };
+    "/api/previews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 获取已登记的项目预览列表 */
+        get: operations["list_managed_previews_api_previews_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/previews/{preview_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 获取单个项目预览详情与当前运行状态 */
+        get: operations["get_managed_preview_api_previews__preview_id__get"];
+        put?: never;
+        post?: never;
+        /** 停止并移除项目预览登记 */
+        delete: operations["delete_managed_preview_api_previews__preview_id__delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/previews/{preview_id}/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 启动轻量预览服务 */
+        post: operations["start_managed_preview_api_previews__preview_id__start_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/previews/{preview_id}/stop": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 停止轻量预览服务 */
+        post: operations["stop_managed_preview_api_previews__preview_id__stop_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/previews/{preview_id}/restart": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 重启轻量预览服务 */
+        post: operations["restart_managed_preview_api_previews__preview_id__restart_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/previews/{preview_id}/logs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 读取轻量预览服务增量日志 */
+        get: operations["get_managed_preview_logs_api_previews__preview_id__logs_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/previews/{preview_id}/export.zip": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 将已登记预览项目目录打包导出为 ZIP */
+        get: operations["export_managed_preview_zip_api_previews__preview_id__export_zip_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        /** 核对项目目录 ZIP 导出是否可用 */
+        head: operations["export_managed_preview_zip_api_previews__preview_id__export_zip_head"];
+        patch?: never;
+        trace?: never;
+    };
     "/api/sessions/{session_id}/runs/{run_id}/shell-changes": {
         parameters: {
             query?: never;
@@ -4845,6 +5021,94 @@ export interface components {
          * @enum {string}
          */
         MCPTransport: "stdio" | "streamable_http";
+        /** ManagedPreviewDeleteResponse */
+        ManagedPreviewDeleteResponse: {
+            /**
+             * Deleted
+             * @default true
+             */
+            deleted: boolean;
+        };
+        /** ManagedPreviewListResponse */
+        ManagedPreviewListResponse: {
+            /** Previews */
+            previews: components["schemas"]["ManagedPreviewView"][];
+        };
+        /** ManagedPreviewLogsResponse */
+        ManagedPreviewLogsResponse: {
+            preview_id: components["schemas"]["PreviewId"];
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "ready" | "stopped" | "starting" | "running" | "failed";
+            /** Text */
+            text: string;
+            /** Next Offset */
+            next_offset: number;
+            /**
+             * Truncated
+             * @default false
+             */
+            truncated: boolean;
+        };
+        /**
+         * ManagedPreviewView
+         * @description 项目预览卡片与控制视图。
+         */
+        ManagedPreviewView: {
+            id: components["schemas"]["PreviewId"];
+            workspace_id: components["schemas"]["WorkspaceId"] | null;
+            session_id: components["schemas"]["SessionId"];
+            run_id: components["schemas"]["RunId"] | null;
+            /** Name */
+            name: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "static" | "service";
+            root_id: components["schemas"]["RootId"];
+            /** @default  */
+            relative_path: components["schemas"]["RelativePath"];
+            /** @default  */
+            entry_path: components["schemas"]["RelativePath"];
+            /** Start Command */
+            start_command: string | null;
+            /**
+             * Health Path
+             * @default /
+             */
+            health_path: string;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "ready" | "stopped" | "starting" | "running" | "failed";
+            /** Port */
+            port: number | null;
+            /** Preview Url */
+            preview_url: string | null;
+            /** Error */
+            error: string | null;
+            /** Exit Code */
+            exit_code: number | null;
+            /**
+             * Started At
+             * @description 最近启动时间（毫秒时间戳）
+             */
+            started_at: number | null;
+            /**
+             * Created At
+             * @description 创建时间（毫秒时间戳）
+             */
+            created_at: number;
+            /**
+             * Updated At
+             * @description 更新时间（毫秒时间戳）
+             */
+            updated_at: number;
+        };
         /**
          * MarkerConflict
          * @description 复制出的文件夹：标记指向一个仍绑定在别处的已知工作区。
@@ -5488,6 +5752,64 @@ export interface components {
             voice?: ("off" | "local" | "deepseek") | null;
         };
         /**
+         * PreviewEventData
+         * @description 项目预览登记事件数据。
+         */
+        PreviewEventData: {
+            /** Event Id */
+            event_id: string | null;
+            /** Seq */
+            seq: number | null;
+            run_id: components["schemas"]["RunId"] | null;
+            /**
+             * Created At
+             * @default 0
+             */
+            created_at: number;
+            /** @default 1 */
+            event_version: components["schemas"]["EventVersion"];
+            /** Preview Id */
+            preview_id: string;
+            /** Name */
+            name: string;
+            /**
+             * Kind
+             * @default static
+             * @enum {string}
+             */
+            kind: "static" | "service";
+            /** Root Id */
+            root_id: string;
+            /**
+             * Relative Path
+             * @default
+             */
+            relative_path: string;
+            /**
+             * Entry Path
+             * @default
+             */
+            entry_path: string;
+            /** Workspace Id */
+            workspace_id: string | null;
+            /**
+             * Note
+             * @default
+             */
+            note: string;
+        };
+        /** @description 应用内项目预览身份 */
+        PreviewId: string;
+        /** PreviewSSEEvent */
+        PreviewSSEEvent: {
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            event: "preview";
+            data: components["schemas"]["PreviewEventData"];
+        };
+        /**
          * ProbedModel
          * @description 上游模型列表中的一项，附解析后的能力与每项的来源。claimed_by 为其他提供商已提供该模型时的名称。
          */
@@ -5917,6 +6239,22 @@ export interface components {
         Response_ListSessionResponse_: {
             data: components["schemas"]["ListSessionResponse"] | null;
         };
+        /** Response[ManagedPreviewDeleteResponse] */
+        Response_ManagedPreviewDeleteResponse_: {
+            data: components["schemas"]["ManagedPreviewDeleteResponse"] | null;
+        };
+        /** Response[ManagedPreviewListResponse] */
+        Response_ManagedPreviewListResponse_: {
+            data: components["schemas"]["ManagedPreviewListResponse"] | null;
+        };
+        /** Response[ManagedPreviewLogsResponse] */
+        Response_ManagedPreviewLogsResponse_: {
+            data: components["schemas"]["ManagedPreviewLogsResponse"] | null;
+        };
+        /** Response[ManagedPreviewView] */
+        Response_ManagedPreviewView_: {
+            data: components["schemas"]["ManagedPreviewView"] | null;
+        };
         /** Response[MarketCatalog] */
         Response_MarketCatalog_: {
             data: components["schemas"]["MarketCatalog"] | null;
@@ -6000,6 +6338,14 @@ export interface components {
         /** Response[ShellChangesResponse] */
         Response_ShellChangesResponse_: {
             data: components["schemas"]["ShellChangesResponse"] | null;
+        };
+        /** Response[StaticPreviewDeleteResult] */
+        Response_StaticPreviewDeleteResult_: {
+            data: components["schemas"]["StaticPreviewDeleteResult"] | null;
+        };
+        /** Response[StaticPreviewMount] */
+        Response_StaticPreviewMount_: {
+            data: components["schemas"]["StaticPreviewMount"] | null;
         };
         /** Response[TemplateListResponse] */
         Response_TemplateListResponse_: {
@@ -6147,6 +6493,11 @@ export interface components {
              * @description 符号链接的目标文本；链接不被展开或跟随
              */
             link_target: string | null;
+            /**
+             * Static Entry
+             * @description 目录根下存在静态站点入口（index.html/index.htm）时的入口文件名
+             */
+            static_entry: string | null;
         };
         /** @description 可访问根：工作区文件夹或会话工作目录 */
         RootId: string;
@@ -6491,7 +6842,7 @@ export interface components {
             /** Published Version */
             published_version?: number | null;
         };
-        SessionEvent: components["schemas"]["MessageSSEEvent"] | components["schemas"]["TitleSSEEvent"] | components["schemas"]["StepSSEEvent"] | components["schemas"]["PlanSSEEvent"] | components["schemas"]["ToolSSEEvent"] | components["schemas"]["DoneSSEEvent"] | components["schemas"]["ErrorSSEEvent"] | components["schemas"]["WaitSSEEvent"] | components["schemas"]["TurnSSEEvent"] | components["schemas"]["AttemptSSEEvent"] | components["schemas"]["RunSSEEvent"] | components["schemas"]["EnvironmentSSEEvent"] | components["schemas"]["ContextSSEEvent"] | components["schemas"]["CompactSSEEvent"] | components["schemas"]["CleanupSSEEvent"] | components["schemas"]["ApprovalSSEEvent"];
+        SessionEvent: components["schemas"]["MessageSSEEvent"] | components["schemas"]["TitleSSEEvent"] | components["schemas"]["StepSSEEvent"] | components["schemas"]["PlanSSEEvent"] | components["schemas"]["ToolSSEEvent"] | components["schemas"]["DoneSSEEvent"] | components["schemas"]["ErrorSSEEvent"] | components["schemas"]["WaitSSEEvent"] | components["schemas"]["TurnSSEEvent"] | components["schemas"]["AttemptSSEEvent"] | components["schemas"]["RunSSEEvent"] | components["schemas"]["EnvironmentSSEEvent"] | components["schemas"]["ContextSSEEvent"] | components["schemas"]["CompactSSEEvent"] | components["schemas"]["CleanupSSEEvent"] | components["schemas"]["ApprovalSSEEvent"] | components["schemas"]["PreviewSSEEvent"];
         /** @description 会话身份 */
         SessionId: string;
         /**
@@ -6584,6 +6935,73 @@ export interface components {
             enabled?: boolean | null;
             /** Included */
             included?: boolean | null;
+        };
+        /** StaticPreviewDeleteResult */
+        StaticPreviewDeleteResult: {
+            /**
+             * Deleted
+             * @default true
+             */
+            deleted: boolean;
+        };
+        /**
+         * StaticPreviewMount
+         * @description 已签发的静态预览挂载。
+         */
+        StaticPreviewMount: {
+            /** Mount Token */
+            mount_token: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "attachment" | "root_file" | "root_dir";
+            /** Title */
+            title: string;
+            /** Entry Path */
+            entry_path: string;
+            /** Preview Url */
+            preview_url: string;
+            /** Origin */
+            origin: string;
+            /**
+             * Expires At
+             * @description 挂载到期时间（毫秒时间戳）
+             */
+            expires_at: number;
+            /**
+             * Export Zip Path
+             * @description 仅 root_dir 提供：打包导出 ZIP 的 API 相对路径
+             */
+            export_zip_path: string | null;
+        };
+        /**
+         * StaticPreviewMountRequest
+         * @description 创建独立静态预览挂载：支持附件 HTML、工作区/会话单 HTML 文件或静态目录。
+         */
+        StaticPreviewMountRequest: {
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "attachment" | "root_file" | "root_dir";
+            /**
+             * File Id
+             * @description attachment 来源的附件 ID
+             */
+            file_id?: string | null;
+            /** @description root_file 或 root_dir 来源的根 ID */
+            root_id?: components["schemas"]["RootId"] | null;
+            /**
+             * @description 根内相对路径；root_dir 为空串时表示根目录
+             * @default
+             */
+            relative_path: components["schemas"]["RelativePath"];
+            /**
+             * @description root_dir 的入口相对路径，省略时默认 index.html
+             * @default
+             */
+            entry_path: components["schemas"]["RelativePath"];
         };
         /**
          * StepEventData
@@ -8329,6 +8747,414 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Response_ResourceTicket_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    create_static_mount_api_previews_static_mounts_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["StaticPreviewMountRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_StaticPreviewMount_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    delete_static_mount_api_previews_static_mounts__mount_token__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                mount_token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_StaticPreviewDeleteResult_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    export_static_mount_zip_api_previews_static_mounts__mount_token__export_zip_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                mount_token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    export_static_mount_zip_api_previews_static_mounts__mount_token__export_zip_head: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                mount_token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    list_managed_previews_api_previews_get: {
+        parameters: {
+            query?: {
+                workspace_id?: components["schemas"]["WorkspaceId"] | null;
+                session_id?: components["schemas"]["SessionId"] | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_ManagedPreviewListResponse_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_managed_preview_api_previews__preview_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                preview_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_ManagedPreviewView_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    delete_managed_preview_api_previews__preview_id__delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                preview_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_ManagedPreviewDeleteResponse_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    start_managed_preview_api_previews__preview_id__start_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                preview_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_ManagedPreviewView_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    stop_managed_preview_api_previews__preview_id__stop_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                preview_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_ManagedPreviewView_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    restart_managed_preview_api_previews__preview_id__restart_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                preview_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_ManagedPreviewView_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    get_managed_preview_logs_api_previews__preview_id__logs_get: {
+        parameters: {
+            query?: {
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                preview_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_ManagedPreviewLogsResponse_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    export_managed_preview_zip_api_previews__preview_id__export_zip_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                preview_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    export_managed_preview_zip_api_previews__preview_id__export_zip_head: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                preview_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
                 };
             };
             /** @description 结构化错误 */

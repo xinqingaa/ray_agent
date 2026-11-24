@@ -353,6 +353,8 @@ export type RunItem = {
   [key: string]: unknown;
 };
 
+export type UnconsumedInput = Schemas["UnconsumedInputItem"];
+
 /**
  * 会话详情：运行列表、按 seq 升序的事件与最后一条事件的 seq
  */
@@ -362,6 +364,7 @@ export type SessionDetail = Session & {
   last_seq?: number;
   context_config?: {context_window: number; max_tokens: number; limit: number; watermark: number};
   context_operation?: {status: "idle" | "compacting"; started_at: string | null};
+  unconsumed_inputs?: UnconsumedInput[];
   model_id?: string | null;
   reasoning?: string | null;
   run_model?: string | null;

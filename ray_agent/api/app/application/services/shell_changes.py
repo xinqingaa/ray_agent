@@ -43,9 +43,19 @@ class ShellChanges:
         if stored:
             if stored.get('observer_id') != self.instance_id:
                 stored['state'] = 'unknown'
+                for root in stored.get('roots', []):
+                    root['after'] = None
                 await self._save(run_id, stored)
-            return  # 等待续接沿用第一次实际执行前的清单。
-        observation = {'state': 'observing', 'observer_id': self.instance_id,
+                return
+            if stored['state'] == 'complete':
+                stored['state'] = 'observing'
+                stored['intervals'] = stored.get('intervals', 1) + 1
+                stored['ended_at'] = None
+                for root in stored.get('roots', []):
+                    root['after'] = None
+                await self._save(run_id, stored)
+            return  # observing/unknown 时沿用第一次实际执行前的清单。
+        observation = {'state': 'observing', 'observer_id': self.instance_id, 'intervals': 1,
                        'started_at': utc_now().isoformat(), 'ended_at': None, 'roots': []}
         for root in scope.roots:
             observation['roots'].append({'root_id': root.root_id, 'kind': root.kind.value,
@@ -58,15 +68,23 @@ class ShellChanges:
             return
         if stored.get('observer_id') != self.instance_id or stored['state'] == 'unknown':
             stored['state'] = 'unknown'
+            for root in stored.get('roots', []):
+                root['after'] = None
+            await self._save(run_id, stored)
+            return
+        if not confirmed:
+            stored['state'] = 'unknown'
+            stored['ended_at'] = utc_now().isoformat()
+            for root in stored.get('roots', []):
+                root['after'] = None
             await self._save(run_id, stored)
             return
         if stored['state'] == 'complete':
             return
-        stored['state'] = 'complete' if confirmed else 'unknown'
+        stored['state'] = 'complete'
         stored['ended_at'] = utc_now().isoformat()
-        if confirmed:
-            for root in stored['roots']:
-                root['after'] = await self._scan(scope, root['root_id'])
+        for root in stored['roots']:
+            root['after'] = await self._scan(scope, root['root_id'])
         await self._save(run_id, stored)
 
     async def view(self, session_id, run_id, *, offset, limit):

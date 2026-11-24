@@ -34,8 +34,39 @@ assert.equal(grouped.length,2);
 assert.deepEqual(grouped[0].block.items.map(item=>item.id),['n1','t1']);
 assert.deepEqual(grouped[1].block.items.map(item=>item.id),['n2','t2']);
 const ended=[...live,{id:'end',kind:'run_end',runId:'r',at:4,status:'failed',reason:null,reasonText:'失败',retryText:null}];
-assert.equal(processSettled(ended,groupProcessBlocks(ended)[0].block),true);
+assert.equal(processSettled(ended,groupProcessBlocks(ended)[0].block),false,'最新无 final 失败运行保持展开');
 const {foldSettledRuns}=load('lib/process-blocks.ts');
+assert.equal(foldSettledRuns(groupProcessBlocks(ended))[0].type,'process');
+for (const status of ['cancelled', 'interrupted', 'failed']) {
+  const twoBlocks = [
+    {id:`${status}-n1`,kind:'narration',runId:`r-${status}`,at:1,text:'步骤一',turnIndex:1},
+    {id:`${status}-n2`,kind:'narration',runId:`r-${status}`,at:2,text:'步骤二',turnIndex:2},
+    {id:`${status}-end`,kind:'run_end',runId:`r-${status}`,at:3,status,reason:null,reasonText:'停止或中断',retryText:null},
+  ];
+  const twoGrouped = groupProcessBlocks(twoBlocks);
+  assert.equal(processSettled(twoBlocks, twoGrouped[0].block), false, `最新 ${status} 运行未产出 final 保持未收拢`);
+  assert.deepEqual(foldSettledRuns(twoGrouped).map(r => r.type), ['process', 'process', 'item'], `最新 ${status} 运行不折叠`);
+}
+const multiLatestDone = [
+  {id:'m1',kind:'narration',runId:'r',at:1,text:'步骤一',turnIndex:1},
+  {id:'m2',kind:'narration',runId:'r',at:2,text:'步骤二',turnIndex:2},
+  {id:'mf',kind:'final',runId:'r',at:3,text:'完成',summary:null},
+];
+assert.equal(processSettled(multiLatestDone, groupProcessBlocks(multiLatestDone)[0].block), true);
+assert.deepEqual(foldSettledRuns(groupProcessBlocks(multiLatestDone)).map(r => r.type), ['fold', 'item'], '最新运行已有 final 时折叠');
+const earlierEndedThenNew = [
+  {id:'e1a',kind:'narration',runId:'r1',at:1,text:'先做',turnIndex:1},
+  {id:'e1b',kind:'narration',runId:'r1',at:2,text:'被停止',turnIndex:2},
+  {id:'e1end',kind:'run_end',runId:'r1',at:3,status:'cancelled',reason:null,reasonText:'已停止',retryText:null},
+  {id:'u2',kind:'user',runId:'r2',at:4,text:'继续',attachments:[],injected:false},
+  {id:'e2a',kind:'narration',runId:'r2',at:5,text:'续接步骤一',turnIndex:1},
+  {id:'e2b',kind:'narration',runId:'r2',at:6,text:'再次停止',turnIndex:2},
+  {id:'e2end',kind:'run_end',runId:'r2',at:7,status:'cancelled',reason:null,reasonText:'已停止',retryText:null},
+];
+const mixedGrouped = groupProcessBlocks(earlierEndedThenNew);
+assert.equal(processSettled(earlierEndedThenNew, mixedGrouped[0].block), true, '已有新运行后，之前结束的 r1 收拢');
+assert.equal(processSettled(earlierEndedThenNew, mixedGrouped[mixedGrouped.length - 2].block), false, '最新无 final 的 r2 保持展开');
+assert.deepEqual(foldSettledRuns(mixedGrouped).map(r => r.type), ['fold', 'item', 'item', 'process', 'process', 'item']);
 assert.ok(foldSettledRuns(groupProcessBlocks(legacy)).every(row=>row.type==='process'));
 const done=[...legacy,{id:'d',kind:'delivery',runId:'r',at:5,files:[],note:''},{id:'f2',kind:'final',runId:'r',at:6,text:'好',summary:null}];
 const folded=foldSettledRuns(groupProcessBlocks(done));

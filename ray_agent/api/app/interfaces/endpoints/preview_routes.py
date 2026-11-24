@@ -22,7 +22,7 @@ INLINE_CSP = "sandbox; default-src 'none'"
 HTML_EXTENSIONS = {'.html', '.htm'}
 # 交付的网页在新标签页直接打开：sandbox 让页面成为不透明来源，读不到本站 Cookie 与存储；
 # connect-src/form-action 为 none，脚本只能操作自身页面，不能请求本站接口或提交表单。
-HTML_CSP = ("sandbox allow-scripts allow-forms allow-modals allow-popups allow-popups-to-escape-sandbox; "
+HTML_CSP = ("sandbox allow-scripts allow-forms allow-modals allow-downloads allow-popups allow-popups-to-escape-sandbox; "
             "default-src 'none'; script-src 'unsafe-inline' 'unsafe-eval' https: data: blob:; "
             "style-src 'unsafe-inline' https: data:; img-src data: blob: https:; font-src data: https:; "
             "media-src data: blob: https:; connect-src 'none'; form-action 'none'; frame-src 'none'; base-uri 'none'")

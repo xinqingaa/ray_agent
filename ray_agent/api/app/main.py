@@ -153,7 +153,14 @@ async def lifespan(app: FastAPI):
     from app.application.services.visual_artifacts import expire_visual_artifacts
     from app.infrastructure.external.task.local_task import LocalRunTask
     from app.infrastructure.storage.sqlite import get_uow, set_database
-    from app.interfaces.service_dependencies import close_change_feed, get_file_storage, get_skill_service
+    from app.interfaces.service_dependencies import (
+        close_change_feed,
+        get_file_storage,
+        get_skill_service,
+        start_static_preview_server,
+        stop_managed_previews,
+        stop_static_preview_server,
+    )
 
     try:
         lock, database, jobs, doc_scheduler = await start_core()
@@ -182,6 +189,7 @@ async def lifespan(app: FastAPI):
     tidier = asyncio.create_task(tidy())
 
     try:
+        await start_static_preview_server()
         yield
     finally:
         sweeper.cancel()
@@ -212,7 +220,9 @@ async def lifespan(app: FastAPI):
             titling.cancel()
         await asyncio.gather(*titles, return_exceptions=True)
         from app.infrastructure.external.execution.runtime import close_runtime_sessions
+        await stop_managed_previews()
         await close_runtime_sessions()
+        await stop_static_preview_server()
         await close_change_feed()
         await doc_scheduler.stop()
         set_document_index_scheduler(None)

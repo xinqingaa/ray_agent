@@ -9,7 +9,7 @@ from typing import Annotated, Literal, Protocol, Self
 
 from pydantic import BaseModel, Field, StringConstraints, model_validator
 
-from app.domain.models.identity import ID_MAX_LENGTH, OperationId, RootedPath, RunId, SessionId
+from app.domain.models.identity import ID_MAX_LENGTH, OperationId, PreviewId, RootedPath, RunId, SessionId
 
 type ProcessId = Annotated[str, StringConstraints(min_length=1, max_length=ID_MAX_LENGTH),
                            Field(description="执行端分配的进程身份，不是操作系统 PID")]
@@ -26,14 +26,23 @@ class ShellInfo(BaseModel):
 
 
 class ProcessOwner(BaseModel):
+    kind: Literal["run", "operation", "preview"] | None = None
     session_id: SessionId | None = None
     run_id: RunId | None = None
     operation_id: OperationId | None = None
+    preview_id: PreviewId | None = None
 
     @model_validator(mode="after")
     def _has_owner(self) -> Self:
-        if not (self.run_id or self.operation_id):
-            raise ValueError("进程必须归属于运行或操作")
+        if not (self.run_id or self.operation_id or self.preview_id):
+            raise ValueError("进程必须归属于运行、操作或预览")
+        if self.kind is None:
+            if self.preview_id:
+                self.kind = "preview"
+            elif self.operation_id:
+                self.kind = "operation"
+            elif self.run_id:
+                self.kind = "run"
         return self
 
 
@@ -68,6 +77,7 @@ class ProcessStatus(BaseModel):
     exit_code: int | None = None
     started_at: datetime
     ended_at: datetime | None = None
+    tree_gone: bool = False
 
 
 class ProcessOutput(BaseModel):

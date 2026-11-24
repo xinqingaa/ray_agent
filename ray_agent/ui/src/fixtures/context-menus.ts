@@ -18,7 +18,8 @@ export const menuWorkspace: WorkspaceItem = {
 
 function entry(relative_path: string, kind: RootEntry['kind']): RootEntry {
   return {path: {root_id: 'menu-root', relative_path}, name: relative_path.split('/').at(-1)!, kind,
-    size: kind === 'file' ? 640 : null, modified_at: null, modified_ns: null, link_target: kind === 'symlink' ? '资料' : null}
+    size: kind === 'file' ? 640 : null, modified_at: null, modified_ns: null, link_target: kind === 'symlink' ? '资料' : null,
+    static_entry: null}
 }
 
 export const menuFolderTree: TreeState = {

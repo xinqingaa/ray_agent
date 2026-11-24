@@ -1,5 +1,5 @@
 import {useRef, useState, type ReactNode} from 'react'
-import {ChevronRight, Copy, FileText, Pencil, Quote, RotateCw} from '@/components/ui/icons'
+import {ChevronRight, Copy, FileText, Pencil, Play, Quote, RotateCw} from '@/components/ui/icons'
 import {ContextMenuSurface} from '@/components/ui/context-menu'
 import {menuItem, selectedTextWithin, type MenuEntry} from '@/lib/context-menu-policy'
 import {copyText} from '@/lib/clipboard'
@@ -10,6 +10,8 @@ import {formatEstimatedCost} from '@/lib/api/usage'
 import {ApprovalCard} from './approval-card'
 import {AskCard} from './ask-card'
 import {DeliveryCard} from './delivery-card'
+import {PreviewCard} from './preview-card'
+import type {ManagedPreview} from '@/lib/api/managed-previews'
 import {NarrationBlock, UserMessage} from './messages'
 import {DocumentCitedReply} from './document-citations'
 import type {KnowledgeReference} from '@/lib/api/types'
@@ -27,11 +29,18 @@ export type TimelineHandlers = {
   onOpenCall?: (callId: string) => void
   onOpenRunDetails?: (runId: string) => void
   onPreviewFile?: (file: FileView) => void
+  onOpenPreview?: (previewId: string) => void
+  managedPreviews?: ReadonlyMap<string, ManagedPreview>
   onDownloadFile?: (file: FileView) => void
   onDownloadAll?: (files: FileView[]) => void
   onRetry?: (text: string, runId: string) => void
   /** 只给这一次失败显示重试；不传则凡是失败都可重试。 */
   retryRunId?: string | null
+  onContinue?: (runId: string) => void
+  /** 只给这一次停下/中断/有进度的失败显示继续；不传且传了 onContinue 时则由条目自身决定。 */
+  continueRunId?: string | null
+  continuingRunId?: string | null
+  hasUnconsumedInput?: (runId: string) => boolean
   consumedPlanRuns?: {has: (runId: string) => boolean}
   planAction?: (runId: string) => ReactNode
   hasPriorTools?: (runId: string) => boolean
@@ -125,6 +134,16 @@ export function TimelineItemView({item, handlers = {}, metrics, runActions}: {it
           onDownloadAll={handlers.onDownloadAll}
         />
       )
+    case 'preview':
+      return (
+        <PreviewCard
+          name={item.name}
+          previewKind={item.previewKind}
+          note={item.note}
+          live={handlers.managedPreviews?.get(item.previewId) ?? null}
+          onOpen={handlers.onOpenPreview ? () => handlers.onOpenPreview?.(item.previewId) : undefined}
+        />
+      )
     case 'compaction':
       return (
         <CompactionNotice
@@ -155,13 +174,20 @@ export function TimelineItemView({item, handlers = {}, metrics, runActions}: {it
       )
     case 'run_end': {
       const planConsumed = item.status === 'failed' && !!item.runId && !!handlers.consumedPlanRuns?.has(item.runId)
+      const hasUnconsumed = !!item.runId && !!handlers.hasUnconsumedInput?.(item.runId)
       const onRetry = handlers.onRetry && (handlers.retryRunId == null || handlers.retryRunId === item.runId) ? (text: string) => handlers.onRetry?.(text, item.runId ?? '') : undefined
-      // 与终态条的重试按钮同一条件：失败、未被计划接受、有原文可重发
-      const retryText = item.status === 'failed' && !planConsumed && onRetry && item.retryText ? item.retryText : null
-      const entries: MenuEntry[] = retryText && onRetry ? [menuItem('重试', RotateCw, () => onRetry(retryText))] : []
+      const onContinue = handlers.onContinue && item.runId && (handlers.continueRunId == null || handlers.continueRunId === item.runId)
+        ? () => handlers.onContinue?.(item.runId!)
+        : undefined
+      // 与终态条的重试按钮同一条件：失败、未被计划接受、非未消费输入、有原文可重发
+      const retryText = item.status === 'failed' && !planConsumed && !hasUnconsumed && onRetry && item.retryText ? item.retryText : null
+      const entries: MenuEntry[] = []
+      if (onContinue) entries.push(menuItem('继续任务', Play, onContinue))
+      if (retryText && onRetry) entries.push(menuItem('重试', RotateCw, () => onRetry(retryText)))
       return <ContextMenuSurface items={entries}><div className="contents"><RunEndBar status={item.status} reasonText={item.reasonText} retryText={item.retryText}
         planAction={item.runId && handlers.planAction?.(item.runId)} priorTools={!!item.runId && handlers.hasPriorTools?.(item.runId)}
-        planConsumed={planConsumed} onRetry={onRetry}/></div></ContextMenuSurface>
+        planConsumed={planConsumed} hasUnconsumedInput={hasUnconsumed} onContinue={onContinue}
+        continuing={!!item.runId && handlers.continuingRunId === item.runId} onRetry={onRetry}/></div></ContextMenuSurface>
     }
   }
 }

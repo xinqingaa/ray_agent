@@ -21,10 +21,14 @@ const FOLDED_NOTICES = new Set<TimelineItem['kind']>(['compaction', 'attempt'])
 
 const rowRunId = (row: TimelineRow) => row.type === 'process' ? row.block.runId : row.item.runId
 
-/** 已有最终回复或结束记录的运行：之前连续的过程块与压缩、重试提示收进折叠块，交付、提问等结果条目保持可见 */
+/** 已有最终回复，或非最新运行已结束：连续过程块与压缩、重试提示收进折叠块；最新一次未产出 final 的停止/中断/失败运行保持展开。 */
 export function foldSettledRuns(rows: TimelineRow[]): FoldedRow[] {
+  const lastRunId = [...rows].reverse().map(rowRunId).find(Boolean) ?? null
   const settled = new Set(rows.flatMap(row =>
-    row.type === 'item' && (row.item.kind === 'final' || row.item.kind === 'run_end') && row.item.runId ? [row.item.runId] : []))
+    row.type === 'item' && row.item.runId &&
+    (row.item.kind === 'final' || (row.item.kind === 'run_end' && row.item.runId !== lastRunId))
+      ? [row.item.runId]
+      : []))
   const ended = new Set<string>()
   const result: FoldedRow[] = []
   for (const row of rows) {
@@ -108,7 +112,12 @@ export function processSettled(items: TimelineItem[], block: ProcessBlock): bool
   const lastId = block.items[block.items.length - 1]?.id
   const index = items.findIndex(item => item.id === lastId)
   const rest = index < 0 ? [] : items.slice(index + 1)
-  return rest.some(item => item.runId === block.runId && (item.kind === 'final' || item.kind === 'run_end'))
+  const lastRunId = [...items].reverse().find(item => item.runId)?.runId ?? null
+  return rest.some(
+    item =>
+      item.runId === block.runId &&
+      (item.kind === 'final' || (!!item.runId && item.kind === 'run_end' && item.runId !== lastRunId))
+  )
 }
 
 export function processBlockOpen(settled: boolean, override: boolean | null, streaming: boolean): boolean {

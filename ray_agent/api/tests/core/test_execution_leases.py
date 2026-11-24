@@ -10,8 +10,10 @@ import pytest
 from app.application.services.execution_leases import ShellWriteLease
 from app.domain.external.process_executor import ProcessOwner
 from app.domain.external.workspace_files import WorkspaceFileError
+from app.domain.models.error import ErrorCode
 from app.domain.models.write_lease import LeaseState, WriterKind
 from app.domain.services.file_scope import WriteOwner
+from app.domain.services.tools.shell import ShellTool
 from app.infrastructure.external.execution import shell_bridge
 from app.infrastructure.external.execution.process_executor import SupervisedProcessExecutor
 from app.infrastructure.external.execution.shell_bridge import LocalShellBridge
@@ -118,3 +120,76 @@ def test_cancel_during_lease_admission_never_starts_a_late_process():
         executor.start.assert_not_awaited()
         assert bridge.closed
     asyncio.run(asyncio.wait_for(check(), 5))
+
+
+def test_short_shell_releases_lease_on_exit_while_detached_child_keeps_lease(tmp_path, monkeypatch):
+    monkeypatch.setattr(shell_bridge, 'EXEC_FOREGROUND_SECONDS', 0.2)
+
+    async def check(env):
+        view = await env.service.create('空闲释放与后台子树')
+        wid = view.workspace.id
+        execution_root = tempfile.mkdtemp(prefix='ra-idle-', dir='/tmp')
+        executor = None
+        try:
+            socket = await ensure_supervisor(execution_root)
+            executor = SupervisedProcessExecutor(SupervisorClient(socket))
+            lease = ShellWriteLease(env.leases(), wid, 'session-a', 'run-a')
+            bridge = LocalShellBridge(
+                executor,
+                root_id='root',
+                root_location=view.folder.location,
+                owner=ProcessOwner(session_id='session-a', run_id='run-a'),
+                before_start=lease.acquire,
+                on_idle=lease.release_idle,
+                on_close=lease.settle,
+            )
+
+            # 1. 短命令干净退出（tree_gone=True）：立即释放进程写租约，另一会话可直接写
+            short = await bridge.exec_command('shell-short', view.folder.location, 'echo ok')
+            assert short.success and short.data['status'] == 'completed'
+            assert await env.leases().get(wid) is None
+            other_lease = await env.leases().acquire(wid, WriteOwner('session-b', 'run-b'), '其他写入')
+            await env.leases().release(other_lease)
+
+            # 2. 父 Shell 退出但留下后台子进程：tree_gone=False，租约保持占用，直到 kill_process 清理子树
+            pid_file = Path(view.folder.location) / 'bg.pid'
+            detached = await bridge.exec_command(
+                'shell-bg',
+                view.folder.location,
+                'sleep 30 >/dev/null 2>&1 & echo $! > bg.pid',
+            )
+            assert detached.success and detached.data['status'] == 'completed'
+            held = await env.leases().get(wid)
+            assert held is not None and held.writer_kind is WriterKind.PROCESS
+
+            # ShellTool 对租约冲突返回结构化 code/details，且提示稳定占用不诱导盲重试
+            shell_tool_b = ShellTool(
+                LocalShellBridge(
+                    executor,
+                    root_id='root-b',
+                    root_location=view.folder.location,
+                    owner=ProcessOwner(session_id='session-b', run_id='run-b'),
+                    before_start=ShellWriteLease(env.leases(), wid, 'session-b', 'run-b').acquire,
+                ),
+                default_exec_dir=view.folder.location,
+            )
+            conflict = await shell_tool_b.shell_execute('other', 'echo blocked')
+            assert conflict.success is False
+            assert isinstance(conflict.data, dict) and conflict.data.get('code') == ErrorCode.CONFLICT.value
+            assert conflict.data.get('details', {}).get('lease', {}).get('owner_session_id') == 'session-a'
+            assert '稍后重试' not in conflict.message and '请勿重复重试' in conflict.message
+
+            bg_pid = int(pid_file.read_text().strip())
+            killed = await bridge.kill_process('shell-bg')
+            assert killed.success
+            assert await env.leases().get(wid) is None
+            with pytest.raises(ProcessLookupError):
+                os.kill(bg_pid, 0)
+            assert await bridge.destroy() is True
+        finally:
+            if executor:
+                await executor.client.close()
+            await stop_supervisor(execution_root)
+            shutil.rmtree(execution_root)
+
+    scenario(tmp_path, check)

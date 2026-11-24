@@ -47,6 +47,7 @@ from app.infrastructure.logging import set_log_session_id
 from app.domain.services.tools.a2a import A2ATool
 from app.domain.services.tools.mcp import MCPTool
 from app.domain.services.tools.deliver import DeliveredFile
+from app.domain.services.tools.preview import RegisterPreviewResult
 
 logger = logging.getLogger(__name__)
 
@@ -108,12 +109,16 @@ class AgentTaskRunner(TaskRunner):
             context_refresh=None,  # 每轮请求（含续接与重试）核对冻结背景：async (run_id) -> 背景段或 None
             workspace_id: Optional[str] = None,
             completion=None,  # 运行正常结束的钩子：on_run_completed(uow, session_id, run_id) 与 wake()
+            preview_runtime=None,  # 应用内项目预览运行时：仅在允许文件访问时暴露 register_preview
     ) -> None:
         self._uow_factory = uow_factory
         self._uow = uow_factory()
         self._session_id = session_id
         self._sandbox = sandbox
         self._files = files
+        self._preview_runtime = preview_runtime
+        self._workspace_id = workspace_id
+        self._environment_caps = environment or RuntimeEnvironment()
         self._write_leases = write_leases
         self._context_refresh = context_refresh
         self._completion = completion
@@ -160,6 +165,11 @@ class AgentTaskRunner(TaskRunner):
                 workspace_memory=workspace_memory,
             ),
             deliver_file=self._deliver_file if files is not None and environment.available(Capability.FILE_ACCESS) else None,
+            register_preview=(
+                self._register_preview
+                if files is not None and environment.available(Capability.FILE_ACCESS) and preview_runtime is not None
+                else None
+            ),
             write_output=self._write_output if workdir else None,
             output_dir=str(workdir.outputs) if workdir else None,
             system_prompt=build_system_prompt(environment),
@@ -394,6 +404,75 @@ class AgentTaskRunner(TaskRunner):
             except RuntimeError:
                 pass
         return file
+
+    async def _register_preview(
+        self,
+        *,
+        name: str,
+        kind: str,
+        path: str,
+        entry_path: Optional[str] = None,
+        start_command: Optional[str] = None,
+        health_path: Optional[str] = None,
+        note: Optional[str] = None,
+    ) -> ToolResult[RegisterPreviewResult]:
+        if self._files is None or self._preview_runtime is None:
+            return ToolResult(success=False, message="当前运行未装配项目预览服务")
+        if kind == "service" and not self._environment_caps.available(Capability.LOCAL_COMMAND):
+            return ToolResult(
+                success=False,
+                message=(
+                    "当前会话未开启本机执行，无法启动轻量本地脚本预览；"
+                    "可改用纯静态 HTML/多文件目录并设 kind=\"static\"，或先在设置中开启本机执行"
+                ),
+            )
+        try:
+            rooted = self._files.resolve(path)
+        except WorkspaceFileError as error:
+            return ToolResult(success=False, message=str(error))
+        except Exception as exc:
+            return ToolResult(success=False, message=str(exc) or "预览路径无效")
+
+        try:
+            view, tail, start_err = await self._preview_runtime.register(
+                workspace_id=getattr(self, "_workspace_id", None),
+                session_id=self._session_id,
+                run_id=self._run_id,
+                name=name,
+                kind="service" if kind == "service" else "static",
+                root_id=rooted.root_id,
+                relative_path=rooted.relative_path,
+                entry_path=entry_path or "",
+                start_command=start_command,
+                health_path=health_path,
+            )
+        except Exception as exc:
+            return ToolResult(success=False, message=str(exc) or "登记项目预览失败")
+
+        result = RegisterPreviewResult(
+            preview_id=view.id,
+            name=view.name,
+            kind=view.kind,
+            root_id=view.root_id,
+            relative_path=view.relative_path,
+            entry_path=view.entry_path,
+            state=view.state,
+            port=view.port,
+            preview_url=view.preview_url,
+            note=note,
+            logs_tail=tail,
+        )
+        if start_err is not None:
+            return ToolResult(
+                success=False,
+                message=f"预览服务「{view.name}」启动失败：{start_err}",
+                data=result,
+            )
+        msg = f"已登记应用内预览「{view.name}」（{view.kind}）"
+        if view.kind == "service" and view.preview_url:
+            msg += f"，已通过回环健康检查并运行于 {view.preview_url}"
+        msg += "；用户可在对话时间线卡片或右侧成果区一键打开使用"
+        return ToolResult(success=True, message=msg, data=result)
 
     async def _write_output(self, filepath: str, content: str) -> None:
         """结果整形的落盘函数：超长工具结果的完整内容写入会话工作目录，失败抛出异常。"""

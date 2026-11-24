@@ -116,13 +116,13 @@ def get_file_service() -> FileService:
 def get_session_service() -> SessionService:
     from app.application.services.background_jobs import get_job_runner
     return SessionService(uow_factory=get_uow, read_uow_factory=get_read_uow, task_cls=LocalRunTask,
-                          workdirs=get_workdirs(), jobs=get_job_runner())
+                          workdirs=get_workdirs(), jobs=get_job_runner(), previews=get_preview_runtime_service())
 
 
 def get_data_service():
     from app.application.services.background_jobs import get_job_runner
     from app.application.services.data_service import DataService
-    return DataService(get_uow, get_job_runner(), data_root().install_id())
+    return DataService(get_uow, get_job_runner(), data_root().install_id(), previews=get_preview_runtime_service())
 
 
 def get_file_limits():
@@ -274,12 +274,92 @@ def get_workspace_service():
         uow_factory=get_uow, read_uow_factory=get_read_uow, folders=get_folder_access(), policy=policy,
         runtime=get_workspace_runtime(), install_id=root.install_id(),
         default_location=os.path.expanduser(current.workspace_default_location),
-        jobs=get_job_runner(), task_cls=LocalRunTask)
+        jobs=get_job_runner(), task_cls=LocalRunTask, previews=get_preview_runtime_service())
 
 
 def get_file_preview_service():
     from app.application.services.file_preview_service import FilePreviewService
     return FilePreviewService(get_file_service(), get_root_files())
+
+
+_static_preview_service = None
+_static_preview_server = None
+
+
+def _static_preview_port() -> int | None:
+    return _static_preview_server.port if _static_preview_server is not None else None
+
+
+def get_static_preview_service():
+    global _static_preview_service
+    if _static_preview_service is None:
+        from app.application.services.static_preview_service import StaticPreviewService
+
+        async def resolve_binding(root_id: str):
+            return await _root_bindings()(root_id)
+
+        _static_preview_service = StaticPreviewService(
+            file_service=get_file_service,
+            root_files=get_root_files,
+            root_bindings=resolve_binding,
+            port_provider=_static_preview_port,
+        )
+    return _static_preview_service
+
+
+async def start_static_preview_server() -> int:
+    global _static_preview_server
+    from app.infrastructure.external.static_preview.server import StaticPreviewServer
+    service = get_static_preview_service()
+    if _static_preview_server is None:
+        _static_preview_server = StaticPreviewServer(service)
+    return await _static_preview_server.start()
+
+
+async def stop_static_preview_server() -> None:
+    global _static_preview_server, _static_preview_service
+    server = _static_preview_server
+    _static_preview_server = None
+    if server is not None:
+        await server.stop()
+    if _static_preview_service is not None:
+        _static_preview_service.clear()
+        _static_preview_service = None
+
+
+_preview_runtime_service = None
+
+
+def get_preview_runtime_service():
+    global _preview_runtime_service
+    if _preview_runtime_service is None:
+        from app.application.services.preview_runtime_service import PreviewRuntimeService
+        from app.infrastructure.external.execution.runtime import command_available, get_process_executor
+
+        async def resolve_binding(root_id: str):
+            return await _root_bindings()(root_id)
+
+        async def load_config():
+            return await get_app_config_repository().load()
+
+        _preview_runtime_service = PreviewRuntimeService(
+            uow_factory=get_uow,
+            read_uow_factory=get_read_uow,
+            root_files=get_root_files,
+            root_bindings=resolve_binding,
+            executor_provider=get_process_executor,
+            command_available_probe=command_available,
+            app_config_loader=load_config,
+        )
+    return _preview_runtime_service
+
+
+async def stop_managed_previews() -> None:
+    global _preview_runtime_service
+    service = _preview_runtime_service
+    _preview_runtime_service = None
+    if service is not None:
+        await service.stop_all()
 
 
 def get_run_ledger() -> RunLedger:
@@ -421,6 +501,7 @@ async def get_agent_service() -> AgentService:
         write_leases=get_write_leases(),
         workspace_memory=get_workspace_memory_runtime(),
         install_id=data_root().install_id(),
+        preview_runtime=get_preview_runtime_service(),
     )
 
 

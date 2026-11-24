@@ -153,7 +153,7 @@ class Managed:
 
     def status(self) -> dict[str, Any]:
         return {"process_id": self.process_id, "state": self.state, "exit_code": self.exit_code,
-                "started_at": self.started_at, "ended_at": self.ended_at}
+                "started_at": self.started_at, "ended_at": self.ended_at, "tree_gone": self.tree_gone}
 
 
 class Supervisor:
@@ -307,8 +307,8 @@ class Supervisor:
         if m.state == STATE_RUNNING:
             m.state = STATE_EXITED
         self._mark_ended(m)
+        await self._tree_alive(m)  # 唤醒等待方之前先核对进程树，确保释放写入租约前不漏掉后台后代
         m.exited.set()
-        await self._tree_alive(m)  # 外壳退出时树已空就立即记下，防止之后 pgid 被无关进程复用
 
     async def _drain(self, m: Managed) -> None:
         if m.proc is None or m.drain_timed_out or not m.tasks:
@@ -362,8 +362,8 @@ class Supervisor:
         if not isinstance(cwd, str) or not os.path.isdir(cwd):
             raise RpcError("cwd_missing", f"工作目录不存在: {cwd}")
         owner = params.get("owner") or {}
-        if not (owner.get("run_id") or owner.get("operation_id")):
-            raise RpcError("bad_request", "进程必须归属于运行或操作")
+        if not (owner.get("run_id") or owner.get("operation_id") or owner.get("preview_id")):
+            raise RpcError("bad_request", "进程必须归属于运行、操作或预览")
         interactive = bool(params.get("interactive"))
         env = build_process_env(params.get("env") or {}, self.runtime_bin_dirs)
         try:
@@ -385,8 +385,8 @@ class Supervisor:
         pid, owner = params.get("pid"), params.get("owner") or {}
         if not isinstance(pid, int) or isinstance(pid, bool) or pid <= 1:
             raise RpcError("bad_request", "pid 无效")
-        if not (owner.get("run_id") or owner.get("operation_id")):
-            raise RpcError("bad_request", "进程必须归属于运行或操作")
+        if not (owner.get("run_id") or owner.get("operation_id") or owner.get("preview_id")):
+            raise RpcError("bad_request", "进程必须归属于运行、操作或预览")
         if pid in (os.getpid(), self.core_pid):
             raise RpcError("bad_request", "不能登记核心或 supervisor 自身")
         try:
@@ -409,6 +409,8 @@ class Supervisor:
     async def m_status(self, params: dict[str, Any]) -> dict[str, Any]:
         m = self._get(params)
         self._refresh_external(m)
+        if m.state != STATE_RUNNING and not m.tree_gone:
+            await self._tree_alive(m)
         return m.status()
 
     async def m_read_output(self, params: dict[str, Any]) -> dict[str, Any]:
@@ -452,6 +454,8 @@ class Supervisor:
             await asyncio.wait_for(m.exited.wait(), None if timeout is None else float(timeout))
         if m.exited.is_set():
             await self._drain(m)
+            if not m.tree_gone:
+                await self._tree_alive(m)
         return m.status()
 
     async def m_stop_tree(self, params: dict[str, Any]) -> dict[str, Any]:

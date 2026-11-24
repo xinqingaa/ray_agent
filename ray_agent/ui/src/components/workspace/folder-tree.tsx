@@ -1,4 +1,4 @@
-import {Ban, ChevronRight, Copy, Eye, Finder, Folder, FolderOpen, FolderPlus, Layers, Link2, LoaderCircle, FileQuestion, Pencil, Plus, Trash} from '@/components/ui/icons'
+import {Ban, ChevronRight, Copy, Eye, Finder, Folder, FolderOpen, FolderPlus, Globe, Layers, Link2, LoaderCircle, FileQuestion, Pencil, Plus, Trash} from '@/components/ui/icons'
 import {createElement, Fragment, useRef, type KeyboardEvent} from 'react'
 import {Button} from '@/components/ui/button'
 import {ContextMenuSurface} from '@/components/ui/context-menu'
@@ -20,13 +20,27 @@ const INDEX_LABEL: Record<string, string> = {
   registered: '等待索引', pending_parse: '等待解析', parsing: '正在解析', indexing: '正在索引',
 }
 
+function findStaticEntry(entries: RootEntry[]): string | null {
+  for (const candidate of ['index.html', 'index.htm']) {
+    const hit = entries.find(item => item.kind === 'file' && item.name.toLowerCase() === candidate)
+    if (hit) return hit.name
+  }
+  return null
+}
+
+function directoryStaticEntry(tree: TreeState, path: string, entry: RootEntry): string | null {
+  const loaded = tree.directories[path]
+  if (loaded?.status === 'ready') return findStaticEntry(loaded.entries)
+  return entry.static_entry ?? null
+}
+
 /**
  * 懒加载的文件树。目录点击展开，文件点击打开预览；符号链接与特殊文件只显示，不展开不预览。
  * 条目操作（重命名、新建文件夹、删除）由面板提供回调；有回调时行菜单才出现对应项。编辑中的名称在行内输入。
  */
 export function FolderTree({tree, selectedPath, indexStates, indexSummary, readPaths, addedPaths, onSelect, onToggle, onRetry, onReveal, onAdd,
   edit, editBusy, onEditChange, onEditCommit, onEditCancel, onStartRename, onStartCreate, onRequestDelete, onCopyPath,
-  onToggleFileIndex, onToggleDirectoryIndex}: {
+  onToggleFileIndex, onToggleDirectoryIndex, onPreviewStaticSite}: {
   tree: TreeState
   selectedPath: string | null
   indexStates?: ReadonlyMap<string, string>
@@ -52,6 +66,8 @@ export function FolderTree({tree, selectedPath, indexStates, indexSummary, readP
   onToggleFileIndex?: (path: string) => void
   /** 目录行就地纳入或排除索引 */
   onToggleDirectoryIndex?: (directory: string) => void
+  /** 含 index.html 的目录右键作为静态站点预览 */
+  onPreviewStaticSite?: (path: string, entryPath: string) => void
 }) {
   const rows = visibleRows(tree)
   const container = useRef<HTMLUListElement>(null)
@@ -118,8 +134,10 @@ export function FolderTree({tree, selectedPath, indexStates, indexSummary, readP
       const operations = entryActionsFor(entry.kind)
       const fileIndex = isFile && indexSummary && onToggleFileIndex ? fileIndexAction(path, indexSummary) : null
       const dirIndex = isDirectory && indexSummary && onToggleDirectoryIndex ? directoryIndexAction(path, indexSummary) : null
-      // 只列出能完成的项：文件先预览；目录可新建文件夹；删除放最后，前面用分隔线隔开
+      const staticEntry = isDirectory && onPreviewStaticSite ? directoryStaticEntry(tree, path, entry) : null
+      // 只列出能完成的项：静态目录可作为站点预览；文件先预览；目录可新建文件夹；删除放最后，前面用分隔线隔开
       const menu: MenuEntry[] = [
+        ...(staticEntry && onPreviewStaticSite ? [menuItem('作为静态站点预览', Globe, () => onPreviewStaticSite(path, staticEntry))] : []),
         ...(isFile ? [menuItem('预览', Eye, () => onSelect(path, entry))] : []),
         ...(interactive && onAdd ? [menuItem(isFile ? '添加文件到所在目录' : '添加文件到此目录', Plus,
           () => onAdd(uploadTarget({path, kind: entry.kind})))] : []),

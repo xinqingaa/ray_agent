@@ -75,6 +75,7 @@ export const MessageCircleQuestion = lineIcon(<><path d="M7.5 18.5 4 20l1-3.6A7.
 export const MessagesSquare = lineIcon(<><path d="M14 9.5a5.5 5.5 0 0 1-8.2 4.8L3 15l.8-2.6A5.5 5.5 0 1 1 14 9.5Z"/><path d="M10.6 17.6A5.5 5.5 0 0 0 18.2 19L21 20l-.8-2.6a5.5 5.5 0 0 0-3.4-8.2"/></>)
 export const Minus = lineIcon(<path d="M5 12h14"/>)
 export const Monitor = lineIcon(<><rect x="3.5" y="5" width="17" height="12" rx="2"/><path d="M12 17v3m-4 0h8"/></>)
+export const Smartphone = lineIcon(<><rect x="7" y="3.5" width="10" height="17" rx="2"/><path d="M11 17.5h2"/></>)
 export const Moon = lineIcon(<path d="M19.5 14.5A7.5 7.5 0 0 1 9.5 4.5a7.5 7.5 0 1 0 10 10Z"/>)
 export const MoreHorizontal = lineIcon(<><circle cx="6" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="18" cy="12" r="1.2"/></>)
 export const Package = lineIcon(<><path d="M12 3 20 7.5v9L12 21l-8-4.5v-9Z"/><path d="m4 7.5 8 4.5 8-4.5M12 12v9"/></>)

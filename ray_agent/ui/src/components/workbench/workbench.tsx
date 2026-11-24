@@ -1,4 +1,4 @@
-import {ChevronLeft, Download, ExternalLink, Eye, Files, Globe, PackageOpen} from '@/components/ui/icons'
+import {ChevronLeft, Download, Eye, Files, Globe, PackageOpen} from '@/components/ui/icons'
 import {useState} from 'react'
 import {useDeveloperMode} from '@/hooks/use-developer-mode'
 import {Button} from '@/components/ui/button'
@@ -11,7 +11,7 @@ import {FilePreview} from '@/components/preview/file-preview'
 import {ImagePreview} from '@/components/preview/image-preview'
 import {PreviewAction} from '@/components/preview/action'
 import {PreviewFrame} from '@/components/preview/preview-frame'
-import {downloadFileBatch, downloadPreviewSource, isWebPage, openPreviewTab, saveImage} from '@/lib/api/preview'
+import {downloadFileBatch, downloadPreviewSource, saveImage} from '@/lib/api/preview'
 
 function asRecord(value: unknown): Record<string, unknown> | null {
   if (value && typeof value === 'object' && !Array.isArray(value)) return value as Record<string, unknown>
@@ -168,13 +168,9 @@ function FilesPane({files, onBack}: {files: FileView[]; onBack: () => void}) {
         {source==='delivery' && group.length>0 && <PreviewAction label={packing ? '正在打包' : '下载本次交付'} icon={PackageOpen} disabled={packing} onClick={() => void downloadAll()}/>}</header>
         {!group.length ? <p className="py-3 text-xs text-muted-foreground">{source==='delivery' ? '本次对话尚未交付文件。' : '本次对话没有上传附件。'}</p> : <ul className="flex flex-wrap gap-2">{group.map(file => {
           const reason=previewUnavailableReason(file.extension)
-          const page=isWebPage(file.filename)
-          const inspect=() => {
-            if(page)return void openPreviewTab({kind:'attachment',id:file.id,filename:file.filename,size:file.size}).catch(error=>toast.error(error instanceof Error ? error.message : '打开失败'))
-            setOpenId(file.id)
-          }
+          const inspect=() => setOpenId(file.id)
           return <li className="min-w-0 w-full" key={file.id}><FileRow file={file} showThumbnail onOpen={inspect} actions={<>
-            {!reason && <PreviewAction label={page ? `在浏览器中打开 ${file.filename}` : `预览 ${file.filename}`} icon={page ? ExternalLink : Eye} onClick={inspect}/>}<PreviewAction label={`下载 ${file.filename}`} icon={Download} onClick={() => void download(file)}/>
+            {!reason && <PreviewAction label={`预览 ${file.filename}`} icon={Eye} onClick={inspect}/>}<PreviewAction label={`下载 ${file.filename}`} icon={Download} onClick={() => void download(file)}/>
           </>}/></li>
         })}</ul>}
       </section>

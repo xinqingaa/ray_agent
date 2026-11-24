@@ -75,7 +75,7 @@ def test_upgrade_both_0012_usage_schemas(tmp_path, already_has_total):
             assert rows[1].total_tokens is None
 
     with_database(tmp_path, scenario)
-    backup, = (tmp_path / "upgrades").glob("rayagent.db.before-0012_model_usage-to-0014_file_change_entries-*")
+    backup, = (tmp_path / "upgrades").glob("rayagent.db.before-0012_model_usage-to-0015_workspace_previews-*")
     with sqlite3.connect(backup) as connection:
         assert connection.execute("SELECT version_num FROM alembic_version").fetchone() == ("0012_model_usage",)
         assert connection.execute("SELECT count(*) FROM model_usage").fetchone() == (2,)

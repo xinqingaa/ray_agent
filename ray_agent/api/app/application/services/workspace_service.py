@@ -126,7 +126,7 @@ class WorkspaceService:
     def __init__(self, uow_factory: Callable[[], IUnitOfWork], read_uow_factory: Callable[[], IUnitOfWork],
                  folders: FolderAccess, policy: FolderPolicy, runtime: WorkspaceRuntime, install_id: str,
                  default_location: str, jobs=None, task_cls=None,
-                 quiesce_seconds: float = DELETE_QUIESCE_SECONDS) -> None:
+                 quiesce_seconds: float = DELETE_QUIESCE_SECONDS, previews=None) -> None:
         self._uow_factory = uow_factory
         self._read_uow_factory = read_uow_factory
         self._folders = folders
@@ -137,6 +137,7 @@ class WorkspaceService:
         self._jobs = jobs
         self._task_cls = task_cls
         self._quiesce_seconds = quiesce_seconds
+        self._previews = previews
 
     # ---- 查询与可用性 ----
 
@@ -494,11 +495,14 @@ class WorkspaceService:
         return await self._update(workspace_id, version, name=valid_name(name))
 
     async def set_local_execution(self, workspace_id: str, enabled: bool, version: int) -> WorkspaceView:
-        """工作区本机执行开关：写入 settings.local_execution_enabled。"""
+        """工作区本机执行开关：写入 settings.local_execution_enabled；关闭时回收工作区运行中的轻量预览服务。"""
         from app.domain.models.execution_settings import with_workspace_execution
         view = await self.get(workspace_id, refresh=False)
         settings = with_workspace_execution(view.workspace.settings, enabled)
-        return await self._update(workspace_id, version, settings=settings)
+        updated = await self._update(workspace_id, version, settings=settings)
+        if not enabled and getattr(self, "_previews", None) is not None:
+            await self._previews.stop_by_workspace(workspace_id)
+        return updated
 
     async def set_auto_memory(self, workspace_id: str, enabled: bool, version: int) -> WorkspaceView:
         """关闭后未提交的提炼永久失效；重新打开只允许之后登记的新任务。"""
@@ -517,7 +521,10 @@ class WorkspaceService:
         return await self.get(workspace_id, refresh=False)
 
     async def archive(self, workspace_id: str, version: int) -> WorkspaceView:
-        return await self._update(workspace_id, version, status=WorkspaceStatus.ARCHIVED)
+        view = await self._update(workspace_id, version, status=WorkspaceStatus.ARCHIVED)
+        if getattr(self, "_previews", None) is not None:
+            await self._previews.stop_by_workspace(workspace_id)
+        return view
 
     async def unarchive(self, workspace_id: str, version: int) -> WorkspaceView:
         return await self._update(workspace_id, version, status=WorkspaceStatus.ACTIVE)
@@ -552,6 +559,8 @@ class WorkspaceService:
                 task = self._task_cls.get(active.id) if active is not None else None
                 if task is not None and not task.done:
                     task.cancel()
+        if getattr(self, "_previews", None) is not None:
+            await self._previews.stop_by_workspace(workspace_id)
         await self._wait_for_writers(workspace_id)
         async with self._uow_factory() as uow:
             workspace = await uow.workspace.get(workspace_id)
@@ -568,6 +577,7 @@ class WorkspaceService:
                 if registered:
                     directories.append(registered[1])
                 await uow.session.delete_by_id(session_id)
+            await uow.preview.delete_by_workspace(workspace_id)
             objects += await uow.change.delete_workspace(workspace_id)  # 写前备份属于工作区，随工作区回收
             await wipe_workspace_memory(uow, workspace_id)  # 记忆、摘要与检索文档立即不可见，后台任务再兜底清理
             await uow.lease.delete_workspace(workspace_id)

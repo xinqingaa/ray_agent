@@ -28,6 +28,7 @@ function load(file) {
   if(name==='@/components/preview/file-preview')return load('components/preview/file-preview.tsx');
   if(name==='./action')return {PreviewAction:props=>React.createElement('button',{'aria-label':props.label,onClick:props.onClick,disabled:props.disabled})};
   if(name==='./image-preview')return {ImagePreview:()=>null};
+  if(name==='./web-preview')return {WebPreview:()=>null};
   if(name==='./preview-frame')return load('components/preview/preview-frame.tsx');
   if(name==='@/components/markdown-content')return {MarkdownContent:props=>React.createElement('p',{},props.content)};
   if(name==='@/components/run/format')return {formatBytes:x=>`${x} B`};
