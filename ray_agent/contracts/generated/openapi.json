@@ -2448,6 +2448,59 @@
         }
       }
     },
+    "/api/sessions/{session_id}/preset": {
+      "put": {
+        "tags": [
+          "会话模块"
+        ],
+        "summary": "设置或退出会话的场景预设",
+        "description": "更新会话当前锁定的内置场景预设（传空表示退出回自由对话模式）；从下一次新运行开始生效。",
+        "operationId": "set_session_preset_api_sessions__session_id__preset_put",
+        "parameters": [
+          {
+            "name": "session_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Session Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SessionPresetRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_SessionPresetResponse_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/sessions/{session_id}/compact": {
       "post": {
         "tags": [
@@ -4154,6 +4207,55 @@
             "content": {
               "application/json": {
                 "schema": {}
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/skills/presets": {
+      "get": {
+        "tags": [
+          "skill"
+        ],
+        "summary": "List Presets",
+        "operationId": "list_presets_api_skills_presets_get",
+        "parameters": [
+          {
+            "name": "workspace_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Workspace Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_PresetListResponse_"
+                }
               }
             }
           },
@@ -11322,6 +11424,18 @@
             ],
             "title": "Workspace Id",
             "description": "会话所属的工作区；创建后不再改变，省略为独立对话"
+          },
+          "active_preset_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active Preset Id",
+            "description": "创建会话时锁定的内置场景预设"
           }
         },
         "type": "object",
@@ -12926,6 +13040,32 @@
               }
             ],
             "title": "Run Reasoning"
+          },
+          "participate_in_memory": {
+            "type": "boolean",
+            "title": "Participate In Memory",
+            "default": true
+          },
+          "active_preset_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active Preset Id"
+          },
+          "active_preset": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SessionPresetState"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -16209,6 +16349,94 @@
         "type": "object",
         "title": "PreferencesUpdate"
       },
+      "PresetItemResponse": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "subtitle": {
+            "type": "string",
+            "title": "Subtitle"
+          },
+          "icon": {
+            "type": "string",
+            "title": "Icon"
+          },
+          "placeholder": {
+            "type": "string",
+            "title": "Placeholder"
+          },
+          "starters": {
+            "items": {
+              "$ref": "#/components/schemas/PresetStarterResponse"
+            },
+            "type": "array",
+            "title": "Starters"
+          },
+          "depends_on": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Depends On"
+          },
+          "default_participate_in_memory": {
+            "type": "boolean",
+            "title": "Default Participate In Memory"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "subtitle",
+          "icon",
+          "placeholder",
+          "starters",
+          "depends_on",
+          "default_participate_in_memory"
+        ],
+        "title": "PresetItemResponse"
+      },
+      "PresetListResponse": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PresetItemResponse"
+            },
+            "type": "array",
+            "title": "Items"
+          }
+        },
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "PresetListResponse"
+      },
+      "PresetStarterResponse": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "prompt": {
+            "type": "string",
+            "title": "Prompt"
+          }
+        },
+        "type": "object",
+        "required": [
+          "label",
+          "prompt"
+        ],
+        "title": "PresetStarterResponse"
+      },
       "PreviewEventData": {
         "properties": {
           "event_id": {
@@ -18004,6 +18232,25 @@
         ],
         "title": "Response[ParticipateInMemoryResponse]"
       },
+      "Response_PresetListResponse_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PresetListResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "Response[PresetListResponse]"
+      },
       "Response_ProviderProbeResult_": {
         "properties": {
           "data": {
@@ -18174,6 +18421,25 @@
           "data"
         ],
         "title": "Response[SearchResponse]"
+      },
+      "Response_SessionPresetResponse_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SessionPresetResponse"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "Response[SessionPresetResponse]"
       },
       "Response_ShellChangesResponse_": {
         "properties": {
@@ -19739,6 +20005,90 @@
         "minLength": 1,
         "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$",
         "description": "会话身份"
+      },
+      "SessionPresetRequest": {
+        "properties": {
+          "active_preset_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active Preset Id"
+          }
+        },
+        "type": "object",
+        "title": "SessionPresetRequest"
+      },
+      "SessionPresetResponse": {
+        "properties": {
+          "active_preset_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active Preset Id"
+          },
+          "active_preset": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SessionPresetState"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "title": "SessionPresetResponse"
+      },
+      "SessionPresetState": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "icon": {
+            "type": "string",
+            "title": "Icon"
+          },
+          "active": {
+            "type": "boolean",
+            "title": "Active",
+            "default": true
+          },
+          "inactive_reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Inactive Reason"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "icon"
+        ],
+        "title": "SessionPresetState",
+        "description": "会话当前锁定场景预设的展示状态。"
       },
       "SessionStatus": {
         "type": "string",

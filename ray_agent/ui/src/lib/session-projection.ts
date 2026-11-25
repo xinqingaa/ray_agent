@@ -95,7 +95,7 @@ const REASON_TEXT: Record<string, string> = {
 }
 
 const FILE_NAMES = new Set([
-  'read_file', 'file_read', 'write_file', 'file_write', 'replace_in_file', 'file_str_replace',
+  'read_file', 'read_document', 'file_read', 'write_file', 'file_write', 'replace_in_file', 'file_str_replace',
   'search_in_file', 'file_find_in_content', 'find_files', 'file_find_by_name', 'file_list',
 ])
 
@@ -103,6 +103,7 @@ const BYTE_SUMMARY = new Set(['write_file', 'file_write', 'replace_in_file', 'fi
 
 const VERBS: Record<string, string> = {
   read_file: '读取文件',
+  read_document: '读取文档',
   file_read: '读取文件',
   write_file: '写入文件',
   finalize_artifact: '整理交付文件',

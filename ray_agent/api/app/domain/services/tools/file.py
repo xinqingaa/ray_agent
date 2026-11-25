@@ -8,16 +8,22 @@
 import asyncio
 import codecs
 import re
-from typing import BinaryIO, Optional
+from pathlib import Path
+from typing import Any, Awaitable, Callable, BinaryIO, Optional
 
 from app.domain.external.workspace_files import FileKind, FileVersion, WorkspaceFileError
+from app.domain.models.document_knowledge import DocumentFormat
 from app.domain.models.error import ErrorCode
 from app.domain.models.identity import RootedPath, relative_parts
 from app.domain.models.tool_result import ToolResult
+from app.domain.services.document_formats import detect_format
 from app.domain.services.file_scope import FileScope
 from .base import BaseTool, tool
 
 DEFAULT_READ_CHARS = 10000
+DEFAULT_DOCUMENT_CHARS = 16000
+DEFAULT_DOCUMENT_BLOCKS = 20
+DOCUMENT_TOOL_TIMEOUT_SECONDS = 30.0
 PROBE_BYTES = 8192
 SCAN_FACTOR = 8  # 按行读取时最多扫描 read_bytes 的倍数，避免为取几行读完超大文件
 MAX_LINE_CHARS = 20000  # 搜索时单行参与匹配的字符上限
@@ -83,13 +89,46 @@ def _glob_regex(pattern: str) -> re.Pattern:
     return re.compile("^" + "".join(out) + "$", re.IGNORECASE)
 
 
+DocumentParserFn = Callable[[Path, str], Awaitable[dict[str, Any]]]
+
+
+async def _default_document_parse(source_path: Path, fmt: str) -> dict[str, Any]:
+    """默认经受限解析子进程提取办公文档；可用时自动探测本地 OCR 组件。"""
+    from app.domain.models.semantic_index import OCR_COMPONENT_ID
+    from app.infrastructure.external.document_parse.runner import run_document_parse
+    from app.infrastructure.external.execution.runtime import get_components
+
+    ocr_dir = None
+    try:
+        installed = get_components().current(OCR_COMPONENT_ID)
+        ocr_dir = installed[0] if installed else None
+    except Exception:
+        ocr_dir = None
+    return await run_document_parse(
+        source_path, fmt, timeout=DOCUMENT_TOOL_TIMEOUT_SECONDS, ocr_component_dir=ocr_dir
+    )
+
+
+def _format_block_label(locator: dict[str, Any]) -> str:
+    if "sheet" in locator and locator["sheet"]:
+        return f"[工作表: {locator['sheet']}]"
+    if "page" in locator and locator["page"] is not None:
+        return f"[第 {locator['page']} 页]"
+    if "slide" in locator and locator["slide"] is not None:
+        return f"[第 {locator['slide']} 页幻灯片]"
+    if "heading" in locator and locator["heading"]:
+        return f"[{locator['heading']}]"
+    return ""
+
+
 class FileTool(BaseTool):
     """文件工具箱"""
     name: str = "file"
 
-    def __init__(self, scope: Optional[FileScope]) -> None:
+    def __init__(self, scope: Optional[FileScope], document_parser: Optional[DocumentParserFn] = None) -> None:
         super().__init__()
         self.scope = scope
+        self._document_parser = document_parser or _default_document_parse
 
     async def invoke_for_call(self, tool_name: str, call_id: str, **kwargs) -> ToolResult:
         """把调用身份交给文件范围，工作区文件夹的变更记录据此归属到这次工具调用。"""
@@ -181,6 +220,133 @@ class FileTool(BaseTool):
             if not truncated:
                 decoder.decode(b"", final=True)
             return "".join(lines), index + (1 if open_line and not truncated else 0), truncated
+
+    @tool(
+        name="read_document",
+        description=(
+            "只读解析并分段读取 PDF、Word（DOCX/DOC）、Excel（XLSX）、PPTX、CSV/TSV 及 HTML/文本等办公文档。"
+            "独立对话与工作区会话均可用；支持按工作表（sheet）或页码（page_start/page_end）过滤与分段。"
+        ),
+        parameters={
+            "filepath": {"type": "string", "description": "要读取文档的路径（绝对路径或相对工作目录）"},
+            "start_block": {"type": "integer", "description": "(可选) 起始内容块序号，从 1 开始，默认 1"},
+            "max_blocks": {"type": "integer", "description": "(可选) 最多返回块数，默认 20"},
+            "sheet": {"type": "string", "description": "(可选) Excel 工作表名称（精确匹配，不区分大小写）"},
+            "page_start": {"type": "integer", "description": "(可选) PDF/PPTX 起始页码，从 1 开始"},
+            "page_end": {"type": "integer", "description": "(可选) PDF/PPTX 结束页码"},
+            "max_chars": {"type": "integer", "description": "(可选) 返回文本字符上限，默认 16000"},
+        },
+        required=["filepath"],
+    )
+    async def read_document(
+            self,
+            filepath: str,
+            start_block: int = 1,
+            max_blocks: int = DEFAULT_DOCUMENT_BLOCKS,
+            sheet: Optional[str] = None,
+            page_start: Optional[int] = None,
+            page_end: Optional[int] = None,
+            max_chars: int = DEFAULT_DOCUMENT_CHARS,
+    ) -> ToolResult:
+        if start_block < 1 or max_blocks < 1 or max_chars < 1:
+            return ToolResult(success=False, message="start_block、max_blocks 与 max_chars 必须大于等于 1")
+        if page_start is not None and page_start < 1:
+            return ToolResult(success=False, message="page_start 必须大于等于 1")
+        if page_end is not None and page_start is not None and page_end < page_start:
+            return ToolResult(success=False, message="page_end 不能小于 page_start")
+        try:
+            path = await self._target(filepath)
+            await self._file_entry(path)
+        except WorkspaceFileError as error:
+            return failure(error)
+
+        fmt = detect_format(path.relative_path)
+        if fmt is DocumentFormat.UNSUPPORTED:
+            return ToolResult(success=False, message=f"不支持的文档格式：{self.scope.display(path)}")
+        if fmt is DocumentFormat.IMAGE:
+            return ToolResult(success=False, message="图片请使用视觉输入或 OCR 流程查看，不用 read_document")
+
+        host_path = Path(self.scope.display(path))
+        parsed = await self._document_parser(host_path, fmt.value)
+        status = parsed.get("status")
+        if status != "ok":
+            data = {"filepath": str(host_path), "format": fmt.value, "status": status}
+            if parsed.get("component_needed"):
+                data["component_needed"] = parsed["component_needed"]
+            if parsed.get("ocr_state"):
+                data["ocr_state"] = parsed["ocr_state"]
+            return ToolResult(success=False, message=parsed.get("reason") or "文档解析失败", data=data)
+
+        all_blocks = parsed.get("blocks") or []
+        sheets = list(dict.fromkeys(
+            loc["sheet"] for b in all_blocks
+            if isinstance((loc := b.get("locator")), dict) and loc.get("sheet")
+        ))
+        pages = sorted({
+            num for b in all_blocks
+            if isinstance((loc := b.get("locator")), dict)
+            for num in (loc.get("page"), loc.get("slide"))
+            if isinstance(num, int)
+        })
+
+        filtered = all_blocks
+        if sheet is not None and sheet.strip():
+            target_sheet = sheet.strip().casefold()
+            filtered = [
+                b for b in filtered
+                if isinstance((loc := b.get("locator")), dict)
+                and str(loc.get("sheet") or "").casefold() == target_sheet
+            ]
+        if page_start is not None or page_end is not None:
+            low = page_start or 1
+            high = page_end if page_end is not None else float("inf")
+            filtered = [
+                b for b in filtered
+                if isinstance((loc := b.get("locator")), dict)
+                and any(isinstance(v, int) and low <= v <= high for v in (loc.get("page"), loc.get("slide")))
+            ]
+
+        window = filtered[start_block - 1: start_block - 1 + max_blocks]
+        parts: list[str] = []
+        selected: list[dict[str, Any]] = []
+        used_chars = 0
+        truncated = False
+        for item in window:
+            loc = item.get("locator") if isinstance(item.get("locator"), dict) else {}
+            label = _format_block_label(loc)
+            text = str(item.get("text") or "")
+            chunk = f"{label}\n{text}".strip() if label else text
+            sep = 2 if parts else 0
+            if used_chars + sep + len(chunk) > max_chars:
+                if not parts:
+                    room = max(1, max_chars)
+                    parts.append(chunk[:room])
+                    selected.append({**item, "text": text[:room]})
+                truncated = True
+                break
+            parts.append(chunk)
+            selected.append(item)
+            used_chars += sep + len(chunk)
+
+        end_block = start_block + len(selected) - 1 if selected else start_block - 1
+        has_more = truncated or (start_block - 1 + len(selected) < len(filtered))
+        return ToolResult(
+            message="文档读取成功" if filtered else "文档解析完成，当前过滤条件下没有内容",
+            data={
+                "filepath": str(host_path),
+                "format": parsed.get("format", fmt.value),
+                "total_blocks": len(all_blocks),
+                "filtered_blocks": len(filtered),
+                "start_block": start_block,
+                "end_block": end_block,
+                "has_more": has_more,
+                "truncated": truncated,
+                "sheets": sheets,
+                "pages": pages,
+                "blocks": selected,
+                "content": "\n\n".join(parts),
+            },
+        )
 
     @tool(
         name="write_file",

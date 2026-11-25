@@ -248,6 +248,7 @@ export type SessionsData = {
 export type CreateSessionParams = {
   creation_id?: string;
   workspace_id?: string;
+  active_preset_id?: string | null;
   title?: string;
   [key: string]: unknown;
 };
@@ -369,6 +370,9 @@ export type SessionDetail = Session & {
   reasoning?: string | null;
   run_model?: string | null;
   run_reasoning?: string | null;
+  participate_in_memory?: boolean;
+  active_preset_id?: string | null;
+  active_preset?: {id: string; title: string; icon: string; active: boolean; inactive_reason?: string | null} | null;
 };
 
 // ==================== 会话事件（契约生成） ====================

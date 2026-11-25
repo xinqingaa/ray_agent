@@ -7,7 +7,7 @@ import {configApi} from '@/lib/api/config'
 import {sessionApi} from '@/lib/api/session'
 import type {FileInfo, KnowledgeReference} from '@/lib/api/types'
 
-export type StartOptions = {mode?: 'plan' | 'normal'; model?: string; reasoning?: string; skill?: {id: string; version: string}; image_mode?: 'auto' | 'files'; knowledge_references?: KnowledgeReference[]}
+export type StartOptions = {mode?: 'plan' | 'normal'; model?: string; reasoning?: string; skill?: {id: string; version: string}; activePresetId?: string | null; image_mode?: 'auto' | 'files'; knowledge_references?: KnowledgeReference[]}
 
 /**
  * 首页输入发起一段新对话：草稿作用域决定会话归属（独立首页与各工作区首页各一份草稿），
@@ -20,6 +20,7 @@ export function useStartTask(scope: string, workspaceId: string | null, onStarte
     setSending(true)
     try {
       let id = readDraft(scope).sessionId
+      const targetPresetId = options?.activePresetId ?? null
       if (!id) {
         // 已有创建标识时先复用它，保持创建响应丢失后的读回路径。
         const draft = readDraft(scope)
@@ -39,9 +40,17 @@ export function useStartTask(scope: string, workspaceId: string | null, onStarte
         }
         const creationId = draft.creationId || crypto.randomUUID()
         writeDraft(scope, {creationId})
-        const session = await sessionApi.createSession({creation_id: creationId, ...(workspaceId ? {workspace_id: workspaceId} : {})})
+        const session = await sessionApi.createSession({
+          creation_id: creationId,
+          ...(workspaceId ? {workspace_id: workspaceId} : {}),
+          ...(targetPresetId ? {active_preset_id: targetPresetId} : {}),
+        })
         id = session.session_id
-        writeDraft(scope, {sessionId: id})
+        writeDraft(scope, {sessionId: id, sessionPresetId: targetPresetId})
+      } else if ((readDraft(scope).sessionPresetId ?? null) !== targetPresetId) {
+        // 首条消息发送失败后若用户切换了场景预设，发消息前先同步会话预设
+        await sessionApi.setPreset(id, targetPresetId)
+        writeDraft(scope, {sessionPresetId: targetPresetId})
       }
       await sendRecoverably(scope, id, {
         message,

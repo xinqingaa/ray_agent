@@ -74,10 +74,14 @@ class BingSearchEngine(SearchEngine):
             if date_range in date_mapping:
                 params["filters"] = date_mapping[date_range]
 
+        request_headers = dict(self.headers)
+        if re.search(r"[\u4e00-\u9fff]", query):
+            request_headers["Accept-Language"] = "zh-CN,zh;q=0.9,en;q=0.5"
+
         try:
             # 6.使用httpx创建异步客户端
             async with httpx.AsyncClient(
-                    headers=self.headers,
+                    headers=request_headers,
                     cookies=self.cookies,
                     timeout=60,
                     follow_redirects=True,

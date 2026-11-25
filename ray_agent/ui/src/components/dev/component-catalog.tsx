@@ -356,7 +356,7 @@ const toolPolicyFixture: ToolPolicyForm = {
     default_rules: {'mcp:*': 'ask', 'a2a:*': 'ask'},
     fallback: 'allow',
     builtin_toolsets: [
-      {toolset: 'file', functions: ['read_file', 'write_file', 'replace_in_file', 'search_in_file', 'find_files']},
+      {toolset: 'file', functions: ['read_file', 'read_document', 'write_file', 'replace_in_file', 'search_in_file', 'find_files']},
       {toolset: 'shell', functions: ['shell_execute', 'shell_read_output', 'shell_wait_process', 'shell_write_input', 'shell_kill_process']},
       {toolset: 'browser', functions: ['browser_view', 'browser_navigate']},
       {toolset: 'search', functions: ['search_web']},

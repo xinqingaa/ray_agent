@@ -343,9 +343,15 @@ export function useSessionDetail(
               reasoning: detail.reasoning,
               run_model: detail.run_model,
               run_reasoning: detail.run_reasoning,
+              participate_in_memory: detail.participate_in_memory,
+              active_preset_id: detail.active_preset_id,
+              active_preset: detail.active_preset,
             }
             const unchanged = prev.model_id === next.model_id && prev.reasoning === next.reasoning
               && prev.run_model === next.run_model && prev.run_reasoning === next.run_reasoning
+              && prev.participate_in_memory === next.participate_in_memory
+              && prev.active_preset_id === next.active_preset_id
+              && JSON.stringify(prev.active_preset ?? null) === JSON.stringify(next.active_preset ?? null)
               && prev.context_operation?.status === next.context_operation?.status
               && prev.context_operation?.started_at === next.context_operation?.started_at
               && JSON.stringify(prev.context_config) === JSON.stringify(next.context_config)

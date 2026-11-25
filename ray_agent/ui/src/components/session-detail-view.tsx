@@ -6,6 +6,8 @@ import {ArrowDown, ChevronDown, Code2, Download, History, MessageCircle, PanelRi
 import {Button} from '@/components/ui/button'
 import {SegmentedControl} from '@/components/ui/segmented-control'
 import {ChatInput, type ChatInputRef} from '@/components/chat-input'
+import {PresetCapsule} from '@/components/preset-picker'
+import {SKILLS_CHANGED} from '@/lib/api/skills'
 import {RenameSessionDialog} from '@/components/rename-session-dialog'
 import {DeveloperView} from '@/components/developer/developer-view'
 import {ContextRing} from '@/components/run/context-ring'
@@ -189,6 +191,28 @@ export function SessionDetailView({
   const restoreOptionsFocus = () => optionsTrigger.current?.focus({preventScroll: true})
   const [renamedTitle, setRenamedTitle] = useState<{sessionId: string; title: string; previousTitle: string} | null>(null)
   const [previewedFile, setPreviewedFile] = useState<FileView | null>(null)
+  const [clearedPresetId, setClearedPresetId] = useState<string | null>(null)
+  const activePreset = session?.active_preset && clearedPresetId !== session.active_preset.id ? session.active_preset : null
+  const activePresetId = session?.active_preset_id ?? null
+  useEffect(() => {
+    if (!activePresetId) return
+    const reload = () => { void refresh() }
+    window.addEventListener(SKILLS_CHANGED, reload)
+    return () => window.removeEventListener(SKILLS_CHANGED, reload)
+  }, [activePresetId, refresh])
+  const handleExitPreset = async () => {
+    const previous = activePreset?.id ?? null
+    if (!previous) return
+    setClearedPresetId(previous)
+    try {
+      await sessionApi.setPreset(sessionId, null)
+      toast.success('已退出当前场景，后续将按自由对话进行')
+      void refresh()
+    } catch (err) {
+      setClearedPresetId(null)
+      toast.error(err instanceof Error ? err.message : '退出场景失败')
+    }
+  }
   const [fullscreenPreview, setFullscreenPreview] = useState<{previewId: string; initial?: ManagedPreview} | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const developerScrollRef = useRef<HTMLDivElement>(null)
@@ -325,6 +349,7 @@ export function SessionDetailView({
     setInspectorPreview(null)
     setManagedPreviews([])
     setPreviewedFile(null)
+    setClearedPresetId(null)
     setRenameOpen(false)
     setPlanHistoryOpen(false)
     nextOptionsDialog.current = null
@@ -518,7 +543,7 @@ export function SessionDetailView({
       if (item.runId !== inspectedRunId) continue
       const calls = item.kind === 'tools' ? item.calls : item.kind === 'approval' ? [item.call] : []
       for (const call of calls) {
-        if (call.name !== 'read_file' || call.status !== 'succeeded') continue
+        if ((call.name !== 'read_file' && call.name !== 'read_document') || call.status !== 'succeeded') continue
         const result = call.raw.content as {filepath?: unknown; outcome?: {data?: {filepath?: unknown}}} | null
         const filename = result?.outcome?.data?.filepath ?? result?.filepath
         const path = typeof filename === 'string' ? filename.replaceAll('\\', '/') : null
@@ -1101,6 +1126,7 @@ export function SessionDetailView({
                       savedReasoning={session?.reasoning}
                       runModel={session?.run_model}
                       runReasoning={session?.run_reasoning}
+                      topBanner={activePreset ? <PresetCapsule preset={activePreset} disabled={submitting} onClear={() => void handleExitPreset()}/> : undefined}
                       accessory={view && <ContextRing usage={view.usage}/>}
                       commandHost={{
                         hasSession: true,

@@ -771,6 +771,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/sessions/{session_id}/preset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * 设置或退出会话的场景预设
+         * @description 更新会话当前锁定的内置场景预设（传空表示退出回自由对话模式）；从下一次新运行开始生效。
+         */
+        put: operations["set_session_preset_api_sessions__session_id__preset_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/sessions/{session_id}/compact": {
         parameters: {
             query?: never;
@@ -1391,6 +1411,23 @@ export interface paths {
         get?: never;
         /** Revise Import */
         put: operations["revise_import_api_skills_imports__operation_id__content_put"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/skills/presets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Presets */
+        get: operations["list_presets_api_skills_presets_get"];
+        put?: never;
         post?: never;
         delete?: never;
         options?: never;
@@ -3860,6 +3897,11 @@ export interface components {
              * @description 会话所属的工作区；创建后不再改变，省略为独立对话
              */
             workspace_id?: string | null;
+            /**
+             * Active Preset Id
+             * @description 创建会话时锁定的内置场景预设
+             */
+            active_preset_id?: string | null;
         };
         /**
          * CreateSessionResponse
@@ -4443,6 +4485,14 @@ export interface components {
             run_model?: string | null;
             /** Run Reasoning */
             run_reasoning?: string | null;
+            /**
+             * Participate In Memory
+             * @default true
+             */
+            participate_in_memory: boolean;
+            /** Active Preset Id */
+            active_preset_id?: string | null;
+            active_preset?: components["schemas"]["SessionPresetState"] | null;
         };
         /**
          * HealthStatus
@@ -5768,6 +5818,37 @@ export interface components {
             /** Voice */
             voice?: ("off" | "local" | "deepseek") | null;
         };
+        /** PresetItemResponse */
+        PresetItemResponse: {
+            /** Id */
+            id: string;
+            /** Title */
+            title: string;
+            /** Subtitle */
+            subtitle: string;
+            /** Icon */
+            icon: string;
+            /** Placeholder */
+            placeholder: string;
+            /** Starters */
+            starters: components["schemas"]["PresetStarterResponse"][];
+            /** Depends On */
+            depends_on: string[];
+            /** Default Participate In Memory */
+            default_participate_in_memory: boolean;
+        };
+        /** PresetListResponse */
+        PresetListResponse: {
+            /** Items */
+            items: components["schemas"]["PresetItemResponse"][];
+        };
+        /** PresetStarterResponse */
+        PresetStarterResponse: {
+            /** Label */
+            label: string;
+            /** Prompt */
+            prompt: string;
+        };
         /**
          * PreviewEventData
          * @description 项目预览登记事件数据。
@@ -6320,6 +6401,10 @@ export interface components {
         Response_ParticipateInMemoryResponse_: {
             data: components["schemas"]["ParticipateInMemoryResponse"] | null;
         };
+        /** Response[PresetListResponse] */
+        Response_PresetListResponse_: {
+            data: components["schemas"]["PresetListResponse"] | null;
+        };
         /** Response[ProviderProbeResult] */
         Response_ProviderProbeResult_: {
             data: components["schemas"]["ProviderProbeResult"] | null;
@@ -6355,6 +6440,10 @@ export interface components {
         /** Response[SearchResponse] */
         Response_SearchResponse_: {
             data: components["schemas"]["SearchResponse"] | null;
+        };
+        /** Response[SessionPresetResponse] */
+        Response_SessionPresetResponse_: {
+            data: components["schemas"]["SessionPresetResponse"] | null;
         };
         /** Response[ShellChangesResponse] */
         Response_ShellChangesResponse_: {
@@ -6866,6 +6955,36 @@ export interface components {
         SessionEvent: components["schemas"]["MessageSSEEvent"] | components["schemas"]["TitleSSEEvent"] | components["schemas"]["StepSSEEvent"] | components["schemas"]["PlanSSEEvent"] | components["schemas"]["ToolSSEEvent"] | components["schemas"]["DoneSSEEvent"] | components["schemas"]["ErrorSSEEvent"] | components["schemas"]["WaitSSEEvent"] | components["schemas"]["TurnSSEEvent"] | components["schemas"]["AttemptSSEEvent"] | components["schemas"]["RunSSEEvent"] | components["schemas"]["EnvironmentSSEEvent"] | components["schemas"]["ContextSSEEvent"] | components["schemas"]["CompactSSEEvent"] | components["schemas"]["CleanupSSEEvent"] | components["schemas"]["ApprovalSSEEvent"] | components["schemas"]["PreviewSSEEvent"];
         /** @description 会话身份 */
         SessionId: string;
+        /** SessionPresetRequest */
+        SessionPresetRequest: {
+            /** Active Preset Id */
+            active_preset_id?: string | null;
+        };
+        /** SessionPresetResponse */
+        SessionPresetResponse: {
+            /** Active Preset Id */
+            active_preset_id?: string | null;
+            active_preset?: components["schemas"]["SessionPresetState"] | null;
+        };
+        /**
+         * SessionPresetState
+         * @description 会话当前锁定场景预设的展示状态。
+         */
+        SessionPresetState: {
+            /** Id */
+            id: string;
+            /** Title */
+            title: string;
+            /** Icon */
+            icon: string;
+            /**
+             * Active
+             * @default true
+             */
+            active: boolean;
+            /** Inactive Reason */
+            inactive_reason?: string | null;
+        };
         /**
          * SessionStatus
          * @description 会话状态：最新运行状态的冗余副本，与运行状态在同一事务更新，供会话列表使用。
@@ -9525,6 +9644,41 @@ export interface operations {
             };
         };
     };
+    set_session_preset_api_sessions__session_id__preset_put: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                session_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SessionPresetRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_SessionPresetResponse_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
     compact_session_api_sessions__session_id__compact_post: {
         parameters: {
             query?: never;
@@ -10707,6 +10861,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": unknown;
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    list_presets_api_skills_presets_get: {
+        parameters: {
+            query?: {
+                workspace_id?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_PresetListResponse_"];
                 };
             };
             /** @description 结构化错误 */

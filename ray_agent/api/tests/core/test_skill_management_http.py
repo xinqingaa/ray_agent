@@ -16,7 +16,7 @@ def test_management_http_and_resources(tmp_path):
         await s.initialize()
         await install(s, name='aaa')
         await install(s, name='zzz')
-        assert [x['name'] for x in await s.list()] == ['find-skills', 'aaa', 'zzz']
+        assert [x['name'] for x in await s.list() if not x.get('builtin')] == ['aaa', 'zzz']
         app = FastAPI()
         app.include_router(router, prefix='/api')
         app.dependency_overrides[get_skill_service] = lambda: s
@@ -54,7 +54,7 @@ def test_management_http_and_resources(tmp_path):
                 assert (await client.get(base, params=params)).status_code == 403
                 for headers in ({'content-type':'application/json'}, {}):
                     assert (await client.delete('/api/skills/example', params={'expected_version':version}, headers=headers)).status_code == 200
-                builtin = (await s.list())[0]
+                builtin = next(item for item in await s.list() if item['name'] == 'find-skills')
                 assert (await client.delete('/api/skills/find-skills', params={'expected_version':builtin['version']})).status_code == 409
     asyncio.run(scenario())
 

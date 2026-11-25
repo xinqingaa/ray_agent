@@ -12,7 +12,8 @@ from ...domain.models.clock import utc_now
 from ...domain.models.session import Session
 
 _JSON_FIELDS = {"memories", "files"}
-_DOMAIN_FIELDS = {"id", "workspace_id", "participate_in_memory", "memory_access_version", "instruction_version", "title", "title_source",
+_DOMAIN_FIELDS = {"id", "workspace_id", "participate_in_memory", "memory_access_version", "instruction_version",
+                  "active_preset_id", "title", "title_source",
                   "status", "model_id", "reasoning", "context_window", "max_tokens",
                   "temperature", "unread_message_count", "latest_message", "latest_message_at", "created_at",
                   "updated_at"}
@@ -30,6 +31,7 @@ class SessionModel(Base):
     participate_in_memory: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     memory_access_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
     instruction_version: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    active_preset_id: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
     title: Mapped[str] = mapped_column(Text, nullable=False, default="")
     title_source: Mapped[str] = mapped_column(String(16), nullable=False, default="placeholder")
     status: Mapped[str] = mapped_column(String(16), nullable=False, default="pending")

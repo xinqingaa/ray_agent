@@ -10,6 +10,7 @@ from pathlib import Path
 from collections import OrderedDict
 from typing import Callable
 
+from app.builtin_skills.registry import BUILTIN_SKILLS, load_builtin_bundles, preset_specs
 from app.domain.models.app_config import SkillConfig
 from app.domain.repositories.skills import SkillRepository
 from app.domain.services.skill_context import catalog_message, body_message
@@ -321,16 +322,89 @@ class SkillService:
         kept_ids = {e['id'] for e in kept}
         return kept, [e for e in members if e['id'] not in kept_ids]
 
-    def _freeze_bound(self, entries: list[dict], config: SkillConfig, workspace_id: str | None, selection: dict | None) -> list[dict]:
-        """已纳入集合放得下就整份冻结。放不下时只保留内置 Skill，不按扫描顺序截断。"""
+    def _freeze_bound(self, entries: list[dict], config: SkillConfig, workspace_id: str | None, selection: dict | None,
+                      *, required_entries: list[dict] | tuple[dict, ...] = ()) -> list[dict]:
+        """已纳入集合放得下就整份冻结。放不下时只保留内置 Skill、预设依赖与本次选中项，不按扫描顺序截断。"""
         members = self._members(entries, config, workspace_id)
+        required_ids = {item['id'] for item in required_entries}
         if selection:
-            members = [e for e in members if e['name'] != selection['name']] + [selection]
+            members = [e for e in members if e['name'] != selection['name'] or e['id'] in required_ids] + [selection]
+        present_ids = {e['id'] for e in members}
+        for item in required_entries:
+            if item['id'] not in present_ids:
+                members.append(item)
+                present_ids.add(item['id'])
         if self._catalog_size(members) <= self.settings.skill_catalog_chars:
             return members
         if self._catalog_size(self._members(entries, config, workspace_id)) <= self.settings.skill_catalog_chars:
             raise SkillError('本运行 Skill 目录容量不足', 409)
-        return [e for e in members if e.get('builtin') or e is selection]
+        return [e for e in members if e.get('builtin') or e is selection or e['id'] in required_ids]
+
+    def preset_preload_entries(self, entries: list[dict], config: SkillConfig, preset_id: str | None) -> list[dict]:
+        """解析内置场景预设及其 depends_on 基础 Skill；预设停用或非内置则返回空。"""
+        if not preset_id:
+            return []
+        spec = BUILTIN_SKILLS.get(preset_id)
+        if spec is None or spec.category != 'preset' or spec.preset is None:
+            return []
+        by_id = {e['id']: e for e in entries}
+        preset_entry = by_id.get(preset_id)
+        if not preset_entry or not preset_entry.get('builtin') or not self._selectable(preset_entry, config):
+            return []
+        result = [preset_entry]
+        seen = {preset_id}
+        for dep_id in spec.preset.depends_on:
+            if dep_id in seen:
+                continue
+            dep_entry = by_id.get(dep_id)
+            if dep_entry and dep_entry.get('builtin') and self._selectable(dep_entry, config):
+                result.append(dep_entry)
+                seen.add(dep_id)
+        return result
+
+    async def list_presets(self, *, workspace_id: str | None = None) -> list[dict]:
+        """返回当前启用的内置场景预设清单（供首页卡片展示）。"""
+        config = await self._config()
+        async with self.repository.transaction() as tx:
+            entries = {e['id']: e for e in await tx.all('skills')}
+        items = []
+        for preset in preset_specs():
+            entry = entries.get(preset.id)
+            if entry is not None:
+                if not entry.get('builtin') or not self._selectable(entry, config):
+                    continue
+            elif preset.id in config.disabled_skills:
+                continue
+            items.append(preset.model_dump(exclude={'order'}))
+        return items
+
+    async def session_preset_state(self, preset_id: str | None) -> dict | None:
+        """读取会话锁定场景预设的当前有效性，停用或缺失时返回失效原因。"""
+        if not preset_id:
+            return None
+        spec = BUILTIN_SKILLS.get(preset_id)
+        if spec is None or spec.category != 'preset' or spec.preset is None:
+            return {'id': preset_id, 'title': preset_id, 'icon': 'sparkles', 'active': False,
+                    'inactive_reason': '该场景预设已不存在'}
+        config = await self._config()
+        async with self.repository.transaction() as tx:
+            entry = await tx.get('skills', preset_id)
+        active = True
+        inactive_reason = None
+        if entry is not None:
+            if not self._selectable(entry, config):
+                active = False
+                inactive_reason = '该场景预设已在设置中停用'
+        elif preset_id in config.disabled_skills:
+            active = False
+            inactive_reason = '该场景预设已在设置中停用'
+        return {
+            'id': spec.preset.id,
+            'title': spec.preset.title,
+            'icon': spec.preset.icon,
+            'active': active,
+            'inactive_reason': inactive_reason,
+        }
 
     async def _check_budget(self, tx, replacement: dict, config: SkillConfig):
         entries = {e['id']: e for e in await tx.all('skills')}
@@ -663,27 +737,34 @@ class SkillService:
                     await tx.put('skills', skill_id, entry)
 
     async def initialize(self):
-        raw = (Path(__file__).parents[2] / 'builtin_skills/find-skills/SKILL.md').read_bytes()
-        bundle = {'SKILL.md': raw}
-        candidate = candidates(bundle, self.settings)[0]
-        await asyncio.to_thread(self.storage.write, 'versions', candidate['version'], bundle)
+        builtin_root = Path(__file__).parents[2] / 'builtin_skills'
+        bundles = load_builtin_bundles(builtin_root)
+        prepared = []
+        for spec, bundle in bundles:
+            candidate = candidates(bundle, self.settings)[0]
+            await asyncio.to_thread(self.storage.write, 'versions', candidate['version'], bundle)
+            prepared.append((spec, candidate))
         async with self.repository.transaction() as tx:
             for op in await tx.all('imports'):
                 if op['stage'] in ('fetching', 'validating', 'publishing'):
                     await tx.put('imports', op['id'], {**op, 'stage': 'interrupted', 'error': '服务重启，导入中断，请重新获取'})
-            old = await tx.get('skills', candidate['name'])
-            if old and not old.get('builtin') and not old.get('external'):
-                raise SkillError('内置 find-skills 与用户 Skill 同名，请先更名用户 Skill', 409)
-            version = {**candidate, 'source': {'kind': 'builtin', 'label': '内置'}}
-            version['context_chars'] = len(body_message('', version, self.settings.skill_resource_chars)['content'])
-            version.pop('text', None)
-            enabled = old['enabled'] if old else True
-            included = bool(old['included']) if old and 'included' in old else True
-            entry = {k: candidate[k] for k in ('name', 'description', 'version')}
-            entry.update(id=candidate['name'], enabled=enabled, included=included, builtin=True,
-                         external=False, status='available', source={'kind': 'builtin', 'label': '内置'})
-            await tx.put('versions', candidate['version'], version)
-            await tx.put('skills', candidate['name'], entry)
+            for spec, candidate in prepared:
+                old = await tx.get('skills', candidate['name'])
+                if old and not old.get('builtin') and not old.get('external'):
+                    raise SkillError(f"内置 {candidate['name']} 与用户 Skill 同名，请先更名用户 Skill", 409)
+                version = {**candidate, 'source': {'kind': 'builtin', 'label': '内置'}}
+                version['context_chars'] = len(body_message('', version, self.settings.skill_resource_chars)['content'])
+                version.pop('text', None)
+                enabled = old['enabled'] if old else True
+                included = bool(old['included']) if old and 'included' in old else spec.default_included
+                entry = {k: candidate[k] for k in ('name', 'description', 'version')}
+                entry.update(
+                    id=candidate['name'], enabled=enabled, included=included, builtin=True,
+                    external=False, status='available', category=spec.category,
+                    source={'kind': 'builtin', 'label': '内置'},
+                )
+                await tx.put('versions', candidate['version'], version)
+                await tx.put('skills', candidate['name'], entry)
         await self.collect()
 
     async def collect(self):
@@ -738,26 +819,40 @@ class SkillService:
                     next((e for e in entries if e['id'] == selection.id), None),
                     selection.version, workspace_id, config,
                 )
-            bound = self._freeze_bound(entries, config, workspace_id, selected)
+            preset_id = getattr(session, 'active_preset_id', None) if session else None
+            required_entries = self.preset_preload_entries(entries, config, preset_id)
+            bound = self._freeze_bound(entries, config, workspace_id, selected, required_entries=required_entries)
             for entry in bound:
                 payload = {**entry, 'active': False, 'root_path': str(self.snapshot_root(entry['version']))}
                 await tx.bind(run.id, entry['id'], entry['version'], payload)
-            await uow.run.save_snapshot(run.id, {**run.config_snapshot, 'skills_frozen': True,
-                                                 'skill_workspace_id': workspace_id})
+            await uow.run.save_snapshot(run.id, {
+                **run.config_snapshot,
+                'skills_frozen': True,
+                'skill_workspace_id': workspace_id,
+                'active_preset_id': preset_id,
+                'preset_preload_ids': [e['id'] for e in required_entries],
+            })
         if selection and not any(e['id'] == selection.id and e['version'] == selection.version for e in bound):
             raise SkillError('本运行目录已经固定，请在新运行选择此 Skill 版本', 409)
 
     async def _scoped_bindings(self, tx, run_id, workspace_id):
         return [e for e in await tx.bindings(run_id) if self._in_scope(e, workspace_id)]
 
-    async def bind_run(self, run_id, *, workspace_id: str | None = None, session_id: str | None = None):
+    async def bind_run(self, run_id, *, workspace_id: str | None = None, session_id: str | None = None,
+                       required_ids: list[str] | tuple[str, ...] | None = None):
         await self.refresh_catalog(workspace_id=workspace_id, session_id=session_id)
         config = await self._config()
         async with self.repository.transaction(run_id=run_id) as tx:
             from_snapshot = await self._scoped_bindings(tx, run_id, workspace_id)
             if from_snapshot:
                 return from_snapshot
-            entries = self._freeze_bound(await tx.all('skills'), config, workspace_id, None)
+            all_entries = await tx.all('skills')
+            required_set = set(required_ids or ())
+            required_entries = [
+                e for e in all_entries
+                if e['id'] in required_set and self._in_scope(e, workspace_id) and self._selectable(e, config)
+            ] if required_set else []
+            entries = self._freeze_bound(all_entries, config, workspace_id, None, required_entries=required_entries)
             bound = []
             for entry in entries:
                 payload = {**entry, 'active': False, 'root_path': str(self.snapshot_root(entry['version']))}

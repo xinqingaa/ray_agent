@@ -51,6 +51,24 @@ export type SkillSourcesPayload = {
 export type SkillMarketItem = {id: string; repository: string; slug: string; name: string; installs: number; count_label: string | null; description?: string | null}
 export type SkillMarketTarget = {workspace_id: string | null; target_id: string; directory: string}
 export type SkillMarketPage = {items: SkillMarketItem[]; has_more: boolean; updated_at: number; stale: boolean}
+export type PresetStarter = {label: string; prompt: string}
+export type PresetItem = {
+  id: string
+  title: string
+  subtitle: string
+  icon: string
+  placeholder: string
+  starters: PresetStarter[]
+  depends_on: string[]
+  default_participate_in_memory: boolean
+}
+export type SessionPresetState = {
+  id: string
+  title: string
+  icon: string
+  active: boolean
+  inactive_reason?: string | null
+}
 const scoped = (workspaceId?: string) => workspaceId ? `?workspace_id=${encodeURIComponent(workspaceId)}` : ''
 const scopeParam = (workspaceId?: string): Record<string, string> => workspaceId ? {workspace_id: workspaceId} : {}
 export const SKILLS_CHANGED = 'rayagent-skills-changed'
@@ -60,6 +78,7 @@ export const skillsApi = {
   importFile: (id: string, candidate: SkillCandidate, path: string) => requestBlob(`/skills/imports/${id}/file?${new URLSearchParams({candidate_path: candidate.path, fingerprint: candidate.version, path})}`),
   revise: (id: string, candidate: SkillCandidate, text: string, revision_id: string) => request<SkillImport>(`/skills/imports/${id}/content`, {method: 'PUT', body: JSON.stringify({candidate_path: candidate.path, fingerprint: candidate.version, text, revision_id})}),
   list: (workspaceId?: string, refresh = true) => request<Skill[]>(`/skills?${new URLSearchParams({...scopeParam(workspaceId), refresh: String(refresh)})}`),
+  listPresets: (workspaceId?: string) => request<{items: PresetItem[]}>(`/skills/presets${scoped(workspaceId)}`).then(res => res.items),
   market: (q: string, offset: number) => request<SkillMarketPage>(`/skills/market?${new URLSearchParams({q, offset: String(offset)})}`),
   marketDescriptions: (ids: string[]) => request<Record<string, string | null>>('/skills/market/descriptions',
     {method: 'POST', body: JSON.stringify({ids}), timeout: 45000}),

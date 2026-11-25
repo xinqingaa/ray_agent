@@ -116,7 +116,8 @@ def get_file_service() -> FileService:
 def get_session_service() -> SessionService:
     from app.application.services.background_jobs import get_job_runner
     return SessionService(uow_factory=get_uow, read_uow_factory=get_read_uow, task_cls=LocalRunTask,
-                          workdirs=get_workdirs(), jobs=get_job_runner(), previews=get_preview_runtime_service())
+                          workdirs=get_workdirs(), jobs=get_job_runner(), previews=get_preview_runtime_service(),
+                          skills=get_skill_service())
 
 
 def get_data_service():

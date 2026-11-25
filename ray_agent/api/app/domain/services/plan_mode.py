@@ -14,6 +14,7 @@ PLAN_MODE_ALLOWED: Dict[str, str] = {
     "load_skill": "skill",
     "read_skill_resource": "skill",
     "read_file": "file",
+    "read_document": "file",
     "search_in_file": "file",
     "find_files": "file",
     "list_dir": "file",

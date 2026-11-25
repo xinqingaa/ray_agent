@@ -149,6 +149,11 @@ export const sessionApi = {
   setModel: (sessionId: string, selection: {model: string; reasoning: string}): Promise<{model: string; reasoning: string}> =>
     put<{model: string; reasoning: string}>(`/sessions/${sessionId}/model`, selection),
 
+  setPreset: (sessionId: string, activePresetId: string | null): Promise<{
+    active_preset_id: string | null;
+    active_preset: {id: string; title: string; icon: string; active: boolean; inactive_reason?: string | null} | null;
+  }> => put(`/sessions/${encodeURIComponent(sessionId)}/preset`, {active_preset_id: activePresetId}),
+
   acceptedChat: (sessionId: string, id: string) =>
     get<ChatAccepted>(`/sessions/${encodeURIComponent(sessionId)}/requests/${encodeURIComponent(id)}`),
 

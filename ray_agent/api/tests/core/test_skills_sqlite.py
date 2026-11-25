@@ -41,7 +41,11 @@ def test_skill_publication_acceptance_and_reference_lifetime(tmp_path):
         async def freeze(uow):
             await s.accept(uow, session.id, SkillSelection(id='example', version=installed['version']))
         run = await ledger.start(session.id, apply=freeze)
-        assert len(await s.bindings(run.id)) == 2
+        bound = await s.bindings(run.id)
+        assert 'example' in {item['id'] for item in bound}
+        assert {item['id'] for item in await s.list(refresh=False) if item.get('builtin') and item.get('included')} <= {
+            item['id'] for item in bound
+        }
         loaded = await s.load(run.id, 'example')
         # 两个客户端同时编辑旧版本，恰好一个成功。
         results = await asyncio.gather(s.edit('example', installed['version'], source(body='一').decode()),

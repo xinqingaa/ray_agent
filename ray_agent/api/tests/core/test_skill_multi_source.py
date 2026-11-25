@@ -123,7 +123,9 @@ def test_discovery_registers_without_joining_or_failing_budget(tmp_path):
         items = await s.list()
         external = [e for e in items if e['external']]
         assert len(external) == 3 and all(e['included'] is False for e in external)
-        assert {e['name'] for e in await s.bind_run('run')} == {'find-skills'}
+        assert {e['name'] for e in await s.bind_run('run')} == {
+            e['name'] for e in items if e.get('builtin') and e.get('included')
+        }
     asyncio.run(run())
 
 
@@ -152,7 +154,8 @@ def test_overfull_catalog_still_starts_with_builtin_and_selection(tmp_path):
         config = SkillConfig(discover_user=False, discover_workspace=False)
         s.settings.skill_catalog_chars = 1
         bound = s._freeze_bound(entries, config, None, next(e for e in entries if e['name'] == 'picked'))
-        assert {e['name'] for e in bound} == {'find-skills', 'picked'}
+        expected = {e['name'] for e in entries if e.get('builtin') and e.get('included')} | {'picked'}
+        assert {e['name'] for e in bound} == expected
         listed = await s.list(refresh=False)
         assert next(e for e in listed if e['name'] == 'alpha')['catalog_overflow'] is True
     asyncio.run(run())

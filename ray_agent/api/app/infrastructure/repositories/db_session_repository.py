@@ -78,6 +78,9 @@ class DBSessionRepository(SessionRepository):
             values["memory_access_version"] = SessionModel.memory_access_version + 1
         await self._update(session_id, **values)
 
+    async def update_active_preset(self, session_id: str, preset_id: Optional[str]) -> None:
+        await self._update(session_id, active_preset_id=preset_id)
+
     async def ids_by_workspace(self, workspace_id: str) -> List[str]:
         return list((await self.db_session.execute(
             select(SessionModel.id).where(SessionModel.workspace_id == workspace_id))).scalars())

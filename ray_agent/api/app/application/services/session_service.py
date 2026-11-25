@@ -5,6 +5,7 @@ from dataclasses import dataclass, field
 from typing import List, Callable, Optional, Type
 
 from app.application.errors.exceptions import BadRequestError, ConflictError, NotFoundError
+from app.builtin_skills.registry import BUILTIN_SKILLS
 from app.domain.external.task import Task
 from app.domain.models.event import Event
 from app.domain.models.file import File
@@ -38,6 +39,7 @@ class SessionService:
             workdirs=None,
             jobs=None,
             previews=None,
+            skills=None,
     ) -> None:
         self._uow_factory = uow_factory
         self._read_uow_factory = read_uow_factory or uow_factory
@@ -45,12 +47,34 @@ class SessionService:
         self._workdirs = workdirs
         self._jobs = jobs
         self._previews = previews
+        self._skills = skills
 
-    async def create_session(self, creation_id: str | None = None, workspace_id: str | None = None) -> Session:
+    async def _validate_preset(self, preset_id: Optional[str]) -> Optional[bool]:
+        """校验内置预设是否存在且启用；返回该预设默认的 participate_in_memory。"""
+        if not preset_id:
+            return None
+        spec = BUILTIN_SKILLS.get(preset_id)
+        if spec is None or spec.category != "preset" or spec.preset is None:
+            raise BadRequestError(f"不支持的场景预设：{preset_id}")
+        if self._skills is not None:
+            state = await self._skills.session_preset_state(preset_id)
+            if state is not None and not state["active"]:
+                raise ConflictError(state.get("inactive_reason") or "该场景预设已停用，请在 Skill 设置中启用后再试")
+        return spec.preset.default_participate_in_memory
+
+    async def create_session(
+            self,
+            creation_id: str | None = None,
+            workspace_id: str | None = None,
+            active_preset_id: str | None = None,
+    ) -> Session:
         """创建一个空白会话；带创建标识时重复请求返回同一会话。会话所属的工作区创建后不再改变，独立对话没有工作区。"""
-        # 独立对话不写入记忆；工作区会话默认参与，之后可由用户按会话关闭
+        normalized_preset = (active_preset_id or "").strip() or None
+        default_participate = await self._validate_preset(normalized_preset)
+        # 独立对话不写入记忆；工作区会话默认按预设偏好决定是否参与（如情绪疏导默认不参与）
+        participate = bool(workspace_id) and (True if default_participate is None else default_participate)
         session = Session(title=DEFAULT_SESSION_TITLE, workspace_id=workspace_id,
-                          participate_in_memory=bool(workspace_id))
+                          participate_in_memory=participate, active_preset_id=normalized_preset)
         if creation_id:
             session.id = creation_id
         async with self._uow_factory() as uow:
@@ -59,6 +83,8 @@ class SessionService:
                 if existing:
                     if existing.workspace_id != workspace_id:
                         raise ConflictError("该创建标识已用于另一个工作区的会话")
+                    if normalized_preset is not None and existing.active_preset_id != normalized_preset:
+                        raise ConflictError("该创建标识已用于另一个场景预设的会话")
                     return existing
             if workspace_id:
                 workspace = await uow.workspace.get(workspace_id)
@@ -73,6 +99,30 @@ class SessionService:
                 await uow.root.add(root, location)
         logger.info(f"成功创建一个新任务会话: {session.id}")
         return session
+
+    async def preset_state(self, preset_id: Optional[str]) -> Optional[dict]:
+        """读取会话锁定场景预设的当前状态（是否有效及停用原因）。"""
+        if not preset_id:
+            return None
+        if self._skills is not None:
+            return await self._skills.session_preset_state(preset_id)
+        spec = BUILTIN_SKILLS.get(preset_id)
+        if spec is None or spec.category != "preset" or spec.preset is None:
+            return {"id": preset_id, "title": preset_id, "icon": "sparkles", "active": False,
+                    "inactive_reason": "该场景预设已不存在"}
+        return {"id": spec.preset.id, "title": spec.preset.title, "icon": spec.preset.icon, "active": True,
+                "inactive_reason": None}
+
+    async def set_active_preset(self, session_id: str, preset_id: Optional[str]) -> Optional[dict]:
+        """更新或退出会话当前锁定的场景预设。"""
+        normalized = (preset_id or "").strip() or None
+        await self._validate_preset(normalized)
+        async with self._uow_factory() as uow:
+            session = await uow.session.get_by_id(session_id)
+            if not session:
+                raise NotFoundError(f"当前会话不存在[{session_id}], 请核实后重试")
+            await uow.session.update_active_preset(session_id, normalized)
+        return await self.preset_state(normalized)
 
     async def page(self, *, offset: int = 0, limit: int = 50, workspace_id: str | None = None,
                    independent: bool = False):

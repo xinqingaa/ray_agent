@@ -527,9 +527,23 @@ class AgentService:
             await register_external_pid(pid, owner)
 
         from app.application.services.skill_runtime import SkillRuntime
+        preset_preload_ids: list[str] = []
+        if self._skills:
+            async with self._reader() as uow:
+                started_run = await uow.run.get(run_id)
+            snapshot = (started_run.config_snapshot or {}) if started_run is not None else {}
+            if "preset_preload_ids" in snapshot:
+                preset_preload_ids = list(snapshot.get("preset_preload_ids") or [])
+            elif session.active_preset_id:
+                entries = await self._skills.list(workspace_id=session.workspace_id, refresh=False)
+                config = await self._skills._config()
+                preset_preload_ids = [
+                    item["id"] for item in self._skills.preset_preload_entries(entries, config, session.active_preset_id)
+                ]
         skill_runtime = SkillRuntime(
             self._skills, run_id, workdir=workdir,
             workspace_id=session.workspace_id, session_id=session.id,
+            preset_preload_ids=preset_preload_ids,
         ) if self._skills else None
         runtime = getattr(self, "_workspace_memory", None) if session.workspace_id else None
         project_prompt, context_refresh, workspace_memory = "", None, None

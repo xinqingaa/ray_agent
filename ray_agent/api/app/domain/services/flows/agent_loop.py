@@ -372,6 +372,7 @@ class AgentLoop(BaseFlow):
         self._retry_interval = retry_interval
         self.skill_runtime = None
         self._skill_blocked = False
+        self._pending_explicit_skill: Optional[Dict[str, Any]] = None
         self._memory: Optional[Memory] = None
         # 由运行器把记忆与随后的事件在同一事务写入；为空时每次改动记忆立即单独保存
         self.persist_memory_with_events = False
@@ -645,6 +646,10 @@ class AgentLoop(BaseFlow):
                 yield event
             if self._skill_blocked:
                 return
+            async for event in self._preload_pending_skills(self._pending_explicit_skill):
+                yield event
+            if self._skill_blocked:
+                return
             async for event in self._loop(drain, first_turn_index):
                 yield event
             return
@@ -696,11 +701,13 @@ class AgentLoop(BaseFlow):
             await self._add_messages([{"role": "user", "content": _user_content(message)}])
         for event in self._take_context(consumed):
             yield event
-        if message.skill:
-            async for event in self._preload_skill(message.skill.model_dump()):
-                yield event
-            if self._skill_blocked:
-                return
+        explicit = message.skill.model_dump() if message.skill else None
+        self._pending_explicit_skill = explicit
+        async for event in self._preload_pending_skills(explicit):
+            yield event
+        if self._skill_blocked:
+            return
+        self._pending_explicit_skill = None
         logger.info(f"会话[{self._session_id}] Agent循环接收消息: {message.message[:50]}...")
         async for event in self._loop(drain, first_turn_index):
             yield event
@@ -1324,6 +1331,39 @@ class AgentLoop(BaseFlow):
         if invocation.toolkit_name == 'skill' and self.skill_runtime:
             message['_ray_skill_result'] = {'run_id': self.run_id, 'name': invocation.arguments.get('name')}
         return message
+
+    async def _preload_pending_skills(self, explicit_skill: Optional[Dict[str, Any]] = None):
+        """依次预加载会话锁定预设的依赖 Skill 与本条消息显式选择的 Skill，两者并存并共算激活预算。"""
+        self._skill_blocked = False
+        if self.skill_runtime is None:
+            if explicit_skill:
+                self._skill_blocked = True
+                yield ErrorEvent(error='Skill 服务不可用，所选 Skill 未加载')
+            return
+        preload_ids = list(getattr(self.skill_runtime, 'preset_preload_ids', None) or [])
+        if not preload_ids and not explicit_skill:
+            return
+        entries = await self.skill_runtime.service.bindings(self.run_id, workspace_id=self.skill_runtime.workspace_id)
+        by_id = {e['id']: e for e in entries}
+        for skill_id in preload_ids:
+            entry = by_id.get(skill_id)
+            if entry is None:
+                self._skill_blocked = True
+                self.end_reason = RunEndReason.MODEL_ERROR
+                yield ErrorEvent(error=f'场景预设所需 Skill（{skill_id}）不在本运行固定目录中，请开始新运行')
+                return
+            if entry.get('active'):
+                continue
+            async for event in self._preload_skill({'id': skill_id, 'version': entry['version']}):
+                yield event
+            if self._skill_blocked:
+                return
+        if explicit_skill:
+            entry = by_id.get(explicit_skill['id'])
+            if entry is not None and entry.get('active') and entry.get('version') == explicit_skill.get('version'):
+                return
+            async for event in self._preload_skill(explicit_skill):
+                yield event
 
     async def _preload_skill(self, selection, approval=None, call_id=None):
         """用户选择触发程序加载，可审批但不伪造 assistant 工具调用。"""

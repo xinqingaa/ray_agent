@@ -74,7 +74,7 @@ function EmptyNote({children}: {children: string}) {
 }
 
 function ResultPane({call, rawResults}: {call: ToolCallView; rawResults: boolean}) {
-  const body = rawResults ? resultExcerpt(call) : call.family === 'file' && call.name === 'read_file' ? fileBody(call) : null
+  const body = rawResults ? resultExcerpt(call) : call.family === 'file' && (call.name === 'read_file' || call.name === 'read_document') ? fileBody(call) : null
   const plan = call.family === 'plan' && Array.isArray(call.raw.args.plan) ? call.raw.args.plan : null
   return <div className="space-y-2 rounded-xl bg-muted/60 p-3 text-sm leading-relaxed">
     {call.result?.error && <p className="wrap-anywhere text-state-failed">{call.result.error}</p>}

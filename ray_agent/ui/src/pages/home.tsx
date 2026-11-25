@@ -1,15 +1,33 @@
-import {useRef} from 'react'
+import {useEffect, useRef, useState} from 'react'
 import {useRouter} from '@/lib/navigation'
 import {toast} from 'sonner'
-import {INDEPENDENT_SCOPE} from '@/lib/drafts'
-import {useStartTask} from '@/hooks/use-start-task'
+import {INDEPENDENT_SCOPE, readDraft, writeDraft} from '@/lib/drafts'
+import {useStartTask, type StartOptions} from '@/hooks/use-start-task'
 import {ChatInput, type ChatInputRef} from '@/components/chat-input'
+import {PresetCapsule, PresetPicker, PresetStarters, usePresets} from '@/components/preset-picker'
 import {TaskLayout} from '@/components/task-layout'
+import type {FileInfo} from '@/lib/api/types'
 
 export function HomePage() {
   const router = useRouter()
   const input = useRef<ChatInputRef>(null)
+  const presets = usePresets()
+  const [selectedPresetId, setSelectedPresetId] = useState<string | null>(() => readDraft(INDEPENDENT_SCOPE).activePresetId ?? null)
+  const selectedPreset = presets.find(item => item.id === selectedPresetId) ?? null
+  useEffect(() => {
+    if (selectedPresetId && presets.length > 0 && !selectedPreset) setSelectedPresetId(null)
+  }, [presets, selectedPreset, selectedPresetId])
+  const selectPreset = (nextId: string | null) => {
+    setSelectedPresetId(nextId)
+    const draft = readDraft(INDEPENDENT_SCOPE)
+    writeDraft(INDEPENDENT_SCOPE, {
+      activePresetId: nextId,
+      ...(!draft.sessionId && !draft.submission ? {creationId: undefined} : {}),
+    })
+  }
   const {sending, start} = useStartTask(INDEPENDENT_SCOPE, null, id => router.push(`/sessions/${id}`))
+  const handleStart = (message: string, files: FileInfo[], options?: StartOptions) =>
+    start(message, files, {...options, activePresetId: selectedPreset?.id ?? null})
 
   return (
     <TaskLayout attach={sending ? undefined : files => input.current?.addFiles(files)}>
@@ -21,9 +39,10 @@ export function HomePage() {
           </header>
           <ChatInput ref={input} autoFocus
             draftScope={INDEPENDENT_SCOPE}
-            onSend={start}
+            onSend={handleStart}
             disabled={sending}
-            placeholder="描述目标，或拖入材料"
+            placeholder={selectedPreset?.placeholder ?? '描述目标，或拖入材料'}
+            topBanner={selectedPreset ? <PresetCapsule preset={selectedPreset} disabled={sending} onClear={() => selectPreset(null)}/> : undefined}
             commandHost={{
               hasSession: false,
               hasRuns: false,
@@ -34,6 +53,19 @@ export function HomePage() {
               compacting: false,
               actions: {compact: () => toast.message('还没有可压缩的上下文')},
             }}
+          />
+          {selectedPreset && (
+            <PresetStarters
+              preset={selectedPreset}
+              disabled={sending}
+              onPick={prompt => input.current?.setInputText(prompt)}
+            />
+          )}
+          <PresetPicker
+            presets={presets}
+            selectedId={selectedPreset?.id ?? null}
+            disabled={sending}
+            onSelect={selectPreset}
           />
         </div>
       </main>

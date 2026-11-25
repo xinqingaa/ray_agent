@@ -60,7 +60,7 @@ _LANGUAGE = """</agent_loop>
 _FILE_RULES = """
 <file_rules>
 - Prefer file tools for reading, writing, appending and editing to avoid escaping issues in commands
-- Do not read binary files directly; process them with commands or code
+- Use read_document to read PDF, Word (DOCX/DOC), Excel (XLSX), or PPTX documents; do not read binary files directly with read_file—process them with commands or code when further manipulation is needed
 - File tools reach only the directories listed in the environment section; use absolute paths or paths relative to the working directory. A write returns a conflict if the file was changed externally; re-read and decide how to merge instead of overwriting the user's changes
 - A tool result that exceeds the size limit comes back as a head-and-tail preview; the full content is saved at the path given in the result. Read it in segments with read_file (start_line/end_line) when needed, not all at once
 </file_rules>

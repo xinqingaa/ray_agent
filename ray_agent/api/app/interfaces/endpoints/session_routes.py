@@ -44,6 +44,7 @@ from app.interfaces.schemas.session import (
     ApprovalResponse,
     CompactResponse,
     RenameTitleRequest, TitleResponse,
+    SessionPresetRequest, SessionPresetResponse, SessionPresetState,
 )
 from app.infrastructure.external.notification.local_notifier import catalog_notifier
 from app.interfaces.service_dependencies import (
@@ -103,7 +104,11 @@ async def create_session(
 ) -> Response[CreateSessionResponse]:
     """创建一个空白的新任务会话；同一创建标识重复提交返回同一会话"""
     creation_id = str(request.creation_id) if request and request.creation_id else None
-    session = await session_service.create_session(creation_id, request.workspace_id if request else None)
+    session = await session_service.create_session(
+        creation_id,
+        request.workspace_id if request else None,
+        request.active_preset_id if request else None,
+    )
     return Response.success(
         data=CreateSessionResponse(session_id=session.id)
     )
@@ -288,6 +293,24 @@ async def set_session_model(
     return Response.success(data=ModelSelectionResponse(model=model, reasoning=reasoning))
 
 
+@router.put(
+    path="/{session_id}/preset",
+    response_model=Response[SessionPresetResponse],
+    summary="设置或退出会话的场景预设",
+    description="更新会话当前锁定的内置场景预设（传空表示退出回自由对话模式）；从下一次新运行开始生效。",
+)
+async def set_session_preset(
+        session_id: str,
+        request: SessionPresetRequest,
+        session_service: SessionService = Depends(get_session_service),
+) -> Response[SessionPresetResponse]:
+    state = await session_service.set_active_preset(session_id, request.active_preset_id)
+    return Response.success(data=SessionPresetResponse(
+        active_preset_id=state["id"] if state else None,
+        active_preset=SessionPresetState.model_validate(state) if state else None,
+    ))
+
+
 @router.post(
     path="/{session_id}/compact",
     response_model=Response[CompactResponse],
@@ -415,6 +438,7 @@ async def get_session(
         raise NotFoundError("该会话不存在，请核实后重试")
     active = next((run for run in detail.runs if run.status.active), None)
     snapshot = (active.config_snapshot or {}) if active is not None else {}
+    preset_state = await session_service.preset_state(detail.session.active_preset_id)
     return Response.success(
         data=GetSessionResponse(
             session_id=detail.session.id,
@@ -433,6 +457,9 @@ async def get_session(
             reasoning=detail.session.reasoning,
             run_model=snapshot.get("model_name"),
             run_reasoning=snapshot.get("reasoning"),
+            participate_in_memory=detail.session.participate_in_memory,
+            active_preset_id=detail.session.active_preset_id,
+            active_preset=SessionPresetState.model_validate(preset_state) if preset_state else None,
         )
     )
 

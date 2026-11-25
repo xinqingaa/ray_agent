@@ -116,11 +116,11 @@ def test_service_management_versions_and_restart(tmp_path):
     async def run():
         s = service(tmp_path)
         await s.initialize()
-        builtin = (await s.list())[0]
+        builtin = next(item for item in await s.list() if item['name'] == 'find-skills')
         assert builtin['name'] == 'find-skills' and builtin['builtin']
         await s.change(builtin['name'], builtin['version'], enabled=False)
         await s.initialize()
-        assert not (await s.list())[0]['enabled']
+        assert not next(item for item in await s.list() if item['name'] == 'find-skills')['enabled']
         with pytest.raises(SkillError): await s.change(builtin['name'], builtin['version'], delete=True)
         entry = await install(s, {'SKILL.md': source(), 'references/data.txt': b'one\ntwo\n', 'assets/icon.bin': b'\x00\x01'})
         assert (await install(s, {'SKILL.md': source(), 'references/data.txt': b'one\ntwo\n', 'assets/icon.bin': b'\x00\x01'}))['version'] == entry['version']

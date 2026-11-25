@@ -38,6 +38,8 @@ export type ChatDraft = {
   files: FileInfo[]
   planMode: boolean
   skill?: {id: string; version: string; name?: string}
+  activePresetId?: string | null
+  sessionPresetId?: string | null
   imageMode?: 'auto' | 'files'
   creationId?: string
   sessionId?: string

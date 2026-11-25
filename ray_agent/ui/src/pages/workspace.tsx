@@ -15,6 +15,7 @@ import type {FileView} from '@/lib/session-view'
 import {projectSession} from '@/lib/session-projection'
 import {formatSidebarTime} from '@/lib/utils'
 import {ChatInput, type ChatInputRef} from '@/components/chat-input'
+import {PresetCapsule, PresetPicker, PresetStarters, usePresets} from '@/components/preset-picker'
 import {SessionDetailView} from '@/components/session-detail-view'
 import {Button} from '@/components/ui/button'
 import {SegmentedControl} from '@/components/ui/segmented-control'
@@ -25,9 +26,9 @@ import {FolderPanel, type FolderPanelRef} from '@/components/workspace/folder-pa
 import {WorkingStyleSettings, type WorkingStyleSummary} from '@/components/workspace/working-style-settings'
 import {RunChangesBar} from '@/components/workspace/run-changes-bar'
 import {useCanonicalSessionRoute} from '@/hooks/use-canonical-session-route'
-import {useStartTask} from '@/hooks/use-start-task'
-import {workspaceDraftScope} from '@/lib/drafts'
-import type {WorkspaceItem} from '@/lib/api/types'
+import {useStartTask, type StartOptions} from '@/hooks/use-start-task'
+import {readDraft, workspaceDraftScope, writeDraft} from '@/lib/drafts'
+import type {FileInfo, WorkspaceItem} from '@/lib/api/types'
 import type {RootSource} from '@/lib/api/preview'
 import {describeWorkspace} from '@/lib/workspace-state'
 import {workspaceBackgroundHref, workspaceKnowledgeHref, workspaceSessionHref} from '@/lib/workspace-route'
@@ -145,6 +146,25 @@ export function WorkspaceHomePage() {
   const condition = describeWorkspace(workspace)
   const scope = workspaceDraftScope(workspace.id)
   const {sending, start} = useStartTask(scope, workspace.id, sid => router.push(workspaceSessionHref(workspace.id, sid)))
+  const presets = usePresets(workspace.id)
+  const [selectedPresetId, setSelectedPresetId] = useState<string | null>(() => readDraft(scope).activePresetId ?? null)
+  const selectedPreset = presets.find(item => item.id === selectedPresetId) ?? null
+  useEffect(() => {
+    setSelectedPresetId(readDraft(scope).activePresetId ?? null)
+  }, [scope])
+  useEffect(() => {
+    if (selectedPresetId && presets.length > 0 && !selectedPreset) setSelectedPresetId(null)
+  }, [presets, selectedPreset, selectedPresetId])
+  const selectPreset = (nextId: string | null) => {
+    setSelectedPresetId(nextId)
+    const draft = readDraft(scope)
+    writeDraft(scope, {
+      activePresetId: nextId,
+      ...(!draft.sessionId && !draft.submission ? {creationId: undefined} : {}),
+    })
+  }
+  const handleStart = (message: string, files: FileInfo[], options?: StartOptions) =>
+    start(message, files, {...options, activePresetId: selectedPreset?.id ?? null})
   const {sessions, loading: sessionsLoading, error: sessionsError, refresh: refreshSessions} = useSessions()
   const {count: pending} = useWorkspacePending()
   const [deliveryState, setDeliveryState] = useState<{
@@ -262,13 +282,34 @@ export function WorkspaceHomePage() {
           </header>
           {condition.archived
             ? <p role="status" className="rounded-lg bg-muted px-3.5 py-3 text-center text-sm text-muted-foreground">工作区已归档，不能发起新对话。取消归档后可以继续。</p>
-            : <ChatInput ref={input} autoFocus={!initialPreview} workspace workspaceId={workspace.id} draftScope={scope} onSend={start} disabled={sending}
-                placeholder={`在${workspace.name}里开始一个任务`}
-                commandHost={{
-                  hasSession: false, hasRuns: false, runStatus: 'idle', waitingApproval: false, waitingReply: false,
-                  submitting: sending, compacting: false,
-                  actions: {compact: () => toast.message('还没有可压缩的上下文')},
-                }}/>}
+            : <>
+                <ChatInput ref={input} autoFocus={!initialPreview} workspace workspaceId={workspace.id} draftScope={scope} onSend={handleStart} disabled={sending}
+                  placeholder={selectedPreset?.placeholder ?? `在${workspace.name}里开始一个任务`}
+                  topBanner={selectedPreset ? <PresetCapsule preset={selectedPreset} disabled={sending} onClear={() => selectPreset(null)}/> : undefined}
+                  commandHost={{
+                    hasSession: false, hasRuns: false, runStatus: 'idle', waitingApproval: false, waitingReply: false,
+                    submitting: sending, compacting: false,
+                    actions: {compact: () => toast.message('还没有可压缩的上下文')},
+                  }}/>
+                {selectedPreset && (
+                  <PresetStarters
+                    preset={selectedPreset}
+                    disabled={sending}
+                    onPick={prompt => input.current?.setInputText(prompt)}
+                  />
+                )}
+                {selectedPreset && !selectedPreset.default_participate_in_memory && (
+                  <p className="mt-2 text-center text-xs text-muted-foreground">
+                    此场景默认不记入工作区记忆，进入对话后可在右上角随时调整。
+                  </p>
+                )}
+                <PresetPicker
+                  presets={presets}
+                  selectedId={selectedPreset?.id ?? null}
+                  disabled={sending}
+                  onSelect={selectPreset}
+                />
+              </>}
           {((pending ?? 0) > 0 || delivery) && <div className="task-home-links">
             {pending != null && pending > 0 && <Link href={workspaceBackgroundHref(workspace.id)} className="home-shortcut">
               <Layers/>背景有 {pending} 项待处理</Link>}

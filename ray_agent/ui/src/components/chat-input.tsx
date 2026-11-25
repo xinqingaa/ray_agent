@@ -56,6 +56,8 @@ interface ChatInputProps {
   placeholder?: string
   /** 发送按钮左侧，例如上下文环 */
   accessory?: ReactNode | ((context: CommandContext) => ReactNode)
+  /** 输入框顶部附加栏（如当前锁定的场景胶囊） */
+  topBanner?: ReactNode
   draftScope?: string
   /** 页面状态。上传中与文件选择由输入框补进命令上下文。 */
   commandHost?: CommandHost
@@ -80,7 +82,7 @@ export interface ChatInputRef {
 }
 
 export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
-  ({ className, onInputValueChange, onSend, onAbandonSubmission, pause = false, onPause, disabled = false, autoFocus = false, workspace = false, workspaceId, sessionId, placeholder = '分配一个任务或提问任何问题...', accessory, draftScope, commandHost = EMPTY_HOST, savedModel = null, savedReasoning = null, runModel = null, runReasoning = null }, ref) => {
+  ({ className, onInputValueChange, onSend, onAbandonSubmission, pause = false, onPause, disabled = false, autoFocus = false, workspace = false, workspaceId, sessionId, placeholder = '分配一个任务或提问任何问题...', accessory, topBanner, draftScope, commandHost = EMPTY_HOST, savedModel = null, savedReasoning = null, runModel = null, runReasoning = null }, ref) => {
     const {visibility} = useDeveloperMode()
     const pickDestination = useContext(TaskFilePicker)
     const [files, setFiles] = useState<FileInfo[]>([])
@@ -721,6 +723,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
         </div>
       )}
       {uploading && <p role="status" className="mx-4 mb-2 flex items-center gap-2 text-meta text-muted-foreground"><Loader2 className="size-3.5 animate-spin"/>正在上传附件</p>}
+      {topBanner && <div className="mx-3.5 mb-1.5 flex flex-wrap items-center gap-1.5">{topBanner}</div>}
       {planMode && <div className="mx-3.5 mb-1.5">
         <button type="button" disabled={blocked} aria-label="取消计划模式" title="下一次发送以计划模式运行"
           onClick={() => {

@@ -157,5 +157,9 @@ export const Scan = lineIcon(<path d="M4 9V4h5m6 0h5v5m0 6v5h-5m-6 0H4v-5m3-3h10
 export const SquareDashed = lineIcon(<rect x="4" y="4" width="16" height="16" rx="3" strokeDasharray="3 3"/>)
 export const Unplug = lineIcon(<path d="m4 4 16 16M7 9v3a5 5 0 0 0 5 5v3M17 9v3m-8-8v2m6-2v5h2"/>)
 export const Wrench = lineIcon(<path d="M15 4a5 5 0 0 0-5.3 6.6l-5.1 5.1a2.2 2.2 0 0 0 3.1 3.1l5.1-5.1a5 5 0 0 0 6.6-5.3L16 11l-3-3Z"/>)
+export const Presentation = lineIcon(<><rect x="3.5" y="4.5" width="17" height="11.5" rx="2"/><path d="M8 20h8M12 16v4M8 9.5h8M8 12.5h5"/></>)
+export const Table = lineIcon(<><rect x="3.5" y="4.5" width="17" height="15" rx="2"/><path d="M3.5 9.5h17M3.5 14.5h17M9.5 9.5v10"/></>)
+export const Briefcase = lineIcon(<><rect x="3.5" y="7" width="17" height="13" rx="2"/><path d="M9 7V5.2A1.2 1.2 0 0 1 10.2 4h3.6A1.2 1.2 0 0 1 15 5.2V7M3.5 12h17"/></>)
+export const HeartHandshake = lineIcon(<path d="M12 20s-7.5-4.4-7.5-10.2A4.3 4.3 0 0 1 12 6.8a4.3 4.3 0 0 1 7.5 3C19.5 15.6 12 20 12 20Z"/>)
 export const FileCode2 = FileCode
 export const ListTodo = ListChecks

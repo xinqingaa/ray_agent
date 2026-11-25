@@ -141,6 +141,24 @@ class ContextOperation(BaseModel):
     started_at: Optional[datetime] = None
 
 
+class SessionPresetState(BaseModel):
+    """会话当前锁定场景预设的展示状态。"""
+    id: str
+    title: str
+    icon: str
+    active: bool = True
+    inactive_reason: Optional[str] = None
+
+
+class SessionPresetRequest(BaseModel):
+    active_preset_id: Optional[str] = None
+
+
+class SessionPresetResponse(BaseModel):
+    active_preset_id: Optional[str] = None
+    active_preset: Optional[SessionPresetState] = None
+
+
 class GetSessionResponse(BaseModel):
     """获取会话详情响应结构。events 为 after_seq 之后按 seq 升序的事件；last_seq 是会话当前最大 seq。"""
     session_id: str
@@ -157,6 +175,9 @@ class GetSessionResponse(BaseModel):
     reasoning: Optional[str] = None
     run_model: Optional[str] = None  # 活动运行快照里的模型；与选择不同时，下次新运行才切换
     run_reasoning: Optional[str] = None
+    participate_in_memory: bool = True
+    active_preset_id: Optional[str] = None
+    active_preset: Optional[SessionPresetState] = None
 
 
 class ModelSelectionRequest(BaseModel):
@@ -196,6 +217,7 @@ class UnconsumedInputItem(BaseModel):
 class CreateSessionRequest(BaseModel):
     creation_id: UUID | None = None
     workspace_id: str | None = Field(default=None, description="会话所属的工作区；创建后不再改变，省略为独立对话")
+    active_preset_id: str | None = Field(default=None, description="创建会话时锁定的内置场景预设")
 
 
 GetSessionResponse.model_rebuild()

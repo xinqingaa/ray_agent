@@ -8,11 +8,13 @@ from app.domain.services.skill_context import catalog_message, body_message
 
 
 class SkillRuntime:
-    def __init__(self, service, run_id, *, workdir=None, workspace_id=None, session_id=None):
+    def __init__(self, service, run_id, *, workdir=None, workspace_id=None, session_id=None,
+                 preset_preload_ids=None):
         self.service, self.run_id = service, run_id
         self.workdir = workdir
         self.workspace_id = workspace_id
         self.session_id = session_id
+        self.preset_preload_ids = list(preset_preload_ids or [])
         self.entries = []
         # 兼容旧工具探测：本地快照映射可用时视为“有执行材料环境”
         self.sandbox = self
@@ -27,7 +29,9 @@ class SkillRuntime:
                         raise SkillError("等待续接的 Skill 材料恢复失败：" + (result.message or "未知错误"), 409)
         else:
             self.entries = await self.service.bind_run(
-                self.run_id, workspace_id=self.workspace_id, session_id=self.session_id)
+                self.run_id, workspace_id=self.workspace_id, session_id=self.session_id,
+                required_ids=self.preset_preload_ids,
+            )
 
     async def load(self, name):
         try:

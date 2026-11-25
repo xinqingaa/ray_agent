@@ -85,6 +85,26 @@ class MarketInstallRequest(BaseModel):
     target_id: str = Field(pattern=r'^[a-f0-9]{64}$')
 
 
+class PresetStarterResponse(BaseModel):
+    label: str
+    prompt: str
+
+
+class PresetItemResponse(BaseModel):
+    id: str
+    title: str
+    subtitle: str
+    icon: str
+    placeholder: str
+    starters: list[PresetStarterResponse]
+    depends_on: list[str]
+    default_participate_in_memory: bool
+
+
+class PresetListResponse(BaseModel):
+    items: list[PresetItemResponse]
+
+
 @router.get('/market')
 async def market_catalog(q: str = Query(default='', max_length=200),
                          offset: int = Query(default=0, ge=0),
@@ -273,6 +293,13 @@ async def import_file(operation_id: str, candidate_path: str, fingerprint: str, 
 @router.put('/imports/{operation_id}/content')
 async def revise_import(operation_id: str, request: ReviseRequest, service=Depends(get_skill_service)):
     return Response.success(data=await service.revise_import(operation_id, **request.model_dump()))
+
+
+@router.get('/presets')
+async def list_presets(workspace_id: str | None = Query(default=None),
+                       service=Depends(get_skill_service)) -> Response[PresetListResponse]:
+    items = [PresetItemResponse.model_validate(item) for item in await service.list_presets(workspace_id=workspace_id)]
+    return Response.success(data=PresetListResponse(items=items))
 
 
 @router.get('/{skill_id}/file')

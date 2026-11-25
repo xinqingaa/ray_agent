@@ -75,6 +75,10 @@ class SessionRepository(Protocol):
         """设置工作区会话是否参与记忆提炼与摘要检索。"""
         ...
 
+    async def update_active_preset(self, session_id: str, preset_id: Optional[str]) -> None:
+        """更新或清空会话当前锁定的内置场景预设。"""
+        ...
+
     async def update_status(self, session_id: str, status: SessionStatus) -> None:
         """根据传递的会话id更新会话状态"""
         ...
