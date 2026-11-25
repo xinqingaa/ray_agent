@@ -11555,6 +11555,7 @@
           "json",
           "html",
           "pdf",
+          "doc",
           "docx",
           "pptx",
           "xlsx",

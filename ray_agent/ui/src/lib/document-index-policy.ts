@@ -14,7 +14,7 @@ export const AGENT_OUTPUT_OPTIONS: readonly {value: AgentOutputPolicy; label: st
   {value: 'auto', label: '自动纳入'},
 ]
 
-const DOCUMENTS_EXT = new Set(['.txt', '.md', '.mdx', '.markdown', '.rst', '.pdf', '.docx', '.pptx'])
+const DOCUMENTS_EXT = new Set(['.txt', '.md', '.mdx', '.markdown', '.rst', '.pdf', '.doc', '.docx', '.pptx'])
 const SPREADSHEETS_EXT = new Set(['.xlsx', '.csv', '.tsv'])
 const IMAGES_EXT = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp', '.tif', '.tiff'])
 const CODE_EXT = new Set([

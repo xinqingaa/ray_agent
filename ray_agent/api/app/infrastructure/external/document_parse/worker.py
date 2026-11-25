@@ -197,6 +197,22 @@ def parse_docx(path: Path) -> dict:
     return {"status": "ok", "format": DocumentFormat.DOCX.value, "blocks": blocks}
 
 
+def parse_doc(path: Path) -> dict:
+    from app.infrastructure.external.legacy_doc import (
+        LEGACY_DOC_PARSE_TIMEOUT_SECONDS,
+        LegacyDocError,
+        converted_docx,
+    )
+
+    read_bytes(path)
+    try:
+        with converted_docx(path, timeout=LEGACY_DOC_PARSE_TIMEOUT_SECONDS) as docx_path:
+            parsed = parse_docx(docx_path)
+    except LegacyDocError as error:
+        return fail(str(error))
+    return {**parsed, "format": DocumentFormat.DOC.value}
+
+
 def parse_pptx(path: Path) -> dict:
     from pptx import Presentation
     prs = Presentation(str(path))
@@ -284,6 +300,7 @@ PARSERS = {
     DocumentFormat.JSON.value: lambda p: parse_text(p, DocumentFormat.JSON.value),
     DocumentFormat.HTML.value: parse_html,
     DocumentFormat.PDF.value: parse_pdf,
+    DocumentFormat.DOC.value: parse_doc,
     DocumentFormat.DOCX.value: parse_docx,
     DocumentFormat.PPTX.value: parse_pptx,
     DocumentFormat.XLSX.value: parse_xlsx,

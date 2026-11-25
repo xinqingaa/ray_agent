@@ -109,7 +109,7 @@ function originalSource(source: DocumentSource): RootSource {
   const {page, block, table, sheet, cell_range, column_start} = source.locator
   const firstRow = cell_range?.match(/^[A-Z]+(\d+)/)?.[1]
   const location = source.format === 'pdf' && page != null ? {page}
-    : source.format === 'docx' ? table != null ? {table} : block != null ? {block} : undefined
+    : (source.format === 'docx' || source.format === 'doc') ? table != null ? {table} : block != null ? {block} : undefined
     : source.format === 'xlsx' && sheet ? {sheet_name: sheet, row: firstRow ? Number(firstRow) - 1 : 0,
       column: column_start ? column_start - 1 : 0}
     : undefined
@@ -142,7 +142,7 @@ export function KnowledgeSource({workspaceId, reference, query = '', refresh, ma
             {label && <span className="text-xs text-faint">{label}</span>}
           </header>
           <SourceExcerpt source={source} query={query}/>
-          {showOriginal && !source.stale && ['pdf', 'docx'].includes(source.format) && source.preview_revision &&
+          {showOriginal && !source.stale && ['pdf', 'docx', 'doc'].includes(source.format) && source.preview_revision &&
             <div className="h-[min(50vh,32rem)] min-h-56"><FilePreview source={originalSource(source)}/></div>}
           <div className="knowledge-source-actions">
             {onQuote && !source.stale && <Button size="sm" onClick={() => onQuote(draftDocument(source))}><Quote/>引用到新任务</Button>}

@@ -680,3 +680,69 @@ def test_bulk_retire_and_workspace_delete_preserve_other_scopes_in_fts(tmp_path)
             assert fts_b == 2  # other.md + mem-b
 
     scenario(tmp_path, body)
+
+
+def test_legacy_doc_detection_parsing_and_workspace_search(tmp_path, monkeypatch):
+    import shutil
+    import subprocess
+    import sys
+    from docx import Document
+    from app.domain.models.document_knowledge import DocumentCategory, DocumentFormat, DocumentIndexStatus
+    from app.domain.services.document_formats import category_of, detect_format
+    from app.infrastructure.external import legacy_doc
+
+    assert detect_format("dir/申报材料.DOC") is DocumentFormat.DOC
+    assert category_of(DocumentFormat.DOC) is DocumentCategory.DOCUMENTS
+
+    corrupt = tmp_path / "损坏.doc"
+    corrupt.write_bytes(b"not-a-doc-at-all")
+    corrupt_res = parse_file(str(corrupt), "doc")
+    assert corrupt_res["status"] == "failed" and "损坏" in corrupt_res["reason"]
+
+    misnamed = tmp_path / "实为新版.doc"
+    doc = Document()
+    doc.add_paragraph("旧扩展名新版文件内容")
+    doc.save(misnamed)
+    monkeypatch.setattr(legacy_doc, "_find_textutil", lambda: None)
+    assert parse_file(str(misnamed), "doc")["status"] == "ok"
+
+    ole_stub = tmp_path / "无工具.doc"
+    ole_stub.write_bytes(b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1" + b"\x00" * 64)
+    missing_res = parse_file(str(ole_stub), "doc")
+    assert missing_res["status"] == "failed" and "另存为 .docx" in missing_res["reason"]
+
+    monkeypatch.undo()
+    if sys.platform != "darwin" or shutil.which("textutil") is None:
+        return
+
+    async def body(env: Env):
+        view = await env.service.create("传统DOC工作区")
+        wid = view.workspace.id
+        folder = Path(view.folder.location)
+        html = tmp_path / "src.html"
+        html.write_text(
+            "<!doctype html><html><head><meta charset='utf-8'></head><body>"
+            "<h1>项目采购方案</h1><p>服务器采购预算三万元整。</p><p>计算卡数量 4</p>"
+            "</body></html>",
+            encoding="utf-8",
+        )
+        doc_path = folder / "采购方案.doc"
+        subprocess.run(["/usr/bin/textutil", "-convert", "doc", "-output", str(doc_path), "--", str(html)], check=True)
+        original_bytes = doc_path.read_bytes()
+
+        service, retrieval = await _index_service(env, wid)
+        sync = await service.sync_workspace(wid)
+        await service.process_workspace(JobStub(SimpleNamespace(
+            operation_id=sync["operation_id"], payload={"workspace_id": wid}, generation=1)))
+
+        docs = await service.page(wid, after=None, limit=10)
+        assert len(docs) == 1
+        record, revision = docs[0]
+        assert record.format is DocumentFormat.DOC
+        assert record.status is DocumentIndexStatus.SEARCHABLE
+        assert revision is not None and revision.format is DocumentFormat.DOC
+        hits = await retrieval.search(wid, "三万元", [SearchSourceType.DOCUMENT_CHUNK])
+        assert hits and hits[0].title == "采购方案.doc" and "三万元" in hits[0].snippet
+        assert doc_path.read_bytes() == original_bytes
+
+    scenario(tmp_path, body)

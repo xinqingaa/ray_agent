@@ -11,6 +11,7 @@ const BY_EXTENSION: Record<string, UiIcon> = {
   '.markdown': FileText,
   '.txt': FileText,
   '.pdf': FileText,
+  '.doc': FileText,
   '.docx': FileText,
   '.png': FileImage,
   '.jpg': FileImage,
@@ -50,7 +51,7 @@ export function fileIcon(extension: string): UiIcon {
 
 const BADGES: Record<string, readonly [label: string, tone: string]> = {
   '.pdf': ['PDF', 'rose'], '.xlsx': ['XLS', 'green'], '.xls': ['XLS', 'green'],
-  '.csv': ['CSV', 'green'], '.tsv': ['TSV', 'green'], '.docx': ['DOC', 'blue'],
+  '.csv': ['CSV', 'green'], '.tsv': ['TSV', 'green'], '.doc': ['DOC', 'blue'], '.docx': ['DOC', 'blue'],
   '.md': ['MD', 'slate'], '.mdx': ['MD', 'slate'], '.markdown': ['MD', 'slate'], '.txt': ['TXT', 'slate'],
   '.json': ['{ }', 'amber'],
 }
@@ -66,7 +67,7 @@ export function FileTypeBadge({extension, compact = false}: {extension: string; 
 const PREVIEWABLE = new Set([
   '.json', '.csv', '.tsv', '.md', '.mdx', '.markdown', '.txt', '.py', '.js', '.ts', '.tsx', '.html', '.htm', '.css', '.sh', '.yaml', '.yml', '.log',
   '.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.bmp', '.pdf', '.xlsx', '.xls',
-  '.jsx', '.xml', '.sql', '.toml', '.ini', '.rst', '.diff', '.docx',
+  '.jsx', '.xml', '.sql', '.toml', '.ini', '.rst', '.diff', '.doc', '.docx',
 ])
 const MARKDOWN_EXT = new Set(['.md', '.mdx', '.markdown'])
 const IMAGE_EXT = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.bmp'])
@@ -77,7 +78,7 @@ export function previewBodyKind(extension: string): 'markdown' | 'text' | 'table
   if (MARKDOWN_EXT.has(ext)) return 'markdown'
   if (IMAGE_EXT.has(ext)) return 'image'
   if (ext === '.pdf') return 'pdf'
-  if (ext === '.docx') return 'docx'
+  if (ext === '.docx' || ext === '.doc') return 'docx'
   if (['.csv', '.tsv', '.xlsx', '.xls'].includes(ext)) return 'table'
   return 'text'
 }

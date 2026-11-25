@@ -104,6 +104,13 @@ def workbook_metadata(archive, sheet_name):
     return widths, merges, theme
 
 
+def _formula_text(raw):
+    if raw is None:
+        return ''
+    text = getattr(raw, 'text', None)
+    return text if isinstance(text, str) else str(raw)
+
+
 def xlsx_preview(path, query):
     import openpyxl
     from openpyxl.utils.cell import range_boundaries
@@ -137,11 +144,12 @@ def xlsx_preview(path, query):
             cells = []
             for cell, result in zip(original, computed):
                 formula = getattr(cell, 'data_type', '') == 'f'
+                formula_raw = _formula_text(cell.value) if formula else None
                 value = result.value if formula else cell.value
                 missing = formula and value is None
                 formula_missing |= missing
-                cells.append(dict(text=display(cell.value if missing else value, getattr(cell, 'number_format', 'General')),
-                    formula=str(cell.value) if formula else None, uncached=missing,
+                cells.append(dict(text=display(formula_raw if missing else value, getattr(cell, 'number_format', 'General')),
+                    formula=formula_raw, uncached=missing,
                     style=cell_style(cell, theme) if getattr(cell, 'has_style', False) else None))
             rows.append(cells)
         has_more = len(rows) > TABLE_PAGE_ROWS
@@ -395,6 +403,20 @@ def docx_preview(path, query):
                 partial=bool(offset or end < len(entries) or limited), content_limited=limited)
 
 
+def doc_preview(path, query):
+    from app.infrastructure.external.legacy_doc import (
+        LEGACY_DOC_PREVIEW_TIMEOUT_SECONDS,
+        LegacyDocError,
+        converted_docx,
+    )
+
+    try:
+        with converted_docx(Path(path), timeout=LEGACY_DOC_PREVIEW_TIMEOUT_SECONDS) as docx_path:
+            return docx_preview(str(docx_path), query)
+    except LegacyDocError as error:
+        return unavailable(str(error))
+
+
 def parse(path, query):
     extension = Path(path).suffix.lower()
     if extension == '.xlsx':
@@ -407,6 +429,8 @@ def parse(path, query):
         return pdf_preview(path, query)
     elif extension == '.docx':
         return docx_preview(path, query)
+    elif extension == '.doc':
+        return doc_preview(path, query)
     elif preview_kind(path) == 'image':
         return image_preview(path)
     else:

@@ -30,7 +30,7 @@ def preview_kind(filename: str) -> str:
         return 'image'
     if extension == '.pdf':
         return 'pdf'
-    if extension == '.docx':
+    if extension in ('.docx', '.doc'):
         return 'docx'
     return 'unavailable'
 

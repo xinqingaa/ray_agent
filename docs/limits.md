@@ -174,7 +174,7 @@
 | 解析输入 / OOXML 解压 | 64 MiB / 128 MiB；工作簿和 DOCX 条目超过 10000 个拒绝 | `PREVIEW_INPUT_BYTES`、`WORKBOOK_EXPANDED_BYTES`、[worker.py](../ray_agent/api/app/infrastructure/external/file_preview/worker.py) |
 | 预览位图像素 / 缩略图 | 约 3355 万像素（`32 * 1024 * 1024`）；缩略图最长边 1600 | `IMAGE_MAX_PIXELS`、`worker.py` |
 | PDF 页与 DOCX 阅读窗口 | PDF 每次一页，渲染比例最高 2、最长边 1600 像素；DOCX 每次最多 32 个正文块，以 4 MiB 估算文本和图片输出 | `PDF_PREVIEW_EDGE`、`DOCX_PAGE_BLOCKS`、`DOCX_PAGE_BYTES` |
-| 解析进程 | 最多 3 个；墙钟 12 秒、CPU 10 秒；Linux 地址空间 768 MiB | [parser.py](../ray_agent/api/app/infrastructure/external/file_preview/parser.py)、`worker.py` |
+| 解析进程 | 最多 3 个；墙钟 12 秒、CPU 10 秒；Linux 地址空间 768 MiB；macOS `.doc` 只读转换超时 8 秒 | [parser.py](../ray_agent/api/app/infrastructure/external/file_preview/parser.py)、`worker.py`、[legacy_doc.py](../ray_agent/api/app/infrastructure/external/legacy_doc.py) 的 `LEGACY_DOC_PREVIEW_TIMEOUT_SECONDS` |
 | 派生缓存 | 64 项或 32 MiB，保留 60 秒；单项 JSON 长度小于 8 MiB 才缓存 | `parser.py` |
 | 表格文字 | CSV 字段解析上限 65536；单元格显示 4096 字符，整窗口显示 1048576 字符 | `worker.py` |
 | 附件 ZIP | 1–100 个文件，实际总量 512 MiB | [file_service.py](../ray_agent/api/app/application/services/file_service.py)、[file_routes.py](../ray_agent/api/app/interfaces/endpoints/file_routes.py) |
@@ -207,7 +207,7 @@
 | 单文件解析输入 | 最多 32 MiB | [document_knowledge.py](../ray_agent/api/app/domain/models/document_knowledge.py) 的 `DOCUMENT_PARSE_MAX_BYTES` |
 | 文本片段长度／重叠 | 800／80 字符 | `DOCUMENT_CHUNK_CHARS`、`DOCUMENT_CHUNK_OVERLAP` |
 | 表格行组 | 每组最多 40 行（保留表头） | `DOCUMENT_TABLE_ROWS_PER_CHUNK` |
-| 解析进程 | 最多 2 个并发；墙钟 120 秒 | [runner.py](../ray_agent/api/app/infrastructure/external/document_parse/runner.py) 的 `DOCUMENT_PARSE_SLOTS`、`DOCUMENT_PARSE_TIMEOUT_SECONDS` |
+| 解析进程 | 最多 2 个并发；墙钟 120 秒；macOS `.doc` 只读转换超时 30 秒 | [runner.py](../ray_agent/api/app/infrastructure/external/document_parse/runner.py) 的 `DOCUMENT_PARSE_SLOTS`、`DOCUMENT_PARSE_TIMEOUT_SECONDS`、[legacy_doc.py](../ray_agent/api/app/infrastructure/external/legacy_doc.py) 的 `LEGACY_DOC_PARSE_TIMEOUT_SECONDS` |
 | 解析配置指纹 | `p6-parse-v2`／`p6-chunk-v2` | `PARSE_CONFIG_FINGERPRINT`、`CHUNK_CONFIG_FINGERPRINT` |
 | 工作区索引范围预检 | 达到 1000 个可索引文件、512 MiB 或扫描截断时要求确认范围 | `DOCUMENT_SCOPE_REVIEW_FILES`、`DOCUMENT_SCOPE_REVIEW_BYTES` |
 | 显式知识引用 | 同一运行最多 8 条，供模型读取的片段总预算 4000 字符，每条最多 500 字符 | [retrieval.py](../ray_agent/api/app/domain/models/retrieval.py) 的 `EXPLICIT_REFERENCE_LIMIT`、`EXPLICIT_REFERENCE_CHARS` |

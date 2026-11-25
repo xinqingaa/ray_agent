@@ -24,7 +24,7 @@ function load(file) {
   if(name==='@/lib/api/fetch' || name==='./fetch')return {ApiError};
   if(name==='@/lib/api/preview')return previewApi;
   if(name==='@/lib/core-client')return load('lib/core-client.ts');
-  if(name==='@/lib/platform')return {};
+  if(name==='@/lib/platform')return {isDesktop:()=>false,fileManagerName:()=>'Finder',revealInFileManager:async()=>{}};
   if(name==='@/components/preview/file-preview')return load('components/preview/file-preview.tsx');
   if(name==='./action')return {PreviewAction:props=>React.createElement('button',{'aria-label':props.label,onClick:props.onClick,disabled:props.disabled})};
   if(name==='./image-preview')return {ImagePreview:()=>null};

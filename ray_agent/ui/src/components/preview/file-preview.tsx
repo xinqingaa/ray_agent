@@ -1,5 +1,5 @@
 import {useEffect, useRef, useState, type CSSProperties, type ReactNode} from 'react'
-import {ChevronLeft, ChevronRight, Code, Download, ExternalLink, FileText, Globe, MoreHorizontal, RefreshCw} from '@/components/ui/icons'
+import {ChevronLeft, ChevronRight, Code, Download, ExternalLink, FileText, Finder, Globe, MoreHorizontal, RefreshCw} from '@/components/ui/icons'
 import {toast} from 'sonner'
 import {MarkdownContent} from '@/components/markdown-content'
 import {Button} from '@/components/ui/button'
@@ -10,6 +10,8 @@ import {ApiError} from '@/lib/api/fetch'
 import type {ManagedPreview} from '@/lib/api/managed-previews'
 import type {ErrorCode} from '@/lib/api/types'
 import {canDownload, downloadPreviewSource, isWebPage, openPreviewTab, previewContentUrl, previewEndpoint, readPreview, type FilePreview as Preview, type FilePreviewSource, type PreviewCell, type PreviewLocation, type PreviewSource, type WordBlock} from '@/lib/api/preview'
+import {fileManagerName, isDesktop, revealInFileManager} from '@/lib/platform'
+import {cn} from '@/lib/utils'
 import {formatBytes} from '@/components/run/format'
 import {PreviewAction} from './action'
 import {ImagePreview} from './image-preview'
@@ -23,7 +25,7 @@ function columnName(index: number) {
 function cellStyle(cell: PreviewCell): CSSProperties {
   const style = cell.style
   return style ? {fontWeight:style.bold ? 600 : undefined,fontStyle:style.italic ? 'italic' : undefined,
-    color:style.color || undefined,background:style.background || undefined,textAlign:style.align || undefined,
+    color:cell.uncached ? undefined : style.color || undefined,background:cell.uncached ? undefined : style.background || undefined,textAlign:style.align || undefined,
     whiteSpace:style.wrap ? 'pre-wrap' : 'pre',
     borderTopWidth:style.borders?.[0] ? 1 : undefined,borderRightWidth:style.borders?.[1] ? 1 : undefined,
     borderBottomWidth:style.borders?.[2] ? 1 : undefined,borderLeftWidth:style.borders?.[3] ? 1 : undefined} : {}
@@ -46,8 +48,17 @@ function TablePreview({preview}: {preview: Preview}) {
       {row.map((cell,c)=> {
         if(covered.has(`${r}:${c}`))return null
         const merge=starts.get(`${r}:${c}`)
-        return <td key={c} colSpan={merge?.columns} rowSpan={merge?.rows} title={cell.formula || undefined}
-          className="max-w-[600px] border-b border-r bg-preview-sheet px-3 py-1.5 align-middle whitespace-pre text-preview-sheet-foreground" style={cellStyle(cell)}>{cell.text}</td>
+        const uncached = Boolean(cell.uncached)
+        return <td key={c} colSpan={merge?.columns} rowSpan={merge?.rows}
+          data-uncached-formula={uncached ? 'true' : undefined}
+          title={uncached ? `未保存计算结果的公式：${cell.formula || cell.text}（用表格软件打开后可重算）` : cell.formula || undefined}
+          className={cn(
+            'max-w-[600px] border-b border-r px-3 py-1.5 align-middle whitespace-pre',
+            uncached
+              ? 'bg-state-waiting-soft/45 font-mono italic text-muted-foreground'
+              : 'bg-preview-sheet text-preview-sheet-foreground',
+          )}
+          style={cellStyle(cell)}>{cell.text}</td>
       })}</tr>)}</tbody></table></div>
 }
 
@@ -152,16 +163,17 @@ function FilePreviewInner(props: FilePreviewProps) {
       onViewSource={source.kind !== 'root_dir' ? () => setViewMode('source') : undefined}/>
   }
   return <FilePreviewContent source={source} onBack={onBack} backLabel={backLabel} onDownload={onDownload} onClose={onClose}
-    canExpand={canExpand} onOpenWebPreview={webSource ? () => setViewMode('preview') : undefined}/>
+    canExpand={canExpand} onReveal={onReveal} onOpenWebPreview={webSource ? () => setViewMode('preview') : undefined}/>
 }
 
-function FilePreviewContent({source, onBack, backLabel, onDownload, onClose, canExpand = true, onOpenWebPreview}: {
+function FilePreviewContent({source, onBack, backLabel, onDownload, onClose, canExpand = true, onReveal, onOpenWebPreview}: {
   source: FilePreviewSource
   onBack?: () => void
   backLabel?: string
   onDownload?: () => void
   onClose?: () => void
   canExpand?: boolean
+  onReveal?: () => void
   onOpenWebPreview?: () => void
 }) {
   const location = source.kind === 'root' ? source.location : undefined
@@ -209,6 +221,9 @@ function FilePreviewContent({source, onBack, backLabel, onDownload, onClose, can
     if(onDownload)onDownload()
     else void downloadPreviewSource(source).catch(error=>toast.error(error instanceof Error ? error.message : '下载失败'))
   }
+  const reveal = onReveal ?? (source.kind === 'root' && isDesktop()
+    ? () => void revealInFileManager(source.rootId, source.path).catch(err => toast.error(err instanceof Error ? err.message : '无法显示位置'))
+    : undefined)
   const filename=preview?.filename || source.filename
   const contentUrl=content && content.revision===preview?.revision ? content.url : null
   const body = (full = false) => {
@@ -217,10 +232,13 @@ function FilePreviewContent({source, onBack, backLabel, onDownload, onClose, can
       {errorCode!=='gone' && !(errorCode==='conflict' && expectedRevision) && <Button variant="ghost" size="sm" onClick={refresh}>{errorCode==='conflict' ? '刷新' : '重试'}</Button>}</div>
     if(!preview)return null
     if(preview.kind==='unavailable')return <div className="flex h-full flex-col items-center justify-center gap-2 p-6 text-center">
-      <FileText className="size-8 text-muted-foreground" aria-hidden/><p className="text-sm">{preview.reason || '暂不支持预览'}</p>
+      <FileText className="size-8 text-muted-foreground" aria-hidden/><p className="text-sm wrap-anywhere">{preview.reason || '暂不支持预览'}</p>
       <span className="text-xs tabular-nums text-muted-foreground">{formatBytes(preview.size)}</span>
-      {preview.reason?.startsWith('预览处理') && <Button variant="outline" size="sm" onClick={refresh}>重试</Button>}
-      {canDownload(source) && <Button variant="outline" size="sm" onClick={download}><Download/>下载</Button>}</div>
+      <div className="flex flex-wrap items-center justify-center gap-2">
+        {preview.reason?.startsWith('预览处理') && <Button variant="outline" size="sm" onClick={refresh}>重试</Button>}
+        {reveal && <Button variant="outline" size="sm" onClick={reveal}><Finder/>在 {fileManagerName()} 中显示</Button>}
+        {canDownload(source) && <Button variant="outline" size="sm" onClick={download}><Download/>下载</Button>}
+      </div></div>
     if(preview.kind==='image' && !preview.thumbnail && !contentUrl)return <p className="p-4 text-xs text-muted-foreground" role="status">正在读取</p>
     if(preview.kind==='image')return <ImagePreview src={preview.thumbnail || contentUrl!} originalSrc={contentUrl ?? undefined} title={filename} onDownload={canDownload(source) ? download : undefined} mode={full || !canExpand ? 'canvas' : 'thumbnail'} onExpand={() => setExpanded(true)}
       dimensions={preview.width && preview.height ? `${preview.width} × ${preview.height}` : undefined}/>
@@ -265,6 +283,7 @@ function FilePreviewContent({source, onBack, backLabel, onDownload, onClose, can
       {canReadRaw && <DropdownMenuItem onSelect={() => setRaw(!raw)}>{raw ? <FileText/> : <Code/>}{raw ? '格式化阅读' : '查看原文'}</DropdownMenuItem>}
       {isWebPage(source.filename) && <DropdownMenuItem onSelect={() => void openPreviewTab(source).catch(error => toast.error(error instanceof Error ? error.message : '打开失败'))}><ExternalLink/>在系统浏览器中打开</DropdownMenuItem>}
       <DropdownMenuItem disabled={loading} onSelect={refresh}><RefreshCw/>刷新预览</DropdownMenuItem>
+      {reveal && <DropdownMenuItem onSelect={reveal}><Finder/>在 {fileManagerName()} 中显示</DropdownMenuItem>}
       {canDownload(source) && <DropdownMenuItem disabled={errorCode === 'gone'} onSelect={download}><Download/>下载</DropdownMenuItem>}
     </DropdownMenuContent>
   </DropdownMenu>
@@ -273,15 +292,26 @@ function FilePreviewContent({source, onBack, backLabel, onDownload, onClose, can
     preview?.partial ? '部分预览' : null,
     preview?.cells_truncated ? '内容截断' : null,
     preview?.content_limited ? '部分内容超出预览范围，可查看原件' : null,
-    preview?.formula_missing ? '部分公式未保存计算结果' : null,
   ].filter(Boolean)
   const selectedSheet = preview?.sheet ?? page.sheet
   const sheetTabs = !!preview?.sheets?.length && <div className="shrink-0 overflow-x-auto border-b px-2 py-1"><div role="tablist" aria-label="工作表" className="flex w-max gap-1">
     {preview.sheets.map((sheet,i)=><button key={i} type="button" role="tab" aria-selected={selectedSheet===i} disabled={loading}
       className={`rounded-md px-3 py-1 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring ${selectedSheet===i ? 'bg-muted font-medium' : 'text-muted-foreground hover:bg-muted/50'}`}
       onClick={()=>changePage({sheet:i,row:0,column:0,offset:0})}>{sheet}</button>)}</div></div>
+  const formulaBanner = preview?.kind === 'table' && preview.formula_missing && <div
+    role="status"
+    data-uncached-formula-banner="true"
+    className="flex shrink-0 flex-wrap items-center gap-2 border-b bg-state-waiting-soft/70 px-3 py-2 text-xs"
+  >
+    <span className="min-w-0 flex-1 wrap-anywhere">
+      此表包含未保存计算结果的公式（已用等宽灰字标出），请用外部表格软件打开重算后再保存。
+    </span>
+    {reveal && <Button type="button" variant="outline" size="xs" onClick={reveal}><Finder/>在 {fileManagerName()} 中显示</Button>}
+    {canDownload(source) && <Button type="button" variant="outline" size="xs" onClick={download}><Download/>下载原件</Button>}
+  </div>
   const reader = (full = false) => <>
     {sheetTabs}
+    {formulaBanner}
     <div className="min-h-0 flex-1">{body(full)}</div>
     {navigation}
     {!!notes.length && <p className="shrink-0 border-t px-3 py-1.5 text-xs tabular-nums text-faint">{notes.join(' · ')}</p>}

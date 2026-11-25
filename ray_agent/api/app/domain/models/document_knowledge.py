@@ -47,6 +47,7 @@ class DocumentFormat(StrEnum):
     JSON = "json"
     HTML = "html"
     PDF = "pdf"
+    DOC = "doc"
     DOCX = "docx"
     PPTX = "pptx"
     XLSX = "xlsx"

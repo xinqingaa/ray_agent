@@ -325,3 +325,98 @@ def test_preview_revision_differs_across_workspaces_even_with_same_name_size_and
                 for root_id in ("wsA", "wsB")]
     first, second = asyncio.run(revisions())
     assert first != second
+
+
+def test_legacy_doc_preview_and_fallbacks(tmp_path, monkeypatch):
+    import shutil
+    import subprocess
+    import sys
+    import tempfile
+    from docx import Document
+    from app.infrastructure.external import legacy_doc
+
+    # 1. 损坏的 .doc 返回明确的不可预览原因，不输出乱码
+    corrupt = tmp_path / "损坏.doc"
+    corrupt.write_bytes(b"\x00\x01\x02corrupt-doc\xff\xfe")
+    corrupt_res = parse(str(corrupt), query())
+    assert corrupt_res["kind"] == "unavailable" and "损坏" in corrupt_res["reason"]
+
+    # 2. 伪装成 .doc 的 .docx 可跨平台直接预览
+    misnamed = tmp_path / "实为新版.doc"
+    doc = Document()
+    doc.add_paragraph("跨平台兜底正文")
+    doc.save(misnamed)
+    monkeypatch.setattr(legacy_doc, "_find_textutil", lambda: None)
+    misnamed_res = parse(str(misnamed), query())
+    assert misnamed_res["kind"] == "docx" and misnamed_res["blocks"][0]["spans"][0]["text"] == "跨平台兜底正文"
+
+    # 3. 非 macOS（无 textutil）面对真正的传统 OLE2 .doc 返回明确降级说明
+    ole_stub = tmp_path / "无转换器.doc"
+    ole_stub.write_bytes(b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1" + b"\x00" * 64)
+    fallback_res = parse(str(ole_stub), query())
+    assert fallback_res["kind"] == "unavailable" and "另存为 .docx" in fallback_res["reason"]
+
+    # 4. macOS 上通过 textutil 只读转换真实 .doc（含段落、标题与表格），不改动原文件且清理临时目录
+    monkeypatch.undo()
+    if sys.platform != "darwin" or shutil.which("textutil") is None:
+        return
+    html = tmp_path / "src.html"
+    html.write_text(
+        "<!doctype html><html><head><meta charset='utf-8'></head><body>"
+        "<h1>申报标题</h1><p>第一段正文预算说明</p><p>条目：算力 500</p>"
+        "</body></html>",
+        encoding="utf-8",
+    )
+    real_doc = tmp_path / "申报材料.doc"
+    subprocess.run(["/usr/bin/textutil", "-convert", "doc", "-output", str(real_doc), "--", str(html)], check=True)
+    before_bytes = real_doc.read_bytes()
+    before_mtime = real_doc.stat().st_mtime_ns
+    before_tmps = set(os.listdir(tempfile.gettempdir()))
+
+    async def read_real():
+        with real_doc.open("rb") as handle:
+            return await parse_preview(handle, real_doc.name, "legacy-doc-test", PreviewQuery())
+
+    preview = asyncio.run(read_real())
+    assert preview["kind"] == "docx"
+    texts = [span["text"] for b in preview["blocks"] if b["kind"] != "table" for span in b.get("spans", []) if "text" in span]
+    assert any("申报标题" in t for t in texts) and any("第一段正文预算说明" in t for t in texts)
+    assert any("算力" in t for t in texts)
+    # 定位到段落同样有效，原文件字节与修改时间不变，且不遗留临时转换目录
+    block_located = parse(str(real_doc), query(block=1))
+    assert block_located["kind"] == "docx" and block_located["blocks"][0]["block"] == 1
+    assert real_doc.read_bytes() == before_bytes and real_doc.stat().st_mtime_ns == before_mtime
+    after_tmps = set(os.listdir(tempfile.gettempdir()))
+    assert not [name for name in (after_tmps - before_tmps) if name.startswith("rayagent-doc-conv-")]
+
+
+def test_xlsx_formula_cached_and_uncached_flags(tmp_path):
+    uncached_path = tmp_path / "uncached.xlsx"
+    book = openpyxl.Workbook()
+    ws = book.active
+    ws.append(["项目", "一月", "二月", "合计"])
+    ws.append(["办公费", 10, 20, "=SUM(B2:C2)"])
+    book.save(uncached_path)
+
+    uncached_res = parse(str(uncached_path), query())
+    assert uncached_res["formula_missing"] is True
+    total_cell = uncached_res["rows"][1][3]
+    assert total_cell["uncached"] is True
+    assert total_cell["formula"] == "=SUM(B2:C2)"
+    assert total_cell["text"] == "=SUM(B2:C2)"
+
+    # 构造带有已保存计算结果的公式单元格（formula_missing 应为 False）
+    cached_path = tmp_path / "cached.xlsx"
+    with zipfile.ZipFile(uncached_path) as src, zipfile.ZipFile(cached_path, "w") as dst:
+        for entry in src.infolist():
+            data = src.read(entry.filename)
+            if entry.filename == "xl/worksheets/sheet1.xml":
+                data = data.replace(b"<f>SUM(B2:C2)</f>", b"<f>B2+C2</f><v>30</v>")
+            dst.writestr(entry, data)
+
+    cached_res = parse(str(cached_path), query())
+    assert cached_res["formula_missing"] is False
+    cached_cell = cached_res["rows"][1][3]
+    assert cached_cell["uncached"] is False
+    assert cached_cell["formula"] == "=B2+C2"
+    assert cached_cell["text"] == "30"

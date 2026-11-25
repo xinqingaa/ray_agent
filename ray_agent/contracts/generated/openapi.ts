@@ -3954,7 +3954,7 @@ export interface components {
          * DocumentFormat
          * @enum {string}
          */
-        DocumentFormat: "text" | "markdown" | "code" | "json" | "html" | "pdf" | "docx" | "pptx" | "xlsx" | "csv" | "tsv" | "image" | "unsupported";
+        DocumentFormat: "text" | "markdown" | "code" | "json" | "html" | "pdf" | "doc" | "docx" | "pptx" | "xlsx" | "csv" | "tsv" | "image" | "unsupported";
         /**
          * DocumentIndexStatus
          * @description 界面与 API 可见的索引状态；扫描件在缺 OCR 时停在 pending_component。

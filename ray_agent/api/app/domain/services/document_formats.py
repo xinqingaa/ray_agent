@@ -17,6 +17,7 @@ _FORMAT_CATEGORIES: dict[DocumentFormat, DocumentCategory] = {
     DocumentFormat.TEXT: DocumentCategory.DOCUMENTS,
     DocumentFormat.MARKDOWN: DocumentCategory.DOCUMENTS,
     DocumentFormat.PDF: DocumentCategory.DOCUMENTS,
+    DocumentFormat.DOC: DocumentCategory.DOCUMENTS,
     DocumentFormat.DOCX: DocumentCategory.DOCUMENTS,
     DocumentFormat.PPTX: DocumentCategory.DOCUMENTS,
     DocumentFormat.XLSX: DocumentCategory.SPREADSHEETS,
@@ -46,6 +47,8 @@ def detect_format(relative_path: str) -> DocumentFormat:
         return DocumentFormat.HTML
     if extension == ".pdf":
         return DocumentFormat.PDF
+    if extension == ".doc":
+        return DocumentFormat.DOC
     if extension == ".docx":
         return DocumentFormat.DOCX
     if extension == ".pptx":
