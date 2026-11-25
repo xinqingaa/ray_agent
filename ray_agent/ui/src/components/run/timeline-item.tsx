@@ -29,7 +29,9 @@ export type TimelineHandlers = {
   onOpenCall?: (callId: string) => void
   onOpenRunDetails?: (runId: string) => void
   onPreviewFile?: (file: FileView) => void
+  onFullscreenPreviewFile?: (file: FileView) => void
   onOpenPreview?: (previewId: string) => void
+  onOpenPreviewFullscreen?: (previewId: string) => void
   managedPreviews?: ReadonlyMap<string, ManagedPreview>
   onDownloadFile?: (file: FileView) => void
   onDownloadAll?: (files: FileView[]) => void
@@ -130,6 +132,7 @@ export function TimelineItemView({item, handlers = {}, metrics, runActions}: {it
           files={item.files}
           note={item.note}
           onPreview={handlers.onPreviewFile}
+          onFullscreenPreview={handlers.onFullscreenPreviewFile}
           onDownload={handlers.onDownloadFile}
           onDownloadAll={handlers.onDownloadAll}
         />
@@ -142,6 +145,7 @@ export function TimelineItemView({item, handlers = {}, metrics, runActions}: {it
           note={item.note}
           live={handlers.managedPreviews?.get(item.previewId) ?? null}
           onOpen={handlers.onOpenPreview ? () => handlers.onOpenPreview?.(item.previewId) : undefined}
+          onOpenFullscreen={handlers.onOpenPreviewFullscreen ? () => handlers.onOpenPreviewFullscreen?.(item.previewId) : undefined}
         />
       )
     case 'compaction':

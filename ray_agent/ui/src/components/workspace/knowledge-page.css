@@ -179,40 +179,135 @@
 }
 
 .knowledge-index-summary { display: grid; grid-template-columns: repeat(4, auto) 1fr; align-items: end; gap: 6px 28px; }
-.knowledge-index-meter { display: flex; height: 6px; gap: 3px; overflow: hidden; border-radius: 6px; margin: 10px 0 6px; background: var(--muted); }
-.knowledge-index-tools { display: flex; align-items: center; flex-wrap: wrap; min-height: 32px; gap: 6px; margin: 20px 0 0; }
-.knowledge-index-governance {
+.knowledge-index-meter { display: flex; height: 6px; gap: 3px; overflow: hidden; border-radius: 6px; margin: 10px 0 0; background: var(--muted); }
+.knowledge-index-panels {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  margin-top: 14px;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: color-mix(in srgb, var(--muted) 35%, var(--background));
-  padding: 12px 14px;
+  gap: 12px;
+  margin-top: 18px;
 }
-.knowledge-governance-row {
+.knowledge-panel-card {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--card);
+}
+.knowledge-panel-head {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px 10px;
+  gap: 6px 8px;
+  border-bottom: 1px solid color-mix(in srgb, var(--border) 75%, transparent);
+  background: color-mix(in srgb, var(--muted) 45%, var(--card));
+  padding: 10px 14px;
 }
-.knowledge-governance-label {
-  min-width: 4.5rem;
+.knowledge-panel-head h2 {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--foreground);
+}
+.knowledge-panel-sub {
   font-size: var(--text-xs);
+  color: var(--faint);
+}
+.knowledge-runtime-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 11px;
   font-weight: 500;
+  background: var(--muted);
+  color: var(--muted-foreground);
+}
+.knowledge-runtime-badge[data-tone="ready"] {
+  background: var(--state-success-soft);
+  color: var(--state-success);
+}
+.knowledge-runtime-badge[data-tone="running"] {
+  background: var(--signal-soft);
+  color: var(--signal);
+}
+.knowledge-panel-rows > * + * {
+  border-top: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
+}
+.knowledge-setting-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+  padding: 12px 14px;
+}
+.knowledge-setting-copy {
+  display: flex;
+  min-width: 12rem;
+  flex: 1;
+  flex-direction: column;
+  gap: 2px;
+}
+.knowledge-setting-title {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--foreground);
+}
+.knowledge-setting-desc {
+  font-size: var(--text-xs);
   color: var(--muted-foreground);
 }
 .knowledge-governance-group {
   display: flex;
   flex-wrap: wrap;
-  gap: 4px;
+  gap: 6px;
 }
-.knowledge-governance-hint {
-  font-size: var(--text-xs);
-  color: var(--faint);
+.knowledge-category-check {
+  display: inline-flex;
+  height: 28px;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0 10px 0 8px;
+  background: var(--background);
+  color: var(--muted-foreground);
+  font-size: calc(12.5px * var(--font-scale));
+  transition: color var(--motion-fast) var(--motion-ease), background var(--motion-fast) var(--motion-ease), border-color var(--motion-fast) var(--motion-ease);
 }
-.knowledge-index-progress { min-height: 8px; font-size: var(--text-xs); color: var(--faint); }
+.knowledge-category-check:hover:enabled { background: var(--muted); color: var(--foreground); }
+.knowledge-category-check:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
+.knowledge-category-check[aria-pressed="true"] {
+  border-color: color-mix(in srgb, var(--signal) 40%, var(--border));
+  background: var(--signal-soft);
+  color: var(--foreground);
+}
+.knowledge-category-box {
+  display: inline-grid;
+  width: 15px;
+  height: 15px;
+  place-items: center;
+  border: 1.5px solid var(--input);
+  border-radius: 4px;
+  background: var(--background);
+  color: var(--signal-foreground);
+}
+.knowledge-category-check[aria-pressed="true"] .knowledge-category-box {
+  border-color: var(--signal);
+  background: var(--signal);
+}
+.knowledge-runtime-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+  background: color-mix(in srgb, var(--muted) 30%, var(--card));
+  padding: 8px 14px;
+}
+.knowledge-scope-bar {
+  margin-top: 20px;
+  padding: 8px 8px 6px;
+  border-bottom: 1px solid var(--border);
+}
 
 .knowledge-index-directory {
   display: flex;

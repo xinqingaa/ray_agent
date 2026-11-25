@@ -210,6 +210,15 @@ class SemanticIndexService:
         elif component_id == EMBEDDING_COMPONENT_ID:
             await self._enqueue_all_workspaces()
 
+    async def on_component_uninstalled(self, component_id: str) -> None:
+        """卸载 Embedding 组件后释放内存中的 ONNX 实例，保留已有向量索引待重装恢复。"""
+        if component_id == EMBEDDING_COMPONENT_ID:
+            async with self._compute_slot:
+                self._embedder = None
+
+    def is_computing(self) -> bool:
+        return self._compute_slot.locked()
+
     async def _enqueue_all_workspaces(self) -> None:
         async with self._read_uow_factory() as uow:
             workspace_ids = await uow.document.list_publication_workspace_ids()

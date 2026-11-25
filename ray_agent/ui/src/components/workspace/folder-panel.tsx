@@ -444,10 +444,15 @@ export function FolderPanel({workspace, deliveries, previews, onOpenManagedPrevi
       </div>}
       <ManagedPreviewList
         previews={previews ?? []}
+        htmlDeliveries={deliveries}
         onOpen={item => onOpenManagedPreview ? onOpenManagedPreview(item) : open({kind: 'managed', previewId: item.id, initial: item})}
+        onOpenDelivery={file => onOpenDelivery ? onOpenDelivery(file) : open({kind: 'attachment', id: file.id, filename: file.filename, size: file.size})}
         onUpdated={onPreviewUpdated}
         onDeleted={onPreviewDeleted}
         onReveal={canReveal ? item => void reveal(item.relative_path) : undefined}
+        onRevealDelivery={canReveal && folder ? file => {
+          if (file.rootId === folder.root_id && file.relativePath) void reveal(file.relativePath)
+        } : undefined}
       />
       {deliveryStatus?.error && !deliveries?.length && !hasPreviews ? <div className="space-y-1 px-2 py-6 text-center">
         <p role="alert" className="text-meta text-state-failed">{deliveryStatus.error}</p>

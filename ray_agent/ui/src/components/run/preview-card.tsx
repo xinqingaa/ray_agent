@@ -1,5 +1,8 @@
-import {Globe, Play} from '@/components/ui/icons'
+import {Expand, Eye, Globe, Play} from '@/components/ui/icons'
 import {Button} from '@/components/ui/button'
+import {ContextMenuSurface} from '@/components/ui/context-menu'
+import {IconAction} from '@/components/ui/icon-action'
+import {menuItem, type MenuEntry} from '@/lib/context-menu-policy'
 import type {ManagedPreview} from '@/lib/api/managed-previews'
 import {cn} from '@/lib/utils'
 
@@ -25,6 +28,7 @@ export function PreviewCard({
   note,
   live,
   onOpen,
+  onOpenFullscreen,
   className,
 }: {
   name: string
@@ -32,46 +36,61 @@ export function PreviewCard({
   note?: string
   live?: ManagedPreview | null
   onOpen?: () => void
+  onOpenFullscreen?: () => void
   className?: string
 }) {
   const effectiveKind = live?.kind ?? previewKind
   const state = live?.state ?? (effectiveKind === 'static' ? 'ready' : 'stopped')
   const actionLabel = effectiveKind === 'service' && state === 'stopped' ? '启动并预览' : '预览'
+  const displayName = live?.name ?? name
+  const menu: MenuEntry[] = [
+    ...(onOpen ? [menuItem('在侧栏预览', Eye, onOpen)] : []),
+    ...(onOpenFullscreen ? [menuItem('全屏预览', Expand, onOpenFullscreen)] : []),
+  ]
 
   return (
-    <section
-      aria-label={`项目预览：${live?.name ?? name}`}
-      className={cn(
-        'flex flex-wrap items-center gap-3 rounded-[14px] border border-signal/25 bg-signal-soft/30 px-3.5 py-2.5',
-        className,
-      )}
-    >
-      <span
-        className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg bg-signal-soft text-signal"
-        aria-hidden
-      >
-        <Globe className="size-4" />
-      </span>
-      <div className="min-w-0 flex-1 space-y-0.5">
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-          <h3 className="min-w-0 truncate text-sm font-medium" dir="auto">{live?.name ?? name}</h3>
-          <span className={cn('text-xs', STATE_TONE[state])}>{STATE_LABEL[state]}</span>
-        </div>
-        {note && <p className="text-meta text-muted-foreground wrap-anywhere">{note}</p>}
-        {state === 'failed' && live?.error && (
-          <p className="text-xs text-state-failed wrap-anywhere">{live.error}</p>
+    <ContextMenuSurface items={menu}>
+      <section
+        aria-label={`项目预览：${displayName}`}
+        className={cn(
+          'flex flex-wrap items-center gap-3 rounded-[14px] border border-signal/25 bg-signal-soft/30 px-3.5 py-2.5',
+          className,
         )}
-      </div>
-      <Button
-        type="button"
-        size="sm"
-        variant="default"
-        disabled={!onOpen}
-        onClick={onOpen}
       >
-        <Play className="size-3.5" aria-hidden />
-        {actionLabel}
-      </Button>
-    </section>
+        <span
+          className="inline-flex size-8 shrink-0 items-center justify-center rounded-lg bg-signal-soft text-signal"
+          aria-hidden
+        >
+          <Globe className="size-4" />
+        </span>
+        <div className="min-w-0 flex-1 space-y-0.5">
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+            <h3 className="min-w-0 truncate text-sm font-medium" dir="auto">{displayName}</h3>
+            <span className={cn('text-xs', STATE_TONE[state])}>{STATE_LABEL[state]}</span>
+          </div>
+          {note && <p className="text-meta text-muted-foreground wrap-anywhere">{note}</p>}
+          {state === 'failed' && live?.error && (
+            <p className="text-xs text-state-failed wrap-anywhere">{live.error}</p>
+          )}
+        </div>
+        <div className="flex shrink-0 items-center gap-1">
+          <Button
+            type="button"
+            size="sm"
+            variant="default"
+            disabled={!onOpen}
+            onClick={onOpen}
+          >
+            <Play className="size-3.5" aria-hidden />
+            {actionLabel}
+          </Button>
+          {onOpenFullscreen && (
+            <IconAction label={`全屏预览 ${displayName}`} onClick={onOpenFullscreen}>
+              <Expand className="size-4" aria-hidden />
+            </IconAction>
+          )}
+        </div>
+      </section>
+    </ContextMenuSurface>
   )
 }

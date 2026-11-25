@@ -7,7 +7,7 @@ import {useIsMobile} from '@/hooks/use-mobile'
 import {rootApi} from '@/lib/api/workspace'
 import {TaskFilePicker} from '@/lib/task-file-picker'
 
-const INSPECTOR_FLOAT_BREAKPOINT = 1181
+const INSPECTOR_FLOAT_BREAKPOINT = 1281
 
 export type InspectorView = 'folder' | 'delivered' | 'workbench' | 'recent'
 

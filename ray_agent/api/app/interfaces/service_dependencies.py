@@ -622,9 +622,47 @@ async def publish_native_skill(service, workspace_id, target_id, name, bundle):
         return target.destination(name)
 
 
+async def component_in_use_reason(component_id: str) -> str | None:
+    from app.domain.models.operation import OperationKind
+    from app.domain.models.semantic_index import EMBEDDING_COMPONENT_ID, OCR_COMPONENT_ID
+    from app.infrastructure.external.components.local_components import BROWSER_ID
+    from app.infrastructure.external.execution.runtime import has_active_browser_sessions
+    from app.infrastructure.external.voice import whisper
+
+    if component_id == BROWSER_ID:
+        if has_active_browser_sessions():
+            return "自动化浏览器正在被运行中的任务使用，请待任务结束后再卸载"
+        return None
+    if component_id == whisper.COMPONENT_ID:
+        if whisper.is_transcribing():
+            return "本机语音转写正在进行中，请等待转写完成后再卸载"
+        return None
+    if component_id == EMBEDDING_COMPONENT_ID:
+        semantic = get_semantic_index_service()
+        if semantic.is_computing():
+            return "语义检索正在执行检索或索引计算，请稍后再卸载"
+        async with get_read_uow() as uow:
+            running = await uow.job.running()
+        if any(job.kind is OperationKind.SEMANTIC_INDEX for job in running):
+            return "语义索引正在后台运行，请等待当前任务完成后再卸载"
+        return None
+    if component_id == OCR_COMPONENT_ID:
+        async with get_read_uow() as uow:
+            running = await uow.job.running()
+        if any(job.kind is OperationKind.DOCUMENT_INDEX for job in running):
+            return "文字识别正在用于文档解析，请等待当前解析任务完成后再卸载"
+        return None
+    return None
+
+
 def get_component_service():
     from app.application.services.background_jobs import get_job_runner
     from app.application.services.component_service import ComponentService
     from app.infrastructure.external.execution.runtime import get_components, get_process_executor
-    return ComponentService(get_components(), get_uow, get_read_uow, get_job_runner(), get_process_executor,
-                            get_semantic_index_service().on_component_available)
+    semantic = get_semantic_index_service()
+    return ComponentService(
+        get_components(), get_uow, get_read_uow, get_job_runner(), get_process_executor,
+        on_available=semantic.on_component_available,
+        on_uninstalled=semantic.on_component_uninstalled,
+        in_use_probe=component_in_use_reason,
+    )

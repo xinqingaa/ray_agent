@@ -112,9 +112,14 @@ async def start_core():
         jobs.register(OperationKind.SEMANTIC_INDEX, semantic_index_handler(semantic),
                       requeue_on_restart=True)
         from app.application.services.component_service import ComponentService
+        from app.interfaces.service_dependencies import component_in_use_reason
         from app.infrastructure.external.execution.runtime import get_components, get_process_executor
-        components = ComponentService(get_components(), get_uow, get_read_uow, jobs, get_process_executor,
-                                      semantic.on_component_available)
+        components = ComponentService(
+            get_components(), get_uow, get_read_uow, jobs, get_process_executor,
+            on_available=semantic.on_component_available,
+            on_uninstalled=semantic.on_component_uninstalled,
+            in_use_probe=component_in_use_reason,
+        )
         jobs.register(OperationKind.COMPONENT_INSTALL, components.process, requeue_on_restart=True)
         root.install_id()
         set_job_runner(jobs)

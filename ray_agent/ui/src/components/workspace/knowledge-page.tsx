@@ -1,8 +1,12 @@
 import {useCallback, useEffect, useLayoutEffect, useRef, useState} from 'react'
 import {useLocation, useNavigate, useOutletContext, useSearchParams} from 'react-router'
 import {toast} from 'sonner'
-import {Bookmark, Check, Folder, FolderOpen, Layers, Loader2, RefreshCw, Search, X} from '@/components/ui/icons'
+import {
+  AlertCircle, Ban, Bookmark, Check, CircleCheck, CircleDashed, CircleMinus, ComponentInstall,
+  Folder, FolderOpen, Layers, Loader2, Plus, RefreshCw, RotateCw, Scan, Search, SlidersHorizontal, X,
+} from '@/components/ui/icons'
 import {Button} from '@/components/ui/button'
+import {IconAction} from '@/components/ui/icon-action'
 import {Dialog, DialogContent, DialogDescription, DialogTitle} from '@/components/ui/dialog'
 import {fileExtension, FileTypeBadge} from '@/components/run/file-icon'
 import {SegmentedControl} from '@/components/ui/segmented-control'
@@ -150,7 +154,8 @@ function KnowledgeContent({workspace}: {workspace: WorkspaceItem}) {
     </div>
     <div id="knowledge-view-panel-search" role="tabpanel" aria-labelledby="knowledge-view-search"
       hidden={view !== 'search'} className="knowledge-view">
-      <KnowledgeSearch workspace={workspace} visible={view === 'search'} revision={`${searchRevision}:${publication}`} semantic={summary?.semantic}/>
+      <KnowledgeSearch workspace={workspace} visible={view === 'search'} revision={`${searchRevision}:${publication}`}
+        semantic={summary?.semantic} embedding={items?.find(item => item.component_id === 'embedding-e5')} returnTo={returnTo}/>
     </div>
     <div id="knowledge-view-panel-index" role="tabpanel" aria-labelledby="knowledge-view-index" hidden={view !== 'index'} className="knowledge-view">
       <IndexView workspace={workspace} visible={view === 'index'} summary={summary} summaryError={summaryError}
@@ -161,8 +166,9 @@ function KnowledgeContent({workspace}: {workspace: WorkspaceItem}) {
 
 const URL_QUERY_SYNC_MS = 150
 
-export function KnowledgeSearch({workspace, visible, revision, semantic}: {
-  workspace: WorkspaceItem; visible: boolean; revision: string; semantic?: IndexSummary['semantic']
+export function KnowledgeSearch({workspace, visible, revision, semantic, embedding, returnTo}: {
+  workspace: WorkspaceItem; visible: boolean; revision: string; semantic?: IndexSummary['semantic'];
+  embedding?: ComponentView; returnTo?: string
 }) {
   const navigate = useNavigate()
   const {change} = useWorkspaceLive()
@@ -361,7 +367,26 @@ export function KnowledgeSearch({workspace, visible, revision, semantic}: {
           if (value !== filter) {updateSearch({source: value === 'all' ? '' : value}); setOpen(false)}
         }}>{value === 'all' ? '全部' : SOURCE_LABEL[value]}</button>)}
       </div>
-      {fallback && <p className="px-1 py-1.5 text-xs text-faint" role="status">{fallback}</p>}
+      {(() => {
+        const installing = embedding?.state === 'fetching' || embedding?.state === 'verifying'
+        const mode = semantic?.state === 'ready'
+          ? {key: 'hybrid', text: '全文 + 语义检索已就绪', tone: 'text-state-success', install: false}
+          : installing || semantic?.state === 'running' || semantic?.state === 'queued' || semantic?.state === 'pending'
+            ? {key: 'building', text: '语义索引构建中 · 当前可先使用全文检索', tone: 'text-signal', install: false}
+            : semantic?.state === 'not_installed' || (embedding && embedding.state !== 'available')
+              ? {key: 'fts', text: '全文检索 · 未安装语义检索组件，按关键词匹配', tone: 'text-muted-foreground', install: true}
+              : semantic?.state === 'failed'
+                ? {key: 'failed', text: '全文检索 · 语义索引异常，可在索引页重试', tone: 'text-state-waiting', install: false}
+                : semantic
+                  ? {key: 'fts', text: '全文检索', tone: 'text-muted-foreground', install: false}
+                  : null
+        if (!mode) return null
+        return <p className={cn('flex flex-wrap items-center gap-x-2 px-1 py-1 text-xs', mode.tone)} data-retrieval-mode={mode.key} role="status">
+          <span>{mode.text}</span>
+          {mode.install && returnTo && <Link className="text-signal hover:underline" href={installHref('embedding-e5', returnTo)}>安装语义检索</Link>}
+        </p>
+      })()}
+      {fallback && reason === 'semantic_error' && <p className="px-1 py-1 text-xs text-state-waiting" role="status">{fallback}</p>}
       {error && <div className="knowledge-search-error" role="alert"><p>{error}</p>
         <Button size="xs" variant="ghost" onClick={() => setAttempt(value => value + 1)}>重试</Button>
       </div>}
@@ -432,6 +457,7 @@ function IndexView({workspace, visible, summary, summaryError, refreshSummary, a
   refreshSummary: () => void; acceptSummary: (next: IndexSummary) => void; ocrAvailable: boolean
 }) {
   const {id} = workspace
+  const navigate = useNavigate()
   const {change} = useWorkspaceLive()
   const [params] = useSearchParams()
   const {pathname} = useLocation()
@@ -560,49 +586,129 @@ function IndexView({workspace, visible, summary, summaryError, refreshSummary, a
         {counts.filter(item => item.count > 0).map(item => <span key={item.tone} data-tone={item.tone}
           className="knowledge-meter rounded-full" style={{flex: item.count}}/>)}
       </div>
-      <p className="text-xs text-faint">范围 · {summary.scan.truncated ? '至少 ' : ''}{summary.scan.files} 个文件 · {formatFileSize(summary.scan.bytes)}
-        {policy.excluded_directories.length > 0 && ` · 排除 ${policy.excluded_directories.length} 个目录`}
-        {excludedFiles.length > 0 && ` · 排除 ${excludedFiles.length} 个文件`}
-        {(summary.scan.category_skipped ?? 0) > 0 && ` · 按类型跳过 ${summary.scan.category_skipped} 个`}
-        {pendingOutputs.length > 0 && ` · 待纳入产出 ${pendingOutputs.length} 个`}
-        {summary.scan.excluded_files > 0 && `（已知排除 ${summary.scan.excluded_files} 个文件）`}
-      </p>
-      {summary.scan.truncated && <p className="mt-1 text-xs text-state-waiting">扫描范围不完整，数字仅含已扫描的材料。</p>}
-      <section aria-label="索引范围与权限" className="knowledge-index-governance">
-        <div className="knowledge-governance-row">
-          <span className="knowledge-governance-label">内容类型</span>
-          <div role="group" aria-label="索引内容类型" className="knowledge-governance-group">
-            {DOCUMENT_CATEGORIES.map(category => {
-              const enabled = enabledCategories.includes(category.id)
-              return <button key={category.id} type="button" className="knowledge-filter" aria-pressed={enabled}
-                disabled={readOnly || !!busy} onClick={() => void act(`category:${category.id}`, async () => {
-                  await update(toggleCategory(policy, category.id, !enabled))
-                  toast.success(enabled ? `已关闭「${category.label}」索引` : `已开启「${category.label}」索引`)
-                })}>{category.label}</button>
-            })}
+      <div className="knowledge-index-panels">
+        <section aria-label="索引范围" className="knowledge-panel-card">
+          <header className="knowledge-panel-head">
+            <SlidersHorizontal className="size-4 shrink-0 text-muted-foreground" aria-hidden/>
+            <h2>索引范围</h2>
+            <span className="knowledge-panel-sub">决定哪些文件自动收录进知识库</span>
+          </header>
+          <div className="knowledge-panel-rows">
+            <div className="knowledge-setting-row">
+              <div className="knowledge-setting-copy">
+                <span className="knowledge-setting-title">内容类型</span>
+                <span className="knowledge-setting-desc">可多选，关闭后对应类型不自动收录</span>
+              </div>
+              <div role="group" aria-label="索引内容类型" className="knowledge-governance-group">
+                {DOCUMENT_CATEGORIES.map(category => {
+                  const enabled = enabledCategories.includes(category.id)
+                  return <button key={category.id} type="button" className="knowledge-category-check" aria-pressed={enabled}
+                    disabled={readOnly || !!busy} onClick={() => void act(`category:${category.id}`, async () => {
+                      await update(toggleCategory(policy, category.id, !enabled))
+                      toast.success(enabled ? `已关闭「${category.label}」自动收录` : `已开启「${category.label}」自动收录`)
+                    })}>
+                    <span className="knowledge-category-box" aria-hidden>{enabled && <Check className="size-3"/>}</span>
+                    <span>{category.label}</span>
+                  </button>
+                })}
+              </div>
+            </div>
+            <div className="knowledge-setting-row">
+              <div className="knowledge-setting-copy">
+                <span className="knowledge-setting-title">Agent 产出</span>
+                <span className="knowledge-setting-desc">
+                  {policy.agent_outputs === 'manual' ? '任务生成的文件默认等待你确认后再加入知识库' : '符合已开启类型的任务成果将自动加入知识库'}
+                </span>
+              </div>
+              <div className={cn('inline-flex shrink-0 items-center', (readOnly || !!busy) && 'pointer-events-none opacity-60')}>
+                <SegmentedControl
+                  idPrefix="knowledge-agent-outputs"
+                  label="Agent 产出索引策略"
+                  options={AGENT_OUTPUT_OPTIONS}
+                  value={policy.agent_outputs}
+                  onValueChange={next => {
+                    if (readOnly || !!busy || policy.agent_outputs === next) return
+                    void act(`outputs:${next}`, async () => {
+                      await update(setAgentOutputs(policy, next))
+                      toast.success(next === 'manual' ? 'Agent 产出文件将等待手动确认' : 'Agent 产出文件将自动加入知识库')
+                    })
+                  }}
+                />
+              </div>
+            </div>
           </div>
-        </div>
-        <div className="knowledge-governance-row">
-          <span className="knowledge-governance-label">Agent 产出</span>
-          <div role="group" aria-label="Agent 产出索引策略" className="knowledge-governance-group">
-            {AGENT_OUTPUT_OPTIONS.map(option => <button key={option.value} type="button" className="knowledge-filter"
-              aria-pressed={policy.agent_outputs === option.value} disabled={readOnly || !!busy}
-              onClick={() => {
-                if (policy.agent_outputs === option.value) return
-                void act(`outputs:${option.value}`, async () => {
-                  await update(setAgentOutputs(policy, option.value))
-                  toast.success(option.value === 'manual' ? 'Agent 产出文件将等待手动纳入索引' : 'Agent 产出文件将按类型自动纳入索引')
-                })
-              }}>{option.label}</button>)}
+        </section>
+
+        <section aria-label="索引运行" className="knowledge-panel-card">
+          <header className="knowledge-panel-head">
+            <RefreshCw className="size-4 shrink-0 text-muted-foreground" aria-hidden/>
+            <h2>索引运行</h2>
+            {(() => {
+              const processingCount = summary.pending + summary.parsing
+              const badge = paused
+                ? {text: '已暂停', tone: 'paused'}
+                : working
+                  ? {text: processingCount > 0 ? `正在处理 ${processingCount} 项` : '处理中', tone: 'running'}
+                  : {text: '自动运行中', tone: 'ready'}
+              return <span className="knowledge-runtime-badge" data-tone={badge.tone} role="status">{badge.text}</span>
+            })()}
+            <div className="ml-auto flex flex-wrap items-center gap-1.5">
+              <Button variant="outline" size="xs" disabled={readOnly || !!busy}
+                onClick={() => void act('scan', async () => {await documentsApi.sync(id); toast.message('正在重新扫描文件夹')})}><RefreshCw className="size-3.5"/>重新扫描</Button>
+              {summary.failed > 0 && <Button variant="outline" size="xs"
+                disabled={readOnly || !!busy || policy.paused || summary.scope_review_required}
+                onClick={() => void act('retry', () => documentsApi.retry(id))}>全部重试</Button>}
+            </div>
+          </header>
+          <div className="knowledge-panel-rows">
+            <div className="knowledge-setting-row">
+              <div className="knowledge-setting-copy">
+                <span className="knowledge-setting-title">后台自动索引</span>
+                <span className="knowledge-setting-desc">
+                  {readOnly
+                    ? workspace.status === 'archived' ? '工作区已归档，索引设置为只读。' : '文件夹不可用，恢复连接后可管理索引。'
+                    : '文件夹有新改动时自动更新知识库；暂停后已收录的内容仍可检索。'}
+                </span>
+              </div>
+              <WorkspaceSwitch label="后台自动索引" text={paused ? '已关闭' : '已开启'} alternate="已开启"
+                checked={!paused} disabled={readOnly || (busy != null && busy !== 'pause')} pending={busy === 'pause'}
+                onChange={enabled => void act('pause', async () => {
+                  setPauseIntent(!enabled)
+                  await update({paused: !enabled})
+                  toast.success(enabled ? '已开启后台自动索引' : '已暂停后台索引，已收录内容仍可检索')
+                })}/>
+            </div>
+            {(op?.status === 'running' && op.phase || semantic || summary.ocr_pending > 0 || summary.ocr_failed > 0) && (
+              <div className="knowledge-runtime-meta">
+                {op?.status === 'running' && op.phase && <span role="status" className="text-xs text-signal">
+                  {op.phase}{op.progress?.completed ? ` · 已处理 ${op.progress.completed} 项` : ''}
+                </span>}
+                {semantic && <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-muted-foreground">
+                  <span role="status">{semantic.state === 'not_installed' ? '未安装语义检索组件' : SEMANTIC_LABEL[semantic.state]}
+                    {semanticProgress?.total != null && semanticProgress.total > 0 &&
+                      <span className="ml-1.5 tabular-nums text-faint">{semanticProgress.completed}/{semanticProgress.total} 片段</span>}
+                  </span>
+                  {semanticProgress?.total != null && semanticProgress.total > 0 &&
+                    <progress aria-label="语义索引进度" className="h-1.5 w-24 accent-(--signal)" value={semanticProgress.completed} max={semanticProgress.total}/>}
+                  {semantic.error && <span className="text-state-failed" role="alert">{semantic.error}</span>}
+                  {semantic.state === 'failed' && <IconAction label="重试语义索引"
+                    disabled={readOnly || !!busy || paused || summary.scope_review_required}
+                    onClick={() => void act('semantic', async () => {await documentsApi.retrySemantic(id)})}><RotateCw className="size-3.5"/></IconAction>}
+                </div>}
+                {(summary.ocr_pending > 0 || summary.ocr_failed > 0) && <span className="text-xs text-faint" role="status">
+                  {summary.ocr_pending > 0 && `${summary.ocr_pending} 个文件待补录扫描页`}
+                  {summary.ocr_pending > 0 && summary.ocr_failed > 0 && ' · '}
+                  {summary.ocr_failed > 0 && `${summary.ocr_failed} 个扫描页补录失败`}
+                </span>}
+              </div>
+            )}
           </div>
-          <span className="knowledge-governance-hint">
-            {policy.agent_outputs === 'manual' ? '写入或交付到工作区的文件默认不进检索，可逐个纳入' : '符合已开启类型的成果将自动纳入检索'}
-          </span>
-        </div>
-      </section>
+        </section>
+      </div>
+
       {summary.scope_review_required && <section aria-label="确认索引范围" className="mt-4 space-y-2 rounded-xl border p-3">
         <p className="text-sm font-medium">先确认索引范围</p>
-        <p className="text-meta text-muted-foreground">选择要排除的目录，再开始解析。</p>
+        <p className="text-meta text-muted-foreground">选择不需要收录的目录，再开始解析。</p>
         <div className="max-h-40 space-y-1 overflow-auto">
           {[...new Set([...includedDirs, ...editing])].sort().map(directory => <label key={directory} className="flex items-center gap-2 text-meta">
             <input type="checkbox" checked={editing.includes(directory)} disabled={readOnly || !!busy}
@@ -613,65 +719,45 @@ function IndexView({workspace, visible, summary, summaryError, refreshSummary, a
         </div>
         <Button size="sm" disabled={readOnly || !!busy} onClick={() => void act('scope', () => update({
           scope_confirmed: true, excluded_directories: editing,
-        }))}>确认纳入范围</Button>
+        }))}>确认收录范围</Button>
       </section>}
-      <div className="knowledge-index-tools">
-        <WorkspaceSwitch label="后台索引" text={paused ? '索引已暂停' : '后台索引中'} alternate="后台索引中"
-          checked={!paused} disabled={readOnly || (busy != null && busy !== 'pause')} pending={busy === 'pause'}
-          onChange={enabled => void act('pause', async () => {
-            setPauseIntent(!enabled)
-            await update({paused: !enabled})
-            toast.success(enabled ? '已继续索引' : '已暂停后台索引，已完成的仍可检索')
-          })}/>
-        <Button variant="ghost" size="sm" disabled={readOnly || !!busy}
-          onClick={() => void act('scan', async () => {await documentsApi.sync(id); toast.message('正在重新扫描文件夹')})}><RefreshCw/>重新扫描</Button>
-        {summary.failed > 0 && <Button className="ml-auto" variant="ghost" size="sm"
-          disabled={readOnly || !!busy || policy.paused || summary.scope_review_required}
-          onClick={() => void act('retry', () => documentsApi.retry(id))}>全部重试</Button>}
-      </div>
-      {readOnly && <p className="py-1 text-xs text-faint">{workspace.status === 'archived' ? '工作区已归档，索引设置为只读。' : '文件夹不可用，恢复连接后可管理索引。'}</p>}
-      <p role="status" className="knowledge-index-progress">
-        {op?.status === 'running' && op.phase && <>{op.phase}{op.progress?.completed ? ` · 已处理 ${op.progress.completed} 项` : ''}</>}
-      </p>
-      {semantic && <div className="my-2 flex flex-wrap items-center gap-x-3 gap-y-1 border-b pb-2 text-meta">
-        <span role="status">{semantic.state === 'not_installed' ? '等待语义组件' : SEMANTIC_LABEL[semantic.state]}
-          {semanticProgress?.total != null && semanticProgress.total > 0 &&
-            <span className="ml-2 text-xs tabular-nums text-faint">{semanticProgress.completed}/{semanticProgress.total} 个片段</span>}
-        </span>
-        {semanticProgress?.total != null && semanticProgress.total > 0 &&
-          <progress aria-label="语义索引进度" className="h-1.5 w-24 accent-(--signal)" value={semanticProgress.completed} max={semanticProgress.total}/>}
-        {semantic.error && <span className="text-xs text-state-failed" role="alert">{semantic.error}</span>}
-        {semantic.state === 'failed' && <Button size="xs" variant="ghost" className="ml-auto"
-          disabled={readOnly || !!busy || paused || summary.scope_review_required}
-          onClick={() => void act('semantic', async () => {await documentsApi.retrySemantic(id)})}>重试语义索引</Button>}
-      </div>}
-      {(summary.ocr_pending > 0 || summary.ocr_failed > 0) && <p className="pb-2 text-xs text-faint" role="status">
-        {summary.ocr_pending > 0 && `${summary.ocr_pending} 个可检索文件待补录扫描页`}
-        {summary.ocr_pending > 0 && summary.ocr_failed > 0 && ' · '}
-        {summary.ocr_failed > 0 && `${summary.ocr_failed} 个文件的扫描页补录失败`}
-      </p>}
-      {errorLine && <p role="alert" className="text-meta text-state-failed">{errorLine}
+
+      {errorLine && <p role="alert" className="mt-3 text-meta text-state-failed">{errorLine}
         <Button size="xs" variant="ghost" onClick={() => {setMutationError(null); bump()}}>刷新状态</Button>
       </p>}
+
+      <div className="knowledge-scope-bar">
+        <p className="text-xs text-faint tabular-nums">文件清单 · {summary.scan.truncated ? '至少 ' : ''}{summary.scan.files} 个文件 · {formatFileSize(summary.scan.bytes)}
+          {policy.excluded_directories.length > 0 && ` · 跳过 ${policy.excluded_directories.length} 个目录`}
+          {excludedFiles.length > 0 && ` · 跳过 ${excludedFiles.length} 个文件`}
+          {(summary.scan.category_skipped ?? 0) > 0 && ` · 按类型跳过 ${summary.scan.category_skipped} 个`}
+          {pendingOutputs.length > 0 && ` · 待确认 ${pendingOutputs.length} 个`}
+          {summary.scan.excluded_files > 0 && `（共跳过 ${summary.scan.excluded_files} 个文件）`}
+        </p>
+        {summary.scan.truncated && <p className="mt-1 text-xs text-state-waiting">扫描范围不完整，数字仅含已扫描的材料。</p>}
+      </div>
+
       {grouped.size === 0 && pendingOutputs.length === 0 && excludedFiles.length === 0 && !summary.scope_review_required
-        && <p className="py-8 text-center text-meta text-faint">当前范围没有可索引的文件。</p>}
-      {pendingOutputs.length > 0 && <section aria-label="Agent 产出待纳入索引">
+        && <p className="py-8 text-center text-meta text-faint">当前范围没有可收录的文件。</p>}
+      {pendingOutputs.length > 0 && <section aria-label="Agent 产出待确认">
         <div className="knowledge-index-directory">
           <Layers className="size-4 shrink-0 text-signal" aria-hidden/>
-          <h2 className="min-w-0 truncate text-sm font-medium">Agent 产出 · 待纳入</h2>
-          <span className="knowledge-directory-meta">{pendingOutputs.length} 个文件未纳入检索</span>
+          <h2 className="min-w-0 truncate text-sm font-medium">Agent 产出 · 待确认</h2>
+          <span className="knowledge-directory-meta">{pendingOutputs.length} 个新文件等待加入知识库</span>
         </div>
         <ul>{pendingOutputs.map(path => <li key={path} className="knowledge-index-row">
           <FileTypeBadge extension={fileExtension(path)} compact/>
           <span className="min-w-0 truncate" title={path}>{path.split('/').at(-1)}</span>
           <span className="knowledge-index-row-meta" title={path}>{path.includes('/') ? path.slice(0, path.lastIndexOf('/')) + '/' : '根目录'}</span>
-          <span className="knowledge-index-row-status text-state-waiting">未纳入</span>
+          <span className="knowledge-index-row-status text-state-waiting" title="Agent 新生成的文件，点击右侧加入知识库">
+            <CircleDashed className="size-3.5 shrink-0" aria-hidden/>待确认
+          </span>
           <span className="knowledge-index-row-action">
-            <Button size="xs" variant="ghost" disabled={readOnly || !!busy}
+            <IconAction label={`将「${path.split('/').at(-1)}」加入知识库`} disabled={readOnly || !!busy}
               onClick={() => void act(`include:${path}`, async () => {
                 await update(includeFile(policy, path, true))
-                toast.success(`已将「${path.split('/').at(-1)}」纳入索引`)
-              })}>纳入索引</Button>
+                toast.success(`已将「${path.split('/').at(-1)}」加入知识库`)
+              })}><Plus className="size-3.5"/></IconAction>
           </span>
         </li>)}</ul>
       </section>}
@@ -683,82 +769,102 @@ function IndexView({workspace, visible, summary, summaryError, refreshSummary, a
             {summary.scan.directory_sizes?.[directory] ? `${summary.scan.truncated ? '至少 ' : ''}${summary.scan.directory_sizes[directory].files} 个文件`
               : !nextAfter ? `${entries.length} 个文件` : ''}
           </span>
-          {directory && <Button size="xs" variant="ghost" title="排除索引，文件保留" disabled={readOnly || !!busy}
+          {directory && <IconAction label={`将 ${directory}/ 移出知识库（保留原目录）`} disabled={readOnly || !!busy}
             onClick={() => void act('exclude', async () => {
               await update(excludeDirectory(policy, directory))
-              toast.success(`已排除 ${directory}/`)
-            })}>排除</Button>}
+              toast.success(`已跳过 ${directory}/，原目录保持不变`)
+            })}><CircleMinus className="size-3.5"/></IconAction>}
         </div>
         <ul>{entries.map(doc => {
           const processing = ['registered', 'pending_parse', 'parsing', 'indexing'].includes(doc.status)
           const supplemental = doc.status === 'searchable' && ['waiting_component', 'pending', 'running'].includes(doc.ocr_state ?? '')
           const ocrFailed = doc.ocr_state === 'failed'
           const needsInstall = !ocrAvailable && (doc.status === 'pending_component' || doc.ocr_state === 'waiting_component')
-          const status = ocrFailed ? '识别失败'
-            : supplemental ? paused ? '可查 · 补录已暂停' : doc.ocr_state === 'running' ? '可查 · 正在补录' : '可查 · 待补录'
-            : paused && (processing || doc.status === 'pending_component' && ocrAvailable) ? '已暂停'
-            : doc.ocr_state === 'running' ? '识别中'
-            : doc.status === 'pending_component' ? needsInstall ? '待安装' : '待处理'
-            : STATUS[doc.status]
+          const statusMeta = ocrFailed
+            ? {label: '失败', tip: doc.ocr_error || '扫描页识别失败，点击右侧重试', tone: 'text-state-failed', icon: 'failed' as const}
+            : doc.status === 'failed'
+              ? {label: '失败', tip: doc.error_message || '处理失败，点击右侧重试', tone: 'text-state-failed', icon: 'failed' as const}
+              : supplemental
+                ? {label: '已收录', tip: paused ? '正文已可检索，扫描页补录已暂停' : '正文已可检索，正在补录扫描页文字', tone: 'text-state-success', icon: 'ok' as const}
+                : paused && (processing || doc.status === 'pending_component' && ocrAvailable)
+                  ? {label: '已暂停', tip: '后台索引已暂停', tone: 'text-muted-foreground', icon: 'paused' as const}
+                  : doc.ocr_state === 'running' || processing
+                    ? {label: '处理中', tip: STATUS[doc.status] || '正在读取并建立索引', tone: 'text-signal', icon: 'loading' as const}
+                    : doc.status === 'pending_component'
+                      ? {label: needsInstall ? '待识图' : '处理中', tip: needsInstall ? '需安装「文字识别」组件后读取扫描件' : '等待文字识别处理', tone: 'text-state-waiting', icon: 'scan' as const}
+                      : doc.status === 'searchable'
+                        ? {label: '已收录', tip: '已进入知识库，可被检索和引用', tone: 'text-state-success', icon: 'ok' as const}
+                        : {label: STATUS[doc.status], tip: STATUS[doc.status], tone: 'text-muted-foreground', icon: 'paused' as const}
           const detail = doc.ocr_error || doc.error_message || (doc.ocr_pages_pending && supplemental ? `${doc.ocr_pages_pending} 页待补录`
             : doc.page_count != null ? `${doc.page_count} 页`
             : doc.size != null ? formatFileSize(doc.size) : '')
           const returnParams = new URLSearchParams(params)
           returnParams.set('indexFile', doc.id)
           returnParams.set('indexPages', String(pages))
+          const filename = doc.relative_path.split('/').at(-1) ?? doc.relative_path
           return <li key={doc.id} id={`knowledge-index-${doc.id}`} tabIndex={-1} className="knowledge-index-row">
             <FileTypeBadge extension={fileExtension(doc.relative_path)} compact/>
-            <span className="min-w-0 truncate" title={doc.relative_path}>{doc.relative_path.split('/').at(-1)}</span>
+            <span className="min-w-0 truncate" title={doc.relative_path}>{filename}</span>
             <span className="knowledge-index-row-meta" title={detail || undefined}>
               {detail}
             </span>
-            <span className={cn('knowledge-index-row-status', (doc.status === 'failed' || ocrFailed) && 'text-state-failed',
-              doc.status === 'searchable' && !ocrFailed && 'text-state-success', doc.status === 'pending_component' && 'text-state-waiting',
-              processing && !paused && 'text-signal')}>
-              {processing && !paused && <Loader2 className="size-3 animate-spin motion-reduce:animate-none" aria-hidden/>}{status}</span>
+            <span className={cn('knowledge-index-row-status', statusMeta.tone)} title={statusMeta.tip}>
+              {statusMeta.icon === 'ok' && <CircleCheck className="size-3.5 shrink-0" aria-hidden/>}
+              {statusMeta.icon === 'loading' && <Loader2 className="size-3.5 shrink-0 animate-spin motion-reduce:animate-none" aria-hidden/>}
+              {statusMeta.icon === 'failed' && <AlertCircle className="size-3.5 shrink-0" aria-hidden/>}
+              {statusMeta.icon === 'scan' && <Scan className="size-3.5 shrink-0" aria-hidden/>}
+              {statusMeta.icon === 'paused' && <CircleDashed className="size-3.5 shrink-0" aria-hidden/>}
+              {statusMeta.label}
+            </span>
             <span className="knowledge-index-row-action">
-              {(doc.status === 'failed' || ocrFailed) && <Button size="xs" variant="ghost"
+              {(doc.status === 'failed' || ocrFailed) && <IconAction label={`重新处理「${filename}」`}
                 disabled={readOnly || !!busy || policy.paused || summary.scope_review_required}
-                onClick={() => void act('retry', () => documentsApi.retry(id, doc))}>重试</Button>}
-              {needsInstall && <Button asChild size="xs" variant="ghost"><Link href={installHref('ocr', `${pathname}?${returnParams}`)}>安装文字识别</Link></Button>}
-              <Button size="xs" variant="ghost" title="从索引排除，保留原文件" disabled={readOnly || !!busy}
+                onClick={() => void act('retry', () => documentsApi.retry(id, doc))}><RotateCw className="size-3.5"/></IconAction>}
+              {needsInstall && <IconAction label="安装文字识别组件"
+                onClick={() => void navigate(installHref('ocr', `${pathname}?${returnParams}`))}><ComponentInstall className="size-3.5"/></IconAction>}
+              <IconAction label={`将「${filename}」移出知识库（保留原文件）`} disabled={readOnly || !!busy}
                 onClick={() => void act(`exclude-file:${doc.relative_path}`, async () => {
                   await update(excludeFile(policy, doc.relative_path))
-                  toast.success(`已从索引排除「${doc.relative_path.split('/').at(-1)}」`)
-                })}>排除</Button>
+                  toast.success(`已跳过「${filename}」，原文件保持不变`)
+                })}><CircleMinus className="size-3.5"/></IconAction>
             </span>
           </li>
         })}</ul>
       </section>)}
-      {excludedFiles.length > 0 && <section aria-label="已排除的文件" className="knowledge-index-excluded">
+      {excludedFiles.length > 0 && <section aria-label="已跳过的文件" className="knowledge-index-excluded">
         <div className="knowledge-index-directory">
-          <h2 className="min-w-0 truncate text-sm font-medium">已排除的文件</h2>
-          <span className="knowledge-directory-meta">{excludedFiles.length} 个文件</span>
+          <h2 className="min-w-0 truncate text-sm font-medium">已跳过的文件</h2>
+          <span className="knowledge-directory-meta">{excludedFiles.length} 个文件不进入检索</span>
         </div>
-        <ul>{excludedFiles.map(path => <li key={path} className="knowledge-index-row">
-          <FileTypeBadge extension={fileExtension(path)} compact/>
-          <span className="min-w-0 truncate" title={path}>{path.split('/').at(-1)}</span>
-          <span className="knowledge-index-row-meta" title={path}>{path.includes('/') ? path.slice(0, path.lastIndexOf('/')) + '/' : '根目录'}</span>
-          <span className="knowledge-index-row-status text-faint">已排除</span>
-          <span className="knowledge-index-row-action">
-            <Button size="xs" variant="ghost" disabled={readOnly || !!busy}
-              onClick={() => void act(`include-file:${path}`, async () => {
-                const action = fileIndexAction(path, summary)
-                await update(includeFile(policy, path, action?.kind === 'include' ? action.needsExplicitInclude : false))
-                toast.success(`已重新纳入「${path.split('/').at(-1)}」`)
-              })}>重新纳入</Button>
-          </span>
-        </li>)}</ul>
+        <ul>{excludedFiles.map(path => {
+          const filename = path.split('/').at(-1) ?? path
+          return <li key={path} className="knowledge-index-row">
+            <FileTypeBadge extension={fileExtension(path)} compact/>
+            <span className="min-w-0 truncate" title={path}>{filename}</span>
+            <span className="knowledge-index-row-meta" title={path}>{path.includes('/') ? path.slice(0, path.lastIndexOf('/')) + '/' : '根目录'}</span>
+            <span className="knowledge-index-row-status text-faint" title="已跳过此文件，原文件仍保留在文件夹中">
+              <Ban className="size-3.5 shrink-0" aria-hidden/>不收录
+            </span>
+            <span className="knowledge-index-row-action">
+              <IconAction label={`将「${filename}」重新加入知识库`} disabled={readOnly || !!busy}
+                onClick={() => void act(`include-file:${path}`, async () => {
+                  const action = fileIndexAction(path, summary)
+                  await update(includeFile(policy, path, action?.kind === 'include' ? action.needsExplicitInclude : false))
+                  toast.success(`已将「${filename}」重新加入知识库`)
+                })}><Plus className="size-3.5"/></IconAction>
+            </span>
+          </li>
+        })}</ul>
       </section>}
       {policy.excluded_directories.map(directory => <div key={directory} className="knowledge-index-directory knowledge-index-excluded">
         <Folder className="size-4 shrink-0 text-faint" aria-hidden/>
         <span className="min-w-0 truncate text-sm" title={directory}>{directory}/</span>
-        <span className="knowledge-directory-meta">已排除{summary.scan.excluded_directory_sizes?.[directory] &&
+        <span className="knowledge-directory-meta">不收录{summary.scan.excluded_directory_sizes?.[directory] &&
           ` · 已知 ${summary.scan.excluded_directory_sizes[directory].files} 个文件 · ${formatFileSize(summary.scan.excluded_directory_sizes[directory].bytes)}`}</span>
-        <Button size="xs" variant="ghost" disabled={readOnly || !!busy} onClick={() => void act('include', async () => {
+        <IconAction label={`恢复收录 ${directory}/`} disabled={readOnly || !!busy} onClick={() => void act('include', async () => {
           await update(includeDirectory(policy, directory))
-          toast.success(`已重新纳入 ${directory}/`)
-        })}>重新纳入</Button>
+          toast.success(`已恢复收录 ${directory}/`)
+        })}><Plus className="size-3.5"/></IconAction>
       </div>)}
       {nextAfter && <Button size="sm" variant="ghost" onClick={() => setPages(previous => previous + 1)}>加载更多</Button>}
     </div>

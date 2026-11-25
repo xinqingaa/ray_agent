@@ -7275,6 +7275,48 @@
         }
       }
     },
+    "/api/components/{component_id}/uninstall": {
+      "post": {
+        "tags": [
+          "运行组件"
+        ],
+        "summary": "Uninstall",
+        "operationId": "uninstall_api_components__component_id__uninstall_post",
+        "parameters": [
+          {
+            "name": "component_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Component Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_ComponentView_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/roots/{root_id}/entries": {
       "get": {
         "tags": [
@@ -17216,6 +17258,25 @@
           "data"
         ],
         "title": "Response[CompactResponse]"
+      },
+      "Response_ComponentView_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ComponentView"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "Response[ComponentView]"
       },
       "Response_ConnectionSource_": {
         "properties": {

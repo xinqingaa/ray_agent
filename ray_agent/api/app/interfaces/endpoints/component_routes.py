@@ -20,3 +20,11 @@ async def list_components(service=Depends(get_component_service)):
 @router.post('/{component_id}/install', response_model=Response[OperationView])
 async def install(component_id: str, body: ComponentInstallRequest, service=Depends(get_component_service)):
     return Response.success(data=OperationView.from_operation(await service.accept(component_id, body.request_id)))
+
+
+@router.post('/{component_id}/uninstall', response_model=Response[ComponentView])
+async def uninstall(component_id: str, service=Depends(get_component_service)):
+    row = await service.uninstall_view(component_id)
+    if row["operation"] is not None:
+        row["operation"] = OperationView.from_operation(row["operation"])
+    return Response.success(data=row)

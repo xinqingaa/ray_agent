@@ -64,5 +64,18 @@ export function useRuntimeComponents(enabled = true, poll = true) {
     }
   }
 
-  return {items, error, busy, act, refresh}
+  const uninstall = async (item: ComponentView) => {
+    setBusy(item.component_id)
+    setError(null)
+    try {
+      const updated = await componentsApi.uninstall(item.component_id)
+      setItems(current => current?.map(row => row.component_id === item.component_id ? updated : row) ?? current)
+      return updated
+    } finally {
+      setBusy(null)
+      refresh()
+    }
+  }
+
+  return {items, error, busy, act, uninstall, refresh}
 }

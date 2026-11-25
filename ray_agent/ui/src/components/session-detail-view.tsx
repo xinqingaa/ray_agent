@@ -189,6 +189,7 @@ export function SessionDetailView({
   const restoreOptionsFocus = () => optionsTrigger.current?.focus({preventScroll: true})
   const [renamedTitle, setRenamedTitle] = useState<{sessionId: string; title: string; previousTitle: string} | null>(null)
   const [previewedFile, setPreviewedFile] = useState<FileView | null>(null)
+  const [fullscreenPreview, setFullscreenPreview] = useState<{previewId: string; initial?: ManagedPreview} | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const developerScrollRef = useRef<HTMLDivElement>(null)
   const [initialReading] = useState(() => workspaceConversation ? workspaceReadingPositions.get(sessionId) : undefined)
@@ -643,6 +644,10 @@ export function SessionDetailView({
       if (file.source === 'delivery') previewDelivery(file)
       else setPreviewedFile(file)
     },
+    onFullscreenPreviewFile: (file) => {
+      setFullscreenPreview(null)
+      setPreviewedFile(file)
+    },
     managedPreviews: managedPreviewMap,
     onOpenPreview: (previewId) => {
       setInspectorSource(null)
@@ -651,6 +656,10 @@ export function SessionDetailView({
       setPanelView('delivered')
       setWorkbenchOpen(true)
       setInspectorPreview({previewId, initial: managedPreviewMap.get(previewId)})
+    },
+    onOpenPreviewFullscreen: (previewId) => {
+      setPreviewedFile(null)
+      setFullscreenPreview({previewId, initial: managedPreviewMap.get(previewId)})
     },
     onDownloadFile: (file) => {
       void downloadOne(file)
@@ -910,7 +919,10 @@ export function SessionDetailView({
       </div>}
       <ManagedPreviewList
         previews={managedPreviews}
+        htmlDeliveries={deliveries}
         onOpen={item => setInspectorPreview({previewId: item.id, initial: item})}
+        onOpenDelivery={file => handlers.onPreviewFile?.(file)}
+        onDownloadDelivery={file => void downloadOne(file)}
         onUpdated={upsertManagedPreview}
         onDeleted={removeManagedPreview}
       />
@@ -1112,7 +1124,15 @@ export function SessionDetailView({
           </div>
       </TaskLayout>
 
-      <FilePreviewDialog file={previewedFile} onClose={() => setPreviewedFile(null)} onDownload={file => void downloadOne(file)}/>
+      <FilePreviewDialog
+        file={previewedFile}
+        source={fullscreenPreview ? {kind: 'managed', previewId: fullscreenPreview.previewId, initial: fullscreenPreview.initial} : null}
+        onClose={() => {setPreviewedFile(null); setFullscreenPreview(null)}}
+        onDownload={file => void downloadOne(file)}
+        onPreviewChange={upsertManagedPreview}
+        onPreviewDeleted={removeManagedPreview}
+        onAskAgentFix={askAgentFix}
+      />
 
       {view && planHistory.length > 0 && <PlanListDialog key={sessionId} plans={planHistory} runs={view.runs}
         open={planHistoryOpen} onOpenChange={setPlanHistoryOpen} onRestoreFocus={() => {

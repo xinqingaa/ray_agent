@@ -1,6 +1,6 @@
-import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type DragEvent} from 'react'
+import {useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState} from 'react'
 import {useLocation} from 'react-router'
-import {AlertTriangle, ChevronRight, Grip, Pencil, Pin, PinOff, Plus, Undo2, X} from '@/components/ui/icons'
+import {AlertTriangle, ChevronRight, Pencil, Pin, PinOff, Plus, Undo2, X} from '@/components/ui/icons'
 import {toast} from 'sonner'
 import {Button} from '@/components/ui/button'
 import {Select} from '@/components/ui/select'
@@ -19,10 +19,50 @@ import {describeWorkspace} from '@/lib/workspace-state'
 import {motionEasing} from '@/lib/motion'
 import {cn, formatDayLabel} from '@/lib/utils'
 
-const MEMORY_DRAG = 'application/x-rayagent-memory'
 const TYPE_ORDER: Record<MemoryType, number> = {constraint: 0, preference: 1, decision: 2, fact: 3}
 
 const MEMORY_ORIGIN = {user: '你添加', agent_requested: '在对话中记住', auto_extraction: '自动提炼'} as const
+
+/** 新增与行内编辑共用同一表单结构：集中呈现正文、类型、保存与取消。 */
+function MemoryEditorForm({
+  content,
+  type,
+  placeholder,
+  ariaLabel,
+  submitLabel,
+  busy,
+  autoFocus,
+  onContentChange,
+  onTypeChange,
+  onSubmit,
+  onCancel,
+}: {
+  content: string
+  type: MemoryType
+  placeholder: string
+  ariaLabel: string
+  submitLabel: string
+  busy: boolean
+  autoFocus?: boolean
+  onContentChange: (value: string) => void
+  onTypeChange: (value: MemoryType) => void
+  onSubmit: () => void
+  onCancel: () => void
+}) {
+  return <div className="background-memory-editor">
+    <Textarea value={content} rows={3} autoFocus={autoFocus} placeholder={placeholder} aria-label={ariaLabel}
+      disabled={busy} onChange={event => onContentChange(event.target.value)}/>
+    <div className="flex flex-wrap items-center justify-between gap-2">
+      <Select value={type} label="记忆类型" className="mt-0 w-28"
+        options={MEMORY_TYPE_OPTIONS.map(option => ({id: option.value, label: option.label}))}
+        onChange={value => onTypeChange(value as MemoryType)}/>
+      <div className="flex items-center gap-1.5">
+        <Button size="xs" variant="ghost" disabled={busy} onClick={onCancel}>取消</Button>
+        <Button size="xs" disabled={busy || !content.trim()} onClick={onSubmit}>{submitLabel}</Button>
+      </div>
+    </div>
+  </div>
+}
 
 function MemoryRow({item, workspaceId, readonly, busy, targeted, onAct}: {
   item: MemoryItem; workspaceId: string; readonly: boolean; busy: boolean; targeted: boolean
@@ -34,35 +74,32 @@ function MemoryRow({item, workspaceId, readonly, busy, targeted, onAct}: {
   const [showSources, setShowSources] = useState(false)
 
   return <li id={`memory-${item.id}`} className="background-memory-row" data-targeted={targeted}>
-    <span className="background-memory-handle" draggable={!readonly && !busy && !editing}
-      title={readonly ? undefined : '拖动改变钉住状态'} aria-hidden
-      onDragStart={event => {
-        event.dataTransfer.setData(MEMORY_DRAG, item.id)
-        event.dataTransfer.effectAllowed = 'move'
-      }}><Grip className="size-4"/></span>
-    <div className="min-w-0 flex-1 space-y-1">
-      {editing ? <div className="space-y-2">
-        <Textarea value={draft} rows={3} aria-label="记忆内容" onChange={event => setDraft(event.target.value)}/>
-        <div className="flex flex-wrap gap-2">
-          <Select value={type} label="记忆类型" className="mt-0 w-28"
-            options={MEMORY_TYPE_OPTIONS.map(option => ({id: option.value, label: option.label}))} onChange={value => setType(value as MemoryType)}/>
-          <Button size="xs" disabled={busy || !draft.trim()} onClick={() => {
-            void onAct(item, {action: 'edit', version: item.version, content: draft.trim(), memory_type: type})
-              .then(saved => {if (saved) setEditing(false)})
-          }}>保存</Button>
-          <Button size="xs" variant="ghost" disabled={busy} onClick={() => setEditing(false)}>取消</Button>
-        </div>
-      </div> : <p className="whitespace-pre-wrap wrap-anywhere text-sm leading-relaxed">{item.content}</p>}
+    <div className="min-w-0 flex-1 space-y-1.5">
+      {editing ? <MemoryEditorForm
+        content={draft}
+        type={type}
+        placeholder="写下记忆内容"
+        ariaLabel="记忆内容"
+        submitLabel="保存"
+        busy={busy}
+        autoFocus
+        onContentChange={setDraft}
+        onTypeChange={setType}
+        onSubmit={() => {
+          void onAct(item, {action: 'edit', version: item.version, content: draft.trim(), memory_type: type})
+            .then(saved => {if (saved) setEditing(false)})
+        }}
+        onCancel={() => setEditing(false)}
+      /> : <p className="whitespace-pre-wrap wrap-anywhere text-sm leading-relaxed text-foreground">{item.content}</p>}
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-faint">
-        {item.pinned && <span className="inline-flex items-center gap-1 rounded-[5px] bg-signal-soft px-1.5 text-signal"><Pin className="size-3"/>钉住</span>}
-        <span className="rounded-[5px] bg-muted px-1.5 text-muted-foreground">{MEMORY_TYPE_LABEL[item.memory_type]}</span>
+        <span className="rounded-[5px] bg-muted px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground">{MEMORY_TYPE_LABEL[item.memory_type]}</span>
         <button type="button" aria-label={`查看来源，${MEMORY_ORIGIN[item.origin]}`} aria-expanded={showSources}
           className="rounded-sm underline-offset-2 hover:text-signal hover:underline focus-visible:ring-2 focus-visible:ring-ring"
           onClick={() => setShowSources(value => !value)}>{MEMORY_ORIGIN[item.origin]}</button>
         <span>{formatDayLabel(item.updated_at)}</span>
         <span className="tabular-nums">v{item.version}</span>
       </div>
-      {showSources && <div className="space-y-1">
+      {showSources && <div className="space-y-1.5 pt-1">
         <MemorySources workspaceId={workspaceId} memoryId={item.id}/>
         {!readonly && !editing && <Button size="xs" variant="ghost" disabled={busy || Boolean(item.undo_unavailable)}
           onClick={() => void onAct(item, {action: 'undo', version: item.version})}><Undo2/>撤销变更</Button>}
@@ -72,10 +109,14 @@ function MemoryRow({item, workspaceId, readonly, busy, targeted, onAct}: {
     {!readonly && !editing && <div className="background-memory-actions">
       <IconAction label={item.pinned ? '取消钉住' : '钉住'} disabled={busy}
         onClick={() => void onAct(item, {action: item.pinned ? 'unpin' : 'pin', version: item.version})}>
-        {item.pinned ? <PinOff/> : <Pin/>}
+        {item.pinned ? <PinOff className="size-3.5"/> : <Pin className="size-3.5"/>}
       </IconAction>
-      <IconAction label="编辑记忆" disabled={busy} onClick={() => {setDraft(item.content); setType(item.memory_type); setEditing(true)}}><Pencil/></IconAction>
-      <IconAction label="撤回记忆" disabled={busy} onClick={() => void onAct(item, {action: 'retract', version: item.version})}><X/></IconAction>
+      <IconAction label="编辑记忆" disabled={busy} onClick={() => {setDraft(item.content); setType(item.memory_type); setEditing(true)}}>
+        <Pencil className="size-3.5"/>
+      </IconAction>
+      <IconAction label="撤回记忆" disabled={busy} onClick={() => void onAct(item, {action: 'retract', version: item.version})}>
+        <X className="size-3.5"/>
+      </IconAction>
     </div>}
   </li>
 }
@@ -101,7 +142,6 @@ export function MemoryPanel({workspace, onSummary}: {
   const [adding, setAdding] = useState(false)
   const [recallOpen, setRecallOpen] = useState(false)
   const [dismissedRecallTarget, setDismissedRecallTarget] = useState<string | null>(null)
-  const [dropHighlight, setDropHighlight] = useState<string | null>(null)
   const [newContent, setNewContent] = useState('')
   const [newType, setNewType] = useState<MemoryType>('fact')
   const [creating, setCreating] = useState(false)
@@ -120,7 +160,7 @@ export function MemoryPanel({workspace, onSummary}: {
     })
     for (const {node, delta} of moves) if (delta) node.animate([
       {transform: `translateY(${delta}px)`}, {transform: 'translateY(0)'},
-    ], {duration: 455, easing: motionEasing('spring')})
+    ], {duration: 300, easing: motionEasing('ease')})
   }, [items])
   const rows = useMemo(() => [...items].sort((a, b) =>
     Number(b.pinned) - Number(a.pinned) || TYPE_ORDER[a.memory_type] - TYPE_ORDER[b.memory_type] ||
@@ -132,6 +172,7 @@ export function MemoryPanel({workspace, onSummary}: {
   const searchable = active.filter(item => !item.resident && !item.pinned)
   const candidates = rows.filter(item => item.status === 'candidate')
   const residentCount = pinned.length + resident.length
+  const recallCount = pinnedOverflow.length + searchable.length
   const pendingCount = candidates.length
 
   useEffect(() => {
@@ -234,45 +275,41 @@ export function MemoryPanel({workspace, onSummary}: {
     finally {setCreating(false)}
   }
 
-  const drop = (event: DragEvent, pin: boolean) => {
-    if (!Array.from(event.dataTransfer.types).includes(MEMORY_DRAG)) return
-    event.preventDefault()
-    setDropHighlight(null)
-    const item = active.find(row => row.id === event.dataTransfer.getData(MEMORY_DRAG))
-    if (item && item.pinned !== pin) void mutate(item, {action: pin ? 'pin' : 'unpin', version: item.version})
-  }
-  const dragOver = (event: DragEvent, target: string) => {
-    if (readonly || !Array.from(event.dataTransfer.types).includes(MEMORY_DRAG)) return
-    event.preventDefault()
-    event.dataTransfer.dropEffect = 'move'
-    setDropHighlight(target)
-  }
   const renderRows = (list: MemoryItem[]) => list.map(item => <MemoryRow key={item.id} item={item} workspaceId={workspace.id}
     readonly={readonly} busy={busyId !== null} targeted={isTarget(item)} onAct={mutate}/>)
 
-  const renderLane = (list: MemoryItem[], pin: boolean, isResident: boolean) => {
-    const lane = pin ? 'pinned' : 'remaining'
-    const laneKey = `${isResident ? 'resident' : 'recall'}-${lane}`
-    return <div className="background-memory-lane" data-over={dropHighlight === laneKey}
-      onDragOver={event => dragOver(event, laneKey)} onDrop={event => drop(event, pin)}
-      onDragLeave={event => {
-        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDropHighlight(current => current === laneKey ? null : current)
-      }}>
-      <div className="background-memory-lane-title">
-        <h4>{pin ? '钉住' : '其余'}</h4>
-        {isResident && <span>{pin ? '优先带上，排在最前' : '按类型排列，同类型最近使用优先'}</span>}
-        <span className="ml-auto tabular-nums">{list.length} 条</span>
-      </div>
-      <div className="background-memory-drop-slot" aria-hidden/>
-      {list.length > 0 ? <ul>{renderRows(list)}</ul> : <p className="px-4 py-3 text-xs text-faint">
-        {pin ? readonly ? '暂无钉住的记忆' : '把常用的记忆拖到这里' : '暂无其他常驻记忆'}
-      </p>}
-    </div>
+  const renderCardGroup = (list: MemoryItem[], kind: 'pinned' | 'regular', isResident: boolean) => {
+    if (list.length === 0) return null
+    const isPinned = kind === 'pinned'
+    return <section
+      aria-label={isPinned ? '已钉住记忆' : '自动装配记忆'}
+      className={cn('background-memory-group', isPinned ? 'background-memory-group-pinned' : 'background-memory-group-regular')}
+    >
+      <header className="background-memory-group-head">
+        {isPinned && <Pin className="size-3.5 shrink-0 text-signal" aria-hidden/>}
+        <h4>{isPinned ? '已钉住' : isResident ? '自动装配' : '其余可召回'}</h4>
+        <span className="background-memory-group-hint">
+          {isPinned ? '优先置顶带上' : isResident ? '按类型与最近使用排序' : '与任务相关时按需命中'}
+        </span>
+        <span className="ml-auto tabular-nums text-faint">{list.length} 条</span>
+      </header>
+      <ul className="background-memory-list">{renderRows(list)}</ul>
+    </section>
   }
 
-  return <section ref={listRef} aria-label="工作区记忆" className="background-block" onDragEnd={() => setDropHighlight(null)}>
+  return <section ref={listRef} aria-label="工作区记忆" className="background-block">
     <header className="background-block-header">
-      <h2 className="text-base font-semibold tabular-nums">{residentLimit == null ? '记忆' : `共 ${active.length} 条 · ${residentCount} 条常驻`}</h2>
+      <div>
+        <div className="flex flex-wrap items-baseline gap-2">
+          <h2 className="text-base font-semibold">常驻记忆</h2>
+          {residentLimit != null && <span className="rounded-md bg-muted px-1.5 py-0.5 text-xs font-medium text-muted-foreground tabular-nums">
+            {residentCount} / {residentLimit}
+          </span>}
+        </div>
+        <p className="mt-1 text-xs text-muted-foreground">
+          {residentLimit == null ? '开始新任务时随工作方式一起带上。' : `共 ${active.length} 条记忆 · 开始新任务时自动带上常驻条目`}
+        </p>
+      </div>
       <div className="background-block-actions">
         <WorkspaceSwitch label="任务结束后自动记住" checked={autoIntent ?? workspace.auto_memory_enabled === true}
           disabled={readonly} pending={autoSaving} onChange={checked => void toggleAutoMemory(checked)}/>
@@ -281,15 +318,20 @@ export function MemoryPanel({workspace, onSummary}: {
     </header>
     {loading && !items.length && <p role="status" className="text-sm text-muted-foreground">正在读取记忆…</p>}
     {error && <p role="alert" className="text-sm text-state-failed">{error} <Button size="xs" variant="ghost" onClick={() => void reload()}>重试</Button></p>}
-    {adding && !readonly && <div className="space-y-2 rounded-[14px] bg-muted p-3">
-      <Textarea value={newContent} rows={2} autoFocus placeholder="写下要记住的内容" aria-label="新记忆"
-        disabled={creating} onChange={event => setNewContent(event.target.value)}/>
-      <div className="flex flex-wrap items-center gap-2">
-        <Select value={newType} label="记忆类型" className="mt-0 w-28"
-          options={MEMORY_TYPE_OPTIONS.map(option => ({id: option.value, label: option.label}))} onChange={value => setNewType(value as MemoryType)}/>
-        <Button size="sm" disabled={creating || !newContent.trim()} onClick={() => void createMemory()}>记住</Button>
-        <Button size="sm" variant="ghost" disabled={creating} onClick={() => setAdding(false)}>取消</Button>
-      </div>
+    {adding && !readonly && <div className="mb-4">
+      <MemoryEditorForm
+        content={newContent}
+        type={newType}
+        placeholder="写下要记住的内容"
+        ariaLabel="新记忆"
+        submitLabel="记住"
+        busy={creating}
+        autoFocus
+        onContentChange={setNewContent}
+        onTypeChange={setNewType}
+        onSubmit={() => void createMemory()}
+        onCancel={() => setAdding(false)}
+      />
     </div>}
 
     {candidates.length > 0 && <section className="background-memory-section" aria-label="待确认">
@@ -331,22 +373,25 @@ export function MemoryPanel({workspace, onSummary}: {
     </section>}
 
     {residentLimit != null && <>
-      <section className="background-memory-section" aria-label="常驻记忆">
-        <h3>常驻记忆 <span className="font-normal text-faint">{residentCount} / {residentLimit}</span></h3>
-        <p>开始新任务时随工作方式一起带上。</p>
-        {renderLane(pinned, true, true)}
-        {renderLane(resident, false, true)}
-      </section>
-      <section className="background-memory-section border-t pt-3" aria-label="按需召回">
-        <h3><button type="button" className="background-memory-recall-toggle" aria-expanded={showRecall} aria-controls="background-recall-list"
+      <div className="mt-4 space-y-3.5">
+        {renderCardGroup(pinned, 'pinned', true)}
+        {renderCardGroup(resident, 'regular', true)}
+        {residentCount === 0 && <div className="rounded-xl border border-dashed border-border px-4 py-6 text-center text-xs text-faint">
+          {readonly ? '暂无常驻记忆' : '暂无常驻记忆，可点击右上角「添加记忆」或开启自动记住。'}
+        </div>}
+      </div>
+      <section className="background-memory-recall" aria-label="按需召回">
+        <button type="button" className="background-memory-recall-toggle" aria-expanded={showRecall} aria-controls="background-recall-list"
           onClick={() => {setDismissedRecallTarget(showRecall ? hash : null); setRecallOpen(!showRecall)}}>
-          <ChevronRight className="size-4 shrink-0" aria-hidden/>按需召回 <span className="font-normal text-faint">{pinnedOverflow.length + searchable.length} 条</span>
-        </button></h3>
-        <p>与任务相关时通过检索带上。</p>
-        <div id="background-recall-list" hidden={!showRecall}>
-          {pinnedOverflow.length > 0 && renderLane(pinnedOverflow, true, false)}
-          {searchable.length > 0 && renderLane(searchable, false, false)}
-          {!pinnedOverflow.length && !searchable.length && <p className="mt-3 text-sm text-faint">暂无按需召回的记忆</p>}
+          <ChevronRight className="size-4 shrink-0 text-faint" aria-hidden/>
+          <span className="text-sm font-semibold text-foreground">按需召回</span>
+          <span className="text-xs font-normal text-faint tabular-nums">{recallCount} 条</span>
+          <span className="ml-auto text-xs font-normal text-faint">{showRecall ? '收起' : '与任务相关时检索带上'}</span>
+        </button>
+        <div id="background-recall-list" hidden={!showRecall} className="mt-3 space-y-3">
+          {renderCardGroup(pinnedOverflow, 'pinned', false)}
+          {renderCardGroup(searchable, 'regular', false)}
+          {recallCount === 0 && <p className="px-2 py-2 text-xs text-faint">暂无按需召回的记忆</p>}
         </div>
       </section>
     </>}

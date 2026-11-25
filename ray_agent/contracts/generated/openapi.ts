@@ -2375,6 +2375,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/components/{component_id}/uninstall": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Uninstall */
+        post: operations["uninstall_api_components__component_id__uninstall_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/roots/{root_id}/entries": {
         parameters: {
             query?: never;
@@ -6140,6 +6157,10 @@ export interface components {
         /** Response[CompactResponse] */
         Response_CompactResponse_: {
             data: components["schemas"]["CompactResponse"] | null;
+        };
+        /** Response[ComponentView] */
+        Response_ComponentView_: {
+            data: components["schemas"]["ComponentView"] | null;
         };
         /** Response[ConnectionSource] */
         Response_ConnectionSource_: {
@@ -12656,6 +12677,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Response_OperationView_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    uninstall_api_components__component_id__uninstall_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                component_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_ComponentView_"];
                 };
             };
             /** @description 结构化错误 */

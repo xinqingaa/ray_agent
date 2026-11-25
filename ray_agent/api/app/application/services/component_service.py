@@ -21,9 +21,11 @@ logger = logging.getLogger(__name__)
 
 
 class ComponentService:
-    def __init__(self, components, uow_factory, read_uow_factory, jobs, executor_factory, on_available=None):
+    def __init__(self, components, uow_factory, read_uow_factory, jobs, executor_factory,
+                 on_available=None, on_uninstalled=None, in_use_probe=None):
         self.components, self.uow_factory, self.read_uow_factory = components, uow_factory, read_uow_factory
-        self.jobs, self.executor_factory, self.on_available = jobs, executor_factory, on_available
+        self.jobs, self.executor_factory = jobs, executor_factory
+        self.on_available, self.on_uninstalled, self.in_use_probe = on_available, on_uninstalled, in_use_probe
 
     def entry(self, component_id):
         from app.infrastructure.external.components.local_components import ComponentError
@@ -77,6 +79,46 @@ class ComponentService:
 
     async def locate(self, component_id):
         return await self.components.locate(component_id)
+
+    async def uninstall_view(self, component_id):
+        from app.infrastructure.external.components.local_components import ComponentError
+        self.entry(component_id)
+        status = await self.components.status(component_id)
+        if status.state is ComponentState.UNSUPPORTED and not (self.components.root / component_id).exists():
+            raise AppException(status.error.code, status.error.message)
+        async with self.read_uow_factory() as uow:
+            latest = await self.latest(component_id, uow)
+        if latest and not latest.status.terminal:
+            raise ConflictError(
+                '组件正在安装，请先取消安装后再卸载',
+                details={'reason': 'installing', 'component_id': component_id, 'operation_id': latest.operation_id},
+            )
+        if self.in_use_probe:
+            reason = await self.in_use_probe(component_id)
+            if reason:
+                raise ConflictError(reason, details={'reason': 'in_use', 'component_id': component_id})
+        try:
+            await asyncio.to_thread(self.components.uninstall_files, component_id)
+        except ComponentError as error:
+            raise AppException(error.code, str(error)) from error
+        await self._notify_uninstalled(component_id)
+        return next(row for row in await self.list() if row['component_id'] == component_id)
+
+    async def uninstall(self, component_id):
+        from app.domain.external.runtime_components import ComponentStatus
+        row = await self.uninstall_view(component_id)
+        return ComponentStatus(**{
+            **row,
+            'operation_id': row['operation'].operation_id if row['operation'] else None,
+            'error': (row['operation'].error if row['operation'] else None) or row.get('error'),
+        })
+
+    async def _notify_uninstalled(self, component_id):
+        if self.on_uninstalled:
+            try:
+                await self.on_uninstalled(component_id)
+            except Exception:
+                logger.exception("组件已卸载，但清理内存状态失败 component=%s", component_id)
 
     async def accept(self, component_id, request_id):
         entry = self.entry(component_id)

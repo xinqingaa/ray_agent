@@ -40,6 +40,10 @@ def unavailable_reason() -> str | None:
     return None
 
 
+def is_transcribing() -> bool:
+    return SLOTS.locked()
+
+
 def verify_model(directory: Path) -> None:
     reason = unavailable_reason()
     if reason:

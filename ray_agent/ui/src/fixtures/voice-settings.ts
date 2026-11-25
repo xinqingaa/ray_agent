@@ -11,7 +11,7 @@ export function voiceModelFixture(state: ComponentView['state']): ReturnType<typ
     platform: 'macos-arm64',
     size: 190085487,
   }
-  return {item, items: [item], busy: null, error: null, refresh() {}, act: async () => {}}
+  return {item, items: [item], busy: null, error: null, refresh() {}, act: async () => {}, uninstall: async () => item}
 }
 
 export const voiceLevelsFixture = [0.08, 0.26, 0.57, 0.36, 0.75, 0.98, 0.42, 0.59, 0.38, 0.77, 0.35, 0.12]

@@ -3,7 +3,7 @@ import {FileTypeBadge, previewBodyKind, previewUnavailableReason} from '@/compon
 import {ContextMenuSurface} from '@/components/ui/context-menu'
 import {copyText} from '@/lib/clipboard'
 import {menuItem, type MenuEntry} from '@/lib/context-menu-policy'
-import {Copy, Download, Eye} from '@/components/ui/icons'
+import {Copy, Download, Expand, Eye} from '@/components/ui/icons'
 import {AttachmentThumbnail} from './attachment-thumbnail'
 import {formatBytes} from '@/components/run/format'
 import type {FileView} from '@/lib/session-view'
@@ -51,11 +51,16 @@ export function FileRow({file, onOpen, actions, children, compact = false, showT
   </div></ContextMenuSurface>
 }
 
-/** 文件行的标准菜单项：预览、下载、复制文件名。只给出可用的项。 */
-export function fileMenuEntries(file: FileView, {onPreview, onDownload}: {onPreview?: (file: FileView) => void; onDownload?: (file: FileView) => void}): MenuEntry[] {
+/** 文件行的标准菜单项：预览、全屏预览、下载、复制文件名。只给出可用的项。 */
+export function fileMenuEntries(file: FileView, {onPreview, onFullscreenPreview, onDownload}: {
+  onPreview?: (file: FileView) => void
+  onFullscreenPreview?: (file: FileView) => void
+  onDownload?: (file: FileView) => void
+}): MenuEntry[] {
   const unavailable = previewUnavailableReason(file.extension)
   return [
     ...(onPreview && !unavailable ? [menuItem('预览', Eye, () => onPreview(file))] : []),
+    ...(onFullscreenPreview && !unavailable ? [menuItem('全屏预览', Expand, () => onFullscreenPreview(file))] : []),
     ...(onDownload ? [menuItem('下载', Download, () => onDownload(file))] : []),
     menuItem('复制文件名', Copy, () => copyText(file.filename)),
   ]

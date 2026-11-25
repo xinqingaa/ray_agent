@@ -131,6 +131,10 @@ async def close_runtime_sessions() -> None:
     _browsers.clear()
 
 
+def has_active_browser_sessions() -> bool:
+    return bool(_browsers)
+
+
 async def stop_run_resources(run_id: str) -> bool:
     confirmed = True
     shell = _shells.get(run_id)

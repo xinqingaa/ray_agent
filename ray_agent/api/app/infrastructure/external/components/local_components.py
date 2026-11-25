@@ -154,3 +154,21 @@ class LocalRuntimeComponents:
         receipt = json.loads((self.root / component_id / 'current.json').read_text())
         entry = self.entry(component_id)
         return receipt['version'] == entry.version and receipt['sha256'] == entry.sha256
+
+    def uninstall_files(self, component_id: str) -> None:
+        """原子删序：先移除 current.json 再清理版本目录，避免中途失败留下“组件不完整”收据。"""
+        self.entry(component_id)
+        base = self.root / component_id
+        if not base.exists():
+            return
+        try:
+            (base / "current.json").unlink(missing_ok=True)
+            for temp in base.glob("*.json.tmp"):
+                temp.unlink(missing_ok=True)
+            versions = base / "versions"
+            if versions.exists():
+                shutil.rmtree(versions)
+            if base.exists() and not any(base.iterdir()):
+                base.rmdir()
+        except OSError as error:
+            raise ComponentError(f"卸载组件文件失败：{error}", code=ErrorCode.INTERNAL_ERROR) from error

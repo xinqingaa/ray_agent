@@ -538,8 +538,9 @@
 .conversation-options-trigger:focus-visible { outline: 2px solid var(--ring); outline-offset: -2px; }
 .topbar-menu :is([data-slot="dropdown-menu-item"], [data-slot="dropdown-menu-checkbox-item"]) { min-height: 34px; padding-inline: 10px; border-radius: 7px; }
 
-.app-view-links { display: flex; flex: none; align-items: center; gap: 2px; }
+.app-view-links { position: relative; isolation: isolate; display: flex; flex: none; align-items: center; gap: 2px; }
 .app-view-links a {
+    position: relative;
     display: flex;
     height: 30px;
     align-items: center;
@@ -547,13 +548,24 @@
     border-radius: 10px;
     color: var(--muted-foreground);
     white-space: nowrap;
+    transition: color var(--motion-fast) var(--motion-ease);
 }
 .app-view-links a:hover { color: var(--foreground); }
 .app-view-links a:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 .app-view-links a svg { width: 15px; height: 15px; flex: none; }
-.app-view-links a span { overflow: hidden; max-width: 0; opacity: 0; transition: max-width 320ms var(--shell-spring), opacity 160ms var(--shell-ease), margin 300ms var(--shell-ease); }
-.app-view-links a[aria-current="page"] { background: var(--background); color: var(--foreground); box-shadow: var(--paper-shadow); }
-.app-view-links a[aria-current="page"] span { max-width: 5em; margin-inline-start: 6px; opacity: 1; }
+.app-view-links a > [data-segment-label] {
+    display: grid;
+    grid-template-columns: 0fr;
+    overflow: hidden;
+    margin-inline-start: 0;
+    opacity: 0;
+    transition: grid-template-columns var(--motion-mid) var(--motion-ease), opacity var(--motion-mid) var(--motion-ease), margin var(--motion-mid) var(--motion-ease);
+}
+.app-view-links a[aria-current="page"] { color: var(--foreground); font-weight: 500; }
+.app-view-links a[aria-current="page"] > [data-segment-label] { grid-template-columns: 1fr; margin-inline-start: 6px; opacity: 1; }
+@media (prefers-reduced-motion: reduce) {
+    .app-view-links a, .app-view-links a > [data-segment-label] { transition: none; }
+}
 
 .app-stage { position: relative; display: flex; min-height: 0; flex: 1; padding: 0 12px 12px 0; }
 .app-main[data-inset="true"] .app-stage { padding-inline-start: var(--shell-gap); }
@@ -800,7 +812,7 @@ button.reply-citation-number { font-size: calc(10px * var(--font-scale)); }
     min-width: 0;
     overflow: hidden;
     opacity: 0;
-    transition: width var(--motion-slow) var(--motion-spring), margin-inline-start var(--motion-slow) var(--motion-spring), opacity var(--motion-mid) var(--motion-ease);
+    transition: width var(--motion-mid) var(--motion-ease), margin-inline-start var(--motion-mid) var(--motion-ease), opacity var(--motion-fast) var(--motion-ease);
 }
 /* 挂载后的第一帧直接落定；拖动分隔条期间宽度跟随指针，不做过渡。 */
 .task-inspector:not([data-settled="true"]), .task-inspector[data-resizing="true"] { transition: none; }
@@ -892,7 +904,7 @@ button.reply-citation-number { font-size: calc(10px * var(--font-scale)); }
     .task-drop-target { transition: scale 150ms ease-out, border-color 150ms ease-out, background-color 150ms ease-out; }
     .task-drop-target[data-over="true"], .task-drop-target[data-near="true"] { scale: 1.018; }
 }
-@media (max-width: 1180px) {
+@media (max-width: 1280px) {
     .task-inspector {
         position: absolute;
         z-index: 25;
@@ -915,7 +927,7 @@ button.reply-citation-number { font-size: calc(10px * var(--font-scale)); }
     .app-breadcrumb { max-width: none; }
     .app-workspace-crumb { max-width: min(26vw, 7em); }
     .app-view-links a { padding-inline: 5px; }
-    .app-view-links a[aria-current="page"] span { margin-inline-start: 4px; }
+    .app-view-links a[aria-current="page"] > [data-segment-label] { margin-inline-start: 4px; }
     .model-picker-trigger [data-trigger-effort] { display: none; }
     .model-picker-trigger { max-width: 8rem; padding-inline: 4px; }
 }
@@ -1068,93 +1080,105 @@ button.reply-citation-number { font-size: calc(10px * var(--font-scale)); }
 .background-diff del { color: var(--state-failed); background: var(--state-failed-soft); }
 .background-diff ins { color: var(--state-success); background: var(--state-success-soft); text-decoration: none; }
 
-.background-memory-section { margin-top: 18px; }
+.background-memory-section { margin-top: 20px; }
 .background-memory-section > h3 { font-size: var(--text-sm); font-weight: 600; }
 .background-memory-section > p { margin-top: 3px; color: var(--muted-foreground); font-size: var(--text-xs); }
-.background-memory-recall-toggle { display: inline-flex; min-height: 32px; align-items: center; gap: 6px; border-radius: 6px; padding-inline: 4px; }
+.background-memory-recall { margin-top: 22px; }
+.background-memory-recall-toggle {
+    display: flex;
+    width: 100%;
+    min-height: 36px;
+    align-items: center;
+    gap: 8px;
+    border-radius: 10px;
+    padding: 0 10px;
+    background: color-mix(in srgb, var(--muted) 55%, transparent);
+    transition: background var(--motion-fast) var(--motion-ease);
+}
 .background-memory-recall-toggle:hover { background: var(--muted); }
 .background-memory-recall-toggle:focus-visible { outline: 2px solid var(--ring); }
+.background-memory-recall-toggle > svg { transition: transform var(--motion-mid) var(--motion-spring); }
 .background-memory-recall-toggle[aria-expanded="true"] > svg { transform: rotate(90deg); }
-.background-memory-lane {
-    margin-inline: -8px;
-    margin-top: 8px;
-    padding: 8px;
+.background-memory-group {
+    overflow: hidden;
+    border: 1px solid var(--border);
     border-radius: 14px;
-    transition: background 180ms var(--shell-ease);
+    background: var(--card);
 }
-.background-memory-lane[data-over="true"] { background: var(--signal-soft); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--signal) 45%, transparent); }
-.background-memory-lane-title {
+.background-memory-group-pinned {
+    border-color: color-mix(in srgb, var(--signal) 28%, var(--border));
+    border-left: 3px solid var(--signal);
+    background: color-mix(in srgb, var(--signal-soft) 24%, var(--card));
+}
+.background-memory-group-head {
     display: flex;
     flex-wrap: wrap;
-    align-items: baseline;
-    gap: 3px 8px;
-    padding: 0 4px 6px;
-    color: var(--faint);
+    align-items: center;
+    gap: 4px 8px;
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 75%, transparent);
+    padding: 9px 14px;
     font-size: var(--text-xs);
 }
-.background-memory-lane-title h4 {
+.background-memory-group-pinned .background-memory-group-head {
+    border-bottom-color: color-mix(in srgb, var(--signal) 18%, var(--border));
+    background: color-mix(in srgb, var(--signal-soft) 45%, transparent);
+}
+.background-memory-group-head h4 {
     color: var(--foreground);
-    font-size: var(--text-meta);
+    font-size: var(--text-xs);
     font-weight: 600;
 }
-.background-memory-drop-slot {
-    height: 0;
-    margin-inline: 8px;
-    border: 1px dashed transparent;
-    border-radius: 10px;
-    opacity: 0;
-    transition: height 220ms var(--shell-spring), opacity 160ms var(--shell-ease), margin 220ms var(--shell-spring);
+.background-memory-group-hint {
+    color: var(--faint);
 }
-.background-memory-lane[data-over="true"] .background-memory-drop-slot {
-    height: 46px;
-    margin-block: 4px 8px;
-    border-color: color-mix(in srgb, var(--signal) 60%, transparent);
-    opacity: 1;
+.background-memory-list > li + li {
+    border-top: 1px solid color-mix(in srgb, var(--border) 65%, transparent);
+}
+.background-memory-editor {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--card);
+    padding: 12px;
 }
 .background-memory-row {
     position: relative;
     display: flex;
     align-items: flex-start;
-    gap: 8px;
-    padding: 9px 6px;
-    border-radius: 12px;
+    gap: 12px;
+    padding: 12px 14px;
     scroll-margin-top: 12px;
-    transition: background 160ms var(--shell-ease);
+    transition: background var(--motion-fast) var(--motion-ease);
 }
-.background-memory-row + .background-memory-row::before {
-    position: absolute;
-    inset: 0 8px auto 30px;
-    height: 1px;
-    background: var(--border);
-    content: "";
-}
-.background-memory-row:is(:hover, :focus-within) { background: color-mix(in srgb, var(--foreground) 4%, transparent); }
+.background-memory-row:is(:hover, :focus-within) { background: color-mix(in srgb, var(--foreground) 3%, transparent); }
 .background-memory-row[data-targeted="true"], .background-memory-candidate[data-targeted="true"] { background: var(--signal-soft); }
-.background-memory-handle {
+.background-memory-actions {
+    display: flex;
     flex: none;
-    padding-top: 2px;
-    color: var(--faint);
-    cursor: grab;
+    align-items: center;
+    gap: 2px;
+    margin-top: -2px;
 }
-.background-memory-handle[draggable="false"] { visibility: hidden; }
-.background-memory-actions { display: flex; flex: none; align-items: center; gap: 0; }
 .background-memory-actions button { width: 28px; height: 28px; }
 @media (hover: hover) {
-    .background-memory-handle, .background-memory-actions {
+    .background-memory-actions {
         opacity: 0;
-        transition: opacity 160ms var(--shell-ease);
+        transition: opacity var(--motion-fast) var(--motion-ease);
     }
-    .background-memory-row:is(:hover, :focus-within) :is(.background-memory-handle, .background-memory-actions) { opacity: 1; }
+    .background-memory-row:is(:hover, :focus-within) .background-memory-actions { opacity: 1; }
 }
 @media (max-width: 540px) {
-    .background-memory-row { flex-wrap: wrap; }
-    .background-memory-row > div:first-of-type { flex-basis: calc(100% - 24px); }
-    .background-memory-actions { margin-left: 24px; }
+    .background-memory-row { flex-wrap: wrap; gap: 6px; }
+    .background-memory-row > div:first-of-type { flex-basis: 100%; }
+    .background-memory-actions { margin-top: 0; margin-left: auto; opacity: 1; }
 }
 @media (prefers-reduced-motion: reduce) {
     .background-review-card { animation: none; }
     .workspace-switch-track, .workspace-switch-track > span, .background-style-doc,
-    .background-memory-lane, .background-memory-drop-slot, .background-memory-row { transition: none; }
+    .background-memory-recall-toggle, .background-memory-recall-toggle > svg,
+    .background-memory-row, .background-memory-actions { transition: none; }
 }
 
 .skill-page { display: flex; flex-direction: column; width: 100%; max-width: 54rem; min-height: 0; margin-inline: auto; padding: 26px clamp(16px, 3.2vw, 36px) 0; }
@@ -1249,4 +1273,83 @@ button.reply-citation-number { font-size: calc(10px * var(--font-scale)); }
     .skill-source-switch, .skill-source-switch [data-slot="switch-thumb"], .skill-source-filter,
     .skill-row, .skill-row-icon, .skill-row-main, .skill-select { transition: none; }
     .skill-row[data-arriving="true"] { animation: none; }
+}
+
+/* 运行组件原位水波纹进度：已知总量按比例上升，校验/等待/未知总量各有区分，减少动态效果时为静态液面。 */
+.component-water-meter {
+    position: relative;
+    display: grid;
+    width: 38px;
+    height: 38px;
+    flex: none;
+    place-items: center;
+    overflow: hidden;
+    border: 1px solid color-mix(in srgb, var(--signal) 35%, var(--border));
+    border-radius: 11px;
+    background: var(--muted);
+    color: var(--signal);
+}
+.component-water-meter[data-stage="verifying"] {
+    border-color: color-mix(in srgb, var(--state-success) 45%, var(--border));
+    color: var(--state-success);
+}
+.component-water-meter[data-stage="cancelling"] {
+    border-color: var(--border);
+    color: var(--muted-foreground);
+}
+.component-water-fill {
+    position: absolute;
+    inset: 0;
+    transform: translateY(calc(100% - var(--water-level, 0%)));
+    transition: transform var(--motion-mid) var(--motion-ease);
+}
+.component-water-body {
+    position: absolute;
+    inset: 5px 0 -4px 0;
+    background: color-mix(in srgb, var(--signal) 28%, transparent);
+}
+.component-water-meter[data-stage="verifying"] .component-water-body {
+    background: color-mix(in srgb, var(--state-success) 26%, transparent);
+}
+.component-water-meter[data-stage="cancelling"] .component-water-body {
+    background: color-mix(in srgb, var(--muted-foreground) 18%, transparent);
+}
+.component-water-wave {
+    position: absolute;
+    top: -4px;
+    left: 0;
+    width: 200%;
+    height: 10px;
+    fill: color-mix(in srgb, var(--signal) 34%, transparent);
+    animation: component-water-drift 2.4s linear infinite;
+}
+.component-water-wave-back {
+    opacity: .55;
+    animation-duration: 3.4s;
+    animation-direction: reverse;
+}
+.component-water-meter[data-stage="verifying"] .component-water-wave {
+    fill: color-mix(in srgb, var(--state-success) 32%, transparent);
+}
+.component-water-meter[data-stage="indeterminate"] .component-water-fill {
+    animation: component-water-breathe 2.2s ease-in-out infinite;
+}
+.component-water-glyph {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    place-items: center;
+}
+@keyframes component-water-drift {
+    from { transform: translateX(0); }
+    to { transform: translateX(-50%); }
+}
+@keyframes component-water-breathe {
+    0%, 100% { transform: translateY(58%); }
+    50% { transform: translateY(38%); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .component-water-fill { transition: none; animation: none !important; }
+    .component-water-wave { animation: none; opacity: 0; }
+    .component-water-body { top: 0; }
 }

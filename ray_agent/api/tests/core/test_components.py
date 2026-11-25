@@ -416,3 +416,110 @@ asyncio.run(main())
             proc.kill(); proc.wait()
         asyncio.run(stop_supervisor(execution_root))
         shutil.rmtree(execution_root)
+
+
+def test_uninstall_http_atomic_order_conflict_and_reinstall(tmp_path, monkeypatch):
+    async def check(write, read, _):
+        uninstalled = []
+        busy_reason = {'value': None}
+
+        async def on_uninstalled(component_id):
+            uninstalled.append(component_id)
+
+        async def in_use_probe(component_id):
+            return busy_reason['value']
+
+        components = LocalRuntimeComponents(tmp_path / 'components')
+        jobs = BackgroundJobRunner(write, 'instance-1', read_uow_factory=read)
+        service = ComponentService(
+            components, write, read, jobs, None,
+            on_uninstalled=on_uninstalled,
+            in_use_probe=in_use_probe,
+        )
+        jobs.register(OperationKind.COMPONENT_INSTALL, service.process, requeue_on_restart=True)
+
+        app = FastAPI()
+        app.include_router(component_routes.router, prefix='/api')
+        register_exception_handlers(app)
+        app.dependency_overrides[get_component_service] = lambda: service
+
+        # 预置已安装组件与工作区外部文件，核对卸载只删组件本身
+        target = components.staging(BROWSER_ID, 'v1')
+        fake_files(components, target)
+        components.publish(BROWSER_ID, 'v1')
+        preserved = tmp_path / 'browser_profiles' / 'keep.txt'
+        preserved.parent.mkdir(parents=True)
+        preserved.write_text('keep')
+
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url='http://test') as client:
+            # 未知组件返回 404
+            assert (await client.post('/api/components/unknown/uninstall')).status_code == 404
+
+            # 活跃占用时拦截并返回 409
+            busy_reason['value'] = '自动化浏览器正在被运行中的任务使用，请待任务结束后再卸载'
+            blocked = await client.post(f'/api/components/{BROWSER_ID}/uninstall')
+            assert blocked.status_code == 409
+            assert blocked.json()['error']['details']['reason'] == 'in_use'
+            assert components.current(BROWSER_ID) is not None
+
+            # 解除占用后卸载成功：删除收据与版本目录、触发回调、保留外部资料目录
+            busy_reason['value'] = None
+            ok = await client.post(f'/api/components/{BROWSER_ID}/uninstall')
+            assert ok.status_code == 200, ok.text
+            data = ok.json()['data']
+            assert data['state'] == 'not_installed' and data['version'] is None and data['error'] is None
+            assert components.current(BROWSER_ID) is None
+            assert not (components.root / BROWSER_ID).exists()
+            assert uninstalled == [BROWSER_ID]
+            assert preserved.read_text() == 'keep'
+
+            # 再次卸载幂等成功
+            again = await client.post(f'/api/components/{BROWSER_ID}/uninstall')
+            assert again.status_code == 200 and again.json()['data']['state'] == 'not_installed'
+
+            # 安装进行中拒绝卸载
+            accepted = await service.accept(BROWSER_ID, 'reinstall-req')
+            installing = await client.post(f'/api/components/{BROWSER_ID}/uninstall')
+            assert installing.status_code == 409
+            assert installing.json()['error']['details']['reason'] == 'installing'
+            assert installing.json()['error']['details']['operation_id'] == accepted.operation_id
+
+            # 重装完成后恢复可用
+            async def good(context, action, component_id, dst):
+                fake_files(components, dst)
+            service._worker = good
+            await jobs.run_job(await claim(write))
+            assert (await service.status(BROWSER_ID)).state.value == 'available'
+    with_database(tmp_path, check)
+
+
+def test_uninstall_removes_receipt_before_versions_on_rmtree_failure(tmp_path, monkeypatch):
+    components = LocalRuntimeComponents(tmp_path / 'components')
+    target = components.staging(BROWSER_ID, 'v1')
+    fake_files(components, target)
+    components.publish(BROWSER_ID, 'v1')
+
+    def fail_rmtree(_path):
+        raise PermissionError('模拟文件占用')
+
+    monkeypatch.setattr(shutil, 'rmtree', fail_rmtree)
+    from app.infrastructure.external.components.local_components import ComponentError
+    with pytest.raises(ComponentError):
+        components.uninstall_files(BROWSER_ID)
+
+    # current.json 必须已先移除，状态干净回退为 not_installed 且不报“组件不完整”
+    assert not (components.root / BROWSER_ID / 'current.json').exists()
+    status = asyncio.run(components.status(BROWSER_ID))
+    assert status.state.value == 'not_installed' and status.error is None
+
+
+def test_semantic_embedder_released_on_uninstall(tmp_path):
+    async def check(write, read, _):
+        from app.application.services.semantic_index_service import SemanticIndexService
+        from app.domain.models.semantic_index import EMBEDDING_COMPONENT_ID
+        components = LocalRuntimeComponents(tmp_path / 'components')
+        semantic = SemanticIndexService(write, read, components=components)
+        semantic._embedder = object()
+        await semantic.on_component_uninstalled(EMBEDDING_COMPONENT_ID)
+        assert semantic._embedder is None
+    with_database(tmp_path, check)

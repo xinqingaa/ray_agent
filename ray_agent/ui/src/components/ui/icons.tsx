@@ -79,6 +79,8 @@ export const Smartphone = lineIcon(<><rect x="7" y="3.5" width="10" height="17" 
 export const Moon = lineIcon(<path d="M19.5 14.5A7.5 7.5 0 0 1 9.5 4.5a7.5 7.5 0 1 0 10 10Z"/>)
 export const MoreHorizontal = lineIcon(<><circle cx="6" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="18" cy="12" r="1.2"/></>)
 export const Package = lineIcon(<><path d="M12 3 20 7.5v9L12 21l-8-4.5v-9Z"/><path d="m4 7.5 8 4.5 8-4.5M12 12v9"/></>)
+export const ComponentInstall = lineIcon(<path d="M12 4v10.5m-4-4 4 4 4-4M4.5 15.5v3a1.5 1.5 0 0 0 1.5 1.5h12a1.5 1.5 0 0 0 1.5-1.5v-3"/>)
+export const ComponentUninstall = lineIcon(<><path d="M12 3 20 7.5v4.5M12 3 4 7.5v9L12 21v-9m0 0L4 7.5m8 4.5 8-4.5"/><path d="M14.5 17.5h6"/></>)
 export const PanelLeftIcon = lineIcon(<><rect x="3.5" y="4.5" width="17" height="15" rx="3"/><path d="M9.5 4.5v15"/></>)
 export const PanelRight = lineIcon(<><rect x="3.5" y="4.5" width="17" height="15" rx="3"/><path d="M14.5 4.5v15"/></>)
 export const Paperclip = lineIcon(<path d="m19 11.5-7 7a4.6 4.6 0 0 1-6.5-6.5l7.4-7.4a3 3 0 0 1 4.3 4.3l-7.3 7.3a1.5 1.5 0 0 1-2.1-2.1l6.6-6.6"/>)

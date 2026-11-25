@@ -1,4 +1,4 @@
-import {Download, Eye, Package, PackageOpen} from '@/components/ui/icons'
+import {Download, Expand, Eye, Package, PackageOpen} from '@/components/ui/icons'
 import {PreviewAction} from '@/components/preview/action'
 import {cn} from '@/lib/utils'
 import type {FileView} from '@/lib/session-view'
@@ -10,13 +10,14 @@ type DeliveryCardProps = {
   /** deliver_files 的说明 */
   note?: string
   onPreview?: (file: FileView) => void
+  onFullscreenPreview?: (file: FileView) => void
   onDownload?: (file: FileView) => void
   onDownloadAll?: (files: FileView[]) => void
   className?: string
 }
 
-/** 交付卡：deliver_files 交付的文件，可预览、单个下载或全部下载 */
-export function DeliveryCard({files, note, onPreview, onDownload, onDownloadAll, className}: DeliveryCardProps) {
+/** 交付卡：deliver_files 交付的文件，可侧栏预览、全屏预览、单个下载或全部下载 */
+export function DeliveryCard({files, note, onPreview, onFullscreenPreview, onDownload, onDownloadAll, className}: DeliveryCardProps) {
   const images = files.filter(file => previewBodyKind(file.extension) === 'image')
   const documents = files.filter(file => previewBodyKind(file.extension) !== 'image')
   const renderFiles = (items: FileView[]) => items.map((file) => {
@@ -24,8 +25,9 @@ export function DeliveryCard({files, note, onPreview, onDownload, onDownloadAll,
     return (
       <li key={file.id} className={previewBodyKind(file.extension) === 'image' ? undefined : 'rounded-[12px] border border-signal/20 bg-signal-soft/25 px-1'}>
         <FileRow file={file} showThumbnail onOpen={onPreview ? () => onPreview(file) : undefined}
-          menu={fileMenuEntries(file, {onPreview, onDownload})} actions={<>
+          menu={fileMenuEntries(file, {onPreview, onFullscreenPreview, onDownload})} actions={<>
           {!unavailable && <PreviewAction label={`预览 ${file.filename}`} icon={Eye} onClick={() => onPreview?.(file)} disabled={!onPreview}/>}
+          {!unavailable && onFullscreenPreview && <PreviewAction label={`全屏预览 ${file.filename}`} icon={Expand} onClick={() => onFullscreenPreview(file)}/>}
           <PreviewAction label={`下载 ${file.filename}`} icon={Download} onClick={() => onDownload?.(file)} disabled={!onDownload}/>
         </>}/>
       </li>

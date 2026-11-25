@@ -1,7 +1,8 @@
 import {useCallback, useEffect, useLayoutEffect, useRef, useState} from 'react'
-import {Loader2, Wand} from '@/components/ui/icons'
+import {BookOpen, History, Loader2, Pencil, Wand} from '@/components/ui/icons'
 import {toast} from 'sonner'
 import {Button} from '@/components/ui/button'
+import {IconAction} from '@/components/ui/icon-action'
 import {Input} from '@/components/ui/input'
 import {Dialog, DialogContent, DialogDescription, DialogFooter, DialogTitle} from '@/components/ui/dialog'
 import {MarkdownContent} from '@/components/markdown-content'
@@ -238,11 +239,11 @@ export function WorkingStyleSettings({workspace, onSummary}: {
           <Button ref={editAction} size="sm" disabled={!instruction || saving || body === instruction.body}
             onClick={() => void saveInstruction(body)}>保存</Button>
         </> : <>
-          <Button size="sm" variant="ghost" disabled={loading} onClick={() => setTemplatesOpen(true)}>模板</Button>
-          <Button size="sm" variant="ghost" disabled={loading || historyLoading}
-            onClick={() => {setHistoryOpen(true); void loadHistory()}}>版本历史</Button>
-          {!readonly && instruction?.body.trim() && <Button ref={editAction} size="sm" variant="outline"
-            disabled={saving} onClick={() => setEditing(true)}>编辑</Button>}
+          <IconAction label="工作方式模板" disabled={loading} onClick={() => setTemplatesOpen(true)}><BookOpen className="size-4"/></IconAction>
+          <IconAction label="版本历史" disabled={loading || historyLoading}
+            onClick={() => {setHistoryOpen(true); void loadHistory()}}><History className="size-4"/></IconAction>
+          {!readonly && <IconAction ref={editAction} label={instruction?.body.trim() ? '编辑工作方式' : '设置工作方式'}
+            disabled={saving} onClick={() => setEditing(true)}><Pencil className="size-4"/></IconAction>}
         </>}
       </div>
     </header>
@@ -272,10 +273,9 @@ export function WorkingStyleSettings({workspace, onSummary}: {
               void saveInstruction(body)
             }
           }}/>
-          : instruction.body.trim() ? <MarkdownContent content={instruction.body}/> : <div className="space-y-2.5">
-            <p className="text-sm text-muted-foreground">还没有设置工作方式。可以写下 Agent 在这个工作区应遵守的规则和偏好。</p>
-            {!readonly && <Button ref={editAction} size="sm" variant="outline" onClick={() => setEditing(true)}>设置工作方式</Button>}
-          </div>}
+          : instruction.body.trim() ? <MarkdownContent content={instruction.body}/> : <p className="text-sm text-muted-foreground">
+            还没有设置工作方式，可点击右上角编辑图标写下 Agent 在本工作区应遵守的规则和偏好。
+          </p>}
       </div>
       {editing ? <p className="background-style-meta tabular-nums">{saving ? '正在保存' : `${body.length}/${maxChars}`}</p>
         : instruction.instruction_version != null && <div className="background-style-meta">

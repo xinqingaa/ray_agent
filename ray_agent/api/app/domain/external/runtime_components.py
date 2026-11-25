@@ -58,3 +58,7 @@ class RuntimeComponents(Protocol):
     async def locate(self, component_id: ComponentId) -> Path:
         """可用组件的安装位置；不可用时抛出带原因的错误。"""
         ...
+
+    async def uninstall(self, component_id: ComponentId) -> ComponentStatus:
+        """卸载组件本身，保留工作区索引与用户数据。"""
+        ...
