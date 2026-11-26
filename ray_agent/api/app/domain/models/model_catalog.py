@@ -10,6 +10,7 @@ from app.domain.models.llm_endpoints import CustomModel, LlmEndpoint
 
 
 Replay = Literal["current_turn", "all_turns"]
+DEFAULT_GLOBAL_CONTEXT_WINDOW = 200_000
 
 
 @dataclass(frozen=True)
@@ -45,6 +46,7 @@ class ModelSpec:
     # 目录外模型的声明；目录模型恒为 False 且没有未确认项
     custom: bool = False
     unconfirmed: tuple[str, ...] = ()
+    default_context_window: Optional[int] = None
 
     def choice(self, choice_id: str) -> Optional[ReasoningChoice]:
         return next((item for item in self.choices if item.id == choice_id), None)
@@ -75,7 +77,7 @@ def _deepseek_choices() -> tuple[ReasoningChoice, ...]:
 def deepseek_models() -> tuple[ModelSpec, ...]:
     choices = _deepseek_choices()
     shared = dict(
-        provider="deepseek", context_window=1_000_000, max_output=393_216, tools=True,
+        provider="deepseek", context_window=1_000_000, default_context_window=200_000, max_output=393_216, tools=True,
         choices=choices, default_choice="high", thinking_output_floor=32_768,
         reasoning_ordered=True, reasoning_family="deepseek-v4", tool_batching="provider_default", temperature_when="disabled", temperature_max=2,
     )
@@ -94,9 +96,9 @@ def _gpt_choices(efforts: tuple[str, ...]) -> tuple[ReasoningChoice, ...]:
 
 
 def _gpt_spec(model_id: str, efforts: tuple[str, ...], default: str) -> ModelSpec:
-    """应用窗口按 200000 封顶；思考档位保持当前接入目录中的原词。"""
+    """应用窗口按 272000 封顶以避开 >272K 长上下文加价区间；思考档位保持当前接入目录中的原词。"""
     return ModelSpec(
-        id=model_id, provider="openai", context_window=200_000, max_output=128_000, tools=True, vision=True,
+        id=model_id, provider="openai", context_window=272_000, default_context_window=272_000, max_output=128_000, tools=True, vision=True,
         auxiliary=False, choices=_gpt_choices(efforts),
         default_choice=default, thinking_output_floor=0, reasoning_ordered=True, reasoning_family="gpt-6",
         temperature_when="disabled", temperature_max=2, tool_batching="provider_default", emit_thinking=False,
@@ -107,6 +109,8 @@ def gpt_models() -> tuple[ModelSpec, ...]:
     """当前接入的 GPT 能力声明；真实上游支持范围需独立验证。"""
     opened = ("low", "medium", "high", "xhigh", "max")
     return (
+        _gpt_spec("gpt-6.2-sol", opened, "medium"),
+        _gpt_spec("gpt-6.2-astra", opened, "medium"),
         _gpt_spec("gpt-6.1-sol", opened, "medium"),
         _gpt_spec("gpt-6-luna", ("none",) + opened, "medium"),
         _gpt_spec("gpt-6-astra", opened, "medium"),
@@ -245,16 +249,22 @@ def resolve_selection(provider: str, model_id: Optional[str], reasoning: Optiona
 
 
 def configured_sampling(config: LLMConfig, model_id: Optional[str]) -> ModelSampling:
-    """该模型单独保存的数值；没有时用全局三项。未指定模型时用默认模型配置。"""
+    """该模型单独保存的数值；没有时目录模型沿用推荐默认预算（若全局仍为默认值），否则用全局三项。"""
     if model_id and model_id in config.model_profiles:
         return config.model_profiles[model_id]
-    spec = default_model(config) if not model_id else None
+    spec = find_model(model_id, config) if model_id else default_model(config)
     if spec and spec.id in config.model_profiles:
         return config.model_profiles[spec.id]
     custom = config.custom_models.get(model_id or (spec.id if spec else ""))
+    if custom:
+        window = custom.context_window
+    elif spec and spec.default_context_window is not None and config.context_window == DEFAULT_GLOBAL_CONTEXT_WINDOW:
+        window = spec.default_context_window
+    else:
+        window = config.context_window
     return ModelSampling(
         temperature=config.temperature, max_tokens=custom.max_output if custom else config.max_tokens,
-        context_window=custom.context_window if custom else config.context_window,
+        context_window=window,
     )
 
 
@@ -402,7 +412,7 @@ def public_capabilities(spec: ModelSpec) -> dict:
     """前端只读取展示能力，厂商请求编码仍由模型目录/适配层负责。"""
     return dict(id=spec.id, vendor=spec.provider, vendor_label={"deepseek": "DeepSeek", "openai": "OpenAI"}.get(spec.provider, spec.provider), vision=spec.vision, tools=spec.tools,
         source="custom" if spec.custom else "catalog", unconfirmed=list(spec.unconfirmed),
-        context_window=spec.context_window, max_output=spec.max_output,
+        context_window=spec.context_window, default_context_window=spec.default_context_window or spec.context_window, max_output=spec.max_output,
         choices=[c.id for c in spec.choices], default_choice=spec.default_choice,
         reasoning_options=[dict(id=c.id, enabled=c.thinking == "enabled") for c in spec.choices],
         reasoning_ordered=spec.reasoning_ordered, reasoning_family=spec.reasoning_family,

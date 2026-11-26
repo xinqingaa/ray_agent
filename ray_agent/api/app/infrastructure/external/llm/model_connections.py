@@ -301,7 +301,11 @@ def write_provider(name: str, version: str, definition: ProviderDefinition | Non
                         if declaration.rates is not None:
                             if not isinstance(stored.get("rates"), dict):
                                 stored["rates"] = tomlkit.table()
-                            for field_name, value in declaration.rates.model_dump(mode="json").items():
+                            rates_data = declaration.rates.model_dump(mode="json")
+                            if rates_data.get("currency") == "USD":
+                                rates_data.pop("currency", None)
+                                stored["rates"].pop("currency", None)
+                            for field_name, value in rates_data.items():
                                 stored["rates"][field_name] = value
                         else:
                             stored.pop("rates", None)

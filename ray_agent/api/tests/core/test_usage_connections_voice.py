@@ -75,7 +75,7 @@ def test_upgrade_both_0012_usage_schemas(tmp_path, already_has_total):
             assert rows[1].total_tokens is None
 
     with_database(tmp_path, scenario)
-    backup, = (tmp_path / "upgrades").glob("rayagent.db.before-0012_model_usage-to-0016_session_active_preset-*")
+    backup, = (tmp_path / "upgrades").glob("rayagent.db.before-0012_model_usage-to-0017_usage_currency-*")
     with sqlite3.connect(backup) as connection:
         assert connection.execute("SELECT version_num FROM alembic_version").fetchone() == ("0012_model_usage",)
         assert connection.execute("SELECT count(*) FROM model_usage").fetchone() == (2,)
@@ -192,15 +192,19 @@ def test_provider_toml_usage_and_deepseek_voice(tmp_path, isolated_model_connect
             transcript = await client.post(url, content=wav_bytes(), headers=headers)
             assert transcript.json()["data"] == {"request_id": "asr-1", "text": "中文转写", "duration_ms": 1001}
             assert voice_requests == 2
-            cost = deepseek_asr_charge(1001).cost_nano_usd
+            cost = deepseek_asr_charge(1001).cost_nano_cny
+            assert cost is not None and deepseek_asr_charge(1001).cost_nano_usd is None
             for range_id in ("today", "24h", "3d", "7d", "30d", "90d"):
                 report = (await client.get("/api/usage", params={"range_id": range_id, "provider": "my-deepseek"})).json()["data"]
                 assert report["totals"]["requests"] == 4 and report["totals"]["failed_requests"] == 2
-                assert report["totals"]["cost_nano_usd"] == cost + 167500
+                assert report["totals"]["unpriced_requests"] == 2
+                assert report["totals"]["cost_nano_usd"] == 167500
+                assert report["totals"]["cost_nano_cny"] == cost
                 assert sum(bucket["requests"] for bucket in report["buckets"]) == 4
                 assert len(report["hours"]) == 168 and len(report["calendar"]) == 91
             session_usage = (await client.get(f"/api/usage/sessions/{session.id}")).json()["data"]
-            assert session_usage["requests"] == 2 and session_usage["cost_nano_usd"] == cost
+            assert session_usage["requests"] == 2 and session_usage["unpriced_requests"] == 1
+            assert session_usage["cost_nano_cny"] == cost and session_usage["cost_nano_usd"] is None
             async with write() as uow:
                 await uow.session.delete_by_id(session.id)
             async with read() as uow:

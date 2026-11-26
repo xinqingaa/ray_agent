@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {sendRecoverably} from '@/lib/send-recovery'
 import {subscribeCatalog} from '@/lib/catalog-bus'
 import { sessionApi } from '@/lib/api/session'
+import { USAGE_RECORDED } from '@/lib/api/usage'
 import { normalizeEvent, normalizeEvents } from '@/lib/session-events'
 import type { ApprovalDecision, RunEvent, SessionDetail, SSEEventData, SessionFile, TurnRequest } from '@/lib/api/types'
 import {
@@ -73,6 +74,7 @@ export function useSessionDetail(
   const [stoppingRequestedAt, setStoppingRequestedAt] = useState<number | null>(null)
   const [deltas, setDeltas] = useState<DeltaInput[]>([])
   const [streamStartedAt, setStreamStartedAt] = useState<Record<string, number>>({})
+  const [streamUpdatedAt, setStreamUpdatedAt] = useState<Record<string, number>>({})
   const lastSeqRef = useRef(0)
   const sessionIdRef = useRef(sessionId)
   sessionIdRef.current = sessionId
@@ -92,6 +94,8 @@ export function useSessionDetail(
   const clearDrafts = useCallback(() => {
     setDeltas([])
     setStreamStartedAt({})
+    setStreamUpdatedAt({})
+    setStreamUpdatedAt({})
   }, [])
 
   const appendEvent = useCallback((ev: SSEEventData, live = true) => {
@@ -104,7 +108,9 @@ export function useSessionDetail(
       const delta = data?.delta
       if (!runId || typeof turn !== 'number' || typeof attempt !== 'number' || !delta) return
       const key = streamDraftKey(runId, turn, attempt)
-      setStreamStartedAt((prev) => (prev[key] != null ? prev : {...prev, [key]: Date.now()}))
+      const now = Date.now()
+      setStreamStartedAt((prev) => (prev[key] != null ? prev : {...prev, [key]: now}))
+      setStreamUpdatedAt((prev) => ({...prev, [key]: now}))
       setDeltas((prev) => {
         const index = prev.findIndex((item) => (item.runId || item.run_id) === runId && item.turn === turn && item.attempt === attempt)
         if (index < 0) return [...prev, {runId, turn, attempt, delta}]
@@ -164,6 +170,15 @@ export function useSessionDetail(
           })
           .catch(() => undefined)
       }
+      if (live && isTerminalRunStatus(runData.status)) {
+        window.dispatchEvent(new Event(USAGE_RECORDED))
+      }
+    }
+    if (live && (
+      evToAppend.type === 'compact'
+      || (evToAppend.type === 'turn' && (evToAppend.data as {phase?: string} | undefined)?.phase === 'completed')
+    )) {
+      window.dispatchEvent(new Event(USAGE_RECORDED))
     }
   }, [rememberSeq])
 
@@ -280,6 +295,7 @@ export function useSessionDetail(
     setEvents([])
     setDeltas([])
     setStreamStartedAt({})
+    setStreamUpdatedAt({})
     if (!sessionId) {
       setLoading(false)
       setSession(null)
@@ -464,8 +480,9 @@ export function useSessionDetail(
       stoppingRequestedAt,
       deltas,
       streamStartedAt,
+      streamUpdatedAt,
     })
-  }, [sessionId, session, events, stoppingRequestedAt, deltas, streamStartedAt])
+  }, [sessionId, session, events, stoppingRequestedAt, deltas, streamStartedAt, streamUpdatedAt])
 
   return {
     session,

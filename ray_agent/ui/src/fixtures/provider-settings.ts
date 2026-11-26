@@ -16,7 +16,7 @@ const sampleProvider = {
   custom_models: {
     'example-text': {
       context_window: 65536, max_output: 4096, tools: true, vision: false, thinking: false,
-      rates: {input: '0.30', cached_input: '0.05', output: '1.20'},
+      rates: {currency: 'USD', input: '0.30', cached_input: '0.05', output: '1.20'},
     },
   },
 } satisfies ProviderStatus
@@ -60,7 +60,7 @@ function catalogItem(id: string, vendor: string, vendorLabel: string, options: {
     choices: ['none', ...efforts], default_choice: efforts[0] ?? 'none',
     reasoning_options: [{id: 'none', enabled: false}, ...efforts.map(effort => ({id: effort, enabled: true}))],
     reasoning_ordered: efforts.length > 1, reasoning_family: null, temperature_when: 'always', temperature_max: null,
-    rates: {input: '0.30', cached_input: '0.05', output: '1.20'}, has_builtin_pricing: id !== 'gpt-6-astra',
+    rates: {currency: vendor === 'deepseek' ? 'CNY' : 'USD', input: '0.30', cached_input: '0.05', output: '1.20'}, has_builtin_pricing: id !== 'gpt-6-astra',
   }
 }
 

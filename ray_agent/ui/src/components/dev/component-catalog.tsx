@@ -286,7 +286,7 @@ const noop = () => toast.info('目录页中的操作不会调用接口')
 function pickerModel(id: string, family: string, choices: {id: string; enabled: boolean}[], defaultChoice: string, vision = false): ModelCatalog['models'][number] {
   return {
     id, vendor: family === 'gpt-6' ? 'openai' : 'deepseek', vendor_label: family === 'gpt-6' ? 'OpenAI' : 'DeepSeek',
-    vision, context_window: family === 'gpt-6' ? 200_000 : 1_000_000, max_output: family === 'gpt-6' ? 128_000 : 393_216,
+    vision, context_window: family === 'gpt-6' ? 272_000 : 1_000_000, max_output: family === 'gpt-6' ? 128_000 : 393_216,
     choices: choices.map(choice => choice.id), default_choice: defaultChoice, reasoning_options: choices,
     reasoning_ordered: true, reasoning_family: family, temperature_when: family === 'gpt-6' ? 'always' : 'disabled', temperature_max: 2,
   }
@@ -306,6 +306,8 @@ const pickerCatalog: ModelCatalog = {
   models: [
     pickerModel('deepseek-flash', 'deepseek-v4', deepseekChoices, 'high', true),
     pickerModel('deepseek-v4-pro', 'deepseek-v4', deepseekChoices, 'high'),
+    pickerModel('gpt-6.2-sol', 'gpt-6', gptOpened, 'medium', true),
+    pickerModel('gpt-6.2-astra', 'gpt-6', gptOpened, 'medium', true),
     pickerModel('gpt-6.1-sol', 'gpt-6', gptOpened, 'medium', true),
     pickerModel('gpt-6-luna', 'gpt-6', [{id: 'none', enabled: false}, ...gptOpened], 'medium', true),
     pickerModel('gpt-6-astra', 'gpt-6', gptOpened, 'medium', true),
@@ -416,7 +418,7 @@ export function ComponentCatalog() {
           <State label="等你批准（句子在审批卡）" source="合成"><FixtureClock at={runStates.toolNow}><RunStatusBar run={runStates.waitingApproval}/></FixtureClock></State>
           <State label="正在停止" source="合成"><FixtureClock at={runStates.toolNow}><div className="flex flex-wrap items-center gap-x-3"><div className="min-w-0 flex-1"><RunStatus place="timeline" compacting={false} pendingSend={false} activity="stopping" since={runStates.toolNow - 2000} streaming={false} running={false}/></div><RunStatusBar run={runStates.stopping} className="ml-auto"/></div></FixtureClock></State>
           <State label="正在准备执行环境" source="合成"><Surface><RunStatus place="timeline" compacting={false} pendingSend={false} activity="preparing_environment" streaming={false} running={false}/></Surface></State>
-          <State label="已完成（保留统计）" source="合成"><RunStatusBar showCost sessionCost={452_000} onOpenDetails={noop}
+          <State label="已完成（保留统计）" source="合成"><RunStatusBar showCost sessionCost={{usd: 452_000}} onOpenDetails={noop}
             run={{...runStates.tool, costNanos: 322_000, status: 'completed', endedAt: runStates.toolNow, summary: messageStates.finalShort.summary}}/></State>
           <State label="失败（原因在时间线）" source="合成"><Surface className="text-meta text-faint"><RunStatus place="headline" status="failed" compacting={false}/>原因和重试只在时间线终态条。</Surface></State>
           <State label="已停止（记录在时间线）" source="合成"><Surface className="flex items-center gap-2 text-sm"><span className="font-medium">会话标题</span><RunStatus place="headline" status="cancelled" compacting={false}/><span className="text-meta text-faint">停止记录留在时间线。</span></Surface></State>

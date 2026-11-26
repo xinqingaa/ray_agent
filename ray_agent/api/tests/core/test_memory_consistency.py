@@ -162,7 +162,7 @@ def test_legacy_database_preserves_unknown_basis_and_refuses_lossy_undo(tmp_path
         connection.execute("INSERT INTO memory_changes "
             "(id,memory_id,workspace_id,from_version,to_version,action,origin,rationale,before_content,after_content,created_at) "
             "VALUES ('old-change','legacy','w',1,2,'update','user','','更旧正文','旧正文','2026-01-01')")
-    assert migrate(path) == '0016_session_active_preset'
+    assert migrate(path) == '0017_usage_currency'
     with sqlite3.connect(path) as connection:
         assert connection.execute('SELECT content,pinned,supersedes_version FROM memory_entries').fetchone() == ('旧正文', 1, None)
         assert connection.execute('SELECT before_state,after_state FROM memory_changes').fetchone() == (None, None)

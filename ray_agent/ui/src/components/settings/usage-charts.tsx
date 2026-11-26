@@ -1,7 +1,37 @@
 import {useEffect, useRef, useState, type KeyboardEvent} from 'react'
-import {formatEstimatedCost, type UsageBucket, type UsageHour, type UsageReport, type UsageTotals} from '@/lib/api/usage'
+import {Tooltip, TooltipContent, TooltipTrigger} from '@/components/ui/tooltip'
+import {
+  formatCostParts, formatEstimatedCost, formatExactCost, formatExactCostAmounts, hasAnyCost, SUB_CENT_NANOS,
+  type CostAmounts, type CostCurrency, type UsageBucket, type UsageHour, type UsageReport, type UsageTotals,
+} from '@/lib/api/usage'
 import {cn} from '@/lib/utils'
-import {cost, dayLabel, dayOf, dayWeek, fmt, pad, priceLabels, shortDay, timeOf, tokenLabel, weekdays, type Series} from './usage-format'
+import {chartValue, comparableAmount, costAmounts, currencyMode, dayLabel, dayOf, dayWeek, exactCost, fmt, pad, priceLabels, shortDay, timeOf, tokenLabel, weekdays, type Series} from './usage-format'
+
+export function CostValue({
+  amounts,
+  zeroCurrency,
+  stacked = false,
+  className,
+}: {
+  amounts: CostAmounts | null | undefined
+  zeroCurrency?: CostCurrency | null
+  stacked?: boolean
+  className?: string
+}) {
+  const parts = formatCostParts(amounts, zeroCurrency)
+  const compact = parts.join(' + ')
+  const exact = formatExactCostAmounts(amounts, zeroCurrency)
+  const body = stacked && parts.length > 1
+    ? <span className={cn('usage-cost-stack', className)}>{parts.map((part, idx) => <span key={idx}>{part}</span>)}</span>
+    : <span className={className}>{compact}</span>
+  if (!hasAnyCost(amounts) || exact === '—') return body
+  return <Tooltip delayDuration={180}>
+    <TooltipTrigger asChild>
+      <span tabIndex={0} className="usage-cost-trigger">{body}</span>
+    </TooltipTrigger>
+    <TooltipContent side="top" sideOffset={6} tone="contrast" className="tabular-nums">{exact}</TooltipContent>
+  </Tooltip>
+}
 
 export function SeriesDot({color}: {color: string}) {
   return <span className="usage-dot" style={{backgroundColor: color}} aria-hidden/>
@@ -58,32 +88,46 @@ export function CostChart({report, series, label, onDrill, onDay}: {
   useEffect(() => {onDay(current ? dayOf(current.start) : null)}, [current, onDay])
   useEffect(() => {setFocus(null); setHover(null)}, [report?.start, report?.end])
 
-  const top = 10, base = 164, left = 60, right = width - 8
+  const mode = currencyMode(report?.totals)
+  const top = 10, base = 164, left = 64, right = width - 8
   const slot = (right - left) / Math.max(buckets.length, 1)
   const barWidth = Math.min(26, slot * .62)
-  const ticks = costTicks(Math.max(0, ...buckets.map(bucket => bucket.cost_nano_usd ?? 0)))
+  const ticks = costTicks(Math.max(0, ...buckets.map(bucket => chartValue(bucket, mode))))
   const ceiling = ticks.at(-1) || 1
   const yOf = (n: number) => base - n / ceiling * (base - top)
   const labelEvery = Math.max(1, Math.ceil(46 / slot))
   const legend = new Map(series.map(item => [item.key, item]))
   const select = (index: number) => {if (drillable && buckets[index]) onDrill(dayOf(buckets[index].start))}
+  const formatTick = (tick: number) => {
+    if (!tick) return '0'
+    const fmtTick = tick > 0 && tick < SUB_CENT_NANOS ? formatExactCost : formatEstimatedCost
+    if (mode === 'USD') return fmtTick(tick, 'USD')
+    if (mode === 'CNY') return fmtTick(tick, 'CNY')
+    return '≈' + fmtTick(tick, 'CNY')
+  }
 
   return <section className="usage-card" aria-label="费用趋势">
     <header>
       <h3>费用趋势</h3>
-      <span className="usage-unit">{label}{unit && ' · ' + {hour: '按小时', '3h': '每 3 小时', day: '按天'}[unit]}</span>
+      <span className="usage-unit">
+        {label}
+        {unit && ' · ' + {hour: '按小时', '3h': '每 3 小时', day: '按天'}[unit]}
+        {mode === 'mixed' && ' · 混合币种柱高按参考折算'}
+      </span>
       <div className="usage-legend">{series.map(item => <span key={item.key}><SeriesDot color={item.color}/>{item.label}</span>)}</div>
     </header>
     <div className="usage-readout" aria-live="polite">
       {current && unit ? <>
-        <span>{bucketTitle(current, unit)} · </span><b>{cost(current)}</b>
+        <span>{bucketTitle(current, unit)} · </span>
+        <b><CostValue amounts={costAmounts(current)} zeroCurrency={current.requests === 0 ? 'USD' : undefined}/></b>
         <span> · {fmt(current.requests)} 次请求</span>
         {(current.providers ?? []).map(group => {
           const item = legend.get(group.key)
-          return item && <span className="usage-part" key={group.key}><SeriesDot color={item.color}/>{item.label} {cost(group)}</span>
+          return item && <span className="usage-part" key={group.key}><SeriesDot color={item.color}/>{item.label} <CostValue amounts={costAmounts(group)} zeroCurrency={group.requests === 0 ? 'USD' : undefined}/></span>
         })}
       </> : report && <>
-        <span>{label}共 </span><b>{cost(report.totals)}</b>
+        <span>{label}共 </span>
+        <b><CostValue amounts={costAmounts(report.totals)} zeroCurrency={report.totals.requests === 0 ? 'USD' : undefined}/></b>
         <span> · {fmt(report.totals.requests)} 次请求{report.totals.requests > 0 ? ' · 悬停柱子查看每段' + (drillable ? '，点击查看当天按小时' : '') : ''}</span>
       </>}
     </div>
@@ -100,11 +144,11 @@ export function CostChart({report, series, label, onDrill, onDay}: {
         }}>
         {ticks.map(tick => <g key={tick}>
           <line x1={left} x2={right} y1={yOf(tick)} y2={yOf(tick)} className={tick === 0 ? 'usage-baseline' : 'usage-gridline'}/>
-          <text x={left - 8} y={yOf(tick)} textAnchor="end" dominantBaseline="middle">{tick ? formatEstimatedCost(tick) : '0'}</text>
+          <text x={left - 8} y={yOf(tick)} textAnchor="end" dominantBaseline="middle">{formatTick(tick)}</text>
         </g>)}
         {buckets.map((bucket, index) => {
           const x = left + slot * index
-          const byProvider = new Map((bucket.providers ?? []).map(group => [group.key, group.cost_nano_usd ?? 0]))
+          const byProvider = new Map((bucket.providers ?? []).map(group => [group.key, chartValue(group, mode)]))
           const segments = series.filter(item => (byProvider.get(item.key) ?? 0) > 0)
           let bottom = 0
           return <g key={bucket.start}>
@@ -145,7 +189,6 @@ const cellTitle = (cell: Cell) => isDay(cell)
 
 function CellDetail({cell}: {cell: Cell}) {
   const definition: [string, string, string?][] = [
-    ['估算费用', cell.requests ? cost(cell) : '—'],
     ['请求', fmt(cell.requests) + ' 次'],
     ['Token 用量', tokenLabel(cell.total_tokens), `输入 ${fmt(cell.input_tokens)} · 输出 ${fmt(cell.output_tokens)}`],
   ]
@@ -153,7 +196,10 @@ function CellDetail({cell}: {cell: Cell}) {
   else if (cell.price_periods?.length) definition.push(['记录中的计价', cell.price_periods.map(period => priceLabels[period] ?? period).join(' / ')])
   return <>
     <strong className="usage-side-title">{cellTitle(cell)}</strong>
-    <dl>{definition.map(([key, value, hint]) => <div key={key}><dt>{key}</dt><dd title={hint}>{value}</dd></div>)}</dl>
+    <dl>
+      <div><dt>估算费用</dt><dd className="is-multiline">{cell.requests ? <CostValue amounts={costAmounts(cell)} stacked/> : '—'}</dd></div>
+      {definition.map(([key, value, hint]) => <div key={key}><dt>{key}</dt><dd title={hint}>{value}</dd></div>)}
+    </dl>
     <div className="usage-side-models">
       <div className="usage-unit">主要模型</div>
       {cell.top_models?.length ? <ul>{cell.top_models.map(model => <li key={model}><code title={model}>{model}</code>
@@ -164,15 +210,21 @@ function CellDetail({cell}: {cell: Cell}) {
 
 function HeatSummary({report, calendar, label}: {report: UsageReport; calendar: boolean; label: string}) {
   const active = report.calendar.filter(day => day.requests)
-  const priced = active.filter(day => day.cost_nano_usd !== null)
-  const highest = priced.reduce<UsageBucket | null>((top, day) => !top || (day.cost_nano_usd ?? 0) > (top.cost_nano_usd ?? 0) ? day : top, null)
+  const priced = active.filter(day => hasAnyCost(costAmounts(day)))
+  const highest = priced.reduce<UsageBucket | null>((top, day) => !top || (comparableAmount(day) ?? 0) > (comparableAmount(top) ?? 0) ? day : top, null)
   const busiest = report.hours.reduce<UsageHour | null>((top, hour) => !top || hour.requests > top.requests ? hour : top, null)
   const tokens = calendar ? active.reduce((sum, day) => sum + day.total_tokens, 0) : report.totals.total_tokens
+  const hasCny = priced.some(day => day.cost_nano_cny != null)
+  const hasUsd = priced.some(day => day.cost_nano_usd != null)
+  const dailyAvgAmounts: CostAmounts | null = priced.length ? {
+    cny: hasCny ? priced.reduce((sum, day) => sum + (day.cost_nano_cny ?? 0), 0) / priced.length : null,
+    usd: hasUsd ? priced.reduce((sum, day) => sum + (day.cost_nano_usd ?? 0), 0) / priced.length : null,
+  } : null
   return <>
     <strong className="usage-side-title">{calendar ? '近 13 周' : label}</strong>
     <dl>{calendar ? <>
-      <div><dt>日均</dt><dd>{priced.length ? formatEstimatedCost(priced.reduce((sum, day) => sum + (day.cost_nano_usd ?? 0), 0) / priced.length) : '—'}</dd></div>
-      <div><dt>最高</dt><dd>{highest ? `${dayLabel(highest.start)} · ${cost(highest)}` : '—'}</dd></div>
+      <div><dt>日均</dt><dd className="is-multiline">{dailyAvgAmounts ? <CostValue amounts={dailyAvgAmounts} stacked/> : '—'}</dd></div>
+      <div><dt>最高</dt><dd className="is-multiline">{highest ? <span className="usage-cost-stack"><span>{dayLabel(highest.start)}</span><CostValue amounts={costAmounts(highest)} stacked/></span> : '—'}</dd></div>
       <div><dt>有用量</dt><dd>{active.length} / {report.calendar.length} 天</dd></div>
     </> : <>
       <div><dt>最忙时段</dt><dd>{busiest?.requests ? cellTitle(busiest) : '—'}</dd></div>
@@ -202,9 +254,12 @@ export function Heatmap({report, linkedDate, label, onDays}: {
   const height = 20 + 7 * pitch
   const rowOf = (index: number) => calendar ? (offset + index) % 7 : Math.floor(index / 24)
   const colOf = (index: number) => calendar ? Math.floor((offset + index) / 7) : index % 24
-  const positives = cells.map(cell => cell.cost_nano_usd ?? 0).filter(value => value > 0).sort((a, b) => a - b)
+  const positives = cells.map(cell => comparableAmount(cell) ?? 0).filter(value => value > 0).sort((a, b) => a - b)
   const cuts = [.25, .5, .75].map(quantile => positives[Math.floor(quantile * positives.length)] ?? Infinity)
-  const levelOf = (cell: UsageTotals) => (cell.cost_nano_usd ?? 0) <= 0 ? 0 : 1 + cuts.filter(cut => (cell.cost_nano_usd ?? 0) > cut).length
+  const levelOf = (cell: UsageTotals) => {
+    const value = comparableAmount(cell) ?? 0
+    return value <= 0 ? 0 : 1 + cuts.filter(cut => value > cut).length
+  }
   const columns: {col: number; label: string}[] = []
   if (calendar) {
     report?.calendar.forEach((day, index, all) => {
@@ -284,7 +339,7 @@ export function Heatmap({report, linkedDate, label, onDays}: {
               onClick={event => {
                 event.currentTarget.ownerSVGElement?.focus({preventScroll: true})
                 choose(index, event.shiftKey)
-              }}><title>{cellTitle(cell)} · {fmt(cell.requests)} 次 · {cost(cell)}</title></rect>
+              }}><title>{cellTitle(cell)} · {fmt(cell.requests)} 次 · {exactCost(cell)}</title></rect>
           })}
         </svg>
       </div>

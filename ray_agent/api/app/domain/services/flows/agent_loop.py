@@ -302,6 +302,7 @@ class _ModelTurn:
     connect_failures: int = 0  # 连接未建立的尝试，不占 max_retries
     model_ms: int = 0
     ttft_ms: Optional[int] = None
+    decode_ms: Optional[int] = None
     usage: TurnUsage = field(default_factory=TurnUsage)
 
     @property
@@ -317,6 +318,7 @@ class _ModelTurn:
             periods.add(charge.price_period)
         self.usage = TurnUsage(
             cost_nano_usd=_add_optional(self.usage.cost_nano_usd, charge.cost_nano_usd if charge else None),
+            cost_nano_cny=_add_optional(self.usage.cost_nano_cny, charge.cost_nano_cny if charge else None),
             price_periods=sorted(periods),
             prompt_tokens=_add_optional(self.usage.prompt_tokens, usage.prompt_tokens),
             completion_tokens=_add_optional(self.usage.completion_tokens, usage.completion_tokens),
@@ -1112,6 +1114,8 @@ class AgentLoop(BaseFlow):
                 turn.ttft_ms = result.ttft_ms
             elif self._inflight is not None and self._inflight.ttft_ms is not None:
                 turn.ttft_ms = self._inflight.ttft_ms
+            if result.decode_ms is not None:
+                turn.decode_ms = result.decode_ms
             turn.finish_reason = result.finish_reason
             if result.finish_reason == "length":
                 logger.warning(f"会话[{self._session_id}] 模型输出被截断，丢弃本次响应")
@@ -1144,6 +1148,7 @@ class AgentLoop(BaseFlow):
             model_ms=turn.model_ms,
             attempts=turn.attempts,
             ttft_ms=turn.ttft_ms,
+            decode_ms=turn.decode_ms,
             usage=turn.usage.model_copy(),
             finish_reason=turn.finish_reason,
             tool_call_ids=list(turn.executed),

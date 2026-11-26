@@ -4,6 +4,7 @@ from app.domain.models.model_catalog import (
     auxiliary_call,
     choose_sampling,
     client_config,
+    configured_sampling,
     current_sampling,
     missing_reasoning,
     model_list,
@@ -13,6 +14,7 @@ from app.domain.models.model_catalog import (
     tuned_limits,
 )
 from app.infrastructure.external.llm.openai_llm import OpenAILLM
+from app.interfaces.schemas.app_config import LLMConfigPublic
 from tests.support.model_connections import connect, providers
 
 
@@ -132,7 +134,9 @@ def test_extra_endpoint_uses_app_window_and_openai_effort(isolated_model_connect
                      providers(gpt_url="https://api.xiaoyiapi.xyz/v1", gpt_key="sk-test"))
     ids = [item.id for item in active_models(config)]
     assert ids[:2] == ["deepseek-flash", "deepseek-v4-pro"]
-    assert [item for item in ids if item.startswith("gpt-")] == ["gpt-6.1-sol", "gpt-6-luna", "gpt-6-astra"]
+    assert [item for item in ids if item.startswith("gpt-")] == [
+        "gpt-6.2-sol", "gpt-6.2-astra", "gpt-6.1-sol", "gpt-6-luna", "gpt-6-astra",
+    ]
     luna = next(item for item in active_models(config) if item.id == "gpt-6-luna")
     none = luna.choice("none")
     assert none is not None and (none.thinking, none.effort) == ("disabled", "none")
@@ -144,7 +148,7 @@ def test_extra_endpoint_uses_app_window_and_openai_effort(isolated_model_connect
     profile = model_request(config, model_id="gpt-6-luna", reasoning="low")
     assert profile is not None
     assert (profile.model_name, profile.context_window, profile.max_tokens, profile.thinking, profile.reasoning_effort, profile.keep_reasoning) == (
-        "gpt-6-luna", 200_000, 8192, None, "low", False)
+        "gpt-6-luna", 272_000, 8192, None, "low", False)
     closed = model_request(config, model_id="gpt-6-luna", reasoning="none")
     assert closed is not None and (closed.thinking, closed.reasoning_effort) == (None, "none")
     closed_kwargs = OpenAILLM(
@@ -176,7 +180,9 @@ def test_configured_provider_enables_the_gpt_catalog(isolated_model_connections)
     assert config.resolved_endpoints["gpt"] is not None
     ids = [item.id for item in active_models(config)]
     assert ids.count("deepseek-flash") == 1
-    assert [item for item in ids if item.startswith("gpt-")] == ["gpt-6.1-sol", "gpt-6-luna", "gpt-6-astra"]
+    assert [item for item in ids if item.startswith("gpt-")] == [
+        "gpt-6.2-sol", "gpt-6.2-astra", "gpt-6.1-sol", "gpt-6-luna", "gpt-6-astra",
+    ]
     assert "not-a-model" not in ids and "chat-latest" not in ids
 
 
@@ -190,3 +196,33 @@ def test_snapshot_preserves_request_encoding_separately_from_display_choice():
     assert profile.reasoning_id == "vendor-high"
     assert profile.reasoning_effort == "high"
     assert profile.keep_reasoning is False
+
+
+def test_gpt_models_default_to_272k_while_deepseek_stays_200k(isolated_model_connections):
+    config = connect(LLMConfig(), isolated_model_connections, providers())
+    for model_id in ("gpt-6.2-sol", "gpt-6-luna"):
+        assert configured_sampling(config, model_id).context_window == 272_000
+        assert current_sampling(config, model_id).context_window == 272_000
+        req = model_request(config, model_id=model_id, reasoning="medium")
+        assert req is not None and req.context_window == 272_000
+    for model_id in ("deepseek-flash", "deepseek-v4-pro"):
+        assert configured_sampling(config, model_id).context_window == 200_000
+        assert current_sampling(config, model_id).context_window == 200_000
+        req = model_request(config, model_id=model_id, reasoning="high")
+        assert req is not None and req.context_window == 200_000
+
+    public = LLMConfigPublic.from_llm(config)
+    assert public.model_profiles["gpt-6.2-sol"].context_window == 272_000
+    assert public.model_profiles["gpt-6-luna"].context_window == 272_000
+    assert public.model_profiles["deepseek-flash"].context_window == 200_000
+    assert public.model_profiles["deepseek-v4-pro"].context_window == 200_000
+
+    overridden = config.model_copy(update={
+        "model_profiles": {"gpt-6.2-sol": ModelSampling(temperature=0.7, max_tokens=8192, context_window=128_000)},
+    })
+    assert configured_sampling(overridden, "gpt-6.2-sol").context_window == 128_000
+    assert configured_sampling(overridden, "gpt-6-luna").context_window == 272_000
+
+    custom_global = config.model_copy(update={"context_window": 65_536})
+    assert configured_sampling(custom_global, "gpt-6.2-sol").context_window == 65_536
+    assert configured_sampling(custom_global, "deepseek-flash").context_window == 65_536

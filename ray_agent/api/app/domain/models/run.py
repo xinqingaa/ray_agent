@@ -61,6 +61,7 @@ class RunSummary(BaseModel):
     completion_tokens: int = 0
     cached_tokens: Optional[int] = None
     cost_nano_usd: Optional[int] = None
+    cost_nano_cny: Optional[int] = None
 
 
 class Run(BaseModel):

@@ -9776,6 +9776,17 @@
             "type": "integer",
             "title": "Context Window"
           },
+          "default_context_window": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Default Context Window"
+          },
           "max_output": {
             "type": "integer",
             "title": "Max Output"
@@ -10803,6 +10814,17 @@
               }
             ],
             "title": "Cost Nano Usd"
+          },
+          "cost_nano_cny": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Nano Cny"
           }
         },
         "type": "object",
@@ -15355,6 +15377,17 @@
             "type": "integer",
             "title": "Context Window"
           },
+          "default_context_window": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Default Context Window"
+          },
           "max_output": {
             "type": "integer",
             "title": "Max Output"
@@ -19528,6 +19561,17 @@
               }
             ],
             "title": "Cost Nano Usd"
+          },
+          "cost_nano_cny": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Nano Cny"
           }
         },
         "type": "object",
@@ -20746,6 +20790,15 @@
       },
       "TokenRates-Input": {
         "properties": {
+          "currency": {
+            "type": "string",
+            "enum": [
+              "USD",
+              "CNY"
+            ],
+            "title": "Currency",
+            "default": "USD"
+          },
           "input": {
             "anyOf": [
               {
@@ -20796,10 +20849,19 @@
           "output"
         ],
         "title": "TokenRates",
-        "description": "美元／百万 Token。"
+        "description": "每百万 Token 单价。"
       },
       "TokenRates-Output": {
         "properties": {
+          "currency": {
+            "type": "string",
+            "enum": [
+              "USD",
+              "CNY"
+            ],
+            "title": "Currency",
+            "default": "USD"
+          },
           "input": {
             "type": "string",
             "pattern": "^(?!^[-+.]*$)[+-]?0*\\d*\\.?\\d{0,8}0*$",
@@ -20823,7 +20885,7 @@
           "output"
         ],
         "title": "TokenRates",
-        "description": "美元／百万 Token。"
+        "description": "每百万 Token 单价。"
       },
       "ToolCheckResult": {
         "properties": {
@@ -21277,6 +21339,17 @@
             ],
             "title": "Ttft Ms"
           },
+          "decode_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decode Ms"
+          },
           "usage": {
             "anyOf": [
               {
@@ -21343,6 +21416,7 @@
           "model_ms",
           "attempts",
           "ttft_ms",
+          "decode_ms",
           "usage",
           "finish_reason",
           "tool_call_ids",
@@ -21483,6 +21557,17 @@
               }
             ],
             "title": "Cost Nano Usd"
+          },
+          "cost_nano_cny": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Nano Cny"
           },
           "price_periods": {
             "items": {
@@ -21748,6 +21833,17 @@
             ],
             "title": "Cost Nano Usd"
           },
+          "cost_nano_cny": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Nano Cny"
+          },
           "start": {
             "type": "string",
             "format": "date-time",
@@ -21852,6 +21948,17 @@
             ],
             "title": "Cost Nano Usd"
           },
+          "cost_nano_cny": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Nano Cny"
+          },
           "key": {
             "type": "string",
             "title": "Key"
@@ -21927,6 +22034,17 @@
               }
             ],
             "title": "Cost Nano Usd"
+          },
+          "cost_nano_cny": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Nano Cny"
           },
           "weekday": {
             "type": "integer",
@@ -22162,6 +22280,17 @@
               }
             ],
             "title": "Cost Nano Usd"
+          },
+          "cost_nano_cny": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Nano Cny"
           }
         },
         "type": "object",

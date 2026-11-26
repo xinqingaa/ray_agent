@@ -6,7 +6,7 @@ import {copyText} from '@/lib/clipboard'
 import type {FileView, RunView, StreamingDraft, TimelineItem} from '@/lib/session-view'
 import {foldSettledRuns, foldSummary, groupProcessBlocks, processBlockOpen, processSettled, processSummary, type ProcessBlock, type RunFold, type TimelineRow} from '@/lib/process-blocks'
 import {cn} from '@/lib/utils'
-import {formatEstimatedCost} from '@/lib/api/usage'
+import {formatCostAmounts, formatExactCostAmounts, hasAnyCost, type CostAmounts} from '@/lib/api/usage'
 import {ApprovalCard} from './approval-card'
 import {AskCard} from './ask-card'
 import {DeliveryCard} from './delivery-card'
@@ -196,7 +196,7 @@ export function TimelineItemView({item, handlers = {}, metrics, runActions}: {it
   }
 }
 
-function ProcessBlockView({block, settled, streaming, handlers, liveCost}: {block: ProcessBlock; settled: boolean; streaming: boolean; handlers?: TimelineHandlers; liveCost?: number}) {
+function ProcessBlockView({block, settled, streaming, handlers, liveCost}: {block: ProcessBlock; settled: boolean; streaming: boolean; handlers?: TimelineHandlers; liveCost?: CostAmounts}) {
   const {visibility} = useDeveloperMode()
   const [override, setOverride] = useState<boolean | null>(null)
   const open = processBlockOpen(settled, override, streaming)
@@ -212,7 +212,7 @@ function ProcessBlockView({block, settled, streaming, handlers, liveCost}: {bloc
       >
         <ChevronRight className={cn('size-3.5 shrink-0 transition-transform duration-200 motion-reduce:transition-none', open && 'rotate-90')} aria-hidden/>
         <span className="min-w-0 truncate">{processSummary(block, {counts: visibility.toolCounts, narration: !open})}</span>
-        {liveCost != null && <span className="shrink-0 text-faint tabular-nums" title="已完成模型请求的估算费用">· ≈{formatEstimatedCost(liveCost)}</span>}
+        {hasAnyCost(liveCost) && <span className="shrink-0 text-faint tabular-nums" title={`已完成模型请求的估算费用：${formatExactCostAmounts(liveCost)}`}>· ≈{formatCostAmounts(liveCost)}</span>}
       </button>
       {open && (
         <div id={panelId} className="mt-2 flex flex-col gap-3">
@@ -223,7 +223,7 @@ function ProcessBlockView({block, settled, streaming, handlers, liveCost}: {bloc
   )
 }
 
-function RowView({row, items, handlers, liveCost}: {row: TimelineRow; items: TimelineItem[]; handlers?: TimelineHandlers; liveCost?: number}) {
+function RowView({row, items, handlers, liveCost}: {row: TimelineRow; items: TimelineItem[]; handlers?: TimelineHandlers; liveCost?: CostAmounts}) {
   if (row.type === 'item') return <TimelineItemView item={row.item} handlers={handlers}/>
   return (
     <ProcessBlockView
@@ -270,7 +270,7 @@ export function Timeline({items, runs = [], streaming, activeStatus, handlers, c
   streaming?: StreamingDraft | null
   activeStatus?: ReactNode
   showCost?: boolean
-  sessionCost?: number | null
+  sessionCost?: CostAmounts | number | null
   handlers?: TimelineHandlers
   className?: string
 }) {
@@ -298,14 +298,17 @@ export function Timeline({items, runs = [], streaming, activeStatus, handlers, c
       : position.end ?? position.final ?? position.last
     anchors.set(anchor, run)
   }
-  const liveCost = (run: RunView | undefined) => showCost && (run?.status === 'running' || run?.status === 'waiting')
-    ? run.costNanos ?? undefined : undefined
+  const liveCost = (run: RunView | undefined): CostAmounts | undefined => {
+    if (!showCost || (run?.status !== 'running' && run?.status !== 'waiting')) return undefined
+    const amounts: CostAmounts = {usd: run.costNanos ?? null, cny: run.costCnyNanos ?? null}
+    return hasAnyCost(amounts) ? amounts : undefined
+  }
   const metrics = (run: RunView, costInProcess = false) => (
     // 同一运行保持同一个列表 key，移动到最新过程/最终回复时保留已观察到的速度。
     // 进行中的状态词靠左、统计靠右，共用一行。
     <li key={`run-metrics:${run.id}`} className="flex flex-wrap items-center gap-x-3">
       {(run.status === 'running' || run.status === 'waiting') && activeStatus ? <div className="min-w-0 flex-1">{activeStatus}</div> : null}
-      {!costInProcess && liveCost(run) != null && <span className="text-xs text-faint tabular-nums" title="已完成模型请求的估算费用">≈{formatEstimatedCost(liveCost(run))}</span>}
+      {!costInProcess && liveCost(run) != null && <span className="text-xs text-faint tabular-nums" title={`已完成模型请求的估算费用：${formatExactCostAmounts(liveCost(run))}`}>≈{formatCostAmounts(liveCost(run))}</span>}
       {handlers?.renderRunActions?.(run.id)}
       <RunStatusBar run={run} streaming={streaming} showCost={showCost} sessionCost={sessionCost} className="ml-auto"
         onOpenDetails={handlers?.onOpenRunDetails}/>

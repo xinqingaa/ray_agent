@@ -21,13 +21,15 @@
 .usage-kpi-label { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; color: var(--muted-foreground); white-space: nowrap; font-size: calc(12px * var(--font-scale)); }
 .usage-kpi-label span + span { font-size: calc(11px * var(--font-scale)); font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; }
 .usage-kpi-value { margin: 3px 0 2px; font-size: calc(21px * var(--font-scale)); font-weight: 650; letter-spacing: -.01em; font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; }
+.usage-kpi-value.is-mixed { font-size: calc(15.5px * var(--font-scale)); line-height: 1.25; overflow: visible; white-space: normal; }
+.usage-kpi-value .usage-cost-stack { align-items: flex-start; }
 .usage-kpi-sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: auto; color: var(--muted-foreground); font-size: calc(11.5px * var(--font-scale)); }
 .usage-card { min-width: 0; margin-top: 10px; padding: 14px 16px 12px; background: var(--muted); border-radius: 16px; }
 .usage-card > header { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; margin-bottom: 10px; }
 .usage-card h3 { margin: 0; font-size: calc(13.5px * var(--font-scale)); font-weight: 650; }
 .usage-legend { display: flex; flex-wrap: wrap; gap: 5px 12px; margin-left: auto; color: var(--muted-foreground); font-size: calc(12px * var(--font-scale)); }
 .usage-legend > span, .usage-part { display: inline-flex; align-items: center; gap: 5px; }
-.usage-readout { height: 20px; margin: -4px 0 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--muted-foreground); font-size: calc(12px * var(--font-scale)); font-variant-numeric: tabular-nums; }
+.usage-readout { min-height: 20px; line-height: 20px; margin: -4px 0 6px; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 4px; color: var(--muted-foreground); font-size: calc(12px * var(--font-scale)); font-variant-numeric: tabular-nums; }
 .usage-readout b { color: var(--foreground); font-weight: 600; }
 .usage-part { margin-left: 8px; }
 .usage-chart { height: 188px; position: relative; overflow-x: auto; }
@@ -51,13 +53,17 @@
 .usage-heat-controls .usage-segment { background: var(--background); }
 .usage-peak { padding: 3px 8px; border: 1px solid var(--border); border-radius: 8px; color: var(--muted-foreground); font-size: calc(12px * var(--font-scale)); }
 .usage-peak[aria-pressed="true"] { color: var(--signal); background: var(--signal-soft); border-color: transparent; }
-.usage-heat { display: grid; grid-template-columns: minmax(0, 1fr) 188px; gap: 16px; align-items: start; }
+.usage-heat { display: grid; grid-template-columns: minmax(0, 1fr) 228px; gap: 16px; align-items: start; }
 .usage-heat-plot { height: 174px; overflow-x: auto; }
-.usage-heat-side { min-width: 0; height: 183px; display: grid; grid-template-rows: 1fr 16px; font-size: calc(12px * var(--font-scale)); }
+.usage-heat-side { min-width: 0; min-height: 183px; display: grid; grid-template-rows: 1fr 16px; gap: 8px; font-size: calc(12px * var(--font-scale)); }
 .usage-side-title { display: block; margin-bottom: 4px; font-size: calc(12.5px * var(--font-scale)); }
-.usage-heat-side dl { display: grid; grid-auto-rows: 18px; min-height: 68px; }
-.usage-heat-side dl > div, .usage-side-models li { display: flex; justify-content: space-between; gap: 6px; }
+.usage-heat-side dl { display: grid; gap: 4px; min-height: 68px; line-height: 18px; }
+.usage-heat-side dl > div, .usage-side-models li { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
 .usage-heat-side dd, .usage-side-models code { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.usage-heat-side dd.is-multiline { overflow: visible; white-space: normal; text-align: right; }
+.usage-cost-stack { display: inline-flex; flex-direction: column; align-items: flex-end; line-height: 1.3; }
+.usage-cost-trigger { display: inline-flex; cursor: default; border-radius: 4px; outline: none; }
+.usage-cost-trigger:focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
 .usage-heat-side dt { color: var(--muted-foreground); flex: none; }
 .usage-heat-side dd { font-variant-numeric: tabular-nums; }
 .usage-side-models { line-height: 16px; margin-top: 3px; }
@@ -104,7 +110,7 @@
 @container (max-width: 550px) {
   .usage-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .usage-heat { grid-template-columns: minmax(0, 1fr); gap: 8px; }
-  .usage-heat-side { width: min(100%, 220px); }
+  .usage-heat-side { width: min(100%, 260px); }
 }
 @container (max-width: 350px) {
   .usage-purposes > div { grid-template-columns: 74px minmax(0, 1fr) minmax(56px, auto); }

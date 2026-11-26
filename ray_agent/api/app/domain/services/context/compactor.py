@@ -166,6 +166,7 @@ class Compactor:
                 continue
             if result.charge is not None:
                 usage.cost_nano_usd = _add_optional(usage.cost_nano_usd, result.charge.cost_nano_usd)
+                usage.cost_nano_cny = _add_optional(usage.cost_nano_cny, result.charge.cost_nano_cny)
             if result.usage is not None:
                 usage.prompt_tokens = _add_optional(usage.prompt_tokens, result.usage.prompt_tokens)
                 usage.completion_tokens = _add_optional(usage.completion_tokens, result.usage.completion_tokens)

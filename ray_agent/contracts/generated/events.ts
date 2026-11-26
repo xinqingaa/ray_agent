@@ -343,6 +343,7 @@ export interface TurnEventData {
   model_ms: number | null;
   attempts: number | null;
   ttft_ms: number | null;
+  decode_ms: number | null;
   usage: TurnUsage | null;
   finish_reason: string | null;
   tool_call_ids: string[];
@@ -358,6 +359,7 @@ export interface TurnUsage {
   cached_tokens?: number | null;
   reasoning_tokens?: number | null;
   cost_nano_usd?: number | null;
+  cost_nano_cny?: number | null;
   price_periods?: string[];
 }
 /**
@@ -421,6 +423,7 @@ export interface RunSummary {
   completion_tokens?: number;
   cached_tokens?: number | null;
   cost_nano_usd?: number | null;
+  cost_nano_cny?: number | null;
 }
 export interface EnvironmentSSEEvent {
   event: "environment";
@@ -503,6 +506,7 @@ export interface CompactUsage {
   completion_tokens?: number | null;
   cached_tokens?: number | null;
   cost_nano_usd?: number | null;
+  cost_nano_cny?: number | null;
 }
 export interface CleanupSSEEvent {
   event: "cleanup";

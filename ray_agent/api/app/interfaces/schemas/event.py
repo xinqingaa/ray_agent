@@ -324,6 +324,7 @@ class TurnEventData(BaseEventData):
     model_ms: Optional[int] = None
     attempts: Optional[int] = None
     ttft_ms: Optional[int] = None
+    decode_ms: Optional[int] = None
     usage: Optional[TurnUsage] = None
     finish_reason: Optional[str] = None
     tool_call_ids: List[str] = Field(default_factory=list)

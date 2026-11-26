@@ -234,6 +234,7 @@ class TurnUsage(BaseModel):
     cached_tokens: Optional[int] = None
     reasoning_tokens: Optional[int] = None
     cost_nano_usd: Optional[int] = None
+    cost_nano_cny: Optional[int] = None
     price_periods: List[str] = Field(default_factory=list)
 
 
@@ -254,6 +255,7 @@ class TurnEvent(BaseEvent):
     model_ms: Optional[int] = None  # 各次尝试的请求耗时合计，不含重试间隔
     attempts: Optional[int] = None  # 本轮发出的模型请求次数（含重试）
     ttft_ms: Optional[int] = None  # 产出本次响应的那次请求的首字延迟；非流式为空
+    decode_ms: Optional[int] = None  # 产出本次响应的那次请求的纯解码耗时；非流式或无法测算时为空
     usage: Optional[TurnUsage] = None
     finish_reason: Optional[str] = None
     tool_call_ids: List[str] = Field(default_factory=list)  # 本轮经过工具管线、有 called 事件的调用
@@ -312,6 +314,7 @@ class CompactUsage(BaseModel):
     completion_tokens: Optional[int] = None
     cached_tokens: Optional[int] = None
     cost_nano_usd: Optional[int] = None
+    cost_nano_cny: Optional[int] = None
 
 
 class CompactEvent(BaseEvent):

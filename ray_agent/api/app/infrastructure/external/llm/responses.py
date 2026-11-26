@@ -4,6 +4,7 @@ from typing import Any
 
 from app.domain.external.llm import LLMRequestError
 from app.domain.models.llm import LLMInvokeResult, LLMUsage
+from app.infrastructure.external.llm.usage import parse_response_usage
 
 
 def plain(value: Any) -> dict:
@@ -46,17 +47,27 @@ def response_tools(tools: list[dict] | None) -> list[dict]:
     return [{'type': 'function', **copy.deepcopy(tool['function']), 'strict': False} for tool in tools or []]
 
 
-def response_result(response: Any, model: str, provider: str, ttft_ms: int | None = None) -> LLMInvokeResult:
+def response_result(
+    response: Any,
+    model: str,
+    provider: str,
+    ttft_ms: int | None = None,
+    decode_ms: int | None = None,
+) -> LLMInvokeResult:
     raw = plain(response)
+    parsed = parse_response_usage(raw.get('usage'))
+    service_tier = raw.get('service_tier') if isinstance(raw.get('service_tier'), str) else None
     status = raw.get('status')
     if status == 'failed':
         error = raw.get('error') or {}
-        raise response_error(error.get('code'), error.get('message') or '模型响应失败')
+        raise response_error(error.get('code'), error.get('message') or '模型响应失败',
+                             usage=parsed, service_tier=service_tier)
     if status not in ('completed', 'incomplete'):
-        raise LLMRequestError('模型响应缺少完整终态', retryable=True, reason='stream_interrupted')
+        raise LLMRequestError('模型响应缺少完整终态', retryable=True, reason='stream_interrupted',
+                              usage=parsed, service_tier=service_tier)
     reason = (raw.get('incomplete_details') or {}).get('reason')
     if status == 'incomplete' and reason != 'max_output_tokens':
-        raise LLMRequestError(f'模型响应未完成: {reason or "unknown"}')
+        raise LLMRequestError(f'模型响应未完成: {reason or "unknown"}', usage=parsed, service_tier=service_tier)
     output = raw.get('output') or []
     content, reasoning, calls = [], [], []
     for item in output:
@@ -73,15 +84,15 @@ def response_result(response: Any, model: str, provider: str, ttft_ms: int | Non
             if status == 'incomplete':
                 continue
             if not item.get('call_id') or not item.get('name'):
-                raise LLMRequestError('模型工具调用缺少身份或名称')
+                raise LLMRequestError('模型工具调用缺少身份或名称', usage=parsed, service_tier=service_tier)
             if status == 'completed' and item.get('status') not in (None, 'completed'):
-                raise LLMRequestError('模型响应包含未完成的工具调用')
+                raise LLMRequestError('模型响应包含未完成的工具调用', usage=parsed, service_tier=service_tier)
             if any(call['id'] == item['call_id'] for call in calls):
-                raise LLMRequestError('模型响应包含重复的工具调用身份')
+                raise LLMRequestError('模型响应包含重复的工具调用身份', usage=parsed, service_tier=service_tier)
             calls.append({'id': item['call_id'], 'type': 'function', 'function': {
                 'name': item['name'], 'arguments': item.get('arguments', '')}})
         else:
-            raise LLMRequestError(f'模型返回了未支持的输出类型: {kind}')
+            raise LLMRequestError(f'模型返回了未支持的输出类型: {kind}', usage=parsed, service_tier=service_tier)
     message = {'role': 'assistant', 'content': ''.join(content) or None,
                '_ray_responses': {'model': model, 'provider': provider, 'items': copy.deepcopy(output)}}
     if reasoning:
@@ -90,15 +101,19 @@ def response_result(response: Any, model: str, provider: str, ttft_ms: int | Non
         message['tool_calls'] = calls
     finish = 'length' if status == 'incomplete' and reason == 'max_output_tokens' else (
         'content_filter' if status == 'incomplete' else 'tool_calls' if calls else 'stop')
-    usage = raw.get('usage')
-    parsed = None if usage is None else LLMUsage(
-        prompt_tokens=usage.get('input_tokens'), completion_tokens=usage.get('output_tokens'),
-        total_tokens=usage.get('total_tokens'), cached_tokens=(usage.get('input_tokens_details') or {}).get('cached_tokens'),
-        reasoning_tokens=(usage.get('output_tokens_details') or {}).get('reasoning_tokens'))
-    return LLMInvokeResult(message=message, usage=parsed, finish_reason=finish, ttft_ms=ttft_ms)
+    return LLMInvokeResult(
+        message=message, usage=parsed, finish_reason=finish,
+        ttft_ms=ttft_ms, decode_ms=decode_ms, service_tier=service_tier,
+    )
 
 
-def response_error(code: str | None, message: str) -> LLMRequestError:
+def response_error(
+    code: str | None,
+    message: str,
+    *,
+    usage: LLMUsage | None = None,
+    service_tier: str | None = None,
+) -> LLMRequestError:
     """结构化瞬时错误可重试；未知 bad_response 只允许已观测的两个准确消息。"""
     transient = code in {'server_error', 'internal_server_error', 'rate_limit_exceeded', 'service_unavailable',
                          'upstream_timeout', 'stream_interrupted'}
@@ -109,4 +124,5 @@ def response_error(code: str | None, message: str) -> LLMRequestError:
         transient = interrupted or normalized == 'the service is temporarily unavailable. please retry later'
     return LLMRequestError(f'模型响应失败 ({code or "unknown"}): {message}', retryable=transient,
                            context_exceeded=code == 'context_length_exceeded',
-                           reason='stream_interrupted' if interrupted else None)
+                           reason='stream_interrupted' if interrupted else None,
+                           usage=usage, service_tier=service_tier)

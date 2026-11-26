@@ -175,7 +175,13 @@ function enabledDefault(spec: ModelCatalog['models'][number] | undefined) {
 }
 
 function profileCopy(part: ProfilePart, spec: ModelCatalog['models'][number] | undefined, reserve: number | null): {label: string; hint?: string} {
-  if (part === 'context_window') return {label: '应用上下文预算'}
+  if (part === 'context_window') {
+    if (!spec) return {label: '应用上下文预算'}
+    const hint = spec.default_context_window && spec.default_context_window !== spec.context_window
+      ? `默认 ${spec.default_context_window.toLocaleString()}，模型上限 ${spec.context_window.toLocaleString()}`
+      : `模型上限 ${spec.context_window.toLocaleString()}`
+    return {label: '应用上下文预算', hint}
+  }
   if (part === 'max_tokens') {
     const choice = enabledDefault(spec)
     return {label: '单次生成预算', hint: reserve == null || !choice ? undefined : `默认档位 ${choice.id}，开启思考时为 ${reserve.toLocaleString()}`}

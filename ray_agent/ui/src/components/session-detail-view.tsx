@@ -38,7 +38,7 @@ import {useSessions} from '@/hooks/use-sessions'
 import {useDeveloperMode} from '@/hooks/use-developer-mode'
 import {memoryApi} from '@/lib/api/memory'
 import {sessionApi} from '@/lib/api/session'
-import {USAGE_RECORDED, usageApi} from '@/lib/api/usage'
+import {USAGE_RECORDED, usageApi, type CostAmounts} from '@/lib/api/usage'
 import {useUsagePreferences} from '@/hooks/use-usage-preferences'
 import {readRetryDisplay, writeRetryDisplay, retryEchoUserId, conversationTimeline} from '@/lib/retry-display'
 import {UncertainSubmissionError} from '@/lib/send-recovery'
@@ -130,8 +130,8 @@ export function SessionDetailView({
   } = useSessionDetail(sessionId)
   const {value: usagePreferences} = useUsagePreferences()
   const showCost = usagePreferences?.show_conversation_cost === true
-  const [sessionCost, setSessionCost] = useState<{id: string; nanos: number | null} | null>(null)
-  const usageRevision = view?.runs.map(run => `${run.id}/${run.status}/${run.costNanos ?? ''}/${run.turns.length}`).join(',')
+  const [sessionCost, setSessionCost] = useState<{id: string; amounts: CostAmounts} | null>(null)
+  const usageRevision = view?.runs.map(run => `${run.id}/${run.status}/${run.costNanos ?? ''}/${run.costCnyNanos ?? ''}/${run.turns.length}`).join(',')
   const usageSources = events.filter(event => ['title', 'compact'].includes(event.type)).length
   useEffect(() => {
     if (!showCost || usageRevision == null) return
@@ -140,7 +140,9 @@ export function SessionDetailView({
     const refreshCost = () => {
       const generation = ++requestId
       void usageApi.session(sessionId).then(result => {
-        if (current && requestId === generation) setSessionCost({id: sessionId, nanos: result.cost_nano_usd ?? null})
+        if (current && requestId === generation) {
+          setSessionCost({id: sessionId, amounts: {usd: result.cost_nano_usd ?? null, cny: result.cost_nano_cny ?? null}})
+        }
       }).catch(() => {})
     }
     refreshCost()
@@ -1083,7 +1085,7 @@ export function SessionDetailView({
                       </p>
                     )}
                     <Timeline items={shownTimeline} runs={shownRuns} streaming={view.streaming} activeStatus={timelineStatus} handlers={handlers}
-                      showCost={showCost} sessionCost={sessionCost?.id === sessionId ? sessionCost.nanos : null}/>
+                      showCost={showCost} sessionCost={sessionCost?.id === sessionId ? sessionCost.amounts : null}/>
                     {showOptimistic && outgoing ? <UserMessage text={outgoing.text} skillName={outgoing.skillName}/> : null}
                     {!view.activeRun && timelineStatus}
                   </div>}
@@ -1126,6 +1128,8 @@ export function SessionDetailView({
                       savedReasoning={session?.reasoning}
                       runModel={session?.run_model}
                       runReasoning={session?.run_reasoning}
+                      contextTokens={view?.usage.context?.usedTokens ?? view?.usage.latestRequest?.usedTokens ?? null}
+                      onModelCommitted={() => { void refresh() }}
                       topBanner={activePreset ? <PresetCapsule preset={activePreset} disabled={submitting} onClear={() => void handleExitPreset()}/> : undefined}
                       accessory={view && <ContextRing usage={view.usage}/>}
                       commandHost={{

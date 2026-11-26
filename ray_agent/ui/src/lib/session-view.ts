@@ -54,6 +54,7 @@ export type TurnView = {
   contextEstimate: ContextEstimate | null
   /** W6 */
   ttftMs?: number | null
+  decodeMs?: number | null
   /** W6 */
   attempts?: number | null
 }
@@ -64,6 +65,7 @@ export type RunSummary = {
   toolCalls: number
   tokens: TokenCounts
   costNanos?: number | null
+  costCnyNanos?: number | null
 }
 
 export type Activity =
@@ -82,6 +84,7 @@ export type RunView = {
   missing?: string[]
   model?: string | null
   costNanos?: number | null
+  costCnyNanos?: number | null
   pricePeriods?: string[]
   id: string
   status: RunStatus
@@ -315,6 +318,8 @@ export type StreamingDraft = {
   text: string
   /** 第一个片段的到达时间；调用方传入，投影不读时钟 */
   startedAt: number | null
+  /** 最近一个片段的到达时间；供前端平滑计算实时流式速率 */
+  updatedAt?: number | null
 }
 
 export type SessionView = {

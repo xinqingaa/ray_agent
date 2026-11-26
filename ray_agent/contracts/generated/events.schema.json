@@ -597,6 +597,17 @@
             }
           ],
           "default": null
+        },
+        "cost_nano_cny": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "title": "CompactUsage",
@@ -1765,6 +1776,17 @@
             }
           ],
           "default": null
+        },
+        "cost_nano_cny": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "title": "RunSummary",
@@ -2485,6 +2507,17 @@
           ],
           "default": null
         },
+        "decode_ms": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "usage": {
           "anyOf": [
             {
@@ -2550,6 +2583,7 @@
         "model_ms",
         "attempts",
         "ttft_ms",
+        "decode_ms",
         "usage",
         "finish_reason",
         "tool_call_ids",
@@ -2626,6 +2660,17 @@
           "default": null
         },
         "cost_nano_usd": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "cost_nano_cny": {
           "anyOf": [
             {
               "type": "integer"

@@ -47,6 +47,7 @@ class CatalogModelItem(BaseModel):
     vision: bool = False
     tools: bool = True
     context_window: int
+    default_context_window: Optional[int] = None
     max_output: int
     choices: list[str]
     default_choice: str

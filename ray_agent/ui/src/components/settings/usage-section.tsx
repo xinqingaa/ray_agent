@@ -3,11 +3,15 @@ import {Switch} from '@/components/ui/switch'
 import {reloadUsagePreferences, setUsagePreferences, useUsagePreferences} from '@/hooks/use-usage-preferences'
 import {modelConnectionsApi, MODEL_CONNECTIONS_CHANGED} from '@/lib/api/model-connections'
 import type {ConnectionSource} from '@/lib/api/types'
-import {USAGE_RECORDED, usageApi, type UsageGroup, type UsageReport} from '@/lib/api/usage'
+import {USAGE_RECORDED, hasAnyCost, usageApi, type UsageGroup, type UsageReport, type UsageTotals} from '@/lib/api/usage'
 import {errorMessage, LoadError, SectionHeader} from './form'
 import {SettingsRow} from './settings-row'
-import {CostChart, Heatmap, SeriesDot} from './usage-charts'
-import {amount, cost, dayOf, fmt, hitRate, providerSeries, rangeLabel, ranges, selectedRange, tokenLabel, wallDate, type Range, type Series} from './usage-format'
+import {CostChart, CostValue, Heatmap, SeriesDot} from './usage-charts'
+import {
+  comparableAmount, costAmounts, costParts, currencyMode, dayOf, fmt, hitRate, providerSeries, rangeLabel, ranges,
+  selectedRange, tokenLabel, wallDate, type Range, type Series,
+} from './usage-format'
+import {cn} from '@/lib/utils'
 import {UsageRangePicker} from './usage-range-picker'
 import './usage-section.css'
 
@@ -25,6 +29,14 @@ function delta(value: number | null, previous: number | null) {
   return (value > previous ? '↑ ' : '↓ ') + (change < 1 ? change.toFixed(1) : fmt(Math.round(change))) + '%'
 }
 
+function costDelta(total: UsageTotals | undefined, previous: UsageTotals | undefined) {
+  const mode = currencyMode(total)
+  const prevMode = currencyMode(previous)
+  if (mode === 'CNY' && prevMode === 'CNY') return delta(total?.cost_nano_cny ?? null, previous?.cost_nano_cny ?? null)
+  if (mode === 'USD' && prevMode === 'USD') return delta(total?.cost_nano_usd ?? null, previous?.cost_nano_usd ?? null)
+  return delta(comparableAmount(total), comparableAmount(previous))
+}
+
 function Metrics({report}: {report: UsageReport | null}) {
   const total = report?.totals
   const previous = report?.previous
@@ -34,36 +46,51 @@ function Metrics({report}: {report: UsageReport | null}) {
   const inputs = total ? `输入 ${tokenLabel(total.input_tokens)} · 输出 ${tokenLabel(total.output_tokens)}` : ''
   const cacheChange = hit !== null && previousHit !== null
     ? hit === previousHit ? '持平' : `${hit > previousHit ? '↑' : '↓'} ${Math.abs(hit - previousHit)} 点` : ''
+  const mode = currencyMode(total)
+  const currencyText = mode === 'CNY' ? '人民币' : mode === 'mixed' ? '人民币 + 美元' : '美元'
+  const costNote = total?.unpriced_requests ? `含 ${fmt(total.unpriced_requests)} 次未计价请求` : currencyText
+  const mixedCost = costParts(total).length > 1
   const metrics = [
-    ['估算费用', cost(total), total?.unpriced_requests ? '含未计价请求' : '美元', delta(amount(total), amount(previous))],
     ['Token', total ? tokenLabel(total.total_tokens) : '—', inputs, delta(total?.total_tokens ?? null, previous?.total_tokens ?? null)],
     ['模型请求', total ? fmt(total.requests) : '—', transcription ? `含 ${fmt(transcription)} 次转写` : '次', delta(total?.requests ?? null, previous?.requests ?? null)],
     ['缓存命中', hit === null ? '—' : hit + '%', total ? `命中 ${tokenLabel(total.cached_tokens)} 输入` : '', cacheChange],
   ]
-  return <div className="usage-kpis">{metrics.map(([label, value, description, change]) => <div className="usage-kpi" key={label}>
-    <div className="usage-kpi-label"><span>{label}</span>{change && <span title="与上一等长时段对比">{change}</span>}</div>
-    <div className="usage-kpi-value" title={value}>{value}</div>
-    <div className="usage-kpi-sub" title={description}>{description}</div>
-  </div>)}</div>
+  const costChange = costDelta(total, previous)
+  return <div className="usage-kpis">
+    <div className="usage-kpi">
+      <div className="usage-kpi-label"><span>估算费用</span>{costChange && <span title="与上一等长时段对比">{costChange}</span>}</div>
+      <div className={cn('usage-kpi-value', mixedCost && 'is-mixed')}>
+        <CostValue amounts={costAmounts(total)} zeroCurrency={total?.requests === 0 ? 'USD' : undefined} stacked={mixedCost}/>
+      </div>
+      <div className="usage-kpi-sub" title={costNote}>{costNote}</div>
+    </div>
+    {metrics.map(([label, value, description, change]) => <div className="usage-kpi" key={label}>
+      <div className="usage-kpi-label"><span>{label}</span>{change && <span title="与上一等长时段对比">{change}</span>}</div>
+      <div className="usage-kpi-value" title={value}>{value}</div>
+      <div className="usage-kpi-sub" title={description}>{description}</div>
+    </div>)}
+  </div>
 }
 
 function UsageCells({item, total}: {item: UsageGroup | undefined; total: number}) {
   const requests = item?.requests ?? 0
   const audioOnly = item && !item.input_tokens && !item.output_tokens && item.audio_duration_ms > 0
   const hit = item && hitRate(item)
-  const share = Math.max(0, Math.min(100, total > 0 ? 100 * (item?.cost_nano_usd ?? 0) / total : 0))
+  const itemAmount = comparableAmount(item) ?? 0
+  const share = Math.max(0, Math.min(100, total > 0 ? 100 * itemAmount / total : 0))
+  const unpriced = !hasAnyCost(costAmounts(item))
   return <>
     <td>{fmt(requests)}</td>
     <td title={requests && item && !audioOnly ? fmt(item.input_tokens) : undefined}>{requests && item ? audioOnly ? `音频 ${fmt(Math.round(item.audio_duration_ms / 1000))} 秒` : tokenLabel(item.input_tokens) : '—'}</td>
     <td>{hit == null ? '—' : hit + '%'}</td>
     <td title={requests && item && !audioOnly ? fmt(item.output_tokens) : undefined}>{requests && item && !audioOnly ? tokenLabel(item.output_tokens) : '—'}</td>
-    <td title={requests && item?.cost_nano_usd == null ? '未计价' : undefined}>{requests ? cost(item) : '—'}</td>
+    <td title={requests && unpriced ? '未计价' : undefined}>{requests ? <CostValue amounts={costAmounts(item)}/> : '—'}</td>
     <td><span className="usage-share" title={share.toFixed(1) + '%'}><span style={{width: share + '%'}}/></span></td>
   </>
 }
 
 function ModelTable({report, series, connections}: {report: UsageReport | null; series: Series[]; connections: ConnectionSource | null}) {
-  const total = report?.totals.cost_nano_usd ?? 0
+  const total = comparableAmount(report?.totals) ?? 0
   return <section className="usage-card" aria-label="按提供商与模型">
     <header><h3>按提供商与模型</h3></header>
     {series.length ? <div className="usage-table-wrap">
@@ -87,17 +114,17 @@ function ModelTable({report, series, connections}: {report: UsageReport | null; 
 }
 
 function Purposes({report}: {report: UsageReport | null}) {
-  const top = Math.max(1, ...(report?.purposes ?? []).map(item => item.cost_nano_usd ?? 0))
+  const top = Math.max(1, ...(report?.purposes ?? []).map(item => comparableAmount(item) ?? 0))
   return <section className="usage-card" aria-label="按用途">
     <header><h3>按用途</h3><span className="usage-unit">辅助请求同样计入</span></header>
     <dl className="usage-purposes">
       {Object.entries(purposes).map(([key, label]) => {
         const item = report?.purposes.find(row => row.key === key)
-        const amount = item?.cost_nano_usd ?? 0
+        const amount = comparableAmount(item) ?? 0
         return <div key={key}>
           <dt>{label}</dt>
           <dd className="usage-purpose-track" aria-hidden><span style={{width: amount > 0 ? Math.max(1, 100 * amount / top) + '%' : '0%'}}/></dd>
-          <dd>{item?.requests ? cost(item) : '—'}</dd>
+          <dd>{item?.requests ? <CostValue amounts={costAmounts(item)}/> : '—'}</dd>
           <dd className="usage-unit">{item ? fmt(item.requests) + ' 次' : '—'}</dd>
         </div>
       })}
@@ -189,7 +216,7 @@ export function UsageSection() {
       <Purposes report={report}/>
     </div>
     <p className="usage-note">
-      费用以美元估算，实际金额以服务商账单为准。DeepSeek 聊天按高峰或低谷计价，法定节假日优惠、缓存写入、账单折扣与赠送额度未计入。无单价的模型只统计 Token，DeepSeek 转写按音频时长估算，本机转写记录时长和零费用。
+      DeepSeek 聊天与转写按官方人民币峰谷/刊例价估算，OpenAI 按官方美元标价（含缓存写入与超长上下文规则）估算，实际金额以服务商账单为准。法定节假日优惠、账单折扣与赠送额度未计入，无单价的模型只统计 Token，本机转写记录时长和零费用。
       {!!report?.totals.failed_requests && `所选时段有 ${fmt(report.totals.failed_requests)} 次请求失败。`}
       {report?.price_version && <>价格版本 {report.price_version}。价格来源{' '}
         {Object.entries(report.price_sources).map(([key, url], index) => <Fragment key={key}>

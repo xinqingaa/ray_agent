@@ -20,6 +20,7 @@ export type ModelDraft = {
   thinking: boolean
   efforts: string[]
   unconfirmed: UnconfirmedKey[]
+  rateCurrency: 'USD' | 'CNY'
   input: string
   cached_input: string
   outputRate: string
@@ -34,7 +35,7 @@ export type ModelFacts = {
   thinking?: boolean
   reasoning_efforts?: string[]
   unconfirmed?: string[]
-  rates?: {input: string; cached_input: string; output: string} | null
+  rates?: {currency?: 'USD' | 'CNY'; input: string; cached_input: string; output: string} | null
 }
 
 function modelSize(value: string) {
@@ -67,6 +68,7 @@ export function draftFromFacts(facts: ModelFacts): ModelDraft {
     thinking: facts.thinking ?? false,
     efforts: [...(facts.reasoning_efforts ?? [])],
     unconfirmed: unconfirmedOf(facts.unconfirmed),
+    rateCurrency: facts.rates?.currency === 'CNY' ? 'CNY' : 'USD',
     input: rateText(facts.rates?.input),
     cached_input: rateText(facts.rates?.cached_input),
     outputRate: rateText(facts.rates?.output),
@@ -156,13 +158,14 @@ export function validateCustom(id: string, draft: ModelDraft): {value: CustomMod
     context_window, max_output, tools: draft.tools, vision: draft.vision,
     thinking: draft.thinking || draft.efforts.length > 0,
     reasoning_efforts: draft.efforts, unconfirmed: draft.unconfirmed,
-    rates: priced ? {input, cached_input: cached || input, output} : null,
+    rates: priced ? {currency: draft.rateCurrency, input, cached_input: cached || input, output} : null,
   }}
 }
 
-/** 价格只展示美元每百万 Token；没有依据时明确写出未计价。 */
+/** 按模型单价币种展示每百万 Token 价格；没有依据时明确写出未计价。 */
 export function priceText(draft: ModelDraft, catalog: boolean) {
-  if (draft.input.trim() && draft.outputRate.trim()) return `$${draft.input.trim()} / $${draft.outputRate.trim()}`
+  const symbol = draft.rateCurrency === 'CNY' ? '¥' : '$'
+  if (draft.input.trim() && draft.outputRate.trim()) return `${symbol}${draft.input.trim()} / ${symbol}${draft.outputRate.trim()}`
   return catalog ? '未计价' : '未填写单价'
 }
 

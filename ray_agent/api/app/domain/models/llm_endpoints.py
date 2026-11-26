@@ -7,6 +7,7 @@ from pydantic import BaseModel, Field, HttpUrl, field_validator, model_validator
 
 ApiProtocol = Literal['responses', 'chat_completions']
 ProviderKind = Literal["deepseek", "openai", "compatible"]
+Currency = Literal["USD", "CNY"]
 ModelId = Annotated[str, Field(min_length=1, max_length=128, pattern=r"^\S+$")]
 EffortId = Annotated[str, Field(min_length=1, max_length=32, pattern=r"^[A-Za-z0-9_.-]+$")]
 Rate = Annotated[Decimal, Field(ge=0, le=1_000_000, decimal_places=8)]
@@ -19,7 +20,8 @@ MAX_REASONING_EFFORTS = 8
 
 
 class TokenRates(BaseModel):
-    """美元／百万 Token。"""
+    """每百万 Token 单价。"""
+    currency: Currency = "USD"
     input: Rate
     cached_input: Rate
     output: Rate
@@ -134,5 +136,6 @@ def default_model_endpoints() -> dict[str, str]:
     """未读取配置文件时的映射，只用于直接构造的配置。"""
     return {
         "deepseek-flash": "deepseek", "deepseek-v4-pro": "deepseek",
+        "gpt-6.2-sol": "gpt", "gpt-6.2-astra": "gpt",
         "gpt-6.1-sol": "gpt", "gpt-6-luna": "gpt", "gpt-6-astra": "gpt",
     }

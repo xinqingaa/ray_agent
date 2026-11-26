@@ -17,11 +17,11 @@
 |---|---|---|
 | 默认协议 | `responses`；端点可显式改为 `chat_completions` | [app_config.py](../ray_agent/api/app/domain/models/app_config.py) 的 `LLMConfig.api_protocol` |
 | 默认模型 | `deepseek-flash` | [app_config.py](../ray_agent/api/app/domain/models/app_config.py) 的 `LLMConfig.model_name` |
-| 应用默认窗口 / 输出上限 / 温度 | 200000 tokens / 8192 tokens / 0.7 | `LLMConfig`、`ModelSampling` |
+| 应用默认窗口 / 输出上限 / 温度 | 全局兜底 200000 tokens（OpenAI GPT-6 目录默认 272000，DeepSeek 默认 200000）/ 8192 tokens / 0.7 | `LLMConfig`、`ModelSampling`、`ModelSpec.default_context_window` |
 | 请求超时 | 默认 3600 秒，配置允许大于 0 且不超过 86400 秒。非流式是整次等待；流式是首个分片以及相邻分片的空闲间隔 | `LLMConfig.request_timeout` |
-| DeepSeek 目录窗口 / 最大输出 | 1000000 / 393216 tokens | [model_catalog.py](../ray_agent/api/app/domain/models/model_catalog.py) 的 `deepseek_models()` |
+| DeepSeek 目录窗口 / 最大输出 | 1000000（默认预算 200000）/ 393216 tokens | [model_catalog.py](../ray_agent/api/app/domain/models/model_catalog.py) 的 `deepseek_models()` |
 | DeepSeek 思考开启时的输出下限 | 32768 | 同上，`thinking_output_floor` |
-| GPT 目录窗口 / 最大输出 | 200000 / 128000 tokens。应用配置再高也会封顶到目录窗口 | `model_catalog.py` 的 `_gpt_spec()` |
+| GPT 目录窗口 / 最大输出 | 272000（默认预算 272000）/ 128000 tokens。应用配置再高也会封顶到目录窗口 | `model_catalog.py` 的 `_gpt_spec()` |
 | GPT 思考输出下限 | 0 | 同上 |
 | 已知模型温度校验 | 0–2；思考开启时不发送温度 | `model_catalog.py`、配置服务 |
 | 容量字符估算 | 中日韩字符 0.7 token/字符，其余 0.3；每条消息附加 4 tokens；获得 usage 后校准 | [context/budget.py](../ray_agent/api/app/domain/services/context/budget.py) |

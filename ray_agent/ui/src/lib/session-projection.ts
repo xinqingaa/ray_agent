@@ -74,6 +74,8 @@ export type ProjectSessionInput = {
   deltas?: DeltaInput[]
   /** 键为 streamDraftKey。第一个片段的时间，投影不调用 Date.now */
   streamStartedAt?: Record<string, number>
+  /** 键为 streamDraftKey。最近一个片段的时间，投影不调用 Date.now */
+  streamUpdatedAt?: Record<string, number>
 }
 
 /** 临时条目的键。运行 ID 是 UUID，不含冒号 */
@@ -156,6 +158,7 @@ type StoredEvent = {
 type RunTrack = {
   model?: string | null
   compactCostNanos?: number
+  compactCostCnyNanos?: number
   outcome?: string
   missing?: string[]
   id: string
@@ -181,6 +184,7 @@ type TurnBuild = {
   toolsMs: number | null
   usage: TokenCounts | null
   costNanos?: number
+  costCnyNanos?: number
   pricePeriods?: string[]
   finishReason: string | null
   toolCallIds: string[]
@@ -191,6 +195,7 @@ type TurnBuild = {
   /** context_estimate.watermark，token 数；没有则为空 */
   watermarkTokens: number | null
   ttftMs: number | null
+  decodeMs: number | null
   attempts: number | null
   hasAttempts: boolean
   hasTtft: boolean
@@ -233,9 +238,14 @@ export function estimateTextTokens(text: string): number {
 
 export type OutputRate = {tokensPerSecond: number; estimated: boolean}
 
+const MIN_LIVE_RATE_MS = 300
+const MIN_LIVE_RATE_TOKENS = 4
+const MIN_MEASURED_DECODE_MS = 200
+const MIN_MEASURED_TOKENS = 5
+
 /**
- * 运行中只用字符估算。轮次结束后，completion_tokens 与 ttft_ms 都有值且 model_ms 更大时用实测；
- * reasoning_tokens 有值时从分子扣除。无 usage、或除法不成立时，若调用方提供了文本和耗时，仍标为估算。
+ * 运行中只用字符估算。轮次结束后，优先用纯解码耗时 decode_ms，否则用 model_ms - ttft_ms；
+ * reasoning_tokens 有值时从分子扣除。样本窗口或 token 过小时不产出尖峰，等待足够样本或回退字符估算。
  */
 export function resolveOutputRate(input: {
   text?: string
@@ -243,6 +253,7 @@ export function resolveOutputRate(input: {
   turnEnded?: boolean
   modelMs?: number | null
   ttftMs?: number | null
+  decodeMs?: number | null
   completionTokens?: number | null
   reasoningTokens?: number | null
 }): OutputRate | null {
@@ -253,21 +264,26 @@ export function resolveOutputRate(input: {
 }
 
 function charOutputRate(text: string, elapsedMs: number | null | undefined): OutputRate | null {
-  if (!text || elapsedMs == null || !(elapsedMs > 0)) return null
-  return {tokensPerSecond: estimateTextTokens(text) / (elapsedMs / 1000), estimated: true}
+  if (!text || elapsedMs == null || elapsedMs < MIN_LIVE_RATE_MS) return null
+  const tokens = estimateTextTokens(text)
+  if (tokens < MIN_LIVE_RATE_TOKENS) return null
+  return {tokensPerSecond: tokens / (elapsedMs / 1000), estimated: true}
 }
 
 function measuredOutputRate(input: {
   modelMs?: number | null
   ttftMs?: number | null
+  decodeMs?: number | null
   completionTokens?: number | null
   reasoningTokens?: number | null
 }): OutputRate | null {
-  const {modelMs, ttftMs, completionTokens, reasoningTokens} = input
-  if (completionTokens == null || ttftMs == null || modelMs == null || !(modelMs > ttftMs)) return null
+  const {modelMs, ttftMs, decodeMs, completionTokens, reasoningTokens} = input
+  if (completionTokens == null) return null
+  const spanMs = decodeMs != null ? decodeMs : (ttftMs != null && modelMs != null && modelMs > ttftMs ? modelMs - ttftMs : null)
+  if (spanMs == null || spanMs < MIN_MEASURED_DECODE_MS) return null
   const tokens = reasoningTokens != null ? completionTokens - reasoningTokens : completionTokens
-  if (!(tokens > 0)) return null
-  return {tokensPerSecond: tokens / ((modelMs - ttftMs) / 1000), estimated: false}
+  if (tokens < MIN_MEASURED_TOKENS) return null
+  return {tokensPerSecond: tokens / (spanMs / 1000), estimated: false}
 }
 
 type StreamDraft = {runId: string; turn: number; attempt: number; text: string}
@@ -453,6 +469,7 @@ export function projectSession(input: ProjectSessionInput): SessionView {
       contextWindow: null,
       watermarkTokens: null,
       ttftMs: null,
+      decodeMs: null,
       attempts: null,
       hasAttempts: false,
       hasTtft: false,
@@ -515,9 +532,14 @@ export function projectSession(input: ProjectSessionInput): SessionView {
         if (isRecord(usageRaw)) {
           compactSessionUsage = sumUsage([compactSessionUsage, readUsage(usageRaw)])
           const cost = num(usageRaw.cost_nano_usd)
+          const costCny = num(usageRaw.cost_nano_cny)
           if (cost != null && ev.runId) {
             const run = ensureRun(ev.runId, ev.createdAt, ev.seq)
             run.compactCostNanos = (run.compactCostNanos ?? 0) + cost
+          }
+          if (costCny != null && ev.runId) {
+            const run = ensureRun(ev.runId, ev.createdAt, ev.seq)
+            run.compactCostCnyNanos = (run.compactCostCnyNanos ?? 0) + costCny
           }
         }
         const trigger = asCompactTrigger(data.trigger)
@@ -650,6 +672,7 @@ export function projectSession(input: ProjectSessionInput): SessionView {
         turn.usage = readUsage(data.usage)
         if (isRecord(data.usage)) {
           turn.costNanos = num(data.usage.cost_nano_usd) ?? undefined
+          turn.costCnyNanos = num(data.usage.cost_nano_cny) ?? undefined
           if (Array.isArray(data.usage.price_periods)) {
             turn.pricePeriods = data.usage.price_periods.filter((item): item is string => typeof item === 'string')
           }
@@ -668,6 +691,10 @@ export function projectSession(input: ProjectSessionInput): SessionView {
         if (ttft != null) {
           turn.ttftMs = ttft
           turn.hasTtft = true
+        }
+        const decode = num(data.decode_ms)
+        if (decode != null) {
+          turn.decodeMs = decode
         }
       }
       continue
@@ -959,7 +986,9 @@ export function projectSession(input: ProjectSessionInput): SessionView {
   let streaming: SessionView['streaming'] = null
   if (streamingDraft && streamingDraft.text.trim()) {
     const itemId = `stream:${streamingDraft.runId}:${streamingDraft.turn}:${streamingDraft.attempt}`
-    const startedAt = input.streamStartedAt?.[streamDraftKey(streamingDraft.runId, streamingDraft.turn, streamingDraft.attempt)] ?? null
+    const draftKey = streamDraftKey(streamingDraft.runId, streamingDraft.turn, streamingDraft.attempt)
+    const startedAt = input.streamStartedAt?.[draftKey] ?? null
+    const updatedAt = input.streamUpdatedAt?.[draftKey] ?? null
     timeline.push({
       kind: 'narration',
       id: itemId,
@@ -976,6 +1005,7 @@ export function projectSession(input: ProjectSessionInput): SessionView {
       attempt: streamingDraft.attempt,
       text: streamingDraft.text,
       startedAt,
+      updatedAt,
     }
   }
 
@@ -1081,11 +1111,14 @@ function toRunView(
   const mine = turns.filter((turn) => turn.runId === track.id).sort((a, b) => a.index - b.index)
   const turnViews = mine.map(toTurnView)
   const costs = [track.compactCostNanos, ...mine.map(turn => turn.costNanos)].filter((item): item is number => item != null)
+  const cnyCosts = [track.compactCostCnyNanos, ...mine.map(turn => turn.costCnyNanos)].filter((item): item is number => item != null)
   const periods = [...new Set(mine.flatMap(turn => turn.pricePeriods ?? []))]
   const projectedCost = track.summary?.costNanos ?? (costs.length ? costs.reduce((sum, cost) => sum + cost, 0) : null)
+  const projectedCnyCost = track.summary?.costCnyNanos ?? (cnyCosts.length ? cnyCosts.reduce((sum, cost) => sum + cost, 0) : null)
   return {
     ...(track.model && {model: track.model}),
     ...(projectedCost != null && {costNanos: projectedCost}),
+    ...(projectedCnyCost != null && {costCnyNanos: projectedCnyCost}),
     ...(periods.length > 0 && {pricePeriods: periods}),
     id: track.id,
     status,
@@ -1116,6 +1149,7 @@ function toTurnView(turn: TurnBuild): TurnView {
     contextEstimate: turn.contextEstimate,
   }
   if (turn.hasTtft) view.ttftMs = turn.ttftMs
+  if (turn.decodeMs != null) view.decodeMs = turn.decodeMs
   if (turn.hasAttempts) view.attempts = turn.attempts
   return view
 }
@@ -1292,6 +1326,7 @@ function summaryFromRaw(raw: Record<string, unknown>, track: RunTrack): RunSumma
     turns: num(raw.turns) ?? 0,
     toolCalls: num(raw.tool_calls) ?? 0,
     ...(num(raw.cost_nano_usd) != null && {costNanos: num(raw.cost_nano_usd)}),
+    ...(num(raw.cost_nano_cny) != null && {costCnyNanos: num(raw.cost_nano_cny)}),
     tokens: withCached({prompt, completion, total: prompt + completion}, raw.cached_tokens == null ? null : num(raw.cached_tokens)),
   }
 }

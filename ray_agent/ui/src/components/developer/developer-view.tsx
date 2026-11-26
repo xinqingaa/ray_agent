@@ -559,6 +559,7 @@ function TurnSpeed({turn}: {turn: TurnView}) {
     turnEnded: true,
     modelMs: turn.modelMs,
     ttftMs: turn.ttftMs ?? null,
+    decodeMs: turn.decodeMs ?? null,
     completionTokens: turn.usage?.completion ?? null,
     reasoningTokens: turn.usage?.reasoning ?? null,
   })

@@ -41,9 +41,16 @@ class DBUsageRepository:
         return list((await self._db.scalars(select(UsageModel.provider).distinct().order_by(UsageModel.provider))).all())
 
     async def run_cost(self, run_id: str) -> int | None:
-        return await self._db.scalar(select(func.sum(UsageModel.cost_nano_usd)).where(
-            UsageModel.run_id == run_id, UsageModel.purpose.in_(("main", "compact"))
-        ))
+        usd, _ = await self.run_costs(run_id)
+        return usd
+
+    async def run_costs(self, run_id: str) -> tuple[int | None, int | None]:
+        row = (await self._db.execute(
+            select(func.sum(UsageModel.cost_nano_usd), func.sum(UsageModel.cost_nano_cny)).where(
+                UsageModel.run_id == run_id, UsageModel.purpose.in_(("main", "compact"))
+            )
+        )).one()
+        return row[0], row[1]
 
     async def session_totals(self, session_id: str) -> UsageTotals:
         columns = (UsageModel.input_tokens, UsageModel.cached_tokens, UsageModel.output_tokens,
@@ -51,11 +58,22 @@ class DBUsageRepository:
                    UsageModel.audio_duration_ms)
         statement = select(
             func.count(UsageModel.id), func.count().filter(UsageModel.failed),
-            func.count().filter(UsageModel.cost_nano_usd.is_(None)),
-            *(func.coalesce(func.sum(column), 0) for column in columns), func.sum(UsageModel.cost_nano_usd),
+            func.count().filter(UsageModel.cost_nano_usd.is_(None), UsageModel.cost_nano_cny.is_(None)),
+            *(func.coalesce(func.sum(column), 0) for column in columns),
+            func.sum(UsageModel.cost_nano_usd), func.sum(UsageModel.cost_nano_cny),
         ).where(UsageModel.session_id == session_id)
-        result = (await self._db.execute(statement)).one()
-        return UsageTotals(**dict(zip(UsageTotals.model_fields, result, strict=True)))
+        (
+            requests, failed_requests, unpriced_requests,
+            input_tokens, cached_tokens, output_tokens,
+            total_tokens, reasoning_tokens, audio_duration_ms,
+            cost_nano_usd, cost_nano_cny,
+        ) = (await self._db.execute(statement)).one()
+        return UsageTotals(
+            requests=requests, failed_requests=failed_requests, unpriced_requests=unpriced_requests,
+            input_tokens=input_tokens, cached_tokens=cached_tokens, output_tokens=output_tokens,
+            total_tokens=total_tokens, reasoning_tokens=reasoning_tokens, audio_duration_ms=audio_duration_ms,
+            cost_nano_usd=cost_nano_usd, cost_nano_cny=cost_nano_cny,
+        )
 
     async def preferences(self) -> UsagePreferences:
         row = await self._db.get(AppConfigModel, "usage_preferences")

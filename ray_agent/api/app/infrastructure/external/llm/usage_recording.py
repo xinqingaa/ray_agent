@@ -28,6 +28,7 @@ async def record_usage(
                 workspace_id=scope.workspace_id, purpose=scope.purpose, provider=provider, model=model, failed=failed,
                 input_tokens=usage.prompt_tokens if usage else None,
                 cached_tokens=usage.cached_tokens if usage else None,
+                cache_write_tokens=usage.cache_write_tokens if usage else None,
                 output_tokens=usage.completion_tokens if usage else None,
                 total_tokens=usage.resolved_total if usage and usage.available else None,
                 reasoning_tokens=usage.reasoning_tokens if usage else None,

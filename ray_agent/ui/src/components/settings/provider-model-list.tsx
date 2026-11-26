@@ -94,9 +94,9 @@ function ModelFields({view, disabled, errorId, onEdit}: {
     <EffortsField efforts={view.efforts} disabled={disabled} onChange={efforts => onEdit({efforts})}/>
     <div className="provider-custom-fields">{rateKeys.map(key => <label key={key}><span className="provider-field-label">{rateLabels[key]}</span>
       <span className="provider-rate">
-        <span aria-hidden>$</span>
+        <span aria-hidden>{view.rateCurrency === 'CNY' ? '¥' : '$'}</span>
         <Input value={view[key]} inputMode="decimal" disabled={disabled} placeholder={key === 'cached_input' ? '同输入' : '可选'}
-          aria-label={`${rateLabels[key]}（美元，每百万 Token）`} onChange={event => onEdit({[key]: event.target.value} as Partial<ModelDraft>)}/>
+          aria-label={`${rateLabels[key]}（${view.rateCurrency === 'CNY' ? '人民币' : '美元'}，每百万 Token）`} onChange={event => onEdit({[key]: event.target.value} as Partial<ModelDraft>)}/>
         <span aria-hidden>每百万 Token</span>
       </span>
     </label>)}</div>
@@ -135,7 +135,7 @@ function ProviderModel({row, target, onToggle, onEdit, onCheck}: {
           </div>
           <p className="provider-model-meta">{row.unread ? <span>目录未读取，能力以核心保存结果为准</span> : factsLine(view, reasoningLabel)}</p>
         </div>
-        <span className="provider-model-price tabular-nums" title={catalog ? undefined : '美元 / 每百万 Token'}>
+        <span className="provider-model-price tabular-nums" title={catalog ? undefined : `${view.rateCurrency === 'CNY' ? '人民币' : '美元'} / 每百万 Token`}>
           {row.unread ? '—' : priceText(view, catalog)}
         </span>
         <CollapsibleTrigger asChild>

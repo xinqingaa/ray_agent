@@ -1,10 +1,14 @@
-import {formatEstimatedCost, type UsageRange, type UsageTotals} from '@/lib/api/usage'
+import {
+  comparableCostCny, formatCostAmounts, formatCostParts, formatExactCostAmounts, type CostAmounts, type CostCurrency, type UsageRange, type UsageTotals,
+} from '@/lib/api/usage'
 
 export const ranges: [Exclude<UsageRange, 'custom'>, string][] = [
   ['today', '今天'], ['24h', '24 小时'], ['3d', '近 3 天'], ['7d', '近 7 天'], ['30d', '近 30 天'], ['90d', '近 90 天'],
 ]
 export type Range = {range_id: Exclude<UsageRange, 'custom'>} | {range_id: 'custom'; start: string; end: string; hourly?: boolean}
 export type Series = {key: string; label: string; color: string}
+export type CurrencyMode = 'CNY' | 'USD' | 'mixed' | 'none'
+
 export const weekdays = ['一', '二', '三', '四', '五', '六', '日']
 export const fmt = (n: number) => n.toLocaleString('zh-CN')
 export const tokenLabel = (n: number) => n >= 1e9 ? (n / 1e9).toFixed(2) + 'B'
@@ -22,9 +26,61 @@ export const dayLabel = (iso: string) => `${Number(iso.slice(5, 7))}月${Number(
 export const shortDay = (iso: string) => `${Number(iso.slice(5, 7))}/${Number(iso.slice(8, 10))}`
 export const dayWeek = (iso: string) => (localDate(dayOf(iso)).getDay() + 6) % 7
 export const hitRate = (total: UsageTotals) => total.input_tokens ? Math.round(100 * total.cached_tokens / total.input_tokens) : null
+
+export const costAmounts = (total: UsageTotals | null | undefined): CostAmounts | null =>
+  total ? {usd: total.cost_nano_usd ?? null, cny: total.cost_nano_cny ?? null} : null
+
 export const amount = (total: UsageTotals | null | undefined) => total?.cost_nano_usd ?? (total?.requests === 0 ? 0 : null)
-export const cost = (total: UsageTotals | null | undefined) => formatEstimatedCost(amount(total))
-export const priceLabels: Record<string, string> = {peak: '高峰', off_peak: '低谷', standard: '标准', custom: '自定义'}
+
+export const comparableAmount = (total: UsageTotals | null | undefined): number | null => {
+  if (!total) return null
+  if (total.requests === 0) return 0
+  return comparableCostCny(costAmounts(total))
+}
+
+export const cost = (total: UsageTotals | null | undefined, zeroCurrency?: CostCurrency | null) => {
+  if (!total) return '—'
+  if (total.requests === 0) return formatCostAmounts(null, zeroCurrency ?? 'USD')
+  return formatCostAmounts(costAmounts(total))
+}
+
+export const exactCost = (total: UsageTotals | null | undefined, zeroCurrency?: CostCurrency | null) => {
+  if (!total) return '—'
+  if (total.requests === 0) return formatExactCostAmounts(null, zeroCurrency ?? 'USD')
+  return formatExactCostAmounts(costAmounts(total))
+}
+
+export const costParts = (total: UsageTotals | null | undefined, zeroCurrency?: CostCurrency | null) => {
+  if (!total) return ['—']
+  if (total.requests === 0) return formatCostParts(null, zeroCurrency ?? 'USD')
+  return formatCostParts(costAmounts(total))
+}
+
+export function currencyMode(total: UsageTotals | null | undefined): CurrencyMode {
+  if (!total) return 'none'
+  const cny = total.cost_nano_cny
+  const usd = total.cost_nano_usd
+  if (cny != null && usd != null) {
+    if (cny > 0 && usd > 0) return 'mixed'
+    if (cny > 0) return 'CNY'
+    if (usd > 0) return 'USD'
+    return 'CNY'
+  }
+  if (cny != null) return 'CNY'
+  if (usd != null) return 'USD'
+  return 'none'
+}
+
+export function chartValue(total: UsageTotals | null | undefined, mode: CurrencyMode): number {
+  if (!total) return 0
+  if (mode === 'USD') return total.cost_nano_usd ?? 0
+  if (mode === 'CNY') return total.cost_nano_cny ?? 0
+  return comparableCostCny(costAmounts(total)) ?? 0
+}
+
+export const priceLabels: Record<string, string> = {
+  peak: '高峰', off_peak: '低谷', standard: '标准', long_context: '超长上下文', custom: '自定义',
+}
 
 export function providerSeries(key: string, label?: string): Series {
   const names: Record<string, string> = {deepseek: 'DeepSeek', openai: 'OpenAI', gpt: 'OpenAI', local: '本机'}

@@ -721,8 +721,8 @@ def test_instance_lock_and_newer_schema_are_refused(tmp_path):
     again.release()
 
     database = tmp_path / "rayagent.db"
-    assert migrate(database) == "0016_session_active_preset"
-    assert migrate(database) == "0016_session_active_preset"
+    assert migrate(database) == "0017_usage_currency"
+    assert migrate(database) == "0017_usage_currency"
     assert not (tmp_path / "upgrades").exists()  # 已在 head 时不写升级前副本
     with sqlite3.connect(database) as connection:
         assert connection.execute("PRAGMA journal_mode").fetchone()[0] == "wal"
@@ -747,20 +747,20 @@ def test_schema_upgrade_writes_pre_upgrade_backup_and_keeps_rows(tmp_path):
             "'2026-01-01 00:00:00', '2026-01-01 00:00:00', NULL)")
         connection.commit()
 
-    assert migrate(database) == "0016_session_active_preset"
-    backups = sorted((tmp_path / "upgrades").glob("rayagent.db.before-0006_document_knowledge-to-0016_session_active_preset-*"))
+    assert migrate(database) == "0017_usage_currency"
+    backups = sorted((tmp_path / "upgrades").glob("rayagent.db.before-0006_document_knowledge-to-0017_usage_currency-*"))
     assert len(backups) == 1
     with sqlite3.connect(backups[0]) as connection:
         assert connection.execute("SELECT version_num FROM alembic_version").fetchone() == ("0006_document_knowledge",)
         assert connection.execute("SELECT title FROM sessions WHERE id='keep-me'").fetchone() == ("保留",)
     with sqlite3.connect(database) as connection:
-        assert connection.execute("SELECT version_num FROM alembic_version").fetchone() == ("0016_session_active_preset",)
+        assert connection.execute("SELECT version_num FROM alembic_version").fetchone() == ("0017_usage_currency",)
         assert connection.execute("SELECT title FROM sessions WHERE id='keep-me'").fetchone() == ("保留",)
         cols = {row[1] for row in connection.execute("PRAGMA table_info(index_publications)")}
         assert "vector_generation" in cols
 
     # 再次 migrate 不追加副本；upgrades 路径不可写时拒绝升级
-    assert migrate(database) == "0016_session_active_preset"
+    assert migrate(database) == "0017_usage_currency"
     assert list((tmp_path / "upgrades").glob("rayagent.db.before-*")) == backups
 
     import shutil

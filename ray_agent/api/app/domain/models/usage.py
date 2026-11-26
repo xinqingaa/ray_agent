@@ -35,6 +35,7 @@ def usage_scope(**fields):
 
 class UsageCharge(BaseModel):
     cost_nano_usd: int | None = None
+    cost_nano_cny: int | None = None
     price_version: str | None = None
     price_period: str | None = None
 
@@ -50,6 +51,7 @@ class UsageTotals(BaseModel):
     reasoning_tokens: int = 0
     audio_duration_ms: int = 0
     cost_nano_usd: int | None = None
+    cost_nano_cny: int | None = None
 
 
 class UsageGroup(UsageTotals):

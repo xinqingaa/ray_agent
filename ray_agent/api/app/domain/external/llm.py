@@ -3,7 +3,7 @@
 import asyncio
 from typing import Protocol, List, Dict, Any, Optional, Awaitable, Callable
 
-from app.domain.models.llm import LLMInvokeResult
+from app.domain.models.llm import LLMInvokeResult, LLMUsage
 
 # 文本增量。推理内容与工具参数不经过这里。
 DeltaCallback = Callable[[str], Awaitable[None]]
@@ -19,13 +19,16 @@ class LLMRequestError(Exception):
     """
 
     def __init__(self, message: str, *, retryable: bool = False, status_code: Optional[int] = None,
-                 context_exceeded: bool = False, reason: Optional[str] = None, connect_failed: bool = False) -> None:
+                 context_exceeded: bool = False, reason: Optional[str] = None, connect_failed: bool = False,
+                 usage: Optional[LLMUsage] = None, service_tier: Optional[str] = None) -> None:
         super().__init__(message)
         self.retryable = retryable
         self.status_code = status_code
         self.context_exceeded = context_exceeded
         self.reason = reason or ("transport" if retryable else "model_error")
         self.connect_failed = connect_failed
+        self.usage = usage
+        self.service_tier = service_tier
 
 
 def is_retryable(error: BaseException) -> bool:

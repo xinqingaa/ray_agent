@@ -3262,6 +3262,8 @@ export interface components {
             tools: boolean;
             /** Context Window */
             context_window: number;
+            /** Default Context Window */
+            default_context_window?: number | null;
             /** Max Output */
             max_output: number;
             /** Choices */
@@ -3667,6 +3669,8 @@ export interface components {
             cached_tokens?: number | null;
             /** Cost Nano Usd */
             cost_nano_usd?: number | null;
+            /** Cost Nano Cny */
+            cost_nano_cny?: number | null;
         };
         /** @description 组件身份，如浏览器或某个 Embedding 模型 */
         ComponentId: string;
@@ -5474,6 +5478,8 @@ export interface components {
             connection_issue?: string | null;
             /** Context Window */
             context_window: number;
+            /** Default Context Window */
+            default_context_window?: number | null;
             /** Max Output */
             max_output: number;
             /** Choices */
@@ -6793,6 +6799,8 @@ export interface components {
             cached_tokens?: number | null;
             /** Cost Nano Usd */
             cost_nano_usd?: number | null;
+            /** Cost Nano Cny */
+            cost_nano_cny?: number | null;
         };
         /** RunSummaryView */
         RunSummaryView: {
@@ -7272,9 +7280,15 @@ export interface components {
         };
         /**
          * TokenRates
-         * @description 美元／百万 Token。
+         * @description 每百万 Token 单价。
          */
         "TokenRates-Input": {
+            /**
+             * Currency
+             * @default USD
+             * @enum {string}
+             */
+            currency: "USD" | "CNY";
             /** Input */
             input: number | string;
             /** Cached Input */
@@ -7284,9 +7298,15 @@ export interface components {
         };
         /**
          * TokenRates
-         * @description 美元／百万 Token。
+         * @description 每百万 Token 单价。
          */
         "TokenRates-Output": {
+            /**
+             * Currency
+             * @default USD
+             * @enum {string}
+             */
+            currency: "USD" | "CNY";
             /** Input */
             input: string;
             /** Cached Input */
@@ -7459,6 +7479,8 @@ export interface components {
             attempts: number | null;
             /** Ttft Ms */
             ttft_ms: number | null;
+            /** Decode Ms */
+            decode_ms: number | null;
             usage: components["schemas"]["TurnUsage"] | null;
             /** Finish Reason */
             finish_reason: string | null;
@@ -7525,6 +7547,8 @@ export interface components {
             reasoning_tokens?: number | null;
             /** Cost Nano Usd */
             cost_nano_usd?: number | null;
+            /** Cost Nano Cny */
+            cost_nano_cny?: number | null;
             /** Price Periods */
             price_periods?: string[];
         };
@@ -7646,6 +7670,8 @@ export interface components {
             audio_duration_ms: number;
             /** Cost Nano Usd */
             cost_nano_usd?: number | null;
+            /** Cost Nano Cny */
+            cost_nano_cny?: number | null;
             /**
              * Start
              * Format: date-time
@@ -7716,6 +7742,8 @@ export interface components {
             audio_duration_ms: number;
             /** Cost Nano Usd */
             cost_nano_usd?: number | null;
+            /** Cost Nano Cny */
+            cost_nano_cny?: number | null;
             /** Key */
             key: string;
             /** Models */
@@ -7770,6 +7798,8 @@ export interface components {
             audio_duration_ms: number;
             /** Cost Nano Usd */
             cost_nano_usd?: number | null;
+            /** Cost Nano Cny */
+            cost_nano_cny?: number | null;
             /** Weekday */
             weekday: number;
             /** Hour */
@@ -7895,6 +7925,8 @@ export interface components {
             audio_duration_ms: number;
             /** Cost Nano Usd */
             cost_nano_usd?: number | null;
+            /** Cost Nano Cny */
+            cost_nano_cny?: number | null;
         };
         /**
          * WaitSSEEvent

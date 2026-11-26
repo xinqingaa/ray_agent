@@ -18,6 +18,9 @@ class LLMUsage(BaseModel):
     completion_tokens: Optional[int] = None
     total_tokens: Optional[int] = None
     cached_tokens: Optional[int] = None
+    cache_write_tokens: Optional[int] = None
+    cache_write_30m_tokens: Optional[int] = None
+    cache_write_12h_tokens: Optional[int] = None
     reasoning_tokens: Optional[int] = None
 
     @property
@@ -48,4 +51,6 @@ class LLMInvokeResult(BaseModel):
     usage: Optional[LLMUsage] = None
     finish_reason: Optional[str] = None
     ttft_ms: Optional[int] = None
+    decode_ms: Optional[int] = None
+    service_tier: Optional[str] = None
     charge: Optional[UsageCharge] = None

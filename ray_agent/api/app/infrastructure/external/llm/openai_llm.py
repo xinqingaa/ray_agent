@@ -85,7 +85,8 @@ class OpenAILLM(LLM):
         from app.domain.models.model_catalog import find_model
         spec = find_model(llm_config.model_name, llm_config)
         self._custom = llm_config.custom_models.get(self._model_name)
-        self._billing_vendor = (endpoint.kind or "compatible") if endpoint else (spec.provider if spec else "compatible")
+        catalog_vendor = spec.provider if (spec is not None and not spec.custom) else None
+        self._billing_vendor = catalog_vendor or (endpoint.kind if endpoint else None) or "compatible"
         self._billing_provider = (endpoint.provider if endpoint else None) or self._billing_vendor
         self.supports_tools = spec is None or spec.tools
         self.connection_snapshot = None
@@ -182,7 +183,8 @@ class OpenAILLM(LLM):
                 raise
             raise LLMRequestError(message, retryable=error.retryable, status_code=error.status_code,
                                   context_exceeded=error.context_exceeded, reason=error.reason,
-                                  connect_failed=error.connect_failed) from None
+                                  connect_failed=error.connect_failed,
+                                  usage=error.usage, service_tier=error.service_tier) from None
         except Exception as error:
             status_code = getattr(error, "status_code", None)
             message = (upstream_message(error.response, self._api_key) if isinstance(error, APIStatusError)
@@ -209,11 +211,22 @@ class OpenAILLM(LLM):
         started = utc_now()
         try:
             result = await request
-        except (Exception, asyncio.CancelledError):
-            await record_usage(started, self._billing_provider, self._model_name, failed=True)
+        except (Exception, asyncio.CancelledError) as exc:
+            exc_usage = getattr(exc, "usage", None)
+            exc_tier = getattr(exc, "service_tier", None)
+            charge = (
+                token_charge(
+                    self._billing_vendor, self._model_name, started, exc_usage,
+                    self._custom.rates if self._custom else None, service_tier=exc_tier,
+                )
+                if exc_usage is not None
+                else None
+            )
+            await record_usage(started, self._billing_provider, self._model_name, failed=True, usage=exc_usage, charge=charge)
             raise
         charge = token_charge(
-            self._billing_vendor, self._model_name, started, result.usage, self._custom.rates if self._custom else None,
+            self._billing_vendor, self._model_name, started, result.usage,
+            self._custom.rates if self._custom else None, service_tier=result.service_tier,
         )
         await record_usage(started, self._billing_provider, self._model_name, usage=result.usage, charge=charge)
         result.charge = charge
@@ -250,22 +263,35 @@ class OpenAILLM(LLM):
         started = asyncio.get_running_loop().time()
         response = await self._client.responses.create(**self._responses_kwargs(messages, tools, response_format, tool_choice))
         ttft_ms = None
+        first_any_at: Optional[float] = None
+        first_visible_at: Optional[float] = None
+        completed_at: Optional[float] = None
         if self._streaming:
             stream, response = response, None
             try:
                 chunks = self._iter_chunks(stream)
                 async for event in chunks:
                     kind = _field(event, 'type')
-                    if kind in ('response.output_text.delta', 'response.function_call_arguments.delta') or (
-                        kind == 'response.output_item.added' and _field(_field(event, 'item'), 'type') == 'function_call'):
-                        if ttft_ms is None:
-                            ttft_ms = max(0, int((asyncio.get_running_loop().time() - started) * 1000))
+                    now_t = asyncio.get_running_loop().time()
+                    item_type = _field(_field(event, 'item'), 'type') if kind == 'response.output_item.added' else None
+                    is_visible = kind in ('response.output_text.delta', 'response.function_call_arguments.delta') or (
+                        kind == 'response.output_item.added' and item_type == 'function_call')
+                    is_activity = is_visible or kind in (
+                        'response.reasoning_text.delta', 'response.reasoning_summary_text.delta'
+                    ) or (kind == 'response.output_item.added' and item_type == 'reasoning')
+                    if is_activity and first_any_at is None:
+                        first_any_at = now_t
+                    if is_visible:
+                        if first_visible_at is None:
+                            first_visible_at = now_t
+                            ttft_ms = max(0, int((now_t - started) * 1000))
                         if kind == 'response.output_text.delta' and on_delta and _field(event, 'delta'):
                             await on_delta(_field(event, 'delta'))
                     if kind == 'error':
                         logger.warning('%sResponses流失败', prefix)
                         raise response_error(_field(event, 'code'), _field(event, 'message') or '模型流错误')
                     if kind in ('response.completed', 'response.incomplete', 'response.failed'):
+                        completed_at = asyncio.get_running_loop().time()
                         response = _field(event, 'response')
                         # 完整终态已收到。短暂读取尾部 [DONE]/EOF，使 HTTP 连接可复用；
                         # 不让迟迟不结束的 SSE 阻塞结果，也不重试已经完整收到的响应。
@@ -286,6 +312,7 @@ class OpenAILLM(LLM):
             if response is None:
                 raise LLMRequestError('模型流在完整终态前结束', retryable=True, reason='stream_interrupted')
         result = response_result(response, self._model_name, self._provider, ttft_ms)
+        result.decode_ms = _compute_decode_ms(first_any_at, first_visible_at, completed_at, result.usage)
         logger.info('%sLLM响应 protocol=responses model=%s finish_reason=%s tools=%s usage=%s',
                     prefix, self._model_name, result.finish_reason, len(result.message.get('tool_calls') or []),
                     result.usage.model_dump() if result.usage else None)
@@ -359,12 +386,16 @@ class OpenAILLM(LLM):
         choice = response.choices[0]
         message = choice.message
         usage = parse_completion_usage(getattr(response, "usage", None))
+        tier = getattr(response, "service_tier", None)
         logger.info(
             f"{prefix}LLM响应 model={self._model_name} finish_reason={choice.finish_reason} "
             f"has_content={bool(message.content)} tool_calls={len(message.tool_calls or [])} "
             f"usage={usage.model_dump() if usage else None}"
         )
-        return LLMInvokeResult(message=message.model_dump(), usage=usage, finish_reason=choice.finish_reason)
+        return LLMInvokeResult(
+            message=message.model_dump(), usage=usage, finish_reason=choice.finish_reason,
+            service_tier=tier if isinstance(tier, str) else None,
+        )
 
     async def _invoke_stream(
             self,
@@ -381,13 +412,28 @@ class OpenAILLM(LLM):
         ))
         assembly = _StreamAssembly()
         ttft_ms: Optional[int] = None
+        first_any_at: Optional[float] = None
+        first_visible_at: Optional[float] = None
+        last_chunk_at: Optional[float] = None
         try:
             async for chunk in self._iter_chunks(stream):
-                text, visible = assembly.add(chunk)
-                if visible and ttft_ms is None:
-                    ttft_ms = max(0, int((asyncio.get_running_loop().time() - started) * 1000))
+                text, visible, activity = assembly.add(chunk)
+                now_t = asyncio.get_running_loop().time()
+                if activity:
+                    if first_any_at is None:
+                        first_any_at = now_t
+                    last_chunk_at = now_t
+                if visible:
+                    if first_visible_at is None:
+                        first_visible_at = now_t
+                        ttft_ms = max(0, int((now_t - started) * 1000))
                 if text and on_delta is not None:
                     await on_delta(text)
+        except LLMRequestError as error:
+            if error.usage is None and assembly.usage is not None:
+                error.usage = assembly.usage
+                error.service_tier = assembly.service_tier
+            raise
         finally:
             close = getattr(stream, "aclose", None)
             if close is not None:
@@ -400,18 +446,23 @@ class OpenAILLM(LLM):
                 "模型流在结束原因前结束",
                 retryable=True,
                 reason="stream_interrupted",
+                usage=assembly.usage,
+                service_tier=assembly.service_tier,
             )
+        decode_ms = _compute_decode_ms(first_any_at, first_visible_at, last_chunk_at, assembly.usage)
         message = assembly.message()
         logger.info(
             f"{prefix}LLM响应 model={self._model_name} stream=True finish_reason={assembly.finish_reason} "
             f"has_content={bool(message.get('content'))} tool_calls={len(message.get('tool_calls') or [])} "
-            f"ttft_ms={ttft_ms} usage={assembly.usage.model_dump() if assembly.usage else None}"
+            f"ttft_ms={ttft_ms} decode_ms={decode_ms} usage={assembly.usage.model_dump() if assembly.usage else None}"
         )
         return LLMInvokeResult(
             message=message,
             usage=assembly.usage,
             finish_reason=assembly.finish_reason,
             ttft_ms=ttft_ms,
+            decode_ms=decode_ms,
+            service_tier=assembly.service_tier,
         )
 
     async def _iter_chunks(self, stream: Any):
@@ -449,24 +500,29 @@ class _StreamAssembly:
         self._tools: Dict[int, Dict[str, Optional[str]]] = {}
         self.finish_reason: Optional[str] = None
         self.usage: Optional[LLMUsage] = None
+        self.service_tier: Optional[str] = None
 
-    def add(self, chunk: Any) -> tuple[Optional[str], bool]:
-        """返回 (文本增量, 这一片是否是可见文本或工具调用片段)。推理分片两者都不是。"""
+    def add(self, chunk: Any) -> tuple[Optional[str], bool, bool]:
+        """返回 (文本增量, 是否是可见文本或工具调用片段, 是否有任何生成活动含推理或终态)。"""
+        tier = _field(chunk, "service_tier")
+        if isinstance(tier, str) and tier:
+            self.service_tier = tier
         parsed = parse_completion_usage(_field(chunk, "usage"))
         if parsed is not None:
             self.usage = parsed
         choices = _field(chunk, "choices") or []
         if not choices:
-            return None, False
+            return None, False, False
         choice = choices[0]
         finish = _field(choice, "finish_reason")
         if finish:
             self.finish_reason = str(finish)
         delta = _field(choice, "delta")
         if delta is None:
-            return None, False
+            return None, False, bool(finish)
         text: Optional[str] = None
         visible = False
+        has_reasoning = False
         content = _field(delta, "content")
         if isinstance(content, str) and content:
             self._content.append(content)
@@ -475,6 +531,7 @@ class _StreamAssembly:
         reasoning = _field(delta, "reasoning_content")
         if isinstance(reasoning, str) and reasoning:
             self._reasoning.append(reasoning)
+            has_reasoning = True
         tool_calls = _field(delta, "tool_calls") or []
         if tool_calls:
             visible = True
@@ -493,7 +550,7 @@ class _StreamAssembly:
                 arguments = _field(function, "arguments")
                 if arguments:
                     slot["arguments"] = f"{slot['arguments']}{arguments}"
-        return text, visible
+        return text, visible, visible or has_reasoning or bool(finish)
 
     def message(self) -> Dict[str, Any]:
         message: Dict[str, Any] = {
@@ -512,6 +569,25 @@ class _StreamAssembly:
                 for index, slot in sorted(self._tools.items())
             ]
         return message
+
+
+def _compute_decode_ms(
+    first_any_at: Optional[float],
+    first_visible_at: Optional[float],
+    completed_at: Optional[float],
+    usage: Optional[LLMUsage],
+) -> Optional[int]:
+    """测算纯解码耗时：排除 1s 尾部排空与图片准备；未返回 reasoning_tokens 时起算点含思考阶段以对齐口径。"""
+    if completed_at is None:
+        return None
+    has_reasoning_split = usage is not None and usage.reasoning_tokens is not None
+    if not has_reasoning_split and first_any_at is not None and first_visible_at is not None and first_any_at < first_visible_at:
+        start_at = first_any_at
+    else:
+        start_at = first_visible_at if first_visible_at is not None else first_any_at
+    if start_at is None:
+        return None
+    return max(0, int((completed_at - start_at) * 1000))
 
 
 def _field(source: Any, name: str) -> Any:

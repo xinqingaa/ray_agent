@@ -2,7 +2,7 @@ import {ArrowRight, Clock3, Coins, Gauge, Repeat2, type UiIcon} from '@/componen
 import {Button} from '@/components/ui/button'
 import {useRef, useState, type ReactNode} from 'react'
 import {cn} from '@/lib/utils'
-import {formatEstimatedCost} from '@/lib/api/usage'
+import {formatCostAmounts, formatExactCostAmounts, hasAnyCost, type CostAmounts} from '@/lib/api/usage'
 import type {RunView, StreamingDraft, TokenCounts, TurnView} from '@/lib/session-view'
 import {resolveOutputRate, type OutputRate} from '@/lib/session-projection'
 import {Popover, PopoverContent, PopoverTrigger} from '@/components/ui/popover'
@@ -16,12 +16,18 @@ type RunStatusBarProps = {
   run: RunView | null
   streaming?: StreamingDraft | null
   showCost?: boolean
-  sessionCost?: number | null
+  sessionCost?: CostAmounts | number | null
   onOpenDetails?: (runId: string) => void
   className?: string
 }
 
 const LIVE_PHASES: RunPhase[] = ['preparing_environment', 'model', 'tool', 'waiting_reply', 'waiting_approval', 'stopping']
+
+function normalizeSessionCost(value: CostAmounts | number | null | undefined): CostAmounts | null {
+  if (value == null) return null
+  if (typeof value === 'number') return {usd: value, cny: null}
+  return value
+}
 
 function elapsedText(ms: number | null): string {
   if (ms == null || !Number.isFinite(ms) || ms < 0) return '—s'
@@ -36,13 +42,25 @@ function rateText(rate: OutputRate | null | undefined): string {
 }
 
 function turnRate(turn: TurnView): OutputRate | null {
-  return resolveOutputRate({turnEnded: true, modelMs: turn.modelMs, ttftMs: turn.ttftMs,
-    completionTokens: turn.usage?.completion, reasoningTokens: turn.usage?.reasoning})
+  return resolveOutputRate({
+    turnEnded: true,
+    modelMs: turn.modelMs,
+    ttftMs: turn.ttftMs,
+    decodeMs: turn.decodeMs,
+    completionTokens: turn.usage?.completion,
+    reasoningTokens: turn.usage?.reasoning,
+  })
 }
 
-function RunSummary({elapsed, turns, tokens, cost}: {elapsed: number | null; turns: number; tokens: TokenCounts; cost?: number | null}) {
+function RunSummary({elapsed, turns, tokens, cost}: {
+  elapsed: number | null
+  turns: number
+  tokens: TokenCounts
+  cost?: CostAmounts | null
+}) {
   const hasSplit = tokens.prompt != null || tokens.completion != null
   const usage = hasSplit ? `输入 ${formatTokens(tokens.prompt)} · 输出 ${formatTokens(tokens.completion)}` : formatTokens(totalTokens(tokens))
+  const hasCost = hasAnyCost(cost)
   return <section aria-label="运行概览" className="text-meta">
     <h3 className="font-semibold">本次运行</h3>
     <dl className="mt-2 grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-3 gap-y-1.5">
@@ -51,7 +69,7 @@ function RunSummary({elapsed, turns, tokens, cost}: {elapsed: number | null; tur
       <dt className="text-muted-foreground">用量</dt><dd className="text-right text-xs tabular-nums">{usage}</dd>
       {cost !== undefined && <>
         <dt className="text-muted-foreground">估算费用</dt>
-        <dd className="text-right text-xs tabular-nums">{cost == null ? '未计价' : formatEstimatedCost(cost)}</dd>
+        <dd className="text-right text-xs tabular-nums">{hasCost ? formatExactCostAmounts(cost) : '未计价'}</dd>
       </>}
     </dl>
   </section>
@@ -75,9 +93,11 @@ export function RunStatusBar({run, streaming, className, showCost, sessionCost, 
   const navigating = useRef(false)
   const now = useNow(live && run != null)
   const currentStream = streaming?.runId === run?.id ? streaming : null
+  // 使用最近增量时间戳与秒级时钟的较大值，避免 1 秒冻结时钟导致分母极小、速率飙升。
+  const streamSampleAt = currentStream ? Math.max(now ?? 0, currentStream.updatedAt ?? 0) : 0
   const currentRate = currentStream ? resolveOutputRate({
     text: currentStream.text,
-    elapsedMs: now != null && currentStream.startedAt != null ? now - currentStream.startedAt : null,
+    elapsedMs: streamSampleAt > 0 && currentStream.startedAt != null ? streamSampleAt - currentStream.startedAt : null,
   }) : null
   const rateValue = currentRate?.tokensPerSecond
   const streamRunId = currentStream?.runId
@@ -111,12 +131,18 @@ export function RunStatusBar({run, streaming, className, showCost, sessionCost, 
   const speedNote = rate?.estimated ? '按可见文本估算' : rate ? '最近一轮输出速度，不含工具等待' : '尚无速度'
   const tokens = run.summary?.tokens ?? run.tokens
   const total = totalTokens(tokens)
-  const periods: Record<string, string> = {peak: '高峰', off_peak: '低谷', standard: '标准', custom: '自定义'}
-  const cost = run.costNanos != null ? formatEstimatedCost(run.costNanos) : '—'
-  const costVisible = showCost && ended && (run.costNanos != null || run.turns.some(turn => turn.usage))
-  const costDetail = ['估算费用', run.model, run.pricePeriods?.map(period => periods[period] ?? period).join('、'),
+  const periods: Record<string, string> = {
+    peak: '高峰', off_peak: '低谷', standard: '标准', long_context: '超长上下文', custom: '自定义',
+  }
+  const runAmounts: CostAmounts = {usd: run.costNanos ?? null, cny: run.costCnyNanos ?? null}
+  const runHasCost = hasAnyCost(runAmounts)
+  const cost = runHasCost ? formatCostAmounts(runAmounts) : '—'
+  const costVisible = showCost && ended && (runHasCost || run.turns.some(turn => turn.usage))
+  const sessionAmounts = normalizeSessionCost(sessionCost)
+  const costDetail = [runHasCost ? `估算费用 ${formatExactCostAmounts(runAmounts)}` : '估算费用', run.model, run.pricePeriods?.map(period => periods[period] ?? period).join('、'),
     `输入 ${formatTokens(tokens.prompt)}（缓存命中 ${formatTokens(tokens.cached)}） · 输出 ${formatTokens(tokens.completion)}`,
-    `本对话累计 ${formatEstimatedCost(sessionCost)}`, '实际金额以服务商账单为准'].filter(Boolean).join('\n')
+    hasAnyCost(sessionAmounts) ? `本对话累计 ${formatExactCostAmounts(sessionAmounts)}` : null,
+    '实际金额以服务商账单为准'].filter(Boolean).join('\n')
   const label = [`本次运行用时 ${elapsedText(elapsed)}`, `${turnCount} 轮`, `${speed} tokens 每秒，${speedNote}`,
     ...(ended ? [`已记录 ${total != null ? formatCount(total) : '未知'} tokens`] : []),
     ...(costVisible ? [`估算费用 ${cost}`] : [])].join('，')
@@ -137,7 +163,7 @@ export function RunStatusBar({run, streaming, className, showCost, sessionCost, 
               <Stat icon={Repeat2} title="模型请求轮次" detailsOpen={open}>{turnCount} 轮</Stat>
               <Stat icon={Gauge} title={`输出速度（${speedNote}）`} detailsOpen={open} secondary>{speed} tok/s</Stat>
               {ended && <Stat title={`本次运行已记录 ${total != null ? formatCount(total) : '未知'} Token`} detailsOpen={open} secondary>{formatTokens(total)}</Stat>}
-              {costVisible && <Stat icon={Coins} title={costDetail} detailsOpen={open}>{run.costNanos != null ? '≈' + cost : cost}</Stat>}
+              {costVisible && <Stat icon={Coins} title={costDetail} detailsOpen={open}>{runHasCost ? '≈' + cost : cost}</Stat>}
             </button>
           </PopoverTrigger>
           <PopoverContent side="bottom" sideOffset={8} align="end" collisionPadding={12}
@@ -148,7 +174,7 @@ export function RunStatusBar({run, streaming, className, showCost, sessionCost, 
               event.preventDefault()
             }}>
             <RunSummary elapsed={elapsed} turns={turnCount} tokens={tokens}
-              cost={showCost ? run.costNanos ?? (costVisible ? null : undefined) : undefined}/>
+              cost={showCost ? (runHasCost ? runAmounts : costVisible ? null : undefined) : undefined}/>
             {onOpenDetails && <div className="mt-2 border-t pt-1">
               <Button type="button" variant="ghost" size="xs" className="-mx-1.5 text-signal" onClick={() => {
                 navigating.current = true

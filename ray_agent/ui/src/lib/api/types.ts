@@ -289,6 +289,7 @@ export type ModelCatalog = {
     /** 目录外模型中尚未确认的能力，界面以「能力未确认」提示，不阻塞选择 */
     unconfirmed?: string[];
     context_window: number;
+    default_context_window?: number | null;
     max_output: number;
     choices: string[];
     default_choice: string;

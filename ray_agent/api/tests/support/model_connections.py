@@ -30,5 +30,5 @@ models = ["deepseek-flash", "deepseek-v4-pro"]
 base_url = "{gpt_url}"
 api_key = "{gpt_key}"
 protocol = "{protocol}"
-models = ["gpt-6.1-sol", "gpt-6-luna", "gpt-6-astra"]
+models = ["gpt-6.2-sol", "gpt-6.2-astra", "gpt-6.1-sol", "gpt-6-luna", "gpt-6-astra"]
 '''

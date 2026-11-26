@@ -28,8 +28,10 @@ class UsageModel(Base):
     output_tokens: Mapped[int | None]
     total_tokens: Mapped[int | None]
     cached_tokens: Mapped[int | None]
+    cache_write_tokens: Mapped[int | None]
     reasoning_tokens: Mapped[int | None]
     audio_duration_ms: Mapped[int | None]
     cost_nano_usd: Mapped[int | None]
+    cost_nano_cny: Mapped[int | None]
     price_version: Mapped[str | None] = mapped_column(String(64))
     price_period: Mapped[str | None] = mapped_column(String(24))

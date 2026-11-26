@@ -6,12 +6,16 @@ import {configApi} from '@/lib/api/config'
 import {sessionApi} from '@/lib/api/session'
 import type {ModelCatalog} from '@/lib/api/types'
 import {Popover, PopoverContent, PopoverTrigger} from '@/components/ui/popover'
+import {AlertDialog, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle} from '@/components/ui/alert-dialog'
+import {Button} from '@/components/ui/button'
 import {Switch} from '@/components/ui/switch'
 import {LevelSlider} from '@/components/ui/level-slider'
 import {Select} from '@/components/ui/select'
 import {VendorIcon} from '@/components/vendor-icon'
+import {formatCount} from '@/components/run/format'
 import {cn} from '@/lib/utils'
 import {contextLabel, modelFacts, modelsForVendor, reasoningLabel, selectModel, thinkingOptions, unconfirmedFields, vendorOf, vendorTabs, type CatalogModel, type ModelSelection} from '@/lib/model-selection'
+import {isOpenAiCatalogModel, isOpenAiLongContextWarningSuppressed, OPENAI_LONG_CONTEXT_THRESHOLD, shouldWarnOpenAiLongContext, suppressOpenAiLongContextWarning} from '@/lib/model-switch-warning'
 import {useDeveloperMode} from '@/hooks/use-developer-mode'
 import {isDesktop, openModelConfig} from '@/lib/platform'
 import {MODEL_PREFERENCE_CHANGED, readModelPreference, rememberModelPreference, validModelPreference} from '@/lib/model-preference'
@@ -21,9 +25,10 @@ function usableCatalog(data: ModelCatalog | null | undefined): ModelCatalog | nu
   return data?.provider && data.models.length ? data : null
 }
 
-export function ModelPicker({sessionId, savedModel, savedReasoning, onSelection, catalog: providedCatalog, loadError}: {
+export function ModelPicker({sessionId, savedModel, savedReasoning, onSelection, contextTokens, onModelCommitted, catalog: providedCatalog, loadError}: {
   sessionId?: string | null; savedModel?: string | null; savedReasoning?: string | null;
   runModel?: string | null; runReasoning?: string | null; onSelection: (selection: ModelSelection | null) => void;
+  contextTokens?: number | null; onModelCommitted?: () => void;
   catalog?: ModelCatalog; loadError?: string;
 }) {
   const {visibility} = useDeveloperMode()
@@ -44,6 +49,9 @@ export function ModelPicker({sessionId, savedModel, savedReasoning, onSelection,
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [notice, setNotice] = useState<string | null>(null)
+  const [pendingConfirm, setPendingConfirm] = useState<{edit: ModelSelection; targetModel: string; tokens: number} | null>(null)
+  const [dontRemind, setDontRemind] = useState(false)
+  const [confirmError, setConfirmError] = useState<string | null>(null)
   const [scope, setScope] = useState(sessionId)
   const request = useRef(0)
   const lastEffort = useRef<Record<string, string>>({})
@@ -58,7 +66,17 @@ export function ModelPicker({sessionId, savedModel, savedReasoning, onSelection,
       window.removeEventListener(MODEL_PREFERENCE_CHANGED, refresh)
     }
   }, [])
-  if (scope !== sessionId) {setScope(sessionId); setPicked(null); setDraft(null); setOpen(false); setSaving(false); setError(null)}
+  if (scope !== sessionId) {
+    setScope(sessionId)
+    setPicked(null)
+    setDraft(null)
+    setOpen(false)
+    setSaving(false)
+    setError(null)
+    setPendingConfirm(null)
+    setDontRemind(false)
+    setConfirmError(null)
+  }
   useEffect(() => {
     if (loadError) {setCatalog(null); setCatalogError(loadError); setCatalogReady(true); return}
     if (providedCatalog) {setCatalog(usableCatalog(providedCatalog)); setCatalogError(null); setCatalogReady(true); return}
@@ -122,17 +140,41 @@ export function ModelPicker({sessionId, savedModel, savedReasoning, onSelection,
     else if (options.some(option => option.id === edit.reasoning)) lastEffort.current[model.id] = edit.reasoning
     setDraft({...edit, reasoning}); setError(null)
   }
-  async function commitClose() {
-    if (!changed) {setDraft(null); setNotice(null); setError(null); setOpen(false); return}
+  async function persistSelection(nextEdit: ModelSelection): Promise<boolean> {
     const id = ++request.current
-    setSaving(true); setError(null)
+    setSaving(true); setError(null); setConfirmError(null)
     try {
-      const result = sessionId ? await sessionApi.setModel(sessionId, edit) : edit
-      if (id !== request.current) return
+      const result = sessionId ? await sessionApi.setModel(sessionId, nextEdit) : nextEdit
+      if (id !== request.current) return false
       rememberModelPreference(result)
       setPicked(result); setDraft(null); setNotice(null); setOpen(false)
-    } catch (e) {if (id === request.current) setError(e instanceof Error ? e.message : '模型没有切换')}
+      onModelCommitted?.()
+      return true
+    } catch (e) {
+      if (id === request.current) {
+        const message = e instanceof Error ? e.message : '模型没有切换'
+        setError(message)
+        setConfirmError(message)
+      }
+      return false
+    }
     finally {if (id === request.current) setSaving(false)}
+  }
+  async function commitClose() {
+    if (!changed) {setDraft(null); setNotice(null); setError(null); setOpen(false); return}
+    if (sessionId && contextTokens != null && shouldWarnOpenAiLongContext({
+      fromModelId: selection?.model,
+      toModel: model,
+      contextTokens,
+      suppressed: isOpenAiLongContextWarningSuppressed(),
+    })) {
+      setOpen(false)
+      setDontRemind(false)
+      setConfirmError(null)
+      setPendingConfirm({edit, targetModel: edit.model, tokens: contextTokens})
+      return
+    }
+    await persistSelection(edit)
   }
   const effort = shownEffort()
   const groups = vendorTabs(catalog.models).map(vendor => ({...vendor, models: modelsForVendor(catalog.models, vendor.id)}))
@@ -169,7 +211,12 @@ export function ModelPicker({sessionId, savedModel, savedReasoning, onSelection,
   }
   const defaultEffort = model && options.some(option => option.id === model.default_choice) ? model.default_choice : options[0]?.id
   const status = error ?? (saving ? '正在保存' : notice ?? (enabled ? null : '已关闭'))
-  return <Popover open={open} onOpenChange={value => {
+  const showSwitchWarning = Boolean(
+    sessionId && contextTokens != null && contextTokens > OPENAI_LONG_CONTEXT_THRESHOLD
+    && isOpenAiCatalogModel(model) && edit.model !== selection.model,
+  )
+  return <>
+  <Popover open={open} onOpenChange={value => {
     if (saving) return
     if (value) {setOpen(true); setDraft(selection); setError(null); setNotice(null); refreshCatalog(); return}
     return commitClose()
@@ -193,6 +240,11 @@ export function ModelPicker({sessionId, savedModel, savedReasoning, onSelection,
       </div>}
       {catalogError && <p role="alert" className="mx-2 mt-1 text-xs text-state-failed">{catalogError}</p>}
       {!model && <p role="alert" className="mx-2 mt-2 text-xs text-state-failed">所选模型暂不可用，请选择其他模型</p>}
+      {showSwitchWarning && contextTokens != null && (
+        <p role="status" className="mx-2 mt-1.5 rounded-md bg-state-waiting-soft px-2 py-1.5 text-xs leading-relaxed text-state-waiting">
+          当前上下文约 {contextLabel(contextTokens)}，超过 OpenAI 272K 标准计费上限（超长输入 2×、输出 1.5×）。
+        </p>
+      )}
       {model && model.reasoning_options.length > 0 && <div className="mt-1.5 border-t px-2 pt-2">
         <div className="flex h-7 items-center gap-2">
           <label htmlFor="model-thinking" className="shrink-0 text-meta font-medium">思考强度</label>
@@ -215,4 +267,58 @@ export function ModelPicker({sessionId, savedModel, savedReasoning, onSelection,
       {!(model && model.reasoning_options.length > 0) && (saving || error) && <p role={error ? 'alert' : 'status'} className={cn('mx-2 mb-1 mt-2 text-xs', error ? 'text-state-failed' : 'text-muted-foreground')}>{error ?? '正在保存'}</p>}
     </PopoverContent>
   </Popover>
+  <AlertDialog open={pendingConfirm != null} onOpenChange={nextOpen => {
+    if (!nextOpen && !saving) {
+      setPendingConfirm(null)
+      setDraft(null)
+      setNotice(null)
+      setError(null)
+      setConfirmError(null)
+      setDontRemind(false)
+    }
+  }}>
+    <AlertDialogContent onEscapeKeyDown={event => {if (saving) event.preventDefault()}}>
+      <AlertDialogHeader>
+        <AlertDialogTitle>当前上下文已超过 272K</AlertDialogTitle>
+        <AlertDialogDescription>
+          {pendingConfirm ? `当前对话上下文约 ${formatCount(pendingConfirm.tokens)} Token，已超过 OpenAI 272K 标准计费上限。` : ''}
+        </AlertDialogDescription>
+      </AlertDialogHeader>
+      {pendingConfirm && (
+        <div className="space-y-2.5 text-sm leading-relaxed text-foreground">
+          <div className="rounded-lg bg-state-waiting-soft px-3 py-2.5 text-xs leading-relaxed text-state-waiting">
+            <p>切换到 <code>{pendingConfirm.targetModel}</code> 后，若实际发送给 OpenAI 上游的输入超过 272K，官方将按超长上下文计费（输入 2×、输出 1.5×）。</p>
+            <p className="mt-1">在默认 272K 应用预算下，下一次发送前也会先尝试自动压缩较早历史，以尽量控制在 272K 内。</p>
+          </div>
+          <label className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground select-none">
+            <input type="checkbox" className="size-3.5 accent-signal" checked={dontRemind} disabled={saving}
+              onChange={event => setDontRemind(event.target.checked)}/>
+            <span>不再提醒（之后切换 OpenAI 模型直接生效）</span>
+          </label>
+          {confirmError && <p role="alert" className="rounded-md bg-state-failed-soft px-3 py-2 text-xs text-state-failed">{confirmError}</p>}
+        </div>
+      )}
+      <AlertDialogFooter>
+        <Button type="button" variant="outline" disabled={saving} onClick={() => {
+          setPendingConfirm(null)
+          setDraft(null)
+          setNotice(null)
+          setError(null)
+          setConfirmError(null)
+          setDontRemind(false)
+        }}>取消</Button>
+        <Button type="button" variant="default" disabled={saving} onClick={() => {
+          if (!pendingConfirm) return
+          if (dontRemind) suppressOpenAiLongContextWarning()
+          void persistSelection(pendingConfirm.edit).then(ok => {
+            if (ok) {
+              setPendingConfirm(null)
+              setDontRemind(false)
+            }
+          })
+        }}>{saving ? '正在切换' : '继续切换'}</Button>
+      </AlertDialogFooter>
+    </AlertDialogContent>
+  </AlertDialog>
+  </>
 }

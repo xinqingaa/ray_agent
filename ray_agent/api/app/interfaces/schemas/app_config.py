@@ -54,6 +54,7 @@ class ModelCatalogItem(BaseModel):
     unconfirmed: List[str] = Field(default_factory=list)  # 未确认的能力，选择器轻标记
     connection_issue: Optional[str] = None
     context_window: int
+    default_context_window: Optional[int] = None
     max_output: int
     choices: List[str]
     default_choice: str

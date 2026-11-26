@@ -157,7 +157,7 @@ class RunLedger:
                     raise _StaleRun()
                 summary = run.summary() if status.terminal else None
                 if summary is not None and getattr(uow, "usage", None) is not None:
-                    summary.cost_nano_usd = await uow.usage.run_cost(run_id)
+                    summary.cost_nano_usd, summary.cost_nano_cny = await uow.usage.run_costs(run_id)
                 run_event = RunEvent(
                     status=status.value,
                     reason=reason,

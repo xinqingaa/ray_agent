@@ -44,6 +44,8 @@ interface ChatInputProps {
   savedReasoning?: string | null
   runModel?: string | null
   runReasoning?: string | null
+  contextTokens?: number | null
+  onModelCommitted?: () => void
   /** 运行中或消息刚送出时，发送位改为停止生成。停止中按钮禁用，转圈留在时间线那一句。 */
   pause?: false | 'ready' | 'stopping'
   onPause?: () => void
@@ -82,7 +84,7 @@ export interface ChatInputRef {
 }
 
 export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
-  ({ className, onInputValueChange, onSend, onAbandonSubmission, pause = false, onPause, disabled = false, autoFocus = false, workspace = false, workspaceId, sessionId, placeholder = '分配一个任务或提问任何问题...', accessory, topBanner, draftScope, commandHost = EMPTY_HOST, savedModel = null, savedReasoning = null, runModel = null, runReasoning = null }, ref) => {
+  ({ className, onInputValueChange, onSend, onAbandonSubmission, pause = false, onPause, disabled = false, autoFocus = false, workspace = false, workspaceId, sessionId, placeholder = '分配一个任务或提问任何问题...', accessory, topBanner, draftScope, commandHost = EMPTY_HOST, savedModel = null, savedReasoning = null, runModel = null, runReasoning = null, contextTokens = null, onModelCommitted }, ref) => {
     const {visibility} = useDeveloperMode()
     const pickDestination = useContext(TaskFilePicker)
     const [files, setFiles] = useState<FileInfo[]>([])
@@ -829,6 +831,8 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
             savedReasoning={savedReasoning}
             runModel={runModel}
             runReasoning={runReasoning}
+            contextTokens={contextTokens}
+            onModelCommitted={onModelCommitted}
             onSelection={setModelChoice}
           />
           {typeof accessory === 'function' ? accessory(commandContext) : accessory}

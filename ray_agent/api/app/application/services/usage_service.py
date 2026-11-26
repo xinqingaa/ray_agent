@@ -91,11 +91,13 @@ class _Aggregate:
         total = self.totals
         total.requests += 1
         total.failed_requests += int(row.failed)
-        total.unpriced_requests += int(row.cost_nano_usd is None)
+        total.unpriced_requests += int(row.cost_nano_usd is None and row.cost_nano_cny is None)
         for name in ("input_tokens", "cached_tokens", "output_tokens", "total_tokens", "reasoning_tokens", "audio_duration_ms"):
             setattr(total, name, getattr(total, name) + (getattr(row, name) or 0))
         if row.cost_nano_usd is not None:
             total.cost_nano_usd = (total.cost_nano_usd or 0) + row.cost_nano_usd
+        if row.cost_nano_cny is not None:
+            total.cost_nano_cny = (total.cost_nano_cny or 0) + row.cost_nano_cny
         self.models[row.model] += 1
         if row.price_period:
             self.periods.add(row.price_period)

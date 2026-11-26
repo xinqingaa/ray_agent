@@ -13,6 +13,10 @@ export type UsageRange = NonNullable<UsageQuery['range_id']>
 type VoiceQuery = NonNullable<paths['/api/voice/transcriptions']['post']['parameters']['query']>
 export type VoiceEngine = NonNullable<VoiceQuery['engine']>
 
+export type CostCurrency = 'USD' | 'CNY'
+export type CostAmounts = {usd?: number | null; cny?: number | null}
+export const REFERENCE_USD_TO_CNY = 7
+
 export const USAGE_RECORDED = 'rayagent:usage-recorded'
 
 export const usageApi = {
@@ -35,8 +39,62 @@ export const usageApi = {
   },
 }
 
-export function formatEstimatedCost(nanos: number | null | undefined) {
+export const SUB_CENT_NANOS = 10_000_000
+
+export function formatExactCost(nanos: number | null | undefined, currency: CostCurrency = 'USD') {
   if (nanos == null) return '—'
-  if (nanos > 0 && nanos < 1000) return '<$0.000001'
-  return '$' + (nanos / 1e9).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 6})
+  const symbol = currency === 'CNY' ? '¥' : '$'
+  if (nanos > 0 && nanos < 1000) return `<${symbol}0.000001`
+  return symbol + (nanos / 1e9).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 6})
+}
+
+export function formatEstimatedCost(nanos: number | null | undefined, currency: CostCurrency = 'USD') {
+  if (nanos == null) return '—'
+  const symbol = currency === 'CNY' ? '¥' : '$'
+  if (nanos > 0 && nanos < SUB_CENT_NANOS) return `<${symbol}0.01`
+  return symbol + (nanos / 1e9).toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2})
+}
+
+export function hasAnyCost(amounts: CostAmounts | null | undefined): boolean {
+  return amounts?.usd != null || amounts?.cny != null
+}
+
+export function formatCostParts(
+  amounts: CostAmounts | null | undefined,
+  zeroCurrency?: CostCurrency | null,
+  options?: {exact?: boolean},
+): string[] {
+  const fmt = options?.exact ? formatExactCost : formatEstimatedCost
+  const usd = amounts?.usd
+  const cny = amounts?.cny
+  if (cny == null && usd == null) {
+    return [zeroCurrency ? fmt(0, zeroCurrency) : '—']
+  }
+  if (cny != null && usd == null) return [fmt(cny, 'CNY')]
+  if (usd != null && cny == null) return [fmt(usd, 'USD')]
+  if ((cny ?? 0) > 0 && (usd ?? 0) > 0) {
+    return [fmt(cny, 'CNY'), fmt(usd, 'USD')]
+  }
+  if ((cny ?? 0) > 0) return [fmt(cny, 'CNY')]
+  if ((usd ?? 0) > 0) return [fmt(usd, 'USD')]
+  return [fmt(0, zeroCurrency ?? 'USD')]
+}
+
+export function formatCostAmounts(
+  amounts: CostAmounts | null | undefined,
+  zeroCurrency?: CostCurrency | null,
+): string {
+  return formatCostParts(amounts, zeroCurrency).join(' + ')
+}
+
+export function formatExactCostAmounts(
+  amounts: CostAmounts | null | undefined,
+  zeroCurrency?: CostCurrency | null,
+): string {
+  return formatCostParts(amounts, zeroCurrency, {exact: true}).join(' + ')
+}
+
+export function comparableCostCny(amounts: CostAmounts | null | undefined): number | null {
+  if (!hasAnyCost(amounts)) return null
+  return (amounts?.cny ?? 0) + (amounts?.usd ?? 0) * REFERENCE_USD_TO_CNY
 }
