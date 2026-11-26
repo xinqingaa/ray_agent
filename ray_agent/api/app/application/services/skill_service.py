@@ -406,6 +406,32 @@ class SkillService:
             'inactive_reason': inactive_reason,
         }
 
+    async def preset_system_instruction(self, preset_id: str | None) -> tuple[str | None, str]:
+        """读取有效内置预设的系统级正文（去掉 frontmatter）与执行档位；无效或停用返回 (None, 'default')。"""
+        if not preset_id:
+            return None, 'default'
+        spec = BUILTIN_SKILLS.get(preset_id)
+        if spec is None or spec.category != 'preset' or spec.preset is None:
+            return None, 'default'
+        config = await self._config()
+        async with self.repository.transaction() as tx:
+            entry = await tx.get('skills', preset_id)
+            if entry is not None:
+                if not entry.get('builtin') or not self._selectable(entry, config):
+                    return None, 'default'
+                version = await tx.get('versions', entry['version'])
+            else:
+                return None, 'default'
+        if not version:
+            return None, 'default'
+        raw = await asyncio.to_thread(self.storage.read, version['version'], version['files'], 'SKILL.md')
+        parsed = parse_skill(raw, self.settings)
+        body = (parsed.get('text') or '').strip()
+        extra_files = [f['path'] for f in version.get('files', ()) if f.get('path') and f['path'] != 'SKILL.md']
+        if extra_files:
+            body += f"\n\n（如需更细的配套指引，可按需调用 read_skill_resource(name=\"{preset_id}\", path=\"...\") 读取：{', '.join(extra_files)}。）"
+        return body or None, spec.preset.execution_profile
+
     async def _check_budget(self, tx, replacement: dict, config: SkillConfig):
         entries = {e['id']: e for e in await tx.all('skills')}
         entries[replacement['id']] = replacement
@@ -594,7 +620,7 @@ class SkillService:
             if included is not None:
                 if included and not entry.get('enabled'):
                     raise SkillError('停用的 Skill 不能纳入目录', 409)
-                entry = {**entry, 'included': included}
+                entry = {**entry, 'included': included, 'included_overridden': True}
             if entry.get('enabled') and self._is_included(entry):
                 await self._check_budget(tx, entry, config)
             await tx.put('skills', skill_id, entry)
@@ -748,6 +774,10 @@ class SkillService:
             for op in await tx.all('imports'):
                 if op['stage'] in ('fetching', 'validating', 'publishing'):
                     await tx.put('imports', op['id'], {**op, 'stage': 'interrupted', 'error': '服务重启，导入中断，请重新获取'})
+            active_builtins = {candidate['name'] for _, candidate in prepared}
+            for existing in await tx.all('skills'):
+                if existing.get('builtin') and existing['id'] not in active_builtins:
+                    await tx.delete('skills', existing['id'])
             for spec, candidate in prepared:
                 old = await tx.get('skills', candidate['name'])
                 if old and not old.get('builtin') and not old.get('external'):
@@ -756,11 +786,20 @@ class SkillService:
                 version['context_chars'] = len(body_message('', version, self.settings.skill_resource_chars)['content'])
                 version.pop('text', None)
                 enabled = old['enabled'] if old else True
-                included = bool(old['included']) if old and 'included' in old else spec.default_included
+                prev_default = old.get('default_included') if old else None
+                overridden = bool(old.get('included_overridden')) if old else False
+                if old and 'included' in old:
+                    if overridden or prev_default is None or prev_default == spec.default_included:
+                        included = bool(old['included'])
+                    else:
+                        included = spec.default_included
+                else:
+                    included = spec.default_included
                 entry = {k: candidate[k] for k in ('name', 'description', 'version')}
                 entry.update(
-                    id=candidate['name'], enabled=enabled, included=included, builtin=True,
-                    external=False, status='available', category=spec.category,
+                    id=candidate['name'], enabled=enabled, included=included,
+                    default_included=spec.default_included, included_overridden=overridden,
+                    builtin=True, external=False, status='available', category=spec.category,
                     source={'kind': 'builtin', 'label': '内置'},
                 )
                 await tx.put('versions', candidate['version'], version)
@@ -823,7 +862,10 @@ class SkillService:
             required_entries = self.preset_preload_entries(entries, config, preset_id)
             bound = self._freeze_bound(entries, config, workspace_id, selected, required_entries=required_entries)
             for entry in bound:
-                payload = {**entry, 'active': False, 'root_path': str(self.snapshot_root(entry['version']))}
+                version = await tx.get('versions', entry['version'])
+                has_resources = bool(version and any(f.get('path') != 'SKILL.md' for f in version.get('files', ())))
+                payload = {**entry, 'active': False, 'root_path': str(self.snapshot_root(entry['version'])),
+                           'has_resources': has_resources}
                 await tx.bind(run.id, entry['id'], entry['version'], payload)
             await uow.run.save_snapshot(run.id, {
                 **run.config_snapshot,
@@ -855,7 +897,10 @@ class SkillService:
             entries = self._freeze_bound(all_entries, config, workspace_id, None, required_entries=required_entries)
             bound = []
             for entry in entries:
-                payload = {**entry, 'active': False, 'root_path': str(self.snapshot_root(entry['version']))}
+                version = await tx.get('versions', entry['version'])
+                has_resources = bool(version and any(f.get('path') != 'SKILL.md' for f in version.get('files', ())))
+                payload = {**entry, 'active': False, 'root_path': str(self.snapshot_root(entry['version'])),
+                           'has_resources': has_resources}
                 await tx.bind(run_id, entry['id'], entry['version'], payload)
                 bound.append(payload)
             return bound
@@ -877,7 +922,10 @@ class SkillService:
                 return old
             if len(catalog_message('', [*bound, entry], self.settings.skill_catalog_description_chars)['content']) > self.settings.skill_catalog_chars:
                 raise SkillError('本运行 Skill 目录容量不足', 409)
-            payload = {**entry, 'active': False, 'root_path': str(self.snapshot_root(entry['version']))}
+            version = await tx.get('versions', entry['version'])
+            has_resources = bool(version and any(f.get('path') != 'SKILL.md' for f in version.get('files', ())))
+            payload = {**entry, 'active': False, 'root_path': str(self.snapshot_root(entry['version'])),
+                       'has_resources': has_resources}
             await tx.bind(run_id, entry['id'], entry['version'], payload)
         return payload
 

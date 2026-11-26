@@ -79,7 +79,9 @@ def response_result(
                 elif part.get('type') == 'refusal':
                     content.append(part.get('refusal') or '')
         elif kind == 'reasoning':
-            reasoning.extend(part.get('text') or '' for part in item.get('content') or [] if part.get('type') == 'reasoning_text')
+            parts = [part.get('text') or '' for part in item.get('content') or [] if part.get('type') == 'reasoning_text']
+            summary_parts = [part.get('text') or '' for part in item.get('summary') or [] if part.get('type') == 'summary_text']
+            reasoning.extend(parts or summary_parts)
         elif kind == 'function_call':
             if status == 'incomplete':
                 continue

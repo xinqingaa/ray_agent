@@ -138,7 +138,7 @@ def parse_pdf(path: Path, *, covered_pages: set[int] | None = None) -> dict:
     reader = PdfReader(str(path))
     if reader.is_encrypted:
         return fail("加密 PDF 不支持解析")
-    blocks, missing = [], []
+    blocks, missing, image_pages = [], [], []
     page_count = len(reader.pages)
     for index, page in enumerate(reader.pages, start=1):
         if covered_pages is not None and index in covered_pages:
@@ -147,12 +147,24 @@ def parse_pdf(path: Path, *, covered_pages: set[int] | None = None) -> dict:
             text = (page.extract_text() or "").strip()
         except Exception:
             return fail(f"第 {index} 页文字无法提取，请检查 PDF 后重试")
+        try:
+            has_images = bool(getattr(page, "images", None))
+        except Exception:
+            has_images = False
+        if has_images and (not text or len(text) < 40):
+            image_pages.append(index)
         if text:
             blocks.append(block("text", text, page=index))
         else:
             missing.append(index)
 
-    result = {"status": "ok", "format": DocumentFormat.PDF.value, "page_count": page_count, "blocks": blocks}
+    result = {
+        "status": "ok",
+        "format": DocumentFormat.PDF.value,
+        "page_count": page_count,
+        "blocks": blocks,
+        "image_pages": image_pages,
+    }
     if not missing:
         return {**result, "ocr_state": "not_needed"}
 

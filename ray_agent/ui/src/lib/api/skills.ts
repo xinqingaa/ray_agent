@@ -52,6 +52,7 @@ export type SkillMarketItem = {id: string; repository: string; slug: string; nam
 export type SkillMarketTarget = {workspace_id: string | null; target_id: string; directory: string}
 export type SkillMarketPage = {items: SkillMarketItem[]; has_more: boolean; updated_at: number; stale: boolean}
 export type PresetStarter = {label: string; prompt: string}
+export type ExecutionProfile = 'dialogue' | 'interactive' | 'workspace_task'
 export type PresetItem = {
   id: string
   title: string
@@ -61,6 +62,7 @@ export type PresetItem = {
   starters: PresetStarter[]
   depends_on: string[]
   default_participate_in_memory: boolean
+  execution_profile?: ExecutionProfile
 }
 export type SessionPresetState = {
   id: string

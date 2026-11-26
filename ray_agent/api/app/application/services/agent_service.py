@@ -439,11 +439,21 @@ class AgentService:
                     raise BadRequestError("工具发现失败，暂时无法估算下一次运行，请重试")
                 workdir = await self._workdir(session_id)
                 run_files = await self._run_files(session, None)
+                preset_instruction, execution_profile = (None, "default")
+                if self._skills is not None and session.active_preset_id:
+                    preset_instruction, execution_profile = await self._skills.preset_system_instruction(session.active_preset_id)
+                has_mcp = any(item.enabled for item in self._mcp_config.mcpServers.values())
+                has_a2a = any(item.enabled for item in self._a2a_config.a2a_servers)
                 system_prompt = build_system_prompt(
-                    await self._environment(workdir, run_files, session.workspace_id))
+                    await self._environment(workdir, run_files, session.workspace_id),
+                    profile=execution_profile,
+                    preset_instruction=preset_instruction,
+                    has_mcp=has_mcp,
+                    has_a2a=has_a2a,
+                )
                 runtime = getattr(self, "_workspace_memory", None)
                 workspace_memory, project_prompt = None, ""
-                if runtime is not None and session.workspace_id:
+                if runtime is not None and session.workspace_id and execution_profile != "dialogue":
                     workspace_memory = runtime.ports(session.workspace_id, session.id, "preview")
                     project_prompt = await runtime.assemble(session, "preview", persist=False)
                 system_prompt += project_prompt
@@ -453,7 +463,8 @@ class AgentService:
                                              web_reader=getattr(self, '_web_reader', None),
                                              files=run_files.scope if run_files is not None else None,
                                              workspace_memory=workspace_memory),
-                    system_prompt=system_prompt, tool_policy=self._tool_policy)
+                    system_prompt=system_prompt, tool_policy=self._tool_policy,
+                    execution_profile=execution_profile, has_mcp=has_mcp, has_a2a=has_a2a)
                 messages = copy.deepcopy(memory.get_messages()) if memory else []
                 if not messages or messages[0].get("role") != "system":
                     messages.insert(0, {"role": "system", "content": system_prompt})
@@ -461,7 +472,7 @@ class AgentService:
                 if not getattr(llm, "keep_reasoning", False):
                     for message in messages:
                         message.pop("reasoning_content", None)
-                tools = loop.pipeline.schemas()
+                tools = loop._tool_schemas()
                 estimate = loop.budget.estimate(messages, tools)
                 fixed = fixed_input_estimate(loop.budget, messages, tools)
                 return dict(**estimate.as_dict(), model=session.model_id or llm.model_name,
@@ -528,6 +539,8 @@ class AgentService:
 
         from app.application.services.skill_runtime import SkillRuntime
         preset_preload_ids: list[str] = []
+        preset_instruction, execution_profile = (None, "default")
+        system_preset_id: Optional[str] = None
         if self._skills:
             async with self._reader() as uow:
                 started_run = await uow.run.get(run_id)
@@ -540,12 +553,22 @@ class AgentService:
                 preset_preload_ids = [
                     item["id"] for item in self._skills.preset_preload_entries(entries, config, session.active_preset_id)
                 ]
+            preset_id_for_run = snapshot.get("active_preset_id") if "active_preset_id" in snapshot else session.active_preset_id
+            if preset_id_for_run:
+                preset_instruction, execution_profile = await self._skills.preset_system_instruction(preset_id_for_run)
+                if preset_instruction:
+                    system_preset_id = preset_id_for_run
         skill_runtime = SkillRuntime(
             self._skills, run_id, workdir=workdir,
             workspace_id=session.workspace_id, session_id=session.id,
             preset_preload_ids=preset_preload_ids,
+            local_command_available=shell is not None,
+            execution_profile=execution_profile,
+            system_preset_id=system_preset_id,
         ) if self._skills else None
-        runtime = getattr(self, "_workspace_memory", None) if session.workspace_id else None
+        runtime = getattr(self, "_workspace_memory", None) if (session.workspace_id and execution_profile != "dialogue") else None
+        has_mcp = any(item.enabled for item in self._mcp_config.mcpServers.values())
+        has_a2a = any(item.enabled for item in self._a2a_config.a2a_servers)
         project_prompt, context_refresh, workspace_memory = "", None, None
         if runtime is not None:
             workspace_memory = runtime.ports(session.workspace_id, session.id, run_id)
@@ -586,6 +609,10 @@ class AgentService:
             completion=runtime,
             workspace_id=session.workspace_id,
             preview_runtime=getattr(self, "_preview_runtime", None),
+            execution_profile=execution_profile,
+            preset_instruction=preset_instruction,
+            has_mcp=has_mcp,
+            has_a2a=has_a2a,
         )
         return self._task_cls.create(task_runner=task_runner)
 

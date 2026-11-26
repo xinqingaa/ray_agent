@@ -107,7 +107,7 @@ def test_catalog_index_hides_identity_and_truncates_description():
         'description': '甲' * 200, 'source': {'kind': 'user'},
     }], 160)['content']
     assert 'ext-user-abc' not in content and 'f' * 64 not in content
-    assert 'description_truncated' in content
+    assert '…' in content
     assert '甲' * 160 in content and '甲' * 161 not in content
 
 

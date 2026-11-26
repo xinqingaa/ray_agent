@@ -57,6 +57,7 @@ export type TurnView = {
   decodeMs?: number | null
   /** W6 */
   attempts?: number | null
+  reasoningContent?: string | null
 }
 
 export type RunSummary = {

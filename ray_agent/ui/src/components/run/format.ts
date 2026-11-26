@@ -79,3 +79,28 @@ export function formatTime(ms: number | null | undefined): string {
   const d = new Date(ms)
   return `${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`
 }
+
+export function formatMessageTime(ms: number | null | undefined, nowMs = Date.now()): string {
+  if (ms == null || !Number.isFinite(ms) || ms <= 0) return ''
+  const d = new Date(ms)
+  const now = new Date(nowMs)
+  const hhmm = `${pad2(d.getHours())}:${pad2(d.getMinutes())}`
+  if (d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth() && d.getDate() === now.getDate()) {
+    return hhmm
+  }
+  const yesterday = new Date(now)
+  yesterday.setDate(now.getDate() - 1)
+  if (d.getFullYear() === yesterday.getFullYear() && d.getMonth() === yesterday.getMonth() && d.getDate() === yesterday.getDate()) {
+    return `昨天 ${hhmm}`
+  }
+  if (d.getFullYear() === now.getFullYear()) {
+    return `${d.getMonth() + 1}月${d.getDate()}日 ${hhmm}`
+  }
+  return `${d.getFullYear()}年${d.getMonth() + 1}月${d.getDate()}日 ${hhmm}`
+}
+
+export function formatFullDateTime(ms: number | null | undefined): string {
+  if (ms == null || !Number.isFinite(ms) || ms <= 0) return ''
+  const d = new Date(ms)
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())} ${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`
+}

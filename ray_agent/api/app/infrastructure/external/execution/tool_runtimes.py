@@ -72,7 +72,12 @@ def install(source: Path, spec: dict, root: Path, identity: str) -> list[Path]:
                     path.unlink(missing_ok=True)
                     path.symlink_to('python3.12')
                 env = scrub_env(runtime_bin_dirs=[python_bin, staging / 'node/bin'])
-                checks = [('python', ['-I', '-c', 'import sys,ssl,sqlite3,venv; print(sys.version.split()[0])']),
+                extra_imports = [
+                    mod for mod in (spec['runtimes']['python'].get('verify_imports') or [])
+                    if isinstance(mod, str) and mod.isidentifier()
+                ]
+                py_imports = ','.join(['sys', 'ssl', 'sqlite3', 'venv', *extra_imports])
+                checks = [('python', ['-I', '-c', f'import {py_imports}; print(sys.version.split()[0])']),
                           ('node', ['-e', 'console.log(process.versions.node)'])]
                 for name, args in checks:
                     item = spec['runtimes'][name]

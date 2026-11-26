@@ -5842,6 +5842,12 @@ export interface components {
             depends_on: string[];
             /** Default Participate In Memory */
             default_participate_in_memory: boolean;
+            /**
+             * Execution Profile
+             * @default workspace_task
+             * @enum {string}
+             */
+            execution_profile: "dialogue" | "interactive" | "workspace_task";
         };
         /** PresetListResponse */
         PresetListResponse: {
@@ -7490,6 +7496,8 @@ export interface components {
             tools_ms: number | null;
             /** Error */
             error: string | null;
+            /** Reasoning Content */
+            reasoning_content: string | null;
         };
         /**
          * TurnRequestResponse

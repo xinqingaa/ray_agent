@@ -3,7 +3,7 @@ import {useDeveloperMode} from '@/hooks/use-developer-mode'
 import {Info, Loader2, Plus} from '@/components/ui/icons'
 import {Button} from '@/components/ui/button'
 import {commandSearchFields, matchingCommands, type CommandContext, type InputCommand} from '@/lib/commands'
-import {matchesCommandQuery} from '@/lib/slash-trigger'
+import {matchesCommandQuery, type TriggerChar} from '@/lib/slash-trigger'
 import {cn} from '@/lib/utils'
 import {Tooltip, TooltipTrigger, TooltipContent} from '@/components/ui/tooltip'
 import {DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem} from '@/components/ui/dropdown-menu'
@@ -35,6 +35,7 @@ function CommandRow({command, context, active, onPointerMove, onRun}: {
     </span>
     <span className="max-w-[55%] shrink-0 truncate font-medium">{command.title}</span>
     <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground" title={description}>{description}</span>
+    {command.activeTag && <span className="shrink-0 rounded-md bg-signal-soft px-1.5 py-0.5 text-xs text-signal">{command.activeTag}</span>}
     {command.id === 'plan' && context.planMode && <span className="shrink-0 rounded-md bg-signal-soft px-1.5 py-0.5 text-xs text-signal">已开启</span>}
   </div>
 }
@@ -82,9 +83,11 @@ export function PlusCommandMenu({context}: {context: CommandContext}) {
 }
 
 /** 鼠标只改高亮；键盘导航才允许调整列表内部的可视位置。 */
-export function SlashCommandList({id, query, extraCommands = [], context, activeId, keyboardStep = 0, onActiveIdChange, onRun}: {
+export function SlashCommandList({id, trigger = '/', query, presetCommands = [], extraCommands = [], context, activeId, keyboardStep = 0, onActiveIdChange, onRun}: {
   id?: string
+  trigger?: TriggerChar
   query: string
+  presetCommands?: InputCommand[]
   extraCommands?: InputCommand[]
   context: CommandContext
   activeId: string | null
@@ -97,12 +100,13 @@ export function SlashCommandList({id, query, extraCommands = [], context, active
   const listRef = useRef<HTMLDivElement>(null)
   const seenKeyboardStep = useRef(keyboardStep)
   const lastPointer = useRef<{x: number; y: number} | null>(null)
-  const visibleCommands = matchingCommands('').filter(command => visibility.canShowCommand(command.id))
+  const visibleCommands = trigger === '/' ? matchingCommands('').filter(command => visibility.canShowCommand(command.id)) : []
   const commands = query ? visibleCommands.filter(command => matchesCommandQuery(query, commandSearchFields(command))) : visibleCommands
+  const presets = presetCommands.filter(command => matchesCommandQuery(query, commandSearchFields(command)))
   const skills = extraCommands.filter(command => matchesCommandQuery(query, commandSearchFields(command)))
   // 以未筛选的条目数设置高度，简短列表贴合内容，输入查询时浮层保持稳定。
-  const [listHeight] = useState(() => Math.min(19.5, (visibleCommands.length + extraCommands.length) * ROW_HEIGHT_REM +
-    (Number(visibleCommands.length > 0) + Number(extraCommands.length > 0)) * 1.75 + 0.5))
+  const [listHeight] = useState(() => Math.min(19.5, (visibleCommands.length + presetCommands.length + extraCommands.length) * ROW_HEIGHT_REM +
+    (Number(visibleCommands.length > 0) + Number(presetCommands.length > 0) + Number(extraCommands.length > 0)) * 1.75 + 0.5))
   useLayoutEffect(() => {
     if (listRef.current) listRef.current.scrollTop = 0
   }, [query])
@@ -125,11 +129,16 @@ export function SlashCommandList({id, query, extraCommands = [], context, active
     if (previous ? previous.x === event.clientX && previous.y === event.clientY : !event.movementX && !event.movementY) return
     onActiveIdChange(id)
   }
+  const sections = [
+    ...(trigger === '/' ? [{label: '操作', items: commands}] : []),
+    {label: '场景预设', items: presets},
+    {label: 'Skill', items: skills},
+  ].filter(group => group.items.length > 0)
   return <div className="flex max-h-(--radix-popover-content-available-height) min-h-0 flex-col">
-    <div ref={listRef} id={id ?? listId} role="listbox" aria-label="命令和 Skill" data-slot="command-list"
+    <div ref={listRef} id={id ?? listId} role="listbox" aria-label={trigger === '@' ? '场景预设和 Skill' : '命令、场景和 Skill'} data-slot="command-list"
       className="min-h-0 overflow-y-auto overscroll-contain px-1.5 pb-1.5 [scrollbar-width:thin]" style={{height: `${listHeight}rem`}}>
-      {commands.length + skills.length === 0 ? <p className="grid h-full place-items-center px-3 text-center text-meta text-muted-foreground">没有匹配的命令或 Skill</p> :
-        [{label: '操作', items: commands}, {label: 'Skill', items: skills}].filter(group => group.items.length > 0).map(({label, items}) => (
+      {sections.length === 0 ? <p className="grid h-full place-items-center px-3 text-center text-meta text-muted-foreground">{trigger === '@' ? '没有匹配的场景或 Skill' : '没有匹配的命令、场景或 Skill'}</p> :
+        sections.map(({label, items}) => (
           <div key={label} role="group" aria-label={label}>
             <p aria-hidden className="sticky top-0 z-10 flex h-7 items-end bg-popover px-2.5 pb-1 text-xs text-muted-foreground">{label}</p>
             {items.map(command => <CommandRow key={command.id} command={command} context={context} active={activeId === command.id}

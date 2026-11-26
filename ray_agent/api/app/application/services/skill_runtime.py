@@ -4,20 +4,52 @@ import uuid
 
 from app.domain.models.tool_result import ToolResult
 from app.domain.services.skill_packages import SkillError
-from app.domain.services.skill_context import catalog_message, body_message
+from app.domain.services.skill_context import catalog_message, body_message, search_entries, select_catalog_entries
 
 
 class SkillRuntime:
     def __init__(self, service, run_id, *, workdir=None, workspace_id=None, session_id=None,
-                 preset_preload_ids=None):
+                 preset_preload_ids=None, local_command_available: bool = True,
+                 execution_profile: str = 'default', system_preset_id: str | None = None):
         self.service, self.run_id = service, run_id
         self.workdir = workdir
         self.workspace_id = workspace_id
         self.session_id = session_id
         self.preset_preload_ids = list(preset_preload_ids or [])
+        self.execution_profile = execution_profile
+        self.system_preset_id = system_preset_id
         self.entries = []
-        # 兼容旧工具探测：本地快照映射可用时视为“有执行材料环境”
-        self.sandbox = self
+        # 仅在本机命令能力可用时暴露 prepare_skill_resources
+        self.sandbox = self if local_command_available else None
+
+    @property
+    def has_active_resources(self) -> bool:
+        """是否存在已激活且包含除 SKILL.md 之外附件/脚本资源的 Skill。"""
+        return any(e.get('active') and e.get('has_resources', True) for e in self.entries)
+
+    @property
+    def has_hidden_catalog(self) -> bool:
+        if self.execution_profile == 'dialogue':
+            return False
+        catalog_pool = [e for e in self.entries if e.get('id') != self.system_preset_id]
+        _, hidden = select_catalog_entries(catalog_pool)
+        return bool(hidden)
+
+    async def search(self, query: str, limit: int = 8) -> ToolResult:
+        entries = self.entries or await self.service.bindings(self.run_id, workspace_id=self.workspace_id)
+        pool = [e for e in entries if e.get('id') != self.system_preset_id]
+        matches = search_entries(pool, query or '', limit=max(1, min(int(limit or 8), 20)))
+        items = [
+            {
+                'name': item.get('name'),
+                'description': item.get('description'),
+                'active': bool(item.get('active')),
+                'source': (item.get('source') or {}).get('label') or (item.get('source') or {}).get('kind'),
+            }
+            for item in matches
+        ]
+        msg = f"找到 {len(items)} 个匹配 Skill" if items else "未找到匹配的 Skill，可换关键词重试"
+        return ToolResult(success=True, message=msg, data={'query': query, 'items': items, 'total_bound': len(pool)})
 
     async def initialize(self, frozen=False):
         if frozen:
@@ -36,6 +68,7 @@ class SkillRuntime:
     async def load(self, name):
         try:
             version = await self.service.load(self.run_id, name, workspace_id=self.workspace_id)
+            self.entries = await self.service.bindings(self.run_id, workspace_id=self.workspace_id)
             return ToolResult(success=True, message='完整正文已激活，将作为 Skill 资料提供；不表示任务已完成',
                               data={'name': name, 'version': version['version'], 'active': True,
                                     'root_path': version.get('root_path')})
@@ -116,11 +149,20 @@ class SkillRuntime:
         except (SkillError, ValueError) as exc:
             return ToolResult(success=False, message=str(exc), data={'operation_id': operation_id})
 
-    async def context(self):
-        self.entries = sorted(await self.service.bindings(self.run_id, workspace_id=self.workspace_id), key=lambda e: e['name'])
-        blocks = [catalog_message(self.run_id, self.entries)]
-        for entry in self.entries:
-            if entry['active']:
-                version = await self.service.load(self.run_id, entry['id'], workspace_id=self.workspace_id)
-                blocks.append(body_message(self.run_id, version, self.service.settings.skill_resource_chars))
+    async def context(self, query_text: str = ''):
+        self.entries = sorted(
+            await self.service.bindings(self.run_id, workspace_id=self.workspace_id),
+            key=lambda e: (not bool(e.get('builtin')), e['name']),
+        )
+        explicit_active = [
+            entry for entry in self.entries
+            if entry.get('active') and entry.get('id') != self.system_preset_id
+        ]
+        if self.execution_profile == 'dialogue' and not explicit_active:
+            return []
+        catalog_pool = [entry for entry in self.entries if entry.get('id') != self.system_preset_id]
+        blocks = [catalog_message(self.run_id, catalog_pool, query_text=query_text)] if (catalog_pool or explicit_active) else []
+        for entry in explicit_active:
+            version = await self.service.load(self.run_id, entry['id'], workspace_id=self.workspace_id)
+            blocks.append(body_message(self.run_id, version, self.service.settings.skill_resource_chars))
         return blocks

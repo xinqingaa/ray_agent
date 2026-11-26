@@ -99,6 +99,7 @@ class PresetItemResponse(BaseModel):
     starters: list[PresetStarterResponse]
     depends_on: list[str]
     default_participate_in_memory: bool
+    execution_profile: Literal['dialogue', 'interactive', 'workspace_task'] = 'workspace_task'
 
 
 class PresetListResponse(BaseModel):

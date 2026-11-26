@@ -66,7 +66,7 @@ from app.domain.services.plan_progress import (
 )
 from app.domain.services.plan_mode import PlanModeGuard
 from app.domain.services.prompts.plan_mode import PLAN_MODE_SUFFIX
-from app.domain.services.prompts.system import SYSTEM_PROMPT
+from app.domain.services.prompts.system import ExecutionProfile, SYSTEM_PROMPT
 from app.domain.services.prompts.image_input import USER_IMAGE_RULES, with_user_image_rules
 from app.domain.services.run_budget import BudgetPhase, FinalizeGuard, budget_notice, budget_phase, noticed_phase
 from app.domain.services.task_error import format_public_error_text
@@ -356,6 +356,9 @@ class AgentLoop(BaseFlow):
             project_prompt: str = "",
             output_dir: Optional[str] = None,
             register_preview: Optional[RegisterPreviewFn] = None,
+            execution_profile: ExecutionProfile = "default",
+            has_mcp: Optional[bool] = None,
+            has_a2a: Optional[bool] = None,
     ) -> None:
         """write_output 把超长工具结果的完整内容写入 output_dir（会话工作目录中），由运行器注入；为空时超长结果只截断。
 
@@ -368,6 +371,13 @@ class AgentLoop(BaseFlow):
         self._config = agent_config
         self._session_id = session_id
         self._system_prompt = system_prompt
+        self._execution_profile: ExecutionProfile = execution_profile
+        self._has_mcp_override = has_mcp
+        self._has_a2a_override = has_a2a
+        self._mcp_tool = next((t for t in tools if isinstance(t, MCPTool)), None)
+        self._a2a_tool = next((t for t in tools if isinstance(t, A2ATool)), None)
+        self._has_non_image_attachments = False
+        self._force_image_rules = False
         self.project_prompt = project_prompt
         self.request_system_prompt: Optional[str] = None
         self.before_request: Optional[Callable[[int], Awaitable[None]]] = None
@@ -468,19 +478,114 @@ class AgentLoop(BaseFlow):
     def _with_mode_suffix(self, system_prompt: str) -> str:
         return system_prompt + PLAN_MODE_SUFFIX if self._mode == RunMode.PLAN else system_prompt
 
+    def _has_image_context(self) -> bool:
+        if self._force_image_rules:
+            return True
+        if self._memory is None or self._memory.empty:
+            return False
+        messages = self._memory.get_messages()
+        from app.domain.services.context.vision import image_refs
+        if any(image_refs(messages)):
+            return True
+        if messages and messages[0].get("role") == "system":
+            content0 = str(messages[0].get("content") or "")
+            if USER_IMAGE_RULES in content0 or (
+                not self.project_prompt
+                and "<language_settings>" not in content0
+                and content0 != self._system_prompt
+            ):
+                return True
+        for msg in messages:
+            if msg.get("role") != "user":
+                continue
+            content = msg.get("content")
+            if isinstance(content, str) and USER_IMAGE_RULES in content:
+                return True
+            if isinstance(content, list) and any(
+                isinstance(part, dict) and USER_IMAGE_RULES in str(part.get("text") or "")
+                for part in content
+            ):
+                return True
+        return False
+
+    def _effective_system_prompt(self) -> str:
+        base = self._system_prompt + self.project_prompt
+        if self._has_image_context():
+            base = with_user_image_rules(base)
+        return self._with_mode_suffix(base)
+
+    def _mcp_configured(self) -> bool:
+        if self._has_mcp_override is not None:
+            return bool(self._has_mcp_override) or bool(getattr(self._mcp_tool, "_tools", None))
+        gateway = getattr(self._mcp_tool, "gateway", None)
+        config = getattr(gateway, "config", None)
+        if config is None:
+            return True
+        return any(item.enabled for item in config.mcpServers.values()) or bool(getattr(self._mcp_tool, "_tools", None))
+
+    def _a2a_configured(self) -> bool:
+        if self._has_a2a_override is not None:
+            return bool(self._has_a2a_override)
+        gateway = getattr(self._a2a_tool, "gateway", None)
+        config = getattr(gateway, "config", None)
+        if config is None:
+            return True
+        return any(item.enabled for item in config.a2a_servers)
+
+    def _tool_schemas(self) -> List[Dict[str, Any]]:
+        schemas = self.pipeline.schemas()
+        if not schemas:
+            return schemas
+        if self._execution_profile == "dialogue":
+            if not self._has_non_image_attachments:
+                return []
+            return [s for s in schemas if s["function"]["name"] in ("read_document", "read_file")]
+        hidden: set[str] = set()
+        if not self._mcp_configured():
+            hidden.add("discover_mcp_tools")
+        if not self._a2a_configured():
+            hidden.update({"get_remote_agent_cards", "call_remote_agent"})
+        if self._budget_phase != BudgetPhase.FINALIZE:
+            hidden.add("finalize_artifact")
+        if self._execution_profile == "interactive":
+            hidden.update({"register_preview", "install_skill"})
+        if not hidden:
+            return schemas
+        return [s for s in schemas if s["function"]["name"] not in hidden]
+
+    def _latest_user_query(self) -> str:
+        if self._memory is None:
+            return ""
+        for msg in reversed(self._memory.get_messages()):
+            if msg.get("role") != "user":
+                continue
+            if msg.get("_ray_skill") or msg.get("_ray_skill_result"):
+                continue
+            content = msg.get("content")
+            if isinstance(content, str):
+                text_val = content
+            elif isinstance(content, list):
+                text_val = "\n".join(str(p.get("text") or "") for p in content if isinstance(p, dict))
+            else:
+                text_val = ""
+            if text_val.startswith((COMPLETION_FEEDBACK_PREFIX, PLAN_PROGRESS_PREFIX, TASK_STATE_PREFIX, "[系统提示]")):
+                continue
+            return text_val.split("\n\n用户上传的附件：")[0].split("\n\n[系统提示]")[0].strip()
+        return ""
+
     def _request_messages(self) -> List[Dict[str, Any]]:
         """历史 system 不改写；新运行使用当前提示，续接使用冻结的实际提示。"""
         messages = self._memory.get_messages()
         if not messages or messages[0].get("role") != "system":
             return messages
-        system = self.request_system_prompt or self._with_mode_suffix(with_user_image_rules(self._system_prompt + self.project_prompt))
+        system = self.request_system_prompt or self._effective_system_prompt()
         return [{**messages[0], "content": system}, *messages[1:]]
 
     async def config_snapshot(self) -> Dict[str, Any]:
         """本次运行的配置快照：模型参数、Agent 配置、运行模式、实际发送的系统提示词全文（计划模式含后缀）
         与工具 schema，供请求重建使用。"""
         await self._ensure_memory()
-        system_prompt = self._system_prompt
+        system_prompt = self.request_system_prompt or self._effective_system_prompt()
         return {
             "model_name": self._llm.model_name,
             "model_connection": getattr(self._llm, "connection_snapshot", None),
@@ -496,9 +601,10 @@ class AgentLoop(BaseFlow):
             "vision": bool(getattr(self._llm, "supports_vision", False)),
             "agent_config": self._config.model_dump(mode="json"),
             "mode": self._mode.value,
-            "system_prompt": self.request_system_prompt or self._with_mode_suffix(with_user_image_rules(system_prompt + self.project_prompt)),
+            "execution_profile": self._execution_profile,
+            "system_prompt": system_prompt,
             "project_prompt": self.project_prompt,
-            "tools": copy.deepcopy(self.pipeline.schemas()),
+            "tools": copy.deepcopy(self._tool_schemas()),
         }
 
     # ---- 运行 ----
@@ -685,6 +791,16 @@ class AgentLoop(BaseFlow):
             first_turn_index: int,
     ) -> AsyncGenerator[BaseEvent, None]:
         history = await self._load()
+        if message.images or message.image_input_note or message.image_mode == 'files':
+            self._force_image_rules = True
+        if message.attachments:
+            from pathlib import PurePosixPath
+            image_exts = {'.png', '.jpg', '.jpeg', '.webp', '.gif', '.bmp', '.svg', '.tif', '.tiff', '.heic'}
+            for path in message.attachments:
+                if PurePosixPath(path).suffix.lower() in image_exts:
+                    self._force_image_rules = True
+                else:
+                    self._has_non_image_attachments = True
         self._delivery_required=self._can_deliver and bool(re.search(r'(交付|下载|deliver).{0,25}(文件|file)|(文件|file).{0,25}(交付|下载|deliver)',message.message or '', re.I)) and self.mode != RunMode.PLAN
 
         started = {
@@ -748,7 +864,7 @@ class AgentLoop(BaseFlow):
             async for event in self._sync_visual_history():
                 yield event
 
-            plan_notice = self._plan_progress.notice(self.plan_tool.latest_plan) if self.mode != RunMode.PLAN else None
+            plan_notice = self._plan_progress.notice(self.plan_tool.latest_plan) if (self.mode != RunMode.PLAN and self._execution_profile != "dialogue") else None
             if plan_notice is not None:
                 await self._add_messages([{"role": "user", "content": plan_notice}])
                 for event in self._take_context():
@@ -758,19 +874,20 @@ class AgentLoop(BaseFlow):
 
             self.plan_tool.adopted = self._plan_progress.required == 'adopted'
             step_notice = self._plan_progress.step_notice(self.plan_tool.latest_plan)
-            if step_notice and self.mode != RunMode.PLAN:
+            if step_notice and self.mode != RunMode.PLAN and self._execution_profile != "dialogue":
                 await self._add_messages([{'role': 'user', 'content': step_notice}])
                 for event in self._take_context():
                     self._plan_progress.observe(event)
                     yield event
             verification_notice = self._plan_progress.verification_notice(self.plan_tool.latest_plan)
-            if verification_notice and self.mode != RunMode.PLAN:
+            if verification_notice and self.mode != RunMode.PLAN and self._execution_profile != "dialogue":
                 await self._add_messages([{'role': 'user', 'content': verification_notice}])
                 for event in self._take_context():
                     self._plan_progress.observe(event)
                     yield event
-            async for event in self._sync_task_state():
-                yield event
+            if self._execution_profile != "dialogue":
+                async for event in self._sync_task_state():
+                    yield event
             async for event in self._advance_budget():
                 yield event
             if self.budget_used >= self._config.max_iterations:
@@ -1090,7 +1207,7 @@ class AgentLoop(BaseFlow):
             turn.attempts += 1
             started = time.monotonic()
             self._inflight = _Inflight(turn=turn.index, attempt=turn.attempts, started=started)
-            messages, tools = self._request_messages(), self.pipeline.schemas()
+            messages, tools = self._request_messages(), self._tool_schemas()
             try:
                 with usage_scope(session_id=self._session_id, run_id=getattr(self, "run_id", None),
                                  workspace_id=getattr(self, "workspace_id", None)):
@@ -1167,6 +1284,11 @@ class AgentLoop(BaseFlow):
 
     @staticmethod
     def _completion(turn: _ModelTurn, error: Optional[str] = None) -> TurnEvent:
+        reasoning: Optional[str] = None
+        if isinstance(turn.response, dict):
+            raw_reasoning = turn.response.get("reasoning_content")
+            if isinstance(raw_reasoning, str) and raw_reasoning.strip():
+                reasoning = raw_reasoning.strip()[:64_000]
         return TurnEvent(
             phase=TurnPhase.COMPLETED,
             index=turn.index,
@@ -1179,6 +1301,7 @@ class AgentLoop(BaseFlow):
             tool_call_ids=list(turn.executed),
             tools_ms=turn.tools_ms,
             error=error,
+            reasoning_content=reasoning,
         )
 
     def _turn_completed(self, turn: _ModelTurn, error: Optional[str] = None) -> TurnEvent:
@@ -1441,7 +1564,10 @@ class AgentLoop(BaseFlow):
         if self.skill_runtime is None or find_dangling_calls(self._memory.get_messages()):
             return
         messages = self._memory.get_messages()
-        blocks = await self.skill_runtime.context()
+        try:
+            blocks = await self.skill_runtime.context(query_text=self._latest_user_query())
+        except TypeError:
+            blocks = await self.skill_runtime.context()
         system_head = messages[:1] if messages and messages[0].get('role') == 'system' else []
         body_messages = messages[len(system_head):]
         active_versions = {
@@ -1549,7 +1675,7 @@ class AgentLoop(BaseFlow):
 
     def estimate_context(self) -> ContextEstimate:
         """下一次模型请求的输入量估算（四部分与上限）。"""
-        return self.budget.estimate(self._request_messages(), self.pipeline.schemas())
+        return self.budget.estimate(self._request_messages(), self._tool_schemas())
 
     async def _ensure_capacity(self, force: bool = False) -> AsyncGenerator[BaseEvent, None]:
         """请求前的容量检查：超过水位（或 force）先压缩并重新估算；仍超过可用上限时置 _capacity_error。
@@ -1569,7 +1695,7 @@ class AgentLoop(BaseFlow):
             await self._save_memory()
             yield ContextEvent(op=ContextOp.REPLACE, messages=copy.deepcopy(revised[1:]))
             estimate = self.estimate_context()
-        fixed = fixed_input_estimate(self.budget, self._request_messages(), self.pipeline.schemas())
+        fixed = fixed_input_estimate(self.budget, self._request_messages(), self._tool_schemas())
         if fixed.over_limit:
             self._estimate = estimate
             self._capacity_error = f"{FIXED_INPUT_GUIDANCE}（固定输入 {fixed.total}，可用上限 {fixed.limit} tokens）"
@@ -1605,7 +1731,7 @@ class AgentLoop(BaseFlow):
         with usage_scope(session_id=self._session_id, run_id=getattr(self, "run_id", None),
                          workspace_id=getattr(self, "workspace_id", None)):
             result = await self._compactor.compact(
-                self._request_messages(), self.pipeline.schemas(), before, trigger, load_user_events,
+                self._request_messages(), self._tool_schemas(), before, trigger, load_user_events,
                 min_gain=trigger == "watermark")
         self.model_requests += result.usage.attempts
         self.budget_used += result.usage.attempts

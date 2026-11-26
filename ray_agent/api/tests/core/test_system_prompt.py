@@ -21,7 +21,7 @@ def test_environment_section_follows_platform_workdir_and_capabilities():
     assert "web_fetch" in closed and "search_web" in closed and "update_plan" in closed
 
     opened = build_system_prompt(environment(Capability.FILE_ACCESS, Capability.LOCAL_COMMAND, Capability.BROWSER))
-    for added in ("<file_rules>", "<shell_rules>", "browser_navigate", "deliver_files", "finalize_artifact"):
+    for added in ("<file_rules>", "<shell_rules>", "browser_set_viewport", "deliver_files", "finalize_artifact"):
         assert added in opened
     assert "当前不可用" not in opened
 
@@ -55,7 +55,7 @@ def test_prompts_include_delivery_lifecycle_ladder_and_verification_principles()
     en_full = build_en(environment(Capability.FILE_ACCESS, Capability.LOCAL_COMMAND, Capability.BROWSER))
     assert "最小复杂度阶梯" in zh_full and "单个自包含 HTML 文件" in zh_full and "register_preview" in zh_full
     assert "shell_execute 启动的临时后台进程会在本次运行结束时自动终止" in zh_full
-    assert "明确标出“待确认”" in zh_full and "文本可提取性" in zh_full
+    assert "待确认" in zh_full and "文本可提取" in zh_full
     assert "minimal-complexity ladder" in en_full and "single self-contained HTML file" in en_full and "register_preview" in en_full
     assert "terminated when the current run ends" in en_full
     assert "TBD or unconfirmed" in en_full and "text extractability" in en_full
@@ -74,7 +74,7 @@ def test_prompts_include_task_agnostic_collaboration_principles():
             assert preset_term not in prompt
 
 
-def test_system_prompt_unties_brevity_constraints():
+def test_system_prompt_unties_brevity_constraints_and_profiles():
     from app.domain.services.prompts.system import SYSTEM_PROMPT
     from app.domain.services.prompts.en.system import SYSTEM_PROMPT as EN_SYSTEM_PROMPT
 
@@ -82,6 +82,13 @@ def test_system_prompt_unties_brevity_constraints():
         assert banned not in SYSTEM_PROMPT
     assert "keep length and assets in check" not in EN_SYSTEM_PROMPT
     assert "不做刻意的长短限制" in SYSTEM_PROMPT
-    assert "仅在你实际调用工具、推进多步任务或交付文件产物时生效" in SYSTEM_PROMPT
+    assert "仅在你实际调用工具" in SYSTEM_PROMPT
     assert "no artificial brevity caps" in EN_SYSTEM_PROMPT
     assert "apply only when you actually call tools" in EN_SYSTEM_PROMPT
+    assert "<image_input_rules>" not in SYSTEM_PROMPT
+    assert "<image_input_rules>" not in EN_SYSTEM_PROMPT
+    assert "<image_input_rules>" in build_system_prompt(environment(), include_image_rules=True)
+    dialogue = build_system_prompt(environment(*Capability), profile="dialogue", preset_instruction="温暖陪伴")
+    assert "<agent_loop>" not in dialogue and "<file_rules>" not in dialogue and "<shell_rules>" not in dialogue
+    assert "<active_preset>" in dialogue and "温暖陪伴" in dialogue
+    assert len(SYSTEM_PROMPT) < 2600

@@ -12,6 +12,9 @@ class PresetStarter(BaseModel):
     prompt: str
 
 
+ExecutionProfile = Literal["dialogue", "interactive", "workspace_task"]
+
+
 class PresetDefinition(BaseModel):
     """前端首页与后端会话绑定的场景预设元数据。"""
     id: str
@@ -22,6 +25,7 @@ class PresetDefinition(BaseModel):
     starters: list[PresetStarter] = Field(default_factory=list)
     depends_on: list[str] = Field(default_factory=list)
     default_participate_in_memory: bool = True
+    execution_profile: ExecutionProfile = "workspace_task"
     order: int = 0
 
 

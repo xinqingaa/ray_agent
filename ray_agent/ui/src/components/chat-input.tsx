@@ -11,7 +11,8 @@ import {menuItem, type MenuEntry} from '@/lib/context-menu-policy'
 import {insertText, selectAllText} from '@/lib/text-edit'
 import {Popover, PopoverAnchor, PopoverContent} from '@/components/ui/popover'
 import {SlashCommandList} from '@/components/input-command-menu'
-import {skillsApi, SKILLS_CHANGED, type Skill, type SkillSelection} from '@/lib/api/skills'
+import {presetIconComponent} from '@/components/preset-picker'
+import {skillsApi, SKILLS_CHANGED, type PresetItem, type Skill, type SkillSelection} from '@/lib/api/skills'
 import {SkillMark} from '@/components/skill-mark'
 import {isDesktop, openModelConfig} from '@/lib/platform'
 import {ApiError} from '@/lib/api/fetch'
@@ -60,6 +61,9 @@ interface ChatInputProps {
   accessory?: ReactNode | ((context: CommandContext) => ReactNode)
   /** 输入框顶部附加栏（如当前锁定的场景胶囊） */
   topBanner?: ReactNode
+  presets?: PresetItem[]
+  activePresetId?: string | null
+  onSelectPreset?: (presetId: string) => void
   draftScope?: string
   /** 页面状态。上传中与文件选择由输入框补进命令上下文。 */
   commandHost?: CommandHost
@@ -84,7 +88,7 @@ export interface ChatInputRef {
 }
 
 export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
-  ({ className, onInputValueChange, onSend, onAbandonSubmission, pause = false, onPause, disabled = false, autoFocus = false, workspace = false, workspaceId, sessionId, placeholder = '分配一个任务或提问任何问题...', accessory, topBanner, draftScope, commandHost = EMPTY_HOST, savedModel = null, savedReasoning = null, runModel = null, runReasoning = null, contextTokens = null, onModelCommitted }, ref) => {
+  ({ className, onInputValueChange, onSend, onAbandonSubmission, pause = false, onPause, disabled = false, autoFocus = false, workspace = false, workspaceId, sessionId, placeholder = '分配一个任务或提问任何问题...', accessory, topBanner, presets = [], activePresetId = null, onSelectPreset, draftScope, commandHost = EMPTY_HOST, savedModel = null, savedReasoning = null, runModel = null, runReasoning = null, contextTokens = null, onModelCommitted }, ref) => {
     const {visibility} = useDeveloperMode()
     const pickDestination = useContext(TaskFilePicker)
     const [files, setFiles] = useState<FileInfo[]>([])
@@ -192,11 +196,14 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
     }, [scope, loadedScope, inputValue, files, planMode, selectedSkill])
 
     const blocked = disabled || sending || commandHost.compacting || uncertain
+    const onInputChangeRef = useRef(onInputValueChange)
+    onInputChangeRef.current = onInputValueChange
     useEffect(() => {
       const cleared = (event: Event) => {
         const data = (event as CustomEvent).detail
         if (draftClearedBy(data, scope)) {
           setInputValue(''); setFiles([]); setMissingFiles(new Set()); setReferences([]); setReferenceIssue(null); setPlanMode(false); setSelectedSkill(null); setUncertain(false)
+          onInputChangeRef.current?.('')
           if (uploadRef.current) uploadRef.current.cancelled = true
         }
       }
@@ -310,16 +317,42 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
     ])
 
     const slashOpen = slash != null && !blocked
-    const skillCommands = useMemo<InputCommand[]>(() => skills.filter(s => s.enabled && s.status !== 'missing').map(s => ({
+    const presetCommands = useMemo<InputCommand[]>(() => onSelectPreset ? presets.map(p => ({
+      id: `preset:${p.id}`,
+      surfaces: ['slash'],
+      keyword: p.id,
+      title: p.title,
+      description: p.subtitle,
+      aliases: [],
+      keywords: [p.title, p.subtitle, p.id],
+      icon: presetIconComponent(p.icon),
+      activeTag: p.id === activePresetId ? '当前' : undefined,
+      available: (context: CommandContext) => context.waitingApproval
+        ? {available: false as const, reason: '请先回复审批'}
+        : context.submitting
+          ? {available: false as const, reason: '正在发送或核对受理状态'}
+          : {available: true as const},
+      run: () => onSelectPreset(p.id),
+    })) : [], [presets, activePresetId, onSelectPreset])
+    const presetIdSet = useMemo(() => new Set(presets.map(p => p.id)), [presets])
+    const skillCommands = useMemo<InputCommand[]>(() => skills.filter(s => s.enabled && s.status !== 'missing' && !presetIdSet.has(s.id)).map(s => ({
       id: `skill:${s.id}`, surfaces: ['slash'], keyword: s.name, title: (s.same_name || s.conflict) ? `${s.name} · ${s.source?.label || s.source?.kind || '来源'}` : s.name,
       description: s.description,
       aliases: [], keywords: [s.description, s.source?.label || '', s.source?.kind || ''], icon: FileText,
       available: (context: CommandContext) => context.waitingApproval ? {available: false as const, reason: '请先回复审批'} : {available: true as const},
       run: () => setSelectedSkill({id: s.id, name: s.name, version: s.version}),
-    })), [skills])
+    })), [skills, presetIdSet])
     const matched = useMemo(
-      () => (slashOpen && slash ? [...matchingCommands(slash.query).filter(command => visibility.canShowCommand(command.id)), ...skillCommands.filter(command => matchesCommandQuery(slash.query, commandSearchFields(command)))] : []),
-      [slashOpen, slash, visibility, skillCommands],
+      () => {
+        if (!slashOpen || !slash) return []
+        const ops = slash.trigger === '/'
+          ? matchingCommands(slash.query).filter(command => visibility.canShowCommand(command.id))
+          : []
+        const filteredPresets = presetCommands.filter(command => matchesCommandQuery(slash.query, commandSearchFields(command)))
+        const filteredSkills = skillCommands.filter(command => matchesCommandQuery(slash.query, commandSearchFields(command)))
+        return [...ops, ...filteredPresets, ...filteredSkills]
+      },
+      [slashOpen, slash, visibility, presetCommands, skillCommands],
     )
     const resolvedActiveId = matched.some((command) => command.id === activeId)
       ? activeId
@@ -725,16 +758,16 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
         </div>
       )}
       {uploading && <p role="status" className="mx-4 mb-2 flex items-center gap-2 text-meta text-muted-foreground"><Loader2 className="size-3.5 animate-spin"/>正在上传附件</p>}
-      {topBanner && <div className="mx-3.5 mb-1.5 flex flex-wrap items-center gap-1.5">{topBanner}</div>}
-      {planMode && <div className="mx-3.5 mb-1.5">
-        <button type="button" disabled={blocked} aria-label="取消计划模式" title="下一次发送以计划模式运行"
+      {(topBanner || planMode) && <div className="mx-3.5 mb-1.5 flex flex-wrap items-center gap-1.5">
+        {topBanner}
+        {planMode && <button type="button" disabled={blocked} aria-label="取消计划模式" title="下一次发送以计划模式运行"
           onClick={() => {
             setPlanMode(false)
             textareaRef.current?.focus({preventScroll: true})
           }}
-          className="inline-flex h-7 items-center gap-1.5 rounded-lg bg-signal-soft px-2 text-xs font-medium text-signal outline-none hover:bg-signal-soft/70 focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50">
-          <ListChecks className="size-3.5" aria-hidden/>计划模式<X className="size-3.5" aria-hidden/>
-        </button>
+          className="inline-flex h-7 items-center gap-1.5 rounded-full border border-signal/25 bg-signal-soft/75 pl-2.5 pr-2 text-xs font-medium text-signal outline-none transition-colors duration-(--motion-fast) hover:bg-signal-soft focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50">
+          <ListChecks className="size-3.5" aria-hidden/>计划模式<X className="size-3" aria-hidden/>
+        </button>}
       </div>}
       {/* 中间输入框 */}
       <PopoverAnchor asChild>
@@ -807,7 +840,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
               flashHighlight(field)
             }}/>}
           <div className="composer-shortcuts flex items-center gap-1">
-            <Button type="button" variant="ghost" size="icon-sm" aria-label="命令与 Skill" title="命令与 Skill /"
+            <Button type="button" variant="ghost" size="icon-sm" aria-label="命令、场景与 Skill" title="命令 / · 场景与 Skill @"
               data-slash-toggle aria-expanded={slashOpen} disabled={blocked} onClick={() => {
                 if (slashOpen) {dismissedRef.current = slash; setSlash(null); return}
                 const node = textareaRef.current
@@ -815,7 +848,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
                 const cursor = node.selectionStart ?? inputValue.length
                 node.focus()
                 setActiveId(null)
-                setSlash(findSlashTrigger(inputValue, cursor, false) ?? {start: cursor, end: cursor, query: ''})
+                setSlash(findSlashTrigger(inputValue, cursor, false) ?? {trigger: '/', start: cursor, end: cursor, query: ''})
               }}><Sparkles/></Button>
             <Button type="button" variant="ghost" size="icon-sm" aria-label="计划模式" title="计划模式"
               aria-pressed={planMode} className="aria-pressed:bg-signal-soft aria-pressed:text-signal"
@@ -871,7 +904,9 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
       {slashOpen && slash && (
         <SlashCommandList
           id={slashListId}
+          trigger={slash.trigger}
           query={slash.query}
+          presetCommands={presetCommands}
           extraCommands={skillCommands}
           context={commandContext}
           activeId={resolvedActiveId}
@@ -889,7 +924,7 @@ export const ChatInput = forwardRef<ChatInputRef, ChatInputProps>(
 function sameFragment(prev: SlashFragment | null, next: SlashFragment | null): boolean {
   if (prev === next) return true
   if (!prev || !next) return false
-  return prev.start === next.start && prev.end === next.end && prev.query === next.query
+  return prev.trigger === next.trigger && prev.start === next.start && prev.end === next.end && prev.query === next.query
 }
 
 ChatInput.displayName = 'ChatInput'

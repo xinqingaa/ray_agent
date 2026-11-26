@@ -1,7 +1,6 @@
 ---
 name: presentation-design
 description: 演示文稿的内容策划、叙事结构与版面设计指南；根据受众与场景灵活掌控信息密度、视觉节奏与图表表现力。
-depends_on: [structured-thinking]
 ---
 
 # 演示文稿内容与视觉设计

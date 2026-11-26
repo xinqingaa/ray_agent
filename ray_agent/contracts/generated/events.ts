@@ -350,6 +350,7 @@ export interface TurnEventData {
   tool_call_ids: string[];
   tools_ms: number | null;
   error: string | null;
+  reasoning_content: string | null;
 }
 /**
  * 一轮内返回了响应的各次尝试的用量合计；服务未返回的项为空。

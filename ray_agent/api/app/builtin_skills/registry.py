@@ -16,20 +16,9 @@ BUILTIN_SKILLS: Dict[str, BuiltinSkillSpec] = {
         category="system",
         default_included=True,
     ),
-    # ---- Layer 1：5 项基础能力底座 ----
+    # ---- Layer 1：3 项基础能力底座 ----
     "research-grounding": BuiltinSkillSpec(
         id="research-grounding",
-        category="foundation",
-        default_included=True,
-    ),
-    "elicitation-communication": BuiltinSkillSpec(
-        id="elicitation-communication",
-        category="foundation",
-        # 5 项基础能力底座均默认进入目录，自由对话可按需加载，场景预设按 depends_on 自动预加载
-        default_included=True,
-    ),
-    "structured-thinking": BuiltinSkillSpec(
-        id="structured-thinking",
         category="foundation",
         default_included=True,
     ),
@@ -51,7 +40,7 @@ BUILTIN_SKILLS: Dict[str, BuiltinSkillSpec] = {
         preset=PresetDefinition(
             id="preset-ppt",
             title="制作 PPT",
-            subtitle="对齐结构并生成可预览、可导出的演示稿",
+            subtitle="对齐结构，生成可预览可导出演示稿",
             icon="presentation",
             placeholder="说明主题、受众和大致页数，也可直接拖入参考文档",
             starters=[
@@ -70,6 +59,7 @@ BUILTIN_SKILLS: Dict[str, BuiltinSkillSpec] = {
             ],
             depends_on=["presentation-design", "verification-critique"],
             default_participate_in_memory=True,
+            execution_profile="workspace_task",
             order=1,
         ),
     ),
@@ -80,7 +70,7 @@ BUILTIN_SKILLS: Dict[str, BuiltinSkillSpec] = {
         preset=PresetDefinition(
             id="preset-excel",
             title="清洗 Excel",
-            subtitle="整合多表、修复口径并核算关键汇总",
+            subtitle="多表整合、口径清洗与公式核算",
             icon="table",
             placeholder="拖入表格并说明合并、清洗或汇总要求",
             starters=[
@@ -97,8 +87,9 @@ BUILTIN_SKILLS: Dict[str, BuiltinSkillSpec] = {
                     prompt="按我需要的维度整理汇总表并写入规范公式，同时用代码核算关键汇总值给我核对。",
                 ),
             ],
-            depends_on=["elicitation-communication", "verification-critique"],
+            depends_on=["verification-critique"],
             default_participate_in_memory=True,
+            execution_profile="workspace_task",
             order=2,
         ),
     ),
@@ -109,7 +100,7 @@ BUILTIN_SKILLS: Dict[str, BuiltinSkillSpec] = {
         preset=PresetDefinition(
             id="preset-web-tool",
             title="互动网页",
-            subtitle="快速做成可在应用内直接打开的小工具",
+            subtitle="快速做成可交互、可直接打开的小工具",
             icon="globe",
             placeholder="描述想要的小工具功能、输入输出或数据保存方式",
             starters=[
@@ -128,6 +119,7 @@ BUILTIN_SKILLS: Dict[str, BuiltinSkillSpec] = {
             ],
             depends_on=["presentation-design", "verification-critique"],
             default_participate_in_memory=True,
+            execution_profile="workspace_task",
             order=3,
         ),
     ),
@@ -138,7 +130,7 @@ BUILTIN_SKILLS: Dict[str, BuiltinSkillSpec] = {
         preset=PresetDefinition(
             id="preset-doc-brief",
             title="文档提炼",
-            subtitle="读透多份材料，输出一页结论或拆解",
+            subtitle="通读多份材料，输出一页结论与拆解",
             icon="file-text",
             placeholder="拖入文档、会议记录或粘贴内容，说明想给谁看",
             starters=[
@@ -155,8 +147,9 @@ BUILTIN_SKILLS: Dict[str, BuiltinSkillSpec] = {
                     prompt="请对照这几份文档，找出事实一致项、口径冲突点与各自缺失的信息，并逐条标明出处。",
                 ),
             ],
-            depends_on=["research-grounding", "elicitation-communication", "verification-critique"],
+            depends_on=[],
             default_participate_in_memory=True,
+            execution_profile="interactive",
             order=4,
         ),
     ),
@@ -185,8 +178,9 @@ BUILTIN_SKILLS: Dict[str, BuiltinSkillSpec] = {
                     prompt="请进入【行情与备考规划】模式：帮我联网调研这个岗位的最新考察趋势、常见门槛与针对性备考计划。",
                 ),
             ],
-            depends_on=["elicitation-communication", "research-grounding", "structured-thinking"],
+            depends_on=["research-grounding"],
             default_participate_in_memory=True,
+            execution_profile="interactive",
             order=5,
         ),
     ),
@@ -198,7 +192,7 @@ BUILTIN_SKILLS: Dict[str, BuiltinSkillSpec] = {
         preset=PresetDefinition(
             id="preset-emotional-support",
             title="情绪疏导",
-            subtitle="先接住压力与内耗，平稳后再理清头绪",
+            subtitle="先接住情绪与压力，平稳后再理清头绪",
             icon="heart-handshake",
             placeholder="说说现在让你觉得累、烦躁或自责的事，哪怕只有几句也可以",
             starters=[
@@ -213,6 +207,7 @@ BUILTIN_SKILLS: Dict[str, BuiltinSkillSpec] = {
             ],
             depends_on=[],
             default_participate_in_memory=False,
+            execution_profile="dialogue",
             order=6,
         ),
     ),

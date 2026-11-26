@@ -330,6 +330,7 @@ class TurnEventData(BaseEventData):
     tool_call_ids: List[str] = Field(default_factory=list)
     tools_ms: Optional[int] = None
     error: Optional[str] = None
+    reasoning_content: Optional[str] = None
 
 
 class TurnSSEEvent(BaseSSEEvent):

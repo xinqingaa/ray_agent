@@ -56,6 +56,7 @@ export type InputCommand = {
   /** 额外搜索词。匹配时与关键字、别名、标题一起比较。 */
   keywords: readonly string[]
   icon: UiIcon
+  activeTag?: string
   available: (context: CommandContext) => CommandAvailability
   run: (context: CommandContext) => void
 }

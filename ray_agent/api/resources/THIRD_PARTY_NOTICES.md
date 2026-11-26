@@ -19,7 +19,12 @@ Python 解释器与标准库按 PSF 许可；PyInstaller 引导程序按其许�
 
 ## 基础工具运行时
 
-正常 CPython 来自 python-build-standalone，采用 PSF 与发行包内附的依赖许可，许可文本随 `tool-runtimes/python/` 分发。正常 Node 来自锁定 Playwright 发行包内的原生解释器，采用 MIT 及其捆绑依赖许可，完整文本随 `tool-runtimes/node/LICENSE` 分发；它独立执行工具脚本。版本、来源与哈希见 `tool_runtime_manifest.json`。
+正常 CPython 来自 python-build-standalone，采用 PSF 与发行包内附的依赖许可，许可文本随 `tool-runtimes/python/` 分发。随包预装的办公与文档 Python 库（版本固定于 `tool_runtime_manifest.json`，完整 LICENSE 位于各自 `.dist-info/`）：
+- `openpyxl`、`et-xmlfile`、`python-pptx`、`python-docx`、`typing-extensions`（MIT / PSF）
+- `pypdf`、`lxml`、`XlsxWriter`（BSD-3-Clause / BSD-2-Clause）
+- `Pillow`（HPND / MIT-CMU）
+
+正常 Node 来自锁定 Playwright 发行包内的原生解释器，采用 MIT 及其捆绑依赖许可，完整文本随 `tool-runtimes/node/LICENSE` 分发；它独立执行工具脚本。版本、来源与哈希见 `tool_runtime_manifest.json`。
 
 ## 界面
 

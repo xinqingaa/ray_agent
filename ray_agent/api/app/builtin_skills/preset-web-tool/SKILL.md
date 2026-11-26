@@ -1,7 +1,6 @@
 ---
 name: preset-web-tool
 description: 构建可直接打开使用的单文件 HTML 交互网页工具；优先把主界面体验、视觉质感、信息密度与功能闭环做到位，不牺牲质量换取篇幅缩短。
-depends_on: [elicitation-communication, verification-critique]
 ---
 
 # 网页工具与单文件前端构建

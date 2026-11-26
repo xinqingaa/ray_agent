@@ -2661,6 +2661,17 @@
             }
           ],
           "default": null
+        },
+        "reasoning_content": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         }
       },
       "required": [
@@ -2682,7 +2693,8 @@
         "finish_reason",
         "tool_call_ids",
         "tools_ms",
-        "error"
+        "error",
+        "reasoning_content"
       ],
       "title": "TurnEventData",
       "type": "object"

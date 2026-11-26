@@ -184,10 +184,19 @@ function TurnRequestPanel({request, loading, error}: {request: TurnRequest | nul
       <ol className="flex flex-col gap-2">
         {request.messages.map((message, i) => {
           const role = typeof message.role === 'string' ? message.role : 'message'
+          const reasoning = typeof message.reasoning_content === 'string' ? message.reasoning_content.trim() : ''
           const body = messageBody(message)
           return (
             <li key={i} className="rounded-md border bg-card px-3 py-2">
               <p className="mb-1 font-mono text-xs text-muted-foreground">{role}</p>
+              {reasoning && (
+                <details className="mb-2 rounded border border-border/70 bg-muted/40 px-2.5 py-1.5">
+                  <summary className="cursor-pointer text-xs text-muted-foreground">思考过程</summary>
+                  <pre className="mt-1.5 max-h-48 overflow-auto font-mono text-xs leading-5 whitespace-pre-wrap break-all text-muted-foreground">
+                    {reasoning.length > 6000 ? `${reasoning.slice(0, 6000)}…` : reasoning}
+                  </pre>
+                </details>
+              )}
               <pre className="max-h-48 overflow-auto font-mono text-xs leading-5 whitespace-pre-wrap break-all">
                 {body.length > 6000 ? `${body.slice(0, 6000)}…` : body}
               </pre>
@@ -632,6 +641,27 @@ function RunTurns({
                     <ContextBar estimate={turn.contextEstimate}/>
                   </span>
                 </button>
+                {(turn.reasoningContent || (turn.usage?.reasoning ?? 0) > 0) && (
+                  <div className="mt-1.5 rounded-md border border-border/70 bg-muted/30 px-3 py-2">
+                    {turn.reasoningContent ? (
+                      <details>
+                        <summary className="cursor-pointer text-xs text-muted-foreground">
+                          第 {turn.index} 轮思考过程
+                          {(turn.usage?.reasoning ?? 0) > 0 && (
+                            <span className="ml-1.5 text-faint tabular-nums">({formatTokens(turn.usage?.reasoning)} 思考 Token)</span>
+                          )}
+                        </summary>
+                        <pre className="mt-2 max-h-64 overflow-auto text-xs leading-relaxed whitespace-pre-wrap text-muted-foreground">
+                          {turn.reasoningContent}
+                        </pre>
+                      </details>
+                    ) : (
+                      <p className="text-xs text-faint tabular-nums">
+                        已思考 · {formatTokens(turn.usage?.reasoning)} 思考 Token（上游未返回思考文本）
+                      </p>
+                    )}
+                  </div>
+                )}
                 <div
                   id={panelId}
                   aria-hidden={!active}

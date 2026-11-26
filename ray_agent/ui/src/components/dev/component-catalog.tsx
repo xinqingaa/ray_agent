@@ -12,6 +12,9 @@ import {PlanListDialog} from '@/components/run/plan-list-dialog'
 import {ToolCard} from '@/components/run/tool-card'
 import {ToolGroup} from '@/components/run/tool-group'
 import {FinalReply, NarrationBlock, UserMessage} from '@/components/run/messages'
+import {ReasoningDisclosure} from '@/components/run/reasoning-disclosure'
+import {isPresetStarterPrompt, PresetCapsule, PresetPicker, PresetStarters} from '@/components/preset-picker'
+import type {PresetItem} from '@/lib/api/skills'
 import {AskCard} from '@/components/run/ask-card'
 import {ApprovalCard} from '@/components/run/approval-card'
 import {DeliveryCard} from '@/components/run/delivery-card'
@@ -38,7 +41,7 @@ import {VoiceToolbar, type VoicePhase} from '@/components/voice-toolbar'
 import {TaskInspector, TaskInspectorTabs, useTaskInspector} from '@/components/task-layout'
 import {Button} from '@/components/ui/button'
 import {Collapsible, CollapsibleContent, CollapsibleTrigger, collapsibleChevron, collapsibleSideChevron} from '@/components/ui/collapsible'
-import {ChevronDown, ChevronRight, Folder} from '@/components/ui/icons'
+import {ChevronDown, ChevronRight, Folder, HeartHandshake, Presentation, Table} from '@/components/ui/icons'
 import {Input} from '@/components/ui/input'
 import {FolderToolbarActions} from '@/components/workspace/folder-toolbar-actions'
 import {FolderTree} from '@/components/workspace/folder-tree'
@@ -223,6 +226,124 @@ function CollapsibleFixture() {
       </Collapsible>
     </Surface>
   </>
+}
+
+const PRESET_SHOWCASE_FIXTURES: PresetItem[] = [
+  {
+    id: 'preset-ppt',
+    title: '制作 PPT',
+    subtitle: '对齐结构，生成可预览可导出演示稿',
+    placeholder: '说明主题、受众和大致页数，也可直接拖入参考文档',
+    icon: 'presentation',
+    execution_profile: 'workspace_task',
+    default_participate_in_memory: true,
+    depends_on: [],
+    starters: [
+      {label: '工作汇报演示稿', prompt: '帮我做一份工作汇报演示稿：先整理核心结论和几页结构，再做成可直接预览的演示页面。'},
+      {label: '方案提案 / 路演', prompt: '帮我做一份方案提案演示稿：突出背景痛点、核心方案、收益对比与落地计划。'},
+    ],
+  },
+  {
+    id: 'preset-excel',
+    title: '清洗 Excel',
+    subtitle: '多表整合、口径清洗与公式核算',
+    placeholder: '拖入表格并说明合并、清洗或汇总要求',
+    icon: 'table',
+    execution_profile: 'workspace_task',
+    default_participate_in_memory: true,
+    depends_on: [],
+    starters: [
+      {label: '合并多张表格', prompt: '请先盘点我提供的几张表格结构与字段差异，给出合并口径后再生成整合后的工作簿。'},
+      {label: '清洗去重与校验', prompt: '帮我清洗表格里的重复行、格式混乱和异常值，列出问题清单并输出干净表格。'},
+    ],
+  },
+  {
+    id: 'preset-web-tool',
+    title: '互动网页',
+    subtitle: '快速做成可交互、可直接打开的小工具',
+    placeholder: '描述想要的小工具功能、输入输出或数据保存方式',
+    icon: 'globe',
+    execution_profile: 'workspace_task',
+    default_participate_in_memory: true,
+    depends_on: [],
+    starters: [
+      {label: '做一个实用小工具', prompt: '帮我做一个可直接在应用内打开使用的单页小工具，界面干净好用，交互直接。'},
+    ],
+  },
+  {
+    id: 'preset-doc-brief',
+    title: '文档提炼',
+    subtitle: '通读多份材料，输出一页结论与拆解',
+    placeholder: '拖入文档、会议记录或粘贴内容，说明想给谁看',
+    icon: 'file-text',
+    execution_profile: 'interactive',
+    default_participate_in_memory: true,
+    depends_on: [],
+    starters: [
+      {label: '一页决策速览', prompt: '请通读我提供的材料，按「核心结论 / 关键依据 / 风险与待确认」提炼成一页速览。'},
+    ],
+  },
+  {
+    id: 'preset-interview',
+    title: '面试准备',
+    subtitle: '模拟追问、打磨简历或摸底岗位行情',
+    placeholder: '贴入目标岗位 / 拖入简历，或直接点下方选定准备模式',
+    icon: 'briefcase',
+    execution_profile: 'interactive',
+    default_participate_in_memory: true,
+    depends_on: [],
+    starters: [
+      {label: '模拟面试官追问', prompt: '请进入【模拟面试官】模式：你一次只问一个问题，根据我的回答做真实深挖追问，最后再统一复盘点评。'},
+    ],
+  },
+  {
+    id: 'preset-emotional-support',
+    title: '情绪疏导',
+    subtitle: '先接住情绪与压力，平稳后再理清头绪',
+    placeholder: '说说现在让你觉得累、烦躁或自责的事，哪怕只有几句也可以',
+    icon: 'heart-handshake',
+    execution_profile: 'dialogue',
+    default_participate_in_memory: false,
+    depends_on: [],
+    starters: [
+      {label: '先倾诉一下，不用急着给建议', prompt: '我现在有点难受和疲惫，想先跟你说说心里话，请先陪我聊聊、帮我稳一稳，不用急着给我列行动清单。'},
+      {label: '帮我把烦心事理一理', prompt: '我现在情绪还算稳定，想请你帮我把眼下这件烦心事拆开看看：哪些已经可控、哪些先放一放，接下来迈出最小的一步。'},
+    ],
+  },
+]
+
+function PresetShowcaseFixture() {
+  const [selectedId, setSelectedId] = useState<string | null>('preset-emotional-support')
+  const [draftText, setDraftText] = useState('')
+  const selected = PRESET_SHOWCASE_FIXTURES.find(item => item.id === selectedId) ?? null
+  const handleSelect = (nextId: string | null) => {
+    if (nextId !== selectedId && isPresetStarterPrompt(draftText, PRESET_SHOWCASE_FIXTURES)) {
+      setDraftText('')
+    }
+    setSelectedId(nextId)
+  }
+  return <Surface className="space-y-3">
+    <div data-preset-preview-box className="rounded-2xl border bg-background p-3 shadow-(--paper-shadow)">
+      {selected && <div className="mb-2 flex flex-wrap items-center gap-1.5">
+        <PresetCapsule preset={{id: selected.id, title: selected.title, icon: selected.icon, active: true}} onClear={() => handleSelect(null)}/>
+      </div>}
+      <p data-preset-preview-text className="min-h-6 text-sm text-foreground">
+        {draftText || <span className="text-muted-foreground">{selected?.placeholder ?? '描述目标，或拖入材料'}</span>}
+      </p>
+    </div>
+    {selected && (
+      <PresetStarters
+        preset={selected}
+        activePrompt={draftText}
+        onPick={prompt => setDraftText(current => current.trim() === prompt.trim() ? '' : prompt)}
+      />
+    )}
+    <PresetPicker
+      presets={PRESET_SHOWCASE_FIXTURES}
+      selectedId={selected?.id ?? null}
+      onSelect={handleSelect}
+    />
+  </Surface>
 }
 
 function ProviderSettingsFixture() {
@@ -476,10 +597,22 @@ export function ComponentCatalog() {
           <State label="含未成功" source="合成"><Surface><ToolGroup calls={toolGroups.withFailure}/></Surface></State>
         </Section>
 
-        <Section id="replies" title="旁白与最终回复" columns={2} note="旁白比最终回复弱一级；时间线将本次运行统计附在回复下方。此处只展示正文。">
+        <Section id="replies" title="旁白、思考过程与最终回复" columns={2} note="旁白比最终回复弱一级；思考过程默认收起，首段无标题时维持正文排版。">
           <State label="旁白" source="真实"><Surface><NarrationBlock text={messageStates.narration}/></Surface></State>
           <State label="旁白（W6 增量渲染入口）" source="合成"><Surface><NarrationBlock text={messageStates.narration.slice(0, 18)} streaming/></Surface></State>
-          <State label="短文本" source="真实"><Surface><FinalReply text={messageStates.finalShort.text} summary={messageStates.finalShort.summary}/></Surface></State>
+          <State label="思考过程（可展开）" source="合成">
+            <Surface>
+              <ReasoningDisclosure
+                content={'1. 先接住用户自我苛责带来的疲惫感，不做说教。\n2. 区分“对自己高标准”与“全天候自我审判”。\n3. 给出一个不制造新压力的小步练习。'}
+                reasoningTokens={459}
+                modelMs={8139}
+              />
+            </Surface>
+          </State>
+          <State label="无摘要思考计数提示" source="合成">
+            <Surface><ReasoningDisclosure content={null} reasoningTokens={256} modelMs={14200}/></Surface>
+          </State>
+          <State label="短文本（首段普通正文）" source="真实"><Surface><FinalReply text={'对自己要求很高，已经够费力了。一直紧绷着反复挑刺，连休息都像欠了债一样。\n\n如果你现在很累，先允许自己停下来喘口气。'} summary={messageStates.finalShort.summary}/></Surface></State>
           <State label="表格" source="真实"><Surface><FinalReply text={messageStates.finalTable.text} summary={messageStates.finalTable.summary}/></Surface></State>
           <State label="排版全集" source="合成" className="lg:col-span-2"><Surface><FinalReply text={messageStates.typography}/></Surface></State>
           <State label="长文本与代码块" source="合成" className="lg:col-span-2"><Surface><FinalReply text={messageStates.finalLong.text} summary={messageStates.finalLong.summary}/></Surface></State>
@@ -502,9 +635,9 @@ export function ComponentCatalog() {
         </Section>
 
         <Section id="user-message" title="用户消息" columns={3}>
-          <State label="普通" source="真实"><Surface><UserMessage text={messageStates.user.text}/></Surface></State>
-          <State label="带附件" source="真实"><Surface><UserMessage text={messageStates.userWithAttachment.text} attachments={messageStates.userWithAttachment.attachments}/></Surface></State>
-          <State label="补充要求" source="合成"><Surface><UserMessage text={messageStates.userInjected.text} injected/></Surface></State>
+          <State label="普通（悬浮显示时间与复制）" source="真实"><Surface><UserMessage text={messageStates.user.text} at={PLAN_TOOL_RUNNING_NOW}/></Surface></State>
+          <State label="带附件" source="真实"><Surface><UserMessage text={messageStates.userWithAttachment.text} at={PLAN_TOOL_RUNNING_NOW - 3_600_000} attachments={messageStates.userWithAttachment.attachments}/></Surface></State>
+          <State label="补充要求" source="合成"><Surface><UserMessage text={messageStates.userInjected.text} at={PLAN_TOOL_RUNNING_NOW} injected/></Surface></State>
         </Section>
 
         <Section id="ask-card" title="提问卡" columns={2} note="等你回复时，输入框提示“回复将继续当前任务”。">
@@ -560,10 +693,38 @@ export function ComponentCatalog() {
           <State label="预算已变" source="合成"><Surface><ContextRing usage={usageStates.configChanged}/></Surface></State>
         </Section>
 
-        <Section id="input-commands" title="输入命令" columns={2} note="+ 菜单与 / 提示共用注册表；不可用项显示原因。">
-          <State label="斜杠菜单" source="合成"><Surface className="w-full overflow-hidden rounded-2xl bg-popover p-0 shadow-(--float-shadow)">
-            <SlashCommandList query="" context={commandIdle} activeId="plan" onActiveIdChange={noop} onRun={noop}/>
+        <Section id="input-commands" title="输入命令与场景预设" columns={2} note="/ 显示操作+预设+Skill，@ 仅显示预设+Skill；不可用项显示原因。">
+          <State label="斜杠菜单 /" source="合成"><Surface className="w-full overflow-hidden rounded-2xl bg-popover p-0 shadow-(--float-shadow)">
+            <SlashCommandList
+              trigger="/"
+              query=""
+              context={commandIdle}
+              presetCommands={[
+                {id: 'preset:preset-ppt', surfaces: ['slash'], keyword: 'preset-ppt', title: '制作 PPT', description: '对齐结构并生成可预览、可导出的演示稿', aliases: [], keywords: [], icon: Presentation, activeTag: '当前', available: () => ({available: true}), run: noop},
+                {id: 'preset:preset-excel', surfaces: ['slash'], keyword: 'preset-excel', title: '清洗 Excel', description: '整合多表、修复口径并核算关键汇总', aliases: [], keywords: [], icon: Table, available: () => ({available: true}), run: noop},
+              ]}
+              activeId="plan"
+              onActiveIdChange={noop}
+              onRun={noop}
+            />
           </Surface></State>
+          <State label="@ 预设与 Skill 菜单" source="合成"><Surface className="w-full overflow-hidden rounded-2xl bg-popover p-0 shadow-(--float-shadow)">
+            <SlashCommandList
+              trigger="@"
+              query=""
+              context={commandIdle}
+              presetCommands={[
+                {id: 'preset:preset-ppt', surfaces: ['slash'], keyword: 'preset-ppt', title: '制作 PPT', description: '对齐结构并生成可预览、可导出的演示稿', aliases: [], keywords: [], icon: Presentation, activeTag: '当前', available: () => ({available: true}), run: noop},
+                {id: 'preset:preset-emotional-support', surfaces: ['slash'], keyword: 'preset-emotional-support', title: '情绪疏导', description: '先接住压力与内耗，平稳后再理清头绪', aliases: [], keywords: [], icon: HeartHandshake, available: () => ({available: true}), run: noop},
+              ]}
+              activeId="preset:preset-ppt"
+              onActiveIdChange={noop}
+              onRun={noop}
+            />
+          </Surface></State>
+          <State label="场景卡片与胶囊" source="合成" className="lg:col-span-2">
+            <PresetShowcaseFixture/>
+          </State>
           <State label="全部可用" source="合成"><Surface className="inline-flex"><PlusCommandMenu context={commandIdle}/></Surface></State>
           <State label="运行中（Plan 与压缩不可用）" source="合成"><Surface className="inline-flex"><PlusCommandMenu context={commandRunning}/></Surface></State>
           <State label="无运行历史（压缩不可用）" source="合成"><Surface className="inline-flex"><PlusCommandMenu context={commandNoRuns}/></Surface></State>

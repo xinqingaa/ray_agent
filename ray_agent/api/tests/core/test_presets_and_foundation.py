@@ -55,7 +55,7 @@ def _build_skill_service(database, tmp_path, *, settings: Settings | None = None
     )
 
 
-def test_builtin_registry_initializes_12_skills_with_denoising_and_presets_api(tmp_path):
+def test_builtin_registry_initializes_10_skills_with_denoising_and_presets_api(tmp_path):
     async def scenario(uow_factory, read_factory, database):
         s = _build_skill_service(database, tmp_path)
         await s.initialize()
@@ -63,24 +63,24 @@ def test_builtin_registry_initializes_12_skills_with_denoising_and_presets_api(t
         by_id = {item["id"]: item for item in items}
 
         assert set(BUILTIN_SKILLS) <= set(by_id)
-        assert len([item for item in items if item.get("builtin")]) == 12
+        assert len([item for item in items if item.get("builtin")]) == 10
+        for retired in ("elicitation-communication", "structured-thinking"):
+            assert retired not in by_id
 
-        # 5 项基础底座均进入默认自由对话目录；面试 / 情绪预设仅从预设或显式选择进入
+        # 基础底座进入默认自由对话目录；面试 / 情绪预设仅从预设或显式选择进入
         assert by_id["preset-interview"]["included"] is False
         assert by_id["preset-emotional-support"]["included"] is False
-        for included_id in ("find-skills", "elicitation-communication", "research-grounding",
-                            "structured-thinking", "presentation-design", "verification-critique",
+        for included_id in ("find-skills", "research-grounding",
+                            "presentation-design", "verification-critique",
                             "preset-ppt", "preset-excel", "preset-web-tool", "preset-doc-brief"):
             assert by_id[included_id]["included"] is True
 
         # 包含 references/ 与 scripts/ 资源
         expected_resources = {
-            "elicitation-communication": {"SKILL.md", "references/examples.md"},
-            "structured-thinking": {"SKILL.md", "references/thinking-toolkits.md"},
             "research-grounding": {"SKILL.md", "references/deepsearch-playbook.md"},
             "presentation-design": {"SKILL.md", "references/visual-checklist.md"},
             "verification-critique": {"SKILL.md", "scripts/verify_office.py"},
-            "preset-emotional-support": {"SKILL.md", "references/conversation-guide.md"},
+            "preset-emotional-support": {"SKILL.md"},
             "preset-interview": {"SKILL.md", "references/interview-playbook.md"},
             "preset-doc-brief": {"SKILL.md", "references/brief-templates.md"},
             "preset-ppt": {"SKILL.md", "references/slide-patterns.md"},
@@ -99,10 +99,11 @@ def test_builtin_registry_initializes_12_skills_with_denoising_and_presets_api(t
                     raw = await s.file(skill_id, detail["version"], file_meta["path"])
                     assert len(raw.decode("utf-8")) <= s.settings.skill_resource_chars
 
-        # 情绪疏导不再保留“3–6 句”机械字数上限，同时保留危机升级热线 12356，且不强绑职场腔依赖
+        # 情绪疏导采用 Option A 极简版本：无人工句数上限、保留 110/120/12356 危机求助边界、不强绑工具或基础依赖
         emo_text = details_by_id["preset-emotional-support"]["text"]
-        assert "3–6 句" not in emo_text and "12356" in emo_text
+        assert "3–6 句" not in emo_text and "12356" in emo_text and "110" in emo_text and "120" in emo_text
         assert BUILTIN_SKILLS["preset-emotional-support"].preset.depends_on == []
+        assert BUILTIN_SKILLS["preset-emotional-support"].preset.execution_profile == "dialogue"
 
         # 任一预设及 depends_on 组合预加载不得超出活动 Skill 总预算
         for spec in BUILTIN_SKILLS.values():
@@ -116,7 +117,7 @@ def test_builtin_registry_initializes_12_skills_with_denoising_and_presets_api(t
         catalog_text = catalog_message("", included_builtins, s.settings.skill_catalog_description_chars)["content"]
         assert len(catalog_text) < s.settings.skill_catalog_chars
 
-        # HTTP 接口返回 6 项预设元数据
+        # HTTP 接口返回 6 项预设元数据及 execution_profile
         app = FastAPI()
         app.include_router(skill_router, prefix="/api")
         app.dependency_overrides[get_skill_service] = lambda: s
@@ -129,8 +130,11 @@ def test_builtin_registry_initializes_12_skills_with_denoising_and_presets_api(t
                 "preset-ppt", "preset-excel", "preset-web-tool",
                 "preset-doc-brief", "preset-interview", "preset-emotional-support",
             ]
-            emotional = next(p for p in preset_items if p["id"] == "preset-emotional-support")
-            assert emotional["default_participate_in_memory"] is False
+            by_preset = {p["id"]: p for p in preset_items}
+            assert by_preset["preset-emotional-support"]["default_participate_in_memory"] is False
+            assert by_preset["preset-emotional-support"]["execution_profile"] == "dialogue"
+            assert by_preset["preset-interview"]["execution_profile"] == "interactive"
+            assert by_preset["preset-ppt"]["execution_profile"] == "workspace_task"
 
     with_database(tmp_path, scenario)
 
@@ -219,7 +223,7 @@ def test_preset_sticky_preload_coexists_with_slash_skill_budget_plan_and_compact
         session = await sessions.create_session(active_preset_id="preset-interview")
         ledger = RunLedger(uow_factory, MemoryNotifier())
 
-        # 第 1 轮运行：自动冻结并预加载 preset-interview + 3 个基础依赖，同时并存显式 /extra-pack
+        # 第 1 轮运行：自动冻结并预加载 preset-interview + research-grounding，同时并存显式 /extra-pack
         async def accept_run1(uow):
             await s.accept(uow, session.id, SkillSelection(id=user_skill["id"], version=user_skill["version"]))
 
@@ -229,7 +233,7 @@ def test_preset_sticky_preload_coexists_with_slash_skill_budget_plan_and_compact
         assert stored_run1 is not None
         assert stored_run1.config_snapshot["active_preset_id"] == "preset-interview"
         assert stored_run1.config_snapshot["preset_preload_ids"] == [
-            "preset-interview", "elicitation-communication", "research-grounding", "structured-thinking"
+            "preset-interview", "research-grounding"
         ]
 
         rt1 = SkillRuntime(s, run1.id, session_id=session.id, preset_preload_ids=stored_run1.config_snapshot["preset_preload_ids"])
@@ -245,7 +249,7 @@ def test_preset_sticky_preload_coexists_with_slash_skill_budget_plan_and_compact
             if m.get("_ray_skill", {}).get("kind") == "body"
         }
         assert active_names_1 == {
-            "preset-interview", "elicitation-communication", "research-grounding", "structured-thinking", "extra-pack"
+            "preset-interview", "research-grounding", "extra-pack"
         }
 
         # 压缩保留所有已激活的预设及依赖正文
@@ -281,7 +285,7 @@ def test_preset_sticky_preload_coexists_with_slash_skill_budget_plan_and_compact
             if m.get("_ray_skill", {}).get("kind") == "body"
         }
         assert active_names_2 == {
-            "preset-interview", "elicitation-communication", "research-grounding", "structured-thinking"
+            "preset-interview", "research-grounding"
         }
         await ledger.transition(session.id, run2.id, RunStatus.COMPLETED)
 
@@ -409,9 +413,121 @@ def test_builtin_skills_untied_from_artificial_caps():
     visual_checklist_text = (root / "presentation-design" / "references" / "visual-checklist.md").read_text(encoding="utf-8")
 
     assert "300–550 行" not in web_text
-    assert "不做字数或句数上限" in emo_text
-    assert "12356" in emo_text
+    assert "3–6 句" not in emo_text and "篇幅限制" in emo_text
+    assert "12356" in emo_text and "depends_on:" not in emo_text
     assert "3–5 句直答" not in deepsearch_text
     assert "超过 120 字" not in slide_patterns_text
     assert "克制" not in doc_brief_text
     assert "克制" not in visual_checklist_text
+
+
+def test_execution_profile_pruning_two_tier_catalog_and_reasoning_event(tmp_path):
+    from app.domain.models.event import TurnEvent, TurnPhase
+    from app.domain.services.run_budget import BudgetPhase
+    from app.domain.services.skill_context import catalog_message
+    from app.domain.services.tools.a2a import A2ATool
+    from app.domain.services.tools.mcp import MCPTool
+    from tests.support.scripted_llm import ScriptedResponse
+
+    # 1. dialogue 档位无非图片附件时裁剪全部工具，跳过 plan notices / task state，且 TurnEvent 持久化 reasoning_content
+    h_dialog = make_loop([ScriptedResponse(content="我在这里陪你。", reasoning_content="先共情接住情绪，再轻柔回应。")])
+    h_dialog.loop._execution_profile = "dialogue"
+    events_dialog = asyncio.run(
+        asyncio.wait_for(_collect(h_dialog.loop.invoke(Message(message="好累"))), timeout=5)
+    )
+    assert h_dialog.llm.requests[0].tools == []
+    assert not any("[计划核对]" in str(m.get("content") or "") or "[任务状态]" in str(m.get("content") or "")
+                   for m in h_dialog.llm.requests[0].messages)
+    completed_turns = [e for e in events_dialog if isinstance(e, TurnEvent) and e.phase == TurnPhase.COMPLETED]
+    assert len(completed_turns) == 1
+    assert completed_turns[0].reasoning_content == "先共情接住情绪，再轻柔回应。"
+
+    # 有非图片附件时，dialogue 档位仅开放 read_document 与 read_file
+    h_attach = make_loop([text("已读取附件。")])
+    h_attach.loop._execution_profile = "dialogue"
+    _ = asyncio.run(asyncio.wait_for(_collect(h_attach.loop.invoke(Message(message="帮我看下", attachments=["notes.txt"]))), timeout=5))
+    tool_names_attach = {t["function"]["name"] for t in h_attach.llm.requests[0].tools}
+    assert tool_names_attach == {"read_document", "read_file"}
+
+    # 未配置 MCP/A2A 时隐藏 discover_mcp_tools / get_remote_agent_cards / call_remote_agent；非 FINALIZE 隐藏 finalize_artifact
+    class _DummyGW:
+        config = AppConfig(llm_config=LLMConfig(), agent_config=AgentConfig(), mcp_config=MCPConfig(), a2a_config=A2AConfig()).mcp_config
+    class _DummyA2AGW:
+        config = A2AConfig()
+    h_prune = make_loop(
+        [text("done")],
+        extra_tools=[
+            MCPTool(_DummyGW()),
+            A2ATool(_DummyA2AGW()),
+        ],
+    )
+    h_prune.loop._has_mcp_override = False
+    h_prune.loop._has_a2a_override = False
+    pruned_names = {t["function"]["name"] for t in h_prune.loop._tool_schemas()}
+    assert "discover_mcp_tools" not in pruned_names
+    assert "get_remote_agent_cards" not in pruned_names
+    assert "call_remote_agent" not in pruned_names
+    assert "finalize_artifact" not in pruned_names
+    h_prune.loop._budget_phase = BudgetPhase.FINALIZE
+    assert "finalize_artifact" in {t["function"]["name"] for t in h_prune.loop._tool_schemas()}
+
+    # 2. 两级渐进式 Skill 目录：超过 12 项时只内联子集并暴露 search_skills；dialogue 跳过目录
+    async def scenario(uow_factory, read_factory, database):
+        s = _build_skill_service(database, tmp_path)
+        await s.initialize()
+        # 测试 initialize 清理已下线内置 skill，以及 default_included 同步（覆盖未显式覆盖的记录，保留 overridden=True）
+        async with s.repository.transaction() as tx:
+            await tx.put("skills", "elicitation-communication", {
+                "id": "elicitation-communication", "name": "elicitation-communication",
+                "builtin": True, "enabled": True, "included": True, "version": "v1",
+            })
+            ppt_row = await tx.get("skills", "preset-ppt")
+            excel_row = await tx.get("skills", "preset-excel")
+            assert ppt_row is not None and excel_row is not None
+            await tx.put("skills", "preset-ppt", {**ppt_row, "included": False, "default_included": False, "included_overridden": False})
+            await tx.put("skills", "preset-excel", {**excel_row, "included": False, "default_included": False, "included_overridden": True})
+        await s.initialize()
+        after_init = {e["id"]: e for e in await s.list()}
+        assert "elicitation-communication" not in after_init
+        assert after_init["preset-ppt"]["included"] is True
+        assert after_init["preset-excel"]["included"] is False
+
+        sessions = SessionService(uow_factory, read_uow_factory=read_factory, skills=s)
+        session_obj = await sessions.create_session()
+        ledger = RunLedger(uow_factory, MemoryNotifier())
+        r_dialog = await ledger.start(session_obj.id)
+
+        # dialogue 档位不向模型发送 <available_skills>
+        rt_dialog = SkillRuntime(s, r_dialog.id, local_command_available=False, execution_profile="dialogue")
+        await rt_dialog.initialize(frozen=False)
+        assert await rt_dialog.context(query_text="好累") == []
+        await ledger.transition(session_obj.id, r_dialog.id, RunStatus.COMPLETED)
+
+        # 再安装 8 个自定义 skill，使 included 总数超过 12
+        for idx in range(8):
+            desc = f"专项技能 {idx} 合同审阅" if idx == 5 else f"常规技能 {idx}"
+            raw_skill = f"---\nname: custom-skill-{idx}\ndescription: {desc}\n---\n\n{desc}\n".encode()
+            await install(s, {"SKILL.md": raw_skill})
+        r_tier = await ledger.start(session_obj.id)
+        rt = SkillRuntime(s, r_tier.id, local_command_available=False, execution_profile="workspace_task")
+        await rt.initialize(frozen=False)
+        blocks = await rt.context(query_text="合同")
+        assert len(blocks) == 1 and "search_skills" in blocks[0]["content"]
+        assert "custom-skill-5" in blocks[0]["content"]
+        tool = SkillTool(rt)
+        exposed = {t["function"]["name"] for t in tool.get_tools()}
+        assert "search_skills" in exposed
+        assert "prepare_skill_resources" not in exposed  # local_command_available=False
+        search_res = await rt.search("合同")
+        assert search_res.success and search_res.data["items"][0]["name"] == "custom-skill-5"
+
+        # 确认超过上限的 catalog_message 本身保持精简
+        bound = await s.bindings(r_tier.id)
+        cat = catalog_message(r_tier.id, bound, query_text="合同")["content"]
+        assert len(cat) < 8000
+
+    with_database(tmp_path, scenario)
+
+
+async def _collect(agen):
+    return [item async for item in agen]

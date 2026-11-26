@@ -18,7 +18,7 @@ def test_real_archives_publish_independent_python_and_recover_corruption(tmp_pat
     bins = install(source, spec, tmp_path, identity)
     env = scrub_env(runtime_bin_dirs=bins)
     version = subprocess.check_output([str(bins[0] / 'python3'), '-I', '-c',
-        'import sys,ssl,sqlite3,venv; print(sys.version.split()[0]); print(6*7)'], text=True, env=env)
+        'import sys,ssl,sqlite3,venv,openpyxl,pptx,docx,pypdf,PIL,lxml,xlsxwriter; print(sys.version.split()[0]); print(6*7)'], text=True, env=env)
     assert version.splitlines() == ['3.12.12', '42']
     loaded = subprocess.run([str(bins[0] / 'python3'), '-c', 'print(42)'],
                             env={**env, 'DYLD_PRINT_LIBRARIES': '1'}, text=True, capture_output=True, check=True)

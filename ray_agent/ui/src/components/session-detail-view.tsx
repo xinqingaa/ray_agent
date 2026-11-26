@@ -6,7 +6,7 @@ import {ArrowDown, ChevronDown, Code2, Download, History, MessageCircle, PanelRi
 import {Button} from '@/components/ui/button'
 import {SegmentedControl} from '@/components/ui/segmented-control'
 import {ChatInput, type ChatInputRef} from '@/components/chat-input'
-import {PresetCapsule} from '@/components/preset-picker'
+import {PresetCapsule, usePresets} from '@/components/preset-picker'
 import {SKILLS_CHANGED} from '@/lib/api/skills'
 import {RenameSessionDialog} from '@/components/rename-session-dialog'
 import {DeveloperView} from '@/components/developer/developer-view'
@@ -193,6 +193,7 @@ export function SessionDetailView({
   const restoreOptionsFocus = () => optionsTrigger.current?.focus({preventScroll: true})
   const [renamedTitle, setRenamedTitle] = useState<{sessionId: string; title: string; previousTitle: string} | null>(null)
   const [previewedFile, setPreviewedFile] = useState<FileView | null>(null)
+  const presets = usePresets(workspace?.id)
   const [clearedPresetId, setClearedPresetId] = useState<string | null>(null)
   const activePreset = session?.active_preset && clearedPresetId !== session.active_preset.id ? session.active_preset : null
   const activePresetId = session?.active_preset_id ?? null
@@ -202,6 +203,17 @@ export function SessionDetailView({
     window.addEventListener(SKILLS_CHANGED, reload)
     return () => window.removeEventListener(SKILLS_CHANGED, reload)
   }, [activePresetId, refresh])
+  const handleSelectPreset = async (presetId: string) => {
+    setClearedPresetId(null)
+    try {
+      await sessionApi.setPreset(sessionId, presetId)
+      const label = presets.find(item => item.id === presetId)?.title ?? presetId
+      toast.success(`已切换到「${label}」场景`)
+      await refresh()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : '切换场景失败')
+    }
+  }
   const handleExitPreset = async () => {
     const previous = activePreset?.id ?? null
     if (!previous) return
@@ -1132,6 +1144,9 @@ export function SessionDetailView({
                       contextTokens={view?.usage.context?.usedTokens ?? view?.usage.latestRequest?.usedTokens ?? null}
                       onModelCommitted={() => { void refresh() }}
                       topBanner={activePreset ? <PresetCapsule preset={activePreset} disabled={submitting} onClear={() => void handleExitPreset()}/> : undefined}
+                      presets={presets}
+                      activePresetId={activePreset?.id ?? null}
+                      onSelectPreset={id => void handleSelectPreset(id)}
                       accessory={view && <ContextRing usage={view.usage}/>}
                       commandHost={{
                         hasSession: true,

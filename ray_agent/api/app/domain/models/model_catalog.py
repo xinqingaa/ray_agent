@@ -100,7 +100,7 @@ def _gpt_spec(model_id: str, efforts: tuple[str, ...], default: str) -> ModelSpe
     return ModelSpec(
         id=model_id, provider="openai", context_window=272_000, default_context_window=272_000, max_output=128_000, tools=True, vision=True,
         auxiliary=False, choices=_gpt_choices(efforts),
-        default_choice=default, thinking_output_floor=0, reasoning_ordered=True, reasoning_family="gpt-6",
+        default_choice=default, thinking_output_floor=16_384, reasoning_ordered=True, reasoning_family="gpt-6",
         temperature_when="disabled", temperature_max=2, tool_batching="provider_default", emit_thinking=False,
     )
 

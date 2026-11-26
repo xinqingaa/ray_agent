@@ -1,7 +1,6 @@
 ---
 name: preset-doc-brief
 description: 结构化文档、方案报告与调研简报撰写指南；依据读者与目标自然决定篇幅和论述深度，做到结论先行、论据扎实、可读性强。
-depends_on: [structured-thinking, research-grounding, verification-critique]
 ---
 
 # 文档与方案简报撰写

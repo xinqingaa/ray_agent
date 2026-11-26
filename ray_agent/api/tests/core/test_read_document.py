@@ -167,3 +167,84 @@ def test_read_document_enforces_scope_and_plan_mode(tmp_path):
         assert RunMode.PLAN.value == "plan"
 
     _run(check())
+
+
+def test_read_document_detects_mixed_pdf_image_pages(monkeypatch):
+    import io
+    from PIL import Image
+    from pypdf import PdfWriter
+    from pypdf.generic import ContentStream, DecodedStreamObject, DictionaryObject, NameObject, NumberObject
+    from app.infrastructure.external.document_parse import worker as doc_worker
+
+    monkeypatch.setattr(doc_worker, "_ocr_component", lambda: None)
+
+    def _pdf_with_text_and_image(pdf_path: Path):
+        # 用 pypdf 构造 3 页真实 PDF：第 1 页含长文字，第 2 页纯图片，第 3 页极短标题+图片
+        writer = PdfWriter()
+        img_buf = io.BytesIO()
+        Image.new("RGB", (40, 40), "red").save(img_buf, format="PNG")
+        img_bytes = img_buf.getvalue()
+
+        for page_idx in range(3):
+            page = writer.add_blank_page(width=612, height=792)
+            font_dict = DictionaryObject({
+                NameObject("/Type"): NameObject("/Font"),
+                NameObject("/Subtype"): NameObject("/Type1"),
+                NameObject("/BaseFont"): NameObject("/Helvetica"),
+            })
+            resources = DictionaryObject({NameObject("/Font"): DictionaryObject({NameObject("/F1"): font_dict})})
+            if page_idx in (1, 2):
+                # 嵌入真实 XObject 图片
+                raw_rgb = Image.open(io.BytesIO(img_bytes)).tobytes()
+                img_obj = DecodedStreamObject()
+                img_obj.set_data(raw_rgb)
+                img_obj.update({
+                    NameObject("/Type"): NameObject("/XObject"),
+                    NameObject("/Subtype"): NameObject("/Image"),
+                    NameObject("/Width"): NumberObject(40),
+                    NameObject("/Height"): NumberObject(40),
+                    NameObject("/ColorSpace"): NameObject("/DeviceRGB"),
+                    NameObject("/BitsPerComponent"): NumberObject(8),
+                })
+                img_ref = writer._add_object(img_obj)
+                resources[NameObject("/XObject")] = DictionaryObject({NameObject("/Im1"): img_ref})
+            page[NameObject("/Resources")] = resources
+            ops = []
+            if page_idx == 0:
+                ops.append("BT /F1 12 Tf 72 720 Td (This is a sufficiently long narrative text page for normal parsing checks.) Tj ET")
+            elif page_idx == 2:
+                ops.append("BT /F1 12 Tf 72 720 Td (Header) Tj ET")
+            if page_idx in (1, 2):
+                ops.append("q 100 0 0 100 72 500 cm /Im1 Do Q")
+            if ops:
+                cs = ContentStream(None, writer)
+                cs.set_data("\n".join(ops).encode("latin1"))
+                page[NameObject("/Contents")] = writer._add_object(cs)
+
+        with pdf_path.open("wb") as fp:
+            writer.write(fp)
+
+    async def check():
+        fx = FileFixture()
+        pdf_path = fx.root / "mixed.pdf"
+        _pdf_with_text_and_image(pdf_path)
+
+        parsed = doc_worker.parse_pdf(pdf_path)
+        assert parsed["status"] == "ok"
+        assert parsed["image_pages"] == [2, 3]
+
+        tool = FileTool(fx.scope)
+        res_all = await tool.read_document("mixed.pdf")
+        assert res_all.success
+        assert res_all.data["image_pages"] == [2, 3]
+        assert "第 2、3 页" in res_all.message and "图片/扫描页" in res_all.message
+
+        res_p2 = await tool.read_document("mixed.pdf", page_start=2, page_end=2)
+        assert res_p2.success and res_p2.data["image_pages"] == [2]
+        assert "第 2 页" in res_p2.message
+
+        res_p1 = await tool.read_document("mixed.pdf", page_start=1, page_end=1)
+        assert res_p1.success and res_p1.data["image_pages"] == []
+        assert "图片/扫描页" not in res_p1.message
+
+    _run(check())

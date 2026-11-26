@@ -59,6 +59,7 @@ class ScriptedChunk:
 @dataclass
 class ScriptedResponse:
     content: Optional[str] = None
+    reasoning_content: Optional[str] = None
     tool_calls: List[ScriptedToolCall] = field(default_factory=list)
     finish_reason: Optional[str] = None
     usage: Optional[LLMUsage] = None
@@ -292,8 +293,11 @@ class ScriptedLLM:
                     "function": {"name": call.name, "arguments": call.arguments_text()},
                 })
         finish_reason = response.finish_reason or ("tool_calls" if tool_calls else "stop")
+        msg: Dict[str, Any] = {"role": "assistant", "content": response.content, "tool_calls": tool_calls}
+        if response.reasoning_content is not None:
+            msg["reasoning_content"] = response.reasoning_content
         return ScriptedInvokeResult(
-            message={"role": "assistant", "content": response.content, "tool_calls": tool_calls},
+            message=msg,
             usage=response.usage.model_copy() if response.usage else None,
             finish_reason=finish_reason,
         )

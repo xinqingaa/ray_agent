@@ -261,6 +261,7 @@ class TurnEvent(BaseEvent):
     tool_call_ids: List[str] = Field(default_factory=list)  # 本轮经过工具管线、有 called 事件的调用
     tools_ms: Optional[int] = None  # 批次内工具耗时合计
     error: Optional[str] = None  # 请求失败时的原因代码
+    reasoning_content: Optional[str] = None  # 本轮持久化思考原文或摘要（如有）
 
 
 class AttemptReason(str, Enum):

@@ -29,6 +29,8 @@ logger = logging.getLogger(__name__)
 _STREAM_END = object()
 # 400 正文里出现这些字样，才认为是供应商拒绝 stream_options，而不是别的参数错误。
 _STREAM_OPTION_MARKERS = ("stream_options", "include_usage")
+_SUMMARY_MARKERS = ("reasoning.summary", "summary")
+_SUMMARY_UNSUPPORTED: set[tuple[str, str]] = set()
 # httpx 默认空闲 5 秒就丢弃连接，工具稍慢一点下一轮就要重新解析域名和握手。
 _KEEPALIVE_SECONDS = 30
 _shared_http: Optional[tuple[asyncio.AbstractEventLoop, httpx.AsyncClient]] = None
@@ -247,7 +249,11 @@ class OpenAILLM(LLM):
         if self._provider == 'deepseek' and self._thinking == 'disabled' and not self._custom:
             effort = 'none'
         if effort:
-            kwargs['reasoning'] = {'effort': effort}
+            reasoning_spec: Dict[str, Any] = {'effort': effort}
+            endpoint_key = (str(getattr(self._client, 'base_url', '') or '').rstrip('/'), self._model_name)
+            if self._provider != 'deepseek' and effort != 'none' and endpoint_key not in _SUMMARY_UNSUPPORTED:
+                reasoning_spec['summary'] = 'auto'
+            kwargs['reasoning'] = reasoning_spec
         if self._custom and self._emit_thinking and self._thinking in ("enabled", "disabled"):
             kwargs['extra_body'] = {"thinking": {"type": self._thinking}}
         if tools:
@@ -265,7 +271,22 @@ class OpenAILLM(LLM):
 
     async def _invoke_responses(self, messages, tools, response_format, tool_choice, on_delta, on_progress, prefix):
         started = asyncio.get_running_loop().time()
-        response = await self._client.responses.create(**self._responses_kwargs(messages, tools, response_format, tool_choice))
+        kwargs = self._responses_kwargs(messages, tools, response_format, tool_choice)
+        try:
+            response = await self._client.responses.create(**kwargs)
+        except APIStatusError as error:
+            if (
+                not isinstance(kwargs.get('reasoning'), dict)
+                or 'summary' not in kwargs['reasoning']
+                or not _rejects_reasoning_summary(error)
+            ):
+                raise
+            endpoint_key = (str(getattr(self._client, 'base_url', '') or '').rstrip('/'), self._model_name)
+            _SUMMARY_UNSUPPORTED.add(endpoint_key)
+            logger.warning('%sResponses 供应商不支持 reasoning.summary，本次及后续请求自动降级省略 summary', prefix)
+            kwargs = copy.deepcopy(kwargs)
+            kwargs['reasoning'].pop('summary', None)
+            response = await self._client.responses.create(**kwargs)
         ttft_ms = None
         first_any_at: Optional[float] = None
         first_visible_at: Optional[float] = None
@@ -763,6 +784,16 @@ def _rejects_stream_options(error: Exception) -> bool:
         return False
     text = f"{getattr(error, 'code', '') or ''} {error}".lower()
     return any(marker in text for marker in _STREAM_OPTION_MARKERS)
+
+
+def _rejects_reasoning_summary(error: Exception) -> bool:
+    """上游兼容端点拒绝 reasoning.summary 时返回 400 并提及 summary。"""
+    if _is_context_exceeded(error):
+        return False
+    if not isinstance(error, APIStatusError) or error.status_code != 400:
+        return False
+    text = f"{getattr(error, 'code', '') or ''} {error}".lower()
+    return any(marker in text for marker in _SUMMARY_MARKERS)
 
 
 def _causes(error: BaseException):

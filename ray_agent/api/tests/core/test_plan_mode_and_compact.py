@@ -96,7 +96,7 @@ def mcp_tool(gateway):
 
 SIDE_EFFECTS = batch(
     ("write_file", {"filepath": "src/new.py", "content": "x"}, "w"),
-    ("shell_execute", {"session_id": "s", "exec_dir": "/src", "command": "rm -rf build"}, "sh"),
+    ("shell_execute", {"session_id": "s", "exec_dir": "", "command": "rm -rf build"}, "sh"),
     (MCP_ALIAS, {"path": "/x"}, "m"),
 )
 READS = batch(
@@ -112,7 +112,7 @@ def loop_with_tools(script, *, session=None, policy=None, sandbox=None, gateway=
     gateway = gateway or RecordingGateway()
     files = files or FileFixture({"src/app.py": "print('hi')"})
     h = make_loop(script, session=session, sandbox=sandbox, files=files, tool_policy=policy,
-                  extra_tools=[ShellTool(sandbox), mcp_tool(gateway)])
+                  extra_tools=[ShellTool(sandbox, default_exec_dir=files.scope.roots[0].path), mcp_tool(gateway)])
     h.gateway = gateway
     return h
 

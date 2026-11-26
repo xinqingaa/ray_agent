@@ -330,23 +330,34 @@ class FileTool(BaseTool):
 
         end_block = start_block + len(selected) - 1 if selected else start_block - 1
         has_more = truncated or (start_block - 1 + len(selected) < len(filtered))
-        return ToolResult(
-            message="文档读取成功" if filtered else "文档解析完成，当前过滤条件下没有内容",
-            data={
-                "filepath": str(host_path),
-                "format": parsed.get("format", fmt.value),
-                "total_blocks": len(all_blocks),
-                "filtered_blocks": len(filtered),
-                "start_block": start_block,
-                "end_block": end_block,
-                "has_more": has_more,
-                "truncated": truncated,
-                "sheets": sheets,
-                "pages": pages,
-                "blocks": selected,
-                "content": "\n\n".join(parts),
-            },
-        )
+        raw_image_pages = parsed.get("image_pages") or []
+        if page_start is not None or page_end is not None:
+            low = page_start or 1
+            high = page_end if page_end is not None else float("inf")
+            image_pages = [p for p in raw_image_pages if isinstance(p, int) and low <= p <= high]
+        else:
+            image_pages = [p for p in raw_image_pages if isinstance(p, int)]
+        msg = "文档读取成功" if filtered else "文档解析完成，当前过滤条件下没有内容"
+        data: dict[str, Any] = {
+            "filepath": str(host_path),
+            "format": parsed.get("format", fmt.value),
+            "total_blocks": len(all_blocks),
+            "filtered_blocks": len(filtered),
+            "start_block": start_block,
+            "end_block": end_block,
+            "has_more": has_more,
+            "truncated": truncated,
+            "sheets": sheets,
+            "pages": pages,
+            "blocks": selected,
+            "content": "\n\n".join(parts),
+        }
+        if fmt is DocumentFormat.PDF or image_pages:
+            data["image_pages"] = image_pages
+        if image_pages:
+            page_labels = "、".join(str(p) for p in image_pages)
+            msg += f"；注意第 {page_labels} 页为图片/扫描页（无文本层或仅极少文字），切勿跳过或臆断其中内容"
+        return ToolResult(message=msg, data=data)
 
     @tool(
         name="write_file",

@@ -1,10 +1,10 @@
 import {useEffect, useRef, useState} from 'react'
 import {useRouter} from '@/lib/navigation'
 import {toast} from 'sonner'
-import {INDEPENDENT_SCOPE, readDraft, writeDraft} from '@/lib/drafts'
+import {DATA_CLEARED, draftClearedBy, INDEPENDENT_SCOPE, readDraft, writeDraft, type ClearedData} from '@/lib/drafts'
 import {useStartTask, type StartOptions} from '@/hooks/use-start-task'
 import {ChatInput, type ChatInputRef} from '@/components/chat-input'
-import {PresetCapsule, PresetPicker, PresetStarters, usePresets} from '@/components/preset-picker'
+import {isPresetStarterPrompt, PresetCapsule, PresetPicker, PresetStarters, usePresets} from '@/components/preset-picker'
 import {TaskLayout} from '@/components/task-layout'
 import type {FileInfo} from '@/lib/api/types'
 
@@ -13,11 +13,32 @@ export function HomePage() {
   const input = useRef<ChatInputRef>(null)
   const presets = usePresets()
   const [selectedPresetId, setSelectedPresetId] = useState<string | null>(() => readDraft(INDEPENDENT_SCOPE).activePresetId ?? null)
+  const [composerText, setComposerText] = useState(() => readDraft(INDEPENDENT_SCOPE).text)
+  const composerTextRef = useRef(composerText)
   const selectedPreset = presets.find(item => item.id === selectedPresetId) ?? null
   useEffect(() => {
     if (selectedPresetId && presets.length > 0 && !selectedPreset) setSelectedPresetId(null)
   }, [presets, selectedPreset, selectedPresetId])
+  useEffect(() => {
+    const onCleared = (event: Event) => {
+      const data = (event as CustomEvent<ClearedData>).detail
+      if (!data || !draftClearedBy(data, INDEPENDENT_SCOPE)) return
+      setSelectedPresetId(null)
+      composerTextRef.current = ''
+      setComposerText('')
+    }
+    window.addEventListener(DATA_CLEARED, onCleared)
+    return () => window.removeEventListener(DATA_CLEARED, onCleared)
+  }, [])
+  const syncText = (text: string) => {
+    composerTextRef.current = text
+    setComposerText(text)
+  }
   const selectPreset = (nextId: string | null) => {
+    if (nextId !== selectedPresetId && isPresetStarterPrompt(composerTextRef.current, presets)) {
+      syncText('')
+      input.current?.setInputText('')
+    }
     setSelectedPresetId(nextId)
     const draft = readDraft(INDEPENDENT_SCOPE)
     writeDraft(INDEPENDENT_SCOPE, {
@@ -39,10 +60,14 @@ export function HomePage() {
           </header>
           <ChatInput ref={input} autoFocus
             draftScope={INDEPENDENT_SCOPE}
+            onInputValueChange={syncText}
             onSend={handleStart}
             disabled={sending}
             placeholder={selectedPreset?.placeholder ?? '描述目标，或拖入材料'}
             topBanner={selectedPreset ? <PresetCapsule preset={selectedPreset} disabled={sending} onClear={() => selectPreset(null)}/> : undefined}
+            presets={presets}
+            activePresetId={selectedPreset?.id ?? null}
+            onSelectPreset={id => selectPreset(id)}
             commandHost={{
               hasSession: false,
               hasRuns: false,
@@ -57,8 +82,13 @@ export function HomePage() {
           {selectedPreset && (
             <PresetStarters
               preset={selectedPreset}
+              activePrompt={composerText}
               disabled={sending}
-              onPick={prompt => input.current?.setInputText(prompt)}
+              onPick={prompt => {
+                const next = composerTextRef.current.trim() === prompt.trim() ? '' : prompt
+                syncText(next)
+                input.current?.setInputText(next)
+              }}
             />
           )}
           <PresetPicker

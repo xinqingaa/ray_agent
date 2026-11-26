@@ -4,7 +4,7 @@ import {ContextMenuSurface} from '@/components/ui/context-menu'
 import {menuItem, selectedTextWithin, type MenuEntry} from '@/lib/context-menu-policy'
 import {copyText} from '@/lib/clipboard'
 import type {FileView, RunView, StreamingDraft, TimelineItem} from '@/lib/session-view'
-import {foldSettledRuns, foldSummary, groupProcessBlocks, processBlockOpen, processSettled, processSummary, type ProcessBlock, type RunFold, type TimelineRow} from '@/lib/process-blocks'
+import {foldSettledRuns, foldSummary, groupProcessBlocks, processBlockOpen, processSettled, processSummary, type FoldedRow, type ProcessBlock, type RunFold, type TimelineRow} from '@/lib/process-blocks'
 import {cn} from '@/lib/utils'
 import {formatCostAmounts, formatExactCostAmounts, hasAnyCost, type CostAmounts} from '@/lib/api/usage'
 import {ApprovalCard} from './approval-card'
@@ -12,11 +12,13 @@ import {AskCard} from './ask-card'
 import {DeliveryCard} from './delivery-card'
 import {PreviewCard} from './preview-card'
 import type {ManagedPreview} from '@/lib/api/managed-previews'
-import {NarrationBlock, UserMessage} from './messages'
+import {NarrationBlock, UserMessage, CopyIconButton} from './messages'
 import {DocumentCitedReply} from './document-citations'
 import type {KnowledgeReference} from '@/lib/api/types'
 import type {DraftReference} from '@/lib/drafts'
 import {AttemptNotice, CompactionNotice, ProtectionNotice} from './notices'
+import {ReasoningDisclosure} from './reasoning-disclosure'
+import {formatFullDateTime, formatMessageTime} from './format'
 import {RunReferences} from './run-references'
 import {RunEndBar} from './run-end-bar'
 import {RunStatusBar} from './status-bar'
@@ -96,7 +98,7 @@ function ReplyMenu({text, quote, children}: {text: string; quote?: (text: string
 }
 
 /** 按条目类型分派到对应组件；会话页与组件状态目录共用 */
-export function TimelineItemView({item, handlers = {}, metrics, runActions}: {item: TimelineItem; handlers?: TimelineHandlers; metrics?: ReactNode; runActions?: ReactNode}) {
+export function TimelineItemView({item, handlers = {}, metrics, runActions, run, showTurnReasoning = false}: {item: TimelineItem; handlers?: TimelineHandlers; metrics?: ReactNode; runActions?: ReactNode; run?: RunView; showTurnReasoning?: boolean}) {
   const streaming = handlers.streamingItemId === item.id
   switch (item.kind) {
     case 'user': {
@@ -104,7 +106,7 @@ export function TimelineItemView({item, handlers = {}, metrics, runActions}: {it
         ...(item.text ? [menuItem('复制', Copy, () => copyText(item.text))] : []),
         ...(item.text && handlers.fillDraft ? [menuItem('填回输入框', Pencil, () => handlers.fillDraft?.(item.text))] : []),
       ]
-      return <ContextMenuSurface items={entries}><div className="contents"><UserMessage text={item.text} skillName={item.skill?.id} skillVersion={item.skill?.version} runId={item.runId ?? undefined} workspaceId={handlers.workspaceId} attachments={item.attachments} injected={item.injected} onPreview={handlers.onPreviewFile} onDownload={handlers.onDownloadFile}/></div></ContextMenuSurface>
+      return <ContextMenuSurface items={entries}><div className="contents"><UserMessage text={item.text} at={item.at} skillName={item.skill?.id} skillVersion={item.skill?.version} runId={item.runId ?? undefined} workspaceId={handlers.workspaceId} attachments={item.attachments} injected={item.injected} onPreview={handlers.onPreviewFile} onDownload={handlers.onDownloadFile}/></div></ContextMenuSurface>
     }
     case 'narration':
       return <ReplyMenu text={item.text} quote={handlers.quoteText}><NarrationBlock text={item.text} streaming={streaming} deliveredFiles={item.deliveredFiles} onDownloadFile={handlers.onDownloadFile}/></ReplyMenu>
@@ -161,21 +163,51 @@ export function TimelineItemView({item, handlers = {}, metrics, runActions}: {it
       return <AttemptNotice attempt={item.attempt} reason={item.reason} retried={item.retried} chars={item.chars}/>
     case 'protection':
       return <ProtectionNotice message={item.message} state={item.state}/>
-    case 'final':
+    case 'final': {
+      const finalTurn = showTurnReasoning && run?.turns.length ? run.turns[run.turns.length - 1] : undefined
+      const timeText = !streaming ? formatMessageTime(item.at) : ''
+      const fullTime = formatFullDateTime(item.at)
+      const replyMeta = !streaming && (timeText || item.text) ? (
+        <span className="inline-flex items-center gap-1">
+          {timeText && (
+            <time className="text-xs text-faint tabular-nums" dateTime={item.at ? new Date(item.at).toISOString() : undefined} title={fullTime}>
+              {timeText}
+            </time>
+          )}
+          {item.text && (
+            <CopyIconButton
+              text={item.text}
+              label="复制回复"
+              className="opacity-0 transition-opacity duration-(--motion-fast) group-hover/final:opacity-100 group-focus-within/final:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100 motion-reduce:transition-none"
+            />
+          )}
+        </span>
+      ) : null
+      const hasRunRefs = Boolean(handlers.showRunReferences && item.runId && !streaming)
       return (
         <ReplyMenu text={item.text} quote={handlers.quoteText}>
-          <div className="min-w-0 space-y-2">
+          <div className="group/final min-w-0 space-y-2">
             <span id={item.runId ? `reply-${item.runId}` : undefined} className="block scroll-mt-3"/>
+            {finalTurn && (
+              <ReasoningDisclosure
+                content={finalTurn.reasoningContent}
+                reasoningTokens={finalTurn.usage?.reasoning}
+                modelMs={finalTurn.modelMs}
+              />
+            )}
             <DocumentCitedReply text={item.text} summary={item.summary} streaming={streaming} deliveredFiles={item.deliveredFiles}
               onDownloadFile={handlers.onDownloadFile} runId={item.runId} workspaceId={handlers.workspaceId}
               onOpen={handlers.onOpenSource} onQuote={handlers.onQuoteSource} sourceRefresh={handlers.sourceRefresh}/>
-            {handlers.showRunReferences && item.runId && !streaming && <RunReferences runId={item.runId} replyText={item.text}
+            {hasRunRefs ? <RunReferences runId={item.runId!} replyText={item.text}
               workspaceId={handlers.workspaceId} onOpenSource={handlers.onOpenSource} sourceRefresh={handlers.sourceRefresh}
               onToggle={handlers.onToggleReferences}
-              memoryNotice={handlers.renderMemoryNotice?.(item.runId)} actions={runActions} metrics={metrics}/>}
+              memoryNotice={handlers.renderMemoryNotice?.(item.runId!)}
+              actions={<>{replyMeta}{runActions}</>} metrics={metrics}/>
+              : replyMeta && <div className="flex items-center gap-2 pt-0.5">{replyMeta}</div>}
           </div>
         </ReplyMenu>
       )
+    }
     case 'run_end': {
       const planConsumed = item.status === 'failed' && !!item.runId && !!handlers.consumedPlanRuns?.has(item.runId)
       const hasUnconsumed = !!item.runId && !!handlers.hasUnconsumedInput?.(item.runId)
@@ -196,11 +228,12 @@ export function TimelineItemView({item, handlers = {}, metrics, runActions}: {it
   }
 }
 
-function ProcessBlockView({block, settled, streaming, handlers, liveCost}: {block: ProcessBlock; settled: boolean; streaming: boolean; handlers?: TimelineHandlers; liveCost?: CostAmounts}) {
+function ProcessBlockView({block, settled, streaming, handlers, liveCost, run}: {block: ProcessBlock; settled: boolean; streaming: boolean; handlers?: TimelineHandlers; liveCost?: CostAmounts; run?: RunView}) {
   const {visibility} = useDeveloperMode()
   const [override, setOverride] = useState<boolean | null>(null)
   const open = processBlockOpen(settled, override, streaming)
   const panelId = `process-${block.id}`
+  const turn = block.turnIndex != null ? run?.turns.find(t => t.index === block.turnIndex) : undefined
   return (
     <div>
       <button
@@ -216,15 +249,22 @@ function ProcessBlockView({block, settled, streaming, handlers, liveCost}: {bloc
       </button>
       {open && (
         <div id={panelId} className="mt-2 flex flex-col gap-3">
-          {block.items.map(item => <TimelineItemView key={item.id} item={item} handlers={handlers}/>)}
+          {turn && (
+            <ReasoningDisclosure
+              content={turn.reasoningContent}
+              reasoningTokens={turn.usage?.reasoning}
+              modelMs={turn.modelMs}
+            />
+          )}
+          {block.items.map(item => <TimelineItemView key={item.id} item={item} handlers={handlers} run={run}/>)}
         </div>
       )}
     </div>
   )
 }
 
-function RowView({row, items, handlers, liveCost}: {row: TimelineRow; items: TimelineItem[]; handlers?: TimelineHandlers; liveCost?: CostAmounts}) {
-  if (row.type === 'item') return <TimelineItemView item={row.item} handlers={handlers}/>
+function RowView({row, items, handlers, liveCost, run, showFinalReasoning}: {row: TimelineRow; items: TimelineItem[]; handlers?: TimelineHandlers; liveCost?: CostAmounts; run?: RunView; showFinalReasoning?: boolean}) {
+  if (row.type === 'item') return <TimelineItemView item={row.item} handlers={handlers} run={run} showTurnReasoning={showFinalReasoning}/>
   return (
     <ProcessBlockView
       block={row.block}
@@ -232,11 +272,12 @@ function RowView({row, items, handlers, liveCost}: {row: TimelineRow; items: Tim
       streaming={row.block.items.some(item => item.id === handlers?.streamingItemId)}
       handlers={handlers}
       liveCost={liveCost}
+      run={run}
     />
   )
 }
 
-function RunFoldView({fold, items, handlers}: {fold: RunFold; items: TimelineItem[]; handlers?: TimelineHandlers}) {
+function RunFoldView({fold, items, handlers, runsById}: {fold: RunFold; items: TimelineItem[]; handlers?: TimelineHandlers; runsById: ReadonlyMap<string, RunView>}) {
   const {visibility} = useDeveloperMode()
   const [open, setOpen] = useState(false)
   const panelId = fold.id
@@ -254,9 +295,10 @@ function RunFoldView({fold, items, handlers}: {fold: RunFold; items: TimelineIte
       </button>
       {open && (
         <ol id={panelId} className="mt-2 ml-[13px] flex flex-col gap-3 border-l pl-3">
-          {fold.rows.map(row => (
-            <li key={row.type === 'process' ? row.block.id : row.item.id}><RowView row={row} items={items} handlers={handlers}/></li>
-          ))}
+          {fold.rows.map(row => {
+            const rId = row.type === 'process' ? row.block.runId : row.item.runId
+            return <li key={row.type === 'process' ? row.block.id : row.item.id}><RowView row={row} items={items} handlers={handlers} run={rId ? runsById.get(rId) : undefined}/></li>
+          })}
         </ol>
       )}
     </div>
@@ -314,21 +356,40 @@ export function Timeline({items, runs = [], streaming, activeStatus, handlers, c
         onOpenDetails={handlers?.onOpenRunDetails}/>
     </li>
   )
+  const runsById = new Map(runs.map(r => [r.id, r]))
+  const processTurnKeys = new Set<string>()
+  const collectProcessTurns = (row: FoldedRow) => {
+    if (row.type === 'process' && row.block.runId && row.block.turnIndex != null) {
+      processTurnKeys.add(`${row.block.runId}:${row.block.turnIndex}`)
+    } else if (row.type === 'fold') {
+      row.fold.rows.forEach(collectProcessTurns)
+    }
+  }
+  rows.forEach(collectProcessTurns)
+  const shouldShowFinalReasoning = (rowRun: RunView | undefined, runId: string | null | undefined) => {
+    if (!runId || !rowRun?.turns.length) return false
+    const lastTurn = rowRun.turns[rowRun.turns.length - 1]
+    return !processTurnKeys.has(`${runId}:${lastTurn.index}`)
+  }
+
   return (
     <ol className={className ?? 'flex min-w-0 flex-col gap-3.5'}>
       {rows.flatMap((row, index) => {
         const run = anchors.get(index)
+        const itemRunId = row.type === 'item' ? row.item.runId : row.type === 'process' ? row.block.runId : row.fold.runId
+        const itemRun = itemRunId ? runsById.get(itemRunId) : run
         if (run?.status === 'completed' && row.type === 'item' && row.item.kind === 'final' && row.item.runId &&
             handlers?.showRunReferences && handlers.streamingItemId !== row.item.id) {
           return <li key={row.item.id}><TimelineItemView item={row.item} handlers={handlers}
+            run={itemRun} showTurnReasoning={shouldShowFinalReasoning(itemRun, row.item.runId)}
             runActions={handlers.renderRunActions?.(run.id)}
             metrics={<RunStatusBar run={run} streaming={streaming} showCost={showCost} sessionCost={sessionCost}
               onOpenDetails={handlers.onOpenRunDetails}/>}/></li>
         }
         const content = row.type === 'fold' ? (
-          <li key={row.fold.id}><RunFoldView fold={row.fold} items={items} handlers={handlers}/></li>
+          <li key={row.fold.id}><RunFoldView fold={row.fold} items={items} handlers={handlers} runsById={runsById}/></li>
         ) : (
-          <li key={row.type === 'process' ? row.block.id : row.item.id}><RowView row={row} items={items} handlers={handlers} liveCost={liveCost(run)}/></li>
+          <li key={row.type === 'process' ? row.block.id : row.item.id}><RowView row={row} items={items} handlers={handlers} liveCost={liveCost(run)} run={itemRun} showFinalReasoning={row.type === 'item' && row.item.kind === 'final' ? shouldShowFinalReasoning(itemRun, row.item.runId) : false}/></li>
         )
         return run ? [content, metrics(run, row.type === 'process')] : [content]
       })}

@@ -1,13 +1,17 @@
-import {Download, CornerDownRight} from '@/components/ui/icons'
+import {useEffect, useRef, useState} from 'react'
+import {Check, Copy, CornerDownRight, Download} from '@/components/ui/icons'
 import {MarkdownContent} from '@/components/markdown-content'
 import {SkillMark} from '@/components/skill-mark'
+import {copyText} from '@/lib/clipboard'
 import {cn} from '@/lib/utils'
 import type {FileView, RunSummary} from '@/lib/session-view'
 import {FileRow, fileMenuEntries} from '@/components/preview/file-row'
 import {PreviewAction} from '@/components/preview/action'
+import {formatFullDateTime, formatMessageTime} from './format'
 
 type UserMessageProps = {
   text: string
+  at?: number
   /** 显式选择的 skill 名称，与输入框共用整段标记 */
   skillName?: string
   workspaceId?: string
@@ -21,9 +25,39 @@ type UserMessageProps = {
   onDownload?: (file: FileView) => void
 }
 
-export function UserMessage({text, skillName, skillVersion, runId, workspaceId, attachments = [], injected = false, className, onPreview, onDownload}: UserMessageProps) {
+export function CopyIconButton({text, label, className}: {text: string; label: string; className?: string}) {
+  const [copied, setCopied] = useState(false)
+  const timer = useRef<number | null>(null)
+  useEffect(() => () => {if (timer.current != null) window.clearTimeout(timer.current)}, [])
+  const handleCopy = () => {
+    void copyText(text).then(() => {
+      setCopied(true)
+      if (timer.current != null) window.clearTimeout(timer.current)
+      timer.current = window.setTimeout(() => setCopied(false), 1500)
+    }).catch(() => {})
+  }
   return (
-    <div className={cn('mt-2 mb-3 flex min-w-0 flex-col items-end gap-2', className)}>
+    <button
+      type="button"
+      onClick={handleCopy}
+      aria-label={copied ? '已复制' : label}
+      title={copied ? '已复制' : label}
+      className={cn(
+        'inline-flex size-6 items-center justify-center rounded-md text-faint outline-none transition-colors hover:bg-muted/70 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring',
+        copied && 'text-state-success hover:text-state-success',
+        className,
+      )}
+    >
+      {copied ? <Check className="size-3.5" aria-hidden/> : <Copy className="size-3.5" aria-hidden/>}
+    </button>
+  )
+}
+
+export function UserMessage({text, at, skillName, skillVersion, runId, workspaceId, attachments = [], injected = false, className, onPreview, onDownload}: UserMessageProps) {
+  const timeText = formatMessageTime(at)
+  const fullTime = formatFullDateTime(at)
+  return (
+    <div className={cn('group/msg mt-2 mb-3 flex min-w-0 flex-col items-end gap-1.5', className)}>
       {injected && (
         <span className="inline-flex items-center gap-1 text-xs text-signal">
           <CornerDownRight className="size-3" aria-hidden/>
@@ -44,6 +78,16 @@ export function UserMessage({text, skillName, skillVersion, runId, workspaceId, 
           onOpen={onPreview ? () => onPreview(file) : undefined}
           actions={onDownload && <PreviewAction label={`下载 ${file.filename}`} icon={Download} onClick={() => onDownload(file)}/>}/>)}
       </div>}
+      {(timeText || text) && (
+        <div className="flex h-6 items-center gap-1 opacity-0 transition-opacity duration-(--motion-fast) group-hover/msg:opacity-100 group-focus-within/msg:opacity-100 [@media(hover:none)]:opacity-100 motion-reduce:transition-none">
+          {timeText && (
+            <time className="text-xs text-faint tabular-nums" dateTime={at ? new Date(at).toISOString() : undefined} title={fullTime}>
+              {timeText}
+            </time>
+          )}
+          {text && <CopyIconButton text={text} label="复制消息"/>}
+        </div>
+      )}
     </div>
   )
 }
@@ -81,7 +125,7 @@ type FinalReplyProps = {
 export function FinalReply({text, streaming, className, deliveredFiles, onDownloadFile, renderCitation}: FinalReplyProps) {
   return (
     <article className={cn('min-w-0 space-y-3', className)} aria-busy={streaming || undefined}>
-      <div className={cn('[&_.markdown-content>p:first-child]:font-medium [&_.markdown-content>p:first-child]:text-base', streaming && STREAMING_CARET)}>
+      <div className={cn(streaming && STREAMING_CARET)}>
         <MarkdownContent content={text} deliveredFiles={deliveredFiles} onDownloadFile={onDownloadFile} renderCitation={renderCitation}/>
       </div>
     </article>

@@ -39,8 +39,13 @@ function load(relative) {
 const {findSlashTrigger, removeSlashFragment, matchesCommandQuery} = load('src/lib/slash-trigger.ts');
 
 const atStart = findSlashTrigger('/upload', '/upload'.length, false);
-assert.deepEqual(atStart, {start: 0, end: 7, query: 'upload'});
+assert.deepEqual(atStart, {trigger: '/', start: 0, end: 7, query: 'upload'});
 assert.equal(findSlashTrigger('/', 1, false).query, '');
+assert.equal(findSlashTrigger('/', 1, false).trigger, '/');
+assert.deepEqual(findSlashTrigger('@ppt', 4, false), {trigger: '@', start: 0, end: 4, query: 'ppt'});
+assert.deepEqual(findSlashTrigger('请 @', 3, false), {trigger: '@', start: 2, end: 3, query: ''});
+assert.equal(findSlashTrigger('foo@bar.com', 'foo@bar.com'.length, false), null);
+assert.equal(findSlashTrigger('联系 a@b', '联系 a@b'.length, false), null);
 const midToken = findSlashTrigger('/upload', 3, false);
 assert.equal(midToken.query, 'upload');
 assert.equal(midToken.end, 7);

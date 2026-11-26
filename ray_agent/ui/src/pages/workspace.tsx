@@ -15,7 +15,7 @@ import type {FileView} from '@/lib/session-view'
 import {projectSession} from '@/lib/session-projection'
 import {formatSidebarTime} from '@/lib/utils'
 import {ChatInput, type ChatInputRef} from '@/components/chat-input'
-import {PresetCapsule, PresetPicker, PresetStarters, usePresets} from '@/components/preset-picker'
+import {isPresetStarterPrompt, PresetCapsule, PresetPicker, PresetStarters, usePresets} from '@/components/preset-picker'
 import {SessionDetailView} from '@/components/session-detail-view'
 import {Button} from '@/components/ui/button'
 import {SegmentedControl} from '@/components/ui/segmented-control'
@@ -27,7 +27,7 @@ import {WorkingStyleSettings, type WorkingStyleSummary} from '@/components/works
 import {RunChangesBar} from '@/components/workspace/run-changes-bar'
 import {useCanonicalSessionRoute} from '@/hooks/use-canonical-session-route'
 import {useStartTask, type StartOptions} from '@/hooks/use-start-task'
-import {readDraft, workspaceDraftScope, writeDraft} from '@/lib/drafts'
+import {DATA_CLEARED, draftClearedBy, readDraft, workspaceDraftScope, writeDraft, type ClearedData} from '@/lib/drafts'
 import type {FileInfo, WorkspaceItem} from '@/lib/api/types'
 import type {RootSource} from '@/lib/api/preview'
 import {describeWorkspace} from '@/lib/workspace-state'
@@ -148,14 +148,38 @@ export function WorkspaceHomePage() {
   const {sending, start} = useStartTask(scope, workspace.id, sid => router.push(workspaceSessionHref(workspace.id, sid)))
   const presets = usePresets(workspace.id)
   const [selectedPresetId, setSelectedPresetId] = useState<string | null>(() => readDraft(scope).activePresetId ?? null)
+  const [composerText, setComposerText] = useState(() => readDraft(scope).text)
+  const composerTextRef = useRef(composerText)
   const selectedPreset = presets.find(item => item.id === selectedPresetId) ?? null
   useEffect(() => {
-    setSelectedPresetId(readDraft(scope).activePresetId ?? null)
+    const draft = readDraft(scope)
+    setSelectedPresetId(draft.activePresetId ?? null)
+    composerTextRef.current = draft.text
+    setComposerText(draft.text)
   }, [scope])
   useEffect(() => {
     if (selectedPresetId && presets.length > 0 && !selectedPreset) setSelectedPresetId(null)
   }, [presets, selectedPreset, selectedPresetId])
+  useEffect(() => {
+    const onCleared = (event: Event) => {
+      const data = (event as CustomEvent<ClearedData>).detail
+      if (!data || !draftClearedBy(data, scope)) return
+      setSelectedPresetId(null)
+      composerTextRef.current = ''
+      setComposerText('')
+    }
+    window.addEventListener(DATA_CLEARED, onCleared)
+    return () => window.removeEventListener(DATA_CLEARED, onCleared)
+  }, [scope])
+  const syncText = (text: string) => {
+    composerTextRef.current = text
+    setComposerText(text)
+  }
   const selectPreset = (nextId: string | null) => {
+    if (nextId !== selectedPresetId && isPresetStarterPrompt(composerTextRef.current, presets)) {
+      syncText('')
+      input.current?.setInputText('')
+    }
     setSelectedPresetId(nextId)
     const draft = readDraft(scope)
     writeDraft(scope, {
@@ -283,9 +307,12 @@ export function WorkspaceHomePage() {
           {condition.archived
             ? <p role="status" className="rounded-lg bg-muted px-3.5 py-3 text-center text-sm text-muted-foreground">工作区已归档，不能发起新对话。取消归档后可以继续。</p>
             : <>
-                <ChatInput ref={input} autoFocus={!initialPreview} workspace workspaceId={workspace.id} draftScope={scope} onSend={handleStart} disabled={sending}
+                <ChatInput ref={input} autoFocus={!initialPreview} workspace workspaceId={workspace.id} draftScope={scope} onInputValueChange={syncText} onSend={handleStart} disabled={sending}
                   placeholder={selectedPreset?.placeholder ?? `在${workspace.name}里开始一个任务`}
                   topBanner={selectedPreset ? <PresetCapsule preset={selectedPreset} disabled={sending} onClear={() => selectPreset(null)}/> : undefined}
+                  presets={presets}
+                  activePresetId={selectedPreset?.id ?? null}
+                  onSelectPreset={id => selectPreset(id)}
                   commandHost={{
                     hasSession: false, hasRuns: false, runStatus: 'idle', waitingApproval: false, waitingReply: false,
                     submitting: sending, compacting: false,
@@ -294,8 +321,13 @@ export function WorkspaceHomePage() {
                 {selectedPreset && (
                   <PresetStarters
                     preset={selectedPreset}
+                    activePrompt={composerText}
                     disabled={sending}
-                    onPick={prompt => input.current?.setInputText(prompt)}
+                    onPick={prompt => {
+                      const next = composerTextRef.current.trim() === prompt.trim() ? '' : prompt
+                      syncText(next)
+                      input.current?.setInputText(next)
+                    }}
                   />
                 )}
                 {selectedPreset && !selectedPreset.default_participate_in_memory && (

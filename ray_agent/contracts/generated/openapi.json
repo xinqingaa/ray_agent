@@ -16421,6 +16421,16 @@
           "default_participate_in_memory": {
             "type": "boolean",
             "title": "Default Participate In Memory"
+          },
+          "execution_profile": {
+            "type": "string",
+            "enum": [
+              "dialogue",
+              "interactive",
+              "workspace_task"
+            ],
+            "title": "Execution Profile",
+            "default": "workspace_task"
           }
         },
         "type": "object",
@@ -21399,6 +21409,17 @@
               }
             ],
             "title": "Error"
+          },
+          "reasoning_content": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reasoning Content"
           }
         },
         "type": "object",
@@ -21421,7 +21442,8 @@
           "finish_reason",
           "tool_call_ids",
           "tools_ms",
-          "error"
+          "error",
+          "reasoning_content"
         ],
         "title": "TurnEventData",
         "description": "轮次边界事件数据，字段含义见领域模型 TurnEvent。"

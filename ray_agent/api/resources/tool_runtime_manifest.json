@@ -4,7 +4,28 @@
     "version": "3.12.12",
     "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20251014/cpython-3.12.12%2B20251014-aarch64-apple-darwin-install_only_stripped.tar.gz",
     "sha256": "84cb7acbf75264982c8bdd818bfa1ff0f1eb76007b48a5f3e01d28633b46afdf",
-    "license": "PSF-2.0 and bundled dependency licenses"
+    "license": "PSF-2.0 and bundled dependency licenses",
+    "bundle_revision": "office-1",
+    "packages": [
+      "openpyxl==3.1.5",
+      "et-xmlfile==2.0.0",
+      "python-pptx==1.0.2",
+      "python-docx==1.2.0",
+      "pypdf==6.21.4",
+      "lxml==6.1.3",
+      "pillow==12.3.0",
+      "xlsxwriter==3.3.1",
+      "typing-extensions==4.15.0"
+    ],
+    "verify_imports": [
+      "openpyxl",
+      "pptx",
+      "docx",
+      "pypdf",
+      "PIL",
+      "lxml",
+      "xlsxwriter"
+    ]
   },
   "node": {
     "version": "22.20.0",

@@ -65,7 +65,8 @@ def test_semantic_stream_round_trip_and_vendor_reasoning(provider, model):
         assert seen==['先检查'] and result.ttft_ms is not None
         assert (result.usage.prompt_tokens,result.usage.cached_tokens,result.usage.reasoning_tokens)==(20,10,2)
         path,request=calls[0]
-        assert path=='/v1/responses' and request['reasoning']=={'effort':'high'}
+        expected_reasoning = {'effort': 'high', 'summary': 'auto'} if provider == 'openai' else {'effort': 'high'}
+        assert path=='/v1/responses' and request['reasoning']==expected_reasoning
         assert request['max_output_tokens']==8192 and 'temperature' not in request
         assert request['tools'][0]['strict'] is False and 'function' not in request['tools'][0]
         replay=calls[1][1]['input']
@@ -262,7 +263,7 @@ def test_gpt_factory_parameters_do_not_need_deepseek_thinking_toggle():
     llm=OpenAILLM(LLMConfig(model_name='gpt-6.1-sol',api_key='fixture'),reasoning_effort='high',thinking=None,keep_reasoning=False)
     kwargs=llm._responses_kwargs([{'role':'user','content':'任务'}],None,None,None)
     assert 'temperature' not in kwargs and llm.keep_reasoning
-    assert kwargs['reasoning']=={'effort':'high'}
+    assert kwargs['reasoning']=={'effort':'high','summary':'auto'}
 
 
 def test_content_filter_and_unfinished_tool_items_are_not_executable():
@@ -326,4 +327,35 @@ def test_terminal_tail_is_drained_but_never_blocks_or_retries_complete_result():
             llm._client=SimpleNamespace(responses=SimpleNamespace(create=create))
             result=await asyncio.wait_for(llm.invoke([{'role':'user','content':'任务'}]),2)
             assert result.finish_reason=='stop' and tail.reads==2 and tail.closed
+    asyncio.run(case())
+
+
+def test_responses_extracts_reasoning_summary_and_fallbacks_on_400():
+    from app.infrastructure.external.llm.openai_llm import _SUMMARY_UNSUPPORTED
+
+    raw = output('答复')
+    raw['output'][0]['summary'] = [{'type': 'summary_text', 'text': '已分析用户核心问题与上下文。'}]
+    parsed = response_result(raw, 'gpt-6.1-sol', 'openai')
+    assert parsed.message['reasoning_content'] == '已分析用户核心问题与上下文。'
+
+    async def case():
+        llm, calls = setup([
+            (400, {'error': {'message': "Unsupported parameter: 'reasoning.summary'", 'code': 'unsupported_parameter'}}),
+            (200, sse([{'type': 'response.completed', 'response': raw}])),
+            (200, sse([{'type': 'response.completed', 'response': raw}])),
+        ])
+        endpoint_key = ('https://fixture.test/v1', 'gpt-6.1-sol')
+        _SUMMARY_UNSUPPORTED.discard(endpoint_key)
+        try:
+            r1 = await llm.invoke([{'role': 'user', 'content': '第一轮'}])
+            assert r1.message['content'] == '答复'
+            assert calls[0][1]['reasoning'] == {'effort': 'high', 'summary': 'auto'}
+            assert calls[1][1]['reasoning'] == {'effort': 'high'}
+            # 已记住不支持 summary，下次直接省略
+            await llm.invoke([{'role': 'user', 'content': '第二轮'}])
+            assert calls[2][1]['reasoning'] == {'effort': 'high'}
+        finally:
+            _SUMMARY_UNSUPPORTED.discard(endpoint_key)
+            await llm._client.close()
+
     asyncio.run(case())

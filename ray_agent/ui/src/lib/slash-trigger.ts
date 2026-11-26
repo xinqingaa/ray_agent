@@ -1,11 +1,15 @@
-/** `/` 提示的触发判定与片段移除。菜单组件不解释这些规则。 */
+/** `/` 与 `@` 提示的触发判定与片段移除。菜单组件不解释这些规则。 */
+
+export type TriggerChar = '/' | '@'
 
 export type SlashFragment = {
-  /** `/` 在原文中的下标 */
+  /** 触发符号 */
+  trigger: TriggerChar
+  /** `/` 或 `@` 在原文中的下标 */
   start: number
-  /** 片段结束下标（不含）。包含 `/` 及其后连续非空白字符 */
+  /** 片段结束下标（不含）。包含触发符及其后连续非空白字符 */
   end: number
-  /** `/` 之后的连续非空白字符，可为空 */
+  /** 触发符之后的连续非空白字符，可为空 */
   query: string
 }
 
@@ -16,8 +20,8 @@ function isWhitespace(char: string): boolean {
 }
 
 /**
- * 光标所在的连续非空白片段以 `/` 开头，且该 `/` 在输入开头或紧跟空白时返回片段。
- * 路径中的 `/`（前面不是空白）不触发。组合输入期间不触发。
+ * 光标所在的连续非空白片段以 `/` 或 `@` 开头，且该触发符在输入开头或紧跟空白时返回片段。
+ * 路径中的 `/` 或邮箱中的 `@`（前面不是空白）不触发。组合输入期间不触发。
  */
 export function findSlashTrigger(
   text: string,
@@ -30,13 +34,15 @@ export function findSlashTrigger(
   let tokenStart = cursor
   while (tokenStart > 0 && !isWhitespace(text[tokenStart - 1] ?? '')) tokenStart -= 1
   if (tokenStart === cursor) return null
-  if (text[tokenStart] !== '/') return null
+  const trigger = text[tokenStart]
+  if (trigger !== '/' && trigger !== '@') return null
 
   let tokenEnd = tokenStart + 1
   while (tokenEnd < text.length && !isWhitespace(text[tokenEnd] ?? '')) tokenEnd += 1
   if (cursor <= tokenStart || cursor > tokenEnd) return null
 
   return {
+    trigger,
     start: tokenStart,
     end: tokenEnd,
     query: text.slice(tokenStart + 1, tokenEnd),

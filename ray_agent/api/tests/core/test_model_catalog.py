@@ -150,7 +150,7 @@ def test_extra_endpoint_uses_app_window_and_openai_effort(isolated_model_connect
     profile = model_request(config, model_id="gpt-6-luna", reasoning="low")
     assert profile is not None
     assert (profile.model_name, profile.context_window, profile.max_tokens, profile.thinking, profile.reasoning_effort, profile.keep_reasoning) == (
-        "gpt-6-luna", 272_000, 8192, None, "low", False)
+        "gpt-6-luna", 272_000, 16_384, None, "low", False)
     closed = model_request(config, model_id="gpt-6-luna", reasoning="none")
     assert closed is not None and (closed.thinking, closed.reasoning_effort) == (None, "none")
     closed_kwargs = OpenAILLM(

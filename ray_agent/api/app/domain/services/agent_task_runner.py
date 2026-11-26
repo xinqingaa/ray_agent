@@ -110,6 +110,10 @@ class AgentTaskRunner(TaskRunner):
             workspace_id: Optional[str] = None,
             completion=None,  # 运行正常结束的钩子：on_run_completed(uow, session_id, run_id) 与 wake()
             preview_runtime=None,  # 应用内项目预览运行时：仅在允许文件访问时暴露 register_preview
+            execution_profile: str = "default",
+            preset_instruction: Optional[str] = None,
+            has_mcp: Optional[bool] = None,
+            has_a2a: Optional[bool] = None,
     ) -> None:
         self._uow_factory = uow_factory
         self._uow = uow_factory()
@@ -172,9 +176,18 @@ class AgentTaskRunner(TaskRunner):
             ),
             write_output=self._write_output if workdir else None,
             output_dir=str(workdir.outputs) if workdir else None,
-            system_prompt=build_system_prompt(environment),
+            system_prompt=build_system_prompt(
+                environment,
+                profile=execution_profile,
+                preset_instruction=preset_instruction,
+                has_mcp=bool(has_mcp),
+                has_a2a=bool(has_a2a),
+            ),
             project_prompt=project_prompt,
             tool_policy=tool_policy,
+            execution_profile=execution_profile,
+            has_mcp=has_mcp,
+            has_a2a=has_a2a,
         )
         self._flow.persist_memory_with_events = True
         self._flow._publish_delta = self._publish_delta
@@ -834,7 +847,7 @@ class AgentTaskRunner(TaskRunner):
             self._flow.request_system_prompt = stored.get("system_prompt")
 
     async def _record_tool_snapshot(self, index):
-        tools = self._flow.pipeline.schemas()
+        tools = self._flow._tool_schemas()
         mcp = getattr(self._mcp_tool, 'gateway', None)
         a2a = getattr(self._a2a_tool, 'gateway', None)
         external = {'mcp': list(getattr(mcp, 'tools', {}) or {}),

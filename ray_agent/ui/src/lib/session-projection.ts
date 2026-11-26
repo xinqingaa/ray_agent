@@ -202,6 +202,7 @@ type TurnBuild = {
   attempts: number | null
   hasAttempts: boolean
   hasTtft: boolean
+  reasoningContent: string | null
 }
 
 type PendingText = {seq: number | null; at: number; runId: string | null; text: string; turnIndex: number | null}
@@ -542,6 +543,7 @@ export function projectSession(input: ProjectSessionInput): SessionView {
       attempts: null,
       hasAttempts: false,
       hasTtft: false,
+      reasoningContent: null,
     }
     turns.push(created)
     return created
@@ -591,6 +593,22 @@ export function projectSession(input: ProjectSessionInput): SessionView {
       continue
     }
     if (ev.type === 'context' || ev.type === 'compact') {
+      if (ev.type === 'context' && data.op === 'append' && Array.isArray(data.messages) && ev.runId) {
+        const activeIndex = currentTurn.get(ev.runId)
+        const targetTurn = activeIndex != null
+          ? turns.find((item) => item.runId === ev.runId && item.index === activeIndex)
+          : undefined
+        if (targetTurn && !targetTurn.reasoningContent) {
+          for (const rawMsg of data.messages) {
+            if (!isRecord(rawMsg) || rawMsg.role !== 'assistant') continue
+            const rc = str(rawMsg.reasoning_content)
+            if (rc && rc.trim()) {
+              targetTurn.reasoningContent = rc.trim()
+              break
+            }
+          }
+        }
+      }
       if (ev.type === 'compact' || data.op === 'compact') {
         compactions += 1
         const before = estimateTotal(data.before_estimate ?? data.beforeEstimate)
@@ -764,6 +782,10 @@ export function projectSession(input: ProjectSessionInput): SessionView {
         const decode = num(data.decode_ms)
         if (decode != null) {
           turn.decodeMs = decode
+        }
+        const reasoning = str(data.reasoning_content)
+        if (reasoning && reasoning.trim()) {
+          turn.reasoningContent = reasoning.trim()
         }
       }
       continue
@@ -1230,6 +1252,7 @@ function toTurnView(turn: TurnBuild): TurnView {
   if (turn.hasTtft) view.ttftMs = turn.ttftMs
   if (turn.decodeMs != null) view.decodeMs = turn.decodeMs
   if (turn.hasAttempts) view.attempts = turn.attempts
+  if (turn.reasoningContent) view.reasoningContent = turn.reasoningContent
   return view
 }
 

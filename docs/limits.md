@@ -22,7 +22,7 @@
 | DeepSeek 目录窗口 / 最大输出 | 1000000（默认预算 200000）/ 393216 tokens | [model_catalog.py](../ray_agent/api/app/domain/models/model_catalog.py) 的 `deepseek_models()` |
 | DeepSeek 思考开启时的输出下限 | 32768 | 同上，`thinking_output_floor` |
 | GPT 目录窗口 / 最大输出 | 272000（默认预算 272000）/ 128000 tokens。应用配置再高也会封顶到目录窗口 | `model_catalog.py` 的 `_gpt_spec()` |
-| GPT 思考输出下限 | 0 | 同上 |
+| GPT 思考输出下限 | 16384 | 同上，`thinking_output_floor` |
 | 已知模型温度校验 | 0–2；思考开启时不发送温度 | `model_catalog.py`、配置服务 |
 | 容量字符估算 | 中日韩字符 0.7 token/字符，其余 0.3；每条消息附加 4 tokens；获得 usage 后校准 | [context/budget.py](../ray_agent/api/app/domain/services/context/budget.py) |
 | 安全余量 | 默认窗口的 5%，配置比例允许 0 至小于 0.5 | `AgentConfig.context_safety_ratio` |
@@ -144,7 +144,7 @@
 | 安装取消检查 | 每次等待子进程最多 0.25 秒后复核 | 同上，`WORKER_POLL_SECONDS` |
 | 组件下载请求超时 | 600 秒 | [install_files.py](../ray_agent/api/app/infrastructure/external/components/install_files.py) 的 `fetch_file()` |
 | 组件状态轮询 | 2 秒，离开轮询入口后停止 | [use-runtime-components.ts](../ray_agent/ui/src/hooks/use-runtime-components.ts) |
-| 基础工具版本与架构 | CPython 3.12.12、Node 22.20.0；macOS arm64 | [tool_runtime_manifest.json](../ray_agent/api/resources/tool_runtime_manifest.json)；组件版本以各固定清单为准 |
+| 基础工具版本与架构 | CPython 3.12.12（内置 `openpyxl`、`et-xmlfile`、`python-pptx`、`python-docx`、`pypdf`、`lxml`、`pillow`、`xlsxwriter`、`typing-extensions` 等锁定版本）、Node 22.20.0；macOS arm64 | [tool_runtime_manifest.json](../ray_agent/api/resources/tool_runtime_manifest.json)；组件版本以各固定清单为准 |
 
 ## 浏览器、截图与用户图片
 
@@ -208,6 +208,7 @@
 | 文本片段长度／重叠 | 800／80 字符 | `DOCUMENT_CHUNK_CHARS`、`DOCUMENT_CHUNK_OVERLAP` |
 | 表格行组 | 每组最多 40 行（保留表头） | `DOCUMENT_TABLE_ROWS_PER_CHUNK` |
 | 解析进程 | 最多 2 个并发；墙钟 120 秒；macOS `.doc` 只读转换超时 30 秒 | [runner.py](../ray_agent/api/app/infrastructure/external/document_parse/runner.py) 的 `DOCUMENT_PARSE_SLOTS`、`DOCUMENT_PARSE_TIMEOUT_SECONDS`、[legacy_doc.py](../ray_agent/api/app/infrastructure/external/legacy_doc.py) 的 `LEGACY_DOC_PARSE_TIMEOUT_SECONDS` |
+| 混合 PDF 扫描页阈值 | 含图片资源且抽取文本少于 40 字符的页记入 `image_pages` 并随解析警告返回 | [worker.py](../ray_agent/api/app/infrastructure/external/document_parse/worker.py) 的 `parse_pdf()`、[file.py](../ray_agent/api/app/domain/services/tools/file.py) 的 `read_document` |
 | 解析配置指纹 | `p6-parse-v2`／`p6-chunk-v2` | `PARSE_CONFIG_FINGERPRINT`、`CHUNK_CONFIG_FINGERPRINT` |
 | 工作区索引范围预检 | 达到 1000 个可索引文件、512 MiB 或扫描截断时要求确认范围 | `DOCUMENT_SCOPE_REVIEW_FILES`、`DOCUMENT_SCOPE_REVIEW_BYTES` |
 | 显式知识引用 | 同一运行最多 8 条，供模型读取的片段总预算 4000 字符，每条最多 500 字符 | [retrieval.py](../ray_agent/api/app/domain/models/retrieval.py) 的 `EXPLICIT_REFERENCE_LIMIT`、`EXPLICIT_REFERENCE_CHARS` |
@@ -240,6 +241,7 @@
 | 项 | 当前值 | 来源 |
 |---|---|---|
 | 事件补查分页 | 每页 200 项 | `agent_service.py` 的 `EVENT_PAGE_SIZE` |
+| 轮次完成事件思考内容 | 单轮 `TurnEvent.reasoning_content` 最多保留 64000 字符 | [agent_loop.py](../ray_agent/api/app/domain/services/flows/agent_loop.py) 的 `_completion()`、[event.py](../ray_agent/api/app/domain/models/event.py) |
 | 事件流兜底 | 有活动或刚有进展时 3 秒；连续空闲 2 次后 30 秒 | `agent_service.py` 的 `FALLBACK_POLL_SECONDS`、`IDLE_POLL_SECONDS` |
 | 进程内通知队列 | 每个订阅者 256 项，满时丢弃最旧一项，订阅者按序号补读 | [local_notifier.py](../ray_agent/api/app/infrastructure/external/notification/local_notifier.py) 的 `QUEUE_SIZE` |
 | 目录通知兜底 | 30 秒 | [session_routes.py](../ray_agent/api/app/interfaces/endpoints/session_routes.py) 的 `CATALOG_FALLBACK_SECONDS` |
@@ -289,6 +291,7 @@ API 设置来自 `core/config.py`，环境变量使用对应大写名称；正�
 | 路径 | 最多 20 层、4096 字符 | 包解析器与快照映射 |
 | 名称 / 描述 / 完整 SKILL.md | 64 / 1024 / 60000 字符 | `skill_name_chars`、`skill_description_chars`、`skill_body_chars`；稳定 `skill_id` 上限 128，HTTP 文本输入硬边界 5 MiB 字符，仍由共享解析器检查正文预算 |
 | 目录 / 活动正文及资料封装 | 24000 / 100000 字符 | `skill_catalog_chars`、`skill_active_chars`；纳入目录时核对完整索引，发现扫描不因超额失败。已纳入集合放不下时，新运行只自动带上内置 Skill，不按扫描顺序截断 |
+| 两层渐进目录内联与检索阈值 | 内联目录上限 12 条；`search_skills` 单次最多返回 6 条匹配摘要 | [skill_context.py](../ray_agent/api/app/domain/services/skill_context.py) 的 `SKILL_INLINE_CATALOG_LIMIT`、`SKILL_QUERY_TOP_K` |
 | 目录索引中的描述 | 160 字符，超出以省略号截断 | `skill_catalog_description_chars`；索引只含名称、来源和这一行描述 |
 | 资源单次文本及正文资源清单 | 8000 字符 | `skill_resource_chars`；超长单行转材料准备后读取 |
 | 获取总时限 / 单次网络等待 / 尝试 | 90 秒 / 20 秒 / 最多 3 次 | `skill_fetch_seconds`、GitHub 适配器；引用不存在不重试 |
