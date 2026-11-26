@@ -178,6 +178,7 @@ class AgentTaskRunner(TaskRunner):
         )
         self._flow.persist_memory_with_events = True
         self._flow._publish_delta = self._publish_delta
+        self._flow._publish_progress = self._publish_progress
         self._flow.run_id = self._run_id
         self._flow.workspace_id = workspace_id
         self._flow.skill_runtime = self._skill_runtime
@@ -198,6 +199,9 @@ class AgentTaskRunner(TaskRunner):
 
     async def _publish_delta(self, turn: int, attempt: int, delta: str) -> None:
         await self._ledger.publish_delta(self._session_id, self._run_id, turn, attempt, delta)
+
+    async def _publish_progress(self, turn: int, attempt: int, progress) -> None:
+        await self._ledger.publish_progress(self._session_id, self._run_id, turn, attempt, progress)
 
     def _with_flow_state(self, apply=None, event: Optional[BaseEvent] = None):
         """在同一事务里附带保存记忆，并消费这批上下文对应的持久输入。返回事务回调与提交后的收尾。"""

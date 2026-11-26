@@ -6,7 +6,8 @@ from unittest.mock import AsyncMock
 import pytest
 
 from app.application.services.agent_service import AgentService
-from app.domain.external.event_notifier import OutputDelta
+from app.domain.external.event_notifier import OutputDelta, StreamProgress
+from app.domain.external.llm import ModelProgress
 from app.domain.models.event import (
     AttemptEvent,
     AttemptReason,
@@ -194,7 +195,7 @@ def test_rebuild_ignores_attempt_events():
         assert len(attempts) == 1 and attempts[0].reason == AttemptReason.STREAM_INTERRUPTED
         rebuilt = rebuild_request(h.events, h.runs[active.id], 1)
         assert rebuilt.messages == h.llm.requests[-1].messages
-        assert "半" not in json.dumps(rebuilt.messages, ensure_ascii=False)
+        assert "半" not in json.dumps(rebuilt.messages[1:], ensure_ascii=False)
     run(scenario())
 
 
@@ -320,5 +321,14 @@ def test_delta_sse_has_no_seq_and_is_not_replayed():
         body = json.loads(to_session_sse(attempt).data)
         assert body["reason"] == "stream_interrupted" and body["chars"] == 4 and body["retried"] is True
         assert "seq" in body and body["seq"] == 1
+
+        prog_stream = service.stream_events(session.id, after_seq=message.seq)
+        prog_pending = asyncio.create_task(anext(prog_stream))
+        await asyncio.sleep(0.05)
+        await notifier.publish_progress(session.id, "run-1", 4, 1, ModelProgress(phase="reasoning", delta="思考中"))
+        prog_item = await asyncio.wait_for(prog_pending, 2)
+        assert isinstance(prog_item, StreamProgress)
+        assert (prog_item.turn, prog_item.attempt, prog_item.phase, prog_item.delta) == (4, 1, "reasoning", "思考中")
+        await prog_stream.aclose()
 
     run(scenario())

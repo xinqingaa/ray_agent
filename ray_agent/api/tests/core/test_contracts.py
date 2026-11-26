@@ -13,7 +13,7 @@ from app.application.errors.exceptions import ConflictError, NotFoundError, AppE
 from app.application.services.capability_service import CapabilityService
 from app.domain.external.browser_session import BrowserProfile
 from app.domain.external.process_executor import ProcessOwner, ProcessSpec
-from app.domain.external.event_notifier import OutputDelta
+from app.domain.external.event_notifier import OutputDelta, StreamProgress
 from app.domain.models.capability import Capability, CapabilityState, CapabilityStatus, UnavailableReason
 from app.domain.models.error import ErrorCode, ErrorInfo
 from app.domain.models.event import Event, MessageEvent, ToolEvent
@@ -137,7 +137,7 @@ def test_every_domain_event_has_an_envelope_in_the_closed_union():
     session_types = {cls.model_fields["event"].default for cls in get_args(SessionEvent.__value__.__origin__)}
     assert domain_types == set(EventMapper._mapping) == session_types
     stream_types = {cls.model_fields["event"].default for cls in get_args(StreamEvent.__value__.__origin__)}
-    assert stream_types == session_types | {"delta"}
+    assert stream_types == session_types | {"delta", "progress"}
     with pytest.raises(ValidationError):
         TypeAdapter(SessionEvent).validate_python({"event": "unknown", "data": {}})
 
@@ -152,6 +152,10 @@ def test_sse_frames_are_the_envelope_with_version_and_sequence():
     assert envelope.data.message == "好"
     delta = to_session_sse(OutputDelta("session-1", "run-1", 2, 1, "片"))
     assert delta.event == "delta" and not delta.id and json.loads(delta.data)["event_version"] == EVENT_VERSION
+    progress = to_session_sse(StreamProgress("session-1", "run-1", 2, 1, "tool_call", tool_name="write_file", tool_target="app.html", arg_bytes=2048))
+    assert progress.event == "progress" and not progress.id
+    progress_payload = json.loads(progress.data)
+    assert progress_payload["phase"] == "tool_call" and progress_payload["tool_target"] == "app.html" and progress_payload["arg_bytes"] == 2048
     tool = ToolEvent(tool_call_id="c1", tool_name="file", function_name="read_file", function_args={}, seq=8)
     detail = EventMapper.events_to_sse_events([message, tool])
     assert [item.event for item in detail] == ["message", "tool"]

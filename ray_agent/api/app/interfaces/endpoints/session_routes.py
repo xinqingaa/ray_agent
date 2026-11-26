@@ -16,7 +16,7 @@ from app.application.services.app_config_service import AppConfigService
 from app.application.services.agent_service import AgentService, ChatAccepted
 from app.application.services.session_service import SessionService
 from app.application.services.title_service import TitleService
-from app.domain.external.event_notifier import OutputDelta
+from app.domain.external.event_notifier import OutputDelta, StreamProgress
 from app.domain.models.event import Event
 from app.domain.models.identity import RequestId
 from app.domain.models.run import RunMode
@@ -27,7 +27,7 @@ from app.interfaces.streaming import EventStreamResponse
 from app.interfaces.schemas.shell_changes import ShellChangesResponse
 from app.application.services.shell_changes import ShellChanges
 from app.interfaces.service_dependencies import get_shell_changes
-from app.interfaces.schemas.event import DeltaSSEEvent, EventMapper
+from app.interfaces.schemas.event import DeltaSSEEvent, EventMapper, ProgressSSEEvent
 from app.interfaces.schemas.session import (
     CreateSessionRequest, CreateSessionResponse,
     ListSessionResponse,
@@ -406,11 +406,14 @@ async def stream_events(
     return EventStreamResponse(event_generator(), ping=15)
 
 
-def to_session_sse(item: Union[Event, OutputDelta]) -> ServerSentEvent:
-    """信封的 event 写入 SSE event 行、data 写入 data 行；落库事件带 seq 作为 SSE id，文本增量没有 id，重连不会补发。"""
+def to_session_sse(item: Union[Event, OutputDelta, StreamProgress]) -> ServerSentEvent:
+    """信封的 event 写入 SSE event 行、data 写入 data 行；落库事件带 seq 作为 SSE id，文本增量与流式进展没有 id，重连不会补发。"""
     if isinstance(item, OutputDelta):
         delta = DeltaSSEEvent.from_delta(item)
         return ServerSentEvent(event=delta.event, data=delta.data.model_dump_json())
+    if isinstance(item, StreamProgress):
+        progress = ProgressSSEEvent.from_progress(item)
+        return ServerSentEvent(event=progress.event, data=progress.data.model_dump_json())
     sse_event = EventMapper.event_to_sse_event(item)
     return ServerSentEvent(
         id=str(item.seq) if item.seq is not None else None,

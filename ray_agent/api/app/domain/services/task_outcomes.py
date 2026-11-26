@@ -20,6 +20,7 @@ class TaskOutcomes:
     def __init__(self, plan_tool, files):
         self.plan_tool, self.files = plan_tool, files  # files 是 FileScope；没有文件能力时为空
         self.frozen_ids = None
+        self._delivered = {}  # path -> (version, delivered_file_dict)，兼容先交付后建/更新计划的同批调用
 
     def artifact(self, aid):
         plan = self.plan_tool.latest_plan
@@ -36,12 +37,18 @@ class TaskOutcomes:
         from app.domain.models.file import File
         from app.domain.services.tools.deliver import DeliveredFile
         plan = self.plan_tool.latest_plan
-        if not plan: return None
-        for a in plan.artifacts:
-            if a.path != path or not a.delivered_file or a.state != 'delivered': continue
+        if plan:
+            for a in plan.artifacts:
+                if a.path != path or not a.delivered_file or a.state != 'delivered': continue
+                actual = await self.fingerprint(path)
+                if actual and actual == a.delivered_version:
+                    return DeliveredFile(file=File.model_validate(a.delivered_file))
+        cached = self._delivered.get(path)
+        if cached:
+            dver, dfile = cached
             actual = await self.fingerprint(path)
-            if actual and actual == a.delivered_version:
-                return DeliveredFile(file=File.model_validate(a.delivered_file))
+            if actual and actual == dver:
+                return DeliveredFile(file=File.model_validate(dfile))
         return None
 
     def freeze(self, scope=None):
@@ -113,9 +120,34 @@ class TaskOutcomes:
         return None
 
     async def after(self, invocation, result):
+        if invocation.short_circuited: return result
+        if invocation.function_name == 'deliver_files':
+            for item in getattr(result.data, 'items', []):
+                if item.success and item.path and getattr(item, 'file', None) is not None:
+                    self._delivered[item.path] = (await self.fingerprint(item.path), item.file.model_dump())
         plan = self.plan_tool.latest_plan
-        if not plan or invocation.short_circuited: return result
+        if not plan: return result
         changed = False
+        if invocation.function_name == 'update_plan' and result.success:
+            for artifact in plan.artifacts:
+                if artifact.delivery != 'file' or not artifact.path:
+                    continue
+                current_version = await self.fingerprint(artifact.path)
+                if current_version and artifact.version != current_version:
+                    artifact.version = current_version
+                    if artifact.state == 'pending':
+                        artifact.state = 'generated'
+                    changed = True
+                cached = self._delivered.get(artifact.path)
+                if cached:
+                    dver, dfile = cached
+                    if dver and current_version == dver:
+                        artifact.version = current_version
+                        artifact.delivered_version = dver
+                        artifact.file_id = dfile['id']
+                        artifact.delivered_file = dfile
+                        artifact.state, artifact.error = 'delivered', None
+                        changed = True
         repairing = invocation.verification and invocation.verification.get('purpose') == 'repair'
         if invocation.function_name in ('write_file','replace_in_file','finalize_artifact') or repairing:
             path = invocation.arguments.get('filepath')
@@ -174,7 +206,12 @@ class TaskOutcomes:
                         artifact.state, artifact.error = 'delivered', None
                     else: artifact.state, artifact.error = 'failed', item.error
                     changed = True
-        if changed: invocation.events.append(self.event())
+        if changed:
+            existing_plan_event = next((ev for ev in invocation.events if isinstance(ev, PlanEvent)), None) if invocation.function_name == 'update_plan' else None
+            if existing_plan_event is not None:
+                existing_plan_event.plan = plan.model_copy(deep=True)
+            else:
+                invocation.events.append(self.event())
         return result
 
     def failed_checks(self):

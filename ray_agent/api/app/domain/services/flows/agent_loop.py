@@ -22,7 +22,7 @@ from typing import Any, AsyncGenerator, Awaitable, Callable, Dict, Iterator, Lis
 
 from app.domain.models.usage import UsageCharge, usage_scope
 from app.domain.external.browser import Browser
-from app.domain.external.llm import LLM, LLMRequestError, is_retryable as _is_retryable
+from app.domain.external.llm import LLM, LLMRequestError, ModelProgress, is_retryable as _is_retryable
 from app.domain.services.file_scope import FileScope
 from app.domain.external.search import SearchEngine
 from app.domain.models.app_config import AgentConfig, ToolPolicyConfig
@@ -404,6 +404,7 @@ class AgentLoop(BaseFlow):
         self._capacity_error: Optional[str] = None
         self._estimate: Optional[ContextEstimate] = None
         self._publish_delta: Optional[Callable[[int, int, str], Awaitable[None]]] = None
+        self._publish_progress: Optional[Callable[[int, int, ModelProgress], Awaitable[None]]] = None
         self._inflight: Optional[_Inflight] = None
         self._deltas_closed = False
         self.pending_approval: Optional[ApprovalEvent] = None  # 以 APPROVAL 结束时等待回复的审批请求
@@ -960,7 +961,14 @@ class AgentLoop(BaseFlow):
 
     async def _independent_reads(self, calls):
         from app.domain.services.plan_mode import PLAN_MODE_ALLOWED
-        allowed = {'web_fetch': 'web', 'read_file': 'file', 'search_in_file': 'file', 'find_files': 'file', 'list_dir': 'file'}
+        allowed = {
+            'web_fetch': 'web',
+            'read_file': 'file',
+            'search_in_file': 'file',
+            'find_files': 'file',
+            'list_dir': 'file',
+            'read_skill_resource': 'skill',
+        }
         if len(calls) < 2:
             return []
         invocations = []
@@ -1027,6 +1035,18 @@ class AgentLoop(BaseFlow):
         except Exception as e:
             logger.warning(f"会话[{self._session_id}] 文本增量发布失败: {e}")
 
+    async def _on_model_progress(self, progress: ModelProgress) -> None:
+        """流式思考与工具参数生成进展：经运行器推到瞬时通知通道，不落库。"""
+        if self._deltas_closed or self._publish_progress is None:
+            return
+        inflight = self._inflight
+        if inflight is None:
+            return
+        try:
+            await self._publish_progress(inflight.turn, inflight.attempt, progress)
+        except Exception as e:
+            logger.warning(f"会话[{self._session_id}] 流式进展发布失败: {e}")
+
     def _attempt_event(self, turn: _ModelTurn, reason: str, retried: bool) -> AttemptEvent:
         chars = self._inflight.chars if self._inflight is not None else 0
         self._inflight = None
@@ -1074,7 +1094,12 @@ class AgentLoop(BaseFlow):
             try:
                 with usage_scope(session_id=self._session_id, run_id=getattr(self, "run_id", None),
                                  workspace_id=getattr(self, "workspace_id", None)):
-                    result = await self._llm.invoke(messages=messages, tools=tools, on_delta=self._on_model_delta)
+                    result = await self._llm.invoke(
+                        messages=messages,
+                        tools=tools,
+                        on_delta=self._on_model_delta,
+                        on_progress=self._on_model_progress,
+                    )
                 if not result.finish_reason:
                     raise LLMRequestError(
                         "模型流在结束原因前结束",
@@ -1334,7 +1359,16 @@ class AgentLoop(BaseFlow):
     def _result_message(self, invocation):
         message = tool_message(invocation.call_id, invocation.function_name, invocation.result)
         if invocation.toolkit_name == 'skill' and self.skill_runtime:
-            message['_ray_skill_result'] = {'run_id': self.run_id, 'name': invocation.arguments.get('name')}
+            name = invocation.arguments.get('name')
+            version = next(
+                (entry.get('version') for entry in getattr(self.skill_runtime, 'entries', ()) or ()
+                 if (entry.get('name') == name or entry.get('id') == name) and entry.get('active')),
+                None,
+            )
+            marker = {'run_id': self.run_id, 'name': name}
+            if version is not None:
+                marker['version'] = version
+            message['_ray_skill_result'] = marker
         return message
 
     async def _preload_pending_skills(self, explicit_skill: Optional[Dict[str, Any]] = None):
@@ -1408,27 +1442,90 @@ class AgentLoop(BaseFlow):
             return
         messages = self._memory.get_messages()
         blocks = await self.skill_runtime.context()
-        revised = []
+        system_head = messages[:1] if messages and messages[0].get('role') == 'system' else []
+        body_messages = messages[len(system_head):]
+        active_versions = {
+            m['_ray_skill']['name']: m['_ray_skill'].get('version')
+            for m in blocks
+            if (m.get('_ray_skill') or {}).get('kind') == 'body'
+        }
         remaining = {((m.get('_ray_skill') or {}).get('kind'), (m.get('_ray_skill') or {}).get('name')): m for m in blocks}
-        for message in messages:
+        revised = list(system_head)
+        in_leading_prefix = True
+        for message in body_messages:
             result_marker = message.get('_ray_skill_result')
             if result_marker and result_marker.get('run_id') != self.run_id and not result_marker.get('historical'):
-                revised.append({**message, '_ray_skill_result': {**result_marker, 'historical': True},
-                    'content': json.dumps({'message': '历史 Skill 工具引用，不在本运行激活。', 'data': result_marker}, ensure_ascii=False)})
-                continue
+                name = result_marker.get('name')
+                res_version = result_marker.get('version')
+                still_active = name in active_versions and (res_version is None or active_versions.get(name) == res_version)
+                if not still_active:
+                    revised.append({**message, '_ray_skill_result': {**result_marker, 'historical': True},
+                        'content': json.dumps({'message': '历史 Skill 工具引用，不在本运行激活。', 'data': result_marker}, ensure_ascii=False)})
+                    in_leading_prefix = False
+                    continue
             marker = message.get('_ray_skill')
             if not marker:
+                in_leading_prefix = False
                 revised.append(message)
-            elif marker.get('run_id') != self.run_id and marker.get('kind') != 'history':
-                revised.append({'role': 'user', '_ray_skill': {'kind': 'history', 'run_id': marker.get('run_id')},
-                    'content': '[历史 Skill 引用] ' + str(marker.get('name') or '目录') + '@' + str(marker.get('version') or '') + '；未在本运行激活。'})
             elif marker.get('kind') == 'history':
+                in_leading_prefix = False
                 revised.append(message)
+            elif marker.get('kind') == 'catalog':
+                current = remaining.get(('catalog', None))
+                if current is not None and current.get('content') == message.get('content'):
+                    remaining.pop(('catalog', None))
+                    revised.append(message)
+                elif current is not None and (marker.get('run_id') == self.run_id or in_leading_prefix):
+                    revised.append(remaining.pop(('catalog', None)))
+                else:
+                    in_leading_prefix = False
+                    revised.append({'role': 'user', '_ray_skill': {'kind': 'history', 'run_id': marker.get('run_id')},
+                        'content': '[历史 Skill 引用] ' + str(marker.get('name') or '目录') + '@' + str(marker.get('version') or '') + '；未在本运行激活。'})
+            elif marker.get('kind') == 'body':
+                name = marker.get('name')
+                current = remaining.get(('body', name))
+                same_version = current is not None and current.get('_ray_skill', {}).get('version') == marker.get('version')
+                if current is not None and (
+                    marker.get('run_id') == self.run_id
+                    or (same_version and current.get('content') == message.get('content'))
+                ):
+                    remaining.pop(('body', name))
+                    revised.append(message)
+                elif in_leading_prefix:
+                    if current is not None:
+                        revised.append(remaining.pop(('body', name)))
+                    # 若原本置于句首的激活 Skill 在新运行已不再激活，则从前导区移除，保留真正激活项
+                else:
+                    in_leading_prefix = False
+                    revised.append({'role': 'user', '_ray_skill': {'kind': 'history', 'run_id': marker.get('run_id')},
+                        'content': '[历史 Skill 引用] ' + str(name or '目录') + '@' + str(marker.get('version') or '') + '；未在本运行激活。'})
             else:
-                current = remaining.pop((marker.get('kind'), marker.get('name')), None)
-                if current is not None:
-                    revised.append(current)
-        revised.extend(remaining.values())
+                in_leading_prefix = False
+                revised.append(message)
+
+        if remaining:
+            prefix_end = len(system_head)
+            while prefix_end < len(revised):
+                mark = revised[prefix_end].get('_ray_skill') or {}
+                if mark.get('kind') in ('catalog', 'body'):
+                    prefix_end += 1
+                else:
+                    break
+            catalog_block = remaining.pop(('catalog', None), None)
+            if catalog_block is not None:
+                revised.insert(prefix_end, catalog_block)
+                prefix_end += 1
+            extra_bodies = list(remaining.values())
+            if extra_bodies:
+                has_assistant = any(m.get('role') == 'assistant' for m in revised)
+                if not has_assistant:
+                    revised[prefix_end:prefix_end] = extra_bodies
+                elif revised[-1].get('role') == 'user' and not revised[-1].get('_ray_skill'):
+                    insert_at = len(revised) - 1
+                    revised[insert_at:insert_at] = extra_bodies
+                else:
+                    revised.extend(extra_bodies)
+
         if revised == messages:
             return
         self._memory.replace(revised[1:] if revised and revised[0].get('role') == 'system' else revised)

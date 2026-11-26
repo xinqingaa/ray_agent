@@ -12,7 +12,7 @@ from typing import Annotated, Optional, Dict, Any, Self, Type, Literal, List, Un
 
 from pydantic import BaseModel, Field, ConfigDict
 
-from app.domain.external.event_notifier import OutputDelta
+from app.domain.external.event_notifier import OutputDelta, StreamProgress
 from app.domain.models.event import Event, PlanEvent, ToolEventStatus, ToolEvent, StepEvent, ContextEvent, \
     TurnUsage, ToolResultShaping, CompactUsage, ApprovalEvent, CleanupTarget
 from app.domain.models.file import File
@@ -471,6 +471,43 @@ class DeltaSSEEvent(BaseModel):
                                        attempt=item.attempt, delta=item.delta))
 
 
+class ProgressEventData(BaseModel):
+    """流式思考与工具参数生成进展：不落库，没有 seq，重连不补发。"""
+    model_config = _RESPONSE_SCHEMA
+
+    session_id: SessionId
+    run_id: RunId
+    turn: int
+    attempt: int
+    phase: Literal["reasoning", "tool_call"]
+    delta: str = ""
+    tool_name: Optional[str] = None
+    tool_target: Optional[str] = None
+    arg_bytes: int = 0
+    event_version: EventVersion = EVENT_VERSION
+
+
+class ProgressSSEEvent(BaseModel):
+    model_config = _RESPONSE_SCHEMA
+
+    event: Literal["progress"] = "progress"
+    data: ProgressEventData
+
+    @classmethod
+    def from_progress(cls, item: StreamProgress) -> Self:
+        return cls(data=ProgressEventData(
+            session_id=item.session_id,
+            run_id=item.run_id,
+            turn=item.turn,
+            attempt=item.attempt,
+            phase="tool_call" if item.phase == "tool_call" else "reasoning",
+            delta=item.delta,
+            tool_name=item.tool_name,
+            tool_target=item.tool_target,
+            arg_bytes=item.arg_bytes,
+        ))
+
+
 SESSION_EVENT_CLASSES: tuple[Type[BaseSSEEvent], ...] = (
     MessageSSEEvent,
     TitleSSEEvent,
@@ -494,7 +531,7 @@ SESSION_EVENT_CLASSES: tuple[Type[BaseSSEEvent], ...] = (
 # 落库事件的联合类型：会话详情的 events 与 SSE 中带 id 的帧
 type SessionEvent = Annotated[Union[*SESSION_EVENT_CLASSES], Field(discriminator="event")]
 # SSE 可能出现的全部帧
-type StreamEvent = Annotated[Union[*SESSION_EVENT_CLASSES, DeltaSSEEvent], Field(discriminator="event")]
+type StreamEvent = Annotated[Union[*SESSION_EVENT_CLASSES, DeltaSSEEvent, ProgressSSEEvent], Field(discriminator="event")]
 
 
 class EventMapper:

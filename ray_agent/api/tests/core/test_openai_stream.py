@@ -279,3 +279,73 @@ def test_catalog_batching_uses_provider_default_without_forcing_single_call():
     llm=OpenAILLM(LLMConfig(base_url='https://api.deepseek.com',api_key='test',model_name='deepseek-flash'))
     kwargs=llm._request_kwargs([{'role':'user','content':'test'}],[{'type':'function'}],None,'auto',stream=False)
     assert llm.tool_batching=='provider_default' and 'parallel_tool_calls' not in kwargs
+
+
+def test_stream_reports_reasoning_and_tool_call_progress():
+    chunks = [
+        _chunk(reasoning="首先"),
+        _chunk(reasoning="分析需求" * 15),
+        _chunk(content="我来创建。"),
+        _chunk(tool_calls=[_tool(0, call_id="call_w", name="write_file", arguments='{"filepath":"/tmp/duty.html","content":"<h1>Hi')]),
+        _chunk(tool_calls=[_tool(0, arguments='</h1>"}')]),
+        _chunk(finish_reason="tool_calls"),
+    ]
+    llm, _ = _llm([chunks])
+    seen = []
+
+    async def on_progress(p):
+        seen.append(p)
+
+    result = run(llm.invoke(
+        [{"role": "user", "content": "hi"}],
+        tools=[{"type": "function", "function": {"name": "write_file", "parameters": {}}}],
+        on_progress=on_progress,
+    ))
+    assert result.finish_reason == "tool_calls"
+    reasoning_items = [item for item in seen if item.phase == "reasoning"]
+    tool_items = [item for item in seen if item.phase == "tool_call"]
+    assert "".join(item.delta for item in reasoning_items) == "首先" + ("分析需求" * 15)
+    assert tool_items and tool_items[-1].tool_name == "write_file"
+    assert tool_items[-1].tool_target == "duty.html"
+    assert tool_items[-1].arg_bytes > 30
+
+
+def test_responses_stream_reports_reasoning_and_tool_call_progress():
+    events = [
+        SimpleNamespace(type="response.output_item.added", output_index=0, item=SimpleNamespace(type="reasoning", id="r1")),
+        SimpleNamespace(type="response.reasoning_summary_text.delta", delta="先梳理字段"),
+        SimpleNamespace(type="response.output_item.added", output_index=1, item=SimpleNamespace(type="function_call", id="fc1", name="write_file", arguments="")),
+        SimpleNamespace(type="response.function_call_arguments.delta", item_id="fc1", output_index=1, delta='{"filepath":"/work/a.html","content":"hi"}'),
+        SimpleNamespace(type="response.completed", response={
+            "status": "completed",
+            "output": [
+                {"type": "reasoning", "content": [{"type": "reasoning_text", "text": "先梳理字段"}]},
+                {"type": "function_call", "call_id": "c1", "name": "write_file", "arguments": '{"filepath":"/work/a.html","content":"hi"}', "status": "completed"},
+            ],
+        }),
+    ]
+    llm = OpenAILLM(LLMConfig(
+        base_url="https://example.test/v1",
+        api_key="test-key",
+        model_name="fake",
+        api_protocol="responses",
+        streaming=True,
+    ))
+
+    async def create(**kwargs):
+        return _ListStream(events)
+
+    llm._client = SimpleNamespace(responses=SimpleNamespace(create=create))
+    seen = []
+
+    async def on_progress(p):
+        seen.append(p)
+
+    result = run(llm.invoke(
+        [{"role": "user", "content": "hi"}],
+        tools=[{"type": "function", "function": {"name": "write_file", "parameters": {}}}],
+        on_progress=on_progress,
+    ))
+    assert result.finish_reason == "tool_calls"
+    assert any(item.phase == "reasoning" and "先梳理字段" in item.delta for item in seen) or any(item.phase == "reasoning" for item in seen)
+    assert any(item.phase == "tool_call" and item.tool_name == "write_file" and item.tool_target == "a.html" for item in seen)

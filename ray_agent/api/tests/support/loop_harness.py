@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock
 from app.domain.models.app_config import AgentConfig, ToolPolicyConfig
 from pydantic import TypeAdapter
 
-from app.domain.external.event_notifier import OutputDelta
+from app.domain.external.event_notifier import OutputDelta, StreamProgress
 from app.domain.models.event import BaseEvent, Event, MessageEvent
 from app.domain.models.memory import Memory
 from app.domain.models.run import ACTIVE_RUN_STATUSES, Run, RunStatus
@@ -269,6 +269,7 @@ class MemoryNotifier:
     def __init__(self) -> None:
         self.published: List[int] = []
         self.deltas: List[OutputDelta] = []
+        self.progress: List[StreamProgress] = []
         self.drop = False
         self.on_publish: Optional[Callable[[int], Awaitable[None]]] = None
         self._queues: List[asyncio.Queue] = []
@@ -285,6 +286,24 @@ class MemoryNotifier:
     async def publish_delta(self, session_id, run_id, turn, attempt, delta):
         notice = OutputDelta(session_id=session_id, run_id=run_id, turn=turn, attempt=attempt, delta=delta)
         self.deltas.append(notice)
+        if self.drop:
+            return
+        for queue in list(self._queues):
+            queue.put_nowait(notice)
+
+    async def publish_progress(self, session_id, run_id, turn, attempt, progress):
+        notice = StreamProgress(
+            session_id=session_id,
+            run_id=run_id,
+            turn=turn,
+            attempt=attempt,
+            phase=progress.phase,
+            delta=progress.delta,
+            tool_name=progress.tool_name,
+            tool_target=progress.tool_target,
+            arg_bytes=progress.arg_bytes,
+        )
+        self.progress.append(notice)
         if self.drop:
             return
         for queue in list(self._queues):

@@ -17,7 +17,7 @@ import {
   streamDraftKey,
   type DeltaInput,
 } from '@/lib/session-projection'
-import type { SessionView } from '@/lib/session-view'
+import type { SessionView, StreamProgressState } from '@/lib/session-view'
 
 type SendOptions = StartOptions & {retry?: boolean; execute_plan?: PlanAcceptance}
 
@@ -75,6 +75,7 @@ export function useSessionDetail(
   const [deltas, setDeltas] = useState<DeltaInput[]>([])
   const [streamStartedAt, setStreamStartedAt] = useState<Record<string, number>>({})
   const [streamUpdatedAt, setStreamUpdatedAt] = useState<Record<string, number>>({})
+  const [progressMap, setProgressMap] = useState<Record<string, StreamProgressState>>({})
   const lastSeqRef = useRef(0)
   const sessionIdRef = useRef(sessionId)
   sessionIdRef.current = sessionId
@@ -95,7 +96,7 @@ export function useSessionDetail(
     setDeltas([])
     setStreamStartedAt({})
     setStreamUpdatedAt({})
-    setStreamUpdatedAt({})
+    setProgressMap({})
   }, [])
 
   const appendEvent = useCallback((ev: SSEEventData, live = true) => {
@@ -118,6 +119,46 @@ export function useSessionDetail(
         const current = next[index]
         next[index] = {...current, delta: `${current.delta ?? ''}${delta}`}
         return next
+      })
+      retryRef.current = 0
+      return
+    }
+    if (ev.type === 'progress') {
+      const data = ev.data
+      const runId = data?.run_id
+      const turn = data?.turn
+      const attempt = data?.attempt
+      const phase = data?.phase
+      if (!runId || typeof turn !== 'number' || typeof attempt !== 'number' || (phase !== 'reasoning' && phase !== 'tool_call')) return
+      const key = streamDraftKey(runId, turn, attempt)
+      const now = Date.now()
+      const piece = typeof data.delta === 'string' ? data.delta : ''
+      setProgressMap((prev) => {
+        const existing = prev[key]
+        const combinedReasoning = phase === 'reasoning' && piece
+          ? `${existing?.reasoningText ?? ''}${piece}`
+          : (existing?.reasoningText ?? '')
+        const reasoningText = combinedReasoning.length > 64_000
+          ? combinedReasoning.slice(combinedReasoning.length - 64_000)
+          : combinedReasoning
+        return {
+          ...prev,
+          [key]: {
+            runId,
+            turn,
+            attempt,
+            phase,
+            reasoningText,
+            reasoningStartedAt: existing?.reasoningStartedAt ?? (phase === 'reasoning' ? now : null),
+            toolName: phase === 'tool_call' ? (data.tool_name ?? existing?.toolName ?? null) : null,
+            toolTarget: phase === 'tool_call' ? (data.tool_target ?? existing?.toolTarget ?? null) : null,
+            argBytes: phase === 'tool_call'
+              ? (typeof data.arg_bytes === 'number' ? data.arg_bytes : (existing?.argBytes ?? 0))
+              : 0,
+            startedAt: existing?.startedAt ?? now,
+            updatedAt: now,
+          },
+        }
       })
       retryRef.current = 0
       return
@@ -296,6 +337,7 @@ export function useSessionDetail(
     setDeltas([])
     setStreamStartedAt({})
     setStreamUpdatedAt({})
+    setProgressMap({})
     if (!sessionId) {
       setLoading(false)
       setSession(null)
@@ -481,8 +523,9 @@ export function useSessionDetail(
       deltas,
       streamStartedAt,
       streamUpdatedAt,
+      progress: progressMap,
     })
-  }, [sessionId, session, events, stoppingRequestedAt, deltas, streamStartedAt, streamUpdatedAt])
+  }, [sessionId, session, events, stoppingRequestedAt, deltas, streamStartedAt, streamUpdatedAt, progressMap])
 
   return {
     session,

@@ -195,6 +195,7 @@ class ScriptedLLM:
             tool_choice: str = None,
             *,
             on_delta: Optional[Callable[[str], Awaitable[None]]] = None,
+            on_progress: Optional[Any] = None,
     ) -> LLMInvokeResult:
         request = ScriptedRequest(
             messages=deepcopy(messages),
@@ -211,16 +212,17 @@ class ScriptedLLM:
         item = self._resolve(self._script.pop(0), request)
         if isinstance(item, BaseException):
             raise item
-        return await self._finish_response(item, on_delta)
+        return await self._finish_response(item, on_delta, on_progress)
 
     async def _finish_response(
             self,
             response: ScriptedResponse,
             on_delta: Optional[Callable[[str], Awaitable[None]]],
+            on_progress: Optional[Any] = None,
     ) -> ScriptedInvokeResult:
         ttft_ms = None
         if response.chunks or response.interrupted or response.hold is not None:
-            ttft_ms = await self._play_chunks(response, on_delta)
+            ttft_ms = await self._play_chunks(response, on_delta, on_progress)
             if response.hold is not None:
                 await response.hold.wait()
             if response.interrupted:
@@ -237,7 +239,9 @@ class ScriptedLLM:
             self,
             response: ScriptedResponse,
             on_delta: Optional[Callable[[str], Awaitable[None]]],
+            on_progress: Optional[Any] = None,
     ) -> Optional[int]:
+        from app.domain.external.llm import ModelProgress
         chunks = response.chunks or []
         if not chunks:
             return None
@@ -247,6 +251,8 @@ class ScriptedLLM:
         for index, chunk in enumerate(chunks):
             if index > 0 and response.chunk_interval:
                 await asyncio.sleep(response.chunk_interval)
+            if chunk.reasoning and on_progress is not None:
+                await on_progress(ModelProgress(phase="reasoning", delta=chunk.reasoning))
             visible = False
             if chunk.text:
                 visible = True
@@ -255,6 +261,12 @@ class ScriptedLLM:
             if (chunk.tool_index is not None or chunk.tool_id or chunk.tool_name
                     or chunk.tool_arguments is not None):
                 visible = True
+                if on_progress is not None:
+                    await on_progress(ModelProgress(
+                        phase="tool_call",
+                        tool_name=chunk.tool_name,
+                        arg_bytes=len((chunk.tool_arguments or "").encode("utf-8")),
+                    ))
             if visible and ttft_ms is None:
                 ttft_ms = max(0, int((time.monotonic() - started) * 1000))
         return ttft_ms

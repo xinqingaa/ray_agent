@@ -78,12 +78,12 @@ def deepseek_models() -> tuple[ModelSpec, ...]:
     choices = _deepseek_choices()
     shared = dict(
         provider="deepseek", context_window=1_000_000, default_context_window=200_000, max_output=393_216, tools=True,
-        choices=choices, default_choice="high", thinking_output_floor=32_768,
+        choices=choices, thinking_output_floor=32_768,
         reasoning_ordered=True, reasoning_family="deepseek-v4", tool_batching="provider_default", temperature_when="disabled", temperature_max=2,
     )
     return (
-        ModelSpec(id="deepseek-flash", vision=True, auxiliary=True, **shared),
-        ModelSpec(id="deepseek-v4-pro", vision=False, auxiliary=False, **shared),
+        ModelSpec(id="deepseek-flash", vision=True, auxiliary=True, default_choice="low", **shared),
+        ModelSpec(id="deepseek-v4-pro", vision=False, auxiliary=False, default_choice="high", **shared),
     )
 
 

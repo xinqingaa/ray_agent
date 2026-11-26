@@ -126,8 +126,8 @@ class Compactor:
         if not summary:
             return CompactionResult(CompactionStatus.FAILED, usage=usage)
 
-        replaced = [summary_message(summary, plan.summarized_turns, reinjection.omitted),
-                    *reinjection.messages, *copy.deepcopy(kept), *pinned]
+        replaced = [*pinned, summary_message(summary, plan.summarized_turns, reinjection.omitted),
+                    *reinjection.messages, *copy.deepcopy(kept)]
         after = self.fresh_budget().estimate([*system, *replaced], tools)
         logger.info(f"{self._label} 压缩完成（{trigger}）：摘要 {plan.summarized_turns} 轮，保留 {plan.kept_turns} 轮，"
                     f"估算 {before.total} → {after.total} tokens")

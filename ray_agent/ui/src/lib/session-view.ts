@@ -322,6 +322,21 @@ export type StreamingDraft = {
   updatedAt?: number | null
 }
 
+/** 正在增长的思考与工具参数生成进展。不落库；刷新、重连或轮次结束后消失 */
+export type StreamProgressState = {
+  runId: string
+  turn: number
+  attempt: number
+  phase: 'reasoning' | 'tool_call'
+  reasoningText: string
+  reasoningStartedAt: number | null
+  toolName: string | null
+  toolTarget: string | null
+  argBytes: number
+  startedAt: number | null
+  updatedAt: number | null
+}
+
 export type SessionView = {
   id: string
   title: string
@@ -340,4 +355,6 @@ export type SessionView = {
   streamingItemId?: string | null
   /** 与 streamingItemId 对应的临时文本，供速度估算。手写夹具可省略 */
   streaming?: StreamingDraft | null
+  /** 当前活动的实时思考或工具参数编写进展。手写夹具可省略 */
+  liveProgress?: StreamProgressState | null
 }

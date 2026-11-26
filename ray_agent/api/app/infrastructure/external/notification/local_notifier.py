@@ -6,7 +6,8 @@ import asyncio
 import logging
 from typing import Any, Dict, Iterable, Optional, Set, Tuple, Union
 
-from app.domain.external.event_notifier import EventNotifier, EventSubscription, OutputDelta
+from app.domain.external.event_notifier import EventNotifier, EventSubscription, OutputDelta, StreamProgress
+from app.domain.external.llm import ModelProgress
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +66,21 @@ class LocalEventNotifier(EventNotifier):
     async def publish_delta(self, session_id: str, run_id: str, turn: int, attempt: int, delta: str) -> None:
         self._hub.publish(session_id, OutputDelta(session_id=session_id, run_id=run_id, turn=turn, attempt=attempt,
                                                   delta=delta))
+
+    async def publish_progress(
+            self, session_id: str, run_id: str, turn: int, attempt: int, progress: ModelProgress,
+    ) -> None:
+        self._hub.publish(session_id, StreamProgress(
+            session_id=session_id,
+            run_id=run_id,
+            turn=turn,
+            attempt=attempt,
+            phase=progress.phase,
+            delta=progress.delta,
+            tool_name=progress.tool_name,
+            tool_target=progress.tool_target,
+            arg_bytes=progress.arg_bytes,
+        ))
 
     async def subscribe(self, session_id: str) -> EventSubscription:
         return self._hub.subscribe(session_id)

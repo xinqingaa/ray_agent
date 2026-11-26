@@ -27,7 +27,9 @@ def test_deepseek_catalog_uses_request_ids_and_vendor_efforts():
     assert flash.auxiliary and not pro.auxiliary
     assert [choice.id for choice in flash.choices] == ["disabled", "low", "high", "max"]
     spec, choice = resolve_selection("deepseek", None, None)
-    assert (spec.id, choice.id, choice.replay) == ("deepseek-flash", "high", "all_turns")
+    assert (spec.id, choice.id, choice.replay) == ("deepseek-flash", "low", "all_turns")
+    pro_spec, pro_choice = resolve_selection("deepseek", "deepseek-v4-pro", None)
+    assert (pro_spec.id, pro_choice.id, pro_choice.replay) == ("deepseek-v4-pro", "high", "all_turns")
     window, tokens = tuned_limits(8192, 131_072, spec, choice)
     assert (window, tokens) == (131_072, 32_768)
     assert tuned_limits(8192, 2_000_000, spec, choice)[0] == 1_000_000

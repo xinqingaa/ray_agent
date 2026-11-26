@@ -22,7 +22,8 @@ export type StreamEvent =
   | CleanupSSEEvent
   | ApprovalSSEEvent
   | PreviewSSEEvent
-  | DeltaSSEEvent;
+  | DeltaSSEEvent
+  | ProgressSSEEvent;
 /**
  * 运行身份；一个会话至多一个活动运行
  */
@@ -601,6 +602,28 @@ export interface DeltaEventData {
   turn: number;
   attempt: number;
   delta: string;
+  /**
+   * 事件结构版本
+   */
+  event_version: number;
+}
+export interface ProgressSSEEvent {
+  event: "progress";
+  data: ProgressEventData;
+}
+/**
+ * 流式思考与工具参数生成进展：不落库，没有 seq，重连不补发。
+ */
+export interface ProgressEventData {
+  session_id: SessionId;
+  run_id: RunId;
+  turn: number;
+  attempt: number;
+  phase: "reasoning" | "tool_call";
+  delta: string;
+  tool_name: string | null;
+  tool_target: string | null;
+  arg_bytes: number;
   /**
    * 事件结构版本
    */

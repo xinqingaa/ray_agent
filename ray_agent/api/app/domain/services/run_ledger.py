@@ -12,6 +12,7 @@ from typing import Awaitable, Callable, List, Optional, Sequence
 
 from app.domain.services.run_connections import run_connections
 from app.domain.external.event_notifier import EventNotifier
+from app.domain.external.llm import ModelProgress
 from app.domain.models.event import BaseEvent, CompactEvent, RunEvent, ToolEvent, ToolEventStatus, TurnEvent, \
     TurnPhase
 from app.domain.models.clock import utc_now
@@ -254,6 +255,17 @@ class RunLedger:
             await self._notifier.publish_delta(session_id, run_id, turn, attempt, delta)
         except Exception as e:
             logger.warning(f"会话[{session_id}] 文本增量发布失败: {e}")
+
+    async def publish_progress(
+            self, session_id: str, run_id: str, turn: int, attempt: int, progress: ModelProgress,
+    ) -> None:
+        """流式思考与工具参数生成进展只发通知，不写数据库。失败只记日志。"""
+        if self._notifier is None:
+            return
+        try:
+            await self._notifier.publish_progress(session_id, run_id, turn, attempt, progress)
+        except Exception as e:
+            logger.warning(f"会话[{session_id}] 流式进展发布失败: {e}")
 
     async def _notify(self, session_id: str, seq: Optional[int]) -> None:
         if self._notifier is None or seq is None:

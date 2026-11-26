@@ -13,7 +13,7 @@ from typing import AsyncGenerator, Callable, List, Optional, Type, Union
 
 from app.domain.models.usage import usage_scope
 from app.application.errors.exceptions import AppException, BadRequestError, ConflictError, NotFoundError
-from app.domain.external.event_notifier import EventNotifier, OutputDelta
+from app.domain.external.event_notifier import EventNotifier, OutputDelta, StreamProgress
 from app.domain.external.file_storage import FileStorage
 from app.domain.external.llm import LLM
 from app.domain.external.search import SearchEngine
@@ -924,7 +924,7 @@ class AgentService:
         logger.info(f"会话[{session_id}]运行[{run.id}]审批 {tool_call_id} → {decided.status.value}")
         return ApprovalAccepted(run_id=run.id, seq=decided.seq, status=decided.status.value)
 
-    async def stream_events(self, session_id: str, after_seq: int = 0) -> AsyncGenerator[Union[Event, OutputDelta], None]:
+    async def stream_events(self, session_id: str, after_seq: int = 0) -> AsyncGenerator[Union[Event, OutputDelta, StreamProgress], None]:
         """按 seq 推送 after_seq 之后的事件：先补查数据库，再订阅通知，订阅建立后再补查一次覆盖空档；
         订阅期间收到落库通知就按最后 seq 查库。没有通知时，有活动运行仍按短间隔查；连续空闲后改为长间隔。通知丢失时由这次查库补齐。
         文本增量随通知立刻交出，不查库、不分配 seq，重连不会补发。
@@ -975,7 +975,7 @@ class AgentService:
                         logger.warning(f"会话[{session_id}]读取事件通知失败，改为兜底查询: {e}")
                         subscription = None
                         continue
-                    if isinstance(notice, OutputDelta):
+                    if isinstance(notice, (OutputDelta, StreamProgress)):
                         idle_waits = 0
                         yield notice
                         continue

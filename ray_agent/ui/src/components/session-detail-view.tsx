@@ -914,6 +914,7 @@ export function SessionDetailView({
       since={activity?.kind === 'model' ? activity.startedAt : activity?.kind === 'stopping' ? activity.requestedAt : null}
       streaming={!!view?.streaming?.text}
       running={view?.activeRun?.status === 'running'}
+      liveProgress={view?.liveProgress ?? null}
     />
   )
 

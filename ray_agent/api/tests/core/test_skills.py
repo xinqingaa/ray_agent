@@ -371,3 +371,47 @@ def test_reimport_repairs_damaged_immutable_copy_without_new_version(tmp_path):
         assert repaired['version'] == entry['version']
         assert (await s.detail('example'))['text'] == source().decode()
     asyncio.run(run())
+
+
+def test_leading_skill_placement_and_cross_run_prefix_cache_and_resource_preservation(tmp_path):
+    async def run():
+        s = service(tmp_path)
+        pkg = await install(s, {'SKILL.md': source(), 'references/guide.md': b'guide-content-v1\n'})
+        rt1 = SkillRuntime(s, 'run-1', preset_preload_ids=[pkg['id']])
+        await rt1.initialize()
+        h1 = make_loop([
+            tool_call('read_skill_resource', {'name': 'example', 'path': 'references/guide.md'}),
+            text('首轮回复'),
+        ], extra_tools=[SkillTool(rt1)])
+        h1.loop.skill_runtime, h1.loop.run_id = rt1, rt1.run_id
+        _ = [e async for e in h1.loop.invoke(Message(message='我的需求'))]
+        req1_msgs = h1.llm.requests[0].messages
+        user_idx = next(i for i, m in enumerate(req1_msgs) if m.get('role') == 'user' and not m.get('_ray_skill'))
+        catalog_idx = next(i for i, m in enumerate(req1_msgs) if m.get('_ray_skill', {}).get('kind') == 'catalog')
+        body_idx = next(i for i, m in enumerate(req1_msgs) if m.get('_ray_skill', {}).get('kind') == 'body')
+        assert catalog_idx < body_idx < user_idx
+        assert req1_msgs[-1]['content'] == '我的需求'
+
+        # 第二轮继续激活相同版本的预设 Skill：前导块保持字节一致不回贴末尾，且保留 read_skill_resource 结果
+        rt2 = SkillRuntime(s, 'run-2', preset_preload_ids=[pkg['id']])
+        await rt2.initialize()
+        h2 = make_loop([text('次轮回复')], session=h1.session, extra_tools=[SkillTool(rt2)])
+        h2.loop.skill_runtime, h2.loop.run_id = rt2, rt2.run_id
+        _ = [e async for e in h2.loop.invoke(Message(message='请继续'))]
+        req2_msgs = h2.llm.requests[0].messages
+        assert req2_msgs[:user_idx + 1] == req1_msgs[:user_idx + 1]
+        assert req2_msgs[-1]['content'] == '请继续'
+        tool_msgs = [m for m in req2_msgs if m.get('role') == 'tool' and m.get('function_name') == 'read_skill_resource']
+        assert len(tool_msgs) == 1 and 'guide-content-v1' in tool_msgs[0]['content']
+
+        # 第三轮取消激活后：前导 body 移除，历史 read_skill_resource 转历史占位
+        rt3 = SkillRuntime(s, 'run-3', preset_preload_ids=[])
+        await rt3.initialize()
+        h3 = make_loop([text('退回自由回复')], session=h1.session, extra_tools=[SkillTool(rt3)])
+        h3.loop.skill_runtime, h3.loop.run_id = rt3, rt3.run_id
+        _ = [e async for e in h3.loop.invoke(Message(message='再聊'))]
+        req3_msgs = h3.llm.requests[0].messages
+        assert not any(m.get('_ray_skill', {}).get('kind') == 'body' for m in req3_msgs)
+        hist_tools = [m for m in req3_msgs if m.get('role') == 'tool' and m.get('function_name') == 'read_skill_resource']
+        assert len(hist_tools) == 1 and 'guide-content-v1' not in hist_tools[0]['content']
+    asyncio.run(run())

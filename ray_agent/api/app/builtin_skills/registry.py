@@ -25,8 +25,8 @@ BUILTIN_SKILLS: Dict[str, BuiltinSkillSpec] = {
     "elicitation-communication": BuiltinSkillSpec(
         id="elicitation-communication",
         category="foundation",
-        # 高频对话分寸主要通过预设预加载或显式选用生效，不污染自由问答目录
-        default_included=False,
+        # 5 项基础能力底座均默认进入目录，自由对话可按需加载，场景预设按 depends_on 自动预加载
+        default_included=True,
     ),
     "structured-thinking": BuiltinSkillSpec(
         id="structured-thinking",
@@ -211,7 +211,7 @@ BUILTIN_SKILLS: Dict[str, BuiltinSkillSpec] = {
                     prompt="我现在情绪还算稳定，想请你帮我把眼下这件烦心事拆开看看：哪些已经可控、哪些先放一放，接下来迈出最小的一步。",
                 ),
             ],
-            depends_on=["elicitation-communication"],
+            depends_on=[],
             default_participate_in_memory=False,
             order=6,
         ),

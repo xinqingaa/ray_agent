@@ -214,3 +214,55 @@ def test_user_arranged_future_file_can_have_unknown_path_until_activated():
         assert not (await t.update_plan(first.data['plan'],artifacts=[{'id':'future','name':'后续文件','delivery':'file','schedule':'current'}])).success
         assert (await t.update_plan(first.data['plan'],artifacts=[{'id':'future','name':'后续文件','delivery':'file','schedule':'current','path':'/a.md'}])).success
     run(check())
+
+
+def test_skill_tools_not_blocked_by_plan_scope_and_read_file_no_verification_notice():
+    from app.domain.models.plan import Artifact
+    p = PlanProgress()
+    plan = Plan(steps=[Step(description='后续', schedule='future')], artifacts=[Artifact(name='成果', path='/a')])
+    for fn in ('load_skill', 'read_skill_resource', 'prepare_skill_resources'):
+        assert not p.blocks([{'function': {'name': fn}}], plan)
+    p.observe(PlanEvent(plan=plan))
+    for i in range(6):
+        p.observe(ToolEvent(tool_call_id=f'r{i}', tool_name='file', function_name='read_file', function_args={}, status='called'))
+    assert p.verification_notice(plan) is None
+
+
+def test_same_batch_deliver_files_before_update_plan_marks_artifact_delivered():
+    from app.domain.models.event import DoneEvent
+    from app.domain.models.file import File
+    from tests.support.loop_harness import FileFixture
+    from tests.support.scripted_llm import ScriptedResponse, ScriptedToolCall
+
+    async def check():
+        fx = FileFixture()
+        html_path = fx.path('app.html')
+
+        async def deliver(path):
+            return File(id='f1', filepath=path, filename='app.html')
+
+        h = make_loop([
+            ScriptedResponse(tool_calls=[
+                ScriptedToolCall('write_file', {'filepath': html_path, 'content': '<!doctype html><h1>ok</h1>'}),
+                ScriptedToolCall('deliver_files', {'paths': [html_path]}),
+                ScriptedToolCall('update_plan', {
+                    'plan': [{'step': '完成交付', 'status': 'completed'}],
+                    'artifacts': [{'name': '页面', 'delivery': 'file', 'path': html_path}],
+                }),
+            ]),
+            text('已交付可用页面。'),
+        ], files=fx, deliver_file=deliver)
+        events = [e async for e in h.loop.invoke(Message(message='做个小工具'))]
+        done = next(e for e in events if isinstance(e, DoneEvent))
+        artifact = h.loop.plan_tool.latest_plan.artifacts[0]
+        assert artifact.state == 'delivered'
+        assert done.outcome == 'complete'
+        assert h.llm.call_count == 2
+        assert not any(
+            '结束前一致性核对' in str(m.get('content') or '')
+            for e in events if isinstance(e, ContextEvent)
+            for m in (e.messages or [])
+        )
+        assert_no_dangling(memory_messages(h.session))
+
+    run(check())

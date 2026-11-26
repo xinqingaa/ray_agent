@@ -1578,6 +1578,96 @@
       "title": "PreviewSSEEvent",
       "type": "object"
     },
+    "ProgressEventData": {
+      "description": "流式思考与工具参数生成进展：不落库，没有 seq，重连不补发。",
+      "properties": {
+        "session_id": {
+          "$ref": "#/$defs/SessionId"
+        },
+        "run_id": {
+          "$ref": "#/$defs/RunId"
+        },
+        "turn": {
+          "type": "integer"
+        },
+        "attempt": {
+          "type": "integer"
+        },
+        "phase": {
+          "enum": [
+            "reasoning",
+            "tool_call"
+          ],
+          "type": "string"
+        },
+        "delta": {
+          "default": "",
+          "type": "string"
+        },
+        "tool_name": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "tool_target": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "arg_bytes": {
+          "default": 0,
+          "type": "integer"
+        },
+        "event_version": {
+          "$ref": "#/$defs/EventVersion",
+          "default": 1
+        }
+      },
+      "required": [
+        "session_id",
+        "run_id",
+        "turn",
+        "attempt",
+        "phase",
+        "delta",
+        "tool_name",
+        "tool_target",
+        "arg_bytes",
+        "event_version"
+      ],
+      "title": "ProgressEventData",
+      "type": "object"
+    },
+    "ProgressSSEEvent": {
+      "properties": {
+        "event": {
+          "const": "progress",
+          "default": "progress",
+          "type": "string"
+        },
+        "data": {
+          "$ref": "#/$defs/ProgressEventData"
+        }
+      },
+      "required": [
+        "event",
+        "data"
+      ],
+      "title": "ProgressSSEEvent",
+      "type": "object"
+    },
     "RunEventData": {
       "description": "运行状态变化事件数据；终态时 summary 为运行汇总，mode 为运行模式（normal / plan）。",
       "properties": {
@@ -2033,6 +2123,7 @@
           "message": "#/$defs/MessageSSEEvent",
           "plan": "#/$defs/PlanSSEEvent",
           "preview": "#/$defs/PreviewSSEEvent",
+          "progress": "#/$defs/ProgressSSEEvent",
           "run": "#/$defs/RunSSEEvent",
           "step": "#/$defs/StepSSEEvent",
           "title": "#/$defs/TitleSSEEvent",
@@ -2096,6 +2187,9 @@
         },
         {
           "$ref": "#/$defs/DeltaSSEEvent"
+        },
+        {
+          "$ref": "#/$defs/ProgressSSEEvent"
         }
       ]
     },

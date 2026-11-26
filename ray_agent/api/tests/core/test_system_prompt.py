@@ -62,3 +62,26 @@ def test_prompts_include_delivery_lifecycle_ladder_and_verification_principles()
 
     zh_closed = build_system_prompt(environment())
     assert "deliver_files" not in zh_closed and "shell_execute" not in zh_closed and "register_preview" not in zh_closed
+
+
+def test_prompts_include_task_agnostic_collaboration_principles():
+    zh = build_system_prompt(environment())
+    en = build_en(environment())
+    assert "<collaboration_principles>" in zh and "增量价值" in zh and "主动多想半步" in zh
+    assert "<collaboration_principles>" in en and "incremental value" in en and "half a step ahead" in en
+    for prompt in (zh, en):
+        for preset_term in ("preset-interview", "preset-emotional-support", "preset-ppt", "12356"):
+            assert preset_term not in prompt
+
+
+def test_system_prompt_unties_brevity_constraints():
+    from app.domain.services.prompts.system import SYSTEM_PROMPT
+    from app.domain.services.prompts.en.system import SYSTEM_PROMPT as EN_SYSTEM_PROMPT
+
+    for banned in ("直入重点", "不为短任务套模板或拉长篇幅", "克制、客观的书面表达", "控制篇幅"):
+        assert banned not in SYSTEM_PROMPT
+    assert "keep length and assets in check" not in EN_SYSTEM_PROMPT
+    assert "不做刻意的长短限制" in SYSTEM_PROMPT
+    assert "仅在你实际调用工具、推进多步任务或交付文件产物时生效" in SYSTEM_PROMPT
+    assert "no artificial brevity caps" in EN_SYSTEM_PROMPT
+    assert "apply only when you actually call tools" in EN_SYSTEM_PROMPT

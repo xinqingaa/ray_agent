@@ -10,10 +10,11 @@ VERIFICATION_NOTICE_PREFIX = "[系统提示]核验记录提醒："
 STEP_NOTICE_PREFIX = "[系统提示]步骤进度提醒："
 INTERNAL_CHECK_NOTE = ("这是内部核对，不在最终答复复述。上一条草稿尚未交给用户；最终答复必须独立阅读，"
                        "保留用户需要的正文。文件交付说明累计成果、关键结果、使用方式、关键核验及真实缺口，使用已交付附件入口；"
-                       "并列信息用短段落或列表，较长正文用标题，遵从用户指定的格式和篇幅。")
+                       "按任务需要清晰组织，如用户指定了格式或篇幅则遵从要求。")
 OPEN_ITEMS_ISSUE = "本次范围仍有未完成项；完成后更新状态，资源不足标 blocked 并说明，不能改为后续以消除缺口"
 NON_BUSINESS = {"update_plan", "message_ask_user", "discover_mcp_tools", "get_remote_agent_cards",
-                "shell_wait_process", "shell_read_output", "browser_view", "browser_tabs"}
+                "shell_wait_process", "shell_read_output", "browser_view", "browser_tabs",
+                "load_skill", "read_skill_resource", "prepare_skill_resources"}
 
 
 def staged_feedback(plan):
@@ -56,7 +57,7 @@ class PlanProgress:
             elif event.plan_check == 'notice': self.noticed = True
             elif event.plan_check == 'corrected': self.corrected = True
         elif isinstance(event, ToolEvent) and event.status.value == 'called':
-            if event.function_name in {'shell_execute', 'browser_console_exec', 'read_file'} and not (event.function_args or {}).get('verification'):
+            if event.function_name in {'shell_execute', 'browser_console_exec'} and not (event.function_args or {}).get('verification'):
                 self.unrecorded_calls += 1
 
     def step_notice(self, plan):

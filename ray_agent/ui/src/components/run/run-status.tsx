@@ -1,8 +1,14 @@
-import {CirclePause, CircleX, Loader2, type UiIcon, ShieldQuestion, Unplug} from '@/components/ui/icons'
-import type {ReactNode} from 'react'
+import {ChevronDown, ChevronRight, CirclePause, CircleX, Loader2, type UiIcon, ShieldQuestion, Unplug} from '@/components/ui/icons'
+import {useEffect, useRef, useState, type ReactNode} from 'react'
 import {cn} from '@/lib/utils'
+import {Tooltip, TooltipContent, TooltipTrigger} from '@/components/ui/tooltip'
 import type {SessionStatus} from '@/lib/api/types'
-import type {Activity, RunStatus as RunState} from '@/lib/session-view'
+import {
+  formatReasoningForPanel,
+  formatToolProgressLabel,
+  summarizeReasoningForHover,
+} from '@/lib/session-projection'
+import type {Activity, RunStatus as RunState, StreamProgressState} from '@/lib/session-view'
 import type {WaitKind} from '@/providers/sessions-provider'
 import {TONE_TEXT} from './status-meta'
 import {useNow} from './clock'
@@ -13,6 +19,7 @@ import {useNow} from './clock'
  */
 const TEXT = {
   thinking: '正在思考',
+  deepThinking: '正在深度思考',
   preparing: '正在准备执行环境',
   stopping: '正在停止',
   compacting: '正在压缩上下文',
@@ -41,6 +48,7 @@ type TimelineProps = {
   since?: number | null
   streaming: boolean
   running: boolean
+  liveProgress?: StreamProgressState | null
   className?: string
 }
 
@@ -89,13 +97,22 @@ function timelineSentence(input: TimelineProps): string | null {
   if (input.compacting && !input.pendingSend) return TEXT.compacting
   if (input.pendingSend) {
     if (specific) return specific
-    if (activity === 'waiting_reply' || activity === 'waiting_approval' || input.streaming) return null
-    return TEXT.thinking
+    if (activity === 'waiting_reply' || activity === 'waiting_approval') return null
+    if (input.liveProgress?.phase === 'tool_call') {
+      return formatToolProgressLabel(input.liveProgress.toolName, input.liveProgress.toolTarget, input.liveProgress.argBytes)
+    }
+    if (input.streaming) return null
+    return input.liveProgress?.phase === 'reasoning' ? TEXT.deepThinking : TEXT.thinking
   }
   if (specific) return specific
   if (activity === 'waiting_reply' || activity === 'waiting_approval') return null
-  if (!input.streaming && input.running && (activity === 'model' || activity === 'idle' || activity == null)) {
-    return TEXT.thinking
+  if (input.running && (activity === 'model' || activity === 'idle' || activity == null)) {
+    if (input.liveProgress?.phase === 'tool_call') {
+      return formatToolProgressLabel(input.liveProgress.toolName, input.liveProgress.toolTarget, input.liveProgress.argBytes)
+    }
+    if (!input.streaming) {
+      return input.liveProgress?.phase === 'reasoning' ? TEXT.deepThinking : TEXT.thinking
+    }
   }
   return null
 }
@@ -141,18 +158,110 @@ export const RUN_INPUT_HINT = {
   idle: '继续这次对话……',
 } as const
 
-/** 进行中的状态行与工具行左对齐；文字微光表示仍在处理，走秒只算当前这次请求。 */
-function TimelineStatus({text, since, className}: {text: string; since?: number | null; className?: string}) {
+/** 进行中的状态行与工具行左对齐；文字微光表示仍在处理，走秒只算当前这次请求；有实时思考时支持悬停预览与点击展开。 */
+function TimelineStatus({
+  text,
+  since,
+  liveProgress,
+  className,
+}: {
+  text: string
+  since?: number | null
+  liveProgress?: StreamProgressState | null
+  className?: string
+}) {
   const now = useNow(since != null)
   const waited = since != null && now != null ? Math.max(0, Math.floor((now - since) / 1000)) : null
+  const progressKey = liveProgress ? `${liveProgress.runId}:${liveProgress.turn}:${liveProgress.attempt}` : null
+  const [expandedKey, setExpandedKey] = useState<string | null>(null)
+  const [fullKey, setFullKey] = useState<string | null>(null)
+  const expanded = progressKey != null && expandedKey === progressKey
+  const showFull = progressKey != null && fullKey === progressKey
+  const reasoningText = liveProgress?.reasoningText.trim() ?? ''
+  const hasReasoning = reasoningText.length > 0 && progressKey != null
+  const previewText = hasReasoning ? summarizeReasoningForHover(reasoningText) : ''
+  const panel = hasReasoning ? formatReasoningForPanel(reasoningText, showFull) : null
+  const scrollRef = useRef<HTMLDivElement>(null)
+  const followBottomRef = useRef(true)
+
+  useEffect(() => {
+    followBottomRef.current = true
+  }, [progressKey, expanded])
+
+  useEffect(() => {
+    if (!expanded) return
+    const el = scrollRef.current
+    if (el && followBottomRef.current) el.scrollTop = el.scrollHeight
+  }, [expanded, reasoningText])
+
+  const handleScroll = () => {
+    const el = scrollRef.current
+    if (!el) return
+    followBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight <= 24
+  }
+
+  const toggleButton = hasReasoning ? (
+    <button
+      type="button"
+      aria-expanded={expanded}
+      onClick={() => setExpandedKey(expanded ? null : progressKey)}
+      className="inline-flex shrink-0 items-center gap-0.5 rounded px-1.5 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-muted/70 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+    >
+      {expanded ? <ChevronDown className="size-3" aria-hidden/> : <ChevronRight className="size-3" aria-hidden/>}
+      <span>{expanded ? '收起思考' : liveProgress?.phase === 'tool_call' ? '思考过程' : '查看思考'}</span>
+    </button>
+  ) : null
+
   return (
-    <div role="status" aria-live="polite" className={cn('flex min-h-8 w-full min-w-0 items-center gap-2 px-1.5 text-meta', className)}>
-      <span aria-hidden className="relative flex size-3.5 shrink-0 items-center justify-center">
-        <span className="absolute size-2 rounded-full bg-state-running/25 animate-[status-halo_1.8s_ease-out_infinite] motion-reduce:hidden"/>
-        <span className="size-1.5 rounded-full bg-state-running"/>
-      </span>
-      <span className="text-shimmer min-w-0 truncate" title={text}>{text}</span>
-      {waited != null && waited > 0 && <span className="shrink-0 text-xs tabular-nums text-faint" aria-hidden>{waited}s</span>}
+    <div className={cn('w-full min-w-0', className)}>
+      <div role="status" aria-live="polite" className="flex min-h-8 w-full min-w-0 items-center gap-2 px-1.5 text-meta">
+        <span aria-hidden className="relative flex size-3.5 shrink-0 items-center justify-center">
+          <span className="absolute size-2 rounded-full bg-state-running/25 animate-[status-halo_1.8s_ease-out_infinite] motion-reduce:hidden"/>
+          <span className="size-1.5 rounded-full bg-state-running"/>
+        </span>
+        <span className="text-shimmer min-w-0 truncate" title={text}>{text}</span>
+        {waited != null && waited > 0 && <span className="shrink-0 text-xs tabular-nums text-faint" aria-hidden>{waited}s</span>}
+        {toggleButton && (
+          expanded ? toggleButton : (
+            <Tooltip delayDuration={280}>
+              <TooltipTrigger asChild>{toggleButton}</TooltipTrigger>
+              <TooltipContent side="bottom" align="start" sideOffset={6} className="max-w-md space-y-1.5 p-3 text-xs leading-relaxed text-muted-foreground">
+                <div className="max-h-32 overflow-hidden whitespace-pre-wrap break-words">{previewText}</div>
+                <p className="text-[11px] text-faint">点击展开实时思考</p>
+              </TooltipContent>
+            </Tooltip>
+          )
+        )}
+      </div>
+      {hasReasoning && expanded && panel && (
+        <div className="ml-6 mt-1 mb-2 rounded-lg border border-border/60 bg-muted/30">
+          {(panel.truncated || showFull) && (
+            <div className="flex items-center justify-between gap-2 border-b border-border/40 px-3 py-1 text-[11px] text-faint">
+              <span>
+                {showFull
+                  ? `完整原文（${panel.totalChars.toLocaleString()} 字）`
+                  : panel.omittedBlocks > 0
+                    ? `已自动折叠 ${panel.omittedBlocks} 处代码草稿，仅显示近期思考摘要`
+                    : '仅显示近期思考尾部内容'}
+              </span>
+              <button
+                type="button"
+                onClick={() => setFullKey(showFull ? null : progressKey)}
+                className="shrink-0 text-muted-foreground hover:text-foreground transition-colors"
+              >
+                {showFull ? '切回降噪摘要' : '查看完整原文'}
+              </button>
+            </div>
+          )}
+          <div
+            ref={scrollRef}
+            onScroll={handleScroll}
+            className="max-h-52 overflow-y-auto px-3 py-2 text-xs leading-relaxed text-muted-foreground whitespace-pre-wrap break-words"
+          >
+            {panel.text}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -162,7 +271,7 @@ export function RunStatus(props: RunStatusProps): ReactNode {
     case 'timeline': {
       const text = timelineSentence(props)
       if (!text) return null
-      return <TimelineStatus text={text} since={props.since} className={props.className}/>
+      return <TimelineStatus text={text} since={props.since} liveProgress={props.liveProgress} className={props.className}/>
     }
     case 'sidebar': {
       const mark = sidebarMark(props.status, props.waitKind, props.compacting, props.unread)

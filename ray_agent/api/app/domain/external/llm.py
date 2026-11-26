@@ -1,12 +1,26 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 import asyncio
-from typing import Protocol, List, Dict, Any, Optional, Awaitable, Callable
+from dataclasses import dataclass
+from typing import Protocol, List, Dict, Any, Optional, Awaitable, Callable, Literal
 
 from app.domain.models.llm import LLMInvokeResult, LLMUsage
 
 # 文本增量。推理内容与工具参数不经过这里。
 DeltaCallback = Callable[[str], Awaitable[None]]
+
+
+@dataclass(frozen=True)
+class ModelProgress:
+    """一次流式推理或工具参数编写进展，不落库。"""
+    phase: Literal["reasoning", "tool_call"]
+    delta: str = ""
+    tool_name: Optional[str] = None
+    tool_target: Optional[str] = None
+    arg_bytes: int = 0
+
+
+ProgressCallback = Callable[[ModelProgress], Awaitable[None]]
 
 
 class LLMRequestError(Exception):
@@ -49,11 +63,13 @@ class LLM(Protocol):
             tool_choice: str = None,
             *,
             on_delta: Optional[DeltaCallback] = None,
+            on_progress: Optional[ProgressCallback] = None,
     ) -> LLMInvokeResult:
         """传递消息列表、工具列表、响应格式、工具选择策略调用LLM接口。
 
-        流式适配在组装完整结果的同时，对每个非空文本片段调用 on_delta。
-        非流式适配忽略该回调，返回的 ttft_ms 为空。
+        流式适配在组装完整结果的同时，对每个非空文本片段调用 on_delta，
+        并对思考增量与工具参数生成进展按节流调用 on_progress。
+        非流式适配忽略这些回调，返回的 ttft_ms 为空。
         """
         ...
 

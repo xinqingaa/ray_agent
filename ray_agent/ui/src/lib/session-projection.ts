@@ -20,6 +20,7 @@ import type {
   RunSummary,
   RunView,
   SessionView,
+  StreamProgressState,
   TimelineItem,
   TokenCounts,
   ToolCallStatus,
@@ -76,6 +77,8 @@ export type ProjectSessionInput = {
   streamStartedAt?: Record<string, number>
   /** 键为 streamDraftKey。最近一个片段的时间，投影不调用 Date.now */
   streamUpdatedAt?: Record<string, number>
+  /** 键为 streamDraftKey。当前连接收到的流式思考与工具参数生成进展 */
+  progress?: Record<string, StreamProgressState>
 }
 
 /** 临时条目的键。运行 ID 是 UUID，不含冒号 */
@@ -347,6 +350,72 @@ function pickStreamingDraft(
     if (laterAttempt(failedAttempts, draft.runId, draft.turn, draft.attempt)) continue
     if (laterAttempt(assistantAttempts, draft.runId, draft.turn, draft.attempt)) continue
     chosen = draft
+  }
+  return chosen
+}
+
+const TOOL_PROGRESS_ACTION: Record<string, string> = {
+  write_file: '正在编写',
+  file_write: '正在编写',
+  replace_in_file: '正在修改',
+  file_str_replace: '正在修改',
+  update_plan: '正在规划步骤',
+  shell_execute: '正在准备命令',
+  deliver_files: '正在准备交付文件',
+  register_preview: '正在登记预览',
+}
+
+const BYTE_PROGRESS_TOOLS = new Set(['write_file', 'file_write', 'replace_in_file', 'file_str_replace'])
+
+export function formatToolProgressLabel(
+  toolName: string | null,
+  toolTarget: string | null,
+  argBytes: number,
+): string {
+  const action = toolName
+    ? (TOOL_PROGRESS_ACTION[toolName] ?? (VERBS[toolName] ? `正在准备${VERBS[toolName]}` : '正在准备调用'))
+    : '正在准备调用'
+  const target = toolTarget ? ` ${toolTarget}` : ''
+  let size = ''
+  if (argBytes >= 1024) {
+    size = `（${(argBytes / 1024).toFixed(1)} KB）`
+  } else if (argBytes >= 256 && toolName && BYTE_PROGRESS_TOOLS.has(toolName)) {
+    size = `（${argBytes} B）`
+  }
+  return `${action}${target}${size}`
+}
+
+function pickLiveProgress(
+  progressMap: Record<string, StreamProgressState> | undefined,
+  runs: Map<string, RunTrack>,
+  assistantAttempts: Set<string>,
+  failedAttempts: Set<string>,
+  completedTurns: Set<string>,
+  maxTurnIndex: Map<string, number>,
+): StreamProgressState | null {
+  if (!progressMap) return null
+  const byRun = new Map<string, StreamProgressState[]>()
+  for (const item of Object.values(progressMap)) {
+    const list = byRun.get(item.runId) ?? []
+    list.push(item)
+    byRun.set(item.runId, list)
+  }
+  let chosen: StreamProgressState | null = null
+  for (const [runId, list] of byRun) {
+    const track = runs.get(runId)
+    if (track && isTerminalRunStatus(track.status)) continue
+    const latestTurn = Math.max(maxTurnIndex.get(runId) ?? 0, ...list.map((item) => item.turn))
+    const onTurn = list.filter((item) => item.turn === latestTurn)
+    if (onTurn.length === 0) continue
+    const maxAttempt = Math.max(...onTurn.map((item) => item.attempt))
+    const item = onTurn.find((entry) => entry.attempt === maxAttempt)
+    if (!item) continue
+    const key = streamDraftKey(item.runId, item.turn, item.attempt)
+    if (assistantAttempts.has(key) || failedAttempts.has(key)) continue
+    if (completedTurns.has(`${item.runId}:${item.turn}`)) continue
+    if (laterAttempt(failedAttempts, item.runId, item.turn, item.attempt)) continue
+    if (laterAttempt(assistantAttempts, item.runId, item.turn, item.attempt)) continue
+    chosen = item
   }
   return chosen
 }
@@ -1074,6 +1143,15 @@ export function projectSession(input: ProjectSessionInput): SessionView {
       payload: {...ev.data},
     }))
 
+  const liveProgress = pickLiveProgress(
+    input.progress,
+    runs,
+    assistantAttempts,
+    failedAttempts,
+    completedTurns,
+    maxTurnIndex,
+  )
+
   return {
     id: input.id,
     title,
@@ -1096,6 +1174,7 @@ export function projectSession(input: ProjectSessionInput): SessionView {
     events: rawEvents,
     streamingItemId,
     streaming,
+    liveProgress,
   }
 }
 
@@ -1860,4 +1939,138 @@ export function canExecutePlan(view: Pick<SessionView, 'activeRun' | 'runs' | 'p
     && !!plan?.planId && plan.sourceRunId === run.id
     && plan.updatedAt >= run.startedAt && run.endedAt != null && plan.updatedAt <= run.endedAt
     && plan.items.some((item) => item.text.trim() && item.status !== 'completed')
+}
+
+const REASONING_DRAFT_PLACEHOLDER = '[已折叠代码草稿]'
+
+function isCodeLikeReasoningLine(line: string): boolean {
+  const trimmed = line.trim()
+  if (!trimmed) return false
+  // 中文自然语言长句不按代码草稿折叠，避免误伤正常的推理分析。
+  const hasRichChineseProse = /[\u4e00-\u9fa5]{5,}/.test(trimmed) && !/^\s*(\/\/|\/\*|\*)/.test(trimmed)
+  if (hasRichChineseProse) return false
+  if (
+    /^<(!DOCTYPE|html|head|meta|title|link|style|script|body|div|span|header|main|section|aside|footer|nav|table|thead|tbody|tr|td|th|button|select|option|input|textarea|label|form|dialog|svg|path|h[1-6]|p|ul|li)\b/i.test(
+      trimmed,
+    ) ||
+    /^<\/(html|head|style|script|body|div|table|thead|tbody|tr|td|th|button|select|form|section|header|main|footer|svg)>\s*$/i.test(
+      trimmed,
+    )
+  ) {
+    return true
+  }
+  if (/^(@media|@keyframes|:root|\*\s*\{|[.#][\w-]+[^;{]*\{|[a-z-]{2,28}\s*:\s*[^;{}]{1,100};?\s*$|\}\s*;?\s*$)/i.test(trimmed)) {
+    return true
+  }
+  if (
+    /^(const|let|var|function|async\s+function|class|return|if\s*\(|else\b|for\s*\(|while\s*\(|switch\s*\(|case\s+|document\.|window\.|localStorage\b|JSON\.|Array\.|Object\.|export\s+|import\s+)/.test(
+      trimmed,
+    )
+  ) {
+    return true
+  }
+  return trimmed.length >= 16 && /[{};<>]/.test(trimmed) && /[A-Za-z0-9_().=:+-]{8,}/.test(trimmed)
+}
+
+function stripDraftCodeFromReasoning(raw: string): { cleaned: string; omittedBlocks: number } {
+  const normalized = raw.replace(/\r\n/g, '\n')
+  let omittedBlocks = 0
+  const withoutFences = normalized.replace(/```[\s\S]*?(?:```|$)/g, () => {
+    omittedBlocks += 1
+    return `\n${REASONING_DRAFT_PLACEHOLDER}\n`
+  })
+  const lines = withoutFences.split('\n')
+  const out: string[] = []
+  let i = 0
+  while (i < lines.length) {
+    if (!isCodeLikeReasoningLine(lines[i])) {
+      out.push(lines[i])
+      i += 1
+      continue
+    }
+    let j = i
+    let codeCount = 0
+    while (j < lines.length) {
+      const cur = lines[j]
+      if (isCodeLikeReasoningLine(cur)) {
+        codeCount += 1
+        j += 1
+        continue
+      }
+      if (cur.trim() === '' && j + 1 < lines.length && isCodeLikeReasoningLine(lines[j + 1])) {
+        j += 1
+        continue
+      }
+      break
+    }
+    if (codeCount >= 3) {
+      omittedBlocks += 1
+      if (out[out.length - 1] !== REASONING_DRAFT_PLACEHOLDER) {
+        out.push(REASONING_DRAFT_PLACEHOLDER)
+      }
+    } else {
+      for (let k = i; k < j; k += 1) {
+        out.push(lines[k])
+      }
+    }
+    i = j
+  }
+  const collapsed = out
+    .join('\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .replace(new RegExp(`(?:${REASONING_DRAFT_PLACEHOLDER.replace(/[[\]]/g, '\\$&')}\\n?){2,}`, 'g'), `${REASONING_DRAFT_PLACEHOLDER}\n`)
+    .trim()
+  return { cleaned: collapsed, omittedBlocks }
+}
+
+export function summarizeReasoningForHover(raw: string, maxChars = 160): string {
+  const trimmed = raw.trim()
+  if (!trimmed) return ''
+  const { cleaned } = stripDraftCodeFromReasoning(trimmed)
+  const proseOnly = cleaned
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line && line !== REASONING_DRAFT_PLACEHOLDER)
+    .join(' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+  if (!proseOnly) return '正在起草代码结构与实现细节…'
+  if (proseOnly.length <= maxChars) return proseOnly
+  return `…${proseOnly.slice(-maxChars).trimStart()}`
+}
+
+export interface FormattedReasoningPanel {
+  text: string
+  truncated: boolean
+  omittedBlocks: number
+  totalChars: number
+}
+
+export function formatReasoningForPanel(
+  raw: string,
+  showFull = false,
+  tailChars = 1800,
+): FormattedReasoningPanel {
+  const trimmed = raw.trim()
+  const totalChars = trimmed.length
+  if (!trimmed) return { text: '', truncated: false, omittedBlocks: 0, totalChars: 0 }
+  if (showFull) return { text: trimmed, truncated: false, omittedBlocks: 0, totalChars }
+  const { cleaned, omittedBlocks } = stripDraftCodeFromReasoning(trimmed)
+  if (!cleaned) {
+    return { text: REASONING_DRAFT_PLACEHOLDER, truncated: omittedBlocks > 0, omittedBlocks, totalChars }
+  }
+  if (cleaned.length <= tailChars) {
+    return { text: cleaned, truncated: omittedBlocks > 0, omittedBlocks, totalChars }
+  }
+  let sliced = cleaned.slice(-tailChars)
+  const firstBreak = sliced.indexOf('\n')
+  if (firstBreak > 0 && firstBreak < 140) {
+    sliced = sliced.slice(firstBreak + 1)
+  }
+  return {
+    text: `…\n${sliced.trimStart()}`,
+    truncated: true,
+    omittedBlocks,
+    totalChars,
+  }
 }

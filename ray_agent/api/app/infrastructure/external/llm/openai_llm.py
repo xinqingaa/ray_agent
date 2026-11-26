@@ -3,14 +3,17 @@
 import asyncio
 import copy
 import base64
+import json
 import logging
+import re
+from pathlib import PurePosixPath
 from typing import Any, Dict, List, Optional
 
 import httpx
 from openai import (APIConnectionError, APIError, APIStatusError, AsyncOpenAI, DefaultAsyncHttpxClient,
                     InternalServerError, RateLimitError)
 
-from app.domain.external.llm import LLM, LLMRequestError, DeltaCallback
+from app.domain.external.llm import LLM, LLMRequestError, DeltaCallback, ModelProgress, ProgressCallback
 from app.domain.models.app_config import LLMConfig
 from app.domain.models.llm import LLMInvokeResult, LLMUsage
 from app.domain.models.clock import utc_now
@@ -153,8 +156,9 @@ class OpenAILLM(LLM):
             tool_choice: str = None,
             *,
             on_delta: Optional[DeltaCallback] = None,
+            on_progress: Optional[ProgressCallback] = None,
     ) -> LLMInvokeResult:
-        """发起一次模型请求。流式路径逐段交出文本，返回值仍是组装后的完整结果。"""
+        """发起一次模型请求。流式路径逐段交出文本并按节流推送进展，返回值仍是组装后的完整结果。"""
         prefix = log_session_prefix()
         response_type = (response_format or {}).get("type") if response_format else None
         logger.info(
@@ -166,17 +170,17 @@ class OpenAILLM(LLM):
                 raise LLMRequestError(f"{self._model_name} 未配置 API Key")
             messages = await self._materialize_images(messages)
             if self.api_protocol == 'responses':
-                return await self._account(self._invoke_responses(messages, tools, response_format, tool_choice, on_delta, prefix))
+                return await self._account(self._invoke_responses(messages, tools, response_format, tool_choice, on_delta, on_progress, prefix))
             if not self._streaming:
                 return await self._account(self._invoke_complete(messages, tools, response_format, tool_choice, prefix))
             try:
-                return await self._account(self._invoke_stream(messages, tools, response_format, tool_choice, on_delta, prefix))
+                return await self._account(self._invoke_stream(messages, tools, response_format, tool_choice, on_delta, on_progress, prefix))
             except APIStatusError as error:
                 if self._custom or not self._include_stream_usage or not _rejects_stream_options(error):
                     raise
                 self._include_stream_usage = False
                 logger.warning("供应商拒绝 stream_options，后续请求不再携带 include_usage")
-                return await self._account(self._invoke_stream(messages, tools, response_format, tool_choice, on_delta, prefix))
+                return await self._account(self._invoke_stream(messages, tools, response_format, tool_choice, on_delta, on_progress, prefix))
         except LLMRequestError as error:
             message = redact_credentials(str(error), self._api_key)
             if message == str(error):
@@ -259,13 +263,14 @@ class OpenAILLM(LLM):
             kwargs['text'] = {'format': format_spec}
         return kwargs
 
-    async def _invoke_responses(self, messages, tools, response_format, tool_choice, on_delta, prefix):
+    async def _invoke_responses(self, messages, tools, response_format, tool_choice, on_delta, on_progress, prefix):
         started = asyncio.get_running_loop().time()
         response = await self._client.responses.create(**self._responses_kwargs(messages, tools, response_format, tool_choice))
         ttft_ms = None
         first_any_at: Optional[float] = None
         first_visible_at: Optional[float] = None
         completed_at: Optional[float] = None
+        emitter = _ProgressEmitter(on_progress)
         if self._streaming:
             stream, response = response, None
             try:
@@ -273,7 +278,8 @@ class OpenAILLM(LLM):
                 async for event in chunks:
                     kind = _field(event, 'type')
                     now_t = asyncio.get_running_loop().time()
-                    item_type = _field(_field(event, 'item'), 'type') if kind == 'response.output_item.added' else None
+                    item = _field(event, 'item') if kind == 'response.output_item.added' else None
+                    item_type = _field(item, 'type') if item is not None else None
                     is_visible = kind in ('response.output_text.delta', 'response.function_call_arguments.delta') or (
                         kind == 'response.output_item.added' and item_type == 'function_call')
                     is_activity = is_visible or kind in (
@@ -281,16 +287,34 @@ class OpenAILLM(LLM):
                     ) or (kind == 'response.output_item.added' and item_type == 'reasoning')
                     if is_activity and first_any_at is None:
                         first_any_at = now_t
+                    if kind == 'response.output_item.added' and item_type == 'reasoning':
+                        await emitter.note_reasoning("", now_t)
+                    elif kind in ('response.reasoning_text.delta', 'response.reasoning_summary_text.delta'):
+                        await emitter.note_reasoning(_field(event, 'delta') or "", now_t)
+                    elif kind == 'response.output_item.added' and item_type == 'function_call':
+                        slot_key = _field(item, 'id') or _field(event, 'item_id') or _field(event, 'output_index') or 0
+                        await emitter.note_tool_call(
+                            slot_key,
+                            name=_field(item, 'name'),
+                            arg_chunk=_field(item, 'arguments') or "",
+                            now=now_t,
+                        )
+                    elif kind == 'response.function_call_arguments.delta':
+                        slot_key = _field(event, 'item_id') or _field(event, 'output_index') or 0
+                        await emitter.note_tool_call(slot_key, arg_chunk=_field(event, 'delta') or "", now=now_t)
                     if is_visible:
                         if first_visible_at is None:
                             first_visible_at = now_t
                             ttft_ms = max(0, int((now_t - started) * 1000))
-                        if kind == 'response.output_text.delta' and on_delta and _field(event, 'delta'):
-                            await on_delta(_field(event, 'delta'))
+                        if kind == 'response.output_text.delta':
+                            await emitter.flush_reasoning(now_t)
+                            if on_delta and _field(event, 'delta'):
+                                await on_delta(_field(event, 'delta'))
                     if kind == 'error':
                         logger.warning('%sResponses流失败', prefix)
                         raise response_error(_field(event, 'code'), _field(event, 'message') or '模型流错误')
                     if kind in ('response.completed', 'response.incomplete', 'response.failed'):
+                        await emitter.flush_reasoning(now_t)
                         completed_at = asyncio.get_running_loop().time()
                         response = _field(event, 'response')
                         # 完整终态已收到。短暂读取尾部 [DONE]/EOF，使 HTTP 连接可复用；
@@ -404,6 +428,7 @@ class OpenAILLM(LLM):
             response_format: Optional[Dict[str, Any]],
             tool_choice: Optional[str],
             on_delta: Optional[DeltaCallback],
+            on_progress: Optional[ProgressCallback],
             prefix: str,
     ) -> LLMInvokeResult:
         started = asyncio.get_running_loop().time()
@@ -411,6 +436,7 @@ class OpenAILLM(LLM):
             messages, tools, response_format, tool_choice, stream=True,
         ))
         assembly = _StreamAssembly()
+        emitter = _ProgressEmitter(on_progress)
         ttft_ms: Optional[int] = None
         first_any_at: Optional[float] = None
         first_visible_at: Optional[float] = None
@@ -423,12 +449,19 @@ class OpenAILLM(LLM):
                     if first_any_at is None:
                         first_any_at = now_t
                     last_chunk_at = now_t
+                if assembly.last_reasoning:
+                    await emitter.note_reasoning(assembly.last_reasoning, now_t)
+                for slot_idx, tool_name, arg_chunk in assembly.last_tool_updates:
+                    await emitter.note_tool_call(slot_idx, name=tool_name, arg_chunk=arg_chunk, now=now_t)
                 if visible:
                     if first_visible_at is None:
                         first_visible_at = now_t
                         ttft_ms = max(0, int((now_t - started) * 1000))
-                if text and on_delta is not None:
-                    await on_delta(text)
+                if text:
+                    await emitter.flush_reasoning(now_t)
+                    if on_delta is not None:
+                        await on_delta(text)
+            await emitter.flush_reasoning()
         except LLMRequestError as error:
             if error.usage is None and assembly.usage is not None:
                 error.usage = assembly.usage
@@ -501,9 +534,13 @@ class _StreamAssembly:
         self.finish_reason: Optional[str] = None
         self.usage: Optional[LLMUsage] = None
         self.service_tier: Optional[str] = None
+        self.last_reasoning: str = ""
+        self.last_tool_updates: List[tuple[int, Optional[str], str]] = []
 
     def add(self, chunk: Any) -> tuple[Optional[str], bool, bool]:
         """返回 (文本增量, 是否是可见文本或工具调用片段, 是否有任何生成活动含推理或终态)。"""
+        self.last_reasoning = ""
+        self.last_tool_updates = []
         tier = _field(chunk, "service_tier")
         if isinstance(tier, str) and tier:
             self.service_tier = tier
@@ -531,13 +568,15 @@ class _StreamAssembly:
         reasoning = _field(delta, "reasoning_content")
         if isinstance(reasoning, str) and reasoning:
             self._reasoning.append(reasoning)
+            self.last_reasoning = reasoning
             has_reasoning = True
         tool_calls = _field(delta, "tool_calls") or []
         if tool_calls:
             visible = True
             for raw in tool_calls:
                 index = _field(raw, "index")
-                slot = self._tools.setdefault(0 if index is None else int(index), {
+                slot_idx = 0 if index is None else int(index)
+                slot = self._tools.setdefault(slot_idx, {
                     "id": None, "name": "", "arguments": "",
                 })
                 call_id = _field(raw, "id")
@@ -550,6 +589,7 @@ class _StreamAssembly:
                 arguments = _field(function, "arguments")
                 if arguments:
                     slot["arguments"] = f"{slot['arguments']}{arguments}"
+                self.last_tool_updates.append((slot_idx, slot["name"] or None, arguments or ""))
         return text, visible, visible or has_reasoning or bool(finish)
 
     def message(self) -> Dict[str, Any]:
@@ -569,6 +609,103 @@ class _StreamAssembly:
                 for index, slot in sorted(self._tools.items())
             ]
         return message
+
+
+_TARGET_FIELD_RE = re.compile(r'"(filepath|path|file_path|name|query|url)"\s*:\s*"((?:\\.|[^"\\])*)"')
+
+
+def _extract_tool_target(partial_args: str) -> Optional[str]:
+    match = _TARGET_FIELD_RE.search(partial_args[:512])
+    if not match:
+        return None
+    key, raw = match.group(1), match.group(2)
+    try:
+        value = json.loads(f'"{raw}"')
+    except ValueError:
+        value = raw
+    value = str(value).strip()
+    if not value:
+        return None
+    if key in ("filepath", "path", "file_path"):
+        if "/" in value:
+            value = PurePosixPath(value).name or value
+        elif "\\" in value:
+            value = value.rsplit("\\", 1)[-1] or value
+    return value[:48]
+
+
+class _ProgressEmitter:
+    """对流式思考增量和工具参数生成做轻量节流聚合，避免逐字广播 SSE。"""
+
+    def __init__(self, on_progress: Optional[ProgressCallback]) -> None:
+        self._callback = on_progress
+        self._reasoning_started = False
+        self._reasoning_buf: List[str] = []
+        self._last_reasoning_at: float = 0.0
+        self._tools: Dict[Any, Dict[str, Any]] = {}
+
+    async def note_reasoning(self, delta: str, now: Optional[float] = None) -> None:
+        if self._callback is None:
+            return
+        now = asyncio.get_running_loop().time() if now is None else now
+        if delta:
+            self._reasoning_buf.append(delta)
+        first = not self._reasoning_started
+        self._reasoning_started = True
+        buf_len = sum(len(part) for part in self._reasoning_buf)
+        if first or buf_len >= 48 or (buf_len > 0 and now - self._last_reasoning_at >= 0.08):
+            await self.flush_reasoning(now, force_empty=first)
+
+    async def flush_reasoning(self, now: Optional[float] = None, *, force_empty: bool = False) -> None:
+        if self._callback is None:
+            self._reasoning_buf.clear()
+            return
+        text = "".join(self._reasoning_buf)
+        if not text and not force_empty:
+            return
+        self._reasoning_buf.clear()
+        self._last_reasoning_at = asyncio.get_running_loop().time() if now is None else now
+        await self._callback(ModelProgress(phase="reasoning", delta=text))
+
+    async def note_tool_call(
+            self,
+            slot_key: Any,
+            *,
+            name: Optional[str] = None,
+            arg_chunk: str = "",
+            now: Optional[float] = None,
+    ) -> None:
+        if self._callback is None:
+            return
+        now = asyncio.get_running_loop().time() if now is None else now
+        await self.flush_reasoning(now)
+        slot = self._tools.setdefault(slot_key, {
+            "name": "", "prefix": "", "target": None, "bytes": 0, "last_emit": -1.0, "emitted": False,
+        })
+        important = False
+        if name and name != slot["name"]:
+            slot["name"] = name
+            important = True
+        if arg_chunk:
+            slot["bytes"] += len(arg_chunk.encode("utf-8"))
+            if len(slot["prefix"]) < 512:
+                slot["prefix"] = (slot["prefix"] + arg_chunk)[:512]
+            if slot["target"] is None:
+                target = _extract_tool_target(slot["prefix"])
+                if target:
+                    slot["target"] = target
+                    important = True
+        if not slot["name"]:
+            return
+        if not slot["emitted"] or important or (now - slot["last_emit"] >= 0.25):
+            slot["emitted"] = True
+            slot["last_emit"] = now
+            await self._callback(ModelProgress(
+                phase="tool_call",
+                tool_name=slot["name"],
+                tool_target=slot["target"],
+                arg_bytes=slot["bytes"],
+            ))
 
 
 def _compute_decode_ms(

@@ -65,20 +65,51 @@ def test_builtin_registry_initializes_12_skills_with_denoising_and_presets_api(t
         assert set(BUILTIN_SKILLS) <= set(by_id)
         assert len([item for item in items if item.get("builtin")]) == 12
 
-        # 目录去噪：C2 / 面试 / 情绪默认不进入自由对话目录
-        assert by_id["elicitation-communication"]["included"] is False
+        # 5 项基础底座均进入默认自由对话目录；面试 / 情绪预设仅从预设或显式选择进入
         assert by_id["preset-interview"]["included"] is False
         assert by_id["preset-emotional-support"]["included"] is False
-        for included_id in ("find-skills", "research-grounding", "structured-thinking",
-                            "presentation-design", "verification-critique",
+        for included_id in ("find-skills", "elicitation-communication", "research-grounding",
+                            "structured-thinking", "presentation-design", "verification-critique",
                             "preset-ppt", "preset-excel", "preset-web-tool", "preset-doc-brief"):
             assert by_id[included_id]["included"] is True
 
         # 包含 references/ 与 scripts/ 资源
-        ppt_detail = await s.detail("preset-ppt")
-        assert {f["path"] for f in ppt_detail["files"]} == {"SKILL.md", "references/slide-patterns.md"}
-        verify_detail = await s.detail("verification-critique")
-        assert {f["path"] for f in verify_detail["files"]} == {"SKILL.md", "scripts/verify_office.py"}
+        expected_resources = {
+            "elicitation-communication": {"SKILL.md", "references/examples.md"},
+            "structured-thinking": {"SKILL.md", "references/thinking-toolkits.md"},
+            "research-grounding": {"SKILL.md", "references/deepsearch-playbook.md"},
+            "presentation-design": {"SKILL.md", "references/visual-checklist.md"},
+            "verification-critique": {"SKILL.md", "scripts/verify_office.py"},
+            "preset-emotional-support": {"SKILL.md", "references/conversation-guide.md"},
+            "preset-interview": {"SKILL.md", "references/interview-playbook.md"},
+            "preset-doc-brief": {"SKILL.md", "references/brief-templates.md"},
+            "preset-ppt": {"SKILL.md", "references/slide-patterns.md"},
+            "preset-excel": {"SKILL.md", "references/excel-engineering.md"},
+            "preset-web-tool": {"SKILL.md", "references/web-tool-patterns.md"},
+        }
+        details_by_id = {}
+        for skill_id in BUILTIN_SKILLS:
+            detail = await s.detail(skill_id)
+            details_by_id[skill_id] = detail
+            assert len(detail["description"]) <= s.settings.skill_catalog_description_chars
+            if skill_id in expected_resources:
+                assert {f["path"] for f in detail["files"]} == expected_resources[skill_id]
+            for file_meta in detail["files"]:
+                if file_meta["path"].startswith("references/"):
+                    raw = await s.file(skill_id, detail["version"], file_meta["path"])
+                    assert len(raw.decode("utf-8")) <= s.settings.skill_resource_chars
+
+        # 情绪疏导不再保留“3–6 句”机械字数上限，同时保留危机升级热线 12356，且不强绑职场腔依赖
+        emo_text = details_by_id["preset-emotional-support"]["text"]
+        assert "3–6 句" not in emo_text and "12356" in emo_text
+        assert BUILTIN_SKILLS["preset-emotional-support"].preset.depends_on == []
+
+        # 任一预设及 depends_on 组合预加载不得超出活动 Skill 总预算
+        for spec in BUILTIN_SKILLS.values():
+            if not spec.preset:
+                continue
+            preload = [spec.id, *spec.preset.depends_on]
+            assert sum(details_by_id[sid]["context_chars"] for sid in preload) < s.settings.skill_active_chars
 
         # 目录总体积远小于 24,000 上限
         included_builtins = [item for item in items if item.get("builtin") and item.get("included")]
@@ -364,3 +395,23 @@ def test_bing_search_uses_chinese_accept_language_for_cjk_queries(monkeypatch):
     assert len(seen_headers) == 2
     assert seen_headers[0]["accept-language"].startswith("zh-CN")
     assert seen_headers[1]["accept-language"].startswith("en-US")
+
+
+def test_builtin_skills_untied_from_artificial_caps():
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2] / "app" / "builtin_skills"
+    web_text = (root / "preset-web-tool" / "SKILL.md").read_text(encoding="utf-8")
+    emo_text = (root / "preset-emotional-support" / "SKILL.md").read_text(encoding="utf-8")
+    doc_brief_text = (root / "preset-doc-brief" / "SKILL.md").read_text(encoding="utf-8")
+    deepsearch_text = (root / "research-grounding" / "references" / "deepsearch-playbook.md").read_text(encoding="utf-8")
+    slide_patterns_text = (root / "preset-ppt" / "references" / "slide-patterns.md").read_text(encoding="utf-8")
+    visual_checklist_text = (root / "presentation-design" / "references" / "visual-checklist.md").read_text(encoding="utf-8")
+
+    assert "300–550 行" not in web_text
+    assert "不做字数或句数上限" in emo_text
+    assert "12356" in emo_text
+    assert "3–5 句直答" not in deepsearch_text
+    assert "超过 120 字" not in slide_patterns_text
+    assert "克制" not in doc_brief_text
+    assert "克制" not in visual_checklist_text
