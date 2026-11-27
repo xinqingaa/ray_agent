@@ -8860,6 +8860,162 @@
           }
         }
       }
+    },
+    "/api/evaluation": {
+      "get": {
+        "tags": [
+          "评测"
+        ],
+        "summary": "Overview",
+        "operationId": "overview_api_evaluation_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_EvaluationOverview_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "评测"
+        ],
+        "summary": "Start",
+        "operationId": "start_api_evaluation_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EvaluationStart"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_EvaluationBatch_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/evaluation/{batch_id}": {
+      "get": {
+        "tags": [
+          "评测"
+        ],
+        "summary": "Batch",
+        "operationId": "batch_api_evaluation__batch_id__get",
+        "parameters": [
+          {
+            "name": "batch_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Batch Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_EvaluationBatch_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/evaluation/{batch_id}/cancel": {
+      "post": {
+        "tags": [
+          "评测"
+        ],
+        "summary": "Cancel",
+        "operationId": "cancel_api_evaluation__batch_id__cancel_post",
+        "parameters": [
+          {
+            "name": "batch_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Batch Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Response_EvaluationBatch_"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "结构化错误",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -12629,6 +12785,527 @@
         ],
         "title": "ErrorSSEEvent",
         "description": "错误流式事件"
+      },
+      "EvaluationArtifact": {
+        "properties": {
+          "file_id": {
+            "type": "string",
+            "title": "File Id"
+          },
+          "filename": {
+            "type": "string",
+            "title": "Filename"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file_id",
+          "filename"
+        ],
+        "title": "EvaluationArtifact"
+      },
+      "EvaluationBatch": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          },
+          "state": {
+            "type": "string",
+            "enum": [
+              "running",
+              "completed",
+              "cancelled",
+              "interrupted",
+              "failed"
+            ],
+            "title": "State"
+          },
+          "model": {
+            "type": "string",
+            "title": "Model"
+          },
+          "cases": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "ppt",
+                "excel",
+                "brief"
+              ]
+            },
+            "type": "array",
+            "title": "Cases"
+          },
+          "repeats": {
+            "type": "integer",
+            "title": "Repeats"
+          },
+          "candidate": {
+            "type": "string",
+            "title": "Candidate"
+          },
+          "baseline": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Baseline"
+          },
+          "reference_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference Id"
+          },
+          "suite_version": {
+            "type": "string",
+            "title": "Suite Version"
+          },
+          "conditions": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Conditions"
+          },
+          "sampling": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "number"
+                }
+              ]
+            },
+            "type": "object",
+            "title": "Sampling"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/EvaluationResult"
+            },
+            "type": "array",
+            "title": "Results"
+          },
+          "current": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "created_at",
+          "state",
+          "model",
+          "cases",
+          "repeats",
+          "candidate",
+          "suite_version"
+        ],
+        "title": "EvaluationBatch"
+      },
+      "EvaluationCase": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "enum": [
+              "ppt",
+              "excel",
+              "brief"
+            ],
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "criteria": {
+            "type": "string",
+            "title": "Criteria"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "criteria"
+        ],
+        "title": "EvaluationCase"
+      },
+      "EvaluationCatalog": {
+        "properties": {
+          "cases": {
+            "items": {
+              "$ref": "#/components/schemas/EvaluationCase"
+            },
+            "type": "array",
+            "title": "Cases"
+          },
+          "candidate": {
+            "type": "string",
+            "title": "Candidate"
+          },
+          "baseline": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Baseline"
+          }
+        },
+        "type": "object",
+        "required": [
+          "cases",
+          "candidate"
+        ],
+        "title": "EvaluationCatalog"
+      },
+      "EvaluationCheck": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "passed": {
+            "type": "boolean",
+            "title": "Passed"
+          },
+          "detail": {
+            "type": "string",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "required": [
+          "label",
+          "passed",
+          "detail"
+        ],
+        "title": "EvaluationCheck"
+      },
+      "EvaluationMetrics": {
+        "properties": {
+          "elapsed_ms": {
+            "type": "integer",
+            "title": "Elapsed Ms"
+          },
+          "first_model_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Model Ms"
+          },
+          "model_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model Ms"
+          },
+          "tool_ms": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tool Ms"
+          },
+          "model_requests": {
+            "type": "integer",
+            "title": "Model Requests",
+            "default": 0
+          },
+          "tool_calls": {
+            "type": "integer",
+            "title": "Tool Calls",
+            "default": 0
+          },
+          "input_tokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Input Tokens"
+          },
+          "output_tokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Output Tokens"
+          },
+          "cost_nano_usd": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Nano Usd"
+          },
+          "cost_nano_cny": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cost Nano Cny"
+          }
+        },
+        "type": "object",
+        "required": [
+          "elapsed_ms"
+        ],
+        "title": "EvaluationMetrics"
+      },
+      "EvaluationOverview": {
+        "properties": {
+          "catalog": {
+            "$ref": "#/components/schemas/EvaluationCatalog"
+          },
+          "batches": {
+            "items": {
+              "$ref": "#/components/schemas/EvaluationBatch"
+            },
+            "type": "array",
+            "title": "Batches"
+          }
+        },
+        "type": "object",
+        "required": [
+          "catalog",
+          "batches"
+        ],
+        "title": "EvaluationOverview"
+      },
+      "EvaluationResult": {
+        "properties": {
+          "case_id": {
+            "type": "string",
+            "enum": [
+              "ppt",
+              "excel",
+              "brief"
+            ],
+            "title": "Case Id"
+          },
+          "side": {
+            "type": "string",
+            "enum": [
+              "baseline",
+              "candidate"
+            ],
+            "title": "Side"
+          },
+          "repetition": {
+            "type": "integer",
+            "title": "Repetition"
+          },
+          "outcome": {
+            "type": "string",
+            "enum": [
+              "passed",
+              "failed",
+              "error"
+            ],
+            "title": "Outcome"
+          },
+          "checks": {
+            "items": {
+              "$ref": "#/components/schemas/EvaluationCheck"
+            },
+            "type": "array",
+            "title": "Checks"
+          },
+          "artifacts": {
+            "items": {
+              "$ref": "#/components/schemas/EvaluationArtifact"
+            },
+            "type": "array",
+            "title": "Artifacts"
+          },
+          "metrics": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EvaluationMetrics"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "run_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Run Id"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "reply": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reply"
+          }
+        },
+        "type": "object",
+        "required": [
+          "case_id",
+          "side",
+          "repetition",
+          "outcome"
+        ],
+        "title": "EvaluationResult"
+      },
+      "EvaluationStart": {
+        "properties": {
+          "model": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Model"
+          },
+          "cases": {
+            "items": {
+              "type": "string",
+              "enum": [
+                "ppt",
+                "excel",
+                "brief"
+              ]
+            },
+            "type": "array",
+            "maxItems": 3,
+            "minItems": 1,
+            "title": "Cases"
+          },
+          "repeats": {
+            "type": "integer",
+            "maximum": 3.0,
+            "minimum": 1.0,
+            "title": "Repeats",
+            "default": 1
+          },
+          "compare": {
+            "type": "boolean",
+            "title": "Compare",
+            "default": false
+          },
+          "request_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Request Id"
+          },
+          "reference_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reference Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "model",
+          "cases",
+          "request_id"
+        ],
+        "title": "EvaluationStart"
       },
       "EventVersion": {
         "type": "integer",
@@ -17723,6 +18400,44 @@
           "data"
         ],
         "title": "Response[DocumentSourceView]"
+      },
+      "Response_EvaluationBatch_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EvaluationBatch"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "Response[EvaluationBatch]"
+      },
+      "Response_EvaluationOverview_": {
+        "properties": {
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EvaluationOverview"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "data"
+        ],
+        "title": "Response[EvaluationOverview]"
       },
       "Response_File_": {
         "properties": {

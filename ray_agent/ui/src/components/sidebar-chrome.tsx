@@ -45,7 +45,7 @@ export function MainShell({children, listAvailable}: {children: ReactNode; listA
   const knowledge = route.workspaceId !== null && pathname.replace(/\/$/, '') === workspaceKnowledgeHref(route.workspaceId)
   const searchAvailable = Boolean(home || pathname === '/' || sessionId)
   const listOpen = listAvailable && (isMobile ? openMobile : open)
-  const pageTitle = isSettingsPath(pathname) ? '设置' : pathname === '/skills' ? 'Skill' : pathname === '/components' ? '运行组件' : pathname === '/workspaces' ? '工作区' : '新对话'
+  const pageTitle = isSettingsPath(pathname) ? '设置' : pathname === '/skills' ? 'Skill' : pathname === '/components' ? '运行组件' : pathname === '/evaluation' ? '评测' : pathname === '/workspaces' ? '工作区' : '新对话'
 
   useEffect(() => {
     if (!searchAvailable) return

@@ -111,6 +111,15 @@
 | 文本增量、首字延迟与失败尝试 | [openai_llm.py](../ray_agent/api/app/infrastructure/external/llm/openai_llm.py) 组装；[agent_loop.py](../ray_agent/api/app/domain/services/flows/agent_loop.py) 回调与尝试；[run_ledger.py](../ray_agent/api/app/domain/services/run_ledger.py) 发布；[session_routes.py](../ray_agent/api/app/interfaces/endpoints/session_routes.py) 映射 | [test_streaming_loop.py](../ray_agent/api/tests/core/test_streaming_loop.py)、[test_openai_stream.py](../ray_agent/api/tests/core/test_openai_stream.py) |
 | SSE、会话详情与请求读取 | [session_routes.py](../ray_agent/api/app/interfaces/endpoints/session_routes.py)（详情含 `workspace_id`，界面按它归位地址） | [test_sqlite_storage.py](../ray_agent/api/tests/core/test_sqlite_storage.py)、[test_streaming_loop.py](../ray_agent/api/tests/core/test_streaming_loop.py)、[test_workspace_routes.py](../ray_agent/api/tests/app/interfaces/endpoints/test_workspace_routes.py) |
 
+## 桌面开发者评测
+
+| 机制 | 主要入口 |
+|---|---|
+| 用例、材料与交付断言 | [evaluation_cases.py](../ray_agent/api/app/application/services/evaluation_cases.py) |
+| 本机批次、双版本条件和成果保留 | [evaluation_service.py](../ray_agent/api/app/application/services/evaluation_service.py)、[评测接口](../ray_agent/api/app/interfaces/endpoints/evaluation_routes.py) |
+| 独立核心进程与任务调用 | [评测 sidecar 适配](../ray_agent/api/app/infrastructure/external/evaluation/sidecar.py) |
+| 设置入口与证据页面 | [设置导航](../ray_agent/ui/src/components/settings/settings-view.tsx)、[评测页面](../ray_agent/ui/src/pages/evaluation.tsx)、[用例详情](../ray_agent/ui/src/components/evaluation/evaluation-detail.tsx) |
+
 ## 状态与持久化
 
 | 机制 | 主要入口 | 回归测试 |

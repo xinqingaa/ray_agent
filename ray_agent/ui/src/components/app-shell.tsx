@@ -94,7 +94,7 @@ export function AppShell({children}: {children: ReactNode}) {
   useEffect(() => {
     if (workspaceId) setExpanded(current => Object.hasOwn(current, workspaceId) ? current : {...current, [workspaceId]: true})
   }, [workspaceId])
-  const section: RailSection = inSettings ? 'settings' : pathname === '/skills' ? 'skills' : pathname === '/components' ? 'components' : pathname.startsWith('/workspaces') ? 'workspaces' : 'independent'
+  const section: RailSection = inSettings || pathname === '/evaluation' ? 'settings' : pathname === '/skills' ? 'skills' : pathname === '/components' ? 'components' : pathname.startsWith('/workspaces') ? 'workspaces' : 'independent'
   const listAvailable = section === 'independent' || section === 'workspaces'
 
   return <WorkspacesProvider>

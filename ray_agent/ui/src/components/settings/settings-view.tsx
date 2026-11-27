@@ -2,6 +2,7 @@ import {Activity, ArrowLeft, BookOpen, ChevronRight, Folder, Globe, Inbox, Packa
 import {useCallback, useEffect, useLayoutEffect, useRef, useState} from 'react'
 import {toast} from 'sonner'
 import {Button} from '@/components/ui/button'
+import {useDeveloperMode} from '@/hooks/use-developer-mode'
 import {TopbarActions} from '@/components/sidebar-chrome'
 import {Link, useRouter} from '@/lib/navigation'
 import {useLocation, useSearchParams} from 'react-router'
@@ -38,6 +39,7 @@ type FormState = {dirty: boolean; saving: boolean; invalid: boolean; saveError: 
 
 export function SettingsView() {
   const router = useRouter()
+  const {enabled: developerMode} = useDeveloperMode()
   const location = useLocation()
   const [params, setParams] = useSearchParams()
   const source = settingsSource(location.state)
@@ -149,6 +151,11 @@ export function SettingsView() {
                 <Link href="/components"><Package aria-hidden/>运行组件<ChevronRight className="ml-auto size-3.5" aria-hidden/></Link>
               </Button>
             </li>
+            {developerMode && <li className="shrink-0">
+              <Button asChild variant="ghost" className="w-full justify-start gap-2.5 rounded-[10px] px-3 text-muted-foreground">
+                <Link href="/evaluation"><Activity aria-hidden/>评测<ChevronRight className="ml-auto size-3.5" aria-hidden/></Link>
+              </Button>
+            </li>}
           </ul>
         </nav>
 

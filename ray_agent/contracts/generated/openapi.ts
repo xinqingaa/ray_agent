@@ -2878,6 +2878,58 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/evaluation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Overview */
+        get: operations["overview_api_evaluation_get"];
+        put?: never;
+        /** Start */
+        post: operations["start_api_evaluation_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/evaluation/{batch_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Batch */
+        get: operations["batch_api_evaluation__batch_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/evaluation/{batch_id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cancel */
+        post: operations["cancel_api_evaluation__batch_id__cancel_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -4299,6 +4351,177 @@ export interface components {
              */
             event: "error";
             data: components["schemas"]["ErrorEventData"];
+        };
+        /** EvaluationArtifact */
+        EvaluationArtifact: {
+            /** File Id */
+            file_id: string;
+            /** Filename */
+            filename: string;
+        };
+        /** EvaluationBatch */
+        EvaluationBatch: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "running" | "completed" | "cancelled" | "interrupted" | "failed";
+            /** Model */
+            model: string;
+            /** Cases */
+            cases: ("ppt" | "excel" | "brief")[];
+            /** Repeats */
+            repeats: number;
+            /** Candidate */
+            candidate: string;
+            /** Baseline */
+            baseline?: string | null;
+            /** Reference Id */
+            reference_id?: string | null;
+            /** Suite Version */
+            suite_version: string;
+            /** Conditions */
+            conditions?: string | null;
+            /** Sampling */
+            sampling?: {
+                [key: string]: number;
+            };
+            /** Results */
+            results?: components["schemas"]["EvaluationResult"][];
+            /** Current */
+            current?: string | null;
+            /** Error */
+            error?: string | null;
+        };
+        /** EvaluationCase */
+        EvaluationCase: {
+            /**
+             * Id
+             * @enum {string}
+             */
+            id: "ppt" | "excel" | "brief";
+            /** Title */
+            title: string;
+            /** Criteria */
+            criteria: string;
+        };
+        /** EvaluationCatalog */
+        EvaluationCatalog: {
+            /** Cases */
+            cases: components["schemas"]["EvaluationCase"][];
+            /** Candidate */
+            candidate: string;
+            /** Baseline */
+            baseline?: string | null;
+        };
+        /** EvaluationCheck */
+        EvaluationCheck: {
+            /** Label */
+            label: string;
+            /** Passed */
+            passed: boolean;
+            /** Detail */
+            detail: string;
+        };
+        /** EvaluationMetrics */
+        EvaluationMetrics: {
+            /** Elapsed Ms */
+            elapsed_ms: number;
+            /** First Model Ms */
+            first_model_ms?: number | null;
+            /** Model Ms */
+            model_ms?: number | null;
+            /** Tool Ms */
+            tool_ms?: number | null;
+            /**
+             * Model Requests
+             * @default 0
+             */
+            model_requests: number;
+            /**
+             * Tool Calls
+             * @default 0
+             */
+            tool_calls: number;
+            /** Input Tokens */
+            input_tokens?: number | null;
+            /** Output Tokens */
+            output_tokens?: number | null;
+            /** Cost Nano Usd */
+            cost_nano_usd?: number | null;
+            /** Cost Nano Cny */
+            cost_nano_cny?: number | null;
+        };
+        /** EvaluationOverview */
+        EvaluationOverview: {
+            catalog: components["schemas"]["EvaluationCatalog"];
+            /** Batches */
+            batches: components["schemas"]["EvaluationBatch"][];
+        };
+        /** EvaluationResult */
+        EvaluationResult: {
+            /**
+             * Case Id
+             * @enum {string}
+             */
+            case_id: "ppt" | "excel" | "brief";
+            /**
+             * Side
+             * @enum {string}
+             */
+            side: "baseline" | "candidate";
+            /** Repetition */
+            repetition: number;
+            /**
+             * Outcome
+             * @enum {string}
+             */
+            outcome: "passed" | "failed" | "error";
+            /** Checks */
+            checks?: components["schemas"]["EvaluationCheck"][];
+            /** Artifacts */
+            artifacts?: components["schemas"]["EvaluationArtifact"][];
+            metrics?: components["schemas"]["EvaluationMetrics"] | null;
+            /** Run Id */
+            run_id?: string | null;
+            /** Note */
+            note?: string | null;
+            /** Reply */
+            reply?: string | null;
+        };
+        /** EvaluationStart */
+        EvaluationStart: {
+            /** Model */
+            model: string;
+            /** Cases */
+            cases: ("ppt" | "excel" | "brief")[];
+            /**
+             * Repeats
+             * @default 1
+             */
+            repeats: number;
+            /**
+             * Compare
+             * @default false
+             */
+            compare: boolean;
+            /**
+             * Request Id
+             * Format: uuid
+             */
+            request_id: string;
+            /** Reference Id */
+            reference_id?: string | null;
         };
         /** @description 事件结构版本 */
         EventVersion: number;
@@ -6296,6 +6519,14 @@ export interface components {
         /** Response[DocumentSourceView] */
         Response_DocumentSourceView_: {
             data: components["schemas"]["DocumentSourceView"] | null;
+        };
+        /** Response[EvaluationBatch] */
+        Response_EvaluationBatch_: {
+            data: components["schemas"]["EvaluationBatch"] | null;
+        };
+        /** Response[EvaluationOverview] */
+        Response_EvaluationOverview_: {
+            data: components["schemas"]["EvaluationOverview"] | null;
         };
         /** Response[File] */
         Response_File_: {
@@ -13801,6 +14032,130 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Response_ASRResult_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    overview_api_evaluation_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_EvaluationOverview_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    start_api_evaluation_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EvaluationStart"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_EvaluationBatch_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    batch_api_evaluation__batch_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                batch_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_EvaluationBatch_"];
+                };
+            };
+            /** @description 结构化错误 */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorResponse"];
+                };
+            };
+        };
+    };
+    cancel_api_evaluation__batch_id__cancel_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                batch_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Response_EvaluationBatch_"];
                 };
             };
             /** @description 结构化错误 */

@@ -197,6 +197,8 @@ async def lifespan(app: FastAPI):
         await start_static_preview_server()
         yield
     finally:
+        from app.interfaces.endpoints.evaluation_routes import service as evaluation_service
+        await evaluation_service().close()
         sweeper.cancel()
         tidier.cancel()
         for task in (sweeper, tidier):

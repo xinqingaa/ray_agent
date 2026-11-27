@@ -136,6 +136,7 @@ node scripts/check-effort-slider.cjs
 node scripts/check-process-block.cjs
 node scripts/check-developer-mode.cjs
 node scripts/check-workbench-width.cjs
+node scripts/check-evaluation-summary.cjs
 node scripts/check-inspector-toolbar.cjs
 node scripts/check-font-size-selection.cjs
 node scripts/check-voice-toolbar.cjs

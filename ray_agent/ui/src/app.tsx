@@ -12,6 +12,7 @@ import {HomePage} from '@/pages/home'
 import {SessionPage} from '@/pages/session'
 import {WorkspaceBackgroundPage, WorkspaceDirectoryPage, WorkspaceHomePage, WorkspaceLayout, WorkspaceSessionPage} from '@/pages/workspace'
 import {WorkspaceKnowledgePage} from '@/components/workspace/knowledge-page'
+import {EvaluationPage} from '@/pages/evaluation'
 import {RuntimeComponentsPage} from '@/components/settings/components-section'
 
 const ComponentCatalog = import.meta.env.DEV
@@ -22,6 +23,7 @@ const TITLES: Array<[RegExp, string]> = [
   [/^\/workspaces/, '工作区 · RayAgent'],
   [/^\/skills/, 'Skill · RayAgent'],
   [/^\/settings/, '设置 · RayAgent'],
+  [/^\/evaluation/, '评测 · RayAgent'],
   [/^\/dev\/components/, '组件状态目录 · RayAgent'],
 ]
 
@@ -53,6 +55,7 @@ function CoreApp() {
           <Route path="skills" element={<SkillsPage/>}/>
           <Route path="components" element={<RuntimeComponentsPage/>}/>
           <Route path="settings" element={<SettingsView/>}/>
+          <Route path="evaluation" element={<EvaluationPage/>}/>
           <Route path="*" element={<Navigate to="/" replace/>}/>
         </Route>
       </Routes>
