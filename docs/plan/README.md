@@ -10,6 +10,8 @@
 |---|---|
 | 桌面验收修复与应用内项目预览 | [桌面验收修复与项目预览计划](desktop-acceptance-remediation.md) |
 | 基础能力底座与内置场景预设工作流 | [基础能力底座与内置场景预设工作流计划](capability-foundation-and-presets.md) |
+| 评测平台升级、版本号体系与缓存修复 | [评测平台升级、版本号体系与 KV-Cache 抖动修复计划](evaluation-platform.md) |
+| 1.0.0 发版准备、文档收敛与 Skill 升级 | [1.0.0 发版准备、文档深度收敛与 Skill 升级计划](release-1.0.0-preparation.md) |
 | OpenAI 转写 | [语音转写扩展](usage-models-voice.md) |
 | 签名、更新、离线包与移动分发 | [客户端与分发](clients-and-distribution.md) |
 | 完整备份恢复与正式更新 | [本机核心](local-runtime-and-storage.md) |
